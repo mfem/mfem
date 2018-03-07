@@ -61,6 +61,8 @@ void GetLocalCoordMap3D(vector<pair<int,int> >& map, const int nb_rot = 0);
 void GetChangeOfBasis(const IntMatrix& base_K1, IntMatrix& base_K2,
 								const vector<pair<int,int> >& map, IntMatrix& P);
 
+void GetChangeOfBasis(const int permutation, IntMatrix& P);
+
 /**
 *	Returns the change of coordinate from second element to first element on a 2D face.
 */
@@ -77,6 +79,10 @@ void GetIdRotInfo(const int face_info, int& face_id, int& nb_rot);
 *  like configuration.
 */
 int Permutation2D(const int face_id_trial, const int face_id_test);
+
+void Permutation3D(const int face_id1, const int face_id2, const int orientation, int perm1, int perm2);
+
+void Permutation(const int dim, const int face_id1, const int face_id2, const int orientation, int perm1, int perm2);
 
 }
 

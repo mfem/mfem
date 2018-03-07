@@ -276,19 +276,6 @@ void GetChangeOfBasis(const IntMatrix& base_K1, IntMatrix& base_K2,
 	}
 }
 
-void GetChangeOfBasis(const int face_id1, const int face_id2,
-						const int orientation, IntMatrix& P)
-{
-	IntMatrix K1(3,3).Zero();
-	InitFaceCoord3D(face_id1, K1);
-	IntMatrix K2(3,3).Zero();
-	InitFaceCoord3D(face_id2, K2);
-	vector< pair<int,int> > map;
-	GetLocalCoordMap3D(map, orientation);
-	IntMatrix P(3,3).Zero();
-	GetChangeOfBasis(K1, K2, map, P);
-}
-
 void GetChangeOfBasis2D(const int face_id1, const int face_id2, IntMatrix& P)
 {
 	// We add 8 because of C++ stupid definition of modulo
@@ -349,27 +336,6 @@ void GetIdRotInfo(const int face_info, int& face_id, int& nb_rot){
 	nb_rot = orientation;// / 2;
 }
 
-void Permutation(const int dim, const int face_id1, const int face_id2, const int orientation, int perm1, int perm2)
-{
-	int result;
-	switch(dim){
-		case 1:
-			mfem_error("Not yet implemented");
-			break;
-		case 2:
-			perm1 = Permutation2D(face_id1, face_id2);
-			perm2 = Permutation2D(face_id2, face_id1);
-			break;
-		case 3:
-			Permutation3D(face_id_trial, face_id_test, orientation, perm1, perm2);
-			break;
-		default:
-			mfem_error("Dimension of the problem too high.");
-			break;
-	}
-	return result;
-}
-
 /**
 *	Returns the permutation id, so that we can permute dofs to be in a structured case.
 */
@@ -385,13 +351,16 @@ int Permutation2D(const int face_id_trial, const int face_id_test)
 */
 void Permutation3D(const int face_id1, const int face_id2, const int orientation, int perm1, int perm2)
 {
-	IntMatrix K1(3,3).Zero();
+	IntMatrix K1(3,3);
+	K1.Zero();
 	InitFaceCoord3D(face_id1, K1);
-	IntMatrix K2(3,3).Zero();
+	IntMatrix K2(3,3);
+	K2.Zero();
 	InitFaceCoord3D(face_id2, K2);
 	vector< pair<int,int> > map;
 	GetLocalCoordMap3D(map, orientation);
-	IntMatrix P(3,3).Zero();
+	IntMatrix P(3,3);
+	P.Zero();
 	GetChangeOfBasis(K1, K2, map, P);
 	perm1 = 0;
 	perm1 += 100*(0*(P(0,0)==-1) + 1*(P(0,0)==1) + 2*(P(1,0)==-1) + 3*(P(1,0)==1) + 4*(P(2,0)==-1) + 5*(P(2,0)==1));
@@ -401,6 +370,25 @@ void Permutation3D(const int face_id1, const int face_id2, const int orientation
 	perm2 += 100*(0*(P(0,0)==-1) + 1*(P(0,0)==1) + 2*(P(0,1)==-1) + 3*(P(0,1)==1) + 4*(P(0,2)==-1) + 5*(P(0,2)==1));
 	perm2 += 10 *(0*(P(1,0)==-1) + 1*(P(1,0)==1) + 2*(P(1,1)==-1) + 3*(P(1,1)==1) + 4*(P(1,2)==-1) + 5*(P(1,2)==1));
 	perm2 +=     (0*(P(2,0)==-1) + 1*(P(2,0)==1) + 2*(P(2,1)==-1) + 3*(P(2,1)==1) + 4*(P(2,2)==-1) + 5*(P(2,2)==1));
+}
+
+void Permutation(const int dim, const int face_id1, const int face_id2, const int orientation, int perm1, int perm2)
+{
+	switch(dim){
+		case 1:
+			mfem_error("Not yet implemented");
+			break;
+		case 2:
+			perm1 = Permutation2D(face_id1, face_id2);
+			perm2 = Permutation2D(face_id2, face_id1);
+			break;
+		case 3:
+			Permutation3D(face_id1, face_id2, orientation, perm1, perm2);
+			break;
+		default:
+			mfem_error("Dimension of the problem too high.");
+			break;
+	}
 }
 
 }

@@ -250,6 +250,11 @@ public:
       return data;
    }
 
+   const Scalar* getData() const
+   {
+      return data;
+   }
+
    /**
    *  Basic printing method.
    */

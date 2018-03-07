@@ -1917,12 +1917,13 @@ void Permutation::Permutation2d(int face_id, int nbe, int dofs1d, KData& kernel_
    }
 }
 
-void Permutation::Permutation3d(int face_id, int nbe, int dofs1d, KData& kernel_data, const Tensor3d& T0,
-                     Tensor3d& T0p)
+void Permutation::Permutation3d(int face_id, int nbe, int dofs1d, KData& kernel_data, const Tensor4d& T0,
+                     Tensor4d& T0p)
 {
-   U = T0.getData();
-   int ii, jj, kk;
+   const double* U = T0.getData();
+   int elt, ii, jj, kk;
    const int step_elt = dofs1d*dofs1d*dofs1d;
+   elt = 0;
    for (int e = 0; e < nbe; ++e)
    {
       const int trial = kernel_data(e,face_id).indirection;
@@ -1944,7 +1945,7 @@ void Permutation::Permutation3d(int face_id, int nbe, int dofs1d, KData& kernel_
             ii = begin_ii;
             for (int i = 0; i < dofs1d; ++i)
             {
-               T0p(i,j,k) = U[ elt + ii + jj + kk ];
+               T0p(i,j,k,e) = U[ elt + ii + jj + kk ];
                ii += step_ii;
             }
             jj += step_jj;
