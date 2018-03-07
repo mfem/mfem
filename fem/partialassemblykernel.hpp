@@ -141,432 +141,6 @@ static void ComputeBasis1d(const FiniteElement *fe, int order, Tensor& shape1d, 
 }
 
 
-/////////////////////////////////////////////////
-//                                             //
-//                                             //
-//        PARTIAL ASSEMBLY INTEGRATORS         //
-//                                             //
-//                                             //
-/////////////////////////////////////////////////
-
-/**
-*  The different operators available for the Kernels
-*/
-enum PAOp { BtDB, BtDG, GtDB, GtDG };
-
-  //////////////////////////////
- // Available Domain Kernels //
-//////////////////////////////
-
-/**
-*  A shortcut for DummyDomainPAK type names
-*/
-template <typename Equation, PAOp OpName>
-// template <PAOp OpName>
-class DummyDomainPAK;
-
-  /////////////////////////////
- // Domain Kernel Interface //
-/////////////////////////////
-
-/**
-*  A partial assembly Integrator class for domain integrals.
-*  Takes an Equation template, that must contain OpName of type PAOp
-*  and an evalD function, that receives a res vector, the element
-*  transformation and the integration point, and then whatever is needed
-*  to compute at the point (Coefficient, VectorCoeffcient, etc...)
-*/
-template < typename Equation,
-            template<typename,PAOp> class IMPL = DummyDomainPAK>
-class PADomainInt
-: public IMPL<Equation,Equation::OpName>::Op
-{
-private:
-   typedef typename IMPL<Equation,Equation::OpName>::Op Op;
-
-public:
-   template <typename... Args>
-   PADomainInt(FiniteElementSpace *fes, const int order, Args... args)
-   : Op(fes,order,args...)
-   {
-   }
-
-   /**
-   *  Applies the partial assembly operator.
-   */
-   virtual void AssembleVector(const FiniteElementSpace &fes, const Vector &fun, Vector &vect)
-   {
-      this->eval(fun, vect);  
-   }
-
-};
-
-
-  ////////////////////////////
- // Available Face Kernels //
-////////////////////////////
-
-/**
-*  The Operator selector class
-*/
-template <typename Equation, PAOp Op>
-class FacePAK;
-
-  ///////////////////////////
- // Face Kernel Interface //
-///////////////////////////
-
-/**
-*  A dummy partial assembly Integrator interface class for face integrals
-*/
-template <typename Equation, template<typename,PAOp> class IMPL = FacePAK>
-class PAFaceInt
-: public IMPL<Equation,Equation::FaceOpName>::Op
-{
-private:
-   typedef typename IMPL<Equation,Equation::FaceOpName>::Op Op;
-public:
-   template <typename... Args>
-   PAFaceInt(FiniteElementSpace* fes, const int order, Args... args)
-   : Op(fes, order, args...)
-   {}
-
-   // Perform the action of the BilinearFormIntegrator
-   virtual void AssembleVector(const FiniteElementSpace &fes, const Vector &fun, Vector &vect)
-   {
-      this->EvalInt(fun, vect);
-      this->EvalExt(fun, vect);
-   }
-};
-
-/////////////////////////////////////////////////
-//                                             //
-//                                             //
-//            DUMMY DOMAIN KERNEL              //
-//                                             //
-//                                             //
-/////////////////////////////////////////////////
-
-
-/**
-*  A class that implement a BtDB partial assembly Kernel
-*/
-template <typename Equation>
-class DummyMultBtDB: public BilinearFormIntegrator, Equation
-{
-public:
-   static const int dimD = 2;
-   using DTensor = Tensor<dimD,double>;
-   using Tensor2d = DenseMatrix;
-
-protected:
-   FiniteElementSpace *fes;
-   Tensor2d shape1d;
-   DTensor D;
-
-public:
-   template <typename... Args>
-   DummyMultBtDB(FiniteElementSpace* _fes, int order, Args... args)
-   : BilinearFormIntegrator(&IntRules.Get(_fes->GetFE(0)->GetGeomType(), order)),
-     fes(_fes), D()
-   {
-      ComputeBasis1d(fes->GetFE(0), order, shape1d);
-      const int nb_elts = fes->GetNE();
-      const int quads  = IntRule->GetNPoints();
-      const FiniteElement* fe = fes->GetFE(0);
-      int dim = fe->GetDim();
-      this->D.setSize(dim,quads,nb_elts);
-      double res = 0.0;
-      for (int e = 0; e < nb_elts; ++e)
-      {
-         ElementTransformation *Tr = fes->GetElementTransformation(e);
-         for (int k = 0; k < quads; ++k)
-         {
-            const IntegrationPoint &ip = IntRule->IntPoint(k);
-            Tr->SetIntPoint(&ip);
-            this->evalD(res, Tr, ip, args...);
-            this->D(k,e) = res;
-         }
-      }
-   }
-
-   /**
-   * Computes V = B^T D B U where B is a tensor product of shape1d. 
-   */
-   void eval(const Vector &U, Vector &V)
-   {
-      int dim = fes->GetFE(0)->GetDim();
-      switch(dim)
-      {
-      case 1:MultBtDB1(U,V); break;
-      case 2:MultBtDB2(U,V); break;
-      case 3:MultBtDB3(U,V); break;
-      default: mfem_error("More than # dimension not yet supported"); break;
-      }
-   }
-
-private:
-   /**
-   *  The Dummy Kernels for BtDB in 1d,2d and 3d.
-   */
-   void MultBtDB1(const Vector &V, Vector &U);
-   void MultBtDB2(const Vector &V, Vector &U);
-   void MultBtDB3(const Vector &V, Vector &U);  
-
-};
-
-
-/**
-*  A class that implement a GtDG partial assembly Kernel
-*/
-template <typename Equation>
-class DummyMultGtDG: public BilinearFormIntegrator, Equation
-{
-public:
-   static const int dimD = 4;
-   using DTensor = Tensor<dimD,double>;
-   using Tensor2d = DenseMatrix;
-
-protected:
-   FiniteElementSpace *fes;
-   Tensor2d shape1d, dshape1d;
-   DTensor D;
-
-public:
-   template <typename... Args>
-   DummyMultGtDG(FiniteElementSpace* _fes, int order, Args... args)
-   : BilinearFormIntegrator(&IntRules.Get(_fes->GetFE(0)->GetGeomType(), order)),
-     fes(_fes), D()
-   {
-      ComputeBasis1d(fes->GetFE(0), order, shape1d, dshape1d);
-      const int nb_elts = fes->GetNE();
-      const int quads  = IntRule->GetNPoints();
-      const FiniteElement* fe = fes->GetFE(0);
-      int dim = fe->GetDim();
-      Tensor<2> res(dim,dim);
-      this->D.setSize(dim,quads,nb_elts);
-      for (int e = 0; e < nb_elts; ++e)
-      {
-         ElementTransformation *Tr = fes->GetElementTransformation(e);
-         for (int k = 0; k < quads; ++k)
-         {
-            const IntegrationPoint &ip = IntRule->IntPoint(k);
-            Tr->SetIntPoint(&ip);
-            this->evalD(res, Tr, ip, args...);
-            for (int i = 0; i < dim; ++i)
-            {
-               for (int j = 0; j < dim; ++j)
-               {
-                  this->D(i,j,k,e) = res(i,j);
-               }
-            }
-         }
-      }
-   }
-
-   /**
-   * Computes V = G^T D G U where G is a tensor product of shape1d and dshape1d. 
-   */
-   void eval(const Vector &U, Vector &V)
-   {
-      int dim = fes->GetFE(0)->GetDim();
-      switch(dim)
-      {
-      case 1:MultGtDG1(U,V); break;
-      case 2:MultGtDG2(U,V); break;
-      case 3:MultGtDG3(U,V); break;
-      default: mfem_error("More than # dimension not yet supported"); break;
-      }
-   }
-
-private:
-   /**
-   *  The Dummy Kernels for GtDG in 1d,2d and 3d.
-   */
-   void MultGtDG1(const Vector &V, Vector &U);
-   void MultGtDG2(const Vector &V, Vector &U);
-   void MultGtDG3(const Vector &V, Vector &U);
-
-};
-
-
-/**
-*  A class that implement a BtDG partial assembly Kernel
-*/
-template <typename Equation>
-class DummyMultBtDG: public BilinearFormIntegrator, Equation
-{
-public:
-   static const int dimD = 3;
-   using DTensor = Tensor<dimD,double>;
-   using Tensor2d = DenseMatrix;
-
-protected:
-   FiniteElementSpace *fes;
-   Tensor2d shape1d, dshape1d;
-   DTensor D;
-
-public:
-   template <typename... Args>
-   DummyMultBtDG(FiniteElementSpace* _fes, int order, Args... args)
-   : BilinearFormIntegrator(&IntRules.Get(_fes->GetFE(0)->GetGeomType(), order)),
-     fes(_fes), D()
-   {
-      ComputeBasis1d(fes->GetFE(0), order, shape1d, dshape1d);
-      const int nb_elts = fes->GetNE();
-      const int quads  = IntRule->GetNPoints();
-      const FiniteElement* fe = fes->GetFE(0);
-      int dim = fe->GetDim();
-      Tensor<1> res(dim);
-      this->D.setSize(dim,quads,nb_elts);
-      for (int e = 0; e < nb_elts; ++e)
-      {
-         ElementTransformation *Tr = fes->GetElementTransformation(e);
-         for (int k = 0; k < quads; ++k)
-         {
-            const IntegrationPoint &ip = IntRule->IntPoint(k);
-            Tr->SetIntPoint(&ip);
-            this->evalD(res, Tr, ip, args...);
-            for (int i = 0; i < dim; ++i)
-            {
-               this->D(i,k,e) = res(i);
-            }
-         }
-      }
-   }
-
-   /**
-   * Computes V = B^T D G U where B and G are a tensor product of shape1d and dshape1d. 
-   */
-   void eval(const Vector &U, Vector &V)
-   {
-      int dim = fes->GetFE(0)->GetDim();
-      switch(dim)
-      {
-      case 1:MultBtDG1(U,V); break;
-      case 2:MultBtDG2(U,V); break;
-      case 3:MultBtDG3(U,V); break;
-      default: mfem_error("More than # dimension not yet supported"); break;
-      }
-   }
-
-private:
-   /**
-   *  The Dummy Kernels for BtDG in 1d,2d and 3d.
-   */
-   void MultBtDG1(const Vector &V, Vector &U);
-   void MultBtDG2(const Vector &V, Vector &U);
-   void MultBtDG3(const Vector &V, Vector &U);
-
-};
-
-/**
-*  A class that implement a GtDB partial assembly Kernel
-*/
-template <typename Equation>
-class DummyMultGtDB: public BilinearFormIntegrator, Equation
-{
-public:
-   static const int dimD = 3;
-   using DTensor = Tensor<dimD,double>;
-   using Tensor2d = DenseMatrix;
-
-protected:
-   FiniteElementSpace *fes;
-   Tensor2d shape1d, dshape1d;
-   DTensor D;
-
-public:
-   template <typename... Args>
-   DummyMultGtDB(FiniteElementSpace* _fes, int order, Args... args)
-   : BilinearFormIntegrator(&IntRules.Get(_fes->GetFE(0)->GetGeomType(), order)),
-     fes(_fes), D()
-   {
-      ComputeBasis1d(fes->GetFE(0), order, shape1d, dshape1d);
-      const int nb_elts = fes->GetNE();
-      const int quads  = IntRule->GetNPoints();
-      const FiniteElement* fe = fes->GetFE(0);
-      int dim = fe->GetDim();
-      Tensor<1> res(dim);
-      this->D.setSize(dim,quads,nb_elts);
-      for (int e = 0; e < nb_elts; ++e)
-      {
-         ElementTransformation *Tr = fes->GetElementTransformation(e);
-         for (int k = 0; k < quads; ++k)
-         {
-            const IntegrationPoint &ip = IntRule->IntPoint(k);
-            Tr->SetIntPoint(&ip);
-            this->evalD(res, Tr, ip, args...);
-            for (int i = 0; i < dim; ++i)
-            {
-               this->D(i,k,e) = res(i);
-            }
-         }
-      }
-   }
-
-   /**
-   * Computes V = G^T D B U where B and G are a tensor product of shape1d and dshape1d. 
-   */
-   void eval(const Vector &U, Vector &V)
-   {
-      int dim = fes->GetFE(0)->GetDim();
-      switch(dim)
-      {
-      case 1:MultGtDB1(U,V); break;
-      case 2:MultGtDB2(U,V); break;
-      case 3:MultGtDB3(U,V); break;
-      default: mfem_error("More than # dimension not yet supported"); break;
-      }
-   }
-
-private:
-   /**
-   *  The Dummy Kernels for GtDB in 1d,2d and 3d.
-   */
-   void MultGtDB1(const Vector &V, Vector &U);
-   void MultGtDB2(const Vector &V, Vector &U);
-   void MultGtDB3(const Vector &V, Vector &U);
-
-};
-
-template <typename Equation>
-class DummyDomainPAK<Equation,PAOp::BtDB>{
-public:
-   using Op = DummyMultBtDB<Equation>;
-};
-
-template <typename Equation>
-class DummyDomainPAK<Equation,PAOp::BtDG>{
-public:
-   using Op = DummyMultBtDG<Equation>;
-};
-
-template <typename Equation>
-class DummyDomainPAK<Equation,PAOp::GtDB>{
-public:
-   using Op = DummyMultGtDB<Equation>;
-};
-
-template <typename Equation>
-class DummyDomainPAK<Equation,PAOp::GtDG>{
-public:
-   using Op = DummyMultGtDG<Equation>;
-};
-
-
-
-
-
-/////////////////////////////////////////////////
-//                                             //
-//                                             //
-//            DUMMY FACE KERNEL                //
-//                                             //
-//                                             //
-/////////////////////////////////////////////////
-
-
 template <typename Matrix>
 void InitIntegrationPoints(Matrix& intPts, const int order,
                            const IntegrationRule& ir1d, const int dim){
@@ -645,54 +219,123 @@ void InitIntegrationPoints(Matrix& intPts, const int order,
 }
 
 
-  ///////////////////
- // BtDB Operator //
-///////////////////
-
+/////////////////////////////////////////////////
+//                                             //
+//                                             //
+//        PARTIAL ASSEMBLY INTEGRATORS         //
+//                                             //
+//                                             //
+/////////////////////////////////////////////////
 
 /**
-*  A face kernel to compute BtDB
+*  The different operators available for the Kernels
 */
-template<typename Equation>
-class DummyFaceMultBtDB
-: public BilinearFormIntegrator, Equation
+enum PAOp { BtDB, BtDG, GtDB, GtDG };
+
+  //////////////////////////////
+ // Available Domain Kernels //
+//////////////////////////////
+/**
+*  CPU simple implementation
+*/
+template <typename  Equation, PAOp OpName = Equation::OpName>
+class DomainMult;
+
+  /////////////////////////////
+ // Domain Kernel Interface //
+/////////////////////////////
+
+/**
+*  A partial assembly Integrator class for domain integrals.
+*  Takes an Equation template, that must contain OpName of type PAOp
+*  and an evalD function, that receives a res vector, the element
+*  transformation and the integration point, and then whatever is needed
+*  to compute at the point (Coefficient, VectorCoeffcient, etc...)
+*/
+template < typename Equation,
+            template<typename,PAOp> class IMPL = DomainMult>
+class PADomainInt
+: public LinearFESpaceIntegrator, public IMPL<Equation,Equation::OpName>
 {
-   /**
-   *  A structure that stores the indirection and permutation on dofs for an external flux on a face.
-   */
-   struct PermIndir{
-      int indirection;
-      int permutation;
-   };
-
-public:
-   static const int dimD = 3;
-   using DTensor = Tensor<dimD,double>;
-   using Tensor2d = DenseMatrix;
-   using Tensor3d = Tensor<3,double>;
-   using KData = Tensor<2,PermIndir>;
-
 private:
-   FiniteElementSpace *fes;
-   Tensor2d shape1d, dshape1d;
-   Tensor2d shape0d0, shape0d1, dshape0d0, dshape0d1;
-   DTensor Dint, Dext;
-   Tensor<2,IntegrationPoint> intPts;
-   KData kernel_data;// Data needed by the Kernel
+   typedef IMPL<Equation,Equation::OpName> Op;
 
 public:
    template <typename... Args>
-   DummyFaceMultBtDB(FiniteElementSpace* _fes, int order, Args... args)
-   : BilinearFormIntegrator(&IntRules.Get(_fes->GetFE(0)->GetGeomType(), order)),
-     fes(_fes), Dint(), Dext()
+   PADomainInt(FiniteElementSpace *fes, const int order, Args... args)
+   : LinearFESpaceIntegrator(&IntRules.Get(fes->GetFE(0)->GetGeomType(), order)),
+     Op(fes,order,args...)
    {
-      // Store the two 0d shape functions and gradients
-      // in x = 0.0
-      ComputeBasis0d(fes->GetFE(0), 0.0, shape0d0, dshape0d0);
-      // in y = 0.0
-      ComputeBasis0d(fes->GetFE(0), 1.0, shape0d1, dshape0d1);
-      // Store the 1d shape functions and gradients
-      ComputeBasis1d(fes->GetFE(0), order, shape1d, dshape1d);
+      const int nb_elts = fes->GetNE();
+      const int quads  = IntRule->GetNPoints();
+      const FiniteElement* fe = fes->GetFE(0);
+      const int dim = fe->GetDim();
+      this->InitD(dim,quads,nb_elts);
+      for (int e = 0; e < nb_elts; ++e)
+      {
+         ElementTransformation *Tr = fes->GetElementTransformation(e);
+         for (int k = 0; k < quads; ++k)
+         {
+            const IntegrationPoint &ip = IntRule->IntPoint(k);
+            Tr->SetIntPoint(&ip);
+            this->evalEq(dim, k, e, Tr, ip, args...);
+         }
+      }
+   }
+
+   /**
+   *  Applies the partial assembly operator.
+   */
+   virtual void AddMult(const Vector &fun, Vector &vect)
+   {
+      int dim = this->fes->GetFE(0)->GetDim();
+      switch(dim)
+      {
+      case 1:this->Mult1d(fun,vect); break;
+      case 2:this->Mult2d(fun,vect); break;
+      case 3:this->Mult3d(fun,vect); break;
+      default: mfem_error("More than # dimension not yet supported"); break;
+      }
+   }
+
+};
+
+
+  ////////////////////////////
+ // Available Face Kernels //
+////////////////////////////
+
+/**
+*  The Operator selector class
+*/
+template <typename Equation, PAOp Op>
+class FacePAK;
+
+
+template<typename Equation, PAOp Op>
+class DummyFaceMult;
+
+  ///////////////////////////
+ // Face Kernel Interface //
+///////////////////////////
+
+/**
+*  A dummy partial assembly Integrator interface class for face integrals
+*/
+template <typename Equation, template<typename,PAOp> class IMPL = DummyFaceMult>
+class PAFaceInt
+: public LinearFESpaceIntegrator, public IMPL<Equation,Equation::FaceOpName>
+{
+private:
+   typedef IMPL<Equation,Equation::FaceOpName> Op;
+   Tensor<2,IntegrationPoint> intPts;
+
+public:
+   template <typename... Args>
+   PAFaceInt(FiniteElementSpace* fes, const int order, Args... args)
+   : LinearFESpaceIntegrator(&IntRules.Get(fes->GetFE(0)->GetGeomType(), order)),
+     Op(fes, order, args...)
+   {
       const int dim = fes->GetFE(0)->GetDim();
       const IntegrationRule& ir1d = IntRules.Get(Geometry::SEGMENT, order);
       InitIntegrationPoints(intPts, order, ir1d, dim);
@@ -709,10 +352,8 @@ public:
       const int quads  = IntRules.Get(geom, order).GetNPoints();
       Vector qvec(dim);
       Vector n(dim);
-      Dint.setSize(quads,nb_elts,nb_faces_elt);
-      Dext.setSize(quads,nb_elts,nb_faces_elt);
-      kernel_data.setSize(nb_elts,nb_faces_elt);
-      double res11, res21, res22, res12;
+      this->InitD(dim,quads,nb_elts,nb_faces_elt);
+      this->kernel_data.setSize(nb_elts,nb_faces_elt);
       // We have a per face approach for the fluxes, so we should initialize the four different
       // fluxes.
       for (int face = 0; face < nb_faces; ++face)
@@ -729,30 +370,44 @@ public:
          GetIdRotInfo(info_elt1,face_id1,nb_rot1);
          GetIdRotInfo(info_elt2,face_id2,nb_rot2);
          FaceElementTransformations* face_tr = mesh->GetFaceElementTransformations(face);
-         kernel_data(ind_elt2,face_id2).indirection = ind_elt1;
-         kernel_data(ind_elt2,face_id2).permutation = Permutation2D(face_id1,face_id2);
-         kernel_data(ind_elt1,face_id1).indirection = ind_elt2;
-         kernel_data(ind_elt1,face_id1).permutation = Permutation2D(face_id2,face_id1);
-         for (int k = 0; k < quads; ++k)
+         int perm1, perm2;
+         Permutation(dim,face_id1,face_id2,nb_rot2,perm1,perm2);
+         // Initialization of indirection and permutation identification
+         this->kernel_data(ind_elt2,face_id2).indirection = ind_elt1;
+         this->kernel_data(ind_elt2,face_id2).permutation = perm1;
+         this->kernel_data(ind_elt1,face_id1).indirection = ind_elt2;
+         this->kernel_data(ind_elt1,face_id1).permutation = perm2;
+         for (int k1 = 0; k1 < quads; ++k1)
          {
             const IntegrationRule& ir = IntRules.Get(geom, order);
-            const IntegrationPoint& ip = ir.IntPoint(k);
-            if(face_tr->Elem2No!=-1){
-               // TODO: maybe pak.IntPoint should return two points, one for each side
-               // in case any field is discontinuous
-               IntegrationPoint& eip1 = this->IntPoint( face_id1, k );
-               // IntegrationPoint& eip2 = pak.IntPoint( face_id2, k );
+            //FIXME: Only works for 2D
+            int kf = k1;
+            if(face_id1<=1){//SOUTH or EAST
+               kf = k1;
+            }else{//NORTH or WEST
+               kf = quads-1-k1;
+            }
+            int k2 = kf;
+            if(face_id2<=1){//SOUTH or EAST
+               k2 = quads-1-kf;
+            }else{//NORTH or WEST
+               k2 = kf;
+            }
+            const IntegrationPoint& ip = ir.IntPoint(kf);
+            if(face_tr->Elem2No!=-1){//Not a boundary face
                face_tr->Face->SetIntPoint( &ip );
+               // IntegrationPoint& eip1 = this->IntPoint( face_id1, k );
+               IntegrationPoint eip1;
+               face_tr->Loc1.Transform(ip,eip1);
+               eip1.weight = ip.weight;//Sets the weight since Transform doesn't do it...
+               IntegrationPoint eip2;
+               face_tr->Loc2.Transform(ip,eip2);
+               eip2.weight = ip.weight;//Sets the weight since Transform doesn't do it...
                face_tr->Elem1->SetIntPoint( &eip1 );
                CalcOrtho( face_tr->Face->Jacobian(), n );
-               // face_tr->Elem2->SetIntPoint( &eip2 );
-               // FIXME: Should not take two times eip1!!!
-               this->evalFaceD(res11,res21,res22,res12,face_tr,n,eip1,eip1,args...);
-               this->Dint(k, ind_elt1, face_id1) = res11;
-               this->Dext(k, ind_elt2, face_id2) = res21;
-               this->Dint(k, ind_elt2, face_id2) = res22;
-               this->Dext(k, ind_elt1, face_id1) = res12;             
+               this->evalEq(dim,k1,k2,n,ind_elt1,face_id1,ind_elt2,face_id2,face_tr,eip1,eip2,args...);
             }else{//Boundary face
+               // FIXME: Something should be done here!
                // D11(ind) = 0;  
             }
          }
@@ -767,6 +422,392 @@ public:
       return intPts(k,face);
    }
 
+   // Perform the action of the BilinearFormIntegrator
+   virtual void AddMult(const Vector &fun, Vector &vect)
+   {
+      this->EvalInt(fun, vect);
+      this->EvalExt(fun, vect);
+   }
+
+private:
+   static void GetNormal(const int dim, const int face_id, Vector& normal)
+   {
+      switch(dim)
+      {
+         case 1:
+            switch(face_id)
+            {
+               case 0:
+                  normal(0) =  1.0;
+                  break;
+               case 1:
+                  normal(0) = -1.0;
+                  break;
+            }
+            break;
+         case 2:
+            switch(face_id)
+            {
+               case 0:
+                  normal(0) =  0.0;
+                  normal(1) = -1.0;
+                  break;
+               case 1:
+                  normal(0) =  1.0;
+                  normal(1) =  0.0;
+                  break;
+               case 2:
+                  normal(0) =  0.0;
+                  normal(1) =  1.0;
+                  break;
+               case 3:
+                  normal(0) = -1.0;
+                  normal(1) =  0.0;
+                  break;
+            }
+            break;
+         case 3:
+            switch(face_id)
+            {
+               case 0:
+                  normal(0) =  0.0;
+                  normal(1) =  0.0;
+                  normal(2) = -1.0;
+                  break;
+               case 1:
+                  normal(0) =  0.0;
+                  normal(1) = -1.0;
+                  normal(2) =  0.0;
+                  break;
+               case 2:
+                  normal(0) =  1.0;
+                  normal(1) =  0.0;
+                  normal(2) =  0.0;
+                  break;
+               case 3:
+                  normal(0) =  0.0;
+                  normal(1) =  1.0;
+                  normal(2) =  0.0;
+                  break;
+               case 4:
+                  normal(0) = -1.0;
+                  normal(1) =  0.0;
+                  normal(2) =  0.0;
+                  break;
+               case 5:
+                  normal(0) =  0.0;
+                  normal(1) =  0.0;
+                  normal(2) =  1.0;
+                  break;
+            }
+            break;
+      }
+   }
+
+};
+
+/////////////////////////////////////////////////
+//                                             //
+//                                             //
+//            DUMMY DOMAIN KERNEL              //
+//                                             //
+//                                             //
+/////////////////////////////////////////////////
+
+/**
+*  A class that implement a BtDB partial assembly Kernel
+*/
+template <typename Equation>
+class DomainMult<Equation,PAOp::BtDB>: private Equation
+{
+public:
+   static const int dimD = 2;
+   using DTensor = Tensor<dimD,double>;
+   using Tensor2d = DenseMatrix;
+
+protected:
+   FiniteElementSpace *fes;
+   Tensor2d shape1d;
+   DTensor D;
+
+public:
+   template <typename... Args>
+   DomainMult(FiniteElementSpace* _fes, int order, Args... args)
+   : fes(_fes), D()
+   {
+      ComputeBasis1d(fes->GetFE(0), order, shape1d);
+   }
+
+   void InitD(const int dim, const int quads, const int nb_elts){
+      this->D.setSize(quads,nb_elts);
+   }
+
+   template <typename... Args>
+   void evalEq(const int dim, const int k, const int e, ElementTransformation * Tr,
+               const IntegrationPoint & ip, Args... args)
+   {
+      double res = 0.0;
+      this->evalD(res, Tr, ip, args...);
+      this->D(k,e) = res;
+   }
+
+protected:
+   /**
+   *  The domain Kernels for BtDB in 1d,2d and 3d.
+   */
+   void Mult1d(const Vector &V, Vector &U);
+   void Mult2d(const Vector &V, Vector &U);
+   void Mult3d(const Vector &V, Vector &U);  
+
+};
+
+
+/**
+*  A class that implement a GtDG partial assembly Kernel
+*/
+template <typename Equation>
+class DomainMult<Equation,PAOp::GtDG>: private Equation
+{
+public:
+   static const int dimD = 4;
+   using DTensor = Tensor<dimD,double>;
+   using Tensor2d = DenseMatrix;
+
+protected:
+   FiniteElementSpace *fes;
+   Tensor2d shape1d, dshape1d;
+   DTensor D;
+
+public:
+   template <typename... Args>
+   DomainMult(FiniteElementSpace* _fes, int order, Args... args)
+   : fes(_fes), D()
+   {
+      ComputeBasis1d(fes->GetFE(0), order, shape1d, dshape1d);
+   }
+
+   void InitD(const int dim, const int quads, const int nb_elts){
+      this->D.setSize(dim,dim,quads,nb_elts);
+   }
+
+   template <typename... Args>
+   void evalEq(const int dim, const int k, const int e, ElementTransformation * Tr,
+               const IntegrationPoint & ip, Args... args)
+   {
+      Tensor<2> res(dim,dim);
+      this->evalD(res, Tr, ip, args...);
+      for (int i = 0; i < dim; ++i)
+      {
+         for (int j = 0; j < dim; ++j)
+         {
+            this->D(i,j,k,e) = res(i,j);
+         }
+      }
+   }
+
+protected:
+   /**
+   *  The domain Kernels for GtDG in 1d,2d and 3d.
+   */
+   void Mult1d(const Vector &V, Vector &U);
+   void Mult2d(const Vector &V, Vector &U);
+   void Mult3d(const Vector &V, Vector &U);
+
+};
+
+
+/**
+*  A class that implement a BtDG partial assembly Kernel
+*/
+template <typename Equation>
+class DomainMult<Equation,PAOp::BtDG>: private Equation
+{
+public:
+   static const int dimD = 3;
+   using DTensor = Tensor<dimD,double>;
+   using Tensor2d = DenseMatrix;
+
+protected:
+   FiniteElementSpace *fes;
+   Tensor2d shape1d, dshape1d;
+   DTensor D;
+
+public:
+   template <typename... Args>
+   DomainMult(FiniteElementSpace* _fes, int order, Args... args)
+   : fes(_fes), D()
+   {
+      ComputeBasis1d(fes->GetFE(0), order, shape1d, dshape1d);
+   }
+
+   void InitD(const int dim, const int quads, const int nb_elts){
+      this->D.setSize(dim,quads,nb_elts);
+   }
+
+   template <typename... Args>
+   void evalEq(const int dim, const int k, const int e, ElementTransformation * Tr,
+               const IntegrationPoint & ip, Args... args)
+   {
+      Tensor<1> res(dim);
+      this->evalD(res, Tr, ip, args...);
+      for (int i = 0; i < dim; ++i)
+      {
+         this->D(i,k,e) = res(i);
+      }
+   }
+
+protected:
+   /**
+   *  The domain Kernels for BtDG in 1d,2d and 3d.
+   */
+   void Mult1d(const Vector &V, Vector &U);
+   void Mult2d(const Vector &V, Vector &U);
+   void Mult3d(const Vector &V, Vector &U);
+
+};
+
+/**
+*  A class that implement a GtDB partial assembly Kernel
+*/
+template <typename Equation>
+class DomainMult<Equation,PAOp::GtDB>: private Equation
+{
+public:
+   static const int dimD = 3;
+   using DTensor = Tensor<dimD,double>;
+   using Tensor2d = DenseMatrix;
+
+protected:
+   FiniteElementSpace *fes;
+   Tensor2d shape1d, dshape1d;
+   DTensor D;
+
+public:
+   template <typename... Args>
+   DomainMult(FiniteElementSpace* _fes, int order, Args... args)
+   : fes(_fes), D()
+   {
+      ComputeBasis1d(fes->GetFE(0), order, shape1d, dshape1d);
+   }
+
+   void InitD(const int dim, const int quads, const int nb_elts){
+      this->D.setSize(dim,quads,nb_elts);
+   }
+
+   template <typename... Args>
+   void evalEq(const int dim, const int k, const int e, ElementTransformation * Tr,
+               const IntegrationPoint & ip, Args... args)
+   {
+      Tensor<1> res(dim);
+      this->evalD(res, Tr, ip, args...);
+      for (int i = 0; i < dim; ++i)
+      {
+         this->D(i,k,e) = res(i);
+      }
+   }
+
+protected:
+   /**
+   *  The domain Kernels for GtDB in 1d,2d and 3d.
+   */
+   void Mult1d(const Vector &V, Vector &U);
+   void Mult2d(const Vector &V, Vector &U);
+   void Mult3d(const Vector &V, Vector &U);
+
+};
+
+
+/////////////////////////////////////////////////
+//                                             //
+//                                             //
+//            DUMMY FACE KERNEL                //
+//                                             //
+//                                             //
+/////////////////////////////////////////////////
+
+// void Permutation2d(int face_id, int nbe, int dofs1d, KData& kernel_data, const Tensor3d& T0,
+//                      Tensor3d& T0p);
+
+class Permutation{
+public:
+   /**
+   *  A structure that stores the indirection and permutation on dofs for an external flux on a face.
+   */
+   struct PermIndir{
+      int indirection;
+      int permutation;
+   };
+   using KData = Tensor<2,PermIndir>;
+   using Tensor3d = Tensor<3,double>;
+   using Tensor4d = Tensor<4,double>;
+
+   static void Permutation2d(int face_id, int nbe, int dofs1d, KData& kernel_data, const Tensor3d& T0,
+                      Tensor3d& T0p);
+
+   static void Permutation3d(int face_id, int nbe, int dofs1d, KData& kernel_data, const Tensor4d& T0,
+                      Tensor4d& T0p);
+};
+
+  ///////////////////
+ // BtDB Operator //
+///////////////////
+
+/**
+*  A face kernel to compute BtDB
+*/
+template<typename Equation>
+class DummyFaceMult<Equation,BtDB>
+: private Equation, Permutation
+{
+
+public:
+   static const int dimD = 3;
+   using DTensor = Tensor<dimD,double>;
+   using Tensor2d = DenseMatrix;
+   using Tensor3d = Tensor<3,double>;
+
+protected:
+   FiniteElementSpace *fes;
+   Tensor2d shape1d, dshape1d;
+   Tensor2d shape0d0, shape0d1, dshape0d0, dshape0d1;
+   DTensor Dint, Dext;
+   KData kernel_data;// Data needed by the Kernel
+
+public:
+   template <typename... Args>
+   DummyFaceMult(FiniteElementSpace* _fes, int order, Args... args)
+   : fes(_fes), Dint(), Dext(), kernel_data()
+   {
+      // Store the two 0d shape functions and gradients
+      // in x = 0.0
+      ComputeBasis0d(fes->GetFE(0), 0.0, shape0d0, dshape0d0);
+      // in x = 1.0
+      ComputeBasis0d(fes->GetFE(0), 1.0, shape0d1, dshape0d1);
+      // Store the 1d shape functions and gradients
+      ComputeBasis1d(fes->GetFE(0), order, shape1d, dshape1d);
+   }
+
+   void InitD(const int dim, const int quads, const int nb_elts, const int nb_faces_elt)
+   {
+      Dint.setSize(quads,nb_elts,nb_faces_elt);
+      Dext.setSize(quads,nb_elts,nb_faces_elt);
+   }
+
+   template <typename... Args>
+   void evalEq(const int dim, const int k1, const int k2, const Vector& normal,
+               const int ind_elt1, const int face_id1,
+               const int ind_elt2, const int face_id2, FaceElementTransformations* face_tr,
+               const IntegrationPoint & ip1, const IntegrationPoint & ip2, Args... args)
+   {
+      //res'i''j' is the value from element 'j' to element 'i'
+      double res11, res21, res22, res12;
+      this->evalFaceD(res11,res21,res22,res12,face_tr,normal,ip1,ip2,args...);
+      Dint(k1, ind_elt1, face_id1) = res11;
+      Dext(k2, ind_elt2, face_id2) = res21;
+      Dint(k2, ind_elt2, face_id2) = res22;
+      Dext(k1, ind_elt1, face_id1) = res12;
+   }
+
    /**
    *  Computes internal fluxes
    */
@@ -774,16 +815,16 @@ public:
    {
       // North Faces
       int face_id = 2;
-      MultBtDBintY(fes,shape1d,shape0d1,Dint,face_id,U,V);
+      MultIntY(fes,shape1d,shape0d1,Dint,face_id,U,V);
       // South Faces
       face_id = 0;
-      MultBtDBintY(fes,shape1d,shape0d0,Dint,face_id,U,V);
+      MultIntY(fes,shape1d,shape0d0,Dint,face_id,U,V);
       // East Faces
       face_id = 1;
-      MultBtDBintX(fes,shape1d,shape0d1,Dint,face_id,U,V);
+      MultIntX(fes,shape1d,shape0d1,Dint,face_id,U,V);
       // West Faces
       face_id = 3;
-      MultBtDBintX(fes,shape1d,shape0d0,Dint,face_id,U,V);
+      MultIntX(fes,shape1d,shape0d0,Dint,face_id,U,V);
    }
 
    /**
@@ -793,56 +834,31 @@ public:
    {
       // North Faces
       int face_id_test = 2;
-      MultBtDBextY(fes,shape1d,shape0d0,shape0d1,kernel_data,Dext,face_id_test,U,V);
+      MultExtY(fes,shape1d,shape0d0,shape0d1,kernel_data,Dext,face_id_test,U,V);
       // South Faces
       face_id_test = 0;
-      MultBtDBextY(fes,shape1d,shape0d1,shape0d0,kernel_data,Dext,face_id_test,U,V);
+      MultExtY(fes,shape1d,shape0d1,shape0d0,kernel_data,Dext,face_id_test,U,V);
       // East Faces
       face_id_test = 1;
-      MultBtDBextX(fes,shape1d,shape0d0,shape0d1,kernel_data,Dext,face_id_test,U,V);
+      MultExtX(fes,shape1d,shape0d0,shape0d1,kernel_data,Dext,face_id_test,U,V);
       // West Faces
       face_id_test = 3;
-      MultBtDBextX(fes,shape1d,shape0d1,shape0d0,kernel_data,Dext,face_id_test,U,V);      
+      MultExtX(fes,shape1d,shape0d1,shape0d0,kernel_data,Dext,face_id_test,U,V);      
    }
 
 private:
-   static void MultBtDBintX(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
+   static void MultIntX(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
                         DTensor& Dint, int face_id, const Vector& U, Vector& V);
-   static void MultBtDBintY(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
+   static void MultIntY(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
                         DTensor& Dint, int face_id, const Vector& U, Vector& V);
-   static void MultBtDBextX(FiniteElementSpace* fes, Tensor2d& B,
+   static void MultExtX(FiniteElementSpace* fes, Tensor2d& B,
                         Tensor2d& B0dTrial, Tensor2d& B0dtest, KData& kernel_data,
                         DTensor& D, int face_id, const Vector& U, Vector& V);
-   static void MultBtDBextY(FiniteElementSpace* fes, Tensor2d& B,
+   static void MultExtY(FiniteElementSpace* fes, Tensor2d& B,
                         Tensor2d& B0dTrial, Tensor2d& B0dtest, KData& kernel_data,
                         DTensor& D, int face_id, const Vector& U, Vector& V);
-   static void Permutation(int face_id, int nbe, int dofs1d, KData& kernel_data,
-                        const Tensor3d& T0, Tensor3d& T0p);
 };
 
-template <typename Equation>
-class FacePAK<Equation,PAOp::BtDB>{
-public:
-   using Op = DummyFaceMultBtDB<Equation>;
-};
-
-/*template <>
-class FacePAK<PAOp::GtDB>{
-public:
-   using Op = DummyFaceMultGtDB;
-};
-
-template <>
-class FacePAK<PAOp::BtDG>{
-public:
-   using Op = DummyFaceMultGtDB;
-};
-
-template <>
-class FacePAK<PAOp::GtDG>{
-public:
-   using Op = DummyFaceMultGtDB;
-};*/
 
       //////////////////////////////////////
      ///                                ///
@@ -853,7 +869,7 @@ public:
 //////////////////////////////////////
 
 template<typename Equation>
-void DummyMultBtDB<Equation>::MultBtDB1(const Vector &V, Vector &U)
+void DomainMult<Equation,PAOp::BtDB>::Mult1d(const Vector &V, Vector &U)
 {
    const int dofs1d = shape1d.Height();
    const int quads1d = shape1d.Width();
@@ -880,7 +896,7 @@ void DummyMultBtDB<Equation>::MultBtDB1(const Vector &V, Vector &U)
 }
 
 template<typename Equation>
-void DummyMultBtDB<Equation>::MultBtDB2(const Vector &V, Vector &U)
+void DomainMult<Equation,PAOp::BtDB>::Mult2d(const Vector &V, Vector &U)
 {
    const FiniteElement *fe = fes->GetFE(0);
    const int dofs   = fe->GetDof();
@@ -920,7 +936,7 @@ void DummyMultBtDB<Equation>::MultBtDB2(const Vector &V, Vector &U)
 }
 
 template<typename Equation>
-void DummyMultBtDB<Equation>::MultBtDB3(const Vector &V, Vector &U)
+void DomainMult<Equation,PAOp::BtDB>::Mult3d(const Vector &V, Vector &U)
 {
    const FiniteElement *fe = fes->GetFE(0);
    const int dofs   = fe->GetDof();
@@ -1008,7 +1024,7 @@ void DummyMultBtDB<Equation>::MultBtDB3(const Vector &V, Vector &U)
 }
 
 template<typename Equation>
-void DummyMultGtDG<Equation>::MultGtDG1(const Vector &V, Vector &U)
+void DomainMult<Equation,PAOp::GtDG>::Mult1d(const Vector &V, Vector &U)
 {
    const int dofs1d = shape1d.Height();
    const int quads1d = shape1d.Width();
@@ -1038,7 +1054,7 @@ void DummyMultGtDG<Equation>::MultGtDG1(const Vector &V, Vector &U)
 }
 
 template<typename Equation>
-void DummyMultGtDG<Equation>::MultGtDG2(const Vector &V, Vector &U)
+void DomainMult<Equation,PAOp::GtDG>::Mult2d(const Vector &V, Vector &U)
 {
    const int dim = 2;
    const int terms = dim*dim;
@@ -1107,7 +1123,7 @@ void DummyMultGtDG<Equation>::MultGtDG2(const Vector &V, Vector &U)
 }
 
 template<typename Equation>
-void DummyMultGtDG<Equation>::MultGtDG3(const Vector &V, Vector &U)
+void DomainMult<Equation,PAOp::GtDG>::Mult3d(const Vector &V, Vector &U)
 {
    const int dim = 3;
    const int terms = dim*dim;
@@ -1244,7 +1260,7 @@ void DummyMultGtDG<Equation>::MultGtDG3(const Vector &V, Vector &U)
 }
 
 template<typename Equation>
-void DummyMultBtDG<Equation>::MultBtDG1(const Vector &V, Vector &U)
+void DomainMult<Equation,PAOp::BtDG>::Mult1d(const Vector &V, Vector &U)
 {
    const int dofs1d = shape1d.Height();
    const int quads1d = shape1d.Width();
@@ -1274,7 +1290,7 @@ void DummyMultBtDG<Equation>::MultBtDG1(const Vector &V, Vector &U)
 }
 
 template<typename Equation>
-void DummyMultBtDG<Equation>::MultBtDG2(const Vector &V, Vector &U)
+void DomainMult<Equation,PAOp::BtDG>::Mult2d(const Vector &V, Vector &U)
 {
    const int dim = 2;
 
@@ -1331,7 +1347,7 @@ void DummyMultBtDG<Equation>::MultBtDG2(const Vector &V, Vector &U)
 }
 
 template<typename Equation>
-void DummyMultBtDG<Equation>::MultBtDG3(const Vector &V, Vector &U)
+void DomainMult<Equation,PAOp::BtDG>::Mult3d(const Vector &V, Vector &U)
 {
    const int dim = 3;
    const int terms = dim*dim;
@@ -1447,7 +1463,7 @@ void DummyMultBtDG<Equation>::MultBtDG3(const Vector &V, Vector &U)
 }
 
 template<typename Equation>
-void DummyMultGtDB<Equation>::MultGtDB1(const Vector &V, Vector &U)
+void DomainMult<Equation,PAOp::GtDB>::Mult1d(const Vector &V, Vector &U)
 {
    const int dofs1d = shape1d.Height();
    const int quads1d = shape1d.Width();
@@ -1477,7 +1493,7 @@ void DummyMultGtDB<Equation>::MultGtDB1(const Vector &V, Vector &U)
 }
 
 template<typename Equation>
-void DummyMultGtDB<Equation>::MultGtDB2(const Vector &V, Vector &U)
+void DomainMult<Equation,PAOp::GtDB>::Mult2d(const Vector &V, Vector &U)
 {
    const int dim = 2;
 
@@ -1543,7 +1559,7 @@ void DummyMultGtDB<Equation>::MultGtDB2(const Vector &V, Vector &U)
 }
 
 template<typename Equation>
-void DummyMultGtDB<Equation>::MultGtDB3(const Vector &V, Vector &U)
+void DomainMult<Equation,PAOp::GtDB>::Mult3d(const Vector &V, Vector &U)
 {
    const int dim = 3;
    const int terms = dim*(dim+1)/2;
@@ -1662,10 +1678,14 @@ void DummyMultGtDB<Equation>::MultGtDB3(const Vector &V, Vector &U)
    }   
 }
 
-/// FACE KERNELS
+    ////////////////////////
+   ///                  ///
+  ///   FACE KERNELS   ///
+ ///                  ///
+////////////////////////
 
 template <typename Equation>
-void DummyFaceMultBtDB<Equation>::MultBtDBintX(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
+void DummyFaceMult<Equation,PAOp::BtDB>::MultIntX(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
                         DTensor& D, int face_id, const Vector& U, Vector& V)
 {
    // nunber of elements
@@ -1721,7 +1741,7 @@ void DummyFaceMultBtDB<Equation>::MultBtDBintX(FiniteElementSpace* fes, Tensor2d
 }
 
 template <typename Equation>
-void DummyFaceMultBtDB<Equation>::MultBtDBintY(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
+void DummyFaceMult<Equation,PAOp::BtDB>::MultIntY(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
                         DTensor& D, int face_id, const Vector& U, Vector& V)
 {
    // nunber of elements
@@ -1777,9 +1797,66 @@ void DummyFaceMultBtDB<Equation>::MultBtDBintY(FiniteElementSpace* fes, Tensor2d
    }
 }
 
-template <typename Equation>
-void DummyFaceMultBtDB<Equation>::Permutation(int face_id, int nbe, int dofs1d, KData& kernel_data,
-                                    const Tensor3d& T0, Tensor3d& T0p)
+// void Permutation::Permutation2d(int face_id, int nbe, int dofs1d, KData& kernel_data, const Tensor3d& T0,
+//                      Tensor3d& T0p)
+// {
+//    for (int e = 0; e < nbe; ++e)
+//    {
+//       const int trial = kernel_data(e,face_id).indirection;
+//       const int permutation = kernel_data(e,face_id).permutation;
+//       if(trial!=-1)
+//       {
+//          if(permutation==0)
+//          {
+//             for (int i2 = 0; i2 < dofs1d; ++i2)
+//             {
+//                for (int i1 = 0; i1 < dofs1d; ++i1)
+//                {
+//                   T0p(i1,i2,e) = T0(i1,i2,trial);
+//                }
+//             }
+//          }else if(permutation==1){
+//             for (int i2 = 0, j1 = dofs1d-1; i2 < dofs1d; ++i2, --j1)
+//             {
+//                for (int i1 = 0, j2 = 0; i1 < dofs1d; ++i1, ++j2)
+//                {
+//                   T0p(i1,i2,e) = T0(j1,j2,trial);
+//                }
+//             }
+//          }else if(permutation==2){
+//             for (int i2 = 0, j2 = dofs1d-1; i2 < dofs1d; ++i2, --j2)
+//             {
+//                for (int i1 = 0, j1 = dofs1d-1; i1 < dofs1d; ++i1, --j1)
+//                {
+//                   T0p(i1,i2,e) = T0(j1,j2,trial);
+//                }
+//             }
+//          }else if(permutation==3){
+//             // cout << "perm" << permutation << endl;
+//             for (int i2 = 0, j1 = 0; i2 < dofs1d; ++i2, ++j1)
+//             {
+//                for (int i1 = 0, j2 = dofs1d-1; i1 < dofs1d; ++i1, --j2)
+//                {
+//                   T0p(i1,i2,e) = T0(j1,j2,trial);
+//                }
+//             }
+//          }else{
+//             mfem_error("This permutation id does not exist");
+//          }
+//       }else{
+//          for (int i2 = 0; i2 < dofs1d; ++i2)
+//          {
+//             for (int i1 = 0; i1 < dofs1d; ++i1)
+//             {
+//                T0p(i1,i2,e) = 0.0;
+//             }
+//          }
+//       }
+//    }
+// }
+
+void Permutation::Permutation2d(int face_id, int nbe, int dofs1d, KData& kernel_data, const Tensor3d& T0,
+                     Tensor3d& T0p)
 {
    for (int e = 0; e < nbe; ++e)
    {
@@ -1787,8 +1864,9 @@ void DummyFaceMultBtDB<Equation>::Permutation(int face_id, int nbe, int dofs1d, 
       const int permutation = kernel_data(e,face_id).permutation;
       if(trial!=-1)
       {
-         if(permutation==0)
+         switch(permutation)
          {
+         case 0:
             for (int i2 = 0; i2 < dofs1d; ++i2)
             {
                for (int i1 = 0; i1 < dofs1d; ++i1)
@@ -1796,7 +1874,8 @@ void DummyFaceMultBtDB<Equation>::Permutation(int face_id, int nbe, int dofs1d, 
                   T0p(i1,i2,e) = T0(i1,i2,trial);
                }
             }
-         }else if(permutation==1){
+            break;
+         case 1:
             for (int i2 = 0, j1 = dofs1d-1; i2 < dofs1d; ++i2, --j1)
             {
                for (int i1 = 0, j2 = 0; i1 < dofs1d; ++i1, ++j2)
@@ -1804,7 +1883,8 @@ void DummyFaceMultBtDB<Equation>::Permutation(int face_id, int nbe, int dofs1d, 
                   T0p(i1,i2,e) = T0(j1,j2,trial);
                }
             }
-         }else if(permutation==2){
+            break;
+         case 2:
             for (int i2 = 0, j2 = dofs1d-1; i2 < dofs1d; ++i2, --j2)
             {
                for (int i1 = 0, j1 = dofs1d-1; i1 < dofs1d; ++i1, --j1)
@@ -1812,8 +1892,8 @@ void DummyFaceMultBtDB<Equation>::Permutation(int face_id, int nbe, int dofs1d, 
                   T0p(i1,i2,e) = T0(j1,j2,trial);
                }
             }
-         }else if(permutation==3){
-            // cout << "perm" << permutation << endl;
+            break;
+         case 3:
             for (int i2 = 0, j1 = 0; i2 < dofs1d; ++i2, ++j1)
             {
                for (int i1 = 0, j2 = dofs1d-1; i1 < dofs1d; ++i1, --j2)
@@ -1821,7 +1901,8 @@ void DummyFaceMultBtDB<Equation>::Permutation(int face_id, int nbe, int dofs1d, 
                   T0p(i1,i2,e) = T0(j1,j2,trial);
                }
             }
-         }else{
+            break;
+         default:
             mfem_error("This permutation id does not exist");
          }
       }else{
@@ -1836,8 +1917,46 @@ void DummyFaceMultBtDB<Equation>::Permutation(int face_id, int nbe, int dofs1d, 
    }
 }
 
+void Permutation::Permutation3d(int face_id, int nbe, int dofs1d, KData& kernel_data, const Tensor3d& T0,
+                     Tensor3d& T0p)
+{
+   U = T0.getData();
+   int ii, jj, kk;
+   const int step_elt = dofs1d*dofs1d*dofs1d;
+   for (int e = 0; e < nbe; ++e)
+   {
+      const int trial = kernel_data(e,face_id).indirection;
+      const int permutation = kernel_data(e,face_id).permutation;
+      IntMatrix P(3,3);
+      GetChangeOfBasis(permutation, P);
+      int begin_ii = (P(0,0)==-1)*(dofs1d-1) + (P(1,0)==-1)*(dofs1d*dofs1d-1) + (P(2,0)==-1)*(dofs1d*dofs1d*dofs1d-1);
+      int begin_jj = (P(0,1)==-1)*(dofs1d-1) + (P(1,1)==-1)*(dofs1d*dofs1d-1) + (P(2,1)==-1)*(dofs1d*dofs1d*dofs1d-1);
+      int begin_kk = (P(0,2)==-1)*(dofs1d-1) + (P(1,2)==-1)*(dofs1d*dofs1d-1) + (P(2,2)==-1)*(dofs1d*dofs1d*dofs1d-1);
+      int step_ii  = P(0,0) + P(1,0)*dofs1d + P(2,0)*dofs1d*dofs1d;
+      int step_jj  = P(0,1) + P(1,1)*dofs1d + P(2,1)*dofs1d*dofs1d;
+      int step_kk  = P(0,2) + P(1,2)*dofs1d + P(2,2)*dofs1d*dofs1d;
+      kk = begin_kk;
+      for (int k = 0; k < dofs1d; ++k)
+      {
+         jj = begin_jj;
+         for (int j = 0; j < dofs1d; ++j)
+         {
+            ii = begin_ii;
+            for (int i = 0; i < dofs1d; ++i)
+            {
+               T0p(i,j,k) = U[ elt + ii + jj + kk ];
+               ii += step_ii;
+            }
+            jj += step_jj;
+         }
+         kk += step_kk;
+      }
+      elt += step_elt;
+   }
+}
+
 template <typename Equation>
-void DummyFaceMultBtDB<Equation>::MultBtDBextX(FiniteElementSpace* fes, Tensor2d& B,
+void DummyFaceMult<Equation,PAOp::BtDB>::MultExtX(FiniteElementSpace* fes, Tensor2d& B,
                         Tensor2d& B0dTrial, Tensor2d& B0dTest, KData& kernel_data,
                         DTensor& D, int face_id, const Vector& U, Vector& V)
 {
@@ -1852,7 +1971,7 @@ void DummyFaceMultBtDB<Equation>::MultBtDBextX(FiniteElementSpace* fes, Tensor2d
    Tensor<1,double> T1(dofs1d),T2(quads1d),T3(dofs1d);
    // Indirections
    Tensor3d T0p(dofs1d,dofs1d,nbe);
-   Permutation(face_id,nbe,dofs1d,kernel_data,T0,T0p);
+   Permutation2d(face_id,nbe,dofs1d,kernel_data,T0,T0p);
    //T1_i2 = B0d^i1 U_i1i2
    for (int e = 0; e < nbe; ++e)
    {
@@ -1898,7 +2017,7 @@ void DummyFaceMultBtDB<Equation>::MultBtDBextX(FiniteElementSpace* fes, Tensor2d
 }
 
 template <typename Equation>
-void DummyFaceMultBtDB<Equation>::MultBtDBextY(FiniteElementSpace* fes, Tensor2d& B,
+void DummyFaceMult<Equation,PAOp::BtDB>::MultExtY(FiniteElementSpace* fes, Tensor2d& B,
                         Tensor2d& B0dTrial, Tensor2d& B0dTest, KData& kernel_data,
                         DTensor& D, int face_id, const Vector& U, Vector& V)
 {
@@ -1913,7 +2032,7 @@ void DummyFaceMultBtDB<Equation>::MultBtDBextY(FiniteElementSpace* fes, Tensor2d
    Tensor<1,double> T1(dofs1d),T2(quads1d),T3(dofs1d);
    // Indirections
    DTensor T0p(dofs1d,dofs1d,nbe);
-   Permutation(face_id,nbe,dofs1d,kernel_data,T0,T0p);
+   Permutation2d(face_id,nbe,dofs1d,kernel_data,T0,T0p);
    //T1_i1 = B0d^i2 U_i1i2
    for (int e = 0; e < nbe; ++e)
    {

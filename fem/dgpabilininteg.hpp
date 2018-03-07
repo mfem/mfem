@@ -77,6 +77,8 @@ public:
       int dim = normal.Size();
       Vector qvec(dim);
       double res = 0.0;
+      //FIXME: qvec might be discontinuous if not constant with a periodic mesh
+      // We should then use the evaluation on Elem2 and eip2
       q.Eval( qvec, *(face_tr->Elem1), ip1 );
       res = qvec * normal;
       res11 = ip1.weight * (   a/2 * res + b * abs(res) );

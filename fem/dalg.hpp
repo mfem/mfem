@@ -298,6 +298,11 @@ public:
       data = new Scalar[rows*cols];//rows*cols*sizeof(Scalar) );
    }
 
+   ~DummyMatrix()
+   {
+      delete[] data;
+   }
+
    // Sets all the coefficients to zero
    void Zero()
    {

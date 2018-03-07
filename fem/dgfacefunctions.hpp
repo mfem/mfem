@@ -14,6 +14,7 @@
 
 #ifndef MFEM_DGFACEFUNC
 #define MFEM_DGFACEFUNC
+#include "dalg.hpp"
 
 using std::vector;
 using std::pair;

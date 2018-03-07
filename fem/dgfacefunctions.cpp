@@ -13,6 +13,7 @@
 
 #include <vector>
 #include "fem.hpp"
+#include "dalg.hpp"
 
 using std::vector;
 using std::pair;
@@ -148,11 +149,11 @@ void GetLocalCoordMap2D(vector<pair<int,int> >& map, const int nb_rot)
 
 // Default parameter nb_rot=0 should be only use with a structured mesh.
 // Rotations follow the ordering of the nodes.
-void GetLocalCoordMap3D(vector<pair<int,int> >& map, const int nb_rot)
+/*void GetLocalCoordMap3D(vector<pair<int,int> >& map, const int nb_rot)
 {
 	map.resize(3);
 	// Normal to the face are always of opposite direction
-	map[2] = pair<int,int>(-1,3);
+	map[2] = pair<int,int>(-1,2);
 	// nb_rot determines how local coordinates are oriented from one face to the other.
 	// See case 2 for an example.
 	switch(nb_rot)
@@ -177,6 +178,62 @@ void GetLocalCoordMap3D(vector<pair<int,int> >& map, const int nb_rot)
 			break;
 		default:
 			mfem_error("There shouldn't be that many rotations.");
+			break;
+	}
+}*/
+
+void GetLocalCoordMap3D(vector< pair<int,int> >& map, const int orientation)
+{
+	map.resize(3);
+	// orientation determines how local coordinates are oriented from one face to the other.
+	// See case 2 for an example.
+	switch(orientation)
+	{
+		case 0://{0, 1, 2, 3}
+			map[0] = pair<int,int>( 1,0);
+			map[1] = pair<int,int>( 1,1);
+			map[2] = pair<int,int>( 1,2);
+			break;
+		case 1://{0, 3, 2, 1}
+			map[0] = pair<int,int>( 1,1);
+			map[1] = pair<int,int>( 1,0);
+			map[2] = pair<int,int>(-1,2);
+			break;
+		case 2://{1, 2, 3, 0}
+			//first vector equals -1 times the second vector of the other face coordinates
+			map[0] = pair<int,int>(-1,1);
+			//second vector equals -1 times the first vector of the other face coordinates
+			map[1] = pair<int,int>( 1,0);
+			//third vector equals -1 times the third vector of the other face coordinates
+			map[2] = pair<int,int>( 1,2);
+			break;
+		case 3://{1, 0, 3, 2}
+			map[0] = pair<int,int>(-1,0);
+			map[1] = pair<int,int>( 1,1);
+			map[2] = pair<int,int>(-1,2);
+			break;
+		case 4://{2, 3, 0, 1}
+			map[0] = pair<int,int>(-1,0);
+			map[1] = pair<int,int>(-1,1);
+			map[2] = pair<int,int>( 1,2);
+			break;
+		case 5://{2, 1, 0, 3}
+			map[0] = pair<int,int>(-1,1);
+			map[1] = pair<int,int>(-1,0);
+			map[2] = pair<int,int>(-1,2);
+			break;
+		case 6://{3, 0, 1, 2}
+			map[0] = pair<int,int>( 1,1);
+			map[1] = pair<int,int>(-1,0);
+			map[2] = pair<int,int>( 1,2);
+			break;
+		case 7://{3, 2, 1, 0}
+			map[0] = pair<int,int>( 1,0);
+			map[1] = pair<int,int>(-1,1);
+			map[2] = pair<int,int>(-1,2);
+			break;
+		default:
+			mfem_error("There shouldn't be that many orientations.");
 			break;
 	}
 }
@@ -206,7 +263,7 @@ void GetChangeOfBasis(const IntMatrix& base_K1, IntMatrix& base_K2,
 	for (int i = 0; i < dim; ++i)
 	{
 		int coeff = map[i].first;
-		int ind = map[i].second;
+		int ind   = map[i].second;
 		for (int j = 0; j < dim; ++j)
 		{
 			int sum = 0;
@@ -217,6 +274,19 @@ void GetChangeOfBasis(const IntMatrix& base_K1, IntMatrix& base_K2,
 			P(ind,j) =  sum;
 		}
 	}
+}
+
+void GetChangeOfBasis(const int face_id1, const int face_id2,
+						const int orientation, IntMatrix& P)
+{
+	IntMatrix K1(3,3).Zero();
+	InitFaceCoord3D(face_id1, K1);
+	IntMatrix K2(3,3).Zero();
+	InitFaceCoord3D(face_id2, K2);
+	vector< pair<int,int> > map;
+	GetLocalCoordMap3D(map, orientation);
+	IntMatrix P(3,3).Zero();
+	GetChangeOfBasis(K1, K2, map, P);
 }
 
 void GetChangeOfBasis2D(const int face_id1, const int face_id2, IntMatrix& P)
@@ -250,6 +320,22 @@ void GetChangeOfBasis2D(const int face_id1, const int face_id2, IntMatrix& P)
 	}
 }
 
+void GetChangeOfBasis(const int permutation, IntMatrix& P)
+{
+	int code1 = permutation/100;
+	int ind1  = code1/2;
+	int val1  = code1%2==0?-1:1;
+	int code2 = (permutation%100)/10;
+	int ind2  = code2/2;
+	int val2  = code2%2==0?-1:1;
+	int code3 = permutation%10;
+	int ind3  = code3/2;
+	int val3  = code3%2==0?-1:1;
+	P.Zero();
+	P(ind1,0) = val1;
+	P(ind2,1) = val2;
+	P(ind3,2) = val3;
+}
 
 /**
 *	Returns the face_id that identifies the face on the reference element, and nb_rot the
@@ -258,9 +344,30 @@ void GetChangeOfBasis2D(const int face_id1, const int face_id2, IntMatrix& P)
 void GetIdRotInfo(const int face_info, int& face_id, int& nb_rot){
 	int orientation = face_info % 64;
 	face_id = face_info / 64;
-	// Test if ny understanding of mfem code is correct, error if not
+	// Test if my understanding of mfem code is correct, error if not
 	//MFEM_ASSERT(orientation % 2 == 0, "Unexpected inside out face");
 	nb_rot = orientation;// / 2;
+}
+
+void Permutation(const int dim, const int face_id1, const int face_id2, const int orientation, int perm1, int perm2)
+{
+	int result;
+	switch(dim){
+		case 1:
+			mfem_error("Not yet implemented");
+			break;
+		case 2:
+			perm1 = Permutation2D(face_id1, face_id2);
+			perm2 = Permutation2D(face_id2, face_id1);
+			break;
+		case 3:
+			Permutation3D(face_id_trial, face_id_test, orientation, perm1, perm2);
+			break;
+		default:
+			mfem_error("Dimension of the problem too high.");
+			break;
+	}
+	return result;
 }
 
 /**
@@ -271,6 +378,29 @@ int Permutation2D(const int face_id_trial, const int face_id_test)
 	int perm = face_id_trial - face_id_test - 2;
 	perm = perm < 0 ? perm+4 : perm;
 	return perm;
+}
+
+/**
+*  Returns an integer that encrypts P.
+*/
+void Permutation3D(const int face_id1, const int face_id2, const int orientation, int perm1, int perm2)
+{
+	IntMatrix K1(3,3).Zero();
+	InitFaceCoord3D(face_id1, K1);
+	IntMatrix K2(3,3).Zero();
+	InitFaceCoord3D(face_id2, K2);
+	vector< pair<int,int> > map;
+	GetLocalCoordMap3D(map, orientation);
+	IntMatrix P(3,3).Zero();
+	GetChangeOfBasis(K1, K2, map, P);
+	perm1 = 0;
+	perm1 += 100*(0*(P(0,0)==-1) + 1*(P(0,0)==1) + 2*(P(1,0)==-1) + 3*(P(1,0)==1) + 4*(P(2,0)==-1) + 5*(P(2,0)==1));
+	perm1 += 10 *(0*(P(0,1)==-1) + 1*(P(0,1)==1) + 2*(P(1,1)==-1) + 3*(P(1,1)==1) + 4*(P(2,1)==-1) + 5*(P(2,1)==1));
+	perm1 +=     (0*(P(0,2)==-1) + 1*(P(0,2)==1) + 2*(P(1,2)==-1) + 3*(P(1,2)==1) + 4*(P(2,2)==-1) + 5*(P(2,2)==1));
+	perm2 = 0;
+	perm2 += 100*(0*(P(0,0)==-1) + 1*(P(0,0)==1) + 2*(P(0,1)==-1) + 3*(P(0,1)==1) + 4*(P(0,2)==-1) + 5*(P(0,2)==1));
+	perm2 += 10 *(0*(P(1,0)==-1) + 1*(P(1,0)==1) + 2*(P(1,1)==-1) + 3*(P(1,1)==1) + 4*(P(1,2)==-1) + 5*(P(1,2)==1));
+	perm2 +=     (0*(P(2,0)==-1) + 1*(P(2,0)==1) + 2*(P(2,1)==-1) + 3*(P(2,1)==1) + 4*(P(2,2)==-1) + 5*(P(2,2)==1));
 }
 
 }
