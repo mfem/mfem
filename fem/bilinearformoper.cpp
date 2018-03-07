@@ -197,8 +197,8 @@ void BilinearFormOperator::Clear()
       delete test_indices;
    }
 
-   delete X;
-   delete Y;
+   if (trial_gs) delete X;
+   if (test_gs) delete Y;
 }
 
 void BilinearFormOperator::Init(FiniteElementSpace *_trial_fes,

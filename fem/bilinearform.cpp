@@ -319,6 +319,8 @@ void BilinearForm::Assemble (int skip_zeros)
       AllocMat();
    }
 
+   oper_type = MFEM_SPARSEMAT;
+
 #ifdef MFEM_USE_OPENMP
    int free_element_matrices = 0;
    if (!element_matrices)

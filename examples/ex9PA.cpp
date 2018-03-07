@@ -32,6 +32,7 @@
 #include <iostream>
 #include <algorithm>
 
+#include "../fem/dgpabilininteg.hpp"
 #include "../fem/dgfacefunctions.hpp"
 #include "../fem/partialassemblykernel.hpp"
 
@@ -64,8 +65,8 @@ class FE_Evolution : public TimeDependentOperator
 {
 private:
    // BilinearForm &M;
-   SparseMatrix &M;
-   BilinearForm &K;
+   Operator &M;
+   Operator &K;
    const Vector &b;
 
    CGSolver M_solver;
@@ -75,7 +76,7 @@ private:
 
 public:
    // FE_Evolution(BilinearForm &_M, BilinearForm &_K, const Vector &_b);
-   FE_Evolution(SparseMatrix &_M, BilinearForm &_K, const Vector &_b);
+   FE_Evolution(Operator &_M, Operator &_K, const Vector &_b);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -198,19 +199,30 @@ int main(int argc, char *argv[])
    // m.AddDomainIntegrator(new EigenPAMassIntegrator<2,EigenDomainPAK>(&fes,ir_order));
    BilinearForm m(&fes);
    m.AddDomainIntegrator(new MassIntegrator());
-   m.Assemble();
-   m.Finalize();
+
+   Array<int> ess_tdof_list;
+   SparseMatrix msp;
+   Operator *mo;
+   m.AssembleForm(msp);
+   m.FormSystemOperator(ess_tdof_list, mo);
+
    // auto useless = PADomainInt<>(&fes,ir_order,velocity,-1.0);
    //Initialization of the Stiffness operator
-   BilinearFormOperator k(&fes);
+   BilinearForm k(&fes);
    //k.AddDomainIntegrator(new EigenPAConvectionIntegrator<2>(&fes,ir_order,velocity, -1.0));
    // k.AddDomainIntegrator(new PAConvectionIntegrator<DummyDomainPAK>(&fes,ir_order,velocity, -1.0));
-   k.AddDomainIntegrator(new PADomainInt<DGConvectionEquation>(&fes,ir_order,velocity,-1.0));
+   k.AddIntegrator(new PADomainInt<DGConvectionEquation>(&fes,ir_order,velocity,-1.0));
    // k.AddDomainIntegrator(
    //       new PADGConvectionFaceIntegrator<DummyFacePAK>(&fes,ir_order,velocity, 1.0, -0.5));
    // k.AddDomainIntegrator(
    //       new PADGConvectionFaceIntegrator2<FacePAK>(&fes,ir_order,velocity, 1.0, -0.5));
-   k.AddDomainIntegrator(new PAFaceInt<DGConvectionEquation>(&fes,ir_order,velocity, 1.0, -0.5));
+   k.AddIntegrator(new PAFaceInt<DGConvectionEquation>(&fes,ir_order,velocity, 1.0, -0.5));
+
+   BilinearFormOperator kbf;
+   Operator *ko;
+   k.AssembleForm(kbf);
+   k.FormSystemOperator(ess_tdof_list, ko);
+
    //No need to do PA
    LinearForm b(&fes);
    b.AddBdrFaceIntegrator(
@@ -284,7 +296,7 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(m.SpMat(), k, b);
+   FE_Evolution adv(*mo, *ko, b);
    // FE_Evolution adv(m, k, b);
 
    double t = 0.0;
@@ -311,6 +323,7 @@ int main(int argc, char *argv[])
          if (visualization)
          {
             sout << "solution\n" << *mesh << u << flush;
+            // sout << "screenshot\n" << "ex9-" << ti << ".png" << flush;
          }
 
          if (visit)
@@ -336,6 +349,8 @@ int main(int argc, char *argv[])
    // 10. Free the used memory.
    delete ode_solver;
    delete dc;
+   //delete mo;
+   //delete ko;
 
    return 0;
 }
@@ -355,8 +370,8 @@ int main(int argc, char *argv[])
 //    M_solver.SetMaxIter(100);
 //    M_solver.SetPrintLevel(0);
 // }
-FE_Evolution::FE_Evolution(SparseMatrix &_M, BilinearForm &_K, const Vector &_b)
-   : TimeDependentOperator(_M.Size(), 0.0), M(_M), K(_K), b(_b), z(_M.Size())
+FE_Evolution::FE_Evolution(Operator &_M, Operator &_K, const Vector &_b)
+   : TimeDependentOperator(_M.Height(), 0.0), M(_M), K(_K), b(_b), z(_M.Height())
 {
    //TODO have to take into account the block diagonal structure of M
    //M_solver.SetPreconditioner(M_prec);
@@ -482,8 +497,8 @@ double u0_function(const Vector &x)
             case 2:
             case 3:
             {
-               double rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
-               // double rx = 0.05, ry = 0.05, cx = -0., cy = -0.5, w = 10.;
+               // double rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
+               double rx = 0.05, ry = 0.05, cx = -0., cy = -0.5, w = 10.;
                if (dim == 3)
                {
                   const double s = (1. + 0.25*cos(2*M_PI*X(2)));
