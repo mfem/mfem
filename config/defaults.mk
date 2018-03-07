@@ -113,7 +113,6 @@ ZLIB_DIR =
 ZLIB_OPT = $(if $(ZLIB_DIR),-I$(ZLIB_DIR)/include)
 ZLIB_LIB = $(if $(ZLIB_DIR),$(ZLIB_RPATH) -L$(ZLIB_DIR)/lib ,)-lz
 ZLIB_RPATH = -Wl,-rpath,$(ZLIB_DIR)/lib
->>>>>>> master
 
 LIBUNWIND_OPT = -g
 LIBUNWIND_LIB = $(if $(NOTMAC),-lunwind -ldl,)
