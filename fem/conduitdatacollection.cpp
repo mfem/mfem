@@ -1089,7 +1089,7 @@ ConduitDataCollection::LoadMeshAndFields(int domain_id,
          )
       {
          GridFunction *gf = BlueprintFieldToGridFunction(mesh, n_field);
-         field_map[field_name] = gf;
+         field_map.Register(field_name, gf, true);
       }
    }
 }
