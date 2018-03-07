@@ -39,6 +39,7 @@
 using namespace mfem;
 using namespace std;
 
+// This tranformation can be applied to a mesh with the 't' menu option.
 void transformation(const Vector &p, Vector &v)
 {
    // simple shear transformation
@@ -59,6 +60,16 @@ void transformation(const Vector &p, Vector &v)
    {
       v = p;
    }
+}
+
+// This function is used with the 'r' menu option, sub-option 'l' to refine a
+// mesh locally in a region, defined by return values <= region_eps.
+double region_eps = 1e-8;
+double region(const Vector &p)
+{
+   const double x = p(0), y = p(1);
+   // here we describe the region: (x <= 1/4) && (y >= 0) && (y <= 1)
+   return std::max(std::max(x - 0.25, -y), y - 1.0);
 }
 
 Mesh *read_par_mesh(int np, const char *mesh_prefix)
@@ -224,6 +235,7 @@ int main (int argc, char *argv[])
               "s) standard refinement with Mesh::UniformRefinement()\n"
               "u) uniform refinement with a factor\n"
               "g) non-uniform refinement (Gauss-Lobatto) with a factor\n"
+              "l) refine locally using the region() function\n"
               "--> " << flush;
          char sk;
          cin >> sk;
@@ -244,6 +256,28 @@ int main (int argc, char *argv[])
                Mesh *rmesh = new Mesh(mesh, ref_factor, ref_type);
                delete mesh;
                mesh = rmesh;
+               break;
+            }
+            case 'l':
+            {
+               Vector pt;
+               Array<int> marked_elements;
+               for (int i = 0; i < mesh->GetNE(); i++)
+               {
+                  // check all nodes of the element
+                  IsoparametricTransformation T;
+                  mesh->GetElementTransformation(i, &T);
+                  for (int j = 0; j < T.GetPointMat().Width(); j++)
+                  {
+                     T.GetPointMat().GetColumnReference(j, pt);
+                     if (region(pt) <= region_eps)
+                     {
+                        marked_elements.Append(i);
+                        break;
+                     }
+                  }
+               }
+               mesh->GeneralRefinement(marked_elements);
                break;
             }
          }
@@ -316,7 +350,7 @@ int main (int argc, char *argv[])
 
             // compute minimal local mesh size
             Vector h0(fespace->GetNDofs());
-            h0 = std::numeric_limits<double>::infinity();
+            h0 = infinity();
             {
                Array<int> dofs;
                for (int i = 0; i < fespace->GetNE(); i++)
@@ -365,8 +399,8 @@ int main (int argc, char *argv[])
          DenseMatrix J(dim);
          double min_det_J, max_det_J, min_det_J_z, max_det_J_z;
          double min_kappa, max_kappa, max_ratio_det_J_z;
-         min_det_J = min_kappa = numeric_limits<double>::infinity();
-         max_det_J = max_kappa = max_ratio_det_J_z = -min_det_J;
+         min_det_J = min_kappa = infinity();
+         max_det_J = max_kappa = max_ratio_det_J_z = -infinity();
          cout << "subdivision factor ---> " << flush;
          cin >> sd;
          for (int i = 0; i < mesh->GetNE(); i++)
@@ -377,8 +411,8 @@ int main (int argc, char *argv[])
             RefinedGeometry *RefG = GlobGeometryRefiner.Refine(geom, sd, 1);
             IntegrationRule &ir = RefG->RefPts;
 
-            min_det_J_z = numeric_limits<double>::infinity();
-            max_det_J_z = -min_det_J_z;
+            min_det_J_z = infinity();
+            max_det_J_z = -infinity();
             for (int j = 0; j < ir.GetNPoints(); j++)
             {
                T->SetIntPoint(&ir.IntPoint(j));
@@ -491,7 +525,7 @@ int main (int argc, char *argv[])
          {
             DenseMatrix J(dim);
             double h_min, h_max;
-            h_min = numeric_limits<double>::infinity();
+            h_min = infinity();
             h_max = -h_min;
             for (int i = 0; i < mesh->GetNE(); i++)
             {
