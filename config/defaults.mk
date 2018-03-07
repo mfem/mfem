@@ -86,6 +86,7 @@ MFEM_USE_MPI         = NO
 MFEM_USE_METIS       = $(MFEM_USE_MPI)
 MFEM_USE_METIS_5     = NO
 MFEM_DEBUG           = NO
+MFEM_USE_EXCEPTIONS  = NO
 MFEM_USE_GZSTREAM    = NO
 MFEM_USE_LIBUNWIND   = NO
 MFEM_USE_LAPACK      = NO
@@ -104,7 +105,15 @@ MFEM_USE_NETCDF      = NO
 MFEM_USE_PETSC       = NO
 MFEM_USE_MPFR        = NO
 MFEM_USE_SIDRE       = NO
+MFEM_USE_CONDUIT     = NO
 MFEM_USE_SCOREC      = NO
+
+# Compile and link options for zlib.
+ZLIB_DIR =
+ZLIB_OPT = $(if $(ZLIB_DIR),-I$(ZLIB_DIR)/include)
+ZLIB_LIB = $(if $(ZLIB_DIR),$(ZLIB_RPATH) -L$(ZLIB_DIR)/lib ,)-lz
+ZLIB_RPATH = -Wl,-rpath,$(ZLIB_DIR)/lib
+>>>>>>> master
 
 LIBUNWIND_OPT = -g
 LIBUNWIND_LIB = $(if $(NOTMAC),-lunwind -ldl,)
@@ -214,12 +223,10 @@ GNUTLS_LIB = -lgnutls
 # NetCDF library configuration
 NETCDF_DIR = $(HOME)/local
 HDF5_DIR   = $(HOME)/local
-ZLIB_DIR   = $(HOME)/local
-NETCDF_OPT = -I$(NETCDF_DIR)/include -I$(HDF5_DIR)/include -I$(ZLIB_DIR)/include
+NETCDF_OPT = -I$(NETCDF_DIR)/include -I$(HDF5_DIR)/include $(ZLIB_OPT)
 NETCDF_LIB = -Wl,-rpath,$(NETCDF_DIR)/lib -L$(NETCDF_DIR)/lib\
  -Wl,-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib\
- -Wl,-rpath,$(ZLIB_DIR)/lib -L$(ZLIB_DIR)/lib\
- -lnetcdf -lhdf5_hl -lhdf5 -lz
+ -lnetcdf -lhdf5_hl -lhdf5 $(ZLIB_LIB)
 
 # PETSc library configuration (version greater or equal to 3.8 or the dev branch)
 PETSC_ARCH := arch-linux2-c-debug
@@ -239,17 +246,32 @@ endif
 MPFR_OPT =
 MPFR_LIB = -lmpfr
 
+# Conduit and required libraries configuration
+CONDUIT_DIR = @MFEM_DIR@/../conduit
+CONDUIT_OPT = -I$(CONDUIT_DIR)/include/conduit
+CONDUIT_LIB = \
+   -Wl,-rpath,$(CONDUIT_DIR)/lib -L$(CONDUIT_DIR)/lib \
+   -lconduit -lconduit_relay -lconduit_blueprint  -ldl
+
+# Check if Conduit was built with hdf5 support, by looking
+# for the relay hdf5 header
+CONDUIT_HDF5_HEADER=$(CONDUIT_DIR)/include/conduit/conduit_relay_hdf5.hpp
+ifneq (,$(wildcard $(CONDUIT_HDF5_HEADER)))
+   CONDUIT_OPT += -I$(HDF5_DIR)/include
+   CONDUIT_LIB += -Wl,-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib \
+                  -lhdf5 $(ZLIB_LIB)
+endif
+
 # Sidre and required libraries configuration
 # Be sure to check the HDF5_DIR (set above) is correct
 SIDRE_DIR = @MFEM_DIR@/../axom
-CONDUIT_DIR = @MFEM_DIR@/../conduit
 SIDRE_OPT = -I$(SIDRE_DIR)/include -I$(CONDUIT_DIR)/include/conduit\
  -I$(HDF5_DIR)/include
 SIDRE_LIB = \
    -Wl,-rpath,$(SIDRE_DIR)/lib -L$(SIDRE_DIR)/lib \
    -Wl,-rpath,$(CONDUIT_DIR)/lib -L$(CONDUIT_DIR)/lib \
    -Wl,-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib \
-   -lsidre -lslic -laxom_utils -lconduit -lconduit_relay -lhdf5 -lz -ldl
+   -lsidre -lslic -laxom_utils -lconduit -lconduit_relay -lhdf5 $(ZLIB_LIB) -ldl
 
 # If YES, enable some informational messages
 VERBOSE = NO

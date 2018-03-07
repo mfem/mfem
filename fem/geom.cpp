@@ -806,7 +806,7 @@ RefinedGeometry * GeometryRefiner::Refine(int Geom, int Times, int ETimes)
 
    Times = std::max(Times, 1);
    ETimes = std::max(ETimes, 1);
-   const double *cp = poly1d.GetPoints(Times, type);
+   const double *cp = poly1d.GetPoints(Times, BasisType::GetNodalBasis(type));
 
    RefinedGeometry *RG = FindInRGeom(Geom, Times, ETimes, type);
    if (RG) { return RG; }
