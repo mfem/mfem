@@ -15,6 +15,9 @@
 // MFEM version: integer of the form: (major*100 + minor)*100 + patch.
 // #define MFEM_VERSION @MFEM_VERSION@
 
+// MFEM version string of the form "3.3" or "3.3.1".
+// #define MFEM_VERSION_STRING "@MFEM_VERSION_STRING@"
+
 // MFEM version type, see the MFEM_VERSION_TYPE_* constants below.
 #define MFEM_VERSION_TYPE ((MFEM_VERSION)%2)
 
@@ -27,12 +30,18 @@
 #define MFEM_VERSION_MINOR (((MFEM_VERSION)/100)%100)
 #define MFEM_VERSION_PATCH ((MFEM_VERSION)%100)
 
+// Description of the git commit used to build MFEM.
+// #define MFEM_GIT_STRING "@MFEM_GIT_STRING@"
+
 // Build the parallel MFEM library.
 // Requires an MPI compiler, and the libraries HYPRE and METIS.
 // #define MFEM_USE_MPI
 
 // Enable debug checks in MFEM.
 // #define MFEM_DEBUG
+
+// Throw an exception on errors.
+// #define MFEM_USE_EXCEPTIONS
 
 // Enable gzstream in MFEM.
 // #define MFEM_USE_GZSTREAM
@@ -87,6 +96,9 @@
 
 // Enable Sidre support
 // #define MFEM_USE_SIDRE
+
+// Enable Conduit support
+// #define MFEM_USE_CONDUIT
 
 // Enable functionality based on the NetCDF library (reading CUBIT files)
 // #define MFEM_USE_NETCDF

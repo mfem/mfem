@@ -286,7 +286,7 @@ void StaticCondensation::Finalize()
 }
 
 void StaticCondensation::EliminateReducedTrueDofs(
-   const Array<int> &ess_rtdof_list, int keep_diagonal)
+   const Array<int> &ess_rtdof_list, Matrix::DiagonalPolicy dpolicy)
 {
    if (!Parallel() || S) // not parallel or not finalized
    {
@@ -296,7 +296,7 @@ void StaticCondensation::EliminateReducedTrueDofs(
       }
       for (int i = 0; i < ess_rtdof_list.Size(); i++)
       {
-         S->EliminateRowCol(ess_rtdof_list[i], *S_e, keep_diagonal);
+         S->EliminateRowCol(ess_rtdof_list[i], *S_e, dpolicy);
       }
    }
    else // parallel and finalized

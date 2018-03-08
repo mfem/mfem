@@ -28,6 +28,7 @@ set(SRCS
   nonlinearform.cpp
   nonlininteg.cpp
   staticcond.cpp
+  tmop.cpp
   NSnonlininteg.cpp
   )
 
@@ -59,12 +60,18 @@ set(HDRS
   tfe.hpp
   tfespace.hpp
   tintrules.hpp
+  tmop.hpp
   NSnonlininteg.hpp
   )
 
 if (MFEM_USE_SIDRE)
   list(APPEND SRCS sidredatacollection.cpp)
   list(APPEND HDRS sidredatacollection.hpp)
+endif()
+
+if (MFEM_USE_CONDUIT)
+  list(APPEND SRCS conduitdatacollection.cpp)
+  list(APPEND HDRS conduitdatacollection.hpp)
 endif()
 
 if (MFEM_USE_MPI)

@@ -24,12 +24,7 @@ list(APPEND ALL_EXE_SRCS
   ex15.cpp
   ex16.cpp
   ex17.cpp
-  Stokes.cpp
-  NS.cpp
-  atr_pumi_ex1.cpp
-  atr_ex16.cpp
-  up_NS.cpp
-  cavity.cpp
+  ex18.cpp
   )
 
 if (MFEM_USE_MPI)
@@ -51,7 +46,6 @@ if (MFEM_USE_MPI)
     ex15p.cpp
     ex16p.cpp
     ex17p.cpp
-    par_cavity.cpp
     )
 endif()
 
@@ -68,7 +62,7 @@ if (MFEM_USE_SCOREC AND MFEM_USE_MPI)
 endif()
 
 # Include the source directory where mfem.hpp and mfem-performance.hpp are.
-include_directories(${PROJECT_BINARY_DIR})
+include_directories(BEFORE ${PROJECT_BINARY_DIR})
 
 # Add one executable per cpp file
 add_mfem_examples(ALL_EXE_SRCS)
@@ -78,7 +72,7 @@ foreach(SRC_FILE ${ALL_EXE_SRCS})
   get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
   string(REPLACE ".cpp" "" TEST_NAME ${SRC_FILENAME})
 
-  string(REGEX MATCH "p$" is_parallel_test ${TEST_NAME})
+  string(REGEX MATCH 'p$' is_parallel_test ${TEST_NAME})
 
   set(THIS_TEST_OPTIONS "-no-vis")
   if (${TEST_NAME} MATCHES "ex10p*")
@@ -99,7 +93,12 @@ foreach(SRC_FILE ${ALL_EXE_SRCS})
   endif()
 endforeach()
 
-# Include the examples/sundials directory.
-add_subdirectory(sundials)
-# Include the examples/petsc directory.
-add_subdirectory(petsc)
+# Include the examples/sundials directory if SUNDIALS is enabled.
+if (MFEM_USE_SUNDIALS)
+  add_subdirectory(sundials)
+endif()
+
+# Include the examples/petsc directory if PETSc is enabled.
+if (MFEM_USE_PETSC)
+  add_subdirectory(petsc)
+endif()

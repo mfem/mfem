@@ -239,6 +239,9 @@ script:
      SKIP_TEST_DIRS="";
      if [ "$CODECOV" == "YES" ]; then
         CPPFLAGS="--coverage -g";
+     fi;
+     if [ "$CXX" == "clang++" ]; then
+        export MFEM_PERF_SW=clang;
      fi
 
    # Configure the library

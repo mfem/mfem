@@ -10,6 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "../config/config.hpp"
+#include "../general/error.hpp"
 
 #ifdef MFEM_USE_MPI
 
@@ -1009,6 +1010,68 @@ void hypre_CSRMatrixBooleanMatvec(hypre_CSRMatrix *A,
    /* alpha is true */
 }
 
+/* Based on hypre_CSRMatrixMatvecT in hypre's csr_matvec.c */
+void hypre_CSRMatrixBooleanMatvecT(hypre_CSRMatrix *A,
+                                   HYPRE_Bool alpha,
+                                   HYPRE_Bool *x,
+                                   HYPRE_Bool beta,
+                                   HYPRE_Bool *y)
+{
+   /* HYPRE_Complex    *A_data   = hypre_CSRMatrixData(A); */
+   HYPRE_Int        *A_i      = hypre_CSRMatrixI(A);
+   HYPRE_Int        *A_j      = hypre_CSRMatrixJ(A);
+   HYPRE_Int         num_rows = hypre_CSRMatrixNumRows(A);
+   HYPRE_Int         num_cols = hypre_CSRMatrixNumCols(A);
+
+   HYPRE_Bool       *x_data = x;
+   HYPRE_Bool       *y_data = y;
+
+   HYPRE_Int         i, j, jj;
+
+   /*-----------------------------------------------------------------------
+    * y = beta*y
+    *-----------------------------------------------------------------------*/
+
+   if (beta == 0)
+   {
+      for (i = 0; i < num_cols; i++)
+      {
+         y_data[i] = 0;
+      }
+   }
+   else
+   {
+      /* beta is true -> no change to y_data */
+   }
+
+   /*-----------------------------------------------------------------------
+    * Check if (alpha == 0)
+    *-----------------------------------------------------------------------*/
+
+   if (alpha == 0)
+   {
+      return;
+   }
+
+   /* alpha is true */
+
+   /*-----------------------------------------------------------------
+    * y += A^T*x
+    *-----------------------------------------------------------------*/
+   for (i = 0; i < num_rows; i++)
+   {
+      if (x_data[i] != 0)
+      {
+         for (jj = A_i[i]; jj < A_i[i+1]; jj++)
+         {
+            j = A_j[jj];
+            /* y_data[j] += A_data[jj] * x_data[i]; */
+            y_data[j] = 1;
+         }
+      }
+   }
+}
+
 /* Based on hypre_ParCSRCommHandleCreate in hypre's par_csr_communication.c. The
    input variable job controls the communication type: 1=Matvec, 2=MatvecT. */
 hypre_ParCSRCommHandle *
@@ -1156,6 +1219,85 @@ void hypre_ParCSRMatrixBooleanMatvec(hypre_ParCSRMatrix *A,
    hypre_TFree(x_tmp);
 }
 
+/* Based on hypre_ParCSRMatrixMatvecT in par_csr_matvec.c */
+void hypre_ParCSRMatrixBooleanMatvecT(hypre_ParCSRMatrix *A,
+                                      HYPRE_Bool alpha,
+                                      HYPRE_Bool *x,
+                                      HYPRE_Bool beta,
+                                      HYPRE_Bool *y)
+{
+   hypre_ParCSRCommHandle *comm_handle;
+   hypre_ParCSRCommPkg    *comm_pkg = hypre_ParCSRMatrixCommPkg(A);
+   hypre_CSRMatrix        *diag = hypre_ParCSRMatrixDiag(A);
+   hypre_CSRMatrix        *offd = hypre_ParCSRMatrixOffd(A);
+   HYPRE_Bool             *y_tmp;
+   HYPRE_Bool             *y_buf;
+
+   HYPRE_Int               num_cols_offd = hypre_CSRMatrixNumCols(offd);
+
+   HYPRE_Int               i, j, jj, end, num_sends;
+
+   y_tmp = hypre_TAlloc(HYPRE_Bool, num_cols_offd);
+
+   /*---------------------------------------------------------------------
+    * If there exists no CommPkg for A, a CommPkg is generated using
+    * equally load balanced partitionings
+    *--------------------------------------------------------------------*/
+   if (!comm_pkg)
+   {
+      hypre_MatvecCommPkgCreate(A);
+      comm_pkg = hypre_ParCSRMatrixCommPkg(A);
+   }
+
+   num_sends = hypre_ParCSRCommPkgNumSends(comm_pkg);
+   y_buf = hypre_CTAlloc(HYPRE_Bool,
+                         hypre_ParCSRCommPkgSendMapStart(comm_pkg, num_sends));
+
+   if (num_cols_offd)
+   {
+#if MFEM_HYPRE_VERSION >= 21100
+      if (A->offdT)
+      {
+         // offdT is optional. Used only if it's present.
+         hypre_CSRMatrixBooleanMatvec(A->offdT, alpha, x, 0, y_tmp);
+      }
+      else
+#endif
+      {
+         hypre_CSRMatrixBooleanMatvecT(offd, alpha, x, 0, y_tmp);
+      }
+   }
+
+   comm_handle = hypre_ParCSRCommHandleCreate_bool(2, comm_pkg, y_tmp, y_buf);
+
+#if MFEM_HYPRE_VERSION >= 21100
+   if (A->diagT)
+   {
+      // diagT is optional. Used only if it's present.
+      hypre_CSRMatrixBooleanMatvec(A->diagT, alpha, x, beta, y);
+   }
+   else
+#endif
+   {
+      hypre_CSRMatrixBooleanMatvecT(diag, alpha, x, beta, y);
+   }
+
+   hypre_ParCSRCommHandleDestroy(comm_handle);
+
+   for (i = 0; i < num_sends; i++)
+   {
+      end = hypre_ParCSRCommPkgSendMapStart(comm_pkg, i+1);
+      for (j = hypre_ParCSRCommPkgSendMapStart(comm_pkg, i); j < end; j++)
+      {
+         jj = hypre_ParCSRCommPkgSendMapElmt(comm_pkg, j);
+         y[jj] = y[jj] || y_buf[j];
+      }
+   }
+
+   hypre_TFree(y_buf);
+   hypre_TFree(y_tmp);
+}
+
 HYPRE_Int
 hypre_CSRMatrixSum(hypre_CSRMatrix *A,
                    HYPRE_Complex    beta,
@@ -1226,56 +1368,113 @@ hypre_ParCSRMatrixAdd(hypre_ParCSRMatrix *A,
    hypre_CSRMatrix    *C_offd;
    HYPRE_Int          *C_cmap;
    HYPRE_Int           im;
+   HYPRE_Int           cmap_differ;
 
-   /* Make sure A_cmap and B_cmap are the same. */
+   /* Check if A_cmap and B_cmap are the same. */
+   cmap_differ = 0;
    if (A_cmap_size != B_cmap_size)
    {
-      return NULL; /* error: A and B have different cmap_size */
+      cmap_differ = 1; /* A and B have different cmap_size */
    }
-   for (im = 0; im < A_cmap_size; im++)
+   else
    {
-      if (A_cmap[im] != B_cmap[im])
+      for (im = 0; im < A_cmap_size; im++)
       {
-         return NULL; /* error: A and B have different cmap arrays */
+         if (A_cmap[im] != B_cmap[im])
+         {
+            cmap_differ = 1; /* A and B have different cmap arrays */
+            break;
+         }
       }
    }
 
-   /* Add diagonals, off-diagonals, copy cmap. */
-   C_diag = hypre_CSRMatrixAdd(A_diag, B_diag);
-   if (!C_diag)
+   if ( cmap_differ == 0 )
    {
-      return NULL; /* error: A_diag and B_diag have different dimensions */
-   }
-   C_offd = hypre_CSRMatrixAdd(A_offd, B_offd);
-   if (!C_offd)
-   {
-      hypre_CSRMatrixDestroy(C_diag);
-      return NULL; /* error: A_offd and B_offd have different dimensions */
-   }
-   /* copy A_cmap -> C_cmap */
-   C_cmap = hypre_TAlloc(HYPRE_Int, A_cmap_size);
-   for (im = 0; im < A_cmap_size; im++)
-   {
-      C_cmap[im] = A_cmap[im];
-   }
+      /* A and B have the same column mapping for their off-diagonal blocks so
+         we can sum the diagonal and off-diagonal blocks separately and reduce
+         temporary memory usage. */
 
-   C = hypre_ParCSRMatrixCreate(comm,
-                                hypre_ParCSRMatrixGlobalNumRows(A),
-                                hypre_ParCSRMatrixGlobalNumCols(A),
-                                hypre_ParCSRMatrixRowStarts(A),
-                                hypre_ParCSRMatrixColStarts(A),
-                                hypre_CSRMatrixNumCols(C_offd),
-                                hypre_CSRMatrixNumNonzeros(C_diag),
-                                hypre_CSRMatrixNumNonzeros(C_offd));
+      /* Add diagonals, off-diagonals, copy cmap. */
+      C_diag = hypre_CSRMatrixAdd(A_diag, B_diag);
+      if (!C_diag)
+      {
+         return NULL; /* error: A_diag and B_diag have different dimensions */
+      }
+      C_offd = hypre_CSRMatrixAdd(A_offd, B_offd);
+      if (!C_offd)
+      {
+         hypre_CSRMatrixDestroy(C_diag);
+         return NULL; /* error: A_offd and B_offd have different dimensions */
+      }
+      /* copy A_cmap -> C_cmap */
+      C_cmap = hypre_TAlloc(HYPRE_Int, A_cmap_size);
+      for (im = 0; im < A_cmap_size; im++)
+      {
+         C_cmap[im] = A_cmap[im];
+      }
 
-   /* In C, destroy diag/offd (allocated by Create) and replace them with
+      C = hypre_ParCSRMatrixCreate(comm,
+                                   hypre_ParCSRMatrixGlobalNumRows(A),
+                                   hypre_ParCSRMatrixGlobalNumCols(A),
+                                   hypre_ParCSRMatrixRowStarts(A),
+                                   hypre_ParCSRMatrixColStarts(A),
+                                   hypre_CSRMatrixNumCols(C_offd),
+                                   hypre_CSRMatrixNumNonzeros(C_diag),
+                                   hypre_CSRMatrixNumNonzeros(C_offd));
+
+      /* In C, destroy diag/offd (allocated by Create) and replace them with
       C_diag/C_offd. */
-   hypre_CSRMatrixDestroy(hypre_ParCSRMatrixDiag(C));
-   hypre_CSRMatrixDestroy(hypre_ParCSRMatrixOffd(C));
-   hypre_ParCSRMatrixDiag(C) = C_diag;
-   hypre_ParCSRMatrixOffd(C) = C_offd;
+      hypre_CSRMatrixDestroy(hypre_ParCSRMatrixDiag(C));
+      hypre_CSRMatrixDestroy(hypre_ParCSRMatrixOffd(C));
+      hypre_ParCSRMatrixDiag(C) = C_diag;
+      hypre_ParCSRMatrixOffd(C) = C_offd;
 
-   hypre_ParCSRMatrixColMapOffd(C) = C_cmap;
+      hypre_ParCSRMatrixColMapOffd(C) = C_cmap;
+   }
+   else
+   {
+      /* A and B have different column mappings for their off-diagonal blocks so
+      we need to use the column maps to create full-width CSR matricies. */
+
+      int  ierr = 0;
+      hypre_CSRMatrix * csr_A;
+      hypre_CSRMatrix * csr_B;
+      hypre_CSRMatrix * csr_C_temp;
+
+      /* merge diag and off-diag portions of A */
+      csr_A = hypre_MergeDiagAndOffd(A);
+
+      /* merge diag and off-diag portions of B */
+      csr_B = hypre_MergeDiagAndOffd(B);
+
+      /* add A and B */
+      csr_C_temp = hypre_CSRMatrixAdd(csr_A,csr_B);
+
+      /* delete CSR versions of A and B */
+      ierr += hypre_CSRMatrixDestroy(csr_A);
+      ierr += hypre_CSRMatrixDestroy(csr_B);
+
+      /* create a new empty ParCSR matrix to contain the sum */
+      C = hypre_ParCSRMatrixCreate(hypre_ParCSRMatrixComm(A),
+                                   hypre_ParCSRMatrixGlobalNumRows(A),
+                                   hypre_ParCSRMatrixGlobalNumCols(A),
+                                   hypre_ParCSRMatrixRowStarts(A),
+                                   hypre_ParCSRMatrixColStarts(A),
+                                   0, 0, 0);
+
+      /* split C into diag and off-diag portions */
+      /* FIXME: GenerateDiagAndOffd() uses an int array of size equal to the
+         number of columns in csr_C_temp which is the global number of columns
+         in A and B. This does not scale well. */
+      ierr += GenerateDiagAndOffd(csr_C_temp, C,
+                                  hypre_ParCSRMatrixFirstColDiag(A),
+                                  hypre_ParCSRMatrixLastColDiag(A));
+
+      /* delete CSR version of C */
+      ierr += hypre_CSRMatrixDestroy(csr_C_temp);
+
+      MFEM_VERIFY(ierr == 0, "");
+   }
 
    /* hypre_ParCSRMatrixSetNumNonzeros(A); */
 

@@ -19,6 +19,12 @@ Create the install script `rebuild.sh`
 d=$PWD
 installdir=$PWD/core-deps
 
+doMetis() {
+  cd $d/metis
+  wget http://glaros.dtc.umn.edu/gkhome/fetch/sw/metis/metis-5.1.0.tar.gz
+  tar xf metis-5.1.0.tar.gz
+}
+
 doParmetis() {
  compiler=$1
  shared=$2
@@ -59,6 +65,7 @@ doZoltan() {
 }
 
 module load mpich3/3.1.2-thread-multiple
+doMetis
 doParmetis mpich3.1.2
 export PARMETIS_INSTALL_DIR=$installdir
 doZoltan mpich3.1.2
@@ -66,13 +73,13 @@ doZoltan mpich3.1.2
 
 Create the parmetis and zoltan directories
 ```
-mkdir parmetis zoltan
+mkdir metis parmetis zoltan
 ```
 
 Create the parmetis configure script `parmetis/doConfigure.sh`
 ```
 #!/bin/bash -e
-metis=/lore/cwsmith/develop/mfem/metis-5.1.0
+metis=$HOME/develop/metis/metis-5.1.0
 cmake \
 -DCMAKE_INSTALL_PREFIX=$1 \
 -DMETIS_PATH=$metis \
@@ -158,7 +165,7 @@ cd /path/to/mfem-develop
 wget https://computation.llnl.gov/projects/hypre-scalable-linear-solvers-multigrid-methods/download/hypre-2.11.2.tar.gz
 tar xf hypre-2.11.2.tar.gz
 cd hypre-2.11.2/src
-./configure --prefix=$PWD/../install
+./configure CC=<C compiler> CXX=<C++ compiler> FC=<Fortran compiler> --prefix=$PWD/../install
 make install
 ```
 
@@ -175,6 +182,10 @@ git checkout pumi-dev
 Create a config script `mfem-config.sh`
 ```
 cmake ../mfem \
+-DCMAKE_CXX_COMPILER=mpixlcxx \
+-DCMAKE_C_COMPILER=mpixlc \
+-DMPI_CXX_INCLUDE_PATH="" \
+-DMPI_CXX_LIBRARIES="" \
 -DCMAKE_BUILD_TYPE=Debug \
 -DMFEM_USE_MPI=YES \
 -DMFEM_USE_METIS_5=YES \
@@ -199,4 +210,77 @@ make -j8
 Run mfem tests
 ```
 ctest
+```
+
+## System specific instructions
+
+## LLNL Vulcan
+
+MPI compiler wrappers mpicxx(mpixlcxx), mpicc(mpixlc), mpif90(mpixlf90) point at
+the rentrant BGQ XL compilers.  No module needs to be loaded to access them.
+
+CMake is not in the PATH by default.  Add it with:
+`export PATH=$PATH:/usr/local/tools/cmake-3.7.2/bin`
+
+Zoltan's autoconf build system requires the `--host=ppc64 --target=ppc64`
+arguments passed to it.
+
+MFEM calls find_package(MPI) which results in the following error at runtime:
+
+```
+Only 3 injection fifos were set up.  Expected 10.
+```
+
+To avoid this, create a toolchain file named 'vulcan-xl.toolchain':
+
+```
+set(CMAKE_SYSTEM_NAME BlueGeneQ-static)
+
+set(COMPILER_SEARCH_PATHS /usr/local/bin)
+
+find_program(CMAKE_C_COMPILER       mpixlc    ${COMPILER_SEARCH_PATHS} )
+find_program(CMAKE_CXX_COMPILER     mpixlcxx   ${COMPILER_SEARCH_PATHS} )
+find_program(CMAKE_Fortran_COMPILER mpixlf90  ${COMPILER_SEARCH_PATHS} )
+
+SET_PROPERTY(GLOBAL PROPERTY TARGET_SUPPORTS_SHARED_LIBS FALSE)
+SET_PROPERTY(GLOBAL PROPERTY TARGET_ARCHIVES_MAY_BE_SHARED_LIBS FALSE)
+
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+
+#The combination of tau's use of the mpi compiler wrappers and our
+# use of MPI_*_libraries from find_package(mpi) results in
+# several 'multiple symbol definition' errors when linking phastaIC.exe.
+#Override the variables set by find_package(mpi) to avoid find_package(mpi) 
+# autodetection.  Setting the libraries to 'm' is a hack - FindMPI.cmake 
+# does not want those vars to be empty strings.
+set(MPI_Fortran_COMPILER mpixlf90)
+set(MPI_Fortran_INCLUDE_PATH "/bgsys/drivers/V1R2M4/ppc64")
+set(MPI_Fortran_LIBRARIES "c")
+set(MPI_C_COMPILER mpixlc)
+set(MPI_C_INCLUDE_PATH "/bgsys/drivers/V1R2M4/ppc64/comm/include")
+set(MPI_C_LIBRARIES "c")
+set(MPI_CXX_COMPILER mpixlcxx)
+set(MPI_CXX_INCLUDE_PATH "/bgsys/drivers/V1R2M4/ppc64/comm/lib/xl")
+set(MPI_CXX_LIBRARIES "c")
+```
+
+Then, modify your mfem cmake command to:
+
+```
+cmake $HOME/develop/mfem \
+-DCMAKE_TOOLCHAIN_FILE=/path/to/vulcan-xl.toolchain \
+-DCMAKE_BUILD_TYPE=Debug \
+-DCMAKE_CXX_FLAGS="-g -qminimaltoc" \
+-DMFEM_USE_MPI=YES \
+-DMFEM_USE_METIS_5=YES \
+-DMFEM_DEBUG=YES \
+-DMFEM_ENABLE_EXAMPLES=YES \
+-DMFEM_ENABLE_MINIAPPS=YES \
+-DMFEM_USE_SCOREC=YES \
+-DSCOREC_PREFIX=/path/to/mfem-develop/core-build/install \
+-DHYPRE_DIR=/path/to/mfem-develop/hypre-2.11.2-build/install/ \
+-DHYPRE_VERSION=21102 \
+-DMETIS_DIR=/path/to/mfem-develop/core-deps
 ```
