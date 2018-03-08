@@ -19,10 +19,43 @@
 namespace mfem
 {
 
+/// Action to take when MFEM encounters an error.
+enum ErrorAction
+{
+   MFEM_ERROR_ABORT = 0, /**<
+      Abort execution using abort() or MPI_Abort(). This is the default error
+      action when the build option MFEM_USE_EXCEPTIONS is set to NO. */
+   MFEM_ERROR_THROW      /**<
+      Throw an ErrorException. Requires the build option MFEM_USE_EXCEPTIONS=YES
+      in which case it is also the default error action. */
+};
+
+/// Set the action MFEM takes when an error is encountered.
+void set_error_action(ErrorAction action);
+/// Get the action MFEM takes when an error is encountered.
+ErrorAction get_error_action();
+
+#ifdef MFEM_USE_EXCEPTIONS
+/** @brief Exception class thrown when MFEM encounters an error and the current
+    ErrorAction is set to MFEM_ERROR_THROW. */
+class ErrorException: public std::exception
+{
+private:
+   std::string msg;
+public:
+   explicit ErrorException(const std::string & in_msg) : msg(in_msg) { }
+   virtual ~ErrorException() throw() { }
+   virtual const char* what() const throw();
+};
+#endif
+
 void mfem_backtrace(int mode = 0, int depth = -1);
 
+/** @brief Function called when an error is encountered. Used by the macros
+    MFEM_ABORT, MFEM_ASSERT, MFEM_VERIFY. */
 void mfem_error(const char *msg = NULL);
 
+/// Function called by the macro MFEM_WARNING.
 void mfem_warning(const char *msg = NULL);
 
 }
@@ -68,7 +101,7 @@ void mfem_warning(const char *msg = NULL);
    if (!(x))                                            \
    {                                                    \
       _MFEM_MESSAGE("Verification failed: ("            \
-                    << #x << ") is false: " << msg, 0); \
+                    << #x << ") is false:\n --> " << msg, 0); \
    }
 
 // Use this if the only place your variable is used is in ASSERTs
@@ -86,7 +119,7 @@ void mfem_warning(const char *msg = NULL);
    if (!(x))                                            \
    {                                                    \
       _MFEM_MESSAGE("Assertion failed: ("               \
-                    << #x << ") is false: " << msg, 0); \
+                    << #x << ") is false:\n --> " << msg, 0); \
    }
 
 // A macro that exposes its argument in debug mode only.

@@ -30,6 +30,7 @@
 #include "datacollection.hpp"
 #include "estimators.hpp"
 #include "staticcond.hpp"
+#include "tmop.hpp"
 #include "NSnonlininteg.hpp"
 
 #ifdef MFEM_USE_MPI
@@ -42,6 +43,10 @@
 
 #ifdef MFEM_USE_SIDRE
 #include "sidredatacollection.hpp"
+#endif
+
+#ifdef MFEM_USE_CONDUIT
+#include "conduitdatacollection.hpp"
 #endif
 
 #endif
