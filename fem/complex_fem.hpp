@@ -125,12 +125,6 @@ public:
    void SetConvention(const ComplexOperator::Convention &
                       convention) { conv_  = convention; }
 
-   /** Enable the use of static condensation. For details see the description
-       for class StaticCondensation in fem/staticcond.hpp This method should be
-       called before assembly. If the number of unknowns after static
-       condensation is not reduced, it is not enabled. */
-   void EnableStaticCondensation();
-
    BilinearForm & real() { return *blfr_; }
    BilinearForm & imag() { return *blfi_; }
    const BilinearForm & real() const { return *blfr_; }
@@ -288,12 +282,6 @@ public:
    ComplexOperator::Convention GetConvention() const { return conv_; }
    void SetConvention(const ComplexOperator::Convention &
                       convention) { conv_  = convention; }
-
-   /** Enable the use of static condensation. For details see the description
-       for class StaticCondensation in fem/staticcond.hpp This method should be
-       called before assembly. If the number of unknowns after static
-       condensation is not reduced, it is not enabled. */
-   void EnableStaticCondensation();
 
    ParBilinearForm & real() { return *pblfr_; }
    ParBilinearForm & imag() { return *pblfi_; }
