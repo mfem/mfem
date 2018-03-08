@@ -719,6 +719,19 @@ public:
 
    long MemoryUsage() const { return nk*Mk.MemoryUsage(); }
 
+   void DebugDump(std::ostream &os)
+   {
+      for (int k = 0; k < nk; k++)
+      {
+         double* data = GetData(k);
+         for (int i = 0; i < Mk.Height()*Mk.Width(); i++)
+         {
+            os << data[i] << " ";
+         }
+         os << "\n";
+      }
+   }
+
    ~DenseTensor()
    {
       if (own_data) { delete [] tdata; }
