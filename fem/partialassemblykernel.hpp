@@ -236,7 +236,7 @@ enum PAOp { BtDB, BtDG, GtDB, GtDG };
  // Available Domain Kernels //
 //////////////////////////////
 /**
-*  CPU simple implementation
+*  simple CPU implementation
 */
 template <typename  Equation, PAOp OpName = Equation::OpName>
 class DomainMult;
@@ -339,6 +339,7 @@ public:
       const int dim = fes->GetFE(0)->GetDim();
       const IntegrationRule& ir1d = IntRules.Get(Geometry::SEGMENT, order);
       InitIntegrationPoints(intPts, order, ir1d, dim);
+      const int quads1d = ir1d.GetNPoints();
       Mesh* mesh = fes->GetMesh();
       const int nb_elts = fes->GetNE();
       const int nb_faces_elt = 2*dim;
@@ -377,22 +378,11 @@ public:
          this->kernel_data(ind_elt2,face_id2).permutation = perm1;
          this->kernel_data(ind_elt1,face_id1).indirection = ind_elt2;
          this->kernel_data(ind_elt1,face_id1).permutation = perm2;
-         for (int k1 = 0; k1 < quads; ++k1)
+         for (int kf = 0; kf < quads; ++kf)
          {
             const IntegrationRule& ir = IntRules.Get(geom, order);
-            //FIXME: Only works for 2D
-            int kf = k1;
-            if(face_id1<=1){//SOUTH or EAST
-               kf = k1;
-            }else{//NORTH or WEST
-               kf = quads-1-k1;
-            }
-            int k2 = kf;
-            if(face_id2<=1){//SOUTH or EAST
-               k2 = quads-1-kf;
-            }else{//NORTH or WEST
-               k2 = kf;
-            }
+            int k1 = GetFaceQuadIndex(dim,face_id1,nb_rot1,kf,quads1d);
+            int k2 = GetFaceQuadIndex(dim,face_id2,nb_rot2,kf,quads1d);
             const IntegrationPoint& ip = ir.IntPoint(kf);
             if(face_tr->Elem2No!=-1){//Not a boundary face
                face_tr->Face->SetIntPoint( &ip );
@@ -425,8 +415,21 @@ public:
    // Perform the action of the BilinearFormIntegrator
    virtual void AddMult(const Vector &fun, Vector &vect)
    {
-      this->EvalInt(fun, vect);
-      this->EvalExt(fun, vect);
+      int dim = this->fes->GetFE(0)->GetDim();
+      switch(dim)
+      {
+         case 2:
+            this->EvalInt2D(fun, vect);
+            this->EvalExt2D(fun, vect);
+            break;
+         case 3:
+            this->EvalInt3D(fun, vect);
+            this->EvalExt3D(fun, vect);
+            break;
+         default:
+            mfem_error("Face Kernel does not exist for this dimension.");
+            break;
+      }
    }
 
 private:
@@ -811,50 +814,115 @@ public:
    /**
    *  Computes internal fluxes
    */
-   void EvalInt(const Vector& U, Vector& V)
+   void EvalInt2D(const Vector& U, Vector& V)
    {
       // North Faces
       int face_id = 2;
-      MultIntY(fes,shape1d,shape0d1,Dint,face_id,U,V);
+      MultIntY2D(fes,shape1d,shape0d1,Dint,face_id,U,V);
       // South Faces
       face_id = 0;
-      MultIntY(fes,shape1d,shape0d0,Dint,face_id,U,V);
+      MultIntY2D(fes,shape1d,shape0d0,Dint,face_id,U,V);
       // East Faces
       face_id = 1;
-      MultIntX(fes,shape1d,shape0d1,Dint,face_id,U,V);
+      MultIntX2D(fes,shape1d,shape0d1,Dint,face_id,U,V);
       // West Faces
       face_id = 3;
-      MultIntX(fes,shape1d,shape0d0,Dint,face_id,U,V);
+      MultIntX2D(fes,shape1d,shape0d0,Dint,face_id,U,V);
    }
 
    /**
    *  Computes external fluxes
    */
-   void EvalExt(const Vector& U, Vector& V)
+   void EvalExt2D(const Vector& U, Vector& V)
    {
       // North Faces
       int face_id_test = 2;
-      MultExtY(fes,shape1d,shape0d0,shape0d1,kernel_data,Dext,face_id_test,U,V);
+      MultExtY2D(fes,shape1d,shape0d0,shape0d1,kernel_data,Dext,face_id_test,U,V);
       // South Faces
       face_id_test = 0;
-      MultExtY(fes,shape1d,shape0d1,shape0d0,kernel_data,Dext,face_id_test,U,V);
+      MultExtY2D(fes,shape1d,shape0d1,shape0d0,kernel_data,Dext,face_id_test,U,V);
       // East Faces
       face_id_test = 1;
-      MultExtX(fes,shape1d,shape0d0,shape0d1,kernel_data,Dext,face_id_test,U,V);
+      MultExtX2D(fes,shape1d,shape0d0,shape0d1,kernel_data,Dext,face_id_test,U,V);
       // West Faces
       face_id_test = 3;
-      MultExtX(fes,shape1d,shape0d1,shape0d0,kernel_data,Dext,face_id_test,U,V);      
+      MultExtX2D(fes,shape1d,shape0d1,shape0d0,kernel_data,Dext,face_id_test,U,V);
+   }
+
+   /**
+   *  Computes internal fluxes
+   */
+   void EvalInt3D(const Vector& U, Vector& V)
+   {
+      // Bottom Faces
+      int face_id = 0;
+      MultIntZ3D(fes,shape1d,shape0d0,Dint,face_id,U,V);
+      // Top Faces
+      face_id = 5;
+      MultIntZ3D(fes,shape1d,shape0d1,Dint,face_id,U,V);
+      // North Faces
+      face_id = 3;
+      MultIntY3D(fes,shape1d,shape0d1,Dint,face_id,U,V);
+      // South Faces
+      face_id = 1;
+      MultIntY3D(fes,shape1d,shape0d0,Dint,face_id,U,V);
+      // East Faces
+      face_id = 2;
+      MultIntX3D(fes,shape1d,shape0d1,Dint,face_id,U,V);
+      // West Faces
+      face_id = 4;
+      MultIntX3D(fes,shape1d,shape0d0,Dint,face_id,U,V);
+   }
+
+   /**
+   *  Computes external fluxes
+   */
+   void EvalExt3D(const Vector& U, Vector& V)
+   {
+      // Bottom Faces
+      int face_id_test = 0;
+      MultExtZ3D(fes,shape1d,shape0d1,shape0d0,kernel_data,Dext,face_id_test,U,V);
+      // Top Faces
+      face_id_test = 5;
+      MultExtZ3D(fes,shape1d,shape0d0,shape0d1,kernel_data,Dext,face_id_test,U,V);
+      // North Faces
+      face_id_test = 3;
+      MultExtY3D(fes,shape1d,shape0d0,shape0d1,kernel_data,Dext,face_id_test,U,V);
+      // South Faces
+      face_id_test = 1;
+      MultExtY3D(fes,shape1d,shape0d1,shape0d0,kernel_data,Dext,face_id_test,U,V);
+      // East Faces
+      face_id_test = 2;
+      MultExtX3D(fes,shape1d,shape0d0,shape0d1,kernel_data,Dext,face_id_test,U,V);
+      // West Faces
+      face_id_test = 4;
+      MultExtX3D(fes,shape1d,shape0d1,shape0d0,kernel_data,Dext,face_id_test,U,V);
    }
 
 private:
-   static void MultIntX(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
+   static void MultIntX2D(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
                         DTensor& Dint, int face_id, const Vector& U, Vector& V);
-   static void MultIntY(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
+   static void MultIntY2D(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
                         DTensor& Dint, int face_id, const Vector& U, Vector& V);
-   static void MultExtX(FiniteElementSpace* fes, Tensor2d& B,
+   static void MultExtX2D(FiniteElementSpace* fes, Tensor2d& B,
                         Tensor2d& B0dTrial, Tensor2d& B0dtest, KData& kernel_data,
                         DTensor& D, int face_id, const Vector& U, Vector& V);
-   static void MultExtY(FiniteElementSpace* fes, Tensor2d& B,
+   static void MultExtY2D(FiniteElementSpace* fes, Tensor2d& B,
+                        Tensor2d& B0dTrial, Tensor2d& B0dtest, KData& kernel_data,
+                        DTensor& D, int face_id, const Vector& U, Vector& V);
+   static void MultIntX3D(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
+                        DTensor& Dint, int face_id, const Vector& U, Vector& V);
+   static void MultIntY3D(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
+                        DTensor& Dint, int face_id, const Vector& U, Vector& V);
+   static void MultIntZ3D(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
+                        DTensor& Dint, int face_id, const Vector& U, Vector& V);
+   static void MultExtX3D(FiniteElementSpace* fes, Tensor2d& B,
+                        Tensor2d& B0dTrial, Tensor2d& B0dtest, KData& kernel_data,
+                        DTensor& D, int face_id, const Vector& U, Vector& V);
+   static void MultExtY3D(FiniteElementSpace* fes, Tensor2d& B,
+                        Tensor2d& B0dTrial, Tensor2d& B0dtest, KData& kernel_data,
+                        DTensor& D, int face_id, const Vector& U, Vector& V);
+   static void MultExtZ3D(FiniteElementSpace* fes, Tensor2d& B,
                         Tensor2d& B0dTrial, Tensor2d& B0dtest, KData& kernel_data,
                         DTensor& D, int face_id, const Vector& U, Vector& V);
 };
@@ -1685,7 +1753,7 @@ void DomainMult<Equation,PAOp::GtDB>::Mult3d(const Vector &V, Vector &U)
 ////////////////////////
 
 template <typename Equation>
-void DummyFaceMult<Equation,PAOp::BtDB>::MultIntX(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
+void DummyFaceMult<Equation,PAOp::BtDB>::MultIntX2D(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
                         DTensor& D, int face_id, const Vector& U, Vector& V)
 {
    // nunber of elements
@@ -1741,7 +1809,7 @@ void DummyFaceMult<Equation,PAOp::BtDB>::MultIntX(FiniteElementSpace* fes, Tenso
 }
 
 template <typename Equation>
-void DummyFaceMult<Equation,PAOp::BtDB>::MultIntY(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
+void DummyFaceMult<Equation,PAOp::BtDB>::MultIntY2D(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
                         DTensor& D, int face_id, const Vector& U, Vector& V)
 {
    // nunber of elements
@@ -1903,7 +1971,7 @@ void Permutation::Permutation2d(int face_id, int nbe, int dofs1d, KData& kernel_
             }
             break;
          default:
-            mfem_error("This permutation id does not exist");
+            mfem_error("This permutation id does not exist in 2D");
          }
       }else{
          for (int i2 = 0; i2 < dofs1d; ++i2)
@@ -1957,7 +2025,7 @@ void Permutation::Permutation3d(int face_id, int nbe, int dofs1d, KData& kernel_
 }
 
 template <typename Equation>
-void DummyFaceMult<Equation,PAOp::BtDB>::MultExtX(FiniteElementSpace* fes, Tensor2d& B,
+void DummyFaceMult<Equation,PAOp::BtDB>::MultExtX2D(FiniteElementSpace* fes, Tensor2d& B,
                         Tensor2d& B0dTrial, Tensor2d& B0dTest, KData& kernel_data,
                         DTensor& D, int face_id, const Vector& U, Vector& V)
 {
@@ -2018,7 +2086,7 @@ void DummyFaceMult<Equation,PAOp::BtDB>::MultExtX(FiniteElementSpace* fes, Tenso
 }
 
 template <typename Equation>
-void DummyFaceMult<Equation,PAOp::BtDB>::MultExtY(FiniteElementSpace* fes, Tensor2d& B,
+void DummyFaceMult<Equation,PAOp::BtDB>::MultExtY2D(FiniteElementSpace* fes, Tensor2d& B,
                         Tensor2d& B0dTrial, Tensor2d& B0dTest, KData& kernel_data,
                         DTensor& D, int face_id, const Vector& U, Vector& V)
 {
@@ -2073,6 +2141,558 @@ void DummyFaceMult<Equation,PAOp::BtDB>::MultExtY(FiniteElementSpace* fes, Tenso
          for (int j1 = 0; j1 < dofs1d; ++j1)
          {
             R(j1,j2,e) += B0dTest(j2,0) * T3(j1);
+         }
+      }
+   }
+}
+
+template <typename Equation>
+void DummyFaceMult<Equation,PAOp::BtDB>::MultIntX3D(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
+                        DTensor& D, int face_id, const Vector& U, Vector& V)
+{
+   // nunber of elements
+   const int nbe = fes->GetNE();
+   // number of degrees of freedom in 1d (assumes that i1=i2=i3)
+   const int dofs1d = B.Height();
+   // number of quadrature points
+   const int quads1d = B.Width();
+   Tensor<4> T0(U.GetData(),dofs1d,dofs1d,dofs1d,nbe);
+   Tensor<4> R(V.GetData(),dofs1d,dofs1d,dofs1d,nbe);
+   //TODO: Check size
+   Tensor<2> T1(dofs1d,dofs1d),T2(dofs1d,quads1d),T3(quads1d,quads1d),T4(quads1d,dofs1d),T5(dofs1d,dofs1d);
+   for (int e = 0; e < nbe; ++e)
+   {
+      for (int i3 = 0; i3 < dofs1d; ++i3)
+      {
+         for (int i2 = 0; i2 < dofs1d; ++i2)
+         {
+            T1(i2,i3) = 0.0;
+            for (int i1 = 0; i1 < dofs1d; ++i1)
+            {
+               T1(i2,i3) += B0d(i1,0) * T0(i1,i2,i3,e);
+            }
+         }
+      }
+      for (int k2 = 0; k2 < quads1d; ++k2)
+      {
+         for (int i3 = 0; i3 < dofs1d; ++i3)
+         {
+            T2(i3,k2) = 0.0;
+            for (int i2 = 0; i2 < dofs1d; ++i2)
+            {
+               T2(i3,k2) += B(i2,k2) * T1(i2,i3);
+            }
+         }
+      }
+      for (int k3 = 0; k3 < quads1d; ++k3)
+      {
+         for (int k2 = 0; k2 < quads1d; ++k2)
+         {
+            T3(k2,k3) = 0.0;
+            for (int i3 = 0; i3 < dofs1d; ++i3)
+            {
+               T3(k2,k3) += B(i3,k3) * T2(i3,k2);
+            }
+         }
+      }
+      for (int k3 = 0, k = 0; k3 < quads1d; ++k3, ++k)
+      {
+         for (int k2 = 0; k2 < quads1d; ++k2, ++k)
+         {
+            T3(k2,k3) = D(k,e,face_id) * T3(k2,k3);
+         }
+      }
+      for (int j2 = 0; j2 < dofs1d; ++j2)
+      {
+         for (int k3 = 0; k3 < quads1d; ++k3)
+         {
+            T4(k3,j2) = 0.0;
+            for (int k2 = 0; k2 < quads1d; ++k2)
+            {
+               T4(k3,j2) += B(j2,k2) * T3(k2,k3);
+            }
+         }
+      }
+      for (int j3 = 0; j3 < dofs1d; ++j3)
+      {
+         for (int j2 = 0; j2 < dofs1d; ++j2)
+         {
+            T5(j2,j3) = 0.0;
+            for (int k3 = 0; k3 < quads1d; ++k3)
+            {
+               T5(j2,j3) += B(j3,k3) * T4(k3,j2);
+            }
+         }
+      }
+      for (int j3 = 0; j3 < dofs1d; ++j3)
+      {
+         for (int j2 = 0; j2 < dofs1d; ++j2)
+         {
+            for (int j1 = 0; j1 < dofs1d; ++j1)
+            {
+               R(j1,j2,j3,e) += B0d(j1,0) * T5(j2,j3);
+            }
+         }
+      }
+   }
+}
+
+template <typename Equation>
+void DummyFaceMult<Equation,PAOp::BtDB>::MultIntY3D(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
+                        DTensor& D, int face_id, const Vector& U, Vector& V)
+{
+   // nunber of elements
+   const int nbe = fes->GetNE();
+   // number of degrees of freedom in 1d (assumes that i1=i2=i3)
+   const int dofs1d = B.Height();
+   // number of quadrature points
+   const int quads1d = B.Width();
+   Tensor<4> T0(U.GetData(),dofs1d,dofs1d,dofs1d,nbe);
+   Tensor<4> R(V.GetData(),dofs1d,dofs1d,dofs1d,nbe);
+   //TODO: Check size
+   Tensor<2> T1(dofs1d,dofs1d),T2(dofs1d,quads1d),T3(quads1d,quads1d),T4(quads1d,dofs1d),T5(dofs1d,dofs1d);
+   for (int e = 0; e < nbe; ++e)
+   {
+      for (int i3 = 0; i3 < dofs1d; ++i3)
+      {
+         for (int i1 = 0; i1 < dofs1d; ++i1)
+         {
+            T1(i1,i3) = 0.0;
+            for (int i2 = 0; i2 < dofs1d; ++i2)
+            {
+               T1(i1,i3) += B0d(i2,0) * T0(i1,i2,i3,e);
+            }
+         }
+      }
+      for (int k1 = 0; k1 < quads1d; ++k1)
+      {
+         for (int i3 = 0; i3 < dofs1d; ++i3)
+         {
+            T2(i3,k1) = 0.0;
+            for (int i1 = 0; i1 < dofs1d; ++i1)
+            {
+               T2(i3,k1) += B(i1,k1) * T1(i1,i3);
+            }
+         }
+      }
+      for (int k3 = 0; k3 < quads1d; ++k3)
+      {
+         for (int k1 = 0; k1 < quads1d; ++k1)
+         {
+            T3(k1,k3) = 0.0;
+            for (int i3 = 0; i3 < dofs1d; ++i3)
+            {
+               T3(k1,k3) += B(i3,k3) * T2(i3,k1);
+            }
+         }
+      }
+      for (int k3 = 0, k = 0; k3 < quads1d; ++k3,++k)
+      {
+         for (int k1 = 0; k1 < quads1d; ++k1,++k)
+         {
+            T3(k1,k3) = D(k,e,face_id) * T3(k1,k3);
+         }
+      }
+      for (int j1 = 0; j1 < dofs1d; ++j1)
+      {
+         for (int k3 = 0; k3 < quads1d; ++k3)
+         {
+            T4(k3,j1) = 0.0;
+            for (int k1 = 0; k1 < quads1d; ++k1)
+            {
+               T4(k3,j1) += B(j1,k1) * T3(k1,k3);
+            }
+         }
+      }
+      for (int j3 = 0; j3 < dofs1d; ++j3)
+      {
+         for (int j1 = 0; j1 < dofs1d; ++j1)
+         {
+            T5(j1,j3) = 0.0;
+            for (int k3 = 0; k3 < quads1d; ++k3)
+            {
+               T5(j1,j3) += B(j3,k3) * T4(k3,j1);
+            }
+         }
+      }
+      for (int j3 = 0; j3 < dofs1d; ++j3)
+      {
+         for (int j2 = 0; j2 < dofs1d; ++j2)
+         {
+            for (int j1 = 0; j1 < dofs1d; ++j1)
+            {
+               R(j1,j2,j3,e) += B0d(j2,0) * T5(j1,j3);
+            }
+         }
+      }
+   }
+}
+
+template <typename Equation>
+void DummyFaceMult<Equation,PAOp::BtDB>::MultIntZ3D(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
+                        DTensor& D, int face_id, const Vector& U, Vector& V)
+{
+   // nunber of elements
+   const int nbe = fes->GetNE();
+   // number of degrees of freedom in 1d (assumes that i1=i2=i3)
+   const int dofs1d = B.Height();
+   // number of quadrature points
+   const int quads1d = B.Width();
+   Tensor<4> T0(U.GetData(),dofs1d,dofs1d,dofs1d,nbe);
+   Tensor<4> R(V.GetData(),dofs1d,dofs1d,dofs1d,nbe);
+   //TODO: Check size
+   Tensor<2> T1(dofs1d,dofs1d),T2(dofs1d,quads1d),T3(quads1d,quads1d),T4(quads1d,dofs1d),T5(dofs1d,dofs1d);
+   for (int e = 0; e < nbe; ++e)
+   {
+      for (int i2 = 0; i2 < dofs1d; ++i2)
+      {
+         for (int i1 = 0; i1 < dofs1d; ++i1)
+         {
+            T1(i1,i2) = 0.0;
+            for (int i3 = 0; i3 < dofs1d; ++i3)
+            {
+               T1(i1,i2) += B0d(i3,0) * T0(i1,i2,i3,e);
+            }
+         }
+      }
+      for (int k1 = 0; k1 < quads1d; ++k1)
+      {
+         for (int i2 = 0; i2 < dofs1d; ++i2)
+         {
+            T2(i2,k1) = 0.0;
+            for (int i1 = 0; i1 < dofs1d; ++i1)
+            {
+               T2(i2,k1) += B(i1,k1) * T1(i1,i2);
+            }
+         }
+      }
+      for (int k2 = 0; k2 < quads1d; ++k2)
+      {
+         for (int k1 = 0; k1 < quads1d; ++k1)
+         {
+            T3(k1,k2) = 0.0;
+            for (int i2 = 0; i2 < dofs1d; ++i2)
+            {
+               T3(k1,k2) += B(i2,k2) * T2(i2,k1);
+            }
+         }
+      }
+      for (int k2 = 0, k = 0; k2 < quads1d; ++k2, ++k)
+      {
+         for (int k1 = 0; k1 < quads1d; ++k1, ++k)
+         {
+            T3(k1,k2) = D(k,e,face_id) * T3(k1,k2);
+         }
+      }
+      for (int j1 = 0; j1 < dofs1d; ++j1)
+      {
+         for (int k2 = 0; k2 < quads1d; ++k2)
+         {
+            T4(k2,j1) = 0.0;
+            for (int k1 = 0; k1 < quads1d; ++k1)
+            {
+               T4(k2,j1) += B(j1,k1) * T3(k1,k2);
+            }
+         }
+      }
+      for (int j2 = 0; j2 < dofs1d; ++j2)
+      {
+         for (int j1 = 0; j1 < dofs1d; ++j1)
+         {
+            T5(j1,j2) = 0.0;
+            for (int k2 = 0; k2 < quads1d; ++k2)
+            {
+               T5(j1,j2) += B(j2,k2) * T4(k2,j1);
+            }
+         }
+      }
+      for (int j3 = 0; j3 < dofs1d; ++j3)
+      {
+         for (int j2 = 0; j2 < dofs1d; ++j2)
+         {
+            for (int j1 = 0; j1 < dofs1d; ++j1)
+            {
+               R(j1,j2,j3,e) += B0d(j3,0) * T5(j1,j2);
+            }
+         }
+      }
+   }
+}
+
+template <typename Equation>
+void DummyFaceMult<Equation,PAOp::BtDB>::MultExtX3D(FiniteElementSpace* fes, Tensor2d& B,
+                        Tensor2d& B0dTrial, Tensor2d& B0dTest, KData& kernel_data,
+                        DTensor& D, int face_id, const Vector& U, Vector& V)
+{
+   // nunber of elements
+   const int nbe = fes->GetNE();
+   // number of degrees of freedom in 1d (assumes that i1=i2=i3)
+   const int dofs1d = B.Height();
+   // number of quadrature points
+   const int quads1d = B.Width();
+   Tensor<4> T0p(U.GetData(),dofs1d,dofs1d,dofs1d,nbe);
+   Tensor<4> R(V.GetData(),dofs1d,dofs1d,dofs1d,nbe);
+   Tensor<2> T1(dofs1d,dofs1d),T2(dofs1d,quads1d),T3(quads1d,quads1d),T4(quads1d,dofs1d),T5(dofs1d,dofs1d);
+   Tensor<4> T0(dofs1d,dofs1d,dofs1d,nbe);
+   Permutation3d(face_id,nbe,dofs1d,kernel_data,T0p,T0);
+   for (int e = 0; e < nbe; ++e)
+   {
+      for (int i3 = 0; i3 < dofs1d; ++i3)
+      {
+         for (int i2 = 0; i2 < dofs1d; ++i2)
+         {
+            T1(i2,i3) = 0.0;
+            for (int i1 = 0; i1 < dofs1d; ++i1)
+            {
+               T1(i2,i3) += B0dTrial(i1,0) * T0(i1,i2,i3,e);
+            }
+         }
+      }
+      for (int k2 = 0; k2 < quads1d; ++k2)
+      {
+         for (int i3 = 0; i3 < dofs1d; ++i3)
+         {
+            T2(i3,k2) = 0.0;
+            for (int i2 = 0; i2 < dofs1d; ++i2)
+            {
+               T2(i3,k2) += B(i2,k2) * T1(i2,i3);
+            }
+         }
+      }
+      for (int k3 = 0; k3 < quads1d; ++k3)
+      {
+         for (int k2 = 0; k2 < quads1d; ++k2)
+         {
+            T3(k2,k3) = 0.0;
+            for (int i3 = 0; i3 < dofs1d; ++i3)
+            {
+               T3(k2,k3) += B(i3,k3) * T2(i3,k2);
+            }
+         }
+      }
+      for (int k3 = 0, k = 0; k3 < quads1d; ++k3, ++k)
+      {
+         for (int k2 = 0; k2 < quads1d; ++k2, ++k)
+         {
+            T3(k2,k3) = D(k,e,face_id) * T3(k2,k3);
+         }
+      }
+      for (int j2 = 0; j2 < dofs1d; ++j2)
+      {
+         for (int k3 = 0; k3 < quads1d; ++k3)
+         {
+            T4(k3,j2) = 0.0;
+            for (int k2 = 0; k2 < quads1d; ++k2)
+            {
+               T4(k3,j2) += B(j2,k2) * T3(k2,k3);
+            }
+         }
+      }
+      for (int j3 = 0; j3 < dofs1d; ++j3)
+      {
+         for (int j2 = 0; j2 < dofs1d; ++j2)
+         {
+            T5(j2,j3) = 0.0;
+            for (int k3 = 0; k3 < quads1d; ++k3)
+            {
+               T5(j2,j3) += B(j3,k3) * T4(k3,j2);
+            }
+         }
+      }
+      for (int j3 = 0; j3 < dofs1d; ++j3)
+      {
+         for (int j2 = 0; j2 < dofs1d; ++j2)
+         {
+            for (int j1 = 0; j1 < dofs1d; ++j1)
+            {
+               R(j1,j2,j3,e) += B0dTest(j1,0) * T5(j2,j3);
+            }
+         }
+      }
+   }
+}
+
+template <typename Equation>
+void DummyFaceMult<Equation,PAOp::BtDB>::MultExtY3D(FiniteElementSpace* fes, Tensor2d& B,
+                        Tensor2d& B0dTrial, Tensor2d& B0dTest, KData& kernel_data,
+                        DTensor& D, int face_id, const Vector& U, Vector& V)
+{
+   // nunber of elements
+   const int nbe = fes->GetNE();
+   // number of degrees of freedom in 1d (assumes that i1=i2=i3)
+   const int dofs1d = B.Height();
+   // number of quadrature points
+   const int quads1d = B.Width();
+   Tensor<4> T0p(U.GetData(),dofs1d,dofs1d,dofs1d,nbe);
+   Tensor<4> R(V.GetData(),dofs1d,dofs1d,dofs1d,nbe);
+   Tensor<2> T1(dofs1d,dofs1d),T2(dofs1d,quads1d),T3(quads1d,quads1d),T4(quads1d,dofs1d),T5(dofs1d,dofs1d);
+   Tensor<4> T0(dofs1d,dofs1d,dofs1d,nbe);
+   Permutation3d(face_id,nbe,dofs1d,kernel_data,T0p,T0);
+   for (int e = 0; e < nbe; ++e)
+   {
+      for (int i3 = 0; i3 < dofs1d; ++i3)
+      {
+         for (int i1 = 0; i1 < dofs1d; ++i1)
+         {
+            T1(i1,i3) = 0.0;
+            for (int i2 = 0; i2 < dofs1d; ++i2)
+            {
+               T1(i1,i3) += B0dTrial(i2,0) * T0(i1,i2,i3,e);
+            }
+         }
+      }
+      for (int k1 = 0; k1 < quads1d; ++k1)
+      {
+         for (int i3 = 0; i3 < dofs1d; ++i3)
+         {
+            T2(i3,k1) = 0.0;
+            for (int i1 = 0; i1 < dofs1d; ++i1)
+            {
+               T2(i3,k1) += B(i1,k1) * T1(i1,i3);
+            }
+         }
+      }
+      for (int k3 = 0; k3 < quads1d; ++k3)
+      {
+         for (int k1 = 0; k1 < quads1d; ++k1)
+         {
+            T3(k1,k3) = 0.0;
+            for (int i3 = 0; i3 < dofs1d; ++i3)
+            {
+               T3(k1,k3) += B(i3,k3) * T2(i3,k1);
+            }
+         }
+      }
+      for (int k3 = 0, k = 0; k3 < quads1d; ++k3, ++k)
+      {
+         for (int k1 = 0; k1 < quads1d; ++k1, ++k)
+         {
+            T3(k1,k3) = D(k,e,face_id) * T3(k1,k3);
+         }
+      }
+      for (int j1 = 0; j1 < dofs1d; ++j1)
+      {
+         for (int k3 = 0; k3 < quads1d; ++k3)
+         {
+            T4(k3,j1) = 0.0;
+            for (int k1 = 0; k1 < quads1d; ++k1)
+            {
+               T4(k3,j1) += B(j1,k1) * T3(k1,k3);
+            }
+         }
+      }
+      for (int j3 = 0; j3 < dofs1d; ++j3)
+      {
+         for (int j1 = 0; j1 < dofs1d; ++j1)
+         {
+            T5(j1,j3) = 0.0;
+            for (int k3 = 0; k3 < quads1d; ++k3)
+            {
+               T5(j1,j3) += B(j3,k3) * T4(k3,j1);
+            }
+         }
+      }
+      for (int j3 = 0; j3 < dofs1d; ++j3)
+      {
+         for (int j2 = 0; j2 < dofs1d; ++j2)
+         {
+            for (int j1 = 0; j1 < dofs1d; ++j1)
+            {
+               R(j1,j2,j3,e) += B0dTest(j2,0) * T5(j1,j3);
+            }
+         }
+      }
+   }
+}
+
+template <typename Equation>
+void DummyFaceMult<Equation,PAOp::BtDB>::MultExtZ3D(FiniteElementSpace* fes, Tensor2d& B,
+                        Tensor2d& B0dTrial, Tensor2d& B0dTest, KData& kernel_data,
+                        DTensor& D, int face_id, const Vector& U, Vector& V)
+{
+   // nunber of elements
+   const int nbe = fes->GetNE();
+   // number of degrees of freedom in 1d (assumes that i1=i2=i3)
+   const int dofs1d = B.Height();
+   // number of quadrature points
+   const int quads1d = B.Width();
+   Tensor<4> T0p(U.GetData(),dofs1d,dofs1d,dofs1d,nbe);
+   Tensor<4> R(V.GetData(),dofs1d,dofs1d,dofs1d,nbe);
+   Tensor<2> T1(dofs1d,dofs1d),T2(dofs1d,quads1d),T3(quads1d,quads1d),T4(quads1d,dofs1d),T5(dofs1d,dofs1d);
+   Tensor<4> T0(dofs1d,dofs1d,dofs1d,nbe);
+   Permutation3d(face_id,nbe,dofs1d,kernel_data,T0p,T0);
+   for (int e = 0; e < nbe; ++e)
+   {
+      for (int i2 = 0; i2 < dofs1d; ++i2)
+      {
+         for (int i1 = 0; i1 < dofs1d; ++i1)
+         {
+            T1(i1,i2) = 0.0;
+            for (int i3 = 0; i3 < dofs1d; ++i3)
+            {
+               T1(i1,i2) += B0dTrial(i3,0) * T0(i1,i2,i3,e);
+            }
+         }
+      }
+      for (int k1 = 0; k1 < quads1d; ++k1)
+      {
+         for (int i2 = 0; i2 < dofs1d; ++i2)
+         {
+            T2(i2,k1) = 0.0;
+            for (int i1 = 0; i1 < dofs1d; ++i1)
+            {
+               T2(i2,k1) += B(i1,k1) * T1(i1,i2);
+            }
+         }
+      }
+      for (int k2 = 0; k2 < quads1d; ++k2)
+      {
+         for (int k1 = 0; k1 < quads1d; ++k1)
+         {
+            T3(k1,k2) = 0.0;
+            for (int i2 = 0; i2 < dofs1d; ++i2)
+            {
+               T3(k1,k2) += B(i2,k2) * T2(i2,k1);
+            }
+         }
+      }
+      for (int k2 = 0, k = 0; k2 < quads1d; ++k2, ++k)
+      {
+         for (int k1 = 0; k1 < quads1d; ++k1, ++k)
+         {
+            T3(k1,k2) = D(k,e,face_id) * T3(k1,k2);
+         }
+      }
+      for (int j1 = 0; j1 < dofs1d; ++j1)
+      {
+         for (int k2 = 0; k2 < quads1d; ++k2)
+         {
+            T4(k2,j1) = 0.0;
+            for (int k1 = 0; k1 < quads1d; ++k1)
+            {
+               T4(k2,j1) += B(j1,k1) * T3(k1,k2);
+            }
+         }
+      }
+      for (int j2 = 0; j2 < dofs1d; ++j2)
+      {
+         for (int j1 = 0; j1 < dofs1d; ++j1)
+         {
+            T5(j1,j2) = 0.0;
+            for (int k2 = 0; k2 < quads1d; ++k2)
+            {
+               T5(j1,j2) += B(j2,k2) * T4(k2,j1);
+            }
+         }
+      }
+      for (int j3 = 0; j3 < dofs1d; ++j3)
+      {
+         for (int j2 = 0; j2 < dofs1d; ++j2)
+         {
+            for (int j1 = 0; j1 < dofs1d; ++j1)
+            {
+               R(j1,j2,j3,e) += B0dTest(j3,0) * T5(j1,j2);
+            }
          }
       }
    }

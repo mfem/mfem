@@ -80,9 +80,13 @@ void GetIdRotInfo(const int face_info, int& face_id, int& nb_rot);
 */
 int Permutation2D(const int face_id_trial, const int face_id_test);
 
-void Permutation3D(const int face_id1, const int face_id2, const int orientation, int perm1, int perm2);
+void Permutation3D(const int face_id1, const int face_id2, const int orientation, int& perm1, int& perm2);
 
-void Permutation(const int dim, const int face_id1, const int face_id2, const int orientation, int perm1, int perm2);
+void Permutation(const int dim, const int face_id1, const int face_id2, const int orientation, int& perm1, int& perm2);
+
+const int GetFaceQuadIndex3D(const int face_id, const int orientation, const int qind, const int quads);
+
+const int GetFaceQuadIndex(const int dim, const int face_id, const int orientation, const int qind, const int quads);
 
 }
 
