@@ -106,7 +106,7 @@ MFEM_USE_PETSC       = NO
 MFEM_USE_MPFR        = NO
 MFEM_USE_SIDRE       = NO
 MFEM_USE_CONDUIT     = NO
-MFEM_USE_SCOREC      = NO
+MFEM_USE_PUMI        = NO
 
 # Compile and link options for zlib.
 ZLIB_DIR =

@@ -1,9 +1,10 @@
 //                                PUMI Example 1
 //
-// Compile with: Add pumi_ex1.cpp in the CMakeLists.txt
-//
 // Sample runs:  ./pumi_ex1 -m ../data/pumi/serial/Kova.smb
 //                    -p ../data/pumi/geom/Kova.x_t -o 1 -go 2
+//
+// NOTE:          Example model and meshes for PUMI examples can be downloaded 
+//                from github.com/mfem/data/pumi. 
 //
 // Description:  This example is the counterpart of ex1 in the MFEM examples list
 //               with the difference that pumi Api's are used to load a pumi mesh
@@ -18,7 +19,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "../mesh/mesh_pumi.hpp"
+#include "../../mesh/mesh_pumi.hpp"
 
 #include "pumi_config.h"
 #ifdef MFEM_USE_SIMMETRIX
@@ -45,11 +46,11 @@ int main(int argc, char *argv[])
     MPI_Comm_rank(MPI_COMM_WORLD, &myId);
     
    // 2. Parse command-line options.
-   const char *mesh_file = "../data/pumi/serial/Kova.smb";
+   const char *mesh_file = "../../data/pumi/serial/Kova.smb";
 #ifdef MFEM_USE_SIMMETRIX
-   const char *model_file = "../data/pumi/geom/Kova.x_t";
+   const char *model_file = "../../data/pumi/geom/Kova.x_t";
 #else
-   const char *model_file = "../data/pumi/geom/Kova.dmg";
+   const char *model_file = "../../data/pumi/geom/Kova.dmg";
 #endif
    int order = 1;
    bool static_cond = false;

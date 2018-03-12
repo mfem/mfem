@@ -248,7 +248,7 @@ endif()
 
 # If SCOREC_PREFIX was specified, only link to that directory,
 # i.e. don't link to another installation in /usr/lib by mistake
-if (MFEM_USE_SCOREC)
+if (MFEM_USE_PUMI)
   find_package(SCOREC 2.1.0 REQUIRED OPTIONAL_COMPONENTS gmi_sim
     CONFIG PATHS ${SCOREC_PREFIX} NO_DEFAULT_PATH)
 endif()
@@ -304,10 +304,10 @@ message(STATUS "MFEM version: v${MFEM_VERSION_STRING}")
 message(STATUS "MFEM git string: ${MFEM_GIT_STRING}")
 
 if (SCOREC_FOUND)
- message(STATUS "MFEM: using package SCOREC")
+ message(STATUS "MFEM: using package PUMI")
  #define a header file with the MFEM_USE_SIMMETRIX preprocessor variable
  set(MFEM_USE_SIMMETRIX ${SCOREC_gmi_sim_FOUND})
- configure_file("${CMAKE_CURRENT_SOURCE_DIR}/examples/pumi_config.h.in"
+ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/config/pumi_config.h.in"
                "${CMAKE_CURRENT_BINARY_DIR}/pumi_config.h")
  list(APPEND TPL_LIBRARIES SCOREC::core)
 endif()

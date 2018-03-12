@@ -31,7 +31,6 @@
 #include "estimators.hpp"
 #include "staticcond.hpp"
 #include "tmop.hpp"
-#include "NSnonlininteg.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"

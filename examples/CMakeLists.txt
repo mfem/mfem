@@ -49,18 +49,6 @@ if (MFEM_USE_MPI)
     )
 endif()
 
-if (MFEM_USE_SCOREC AND MFEM_USE_MPI)
-  list(APPEND ALL_EXE_SRCS
-    GenerateMFEMMesh.cpp
-    pumi_ex1.cpp
-    pumi_ex1p.cpp
-    pumi_atr_ex2.cpp
-    cylinder_Stokes.cpp
-    3dcavity.cpp
-    pumi_cavity_par.cpp
-    )
-endif()
-
 # Include the source directory where mfem.hpp and mfem-performance.hpp are.
 include_directories(BEFORE ${PROJECT_BINARY_DIR})
 
@@ -101,4 +89,9 @@ endif()
 # Include the examples/petsc directory if PETSc is enabled.
 if (MFEM_USE_PETSC)
   add_subdirectory(petsc)
+endif()
+
+#Include the examples/pumi directory if PUMI is enabled 
+if (MFEM_USE_PUMI)
+  add_subdirectory(pumi)
 endif()

@@ -29,7 +29,6 @@ set(SRCS
   nonlininteg.cpp
   staticcond.cpp
   tmop.cpp
-  NSnonlininteg.cpp
   )
 
 set(HDRS
@@ -61,7 +60,6 @@ set(HDRS
   tfespace.hpp
   tintrules.hpp
   tmop.hpp
-  NSnonlininteg.hpp
   )
 
 if (MFEM_USE_SIDRE)
@@ -89,11 +87,6 @@ if (MFEM_USE_MPI)
     pgridfunc.hpp
     plinearform.hpp
     pnonlinearform.hpp)
-endif()
-
-if (MFEM_USE_SCOREC)
-  list(APPEND SRCS gridfunc_pumi.cpp)
-  list(APPEND HDRS gridfunc_pumi.hpp)
 endif()
 
 convert_filenames_to_full_paths(SRCS)

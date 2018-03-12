@@ -5,6 +5,9 @@
 //               -p ../data/pumi/geom/pillbox.smd
 //               -bf ../data/pumi/serial/boundary.mesh
 //
+// NOTE:          Example model and meshes for PUMI examples can be downloaded 
+//                from github.com/mfem/data/pumi. 
+//
 // Description:  This example code solves a simple linear elasticity problem
 //               describing a multi-material cantilever beam.
 //
@@ -43,7 +46,7 @@
 #include <iostream>
 #include <sstream>
 
-#include "../general/text.hpp"
+#include "../../general/text.hpp"
 
 #include "pumi_config.h"
 #ifdef MFEM_USE_SIMMETRIX
@@ -70,17 +73,18 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myId);
 
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/pumi/serial/pillbox.smb";
-   const char *boundary_file = "../data/pumi/serial/boundary.mesh";
+   const char *mesh_file = "../../data/pumi/serial/pillbox.smb";
+   const char *boundary_file = "../../data/pumi/serial/boundary.mesh";
 #ifdef MFEM_USE_SIMMETRIX
-   const char *model_file = "../data/pumi/geom/pillbox.smd";
+   const char *model_file = "../../data/pumi/geom/pillbox.smd";
 #else
-   const char *model_file = "../data/pumi/geom/pillbox.dmg";
+   const char *model_file = "../../data/pumi/geom/pillbox.dmg";
 #endif    
    
    bool static_cond = false;
    bool visualization = 1;
    int geom_order = 1;
+   int order = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
