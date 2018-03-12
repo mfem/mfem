@@ -218,11 +218,20 @@ public:
    /** @brief Projects a discontinuous coefficient so that the values in shared
        vdofs are computed by taking an average of the possible values. */
    virtual void ProjectDiscCoefficient(Coefficient &coeff, AvgType type);
+   /** @brief Projects a discontinuous _vector_ coefficient so that the values
+       in shared vdofs are computed by taking an average of the possible values.
+   */
+   virtual void ProjectDiscCoefficient(VectorCoefficient &coeff, AvgType type);
 
 protected:
    /** @brief Accumulates (depending on @a type) the values of @a coeff at all
        shared vdofs and counts in how many zones each vdof appears. */
    void AccumulateAndCountZones(Coefficient &coeff, AvgType type,
+                                Array<int> &zones_per_vdof);
+
+   /** @brief Accumulates (depending on @a type) the values of @a vcoeff at all
+       shared vdofs and counts in how many zones each vdof appears. */
+   void AccumulateAndCountZones(VectorCoefficient &vcoeff, AvgType type,
                                 Array<int> &zones_per_vdof);
 
    // Complete the computation of averages; called e.g. after
