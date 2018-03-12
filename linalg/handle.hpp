@@ -154,7 +154,7 @@ public:
        operator ownership flag is set to true. */
    void MakePtAP(OperatorHandle &A, OperatorHandle &P);
 
-   /** @brief Reset the OperatorHandle to hold the product @a R @a A @a P, where
+   /** @brief Reset the OperatorHandle to hold the product R @a A @a P, where
        R = @a Rt^t. */
    /** The type id of the result is determined by that of @a Rt, @a A, and @a P.
        The operator ownership flag is set to true. */
