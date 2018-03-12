@@ -1627,16 +1627,25 @@ public:
 
 // Shape evaluators -- values of basis functions on the reference element
 
+/** @brief Nedelec shape evaluator
+
+    @tparam Dim spatial dimension
+    @tparam DOF1 number of points in closed integration rule, usually P+1 (see NDFiniteElement)
+    @tparam DOF2 number of points in open integration rule, usually P
+    @tparam NIP number of integration points
+*/
 template <int Dim, int DOF1,int DOF2, int NIP, typename real_t>
 class NDTProductShapeEvaluator;
 
-// ShapeEvaluator with 2D tensor-product structure
+/// Nedelc ShapeEvaluator with 2D tensor-product structure
 template <int DOF1,int DOF2, int NIP, typename real_t>
 class NDTProductShapeEvaluator<2, DOF1, DOF2, NIP, real_t>
 {
 protected:
+   /// on closed integration points with _c
    TMatrix<NIP,DOF1,real_t,true>  B_1d_c,  G_1d_c;
    TMatrix<DOF1,NIP,real_t,true> Bt_1d_c, Gt_1d_c;
+   /// on open integration points with _o
    TMatrix<NIP,DOF2,real_t,true>  B_1d_o,B_1d_o_neg;
    TMatrix<DOF2,NIP,real_t,true> Bt_1d_o,Bt_1d_o_neg;
 public:
@@ -2622,7 +2631,7 @@ public:
    }
 };
 
-// ShapeEvaluator with tensor-product structure in any dimension
+/// Nedelec ShapeEvaluator with tensor-product structure in any dimension
 template <class FE, class IR, typename real_t>
 class NDShapeEvaluator_base<FE, IR, true, real_t>
    : public NDTProductShapeEvaluator<FE::dim, FE::dofs_1d_c, FE::dofs_1d_o, IR::qpts_1d, real_t>
@@ -2630,10 +2639,13 @@ class NDShapeEvaluator_base<FE, IR, true, real_t>
 protected:
    typedef NDTProductShapeEvaluator<FE::dim, FE::dofs_1d_c, FE::dofs_1d_o,
            IR::qpts_1d, real_t> base_class;
+
+   /// closed integration rule with _c
    using base_class::B_1d_c;
    using base_class::Bt_1d_c;
    using base_class::G_1d_c;
    using base_class::Gt_1d_c;
+   /// open integration rule with _o
    using base_class::B_1d_o;
    using base_class::Bt_1d_o;
 public:
@@ -2651,7 +2663,7 @@ public:
    // default copy constructor
 };
 
-// General ShapeEvaluator for any scalar FE type (L2 or H1)
+/// Nedelec General ShapeEvaluator for any scalar FE type (L2 or H1) (Hcurl)?
 template <class FE, class IR, typename real_t=double>
 class NDShapeEvaluator
    : public NDShapeEvaluator_base<FE,IR,true,real_t>//FE::tensor_prod && IR::tensor_prod

@@ -20,12 +20,23 @@ namespace mfem
 
 // Templated finite element classes, cf. fe.?pp
 
+/** @brief Store mass-like matrix B for each integration point on the reference
+    element.
+
+    For tensor product evaluation, this is only called on the 1D reference
+    element, and higher dimensions are put together from that.
+
+    The element mass matrix can be written \f$ M_E = B^T D_E B \f$ where the B
+    built here is the B, and is unchanging across the mesh. The diagonal matrix
+    \f$ D_E \f$ then contains all the element-specific geometry and physics data.
+
+    @param B must be (nip x dof) with column major storage
+    @param dof_map the inverse of dof_map is applied to reorder local dofs.
+*/
 template <typename real_t>
 void CalcShapeMatrix(const FiniteElement &fe, const IntegrationRule &ir,
                      real_t *B, const Array<int> *dof_map = NULL)
 {
-   // - B must be (nip x dof) with column major storage
-   // - The inverse of dof_map is applied to reorder the local dofs.
    int nip = ir.GetNPoints();
    int dof = fe.GetDof();
    Vector shape(dof);
@@ -41,12 +52,28 @@ void CalcShapeMatrix(const FiniteElement &fe, const IntegrationRule &ir,
    }
 }
 
+/** @brief store gradient matrix G for each integration point on the reference
+    element.
+
+    For tensor product evaluation, this is only called on the 1D reference
+    element, and higher dimensions are put together from that.
+
+    The element stiffness matrix can be written
+    \f[
+       S_E = \sum_{k=1}^{nq} G_{k,i}^T (D_E^G)_{k,k} G_{k,j}
+    \f]
+    where \f$ nq \f$ is the number of quadrature points, \f$ D_E^G \f$ contains
+    all the information about the element geometry and coefficients (Jacobians
+    etc.), and \f$ G \f$ is the matrix built in this routine, which is the same
+    for all elements in a mesh.
+
+    @param[out] G must be (nip x dim x dof) with column major storage
+    @param[in] dof_map the inverse of dof_map is applied to reorder local dofs.
+*/
 template <typename real_t>
 void CalcGradTensor(const FiniteElement &fe, const IntegrationRule &ir,
                     real_t *G, const Array<int> *dof_map = NULL)
 {
-   // - G must be (nip x dim x dof) with column major storage
-   // - The inverse of dof_map is applied to reorder the local dofs.
    int dim = fe.GetDim();
    int nip = ir.GetNPoints();
    int dof = fe.GetDof();
@@ -66,12 +93,22 @@ void CalcGradTensor(const FiniteElement &fe, const IntegrationRule &ir,
    }
 }
 
+/** @brief Store vector basis tensor (mass-like matrix) VB for each
+    integration point on the reference element.
+
+    For fixed d, VB is analogous to the B matrix in CalcShapeMatrix
+
+    In tensorized code, this is called on the 1D reference edge with
+    both an open IntegrationrRule and a closed IntegrationRule to
+    produced B_o and B_c, see Calc1DShapes
+
+    @param[out] VB must be (nip x dim x dof) with column major storage
+    @param[in] dof_map the inverse of dof_map is applied to reorder local dofs.
+*/
 template <typename real_t>
 void CalcVShapeTensor(const FiniteElement &fe, const IntegrationRule &ir,
                       real_t *VB, const Array<int> *dof_map = NULL)
 {
-   // - VB must be (nip x dim x dof) with column major storage
-   // - The inverse of dof_map is applied to reorder the local dofs.
    int dim = fe.GetDim();
    int nip = ir.GetNPoints();
    int dof = fe.GetDof();
@@ -91,13 +128,19 @@ void CalcVShapeTensor(const FiniteElement &fe, const IntegrationRule &ir,
    }
 }
 
-// dof_layout is (NIP x DIMC x DOF) and qpt_layout is (NIP x NumComp).
+
+/** @brief Store curl-curl tensor for each integration point on the
+    reference element.
+
+    dof_layout is (NIP x DIMC x DOF) and qpt_layout is (NIP x NumComp).
+
+    @param[out] C must be (nip x dimc x dof) with column major storage.
+    @param[in] dof_map the inverse of dof_map is applied to reorder local dofs.
+*/
 template <typename real_t>
 void CalcCurlTensor(const FiniteElement &fe, const IntegrationRule &ir,
                     real_t *C, const Array<int> *dof_map = NULL)
 {
-   // - C must be (nip x dimc x dof) with column major storage
-   // - The inverse of dof_map is applied to reorder the local dofs.
    int dim = fe.GetDim();
    int nip = ir.GetNPoints();
    int dof = fe.GetDof();
@@ -119,13 +162,18 @@ void CalcCurlTensor(const FiniteElement &fe, const IntegrationRule &ir,
    }
 }
 
-// dof_layout is (NIP x DOF) and qpt_layout is (NIP x NumComp).
+/** @brief Store div-div tensor for each integration point on the
+    reference element.
+
+    dof_layout is (NIP x DOF) and qpt_layout is (NIP x NumComp).
+
+    @param[out] D must be (nip x dof) with column major storage.
+    @param[in] dof_map the inverse of dof_map is applied to reorder local dofs.
+*/
 template <typename real_t>
 void CalcDivTensor(const FiniteElement &fe, const IntegrationRule &ir,
                    real_t *D, const Array<int> *dof_map = NULL)
 {
-   // - D must be (nip x dof) with column major storage
-   // - The inverse of dof_map is applied to reorder the local dofs.
    int nip = ir.GetNPoints();
    int dof = fe.GetDof();
    Vector dshape(dof);
@@ -142,6 +190,8 @@ void CalcDivTensor(const FiniteElement &fe, const IntegrationRule &ir,
    }
 }
 
+/** @brief For H1 elements, fill in mass/stiffness tensors for
+    partial assembly. */
 template <typename real_t>
 void CalcShapes(const FiniteElement &fe, const IntegrationRule &ir,
                 real_t *B, real_t *G, const Array<int> *dof_map)
@@ -150,6 +200,8 @@ void CalcShapes(const FiniteElement &fe, const IntegrationRule &ir,
    if (G) { mfem::CalcGradTensor(fe, ir, G, dof_map); }
 }
 
+/** @brief For H(curl) elements, fill in mass/curlcurl tensors for
+    partial assembly. */
 template <typename real_t>
 void CalcHcurlShapes(const FiniteElement &fe, const IntegrationRule &ir,
                      real_t *VB, real_t *C, const Array<int> *dof_map)
@@ -158,6 +210,8 @@ void CalcHcurlShapes(const FiniteElement &fe, const IntegrationRule &ir,
    if (C) { mfem::CalcCurlTensor(fe, ir, C, dof_map); }
 }
 
+/** @brief For H(div) elements, fill in mass/divdiv tensors for
+    partial assembly. */
 template <typename real_t>
 void CalcHDivShapes(const FiniteElement &fe, const IntegrationRule &ir,
                     real_t *VB, real_t *D, const Array<int> *dof_map)
@@ -165,6 +219,7 @@ void CalcHDivShapes(const FiniteElement &fe, const IntegrationRule &ir,
    if (VB) { mfem::CalcVShapeTensor(fe, ir, VB, dof_map); }
    if (D) { mfem::CalcDivTensor(fe, ir, D, dof_map); }
 }
+
 // H1 finite elements
 
 template <Geometry::Type G, int P>
@@ -730,6 +785,7 @@ public:
    {
       mfem::CalcHcurlShapes(*my_fe, ir, B, G, my_dof_map);
    }
+
    template <typename real_t>
    void Calc1DShapes(const IntegrationRule &ir, real_t *B_c,real_t *B_o,
                      real_t *G_c) const
