@@ -2,8 +2,11 @@
 //
 // Compile with: Add pumi_ex1p.cpp in the CMakeLists.txt
 //
-// Sample runs:  mpirun -np 4 ./pumi_ex1p -m ../data/pumi/Kova/Kova4.smb
+// Sample runs:  mpirun -np 8 ./pumi_ex1p -m ../data/pumi/Kova/Kova4.smb
 //                    -p ../data/pumi/Kova/Kova.x_t -o 1 -go 2
+//
+// NOTE:          Example model and meshes for PUMI examples can be downloaded 
+//                from github.com/mfem/data/pumi. 
 //
 // Description:  This example is the counterpart of ex1 in the MFEM examples list
 //               with the difference that pumi Api's are used to load a parallel
@@ -25,7 +28,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "../mesh/pmesh_pumi.hpp"
+#include "../../mesh/mesh_pumi.hpp"
 
 #include "pumi_config.h"
 #ifdef MFEM_USE_SIMMETRIX
@@ -52,11 +55,11 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 2. Parse command-line options.
-   const char *mesh_file = "../data/pumi/parallel/Kova4/Kova_4.smb";
+   const char *mesh_file = "../../data/pumi/parallel/Kova/Kova100k_8.smb";
 #ifdef MFEM_USE_SIMMETRIX
-   const char *model_file = "../data/pumi/geom/Kova.x_t";
+   const char *model_file = "../../data/pumi/geom/Kova.x_t";
 #else
-   const char *model_file = "../data/pumi/geom/Kova.dmg";
+   const char *model_file = "../../data/pumi/geom/Kova.dmg";
 #endif
    int order = 1;
    bool static_cond = false;
@@ -111,7 +114,7 @@ int main(int argc, char *argv[])
    //   elements is less than 10000.
    int dim = pumi_mesh->getDimension();
    int nEle = pumi_mesh->count(dim);
-   int ref_levels = (int)floor(log(10000./nEle)/log(2.)/dim);
+   int ref_levels = (int)floor(log(50000./nEle)/log(2.)/dim);
 
    if (geom_order > 1)
    {

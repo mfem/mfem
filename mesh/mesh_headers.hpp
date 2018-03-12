@@ -36,9 +36,8 @@
 #include "pmesh.hpp"
 #endif
 
-#ifdef MFEM_USE_SCOREC
+#ifdef MFEM_USE_PUMI
 #include "mesh_pumi.hpp"
-#include "pmesh_pumi.hpp"
 #endif
 
 #endif

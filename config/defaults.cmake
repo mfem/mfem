@@ -40,7 +40,7 @@ option(MFEM_USE_PETSC "Enable PETSc support." OFF)
 option(MFEM_USE_MPFR "Enable MPFR usage." OFF)
 option(MFEM_USE_SIDRE "Enable Axom/Sidre usage" OFF)
 option(MFEM_USE_CONDUIT "Enable Conduit usage" OFF)
-option(MFEM_USE_SCOREC "Enable SCOREC" OFF)
+option(MFEM_USE_PUMI "Enable PUMI" OFF)
 
 # Allow a user to disable testing, examples, and/or miniapps at CONFIGURE TIME
 # if they don't want/need them (e.g. if MFEM is "just a dependency" and all they
@@ -152,7 +152,7 @@ set(LAPACK_INCLUDE_DIRS "" CACHE STRING "Path to LAPACK headers.")
 set(LAPACK_LIBRARIES "" CACHE STRING "The LAPACK library.")
 
 set(SCOREC_PREFIX "${MFEM_DIR}/../core/install" CACHE STRING
-  "Directory where SCOREC is installed")
+  "Directory where PUMI is installed")
 
 # Some useful variables:
 set(CMAKE_SKIP_PREPROCESSED_SOURCE_RULES ON) # Skip *.i rules

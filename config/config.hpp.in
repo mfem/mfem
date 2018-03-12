@@ -110,7 +110,7 @@
 // #define MFEM_USE_MPFR
 
 // Enable SCOREC PUMI 
-// #define MFEM_USE_SCOREC
+// #define MFEM_USE_PUMI
 
 // Windows specific options
 #ifdef _WIN32

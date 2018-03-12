@@ -98,8 +98,8 @@
 // Enable MFEM functionality based on Conduit
 #cmakedefine MFEM_USE_CONDUIT
 
-// Enable MFEM functionality based on the SCOREC library
-#cmakedefine MFEM_USE_SCOREC
+// Enable MFEM functionality based on the PUMI library
+#cmakedefine MFEM_USE_PUMI
 
 // Which library functions to use in class StopWatch for measuring time.
 // For a list of the available options, see INSTALL.
