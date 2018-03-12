@@ -62,9 +62,9 @@ endif()
 
 if (MFEM_USE_PUMI)
    list(APPEND HDRS
-    mesh_pumi.hpp)
+    pumi.hpp)
    list(APPEND SRCS 
-    mesh_pumi.cpp)
+    pumi.cpp)
 endif()
   
 convert_filenames_to_full_paths(SRCS)

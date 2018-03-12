@@ -28,7 +28,6 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "../../mesh/mesh_pumi.hpp"
 
 #include "pumi_config.h"
 #ifdef MFEM_USE_SIMMETRIX
