@@ -192,9 +192,10 @@ public:
    void ImposeBounds(int i, const Vector &weights,
                      double _min = 0.0, double _max = infinity());
 
-   /** Project the given 'src' GridFunction to 'this' GridFunction, both of
-       which must be on the same mesh. The current implementation assumes that
-       all element use the same projection matrix. */
+   /** @brief Project the @a src GridFunction to @a this GridFunction, both of
+       which must be on the same mesh. */
+   /** The current implementation assumes that all elements use the same
+       projection matrix. */
    void ProjectGridFunction(const GridFunction &src);
 
    virtual void ProjectCoefficient(Coefficient &coeff);
