@@ -114,6 +114,13 @@ void FiniteElement::GetLocalInterpolation (ElementTransformation &Trans,
    mfem_error ("GetLocalInterpolation (...) is not overloaded !");
 }
 
+void FiniteElement::GetLocalInterpolation(const FiniteElement &fe,
+                                          ElementTransformation &Trans,
+                                          DenseMatrix &I) const
+{
+   MFEM_ABORT("method is not overloaded !");
+}
+
 void FiniteElement::Project (
    Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
 {
@@ -190,11 +197,12 @@ void FiniteElement::CalcPhysDShape(ElementTransformation &Trans,
    Mult(vshape, Trans.InverseJacobian(), dshape);
 }
 
-void NodalFiniteElement::NodalLocalInterpolation (
+
+void ScalarFiniteElement::NodalLocalInterpolation (
    ElementTransformation &Trans, DenseMatrix &I,
-   const NodalFiniteElement &fine_fe) const
+   const ScalarFiniteElement &fine_fe) const
 {
-   double v[3];
+   double v[Geometry::MaxDim];
    Vector vv (v, Dim);
    IntegrationPoint f_ip;
 
@@ -204,15 +212,16 @@ void NodalFiniteElement::NodalLocalInterpolation (
 
    MFEM_ASSERT(MapType == fine_fe.GetMapType(), "");
 
+   I.SetSize(fine_fe.Dof, Dof);
    for (int i = 0; i < fine_fe.Dof; i++)
    {
-      Trans.Transform (fine_fe.Nodes.IntPoint (i), vv);
+      Trans.Transform(fine_fe.Nodes.IntPoint(i), vv);
       f_ip.Set(v, Dim);
-      CalcShape (f_ip, c_shape);
+      CalcShape(f_ip, c_shape);
       for (int j = 0; j < Dof; j++)
-         if (fabs (I (i,j) = c_shape (j)) < 1.0e-12)
+         if (fabs(I(i,j) = c_shape(j)) < 1.0e-12)
          {
-            I (i,j) = 0.0;
+            I(i,j) = 0.0;
          }
    }
    if (MapType == INTEGRAL)
@@ -222,6 +231,47 @@ void NodalFiniteElement::NodalLocalInterpolation (
       I *= Trans.Weight();
    }
 }
+
+void ScalarFiniteElement::ScalarLocalInterpolation(
+   ElementTransformation &Trans, DenseMatrix &I,
+   const ScalarFiniteElement &fine_fe) const
+{
+   // General "interpolation", defined by L2 projection
+
+   double v[Geometry::MaxDim];
+   Vector vv (v, Dim);
+   IntegrationPoint f_ip;
+
+   const int fs = fine_fe.GetDof(), cs = this->GetDof();
+   I.SetSize(fs, cs);
+   Vector fine_shape(fs), coarse_shape(cs);
+   DenseMatrix fine_mass(fs), fine_coarse_mass(fs, cs); // initialized with 0
+   const int ir_order = GetOrder() + fine_fe.GetOrder();
+   const IntegrationRule &ir = IntRules.Get(fine_fe.GetGeomType(), ir_order);
+
+   for (int i = 0; i < ir.GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(i);
+      fine_fe.CalcShape(ip, fine_shape);
+      Trans.Transform(ip, vv);
+      f_ip.Set(v, Dim);
+      this->CalcShape(f_ip, coarse_shape);
+
+      AddMult_a_VVt(ip.weight, fine_shape, fine_mass);
+      AddMult_a_VWt(ip.weight, fine_shape, coarse_shape, fine_coarse_mass);
+   }
+
+   DenseMatrixInverse fine_mass_inv(fine_mass);
+   fine_mass_inv.Mult(fine_coarse_mass, I);
+
+   if (MapType == INTEGRAL)
+   {
+      // assuming Trans is linear; this should be ok for all refinement types
+      Trans.SetIntPoint(&Geometries.GetCenter(GeomType));
+      I *= Trans.Weight();
+   }
+}
+
 
 void NodalFiniteElement::ProjectCurl_2D(
    const FiniteElement &fe, ElementTransformation &Trans,
@@ -324,9 +374,9 @@ void NodalFiniteElement::Project(
    }
    else
    {
-      DenseMatrix vshape(fe.GetDof(), Dim);
+      DenseMatrix vshape(fe.GetDof(), Trans.GetSpaceDim());
 
-      I.SetSize(Dim*Dof, fe.GetDof());
+      I.SetSize(vshape.Width()*Dof, fe.GetDof());
       for (int k = 0; k < Dof; k++)
       {
          Trans.SetIntPoint(&Nodes.IntPoint(k));
@@ -404,45 +454,6 @@ void NodalFiniteElement::ProjectDiv(
    }
 }
 
-void PositiveFiniteElement::PositiveLocalInterpolation (
-   ElementTransformation &Trans, DenseMatrix &I,
-   const PositiveFiniteElement &fine_fe) const
-{
-   // General interpolation, defined based on L2 projection
-
-   double v[3];
-   Vector vv (v, Dim);
-   IntegrationPoint f_ip;
-
-   const int fs = fine_fe.GetDof(), cs = this->GetDof();
-   I.SetSize(fs, cs);
-   Vector fine_shape(fs), coarse_shape(cs);
-   DenseMatrix fine_mass(fs), fine_coarse_mass(fs, cs); // initialized with 0
-   const int ir_order = GetOrder() + fine_fe.GetOrder();
-   const IntegrationRule &ir = IntRules.Get(fine_fe.GetGeomType(), ir_order);
-
-   for (int i = 0; i < ir.GetNPoints(); i++)
-   {
-      const IntegrationPoint &ip = ir.IntPoint(i);
-      fine_fe.CalcShape(ip, fine_shape);
-      Trans.Transform(ip, vv);
-      f_ip.Set(v, Dim);
-      this->CalcShape(f_ip, coarse_shape);
-
-      AddMult_a_VVt(ip.weight, fine_shape, fine_mass);
-      AddMult_a_VWt(ip.weight, fine_shape, coarse_shape, fine_coarse_mass);
-   }
-
-   DenseMatrixInverse fine_mass_inv(fine_mass);
-   fine_mass_inv.Mult(fine_coarse_mass, I);
-
-   if (MapType == INTEGRAL)
-   {
-      // assuming Trans is linear; this should be ok for all refinement types
-      Trans.SetIntPoint(&Geometries.GetCenter(GeomType));
-      I *= Trans.Weight();
-   }
-}
 
 void PositiveFiniteElement::Project(
    Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
@@ -560,7 +571,7 @@ void VectorFiniteElement::Project_RT(
    const double *nk, const Array<int> &d2n,
    VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
 {
-   double vk[3];
+   double vk[Geometry::MaxDim];
    const int sdim = Trans.GetSpaceDim();
    MFEM_ASSERT(vc.GetVDim() == sdim, "");
    Vector xk(vk, sdim);
@@ -610,7 +621,7 @@ void VectorFiniteElement::Project_RT(
 {
    if (fe.GetRangeType() == SCALAR)
    {
-      double vk[3];
+      double vk[Geometry::MaxDim];
       Vector shape(fe.GetDof());
       int sdim = Trans.GetSpaceDim();
 
@@ -739,7 +750,7 @@ void VectorFiniteElement::Project_ND(
    const double *tk, const Array<int> &d2t,
    VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
 {
-   double vk[3];
+   double vk[Geometry::MaxDim];
    Vector xk(vk, vc.GetVDim());
 
    for (int k = 0; k < Dof; k++)
@@ -785,7 +796,7 @@ void VectorFiniteElement::Project_ND(
    if (fe.GetRangeType() == SCALAR)
    {
       int sdim = Trans.GetSpaceDim();
-      double vk[3];
+      double vk[Geometry::MaxDim];
       Vector shape(fe.GetDof());
 
       I.SetSize(Dof, sdim*fe.GetDof());
@@ -847,15 +858,20 @@ void VectorFiniteElement::ProjectGrad_ND(
 }
 
 void VectorFiniteElement::LocalInterpolation_RT(
-   const double *nk, const Array<int> &d2n, ElementTransformation &Trans,
-   DenseMatrix &I) const
+   const VectorFiniteElement &cfe, const double *nk, const Array<int> &d2n,
+   ElementTransformation &Trans, DenseMatrix &I) const
 {
-   double vk[3];
+   MFEM_ASSERT(MapType == cfe.GetMapType(), "");
+
+   double vk[Geometry::MaxDim];
    Vector xk(vk, Dim);
    IntegrationPoint ip;
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix vshape(Dof, Dim);
+   DenseMatrix vshape(cfe.GetDof(), cfe.GetDim());
+#else
+   DenseMatrix vshape(cfe.vshape.Data(), cfe.GetDof(), cfe.GetDim());
 #endif
+   I.SetSize(Dof, vshape.Height());
 
    // assuming Trans is linear; this should be ok for all refinement types
    Trans.SetIntPoint(&Geometries.GetCenter(GeomType));
@@ -864,11 +880,11 @@ void VectorFiniteElement::LocalInterpolation_RT(
    {
       Trans.Transform(Nodes.IntPoint(k), xk);
       ip.Set3(vk);
-      CalcVShape(ip, vshape);
+      cfe.CalcVShape(ip, vshape);
       // xk = |J| J^{-t} n_k
       adjJ.MultTranspose(nk + d2n[k]*Dim, vk);
       // I_k = vshape_k.adj(J)^t.n_k, k=1,...,Dof
-      for (int j = 0; j < Dof; j++)
+      for (int j = 0; j < vshape.Height(); j++)
       {
          double Ikj = 0.;
          for (int i = 0; i < Dim; i++)
@@ -881,15 +897,18 @@ void VectorFiniteElement::LocalInterpolation_RT(
 }
 
 void VectorFiniteElement::LocalInterpolation_ND(
-   const double *tk, const Array<int> &d2t, ElementTransformation &Trans,
-   DenseMatrix &I) const
+   const VectorFiniteElement &cfe, const double *tk, const Array<int> &d2t,
+   ElementTransformation &Trans, DenseMatrix &I) const
 {
-   double vk[3];
+   double vk[Geometry::MaxDim];
    Vector xk(vk, Dim);
    IntegrationPoint ip;
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix vshape(Dof, Dim);
+   DenseMatrix vshape(cfe.GetDof(), cfe.GetDim());
+#else
+   DenseMatrix vshape(cfe.vshape.Data(), cfe.GetDof(), cfe.GetDim());
 #endif
+   I.SetSize(Dof, vshape.Height());
 
    // assuming Trans is linear; this should be ok for all refinement types
    Trans.SetIntPoint(&Geometries.GetCenter(GeomType));
@@ -898,11 +917,11 @@ void VectorFiniteElement::LocalInterpolation_ND(
    {
       Trans.Transform(Nodes.IntPoint(k), xk);
       ip.Set3(vk);
-      CalcVShape(ip, vshape);
+      cfe.CalcVShape(ip, vshape);
       // xk = J t_k
       J.Mult(tk + d2t[k]*Dim, vk);
       // I_k = vshape_k.J.t_k, k=1,...,Dof
-      for (int j = 0; j < Dof; j++)
+      for (int j = 0; j < vshape.Height(); j++)
       {
          double Ikj = 0.;
          for (int i = 0; i < Dim; i++)

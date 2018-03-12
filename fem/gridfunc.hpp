@@ -192,9 +192,10 @@ public:
    void ImposeBounds(int i, const Vector &weights,
                      double _min = 0.0, double _max = infinity());
 
-   /** Project the given 'src' GridFunction to 'this' GridFunction, both of
-       which must be on the same mesh. The current implementation assumes that
-       all element use the same projection matrix. */
+   /** @brief Project the @a src GridFunction to @a this GridFunction, both of
+       which must be on the same mesh. */
+   /** The current implementation assumes that all elements use the same
+       projection matrix. */
    void ProjectGridFunction(const GridFunction &src);
 
    virtual void ProjectCoefficient(Coefficient &coeff);
@@ -218,11 +219,20 @@ public:
    /** @brief Projects a discontinuous coefficient so that the values in shared
        vdofs are computed by taking an average of the possible values. */
    virtual void ProjectDiscCoefficient(Coefficient &coeff, AvgType type);
+   /** @brief Projects a discontinuous _vector_ coefficient so that the values
+       in shared vdofs are computed by taking an average of the possible values.
+   */
+   virtual void ProjectDiscCoefficient(VectorCoefficient &coeff, AvgType type);
 
 protected:
    /** @brief Accumulates (depending on @a type) the values of @a coeff at all
        shared vdofs and counts in how many zones each vdof appears. */
    void AccumulateAndCountZones(Coefficient &coeff, AvgType type,
+                                Array<int> &zones_per_vdof);
+
+   /** @brief Accumulates (depending on @a type) the values of @a vcoeff at all
+       shared vdofs and counts in how many zones each vdof appears. */
+   void AccumulateAndCountZones(VectorCoefficient &vcoeff, AvgType type,
                                 Array<int> &zones_per_vdof);
 
    // Complete the computation of averages; called e.g. after
