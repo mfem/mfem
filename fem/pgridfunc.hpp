@@ -195,6 +195,8 @@ public:
 
    virtual void ProjectDiscCoefficient(Coefficient &coeff, AvgType type);
 
+   virtual void ProjectDiscCoefficient(VectorCoefficient &vcoeff, AvgType type);
+
    virtual double ComputeL1Error(Coefficient *exsol[],
                                  const IntegrationRule *irs[] = NULL) const
    {

@@ -156,7 +156,10 @@ public:
    inline int Append(const T & el);
 
    /// Append another array to this array, resize if necessary
-   inline int Append(const Array<T> &els);
+   inline int Append(const T *els, int nels);
+
+   /// Append another array to this array, resize if necessary
+   inline int Append(const Array<T> &els) { return Append(els, els.Size()); }
 
    /// Prepend an element to the array, resize if necessary
    inline int Prepend(const T &el);
@@ -616,12 +619,12 @@ inline int Array<T>::Append(const T &el)
 }
 
 template <class T>
-inline int Array<T>::Append(const Array<T> & els)
+inline int Array<T>::Append(const T *els, int nels)
 {
-   int old_size = size;
+   const int old_size = size;
 
-   SetSize(size + els.Size());
-   for (int i = 0; i < els.Size(); i++)
+   SetSize(size + nels);
+   for (int i = 0; i < nels; i++)
    {
       ((T*)data)[old_size+i] = els[i];
    }
