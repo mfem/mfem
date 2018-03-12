@@ -11,7 +11,7 @@
 
 // Implementation of data type mesh
 
-#include "mesh_pumi.hpp"
+#include "pumi.hpp"
 
 #ifdef MFEM_USE_PUMI
 #ifdef MFEM_USE_MPI

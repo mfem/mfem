@@ -37,7 +37,7 @@
 #endif
 
 #ifdef MFEM_USE_PUMI
-#include "mesh_pumi.hpp"
+#include "pumi.hpp"
 #endif
 
 #endif
