@@ -235,7 +235,7 @@ public:
        2x2 or 3x3 symmetric matrix. */
    void CalcEigenvalues(double *lambda, double *vec) const;
 
-   void GetRow(int r, Vector &row);
+   void GetRow(int r, Vector &row) const;
    void GetColumn(int c, Vector &col) const;
    double *GetColumn(int col) { return data + col*height; }
    const double *GetColumn(int col) const { return data + col*height; }

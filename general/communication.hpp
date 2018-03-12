@@ -131,11 +131,12 @@ protected:
    Table group_ldof;
    Table group_ltdof; // only for groups for which this processor is master.
    int group_buf_size;
-   Array<char> group_buf;
+   mutable Array<char> group_buf;
    MPI_Request *requests;
    // MPI_Status  *statuses;
-   int comm_lock; // 0 - no lock, 1 - locked for Bcast, 2 - locked for Reduce
-   int num_requests;
+   // comm_lock: 0 - no lock, 1 - locked for Bcast, 2 - locked for Reduce
+   mutable int comm_lock;
+   mutable int num_requests;
    int *request_marker;
    int *buf_offsets; // size = max(number of groups, number of neighbors)
    Table nbr_send_groups, nbr_recv_groups; // nbr 0 = me
@@ -158,6 +159,9 @@ public:
        GroupCommunicator then call Finalize(). */
    Table &GroupLDofTable() { return group_ldof; }
 
+   /// Read-only access to group-ldof Table.
+   const Table &GroupLDofTable() const { return group_ldof; }
+
    /// Allocate internal buffers after the GroupLDofTable is defined
    void Finalize();
 
@@ -169,13 +173,17 @@ public:
    /// Get a reference to the associated GroupTopology object
    GroupTopology &GetGroupTopology() { return gtopo; }
 
+   /// Get a const reference to the associated GroupTopology object
+   const GroupTopology &GetGroupTopology() const { return gtopo; }
+
    /** @brief Data structure on which we define reduce operations.
 
      The data is associated with (and the operation is performed on) one group
      at a time. */
    template <class T> struct OpData
    {
-      int nldofs, nb, *ldofs;
+      int nldofs, nb;
+      const int *ldofs;
       T *ldata, *buf;
    };
 
@@ -211,7 +219,7 @@ public:
 
    /// Begin a broadcast within each group where the master is the root.
    /** For a description of @a layout, see CopyGroupToBuffer(). */
-   template <class T> void BcastBegin(T *ldata, int layout);
+   template <class T> void BcastBegin(T *ldata, int layout) const;
 
    /** @brief Finalize a broadcast started with BcastBegin().
 
@@ -222,23 +230,24 @@ public:
              layout should be 1.
 
        For more details about @a layout, see CopyGroupToBuffer(). */
-   template <class T> void BcastEnd(T *ldata, int layout);
+   template <class T> void BcastEnd(T *ldata, int layout) const;
 
    /** @brief Broadcast within each group where the master is the root.
 
        The data @a layout can be either 0 or 1.
 
        For a description of @a layout, see CopyGroupToBuffer(). */
-   template <class T> void Bcast(T *ldata, int layout)
+   template <class T> void Bcast(T *ldata, int layout) const
    {
       BcastBegin(ldata, layout);
       BcastEnd(ldata, layout);
    }
 
    /// Broadcast within each group where the master is the root.
-   template <class T> void Bcast(T *ldata) { Bcast<T>(ldata, 0); }
+   template <class T> void Bcast(T *ldata) const { Bcast<T>(ldata, 0); }
    /// Broadcast within each group where the master is the root.
-   template <class T> void Bcast(Array<T> &ldata) { Bcast<T>((T *)ldata); }
+   template <class T> void Bcast(Array<T> &ldata) const
+   { Bcast<T>((T *)ldata); }
 
    /** @brief Begin reduction operation within each group where the master is
        the root. */
@@ -247,7 +256,7 @@ public:
 
        The reduce operation will be specified when calling ReduceEnd(). This
        method is instantiated for int and double. */
-   template <class T> void ReduceBegin(const T *ldata);
+   template <class T> void ReduceBegin(const T *ldata) const;
 
    /** @brief Finalize reduction operation started with ReduceBegin().
 
@@ -263,20 +272,20 @@ public:
        data for master-groups has to be identical in both arrays.
    */
    template <class T> void ReduceEnd(T *ldata, int layout,
-                                     void (*Op)(OpData<T>));
+                                     void (*Op)(OpData<T>)) const;
 
    /** @brief Reduce within each group where the master is the root.
 
        The reduce operation is given by the second argument (see below for list
        of the supported operations.) */
-   template <class T> void Reduce(T *ldata, void (*Op)(OpData<T>))
+   template <class T> void Reduce(T *ldata, void (*Op)(OpData<T>)) const
    {
       ReduceBegin(ldata);
       ReduceEnd(ldata, 0, Op);
    }
 
    /// Reduce within each group where the master is the root.
-   template <class T> void Reduce(Array<T> &ldata, void (*Op)(OpData<T>))
+   template <class T> void Reduce(Array<T> &ldata, void (*Op)(OpData<T>)) const
    { Reduce<T>((T *)ldata, Op); }
 
    /// Reduce operation Sum, instantiated for int and double
