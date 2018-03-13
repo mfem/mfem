@@ -737,21 +737,21 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
 
 //L(v) := tau * (f, grad q)
 void StabGradDomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
-                                                ElementTransformation &Tr,
-                                                Vector &elvect)
+                                                        ElementTransformation &Tr,
+                                                        Vector &elvect)
 {
-   int dim = el.GetDim() + 1; //1 for pressure 
+   int dim = el.GetDim() + 1; //1 for pressure
    int nd  = el.GetDof();
-   int sp_dim = Tr.GetSpaceDim();   
-   
-   dshape.SetSize(nd, sp_dim); 
-   gshape.SetSize(nd, sp_dim);   
-   Jinv  .SetSize(sp_dim);   
+   int sp_dim = Tr.GetSpaceDim();
+
+   dshape.SetSize(nd, sp_dim);
+   gshape.SetSize(nd, sp_dim);
+   Jinv  .SetSize(sp_dim);
    elvect.SetSize(nd*dim);
-   
+
    elvect = 0.0;
    double norm = 0.0;
-   
+
    Vector vec1;
    vec1.SetSize(nd);
 
@@ -759,33 +759,36 @@ void StabGradDomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
    if (ir == NULL)
    {
       ir = &IntRules.Get(el.GetGeomType(),
-                          oa * Tr.OrderGrad(&el) + ob);
+                         oa * Tr.OrderGrad(&el) + ob);
    }
 
-   //Compute tau, This part is to be moved 
+   //Compute tau, This part is to be moved
    double vol = Geometry::Volume[el.GetGeomType()] * Tr.Weight();
-   double h = ((sp_dim == 3) ? (0.60046878 * pow(vol,0.333333333333333333333)) : (1.128379167 * sqrt(vol)));
+   double h = ((sp_dim == 3) ? (0.60046878 * pow(vol,
+                                                 0.333333333333333333333)) : (1.128379167 * sqrt(vol)));
    double invtau = 4.0 * nu / (h * h);
    double tau = 1.0/invtau;
-   
+
    int ro = sp_dim * nd;
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       Tr.SetIntPoint (&ip);
-      
+
       el.CalcDShape(ip, dshape);
       CalcInverse (Tr.Jacobian(), Jinv);
       Mult (dshape, Jinv, gshape);
-    
+
       Q.Eval(Qvec, Tr, ip);
       gshape.Mult(Qvec, vec1);
-      norm = sgn * tau * ip.weight * Tr.Weight();   
- 
+      norm = sgn * tau * ip.weight * Tr.Weight();
+
       //Last block is pressure
       for (int kk = 0; kk < nd; ++kk)
-          elvect[ro + kk] += norm * vec1[kk];      
-   
+      {
+         elvect[ro + kk] += norm * vec1[kk];
+      }
+
    }
 }
 
