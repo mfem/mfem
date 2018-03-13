@@ -76,7 +76,7 @@ public:
    virtual ~PumiMesh() { }
 };
 
-//Paralel mesh class 
+//Paralel mesh class
 /// Class for parallel meshes
 class ParPumiMesh : public ParMesh
 {

@@ -427,7 +427,8 @@ class StabGradDomainLFIntegrator : public LinearFormIntegrator
    double nu, sgn;
 public:
    /// Constructs a domain integrator with a given Coefficient
-   StabGradDomainLFIntegrator(VectorCoefficient &QF, double sign = 1.0, double visc = 1.0, int a = 1, int b = 1)
+   StabGradDomainLFIntegrator(VectorCoefficient &QF, double sign = 1.0,
+                              double visc = 1.0, int a = 1, int b = 1)
    // the old default was a = 1, b = 1
    // for simple elliptic problems a = 2, b = -2 is ok
       : Q(QF), oa(a), ob(b), nu(visc), sgn(sign) { }
