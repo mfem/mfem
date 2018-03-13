@@ -54,7 +54,8 @@ public:
    };
 
    HertzSolver(ParMesh & pmesh, int order, double freq,
-               const HertzSolver::SolverType &s,
+               HertzSolver::SolverType s,
+	       ComplexOperator::Convention conv,
                Coefficient & epsCoef,
                Coefficient & muInvCoef,
                Coefficient * sigmaCoef,
@@ -98,6 +99,8 @@ private:
 
    SolverType sol_;
 
+   ComplexOperator::Convention conv_;
+  
    bool ownsEtaInv_;
 
    double freq_;
@@ -150,13 +153,15 @@ private:
    Coefficient       * sigmaCoef_; // Electrical Conductivity Coefficient
    Coefficient       * etaInvCoef_; // Admittance Coefficient
 
-   Coefficient * omegaCoef_;  // omega expressed as a Coefficient
+   Coefficient * omegaCoef_;     // omega expressed as a Coefficient
    Coefficient * negOmegaCoef_;  // -omega expressed as a Coefficient
-   Coefficient * omega2Coef_; // -omega^2 expressed as a Coefficient
-   Coefficient * massCoef_;   // -omega^2 epsilon
-   Coefficient * lossCoef_;   // -omega sigma
-   Coefficient * gainCoef_;   // omega sigma
-   Coefficient * abcCoef_;   // -omega eta^{-1}
+   Coefficient * omega2Coef_;    // omega^2 expressed as a Coefficient
+   Coefficient * negOmega2Coef_; // -omega^2 expressed as a Coefficient
+   Coefficient * massCoef_;      // -omega^2 epsilon
+   Coefficient * posMassCoef_;   // omega^2 epsilon
+   Coefficient * lossCoef_;      // -omega sigma
+  // Coefficient * gainCoef_;    // omega sigma
+   Coefficient * abcCoef_;       // -omega eta^{-1}
 
    // VectorCoefficient * aBCCoef_;   // Vector Potential BC Function
    VectorCoefficient * jrCoef_;     // Volume Current Density Function

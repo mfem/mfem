@@ -147,7 +147,8 @@ int main(int argc, char *argv[])
    int maxit = 100;
    int serial_ref_levels = 0;
    int parallel_ref_levels = 0;
-   int sol = 1;
+   int sol = 2;
+   bool herm_conv = false;
    bool visualization = true;
    bool visit = true;
 
@@ -207,6 +208,8 @@ int main(int argc, char *argv[])
    */
    args.AddOption(&maxit, "-maxit", "--max-amr-iterations",
                   "Max number of iterations in the main AMR loop.");
+   args.AddOption(&herm_conv, "-herm", "--hermitian", "-no-herm",
+                  "--no-hermitian", "Use convention for Hermitian operators.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -225,6 +228,9 @@ int main(int argc, char *argv[])
    {
       args.PrintOptions(cout);
    }
+
+   ComplexOperator::Convention conv =
+     herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
 
    // Read the (serial) mesh from the given mesh file on all processors.  We
    // can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
@@ -299,7 +305,7 @@ int main(int argc, char *argv[])
 
    // Create the Magnetostatic solver
    HertzSolver Hertz(pmesh, order, freq_, (HertzSolver::SolverType)sol,
-                     *epsCoef, *muInvCoef, sigmaCoef, etaInvCoef,
+                     conv, *epsCoef, *muInvCoef, sigmaCoef, etaInvCoef,
                      abcs, dbcs,
                      e_bc_r, e_bc_i,
                      (do_params_.Size() > 0 ) ? j_src : NULL, NULL
