@@ -101,6 +101,9 @@
 // Enable MFEM functionality based on the PUMI library
 #cmakedefine MFEM_USE_PUMI
 
+// Enable MFEM-PUMI functionality based on the Simmetrix SimModSuite library
+#cmakedefine MFEM_USE_SIMMETRIX
+
 // Which library functions to use in class StopWatch for measuring time.
 // For a list of the available options, see INSTALL.
 // If not defined, an option is selected automatically.
