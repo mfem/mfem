@@ -25,8 +25,9 @@ namespace electromagnetics
 double prodFunc(double a, double b) { return a * b; }
 
 HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
-                         const HertzSolver::SolverType &sol,
-                         Coefficient & epsCoef,
+                         HertzSolver::SolverType sol,
+                         ComplexOperator::Convention conv,
+			 Coefficient & epsCoef,
                          Coefficient & muInvCoef,
                          Coefficient * sigmaCoef,
                          Coefficient * etaInvCoef,
@@ -41,6 +42,7 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
      order_(order),
      logging_(1),
      sol_(sol),
+     conv_(conv),
      ownsEtaInv_(etaInvCoef == NULL),
      freq_(freq),
      pmesh_(&pmesh),
@@ -78,10 +80,12 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
      etaInvCoef_(etaInvCoef),
      omegaCoef_(new ConstantCoefficient(2.0 * M_PI * freq)),
      negOmegaCoef_(new ConstantCoefficient(-2.0 * M_PI * freq)),
-     omega2Coef_(new ConstantCoefficient(-pow(2.0 * M_PI * freq, 2))),
+     omega2Coef_(new ConstantCoefficient(pow(2.0 * M_PI * freq, 2))),
+     negOmega2Coef_(new ConstantCoefficient(-pow(2.0 * M_PI * freq, 2))),
      massCoef_(NULL),
+     posMassCoef_(NULL),
      lossCoef_(NULL),
-     gainCoef_(NULL),
+     // gainCoef_(NULL),
      abcCoef_(NULL),
      jrCoef_(NULL),
      jiCoef_(NULL),
@@ -162,11 +166,12 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
                                                *a_bc_);
    }
    */
-   massCoef_ = new TransformedCoefficient(omega2Coef_, epsCoef_, prodFunc);
+   massCoef_ = new TransformedCoefficient(negOmega2Coef_, epsCoef_, prodFunc);
+   posMassCoef_ = new TransformedCoefficient(omega2Coef_, epsCoef_, prodFunc);
    if ( sigmaCoef_ )
    {
-      lossCoef_ = new TransformedCoefficient(negOmegaCoef_, sigmaCoef_, prodFunc);
-      gainCoef_ = new TransformedCoefficient(omegaCoef_, sigmaCoef_, prodFunc);
+      lossCoef_ = new TransformedCoefficient(omegaCoef_, sigmaCoef_, prodFunc);
+      // gainCoef_ = new TransformedCoefficient(omegaCoef_, sigmaCoef_, prodFunc);
    }
 
    // Impedance of free space
@@ -230,8 +235,7 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
    }
    */
    // Bilinear Forms
-   a1_ = new ParSesquilinearForm(HCurlFESpace_,
-                                 ComplexOperator::BLOCK_SYMMETRIC);
+   a1_ = new ParSesquilinearForm(HCurlFESpace_, conv_);
    a1_->AddDomainIntegrator(new CurlCurlIntegrator(*muInvCoef_), NULL);
    a1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massCoef_), NULL);
    if ( lossCoef_ )
@@ -246,10 +250,10 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
 
    b1_ = new ParBilinearForm(HCurlFESpace_);
    b1_->AddDomainIntegrator(new CurlCurlIntegrator(*muInvCoef_));
-   b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*massCoef_));
-   if ( gainCoef_ )
+   b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*posMassCoef_));
+   if ( lossCoef_ )
    {
-      b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*gainCoef_));
+      b1_->AddDomainIntegrator(new VectorFEMassIntegrator(*lossCoef_));
    }
    /*
    curlMuInvCurl_  = new ParBilinearForm(HCurlFESpace_);
@@ -295,7 +299,7 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
      jd_i_->AddDomainIntegrator(new VectorFEDomainLFIntegrator(*jiCoef_));
    }
    */
-   jd_ = new ParComplexLinearForm(HCurlFESpace_);
+   jd_ = new ParComplexLinearForm(HCurlFESpace_, conv_);
    jd_->AddDomainIntegrator(new VectorFEDomainLFIntegrator(*jrCoef_),
                             new VectorFEDomainLFIntegrator(*jiCoef_));
    jd_->real().Vector::operator=(0.0);
@@ -340,13 +344,15 @@ HertzSolver::~HertzSolver()
    delete erCoef_;
    delete eiCoef_;
    delete massCoef_;
+   delete posMassCoef_;
    delete lossCoef_;
-   delete gainCoef_;
+   // delete gainCoef_;
    delete abcCoef_;
    if ( ownsEtaInv_ ) { delete etaInvCoef_; }
    delete omegaCoef_;
    delete negOmegaCoef_;
    delete omega2Coef_;
+   delete negOmega2Coef_;
 
    // delete DivFreeProj_;
    // delete SurfCur_;
@@ -459,7 +465,7 @@ HertzSolver::Update()
    // Note: we don't need to interpolate any GridFunctions on the new mesh
    // so we pass 'false' to skip creation of any transformation matrices.
    // H1FESpace_->Update(false);
-   HCurlFESpace_->Update(false);
+   HCurlFESpace_->Update();
    // HDivFESpace_->Update(false);
 
    if ( ess_bdr_.Size() > 0 )
@@ -556,6 +562,9 @@ HertzSolver::Solve()
    cout << "Norm of jd (post-fls): " << jd_->Norml2() << endl;
    cout << "Norm of RHS: " << RHS.Norml2() << endl;
 
+   OperatorHandle PCOp;
+   b1_->FormSystemMatrix(ess_bdr_tdofs_, PCOp);
+
    /*
    #ifdef MFEM_USE_SUPERLU
    SuperLURowLocMatrix A_SuperLU(*A1C);
@@ -594,25 +603,29 @@ HertzSolver::Solve()
       break;
       case FGMRES:
       {
-         HypreParMatrix * B1 = b1_->ParallelAssemble();
+        // HypreParMatrix * B1 = b1_->ParallelAssemble();
 
-         HypreAMS ams(*B1, HCurlFESpace_);
+        // HypreAMS ams(*B1, HCurlFESpace_);
+	HypreAMS amsr(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()),
+		      HCurlFESpace_);
+	ScaledOperator amsi(&amsr,
+			    (conv_ == ComplexOperator::HERMITIAN)?1.0:-1.0);
 
          BlockDiagonalPreconditioner BDP(blockTrueOffsets_);
-         BDP.SetDiagonalBlock(0,&ams);
-         BDP.SetDiagonalBlock(1,&ams);
+         BDP.SetDiagonalBlock(0,&amsr);
+         BDP.SetDiagonalBlock(1,&amsi);
          BDP.owns_blocks = 0;
 
          FGMRESSolver fgmres(HCurlFESpace_->GetComm());
+         fgmres.SetPreconditioner(BDP);
          fgmres.SetOperator(*A1.Ptr());
          fgmres.SetRelTol(1e-4);
-         fgmres.SetMaxIter(10000);
+         fgmres.SetMaxIter(1000);
          fgmres.SetPrintLevel(1);
-         fgmres.SetPreconditioner(BDP);
 
          fgmres.Mult(RHS, E);
 
-         delete B1;
+	 // delete B1;
       }
       break;
 #ifdef MFEM_USE_SUPERLU
