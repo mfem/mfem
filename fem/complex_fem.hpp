@@ -43,9 +43,9 @@ public:
       FiniteElementSpace @a *f. */
    ComplexGridFunction(FiniteElementSpace *f);
 
-   void Update() { gfr_->Update(); gfi_->Update(); }
+   void Update();
 
-   /// Assign constant values to the ParComplexGridFunction data.
+   /// Assign constant values to the ComplexGridFunction data.
    ComplexGridFunction &operator=(const std::complex<double> & value)
    { *gfr_ = value.real(); *gfi_ = value.imag(); return *this; }
 
@@ -97,7 +97,8 @@ public:
    const LinearForm & real() const { return *lfr_; }
    const LinearForm & imag() const { return *lfi_; }
 
-   void Update(FiniteElementSpace *pf = NULL);
+   void Update();
+   void Update(FiniteElementSpace *f);
 
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
    void Assemble();
@@ -187,9 +188,9 @@ public:
 
    /* @brief Construct a ParComplexGridFunction associated with the
       ParFiniteElementSpace @a *f. */
-   ParComplexGridFunction(ParFiniteElementSpace *f);
+   ParComplexGridFunction(ParFiniteElementSpace *pf);
 
-   void Update() { pgfr_->Update(); pgfi_->Update(); }
+   void Update();
 
    /// Assign constant values to the ParComplexGridFunction data.
    ParComplexGridFunction &operator=(const std::complex<double> & value)
