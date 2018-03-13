@@ -16,11 +16,60 @@ using namespace std;
 namespace mfem
 {
   
-ComplexGridFunction::ComplexGridFunction(FiniteElementSpace *f)
-   : Vector(2*(f->GetVSize()))
+ComplexGridFunction::ComplexGridFunction(FiniteElementSpace *fes)
+  : Vector(2*(fes->GetVSize()))
 {
-   gfr_ = new GridFunction(f, &data[0]);
-   gfi_ = new GridFunction(f, &data[f->GetVSize()]);
+   gfr_ = new GridFunction(fes, &data[0]);
+   gfi_ = new GridFunction(fes, &data[fes->GetVSize()]);
+}
+
+void
+ComplexGridFunction::Update()
+{
+  FiniteElementSpace * fes = gfr_->FESpace();
+
+   int vsize = fes->GetVSize();
+
+  const Operator *T = fes->GetUpdateOperator();
+  if (T)
+  {
+    // Update the individual GridFunction objects.  This will allocate
+    // new data arrays for each GridFunction.
+    gfr_->Update();
+    gfi_->Update();
+
+    // Our data array now contains old data as well as being the wrong size
+    // so reallocate it.
+    this->SetSize(2 * vsize);
+
+    // Create temporary vectors which point to the new data array
+    Vector gf_r(&data[0], vsize);
+    Vector gf_i(&data[vsize], vsize);
+
+    // Copy the updated GridFunctions into the new data array
+    gf_r = *gfr_;
+    gf_i = *gfi_;
+
+    // Replace the individual data arrays with pointers into the new data array
+    gfr_->NewDataAndSize(&data[0], vsize);
+    gfi_->NewDataAndSize(&data[vsize], vsize);
+  }
+  else
+  {
+    // The existing data will not be transferred to the new GridFunctions
+    // so delete it a allocate a new array
+    this->SetSize(2 * vsize);
+
+    // Point the individual GridFunctions to the new data array
+    gfr_->NewDataAndSize(&data[0], vsize);
+    gfi_->NewDataAndSize(&data[vsize], vsize);
+
+    // These updates will only set the proper 'sequence' value within
+    // the individual GridFunction objects because their sizes are
+    // already correct
+    gfr_->Update();
+    gfi_->Update();
+  }
 }
 
 void
@@ -64,10 +113,24 @@ ComplexLinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi_real,
 }
 
 void
-ComplexLinearForm::Update(FiniteElementSpace *f)
+ComplexLinearForm::Update()
 {
-   lfr_->Update(f);
-   lfi_->Update(f);
+  FiniteElementSpace *fes = lfr_->FESpace();
+
+  this->Update(fes);
+}
+  
+void
+ComplexLinearForm::Update(FiniteElementSpace *fes)
+{
+  int vsize = fes->GetVSize();
+  SetSize(2 * vsize);
+
+   Vector lfr(&data[0], vsize);
+   Vector lfi(&data[vsize], vsize);
+
+   lfr_->Update(fes, lfr, 0);
+   lfi_->Update(fes, lfi, 0);
 }
 
 void
@@ -263,11 +326,60 @@ SesquilinearForm::Update(FiniteElementSpace *nfes)
 
 #ifdef MFEM_USE_MPI
 
-ParComplexGridFunction::ParComplexGridFunction(ParFiniteElementSpace *f)
-   : Vector(2*(f->GetVSize()))
+ParComplexGridFunction::ParComplexGridFunction(ParFiniteElementSpace *pfes)
+  : Vector(2*(pfes->GetVSize()))
 {
-   pgfr_ = new ParGridFunction(f, &data[0]);
-   pgfi_ = new ParGridFunction(f, &data[f->GetVSize()]);
+   pgfr_ = new ParGridFunction(pfes, &data[0]);
+   pgfi_ = new ParGridFunction(pfes, &data[pfes->GetVSize()]);
+}
+
+void
+ParComplexGridFunction::Update()
+{
+   ParFiniteElementSpace * pfes = pgfr_->ParFESpace();
+
+   int vsize = pfes->GetVSize();
+
+  const Operator *T = pfes->GetUpdateOperator();
+  if (T)
+  {
+    // Update the individual GridFunction objects.  This will allocate
+    // new data arrays for each GridFunction.
+    pgfr_->Update();
+    pgfi_->Update();
+
+    // Our data array now contains old data as well as being the wrong size
+    // so reallocate it.
+    this->SetSize(2 * vsize);
+
+    // Create temporary vectors which point to the new data array
+    Vector gf_r(&data[0], vsize);
+    Vector gf_i(&data[vsize], vsize);
+
+    // Copy the updated GridFunctions into the new data array
+    gf_r = *pgfr_;
+    gf_i = *pgfi_;
+
+    // Replace the individual data arrays with pointers into the new data array
+    pgfr_->NewDataAndSize(&data[0], vsize);
+    pgfi_->NewDataAndSize(&data[vsize], vsize);
+  }
+  else
+  {
+    // The existing data will not be transferred to the new GridFunctions
+    // so delete it a allocate a new array
+    this->SetSize(2 * vsize);
+
+    // Point the individual GridFunctions to the new data array
+    pgfr_->NewDataAndSize(&data[0], vsize);
+    pgfi_->NewDataAndSize(&data[vsize], vsize);
+
+    // These updates will only set the proper 'sequence' value within
+    // the individual GridFunction objects because their sizes are
+    // already correct
+    pgfr_->Update();
+    pgfi_->Update();
+  }
 }
 
 void
@@ -315,18 +427,18 @@ ParComplexGridFunction::ParallelProject(Vector &tv) const
 }
 
 
-ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pf,
+ParComplexLinearForm::ParComplexLinearForm(ParFiniteElementSpace *pfes,
                                            ComplexOperator::Convention
                                            convention)
-   : Vector(2*(pf->GetVSize())),
+   : Vector(2*(pfes->GetVSize())),
      conv_(convention)
 {
-   plfr_ = new ParLinearForm(pf, &data[0]);
-   plfi_ = new ParLinearForm(pf, &data[pf->GetVSize()]);
+   plfr_ = new ParLinearForm(pfes, &data[0]);
+   plfi_ = new ParLinearForm(pfes, &data[pfes->GetVSize()]);
 
-   HYPRE_Int * tdof_offsets = pf->GetTrueDofOffsets();
+   HYPRE_Int * tdof_offsets = pfes->GetTrueDofOffsets();
 
-   int n = (HYPRE_AssumedPartitionCheck()) ? 2 : pf->GetNRanks();
+   int n = (HYPRE_AssumedPartitionCheck()) ? 2 : pfes->GetNRanks();
    tdof_offsets_ = new HYPRE_Int[n+1];
 
    for (int i=0; i<=n; i++)
@@ -353,8 +465,15 @@ ParComplexLinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi_real,
 void
 ParComplexLinearForm::Update(ParFiniteElementSpace *pf)
 {
-   plfr_->Update(pf);
-   plfi_->Update(pf);
+  ParFiniteElementSpace *pfes = (pf!=NULL)?pf:plfr_->ParFESpace();
+  int vsize = pfes->GetVSize();
+  SetSize(2 * vsize);
+
+   Vector plfr(&data[0], vsize);
+   Vector plfi(&data[vsize], vsize);
+
+   plfr_->Update(pfes, plfr, 0);
+   plfi_->Update(pfes, plfi, 0);
 }
 
 void
@@ -481,9 +600,16 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
 {
    ParFiniteElementSpace * pfes = pblfr_->ParFESpace();
 
-   int vsize  = pfes->GetVSize();
+   int tvs = pfes->TrueVSize();
+   cout << "TrueVSize returns " << tvs << endl;
+   cout << "GetVSize returns " << pfes->GetVSize() << endl;
+   
+   int vsize = x.Size() / 2;
+   // int vsize  = pfes->GetVSize();
    // int tvsize = pfes->GetTrueVSize();
 
+   cout << "x.Size/2 returns " << vsize << endl;
+   
    double s = (conv_ == ComplexOperator::HERMITIAN)?1.0:-1.0;
 
    // Allocate temporary vectors
@@ -491,7 +617,7 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    // Vector B_0(tvsize); B_0 = 0.0;
 
    // Extract the real and imaginary parts of the input vectors
-   MFEM_ASSERT(x.Size() == 2 * vsize, "Input GridFunction of incorrect size!");
+   // MFEM_ASSERT(x.Size() == 2 * vsize, "Input GridFunction of incorrect size!");
    Vector x_r(x.GetData(), vsize);
    Vector x_i(&(x.GetData())[vsize], vsize);
 
@@ -510,9 +636,9 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    */
    OperatorHandle A_r, A_i;
    Vector X_0, B_0;
-
+   cout << "pblfr fls 1" << endl << flush;
    b_0 = b_r;
-   pblfr_->FormLinearSystem(ess_tdof_list, x_r, b_r, A_r, X_0, B_0, ci);
+   pblfr_->FormLinearSystem(ess_tdof_list, x_r, b_0, A_r, X_0, B_0, ci);
 
    int tvsize = B_0.Size();
    X.SetSize(2 * tvsize);
@@ -522,15 +648,15 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    Vector B_r(B.GetData(), tvsize);
    Vector B_i(&(B.GetData())[tvsize], tvsize);
    X_r = X_0; B_r = B_0;
-
+   cout << "pblfi fls 1" << endl << flush;
    b_0 = 0.0;
    pblfi_->FormLinearSystem(ess_tdof_list, x_i, b_0, A_i, X_0, B_0, false);
    B_r -= B_0;
-
+   cout << "pblfr fls 2" << endl << flush;
    b_0 = b_i;
    pblfr_->FormLinearSystem(ess_tdof_list, x_i, b_0, A_r, X_0, B_0, ci);
    X_i = X_0; B_i = B_0;
-
+   cout << "pblfi fls 2" << endl << flush;
    b_0 = 0.0;
    pblfi_->FormLinearSystem(ess_tdof_list, x_r, b_0, A_i, X_0, B_0, false);
    B_i += B_0;
