@@ -186,7 +186,7 @@ int main(int argc, char *argv[])
    x.ProjectCoefficient(x_r, x_i);
    x_exact.ProjectCoefficient(x_r, x_i);
 
-   if (visualization)
+   if (visualization&&false)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
@@ -316,7 +316,7 @@ int main(int argc, char *argv[])
    }
 
    // 15. Send the solution by socket to a GLVis server.
-   if (visualization)
+   if (visualization&&false)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
@@ -331,7 +331,7 @@ int main(int argc, char *argv[])
       sol_sock_i << "solution\n" << *pmesh << x.imag()
                  << "window_title 'Comp Imaginary Part'" << flush;
    }
-   if (visualization)
+   if (visualization&&false)
    {
       x_exact -= x;
 
@@ -358,7 +358,7 @@ int main(int argc, char *argv[])
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
       sol_sock << "solution\n" << *pmesh << x_t
-	       << "window_title 'Harmonic Solution'"
+	       << "window_title 'Harmonic Solution (t = 0.0 T)'"
 	       << "pause\n" << flush;
       if (myid == 0)
 	cout << "GLVis visualization paused."
@@ -367,10 +367,15 @@ int main(int argc, char *argv[])
       int i = 0;
       while(sol_sock)
       {
-	add(cos(2.0 * M_PI * (i % num_frames) / num_frames), x.real(),
-	    sin(2.0 * M_PI * (i % num_frames) / num_frames), x.imag(), x_t);
+	double t = (double)(i % num_frames) / num_frames;
+	ostringstream oss;
+	oss << "Harmonic Solution (t = " << t << " T)";
+	
+	add(cos(2.0 * M_PI * t), x.real(),
+	    sin(2.0 * M_PI * t), x.imag(), x_t);
 	sol_sock << "parallel " << num_procs << " " << myid << "\n";
-	sol_sock << "solution\n" << *pmesh << x_t << flush;
+	sol_sock << "solution\n" << *pmesh << x_t
+		 << "window_title '" << oss.str() << "'" << flush;
 	i++;
       }
    }
