@@ -11,8 +11,14 @@
 Version 3.3.3 (development)
 ===========================
 
-More efficient non-conforming adaptive mesh refinement
-------------------------------------------------------
+More general and efficient mesh adaptivity
+------------------------------------------
+- Added support for PUMI, the Parallel Unstructured Mesh Infrastructure from
+  https://scorec.rpi.edu/pumi. PUMI is an unstructured, distributed mesh data
+  management system that is capable of handling general non-manifold models and
+  effectively supports automated adaptive analysis. PUMI enables for the first
+  time support for parallel unstructured modifications of MFEM meshes.
+
 - Significantly reduced MPI communication in the construction of the parallel
   prolongation matrix in ParFiniteElementSpace, for much improved parallel
   scaling of non-conforming AMR on hundreds of thousands of MPI tasks. The
