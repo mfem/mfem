@@ -5,8 +5,8 @@
 // Sample runs:  mpirun -np 8 ./pumi_ex1p -m ../data/pumi/Kova/Kova4.smb
 //                    -p ../data/pumi/Kova/Kova.x_t -o 1 -go 2
 //
-// NOTE:          Example model and meshes for PUMI examples can be downloaded 
-//                from github.com/mfem/data/pumi. 
+// NOTE:          Example model and meshes for PUMI examples can be downloaded
+//                from github.com/mfem/data/pumi.
 //
 // Description:  This example is the counterpart of ex1 in the MFEM examples list
 //               with the difference that pumi Api's are used to load a parallel

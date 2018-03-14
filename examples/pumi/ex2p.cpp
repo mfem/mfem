@@ -5,8 +5,8 @@
 //               -p ../data/pumi/geom/pillbox.smd
 //               -bf ../data/pumi/serial/boundary.mesh
 //
-// NOTE:          Example model and meshes for PUMI examples can be downloaded 
-//                from github.com/mfem/data/pumi. 
+// NOTE:          Example model and meshes for PUMI examples can be downloaded
+//                from github.com/mfem/data/pumi.
 //
 // Description:  This example code solves a simple linear elasticity problem
 //               describing a multi-material cantilever beam.
@@ -78,8 +78,8 @@ int main(int argc, char *argv[])
    const char *model_file = "../../data/pumi/geom/pillbox.smd";
 #else
    const char *model_file = "../../data/pumi/geom/pillbox.dmg";
-#endif    
-   
+#endif
+
    bool static_cond = false;
    bool visualization = 1;
    int geom_order = 1;
