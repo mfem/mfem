@@ -384,11 +384,9 @@ public:
    virtual ~GridFunction() { Destroy(); }
 };
 
-
 /** Overload operator<< for std::ostream and GridFunction; valid also for the
     derived class ParGridFunction */
 std::ostream &operator<<(std::ostream &out, const GridFunction &sol);
-
 
 /** @brief Class representing a function through its values (scalar or vector)
     at quadrature points. */
@@ -488,13 +486,19 @@ public:
     */
    inline void GetElementValues(int idx, DenseMatrix &values);
 
+   /// Return the quadrature function values at an integration point 
+   /** The result is stored in the Vector @a values as a reference to the 
+       global values.
+
+   */
+   void GetElementValues(int idx, const int ip_num, Vector &values);
+
    /// Write the QuadratureFunction to the stream @a out.
    void Save(std::ostream &out) const;
 };
 
 /// Overload operator<< for std::ostream and QuadratureFunction.
 std::ostream &operator<<(std::ostream &out, const QuadratureFunction &qf);
-
 
 double ZZErrorEstimator(BilinearFormIntegrator &blfi,
                         GridFunction &u,

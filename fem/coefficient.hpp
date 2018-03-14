@@ -271,8 +271,15 @@ protected:
 public:
    VectorCoefficient(int vd) { vdim = vd; time = 0.; }
 
+   // add constructor with no argument list (this is for the 
+   // QuadratureVectorFunctionCoefficient extended class), srw
+   VectorCoefficient() { vdim = 0; time = 0.; }
+
    void SetTime(double t) { time = t; }
    double GetTime() { return time; }
+
+   /// Set the dimension of the vector.
+   int SetVDim(int dim) { vdim = dim; }
 
    /// Returns dimension of the vector.
    int GetVDim() { return vdim; }

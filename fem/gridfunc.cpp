@@ -2562,6 +2562,23 @@ QuadratureFunction::QuadratureFunction(Mesh *mesh, std::istream &in)
    Load(in, vdim*qspace->GetSize());
 }
 
+void QuadratureFunction::GetElementValues(int idx, int ip_num, 
+                                          Vector &values)
+{
+   // get the element values and store them in elem_vec
+   Vector elem_vec;
+   GetElementValues(idx, elem_vec);
+
+   // get the vector dimension of the quadrature function
+   int vDim = GetVDim();
+
+   // set the size of the integration point data vector @a values
+   values.SetSize(vDim);
+
+   // set the data in values
+   values.SetVector(elem_vec, 0, vDim, ip_num*vDim);
+} 
+
 void QuadratureFunction::Save(std::ostream &out) const
 {
    qspace->Save(out);
