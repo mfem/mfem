@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool visualization = 1;
    bool herm_conv = true;
-   
+
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -93,9 +93,9 @@ int main(int argc, char *argv[])
    }
 
    ComplexOperator::Convention conv =
-     herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
+      herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
 
-   
+
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
@@ -107,8 +107,8 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-     int ref_levels = 1;
-     //        (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels = 1;
+      //        (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -244,57 +244,57 @@ int main(int argc, char *argv[])
 
    if (myid == 0)
    {
-     ComplexHypreParMatrix * Ahyp =
-       dynamic_cast<ComplexHypreParMatrix*>(A.Ptr());
+      ComplexHypreParMatrix * Ahyp =
+         dynamic_cast<ComplexHypreParMatrix*>(A.Ptr());
 
-     cout << "Size of linear system: "
-	  << 2 * Ahyp->real().GetGlobalNumRows() << endl << endl;
+      cout << "Size of linear system: "
+           << 2 * Ahyp->real().GetGlobalNumRows() << endl << endl;
    }
 
    // 12. Define and apply a parallel FGMRES solver for AX=B with the BoomerAMG
    //     preconditioner from hypre.
    {
-     Array<HYPRE_Int> blockTrueOffsets;
-     blockTrueOffsets.SetSize(3);
-     blockTrueOffsets[0] = 0;
-     blockTrueOffsets[1] = PCOp.Ptr()->Height();
-     blockTrueOffsets[2] = PCOp.Ptr()->Height();
-     blockTrueOffsets.PartialSum();
+      Array<HYPRE_Int> blockTrueOffsets;
+      blockTrueOffsets.SetSize(3);
+      blockTrueOffsets[0] = 0;
+      blockTrueOffsets[1] = PCOp.Ptr()->Height();
+      blockTrueOffsets[2] = PCOp.Ptr()->Height();
+      blockTrueOffsets.PartialSum();
 
-     BlockDiagonalPreconditioner BDP(blockTrueOffsets);
+      BlockDiagonalPreconditioner BDP(blockTrueOffsets);
 
-     HypreBoomerAMG amgr(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()));
-     ScaledOperator amgi(&amgr,
-			 (conv == ComplexOperator::HERMITIAN)?1.0:-1.0);
-     
-     BDP.SetDiagonalBlock(0,&amgr);
-     BDP.SetDiagonalBlock(1,&amgi);
-     BDP.owns_blocks = 0;
-     
-     FGMRESSolver fgmres(MPI_COMM_WORLD);
-     fgmres.SetPreconditioner(BDP);
-     fgmres.SetOperator(*A.Ptr());
-     fgmres.SetRelTol(1e-12);
-     fgmres.SetMaxIter(1000);
-     fgmres.SetPrintLevel(1);
-     fgmres.Mult(B, X);
+      HypreBoomerAMG amgr(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()));
+      ScaledOperator amgi(&amgr,
+                          (conv == ComplexOperator::HERMITIAN)?1.0:-1.0);
+
+      BDP.SetDiagonalBlock(0,&amgr);
+      BDP.SetDiagonalBlock(1,&amgi);
+      BDP.owns_blocks = 0;
+
+      FGMRESSolver fgmres(MPI_COMM_WORLD);
+      fgmres.SetPreconditioner(BDP);
+      fgmres.SetOperator(*A.Ptr());
+      fgmres.SetRelTol(1e-12);
+      fgmres.SetMaxIter(1000);
+      fgmres.SetPrintLevel(1);
+      fgmres.Mult(B, X);
    }
-   
+
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(X, *b, x);
 
    double err_r = x.real().ComputeL2Error(x_r);
    double err_i = x.imag().ComputeL2Error(x_i);
-   
+
    if ( myid == 0 )
    {
-     cout << endl;
-     cout << "|| Re (x_h - x) ||_{L^2} = " << err_r << endl;
-     cout << "|| Im (x_h - x) ||_{L^2} = " << err_i << endl;
-     cout << endl;
+      cout << endl;
+      cout << "|| Re (x_h - x) ||_{L^2} = " << err_r << endl;
+      cout << "|| Im (x_h - x) ||_{L^2} = " << err_i << endl;
+      cout << endl;
    }
-   
+
    // 14. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
@@ -358,25 +358,25 @@ int main(int argc, char *argv[])
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
       sol_sock << "solution\n" << *pmesh << x_t
-	       << "window_title 'Harmonic Solution (t = 0.0 T)'"
-	       << "pause\n" << flush;
+               << "window_title 'Harmonic Solution (t = 0.0 T)'"
+               << "pause\n" << flush;
       if (myid == 0)
-	cout << "GLVis visualization paused."
-	     << " Press space (in the GLVis window) to resume it.\n";
+         cout << "GLVis visualization paused."
+              << " Press space (in the GLVis window) to resume it.\n";
       int num_frames = 32;
       int i = 0;
-      while(sol_sock)
+      while (sol_sock)
       {
-	double t = (double)(i % num_frames) / num_frames;
-	ostringstream oss;
-	oss << "Harmonic Solution (t = " << t << " T)";
-	
-	add(cos(2.0 * M_PI * t), x.real(),
-	    sin(2.0 * M_PI * t), x.imag(), x_t);
-	sol_sock << "parallel " << num_procs << " " << myid << "\n";
-	sol_sock << "solution\n" << *pmesh << x_t
-		 << "window_title '" << oss.str() << "'" << flush;
-	i++;
+         double t = (double)(i % num_frames) / num_frames;
+         ostringstream oss;
+         oss << "Harmonic Solution (t = " << t << " T)";
+
+         add(cos(2.0 * M_PI * t), x.real(),
+             sin(2.0 * M_PI * t), x.imag(), x_t);
+         sol_sock << "parallel " << num_procs << " " << myid << "\n";
+         sol_sock << "solution\n" << *pmesh << x_t
+                  << "window_title '" << oss.str() << "'" << flush;
+         i++;
       }
    }
 

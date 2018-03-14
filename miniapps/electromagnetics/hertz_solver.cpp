@@ -27,7 +27,7 @@ double prodFunc(double a, double b) { return a * b; }
 HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
                          HertzSolver::SolverType sol,
                          ComplexOperator::Convention conv,
-			 Coefficient & epsCoef,
+                         Coefficient & epsCoef,
                          Coefficient & muInvCoef,
                          Coefficient * sigmaCoef,
                          Coefficient * etaInvCoef,
@@ -603,13 +603,13 @@ HertzSolver::Solve()
       break;
       case FGMRES:
       {
-        // HypreParMatrix * B1 = b1_->ParallelAssemble();
+         // HypreParMatrix * B1 = b1_->ParallelAssemble();
 
-        // HypreAMS ams(*B1, HCurlFESpace_);
-	HypreAMS amsr(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()),
-		      HCurlFESpace_);
-	ScaledOperator amsi(&amsr,
-			    (conv_ == ComplexOperator::HERMITIAN)?1.0:-1.0);
+         // HypreAMS ams(*B1, HCurlFESpace_);
+         HypreAMS amsr(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()),
+                       HCurlFESpace_);
+         ScaledOperator amsi(&amsr,
+                             (conv_ == ComplexOperator::HERMITIAN)?1.0:-1.0);
 
          BlockDiagonalPreconditioner BDP(blockTrueOffsets_);
          BDP.SetDiagonalBlock(0,&amsr);
@@ -625,7 +625,7 @@ HertzSolver::Solve()
 
          fgmres.Mult(RHS, E);
 
-	 // delete B1;
+         // delete B1;
       }
       break;
 #ifdef MFEM_USE_SUPERLU

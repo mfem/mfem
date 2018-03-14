@@ -76,13 +76,13 @@ protected:
    LinearForm * lfr_;
    LinearForm * lfi_;
 
-  // HYPRE_Int * tdof_offsets_;
+   // HYPRE_Int * tdof_offsets_;
 
 public:
 
    ComplexLinearForm(FiniteElementSpace *fes,
-		     ComplexOperator::Convention
-		     convention = ComplexOperator::HERMITIAN);
+                     ComplexOperator::Convention
+                     convention = ComplexOperator::HERMITIAN);
 
    virtual ~ComplexLinearForm();
 
@@ -113,14 +113,14 @@ class SesquilinearForm
 private:
    ComplexOperator::Convention conv_;
 
-  //protected:
+   //protected:
    BilinearForm *blfr_;
    BilinearForm *blfi_;
 
 public:
    SesquilinearForm(FiniteElementSpace *fes,
-		    ComplexOperator::Convention
-		    convention = ComplexOperator::HERMITIAN);
+                    ComplexOperator::Convention
+                    convention = ComplexOperator::HERMITIAN);
 
    ComplexOperator::Convention GetConvention() const { return conv_; }
    void SetConvention(const ComplexOperator::Convention &
@@ -271,7 +271,7 @@ class ParSesquilinearForm
 private:
    ComplexOperator::Convention conv_;
 
-  //protected:
+   //protected:
    ParBilinearForm *pblfr_;
    ParBilinearForm *pblfi_;
 
@@ -328,9 +328,9 @@ public:
 
    virtual ~ParSesquilinearForm();
 };
-  
+
 #endif // MFEM_USE_MPI
-  
+
 }
 
 #endif // MFEM_COMPLEX_FEM

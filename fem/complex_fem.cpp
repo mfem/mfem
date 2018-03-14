@@ -15,9 +15,9 @@ using namespace std;
 
 namespace mfem
 {
-  
+
 ComplexGridFunction::ComplexGridFunction(FiniteElementSpace *fes)
-  : Vector(2*(fes->GetVSize()))
+   : Vector(2*(fes->GetVSize()))
 {
    gfr_ = new GridFunction(fes, &data[0]);
    gfi_ = new GridFunction(fes, &data[fes->GetVSize()]);
@@ -26,55 +26,55 @@ ComplexGridFunction::ComplexGridFunction(FiniteElementSpace *fes)
 void
 ComplexGridFunction::Update()
 {
-  FiniteElementSpace * fes = gfr_->FESpace();
+   FiniteElementSpace * fes = gfr_->FESpace();
 
    int vsize = fes->GetVSize();
 
-  const Operator *T = fes->GetUpdateOperator();
-  if (T)
-  {
-    // Update the individual GridFunction objects.  This will allocate
-    // new data arrays for each GridFunction.
-    gfr_->Update();
-    gfi_->Update();
+   const Operator *T = fes->GetUpdateOperator();
+   if (T)
+   {
+      // Update the individual GridFunction objects.  This will allocate
+      // new data arrays for each GridFunction.
+      gfr_->Update();
+      gfi_->Update();
 
-    // Our data array now contains old data as well as being the wrong size
-    // so reallocate it.
-    this->SetSize(2 * vsize);
+      // Our data array now contains old data as well as being the wrong size
+      // so reallocate it.
+      this->SetSize(2 * vsize);
 
-    // Create temporary vectors which point to the new data array
-    Vector gf_r(&data[0], vsize);
-    Vector gf_i(&data[vsize], vsize);
+      // Create temporary vectors which point to the new data array
+      Vector gf_r(&data[0], vsize);
+      Vector gf_i(&data[vsize], vsize);
 
-    // Copy the updated GridFunctions into the new data array
-    gf_r = *gfr_;
-    gf_i = *gfi_;
+      // Copy the updated GridFunctions into the new data array
+      gf_r = *gfr_;
+      gf_i = *gfi_;
 
-    // Replace the individual data arrays with pointers into the new data array
-    gfr_->NewDataAndSize(&data[0], vsize);
-    gfi_->NewDataAndSize(&data[vsize], vsize);
-  }
-  else
-  {
-    // The existing data will not be transferred to the new GridFunctions
-    // so delete it a allocate a new array
-    this->SetSize(2 * vsize);
+      // Replace the individual data arrays with pointers into the new data array
+      gfr_->NewDataAndSize(&data[0], vsize);
+      gfi_->NewDataAndSize(&data[vsize], vsize);
+   }
+   else
+   {
+      // The existing data will not be transferred to the new GridFunctions
+      // so delete it a allocate a new array
+      this->SetSize(2 * vsize);
 
-    // Point the individual GridFunctions to the new data array
-    gfr_->NewDataAndSize(&data[0], vsize);
-    gfi_->NewDataAndSize(&data[vsize], vsize);
+      // Point the individual GridFunctions to the new data array
+      gfr_->NewDataAndSize(&data[0], vsize);
+      gfi_->NewDataAndSize(&data[vsize], vsize);
 
-    // These updates will only set the proper 'sequence' value within
-    // the individual GridFunction objects because their sizes are
-    // already correct
-    gfr_->Update();
-    gfi_->Update();
-  }
+      // These updates will only set the proper 'sequence' value within
+      // the individual GridFunction objects because their sizes are
+      // already correct
+      gfr_->Update();
+      gfi_->Update();
+   }
 }
 
 void
 ComplexGridFunction::ProjectCoefficient(Coefficient &real_coeff,
-					Coefficient &imag_coeff)
+                                        Coefficient &imag_coeff)
 {
    gfr_->ProjectCoefficient(real_coeff);
    gfi_->ProjectCoefficient(imag_coeff);
@@ -82,7 +82,7 @@ ComplexGridFunction::ProjectCoefficient(Coefficient &real_coeff,
 
 void
 ComplexGridFunction::ProjectCoefficient(VectorCoefficient &real_vcoeff,
-					VectorCoefficient &imag_vcoeff)
+                                        VectorCoefficient &imag_vcoeff)
 {
    gfr_->ProjectCoefficient(real_vcoeff);
    gfi_->ProjectCoefficient(imag_vcoeff);
@@ -90,7 +90,7 @@ ComplexGridFunction::ProjectCoefficient(VectorCoefficient &real_vcoeff,
 
 
 ComplexLinearForm::ComplexLinearForm(FiniteElementSpace *f,
-				     ComplexOperator::Convention convention)
+                                     ComplexOperator::Convention convention)
    : Vector(2*(f->GetVSize())),
      conv_(convention)
 {
@@ -106,7 +106,7 @@ ComplexLinearForm::~ComplexLinearForm()
 
 void
 ComplexLinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi_real,
-				       LinearFormIntegrator *lfi_imag)
+                                       LinearFormIntegrator *lfi_imag)
 {
    if ( lfi_real ) { lfr_->AddDomainIntegrator(lfi_real); }
    if ( lfi_imag ) { lfi_->AddDomainIntegrator(lfi_imag); }
@@ -115,16 +115,16 @@ ComplexLinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi_real,
 void
 ComplexLinearForm::Update()
 {
-  FiniteElementSpace *fes = lfr_->FESpace();
+   FiniteElementSpace *fes = lfr_->FESpace();
 
-  this->Update(fes);
+   this->Update(fes);
 }
-  
+
 void
 ComplexLinearForm::Update(FiniteElementSpace *fes)
 {
-  int vsize = fes->GetVSize();
-  SetSize(2 * vsize);
+   int vsize = fes->GetVSize();
+   SetSize(2 * vsize);
 
    Vector lfr(&data[0], vsize);
    Vector lfi(&data[vsize], vsize);
@@ -154,7 +154,7 @@ ComplexLinearForm::operator()(const ComplexGridFunction &gf) const
 
 
 SesquilinearForm::SesquilinearForm(FiniteElementSpace *f,
-				   ComplexOperator::Convention convention)
+                                   ComplexOperator::Convention convention)
    : conv_(convention),
      blfr_(new BilinearForm(f)),
      blfi_(new BilinearForm(f))
@@ -167,7 +167,7 @@ SesquilinearForm::~SesquilinearForm()
 }
 
 void SesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
-					   BilinearFormIntegrator *bfi_imag)
+                                           BilinearFormIntegrator *bfi_imag)
 {
    if (bfi_real) { blfr_->AddDomainIntegrator(bfi_real); }
    if (bfi_imag) { blfi_->AddDomainIntegrator(bfi_imag); }
@@ -175,7 +175,7 @@ void SesquilinearForm::AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
 
 void
 SesquilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
-					BilinearFormIntegrator *bfi_imag)
+                                        BilinearFormIntegrator *bfi_imag)
 {
    if (bfi_real) { blfr_->AddBoundaryIntegrator(bfi_real); }
    if (bfi_imag) { blfi_->AddBoundaryIntegrator(bfi_imag); }
@@ -183,8 +183,8 @@ SesquilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
 
 void
 SesquilinearForm::AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
-					BilinearFormIntegrator *bfi_imag,
-					Array<int> & bdr_marker)
+                                        BilinearFormIntegrator *bfi_imag,
+                                        Array<int> & bdr_marker)
 {
    if (bfi_real) { blfr_->AddBoundaryIntegrator(bfi_real, bdr_marker); }
    if (bfi_imag) { blfi_->AddBoundaryIntegrator(bfi_imag, bdr_marker); }
@@ -208,17 +208,17 @@ ComplexSparseMatrix *
 SesquilinearForm::AssembleCompSpMat()
 {
    return new ComplexSparseMatrix(&blfr_->SpMat(),
-				  &blfi_->SpMat(),
-				  false, false, conv_);
+                                  &blfi_->SpMat(),
+                                  false, false, conv_);
 
 }
 
 void
 SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
-				   Vector &x, Vector &b,
-				   OperatorHandle &A,
-				   Vector &X, Vector &B,
-				   int ci)
+                                   Vector &x, Vector &b,
+                                   OperatorHandle &A,
+                                   Vector &X, Vector &B,
+                                   int ci)
 {
    FiniteElementSpace * fes = blfr_->FESpace();
 
@@ -283,13 +283,13 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    // A = A_r + i A_i
    A.Clear();
    ComplexSparseMatrix * A_sp =
-     new ComplexSparseMatrix(A_r, A_i, true, true, conv_);
+      new ComplexSparseMatrix(A_r, A_i, true, true, conv_);
    A.Reset<ComplexSparseMatrix>(A_sp, true);
 }
 
 void
 SesquilinearForm::RecoverFEMSolution(const Vector &X, const Vector &b,
-				     Vector &x)
+                                     Vector &x)
 {
    FiniteElementSpace * fes = blfr_->FESpace();
 
@@ -305,11 +305,11 @@ SesquilinearForm::RecoverFEMSolution(const Vector &X, const Vector &b,
    Vector x_i(&(x.GetData())[vsize], vsize);
 
    if (!P)
-     {
-       x = X;
-     }
+   {
+      x = X;
+   }
    else
-     {
+   {
       // Apply conforming prolongation
       P->Mult(X_r, x_r);
       P->Mult(X_i, x_i);
@@ -327,7 +327,7 @@ SesquilinearForm::Update(FiniteElementSpace *nfes)
 #ifdef MFEM_USE_MPI
 
 ParComplexGridFunction::ParComplexGridFunction(ParFiniteElementSpace *pfes)
-  : Vector(2*(pfes->GetVSize()))
+   : Vector(2*(pfes->GetVSize()))
 {
    pgfr_ = new ParGridFunction(pfes, &data[0]);
    pgfi_ = new ParGridFunction(pfes, &data[pfes->GetVSize()]);
@@ -340,46 +340,46 @@ ParComplexGridFunction::Update()
 
    int vsize = pfes->GetVSize();
 
-  const Operator *T = pfes->GetUpdateOperator();
-  if (T)
-  {
-    // Update the individual GridFunction objects.  This will allocate
-    // new data arrays for each GridFunction.
-    pgfr_->Update();
-    pgfi_->Update();
+   const Operator *T = pfes->GetUpdateOperator();
+   if (T)
+   {
+      // Update the individual GridFunction objects.  This will allocate
+      // new data arrays for each GridFunction.
+      pgfr_->Update();
+      pgfi_->Update();
 
-    // Our data array now contains old data as well as being the wrong size
-    // so reallocate it.
-    this->SetSize(2 * vsize);
+      // Our data array now contains old data as well as being the wrong size
+      // so reallocate it.
+      this->SetSize(2 * vsize);
 
-    // Create temporary vectors which point to the new data array
-    Vector gf_r(&data[0], vsize);
-    Vector gf_i(&data[vsize], vsize);
+      // Create temporary vectors which point to the new data array
+      Vector gf_r(&data[0], vsize);
+      Vector gf_i(&data[vsize], vsize);
 
-    // Copy the updated GridFunctions into the new data array
-    gf_r = *pgfr_;
-    gf_i = *pgfi_;
+      // Copy the updated GridFunctions into the new data array
+      gf_r = *pgfr_;
+      gf_i = *pgfi_;
 
-    // Replace the individual data arrays with pointers into the new data array
-    pgfr_->NewDataAndSize(&data[0], vsize);
-    pgfi_->NewDataAndSize(&data[vsize], vsize);
-  }
-  else
-  {
-    // The existing data will not be transferred to the new GridFunctions
-    // so delete it a allocate a new array
-    this->SetSize(2 * vsize);
+      // Replace the individual data arrays with pointers into the new data array
+      pgfr_->NewDataAndSize(&data[0], vsize);
+      pgfi_->NewDataAndSize(&data[vsize], vsize);
+   }
+   else
+   {
+      // The existing data will not be transferred to the new GridFunctions
+      // so delete it a allocate a new array
+      this->SetSize(2 * vsize);
 
-    // Point the individual GridFunctions to the new data array
-    pgfr_->NewDataAndSize(&data[0], vsize);
-    pgfi_->NewDataAndSize(&data[vsize], vsize);
+      // Point the individual GridFunctions to the new data array
+      pgfr_->NewDataAndSize(&data[0], vsize);
+      pgfi_->NewDataAndSize(&data[vsize], vsize);
 
-    // These updates will only set the proper 'sequence' value within
-    // the individual GridFunction objects because their sizes are
-    // already correct
-    pgfr_->Update();
-    pgfi_->Update();
-  }
+      // These updates will only set the proper 'sequence' value within
+      // the individual GridFunction objects because their sizes are
+      // already correct
+      pgfr_->Update();
+      pgfi_->Update();
+   }
 }
 
 void
@@ -465,9 +465,9 @@ ParComplexLinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi_real,
 void
 ParComplexLinearForm::Update(ParFiniteElementSpace *pf)
 {
-  ParFiniteElementSpace *pfes = (pf!=NULL)?pf:plfr_->ParFESpace();
-  int vsize = pfes->GetVSize();
-  SetSize(2 * vsize);
+   ParFiniteElementSpace *pfes = (pf!=NULL)?pf:plfr_->ParFESpace();
+   int vsize = pfes->GetVSize();
+   SetSize(2 * vsize);
 
    Vector plfr(&data[0], vsize);
    Vector plfi(&data[vsize], vsize);
@@ -603,13 +603,13 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    int tvs = pfes->TrueVSize();
    cout << "TrueVSize returns " << tvs << endl;
    cout << "GetVSize returns " << pfes->GetVSize() << endl;
-   
+
    int vsize = x.Size() / 2;
    // int vsize  = pfes->GetVSize();
    // int tvsize = pfes->GetTrueVSize();
 
    cout << "x.Size/2 returns " << vsize << endl;
-   
+
    double s = (conv_ == ComplexOperator::HERMITIAN)?1.0:-1.0;
 
    // Allocate temporary vectors
