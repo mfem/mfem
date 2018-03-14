@@ -2787,8 +2787,10 @@ void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace)
    HYPRE_BoomerAMGSetInterpVectors(amg_precond, rbms.Size(), rbms.GetData());
 }
 
-void HypreBoomerAMG::SetAIROptions(int distance,  std::string prerelax,
-                                   std::string postrelax, double strength_tol,
+void HypreBoomerAMG::SetAIROptions(int distance,
+                                   std::string prerelax,
+                                   std::string postrelax, 
+                                   double strength_tolC,
                                    double strength_tolR,
                                    int interp_type, 
                                    int relax_type,
@@ -2847,7 +2849,7 @@ void HypreBoomerAMG::SetAIROptions(int distance,  std::string prerelax,
    /* does not support aggressive coarsening */
    HYPRE_BoomerAMGSetAggNumLevels(amg_precond, 0);
    
-   HYPRE_BoomerAMGSetStrongThreshold(amg_precond, strength_tol);
+   HYPRE_BoomerAMGSetStrongThreshold(amg_precond, strength_tolC);
    
    HYPRE_BoomerAMGSetStrongThresholdR(amg_precond, strength_tolR);
 
