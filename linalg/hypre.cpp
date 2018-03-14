@@ -2477,6 +2477,75 @@ HypreBoomerAMG::HypreBoomerAMG(HypreParMatrix &A) : HypreSolver(&A)
    SetDefaultOptions();
 }
 
+void HypreBoomerAMG::Mult(const HypreParVector &b, HypreParVector &x) const
+{
+   int myid;
+   HYPRE_Int time_index = 0;
+   HYPRE_Int num_iterations;
+   double final_res_norm;
+   MPI_Comm comm;
+   HYPRE_Int print_level;
+
+   HYPRE_BoomerAMGGetPrintLevel(amg_precond, &print_level);
+
+   HYPRE_ParCSRMatrixGetComm(*A, &comm);
+
+   if (!setup_called)
+   {
+      if (print_level > 0)
+      {
+         time_index = hypre_InitializeTiming("BoomerAMG Setup");
+         hypre_BeginTiming(time_index);
+      }
+
+      HYPRE_BoomerAMGSetup(amg_precond, *A, b, x);
+      setup_called = 1;
+
+      if (print_level > 0)
+      {
+         hypre_EndTiming(time_index);
+         hypre_PrintTiming("Setup phase times", comm);
+         hypre_FinalizeTiming(time_index);
+         hypre_ClearTiming();
+      }
+   }
+
+   if (print_level > 0)
+   {
+      time_index = hypre_InitializeTiming("BoomerAMG Solve");
+      hypre_BeginTiming(time_index);
+   }
+
+   if (!iterative_mode)
+   {
+      x = 0.0;
+   }
+
+   HYPRE_BoomerAMGSolve(amg_precond, *A, b, x);
+
+   if (print_level > 0)
+   {
+      hypre_EndTiming(time_index);
+      hypre_PrintTiming("Solve phase times", comm);
+      hypre_FinalizeTiming(time_index);
+      hypre_ClearTiming();
+
+      HYPRE_BoomerAMGGetNumIterations(amg_precond, &num_iterations);
+      HYPRE_BoomerAMGGetFinalRelativeResidualNorm(amg_precond,
+                                                    &final_res_norm);
+
+      MPI_Comm_rank(comm, &myid);
+
+      if (myid == 0)
+      {
+         mfem::out << "BoomerAMG Iterations = " << num_iterations << endl
+                   << "Final Relative Residual Norm = " << final_res_norm
+                   << endl;
+      }
+   }
+}
+
+
 void HypreBoomerAMG::SetDefaultOptions()
 {
    // AMG coarsening options:
