@@ -305,7 +305,7 @@ message(STATUS "MFEM git string: ${MFEM_GIT_STRING}")
 
 if (SCOREC_FOUND)
  message(STATUS "MFEM: using package PUMI")
- #define a header file with the MFEM_USE_SIMMETRIX preprocessor variable
+ # Define a header file with the MFEM_USE_SIMMETRIX preprocessor variable
  set(MFEM_USE_SIMMETRIX ${SCOREC_gmi_sim_FOUND})
  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/config/pumi_config.h.in"
                "${CMAKE_CURRENT_BINARY_DIR}/pumi_config.h")

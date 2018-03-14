@@ -10,25 +10,12 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 set(PUMI_EXAMPLES_SRCS)
-#list(APPEND PUMI_EXAMPLES_SRCS
-#  ex9.cpp
-#  ex10.cpp
-#  ex16.cpp
-#  )
-
-#if (MFEM_USE_MPI)
-#  list(APPEND PUMI_EXAMPLES_SRCS
-#    ex9p.cpp
-#    ex10p.cpp
-#    ex16p.cpp
-#    )
-#endif()
 
 if (MFEM_USE_PUMI AND MFEM_USE_MPI)
   list(APPEND PUMI_EXAMPLES_SRCS
     ex1.cpp
     ex1p.cpp
-    atr_ex2.cpp
+    ex2p.cpp
     )
 endif()
 

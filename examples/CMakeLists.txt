@@ -46,6 +46,7 @@ if (MFEM_USE_MPI)
     ex15p.cpp
     ex16p.cpp
     ex17p.cpp
+    ex18p.cpp
     )
 endif()
 
@@ -91,7 +92,7 @@ if (MFEM_USE_PETSC)
   add_subdirectory(petsc)
 endif()
 
-#Include the examples/pumi directory if PUMI is enabled 
+# Include the examples/pumi directory if PUMI is enabled
 if (MFEM_USE_PUMI)
   add_subdirectory(pumi)
 endif()
