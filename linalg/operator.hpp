@@ -308,11 +308,11 @@ class ScaledOperator : public Operator
 private:
    const Operator &A_;
    double a_;
-  
+
 public:
    /// Create a scalar product operator related to A.
    explicit ScaledOperator(const Operator *A, double a)
-     : Operator(A->Width(), A->Height()), A_(*A), a_(a) { }
+      : Operator(A->Width(), A->Height()), A_(*A), a_(a) { }
 
    /// Operator application
    virtual void Mult(const Vector &x, Vector &y) const

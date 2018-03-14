@@ -71,7 +71,7 @@ int main(int argc, char *argv[])
    double field_type = 0.5;
    bool visualization = 1;
    bool herm_conv = true;
-   
+
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -101,28 +101,28 @@ int main(int argc, char *argv[])
    }
 
    ComplexOperator::Convention conv =
-     herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
+      herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
 
    if ( field_type != 0.5 )
-     {
-       At_ = cos(0.5 * M_PI * field_type);
-       Ax_ = sin(0.5 * M_PI * field_type);
-     }
-   
+   {
+      At_ = cos(0.5 * M_PI * field_type);
+      Ax_ = sin(0.5 * M_PI * field_type);
+   }
+
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim  = mesh->Dimension();
    int sdim = mesh->SpaceDimension();
-   
+
    // 4. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-     int ref_levels = 1;
-     //        (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels = 1;
+      //        (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -247,57 +247,57 @@ int main(int argc, char *argv[])
 
    if (myid == 0)
    {
-     ComplexHypreParMatrix * Ahyp =
-       dynamic_cast<ComplexHypreParMatrix*>(A.Ptr());
+      ComplexHypreParMatrix * Ahyp =
+         dynamic_cast<ComplexHypreParMatrix*>(A.Ptr());
 
-     cout << "Size of linear system: "
-	  << 2 * Ahyp->real().GetGlobalNumRows() << endl << endl;
+      cout << "Size of linear system: "
+           << 2 * Ahyp->real().GetGlobalNumRows() << endl << endl;
    }
 
    // 12. Define and apply a parallel FGMRES solver for AX=B with the BoomerAMG
    //     preconditioner from hypre.
    {
-     Array<HYPRE_Int> blockTrueOffsets;
-     blockTrueOffsets.SetSize(3);
-     blockTrueOffsets[0] = 0;
-     blockTrueOffsets[1] = PCOp.Ptr()->Height();
-     blockTrueOffsets[2] = PCOp.Ptr()->Height();
-     blockTrueOffsets.PartialSum();
+      Array<HYPRE_Int> blockTrueOffsets;
+      blockTrueOffsets.SetSize(3);
+      blockTrueOffsets[0] = 0;
+      blockTrueOffsets[1] = PCOp.Ptr()->Height();
+      blockTrueOffsets[2] = PCOp.Ptr()->Height();
+      blockTrueOffsets.PartialSum();
 
-     BlockDiagonalPreconditioner BDP(blockTrueOffsets);
+      BlockDiagonalPreconditioner BDP(blockTrueOffsets);
 
-     HypreAMS amsr(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()), fespace);
-     ScaledOperator amsi(&amsr,
-			 (conv == ComplexOperator::HERMITIAN)?1.0:-1.0);
-     
-     BDP.SetDiagonalBlock(0,&amsr);
-     BDP.SetDiagonalBlock(1,&amsi);
-     BDP.owns_blocks = 0;
-     
-     FGMRESSolver fgmres(MPI_COMM_WORLD);
-     fgmres.SetPreconditioner(BDP);
-     fgmres.SetOperator(*A.Ptr());
-     fgmres.SetRelTol(1e-12);
-     fgmres.SetMaxIter(1000);
-     fgmres.SetPrintLevel(1);
-     fgmres.Mult(B, X);
+      HypreAMS amsr(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()), fespace);
+      ScaledOperator amsi(&amsr,
+                          (conv == ComplexOperator::HERMITIAN)?1.0:-1.0);
+
+      BDP.SetDiagonalBlock(0,&amsr);
+      BDP.SetDiagonalBlock(1,&amsi);
+      BDP.owns_blocks = 0;
+
+      FGMRESSolver fgmres(MPI_COMM_WORLD);
+      fgmres.SetPreconditioner(BDP);
+      fgmres.SetOperator(*A.Ptr());
+      fgmres.SetRelTol(1e-12);
+      fgmres.SetMaxIter(1000);
+      fgmres.SetPrintLevel(1);
+      fgmres.Mult(B, X);
    }
-   
+
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(X, *b, x);
 
    double err_r = x.real().ComputeL2Error(x_r);
    double err_i = x.imag().ComputeL2Error(x_i);
-   
+
    if ( myid == 0 )
    {
-     cout << endl;
-     cout << "|| Re (x_h - x) ||_{L^2} = " << err_r << endl;
-     cout << "|| Im (x_h - x) ||_{L^2} = " << err_i << endl;
-     cout << endl;
+      cout << endl;
+      cout << "|| Re (x_h - x) ||_{L^2} = " << err_r << endl;
+      cout << "|| Im (x_h - x) ||_{L^2} = " << err_i << endl;
+      cout << endl;
    }
-   
+
    // 14. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
@@ -361,25 +361,25 @@ int main(int argc, char *argv[])
       sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
       sol_sock << "solution\n" << *pmesh << x_t
-	       << "window_title 'Harmonic Solution (t = 0.0 T)'"
-	       << "pause\n" << flush;
+               << "window_title 'Harmonic Solution (t = 0.0 T)'"
+               << "pause\n" << flush;
       if (myid == 0)
-	cout << "GLVis visualization paused."
-	     << " Press space (in the GLVis window) to resume it.\n";
+         cout << "GLVis visualization paused."
+              << " Press space (in the GLVis window) to resume it.\n";
       int num_frames = 32;
       int i = 0;
-      while(sol_sock)
+      while (sol_sock)
       {
-	double t = (double)(i % num_frames) / num_frames;
-	ostringstream oss;
-	oss << "Harmonic Solution (t = " << t << " T)";
-	
-	add(cos(2.0 * M_PI * t), x.real(),
-	    sin(2.0 * M_PI * t), x.imag(), x_t);
-	sol_sock << "parallel " << num_procs << " " << myid << "\n";
-	sol_sock << "solution\n" << *pmesh << x_t
-		 << "window_title '" << oss.str() << "'" << flush;
-	i++;
+         double t = (double)(i % num_frames) / num_frames;
+         ostringstream oss;
+         oss << "Harmonic Solution (t = " << t << " T)";
+
+         add(cos(2.0 * M_PI * t), x.real(),
+             sin(2.0 * M_PI * t), x.imag(), x_t);
+         sol_sock << "parallel " << num_procs << " " << myid << "\n";
+         sol_sock << "solution\n" << *pmesh << x_t
+                  << "window_title '" << oss.str() << "'" << flush;
+         i++;
       }
    }
 
@@ -411,21 +411,21 @@ void x_real_exact(const Vector &p, Vector &x)
 
    double at = (dim>2)?sqrt(1.0/6.0):0.5;
    double ax = (dim>2)?sqrt(1.0/12.0):0.5;
-   
+
    x(0) = -at * At_ * cx * sy * sz;
    x(1) = -at * At_ * sx * cy * sz;
-   if (dim>2) x(2) = -at * At_ * sx * sy * cz;
+   if (dim>2) { x(2) = -at * At_ * sx * sy * cz; }
 
    if (dim == 2)
    {
-     x(0) += ax * Ax_ * sx * cy;
-     x(1) -= ax * Ax_ * cx * sy;
+      x(0) += ax * Ax_ * sx * cy;
+      x(1) -= ax * Ax_ * cx * sy;
    }
    else
    {
-     x(0) += ax * Ax_ * sx * (cy * sz - sy * cz);
-     x(1) += ax * Ax_ * sy * (cz * sx - sz * cx);
-     x(2) += ax * Ax_ * sz * (cx * sy - sx * cy);
+      x(0) += ax * Ax_ * sx * (cy * sz - sy * cz);
+      x(1) += ax * Ax_ * sy * (cz * sx - sz * cx);
+      x(2) += ax * Ax_ * sz * (cx * sy - sx * cy);
    }
 }
 
@@ -444,21 +444,21 @@ void x_imag_exact(const Vector &p, Vector &x)
 
    double at = (dim>2)?sqrt(1.0/6.0):0.5;
    double ax = (dim>2)?sqrt(1.0/12.0):0.5;
-   
+
    x(0) = at * At_ * sx * cy * cz;
    x(1) = at * At_ * cx * sy * cz;
-   if (dim>2) x(2) = at * At_ * cx * cy * sz;
+   if (dim>2) { x(2) = at * At_ * cx * cy * sz; }
 
    if (dim == 2)
    {
-     x(0) -= ax * Ax_ * cx * sy;
-     x(1) += ax * Ax_ * sx * cy;
+      x(0) -= ax * Ax_ * cx * sy;
+      x(1) += ax * Ax_ * sx * cy;
    }
    else
    {
-     x(0) += ax * Ax_ * cx * (cy * sz - sy * cz);
-     x(1) += ax * Ax_ * cy * (cz * sx - sz * cx);
-     x(2) += ax * Ax_ * cz * (cx * sy - sx * cy);
+      x(0) += ax * Ax_ * cx * (cy * sz - sy * cz);
+      x(1) += ax * Ax_ * cy * (cz * sx - sz * cx);
+      x(2) += ax * Ax_ * cz * (cx * sy - sx * cy);
    }
 }
 /*
@@ -491,15 +491,15 @@ void E0_exact(const Vector &x, Vector &E0r, Vector &E0i)
 
      double kx = sqrt(0.5 * omega_ * sigma0_ / muInv_);
      double expkx = exp(-kx * x(0));
-     
+
      E0r(1) =   expkx * cos(kx * x(0));
      E0i(1) = - expkx * sin(kx * x(0));
 }
 */
 void f_real_exact(const Vector &p, Vector &f)
 {
-     int dim = p.Size();
-     f.SetSize(dim);
+   int dim = p.Size();
+   f.SetSize(dim);
 
    double cx = cos(M_PI * p(0));
    double cy = (dim>1)?cos(M_PI * p(1)):1.0;
@@ -512,35 +512,35 @@ void f_real_exact(const Vector &p, Vector &f)
    double k2 = (double)dim * M_PI * M_PI * muInv_ - epsilon_ * omega_* omega_;
 
    if (dim == 2)
-     {
-       f(0) = 0.5 * At_ * omega_ *
-	 (omega_ * epsilon_ * cx * sy - sigma_ * sx * cy)
-	 + 0.5 * Ax_ *
-	 (omega_ * sigma_ * cx * sy + k2 * sx * cy);
-       f(1) = -0.5 * At_ * omega_ *
-	 (sigma_ * cx * sy - omega_ * epsilon_ * sx * cy)
-	 - 0.5 * Ax_ *
-	 (k2 * cx * sy + omega_ * sigma_ * sx * cy);
-     }
-     else
-     {
-       double syz = sin(M_PI * (p[1] - p[2]));
-       double szx = sin(M_PI * (p[2] - p[0]));
-       double sxy = sin(M_PI * (p[0] - p[1]));
-       
-       double at = sqrt(1.0 / 6.0);
-       double ax = sqrt(1.0 / 12.0);
-       
-       f(0) = at * At_ * omega_ *
-	 (omega_ * epsilon_ * cx * sy * sz - sigma_ * sx * cy * cz)
-	 -ax * Ax_ * (k2 * sx - omega_ * sigma_ * cx) * syz;
-       f(1) = at * At_ * omega_ *
-	 (omega_ * epsilon_ * sx * cy * sz - sigma_ * cx * sy * cz)
-	 -ax * Ax_ * (k2 * sy - omega_ * sigma_ * cy) * szx;
-       f(2) = at * At_ * omega_ *
-	 (omega_ * epsilon_ * sx * sy * cz - sigma_ * cx * cy * sz)
-	 -ax * Ax_ * (k2 * sz - omega_ * sigma_ * cz) * sxy;
-     }
+   {
+      f(0) = 0.5 * At_ * omega_ *
+             (omega_ * epsilon_ * cx * sy - sigma_ * sx * cy)
+             + 0.5 * Ax_ *
+             (omega_ * sigma_ * cx * sy + k2 * sx * cy);
+      f(1) = -0.5 * At_ * omega_ *
+             (sigma_ * cx * sy - omega_ * epsilon_ * sx * cy)
+             - 0.5 * Ax_ *
+             (k2 * cx * sy + omega_ * sigma_ * sx * cy);
+   }
+   else
+   {
+      double syz = sin(M_PI * (p[1] - p[2]));
+      double szx = sin(M_PI * (p[2] - p[0]));
+      double sxy = sin(M_PI * (p[0] - p[1]));
+
+      double at = sqrt(1.0 / 6.0);
+      double ax = sqrt(1.0 / 12.0);
+
+      f(0) = at * At_ * omega_ *
+             (omega_ * epsilon_ * cx * sy * sz - sigma_ * sx * cy * cz)
+             -ax * Ax_ * (k2 * sx - omega_ * sigma_ * cx) * syz;
+      f(1) = at * At_ * omega_ *
+             (omega_ * epsilon_ * sx * cy * sz - sigma_ * cx * sy * cz)
+             -ax * Ax_ * (k2 * sy - omega_ * sigma_ * cy) * szx;
+      f(2) = at * At_ * omega_ *
+             (omega_ * epsilon_ * sx * sy * cz - sigma_ * cx * cy * sz)
+             -ax * Ax_ * (k2 * sz - omega_ * sigma_ * cz) * sxy;
+   }
 }
 
 void f_imag_exact(const Vector &p, Vector &f)
@@ -561,31 +561,31 @@ void f_imag_exact(const Vector &p, Vector &f)
    if (dim == 2)
    {
       f(0) = -0.5 * At_ * omega_ *
-	(sigma_ * cx * sy + omega_ * epsilon_ * sx * cy)
-	- 0.5 * Ax_ *
-	(k2 * cx * sy - omega_ * sigma_ * sx * cy);
+             (sigma_ * cx * sy + omega_ * epsilon_ * sx * cy)
+             - 0.5 * Ax_ *
+             (k2 * cx * sy - omega_ * sigma_ * sx * cy);
       f(1) = -0.5 * At_ * omega_ *
-	(omega_ * epsilon_ * cx * sy + sigma_ * sx * cy)
-	- 0.5 * Ax_ *
-	(omega_ * sigma_ * cx * sy - k2 * sx * cy);
+             (omega_ * epsilon_ * cx * sy + sigma_ * sx * cy)
+             - 0.5 * Ax_ *
+             (omega_ * sigma_ * cx * sy - k2 * sx * cy);
    }
    else
    {
-       double syz = sin(M_PI * (p[1] - p[2]));
-       double szx = sin(M_PI * (p[2] - p[0]));
-       double sxy = sin(M_PI * (p[0] - p[1]));
-       
-       double at = sqrt(1.0 / 6.0);
-       double ax = sqrt(1.0 / 12.0);
-       
-       f(0) = -at * At_ * omega_ *
-	 (omega_ * epsilon_ * sx * cy * cz + sigma_ * cx * sy * sz)
-	 -ax * Ax_ * (k2 * cx + omega_ * sigma_ * sx) * syz;
-       f(1) = -at * At_ * omega_ *
-	 (omega_ * epsilon_ * cx * sy * cz + sigma_ * sx * cy * sz)
-	 -ax * Ax_ * (k2 * cy + omega_ * sigma_ * sy) * szx;
-       f(2) = -at * At_ * omega_ *
-	 (omega_ * epsilon_ * cx * cy * sz + sigma_ * sx * sy * cz)
-	 -ax * Ax_ * (k2 * cz + omega_ * sigma_ * sz) * sxy;
+      double syz = sin(M_PI * (p[1] - p[2]));
+      double szx = sin(M_PI * (p[2] - p[0]));
+      double sxy = sin(M_PI * (p[0] - p[1]));
+
+      double at = sqrt(1.0 / 6.0);
+      double ax = sqrt(1.0 / 12.0);
+
+      f(0) = -at * At_ * omega_ *
+             (omega_ * epsilon_ * sx * cy * cz + sigma_ * cx * sy * sz)
+             -ax * Ax_ * (k2 * cx + omega_ * sigma_ * sx) * syz;
+      f(1) = -at * At_ * omega_ *
+             (omega_ * epsilon_ * cx * sy * cz + sigma_ * sx * cy * sz)
+             -ax * Ax_ * (k2 * cy + omega_ * sigma_ * sy) * szx;
+      f(2) = -at * At_ * omega_ *
+             (omega_ * epsilon_ * cx * cy * sz + sigma_ * sx * sy * cz)
+             -ax * Ax_ * (k2 * cz + omega_ * sigma_ * sz) * sxy;
    }
 }

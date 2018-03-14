@@ -42,8 +42,8 @@ namespace mfem
     / y_r \   / Op_r -Op_i \ / x_r \
     |     | = |            | |     |
     \-y_i /   \-Op_i -Op_r / \ x_i /
-    In other words, Matrix-vector products with Convention::BLOCK_SYMMETRIC 
-    compute the complex conjugate of Op*x. 
+    In other words, Matrix-vector products with Convention::BLOCK_SYMMETRIC
+    compute the complex conjugate of Op*x.
 
     Either convention can be used with a given complex operator,
     however, each of them is best suited for certain classes of
@@ -89,7 +89,7 @@ public:
    virtual ~ComplexOperator();
 
    /** @brief Check for existence of real or imaginary part of the operator
-       
+
        These methods do not check that the operators are non-zero but
        only that the operators have been set.
     */
@@ -161,7 +161,7 @@ public:
    virtual const SparseMatrix & imag() const;
 
    SparseMatrix * GetSystemMatrix() const;
-  
+
    virtual Type GetType() const { return MFEM_ComplexSparseMat; }
 };
 

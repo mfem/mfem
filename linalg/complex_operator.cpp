@@ -587,5 +587,5 @@ ComplexHypreParMatrix::getColStartStop(const HypreParMatrix * A_r,
 
 
 #endif // MFEM_USE_MPI
-  
+
 }

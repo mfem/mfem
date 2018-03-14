@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool visualization = 1;
    bool herm_conv = true;
-   
+
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -74,15 +74,15 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-     args.PrintUsage(cout);
-     return 1;
+      args.PrintUsage(cout);
+      return 1;
    }
    args.PrintOptions(cout);
 
    ComplexOperator::Convention conv =
-     herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
+      herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
 
-   
+
    // 2. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
@@ -94,8 +94,8 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-     int ref_levels = 1;
-     //        (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels = 1;
+      //        (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
    }
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of finite element unknowns: "
-	<< fespace->GetTrueVSize() << endl;
+        << fespace->GetTrueVSize() << endl;
 
    // 5. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
@@ -195,7 +195,7 @@ int main(int argc, char *argv[])
    //    constraints for non-conforming AMR, etc.
    a->Assemble();
    pcOp->Assemble();
-   
+
    OperatorHandle A;
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
@@ -210,66 +210,66 @@ int main(int argc, char *argv[])
    {
 
 #ifdef MFEM_USE_SUITESPARSE
-     // 11. Define a simple symmetric Gauss-Seidel preconditioner and use it to
-     //     solve the system A X = B with FGMRES.
-     cout << "Solving with FGMRES using a block diagonal "
-	  << "Gauss-Seidel preconditioner" << endl;
+      // 11. Define a simple symmetric Gauss-Seidel preconditioner and use it to
+      //     solve the system A X = B with FGMRES.
+      cout << "Solving with FGMRES using a block diagonal "
+           << "Gauss-Seidel preconditioner" << endl;
 
-     Array<int> blockTrueOffsets;
-     blockTrueOffsets.SetSize(3);
-     blockTrueOffsets[0] = 0;
-     blockTrueOffsets[1] = PCOp.Height();
-     blockTrueOffsets[2] = PCOp.Height();
-     blockTrueOffsets.PartialSum();
+      Array<int> blockTrueOffsets;
+      blockTrueOffsets.SetSize(3);
+      blockTrueOffsets[0] = 0;
+      blockTrueOffsets[1] = PCOp.Height();
+      blockTrueOffsets[2] = PCOp.Height();
+      blockTrueOffsets.PartialSum();
 
-     BlockDiagonalPreconditioner BDP(blockTrueOffsets);
+      BlockDiagonalPreconditioner BDP(blockTrueOffsets);
 
-     GSSmoother gssr(PCOp);
-     ScaledOperator gssi(&gssr,
-			 (conv == ComplexOperator::HERMITIAN)?1.0:-1.0);
+      GSSmoother gssr(PCOp);
+      ScaledOperator gssi(&gssr,
+                          (conv == ComplexOperator::HERMITIAN)?1.0:-1.0);
 
-     BDP.SetDiagonalBlock(0,&gssr);
-     BDP.SetDiagonalBlock(1,&gssi);
-     BDP.owns_blocks = 0;
+      BDP.SetDiagonalBlock(0,&gssr);
+      BDP.SetDiagonalBlock(1,&gssi);
+      BDP.owns_blocks = 0;
 
-     FGMRESSolver fgmres;
-     fgmres.SetPreconditioner(BDP);
-     fgmres.SetOperator(*A.Ptr());
-     fgmres.SetRelTol(1e-12);
-     fgmres.SetMaxIter(1000);
-     fgmres.SetPrintLevel(1);
-     fgmres.Mult(B, X);
+      FGMRESSolver fgmres;
+      fgmres.SetPreconditioner(BDP);
+      fgmres.SetOperator(*A.Ptr());
+      fgmres.SetRelTol(1e-12);
+      fgmres.SetMaxIter(1000);
+      fgmres.SetPrintLevel(1);
+      fgmres.Mult(B, X);
 
 #else
-     // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the
-     //     system.
-     cout << "Forming SparseMatrix" << endl;
-     SparseMatrix * A_sp =
-       dynamic_cast<ComplexSparseMatrix*>(A.Ptr())->GetSystemMatrix();
+      // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the
+      //     system.
+      cout << "Forming SparseMatrix" << endl;
+      SparseMatrix * A_sp =
+         dynamic_cast<ComplexSparseMatrix*>(A.Ptr())->GetSystemMatrix();
 
-     cout << "Solving with UMFPack" << endl;
-     UMFPackSolver umf_solver;
-     umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-     umf_solver.SetOperator(*A_sp);
-     umf_solver.Mult(B, X);
+      cout << "Solving with UMFPack" << endl;
+      UMFPackSolver umf_solver;
+      umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+      umf_solver.SetOperator(*A_sp);
+      umf_solver.Mult(B, X);
 
-     delete A_sp;
+      delete A_sp;
 #endif
    }
-   
+
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    cout << "Recover solution" << endl;
    a->RecoverFEMSolution(X, *b, x);
-   
+
    double err_r = x.real().ComputeL2Error(x_r);
    double err_i = x.imag().ComputeL2Error(x_i);
-   
+
    cout << endl;
    cout << "|| Re (x_h - x) ||_{L^2} = " << err_r << endl;
    cout << "|| Im (x_h - x) ||_{L^2} = " << err_i << endl;
    cout << endl;
-   
+
    // 14. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
@@ -323,18 +323,18 @@ int main(int argc, char *argv[])
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
       sol_sock << "solution\n" << *mesh << x_t
-	       << "window_title 'Harmonic Solution'"
-	       << "pause\n" << flush;
+               << "window_title 'Harmonic Solution'"
+               << "pause\n" << flush;
       cout << "GLVis visualization paused."
-	   << " Press space (in the GLVis window) to resume it.\n";
+           << " Press space (in the GLVis window) to resume it.\n";
       int num_frames = 32;
       int i = 0;
-      while(sol_sock)
+      while (sol_sock)
       {
-	add(cos(2.0 * M_PI * (i % num_frames) / num_frames), x.real(),
-	    sin(2.0 * M_PI * (i % num_frames) / num_frames), x.imag(), x_t);
-	sol_sock << "solution\n" << *mesh << x_t << flush;
-	i++;
+         add(cos(2.0 * M_PI * (i % num_frames) / num_frames), x.real(),
+             sin(2.0 * M_PI * (i % num_frames) / num_frames), x.imag(), x_t);
+         sol_sock << "solution\n" << *mesh << x_t << flush;
+         i++;
       }
    }
 
