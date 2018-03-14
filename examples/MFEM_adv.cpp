@@ -60,7 +60,8 @@ struct AIR_parameters {
    int distance;
    std::string prerelax;
    std::string postrelax;
-   double strength_tol;
+   double strength_tolC;
+   double strength_tolR;
    int interp_type;
    int relax_type;
    double filterA_tol;
@@ -71,7 +72,8 @@ void print_AIR(AIR_parameters AIR) {
    std::cout << "Distance R:   " << AIR.distance << "\n" \
              << "Prerelax:     " << AIR.prerelax << "\n" \
              << "Postrelax:    " << AIR.postrelax << "\n" \
-             << "Strength tol: " << AIR.strength_tol << "\n" \
+             << "Strength tolC:" << AIR.strength_tolC << "\n" \
+             << "Strength tolR:" << AIR.strength_tolR << "\n" \
              << "Interp type:  " << AIR.interp_type << "\n" \
              << "Relax type:   " << AIR.relax_type << "\n" \
              << "Coarsen type: " << AIR.coarsening << "\n" \
@@ -135,7 +137,7 @@ int main(int argc, char *argv[])
    problem = 0;
    solve_tol = 1e-8;
    use_gmres = 0;
-   const char *mesh_file = "./meshes/periodic-hexagon.mesh";
+   const char *mesh_file = "../data/periodic-hexagon.mesh";
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
    int order = 3;
@@ -149,7 +151,7 @@ int main(int argc, char *argv[])
    int vis_steps = 5;
    int precision = 8;
    cout.precision(precision);
-   AIR_parameters AIR = {2, "", "FFF", 0.005, 100, 0, 1e-4, 22};
+   AIR_parameters AIR = {2, "", "FFF", 0.1, 0.005, 100, 0, 1e-4, 22};
    const char* temp_prerelax = "";
    const char* temp_postrelax = "FFF";
    double h_min, h_max, k_min, k_max;
@@ -195,8 +197,10 @@ int main(int argc, char *argv[])
                   "Index for hypre interpolation routine.");
    args.AddOption(&(AIR.coarsening), "-Ac", "--AIR-coarsening",
                   "Index for hypre coarsening routine.");
-   args.AddOption(&(AIR.strength_tol), "-As", "--AIR-strength",
-                  "Theta value determining strong connections for AIR.");
+   args.AddOption(&(AIR.strength_tolC), "-AsC", "--AIR-strengthC",
+                  "Theta value determining strong connections for AIR (coarsening).");
+   args.AddOption(&(AIR.strength_tolR), "-AsR", "--AIR-strengthR",
+                  "Theta value determining strong connections for AIR (restriction).");
    args.AddOption(&(AIR.filterA_tol), "-Af", "--AIR-filter",
                   "Theta value to eliminate small connections in AIR hierarchy.");
    args.AddOption(&temp_prerelax, "-Ar1", "--AIR-prerelax",
@@ -519,13 +523,24 @@ void FE_Evolution::ImplicitSolve(const double dt, const Vector &u, Vector &du_dt
       current_dt = dt;
    
       /* scale T by block-diagonal inverse */
+      //printf("blocksize %d\n", blocksize);
       BlockInvScal(T, &T_s, NULL, NULL, blocksize, 0);
-      if (myid == 0) std::cout << "assembled matrices: " << T->GetNumRows() << ", " \
+      if (myid == 0) 
+      {
+         std::cout << "assembled matrices: " << T->GetNumRows() << ", " \
                                << T->GetNumCols() << ", " << T->NNZ() << "\n";
+         T->Print("T.mtx",1,1);
+         std::cout << "scaled matrices: " << T_s.GetNumRows() << ", " \
+                               << T_s.GetNumCols() << ", " << T_s.NNZ() << "\n";
+
+         T_s.Print("Ts.mtx",1,1);
+         exit(0);
+
+      }
 
       AMG_solver = new HypreBoomerAMG(T_s);
       AMG_solver->SetAIROptions(AIR.distance, AIR.prerelax, AIR.postrelax,
-                                AIR.strength_tol, AIR.interp_type, AIR.relax_type,
+                                AIR.strength_tolC, AIR.strength_tolR, AIR.interp_type, AIR.relax_type,
                                 AIR.filterA_tol, AIR.coarsening);
       if (!use_gmres) {
          AMG_solver->SetPrintLevel(2);

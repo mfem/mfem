@@ -852,6 +852,7 @@ public:
 
    void SetAIROptions(int distance=2,  std::string prerelax="",
                       std::string postrelax="FFC", double strength_tol=0.1,
+                      double strength_tolR=0.01,
                       int interp_type=100, int relax_type=0, double filterA_tol=0.0, 
                       int splitting=6);
 

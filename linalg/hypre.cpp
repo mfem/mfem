@@ -2720,6 +2720,7 @@ void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace)
 
 void HypreBoomerAMG::SetAIROptions(int distance,  std::string prerelax,
                                    std::string postrelax, double strength_tol,
+                                   double strength_tolR,
                                    int interp_type, 
                                    int relax_type,
                                    double filterA_tol, 
@@ -2778,6 +2779,8 @@ void HypreBoomerAMG::SetAIROptions(int distance,  std::string prerelax,
    HYPRE_BoomerAMGSetAggNumLevels(amg_precond, 0);
    
    HYPRE_BoomerAMGSetStrongThreshold(amg_precond, strength_tol);
+   
+   HYPRE_BoomerAMGSetStrongThresholdR(amg_precond, strength_tolR);
 
    if (relax_type > -1)
    {
