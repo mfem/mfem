@@ -372,19 +372,20 @@ public:
          GetIdRotInfo(info_elt2,face_id2,nb_rot2);
          FaceElementTransformations* face_tr = mesh->GetFaceElementTransformations(face);
          int perm1, perm2;
-         Permutation(dim,face_id1,face_id2,nb_rot2,perm1,perm2);
-         // Initialization of indirection and permutation identification
-         this->kernel_data(ind_elt2,face_id2).indirection = ind_elt1;
-         this->kernel_data(ind_elt2,face_id2).permutation = perm1;
-         this->kernel_data(ind_elt1,face_id1).indirection = ind_elt2;
-         this->kernel_data(ind_elt1,face_id1).permutation = perm2;
+         cout << "ind_elt1=" << ind_elt1 << ", face_id1=" << face_id1 << ", nb_rot1=" << nb_rot1 << ", ind_elt2=" << ind_elt2 << ", face_id2=" << face_id2 << ", nb_rot2=" << nb_rot2 << endl;
          for (int kf = 0; kf < quads; ++kf)
          {
             const IntegrationRule& ir = IntRules.Get(geom, order);
-            int k1 = GetFaceQuadIndex(dim,face_id1,nb_rot1,kf,quads1d);
-            int k2 = GetFaceQuadIndex(dim,face_id2,nb_rot2,kf,quads1d);
             const IntegrationPoint& ip = ir.IntPoint(kf);
-            if(face_tr->Elem2No!=-1){//Not a boundary face
+            if(ind_elt2!=-1){//Not a boundary face
+               int k1 = GetFaceQuadIndex(dim,face_id1,nb_rot1,kf,quads1d);
+               int k2 = GetFaceQuadIndex(dim,face_id2,nb_rot2,kf,quads1d);
+               Permutation(dim,face_id1,face_id2,nb_rot2,perm1,perm2);
+               // Initialization of indirection and permutation identification
+               this->kernel_data(ind_elt2,face_id2).indirection = ind_elt1;
+               this->kernel_data(ind_elt2,face_id2).permutation = perm1;
+               this->kernel_data(ind_elt1,face_id1).indirection = ind_elt2;
+               this->kernel_data(ind_elt1,face_id1).permutation = perm2;
                face_tr->Face->SetIntPoint( &ip );
                // IntegrationPoint& eip1 = this->IntPoint( face_id1, k );
                IntegrationPoint eip1;
@@ -397,6 +398,8 @@ public:
                CalcOrtho( face_tr->Face->Jacobian(), n );
                this->evalEq(dim,k1,k2,n,ind_elt1,face_id1,ind_elt2,face_id2,face_tr,eip1,eip2,args...);
             }else{//Boundary face
+               this->kernel_data(ind_elt1,face_id1).indirection = ind_elt2;
+               this->kernel_data(ind_elt1,face_id1).permutation = 0;
                // FIXME: Something should be done here!
                // D11(ind) = 0;  
             }
@@ -433,79 +436,79 @@ public:
    }
 
 private:
-   static void GetNormal(const int dim, const int face_id, Vector& normal)
-   {
-      switch(dim)
-      {
-         case 1:
-            switch(face_id)
-            {
-               case 0:
-                  normal(0) =  1.0;
-                  break;
-               case 1:
-                  normal(0) = -1.0;
-                  break;
-            }
-            break;
-         case 2:
-            switch(face_id)
-            {
-               case 0:
-                  normal(0) =  0.0;
-                  normal(1) = -1.0;
-                  break;
-               case 1:
-                  normal(0) =  1.0;
-                  normal(1) =  0.0;
-                  break;
-               case 2:
-                  normal(0) =  0.0;
-                  normal(1) =  1.0;
-                  break;
-               case 3:
-                  normal(0) = -1.0;
-                  normal(1) =  0.0;
-                  break;
-            }
-            break;
-         case 3:
-            switch(face_id)
-            {
-               case 0:
-                  normal(0) =  0.0;
-                  normal(1) =  0.0;
-                  normal(2) = -1.0;
-                  break;
-               case 1:
-                  normal(0) =  0.0;
-                  normal(1) = -1.0;
-                  normal(2) =  0.0;
-                  break;
-               case 2:
-                  normal(0) =  1.0;
-                  normal(1) =  0.0;
-                  normal(2) =  0.0;
-                  break;
-               case 3:
-                  normal(0) =  0.0;
-                  normal(1) =  1.0;
-                  normal(2) =  0.0;
-                  break;
-               case 4:
-                  normal(0) = -1.0;
-                  normal(1) =  0.0;
-                  normal(2) =  0.0;
-                  break;
-               case 5:
-                  normal(0) =  0.0;
-                  normal(1) =  0.0;
-                  normal(2) =  1.0;
-                  break;
-            }
-            break;
-      }
-   }
+   // static void GetNormal(const int dim, const int face_id, Vector& normal)
+   // {
+   //    switch(dim)
+   //    {
+   //       case 1:
+   //          switch(face_id)
+   //          {
+   //             case 0:
+   //                normal(0) =  1.0;
+   //                break;
+   //             case 1:
+   //                normal(0) = -1.0;
+   //                break;
+   //          }
+   //          break;
+   //       case 2:
+   //          switch(face_id)
+   //          {
+   //             case 0:
+   //                normal(0) =  0.0;
+   //                normal(1) = -1.0;
+   //                break;
+   //             case 1:
+   //                normal(0) =  1.0;
+   //                normal(1) =  0.0;
+   //                break;
+   //             case 2:
+   //                normal(0) =  0.0;
+   //                normal(1) =  1.0;
+   //                break;
+   //             case 3:
+   //                normal(0) = -1.0;
+   //                normal(1) =  0.0;
+   //                break;
+   //          }
+   //          break;
+   //       case 3:
+   //          switch(face_id)
+   //          {
+   //             case 0:
+   //                normal(0) =  0.0;
+   //                normal(1) =  0.0;
+   //                normal(2) = -1.0;
+   //                break;
+   //             case 1:
+   //                normal(0) =  0.0;
+   //                normal(1) = -1.0;
+   //                normal(2) =  0.0;
+   //                break;
+   //             case 2:
+   //                normal(0) =  1.0;
+   //                normal(1) =  0.0;
+   //                normal(2) =  0.0;
+   //                break;
+   //             case 3:
+   //                normal(0) =  0.0;
+   //                normal(1) =  1.0;
+   //                normal(2) =  0.0;
+   //                break;
+   //             case 4:
+   //                normal(0) = -1.0;
+   //                normal(1) =  0.0;
+   //                normal(2) =  0.0;
+   //                break;
+   //             case 5:
+   //                normal(0) =  0.0;
+   //                normal(1) =  0.0;
+   //                normal(2) =  1.0;
+   //                break;
+   //          }
+   //          break;
+   //    }
+   // }
 
 };
 
@@ -1991,36 +1994,55 @@ void Permutation::Permutation3d(int face_id, int nbe, int dofs1d, KData& kernel_
    const double* U = T0.getData();
    int elt, ii, jj, kk;
    const int step_elt = dofs1d*dofs1d*dofs1d;
-   elt = 0;
    for (int e = 0; e < nbe; ++e)
    {
       const int trial = kernel_data(e,face_id).indirection;
       const int permutation = kernel_data(e,face_id).permutation;
-      IntMatrix P(3,3);
-      GetChangeOfBasis(permutation, P);
-      int begin_ii = (P(0,0)==-1)*(dofs1d-1) + (P(1,0)==-1)*(dofs1d*dofs1d-1) + (P(2,0)==-1)*(dofs1d*dofs1d*dofs1d-1);
-      int begin_jj = (P(0,1)==-1)*(dofs1d-1) + (P(1,1)==-1)*(dofs1d*dofs1d-1) + (P(2,1)==-1)*(dofs1d*dofs1d*dofs1d-1);
-      int begin_kk = (P(0,2)==-1)*(dofs1d-1) + (P(1,2)==-1)*(dofs1d*dofs1d-1) + (P(2,2)==-1)*(dofs1d*dofs1d*dofs1d-1);
-      int step_ii  = P(0,0) + P(1,0)*dofs1d + P(2,0)*dofs1d*dofs1d;
-      int step_jj  = P(0,1) + P(1,1)*dofs1d + P(2,1)*dofs1d*dofs1d;
-      int step_kk  = P(0,2) + P(1,2)*dofs1d + P(2,2)*dofs1d*dofs1d;
-      kk = begin_kk;
-      for (int k = 0; k < dofs1d; ++k)
+      if (trial!=-1)
       {
-         jj = begin_jj;
-         for (int j = 0; j < dofs1d; ++j)
+         elt = trial*step_elt;
+         IntMatrix P(3,3);
+         GetChangeOfBasis(permutation, P);
+         // cout << "decoding P" << endl;
+         // cout << P(0,0) << ", " << P(0,1) << ", " << P(0,2) << endl;
+         // cout << P(1,0) << ", " << P(1,1) << ", " << P(1,2) << endl;
+         // cout << P(2,0) << ", " << P(2,1) << ", " << P(2,2) << endl;
+         int begin_ii = (P(0,0)==-1)*(dofs1d-1) + (P(1,0)==-1)*(dofs1d*dofs1d-1) + (P(2,0)==-1)*(dofs1d*dofs1d*dofs1d-1);
+         int begin_jj = (P(0,1)==-1)*(dofs1d-1) + (P(1,1)==-1)*(dofs1d*dofs1d-1) + (P(2,1)==-1)*(dofs1d*dofs1d*dofs1d-1);
+         int begin_kk = (P(0,2)==-1)*(dofs1d-1) + (P(1,2)==-1)*(dofs1d*dofs1d-1) + (P(2,2)==-1)*(dofs1d*dofs1d*dofs1d-1);
+         int step_ii  = P(0,0) + P(1,0)*dofs1d + P(2,0)*dofs1d*dofs1d;
+         int step_jj  = P(0,1) + P(1,1)*dofs1d + P(2,1)*dofs1d*dofs1d;
+         int step_kk  = P(0,2) + P(1,2)*dofs1d + P(2,2)*dofs1d*dofs1d;
+         kk = begin_kk;
+         for (int k = 0; k < dofs1d; ++k)
          {
-            ii = begin_ii;
-            for (int i = 0; i < dofs1d; ++i)
+            jj = begin_jj;
+            for (int j = 0; j < dofs1d; ++j)
             {
-               T0p(i,j,k,e) = U[ elt + ii + jj + kk ];
-               ii += step_ii;
+               ii = begin_ii;
+               for (int i = 0; i < dofs1d; ++i)
+               {
+                  T0p(i,j,k,e) = U[ elt + ii + jj + kk ];
+                  ii += step_ii;
+               }
+               jj += step_jj;
             }
-            jj += step_jj;
+            kk += step_kk;
          }
-         kk += step_kk;
       }
-      elt += step_elt;
+      else
+      {
+         for (int k = 0; k < dofs1d; ++k)
+         {
+            for (int j = 0; j < dofs1d; ++j)
+            {
+               for (int i = 0; i < dofs1d; ++i)
+               {
+                  T0p(i,j,k,e) = 0.0;
+               }
+            }
+         }
+      }
    }
 }
 
@@ -2195,7 +2217,7 @@ void DummyFaceMult<Equation,PAOp::BtDB>::MultIntX3D(FiniteElementSpace* fes, Ten
             }
          }
       }
-      for (int k3 = 0, k = 0; k3 < quads1d; ++k3, ++k)
+      for (int k3 = 0, k = 0; k3 < quads1d; ++k3)
       {
          for (int k2 = 0; k2 < quads1d; ++k2, ++k)
          {
@@ -2286,9 +2308,9 @@ void DummyFaceMult<Equation,PAOp::BtDB>::MultIntY3D(FiniteElementSpace* fes, Ten
             }
          }
       }
-      for (int k3 = 0, k = 0; k3 < quads1d; ++k3,++k)
+      for (int k3 = 0, k = 0; k3 < quads1d; ++k3)
       {
-         for (int k1 = 0; k1 < quads1d; ++k1,++k)
+         for (int k1 = 0; k1 < quads1d; ++k1, ++k)
          {
             T3(k1,k3) = D(k,e,face_id) * T3(k1,k3);
          }
@@ -2377,7 +2399,7 @@ void DummyFaceMult<Equation,PAOp::BtDB>::MultIntZ3D(FiniteElementSpace* fes, Ten
             }
          }
       }
-      for (int k2 = 0, k = 0; k2 < quads1d; ++k2, ++k)
+      for (int k2 = 0, k = 0; k2 < quads1d; ++k2)
       {
          for (int k1 = 0; k1 < quads1d; ++k1, ++k)
          {
@@ -2470,7 +2492,7 @@ void DummyFaceMult<Equation,PAOp::BtDB>::MultExtX3D(FiniteElementSpace* fes, Ten
             }
          }
       }
-      for (int k3 = 0, k = 0; k3 < quads1d; ++k3, ++k)
+      for (int k3 = 0, k = 0; k3 < quads1d; ++k3)
       {
          for (int k2 = 0; k2 < quads1d; ++k2, ++k)
          {
@@ -2563,7 +2585,7 @@ void DummyFaceMult<Equation,PAOp::BtDB>::MultExtY3D(FiniteElementSpace* fes, Ten
             }
          }
       }
-      for (int k3 = 0, k = 0; k3 < quads1d; ++k3, ++k)
+      for (int k3 = 0, k = 0; k3 < quads1d; ++k3)
       {
          for (int k1 = 0; k1 < quads1d; ++k1, ++k)
          {
@@ -2656,7 +2678,7 @@ void DummyFaceMult<Equation,PAOp::BtDB>::MultExtZ3D(FiniteElementSpace* fes, Ten
             }
          }
       }
-      for (int k2 = 0, k = 0; k2 < quads1d; ++k2, ++k)
+      for (int k2 = 0, k = 0; k2 < quads1d; ++k2)
       {
          for (int k1 = 0; k1 < quads1d; ++k1, ++k)
          {

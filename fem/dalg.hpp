@@ -117,7 +117,7 @@ public:
          nb *= sizes[i];
       }
       capacity = nb;
-      data = new Scalar[nb]();
+      data = new Scalar[nb];
    }
 
    /**
@@ -131,7 +131,7 @@ public:
       // Initialize sizes, and compute the number of values
       long int nb = Init<1,Dim,Args...>::result(sizes,args...);
       capacity = nb;
-      data = new Scalar[nb]();
+      data = new Scalar[nb];
    }
 
    /**
@@ -170,7 +170,7 @@ public:
          }
          if (own_data)
          {
-            delete [] data;
+            if(data!=NULL) delete [] data;
          }
          data = _data;
          own_data = true;

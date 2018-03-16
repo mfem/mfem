@@ -260,19 +260,31 @@ void GetChangeOfBasis(const IntMatrix& base_K1, IntMatrix& base_K2,
 	}*/
 	//TODO make it valid for 3D!!!
 	int dim = base_K1.Height();
-	for (int i = 0; i < dim; ++i)
+	// for (int i = 0; i < dim; ++i)
+	// {
+	// 	int coeff = map[i].first;
+	// 	int ind   = map[i].second;
+	// 	for (int j = 0; j < dim; ++j)
+	// 	{
+	// 		int sum = 0;
+	// 		for (int k = 0; k < dim; ++k)
+	// 		{
+	// 			sum += coeff*base_K1(i,k)*base_K2(j,k);
+	// 		}
+	// 		P(ind,j) =  sum;
+	// 	}
+	// }
+	int i,j,ind;
+	double coeff;
+	for (int n = 0; n < dim; ++n)
 	{
-		int coeff = map[i].first;
-		int ind   = map[i].second;
-		for (int j = 0; j < dim; ++j)
-		{
-			int sum = 0;
-			for (int k = 0; k < dim; ++k)
-			{
-				sum += coeff*base_K1(i,k)*base_K2(j,k);
-			}
-			P(ind,j) =  sum;
-		}
+		i = 0;
+		while( base_K1(i,n)   == 0 ) ++i;
+		j = 0;
+		ind = map[n].second;
+		while( base_K2(j,ind) == 0 ) ++j;
+		coeff = map[n].first;
+		P(i,j) = coeff * base_K1(i,n) * base_K2(j,ind);
 	}
 }
 
@@ -362,11 +374,15 @@ void Permutation3D(const int face_id1, const int face_id2, const int orientation
 	IntMatrix P(3,3);
 	P.Zero();
 	GetChangeOfBasis(K1, K2, map, P);
-	perm1 = 0;
+	cout << "orientation=" << orientation << endl;
+	cout << P(0,0) << ", " << P(0,1) << ", " << P(0,2) << endl;
+	cout << P(1,0) << ", " << P(1,1) << ", " << P(1,2) << endl;
+	cout << P(2,0) << ", " << P(2,1) << ", " << P(2,2) << endl;
+	perm1  = 0;
 	perm1 += 100*(0*(P(0,0)==-1) + 1*(P(0,0)==1) + 2*(P(1,0)==-1) + 3*(P(1,0)==1) + 4*(P(2,0)==-1) + 5*(P(2,0)==1));
 	perm1 += 10 *(0*(P(0,1)==-1) + 1*(P(0,1)==1) + 2*(P(1,1)==-1) + 3*(P(1,1)==1) + 4*(P(2,1)==-1) + 5*(P(2,1)==1));
 	perm1 +=     (0*(P(0,2)==-1) + 1*(P(0,2)==1) + 2*(P(1,2)==-1) + 3*(P(1,2)==1) + 4*(P(2,2)==-1) + 5*(P(2,2)==1));
-	perm2 = 0;
+	perm2  = 0;
 	perm2 += 100*(0*(P(0,0)==-1) + 1*(P(0,0)==1) + 2*(P(0,1)==-1) + 3*(P(0,1)==1) + 4*(P(0,2)==-1) + 5*(P(0,2)==1));
 	perm2 += 10 *(0*(P(1,0)==-1) + 1*(P(1,0)==1) + 2*(P(1,1)==-1) + 3*(P(1,1)==1) + 4*(P(1,2)==-1) + 5*(P(1,2)==1));
 	perm2 +=     (0*(P(2,0)==-1) + 1*(P(2,0)==1) + 2*(P(2,1)==-1) + 3*(P(2,1)==1) + 4*(P(2,2)==-1) + 5*(P(2,2)==1));
@@ -393,6 +409,7 @@ void Permutation(const int dim, const int face_id1, const int face_id2, const in
 
 const int GetFaceQuadIndex3D(const int face_id, const int orientation, const int qind, const int quads)
 {
+	// cout << "orientation=" << orientation << endl;
 	int k1,k2;
 	int kf1,kf2;
 	kf1 = qind%quads;
