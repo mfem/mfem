@@ -32,7 +32,7 @@ Discretization improvements
   mesh. The new methods, GetTransferOperator and GetTrueTransferOperator in the
   FiniteElementSpace classes, work in both serial and parallel and support
   matrix-based as well as matrix-free transfer operator representations. They
-  use a version of GetLocalInterpolation in the FiniteElement class that allows
+  use a version of GetTransferMatrix in the FiniteElement class that allows
   the coarse FiniteElement to be different from the fine FiniteElement.
 
 - Added class ComplexOperator, that implements the action of a complex operator
