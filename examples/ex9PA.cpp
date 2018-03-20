@@ -211,12 +211,15 @@ int main(int argc, char *argv[])
    BilinearForm k(&fes);
    //k.AddDomainIntegrator(new EigenPAConvectionIntegrator<2>(&fes,ir_order,velocity, -1.0));
    // k.AddDomainIntegrator(new PAConvectionIntegrator<DummyDomainPAK>(&fes,ir_order,velocity, -1.0));
-   k.AddIntegrator(new PADomainInt<DGConvectionEquation>(&fes,ir_order,velocity,-1.0));
+   typename DGConvectionEquation::Args argsEq(velocity,-1.0,-0.5);
+   k.AddIntegrator(new PADomainInt<DGConvectionEquation>(&fes,ir_order,argsEq));
+   // k.AddIntegrator(new PADomainInt<DGConvectionEquation>(&fes,ir_order,velocity,-1.0));
    // k.AddDomainIntegrator(
    //       new PADGConvectionFaceIntegrator<DummyFacePAK>(&fes,ir_order,velocity, 1.0, -0.5));
    // k.AddDomainIntegrator(
    //       new PADGConvectionFaceIntegrator2<FacePAK>(&fes,ir_order,velocity, 1.0, -0.5));
-   k.AddIntegrator(new PAFaceInt<DGConvectionEquation>(&fes,ir_order,velocity, 1.0, -0.5));
+   k.AddIntegrator(new PAFaceInt<DGConvectionEquation>(&fes,ir_order,argsEq));
+   // k.AddIntegrator(new PAFaceInt<DGConvectionEquation>(&fes,ir_order,velocity, 1.0, -0.5));
 
    BilinearFormOperator kbf;
    Operator *ko;
@@ -428,6 +431,7 @@ void velocity_function(const Vector &x, Vector &v)
 
    switch (problem)
    {
+      case 4:
       case 0:
       {
          // Translations in 1D, 2D, and 3D
@@ -497,8 +501,8 @@ double u0_function(const Vector &x)
             case 2:
             case 3:
             {
-               // double rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
-               double rx = 0.05, ry = 0.05, cx = -0., cy = -0.5, w = 10.;
+               double rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
+               // double rx = 0.05, ry = 0.05, cx = -0., cy = -0.5, w = 10.;
                if (dim == 3)
                {
                   const double s = (1. + 0.25*cos(2*M_PI*X(2)));
@@ -521,6 +525,10 @@ double u0_function(const Vector &x)
       {
          const double f = M_PI;
          return sin(f*X(0))*sin(f*X(1));
+      }
+      case 4:
+      {
+         return exp( -40*( X(0)*X(0) + X(1)*X(1) + X(2)*X(2) ) );
       }
    }
    return 0.0;
