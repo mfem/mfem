@@ -472,8 +472,8 @@ class DomainMult<Equation,PAOp::BtDB>: private Equation
 {
 public:
    static const int dimD = 2;
-   using DTensor = Tensor<dimD,double>;
-   using Tensor2d = DenseMatrix;
+   typedef Tensor<dimD,double> DTensor;
+   typedef DenseMatrix Tensor2d;
 
 protected:
    FiniteElementSpace *fes;
@@ -534,8 +534,8 @@ class DomainMult<Equation,PAOp::GtDG>: private Equation
 {
 public:
    static const int dimD = 4;
-   using DTensor = Tensor<dimD,double>;
-   using Tensor2d = DenseMatrix;
+   typedef Tensor<dimD,double> DTensor;
+   typedef DenseMatrix Tensor2d;
 
 protected:
    FiniteElementSpace *fes;
@@ -608,8 +608,8 @@ class DomainMult<Equation,PAOp::BtDG>: private Equation
 {
 public:
    static const int dimD = 3;
-   using DTensor = Tensor<dimD,double>;
-   using Tensor2d = DenseMatrix;
+   typedef Tensor<dimD,double> DTensor;
+   typedef DenseMatrix Tensor2d;
 
 protected:
    FiniteElementSpace *fes;
@@ -675,8 +675,8 @@ class DomainMult<Equation,PAOp::GtDB>: private Equation
 {
 public:
    static const int dimD = 3;
-   using DTensor = Tensor<dimD,double>;
-   using Tensor2d = DenseMatrix;
+   typedef Tensor<dimD,double> DTensor;
+   typedef DenseMatrix Tensor2d;
 
 protected:
    FiniteElementSpace *fes;
@@ -755,9 +755,9 @@ public:
       int indirection;
       int permutation;
    };
-   using KData = Tensor<2,PermIndir>;
-   using Tensor3d = Tensor<3,double>;
-   using Tensor4d = Tensor<4,double>;
+   typedef Tensor<2,PermIndir> KData;
+   typedef Tensor<3,double> Tensor3d;
+   typedef Tensor<4,double> Tensor4d;
 
    static void Permutation2d(int face_id, int nbe, int dofs1d, KData& kernel_data, const Tensor3d& T0,
                       Tensor3d& T0p);
@@ -780,9 +780,9 @@ class FaceMult<Equation,BtDB>
 
 public:
    static const int dimD = 3;
-   using DTensor = Tensor<dimD,double>;
-   using Tensor2d = DenseMatrix;
-   using Tensor3d = Tensor<3,double>;
+   typedef Tensor<dimD,double> DTensor;
+   typedef DenseMatrix Tensor2d;
+   typedef Tensor<3,double> Tensor3d;
 
 protected:
    FiniteElementSpace *fes;
