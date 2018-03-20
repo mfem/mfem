@@ -60,6 +60,31 @@ typedef TIntegrator<coeff_t,TDiffusionKernel> integ_t;
 // Static bilinear form type, combining the above types
 typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t> HPCBilinearForm;
 
+class ProjectionPreconditioner : public Solver
+{
+public:
+   ProjectionPreconditioner(Solver * inner_solver,
+                            OperatorHandle * transfer)
+      : inner_solver(inner_solver), transfer(transfer),
+        coarse_x(inner_solver->Height()), coarse_y(inner_solver->Height())
+   {
+   }
+   ~ProjectionPreconditioner() { delete transfer; }
+   void SetOperator(const mfem::Operator &op) {}
+   void Mult(const mfem::Vector &x, mfem::Vector &y) const
+   {
+      transfer->Ptr()->Mult(x, coarse_x);
+      inner_solver->Mult(coarse_x, coarse_y);
+      transfer->Ptr()->MultTranspose(coarse_y, y);
+   }
+
+private:
+   Solver * inner_solver;
+   OperatorHandle * transfer;
+   mutable Vector coarse_x;
+   mutable Vector coarse_y;
+};
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
@@ -73,6 +98,7 @@ int main(int argc, char *argv[])
    int ser_ref_levels = -1;
    int par_ref_levels = 1;
    int order = sol_p;
+   int lor_order = 1;
    const char *basis_type = "G"; // Gauss-Lobatto
    bool static_cond = false;
    const char *pc = "lor";
@@ -91,6 +117,9 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&lor_order, "-lo", "--lor-order",
+                  "Finite element order for low-order refined preconditioning"
+                  " space.");
    args.AddOption(&basis_type, "-b", "--basis-type",
                   "Basis: G - Gauss-Lobatto, P - Positive, U - Uniform");
    args.AddOption(&perf, "-perf", "--hpc-version", "-std", "--standard-version",
@@ -262,8 +291,11 @@ int main(int argc, char *argv[])
    {
       int basis_lor = basis;
       if (basis == BasisType::Positive) { basis_lor=BasisType::ClosedUniform; }
-      pmesh_lor = new ParMesh(pmesh, order, basis_lor);
-      fec_lor = new H1_FECollection(1, dim);
+      pmesh_lor = new ParMesh(pmesh,
+                              (order / lor_order > 1 ? order / lor_order : 2),
+                              basis_lor);
+      // pmesh_lor = new ParMesh(pmesh, order, basis_lor);
+      fec_lor = new H1_FECollection(lor_order, dim);
       fespace_lor = new ParFiniteElementSpace(pmesh_lor, fec_lor);
    }
 
@@ -432,13 +464,26 @@ int main(int argc, char *argv[])
    pcg->SetMaxIter(500);
    pcg->SetPrintLevel(1);
 
-   HypreSolver *amg = NULL;
+   Solver *prec = NULL;
 
    pcg->SetOperator(*a_oper);
+   if (pc_choice == LOR || pc_choice == HO)
+   {
+      HypreSolver* amg = new HypreBoomerAMG(A_pc);
+      if (pc_choice == HO || lor_order == 1)
+      {
+         prec = amg;
+      }
+      else
+      {
+         OperatorHandle * transfer = new OperatorHandle(Operator::Hypre_ParCSR);
+         fespace_lor->GetTrueTransferOperator(*fespace, *transfer);
+         prec = new ProjectionPreconditioner(amg, transfer);
+      }
+   }
    if (pc_choice != NONE)
    {
-      amg = new HypreBoomerAMG(A_pc);
-      pcg->SetPreconditioner(*amg);
+      pcg->SetPreconditioner(*prec);
    }
 
    tic_toc.Clear();
@@ -447,7 +492,7 @@ int main(int argc, char *argv[])
    pcg->Mult(B, X);
 
    tic_toc.Stop();
-   delete amg;
+   delete prec;
 
    if (myid == 0)
    {
