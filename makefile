@@ -71,10 +71,11 @@ make style
 
 endef
 
+# Save the MAKEOVERRIDES for cases where we explicitly want to pass the command
+# line overrides to sub-make:
+override MAKEOVERRIDES_SAVE := $(MAKEOVERRIDES)
 # Do not pass down variables from the command-line to sub-make:
 MAKEOVERRIDES =
-# Note: this produces some undesired results, e.g. the following does not work
-# as expected: "make pdebug -j 4 MPICXX=mpic++".
 
 # Path to the mfem source directory, defaults to this makefile's directory:
 THIS_MK := $(lastword $(MAKEFILE_LIST))
@@ -92,7 +93,7 @@ EXAMPLE_SUBDIRS = sundials petsc
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
-MINIAPP_SUBDIRS = common electromagnetics meshing performance tools
+MINIAPP_SUBDIRS = common electromagnetics meshing performance tools nurbs
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
 MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics tools)
@@ -195,7 +196,7 @@ ifeq ($(MFEM_USE_OPENMP),YES)
 endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
-MFEM_REQ_LIB_DEPS = METIS SIDRE LAPACK SUNDIALS MESQUITE SUITESPARSE SUPERLU\
+MFEM_REQ_LIB_DEPS = SUPERLU METIS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE SUITESPARSE\
  STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 
@@ -232,16 +233,18 @@ endif
 
 # gzstream configuration
 ifeq ($(MFEM_USE_GZSTREAM),YES)
-   ALL_LIBS += -lz
+   INCFLAGS += $(ZLIB_OPT)
+   ALL_LIBS += $(ZLIB_LIB)
 endif
 
 # List of all defines that may be enabled in config.hpp and config.mk:
 MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
- MFEM_USE_METIS MFEM_USE_METIS_5 MFEM_DEBUG MFEM_USE_GZSTREAM\
- MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE MFEM_USE_OPENMP\
- MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS MFEM_USE_MESQUITE\
- MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU MFEM_USE_STRUMPACK\
- MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE
+ MFEM_USE_METIS MFEM_USE_METIS_5 MFEM_DEBUG MFEM_USE_EXCEPTIONS\
+ MFEM_USE_GZSTREAM MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE\
+ MFEM_USE_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS\
+ MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU\
+ MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC\
+ MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
@@ -359,8 +362,9 @@ parallel pdebug: M_MPI=YES
 serial parallel: M_DBG=NO
 debug pdebug:    M_DBG=YES
 serial parallel debug pdebug:
-	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG)
-	$(MAKE)
+	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
+	   $(MAKEOVERRIDES_SAVE)
+	$(MAKE) $(MAKEOVERRIDES_SAVE)
 
 deps:
 	rm -f $(BLD)deps.mk
@@ -377,7 +381,7 @@ check: lib
 test:
 	@echo "Testing the MFEM library. This may take a while..."
 	@echo "Building all examples and miniapps..."
-	@$(MAKE) all
+	@$(MAKE) $(MAKEOVERRIDES_SAVE) all
 	@echo "Running tests in: [ $(EM_TEST_DIRS) ] ..."
 	@ERR=0; for dir in $(EM_TEST_DIRS); do \
 	   echo "Running tests in $${dir} ..."; \
@@ -385,6 +389,12 @@ test:
 	   ERR=1; fi; done; \
 	   if [ 0 -ne $${ERR} ]; then echo "Some tests failed."; exit 1; \
 	   else echo "All tests passed."; fi
+
+.PHONY: test-print
+test-print:
+	@echo "Printing tests in: [ $(EM_TEST_DIRS) ] ..."
+	@for dir in $(EM_TEST_DIRS); do \
+	   $(MAKE) -j1 -C $(BLD)$${dir} test-print; done
 
 ALL_CLEAN_SUBDIRS = $(addsuffix /clean,config $(EM_DIRS) doc)
 .PHONY: $(ALL_CLEAN_SUBDIRS) miniapps/clean
@@ -475,6 +485,7 @@ status info:
 	$(info MFEM_USE_METIS       = $(MFEM_USE_METIS))
 	$(info MFEM_USE_METIS_5     = $(MFEM_USE_METIS_5))
 	$(info MFEM_DEBUG           = $(MFEM_DEBUG))
+	$(info MFEM_USE_EXCEPTIONS  = $(MFEM_USE_EXCEPTIONS))
 	$(info MFEM_USE_GZSTREAM    = $(MFEM_USE_GZSTREAM))
 	$(info MFEM_USE_LIBUNWIND   = $(MFEM_USE_LIBUNWIND))
 	$(info MFEM_USE_LAPACK      = $(MFEM_USE_LAPACK))
@@ -493,6 +504,7 @@ status info:
 	$(info MFEM_USE_PETSC       = $(MFEM_USE_PETSC))
 	$(info MFEM_USE_MPFR        = $(MFEM_USE_MPFR))
 	$(info MFEM_USE_SIDRE       = $(MFEM_USE_SIDRE))
+	$(info MFEM_USE_CONDUIT     = $(MFEM_USE_CONDUIT))
 	$(info MFEM_CXX             = $(value MFEM_CXX))
 	$(info MFEM_CPPFLAGS        = $(value MFEM_CPPFLAGS))
 	$(info MFEM_CXXFLAGS        = $(value MFEM_CXXFLAGS))
@@ -533,5 +545,5 @@ print-%:
 
 # Print the contents of all makefile variables.
 .PHONY: printall
-printall: $(foreach var,$(.VARIABLES),print-$(var))
+printall: $(subst :,\:,$(foreach var,$(.VARIABLES),print-$(var)))
 	@true

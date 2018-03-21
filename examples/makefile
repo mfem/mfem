@@ -21,9 +21,11 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = ex1 ex2 ex3 ex4 ex5 ex6 ex7 ex8 ex9 ex10 ex14 ex15 ex16 ex17 ex18
+SEQ_EXAMPLES = ex1 ex2 ex3 ex4 ex5 ex6 ex7 ex8 ex9 ex10 ex14 ex15 ex16 ex17\
+  ex18 ex19
 PAR_EXAMPLES = ex1p ex2p ex3p ex4p ex5p ex6p ex7p ex8p ex9p ex10p ex11p ex12p\
- ex13p ex14p ex15p ex16p ex17p ex18p
+ ex13p ex14p ex15p ex16p ex17p ex18p ex19p
+
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
@@ -39,6 +41,7 @@ endif
 SUBDIRS_ALL = $(addsuffix /all,$(SUBDIRS))
 SUBDIRS_TEST = $(addsuffix /test,$(SUBDIRS))
 SUBDIRS_CLEAN = $(addsuffix /clean,$(SUBDIRS))
+SUBDIRS_TPRINT = $(addsuffix /test-print,$(SUBDIRS))
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
@@ -53,9 +56,11 @@ SUBDIRS_CLEAN = $(addsuffix /clean,$(SUBDIRS))
 
 all: $(EXAMPLES) $(SUBDIRS_ALL)
 
-.PHONY: $(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_CLEAN)
+.PHONY: $(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_CLEAN) $(SUBDIRS_TPRINT)
 $(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_CLEAN):
 	$(MAKE) -C $(@D) $(@F)
+$(SUBDIRS_TPRINT):
+	@$(MAKE) -C $(@D) $(@F)
 
 # Additional dependencies
 ex18: $(SRC)ex18.hpp
@@ -66,6 +71,7 @@ endif
 MFEM_TESTS = EXAMPLES
 include $(MFEM_TEST_MK)
 test: $(SUBDIRS_TEST)
+test-print: $(SUBDIRS_TPRINT)
 
 # Testing: Parallel vs. serial runs
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
@@ -108,3 +114,4 @@ clean-exec:
 	@rm -f deformed.* velocity.* elastic_energy.* mode_*
 	@rm -f ex16.mesh ex16-mesh.* ex16-init.* ex16-final.*
 	@rm -f vortex-mesh.* vortex.mesh vortex-?-init.* vortex-?-final.*
+	@rm -f deformation.* pressure.*

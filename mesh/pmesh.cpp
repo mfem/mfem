@@ -59,8 +59,11 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
    // Do not copy face-neighbor data (can be generated if needed)
    have_face_nbr_data = false;
 
+   // If pmesh has a ParNURBSExtension, it was copied by the Mesh copy ctor, so
+   // there is no need to do anything here.
+
    MFEM_VERIFY(pmesh.pncmesh == NULL,
-               "copying non-conforming meshes is not implemented");
+               "copy of parallel non-conforming meshes is not implemented");
    pncmesh = NULL;
 
    // Copy the Nodes as a ParGridFunction, including the FiniteElementCollection
@@ -72,8 +75,7 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
       FiniteElementCollection *fec_copy =
          FiniteElementCollection::New(fec->Name());
       ParFiniteElementSpace *pfes_copy =
-         new ParFiniteElementSpace(this, fec_copy, fes->GetVDim(),
-                                   fes->GetOrdering());
+         new ParFiniteElementSpace(*fes, *this, fec_copy);
       Nodes = new ParGridFunction(pfes_copy);
       Nodes->MakeOwner(fec_copy);
       *Nodes = *pmesh.Nodes;
@@ -975,7 +977,7 @@ int ParMesh::BuildVertGlobalLocal(Mesh& mesh, int* partitioning,
       }
    }
    
-   // re-enumerate the local vertices to preserve the global ordering
+   // Re-enumerate the local vertices to preserve the global ordering
    vert_counter = 0;
    for (int i = 0; i < vert_global_local.Size(); i++) {
       if (vert_global_local[i] >= 0)
@@ -1039,6 +1041,9 @@ int ParMesh::BuildLocalElements(const Mesh& mesh, const int* partitioning,
 
    elements.SetSize(nelems);
 
+   // Determine elements, enumerating the local elements to preserve the global
+   // order. This is used, e.g. by the ParGridFunction ctor that takes a global
+   // GridFunction as input parameter.
    int element_counter = 0;
    for (int i = 0; i < mesh.GetNE(); i++) {
       if (partitioning[i] == MyRank)
@@ -2506,7 +2511,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       int uniform_refinement = 0;
       if (type < 0)
       {
-         type = -type;
+         // type = -type; // not used
          uniform_refinement = 1;
       }
 
@@ -4361,7 +4366,7 @@ void ParMesh::PrintAsOneXG(std::ostream &out)
          out << ne << '\n';
          for (i = 0; i < NumOfElements; i++)
          {
-            attr = elements[i]->GetAttribute();
+            // attr = elements[i]->GetAttribute(); // not used
             elements[i]->GetVertices(v);
             out << 1 << "   " << 3 << "   ";
             for (j = 0; j < v.Size(); j++)

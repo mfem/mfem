@@ -31,14 +31,13 @@ namespace mfem
 Vector::Vector(const Vector &v)
 {
    int s = v.Size();
+
    if (s > 0)
    {
+      MFEM_ASSERT(v.data, "invalid source vector");
       allocsize = size = s;
       data = new double[s];
-      for (int i = 0; i < s; i++)
-      {
-         data[i] = v(i);
-      }
+      std::memcpy(data, v.data, sizeof(double)*s);
    }
    else
    {
@@ -116,9 +115,10 @@ double Vector::operator*(const Vector &v) const
 
 Vector &Vector::operator=(const double *v)
 {
-   for (int i = 0; i < size; i++)
+   if (data != v)
    {
-      data[i] = v[i];
+      MFEM_ASSERT(data + size <= v || v + size <= data, "Vectors overlap!");
+      std::memcpy(data, v, sizeof(double)*size);
    }
    return *this;
 }
@@ -126,11 +126,7 @@ Vector &Vector::operator=(const double *v)
 Vector &Vector::operator=(const Vector &v)
 {
    SetSize(v.Size());
-   for (int i = 0; i < size; i++)
-   {
-      data[i] = v.data[i];
-   }
-   return *this;
+   return operator=(v.data);
 }
 
 Vector &Vector::operator=(double value)
@@ -735,7 +731,7 @@ double Vector::Normlp(double p) const
    {
       return Norml2();
    }
-   if (p < std::numeric_limits<double>::infinity())
+   if (p < infinity())
    {
       // Scale entries of Vector on the fly, using algorithms from
       // std::hypot() and LAPACK's drm2. This scaling ensures that the
@@ -768,9 +764,9 @@ double Vector::Normlp(double p) const
          } // end if data[i] != 0
       }
       return scale * std::pow(sum, 1.0/p);
-   } // end if p < std::numeric_limits<double>::infinity()
+   } // end if p < infinity()
 
-   return Normlinf(); // else p >= std::numeric_limits<double>::infinity()
+   return Normlinf(); // else p >= infinity()
 }
 
 double Vector::Max() const
