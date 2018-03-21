@@ -23,7 +23,8 @@ const double Geometry::Volume[NumGeom] =
 Geometry::Geometry()
 {
    // Vertices for Geometry::POINT
-   GeomVert[0] = NULL; // No vertices, dimension is 0
+   GeomVert[0] =  new IntegrationRule(1);
+   GeomVert[0]->IntPoint(0).x = 0.0;
 
    // Vertices for Geometry::SEGMENT
    GeomVert[1] = new IntegrationRule(2);
@@ -805,13 +806,26 @@ RefinedGeometry * GeometryRefiner::Refine(int Geom, int Times, int ETimes)
 
    Times = std::max(Times, 1);
    ETimes = std::max(ETimes, 1);
-   const double *cp = poly1d.GetPoints(Times, type);
+   const double *cp = poly1d.GetPoints(Times, BasisType::GetNodalBasis(type));
 
    RefinedGeometry *RG = FindInRGeom(Geom, Times, ETimes, type);
    if (RG) { return RG; }
 
    switch (Geom)
    {
+      case Geometry::POINT:
+      {
+         RG = new RefinedGeometry(1, 1, 0);
+         RG->Times = 1;
+         RG->ETimes = 0;
+         RG->Type = type;
+         RG->RefPts.IntPoint(0).x = cp[0];
+         RG->RefGeoms[0] = 0;
+
+         RGeom[Geometry::POINT].Append(RG);
+         return RG;
+      }
+
       case Geometry::SEGMENT:
       {
          RG = new RefinedGeometry(Times+1, 2*Times, 0);
