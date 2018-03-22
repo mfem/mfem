@@ -1085,7 +1085,7 @@ void FiniteElementSpace::GetLocalRefinementMatrices(
    {
       isotr.GetPointMat() = rtrans.point_matrices(i);
       isotr.FinalizeTransformation();
-      fine_fe->GetLocalInterpolation(*coarse_fe, isotr, localP(i));
+      fine_fe->GetTransferMatrix(*coarse_fe, isotr, localP(i));
    }
 }
 

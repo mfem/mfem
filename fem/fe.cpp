@@ -114,9 +114,9 @@ void FiniteElement::GetLocalInterpolation (ElementTransformation &Trans,
    mfem_error ("GetLocalInterpolation (...) is not overloaded !");
 }
 
-void FiniteElement::GetLocalInterpolation(const FiniteElement &fe,
-                                          ElementTransformation &Trans,
-                                          DenseMatrix &I) const
+void FiniteElement::GetTransferMatrix(const FiniteElement &fe,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &I) const
 {
    MFEM_ABORT("method is not overloaded !");
 }
