@@ -100,6 +100,7 @@ int main(int argc, char *argv[])
    int order = sol_p;
    int lor_order = 1;
    const char *basis_type = "G"; // Gauss-Lobatto
+   const char *lor_basis_type = "G"; // Gauss-Lobatto
    bool static_cond = false;
    const char *pc = "lor";
    bool perf = true;
@@ -122,6 +123,8 @@ int main(int argc, char *argv[])
                   " space.");
    args.AddOption(&basis_type, "-b", "--basis-type",
                   "Basis: G - Gauss-Lobatto, P - Positive, U - Uniform");
+   args.AddOption(&lor_basis_type, "-lb", "--lor-basis-type",
+                  "LOR Basis: G - Gauss-Lobatto, P - Positive, U - Uniform");
    args.AddOption(&perf, "-perf", "--hpc-version", "-std", "--standard-version",
                   "Enable high-performance, tensor-based, assembly/evaluation.");
    args.AddOption(&matrix_free, "-mf", "--matrix-free", "-asm", "--assembly",
@@ -175,6 +178,7 @@ int main(int argc, char *argv[])
 
    // See class BasisType in fem/fe_coll.hpp for available basis types
    int basis = BasisType::GetType(basis_type[0]);
+   int lor_basis = BasisType::GetType(lor_basis_type[0]);
    if (myid == 0)
    {
       cout << "Using " << BasisType::Name(basis) << " basis ..." << endl;
@@ -289,12 +293,9 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace *fespace_lor = NULL;
    if (pc_choice == LOR)
    {
-      int basis_lor = basis;
-      if (basis == BasisType::Positive) { basis_lor=BasisType::ClosedUniform; }
-      pmesh_lor = new ParMesh(pmesh,
-                              (order / lor_order > 1 ? order / lor_order : 2),
-                              basis_lor);
-      // pmesh_lor = new ParMesh(pmesh, order, basis_lor);
+      int lor_ref_level = (order / lor_order > 1 ? order / lor_order : 2);
+      pmesh_lor = new ParMesh(pmesh, lor_ref_level,
+                              lor_basis);
       fec_lor = new H1_FECollection(lor_order, dim);
       fespace_lor = new ParFiniteElementSpace(pmesh_lor, fec_lor);
    }
@@ -470,7 +471,7 @@ int main(int argc, char *argv[])
    if (pc_choice == LOR || pc_choice == HO)
    {
       HypreSolver* amg = new HypreBoomerAMG(A_pc);
-      if (pc_choice == HO || lor_order == 1)
+      if (pc_choice == HO || (lor_order == 1 && basis == lor_basis))
       {
          prec = amg;
       }
