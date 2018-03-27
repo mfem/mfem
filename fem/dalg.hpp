@@ -235,6 +235,19 @@ public:
    }
 
    /**
+   *  Returns the length of the Tensor (number of values)
+   */
+   int length() const
+   {
+      int res = 1;
+      for (int i = 0; i < Dim; ++i)
+      {
+         res *= sizes[i];
+      }
+      return res;
+   }
+
+   /**
    *  Returns the dimension of the tensor.
    */
    int dimension() const
@@ -277,6 +290,15 @@ public:
       return os;
    }
 };
+
+template <typename Scalar,int N>
+void zero(Tensor<N,Scalar>& t)
+{
+   for (int i = 0; i < t.length(); ++i)
+   {
+      t[i] = Scalar();
+   }  
+}
 
 /**
 * A dummy Matrix implementation that handles any type

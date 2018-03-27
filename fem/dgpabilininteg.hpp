@@ -17,8 +17,7 @@
 
 #include "../config/config.hpp"
 #include "bilininteg.hpp"
-#include "partialassemblykernel.hpp"
-#include "dgfacefunctions.hpp"
+#include "dalg.hpp"
 
 #include "fem.hpp"
 #include <cmath>
@@ -27,6 +26,12 @@
 
 namespace mfem
 {
+
+/**
+*  The different operators available for the Kernels
+*/
+enum PAOp { BtDB, BtDG, GtDB, GtDG };
+
 
 /**
 *	A class that describes the Convection Equation using DG for Partial Assembly.
@@ -43,32 +48,11 @@ public:
    *  Defines the variables needed to build D for the Domain kernel
    */
    struct Args {
-      Args(VectorCoefficient& _q, double _a = 1.0, double _b = -1) : q(_q), a(_a), b(_b) {}
+      Args(VectorCoefficient& _q, double _a = 1.0, double _b = -1.0) : q(_q), a(_a), b(_b) {}
       VectorCoefficient& q;
       double a;
       double b;
    };
-
-   /**
-   *  Returns the values of the D tensor at a given integration Point.
-   */
-   // void evalD(Tensor<1>& res, ElementTransformation *Tr, const IntegrationPoint& ip,
-   //                VectorCoefficient& q, double a = 1.0)
-   // {
-   //    const int dim = res.size(0);
-   //    Vector qvec(dim);
-   //    const DenseMatrix& locD = Tr->AdjugateJacobian();
-   //    q.Eval(qvec, *Tr, ip);
-   //    for (int i = 0; i < dim; ++i)
-   //    {
-   //       double val = 0.0;
-   //       for (int j = 0; j < dim; ++j)
-   //       {
-   //          val += locD(i,j) * qvec(j);
-   //       }
-   //       res(i) = ip.weight * a * val;
-   //    }
-   // }
 
    /**
    *  Returns the values of the D tensor at a given integration Point.
@@ -95,27 +79,6 @@ public:
    *  Defines the Kernel to apply to the Faces
    */
    static const PAOp FaceOpName = BtDB;
-
-   /**
-   *  Returns the values of the Dint and Dext tensors at a given integration Point for
-   *  each element over a face.
-   */
-   void evalFaceD(double& res11, double& res21, double& res22, double& res12,
-      const FaceElementTransformations* face_tr, const Vector& normal,
-      const IntegrationPoint& ip1, const IntegrationPoint& ip2,
-      VectorCoefficient &q, double a = 1.0, double b = 1.0)
-   {
-      const int dim = normal.Size();
-      Vector qvec(dim);
-      //FIXME: qvec might be discontinuous if not constant with a periodic mesh
-      // We should then use the evaluation on Elem2 and eip2
-      q.Eval( qvec, *(face_tr->Elem1), ip1 );
-      const double res = qvec * normal;
-      res11 = ip1.weight * (   a/2 * res + b * abs(res) );
-      res21 = ip1.weight * (   a/2 * res - b * abs(res) );
-      res22 = ip1.weight * ( - a/2 * res + b * abs(res) );
-      res12 = ip1.weight * ( - a/2 * res - b * abs(res) );
-   }
 
    /**
    *  Returns the values of the Dint and Dext tensors at a given integration Point for

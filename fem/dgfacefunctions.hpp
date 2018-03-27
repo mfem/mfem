@@ -51,9 +51,8 @@ void InitFaceCoord3D(const int face_id, IntMatrix& base);
 // There shouldn't be any rotation in 2D.
 void GetLocalCoordMap2D(vector<pair<int,int> >& map, const int nb_rot = 0);
 
-// Default parameter nb_rot=0 should be only use with a structured mesh.
 // Rotations follow the ordering of the nodes.
-void GetLocalCoordMap3D(vector<pair<int,int> >& map, const int nb_rot = 0);
+void GetLocalCoordMap3D(vector<pair<int,int> >& map, const int nb_rot);
 
 /**
 *	Returns the change of matrix P from base_K2 to base_K1 according to the mapping map.
@@ -76,16 +75,28 @@ void GetIdRotInfo(const int face_info, int& face_id, int& nb_rot);
 
 /**
 *	Returns an integer identifying the permutation to apply to be in structured-
-*  like configuration.
+*  like configuration for 2D hex meshes.
 */
 int Permutation2D(const int face_id_trial, const int face_id_test);
 
+/**
+*	Returns an integer identifying the permutation to apply to be in structured-
+*  like configuration for 3D hex meshes.
+*/
 void Permutation3D(const int face_id1, const int face_id2, const int orientation, int& perm1, int& perm2);
 
+/**
+*	Returns an integer identifying the permutation to apply to be in structured-
+*  like configuration.
+*/
 void Permutation(const int dim, const int face_id1, const int face_id2, const int orientation, int& perm1, int& perm2);
 
 const int GetFaceQuadIndex3D(const int face_id, const int orientation, const int qind, const int quads);
 
+/**
+*	Returns the index of a quadrature point on the face of an hex element relative to the index of the quadrature
+*  point on the reference face.
+*/
 const int GetFaceQuadIndex(const int dim, const int face_id, const int orientation, const int qind, const int quads);
 
 }

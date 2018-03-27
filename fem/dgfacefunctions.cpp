@@ -53,7 +53,8 @@ void getBaseVector3D(Vector& e1, Vector& e2, Vector& e3)
 	e3(2) = 1;
 }
 
-/** A function that initialize the local coordinate base for a face with
+/** 
+*   A function that initialize the local coordinate base for a face with
 *   indice face_ind.
 *   This returns the local face coordinate base expressed in reference
 *   element coordinate.
@@ -374,14 +375,18 @@ void Permutation3D(const int face_id1, const int face_id2, const int orientation
 	IntMatrix P(3,3);
 	P.Zero();
 	GetChangeOfBasis(K1, K2, map, P);
-	cout << "orientation=" << orientation << endl;
-	cout << P(0,0) << ", " << P(0,1) << ", " << P(0,2) << endl;
-	cout << P(1,0) << ", " << P(1,1) << ", " << P(1,2) << endl;
-	cout << P(2,0) << ", " << P(2,1) << ", " << P(2,2) << endl;
+	// cout << "orientation=" << orientation << endl;
+	// cout << P(0,0) << ", " << P(0,1) << ", " << P(0,2) << endl;
+	// cout << P(1,0) << ", " << P(1,1) << ", " << P(1,2) << endl;
+	// cout << P(2,0) << ", " << P(2,1) << ", " << P(2,2) << endl;
 	perm1  = 0;
+	// Encrypts first column
 	perm1 += 100*(0*(P(0,0)==-1) + 1*(P(0,0)==1) + 2*(P(1,0)==-1) + 3*(P(1,0)==1) + 4*(P(2,0)==-1) + 5*(P(2,0)==1));
+	// Encrypts second column
 	perm1 += 10 *(0*(P(0,1)==-1) + 1*(P(0,1)==1) + 2*(P(1,1)==-1) + 3*(P(1,1)==1) + 4*(P(2,1)==-1) + 5*(P(2,1)==1));
+	// Encrypts third column
 	perm1 +=     (0*(P(0,2)==-1) + 1*(P(0,2)==1) + 2*(P(1,2)==-1) + 3*(P(1,2)==1) + 4*(P(2,2)==-1) + 5*(P(2,2)==1));
+	// Encrypts the transposed permutation matrix in a second integer.
 	perm2  = 0;
 	perm2 += 100*(0*(P(0,0)==-1) + 1*(P(0,0)==1) + 2*(P(0,1)==-1) + 3*(P(0,1)==1) + 4*(P(0,2)==-1) + 5*(P(0,2)==1));
 	perm2 += 10 *(0*(P(1,0)==-1) + 1*(P(1,0)==1) + 2*(P(1,1)==-1) + 3*(P(1,1)==1) + 4*(P(1,2)==-1) + 5*(P(1,2)==1));
@@ -407,6 +412,12 @@ void Permutation(const int dim, const int face_id1, const int face_id2, const in
 	}
 }
 
+/**
+*	Hardcoded permutation due to arbitrary hardcoded orientation in geom.cpp.
+*   Will break if geom.cpp changes.
+*   This function could be improved by returning the 'permutation' parameters once,
+*   instead of recomputing them for every quadrature point...
+*/
 const int GetFaceQuadIndex3D(const int face_id, const int orientation, const int qind, const int quads)
 {
 	// cout << "orientation=" << orientation << endl;
