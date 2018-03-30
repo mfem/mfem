@@ -148,17 +148,25 @@ public:
 
        Zero-copies as much data as possible.
 
-       Describes the mesh's coordinates with a coordinate set entry named
-       `coords`. Describes the mesh with a topology entry named 'main'.  If the
-       mesh has nodes, these are described in a field entry named
-       `mesh_nodes`. If the mesh has an attribute field, this is described in a
-       field entry named `mesh_attribute`.
+       @a coordset_name, @a main_topology_name, and @a boundary_topology_name
+       control the names used for the mesh blueprint entires.
+
+       With the default set of names, this method describes the mesh's
+       coordinates with a coordinate set entry named `coords`. Describes the
+       mesh with a topology entry named 'main'.  If the mesh has nodes, these
+       are described in a field entry named `mesh_nodes`. If the mesh has an
+       attribute field, this is described in a field entry named
+       `mesh_attribute`.
 
        If the mesh has boundary info, this is described in a topology entry
        named `boundary`. If the boundary has an attribute field, this is
        described in a field entry named `boundary_attribute`.
    */
-   static void MeshToBlueprintMesh(Mesh *m, conduit::Node &out);
+   static void MeshToBlueprintMesh(Mesh *m,
+                                   conduit::Node &out,
+                                   const std::string &coordset_name = "coords",
+                                   const std::string &main_topology_name = "main",
+                                   const std::string &boundary_topology_name = "boundary");
 
    /// Describes a MFEM grid function using the mesh blueprint
    /** Sets up passed conduit::Node out to describe the given grid function
@@ -166,18 +174,26 @@ public:
 
        Zero-copies as much data as possible.
 
-       The resulting field is associated with the topology `main`.
+       @a main_toplogy_name is used to set the associated topology name.
+       With the default setting, the resulting field is associated with the
+       topology `main`.
    */
-   static void GridFunctionToBlueprintField(GridFunction *gf, conduit::Node &out);
+   static void GridFunctionToBlueprintField(GridFunction *gf,
+                                            conduit::Node &out,
+                                            const std::string &main_topology_name = "main");
 
    /// Constructs and MFEM mesh from a Conduit Blueprint Description
-   /** If zero_copy == true, tries to construct a mesh that points to the data
+   /** @a main_toplogy_name is used to select which topology to use, when
+       empty ("") the first topology entry will be used.
+
+       If zero_copy == true, tries to construct a mesh that points to the data
        described by the conduit node. This is only possible if the data in the
        node matches the data types needed for the MFEM API (ints for
        connectivity, doubles for field values, etc). If these constraints are
        not met, a mesh that owns the data is created and returned.
    */
    static Mesh *BlueprintMeshToMesh(const conduit::Node &n_mesh,
+                                    const std::string &main_toplogy_name = "",
                                     bool zero_copy = false);
 
    /// Constructs and MFEM Grid Function from a Conduit Blueprint Description
