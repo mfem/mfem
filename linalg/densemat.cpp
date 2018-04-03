@@ -794,6 +794,15 @@ extern "C" void
 dgesvd_(char *JOBU, char *JOBVT, int *M, int *N, double *A, int *LDA,
         double *S, double *U, int *LDU, double *VT, int *LDVT, double *WORK,
         int *LWORK, int *INFO);
+// ADDED //
+extern "C" void
+dgeevx_(char *BALANC, char *JOBVL, char *JOBVR, char *SENSE, 
+        int *N, double *A, int *LDA, double *WR, double *WI, 
+        double *VL, int *LDVL, double *VR, int *LDVR, int *ILO, 
+        int *IHI, double *SCALE, double *ABNRM, 
+        double *RCONDE, double *RCONDV, double *WORK, int *LWORK, 
+        int *IWORK, int *INFO );
+// ADDED //
 #endif
 
 void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
@@ -958,6 +967,109 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 #endif
 }
 
+
+// ADDED //
+
+void dgeevx_Eigensystem(DenseMatrix &a, Vector &evI, Vector &evR, 
+                        DenseMatrix *evect)
+{
+
+#ifdef MFEM_USE_LAPACK
+
+   char BALANC = 'N'; 
+   char JOBVL = 'N';
+   char JOBVR = 'V';
+   char SENSE = 'N';
+   int N = a.Width();
+   double *A = NULL;
+   int LDA = N;
+   int LDVL = N;
+   double *VR = NULL;
+   double *VL = NULL;
+   int LDVR = N;
+   int ILO;
+   int IHI;
+   double *SCALE= NULL;
+   double ABNRM;
+   double *RCONDE = NULL;
+   double *RCONDV = NULL;
+   double *WORK = NULL;
+   int LWORK = -1;  /* query optimal workspace size */
+   int *IWORK = NULL;
+   int INFO;
+
+   evI.SetSize(N);
+   evR.SetSize(N);
+   double *WI    = evI.GetData();
+   double *WR    = evR.GetData();
+
+   if (evect)
+   {
+      evect->SetSize(N);
+      A = evect->Data();
+   }
+   else
+   {
+      A = new double[N*N];
+   }
+
+   int hw = a.Height() * a.Width();
+   double *data = a.Data();
+   for (int i = 0; i < hw; i++)
+   {
+      A[i] = data[i];
+   }
+
+   VR = new double[N*N];
+   SCALE = new double[N];
+   RCONDE = new double[N];
+   RCONDV = new double[N];
+
+   /* query optimal workspace size */
+   double QWORK;
+   dgeevx_(&BALANC, &JOBVL, &JOBVR, &SENSE, 
+           &N, A, &LDA, WR, WI, 
+           VL, &LDVL, VR, &LDVR, &ILO, 
+           &IHI, SCALE, &ABNRM, 
+           RCONDE, RCONDV, &QWORK, &LWORK, 
+           IWORK, &INFO );
+
+
+   LWORK = (int) QWORK;
+   WORK = new double[LWORK];
+
+   // REMOVE //
+   std::cout << "dgeevx_Eigensystem: LWORK: " << LWORK << endl;
+   // REMOVE //
+
+   dgeevx_(&BALANC, &JOBVL, &JOBVR, &SENSE, 
+           &N, A, &LDA, WR, WI, 
+           VL, &LDVL, VR, &LDVR, &ILO, 
+           &IHI, SCALE, &ABNRM, 
+           RCONDE, RCONDV, WORK, &LWORK, 
+           IWORK, &INFO );
+
+   if (INFO != 0)
+   {
+      cerr << "dgeevx_Eigensystem: DGEEVX error code: " << INFO << endl;
+      mfem_error();
+   }
+
+   delete [] WORK;  
+   delete [] VR;
+   delete [] SCALE;
+   delete [] RCONDE;
+   delete [] RCONDV;
+
+   if (evect == NULL) { delete [] A; }
+
+#endif
+}
+
+
+// ADDED //
+
+
 void dsyev_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 {
 
@@ -1014,6 +1126,7 @@ void dsyev_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 #endif
 }
 
+
 void DenseMatrix::Eigensystem(Vector &ev, DenseMatrix *evect)
 {
 #ifdef MFEM_USE_LAPACK
@@ -1028,6 +1141,25 @@ void DenseMatrix::Eigensystem(Vector &ev, DenseMatrix *evect)
 
 #endif
 }
+
+
+// ADDED //
+
+void DenseMatrix::EigensystemNonSymmetric(Vector &evI, Vector &evR, DenseMatrix *evect)
+{
+#ifdef MFEM_USE_LAPACK
+
+   dgeevx_Eigensystem(*this, evI, evR, evect);
+
+#else
+
+   mfem_error("DenseMatrix::Eigensystem");
+
+#endif
+}
+
+// ADDED //
+
 
 void DenseMatrix::SingularValues(Vector &sv) const
 {
@@ -2907,8 +3039,19 @@ dgemm_(char *, char *, int *, int *, int *, double *, double *,
 
 void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
 {
-   MFEM_ASSERT(a.Height() == b.Height() && a.Width() == c.Width() &&
-               b.Width() == c.Height(), "incompatible dimensions");
+
+// REMOVE, UNCOMMENT BELOW //
+
+bool good;
+int xxx = 0;
+good = a.Height() == b.Height() && a.Width() == c.Width() &&
+                b.Width() == c.Height();
+if (not good) { xxx = 1; } 
+
+//   MFEM_ASSERT(a.Height() == b.Height() && a.Width() == c.Width() &&
+//               b.Width() == c.Height(), "incompatible dimensions");
+
+// REMOVE, UNCOMMENT BELOW //
 
 #ifdef MFEM_USE_LAPACK
    static char transa = 'N', transb = 'N';
@@ -4188,6 +4331,10 @@ DenseMatrixSVD::DenseMatrixSVD(DenseMatrix &M)
 {
    m = M.Height();
    n = M.Width();
+   // ADDED //
+   U.SetSize(m,n);
+   VT.SetSize(n,n);
+   // ADDED //
    Init();
 }
 
@@ -4195,6 +4342,10 @@ DenseMatrixSVD::DenseMatrixSVD(int h, int w)
 {
    m = h;
    n = w;
+   // ADDED //
+   U.SetSize(m,n);
+   VT.SetSize(n,n);
+   // ADDED //
    Init();
 }
 
@@ -4203,8 +4354,12 @@ void DenseMatrixSVD::Init()
 #ifdef MFEM_USE_LAPACK
    sv.SetSize(min(m, n));
 
-   jobu  = 'N';
-   jobvt = 'N';
+   // jobu  = 'N';
+   // jobvt = 'N';
+   // ADDED //
+   jobu  = 'S';
+   jobvt = 'S';
+   // ADDED //
 
    double qwork;
    lwork = -1;
@@ -4228,8 +4383,13 @@ void DenseMatrixSVD::Eval(DenseMatrix &M)
 #endif
 
 #ifdef MFEM_USE_LAPACK
-   dgesvd_(&jobu, &jobvt, &m, &n, M.Data(), &m, sv.GetData(), NULL, &m,
-           NULL, &n, work, &lwork, &info);
+  // dgesvd_(&jobu, &jobvt, &m, &n, M.Data(), &m, sv.GetData(), NULL, &m,
+  //         NULL, &n, work, &lwork, &info);
+
+   // ADDED //   
+   dgesvd_(&jobu, &jobvt, &m, &n, M.GetData(), &m, sv.GetData(), U.GetData(), &m,
+           VT.GetData(), &n, work, &lwork, &info);
+   // ADDED //
 
    if (info)
    {

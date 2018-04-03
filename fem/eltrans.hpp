@@ -88,6 +88,11 @@ public:
        transformations. */
    virtual int TransformBack(const Vector &, IntegrationPoint &) = 0;
 
+   // ADDED //
+   virtual int TransformBack(const Vector &, IntegrationPoint &, 
+   	                         IntegrationPoint &) = 0;
+   // ADDED // 
+
    virtual ~ElementTransformation() { }
 };
 
@@ -139,6 +144,11 @@ public:
    }
 
    virtual int TransformBack(const Vector &, IntegrationPoint &);
+
+   // ADDED //
+   virtual int TransformBack(const Vector &, IntegrationPoint &,
+   	                         IntegrationPoint &);
+   // ADDED //  
 
    virtual ~IsoparametricTransformation() { }
 };

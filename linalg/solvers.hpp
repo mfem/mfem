@@ -204,6 +204,8 @@ public:
    { IterativeSolver::SetOperator(op); UpdateVectors(); }
 
    virtual void Mult(const Vector &b, Vector &x) const;
+
+
 };
 
 /// BiCGSTAB method. (tolerances are squared)
@@ -214,6 +216,7 @@ int BiCGSTAB(const Operator &A, Vector &x, const Vector &b, Solver &M,
 void BiCGSTAB(const Operator &A, Solver &B, const Vector &b, Vector &x,
               int print_iter = 0, int max_num_iter = 1000,
               double rtol = 1e-12, double atol = 1e-24);
+
 
 
 /// MINRES method

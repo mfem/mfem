@@ -65,6 +65,12 @@ protected:
    ElementTransformation* GetGhostFaceTransformation(
       FaceElementTransformations* FETr, int face_type, int face_geom);
 
+   // ADDED //
+   void GetGhostFaceTransformation(FaceElementTransformations* FETr, 
+                                   IsoparametricTransformation &FaceTransformation,
+                                   int face_type, int face_geom);
+   // ADDED //
+
    /// Refine quadrilateral mesh.
    virtual void QuadUniformRefinement();
 
@@ -186,6 +192,14 @@ public:
        elements, respectively. */
    FaceElementTransformations *
    GetSharedFaceTransformations(int sf, bool fill2 = true);
+
+   // ADDED //
+   void GetSharedFaceTransformations(int sf, 
+                                     FaceElementTransformations &FaceElemTr,
+                                     IsoparametricTransformation &Transformation, 
+                                     IsoparametricTransformation &Transformation2,
+                                     IsoparametricTransformation &FTr);
+   // ADDED //
 
    /// Return the number of shared faces (3D), edges (2D), vertices (1D)
    int GetNSharedFaces() const;

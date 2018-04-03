@@ -104,6 +104,11 @@ public:
    /// MPI communicator
    MPI_Comm GetComm() { return x->comm; }
 
+   // ADDED //
+   void WrapHypreParVector(hypre_ParVector *y);
+
+   // ADDED //
+
    /// Returns the row partitioning
    inline HYPRE_Int *Partitioning() { return x->partitioning; }
 
@@ -221,6 +226,16 @@ private:
 public:
    /// An empty matrix to be used as a reference to an existing matrix
    HypreParMatrix();
+
+   // ADDED //
+   void WrapHypreParCSRMatrix(hypre_ParCSRMatrix *a, bool owner = true)
+   {
+      A = a;
+      if (!owner) { ParCSROwner = 0; }
+      height = GetNumRows();
+      width = GetNumCols();
+   }
+   // ADDED //
 
    /// Converts hypre's format to HypreParMatrix
    /** If @a owner is false, ownership of @a a is not transferred */
@@ -490,6 +505,15 @@ HypreParMatrix * ParAdd(HypreParMatrix *A, HypreParMatrix *B);
 HypreParMatrix * RAP(HypreParMatrix *A, HypreParMatrix *P);
 /// Returns the matrix Rt^t * A * P
 HypreParMatrix * RAP(HypreParMatrix * Rt, HypreParMatrix *A, HypreParMatrix *P);
+
+// ADDED //
+int BlockInvScal(const HypreParMatrix *A, HypreParMatrix *C,
+                 const Vector *b, HypreParVector *d, int block, int job);
+
+HypreParMatrix *HypreParMatrixAdd(double alpha, const HypreParMatrix &A,
+                                  double beta,  const HypreParMatrix &B);
+// ADDED //
+
 
 /** Eliminate essential BC specified by 'ess_dof_list' from the solution X to
     the r.h.s. B. Here A is a matrix with eliminated BC, while Ae is such that
@@ -818,6 +842,21 @@ public:
        elasticity problems", Baker, Kolev, Yang, NLAA 2009, DOI:10.1002/nla.688.
        As with SetSystemsOptions(), this solver assumes Ordering::byVDIM. */
    void SetElasticityOptions(ParFiniteElementSpace *fespace);
+
+   // ADDED //
+
+   void SetAIROptions(int distance=2,  std::string prerelax="",
+                      std::string postrelax="FFC", double strength_tol=0.1,
+                      int interp_type=100, int relax_type=0, double filterA_tol=0.0, 
+                      int splitting=6);
+
+   void SetMaxIter(int max_iter)
+   { HYPRE_BoomerAMGSetMaxIter(amg_precond, max_iter); }
+
+   void SetTol(double tol)
+   { HYPRE_BoomerAMGSetTol(amg_precond, tol); }
+
+   // ADDED //
 
    void SetPrintLevel(int print_level)
    { HYPRE_BoomerAMGSetPrintLevel(amg_precond, print_level); }

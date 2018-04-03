@@ -233,6 +233,9 @@ public:
    void AddElementVector(const Array<int> & dofs, double *elem_data);
    void AddElementVector(const Array<int> & dofs, const double a,
                          const Vector & elemvect);
+   // ADDED //
+   void AddElementVector(int index_low, int index_high, double c, Vector &elemvect);
+   // ADDED //
 
    /// Set all vector entries NOT in the 'dofs' array to the given 'val'.
    void SetSubVectorComplement(const Array<int> &dofs, const double val);

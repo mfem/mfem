@@ -876,6 +876,8 @@ void BiCGSTABSolver::UpdateVectors()
    rtilde.SetSize(width);
 }
 
+
+
 void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
 {
    // BiConjugate Gradient Stabilized method following the algorithm
@@ -1004,6 +1006,8 @@ void BiCGSTABSolver::Mult(const Vector &b, Vector &x) const
    final_iter = max_iter;
    converged = 0;
 }
+
+
 
 int BiCGSTAB(const Operator &A, Vector &x, const Vector &b, Solver &M,
              int &max_iter, double &tol, double atol, int printit)
