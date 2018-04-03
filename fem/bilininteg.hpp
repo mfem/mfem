@@ -2054,6 +2054,11 @@ private:
    double alpha, beta;
 
    Vector shape1, shape2;
+   // ADDED //
+   // This is true if, upon the last call to AssembleFaceMatrix, \Omega \cdot n(xp) changes sign
+   // as xp ranges over the quadrature points.
+   bool face_is_reentrant_;
+   // ADDED //
 
 public:
    /// Construct integrator with rho = 1.
@@ -2069,6 +2074,18 @@ public:
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
+
+   void AssembleFaceMatrix(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat1,
+                           DenseMatrix &elmat2,
+                           DenseMatrix &elmat3);
+
+   // ADDED //
+   bool FaseIsRentrant() { return face_is_reentrant_; }
+   // ADDED //   
+
 };
 
 /** Integrator for the DG form:
@@ -2090,17 +2107,29 @@ protected:
    MatrixCoefficient *MQ;
    double sigma, kappa;
 
+   // ADDED //
+   // if  use_MIP = true, uses modified interior penalty method of Ragusa
+   // NOTE: also changed constructors to initialize use_MPI to false
+   bool use_MIP; 
+   // ADDED //
+
    // these are not thread-safe!
    Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
    DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
 
 public:
    DGDiffusionIntegrator(const double s, const double k)
-      : Q(NULL), MQ(NULL), sigma(s), kappa(k) { }
+      : Q(NULL), MQ(NULL), sigma(s), kappa(k) { use_MIP = false; }
    DGDiffusionIntegrator(Coefficient &q, const double s, const double k)
-      : Q(&q), MQ(NULL), sigma(s), kappa(k) { }
+      : Q(&q), MQ(NULL), sigma(s), kappa(k) { use_MIP = false; }
    DGDiffusionIntegrator(MatrixCoefficient &q, const double s, const double k)
-      : Q(NULL), MQ(&q), sigma(s), kappa(k) { }
+      : Q(NULL), MQ(&q), sigma(s), kappa(k) { use_MIP = false; }
+
+   // ADDED //
+   void SetMIP(bool use_MIP0) 
+         { use_MIP = use_MIP0; }
+   // ADDED //
+
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,

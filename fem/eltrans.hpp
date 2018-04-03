@@ -100,6 +100,11 @@ public:
        transformations. */
    virtual int TransformBack(const Vector &pt, IntegrationPoint &ip) = 0;
 
+   // ADDED //
+   virtual int TransformBack(const Vector &, IntegrationPoint &, 
+   	                         IntegrationPoint &) = 0;
+   // ADDED // 
+
    virtual ~ElementTransformation() { }
 };
 
@@ -323,11 +328,15 @@ public:
    virtual int OrderW();
    virtual int OrderGrad(const FiniteElement *fe);
 
-   virtual int TransformBack(const Vector & v, IntegrationPoint & ip)
+   virtual int TransformBack(const Vector &pt, IntegrationPoint &ip)
    {
       InverseElementTransformation inv_tr(this);
-      return inv_tr.Transform(v, ip);
+      return inv_tr.Transform(pt, ip);
    }
+
+   // ADDED //  
+   virtual int TransformBack(const Vector &pt, IntegrationPoint &ip,
+   	                         IntegrationPoint &xip);
 
    virtual ~IsoparametricTransformation() { }
 };

@@ -3277,4 +3277,16 @@ void SparseMatrix::Swap(SparseMatrix &other)
    mfem::Swap(isSorted, other.isSorted);
 }
 
+
+
 }
+
+
+
+
+
+
+
+
+
+

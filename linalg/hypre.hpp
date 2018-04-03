@@ -84,6 +84,8 @@ private:
    inline void _SetDataAndSize_();
 
 public:
+   HypreParVector() {}
+
    /** Creates vector with given global size and partitioning of the columns.
        Processor P owns columns [col[P],col[P+1]) */
    HypreParVector(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *col);
@@ -105,6 +107,8 @@ public:
    /// MPI communicator
    MPI_Comm GetComm() { return x->comm; }
 
+   void WrapHypreParVector(hypre_ParVector *y);
+   
    /// Returns the row partitioning
    inline HYPRE_Int *Partitioning() { return x->partitioning; }
 
@@ -223,15 +227,20 @@ public:
    /// An empty matrix to be used as a reference to an existing matrix
    HypreParMatrix();
 
+   void WrapHypreParCSRMatrix(hypre_ParCSRMatrix *a, bool owner = true)
+   {
+      A = a;
+      if (!owner) { ParCSROwner = 0; }
+      height = GetNumRows();
+      width = GetNumCols();
+   }
+
    /// Converts hypre's format to HypreParMatrix
    /** If @a owner is false, ownership of @a a is not transferred */
    explicit HypreParMatrix(hypre_ParCSRMatrix *a, bool owner = true)
    {
       Init();
-      A = a;
-      if (!owner) { ParCSROwner = 0; }
-      height = GetNumRows();
-      width = GetNumCols();
+      WrapHypreParCSRMatrix(a, owner);
    }
 
    /** Creates block-diagonal square parallel matrix. Diagonal is given by diag
@@ -352,6 +361,8 @@ public:
    void GetDiag(SparseMatrix &diag) const;
    /// Get the local off-diagonal block. NOTE: 'offd' will not own any data.
    void GetOffd(SparseMatrix &offd, HYPRE_Int* &cmap) const;
+   /// Get on-processor rows as CSR matrix.
+   void GetProcRows(SparseMatrix &colCSRMat);
 
    /** Split the matrix into M x N equally sized blocks of parallel matrices.
        The size of 'blocks' must already be set to M x N. */
@@ -487,11 +498,17 @@ public:
    Type GetType() const { return Hypre_ParCSR; }
 };
 
+int BlockInvScal(const HypreParMatrix *A, HypreParMatrix *C,
+                 const Vector *b, HypreParVector *d, int block, int job);
+
 /** @brief Return a new matrix `C = alpha*A + beta*B`, assuming that both `A`
     and `B` use the same row and column partitions and the same `col_map_offd`
     arrays. */
 HypreParMatrix *Add(double alpha, const HypreParMatrix &A,
                     double beta,  const HypreParMatrix &B);
+
+HypreParMatrix *HypreParMatrixAdd(double alpha, const HypreParMatrix &A,
+                                  double beta,  const HypreParMatrix &B);
 
 /// Returns the matrix A * B
 HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B);
@@ -573,7 +590,7 @@ public:
        1001 = Taubin polynomial smoother
        1002 = FIR polynomial smoother. */
    enum Type { Jacobi = 0, l1Jacobi = 1, l1GS = 2, l1GStr = 4, lumpedJacobi = 5,
-               GS = 6, Chebyshev = 16, Taubin = 1001, FIR = 1002
+               GS = 6, TS = 10, Chebyshev = 16, Taubin = 1001, FIR = 1002
              };
 
    HypreSmoother();
@@ -652,6 +669,25 @@ public:
    virtual ~HypreSolver();
 };
 
+
+/// Abstract class for hypre's solvers and preconditioners
+class HypreTriSolve : public HypreSolver
+{
+public:
+   HypreTriSolve() : HypreSolver() { }
+   explicit HypreTriSolve(HypreParMatrix &A) : HypreSolver(&A) { }
+   virtual operator HYPRE_Solver() const { return NULL; }
+
+   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSROnProcTriSetup; }
+   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSROnProcTriSolve; }
+
+   HypreParMatrix* GetData() { return A; }
+   virtual ~HypreTriSolve() { }
+};
+
+
 /// PCG solver in hypre
 class HyprePCG : public HypreSolver
 {
@@ -711,6 +747,7 @@ public:
    HypreGMRES(HypreParMatrix &_A);
 
    void SetTol(double tol);
+   void SetAbsTol(double tol);
    void SetMaxIter(int max_iter);
    void SetKDim(int dim);
    void SetLogging(int logging);
@@ -834,8 +871,44 @@ public:
        As with SetSystemsOptions(), this solver assumes Ordering::byVDIM. */
    void SetElasticityOptions(ParFiniteElementSpace *fespace);
 
+   void SetAIROptions(int distance=2,  std::string prerelax="",
+                      std::string postrelax="FFC", double strength_tol=0.1,
+                      double strength_tolR=0.01,
+                      int interp_type=100, int relax_type=0, double filterA_tol=0.0, 
+                      int splitting=6, int blksize=0, int Sabs=0);
+
+   void SetCoord(int dim, float *coord);
+   
    void SetPrintLevel(int print_level)
    { HYPRE_BoomerAMGSetPrintLevel(amg_precond, print_level); }
+
+   void SetMaxIter(int max_iter)
+   { HYPRE_BoomerAMGSetMaxIter(amg_precond, max_iter); }
+
+   void SetMaxLevels(int max_levels)
+   { HYPRE_BoomerAMGSetMaxLevels(amg_precond, max_levels); }
+
+   void SetTol(double tol)
+   { HYPRE_BoomerAMGSetTol(amg_precond, tol); }
+
+   void SetInterpolation(int interp_type)
+   { HYPRE_BoomerAMGSetInterpType(amg_precond, interp_type); }
+
+   void SetRestriction(int restrict_type)
+   { HYPRE_BoomerAMGSetRestriction(amg_precond, restrict_type); }
+
+   void SetCoarsening(int coarsen_type)
+   { HYPRE_BoomerAMGSetCoarsenType(amg_precond, coarsen_type); }
+
+   void SetRelaxType(int relax_type)
+   { HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type); }
+
+   void SetRelaxCycle(int prerelax, int postrelax)
+   {  HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, prerelax,  1);
+      HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, postrelax, 2); }
+
+   void GetNumIterations(int &num_it)
+   { HYPRE_BoomerAMGGetNumIterations(amg_precond, &num_it); }
 
    /// The typecast to HYPRE_Solver returns the internal amg_precond
    virtual operator HYPRE_Solver() const { return amg_precond; }
@@ -844,6 +917,9 @@ public:
    { return (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSetup; }
    virtual HYPRE_PtrToParSolverFcn SolveFcn() const
    { return (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSolve; }
+
+   virtual void Mult (const HypreParVector &b, HypreParVector &x) const;
+   using HypreSolver::Mult;
 
    virtual ~HypreBoomerAMG();
 };

@@ -2262,6 +2262,12 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
 
    double un, a, b, w;
 
+// ADDED //
+#ifdef MFEM_THREAD_SAFE
+   Vector shape1, shape2;
+#endif
+// ADDED //
+
    dim = el1.GetDim();
    ndof1 = el1.GetDof();
    Vector vu(dim), nor(dim);
@@ -2385,7 +2391,11 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
          }
       }
    }
+
 }
+
+
+
 
 void DGDiffusionIntegrator::AssembleFaceMatrix(
    const FiniteElement &el1, const FiniteElement &el2,
@@ -2564,6 +2574,14 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
       {
          // only assemble the lower triangular part of jmat
          wq *= kappa;
+
+         // ADDED //
+         if (use_MIP)
+         {
+             wq = std::max(wq, 1/4.);
+         }
+         // ADDED //
+
          for (int i = 0; i < ndof1; i++)
          {
             const double wsi = wq*shape1(i);

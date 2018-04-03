@@ -225,6 +225,13 @@ public:
    void Eigensystem(Vector &ev, DenseMatrix &evect)
    { Eigensystem(ev, &evect); }
 
+   // ADDED //
+   void EigensystemNonSymmetric(Vector &evI, Vector &evR, DenseMatrix *evect);
+   void EigensystemNonSymmetric(Vector &evI, Vector &evR, DenseMatrix &evect)
+   { EigensystemNonSymmetric(evI, evR, &evect); }
+   // ADDED //
+
+
    void SingularValues(Vector &sv) const;
    int Rank(double tol) const;
 
@@ -613,6 +620,9 @@ public:
 class DenseMatrixSVD
 {
    Vector sv;
+   // ADDED //
+   DenseMatrix U, VT;
+   // ADDED //
    int m, n;
 
 #ifdef MFEM_USE_LAPACK
@@ -629,8 +639,13 @@ public:
    void Eval(DenseMatrix &M);
    Vector &Singularvalues() { return sv; }
    double Singularvalue(int i) { return sv(i); }
+   // ADDED //
+   DenseMatrix &RightSingularVectors() { return VT; }
+   DenseMatrix &LeftSingularVectors() { return U; }
+   // ADDED //
    ~DenseMatrixSVD();
 };
+
 
 class Table;
 

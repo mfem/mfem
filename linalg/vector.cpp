@@ -575,6 +575,19 @@ void Vector::SetSubVector(int index_low, int index_high, Vector &elemvect)
         k += 1;
     }
 }
+
+
+void Vector::AddElementVector(int index_low, int index_high, double c, Vector &elemvect)
+{
+    int i, j;
+    
+    int k = 0;
+    for (i = index_low; i < index_high; i++)
+    {
+        data[i] += c * elemvect(k);
+        k += 1;
+    }
+}
 // ADDED //
 
 
