@@ -31,7 +31,7 @@ static TargetT *DuplicateAs(const SourceT *array, int size,
                             bool cplusplus = true)
 {
    TargetT *target_array = cplusplus ? new TargetT[size]
-                           /*     */ : hypre_TAlloc(TargetT, size);
+                           /*     */ : hypre_TAlloc(TargetT, size, HYPRE_MEMORY_HOST);
    for (int i = 0; i < size; i++)
    {
       target_array[i] = array[i];
@@ -333,7 +333,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_Int glob_size,
    hypre_CSRMatrixSetRownnz(A->diag);
 
    hypre_CSRMatrixSetDataOwner(A->offd,1);
-   hypre_CSRMatrixI(A->offd) = hypre_CTAlloc(HYPRE_Int, diag->Height()+1);
+   hypre_CSRMatrixI(A->offd) = hypre_CTAlloc(HYPRE_Int, diag->Height()+1, HYPRE_MEMORY_HOST);
 
    /* Don't need to call these, since they allocate memory only
       if it was not already allocated */
@@ -372,7 +372,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    hypre_CSRMatrixSetRownnz(A->diag);
 
    hypre_CSRMatrixSetDataOwner(A->offd,1);
-   hypre_CSRMatrixI(A->offd) = hypre_CTAlloc(HYPRE_Int, diag->Height()+1);
+   hypre_CSRMatrixI(A->offd) = hypre_CTAlloc(HYPRE_Int, diag->Height()+1, HYPRE_MEMORY_HOST);
 
    hypre_ParCSRMatrixSetNumNonzeros(A);
 
@@ -546,7 +546,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    hypre_CSRMatrixSetRownnz(A->diag);
 
    hypre_CSRMatrixSetDataOwner(A->offd,1);
-   hypre_CSRMatrixI(A->offd) = hypre_CTAlloc(HYPRE_Int, diag->Size()+1);
+   hypre_CSRMatrixI(A->offd) = hypre_CTAlloc(HYPRE_Int, diag->Size()+1, HYPRE_MEMORY_HOST);
 
    hypre_ParCSRMatrixSetNumNonzeros(A);
 
@@ -677,7 +677,7 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows, HYPRE_Int glob_nrows,
    HYPRE_Int *row_starts, *col_starts;
    if (rows == cols)
    {
-      row_starts = col_starts = hypre_TAlloc(HYPRE_Int, part_size);
+      row_starts = col_starts = hypre_TAlloc(HYPRE_Int, part_size, HYPRE_MEMORY_HOST);
       for (int i = 0; i < part_size; i++)
       {
          row_starts[i] = rows[i];
@@ -685,8 +685,8 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows, HYPRE_Int glob_nrows,
    }
    else
    {
-      row_starts = hypre_TAlloc(HYPRE_Int, part_size);
-      col_starts = hypre_TAlloc(HYPRE_Int, part_size);
+      row_starts = hypre_TAlloc(HYPRE_Int, part_size, HYPRE_MEMORY_HOST);
+      col_starts = hypre_TAlloc(HYPRE_Int, part_size, HYPRE_MEMORY_HOST);
       for (int i = 0; i < part_size; i++)
       {
          row_starts[i] = rows[i];
@@ -821,7 +821,7 @@ void HypreParMatrix::CopyRowStarts()
    }
 
    HYPRE_Int *old_row_starts = hypre_ParCSRMatrixRowStarts(A);
-   HYPRE_Int *new_row_starts = hypre_CTAlloc(HYPRE_Int, row_starts_size);
+   HYPRE_Int *new_row_starts = hypre_CTAlloc(HYPRE_Int, row_starts_size, HYPRE_MEMORY_HOST);
    for (int i = 0; i < row_starts_size; i++)
    {
       new_row_starts[i] = old_row_starts[i];
@@ -858,7 +858,7 @@ void HypreParMatrix::CopyColStarts()
    }
 
    HYPRE_Int *old_col_starts = hypre_ParCSRMatrixColStarts(A);
-   HYPRE_Int *new_col_starts = hypre_CTAlloc(HYPRE_Int, col_starts_size);
+   HYPRE_Int *new_col_starts = hypre_CTAlloc(HYPRE_Int, col_starts_size, HYPRE_MEMORY_HOST);
    for (int i = 0; i < col_starts_size; i++)
    {
       new_col_starts[i] = old_col_starts[i];
@@ -1476,7 +1476,7 @@ int BlockInvScal(const HypreParMatrix *A, HypreParMatrix *C,
    
    if (-1 == job)
    {
-      hypre_TFree(bdiaginv);
+      hypre_TFree(bdiaginv, HYPRE_MEMORY_HOST);
       if (commpkg)
       {
          hypre_MatvecCommPkgDestroy(commpkg);
@@ -1891,7 +1891,7 @@ void HypreSmoother::SetOperator(const Operator &op)
    if (Z) { delete Z; }
    if (l1_norms)
    {
-      hypre_TFree(l1_norms);
+      hypre_TFree(l1_norms, HYPRE_MEMORY_HOST);
    }
    delete X0;
    delete X1;
@@ -1904,7 +1904,7 @@ void HypreSmoother::SetOperator(const Operator &op)
    }
    else if (type == 5)
    {
-      l1_norms = hypre_CTAlloc(double, height);
+      l1_norms = hypre_CTAlloc(double, height, HYPRE_MEMORY_HOST);
       Vector ones(height), diag(l1_norms, height);
       ones = 1.0;
       A->Mult(ones, diag);
@@ -2089,7 +2089,7 @@ HypreSmoother::~HypreSmoother()
    if (Z) { delete Z; }
    if (l1_norms)
    {
-      hypre_TFree(l1_norms);
+      hypre_TFree(l1_norms, HYPRE_MEMORY_HOST);
    }
    if (fir_coeffs)
    {
@@ -2508,6 +2508,7 @@ void HypreBoomerAMG::Mult(const HypreParVector &b, HypreParVector &x) const
          hypre_FinalizeTiming(time_index);
          hypre_ClearTiming();
       }
+exit(0);
    }
 
    if (print_level > 0)
@@ -2797,52 +2798,56 @@ void HypreBoomerAMG::SetAIROptions(int distance,
                                    double filterA_tol, 
                                    int splitting)
 {
-   int ns_down = prerelax.length();
-   int ns_up = postrelax.length();
-   int ns_coarse = 1;
-   std::string F("F");
-   std::string C("C");
-   std::string A("A");
+   int ns_down, ns_up, ns_coarse;
+   if (distance > 0)
+   {
+      ns_down = prerelax.length();
+      ns_up = postrelax.length();
+      ns_coarse = 1;
+      std::string F("F");
+      std::string C("C");
+      std::string A("A");
 
-   // Array to store relaxation scheme and pass to Hypre
-   int **grid_relax_points = (int **) malloc(4*sizeof(int *));
-   grid_relax_points[0] = NULL;
-   grid_relax_points[1] = (int *) malloc(sizeof(int)*ns_down);
-   grid_relax_points[2] = (int *) malloc(sizeof(int)*ns_up);
-   grid_relax_points[3] = (int *) malloc(sizeof(int));
-   grid_relax_points[3][0] = 0;
+      // Array to store relaxation scheme and pass to Hypre
+      int **grid_relax_points = (int **) malloc(4*sizeof(int *));
+      grid_relax_points[0] = NULL;
+      grid_relax_points[1] = (int *) malloc(sizeof(int)*ns_down);
+      grid_relax_points[2] = (int *) malloc(sizeof(int)*ns_up);
+      grid_relax_points[3] = (int *) malloc(sizeof(int));
+      grid_relax_points[3][0] = 0;
 
-   // set down relax scheme 
-   for(unsigned int i = 0; i<ns_down; i++) {
-      if (prerelax.compare(i,1,F) == 0) {
-         grid_relax_points[1][i] = -1;
+      // set down relax scheme 
+      for(unsigned int i = 0; i<ns_down; i++) {
+         if (prerelax.compare(i,1,F) == 0) {
+            grid_relax_points[1][i] = -1;
+         }
+         else if (prerelax.compare(i,1,C) == 0) {
+            grid_relax_points[1][i] = 1;
+         }
+         else if (prerelax.compare(i,1,A) == 0) {
+            grid_relax_points[1][i] = 0;
+         }
       }
-      else if (prerelax.compare(i,1,C) == 0) {
-         grid_relax_points[1][i] = 1;
+
+      // set up relax scheme 
+      for(unsigned int i = 0; i<ns_up; i++) {
+         if (postrelax.compare(i,1,F) == 0) {
+            grid_relax_points[2][i] = -1;
+         }
+         else if (postrelax.compare(i,1,C) == 0) {
+            grid_relax_points[2][i] = 1;
+         }
+         else if (postrelax.compare(i,1,A) == 0) {
+            grid_relax_points[2][i] = 0;
+         }
       }
-      else if (prerelax.compare(i,1,A) == 0) {
-         grid_relax_points[1][i] = 0;
-      }
+
+      HYPRE_BoomerAMGSetRestriction(amg_precond, distance);
+
+      HYPRE_BoomerAMGSetGridRelaxPoints(amg_precond, grid_relax_points);
+
+      HYPRE_BoomerAMGSetInterpType(amg_precond, interp_type);
    }
-
-   // set up relax scheme 
-   for(unsigned int i = 0; i<ns_up; i++) {
-      if (postrelax.compare(i,1,F) == 0) {
-         grid_relax_points[2][i] = -1;
-      }
-      else if (postrelax.compare(i,1,C) == 0) {
-         grid_relax_points[2][i] = 1;
-      }
-      else if (postrelax.compare(i,1,A) == 0) {
-         grid_relax_points[2][i] = 0;
-      }
-   }
-
-   HYPRE_BoomerAMGSetRestriction(amg_precond, distance);
-
-   HYPRE_BoomerAMGSetGridRelaxPoints(amg_precond, grid_relax_points);
-
-   HYPRE_BoomerAMGSetInterpType(amg_precond, interp_type);
    
    HYPRE_BoomerAMGSetCoarsenType(amg_precond, splitting);
    
@@ -2851,20 +2856,26 @@ void HypreBoomerAMG::SetAIROptions(int distance,
    
    HYPRE_BoomerAMGSetStrongThreshold(amg_precond, strength_tolC);
    
-   HYPRE_BoomerAMGSetStrongThresholdR(amg_precond, strength_tolR);
+   if (distance > 0)
+   {
+      HYPRE_BoomerAMGSetStrongThresholdR(amg_precond, strength_tolR);
+   }
 
    if (relax_type > -1)
    {
       HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type);
    }
 
-   HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, ns_coarse, 3);
-   HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, ns_down,   1);
-   HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, ns_up,     2);
+   if (distance > 0)
+   {
+      HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, ns_coarse, 3);
+      HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, ns_down,   1);
+      HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, ns_up,     2);
 
-   HYPRE_BoomerAMGSetADropTol(amg_precond, filterA_tol);
-   /* type = -1: drop based on row inf-norm */
-   HYPRE_BoomerAMGSetADropType(amg_precond, -1);
+      HYPRE_BoomerAMGSetADropTol(amg_precond, filterA_tol);
+      /* type = -1: drop based on row inf-norm */
+      HYPRE_BoomerAMGSetADropType(amg_precond, -1);
+   }
 }
 
 HypreBoomerAMG::~HypreBoomerAMG()
@@ -3709,7 +3720,7 @@ HypreAME::~HypreAME()
 {
    if ( multi_vec )
    {
-      hypre_TFree(multi_vec);
+      hypre_TFree(multi_vec, HYPRE_MEMORY_HOST);
    }
 
    if ( eigenvectors )
@@ -3723,7 +3734,7 @@ HypreAME::~HypreAME()
 
    if ( eigenvalues )
    {
-      hypre_TFree(eigenvalues);
+      hypre_TFree(eigenvalues, HYPRE_MEMORY_HOST);
    }
 
    HYPRE_AMEDestroy(ame_solver);

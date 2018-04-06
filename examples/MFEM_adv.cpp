@@ -195,6 +195,8 @@ int main(int argc, char *argv[])
                   "Distance restriction neighborhood for AIR.");
    args.AddOption(&(AIR.interp_type), "-Ai", "--AIR-interpolation",
                   "Index for hypre interpolation routine.");
+   args.AddOption(&(AIR.relax_type), "-Ar", "--AIR-relaxation",
+                  "Index for hypre relaxation routine.");
    args.AddOption(&(AIR.coarsening), "-Ac", "--AIR-coarsening",
                   "Index for hypre coarsening routine.");
    args.AddOption(&(AIR.strength_tolC), "-AsC", "--AIR-strengthC",
@@ -329,6 +331,7 @@ int main(int argc, char *argv[])
    u->ProjectCoefficient(u0);
    HypreParVector *U = u->GetTrueDofs();
 
+   /*
    {
       ostringstream mesh_name, sol_name;
       mesh_name << "ex9-mesh." << setfill('0') << setw(6) << myid;
@@ -340,6 +343,7 @@ int main(int argc, char *argv[])
       osol.precision(precision);
       u->Save(osol);
    }
+   */
 
    // Create data collection for solution output: either VisItDataCollection for
    // ascii data files, or SidreDataCollection for binary data files.
@@ -442,6 +446,7 @@ int main(int argc, char *argv[])
 
    // 12. Save the final solution in parallel. This output can be viewed later
    //     using GLVis: "glvis -np <np> -m ex9-mesh -g ex9-final".
+   /*
    {
       *u = *U;
       ostringstream sol_name;
@@ -450,6 +455,7 @@ int main(int argc, char *argv[])
       osol.precision(precision);
       u->Save(osol);
    }
+   */
 
    // 13. Free the used memory.
    delete U;
@@ -525,6 +531,7 @@ void FE_Evolution::ImplicitSolve(const double dt, const Vector &u, Vector &du_dt
       /* scale T by block-diagonal inverse */
       //printf("blocksize %d\n", blocksize);
       BlockInvScal(T, &T_s, NULL, NULL, blocksize, 0);
+      /*
       if (myid == 0) 
       {
          std::cout << "assembled matrices: " << T->GetNumRows() << ", " \
@@ -537,21 +544,22 @@ void FE_Evolution::ImplicitSolve(const double dt, const Vector &u, Vector &du_dt
          exit(0);
 
       }
+      */
 
       AMG_solver = new HypreBoomerAMG(T_s);
       AMG_solver->SetAIROptions(AIR.distance, AIR.prerelax, AIR.postrelax,
                                 AIR.strength_tolC, AIR.strength_tolR, AIR.interp_type, AIR.relax_type,
                                 AIR.filterA_tol, AIR.coarsening);
       if (!use_gmres) {
-         AMG_solver->SetPrintLevel(2);
+         AMG_solver->SetPrintLevel(3);
          AMG_solver->SetTol(solve_tol);
-         AMG_solver->SetMaxIter(500);
+         AMG_solver->SetMaxIter(100);
       }
       else {
          GMRES_solver = new HypreGMRES(T_s);
          GMRES_solver->SetAbsTol(solve_tol);
-         GMRES_solver->SetMaxIter(500);
-         GMRES_solver->SetPrintLevel(1);
+         GMRES_solver->SetMaxIter(100);
+         GMRES_solver->SetPrintLevel(3);
          GMRES_solver->SetPreconditioner(*AMG_solver);
 
          /* TODO zero init guess ? */
