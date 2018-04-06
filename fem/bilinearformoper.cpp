@@ -51,11 +51,20 @@ static void BuildDofMaps(FiniteElementSpace *fespace, Array<int> *&off,
 
       fespace->GetElementVDofs(e, elem_vdof);
 
-      for (int vd = 0; vd < vdim; vd++)
-         for (int i = 0; i < vdofs; i++)
-         {
-            global_map[offset + dofs*vd + i] = elem_vdof[dofs*vd + dof_map[i]];
-         }
+      if (dof_map.Size()==0)
+      {
+         for (int vd = 0; vd < vdim; vd++)
+            for (int i = 0; i < vdofs; i++)
+            {
+               global_map[offset + dofs*vd + i] = elem_vdof[dofs*vd + i];
+            }
+      }else{
+         for (int vd = 0; vd < vdim; vd++)
+            for (int i = 0; i < vdofs; i++)
+            {
+               global_map[offset + dofs*vd + i] = elem_vdof[dofs*vd + dof_map[i]];
+            }
+      }
       offset += vdofs;
    }
 

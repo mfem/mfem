@@ -177,6 +177,17 @@ public:
       }
    }
 
+   void evalEq(const int dim, const int k, const int e, ElementTransformation * Tr,
+               const IntegrationPoint & ip, const Tensor<2>& J, const typename Equation::Args& args)
+   {
+      Tensor<1> res(dim);
+      this->evalD(res, Tr, ip, J, args);
+      for (int i = 0; i < dim; ++i)
+      {
+         this->D(i,k,e) = res(i);
+      }
+   }
+
 protected:
    /**
    *  The domain Kernels for BtDG in 1d,2d and 3d.
@@ -725,7 +736,6 @@ template<typename Equation>
 void DomainMult<Equation,PAOp::BtDG>::Mult3d(const Vector &V, Vector &U)
 {
    const int dim = 3;
-   const int terms = dim*dim;
 
    const FiniteElement *fe = fes->GetFE(0);
    const int dofs   = fe->GetDof();

@@ -149,6 +149,30 @@ public:
    }
 
    /**
+   *  A copy assignment operator
+   */
+   Tensor& operator=(const Tensor& t)
+   {
+      const int nb = t.length();
+      if (nb>capacity)
+      {
+         data = new Scalar[nb];
+         own_data = true;
+         capacity = nb;
+      }
+      for (int i = 0; i < Dim; ++i)
+      {
+         sizes[i] = t.size(i);
+      }
+      const Scalar* data_t = t.getData();
+      for (int i = 0; i < nb; ++i)
+      {
+         data[i] = data_t[i];
+      }
+      return *this;
+   }
+
+   /**
    *  Sets the size of the tensor, and allocate memory if necessary
    */
    template <typename... Args>
@@ -182,7 +206,7 @@ public:
    *  A const accessor for the data
    */
    template <typename... Args>
-   Scalar operator()(Args... args) const
+   const Scalar& operator()(Args... args) const
    {
       static_assert(sizeof...(args)==Dim, "Wrong number of arguments");
       return data[ TensorInd<1,Dim,Args...>::result(sizes,args...) ];
@@ -202,7 +226,7 @@ public:
    *  A const accessor for the data
    */
    template <typename... Args>
-   Scalar operator[](Args... args) const
+   const Scalar& operator[](Args... args) const
    {
       static_assert(sizeof...(args)==Dim, "Wrong number of arguments");
       return data[ TensorInd<1,Dim,Args...>::result(sizes,args...) ];
@@ -229,15 +253,27 @@ public:
    /**
    *  Returns the size of the i-th dimension #UNSAFE#
    */
-   int size(int i) const
+   const int size(int i) const
    {
       return sizes[i];
+   }
+
+   const int Height() const
+   {
+      static_assert(Dim==2, "Height() should only be used for second order tensors");
+      return sizes[0];
+   }
+
+   const int Width() const
+   {
+      static_assert(Dim==2, "Width() should only be used for second order tensors");
+      return sizes[1];
    }
 
    /**
    *  Returns the length of the Tensor (number of values)
    */
-   int length() const
+   const int length() const
    {
       int res = 1;
       for (int i = 0; i < Dim; ++i)
@@ -250,7 +286,7 @@ public:
    /**
    *  Returns the dimension of the tensor.
    */
-   int dimension() const
+   const int dimension() const
    {
       return Dim;
    }
@@ -291,13 +327,43 @@ public:
    }
 };
 
-template <typename Scalar,int N>
-void zero(Tensor<N,Scalar>& t)
+// template <typename Scalar,int N>
+// void zero(Tensor<N,Scalar>& t)
+// {
+//    for (int i = 0; i < t.length(); ++i)
+//    {
+//       t[i] = Scalar();
+//    }  
+// }
+
+inline void adjugate(const Tensor<2>& A, Tensor<2>& Adj)
 {
-   for (int i = 0; i < t.length(); ++i)
-   {
-      t[i] = Scalar();
-   }  
+   const int dim = A.Height();
+   switch(dim){
+      case 1:
+         Adj(0,0) = A(0,0);
+         break;
+      case 2:
+         Adj(0,0) =  A(1,1); Adj(0,1) = -A(0,1);
+         Adj(1,0) = -A(1,0); Adj(1,1) =  A(0,0);
+         break;
+      case 3:
+         Adj(0,0) =  A(1,1)*A(2,2)-A(1,2)*A(2,1);
+         Adj(0,1) = -A(0,1)*A(2,2)+A(0,2)*A(2,1);
+         Adj(0,2) =  A(0,1)*A(1,2)-A(0,2)*A(1,1);
+         //
+         Adj(1,0) = -A(1,0)*A(2,2)+A(1,2)*A(2,0);
+         Adj(1,1) =  A(0,0)*A(2,2)-A(0,2)*A(2,0);
+         Adj(1,2) = -A(0,0)*A(1,2)+A(0,2)*A(1,0);
+         //
+         Adj(2,0) =  A(1,0)*A(2,1)-A(1,1)*A(2,0);
+         Adj(2,1) = -A(0,0)*A(2,1)+A(0,1)*A(2,0);
+         Adj(2,2) =  A(0,0)*A(1,1)-A(0,1)*A(1,0);
+         break;
+      default:
+         mfem_error("adjugate not defined for this size");
+         break;
+   }
 }
 
 /**

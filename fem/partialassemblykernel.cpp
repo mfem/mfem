@@ -1085,7 +1085,8 @@ void MultBtDB2ext(int ind_trial, FiniteElementSpace* fes,
    // int quads1d = shape1d.Width();
    // number of dofs for trial functions in every direction relative to
    // the element on which trial functions are.
-   int i1(dofs1d),i2(dofs1d);
+   // int i1(dofs1d)
+   int i2(dofs1d);
    // number of dofs for test functions in every direction relative to
    // the element on which trial functions are.
    int j1(dofs1d),j2(dofs1d);

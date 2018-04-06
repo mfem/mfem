@@ -76,6 +76,49 @@ public:
    }
 
    /**
+   *  Returns the values of the D tensor at a given integration Point.
+   */
+   void evalD(Tensor<1>& res, ElementTransformation *Tr, const IntegrationPoint& ip,
+                  const Tensor<2>& Jac, const Args& args)
+   {
+      const int dim = res.size(0);
+      Vector qvec(dim);
+      args.q.Eval(qvec, *Tr, ip);
+      Tensor<2> Adj(dim,dim);
+      adjugate(Jac,Adj);
+      //DEBUG
+      // const DenseMatrix& locD = Tr->Jacobian();
+      // cout << "locD" << endl;
+      // cout << locD << endl;
+      // cout << "Jac" << endl;
+      // cout << Jac << endl;
+      // const DenseMatrix& locD = Tr->AdjugateJacobian();
+      // cout << "locD" << endl;
+      // cout << locD << endl;
+      // cout << "Adj" << endl;
+      // cout << Adj << endl;
+      // for (int i = 0; i < dim; ++i)
+      // {
+      //    for (int j = 0; j < dim; ++j)
+      //    {
+      //       if (locD(i,j)!=Adj(i,j))
+      //       {
+      //          cout << locD(i,j) << "!=" << Adj(i,j) << endl;
+      //       }
+      //    }
+      // }
+      for (int i = 0; i < dim; ++i)
+      {
+         double val = 0.0;
+         for (int j = 0; j < dim; ++j)
+         {
+            val += Adj(i,j) * qvec(j);
+         }
+         res(i) = ip.weight * args.a * val;
+      }
+   }
+
+   /**
    *  Defines the Kernel to apply to the Faces
    */
    static const PAOp FaceOpName = BtDB;

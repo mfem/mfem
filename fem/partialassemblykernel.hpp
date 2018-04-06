@@ -67,14 +67,19 @@ public:
       const FiniteElement* fe = fes->GetFE(0);
       const int dim = fe->GetDim();
       this->InitD(dim,quads,nb_elts);
+      Tensor<1> Jac1D(dim*dim*quads*nb_elts);
+      EvalJacobians(dim,fes,order,Jac1D);
+      Tensor<4> Jac(Jac1D.getData(),dim,dim,quads,nb_elts);
       for (int e = 0; e < nb_elts; ++e)
       {
          ElementTransformation *Tr = fes->GetElementTransformation(e);
          for (int k = 0; k < quads; ++k)
          {
+            Tensor<2> J_ek(&Jac(0,0,k,e),dim,dim);
             const IntegrationPoint &ip = IntRule->IntPoint(k);
             Tr->SetIntPoint(&ip);
-            this->evalEq(dim, k, e, Tr, ip, args);
+            // this->evalEq(dim, k, e, Tr, ip, args);
+            this->evalEq(dim, k, e, Tr, ip, J_ek, args);
          }
       }
    }

@@ -301,9 +301,9 @@ public:
    ElementTransformation *GetElementTransformation(int i) const
    { return mesh->GetElementTransformation(i); }
 
-   /** @brief Returns the transformation defining the @a i-th element in the
-       user-defined variable @a ElTr. */
-   void GetElementTransformation(int i, IsoparametricTransformation *ElTr)
+   /** Returns the transformation defining the i-th element in the user-defined
+       variable. */
+   void GetElementTransformation(int i, IsoparametricTransformation *ElTr) const
    { mesh->GetElementTransformation(i, ElTr); }
 
    /// Returns ElementTransformation for the @a i-th boundary element.

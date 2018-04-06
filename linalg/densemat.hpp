@@ -337,6 +337,19 @@ public:
 
    /// Destroys dense matrix.
    virtual ~DenseMatrix();
+
+   friend std::ostream& operator<<(std::ostream& os, const DenseMatrix& M)
+   {
+      for (int i = 0; i < M.Height(); ++i)
+      {
+        for (int j = 0; j < M.Width(); ++j)
+        {
+          os << M(i,j) << " ";   
+        }
+        os << "\n";
+      }
+      return os;
+   }
 };
 
 /// C = A + alpha*B

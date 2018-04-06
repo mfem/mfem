@@ -170,6 +170,10 @@ int main(int argc, char *argv[])
    {
       mesh->SetCurvature(max(order, 1));
    }
+   if (!mesh->GetNodes())
+   {
+      mesh->SetCurvature(1);
+   }
    mesh->GetBoundingBox(bb_min, bb_max, max(order, 1));
 
    // 5. Define the discontinuous DG finite element space of the given
