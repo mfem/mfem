@@ -87,41 +87,41 @@ void print_AIR(AIR_parameters AIR) {
     used to evaluate the right-hand side. */
 class FE_Evolution : public TimeDependentOperator
 {
-private:
-   HypreParMatrix &M, &K, *T; // T = M - dt K;
-   HypreSmoother M_prec;
-   CGSolver M_solver;
-   /* Precond/Solver for T */
-   HypreBoomerAMG *AMG_solver;
-   HypreGMRES     *GMRES_solver;
-   /* scaled version of T and z */
-   HypreParMatrix T_s;
+   private:
+      HypreParMatrix &M, &K, *T; // T = M - dt K;
+      HypreSmoother M_prec;
+      CGSolver M_solver;
+      /* Precond/Solver for T */
+      HypreBoomerAMG *AMG_solver;
+      HypreGMRES     *GMRES_solver;
+      /* scaled version of T and z */
+      HypreParMatrix T_s;
 
-   const Vector &b;
-   mutable Vector z;
-   double current_dt;
-   int blocksize;
-   AIR_parameters AIR;
+      const Vector &b;
+      mutable Vector z;
+      double current_dt;
+      int blocksize;
+      AIR_parameters AIR;
 
-public:
-   FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K, const Vector &_b,
-                const int order, const AIR_parameters *AIR_init=NULL);
+   public:
+      FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K, const Vector &_b,
+                   const int order, const AIR_parameters *AIR_init=NULL);
 
-   virtual void Mult(const Vector &x, Vector &y) const;
+      virtual void Mult(const Vector &x, Vector &y) const;
 
-   /** Solve the Backward-Euler equation: d = f(x + dt*d, t+dt), where u_t = f(x,t).
-       This is the only requirement for high-order SDIRK implicit integration.*/
-   virtual void ImplicitSolve(const double dt, const Vector &u, Vector &k);
+      /** Solve the Backward-Euler equation: d = f(x + dt*d, t+dt), where u_t = f(x,t).
+        This is the only requirement for high-order SDIRK implicit integration.*/
+      virtual void ImplicitSolve(const double dt, const Vector &u, Vector &k);
 
-   void Destroy()
-   {
-      BlockInvScal(NULL, NULL, NULL, NULL, 0, -1);
-      if (T) delete T;
-      if (AMG_solver) delete AMG_solver;
-      if (GMRES_solver) delete GMRES_solver;
-   }
+      void Destroy()
+      {
+         BlockInvScal(NULL, NULL, NULL, NULL, 0, -1);
+         if (T) delete T;
+         if (AMG_solver) delete AMG_solver;
+         if (GMRES_solver) delete GMRES_solver;
+      }
 
-   //virtual ~FE_Evolution() { }
+      //virtual ~FE_Evolution() { }
 };
 
 
@@ -529,11 +529,13 @@ void FE_Evolution::ImplicitSolve(const double dt, const Vector &u, Vector &du_dt
       {
          std::cout << "assembled matrices: " << T->GetNumRows() << ", " \
                                << T->GetNumCols() << ", " << T->NNZ() << "\n";
-         T->Print("T.mtx",1,1);
+         M->Print("M.mtx",1,1);
+         K->Print("K.mtx",1,1);
+         //T->Print("T.mtx",1,1);
          std::cout << "scaled matrices: " << T_s.GetNumRows() << ", " \
                                << T_s.GetNumCols() << ", " << T_s.NNZ() << "\n";
 
-         T_s.Print("Ts.mtx",1,1);
+         //T_s.Print("Ts.mtx",1,1);
          exit(0);
 
       }
