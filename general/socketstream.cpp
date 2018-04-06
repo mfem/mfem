@@ -35,7 +35,9 @@ typedef int ssize_t;
 
 #ifdef MFEM_USE_GNUTLS
 #include <cstdlib>  // getenv
+#ifndef MFEM_USE_GNUTLS_X509
 #include <gnutls/openpgp.h>
+#endif
 // Enable debug messages from GnuTLS_* classes
 // #define MFEM_USE_GNUTLS_DEBUG
 #endif
@@ -437,10 +439,18 @@ GnuTLS_session_params::GnuTLS_session_params(
    if (!status.good()) { my_cred = NULL; }
    else
    {
+#ifndef MFEM_USE_GNUTLS_X509
       status.set_result(
          gnutls_certificate_set_openpgp_key_file(
             my_cred, pubkey_file, privkey_file, GNUTLS_OPENPGP_FMT_RAW));
       status.print_on_error("gnutls_certificate_set_openpgp_key_file");
+#else
+      status.set_result(
+         gnutls_certificate_set_x509_key_file(
+            my_cred, pubkey_file, privkey_file, GNUTLS_X509_FMT_PEM));
+      // e.g. pubkey_file, privkey_file == "cert.pem", "key.pem"
+      status.print_on_error("gnutls_certificate_set_x509_key_file");
+#endif
    }
 
    if (status.good())
@@ -455,10 +465,24 @@ GnuTLS_session_params::GnuTLS_session_params(
 
    if (status.good())
    {
+#ifndef MFEM_USE_GNUTLS_X509
       status.set_result(
          gnutls_certificate_set_openpgp_keyring_file(
             my_cred, trustedkeys_file, GNUTLS_OPENPGP_FMT_RAW));
       status.print_on_error("gnutls_certificate_set_openpgp_keyring_file");
+#else
+      int num_certs =
+         gnutls_certificate_set_x509_trust_file(
+            my_cred, trustedkeys_file, GNUTLS_X509_FMT_PEM);
+      // e.g. trustedkeys_file == "trusted-certs.pem"
+#ifdef MFEM_USE_GNUTLS_DEBUG
+      mfem::out << "[GnuTLS_session_params::GnuTLS_session_params] "
+                "number of trusted certificates = " << num_certs << std::endl;
+#endif
+      status.set_result(num_certs > 0 ?
+                        GNUTLS_E_SUCCESS : GNUTLS_E_CERTIFICATE_ERROR);
+      status.print_on_error("gnutls_certificate_set_x509_trust_file");
+#endif
    }
 
 #if GNUTLS_VERSION_NUMBER >= 0x021000
@@ -547,13 +571,22 @@ void GnuTLS_socketbuf::start_session()
       if (gnutls_check_version("2.12.0") != NULL)
       {
          // This works for version 2.12.23 (0x020c17) and above
+#ifndef MFEM_USE_GNUTLS_X509
          priorities = "NONE:+VERS-TLS1.2:+CIPHER-ALL:+MAC-ALL:+SIGN-ALL:"
                       "+COMP-ALL:+KX-ALL:+CTYPE-OPENPGP:+CURVE-ALL";
+#else
+         priorities = "NONE:+VERS-TLS1.2:+CIPHER-ALL:+MAC-ALL:+SIGN-ALL:"
+                      "+COMP-ALL:+KX-ALL:+CTYPE-X509:+CURVE-ALL";
+#endif
       }
       else
       {
          // This works for version 2.8.5 (0x020805) and below
+#ifndef MFEM_USE_GNUTLS_X509
          priorities = "NORMAL:-CTYPE-X.509";
+#else
+         priorities = "NORMAL:";
+#endif
       }
       const char *err_ptr;
       status.set_result(
@@ -876,9 +909,15 @@ GnuTLS_session_params &socketstream::add_socket()
       // state->set_log_level(1000);
       std::string home_dir(getenv("HOME"));
       std::string client_dir = home_dir + "/.config/glvis/client/";
+#ifndef MFEM_USE_GNUTLS_X509
       std::string pubkey  = client_dir + "pubring.gpg";
       std::string privkey = client_dir + "secring.gpg";
       std::string trustedkeys = client_dir + "trusted-servers.gpg";
+#else
+      std::string pubkey  = client_dir + "cert.pem";
+      std::string privkey = client_dir + "key.pem";
+      std::string trustedkeys = client_dir + "trusted-servers.pem";
+#endif
       params = new GnuTLS_session_params(
          *state, pubkey.c_str(), privkey.c_str(), trustedkeys.c_str(),
          GNUTLS_CLIENT);

@@ -30,26 +30,29 @@ protected:
    mutable OperatorHandle pGrad;
 
 public:
-   ParNonlinearForm(ParFiniteElementSpace *pf)
-      : NonlinearForm(pf), X(pf), Y(pf), pGrad(Operator::Hypre_ParCSR)
-   { height = width = pf->TrueVSize(); }
+   ParNonlinearForm(ParFiniteElementSpace *pf);
 
    ParFiniteElementSpace *ParFESpace() const
    { return (ParFiniteElementSpace *)fes; }
 
-   // Here, rhs is a true dof vector
-   virtual void SetEssentialBC(const Array<int> &bdr_attr_is_ess,
-                               Vector *rhs = NULL);
+   /// Compute the energy corresponding to the state @a x.
+   /** In general, @a x may have non-homogeneous essential boundary values.
+
+       The state @a x must be a "GridFunction size" vector, i.e. its size must
+       be fes->GetVSize(). */
+   double GetParGridFunctionEnergy(const Vector &x) const;
 
    /// Compute the energy of a ParGridFunction
-   virtual double GetEnergy(const ParGridFunction &x) const;
+   double GetEnergy(const ParGridFunction &x) const
+   { return GetParGridFunctionEnergy(x); }
 
-   /// Compute the energy of a true-dof vector 'x'
-   virtual double GetEnergy(const Vector &x) const;
+   virtual double GetEnergy(const Vector &x) const
+   { return GetParGridFunctionEnergy(Prolongate(x)); }
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
-   /// Return the local gradient matrix for the given true-dof vector x
+   /// Return the local gradient matrix for the given true-dof vector x.
+   /** The returned matrix does NOT have any boundary conditions imposed. */
    const SparseMatrix &GetLocalGradient(const Vector &x) const;
 
    virtual Operator &GetGradient(const Vector &x) const;
@@ -57,14 +60,62 @@ public:
    /// Set the operator type id for the parallel gradient matrix/operator.
    void SetGradientType(Operator::Type tid) { pGrad.SetType(tid); }
 
-   /// Get the parallel finite element space prolongation matrix
-   virtual const Operator *GetProlongation() const
-   { return ParFESpace()->GetProlongationMatrix(); }
-   /// Get the parallel finite element space restriction matrix
-   virtual const Operator *GetRestriction() const
-   { return ParFESpace()->GetRestrictionMatrix(); }
+   /** @brief Update the ParNonlinearForm to propagate updates of the associated
+       parallel FE space. */
+   /** After calling this method, the essential boundary conditions need to be
+       set again. */
+   virtual void Update();
 
    virtual ~ParNonlinearForm() { }
+};
+
+
+/** @brief A class representing a general parallel block nonlinear operator
+    defined on the Cartesian product of multiple ParFiniteElementSpace%s. */
+/** The ParBlockNonlinearForm takes as input, and returns as output, vectors on
+    the true dofs. */
+class ParBlockNonlinearForm : public BlockNonlinearForm
+{
+protected:
+   mutable BlockVector xs_true, ys_true;
+   mutable Array2D<OperatorHandle *> phBlockGrad;
+   mutable BlockOperator *pBlockGrad;
+
+public:
+   /// Construct an empty ParBlockNonlinearForm. Initialize with SetParSpaces().
+   ParBlockNonlinearForm() : pBlockGrad(NULL) { }
+
+   /** @brief Construct a ParBlockNonlinearForm on the given set of
+       ParFiniteElementSpace%s. */
+   ParBlockNonlinearForm(Array<ParFiniteElementSpace *> &pf);
+
+   /// Return the @a k-th parallel FE space of the ParBlockNonlinearForm.
+   ParFiniteElementSpace *ParFESpace(int k);
+   /** @brief Return the @a k-th parallel FE space of the ParBlockNonlinearForm
+       (const version). */
+   const ParFiniteElementSpace *ParFESpace(int k) const;
+
+   /** @brief After a call to SetParSpaces(), the essential b.c. and the
+       gradient-type (if different from the default) must be set again. */
+   void SetParSpaces(Array<ParFiniteElementSpace *> &pf);
+
+   // Here, rhs is a true dof vector
+   virtual void SetEssentialBC(const Array<Array<int> *>&bdr_attr_is_ess,
+                               Array<Vector *> &rhs);
+
+   virtual void Mult(const Vector &x, Vector &y) const;
+
+   /// Return the local block gradient matrix for the given true-dof vector x
+   const BlockOperator &GetLocalGradient(const Vector &x) const;
+
+   virtual BlockOperator &GetGradient(const Vector &x) const;
+
+   /** @brief Set the operator type id for the blocks of the parallel gradient
+       matrix/operator. The default type is Operator::Hypre_ParCSR. */
+   void SetGradientType(Operator::Type tid);
+
+   /// Destructor.
+   virtual ~ParBlockNonlinearForm();
 };
 
 }

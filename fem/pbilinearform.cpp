@@ -171,6 +171,10 @@ void ParBilinearForm::ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local)
 
    // TODO - assemble the Dof_TrueDof_Matrix directly in the required format?
    Ph.ConvertFrom(pfes->Dof_TrueDof_Matrix());
+   // TODO: When Ph.Type() == Operator::ANY_TYPE we want to use the Operator
+   // returned by pfes->GetProlongationMatrix(), however that Operator is a
+   // const Operator, so we cannot store it in OperatorHandle. We need a const
+   // version of class OperatorHandle, e.g. ConstOperatorHandle.
 
    A.MakePtAP(dA, Ph);
 }
@@ -382,7 +386,7 @@ void ParBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
       {
          static_cond->SetEssentialTrueDofs(ess_tdof_list);
          static_cond->Finalize();
-         static_cond->EliminateReducedTrueDofs(0);
+         static_cond->EliminateReducedTrueDofs(Matrix::DIAG_ONE);
       }
       static_cond->GetParallelMatrix(A);
    }

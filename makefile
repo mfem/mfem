@@ -71,10 +71,11 @@ make style
 
 endef
 
+# Save the MAKEOVERRIDES for cases where we explicitly want to pass the command
+# line overrides to sub-make:
+override MAKEOVERRIDES_SAVE := $(MAKEOVERRIDES)
 # Do not pass down variables from the command-line to sub-make:
 MAKEOVERRIDES =
-# Note: this produces some undesired results, e.g. the following does not work
-# as expected: "make pdebug -j 4 MPICXX=mpic++".
 
 # Path to the mfem source directory, defaults to this makefile's directory:
 THIS_MK := $(lastword $(MAKEFILE_LIST))
@@ -92,7 +93,7 @@ EXAMPLE_SUBDIRS = sundials petsc
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
-MINIAPP_SUBDIRS = common electromagnetics meshing performance tools
+MINIAPP_SUBDIRS = common electromagnetics meshing performance tools nurbs
 MINIAPP_DIRS := $(addprefix miniapps/,$(MINIAPP_SUBDIRS))
 MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
 MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics tools)
@@ -156,7 +157,15 @@ endif
 # Compile flags used by MFEM: CPPFLAGS, CXXFLAGS, plus library flags
 INCFLAGS =
 # Link flags used by MFEM: library link flags plus LDFLAGS (added last)
-ALL_LIBS = -L@MFEM_LIB_DIR@ -lmfem
+ALL_LIBS =
+
+# Building static and/or shared libraries:
+MFEM_STATIC ?= $(STATIC)
+MFEM_SHARED ?= $(SHARED)
+
+# Internal shortcuts
+override static = $(if $(MFEM_STATIC:YES=),,YES)
+override shared = $(if $(MFEM_SHARED:YES=),,YES)
 
 # The default value of CXXFLAGS is based on the value of MFEM_DEBUG
 ifeq ($(MFEM_DEBUG),YES)
@@ -187,7 +196,7 @@ ifeq ($(MFEM_USE_OPENMP),YES)
 endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
-MFEM_REQ_LIB_DEPS = METIS SIDRE LAPACK SUNDIALS MESQUITE SUITESPARSE SUPERLU\
+MFEM_REQ_LIB_DEPS = SUPERLU METIS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE SUITESPARSE\
  STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 
@@ -224,31 +233,36 @@ endif
 
 # gzstream configuration
 ifeq ($(MFEM_USE_GZSTREAM),YES)
-   ALL_LIBS += -lz
+   INCFLAGS += $(ZLIB_OPT)
+   ALL_LIBS += $(ZLIB_LIB)
 endif
 
 # List of all defines that may be enabled in config.hpp and config.mk:
 MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
- MFEM_USE_METIS MFEM_USE_METIS_5 MFEM_DEBUG MFEM_USE_GZSTREAM\
- MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE MFEM_USE_OPENMP\
- MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS MFEM_USE_MESQUITE\
- MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU MFEM_USE_STRUMPACK\
- MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE
+ MFEM_USE_METIS MFEM_USE_METIS_5 MFEM_DEBUG MFEM_USE_EXCEPTIONS\
+ MFEM_USE_GZSTREAM MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE\
+ MFEM_USE_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS\
+ MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU\
+ MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC\
+ MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
- MFEM_TPLFLAGS MFEM_INCFLAGS MFEM_FLAGS MFEM_LIB_DIR MFEM_LIBS MFEM_LIB_FILE\
- MFEM_BUILD_TAG MFEM_PREFIX MFEM_CONFIG_EXTRA MFEM_MPIEXEC MFEM_MPIEXEC_NP\
- MFEM_MPI_NP MFEM_TEST_MK
+ MFEM_TPLFLAGS MFEM_INCFLAGS MFEM_PICFLAG MFEM_FLAGS MFEM_LIB_DIR MFEM_EXT_LIBS\
+ MFEM_LIBS MFEM_LIB_FILE MFEM_STATIC MFEM_SHARED MFEM_BUILD_TAG MFEM_PREFIX\
+ MFEM_CONFIG_EXTRA MFEM_MPIEXEC MFEM_MPIEXEC_NP MFEM_MPI_NP MFEM_TEST_MK
 
 # Config vars: values of the form @VAL@ are replaced by $(VAL) in config.mk
 MFEM_CPPFLAGS  ?= $(CPPFLAGS)
 MFEM_CXXFLAGS  ?= $(CXXFLAGS)
 MFEM_TPLFLAGS  ?= $(INCFLAGS)
 MFEM_INCFLAGS  ?= -I@MFEM_INC_DIR@ @MFEM_TPLFLAGS@
+MFEM_PICFLAG   ?= $(if $(shared),$(PICFLAG))
 MFEM_FLAGS     ?= @MFEM_CPPFLAGS@ @MFEM_CXXFLAGS@ @MFEM_INCFLAGS@
-MFEM_LIBS      ?= $(ALL_LIBS) $(LDFLAGS)
-MFEM_LIB_FILE  ?= @MFEM_LIB_DIR@/libmfem.a
+MFEM_EXT_LIBS  ?= $(ALL_LIBS) $(LDFLAGS)
+MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
+   @MFEM_EXT_LIBS@
+MFEM_LIB_FILE  ?= @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_EXT),a)
 MFEM_BUILD_TAG ?= $(shell uname -snm)
 MFEM_PREFIX    ?= $(PREFIX)
 MFEM_INC_DIR   ?= $(if $(BUILD_DIR_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
@@ -273,6 +287,12 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
    PREFIX_INC   := $(PREFIX)/include
    PREFIX_LIB   := $(PREFIX)/lib
    PREFIX_SHARE := $(PREFIX)/share/mfem
+   override MFEM_DIR := $(MFEM_REAL_DIR)
+   MFEM_INCFLAGS = -I@MFEM_INC_DIR@ @MFEM_TPLFLAGS@
+   MFEM_FLAGS    = @MFEM_CPPFLAGS@ @MFEM_CXXFLAGS@ @MFEM_INCFLAGS@
+   MFEM_LIBS     = $(if $(shared),$(INSTALL_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
+      @MFEM_EXT_LIBS@
+   MFEM_LIB_FILE = @MFEM_LIB_DIR@/libmfem.$(if $(shared),$(SO_EXT),a)
    MFEM_PREFIX := $(abspath $(PREFIX))
    MFEM_INC_DIR = $(abspath $(PREFIX_INC))
    MFEM_LIB_DIR = $(abspath $(PREFIX_LIB))
@@ -299,11 +319,11 @@ OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 %:	%.cpp
 
 # Default rule.
-lib: $(BLD)libmfem.a
+lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 
 # Flags used for compiling all source files.
-MFEM_BUILD_FLAGS = $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS) $(MFEM_TPLFLAGS)\
- $(BUILD_DIR_DEF)
+MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
+ $(MFEM_TPLFLAGS) $(BUILD_DIR_DEF)
 
 # Rules for compiling all source files.
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
@@ -327,13 +347,24 @@ $(BLD)libmfem.a: $(OBJECT_FILES)
 	$(AR) $(ARFLAGS) $(@) $(OBJECT_FILES)
 	$(RANLIB) $(@)
 
+$(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER)
+	cd $(@D) && ln -sf $(<F) $(@F)
+
+# If some of the external libraries are build without -fPIC, linking shared MFEM
+# library may fail. In such cases, one may set EXT_LIBS on the command line.
+EXT_LIBS = $(MFEM_EXT_LIBS)
+$(BLD)libmfem.$(SO_VER): $(OBJECT_FILES)
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(BUILD_SOFLAGS) $(OBJECT_FILES) \
+	   $(EXT_LIBS) -o $(@)
+
 serial debug:    M_MPI=NO
 parallel pdebug: M_MPI=YES
 serial parallel: M_DBG=NO
 debug pdebug:    M_DBG=YES
 serial parallel debug pdebug:
-	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG)
-	$(MAKE)
+	$(MAKE) -f $(THIS_MK) config MFEM_USE_MPI=$(M_MPI) MFEM_DEBUG=$(M_DBG) \
+	   $(MAKEOVERRIDES_SAVE)
+	$(MAKE) $(MAKEOVERRIDES_SAVE)
 
 deps:
 	rm -f $(BLD)deps.mk
@@ -350,7 +381,7 @@ check: lib
 test:
 	@echo "Testing the MFEM library. This may take a while..."
 	@echo "Building all examples and miniapps..."
-	@$(MAKE) all
+	@$(MAKE) $(MAKEOVERRIDES_SAVE) all
 	@echo "Running tests in: [ $(EM_TEST_DIRS) ] ..."
 	@ERR=0; for dir in $(EM_TEST_DIRS); do \
 	   echo "Running tests in $${dir} ..."; \
@@ -359,6 +390,12 @@ test:
 	   if [ 0 -ne $${ERR} ]; then echo "Some tests failed."; exit 1; \
 	   else echo "All tests passed."; fi
 
+.PHONY: test-print
+test-print:
+	@echo "Printing tests in: [ $(EM_TEST_DIRS) ] ..."
+	@for dir in $(EM_TEST_DIRS); do \
+	   $(MAKE) -j1 -C $(BLD)$${dir} test-print; done
+
 ALL_CLEAN_SUBDIRS = $(addsuffix /clean,config $(EM_DIRS) doc)
 .PHONY: $(ALL_CLEAN_SUBDIRS) miniapps/clean
 miniapps/clean: $(addsuffix /clean,$(MINIAPP_DIRS))
@@ -366,15 +403,20 @@ $(ALL_CLEAN_SUBDIRS):
 	$(MAKE) -C $(BLD)$(@D) $(@F)
 
 clean: $(addsuffix /clean,$(EM_DIRS))
-	rm -f $(addprefix $(BLD),*/*.o */*~ *~ libmfem.a deps.mk)
+	rm -f $(addprefix $(BLD),*/*.o */*~ *~ libmfem.* deps.mk)
 
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
 
-install: $(BLD)libmfem.a
-# install static library
+INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(INSTALL_SOFLAGS)\
+   $(OBJECT_FILES) $(EXT_LIBS) -o $(PREFIX_LIB)/libmfem.$(SO_VER) && \
+   cd $(PREFIX_LIB) && ln -sf libmfem.$(SO_VER) libmfem.$(SO_EXT)
+
+install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 	mkdir -p $(PREFIX_LIB)
-	$(INSTALL) -m 640 $(BLD)libmfem.a $(PREFIX_LIB)
+# install static and/or shared library
+	$(if $(static),$(INSTALL) -m 640 $(BLD)libmfem.a $(PREFIX_LIB))
+	$(if $(shared),$(INSTALL_SHARED_LIB))
 # install top level includes
 	mkdir -p $(PREFIX_INC)/mfem
 	$(INSTALL) -m 640 $(SRC)mfem.hpp $(SRC)mfem-performance.hpp \
@@ -443,6 +485,7 @@ status info:
 	$(info MFEM_USE_METIS       = $(MFEM_USE_METIS))
 	$(info MFEM_USE_METIS_5     = $(MFEM_USE_METIS_5))
 	$(info MFEM_DEBUG           = $(MFEM_DEBUG))
+	$(info MFEM_USE_EXCEPTIONS  = $(MFEM_USE_EXCEPTIONS))
 	$(info MFEM_USE_GZSTREAM    = $(MFEM_USE_GZSTREAM))
 	$(info MFEM_USE_LIBUNWIND   = $(MFEM_USE_LIBUNWIND))
 	$(info MFEM_USE_LAPACK      = $(MFEM_USE_LAPACK))
@@ -461,18 +504,22 @@ status info:
 	$(info MFEM_USE_PETSC       = $(MFEM_USE_PETSC))
 	$(info MFEM_USE_MPFR        = $(MFEM_USE_MPFR))
 	$(info MFEM_USE_SIDRE       = $(MFEM_USE_SIDRE))
+	$(info MFEM_USE_CONDUIT     = $(MFEM_USE_CONDUIT))
 	$(info MFEM_CXX             = $(value MFEM_CXX))
 	$(info MFEM_CPPFLAGS        = $(value MFEM_CPPFLAGS))
 	$(info MFEM_CXXFLAGS        = $(value MFEM_CXXFLAGS))
 	$(info MFEM_TPLFLAGS        = $(value MFEM_TPLFLAGS))
 	$(info MFEM_INCFLAGS        = $(value MFEM_INCFLAGS))
 	$(info MFEM_FLAGS           = $(value MFEM_FLAGS))
+	$(info MFEM_EXT_LIBS        = $(value MFEM_EXT_LIBS))
 	$(info MFEM_LIBS            = $(value MFEM_LIBS))
 	$(info MFEM_LIB_FILE        = $(value MFEM_LIB_FILE))
 	$(info MFEM_BUILD_TAG       = $(value MFEM_BUILD_TAG))
 	$(info MFEM_PREFIX          = $(value MFEM_PREFIX))
 	$(info MFEM_INC_DIR         = $(value MFEM_INC_DIR))
 	$(info MFEM_LIB_DIR         = $(value MFEM_LIB_DIR))
+	$(info MFEM_STATIC          = $(MFEM_STATIC))
+	$(info MFEM_SHARED          = $(MFEM_SHARED))
 	$(info MFEM_BUILD_DIR       = $(MFEM_BUILD_DIR))
 	$(info MFEM_MPIEXEC         = $(MFEM_MPIEXEC))
 	$(info MFEM_MPIEXEC_NP      = $(MFEM_MPIEXEC_NP))
@@ -498,5 +545,5 @@ print-%:
 
 # Print the contents of all makefile variables.
 .PHONY: printall
-printall: $(foreach var,$(.VARIABLES),print-$(var))
+printall: $(subst :,\:,$(foreach var,$(.VARIABLES),print-$(var)))
 	@true

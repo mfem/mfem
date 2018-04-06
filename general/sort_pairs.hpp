@@ -25,6 +25,8 @@ class Pair
 public:
    A one;
    B two;
+
+   Pair(const A &one, const B &two) : one(one), two(two) {}
 };
 
 /// @brief Comparison operator for class Pair, based on the first element only.
@@ -32,6 +34,13 @@ template <class A, class B>
 bool operator<(const Pair<A,B> &p, const Pair<A,B> &q)
 {
    return (p.one < q.one);
+}
+
+/// @brief Equality operator for class Pair, based on the first element only.
+template <class A, class B>
+bool operator==(const Pair<A,B> &p, const Pair<A,B> &q)
+{
+   return (p.one == q.one);
 }
 
 /// Sort an array of Pairs with respect to the first element
