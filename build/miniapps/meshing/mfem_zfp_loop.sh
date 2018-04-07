@@ -2,16 +2,17 @@
 
 #
 # Uses MFEM's mesh-explorer mini app to
-#     1. read beam-2quad.mesh (-m beam-2x2quad.mesh)
+#     1. read beam-2x2quad.mesh (-m beam-2x2quad.mesh)
 #     2. refine it uniformly by a factor of 16 (r u 16),
 #     3. set curvature to $c (c $c)
 #     4. set jitter to $j (j $j)
-#     5. Save it with ZFP compression to HDF5 (V h 1 $c $c ...)
+#     5. Save it to HDF5 with ZFP compression on internal dofs
+#        (V h 1 $c $c ...)
 #            Note that two saves are performed here, one to HDF5
-#            and another to MFME-native ascii format by reading
+#            and another to MFEM-native ascii format by reading
 #            back the compressed HDF5 data. So, this second file
-#            provides a way to read data that has been altered
-#            by compression back into MFEM and assess the impact.
+#            represents the original MFEM data except altered by
+#            compression.
 #     6. Save it a second time to VisIt ascii (second V a)
 #            This second save allows us to compare the original
 #            data with that altered by compression and saved in
