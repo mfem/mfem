@@ -2,7 +2,7 @@
 
 #
 # Uses MFEM's mesh-explorer mini app to
-#     1. read beam-2quad.mesh (-m beam-2quad.mesh)
+#     1. read beam-2quad.mesh (-m beam-2x2quad.mesh)
 #     2. refine it uniformly by a factor of 16 (r u 16),
 #     3. set curvature to $c (c $c)
 #     4. set jitter to $j (j $j)
@@ -23,7 +23,12 @@
 #
 # To run this loop of tests...
 #
-# env HDF5_PLUGIN_PATH=<path-to-h5z-zfp-plugin> sh mfem_zfp_loop.sh
+#     env HDF5_PLUGIN_PATH=<H5Z-ZFP-plugin-dir> sh mfem_zfp_loop.sh
+#
+# To inspect HDF5 file with h5ls or other HDF5 tools...
+#
+#     env HDF5_PLUGIN_PATH=<H5Z-ZFP-plugin-dir> sh mfem_zfp_loop.sh h5ls -vlr <file>
+#
 
 # Jitter loop
 for j in 0 0.025 0.1;
