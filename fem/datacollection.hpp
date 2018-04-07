@@ -304,13 +304,29 @@ public:
 /// Data collection with VisIt I/O routines
 class Hdf5ZfpDataCollection : public DataCollection
 {
+public:
+    typedef struct _zfp_config_t {
+                 int          zfpmode;
+                 double       rate;
+                 unsigned int prec;
+                 double       acc;
+                 unsigned int minbits;
+                 unsigned int maxbits;
+                 unsigned int maxprec;
+                 int          minexp;
+                 int          chunk[10];
+                 int          nx, ny, nz;
+             } zfp_config_t;
+
+    void SaveMesh(hid_t fid, std::string const &name, std::stringstream &strstrm);
 protected:
-    hid_t fid; // hdf5 file id
+    hid_t fid;      // hdf5 file id
+    zfp_config_t zfpconfig;
 
     void SaveMfemStringStreamToHDF5(hid_t fid, std::string const &name, std::stringstream &strstrm);
 
 public:
-    Hdf5ZfpDataCollection(const std::string &name, Mesh *mesh_ = NULL);
+    Hdf5ZfpDataCollection(const std::string &name, Mesh *mesh_ = NULL, zfp_config_t const *zfpc=0);
 
     virtual void Save();
     virtual void Load(int cycle_ = 0);

@@ -207,6 +207,7 @@ int main (int argc, char *argv[])
            "x) Print sub-element stats\n"
            "f) Find physical point in reference space\n"
            "p) Generate a partitioning\n"
+           "V) Save to VisIt\n"
            "S) Save\n"
            "--> " << flush;
       char mk;
@@ -717,6 +718,78 @@ int main (int argc, char *argv[])
          omesh.precision(14);
          mesh->Print(omesh);
          cout << "New mesh file: " << mesh_file << endl;
+      }
+
+      if (mk == 'V')
+      {
+          char format;
+          cout << "Save to VisIt: Format ([a|A]scii/[s|S]idre/[h|H]df5)? " << flush;
+          cin >> format;
+
+          // Create data collection for solution output: either VisItDataCollection for
+          // ascii data files, or SidreDataCollection for binary data files.
+          DataCollection *dc = NULL;
+          if (format == 's' || format == 'S')
+          {
+#ifdef MFEM_USE_SIDRE
+             dc = new SidreDataCollection("mesh-explorer", mesh);
+#else
+             MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
+#endif
+          }
+          else if (format == 'h' || format == 'H')
+          {
+             Hdf5ZfpDataCollection::zfp_config_t zfpconfig;
+             zfpconfig.zfpmode = 0;
+             zfpconfig.nx = zfpconfig.ny = zfpconfig.nz = 0;
+             zfpconfig.chunk[0] = zfpconfig.chunk[1] = zfpconfig.chunk[2] =
+             zfpconfig.chunk[3] = zfpconfig.chunk[4] = zfpconfig.chunk[5] =
+             zfpconfig.chunk[6] = zfpconfig.chunk[7] = zfpconfig.chunk[8] =
+             zfpconfig.chunk[9] = 0;
+
+             bool ok = false;
+
+             cout << "Structured Dimensions?" << flush;
+             cin >> ok;
+             if (ok)
+             {
+                 cout << "nx, ny, nz:" << flush;
+                 cin >> zfpconfig.nx >> zfpconfig.ny >> zfpconfig.nz;
+             } 
+             cout << "ZFP mode?" << flush;
+             cin >> zfpconfig.zfpmode;
+             if (zfpconfig.zfpmode == 1) // rate
+             {
+                 cout << "ZFP rate?" << flush;
+                 cin >> zfpconfig.rate;
+             }
+             else if (zfpconfig.zfpmode == 2) // precision
+             {
+                 cout << "ZFP precision?" << flush;
+                 cin >> zfpconfig.prec;
+             }
+             else if (zfpconfig.zfpmode == 3) // accuracy
+             {
+                 cout << "ZFP accuracy?" << flush;
+                 cin >> zfpconfig.acc;
+             }
+             int i = -1;
+             do {
+                 i++;
+                 cout << "ZFP chunking for dim " << i << ": " << flush;
+                 cin >> zfpconfig.chunk[i];
+             } while (i<10 && zfpconfig.chunk[i]);
+             dc = new Hdf5ZfpDataCollection("mesh-explorer", mesh, &zfpconfig);
+             dc->SetPrecision(14);
+          }
+          else
+          {
+             dc = new VisItDataCollection("mesh-explorer", mesh);
+             dc->SetPrecision(14);
+          }
+          dc->SetCycle(0);
+          dc->SetTime(0.0);
+          dc->Save();
       }
    }
 

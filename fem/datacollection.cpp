@@ -647,15 +647,22 @@ void VisItDataCollection::ParseVisItRootString(const std::string& json)
 
 #include <vector>
 
+#include "H5Zzfp_plugin.h"
+
 // useful macro for comparing HDF5 versions
 #define HDF5_VERSION_GE(Maj,Min,Rel)  \
         (((H5_VERS_MAJOR==Maj) && (H5_VERS_MINOR==Min) && (H5_VERS_RELEASE>=Rel)) || \
          ((H5_VERS_MAJOR==Maj) && (H5_VERS_MINOR>Min)) || \
          (H5_VERS_MAJOR>Maj))
 
-Hdf5ZfpDataCollection::Hdf5ZfpDataCollection(const std::string &name, Mesh *mesh)
+static int const elsiz[6] = {1,2,3,4,4,8};
+
+Hdf5ZfpDataCollection::Hdf5ZfpDataCollection(const std::string &name, Mesh *mesh,
+    zfp_config_t const *_zfpconfig)
    : DataCollection(name, mesh)
 {
+    if (_zfpconfig)
+        zfpconfig = *((zfp_config_t*)_zfpconfig);
 }
 
 // Read either fixed or variable length lines of data from stringstream
@@ -675,6 +682,9 @@ GetLinesToVec(std::stringstream &strm, int nlines, int nfixed, int sizer,
         {
             T val;
             strm >> val;
+            if ((f == 0 && etag != -1 && etag != val) ||
+                (f == 1 && etyp != -1 && etyp != val))
+                etag = etyp = -1;
             veca.push_back(val);
             if (sizer >= 0)
             {
@@ -707,15 +717,19 @@ GetLinesToVec(std::stringstream &strm, int nlines, int nfixed, int sizer,
     }
     if (sizer >= 0)
     {
-        if (d2size == -1)
+        if (d2size == -1 || etag == -1 || etyp == -1)
             return veca; // C++-11 and RVO in most compilers ==> !copy
         else
             return vecb; // C++-11 and RVO in most compilers ==> !copy
     }
-    return vecb; // C++-11 and RVO in most compilers ==> !copy
+    if (etag == -1 || etyp == -1)
+        return veca; // C++-11 and RVO in most compilers ==> !copy
+    else
+        return vecb; // C++-11 and RVO in most compilers ==> !copy
 }
 
 // Convenience functions for templetizing HDF5 type constants
+inline hid_t HDF5Type(const char &) { return H5T_NATIVE_CHAR; }
 inline hid_t HDF5Type(const int &) { return H5T_NATIVE_INT; }
 inline hid_t HDF5Type(const float &) { return H5T_NATIVE_FLOAT; }
 inline hid_t HDF5Type(const double &) { return H5T_NATIVE_DOUBLE; }
@@ -733,26 +747,325 @@ WriteIntAttrToHDF5Dataset(hid_t dsid, char const *name, int attr)
     H5Aclose(aid);
 }
 
+template <class T> static std::vector<T>
+ReadVecFromHDF5(hid_t fid, char const *name)
+{
+    std::vector<T> retval;
+
+#if HDF5_VERSION_GE(1,8,0)
+    hid_t dsid = H5Dopen(fid, name, H5P_DEFAULT);
+#else
+    hid_t dsid = H5Dopen(fid, name);
+#endif
+
+    hid_t spid = H5Dget_space(dsid);
+    hssize_t npts = H5Sget_simple_extent_npoints(spid);
+    retval.resize((size_t) npts);
+
+    H5Dread(dsid, HDF5Type<T>(), H5S_ALL, H5S_ALL, H5P_DEFAULT, &retval[0]);
+
+    H5Sclose(spid);
+    H5Dclose(dsid);
+
+    return retval; // C++-11 and RVO in most compilers ==> !copy
+}
+
 // Write a vector to HDF5 as either 1D or 2D depending on d2size
 template <class T> static void
-WriteVecToHDF5(hid_t fid, char const *name, std::vector<T> const &vec,
-    int d2size, int attrA, int attrB)
+WriteVecToHDF5(hid_t fid, char const *name, const T *vec,
+    int size, int d2size, int attrA=-1, int attrB=-1,
+    Hdf5ZfpDataCollection::zfp_config_t const *zfpconfig = 0)
 {
     hsize_t d2s = d2size>1?d2size:1;
-    hsize_t siz2d[2] = {(hsize_t) vec.size() / d2s, d2s};
-    hid_t spid = H5Screate_simple(d2size>1?2:1, siz2d, 0);
+    hsize_t siz2d[2] = {(hsize_t) size / d2s, d2s};
+    hid_t spid;
+    unsigned int cd_values[10];
+    int cd_nelmts = 10;
+
+    hid_t cpid = H5Pcreate(H5P_DATASET_CREATE);
+
+    if (zfpconfig && zfpconfig->zfpmode > 0)
+    {
+        if (zfpconfig->chunk[5])
+        {
+            hsize_t chunk[6] = {(hsize_t)zfpconfig->chunk[0],(hsize_t)zfpconfig->chunk[1],
+                                (hsize_t)zfpconfig->chunk[2],(hsize_t)zfpconfig->chunk[3],
+                                (hsize_t)zfpconfig->chunk[4],(hsize_t)zfpconfig->chunk[5]};
+            H5Pset_chunk(cpid, 5, chunk);
+        }
+        else if (zfpconfig->chunk[4])
+        {
+            hsize_t chunk[5] = {(hsize_t)zfpconfig->chunk[0],(hsize_t)zfpconfig->chunk[1],
+                                (hsize_t)zfpconfig->chunk[2],(hsize_t)zfpconfig->chunk[3],
+                                (hsize_t)zfpconfig->chunk[4]};
+            H5Pset_chunk(cpid, 5, chunk);
+        }
+        else if (zfpconfig->chunk[3])
+        {
+            hsize_t chunk[4] = {(hsize_t)zfpconfig->chunk[0],(hsize_t)zfpconfig->chunk[1],
+                                (hsize_t)zfpconfig->chunk[2],(hsize_t)zfpconfig->chunk[3]};
+            H5Pset_chunk(cpid, 4, chunk);
+        }
+        else if (zfpconfig->chunk[2])
+        {
+            hsize_t chunk[3] = {(hsize_t)zfpconfig->chunk[0],(hsize_t)zfpconfig->chunk[1],
+                                (hsize_t)zfpconfig->chunk[2]};
+            H5Pset_chunk(cpid, 3, chunk);
+        }
+        else if (zfpconfig->chunk[1])
+        {
+            hsize_t chunk[2] = {(hsize_t)zfpconfig->chunk[0],(hsize_t)zfpconfig->chunk[1]};
+            H5Pset_chunk(cpid, 2, chunk);
+        }
+        else
+        {
+            hsize_t chunk[1] = {(hsize_t)zfpconfig->chunk[0]};
+            H5Pset_chunk(cpid, 1, chunk);
+        }
+
+        // setup zfp filter via generic (cd_values) interface
+        if (zfpconfig->zfpmode == H5Z_ZFP_MODE_RATE)
+            H5Pset_zfp_rate_cdata(zfpconfig->rate, cd_nelmts, cd_values);
+        else if (zfpconfig->zfpmode == H5Z_ZFP_MODE_PRECISION)
+            H5Pset_zfp_precision_cdata(zfpconfig->prec, cd_nelmts, cd_values);
+        else if (zfpconfig->zfpmode == H5Z_ZFP_MODE_ACCURACY)
+            H5Pset_zfp_accuracy_cdata(zfpconfig->acc, cd_nelmts, cd_values);
+        else if (zfpconfig->zfpmode == H5Z_ZFP_MODE_EXPERT)
+            H5Pset_zfp_expert_cdata(zfpconfig->minbits, zfpconfig->maxbits,
+                zfpconfig->maxprec, zfpconfig->minexp, cd_nelmts, cd_values);
+        else
+            cd_nelmts = 0; // cause default zfp library behavior
+
+        if (d2size && sqrt((double)d2size) == (int) sqrt((double)d2size))
+        {
+            hsize_t siza = (hsize_t) sqrt((double)d2size);
+            hsize_t siz3d[4] = {size/d2size, siza, siza, 2};
+            spid = H5Screate_simple(4, siz3d, 0);
+        }
+        else if (d2size && cbrt((double)d2size) == (int) cbrt((double)d2size))
+        {
+            hsize_t siza = (hsize_t) cbrt((double)d2size);
+            hsize_t siz4d[5] = {size/d2size, siza, siza, siza, 2};
+            spid = H5Screate_simple(5, siz4d, 0);
+        }
+        else
+        {
+            hsize_t siz2d[3] = {size/d2size, d2size, 2};
+            spid = H5Screate_simple(3, siz2d, 0);
+        }
+
+        // Add filter to the pipeline via generic interface
+        H5Pset_filter(cpid, H5Z_FILTER_ZFP, H5Z_FLAG_MANDATORY, cd_nelmts, cd_values);
+
+    }
+    else
+    {
+        spid = H5Screate_simple(d2size>1?2:1, siz2d, 0);
+    }
+
 #if HDF5_VERSION_GE(1,8,0)
-    hid_t dsid = H5Dcreate(fid, name, HDF5Type<T>(), spid, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    hid_t dsid = H5Dcreate(fid, name, HDF5Type<T>(), spid, H5P_DEFAULT, cpid, H5P_DEFAULT);
 #else
-    hid_t dsid = H5Dcreate(fid, name, HDF5Type<T>(), spid, H5P_DEFAULT);
+    hid_t dsid = H5Dcreate(fid, name, HDF5Type<T>(), spid, cpid);
 #endif
     if (attrA != -1)
         WriteIntAttrToHDF5Dataset(dsid, "elem_tag", attrA);
     if (attrB != -1)
         WriteIntAttrToHDF5Dataset(dsid, "elem_typ", attrB);
-    H5Dwrite(dsid, HDF5Type<T>(), H5S_ALL, H5S_ALL, H5P_DEFAULT, &vec[0]);
+    H5Dwrite(dsid, HDF5Type<T>(), H5S_ALL, H5S_ALL, H5P_DEFAULT, vec);
     H5Dclose(dsid);
     H5Sclose(spid);
+}
+
+// Like a normal string::find() but limit search to maxlen chars
+static size_t shortfind(std::string const &str, std::string const &needle,
+    size_t start, size_t maxlen=100)
+{
+    std::string const &shortstr = str.substr(start, maxlen);
+    size_t n = shortstr.find(needle);
+    if (n == shortstr.npos)
+        return str.npos;
+    return start + n;
+}
+
+void
+Hdf5ZfpDataCollection::SaveMesh(hid_t fid, std::string const &name, std::stringstream &strstrm)
+{
+    std::string const &str = strstrm.str();
+    int ndims = 0, nels = 0, nbnd = 0, nbnd2 = 0, nverts = 0, vertsize = 0;
+    int femh = 0, femd = 0, femp = 0;
+    size_t n;
+
+    // read dimension
+    n = shortfind(str, "\ndimension\n", 0, 300);
+    if (n == str.npos)
+    {
+        error = WRITE_ERROR;
+        MFEM_WARNING("Error finding dimension.");
+        return;
+    }
+    strstrm.clear();
+    strstrm.seekg(n+11);
+    strstrm >> ndims;
+
+    // read element count
+    n = shortfind(str, "\nelements\n", n);
+    if (n == str.npos)
+    {
+        error = WRITE_ERROR;
+        MFEM_WARNING("Error element count.");
+        return;
+    }
+    strstrm.clear();
+    strstrm.seekg(n+10);
+    strstrm >> nels;
+
+    // Get nels lines of main topology data and write to HDF5
+    int d2size, mtag, mtyp;
+    std::vector<int> topodata =
+        GetLinesToVec<int>(strstrm, nels, 2, 1, d2size, mtag, mtyp);
+    WriteVecToHDF5<int>(fid, (name+"_topo").c_str(), &topodata[0],
+        (int) topodata.size(), d2size, mtag, mtyp);
+    topodata = std::vector<int>(); // deallocate space
+
+    // read boundary info
+    strstrm.clear();
+    n = strstrm.tellg();
+    n = shortfind(str, "\nboundary\n", n);
+    if (n == str.npos)
+    {
+        error = WRITE_ERROR;
+        MFEM_WARNING("Error finding boundary section.");
+        return;
+    }
+    strstrm.seekg(n+10);
+    strstrm >> nbnd;
+
+    // Get nbnd lines of boundary topology data and write to HDF5
+    int btag, btyp;
+    std::vector<int> bnd_topodata =
+        GetLinesToVec<int>(strstrm, nbnd, 2, 1, d2size, btag, btyp);
+    WriteVecToHDF5<int>(fid, ("bnd_"+name+"_topo").c_str(),
+        &bnd_topodata[0], (int) bnd_topodata.size(), d2size, btag, btyp);
+    bnd_topodata = std::vector<int>(); // deallocate space;
+    strstrm.clear();
+    n = strstrm.tellg();
+
+    // read vertices info but look ahead for nnodes first
+    size_t n1 = shortfind(str, "\nnodes\n", n);
+    n = shortfind(str, "\nvertices\n", n);
+    if (n == str.npos)
+    {
+        error = WRITE_ERROR;
+        MFEM_WARNING("Error finding vertex section.");
+        return;
+    }
+    strstrm.seekg(n+10);
+    strstrm >> nverts;
+    if (n1 == str.npos)
+        strstrm >> vertsize;
+    else
+    {
+        n = shortfind(str, "\nFiniteElementCollection: ", n);
+        if (n == str.npos)
+        {
+            error = WRITE_ERROR;
+            MFEM_WARNING("Error finding nodes FiniteElementCollection: line.");
+            return;
+        }
+        std::string fem_coll_str; 
+        strstrm.seekg(n+26);
+        strstrm >> fem_coll_str; // e.g. H1_2D_P5
+        if (sscanf(fem_coll_str.c_str(), "H%1d_%1dD_P%d", &femh, &femd, &femp) != 3)
+        {
+            error = WRITE_ERROR;
+            MFEM_WARNING("Unable to parse FiniteElementCollection string.");
+            return;
+        }
+        n = shortfind(str, "\nVDim: ", n);
+        if (n == str.npos)
+        {
+            error = WRITE_ERROR;
+            MFEM_WARNING("Error finding nodes VDim: line.");
+            return;
+        }
+        strstrm.seekg(n+6);
+        strstrm >> vertsize;
+        strstrm.seekg(n+20);
+
+        // Count lines remaining in strstrm (trick only works for 2D)
+        size_t n2 = n+14;
+        int nrem = 0;
+        while ((n2 = str.find('\n',n2+1)) != str.npos)
+            nrem++;
+        nbnd2 = (nrem - 2 - nverts - nels*(femp-1)*(femp-1))/(femp-1);
+        strstrm.clear();
+        strstrm.seekg(n+20);
+    }
+
+    // Query stream's precision and float format to determine if
+    // intention is float or double precision 
+    bool isDouble = false;
+    std::ios_base::fmtflags ff = strstrm.flags();
+    int ndigits = (int) strstrm.precision();
+    if (!(ff & std::ios_base::fixed) || ndigits > 7)
+        isDouble = true;
+
+    if (femh && femd && femp)
+    { 
+        // We will output to multiple HDF5 datasets, one each for
+        // verts, edges, faces and volumes
+        std::vector<double> vertdata =
+            GetLinesToVec<double>(strstrm, nverts, vertsize, -1, d2size, btag, btyp);
+std::cout << "vertices.size() = " << vertdata.size() << std::endl;
+        WriteVecToHDF5<double>(fid, "vertices", &vertdata[0], nverts*vertsize, vertsize);
+
+        vertdata =
+            GetLinesToVec<double>(strstrm, nbnd2, (femp-1)*vertsize, -1, d2size, btag, btyp);
+std::cout << "boundaries.size() = " << vertdata.size() << std::endl;
+        WriteVecToHDF5<double>(fid, "boundaries", &vertdata[0], nbnd2*(femp-1)*vertsize, femp-1);
+
+        // Apply ZFP compression only to internal dof data for now
+        vertdata =
+            GetLinesToVec<double>(strstrm, nels, (femp-1)*(femp-1)*vertsize, -1, d2size, btag, btyp);
+std::cout << "elements.size() = " << vertdata.size() << std::endl;
+        WriteVecToHDF5<double>(fid, "elements", &vertdata[0], nels*(femp-1)*(femp-1),(femp-1)*(femp-1),-1,-1,&zfpconfig);
+
+        // Ok, lets produce a normal MFEM ascii file from the compressed data
+        // as a diagnostic tool
+        {
+            std::ofstream mesh_file("zfpmesh");
+            mesh_file << strstrm.str().substr(0,n+20) << std::endl << std::endl;
+            mesh_file << std::setprecision(14);
+            char const *names[] = {"vertices","boundaries","elements"};
+            for (int n = 0; n < sizeof(names)/sizeof(names[0]); n++)
+            {
+                std::vector<double> dofs = ReadVecFromHDF5<double>(fid, names[n]);
+                std::cout << "dofs.size() = " << dofs.size() << std::endl;
+                for (size_t l = 0; l < dofs.size() / vertsize; l++)
+                {
+                    mesh_file << dofs[vertsize*l+0];
+                    for (int c = 1; c < vertsize; c++)
+                        mesh_file << " " << dofs[vertsize*l+c];
+                    mesh_file << std::endl;
+                }
+            }
+        }
+    }
+    else if (isDouble)
+    {
+        // Get nverts lines of vertex data and write to HDF5 as double
+        std::vector<double> vertdata =
+            GetLinesToVec<double>(strstrm, nverts, vertsize, -1, d2size, btag, btyp);
+        WriteVecToHDF5<double>(fid, "vertices", &vertdata[0], nverts, vertsize);
+    }
+    else
+    {
+        // Get nverts lines of vertex data and write to HDF5 as float
+        std::vector<float> vertdata =
+            GetLinesToVec<float>(strstrm, nverts, vertsize, -1, d2size, btag, btyp);
+        WriteVecToHDF5<float>(fid, "vertices", &vertdata[0], nverts, vertsize);
+    }
 }
 
 void
@@ -760,8 +1073,6 @@ Hdf5ZfpDataCollection::SaveMfemStringStreamToHDF5(
     hid_t fid, std::string const &name, std::stringstream &strstrm)
 {
     std::string const &str = strstrm.str();
-    hsize_t len = (hsize_t) str.size();
-    hid_t spid = H5Screate_simple(1, &len, 0);
     int ndims = 0, nels = 0, nbnd = 0, nverts = 0, vertsize = 0;
     int eltyp;
     char bname[512];
@@ -770,161 +1081,20 @@ Hdf5ZfpDataCollection::SaveMfemStringStreamToHDF5(
     bname[511] = '\0';
 
     if (name == "mesh")
-    {
-        size_t n;
+        SaveMesh(fid, "mesh", strstrm);
 
-        // read dimension
-        n = str.find("\ndimension\n");
-        if (n == str.npos)
-        {
-            error = WRITE_ERROR;
-            MFEM_WARNING("Error finding dimension.");
-            return;
-        }
-        strstrm.clear();
-        strstrm.seekg(n+11);
-        strstrm >> ndims;
-
-        // read element count
-        n = str.find("\nelements\n", n);
-        if (n == str.npos)
-        {
-            error = WRITE_ERROR;
-            MFEM_WARNING("Error element count.");
-            return;
-        }
-        strstrm.clear();
-        strstrm.seekg(n+10);
-        strstrm >> nels;
-
-        // Get nels lines of main topology data and write to HDF5
-        int d2size, etag, etyp;
-        std::vector<int> topodata =
-            GetLinesToVec<int>(strstrm, nels, 2, 1, d2size, etag, etyp);
-        WriteVecToHDF5<int>(fid, (name+"_topo").c_str(), topodata, d2size, etag, etyp);
-        topodata.clear(); // get rid of bulk data
-
-#if 0
-        bool nozfp = false;
-        if (elmap[2] || elmap[4]) // no tris or tets
-            nozfp = true;
-        int emsum = 0;
-        for (int i = 0; i < (int) sizeof(elmap)/sizeof(elmap[0]); emsum+=elmap[i], i++);
-        if (emsum > 1) // only one elem type
-            nozfp = true;
-        if (nozfp) 
-            MFEM_WARNING("ZFP compression not possible on this mesh.");
-#endif
-
-        // read boundary info
-        strstrm.clear();
-        n = strstrm.tellg();
-        n = str.find("\nboundary\n", n);
-        if (n == str.npos)
-        {
-            error = WRITE_ERROR;
-            MFEM_WARNING("Error finding boundary section.");
-            return;
-        }
-        strstrm.seekg(n+10);
-        strstrm >> nbnd;
-
-        // Get nbnd lines of boundary topology data and write to HDF5
-        std::vector<int> bnd_topodata =
-            GetLinesToVec<int>(strstrm, nbnd, 2, 1, d2size, etag, etyp);
-        WriteVecToHDF5<int>(fid, ("bnd_"+name+"_topo").c_str(), bnd_topodata, d2size, etag, etyp);
-        bnd_topodata.clear(); // get rid of bulk data
-        strstrm.clear();
-        n = strstrm.tellg();
-
-        // read vertices info
-        n = str.find("\nvertices\n", n);
-        if (n == str.npos)
-        {
-            error = WRITE_ERROR;
-            MFEM_WARNING("Error finding vertex section.");
-            return;
-        }
-        strstrm.seekg(n+10);
-        strstrm >> nverts;
-        strstrm >> vertsize;
-
-        // Query stream's precision and float format to determine if
-        // intention is float or double precision 
-        bool isDouble = false;
-        std::ios_base::fmtflags ff = strstrm.flags();
-        int ndigits = (int) strstrm.precision();
-        if (!(ff & std::ios_base::fixed) && ndigits > 7)
-            isDouble = true;
-        if (isDouble)
-        {
-            // Get nverts lines of vertex data and write to HDF5 as double
-            std::vector<double> vertdata =
-                GetLinesToVec<double>(strstrm, nverts, vertsize, -1, d2size, etag, etyp);
-            WriteVecToHDF5<double>(fid, "vertices", vertdata, vertsize, etag, etyp);
-            vertdata.clear(); // get rid of bulk data
-        }
-        else
-        {
-            // Get nverts lines of vertex data and write to HDF5 as float
-            std::vector<float> vertdata =
-                GetLinesToVec<float>(strstrm, nverts, vertsize, -1, d2size, etag, etyp);
-            WriteVecToHDF5<float>(fid, "vertices", vertdata, vertsize, etag, etyp);
-            vertdata.clear(); // get rid of bulk data
-        }
-    }
-
-#if HDF5_VERSION_GE(1,8,0)
-    hid_t dsid = H5Dcreate(fid, basename(bname), H5T_NATIVE_CHAR, spid, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-#else
-    hid_t dsid = H5Dcreate(fid, basename(bname), H5T_NATIVE_CHAR, spid, H5P_DEFAULT);
-#endif
-    H5Dwrite(dsid, H5T_NATIVE_CHAR, H5S_ALL, H5S_ALL, H5P_DEFAULT, &str[0]);
-    H5Dclose(dsid);
-    H5Sclose(spid);
+    // Fallback writes as just character data. Will be removed in a future update.
+    // WriteVecToHDF5<char>(fid, basename(bname), &str[0], str.size(), 1);
 }
 
 void Hdf5ZfpDataCollection::Save()
 {
-#if 0
-   int err;
-
-   std::string dir_name = prefix_path + name;
-   if (cycle != -1)
-   {
-      dir_name += "_" + to_padded_string(cycle, pad_digits_cycle);
-   }
-   err = create_directory(dir_name, mesh, myid);
-   if (err)
-   {
-      error = WRITE_ERROR;
-      MFEM_WARNING("Error creating directory: " << dir_name);
-      return; // do not even try to write the mesh
-   }
-
-   std::string file_name = dir_name +
-                           ((serial || format == 0 )? "/mfem" : "/pmfem");
-   if (appendRankToFileName)
-   {
-      file_name += "." + to_padded_string(myid, pad_digits_rank) + ".h5";
-   }
-
-   // Here is where decide to create file in memory if 
-   // wanna gather many outputs to single writer
-   fid = H5Fcreate(file_name.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-
-   SaveMesh(fid);
-   if (error) return;
-
-   SaveFields(fid);
-#else
-
-   // Save mesh like we ordinarily would except to an ostring stream.
+   // Save mesh like we ordinarily would except to an stringstream.
    // Would be best to use a compressed stream here. But, gzstream is for
    // *file* streams and won't work on string streams alone.
    std::string dir_name;
    std::stringstream strstrm;
-   SaveMesh(&dir_name, &strstrm);
+   DataCollection::SaveMesh(&dir_name, &strstrm);
    if (error) { return; }
 
    // Create HDF5 File
@@ -938,12 +1108,14 @@ void Hdf5ZfpDataCollection::Save()
    hid_t fid = H5Fcreate(file_name.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
    SaveMfemStringStreamToHDF5(fid, "mesh", strstrm);
    if (error) { return; }
+   strstrm.clear();
    strstrm.str("");
 
    for (FieldMapIterator it = field_map.begin(); it != field_map.end(); ++it)
    {
       SaveOneField(it, &strstrm);
       SaveMfemStringStreamToHDF5(fid, GetFieldFileName(it->first), strstrm);
+      strstrm.clear();
       strstrm.str("");
       // Even if there is an error, try saving the other fields
    }
@@ -953,12 +1125,11 @@ void Hdf5ZfpDataCollection::Save()
    {
       SaveOneQField(it, &strstrm);
       SaveMfemStringStreamToHDF5(fid, GetFieldFileName(it->first), strstrm);
+      strstrm.clear();
       strstrm.str("");
    }
 
    H5Fclose(fid);
-
-#endif
 }
 
 void Hdf5ZfpDataCollection::Load(int cycle)
