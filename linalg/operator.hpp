@@ -325,7 +325,27 @@ public:
 };
 
 
-/// The operator x -> R*A*P*x.
+/// General product operator: x -> (A*B)(x) = A(B(x)).
+class ProductOperator : public Operator
+{
+   const Operator *A, *B;
+   bool ownA, ownB;
+   mutable Vector z;
+
+public:
+   ProductOperator(const Operator *A, const Operator *B, bool ownA, bool ownB);
+
+   virtual void Mult(const Vector &x, Vector &y) const
+   { B->Mult(x, z); A->Mult(z, y); }
+
+   virtual void MultTranspose(const Vector &x, Vector &y) const
+   { A->MultTranspose(x, z); B->MultTranspose(z, y); }
+
+   virtual ~ProductOperator();
+};
+
+
+/// The operator x -> R*A*P*x constructed through the actions of R^T, A and P
 class RAPOperator : public Operator
 {
 private:
@@ -337,9 +357,7 @@ private:
 
 public:
    /// Construct the RAP operator given R^T, A and P.
-   RAPOperator(const Operator &Rt_, const Operator &A_, const Operator &P_)
-      : Operator(Rt_.Width(), P_.Width()), Rt(Rt_), A(A_), P(P_),
-        Px(P.Height()), APx(A.Height()) { }
+   RAPOperator(const Operator &Rt_, const Operator &A_, const Operator &P_);
 
    /// Operator application.
    virtual void Mult(const Vector & x, Vector & y) const
@@ -354,20 +372,15 @@ public:
 /// General triple product operator x -> A*B*C*x, with ownership of the factors.
 class TripleProductOperator : public Operator
 {
-   Operator *A;
-   Operator *B;
-   Operator *C;
+   const Operator *A;
+   const Operator *B;
+   const Operator *C;
    bool ownA, ownB, ownC;
    mutable Vector t1, t2;
 
 public:
-   TripleProductOperator(Operator *A, Operator *B, Operator *C,
-                         bool ownA, bool ownB, bool ownC)
-      : Operator(A->Height(), C->Width())
-      , A(A), B(B), C(C)
-      , ownA(ownA), ownB(ownB), ownC(ownC)
-      , t1(C->Height()), t2(B->Height())
-   {}
+   TripleProductOperator(const Operator *A, const Operator *B,
+                         const Operator *C, bool ownA, bool ownB, bool ownC);
 
    virtual void Mult(const Vector &x, Vector &y) const
    { C->Mult(x, t1); B->Mult(t1, t2); A->Mult(t2, y); }
@@ -375,12 +388,7 @@ public:
    virtual void MultTranspose(const Vector &x, Vector &y) const
    { A->MultTranspose(x, t2); B->MultTranspose(t2, t1); C->MultTranspose(t1, y); }
 
-   virtual ~TripleProductOperator()
-   {
-      if (ownA) { delete A; }
-      if (ownB) { delete B; }
-      if (ownC) { delete C; }
-   }
+   virtual ~TripleProductOperator();
 };
 
 
