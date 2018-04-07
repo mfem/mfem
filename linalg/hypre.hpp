@@ -856,6 +856,8 @@ public:
                       int interp_type=100, int relax_type=0, double filterA_tol=0.0, 
                       int splitting=6);
 
+   void SetCoord(int dim, float *coord);
+   
    void SetPrintLevel(int print_level)
    { HYPRE_BoomerAMGSetPrintLevel(amg_precond, print_level); }
 

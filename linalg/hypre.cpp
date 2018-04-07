@@ -2508,7 +2508,6 @@ void HypreBoomerAMG::Mult(const HypreParVector &b, HypreParVector &x) const
          hypre_FinalizeTiming(time_index);
          hypre_ClearTiming();
       }
-exit(0);
    }
 
    if (print_level > 0)
@@ -2788,6 +2787,14 @@ void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace)
    HYPRE_BoomerAMGSetInterpVectors(amg_precond, rbms.Size(), rbms.GetData());
 }
 
+void HypreBoomerAMG::SetCoord(int coord_dim, float *coord)
+{
+   HYPRE_BoomerAMGSetPlotGrids (amg_precond, 1);
+   //HYPRE_BoomerAMGSetPlotFileName (amg_precond, plot_file_name);
+   HYPRE_BoomerAMGSetCoordDim (amg_precond, coord_dim);
+   HYPRE_BoomerAMGSetCoordinates (amg_precond, coord);
+}
+
 void HypreBoomerAMG::SetAIROptions(int distance,
                                    std::string prerelax,
                                    std::string postrelax, 
@@ -2876,6 +2883,8 @@ void HypreBoomerAMG::SetAIROptions(int distance,
       /* type = -1: drop based on row inf-norm */
       HYPRE_BoomerAMGSetADropType(amg_precond, -1);
    }
+
+   //HYPRE_ParCSRHybridSetMaxCoarseSize(amg_precond, 20);
 }
 
 HypreBoomerAMG::~HypreBoomerAMG()
