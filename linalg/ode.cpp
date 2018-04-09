@@ -664,7 +664,6 @@ SIAVSolver::Step(Vector &q, Vector &p, double &t, double &dt)
 
       t += a_[i] * dt;
    }
-
 }
 
 }
