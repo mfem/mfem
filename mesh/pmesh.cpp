@@ -59,8 +59,11 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
    // Do not copy face-neighbor data (can be generated if needed)
    have_face_nbr_data = false;
 
+   // If pmesh has a ParNURBSExtension, it was copied by the Mesh copy ctor, so
+   // there is no need to do anything here.
+
    MFEM_VERIFY(pmesh.pncmesh == NULL,
-               "copying non-conforming meshes is not implemented");
+               "copy of parallel non-conforming meshes is not implemented");
    pncmesh = NULL;
 
    // Copy the Nodes as a ParGridFunction, including the FiniteElementCollection
@@ -72,8 +75,7 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
       FiniteElementCollection *fec_copy =
          FiniteElementCollection::New(fec->Name());
       ParFiniteElementSpace *pfes_copy =
-         new ParFiniteElementSpace(this, fec_copy, fes->GetVDim(),
-                                   fes->GetOrdering());
+         new ParFiniteElementSpace(*fes, *this, fec_copy);
       Nodes = new ParGridFunction(pfes_copy);
       Nodes->MakeOwner(fec_copy);
       *Nodes = *pmesh.Nodes;
@@ -173,7 +175,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
    NumOfElements = element_counter;
    vertices.SetSize(NumOfVertices);
 
-   // re-enumerate the local vertices to preserve the global ordering
+   // Re-enumerate the local vertices to preserve the global ordering.
    for (i = vert_counter = 0; i < vert_global_local.Size(); i++)
       if (vert_global_local[i] >= 0)
       {
@@ -188,7 +190,9 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
                                                   mesh.GetVertex(i));
       }
 
-   // determine elements
+   // Determine elements, enumerating the local elements to preserve the global
+   // order. This is used, e.g. by the ParGridFunction ctor that takes a global
+   // GridFunction as input parameter.
    element_counter = 0;
    elements.SetSize(NumOfElements);
    for (i = 0; i < mesh.GetNE(); i++)
@@ -639,13 +643,30 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
    if (mesh.NURBSext)
    {
+      MFEM_ASSERT(mesh.GetNodes() &&
+                  mesh.GetNodes()->FESpace()->GetNURBSext() == mesh.NURBSext,
+                  "invalid NURBS mesh");
       NURBSext = new ParNURBSExtension(comm, mesh.NURBSext, partitioning,
                                        activeBdrElem);
    }
 
    if (mesh.GetNodes()) // curved mesh
    {
-      Nodes = new ParGridFunction(this, mesh.GetNodes());
+      if (!NURBSext)
+      {
+         Nodes = new ParGridFunction(this, mesh.GetNodes());
+      }
+      else
+      {
+         const FiniteElementSpace *glob_fes = mesh.GetNodes()->FESpace();
+         FiniteElementCollection *nfec =
+            FiniteElementCollection::New(glob_fes->FEColl()->Name());
+         ParFiniteElementSpace *pfes =
+            new ParFiniteElementSpace(this, nfec, glob_fes->GetVDim(),
+                                      glob_fes->GetOrdering());
+         Nodes = new ParGridFunction(pfes);
+         Nodes->MakeOwner(nfec); // Nodes will own nfec and pfes
+      }
       own_nodes = 1;
 
       Array<int> gvdofs, lvdofs;

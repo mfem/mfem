@@ -203,7 +203,7 @@ int BlockMatrix::GetRow(const int row, Array<int> &cols, Vector &srow) const
    return 0;
 }
 
-void BlockMatrix::EliminateRowCol(int rc, int d)
+void BlockMatrix::EliminateRowCol(int rc, DiagonalPolicy dpolicy)
 {
    // Find the block to which the dof belongs and its local number
    int idx, iiblock;
@@ -237,7 +237,7 @@ void BlockMatrix::EliminateRowCol(int rc, int d)
       if (iiblock == jjblock) { continue; }
       if (Aij(jjblock,iiblock)) { Aij(jjblock,iiblock)->EliminateCol(idx); }
    }
-   Aij(iiblock, iiblock)->EliminateRowCol(idx,d);
+   Aij(iiblock, iiblock)->EliminateRowCol(idx,dpolicy);
 }
 
 void BlockMatrix::EliminateRowCol(Array<int> & ess_bc_dofs, Vector & sol,
@@ -304,12 +304,9 @@ void BlockMatrix::EliminateRowCol(Array<int> & ess_bc_dofs, Vector & sol,
    }
 }
 
-void BlockMatrix::EliminateZeroRows()
+void BlockMatrix::EliminateZeroRows(const double threshold)
 {
-   if (nRowBlocks != nColBlocks)
-   {
-      mfem_error("BlockMatrix::EliminateZeroRows() #1");
-   }
+   MFEM_VERIFY(nRowBlocks == nColBlocks, "not a square matrix");
 
    for (int iblock = 0; iblock < nRowBlocks; ++iblock)
    {
@@ -325,12 +322,13 @@ void BlockMatrix::EliminateZeroRows()
                   norm += Aij(iblock,jblock)->GetRowNorml1(i);
                }
 
-            if (norm < 1e-12)
+            if (norm <= threshold)
             {
                for (int jblock = 0; jblock < nColBlocks; ++jblock)
                   if (Aij(iblock,jblock))
                   {
-                     Aij(iblock,jblock)->EliminateRow(i, iblock==jblock);
+                     Aij(iblock,jblock)->EliminateRow(
+                        i, (iblock==jblock) ? DIAG_ONE : DIAG_ZERO);
                   }
             }
          }
@@ -347,12 +345,9 @@ void BlockMatrix::EliminateZeroRows()
                   norm += Aij(iblock,jblock)->GetRowNorml1(i);
                }
 
-            if (norm < 1e-12)
-            {
-               mfem::out<<"i = " << i << "\n";
-               mfem::out<<"norm = " << norm << "\n";
-               mfem_error("BlockMatrix::EliminateZeroRows() #2");
-            }
+            MFEM_VERIFY(!(norm <= threshold), "diagonal block is NULL:"
+                        " iblock = " << iblock << ", i = " << i << ", norm = "
+                        << norm);
          }
       }
    }

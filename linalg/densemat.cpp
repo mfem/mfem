@@ -2293,13 +2293,13 @@ void DenseMatrix::CalcEigenvalues(double *lambda, double *vec) const
    }
 }
 
-void DenseMatrix::GetRow(int r, Vector &row)
+void DenseMatrix::GetRow(int r, Vector &row) const
 {
    int m = Height();
    int n = Width();
    row.SetSize(n);
 
-   double* rp = data + r;
+   const double* rp = data + r;
    double* vp = row.GetData();
 
    for (int i = 0; i < n; i++)
