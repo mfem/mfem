@@ -485,6 +485,7 @@ void SDIRK33Solver::Step(Vector &x, double &t, double &dt)
    t += dt;
 }
 
+
 void GeneralizedAlphaSolver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
@@ -507,10 +508,10 @@ void GeneralizedAlphaSolver::SetRhoInf(double rho_inf)
 
 void GeneralizedAlphaSolver::PrintProperties(std::ostream &out)
 {
-   out<<"Generalized alpha time integrator:"<<std::endl;
-   out<<"alpha_m = "<<alpha_m<<std::endl;
-   out<<"alpha_f = "<<alpha_f<<std::endl;
-   out<<"gamma   = "<<gamma  <<std::endl;
+   out << "Generalized alpha time integrator:" << std::endl;
+   out << "alpha_m = " << alpha_m << std::endl;
+   out << "alpha_f = " << alpha_f << std::endl;
+   out << "gamma   = " << gamma   << std::endl;
 
    if (gamma == 0.5 + alpha_m - alpha_f)
    {
@@ -529,21 +530,17 @@ void GeneralizedAlphaSolver::PrintProperties(std::ostream &out)
    {
       out<<"Unstable"<<std::endl;
    }
-
 }
 
-
-/** This routine assumes xdot is initialized
-*/
+// This routine assumes xdot is initialized.
 void GeneralizedAlphaSolver::Step(Vector &x, double &t, double &dt)
 {
    double dt_fac1 = alpha_f*(1.0 - gamma/alpha_m);
    double dt_fac2 = alpha_f*gamma/alpha_m;
    double dt_fac3 = 1.0/alpha_m;
 
-   // In the first pass xdot is not yet computed
-   // If parameter choices requires xdot
-   // midpoint rule is used instead for the first step only.
+   // In the first pass xdot is not yet computed. If parameter choices requires
+   // xdot midpoint rule is used instead for the first step only.
    if (first && (dt_fac1 != 0.0))
    {
       dt_fac1 = 0.0;
@@ -562,6 +559,7 @@ void GeneralizedAlphaSolver::Step(Vector &x, double &t, double &dt)
 
    t += dt;
 }
+
 
 void
 SIASolver::Init(Operator &P, TimeDependentOperator & F)
