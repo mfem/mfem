@@ -300,7 +300,7 @@ public:
 
    virtual void Step(Vector &x, double &t, double &dt);
 };
-  
+
 /// The SIASolver class is based on the Symplectic Integration Algorithm
 /// described in "A Symplectic Integration Algorithm for Separable Hamiltonian
 /// Functions" by J. Candy and W. Rozmus, Journal of Computational Physics,
