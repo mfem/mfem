@@ -149,7 +149,7 @@ public:
        Zero-copies as much data as possible.
 
        @a coordset_name, @a main_topology_name, and @a boundary_topology_name
-       control the names used for the mesh blueprint entires.
+       control the names used for the mesh blueprint entries.
 
        With the default set of names, this method describes the mesh's
        coordinates with a coordinate set entry named `coords`. Describes the
@@ -183,7 +183,7 @@ public:
                                             const std::string &main_topology_name = "main");
 
    /// Constructs and MFEM mesh from a Conduit Blueprint Description
-   /** @a main_toplogy_name is used to select which topology to use, when
+   /** @a main_topology_name is used to select which topology to use, when
        empty ("") the first topology entry will be used.
 
        If zero_copy == true, tries to construct a mesh that points to the data
