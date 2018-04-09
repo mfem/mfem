@@ -282,6 +282,26 @@ public:
    virtual void Step(Vector &x, double &t, double &dt);
 };
 
+
+/// Generalized-alpha ODE solver. 
+class GeneralizedAlphaSolver : public ODESolver
+{
+protected:
+   Vector xdot,k,y;
+   double alpha_f, alpha_m, gamma;
+   bool first;
+
+   void SetRhoInf(double rho_inf);
+   void PrintProperties(std::ostream &out = mfem::out);
+public:
+
+   GeneralizedAlphaSolver(double rho = 1.0) { SetRhoInf(rho); };
+
+   virtual void Init(TimeDependentOperator &_f);
+
+   virtual void Step(Vector &x, double &t, double &dt);
+};
+
 }
 
 #endif
