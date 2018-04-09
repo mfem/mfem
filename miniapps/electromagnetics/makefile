@@ -22,7 +22,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS =
-PAR_MINIAPPS = volta tesla joule
+PAR_MINIAPPS = volta tesla maxwell joule
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -62,6 +62,9 @@ volta-test-par: volta
 tesla-test-par: tesla
 	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
 	-maxit 2 -cr '0 0 -0.2 0 0 0.2 0.2 0.4 1')
+maxwell-test-par: maxwell
+	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
+	-abcs '-1' -dp '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5')
 joule-test-par: joule
 	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
 	-p rod -tf 3 -m $(SRC)cylinder-hex.mesh)
@@ -79,4 +82,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf Volta-AMR* Tesla-AMR* Joule_*
+	@rm -rf Volta-AMR* Tesla-AMR* Maxwell-Parallel* Joule_*
