@@ -264,6 +264,82 @@ public:
    virtual ~TimeDependentOperator() { }
 };
 
+/// Base abstract class for second order time dependent operators.
+/** Operator of the form: (x,dxdt,t) -> f(x,dxdt,t), where k = f(x,dxdt,t) generally solves the
+    algebraic equation F(x,dxdt,k,t) = G(x,dxdt,t). The functions F and G represent the
+    _implicit_ and _explicit_ parts of the operator, respectively. For explicit
+    operators, F(x,dxdt,k,t) = k, so f(x,dxdt,t) = G(x,dxdt,t).*/
+class TimeDependent2Operator : public Operator
+{
+public:
+   enum Type
+   {
+      EXPLICIT,   ///< This type assumes F(x,dxdt,k,t) = k, i.e. k = f(x,dxdt,t) = G(x,dxdt,t).
+      IMPLICIT,   ///< This is the most general type, no assumptions on F and G.
+      HOMOGENEOUS ///< This type assumes that G(x,dxdt,t) = 0.
+   };
+
+protected:
+   double t;  ///< Current time.
+   Type type; ///< Describes the form of the TimeDependent2Operator.
+
+public:
+   /** @brief Construct a "square" TimeDependent2Operator y = f(x,dxdt,t), where x and
+       y have the same dimension @a n. */
+   explicit TimeDependent2Operator(int n = 0, double t_ = 0.0,
+                                   Type type_ = EXPLICIT)
+      : Operator(n) { t = t_; type = type_; }
+
+   /** @brief Construct a TimeDependent2Operator y = f(x,dxdt,t), where x and y have
+       dimensions @a w and @a h, respectively. */
+   TimeDependent2Operator(int h, int w, double t_ = 0.0, Type type_ = EXPLICIT)
+      : Operator(h, w) { t = t_; type = type_; }
+
+   /// Read the currently set time.
+   virtual double GetTime() const { return t; }
+
+   /// Set the current time.
+   virtual void SetTime(const double _t) { t = _t; }
+
+   /// True if #type is #EXPLICIT.
+   bool isExplicit() const { return (type == EXPLICIT); }
+   /// True if #type is #IMPLICIT or #HOMOGENEOUS.
+   bool isImplicit() const { return !isExplicit(); }
+   /// True if #type is #HOMOGENEOUS.
+   bool isHomogeneous() const { return (type == HOMOGENEOUS); }
+
+   /** @brief Perform the action of the operator: @a y = k = f(@a x, @a dxdt, t), where
+       k solves the algebraic equation F(@a x,@a dxdt,  k, t) = G(@a x, @a dxdt,  t) and t is the
+       current time. */
+   virtual void ExplicitSolve(const Vector &x, const Vector &dxdt, Vector &y) const
+   {
+      mfem_error("TimeDependent2Operator::Mult() is not overridden!");
+   }
+
+   /** @brief Solve the equation: @a k = f(@a x + 1/2 @a dt^2 @a k, @a dxdt + @a dt @a k, t), for the
+       unknown @a k at the current time t.
+
+       For general F and G, the equation for @a k becomes:
+       F(@a x + 1/2 @a dt^2 @a k, @a dxdt + @a dt @a k, t) = G(@a x + 1/2 @a dt^2 @a k, @a dxdt + @a dt @a k, t).
+
+       The input vector @a x corresponds to time index (or cycle) n, while the
+       currently set time, #t, and the result vector @a k correspond to time
+       index n+1. The time step @a dt corresponds to the time interval between
+       cycles n and n+1.
+
+       This method allows for the abstract implementation of some time
+       integration methods.
+
+       If not re-implemented, this method simply generates an error. */
+   virtual void ImplicitSolve(const double dt0, const double dt1,
+                              const Vector &x, const Vector &dxdt, Vector &k)
+   {
+      mfem_error("TimeDependent2Operator::ImplicitSolve() is not overridden!");
+   }
+
+   virtual ~TimeDependent2Operator() { }
+};
+
 /// Base class for solvers
 class Solver : public Operator
 {
