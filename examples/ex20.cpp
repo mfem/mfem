@@ -4,16 +4,7 @@
 //
 // Sample runs:  ex20
 //               ex20 -m ../data/inline-tri.mesh
-//               ex20 -m ../data/disc-nurbs.mesh -tf 2
-//               ex20 -s 1 -a 0.0 -k 1.0
-//               ex20 -s 2 -a 1.0 -k 0.0
-//               ex20 -s 3 -a 0.5 -k 0.5 -o 4
-//               ex20 -s 14 -dt 1.0e-4 -tf 4.0e-2 -vs 40
-//               ex20 -m ../data/fichera-q2.mesh
-//               ex20 -m ../data/escher.mesh
-//               ex20 -m ../data/beam-tet.mesh -tf 10 -dt 0.1
-//               ex20 -m ../data/amr-quad.mesh -o 4 -r 0
-//               ex20 -m ../data/amr-hex.mesh -o 2 -r 0
+//               ex20 -m ../data/disc-nurbs.mesh -r 3 -o 2 -tf 2
 //
 // Description:  This example solves the wave equation
 //               problem of the form d^2u/dt^2 = c^2 \Delta u.
@@ -29,7 +20,7 @@ using namespace mfem;
 
 /** After spatial discretization, the conduction model can be written as:
  *
- *     du/dt = M^{-1}(-Ku)
+ *     d^2u/dt^2 = M^{-1}(-Ku)
  *
  *  where u is the vector representing the temperature, M is the mass matrix,
  *  and K is the diffusion operator with diffusivity depending on u:
@@ -53,23 +44,21 @@ protected:
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
    DSmoother M_prec;  // Preconditioner for the mass matrix M
 
-   CGSolver T_solver; // Implicit solver for T = M + dt K
+   CGSolver T_solver; // Implicit solver for T = M + fac0*K
    DSmoother T_prec;  // Preconditioner for the implicit solver
 
-   double alpha;
-   Coefficient *kappa;
-
+   Coefficient *c2;
    mutable Vector z; // auxiliary vector
 
 public:
-   WaveOperator(FiniteElementSpace &f, Array<int> &ess_bdr,
-                      double alpha, double kappa,
-                      const Vector &u);
+   WaveOperator(FiniteElementSpace &f, Array<int> &ess_bdr,double speed);
 
-   virtual void Mult(const Vector &u, Vector &du_dt) const;
-   /** Solve the Backward-Euler equation: k = f(u + dt*k, t), for the unknown k.
-       This is the only requirement for high-order SDIRK implicit integration.*/
-   virtual void ImplicitSolve(const double dt, const Vector &u, Vector &k);
+   virtual void ExplicitSolve(const Vector &u, const Vector &du_dt,
+                              Vector &d2udt2) const;
+   /** Solve the Backward-Euler equation:
+       d2udt2 = f(u + fac0*d2udt2,dudt + fac1*d2udt2, t), for the unknown d2udt2.*/
+   virtual void ImplicitSolve(const double fac0, const double fac1,
+                              const Vector &u, const Vector &dudt, Vector &d2udt2);
 
    ///
    void SetParameters(const Vector &u);
@@ -79,8 +68,7 @@ public:
 
 
 WaveOperator::WaveOperator(FiniteElementSpace &f,
-                                       Array<int> &ess_bdr, double al,
-                                       double kap, const Vector &u)
+                           Array<int> &ess_bdr, double speed)
    : TimeDependent2Operator(f.GetTrueVSize(), 0.0), fespace(f), M(NULL), K(NULL),
      T(NULL), current_dt(0.0), z(height)
 {
@@ -88,11 +76,10 @@ WaveOperator::WaveOperator(FiniteElementSpace &f,
 
    fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-   alpha = al;
-   kappa = new ConstantCoefficient(kap);
+   c2 = new ConstantCoefficient(speed*speed);
 
    K = new BilinearForm(&fespace);
-   K->AddDomainIntegrator(new DiffusionIntegrator(*kappa));
+   K->AddDomainIntegrator(new DiffusionIntegrator(*c2));
    K->Assemble();
 
    Array<int> dummy;
@@ -119,32 +106,31 @@ WaveOperator::WaveOperator(FiniteElementSpace &f,
    T_solver.SetPrintLevel(0);
    T_solver.SetPreconditioner(T_prec);
 
-   SetParameters(u);
+   T = NULL;
 }
 
-void WaveOperator::Mult(const Vector &u, Vector &du_dt) const
+void WaveOperator::ExplicitSolve(const Vector &u, const Vector &du_dt,
+                                 Vector &d2udt2)  const
 {
    // Compute:
-   //    du_dt = M^{-1}*-K(u)
-   // for du_dt
+   //    d2udt2 = M^{-1}*-K(u)
+   // for d2udt2
    Kmat.Mult(u, z);
    z.Neg(); // z = -z
-   M_solver.Mult(z, du_dt);
+   M_solver.Mult(z, d2udt2);
 }
 
-void WaveOperator::ImplicitSolve(const double dt,
-                                       const Vector &u, Vector &du_dt)
+void WaveOperator::ImplicitSolve(const double fac0, const double fac1,
+                                 const Vector &u, const Vector &dudt, Vector &d2udt2)
 {
    // Solve the equation:
-   //    du_dt = M^{-1}*[-K(u + dt*du_dt)]
-   // for du_dt
+   //    d2udt2 = M^{-1}*[-K(u + fac0*d2udt2)]
+   // for d2udt2
    if (!T)
    {
-      T = Add(1.0, Mmat, dt, Kmat);
-      current_dt = dt;
+      T = Add(1.0, Mmat, fac0, Kmat);
       T_solver.SetOperator(*T);
    }
-   MFEM_VERIFY(dt == current_dt, ""); // SDIRK methods use the same dt
    Kmat0.Mult(u, z);
    z.Neg();
 
@@ -152,7 +138,7 @@ void WaveOperator::ImplicitSolve(const double dt,
    {
       z[ess_tdof_list[i]] = 0.0;
    }
-   T_solver.Mult(z, du_dt);
+   T_solver.Mult(z, d2udt2);
 }
 
 void WaveOperator::SetParameters(const Vector &u)
@@ -166,24 +152,25 @@ WaveOperator::~WaveOperator()
    delete T;
    delete M;
    delete K;
-   delete kappa;
+   delete c2;
 }
 
 double InitialSolution(const Vector &x)
 {
    if (x.Norml2() < 0.5)
+      //if (fabs(x[0]-0.0) < 0.5)
    {
-      return 2.0;
+      return 1.0;//cos(3.1415*x[0]);
    }
    else
    {
-      return 1.0;
+      return 0.0;
    }
 }
 
 double InitialRate(const Vector &x)
 {
-   return 1.0;
+   return 0.0;
 }
 
 
@@ -193,11 +180,10 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int ref_levels = 2;
    int order = 1;
-   int ode_solver_type = 1;
+   int ode_solver_type = 10;
    double t_final = 0.5;
    double dt = 1.0e-2;
-   double alpha = 1.0e-2;
-   double kappa = 0.5;
+   double speed = 1.0;
    bool visualization = true;
    bool visit = true;
    bool dirichlet = true;
@@ -221,10 +207,8 @@ int main(int argc, char *argv[])
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
-   args.AddOption(&alpha, "-a", "--alpha",
-                  "Alpha coefficient.");
-   args.AddOption(&kappa, "-k", "--kappa",
-                  "Kappa coefficient offset.");
+   args.AddOption(&speed, "-c", "--speed",
+                  "Wave speed.");
    args.AddOption(&dirichlet, "-dir", "--dirichlet", "-neu",
                   "--neumann",
                   "BC switch.");
@@ -257,7 +241,22 @@ int main(int argc, char *argv[])
    switch (ode_solver_type)
    {
       // Implicit methods
-      case 15: ode_solver = new GeneralizedAlpha2Solver(0.5); break;
+      case 0: ode_solver = new GeneralizedAlpha2Solver(0.0); break;
+      case 1: ode_solver = new GeneralizedAlpha2Solver(0.1); break;
+      case 2: ode_solver = new GeneralizedAlpha2Solver(0.2); break;
+      case 3: ode_solver = new GeneralizedAlpha2Solver(0.3); break;
+      case 4: ode_solver = new GeneralizedAlpha2Solver(0.4); break;
+      case 5: ode_solver = new GeneralizedAlpha2Solver(0.5); break;
+      case 6: ode_solver = new GeneralizedAlpha2Solver(0.6); break;
+      case 7: ode_solver = new GeneralizedAlpha2Solver(0.7); break;
+      case 8: ode_solver = new GeneralizedAlpha2Solver(0.8); break;
+      case 9: ode_solver = new GeneralizedAlpha2Solver(0.9); break;
+      case 10: ode_solver = new GeneralizedAlpha2Solver(1.0); break;
+
+      case 11: ode_solver = new AverageAccelerationSolver(); break;
+      case 12: ode_solver = new LinearAccelerationSolver(); break;
+      case 13: ode_solver = new CentralDifferenceSolver(); break;
+      case 14: ode_solver = new FoxGoodwinSolver(); break;
 
       default:
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
@@ -290,12 +289,10 @@ int main(int argc, char *argv[])
    Vector u;
    u_gf.GetTrueDofs(u);
 
-
    FunctionCoefficient dudt_0(InitialRate);
    dudt_gf.ProjectCoefficient(dudt_0);
    Vector dudt;
    dudt_gf.GetTrueDofs(dudt);
-
 
    // 7. Initialize the conduction operator and the visualization.
    Array<int> ess_bdr;
@@ -313,7 +310,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   WaveOperator oper(fespace, ess_bdr, alpha, kappa, u);
+   WaveOperator oper(fespace, ess_bdr, speed);
 
    u_gf.SetFromTrueDofs(u);
    {
@@ -392,7 +389,7 @@ int main(int argc, char *argv[])
             visit_dc.SetTime(t);
             visit_dc.Save();
          }
-      } 
+      }
       oper.SetParameters(u); // dudt???
    }
 
