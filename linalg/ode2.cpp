@@ -130,7 +130,7 @@ void GeneralizedAlpha2Solver::PrintProperties(std::ostream &out)
 }
 
 void GeneralizedAlpha2Solver::Step(Vector &x, Vector &dxdt,  double &t,
-                                  double &dt)
+                                   double &dt)
 {
    double fac1 = (0.5 - beta/alpha_m);
    double fac2 = alpha_f;

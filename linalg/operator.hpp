@@ -308,12 +308,18 @@ public:
    /// True if #type is #HOMOGENEOUS.
    bool isHomogeneous() const { return (type == HOMOGENEOUS); }
 
+
+   virtual void Mult(const Vector &x, Vector &y) const
+   {
+      mfem_error("TimeDependent2Operator::Mult() is not defined!");
+   }
+
    /** @brief Perform the action of the operator: @a y = k = f(@a x, @a dxdt, t), where
        k solves the algebraic equation F(@a x,@a dxdt,  k, t) = G(@a x, @a dxdt,  t) and t is the
        current time. */
    virtual void ExplicitSolve(const Vector &x, const Vector &dxdt, Vector &y) const
    {
-      mfem_error("TimeDependent2Operator::Mult() is not overridden!");
+      mfem_error("TimeDependent2Operator::ExplicitSolve() is not overridden!");
    }
 
    /** @brief Solve the equation: @a k = f(@a x + 1/2 @a dt^2 @a k, @a dxdt + @a dt @a k, t), for the
