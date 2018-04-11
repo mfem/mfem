@@ -43,7 +43,7 @@ void NewmarkSolver::PrintProperties(std::ostream &out)
    {
       out<<"A-Stable"<<std::endl;
    }
-   else if ((gamma >= 0.5) && (beta >= 0.5*gamma)
+   else if ((gamma >= 0.5) && (beta >= 0.5*gamma))
    {
       out<<"Conditionally stable"<<std::endl;
    }
@@ -85,17 +85,15 @@ void NewmarkSolver::Step(Vector &x, Vector &dxdt,  double &t, double &dt)
 }
 
 
-void GeneralizedAlphaSolver::Init(TimeDependent2Operator &_f)
+void GeneralizedAlpha2Solver::Init(TimeDependent2Operator &_f)
 {
    ODE2Solver::Init(_f);
-   k.SetSize(f->Width());
-   y.SetSize(f->Width());
-   dxdt.SetSize(f->Width());
-   dxdt = 0.0;
+   d2xdt2.SetSize(f->Width());
+   d2xdt2 = 0.0;
    first = true;
 }
 
-void GeneralizedAlphaSolver::SetRhoInf(double rho_inf)
+void GeneralizedAlpha2Solver::SetRhoInf(double rho_inf)
 {
    rho_inf = (rho_inf > 1.0) ? 1.0 : rho_inf;
    rho_inf = (rho_inf < 0.0) ? 0.0 : rho_inf;
@@ -105,7 +103,7 @@ void GeneralizedAlphaSolver::SetRhoInf(double rho_inf)
    gamma = 0.5 + alpha_m - alpha_f;
 }
 
-void GeneralizedAlphaSolver::PrintProperties(std::ostream &out)
+void GeneralizedAlpha2Solver::PrintProperties(std::ostream &out)
 {
    out << "Generalized alpha time integrator:" << std::endl;
    out << "alpha_m = " << alpha_m << std::endl;
@@ -131,33 +129,39 @@ void GeneralizedAlphaSolver::PrintProperties(std::ostream &out)
    }
 }
 
-// This routine assumes xdot is initialized.
-void GeneralizedAlphaSolver::Step(Vector &x, Vector &dxdt,  double &t,
+void GeneralizedAlpha2Solver::Step(Vector &x, Vector &dxdt,  double &t,
                                   double &dt)
 {
-   double dt_fac1 = alpha_f*(1.0 - gamma/alpha_m);
-   double dt_fac2 = alpha_f*gamma/alpha_m;
-   double dt_fac3 = 1.0/alpha_m;
+   double fac1 = (0.5 - beta/alpha_m);
+   double fac2 = alpha_f;
+   double fac3 = alpha_f*(1.0 - gamma/alpha_m);
+   double fac4 = beta*alpha_f/alpha_m;
+   double fac5 = gamma*alpha_f/alpha_m;
 
-   // In the first pass xdot is not yet computed. If parameter choices requires
-   // xdot midpoint rule is used instead for the first step only.
-   if (first && (dt_fac1 != 0.0))
+   // In the first pass d2xdt2 is not yet computed. If parameter choices requires
+   // d2xdt2 then Midpoint (rho_inf = 1) is used instead for the first step only.
+   if (first && !(fac1*fac3 == 0.0))
    {
-      dt_fac1 = 0.0;
-      dt_fac2 = 0.5;
-      dt_fac3 = 2.0;
+      fac1 = 0.0;
+      fac3 = 0.0;
+
+      fac2 = 0.5;
+      fac4 = 0.25;
+      fac5 = 0.5;
       first = false;
    }
 
-   /*   add(x, dt_fac1*dt, xdot, y);
-      f->SetTime(t + dt_fac2*dt);
-      f->ImplicitSolve(dt_fac2*dt, y, k);
+   f->SetTime(t + fac2*dt);
 
-      add(y, dt_fac2*dt, k, x);
-      k.Add(-1.0, xdot);
-      xdot.Add(dt_fac3, k);
-   */
+   dxdt.Add(fac1*dt, d2xdt2);
+   x.Add(fac2*dt, dxdt);
+   dxdt.Add((fac3-fac1)*dt, d2xdt2);
+
+   f->ImplicitSolve(fac4*dt*dt,fac5*dt, x, dxdt, d2xdt2);
+   x.Add(fac4*dt*dt, d2xdt2);
+   dxdt.Add(fac5*dt, d2xdt2);
    t += dt;
+
 }
 
 }
