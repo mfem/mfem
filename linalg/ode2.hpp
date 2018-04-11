@@ -119,6 +119,8 @@ private:
 public:
    NewmarkSolver(double beta_ = 0.25, double gamma_ = 0.5) { beta = beta_; gamma = gamma_; };
 
+   void PrintProperties(std::ostream &out = mfem::out);
+
    virtual void Init(TimeDependent2Operator &_f);
 
    virtual void Step(Vector &x, Vector &dxdt, double &t, double &dt);
@@ -153,18 +155,20 @@ public:
 /// Generalized-alpha ODE solver
 /// A Time Integration Algorithm for Structural Dynamics With Improved Numerical Dissipation: The Generalized-α Method
 /// J.Chung and G.M. Hulbert,  J. Appl. Mech 60(2), 371-375, 1993
-class GeneralizedAlphaSolver : public ODE2Solver
+class GeneralizedAlpha2Solver : public ODE2Solver
 {
 protected:
-   Vector dxdt,k,y;
-   double alpha_f, alpha_m, gamma;
+   Vector d2xdt2;
+   double alpha_f, alpha_m, beta, gamma;
    bool first;
 
    void SetRhoInf(double rho_inf);
-   void PrintProperties(std::ostream &out = mfem::out);
+
 public:
 
-   GeneralizedAlphaSolver(double rho = 1.0) { SetRhoInf(rho); };
+   GeneralizedAlpha2Solver(double rho = 1.0) { SetRhoInf(rho); };
+
+   void PrintProperties(std::ostream &out = mfem::out);
 
    virtual void Init(TimeDependent2Operator &_f);
 
