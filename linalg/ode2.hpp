@@ -152,7 +152,6 @@ public:
    FoxGoodwinSolver() : NewmarkSolver(1.0/12.0, 0.5) { };
 };
 
-
 /// Generalized-alpha ODE solver
 /// A Time Integration Algorithm for Structural Dynamics With Improved Numerical Dissipation: The Generalized-α Method
 /// J.Chung and G.M. Hulbert,  J. Appl. Mech 60(2), 371-375, 1993
@@ -164,8 +163,7 @@ protected:
    bool first;
 
 public:
-
-   GeneralizedAlpha2Solver(double rho_inf = 1.0) 
+   GeneralizedAlpha2Solver(double rho_inf = 1.0)
    {
       rho_inf = (rho_inf > 1.0) ? 1.0 : rho_inf;
       rho_inf = (rho_inf < 0.0) ? 0.0 : rho_inf;
@@ -187,33 +185,30 @@ public:
 class HHTAlphaSolver : public GeneralizedAlpha2Solver
 {
 public:
-
-   HHTAlphaSolver(double rho_inf = 1.0) 
+   HHTAlphaSolver(double rho_inf = 1.0)
    {
       rho_inf = (rho_inf > 1.0) ? 1.0 : rho_inf;
       rho_inf = (rho_inf < 0.0) ? 0.0 : rho_inf;
 
       alpha_m = 1.0;
-      alpha_f = 2.0*rho_inf/(1.0+rho_inf);
+      alpha_f = 2.0*rho_inf/(1.0 + rho_inf);
       beta    = 0.25*pow(1.0 + alpha_m - alpha_f,2);
       gamma   = 0.5 + alpha_m - alpha_f;
    };
 
 };
 
-
 /// WBZ-alpha ODE solver
 class WBZAlphaSolver : public GeneralizedAlpha2Solver
 {
 public:
-
-   WBZAlphaSolver(double rho_inf = 1.0) 
+   WBZAlphaSolver(double rho_inf = 1.0)
    {
       rho_inf = (rho_inf > 1.0) ? 1.0 : rho_inf;
       rho_inf = (rho_inf < 0.0) ? 0.0 : rho_inf;
 
       alpha_f = 1.0;
-      alpha_m = 2.0/(1.0+rho_inf);
+      alpha_m = 2.0/(1.0 + rho_inf);
       beta    = 0.25*pow(1.0 + alpha_m - alpha_f,2);
       gamma   = 0.5 + alpha_m - alpha_f;
    };
