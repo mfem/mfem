@@ -28,6 +28,8 @@ protected:
 public:
    ODE2Solver() : f(NULL) { }
 
+   virtual void PrintProperties(std::ostream &out = mfem::out) {}
+
    /// Associate a TimeDependentOperator with the ODE solver.
    /** This method has to be called:
        - Before the first call to Step().
@@ -119,7 +121,7 @@ private:
 public:
    NewmarkSolver(double beta_ = 0.25, double gamma_ = 0.5) { beta = beta_; gamma = gamma_; };
 
-   void PrintProperties(std::ostream &out = mfem::out);
+   virtual void PrintProperties(std::ostream &out = mfem::out);
 
    virtual void Init(TimeDependent2Operator &_f);
 
@@ -131,7 +133,6 @@ class AverageAccelerationSolver : public NewmarkSolver
 public:
    AverageAccelerationSolver() : NewmarkSolver(0.25, 0.5) { };
 };
-
 
 class LinearAccelerationSolver : public NewmarkSolver
 {
@@ -158,7 +159,7 @@ public:
 class GeneralizedAlpha2Solver : public ODE2Solver
 {
 protected:
-   Vector d2xdt2;
+   Vector k,d2xdt2;
    double alpha_f, alpha_m, beta, gamma;
    bool first;
 
@@ -168,13 +169,59 @@ public:
 
    GeneralizedAlpha2Solver(double rho = 1.0) { SetRhoInf(rho); };
 
-   void PrintProperties(std::ostream &out = mfem::out);
+   virtual void PrintProperties(std::ostream &out = mfem::out);
 
    virtual void Init(TimeDependent2Operator &_f);
 
    virtual void Step(Vector &x, Vector &dxdt, double &t, double &dt);
 };
 
+/// HHT-alpha ODE solver
+class HHTAlphaSolver : public GeneralizedAlpha2Solver
+{
+public:
+
+   HHTAlphaSolver(double alpha = 1.0) : GeneralizedAlpha2Solver()
+   {
+      alpha_m = 1.0;
+      alpha_f = -1.0;
+      beta    = -1.0;
+      gamma   = -1.0;
+   };
+
+};
+
+
+/// WBZ-alpha ODE solver
+class WBZAlphaSolver : public GeneralizedAlpha2Solver
+{
+public:
+
+   WBZAlphaSolver(double alpha = 1.0) : GeneralizedAlpha2Solver()
+   {
+      alpha_f = 1.0;
+      alpha_m = -1.0;
+      beta    = -1.0;
+      gamma   = -1.0;
+   };
+
+};
+
+/// The classical newmark method.
+/// Newmark, N. M. (1959) A method of computation for structural dynamics.
+/// Journal of Engineering Mechanics, ASCE, 85 (EM3) 67-94.
+class Newmark2Solver : public GeneralizedAlpha2Solver
+{
+public:
+   Newmark2Solver(double beta_ = 0.25, double gamma_ = 0.5)
+      : GeneralizedAlpha2Solver()
+   {
+      alpha_f = 1.0;
+      alpha_m = 1.0;
+      beta    = beta_;
+      gamma   = gamma_;
+   };
+};
 
 
 }
