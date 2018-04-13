@@ -104,27 +104,38 @@ int main(int argc, char *argv[])
    switch (ode_solver_type)
    {
       // Implicit methods
-      case 0: ode_solver = new GeneralizedAlpha2Solver(0.0); break;
-      case 1: ode_solver = new GeneralizedAlpha2Solver(0.1); break;
-      case 2: ode_solver = new GeneralizedAlpha2Solver(0.2); break;
-      case 3: ode_solver = new GeneralizedAlpha2Solver(0.3); break;
-      case 4: ode_solver = new GeneralizedAlpha2Solver(0.4); break;
-      case 5: ode_solver = new GeneralizedAlpha2Solver(0.5); break;
-      case 6: ode_solver = new GeneralizedAlpha2Solver(0.6); break;
-      case 7: ode_solver = new GeneralizedAlpha2Solver(0.7); break;
-      case 8: ode_solver = new GeneralizedAlpha2Solver(0.8); break;
-      case 9: ode_solver = new GeneralizedAlpha2Solver(0.9); break;
+      case 0:  ode_solver = new GeneralizedAlpha2Solver(0.0); break;
+      case 1:  ode_solver = new GeneralizedAlpha2Solver(0.1); break;
+      case 2:  ode_solver = new GeneralizedAlpha2Solver(0.2); break;
+      case 3:  ode_solver = new GeneralizedAlpha2Solver(0.3); break;
+      case 4:  ode_solver = new GeneralizedAlpha2Solver(0.4); break;
+      case 5:  ode_solver = new GeneralizedAlpha2Solver(0.5); break;
+      case 6:  ode_solver = new GeneralizedAlpha2Solver(0.6); break;
+      case 7:  ode_solver = new GeneralizedAlpha2Solver(0.7); break;
+      case 8:  ode_solver = new GeneralizedAlpha2Solver(0.8); break;
+      case 9:  ode_solver = new GeneralizedAlpha2Solver(0.9); break;
       case 10: ode_solver = new GeneralizedAlpha2Solver(1.0); break;
 
+      // Newmark solvers
       case 11: ode_solver = new AverageAccelerationSolver(); break;
-      case 12: ode_solver = new LinearAccelerationSolver(); break;
-      case 13: ode_solver = new CentralDifferenceSolver(); break;
-      case 14: ode_solver = new FoxGoodwinSolver(); break;
+      case 12: ode_solver = new LinearAccelerationSolver();  break;
+      case 13: ode_solver = new CentralDifferenceSolver();   break;
+      case 14: ode_solver = new FoxGoodwinSolver();          break;
+
+      // Newmark solvers --> as special case of gen-alpha
+      case 21: ode_solver = new Newmark2Solver(0.25, 0.5);     break;
+      case 22: ode_solver = new Newmark2Solver(1.0/6.0, 0.5);  break;
+      case 23: ode_solver = new Newmark2Solver(0.0, 0.5);      break;
+      case 24: ode_solver = new Newmark2Solver(1.0/12.0, 0.5); break;
+
 
       default:
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          return 3;
    }
+   ode_solver->PrintProperties();
+
+
 
    // 3. Set the initial conditions for u.
    Vector u(1);
