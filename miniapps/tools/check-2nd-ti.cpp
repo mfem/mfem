@@ -10,7 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 //
 //      ----------------------------------------------------------------
-//      Check timeintegrator Miniapp:  
+//      Check timeintegrator Miniapp:
 //      ----------------------------------------------------------------
 //
 //
@@ -57,7 +57,7 @@ void ODE2::ExplicitSolve(const Vector &u, const Vector &dudt,
 void ODE2::ImplicitSolve(const double fac0, const double fac1,
                          const Vector &u, const Vector &dudt, Vector &d2udt2)
 {
-   // f 
+   // f
    double T = 1.0 + a*fac0 + fac1*b;
    d2udt2[0] = (-a*u[0] - b*dudt[0])/T;
 }
@@ -123,10 +123,37 @@ int main(int argc, char *argv[])
       case 14: ode_solver = new FoxGoodwinSolver();          break;
 
       // Newmark solvers --> as special case of gen-alpha
-      case 21: ode_solver = new Newmark2Solver(0.25, 0.5);     break;
-      case 22: ode_solver = new Newmark2Solver(1.0/6.0, 0.5);  break;
-      case 23: ode_solver = new Newmark2Solver(0.0, 0.5);      break;
+      case 21: ode_solver = new Newmark2Solver(0.25,     0.5); break;
+      case 22: ode_solver = new Newmark2Solver(1.0/6.0,  0.5); break;
+      case 23: ode_solver = new Newmark2Solver(0.0,      0.5); break;
       case 24: ode_solver = new Newmark2Solver(1.0/12.0, 0.5); break;
+
+
+      case 30:  ode_solver = new HHTAlphaSolver(0.0); break;
+      case 31:  ode_solver = new HHTAlphaSolver(0.1); break;
+      case 32:  ode_solver = new HHTAlphaSolver(0.2); break;
+      case 33:  ode_solver = new HHTAlphaSolver(0.3); break;
+      case 34:  ode_solver = new HHTAlphaSolver(0.4); break;
+      case 35:  ode_solver = new HHTAlphaSolver(0.5); break;
+      case 36:  ode_solver = new HHTAlphaSolver(0.6); break;
+      case 37:  ode_solver = new HHTAlphaSolver(0.7); break;
+      case 38:  ode_solver = new HHTAlphaSolver(0.8); break;
+      case 39:  ode_solver = new HHTAlphaSolver(0.9); break;
+      case 40:  ode_solver = new HHTAlphaSolver(1.0); break;
+
+
+      case 50:  ode_solver = new WBZAlphaSolver(0.0); break;
+      case 51:  ode_solver = new WBZAlphaSolver(0.1); break;
+      case 52:  ode_solver = new WBZAlphaSolver(0.2); break;
+      case 53:  ode_solver = new WBZAlphaSolver(0.3); break;
+      case 54:  ode_solver = new WBZAlphaSolver(0.4); break;
+      case 55:  ode_solver = new WBZAlphaSolver(0.5); break;
+      case 56:  ode_solver = new WBZAlphaSolver(0.6); break;
+      case 57:  ode_solver = new WBZAlphaSolver(0.7); break;
+      case 58:  ode_solver = new WBZAlphaSolver(0.8); break;
+      case 59:  ode_solver = new WBZAlphaSolver(0.9); break;
+      case 60:  ode_solver = new WBZAlphaSolver(1.0); break;
+
 
 
       default:
@@ -150,7 +177,7 @@ int main(int argc, char *argv[])
    ode_solver->Init(oper);
    double t = 0.0;
 
-   bool last_step = false; 
+   bool last_step = false;
    ofstream output("output.dat");
    output<<t<<" "<<u[0]<<" "<<dudt[0]<<endl;
    for (int ti = 1; !last_step; ti++)
@@ -162,7 +189,7 @@ int main(int argc, char *argv[])
 
       ode_solver->Step(u, dudt, t, dt);
       output<<t<<" "<<u[0]<<" "<<dudt[0]<<endl;
-   }  
+   }
    output.close();
 
    // 5. Free the used memory.

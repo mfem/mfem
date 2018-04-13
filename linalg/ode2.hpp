@@ -163,11 +163,18 @@ protected:
    double alpha_f, alpha_m, beta, gamma;
    bool first;
 
-   void SetRhoInf(double rho_inf);
-
 public:
 
-   GeneralizedAlpha2Solver(double rho = 1.0) { SetRhoInf(rho); };
+   GeneralizedAlpha2Solver(double rho_inf = 1.0) 
+   {
+      rho_inf = (rho_inf > 1.0) ? 1.0 : rho_inf;
+      rho_inf = (rho_inf < 0.0) ? 0.0 : rho_inf;
+
+      alpha_m = (2.0 - rho_inf)/(1.0 + rho_inf);
+      alpha_f = 1.0/(1.0 + rho_inf);
+      beta    = 0.25*pow(1.0 + alpha_m - alpha_f,2);
+      gamma   = 0.5 + alpha_m - alpha_f;
+   };
 
    virtual void PrintProperties(std::ostream &out = mfem::out);
 
@@ -181,12 +188,15 @@ class HHTAlphaSolver : public GeneralizedAlpha2Solver
 {
 public:
 
-   HHTAlphaSolver(double alpha = 1.0) : GeneralizedAlpha2Solver()
+   HHTAlphaSolver(double rho_inf = 1.0) 
    {
+      rho_inf = (rho_inf > 1.0) ? 1.0 : rho_inf;
+      rho_inf = (rho_inf < 0.0) ? 0.0 : rho_inf;
+
       alpha_m = 1.0;
-      alpha_f = -1.0;
-      beta    = -1.0;
-      gamma   = -1.0;
+      alpha_f = 2.0*rho_inf/(1.0+rho_inf);
+      beta    = 0.25*pow(1.0 + alpha_m - alpha_f,2);
+      gamma   = 0.5 + alpha_m - alpha_f;
    };
 
 };
@@ -197,12 +207,15 @@ class WBZAlphaSolver : public GeneralizedAlpha2Solver
 {
 public:
 
-   WBZAlphaSolver(double alpha = 1.0) : GeneralizedAlpha2Solver()
+   WBZAlphaSolver(double rho_inf = 1.0) 
    {
+      rho_inf = (rho_inf > 1.0) ? 1.0 : rho_inf;
+      rho_inf = (rho_inf < 0.0) ? 0.0 : rho_inf;
+
       alpha_f = 1.0;
-      alpha_m = -1.0;
-      beta    = -1.0;
-      gamma   = -1.0;
+      alpha_m = 2.0/(1.0+rho_inf);
+      beta    = 0.25*pow(1.0 + alpha_m - alpha_f,2);
+      gamma   = 0.5 + alpha_m - alpha_f;
    };
 
 };
@@ -214,7 +227,6 @@ class Newmark2Solver : public GeneralizedAlpha2Solver
 {
 public:
    Newmark2Solver(double beta_ = 0.25, double gamma_ = 0.5)
-      : GeneralizedAlpha2Solver()
    {
       alpha_f = 1.0;
       alpha_m = 1.0;
