@@ -11,6 +11,7 @@
 
 #include "operator.hpp"
 #include "ode2.hpp"
+#include <iomanip>
 
 namespace mfem
 {
@@ -22,7 +23,6 @@ void NewmarkSolver::Init(TimeDependent2Operator &_f)
    d2xdt2 = 0.0;
    first = true;
 }
-
 
 void NewmarkSolver::PrintProperties(std::ostream &out)
 {
@@ -78,9 +78,9 @@ void NewmarkSolver::Step(Vector &x, Vector &dxdt,  double &t, double &dt)
    x.Add(fac0*dt*dt, d2xdt2);
    dxdt.Add(fac2*dt,  d2xdt2);
 
+   f->SetTime(t + dt);
    f->ImplicitSolve(fac3*dt*dt,fac4*dt, x, dxdt, d2xdt2);
-std::cout<<dt<<" "<<fac3*dt*dt<<" "<<fac4*dt<<"  -->  ";
-std::cout<<x[0]<<" "<<dxdt[0]<<" "<<d2xdt2[0]<<std::endl;
+
    x.Add(fac3*dt*dt, d2xdt2);
    dxdt.Add(fac4*dt, d2xdt2);
    t += dt;
@@ -93,17 +93,6 @@ void GeneralizedAlpha2Solver::Init(TimeDependent2Operator &_f)
    d2xdt2.SetSize(f->Width());
    d2xdt2 = 0.0;
    first = true;
-}
-
-void GeneralizedAlpha2Solver::SetRhoInf(double rho_inf)
-{
-   rho_inf = (rho_inf > 1.0) ? 1.0 : rho_inf;
-   rho_inf = (rho_inf < 0.0) ? 0.0 : rho_inf;
-
-   alpha_m = 0.5*(3.0 - rho_inf)/(1.0 + rho_inf);
-   alpha_f = 1.0/(1.0 + rho_inf);
-   beta    = 0.25*pow(1.0 + alpha_m - alpha_f,2);
-   gamma   = 0.5 + alpha_m - alpha_f;
 }
 
 void GeneralizedAlpha2Solver::PrintProperties(std::ostream &out)
@@ -124,7 +113,7 @@ void GeneralizedAlpha2Solver::PrintProperties(std::ostream &out)
    }
 
    if ((alpha_m >= alpha_f)&&
-       (alpha_f >= 0.5) && 
+       (alpha_f >= 0.5) &&
        (beta >= 0.25 + 0.5*(alpha_m - alpha_f)))
    {
       out<<"Stable"<<std::endl;
@@ -146,43 +135,29 @@ void GeneralizedAlpha2Solver::Step(Vector &x, Vector &dxdt,  double &t,
    double fac5 = 1.0/alpha_m;
 
    // In the first pass d2xdt2 is not yet computed. If parameter choices requires
-   // d2xdt2 then Midpoint (rho_inf = 1) is used instead for the first step only.
-   if (first && !(fac0*fac2 == 0.0))
+   // d2xdt2 then backward Eeuler is used instead for the first step only.
+   if (first)// && !(fac0*fac2 == 0.0))
    {
-      fac0 = 0.0;
-      fac1 = 0.5;
-      fac2 = 0.0;
-      fac3 = 0.25;
-      fac4 = 0.5;
-      fac5 = 0.5;
-
       fac0 = 0.0;
       fac1 = 1.0;
       fac2 = 0.0;
       fac3 = 0.5;
       fac4 = 1.0;
       fac5 = 1.0;
-
       first = false;
    }
-std::cout<<fac0<<" "<<fac1<<" "<<fac2<<" "<<fac3<<" "<<fac4<<" "<<fac5<<std::endl;
-
-
-   f->SetTime(t + fac1*dt);
 
    dxdt.Add(fac0*dt, d2xdt2);
    x.Add(fac1*dt, dxdt);
    dxdt.Add((fac2-fac0)*dt, d2xdt2);
+   d2xdt2 *= 1.0 - fac5;
 
+   f->SetTime(t + dt);
    f->ImplicitSolve(fac3*dt*dt,fac4*dt, x, dxdt, k);
-std::cout<<dt<<" "<<fac3*dt*dt<<" "<<fac4*dt<<"  -->  ";
-std::cout<<x[0]<<" "<<dxdt[0]<<" "<<k[0]<<std::endl;
-   x.Add(fac3*dt*dt, k);
-   dxdt.Add(fac4*dt, k);
 
-   k -= d2xdt2;
-   d2xdt2.Add(fac5,k);
-
+   x     .Add(fac3*dt*dt, k);
+   dxdt  .Add(fac4*dt,    k);
+   d2xdt2.Add(fac5,       k);
    t += dt;
 
 }

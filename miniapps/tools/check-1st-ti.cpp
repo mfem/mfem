@@ -10,7 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 //
 //      ----------------------------------------------------------------
-//      Check timeintegrator Miniapp:  
+//      Check timeintegrator Miniapp:
 //      ----------------------------------------------------------------
 //
 //
@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
          return 3;
    }
 
-   // 3. Set the initial conditions for u. 
+   // 3. Set the initial conditions for u.
    Vector u(1);
    u    = 1.0;
 
@@ -135,7 +135,7 @@ int main(int argc, char *argv[])
 
       ode_solver->Step(u, t, dt);
       output<<t<<" "<<u[0]<<endl;
-   }  
+   }
    output.close();
 
    // 5. Free the used memory.
