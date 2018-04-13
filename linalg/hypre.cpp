@@ -1493,6 +1493,8 @@ int BlockInvScal(const HypreParMatrix *A, HypreParMatrix *C,
       block_saved = block;
       hypre_ParCSRMatrix *C_hypre;
       hypre_ParcsrBdiagInvScal(*A, block, &C_hypre, &bdiaginv, &commpkg);
+      /* XXX: FIXME drop in BdiagInvScal */
+      hypre_ParCSRMatrixDropSmallEntries(C_hypre, 1e-15, 1);
       (*C).WrapHypreParCSRMatrix(C_hypre);
    }
 
@@ -2803,7 +2805,8 @@ void HypreBoomerAMG::SetAIROptions(int distance,
                                    int interp_type, 
                                    int relax_type,
                                    double filterA_tol, 
-                                   int splitting)
+                                   int splitting,
+                                   int blksize)
 {
    int ns_down, ns_up, ns_coarse;
    if (distance > 0)
@@ -2856,6 +2859,14 @@ void HypreBoomerAMG::SetAIROptions(int distance,
       HYPRE_BoomerAMGSetInterpType(amg_precond, interp_type);
    }
    
+   HYPRE_BoomerAMGSetMaxRowSum(amg_precond, 1.0);
+   
+   if (blksize > 0)
+   {
+      HYPRE_BoomerAMGSetNumFunctions(amg_precond, blksize);
+      HYPRE_BoomerAMGSetNodal(amg_precond, 1);
+   }
+
    HYPRE_BoomerAMGSetCoarsenType(amg_precond, splitting);
    
    /* does not support aggressive coarsening */
@@ -2884,7 +2895,7 @@ void HypreBoomerAMG::SetAIROptions(int distance,
       HYPRE_BoomerAMGSetADropType(amg_precond, -1);
    }
 
-   //HYPRE_ParCSRHybridSetMaxCoarseSize(amg_precond, 20);
+   //HYPRE_BoomerAMGSetMaxCoarseSize(amg_precond, 20);
 }
 
 HypreBoomerAMG::~HypreBoomerAMG()

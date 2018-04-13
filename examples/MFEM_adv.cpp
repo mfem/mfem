@@ -66,6 +66,8 @@ struct AIR_parameters {
    int relax_type;
    double filterA_tol;
    int coarsening;
+   int coord_dim;
+   float *coord;
 };
 
 void print_AIR(AIR_parameters AIR) {
@@ -151,7 +153,7 @@ int main(int argc, char *argv[])
    int vis_steps = 5;
    int precision = 8;
    cout.precision(precision);
-   AIR_parameters AIR = {2, "", "FFF", 0.1, 0.005, 100, 0, 1e-4, 22};
+   AIR_parameters AIR = {2, "", "FFF", 0.1, 0.005, 100, 0, 1e-4, 3, 0, NULL};
    const char* temp_prerelax = "";
    const char* temp_postrelax = "FFF";
    double h_min, h_max, k_min, k_max;
@@ -288,11 +290,71 @@ int main(int argc, char *argv[])
 
    // 7. Define the parallel discontinuous DG finite element space on the
    //    parallel refined mesh of the given polynomial order.
-   DG_FECollection fec(order, dim);
+   DG_FECollection fec(order, dim); // can have addtional parameter 
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
 
    HYPRE_Int global_vSize = fes->GlobalTrueVSize();
    if (myid == 0) cout << "Number of unknowns: " << global_vSize << endl;
+
+   /* get coordinates */
+#if 0
+   int nv = fes->GetNV();
+   int ne = fes->GetNE();
+   printf("nv ne in mesh = %d %d\n", nv, ne);
+   printf("ndofs %d \n", fes->GetNDofs());
+   for (int i = 0; i < nv; i++)
+   {
+      /*
+      Array<int> vertexdofs(100);
+      fes->GetVertexDofs(i, vertexdofs);
+      for (int j = 0; j < vertexdofs.Size(); j++)
+      {
+         printf("%d ", vertexdofs[j]);
+      }
+      printf("\n");
+      */
+      double *coord = pmesh->GetVertex(i);
+      if (dim == 2) {
+         fprintf(stdout, "% e % e\n", coord[0], coord[1]);
+      } else {
+         fprintf(stdout, "% e % e % e\n", coord[0], coord[1], coord[2]);
+      }
+   }
+#endif
+
+   //int nv = fes->GetNV();
+   //int ne = fes->GetNE();
+   //printf("nv ne in mesh = %d %d\n", nv, ne);
+ 
+   AIR.coord_dim = dim;
+   AIR.coord = (float *) malloc(dim * fes->GetNDofs() * sizeof(float));
+   printf("dim %d nfods %d\n", dim, fes->GetNDofs());
+   fes->BuildDofToArrays();
+   Vector coord;
+   int local_ndof = 0;
+   int nlocal = fes->GetNDofs();
+   for (int i=0; i<nlocal; i++)
+   {
+      if (-1 != fes->GetLocalTDofNumber(i))
+      {
+         int element_id = fes->GetElementForDof(i);
+         int local_i = fes->GetLocalDofForDof(i);
+         const IntegrationPoint &ip = fes->GetFE(element_id)->GetNodes().IntPoint(local_i);
+         pmesh->GetElementTransformation(element_id)->Transform(ip, coord);
+         HYPRE_Int global_i = fes->GetGlobalTDofNumber(i);
+         //cout << global_i << "\n";
+         //coord.Print();
+         for (int j = 0; j < dim; j++)
+         {
+            AIR.coord[local_ndof*dim+j] = coord[j];
+         }
+         local_ndof++;
+      }
+      else
+      {
+         printf("!!!!!!!!!!!!!!!!!!!!!! not Tdof\n");
+      }
+   }
 
    // 8. Set up and assemble the parallel bilinear and linear forms (and the
    //    parallel hypre matrices) corresponding to the DG discretization. The
@@ -403,6 +465,8 @@ int main(int argc, char *argv[])
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
    FE_Evolution adv(*M, *K, *B, order, &AIR);
+   
+   //printf("Nlocal %d, Local nTdof %d %d\n", nlocal, local_ndof, K->GetNumRows());
 
    double t = 0.0;
    if (num_time_steps > 0) t_final = num_time_steps * dt;
@@ -536,11 +600,11 @@ void FE_Evolution::ImplicitSolve(const double dt, const Vector &u, Vector &du_dt
       {
          std::cout << "assembled matrices: " << T->GetNumRows() << ", " \
                                << T->GetNumCols() << ", " << T->NNZ() << "\n";
-         M->Print("M.mtx",1,1);
-         K->Print("K.mtx",1,1);
+         M.Print("M.mtx",1,1);
+         K.Print("K.mtx",1,1);
          //T->Print("T.mtx",1,1);
          std::cout << "scaled matrices: " << T_s.GetNumRows() << ", " \
-                               << T_s.GetNumCols() << ", " << T_s.NNZ() << "\n";
+                   << T_s.GetNumCols() << ", " << T_s.NNZ() << "\n";
 
          //T_s.Print("Ts.mtx",1,1);
          exit(0);
@@ -551,7 +615,11 @@ void FE_Evolution::ImplicitSolve(const double dt, const Vector &u, Vector &du_dt
       AMG_solver = new HypreBoomerAMG(T_s);
       AMG_solver->SetAIROptions(AIR.distance, AIR.prerelax, AIR.postrelax,
                                 AIR.strength_tolC, AIR.strength_tolR, AIR.interp_type, AIR.relax_type,
-                                AIR.filterA_tol, AIR.coarsening);
+                                AIR.filterA_tol, AIR.coarsening, blocksize);
+
+      /* set coordinates of the dofs */
+      AMG_solver->SetCoord(AIR.coord_dim, AIR.coord);
+
       if (!use_gmres) {
          AMG_solver->SetPrintLevel(3);
          AMG_solver->SetTol(solve_tol);
