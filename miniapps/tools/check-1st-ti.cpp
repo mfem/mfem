@@ -37,36 +37,35 @@ protected:
    double a;
 
 public:
-   ODE(double a_, double b_) : a(a_) {};
+   ODE(double a_) :  TimeDependentOperator(1, 0.0), a(a_) {};
 
-   virtual void Mult(const Vector &u, ector &du_dt) const;
+   virtual void Mult(const Vector &u, Vector &dudt) const;
 
-   virtual void ImplicitSolve(const double dt,const Vector &u, Vector &dudt, );
+   virtual void ImplicitSolve(const double dt,const Vector &u, Vector &dudt);
 
    virtual ~ODE() {};
 };
 
-void ODE::Mult(const Vector &u, Vector &du_dt)  const
+void ODE::Mult(const Vector &u, Vector &dudt)  const
 {
    // f
-   dudt = -a*u;
+   dudt[0] = -a*u[0];
 }
 
 void ODE::ImplicitSolve(const double dt, const Vector &u, Vector &dudt)
 {
    // f
    double T = 1.0 + a*dt;
-   dudt = -a*u/T;
+   dudt[0] = -a*u[0]/T;
 }
 
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   int ode_solver_type = 10;
+   int ode_solver_type = 11;
    double t_final = 0.5;
    double dt = 1.0e-2;
    double a = 1.0;
-   double b = 1.0;
 
    int precision = 8;
    cout.precision(precision);
@@ -80,7 +79,7 @@ int main(int argc, char *argv[])
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
-   args.AddOption(&speed, "-a", "--stiffness",
+   args.AddOption(&a, "-a", "--stiffness",
                   "Coefficient.");
    args.Parse();
    if (!args.Good())
@@ -111,16 +110,12 @@ int main(int argc, char *argv[])
       case 24: ode_solver = new SDIRK34Solver; break;
       default:
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-         delete mesh;
          return 3;
    }
 
    // 3. Set the initial conditions for u. 
    Vector u(1);
-   Vector dudt(1);
-
    u    = 1.0;
-   dudt = 0.0;
 
    // 4. Perform time-integration (looping over the time iterations, ti, with a
    //    time-step dt).
@@ -129,6 +124,8 @@ int main(int argc, char *argv[])
    double t = 0.0;
 
    bool last_step = false;
+   ofstream output("output.dat");
+   output<<t<<" "<<u[0]<<endl;
    for (int ti = 1; !last_step; ti++)
    {
       if (t + dt >= t_final - dt/2)
@@ -136,8 +133,10 @@ int main(int argc, char *argv[])
          last_step = true;
       }
 
-      ode_solver->Step(u, dudt, t, dt);
-   }
+      ode_solver->Step(u, t, dt);
+      output<<t<<" "<<u[0]<<endl;
+   }  
+   output.close();
 
    // 5. Free the used memory.
    delete ode_solver;

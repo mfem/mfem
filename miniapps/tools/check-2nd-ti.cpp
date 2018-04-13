@@ -36,7 +36,7 @@ protected:
    double a,b;
 
 public:
-   ODE2(double a_, double b_) : a(a_), b(b_) {};
+   ODE2(double a_, double b_) : TimeDependent2Operator(1, 0.0),  a(a_), b(b_) {};
 
    virtual void ExplicitSolve(const Vector &u, const Vector &dudt,
                               Vector &d2udt2) const;
@@ -48,10 +48,10 @@ public:
 };
 
 void ODE2::ExplicitSolve(const Vector &u, const Vector &dudt,
-                                 Vector &d2udt2)  const
+                         Vector &d2udt2)  const
 {
    // f
-   d2udt2 = -a*u - b*dudt;
+   d2udt2[0] = -a*u[0] - b*dudt[0];
 }
 
 void ODE2::ImplicitSolve(const double fac0, const double fac1,
@@ -59,7 +59,7 @@ void ODE2::ImplicitSolve(const double fac0, const double fac1,
 {
    // f 
    double T = 1.0 + a*fac0 + fac1*b;
-   d2udt2 = (-a*u - b*dudt)/T;
+   d2udt2[0] = (-a*u[0] - b*dudt[0])/T;
 }
 
 
@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
    double t_final = 0.5;
    double dt = 1.0e-2;
    double a = 1.0;
-   double b = 1.0;
+   double b = 0.0;
 
    int precision = 8;
    cout.precision(precision);
@@ -84,9 +84,9 @@ int main(int argc, char *argv[])
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
-   args.AddOption(&speed, "-a", "--stiffness",
+   args.AddOption(&a, "-a", "--stiffness",
                   "Coefficient.");
-   args.AddOption(&speed, "-b", "--damping",
+   args.AddOption(&b, "-b", "--damping",
                   "Coefficient.");
 
    args.Parse();
@@ -123,7 +123,6 @@ int main(int argc, char *argv[])
 
       default:
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
-         delete mesh;
          return 3;
    }
 
@@ -140,7 +139,9 @@ int main(int argc, char *argv[])
    ode_solver->Init(oper);
    double t = 0.0;
 
-   bool last_step = false;
+   bool last_step = false; 
+   ofstream output("output.dat");
+   output<<t<<" "<<u[0]<<" "<<dudt[0]<<endl;
    for (int ti = 1; !last_step; ti++)
    {
       if (t + dt >= t_final - dt/2)
@@ -149,7 +150,9 @@ int main(int argc, char *argv[])
       }
 
       ode_solver->Step(u, dudt, t, dt);
-   }
+      output<<t<<" "<<u[0]<<" "<<dudt[0]<<endl;
+   }  
+   output.close();
 
    // 5. Free the used memory.
    delete ode_solver;
