@@ -322,6 +322,7 @@ bool operator<(const ParNCMesh::CommGroup &lhs, const ParNCMesh::CommGroup &rhs)
    return lhs.size() < rhs.size();
 }
 
+#ifdef MFEM_DEBUG
 static bool group_sorted(const ParNCMesh::CommGroup &group)
 {
    for (unsigned i = 1; i < group.size(); i++)
@@ -330,6 +331,7 @@ static bool group_sorted(const ParNCMesh::CommGroup &group)
    }
    return true;
 }
+#endif
 
 ParNCMesh::GroupId ParNCMesh::GetGroupId(const CommGroup &group)
 {
