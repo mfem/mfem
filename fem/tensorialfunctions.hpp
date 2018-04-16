@@ -136,12 +136,19 @@ void ComputeBasis1d(const FiniteElement *fe, int order, Tensor& shape1d, bool ba
    }
 }
 
-template <typename Tensor2d>
-void EvalJacobians1D(const FiniteElementSpace* fes, const Tensor2d& shape1d, const Tensor2d& dshape1d,
-                            Tensor<1>& J)
+void EvalJacobians1D(const FiniteElementSpace* fes, const int order, Tensor<1>& J)
 {
-   FiniteElementSpace* mfes = const_cast<FiniteElementSpace*>(fes->GetMesh()->GetNodalFESpace());
    const int dim = 1;
+
+   const Mesh* mesh = fes->GetMesh();
+   const FiniteElementSpace* mfes = mesh->GetNodalFESpace();
+   const Table& eldof = mfes->GetElementToDofTable();
+   const FiniteElement* fe = mfes->GetFE(0);
+   const TensorBasisElement* tfe = dynamic_cast<const TensorBasisElement*>(fe);
+   const Array<int>& dof_map = tfe->GetDofMap();
+   const GridFunction* nodes = mesh->GetNodes();
+   Tensor<2> shape1d, dshape1d;
+   ComputeBasis1d( fe, order, shape1d, dshape1d );
 
    const int NE = fes->GetNE();
 
@@ -149,25 +156,51 @@ void EvalJacobians1D(const FiniteElementSpace* fes, const Tensor2d& shape1d, con
    const int dofs1d = shape1d.Height();
    const int dofs = dofs1d;
 
-   IsoparametricTransformation* tr = new IsoparametricTransformation();
-
    Tensor<2> Jac(J.getData(),quads1d,NE);
+   Jac.zero();
    Tensor<2> LexPointMat(dim,dofs);
 
    Tensor<1> T0(LexPointMat.getData(),dofs1d);
-   H1_FECollection fec = H1_FECollection(mfes->GetOrder(0),dim);
-   const int* dof_map = fec.GetDofMap(Geometry::SEGMENT);
    for (int e = 0; e < NE; ++e)
    {
-      mfes->GetElementTransformation(e,tr);
-      Tensor<2> PointMat(tr->GetPointMat().GetData(),dim,dofs);
-      // Reordering of the degrees of freedom in Lexicographical order
-      for (int i = 0; i < dofs; ++i)
+      if (dof_map.Size()==0)
       {
-         int pivot = dof_map[i];
-         for (int j = 0; j < dim; ++j)
-         {
-            LexPointMat(j,i) = PointMat(j,pivot);
+         if(mfes->GetOrdering()==Ordering::byVDIM){
+            for (int i = 0; i < dofs; ++i)
+            {
+               for (int j = 0; j < dim; ++j)
+               {
+                  LexPointMat(j,i) = (*nodes)( ( e*dofs + i )*dim + j );
+               }
+            }
+         }else{
+            for (int i = 0; i < dofs; ++i)
+            {
+               for (int j = 0; j < dim; ++j)
+               {
+                  LexPointMat(j,i) = (*nodes)( ( e*dofs + i ) + j*mfes->GetNDofs() );
+               }
+            }
+         }
+      }else{
+         if(mfes->GetOrdering()==Ordering::byVDIM){
+            for (int i = 0; i < dofs; ++i)
+            {
+               const int pivot = dof_map[i];
+               for (int j = 0; j < dim; ++j)
+               {
+                  LexPointMat(j,i) = (*nodes)(eldof.GetJ()[ e*dofs + pivot ]*dim + j);
+               }
+            }
+         }else{
+            for (int i = 0; i < dofs; ++i)
+            {
+               const int pivot = dof_map[i];
+               for (int j = 0; j < dim; ++j)
+               {
+                  LexPointMat(j,i) = (*nodes)(eldof.GetJ()[ e*dofs + pivot ] + j*mfes->GetNDofs());
+               }
+            }
          }
       }
       // Computing the Jacobian with the tensor product structure
@@ -211,7 +244,6 @@ void EvalJacobians2D(const FiniteElementSpace* fes, const int order, Tensor<1>& 
 
    Tensor<3> T0(LexPointMat.getData(),dim,dofs1d,dofs1d);
    Tensor<2> T1b(dim,quads1d), T1d(dim,quads1d);
-   dof_map.Print();
    for (int e = 0; e < NE; ++e)
    {
       if (dof_map.Size()==0)
@@ -229,7 +261,7 @@ void EvalJacobians2D(const FiniteElementSpace* fes, const int order, Tensor<1>& 
             {
                for (int j = 0; j < dim; ++j)
                {
-                  LexPointMat(j,i) = (*nodes)( ( e*dofs + i ) + j*mfes->GetNDofs());
+                  LexPointMat(j,i) = (*nodes)( ( e*dofs + i ) + j*mfes->GetNDofs() );
                }
             }
          }
@@ -413,7 +445,7 @@ void EvalJacobians( const int dim, const FiniteElementSpace* fes, const int orde
    switch(dim)
    {
       case 1:
-         // EvalJacobians1D( fes, shape1d, dshape1d, J );
+         EvalJacobians1D( fes, order, J );
          break;
       case 2:
          EvalJacobians2D( fes, order, J );
@@ -425,17 +457,6 @@ void EvalJacobians( const int dim, const FiniteElementSpace* fes, const int orde
          mfem_error("This orientation does not exist in 3D");
    }
 }
-
-
-// void EvalJacobians( const int dim, const FiniteElementSpace* fes, const int order,
-//                      Tensor<1>& J )
-// {
-//    // Tensor<2> shape1d, dshape1d;
-//    // const FiniteElementSpace* mfes = fes->GetMesh()->GetNodalFESpace();
-//    // const FiniteElement* fe = mfes->GetFE(0);
-//    // ComputeBasis1d( fe, order, shape1d, dshape1d );
-//    EvalJacobians( dim, fes, order, J );
-// }
 
 }
 

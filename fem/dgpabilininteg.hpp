@@ -86,27 +86,6 @@ public:
       args.q.Eval(qvec, *Tr, ip);
       Tensor<2> Adj(dim,dim);
       adjugate(Jac,Adj);
-      //DEBUG
-      // const DenseMatrix& locD = Tr->Jacobian();
-      // cout << "locD" << endl;
-      // cout << locD << endl;
-      // cout << "Jac" << endl;
-      // cout << Jac << endl;
-      // const DenseMatrix& locD = Tr->AdjugateJacobian();
-      // cout << "locD" << endl;
-      // cout << locD << endl;
-      // cout << "Adj" << endl;
-      // cout << Adj << endl;
-      // for (int i = 0; i < dim; ++i)
-      // {
-      //    for (int j = 0; j < dim; ++j)
-      //    {
-      //       if (locD(i,j)!=Adj(i,j))
-      //       {
-      //          cout << locD(i,j) << "!=" << Adj(i,j) << endl;
-      //       }
-      //    }
-      // }
       for (int i = 0; i < dim; ++i)
       {
          double val = 0.0;
@@ -144,6 +123,26 @@ public:
       res22 = ip1.weight * ( - a/2 * res + b * abs(res) );
       res12 = ip1.weight * ( - a/2 * res - b * abs(res) );
    }  
+};
+
+class MassEquation
+{
+public:
+   static const PAOp OpName = BtDB;
+
+   struct Args{};
+
+   void evalD(double& res, ElementTransformation* Tr, const IntegrationPoint& ip,
+               const Tensor<2>& Jac)
+   {
+      res = ip.weight * det(Jac);
+   }
+
+   void evalD(double& res, ElementTransformation* Tr, const IntegrationPoint& ip,
+               const Tensor<2>& Jac, Coefficient& coeff)
+   {
+      res = coeff.Eval(*Tr, ip) * ip.weight * det(Jac);
+   }
 };
 
 }

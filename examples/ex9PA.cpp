@@ -201,14 +201,22 @@ int main(int argc, char *argv[])
    // m.AddDomainIntegrator(new PAMassIntegrator(&fes,ir_order));
    // m.AddDomainIntegrator(new EigenPAMassIntegrator<2>(&fes,ir_order));
    // m.AddDomainIntegrator(new EigenPAMassIntegrator<2,EigenDomainPAK>(&fes,ir_order));
-   BilinearForm m(&fes);
-   m.AddDomainIntegrator(new MassIntegrator());
+   // BilinearForm m(&fes);
+   // m.AddDomainIntegrator(new MassIntegrator());
+   // m.AddIntegrator(new PADomainInt<MassEquation,CGSolverDG>(&fes,ir_order));
+   // m.AddIntegrator(new PADomainInt<MassEquation>(&fes,ir_order));
+   PADomainInt<MassEquation> mass(&fes,ir_order);
+   DiagSolverDG m(&fes,mass);
+   Operator* mo = &m;
+
 
    Array<int> ess_tdof_list;
-   SparseMatrix msp;
-   Operator *mo;
-   m.AssembleForm(msp);
-   m.FormSystemOperator(ess_tdof_list, mo);
+   // SparseMatrix msp;
+   BilinearFormOperator mbf;
+   // Operator *mo;
+   // m.AssembleForm(msp);
+   // m.AssembleForm(mbf);
+   // m.FormSystemOperator(ess_tdof_list, mo);
 
    // auto useless = PADomainInt<>(&fes,ir_order,velocity,-1.0);
    //Initialization of the Stiffness operator
@@ -381,7 +389,7 @@ FE_Evolution::FE_Evolution(Operator &_M, Operator &_K, const Vector &_b)
    : TimeDependentOperator(_M.Height(), 0.0), M(_M), K(_K), b(_b), z(_M.Height())
 {
    //TODO have to take into account the block diagonal structure of M
-   //M_solver.SetPreconditioner(M_prec);
+   // M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(M);
 
    M_solver.iterative_mode = true;
@@ -415,7 +423,8 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    // }
    K.Mult(x, z);
    z += b;
-   M_solver.Mult(z, y);
+   // M_solver.Mult(z, y);
+   M.Mult(z,y);
    // K.Mult(x, y);
 }
 

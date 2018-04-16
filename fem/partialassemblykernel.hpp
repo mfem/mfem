@@ -22,6 +22,7 @@
 #include "dgfacefunctions.hpp"
 #include "domainkernels.hpp"
 #include "facekernels.hpp"
+#include "solverkernels.hpp"
 #include <iostream>
 
 namespace mfem
@@ -78,8 +79,33 @@ public:
             Tensor<2> J_ek(&Jac(0,0,k,e),dim,dim);
             const IntegrationPoint &ip = IntRule->IntPoint(k);
             Tr->SetIntPoint(&ip);
-            // this->evalEq(dim, k, e, Tr, ip, args);
             this->evalEq(dim, k, e, Tr, ip, J_ek, args);
+         }
+      }
+   }
+
+   template <typename... Args>
+   PADomainInt(FiniteElementSpace *fes, const int order, Args... args)
+   : LinearFESpaceIntegrator(&IntRules.Get(fes->GetFE(0)->GetGeomType(), order)),
+     Op(fes,order,args...)
+   {
+      const int nb_elts = fes->GetNE();
+      const int quads  = IntRule->GetNPoints();
+      const FiniteElement* fe = fes->GetFE(0);
+      const int dim = fe->GetDim();
+      this->InitD(dim,quads,nb_elts);
+      Tensor<1> Jac1D(dim*dim*quads*nb_elts);
+      EvalJacobians(dim,fes,order,Jac1D);
+      Tensor<4> Jac(Jac1D.getData(),dim,dim,quads,nb_elts);
+      for (int e = 0; e < nb_elts; ++e)
+      {
+         ElementTransformation *Tr = fes->GetElementTransformation(e);
+         for (int k = 0; k < quads; ++k)
+         {
+            Tensor<2> J_ek(&Jac(0,0,k,e),dim,dim);
+            const IntegrationPoint &ip = IntRule->IntPoint(k);
+            Tr->SetIntPoint(&ip);
+            this->evalEq(dim, k, e, Tr, ip, J_ek, args...);
          }
       }
    }
@@ -198,6 +224,9 @@ public:
       int dim = this->fes->GetFE(0)->GetDim();
       switch(dim)
       {
+         case 1:
+            mfem_error("Not yet implemented");
+            break;
          case 2:
             this->EvalInt2D(fun, vect);
             this->EvalExt2D(fun, vect);

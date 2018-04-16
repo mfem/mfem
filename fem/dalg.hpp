@@ -336,7 +336,8 @@ public:
 //    }  
 // }
 
-inline void adjugate(const Tensor<2>& A, Tensor<2>& Adj)
+template <typename Scalar>
+inline void adjugate(const Tensor<2,Scalar>& A, Tensor<2,Scalar>& Adj)
 {
    const int dim = A.Height();
    switch(dim){
@@ -364,6 +365,48 @@ inline void adjugate(const Tensor<2>& A, Tensor<2>& Adj)
          mfem_error("adjugate not defined for this size");
          break;
    }
+}
+
+template <typename Scalar>
+inline Scalar det(const Tensor<2,Scalar>& A)
+{
+   const int dim = A.Height();
+   switch(dim){
+      case 1:
+         return A(0,0);
+      case 2:
+         return A(0,0)*A(1,1) - A(0,1)*A(1,0);
+      case 3:
+         return A(0,0)*(A(1,1)*A(2,2)-A(1,2)*A(2,1))
+               -A(1,0)*(A(0,1)*A(2,2)-A(0,2)*A(2,1))
+               +A(2,0)*(A(0,1)*A(1,2)-A(0,2)*A(1,1));
+      default:
+         mfem_error("determinant not defined for this size");
+         break;
+   }  
+}
+
+template <typename Scalar>
+inline Scalar norm2sq(const Tensor<1,Scalar>& t)
+{
+   Scalar res = 0.0;
+   for (int i = 0; i < t.size(0); ++i)
+   {
+      res += t[i]*t[i];
+   }
+   return res;
+}
+
+template <typename Scalar>
+inline Scalar dot(const Tensor<1,Scalar>& t1, const Tensor<1,Scalar>& t2)
+{
+   Scalar res = 0.0;
+   MFEM_ASSERT(t1.size(0)==t2.size(0), "Tensor<1> t1 and t2 are of different size");
+   for (int i = 0; i < t1.size(0); ++i)
+   {
+      res += t1[i]*t2[i];
+   }
+   return res;
 }
 
 /**
