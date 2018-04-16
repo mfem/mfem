@@ -155,10 +155,11 @@ public:
 /// Generalized-alpha ODE solver
 /// A Time Integration Algorithm for Structural Dynamics With Improved Numerical Dissipation: The Generalized-α Method
 /// J.Chung and G.M. Hulbert,  J. Appl. Mech 60(2), 371-375, 1993
+/// https://doi.org/10.1115/1.2900803
 class GeneralizedAlpha2Solver : public ODE2Solver
 {
 protected:
-   Vector k,d2xdt2;
+   Vector xa,va,aa,d2xdt2;
    double alpha_f, alpha_m, beta, gamma;
    bool first;
 
@@ -182,6 +183,9 @@ public:
 };
 
 /// HHT-alpha ODE solver
+/// Improved numerical dissipation for time integration algorithms in structural dynamics
+/// H.M. Hilber, T.J.R. Hughes and R.L. Taylor 1977
+/// https://doi.org/10.1002/eqe.4290050306
 class HHTAlphaSolver : public GeneralizedAlpha2Solver
 {
 public:
@@ -199,6 +203,9 @@ public:
 };
 
 /// WBZ-alpha ODE solver
+/// An alpha modification of Newmark's method
+/// W.L. Wood, M. Bossak and O.C. Zienkiewicz 1980
+/// https://doi.org/10.1002/nme.1620151011
 class WBZAlphaSolver : public GeneralizedAlpha2Solver
 {
 public:

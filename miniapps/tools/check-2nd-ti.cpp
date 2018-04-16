@@ -27,7 +27,7 @@ using namespace mfem;
 
 /** Class for simple linear second order ODE.
  *
- *    du2/dt^2 + b du/dt  + a u = f
+ *    du2/dt^2 + b du/dt  + a u = 0
  *
  */
 class ODE2 : public TimeDependent2Operator
@@ -50,14 +50,12 @@ public:
 void ODE2::ExplicitSolve(const Vector &u, const Vector &dudt,
                          Vector &d2udt2)  const
 {
-   // f
    d2udt2[0] = -a*u[0] - b*dudt[0];
 }
 
 void ODE2::ImplicitSolve(const double fac0, const double fac1,
                          const Vector &u, const Vector &dudt, Vector &d2udt2)
 {
-   // f
    double T = 1.0 + a*fac0 + fac1*b;
    d2udt2[0] = (-a*u[0] - b*dudt[0])/T;
 }
@@ -77,9 +75,11 @@ int main(int argc, char *argv[])
 
    OptionsParser args(argc, argv);
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - Backward Euler, 2 - SDIRK2, 3 - SDIRK3,\n\t"
-                  "\t   11 - Forward Euler, 12 - RK2, 13 - RK3 SSP, 14 - RK4, \n"
-                  "\t   99 - Generalized alpha");
+                  "ODE solver: 11/21 - Average Acceleration, 12/22 Linear Acceleration,\n\t"
+                  "13/23 - Central Difference, 14/24 - Fox-Goodwin,\n\t"
+                  "0 -- 10 Generalized-alpha,\n\t"
+                  "30 -- 40 Hilber-Hughes-Taylor-alpha,\n\t"
+                  "50 -- 60 Wood-Bossak-Zienkiewicz-alpha");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
    ODE2Solver *ode_solver;
    switch (ode_solver_type)
    {
-      // Implicit methods
+      // Generalized-alpha solvers
       case 0:  ode_solver = new GeneralizedAlpha2Solver(0.0); break;
       case 1:  ode_solver = new GeneralizedAlpha2Solver(0.1); break;
       case 2:  ode_solver = new GeneralizedAlpha2Solver(0.2); break;
@@ -128,7 +128,7 @@ int main(int argc, char *argv[])
       case 23: ode_solver = new Newmark2Solver(0.0,      0.5); break;
       case 24: ode_solver = new Newmark2Solver(1.0/12.0, 0.5); break;
 
-
+      // Hilber-Hughes-Taylor solvers --> as special case of gen-alpha
       case 30:  ode_solver = new HHTAlphaSolver(0.0); break;
       case 31:  ode_solver = new HHTAlphaSolver(0.1); break;
       case 32:  ode_solver = new HHTAlphaSolver(0.2); break;
@@ -141,7 +141,7 @@ int main(int argc, char *argv[])
       case 39:  ode_solver = new HHTAlphaSolver(0.9); break;
       case 40:  ode_solver = new HHTAlphaSolver(1.0); break;
 
-
+      // Wood-Bossak-Zienkiewicz solvers --> as special case of gen-alpha
       case 50:  ode_solver = new WBZAlphaSolver(0.0); break;
       case 51:  ode_solver = new WBZAlphaSolver(0.1); break;
       case 52:  ode_solver = new WBZAlphaSolver(0.2); break;
@@ -153,8 +153,6 @@ int main(int argc, char *argv[])
       case 58:  ode_solver = new WBZAlphaSolver(0.8); break;
       case 59:  ode_solver = new WBZAlphaSolver(0.9); break;
       case 60:  ode_solver = new WBZAlphaSolver(1.0); break;
-
-
 
       default:
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
