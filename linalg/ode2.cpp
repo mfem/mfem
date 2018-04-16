@@ -88,7 +88,9 @@ void NewmarkSolver::Step(Vector &x, Vector &dxdt, double &t, double &dt)
 void GeneralizedAlpha2Solver::Init(TimeDependent2Operator &_f)
 {
    ODE2Solver::Init(_f);
-   k.SetSize(f->Width());
+   xa.SetSize(f->Width());
+   va.SetSize(f->Width());
+   aa.SetSize(f->Width());
    d2xdt2.SetSize(f->Width());
    d2xdt2 = 0.0;
    first = true;
@@ -131,7 +133,7 @@ void GeneralizedAlpha2Solver::Step(Vector &x, Vector &dxdt,
    double fac2 = alpha_f*(1.0 - (gamma/alpha_m));
    double fac3 = beta*alpha_f/alpha_m;
    double fac4 = gamma*alpha_f/alpha_m;
-   double fac5 = 1.0/alpha_m;
+   double fac5 = alpha_m;
 
    // In the first pass d2xdt2 is not yet computed. If parameter choices requires
    // d2xdt2 then backward Euler is used instead for the first step only.
@@ -146,17 +148,29 @@ void GeneralizedAlpha2Solver::Step(Vector &x, Vector &dxdt,
       first = false;
    }
 
-   dxdt.Add(fac0*dt, d2xdt2);
-   x.Add(fac1*dt, dxdt);
-   dxdt.Add((fac2-fac0)*dt, d2xdt2);
-   d2xdt2 *= 1.0 - fac5;
+   // Predict alpha levels
+   add(dxdt, fac0*dt, d2xdt2, va);
+   add(x, fac1*dt, va, xa);
+   add(dxdt, fac2*dt, d2xdt2, va);
 
+   // Solve alpha levels
    f->SetTime(t + dt);
-   f->ImplicitSolve(fac3*dt*dt, fac4*dt, x, dxdt, k);
+   f->ImplicitSolve(fac3*dt*dt, fac4*dt, xa, va, aa);
 
-   x     .Add(fac3*dt*dt, k);
-   dxdt  .Add(fac4*dt,    k);
-   d2xdt2.Add(fac5,       k);
+   // Correct alpha levels
+   xa.Add(fac3*dt*dt, aa);
+   va.Add(fac4*dt,    aa);
+
+   // Extrapolate
+   x *= 1.0 - 1.0/fac1;
+   x.Add (1.0/fac1, xa);
+
+   dxdt *= 1.0 - 1.0/fac1;
+   dxdt.Add (1.0/fac1, va);
+
+   d2xdt2 *= 1.0 - 1.0/fac5;
+   d2xdt2.Add (1.0/fac5, aa);
+
    t += dt;
 
 }
