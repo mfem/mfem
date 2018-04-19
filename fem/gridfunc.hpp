@@ -242,6 +242,15 @@ public:
    void ProjectBdrCoefficient(VectorFunctionCoefficient &vfcoeff, 
                               Array<int> &attr);
 
+   /** add ProjectBdrCoefficient() taking a VectorFunctionRestrictedCoefficient, srw
+       This is the same as the function above taking a VectorFunctionCoefficient, it 
+       is just that the function coefficient is now restricted. This function 
+       specifically projects values associated with ExaConstits essential BC 
+       management and input. This routine does not, at this time, project a 
+       VectorFunctionRestrictedCoefficient onto all grid function dofs. 
+       This function should be renamed to reflect this. */
+   void ProjectBdrCoefficient(VectorFunctionRestrictedCoefficient &vfcoeff);
+
    /** Project the normal component of the given VectorCoefficient on
        the boundary. Only boundary attributes that are marked in
        'bdr_attr' are projected. Assumes RT-type VectorFE GridFunction. */

@@ -69,6 +69,8 @@
 #include "mfem.hpp"
 #include "mechanics_coefficient.hpp"
 #include "mechanics_integrators.hpp"
+#include "BCData.hpp"
+#include "BCManager.hpp"
 #include <memory>
 #include <iostream>
 #include <fstream>
@@ -91,16 +93,24 @@ protected:
    Solver *J_solver;
    /// Preconditioner for the Jacobian
    Solver *J_prec;
-   /// hyperelastic model
-   HyperelasticModel *model;
-   /// user defined model
-   UserDefinedModel *model;
+   /// nonlinear model 
+   NonlinearModel *model;
 
 public:
-   NonlinearMechOperator(ParFiniteElementSpace &fes, Array<int> &ess_bdr, 
-                         double rel_tol, double abs_tol, int iter, bool gmres,
-                         bool slu, bool hyperelastic, bool umat,
-                         QuadratureFunction q_matVars0);
+   NonlinearMechOperator(ParFiniteElementSpace &fes,
+                         Array<int> &ess_bdr,
+                         double rel_tol,
+                         double abs_tol,
+                         int iter,
+                         bool gmres,
+                         bool slu, 
+                         bool hyperelastic,
+                         bool umat,
+                         QuadratureFunction q_matVars0,
+                         QuadratureFunction q_matVars1,
+                         QuadratureFunction q_sigma0,
+                         QuadratureFunction q_sigma1,
+                         QuadratureFunction q_matGrad);
 
    /// Required to use the native newton solver
    virtual Operator &GetGradient(const Vector &x) const;
@@ -108,6 +118,9 @@ public:
 
    /// Driver for the newton solver
    void Solve(Vector &x) const;
+
+   /// Get essential true dof list, if required
+   const Array<int> &GetEssTDofList();
 
    virtual ~NonlinearMechOperator();
 };
@@ -119,16 +132,22 @@ void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
 // set kinematic functions and boundary condition functions
 void ReferenceConfiguration(const Vector &x, Vector &y);
 void InitialDeformation(const Vector &x, Vector &y);
-void NonZeroBdrFunc(const Vector &x, double t, Vector &y);
+void DirBdrFunc(const Vector &x, double t, int attr_id, Vector &y);
 void InitGridFunction(const Vector &x, Vector &y);
 
 // material input check routine
-int checkMaterialArgs(bool hyperelastic, bool umat, bool cp, bool grain_euler, 
-                      bool grain_q, bool grain_uniform, int ngrains);
+bool checkMaterialArgs(bool hyperelastic, bool umat, bool cp, bool g_euler, 
+                       bool g_q, bool g_uniform, int ngrains);
 
 // grain data setter routine
-void setGrainData(QuadratureFunction *matVars, QuadratureSpace *qspace, Vector *g_orient, 
-                  int grain_offset, ParFiniteElementSpace *fe_space, ParMesh *pmesh);
+void setGrainData(QuadratureFunction *qf, Vector *orient, 
+                  ParFiniteElementSpace *fes, ParMesh *pmesh);
+
+// initialize a quadrature function with a single input value, val.
+void initQuadFunc(QuadratureFunction *qf, double val, ParFiniteElementSpace *fes);
+
+// set the time step on the boundary condition objects
+void setBCTimeStep(double dt, int nDBC);
 
 int main(int argc, char *argv[])
 {
@@ -142,28 +161,53 @@ int main(int argc, char *argv[])
                                     // orientation vector 
 
    // Parse command-line options.
-   const char *mesh_file = "../../data/beam-hex.mesh";
-   const char *grain_file = "grains.txt";
-   int ngrains = 0;
+   const char *mesh_file = "../../data/cube-hex-ro.mesh";
+   bool cubit = false;
+
+   // serial and parallel refinement levels
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
+
+   // polynomial interpolation order
    int order = 1;
+
+   // final simulation time and time step
    double t_final = 300.0;
    double dt = 3.0;
+
+   // visualization input args
    bool visualization = true;
+   int vis_steps = 1;
+
+   // newton input args
+   double newton_rel_tol = 1.0e-6;
+   double newton_abs_tol = 1.0e-8;
+   int newton_iter = 500;
+   
+   // solver input args
    bool gmres_solver = true;
    bool slu_solver = false;
-   int vis_steps = 1;
-   bool cubit = false;
-   double newton_rel_tol = 1.0e-12;
-   double newton_abs_tol = 1.0e-12;
-   int newton_iter = 500;
-   bool hyperelastic = false;
+
+   // input arg to specify Abaqus UMAT
    bool umat = false;
+
+   // input arg to specify crystal plasticity or hyperelasticity 
+   // (for testing)
    bool cp = false;
+   bool hyperelastic = true;
+
+   // grain input arguments
+   const char *grain_file = "grains.txt";
+   int ngrains = 0;
    bool grain_euler = false;
    bool grain_q = false;
    bool grain_uniform = false;
+
+   // boundary condition input args
+   Array<int> ess_id;   // essential bc ids for the whole boundary
+   Vector     ess_disp; // vector of displacement components for each attribute in ess_id
+   Array<int> ess_comp; // component combo (x,y,z = -1, x = 1, y = 2, z = 3, 
+                        // xy = 4, yz = 5, xz = 6, free = 0 
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -219,6 +263,12 @@ int main(int argc, char *argv[])
                   "Use uniform grain orientations.");
    args.AddOption(&grain_uni_vec, "-guv", "--uniform-grain-vector",
                   "Vector defining uniform grain orientations.");
+   args.AddOption(&ess_id, "-attrid", "--dirichlet-attribute-ids",
+                  "Attribute IDs for dirichlet boundary conditions.");
+   args.AddOption(&ess_disp, "-disp", "--dirichlet-disp", 
+                  "Final (x,y,z) displacement components for each dirichlet BC.");
+   args.AddOption(&ess_comp, "-bcid", "--bc-comp-id",
+                  "Component ID for essential BCs.");
 
    args.Parse();
    if (!args.Good())
@@ -236,8 +286,8 @@ int main(int argc, char *argv[])
    }
 
    // Check material model argument input parameters for valid combinations
-   int err = checkMaterialArgs(hyperelastic, umat, cp, grain_euler, grain_q, grain_uniform, ngrains);
-   if (err == 1 && myid == 0) 
+   bool err = checkMaterialArgs(hyperelastic, umat, cp, grain_euler, grain_q, grain_uniform, ngrains);
+   if (!err && myid == 0) 
    {
       cerr << "\nInconsistent material input; check args" << '\n';
    }
@@ -249,6 +299,8 @@ int main(int argc, char *argv[])
       mesh = new Mesh(mesh_file, 1, 1);
    }
    if (!cubit) {
+      printf("opening mesh file \n");
+
       ifstream imesh(mesh_file);
       if (!imesh)
       {
@@ -259,7 +311,8 @@ int main(int argc, char *argv[])
          MPI_Finalize();
          return 2;
       }
-      mesh = new Mesh(imesh, 1, 1);
+  
+      mesh = new Mesh(imesh, 1, 1, true);
       imesh.close();
    }
    ParMesh *pmesh = NULL;
@@ -275,21 +328,11 @@ int main(int argc, char *argv[])
          pmesh->UniformRefinement();
       }
 
-   // convert the grain file to an input file stream 
-   if (cp)
-   {
-      ifstream igrain(grain_file);
-      if (!igrain && myid == 0)
-      {
-         cerr << "\nCan not open grain file: " << grain_file << '\n' << endl;
-      }
-   }
-
    delete mesh;
 
    int dim = pmesh->Dimension();
 
-   // Definie the finite element spaces for displacement
+   // Definie the finite element spaces for displacement field
    H1_FECollection fe_coll(order, dim);
    ParFiniteElementSpace fe_space(pmesh, &fe_coll, dim);
 
@@ -303,8 +346,8 @@ int main(int argc, char *argv[])
       std::cout << "***********************************************************\n";
    }
 
-   // determine the type of grain input
-   int grain_offset = 0;
+   // determine the type of grain input for crystal plasticity problems
+   int grain_offset = 1; // default to 1 so matVars below doesn't have a null/0 size
    if (grain_euler) {
       grain_offset = 3; 
    }
@@ -321,10 +364,15 @@ int main(int argc, char *argv[])
       }
    }
 
-   // Define a quadrature space and material history variable QuadratureFunction pointer
-   QuadratureSpace qspace (pmesh, order);
-   QuadratureFunction matVars;
-
+   // Define a quadrature space and material history variable QuadratureFunction.
+   // This isn't needed for hyperelastic material models, but for general plasticity 
+   // models there will be history variables stored at quadrature points.
+   int intOrder = 2*order+1;
+   QuadratureSpace qspace (pmesh, intOrder); // 3rd order polynomial for 2x2x2 quadrature
+                                             // for first order finite elements
+   QuadratureFunction matVars0(&qspace, grain_offset);
+   initQuadFunc(&matVars0, 0.0, &fe_space);
+   
    // if using a crystal plasticity model then get grain orientation data
    if (cp)
    {
@@ -335,26 +383,52 @@ int main(int argc, char *argv[])
       // index into the grain vector and does not need to be stored or input as a 
       // separate id.
       int gsize = grain_offset * ngrains;
+//      printf("grain_offset: %d \n", grain_offset);
+
+      // declare a vector to hold the grain orientation input data.
       Vector g_orient;
 
       // set the grain orientation vector from either the input grain file or the 
       // input uniform grain vector
       if (!grain_uniform) {
-         ifstream igrain(grain_file);
+//         printf("processing grain file... \n");
+         ifstream igrain(grain_file); 
+         if (!igrain && myid == 0)
+         {
+            cerr << "\nCan not open grain file: " << grain_file << '\n' << endl;
+         }
          g_orient.Load(igrain, gsize);
          // close grain input file stream
          igrain.close();
+//         printf("after loading the grain file and closing it \n");
       }
       else {
          g_orient = grain_uni_vec;   
       }
 
-
       // Set the material variable quadrature function data to the grain orientation 
       // data
-
-      setGrainData(&matVars, &qspace, &g_orient, grain_offset, &fe_space, pmesh);
+      printf("before setGrainData \n");
+      setGrainData(&matVars0, &g_orient, &fe_space, pmesh);
    }
+
+   // Define quadrature functions to store a vector representation of the 
+   // Cauchy stress, in Voigt notation (s_11, s_22, s_33, s_12, s_13, s_23), for 
+   // the beginning of the step and the end of the step (or the end of the increment).
+   QuadratureFunction sigma0(&qspace, 6);
+   QuadratureFunction sigma1(&qspace, 6);
+   initQuadFunc(&sigma0, 0.0, &fe_space);
+   initQuadFunc(&sigma1, 0.0, &fe_space);
+
+   // define a quadrature function to store the material tangent stiffness 
+   QuadratureFunction matGrad (&qspace, 9);
+   initQuadFunc(&matGrad, 0.0, &fe_space);
+
+   // define the end of step (or incrementally updated) material history 
+   // variables
+   int vdim = matVars0.GetVDim();
+   QuadratureFunction matVars1(&qspace, vdim);
+   initQuadFunc(&matVars1, 0.0, &fe_space);
 
    // Define the grid functions for the current configuration, the global reference 
    // configuration, and the global deformed configuration, respectively.
@@ -362,68 +436,108 @@ int main(int argc, char *argv[])
    ParGridFunction x_ref(&fe_space);
    ParGridFunction x_def(&fe_space);
 
-   // Project the initial and reference configuration functions onto the appropriate grid functions
+   // define a vector function coefficient for the initial deformation 
+   // and reference configuration
    VectorFunctionCoefficient deform(dim, InitialDeformation);
    VectorFunctionCoefficient refconfig(dim, ReferenceConfiguration);
   
-   // deform is a function that populates x_gf with an initial guess
+   // project the vector function coefficients onto current configuration
+   // and reference configuration grid functions. The initial deformation 
+   // at time t=0 is simply the reference configuration. This function may 
+   // be used to project an initial guess or perterbation to the solution 
+   // vector if desired.
    x_gf.ProjectCoefficient(deform);
    x_ref.ProjectCoefficient(refconfig);
 
-   // Define grid function for the nonzero Dirichlet boundary conditions
-   ParGridFunction x_non_zero_ess(&fe_space);
+   // Define grid function for the Dirichlet boundary conditions
+   ParGridFunction x_ess(&fe_space);
 
    // Define grid function for the current configuration grid function
-   // WITH nonzero Dirichlet BCs
+   // WITH Dirichlet BCs
    ParGridFunction x_bar_gf(&fe_space);
 
-   // define a time dependent vector valued function for nonzero Dirichlet 
-   // boundary conditions and an initialization function for the nonzero
-   // Dirichlet BC grid function
-   VectorFunctionCoefficient non_zero_ess_func(dim, NonZeroBdrFunc);
+   // Define a VectorFunctionCoefficient to initialize a grid function
    VectorFunctionCoefficient init_grid_func(dim, InitGridFunction);
 
-   // initialize the nonzero Dirichlet BC grid function
-   x_non_zero_ess.ProjectCoefficient(init_grid_func);
+   // initialize grid functions by projecting the VectorFunctionCoefficient
+   x_ess.ProjectCoefficient(init_grid_func);
    x_bar_gf.ProjectCoefficient(init_grid_func);
+   x_def.ProjectCoefficient(init_grid_func);
 
    // define a boundary attribute array and initialize to 0
    Array<int> ess_bdr;
+   // set the size of the essential boundary conditions attribute array
+//   ess_bdr.SetSize(ess_id.Size()+1);
    ess_bdr.SetSize(fe_space.GetMesh()->bdr_attributes.Max());
+//   printf("size of ess_bdr: %d \n", ess_bdr.Size());
    ess_bdr = 0;
-   
-   //
-   // setting of the essential boundary conditions after 
-   // initializing to 0 above and prior to the time step loop
-   // seems unnecessary
-   //
-   // set nonzero Dirichlet boundary attributes to 1
-//   ess_bdr[1] = 1;
 
-   // reset ALL Dirichlet BCs, i.e. boundary attribute = 1
-//   ess_bdr = 0;
-//   ess_bdr[0] = 1;
-//   ess_bdr[1] = 1;
+   // setup inhomogeneous essential boundary conditions using the boundary 
+   // condition manager (BCManager) and boundary condition data (BCData) 
+   // classes developed for ExaConstit.
+   if (ess_disp.Size() != 3*ess_id.Size()) {
+      cerr << "\nMust specify three Dirichlet components per essential boundary attribute" << '\n' << endl;
+   }
+//   printf("ess_id size: %d \n", ess_id.Size());
+   int numDirBCs = 0;
+   for (int i=0; i<ess_id.Size(); ++i) {
+      // set the boundary condition id based on the attribute id
+      int bcID = ess_id[i];
 
-   // Initialize the nonlinear mechanics operator. Note that q_grain0 is
+      // instantiate a boundary condition manager instance and 
+      // create a BCData object
+      BCManager & bcManager = BCManager::getInstance();
+      BCData & bc = bcManager.CreateBCs( bcID );
+
+      // set the displacement component values
+      bc.essDisp[0] = ess_disp[3*i];
+      bc.essDisp[1] = ess_disp[3*i+1];
+      bc.essDisp[2] = ess_disp[3*i+2];
+      bc.compID = ess_comp[i];
+
+      // set the final simulation time 
+      bc.tf = t_final;
+
+      // set the boundary condition scales
+      bc.setScales();
+
+      // set the active boundary attributes
+      if (bc.compID != 0) {
+         ess_bdr[i] = 1;
+//         printf("active ess_bdr: %d \n", i+1);
+//         printf("bc comp id: %d \n", bc.compID);
+      }
+      ++numDirBCs;
+//      printf("bcid, dirDisp: %d %f %f %f \n", bcID, bc.essDisp[0], bc.essDisp[1], bc.essDisp[2]);
+   }
+
+   // declare a VectorFunctionRestrictedCoefficient over the boundaries that have attributes
+   // associated with a Dirichlet boundary condition (ids provided in input)
+   VectorFunctionRestrictedCoefficient ess_bdr_func(dim, DirBdrFunc, ess_bdr);
+
+   // Construct the nonlinear mechanics operator. Note that q_grain0 is
    // being passed as the matVars0 quadarture function. This is the only 
    // history variable considered at this moment. Consider generalizing 
    // this where the grain info is a possible subset only of some 
-   // material history variable quadrature function.
+   // material history variable quadrature function. Also handle the 
+   // case where there is no grain data.
    NonlinearMechOperator oper(fe_space, ess_bdr, 
                               newton_rel_tol, newton_abs_tol, 
                               newton_iter, gmres_solver, slu_solver,
-                              hyperelastic, umat, matVars);
+                              hyperelastic, umat, matVars0, 
+                              matVars1, sigma0, sigma1, matGrad);
 
+   // get the essential true dof list. This may not be used.
+   const Array<int> ess_tdof_list = oper.GetEssTDofList();
 
+   // debug print
+//   for (int i=0; i<ess_tdof_list.Size(); ++i) {
+//      printf("ess_tdof_list[i]: %d %d \n", i, ess_tdof_list[i]);
+//   }
+   
    // declare solution vector
-   Vector x(fe_space.TrueVSize());
-
-   // initialize the vectors
-   for (int k=0; k<x.Size(); ++k) 
-   {
-      x[k] = 0.;
-   }
+   Vector x(fe_space.TrueVSize()); // this sizing is correct
+   x = 0.0;
 
    // initialize visualization if requested 
    socketstream vis_u, vis_p;
@@ -438,95 +552,90 @@ int main(int argc, char *argv[])
       MPI_Barrier(pmesh->GetComm());
    }
 
-   // add time loop
+   // initialize/set the time
    double t = 0.0;
    oper.SetTime(t); 
 
    bool last_step = false;
+
+   // enter the time step loop. This was modeled after example 10p.
    for (int ti = 1; !last_step; ti++)
    {
 
       // compute time step (this calculation is pulled from ex10p.cpp)
       double dt_real = min(dt, t_final - t);
 
+      // set the time step on the boundary conditions
+      setBCTimeStep(dt_real, numDirBCs);
+
       // compute current time
       t = t + dt_real;
 
       // set the time for the nonzero Dirichlet BC function evaluation
-      non_zero_ess_func.SetTime(t);
+      //non_zero_ess_func.SetTime(t);
+      ess_bdr_func.SetTime(t);
 
-      //project nonzero Dirchlet BC function onto grid function. Reset
-      //boundary attribute list to do so.
-      ess_bdr = 0;
-      ess_bdr[1] = 1;
-      x_non_zero_ess.ProjectBdrCoefficient(non_zero_ess_func, ess_bdr);
+      // register Dirichlet BCs. 
+      ess_bdr = 1;
 
-      // reset boundary attribute array for homogeneous Dirichlet BCs
-      // prior to solve
-      ess_bdr[0] = 1;
+      // overwrite entries in x_bar_gf for dofs with Dirichlet 
+      // boundary conditions (note, this routine overwrites, not adds).
+      x_ess.ProjectBdrCoefficient(ess_bdr_func); // don't need attr list as input
+                                                    // pulled off the 
+                                                    // VectorFunctionRestrictedCoefficient
 
-      // add the current configuration grid function and the nonzero 
-      // Dirichlet BC grid function into x_bar_gf and then populate 
-      // solution vector, x, with entries
-      add(x_non_zero_ess, x_gf, x_bar_gf);
+      // sum the current configuration grid function and the Dirichlet BC grid function 
+      // into x_bar_gf 
+      add(x_ess, x_gf, x_bar_gf);
+
+      // populate the solution vector, x, with the true dofs entries in x_bar_gf
       x_bar_gf.GetTrueDofs(x);
 
       // Solve the Newton system 
       oper.Solve(x);
 
+      // distribute the solution vector to the current configuration 
+      // grid function. Note, the solution vector is the global 
+      // current configuration, not the incremental nodal displacements
+      x_gf.Distribute(x);
+
+      // Set the end-step deformation with respect to the global reference 
+      // configuration at time t=0.
+      subtract(x_gf, x_ref, x_def);
+
       last_step = (t >= t_final - 1e-8*dt);
 
       if (last_step || (ti % vis_steps) == 0)
       {
-
-         // distribute the solution vector to the current configuration 
-         // grid function
-         x_gf.Distribute(x);
-
-         // Set the end-step deformation 
-         subtract(x_gf, x_ref, x_def);
-
          if (myid == 0)
          {
             cout << "step " << ti << ", t = " << t << endl;
          }
-
       }
 
-      if (!last_step) 
-      {
-         // distribute the solution vector to the current configuration 
-         // grid function 
-         x_gf.Distribute(x);
-
-         // Set the end-step deformation 
-         subtract(x_gf, x_ref, x_def);
-
-         // set the new reference configuration to the end step current 
-         // configuration
-         x_ref = x_gf; 
-
-      }
-         
       {
 
-      // Save the displaced mesh, the final deformation
+      // Save the displaced mesh. These are snapshots of the endstep current 
+      // configuration. Later add functionality to not save the mesh at each timestep.
 
-         GridFunction *nodes = &x_gf;
+         GridFunction *nodes = &x_gf; // set a nodes grid function to global current configuration
          int owns_nodes = 0;
-         pmesh->SwapNodes(nodes, owns_nodes);
+         pmesh->SwapNodes(nodes, owns_nodes); // pmesh has current configuration nodes
 
-         ostringstream mesh_name, deformation_name;
+         ostringstream mesh_name, deformed_name;
          mesh_name << "mesh." << setfill('0') << setw(6) << myid << "_" << ti;
-         deformation_name << "deformation." << setfill('0') << setw(6) << myid << "_" << ti;
+         deformed_name << "end_step_def." << setfill('0') << setw(6) << myid << "_" << ti;
 
+         // saving mesh for plotting. pmesh has global current configuration nodal coordinates
          ofstream mesh_ofs(mesh_name.str().c_str());
          mesh_ofs.precision(8);
-         pmesh->Print(mesh_ofs);
+         pmesh->Print(mesh_ofs); 
        
-         ofstream deformation_ofs(deformation_name.str().c_str());
+         // saving incremental nodal displacements. This may not be necessary. May want to 
+         // save each current configuration as this data will match the mesh output.
+         ofstream deformation_ofs(deformed_name.str().c_str());
          deformation_ofs.precision(8);
-         x_def.Save(deformation_ofs);
+         x_def.Save(deformation_ofs); 
       }
 
    }
@@ -548,53 +657,35 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
                                              bool slu, 
                                              bool hyperelastic,
                                              bool umat,
-                                             QuadratureFunction q_matVars0)
+                                             QuadratureFunction q_matVars0,
+                                             QuadratureFunction q_matVars1,
+                                             QuadratureFunction q_sigma0,
+                                             QuadratureFunction q_sigma1,
+                                             QuadratureFunction q_matGrad)
    : TimeDependentOperator(fes.TrueVSize()), fe_space(fes),
      newton_solver(fes.GetComm())
 {
    Vector * rhs;
    rhs = NULL;
 
-   // Set the essential boundary conditions
-   Hform->SetEssentialBC(ess_bdr, rhs);
-
-   // Get the quadrature space associated with the q_matVars0 input argument
-   QuadratureSpace *qspace = q_matVars0.GetSpace();
-
-   // Define quadrature functions to store a vector representation of the 
-   // Cauchy stress, in Voigt notation (s_11, s_22, s_33, s_21, s_31, s_32), for 
-   // the beginning of the step and the end of the step (or the incremental update 
-   // to the stress). Storing the Cauchy stress because this is what is fed to the 
-   // constitutive routine and due to symmetry, is less to store.
-   QuadratureFunction q_sigma0 (qspace, 6);
-   QuadratureFunction q_sigma1 (qspace, 6);
-   q_sigma0 = 0;
-   q_sigma1 = 0;
-
-   // define a quadrature function to store the material tangent stiffness 
-   QuadratureFunction q_matGrad (qspace, 9);
-   q_matGrad = 0;
-
-   // define the end of step (or incrementally updated) material history 
-   // variables
-   int vdim = q_matVars0.GetVDim();
-   QuadratureFunction q_matVars1 (qspace, vdim);
-   q_matVars1 = 0;
-
    // Define the parallel nonlinear form 
    Hform = new ParNonlinearForm(&fes);
 
-   // Initialize the neo-Hookean model
+   // Set the essential boundary conditions
+   Hform->SetEssentialBCPartial(ess_bdr, rhs); 
+//   Hform->SetEssentialBC(ess_bdr, rhs);
+
    if (umat) {
-      model = new AbaqusUmatModel(&q_sigma0, &q_sigma1, &q_matGrad, 
-                                  &q_matVars0, &q_matVars1);
+      model = new AbaqusUmatModel(&q_sigma0, &q_sigma1, &q_matGrad, &q_matVars0, &q_matVars1);
+      
       // Add the user defined integrator
-      Hform->AddDomainIntegrator(new UserDefinedNLFIntegrator(model));
+      Hform->AddDomainIntegrator(new UserDefinedNLFIntegrator(dynamic_cast<AbaqusUmatModel*>(model)));
    }
+
    else if (hyperelastic) {
-      model = new NeoHookeanModel(0.25, 5.0);
+      model = new NeoHookeanModel(80.E3, 140.E3);
       // Add the hyperelastic integrator
-      Hform->AddDomainIntegrator(new HyperelasticNLFIntegrator(model));
+      Hform->AddDomainIntegrator(new HyperelasticNLFIntegrator(dynamic_cast<HyperelasticModel*>(model)));
    }
 
    if (gmres) {
@@ -651,6 +742,11 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
    newton_solver.SetMaxIter(iter);
 }
 
+const Array<int> &NonlinearMechOperator::GetEssTDofList()
+{
+   return Hform->GetEssentialTrueDofs();
+}
+
 // Solve the Newton system
 void NonlinearMechOperator::Solve(Vector &x) const
 {
@@ -663,17 +759,14 @@ void NonlinearMechOperator::Solve(Vector &x) const
 // compute: y = H(x,p)
 void NonlinearMechOperator::Mult(const Vector &k, Vector &y) const
 {
-
    // Apply the nonlinear form
    Hform->Mult(k, y);
-
 }
 
 // Compute the Jacobian from the nonlinear form
 Operator &NonlinearMechOperator::GetGradient(const Vector &x) const
 {
    Jacobian = &Hform->GetGradient(x);
-
    return *Jacobian;
 }
 
@@ -723,8 +816,7 @@ void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
 
 void ReferenceConfiguration(const Vector &x, Vector &y)
 {
-   // set the reference, stress
-   // free, configuration
+   // set the reference, stress free, configuration
    y = x;
 }
 
@@ -732,22 +824,23 @@ void ReferenceConfiguration(const Vector &x, Vector &y)
 void InitialDeformation(const Vector &x, Vector &y)
 {
    // set initial configuration to be the reference 
-   // configuration
+   // configuration. Can set some perturbation as long as 
+   // the boundary condition degrees of freedom are 
+   // overwritten.
    y = x;
 }
 
-void NonZeroBdrFunc(const Vector &x, double t, Vector &y)
+void DirBdrFunc(const Vector &x, double t, int attr_id, Vector &y)
 {
-   // we don't have the final time of the simulation, so it 
-   // seems like we have to make an assumption about that. If 
-   // we assume that the final time for a quasi-static implicit
-   // simulation is always 1, and dt is what varies, then we can 
-   // construct a BC curve based on the ratio of current time to 
-   // final time
+   BCManager & bcManager = BCManager::getInstance();
+   BCData & bc = bcManager.GetBCInstance(attr_id);
+//   printf("DirBdrFunc attr_id: %d \n", attr_id);
 
-   y = 0.;
-   // specify the displacement BC increment
-   y[2] = -.1 ;
+   bc.setDirBCs(x, t, y);
+
+//   if (attr_id == 4) {
+//      printf("DirBdrFunc x[2]: %f \n", x[2]);
+//   }
 }
 
 void InitGridFunction(const Vector &x, Vector &y)
@@ -755,116 +848,136 @@ void InitGridFunction(const Vector &x, Vector &y)
    y = 0.;
 }
 
-int checkMaterialArgs(bool hyperelastic, bool umat, bool cp, bool grain_euler, 
-                      bool grain_q, bool grain_uniform, int ngrains)
+bool checkMaterialArgs(bool hyperelastic, bool umat, bool cp, bool g_euler, 
+                       bool g_q, bool g_uniform, int ngrains)
 {
-   int err = 0;
+   bool err = true;
 
-   // if hyperelastic, just set everything else to false as no other data is required
-   if (hyperelastic)
+   if (hyperelastic && cp)
    {
-      umat = false;
-      cp = false;
-      grain_euler = false;
-      grain_q = false;
-      grain_uniform = false;
 
-      std::cout << "Hyperelastic set to true; using Neohookean model" << "\n";
+      cerr << "Hyperelastic and cp can't both be true. Choose material model." << "\n";
    }
 
-   // if umat then make all grain specific input false by default
-   if (umat) 
+   // only perform checks, don't set anything here
+   if (cp && !g_euler && !g_q && !g_uniform)
    {
-      grain_euler = false;
-      grain_q = false;
-      grain_uniform = false;
-   } 
-
-   if (cp && !grain_euler && !grain_q && !grain_uniform)
-   {
-      std::cout << "\nMust specify grain data type for use with cp input arg." << '\n';
-      err = 1;
+      cerr << "\nMust specify grain data type for use with cp input arg." << '\n';
+      err = false;
    }
 
-   else if (cp && grain_euler && grain_q)
+   else if (cp && g_euler && g_q)
    {
-      std::cout << "\nCannot specify euler and quaternion grain data input args." << '\n';
-      err = 1;
+      cerr << "\nCannot specify euler and quaternion grain data input args." << '\n';
+      err = false;
    }
 
-   else if (cp && grain_euler && grain_uniform)
+   else if (cp && g_euler && g_uniform)
    {
-      std::cout << "\nCannot specify euler and uniform grain data input args." << '\n';
-      err = 1;
+      cerr << "\nCannot specify euler and uniform grain data input args." << '\n';
+      err = false;
    }
 
-   else if (cp && grain_q && grain_uniform)
+   else if (cp && g_q && g_uniform)
    {
-      std::cout << "\nCannot specify quaternion and uniform grain data input args." << '\n';
-      err = 1;
+      cerr << "\nCannot specify quaternion and uniform grain data input args." << '\n';
+      err = false;
    }
 
    else if (cp && (ngrains < 1))
    {
-      std::cout << "\nSpecify number of grains for use with cp input arg." << '\n';
-      err = 1;
+      cerr << "\nSpecify number of grains for use with cp input arg." << '\n';
+      err = false;
    }
 
    return err;
 }
 
-void setGrainData(QuadratureFunction *matVars, QuadratureSpace *qspace, Vector *g_orient, 
-                  int grain_offset, ParFiniteElementSpace *fe_space, ParMesh *pmesh)
+void setGrainData(QuadratureFunction *qf, Vector *orient, 
+                  ParFiniteElementSpace *fes, ParMesh *pmesh)
 {
-
-   // Define quadrature functions to store grain orientations at the beginning of 
-   // the step. The beginning step grain function will be initialized based on 
-   // the specified grain orientation data input file stream. I believe this creates a 
-   // new quadrature function space specific to this object
-   matVars->SetSpace(qspace, grain_offset);
-   matVars = 0;
 
    // put element grain orientation data on the quadrature points. This 
    // should eventually go into a separate subroutine
-   
    const FiniteElement *fe;
    const IntegrationRule *ir;
-   Vector elem_vec;
-   double * elem_data;
+   double* data = qf->GetData();
+   int qf_offset = qf->GetVDim();
+   QuadratureSpace* qspace = qf->GetSpace();
 
    // get the data for the grain orientations
-   double * grain_data = g_orient->GetData();
+   double * grain_data = orient->GetData();
    int elem_atr;
 
-   for (int i = 0; i < fe_space->GetNE(); ++i)
+   for (int i = 0; i < fes->GetNE(); ++i)
    {
-      fe = fe_space->GetFE(i);
-      ir = &(IntRules.Get(fe->GetGeomType(), 2*fe->GetOrder() + 3));
+      fe = fes->GetFE(i);
+      ir = &(qspace->GetElementIntRule(i));
+//      ir = &(IntRules.Get(fe->GetGeomType(), 2*fe->GetOrder() + 3));
+
+      int elem_offset = qf_offset * ir->GetNPoints();
 
       // get the element attribute. Note this assumes that there is an element attribute 
-      // for all elements in the mesh
-      elem_atr = pmesh->attributes[fe_space->GetAttribute(i)];
-
-      // get the element values from the grain quadrature function and store them in elem_vec
-      matVars->GetElementValues(i, elem_vec); // does the counter i correspond to an element id?
-
-      // point to the data in elem_vec
-      elem_data = elem_vec.GetData();
+      // for all elements in the mesh corresponding to the grain id to which the element 
+      // belongs.
+      elem_atr = pmesh->attributes[fes->GetAttribute(i)-1]; 
+//      printf("setGrainData: element attr %d \n", elem_atr);
 
       // loop over quadrature points
       for (int j = 0; j < ir->GetNPoints(); ++j)
       {
-
          // loop over quadrature point data
-         for (int k = 0; k < grain_offset; ++k) 
+         for (int k = 0; k < qf_offset; ++k) 
          {
-            // index into the element vector with `k + vdim * j', where vdim is the length of 
-            // the vector of data stored at each quadrature point, k is the kth component of 
-            // the vector, and j is the jth quadrature point. Index into the grain_data vector 
-            // with the element attribute id, aid * vdim. Each element quadrature point is 
-            // assigned the same grain orientation data.
-            elem_data[k + grain_offset * j] = grain_data[k + grain_offset * elem_atr];
+            // index into the quadrature function with an element stride equal to the length of the 
+            // quadrature vector function times the number of quadrature points. Index into 
+            // the grain data with a stride equal to the length of the quadrature vector function
+            // at the (elem_atr - 1) index position.
+            data[(elem_offset * i) + qf_offset * j + k] = grain_data[qf_offset * (elem_atr-1) + k];
+//            printf("setGrainData, grain_data %f \n", grain_data[qf_offset * (elem_atr-1) + k]);
          }
       }
    } 
+}
+
+void initQuadFunc(QuadratureFunction *qf, double val, ParFiniteElementSpace *fes)
+{
+
+   // put element grain orientation data on the quadrature points. This 
+   // should eventually go into a separate subroutine
+   const FiniteElement *fe;
+   const IntegrationRule *ir;
+   double* qf_data = qf->GetData();
+   int qf_offset = qf->GetVDim();
+   QuadratureSpace* qspace = qf->GetSpace();
+
+//   printf("qf data size: %d \n", qf->Size());
+
+   for (int i = 0; i < fes->GetNE(); ++i)
+   {
+      fe = fes->GetFE(i);
+      ir = &(qspace->GetElementIntRule(i));
+//      ir = &(IntRules.Get(fe->GetGeomType(), 2*fe->GetOrder() + 3));
+
+      int elem_offset = qf_offset * ir->GetNPoints();
+//      printf("element offset %d \n", elem_offset);
+//      printf("num ip: %d \n", ir->GetNPoints());
+//      printf("elemoffset: %d \n", elem_offset);
+
+      // loop over element data at each quadrature point
+      for (int j = 0; j < elem_offset; ++j)
+      {
+         qf_data[i * elem_offset + j] = val;
+      }
+   } 
+}
+
+void setBCTimeStep(double dt, int nDBC)
+{
+   for (int i=0; i<nDBC; ++i) {
+      BCManager & bcManager = BCManager::getInstance();
+      BCData & bc = bcManager.CreateBCs( i+1 );
+      bc.dt = dt;
+   }
+
 }

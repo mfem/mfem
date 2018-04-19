@@ -24,7 +24,7 @@ namespace mfem
 {
 
 // define user defined material model base class
-class UserDefinedModel
+class UserDefinedModel : public NonlinearModel
 {
 protected:
    ElementTransformation *Ttr; /**< Reference-element to target-element
@@ -53,46 +53,13 @@ public:
                         matVars0(q_matVars0), matVars1(q_matVars1) { }
    virtual ~UserDefinedModel() { }
 
-   /// A reference-element to target-element transformation that can be used to
-   /// evaluate Coefficient%s.
-   /** @note It is assumed that _Ttr.SetIntPoint() is already called for the
-       point of interest. */
-   void SetTransformation(ElementTransformation &_Ttr) { Ttr = &_Ttr; }
-
    /** @brief Perform constitutive update by evaluating the user defined 
        material model */
    virtual void Update() const = 0;
 
-   /** @brief Evaluate the strain energy density function, W = W(Jpt).
-       @param[in] Jpt  Represents the target->physical transformation
-                       Jacobian matrix. */
-   virtual double EvalW(const DenseMatrix &Jpt) const = 0;
-
-   /** @brief Evaluate the 1st Piola-Kirchhoff stress tensor, P = P(Jpt).
-       @param[in] Jpt  Represents the target->physical transformation
-                       Jacobian matrix.
-       @param[out]  P  The evaluated 1st Piola-Kirchhoff stress tensor. */
-   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const = 0;
-
-   /** @brief Evaluate the derivative of the 1st Piola-Kirchhoff stress tensor
-       and assemble its contribution to the local gradient matrix 'A'.
-       @param[in] Jpt     Represents the target->physical transformation
-                          Jacobian matrix.
-       @param[in] DS      Gradient of the basis matrix (dof x dim).
-       @param[in] weight  Quadrature weight coefficient for the point.
-       @param[in,out]  A  Local gradient matrix where the contribution from this
-                          point will be added.
-
-       Computes weight * d(dW_dxi)_d(xj) at the current point, for all i and j,
-       where x1 ... xn are the FE dofs. This function is usually defined using
-       the matrix invariants and their derivatives.
-   */
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                          const double weight, DenseMatrix &A) const = 0;
-
 };
 
-// Abaqus Umat class
+// Abaqus Umat class. This has NOT been tested and is likely to change significantly.
 class AbaqusUmatModel : public UserDefinedModel
 {
 protected:
@@ -163,8 +130,6 @@ public:
 
    virtual void Update() const;
 
-   virtual double EvalW(const DenseMatrix &J) const;
-   
    virtual void EvalP(const DenseMatrix &J, DenseMatrix &P) const;
 
    virtual void AssembleH(const DenseMatrix &J, const DenseMatrix &DS,

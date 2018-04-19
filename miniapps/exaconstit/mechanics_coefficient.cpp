@@ -39,6 +39,6 @@ void QuadratureVectorFunctionCoefficient::EvalQ(Vector &V,
    QuadF->GetElementValues(elem_no, ip_num, V);
    return;
 }
-#endif
+
 
 }

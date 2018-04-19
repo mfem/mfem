@@ -279,7 +279,7 @@ public:
    double GetTime() { return time; }
 
    /// Set the dimension of the vector.
-   int SetVDim(int dim) { vdim = dim; }
+   void SetVDim(int dim) { vdim = dim; }
 
    /// Returns dimension of the vector.
    int GetVDim() { return vdim; }
@@ -454,6 +454,34 @@ public:
                      const IntegrationRule &ir);
 };
 
+/// VectorFunctionCoefficient defined on a subset of domain or boundary attributes, srw
+class VectorFunctionRestrictedCoefficient : public VectorCoefficient
+{
+private:
+   void (*TDFunction)(const Vector &, double, int, Vector &);
+   Array<int> active_attr;
+   Coefficient *Q;
+
+public:
+   /// Construct a time-dependent vector coefficient from a C-function
+   VectorFunctionRestrictedCoefficient(int dim,
+                                       void (*TDF)(const Vector &, double, int, Vector &),
+                                       Array<int> &attr, Coefficient *q = NULL)
+      : VectorCoefficient(dim), Q(q)
+   {
+      TDFunction = TDF;
+      attr.Copy(active_attr);
+   }
+
+   using VectorCoefficient::Eval;
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
+   virtual ~VectorFunctionRestrictedCoefficient() { }
+
+   int* GetActiveAttr() { return active_attr; }
+   
+};
 
 class MatrixCoefficient
 {

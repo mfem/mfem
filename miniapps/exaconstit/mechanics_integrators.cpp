@@ -94,12 +94,6 @@ void AbaqusUmatModel::Update() const
    return;
 }
 
-double AbaqusUmatModel::EvalW(const DenseMatrix &J) const
-{
-   (void) J;
-   return 0.0;
-}
-
 void AbaqusUmatModel::EvalP(const DenseMatrix &J,
                             DenseMatrix &P) const
 {
