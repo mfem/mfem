@@ -62,7 +62,6 @@ void NonlinearForm::SetEssentialBCPartial(const Array<int> &bdr_attr_is_ess,
 void GridFunction::ProjectBdrCoefficient(VectorFunctionRestrictedCoefficient &vfcoeff)
                                          
 {
-   printf("inside ProjectBdrCoefficient with restricted coeff. \n");
    int i, j, fdof, d, ind, vdim;
    Vector val;
    const FiniteElement *fe;
@@ -141,7 +140,6 @@ void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
    }
    else
    {
-      printf("BooleanMult \n");
       R->BooleanMult(ess_vdofs, ess_tdofs);
    }
    MarkerToList(ess_tdofs, ess_tdof_list);
@@ -168,7 +166,7 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
    Array<int> vdofs, dofs, ess_comp;
 
    ess_vdofs.SetSize(GetVSize());
-   printf("ess_vdofs.size %d \n", GetVSize());
+//   printf("ess_vdofs.size %d \n", GetVSize());
    ess_vdofs = 0;
 
    ess_comp.SetSize(3);
@@ -179,7 +177,7 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
       int id = GetBdrAttribute(i)-1;
       if (bdr_attr_is_ess[id])
       {
-         printf("GetEssentialVDofs componentID %d \n", componentID[id]);
+//         printf("GetEssentialVDofs componentID %d \n", componentID[id]);
          if (componentID[id] < 0) // same as srw component id system
          {
             // Mark all components.
@@ -198,11 +196,11 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
                   if (ess_comp[k] != -1) { // -1 means inactive component
                                            // valid components are x = 0, y = 1, z = 2
                      dofs[d] = DofToVDof(dofs[d], ess_comp[k]); 
-                     printf("GetEssentialVDofs: %d %d %d %d \n", (id+1), k, ess_comp[k], dofs[d]);
+//                     printf("GetEssentialVDofs: %d %d %d %d \n", (id+1), k, ess_comp[k], dofs[d]);
                   }
                }
             } 
-            printf("GetEssentialVDofs, size of dofs, ess_vdofs: %d %d \n", dofs.Size(), ess_vdofs.Size());
+//            printf("GetEssentialVDofs, size of dofs, ess_vdofs: %d %d \n", dofs.Size(), ess_vdofs.Size());
             mark_dofs(dofs, ess_vdofs); // do this only once?
          }
       }
