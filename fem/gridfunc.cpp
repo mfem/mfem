@@ -1492,6 +1492,8 @@ void GridFunction::ProjectCoefficient(Coefficient *coeff[])
          transf->SetIntPoint(&ip);
          for (d = 0; d < vdim; d++)
          {
+            if (!coeff[d]) { continue; }
+
             val = coeff[d]->Eval(*transf, ip);
             if ( (ind = vdofs[fdof*d+j]) < 0 )
             {
@@ -1586,6 +1588,8 @@ void GridFunction::ProjectBdrCoefficient(
             transf->SetIntPoint(&ip);
             for (d = 0; d < vdim; d++)
             {
+               if (!coeff[d]) { continue; }
+
                val = coeff[d]->Eval(*transf, ip);
                if ( (ind = vdofs[fdof*d+j]) < 0 )
                {
@@ -1627,6 +1631,8 @@ void GridFunction::ProjectBdrCoefficient(
          vals.SetSize(fe->GetDof());
          for (d = 0; d < vdim; d++)
          {
+            if (!coeff[d]) { continue; }
+
             fe->Project(*coeff[d], *transf, vals);
             for (int k = 0; k < vals.Size(); k++)
             {
