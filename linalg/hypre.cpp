@@ -1320,8 +1320,14 @@ void HypreParMatrix::Threshold(double threshold)
                                            0, 0, 0);
    hypre_ParCSRMatrixOwnsRowStarts(parcsr_A_ptr) = old_owns_row;
    hypre_ParCSRMatrixOwnsColStarts(parcsr_A_ptr) = old_owns_col;
+   hypre_ParCSRMatrixOwnsRowStarts(A) = 0;
+   hypre_ParCSRMatrixOwnsColStarts(A) = 0;
 
    csr_A = hypre_MergeDiagAndOffd(A);
+
+   // Free A, if owned
+   Destroy();
+   Init();
 
    csr_A_wo_z = hypre_CSRMatrixDeleteZeros(csr_A,threshold);
 
@@ -1344,11 +1350,19 @@ void HypreParMatrix::Threshold(double threshold)
 
    ierr += hypre_CSRMatrixDestroy(csr_A_wo_z);
 
-   ierr += hypre_ParCSRMatrixDestroy(A);
-
    MFEM_VERIFY(ierr == 0, "");
 
    A = parcsr_A_ptr;
+
+   hypre_ParCSRMatrixSetNumNonzeros(A);
+   /* Make sure that the first entry in each row is the diagonal one. */
+   if (row_starts == col_starts)
+   {
+      hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
+   }
+   hypre_MatvecCommPkgCreate(A);
+   height = GetNumRows();
+   width = GetNumCols();
 }
 
 void HypreParMatrix::EliminateRowsCols(const Array<int> &rows_cols,
