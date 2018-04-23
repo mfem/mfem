@@ -21,7 +21,7 @@
 // The weak form is: seek (q,u,\lambda) such that for all (v, w, \mu)
 //
 // -\nu^{-1}(q, v)       + (u, div(v))       - <\lambda, v \cdot n>      = 0
-//  (div(q), w)          + (\tau u, w)_T     - <\tau \lambda, w>         = (f, w)
+//  (div(q), w)          + <\tau u, w>       - <\tau \lambda, w>         = (f, w)
 // -<[[q \cdot n]], \mu> - <[[\tau u]], \mu> + <[[(\tau \lambda]], \mu>  = 0
 //
 // where [[.]] is the jump operator, (.,.) is the d-dimensional L2 product,

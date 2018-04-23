@@ -727,6 +727,22 @@ FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
    return tr;
 }
 
+/* HDG */
+void Mesh::GetBdrFaceToEdge(int BdrElemNo, int *fn)
+{
+   if (Dim == 3)
+   {
+      *fn = be_to_face[BdrElemNo];
+   }
+   else if (Dim == 2)
+   {
+      *fn = be_to_edge[BdrElemNo];
+   }
+   else
+   {
+      *fn = boundary[BdrElemNo]->GetVertices()[0];
+   }
+}
 
 /* HDG */
 void Mesh::GetEdgeToBdrFace(Array<int> &Edge_to_Be)
