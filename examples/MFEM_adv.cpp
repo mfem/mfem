@@ -68,6 +68,8 @@ struct AIR_parameters {
    int coarsening;
    int coord_dim;
    float *coord;
+   int nodal;
+   int Sabs;
 };
 
 void print_AIR(AIR_parameters AIR) {
@@ -117,7 +119,6 @@ class FE_Evolution : public TimeDependentOperator
 
       void Destroy()
       {
-         BlockInvScal(NULL, NULL, NULL, NULL, 0, -1);
          if (T) delete T;
          if (AMG_solver) delete AMG_solver;
          if (GMRES_solver) delete GMRES_solver;
@@ -148,12 +149,14 @@ int main(int argc, char *argv[])
    double dt = 0.01;
    int num_time_steps = -1;
    bool visualization = false;
+   bool nodal_coarsen = false;
+   bool useSabs = false;
    bool visit = false;
    bool binary = false;
    int vis_steps = 5;
    int precision = 8;
    cout.precision(precision);
-   AIR_parameters AIR = {2, "", "FFF", 0.1, 0.005, 100, 0, 1e-4, 3, 0, NULL};
+   AIR_parameters AIR = {2, "", "FFF", 0.1, 0.005, 100, 0, 1e-4, 3, 0, NULL, 0, 0};
    const char* temp_prerelax = "";
    const char* temp_postrelax = "FFF";
    double h_min, h_max, k_min, k_max;
@@ -211,6 +214,13 @@ int main(int argc, char *argv[])
                   "String denoting prerelaxation scheme; e.g., FCC.");
    args.AddOption(&temp_postrelax, "-Ar2", "--AIR-postrelax",
                   "String denoting postrelaxation scheme; e.g., FFC.");
+   args.AddOption(&nodal_coarsen, "-An", "--AIR-nodalCoarsening", "-no-An",
+                  "--no-AIR-nodalCoarsening",
+                  "Enable or disable nodal coarsening.");
+   args.AddOption(&useSabs, "-ASabs", "--AIR-AbsStrength", "-no-Sabs",
+                  "--no-AIR-AbsStrength",
+                  "Enable or disable absolute value strength matrix.");
+
    args.Parse();
    AIR.prerelax = std::string(temp_prerelax);
    AIR.postrelax = std::string(temp_postrelax);
@@ -328,7 +338,9 @@ int main(int argc, char *argv[])
  
    AIR.coord_dim = dim;
    AIR.coord = (float *) malloc(dim * fes->GetNDofs() * sizeof(float));
-   printf("dim %d nfods %d\n", dim, fes->GetNDofs());
+   AIR.nodal = nodal_coarsen ? (order+1)*(order+1): 0;
+   AIR.Sabs = useSabs ? 1 : 0;
+   printf("dim %d nfods %d nodal %d UseSabs %d\n", dim, fes->GetNDofs(), AIR.nodal, AIR.Sabs);
    fes->BuildDofToArrays();
    Vector coord;
    int local_ndof = 0;
@@ -537,6 +549,8 @@ int main(int argc, char *argv[])
 
    adv.Destroy();
 
+   free(AIR.coord);
+
    MPI_Finalize();
    return 0;
 }
@@ -594,28 +608,28 @@ void FE_Evolution::ImplicitSolve(const double dt, const Vector &u, Vector &du_dt
    
       /* scale T by block-diagonal inverse */
       //printf("blocksize %d\n", blocksize);
-      BlockInvScal(T, &T_s, NULL, NULL, blocksize, 0);
+      BlockInvScal(T, &T_s, NULL, NULL, blocksize, 0);      
       /*
       if (myid == 0) 
       {
          std::cout << "assembled matrices: " << T->GetNumRows() << ", " \
                                << T->GetNumCols() << ", " << T->NNZ() << "\n";
-         M.Print("M.mtx",1,1);
-         K.Print("K.mtx",1,1);
-         //T->Print("T.mtx",1,1);
+         //M.Print("M.mtx",1,1);
+         //K.Print("K.mtx",1,1);
+         T->Print("T.mtx",1,1);
          std::cout << "scaled matrices: " << T_s.GetNumRows() << ", " \
                    << T_s.GetNumCols() << ", " << T_s.NNZ() << "\n";
 
-         //T_s.Print("Ts.mtx",1,1);
+         T_s.Print("Ts.mtx",1,1);
          exit(0);
 
       }
       */
-
+      
       AMG_solver = new HypreBoomerAMG(T_s);
       AMG_solver->SetAIROptions(AIR.distance, AIR.prerelax, AIR.postrelax,
                                 AIR.strength_tolC, AIR.strength_tolR, AIR.interp_type, AIR.relax_type,
-                                AIR.filterA_tol, AIR.coarsening, blocksize);
+                                AIR.filterA_tol, AIR.coarsening, AIR.nodal, AIR.Sabs);
 
       /* set coordinates of the dofs */
       AMG_solver->SetCoord(AIR.coord_dim, AIR.coord);
@@ -643,7 +657,7 @@ void FE_Evolution::ImplicitSolve(const double dt, const Vector &u, Vector &du_dt
    z += b;
 
    /* scale the rhs and solve system */
-   BlockInvScal(&T_s, NULL, &z, &z_s, blocksize, 2);
+   BlockInvScal(T, NULL, &z, &z_s, blocksize, 2);
    
    if (use_gmres){
       GMRES_solver->Mult(z_s, du_dt);
