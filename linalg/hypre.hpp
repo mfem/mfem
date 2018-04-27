@@ -361,6 +361,8 @@ public:
    void GetDiag(SparseMatrix &diag) const;
    /// Get the local off-diagonal block. NOTE: 'offd' will not own any data.
    void GetOffd(SparseMatrix &offd, HYPRE_Int* &cmap) const;
+   /// Get on-processor rows as CSR matrix.
+   void GetProcRows(SparseMatrix &colCSRMat);
 
    /** Split the matrix into M x N equally sized blocks of parallel matrices.
        The size of 'blocks' must already be set to M x N. */

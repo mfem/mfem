@@ -920,6 +920,11 @@ void HypreParMatrix::GetOffd(SparseMatrix &offd, HYPRE_Int* &cmap) const
    cmap = A->col_map_offd;
 }
 
+void HypreParMatrix::GetProcRows(SparseMatrix &colCSRMat) const
+{
+   MakeWrapper(hypre_MergeDiagAndOffd(A), colCSRMat);
+}
+
 void HypreParMatrix::GetBlocks(Array2D<HypreParMatrix*> &blocks,
                                bool interleaved_rows,
                                bool interleaved_cols) const
@@ -1462,17 +1467,37 @@ void HypreParMatrix::Destroy()
    }
 }
 
-/* job =  0, extract block diagonal of A and scale A into C
+/* job = -1, free the stored data
+ * job =  0, extract block diagonal of A, store data internally, scale A into C
  * job =  1, job 0 + scale b into d
- * job =  2, use A to scale b only
+ * job =  2, use the stored data to scale b only
  */
 int BlockInvScal(const HypreParMatrix *A, HypreParMatrix *C,
                  const Vector *b, HypreParVector *d, int block, int job)
 {
+   static HYPRE_Complex *bdiaginv = NULL;
+   static hypre_ParCSRCommPkg *commpkg = NULL;
+   static int block_saved = -1;
+   
+   if (-1 == job)
+   {
+      hypre_TFree(bdiaginv, HYPRE_MEMORY_HOST);
+      if (commpkg)
+      {
+         hypre_MatvecCommPkgDestroy(commpkg);
+      }
+      bdiaginv = NULL;
+      commpkg = NULL;
+      block_saved = -1;
+
+      return 0;
+   }
+
    if (0 == job || 1 == job)
    {
+      block_saved = block;
       hypre_ParCSRMatrix *C_hypre;
-      hypre_ParcsrBdiagInvScal(*A, block, &C_hypre);
+      hypre_ParcsrBdiagInvScal(*A, block, &C_hypre, &bdiaginv, &commpkg);
       /* XXX: FIXME drop in BdiagInvScal */
       hypre_ParCSRMatrixDropSmallEntries(C_hypre, 1e-15, 1);
       (*C).WrapHypreParCSRMatrix(C_hypre);
@@ -1480,10 +1505,15 @@ int BlockInvScal(const HypreParMatrix *A, HypreParMatrix *C,
 
    if (1 == job || 2 == job)
    {
+      if (!bdiaginv || !commpkg || block != block_saved)
+      {
+         return 1;
+      }
+
       HypreParVector *b_Hypre = new HypreParVector(A->GetComm(), A->GetGlobalNumRows(), 
                                                    b->GetData(), A->GetRowStarts());
       hypre_ParVector *d_hypre;
-      hypre_ParvecBdiagInvScal(*b_Hypre, block, &d_hypre, *A);
+      hypre_ParvecBdiagInvScal(*b_Hypre, block, &d_hypre, bdiaginv, commpkg);
       
       delete b_Hypre;
 
@@ -2781,8 +2811,7 @@ void HypreBoomerAMG::SetAIROptions(int distance,
                                    int relax_type,
                                    double filterA_tol, 
                                    int splitting,
-                                   int blksize,
-                                   int Sabs)
+                                   int blksize)
 {
    int ns_down, ns_up, ns_coarse;
    if (distance > 0)
@@ -2835,17 +2864,12 @@ void HypreBoomerAMG::SetAIROptions(int distance,
       HYPRE_BoomerAMGSetInterpType(amg_precond, interp_type);
    }
    
-   //HYPRE_BoomerAMGSetMaxRowSum(amg_precond, 0.8);
-   if (Sabs)
-   {
-      HYPRE_BoomerAMGSetSabs(amg_precond, Sabs);
-   }
-
+   HYPRE_BoomerAMGSetMaxRowSum(amg_precond, 1.0);
+   
    if (blksize > 0)
    {
       HYPRE_BoomerAMGSetNumFunctions(amg_precond, blksize);
       HYPRE_BoomerAMGSetNodal(amg_precond, 1);
-      //HYPRE_BoomerAMGSetNodalLevels(amg_precond, 1);
    }
 
    HYPRE_BoomerAMGSetCoarsenType(amg_precond, splitting);
@@ -2876,7 +2900,7 @@ void HypreBoomerAMG::SetAIROptions(int distance,
       HYPRE_BoomerAMGSetADropType(amg_precond, -1);
    }
 
-   //HYPRE_BoomerAMGSetMaxCoarseSize(amg_precond, 1000);
+   //HYPRE_BoomerAMGSetMaxCoarseSize(amg_precond, 20);
 }
 
 HypreBoomerAMG::~HypreBoomerAMG()
