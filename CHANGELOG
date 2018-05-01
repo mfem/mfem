@@ -54,8 +54,10 @@ Discretization improvements
 - In the classes NonlinearForm and ParNonlinearForm, added support for
   non-conforming AMR meshes; see also the "API changes" section.
 
-- Added symplectic integrators of orders 1-4 for systems of first order ODEs
-  derived from a Hamiltonian, see class SIASolver in linalg/ode.hpp.
+- New specialized time integrators: symplectic integrators of orders 1-4 for
+  systems of first order ODEs derived from a Hamiltonian and generalized-alpha
+  ODE solver for the filtered Navier–Stokes equations with stabilization. See
+  classes SIASolver and GeneralizedAlphaSolver in linalg/ode.hpp.
 
 - Inherit finite element classes from the new base class TensorBasisElement,
   whenever the basis can be represented by a tensor product of 1D bases.
