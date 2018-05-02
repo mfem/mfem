@@ -590,7 +590,7 @@ public:
        1001 = Taubin polynomial smoother
        1002 = FIR polynomial smoother. */
    enum Type { Jacobi = 0, l1Jacobi = 1, l1GS = 2, l1GStr = 4, lumpedJacobi = 5,
-               GS = 6, Chebyshev = 16, Taubin = 1001, FIR = 1002
+               GS = 6, TS = 10, Chebyshev = 16, Taubin = 1001, FIR = 1002
              };
 
    HypreSmoother();
@@ -668,6 +668,25 @@ public:
 
    virtual ~HypreSolver();
 };
+
+
+/// Abstract class for hypre's solvers and preconditioners
+class HypreTriSolve : public HypreSolver
+{
+public:
+   HypreTriSolve() : HypreSolver() { }
+   explicit HypreTriSolve(HypreParMatrix &A) : HypreSolver(&A) { }
+   virtual operator HYPRE_Solver() const { return NULL; }
+
+   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSROnProcTriSetup; }
+   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSROnProcTriSolve; }
+
+   HypreParMatrix* GetData() { return A; }
+   virtual ~HypreTriSolve() { }
+};
+
 
 /// PCG solver in hypre
 class HyprePCG : public HypreSolver
