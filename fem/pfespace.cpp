@@ -1640,6 +1640,9 @@ ParFiniteElementSpace::ScheduleSendRow(const PMatrixRow &row, int dof,
          msg.AddRow(ent, idx, edof, group_id, row);
          msg.SetNCMesh(pncmesh);
          msg.SetFEC(fec);
+#ifdef PMATRIX_STATS
+         n_rows_sent++;
+#endif
       }
    }
 }
@@ -1662,7 +1665,9 @@ void ParFiniteElementSpace::ForwardRow(const PMatrixRow &row, int dof,
          msg.AddRow(ent, idx, edof, invalid, row);
          msg.SetNCMesh(pncmesh);
          msg.SetFEC(fec);
-
+#ifdef PMATRIX_STATS
+         n_rows_fwd++;
+#endif
 #ifdef MFEM_DEBUG_PMATRIX
          mfem::out << "Rank " << pncmesh->GetMyRank() << " forwarding to "
                    << rank << ": ent " << ent << ", index" << idx
@@ -1743,6 +1748,11 @@ int ParFiniteElementSpace
                                        bool partial) const
 {
    bool dg = (nvdofs == 0 && nedofs == 0 && nfdofs == 0);
+
+#ifdef PMATRIX_STATS
+   n_msgs_sent = n_msgs_recv = 0;
+   n_rows_sent = n_rows_recv = n_rows_fwd = 0;
+#endif
 
    // *** STEP 1: build master-slave dependency lists ***
 
@@ -1921,6 +1931,9 @@ int ParFiniteElementSpace
 
    // send identity rows
    NeighborRowMessage::IsendAll(send_msg.back(), MyComm);
+#ifdef PMATRIX_STATS
+   n_msgs_sent += send_msg.back().size();
+#endif
 
    if (R) { (*R)->Finalize(); }
 
@@ -1948,6 +1961,10 @@ int ParFiniteElementSpace
       while (NeighborRowMessage::IProbe(rank, size, MyComm))
       {
          recv_msg.Recv(rank, size, MyComm);
+#ifdef PMATRIX_STATS
+         n_msgs_recv++;
+         n_rows_recv += recv_msg.GetRows().size();
+#endif
 
          const NeighborRowMessage::RowInfo::List &rows = recv_msg.GetRows();
          for (unsigned i = 0; i < rows.size(); i++)
@@ -2022,6 +2039,9 @@ int ParFiniteElementSpace
 
       // send current batch of messages
       NeighborRowMessage::IsendAll(send_msg.back(), MyComm);
+#ifdef PMATRIX_STATS
+      n_msgs_sent += send_msg.back().size();
+#endif
    }
 
    if (P)
@@ -2044,6 +2064,31 @@ int ParFiniteElementSpace
    {
       NeighborRowMessage::WaitAllSent(*it);
    }
+
+#ifdef PMATRIX_STATS
+   int n_rounds = send_msg.size();
+   int glob_rounds, glob_msgs_sent, glob_msgs_recv;
+   int glob_rows_sent, glob_rows_recv, glob_rows_fwd;
+
+   MPI_Reduce(&n_rounds,    &glob_rounds,    1, MPI_INT, MPI_SUM, 0, MyComm);
+   MPI_Reduce(&n_msgs_sent, &glob_msgs_sent, 1, MPI_INT, MPI_SUM, 0, MyComm);
+   MPI_Reduce(&n_msgs_recv, &glob_msgs_recv, 1, MPI_INT, MPI_SUM, 0, MyComm);
+   MPI_Reduce(&n_rows_sent, &glob_rows_sent, 1, MPI_INT, MPI_SUM, 0, MyComm);
+   MPI_Reduce(&n_rows_recv, &glob_rows_recv, 1, MPI_INT, MPI_SUM, 0, MyComm);
+   MPI_Reduce(&n_rows_fwd,  &glob_rows_fwd,  1, MPI_INT, MPI_SUM, 0, MyComm);
+
+   if (MyRank == 0)
+   {
+      std::cout << "P matrix stats (avg per rank): "
+                << double(glob_rounds)/NRanks << " rounds, "
+                << double(glob_msgs_sent)/NRanks << " msgs sent, "
+                << double(glob_msgs_recv)/NRanks << " msgs recv, "
+                << double(glob_rows_sent)/NRanks << " rows sent, "
+                << double(glob_rows_recv)/NRanks << " rows recv, "
+                << double(glob_rows_fwd)/NRanks << " rows forwarded."
+                << std::endl;
+   }
+#endif
 
    return num_true_dofs*vdim;
 }

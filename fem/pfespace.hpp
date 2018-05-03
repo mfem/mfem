@@ -120,6 +120,11 @@ private:
    int  PackDof(int entity, int index, int edof) const;
    void UnpackDof(int dof, int &entity, int &index, int &edof) const;
 
+#ifdef PMATRIX_STATS
+   mutable int n_msgs_sent, n_msgs_recv;
+   mutable int n_rows_sent, n_rows_recv, n_rows_fwd;
+#endif
+
    void ScheduleSendRow(const struct PMatrixRow &row, int dof, GroupId group_id,
                         std::map<int, class NeighborRowMessage> &send_msg) const;
 
