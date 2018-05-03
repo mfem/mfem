@@ -91,13 +91,21 @@ void Permutation3D(const int face_id1, const int face_id2, const int orientation
 */
 void Permutation(const int dim, const int face_id1, const int face_id2, const int orientation, int& perm1, int& perm2);
 
-const int GetFaceQuadIndex3D(const int face_id, const int orientation, const int qind, const int quads);
+void GetFaceQuadIndex3D(const int face_id, const int orientation, const int qind, const int quads, Tensor<1,int>& ind_f);
+int GetFaceQuadIndex3D(const int face_id, const int orientation, const int qind, const int quads);
 
 /**
-*	Returns the index of a quadrature point on the face of an hex element relative to the index of the quadrature
+*	Returns the indices of a quadrature point on the face of an hex element relative to the index of the quadrature
 *  point on the reference face.
 */
-const int GetFaceQuadIndex(const int dim, const int face_id, const int orientation, const int qind, const int quads);
+void GetFaceQuadIndex(const int dim, const int face_id, const int orientation, const int qind, const int quads, Tensor<1,int>& ind_f);
+int GetFaceQuadIndex(const int dim, const int face_id, const int orientation, const int qind, const int quads);
+
+/**
+*	Returns the indices of a quadrature point on the element relative to the index of the quadrature
+*  point on the reference face.
+*/
+const int GetGlobalQuadIndex(const int dim, const int face_id, const int quads, Tensor<1,int>& ind_f);
 
 }
 

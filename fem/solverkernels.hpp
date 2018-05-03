@@ -27,70 +27,239 @@ namespace mfem
 /**
 *  A class that implement the BtDB partial assembly Kernel
 */
-template <typename Equation>
-class CGSolverDG<Equation,PAOp::BtDB>: private Equation
+template <typename Op>
+class CGSolverDG: public Operator
 {
 public:
-   static const int dimD = 2;
-   const double treshold;
-   typedef Tensor<dimD,double> DTensor;
-   typedef DenseMatrix Tensor2d;
+   typedef Tensor<2> Tensor2d;
 
 protected:
-   FiniteElementSpace *fes;
+   FiniteElementSpace& fes;
+   // const Op& op;
+   const Tensor2d& D;
    Tensor2d shape1d;
-   DTensor D;
+   const double treshold;
 
 public:
-   CGSolverDG(FiniteElementSpace* _fes, int order, const typename Equation::Args& args, const double tr = 1e-10)
-   : fes(_fes), D(), treshold(tr)
+   CGSolverDG(FiniteElementSpace& fes, int order, const Op& op, const double tr = 1e-10)
+   : Operator(fes.GetVSize()), fes(fes), D(op.getD()),
+     shape1d(fes.GetNDofs1d(),fes.GetNQuads1d(order)), treshold(tr)
    {
-      ComputeBasis1d(fes->GetFE(0), order, shape1d);
+      ComputeBasis1d(fes.GetFE(0), order, shape1d);
    }
 
-   CGSolverDG(FiniteElementSpace* _fes, int order, const double tr = 1e-10)
-   : fes(_fes), D(), treshold(tr)
+   virtual void Mult(const Vector &U, Vector &V) const
    {
-      ComputeBasis1d(fes->GetFE(0), order, shape1d);
-   }
-
-   void InitD(const int dim, const int quads, const int nb_elts){
-      this->D.setSize(quads,nb_elts);
-   }
-
-   void evalEq(const int dim, const int k, const int e, ElementTransformation * Tr,
-               const IntegrationPoint & ip, const typename Equation::Args& args)
-   {
-      double res = 0.0;
-      this->evalD(res, Tr, ip, args);
-      this->D(k,e) = res;
-   }
-
-   void evalEq(const int dim, const int k, const int e, ElementTransformation * Tr,
-               const IntegrationPoint & ip, const Tensor<2>& J, const typename Equation::Args& args)
-   {
-      double res = 0.0;
-      this->evalD(res, Tr, ip, J, args);
-      this->D(k,e) = res;
-   }
-
-   template <typename... Args>
-   void evalEq(const int dim, const int k, const int e, ElementTransformation * Tr,
-               const IntegrationPoint & ip, const Tensor<2>& J, Args... args)
-   {
-      double res = 0.0;
-      this->evalD(res, Tr, ip, J, args...);
-      this->D(k,e) = res;
+      switch(fes.GetFE(0)->GetDim())
+      {
+         case 1:
+            Mult1d(U, V);
+            break;
+         case 2:
+            Mult2d(U, V);
+            break;
+         case 3:
+            Mult3d(U, V);
+            break;
+      }
    }
 
 protected:
    /**
    *  The domain Kernels for BtDB in 1d,2d and 3d.
    */
-   void Mult1d(const Vector &V, Vector &U);
-   void Mult2d(const Vector &V, Vector &U);
-   void Mult3d(const Vector &V, Vector &U);  
+   void Mult1d(const Vector &V, Vector &U) const;
+   void Mult2d(const Vector &V, Vector &U) const;
+   void Mult3d(const Vector &V, Vector &U) const;  
 
+};
+
+// class CGSolverDG: public Operator
+// {
+// private:
+//    FiniteElementSpace* fes;
+//    Operator& op;
+
+// public:
+//    CGSolverDG(FiniteElementSpace* _fes, const Operator& _op, const double tr = 1e-10)
+//    {
+
+//    }
+
+
+//    virtual void Mult(const Vector &U, Vector &V) const
+//    {
+//       const int dofs1d = shape1d.Height();
+//       const int quads1d = shape1d.Width();
+//       const int quads = quads1d;
+//       const int dofs = dofs1d;
+
+//       for (int e = 0; e < fes->GetNE(); e++)
+//       {
+//          const Tensor<1> V0mat(V.GetData() + e*dofs, dofs);
+//          Tensor<1> b(dofs);
+//          b = V0mat;
+//          Tensor<1> x(U.GetData() + e*dofs, dofs);
+//          Tensor<1> r(dofs);
+//          r = b;
+//          Tensor<1> p(dofs);
+//          p = r;
+//          double rsold = norm2sq(r);
+
+//          for(int i=0; i<dofs; i++){
+//             Tensor<1> Ap(dofs),tmp(quads1d);
+//             // Ap = A * p
+//             op.Mult(e,p,Ap);
+//             const double alpha = rsold / dot(p,Ap);
+//             // x = x + alpha * p
+//             // r = r - alpha * Ap
+//             for (int i = 0; i < dofs; ++i)
+//             {
+//                x(i) = x(i) + alpha * p(i);
+//                r(i) = r(i) - alpha * Ap(i);
+//             }
+//             const double rsnew = norm2sq(r);
+//             if (sqrt(rsnew)<treshold) break;
+//             // p = r + (rsnew/rsold) * p
+//             for (int i = 0; i < dofs; ++i)
+//             {
+//                p(i) = r(i) + (rsnew/rsold) * p(i);
+//             }
+//             rsold = rsnew;
+//          }
+//    }
+//    }
+// };
+
+template <typename Mass>
+class PACGSolver: public Operator
+{
+private:
+   const int dofs;
+   Mass& mass;
+   const double treshold;
+
+public:
+   PACGSolver(const FiniteElementSpace* fes, Mass& mass, const double tr = 1e-10)
+   : Operator(fes->GetVSize()), dofs(fes->GetNDofs()), mass(mass), treshold(tr)
+   {
+
+   }
+
+   virtual void Mult(const Vector &U, Vector &V) const
+   {
+      int iter = 0;
+
+      Vector b(dofs);
+      b = U;
+      Vector& x = V;
+      x = 0.0;
+      Vector r(dofs);
+      for (int i = 0; i < dofs; ++i)
+      {
+         r(i) = -b(i);
+      }
+      // Precondition My=r
+      // r = b;
+      Vector p(dofs);
+      for (int i = 0; i < dofs; ++i)
+      {
+         p(i) = - r(i);
+      }
+      // p = r;
+      // rsold = y*r
+      double rsold = r*r;
+      for(iter=0; iter<dofs; iter++){
+         Vector Ap(dofs);
+         Ap = 0.0;
+         // Ap = A * p
+         mass.AddMult(p,Ap);
+         const double alpha = rsold / (p*Ap);
+         // x = x + alpha * p
+         // r = r - alpha * Ap
+         for (int i = 0; i < dofs; ++i)
+         {
+            x(i) = x(i) + alpha * p(i);
+            r(i) = r(i) + alpha * Ap(i);
+         }
+         // rsnew = y*r;
+         const double rsnew = r*r;
+         if (sqrt(rsnew)<treshold) break;
+         // p = r + (rsnew/rsold) * p
+         for (int i = 0; i < dofs; ++i)
+         {
+            //p = -y + Beta * p;
+            p(i) = -r(i) + (rsnew/rsold) * p(i);
+         }
+         rsold = rsnew;
+      }
+      // cout << "residual=" << rsold << endl;
+      // cout << "iter=" << iter << endl;
+   }
+};
+
+template <typename Mass, typename Prec>
+class PAPrecCGSolver: public Operator
+{
+private:
+   const int dofs;
+   Mass& mass;
+   Prec& prec;
+   const double treshold;
+
+public:
+   PAPrecCGSolver(const FiniteElementSpace* fes, Mass& mass, Prec& prec, const double tr = 1e-10)
+   : Operator(fes->GetVSize()), dofs(fes->GetNDofs()), mass(mass), prec(prec), treshold(tr)
+   {
+
+   }
+
+   virtual void Mult(const Vector &U, Vector &V) const
+   {
+      int iter = 0;
+
+      Vector b(dofs);
+      b = U;
+      Vector& x = V;
+      x = 0.0;
+      Vector r(dofs);
+      for (int i = 0; i < dofs; ++i)
+      {
+         r(i) = -b(i);
+      }
+      Vector y(dofs);
+      prec.Mult(r,y);
+      Vector p(dofs);
+      for (int i = 0; i < dofs; ++i)
+      {
+         p(i) = - y(i);
+      }
+      double rsold = y*r;
+      for(iter=0; iter<dofs; iter++){
+         Vector Ap(dofs);
+         Ap = 0.0;
+         mass.AddMult(p,Ap);
+         const double alpha = rsold / (p*Ap);
+         for (int i = 0; i < dofs; ++i)
+         {
+            x(i) = x(i) + alpha * p(i);
+            r(i) = r(i) + alpha * Ap(i);
+         }
+         prec.Mult(r,y);
+         const double rsnew = y*r;
+         if (sqrt(rsnew)<treshold){
+            // cout << "residual=" << rsnew << endl;
+            // cout << "iter=" << iter << endl;
+            break;  
+         }
+         const double beta = rsnew/rsold;
+         for (int i = 0; i < dofs; ++i)
+         {
+            p(i) = -y(i) + beta * p(i);
+         }
+         rsold = rsnew;
+      }
+   }
 };
 
 /**
@@ -105,19 +274,24 @@ private:
    Tensor<2> D;
 
 public:
-   template <typename Mass>
-   DiagSolverDG(FiniteElementSpace* fes, Mass& op)
-   : nbelts( fes->GetNE() ), dofs( fes->GetFE(0)->GetDof() ), size(nbelts*dofs), D(dofs,nbelts),
-     Operator(fes->GetVSize())
+   template <typename Op>
+   DiagSolverDG(FiniteElementSpace fes, int order, Op& op, bool fast_eval = false)
+   : nbelts( fes.GetNE() ), dofs( fes.GetFE(0)->GetDof() ), size(nbelts*dofs), D(dofs,nbelts),
+     Operator(fes.GetVSize())
    {
-      Vector U(nbelts*dofs);
-      for (int i = 0; i < size; ++i)
+      if(fast_eval)// FIXME: For some reason does not work in 2d...
       {
-         U(i) = 1.0;
+         Vector U(nbelts*dofs);
+         for (int i = 0; i < size; ++i)
+         {
+            U(i) = 1.0;
+         }
+         //If the op is diagonal, then we obtain the diagonal by multiplying by a vector of 1.
+         Vector V(D.getData(),size);
+         op.AddMult(U,V);
+      }else{
+         GetDiag(fes,order,op,D);
       }
-      //If the op is diagonal, then we obtain the diagonal by multiplying by a vector of 1.
-      Vector V(D.getData(),size);
-      op.AddMult(U,V);
    }
 
    /**
@@ -137,20 +311,20 @@ public:
    }
 };
 
-template<typename Equation>
-void CGSolverDG<Equation,PAOp::BtDB>::Mult1d(const Vector &V, Vector &U)
+template<typename Op>
+void CGSolverDG<Op>::Mult1d(const Vector &V, Vector &U) const
 {
    const int dofs1d = shape1d.Height();
    const int quads1d = shape1d.Width();
    const int quads = quads1d;
    const int dofs = dofs1d;
 
-   for (int e = 0; e < fes->GetNE(); e++)
+   for (int e = 0; e < fes.GetNE(); e++)
    {
-      const Tensor<1> V0mat(V.GetData() + e*dofs, dofs1d);
-      Tensor<1> b(dofs);
-      b = V0mat;
+      const Tensor<1> b(V.GetData() + e*dofs, dofs);
+      const Tensor<1> eD(D.getData() + e*quads, quads1d);
       Tensor<1> x(U.GetData() + e*dofs, dofs1d);
+      x.zero();
       Tensor<1> r(dofs);
       r = b;
       Tensor<1> p(dofs);
@@ -160,26 +334,9 @@ void CGSolverDG<Equation,PAOp::BtDB>::Mult1d(const Vector &V, Vector &U)
       for(int i=0; i<dofs; i++){
          Tensor<1> Ap(dofs),tmp(quads1d);
          // Ap = A * p
-         for (int k1 = 0; k1 < quads1d; ++k1)
-         {
-            tmp(k1) = 0.0;
-            for (int i1 = 0; i1 < dofs1d; ++i1)
-            {
-               tmp(k1) += shape1d(i1,k1) * p(i1);
-            }
-         }
-         for (int k1 = 0; k1 < quads1d; ++k1)
-         {
-            tmp(k1) = D(k1,e) * tmp(k1);
-         }
-         for (int j1 = 0; j1 < dofs1d; ++j1)
-         {
-            Ap(j1) = 0.0;
-            for (int k1 = 0; k1 < quads1d; ++k1)
-            {
-               Ap(j1) += shape1d(j1,k1) * tmp(k1);
-            }
-         }
+         contract(shape1d,p,tmp);
+         cWiseMult(eD,tmp,tmp);
+         contract(shape1d,tmp,Ap);
          const double alpha = rsold / dot(p,Ap);
          // x = x + alpha * p
          // r = r - alpha * Ap
@@ -200,8 +357,8 @@ void CGSolverDG<Equation,PAOp::BtDB>::Mult1d(const Vector &V, Vector &U)
    }
 }
 
-template<typename Equation>
-void CGSolverDG<Equation,PAOp::BtDB>::Mult2d(const Vector &V, Vector &U)
+template<typename Op>
+void CGSolverDG<Op>::Mult2d(const Vector &V, Vector &U) const
 {
    const int dofs1d = shape1d.Height();
    const int quads1d = shape1d.Width();
@@ -214,9 +371,10 @@ void CGSolverDG<Equation,PAOp::BtDB>::Mult2d(const Vector &V, Vector &U)
    Tensor<1> Ap(dofs);
    Tensor<2> ApT(Ap.getData(),dofs1d,dofs1d);
    Tensor<2> tmp1(dofs1d,quads1d), tmp2(quads1d,quads1d), tmp3(quads1d,dofs1d);
-   for (int e = 0; e < fes->GetNE(); e++)
+   for (int e = 0; e < fes.GetNE(); e++)
    {
       const Tensor<1> b(V.GetData() + e*dofs, dofs);
+      const Tensor<2> eD(D.getData() + e*quads, quads1d, quads1d);
       Tensor<1> x(U.GetData() + e*dofs, dofs);
       // Tensor<1> x(dofs);
       x.zero();
@@ -233,57 +391,11 @@ void CGSolverDG<Equation,PAOp::BtDB>::Mult2d(const Vector &V, Vector &U)
       double rsold = norm2sq(r);
       for(int i=0; i<dofs; i++){
          // Ap = A * p
-         for (int k1 = 0; k1 < quads1d; ++k1)
-         {
-            for (int i2 = 0; i2 < dofs1d; ++i2)
-            {
-               tmp1(i2,k1) = 0.0;
-               for (int i1 = 0; i1 < dofs1d; ++i1)
-               {
-                  tmp1(i2,k1) += shape1d(i1,k1) * pT(i1,i2);
-               }
-            }
-         }
-         for (int k2 = 0; k2 < quads1d; ++k2)
-         {
-            for (int k1 = 0; k1 < quads1d; ++k1)
-            {
-               tmp2(k1,k2) = 0.0;
-               for (int i2 = 0; i2 < dofs1d; ++i2)
-               {
-                  tmp2(k1,k2) += shape1d(i2,k2) * tmp1(i2,k1);
-               }
-            }
-         }
-         for (int k2 = 0, k = 0; k2 < quads1d; ++k2)
-         {
-            for (int k1 = 0; k1 < quads1d; ++k1, ++k)
-            {
-               tmp2(k1,k2) = D(k,e) * tmp2(k1,k2);
-            }
-         }
-         for (int j1 = 0; j1 < dofs1d; ++j1)
-         {
-            for (int k2 = 0; k2 < quads1d; ++k2)
-            {
-               tmp3(k2,j1) = 0.0;
-               for (int k1 = 0; k1 < quads1d; ++k1)
-               {
-                  tmp3(k2,j1) += shape1d(j1,k1) * tmp2(k1,k2);
-               }
-            }
-         }
-         for (int j2 = 0; j2 < dofs1d; ++j2)
-         {
-            for (int j1 = 0; j1 < dofs1d; ++j1)
-            {
-               ApT(j1,j2) = 0.0;
-               for (int k2 = 0; k2 < quads1d; ++k2)
-               {
-                  ApT(j1,j2) += shape1d(j2,k2) * tmp3(k2,j1);
-               }
-            }
-         }
+         contract(shape1d,pT,tmp1);
+         contract(shape1d,tmp1,tmp2);
+         cWiseMult(eD,tmp2,tmp2);
+         contractT(shape1d,tmp2,tmp3);
+         contractT(shape1d,tmp3,ApT);
          const double alpha = rsold / dot(p,Ap);
          // x = x + alpha * p
          // r = r - alpha * Ap
@@ -306,20 +418,20 @@ void CGSolverDG<Equation,PAOp::BtDB>::Mult2d(const Vector &V, Vector &U)
    }
 }
 
-template<typename Equation>
-void CGSolverDG<Equation,PAOp::BtDB>::Mult3d(const Vector &V, Vector &U)
+template<typename Op>
+void CGSolverDG<Op>::Mult3d(const Vector &V, Vector &U) const
 {
    const int dofs1d = shape1d.Height();
    const int quads1d = shape1d.Width();
    const int quads = quads1d * quads1d * quads1d;
    const int dofs = dofs1d * dofs1d * dofs1d;
 
-   for (int e = 0; e < fes->GetNE(); e++)
+   for (int e = 0; e < fes.GetNE(); e++)
    {
-      const Tensor<1> V0mat(V.GetData() + e*dofs, dofs);
-      Tensor<1> b(dofs);
-      b = V0mat;
+      const Tensor<1> b(V.GetData() + e*dofs, dofs);
+      const Tensor<3> eD(D.getData() + e*quads, quads1d, quads1d, quads1d);
       Tensor<1> x(U.GetData() + e*dofs, dofs);
+      x.zero();
       Tensor<1> r(dofs);
       r = b;
       Tensor<1> p(dofs);
@@ -333,100 +445,13 @@ void CGSolverDG<Equation,PAOp::BtDB>::Mult3d(const Vector &V, Vector &U)
          Tensor<3> tmp1(dofs1d,dofs1d,quads1d), tmp2(dofs1d,quads1d,quads1d), tmp3(quads1d,quads1d,quads1d),
                      tmp4(quads1d,quads1d,dofs1d), tmp5(quads1d,dofs1d,dofs1d);
          // Ap = A * p
-         for (int k1 = 0; k1 < quads1d; ++k1)
-         {
-            for (int i3 = 0; i3 < dofs1d; ++i3)
-            {
-               for (int i2 = 0; i2 < dofs1d; ++i2)
-               {
-                  tmp1(i2,i3,k1) = 0.0;
-                  for (int i1 = 0; i1 < dofs1d; ++i1)
-                  {
-                     tmp1(i2,i3,k1) += shape1d(i1,k1) * pT(i1,i2,i3);
-                  }
-               }
-            }
-         }
-         for (int k2 = 0; k2 < quads1d; ++k2)
-         {
-            for (int k1 = 0; k1 < quads1d; ++k1)
-            {
-               for (int i3 = 0; i3 < dofs1d; ++i3)
-               {
-                  tmp2(i3,k1,k2) = 0.0;
-                  for (int i2 = 0; i2 < dofs1d; ++i2)
-                  {
-                     tmp2(i3,k1,k2) += shape1d(i2,k2) * tmp1(i2,i3,k1);
-                  }
-               }
-            }
-         }
-         for (int k3 = 0; k3 < quads1d; ++k3)
-         {
-            for (int k2 = 0; k2 < quads1d; ++k2)
-            {
-               for (int k1 = 0; k1 < quads1d; ++k1)
-               {
-                  tmp3(k1,k2,k3) = 0.0;
-                  for (int i3 = 0; i3 < dofs1d; ++i3)
-                  {
-                     tmp3(k1,k2,k3) += shape1d(i3,k3) * tmp2(i3,k1,k2);
-                  }
-               }
-            }
-         }
-         for (int k3 = 0, k = 0; k3 < quads1d; ++k3)
-         {
-            for (int k2 = 0; k2 < quads1d; ++k2)
-            {
-               for (int k1 = 0; k1 < quads1d; ++k1, ++k)
-               {
-                  tmp3(k1,k2,k3) = D(k,e) * tmp3(k1,k2,k3);
-               }
-            }
-         }
-         for (int j1 = 0; j1 < dofs1d; ++j1)
-         {
-            for (int k3 = 0; k3 < quads1d; ++k3)
-            {
-               for (int k2 = 0; k2 < quads1d; ++k2)
-               {
-                  tmp4(k2,k3,j1) = 0.0;
-                  for (int k1 = 0; k1 < quads1d; ++k1)
-                  {
-                     tmp4(k2,k3,j1) += shape1d(j1,k1) * tmp3(k1,k2,k3);
-                  }
-               }
-            }
-         }
-         for (int j2 = 0; j2 < dofs1d; ++j2)
-         {
-            for (int j1 = 0; j1 < dofs1d; ++j1)
-            {
-               for (int k3 = 0; k3 < quads1d; ++k3)
-               {
-                  tmp5(k3,j1,j2) = 0.0;
-                  for (int k2 = 0; k2 < quads1d; ++k2)
-                  {
-                     tmp5(k3,j1,j2) += shape1d(j2,k2) * tmp4(k2,k3,j1);
-                  }
-               }
-            }
-         }
-         for (int j3 = 0; j3 < dofs1d; ++j3)
-         {
-            for (int j2 = 0; j2 < dofs1d; ++j2)
-            {
-               for (int j1 = 0; j1 < dofs1d; ++j1)
-               {
-                  ApT(j1,j2,j3) = 0.0;
-                  for (int k3 = 0; k3 < quads1d; ++k3)
-                  {
-                     ApT(j1,j2,j3) += shape1d(j3,k3) * tmp5(k3,j1,j2);
-                  }
-               }
-            }
-         }
+         contract(shape1d,pT,tmp1);
+         contract(shape1d,tmp1,tmp2);
+         contract(shape1d,tmp2,tmp3);
+         cWiseMult(eD,tmp3,tmp3);
+         contract(shape1d,tmp3,tmp4);
+         contract(shape1d,tmp4,tmp5);
+         contract(shape1d,tmp5,ApT);
          const double alpha = rsold / dot(p,Ap);
          // x = x + alpha * p
          // r = r - alpha * Ap
@@ -438,7 +463,7 @@ void CGSolverDG<Equation,PAOp::BtDB>::Mult3d(const Vector &V, Vector &U)
          const double rsnew = norm2sq(r);
          if (sqrt(rsnew)<treshold) break;
          // p = r + (rsnew/rsold) * p
-         for (int i = 0; i < dofs1d; ++i)
+         for (int i = 0; i < dofs; ++i)
          {
             p(i) = r(i) + (rsnew/rsold) * p(i);
          }

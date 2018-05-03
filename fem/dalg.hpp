@@ -79,17 +79,17 @@ template<int Dim, typename Scalar=double>
 class Tensor
 {
 protected:
+   int capacity;
    Scalar* data;
    bool own_data;
-   int capacity;
    int sizes[Dim];
 
 public:
    /**
    *  A default constructor
    */
-   Tensor()
-   : data(NULL), own_data(true), capacity(0)
+   explicit Tensor()
+   : capacity(0), data(NULL), own_data(true)
    {
    }
 
@@ -121,6 +121,20 @@ public:
    }
 
    /**
+   *  A constructor to initialize a tensor from a different size Tensor
+   */
+   template <int Dim1, typename... Args>
+   Tensor(Tensor<Dim1,Scalar>& t, Args... args)
+   : own_data(false)
+   {
+      static_assert(sizeof...(args)==Dim, "Wrong number of arguments");
+      // Initialize sizes, and compute the number of values
+      long int nb = Init<1,Dim,Args...>::result(sizes,args...);
+      capacity = nb;
+      data = t.getData();
+   }
+
+   /**
    *  A constructor to initialize the sizes of a tensor with a variadic function
    */
    template <typename... Args>
@@ -148,21 +162,63 @@ public:
       data = _data;
    }
 
-   /**
-   *  A copy assignment operator
-   */
-   Tensor& operator=(const Tensor& t)
+   // Let's write some uggly code
+   template <typename... Args>
+   Tensor(const Scalar* _data, Args... args)
+   : own_data(false)
    {
-      const int nb = t.length();
-      if (nb>capacity)
-      {
-         data = new Scalar[nb];
-         own_data = true;
-         capacity = nb;
-      }
+      static_assert(sizeof...(args)==Dim, "Wrong number of arguments");
+      // Initialize sizes, and compute the number of values
+      long int nb = Init<1,Dim,Args...>::result(sizes,args...);
+      capacity = nb;
+      data = const_cast<Scalar*>(_data);
+   }
+
+   /**
+   *  A copy constructor
+   */
+   Tensor(const Tensor& t)
+   :capacity(t.length()), data(new Scalar[capacity]), own_data(true)
+   {
       for (int i = 0; i < Dim; ++i)
       {
          sizes[i] = t.size(i);
+      }
+      const Scalar* data_t = t.getData();
+      for (int i = 0; i < capacity; ++i)
+      {
+         data[i] = data_t[i];
+      }
+   }
+
+   /**
+   *  A copy assignment operator (do not resize Tensors)
+   */
+   Tensor& operator=(const Tensor& t)
+   {
+      if (this==&t)
+      {
+         return *this;
+      }
+      const int nb = t.length();
+      // if (nb>capacity)
+      // {
+      //    if (own_data)
+      //    {
+      //       if(data!=NULL) delete [] data;
+      //    }
+      //    data = new Scalar[nb];
+      //    capacity = nb;
+      //    own_data = true;
+      // }
+      for (int i = 0; i < Dim; ++i)
+      {
+         if(sizes[i] != t.size(i))
+         {
+            cout << sizes[i] << " | " << t.size(i) << endl;
+            mfem_error("The Tensors have different sizes.");
+         }
+         // sizes[i] = t.size(i);
       }
       const Scalar* data_t = t.getData();
       for (int i = 0; i < nb; ++i)
@@ -222,25 +278,35 @@ public:
       return data[ TensorInd<1,Dim,Args...>::result(sizes,args...) ];
    }
 
-   /**
-   *  A const accessor for the data
-   */
-   template <typename... Args>
-   const Scalar& operator[](Args... args) const
+   const Scalar& operator[](int i) const
    {
-      static_assert(sizeof...(args)==Dim, "Wrong number of arguments");
-      return data[ TensorInd<1,Dim,Args...>::result(sizes,args...) ];
+      return data[i];
    }
 
-   /**
-   *  A reference accessor to the data
-   */
-   template <typename... Args>
-   Scalar& operator[](Args... args)
+   Scalar& operator[](int i)
    {
-      static_assert(sizeof...(args)==Dim, "Wrong number of arguments");
-      return data[ TensorInd<1,Dim,Args...>::result(sizes,args...) ];
+      return data[i];
    }
+
+   // /**
+   // *  A const accessor for the data
+   // */
+   // template <typename... Args>
+   // const Scalar& operator[](Args... args) const
+   // {
+   //    static_assert(sizeof...(args)==Dim, "Wrong number of arguments");
+   //    return data[ TensorInd<1,Dim,Args...>::result(sizes,args...) ];
+   // }
+
+   // /**
+   // *  A reference accessor to the data
+   // */
+   // template <typename... Args>
+   // Scalar& operator[](Args... args)
+   // {
+   //    static_assert(sizeof...(args)==Dim, "Wrong number of arguments");
+   //    return data[ TensorInd<1,Dim,Args...>::result(sizes,args...) ];
+   // }
 
    void zero()
    {
@@ -271,7 +337,7 @@ public:
    }
 
    /**
-   *  Returns the length of the Tensor (number of values)
+   *  Returns the length of the Tensor (number of values, may be different from capacity)
    */
    const int length() const
    {
@@ -292,7 +358,8 @@ public:
    }
 
    /**
-   *  Returns the Scalar array data
+   *  Returns the Scalar array data (Really unsafe and ugly method)
+   *  Mostly exists to remap Tensors, so could be avoided by using more constructors...
    */
    Scalar* getData()
    {
@@ -383,7 +450,8 @@ inline Scalar det(const Tensor<2,Scalar>& A)
       default:
          mfem_error("determinant not defined for this size");
          break;
-   }  
+   }
+   return Scalar();
 }
 
 template <typename Scalar>
@@ -392,7 +460,7 @@ inline Scalar norm2sq(const Tensor<1,Scalar>& t)
    Scalar res = 0.0;
    for (int i = 0; i < t.size(0); ++i)
    {
-      res += t[i]*t[i];
+      res += t(i)*t(i);
    }
    return res;
 }
@@ -404,9 +472,381 @@ inline Scalar dot(const Tensor<1,Scalar>& t1, const Tensor<1,Scalar>& t2)
    MFEM_ASSERT(t1.size(0)==t2.size(0), "Tensor<1> t1 and t2 are of different size");
    for (int i = 0; i < t1.size(0); ++i)
    {
-      res += t1[i]*t2[i];
+      res += t1(i)*t2(i);
    }
    return res;
+}
+
+template <typename Scalar>
+inline void calcOrtho(const Tensor<2,Scalar>& J, const int& face_id, Tensor<1>& n)
+{
+   const int dim = n.length();
+   switch(dim)
+   {
+      case 1:
+         n(0) = face_id == 0 ? -J(0,0) : J(0,0);
+         break;
+      case 2:
+         switch(face_id)
+         {
+            case 0://SOUTH ( 0,-1)
+               n(0) = -J(0,1); n(1) = -J(1,1);
+               break;
+            case 1://EAST  ( 1, 0)
+               n(0) = -J(0,1); n(1) = -J(1,1);
+               break;
+            case 2://NORTH ( 0, 1)
+               n(0) = -J(0,1); n(1) = -J(1,1);
+               break;
+            case 3://WEST  (-1, 0)
+               n(0) = -J(0,1); n(1) = -J(1,1);
+               break;
+         }
+         break;
+      case 3:
+         switch(face_id)
+         {
+            case 0://BOTTOM ( 0, 0,-1)
+               n(0) = -J(0,2); n(1) = -J(1,2); n(2) = -J(2,2);
+               break;
+            case 1://SOUTH  ( 0,-1, 0)
+               n(0) = -J(0,1); n(1) = -J(1,1); n(2) = -J(2,1);
+               break;
+            case 2://EAST   ( 1, 0, 0)
+               n(0) =  J(0,0); n(1) =  J(1,0); n(2) =  J(2,0);
+               break;
+            case 3://NORTH  ( 0, 1, 0)
+               n(0) =  J(0,1); n(1) =  J(1,1); n(2) =  J(2,1);
+               break;
+            case 4://WEST   (-1, 0, 0)
+               n(0) = -J(0,0); n(1) = -J(1,0); n(2) = -J(2,0);
+               break;
+            case 5://TOP    ( 0, 0, 1)
+               n(0) =  J(0,2); n(1) =  J(1,2); n(2) =  J(2,2);
+               break;
+         }
+         break;
+   }
+}
+
+/**
+*  A type trait to obtain the the Scalar type underloying a type.
+*/
+template <typename T>
+struct value_type;
+
+template <int N, typename Scalar>
+struct value_type<Tensor<N,Scalar>>
+{
+   typedef Scalar type;
+};
+
+template <typename T>
+using value_type_t = typename value_type<T>::type;
+
+  ///////////////////////////
+ // "Volume" contractions //
+///////////////////////////
+
+
+// Would defining those contractions for abstract templated types be better?
+ ///////
+// 1d
+template <typename Scalar>
+inline void contract(const Tensor<2,Scalar>& B, const Tensor<1,Scalar>& U, Tensor<1,Scalar>& V)
+{
+   MFEM_ASSERT(B.size(0)==U.size(0), "Size mismatch for contraction.");
+   for (int j = 0; j < B.size(1); ++j)
+   {
+      V(j) = Scalar();
+      for (int i = 0; i < B.size(0); ++i)
+      {
+         V(j) += B(i,j) * U(i);
+      }
+   }
+}
+
+template <typename Scalar>
+inline void contractT(const Tensor<2,Scalar>& B, const Tensor<1,Scalar>& U, Tensor<1,Scalar>& V)
+{
+   MFEM_ASSERT(B.size(1)==U.size(0), "Size mismatch for contraction.");
+   for (int j = 0; j < B.size(0); ++j)
+   {
+      V(j) = Scalar();
+      for (int i = 0; i < B.size(1); ++i)
+      {
+         V(j) += B(j,i) * U(i);
+      }
+   }
+}
+
+ ///////
+// 2d
+template <typename Scalar>
+inline void contract(const Tensor<2,Scalar>& B, const Tensor<2,Scalar>& U, Tensor<2,Scalar>& V)
+{
+   MFEM_ASSERT(B.size(0)==U.size(0), "Size mismatch for contraction.");
+   for (int j1 = 0; j1 < B.size(1); ++j1)
+   {
+      for (int i2 = 0; i2 < U.size(1); ++i2)
+      {
+         V(i2,j1) = Scalar();
+         for (int i1 = 0; i1 < B.size(0); ++i1)
+         {
+            V(i2,j1) += B(i1,j1) * U(i1,i2);
+         }
+      }
+   }
+}
+
+template <typename Scalar>
+inline void contractT(const Tensor<2,Scalar>& B, const Tensor<2,Scalar>& U, Tensor<2,Scalar>& V)
+{
+   MFEM_ASSERT(B.size(1)==U.size(0), "Size mismatch for contraction.");
+   for (int j1 = 0; j1 < B.size(0); ++j1)
+   {
+      for (int i2 = 0; i2 < U.size(1); ++i2)
+      {
+         V(i2,j1) = Scalar();
+         for (int i1 = 0; i1 < B.size(1); ++i1)
+         {
+            V(i2,j1) += B(j1,i1) * U(i1,i2);
+         }
+      }
+   }
+}
+
+ ///////
+// 3d
+template <typename Scalar>
+inline void contract(const Tensor<2,Scalar>& B, const Tensor<3,Scalar>& U, Tensor<3,Scalar>& V)
+{
+   MFEM_ASSERT(B.size(0)==U.size(0), "Size mismatch for contraction.");
+   for (int j1 = 0; j1 < B.size(1); ++j1)
+   {
+      for (int i3 = 0; i3 < U.size(2); ++i3)
+      {
+         for (int i2 = 0; i2 < U.size(1); ++i2)
+         {
+            V(i2,i3,j1) = Scalar();
+            for (int i1 = 0; i1 < B.size(0); ++i1)
+            {
+               V(i2,i3,j1) += B(i1,j1) * U(i1,i2,i3);
+            }
+         }
+      }
+   }
+}
+
+template <typename Scalar>
+inline void contractT(const Tensor<2,Scalar>& B, const Tensor<3,Scalar>& U, Tensor<3,Scalar>& V)
+{
+   MFEM_ASSERT(B.size(1)==U.size(0), "Size mismatch for contraction.");
+   for (int j1 = 0; j1 < B.size(0); ++j1)
+   {
+      for (int i3 = 0; i3 < U.size(2); ++i3)
+      {
+         for (int i2 = 0; i2 < U.size(1); ++i2)
+         {
+            V(i2,i3,j1) = Scalar();
+            for (int i1 = 0; i1 < B.size(1); ++i1)
+            {
+               V(i2,i3,j1) += B(j1,i1) * U(i1,i2,i3);
+            }
+         }
+      }
+   }
+}
+
+  /////////////////////////
+ // "Face" contractions //
+/////////////////////////
+
+ ///////
+// 1d
+template <typename Scalar>
+inline void contractX(const Tensor<1,Scalar>& B, const Tensor<1,Scalar>& U, Scalar& V)
+{
+   MFEM_ASSERT(B.size(0)==U.size(0), "Size mismatch for contraction.");
+   V = Scalar();
+   for (int i = 0; i < B.size(0); ++i)
+   {
+      V += B(i) * U(i);
+   }   
+}
+
+template <typename Scalar>
+inline void contractTX(const Tensor<1,Scalar>& B, const Scalar& U, Tensor<1,Scalar>& V)
+{
+   for (int i = 0; i < B.size(0); ++i)
+   {
+      V(i) = B(i) * U;
+   }   
+}
+
+ ///////
+// 2d
+template <typename Scalar>
+inline void contractX(const Tensor<1,Scalar>& B, const Tensor<2,Scalar>& U, Tensor<1,Scalar>& V)
+{
+   MFEM_ASSERT(B.size(0)==U.size(0), "Size mismatch for contraction.");
+   for (int i2 = 0; i2 < U.size(1); ++i2)
+   {
+      V(i2) = Scalar();
+      for (int i1 = 0; i1 < B.size(0); ++i1)
+      {
+         V(i2) += B(i1) * U(i1,i2);
+      }
+   }
+}
+
+template <typename Scalar>
+inline void contractTX(const Tensor<1,Scalar>& B, const Tensor<1,Scalar>& U, Tensor<2,Scalar>& V)
+{
+   for (int i2 = 0; i2 < U.size(0); ++i2)
+   {
+      for (int i1 = 0; i1 < B.size(0); ++i1)
+      {
+         V(i1,i2) = B(i1) * U(i2);
+      }
+   }
+}
+
+template <typename Scalar>
+inline void contractY(const Tensor<1,Scalar>& B, const Tensor<2,Scalar>& U, Tensor<1,Scalar>& V)
+{
+   MFEM_ASSERT(B.size(0)==U.size(1), "Size mismatch for contraction.");
+   V.zero();
+   for (int i2 = 0; i2 < U.size(1); ++i2)
+   {
+      for (int i1 = 0; i1 < B.size(0); ++i1)
+      {
+         V(i1) += B(i2) * U(i1,i2);
+      }
+   }
+}
+
+template <typename Scalar>
+inline void contractTY(const Tensor<1,Scalar>& B, const Tensor<1,Scalar>& U, Tensor<2,Scalar>& V)
+{
+   for (int i2 = 0; i2 < B.size(0); ++i2)
+   {
+      for (int i1 = 0; i1 < U.size(0); ++i1)
+      {
+         V(i1,i2) = B(i2) * U(i1);
+      }
+   }
+}
+
+ ///////
+// 3d
+template <typename Scalar>
+inline void contractX(const Tensor<1,Scalar>& B, const Tensor<3,Scalar>& U, Tensor<2,Scalar>& V)
+{
+   MFEM_ASSERT(B.size(0)==U.size(0), "Size mismatch for contraction.");
+   for (int i3 = 0; i3 < U.size(2); ++i3)
+   {
+      for (int i2 = 0; i2 < U.size(1); ++i2)
+      {
+         V(i2,i3) = Scalar();
+         for (int i1 = 0; i1 < B.size(0); ++i1)
+         {
+            V(i2,i3) += B(i1) * U(i1,i2,i3);
+         }
+      }
+   }
+}
+
+template <typename Scalar>
+inline void contractTX(const Tensor<1,Scalar>& B, const Tensor<2,Scalar>& U, Tensor<3,Scalar>& V)
+{
+   for (int i3 = 0; i3 < U.size(1); ++i3)
+   {
+      for (int i2 = 0; i2 < U.size(0); ++i2)
+      {
+         for (int i1 = 0; i1 < B.size(0); ++i1)
+         {
+            V(i1,i2,i3) = B(i1) * U(i2,i3);
+         }
+      }
+   }
+}
+
+template <typename Scalar>
+inline void contractY(const Tensor<1,Scalar>& B, const Tensor<3,Scalar>& U, Tensor<2,Scalar>& V)
+{
+   MFEM_ASSERT(B.size(0)==U.size(1), "Size mismatch for contraction.");
+   V.zero();
+   for (int i3 = 0; i3 < U.size(2); ++i3)
+   {
+      for (int i2 = 0; i2 < U.size(1); ++i2)
+      {
+         for (int i1 = 0; i1 < B.size(0); ++i1)
+         {
+            V(i1,i3) += B(i2) * U(i1,i2,i3);
+         }
+      }
+   }
+}
+
+template <typename Scalar>
+inline void contractTY(const Tensor<1,Scalar>& B, const Tensor<2,Scalar>& U, Tensor<3,Scalar>& V)
+{
+   for (int i3 = 0; i3 < U.size(1); ++i3)
+   {
+      for (int i2 = 0; i2 < B.size(0); ++i2)
+      {
+         for (int i1 = 0; i1 < U.size(0); ++i1)
+         {
+            V(i1,i2,i3) = B(i2) * U(i1,i3);
+         }
+      }
+   }
+}
+
+template <typename Scalar>
+inline void contractZ(const Tensor<1,Scalar>& B, const Tensor<3,Scalar>& U, Tensor<2,Scalar>& V)
+{
+   MFEM_ASSERT(B.size(0)==U.size(2), "Size mismatch for contraction.");
+   V.zero();
+   for (int i3 = 0; i3 < U.size(2); ++i3)
+   {
+      for (int i2 = 0; i2 < U.size(1); ++i2)
+      {
+         for (int i1 = 0; i1 < B.size(0); ++i1)
+         {
+            V(i1,i2) += B(i3) * U(i1,i2,i3);
+         }
+      }
+   }
+}
+
+template <typename Scalar>
+inline void contractTZ(const Tensor<1,Scalar>& B, const Tensor<2,Scalar>& U, Tensor<3,Scalar>& V)
+{
+   for (int i3 = 0; i3 < B.size(0); ++i3)
+   {
+      for (int i2 = 0; i2 < U.size(1); ++i2)
+      {
+         for (int i1 = 0; i1 < U.size(0); ++i1)
+         {
+            V(i1,i2,i3) = B(i3) * U(i1,i2);
+         }
+      }
+   }
+}
+  ///////////////////////////////////////
+ //  Coefficient-wise multiplication  //
+///////////////////////////////////////
+
+template <int N, typename Scalar>
+inline void cWiseMult(const Tensor<N,Scalar>& D, const Tensor<N,Scalar>& U, Tensor<N,Scalar>& V)
+{
+   MFEM_ASSERT(D.length()==U.length() && U.length()==V.length(),"The Tensors do not contain the same number of elements.")
+   for (int i = 0; i < U.length(); ++i)
+   {
+      V[i] = D[i]*U[i];
+   }
 }
 
 /**

@@ -203,22 +203,25 @@ int main(int argc, char *argv[])
    // m.AddDomainIntegrator(new EigenPAMassIntegrator<2,EigenDomainPAK>(&fes,ir_order));
    // BilinearForm m(&fes);
    // m.AddDomainIntegrator(new MassIntegrator());
-   // m.AddIntegrator(new PADomainInt<MassEquation,CGSolverDG>(&fes,ir_order));
+   // m.AddIntegrator(new PADomainInt<MassEquation,CGSolverDG>(&fes,ir_order,MassEquation::ArgsEmpty{}));
    // m.AddIntegrator(new PADomainInt<MassEquation>(&fes,ir_order));
-   PADomainInt<MassEquation> mass(&fes,ir_order);
-   DiagSolverDG m(&fes,mass);
+   PADomainInt<MassEquation> mass(&fes,ir_order,MassEquation::ArgsEmpty{});
+   // DiagSolverDG m(fes,ir_order,mass);
+   // PACGSolver<PADomainInt<MassEquation>> m(&fes,mass);
+   DiagSolverDG prec(fes,ir_order,mass);
+   PAPrecCGSolver<PADomainInt<MassEquation>,DiagSolverDG> m(&fes,mass,prec);
+   // CGSolverDG<PADomainInt<MassEquation>> m(fes,ir_order,mass);
    Operator* mo = &m;
 
 
    Array<int> ess_tdof_list;
    // SparseMatrix msp;
-   BilinearFormOperator mbf;
+   // BilinearFormOperator mbf;
    // Operator *mo;
    // m.AssembleForm(msp);
    // m.AssembleForm(mbf);
    // m.FormSystemOperator(ess_tdof_list, mo);
 
-   // auto useless = PADomainInt<>(&fes,ir_order,velocity,-1.0);
    //Initialization of the Stiffness operator
    BilinearForm k(&fes);
    //k.AddDomainIntegrator(new EigenPAConvectionIntegrator<2>(&fes,ir_order,velocity, -1.0));

@@ -42,12 +42,6 @@ template <typename  Equation, PAOp OpName = Equation::OpName>
 class DomainMult;
 
 /**
-*  simple CPU implementation of conjugate gradient
-*/
-template <typename  Equation, PAOp OpName = Equation::OpName>
-class CGSolverDG;
-
-/**
 *  A class that implement the BtDB partial assembly Kernel
 */
 template <typename Equation>
@@ -64,39 +58,55 @@ protected:
    DTensor D;
 
 public:
-   DomainMult(FiniteElementSpace* _fes, int order, const typename Equation::Args& args)
-   : fes(_fes), D()
+   template <typename Args>
+   DomainMult(FiniteElementSpace* _fes, int order, const Args& args)
+   : fes(_fes), shape1d(fes->GetNDofs1d(),fes->GetNQuads1d(order)), D()
    {
       ComputeBasis1d(fes->GetFE(0), order, shape1d);
    }
 
-   template <typename... Args>
-   DomainMult(FiniteElementSpace* _fes, int order, Args... args)
-   : fes(_fes), D()
-   {
-      ComputeBasis1d(fes->GetFE(0), order, shape1d);
-   }
+   // template <typename... Args>
+   // DomainMult(FiniteElementSpace* _fes, int order, Args... args)
+   // : fes(_fes), D()
+   // {
+   //    ComputeBasis1d(fes->GetFE(0), order, shape1d);
+   // }
 
    void InitD(const int dim, const int quads, const int nb_elts){
       this->D.setSize(quads,nb_elts);
    }
 
+   const DTensor& getD() const
+   {
+      return D;
+   }
+
+   template <typename Args>
    void evalEq(const int dim, const int k, const int e, ElementTransformation * Tr,
-               const IntegrationPoint & ip, const typename Equation::Args& args)
+               const IntegrationPoint & ip, const Tensor<2>& J, const Args& args)
+   {
+      double res = 0.0;
+      this->evalD(res, Tr, ip, J, args);
+      this->D(k,e) = res;
+   }
+
+   template <typename Args>
+   void evalEq(const int dim, const int k, const int e, ElementTransformation * Tr,
+               const IntegrationPoint & ip, const Args& args)
    {
       double res = 0.0;
       this->evalD(res, Tr, ip, args);
       this->D(k,e) = res;
    }
 
-   template <typename... Args>
-   void evalEq(const int dim, const int k, const int e, ElementTransformation * Tr,
-               const IntegrationPoint & ip, Args... args)
-   {
-      double res = 0.0;
-      this->evalD(res, Tr, ip, args...);
-      this->D(k,e) = res;
-   }
+   // template <typename... Args>
+   // void evalEq(const int dim, const int k, const int e, ElementTransformation * Tr,
+   //             const IntegrationPoint & ip, Args... args)
+   // {
+   //    double res = 0.0;
+   //    this->evalD(res, Tr, ip, args...);
+   //    this->D(k,e) = res;
+   // }
 
 protected:
    /**
@@ -126,8 +136,10 @@ protected:
    DTensor D;
 
 public:
-   DomainMult(FiniteElementSpace* _fes, int order, const typename Equation::Args& args)
-   : fes(_fes), D()
+   template <typename Args>
+   DomainMult(FiniteElementSpace* _fes, int order, const Args& args)
+   : fes(_fes), shape1d(fes->GetNDofs1d(),fes->GetNQuads1d(order)),
+   dshape1d(fes->GetNDofs1d(),fes->GetNQuads1d(order)), D()
    {
       ComputeBasis1d(fes->GetFE(0), order, shape1d, dshape1d);
    }
@@ -136,8 +148,14 @@ public:
       this->D.setSize(dim,dim,quads,nb_elts);
    }
 
+   const DTensor& getD() const
+   {
+      return D;
+   }
+
+   template <typename Args>
    void evalEq(const int dim, const int k, const int e, ElementTransformation * Tr,
-               const IntegrationPoint & ip, const typename Equation::Args& args)
+               const IntegrationPoint & ip, const Args& args)
    {
       Tensor<2> res(dim,dim);
       this->evalD(res, Tr, ip, args);
@@ -178,10 +196,17 @@ protected:
    DTensor D;
 
 public:
-   DomainMult(FiniteElementSpace* _fes, int order, const typename Equation::Args& args)
-   : fes(_fes), D()
+   template <typename Args>
+   DomainMult(FiniteElementSpace* _fes, int order, const Args& args)
+   : fes(_fes), shape1d(fes->GetNDofs1d(),fes->GetNQuads1d(order)),
+   dshape1d(fes->GetNDofs1d(),fes->GetNQuads1d(order)), D()
    {
       ComputeBasis1d(fes->GetFE(0), order, shape1d, dshape1d);
+   }
+
+   const DTensor& getD() const
+   {
+      return D;
    }
 
    void InitD(const int dim, const int quads, const int nb_elts){
@@ -189,20 +214,22 @@ public:
    }
 
    // To be removed
-   void evalEq(const int dim, const int k, const int e, ElementTransformation * Tr,
-               const IntegrationPoint & ip, const typename Equation::Args& args)
-   {
-      Tensor<1> res(dim);
-      this->evalD(res, Tr, ip, args);
-      for (int i = 0; i < dim; ++i)
-      {
-         this->D(i,k,e) = res(i);
-      }
-   }
+   // template <typename Args>
+   // void evalEq(const int dim, const int k, const int e, ElementTransformation * Tr,
+   //             const IntegrationPoint & ip, const Args& args)
+   // {
+   //    Tensor<1> res(dim);
+   //    this->evalD(res, Tr, ip, args);
+   //    for (int i = 0; i < dim; ++i)
+   //    {
+   //       this->D(i,k,e) = res(i);
+   //    }
+   // }
 
    // To be propagated
+   template <typename Args>
    void evalEq(const int dim, const int k, const int e, ElementTransformation * Tr,
-               const IntegrationPoint & ip, const Tensor<2>& J, const typename Equation::Args& args)
+               const IntegrationPoint & ip, const Tensor<2>& J, const Args& args)
    {
       Tensor<1> res(dim);
       this->evalD(res, Tr, ip, J, args);
@@ -239,8 +266,10 @@ protected:
    DTensor D;
 
 public:
-   DomainMult(FiniteElementSpace* _fes, int order, const typename Equation::Args& args)
-   : fes(_fes), D()
+   template <typename Args>
+   DomainMult(FiniteElementSpace* _fes, int order, const Args& args)
+   : fes(_fes), shape1d(fes->GetNDofs1d(),fes->GetNQuads1d(order)),
+   dshape1d(fes->GetNDofs1d(),fes->GetNQuads1d(order)), D()
    {
       ComputeBasis1d(fes->GetFE(0), order, shape1d, dshape1d);
    }
@@ -249,8 +278,14 @@ public:
       this->D.setSize(dim,quads,nb_elts);
    }
 
+   const DTensor& getD() const
+   {
+      return D;
+   }
+
+   template <typename Args>
    void evalEq(const int dim, const int k, const int e, ElementTransformation * Tr,
-               const IntegrationPoint & ip, const typename Equation::Args& args)
+               const IntegrationPoint & ip, const Args& args)
    {
       Tensor<1> res(dim);
       this->evalD(res, Tr, ip, args);
@@ -307,112 +342,111 @@ void DomainMult<Equation,PAOp::BtDB>::Mult1d(const Vector &V, Vector &U)
    }
 }
 
-// template<typename Equation>
-// void DomainMult<Equation,PAOp::BtDB>::Mult2d(const Vector &V, Vector &U)
-// {
-//    const FiniteElement *fe = fes->GetFE(0);
-//    const int dofs   = fe->GetDof();
-
-//    const int dofs1d = shape1d.Height();
-//    const int quads1d = shape1d.Width();
-//    const int quads  = quads1d*quads1d;
-
-//    DenseMatrix QQ(quads1d, quads1d);
-//    DenseMatrix DQ(dofs1d, quads1d);
-
-//    int offset = 0;
-//    for (int e = 0; e < fes->GetNE(); e++)
-//    {
-//       const DenseMatrix Vmat(V.GetData() + offset, dofs1d, dofs1d);
-//       DenseMatrix Umat(U.GetData() + offset, dofs1d, dofs1d);
-
-//       // DQ_j2_k1   = E_j1_j2  * shape_j1_k1 -- contract in x direction
-//       // QQ_0_k1_k2 = DQ_j2_k1 * shape_j2_k2  -- contract in y direction
-//       MultAtB(Vmat, shape1d, DQ);
-//       MultAtB(DQ, shape1d, QQ);
-
-//       // QQ_c_k1_k2 = Dmat_c_d_k1_k2 * QQ_d_k1_k2
-//       // NOTE: (k1, k2) = k -- 1d index over tensor product of quad points
-//       double *data_qq = QQ.GetData();
-//       // const double *data_d = D.GetElmtData(e);
-//       for (int k = 0; k < quads; ++k) { data_qq[k] *= D(k,e); }
-
-//       // DQ_i2_k1   = shape_i2_k2  * QQ_0_k1_k2
-//       // U_i1_i2   += dshape_i1_k1 * DQ_i2_k1
-//       MultABt(shape1d, QQ, DQ);
-//       AddMultABt(shape1d, DQ, Umat);
-
-//       // increment offset
-//       offset += dofs;
-//    }
-// }
-
 template<typename Equation>
-void DomainMult<Equation,PAOp::BtDB>::Mult2d(const Vector &U, Vector &V)
+void DomainMult<Equation,PAOp::BtDB>::Mult2d(const Vector &V, Vector &U)
 {
+   const FiniteElement *fe = fes->GetFE(0);
+   const int dofs   = fe->GetDof();
+
    const int dofs1d = shape1d.Height();
-   const int dofs   = dofs1d * dofs1d;
    const int quads1d = shape1d.Width();
-   const int quads  = quads1d * quads1d;
+   const int quads  = quads1d*quads1d;
+
+   DenseMatrix QQ(quads1d, quads1d);
+   DenseMatrix DQ(dofs1d, quads1d);
+
+   int offset = 0;
    for (int e = 0; e < fes->GetNE(); e++)
    {
-      const Tensor<2> Ut(U.GetData() + e*dofs, dofs1d, dofs1d);
-      Tensor<2> Vt(V.GetData() + e*dofs, dofs1d, dofs1d);
-      Tensor<2> tmp1(dofs1d,quads1d), tmp2(quads1d,quads1d), tmp3(quads1d,dofs1d);
-      // Ap = A * p
-      for (int k1 = 0; k1 < quads1d; ++k1)
-      {
-         for (int i2 = 0; i2 < dofs1d; ++i2)
-         {
-            tmp1(i2,k1) = 0.0;
-            for (int i1 = 0; i1 < dofs1d; ++i1)
-            {
-               tmp1(i2,k1) += shape1d(i1,k1) * Ut(i1,i2);
-            }
-         }
-      }
-      for (int k2 = 0; k2 < quads1d; ++k2)
-      {
-         for (int k1 = 0; k1 < quads1d; ++k1)
-         {
-            tmp2(k1,k2) = 0.0;
-            for (int i2 = 0; i2 < dofs1d; ++i2)
-            {
-               tmp2(k1,k2) += shape1d(i2,k2) * tmp1(i2,k1);
-            }
-         }
-      }
-      for (int k2 = 0, k = 0; k2 < quads1d; ++k2)
-      {
-         for (int k1 = 0; k1 < quads1d; ++k1, ++k)
-         {
-            tmp2(k1,k2) = D(k,e) * tmp2(k1,k2);
-         }
-      }
-      for (int j1 = 0; j1 < dofs1d; ++j1)
-      {
-         for (int k2 = 0; k2 < quads1d; ++k2)
-         {
-            tmp3(k2,j1) = 0.0;
-            for (int k1 = 0; k1 < quads1d; ++k1)
-            {
-               tmp3(k2,j1) += shape1d(j1,k1) * tmp2(k1,k2);
-            }
-         }
-      }
-      for (int j2 = 0; j2 < dofs1d; ++j2)
-      {
-         for (int j1 = 0; j1 < dofs1d; ++j1)
-         {
-            Vt(j1,j2) = 0.0;
-            for (int k2 = 0; k2 < quads1d; ++k2)
-            {
-               Vt(j1,j2) += shape1d(j2,k2) * tmp3(k2,j1);
-            }
-         }
-      }
+      const DenseMatrix Vmat(V.GetData() + offset, dofs1d, dofs1d);
+      DenseMatrix Umat(U.GetData() + offset, dofs1d, dofs1d);
+
+      // DQ_j2_k1   = E_j1_j2  * shape_j1_k1 -- contract in x direction
+      // QQ_0_k1_k2 = DQ_j2_k1 * shape_j2_k2  -- contract in y direction
+      MultAtB(Vmat, shape1d, DQ);
+      MultAtB(DQ, shape1d, QQ);
+
+      // QQ_c_k1_k2 = Dmat_c_d_k1_k2 * QQ_d_k1_k2
+      // NOTE: (k1, k2) = k -- 1d index over tensor product of quad points
+      double *data_qq = QQ.GetData();
+      // const double *data_d = D.GetElmtData(e);
+      for (int k = 0; k < quads; ++k) { data_qq[k] *= D(k,e); }
+
+      // DQ_i2_k1   = shape_i2_k2  * QQ_0_k1_k2
+      // U_i1_i2   += dshape_i1_k1 * DQ_i2_k1
+      MultABt(shape1d, QQ, DQ);
+      AddMultABt(shape1d, DQ, Umat);
+
+      // increment offset
+      offset += dofs;
    }
 }
+
+// template<typename Equation>
+// void DomainMult<Equation,PAOp::BtDB>::Mult2d(const Vector &U, Vector &V)
+// {
+//    const int dofs1d = shape1d.Height();
+//    const int dofs   = dofs1d * dofs1d;
+//    const int quads1d = shape1d.Width();
+//    for (int e = 0; e < fes->GetNE(); e++)
+//    {
+//       const Tensor<2> Ut(U.GetData() + e*dofs, dofs1d, dofs1d);
+//       Tensor<2> Vt(V.GetData() + e*dofs, dofs1d, dofs1d);
+//       Tensor<2> tmp1(dofs1d,quads1d), tmp2(quads1d,quads1d), tmp3(quads1d,dofs1d);
+//       // Ap = A * p
+//       for (int k1 = 0; k1 < quads1d; ++k1)
+//       {
+//          for (int i2 = 0; i2 < dofs1d; ++i2)
+//          {
+//             tmp1(i2,k1) = 0.0;
+//             for (int i1 = 0; i1 < dofs1d; ++i1)
+//             {
+//                tmp1(i2,k1) += shape1d(i1,k1) * Ut(i1,i2);
+//             }
+//          }
+//       }
+//       for (int k2 = 0; k2 < quads1d; ++k2)
+//       {
+//          for (int k1 = 0; k1 < quads1d; ++k1)
+//          {
+//             tmp2(k1,k2) = 0.0;
+//             for (int i2 = 0; i2 < dofs1d; ++i2)
+//             {
+//                tmp2(k1,k2) += shape1d(i2,k2) * tmp1(i2,k1);
+//             }
+//          }
+//       }
+//       for (int k2 = 0, k = 0; k2 < quads1d; ++k2)
+//       {
+//          for (int k1 = 0; k1 < quads1d; ++k1, ++k)
+//          {
+//             tmp2(k1,k2) = D(k,e) * tmp2(k1,k2);
+//          }
+//       }
+//       for (int j1 = 0; j1 < dofs1d; ++j1)
+//       {
+//          for (int k2 = 0; k2 < quads1d; ++k2)
+//          {
+//             tmp3(k2,j1) = 0.0;
+//             for (int k1 = 0; k1 < quads1d; ++k1)
+//             {
+//                tmp3(k2,j1) += shape1d(j1,k1) * tmp2(k1,k2);
+//             }
+//          }
+//       }
+//       for (int j2 = 0; j2 < dofs1d; ++j2)
+//       {
+//          for (int j1 = 0; j1 < dofs1d; ++j1)
+//          {
+//             Vt(j1,j2) = 0.0;
+//             for (int k2 = 0; k2 < quads1d; ++k2)
+//             {
+//                Vt(j1,j2) += shape1d(j2,k2) * tmp3(k2,j1);
+//             }
+//          }
+//       }
+//    }
+// }
 
 template<typename Equation>
 void DomainMult<Equation,PAOp::BtDB>::Mult3d(const Vector &V, Vector &U)

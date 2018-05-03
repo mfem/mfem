@@ -113,7 +113,26 @@ public:
    {
       const int dim = normal.Size();
       Vector qvec(dim);
-      //FIXME: qvec might be discontinuous if not constant with a periodic mesh
+      // FIXME: qvec might be discontinuous if not constant with a periodic mesh
+      // We should then use the evaluation on Elem2 and eip2
+      args.q.Eval( qvec, *(face_tr->Elem1), ip1 );
+      const double res = qvec * normal;
+      const double a = -args.a, b = args.b;
+      res11 = ip1.weight * (   a/2 * res + b * abs(res) );
+      res21 = ip1.weight * (   a/2 * res - b * abs(res) );
+      res22 = ip1.weight * ( - a/2 * res + b * abs(res) );
+      res12 = ip1.weight * ( - a/2 * res - b * abs(res) );
+   }
+
+   void evalFaceD(double& res11, double& res21, double& res22, double& res12,
+      const FaceElementTransformations* face_tr, const Vector& normal,
+      const IntegrationPoint& ip1, const IntegrationPoint& ip2,
+      const Tensor<2>& Jac1, const Tensor<2>& Jac2,
+      const Args& args)
+   {
+      const int dim = normal.Size();
+      Vector qvec(dim);
+      // FIXME: qvec might be discontinuous if not constant with a periodic mesh
       // We should then use the evaluation on Elem2 and eip2
       args.q.Eval( qvec, *(face_tr->Elem1), ip1 );
       const double res = qvec * normal;
@@ -130,18 +149,23 @@ class MassEquation
 public:
    static const PAOp OpName = BtDB;
 
-   struct Args{};
+   struct ArgsEmpty{};
 
    void evalD(double& res, ElementTransformation* Tr, const IntegrationPoint& ip,
-               const Tensor<2>& Jac)
+               const Tensor<2>& Jac, ArgsEmpty args = {})
    {
       res = ip.weight * det(Jac);
    }
 
-   void evalD(double& res, ElementTransformation* Tr, const IntegrationPoint& ip,
-               const Tensor<2>& Jac, Coefficient& coeff)
+   struct ArgsCoeff
    {
-      res = coeff.Eval(*Tr, ip) * ip.weight * det(Jac);
+      Coefficient& coeff;
+   };
+
+   void evalD(double& res, ElementTransformation* Tr, const IntegrationPoint& ip,
+               const Tensor<2>& Jac, ArgsCoeff& args)
+   {
+      res = args.coeff.Eval(*Tr, ip) * ip.weight * det(Jac);
    }
 };
 

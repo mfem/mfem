@@ -36,8 +36,8 @@ void ComputeBasis0d(const FiniteElement *fe, double x,
 
    // We use Matrix and not Vector because we don't want shape0d and dshape0d to have
    // a different treatment than shape1d and dshape1d
-   shape0d  = Tensor(dofs, quads0d);
-   dshape0d = Tensor(dofs, quads0d);
+   // shape0d  = Tensor(dofs, quads0d);
+   // dshape0d = Tensor(dofs, quads0d);
 
    Vector u(dofs);
    Vector d(dofs);
@@ -63,8 +63,8 @@ void ComputeBasis1d(const FiniteElement *fe, int order, Tensor& shape1d,
    const int quads1d = ir1d.GetNPoints();
    const int dofs = fe->GetOrder() + 1;
 
-   shape1d  = Tensor(dofs, quads1d);
-   dshape1d = Tensor(dofs, quads1d);
+   // shape1d  = Tensor(dofs, quads1d);
+   // dshape1d = Tensor(dofs, quads1d);
 
    Vector u(dofs);
    Vector d(dofs);
@@ -96,7 +96,7 @@ void ComputeBasis0d(const FiniteElement *fe, double x, Tensor& shape0d)
    // We use Matrix and not Vector because we don't want shape0d and dshape0d to have
    // a different treatment than shape1d and dshape1d
    // Well... that was before, we might want to reconsider this.
-   shape0d  = Tensor(dofs, quads0d);
+   // shape0d  = Tensor(dofs, quads0d);
 
    Vector u(dofs);
    Vector d(dofs);
@@ -120,7 +120,7 @@ void ComputeBasis1d(const FiniteElement *fe, int order, Tensor& shape1d, bool ba
    const int quads1d = ir1d.GetNPoints();
    const int dofs = fe->GetOrder() + 1;
 
-   shape1d  = Tensor(dofs, quads1d);
+   // shape1d  = Tensor(dofs, quads1d);
 
    Vector u(dofs);
    Vector d(dofs);
@@ -136,6 +136,54 @@ void ComputeBasis1d(const FiniteElement *fe, int order, Tensor& shape1d, bool ba
    }
 }
 
+inline void ScatterDofs(const FiniteElementSpace* mfes, const Table& eldof, const Array<int>& dof_map,
+                  const GridFunction* nodes, const int dofs, const int dim, const int e,
+                  Tensor<2>& LexPointMat)
+{
+   if (dof_map.Size()==0)
+   {
+      if(mfes->GetOrdering()==Ordering::byVDIM)
+      {
+         for (int i = 0; i < dofs; ++i)
+         {
+            for (int j = 0; j < dim; ++j)
+            {
+               LexPointMat(j,i) = (*nodes)( ( e*dofs + i )*dim + j );
+            }
+         }
+      }else{
+         for (int i = 0; i < dofs; ++i)
+         {
+            for (int j = 0; j < dim; ++j)
+            {
+               LexPointMat(j,i) = (*nodes)( ( e*dofs + i ) + j*mfes->GetNDofs() );
+            }
+         }
+      }
+   }else{
+      if(mfes->GetOrdering()==Ordering::byVDIM)
+      {
+         for (int i = 0; i < dofs; ++i)
+         {
+            const int pivot = dof_map[i];
+            for (int j = 0; j < dim; ++j)
+            {
+               LexPointMat(j,i) = (*nodes)(eldof.GetJ()[ e*dofs + pivot ]*dim + j);
+            }
+         }
+      }else{
+         for (int i = 0; i < dofs; ++i)
+         {
+            const int pivot = dof_map[i];
+            for (int j = 0; j < dim; ++j)
+            {
+               LexPointMat(j,i) = (*nodes)(eldof.GetJ()[ e*dofs + pivot ] + j*mfes->GetNDofs());
+            }
+         }
+      }
+   }   
+}
+
 void EvalJacobians1D(const FiniteElementSpace* fes, const int order, Tensor<1>& J)
 {
    const int dim = 1;
@@ -147,7 +195,7 @@ void EvalJacobians1D(const FiniteElementSpace* fes, const int order, Tensor<1>& 
    const TensorBasisElement* tfe = dynamic_cast<const TensorBasisElement*>(fe);
    const Array<int>& dof_map = tfe->GetDofMap();
    const GridFunction* nodes = mesh->GetNodes();
-   Tensor<2> shape1d, dshape1d;
+   Tensor<2> shape1d(mfes->GetNDofs1d(),mfes->GetNQuads1d(order)), dshape1d(mfes->GetNDofs1d(),mfes->GetNQuads1d(order));
    ComputeBasis1d( fe, order, shape1d, dshape1d );
 
    const int NE = fes->GetNE();
@@ -163,46 +211,7 @@ void EvalJacobians1D(const FiniteElementSpace* fes, const int order, Tensor<1>& 
    Tensor<1> T0(LexPointMat.getData(),dofs1d);
    for (int e = 0; e < NE; ++e)
    {
-      if (dof_map.Size()==0)
-      {
-         if(mfes->GetOrdering()==Ordering::byVDIM){
-            for (int i = 0; i < dofs; ++i)
-            {
-               for (int j = 0; j < dim; ++j)
-               {
-                  LexPointMat(j,i) = (*nodes)( ( e*dofs + i )*dim + j );
-               }
-            }
-         }else{
-            for (int i = 0; i < dofs; ++i)
-            {
-               for (int j = 0; j < dim; ++j)
-               {
-                  LexPointMat(j,i) = (*nodes)( ( e*dofs + i ) + j*mfes->GetNDofs() );
-               }
-            }
-         }
-      }else{
-         if(mfes->GetOrdering()==Ordering::byVDIM){
-            for (int i = 0; i < dofs; ++i)
-            {
-               const int pivot = dof_map[i];
-               for (int j = 0; j < dim; ++j)
-               {
-                  LexPointMat(j,i) = (*nodes)(eldof.GetJ()[ e*dofs + pivot ]*dim + j);
-               }
-            }
-         }else{
-            for (int i = 0; i < dofs; ++i)
-            {
-               const int pivot = dof_map[i];
-               for (int j = 0; j < dim; ++j)
-               {
-                  LexPointMat(j,i) = (*nodes)(eldof.GetJ()[ e*dofs + pivot ] + j*mfes->GetNDofs());
-               }
-            }
-         }
-      }
+      ScatterDofs(mfes, eldof, dof_map, nodes, dofs, dim, e, LexPointMat);
       // Computing the Jacobian with the tensor product structure
       for (int j1 = 0; j1 < quads1d; ++j1)
       {
@@ -228,7 +237,7 @@ void EvalJacobians2D(const FiniteElementSpace* fes, const int order, Tensor<1>& 
    const TensorBasisElement* tfe = dynamic_cast<const TensorBasisElement*>(fe);
    const Array<int>& dof_map = tfe->GetDofMap();
    const GridFunction* nodes = mesh->GetNodes();
-   Tensor<2> shape1d, dshape1d;
+   Tensor<2> shape1d(mfes->GetNDofs1d(),mfes->GetNQuads1d(order)), dshape1d(mfes->GetNDofs1d(),mfes->GetNQuads1d(order));
    ComputeBasis1d( fe, order, shape1d, dshape1d );
 
    const int NE = mfes->GetNE();
@@ -246,46 +255,7 @@ void EvalJacobians2D(const FiniteElementSpace* fes, const int order, Tensor<1>& 
    Tensor<2> T1b(dim,quads1d), T1d(dim,quads1d);
    for (int e = 0; e < NE; ++e)
    {
-      if (dof_map.Size()==0)
-      {
-         if(mfes->GetOrdering()==Ordering::byVDIM){
-            for (int i = 0; i < dofs; ++i)
-            {
-               for (int j = 0; j < dim; ++j)
-               {
-                  LexPointMat(j,i) = (*nodes)( ( e*dofs + i )*dim + j );
-               }
-            }
-         }else{
-            for (int i = 0; i < dofs; ++i)
-            {
-               for (int j = 0; j < dim; ++j)
-               {
-                  LexPointMat(j,i) = (*nodes)( ( e*dofs + i ) + j*mfes->GetNDofs() );
-               }
-            }
-         }
-      }else{
-         if(mfes->GetOrdering()==Ordering::byVDIM){
-            for (int i = 0; i < dofs; ++i)
-            {
-               const int pivot = dof_map[i];
-               for (int j = 0; j < dim; ++j)
-               {
-                  LexPointMat(j,i) = (*nodes)(eldof.GetJ()[ e*dofs + pivot ]*dim + j);
-               }
-            }
-         }else{
-            for (int i = 0; i < dofs; ++i)
-            {
-               const int pivot = dof_map[i];
-               for (int j = 0; j < dim; ++j)
-               {
-                  LexPointMat(j,i) = (*nodes)(eldof.GetJ()[ e*dofs + pivot ] + j*mfes->GetNDofs());
-               }
-            }
-         }
-      }
+      ScatterDofs(mfes, eldof, dof_map, nodes, dofs, dim, e, LexPointMat);
       // Computing the Jacobian with the tensor product structure
       for (int i2 = 0; i2 < dofs1d; ++i2)
       {
@@ -328,7 +298,7 @@ void EvalJacobians3D(const FiniteElementSpace* fes, const int order, Tensor<1>& 
    const TensorBasisElement* tfe = dynamic_cast<const TensorBasisElement*>(fe);
    const Array<int>& dof_map = tfe->GetDofMap();
    const GridFunction* nodes = mesh->GetNodes();
-   Tensor<2> shape1d, dshape1d;
+   Tensor<2> shape1d(mfes->GetNDofs1d(),mfes->GetNQuads1d(order)), dshape1d(mfes->GetNDofs1d(),mfes->GetNQuads1d(order));
    ComputeBasis1d( fe, order, shape1d, dshape1d );
 
    const int NE = fes->GetNE();
@@ -346,46 +316,7 @@ void EvalJacobians3D(const FiniteElementSpace* fes, const int order, Tensor<1>& 
    Tensor<3> T2bb(dim,quads1d,quads1d), T2db(dim,quads1d,quads1d), T2bd(dim,quads1d,quads1d);
    for (int e = 0; e < NE; ++e)
    {
-      if (dof_map.Size()==0)
-      {
-         if(mfes->GetOrdering()==Ordering::byVDIM){
-            for (int i = 0; i < dofs; ++i)
-            {
-               for (int j = 0; j < dim; ++j)
-               {
-                  LexPointMat(j,i) = (*nodes)( ( e*dofs + i )*dim + j );
-               }
-            }
-         }else{
-            for (int i = 0; i < dofs; ++i)
-            {
-               for (int j = 0; j < dim; ++j)
-               {
-                  LexPointMat(j,i) = (*nodes)( ( e*dofs + i ) + j*mfes->GetNDofs());
-               }
-            }
-         }
-      }else{
-         if(mfes->GetOrdering()==Ordering::byVDIM){
-            for (int i = 0; i < dofs; ++i)
-            {
-               const int pivot = dof_map[i];
-               for (int j = 0; j < dim; ++j)
-               {
-                  LexPointMat(j,i) = (*nodes)(eldof.GetJ()[ e*dofs + pivot ]*dim + j);
-               }
-            }
-         }else{
-            for (int i = 0; i < dofs; ++i)
-            {
-               const int pivot = dof_map[i];
-               for (int j = 0; j < dim; ++j)
-               {
-                  LexPointMat(j,i) = (*nodes)(eldof.GetJ()[ e*dofs + pivot ] + j*mfes->GetNDofs());
-               }
-            }
-         }
-      }
+      ScatterDofs(mfes, eldof, dof_map, nodes, dofs, dim, e, LexPointMat);
       // Computing the Jacobian with the tensor product structure
       for (int i3 = 0; i3 < dofs1d; ++i3)
       {
@@ -455,6 +386,150 @@ void EvalJacobians( const int dim, const FiniteElementSpace* fes, const int orde
          break;
       default:
          mfem_error("This orientation does not exist in 3D");
+   }
+}
+
+template <int Dim, typename Op>
+void GetDiag1d(const FiniteElementSpace& fes, const int order, const Op& op, Tensor<Dim>& diag)
+{
+   const int dofs1d = fes.GetNDofs1d();
+   const int quads1d = fes.GetNQuads1d(order);
+   const int nb_elts = fes.GetNE();
+   Tensor<2> diagT(diag, dofs1d, nb_elts);
+   auto Dlin = op.getD();
+   Tensor<2> D(Dlin, quads1d, nb_elts);
+   Tensor<2> shape1d(dofs1d,quads1d);
+   ComputeBasis1d( fes.GetFE(0), order, shape1d);
+
+   diagT.zero();
+   for (int e = 0; e < nb_elts; ++e)
+   {
+      for (int j1 = 0; j1 < quads1d; ++j1)
+      {
+         for (int i1 = 0; i1 < dofs1d; ++i1)
+         {
+               diagT(i1,e) += D(j1,e) * shape1d(i1,j1) * shape1d(i1,j1);
+         }
+      }
+   }
+}
+
+template <int Dim, typename Op>
+void GetDiag2d(const FiniteElementSpace& fes, const int order, const Op& op, Tensor<Dim>& diag)
+{
+   const int dofs1d = fes.GetNDofs1d();
+   const int quads1d = fes.GetNQuads1d(order);
+   const int nb_elts = fes.GetNE();
+   Tensor<3> diagT(diag, dofs1d, dofs1d, nb_elts);
+   auto Dlin = op.getD();
+   Tensor<3> D(Dlin, quads1d, quads1d, nb_elts);
+   Tensor<2> shape1d(dofs1d,quads1d);
+   ComputeBasis1d( fes.GetFE(0), order, shape1d);
+
+   Tensor<2> T1(dofs1d,quads1d);
+
+   diagT.zero();
+   for (int e = 0; e < nb_elts; ++e)
+   {
+      T1.zero();
+      for (int j2 = 0; j2 < quads1d; ++j2)
+      {
+         for (int j1 = 0; j1 < quads1d; ++j1)
+         {
+            for (int i1 = 0; i1 < dofs1d; ++i1)
+            {
+                  T1(i1,j2) += D(j1,j2,e) * shape1d(i1,j1) * shape1d(i1,j1);
+            }
+         }
+      }
+      for (int j2 = 0; j2 < quads1d; ++j2)
+      {
+         for (int i2 = 0; i2 < dofs1d; ++i2)
+         {
+            for (int i1 = 0; i1 < dofs1d; ++i1)
+            {
+                  diagT(i1,i2,e) += T1(i1,j2) * shape1d(i2,j2) * shape1d(i2,j2);
+            }
+         }
+      }
+   }
+}
+
+template <int Dim, typename Op>
+void GetDiag3d(const FiniteElementSpace& fes, const int order, const Op& op, Tensor<Dim>& diag)
+{
+   const int dofs1d = fes.GetNDofs1d();
+   const int quads1d = fes.GetNQuads1d(order);
+   const int nb_elts = fes.GetNE();
+   Tensor<4> diagT(diag, dofs1d, dofs1d, dofs1d, nb_elts);
+   auto Dlin = op.getD();
+   Tensor<4> D(Dlin, quads1d, quads1d, quads1d, nb_elts);
+   Tensor<2> shape1d(dofs1d,quads1d);
+   ComputeBasis1d( fes.GetFE(0), order, shape1d);
+
+   Tensor<3> T1(dofs1d,quads1d,quads1d),T2(dofs1d,dofs1d,quads1d);
+
+   diagT.zero();
+   for (int e = 0; e < nb_elts; ++e)
+   {
+      T1.zero();
+      for (int j3 = 0; j3 < quads1d; ++j3)
+      {
+         for (int j2 = 0; j2 < quads1d; ++j2)
+         {
+            for (int j1 = 0; j1 < quads1d; ++j1)
+            {
+               for (int i1 = 0; i1 < dofs1d; ++i1)
+               {
+                     T1(i1,j2,j3) += D(j1,j2,j3,e) * shape1d(i1,j1) * shape1d(i1,j1);
+               }
+            }
+         }
+      }
+      T2.zero();
+      for (int j3 = 0; j3 < quads1d; ++j3)
+      {
+         for (int j2 = 0; j2 < quads1d; ++j2)
+         {
+            for (int i2 = 0; i2 < dofs1d; ++i2)
+            {
+               for (int i1 = 0; i1 < dofs1d; ++i1)
+               {
+                     T2(i1,i2,j3) += T1(i1,j2,j3) * shape1d(i2,j2) * shape1d(i2,j2);
+               }
+            }
+         }
+      }
+      for (int j3 = 0; j3 < quads1d; ++j3)
+      {
+         for (int i3 = 0; i3 < dofs1d; ++i3)
+         {
+            for (int i2 = 0; i2 < dofs1d; ++i2)
+            {
+               for (int i1 = 0; i1 < dofs1d; ++i1)
+               {
+                     diagT(i1,i2,i3,e) += T2(i1,i2,j3) * shape1d(i3,j3) * shape1d(i3,j3);
+               }
+            }
+         }
+      }
+   }
+}
+
+template <int Dim, typename Op>
+void GetDiag(const FiniteElementSpace& fes, const int order, const Op& op, Tensor<Dim>& diag)
+{
+   switch(fes.GetFE(0)->GetDim())
+   {
+      case 1:
+         GetDiag1d(fes, order, op, diag);
+         break;
+      case 2:
+         GetDiag2d(fes, order, op, diag);
+         break;
+      case 3:
+         GetDiag3d(fes, order, op, diag);
+         break;
    }
 }
 

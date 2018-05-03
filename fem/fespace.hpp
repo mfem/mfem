@@ -249,6 +249,16 @@ public:
    /// Returns number of degrees of freedom.
    inline int GetNDofs() const { return ndofs; }
 
+   /// Returns number of degrees of freedom in each direction.
+   inline const int GetNDofs1d() const { return GetFE(0)->GetOrder()+1; }
+
+   /// Returns number of quadrature points in each direction.
+   inline const int GetNQuads1d(const int order) const
+   { 
+    const IntegrationRule &ir1d = IntRules.Get(Geometry::SEGMENT, order);
+    return ir1d.GetNPoints();
+  }
+
    /// Return the number of vector dofs, i.e. GetNDofs() x GetVDim().
    inline int GetVSize() const { return vdim * ndofs; }
 

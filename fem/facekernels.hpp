@@ -94,14 +94,21 @@ public:
 
 protected:
    FiniteElementSpace *fes;
-   Tensor2d shape1d, dshape1d;
-   Tensor2d shape0d0, shape0d1, dshape0d0, dshape0d1;
    DTensor Dint, Dext;
    KData kernel_data;// Data needed by the Kernel
+   Tensor2d shape1d, dshape1d;
+   Tensor2d shape0d0, shape0d1, dshape0d0, dshape0d1;
 
 public:
-   FaceMult(FiniteElementSpace* _fes, int order, const typename Equation::Args& args)
-   : fes(_fes), Dint(), Dext(), kernel_data()
+   template <typename Args>
+   FaceMult(FiniteElementSpace* _fes, int order, const Args& args)
+   : fes(_fes), Dint(), Dext(), kernel_data(),
+   shape1d(fes->GetNDofs1d(),fes->GetNQuads1d(order)),
+   dshape1d(fes->GetNDofs1d(),fes->GetNQuads1d(order)),
+   shape0d0(fes->GetNDofs1d(),1),
+   shape0d1(fes->GetNDofs1d(),1),
+   dshape0d0(fes->GetNDofs1d(),1),
+   dshape0d1(fes->GetNDofs1d(),1)
    {
       // Store the two 0d shape functions and gradients
       // in x = 0.0
@@ -118,15 +125,33 @@ public:
       Dext.setSize(quads,nb_elts,nb_faces_elt);
    }
 
+   template <typename Args>
    void evalEq(const int dim, const int k1, const int k2, const Vector& normal,
                const int ind_elt1, const int face_id1,
                const int ind_elt2, const int face_id2, FaceElementTransformations* face_tr,
                const IntegrationPoint & ip1, const IntegrationPoint & ip2,
-               const typename Equation::Args& args)
+               const Args& args)
    {
       //res'i''j' is the value from element 'j' to element 'i'
       double res11, res21, res22, res12;
       this->evalFaceD(res11,res21,res22,res12,face_tr,normal,ip1,ip2,args);
+      Dint(k1, ind_elt1, face_id1) = res11;
+      Dext(k2, ind_elt2, face_id2) = res21;
+      Dint(k2, ind_elt2, face_id2) = res22;
+      Dext(k1, ind_elt1, face_id1) = res12;
+   }
+
+   template <typename Args>
+   void evalEq(const int dim, const int k1, const int k2, const Vector& normal,
+               const int ind_elt1, const int face_id1,
+               const int ind_elt2, const int face_id2, FaceElementTransformations* face_tr,
+               const IntegrationPoint & ip1, const IntegrationPoint & ip2,
+               const Tensor<2>& Jac1, const Tensor<2>& Jac2,
+               const Args& args)
+   {
+      //res'i''j' is the value from element 'j' to element 'i'
+      double res11, res21, res22, res12;
+      this->evalFaceD(res11,res21,res22,res12,face_tr,normal,ip1,ip2,Jac1,Jac2,args);
       Dint(k1, ind_elt1, face_id1) = res11;
       Dext(k2, ind_elt2, face_id2) = res21;
       Dint(k2, ind_elt2, face_id2) = res22;
