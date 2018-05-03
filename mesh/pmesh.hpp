@@ -24,10 +24,16 @@
 
 namespace mfem
 {
+#ifdef MFEM_USE_PUMI    
+class ParPumiMesh;
+#endif
 
 /// Class for parallel meshes
 class ParMesh : public Mesh
 {
+ #ifdef MFEM_USE_PUMI    
+   friend class ParPumiMesh;
+ #endif  
 protected:
    ParMesh() : MyComm(0), NRanks(0), MyRank(-1),
       have_face_nbr_data(false), pncmesh(NULL) {}
