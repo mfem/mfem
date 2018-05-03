@@ -209,8 +209,9 @@ int main(int argc, char *argv[])
    // DiagSolverDG m(fes,ir_order,mass);
    // PACGSolver<PADomainInt<MassEquation>> m(&fes,mass);
    DiagSolverDG prec(fes,ir_order,mass);
-   PAPrecCGSolver<PADomainInt<MassEquation>,DiagSolverDG> m(&fes,mass,prec);
+   // PAPrecCGSolver<PADomainInt<MassEquation>,DiagSolverDG> m(&fes,mass,prec);
    // CGSolverDG<PADomainInt<MassEquation>> m(fes,ir_order,mass);
+   PrecCGSolverDG<PADomainInt<MassEquation>,DiagSolverDG> m(fes,ir_order,mass,prec);
    Operator* mo = &m;
 
 

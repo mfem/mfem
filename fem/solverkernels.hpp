@@ -24,9 +24,6 @@
 namespace mfem
 {
 
-/**
-*  A class that implement the BtDB partial assembly Kernel
-*/
 template <typename Op>
 class CGSolverDG: public Operator
 {
@@ -35,7 +32,6 @@ public:
 
 protected:
    FiniteElementSpace& fes;
-   // const Op& op;
    const Tensor2d& D;
    Tensor2d shape1d;
    const double treshold;
@@ -43,6 +39,53 @@ protected:
 public:
    CGSolverDG(FiniteElementSpace& fes, int order, const Op& op, const double tr = 1e-10)
    : Operator(fes.GetVSize()), fes(fes), D(op.getD()),
+     shape1d(fes.GetNDofs1d(),fes.GetNQuads1d(order)), treshold(tr)
+   {
+      ComputeBasis1d(fes.GetFE(0), order, shape1d);
+   }
+
+   virtual void Mult(const Vector &U, Vector &V) const
+   {
+      switch(fes.GetFE(0)->GetDim())
+      {
+         case 1:
+            Mult1d(U, V);
+            break;
+         case 2:
+            Mult2d(U, V);
+            break;
+         case 3:
+            Mult3d(U, V);
+            break;
+      }
+   }
+
+protected:
+   /**
+   *  The domain Kernels for BtDB in 1d,2d and 3d.
+   */
+   void Mult1d(const Vector &V, Vector &U) const;
+   void Mult2d(const Vector &V, Vector &U) const;
+   void Mult3d(const Vector &V, Vector &U) const;  
+
+};
+
+template <typename Mass, typename Prec>
+class PrecCGSolverDG: public Operator
+{
+public:
+   typedef Tensor<2> Tensor2d;
+
+protected:
+   FiniteElementSpace& fes;
+   const Tensor2d& D;
+   Prec& prec;
+   Tensor2d shape1d;
+   const double treshold;
+
+public:
+   PrecCGSolverDG(FiniteElementSpace& fes, int order, Mass& mass, Prec& prec, const double tr = 1e-10)
+   : Operator(fes.GetVSize()), fes(fes), D(mass.getD()), prec(prec),
      shape1d(fes.GetNDofs1d(),fes.GetNQuads1d(order)), treshold(tr)
    {
       ComputeBasis1d(fes.GetFE(0), order, shape1d);
@@ -307,8 +350,18 @@ public:
          {
             Vt(k,e) =  Ut(k,e)/D(k,e);
          }
-      }     
+      }
    }
+
+   template <typename Vector>
+   void Mult(const int elt, const Vector &U, Vector &V) const
+   {
+      for (int k = 0; k < dofs; ++k)
+      {
+         V(k) =  U(k)/D(k,elt);
+      }
+   }
+
 };
 
 template<typename Op>
@@ -471,6 +524,211 @@ void CGSolverDG<Op>::Mult3d(const Vector &V, Vector &U) const
       }
    }
 }
+
+
+template <typename Mass, typename Prec>
+void PrecCGSolverDG<Mass,Prec>::Mult1d(const Vector &V, Vector &U) const
+{
+   const int dofs1d = shape1d.Height();
+   const int quads1d = shape1d.Width();
+   const int quads = quads1d;
+   const int dofs = dofs1d;
+
+   for (int e = 0; e < fes.GetNE(); e++)
+   {
+      const Tensor<1> b(V.GetData() + e*dofs, dofs);
+      const Tensor<1> eD(D.getData() + e*quads, quads1d);
+      Tensor<1> x(U.GetData() + e*dofs, dofs1d);
+      x.zero();
+      Tensor<1> r(dofs);
+      for (int i = 0; i < dofs; ++i)
+      {
+         r(i) = -b(i);
+      }
+      Tensor<1> y(dofs);
+      prec.Mult(e,r,y);
+      Tensor<1> p(dofs);
+      for (int i = 0; i < dofs; ++i)
+      {
+         p(i) = -y(i);
+      }
+      double rsold = dot(r,y);
+      for(int iter=0; iter<dofs; iter++){
+         Tensor<1> Ap(dofs),tmp(quads1d);
+         // Ap = A * p
+         contract(shape1d,p,tmp);
+         cWiseMult(eD,tmp,tmp);
+         contract(shape1d,tmp,Ap);
+         const double alpha = rsold / dot(p,Ap);
+         // x = x + alpha * p
+         // r = r - alpha * Ap
+         for (int i = 0; i < dofs; ++i)
+         {
+            x(i) = x(i) + alpha * p(i);
+            r(i) = r(i) + alpha * Ap(i);
+         }
+         prec.Mult(e,r,y);
+         const double rsnew = dot(r,y);
+         if (sqrt(rsnew)<treshold){
+            // cout << "residual=" << rsnew << endl;
+            // cout << "iter=" << iter << endl;            
+            break;
+         }
+         // p = r + (rsnew/rsold) * p
+         const double beta = rsnew/rsold;
+         for (int i = 0; i < dofs1d; ++i)
+         {
+            p(i) = -y(i) + beta * p(i);
+         }
+         rsold = rsnew;
+      }
+   }
+}
+
+template <typename Mass, typename Prec>
+void PrecCGSolverDG<Mass,Prec>::Mult2d(const Vector &V, Vector &U) const
+{
+   const int dofs1d = shape1d.Height();
+   const int quads1d = shape1d.Width();
+   const int quads = quads1d * quads1d;
+   const int dofs = dofs1d * dofs1d;
+
+   Tensor<1> r(dofs);
+   Tensor<1> y(dofs);
+   Tensor<1> p(dofs);
+   Tensor<2> pT(p.getData(),dofs1d,dofs1d);
+   Tensor<1> Ap(dofs);
+   Tensor<2> ApT(Ap.getData(),dofs1d,dofs1d);
+   Tensor<2> tmp1(dofs1d,quads1d), tmp2(quads1d,quads1d), tmp3(quads1d,dofs1d);
+   for (int e = 0; e < fes.GetNE(); e++)
+   {
+      const Tensor<1> b(V.GetData() + e*dofs, dofs);
+      const Tensor<2> eD(D.getData() + e*quads, quads1d, quads1d);
+      Tensor<1> x(U.GetData() + e*dofs, dofs);
+      // Tensor<1> x(dofs);
+      x.zero();
+      // r = b - A x
+      for (int i = 0; i < dofs; ++i)
+      {
+         r(i) = -b(i);
+      }
+      // p = r;
+      prec.Mult(e,r,y);
+      for (int i = 0; i < dofs; ++i)
+      {
+         p(i) = -y(i);
+      }
+      double rsold = dot(y,r);
+      for(int iter=0; iter<dofs; iter++){
+         // Ap = A * p
+         contract(shape1d,pT,tmp1);
+         contract(shape1d,tmp1,tmp2);
+         cWiseMult(eD,tmp2,tmp2);
+         contractT(shape1d,tmp2,tmp3);
+         contractT(shape1d,tmp3,ApT);
+         const double alpha = rsold / dot(p,Ap);
+         // x = x + alpha * p
+         // r = r - alpha * Ap
+         for (int i = 0; i < dofs; ++i)
+         {
+            x(i) = x(i) + alpha * p(i);
+            r(i) = r(i) + alpha * Ap(i);
+         }
+         prec.Mult(e,r,y);
+         const double rsnew = dot(y,r);
+         if (sqrt(rsnew)<treshold){
+            // cout << "residual=" << rsnew << endl;
+            // cout << "iter=" << iter << endl;
+            break;  
+         }
+         // p = r + (rsnew/rsold) * p
+         const double beta = (rsnew/rsold);
+         for (int i = 0; i < dofs; ++i)
+         {
+            p(i) = -y(i) + beta * p(i);
+         }
+         rsold = rsnew;
+      }
+   }
+}
+
+template <typename Mass, typename Prec>
+void PrecCGSolverDG<Mass,Prec>::Mult3d(const Vector &V, Vector &U) const
+{
+   const int dofs1d = shape1d.Height();
+   const int quads1d = shape1d.Width();
+   const int quads = quads1d * quads1d * quads1d;
+   const int dofs = dofs1d * dofs1d * dofs1d;
+
+   // Tensor<1> r(dofs);
+   // Tensor<1> y(dofs);
+   // Tensor<1> p(dofs);
+   // Tensor<3> pT(p.getData(),dofs1d,dofs1d,dofs1d);
+   // Tensor<1> Ap(dofs);
+   // Tensor<3> ApT(Ap.getData(),dofs1d,dofs1d,dofs1d);
+   // Tensor<3> tmp1(dofs1d,dofs1d,quads1d), tmp2(dofs1d,quads1d,quads1d), tmp3(quads1d,quads1d,quads1d),
+               // tmp4(quads1d,quads1d,dofs1d), tmp5(quads1d,dofs1d,dofs1d);
+   for (int e = 0; e < fes.GetNE(); e++)
+   {
+      const Tensor<1> b(V.GetData() + e*dofs, dofs);
+      const Tensor<3> eD(D.getData() + e*quads, quads1d, quads1d, quads1d);
+      Tensor<1> r(dofs);
+      Tensor<1> y(dofs);
+      Tensor<1> p(dofs);
+      Tensor<1> x(U.GetData() + e*dofs, dofs);
+      x.zero();
+      for (int i = 0; i < dofs; ++i)
+      {
+         r(i) = -b(i);
+      }
+      // p = r;
+      prec.Mult(e,r,y);
+      for (int i = 0; i < dofs; ++i)
+      {
+         p(i) = -y(i);
+      }
+      double rsold = dot(y,r);
+      for(int i=0; i<dofs; i++){
+         Tensor<3> pT(p.getData(),dofs1d,dofs1d,dofs1d);
+         Tensor<1> Ap(dofs);
+         Tensor<3> ApT(Ap.getData(),dofs1d,dofs1d,dofs1d);
+         Tensor<3> tmp1(dofs1d,dofs1d,quads1d), tmp2(dofs1d,quads1d,quads1d), tmp3(quads1d,quads1d,quads1d),
+                     tmp4(quads1d,quads1d,dofs1d), tmp5(quads1d,dofs1d,dofs1d);
+         // Ap = A * p
+         contract(shape1d,pT,tmp1);
+         contract(shape1d,tmp1,tmp2);
+         contract(shape1d,tmp2,tmp3);
+         cWiseMult(eD,tmp3,tmp3);
+         contract(shape1d,tmp3,tmp4);
+         contract(shape1d,tmp4,tmp5);
+         contract(shape1d,tmp5,ApT);
+         const double alpha = rsold / dot(p,Ap);
+         // x = x + alpha * p
+         // r = r - alpha * Ap
+         for (int i = 0; i < dofs; ++i)
+         {
+            x(i) = x(i) + alpha * p(i);
+            r(i) = r(i) + alpha * Ap(i);
+         }
+         prec.Mult(e,r,y);
+         const double rsnew = dot(y,r);
+         if (sqrt(rsnew)<treshold){
+            // cout << "residual=" << rsnew << endl;
+            // cout << "iter=" << iter << endl;
+            break;  
+         }
+         // p = r + (rsnew/rsold) * p
+         const double beta = (rsnew/rsold);
+         for (int i = 0; i < dofs; ++i)
+         {
+            p(i) = -y(i) + beta * p(i);
+         }
+         rsold = rsnew;
+      }
+   }
+}
+
+
 
 }
 
