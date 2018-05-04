@@ -109,7 +109,7 @@
 // Enable functionality based on the MPFR library.
 // #define MFEM_USE_MPFR
 
-// Enable SCOREC PUMI 
+// Enable SCOREC PUMI
 // #define MFEM_USE_PUMI
 
 // Windows specific options

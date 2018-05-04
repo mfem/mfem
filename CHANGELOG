@@ -38,8 +38,9 @@ Discretization improvements
   mesh. The new methods, GetTransferOperator and GetTrueTransferOperator in the
   FiniteElementSpace classes, work in both serial and parallel and support
   matrix-based as well as matrix-free transfer operator representations. They
-  use a version of GetLocalInterpolation in the FiniteElement class that allows
-  the coarse FiniteElement to be different from the fine FiniteElement.
+  use a new method, GetTransferMatrix, in the FiniteElement class similar to
+  GetLocalInterpolation, that allows the coarse FiniteElement to be different
+  from the fine FiniteElement.
 
 - Added class ComplexOperator, that implements the action of a complex operator
   through the equivalent 2x2 real formulation. Both symmetric and antisymmetric
@@ -59,8 +60,10 @@ Discretization improvements
 - In the classes NonlinearForm and ParNonlinearForm, added support for
   non-conforming AMR meshes; see also the "API changes" section.
 
-- Added symplectic integrators of orders 1-4 for systems of first order ODEs
-  derived from a Hamiltonian, see class SIASolver in linalg/ode.hpp.
+- New specialized time integrators: symplectic integrators of orders 1-4 for
+  systems of first order ODEs derived from a Hamiltonian and generalized-alpha
+  ODE solver for the filtered Navier–Stokes equations with stabilization. See
+  classes SIASolver and GeneralizedAlphaSolver in linalg/ode.hpp.
 
 - Inherit finite element classes from the new base class TensorBasisElement,
   whenever the basis can be represented by a tensor product of 1D bases.
