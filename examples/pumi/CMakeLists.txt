@@ -29,6 +29,7 @@ if (MFEM_USE_PUMI AND MFEM_USE_MPI)
     ex1.cpp
     ex1p.cpp
     atr_ex2.cpp
+    ma_ex6p.cpp
     )
 endif()
 

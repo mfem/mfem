@@ -26,6 +26,7 @@
 //#include "../fem/gridfunc_pumi.hpp"
 #include "../fem/fespace.hpp"
 #include "../fem/gridfunc.hpp"
+#include "../fem/pgridfunc.hpp"
 #include "../fem/coefficient.hpp"
 #include "../fem/bilininteg.hpp"
 
@@ -80,12 +81,46 @@ public:
 /// Class for parallel meshes
 class ParPumiMesh : public ParMesh
 {
+private:
+   apf::Numbering* v_num_loc;    
 protected:
    Element *ReadElement(apf::MeshEntity* Ent, const int geom, apf::Downward Verts,
                         const int Attr, apf::Numbering* vert_num);
 public:
    ///Build a parallel MFEM mesh from a parallel PUMI mesh
    ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh);
+   
+   ///Transfer field from MFEM mesh to pumi mesh 
+   /// Mixed
+   void FieldMFEMtoPUMI(apf::Mesh2* apf_mesh, 
+                        ParGridFunction* Vel,
+                        ParGridFunction* Pr,
+                        apf::Field* VelField,
+                        apf::Field* PrField,
+                        apf::Field* VelMagField);   
+   
+   ///Transfer field from MFEM mesh to pumi mesh
+   ///Scalar
+   void FieldMFEMtoPUMI(apf::Mesh2* apf_mesh, 
+                        ParGridFunction* Pr,
+                        apf::Field* PrField,
+                        apf::Field* PrMagField);
+   
+   ///Transfer field from MFEM mesh to pumi mesh 
+   /// Vector
+   void VectorFieldMFEMtoPUMI(apf::Mesh2* apf_mesh, 
+                        ParGridFunction* Vel,
+                        apf::Field* VelField,
+                        apf::Field* VelMagField);    
+   
+   ///Update the mesh after adaptation
+   void UpdateMesh(const ParMesh* AdaptedpMesh); 
+   
+   //Transfer field from PUMI to MFEM after mesh adapt
+   //Scalar
+   void FieldPUMItoMFEM(apf::Mesh2* apf_mesh, 
+                        apf::Field* ScalarField,
+                        ParGridFunction* Pr);   
 
    virtual ~ParPumiMesh() {};
 };
