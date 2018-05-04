@@ -169,6 +169,24 @@ void ParFiniteElementSpace::Construct()
       // to overlap its communication with processing between this constructor
       // and the point where the P matrix is actually needed.
    }
+
+#if PARTITION_STATS
+   long ltdofs = ltdof_size;
+   long min_ltdofs, max_ltdofs, sum_ltdofs;
+
+   MPI_Reduce(&ltdofs, &min_ltdofs, 1, MPI_LONG, MPI_MIN, 0, MyComm);
+   MPI_Reduce(&ltdofs, &max_ltdofs, 1, MPI_LONG, MPI_MAX, 0, MyComm);
+   MPI_Reduce(&ltdofs, &sum_ltdofs, 1, MPI_LONG, MPI_SUM, 0, MyComm);
+
+   if (MyRank == 0)
+   {
+      std::cout << "DOF partitioning: min " << min_ltdofs
+                << ", avg " << double(sum_ltdofs) / NRanks
+                << ", max " << max_ltdofs
+                << ", max diff " << 100.0*(max_ltdofs - min_ltdofs)/min_ltdofs
+                << "%" << std::endl;
+   }
+#endif
 }
 
 void ParFiniteElementSpace::GetGroupComm(
