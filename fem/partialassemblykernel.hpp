@@ -94,32 +94,6 @@ public:
       return Op::getD();
    }
 
-   // template <typename... Args>
-   // PADomainInt(FiniteElementSpace *fes, const int order, Args... args)
-   // : LinearFESpaceIntegrator(&IntRules.Get(fes->GetFE(0)->GetGeomType(), order)),
-   //   Op(fes,order,args...)
-   // {
-   //    const int nb_elts = fes->GetNE();
-   //    const int quads  = IntRule->GetNPoints();
-   //    const FiniteElement* fe = fes->GetFE(0);
-   //    const int dim = fe->GetDim();
-   //    this->InitD(dim,quads,nb_elts);
-   //    Tensor<1> Jac1D(dim*dim*quads*nb_elts);
-   //    EvalJacobians(dim,fes,order,Jac1D);
-   //    Tensor<4> Jac(Jac1D.getData(),dim,dim,quads,nb_elts);
-   //    for (int e = 0; e < nb_elts; ++e)
-   //    {
-   //       ElementTransformation *Tr = fes->GetElementTransformation(e);
-   //       for (int k = 0; k < quads; ++k)
-   //       {
-   //          Tensor<2> J_ek(&Jac(0,0,k,e),dim,dim);
-   //          const IntegrationPoint &ip = IntRule->IntPoint(k);
-   //          Tr->SetIntPoint(&ip);
-   //          this->evalEq(dim, k, e, Tr, ip, J_ek, args...);
-   //       }
-   //    }
-   // }
-
    /**
    *  Applies the partial assembly operator.
    */
@@ -172,18 +146,17 @@ public:
       }
       const int quads  = IntRules.Get(geom, order).GetNPoints();
       Vector qvec(dim);
-      // Tensor<1> normal(dim);
-      // Vector n(normal.getData(),dim);
-      Vector n(dim);
+      Tensor<1> normal(dim);
+      Vector n(normal.getData(),dim);
+      // Vector n(dim);
       this->InitD(dim,quads,nb_elts,nb_faces_elt);
       this->kernel_data.setSize(nb_elts,nb_faces_elt);
       // !!! Should not be recomputed... !!!
-      // Tensor<1> Jac1D(dim*dim*quads*quads1d*nb_elts);
-      // EvalJacobians(dim,fes,order,Jac1D);
-      // Tensor<4> Jac(Jac1D.getData(),dim,dim,quads*quads1d,nb_elts);
+      Tensor<1> Jac1D(dim*dim*quads*quads1d*nb_elts);
+      EvalJacobians(dim,fes,order,Jac1D);
+      Tensor<4> Jac(Jac1D.getData(),dim,dim,quads*quads1d,nb_elts);
       // !!!                             !!!
-      // We have a per face approach for the fluxes, so we should initialize the four different
-      // fluxes.
+      // We have a per face approach for the fluxes
       for (int face = 0; face < nb_faces; ++face)
       {
          int ind_elt1, ind_elt2;
@@ -205,21 +178,21 @@ public:
             const IntegrationRule& ir = IntRules.Get(geom, order);
             const IntegrationPoint& ip = ir.IntPoint(kf);
             if(ind_elt2!=-1){//Not a boundary face
-               // Tensor<1,int> ind_f1(dim-1), ind_f2(dim-1);
+               Tensor<1,int> ind_f1(dim-1), ind_f2(dim-1);
                // We compute the index on each face
-               // GetFaceQuadIndex(dim,face_id1,nb_rot1,kf,quads1d,ind_f1);
-               // GetFaceQuadIndex(dim,face_id2,nb_rot2,kf,quads1d,ind_f2);
-               // int k1 = 0;
-               // int k2 = 0;
-               // int offset = 1;
-               // for (int i = 0; i < dim-1; ++i)
-               // {
-               //    k1 += ind_f1(i)*offset;
-               //    k2 += ind_f2(i)*offset;
-               //    offset*=quads1d;
-               // }
-               int k1 = GetFaceQuadIndex(dim,face_id1,nb_rot1,kf,quads1d);
-               int k2 = GetFaceQuadIndex(dim,face_id2,nb_rot2,kf,quads1d);
+               GetFaceQuadIndex(dim,face_id1,nb_rot1,kf,quads1d,ind_f1);
+               GetFaceQuadIndex(dim,face_id2,nb_rot2,kf,quads1d,ind_f2);
+               int k1 = 0;
+               int k2 = 0;
+               int offset = 1;
+               for (int i = 0; i < dim-1; ++i)
+               {
+                  k1 += ind_f1(i)*offset;
+                  k2 += ind_f2(i)*offset;
+                  offset*=quads1d;
+               }
+               // int k1 = GetFaceQuadIndex(dim,face_id1,nb_rot1,kf,quads1d);
+               // int k2 = GetFaceQuadIndex(dim,face_id2,nb_rot2,kf,quads1d);
                Permutation(dim,face_id1,face_id2,nb_rot2,perm1,perm2);
                // Initialization of indirection and permutation identification
                this->kernel_data(ind_elt2,face_id2).indirection = ind_elt1;
@@ -235,16 +208,16 @@ public:
                face_tr->Loc2.Transform(ip,eip2);
                eip2.weight = ip.weight;//Sets the weight since Transform doesn't do it...
                face_tr->Elem1->SetIntPoint( &eip1 );
-               // int kg1 = GetGlobalQuadIndex(dim,face_id1,quads1d,ind_f1);
-               // int kg2 = GetGlobalQuadIndex(dim,face_id2,quads1d,ind_f2);
-               // Tensor<2> J_e1(&Jac(0,0,kg1,ind_elt1),dim,dim);
-               // Tensor<2> J_e2(&Jac(0,0,kg2,ind_elt2),dim,dim);
-               // Tensor<2> Adj(dim,dim);
-               // adjugate(J_e1,Adj);
-               CalcOrtho( face_tr->Face->Jacobian(), n );
-               // calcOrtho( Adj, face_id1, normal);
-               this->evalEq(dim,k1,k2,n,ind_elt1,face_id1,ind_elt2,face_id2,face_tr,eip1,eip2,args);
-               // this->evalEq(dim,k1,k2,n,ind_elt1,face_id1,ind_elt2,face_id2,face_tr,eip1,eip2,J_e1,J_e2,args);
+               int kg1 = GetGlobalQuadIndex(dim,face_id1,quads1d,ind_f1);
+               int kg2 = GetGlobalQuadIndex(dim,face_id2,quads1d,ind_f2);
+               Tensor<2> J_e1(&Jac(0,0,kg1,ind_elt1),dim,dim);
+               Tensor<2> J_e2(&Jac(0,0,kg2,ind_elt2),dim,dim);
+               Tensor<2> Adj(dim,dim);
+               adjugate(J_e1,Adj);
+               // CalcOrtho( face_tr->Face->Jacobian(), n );
+               calcOrtho( Adj, face_id1, normal);
+               // this->evalEq(dim,k1,k2,n,ind_elt1,face_id1,ind_elt2,face_id2,face_tr,eip1,eip2,args);
+               this->evalEq(dim,k1,k2,n,ind_elt1,face_id1,ind_elt2,face_id2,face_tr,eip1,eip2,J_e1,J_e2,args);
             }else{//Boundary face
                this->kernel_data(ind_elt1,face_id1).indirection = ind_elt2;
                this->kernel_data(ind_elt1,face_id1).permutation = 0;

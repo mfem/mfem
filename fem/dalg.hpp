@@ -487,19 +487,24 @@ inline void calcOrtho(const Tensor<2,Scalar>& J, const int& face_id, Tensor<1>& 
          n(0) = face_id == 0 ? -J(0,0) : J(0,0);
          break;
       case 2:
+         //FIXME: looks strange we access 2D Jacobians in a different way than 3D
          switch(face_id)
          {
             case 0://SOUTH ( 0,-1)
-               n(0) = -J(0,1); n(1) = -J(1,1);
+               // n(0) = -J(0,1); n(1) = -J(1,1);
+               n(0) = -J(1,0); n(1) = -J(1,1);
                break;
             case 1://EAST  ( 1, 0)
-               n(0) = -J(0,1); n(1) = -J(1,1);
+               // n(0) =  J(0,0); n(1) =  J(1,0);
+               n(0) =  J(0,0); n(1) =  J(0,1);
                break;
             case 2://NORTH ( 0, 1)
-               n(0) = -J(0,1); n(1) = -J(1,1);
+               // n(0) =  J(0,1); n(1) =  J(1,1);
+               n(0) =  J(1,0); n(1) =  J(1,1);
                break;
             case 3://WEST  (-1, 0)
-               n(0) = -J(0,1); n(1) = -J(1,1);
+               // n(0) = -J(0,0); n(1) = -J(1,0);
+               n(0) = -J(0,0); n(1) = -J(0,1);
                break;
          }
          break;

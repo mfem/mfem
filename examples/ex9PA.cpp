@@ -185,6 +185,9 @@ int main(int argc, char *argv[])
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
 
+   tic_toc.Clear();
+   tic_toc.Start();
+
    // 6. Set up and assemble the bilinear and linear forms corresponding to the
    //    DG discretization. The DGTraceIntegrator involves integrals over mesh
    //    interior faces.
@@ -248,6 +251,9 @@ int main(int argc, char *argv[])
       new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
 
    b.Assemble();
+
+   tic_toc.Stop();
+   cout << " Initialization time: " << tic_toc.RealTime() << "s." << endl;
 
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize

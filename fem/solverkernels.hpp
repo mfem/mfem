@@ -108,71 +108,11 @@ public:
    }
 
 protected:
-   /**
-   *  The domain Kernels for BtDB in 1d,2d and 3d.
-   */
    void Mult1d(const Vector &V, Vector &U) const;
    void Mult2d(const Vector &V, Vector &U) const;
    void Mult3d(const Vector &V, Vector &U) const;  
 
 };
-
-// class CGSolverDG: public Operator
-// {
-// private:
-//    FiniteElementSpace* fes;
-//    Operator& op;
-
-// public:
-//    CGSolverDG(FiniteElementSpace* _fes, const Operator& _op, const double tr = 1e-10)
-//    {
-
-//    }
-
-
-//    virtual void Mult(const Vector &U, Vector &V) const
-//    {
-//       const int dofs1d = shape1d.Height();
-//       const int quads1d = shape1d.Width();
-//       const int quads = quads1d;
-//       const int dofs = dofs1d;
-
-//       for (int e = 0; e < fes->GetNE(); e++)
-//       {
-//          const Tensor<1> V0mat(V.GetData() + e*dofs, dofs);
-//          Tensor<1> b(dofs);
-//          b = V0mat;
-//          Tensor<1> x(U.GetData() + e*dofs, dofs);
-//          Tensor<1> r(dofs);
-//          r = b;
-//          Tensor<1> p(dofs);
-//          p = r;
-//          double rsold = norm2sq(r);
-
-//          for(int i=0; i<dofs; i++){
-//             Tensor<1> Ap(dofs),tmp(quads1d);
-//             // Ap = A * p
-//             op.Mult(e,p,Ap);
-//             const double alpha = rsold / dot(p,Ap);
-//             // x = x + alpha * p
-//             // r = r - alpha * Ap
-//             for (int i = 0; i < dofs; ++i)
-//             {
-//                x(i) = x(i) + alpha * p(i);
-//                r(i) = r(i) - alpha * Ap(i);
-//             }
-//             const double rsnew = norm2sq(r);
-//             if (sqrt(rsnew)<treshold) break;
-//             // p = r + (rsnew/rsold) * p
-//             for (int i = 0; i < dofs; ++i)
-//             {
-//                p(i) = r(i) + (rsnew/rsold) * p(i);
-//             }
-//             rsold = rsnew;
-//          }
-//    }
-//    }
-// };
 
 template <typename Mass>
 class PACGSolver: public Operator
@@ -202,15 +142,11 @@ public:
       {
          r(i) = -b(i);
       }
-      // Precondition My=r
-      // r = b;
       Vector p(dofs);
       for (int i = 0; i < dofs; ++i)
       {
          p(i) = - r(i);
       }
-      // p = r;
-      // rsold = y*r
       double rsold = r*r;
       for(iter=0; iter<dofs; iter++){
          Vector Ap(dofs);
@@ -218,8 +154,6 @@ public:
          // Ap = A * p
          mass.AddMult(p,Ap);
          const double alpha = rsold / (p*Ap);
-         // x = x + alpha * p
-         // r = r - alpha * Ap
          for (int i = 0; i < dofs; ++i)
          {
             x(i) = x(i) + alpha * p(i);
@@ -231,7 +165,6 @@ public:
          // p = r + (rsnew/rsold) * p
          for (int i = 0; i < dofs; ++i)
          {
-            //p = -y + Beta * p;
             p(i) = -r(i) + (rsnew/rsold) * p(i);
          }
          rsold = rsnew;
@@ -560,8 +493,6 @@ void PrecCGSolverDG<Mass,Prec>::Mult1d(const Vector &V, Vector &U) const
          cWiseMult(eD,tmp,tmp);
          contract(shape1d,tmp,Ap);
          const double alpha = rsold / dot(p,Ap);
-         // x = x + alpha * p
-         // r = r - alpha * Ap
          for (int i = 0; i < dofs; ++i)
          {
             x(i) = x(i) + alpha * p(i);
@@ -574,7 +505,6 @@ void PrecCGSolverDG<Mass,Prec>::Mult1d(const Vector &V, Vector &U) const
             // cout << "iter=" << iter << endl;            
             break;
          }
-         // p = r + (rsnew/rsold) * p
          const double beta = rsnew/rsold;
          for (int i = 0; i < dofs1d; ++i)
          {
@@ -605,14 +535,11 @@ void PrecCGSolverDG<Mass,Prec>::Mult2d(const Vector &V, Vector &U) const
       const Tensor<1> b(V.GetData() + e*dofs, dofs);
       const Tensor<2> eD(D.getData() + e*quads, quads1d, quads1d);
       Tensor<1> x(U.GetData() + e*dofs, dofs);
-      // Tensor<1> x(dofs);
       x.zero();
-      // r = b - A x
       for (int i = 0; i < dofs; ++i)
       {
          r(i) = -b(i);
       }
-      // p = r;
       prec.Mult(e,r,y);
       for (int i = 0; i < dofs; ++i)
       {
@@ -627,8 +554,6 @@ void PrecCGSolverDG<Mass,Prec>::Mult2d(const Vector &V, Vector &U) const
          contractT(shape1d,tmp2,tmp3);
          contractT(shape1d,tmp3,ApT);
          const double alpha = rsold / dot(p,Ap);
-         // x = x + alpha * p
-         // r = r - alpha * Ap
          for (int i = 0; i < dofs; ++i)
          {
             x(i) = x(i) + alpha * p(i);
@@ -641,7 +566,6 @@ void PrecCGSolverDG<Mass,Prec>::Mult2d(const Vector &V, Vector &U) const
             // cout << "iter=" << iter << endl;
             break;  
          }
-         // p = r + (rsnew/rsold) * p
          const double beta = (rsnew/rsold);
          for (int i = 0; i < dofs; ++i)
          {
@@ -660,28 +584,22 @@ void PrecCGSolverDG<Mass,Prec>::Mult3d(const Vector &V, Vector &U) const
    const int quads = quads1d * quads1d * quads1d;
    const int dofs = dofs1d * dofs1d * dofs1d;
 
-   // Tensor<1> r(dofs);
-   // Tensor<1> y(dofs);
-   // Tensor<1> p(dofs);
-   // Tensor<3> pT(p.getData(),dofs1d,dofs1d,dofs1d);
-   // Tensor<1> Ap(dofs);
-   // Tensor<3> ApT(Ap.getData(),dofs1d,dofs1d,dofs1d);
-   // Tensor<3> tmp1(dofs1d,dofs1d,quads1d), tmp2(dofs1d,quads1d,quads1d), tmp3(quads1d,quads1d,quads1d),
-               // tmp4(quads1d,quads1d,dofs1d), tmp5(quads1d,dofs1d,dofs1d);
+   Tensor<1> r(dofs);
+   Tensor<1> y(dofs);
+   Tensor<1> p(dofs);
+   Tensor<1> Ap(dofs);
+   Tensor<3> tmp1(dofs1d,dofs1d,quads1d), tmp2(dofs1d,quads1d,quads1d), tmp3(quads1d,quads1d,quads1d),
+               tmp4(quads1d,quads1d,dofs1d), tmp5(quads1d,dofs1d,dofs1d);
    for (int e = 0; e < fes.GetNE(); e++)
    {
       const Tensor<1> b(V.GetData() + e*dofs, dofs);
       const Tensor<3> eD(D.getData() + e*quads, quads1d, quads1d, quads1d);
-      Tensor<1> r(dofs);
-      Tensor<1> y(dofs);
-      Tensor<1> p(dofs);
       Tensor<1> x(U.GetData() + e*dofs, dofs);
       x.zero();
       for (int i = 0; i < dofs; ++i)
       {
          r(i) = -b(i);
       }
-      // p = r;
       prec.Mult(e,r,y);
       for (int i = 0; i < dofs; ++i)
       {
@@ -690,10 +608,7 @@ void PrecCGSolverDG<Mass,Prec>::Mult3d(const Vector &V, Vector &U) const
       double rsold = dot(y,r);
       for(int i=0; i<dofs; i++){
          Tensor<3> pT(p.getData(),dofs1d,dofs1d,dofs1d);
-         Tensor<1> Ap(dofs);
          Tensor<3> ApT(Ap.getData(),dofs1d,dofs1d,dofs1d);
-         Tensor<3> tmp1(dofs1d,dofs1d,quads1d), tmp2(dofs1d,quads1d,quads1d), tmp3(quads1d,quads1d,quads1d),
-                     tmp4(quads1d,quads1d,dofs1d), tmp5(quads1d,dofs1d,dofs1d);
          // Ap = A * p
          contract(shape1d,pT,tmp1);
          contract(shape1d,tmp1,tmp2);
@@ -703,8 +618,6 @@ void PrecCGSolverDG<Mass,Prec>::Mult3d(const Vector &V, Vector &U) const
          contract(shape1d,tmp4,tmp5);
          contract(shape1d,tmp5,ApT);
          const double alpha = rsold / dot(p,Ap);
-         // x = x + alpha * p
-         // r = r - alpha * Ap
          for (int i = 0; i < dofs; ++i)
          {
             x(i) = x(i) + alpha * p(i);
@@ -717,7 +630,6 @@ void PrecCGSolverDG<Mass,Prec>::Mult3d(const Vector &V, Vector &U) const
             // cout << "iter=" << iter << endl;
             break;  
          }
-         // p = r + (rsnew/rsold) * p
          const double beta = (rsnew/rsold);
          for (int i = 0; i < dofs; ++i)
          {
