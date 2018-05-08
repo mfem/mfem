@@ -36,7 +36,7 @@ add_mfem_miniapp(performance_ex1
   EXTRA_OPTIONS ${PERFORMANCE_CXX_OPTIONS})
 
 add_test(NAME performance_ex1_ser
-  COMMAND performance_ex1 -no-vis)
+  COMMAND performance_ex1 -no-vis -r 2)
 
 if (MFEM_USE_MPI)
   add_mfem_miniapp(performance_ex1p
@@ -46,6 +46,6 @@ if (MFEM_USE_MPI)
 
   add_test(NAME performance_ex1p_np=4
     COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4
-    ${MPIEXEC_PREFLAGS} $<TARGET_FILE:performance_ex1p> -no-vis
+    ${MPIEXEC_PREFLAGS} $<TARGET_FILE:performance_ex1p> -no-vis -rs 2
     ${MPIEXEC_POSTFLAGS})
 endif()
