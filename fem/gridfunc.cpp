@@ -13,6 +13,7 @@
 
 #include "gridfunc.hpp"
 #include "../mesh/nurbs.hpp"
+#include "../general/text.hpp"
 
 #include <limits>
 #include <cstring>
@@ -29,30 +30,32 @@ using namespace std;
 GridFunction::GridFunction(Mesh *m, std::istream &input)
    : Vector()
 {
-   const int bufflen = 256;
-   char buff[bufflen];
-   int vdim;
+   fes = new FiniteElementSpace;
+   fec = fes->Load(m, input);
 
-   input >> std::ws;
-   input.getline(buff, bufflen);  // 'FiniteElementSpace'
-   if (strcmp(buff, "FiniteElementSpace"))
+   skip_comment_lines(input, '#');
+   istream::int_type next_char = input.peek();
+   if (next_char == 'N') // First letter of "NURBS_patches"
    {
-      mfem_error("GridFunction::GridFunction():"
-                 " input stream is not a GridFunction!");
+      string buff;
+      getline(input, buff);
+      filter_dos(buff);
+      if (buff == "NURBS_patches")
+      {
+         MFEM_VERIFY(fes->GetNURBSext(),
+                     "NURBS_patches requires NURBS FE space");
+         fes->GetNURBSext()->LoadSolution(input, *this);
+      }
+      else
+      {
+         MFEM_ABORT("unknown section: " << buff);
+      }
    }
-   input.getline(buff, bufflen, ' '); // 'FiniteElementCollection:'
-   input >> std::ws;
-   input.getline(buff, bufflen);
-   fec = FiniteElementCollection::New(buff);
-   input.getline(buff, bufflen, ' '); // 'VDim:'
-   input >> vdim;
-   input.getline(buff, bufflen, ' '); // 'Ordering:'
-   int ordering;
-   input >> ordering;
-   input.getline(buff, bufflen); // read the empty line
-   fes = new FiniteElementSpace(m, fec, vdim, ordering);
-   Vector::Load(input, fes->GetVSize());
-   sequence = 0;
+   else
+   {
+      Vector::Load(input, fes->GetVSize());
+   }
+   sequence = fes->GetSequence();
 }
 
 GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)
@@ -143,8 +146,6 @@ void GridFunction::Destroy()
 
 void GridFunction::Update()
 {
-   const Operator *T = fes->GetUpdateOperator();
-
    if (fes->GetSequence() == sequence)
    {
       return; // space and grid function are in sync, no-op
@@ -156,11 +157,13 @@ void GridFunction::Update()
    }
    sequence = fes->GetSequence();
 
+   const Operator *T = fes->GetUpdateOperator();
    if (T)
    {
-      Vector tmp(T->Height());
-      T->Mult(*this, tmp);
-      *this = tmp;
+      Vector old_data;
+      old_data.Swap(*this);
+      SetSize(T->Height());
+      T->Mult(old_data, *this);
    }
    else
    {
@@ -170,7 +173,7 @@ void GridFunction::Update()
 
 void GridFunction::SetSpace(FiniteElementSpace *f)
 {
-   Destroy();
+   if (f != fes) { Destroy(); }
    fes = f;
    SetSize(fes->GetVSize());
    sequence = fes->GetSequence();
@@ -178,7 +181,7 @@ void GridFunction::SetSpace(FiniteElementSpace *f)
 
 void GridFunction::MakeRef(FiniteElementSpace *f, double *v)
 {
-   Destroy();
+   if (f != fes) { Destroy(); }
    fes = f;
    NewDataAndSize(v, fes->GetVSize());
    sequence = fes->GetSequence();
@@ -187,10 +190,39 @@ void GridFunction::MakeRef(FiniteElementSpace *f, double *v)
 void GridFunction::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
 {
    MFEM_ASSERT(v.Size() >= v_offset + f->GetVSize(), "");
-   Destroy();
+   if (f != fes) { Destroy(); }
    fes = f;
    NewDataAndSize((double *)v + v_offset, fes->GetVSize());
    sequence = fes->GetSequence();
+}
+
+void GridFunction::MakeTRef(FiniteElementSpace *f, double *tv)
+{
+   if (!f->GetProlongationMatrix())
+   {
+      MakeRef(f, tv);
+      t_vec.NewDataAndSize(tv, size);
+   }
+   else
+   {
+      SetSpace(f); // works in parallel
+      t_vec.NewDataAndSize(tv, f->GetTrueVSize());
+   }
+}
+
+void GridFunction::MakeTRef(FiniteElementSpace *f, Vector &tv, int tv_offset)
+{
+   if (!f->GetProlongationMatrix())
+   {
+      MakeRef(f, tv, tv_offset);
+      t_vec.NewDataAndSize(data, size);
+   }
+   else
+   {
+      MFEM_ASSERT(tv.Size() >= tv_offset + f->GetTrueVSize(), "");
+      SetSpace(f); // works in parallel
+      t_vec.NewDataAndSize(&tv(tv_offset), f->GetTrueVSize());
+   }
 }
 
 
@@ -579,11 +611,11 @@ int GridFunction::GetFaceVectorValues(
    return di;
 }
 
-void GridFunction::GetValuesFrom(GridFunction &orig_func)
+void GridFunction::GetValuesFrom(const GridFunction &orig_func)
 {
    // Without averaging ...
 
-   FiniteElementSpace *orig_fes = orig_func.FESpace();
+   const FiniteElementSpace *orig_fes = orig_func.FESpace();
    Array<int> vdofs, orig_vdofs;
    Vector shape, loc_values, orig_loc_values;
    int i, j, d, ne, dof, odof, vdim;
@@ -616,11 +648,11 @@ void GridFunction::GetValuesFrom(GridFunction &orig_func)
    }
 }
 
-void GridFunction::GetBdrValuesFrom(GridFunction &orig_func)
+void GridFunction::GetBdrValuesFrom(const GridFunction &orig_func)
 {
    // Without averaging ...
 
-   FiniteElementSpace *orig_fes = orig_func.FESpace();
+   const FiniteElementSpace *orig_fes = orig_func.FESpace();
    Array<int> vdofs, orig_vdofs;
    Vector shape, loc_values, orig_loc_values;
    int i, j, d, nbe, dof, odof, vdim;
@@ -854,7 +886,7 @@ void GridFunction::GetDerivative(int comp, int der_comp, GridFunction &der)
 
 
 void GridFunction::GetVectorGradientHat(
-   ElementTransformation &T, DenseMatrix &gh)
+   ElementTransformation &T, DenseMatrix &gh) const
 {
    int elNo = T.ElementNo;
    const FiniteElement *FElem = fes->GetFE(elNo);
@@ -872,7 +904,7 @@ void GridFunction::GetVectorGradientHat(
    MultAtB(loc_data_mat, dshape, gh);
 }
 
-double GridFunction::GetDivergence(ElementTransformation &tr)
+double GridFunction::GetDivergence(ElementTransformation &tr) const
 {
    double div_v;
    int elNo = tr.ElementNo;
@@ -908,7 +940,7 @@ double GridFunction::GetDivergence(ElementTransformation &tr)
    return div_v;
 }
 
-void GridFunction::GetCurl(ElementTransformation &tr, Vector &curl)
+void GridFunction::GetCurl(ElementTransformation &tr, Vector &curl) const
 {
    int elNo = tr.ElementNo;
    const FiniteElement *FElem = fes->GetFE(elNo);
@@ -961,7 +993,7 @@ void GridFunction::GetCurl(ElementTransformation &tr, Vector &curl)
    }
 }
 
-void GridFunction::GetGradient(ElementTransformation &tr, Vector &grad)
+void GridFunction::GetGradient(ElementTransformation &tr, Vector &grad) const
 {
    int elNo = tr.ElementNo;
    const FiniteElement *fe = fes->GetFE(elNo);
@@ -981,7 +1013,7 @@ void GridFunction::GetGradient(ElementTransformation &tr, Vector &grad)
 }
 
 void GridFunction::GetGradients(const int elem, const IntegrationRule &ir,
-                                DenseMatrix &grad)
+                                DenseMatrix &grad) const
 {
    const FiniteElement *fe = fes->GetFE(elem);
    MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE, "invalid FE map type");
@@ -1006,7 +1038,7 @@ void GridFunction::GetGradients(const int elem, const IntegrationRule &ir,
 }
 
 void GridFunction::GetVectorGradient(
-   ElementTransformation &tr, DenseMatrix &grad)
+   ElementTransformation &tr, DenseMatrix &grad) const
 {
    MFEM_ASSERT(fes->GetFE(tr.ElementNo)->GetMapType() == FiniteElement::VALUE,
                "invalid FE map type");
@@ -1019,7 +1051,7 @@ void GridFunction::GetVectorGradient(
    Mult(grad_hat, Jinv, grad);
 }
 
-void GridFunction::GetElementAverages(GridFunction &avgs)
+void GridFunction::GetElementAverages(GridFunction &avgs) const
 {
    MassIntegrator Mi;
    DenseMatrix loc_mass;
@@ -1200,6 +1232,58 @@ void GridFunction::AccumulateAndCountZones(Coefficient &coeff,
          else { MFEM_ABORT("Not implemented"); }
 
          zones_per_vdof[vdofs[j]]++;
+      }
+   }
+}
+
+void GridFunction::AccumulateAndCountZones(VectorCoefficient &vcoeff,
+                                           AvgType type,
+                                           Array<int> &zones_per_vdof)
+{
+   zones_per_vdof.SetSize(fes->GetVSize());
+   zones_per_vdof = 0;
+
+   // Local interpolation
+   Array<int> vdofs;
+   Vector vals;
+   *this = 0.0;
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fes->GetElementVDofs(i, vdofs);
+      // Local interpolation of coeff.
+      vals.SetSize(vdofs.Size());
+      fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
+
+      // Accumulate values in all dofs, count the zones.
+      for (int j = 0; j < vdofs.Size(); j++)
+      {
+         int ldof;
+         int isign;
+         if (vdofs[j] < 0 )
+         {
+            ldof = -1-vdofs[j];
+            isign = -1;
+         }
+         else
+         {
+            ldof = vdofs[j];
+            isign = 1;
+         }
+
+         if (type == HARMONIC)
+         {
+            MFEM_VERIFY(vals[j] != 0.0,
+                        "Coefficient has zeros, harmonic avg is undefined!");
+            (*this)(ldof) += isign / vals[j];
+         }
+         else if (type == ARITHMETIC)
+         {
+            (*this)(ldof) += isign*vals[j];
+
+         }
+         else { MFEM_ABORT("Not implemented"); }
+
+         zones_per_vdof[ldof]++;
       }
    }
 }
@@ -1408,6 +1492,8 @@ void GridFunction::ProjectCoefficient(Coefficient *coeff[])
          transf->SetIntPoint(&ip);
          for (d = 0; d < vdim; d++)
          {
+            if (!coeff[d]) { continue; }
+
             val = coeff[d]->Eval(*transf, ip);
             if ( (ind = vdofs[fdof*d+j]) < 0 )
             {
@@ -1467,6 +1553,15 @@ void GridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
    ComputeMeans(type, zones_per_vdof);
 }
 
+void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff,
+                                          AvgType type)
+{
+   Array<int> zones_per_vdof;
+   AccumulateAndCountZones(coeff, type, zones_per_vdof);
+
+   ComputeMeans(type, zones_per_vdof);
+}
+
 void GridFunction::ProjectBdrCoefficient(
    Coefficient *coeff[], Array<int> &attr)
 {
@@ -1493,6 +1588,8 @@ void GridFunction::ProjectBdrCoefficient(
             transf->SetIntPoint(&ip);
             for (d = 0; d < vdim; d++)
             {
+               if (!coeff[d]) { continue; }
+
                val = coeff[d]->Eval(*transf, ip);
                if ( (ind = vdofs[fdof*d+j]) < 0 )
                {
@@ -1534,6 +1631,8 @@ void GridFunction::ProjectBdrCoefficient(
          vals.SetSize(fe->GetDof());
          for (d = 0; d < vdim; d++)
          {
+            if (!coeff[d]) { continue; }
+
             fe->Project(*coeff[d], *transf, vals);
             for (int k = 0; k < vals.Size(); k++)
             {
@@ -2102,7 +2201,7 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
          const IntegrationPoint &ip = ir->IntPoint(j);
          T->SetIntPoint(&ip);
          double err = fabs(vals(j) - exsol.Eval(*T, ip));
-         if (p < numeric_limits<double>::infinity())
+         if (p < infinity())
          {
             err = pow(err, p);
             if (weight)
@@ -2122,7 +2221,7 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
       }
    }
 
-   if (p < numeric_limits<double>::infinity())
+   if (p < infinity())
    {
       // negative quadrature weights may cause the error to be negative
       if (error < 0.)
@@ -2193,7 +2292,7 @@ double GridFunction::ComputeLpError(const double p, VectorCoefficient &exsol,
          const IntegrationPoint &ip = ir->IntPoint(j);
          T->SetIntPoint(&ip);
          double err = loc_errs(j);
-         if (p < numeric_limits<double>::infinity())
+         if (p < infinity())
          {
             err = pow(err, p);
             if (weight)
@@ -2213,7 +2312,7 @@ double GridFunction::ComputeLpError(const double p, VectorCoefficient &exsol,
       }
    }
 
-   if (p < numeric_limits<double>::infinity())
+   if (p < infinity())
    {
       // negative quadrature weights may cause the error to be negative
       if (error < 0.)
@@ -2231,21 +2330,14 @@ double GridFunction::ComputeLpError(const double p, VectorCoefficient &exsol,
 
 GridFunction & GridFunction::operator=(double value)
 {
-   for (int i = 0; i < size; i++)
-   {
-      data[i] = value;
-   }
+   Vector::operator=(value);
    return *this;
 }
 
 GridFunction & GridFunction::operator=(const Vector &v)
 {
    MFEM_ASSERT(fes && v.Size() == fes->GetVSize(), "");
-   SetSize(v.Size());
-   for (int i = 0; i < size; i++)
-   {
-      data[i] = v(i);
-   }
+   Vector::operator=(v);
    return *this;
 }
 
@@ -2258,6 +2350,16 @@ void GridFunction::Save(std::ostream &out) const
 {
    fes->Save(out);
    out << '\n';
+#if 0
+   // Testing: write NURBS GridFunctions using "NURBS_patches" format.
+   if (fes->GetNURBSext())
+   {
+      out << "NURBS_patches\n";
+      fes->GetNURBSext()->PrintSolution(*this, out);
+      out.flush();
+      return;
+   }
+#endif
    if (fes->GetOrdering() == Ordering::byNODES)
    {
       Vector::Print(out, 1);
@@ -2296,7 +2398,7 @@ void GridFunction::SaveVTK(std::ostream &out, const std::string &field_name,
          }
       }
    }
-   else if (vec_dim == mesh->Dimension())
+   else if ( (vec_dim == 2 || vec_dim == 3) && mesh->SpaceDimension() > 1)
    {
       // vector data
       out << "VECTORS " << field_name << " double\n";
@@ -2452,10 +2554,10 @@ void GridFunction::SaveSTL(std::ostream &out, int TimesToRefine)
       }
    }
 
-   cout << "[xmin,xmax] = [" << bbox[0][0] << ',' << bbox[0][1] << "]\n"
-        << "[ymin,ymax] = [" << bbox[1][0] << ',' << bbox[1][1] << "]\n"
-        << "[zmin,zmax] = [" << bbox[2][0] << ',' << bbox[2][1] << ']'
-        << endl;
+   mfem::out << "[xmin,xmax] = [" << bbox[0][0] << ',' << bbox[0][1] << "]\n"
+             << "[ymin,ymax] = [" << bbox[1][0] << ',' << bbox[1][1] << "]\n"
+             << "[zmin,zmax] = [" << bbox[2][0] << ',' << bbox[2][1] << ']'
+             << endl;
 
    out << "endsolid GridFunction" << endl;
 }
@@ -2613,7 +2715,7 @@ double ComputeElementLpDistance(double p, int i,
 
       val1 -= val2;
       double err = val1.Norml2();
-      if (p < numeric_limits<double>::infinity())
+      if (p < infinity())
       {
          err = pow(err, p);
          norm += ip.weight * T->Weight() * err;
@@ -2624,7 +2726,7 @@ double ComputeElementLpDistance(double p, int i,
       }
    }
 
-   if (p < numeric_limits<double>::infinity())
+   if (p < infinity())
    {
       // Negative quadrature weights may cause the norm to be negative
       if (norm < 0.)
@@ -2690,8 +2792,8 @@ GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
    }
    else
    {
-      cerr << "Extrude1DGridFunction : unknown FE collection : "
-           << cname << endl;
+      mfem::err << "Extrude1DGridFunction : unknown FE collection : "
+                << cname << endl;
       return NULL;
    }
    FiniteElementSpace *solfes2d;
