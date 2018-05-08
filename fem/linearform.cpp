@@ -98,7 +98,7 @@ void LinearForm::Assemble()
          }
          Array<int> &bdr_marker = *blfi_marker[k];
          MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
-                     "invalid boundary marker for boundary face integrator #"
+                     "invalid boundary marker for boundary integrator #"
                      << k << ", counting from zero");
          for (int i = 0; i < bdr_attr_marker.Size(); i++)
          {
@@ -137,7 +137,7 @@ void LinearForm::Assemble()
          }
          Array<int> &bdr_marker = *flfi_marker[k];
          MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
-                     "invalid boundary marker for boundary face integrator #"
+                     "invalid boundary marker for boundary integrator #"
                      << k << ", counting from zero");
          for (int i = 0; i < bdr_attr_marker.Size(); i++)
          {
