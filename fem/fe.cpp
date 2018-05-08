@@ -9078,7 +9078,7 @@ void Poly_1D::CalcChebyshev(const int p, const double x, double *u, double *d, d
    {
       u[n+1] = 2*z*u[n] - u[n-1];
       d[n+1] = (n + 1)*(z*d[n]/n + 2*u[n]);
-      dd[n+1] = (denom == 0 ? 4.*((n+1)*(n+1)*((n+1)*(n+1) - 1)/3. : 2.*(z*n*d[n+1] - ( (n+1.)*(n+1.)/n ) * d[n] ) / (z*z - 1.) );
+      dd[n+1] = (denom == 0 ? 4.*((n+1)*(n+1)*((n+1)*(n+1) - 1)/3. ) : 2.*(z*n*d[n+1] - ( (n+1.)*(n+1.)/n ) * d[n] ) / (z*z - 1.) );
    }
 }
 
