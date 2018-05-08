@@ -68,6 +68,15 @@ void GetChangeOfBasis(const int permutation, IntMatrix& P);
 void GetChangeOfBasis2D(const int face_id1, const int face_id2, IntMatrix& P);
 
 /**
+*	Returns the indices, face ID, and number of rotations, of the two element sharing a face.
+*  The number of rotations is relative to the element 1, so nb_rot1 is always 0.
+*/
+void GetFaceInfo(const Mesh* mesh, const int face,
+						int& ind_elt1, int& ind_elt2,
+						int& face_id1, int& face_id2,
+						int& nb_rot1, int& nb_rot2);
+
+/**
 *	Returns the face_id that identifies the face on the reference element, and nb_rot the
 *  "rotations" the face did between reference to physical spaces.
 */
@@ -89,17 +98,15 @@ void Permutation3D(const int face_id1, const int face_id2, const int orientation
 *	Returns an integer identifying the permutation to apply to be in structured-
 *  like configuration.
 */
-void Permutation(const int dim, const int face_id1, const int face_id2, const int orientation, int& perm1, int& perm2);
+void GetPermutation(const int dim, const int face_id1, const int face_id2, const int orientation, int& perm1, int& perm2);
 
-void GetFaceQuadIndex3D(const int face_id, const int orientation, const int qind, const int quads, Tensor<1,int>& ind_f);
-int GetFaceQuadIndex3D(const int face_id, const int orientation, const int qind, const int quads);
+int GetFaceQuadIndex3D(const int face_id, const int orientation, const int qind, const int quads, Tensor<1,int>& ind_f);
 
 /**
 *	Returns the indices of a quadrature point on the face of an hex element relative to the index of the quadrature
 *  point on the reference face.
 */
-void GetFaceQuadIndex(const int dim, const int face_id, const int orientation, const int qind, const int quads, Tensor<1,int>& ind_f);
-int GetFaceQuadIndex(const int dim, const int face_id, const int orientation, const int qind, const int quads);
+int GetFaceQuadIndex(const int dim, const int face_id, const int orientation, const int qind, const int quads, Tensor<1,int>& ind_f);
 
 /**
 *	Returns the indices of a quadrature point on the element relative to the index of the quadrature

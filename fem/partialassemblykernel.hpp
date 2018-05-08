@@ -41,6 +41,16 @@ namespace mfem
  // Domain Kernel Interface //
 /////////////////////////////
 
+struct ElementInfo
+{
+   int dim;
+   int k;
+   int e;
+   ElementTransformation* tr;
+   IntegrationPoint ip;
+   Tensor<2> J_ek;
+}
+
 /**
 *  A partial assembly Integrator class for domain integrals.
 *  Takes an 'Equation' template parameter, that must contain 'OpName' of
@@ -115,6 +125,18 @@ public:
  // Face Kernel Interface //
 ///////////////////////////
 
+struct FaceInfo
+{
+   int dim; // The problem dimension
+   int k1, k2; // The indices of 
+   IntegrationPoint eip1, eip2; // The integration points on each element
+   Vector* normal;  // The normal to the face
+   int ind_elt1, ind_elt2; // The indices of the elements
+   int face_id1, face_id2; // The face ID for the face according to each element
+   FaceElementTransformations* face_tr; // The Face transformation
+   Tensor<2> J_e1, J_e2; // The Jacobians for each element at their respective quadrature point
+};
+
 /**
 *  A partial assembly Integrator interface class for face integrals.
 *  The template parameters have the same role as for 'PADomainInt'.
@@ -144,13 +166,13 @@ public:
          case 2:geom = Geometry::SEGMENT;break;
          case 3:geom = Geometry::SQUARE;break;
       }
-      const int quads  = IntRules.Get(geom, order).GetNPoints();
+      const IntegrationRule& ir = IntRules.Get(geom, order);
+      const int quads  = ir.GetNPoints();
       Vector qvec(dim);
       Tensor<1> normal(dim);
       Vector n(normal.getData(),dim);
       // Vector n(dim);
-      this->InitD(dim,quads,nb_elts,nb_faces_elt);
-      this->kernel_data.setSize(nb_elts,nb_faces_elt);
+      this->init(dim,quads,nb_elts,nb_faces_elt);
       // !!! Should not be recomputed... !!!
       Tensor<1> Jac1D(dim*dim*quads*quads1d*nb_elts);
       EvalJacobians(dim,fes,order,Jac1D);
@@ -160,67 +182,42 @@ public:
       for (int face = 0; face < nb_faces; ++face)
       {
          int ind_elt1, ind_elt2;
-         // We collect the indices of the two elements on the face, element1 is the master element,
-         // the one that defines the normal to the face.
-         mesh->GetFaceElements(face,&ind_elt1,&ind_elt2);
-         int info_elt1, info_elt2;
-         // We collect the informations on the face for the two elements.
-         mesh->GetFaceInfos(face,&info_elt1,&info_elt2);
-         int nb_rot1, nb_rot2;
          int face_id1, face_id2;
-         GetIdRotInfo(info_elt1,face_id1,nb_rot1);
-         GetIdRotInfo(info_elt2,face_id2,nb_rot2);
+         int nb_rot1, nb_rot2;
+         GetFaceInfo(mesh, face, ind_elt1, ind_elt2, face_id1, face_id2, nb_rot1, nb_rot2);
          FaceElementTransformations* face_tr = mesh->GetFaceElementTransformations(face);
          int perm1, perm2;
          // cout << "ind_elt1=" << ind_elt1 << ", face_id1=" << face_id1 << ", nb_rot1=" << nb_rot1 << ", ind_elt2=" << ind_elt2 << ", face_id2=" << face_id2 << ", nb_rot2=" << nb_rot2 << endl;
          for (int kf = 0; kf < quads; ++kf)
          {
-            const IntegrationRule& ir = IntRules.Get(geom, order);
             const IntegrationPoint& ip = ir.IntPoint(kf);
             if(ind_elt2!=-1){//Not a boundary face
                Tensor<1,int> ind_f1(dim-1), ind_f2(dim-1);
-               // We compute the index on each face
-               GetFaceQuadIndex(dim,face_id1,nb_rot1,kf,quads1d,ind_f1);
-               GetFaceQuadIndex(dim,face_id2,nb_rot2,kf,quads1d,ind_f2);
-               int k1 = 0;
-               int k2 = 0;
-               int offset = 1;
-               for (int i = 0; i < dim-1; ++i)
-               {
-                  k1 += ind_f1(i)*offset;
-                  k2 += ind_f2(i)*offset;
-                  offset*=quads1d;
-               }
-               // int k1 = GetFaceQuadIndex(dim,face_id1,nb_rot1,kf,quads1d);
-               // int k2 = GetFaceQuadIndex(dim,face_id2,nb_rot2,kf,quads1d);
-               Permutation(dim,face_id1,face_id2,nb_rot2,perm1,perm2);
-               // Initialization of indirection and permutation identification
-               this->kernel_data(ind_elt2,face_id2).indirection = ind_elt1;
-               this->kernel_data(ind_elt2,face_id2).permutation = perm1;
-               this->kernel_data(ind_elt1,face_id1).indirection = ind_elt2;
-               this->kernel_data(ind_elt1,face_id1).permutation = perm2;
+               // We compute the lexicographical index on each face
+               int k1 = GetFaceQuadIndex(dim,face_id1,nb_rot1,kf,quads1d,ind_f1);
+               int k2 = GetFaceQuadIndex(dim,face_id2,nb_rot2,kf,quads1d,ind_f2);
+               this->initFaceData(dim,ind_elt1,face_id1,nb_rot1,perm1,ind_elt2,face_id2,nb_rot2,perm2);
                face_tr->Face->SetIntPoint( &ip );
-               // IntegrationPoint& eip1 = this->IntPoint( face_id1, k );
                IntegrationPoint eip1;
                face_tr->Loc1.Transform(ip,eip1);
                eip1.weight = ip.weight;//Sets the weight since Transform doesn't do it...
+               // face_tr->Elem1->SetIntPoint( &eip1 );
                IntegrationPoint eip2;
                face_tr->Loc2.Transform(ip,eip2);
                eip2.weight = ip.weight;//Sets the weight since Transform doesn't do it...
-               face_tr->Elem1->SetIntPoint( &eip1 );
+               // face_tr->Elem2->SetIntPoint( &eip2 );
                int kg1 = GetGlobalQuadIndex(dim,face_id1,quads1d,ind_f1);
                int kg2 = GetGlobalQuadIndex(dim,face_id2,quads1d,ind_f2);
                Tensor<2> J_e1(&Jac(0,0,kg1,ind_elt1),dim,dim);
                Tensor<2> J_e2(&Jac(0,0,kg2,ind_elt2),dim,dim);
                Tensor<2> Adj(dim,dim);
                adjugate(J_e1,Adj);
-               // CalcOrtho( face_tr->Face->Jacobian(), n );
-               calcOrtho( Adj, face_id1, normal);
-               // this->evalEq(dim,k1,k2,n,ind_elt1,face_id1,ind_elt2,face_id2,face_tr,eip1,eip2,args);
+               calcOrtho( Adj, face_id1, normal); // normal*determinant (risky, bug prone)
                this->evalEq(dim,k1,k2,n,ind_elt1,face_id1,ind_elt2,face_id2,face_tr,eip1,eip2,J_e1,J_e2,args);
+               // FaceInfo face_info = {dim,k1,k2,n,ind_elt1,face_id1,ind_elt2,face_id2,face_tr,eip1,eip2,J_e1,J_e2};
+               // this->evalEq(face_info,args);
             }else{//Boundary face
-               this->kernel_data(ind_elt1,face_id1).indirection = ind_elt2;
-               this->kernel_data(ind_elt1,face_id1).permutation = 0;
+               this->initBoundaryFaceData(ind_elt1,face_id1);
                // TODO: Something should be done here when there is boundary conditions!
                // D11(ind) = 0;  
             }

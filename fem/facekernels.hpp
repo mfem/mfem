@@ -35,6 +35,9 @@ public:
       int indirection;
       int permutation;
    };
+   /**
+   *  KData contains 
+   */
    typedef Tensor<2,PermIndir> KData;
    typedef Tensor<3,double> Tensor3d;
    typedef Tensor<4,double> Tensor4d;
@@ -89,7 +92,7 @@ class FaceMult<Equation,BtDB>
 public:
    static const int dimD = 3;
    typedef Tensor<dimD,double> DTensor;
-   typedef DenseMatrix Tensor2d;
+   typedef Tensor<2> Tensor2d;
    typedef Tensor<3,double> Tensor3d;
 
 protected:
@@ -119,10 +122,29 @@ public:
       ComputeBasis1d(fes->GetFE(0), order, shape1d, dshape1d);
    }
 
-   void InitD(const int dim, const int quads, const int nb_elts, const int nb_faces_elt)
+   void init(const int dim, const int quads, const int nb_elts, const int nb_faces_elt)
    {
+      kernel_data.setSize(nb_elts,nb_faces_elt);
       Dint.setSize(quads,nb_elts,nb_faces_elt);
       Dext.setSize(quads,nb_elts,nb_faces_elt);
+   }
+
+   void initFaceData(const int& dim,
+                     const int& ind_elt1, const int& face_id1, const int& nb_rot1, int& perm1,
+                     const int& ind_elt2, const int& face_id2, const int& nb_rot2, int& perm2)
+   {
+      GetPermutation(dim,face_id1,face_id2,nb_rot2,perm1,perm2);
+      // Initialization of indirection and permutation identification
+      this->kernel_data(ind_elt2,face_id2).indirection = ind_elt1;
+      this->kernel_data(ind_elt2,face_id2).permutation = perm1;
+      this->kernel_data(ind_elt1,face_id1).indirection = ind_elt2;
+      this->kernel_data(ind_elt1,face_id1).permutation = perm2;
+   }
+
+   void initBoundaryFaceData(const int& ind_elt, const int& face_id)
+   {
+      this->kernel_data(ind_elt,face_id).indirection = -1;
+      this->kernel_data(ind_elt,face_id).permutation = 0;
    }
 
    template <typename Args>

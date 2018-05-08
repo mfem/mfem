@@ -349,6 +349,18 @@ void GetIdRotInfo(const int face_info, int& face_id, int& nb_rot){
 	nb_rot = orientation;// / 2;
 }
 
+void GetFaceInfo(const Mesh* mesh, const int face, int& ind_elt1, int& ind_elt2, int& face_id1, int& face_id2, int& nb_rot1, int& nb_rot2)
+{
+	// We collect the indices of the two elements on the face, element1 is the master element,
+	// the one that defines the normal to the face.
+	mesh->GetFaceElements(face,&ind_elt1,&ind_elt2);
+	int info_elt1, info_elt2;
+	// We collect the informations on the face for the two elements.
+	mesh->GetFaceInfos(face,&info_elt1,&info_elt2);
+	GetIdRotInfo(info_elt1,face_id1,nb_rot1);//nb_rot1 is always 0 by convention
+	GetIdRotInfo(info_elt2,face_id2,nb_rot2);
+}
+
 /**
 *	Returns the permutation id, so that we can permute dofs to be in a structured case.
 */
@@ -393,7 +405,7 @@ void Permutation3D(const int face_id1, const int face_id2, const int orientation
 	perm2 +=     (0*(P(2,0)==-1) + 1*(P(2,0)==1) + 2*(P(2,1)==-1) + 3*(P(2,1)==1) + 4*(P(2,2)==-1) + 5*(P(2,2)==1));
 }
 
-void Permutation(const int dim, const int face_id1, const int face_id2, const int orientation, int& perm1, int& perm2)
+void GetPermutation(const int dim, const int face_id1, const int face_id2, const int orientation, int& perm1, int& perm2)
 {
 	switch(dim){
 		case 1:
@@ -418,7 +430,7 @@ void Permutation(const int dim, const int face_id1, const int face_id2, const in
 *   This function could be improved by returning the 'permutation' parameters once,
 *   instead of recomputing them for every quadrature point...
 */
-void GetFaceQuadIndex3D(const int face_id, const int orientation, const int qind, const int quads, Tensor<1,int>& ind_f)
+int GetFaceQuadIndex3D(const int face_id, const int orientation, const int qind, const int quads, Tensor<1,int>& ind_f)
 {
 	// cout << "orientation=" << orientation << endl;
 	int& k1 = ind_f(0);
@@ -672,290 +684,10 @@ void GetFaceQuadIndex3D(const int face_id, const int orientation, const int qind
 			mfem_error("This face_id does not exist in 3D");
 			break;	
 	}
-	// return k1 + quads*k2;
-}
-
-int GetFaceQuadIndex3D(const int face_id, const int orientation, const int qind, const int quads)
-{
-	// cout << "orientation=" << orientation << endl;
-	int k1 = 0;
-	int k2 = 0;
-	int kf1,kf2;
-	kf1 = qind%quads;
-	kf2 = qind/quads;
-	switch(face_id)
-	{
-		case 0://BOTTOM
-			switch(orientation)
-			{
-				case 0://{0, 1, 2, 3}
-					k1 = kf1;
-					k2 = quads-1-kf2;
-					break;
-				case 1://{0, 3, 2, 1}
-					k1 = quads-1-kf2;
-					k2 = kf1;
-					break;
-				case 2://{1, 2, 3, 0}
-					k1 = quads-1-kf2;
-					k2 = quads-1-kf1;
-					break;
-				case 3://{1, 0, 3, 2}
-					k1 = quads-1-kf1;
-					k2 = quads-1-kf2;
-					break;
-				case 4://{2, 3, 0, 1}
-					k1 = quads-1-kf1;
-					k2 = kf2;
-					break;
-				case 5://{2, 1, 0, 3}
-					k1 = kf2;
-					k2 = quads-1-kf1;
-					break;
-				case 6://{3, 0, 1, 2}
-					k1 = kf2;
-					k2 = kf1;
-					break;
-				case 7://{3, 2, 1, 0}
-					k1 = kf1;
-					k2 = kf2;
-					break;
-				default:
-					mfem_error("This orientation does not exist in 3D");
-					break;
-			}
-			break;
-		case 1://SOUTH
-			switch(orientation)
-			{
-				case 0://{0, 1, 2, 3}
-					k1 = kf1;
-					k2 = kf2;
-					break;
-				case 1://{0, 3, 2, 1}
-					k1 = kf2;
-					k2 = kf1;
-					break;
-				case 2://{1, 2, 3, 0}
-					k1 = kf2;
-					k2 = quads-1-kf1;
-					break;
-				case 3://{1, 0, 3, 2}
-					k1 = quads-1-kf1;
-					k2 = kf2;
-					break;
-				case 4://{2, 3, 0, 1}
-					k1 = quads-1-kf1;
-					k2 = quads-1-kf2;
-					break;
-				case 5://{2, 1, 0, 3}
-					k1 = quads-1-kf2;
-					k2 = quads-1-kf1;
-					break;
-				case 6://{3, 0, 1, 2}
-					k1 = quads-1-kf2;
-					k2 = kf1;
-					break;
-				case 7://{3, 2, 1, 0}
-					k1 = kf1;
-					k2 = quads-1-kf2;
-					break;
-				default:
-					mfem_error("This orientation does not exist in 3D");
-					break;
-			}
-			break;
-		case 2://EAST
-			switch(orientation)
-			{
-				case 0://{0, 1, 2, 3}
-					k1 = kf1;
-					k2 = kf2;
-					break;
-				case 1://{0, 3, 2, 1}
-					k1 = kf2;
-					k2 = kf1;
-					break;
-				case 2://{1, 2, 3, 0}
-					k1 = kf2;
-					k2 = quads-1-kf1;
-					break;
-				case 3://{1, 0, 3, 2}
-					k1 = quads-1-kf1;
-					k2 = kf2;
-					break;
-				case 4://{2, 3, 0, 1}
-					k1 = quads-1-kf1;
-					k2 = quads-1-kf2;
-					break;
-				case 5://{2, 1, 0, 3}
-					k1 = quads-1-kf2;
-					k2 = quads-1-kf1;
-					break;
-				case 6://{3, 0, 1, 2}
-					k1 = quads-1-kf2;
-					k2 = kf1;
-					break;
-				case 7://{3, 2, 1, 0}
-					k1 = kf1;
-					k2 = quads-1-kf2;
-					break;
-				default:
-					mfem_error("This orientation does not exist in 3D");
-					break;
-			}
-			break;
-		case 3://NORTH
-			switch(orientation)
-			{
-				case 0://{0, 1, 2, 3}
-					k1 = quads-1-kf1;
-					k2 = kf2;
-					break;
-				case 1://{0, 3, 2, 1}
-					k1 = kf2;
-					k2 = quads-1-kf1;
-					break;
-				case 2://{1, 2, 3, 0}
-					k1 = kf2;
-					k2 = kf1;
-					break;
-				case 3://{1, 0, 3, 2}
-					k1 = kf1;
-					k2 = kf2;
-					break;
-				case 4://{2, 3, 0, 1}
-					k1 = kf1;
-					k2 = quads-1-kf2;
-					break;
-				case 5://{2, 1, 0, 3}
-					k1 = quads-1-kf2;
-					k2 = kf1;
-					break;
-				case 6://{3, 0, 1, 2}
-					k1 = quads-1-kf2;
-					k2 = quads-1-kf1;
-					break;
-				case 7://{3, 2, 1, 0}
-					k1 = quads-1-kf1;
-					k2 = quads-1-kf2;
-					break;
-				default:
-					mfem_error("This orientation does not exist in 3D");
-					break;
-			}
-			break;
-		case 4://WEST
-			switch(orientation)
-			{
-				case 0://{0, 1, 2, 3}
-					k1 = quads-1-kf1;
-					k2 = kf2;
-					break;
-				case 1://{0, 3, 2, 1}
-					k1 = kf2;
-					k2 = quads-1-kf1;
-					break;
-				case 2://{1, 2, 3, 0}
-					k1 = kf2;
-					k2 = kf1;
-					break;
-				case 3://{1, 0, 3, 2}
-					k1 = kf1;
-					k2 = kf2;
-					break;
-				case 4://{2, 3, 0, 1}
-					k1 = kf1;
-					k2 = quads-1-kf2;
-					break;
-				case 5://{2, 1, 0, 3}
-					k1 = quads-1-kf2;
-					k2 = kf1;
-					break;
-				case 6://{3, 0, 1, 2}
-					k1 = quads-1-kf2;
-					k2 = quads-1-kf1;
-					break;
-				case 7://{3, 2, 1, 0}
-					k1 = quads-1-kf1;
-					k2 = quads-1-kf2;
-					break;
-				default:
-					mfem_error("This orientation does not exist in 3D");
-					break;
-			}
-			break;
-		case 5://TOP
-			switch(orientation)
-			{
-				case 0://{0, 1, 2, 3}
-					k1 = kf1;
-					k2 = kf2;
-					break;
-				case 1://{0, 3, 2, 1}
-					k1 = kf2;
-					k2 = kf1;
-					break;
-				case 2://{1, 2, 3, 0}
-					k1 = kf2;
-					k2 = quads-1-kf1;
-					break;
-				case 3://{1, 0, 3, 2}
-					k1 = quads-1-kf1;
-					k2 = kf2;
-					break;
-				case 4://{2, 3, 0, 1}
-					k1 = quads-1-kf1;
-					k2 = quads-1-kf2;
-					break;
-				case 5://{2, 1, 0, 3}
-					k1 = quads-1-kf2;
-					k2 = quads-1-kf1;
-					break;
-				case 6://{3, 0, 1, 2}
-					k1 = quads-1-kf2;
-					k2 = kf1;
-					break;
-				case 7://{3, 2, 1, 0}
-					k1 = kf1;
-					k2 = quads-1-kf2;
-					break;
-				default:
-					mfem_error("This orientation does not exist in 3D");
-					break;
-			}
-			break;
-		default:
-			mfem_error("This face_id does not exist in 3D");
-			break;	
-	}
 	return k1 + quads*k2;
 }
 
-
-void GetFaceQuadIndex(const int dim, const int face_id, const int orientation, const int qind, const int quads, Tensor<1,int>& ind_f)
-{
-	switch(dim)
-	{
-		case 1:
-			break;
-		case 2:
-            if(face_id<=1){//SOUTH or EAST (canonical ordering)
-               ind_f(0) = qind;
-            }else{//NORTH or WEST (counter-canonical ordering)
-               ind_f(0) = quads-1-qind;
-            }
-            break;
-        case 3:
-			GetFaceQuadIndex3D(face_id, orientation, qind, quads, ind_f);
-			break;
-		default:
-			mfem_error("Dimension too high.");
-			break;
-	}
-}
-
-int GetFaceQuadIndex(const int dim, const int face_id, const int orientation, const int qind, const int quads)
+int GetFaceQuadIndex(const int dim, const int face_id, const int orientation, const int qind, const int quads, Tensor<1,int>& ind_f)
 {
 	int res = 0;
 	switch(dim)
@@ -964,13 +696,13 @@ int GetFaceQuadIndex(const int dim, const int face_id, const int orientation, co
 			break;
 		case 2:
             if(face_id<=1){//SOUTH or EAST (canonical ordering)
-               res = qind;
+               res = ind_f(0) = qind;
             }else{//NORTH or WEST (counter-canonical ordering)
-               res = quads-1-qind;
+               res = ind_f(0) = quads-1-qind;
             }
             break;
         case 3:
-			res = GetFaceQuadIndex3D(face_id, orientation, qind, quads);
+			res = GetFaceQuadIndex3D(face_id, orientation, qind, quads, ind_f);
 			break;
 		default:
 			mfem_error("Dimension too high.");
