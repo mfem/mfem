@@ -26,7 +26,7 @@ MFEM makefile targets:
    make parallel
    make debug
    make pdebug
-   make check/test
+   make test/check
    make install
    make clean
    make distclean
@@ -55,10 +55,10 @@ make debug
    A shortcut to configure and build the serial debug version of the library.
 make pdebug
    A shortcut to configure and build the parallel debug version of the library.
-make check
-   Quick-check the build by compiling and running Example 1/1p.
 make test
    Verify the build by checking the results from running all examples and miniapps.
+make check
+   Quick-check the build by compiling and running Example 1/1p.
 make install PREFIX=<dir>
    Install the library and headers in <dir>/lib and <dir>/include.
 make clean
