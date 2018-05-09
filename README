@@ -7,7 +7,6 @@
 
                                http://mfem.org
 
-
 MFEM is a modular parallel C++ library for finite element methods. Its goal is
 to enable the research and development of scalable finite element discretization
 and solver algorithms through general finite element abstractions, accurate and
@@ -20,9 +19,9 @@ New application users should start with the interactive examples documentation
 in examples/README.html to learn about MFEM's features and capabilities.
 
 Developers and users interested in contributing to the library, should read the
-detailed instructions and documentation in the CONTRIBUTING.md file.
+documentation and detailed instructions in the CONTRIBUTING.md file.
 
-Additional documentation can be found on the project website, http://mfem.org.
+Additional informantion can be found on the project website, http://mfem.org.
 
 Conceptually, MFEM can be viewed as a finite element toolbox that provides the
 building blocks for developing finite element algorithms in a manner similar to
