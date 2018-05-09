@@ -9,6 +9,7 @@
 <a href="http://mfem.github.io/doxygen/html/index.html"><img alt="Doxygen" src="https://img.shields.io/badge/code-documented-brightgreen.svg"></a>
 </p>
 
+
 # How to Contribute
 
 The MFEM team welcomes contributions at all levels: bugfixes; code
