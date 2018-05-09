@@ -28,7 +28,7 @@ without GNU make or CMake can be found at the end of this file.
 In addition to the native build systems, MFEM packages are also available in the
 following package managers:
 
-- Spack, https://github.com/LLNL/spack
+- Spack, https://github.com/spack/spack
 - OpenHPC, http://openhpc.community
 - Homebrew/Science, https://github.com/Homebrew/homebrew-science
 
