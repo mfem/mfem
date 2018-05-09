@@ -22,6 +22,8 @@ in examples/README.html to learn about MFEM's features and capabilities.
 Developers and users interested in contributing to the library, should read the
 detailed instructions and documentation in the CONTRIBUTING.md file.
 
+Additional documentation can be found on the project website, http://mfem.org.
+
 Conceptually, MFEM can be viewed as a finite element toolbox that provides the
 building blocks for developing finite element algorithms in a manner similar to
 that of MATLAB for linear algebra methods. In particular, MFEM provides support
@@ -59,8 +61,6 @@ time integrators, etc.
 
 For examples of using MFEM, see the examples/ and miniapps/ directories, as well
 as the OpenGL visualization tool GLVis which is available at http://glvis.org.
-
-Additional documentation can be found on the project website, http://mfem.org.
 
 This project is released under the LGPL v2.1 license with static linking
 exception. See files COPYRIGHT and LICENSE file for full details.
