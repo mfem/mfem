@@ -144,7 +144,7 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
 
 - The `doc/` directory contains configuration for the Doxygen code documentation
   that can either be build locally, or browsed online at
-  http://mfem.github.io/doxygen.
+  http://mfem.github.io/doxygen/html/index.html.
 
 - The `data/` directory contains a collection of small mesh files, that are used
   in the simple example codes and more fully-featured mini applications in the
