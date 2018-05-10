@@ -21,8 +21,8 @@ mfem-info = $(if $(filter YES,$(VERBOSE)),$(info *** [info]$(1)),)
 # is kept in the MFEM_CONFIG_VARS variable, exported here from ../makefile
 
 # Debug output
-# $(foreach def,$(MFEM_DEFINES),$(info $(def) = $(value $(def))))
-# $(foreach var,$(MFEM_CONFIG_VARS),$(info $(var) = $(value $(var))))
+#$(foreach def,$(MFEM_DEFINES),$(info $(def) = $(value $(def))))
+#$(foreach var,$(MFEM_CONFIG_VARS),$(info $(var) = $(value $(var))))
 
 # Output path + file name for the config header
 CONFIG_HPP = _config.hpp

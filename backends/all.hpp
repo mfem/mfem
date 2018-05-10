@@ -22,6 +22,10 @@
 #include "occa/backend.hpp"
 #endif
 
+#ifdef MFEM_USE_RAJA
+#include "raja/backend.hpp"
+#endif
+
 #endif // MFEM_USE_BACKENDS
 
 #endif // MFEM_BACKENDS_ALL_HPP

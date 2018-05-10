@@ -83,9 +83,10 @@ MFEM_MPI_NP = 4
 # in config.mk and config.hpp.
 
 MFEM_USE_MPI         = NO
-# FIXME: add MFEM_USE_BACKENDS, MFEM_USE_OCCA to the CMake build system
+# FIXME: add MFEM_USE_BACKENDS, MFEM_USE_OCCA|RAJA to the CMake build system
 MFEM_USE_BACKENDS    = YES
-MFEM_USE_OCCA        = YES
+MFEM_USE_OCCA        = NO
+MFEM_USE_RAJA        = YES
 MFEM_USE_METIS       = $(MFEM_USE_MPI)
 MFEM_USE_METIS_5     = NO
 MFEM_DEBUG           = NO
@@ -277,6 +278,10 @@ SIDRE_LIB = \
 OCCA_DIR = @MFEM_DIR@/../occa
 OCCA_OPT = -I$(OCCA_DIR)/include
 OCCA_LIB = -Wl,-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
+
+RAJA_DIR = @MFEM_DIR@/../raja
+RAJA_OPT = -I$(RAJA_DIR)/include
+RAJA_LIB = -Wl,-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lraja
 
 # If YES, enable some informational messages
 VERBOSE = NO
