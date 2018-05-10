@@ -280,8 +280,8 @@ OCCA_OPT = -I$(OCCA_DIR)/include
 OCCA_LIB = -Wl,-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
 
 RAJA_DIR = @MFEM_DIR@/../raja
-RAJA_OPT = -I$(RAJA_DIR)/include
-RAJA_LIB = -Wl,-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lraja
+RAJA_OPT = -I$(RAJA_DIR)/include -I$(CUDA_DIR)/include
+RAJA_LIB = -Wl,-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
 
 # If YES, enable some informational messages
 VERBOSE = NO
