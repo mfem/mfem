@@ -53,8 +53,8 @@ private:
 
 public:
    /// Creates linear form associated with FE space *f.
-   LinearForm (FiniteElementSpace * f) : Vector (f -> GetVSize())
-   { fes = f; }
+   LinearForm(FiniteElementSpace *f)
+      : Vector(MFEM_IF_BACKENDS(f->GetVLayout(), f->GetVSize())), fes(f) { }
 
    LinearForm() { fes = NULL; }
 
@@ -87,10 +87,13 @@ public:
    /// Assembles delta functions of the linear form
    void AssembleDelta();
 
-   void Update() { SetSize(fes->GetVSize()); ResetDeltaLocations(); }
+   void Update()
+   {
+      Resize(MFEM_IF_BACKENDS(fes->GetVLayout(), fes->GetVSize()));
+      ResetDeltaLocations();
+   }
 
-   void Update(FiniteElementSpace *f)
-   { fes = f; SetSize(f->GetVSize()); ResetDeltaLocations(); }
+   void Update(FiniteElementSpace *f) { fes = f; Update(); }
 
    void Update(FiniteElementSpace *f, Vector &v, int v_offset);
 

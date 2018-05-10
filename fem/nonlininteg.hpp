@@ -39,6 +39,10 @@ public:
    /// Prescribe a fixed IntegrationRule to use.
    void SetIntegrationRule(const IntegrationRule &irule) { IntRule = &irule; }
 
+   /** @brief Get the prescribed IntegrationRule, if set by SetIntRule() or
+       SetIntegrationRule(). */
+   const IntegrationRule *GetIntRule() const { return IntRule; }
+
    /// Perform the local action of the NonlinearFormIntegrator
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &Tr,
@@ -67,6 +71,13 @@ public:
    virtual double GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &Tr,
                                    const Vector &elfun);
+
+   /// Return a string that identifies the integrator.
+   virtual const char *Name() const { return "(undefined)"; }
+
+   /** If the integrator uses a scalar Coefficient, return a pointer to it.
+       Otherwise return NULL. */
+   virtual Coefficient *GetScalarCoefficient() const { return NULL; }
 
    virtual ~NonlinearFormIntegrator() { }
 };

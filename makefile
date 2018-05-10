@@ -108,7 +108,7 @@ MFEM_BUILD_DIR ?= .
 BUILD_DIR := $(MFEM_BUILD_DIR)
 BUILD_REAL_DIR := $(abspath $(BUILD_DIR))
 ifneq ($(BUILD_REAL_DIR),$(MFEM_REAL_DIR))
-   BUILD_SUBDIRS = $(DIRS) config $(EM_DIRS) doc
+   BUILD_SUBDIRS = $(ALL_SRC_DIRS) config $(EM_DIRS) doc
    BUILD_DIR_DEF = -DMFEM_BUILD_DIR="$(BUILD_REAL_DIR)"
    BLD := $(if $(BUILD_REAL_DIR:$(CURDIR)=),$(BUILD_DIR)/,)
    $(if $(word 2,$(BLD)),$(error Spaces in BLD = "$(BLD)" are not supported))
@@ -197,7 +197,7 @@ endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
 MFEM_REQ_LIB_DEPS = SUPERLU METIS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE SUITESPARSE\
- STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR
+ STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR OCCA
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 
 define mfem_check_dependency
@@ -244,7 +244,8 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS\
  MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU\
  MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC\
- MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT
+ MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_BACKENDS MFEM_USE_OCCA\
+ MFEM_SOURCE_DIR MFEM_INSTALL_DIR
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
@@ -270,6 +271,9 @@ MFEM_LIB_DIR   ?= $(if $(BUILD_DIR_DEF),@MFEM_BUILD_DIR@,@MFEM_DIR@)
 MFEM_TEST_MK   ?= @MFEM_DIR@/config/test.mk
 # Use "\n" (interpreted by sed) to add a newline.
 MFEM_CONFIG_EXTRA ?= $(if $(BUILD_DIR_DEF),MFEM_BUILD_DIR ?= @MFEM_DIR@,)
+
+MFEM_SOURCE_DIR = $(MFEM_REAL_DIR)
+MFEM_INSTALL_DIR = $(MFEM_PREFIX)
 
 # If we have 'config' target, export variables used by config/makefile
 ifneq (,$(filter config,$(MAKECMDGOALS)))
@@ -303,7 +307,15 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # Source dirs in logical order
-DIRS = general linalg mesh fem
+ALL_SRC_DIRS := general linalg mesh fem backends/base backends/occa
+DIRS := $(ALL_SRC_DIRS)
+ifeq ($(MFEM_USE_BACKENDS),NO)
+   DIRS := $(filter-out backends/%,$(DIRS))
+else
+   ifeq ($(MFEM_USE_OCCA),NO)
+      DIRS := $(filter-out backends/occa,$(DIRS))
+   endif
+endif
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
@@ -402,8 +414,10 @@ miniapps/clean: $(addsuffix /clean,$(MINIAPP_DIRS))
 $(ALL_CLEAN_SUBDIRS):
 	$(MAKE) -C $(BLD)$(@D) $(@F)
 
+comma = ,
+CLEANPAT := $(subst $1 ,$(comma),$(strip $(ALL_SRC_DIRS)))
 clean: $(addsuffix /clean,$(EM_DIRS))
-	rm -f $(addprefix $(BLD),*/*.o */*~ *~ libmfem.* deps.mk)
+	rm -rf $(addprefix $(BLD),{$(CLEANPAT)}/*{.o,~} *~ libmfem.* deps.mk)
 
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
@@ -412,11 +426,15 @@ INSTALL_SHARED_LIB = $(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(INSTALL_SOFLAGS)\
    $(OBJECT_FILES) $(EXT_LIBS) -o $(PREFIX_LIB)/libmfem.$(SO_VER) && \
    cd $(PREFIX_LIB) && ln -sf libmfem.$(SO_VER) libmfem.$(SO_EXT)
 
+# FIXME: If PREFIX is different from the configured prefix (in config.{hpp,mk}),
+# update config.hpp (config.mk is updated below) and rebuild globals.o and the
+# library before installation.
 install: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 	mkdir -p $(PREFIX_LIB)
 # install static and/or shared library
 	$(if $(static),$(INSTALL) -m 640 $(BLD)libmfem.a $(PREFIX_LIB))
 	$(if $(shared),$(INSTALL_SHARED_LIB))
+# FIXME: install OCCA (*.okl) source files
 # install top level includes
 	mkdir -p $(PREFIX_INC)/mfem
 	$(INSTALL) -m 640 $(SRC)mfem.hpp $(SRC)mfem-performance.hpp \
@@ -478,10 +496,32 @@ help:
 	$(info $(value MFEM_HELP_MSG))
 	@true
 
+config: okl-hack
+okl-hack:
+	set -- $$(find $(SRC)backends/occa -name \*.okl); \
+	for okl; do \
+	  printf "processing file: %s\n" $${okl}; \
+	  sed -e 's#@MFEM_OKL_PREFIX@#$(MFEM_REAL_DIR)/backends/occa#g' \
+	    $${okl} > $${okl}.new; \
+	  mv -f $${okl}.new $${okl}; \
+	done
+
+clean: okl-unhack
+okl-unhack:
+	set -- $$(find $(SRC)backends/occa -name \*.okl); \
+	for okl; do \
+	  printf "processing file: %s\n" $${okl}; \
+	  sed -e 's#$(MFEM_REAL_DIR)/backends/occa#@MFEM_OKL_PREFIX@#g' \
+	    $${okl} > $${okl}.new; \
+	  mv -f $${okl}.new $${okl}; \
+	done
+
 status info:
 	$(info MFEM_VERSION         = $(MFEM_VERSION) [v$(MFEM_VERSION_STRING)])
 	$(info MFEM_GIT_STRING      = $(MFEM_GIT_STRING))
 	$(info MFEM_USE_MPI         = $(MFEM_USE_MPI))
+	$(info MFEM_USE_BACKENDS    = $(MFEM_USE_BACKENDS))
+	$(info MFEM_USE_OCCA        = $(MFEM_USE_OCCA))
 	$(info MFEM_USE_METIS       = $(MFEM_USE_METIS))
 	$(info MFEM_USE_METIS_5     = $(MFEM_USE_METIS_5))
 	$(info MFEM_DEBUG           = $(MFEM_DEBUG))
@@ -527,7 +567,7 @@ status info:
 	@true
 
 ASTYLE = astyle --options=$(SRC)config/mfem.astylerc
-FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
+FORMAT_FILES = $(foreach dir,$(ALL_SRC_DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
 
 style:
 	@if ! $(ASTYLE) $(FORMAT_FILES) | grep Formatted; then\

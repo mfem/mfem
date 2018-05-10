@@ -1,0 +1,144 @@
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
+
+#ifndef MFEM_BACKENDS_OCCA_FE_SPACE_HPP
+#define MFEM_BACKENDS_OCCA_FE_SPACE_HPP
+
+#include "../../config/config.hpp"
+#if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_OCCA)
+
+#include "engine.hpp"
+#include "operator.hpp"
+#include "../../fem/fem.hpp"
+
+namespace mfem
+{
+
+namespace occa
+{
+
+/// TODO: doxygen
+class FiniteElementSpace : public mfem::PFiniteElementSpace
+{
+protected:
+   //
+   // Inherited fields
+   //
+   // SharedPtr<const mfem::Engine> engine;
+   // mfem::FiniteElementSpace *fes;
+
+   Layout e_layout;
+
+   int *elementDofMap;
+   int *elementDofMapInverse;
+
+   ::occa::array<int> globalToLocalOffsets;
+   ::occa::array<int> globalToLocalIndices;
+   ::occa::array<int> localToGlobalMap;
+   ::occa::kernel globalToLocalKernel, localToGlobalKernel;
+
+   mfem::Ordering::Type ordering;
+
+   int globalDofs, localDofs;
+   int vdim;
+
+   mfem::Operator *restrictionOp, *prolongationOp;
+
+   void SetupLocalGlobalMaps();
+   void SetupOperators();
+   void SetupKernels();
+
+public:
+   /// TODO: doxygen
+   FiniteElementSpace(const Engine &e, mfem::FiniteElementSpace &fespace);
+
+   /// Virtual destructor
+   virtual ~FiniteElementSpace();
+
+   /// TODO: doxygen
+   const Engine &OccaEngine() const
+   { return *static_cast<const Engine *>(engine.Get()); }
+
+   /// TODO: doxygen
+   ::occa::device GetDevice(int idx = 0) const
+   { return OccaEngine().GetDevice(idx); }
+
+   mfem::Mesh* GetMesh() const { return fes->GetMesh(); }
+
+   mfem::FiniteElementSpace* GetFESpace() const { return fes; }
+
+   Layout &OccaVLayout() const
+   { return *fes->GetVLayout().As<Layout>(); }
+
+   Layout &OccaTrueVLayout() const
+   { return *fes->GetTrueVLayout().As<Layout>(); }
+
+   Layout &OccaEVLayout() { return e_layout; }
+
+
+   bool isDistributed() const { return false; /* FIXME: MPI */ }
+   bool hasTensorBasis() const
+   { return dynamic_cast<const mfem::TensorBasisElement*>(fes->GetFE(0)); }
+
+   mfem::Ordering::Type GetOrdering() const { return ordering; }
+
+   int GetGlobalDofs() const { return globalDofs; }
+   int GetLocalDofs() const { return localDofs; }
+
+   int GetDim() const { return fes->GetMesh()->Dimension(); }
+   int GetVDim() const { return vdim; }
+
+   int GetVSize() const { return globalDofs * vdim; }
+   int GetTrueVSize() const { return fes->GetTrueVSize(); }
+   int GetGlobalVSize() const { return globalDofs*vdim; /* FIXME: MPI */ }
+   int GetGlobalTrueVSize() const { return fes->GetTrueVSize(); }
+
+   int GetNE() const { return fes->GetNE(); }
+
+   const mfem::FiniteElementCollection* FEColl() const
+   { return fes->FEColl(); }
+   const mfem::FiniteElement* GetFE(const int idx) const
+   { return fes->GetFE(idx); }
+
+   const int* GetElementDofMap() const { return elementDofMap; }
+   const int* GetElementDofMapInverse() const { return elementDofMapInverse; }
+
+   const mfem::Operator* GetRestrictionOperator() { return restrictionOp; }
+   const mfem::Operator* GetProlongationOperator() { return prolongationOp; }
+
+   const ::occa::array<int> GetLocalToGlobalMap() const
+   { return localToGlobalMap; }
+
+   void GlobalToLocal(const Vector &globalVec, Vector &localVec) const
+   {
+      globalToLocalKernel(globalDofs,
+                          localDofs * fes->GetNE(),
+                          globalToLocalOffsets,
+                          globalToLocalIndices,
+                          globalVec.OccaMem(), localVec.OccaMem());
+   }
+   void LocalToGlobal(const Vector &localVec, Vector &globalVec) const
+   {
+      localToGlobalKernel(globalDofs,
+                          localDofs * fes->GetNE(),
+                          globalToLocalOffsets,
+                          globalToLocalIndices,
+                          localVec.OccaMem(), globalVec.OccaMem());
+   }
+};
+
+} // namespace mfem::occa
+
+} // namespace mfem
+
+#endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_OCCA)
+
+#endif // MFEM_BACKENDS_OCCA_FE_SPACE_HPP

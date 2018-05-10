@@ -24,6 +24,13 @@ protected:
    int height; ///< Dimension of the output / number of rows in the matrix.
    int width;  ///< Dimension of the input / number of columns in the matrix.
 
+#ifdef MFEM_USE_BACKENDS
+   /// Optional rows/input layout (smart shared pointer)
+   DLayout in_layout;
+   /// Optional columns/output layout (smart shared pointer)
+   DLayout out_layout;
+#endif
+
 public:
    /// Construct a square Operator with given size s (default 0).
    explicit Operator(int s = 0) { height = width = s; }
@@ -31,6 +38,29 @@ public:
    /** @brief Construct an Operator with the given height (output size) and
        width (input size). */
    Operator(int h, int w) { height = h; width = w; }
+
+   /// Create an Operator with the same dimensions as @a A or @a A^t.
+   Operator(const Operator &A, bool transpose = false)
+      : height(transpose ? A.width : A.height),
+        width(transpose ? A.height : A.width)
+#ifdef MFEM_USE_BACKENDS
+      , in_layout(transpose ? A.out_layout : A.in_layout),
+        out_layout(transpose ? A.in_layout : A.out_layout)
+#endif
+   { }
+
+   /** @brief Create an Operator with the same number of columns (input size) as
+       the input size of @a B or @a B^t, and the same number of rows (output
+       size) as the output size of @a A or @a A^t. */
+   Operator(const Operator &A, const Operator &B,
+            bool transposeA = false, bool transposeB = false)
+      : height(transposeA ? A.width : A.height),
+        width(transposeB ? B.height : B.width)
+#ifdef MFEM_USE_BACKENDS
+      , in_layout(transposeB ? B.out_layout : B.in_layout),
+        out_layout(transposeA ? A.in_layout : A.out_layout)
+#endif
+   { }
 
    /// Get the height (size of output) of the Operator. Synonym with NumRows().
    inline int Height() const { return height; }
@@ -43,6 +73,37 @@ public:
    /** @brief Get the number of columns (size of input) of the Operator. Synonym
        with Width(). */
    inline int NumCols() const { return width; }
+
+#ifdef MFEM_USE_BACKENDS
+   /// Construct a square Operator with given rows/input-columns/output layout.
+   /** FIXME: @a layout must be sharable ... */
+   explicit Operator(PLayout &layout)
+      : height(layout.Size()), width(layout.Size()),
+        in_layout(&layout), out_layout(&layout)
+   { }
+
+   /** @brief Construct an Operator with the given rows/input (@a in_layout_)
+       and columns/output (@a out_layout_) layouts. */
+   /** @note The order of the layout parameters in this constructor corresponds
+       to an ordering (width, height) which is inverted compared to the
+       constructor using two integers as input where the ordering is (height,
+       width).
+
+       FIXME: @a in_layout_ and @a out_layout_ must be sharable ...
+   */
+   Operator(PLayout &in_layout_, PLayout &out_layout_)
+      : height(out_layout_.Size()), width(in_layout_.Size()),
+        in_layout(&in_layout_), out_layout(&out_layout_)
+   { }
+
+   /// Get the rows/input layout of the Operator.
+   /** @note The size of the returned layout is the width/number of columns. */
+   inline const DLayout &InLayout() const { return in_layout; }
+
+   /// Get the columns/output layout of the Operator.
+   /** @note The size of the returned layout is the height/number of rows. */
+   inline const DLayout &OutLayout() const { return out_layout; }
+#endif
 
    /// Operator application: `y=A(x)`.
    virtual void Mult(const Vector &x, Vector &y) const = 0;
@@ -294,8 +355,14 @@ public:
    /// Create an identity operator of size @a n.
    explicit IdentityOperator(int n) : Operator(n) { }
 
-   /// Operator application
-   virtual void Mult(const Vector &x, Vector &y) const { y = x; }
+#ifdef MFEM_USE_BACKENDS
+   /// Create an identity operator using the given @a layout.
+   explicit IdentityOperator(PLayout &layout) : Operator(layout) { }
+#endif
+
+   virtual void Mult(const Vector &x, Vector &y) const { y.Assign(x); }
+
+   virtual void MultTranspose(const Vector &x, Vector &y) const { y.Assign(x); }
 };
 
 
@@ -401,7 +468,7 @@ public:
 class ConstrainedOperator : public Operator
 {
 protected:
-   Array<int> constraint_list;  ///< List of constrained indices/dofs.
+   Array<const int> constraint_list;  ///< List of constrained indices/dofs.
    Operator *A;                 ///< The unconstrained Operator.
    bool own_A;                  ///< Ownership flag for A.
    mutable Vector z, w;         ///< Auxiliary vectors.

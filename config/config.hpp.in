@@ -33,6 +33,12 @@
 // Description of the git commit used to build MFEM.
 // #define MFEM_GIT_STRING "@MFEM_GIT_STRING@"
 
+// The absolute path of the MFEM source prefix
+// #define MFEM_SOURCE_DIR "@MFEM_SOURCE_DIR@"
+
+// The absolute path of the MFEM installation prefix
+// #define MFEM_INSTALL_DIR "@MFEM_INSTALL_DIR@"
+
 // Build the parallel MFEM library.
 // Requires an MPI compiler, and the libraries HYPRE and METIS.
 // #define MFEM_USE_MPI
@@ -108,6 +114,12 @@
 
 // Enable functionality based on the MPFR library.
 // #define MFEM_USE_MPFR
+
+// Enable the use of MFEM backends.
+// #define MFEM_USE_BACKENDS
+
+// Enable the OCCA backend.
+// #define MFEM_USE_OCCA
 
 // Windows specific options
 #ifdef _WIN32

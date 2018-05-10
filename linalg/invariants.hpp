@@ -24,7 +24,7 @@ namespace mfem
 /** @brief Auxiliary class used as the default for the second template parameter
     in the classes InvariantsEvaluator2D and InvariantsEvaluator3D. */
 template <typename scalar_t>
-struct ScalarOps
+struct ScalarOpsIE
 {
    static scalar_t sign(const scalar_t &a)
    { return (a >= scalar_t(0)) ? scalar_t(1) : scalar_t(-1); }
@@ -45,7 +45,7 @@ struct ScalarOps
 
         scalar_t sign(const scalar_t &);
 */
-template <typename scalar_t, typename scalar_ops = ScalarOps<scalar_t> >
+template <typename scalar_t, typename scalar_ops = ScalarOpsIE<scalar_t> >
 class InvariantsEvaluator2D
 {
 protected:
@@ -493,7 +493,7 @@ public:
         scalar_t sign(const scalar_t &);
         scalar_t pow(const scalar_t &x, int a, int b); // x^(a/b)
 */
-template <typename scalar_t, typename scalar_ops = ScalarOps<scalar_t> >
+template <typename scalar_t, typename scalar_ops = ScalarOpsIE<scalar_t> >
 class InvariantsEvaluator3D
 {
 protected:

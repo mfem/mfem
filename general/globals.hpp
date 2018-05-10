@@ -69,6 +69,13 @@ extern OutStream out;
 extern OutStream err;
 
 
+/// TODO: doxygen
+extern const char *GetSourcePath();
+
+/// TODO: doxygen
+extern const char *GetInstallPath();
+
+
 /** @brief Construct a string of the form "<prefix><myid><suffix>" where the
     integer @a myid is padded with leading zeros to be at least @a width digits
     long. */

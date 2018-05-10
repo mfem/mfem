@@ -38,6 +38,11 @@ protected:
    /// FE space on which the form lives.
    FiniteElementSpace *fes;
 
+#ifdef MFEM_USE_BACKENDS
+   /// Device/Engine extension (smart shared pointer)
+   DBilinearForm dev_ext;
+#endif
+
    /// Indicates the Mesh::sequence corresponding to the current state of the
    /// BilinearForm.
    long sequence;
@@ -284,6 +289,37 @@ public:
 
    /// Form the linear system matrix A, see FormLinearSystem() for details.
    void FormSystemMatrix(const Array<int> &ess_tdof_list, SparseMatrix &A);
+
+   /** Form the linear system @a A @a X = @a B, corresponding to the bilinear
+       form and the r.h.s. linear form (vector) @a b, by applying any necessary
+       transformations such as: eliminating boundary conditions; applying
+       conforming constraints for non-conforming AMR; parallel assembly; static
+       condensation; hybridization.
+
+       The GridFunction-size vector @a x must contain the essential b.c. The
+       BilinearForm and the LinearForm-size vector @a b must be assembled.
+
+       The vector @a X is initialized with a suitable initial guess: when using
+       hybridization, the vector @a X is set to zero; otherwise, the essential
+       entries of @a X are set to the corresponding b.c. and all other entries
+       are set to zero (if @a copy_interior == 0) or copied from @a x (if
+       @a copy_interior != 0).
+
+       This method can be called multiple times (with the same @a ess_tdof_list
+       array) to initialize different right-hand sides and boundary condition
+       values.
+
+       After solving the linear system, the finite element solution @a x can be
+       recovered by calling RecoverFEMSolution() (with the same vectors @a X,
+       @a b, and @a x). */
+   virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
+                                 Vector &x, Vector &b,
+                                 OperatorHandle &A, Vector &X, Vector &B,
+                                 int copy_interior = 0);
+
+   /// Form the linear system matrix @a A, see FormLinearSystem() for details.
+   virtual void FormSystemMatrix(const Array<int> &ess_tdof_list,
+                                 OperatorHandle &A);
 
    /// Recover the solution of a linear system formed with FormLinearSystem().
    /** Call this method after solving a linear system constructed using the

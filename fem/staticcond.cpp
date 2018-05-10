@@ -443,14 +443,16 @@ void StaticCondensation::ConvertMarkerToReducedTrueDofs(
    const int nedofs = tr_fes->GetVSize();
    const SparseMatrix *R = fes->GetRestrictionMatrix();
    Array<int> ess_dof_marker;
+   Array<const int> ess_dof_marker_const;
    if (!R)
    {
-      ess_dof_marker.MakeRef(ess_tdof_marker);
+      ess_dof_marker_const.MakeConstRef(ess_tdof_marker);
    }
    else
    {
       ess_dof_marker.SetSize(fes->GetVSize());
       R->BooleanMultTranspose(ess_tdof_marker, ess_dof_marker);
+      ess_dof_marker_const.MakeConstRef(ess_dof_marker);
    }
    const SparseMatrix *tr_R = tr_fes->GetRestrictionMatrix();
    Array<int> ess_rdof_marker;
@@ -465,7 +467,7 @@ void StaticCondensation::ConvertMarkerToReducedTrueDofs(
    }
    for (int i = 0; i < nedofs; i++)
    {
-      ess_rdof_marker[i] = ess_dof_marker[rdof_edof[i]];
+      ess_rdof_marker[i] = ess_dof_marker_const[rdof_edof[i]];
    }
    if (tr_R)
    {

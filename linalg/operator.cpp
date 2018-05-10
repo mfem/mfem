@@ -114,9 +114,16 @@ ProductOperator::~ProductOperator()
 
 RAPOperator::RAPOperator(const Operator &Rt_, const Operator &A_,
                          const Operator &P_)
-   : Operator(Rt_.Width(), P_.Width()), Rt(Rt_), A(A_), P(P_),
-     Px(P.Height()), APx(A.Height())
+   : Operator(P_, Rt_, false, true),
+     Rt(Rt_), A(A_), P(P_)
 {
+#ifdef MFEM_USE_BACKENDS
+   P.OutLayout() ? Px.Resize(P.OutLayout()) : Px.SetSize(P.Height());
+   A.OutLayout() ? APx.Resize(A.OutLayout()) : APx.SetSize(A.Height());
+#else
+   Px.SetSize(P.Height());
+   APx.SetSize(A.Height());
+#endif
    MFEM_VERIFY(Rt.Height() == A.Height(),
                "incompatible Operators: Rt.Height() = " << Rt.Height()
                << ", A.Height() = " << A.Height());
@@ -155,7 +162,7 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
                                          bool _own_A)
    : Operator(A->Height(), A->Width()), A(A), own_A(_own_A)
 {
-   constraint_list.MakeRef(list);
+   constraint_list.MakeConstRef(list);
    z.SetSize(height);
    w.SetSize(height);
 }

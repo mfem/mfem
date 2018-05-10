@@ -377,6 +377,12 @@ void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
    {
       R->BooleanMult(ess_vdofs, ess_tdofs);
    }
+#ifdef MFEM_USE_BACKENDS
+   if (dev_ext)
+   {
+      ess_tdof_list.SetEngine(dev_ext->GetEngine());
+   }
+#endif
    MarkerToList(ess_tdofs, ess_tdof_list);
 }
 
@@ -389,12 +395,14 @@ void FiniteElementSpace::MarkerToList(const Array<int> &marker,
    {
       if (marker[i]) { num_marked++; }
    }
+   list.Resize(num_marked);
+   list.Pull(false);
    list.SetSize(0);
-   list.Reserve(num_marked);
    for (int i = 0; i < marker.Size(); i++)
    {
       if (marker[i]) { list.Append(i); }
    }
+   list.Push();
 }
 
 // static method
@@ -642,8 +650,22 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    if (n_true_dofs == ndofs)
    {
       cP = cR = NULL; // will be treated as identities
+#ifdef MFEM_USE_BACKENDS
+      t_layout = v_layout;
+#endif
       return;
    }
+
+#ifdef MFEM_USE_BACKENDS
+   if (mesh->HasEngine())
+   {
+      t_layout = mesh->GetEngine().MakeLayout(n_true_dofs*vdim);
+   }
+   else
+   {
+      t_layout.Reset(new PLayout(n_true_dofs*vdim));
+   }
+#endif
 
    // create the conforming restriction matrix cR
    int *cR_J;
@@ -755,27 +777,6 @@ void FiniteElementSpace::MakeVDimMatrix(SparseMatrix &mat) const
 
    mat.Swap(*vmat);
    delete vmat;
-}
-
-
-const SparseMatrix* FiniteElementSpace::GetConformingProlongation() const
-{
-   if (Conforming()) { return NULL; }
-   if (!cP_is_set) { BuildConformingInterpolation(); }
-   return cP;
-}
-
-const SparseMatrix* FiniteElementSpace::GetConformingRestriction() const
-{
-   if (Conforming()) { return NULL; }
-   if (!cP_is_set) { BuildConformingInterpolation(); }
-   return cR;
-}
-
-int FiniteElementSpace::GetNConformingDofs() const
-{
-   const SparseMatrix* P = GetConformingProlongation();
-   return P ? (P->Width() / vdim) : ndofs;
 }
 
 SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
@@ -1108,7 +1109,7 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
    {
       if (!mesh->NURBSext)
       {
-         mfem_error("FiniteElementSpace::FiniteElementSpace :\n"
+         mfem_error("FiniteElementSpace::Constructor :\n"
                     "   NURBS FE space requires NURBS mesh.");
       }
 
@@ -1124,7 +1125,7 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
       }
       UpdateNURBS();
       cP = cR = NULL;
-      cP_is_set = false;
+      cP_is_set = true;
    }
    else
    {
@@ -1133,6 +1134,22 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
       Construct();
    }
    BuildElementToDofTable();
+
+#ifdef MFEM_USE_BACKENDS
+   if (mesh->HasEngine())
+   {
+      v_layout = mesh->GetEngine().MakeLayout(GetVSize());
+      if (cP_is_set) { t_layout = v_layout; }
+      // Ensure GetVLayout() and GetTrueVLayout() will work correctly before
+      // calling MakeFESpace().
+      dev_ext = mesh->GetEngine().MakeFESpace(*this);
+   }
+   else
+   {
+      v_layout.Reset(new PLayout(GetVSize()));
+      if (cP_is_set) { t_layout = v_layout; }
+   }
+#endif
 }
 
 NURBSExtension *FiniteElementSpace::StealNURBSext()
@@ -1160,10 +1177,14 @@ void FiniteElementSpace::UpdateNURBS()
    ndofs = NURBSext->GetNDof();
    elem_dof = NURBSext->GetElementDofTable();
    bdrElem_dof = NURBSext->GetBdrElementDofTable();
+
+   // TODO: update v_layout, t_layout
 }
 
 void FiniteElementSpace::Construct()
 {
+   // called in parallel by ParFiniteElementSpace::Update()
+
    // This method should be used only for non-NURBS spaces.
    MFEM_ASSERT(!NURBSext, "internal error");
 
@@ -1188,7 +1209,7 @@ void FiniteElementSpace::Construct()
    fdofs = NULL;
    cP = NULL;
    cR = NULL;
-   cP_is_set = false;
+   cP_is_set = Conforming();
    // Th is initialized/destroyed before this method is called.
 
    if (mesh->Dimension() == 3 && mesh->GetNE())
@@ -1635,6 +1656,10 @@ FiniteElementSpace::~FiniteElementSpace()
 
 void FiniteElementSpace::Destroy()
 {
+   // called in parallel by ParFiniteElementSpace::Update()
+
+   // For now, do not reset dev_ext and/or v_layout, t_layout
+
    delete cR;
    delete cP;
    Th.Clear();

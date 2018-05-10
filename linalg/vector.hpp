@@ -16,6 +16,10 @@
 
 #include "../general/array.hpp"
 #include "../general/globals.hpp"
+#include "../general/scalars.hpp"
+#ifdef MFEM_USE_BACKENDS
+#include "../backends/base/backend.hpp"
+#endif
 #ifdef MFEM_USE_SUNDIALS
 #include <nvector/nvector_serial.h>
 #endif
@@ -44,50 +48,207 @@ inline double infinity()
    return std::numeric_limits<double>::infinity();
 }
 
-/// Vector data type.
-class Vector
+
+/// TODO: doxygen
+template <typename scalar_t, typename idx_t>
+class BVector : public BArray<scalar_t,idx_t>
 {
 protected:
-
-   int size, allocsize;
-   double * data;
+   typedef BArray<scalar_t,idx_t> base_class;
 
 public:
+   typedef scalar_t scalar_type;
 
+   /// @brief Resize the vector to size @a new_size.
+   /** If the new size is less than or equal to Capacity() then the internal
+       data array remains the same. Otherwise, the old array is deleted, if
+       owned, and a new array of size @a s is allocated without copying the
+       previous content of the vector.
+       @warning In the second case above (new size greater than current one),
+       the vector will allocate new data array, even if it did not own the
+       original data! Also, new entries are not initialized! */
+   inline void SetSize(idx_t new_size);
+
+   BVector &operator=(const scalar_t &value)
+   { base_class::operator=(value); return *this; }
+
+   BVector &operator=(const scalar_t *src)
+   { base_class::operator=(src); return *this; }
+};
+
+
+#ifndef MFEM_USE_BACKENDS
+struct DVector { };
+#endif
+
+
+/// Vector class template using an arbitrary entry type.
+template <typename scalar_t>
+class Vector_ : public DevExtension<BVector<scalar_t,int>,DVector>
+{
+protected:
+   typedef DevExtension<BVector<scalar_t,int>,DVector> dev_class;
+   typedef BArray<scalar_t,int> base_class;
+
+#ifdef MFEM_USE_BACKENDS
+   using dev_class::dev_ext;
+#endif
+
+   using base_class::data;
+   using base_class::size;
+   using base_class::allocsize;
+
+public:
+   Vector_() { this->SetEmpty(); }
+
+   /// Create a vector of size s.
+   /** @warning Entries are not initialized to zero! */
+   explicit Vector_(int s) { this->InitSize(s); }
+
+#ifdef MFEM_USE_BACKENDS
+   /// TODO
+   /** @warning Problem: if @a layout has engine and it is not allocated itself
+       with ::operator::new().
+
+       Should we just remove this ctor?
+   */
+   explicit Vector_(PLayout &layout) { this->InitLayout(layout); }
+
+   /// TODO
+   explicit Vector_(const DLayout &layout) { this->InitLayout(layout); }
+
+   /// TODO: doxygen; wraps a device vector.
+   /** @warning If the object @a dev_vector is not itself dynamically allocated
+       with ::operator::new(), e.g. if it is allocated in a block (on the stack)
+       or as a sub-object of another object, it's inherited method
+       RefCounted::DontDelete() must be called before the destruction of the
+       wrapper object created by this constructor.
+
+       Should we just remove this ctor?
+   */
+   explicit Vector_(PVector &dev_vector)
+      : dev_class(dev_vector) { }
+#endif
+
+   /** @brief Copy constructor. Create an Vector_ of the same size/layout as
+       @a orig and if @a copy_data == true, copy the contents from @a orig. */
+   Vector_(const Vector_ &orig, bool copy_data = true)
+   { this->InitClone(orig, copy_data); }
+
+   /// Creates a vector referencing an array of scalar_t, owned by someone else.
+   Vector_(scalar_t *data, int size)
+   { this->InitDataAndSize(data, size, false); }
+
+   /// Destroys vector.
+   virtual ~Vector_() { }
+
+#ifdef MFEM_USE_BACKENDS
+   /// TODO: doxygen
+   PVector *Get_PVector() { return dev_ext.Get(); }
+
+   /// TODO: doxygen
+   const PVector *Get_PVector() const { return dev_ext.Get(); }
+#endif
+
+   /// Access Vector entries using () for 0-based indexing.
+   /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
+   scalar_t &operator()(int i) { return this->operator[](i); }
+
+   /// Read only access to Vector entries using () for 0-based indexing.
+   /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
+   const scalar_t &operator()(int i) const { return this->operator[](i); }
+
+   /// TODO
+   /// Note: return dot(*this, x) where dot(a, b) = sum_i a_i * conj(b_i)
+   inline scalar_t DotProduct(const Vector_ &x) const;
+
+   /// TODO
+   inline void Axpby(const scalar_t &a, const Vector_ &x,
+                     const scalar_t &b, const Vector_ &y);
+
+   /// Destroy (clear) a vector, deleting any owned data.
+   inline void Destroy() { this->Clear(); dev_ext.Reset(); }
+
+   /// Swap the contents of two Vectors
+   inline void Swap(Vector_ &other);
+
+
+   // The remaining methods only work when the Vector_(s) are on the host.
+
+   /// Redefine '=' for Vector_ = constant.
+   inline Vector_ &operator=(const scalar_t &value)
+   { this->base_class::operator=(value); return *this; }
+
+   /// Redefine '=' for Vector_ = scalar_t *.
+   inline Vector_ &operator=(const scalar_t *v)
+   { this->base_class::operator=(v); return *this; }
+
+   /// Redefine '=' for Vector_ = Vector_.
+   inline Vector_ &operator=(const Vector_ &rhs)
+   { this->base_class::operator=(rhs); return *this; }
+
+   /// Dot product with another Vector_.
+   inline scalar_t operator*(const Vector_ &x) const;
+
+   /// Perform *this = a*x + b*y.
+   inline void Sum(const scalar_t &a, const Vector_ &x,
+                   const scalar_t &b, const Vector_ &y);
+};
+
+
+/// Vector data type.
+class Vector : public Vector_<double>
+{
+public:
    /// Default constructor for Vector. Sets size = 0 and data = NULL.
-   Vector () { allocsize = size = 0; data = 0; }
+   Vector() : Vector_<double>() { }
 
-   /// Copy constructor. Allocates a new data array and copies the data.
-   Vector(const Vector &);
+   /** @brief Copy constructor. Create a Vector of the same size/layout as
+       @a orig and if @a copy_data == true, copy the contents from @a orig. */
+   Vector(const Vector &orig, bool copy_data = true)
+      : Vector_<double>(orig, copy_data) { }
 
    /// @brief Creates vector of size s.
    /// @warning Entries are not initialized to zero!
-   explicit Vector (int s);
+   explicit Vector(int s) : Vector_<double>(s) { }
 
    /// Creates a vector referencing an array of doubles, owned by someone else.
-   /** The pointer @a _data can be NULL. The data array can be replaced later
+   /** The pointer @a data can be NULL. The data array can be replaced later
        with SetData(). */
-   Vector (double *_data, int _size)
-   { data = _data; size = _size; allocsize = -size; }
+   Vector(double *data, int size) : Vector_<double>(data, size) { }
+
+#ifdef MFEM_USE_BACKENDS
+   /// TODO
+   /** @warning Problem: if @a layout has engine and it is not allocated itself
+       with ::operator::new().
+
+       Should we just remove this ctor?
+   */
+   explicit Vector(PLayout &layout) : Vector_<double>(layout) { }
+
+   /// TODO
+   explicit Vector(const DLayout &layout) : Vector_<double>(layout) { }
+
+   /// TODO: doxygen; wraps a device vector.
+   /** @warning If the object @a dev_vector is not itself dynamically allocated
+       with ::operator::new(), e.g. if it is allocated in a block (on the stack)
+       or as a sub-object of another object, it's inherited method
+       RefCounted::DontDelete() must be called before the destruction of the
+       wrapper object created by this constructor.
+
+       Should we just remove this ctor?
+   */
+   explicit Vector(PVector &dev_vector) : Vector_<double>(dev_vector) { }
+#endif
 
    /// Reads a vector from multiple files
-   void Load (std::istream ** in, int np, int * dim);
+   void Load(std::istream ** in, int np, int * dim);
 
    /// Load a vector from an input stream.
    void Load(std::istream &in, int Size);
 
    /// Load a vector from an input stream, reading the size from the stream.
    void Load(std::istream &in) { int s; in >> s; Load (in, s); }
-
-   /// @brief Resize the vector to size @a s.
-   /** If the new size is less than or equal to Capacity() then the internal
-       data array remains the same. Otherwise, the old array is deleted, if
-       owned, and a new array of size @a s is allocated without copying the
-       previous content of the Vector.
-       @warning In the second case above (new size greater than current one),
-       the vector will allocate new data array, even if it did not own the
-       original data! Also, new entries are not initialized! */
-   void SetSize(int s);
 
    /// Set the Vector data.
    /// @warning This method should be called only when OwnsData() is false.
@@ -98,30 +259,13 @@ public:
        also used as the new Capacity().
        @warning This method should be called only when OwnsData() is false.
        @sa NewDataAndSize(). */
-   void SetDataAndSize(double *d, int s)
-   { data = d; size = s; allocsize = -s; }
+   void SetDataAndSize(double *d, int s) { this->InitAll(d, s, -s); }
 
    /// Set the Vector data and size, deleting the old data, if owned.
    /** The Vector does not assume ownership of the new data. The new size is
        also used as the new Capacity().
        @sa SetDataAndSize(). */
-   void NewDataAndSize(double *d, int s)
-   {
-      if (allocsize > 0) { delete [] data; }
-      SetDataAndSize(d, s);
-   }
-
-   void MakeDataOwner() { allocsize = abs(allocsize); }
-
-   /// Destroy a vector
-   void Destroy();
-
-   /// Returns the size of the vector.
-   inline int Size() const { return size; }
-
-   /// Return the size of the currently allocated data array.
-   /** It is always true that Capacity() >= Size(). */
-   inline int Capacity() const { return abs(allocsize); }
+   void NewDataAndSize(double *d, int s) { this->MakeRef(d, s); }
 
    /// Return a pointer to the beginning of the Vector data.
    /** @warning This method should be used with caution as it gives write access
@@ -129,37 +273,16 @@ public:
    inline double *GetData() const { return data; }
 
    /// Conversion to `double *`.
-   /** @note This conversion function makes it possible to use [] for indexing
-       in addition to the overloaded operator()(int). */
    inline operator double *() { return data; }
 
    /// Conversion to `const double *`.
-   /** @note This conversion function makes it possible to use [] for indexing
-       in addition to the overloaded operator()(int). */
    inline operator const double *() const { return data; }
 
-   inline bool OwnsData() const { return (allocsize > 0); }
-
-   /// Changes the ownership of the data; after the call the Vector is empty
-   inline void StealData(double **p)
-   { *p = data; data = 0; size = allocsize = 0; }
-
-   /// Changes the ownership of the data; after the call the Vector is empty
-   inline double *StealData() { double *p; StealData(&p); return p; }
-
    /// Access Vector entries. Index i = 0 .. size-1.
-   double & Elem (int i);
+   double &Elem(int i);
 
    /// Read only access to Vector entries. Index i = 0 .. size-1.
-   const double & Elem (int i) const;
-
-   /// Access Vector entries using () for 0-based indexing.
-   /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
-   inline double & operator() (int i);
-
-   /// Read only access to Vector entries using () for 0-based indexing.
-   /** @note If MFEM_DEBUG is enabled, bounds checking is performed. */
-   inline const double & operator() (int i) const;
+   const double &Elem(int i) const;
 
    /// Dot product with a `double *` array.
    double operator*(const double *) const;
@@ -167,14 +290,17 @@ public:
    /// Return the inner-product.
    double operator*(const Vector &v) const;
 
-   /// Copy Size() entries from @a v.
-   Vector & operator=(const double *v);
+   /// Copy Size() entries from @a src.
+   Vector & operator=(const double *src)
+   { base_class::operator=(src); return *this; }
 
    /// Redefine '=' for vector = vector.
-   Vector & operator=(const Vector &v);
+   Vector & operator=(const Vector &rhs)
+   { base_class::operator=(rhs); return *this; }
 
    /// Redefine '=' for vector = constant.
-   Vector & operator=(double value);
+   Vector & operator=(double value)
+   { base_class::operator=(value); return *this; }
 
    Vector & operator*=(double c);
 
@@ -187,18 +313,15 @@ public:
    Vector & operator+=(const Vector &v);
 
    /// (*this) += a * Va
-   Vector & Add(const double a, const Vector &Va);
+   Vector &Add(const double a, const Vector &Va);
 
    /// (*this) = a * x
-   Vector & Set(const double a, const Vector &x);
+   Vector &Set(const double a, const Vector &x);
 
-   void SetVector (const Vector &v, int offset);
+   void SetVector(const Vector &v, int offset);
 
    /// (*this) = -(*this)
    void Neg();
-
-   /// Swap the contents of two Vectors
-   inline void Swap(Vector &other);
 
    /// Set v = v1 + v2.
    friend void add(const Vector &v1, const Vector &v2, Vector &v);
@@ -267,12 +390,9 @@ public:
    /// Compute the Euclidean distance to another vector.
    inline double DistanceTo(const double *p) const;
 
-   /** Count the number of entries in the Vector for which isfinite
+   /** @brief Count the number of entries in the Vector for which isfinite
        is false, i.e. the entry is a NaN or +/-Inf. */
    int CheckFinite() const { return mfem::CheckFinite(data, size); }
-
-   /// Destroys vector.
-   virtual ~Vector ();
 
 #ifdef MFEM_USE_SUNDIALS
    /// Construct a wrapper Vector from SUNDIALS N_Vector.
@@ -311,85 +431,113 @@ inline int CheckFinite(const double *v, const int n)
    return bad;
 }
 
-inline Vector::Vector (int s)
+
+// Inline methods: class BVector
+
+template <typename scalar_t, typename idx_t>
+inline void BVector<scalar_t,idx_t>::SetSize(idx_t new_size)
 {
-   if (s > 0)
+   if (new_size > this->Capacity())
    {
-      allocsize = size = s;
-      data = new double[s];
+      this->template GrowSizeNoCopy<1,0>(new_size);
+   }
+   this->size = new_size;
+}
+
+
+// Inline methods: class Vector_
+
+template <typename scalar_t>
+inline scalar_t Vector_<scalar_t>::DotProduct(const Vector_ &x) const
+{
+#ifdef MFEM_USE_BACKENDS
+   MFEM_ASSERT(bool(dev_ext) == bool(x.dev_ext), "");
+   return (dev_ext ? dev_ext->template DotProduct<scalar_t>(*x.dev_ext) :
+           operator*(x));
+#else
+   operator*(x);
+#endif
+}
+
+template <typename scalar_t>
+inline void Vector_<scalar_t>::Axpby(const scalar_t &a, const Vector_ &x,
+                                     const scalar_t &b, const Vector_ &y)
+{
+#ifdef MFEM_USE_BACKENDS
+   dev_ext ? dev_ext->Axpby(a, *x.dev_ext, b, *y.dev_ext) : Sum(a, x, b, y);
+#else
+   Sum(a, x, b, y);
+#endif
+}
+
+template <typename scalar_t>
+inline scalar_t Vector_<scalar_t>::operator*(const Vector_ &x) const
+{
+   scalar_t result = scalar_t(0);
+   for (int i = 0; i < size; i++)
+   {
+      result += data[i] * mfem::ScalarOps<scalar_t>::conj(x[i]);
+   }
+   return result;
+}
+
+template <typename scalar_t>
+inline void Vector_<scalar_t>::Sum(const scalar_t &a, const Vector_ &x,
+                                   const scalar_t &b, const Vector_ &y)
+{
+   MFEM_ASSERT(size == x.size, "");
+   MFEM_ASSERT(size == y.size, "");
+   if (b == scalar_t(0))
+   {
+      if (a == scalar_t(0))
+      {
+         operator=(scalar_t(0));
+      }
+      else
+      {
+         for (int i = 0; i < size; i++)
+         {
+            data[i] = a*x.data[i];
+         }
+      }
    }
    else
    {
-      allocsize = size = 0;
-      data = NULL;
+      if (a == scalar_t(0))
+      {
+         for (int i = 0; i < size; i++)
+         {
+            data[i] = b*y.data[i];
+         }
+      }
+      else
+      {
+         for (int i = 0; i < size; i++)
+         {
+            data[i] = a*x.data[i] + b*y.data[i];
+         }
+      }
    }
 }
 
-inline void Vector::SetSize(int s)
+template <typename scalar_t>
+inline void Vector_<scalar_t>::Swap(Vector_ &other)
 {
-   if (s == size)
-   {
-      return;
-   }
-   if (s <= abs(allocsize))
-   {
-      size = s;
-      return;
-   }
-   if (allocsize > 0)
-   {
-      delete [] data;
-   }
-   allocsize = size = s;
-   data = new double[s];
+   base_class::Swap(other);
+#ifdef MFEM_USE_BACKENDS
+   mfem::Swap(dev_ext, other.dev_ext);
+#endif
 }
 
-inline void Vector::Destroy()
-{
-   if (allocsize > 0)
-   {
-      delete [] data;
-   }
-   allocsize = size = 0;
-   data = NULL;
-}
-
-inline double & Vector::operator() (int i)
-{
-   MFEM_ASSERT(data && i >= 0 && i < size,
-               "index [" << i << "] is out of range [0," << size << ")");
-
-   return data[i];
-}
-
-inline const double & Vector::operator() (int i) const
-{
-   MFEM_ASSERT(data && i >= 0 && i < size,
-               "index [" << i << "] is out of range [0," << size << ")");
-
-   return data[i];
-}
-
-inline void Vector::Swap(Vector &other)
-{
-   mfem::Swap(size, other.size);
-   mfem::Swap(allocsize, other.allocsize);
-   mfem::Swap(data, other.data);
-}
-
-/// Specialization of the template function Swap<> for class Vector
-template<> inline void Swap<Vector>(Vector &a, Vector &b)
+/// Specialization of the template function Swap<> for class Vector_
+template <typename scalar_t>
+inline void Swap(Vector_<scalar_t> &a, Vector_<scalar_t> &b)
 {
    a.Swap(b);
 }
 
-inline Vector::~Vector()
-{
-   if (allocsize > 0)
-   {
-      delete [] data;
-   }
-}
+
+// Inline methods: class Vector
 
 inline double DistanceSquared(const double *x, const double *y, const int n)
 {

@@ -361,6 +361,28 @@ void MixedScalarVectorIntegrator::AssembleElementMatrix2(
    }
 }
 
+
+const IntegrationRule &DiffusionIntegrator::GetRule(
+   const FiniteElement &trial_fe, const FiniteElement &test_fe)
+{
+   int order;
+   if (trial_fe.Space() == FunctionSpace::Pk)
+   {
+      order = trial_fe.GetOrder() + test_fe.GetOrder() - 2;
+   }
+   else
+   {
+      // order = 2*el.GetOrder() - 2;  // <-- this seems to work fine too
+      order = trial_fe.GetOrder() + test_fe.GetOrder() + trial_fe.GetDim() - 1;
+   }
+
+   if (trial_fe.Space() == FunctionSpace::rQk)
+   {
+      return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
+   }
+   return IntRules.Get(trial_fe.GetGeomType(), order);
+}
+
 void DiffusionIntegrator::AssembleElementMatrix
 ( const FiniteElement &el, ElementTransformation &Trans,
   DenseMatrix &elmat )
@@ -383,25 +405,7 @@ void DiffusionIntegrator::AssembleElementMatrix
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int order;
-      if (el.Space() == FunctionSpace::Pk)
-      {
-         order = 2*el.GetOrder() - 2;
-      }
-      else
-         // order = 2*el.GetOrder() - 2;  // <-- this seems to work fine too
-      {
-         order = 2*el.GetOrder() + dim - 1;
-      }
-
-      if (el.Space() == FunctionSpace::rQk)
-      {
-         ir = &RefinedIntRules.Get(el.GetGeomType(), order);
-      }
-      else
-      {
-         ir = &IntRules.Get(el.GetGeomType(), order);
-      }
+      ir = &GetRule(el, el);
    }
 
    elmat = 0.0;
@@ -461,24 +465,7 @@ void DiffusionIntegrator::AssembleElementMatrix2(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int order;
-      if (trial_fe.Space() == FunctionSpace::Pk)
-      {
-         order = trial_fe.GetOrder() + test_fe.GetOrder() - 2;
-      }
-      else
-      {
-         order = trial_fe.GetOrder() + test_fe.GetOrder() + dim - 1;
-      }
-
-      if (trial_fe.Space() == FunctionSpace::rQk)
-      {
-         ir = &RefinedIntRules.Get(trial_fe.GetGeomType(), order);
-      }
-      else
-      {
-         ir = &IntRules.Get(trial_fe.GetGeomType(), order);
-      }
+      ir = &GetRule(trial_fe, test_fe);
    }
 
    elmat = 0.0;
@@ -717,6 +704,22 @@ double DiffusionIntegrator::ComputeFluxEnergy
 }
 
 
+const IntegrationRule &MassIntegrator::GetRule(const FiniteElement &trial_fe,
+                                               const FiniteElement &test_fe,
+                                               ElementTransformation &Trans,
+                                               int coeff_order)
+{
+   // int order = trial_fe.GetOrder() + test_fe.GetOrder();
+   int order = trial_fe.GetOrder() + test_fe.GetOrder() +
+               Trans.OrderW() + coeff_order;
+
+   if (trial_fe.Space() == FunctionSpace::rQk)
+   {
+      return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
+   }
+   return IntRules.Get(trial_fe.GetGeomType(), order);
+}
+
 void MassIntegrator::AssembleElementMatrix
 ( const FiniteElement &el, ElementTransformation &Trans,
   DenseMatrix &elmat )
@@ -734,17 +737,7 @@ void MassIntegrator::AssembleElementMatrix
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      // int order = 2 * el.GetOrder();
-      int order = 2 * el.GetOrder() + Trans.OrderW();
-
-      if (el.Space() == FunctionSpace::rQk)
-      {
-         ir = &RefinedIntRules.Get(el.GetGeomType(), order);
-      }
-      else
-      {
-         ir = &IntRules.Get(el.GetGeomType(), order);
-      }
+      ir = &GetRule(el, el, Trans);
    }
 
    elmat = 0.0;
@@ -783,9 +776,7 @@ void MassIntegrator::AssembleElementMatrix2(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int order = trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW();
-
-      ir = &IntRules.Get(trial_fe.GetGeomType(), order);
+      ir = &GetRule(trial_fe, test_fe, Trans);
    }
 
    elmat = 0.0;
@@ -980,16 +971,7 @@ void VectorMassIntegrator::AssembleElementMatrix
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int order = 2 * el.GetOrder() + Trans.OrderW() + Q_order;
-
-      if (el.Space() == FunctionSpace::rQk)
-      {
-         ir = &RefinedIntRules.Get(el.GetGeomType(), order);
-      }
-      else
-      {
-         ir = &IntRules.Get(el.GetGeomType(), order);
-      }
+      ir = &MassIntegrator::GetRule(el, el, Trans, Q_order);
    }
 
    elmat = 0.0;
@@ -1065,17 +1047,7 @@ void VectorMassIntegrator::AssembleElementMatrix2(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      int order = (trial_fe.GetOrder() + test_fe.GetOrder() +
-                   Trans.OrderW() + Q_order);
-
-      if (trial_fe.Space() == FunctionSpace::rQk)
-      {
-         ir = &RefinedIntRules.Get(trial_fe.GetGeomType(), order);
-      }
-      else
-      {
-         ir = &IntRules.Get(trial_fe.GetGeomType(), order);
-      }
+      ir = &MassIntegrator::GetRule(trial_fe, test_fe, Trans, Q_order);
    }
 
    elmat = 0.0;

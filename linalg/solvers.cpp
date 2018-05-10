@@ -30,7 +30,7 @@ IterativeSolver::IterativeSolver()
    print_level = -1;
    rel_tol = abs_tol = 0.0;
 #ifdef MFEM_USE_MPI
-   dot_prod_type = 0;
+   comm = MPI_COMM_NULL;
 #endif
 }
 
@@ -43,21 +43,18 @@ IterativeSolver::IterativeSolver(MPI_Comm _comm)
    max_iter = 10;
    print_level = -1;
    rel_tol = abs_tol = 0.0;
-   dot_prod_type = 1;
    comm = _comm;
 }
 #endif
 
 double IterativeSolver::Dot(const Vector &x, const Vector &y) const
 {
-#ifndef MFEM_USE_MPI
-   return (x * y);
-#else
-   if (dot_prod_type == 0)
-   {
-      return (x * y);
-   }
-   else
+#ifdef MFEM_USE_MPI
+   if (
+#ifdef MFEM_USE_BACKENDS
+      !x.Get_PVector() &&
+#endif
+      comm != MPI_COMM_NULL)
    {
       double local_dot = (x * y);
       double global_dot;
@@ -66,7 +63,11 @@ double IterativeSolver::Dot(const Vector &x, const Vector &y) const
 
       return global_dot;
    }
+   else
 #endif
+   {
+      return x.DotProduct(y);
+   }
 }
 
 void IterativeSolver::SetPrintLevel(int print_lvl)
@@ -74,7 +75,7 @@ void IterativeSolver::SetPrintLevel(int print_lvl)
 #ifndef MFEM_USE_MPI
    print_level = print_lvl;
 #else
-   if (dot_prod_type == 0)
+   if (comm == MPI_COMM_NULL)
    {
       print_level = print_lvl;
    }
@@ -101,6 +102,10 @@ void IterativeSolver::SetOperator(const Operator &op)
    oper = &op;
    height = op.Height();
    width = op.Width();
+#ifdef MFEM_USE_BACKENDS
+   in_layout = op.InLayout();
+   out_layout = op.OutLayout();
+#endif
    if (prec)
    {
       prec->SetOperator(*oper);
@@ -287,9 +292,20 @@ void SLI(const Operator &A, Solver &B, const Vector &b, Vector &x,
 
 void CGSolver::UpdateVectors()
 {
-   r.SetSize(width);
-   d.SetSize(width);
-   z.SetSize(width);
+#ifdef MFEM_USE_BACKENDS
+   if (in_layout)
+   {
+      r.Resize(in_layout);
+      d.Resize(in_layout);
+      z.Resize(in_layout);
+   }
+   else
+#endif
+   {
+      r.SetSize(width);
+      d.SetSize(width);
+      z.SetSize(width);
+   }
 }
 
 void CGSolver::Mult(const Vector &b, Vector &x) const
@@ -300,22 +316,22 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    if (iterative_mode)
    {
       oper->Mult(x, r);
-      subtract(b, r, r); // r = b - A x
+      r.Axpby(1.0, b, -1.0, r); // r = b - A x
    }
    else
    {
-      r = b;
-      x = 0.0;
+      r.Assign(b); // r = b
+      x.Fill(0.0); // x = 0
    }
 
    if (prec)
    {
       prec->Mult(r, z); // z = B r
-      d = z;
+      d.Assign(z); // d = z
    }
    else
    {
-      d = r;
+      d.Assign(r); // d = r
    }
    nom0 = nom = Dot(d, r);
    MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
@@ -358,8 +374,8 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    for (i = 1; true; )
    {
       alpha = nom/den;
-      add(x,  alpha, d, x);     //  x = x + alpha d
-      add(r, -alpha, z, r);     //  r = r - alpha A d
+      x.Axpby(1.0, x,  alpha, d);     //  x = x + alpha d
+      r.Axpby(1.0, r, -alpha, z);     //  r = r - alpha A d
 
       if (prec)
       {
@@ -402,11 +418,11 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       beta = betanom/nom;
       if (prec)
       {
-         add(z, beta, d, d);   //  d = z + beta d
+         d.Axpby(1.0, z, beta, d);   //  d = z + beta d
       }
       else
       {
-         add(r, beta, d, d);
+         d.Axpby(1.0, r, beta, d);
       }
       oper->Mult(d, z);       //  z = A d
       den = Dot(d, z);

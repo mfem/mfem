@@ -1,0 +1,181 @@
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
+
+#ifndef STORE_JACOBIAN
+#  define STORE_JACOBIAN 1
+#endif
+
+#ifndef STORE_JACOBIAN_INV
+#  define STORE_JACOBIAN_INV 1
+#endif
+
+#ifndef STORE_JACOBIAN_DET
+#  define STORE_JACOBIAN_DET 1
+#endif
+
+typedef double* Local1D_t @dim(1, NUM_DOFS, numElements);
+typedef double* Local2D_t @dim(2, NUM_DOFS, numElements);
+typedef double* Local3D_t @dim(3, NUM_DOFS, numElements);
+
+typedef double* QLocal_t @dim(NUM_QUAD, numElements);
+
+typedef double* DofToQuadD1D_t @dim(NUM_QUAD, NUM_DOFS);
+typedef double* DofToQuadD2D_t @dim(2, NUM_QUAD, NUM_DOFS);
+typedef double* DofToQuadD3D_t @dim(3, NUM_QUAD, NUM_DOFS);
+
+typedef double* Jacobian1D_t @dim(NUM_QUAD, numElements);
+typedef double* Jacobian2D_t @dim(2, 2, NUM_QUAD, numElements);
+typedef double* Jacobian3D_t @dim(3, 3, NUM_QUAD, numElements);
+
+kernel void InitGeometryInfo1D(const int numElements,
+                               const DofToQuadD1D_t restrict dofToQuadD,
+                               const Local1D_t restrict nodes,
+                               Jacobian1D_t restrict J,
+                               Jacobian1D_t restrict invJ,
+                               QLocal_t restrict detJ) {
+
+  for (int e = 0; e < numElements; ++e; outer) {
+    shared double s_nodes[NUM_DOFS];
+
+    for (int q = 0; q < NUM_QUAD; ++q; inner) {
+      for (int d = q; d < NUM_DOFS; d += NUM_QUAD) {
+        s_nodes[d] = nodes(0, d, e);
+      }
+    }
+    for (int q = 0; q < NUM_QUAD; ++q; inner) {
+      double J11 = 0;
+      for (int d = 0; d < NUM_DOFS; ++d) {
+        const double wx = dofToQuadD(q, d);
+        J11 += wx * s_nodes[d];
+      }
+#if STORE_JACOBIAN
+      J(q, e) = J11;
+#endif
+#if STORE_JACOBIAN_INV
+      invJ(q, e) = 1.0 / J11;
+#endif
+#if STORE_JACOBIAN_DET
+      detJ(q, e) = J11;
+#endif
+    }
+  }
+}
+
+kernel void InitGeometryInfo2D(const int numElements,
+                               const DofToQuadD2D_t restrict dofToQuadD,
+                               const Local2D_t restrict nodes,
+                               Jacobian2D_t restrict J,
+                               Jacobian2D_t restrict invJ,
+                               QLocal_t restrict detJ) {
+
+  for (int e = 0; e < numElements; ++e; outer) {
+    shared double s_nodes[2 * NUM_DOFS] @dim(2, NUM_DOFS);
+
+    for (int q = 0; q < NUM_QUAD; ++q; inner) {
+      for (int d = q; d < NUM_DOFS; d += NUM_QUAD) {
+        s_nodes(0, d) = nodes(0, d, e);
+        s_nodes(1, d) = nodes(1, d, e);
+      }
+    }
+    for (int q = 0; q < NUM_QUAD; ++q; inner) {
+      double J11 = 0, J12 = 0;
+      double J21 = 0, J22 = 0;
+      for (int d = 0; d < NUM_DOFS; ++d) {
+        const double wx = dofToQuadD(0, q, d);
+        const double wy = dofToQuadD(1, q, d);
+        const double x = s_nodes(0, d);
+        const double y = s_nodes(1, d);
+        J11 += (wx * x); J12 += (wx * y);
+        J21 += (wy * x); J22 += (wy * y);
+      }
+#if STORE_JACOBIAN_INV || STORE_JACOBIAN_DET
+      const double r_detJ = (J11 * J22) - (J12 * J21);
+#endif
+#if STORE_JACOBIAN
+      J(0, 0, q, e) = J11; J(1, 0, q, e) = J12;
+      J(0, 1, q, e) = J21; J(1, 1, q, e) = J22;
+#endif
+#if STORE_JACOBIAN_INV
+      const double r_idetJ = 1.0 / r_detJ;
+      invJ(0, 0, q, e) =  J22 * r_idetJ;
+      invJ(1, 0, q, e) = -J12 * r_idetJ;
+
+      invJ(0, 1, q, e) = -J21 * r_idetJ;
+      invJ(1, 1, q, e) =  J11 * r_idetJ;
+#endif
+#if STORE_JACOBIAN_DET
+      detJ(q, e) = r_detJ;
+#endif
+    }
+  }
+}
+
+kernel void InitGeometryInfo3D(const int numElements,
+                               const DofToQuadD3D_t restrict dofToQuadD,
+                               const Local3D_t restrict nodes,
+                               Jacobian3D_t restrict J,
+                               Jacobian3D_t restrict invJ,
+                               QLocal_t restrict detJ) {
+
+  for (int e = 0; e < numElements; ++e; outer) {
+    shared double s_nodes[3 * NUM_DOFS] @dim(3, NUM_DOFS);
+
+    for (int q = 0; q < NUM_QUAD; ++q; inner) {
+      for (int d = q; d < NUM_DOFS; d += NUM_QUAD) {
+        s_nodes(0, d) = nodes(0, d, e);
+        s_nodes(1, d) = nodes(1, d, e);
+        s_nodes(2, d) = nodes(2, d, e);
+      }
+    }
+    for (int q = 0; q < NUM_QUAD; ++q; inner) {
+      double J11 = 0, J12 = 0, J13 = 0;
+      double J21 = 0, J22 = 0, J23 = 0;
+      double J31 = 0, J32 = 0, J33 = 0;
+      for (int d = 0; d < NUM_DOFS; ++d) {
+        const double wx = dofToQuadD(0, q, d);
+        const double wy = dofToQuadD(1, q, d);
+        const double wz = dofToQuadD(2, q, d);
+        const double x = s_nodes(0, d);
+        const double y = s_nodes(1, d);
+        const double z = s_nodes(2, d);
+        J11 += (wx * x); J12 += (wx * y); J13 += (wx * z);
+        J21 += (wy * x); J22 += (wy * y); J23 += (wy * z);
+        J31 += (wz * x); J32 += (wz * y); J33 += (wz * z);
+      }
+#if STORE_JACOBIAN_INV || STORE_JACOBIAN_DET
+      const double r_detJ = ((J11 * J22 * J33) + (J12 * J23 * J31) + (J13 * J21 * J32) -
+                             (J13 * J22 * J31) - (J12 * J21 * J33) - (J11 * J23 * J32));
+#endif
+#if STORE_JACOBIAN
+      J(0, 0, q, e) = J11; J(1, 0, q, e) = J12; J(2, 0, q, e) = J13;
+      J(0, 1, q, e) = J21; J(1, 1, q, e) = J22; J(2, 1, q, e) = J23;
+      J(0, 2, q, e) = J31; J(1, 2, q, e) = J32; J(2, 2, q, e) = J33;
+#endif
+#if STORE_JACOBIAN_INV
+      const double r_idetJ = 1.0 / r_detJ;
+      invJ(0, 0, q, e) = r_idetJ * ((J22 * J33) - (J23 * J32));
+      invJ(1, 0, q, e) = r_idetJ * ((J32 * J13) - (J33 * J12));
+      invJ(2, 0, q, e) = r_idetJ * ((J12 * J23) - (J13 * J22));
+
+      invJ(0, 1, q, e) = r_idetJ * ((J23 * J31) - (J21 * J33));
+      invJ(1, 1, q, e) = r_idetJ * ((J33 * J11) - (J31 * J13));
+      invJ(2, 1, q, e) = r_idetJ * ((J13 * J21) - (J11 * J23));
+
+      invJ(0, 2, q, e) = r_idetJ * ((J21 * J32) - (J22 * J31));
+      invJ(1, 2, q, e) = r_idetJ * ((J31 * J12) - (J32 * J11));
+      invJ(2, 2, q, e) = r_idetJ * ((J11 * J22) - (J12 * J21));
+#endif
+#if STORE_JACOBIAN_DET
+      detJ(q, e) = r_detJ;
+#endif
+    }
+  }
+}

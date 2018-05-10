@@ -22,6 +22,9 @@
 #include "../fem/eltrans.hpp"
 #include "../fem/coefficient.hpp"
 #include "../general/gzstream.hpp"
+#ifdef MFEM_USE_BACKENDS
+#include "../backends/base/backend.hpp"
+#endif
 #include <iostream>
 
 namespace mfem
@@ -183,6 +186,10 @@ public:
 
 protected:
    Operation last_operation;
+
+#ifdef MFEM_USE_BACKENDS
+   SharedPtr<Engine> engine; ///< Optional associated Engine. Shared pointer.
+#endif
 
    void Init();
    void InitTables();
@@ -597,6 +604,14 @@ public:
       Loader(input, generate_edges);
       Finalize(refine, fix_orientation);
    }
+
+#ifdef MFEM_USE_BACKENDS
+   // FIXME: The Engine must be sharable, i.e. it can be stored safely in
+   //        SharedPtr<Engine>.
+   void SetEngine(Engine &e) { engine.Reset(&e); }
+   bool HasEngine() const { return engine != NULL; }
+   Engine &GetEngine() const { return *engine; }
+#endif
 
    /// Clear the contents of the Mesh.
    void Clear() { Destroy(); SetEmpty(); }

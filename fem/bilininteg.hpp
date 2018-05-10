@@ -1622,6 +1622,13 @@ public:
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);
+
+   virtual const char *Name() const { return "diffusion"; }
+
+   virtual Coefficient *GetScalarCoefficient() const { return Q; }
+
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe);
 };
 
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
@@ -1649,6 +1656,15 @@ public:
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
+
+   virtual const char *Name() const { return "mass"; }
+
+   virtual Coefficient *GetScalarCoefficient() const { return Q; }
+
+   static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe,
+                                         ElementTransformation &Trans,
+                                         int coeff_order = 0);
 };
 
 class BoundaryMassIntegrator : public MassIntegrator

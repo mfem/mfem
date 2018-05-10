@@ -1,0 +1,67 @@
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
+
+/*
+  ---[ Defines Known At Compile-Time ]------------
+  TILESIZE : Tilesize for iterating over entries
+  ================================================
+*/
+
+#if VDIM_ORDERING == ORDERING_BY_VDIM
+typedef double *Global_t @dim(NUM_VDIM, globalEntries);
+typedef double *Local_t  @dim(NUM_VDIM, localEntries);
+#else
+typedef double *Global_t @(dim(NUM_VDIM, globalEntries), idxOrder(1, 0));
+typedef double *Local_t  @(dim(NUM_VDIM, localEntries), idxOrder(1, 0));
+#endif
+
+kernel void GlobalToLocal(const int globalEntries,
+                          const int localEntries,
+                          const int * restrict offsets,
+                          const int * restrict indices,
+                          const Global_t restrict globalX,
+                          Local_t restrict localX) {
+
+  for (int i = 0; i < globalEntries; ++i; tile(TILESIZE)) {
+    if (i < globalEntries) {
+      const int offset = offsets[i];
+      const int nextOffset = offsets[i + 1];
+      for (int v = 0; v < NUM_VDIM; ++v) {
+        const double dofValue = globalX(v, i);
+        for (int j = offset; j < nextOffset; ++j) {
+          localX(v, indices[j]) = dofValue;
+        }
+      }
+    }
+  }
+}
+
+kernel void LocalToGlobal(const int globalEntries,
+                          const int localEntries,
+                          const int * restrict offsets,
+                          const int * restrict indices,
+                          const Local_t restrict localX,
+                          Global_t restrict globalX) {
+
+  for (int i = 0; i < globalEntries; ++i; tile(TILESIZE)) {
+    if (i < globalEntries) {
+      const int offset = offsets[i];
+      const int nextOffset = offsets[i + 1];
+      for (int v = 0; v < NUM_VDIM; ++v) {
+        double dofValue = 0;
+        for (int j = offset; j < nextOffset; ++j) {
+          dofValue += localX(v, indices[j]);
+        }
+        globalX(v, i) = dofValue;
+      }
+    }
+  }
+}

@@ -74,6 +74,12 @@ BilinearForm::BilinearForm (FiniteElementSpace * f)
    hybridization = NULL;
    precompute_sparsity = 0;
    diag_policy = DIAG_KEEP;
+#ifdef MFEM_USE_BACKENDS
+   if (fes->GetVLayout()->HasEngine())
+   {
+      dev_ext = fes->GetVLayout()->GetEngine().MakeBilinearForm(*this);
+   }
+#endif
 }
 
 BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
@@ -126,6 +132,14 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
 void BilinearForm::EnableStaticCondensation()
 {
    delete static_cond;
+#ifdef MFEM_USE_BACKENDS
+   if (fes->GetVLayout()->HasEngine())
+   {
+      static_cond = NULL;
+      MFEM_WARNING("Engine interface does not support static condensation yet");
+      return;
+   }
+#endif
    static_cond = new StaticCondensation(fes);
    if (static_cond->ReducesTrueVSize())
    {
@@ -145,6 +159,15 @@ void BilinearForm::EnableHybridization(FiniteElementSpace *constr_space,
                                        const Array<int> &ess_tdof_list)
 {
    delete hybridization;
+#ifdef MFEM_USE_BACKENDS
+   if (fes->GetVLayout()->HasEngine())
+   {
+      delete constr_integ;
+      hybridization = NULL;
+      MFEM_WARNING("Engine interface does not support hybridization yet");
+      return;
+   }
+#endif
    hybridization = new Hybridization(fes, constr_space);
    hybridization->SetConstraintIntegrator(constr_integ);
    hybridization->Init(ess_tdof_list);
@@ -313,7 +336,15 @@ void BilinearForm::Assemble (int skip_zeros)
    Mesh *mesh = fes -> GetMesh();
    DenseMatrix elmat, *elmat_p;
 
-   int i;
+#ifdef MFEM_USE_BACKENDS
+   if (dev_ext)
+   {
+      // TODO: push the 'skip_zeros' as a parameter to 'dev_ext'
+
+      const bool assembly_done = dev_ext->Assemble();
+      if (assembly_done) { return; }
+   }
+#endif
 
    if (mat == NULL)
    {
@@ -331,7 +362,7 @@ void BilinearForm::Assemble (int skip_zeros)
 
    if (dbfi.Size())
    {
-      for (i = 0; i < fes -> GetNE(); i++)
+      for (int i = 0; i < fes -> GetNE(); i++)
       {
          fes->GetElementVDofs(i, vdofs);
          if (element_matrices)
@@ -388,7 +419,7 @@ void BilinearForm::Assemble (int skip_zeros)
          }
       }
 
-      for (i = 0; i < fes -> GetNBE(); i++)
+      for (int i = 0; i < fes -> GetNBE(); i++)
       {
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
@@ -426,7 +457,7 @@ void BilinearForm::Assemble (int skip_zeros)
       Array<int> vdofs2;
 
       int nfaces = mesh->GetNumFaces();
-      for (i = 0; i < nfaces; i++)
+      for (int i = 0; i < nfaces; i++)
       {
          tr = mesh -> GetInteriorFaceTransformations (i);
          if (tr != NULL)
@@ -471,7 +502,7 @@ void BilinearForm::Assemble (int skip_zeros)
          }
       }
 
-      for (i = 0; i < fes -> GetNBE(); i++)
+      for (int i = 0; i < fes -> GetNBE(); i++)
       {
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
@@ -643,9 +674,91 @@ void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
    }
 }
 
+void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
+                                    Vector &x, Vector &b,
+                                    OperatorHandle &A, Vector &X, Vector &B,
+                                    int copy_interior)
+{
+#ifdef MFEM_USE_BACKENDS
+   if (dev_ext)
+   {
+      MFEM_VERIFY(!static_cond && !hybridization, "");
+      dev_ext->FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
+   }
+   else
+#endif
+   {
+      if (A.Type() == Operator::MFEM_SPARSEMAT)
+      {
+         SparseMatrix A_sm;
+         FormLinearSystem(ess_tdof_list, x, b, A_sm, X, B, copy_interior);
+         if (static_cond)
+         {
+            A.Reset(&static_cond->GetMatrix(), false);
+         }
+         else if (hybridization)
+         {
+            A.Reset(&hybridization->GetMatrix(), false);
+         }
+         else
+         {
+            A.Reset(mat, false);
+         }
+      }
+      else
+      {
+         MFEM_ABORT("Operator::Type is not supported: type_id = " << A.Type());
+      }
+   }
+}
+
+void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
+                                    OperatorHandle &A)
+{
+#ifdef MFEM_USE_BACKENDS
+   if (dev_ext)
+   {
+      MFEM_VERIFY(!static_cond && !hybridization, "");
+      dev_ext->FormSystemMatrix(ess_tdof_list, A);
+   }
+   else
+#endif
+   {
+      if (A.Type() == Operator::MFEM_SPARSEMAT)
+      {
+         SparseMatrix A_sm;
+         FormSystemMatrix(ess_tdof_list, A_sm);
+         if (static_cond)
+         {
+            A.Reset(&static_cond->GetMatrix(), false);
+         }
+         else if (hybridization)
+         {
+            A.Reset(&hybridization->GetMatrix(), false);
+         }
+         else
+         {
+            A.Reset(mat, false);
+         }
+      }
+      else
+      {
+         MFEM_ABORT("Operator::Type is not supported: type_id = " << A.Type());
+      }
+   }
+}
+
 void BilinearForm::RecoverFEMSolution(const Vector &X,
                                       const Vector &b, Vector &x)
 {
+#ifdef MFEM_USE_BACKENDS
+   if (dev_ext)
+   {
+      dev_ext->RecoverFEMSolution(X, b, x);
+      return;
+   }
+#endif
+
    const SparseMatrix *P = fes->GetConformingProlongation();
    if (!P) // conforming space
    {
@@ -734,7 +847,8 @@ void BilinearForm::ComputeElementMatrices()
 }
 
 void BilinearForm::EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
-                                        Vector &sol, Vector &rhs, DiagonalPolicy dpolicy)
+                                        Vector &sol, Vector &rhs,
+                                        DiagonalPolicy dpolicy)
 {
    Array<int> ess_dofs, conf_ess_dofs;
    fes->GetEssentialVDofs(bdr_attr_is_ess, ess_dofs);

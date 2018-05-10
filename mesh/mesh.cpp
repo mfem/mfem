@@ -801,6 +801,9 @@ void Mesh::Init()
    NURBSext = NULL;
    ncmesh = NULL;
    last_operation = Mesh::NONE;
+#ifdef MFEM_USE_BACKENDS
+   engine.Reset();
+#endif
 }
 
 void Mesh::InitTables()
@@ -838,6 +841,8 @@ void Mesh::DestroyTables()
 
 void Mesh::DestroyPointers()
 {
+   // 'engine' is a smart shared pointer
+
    if (own_nodes) { delete Nodes; }
 
    delete ncmesh;
@@ -2427,6 +2432,10 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
       Nodes = mesh.Nodes;
       own_nodes = 0;
    }
+
+#ifdef MFEM_USE_BACKENDS
+   engine = mesh.engine;
+#endif
 }
 
 Mesh::Mesh(const char *filename, int generate_edges, int refine,
@@ -2944,6 +2953,10 @@ Mesh::Mesh(Mesh *mesh_array[], int num_pieces)
       own_nodes = 1;
    }
 
+#ifdef MFEM_USE_BACKENDS
+   engine = mesh_array[0]->engine;
+#endif
+
 #ifdef MFEM_DEBUG
    CheckElementOrientation(false);
    CheckBdrElementOrientation(false);
@@ -3070,6 +3083,10 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       emb.parent = el / r_elem_factor;
       emb.matrix = el % r_elem_factor;
    }
+
+#ifdef MFEM_USE_BACKENDS
+   engine = orig_mesh->engine;
+#endif
 
    MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
    MFEM_ASSERT(CheckBdrElementOrientation(false) == 0, "");
@@ -6260,6 +6277,10 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
 
       mfem::Swap(Nodes, other.Nodes);
       mfem::Swap(own_nodes, other.own_nodes);
+
+#ifdef MFEM_USE_BACKENDS
+      mfem::Swap(engine, other.engine);
+#endif
    }
 }
 
@@ -8797,7 +8818,7 @@ Mesh *Extrude1D(Mesh *mesh, const int ny, const double sy, const bool closed)
       {
          fec2d = new CubicFECollection;
       }
-      else if (!strncmp(name, "H1_", 3))
+      else if (!strncmp(name, "H1_", 3) && strncmp(name + 3, "Trace", 5))
       {
          fec2d = new H1_FECollection(atoi(name + 7), 2);
       }

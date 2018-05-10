@@ -1,0 +1,85 @@
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
+
+#if NUM_QUAD_1D < NUM_DOFS_1D
+#  define NUM_MAX_1D NUM_DOFS_1D
+#else
+#  define NUM_MAX_1D NUM_QUAD_1D
+#endif
+
+#define NUM_MAX_2D (NUM_MAX_1D * NUM_MAX_1D)
+
+#define NUM_QUAD_DOFS_1D (NUM_QUAD_1D * NUM_DOFS_1D)
+
+#define QUAD_2D_ID(X, Y) (X + ((Y) * NUM_QUAD_1D))
+#define DOFS_2D_ID(X, Y) (X + ((Y) * NUM_DOFS_1D))
+
+#define QUAD_3D_ID(X, Y, Z) (X + ((Y) * NUM_QUAD_1D) + ((Z) * NUM_QUAD_2D))
+#define DOFS_3D_ID(X, Y, Z) (X + ((Y) * NUM_DOFS_1D) + ((Z) * NUM_DOFS_2D))
+
+#if NUM_MAX_1D < 8
+#  define USING_LOW_ORDER 1
+#  define USING_HI_ORDER  0
+#else
+#  define USING_LOW_ORDER 0
+#  define USING_HI_ORDER  1
+#endif
+
+#define M1_ELEMENT_BATCHES (M1_OUTER_ELEMENT_BATCH * M1_INNER_ELEMENT_BATCH)
+
+typedef double* DofToQuad_t @dim(NUM_QUAD_1D, NUM_DOFS_1D);
+typedef double* QuadToDof_t @dim(NUM_DOFS_1D, NUM_QUAD_1D);
+
+typedef double* Jacobian_t   @dim(NUM_DIM, NUM_DIM, numElements);
+typedef double* Jacobian1D_t @dim(NUM_QUAD_1D, numElements);
+typedef double* Jacobian2D_t @dim(2, 2, NUM_QUAD_2D, numElements);
+typedef double* Jacobian3D_t @dim(3, 3, NUM_QUAD_3D, numElements);
+
+typedef double* SymmOperator1D_t @dim(NUM_QUAD_1D, numElements);
+typedef double* SymmOperator2D_t @dim(3, NUM_QUAD_2D, numElements);
+typedef double* SymmOperator3D_t @dim(6, NUM_QUAD_3D, numElements);
+
+typedef double* DLocal_t   @dim(NUM_DOFS, numElements);
+typedef double* DLocal1D_t @dim(NUM_DOFS_1D, numElements);
+typedef double* DLocal2D_t @dim(NUM_DOFS_1D, NUM_DOFS_1D, numElements);
+typedef double* DLocal3D_t @dim(NUM_DOFS_1D, NUM_DOFS_1D, NUM_DOFS_1D, numElements);
+
+typedef double* QLocal_t   @dim(NUM_QUAD, numElements);
+typedef double* QLocal1D_t @dim(NUM_QUAD_1D, numElements);
+typedef double* QLocal2D_t @dim(NUM_QUAD_1D, NUM_QUAD_1D, numElements);
+typedef double* QLocal3D_t @dim(NUM_QUAD_1D, NUM_QUAD_1D, NUM_QUAD_1D, numElements);
+
+#if VDIM_ORDERING == ORDERING_BY_VDIM
+typedef double* DVLocal_t   @dim(NUM_VDIM, NUM_DOFS, numElements);
+typedef double* DVLocal1D_t @dim(NUM_VDIM, NUM_DOFS_1D, numElements);
+typedef double* DVLocal2D_t @dim(NUM_VDIM, NUM_DOFS_1D, NUM_DOFS_1D, numElements);
+typedef double* DVLocal3D_t @dim(NUM_VDIM, NUM_DOFS_1D, NUM_DOFS_1D, NUM_DOFS_1D, numElements);
+
+typedef double* QVLocal_t   @dim(NUM_VDIM, NUM_QUAD, numElements);
+typedef double* QVLocal1D_t @dim(NUM_VDIM, NUM_QUAD_1D, numElements);
+typedef double* QVLocal2D_t @dim(NUM_VDIM, NUM_QUAD_1D, NUM_QUAD_1D, numElements);
+typedef double* QVLocal3D_t @dim(NUM_VDIM, NUM_QUAD_1D, NUM_QUAD_1D, NUM_QUAD_1D, numElements);
+#else
+typedef double* DVLocal_t   @(dim(NUM_VDIM, NUM_DOFS, numElements), idxOrder(2,0,1));
+typedef double* DVLocal1D_t @(dim(NUM_VDIM, NUM_DOFS_1D, numElements), idxOrder(2,0,1));
+typedef double* DVLocal2D_t @(dim(NUM_VDIM, NUM_DOFS_1D, NUM_DOFS_1D, numElements), idxOrder(3,0,1,2));
+typedef double* DVLocal3D_t @(dim(NUM_VDIM, NUM_DOFS_1D, NUM_DOFS_1D, NUM_DOFS_1D, numElements), idxOrder(4,0,1,2,3));
+
+typedef double* QVLocal_t   @(dim(NUM_VDIM, NUM_QUAD, numElements), idxOrder(2,0,1));
+typedef double* QVLocal1D_t @(dim(NUM_VDIM, NUM_QUAD_1D, numElements), idxOrder(2,0,1));
+typedef double* QVLocal2D_t @(dim(NUM_VDIM, NUM_QUAD_1D, NUM_QUAD_1D, numElements), idxOrder(3,0,1,2));
+typedef double* QVLocal3D_t @(dim(NUM_VDIM, NUM_QUAD_1D, NUM_QUAD_1D, NUM_QUAD_1D, numElements), idxOrder(4,0,1,2,3));
+#endif
+
+typedef int* DLocalMap_t   @dim(NUM_DOFS, numElements);
+typedef int* DLocalMap1D_t @dim(NUM_DOFS_1D, numElements);
+typedef int* DLocalMap2D_t @dim(NUM_DOFS_1D, NUM_DOFS_1D, numElements);
+typedef int* DLocalMap3D_t @dim(NUM_DOFS_1D, NUM_DOFS_1D, NUM_DOFS_1D, numElements);

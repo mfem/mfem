@@ -95,6 +95,10 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
    MPI_Comm_size(MyComm, &NRanks);
    MPI_Comm_rank(MyComm, &MyRank);
 
+#ifdef MFEM_USE_BACKENDS
+   engine = mesh.engine;
+#endif
+
    if (mesh.Nonconforming())
    {
       pncmesh = new ParNCMesh(comm, *mesh.ncmesh);

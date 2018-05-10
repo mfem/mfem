@@ -16,6 +16,11 @@
 #include "../linalg/sparsemat.hpp"
 #include "../mesh/mesh.hpp"
 #include "fe_coll.hpp"
+
+#ifdef MFEM_USE_BACKENDS
+#include "../backends/base/backend.hpp"
+#endif
+
 #include <iostream>
 
 namespace mfem
@@ -72,6 +77,12 @@ protected:
    /// Associated FE collection (not owned).
    const FiniteElementCollection *fec;
 
+#ifdef MFEM_USE_BACKENDS
+   DFiniteElementSpace dev_ext;
+   DLayout v_layout;
+   mutable DLayout t_layout;
+#endif
+
    /// %Vector dimension (number of unknowns per degree of freedom).
    int vdim;
 
@@ -123,6 +134,9 @@ protected:
 
    /// Calculate the cP and cR matrices for a nonconforming mesh.
    void BuildConformingInterpolation() const;
+
+   // Shortcut
+   void SetCP() const { if (!cP_is_set) { BuildConformingInterpolation(); } }
 
    static void AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
                                Array<int>& slave_dofs, DenseMatrix& I);
@@ -230,8 +244,8 @@ public:
    bool Conforming() const { return mesh->Conforming(); }
    bool Nonconforming() const { return mesh->Nonconforming(); }
 
-   const SparseMatrix *GetConformingProlongation() const;
-   const SparseMatrix *GetConformingRestriction() const;
+   const SparseMatrix *GetConformingProlongation() const { SetCP(); return cP; }
+   const SparseMatrix *GetConformingRestriction() const { SetCP(); return cR; }
 
    virtual const Operator *GetProlongationMatrix() const
    { return GetConformingProlongation(); }
@@ -255,11 +269,25 @@ public:
    /// Return the number of vector true (conforming) dofs.
    virtual int GetTrueVSize() const { return GetConformingVSize(); }
 
+#ifdef MFEM_USE_BACKENDS
+   /// TODO: doxygen
+   DLayout &GetVLayout() { return v_layout; }
+
+   // FIXME: parallel
+   /// TODO: doxygen
+   DLayout &GetTrueVLayout() { SetCP(); return t_layout; }
+
+   /// TODO: doxygen
+   const DFiniteElementSpace &Get_PFESpace() const { return dev_ext; }
+#endif
+
    /// Returns the number of conforming ("true") degrees of freedom
    /// (if the space is on a nonconforming mesh with hanging nodes).
-   int GetNConformingDofs() const;
+   int GetNConformingDofs() const
+   { SetCP(); return cP ? (cP->Width() / vdim) : ndofs; }
 
-   int GetConformingVSize() const { return vdim * GetNConformingDofs(); }
+   int GetConformingVSize() const
+   { SetCP(); return cP ? cP->Width() : GetVSize(); }
 
    /// Return the ordering method.
    inline Ordering::Type GetOrdering() const { return ordering; }
@@ -411,12 +439,16 @@ public:
    /** Get a list of essential true dofs, ess_tdof_list, corresponding to the
        boundary attributes marked in the array bdr_attr_is_ess.
        For spaces with 'vdim' > 1, the 'component' parameter can be used
-       to restricts the marked tDOFs to the specified component. */
+       to restricts the marked tDOFs to the specified component.
+
+       If the FE space is linked to an Engine (as defined by its Mesh), the out
+       @a ess_tdof_list will be transferred to the engine as well. */
    virtual void GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
                                      Array<int> &ess_tdof_list,
                                      int component = -1);
 
    /// Convert a Boolean marker array to a list containing all marked indices.
+   /** This method supports device arrays for the output parameter, @a list. */
    static void MarkerToList(const Array<int> &marker, Array<int> &list);
 
    /** Convert an array of indices (list) to a Boolean marker array where all

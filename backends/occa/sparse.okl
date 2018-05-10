@@ -1,0 +1,57 @@
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
+
+/*
+  ---[ Defines Known At Compile-Time ]------------
+  TILESIZE : Tilesize for iterating over dofs
+  ================================================
+*/
+
+kernel void Mult(const int entries,
+                 const int * restrict offsets,
+                 const int * restrict indices,
+                 const double * restrict weights,
+                 const double * restrict in,
+                 double * restrict out) {
+
+  for (int i = 0; i < entries; ++i; tile(TILESIZE)) {
+    if (i < entries) {
+      const int offset = offsets[i];
+      const int nextOffset = offsets[i + 1];
+      double value = 0;
+      for (int j = offset; j < nextOffset; ++j) {
+        value += weights[j] * in[indices[j]];
+      }
+      out[i] = value;
+    }
+  }
+}
+
+kernel void MappedMult(const int entries,
+                       const int * restrict offsets,
+                       const int * restrict indices,
+                       const double * restrict weights,
+                       const int * restrict outIndices,
+                       const double * restrict in,
+                       double * restrict out) {
+
+  for (int i = 0; i < entries; ++i; tile(TILESIZE)) {
+    if (i < entries) {
+      const int offset = offsets[i];
+      const int nextOffset = offsets[i + 1];
+      double value = 0;
+      for (int j = offset; j < nextOffset; ++j) {
+        value += weights[j] * in[indices[j]];
+      }
+      out[outIndices[i]] = value;
+    }
+  }
+}

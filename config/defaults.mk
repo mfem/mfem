@@ -83,6 +83,9 @@ MFEM_MPI_NP = 4
 # in config.mk and config.hpp.
 
 MFEM_USE_MPI         = NO
+# FIXME: add MFEM_USE_BACKENDS, MFEM_USE_OCCA to the CMake build system
+MFEM_USE_BACKENDS    = YES
+MFEM_USE_OCCA        = YES
 MFEM_USE_METIS       = $(MFEM_USE_MPI)
 MFEM_USE_METIS_5     = NO
 MFEM_DEBUG           = NO
@@ -270,6 +273,10 @@ SIDRE_LIB = \
    -Wl,-rpath,$(CONDUIT_DIR)/lib -L$(CONDUIT_DIR)/lib \
    -Wl,-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib \
    -lsidre -lslic -laxom_utils -lconduit -lconduit_relay -lhdf5 $(ZLIB_LIB) -ldl
+
+OCCA_DIR = @MFEM_DIR@/../occa
+OCCA_OPT = -I$(OCCA_DIR)/include
+OCCA_LIB = -Wl,-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
 
 # If YES, enable some informational messages
 VERBOSE = NO

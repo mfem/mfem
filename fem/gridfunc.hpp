@@ -61,6 +61,8 @@ protected:
        degree of freedom. */
    void ProjectDiscCoefficient(VectorCoefficient &coeff, Array<int> &dof_attr);
 
+   // There is a method with the same name in the base class Vector.
+   // This version of Destroy does not call Vector::Destroy.
    void Destroy();
 
 public:
@@ -72,7 +74,8 @@ public:
       : Vector(orig), fes(orig.fes), fec(NULL), sequence(orig.sequence) { }
 
    /// Construct a GridFunction associated with the FiniteElementSpace @a *f.
-   GridFunction(FiniteElementSpace *f) : Vector(f->GetVSize())
+   GridFunction(FiniteElementSpace *f)
+      : Vector(MFEM_IF_BACKENDS(f->GetVLayout(), f->GetVSize()))
    { fes = f; fec = NULL; sequence = f->GetSequence(); }
 
    /// Construct a GridFunction using previously allocated array @a data.
@@ -81,8 +84,7 @@ public:
        for externally allocated array, the pointer @a data can be NULL. The data
        array can be replaced later using the method SetData().
     */
-   GridFunction(FiniteElementSpace *f, double *data) : Vector(data, f->GetVSize())
-   { fes = f; fec = NULL; sequence = f->GetSequence(); }
+   inline GridFunction(FiniteElementSpace *f, double *data);
 
    /// Construct a GridFunction on the given Mesh, using the data from @a input.
    /** The content of @a input should be in the format created by the method
@@ -533,7 +535,21 @@ GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
                                     GridFunction *sol, const int ny);
 
 
-// Inline methods
+// Inline methods: class GridFunction
+
+inline GridFunction::GridFunction(FiniteElementSpace *f, double *data)
+   : Vector(data, f->GetVSize())
+{
+#ifdef MFEM_USE_BACKENDS
+   MFEM_ASSERT(f->GetVLayout()->HasEngine() == false, "not supported");
+#endif
+   fes = f;
+   fec = NULL;
+   sequence = f->GetSequence();
+}
+
+
+// Inline methods: class QuadratureFunction
 
 inline void QuadratureFunction::SetSpace(QuadratureSpace *qspace_, int vdim_)
 {

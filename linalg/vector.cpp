@@ -28,24 +28,6 @@
 namespace mfem
 {
 
-Vector::Vector(const Vector &v)
-{
-   int s = v.Size();
-
-   if (s > 0)
-   {
-      MFEM_ASSERT(v.data, "invalid source vector");
-      allocsize = size = s;
-      data = new double[s];
-      std::memcpy(data, v.data, sizeof(double)*s);
-   }
-   else
-   {
-      allocsize = size = 0;
-      data = NULL;
-   }
-}
-
 void Vector::Load(std::istream **in, int np, int *dim)
 {
    int i, j, s;
@@ -111,33 +93,6 @@ double Vector::operator*(const Vector &v) const
 #endif
 
    return operator*(v.data);
-}
-
-Vector &Vector::operator=(const double *v)
-{
-   if (data != v)
-   {
-      MFEM_ASSERT(data + size <= v || v + size <= data, "Vectors overlap!");
-      std::memcpy(data, v, sizeof(double)*size);
-   }
-   return *this;
-}
-
-Vector &Vector::operator=(const Vector &v)
-{
-   SetSize(v.Size());
-   return operator=(v.data);
-}
-
-Vector &Vector::operator=(double value)
-{
-   int i, s = size;
-   double *p = data, v = value;
-   for (i = 0; i < s; i++)
-   {
-      *(p++) = v;
-   }
-   return *this;
 }
 
 Vector &Vector::operator*=(double c)
@@ -463,6 +418,7 @@ void Vector::GetSubVector(const Array<int> &dofs, Vector &elemvect) const
 
    for (i = 0; i < n; i++)
    {
+      MFEM_ASSERT(-Size() <= dofs[i] && dofs[i] < Size(), "invalid dofs array");
       if ((j=dofs[i]) >= 0)
       {
          elemvect(i) = data[j];
@@ -550,6 +506,7 @@ void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
 
    for (i = 0; i < n; i++)
    {
+      MFEM_ASSERT(-Size() <= dofs[i] && dofs[i] < Size(), "invalid dofs array");
       if ((j=dofs[i]) >= 0)
       {
          data[j] += elemvect(i);

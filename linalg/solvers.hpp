@@ -33,7 +33,6 @@ class IterativeSolver : public Solver
 {
 #ifdef MFEM_USE_MPI
 private:
-   int dot_prod_type; // 0 - local, 1 - global over 'comm'
    MPI_Comm comm;
 #endif
 

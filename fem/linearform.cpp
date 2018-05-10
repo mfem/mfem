@@ -54,12 +54,14 @@ void LinearForm::Assemble()
    ElementTransformation *eltrans;
    Vector elemvect;
 
-   int i;
+   // FIXME: Use the Engine when set
 
+   // Assemble on host
+   Pull(false); // copy_data = false
    Vector::operator=(0.0);
 
    if (dlfi.Size())
-      for (i = 0; i < fes -> GetNE(); i++)
+      for (int i = 0; i < fes -> GetNE(); i++)
       {
          fes -> GetElementVDofs (i, vdofs);
          eltrans = fes -> GetElementTransformation (i);
@@ -73,7 +75,7 @@ void LinearForm::Assemble()
    AssembleDelta();
 
    if (blfi.Size())
-      for (i = 0; i < fes -> GetNBE(); i++)
+      for (int i = 0; i < fes -> GetNBE(); i++)
       {
          fes -> GetBdrElementVDofs (i, vdofs);
          eltrans = fes -> GetBdrElementTransformation (i);
@@ -110,7 +112,7 @@ void LinearForm::Assemble()
          }
       }
 
-      for (i = 0; i < mesh->GetNBE(); i++)
+      for (int i = 0; i < mesh->GetNBE(); i++)
       {
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
@@ -131,11 +133,16 @@ void LinearForm::Assemble()
          }
       }
    }
+
+   Push();
 }
 
 void LinearForm::Update(FiniteElementSpace *f, Vector &v, int v_offset)
 {
    fes = f;
+#ifdef MFEM_USE_BACKENDS
+   MFEM_VERIFY(f->GetMesh()->HasEngine() == false, "not supported yet");
+#endif
    NewDataAndSize((double *)v + v_offset, fes->GetVSize());
    ResetDeltaLocations();
 }

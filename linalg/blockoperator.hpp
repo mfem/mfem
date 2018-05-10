@@ -84,9 +84,11 @@ public:
    { MFEM_VERIFY(op(i,j), ""); coef(i,j) = c; }
 
    //! Return the row offsets for block starts
-   Array<int> & RowOffsets() { return row_offsets; }
+   const Array<int> & RowOffsets() const
+   { return (const Array<int> &)row_offsets; }
    //! Return the columns offsets for block starts
-   Array<int> & ColOffsets() { return col_offsets; }
+   const Array<int> & ColOffsets() const
+   { return (const Array<int> &)col_offsets; }
 
    /// Operator application
    virtual void Mult (const Vector & x, Vector & y) const;
@@ -106,15 +108,16 @@ private:
    //! Number of block columns
    int nColBlocks;
    //! Row offsets for the starting position of each block
-   Array<int> row_offsets;
+   Array<const int> row_offsets;
    //! Column offsets for the starting position of each block
-   Array<int> col_offsets;
+   Array<const int> col_offsets;
    //! 2D array that stores each block of the operator.
    Array2D<Operator *> op;
    //! 2D array that stores a coefficient for each block of the operator.
    Array2D<double> coef;
 
-   //! Temporary Vectors used to efficiently apply the Mult and MultTranspose methods.
+   /** Temporary Vectors used to efficiently apply the Mult and MultTranspose
+       methods. */
    mutable BlockVector xblock;
    mutable BlockVector yblock;
    mutable Vector tmp;
@@ -122,7 +125,8 @@ private:
 
 //! @class BlockDiagonalPreconditioner
 /**
- * \brief A class to handle Block diagonal preconditioners in a matrix-free implementation.
+ * \brief A class to handle Block diagonal preconditioners in a matrix-free
+ *        implementation.
  *
  * Usage:
  * - Use the constructors to define the block structure
@@ -154,7 +158,7 @@ public:
    { MFEM_VERIFY(op[iblock], ""); return *op[iblock]; }
 
    //! Return the offsets for block starts
-   Array<int> & Offsets() { return offsets; }
+   const Array<int> & Offsets() const { return (const Array<int> &)offsets; }
 
    /// Operator application
    virtual void Mult (const Vector & x, Vector & y) const;
@@ -173,7 +177,7 @@ private:
    //! Number of Blocks
    int nBlocks;
    //! Offsets for the starting position of each block
-   Array<int> offsets;
+   Array<const int> offsets;
    //! 1D array that stores each block of the operator.
    Array<Operator *> op;
    //! Temporary Vectors used to efficiently apply the Mult and MultTranspose
@@ -237,7 +241,7 @@ public:
    { MFEM_VERIFY(op(iblock,jblock), ""); return *op(iblock,jblock); }
 
    //! Return the offsets for block starts
-   Array<int> & Offsets() { return offsets; }
+   const Array<int> & Offsets() const { return (const Array<int> &)offsets; }
 
    /// Operator application
    virtual void Mult (const Vector & x, Vector & y) const;
@@ -256,7 +260,7 @@ private:
    //! Number of block rows/columns
    int nBlocks;
    //! Offsets for the starting position of each block
-   Array<int> offsets;
+   Array<const int> offsets;
    //! 2D array that stores each block of the operator.
    Array2D<Operator *> op;
 

@@ -23,6 +23,18 @@ OutStream out(std::cout);
 OutStream err(std::cerr);
 
 
+const char *GetSourcePath()
+{
+   return MFEM_SOURCE_DIR;
+}
+
+/// TODO: doxygen
+const char *GetInstallPath()
+{
+   return MFEM_INSTALL_DIR;
+}
+
+
 std::string MakeParFilename(const std::string &prefix, const int myid,
                             const std::string suffix, const int width)
 {

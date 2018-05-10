@@ -33,6 +33,9 @@ GridFunction::GridFunction(Mesh *m, std::istream &input)
    fes = new FiniteElementSpace;
    fec = fes->Load(m, input);
 
+   Resize(MFEM_IF_BACKENDS(fes->GetVLayout(), fes->GetVSize()));
+   Pull(false);
+
    skip_comment_lines(input, '#');
    istream::int_type next_char = input.peek();
    if (next_char == 'N') // First letter of "NURBS_patches"
@@ -56,6 +59,7 @@ GridFunction::GridFunction(Mesh *m, std::istream &input)
       Vector::Load(input, fes->GetVSize());
    }
    sequence = fes->GetSequence();
+   Push();
 }
 
 GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)
@@ -1431,6 +1435,7 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
    Array<int> vdofs;
    Vector vals;
 
+   Pull(false);
    for (i = 0; i < fes->GetNE(); i++)
    {
       fes->GetElementVDofs(i, vdofs);
@@ -1438,6 +1443,7 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
       fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
       SetSubVector(vdofs, vals);
    }
+   Push();
 }
 
 void GridFunction::ProjectCoefficient(

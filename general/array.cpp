@@ -18,48 +18,6 @@
 namespace mfem
 {
 
-BaseArray::BaseArray(int asize, int ainc, int elementsize)
-{
-   if (asize > 0)
-   {
-      data = new char[asize * elementsize];
-      size = allocsize = asize;
-   }
-   else
-   {
-      data = 0;
-      size = allocsize = 0;
-   }
-   inc = ainc;
-}
-
-BaseArray::~BaseArray()
-{
-   if (allocsize > 0)
-   {
-      delete [] (char*)data;
-   }
-}
-
-void BaseArray::GrowSize(int minsize, int elementsize)
-{
-   void *p;
-   int nsize = (inc > 0) ? abs(allocsize) + inc : 2 * abs(allocsize);
-   if (nsize < minsize) { nsize = minsize; }
-
-   p = new char[nsize * elementsize];
-   if (size > 0)
-   {
-      memcpy(p, data, size * elementsize);
-   }
-   if (allocsize > 0)
-   {
-      delete [] (char*)data;
-   }
-   data = p;
-   allocsize = nsize;
-}
-
 template <class T>
 void Array<T>::Print(std::ostream &out, int width) const
 {
@@ -86,7 +44,7 @@ void Array<T>::Save(std::ostream &out, int fmt) const
    }
    for (int i = 0; i < size; i++)
    {
-      out << operator[](i) << '\n';
+      out << this->operator[](i) << '\n';
    }
 }
 
@@ -97,11 +55,11 @@ void Array<T>::Load(std::istream &in, int fmt)
    {
       int new_size;
       in >> new_size;
-      SetSize(new_size);
+      this->SetSize(new_size);
    }
    for (int i = 0; i < size; i++)
    {
-      in >> operator[](i);
+      in >> this->operator[](i);
    }
 }
 
@@ -110,11 +68,11 @@ T Array<T>::Max() const
 {
    MFEM_ASSERT(size > 0, "Array is empty with size " << size);
 
-   T max = operator[](0);
+   T max = this->operator[](0);
    for (int i = 1; i < size; i++)
-      if (max < operator[](i))
+      if (max < this->operator[](i))
       {
-         max = operator[](i);
+         max = this->operator[](i);
       }
 
    return max;
@@ -125,11 +83,11 @@ T Array<T>::Min() const
 {
    MFEM_ASSERT(size > 0, "Array is empty with size " << size);
 
-   T min = operator[](0);
+   T min = this->operator[](0);
    for (int i = 1; i < size; i++)
-      if (operator[](i) < min)
+      if (this->operator[](i) < min)
       {
-         min = operator[](i);
+         min = this->operator[](i);
       }
 
    return min;
@@ -142,8 +100,8 @@ void Array<T>::PartialSum()
    T sum = static_cast<T>(0);
    for (int i = 0; i < size; i++)
    {
-      sum+=operator[](i);
-      operator[](i) = sum;
+      sum += this->operator[](i);
+      this->operator[](i) = sum;
    }
 }
 
@@ -154,7 +112,7 @@ T Array<T>::Sum()
    T sum = static_cast<T>(0);
    for (int i = 0; i < size; i++)
    {
-      sum+=operator[](i);
+      sum += this->operator[](i);
    }
 
    return sum;
@@ -163,10 +121,10 @@ T Array<T>::Sum()
 template <class T>
 int Array<T>::IsSorted()
 {
-   T val_prev = operator[](0), val;
+   T val_prev = this->operator[](0), val;
    for (int i = 1; i < size; i++)
    {
-      val=operator[](i);
+      val = this->operator[](i);
       if (val < val_prev)
       {
          return 0;
