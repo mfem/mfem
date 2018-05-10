@@ -509,11 +509,11 @@ okl-hack:
 	  mv -f $${okl}.new $${okl}; \
 	done
 
-clean: $(if $($(MFEM_USE_OCCA:YES=)),,okl-unhack)
+clean: $(if $(MFEM_USE_OCCA:YES=),,okl-unhack)
 okl-unhack:
 	set -- $$(find $(SRC)backends/occa -name \*.okl); \
 	for okl; do \
-	  printf "processing file: %s\n" $${okl}; \
+	  printf "un-processing file: %s\n" $${okl}; \
 	  sed -e 's#$(MFEM_REAL_DIR)/backends/occa#@MFEM_OKL_PREFIX@#g' \
 	    $${okl} > $${okl}.new; \
 	  mv -f $${okl}.new $${okl}; \
