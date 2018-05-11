@@ -38,7 +38,7 @@ namespace raja
   // ***************************************************************************
   raja::memory Layout::Alloc(std::size_t bytes) const
   {
-    return RajaEngine().GetDevice().malloc(bytes);
+    return device::Get().malloc(bytes);
   }
 
 } // namespace mfem::raja

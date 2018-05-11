@@ -19,6 +19,9 @@
 namespace mfem
 {
 
+namespace raja
+{
+
 // ***************************************************************************
 // * RajaGeometry
 // ***************************************************************************
@@ -128,6 +131,8 @@ public:
    virtual void MultAdd(RajaVector& x, RajaVector& y);
 };
 
-} // mfem
+} // namespace mfem::raja
+   
+} // namespace mfem
 
 #endif // LAGHOS_RAJA_BILININTEG

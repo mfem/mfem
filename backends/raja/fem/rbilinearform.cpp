@@ -13,10 +13,13 @@
 namespace mfem
 {
 
+namespace raja
+{
+
 // ***************************************************************************
 // * RajaBilinearForm
 // ***************************************************************************
-RajaBilinearForm::RajaBilinearForm(RajaFiniteElementSpace* fes) :
+   RajaBilinearForm::RajaBilinearForm(/*Raja*/FiniteElementSpace* fes) :
    RajaOperator(fes->GetVSize(),fes->GetVSize()),
    mesh(fes->GetMesh()),
    trialFes(fes),
@@ -246,5 +249,7 @@ void RajaConstrainedOperator::Mult(const RajaVector& x, RajaVector& y) const
    A->Mult(z, y); // roperator.hpp:76
    pop();
 }
-
+   
+} // raja
+   
 } // mfem

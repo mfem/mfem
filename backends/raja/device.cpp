@@ -18,7 +18,10 @@ namespace mfem
 namespace raja
 {
   // ***************************************************************************
-  device::device():dHandle(new device_v()){   
+  device& device::Get()
+  {
+    static device device_singleton;
+    return device_singleton;
   }
     
   // ***************************************************************************
@@ -27,13 +30,10 @@ namespace raja
   }
 
   // ***************************************************************************
-  device_v* device::getDHandle() const {return dHandle;}
-
-  // ***************************************************************************
-  memory device::malloc(const size_t,const void *){
-    MFEM_ABORT("FIXME");
-#warning device malloc
-    return memory();
+  memory device::malloc(const std::size_t bytes,
+                        const void *src){
+    assert(src==NULL);
+    return memory(bytes,src);
   }
 
 } // namespace mfem::raja

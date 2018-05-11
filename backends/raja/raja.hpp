@@ -34,6 +34,9 @@
 #include "../../general/communication.hpp"
 #include "../../fem/pfespace.hpp"
 
+// backend/raja/kernels ********************************************************
+#include "kernels/include/kernels.hpp"
+
 // backend/raja ****************************************************************
 #include "backend.hpp"
 #include "memory.hpp"
@@ -62,9 +65,6 @@
 #include "linalg/rode.hpp"
 #include "linalg/rsolvers.hpp"
 
-// backend/raja/kernels ********************************************************
-#include "kernels/include/kernels.hpp"
-
 // backend/raja/fem ************************************************************
 #include "fem/rconform.hpp"
 #include "fem/rprolong.hpp"
@@ -73,6 +73,11 @@
 #include "fem/rbilinearform.hpp"
 #include "fem/rgridfunc.hpp"
 #include "fem/rbilininteg.hpp"
+
+// backend/raja ****************************************************************
+#include "fespace.hpp"
+#include "bilinearform.hpp"
+#include "operator.hpp"
 
 // backend/raja/tests **********************************************************
 #include "tests/tests.hpp"

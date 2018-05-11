@@ -16,17 +16,14 @@ namespace mfem
 
 namespace raja
 {
-  
-  class device;
-  class device_v;
-  
-  
-  class memory
-  {
-  private:
-    size_t memory_size;
-    device *dev;
+    
+  // ***************************************************************************
+  class memory {
   public:
+    size_t bytes;
+    char *data;
+  public:
+    memory(const std::size_t =0, const void* =NULL);
  
     size_t size() const;
   
@@ -35,17 +32,17 @@ namespace raja
     void copyFrom(memory &src);
   
     void copyFrom(const void*);
-  
-    device getDevice() const;
-  
-    void* ptr();
-
-    device_v* getDHandle() const;
+     
+    void* ptr() const;
   
     memory slice(const size_t offset,
                  const size_t bytes = -1) const;
-
-};
+    
+    inline char* operator[](const size_t i) {
+      return data+i;
+    }
+  };
+  
 
 } // namespace mfem::raja
 

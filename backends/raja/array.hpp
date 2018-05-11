@@ -85,7 +85,7 @@ public:
 
 inline void *Array::GetBuffer() const
 {
-  if (!slice.getDevice().hasSeparateMemorySpace())
+  if (!device::Get().hasSeparateMemorySpace())
   {
     return slice.ptr();
   }
@@ -95,8 +95,7 @@ inline void *Array::GetBuffer() const
 inline int Array::ResizeData(const Layout *lt, std::size_t item_size)
 {
   const std::size_t new_bytes = lt->Size()*item_size;
-  if (data.size() < new_bytes ||
-      data.getDHandle() != lt->RajaEngine().GetDevice().getDHandle())
+  if (data.size() < new_bytes)
   {
     data = lt->Alloc(new_bytes);
     slice = data;

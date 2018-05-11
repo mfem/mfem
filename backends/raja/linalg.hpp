@@ -24,9 +24,10 @@ namespace linalg
   double dot(memory vec1, memory vec2);
 
   // ***************************************************************************
-  template<class T>
-  void operator_eq(raja::memory vec, T value){
-    MFEM_ABORT("FIXME");
+  template <typename T>
+  inline void operator_eq(raja::memory vec, T value){
+    const std::size_t sz = vec.size();
+    vector_op_eq(sz/sizeof(T),value,(double*)vec.ptr());
   } 
   
 } // namespace mfem::raja::linalg

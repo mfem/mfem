@@ -52,7 +52,7 @@ int Array::DoResize(PLayout &new_layout, void **buffer,
 void *Array::DoPullData(void *buffer, std::size_t item_size)
 {
   // called only when Size() != 0
-  if (!slice.getDevice().hasSeparateMemorySpace())
+  if (!device::Get().hasSeparateMemorySpace())
   {
     return slice.ptr();
   }
@@ -94,7 +94,7 @@ void Array::DoFill(const void *value_ptr, std::size_t item_size)
 void Array::DoPushData(const void *src_buffer, std::size_t item_size)
 {
   // called only when Size() != 0
-  if (slice.getDevice().hasSeparateMemorySpace() || slice.ptr() != src_buffer)
+  if (device::Get().hasSeparateMemorySpace() || slice.ptr() != src_buffer)
   {
     slice.copyFrom(src_buffer);
   }

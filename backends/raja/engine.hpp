@@ -27,19 +27,13 @@ protected:
 #ifdef MFEM_USE_MPI
    // MPI_Comm comm;
 #endif
-   // int num_mem_res;
-   // int num_workers;
-   // MemoryResource **memory_resources;
-   // double *workers_weights;
-   // int *workers_mem_res;
-   raja::device *device; // An array of RAJA devices
-
+  
 public:
    Engine(const std::string &engine_spec);
 
    virtual ~Engine() { }
 
-  raja::device GetDevice(int idx = 0) const;
+   device* GetDevice(void) const;
 
    /**
        @name RAJA specific interface, used by other objects in the RAJA backend

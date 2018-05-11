@@ -18,6 +18,9 @@
 
 namespace mfem
 {
+   
+namespace raja
+{
 
 // ***************************************************************************
 // * RajaIntegratorType
@@ -35,7 +38,7 @@ class RajaIntegrator;
 // ***************************************************************************
 // * RajaBilinearForm
 // ***************************************************************************
-class RajaBilinearForm : public RajaOperator
+class RajaBilinearForm : public Operator
 {
    friend class RajaIntegrator;
 protected:
@@ -46,7 +49,7 @@ protected:
    IntegratorVector integrators;
    mutable RajaVector localX, localY;
 public:
-   RajaBilinearForm(RajaFiniteElementSpace*);
+   RajaBilinearForm(/*Raja*/FiniteElementSpace*);
    ~RajaBilinearForm();
    Mesh& GetMesh() const { return *mesh; }
    RajaFiniteElementSpace& GetTrialFESpace() const { return *trialFes;}
@@ -59,13 +62,13 @@ public:
    void AddIntegrator(RajaIntegrator*, const RajaIntegratorType);
    // *************************************************************************
    virtual void Assemble();
-   void FormLinearSystem(const Array<int>& constraintList,
+   void FormLinearSystem(const mfem::Array<int>& constraintList,
                          RajaVector& x, RajaVector& b,
                          RajaOperator*& Aout,
                          RajaVector& X, RajaVector& B,
                          int copy_interior = 0);
-   void FormOperator(const Array<int>& constraintList, RajaOperator*& Aout);
-   void InitRHS(const Array<int>& constraintList,
+   void FormOperator(const mfem::Array<int>& constraintList, RajaOperator*& Aout);
+   void InitRHS(const mfem::Array<int>& constraintList,
                 const RajaVector& x, const RajaVector& b,
                 RajaOperator* Aout,
                 RajaVector& X, RajaVector& B,
@@ -88,13 +91,16 @@ protected:
    int constraintIndices;
    mutable RajaVector z, w;
 public:
-   RajaConstrainedOperator(RajaOperator*, const Array<int>&, bool = false);
-   void Setup(RajaOperator*, const Array<int>&, bool = false);
+   RajaConstrainedOperator(RajaOperator*, const mfem::Array<int>&, bool = false);
+   void Setup(RajaOperator*, const mfem::Array<int>&, bool = false);
    void EliminateRHS(const RajaVector&, RajaVector&) const;
    virtual void Mult(const RajaVector&, RajaVector&) const;
    virtual ~RajaConstrainedOperator() {}
 };
 
+} // raja
+   
 } // mfem
 
 #endif // LAGHOS_RAJA_BILINEARFORM
+

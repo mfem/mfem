@@ -23,12 +23,11 @@ Engine::Engine(const std::string &engine_spec): mfem::Engine(NULL, 1, 1)
    memory_resources[0] = NULL;
    workers_weights[0]= 1.0;
    workers_mem_res[0] = 0;
-   // Initialize the RAJA engine
 }
   
-raja::device Engine::GetDevice(int idx) const
+device* Engine::GetDevice(void) const
 {
-  return device[idx];
+  return &device::Get();
 }
 
 DLayout Engine::MakeLayout(std::size_t size) const
@@ -62,13 +61,12 @@ DVector Engine::MakeVector(PLayout &layout, int type_id) const
 
 DFiniteElementSpace Engine::MakeFESpace(mfem::FiniteElementSpace &fespace) const
 {
-#warning MakeFESpace
-  return DFiniteElementSpace();//new RajaFiniteElementSpace(*this, fespace));
+  return DFiniteElementSpace(new FiniteElementSpace(*this, fespace));
 }
 
 DBilinearForm Engine::MakeBilinearForm(mfem::BilinearForm &bf) const
 {
-#warning MakeBilinearForm
+  assert(false);
    return DBilinearForm();//new BilinearForm(*this, bf));
 }
 

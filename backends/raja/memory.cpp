@@ -18,8 +18,14 @@ namespace mfem
 namespace raja
 {
   
+  memory::memory(const std::size_t _bytes,
+                 const void *src):bytes(_bytes){
+    assert(src==NULL);
+    data = ::new char[bytes];
+  }
+
   size_t memory::size() const {
-    return memory_size;
+    return bytes;
   }
  
   void memory::copyFrom(memory &src) {
@@ -33,22 +39,16 @@ namespace raja
   void memory::copyTo(void *dest) {
     MFEM_ABORT("FIXME");
   }
-  
-  device memory::getDevice() const { return *dev;}
-  
-  void* memory::ptr() {
-    MFEM_ABORT("FIXME");
-    return NULL;
+    
+  void* memory::ptr() const {    
+    return (void*)data;
   }
-  
-  device_v* memory::getDHandle() const {return dev->getDHandle();}
-  
+    
   memory memory::slice(const size_t offset,
                        const size_t bytes) const{
     MFEM_ABORT("FIXME");
     return memory();
   }
-
 
 } // namespace mfem::raja
 

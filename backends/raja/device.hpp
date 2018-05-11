@@ -18,19 +18,17 @@ namespace raja
 {
 
   // ***************************************************************************
-  class device_v {
-  };
-
-  // ***************************************************************************
-  class device {
+  class device
+  {
   private:
-    mutable device_v *dHandle;
+    device() {}
+    device(device const&);
+    void operator=(device const&);
   public:
-    device();
+    static device& Get();
     bool hasSeparateMemorySpace();
-    device_v* getDHandle() const;
-    memory malloc(const size_t,const void * = NULL);
-
+    device *getDevice() const;
+    memory malloc(const std::size_t,const void * = NULL);
   };
 
 } // namespace mfem::raja

@@ -27,7 +27,7 @@ namespace linalg
     MFEM_ABORT("FIXME");
     return 0.0;
   }
-
+  
 } // namespace mfem::raja::linalg
 
 } // namespace mfem::raja
