@@ -222,7 +222,7 @@ OccaDofQuadMaps& OccaDofQuadMaps::GetTensorMaps(::occa::device device,
       maps.hash = hash;
 
       OccaDofQuadMaps trialMaps = GetD2QTensorMaps(device, trialFE, ir);
-      OccaDofQuadMaps testMaps  = GetD2QTensorMaps(device, testFE , ir, true);
+      OccaDofQuadMaps testMaps  = GetD2QTensorMaps(device, testFE, ir, true);
 
       maps.dofToQuad   = trialMaps.dofToQuad;
       maps.dofToQuadD  = trialMaps.dofToQuadD;
@@ -352,7 +352,7 @@ OccaDofQuadMaps& OccaDofQuadMaps::GetSimplexMaps(::occa::device device,
       maps.hash = hash;
 
       OccaDofQuadMaps trialMaps = GetD2QSimplexMaps(device, trialFE, ir);
-      OccaDofQuadMaps testMaps  = GetD2QSimplexMaps(device, testFE , ir, true);
+      OccaDofQuadMaps testMaps  = GetD2QSimplexMaps(device, testFE, ir, true);
 
       maps.dofToQuad   = trialMaps.dofToQuad;
       maps.dofToQuadD  = trialMaps.dofToQuadD;
@@ -538,7 +538,7 @@ void SetTensorProperties(FiniteElementSpace &trialFESpace,
       props["defines"][stringWithDim("NUM_QUAD_", d)] = quadND;
 
       props["defines"][stringWithDim("TRIAL_DOFS_", d)] = trialDofsND;
-      props["defines"][stringWithDim("TEST_DOFS_" , d)] = testDofsND;
+      props["defines"][stringWithDim("TEST_DOFS_", d)] = testDofsND;
    }
 
    // 1D Defines

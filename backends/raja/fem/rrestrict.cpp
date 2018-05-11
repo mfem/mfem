@@ -10,16 +10,18 @@
 // Software Foundation) version 2.1 dated February 1999.
 #include "../raja.hpp"
 
-namespace mfem {
-  
-  // ***************************************************************************
-  // * RajaRestrictionOperator
-  // ***************************************************************************
-  void RajaRestrictionOperator::Mult(const RajaVector& x,
-                                     RajaVector& y) const {
-    push(DeepSkyBlue);
-    rExtractSubVector(entries, indices->ptr(), x, y);
-    pop();
-  }
+namespace mfem
+{
+
+// ***************************************************************************
+// * RajaRestrictionOperator
+// ***************************************************************************
+void RajaRestrictionOperator::Mult(const RajaVector& x,
+                                   RajaVector& y) const
+{
+   push(DeepSkyBlue);
+   rExtractSubVector(entries, indices->ptr(), x, y);
+   pop();
+}
 
 } // namespace mfem

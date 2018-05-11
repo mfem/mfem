@@ -35,13 +35,13 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
-   
+
    /// Engine *engine = EngineDepot.Select(spec);
    // string occa_spec("mode: 'Serial'");
    // string occa_spec("mode: 'CUDA', deviceID: 0");
    // string occa_spec("mode: 'OpenMP', threads: 4");
    // string occa_spec("mode: 'OpenCL', deviceID: 0, platformID: 0");
-   
+
    //SharedPtr<Engine> engine(new mfem::occa::Engine("mode: 'Serial'"));
    SharedPtr<Engine> engine(new mfem::raja::Engine("cpu"));
 

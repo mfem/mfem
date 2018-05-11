@@ -12,15 +12,18 @@
 
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
-namespace mfem{
-namespace raja{
+namespace mfem
+{
+namespace raja
+{
 
-Engine::Engine(const std::string &engine_spec): mfem::Engine(NULL, 1, 1){
-  // Initialize inherited fields
-  memory_resources[0] = NULL;
-  workers_weights[0]= 1.0;
-  workers_mem_res[0] = 0;
-  // Initialize the RAJA engine
+Engine::Engine(const std::string &engine_spec): mfem::Engine(NULL, 1, 1)
+{
+   // Initialize inherited fields
+   memory_resources[0] = NULL;
+   workers_weights[0]= 1.0;
+   workers_mem_res[0] = 0;
+   // Initialize the RAJA engine
 }
 
 DLayout Engine::MakeLayout(std::size_t size) const
@@ -54,12 +57,12 @@ DVector Engine::MakeVector(PLayout &layout, int type_id) const
 
 DFiniteElementSpace Engine::MakeFESpace(mfem::FiniteElementSpace &fespace) const
 {
-  return DFiniteElementSpace();//w FiniteElementSpace(*this, fespace));
+   return DFiniteElementSpace();//w FiniteElementSpace(*this, fespace));
 }
 
 DBilinearForm Engine::MakeBilinearForm(mfem::BilinearForm &bf) const
 {
-  return DBilinearForm();//new BilinearForm(*this, bf));
+   return DBilinearForm();//new BilinearForm(*this, bf));
 }
 
 void Engine::AssembleLinearForm(LinearForm &l_form) const

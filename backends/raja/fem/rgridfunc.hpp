@@ -16,29 +16,33 @@
 #ifndef LAGHOS_RAJA_GRIDFUNC
 #define LAGHOS_RAJA_GRIDFUNC
 
-namespace mfem {
+namespace mfem
+{
 
-class RajaGridFunction : public RajaVector {
- public:
-  const RajaFiniteElementSpace& fes;
- public:
-  
-  RajaGridFunction(const RajaFiniteElementSpace& f):
-    RajaVector(f.GetVSize()),fes(f) {}
-  
-  RajaGridFunction(const RajaFiniteElementSpace& f,const RajaVector* v):
-    RajaVector(v), fes(f) {}
-  
-  void ToQuad(const IntegrationRule&,RajaVector&);
-  
-  RajaGridFunction& operator=(const RajaVector& v) {
-    RajaVector::operator=(v);
-    return *this;
-  }
-  RajaGridFunction& operator=(const Vector& v) {
-    RajaVector::operator=(v);
-    return *this;
-  }
+class RajaGridFunction : public RajaVector
+{
+public:
+   const RajaFiniteElementSpace& fes;
+public:
+
+   RajaGridFunction(const RajaFiniteElementSpace& f):
+      RajaVector(f.GetVSize()),fes(f) {}
+
+   RajaGridFunction(const RajaFiniteElementSpace& f,const RajaVector* v):
+      RajaVector(v), fes(f) {}
+
+   void ToQuad(const IntegrationRule&,RajaVector&);
+
+   RajaGridFunction& operator=(const RajaVector& v)
+   {
+      RajaVector::operator=(v);
+      return *this;
+   }
+   RajaGridFunction& operator=(const Vector& v)
+   {
+      RajaVector::operator=(v);
+      return *this;
+   }
 };
 
 } // mfem

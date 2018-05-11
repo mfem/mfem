@@ -16,19 +16,21 @@
 #ifndef LAGHOS_RAJA_PROLONG_OP
 #define LAGHOS_RAJA_PROLONG_OP
 
-namespace mfem {
-  
-  // ***************************************************************************
-  // * RajaProlongationOperator
-  // ***************************************************************************
-  class RajaProlongationOperator : public RajaOperator {
-  protected:
-    const RajaConformingProlongationOperator* pmat = NULL;
-  public:
-    RajaProlongationOperator(const RajaConformingProlongationOperator*);
-    void Mult(const RajaVector& x, RajaVector& y) const;
-    void MultTranspose(const RajaVector& x, RajaVector& y) const ;
-  };
+namespace mfem
+{
+
+// ***************************************************************************
+// * RajaProlongationOperator
+// ***************************************************************************
+class RajaProlongationOperator : public RajaOperator
+{
+protected:
+   const RajaConformingProlongationOperator* pmat = NULL;
+public:
+   RajaProlongationOperator(const RajaConformingProlongationOperator*);
+   void Mult(const RajaVector& x, RajaVector& y) const;
+   void MultTranspose(const RajaVector& x, RajaVector& y) const ;
+};
 
 } // mfem
 

@@ -40,8 +40,9 @@
 #include "../../fem/pfespace.hpp"
 
 // backend/raja ****************************************************************
-#include "device.hpp"
 #include "memory.hpp"
+#include "linalg.hpp"
+#include "device.hpp"
 #include "layout.hpp"
 #include "array.hpp"
 #include "vector.hpp"

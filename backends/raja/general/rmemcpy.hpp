@@ -16,16 +16,18 @@
 #ifndef LAGHOS_RAJA_MEMCPY
 #define LAGHOS_RAJA_MEMCPY
 
-namespace mfem {
-	
-  // ***************************************************************************
-  struct rmemcpy{
-    static void* rHtoH(void*, const void*, std::size_t, const bool =false);
-    static void* rHtoD(void*, const void*, std::size_t, const bool =false);
-    static void* rDtoH(void*, const void*, std::size_t, const bool =false);
-    static void* rDtoD(void*, const void*, std::size_t, const bool =false);
-  };
-  
+namespace mfem
+{
+
+// ***************************************************************************
+struct rmemcpy
+{
+   static void* rHtoH(void*, const void*, std::size_t, const bool =false);
+   static void* rHtoD(void*, const void*, std::size_t, const bool =false);
+   static void* rDtoH(void*, const void*, std::size_t, const bool =false);
+   static void* rDtoD(void*, const void*, std::size_t, const bool =false);
+};
+
 } // mfem
 
 #endif // LAGHOS_RAJA_MEMCPY

@@ -11,9 +11,11 @@
 #ifndef MFEM_BACKENDS_RAJA_ENGINE_HPP
 #define MFEM_BACKENDS_RAJA_ENGINE_HPP
 
-namespace mfem{
+namespace mfem
+{
 
-namespace raja{
+namespace raja
+{
 
 class Engine : public mfem::Engine
 {
@@ -30,22 +32,23 @@ protected:
    // MemoryResource **memory_resources;
    // double *workers_weights;
    // int *workers_mem_res;
-  raja::device *device; // An array of RAJA devices
+   raja::device *device; // An array of RAJA devices
 
 public:
    Engine(const std::string &engine_spec);
 
    virtual ~Engine() { }
-  
-  raja::device GetDevice(int idx = 0) const {
-    MFEM_ABORT("FIXME");
-    return device[idx];
-  }
+
+   raja::device GetDevice(int idx = 0) const
+   {
+      MFEM_ABORT("FIXME");
+      return device[idx];
+   }
 
    /**
        @name RAJA specific interface, used by other objects in the RAJA backend
     */
-  
+
    // End: RAJA specific interface
 
    /**

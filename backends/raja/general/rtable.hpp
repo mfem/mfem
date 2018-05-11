@@ -16,20 +16,22 @@
 #ifndef LAGHOS_RAJA_TABLE
 #define LAGHOS_RAJA_TABLE
 
-namespace mfem {
-  
-  class RajaTable : public rmalloc<int>{
-  private:
-    int size = 0;
-    int *I = NULL;
-    int *J = NULL;
-  public:
-    RajaTable(const Table&);
-    inline int Size(){return size;}
-    int RowSize(int i) const { return I[i+1]-I[i]; }
-    const int *GetRow(int i) const { return J+I[i]; }
-    int *GetRow(int i) { return J+I[i]; }
-  };
+namespace mfem
+{
+
+class RajaTable : public rmalloc<int>
+{
+private:
+   int size = 0;
+   int *I = NULL;
+   int *J = NULL;
+public:
+   RajaTable(const Table&);
+   inline int Size() {return size;}
+   int RowSize(int i) const { return I[i+1]-I[i]; }
+   const int *GetRow(int i) const { return J+I[i]; }
+   int *GetRow(int i) { return J+I[i]; }
+};
 
 } // mfem
 

@@ -11,13 +11,17 @@
 #ifndef MFEM_BACKENDS_RAJA_MEMORY_HPP
 #define MFEM_BACKENDS_RAJA_MEMORY_HPP
 
-namespace mfem{
+namespace mfem
+{
 
-namespace raja{
+namespace raja
+{
 
-  class memory{
-  public:
-  };
+class memory
+{
+public:
+   void copyFrom(memory &src) {}
+};
 
 } // namespace mfem::raja
 

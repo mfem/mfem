@@ -16,27 +16,29 @@
 #ifndef LAGHOS_RAJA_CONFORM_PROLONGATION_OP
 #define LAGHOS_RAJA_CONFORM_PROLONGATION_OP
 
-namespace mfem {
-  
-  // ***************************************************************************
-  // * RajaConformingProlongationOperator
-  //  **************************************************************************
-  class RajaConformingProlongationOperator : public RajaOperator{
-  protected:
-    Array<int> external_ldofs;
-    //RajaArray<int> d_non_empty_m;
-    RajaArray<int> d_external_ldofs;
-    RajaCommD *gc;
-    int kMaxTh;
-  public:
-    RajaConformingProlongationOperator(ParFiniteElementSpace &);
-    ~RajaConformingProlongationOperator();
-    void d_Mult(const RajaVector &x, RajaVector &y) const;
-    void d_MultTranspose(const RajaVector &x, RajaVector &y) const;  
-    void h_Mult(const Vector &x, Vector &y) const;
-    void h_MultTranspose(const Vector &x, Vector &y) const;
-  };
-  
+namespace mfem
+{
+
+// ***************************************************************************
+// * RajaConformingProlongationOperator
+//  **************************************************************************
+class RajaConformingProlongationOperator : public RajaOperator
+{
+protected:
+   Array<int> external_ldofs;
+   //RajaArray<int> d_non_empty_m;
+   RajaArray<int> d_external_ldofs;
+   RajaCommD *gc;
+   int kMaxTh;
+public:
+   RajaConformingProlongationOperator(ParFiniteElementSpace &);
+   ~RajaConformingProlongationOperator();
+   void d_Mult(const RajaVector &x, RajaVector &y) const;
+   void d_MultTranspose(const RajaVector &x, RajaVector &y) const;
+   void h_Mult(const Vector &x, Vector &y) const;
+   void h_MultTranspose(const Vector &x, Vector &y) const;
+};
+
 } // mfem
 
 #endif // LAGHOS_RAJA_CONFORM_PROLONGATION_OP

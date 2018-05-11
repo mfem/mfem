@@ -16,23 +16,25 @@
 #ifndef LAGHOS_RAJA_RESTRICT_OP
 #define LAGHOS_RAJA_RESTRICT_OP
 
-namespace mfem {
-  
-  // ***************************************************************************
-  // * RajaRestrictionOperator
-  // ***************************************************************************
-  class RajaRestrictionOperator : public RajaOperator {
-  protected:
-    int entries;
-    const RajaArray<int> *indices;
-  public:
-    RajaRestrictionOperator(const int h, const int w,
-                            const RajaArray<int> *idx):
+namespace mfem
+{
+
+// ***************************************************************************
+// * RajaRestrictionOperator
+// ***************************************************************************
+class RajaRestrictionOperator : public RajaOperator
+{
+protected:
+   int entries;
+   const RajaArray<int> *indices;
+public:
+   RajaRestrictionOperator(const int h, const int w,
+                           const RajaArray<int> *idx):
       RajaOperator(h,w),
       entries(idx->size()>>1),
-      indices(idx){} 
-    void Mult(const RajaVector& x, RajaVector& y) const ;
-  };
+      indices(idx) {}
+   void Mult(const RajaVector& x, RajaVector& y) const ;
+};
 
 } // mfem
 

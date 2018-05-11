@@ -14,9 +14,11 @@
 // used from examples by including ../all.hpp
 #include "raja.hpp"
 
-namespace mfem{
+namespace mfem
+{
 
-namespace raja{
+namespace raja
+{
 
 class Backend : public mfem::Backend
 {

@@ -18,31 +18,33 @@
 
 // *****************************************************************************
 // en.wikipedia.org/wiki/Web_colors#Hex_triplet
-typedef enum { 
-  Black, NavyBlue, DarkBlue, MediumBlue, Blue, DarkGreen, WebGreen, Teal,
-  DarkCyan, DeepSkyBlue, DarkTurquoise, MediumSpringGreen, Green, Lime,
-  SpringGreen, Aqua, Cyan, MidnightBlue, DodgerBlue, LightSeaGreen,
-  ForestGreen, SeaGreen, DarkSlateGray, LimeGreen, MediumSeaGreen,
-  Turquoise, RoyalBlue, SteelBlue, DarkSlateBlue, MediumTurquoise, Indigo,
-  DarkOliveGreen, CadetBlue, Cornflower, RebeccaPurple, MediumAquamarine,
-  DimGray, SlateBlue, OliveDrab, SlateGray, LightSlateGray,
-  MediumSlateBlue, LawnGreen, WebMaroon, WebPurple, Chartreuse,
-  Aquamarine, Olive, WebGray, SkyBlue, LightSkyBlue, BlueViolet, DarkRed,
-  DarkMagenta, SaddleBrown, DarkSeaGreen, LightGreen, MediumPurple,
-  DarkViolet, PaleGreen, DarkOrchid, YellowGreen, Purple, Sienna, Brown,
-  DarkGray, LightBlue, GreenYellow, PaleTurquoise, Maroon,
-  LightSteelBlue, PowderBlue, Firebrick, DarkGoldenrod, MediumOrchid,
-  RosyBrown, DarkKhaki, Gray, Silver, MediumVioletRed, IndianRed, Peru,
-  Chocolate, Tan, LightGray, Thistle, Orchid, Goldenrod, PaleVioletRed,
-  Crimson, Gainsboro, Plum, Burlywood, LightCyan, Lavender, DarkSalmon,
-  Violet, PaleGoldenrod, LightCoral, Khaki, AliceBlue, Honeydew, Azure,
-  SandyBrown, Wheat, Beige, WhiteSmoke, MintCream, GhostWhite, Salmon,
-  AntiqueWhite, Linen, LightGoldenrod, OldLace, Red, Fuchsia, Magenta,
-  DeepPink, OrangeRed, Tomato, HotPink, Coral, DarkOrange, LightSalmon,
-  Orange, LightPink, Pink, Gold, PeachPuff, NavajoWhite, Moccasin,
-  Bisque, MistyRose, BlanchedAlmond, PapayaWhip, LavenderBlush, Seashell,
-  Cornsilk, LemonChiffon, FloralWhite, Snow, Yellow, LightYellow, Ivory,
-  White} colors;
+typedef enum
+{
+   Black, NavyBlue, DarkBlue, MediumBlue, Blue, DarkGreen, WebGreen, Teal,
+   DarkCyan, DeepSkyBlue, DarkTurquoise, MediumSpringGreen, Green, Lime,
+   SpringGreen, Aqua, Cyan, MidnightBlue, DodgerBlue, LightSeaGreen,
+   ForestGreen, SeaGreen, DarkSlateGray, LimeGreen, MediumSeaGreen,
+   Turquoise, RoyalBlue, SteelBlue, DarkSlateBlue, MediumTurquoise, Indigo,
+   DarkOliveGreen, CadetBlue, Cornflower, RebeccaPurple, MediumAquamarine,
+   DimGray, SlateBlue, OliveDrab, SlateGray, LightSlateGray,
+   MediumSlateBlue, LawnGreen, WebMaroon, WebPurple, Chartreuse,
+   Aquamarine, Olive, WebGray, SkyBlue, LightSkyBlue, BlueViolet, DarkRed,
+   DarkMagenta, SaddleBrown, DarkSeaGreen, LightGreen, MediumPurple,
+   DarkViolet, PaleGreen, DarkOrchid, YellowGreen, Purple, Sienna, Brown,
+   DarkGray, LightBlue, GreenYellow, PaleTurquoise, Maroon,
+   LightSteelBlue, PowderBlue, Firebrick, DarkGoldenrod, MediumOrchid,
+   RosyBrown, DarkKhaki, Gray, Silver, MediumVioletRed, IndianRed, Peru,
+   Chocolate, Tan, LightGray, Thistle, Orchid, Goldenrod, PaleVioletRed,
+   Crimson, Gainsboro, Plum, Burlywood, LightCyan, Lavender, DarkSalmon,
+   Violet, PaleGoldenrod, LightCoral, Khaki, AliceBlue, Honeydew, Azure,
+   SandyBrown, Wheat, Beige, WhiteSmoke, MintCream, GhostWhite, Salmon,
+   AntiqueWhite, Linen, LightGoldenrod, OldLace, Red, Fuchsia, Magenta,
+   DeepPink, OrangeRed, Tomato, HotPink, Coral, DarkOrange, LightSalmon,
+   Orange, LightPink, Pink, Gold, PeachPuff, NavajoWhite, Moccasin,
+   Bisque, MistyRose, BlanchedAlmond, PapayaWhip, LavenderBlush, Seashell,
+   Cornsilk, LemonChiffon, FloralWhite, Snow, Yellow, LightYellow, Ivory,
+   White
+} colors;
 
 // *****************************************************************************
 #if defined(__NVCC__) and defined(__NVVP__)
@@ -52,7 +54,8 @@ typedef enum {
 #include <cudaProfiler.h>
 
 // *****************************************************************************
-NVTX_DECLSPEC int NVTX_API rNvtxRangePushEx(const char*,const char*,const int,const int);
+NVTX_DECLSPEC int NVTX_API rNvtxRangePushEx(const char*,const char*,const int,
+                                            const int);
 NVTX_DECLSPEC int NVTX_API rNvtxRangePushEx(const char*, const int);
 NVTX_DECLSPEC int NVTX_API rNvtxSyncPop(void);
 

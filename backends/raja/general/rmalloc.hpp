@@ -16,23 +16,29 @@
 #ifndef LAGHOS_RAJA_MALLOC
 #define LAGHOS_RAJA_MALLOC
 
-namespace mfem {
+namespace mfem
+{
 
-  // ***************************************************************************
-  template<class T> struct rmalloc: public rmemcpy {
+// ***************************************************************************
+template<class T> struct rmalloc: public rmemcpy
+{
 
-    // *************************************************************************
-    inline void* operator new(size_t n, bool lock_page = false) {
+   // *************************************************************************
+   inline void* operator new (size_t n, bool lock_page = false)
+   {
       dbg("+]\033[m");
-      if (!rconfig::Get().Cuda()) return ::new T[n];
+      if (!rconfig::Get().Cuda()) { return ::new T[n]; }
 #ifdef __NVCC__
       void *ptr;
       push(new,Purple);
-      if (!rconfig::Get().Uvm()){
-        if (lock_page) cuMemHostAlloc(&ptr, n*sizeof(T), CU_MEMHOSTALLOC_PORTABLE);
-        else cuMemAlloc((CUdeviceptr*)&ptr, n*sizeof(T));
-      }else{
-        cuMemAllocManaged((CUdeviceptr*)&ptr, n*sizeof(T),CU_MEM_ATTACH_GLOBAL);
+      if (!rconfig::Get().Uvm())
+      {
+         if (lock_page) { cuMemHostAlloc(&ptr, n*sizeof(T), CU_MEMHOSTALLOC_PORTABLE); }
+         else { cuMemAlloc((CUdeviceptr*)&ptr, n*sizeof(T)); }
+      }
+      else
+      {
+         cuMemAllocManaged((CUdeviceptr*)&ptr, n*sizeof(T),CU_MEM_ATTACH_GLOBAL);
       }
       pop();
       return ptr;
@@ -42,25 +48,30 @@ namespace mfem {
       assert(false);
       return ::new T[n];
 #endif // __NVCC__
-    }
-  
-    // ***************************************************************************
-    inline void operator delete(void *ptr) {
+   }
+
+   // ***************************************************************************
+   inline void operator delete (void *ptr)
+   {
       dbg("-]\033[m");
-      if (!rconfig::Get().Cuda()) {
-        if (ptr)
-          ::delete[] static_cast<T*>(ptr);
+      if (!rconfig::Get().Cuda())
+      {
+         if (ptr)
+         {
+            ::delete[] static_cast<T*>(ptr);
+         }
       }
 #ifdef __NVCC__
-      else {
-        push(delete,Fuchsia);
-        cuMemFree((CUdeviceptr)ptr); // or cuMemFreeHost if page_locked was used
-        pop();
+      else
+      {
+         push(delete,Fuchsia);
+         cuMemFree((CUdeviceptr)ptr); // or cuMemFreeHost if page_locked was used
+         pop();
       }
 #endif // __NVCC__
       ptr = nullptr;
-    }
-  };
+   }
+};
 
 } // mfem
 

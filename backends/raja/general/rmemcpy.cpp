@@ -15,62 +15,80 @@
 // testbed platforms, in support of the nation's exascale computing imperative.
 #include "../raja.hpp"
 
-namespace mfem {
+namespace mfem
+{
 
-  // *************************************************************************
-  void* rmemcpy::rHtoH(void *dest, const void *src, std::size_t bytes, const bool async){
-    dbg(">\033[m");
-    if (bytes==0) return dest;
-    assert(src); assert(dest);
-    std::memcpy(dest,src,bytes);
-    return dest;
-  }
+// *************************************************************************
+void* rmemcpy::rHtoH(void *dest, const void *src, std::size_t bytes,
+                     const bool async)
+{
+   dbg(">\033[m");
+   if (bytes==0) { return dest; }
+   assert(src); assert(dest);
+   std::memcpy(dest,src,bytes);
+   return dest;
+}
 
-  // *************************************************************************
-  void* rmemcpy::rHtoD(void *dest, const void *src, std::size_t bytes, const bool async){
-    dbg(">\033[m");
-    if (bytes==0) return dest;
-    assert(src); assert(dest);
-    if (!rconfig::Get().Cuda()) return std::memcpy(dest,src,bytes);
+// *************************************************************************
+void* rmemcpy::rHtoD(void *dest, const void *src, std::size_t bytes,
+                     const bool async)
+{
+   dbg(">\033[m");
+   if (bytes==0) { return dest; }
+   assert(src); assert(dest);
+   if (!rconfig::Get().Cuda()) { return std::memcpy(dest,src,bytes); }
 #ifdef __NVCC__
-    if (!rconfig::Get().Uvm())
+   if (!rconfig::Get().Uvm())
+   {
       checkCudaErrors(cuMemcpyHtoD((CUdeviceptr)dest,src,bytes));
-    else checkCudaErrors(cuMemcpy((CUdeviceptr)dest,(CUdeviceptr)src,bytes));
+   }
+   else { checkCudaErrors(cuMemcpy((CUdeviceptr)dest,(CUdeviceptr)src,bytes)); }
 #endif
-    return dest;
-  }
+   return dest;
+}
 
-  // ***************************************************************************
-  void* rmemcpy::rDtoH(void *dest, const void *src, std::size_t bytes, const bool async){
-    dbg("<\033[m");
-    if (bytes==0) return dest;
-    assert(src); assert(dest);
-    if (!rconfig::Get().Cuda()) return std::memcpy(dest,src,bytes);
+// ***************************************************************************
+void* rmemcpy::rDtoH(void *dest, const void *src, std::size_t bytes,
+                     const bool async)
+{
+   dbg("<\033[m");
+   if (bytes==0) { return dest; }
+   assert(src); assert(dest);
+   if (!rconfig::Get().Cuda()) { return std::memcpy(dest,src,bytes); }
 #ifdef __NVCC__
-    if (!rconfig::Get().Uvm())
+   if (!rconfig::Get().Uvm())
+   {
       checkCudaErrors(cuMemcpyDtoH(dest,(CUdeviceptr)src,bytes));
-    else checkCudaErrors(cuMemcpy((CUdeviceptr)dest,(CUdeviceptr)src,bytes));
+   }
+   else { checkCudaErrors(cuMemcpy((CUdeviceptr)dest,(CUdeviceptr)src,bytes)); }
 #endif
-    return dest;
-  }
-  
-  // ***************************************************************************
-  void* rmemcpy::rDtoD(void *dest, const void *src, std::size_t bytes, const bool async){
-    dbg("<\033[m");
-    if (bytes==0) return dest;
-    assert(src); assert(dest);
-    if (!rconfig::Get().Cuda()) return std::memcpy(dest,src,bytes);
+   return dest;
+}
+
+// ***************************************************************************
+void* rmemcpy::rDtoD(void *dest, const void *src, std::size_t bytes,
+                     const bool async)
+{
+   dbg("<\033[m");
+   if (bytes==0) { return dest; }
+   assert(src); assert(dest);
+   if (!rconfig::Get().Cuda()) { return std::memcpy(dest,src,bytes); }
 #ifdef __NVCC__
-    if (!rconfig::Get().Uvm()){
+   if (!rconfig::Get().Uvm())
+   {
       if (!async)
-        checkCudaErrors(cuMemcpyDtoD((CUdeviceptr)dest,(CUdeviceptr)src,bytes));
-      else{
-        const CUstream s = *rconfig::Get().Stream();
-        checkCudaErrors(cuMemcpyDtoDAsync((CUdeviceptr)dest,(CUdeviceptr)src,bytes,s));
+      {
+         checkCudaErrors(cuMemcpyDtoD((CUdeviceptr)dest,(CUdeviceptr)src,bytes));
       }
-    } else checkCudaErrors(cuMemcpy((CUdeviceptr)dest,(CUdeviceptr)src,bytes));
+      else
+      {
+         const CUstream s = *rconfig::Get().Stream();
+         checkCudaErrors(cuMemcpyDtoDAsync((CUdeviceptr)dest,(CUdeviceptr)src,bytes,s));
+      }
+   }
+   else { checkCudaErrors(cuMemcpy((CUdeviceptr)dest,(CUdeviceptr)src,bytes)); }
 #endif
-    return dest;
-  }
+   return dest;
+}
 
 } // mfem

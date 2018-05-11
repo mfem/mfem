@@ -18,17 +18,6 @@ namespace mfem
 namespace raja
 {
 
-void Layout::Resize(std::size_t new_size)
-{
-   size = new_size;
-}
-
-void Layout::Resize(const mfem::Array<std::size_t> &offsets)
-{
-   MFEM_ASSERT(offsets.Size() == 2,
-               "multiple workers are not supported yet");
-   size = offsets.Last();
-}
 
 } // namespace mfem::raja
 

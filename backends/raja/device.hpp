@@ -11,11 +11,13 @@
 #ifndef MFEM_BACKENDS_RAJA_DEVICE_HPP
 #define MFEM_BACKENDS_RAJA_DEVICE_HPP
 
-namespace mfem{
+namespace mfem
+{
 
-namespace raja{
+namespace raja
+{
 
-class device{};
+class device {};
 
 } // namespace mfem::raja
 

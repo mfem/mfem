@@ -16,34 +16,36 @@
 #ifndef LAGHOS_RAJA_FESPACE
 #define LAGHOS_RAJA_FESPACE
 
-namespace mfem {
-  
-  // ***************************************************************************
-  // * RajaFiniteElementSpace
-  //  **************************************************************************
-  class RajaFiniteElementSpace : public ParFiniteElementSpace {
-  private:
-    int globalDofs, localDofs;
-    RajaArray<int> offsets;
-    RajaArray<int> indices, *reorderIndices;
-    RajaArray<int> map;
-    RajaOperator *restrictionOp, *prolongationOp;
-  public:
-    RajaFiniteElementSpace(Mesh* mesh,
-                           const FiniteElementCollection* fec,
-                           const int vdim_ = 1,
-                           Ordering::Type ordering_ = Ordering::byNODES);
-    ~RajaFiniteElementSpace();
-    // *************************************************************************
-    bool hasTensorBasis() const;
-    int GetLocalDofs() const { return localDofs; }
-    const RajaOperator* GetRestrictionOperator() { return restrictionOp; }
-    const RajaOperator* GetProlongationOperator() { return prolongationOp; }
-    const RajaArray<int>& GetLocalToGlobalMap() const { return map; }
-    // *************************************************************************
-    void GlobalToLocal(const RajaVector&, RajaVector&) const;
-    void LocalToGlobal(const RajaVector&, RajaVector&) const;
-  };
+namespace mfem
+{
+
+// ***************************************************************************
+// * RajaFiniteElementSpace
+//  **************************************************************************
+class RajaFiniteElementSpace : public ParFiniteElementSpace
+{
+private:
+   int globalDofs, localDofs;
+   RajaArray<int> offsets;
+   RajaArray<int> indices, *reorderIndices;
+   RajaArray<int> map;
+   RajaOperator *restrictionOp, *prolongationOp;
+public:
+   RajaFiniteElementSpace(Mesh* mesh,
+                          const FiniteElementCollection* fec,
+                          const int vdim_ = 1,
+                          Ordering::Type ordering_ = Ordering::byNODES);
+   ~RajaFiniteElementSpace();
+   // *************************************************************************
+   bool hasTensorBasis() const;
+   int GetLocalDofs() const { return localDofs; }
+   const RajaOperator* GetRestrictionOperator() { return restrictionOp; }
+   const RajaOperator* GetProlongationOperator() { return prolongationOp; }
+   const RajaArray<int>& GetLocalToGlobalMap() const { return map; }
+   // *************************************************************************
+   void GlobalToLocal(const RajaVector&, RajaVector&) const;
+   void LocalToGlobal(const RajaVector&, RajaVector&) const;
+};
 
 } // mfem
 

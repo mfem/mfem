@@ -15,15 +15,17 @@
 #include "vector.hpp"
 #include "../../linalg/vector.hpp"
 
-namespace mfem{
+namespace mfem
+{
 
-namespace raja{
+namespace raja
+{
+
 
 PVector *Vector::DoVectorClone(bool copy_data, void **buffer,
                                int buffer_type_id) const
 {
-  MFEM_ABORT("FIXME");
-/*   MFEM_ASSERT(buffer_type_id == ScalarId<double>::value, "");
+   MFEM_ASSERT(buffer_type_id == ScalarId<double>::value, "");
    Vector *new_vector = new Vector(RajaLayout());
    if (copy_data)
    {
@@ -34,22 +36,18 @@ PVector *Vector::DoVectorClone(bool copy_data, void **buffer,
       *buffer = new_vector->GetBuffer();
    }
    return new_vector;
-*/
-  return NULL;
 }
 
 void Vector::DoDotProduct(const PVector &x, void *result,
                           int result_type_id) const
 {
-  MFEM_ABORT("FIXME");
-  /*
-  // called only when Size() != 0
-  MFEM_ASSERT(result_type_id == ScalarId<double>::value, "");
-  double *res = (double *)result;
-  MFEM_ASSERT(dynamic_cast<const Vector *>(&x) != NULL, "invalid Vector type");
-  const Vector *xp = static_cast<const Vector *>(&x);
-  MFEM_ASSERT(this->Size() == xp->Size(), "");
-   *res = ::raja::linalg::dot<double, double, double>(this->slice, xp->slice);
+   // called only when Size() != 0
+   MFEM_ASSERT(result_type_id == ScalarId<double>::value, "");
+   double *res = (double *)result;
+   MFEM_ASSERT(dynamic_cast<const Vector *>(&x) != NULL, "invalid Vector type");
+   const Vector *xp = static_cast<const Vector *>(&x);
+   MFEM_ASSERT(this->Size() == xp->Size(), "");
+   *res = raja::dot(this->slice, xp->slice);
    // FIXME: MPI*/
 }
 
@@ -57,7 +55,7 @@ void Vector::DoAxpby(const void *a, const PVector &x,
                      const void *b, const PVector &y,
                      int ab_type_id)
 {
-  MFEM_ABORT("FIXME");
+   MFEM_ABORT("FIXME");
 }
 
 mfem::Vector Vector::Wrap()

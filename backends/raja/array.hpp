@@ -57,8 +57,8 @@ protected:
 
    template <typename T>
    inline void RajaFill(const T *val_ptr)
-   { MFEM_ABORT("FIXME");
-     //::raja::linalg::operator_eq<T>(slice, *val_ptr);
+   {
+      raja::linalg::operator_eq<T>(slice, *val_ptr);
    }
 
 public:
@@ -87,36 +87,36 @@ public:
 inline void *Array::GetBuffer() const
 {
    MFEM_ABORT("FIXME");
-//   if (!slice.getDevice().hasSeparateMemorySpace())
-//   {
-//      return slice.ptr();
-//   }
+   //   if (!slice.getDevice().hasSeparateMemorySpace())
+   //   {
+   //      return slice.ptr();
+   //   }
    return NULL;
 }
 
 inline int Array::ResizeData(const Layout *lt, std::size_t item_size)
 {
-  MFEM_ABORT("FIXME");
-/*const std::size_t new_bytes = lt->Size()*item_size;
-   if (data.size() < new_bytes ||
-       data.getDHandle() != lt->RajaEngine().GetDevice().getDHandle())
-   {
-      data = lt->Alloc(new_bytes);
-      slice = data;
-      // If memory allocation fails - an exception is thrown.
-   }
-   else if (slice.size() != new_bytes)
-   {
-      slice = data.slice(0, new_bytes);
-      }*/
+   MFEM_ABORT("FIXME");
+   /*const std::size_t new_bytes = lt->Size()*item_size;
+      if (data.size() < new_bytes ||
+          data.getDHandle() != lt->RajaEngine().GetDevice().getDHandle())
+      {
+         data = lt->Alloc(new_bytes);
+         slice = data;
+         // If memory allocation fails - an exception is thrown.
+      }
+      else if (slice.size() != new_bytes)
+      {
+         slice = data.slice(0, new_bytes);
+         }*/
    return 0;
 }
 
 inline void Array::MakeRef(Array &master)
 {
-//   layout = master.layout;
-//   data = master.data;
-//   slice = master.slice;
+   //   layout = master.layout;
+   //   data = master.data;
+   //   slice = master.slice;
 }
 
 } // namespace mfem::raja

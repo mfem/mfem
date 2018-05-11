@@ -12,11 +12,14 @@
 #ifndef MFEM_BACKENDS_RAJA_LAYOUT_HPP
 #define MFEM_BACKENDS_RAJA_LAYOUT_HPP
 
-namespace mfem{
+namespace mfem
+{
 
-namespace raja{
+namespace raja
+{
 
-class Layout : public PLayout{
+class Layout : public PLayout
+{
 protected:
    //
    // Inherited fields
@@ -30,11 +33,11 @@ public:
    const Engine &RajaEngine() const
    { return *static_cast<const Engine *>(engine.Get()); }
 
-  raja::memory Alloc(std::size_t bytes) const
+   raja::memory Alloc(std::size_t bytes) const
    {
-     MFEM_ABORT("FIXME");
-     //return RajaEngine().GetDevice().malloc(bytes);
-     return raja::memory();
+      MFEM_ABORT("FIXME");
+      //return RajaEngine().GetDevice().malloc(bytes);
+      return raja::memory();
    }
 
    virtual ~Layout() { }

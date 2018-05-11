@@ -8,9 +8,9 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
-#include "raja.hpp"
 
-#if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
+#ifndef MFEM_BACKENDS_RAJA_LINALG_HPP
+#define MFEM_BACKENDS_RAJA_LINALG_HPP
 
 namespace mfem
 {
@@ -18,20 +18,27 @@ namespace mfem
 namespace raja
 {
 
-void Layout::Resize(std::size_t new_size)
+namespace linalg
 {
-   size = new_size;
+
+// ***************************************************************************
+double dot(memory vec1, memory vec2)
+{
+   MFEM_ABORT("FIXME");
+   return 0.0;
 }
 
-void Layout::Resize(const mfem::Array<std::size_t> &offsets)
+// ***************************************************************************
+template<class T>
+void operator_eq(raja::memory vec, const T value)
 {
-   MFEM_ASSERT(offsets.Size() == 2,
-               "multiple workers are not supported yet");
-   size = offsets.Last();
+   MFEM_ABORT("FIXME");
 }
+
+} // namespace mfem::raja::linalg
 
 } // namespace mfem::raja
 
 } // namespace mfem
 
-#endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
+#endif // MFEM_BACKENDS_RAJA_LINALG_HPP
