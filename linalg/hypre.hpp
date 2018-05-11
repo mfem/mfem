@@ -885,6 +885,9 @@ public:
    void SetMaxIter(int max_iter)
    { HYPRE_BoomerAMGSetMaxIter(amg_precond, max_iter); }
 
+   void SetMaxLevels(int max_levels)
+   { HYPRE_BoomerAMGSetMaxLevels(amg_precond, max_levels); }
+
    void SetTol(double tol)
    { HYPRE_BoomerAMGSetTol(amg_precond, tol); }
 
