@@ -25,6 +25,11 @@ Engine::Engine(const std::string &engine_spec): mfem::Engine(NULL, 1, 1)
    workers_mem_res[0] = 0;
    // Initialize the RAJA engine
 }
+  
+raja::device Engine::GetDevice(int idx) const
+{
+  return device[idx];
+}
 
 DLayout Engine::MakeLayout(std::size_t size) const
 {
@@ -42,8 +47,8 @@ DArray Engine::MakeArray(PLayout &layout, std::size_t item_size) const
 {
    MFEM_ASSERT(dynamic_cast<Layout *>(&layout) != NULL,
                "invalid input layout");
-   //Layout *lt = static_cast<Layout *>(&layout);
-   return DArray();//new Array(*lt, item_size));
+   Layout *lt = static_cast<Layout *>(&layout);
+   return DArray(new Array(*lt, item_size));
 }
 
 DVector Engine::MakeVector(PLayout &layout, int type_id) const
@@ -57,11 +62,13 @@ DVector Engine::MakeVector(PLayout &layout, int type_id) const
 
 DFiniteElementSpace Engine::MakeFESpace(mfem::FiniteElementSpace &fespace) const
 {
-   return DFiniteElementSpace();//w FiniteElementSpace(*this, fespace));
+#warning MakeFESpace
+  return DFiniteElementSpace();//new RajaFiniteElementSpace(*this, fespace));
 }
 
 DBilinearForm Engine::MakeBilinearForm(mfem::BilinearForm &bf) const
 {
+#warning MakeBilinearForm
    return DBilinearForm();//new BilinearForm(*this, bf));
 }
 

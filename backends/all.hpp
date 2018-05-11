@@ -23,7 +23,7 @@
 #endif
 
 #ifdef MFEM_USE_RAJA
-#include "raja/backend.hpp"
+#include "raja/raja.hpp"
 #endif
 
 #endif // MFEM_USE_BACKENDS

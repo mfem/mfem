@@ -17,38 +17,10 @@ namespace mfem
 
 namespace raja
 {
-  
-  size_t memory::size() const {
-    return memory_size;
-  }
- 
-  void memory::copyFrom(memory &src) {
-    MFEM_ABORT("FIXME");
-  }
-  
-  void memory::copyFrom(const void *src) {
-    MFEM_ABORT("FIXME");
-  }
-  
-  void memory::copyTo(void *dest) {
-    MFEM_ABORT("FIXME");
-  }
-  
-  device memory::getDevice() const { return *dev;}
-  
-  void* memory::ptr() {
-    MFEM_ABORT("FIXME");
-    return NULL;
-  }
-  
-  device_v* memory::getDHandle() const {return dev->getDHandle();}
-  
-  memory memory::slice(const size_t offset,
-                       const size_t bytes) const{
-    MFEM_ABORT("FIXME");
-    return memory();
-  }
 
+//
+// Empty for now.
+//
 
 } // namespace mfem::raja
 

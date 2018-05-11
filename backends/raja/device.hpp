@@ -17,7 +17,21 @@ namespace mfem
 namespace raja
 {
 
-class device {};
+  // ***************************************************************************
+  class device_v {
+  };
+
+  // ***************************************************************************
+  class device {
+  private:
+    mutable device_v *dHandle;
+  public:
+    device();
+    bool hasSeparateMemorySpace();
+    device_v* getDHandle() const;
+    memory malloc(const size_t,const void * = NULL);
+
+  };
 
 } // namespace mfem::raja
 

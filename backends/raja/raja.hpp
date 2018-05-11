@@ -1,20 +1,15 @@
-// Copyright (c) 2017, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-734707. All Rights
-// reserved. See files LICENSE and NOTICE for details.
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
 //
-// This file is part of CEED, a collection of benchmarks, miniapps, software
-// libraries and APIs for efficient high-order finite element and spectral
-// element discretizations for exascale applications. For more information and
-// source code availability see http://github.com/ceed.
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
 //
-// The CEED research is supported by the Exascale Computing Project 17-SC-20-SC,
-// a collaborative effort of two U.S. Department of Energy organizations (Office
-// of Science and the National Nuclear Security Administration) responsible for
-// the planning and preparation of a capable exascale ecosystem, including
-// software, applications, hardware, advanced system engineering and early
-// testbed platforms, in support of the nation's exascale computing imperative.
-#ifndef BACKEND_RAJA
-#define BACKEND_RAJA
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
+#ifndef MFEM_BACKENDS_RAJA_HPP
+#define MFEM_BACKENDS_RAJA_HPP
 
 // stdincs *********************************************************************
 #include <stdio.h>
@@ -40,13 +35,14 @@
 #include "../../fem/pfespace.hpp"
 
 // backend/raja ****************************************************************
+#include "backend.hpp"
 #include "memory.hpp"
-#include "linalg.hpp"
 #include "device.hpp"
+#include "engine.hpp"
+#include "linalg.hpp"
 #include "layout.hpp"
 #include "array.hpp"
 #include "vector.hpp"
-#include "engine.hpp"
 
 // backend/raja/config *********************************************************
 #include "config/rdbg.hpp"
@@ -81,5 +77,5 @@
 // backend/raja/tests **********************************************************
 #include "tests/tests.hpp"
 
-#endif // BACKEND_RAJA
+#endif // MFEM_BACKENDS_RAJA_HPP
 

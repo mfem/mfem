@@ -39,16 +39,12 @@ public:
 
    virtual ~Engine() { }
 
-   raja::device GetDevice(int idx = 0) const
-   {
-      MFEM_ABORT("FIXME");
-      return device[idx];
-   }
+  raja::device GetDevice(int idx = 0) const;
 
    /**
        @name RAJA specific interface, used by other objects in the RAJA backend
     */
-
+  
    // End: RAJA specific interface
 
    /**

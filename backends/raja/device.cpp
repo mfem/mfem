@@ -18,27 +18,22 @@ namespace mfem
 namespace raja
 {
   // ***************************************************************************
-  const Engine& Layout::RajaEngine() const
-  { return *static_cast<const Engine *>(engine.Get()); }
-
+  device::device():dHandle(new device_v()){   
+  }
+    
   // ***************************************************************************
-  void Layout::Resize(std::size_t new_size)
-  {
-    size = new_size;
+  bool device::hasSeparateMemorySpace(){
+    return false;
   }
 
   // ***************************************************************************
-  void Layout::Resize(const mfem::Array<std::size_t> &offsets)
-  {
-    MFEM_ASSERT(offsets.Size() == 2,
-                "multiple workers are not supported yet");
-    size = offsets.Last();
-  }
+  device_v* device::getDHandle() const {return dHandle;}
 
   // ***************************************************************************
-  raja::memory Layout::Alloc(std::size_t bytes) const
-  {
-    return RajaEngine().GetDevice().malloc(bytes);
+  memory device::malloc(const size_t,const void *){
+    MFEM_ABORT("FIXME");
+#warning device malloc
+    return memory();
   }
 
 } // namespace mfem::raja

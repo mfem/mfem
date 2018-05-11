@@ -8,7 +8,6 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
-
 #ifndef MFEM_BACKENDS_RAJA_LINALG_HPP
 #define MFEM_BACKENDS_RAJA_LINALG_HPP
 
@@ -21,20 +20,15 @@ namespace raja
 namespace linalg
 {
 
-// ***************************************************************************
-double dot(memory vec1, memory vec2)
-{
-   MFEM_ABORT("FIXME");
-   return 0.0;
-}
+  // ***************************************************************************
+  double dot(memory vec1, memory vec2);
 
-// ***************************************************************************
-template<class T>
-void operator_eq(raja::memory vec, const T value)
-{
-   MFEM_ABORT("FIXME");
-}
-
+  // ***************************************************************************
+  template<class T>
+  void operator_eq(raja::memory vec, T value){
+    MFEM_ABORT("FIXME");
+  } 
+  
 } // namespace mfem::raja::linalg
 
 } // namespace mfem::raja

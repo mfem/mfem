@@ -11,9 +11,6 @@
 #ifndef MFEM_BACKENDS_RAJA_BACKEND_HPP
 #define MFEM_BACKENDS_RAJA_BACKEND_HPP
 
-// used from examples by including ../all.hpp
-#include "raja.hpp"
-
 namespace mfem
 {
 

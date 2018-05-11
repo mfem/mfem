@@ -47,7 +47,7 @@ void Vector::DoDotProduct(const PVector &x, void *result,
    MFEM_ASSERT(dynamic_cast<const Vector *>(&x) != NULL, "invalid Vector type");
    const Vector *xp = static_cast<const Vector *>(&x);
    MFEM_ASSERT(this->Size() == xp->Size(), "");
-   *res = raja::dot(this->slice, xp->slice);
+   *res = raja::linalg::dot(this->slice, xp->slice);
    // FIXME: MPI*/
 }
 

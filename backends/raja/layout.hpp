@@ -8,7 +8,6 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
-
 #ifndef MFEM_BACKENDS_RAJA_LAYOUT_HPP
 #define MFEM_BACKENDS_RAJA_LAYOUT_HPP
 
@@ -30,15 +29,9 @@ protected:
 public:
    Layout(const Engine &e, std::size_t s = 0) : PLayout(e, s) { }
 
-   const Engine &RajaEngine() const
-   { return *static_cast<const Engine *>(engine.Get()); }
+  const Engine &RajaEngine() const;
 
-   raja::memory Alloc(std::size_t bytes) const
-   {
-      MFEM_ABORT("FIXME");
-      //return RajaEngine().GetDevice().malloc(bytes);
-      return raja::memory();
-   }
+  raja::memory Alloc(std::size_t bytes) const;
 
    virtual ~Layout() { }
 
