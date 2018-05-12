@@ -159,6 +159,13 @@ public:
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 
+   virtual void AssembleFaceMatrix(const FiniteElement &trial_fe1,
+                                   const FiniteElement &test_fe1,
+                                   const FiniteElement &trial_fe2,
+                                   const FiniteElement &test_fe2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+
    /** Abstract method used for assembling TraceFaceIntegrators in a
        MixedBilinearForm. */
    virtual void AssembleFaceMatrix(const FiniteElement &trial_face_fe,
@@ -299,6 +306,13 @@ public:
    using BilinearFormIntegrator::AssembleFaceMatrix;
    virtual void AssembleFaceMatrix(const FiniteElement &el1,
                                    const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+
+   virtual void AssembleFaceMatrix(const FiniteElement &trial_fe1,
+                                   const FiniteElement &test_fe1,
+                                   const FiniteElement &trial_fe2,
+                                   const FiniteElement &test_fe2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 

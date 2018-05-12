@@ -171,6 +171,16 @@ void BilinearFormIntegrator::AssembleFaceMatrix(
 }
 
 void BilinearFormIntegrator::AssembleFaceMatrix(
+   const FiniteElement &trial_fe1, const FiniteElement &test_fe1,
+   const FiniteElement &trial_fe2, const FiniteElement &test_fe2,
+   FaceElementTransformations &Trans,
+   DenseMatrix &elmat)
+{
+   MFEM_ABORT("AssembleFaceMatrix (mixed form) is not implemented for this"
+              " Integrator class.");
+}
+
+void BilinearFormIntegrator::AssembleFaceMatrix(
    const FiniteElement &trial_face_fe, const FiniteElement &test_fe1,
    const FiniteElement &test_fe2, FaceElementTransformations &Trans,
    DenseMatrix &elmat)
@@ -239,6 +249,16 @@ void TransposeIntegrator::AssembleFaceMatrix (
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
    bfi -> AssembleFaceMatrix (el1, el2, Trans, bfi_elmat);
+   // elmat = bfi_elmat^t
+   elmat.Transpose (bfi_elmat);
+}
+
+void TransposeIntegrator::AssembleFaceMatrix (
+   const FiniteElement &tr_el1, const FiniteElement &te_el1,
+   const FiniteElement &tr_el2, const FiniteElement &te_el2,
+   FaceElementTransformations &Trans, DenseMatrix &elmat)
+{
+   bfi -> AssembleFaceMatrix (te_el1, tr_el1, te_el2, tr_el2, Trans, bfi_elmat);
    // elmat = bfi_elmat^t
    elmat.Transpose (bfi_elmat);
 }
