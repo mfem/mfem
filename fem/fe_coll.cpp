@@ -1650,7 +1650,7 @@ const
 
 H1_FECollection::H1_FECollection(const int p, const int dim, const int type)
 {
-   const int pm1 = p - 1, pm2 = pm1 - 1, pm3 = pm2 - 1;
+   const int pm1 = p - 1, pm2 = pm1 - 1, pm3 = pm2 - 1, pm4 = pm3 - 1;
 
    int pt_type = BasisType::GetQuadrature1D(type);
    m_type = BasisType::Check(type);
@@ -1793,6 +1793,20 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int type)
             H1_Elements[Geometry::TETRAHEDRON] =
                new H1_TetrahedronElement(p, pt_type);
             H1_Elements[Geometry::CUBE] = new H1_HexahedronElement(p, pt_type);
+         }
+         
+         if (dim >= 4)
+         {
+            H1_dof[Geometry::PENTATOPE] = (TriDof*pm3*pm4)/12;
+            H1_dof[Geometry::TESSERACT] = QuadDof*pm1*pm1;
+            if (m_type == BasisType::Positive)
+            {
+               mfem_error("H1_FECollection: BasisType::Positive not implemented");
+            }
+            else
+            {
+               H1_Elements[Geometry::PENTATOPE] = new H1_PentatopeElement(p, pt_type);
+            }
          }
       }
    }

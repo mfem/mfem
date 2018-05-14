@@ -10331,6 +10331,316 @@ void H1_TetrahedronElement::CalcHessian(const IntegrationPoint &ip,
    Ti.Mult(ddu, ddshape);
 }
 
+H1_PentatopeElement::H1_PentatopeElement(const int p, const int type)
+   : NodalFiniteElement(4, Geometry::PENTATOPE, ((p + 1)*(p + 2)*(p + 3)*(p + 4))/24,
+                        p, FunctionSpace::Pk)
+{
+   const double *cp = poly1d.ClosedPoints(p, VerifyClosed(type));
+
+#ifndef MFEM_THREAD_SAFE
+   shape_x.SetSize(p + 1);
+   shape_y.SetSize(p + 1);
+   shape_z.SetSize(p + 1);
+   shape_t.SetSize(p + 1);
+   shape_l.SetSize(p + 1);
+   dshape_x.SetSize(p + 1);
+   dshape_y.SetSize(p + 1);
+   dshape_z.SetSize(p + 1);
+   dshape_t.SetSize(p + 1);
+   dshape_l.SetSize(p + 1);
+   ddshape_x.SetSize(p + 1);
+   ddshape_y.SetSize(p + 1);
+   ddshape_z.SetSize(p + 1);
+   ddshape_t.SetSize(p + 1);
+   ddshape_l.SetSize(p + 1);
+   u.SetSize(Dof);
+   du.SetSize(Dof, Dim);
+   ddu.SetSize(Dof,Dim*(Dim+1)/2 );
+#else
+   Vector shape_x(p + 1), shape_y(p + 1), shape_z(p + 1), shape_t(p+1), shape_l(p + 1);
+#endif
+
+   // vertices
+   Nodes.IntPoint(0).Set4(cp[0], cp[0], cp[0], cp[0]);
+   Nodes.IntPoint(1).Set4(cp[p], cp[0], cp[0], cp[0]);
+   Nodes.IntPoint(2).Set4(cp[0], cp[p], cp[0], cp[0]);
+   Nodes.IntPoint(3).Set4(cp[0], cp[0], cp[p], cp[0]);
+   Nodes.IntPoint(4).Set4(cp[0], cp[0], cp[0], cp[p]);
+
+   // edges (see Tetrahedron::edges in mesh/tetrahedron.cpp)
+   int o = 5;
+   for (int i = 1; i < p; i++)  // (0,1)
+   {
+      Nodes.IntPoint(o++).Set4(cp[i], cp[0], cp[0], cp[0]);
+   }
+   for (int i = 1; i < p; i++)  // (0,2)
+   {
+      Nodes.IntPoint(o++).Set4(cp[0], cp[i], cp[0], cp[0]);
+   }
+   for (int i = 1; i < p; i++)  // (0,3)
+   {
+      Nodes.IntPoint(o++).Set4(cp[0], cp[0], cp[i], cp[0]);
+   }
+   for (int i = 1; i < p; i++)  // (0,4)
+   {
+      Nodes.IntPoint(o++).Set4(cp[0], cp[0], cp[0], cp[i]);
+   }
+   for (int i = 1; i < p; i++)  // (1,2)
+   {
+      Nodes.IntPoint(o++).Set4(cp[p-i], cp[i], cp[0], cp[0]);
+   }
+   for (int i = 1; i < p; i++)  // (1,3)
+   {
+      Nodes.IntPoint(o++).Set4(cp[p-i], cp[0], cp[i], cp[0]);
+   }
+   for (int i = 1; i < p; i++)  // (1,4)
+   {
+      Nodes.IntPoint(o++).Set4(cp[p-i], cp[0], cp[0], cp[i]);
+   }
+   for (int i = 1; i < p; i++)  // (2,3)
+   {
+      Nodes.IntPoint(o++).Set4(cp[0], cp[p-i], cp[i], cp[0]);
+   }
+   for (int i = 1; i < p; i++)  // (2,4)
+   {
+      Nodes.IntPoint(o++).Set4(cp[0], cp[p-i], cp[0], cp[i]);
+   }
+   for (int i = 1; i < p; i++)  // (3,4)
+   {
+      Nodes.IntPoint(o++).Set4(cp[0], cp[0], cp[p-i], cp[i]);
+   }
+
+   // planars (see Mesh::GeneratePlanars in mesh/mesh.cpp)
+   for (int j = 1; j < p; j++)
+      for(int i=1; i + j < p; i++) // (0,1,2)
+      {
+         double w = cp[i] + cp[j] + cp[p-i-j];
+         Nodes.IntPoint(o++).Set4(cp[i]/w, cp[j]/w, cp[0], cp[0]);
+      }
+   for (int j = 1; j < p; j++)
+      for(int i=1; i + j < p; i++) // (0,1,3)
+      {
+         double w = cp[i] + cp[j] + cp[p-i-j];
+         Nodes.IntPoint(o++).Set4(cp[i]/w, cp[0], cp[j]/w, cp[0]);
+      }
+   for (int j = 1; j < p; j++)
+      for(int i=1; i + j < p; i++) // (0,1,4)
+      {
+         double w = cp[i] + cp[j] + cp[p-i-j];
+         Nodes.IntPoint(o++).Set4(cp[i]/w, cp[0], cp[0], cp[j]/w);
+      }
+   for (int j = 1; j < p; j++)
+      for(int i=1; i + j < p; i++) // (0,2,3)
+      {
+         double w = cp[i] + cp[j] + cp[p-i-j];
+         Nodes.IntPoint(o++).Set4(cp[0], cp[i]/w, cp[j]/w, cp[0]);
+      }
+   for (int j = 1; j < p; j++)
+      for(int i=1; i + j < p; i++) // (0,2,4)
+      {
+         double w = cp[i] + cp[j] + cp[p-i-j];
+         Nodes.IntPoint(o++).Set4(cp[0], cp[i]/w, cp[0], cp[j]/w);
+      }
+   for (int j = 1; j < p; j++)
+      for(int i=1; i + j < p; i++) // (0,3,4)
+      {
+         double w = cp[i] + cp[j] + cp[p-i-j];
+         Nodes.IntPoint(o++).Set4(cp[0], cp[0], cp[i]/w, cp[j]/w);
+      }
+   for (int j = 1; j < p; j++)
+      for(int i=1; i + j < p; i++) // (1,2,3)
+      {
+         double w = cp[i] + cp[j] + cp[p-i-j];
+         Nodes.IntPoint(o++).Set4(cp[p-i-j]/w, cp[i]/w, cp[j]/w, cp[0]);
+      }
+   for (int j = 1; j < p; j++)
+      for(int i=1; i + j < p; i++) // (1,2,4)
+      {
+         double w = cp[i] + cp[j] + cp[p-i-j];
+         Nodes.IntPoint(o++).Set4(cp[p-i-j]/w, cp[i]/w, cp[0], cp[j]/w);
+      }
+   for (int j = 1; j < p; j++)
+      for(int i=1; i + j < p; i++) // (1,3,4)
+      {
+         double w = cp[i] + cp[j] + cp[p-i-j];
+         Nodes.IntPoint(o++).Set4(cp[p-i-j]/w, cp[0], cp[i]/w, cp[j]/w);
+      }
+   for (int j = 1; j < p; j++)
+      for(int i=1; i + j < p; i++) // (2,3,4)
+      {
+         double w = cp[i] + cp[j] + cp[p-i-j];
+         Nodes.IntPoint(o++).Set4(cp[0], cp[p-i-j]/w, cp[i]/w, cp[j]/w);
+      }
+
+   // face(volumes)s (see Mesh::GenerateFaces in mesh/mesh.cpp)
+   for (int k = 1; k < p; k++)
+      for (int j = 1; j + k < p; j++)
+         for (int i = 1; i + j + k < p; i++)  // (0,1,2,3)
+         {
+            double w = cp[i] + cp[j] + cp[k] + cp[p-i-j-k];
+            Nodes.IntPoint(o++).Set4(cp[i]/w, cp[j]/w, cp[k]/w, cp[0]);
+         }
+   for (int k = 1; k < p; k++)
+      for (int j = 1; j + k < p; j++)
+         for (int i = 1; i + j + k < p; i++)  // (0,1,2,4)
+         {
+            double w = cp[i] + cp[j] + cp[k] + cp[p-i-j-k];
+            Nodes.IntPoint(o++).Set4(cp[i]/w, cp[j]/w, cp[0], cp[k]/w);
+         }
+   for (int k = 1; k < p; k++)
+      for (int j = 1; j + k < p; j++)
+         for (int i = 1; i + j + k < p; i++)  // (0,1,3,4)
+         {
+            double w = cp[i] + cp[j] + cp[k] + cp[p-i-j-k];
+            Nodes.IntPoint(o++).Set4(cp[i]/w, cp[0], cp[j]/w, cp[k]/w);
+         }
+   for (int k = 1; k < p; k++)
+      for (int j = 1; j + k < p; j++)
+         for (int i = 1; i + j + k < p; i++)  // (0,2,3,4)
+         {
+            double w = cp[i] + cp[j] + cp[k] + cp[p-i-j-k];
+            Nodes.IntPoint(o++).Set4(cp[0], cp[i]/w, cp[j]/w, cp[k]/w);
+         }
+   for (int k = 1; k < p; k++)
+      for (int j = 1; j + k < p; j++)
+         for (int i = 1; i + j + k < p; i++)  // (1,2,3,4)
+         {
+            double w = cp[i] + cp[j] + cp[k] + cp[p-i-j-k];
+            Nodes.IntPoint(o++).Set4(cp[p-i-j-k]/w, cp[i]/w, cp[j]/w, cp[k]/w);
+         }
+   
+   // interior
+   for (int l = 1; l < p; l++)
+      for (int k = 1; k + l < p; k++)
+         for (int j = 1; j + k + l < p; j++)
+            for (int i = 1; i + j + k + l < p; i++)
+            {
+               double w = cp[i] + cp[j] + cp[k] + cp[l] + cp[p-i-j-k-l];
+               Nodes.IntPoint(o++).Set4(cp[i]/w, cp[j]/w, cp[k]/w, cp[l]/w);
+            }
+
+   DenseMatrix T(Dof);
+   for (int m = 0; m < Dof; m++)
+   {
+      IntegrationPoint &ip = Nodes.IntPoint(m);
+      poly1d.CalcBasis(p, ip.x, shape_x);
+      poly1d.CalcBasis(p, ip.y, shape_y);
+      poly1d.CalcBasis(p, ip.z, shape_z);
+      poly1d.CalcBasis(p, ip.t, shape_t);
+      poly1d.CalcBasis(p, 1. - ip.x - ip.y - ip.z - ip.t, shape_l);
+
+      o = 0;
+      for (int l = 0; l <= p; l++)
+        for (int k = 0; k + l <= p; k++)
+            for (int j = 0; j + k +l <= p; j++)
+                for (int i = 0; i + j + k + l <= p; i++)
+                {
+                T(o++, m) = shape_x(i)*shape_y(j)*shape_z(k)*shape_t(l)*shape_l(p-i-j-k-l);
+                }
+   }
+
+   Ti.Factor(T);
+   // cout << "H1_PentatopeElement(" << p << ") : "; Ti.TestInversion();
+}
+
+void H1_PentatopeElement::CalcShape(const IntegrationPoint &ip,
+                                      Vector &shape) const
+{
+   const int p = Order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector shape_x(p + 1), shape_y(p + 1), shape_z(p + 1), shape_t(p+1), shape_l(p + 1);
+   Vector u(Dof);
+#endif
+
+   poly1d.CalcBasis(p, ip.x, shape_x);
+   poly1d.CalcBasis(p, ip.y, shape_y);
+   poly1d.CalcBasis(p, ip.z, shape_z);
+   poly1d.CalcBasis(p, ip.t, shape_t);
+   poly1d.CalcBasis(p, 1. - ip.x - ip.y - ip.z - ip.t, shape_l);
+
+   for (int o = 0, l = 0; l <= p; l++)
+      for (int k = 0; k + l <= p; k++)
+         for (int j = 0; j + k + l <= p; j++)
+            for (int i = 0; i + j + k + l <= p; i++)
+            {
+               u(o++) = shape_x(i)*shape_y(j)*shape_z(k)*shape_t(l)*shape_l(p-i-j-k-l);
+            }
+
+   Ti.Mult(u, shape);
+}
+
+void H1_PentatopeElement::CalcDShape(const IntegrationPoint &ip,
+                                       DenseMatrix &dshape) const
+{
+   const int p = Order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector  shape_x(p + 1),  shape_y(p + 1),  shape_z(p + 1),  shape_t(p+1),  shape_l(p + 1);
+   Vector dshape_x(p + 1), dshape_y(p + 1), dshape_z(p + 1), dshape_t(p+1), dshape_l(p + 1);
+   DenseMatrix du(Dof, Dim);
+#endif
+
+   poly1d.CalcBasis(p, ip.x, shape_x, dshape_x);
+   poly1d.CalcBasis(p, ip.y, shape_y, dshape_y);
+   poly1d.CalcBasis(p, ip.z, shape_z, dshape_z);
+   poly1d.CalcBasis(p, ip.t, shape_t, dshape_t);
+   poly1d.CalcBasis(p, 1. - ip.x - ip.y - ip.z - ip.t, shape_l, dshape_l);
+
+   for (int o = 0, l = 0; l <= p; l++)
+      for (int k = 0; k + l <= p; k++)
+         for (int j = 0; j + k + l <= p; j++)
+            for (int i = 0; i + j + k + l <= p; i++)
+            {
+               int m = p - i - j - k - l;
+               du(o,0) = ((dshape_x(i)* shape_l(m)) -
+                        ( shape_x(i)*dshape_l(m)))*shape_y(j)*shape_z(k)*shape_t(l);
+               du(o,1) = ((dshape_y(j)* shape_l(m)) -
+                        ( shape_y(j)*dshape_l(m)))*shape_x(i)*shape_z(k)*shape_t(l);
+               du(o,2) = ((dshape_z(k)* shape_l(m)) -
+                        ( shape_z(k)*dshape_l(m)))*shape_x(i)*shape_y(j)*shape_t(l);
+               du(o,3) = ((dshape_t(l)* shape_l(m)) -
+                        ( shape_t(l)*dshape_l(m)))*shape_x(i)*shape_y(j)*shape_z(k);
+               o++;
+            }
+
+   Ti.Mult(du, dshape);
+}
+
+void H1_PentatopeElement::CalcHessian(const IntegrationPoint &ip,
+                                       DenseMatrix &ddshape) const
+{
+   const int p = Order;
+   mfem_error("H1_PentatopeElement::CalcHessian: not implemented");
+#ifdef MFEM_THREAD_SAFE
+   Vector   shape_x(p + 1),   shape_y(p + 1),   shape_z(p + 1),   shape_l(p + 1);
+   Vector  dshape_x(p + 1),  dshape_y(p + 1),  dshape_z(p + 1),  dshape_l(p + 1);
+   Vector ddshape_x(p + 1), ddshape_y(p + 1), ddshape_z(p + 1), ddshape_l(p + 1);
+   DenseMatrix ddu(Dof, ((Dim+1)*Dim)/2);
+#endif
+
+   poly1d.CalcBasis(p, ip.x, shape_x, dshape_x, ddshape_x);
+   poly1d.CalcBasis(p, ip.y, shape_y, dshape_y, ddshape_y);
+   poly1d.CalcBasis(p, ip.z, shape_z, dshape_z, ddshape_z);
+   poly1d.CalcBasis(p, 1. - ip.x - ip.y - ip.z, shape_l, dshape_l, ddshape_l);
+
+   for (int o = 0, k = 0; k <= p; k++)
+      for (int j = 0; j + k <= p; j++)
+         for (int i = 0; i + j + k <= p; i++)
+         {
+             // u_xx, u_xy, u_xz, u_yy, u_yz, u_zz
+            int l = p - i - j - k;
+            ddu(o,0) = ((ddshape_x(i)*shape_l(l)) - 2.* (dshape_x(i)*dshape_l(l)) + (shape_x(i)*ddshape_l(l))) * shape_y(j) * shape_z(k);
+            ddu(o,1) = ((dshape_y(j)* ( (dshape_x(i)*shape_l(l)) - (shape_x(i)*dshape_l(l))) ) + (shape_y(j)* ((ddshape_l(l)*shape_x(i)) - (dshape_x(i) * dshape_l(l)) ) ) )* shape_z(k);
+            ddu(o,2) = ((dshape_z(k)* ( (dshape_x(i)*shape_l(l)) - (shape_x(i)*dshape_l(l))) ) + (shape_z(k)* ((ddshape_l(l)*shape_x(i)) - (dshape_x(i) * dshape_l(l)) ) ) )* shape_y(j);
+            ddu(o,3) = ((ddshape_y(j)*shape_l(l)) - 2.* (dshape_y(j)*dshape_l(l)) + (shape_y(j)*ddshape_l(l))) * shape_x(i) * shape_z(k);
+            ddu(o,4) = ((dshape_z(k)* ( (dshape_y(j)*shape_l(l)) - (shape_y(j)*dshape_l(l))) ) + (shape_z(k)* ((ddshape_l(l)*shape_y(j)) - (dshape_y(j) * dshape_l(l)) ) ) )* shape_x(i);
+            ddu(o,5) = ((ddshape_z(k)*shape_l(l)) - 2.* (dshape_z(k)*dshape_l(l)) + (shape_z(k)*ddshape_l(l))) * shape_y(j) * shape_x(i);
+            o++;
+         }
+   Ti.Mult(ddu, ddshape);
+}
+
 
 H1Pos_TriangleElement::H1Pos_TriangleElement(const int p)
    : PositiveFiniteElement(2, Geometry::TRIANGLE, ((p + 1)*(p + 2))/2, p,
@@ -10541,7 +10851,7 @@ H1Pos_TetrahedronElement::H1Pos_TetrahedronElement(const int p)
       dof_map[idx(0,p-i,i)] = o;
       Nodes.IntPoint(o++).Set3(0., double(p-i)/p, double(i)/p);
    }
-
+   
    // faces (see Mesh::GenerateFaces in mesh/mesh.cpp)
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)  // (1,2,3)
