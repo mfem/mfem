@@ -22,12 +22,21 @@ namespace raja
 // * RajaBilinearForm
 // ***************************************************************************
 RajaBilinearForm::RajaBilinearForm(FiniteElementSpace *fes) :
-   RajaOperator(fes->GetVSize(),fes->GetVSize()),//fes->RajaVLayout()),
-   localX(mesh->GetNE() * trialFes->GetLocalDofs() * trialFes->GetVDim()),
-   localY(mesh->GetNE() * testFes->GetLocalDofs() * testFes->GetVDim())
-{
+   RajaOperator(fes->GetVSize(), fes->GetVSize()),//fes->RajaVLayout()),
+   mesh(fes->GetMesh()),
+   trialFes(fes->GetRFESpace()),
+   testFes(fes->GetRFESpace()),
+   localX(mesh->GetNE() * fes->GetLocalDofs() * fes->GetVDim()),
+   localY(mesh->GetNE() * fes->GetLocalDofs() * fes->GetVDim())
+{   dbg("RajaBilinearForm");
+
+   /*RajaFiniteElementSpace *rfes=new RajaFiniteElementSpace(fes->GetMesh(),
+                                                           fes->FEColl(),
+                                                           fes->GetVDim(),
+                                                           fes->GetOrdering());*/
+   dbg("done");
    assert(false);
-}
+   }
 
 RajaBilinearForm::RajaBilinearForm(RajaFiniteElementSpace *fes) :
    RajaOperator(fes->GetVSize(),fes->GetVSize()),

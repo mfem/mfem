@@ -30,8 +30,9 @@ FiniteElementSpace::FiniteElementSpace(const Engine &e,
      indices(localDofs, GetNE()),
      map(localDofs, GetNE()),
      restrictionOp(new IdentityOperator(RajaTrueVLayout())),
-     prolongationOp(new IdentityOperator(RajaTrueVLayout()))
-{
+     prolongationOp(new IdentityOperator(RajaTrueVLayout())),
+     rfes(NULL)
+{ //rfes=new RajaFiniteElementSpace(fespace.GetMesh(),fespace.FEColl(),vdim,ordering)
    const FiniteElement *fe = GetFE(0);
    const TensorBasisElement* el = dynamic_cast<const TensorBasisElement*>(fe);
    const mfem::Array<int> &dof_map = el->GetDofMap();

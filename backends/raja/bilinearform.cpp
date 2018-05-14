@@ -28,6 +28,7 @@ void BilinearForm::InitRajaBilinearForm()
 
    FiniteElementSpace &ofes =
       bform->FESpace()->Get_PFESpace()->As<FiniteElementSpace>();
+   dbg("[InitRajaBilinearForm] RajaBilinearForm");
    rbform = new RajaBilinearForm(&ofes);
 
    // Transfer domain integrators

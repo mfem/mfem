@@ -38,7 +38,7 @@ class RajaIntegrator;
 // ***************************************************************************
 // * RajaBilinearForm
 // ***************************************************************************
-   class RajaBilinearForm : public RajaOperator
+class RajaBilinearForm : public RajaOperator
 {
    friend class RajaIntegrator;
 protected:
@@ -119,7 +119,7 @@ protected:
 public:
    /// TODO: doxygen
    BilinearForm(const Engine &e, mfem::BilinearForm &bf)
-      : mfem::PBilinearForm(e, bf), rbform(NULL) { }
+      : mfem::PBilinearForm(e, bf), rbform(NULL) {push();pop(); }
 
    /// Virtual destructor
    virtual ~BilinearForm() { }

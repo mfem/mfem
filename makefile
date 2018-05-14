@@ -317,9 +317,9 @@ ALL_SRC_DIRS := general linalg mesh fem backends/base backends/occa \
 					backends/raja/kernels/blas \
 					backends/raja/kernels/geom \
 					backends/raja/kernels/maps \
-					backends/raja/kernels/mass \
 					backends/raja/kernels/quad \
-					backends/raja/kernels/share
+					backends/raja/kernels/share \
+					backends/raja/kernels/mass 
 DIRS := $(ALL_SRC_DIRS)
 ifeq ($(MFEM_USE_BACKENDS),NO)
    DIRS := $(filter-out backends/%,$(DIRS))

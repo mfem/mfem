@@ -16,7 +16,8 @@ namespace mfem
 
 namespace raja
 {
-
+   class RajaFiniteElementSpace;
+   
 /// TODO: doxygen
 class FiniteElementSpace : public mfem::PFiniteElementSpace
 {
@@ -33,7 +34,7 @@ protected:
   RajaArray<int> indices, *reorderIndices;
   RajaArray<int> map;
   mfem::Operator *restrictionOp, *prolongationOp;
-  
+   RajaFiniteElementSpace *rfes;
 public:
    /// TODO: doxygen
    FiniteElementSpace(const Engine&,
@@ -50,6 +51,7 @@ public:
    mfem::Mesh* GetMesh() const { return fes->GetMesh(); }
 
    mfem::FiniteElementSpace* GetFESpace() const { return fes; }
+   RajaFiniteElementSpace* GetRFESpace() const { return rfes; }
 
    Layout &RajaVLayout() const
    { return *fes->GetVLayout().As<Layout>(); }

@@ -71,7 +71,6 @@
 // backend/raja ****************************************************************
 #include "fespace.hpp"
 #include "operator.hpp"
-//#include "bilinearform.hpp"
 
 // backend/raja/fem ************************************************************
 #include "fem/rconform.hpp"
@@ -81,7 +80,6 @@
 #include "fem/rbilinearform.hpp"
 #include "fem/rgridfunc.hpp"
 #include "fem/rbilininteg.hpp"
-
 
 // backend/raja/tests **********************************************************
 #include "tests/tests.hpp"
