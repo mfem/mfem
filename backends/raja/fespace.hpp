@@ -16,7 +16,6 @@ namespace mfem
 
 namespace raja
 {
-   class RajaFiniteElementSpace;
    
 /// TODO: doxygen
 class FiniteElementSpace : public mfem::PFiniteElementSpace
@@ -24,8 +23,6 @@ class FiniteElementSpace : public mfem::PFiniteElementSpace
 protected:
   Layout e_layout;
   
-   //int *elementDofMap;
-   //int *elementDofMapInverse;
   mfem::Ordering::Type ordering;
   int globalDofs, localDofs;
   int vdim;
@@ -33,8 +30,7 @@ protected:
   RajaArray<int> offsets;
   RajaArray<int> indices, *reorderIndices;
   RajaArray<int> map;
-  mfem::Operator *restrictionOp, *prolongationOp;
-   RajaFiniteElementSpace *rfes;
+   mfem::Operator *restrictionOp, *prolongationOp;
 public:
    /// TODO: doxygen
    FiniteElementSpace(const Engine&,
@@ -51,7 +47,6 @@ public:
    mfem::Mesh* GetMesh() const { return fes->GetMesh(); }
 
    mfem::FiniteElementSpace* GetFESpace() const { return fes; }
-   RajaFiniteElementSpace* GetRFESpace() const { return rfes; }
 
    Layout &RajaVLayout() const
    { return *fes->GetVLayout().As<Layout>(); }
@@ -86,15 +81,22 @@ public:
    const mfem::FiniteElement* GetFE(const int idx) const
    { return fes->GetFE(idx); }
 
-  //const int* GetElementDofMap() const { return elementDofMap; }
-  //const int* GetElementDofMapInverse() const { return elementDofMapInverse; }
-
-  const mfem::Operator* GetRestrictionOperator() { return restrictionOp; }
-  const mfem::Operator* GetProlongationOperator() { return prolongationOp; }
+   const mfem::Operator* GetRestrictionOperator() { return restrictionOp; }
+   const mfem::Operator* GetProlongationOperator() { return prolongationOp; }
 
   const RajaArray<int>& GetLocalToGlobalMap() const { return map; }
-  void GlobalToLocal(const Vector &globalVec, Vector &localVec) const;
-  void LocalToGlobal(const Vector &localVec, Vector &globalVec) const;
+  void GlobalToLocal(const RajaVector&, RajaVector&) const;
+  void LocalToGlobal(const RajaVector&, RajaVector&) const;
+};
+
+
+// *****************************************************************************
+// *****************************************************************************
+class RajaFiniteElementSpace : public FiniteElementSpace{
+   RajaFiniteElementSpace(const Engine &e,
+                          mfem::FiniteElementSpace &fes):FiniteElementSpace(e,fes){}
+   //void GlobalToLocal(const RajaVector&, RajaVector&) const;
+   //void LocalToGlobal(const RajaVector&, RajaVector&) const;
 };
 
 } // namespace mfem::raja

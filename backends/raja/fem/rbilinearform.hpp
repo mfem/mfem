@@ -38,68 +38,74 @@ class RajaIntegrator;
 // ***************************************************************************
 // * RajaBilinearForm
 // ***************************************************************************
-class RajaBilinearForm : public RajaOperator
+class RajaBilinearForm : public Operator
 {
    friend class RajaIntegrator;
 protected:
    typedef std::vector<RajaIntegrator*> IntegratorVector;
    SharedPtr<const Engine> engine;
-   mutable Mesh* mesh;
-   mutable RajaFiniteElementSpace* trialFes;
-   mutable RajaFiniteElementSpace* testFes;
+   mutable mfem::Mesh* mesh;
+   mutable FiniteElementSpace *rtrialFESpace;
+   mutable mfem::FiniteElementSpace *trialFESpace;
+   mutable FiniteElementSpace *rtestFESpace;
+   mutable mfem::FiniteElementSpace *testFESpace;
    IntegratorVector integrators;
-   mutable RajaVector localX, localY;
+   mutable Vector localX, localY;
 public:
    // **************************************************************************
    RajaBilinearForm(FiniteElementSpace*);
-   RajaBilinearForm(RajaFiniteElementSpace*);
    ~RajaBilinearForm();
    // **************************************************************************
    const Engine &OccaEngine() const { return *engine; }
    mfem::Mesh& GetMesh() const { return *mesh; }
-   RajaFiniteElementSpace& GetTrialFESpace() const { return *trialFes;}
-   RajaFiniteElementSpace& GetTestFESpace() const { return *testFes;}
+   mfem::FiniteElementSpace& GetTrialFESpace() const { return *trialFESpace;}
+   mfem::FiniteElementSpace& GetTestFESpace() const { return *testFESpace;}
    // *************************************************************************
    void AddDomainIntegrator(RajaIntegrator*);
    void AddBoundaryIntegrator(RajaIntegrator*);
    void AddInteriorFaceIntegrator(RajaIntegrator*);
    void AddBoundaryFaceIntegrator(RajaIntegrator*);
    void AddIntegrator(RajaIntegrator*, const RajaIntegratorType);
+   // **************************************************************************
+   virtual const mfem::Operator *GetTrialProlongation() const;
+   virtual const mfem::Operator *GetTestProlongation() const;
+   virtual const mfem::Operator *GetTrialRestriction() const;
+   virtual const mfem::Operator *GetTestRestriction() const;
    // *************************************************************************
    virtual void Assemble();
    void FormLinearSystem(const mfem::Array<int>& constraintList,
-                         RajaVector& x, RajaVector& b,
-                         RajaOperator*& Aout,
-                         RajaVector& X, RajaVector& B,
+                         mfem::Vector& x, mfem::Vector& b,
+                         mfem::Operator*& Aout,
+                         mfem::Vector& X, mfem::Vector& B,
                          int copy_interior = 0);
-   void FormOperator(const mfem::Array<int>& constraintList, RajaOperator*& Aout);
+   void FormOperator(const mfem::Array<int>& constraintList, mfem::Operator*& Aout);
    void InitRHS(const mfem::Array<int>& constraintList,
-                const RajaVector& x, const RajaVector& b,
-                RajaOperator* Aout,
-                RajaVector& X, RajaVector& B,
+                const mfem::Vector& x, const mfem::Vector& b,
+                mfem::Operator* Aout,
+                mfem::Vector& X, mfem::Vector& B,
                 int copy_interior = 0);
-   virtual void Mult(const RajaVector& x, RajaVector& y) const;
-   virtual void MultTranspose(const RajaVector& x, RajaVector& y) const;
-   void RecoverFEMSolution(const RajaVector&, const RajaVector&, RajaVector&);
+   virtual void Mult_(const Vector& x, Vector& y) const;
+   virtual void MultTranspose_(const Vector& x, Vector& y) const;
+   void RecoverFEMSolution(const mfem::Vector&, const mfem::Vector&, mfem::Vector&);
 };
 
 
 // ***************************************************************************
 // * Constrained Operator
 // ***************************************************************************
-class RajaConstrainedOperator : public RajaOperator
+class RajaConstrainedOperator : public Operator
 {
 protected:
-   RajaOperator *A;
+   mfem::Operator *A;
    bool own_A;
    RajaArray<int> constraintList;
    int constraintIndices;
-   mutable RajaVector z, w;
+   mutable mfem::Vector z, w;
 public:
-   RajaConstrainedOperator(RajaOperator*, const mfem::Array<int>&, bool = false);
-   void Setup(RajaOperator*, const mfem::Array<int>&, bool = false);
-   void EliminateRHS(const RajaVector&, RajaVector&) const;
-   virtual void Mult(const RajaVector&, RajaVector&) const;
+   RajaConstrainedOperator(mfem::Operator*, const mfem::Array<int>&, bool = false);
+   void Setup(mfem::Operator*, const mfem::Array<int>&, bool = false);
+   void EliminateRHS(const Vector&, Vector&) const;
+   virtual void Mult_(const Vector&, Vector&) const;
    virtual ~RajaConstrainedOperator() {}
 };
 

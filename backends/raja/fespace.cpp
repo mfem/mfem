@@ -29,11 +29,11 @@ FiniteElementSpace::FiniteElementSpace(const Engine &e,
      offsets(globalDofs+1),
      indices(localDofs, GetNE()),
      map(localDofs, GetNE()),
-     restrictionOp(new IdentityOperator(RajaTrueVLayout())),
-     prolongationOp(new IdentityOperator(RajaTrueVLayout())),
-     rfes(NULL)
-{ //rfes=new RajaFiniteElementSpace(fespace.GetMesh(),fespace.FEColl(),vdim,ordering)
-   const FiniteElement *fe = GetFE(0);
+     restrictionOp(new IdentityOperator(RajaTrueVLayout().Size())),
+     prolongationOp(new IdentityOperator(RajaTrueVLayout().Size()))
+{
+   push(PowderBlue);
+   const mfem::FiniteElement *fe = GetFE(0);
    const TensorBasisElement* el = dynamic_cast<const TensorBasisElement*>(fe);
    const mfem::Array<int> &dof_map = el->GetDofMap();
    const bool dof_map_is_identity = (dof_map.Size()==0);
@@ -87,55 +87,11 @@ FiniteElementSpace::FiniteElementSpace(const Engine &e,
    offsets = h_offsets;
    indices = h_indices;
    map = h_map;
-
-   //const SparseMatrix* R = fes->GetRestrictionMatrix(); //assert(R);
-   //const Operator* P = fes->GetProlongationMatrix(); //assert(P);
-   //const RajaConformingProlongationOperator *P = new
-   //     RajaConformingProlongationOperator(*this);
-/*
-   const int mHeight = R->Height();
-   const int* I = R->GetI();
-   const int* J = R->GetJ();
-   int trueCount = 0;
-   for (int i = 0; i < mHeight; ++i)
-   {
-      trueCount += ((I[i + 1] - I[i]) == 1);
-   }
-
-   mfem::Array<int> h_reorderIndices(2*trueCount);
-   for (int i = 0, trueIdx=0; i < mHeight; ++i)
-   {
-      if ((I[i + 1] - I[i]) == 1)
-      {
-         h_reorderIndices[trueIdx++] = J[I[i]];
-         h_reorderIndices[trueIdx++] = i;
-      }
-   }
-
-   reorderIndices = ::new RajaArray<int>(2*trueCount);
-   *reorderIndices = h_reorderIndices;
-   */
-   //restrictionOp = new IdentityOperator(RajaTrueVLayout());
-   //prolongationOp = new IdentityOperator(RajaTrueVLayout());
-/*
-   restrictionOp = new RajaRestrictionOperator(R->Height(),
-                                               R->Width(),
-                                               reorderIndices);
-   prolongationOp = new RajaProlongationOperator(P);
-*/
-   /*
-   const mfem::SparseMatrix *R = fes->GetRestrictionMatrix();
-   const mfem::Operator *P = fes->GetProlongationMatrix();
-   CreateRPOperators(RajaVLayout(), RajaTrueVLayout(),
-                     R, P,
-                     restrictionOp,
-                     prolongationOp);*/
+   pop();
 }
 
 FiniteElementSpace::~FiniteElementSpace()
 {
-   //delete [] elementDofMap;
-   //delete [] elementDofMapInverse;
    delete restrictionOp;
    delete prolongationOp;
 }

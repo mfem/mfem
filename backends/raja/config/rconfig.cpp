@@ -217,7 +217,8 @@ void rconfig::Setup(const int _mpi_rank,
 #endif // __NVCC__
    if (_dot)
    {
-      mfem::raja::dotTest(rs_levels);
+      assert(false);
+      //mfem::raja::dotTest(rs_levels);
       MPI_Finalize();
       exit(0);
    }

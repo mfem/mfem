@@ -69,14 +69,14 @@
 #include "linalg/rsolvers.hpp"
 
 // backend/raja ****************************************************************
-#include "fespace.hpp"
 #include "operator.hpp"
+#include "fespace.hpp"
 
 // backend/raja/fem ************************************************************
 #include "fem/rconform.hpp"
 #include "fem/rprolong.hpp"
 #include "fem/rrestrict.hpp"
-#include "fem/rfespace.hpp"
+//#include "fem/rfespace.hpp"
 #include "fem/rbilinearform.hpp"
 #include "fem/rgridfunc.hpp"
 #include "fem/rbilininteg.hpp"

@@ -16,7 +16,8 @@ namespace mfem
 
 namespace raja
 {
-
+   
+// *****************************************************************************
 class Operator : public mfem::Operator
 {
 public:
@@ -55,7 +56,7 @@ public:
                      y.Get_PVector()->As<Vector>());
    }
 };
-
+   
 } // namespace mfem::raja
 
 } // namespace mfem

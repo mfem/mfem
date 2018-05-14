@@ -22,29 +22,16 @@ namespace raja
 // * RajaBilinearForm
 // ***************************************************************************
 RajaBilinearForm::RajaBilinearForm(FiniteElementSpace *fes) :
-   RajaOperator(fes->GetVSize(), fes->GetVSize()),//fes->RajaVLayout()),
+   Operator(fes->RajaVLayout),
    mesh(fes->GetMesh()),
-   trialFes(fes->GetRFESpace()),
-   testFes(fes->GetRFESpace()),
-   localX(mesh->GetNE() * fes->GetLocalDofs() * fes->GetVDim()),
-   localY(mesh->GetNE() * fes->GetLocalDofs() * fes->GetVDim())
-{   dbg("RajaBilinearForm");
-
-   /*RajaFiniteElementSpace *rfes=new RajaFiniteElementSpace(fes->GetMesh(),
-                                                           fes->FEColl(),
-                                                           fes->GetVDim(),
-                                                           fes->GetOrdering());*/
-   dbg("done");
-   assert(false);
-   }
-
-RajaBilinearForm::RajaBilinearForm(RajaFiniteElementSpace *fes) :
-   RajaOperator(fes->GetVSize(),fes->GetVSize()),
-   mesh(fes->GetMesh()),
-   trialFes(fes),
-   testFes(fes),
-   localX(mesh->GetNE() * trialFes->GetLocalDofs() * trialFes->GetVDim()),
-   localY(mesh->GetNE() * testFes->GetLocalDofs() * testFes->GetVDim()) {}
+   rtrialFESpace(fes),
+   trialFESpace(fes->GetFESpace()),
+   rtestFESpace(fes),
+   testFESpace(fes->GetFESpace()),
+   localX(fes->RajaEVLayout()),
+   localY(fes->RajaEVLayout()) {
+   dbg("\033[31m[RajaBilinearForm]");
+}
 
 // ***************************************************************************
 RajaBilinearForm::~RajaBilinearForm() { }
@@ -92,6 +79,26 @@ void RajaBilinearForm::AddIntegrator(RajaIntegrator* i,
    integrators.push_back(i);
    pop();
 }
+// *****************************************************************************
+const mfem::Operator* RajaBilinearForm::GetTrialProlongation() const
+{
+   return rtrialFESpace->GetProlongationOperator();
+}
+
+const mfem::Operator* RajaBilinearForm::GetTestProlongation() const
+{
+   return rtestFESpace->GetProlongationOperator();
+}
+
+const mfem::Operator* RajaBilinearForm::GetTrialRestriction() const
+{
+   return rtrialFESpace->GetRestrictionOperator();
+}
+
+const mfem::Operator* RajaBilinearForm::GetTestRestriction() const
+{
+   return rtestFESpace->GetRestrictionOperator();
+}
 
 // ***************************************************************************
 void RajaBilinearForm::Assemble()
@@ -107,9 +114,9 @@ void RajaBilinearForm::Assemble()
 
 // ***************************************************************************
 void RajaBilinearForm::FormLinearSystem(const mfem::Array<int>& constraintList,
-                                        RajaVector& x, RajaVector& b,
-                                        RajaOperator*& Aout,
-                                        RajaVector& X, RajaVector& B,
+                                        mfem::Vector& x, mfem::Vector& b,
+                                        mfem::Operator*& Aout,
+                                        mfem::Vector& X, mfem::Vector& B,
                                         int copy_interior)
 {
    push(SteelBlue);
@@ -120,45 +127,47 @@ void RajaBilinearForm::FormLinearSystem(const mfem::Array<int>& constraintList,
 
 // ***************************************************************************
 void RajaBilinearForm::FormOperator(const mfem::Array<int>& constraintList,
-                                    RajaOperator*& Aout)
+                                    mfem::Operator*& Aout)
 {
    push(SteelBlue);
-   const RajaOperator* trialP = trialFes->GetProlongationOperator();
-   const RajaOperator* testP  = testFes->GetProlongationOperator();
-   RajaOperator *rap = this;
-   if (trialP) { rap = new RajaRAPOperator(*testP, *this, *trialP); }
+   const mfem::Operator* trialP = GetTrialProlongation();
+   const mfem::Operator* testP  = GetTestProlongation();
+   mfem::Operator *rap = this;
+   if (trialP) { rap = new RAPOperator(*testP, *this, *trialP); }
    Aout = new RajaConstrainedOperator(rap, constraintList, rap!=this);
    pop();
 }
 
 // ***************************************************************************
 void RajaBilinearForm::InitRHS(const mfem::Array<int>& constraintList,
-                               const RajaVector& x, const RajaVector& b,
-                               RajaOperator* A,
-                               RajaVector& X, RajaVector& B,
+                               const mfem::Vector& x, const mfem::Vector& b,
+                               mfem::Operator* A,
+                               mfem::Vector& X, mfem::Vector& B,
                                int copy_interior)
 {
    push(SteelBlue);
-   const RajaOperator* P = trialFes->GetProlongationOperator();
-   const RajaOperator* R = trialFes->GetRestrictionOperator();
+   const mfem::Operator* P = GetTrialProlongation();
+   const mfem::Operator* R = GetTrialRestriction();
    if (P)
    {
       // Variational restriction with P
-      B.SetSize(P->Width());
+      B.Resize(P->InLayout());
       P->MultTranspose(b, B);
-      X.SetSize(R->Height());
+      X.Resize(R->OutLayout());
       R->Mult(x, X);
    }
    else
    {
       // rap, X and B point to the same data as this, x and b
-      X.SetSize(x.Size(),x);
-      B.SetSize(b.Size(),b);
+      X.MakeRef(x);
+      B.MakeRef(b);
    }
    RajaConstrainedOperator* cA = static_cast<RajaConstrainedOperator*>(A);
    if (cA)
    {
-      cA->EliminateRHS(X, B);
+      cA->EliminateRHS(X.Get_PVector()->As<Vector>(),
+                       B.Get_PVector()->As<Vector>());
+      //cA->EliminateRHS(X, B);
    }
    else
    {
@@ -168,7 +177,7 @@ void RajaBilinearForm::InitRHS(const mfem::Array<int>& constraintList,
 }
 
 // ***************************************************************************
-void RajaBilinearForm::Mult(const RajaVector& x, RajaVector& y) const
+void RajaBilinearForm::Mult_(const Vector& x, Vector& y) const
 {
    push(SteelBlue);
    trialFes->GlobalToLocal(x, localX);
@@ -183,7 +192,7 @@ void RajaBilinearForm::Mult(const RajaVector& x, RajaVector& y) const
 }
 
 // ***************************************************************************
-void RajaBilinearForm::MultTranspose(const RajaVector& x, RajaVector& y) const
+void RajaBilinearForm::MultTranspose_(const Vector& x, Vector& y) const
 {
    push(SteelBlue);
    testFes->GlobalToLocal(x, localX);
@@ -218,17 +227,17 @@ void RajaBilinearForm::RecoverFEMSolution(const RajaVector& X,
 // ***************************************************************************
 // * RajaConstrainedOperator
 // ***************************************************************************
-RajaConstrainedOperator::RajaConstrainedOperator(RajaOperator* A_,
+RajaConstrainedOperator::RajaConstrainedOperator(mfem::Operator* A_,
                                                  const mfem::Array<int>& constraintList_,
                                                  bool own_A_) :
-   RajaOperator(A_->Height(), A_->Width())
+   Operator(A_->Height(), A_->Width())
 {
    push(SteelBlue);
    Setup(A_, constraintList_, own_A_);
    pop();
 }
 
-void RajaConstrainedOperator::Setup(RajaOperator* A_,
+void RajaConstrainedOperator::Setup(mfem::Operator* A_,
                                     const mfem::Array<int>& constraintList_,
                                     bool own_A_)
 {
@@ -245,8 +254,8 @@ void RajaConstrainedOperator::Setup(RajaOperator* A_,
    pop();
 }
 
-void RajaConstrainedOperator::EliminateRHS(const RajaVector& x,
-                                           RajaVector& b) const
+void RajaConstrainedOperator::EliminateRHS(const Vector& x,
+                                           Vector& b) const
 {
    push(SteelBlue);
    w = 0.0;
@@ -255,7 +264,7 @@ void RajaConstrainedOperator::EliminateRHS(const RajaVector& x,
    pop();
 }
 
-void RajaConstrainedOperator::Mult(const RajaVector& x, RajaVector& y) const
+void RajaConstrainedOperator::Mult_(const Vector& x, Vector& y) const
 {
    push(SteelBlue);
    if (constraintIndices == 0)

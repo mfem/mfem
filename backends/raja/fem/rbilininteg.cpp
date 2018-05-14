@@ -482,6 +482,7 @@ RajaDofQuadMaps* RajaDofQuadMaps::GetD2QSimplexMaps(const FiniteElement& fe,
 // ***************************************************************************
 void RajaIntegrator::SetIntegrationRule(const IntegrationRule& ir_)
 {
+   assert(ir_);
    ir = &ir_;
 }
 
@@ -499,7 +500,10 @@ void RajaIntegrator::SetupIntegrator(RajaBilinearForm& bform_,
    trialFESpace = &(bform_.GetTrialFESpace());
    testFESpace  = &(bform_.GetTestFESpace());
    itype = itype_;
-   if (ir == NULL) { assert(false); }
+   if (ir == NULL) {
+      SetupIntegrationRule();
+      //assert(false);
+   }
    maps = RajaDofQuadMaps::Get(*trialFESpace,*testFESpace,*ir);
    mapsTranspose = RajaDofQuadMaps::Get(*testFESpace,*trialFESpace,*ir);
    Setup();
@@ -515,19 +519,43 @@ RajaGeometry* RajaIntegrator::GetGeometry()
 // ***************************************************************************
 // * Diffusion Integrator
 // ***************************************************************************
+RajaDiffusionIntegrator::RajaDiffusionIntegrator(const double &val):
+   RajaIntegrator(),
+   coeff(val),
+   op()
+{
+   dbg("RajaDiffusionIntegrator");
+}
+
+RajaDiffusionIntegrator::~RajaDiffusionIntegrator() {}
+
 void RajaDiffusionIntegrator::SetupIntegrationRule()
 {
-   push(SteelBlue);
-   assert(false);
+   push();
+   const FiniteElement &trialFE = *(trialFESpace->GetFE(0));
+   const FiniteElement &testFE  = *(testFESpace->GetFE(0));
+   ir = &mfem::DiffusionIntegrator::GetRule(trialFE, testFE);
    pop();
 }
 
 // ***************************************************************************
+void RajaDiffusionIntegrator::Setup()
+{
+   push();
+   pop();
+}
+
+// *****************************************************************************
 void RajaDiffusionIntegrator::Assemble()
 {
-   push(SteelBlue);
-   if (op.Size()) { pop(); return; }
-   assert(false);
+   push();
+   const mfem::FiniteElement &fe = *(trialFESpace->GetFE(0));
+   const int dims = fe.GetDim();
+   const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
+   const int elements = trialFESpace->GetNE();
+   const int quadraturePoints = ir->GetNPoints();
+   RajaGeometry *geom = GetGeometry();
+   op.SetSize(symmDims*quadraturePoints*elements);
    pop();
 }
 

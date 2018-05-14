@@ -42,6 +42,13 @@ public:
                                    RajaVector &x) {assert(false);}
 };
 
+// ***************************************************************************
+class RajaIdentityOperator : public RajaOperator {
+public:
+   RajaIdentityOperator(int n) : RajaOperator(n) { }
+   void Mult(const RajaVector &x, RajaVector &y) const { y = x; }
+   void MultTranspose(const RajaVector &x, RajaVector &y) const { y = x; }
+};
 
 // ***************************************************************************
 class RajaTimeDependentOperator : public RajaOperator

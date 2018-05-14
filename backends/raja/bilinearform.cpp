@@ -26,16 +26,19 @@ void BilinearForm::InitRajaBilinearForm()
    MFEM_ASSERT(bform != NULL, "");
    MFEM_ASSERT(rbform == NULL, "");
 
-   FiniteElementSpace &ofes =
+   FiniteElementSpace &rfes =
       bform->FESpace()->Get_PFESpace()->As<FiniteElementSpace>();
    dbg("[InitRajaBilinearForm] RajaBilinearForm");
-   rbform = new RajaBilinearForm(&ofes);
+   rbform = new RajaBilinearForm(&rfes);
 
    // Transfer domain integrators
    mfem::Array<mfem::BilinearFormIntegrator*> &dbfi = *bform->GetDBFI();
+   dbg("[InitRajaBilinearForm] dbfi.Size()=%d",dbfi.Size());
+
    for (int i = 0; i < dbfi.Size(); i++)
    {
       std::string integ_name(dbfi[i]->Name());
+      dbg("integ_name: %s",integ_name.c_str());
       Coefficient *scal_coeff = dbfi[i]->GetScalarCoefficient();
       ConstantCoefficient *const_coeff =
          dynamic_cast<ConstantCoefficient*>(scal_coeff);
@@ -83,11 +86,10 @@ void BilinearForm::FormSystemMatrix(const mfem::Array<int> &ess_tdof_list,
 {
    if (A.Type() == mfem::Operator::ANY_TYPE)
    {
-      assert(false);
-      //mfem::Operator *Aout = NULL;
-      //RajaOperator *Aout = NULL;
-      //rbform->FormOperator(ess_tdof_list, Aout);
-      //A.Reset(Aout);
+      mfem::Operator *Aout = NULL;
+      //RajaOperator *Aout;
+      rbform->FormOperator(ess_tdof_list, Aout);
+      A.Reset(Aout);
    }
    else
    {
@@ -101,9 +103,9 @@ void BilinearForm::FormLinearSystem(const mfem::Array<int> &ess_tdof_list,
                                     mfem::Vector &X, mfem::Vector &B,
                                     int copy_interior)
 {
-   assert(false);
-   //FormSystemMatrix(ess_tdof_list, A);
-   //rbform->InitRHS(ess_tdof_list, x, b, A.Ptr(), X, B, copy_interior);
+   //assert(false);
+   FormSystemMatrix(ess_tdof_list, A);
+   rbform->InitRHS(ess_tdof_list, x, b, A.Ptr(), X, B, copy_interior);
 }
 
 void BilinearForm::RecoverFEMSolution(const mfem::Vector &X,

@@ -15,7 +15,7 @@ namespace mfem
 
 namespace raja
 {
-
+/*
 // ***************************************************************************
 // * RajaFiniteElementSpace
 //  ***************************************************************************
@@ -132,9 +132,9 @@ bool RajaFiniteElementSpace::hasTensorBasis() const
    assert(dynamic_cast<const TensorBasisElement*>(GetFE(0)));
    return true;
 }
-
+*/
 // ***************************************************************************
-void RajaFiniteElementSpace::GlobalToLocal(const RajaVector& globalVec,
+void /*Raja*/FiniteElementSpace::GlobalToLocal(const RajaVector& globalVec,
                                            RajaVector& localVec) const
 {
    push(PowderBlue);
@@ -154,7 +154,7 @@ void RajaFiniteElementSpace::GlobalToLocal(const RajaVector& globalVec,
 
 // ***************************************************************************
 // Aggregate local node values to their respective global dofs
-void RajaFiniteElementSpace::LocalToGlobal(const RajaVector& localVec,
+   void /*Raja*/FiniteElementSpace::LocalToGlobal(const RajaVector& localVec,
                                            RajaVector& globalVec) const
 {
    push(PowderBlue);
@@ -171,7 +171,7 @@ void RajaFiniteElementSpace::LocalToGlobal(const RajaVector& localVec,
                   globalVec);
    pop();
 }
-   
+
 } // namespace raja
 
 } // namespace mfem
