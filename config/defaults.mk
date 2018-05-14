@@ -21,7 +21,7 @@ NOTMAC := $(subst Darwin,,$(shell uname -s))
 CXX = g++
 MPICXX = mpicxx
 
-OPTIM_FLAGS = -O3
+OPTIM_FLAGS = -O3 -g
 DEBUG_FLAGS = -g -Wall
 
 # Destination location of make install

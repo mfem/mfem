@@ -13,6 +13,9 @@
 namespace mfem
 {
 
+namespace raja
+{
+
 // ***************************************************************************
 // * RajaConformingProlongationOperator
 // ***************************************************************************
@@ -24,7 +27,7 @@ RajaConformingProlongationOperator::RajaConformingProlongationOperator
    gc(new RajaCommD(pfes)),
    kMaxTh(0)
 {
-   Array<int> ldofs;
+   mfem::Array<int> ldofs;
    Table &group_ldof = gc->GroupLDofTable();
    external_ldofs.Reserve(Height()-Width());
    for (int gr = 1; gr < group_ldof.Size(); gr++)
@@ -269,8 +272,8 @@ void RajaConformingProlongationOperator::d_MultTranspose(const RajaVector &x,
 // ***************************************************************************
 // * Host Mult
 // ***************************************************************************
-void RajaConformingProlongationOperator::h_Mult(const Vector &x,
-                                                Vector &y) const
+   void RajaConformingProlongationOperator::h_Mult(const mfem::Vector &x,
+                                                   mfem::Vector &y) const
 {
    push(Coral);
    const double *xdata = x.GetData();
@@ -298,8 +301,8 @@ void RajaConformingProlongationOperator::h_Mult(const Vector &x,
 // ***************************************************************************
 // * Host MultTranspose
 // ***************************************************************************
-void RajaConformingProlongationOperator::h_MultTranspose(const Vector &x,
-                                                         Vector &y) const
+   void RajaConformingProlongationOperator::h_MultTranspose(const mfem::Vector &x,
+                                                            mfem::Vector &y) const
 {
    push(Coral);
    const double *xdata = x.GetData();
@@ -322,5 +325,7 @@ void RajaConformingProlongationOperator::h_MultTranspose(const Vector &x,
    pop();
    pop();
 }
+   
+} // namespace raja
 
 } // namespace mfem

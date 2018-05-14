@@ -22,6 +22,9 @@
 
 namespace mfem
 {
+   
+namespace raja
+{
 
 // ***************************************************************************
 // * First communicator, buf goes on the device
@@ -50,6 +53,7 @@ public:
    template <class T> void d_ReduceEnd(T*,int,void (*)(OpData<T>));
 };
 
+} // raja
 
 } // mfem
 

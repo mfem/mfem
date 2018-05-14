@@ -10,6 +10,8 @@
 // Software Foundation) version 2.1 dated February 1999.
 #include "../raja.hpp"
 
+#if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
+
 namespace mfem
 {
 
@@ -19,7 +21,15 @@ namespace raja
 // ***************************************************************************
 // * RajaBilinearForm
 // ***************************************************************************
-   RajaBilinearForm::RajaBilinearForm(/*Raja*/FiniteElementSpace* fes) :
+RajaBilinearForm::RajaBilinearForm(FiniteElementSpace *fes) :
+   RajaOperator(fes->GetVSize(),fes->GetVSize()),//fes->RajaVLayout()),
+   localX(mesh->GetNE() * trialFes->GetLocalDofs() * trialFes->GetVDim()),
+   localY(mesh->GetNE() * testFes->GetLocalDofs() * testFes->GetVDim())
+{
+   assert(false);
+}
+
+RajaBilinearForm::RajaBilinearForm(RajaFiniteElementSpace *fes) :
    RajaOperator(fes->GetVSize(),fes->GetVSize()),
    mesh(fes->GetMesh()),
    trialFes(fes),
@@ -87,7 +97,7 @@ void RajaBilinearForm::Assemble()
 }
 
 // ***************************************************************************
-void RajaBilinearForm::FormLinearSystem(const Array<int>& constraintList,
+void RajaBilinearForm::FormLinearSystem(const mfem::Array<int>& constraintList,
                                         RajaVector& x, RajaVector& b,
                                         RajaOperator*& Aout,
                                         RajaVector& X, RajaVector& B,
@@ -100,7 +110,7 @@ void RajaBilinearForm::FormLinearSystem(const Array<int>& constraintList,
 }
 
 // ***************************************************************************
-void RajaBilinearForm::FormOperator(const Array<int>& constraintList,
+void RajaBilinearForm::FormOperator(const mfem::Array<int>& constraintList,
                                     RajaOperator*& Aout)
 {
    push(SteelBlue);
@@ -113,7 +123,7 @@ void RajaBilinearForm::FormOperator(const Array<int>& constraintList,
 }
 
 // ***************************************************************************
-void RajaBilinearForm::InitRHS(const Array<int>& constraintList,
+void RajaBilinearForm::InitRHS(const mfem::Array<int>& constraintList,
                                const RajaVector& x, const RajaVector& b,
                                RajaOperator* A,
                                RajaVector& X, RajaVector& B,
@@ -200,7 +210,7 @@ void RajaBilinearForm::RecoverFEMSolution(const RajaVector& X,
 // * RajaConstrainedOperator
 // ***************************************************************************
 RajaConstrainedOperator::RajaConstrainedOperator(RajaOperator* A_,
-                                                 const Array<int>& constraintList_,
+                                                 const mfem::Array<int>& constraintList_,
                                                  bool own_A_) :
    RajaOperator(A_->Height(), A_->Width())
 {
@@ -210,7 +220,7 @@ RajaConstrainedOperator::RajaConstrainedOperator(RajaOperator* A_,
 }
 
 void RajaConstrainedOperator::Setup(RajaOperator* A_,
-                                    const Array<int>& constraintList_,
+                                    const mfem::Array<int>& constraintList_,
                                     bool own_A_)
 {
    push(SteelBlue);
@@ -253,3 +263,5 @@ void RajaConstrainedOperator::Mult(const RajaVector& x, RajaVector& y) const
 } // raja
    
 } // mfem
+
+#endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)

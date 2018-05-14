@@ -66,8 +66,8 @@ DFiniteElementSpace Engine::MakeFESpace(mfem::FiniteElementSpace &fespace) const
 
 DBilinearForm Engine::MakeBilinearForm(mfem::BilinearForm &bf) const
 {
-  assert(false);
-   return DBilinearForm();//new BilinearForm(*this, bf));
+   //assert(false);
+   return DBilinearForm(new BilinearForm(*this, bf));
 }
 
 void Engine::AssembleLinearForm(LinearForm &l_form) const

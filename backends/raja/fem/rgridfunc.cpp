@@ -13,12 +13,15 @@
 namespace mfem
 {
 
+namespace raja
+{
+
 // ***************************************************************************
 void RajaGridFunction::ToQuad(const IntegrationRule& ir,
                               RajaVector& quadValues)
 {
    push(PowderBlue);
-   const FiniteElement& fe = *(fes.GetFE(0));
+   const mfem::FiniteElement& fe = *(fes.GetFE(0));
    const int dim  = fe.GetDim();
    const int vdim = fes.GetVDim();
    const int elements = fes.GetNE();
@@ -43,5 +46,7 @@ void RajaGridFunction::ToQuad(const IntegrationRule& ir,
                       quadValues);
    pop();
 }
+   
+} // namespace raja
 
 } // mfem

@@ -13,6 +13,9 @@
 namespace mfem
 {
 
+namespace raja
+{
+
 // ***************************************************************************
 // * RajaFiniteElementSpace
 //  ***************************************************************************
@@ -28,15 +31,15 @@ RajaFiniteElementSpace::RajaFiniteElementSpace(Mesh* mesh,
     map(localDofs, GetNE())
 {
    push(PowderBlue);
-   const FiniteElement *fe = GetFE(0);
+   const mfem::FiniteElement *fe = GetFE(0);
    const TensorBasisElement* el = dynamic_cast<const TensorBasisElement*>(fe);
-   const Array<int> &dof_map = el->GetDofMap();
+   const mfem::Array<int> &dof_map = el->GetDofMap();
    const bool dof_map_is_identity = (dof_map.Size()==0);
 
    const Table& e2dTable = GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
    const int elements = GetNE();
-   Array<int> h_offsets(globalDofs+1);
+   mfem::Array<int> h_offsets(globalDofs+1);
    // We'll be keeping a count of how many local nodes point to its global dof
    for (int i = 0; i <= globalDofs; ++i)
    {
@@ -56,8 +59,8 @@ RajaFiniteElementSpace::RajaFiniteElementSpace(Mesh* mesh,
       h_offsets[i] += h_offsets[i - 1];
    }
 
-   Array<int> h_indices(localDofs*elements);
-   Array<int> h_map(localDofs*elements);
+   mfem::Array<int> h_indices(localDofs*elements);
+   mfem::Array<int> h_map(localDofs*elements);
    // For each global dof, fill in all local nodes that point   to it
    for (int e = 0; e < elements; ++e)
    {
@@ -97,7 +100,7 @@ RajaFiniteElementSpace::RajaFiniteElementSpace(Mesh* mesh,
       trueCount += ((I[i + 1] - I[i]) == 1);
    }
 
-   Array<int> h_reorderIndices(2*trueCount);
+   mfem::Array<int> h_reorderIndices(2*trueCount);
    for (int i = 0, trueIdx=0; i < mHeight; ++i)
    {
       if ((I[i + 1] - I[i]) == 1)
@@ -168,5 +171,7 @@ void RajaFiniteElementSpace::LocalToGlobal(const RajaVector& localVec,
                   globalVec);
    pop();
 }
+   
+} // namespace raja
 
 } // namespace mfem

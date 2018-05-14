@@ -20,7 +20,6 @@
 
 // **** BLAS1 ******************************************************************
 void vector_neg(const int, double* restrict);
-//extern "C" kernel void d_vector_op_eq(const int, const double, double* restrict);
 void vector_op_eq(const int, const double, double* restrict);
 void vector_xpay(const int, const double, double* restrict, const double* restrict,
                  const double* restrict);

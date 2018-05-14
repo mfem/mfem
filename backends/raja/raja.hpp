@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <assert.h>
+#include <sys/time.h>
 
 // __NVCC__ ********************************************************************
 #ifdef __NVCC__
@@ -23,6 +24,9 @@
 #include <helper_functions.h>
 #define cuCheck checkCudaErrors
 #endif
+
+// backend/raja/kernels ********************************************************
+#include "kernels/include/kernels.hpp"
 
 // MFEM/base/backend ***********************************************************
 #include "../base/backend.hpp"
@@ -33,15 +37,14 @@
 #include "../../fem/gridfunc.hpp"
 #include "../../general/communication.hpp"
 #include "../../fem/pfespace.hpp"
-
-// backend/raja/kernels ********************************************************
-#include "kernels/include/kernels.hpp"
+#include "../../fem/fespace.hpp"
+#include "../../fem/bilinearform.hpp"
 
 // backend/raja ****************************************************************
-#include "backend.hpp"
 #include "memory.hpp"
 #include "device.hpp"
 #include "engine.hpp"
+#include "backend.hpp"
 #include "linalg.hpp"
 #include "layout.hpp"
 #include "array.hpp"
@@ -65,6 +68,11 @@
 #include "linalg/rode.hpp"
 #include "linalg/rsolvers.hpp"
 
+// backend/raja ****************************************************************
+#include "fespace.hpp"
+#include "operator.hpp"
+//#include "bilinearform.hpp"
+
 // backend/raja/fem ************************************************************
 #include "fem/rconform.hpp"
 #include "fem/rprolong.hpp"
@@ -74,10 +82,6 @@
 #include "fem/rgridfunc.hpp"
 #include "fem/rbilininteg.hpp"
 
-// backend/raja ****************************************************************
-#include "fespace.hpp"
-#include "bilinearform.hpp"
-#include "operator.hpp"
 
 // backend/raja/tests **********************************************************
 #include "tests/tests.hpp"

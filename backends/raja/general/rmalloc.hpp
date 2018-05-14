@@ -18,10 +18,13 @@
 
 namespace mfem
 {
+   
+namespace raja
+{
 
 // ***************************************************************************
-template<class T> struct rmalloc: public rmemcpy
-{
+   template<class T> struct rmalloc: public rmemcpy
+   {
 
    // *************************************************************************
    inline void* operator new (size_t n, bool lock_page = false)
@@ -73,6 +76,8 @@ template<class T> struct rmalloc: public rmemcpy
    }
 };
 
+} // raja
+   
 } // mfem
 
 #endif // LAGHOS_RAJA_MALLOC

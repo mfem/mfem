@@ -15,28 +15,8 @@
 namespace mfem
 {
 
-namespace raja
+namespace occa
 {
-
-  // ***************************************************************************
-  void Layout::Resize(std::size_t new_size)
-  {
-    size = new_size;
-  }
-
-  // ***************************************************************************
-  void Layout::Resize(const mfem::Array<std::size_t> &offsets)
-  {
-    MFEM_ASSERT(offsets.Size() == 2,
-                "multiple workers are not supported yet");
-    size = offsets.Last();
-  }
-
-  // ***************************************************************************
-  raja::memory Layout::Alloc(std::size_t bytes) const
-  {
-    return device::Get().malloc(bytes);
-  }
 
 } // namespace mfem::raja
 

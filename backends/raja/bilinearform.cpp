@@ -17,16 +17,18 @@ namespace mfem
 
 namespace raja
 {
-/*
+
+// *****************************************************************************
 void BilinearForm::InitRajaBilinearForm()
 {
-   // Init 'obform' using 'bform'
+   push();
+   // Init 'rbform' using 'bform'
    MFEM_ASSERT(bform != NULL, "");
-   MFEM_ASSERT(obform == NULL, "");
+   MFEM_ASSERT(rbform == NULL, "");
 
    FiniteElementSpace &ofes =
       bform->FESpace()->Get_PFESpace()->As<FiniteElementSpace>();
-   obform = new RajaBilinearForm(&ofes);
+   rbform = new RajaBilinearForm(&ofes);
 
    // Transfer domain integrators
    mfem::Array<mfem::BilinearFormIntegrator*> &dbfi = *bform->GetDBFI();
@@ -38,8 +40,7 @@ void BilinearForm::InitRajaBilinearForm()
          dynamic_cast<ConstantCoefficient*>(scal_coeff);
       // TODO: other types of coefficients ...
       double val = const_coeff ? const_coeff->constant : 1.0;
-      RajaCoefficient ocoeff(obform->RajaEngine(), val);
-
+      //RajaCoefficient ocoeff(rbform->RajaEngine(), val);
       RajaIntegrator *ointeg = NULL;
 
       if (integ_name == "(undefined)")
@@ -48,7 +49,7 @@ void BilinearForm::InitRajaBilinearForm()
       }
       else if (integ_name == "diffusion")
       {
-         ointeg = new RajaDiffusionIntegrator(ocoeff);
+         ointeg = new RajaDiffusionIntegrator(val);
       }
       else
       {
@@ -59,29 +60,33 @@ void BilinearForm::InitRajaBilinearForm()
       const mfem::IntegrationRule *ir = dbfi[i]->GetIntRule();
       if (ir) { ointeg->SetIntegrationRule(*ir); }
 
-      obform->AddDomainIntegrator(ointeg);
+      rbform->AddDomainIntegrator(ointeg);
    }
-
+   pop();
    // TODO: other types of integrators ...
 }
 
+// *****************************************************************************
 bool BilinearForm::Assemble()
 {
-   if (obform == NULL) { InitRajaBilinearForm(); }
-
-   obform->Assemble();
-
+   push();
+   if (rbform == NULL) { InitRajaBilinearForm(); }
+   rbform->Assemble();
+   pop();
    return true; // --> host assembly is not needed
 }
 
+// *****************************************************************************
 void BilinearForm::FormSystemMatrix(const mfem::Array<int> &ess_tdof_list,
                                     mfem::OperatorHandle &A)
 {
    if (A.Type() == mfem::Operator::ANY_TYPE)
    {
-      mfem::Operator *Aout = NULL;
-      obform->FormOperator(ess_tdof_list, Aout);
-      A.Reset(Aout);
+      assert(false);
+      //mfem::Operator *Aout = NULL;
+      //RajaOperator *Aout = NULL;
+      //rbform->FormOperator(ess_tdof_list, Aout);
+      //A.Reset(Aout);
    }
    else
    {
@@ -95,17 +100,19 @@ void BilinearForm::FormLinearSystem(const mfem::Array<int> &ess_tdof_list,
                                     mfem::Vector &X, mfem::Vector &B,
                                     int copy_interior)
 {
-   FormSystemMatrix(ess_tdof_list, A);
-   obform->InitRHS(ess_tdof_list, x, b, A.Ptr(), X, B, copy_interior);
+   assert(false);
+   //FormSystemMatrix(ess_tdof_list, A);
+   //rbform->InitRHS(ess_tdof_list, x, b, A.Ptr(), X, B, copy_interior);
 }
 
 void BilinearForm::RecoverFEMSolution(const mfem::Vector &X,
                                       const mfem::Vector &b,
                                       mfem::Vector &x)
 {
-   obform->RajaRecoverFEMSolution(X, b, x);
+   assert(false);
+   //rbform->/*Raja*/RecoverFEMSolution(X, b, x);
 }
-*/
+
 } // namespace mfem::raja
 
 } // namespace mfem

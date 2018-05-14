@@ -13,6 +13,9 @@
 namespace mfem
 {
 
+namespace raja
+{
+
 // *****************************************************************************
 static RajaGeometry *geom=NULL;
 
@@ -40,7 +43,7 @@ RajaGeometry* RajaGeometry::Get(RajaFiniteElementSpace& fes,
    push(SteelBlue);
    const Mesh *mesh = fes.GetMesh();
    const GridFunction *nodes = mesh->GetNodes();
-   const FiniteElementSpace *fespace = nodes->FESpace();
+   const mfem::FiniteElementSpace *fespace = nodes->FESpace();
    const FiniteElement *fe = fespace->GetFE(0);
    const int dims     = fe->GetDim();
    const int numDofs  = fe->GetDof();
@@ -75,7 +78,7 @@ RajaGeometry* RajaGeometry::Get(RajaFiniteElementSpace& fes,
    if (geom_to_allocate) { geom=new RajaGeometry(); }
    if (!mesh.GetNodes()) { mesh.SetCurvature(1, false, -1, Ordering::byVDIM); }
    GridFunction& nodes = *(mesh.GetNodes());
-   const FiniteElementSpace& fespace = *(nodes.FESpace());
+   const mfem::FiniteElementSpace& fespace = *(nodes.FESpace());
    const FiniteElement& fe = *(fespace.GetFE(0));
    const int dims     = fe.GetDim();
    const int elements = fespace.GetNE();
@@ -85,10 +88,10 @@ RajaGeometry* RajaGeometry::Get(RajaFiniteElementSpace& fes,
 
    if (orderedByNODES) { ReorderByVDim(nodes); }
    const int asize = dims*numDofs*elements;
-   Array<double> meshNodes(asize);
+   mfem::Array<double> meshNodes(asize);
    const Table& e2dTable = fespace.GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
-   Array<int> eMap(numDofs*elements);
+   mfem::Array<int> eMap(numDofs*elements);
    {
       push(cpynodes,SteelBlue);
       for (int e = 0; e < elements; ++e)
@@ -147,7 +150,7 @@ RajaGeometry* RajaGeometry::Get(RajaFiniteElementSpace& fes,
 void RajaGeometry::ReorderByVDim(GridFunction& nodes)
 {
    push(SteelBlue);
-   const FiniteElementSpace *fes=nodes.FESpace();
+   const mfem::FiniteElementSpace *fes=nodes.FESpace();
    const int size = nodes.Size();
    const int vdim = fes->GetVDim();
    const int ndofs = fes->GetNDofs();
@@ -171,7 +174,7 @@ void RajaGeometry::ReorderByVDim(GridFunction& nodes)
 void RajaGeometry::ReorderByNodes(GridFunction& nodes)
 {
    push(SteelBlue);
-   const FiniteElementSpace *fes=nodes.FESpace();
+   const mfem::FiniteElementSpace *fes=nodes.FESpace();
    const int size = nodes.Size();
    const int vdim = fes->GetVDim();
    const int ndofs = fes->GetNDofs();
@@ -320,8 +323,8 @@ RajaDofQuadMaps* RajaDofQuadMaps::GetD2QTensorMaps(const FiniteElement& fe,
    }
    mfem::Vector d2q(dofs);
    mfem::Vector d2qD(dofs);
-   Array<double> dofToQuad(quadPoints*dofs);
-   Array<double> dofToQuadD(quadPoints*dofs);
+   mfem::Array<double> dofToQuad(quadPoints*dofs);
+   mfem::Array<double> dofToQuadD(quadPoints*dofs);
    for (int q = 0; q < quadPoints; ++q)
    {
       const IntegrationPoint& ip = ir1D.IntPoint(q);
@@ -340,7 +343,7 @@ RajaDofQuadMaps* RajaDofQuadMaps::GetD2QTensorMaps(const FiniteElement& fe,
    maps->dofToQuadD = dofToQuadD;
    if (transpose)
    {
-      Array<double> quadWeights(quadPointsND);
+      mfem::Array<double> quadWeights(quadPointsND);
       for (int q = 0; q < quadPointsND; ++q)
       {
          const int qx = q % quadPoints;
@@ -435,11 +438,11 @@ RajaDofQuadMaps* RajaDofQuadMaps::GetD2QSimplexMaps(const FiniteElement& fe,
    {
       maps->quadWeights.allocate(numQuad);
    }
-   Vector d2q(numDofs);
+   mfem::Vector d2q(numDofs);
    DenseMatrix d2qD(numDofs, dims);
-   Array<double> quadWeights(numQuad);
-   Array<double> dofToQuad(numQuad*numDofs);
-   Array<double> dofToQuadD(dims*numQuad*numDofs);
+   mfem::Array<double> quadWeights(numQuad);
+   mfem::Array<double> dofToQuad(numQuad*numDofs);
+   mfem::Array<double> dofToQuadD(dims*numQuad*numDofs);
    for (int q = 0; q < numQuad; ++q)
    {
       const IntegrationPoint& ip = ir.IntPoint(q);
@@ -510,22 +513,64 @@ RajaGeometry* RajaIntegrator::GetGeometry()
 
 
 // ***************************************************************************
+// * Diffusion Integrator
+// ***************************************************************************
+void RajaDiffusionIntegrator::SetupIntegrationRule()
+{
+   push(SteelBlue);
+   assert(false);
+   pop();
+}
+
+// ***************************************************************************
+void RajaDiffusionIntegrator::Assemble()
+{
+   push(SteelBlue);
+   if (op.Size()) { pop(); return; }
+   assert(false);
+   pop();
+}
+
+// ***************************************************************************
+//void RajaDiffusionIntegrator::SetOperator(RajaVector& v) { op = v; }
+
+// ***************************************************************************
+void RajaDiffusionIntegrator::MultAdd(RajaVector& x, RajaVector& y)
+{
+   push(SteelBlue);
+   const int dim = mesh->Dimension();
+   const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
+   const int dofs1D = trialFESpace->GetFE(0)->GetOrder() + 1;
+   assert(false);
+   pop();
+}
+
+ 
+// ***************************************************************************
 // * Mass Integrator
 // ***************************************************************************
 void RajaMassIntegrator::SetupIntegrationRule()
 {
+   push();
    assert(false);
+   pop();
 }
 
 // ***************************************************************************
 void RajaMassIntegrator::Assemble()
 {
-   if (op.Size()) { return; }
+   push();
+   if (op.Size()) { pop(); return; }
    assert(false);
+   pop();
 }
 
 // ***************************************************************************
-void RajaMassIntegrator::SetOperator(RajaVector& v) { op = v; }
+void RajaMassIntegrator::SetOperator(RajaVector& v) {
+   push();
+   op = v;
+   pop();
+}
 
 // ***************************************************************************
 void RajaMassIntegrator::MultAdd(RajaVector& x, RajaVector& y)
@@ -556,5 +601,8 @@ void RajaMassIntegrator::MultAdd(RajaVector& x, RajaVector& y)
                    op,x,y);
    pop();
 }
-}
+
+} // raja
+
+} // mfem
 

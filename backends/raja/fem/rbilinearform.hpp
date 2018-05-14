@@ -38,20 +38,25 @@ class RajaIntegrator;
 // ***************************************************************************
 // * RajaBilinearForm
 // ***************************************************************************
-class RajaBilinearForm : public Operator
+   class RajaBilinearForm : public RajaOperator
 {
    friend class RajaIntegrator;
 protected:
    typedef std::vector<RajaIntegrator*> IntegratorVector;
+   SharedPtr<const Engine> engine;
    mutable Mesh* mesh;
    mutable RajaFiniteElementSpace* trialFes;
    mutable RajaFiniteElementSpace* testFes;
    IntegratorVector integrators;
    mutable RajaVector localX, localY;
 public:
-   RajaBilinearForm(/*Raja*/FiniteElementSpace*);
+   // **************************************************************************
+   RajaBilinearForm(FiniteElementSpace*);
+   RajaBilinearForm(RajaFiniteElementSpace*);
    ~RajaBilinearForm();
-   Mesh& GetMesh() const { return *mesh; }
+   // **************************************************************************
+   const Engine &OccaEngine() const { return *engine; }
+   mfem::Mesh& GetMesh() const { return *mesh; }
    RajaFiniteElementSpace& GetTrialFESpace() const { return *trialFes;}
    RajaFiniteElementSpace& GetTestFESpace() const { return *testFes;}
    // *************************************************************************
@@ -98,6 +103,47 @@ public:
    virtual ~RajaConstrainedOperator() {}
 };
 
+// *****************************************************************************
+// *****************************************************************************
+class BilinearForm : public mfem::PBilinearForm
+{
+protected:
+   //
+   // Inherited fields
+   //
+   RajaBilinearForm *rbform;
+
+   // Called from Assemble() if rbform is NULL to initialize rbform.
+   void InitRajaBilinearForm();
+
+public:
+   /// TODO: doxygen
+   BilinearForm(const Engine &e, mfem::BilinearForm &bf)
+      : mfem::PBilinearForm(e, bf), rbform(NULL) { }
+
+   /// Virtual destructor
+   virtual ~BilinearForm() { }
+
+   /// Assemble the PBilinearForm.
+   /** This method is called from the method mfem::BilinearForm::Assemble() of
+       the associated mfem::BilinearForm, #bform.
+       @returns True, if the host assembly should NOT be performed. */
+   virtual bool Assemble();
+
+   virtual void FormSystemMatrix(const mfem::Array<int> &ess_tdof_list,
+                                 mfem::OperatorHandle &A);
+
+   virtual void FormLinearSystem(const mfem::Array<int> &ess_tdof_list,
+                                 mfem::Vector &x, mfem::Vector &b,
+                                 mfem::OperatorHandle &A,
+                                 mfem::Vector &X, mfem::Vector &B,
+                                 int copy_interior);
+
+   virtual void RecoverFEMSolution(const mfem::Vector &X, const mfem::Vector &b,
+                                   mfem::Vector &x);
+};
+
+   
 } // raja
    
 } // mfem

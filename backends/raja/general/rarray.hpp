@@ -18,6 +18,9 @@
 
 namespace mfem
 {
+   
+namespace raja
+{
 
 template <class T, bool xyz = true> class RajaArray;
 
@@ -32,7 +35,7 @@ public:
    RajaArray(const size_t x) {allocate(x);}
    RajaArray(const size_t x,const size_t y) {allocate(x,y);}
    RajaArray(const RajaArray<T,true> &r) {assert(false);}
-   RajaArray& operator=(Array<T> &a)
+   RajaArray& operator=(mfem::Array<T> &a)
    {
       rmemcpy::rHtoD(data,a.GetData(),a.Size()*sizeof(T));
       return *this;
@@ -89,7 +92,7 @@ public:
    RajaArray(const size_t d0) {allocate(d0);}
    RajaArray(const RajaArray<T,false> &r) {assert(false);}
    ~RajaArray() {dbg("\033[32m[~I"); rmalloc<T>::operator delete (data);}
-   RajaArray& operator=(Array<T> &a)
+   RajaArray& operator=(mfem::Array<T> &a)
    {
       rmemcpy::rHtoD(data,a.GetData(),a.Size()*sizeof(T));
       return *this;
@@ -142,6 +145,8 @@ public:
    }
 };
 
+} // raja
+   
 } // mfem
 
 #endif // LAGHOS_RAJA_ARRAY

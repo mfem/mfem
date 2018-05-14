@@ -18,6 +18,9 @@
 
 namespace mfem
 {
+   
+namespace raja
+{
 
 class RajaVector : public rmalloc<double>
 {
@@ -31,10 +34,10 @@ public:
    RajaVector(const RajaVector*);
    RajaVector(const size_t);
    RajaVector(const size_t,double);
-   RajaVector(const Vector& v);
+   RajaVector(const mfem::Vector& v);
    RajaVector(RajaArray<double>& v);
-   operator Vector();
-   operator Vector() const;
+   operator mfem::Vector();
+   operator mfem::Vector() const;
    double* alloc(const size_t);
    inline double* ptr() const { return data;}
    inline double* GetData() const { return data;}
@@ -46,11 +49,11 @@ public:
    inline size_t bytes() const { return size*sizeof(double); }
    double operator* (const RajaVector& v) const;
    RajaVector& operator = (const RajaVector& v);
-   RajaVector& operator = (const Vector& v);
+   RajaVector& operator = (const mfem::Vector& v);
    RajaVector& operator = (double value);
    RajaVector& operator -= (const RajaVector& v);
    RajaVector& operator += (const RajaVector& v);
-   RajaVector& operator += (const Vector& v);
+   RajaVector& operator += (const mfem::Vector& v);
    RajaVector& operator *=(const double d);
    RajaVector& Add(const double a, const RajaVector& Va);
    void Neg();
@@ -67,6 +70,8 @@ void add(const double,const RajaVector&,const double,const RajaVector&,
          RajaVector&);
 void subtract(const RajaVector&,const RajaVector&,RajaVector&);
 
-}
+} // raja
+   
+} // mfem
 
 #endif // LAGHOS_RAJA_VECTOR

@@ -18,6 +18,9 @@
 namespace mfem
 {
 
+namespace raja
+{
+
 // *************************************************************************
 void* rmemcpy::rHtoH(void *dest, const void *src, std::size_t bytes,
                      const bool async)
@@ -90,5 +93,7 @@ void* rmemcpy::rDtoD(void *dest, const void *src, std::size_t bytes,
 #endif
    return dest;
 }
+
+} // raja
 
 } // mfem

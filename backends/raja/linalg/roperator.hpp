@@ -18,6 +18,9 @@
 
 namespace mfem
 {
+   
+namespace raja
+{
 
 // ***************************************************************************
 class RajaOperator : public rmemcpy
@@ -98,6 +101,8 @@ public:
    }
 };
 
+} // raja
+   
 } // mfem
 
 #endif // LAGHOS_RAJA_OPERATOR

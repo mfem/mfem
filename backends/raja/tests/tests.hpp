@@ -17,6 +17,8 @@
 #define LAGHOS_RAJA_TESTS
 
 namespace mfem {
+   
+namespace raja {
   
   bool dotTest(const int rs_levels);
   bool multTest(ParMesh *pmesh, const int order =1, const int max_step =2);
@@ -25,6 +27,8 @@ namespace mfem {
     bool lambdaTest(ParMesh *pmesh, const int order =1, const int max_step =2);
   }
   
+} // raja
+   
 } // mfem
 
 #endif // LAGHOS_RAJA_TESTS

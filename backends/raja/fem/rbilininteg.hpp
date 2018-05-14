@@ -113,6 +113,23 @@ public:
    RajaGeometry* GetGeometry();
 };
 
+// *****************************************************************************
+// * Diffusion Integrator
+// *****************************************************************************
+class RajaDiffusionIntegrator : public RajaIntegrator{
+private:
+   double coeff;
+   RajaVector op;
+public:
+   RajaDiffusionIntegrator(const double &val):coeff(val){}
+   virtual ~RajaDiffusionIntegrator(){}
+   virtual std::string GetName() {return "DiffusionIntegrator";}
+   virtual void SetupIntegrationRule();
+   virtual void Setup(){}
+   virtual void Assemble();
+   virtual void MultAdd(RajaVector &x, RajaVector &y);
+};
+
 // ***************************************************************************
 // * Mass Integrator
 // ***************************************************************************

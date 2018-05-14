@@ -13,6 +13,9 @@
 namespace mfem
 {
 
+namespace raja
+{
+
 // ***************************************************************************
 // * RajaRestrictionOperator
 // ***************************************************************************
@@ -23,5 +26,7 @@ void RajaRestrictionOperator::Mult(const RajaVector& x,
    rExtractSubVector(entries, indices->ptr(), x, y);
    pop();
 }
+   
+} // namespace raja
 
 } // namespace mfem

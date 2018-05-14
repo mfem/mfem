@@ -22,6 +22,9 @@
 
 namespace mfem
 {
+   
+namespace raja
+{
 
 // ***************************************************************************
 /*extern "C" void d_Mult(const RajaVector &b, RajaVector &x,
@@ -176,6 +179,8 @@ public:
    }
 };
 
+} // raja
+   
 } // mfem
 
 #endif // LAGHOS_RAJA_SOLVERS

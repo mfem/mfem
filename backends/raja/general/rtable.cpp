@@ -12,7 +12,10 @@
 
 namespace mfem
 {
-
+   
+namespace raja
+{
+   
 // ***************************************************************************
 RajaTable::RajaTable(const Table &table)
 {
@@ -28,5 +31,7 @@ RajaTable::RajaTable(const Table &table)
       rHtoD(J,table.GetJ(),sizeof(int)*nnz);
    }
 }
+
+} // raja
 
 } // mfem

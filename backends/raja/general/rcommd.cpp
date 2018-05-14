@@ -12,6 +12,9 @@
 
 namespace mfem
 {
+   
+namespace raja
+{
 
 // ***************************************************************************
 // * RajaCommD
@@ -495,4 +498,6 @@ template void RajaCommD::d_ReduceEnd<double>(double*,int,
                                              void (*)(OpData<double>));
 #endif // __NVCC__
 
+} // raja
+   
 } // namespace mfem

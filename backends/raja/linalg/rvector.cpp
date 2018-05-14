@@ -13,6 +13,9 @@
 namespace mfem
 {
 
+namespace raja
+{
+   
 RajaVector::~RajaVector()
 {
    if (!own) { return; }
@@ -56,7 +59,7 @@ RajaVector::RajaVector(RajaArray<double>& v):size(v.size()),data(v.ptr()),
    own(false) {}
 
 // Host 2 Device ***************************************************************
-RajaVector::RajaVector(const Vector& v):size(v.Size()),data(alloc(size)),
+RajaVector::RajaVector(const mfem::Vector& v):size(v.Size()),data(alloc(size)),
    own(true)
 {
    assert(v.GetData());
@@ -64,22 +67,22 @@ RajaVector::RajaVector(const Vector& v):size(v.Size()),data(alloc(size)),
 }
 
 // Device 2 Host ***************************************************************
-RajaVector::operator Vector()
+RajaVector::operator mfem::Vector()
 {
-   if (!rconfig::Get().Cuda()) { return Vector(data,size); }
+   if (!rconfig::Get().Cuda()) { return mfem::Vector(data,size); }
    double *h_data= (double*) ::malloc(bytes());
    rmemcpy::rDtoH(h_data,data,bytes());
-   Vector mfem_vector(h_data,size);
+   mfem::Vector mfem_vector(h_data,size);
    mfem_vector.MakeDataOwner();
    return mfem_vector;
 }
 
-RajaVector::operator Vector() const
+RajaVector::operator mfem::Vector() const
 {
-   if (!rconfig::Get().Cuda()) { return Vector(data,size); }
+   if (!rconfig::Get().Cuda()) { return mfem::Vector(data,size); }
    double *h_data= (double*) ::malloc(bytes());
    rmemcpy::rDtoH(h_data,data,bytes());
-   Vector mfem_vector(h_data,size);
+   mfem::Vector mfem_vector(h_data,size);
    mfem_vector.MakeDataOwner();
    return mfem_vector;
 }
@@ -116,7 +119,7 @@ RajaVector& RajaVector::operator=(const RajaVector& v)
 }
 
 // ***************************************************************************
-RajaVector& RajaVector::operator=(const Vector& v)
+RajaVector& RajaVector::operator=(const mfem::Vector& v)
 {
    size=v.Size();
    if (!rconfig::Get().Cuda()) { SetSize(size,v.GetData()); }
@@ -153,7 +156,7 @@ RajaVector& RajaVector::operator+=(const RajaVector& v)
 }
 
 // ***************************************************************************
-RajaVector& RajaVector::operator+=(const Vector& v)
+RajaVector& RajaVector::operator+=(const mfem::Vector& v)
 {
    double *d_v_data;
    assert(v.GetData());
@@ -220,4 +223,6 @@ void subtract(const RajaVector& v1,
    vector_xsy(out.Size(),out.ptr(),v1.ptr(),v2.ptr());
 }
 
+} // raja
+   
 } // mfem

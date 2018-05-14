@@ -19,6 +19,9 @@
 namespace mfem
 {
 
+namespace raja
+{
+   
 // ***************************************************************************
 // * RajaFiniteElementSpace
 //  **************************************************************************
@@ -47,6 +50,8 @@ public:
    void LocalToGlobal(const RajaVector&, RajaVector&) const;
 };
 
+} // raja
+   
 } // mfem
 
 #endif // LAGHOS_RAJA_FESPACE

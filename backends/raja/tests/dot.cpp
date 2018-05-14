@@ -1,22 +1,22 @@
-// Copyright (c) 2017, Lawrence Livermore National Security, LLC. Produced at
-// the Lawrence Livermore National Laboratory. LLNL-CODE-734707. All Rights
-// reserved. See files LICENSE and NOTICE for details.
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
 //
-// This file is part of CEED, a collection of benchmarks, miniapps, software
-// libraries and APIs for efficient high-order finite element and spectral
-// element discretizations for exascale applications. For more information and
-// source code availability see http://github.com/ceed.
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
 //
-// The CEED research is supported by the Exascale Computing Project 17-SC-20-SC,
-// a collaborative effort of two U.S. Department of Energy organizations (Office
-// of Science and the National Nuclear Security Administration) responsible for
-// the planning and preparation of a capable exascale ecosystem, including
-// software, applications, hardware, advanced system engineering and early
-// testbed platforms, in support of the nation's exascale computing imperative.
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
 #include "../raja.hpp"
-#include <sys/time.h>
 
-namespace mfem {
+#if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
+
+namespace mfem
+{
+   
+namespace raja
+{
 
   // ***************************************************************************
   bool dotTest(const int rs_levels){
@@ -24,8 +24,8 @@ namespace mfem {
     struct timeval st, et;
     int size = 0x400;
     for (int lev = 0; lev < rs_levels; lev++) size<<=1;
-    Vector h_a(size); h_a=1.0/M_PI;
-    Vector h_b(size); h_b=M_PI;
+    mfem::Vector h_a(size); h_a=1.0/M_PI;
+    mfem::Vector h_b(size); h_b=M_PI;
     gettimeofday(&st, NULL);
     RajaVector a(size);a=1.0/M_PI;//h_a;//a.Print();
     RajaVector b(size);b=M_PI;//(h_b); //b.Print();
@@ -43,5 +43,9 @@ namespace mfem {
     printf("\033[32m[laghos] Ker (%d) in \033[1m%12.6e(s)\033[m\n",size,alltime/1000.0);
     return true;
   }
+   
+} //  namespace raja
 
 } // namespace mfem
+
+#endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)

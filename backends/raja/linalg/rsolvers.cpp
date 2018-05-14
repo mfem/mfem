@@ -12,6 +12,9 @@
 
 namespace mfem
 {
+   
+namespace raja
+{
 
 // *************************************************************************
 void RajaCGSolver::h_Mult(const RajaVector &b, RajaVector &x) const
@@ -213,5 +216,7 @@ void RajaCGSolver::h_Mult(const RajaVector &b, RajaVector &x) const
    final_norm = sqrt(betanom);
    pop();
 }
+   
+} // raja
 
 } // mfem

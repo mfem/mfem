@@ -22,6 +22,9 @@
 namespace mfem
 {
 
+namespace raja
+{
+
 
 // ***************************************************************************
 bool isNvidiaCudaMpsDaemonRunning(void)
@@ -214,7 +217,7 @@ void rconfig::Setup(const int _mpi_rank,
 #endif // __NVCC__
    if (_dot)
    {
-      dotTest(rs_levels);
+      mfem::raja::dotTest(rs_levels);
       MPI_Finalize();
       exit(0);
    }
@@ -241,5 +244,7 @@ bool rconfig::DoHostConformingProlongationOperator()
    if (Occa()) { return true; }
    return (Cuda())?hcpo:true;
 }
+   
+} // raja
 
 } // namespace mfem

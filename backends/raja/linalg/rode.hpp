@@ -18,6 +18,9 @@
 
 namespace mfem
 {
+   
+namespace raja
+{
 
 // ***************************************************************************
 class RajaODESolver
@@ -296,6 +299,8 @@ public:
    RajaRK6Solver() : RajaExplicitRKSolver(8, RK6_a, RK6_b, RK6_c) { }
 };
 
+} // raja
+   
 } // mfem
 
 #endif // LAGHOS_RAJA_ODE

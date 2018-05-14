@@ -14,12 +14,14 @@
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
 #include "../raja.hpp"
-#include "../../laghos_solver.hpp"
-#include <sys/time.h>
-#include <unistd.h>
 
-namespace mfem {
+#if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
+namespace mfem
+{
+
+namespace raja
+{
   // ***************************************************************************
   // RajaPm1APOperator
   // ***************************************************************************
@@ -164,4 +166,8 @@ namespace mfem {
     return true;
   }
 
+} //  namespace raja
+   
 } // namespace mfem
+
+#endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)

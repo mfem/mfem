@@ -29,7 +29,8 @@ protected:
 public:
    Layout(const Engine &e, std::size_t s = 0) : PLayout(e, s) { }
 
-  const Engine &RajaEngine() const;
+   const Engine& RajaEngine() const
+   { return *static_cast<const Engine *>(engine.Get()); }
 
   raja::memory Alloc(std::size_t bytes) const;
 

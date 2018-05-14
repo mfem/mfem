@@ -22,15 +22,16 @@ FiniteElementSpace::FiniteElementSpace(const Engine &e,
                                        mfem::FiniteElementSpace &fespace)
    : PFiniteElementSpace(e, fespace),
      e_layout(e, 0),
+     ordering(fespace.GetOrdering()),
      globalDofs(fes->GetNDofs()),
      localDofs(GetFE(0)->GetDof()),
+     vdim(fespace.GetVDim()),
      offsets(globalDofs+1),
      indices(localDofs, GetNE()),
-     map(localDofs, GetNE())
+     map(localDofs, GetNE()),
+     restrictionOp(new IdentityOperator(RajaTrueVLayout())),
+     prolongationOp(new IdentityOperator(RajaTrueVLayout()))
 {
-   vdim     = fespace.GetVDim();
-   ordering = fespace.GetOrdering();
-   
    const FiniteElement *fe = GetFE(0);
    const TensorBasisElement* el = dynamic_cast<const TensorBasisElement*>(fe);
    const mfem::Array<int> &dof_map = el->GetDofMap();
@@ -86,8 +87,8 @@ FiniteElementSpace::FiniteElementSpace(const Engine &e,
    indices = h_indices;
    map = h_map;
 
-   const SparseMatrix* R = fes->GetRestrictionMatrix(); //assert(R);
-   const Operator* P = fes->GetProlongationMatrix(); //assert(P);
+   //const SparseMatrix* R = fes->GetRestrictionMatrix(); //assert(R);
+   //const Operator* P = fes->GetProlongationMatrix(); //assert(P);
    //const RajaConformingProlongationOperator *P = new
    //     RajaConformingProlongationOperator(*this);
 /*
@@ -113,8 +114,8 @@ FiniteElementSpace::FiniteElementSpace(const Engine &e,
    reorderIndices = ::new RajaArray<int>(2*trueCount);
    *reorderIndices = h_reorderIndices;
    */
-   restrictionOp = new IdentityOperator(RajaTrueVLayout());
-   prolongationOp = new IdentityOperator(RajaTrueVLayout());
+   //restrictionOp = new IdentityOperator(RajaTrueVLayout());
+   //prolongationOp = new IdentityOperator(RajaTrueVLayout());
 /*
    restrictionOp = new RajaRestrictionOperator(R->Height(),
                                                R->Width(),
@@ -132,8 +133,8 @@ FiniteElementSpace::FiniteElementSpace(const Engine &e,
 
 FiniteElementSpace::~FiniteElementSpace()
 {
-   delete [] elementDofMap;
-   delete [] elementDofMapInverse;
+   //delete [] elementDofMap;
+   //delete [] elementDofMapInverse;
    delete restrictionOp;
    delete prolongationOp;
 }

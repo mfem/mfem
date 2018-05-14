@@ -19,6 +19,9 @@
 namespace mfem
 {
 
+namespace raja
+{
+   
 #ifndef __NVCC__
 typedef int CUstream;
 #endif
@@ -101,6 +104,8 @@ public:
 #endif
 };
 
+} // raja
+   
 } // namespace mfem
 
 #endif // LAGHOS_RAJA_CONFIG

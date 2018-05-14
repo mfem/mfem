@@ -17,47 +17,6 @@ namespace mfem
 namespace raja
 {
 
-/// TODO: doxygen
-class BilinearForm : public mfem::PBilinearForm
-{
-protected:
-   //
-   // Inherited fields
-   //
-   // SharedPtr<const mfem::Engine> engine;
-   // mfem::BilinearForm *bform;
-   //RajaBilinearForm *obform;
-
-   // Called from Assemble() if obform is NULL to initialize obform.
-   //void InitRajaBilinearForm();
-
-public:
-   /// TODO: doxygen
-   BilinearForm(const Engine &e, mfem::BilinearForm &bf)
-      : mfem::PBilinearForm(e, bf)/*, obform(NULL)*/ { }
-
-   /// Virtual destructor
-   virtual ~BilinearForm() { }
-
-   /// Assemble the PBilinearForm.
-   /** This method is called from the method mfem::BilinearForm::Assemble() of
-       the associated mfem::BilinearForm, #bform.
-       @returns True, if the host assembly should NOT be performed. */
-   virtual bool Assemble();
-
-   virtual void FormSystemMatrix(const mfem::Array<int> &ess_tdof_list,
-                                 mfem::OperatorHandle &A);
-
-   virtual void FormLinearSystem(const mfem::Array<int> &ess_tdof_list,
-                                 mfem::Vector &x, mfem::Vector &b,
-                                 mfem::OperatorHandle &A,
-                                 mfem::Vector &X, mfem::Vector &B,
-                                 int copy_interior);
-
-   virtual void RecoverFEMSolution(const mfem::Vector &X, const mfem::Vector &b,
-                                   mfem::Vector &x);
-};
-
 } // namespace mfem::raja
 
 } // namespace mfem

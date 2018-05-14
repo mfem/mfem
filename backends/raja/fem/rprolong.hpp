@@ -19,6 +19,9 @@
 namespace mfem
 {
 
+namespace raja
+{
+   
 // ***************************************************************************
 // * RajaProlongationOperator
 // ***************************************************************************
@@ -32,6 +35,8 @@ public:
    void MultTranspose(const RajaVector& x, RajaVector& y) const ;
 };
 
+} // raja
+   
 } // mfem
 
 #endif // LAGHOS_RAJA_PROLONG_OP

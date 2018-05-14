@@ -13,14 +13,61 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
-#include <sys/time.h>
+#include "../raja.hpp"
 
-#include "mfem.hpp"
-#include "../../laghos_solver.hpp"
+#if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
-namespace mfem {
+namespace mfem
+{
   
-namespace hydrodynamics {
+namespace raja
+{
+   
+// Container for all data needed at quadrature points.
+struct QuadratureData
+{
+   // TODO: use QuadratureFunctions?
+
+   // Reference to physical Jacobian for the initial mesh. These are computed
+   // only at time zero and stored here.
+   RajaVector Jac0inv;
+
+   // Quadrature data used for full/partial assembly of the force operator. At
+   // each quadrature point, it combines the stress, inverse Jacobian,
+   // determinant of the Jacobian and the integration weight. It must be
+   // recomputed in every time step.
+   RajaVector stressJinvT;
+   RajaDofQuadMaps *dqMaps;
+   RajaGeometry *geom;
+
+   // Quadrature data used for full/partial assembly of the mass matrices. At
+   // time zero, we compute and store (rho0 * det(J0) * qp_weight) at each
+   // quadrature point. Note the at any other time, we can compute
+   // rho = rho0 * det(J0) / det(J), representing the notion of pointwise mass
+   // conservation.
+   RajaVector rho0DetJ0w;
+
+
+   // Initial length scale. This represents a notion of local mesh size. We
+   // assume that all initial zones have similar size.
+   double h0;
+
+   // Estimate of the minimum time step over all quadrature points. This is
+   // recomputed at every time step to achieve adaptive time stepping.
+   double dt_est;
+   RajaVector dtEst;
+
+   QuadratureData(int dim, int nzones, int nqp){ Setup(dim, nzones, nqp); }
+
+
+   void Setup(int dim, int nzones, int nqp){
+      push(Wheat);
+      rho0DetJ0w.SetSize(nqp * nzones);
+      stressJinvT.SetSize(dim * dim * nqp * nzones);
+      dtEst.SetSize(nqp * nzones);
+      pop();
+   }
+};
 
   // ***************************************************************************
   bool lambdaTest(ParMesh *pmesh, const int order_v, const int max_step){
@@ -74,7 +121,7 @@ namespace hydrodynamics {
     massInteg.SetOperator(quad_data.rho0DetJ0w);
     bilinearForm.AddDomainIntegrator(&massInteg);
     bilinearForm.Assemble();
-    bilinearForm.FormOperator(Array<int>(), massOperator);
+    bilinearForm.FormOperator(mfem::Array<int>(), massOperator);
     // **************************************************************************
     MPI_Barrier(pmesh->GetComm());
 #ifdef __NVCC__
@@ -103,6 +150,8 @@ namespace hydrodynamics {
     return true;
   }
   
-} //  namespace hydrodynamics
+} //  namespace raja
   
 } // namespace mfem
+
+#endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)

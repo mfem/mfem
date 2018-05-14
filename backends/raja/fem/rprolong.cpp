@@ -15,7 +15,7 @@
 namespace mfem
 {
 
-//namespace raja {
+namespace raja {
 
 // ***************************************************************************
 // * RajaProlongationOperator
@@ -49,11 +49,11 @@ void RajaProlongationOperator::Mult(const RajaVector& x,
    }
 
    push(hostX:D2H,Red);
-   const Vector hostX=x;//D2H
+   const mfem::Vector hostX=x;//D2H
    pop();
 
    push(hostY,LightSteelBlue);
-   Vector hostY(y.Size());
+   mfem::Vector hostY(y.Size());
    pop();
 
    push(pmat->Mult,LightSteelBlue);
@@ -92,11 +92,11 @@ void RajaProlongationOperator::MultTranspose(const RajaVector& x,
    }
 
    push(hostX:D2H,Red);
-   const Vector hostX=x;
+   const mfem::Vector hostX=x;
    pop();
 
    push(hostY,LightSteelBlue);
-   Vector hostY(y.Size());
+   mfem::Vector hostY(y.Size());
    pop();
 
    push(pmat->MultT,LightSteelBlue);
@@ -110,7 +110,7 @@ void RajaProlongationOperator::MultTranspose(const RajaVector& x,
    pop();
 }
 
-//} // namespace mfem::raja
+} // namespace mfem::raja
 
 } // namespace mfem
 

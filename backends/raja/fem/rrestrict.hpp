@@ -18,6 +18,9 @@
 
 namespace mfem
 {
+   
+namespace raja
+{
 
 // ***************************************************************************
 // * RajaRestrictionOperator
@@ -36,6 +39,8 @@ public:
    void Mult(const RajaVector& x, RajaVector& y) const ;
 };
 
+} // raja
+   
 } // mfem
 
 #endif // LAGHOS_RAJA_RESTRICT_OP

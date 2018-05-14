@@ -23,8 +23,8 @@ class FiniteElementSpace : public mfem::PFiniteElementSpace
 protected:
   Layout e_layout;
   
-  int *elementDofMap;
-  int *elementDofMapInverse;
+   //int *elementDofMap;
+   //int *elementDofMapInverse;
   mfem::Ordering::Type ordering;
   int globalDofs, localDofs;
   int vdim;

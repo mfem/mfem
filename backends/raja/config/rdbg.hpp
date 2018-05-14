@@ -28,10 +28,25 @@ inline void rdbg(const char *format,...)
 }
 
 // *****************************************************************************
+static inline void rdbge(const char *format,...)
+{
+   va_list args;
+   va_start(args, format);
+   fflush(stdout);
+   printf("\033[32;1m");
+   vfprintf(stdout,format,args);
+   printf("\033[m\n");
+   fflush(stdout);
+   va_end(args);
+}
+
+// *****************************************************************************
 #ifdef LAGHOS_DEBUG
-#define dbg(...) // rdbg(__VA_ARGS__)
+//#warning LAGHOS_DEBUG
+#define dbg(...) rdbg(__VA_ARGS__)
 #else
-#define dbg(...)
+//#warning LAGHOS_DEBUG else
+#define dbg(...) rdbge(__VA_ARGS__)
 #endif // LAGHOS_DEBUG
 
 #endif // LAGHOS_RAJA_DBG

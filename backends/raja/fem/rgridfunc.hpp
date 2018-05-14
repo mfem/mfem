@@ -19,6 +19,9 @@
 namespace mfem
 {
 
+namespace raja
+{
+   
 class RajaGridFunction : public RajaVector
 {
 public:
@@ -38,13 +41,15 @@ public:
       RajaVector::operator=(v);
       return *this;
    }
-   RajaGridFunction& operator=(const Vector& v)
+   RajaGridFunction& operator=(const mfem::Vector& v)
    {
       RajaVector::operator=(v);
       return *this;
    }
 };
 
+} // raja
+   
 } // mfem
 
 #endif // LAGHOS_RAJA_GRIDFUNC

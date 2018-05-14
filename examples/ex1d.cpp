@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
-
+   
    /// Engine *engine = EngineDepot.Select(spec);
    // string occa_spec("mode: 'Serial'");
    // string occa_spec("mode: 'CUDA', deviceID: 0");
@@ -43,12 +43,15 @@ int main(int argc, char *argv[])
    // string occa_spec("mode: 'OpenCL', deviceID: 0, platformID: 0");
 
    //SharedPtr<Engine> engine(new mfem::occa::Engine("mode: 'Serial'"));
+   dbg("engine");
    SharedPtr<Engine> engine(new mfem::raja::Engine("cpu"));
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
+   dbg("mesh");
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
+   dbg("SetEngine");
    mesh->SetEngine(*engine);
    int dim = mesh->Dimension();
 
@@ -68,6 +71,7 @@ int main(int argc, char *argv[])
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
+   dbg("FiniteElementCollection");
    FiniteElementCollection *fec;
    if (order > 0)
    {
@@ -82,6 +86,7 @@ int main(int argc, char *argv[])
    {
       fec = new H1_FECollection(order = 1, dim);
    }
+   dbg("FiniteElementSpace");
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
@@ -102,6 +107,7 @@ int main(int argc, char *argv[])
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
    LinearForm *b = new LinearForm(fespace);
+   dbg("ConstantCoefficient");
    ConstantCoefficient one(1.0);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
@@ -109,13 +115,17 @@ int main(int argc, char *argv[])
    // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
+   dbg("GridFunction");
    GridFunction x(fespace);
+   dbg("Fill");
    x.Fill(0.0);
 
    // 8. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
+   dbg("BilinearForm");
    BilinearForm *a = new BilinearForm(fespace);
+   dbg("DiffusionIntegrator");
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 9. Assemble the bilinear form and the corresponding linear system,
@@ -123,10 +133,12 @@ int main(int argc, char *argv[])
    //    conditions, applying conforming constraints for non-conforming AMR,
    //    static condensation, etc.
    if (static_cond) { a->EnableStaticCondensation(); }
+   dbg("Assemble");
    a->Assemble();
 
    OperatorHandle A(Operator::ANY_TYPE);
    Vector B, X;
+   dbg("FormLinearSystem");
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    cout << "Size of linear system: " << A.Ptr()->Height() << endl;
