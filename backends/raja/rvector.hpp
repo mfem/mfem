@@ -35,7 +35,7 @@ public:
    RajaVector(const size_t);
    RajaVector(const size_t,double);
    RajaVector(const mfem::Vector& v);
-   RajaVector(RajaArray<double>& v);
+   RajaVector(array<double>& v);
    operator mfem::Vector();
    operator mfem::Vector() const;
    double* alloc(const size_t);
@@ -58,7 +58,7 @@ public:
    RajaVector& Add(const double a, const RajaVector& Va);
    void Neg();
    RajaVector* GetRange(const size_t, const size_t) const;
-   void SetSubVector(const RajaArray<int> &, const double, const int);
+   void SetSubVector(const array<int> &, const double, const int);
    double Min() const;
    ~RajaVector();
 };

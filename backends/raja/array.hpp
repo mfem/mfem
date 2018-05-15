@@ -8,8 +8,16 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
+
 #ifndef MFEM_BACKENDS_RAJA_ARRAY_HPP
 #define MFEM_BACKENDS_RAJA_ARRAY_HPP
+
+#include "../../config/config.hpp"
+#if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
+
+#include "layout.hpp"
+#include "linalg.hpp"
+#include "../base/array.hpp"
 
 namespace mfem
 {
@@ -56,9 +64,7 @@ protected:
 
    template <typename T>
    inline void RajaFill(const T *val_ptr)
-   {
-      raja::linalg::operator_eq<T>(slice, *val_ptr);
-   }
+   { raja::linalg::operator_eq<T>(slice, *val_ptr); }
 
 public:
    Array(Layout &lt, std::size_t item_size)
@@ -85,26 +91,27 @@ public:
 
 inline void *Array::GetBuffer() const
 {
-  if (!device::Get().hasSeparateMemorySpace())
-  {
-    return slice.ptr();
-  }
-  return NULL;
+   if (!slice.getDevice().hasSeparateMemorySpace())
+   {
+      return slice.ptr();
+   }
+   return NULL;
 }
 
 inline int Array::ResizeData(const Layout *lt, std::size_t item_size)
 {
-  const std::size_t new_bytes = lt->Size()*item_size;
-  if (data.size() < new_bytes)
-  {
-    data = lt->Alloc(new_bytes);
-    slice = data;
-    // If memory allocation fails - an exception is thrown.
-  }
-  else if (slice.size() != new_bytes)
-  {
-    slice = data.slice(0, new_bytes);
-  }
+   const std::size_t new_bytes = lt->Size()*item_size;
+   if (data.size() < new_bytes ||
+       data.getDHandle() != lt->RajaEngine().GetDevice().getDHandle())
+   {
+      data = lt->Alloc(new_bytes);
+      slice = data;
+      // If memory allocation fails - an exception is thrown.
+   }
+   else if (slice.size() != new_bytes)
+   {
+      slice = data.slice(0, new_bytes);
+   }
    return 0;
 }
 
@@ -118,5 +125,7 @@ inline void Array::MakeRef(Array &master)
 } // namespace mfem::raja
 
 } // namespace mfem
+
+#endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
 #endif // MFEM_BACKENDS_RAJA_ARRAY_HPP

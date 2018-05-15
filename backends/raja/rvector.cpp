@@ -8,7 +8,7 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
-#include "../raja.hpp"
+#include "raja.hpp"
 
 namespace mfem
 {
@@ -55,7 +55,7 @@ RajaVector::RajaVector(const RajaVector& v):
 RajaVector::RajaVector(const RajaVector *v):size(v->size),data(v->data),
    own(false) {}
 
-RajaVector::RajaVector(RajaArray<double>& v):size(v.size()),data(v.ptr()),
+RajaVector::RajaVector(raja::array<double>& v):size(v.size()),data(v.ptr()),
    own(false) {}
 
 // Host 2 Device ***************************************************************
@@ -187,7 +187,7 @@ void RajaVector::Neg()
 }
 
 // *****************************************************************************
-void RajaVector::SetSubVector(const RajaArray<int> &ess_tdofs,
+void RajaVector::SetSubVector(const raja::array<int> &ess_tdofs,
                               const double value,
                               const int N)
 {

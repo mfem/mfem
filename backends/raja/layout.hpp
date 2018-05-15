@@ -8,8 +8,16 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
+
 #ifndef MFEM_BACKENDS_RAJA_LAYOUT_HPP
 #define MFEM_BACKENDS_RAJA_LAYOUT_HPP
+
+#include "../../config/config.hpp"
+#if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
+
+#include "../base/layout.hpp"
+#include "engine.hpp"
+#include "memory.hpp"
 
 namespace mfem
 {
@@ -29,10 +37,11 @@ protected:
 public:
    Layout(const Engine &e, std::size_t s = 0) : PLayout(e, s) { }
 
-   const Engine& RajaEngine() const
+   const Engine &RajaEngine() const
    { return *static_cast<const Engine *>(engine.Get()); }
 
-  raja::memory Alloc(std::size_t bytes) const;
+   raja::memory Alloc(std::size_t bytes) const
+   { return RajaEngine().GetDevice().malloc(bytes); }
 
    virtual ~Layout() { }
 
@@ -54,5 +63,7 @@ public:
 } // namespace mfem::raja
 
 } // namespace mfem
+
+#endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
 #endif // MFEM_BACKENDS_RAJA_LAYOUT_HPP

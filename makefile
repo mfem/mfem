@@ -307,19 +307,8 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # Source dirs in logical order
-ALL_SRC_DIRS := general linalg mesh fem backends/base backends/occa \
-					backends/raja \
-					backends/raja/config \
-					backends/raja/fem \
-					backends/raja/general \
-					backends/raja/linalg \
-					backends/raja/kernels/blas \
-					backends/raja/kernels/geom \
-					backends/raja/kernels/maps \
-					backends/raja/kernels/quad \
-					backends/raja/kernels/share \
-					backends/raja/kernels/mass 
-#					backends/raja/tests 
+ALL_SRC_DIRS := general linalg mesh fem \
+	backends/base backends/occa backends/raja 
 DIRS := $(ALL_SRC_DIRS)
 ifeq ($(MFEM_USE_BACKENDS),NO)
    DIRS := $(filter-out backends/%,$(DIRS))

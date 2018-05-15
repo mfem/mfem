@@ -12,6 +12,13 @@
 #ifndef MFEM_BACKENDS_RAJA_VECTOR_HPP
 #define MFEM_BACKENDS_RAJA_VECTOR_HPP
 
+#include "../../config/config.hpp"
+#if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
+
+//#include "raja.hpp"
+#include "../base/vector.hpp"
+#include "array.hpp"
+
 namespace mfem
 {
 
@@ -57,5 +64,7 @@ public:
 } // namespace mfem::raja
 
 } // namespace mfem
+
+#endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
 #endif // MFEM_BACKENDS_RAJA_VECTOR_HPP

@@ -13,7 +13,11 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
-#include "../raja.hpp"
+
+#include "../../config/config.hpp"
+#if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
+
+#include "raja.hpp"
 
 namespace mfem
 {
@@ -97,3 +101,5 @@ void* rmemcpy::rDtoD(void *dest, const void *src, std::size_t bytes,
 } // raja
 
 } // mfem
+
+#endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)

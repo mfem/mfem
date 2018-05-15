@@ -8,33 +8,54 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
+
 #ifndef MFEM_BACKENDS_RAJA_FE_SPACE_HPP
 #define MFEM_BACKENDS_RAJA_FE_SPACE_HPP
+
+#include "../../config/config.hpp"
+#if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
+
+#include "raja.hpp"
 
 namespace mfem
 {
 
 namespace raja
 {
-   
+
 /// TODO: doxygen
 class FiniteElementSpace : public mfem::PFiniteElementSpace
 {
 protected:
-  Layout e_layout;
-  
-  mfem::Ordering::Type ordering;
-  int globalDofs, localDofs;
-  int vdim;
+   //
+   // Inherited fields
+   //
+   // SharedPtr<const mfem::Engine> engine;
+   // mfem::FiniteElementSpace *fes;
 
-  RajaArray<int> offsets;
-  RajaArray<int> indices, *reorderIndices;
-  RajaArray<int> map;
+   Layout e_layout;
+
+   int *elementDofMap;
+   int *elementDofMapInverse;
+
+   raja::array<int> globalToLocalOffsets;
+   raja::array<int> globalToLocalIndices,*reorderIndicess;
+   raja::array<int> localToGlobalMap;
+   
+   mfem::Ordering::Type ordering;
+
+   int globalDofs, localDofs;
+   int vdim;
+
    mfem::Operator *restrictionOp, *prolongationOp;
+
+   void SetupLocalGlobalMaps();
+   void SetupOperators();
+   void SetupKernels();
+
 public:
    /// TODO: doxygen
-   FiniteElementSpace(const Engine&,
-                      mfem::FiniteElementSpace&);
+   FiniteElementSpace(const Engine &e, mfem::FiniteElementSpace &fespace);
 
    /// Virtual destructor
    virtual ~FiniteElementSpace();
@@ -44,6 +65,9 @@ public:
    { return *static_cast<const Engine *>(engine.Get()); }
 
    /// TODO: doxygen
+   raja::device GetDevice(int idx = 0) const
+   { return RajaEngine().GetDevice(idx); }
+
    mfem::Mesh* GetMesh() const { return fes->GetMesh(); }
 
    mfem::FiniteElementSpace* GetFESpace() const { return fes; }
@@ -81,26 +105,53 @@ public:
    const mfem::FiniteElement* GetFE(const int idx) const
    { return fes->GetFE(idx); }
 
+   const int* GetElementDofMap() const { return elementDofMap; }
+   const int* GetElementDofMapInverse() const { return elementDofMapInverse; }
+
    const mfem::Operator* GetRestrictionOperator() { return restrictionOp; }
    const mfem::Operator* GetProlongationOperator() { return prolongationOp; }
 
-  const RajaArray<int>& GetLocalToGlobalMap() const { return map; }
-  void GlobalToLocal(const RajaVector&, RajaVector&) const;
-  void LocalToGlobal(const RajaVector&, RajaVector&) const;
-};
+   const raja::array<int> GetLocalToGlobalMap() const
+   { return localToGlobalMap; }
 
-
-// *****************************************************************************
-// *****************************************************************************
-class RajaFiniteElementSpace : public FiniteElementSpace{
-   RajaFiniteElementSpace(const Engine &e,
-                          mfem::FiniteElementSpace &fes):FiniteElementSpace(e,fes){}
-   //void GlobalToLocal(const RajaVector&, RajaVector&) const;
-   //void LocalToGlobal(const RajaVector&, RajaVector&) const;
+   void GlobalToLocal(const Vector &globalVec, Vector &localVec) const
+   {
+      push(PowderBlue);
+      const int vdim = GetVDim();
+      const int localEntries = localDofs * GetNE();
+      const bool vdim_ordering = ordering == Ordering::byVDIM;
+      rGlobalToLocal(vdim,
+                     vdim_ordering,
+                     globalDofs,
+                     localEntries,
+                     globalToLocalOffsets,
+                     globalToLocalIndices,
+                     globalVec.Wrap().GetData(),
+                     localVec.Wrap().GetData());
+      pop();
+   }
+   void LocalToGlobal(const Vector &localVec, Vector &globalVec) const
+   {
+      push(PowderBlue);
+      const int vdim = GetVDim();
+      const int localEntries = localDofs * GetNE();
+      const bool vdim_ordering = ordering == Ordering::byVDIM;
+      rLocalToGlobal(vdim,
+                     vdim_ordering,
+                     globalDofs,
+                     localEntries,
+                     globalToLocalOffsets,
+                     globalToLocalIndices,
+                     localVec.Wrap().GetData(),
+                     globalVec.Wrap().GetData());
+   pop();
+   }
 };
 
 } // namespace mfem::raja
 
 } // namespace mfem
+
+#endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
 #endif // MFEM_BACKENDS_RAJA_FE_SPACE_HPP

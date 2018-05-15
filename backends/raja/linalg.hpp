@@ -10,6 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 #ifndef MFEM_BACKENDS_RAJA_LINALG_HPP
 #define MFEM_BACKENDS_RAJA_LINALG_HPP
+#include "kernels/include/kernels.hpp"
 
 namespace mfem
 {

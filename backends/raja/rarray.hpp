@@ -15,6 +15,7 @@
 // testbed platforms, in support of the nation's exascale computing imperative.
 #ifndef LAGHOS_RAJA_ARRAY
 #define LAGHOS_RAJA_ARRAY
+#include "rmalloc.hpp"
 
 namespace mfem
 {
@@ -22,32 +23,32 @@ namespace mfem
 namespace raja
 {
 
-template <class T, bool xyz = true> class RajaArray;
+template <class T, bool xyz = true> class array;
 
 // Partial Specializations for xyz==TRUE *************************************
-template <class T> class RajaArray<T,true> : public rmalloc<T>
+template <class T> class array<T,true> : public rmalloc<T>
 {
 private:
    T* data = NULL;
    size_t sz,d[4];
 public:
-   RajaArray():data(NULL),sz(0),d{0,0,0,0} {}
-   RajaArray(const size_t x) {allocate(x);}
-   RajaArray(const size_t x,const size_t y) {allocate(x,y);}
-   RajaArray(const RajaArray<T,true> &r) {assert(false);}
-   RajaArray& operator=(mfem::Array<T> &a)
+   array():data(NULL),sz(0),d{0,0,0,0} {}
+   array(const size_t x) {allocate(x);}
+   array(const size_t x,const size_t y) {allocate(x,y);}
+   array(const array<T,true> &r) {assert(false);}
+   array& operator=(mfem::Array<T> &a)
    {
       rmemcpy::rHtoD(data,a.GetData(),a.Size()*sizeof(T));
       return *this;
    }
-   ~RajaArray() {dbg("\033[32m[~i"); rmalloc<T>::operator delete (data);}
+   ~array() {dbg("\033[32m[~i"); rmalloc<T>::operator delete (data);}
    inline size_t* dim() { return &d[0]; }
    inline T* ptr() { return data; }
    inline const T* GetData() const { return data; }
    inline const T* ptr() const { return data; }
    inline operator T* () { return data; }
    inline operator const T* () const { return data; }
-   double operator* (const RajaArray& a) const { return vector_dot(sz, data, a.data); }
+   double operator* (const array& a) const { return vector_dot(sz, data, a.data); }
    inline size_t size() const { return sz; }
    inline size_t Size() const { return sz; }
    inline size_t bytes() const { return size()*sizeof(T); }
@@ -81,18 +82,18 @@ public:
 };
 
 // Partial Specializations for xyz==FALSE ************************************
-template <class T> class RajaArray<T,false> : public rmalloc<T>
+template <class T> class array<T,false> : public rmalloc<T>
 {
 private:
    static const int DIM = 4;
    T* data = NULL;
    size_t sz,d[DIM];
 public:
-   RajaArray():data(NULL),sz(0),d{0,0,0,0} {}
-   RajaArray(const size_t d0) {allocate(d0);}
-   RajaArray(const RajaArray<T,false> &r) {assert(false);}
-   ~RajaArray() {dbg("\033[32m[~I"); rmalloc<T>::operator delete (data);}
-   RajaArray& operator=(mfem::Array<T> &a)
+   array():data(NULL),sz(0),d{0,0,0,0} {}
+   array(const size_t d0) {allocate(d0);}
+   array(const array<T,false> &r) {assert(false);}
+   ~array() {dbg("\033[32m[~I"); rmalloc<T>::operator delete (data);}
+   array& operator=(mfem::Array<T> &a)
    {
       rmemcpy::rHtoD(data,a.GetData(),a.Size()*sizeof(T));
       return *this;
@@ -103,7 +104,7 @@ public:
    inline const T* ptr() const { return data; }
    inline operator T* () { return data; }
    inline operator const T* () const { return data; }
-   double operator* (const RajaArray& a) const { return vector_dot(sz, data, a.data); }
+   double operator* (const array& a) const { return vector_dot(sz, data, a.data); }
    inline size_t size() const { return sz; }
    inline size_t Size() const { return sz; }
    inline size_t bytes() const { return size()*sizeof(T); }

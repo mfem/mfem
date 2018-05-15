@@ -17,14 +17,6 @@
 #include <assert.h>
 #include <sys/time.h>
 
-// __NVCC__ ********************************************************************
-#ifdef __NVCC__
-#include <cuda.h>
-#include <helper_cuda.h>
-#include <helper_functions.h>
-#define cuCheck checkCudaErrors
-#endif
-
 // backend/raja/kernels ********************************************************
 #include "kernels/include/kernels.hpp"
 
@@ -35,8 +27,9 @@
 #include "../../config/config.hpp"
 #include "../../general/array.hpp"
 #include "../../fem/gridfunc.hpp"
-#include "../../general/communication.hpp"
-#include "../../fem/pfespace.hpp"
+//#include "../../general/communication.hpp"
+//#include "../../fem/pfespace.hpp"
+#include "../../fem/fem.hpp"
 #include "../../fem/fespace.hpp"
 #include "../../fem/bilinearform.hpp"
 
@@ -51,38 +44,22 @@
 #include "vector.hpp"
 
 // backend/raja/config *********************************************************
-#include "config/rdbg.hpp"
-#include "config/rnvvp.hpp"
-#include "config/rconfig.hpp"
+#include "rdbg.hpp"
+#include "rnvvp.hpp"
+#include "rconfig.hpp"
 
 // backend/raja/general ********************************************************
-#include "general/rmemcpy.hpp"
-#include "general/rmalloc.hpp"
-#include "general/rarray.hpp"
-#include "general/rtable.hpp"
-#include "general/rcommd.hpp"
+#include "rmemcpy.hpp"
+#include "rmalloc.hpp"
+#include "rarray.hpp"
+#include "rtable.hpp"
 
 // backend/raja/linalg *********************************************************
-#include "linalg/rvector.hpp"
-#include "linalg/roperator.hpp"
-#include "linalg/rode.hpp"
-#include "linalg/rsolvers.hpp"
+#include "rvector.hpp"
 
 // backend/raja ****************************************************************
 #include "operator.hpp"
 #include "fespace.hpp"
-
-// backend/raja/fem ************************************************************
-#include "fem/rconform.hpp"
-#include "fem/rprolong.hpp"
-#include "fem/rrestrict.hpp"
-//#include "fem/rfespace.hpp"
-#include "fem/rbilinearform.hpp"
-#include "fem/rgridfunc.hpp"
-#include "fem/rbilininteg.hpp"
-
-// backend/raja/tests **********************************************************
-#include "tests/tests.hpp"
 
 #endif // MFEM_BACKENDS_RAJA_HPP
 

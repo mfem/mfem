@@ -8,26 +8,43 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
-#include "raja.hpp"
 
+#include "../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
+
+#include "backend.hpp"
+#include "bilinearform.hpp"
+#include "../../general/array.hpp"
 
 namespace mfem
 {
+
 namespace raja
 {
 
-Engine::Engine(const std::string &engine_spec): mfem::Engine(NULL, 1, 1)
+Engine::Engine(const std::string &engine_spec)
+   : mfem::Engine(NULL, 1, 1)
 {
+   //
    // Initialize inherited fields
+   //
    memory_resources[0] = NULL;
    workers_weights[0]= 1.0;
    workers_mem_res[0] = 0;
-}
-  
-device* Engine::GetDevice(void) const
-{
-  return &device::Get();
+
+   //
+   // Initialize the RAJA engine
+   //
+   //::raja::properties props(engine_spec);
+   //device = new ::raja::device[1];
+   //device[0].setup(props);
+
+   // FIXME
+   // okl_path = "raja[mfem]:";
+   std::string mfem_prefix = mfem::GetSourcePath();
+   okl_path = mfem_prefix + "/backends/raja";
+   // okl_path = mfem::GetInstallPath() + "lib/mfem/raja" ???
+   // okl_defines = "defines: { MFEM_OKL_PREFIX: '\"" + okl_path + "\"' }";
 }
 
 DLayout Engine::MakeLayout(std::size_t size) const
@@ -61,12 +78,11 @@ DVector Engine::MakeVector(PLayout &layout, int type_id) const
 
 DFiniteElementSpace Engine::MakeFESpace(mfem::FiniteElementSpace &fespace) const
 {
-  return DFiniteElementSpace(new FiniteElementSpace(*this, fespace));
+   return DFiniteElementSpace(new FiniteElementSpace(*this, fespace));
 }
 
 DBilinearForm Engine::MakeBilinearForm(mfem::BilinearForm &bf) const
 {
-   //assert(false);
    return DBilinearForm(new BilinearForm(*this, bf));
 }
 

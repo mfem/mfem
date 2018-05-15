@@ -8,9 +8,12 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
-#include "raja.hpp"
 
+#include "../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
+
+#include "layout.hpp"
+#include "../../general/array.hpp"
 
 namespace mfem
 {
@@ -18,25 +21,17 @@ namespace mfem
 namespace raja
 {
 
-  // ***************************************************************************
-  void Layout::Resize(std::size_t new_size)
-  {
-    size = new_size;
-  }
+void Layout::Resize(std::size_t new_size)
+{
+   size = new_size;
+}
 
-  // ***************************************************************************
-  void Layout::Resize(const mfem::Array<std::size_t> &offsets)
-  {
-    MFEM_ASSERT(offsets.Size() == 2,
-                "multiple workers are not supported yet");
-    size = offsets.Last();
-  }
-
-  // ***************************************************************************
-  raja::memory Layout::Alloc(std::size_t bytes) const
-  {
-    return device::Get().malloc(bytes);
-  }
+void Layout::Resize(const Array<std::size_t> &offsets)
+{
+   MFEM_ASSERT(offsets.Size() == 2,
+               "multiple workers are not supported yet");
+   size = offsets.Last();
+}
 
 } // namespace mfem::raja
 

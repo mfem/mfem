@@ -13,7 +13,7 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
-#include "../raja.hpp"
+#include "raja.hpp"
 #ifdef MFEM_USE_MPI
 #include <mpi-ext.h>
 #endif
@@ -218,8 +218,6 @@ void rconfig::Setup(const int _mpi_rank,
    if (_dot)
    {
       assert(false);
-      //mfem::raja::dotTest(rs_levels);
-      MPI_Finalize();
       exit(0);
    }
 }

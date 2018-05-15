@@ -10,16 +10,28 @@
 // Software Foundation) version 2.1 dated February 1999.
 #include "raja.hpp"
 
-#if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
-
 namespace mfem
 {
-
-namespace occa
+   
+namespace raja
 {
+   
+// ***************************************************************************
+RajaTable::RajaTable(const Table &table)
+{
+   size = table.Size();
+   assert(size > 0);
+   const int nnz = table.GetI()[size];
+   I = new int[size+1];
+   J = (int*) operator new (nnz);
+   rHtoH(I,table.GetI(),sizeof(int)*(size+1));
+   if (nnz>0)
+   {
+      assert(table.GetJ());
+      rHtoD(J,table.GetJ(),sizeof(int)*nnz);
+   }
+}
 
-} // namespace mfem::raja
+} // raja
 
-} // namespace mfem
-
-#endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
+} // mfem

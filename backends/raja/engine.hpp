@@ -8,8 +8,15 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
+
 #ifndef MFEM_BACKENDS_RAJA_ENGINE_HPP
 #define MFEM_BACKENDS_RAJA_ENGINE_HPP
+
+#include "../../config/config.hpp"
+#if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
+
+#include "../base/backend.hpp"
+#include "device.hpp"
 
 namespace mfem
 {
@@ -27,18 +34,34 @@ protected:
 #ifdef MFEM_USE_MPI
    // MPI_Comm comm;
 #endif
-  
+   // int num_mem_res;
+   // int num_workers;
+   // MemoryResource **memory_resources;
+   // double *workers_weights;
+   // int *workers_mem_res;
+
+   raja::device *device; 
+   std::string okl_path, okl_defines;
+
 public:
    Engine(const std::string &engine_spec);
 
    virtual ~Engine() { }
 
-   device* GetDevice(void) const;
-
    /**
        @name RAJA specific interface, used by other objects in the RAJA backend
     */
-  
+   ///@{
+
+   raja::device GetDevice(int idx = 0) const { return device[idx]; }
+
+   /// TODO: doxygen
+   const std::string &GetOklPath() const { return okl_path; }
+
+   /// TODO: doxygen
+   const std::string &GetOklDefines() const { return okl_defines; }
+
+   ///@}
    // End: RAJA specific interface
 
    /**
@@ -75,5 +98,7 @@ public:
 } // namespace mfem::raja
 
 } // namespace mfem
+
+#endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
 #endif // MFEM_BACKENDS_RAJA_ENGINE_HPP

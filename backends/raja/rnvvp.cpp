@@ -13,7 +13,7 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
-#include "../raja.hpp"
+#include "raja.hpp"
 
 #if defined(__NVCC__) and defined(__NVVP__)
 

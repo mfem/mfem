@@ -8,9 +8,13 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
-#include "raja.hpp"
 
+#include "../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
+
+#include "backend.hpp"
+#include "fespace.hpp"
+#include "interpolation.hpp"
 
 namespace mfem
 {
@@ -21,79 +25,126 @@ namespace raja
 FiniteElementSpace::FiniteElementSpace(const Engine &e,
                                        mfem::FiniteElementSpace &fespace)
    : PFiniteElementSpace(e, fespace),
-     e_layout(e, 0),
-     ordering(fespace.GetOrdering()),
-     globalDofs(fes->GetNDofs()),
-     localDofs(GetFE(0)->GetDof()),
-     vdim(fespace.GetVDim()),
-     offsets(globalDofs+1),
-     indices(localDofs, GetNE()),
-     map(localDofs, GetNE()),
-     restrictionOp(new IdentityOperator(RajaTrueVLayout().Size())),
-     prolongationOp(new IdentityOperator(RajaTrueVLayout().Size()))
+     e_layout(e, 0) // resized in SetupLocalGlobalMaps()
 {
-   push(PowderBlue);
-   const mfem::FiniteElement *fe = GetFE(0);
-   const TensorBasisElement* el = dynamic_cast<const TensorBasisElement*>(fe);
-   const mfem::Array<int> &dof_map = el->GetDofMap();
-   const bool dof_map_is_identity = (dof_map.Size()==0);
+   vdim     = fespace.GetVDim();
+   ordering = fespace.GetOrdering();
 
-   const Table& e2dTable = fes->GetElementToDofTable();
-   const int* elementMap = e2dTable.GetJ();
-   const int elements = GetNE();
-   mfem::Array<int> h_offsets(globalDofs+1);
-   // We'll be keeping a count of how many local nodes point to its global dof
+   SetupLocalGlobalMaps();
+   SetupOperators();
+   SetupKernels();
+}
+
+FiniteElementSpace::~FiniteElementSpace()
+{
+   delete [] elementDofMap;
+   delete [] elementDofMapInverse;
+   delete restrictionOp;
+   delete prolongationOp;
+}
+
+void FiniteElementSpace::SetupLocalGlobalMaps()
+{
+   const mfem::FiniteElement &fe = *(fes->GetFE(0));
+   const mfem::TensorBasisElement *el =
+      dynamic_cast<const mfem::TensorBasisElement*>(&fe);
+
+   const mfem::Table &e2dTable = fes->GetElementToDofTable();
+   const int *elementMap = e2dTable.GetJ();
+   const int elements = fes->GetNE();
+
+   globalDofs = fes->GetNDofs();
+   localDofs  = fe.GetDof();
+
+   e_layout.Resize(localDofs * elements * fes->GetVDim());
+
+   elementDofMap        = new int[localDofs];
+   elementDofMapInverse = new int[localDofs];
+   if (el)
+   {
+      ::memcpy(elementDofMap,
+               el->GetDofMap().GetData(),
+               localDofs * sizeof(int));
+   }
+   else
+   {
+      for (int i = 0; i < localDofs; ++i)
+      {
+         elementDofMap[i] = i;
+      }
+   }
+   for (int i = 0; i < localDofs; ++i)
+   {
+      elementDofMapInverse[elementDofMap[i]] = i;
+   }
+
+   // Allocate device offsets and indices
+   assert(false);
+   //globalToLocalOffsets.allocate(GetDevice(),globalDofs + 1);
+   //globalToLocalIndices.allocate(GetDevice(),localDofs, elements);
+   //localToGlobalMap.allocate(GetDevice(),localDofs, elements);
+
+   int *offsets = globalToLocalOffsets.ptr();
+   int *indices = globalToLocalIndices.ptr();
+   int *l2gMap  = localToGlobalMap.ptr();
+
+   // We'll be keeping a count of how many local nodes point
+   //   to its global dof
    for (int i = 0; i <= globalDofs; ++i)
    {
-      h_offsets[i] = 0;
+      offsets[i] = 0;
    }
+
    for (int e = 0; e < elements; ++e)
    {
       for (int d = 0; d < localDofs; ++d)
       {
          const int gid = elementMap[localDofs*e + d];
-         ++h_offsets[gid + 1];
+         ++offsets[gid + 1];
       }
    }
    // Aggregate to find offsets for each global dof
    for (int i = 1; i <= globalDofs; ++i)
    {
-      h_offsets[i] += h_offsets[i - 1];
+      offsets[i] += offsets[i - 1];
    }
-
-   mfem::Array<int> h_indices(localDofs*elements);
-   mfem::Array<int> h_map(localDofs*elements);
-   // For each global dof, fill in all local nodes that point   to it
+   // For each global dof, fill in all local nodes that point
+   //   to it
    for (int e = 0; e < elements; ++e)
    {
       for (int d = 0; d < localDofs; ++d)
       {
-         const int did = dof_map_is_identity?d:dof_map[d];
-         const int gid = elementMap[localDofs*e + did];
+         const int gid = elementMap[localDofs*e + elementDofMap[d]];
          const int lid = localDofs*e + d;
-         h_indices[h_offsets[gid]++] = lid;
-         h_map[lid] = gid;
+         indices[offsets[gid]++] = lid;
+         l2gMap[lid] = gid;
       }
    }
-
-   // We shifted the offsets vector by 1 by using it as a counter
-   // Now we shift it back.
+   // We shifted the offsets vector by 1 by using it
+   //   as a counter. Now we shift it back.
    for (int i = globalDofs; i > 0; --i)
    {
-      h_offsets[i] = h_offsets[i - 1];
+      offsets[i] = offsets[i - 1];
    }
-   h_offsets[0] = 0;
+   offsets[0] = 0;
 
-   offsets = h_offsets;
-   indices = h_indices;
-   map = h_map;
-   pop();
+   //globalToLocalOffsets.keepInDevice();
+   //globalToLocalIndices.keepInDevice();
+   //localToGlobalMap.keepInDevice();
 }
 
-FiniteElementSpace::~FiniteElementSpace()
+void FiniteElementSpace::SetupOperators()
 {
-   delete restrictionOp;
-   delete prolongationOp;
+   const mfem::SparseMatrix *R = fes->GetRestrictionMatrix();
+   const mfem::Operator *P = fes->GetProlongationMatrix();
+   CreateRPOperators(RajaVLayout(), RajaTrueVLayout(),
+                     R, P,
+                     restrictionOp,
+                     prolongationOp);
+}
+
+void FiniteElementSpace::SetupKernels()
+{
 }
 
 } // namespace mfem::raja
