@@ -23,7 +23,7 @@ void vector_axpby0(const int N,
                    double* __restrict v0,
                    const double* __restrict v1) {
    const int i = blockDim.x * blockIdx.x + threadIdx.x;
-   if (i < N) v0[i] += alpha * v0[i] + beta * v1[i];
+   if (i < N) v0[i] = alpha * v0[i] + beta * v1[i];
 }
 #endif
 //*v0 = alpha * (*this) + beta * v1
@@ -32,11 +32,11 @@ void vector_axpby(const int N,
                   const double beta,
                   double* __restrict v0,
                   const double* __restrict v1) {
-   push(axpy,Cyan);
+   push();
 #ifndef __LAMBDA__
    cuKer(vector_axpy,N,alpha,beta,v0,v1);
 #else
-   forall(i,N,v0[i] += alpha * v0[i] + beta * v1[i];);
+   forall(i,N,v0[i] = alpha * v0[i] + beta * v1[i];);
 #endif
    pop();
 }

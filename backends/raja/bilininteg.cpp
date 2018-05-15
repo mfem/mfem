@@ -1024,42 +1024,67 @@ void RajaDiffusionIntegrator::Assemble()
 
    assembledOperator.Resize<double>(symmDims * quadraturePoints * elements,NULL);
 
-   dbg("maps->quadWeights.Size()=%d",maps->quadWeights.Size());
+/*   dbg("maps->quadWeights.Size()=%d",maps->quadWeights.Size());
    dbg("geom->J.Size()=%d",geom->J.Size());
    dbg("assembledOperator.Size()=%d",assembledOperator.Size());
-#warning rMassAssemble vs rDiffusionAssemble
-   rMassAssemble(dim,
-                 quad1D,
-                 mesh->GetNE(),
-                 maps->quadWeights,
-                 geo->J,
-                 1.0,//COEFF
-                 assembledOperator.RajaMem());
-   pop();
+   dbg("\t\033[35mCOEFF=%f",1.0);
+   dbg("\t\033[35mquad1D=%d",quad1D);
+   dbg("\t\033[35mmesh->GetNE()=%d",mesh->GetNE());
+   for(size_t i=0;i<maps->quadWeights.Size();i+=1)
+      printf("\n\t\033[35m[Assemble] quadWeights[%ld]=%f",i, maps->quadWeights[i]);
+   //for(size_t i=0;i<geo->J.Size();i+=1) printf("\n\t\033[35m[Assemble] J[%ld]=%f",i, geo->J[i]);
+   */
+   rDiffusionAssemble(dim,
+                      quad1D,
+                      mesh->GetNE(),
+                      maps->quadWeights,
+                      geo->J,
+                      1.0,//COEFF
+                      assembledOperator.RajaMem());
+/*   for(size_t i=0;i<assembledOperator.Size();i+=1)
+      printf("\n\t\033[35m[Assemble] assembledOperator[%ld]=%f",i,
+      ((double*)assembledOperator.RajaMem().ptr())[i]);
+*/
+    pop();
 }
 
 void RajaDiffusionIntegrator::MultAdd(Vector &x, Vector &y)
 {
    push(SteelBlue);
-  const int dim = mesh->Dimension();
-  const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
-  const int dofs1D = trialFESpace->GetFE(0)->GetOrder() + 1;
+   const int dim = mesh->Dimension();
+   const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
+   const int dofs1D = trialFESpace->GetFE(0)->GetOrder() + 1;
    // Note: x and y are E-vectors
-#warning rMassMultAdd vs rDiffusionMultAdd
-   rMassMultAdd(dim,
-                 dofs1D,
-                 quad1D,
-                 mesh->GetNE(),
-                 maps->dofToQuad,
-                 maps->dofToQuadD,
-                 maps->quadToDof,
-                 maps->quadToDofD,
-                 assembledOperator.RajaMem(),
-                x.RajaMem(),
-                y.RajaMem());
+/*   for(size_t i=0;i<x.Size();i+=1)
+      printf("\n\t\033[36m[MultAdd] x[%ld]=%f",i, ((double*)x.RajaMem().ptr())[i]);
+   for(size_t i=0;i<maps->dofToQuad.Size();i+=1)
+      printf("\n\t\033[36m[MultAdd] dofToQuad[%ld]=%f",i, maps->dofToQuad[i]);
+   for(size_t i=0;i<maps->dofToQuadD.Size();i+=1)
+      printf("\n\t\033[36m[MultAdd] dofToQuadD[%ld]=%f",i, maps->dofToQuadD[i]);
+   for(size_t i=0;i<maps->quadToDof.Size();i+=1)
+      printf("\n\t\033[36m[MultAdd] quadToDof[%ld]=%f",i, maps->quadToDof[i]);
+   for(size_t i=0;i<maps->quadToDofD.Size();i+=1)
+      printf("\n\t\033[36m[MultAdd] quadToDofD[%ld]=%f",i, maps->quadToDofD[i]);
+   for(size_t i=0;i<assembledOperator.Size();i+=1)
+      printf("\n\t\033[36m[MultAdd] assembledOperator[%ld]=%f",i, ((double*)assembledOperator.RajaMem().ptr())[i]);
+*/
+   rDiffusionMultAdd(dim,
+                     dofs1D,
+                     quad1D,
+                     mesh->GetNE(),
+                     maps->dofToQuad,
+                     maps->dofToQuadD,
+                     maps->quadToDof,
+                     maps->quadToDofD,
+                     assembledOperator.RajaMem(),
+                     x.RajaMem(),
+                     y.RajaMem());
+/*   for(size_t i=0;i<y.Size();i+=1)
+      printf("\n\t\033[36m[MultAdd] y[%ld]=%f",i, ((double*)y.RajaMem().ptr())[i]);
+*/
 /*
-   multKernel((int) mesh->GetNE(),
-              maps.dofToQuad,
+  multKernel((int) mesh->GetNE(),
+  maps.dofToQuad,
               maps.dofToQuadD,
               maps.quadToDof,
               maps.quadToDofD,

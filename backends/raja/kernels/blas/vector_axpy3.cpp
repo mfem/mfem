@@ -22,7 +22,7 @@ void vector_axpby3(const int N,
                    double* __restrict v0,
                    const double* __restrict v1,
                    const double* restrict v2) {
-   push(axpy,Cyan);
-   forall(i,N,v0[i] += alpha * v1[i] + beta * v2[i];);
+   push();
+   forall(i,N,v0[i] = alpha * v1[i] + beta * v2[i];);
    pop();
 }

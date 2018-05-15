@@ -311,7 +311,7 @@ ALL_SRC_DIRS := general linalg mesh fem \
 	backends/base backends/occa \
 	backends/raja \
 	backends/raja/kernels/maps \
-	backends/raja/kernels/mass \
+	backends/raja/kernels/diffusion \
 	backends/raja/kernels/geom \
 	backends/raja/kernels/blas
 DIRS := $(ALL_SRC_DIRS)

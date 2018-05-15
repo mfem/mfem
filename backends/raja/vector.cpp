@@ -71,7 +71,14 @@ void Vector::DoAxpby(const void *a, const PVector &x,
 
    MFEM_ASSERT(da == 0.0 || this->Size() == xp->Size(), "");
    MFEM_ASSERT(db == 0.0 || this->Size() == yp->Size(), "");
-
+   
+   /*for(size_t i=0;i<this->Size();i+=1){
+      printf("\n\t\033[36m[DoAxpby] da=%f, db=%f this[%ld]=%f x:%f y:%f",da,db,i,
+             ((double*)this->RajaMem().ptr())[i],
+             ((double*)xp->RajaMem().ptr())[i],
+             ((double*)yp->RajaMem().ptr())[i]);
+             }*/
+   
    if (da == 0.0)
    {
       if (db == 0.0)
@@ -121,21 +128,30 @@ void Vector::DoAxpby(const void *a, const PVector &x,
          //MFEM_ASSERT(xp->slice != yp->slice, "invalid input");
          if (this->slice == xp->slice)
          {
+            dbg("[DoAxpby] 1");
             // *this = da * (*this) + db * y
             vector_axpby((int)Size(), da, db, slice, yp->slice);
          }
          else if (this->slice == yp->slice)
          {
+            dbg("[DoAxpby] 2");
             // *this = da * x + db * (*this)
              vector_axpby((int)Size(), db, da, slice, xp->slice);
          }
          else
          {
+            dbg("[DoAxpby] 3");
             // *this = da * x + db * y
             vector_axpby3((int)Size(), da, db, slice, xp->slice, yp->slice);
          }
       }
    }
+   /*for(size_t i=0;i<this->Size();i+=1){
+      printf("\n\t\033[36m[DoAxpby] da=%f, db=%f this[%ld]=%f x:%f y:%f",da,db,i,
+             ((double*)this->RajaMem().ptr())[i],
+             ((double*)xp->RajaMem().ptr())[i],
+             ((double*)yp->RajaMem().ptr())[i]);
+             }*/
 }
 
 mfem::Vector Vector::Wrap()

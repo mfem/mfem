@@ -25,7 +25,7 @@ namespace linalg
    double dot(const raja::memory vec1, const raja::memory vec2)
    {
       const double d = vector_dot(vec1.size()/sizeof(double),vec1,vec2);
-      printf("\n[dot] result=%f", d);fflush(0);
+      //printf("\n[dot] result=%f", d);fflush(0);
       return d;
   }
   

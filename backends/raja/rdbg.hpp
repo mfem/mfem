@@ -46,7 +46,7 @@ static inline void rdbge(const char *format,...)
 #define dbg(...) rdbg(__VA_ARGS__)
 #else
 //#warning LAGHOS_DEBUG else
-#define dbg(...) rdbge(__VA_ARGS__)
+#define dbg(...) //rdbge(__VA_ARGS__)
 #endif // LAGHOS_DEBUG
 
 #endif // LAGHOS_RAJA_DBG

@@ -356,7 +356,7 @@ void BilinearForm::InitRajaBilinearForm()
    for (int i = 0; i < dbfi.Size(); i++)
    {
       std::string integ_name(dbfi[i]->Name());
-      printf("\033[33;1minteg_name: %s\033[m",integ_name.c_str());
+      //printf("\033[33;1minteg_name: %s\033[m",integ_name.c_str());
       Coefficient *scal_coeff = dbfi[i]->GetScalarCoefficient();
       ConstantCoefficient *const_coeff =
          dynamic_cast<ConstantCoefficient*>(scal_coeff);
