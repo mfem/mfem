@@ -22,10 +22,11 @@ namespace linalg
 {
   
   // ***************************************************************************
-  double dot(memory vec1, memory vec2)
-  {
-    MFEM_ABORT("FIXME");
-    return 0.0;
+   double dot(const raja::memory vec1, const raja::memory vec2)
+   {
+      const double d = vector_dot(vec1.size()/sizeof(double),vec1,vec2);
+      printf("\n[dot] result=%f", d);fflush(0);
+      return d;
   }
   
 } // namespace mfem::raja::linalg

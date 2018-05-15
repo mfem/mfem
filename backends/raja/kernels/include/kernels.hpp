@@ -21,10 +21,11 @@
 // **** BLAS1 ******************************************************************
 void vector_neg(const int, double* restrict);
 void vector_op_eq(const int, const double, double* restrict);
-void vector_xpay(const int, const double, double* restrict, const double* restrict,
-                 const double* restrict);
+void vector_xpay(const int, const double, double* restrict, const double* restrict,const double* restrict);
 void vector_xsy(const int, double* restrict, const double* restrict, const double* restrict);
 void vector_axpy(const int, const double, double* restrict, const double* restrict);
+void vector_axpby(const int, const double,const double, double* restrict, const double* restrict);
+void vector_axpby3(const int, const double,const double, double* restrict, const double* restrict, const double* restrict);
 void vector_map_dofs(const int, double* restrict, const double* restrict, const int* restrict);
 template <class T>
 void vector_map_add_dofs(const int, T* restrict, const T* restrict, const int* restrict);
@@ -222,6 +223,15 @@ void rLocalToGlobal(const int NUM_VDIM,
                     const int* restrict indices,
                     const double* restrict localX,
                     double* restrict globalX);
+
+// *****************************************************************************
+void rMassAssemble(const int dim,
+                   const int NUM_QUAD,
+                   const int numElements,
+                   const double* quadWeights,
+                   const double* J,
+                   const double COEFF,
+                   double* restrict oper);
 
 // *****************************************************************************
 void rMassMultAdd(const int dim,

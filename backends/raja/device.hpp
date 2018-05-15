@@ -23,21 +23,12 @@ namespace mfem
 namespace raja
 {
    class memory;
-   
-   // **************************************************************************
-   class device_v {
-      device_v();
-      virtual ~device_v() = 0;
-   };
 
    // ***************************************************************************
   class device  {
-  private:
-     mutable device_v *dHandle;
   public:
      device();
      ~device();
-     device_v* getDHandle() const;
      bool hasSeparateMemorySpace();
      raja::memory malloc(const std::size_t,const void * = NULL);
   };

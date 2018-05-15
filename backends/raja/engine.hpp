@@ -34,13 +34,7 @@ protected:
 #ifdef MFEM_USE_MPI
    // MPI_Comm comm;
 #endif
-   // int num_mem_res;
-   // int num_workers;
-   // MemoryResource **memory_resources;
-   // double *workers_weights;
-   // int *workers_mem_res;
-
-   raja::device *device; 
+   raja::device *dev=NULL;
    std::string okl_path, okl_defines;
 
 public:
@@ -52,14 +46,7 @@ public:
        @name RAJA specific interface, used by other objects in the RAJA backend
     */
    ///@{
-
-   raja::device GetDevice(int idx = 0) const { return device[idx]; }
-
-   /// TODO: doxygen
-   const std::string &GetOklPath() const { return okl_path; }
-
-   /// TODO: doxygen
-   const std::string &GetOklDefines() const { return okl_defines; }
+   raja::device GetDevice(int idx = 0) const { return *dev; }
 
    ///@}
    // End: RAJA specific interface

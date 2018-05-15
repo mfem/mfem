@@ -60,7 +60,7 @@ protected:
 
    inline void *GetBuffer() const;
 
-   inline int ResizeData(const Layout *lt, std::size_t item_size);
+   int ResizeData(const Layout *lt, std::size_t item_size);
 
    template <typename T>
    inline void RajaFill(const T *val_ptr)
@@ -96,23 +96,6 @@ inline void *Array::GetBuffer() const
       return slice.ptr();
    }
    return NULL;
-}
-
-inline int Array::ResizeData(const Layout *lt, std::size_t item_size)
-{
-   const std::size_t new_bytes = lt->Size()*item_size;
-   if (data.size() < new_bytes ||
-       data.getDHandle() != lt->RajaEngine().GetDevice().getDHandle())
-   {
-      data = lt->Alloc(new_bytes);
-      slice = data;
-      // If memory allocation fails - an exception is thrown.
-   }
-   else if (slice.size() != new_bytes)
-   {
-      slice = data.slice(0, new_bytes);
-   }
-   return 0;
 }
 
 inline void Array::MakeRef(Array &master)

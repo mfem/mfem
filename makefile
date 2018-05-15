@@ -309,7 +309,11 @@ endif
 # Source dirs in logical order
 ALL_SRC_DIRS := general linalg mesh fem \
 	backends/base backends/occa \
-	backends/raja backends/raja/kernels/maps backends/raja/kernels/blas
+	backends/raja \
+	backends/raja/kernels/maps \
+	backends/raja/kernels/mass \
+	backends/raja/kernels/geom \
+	backends/raja/kernels/blas
 DIRS := $(ALL_SRC_DIRS)
 ifeq ($(MFEM_USE_BACKENDS),NO)
    DIRS := $(filter-out backends/%,$(DIRS))

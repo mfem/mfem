@@ -57,8 +57,11 @@ void RajaConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 
    if (constraintIndices)
    {
-      assert(false);
-      //mapDofs(constraintIndices, w.RajaMem(), x.RajaMem(), constraintList);
+      //assert(false);
+      vector_map_dofs(constraintIndices,
+                      w.RajaMem(),
+                      x.RajaMem(),
+                      (int*)constraintList.ptr());
    }
 
    A->Mult(mfem_w, mfem_z);
@@ -67,9 +70,12 @@ void RajaConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 
    if (constraintIndices)
    {
-      assert(false);
       //mapDofs(constraintIndices, b.RajaMem(), x.RajaMem(), constraintList);
-   }
+      vector_map_dofs(constraintIndices,
+                      b.RajaMem(),
+                      (double*)x.RajaMem().ptr(),
+                      (int*)constraintList.ptr());
+    }
 }
 
 void RajaConstrainedOperator::Mult_(const Vector &x, Vector &y) const
@@ -87,13 +93,18 @@ void RajaConstrainedOperator::Mult_(const Vector &x, Vector &y) const
 
    z.Assign<double>(x); // z = x
 
-   assert(false);
-   //clearDofs(constraintIndices, z.RajaMem(), constraintList);
+   //assert(false);
+   //clearDofs
+   vector_clear_dofs(constraintIndices, (double*)z.RajaMem().ptr(), (int*)constraintList.ptr());
 
    A->Mult(mfem_z, mfem_y);
 
-   assert(false);
-   //mapDofs(constraintIndices, y.RajaMem(), x.RajaMem(), constraintList);
+   //assert(false);
+   //mapDofs
+   vector_map_dofs(constraintIndices,
+                   (double*)y.RajaMem().ptr(),
+                   (double*)x.RajaMem().ptr(),
+                   (int*)constraintList.ptr());
 }
 
 RajaConstrainedOperator::~RajaConstrainedOperator()

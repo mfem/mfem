@@ -25,116 +25,74 @@ namespace raja
 FiniteElementSpace::FiniteElementSpace(const Engine &e,
                                        mfem::FiniteElementSpace &fespace)
    : PFiniteElementSpace(e, fespace),
-     e_layout(e, 0) // resized in SetupLocalGlobalMaps()
+     e_layout(e, 0), // resized in SetupLocalGlobalMaps()
+     globalDofs(fes->GetNDofs()),
+     localDofs(GetFE(0)->GetDof()),
+     vdim(fespace.GetVDim()),
+     ordering(fespace.GetOrdering()),
+     globalToLocalOffsets(globalDofs+1),
+     globalToLocalIndices(localDofs, GetNE()),
+     localToGlobalMap(localDofs, GetNE())
 {
-   vdim     = fespace.GetVDim();
-   ordering = fespace.GetOrdering();
-
-   SetupLocalGlobalMaps();
-   SetupOperators();
-   SetupKernels();
-}
-
-FiniteElementSpace::~FiniteElementSpace()
-{
-   delete [] elementDofMap;
-   delete [] elementDofMapInverse;
-   delete restrictionOp;
-   delete prolongationOp;
-}
-
-void FiniteElementSpace::SetupLocalGlobalMaps()
-{
+   push(PowderBlue);
    const mfem::FiniteElement &fe = *(fes->GetFE(0));
-   const mfem::TensorBasisElement *el =
-      dynamic_cast<const mfem::TensorBasisElement*>(&fe);
+   const mfem::TensorBasisElement* el = dynamic_cast<const mfem::TensorBasisElement*>(&fe);
+   const mfem::Array<int> &dof_map = el->GetDofMap();
+   const bool dof_map_is_identity = (dof_map.Size()==0);
 
-   const mfem::Table &e2dTable = fes->GetElementToDofTable();
-   const int *elementMap = e2dTable.GetJ();
-   const int elements = fes->GetNE();
-
-   globalDofs = fes->GetNDofs();
-   localDofs  = fe.GetDof();
+   const Table& e2dTable = fes->GetElementToDofTable();
+   const int* elementMap = e2dTable.GetJ();
+   const int elements = GetNE();
+   mfem::Array<int> h_offsets(globalDofs+1);
 
    e_layout.Resize(localDofs * elements * fes->GetVDim());
 
-   elementDofMap        = new int[localDofs];
-   elementDofMapInverse = new int[localDofs];
-   if (el)
-   {
-      ::memcpy(elementDofMap,
-               el->GetDofMap().GetData(),
-               localDofs * sizeof(int));
-   }
-   else
-   {
-      for (int i = 0; i < localDofs; ++i)
-      {
-         elementDofMap[i] = i;
-      }
-   }
-   for (int i = 0; i < localDofs; ++i)
-   {
-      elementDofMapInverse[elementDofMap[i]] = i;
-   }
-
-   // Allocate device offsets and indices
-   assert(false);
-   //globalToLocalOffsets.allocate(GetDevice(),globalDofs + 1);
-   //globalToLocalIndices.allocate(GetDevice(),localDofs, elements);
-   //localToGlobalMap.allocate(GetDevice(),localDofs, elements);
-
-   int *offsets = globalToLocalOffsets.ptr();
-   int *indices = globalToLocalIndices.ptr();
-   int *l2gMap  = localToGlobalMap.ptr();
-
-   // We'll be keeping a count of how many local nodes point
-   //   to its global dof
+   // We'll be keeping a count of how many local nodes point to its global dof
    for (int i = 0; i <= globalDofs; ++i)
    {
-      offsets[i] = 0;
+      h_offsets[i] = 0;
    }
-
    for (int e = 0; e < elements; ++e)
    {
       for (int d = 0; d < localDofs; ++d)
       {
          const int gid = elementMap[localDofs*e + d];
-         ++offsets[gid + 1];
+         ++h_offsets[gid + 1];
       }
    }
    // Aggregate to find offsets for each global dof
    for (int i = 1; i <= globalDofs; ++i)
    {
-      offsets[i] += offsets[i - 1];
+      h_offsets[i] += h_offsets[i - 1];
    }
-   // For each global dof, fill in all local nodes that point
-   //   to it
+
+   mfem::Array<int> h_indices(localDofs*elements);
+   mfem::Array<int> h_map(localDofs*elements);
+   // For each global dof, fill in all local nodes that point   to it
    for (int e = 0; e < elements; ++e)
    {
       for (int d = 0; d < localDofs; ++d)
       {
-         const int gid = elementMap[localDofs*e + elementDofMap[d]];
+         const int did = dof_map_is_identity?d:dof_map[d];
+         const int gid = elementMap[localDofs*e + did];
          const int lid = localDofs*e + d;
-         indices[offsets[gid]++] = lid;
-         l2gMap[lid] = gid;
+         h_indices[h_offsets[gid]++] = lid;
+         h_map[lid] = gid;
       }
    }
-   // We shifted the offsets vector by 1 by using it
-   //   as a counter. Now we shift it back.
+
+   // We shifted the offsets vector by 1 by using it as a counter
+   // Now we shift it back.
    for (int i = globalDofs; i > 0; --i)
    {
-      offsets[i] = offsets[i - 1];
+      h_offsets[i] = h_offsets[i - 1];
    }
-   offsets[0] = 0;
+   h_offsets[0] = 0;
 
-   //globalToLocalOffsets.keepInDevice();
-   //globalToLocalIndices.keepInDevice();
-   //localToGlobalMap.keepInDevice();
-}
-
-void FiniteElementSpace::SetupOperators()
-{
+   globalToLocalOffsets = h_offsets;
+   globalToLocalIndices = h_indices;
+   localToGlobalMap = h_map;
+   
    const mfem::SparseMatrix *R = fes->GetRestrictionMatrix();
    const mfem::Operator *P = fes->GetProlongationMatrix();
    CreateRPOperators(RajaVLayout(), RajaTrueVLayout(),
@@ -143,9 +101,44 @@ void FiniteElementSpace::SetupOperators()
                      prolongationOp);
 }
 
-void FiniteElementSpace::SetupKernels()
+FiniteElementSpace::~FiniteElementSpace()
 {
+   delete restrictionOp;
+   delete prolongationOp;
 }
+   
+   void FiniteElementSpace::GlobalToLocal(const Vector &globalVec, Vector &localVec) const
+   {
+      push(PowderBlue);
+      const int vdim = GetVDim();
+      const int localEntries = localDofs * GetNE();
+      const bool vdim_ordering = ordering == Ordering::byVDIM;
+      rGlobalToLocal(vdim,
+                     vdim_ordering,
+                     globalDofs,
+                     localEntries,
+                     globalToLocalOffsets,
+                     globalToLocalIndices,
+                     (const double*)globalVec.RajaMem().ptr(),
+                     (double*)localVec.RajaMem().ptr());
+      pop();
+   }
+   void FiniteElementSpace::LocalToGlobal(const Vector &localVec, Vector &globalVec) const
+   {
+      push(PowderBlue);
+      const int vdim = GetVDim();
+      const int localEntries = localDofs * GetNE();
+      const bool vdim_ordering = ordering == Ordering::byVDIM;
+      rLocalToGlobal(vdim,
+                     vdim_ordering,
+                     globalDofs,
+                     localEntries,
+                     globalToLocalOffsets,
+                     globalToLocalIndices,
+                     (const double*)localVec.RajaMem().ptr(),
+                     (double*)globalVec.RajaMem().ptr());
+   pop();
+   }
 
 } // namespace mfem::raja
 

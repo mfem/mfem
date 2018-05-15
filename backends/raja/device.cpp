@@ -19,23 +19,7 @@ namespace raja
 {
    device::device() {}
    device::~device() {}
-  // ***************************************************************************
-  /*device& device::Get()
-  {
-    static device device_singleton;
-    return device_singleton;
-    }*/
-   
-  // ***************************************************************************
-  /*device* device::getDevice()
-  {
-    static device device_singleton;
-    return &device_singleton;
-    }*/
-   // **************************************************************************
-   device_v* device::getDHandle() const{
-      return dHandle;
-   }
+
   // ***************************************************************************
   bool device::hasSeparateMemorySpace(){
     return false;

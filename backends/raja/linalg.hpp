@@ -22,7 +22,7 @@ namespace linalg
 {
 
   // ***************************************************************************
-  double dot(memory vec1, memory vec2);
+   double dot(const raja::memory vec1, const raja::memory vec2);
 
   // ***************************************************************************
   template <typename T>

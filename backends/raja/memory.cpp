@@ -24,15 +24,12 @@ namespace mfem
 namespace raja
 {
   memory::memory(const std::size_t _bytes,
-                 const void *src):bytes(_bytes){
+                 const void *src)://mHandle(new memory_v()),
+                                  bytes(_bytes),
+                                  data(::new char[bytes]){
     assert(src==NULL);
-    data = ::new char[bytes];
   }
    
-   raja::device_v* memory::getDHandle() const{
-      return dHandle;
-   }
-
    raja::device memory::getDevice(){
      return raja::device();
   }
@@ -42,11 +39,11 @@ namespace raja
   }
  
   void memory::copyFrom(memory &src) {
-    MFEM_ABORT("FIXME");
-  }
+     memcpy(data,src,bytes);
+ }
   
   void memory::copyFrom(const void *src) {
-    MFEM_ABORT("FIXME");
+    memcpy(data,src,bytes);
   }
   
   void memory::copyTo(void *dest) {
@@ -63,10 +60,9 @@ namespace raja
     return memory();
   }
    
-   /* bool operator == (const memory &){
-      assert(false);
-      return true;
-      }*/
+   bool memory::operator == (const memory &m){
+      return (ptr() == m.ptr()) && (size() == m.size());
+   }
 
 } // namespace mfem::raja
 

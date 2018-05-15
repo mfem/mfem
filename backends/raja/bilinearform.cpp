@@ -54,39 +54,6 @@ void RajaBilinearForm::Init(const Engine &e,
    testFESpace  = otestFESpace_->GetFESpace();
 
    mesh = trialFESpace->GetMesh();
-
-   const int elements = GetNE();
-
-   const int trialVDim = trialFESpace->GetVDim();
-
-   const int trialLocalDofs = otrialFESpace->GetLocalDofs();
-   const int testLocalDofs  = otestFESpace->GetLocalDofs();
-
-   assert(false);/*
-   // First-touch policy when running with OpenMP
-   if (GetDevice().mode() == "OpenMP")
-   {
-      const std::string &okl_path = RajaEngine().GetOklPath();
-      const std::string &okl_defines = RajaEngine().GetOklDefines();
-      ::raja::kernel initLocalKernel =
-         GetDevice().buildKernel(okl_path + "/utils.okl",
-                                 "InitLocalVector",
-                                 okl_defines);
-
-      const std::size_t sd = sizeof(double);
-      const uint64_t trialEntries = sd * (elements * trialLocalDofs);
-      const uint64_t testEntries  = sd * (elements * testLocalDofs);
-      for (int v = 0; v < trialVDim; ++v)
-      {
-         const uint64_t trialOffset = v * trialEntries;
-         const uint64_t testOffset  = v * testEntries;
-
-         initLocalKernel(elements, trialLocalDofs,
-                         localX.RajaMem().slice(trialOffset, trialEntries));
-         initLocalKernel(elements, testLocalDofs,
-                         localY.RajaMem().slice(testOffset, testEntries));
-      }
-      }*/
 }
 
 int RajaBilinearForm::BaseGeom() const
@@ -270,40 +237,9 @@ void RajaBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
                                mfem::Vector &X, mfem::Vector &B,
                                int copy_interior)
 {
-   const std::string okl_defines = RajaEngine().GetOklDefines();
-   assert(false);/*
-   // FIXME: move these kernels to the Backend?
-   static ::raja::kernelBuilder get_subvector_builder =
-      ::raja::linalg::customLinearMethod(
-         "vector_get_subvector",
-
-         "const int dof_i = v2[i];"
-         "v0[i] = dof_i >= 0 ? v1[dof_i] : -v1[-dof_i - 1];",
-
-         "defines: {"
-         "  VTYPE0: 'double',"
-         "  VTYPE1: 'double',"
-         "  VTYPE2: 'int',"
-         "  TILESIZE: 128,"
-         "}" + okl_defines);
-
-   static ::raja::kernelBuilder set_subvector_builder =
-      ::raja::linalg::customLinearMethod(
-         "vector_set_subvector",
-         "const int dof_i = v2[i];"
-         "if (dof_i >= 0) { v0[dof_i]      = v1[i]; }"
-         "else            { v0[-dof_i - 1] = -v1[i]; }",
-
-         "defines: {"
-         "  VTYPE0: 'double',"
-         "  VTYPE1: 'double',"
-         "  VTYPE2: 'int',"
-         "  TILESIZE: 128,"
-         "}" + okl_defines);
-                 */
+   push();
    const mfem::Operator *P = GetTrialProlongation();
    const mfem::Operator *R = GetTrialRestriction();
-
    if (P)
    {
       // Variational restriction with P
@@ -321,26 +257,18 @@ void RajaBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
 
    if (!copy_interior && constraintList.Size() > 0)
    {
-      assert(false);/*
-      ::raja::kernel get_subvector_kernel =
-            get_subvector_builder.build(GetDevice());
-      ::raja::kernel set_subvector_kernel =
-            set_subvector_builder.build(GetDevice());
-                    */
+      //assert(false);
       const Array &constrList = constraintList.Get_PArray()->As<Array>();
       Vector subvec(constrList.RajaLayout());
-      assert(false);/*
-      get_subvector_kernel(constraintList.Size(),
+      vector_get_subvector(constraintList.Size(),
                            subvec.RajaMem(),
                            X.Get_PVector()->As<Vector>().RajaMem(),
-                           constrList.RajaMem());*/
-
+                           (int*)constrList.RajaMem().ptr());
       X.Fill(0.0);
-/*
-      set_subvector_kernel(constraintList.Size(),
+      vector_set_subvector(constraintList.Size(),
                            X.Get_PVector()->As<Vector>().RajaMem(),
                            subvec.RajaMem(),
-                           constrList.RajaMem());*/
+                           (int*)constrList.RajaMem().ptr());
    }
 
    RajaConstrainedOperator *cA = dynamic_cast<RajaConstrainedOperator*>(A);
@@ -353,6 +281,7 @@ void RajaBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
    {
       mfem_error("RajaBilinearForm::InitRHS expects an RajaConstrainedOperator");
    }
+   pop();
 }
 
 // Matrix vector multiplication.

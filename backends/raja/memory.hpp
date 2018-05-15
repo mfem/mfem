@@ -21,27 +21,15 @@ namespace mfem
 
 namespace raja
 {
-   class device_v; class device;
-   
-   // **************************************************************************
-   class memory_v {
-   public:
-      memory_v();
-      virtual ~memory_v() = 0;
-   };
-   
+   class device;
+      
    // ***************************************************************************
   class memory {
-  private:
-     device_v *dHandle;
-     memory_v *mHandle;
   public:
      std::size_t bytes;
     char *data;
   public:
     memory(const std::size_t =0, const void* =NULL);
-     
-     device_v* getDHandle() const;
      
     size_t size() const;
      raja::device getDevice();
@@ -52,7 +40,9 @@ namespace raja
     void copyFrom(const void*);
      
     void* ptr() const;
-  
+     inline operator double* () { return (double*)data; }
+     inline operator const double* () const { return (const double*)data; }
+
     memory slice(const size_t offset,
                  const size_t bytes = -1) const;
     

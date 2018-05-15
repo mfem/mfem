@@ -162,7 +162,7 @@ void RajaGridFunction::ToQuad(const IntegrationRule &ir, Vector &quadValues)
    const Engine &engine = RajaLayout().RajaEngine();
    raja::device device = engine.GetDevice();
 
-   RajaDofQuadMaps &maps = RajaDofQuadMaps::Get(device, *ofespace, ir);
+   //RajaDofQuadMaps *maps = RajaDofQuadMaps::Get(*ofespace, ir);
 
    const int elements = ofespace->GetNE();
    const int numQuad  = ir.GetNPoints();

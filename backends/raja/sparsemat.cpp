@@ -79,7 +79,7 @@ void RajaSparseMatrix::Setup(raja::device device, const SparseMatrix &m,
                              raja::array<int> mappedIndices_)
 {
 
-   const int nnz = m.GetI()[height];
+   //const int nnz = m.GetI()[height];
    assert(false);
    //offsets.allocate(device,height + 1, m.GetI());
    //indices.allocate(device,nnz, m.GetJ());
@@ -180,7 +180,7 @@ RajaSparseMatrix* CreateMappedSparseMatrix(Layout &in_layout,
       //mappedIndices.keepInDevice();
 
       // Extract sparse matrix without reordered identity
-      const int dupNnz = I[mHeight] - trueCount;
+      //const int dupNnz = I[mHeight] - trueCount;
 
       assert(false);/*
       offsets.allocate(device,dupCount + 1);

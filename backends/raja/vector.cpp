@@ -56,9 +56,7 @@ void Vector::DoAxpby(const void *a, const PVector &x,
                      const void *b, const PVector &y,
                      int ab_type_id)
 {
-   const std::string &okl_defines = RajaLayout().RajaEngine().GetOklDefines();
-   assert(false);
-   
+  
    // called only when Size() != 0
 
    MFEM_ASSERT(ab_type_id == ScalarId<double>::value, "");
@@ -120,30 +118,21 @@ void Vector::DoAxpby(const void *a, const PVector &x,
       }
       else
       {
-         MFEM_ASSERT(xp->slice != yp->slice, "invalid input");
+         //MFEM_ASSERT(xp->slice != yp->slice, "invalid input");
          if (this->slice == xp->slice)
          {
             // *this = da * (*this) + db * y
-             assert(false);/*
-           ::raja::kernel kernel = axpby2_builder.build(slice.getDevice(),
-                                                         okl_defines);
-                                                         kernel((int)Size(), da, db, slice, yp->slice);*/
+            vector_axpby((int)Size(), da, db, slice, yp->slice);
          }
          else if (this->slice == yp->slice)
          {
             // *this = da * x + db * (*this)
-            assert(false);/*
-            ::raja::kernel kernel = axpby2_builder.build(slice.getDevice(),
-                                                         okl_defines);
-                                                         kernel((int)Size(), db, da, slice, xp->slice);*/
+             vector_axpby((int)Size(), db, da, slice, xp->slice);
          }
          else
          {
             // *this = da * x + db * y
-            assert(false);/*
-                            ::raja::kernel kernel = axpby3_builder.build(slice.getDevice(),
-                                                         okl_defines);
-                                                         kernel((int)Size(), da, db, slice, xp->slice, yp->slice);*/
+            vector_axpby3((int)Size(), da, db, slice, xp->slice, yp->slice);
          }
       }
    }

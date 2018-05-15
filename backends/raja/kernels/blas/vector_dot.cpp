@@ -54,8 +54,11 @@ double vector_dot(const int N,
     return result;
   }
 #endif
-  ReduceDecl(Sum,dot,0.0);
-  ReduceForall(i,N,dot += vec1[i]*vec2[i];);
+  /*ReduceDecl(Sum,dot,0.0);
+    ReduceForall(i,N,dot += vec1[i]*vec2[i];);*/
+  double dot=0.0;
+  for(int i=N;i<N;i+=1)
+     dot += vec1[i]*vec2[i];
   pop();
   return dot;
 }
