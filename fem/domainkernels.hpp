@@ -81,21 +81,21 @@ public:
       return D;
    }
 
+   // template <typename Args>
+   // void evalEq(const int dim, const int k, const int e, ElementTransformation * Tr,
+   //             const IntegrationPoint & ip, const Args& args)
+   // {
+   //    double res = 0.0;
+   //    this->evalD(res, Tr, ip, args);
+   //    this->D(k,e) = res;
+   // }
+
    template <typename Args>
    void evalEq(const int dim, const int k, const int e, ElementTransformation * Tr,
                const IntegrationPoint & ip, const Tensor<2>& J, const Args& args)
    {
       double res = 0.0;
       this->evalD(res, Tr, ip, J, args);
-      this->D(k,e) = res;
-   }
-
-   template <typename Args>
-   void evalEq(const int dim, const int k, const int e, ElementTransformation * Tr,
-               const IntegrationPoint & ip, const Args& args)
-   {
-      double res = 0.0;
-      this->evalD(res, Tr, ip, args);
       this->D(k,e) = res;
    }
 
@@ -112,9 +112,9 @@ protected:
    /**
    *  The domain Kernels for BtDB in 1d,2d and 3d.
    */
-   void Mult1d(const Vector &V, Vector &U);
-   void Mult2d(const Vector &V, Vector &U);
-   void Mult3d(const Vector &V, Vector &U);  
+   void Mult1d(const Vector &V, Vector &U) const;
+   void Mult2d(const Vector &V, Vector &U) const;
+   void Mult3d(const Vector &V, Vector &U) const;  
 
 };
 
@@ -153,12 +153,27 @@ public:
       return D;
    }
 
+   // template <typename Args>
+   // void evalEq(const int dim, const int k, const int e, ElementTransformation * Tr,
+   //             const IntegrationPoint & ip, const Args& args)
+   // {
+   //    Tensor<2> res(dim,dim);
+   //    this->evalD(res, Tr, ip, args);
+   //    for (int i = 0; i < dim; ++i)
+   //    {
+   //       for (int j = 0; j < dim; ++j)
+   //       {
+   //          this->D(i,j,k,e) = res(i,j);
+   //       }
+   //    }
+   // }
+
    template <typename Args>
    void evalEq(const int dim, const int k, const int e, ElementTransformation * Tr,
-               const IntegrationPoint & ip, const Args& args)
+               const IntegrationPoint & ip, const Tensor<2>& J, const Args& args)
    {
       Tensor<2> res(dim,dim);
-      this->evalD(res, Tr, ip, args);
+      this->evalD(res, Tr, ip, J, args);
       for (int i = 0; i < dim; ++i)
       {
          for (int j = 0; j < dim; ++j)
@@ -172,9 +187,9 @@ protected:
    /**
    *  The domain Kernels for GtDG in 1d,2d and 3d.
    */
-   void Mult1d(const Vector &V, Vector &U);
-   void Mult2d(const Vector &V, Vector &U);
-   void Mult3d(const Vector &V, Vector &U);
+   void Mult1d(const Vector &V, Vector &U) const;
+   void Mult2d(const Vector &V, Vector &U) const;
+   void Mult3d(const Vector &V, Vector &U) const;
 
 };
 
@@ -188,7 +203,8 @@ class DomainMult<Equation,PAOp::BtDG>: private Equation
 public:
    static const int dimD = 3;
    typedef Tensor<dimD,double> DTensor;
-   typedef DenseMatrix Tensor2d;
+   typedef Tensor<2> Tensor2d;
+   // typedef DenseMatrix Tensor2d;
 
 protected:
    FiniteElementSpace *fes;
@@ -243,9 +259,9 @@ protected:
    /**
    *  The domain Kernels for BtDG in 1d,2d and 3d.
    */
-   void Mult1d(const Vector &V, Vector &U);
-   void Mult2d(const Vector &V, Vector &U);
-   void Mult3d(const Vector &V, Vector &U);
+   void Mult1d(const Vector &V, Vector &U) const;
+   void Mult2d(const Vector &V, Vector &U) const;
+   void Mult3d(const Vector &V, Vector &U) const;
 
 };
 
@@ -283,12 +299,24 @@ public:
       return D;
    }
 
+   // template <typename Args>
+   // void evalEq(const int dim, const int k, const int e, ElementTransformation * Tr,
+   //             const IntegrationPoint & ip, const Args& args)
+   // {
+   //    Tensor<1> res(dim);
+   //    this->evalD(res, Tr, ip, args);
+   //    for (int i = 0; i < dim; ++i)
+   //    {
+   //       this->D(i,k,e) = res(i);
+   //    }
+   // }
+
    template <typename Args>
    void evalEq(const int dim, const int k, const int e, ElementTransformation * Tr,
-               const IntegrationPoint & ip, const Args& args)
+               const IntegrationPoint & ip, const Tensor<2>& J, const Args& args)
    {
       Tensor<1> res(dim);
-      this->evalD(res, Tr, ip, args);
+      this->evalD(res, Tr, ip, J, args);
       for (int i = 0; i < dim; ++i)
       {
          this->D(i,k,e) = res(i);
@@ -299,9 +327,9 @@ protected:
    /**
    *  The domain Kernels for GtDB in 1d,2d and 3d.
    */
-   void Mult1d(const Vector &V, Vector &U);
-   void Mult2d(const Vector &V, Vector &U);
-   void Mult3d(const Vector &V, Vector &U);
+   void Mult1d(const Vector &V, Vector &U) const;
+   void Mult2d(const Vector &V, Vector &U) const;
+   void Mult3d(const Vector &V, Vector &U) const;
 
 };
 
@@ -316,7 +344,7 @@ protected:
 //////////////////////////////////////
 
 template<typename Equation>
-void DomainMult<Equation,PAOp::BtDB>::Mult1d(const Vector &V, Vector &U)
+void DomainMult<Equation,PAOp::BtDB>::Mult1d(const Vector &V, Vector &U) const
 {
    const int dofs1d = shape1d.Height();
    const int quads1d = shape1d.Width();
@@ -343,7 +371,7 @@ void DomainMult<Equation,PAOp::BtDB>::Mult1d(const Vector &V, Vector &U)
 }
 
 template<typename Equation>
-void DomainMult<Equation,PAOp::BtDB>::Mult2d(const Vector &V, Vector &U)
+void DomainMult<Equation,PAOp::BtDB>::Mult2d(const Vector &V, Vector &U) const
 {
    const FiniteElement *fe = fes->GetFE(0);
    const int dofs   = fe->GetDof();
@@ -383,7 +411,7 @@ void DomainMult<Equation,PAOp::BtDB>::Mult2d(const Vector &V, Vector &U)
 }
 
 // template<typename Equation>
-// void DomainMult<Equation,PAOp::BtDB>::Mult2d(const Vector &U, Vector &V)
+// void DomainMult<Equation,PAOp::BtDB>::Mult2d(const Vector &U, Vector &V) const
 // {
 //    const int dofs1d = shape1d.Height();
 //    const int dofs   = dofs1d * dofs1d;
@@ -399,7 +427,11 @@ void DomainMult<Equation,PAOp::BtDB>::Mult2d(const Vector &V, Vector &U)
 //          for (int i2 = 0; i2 < dofs1d; ++i2)
 //          {
 //             tmp1(i2,k1) = 0.0;
-//             for (int i1 = 0; i1 < dofs1d; ++i1)
+//             for (int i1 = 0; i1 < dofs1d/4*4; i1+=4)
+//             {
+//                tmp1(i2,k1) += shape1d(i1,k1) * Ut(i1,i2) + shape1d(i1+1,k1) * Ut(i1+1,i2) + shape1d(i1+2,k1) * Ut(i1+2,i2) + shape1d(i1+3,k1) * Ut(i1+3,i2);
+//             }
+//             for (int i1 = dofs1d/4*4; i1 < dofs1d; ++i1)
 //             {
 //                tmp1(i2,k1) += shape1d(i1,k1) * Ut(i1,i2);
 //             }
@@ -410,7 +442,11 @@ void DomainMult<Equation,PAOp::BtDB>::Mult2d(const Vector &V, Vector &U)
 //          for (int k1 = 0; k1 < quads1d; ++k1)
 //          {
 //             tmp2(k1,k2) = 0.0;
-//             for (int i2 = 0; i2 < dofs1d; ++i2)
+//             for (int i2 = 0; i2 < dofs1d/4*4; i2+=4)
+//             {
+//                tmp2(k1,k2) += shape1d(i2,k2) * tmp1(i2,k1) + shape1d(i2+1,k2) * tmp1(i2+1,k1) + shape1d(i2+2,k2) * tmp1(i2+2,k1) + shape1d(i2+3,k2) * tmp1(i2+3,k1);
+//             }
+//             for (int i2 = dofs1d/4*4; i2 < dofs1d; ++i2)
 //             {
 //                tmp2(k1,k2) += shape1d(i2,k2) * tmp1(i2,k1);
 //             }
@@ -428,7 +464,11 @@ void DomainMult<Equation,PAOp::BtDB>::Mult2d(const Vector &V, Vector &U)
 //          for (int k2 = 0; k2 < quads1d; ++k2)
 //          {
 //             tmp3(k2,j1) = 0.0;
-//             for (int k1 = 0; k1 < quads1d; ++k1)
+//             for (int k1 = 0; k1 < quads1d/4*4; k1+=4)
+//             {
+//                tmp3(k2,j1) += shape1d(j1,k1) * tmp2(k1,k2) + shape1d(j1,k1+1) * tmp2(k1+1,k2) + shape1d(j1,k1+2) * tmp2(k1+2,k2) + shape1d(j1,k1+3) * tmp2(k1+3,k2);
+//             }
+//             for (int k1 = quads1d/4*4; k1 < quads1d; ++k1)
 //             {
 //                tmp3(k2,j1) += shape1d(j1,k1) * tmp2(k1,k2);
 //             }
@@ -439,7 +479,11 @@ void DomainMult<Equation,PAOp::BtDB>::Mult2d(const Vector &V, Vector &U)
 //          for (int j1 = 0; j1 < dofs1d; ++j1)
 //          {
 //             Vt(j1,j2) = 0.0;
-//             for (int k2 = 0; k2 < quads1d; ++k2)
+//             for (int k2 = 0; k2 < quads1d/4*4; k2+=4)
+//             {
+//                Vt(j1,j2) += shape1d(j2,k2) * tmp3(k2,j1) + shape1d(j2,k2+1) * tmp3(k2+1,j1) + shape1d(j2,k2+2) * tmp3(k2+2,j1) + shape1d(j2,k2+3) * tmp3(k2+3,j1);
+//             }
+//             for (int k2 = quads1d/4*4; k2 < quads1d; ++k2)
 //             {
 //                Vt(j1,j2) += shape1d(j2,k2) * tmp3(k2,j1);
 //             }
@@ -449,7 +493,7 @@ void DomainMult<Equation,PAOp::BtDB>::Mult2d(const Vector &V, Vector &U)
 // }
 
 template<typename Equation>
-void DomainMult<Equation,PAOp::BtDB>::Mult3d(const Vector &V, Vector &U)
+void DomainMult<Equation,PAOp::BtDB>::Mult3d(const Vector &V, Vector &U) const
 {
    const FiniteElement *fe = fes->GetFE(0);
    const int dofs   = fe->GetDof();
@@ -537,7 +581,7 @@ void DomainMult<Equation,PAOp::BtDB>::Mult3d(const Vector &V, Vector &U)
 }
 
 template<typename Equation>
-void DomainMult<Equation,PAOp::GtDG>::Mult1d(const Vector &V, Vector &U)
+void DomainMult<Equation,PAOp::GtDG>::Mult1d(const Vector &V, Vector &U) const
 {
    const int dofs1d = shape1d.Height();
    const int quads1d = shape1d.Width();
@@ -567,7 +611,7 @@ void DomainMult<Equation,PAOp::GtDG>::Mult1d(const Vector &V, Vector &U)
 }
 
 template<typename Equation>
-void DomainMult<Equation,PAOp::GtDG>::Mult2d(const Vector &V, Vector &U)
+void DomainMult<Equation,PAOp::GtDG>::Mult2d(const Vector &V, Vector &U) const
 {
    const int dim = 2;
    const int terms = dim*dim;
@@ -636,7 +680,7 @@ void DomainMult<Equation,PAOp::GtDG>::Mult2d(const Vector &V, Vector &U)
 }
 
 template<typename Equation>
-void DomainMult<Equation,PAOp::GtDG>::Mult3d(const Vector &V, Vector &U)
+void DomainMult<Equation,PAOp::GtDG>::Mult3d(const Vector &V, Vector &U) const
 {
    const int dim = 3;
    const int terms = dim*dim;
@@ -772,210 +816,294 @@ void DomainMult<Equation,PAOp::GtDG>::Mult3d(const Vector &V, Vector &U)
    }
 }
 
+// template<typename Equation>
+// void DomainMult<Equation,PAOp::BtDG>::Mult1d(const Vector &V, Vector &U) const
+// {
+//    const int dofs1d = shape1d.Height();
+//    const int quads1d = shape1d.Width();
+//    const int quads = quads1d;
+
+//    Vector Q(quads1d);
+
+//    int offset = 0;
+//    for (int e = 0; e < fes->GetNE(); e++)
+//    {
+//       const Vector Vmat(V.GetData() + offset, dofs1d);
+//       Vector Umat(U.GetData() + offset, dofs1d);
+
+//       // Q_k1 = dshape_j1_k1 * V_i1
+//       dshape1d.MultTranspose(Vmat, Q);
+
+//       double *data_q = Q.GetData();
+//       // const double *data_d = D.GetElmtData(e);
+//       for (int k = 0; k < quads; ++k)
+//       {
+//          data_q[k] *= D(0,k,e);
+//       }
+
+//       // Q_k1 = dshape_j1_k1 * Q_k1
+//       shape1d.AddMult(Q, Umat);
+//    }   
+// }
+
 template<typename Equation>
-void DomainMult<Equation,PAOp::BtDG>::Mult1d(const Vector &V, Vector &U)
+void DomainMult<Equation,PAOp::BtDG>::Mult1d(const Vector &U, Vector &V) const
 {
-   const int dofs1d = shape1d.Height();
+   const int dim     = 1;
+   const int dofs1d  = shape1d.Height();
+   const int dofs    = dofs1d;
    const int quads1d = shape1d.Width();
-   const int quads = quads1d;
-
-   Vector Q(quads1d);
-
-   int offset = 0;
+   const int quads   = quads1d;
+   Tensor<dim> BT(quads1d), GT(quads1d), DGT(quads1d), BDGT(dofs1d);
    for (int e = 0; e < fes->GetNE(); e++)
    {
-      const Vector Vmat(V.GetData() + offset, dofs1d);
-      Vector Umat(U.GetData() + offset, dofs1d);
-
-      // Q_k1 = dshape_j1_k1 * V_i1
-      dshape1d.MultTranspose(Vmat, Q);
-
-      double *data_q = Q.GetData();
-      // const double *data_d = D.GetElmtData(e);
-      for (int k = 0; k < quads; ++k)
-      {
-         data_q[k] *= D(0,k,e);
-      }
-
-      // Q_k1 = dshape_j1_k1 * Q_k1
-      shape1d.AddMult(Q, Umat);
-   }   
-}
-
-template<typename Equation>
-void DomainMult<Equation,PAOp::BtDG>::Mult2d(const Vector &V, Vector &U)
-{
-   const int dim = 2;
-
-   const FiniteElement *fe = fes->GetFE(0);
-   const int dofs   = fe->GetDof();
-
-   const int dofs1d = shape1d.Height();
-   const int quads1d = shape1d.Width();
-   const int quads  = quads1d * quads1d;
-
-   DenseTensor QQ(quads1d, quads1d, dim);
-   DenseMatrix DQ(dofs1d, quads1d);
-
-   int offset = 0;
-   for (int e = 0; e < fes->GetNE(); e++)
-   {
-      const DenseMatrix Vmat(V.GetData() + offset, dofs1d, dofs1d);
-      DenseMatrix Umat(U.GetData() + offset, dofs1d, dofs1d);
-
-      // DQ_j2_k1   = E_j1_j2  * dshape_j1_k1 -- contract in x direction
-      // QQ_0_k1_k2 = DQ_j2_k1 * shape_j2_k2  -- contract in y direction
-      MultAtB(Vmat, dshape1d, DQ);
-      MultAtB(DQ, shape1d, QQ(0));
-
-      // DQ_j2_k1   = E_j1_j2  * shape_j1_k1  -- contract in x direction
-      // QQ_1_k1_k2 = DQ_j2_k1 * dshape_j2_k2 -- contract in y direction
-      MultAtB(Vmat, shape1d, DQ);
-      MultAtB(DQ, dshape1d, QQ(1));
-
-      // QQ_c_k1_k2 = Dmat_c_d_k1_k2 * QQ_d_k1_k2
-      // NOTE: (k1, k2) = k -- 1d index over tensor product of quad points
-      double *data_qq = QQ(0).GetData();
-      for (int k = 0; k < quads; ++k)
-      {
-         // int ind0[] = {0,k,e};
-         const double D0 = D(0,k,e);
-         // int ind1[] = {1,k,e};
-         const double D1 = D(1,k,e);
-
-         const double q0 = data_qq[0*quads + k];
-         const double q1 = data_qq[1*quads + k];
-
-         data_qq[0*quads + k] = D0 * q0 + D1 * q1;
-      }
-
-      // DQ_i2_k1   = shape_i2_k2  * QQ_0_k1_k2
-      // U_i1_i2   += dshape_i1_k1 * DQ_i2_k1
-      MultABt(shape1d, QQ(0), DQ);
-      AddMultABt(shape1d, DQ, Umat);
-
-      // increment offset
-      offset += dofs;
+      const Tensor<dim> T(U.GetData() + e*dofs, dofs1d);
+      Tensor<dim> R(V.GetData() + e*dofs, dofs1d);
+      Tensor<dim> De(D.getData() + e*quads, quads1d);
+      contract(dshape1d,T,GT);
+      cWiseMult(De,GT,DGT);
+      contractT(shape1d,DGT,BDGT);
+      R+=BDGT;
    }
 }
 
+// template<typename Equation>
+// void DomainMult<Equation,PAOp::BtDG>::Mult2d(const Vector &V, Vector &U) const
+// {
+//    const int dim = 2;
+
+//    const FiniteElement *fe = fes->GetFE(0);
+//    const int dofs   = fe->GetDof();
+
+//    const int dofs1d = shape1d.Height();
+//    const int quads1d = shape1d.Width();
+//    const int quads  = quads1d * quads1d;
+
+//    DenseTensor QQ(quads1d, quads1d, dim);
+//    DenseMatrix DQ(dofs1d, quads1d);
+
+//    int offset = 0;
+//    for (int e = 0; e < fes->GetNE(); e++)
+//    {
+//       const DenseMatrix Vmat(V.GetData() + offset, dofs1d, dofs1d);
+//       DenseMatrix Umat(U.GetData() + offset, dofs1d, dofs1d);
+
+//       // DQ_j2_k1   = E_j1_j2  * dshape_j1_k1 -- contract in x direction
+//       // QQ_0_k1_k2 = DQ_j2_k1 * shape_j2_k2  -- contract in y direction
+//       MultAtB(Vmat, dshape1d, DQ);
+//       MultAtB(DQ, shape1d, QQ(0));
+
+//       // DQ_j2_k1   = E_j1_j2  * shape_j1_k1  -- contract in x direction
+//       // QQ_1_k1_k2 = DQ_j2_k1 * dshape_j2_k2 -- contract in y direction
+//       MultAtB(Vmat, shape1d, DQ);
+//       MultAtB(DQ, dshape1d, QQ(1));
+
+//       // QQ_c_k1_k2 = Dmat_c_d_k1_k2 * QQ_d_k1_k2
+//       // NOTE: (k1, k2) = k -- 1d index over tensor product of quad points
+//       double *data_qq = QQ(0).GetData();
+//       for (int k = 0; k < quads; ++k)
+//       {
+//          // int ind0[] = {0,k,e};
+//          const double D0 = D(0,k,e);
+//          // int ind1[] = {1,k,e};
+//          const double D1 = D(1,k,e);
+
+//          const double q0 = data_qq[0*quads + k];
+//          const double q1 = data_qq[1*quads + k];
+
+//          data_qq[0*quads + k] = D0 * q0 + D1 * q1;
+//       }
+
+//       // DQ_i2_k1   = shape_i2_k2  * QQ_0_k1_k2
+//       // U_i1_i2   += dshape_i1_k1 * DQ_i2_k1
+//       MultABt(shape1d, QQ(0), DQ);
+//       AddMultABt(shape1d, DQ, Umat);
+
+//       // increment offset
+//       offset += dofs;
+//    }
+// }
+
 template<typename Equation>
-void DomainMult<Equation,PAOp::BtDG>::Mult3d(const Vector &V, Vector &U)
+void DomainMult<Equation,PAOp::BtDG>::Mult2d(const Vector &U, Vector &V) const
 {
-   const int dim = 3;
-
-   const FiniteElement *fe = fes->GetFE(0);
-   const int dofs   = fe->GetDof();
-
-   const int dofs1d = shape1d.Height();
+   const int dim     = 2;
+   const int dofs1d  = shape1d.Height();
+   const int dofs    = dofs1d * dofs1d;
    const int quads1d = shape1d.Width();
-   const int quads  = quads1d * quads1d * quads1d;
-
-   DenseMatrix Q(quads1d, dim);
-   DenseTensor QQ(quads1d, quads1d, dim);
-
-   Array<double> QQQmem(quads1d * quads1d * quads1d * dim);
-   double *data_qqq = QQQmem.GetData();
-   DenseTensor QQQ0(data_qqq + 0*quads, quads1d, quads1d, quads1d);
-   DenseTensor QQQ1(data_qqq + 1*quads, quads1d, quads1d, quads1d);
-   DenseTensor QQQ2(data_qqq + 2*quads, quads1d, quads1d, quads1d);
-
-   int offset = 0;
+   const int quads   = quads1d * quads1d;
+   Tensor<dim> BT(dofs1d,quads1d), GT(dofs1d,quads1d),
+            BGT(quads1d,quads1d), GBT(quads1d,quads1d),
+            DGT(quads1d,quads1d),
+            BDGT(quads1d,dofs1d), BBDGT(dofs1d,dofs1d);
    for (int e = 0; e < fes->GetNE(); e++)
    {
-      const DenseTensor Vmat(V.GetData() + offset, dofs1d, dofs1d, dofs1d);
-      DenseTensor Umat(U.GetData() + offset, dofs1d, dofs1d, dofs1d);
-
-      // QQQ_0_k1_k2_k3 = dshape_j1_k1 * shape_j2_k2  * shape_j3_k3  * Vmat_j1_j2_j3
-      // QQQ_1_k1_k2_k3 = shape_j1_k1  * dshape_j2_k2 * shape_j3_k3  * Vmat_j1_j2_j3
-      // QQQ_2_k1_k2_k3 = shape_j1_k1  * shape_j2_k2  * dshape_j3_k3 * Vmat_j1_j2_j3
-      QQQ0 = 0.; QQQ1 = 0.; QQQ2 = 0.;
-      for (int j3 = 0; j3 < dofs1d; ++j3)
-      {
-         QQ = 0.;
-         for (int j2 = 0; j2 < dofs1d; ++j2)
-         {
-            Q = 0.;
-            for (int j1 = 0; j1 < dofs1d; ++j1)
-            {
-               for (int k1 = 0; k1 < quads1d; ++k1)
-               {
-                  Q(k1, 0) += Vmat(j1, j2, j3) * dshape1d(j1, k1);
-                  Q(k1, 1) += Vmat(j1, j2, j3) * shape1d(j1, k1);
-               }
-            }
-            for (int k2 = 0; k2 < quads1d; ++k2)
-               for (int k1 = 0; k1 < quads1d; ++k1)
-               {
-                  QQ(k1, k2, 0) += Q(k1, 0) * shape1d(j2, k2);
-                  QQ(k1, k2, 1) += Q(k1, 1) * dshape1d(j2, k2);
-                  QQ(k1, k2, 2) += Q(k1, 1) * shape1d(j2, k2);
-               }
-         }
-         for (int k3 = 0; k3 < quads1d; ++k3)
-            for (int k2 = 0; k2 < quads1d; ++k2)
-               for (int k1 = 0; k1 < quads1d; ++k1)
-               {
-                  QQQ0(k1, k2, k3) += QQ(k1, k2, 0) * shape1d(j3, k3);
-                  QQQ1(k1, k2, k3) += QQ(k1, k2, 1) * shape1d(j3, k3);
-                  QQQ2(k1, k2, k3) += QQ(k1, k2, 2) * dshape1d(j3, k3);
-               }
-      }
-
-      // QQQ_c_k1_k2_k3 = Dmat_c_d_k1_k2_k3 * QQQ_d_k1_k2_k3
-      // NOTE: (k1, k2, k3) = q -- 1d quad point index
-      // const double *data_d = D.GetElmtData(e);
-      for (int k = 0; k < quads; ++k)
-      {
-         // int ind0[] = {0,k,e};
-         const double D0 = D(0,k,e);
-         // int ind1[] = {1,k,e};
-         const double D1 = D(1,k,e);
-         // int ind2[] = {2,k,e};
-         const double D2 = D(2,k,e);
-
-         const double q0 = data_qqq[0*quads + k];
-         const double q1 = data_qqq[1*quads + k];
-         const double q2 = data_qqq[2*quads + k];
-
-         data_qqq[0*quads + k] = D0 * q0 + D1 * q1 + D2 * q2;
-      }
-
-      // Apply transpose of the first operator that takes V -> QQQd -- QQQd -> U
-      for (int k3 = 0; k3 < quads1d; ++k3)
-      {
-         QQ = 0.;
-         for (int k2 = 0; k2 < quads1d; ++k2)
-         {
-            Q = 0.;
-            for (int k1 = 0; k1 < quads1d; ++k1)
-            {
-               for (int i1 = 0; i1 < dofs1d; ++i1)
-               {
-                  Q(i1, 0) += QQQ0(k1, k2, k3) * shape1d(i1, k1);
-               }
-            }
-            for (int i2 = 0; i2 < dofs1d; ++i2)
-               for (int i1 = 0; i1 < dofs1d; ++i1)
-               {
-                  QQ(i1, i2, 0) += Q(i1, 0) * shape1d(i2, k2);
-               }
-         }
-         for (int i3 = 0; i3 < dofs1d; ++i3)
-            for (int i2 = 0; i2 < dofs1d; ++i2)
-               for (int i1 = 0; i1 < dofs1d; ++i1)
-               {
-                  Umat(i1, i2, i3) += QQ(i1, i2, 0) * shape1d(i3, k3);
-               }
-      }
-
-      // increment offset
-      offset += dofs;
+      const Tensor<dim> T(U.GetData() + e*dofs, dofs1d, dofs1d);
+      Tensor<dim>       R(V.GetData() + e*dofs, dofs1d, dofs1d);
+      Tensor<dim+1>    De(D.getData() + e*dim*quads, dim, quads1d, quads1d);
+      contract(shape1d,T,BT);
+      contract(dshape1d,T,GT);
+      contract(shape1d,GT,BGT);
+      contract(dshape1d,BT,GBT);
+      cWiseMult(De,BGT,GBT,DGT);
+      contractT(shape1d,DGT,BDGT);
+      contractT(shape1d,BDGT,BBDGT);
+      R+=BBDGT;
    }
 }
 
+// template<typename Equation>
+// void DomainMult<Equation,PAOp::BtDG>::Mult3d(const Vector &V, Vector &U) const
+// {
+//    const int dim = 3;
+
+//    const FiniteElement *fe = fes->GetFE(0);
+//    const int dofs   = fe->GetDof();
+
+//    const int dofs1d = shape1d.Height();
+//    const int quads1d = shape1d.Width();
+//    const int quads  = quads1d * quads1d * quads1d;
+
+//    DenseMatrix Q(quads1d, dim);
+//    DenseTensor QQ(quads1d, quads1d, dim);
+
+//    Array<double> QQQmem(quads1d * quads1d * quads1d * dim);
+//    double *data_qqq = QQQmem.GetData();
+//    DenseTensor QQQ0(data_qqq + 0*quads, quads1d, quads1d, quads1d);
+//    DenseTensor QQQ1(data_qqq + 1*quads, quads1d, quads1d, quads1d);
+//    DenseTensor QQQ2(data_qqq + 2*quads, quads1d, quads1d, quads1d);
+
+//    int offset = 0;
+//    for (int e = 0; e < fes->GetNE(); e++)
+//    {
+//       const DenseTensor Vmat(V.GetData() + offset, dofs1d, dofs1d, dofs1d);
+//       DenseTensor Umat(U.GetData() + offset, dofs1d, dofs1d, dofs1d);
+
+//       // QQQ_0_k1_k2_k3 = dshape_j1_k1 * shape_j2_k2  * shape_j3_k3  * Vmat_j1_j2_j3
+//       // QQQ_1_k1_k2_k3 = shape_j1_k1  * dshape_j2_k2 * shape_j3_k3  * Vmat_j1_j2_j3
+//       // QQQ_2_k1_k2_k3 = shape_j1_k1  * shape_j2_k2  * dshape_j3_k3 * Vmat_j1_j2_j3
+//       QQQ0 = 0.; QQQ1 = 0.; QQQ2 = 0.;
+//       for (int j3 = 0; j3 < dofs1d; ++j3)
+//       {
+//          QQ = 0.;
+//          for (int j2 = 0; j2 < dofs1d; ++j2)
+//          {
+//             Q = 0.;
+//             for (int j1 = 0; j1 < dofs1d; ++j1)
+//             {
+//                for (int k1 = 0; k1 < quads1d; ++k1)
+//                {
+//                   Q(k1, 0) += Vmat(j1, j2, j3) * dshape1d(j1, k1);
+//                   Q(k1, 1) += Vmat(j1, j2, j3) * shape1d(j1, k1);
+//                }
+//             }
+//             for (int k2 = 0; k2 < quads1d; ++k2)
+//                for (int k1 = 0; k1 < quads1d; ++k1)
+//                {
+//                   QQ(k1, k2, 0) += Q(k1, 0) * shape1d(j2, k2);
+//                   QQ(k1, k2, 1) += Q(k1, 1) * dshape1d(j2, k2);
+//                   QQ(k1, k2, 2) += Q(k1, 1) * shape1d(j2, k2);
+//                }
+//          }
+//          for (int k3 = 0; k3 < quads1d; ++k3)
+//             for (int k2 = 0; k2 < quads1d; ++k2)
+//                for (int k1 = 0; k1 < quads1d; ++k1)
+//                {
+//                   QQQ0(k1, k2, k3) += QQ(k1, k2, 0) * shape1d(j3, k3);
+//                   QQQ1(k1, k2, k3) += QQ(k1, k2, 1) * shape1d(j3, k3);
+//                   QQQ2(k1, k2, k3) += QQ(k1, k2, 2) * dshape1d(j3, k3);
+//                }
+//       }
+
+//       // QQQ_c_k1_k2_k3 = Dmat_c_d_k1_k2_k3 * QQQ_d_k1_k2_k3
+//       // NOTE: (k1, k2, k3) = q -- 1d quad point index
+//       // const double *data_d = D.GetElmtData(e);
+//       for (int k = 0; k < quads; ++k)
+//       {
+//          // int ind0[] = {0,k,e};
+//          const double D0 = D(0,k,e);
+//          // int ind1[] = {1,k,e};
+//          const double D1 = D(1,k,e);
+//          // int ind2[] = {2,k,e};
+//          const double D2 = D(2,k,e);
+
+//          const double q0 = data_qqq[0*quads + k];
+//          const double q1 = data_qqq[1*quads + k];
+//          const double q2 = data_qqq[2*quads + k];
+
+//          data_qqq[0*quads + k] = D0 * q0 + D1 * q1 + D2 * q2;
+//       }
+
+//       // Apply transpose of the first operator that takes V -> QQQd -- QQQd -> U
+//       for (int k3 = 0; k3 < quads1d; ++k3)
+//       {
+//          QQ = 0.;
+//          for (int k2 = 0; k2 < quads1d; ++k2)
+//          {
+//             Q = 0.;
+//             for (int k1 = 0; k1 < quads1d; ++k1)
+//             {
+//                for (int i1 = 0; i1 < dofs1d; ++i1)
+//                {
+//                   Q(i1, 0) += QQQ0(k1, k2, k3) * shape1d(i1, k1);
+//                }
+//             }
+//             for (int i2 = 0; i2 < dofs1d; ++i2)
+//                for (int i1 = 0; i1 < dofs1d; ++i1)
+//                {
+//                   QQ(i1, i2, 0) += Q(i1, 0) * shape1d(i2, k2);
+//                }
+//          }
+//          for (int i3 = 0; i3 < dofs1d; ++i3)
+//             for (int i2 = 0; i2 < dofs1d; ++i2)
+//                for (int i1 = 0; i1 < dofs1d; ++i1)
+//                {
+//                   Umat(i1, i2, i3) += QQ(i1, i2, 0) * shape1d(i3, k3);
+//                }
+//       }
+
+//       // increment offset
+//       offset += dofs;
+//    }
+// }
+
 template<typename Equation>
-void DomainMult<Equation,PAOp::GtDB>::Mult1d(const Vector &V, Vector &U)
+void DomainMult<Equation,PAOp::BtDG>::Mult3d(const Vector &U, Vector &V) const
+{
+   const int dim     = 3;
+   const int dofs1d  = shape1d.Height();
+   const int dofs    = dofs1d * dofs1d * dofs1d;
+   const int quads1d = shape1d.Width();
+   const int quads   = quads1d * quads1d * quads1d;
+   Tensor<dim> BT(dofs1d,dofs1d,quads1d), GT(dofs1d,dofs1d,quads1d),
+            BGT(dofs1d,quads1d,quads1d), BBT(dofs1d,quads1d,quads1d), GBT(dofs1d,quads1d,quads1d),
+            BBGT(quads1d,quads1d,quads1d), GBBT(quads1d,quads1d,quads1d), BGBT(quads1d,quads1d,quads1d),
+            DGT(quads1d,quads1d,quads1d),
+            BDGT(quads1d,quads1d,dofs1d), BBDGT(quads1d,dofs1d,dofs1d), BBBDGT(dofs1d,dofs1d,dofs1d);
+   for (int e = 0; e < fes->GetNE(); e++)
+   {
+      const Tensor<dim> T(U.GetData() + e*dofs, dofs1d, dofs1d, dofs1d);
+      Tensor<dim> R(V.GetData() + e*dofs, dofs1d, dofs1d, dofs1d);
+      Tensor<dim+1> De(D.getData() + e*dim*quads,dim,quads1d,quads1d,quads1d);
+      contract(shape1d,T,BT);
+      contract(dshape1d,T,GT);
+      contract(shape1d,GT,BGT);
+      contract(shape1d,BGT,BBGT);
+      contract(shape1d,BT,BBT);
+      contract(dshape1d,BBT,GBBT);
+      contract(dshape1d,BT,GBT);
+      contract(shape1d,GBT,BGBT);
+      cWiseMult(De,BBGT,BGBT,GBBT,DGT);
+      contractT(shape1d,DGT,BDGT);
+      contractT(shape1d,BDGT,BBDGT);
+      contractT(shape1d,BBDGT,BBBDGT);
+      R+=BBBDGT;
+   }
+}
+
+
+template<typename Equation>
+void DomainMult<Equation,PAOp::GtDB>::Mult1d(const Vector &V, Vector &U) const
 {
    const int dofs1d = shape1d.Height();
    const int quads1d = shape1d.Width();
@@ -1005,7 +1133,7 @@ void DomainMult<Equation,PAOp::GtDB>::Mult1d(const Vector &V, Vector &U)
 }
 
 template<typename Equation>
-void DomainMult<Equation,PAOp::GtDB>::Mult2d(const Vector &V, Vector &U)
+void DomainMult<Equation,PAOp::GtDB>::Mult2d(const Vector &V, Vector &U) const
 {
    const int dim = 2;
 
@@ -1071,7 +1199,7 @@ void DomainMult<Equation,PAOp::GtDB>::Mult2d(const Vector &V, Vector &U)
 }
 
 template<typename Equation>
-void DomainMult<Equation,PAOp::GtDB>::Mult3d(const Vector &V, Vector &U)
+void DomainMult<Equation,PAOp::GtDB>::Mult3d(const Vector &V, Vector &U) const
 {
    const int dim = 3;
    const int terms = dim*(dim+1)/2;

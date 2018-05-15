@@ -136,6 +136,179 @@ void ComputeBasis1d(const FiniteElement *fe, int order, Tensor& shape1d, bool ba
    }
 }
 
+class TensorBasis
+{
+protected:
+   const int dim;
+
+private:
+   typedef Tensor<2> Tensor2d;
+   Tensor2d shape1d;
+
+public:
+   TensorBasis(FiniteElementSpace* fes, const int order)
+   : dim(fes->GetFE(0)->GetDim()),
+     shape1d(fes->GetNDofs1d(),fes->GetNQuads1d(order))
+   {
+      // Store the 1d shape functions and gradients
+      ComputeBasis1d(fes->GetFE(0), order, shape1d);
+   }
+
+   const Tensor2d& getB() const
+   {
+      return shape1d;
+   }
+};
+
+class FaceTensorBasis: public TensorBasis
+{
+private:
+   typedef Tensor<2> Tensor2d;
+   Tensor2d shape0d0, shape0d1;
+
+public:
+   FaceTensorBasis(FiniteElementSpace* fes, const int order)
+   : TensorBasis(fes,order),
+     shape0d0(fes->GetNDofs1d(),fes->GetNQuads1d(order)),
+     shape0d1(fes->GetNDofs1d(),fes->GetNQuads1d(order))
+   {
+      // Store the two 0d shape functions and gradients
+      // in x = 0.0
+      ComputeBasis0d(fes->GetFE(0), 0.0  , shape0d0);
+      // in x = 1.0
+      ComputeBasis0d(fes->GetFE(0), 1.0  , shape0d1);
+   }
+
+   const Tensor2d& getB0d(const int face_id) const
+   {
+      switch(dim)
+      {
+         case 1:
+         switch(face_id)
+         {
+            case 0://WEST
+               return shape0d0;
+            case 1://EAST
+               return shape0d1;
+         }
+         case 2:
+         switch(face_id)
+         {
+            case 0://SOUTH
+               return shape0d0;
+            case 1://EAST
+               return shape0d1;
+            case 2://NORTH
+               return shape0d1;
+            case 3://WEST
+               return shape0d0;
+         }
+         case 3:
+         switch(face_id)
+         {
+            case 0://BOTTOM
+               return shape0d0;
+            case 1://SOUTH
+               return shape0d0;
+            case 2://EAST
+               return shape0d1;
+            case 3://NORTH
+               return shape0d1;
+            case 4://WEST
+               return shape0d0;
+            case 5://TOP
+               return shape0d1;
+         }
+      }
+   }
+
+   const Tensor2d& getB0dTrial(const int face_id) const
+   {
+      switch(dim)
+      {
+         case 1:
+         switch(face_id)
+         {
+            case 0://WEST
+               return shape0d1;
+            case 1://EAST
+               return shape0d0;
+         }
+         case 2:
+         switch(face_id)
+         {
+            case 0://SOUTH
+               return shape0d1;
+            case 1://EAST
+               return shape0d0;
+            case 2://NORTH
+               return shape0d0;
+            case 3://WEST
+               return shape0d1;
+         }
+         case 3:
+         switch(face_id)
+         {
+            case 0://BOTTOM
+               return shape0d1;
+            case 1://SOUTH
+               return shape0d1;
+            case 2://EAST
+               return shape0d0;
+            case 3://NORTH
+               return shape0d0;
+            case 4://WEST
+               return shape0d1;
+            case 5://TOP
+               return shape0d0;
+         }
+      }
+   }
+
+   const Tensor2d& getB0dTest(const int face_id) const
+   {
+      switch(dim)
+      {
+         case 1:
+         switch(face_id)
+         {
+            case 0://WEST
+               return shape0d0;
+            case 1://EAST
+               return shape0d1;
+         }
+         case 2:
+         switch(face_id)
+         {
+            case 0://SOUTH
+               return shape0d0;
+            case 1://EAST
+               return shape0d1;
+            case 2://NORTH
+               return shape0d1;
+            case 3://WEST
+               return shape0d0;
+         }
+         case 3:
+         switch(face_id)
+         {
+            case 0://BOTTOM
+               return shape0d0;
+            case 1://SOUTH
+               return shape0d0;
+            case 2://EAST
+               return shape0d1;
+            case 3://NORTH
+               return shape0d1;
+            case 4://WEST
+               return shape0d0;
+            case 5://TOP
+               return shape0d1;
+         }
+      }
+   }
+};
+
 inline void ScatterDofs(const FiniteElementSpace* mfes, const Table& eldof, const Array<int>& dof_map,
                   const GridFunction* nodes, const int dofs, const int dim, const int e,
                   Tensor<2>& LexPointMat)

@@ -49,7 +49,7 @@ struct ElementInfo
    ElementTransformation* tr;
    IntegrationPoint ip;
    Tensor<2> J_ek;
-}
+};
 
 /**
 *  A partial assembly Integrator class for domain integrals.
@@ -176,7 +176,7 @@ public:
       // !!! Should not be recomputed... !!!
       Tensor<1> Jac1D(dim*dim*quads*quads1d*nb_elts);
       EvalJacobians(dim,fes,order,Jac1D);
-      Tensor<4> Jac(Jac1D.getData(),dim,dim,quads*quads1d,nb_elts);
+      Tensor<4> Jac(Jac1D.getData(),dim,dim,quads*quads1d,nb_elts);// Creating a view
       // !!!                             !!!
       // We have a per face approach for the fluxes
       for (int face = 0; face < nb_faces; ++face)

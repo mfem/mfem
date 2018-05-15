@@ -42,17 +42,42 @@ public:
    typedef Tensor<3,double> Tensor3d;
    typedef Tensor<4,double> Tensor4d;
 
+   void initKernelData(const int& nb_elts, const int& nb_faces_elt)
+   {
+      kernel_data.setSize(nb_elts,nb_faces_elt);   
+   }   
+
+   void initFaceData(const int& dim,
+                     const int& ind_elt1, const int& face_id1, const int& nb_rot1, int& perm1,
+                     const int& ind_elt2, const int& face_id2, const int& nb_rot2, int& perm2)
+   {
+      GetPermutation(dim,face_id1,face_id2,nb_rot2,perm1,perm2);
+      // Initialization of indirection and permutation identification
+      this->kernel_data(ind_elt2,face_id2).indirection = ind_elt1;
+      this->kernel_data(ind_elt2,face_id2).permutation = perm1;
+      this->kernel_data(ind_elt1,face_id1).indirection = ind_elt2;
+      this->kernel_data(ind_elt1,face_id1).permutation = perm2;
+   }
+
+   void initBoundaryFaceData(const int& ind_elt, const int& face_id)
+   {
+      this->kernel_data(ind_elt,face_id).indirection = -1;
+      this->kernel_data(ind_elt,face_id).permutation =  0;
+   }
+
    /**
    *  Permutation for 2D hex meshes.
    */
-   static void Permutation2d(int face_id, int nbe, int dofs1d, KData& kernel_data, const Tensor3d& T0,
-                      Tensor3d& T0p);
+   void Permutation2d(int face_id, int nbe, int dofs1d, const Tensor3d& T0, Tensor3d& T0p) const;
 
    /**
    *  Permutation for 3D hex meshes.
    */
-   static void Permutation3d(int face_id, int nbe, int dofs1d, KData& kernel_data, const Tensor4d& T0,
-                      Tensor4d& T0p);
+   void Permutation3d(int face_id, int nbe, int dofs1d, const Tensor4d& T0, Tensor4d& T0p) const;
+
+private:
+   KData kernel_data;// Data needed by the Kernel
+
 };
 
 /////////////////////////////////////////////////
@@ -86,7 +111,7 @@ class FaceMult;
 */
 template<typename Equation>
 class FaceMult<Equation,BtDB>
-: private Equation, Permutation
+: private Equation, FaceTensorBasis, protected Permutation
 {
 
 public:
@@ -98,70 +123,38 @@ public:
 protected:
    FiniteElementSpace *fes;
    DTensor Dint, Dext;
-   KData kernel_data;// Data needed by the Kernel
-   Tensor2d shape1d, dshape1d;
-   Tensor2d shape0d0, shape0d1, dshape0d0, dshape0d1;
+   // Tensor2d shape1d, dshape1d;
+   // Tensor2d shape0d0, shape0d1, dshape0d0, dshape0d1;
 
 public:
    template <typename Args>
-   FaceMult(FiniteElementSpace* _fes, int order, const Args& args)
-   : fes(_fes), Dint(), Dext(), kernel_data(),
-   shape1d(fes->GetNDofs1d(),fes->GetNQuads1d(order)),
-   dshape1d(fes->GetNDofs1d(),fes->GetNQuads1d(order)),
-   shape0d0(fes->GetNDofs1d(),1),
-   shape0d1(fes->GetNDofs1d(),1),
-   dshape0d0(fes->GetNDofs1d(),1),
-   dshape0d1(fes->GetNDofs1d(),1)
+   FaceMult(FiniteElementSpace* fes, int order, const Args& args)
+   : FaceTensorBasis(fes, order), fes(fes), Dint(), Dext()
    {
-      // Store the two 0d shape functions and gradients
-      // in x = 0.0
-      ComputeBasis0d(fes->GetFE(0), 0.0, shape0d0, dshape0d0);
-      // in x = 1.0
-      ComputeBasis0d(fes->GetFE(0), 1.0, shape0d1, dshape0d1);
-      // Store the 1d shape functions and gradients
-      ComputeBasis1d(fes->GetFE(0), order, shape1d, dshape1d);
    }
 
    void init(const int dim, const int quads, const int nb_elts, const int nb_faces_elt)
    {
-      kernel_data.setSize(nb_elts,nb_faces_elt);
+      this->initKernelData(nb_elts,nb_faces_elt);
       Dint.setSize(quads,nb_elts,nb_faces_elt);
       Dext.setSize(quads,nb_elts,nb_faces_elt);
    }
 
-   void initFaceData(const int& dim,
-                     const int& ind_elt1, const int& face_id1, const int& nb_rot1, int& perm1,
-                     const int& ind_elt2, const int& face_id2, const int& nb_rot2, int& perm2)
-   {
-      GetPermutation(dim,face_id1,face_id2,nb_rot2,perm1,perm2);
-      // Initialization of indirection and permutation identification
-      this->kernel_data(ind_elt2,face_id2).indirection = ind_elt1;
-      this->kernel_data(ind_elt2,face_id2).permutation = perm1;
-      this->kernel_data(ind_elt1,face_id1).indirection = ind_elt2;
-      this->kernel_data(ind_elt1,face_id1).permutation = perm2;
-   }
-
-   void initBoundaryFaceData(const int& ind_elt, const int& face_id)
-   {
-      this->kernel_data(ind_elt,face_id).indirection = -1;
-      this->kernel_data(ind_elt,face_id).permutation = 0;
-   }
-
-   template <typename Args>
-   void evalEq(const int dim, const int k1, const int k2, const Vector& normal,
-               const int ind_elt1, const int face_id1,
-               const int ind_elt2, const int face_id2, FaceElementTransformations* face_tr,
-               const IntegrationPoint & ip1, const IntegrationPoint & ip2,
-               const Args& args)
-   {
-      //res'i''j' is the value from element 'j' to element 'i'
-      double res11, res21, res22, res12;
-      this->evalFaceD(res11,res21,res22,res12,face_tr,normal,ip1,ip2,args);
-      Dint(k1, ind_elt1, face_id1) = res11;
-      Dext(k2, ind_elt2, face_id2) = res21;
-      Dint(k2, ind_elt2, face_id2) = res22;
-      Dext(k1, ind_elt1, face_id1) = res12;
-   }
+   // template <typename Args>
+   // void evalEq(const int dim, const int k1, const int k2, const Vector& normal,
+   //             const int ind_elt1, const int face_id1,
+   //             const int ind_elt2, const int face_id2, FaceElementTransformations* face_tr,
+   //             const IntegrationPoint & ip1, const IntegrationPoint & ip2,
+   //             const Args& args)
+   // {
+   //    //res'i''j' is the value from element 'j' to element 'i'
+   //    double res11, res21, res22, res12;
+   //    this->evalFaceD(res11,res21,res22,res12,face_tr,normal,ip1,ip2,args);
+   //    Dint(k1, ind_elt1, face_id1) = res11;
+   //    Dext(k2, ind_elt2, face_id2) = res21;
+   //    Dint(k2, ind_elt2, face_id2) = res22;
+   //    Dext(k1, ind_elt1, face_id1) = res12;
+   // }
 
    template <typename Args>
    void evalEq(const int dim, const int k1, const int k2, const Vector& normal,
@@ -187,16 +180,16 @@ public:
    {
       // North Faces
       int face_id = 2;
-      MultIntY2D(fes,shape1d,shape0d1,Dint,face_id,U,V);
+      MultIntY2D(face_id,U,V);
       // South Faces
       face_id = 0;
-      MultIntY2D(fes,shape1d,shape0d0,Dint,face_id,U,V);
+      MultIntY2D(face_id,U,V);
       // East Faces
       face_id = 1;
-      MultIntX2D(fes,shape1d,shape0d1,Dint,face_id,U,V);
+      MultIntX2D(face_id,U,V);
       // West Faces
       face_id = 3;
-      MultIntX2D(fes,shape1d,shape0d0,Dint,face_id,U,V);
+      MultIntX2D(face_id,U,V);
    }
 
    /**
@@ -206,16 +199,16 @@ public:
    {
       // North Faces
       int face_id_test = 2;
-      MultExtY2D(fes,shape1d,shape0d0,shape0d1,kernel_data,Dext,face_id_test,U,V);
+      MultExtY2D(face_id_test,U,V);
       // South Faces
       face_id_test = 0;
-      MultExtY2D(fes,shape1d,shape0d1,shape0d0,kernel_data,Dext,face_id_test,U,V);
+      MultExtY2D(face_id_test,U,V);
       // East Faces
       face_id_test = 1;
-      MultExtX2D(fes,shape1d,shape0d0,shape0d1,kernel_data,Dext,face_id_test,U,V);
+      MultExtX2D(face_id_test,U,V);
       // West Faces
       face_id_test = 3;
-      MultExtX2D(fes,shape1d,shape0d1,shape0d0,kernel_data,Dext,face_id_test,U,V);
+      MultExtX2D(face_id_test,U,V);
    }
 
    /**
@@ -225,22 +218,22 @@ public:
    {
       // Bottom Faces
       int face_id = 0;
-      MultIntZ3D(fes,shape1d,shape0d0,Dint,face_id,U,V);
+      MultIntZ3D(face_id,U,V);
       // Top Faces
       face_id = 5;
-      MultIntZ3D(fes,shape1d,shape0d1,Dint,face_id,U,V);
+      MultIntZ3D(face_id,U,V);
       // North Faces
       face_id = 3;
-      MultIntY3D(fes,shape1d,shape0d1,Dint,face_id,U,V);
+      MultIntY3D(face_id,U,V);
       // South Faces
       face_id = 1;
-      MultIntY3D(fes,shape1d,shape0d0,Dint,face_id,U,V);
+      MultIntY3D(face_id,U,V);
       // East Faces
       face_id = 2;
-      MultIntX3D(fes,shape1d,shape0d1,Dint,face_id,U,V);
+      MultIntX3D(face_id,U,V);
       // West Faces
       face_id = 4;
-      MultIntX3D(fes,shape1d,shape0d0,Dint,face_id,U,V);
+      MultIntX3D(face_id,U,V);
    }
 
    /**
@@ -250,56 +243,40 @@ public:
    {
       // Bottom Faces
       int face_id_test = 0;
-      MultExtZ3D(fes,shape1d,shape0d1,shape0d0,kernel_data,Dext,face_id_test,U,V);
+      MultExtZ3D(face_id_test,U,V);
       // Top Faces
       face_id_test = 5;
-      MultExtZ3D(fes,shape1d,shape0d0,shape0d1,kernel_data,Dext,face_id_test,U,V);
+      MultExtZ3D(face_id_test,U,V);
       // North Faces
       face_id_test = 3;
-      MultExtY3D(fes,shape1d,shape0d0,shape0d1,kernel_data,Dext,face_id_test,U,V);
+      MultExtY3D(face_id_test,U,V);
       // South Faces
       face_id_test = 1;
-      MultExtY3D(fes,shape1d,shape0d1,shape0d0,kernel_data,Dext,face_id_test,U,V);
+      MultExtY3D(face_id_test,U,V);
       // East Faces
       face_id_test = 2;
-      MultExtX3D(fes,shape1d,shape0d0,shape0d1,kernel_data,Dext,face_id_test,U,V);
+      MultExtX3D(face_id_test,U,V);
       // West Faces
       face_id_test = 4;
-      MultExtX3D(fes,shape1d,shape0d1,shape0d0,kernel_data,Dext,face_id_test,U,V);
+      MultExtX3D(face_id_test,U,V);
    }
 
 private:
-   static void MultIntX2D(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
-                        DTensor& Dint, int face_id, const Vector& U, Vector& V);
-   static void MultIntY2D(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
-                        DTensor& Dint, int face_id, const Vector& U, Vector& V);
-   static void MultExtX2D(FiniteElementSpace* fes, Tensor2d& B,
-                        Tensor2d& B0dTrial, Tensor2d& B0dtest, KData& kernel_data,
-                        DTensor& D, int face_id, const Vector& U, Vector& V);
-   static void MultExtY2D(FiniteElementSpace* fes, Tensor2d& B,
-                        Tensor2d& B0dTrial, Tensor2d& B0dtest, KData& kernel_data,
-                        DTensor& D, int face_id, const Vector& U, Vector& V);
-   static void MultIntX3D(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
-                        DTensor& Dint, int face_id, const Vector& U, Vector& V);
-   static void MultIntY3D(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
-                        DTensor& Dint, int face_id, const Vector& U, Vector& V);
-   static void MultIntZ3D(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
-                        DTensor& Dint, int face_id, const Vector& U, Vector& V);
-   static void MultExtX3D(FiniteElementSpace* fes, Tensor2d& B,
-                        Tensor2d& B0dTrial, Tensor2d& B0dtest, KData& kernel_data,
-                        DTensor& D, int face_id, const Vector& U, Vector& V);
-   static void MultExtY3D(FiniteElementSpace* fes, Tensor2d& B,
-                        Tensor2d& B0dTrial, Tensor2d& B0dtest, KData& kernel_data,
-                        DTensor& D, int face_id, const Vector& U, Vector& V);
-   static void MultExtZ3D(FiniteElementSpace* fes, Tensor2d& B,
-                        Tensor2d& B0dTrial, Tensor2d& B0dtest, KData& kernel_data,
-                        DTensor& D, int face_id, const Vector& U, Vector& V);
+   void MultIntX2D(int face_id, const Vector& U, Vector& V);
+   void MultIntY2D(int face_id, const Vector& U, Vector& V);
+   void MultExtX2D(int face_id, const Vector& U, Vector& V);
+   void MultExtY2D(int face_id, const Vector& U, Vector& V);
+   void MultIntX3D(int face_id, const Vector& U, Vector& V);
+   void MultIntY3D(int face_id, const Vector& U, Vector& V);
+   void MultIntZ3D(int face_id, const Vector& U, Vector& V);
+   void MultExtX3D(int face_id, const Vector& U, Vector& V);
+   void MultExtY3D(int face_id, const Vector& U, Vector& V);
+   void MultExtZ3D(int face_id, const Vector& U, Vector& V);
 };
 
 
 
-void Permutation::Permutation2d(int face_id, int nbe, int dofs1d, KData& kernel_data, const Tensor3d& T0,
-                     Tensor3d& T0p)
+void Permutation::Permutation2d(int face_id, int nbe, int dofs1d, const Tensor3d& T0, Tensor3d& T0p) const
 {
    for (int e = 0; e < nbe; ++e)
    {
@@ -360,8 +337,7 @@ void Permutation::Permutation2d(int face_id, int nbe, int dofs1d, KData& kernel_
    }
 }
 
-void Permutation::Permutation3d(int face_id, int nbe, int dofs1d, KData& kernel_data, const Tensor4d& T0,
-                     Tensor4d& T0p)
+void Permutation::Permutation3d(int face_id, int nbe, int dofs1d, const Tensor4d& T0, Tensor4d& T0p) const
 {
    const double* U = T0.getData();
    int elt, ii, jj, kk;
@@ -425,12 +401,14 @@ void Permutation::Permutation3d(int face_id, int nbe, int dofs1d, KData& kernel_
 //////////////////////////////////////
 
 template <typename Equation>
-void FaceMult<Equation,PAOp::BtDB>::MultIntX2D(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
-                        DTensor& D, int face_id, const Vector& U, Vector& V)
+void FaceMult<Equation,PAOp::BtDB>::MultIntX2D(int face_id, const Vector& U, Vector& V)
 {
    // nunber of elements
    const int nbe = fes->GetNE();
    // number of degrees of freedom in 1d (assumes that i1=i2=i3)
+   // Tensor2d& B = shape1d;
+   const Tensor2d& B = getB();
+   const Tensor2d& B0d = getB0d(face_id);
    const int dofs1d = B.Height();
    // number of quadrature points
    const int quads1d = B.Width();
@@ -459,7 +437,7 @@ void FaceMult<Equation,PAOp::BtDB>::MultIntX2D(FiniteElementSpace* fes, Tensor2d
       }
       for (int k2 = 0; k2 < quads1d; ++k2)
       {
-         T2(k2) = D(k2,e,face_id) * T2(k2);
+         T2(k2) = Dint(k2,e,face_id) * T2(k2);
       }
       // T3.zero();
       for (int j2 = 0; j2 < dofs1d; ++j2)
@@ -480,13 +458,120 @@ void FaceMult<Equation,PAOp::BtDB>::MultIntX2D(FiniteElementSpace* fes, Tensor2d
    }
 }
 
+// template <typename Equation>
+// void FaceMult<Equation,PAOp::BtDB>::MultIntX2D(int face_id, const Vector& U, Vector& V)
+// {
+//    // nunber of elements
+//    const int nbe = fes->GetNE();
+//    // number of degrees of freedom in 1d (assumes that i1=i2=i3)
+//    // Tensor2d& B = shape1d;
+//    const Tensor2d& B = getB();
+//    const Tensor2d& B0d = getB0d(face_id);
+//    const int dofs1d = B.Height();
+//    const int dofs = dofs1d*dofs1d;
+//    // number of quadrature points
+//    const int quads1d = B.Width();
+//    Tensor<1> T1(dofs1d),T2(quads1d),T3(dofs1d);
+//    Tensor<2> T4(dofs1d, dofs1d);
+//    for (int e = 0; e < nbe; ++e)
+//    {
+//       Tensor<2> T0( U.GetData() + e*dofs, dofs1d, dofs1d );
+//       Tensor<2> R( V.GetData()  + e*dofs, dofs1d, dofs1d );
+//       Tensor<1> D( &Dint(0,e,face_id), quads1d );
+//       contractX(B0d,T0,T1);
+//       contract(B,T1,T2);
+//       cWiseMult(D,T2,T2);
+//       contractT(B,T2,T3);
+//       contractTX(B0d,T3,R);
+//       // R+=T4;
+//    }
+// }
+
+// Loop unrolling version
+// template <typename Equation>
+// void FaceMult<Equation,PAOp::BtDB>::MultIntX2D(int face_id, const Vector& U, Vector& V)
+// {
+//    // nunber of elements
+//    const int nbe = fes->GetNE();
+//    // number of degrees of freedom in 1d (assumes that i1=i2=i3)
+//    // Tensor2d& B = shape1d;
+//    const Tensor2d& B = getB();
+//    const Tensor2d& B0d = getB0d(face_id);
+//    const int dofs1d = B.Height();
+//    // number of quadrature points
+//    const int quads1d = B.Width();
+//    DTensor T0(U.GetData(),dofs1d,dofs1d,nbe);
+//    DTensor R(V.GetData(),dofs1d,dofs1d,nbe);
+//    Tensor<1> T1(dofs1d),T2(quads1d),T3(dofs1d);
+//    for (int e = 0; e < nbe; ++e)
+//    {
+//       // T1.zero();
+//       for (int i2 = 0; i2 < dofs1d; ++i2)
+//       {
+//          T1(i2) = 0.0;
+//          for (int i1 = 0; i1 < dofs1d/2*2; i1+=2)
+//          {
+//             T1(i2) += B0d(i1,0) * T0(i1,i2,e) + B0d(i1+1,0) * T0(i1+1,i2,e);
+//          }
+//          for (int i1 = dofs1d/2*2; i1 < dofs1d; ++i1)
+//          {
+//             T1(i2) += B0d(i1,0) * T0(i1,i2,e);
+//          }
+//       }
+//       // T2.zero();
+//       for (int k2 = 0; k2 < quads1d; ++k2)
+//       {
+//          T2(k2) = 0.0;
+//          for (int i2 = 0; i2 < dofs1d/2*2; i2+=2)
+//          {
+//             T2(k2) += B(i2,k2) * T1(i2) + B(i2+1,k2) * T1(i2+1);
+//          }
+//          for (int i2 = dofs1d/2*2; i2 < dofs1d; ++i2)
+//          {
+//             T2(k2) += B(i2,k2) * T1(i2);
+//          }
+//       }
+//       for (int k2 = 0; k2 < quads1d; ++k2)
+//       {
+//          T2(k2) = Dint(k2,e,face_id) * T2(k2);
+//       }
+//       // T3.zero();
+//       for (int j2 = 0; j2 < dofs1d; ++j2)
+//       {
+//          T3(j2) = 0.0;
+//          for (int k2 = 0; k2 < quads1d/2*2; k2+=2)
+//          {
+//             T3(j2) += B(j2,k2) * T2(k2) + B(j2,k2+1) * T2(k2+1);
+//          }
+//          for (int k2 = quads1d/2*2; k2 < quads1d; ++k2)
+//          {
+//             T3(j2) += B(j2,k2) * T2(k2);
+//          }
+//       }
+//       for (int j2 = 0; j2 < dofs1d; ++j2)
+//       {
+//          for (int j1 = 0; j1 < dofs1d/2*2; j1+=2)
+//          {
+//             R(j1,j2,e) += B0d(j1,0) * T3(j2);
+//             R(j1+1,j2,e) += B0d(j1+1,0) * T3(j2);
+//          }
+//          for (int j1 = dofs1d/2*2; j1 < dofs1d; ++j1)
+//          {
+//             R(j1,j2,e) += B0d(j1,0) * T3(j2);
+//          }
+//       }
+//    }
+// }
+
 template <typename Equation>
-void FaceMult<Equation,PAOp::BtDB>::MultIntY2D(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
-                        DTensor& D, int face_id, const Vector& U, Vector& V)
+void FaceMult<Equation,PAOp::BtDB>::MultIntY2D(int face_id, const Vector& U, Vector& V)
 {
    // nunber of elements
    const int nbe = fes->GetNE();
    // number of degrees of freedom in 1d (assumes that i1=i2=i3)
+   // Tensor2d& B = shape1d;
+   const Tensor2d& B = getB();
+   const Tensor2d& B0d = getB0d(face_id);
    const int dofs1d = B.Height();
    // number of quadrature points
    const int quads1d = B.Width();
@@ -516,7 +601,7 @@ void FaceMult<Equation,PAOp::BtDB>::MultIntY2D(FiniteElementSpace* fes, Tensor2d
       }
       for (int k1 = 0; k1 < quads1d; ++k1)
       {
-         T2(k1) = D(k1,e,face_id) * T2(k1);
+         T2(k1) = Dint(k1,e,face_id) * T2(k1);
       }
       // T3.zero();
       for (int j1 = 0; j1 < dofs1d; ++j1)
@@ -537,14 +622,45 @@ void FaceMult<Equation,PAOp::BtDB>::MultIntY2D(FiniteElementSpace* fes, Tensor2d
    }
 }
 
+// template <typename Equation>
+// void FaceMult<Equation,PAOp::BtDB>::MultIntY2D(int face_id, const Vector& U, Vector& V)
+// {
+//    // nunber of elements
+//    const int nbe = fes->GetNE();
+//    // number of degrees of freedom in 1d (assumes that i1=i2=i3)
+//    // Tensor2d& B = shape1d;
+//    const Tensor2d& B = getB();
+//    const Tensor2d& B0d = getB0d(face_id);
+//    const int dofs1d = B.Height();
+//    const int dofs = dofs1d*dofs1d;
+//    // number of quadrature points
+//    const int quads1d = B.Width();
+//    Tensor<1> T1(dofs1d),T2(quads1d),T3(dofs1d);
+//    Tensor<2> T4(dofs1d, dofs1d);
+//    for (int e = 0; e < nbe; ++e)
+//    {
+//       Tensor<2> T0( U.GetData() + e*dofs, dofs1d, dofs1d );
+//       Tensor<2> R( V.GetData()  + e*dofs, dofs1d, dofs1d );
+//       Tensor<1> D( &Dint(0,e,face_id), quads1d );
+//       contractY(B0d,T0,T1);
+//       contract(B,T1,T2);
+//       cWiseMult(D,T2,T2);
+//       contractT(B,T2,T3);
+//       contractTY(B0d,T3,R);
+//       // R+=T4;
+//    }
+// }
+
 template <typename Equation>
-void FaceMult<Equation,PAOp::BtDB>::MultExtX2D(FiniteElementSpace* fes, Tensor2d& B,
-                        Tensor2d& B0dTrial, Tensor2d& B0dTest, KData& kernel_data,
-                        DTensor& D, int face_id, const Vector& U, Vector& V)
+void FaceMult<Equation,PAOp::BtDB>::MultExtX2D(int face_id, const Vector& U, Vector& V)
 {
    // nunber of elements
    const int nbe = fes->GetNE();
    // number of degrees of freedom in 1d (assumes that i1=i2=i3)
+   // Tensor2d& B = shape1d;
+   const Tensor2d& B = getB();
+   const Tensor2d& B0dTrial = getB0dTrial(face_id);
+   const Tensor2d& B0dTest = getB0dTest(face_id);
    const int dofs1d = B.Height();
    // number of quadrature points
    const int quads1d = B.Width();
@@ -553,7 +669,7 @@ void FaceMult<Equation,PAOp::BtDB>::MultExtX2D(FiniteElementSpace* fes, Tensor2d
    Tensor<1,double> T1(dofs1d),T2(quads1d),T3(dofs1d);
    // Indirections
    Tensor3d T0p(dofs1d,dofs1d,nbe);
-   Permutation2d(face_id,nbe,dofs1d,kernel_data,T0,T0p);
+   Permutation2d(face_id,nbe,dofs1d,T0,T0p);
    //T1_i2 = B0d^i1 U_i1i2
    for (int e = 0; e < nbe; ++e)
    {
@@ -577,7 +693,7 @@ void FaceMult<Equation,PAOp::BtDB>::MultExtX2D(FiniteElementSpace* fes, Tensor2d
       }
       for (int k2 = 0; k2 < quads1d; ++k2)
       {
-         T2(k2) = D(k2,e,face_id) * T2(k2);
+         T2(k2) = Dext(k2,e,face_id) * T2(k2);
       }
       // T3.zero();
       for (int j2 = 0; j2 < dofs1d; ++j2)
@@ -599,13 +715,15 @@ void FaceMult<Equation,PAOp::BtDB>::MultExtX2D(FiniteElementSpace* fes, Tensor2d
 }
 
 template <typename Equation>
-void FaceMult<Equation,PAOp::BtDB>::MultExtY2D(FiniteElementSpace* fes, Tensor2d& B,
-                        Tensor2d& B0dTrial, Tensor2d& B0dTest, KData& kernel_data,
-                        DTensor& D, int face_id, const Vector& U, Vector& V)
+void FaceMult<Equation,PAOp::BtDB>::MultExtY2D(int face_id, const Vector& U, Vector& V)
 {
    // nunber of elements
    const int nbe = fes->GetNE();
    // number of degrees of freedom in 1d (assumes that i1=i2=i3)
+   // Tensor2d& B = shape1d;
+   const Tensor2d& B = getB();
+   const Tensor2d& B0dTrial = getB0dTrial(face_id);
+   const Tensor2d& B0dTest = getB0dTest(face_id);
    const int dofs1d = B.Height();
    // number of quadrature points
    const int quads1d = B.Width();
@@ -614,7 +732,7 @@ void FaceMult<Equation,PAOp::BtDB>::MultExtY2D(FiniteElementSpace* fes, Tensor2d
    Tensor<1,double> T1(dofs1d),T2(quads1d),T3(dofs1d);
    // Indirections
    DTensor T0p(dofs1d,dofs1d,nbe);
-   Permutation2d(face_id,nbe,dofs1d,kernel_data,T0,T0p);
+   Permutation2d(face_id,nbe,dofs1d,T0,T0p);
    //T1_i1 = B0d^i2 U_i1i2
    for (int e = 0; e < nbe; ++e)
    {
@@ -638,7 +756,7 @@ void FaceMult<Equation,PAOp::BtDB>::MultExtY2D(FiniteElementSpace* fes, Tensor2d
       }
       for (int k1 = 0; k1 < quads1d; ++k1)
       {
-         T2(k1) = D(k1,e,face_id) * T2(k1);
+         T2(k1) = Dext(k1,e,face_id) * T2(k1);
       }
       // T3.zero();
       for (int j1 = 0; j1 < dofs1d; ++j1)
@@ -660,12 +778,14 @@ void FaceMult<Equation,PAOp::BtDB>::MultExtY2D(FiniteElementSpace* fes, Tensor2d
 }
 
 template <typename Equation>
-void FaceMult<Equation,PAOp::BtDB>::MultIntX3D(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
-                        DTensor& D, int face_id, const Vector& U, Vector& V)
+void FaceMult<Equation,PAOp::BtDB>::MultIntX3D(int face_id, const Vector& U, Vector& V)
 {
    // nunber of elements
    const int nbe = fes->GetNE();
    // number of degrees of freedom in 1d (assumes that i1=i2=i3)
+   // Tensor2d& B = shape1d;
+   const Tensor2d& B = getB();
+   const Tensor2d& B0d = getB0d(face_id);
    const int dofs1d = B.Height();
    // number of quadrature points
    const int quads1d = B.Width();
@@ -712,7 +832,7 @@ void FaceMult<Equation,PAOp::BtDB>::MultIntX3D(FiniteElementSpace* fes, Tensor2d
       {
          for (int k2 = 0; k2 < quads1d; ++k2, ++k)
          {
-            T3(k2,k3) = D(k,e,face_id) * T3(k2,k3);
+            T3(k2,k3) = Dint(k,e,face_id) * T3(k2,k3);
          }
       }
       for (int j2 = 0; j2 < dofs1d; ++j2)
@@ -751,12 +871,14 @@ void FaceMult<Equation,PAOp::BtDB>::MultIntX3D(FiniteElementSpace* fes, Tensor2d
 }
 
 template <typename Equation>
-void FaceMult<Equation,PAOp::BtDB>::MultIntY3D(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
-                        DTensor& D, int face_id, const Vector& U, Vector& V)
+void FaceMult<Equation,PAOp::BtDB>::MultIntY3D(int face_id, const Vector& U, Vector& V)
 {
    // nunber of elements
    const int nbe = fes->GetNE();
    // number of degrees of freedom in 1d (assumes that i1=i2=i3)
+   // Tensor2d& B = shape1d;
+   const Tensor2d& B = getB();
+   const Tensor2d& B0d = getB0d(face_id);
    const int dofs1d = B.Height();
    // number of quadrature points
    const int quads1d = B.Width();
@@ -803,7 +925,7 @@ void FaceMult<Equation,PAOp::BtDB>::MultIntY3D(FiniteElementSpace* fes, Tensor2d
       {
          for (int k1 = 0; k1 < quads1d; ++k1, ++k)
          {
-            T3(k1,k3) = D(k,e,face_id) * T3(k1,k3);
+            T3(k1,k3) = Dint(k,e,face_id) * T3(k1,k3);
          }
       }
       for (int j1 = 0; j1 < dofs1d; ++j1)
@@ -842,12 +964,14 @@ void FaceMult<Equation,PAOp::BtDB>::MultIntY3D(FiniteElementSpace* fes, Tensor2d
 }
 
 template <typename Equation>
-void FaceMult<Equation,PAOp::BtDB>::MultIntZ3D(FiniteElementSpace* fes, Tensor2d& B, Tensor2d& B0d,
-                        DTensor& D, int face_id, const Vector& U, Vector& V)
+void FaceMult<Equation,PAOp::BtDB>::MultIntZ3D(int face_id, const Vector& U, Vector& V)
 {
    // nunber of elements
    const int nbe = fes->GetNE();
    // number of degrees of freedom in 1d (assumes that i1=i2=i3)
+   // Tensor2d& B = shape1d;
+   const Tensor2d& B = getB();
+   const Tensor2d& B0d = getB0d(face_id);
    const int dofs1d = B.Height();
    // number of quadrature points
    const int quads1d = B.Width();
@@ -894,7 +1018,7 @@ void FaceMult<Equation,PAOp::BtDB>::MultIntZ3D(FiniteElementSpace* fes, Tensor2d
       {
          for (int k1 = 0; k1 < quads1d; ++k1, ++k)
          {
-            T3(k1,k2) = D(k,e,face_id) * T3(k1,k2);
+            T3(k1,k2) = Dint(k,e,face_id) * T3(k1,k2);
          }
       }
       for (int j1 = 0; j1 < dofs1d; ++j1)
@@ -933,13 +1057,15 @@ void FaceMult<Equation,PAOp::BtDB>::MultIntZ3D(FiniteElementSpace* fes, Tensor2d
 }
 
 template <typename Equation>
-void FaceMult<Equation,PAOp::BtDB>::MultExtX3D(FiniteElementSpace* fes, Tensor2d& B,
-                        Tensor2d& B0dTrial, Tensor2d& B0dTest, KData& kernel_data,
-                        DTensor& D, int face_id, const Vector& U, Vector& V)
+void FaceMult<Equation,PAOp::BtDB>::MultExtX3D(int face_id, const Vector& U, Vector& V)
 {
    // nunber of elements
    const int nbe = fes->GetNE();
    // number of degrees of freedom in 1d (assumes that i1=i2=i3)
+   // Tensor2d& B = shape1d;
+   const Tensor2d& B = getB();
+   const Tensor2d& B0dTrial = getB0dTrial(face_id);
+   const Tensor2d& B0dTest = getB0dTest(face_id);
    const int dofs1d = B.Height();
    // number of quadrature points
    const int quads1d = B.Width();
@@ -947,7 +1073,7 @@ void FaceMult<Equation,PAOp::BtDB>::MultExtX3D(FiniteElementSpace* fes, Tensor2d
    Tensor<4> R(V.GetData(),dofs1d,dofs1d,dofs1d,nbe);
    Tensor<2> T1(dofs1d,dofs1d),T2(dofs1d,quads1d),T3(quads1d,quads1d),T4(quads1d,dofs1d),T5(dofs1d,dofs1d);
    Tensor<4> T0(dofs1d,dofs1d,dofs1d,nbe);
-   Permutation3d(face_id,nbe,dofs1d,kernel_data,T0p,T0);
+   Permutation3d(face_id,nbe,dofs1d,T0p,T0);
    for (int e = 0; e < nbe; ++e)
    {
       for (int i3 = 0; i3 < dofs1d; ++i3)
@@ -987,7 +1113,7 @@ void FaceMult<Equation,PAOp::BtDB>::MultExtX3D(FiniteElementSpace* fes, Tensor2d
       {
          for (int k2 = 0; k2 < quads1d; ++k2, ++k)
          {
-            T3(k2,k3) = D(k,e,face_id) * T3(k2,k3);
+            T3(k2,k3) = Dext(k,e,face_id) * T3(k2,k3);
          }
       }
       for (int j2 = 0; j2 < dofs1d; ++j2)
@@ -1026,13 +1152,15 @@ void FaceMult<Equation,PAOp::BtDB>::MultExtX3D(FiniteElementSpace* fes, Tensor2d
 }
 
 template <typename Equation>
-void FaceMult<Equation,PAOp::BtDB>::MultExtY3D(FiniteElementSpace* fes, Tensor2d& B,
-                        Tensor2d& B0dTrial, Tensor2d& B0dTest, KData& kernel_data,
-                        DTensor& D, int face_id, const Vector& U, Vector& V)
+void FaceMult<Equation,PAOp::BtDB>::MultExtY3D(int face_id, const Vector& U, Vector& V)
 {
    // nunber of elements
    const int nbe = fes->GetNE();
    // number of degrees of freedom in 1d (assumes that i1=i2=i3)
+   // Tensor2d& B = shape1d;
+   const Tensor2d& B = getB();
+   const Tensor2d& B0dTrial = getB0dTrial(face_id);
+   const Tensor2d& B0dTest = getB0dTest(face_id);
    const int dofs1d = B.Height();
    // number of quadrature points
    const int quads1d = B.Width();
@@ -1040,7 +1168,7 @@ void FaceMult<Equation,PAOp::BtDB>::MultExtY3D(FiniteElementSpace* fes, Tensor2d
    Tensor<4> R(V.GetData(),dofs1d,dofs1d,dofs1d,nbe);
    Tensor<2> T1(dofs1d,dofs1d),T2(dofs1d,quads1d),T3(quads1d,quads1d),T4(quads1d,dofs1d),T5(dofs1d,dofs1d);
    Tensor<4> T0(dofs1d,dofs1d,dofs1d,nbe);
-   Permutation3d(face_id,nbe,dofs1d,kernel_data,T0p,T0);
+   Permutation3d(face_id,nbe,dofs1d,T0p,T0);
    for (int e = 0; e < nbe; ++e)
    {
       for (int i3 = 0; i3 < dofs1d; ++i3)
@@ -1080,7 +1208,7 @@ void FaceMult<Equation,PAOp::BtDB>::MultExtY3D(FiniteElementSpace* fes, Tensor2d
       {
          for (int k1 = 0; k1 < quads1d; ++k1, ++k)
          {
-            T3(k1,k3) = D(k,e,face_id) * T3(k1,k3);
+            T3(k1,k3) = Dext(k,e,face_id) * T3(k1,k3);
          }
       }
       for (int j1 = 0; j1 < dofs1d; ++j1)
@@ -1119,13 +1247,15 @@ void FaceMult<Equation,PAOp::BtDB>::MultExtY3D(FiniteElementSpace* fes, Tensor2d
 }
 
 template <typename Equation>
-void FaceMult<Equation,PAOp::BtDB>::MultExtZ3D(FiniteElementSpace* fes, Tensor2d& B,
-                        Tensor2d& B0dTrial, Tensor2d& B0dTest, KData& kernel_data,
-                        DTensor& D, int face_id, const Vector& U, Vector& V)
+void FaceMult<Equation,PAOp::BtDB>::MultExtZ3D(int face_id, const Vector& U, Vector& V)
 {
    // nunber of elements
    const int nbe = fes->GetNE();
    // number of degrees of freedom in 1d (assumes that i1=i2=i3)
+   // Tensor2d& B = shape1d;
+   const Tensor2d& B = getB();
+   const Tensor2d& B0dTrial = getB0dTrial(face_id);
+   const Tensor2d& B0dTest = getB0dTest(face_id);
    const int dofs1d = B.Height();
    // number of quadrature points
    const int quads1d = B.Width();
@@ -1133,7 +1263,7 @@ void FaceMult<Equation,PAOp::BtDB>::MultExtZ3D(FiniteElementSpace* fes, Tensor2d
    Tensor<4> R(V.GetData(),dofs1d,dofs1d,dofs1d,nbe);
    Tensor<2> T1(dofs1d,dofs1d),T2(dofs1d,quads1d),T3(quads1d,quads1d),T4(quads1d,dofs1d),T5(dofs1d,dofs1d);
    Tensor<4> T0(dofs1d,dofs1d,dofs1d,nbe);
-   Permutation3d(face_id,nbe,dofs1d,kernel_data,T0p,T0);
+   Permutation3d(face_id,nbe,dofs1d,T0p,T0);
    for (int e = 0; e < nbe; ++e)
    {
       for (int i2 = 0; i2 < dofs1d; ++i2)
@@ -1173,7 +1303,7 @@ void FaceMult<Equation,PAOp::BtDB>::MultExtZ3D(FiniteElementSpace* fes, Tensor2d
       {
          for (int k1 = 0; k1 < quads1d; ++k1, ++k)
          {
-            T3(k1,k2) = D(k,e,face_id) * T3(k1,k2);
+            T3(k1,k2) = Dext(k,e,face_id) * T3(k1,k2);
          }
       }
       for (int j1 = 0; j1 < dofs1d; ++j1)

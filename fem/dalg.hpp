@@ -220,10 +220,31 @@ public:
          }
          // sizes[i] = t.size(i);
       }
-      const Scalar* data_t = t.getData();
       for (int i = 0; i < nb; ++i)
       {
-         data[i] = data_t[i];
+         data[i] = t[i];
+      }
+      return *this;
+   }
+
+   /**
+   *  Operator += for Tensors of the same size.
+   */
+   Tensor& operator+=(const Tensor& t)
+   {
+      const int nb = t.length();
+      for (int i = 0; i < Dim; ++i)
+      {
+         if(sizes[i] != t.size(i))
+         {
+            cout << sizes[i] << " | " << t.size(i) << endl;
+            mfem_error("The Tensors have different sizes.");
+         }
+         // sizes[i] = t.size(i);
+      }
+      for (int i = 0; i < nb; ++i)
+      {
+         data[i] += t[i];
       }
       return *this;
    }
@@ -571,6 +592,26 @@ inline void contract(const Tensor<2,Scalar>& B, const Tensor<1,Scalar>& U, Tenso
    }
 }
 
+// template <typename Scalar>
+// inline void contract(const Tensor<2,Scalar>& B, const Tensor<1,Scalar>& U, Tensor<1,Scalar>& V)
+// {
+//    MFEM_ASSERT(B.size(0)==U.size(0), "Size mismatch for contraction.");
+//    const int B_SIZE = 2;
+//    V.zero();
+//    for (int i = 0; i < B.size(0); ++i)
+//    {
+//       for (int j = 0; j < B.size(1)/B_SIZE*B_SIZE; j+=B_SIZE)
+//       {
+//          V(j)   += B(i,j  ) * U(i);
+//          V(j+1) += B(i,j+1) * U(i);
+//       }
+//       for (int j = B.size(1)/B_SIZE*B_SIZE; j < B.size(1); j++)
+//       {
+//          V(j) += B(i,j) * U(i);
+//       }
+//    }
+// }
+
 template <typename Scalar>
 inline void contractT(const Tensor<2,Scalar>& B, const Tensor<1,Scalar>& U, Tensor<1,Scalar>& V)
 {
@@ -585,15 +626,67 @@ inline void contractT(const Tensor<2,Scalar>& B, const Tensor<1,Scalar>& U, Tens
    }
 }
 
+// template <typename Scalar>
+// inline void contractT(const Tensor<2,Scalar>& B, const Tensor<1,Scalar>& U, Tensor<1,Scalar>& V)
+// {
+//    MFEM_ASSERT(B.size(0)==U.size(0), "Size mismatch for contraction.");
+//    const int B_SIZE = 2;
+//    V.zero();
+//    for (int i = 0; i < B.size(1); ++i)
+//    {
+//       for (int j = 0; j < B.size(0)/B_SIZE*B_SIZE; j+=B_SIZE)
+//       {
+//          V(j)   += B(j  ,i) * U(i);
+//          V(j+1) += B(j+1,i) * U(i);
+//       }
+//       for (int j = B.size(0)/B_SIZE*B_SIZE; j < B.size(0); j++)
+//       {
+//          V(j) += B(j,i) * U(i);
+//       }
+//    }
+// }
+
  ///////
 // 2d
+// template <typename Scalar>
+// inline void contract(const Tensor<2,Scalar>& B, const Tensor<2,Scalar>& U, Tensor<2,Scalar>& V)
+// {
+//    MFEM_ASSERT(B.size(0)==U.size(0), "Size mismatch for contraction.");
+//    for (int j1 = 0; j1 < B.size(1); ++j1)
+//    {
+//       for (int i2 = 0; i2 < U.size(1); ++i2)
+//       {
+//          V(i2,j1) = Scalar();
+//          for (int i1 = 0; i1 < B.size(0); ++i1)
+//          {
+//             V(i2,j1) += B(i1,j1) * U(i1,i2);
+//          }
+//       }
+//    }
+// }
+
 template <typename Scalar>
 inline void contract(const Tensor<2,Scalar>& B, const Tensor<2,Scalar>& U, Tensor<2,Scalar>& V)
 {
    MFEM_ASSERT(B.size(0)==U.size(0), "Size mismatch for contraction.");
+   const int B_SIZE = 2;
    for (int j1 = 0; j1 < B.size(1); ++j1)
    {
-      for (int i2 = 0; i2 < U.size(1); ++i2)
+      for (int i2 = 0; i2 < U.size(1)/B_SIZE*B_SIZE; i2+=B_SIZE)
+      {
+         V(i2  ,j1) = Scalar();
+         V(i2+1,j1) = Scalar();
+         // V(i2+2,j1) = Scalar();
+         // V(i2+3,j1) = Scalar();
+         for (int i1 = 0; i1 < B.size(0); ++i1)
+         {
+            V(i2  ,j1) += B(i1,j1) * U(i1,i2  );
+            V(i2+1,j1) += B(i1,j1) * U(i1,i2+1);
+            // V(i2+2,j1) += B(i1,j1) * U(i1,i2+2);
+            // V(i2+3,j1) += B(i1,j1) * U(i1,i2+3);
+         }
+      }
+      for (int i2 = U.size(1)/B_SIZE*B_SIZE; i2 < U.size(1); i2++)
       {
          V(i2,j1) = Scalar();
          for (int i1 = 0; i1 < B.size(0); ++i1)
@@ -604,16 +697,48 @@ inline void contract(const Tensor<2,Scalar>& B, const Tensor<2,Scalar>& U, Tenso
    }
 }
 
+// template <typename Scalar>
+// inline void contractT(const Tensor<2,Scalar>& B, const Tensor<2,Scalar>& U, Tensor<2,Scalar>& V)
+// {
+//    MFEM_ASSERT(B.size(1)==U.size(0), "Size mismatch for contraction.");
+//    for (int j1 = 0; j1 < B.size(0); ++j1)
+//    {
+//       for (int i2 = 0; i2 < U.size(1); ++i2)
+//       {
+//          V(i2,j1) = Scalar();
+//          for (int i1 = 0; i1 < B.size(1); ++i1)
+//          {
+//             V(i2,j1) += B(j1,i1) * U(i1,i2);
+//          }
+//       }
+//    }
+// }
+
 template <typename Scalar>
 inline void contractT(const Tensor<2,Scalar>& B, const Tensor<2,Scalar>& U, Tensor<2,Scalar>& V)
 {
-   MFEM_ASSERT(B.size(1)==U.size(0), "Size mismatch for contraction.");
-   for (int j1 = 0; j1 < B.size(0); ++j1)
+   MFEM_ASSERT(B.size(0)==U.size(0), "Size mismatch for contraction.");
+   const int B_SIZE = 2;
+   for (int j1 = 0; j1 < B.size(1); ++j1)
    {
-      for (int i2 = 0; i2 < U.size(1); ++i2)
+      for (int i2 = 0; i2 < U.size(1)/B_SIZE*B_SIZE; i2+=B_SIZE)
+      {
+         V(i2  ,j1) = Scalar();
+         V(i2+1,j1) = Scalar();
+         // V(i2+2,j1) = Scalar();
+         // V(i2+3,j1) = Scalar();
+         for (int i1 = 0; i1 < B.size(0); ++i1)
+         {
+            V(i2  ,j1) += B(j1,i1) * U(i1,i2  );
+            V(i2+1,j1) += B(j1,i1) * U(i1,i2+1);
+            // V(i2+2,j1) += B(j1,i1) * U(i1,i2+2);
+            // V(i2+3,j1) += B(j1,i1) * U(i1,i2+3);
+         }
+      }
+      for (int i2 = U.size(1)/B_SIZE*B_SIZE; i2 < U.size(1); i2++)
       {
          V(i2,j1) = Scalar();
-         for (int i1 = 0; i1 < B.size(1); ++i1)
+         for (int i1 = 0; i1 < B.size(0); ++i1)
          {
             V(i2,j1) += B(j1,i1) * U(i1,i2);
          }
@@ -623,40 +748,131 @@ inline void contractT(const Tensor<2,Scalar>& B, const Tensor<2,Scalar>& U, Tens
 
  ///////
 // 3d
+// template <typename Scalar>
+// inline void contract(const Tensor<2,Scalar>& B, const Tensor<3,Scalar>& U, Tensor<3,Scalar>& V)
+// {
+//    MFEM_ASSERT(B.size(0)==U.size(0), "Size mismatch for contraction.");
+//    for (int j1 = 0; j1 < B.size(1); ++j1)
+//    {
+//       for (int i3 = 0; i3 < U.size(2); ++i3)
+//       {
+//          for (int i2 = 0; i2 < U.size(1); ++i2)
+//          {
+//             V(i2,i3,j1) = Scalar();
+//             for (int i1 = 0; i1 < B.size(0); ++i1)
+//             {
+//                V(i2,i3,j1) += B(i1,j1) * U(i1,i2,i3);
+//             }
+//          }
+//       }
+//    }
+// }
+
+// template <typename Scalar>
+// inline void contract(const Tensor<2,Scalar>& B, const Tensor<3,Scalar>& U, Tensor<3,Scalar>& V)
+// {
+//    MFEM_ASSERT(B.size(0)==U.size(0), "Size mismatch for contraction.");
+//    const int B_SIZE = 2;
+//    for (int j1 = 0; j1 < B.size(1); ++j1)
+//    {
+//       for (int i3 = 0; i3 < U.size(2); ++i3)
+//       {
+//          for (int i2 = 0; i2 < U.size(1); i2++)
+//          {
+//             Scalar tmp[2] = {Scalar(),Scalar()};
+//             // Scalar tmp2 = Scalar();
+//             for (int i1 = 0; i1 < B.size(0)/B_SIZE*B_SIZE; i1+=B_SIZE)
+//             {
+//                tmp[0] += B(i1  ,j1) * U(i1  ,i2,i3);
+//                tmp[1] += B(i1+1,j1) * U(i1+1,i2,i3);
+//             }
+//             tmp[0] += tmp[1];
+//             for (int i1 = B.size(0)/B_SIZE*B_SIZE; i1 < B.size(0); i1++)
+//             {
+//                 tmp[0] += B(i1,j1) * U(i1,i2,i3);
+//             }
+//             V(i2,i3,j1) = tmp[0];
+//          }
+//       }
+//    }
+// }
+
 template <typename Scalar>
 inline void contract(const Tensor<2,Scalar>& B, const Tensor<3,Scalar>& U, Tensor<3,Scalar>& V)
 {
    MFEM_ASSERT(B.size(0)==U.size(0), "Size mismatch for contraction.");
+   const int B_SIZE = 2;
    for (int j1 = 0; j1 < B.size(1); ++j1)
    {
       for (int i3 = 0; i3 < U.size(2); ++i3)
       {
-         for (int i2 = 0; i2 < U.size(1); ++i2)
+         for (int i2 = 0; i2 < U.size(1)/B_SIZE*B_SIZE; i2+=B_SIZE)
          {
-            V(i2,i3,j1) = Scalar();
+            V(i2,i3,j1)   = Scalar();
+            V(i2+1,i3,j1) = Scalar();
             for (int i1 = 0; i1 < B.size(0); ++i1)
             {
-               V(i2,i3,j1) += B(i1,j1) * U(i1,i2,i3);
+               V(i2,i3,j1)   += B(i1,j1) * U(i1,i2,i3);
+               V(i2+1,i3,j1) += B(i1,j1) * U(i1,i2+1,i3);
+            }
+         }
+         for (int i2 = U.size(1)/B_SIZE*B_SIZE; i2 < U.size(1); i2++)
+         {
+            V(i2,i3,j1)   = Scalar();
+            for (int i1 = 0; i1 < B.size(0); ++i1)
+            {
+               V(i2,i3,j1)   += B(i1,j1) * U(i1,i2,i3);
             }
          }
       }
    }
 }
 
+// template <typename Scalar>
+// inline void contractT(const Tensor<2,Scalar>& B, const Tensor<3,Scalar>& U, Tensor<3,Scalar>& V)
+// {
+//    MFEM_ASSERT(B.size(1)==U.size(0), "Size mismatch for contraction.");
+//    for (int j1 = 0; j1 < B.size(0); ++j1)
+//    {
+//       for (int i3 = 0; i3 < U.size(2); ++i3)
+//       {
+//          for (int i2 = 0; i2 < U.size(1); ++i2)
+//          {
+//             V(i2,i3,j1) = Scalar();
+//             for (int i1 = 0; i1 < B.size(1); ++i1)
+//             {
+//                V(i2,i3,j1) += B(j1,i1) * U(i1,i2,i3);
+//             }
+//          }
+//       }
+//    }
+// }
+
 template <typename Scalar>
 inline void contractT(const Tensor<2,Scalar>& B, const Tensor<3,Scalar>& U, Tensor<3,Scalar>& V)
 {
-   MFEM_ASSERT(B.size(1)==U.size(0), "Size mismatch for contraction.");
-   for (int j1 = 0; j1 < B.size(0); ++j1)
+   MFEM_ASSERT(B.size(0)==U.size(0), "Size mismatch for contraction.");
+   const int B_SIZE = 2;
+   for (int j1 = 0; j1 < B.size(1); ++j1)
    {
       for (int i3 = 0; i3 < U.size(2); ++i3)
       {
-         for (int i2 = 0; i2 < U.size(1); ++i2)
+         for (int i2 = 0; i2 < U.size(1)/B_SIZE*B_SIZE; i2+=B_SIZE)
          {
-            V(i2,i3,j1) = Scalar();
-            for (int i1 = 0; i1 < B.size(1); ++i1)
+            V(i2,i3,j1)   = Scalar();
+            V(i2+1,i3,j1) = Scalar();
+            for (int i1 = 0; i1 < B.size(0); ++i1)
             {
-               V(i2,i3,j1) += B(j1,i1) * U(i1,i2,i3);
+               V(i2,i3,j1)   += B(j1,i1) * U(i1,i2,i3);
+               V(i2+1,i3,j1) += B(j1,i1) * U(i1,i2+1,i3);
+            }
+         }
+         for (int i2 = U.size(1)/B_SIZE*B_SIZE; i2 < U.size(1); i2++)
+         {
+            V(i2,i3,j1)   = Scalar();
+            for (int i1 = 0; i1 < B.size(0); ++i1)
+            {
+               V(i2,i3,j1)   += B(j1,i1) * U(i1,i2,i3);
             }
          }
       }
@@ -692,7 +908,7 @@ inline void contractTX(const Tensor<1,Scalar>& B, const Scalar& U, Tensor<1,Scal
  ///////
 // 2d
 template <typename Scalar>
-inline void contractX(const Tensor<1,Scalar>& B, const Tensor<2,Scalar>& U, Tensor<1,Scalar>& V)
+inline void contractX(const Tensor<2,Scalar>& B, const Tensor<2,Scalar>& U, Tensor<1,Scalar>& V)
 {
    MFEM_ASSERT(B.size(0)==U.size(0), "Size mismatch for contraction.");
    for (int i2 = 0; i2 < U.size(1); ++i2)
@@ -700,45 +916,63 @@ inline void contractX(const Tensor<1,Scalar>& B, const Tensor<2,Scalar>& U, Tens
       V(i2) = Scalar();
       for (int i1 = 0; i1 < B.size(0); ++i1)
       {
-         V(i2) += B(i1) * U(i1,i2);
+         V(i2) += B(i1,0) * U(i1,i2);
       }
    }
 }
 
 template <typename Scalar>
-inline void contractTX(const Tensor<1,Scalar>& B, const Tensor<1,Scalar>& U, Tensor<2,Scalar>& V)
+inline void contractTX(const Tensor<2,Scalar>& B, const Tensor<1,Scalar>& U, Tensor<2,Scalar>& V)
 {
    for (int i2 = 0; i2 < U.size(0); ++i2)
    {
       for (int i1 = 0; i1 < B.size(0); ++i1)
       {
-         V(i1,i2) = B(i1) * U(i2);
+         V(i1,i2) += B(i1,0) * U(i2);
       }
    }
 }
 
+// template <typename Scalar>
+// inline void contractY(const Tensor<2,Scalar>& B, const Tensor<2,Scalar>& U, Tensor<1,Scalar>& V)
+// {
+//    MFEM_ASSERT(B.size(0)==U.size(1), "Size mismatch for contraction.");
+//    V.zero();
+//    for (int i2 = 0; i2 < U.size(1); ++i2)
+//    {
+//       for (int i1 = 0; i1 < B.size(0); ++i1)
+//       {
+//          // V(i1) += B(i2,0) * U(i1,i2);
+//          V(i1) += B[i2] * U(i1,i2);
+//       }
+//    }
+// }
+
 template <typename Scalar>
-inline void contractY(const Tensor<1,Scalar>& B, const Tensor<2,Scalar>& U, Tensor<1,Scalar>& V)
+inline void contractY(const Tensor<2,Scalar>& B, const Tensor<2,Scalar>& U, Tensor<1,Scalar>& V)
 {
    MFEM_ASSERT(B.size(0)==U.size(1), "Size mismatch for contraction.");
-   V.zero();
-   for (int i2 = 0; i2 < U.size(1); ++i2)
+   
+   for (int i1 = 0; i1 < B.size(0); ++i1)
    {
-      for (int i1 = 0; i1 < B.size(0); ++i1)
+      V(i1) = Scalar();
+      for (int i2 = 0; i2 < U.size(1); ++i2)
       {
-         V(i1) += B(i2) * U(i1,i2);
+         // V(i1) += B(i2,0) * U(i1,i2);
+         V(i1) += B[i2] * U(i1,i2);
       }
    }
 }
 
 template <typename Scalar>
-inline void contractTY(const Tensor<1,Scalar>& B, const Tensor<1,Scalar>& U, Tensor<2,Scalar>& V)
+inline void contractTY(const Tensor<2,Scalar>& B, const Tensor<1,Scalar>& U, Tensor<2,Scalar>& V)
 {
    for (int i2 = 0; i2 < B.size(0); ++i2)
    {
       for (int i1 = 0; i1 < U.size(0); ++i1)
       {
-         V(i1,i2) = B(i2) * U(i1);
+         // V(i1,i2) += B(i2,0) * U(i1);
+         V(i1,i2) += B[i2] * U(i1);
       }
    }
 }
@@ -851,6 +1085,40 @@ inline void cWiseMult(const Tensor<N,Scalar>& D, const Tensor<N,Scalar>& U, Tens
    for (int i = 0; i < U.length(); ++i)
    {
       V[i] = D[i]*U[i];
+   }
+}
+
+template <typename Scalar>
+inline void cWiseMult(const Tensor<3,Scalar>& D,
+   const Tensor<2,Scalar>& BGT, const Tensor<2,Scalar>& GBT,
+   Tensor<2,Scalar>& DGT)
+{
+   for (int i2 = 0; i2 < D.size(2); ++i2)
+   {
+      for (int i1 = 0; i1 < D.size(1); ++i1)
+      {
+         DGT(i1,i2) = D(0,i1,i2) * BGT(i1,i2)
+                    + D(1,i1,i2) * GBT(i1,i2);
+      }
+   }
+}
+
+template <typename Scalar>
+inline void cWiseMult(const Tensor<4,Scalar>& D,
+   const Tensor<3,Scalar>& BBGT, const Tensor<3,Scalar>& BGBT, const Tensor<3,Scalar>& GBBT,
+   Tensor<3,Scalar>& DGT)
+{
+   for (int i3 = 0; i3 < D.size(3); ++i3)
+   {
+      for (int i2 = 0; i2 < D.size(2); ++i2)
+      {
+         for (int i1 = 0; i1 < D.size(1); ++i1)
+         {
+            DGT(i1,i2,i3) = D(0,i1,i2,i3) * BBGT(i1,i2,i3)
+                          + D(1,i1,i2,i3) * BGBT(i1,i2,i3)
+                          + D(2,i1,i2,i3) * GBBT(i1,i2,i3);
+         }
+      }
    }
 }
 
