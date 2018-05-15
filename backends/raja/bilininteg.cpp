@@ -23,7 +23,7 @@ namespace raja
 
 std::map<std::string, RajaDofQuadMaps> RajaDofQuadMaps::AllDofQuadMaps;
 
-RajaGeometry RajaGeometry::Get(::raja::device device,
+RajaGeometry RajaGeometry::Get(raja::device device,
                                FiniteElementSpace &ofespace,
                                const mfem::IntegrationRule &ir,
                                const int flags)
@@ -46,8 +46,8 @@ RajaGeometry RajaGeometry::Get(::raja::device device,
 
    MFEM_ASSERT(dims == mesh.SpaceDimension(), "");
 
-   geom.meshNodes.allocate(device,
-                           dims, numDofs, elements);
+   assert(false);
+   //geom.meshNodes.allocate(device,dims, numDofs, elements);
 
    const mfem::Table &e2dTable = fespace.GetElementToDofTable();
    const int *elementMap = e2dTable.GetJ();
@@ -63,59 +63,51 @@ RajaGeometry RajaGeometry::Get(::raja::device device,
          }
       }
    }
-   geom.meshNodes.keepInDevice();
+   //geom.meshNodes.keepInDevice();
 
    if (flags & Jacobian)
    {
-      geom.J.allocate(device,
-                      dims, dims, numQuad, elements);
+      assert(false);
+      //geom.J.allocate(device,dims, dims, numQuad, elements);
    }
    else
    {
-      geom.J.allocate(device, 1);
+      assert(false);/*
+                      geom.J.allocate(device, 1);*/
    }
    if (flags & JacobianInv)
    {
+      assert(false);/*
       geom.invJ.allocate(device,
-                         dims, dims, numQuad, elements);
+      dims, dims, numQuad, elements);*/
    }
    else
    {
-      geom.invJ.allocate(device, 1);
+       assert(false);/*
+                       geom.invJ.allocate(device, 1);*/
    }
    if (flags & JacobianDet)
    {
+      assert(false);/*
       geom.detJ.allocate(device,
-                         numQuad, elements);
+      numQuad, elements);*/
    }
    else
    {
-      geom.detJ.allocate(device, 1);
+      assert(false);/*
+                      geom.detJ.allocate(device, 1);*/
    }
 
-   geom.J.stopManaging();
-   geom.invJ.stopManaging();
-   geom.detJ.stopManaging();
+   //geom.J.stopManaging();
+   //geom.invJ.stopManaging();
+   //geom.detJ.stopManaging();
 
    RajaDofQuadMaps &maps = RajaDofQuadMaps::GetSimplexMaps(device, fe, ir);
-
-   ::raja::properties props;
-   props["defines/NUM_DOFS"] = numDofs;
-   props["defines/NUM_QUAD"] = numQuad;
-   props["defines/STORE_JACOBIAN"]     = (flags & Jacobian);
-   props["defines/STORE_JACOBIAN_INV"] = (flags & JacobianInv);
-   props["defines/STORE_JACOBIAN_DET"] = (flags & JacobianDet);
-
-   const std::string &okl_path = ofespace.RajaEngine().GetOklPath();
-   const std::string &okl_defines = ofespace.RajaEngine().GetOklDefines();
-   ::raja::kernel init = device.buildKernel(okl_path + "/geometry.okl",
-                                            stringWithDim("InitGeometryInfo",
-                                                          fe.GetDim()),
-                                            props + okl_defines);
+   assert(false);/*
    init(elements,
         maps.dofToQuadD,
         geom.meshNodes,
-        geom.J, geom.invJ, geom.detJ);
+        geom.J, geom.invJ, geom.detJ);*/
 
    return geom;
 }
@@ -139,7 +131,7 @@ RajaDofQuadMaps& RajaDofQuadMaps::operator = (const RajaDofQuadMaps &maps)
    return *this;
 }
 
-RajaDofQuadMaps& RajaDofQuadMaps::Get(::raja::device device,
+RajaDofQuadMaps& RajaDofQuadMaps::Get(raja::device device,
                                       const FiniteElementSpace &fespace,
                                       const mfem::IntegrationRule &ir,
                                       const bool transpose)
@@ -151,7 +143,7 @@ RajaDofQuadMaps& RajaDofQuadMaps::Get(::raja::device device,
               transpose);
 }
 
-RajaDofQuadMaps& RajaDofQuadMaps::Get(::raja::device device,
+RajaDofQuadMaps& RajaDofQuadMaps::Get(raja::device device,
                                       const mfem::FiniteElement &fe,
                                       const mfem::IntegrationRule &ir,
                                       const bool transpose)
@@ -159,7 +151,7 @@ RajaDofQuadMaps& RajaDofQuadMaps::Get(::raja::device device,
    return Get(device, fe, fe, ir, transpose);
 }
 
-RajaDofQuadMaps& RajaDofQuadMaps::Get(::raja::device device,
+RajaDofQuadMaps& RajaDofQuadMaps::Get(raja::device device,
                                       const FiniteElementSpace &trialFESpace,
                                       const FiniteElementSpace &testFESpace,
                                       const mfem::IntegrationRule &ir,
@@ -172,7 +164,7 @@ RajaDofQuadMaps& RajaDofQuadMaps::Get(::raja::device device,
               transpose);
 }
 
-RajaDofQuadMaps& RajaDofQuadMaps::Get(::raja::device device,
+RajaDofQuadMaps& RajaDofQuadMaps::Get(raja::device device,
                                       const mfem::FiniteElement &trialFE,
                                       const mfem::FiniteElement &testFE,
                                       const mfem::IntegrationRule &ir,
@@ -183,7 +175,7 @@ RajaDofQuadMaps& RajaDofQuadMaps::Get(::raja::device device,
            : GetSimplexMaps(device, trialFE, testFE, ir, transpose));
 }
 
-RajaDofQuadMaps& RajaDofQuadMaps::GetTensorMaps(::raja::device device,
+RajaDofQuadMaps& RajaDofQuadMaps::GetTensorMaps(raja::device device,
                                                 const mfem::FiniteElement &fe,
                                                 const mfem::IntegrationRule &ir,
                                                 const bool transpose)
@@ -193,7 +185,7 @@ RajaDofQuadMaps& RajaDofQuadMaps::GetTensorMaps(::raja::device device,
                         ir, transpose);
 }
 
-RajaDofQuadMaps& RajaDofQuadMaps::GetTensorMaps(::raja::device device,
+RajaDofQuadMaps& RajaDofQuadMaps::GetTensorMaps(raja::device device,
                                                 const mfem::FiniteElement &trialFE,
                                                 const mfem::FiniteElement &testFE,
                                                 const mfem::IntegrationRule &ir,
@@ -204,36 +196,12 @@ RajaDofQuadMaps& RajaDofQuadMaps::GetTensorMaps(::raja::device device,
    const mfem::TensorBasisElement &testTFE =
       dynamic_cast<const mfem::TensorBasisElement&>(testFE);
 
-   std::stringstream ss;
-   ss << ::raja::hash(device)
-      << "Tensor"
-      << "O1:"  << trialFE.GetOrder()
-      << "O2:"  << testFE.GetOrder()
-      << "BT1:" << trialTFE.GetBasisType()
-      << "BT2:" << testTFE.GetBasisType()
-      << "Q:"   << ir.GetNPoints();
-   std::string hash = ss.str();
-
-   // If we've already made the dof-quad maps, reuse them
-   RajaDofQuadMaps &maps = AllDofQuadMaps[hash];
-   if (!maps.hash.size())
-   {
-      // Create the dof-quad maps
-      maps.hash = hash;
-
-      RajaDofQuadMaps trialMaps = GetD2QTensorMaps(device, trialFE, ir);
-      RajaDofQuadMaps testMaps  = GetD2QTensorMaps(device, testFE , ir, true);
-
-      maps.dofToQuad   = trialMaps.dofToQuad;
-      maps.dofToQuadD  = trialMaps.dofToQuadD;
-      maps.quadToDof   = testMaps.dofToQuad;
-      maps.quadToDofD  = testMaps.dofToQuadD;
-      maps.quadWeights = testMaps.quadWeights;
-   }
+   assert(false);
+   static RajaDofQuadMaps maps;
    return maps;
 }
 
-RajaDofQuadMaps RajaDofQuadMaps::GetD2QTensorMaps(::raja::device device,
+RajaDofQuadMaps RajaDofQuadMaps::GetD2QTensorMaps(raja::device device,
                                                   const mfem::FiniteElement &fe,
                                                   const mfem::IntegrationRule &ir,
                                                   const bool transpose)
@@ -256,7 +224,7 @@ RajaDofQuadMaps RajaDofQuadMaps::GetD2QTensorMaps(::raja::device device,
    const int quadPointsND = ((dims == 1) ? quadPoints :
                              ((dims == 2) ? quadPoints2D : quadPoints3D));
 
-   RajaDofQuadMaps maps;
+   RajaDofQuadMaps maps;/*
    // Initialize the dof -> quad mapping
    maps.dofToQuad.allocate(device,
                            quadPoints, dofs);
@@ -316,11 +284,11 @@ RajaDofQuadMaps RajaDofQuadMaps::GetD2QTensorMaps(::raja::device device,
       maps.quadWeights.keepInDevice();
       delete [] quadWeights1DData;
    }
-
+                        */
    return maps;
 }
 
-RajaDofQuadMaps& RajaDofQuadMaps::GetSimplexMaps(::raja::device device,
+RajaDofQuadMaps& RajaDofQuadMaps::GetSimplexMaps(raja::device device,
                                                  const mfem::FiniteElement &fe,
                                                  const mfem::IntegrationRule &ir,
                                                  const bool transpose)
@@ -330,22 +298,15 @@ RajaDofQuadMaps& RajaDofQuadMaps::GetSimplexMaps(::raja::device device,
                          ir, transpose);
 }
 
-RajaDofQuadMaps& RajaDofQuadMaps::GetSimplexMaps(::raja::device device,
+RajaDofQuadMaps& RajaDofQuadMaps::GetSimplexMaps(raja::device device,
                                                  const mfem::FiniteElement &trialFE,
                                                  const mfem::FiniteElement &testFE,
                                                  const mfem::IntegrationRule &ir,
                                                  const bool transpose)
 {
-   std::stringstream ss;
-   ss << ::raja::hash(device)
-      << "Simplex"
-      << "O1:" << trialFE.GetOrder()
-      << "O2:" << testFE.GetOrder()
-      << "Q:"  << ir.GetNPoints();
-   std::string hash = ss.str();
-
-   // If we've already made the dof-quad maps, reuse them
-   RajaDofQuadMaps &maps = AllDofQuadMaps[hash];
+   assert(false);
+   static RajaDofQuadMaps maps;// = AllDofQuadMaps[hash];
+/*
    if (!maps.hash.size())
    {
       // Create the dof-quad maps
@@ -359,11 +320,11 @@ RajaDofQuadMaps& RajaDofQuadMaps::GetSimplexMaps(::raja::device device,
       maps.quadToDof   = testMaps.dofToQuad;
       maps.quadToDofD  = testMaps.dofToQuadD;
       maps.quadWeights = testMaps.quadWeights;
-   }
+   }*/
    return maps;
 }
 
-RajaDofQuadMaps RajaDofQuadMaps::GetD2QSimplexMaps(::raja::device device,
+RajaDofQuadMaps RajaDofQuadMaps::GetD2QSimplexMaps(raja::device device,
                                                    const mfem::FiniteElement &fe,
                                                    const mfem::IntegrationRule &ir,
                                                    const bool transpose)
@@ -374,18 +335,17 @@ RajaDofQuadMaps RajaDofQuadMaps::GetD2QSimplexMaps(::raja::device device,
 
    RajaDofQuadMaps maps;
    // Initialize the dof -> quad mapping
-   maps.dofToQuad.allocate(device,
-                           numQuad, numDofs);
-   maps.dofToQuadD.allocate(device,
-                            dims, numQuad, numDofs);
+   assert(false);
+   //maps.dofToQuad.allocate(device,numQuad, numDofs);
+   //maps.dofToQuadD.allocate(device,dims, numQuad, numDofs);
 
    if (transpose)
    {
-      maps.dofToQuad.reindex(1,0);
-      maps.dofToQuadD.reindex(1,0);
+      //maps.dofToQuad.reindex(1,0);
+      //maps.dofToQuadD.reindex(1,0);
       // Initialize quad weights only for transpose
-      maps.quadWeights.allocate(device,
-                                numQuad);
+      assert(false);/*
+                      maps.quadWeights.allocate(device,numQuad);*/
    }
 
    mfem::Vector d2q(numDofs);
@@ -411,11 +371,11 @@ RajaDofQuadMaps RajaDofQuadMaps::GetD2QSimplexMaps(::raja::device device,
       }
    }
 
-   maps.dofToQuad.keepInDevice();
-   maps.dofToQuadD.keepInDevice();
+   //maps.dofToQuad.keepInDevice();
+   //maps.dofToQuadD.keepInDevice();
    if (transpose)
    {
-      maps.quadWeights.keepInDevice();
+      //maps.quadWeights.keepInDevice();
    }
 
    return maps;
@@ -456,155 +416,53 @@ int closestMultipleWarpBatch(const int multiple, const int maxSize)
 }
 
 void SetProperties(FiniteElementSpace &fespace,
-                   const mfem::IntegrationRule &ir,
-                   ::raja::properties &props)
+                   const mfem::IntegrationRule &ir)
 {
-   SetProperties(fespace, fespace, ir, props);
+   SetProperties(fespace, fespace, ir);
 }
 
 void SetProperties(FiniteElementSpace &trialFESpace,
                    FiniteElementSpace &testFESpace,
-                   const mfem::IntegrationRule &ir,
-                   ::raja::properties &props)
+                   const mfem::IntegrationRule &ir)
 {
-   props["defines/TRIAL_VDIM"] = trialFESpace.GetVDim();
-   props["defines/TEST_VDIM"]  = testFESpace.GetVDim();
-   props["defines/NUM_DIM"]    = trialFESpace.GetDim();
+   //props["defines/TRIAL_VDIM"] = trialFESpace.GetVDim();
+   //props["defines/TEST_VDIM"]  = testFESpace.GetVDim();
+   //props["defines/NUM_DIM"]    = trialFESpace.GetDim();
 
    if (trialFESpace.hasTensorBasis())
    {
-      SetTensorProperties(trialFESpace, testFESpace, ir, props);
+      SetTensorProperties(trialFESpace, testFESpace, ir);
    }
    else
    {
-      SetSimplexProperties(trialFESpace, testFESpace, ir, props);
+      SetSimplexProperties(trialFESpace, testFESpace, ir);
    }
 }
 
 void SetTensorProperties(FiniteElementSpace &fespace,
-                         const mfem::IntegrationRule &ir,
-                         ::raja::properties &props)
+                         const mfem::IntegrationRule &ir)
 {
-   SetTensorProperties(fespace, fespace, ir, props);
+   SetTensorProperties(fespace, fespace, ir);
 }
 
 void SetTensorProperties(FiniteElementSpace &trialFESpace,
                          FiniteElementSpace &testFESpace,
-                         const mfem::IntegrationRule &ir,
-                         ::raja::properties &props)
+                         const mfem::IntegrationRule &ir)
 {
-   const mfem::FiniteElement &trialFE = *(trialFESpace.GetFE(0));
-   const mfem::FiniteElement &testFE = *(testFESpace.GetFE(0));
-
-   const mfem::IntegrationRule &ir1D =
-      mfem::IntRules.Get(mfem::Geometry::SEGMENT, ir.GetOrder());
-
-   const int trialDofs = trialFE.GetDof();
-   const int testDofs  = testFE.GetDof();
-   const int numQuad  = ir.GetNPoints();
-
-   const int trialDofs1D = trialFE.GetOrder() + 1;
-   const int testDofs1D  = testFE.GetOrder() + 1;
-   const int quad1D  = ir1D.GetNPoints();
-   int trialDofsND = trialDofs1D;
-   int testDofsND  = testDofs1D;
-   int quadND  = quad1D;
-
-   const bool trialByVDIM = (trialFESpace.GetOrdering() == mfem::Ordering::byVDIM);
-   const bool testByVDIM  = (testFESpace.GetOrdering()  == mfem::Ordering::byVDIM);
-
-   props["defines/ORDERING_BY_NODES"] = 0;
-   props["defines/ORDERING_BY_VDIM"]  = 1;
-   props["defines/VDIM_ORDERING"]  = (int) trialByVDIM;
-   props["defines/TRIAL_ORDERING"] = (int) trialByVDIM;
-   props["defines/TEST_ORDERING"]  = (int) testByVDIM;
-
-   props["defines/USING_TENSOR_OPS"] = 1;
-   props["defines/NUM_DOFS"]  = trialDofs;
-   props["defines/NUM_QUAD"]  = numQuad;
-
-   props["defines/TRIAL_DOFS"] = trialDofs;
-   props["defines/TEST_DOFS"]  = testDofs;
-
-   for (int d = 1; d <= 3; ++d)
-   {
-      if (d > 1)
-      {
-         trialDofsND *= trialDofs1D;
-         testDofsND  *= testDofs1D;
-         quadND *= quad1D;
-      }
-      props["defines"][stringWithDim("NUM_DOFS_", d)] = trialDofsND;
-      props["defines"][stringWithDim("NUM_QUAD_", d)] = quadND;
-
-      props["defines"][stringWithDim("TRIAL_DOFS_", d)] = trialDofsND;
-      props["defines"][stringWithDim("TEST_DOFS_" , d)] = testDofsND;
-   }
-
-   // 1D Defines
-   const int m1InnerBatch = 32 * ((quad1D + 31) / 32);
-   props["defines/A1_ELEMENT_BATCH"]       = closestMultipleWarpBatch(quad1D, 512);
-   props["defines/M1_OUTER_ELEMENT_BATCH"] = closestMultipleWarpBatch(m1InnerBatch,
-                                                                      512);
-   props["defines/M1_INNER_ELEMENT_BATCH"] = m1InnerBatch;
-
-   // 2D Defines
-   props["defines/A2_ELEMENT_BATCH"] = 1;
-   props["defines/A2_QUAD_BATCH"]    = 1;
-   props["defines/M2_ELEMENT_BATCH"] = 32;
-
-   // 3D Defines
-   const int a3QuadBatch = closestMultipleWarpBatch(quadND, 512);
-   props["defines/A3_ELEMENT_BATCH"] = closestMultipleWarpBatch(a3QuadBatch, 512);
-   props["defines/A3_QUAD_BATCH"]    = a3QuadBatch;
+   assert(false);
 }
 
 void SetSimplexProperties(FiniteElementSpace &fespace,
-                          const mfem::IntegrationRule &ir,
-                          ::raja::properties &props)
+                          const mfem::IntegrationRule &ir)
 {
-   SetSimplexProperties(fespace, fespace, ir, props);
+   SetSimplexProperties(fespace, fespace, ir);
 }
 
 void SetSimplexProperties(FiniteElementSpace &trialFESpace,
                           FiniteElementSpace &testFESpace,
-                          const mfem::IntegrationRule &ir,
-                          ::raja::properties &props)
+                          const mfem::IntegrationRule &ir)
 {
-   const mfem::FiniteElement &trialFE = *(trialFESpace.GetFE(0));
-   const mfem::FiniteElement &testFE = *(testFESpace.GetFE(0));
-
-   const int trialDofs = trialFE.GetDof();
-   const int testDofs  = testFE.GetDof();
-   const int numQuad = ir.GetNPoints();
-   const int maxDQ   = std::max(std::max(trialDofs, testDofs), numQuad);
-
-   const bool trialByVDIM = (trialFESpace.GetOrdering() == mfem::Ordering::byVDIM);
-   const bool testByVDIM  = (testFESpace.GetOrdering()  == mfem::Ordering::byVDIM);
-
-   props["defines/ORDERING_BY_NODES"] = 0;
-   props["defines/ORDERING_BY_VDIM"]  = 1;
-   props["defines/VDIM_ORDERING"]  = (int) trialByVDIM;
-   props["defines/TRIAL_ORDERING"] = (int) trialByVDIM;
-   props["defines/TEST_ORDERING"]  = (int) testByVDIM;
-
-   props["defines/USING_TENSOR_OPS"] = 0;
-   props["defines/NUM_DOFS"]  = trialDofs;
-   props["defines/NUM_QUAD"]  = numQuad;
-
-   props["defines/TRIAL_DOFS"] = trialDofs;
-   props["defines/TEST_DOFS"]  = testDofs;
-
-   // 2D Defines
-   const int quadBatch = closestWarpBatchTo(numQuad);
-   props["defines/A2_ELEMENT_BATCH"] = closestMultipleWarpBatch(quadBatch, 2048);
-   props["defines/A2_QUAD_BATCH"]    = quadBatch;
-   props["defines/M2_INNER_BATCH"]   = closestWarpBatchTo(maxDQ);
-
-   // 3D Defines
-   props["defines/A3_ELEMENT_BATCH"] = closestMultipleWarpBatch(quadBatch, 2048);
-   props["defines/A3_QUAD_BATCH"]    = quadBatch;
-   props["defines/M3_INNER_BATCH"]   = closestWarpBatchTo(maxDQ);
+ 
 }
 
 
@@ -672,7 +530,6 @@ RajaDofQuadMaps& RajaIntegrator::GetDofQuadMaps()
 }
 
 void RajaIntegrator::SetupIntegrator(RajaBilinearForm &bform_,
-                                     const ::raja::properties &props_,
                                      const RajaIntegratorType itype_)
 {
    MFEM_ASSERT(engine == &bform_.RajaEngine(), "");
@@ -687,7 +544,6 @@ void RajaIntegrator::SetupIntegrator(RajaBilinearForm &bform_,
 
    hasTensorBasis = otrialFESpace->hasTensorBasis();
 
-   props = props_;
    itype = itype_;
 
    if (ir == NULL)
@@ -699,8 +555,7 @@ void RajaIntegrator::SetupIntegrator(RajaBilinearForm &bform_,
 
    SetProperties(*otrialFESpace,
                  *otestFESpace,
-                 *ir,
-                 props);
+                 *ir);
 
    Setup();
 }
@@ -710,31 +565,7 @@ RajaGeometry RajaIntegrator::GetGeometry(const int flags)
    return RajaGeometry::Get(GetDevice(), *otrialFESpace, *ir, flags);
 }
 
-::raja::kernel RajaIntegrator::GetAssembleKernel(const ::raja::properties
-                                                 &props)
-{
-   const mfem::FiniteElement &fe = *(trialFESpace->GetFE(0));
-   return GetKernel(stringWithDim("Assemble", fe.GetDim()),
-                    props);
-}
 
-::raja::kernel RajaIntegrator::GetMultAddKernel(const ::raja::properties &props)
-{
-   const mfem::FiniteElement &fe = *(trialFESpace->GetFE(0));
-   return GetKernel(stringWithDim("MultAdd", fe.GetDim()),
-                    props);
-}
-
-::raja::kernel RajaIntegrator::GetKernel(const std::string &kernelName,
-                                         const ::raja::properties &props)
-{
-   const std::string filename = GetName() + ".okl";
-   const std::string &okl_path = RajaEngine().GetOklPath();
-   const std::string &okl_defines = RajaEngine().GetOklDefines();
-   return GetDevice().buildKernel(okl_path + "/" + filename,
-                                  kernelName,
-                                  props + okl_defines);
-}
 //====================================
 
 
@@ -765,48 +596,26 @@ void RajaDiffusionIntegrator::SetupIntegrationRule()
 
 void RajaDiffusionIntegrator::Setup()
 {
-   ::raja::properties kernelProps = props;
-
-   coeff.Setup(*this, kernelProps);
-
-   // Setup assemble and mult kernels
-   assembleKernel = GetAssembleKernel(kernelProps);
-   multKernel     = GetMultAddKernel(kernelProps);
+   assert(false);
 }
 
 void RajaDiffusionIntegrator::Assemble()
 {
-   const mfem::FiniteElement &fe = *(trialFESpace->GetFE(0));
-
-   const int dims = fe.GetDim();
-   const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
-
-   const int elements = trialFESpace->GetNE();
-   const int quadraturePoints = ir->GetNPoints();
-
-   RajaGeometry geom = GetGeometry(RajaGeometry::Jacobian);
-
-   assembledOperator.Resize<double>(symmDims * quadraturePoints * elements,
-                                    NULL);
-
-   assembleKernel((int) mesh->GetNE(),
-                  maps.quadWeights,
-                  geom.J,
-                  coeff,
-                  assembledOperator.RajaMem());
+   assert(false);
 }
 
 void RajaDiffusionIntegrator::MultAdd(Vector &x, Vector &y)
 {
+   assert(false);
    // Note: x and y are E-vectors
-
+/*
    multKernel((int) mesh->GetNE(),
               maps.dofToQuad,
               maps.dofToQuadD,
               maps.quadToDof,
               maps.quadToDofD,
               assembledOperator.RajaMem(),
-              x.RajaMem(), y.RajaMem());
+              x.RajaMem(), y.RajaMem());*/
 }
 //====================================
 
@@ -837,18 +646,20 @@ void RajaMassIntegrator::SetupIntegrationRule()
 
 void RajaMassIntegrator::Setup()
 {
+   assert(false);/*
    ::raja::properties kernelProps = props;
 
    coeff.Setup(*this, kernelProps);
 
    // Setup assemble and mult kernels
    assembleKernel = GetAssembleKernel(kernelProps);
-   multKernel     = GetMultAddKernel(kernelProps);
+   multKernel     = GetMultAddKernel(kernelProps);*/
 }
 
 void RajaMassIntegrator::Assemble()
 {
-   if (assembledOperator.Size())
+    assert(false);/*
+  if (assembledOperator.Size())
    {
       return;
    }
@@ -864,7 +675,7 @@ void RajaMassIntegrator::Assemble()
                   maps.quadWeights,
                   geom.J,
                   coeff,
-                  assembledOperator.RajaMem());
+                  assembledOperator.RajaMem());*/
 }
 
 void RajaMassIntegrator::SetOperator(Vector &v)
@@ -874,13 +685,14 @@ void RajaMassIntegrator::SetOperator(Vector &v)
 
 void RajaMassIntegrator::MultAdd(Vector &x, Vector &y)
 {
-   multKernel((int) mesh->GetNE(),
+     assert(false);/*
+ multKernel((int) mesh->GetNE(),
               maps.dofToQuad,
               maps.dofToQuadD,
               maps.quadToDof,
               maps.quadToDofD,
               assembledOperator.RajaMem(),
-              x.RajaMem(), y.RajaMem());
+              x.RajaMem(), y.RajaMem());*/
 }
 //====================================
 
@@ -913,18 +725,20 @@ void RajaVectorMassIntegrator::SetupIntegrationRule()
 
 void RajaVectorMassIntegrator::Setup()
 {
-   ::raja::properties kernelProps = props;
+     assert(false);/*
+ ::raja::properties kernelProps = props;
 
    coeff.Setup(*this, kernelProps);
 
    // Setup assemble and mult kernels
    assembleKernel = GetAssembleKernel(kernelProps);
-   multKernel     = GetMultAddKernel(kernelProps);
+   multKernel     = GetMultAddKernel(kernelProps);*/
 }
 
 void RajaVectorMassIntegrator::Assemble()
 {
-   const int elements = trialFESpace->GetNE();
+      assert(false);/*
+const int elements = trialFESpace->GetNE();
    const int quadraturePoints = ir->GetNPoints();
 
    RajaGeometry geom = GetGeometry(RajaGeometry::Jacobian);
@@ -935,18 +749,19 @@ void RajaVectorMassIntegrator::Assemble()
                   maps.quadWeights,
                   geom.J,
                   coeff,
-                  assembledOperator.RajaMem());
+                  assembledOperator.RajaMem());*/
 }
 
 void RajaVectorMassIntegrator::MultAdd(Vector &x, Vector &y)
 {
-   multKernel((int) mesh->GetNE(),
+     assert(false);/*
+ multKernel((int) mesh->GetNE(),
               maps.dofToQuad,
               maps.dofToQuadD,
               maps.quadToDof,
               maps.quadToDofD,
               assembledOperator.RajaMem(),
-              x.RajaMem(), y.RajaMem());
+              x.RajaMem(), y.RajaMem());*/
 }
 
 } // namespace mfem::raja

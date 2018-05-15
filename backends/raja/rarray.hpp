@@ -61,6 +61,7 @@ public:
       dbg("\033[32m[i");
       data=(T*) rmalloc<T>::operator new (sz);
    }
+   inline bool isInitialized(void)const{return true;}
    inline T& operator[](const size_t x) { return data[x]; }
    inline T& operator()(const size_t x, const size_t y)
    {
@@ -126,6 +127,7 @@ public:
       d[0]=1;
       if (transposed) { xsw(d[0],d[1]); }
    }
+   inline bool isInitialized(void)const{return true;}
    inline T& operator[](const size_t x) { return data[x]; }
    inline T& operator()(const size_t x, const size_t y)
    {

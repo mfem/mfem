@@ -49,11 +49,11 @@
 #endif
 
 // *****************************************************************************
-#include "../config/rdbg.hpp"
-#include "../config/rnvvp.hpp"
-#include "../config/rconfig.hpp"
-#include "../general/rmemcpy.hpp"
-#include "../general/rmalloc.hpp"
+#include "../rdbg.hpp"
+#include "../rnvvp.hpp"
+#include "../rconfig.hpp"
+#include "../rmemcpy.hpp"
+#include "../rmalloc.hpp"
 
 // *****************************************************************************
 #include "include/forall.hpp"

@@ -32,7 +32,10 @@ namespace raja
     static device device_singleton;
     return &device_singleton;
     }*/
-    
+   // **************************************************************************
+   device_v* device::getDHandle() const{
+      return dHandle;
+   }
   // ***************************************************************************
   bool device::hasSeparateMemorySpace(){
     return false;

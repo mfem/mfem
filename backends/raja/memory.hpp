@@ -33,14 +33,15 @@ namespace raja
    // ***************************************************************************
   class memory {
   private:
-    memory_v *mHandle;
+     device_v *dHandle;
+     memory_v *mHandle;
   public:
      std::size_t bytes;
     char *data;
   public:
     memory(const std::size_t =0, const void* =NULL);
      
-    device_v* getDHandle() const;
+     device_v* getDHandle() const;
      
     size_t size() const;
      raja::device getDevice();

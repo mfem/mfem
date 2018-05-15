@@ -23,9 +23,9 @@ namespace mfem
 namespace raja
 {
 
-std::map<std::string, ::raja::kernel> gridFunctionKernels;
+//std::map<std::string, ::raja::kernel> gridFunctionKernels;
 
-::raja::kernel GetGridFunctionKernel(::raja::device device,
+/*::raja::kernel GetGridFunctionKernel(::raja::device device,
                                      FiniteElementSpace &fespace,
                                      const mfem::IntegrationRule &ir)
 {
@@ -58,7 +58,7 @@ std::map<std::string, ::raja::kernel> gridFunctionKernels;
                                   props);
    }
    return kernel;
-}
+   }*/
 
 // RajaGridFunction::RajaGridFunction() :
 //    Vector(),
@@ -160,7 +160,7 @@ const mfem::FiniteElementSpace* RajaGridFunction::GetFESpace() const
 void RajaGridFunction::ToQuad(const IntegrationRule &ir, Vector &quadValues)
 {
    const Engine &engine = RajaLayout().RajaEngine();
-   ::raja::device device = engine.GetDevice();
+   raja::device device = engine.GetDevice();
 
    RajaDofQuadMaps &maps = RajaDofQuadMaps::Get(device, *ofespace, ir);
 
@@ -168,12 +168,13 @@ void RajaGridFunction::ToQuad(const IntegrationRule &ir, Vector &quadValues)
    const int numQuad  = ir.GetNPoints();
    quadValues.Resize<double>(*(new Layout(engine, numQuad * elements)), NULL);
 
-   ::raja::kernel g2qKernel = GetGridFunctionKernel(device, *ofespace, ir);
+   //::raja::kernel g2qKernel = GetGridFunctionKernel(device, *ofespace, ir);
+   assert(false);/*
    g2qKernel(elements,
              maps.dofToQuad,
              ofespace->GetLocalToGlobalMap(),
              this->RajaMem(),
-             quadValues.RajaMem());
+             quadValues.RajaMem());*/
 }
 
 void RajaGridFunction::Distribute(const Vector &v)

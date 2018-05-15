@@ -62,6 +62,7 @@ void RajaBilinearForm::Init(const Engine &e,
    const int trialLocalDofs = otrialFESpace->GetLocalDofs();
    const int testLocalDofs  = otestFESpace->GetLocalDofs();
 
+   assert(false);/*
    // First-touch policy when running with OpenMP
    if (GetDevice().mode() == "OpenMP")
    {
@@ -85,7 +86,7 @@ void RajaBilinearForm::Init(const Engine &e,
          initLocalKernel(elements, testLocalDofs,
                          localY.RajaMem().slice(testOffset, testEntries));
       }
-   }
+      }*/
 }
 
 int RajaBilinearForm::BaseGeom() const
@@ -159,36 +160,31 @@ const FiniteElement& RajaBilinearForm::GetTestFE(const int i) const
 }
 
 // Adds new Domain Integrator.
-void RajaBilinearForm::AddDomainIntegrator(RajaIntegrator *integrator,
-                                           const ::raja::properties &props)
+void RajaBilinearForm::AddDomainIntegrator(RajaIntegrator *integrator)
 {
-   AddIntegrator(integrator, props, DomainIntegrator);
+   AddIntegrator(integrator, DomainIntegrator);
 }
 
 // Adds new Boundary Integrator.
-void RajaBilinearForm::AddBoundaryIntegrator(RajaIntegrator *integrator,
-                                             const ::raja::properties &props)
+void RajaBilinearForm::AddBoundaryIntegrator(RajaIntegrator *integrator)
 {
-   AddIntegrator(integrator, props, BoundaryIntegrator);
+   AddIntegrator(integrator, BoundaryIntegrator);
 }
 
 // Adds new interior Face Integrator.
-void RajaBilinearForm::AddInteriorFaceIntegrator(RajaIntegrator *integrator,
-                                                 const ::raja::properties &props)
+void RajaBilinearForm::AddInteriorFaceIntegrator(RajaIntegrator *integrator)
 {
-   AddIntegrator(integrator, props, InteriorFaceIntegrator);
+   AddIntegrator(integrator, InteriorFaceIntegrator);
 }
 
 // Adds new boundary Face Integrator.
-void RajaBilinearForm::AddBoundaryFaceIntegrator(RajaIntegrator *integrator,
-                                                 const ::raja::properties &props)
+void RajaBilinearForm::AddBoundaryFaceIntegrator(RajaIntegrator *integrator)
 {
-   AddIntegrator(integrator, props, BoundaryFaceIntegrator);
+   AddIntegrator(integrator, BoundaryFaceIntegrator);
 }
 
 // Adds Integrator based on RajaIntegratorType
 void RajaBilinearForm::AddIntegrator(RajaIntegrator *integrator,
-                                     const ::raja::properties &props,
                                      const RajaIntegratorType itype)
 {
    if (integrator == NULL)
@@ -207,7 +203,7 @@ void RajaBilinearForm::AddIntegrator(RajaIntegrator *integrator,
       const std::string error = error_ss.str();
       mfem_error(error.c_str());
    }
-   integrator->SetupIntegrator(*this, baseKernelProps + props, itype);
+   integrator->SetupIntegrator(*this, itype);
    integrators.push_back(integrator);
 }
 
@@ -275,7 +271,7 @@ void RajaBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
                                int copy_interior)
 {
    const std::string okl_defines = RajaEngine().GetOklDefines();
-
+   assert(false);/*
    // FIXME: move these kernels to the Backend?
    static ::raja::kernelBuilder get_subvector_builder =
       ::raja::linalg::customLinearMethod(
@@ -304,7 +300,7 @@ void RajaBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
          "  VTYPE2: 'int',"
          "  TILESIZE: 128,"
          "}" + okl_defines);
-
+                 */
    const mfem::Operator *P = GetTrialProlongation();
    const mfem::Operator *R = GetTrialRestriction();
 
@@ -325,25 +321,26 @@ void RajaBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
 
    if (!copy_interior && constraintList.Size() > 0)
    {
+      assert(false);/*
       ::raja::kernel get_subvector_kernel =
             get_subvector_builder.build(GetDevice());
       ::raja::kernel set_subvector_kernel =
             set_subvector_builder.build(GetDevice());
-
+                    */
       const Array &constrList = constraintList.Get_PArray()->As<Array>();
       Vector subvec(constrList.RajaLayout());
-
+      assert(false);/*
       get_subvector_kernel(constraintList.Size(),
                            subvec.RajaMem(),
                            X.Get_PVector()->As<Vector>().RajaMem(),
-                           constrList.RajaMem());
+                           constrList.RajaMem());*/
 
       X.Fill(0.0);
-
+/*
       set_subvector_kernel(constraintList.Size(),
                            X.Get_PVector()->As<Vector>().RajaMem(),
                            subvec.RajaMem(),
-                           constrList.RajaMem());
+                           constrList.RajaMem());*/
    }
 
    RajaConstrainedOperator *cA = dynamic_cast<RajaConstrainedOperator*>(A);

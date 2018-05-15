@@ -29,6 +29,10 @@ namespace raja
     data = ::new char[bytes];
   }
    
+   raja::device_v* memory::getDHandle() const{
+      return dHandle;
+   }
+
    raja::device memory::getDevice(){
      return raja::device();
   }
