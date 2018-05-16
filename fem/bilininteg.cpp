@@ -2305,6 +2305,11 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
       ir = &IntRules.Get(Trans.FaceGeom, order);
    }
 
+   // ADDED //
+   face_is_reentrant_ = false;
+   int max_sign = -2, min_sign = 2;
+   // ADDED //
+
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
@@ -2336,6 +2341,20 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
       // note: if |alpha/2|==|beta| then |a|==|b|, i.e. (a==b) or (a==-b)
       //       and therefore two blocks in the element matrix contribution
       //       (from the current quadrature point) are 0
+
+      // ADDED //
+      int sign;
+      if (un > 0)
+      {
+          sign = 1;
+      } 
+      else
+      {
+          sign = -1;
+      }
+      max_sign = std::max(sign, max_sign);
+      min_sign = std::min(sign, min_sign);
+      // ADDED //
 
       if (rho)
       {
@@ -2392,8 +2411,15 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
       }
    }
 
-}
+   // ADDED //
+   if ( min_sign != max_sign)
+   {
+       face_is_reentrant_ = true;
+   }
+   // ADDED //
 
+
+}
 
 
 
@@ -2459,6 +2485,13 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
 
    // assemble: < {(Q \nabla u).n},[v] >      --> elmat
    //           kappa < {h^{-1} Q} [u],[v] >  --> jmat
+
+   // ADDED //
+   // Note: changed to optionally use Q and Q1 coefficients below
+   // assemble: < {(Q \nabla u).n},[v] >      --> elmat
+   //           kappa < {h^{-1} Q1} [u],[v] >  --> jmat
+   // ADDED //
+
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
@@ -2574,13 +2607,6 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
       {
          // only assemble the lower triangular part of jmat
          wq *= kappa;
-
-         // ADDED //
-         if (use_MIP)
-         {
-             wq = std::max(wq, 1/4.);
-         }
-         // ADDED //
 
          for (int i = 0; i < ndof1; i++)
          {

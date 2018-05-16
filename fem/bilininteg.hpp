@@ -2088,6 +2088,8 @@ public:
 
 };
 
+
+
 /** Integrator for the DG form:
 
     - < {(Q grad(u)).n}, [v] > + sigma < [u], {(Q grad(v)).n} >
@@ -2099,7 +2101,15 @@ public:
     DiffusionIntegrator):
     * sigma = -1, kappa >= kappa0: symm. interior penalty (IP or SIPG) method,
     * sigma = +1, kappa > 0: non-symmetric interior penalty (NIPG) method,
-    * sigma = +1, kappa = 0: the method of Baumann and Oden. */
+    * sigma = +1, kappa = 0: the method of Baumann and Oden. 
+*/
+
+// ADDED //
+//  NOTE: Modified to 
+//     - < {(Q1 grad(u)).n}, [v] > + sigma < [u], {(Q grad(v)).n} >
+//                + kappa < {h^{-1} Q} [u], [v] >
+// ADDED //
+
 class DGDiffusionIntegrator : public BilinearFormIntegrator
 {
 protected:
@@ -2108,14 +2118,16 @@ protected:
    double sigma, kappa;
 
    // ADDED //
-   // if  use_MIP = true, uses modified interior penalty method of Ragusa
-   // NOTE: also changed constructors to initialize use_MPI to false
+   // if  use_MIP = true, uses modified interior penalty method (different from Ragusa's)
+   // NOTE: also changed constructors to initialize use_MIP to false
+   Coefficient *Q1;
    bool use_MIP; 
    // ADDED //
 
    // these are not thread-safe!
    Vector shape1, shape2, dshape1dn, dshape2dn, nor, nh, ni;
    DenseMatrix jmat, dshape1, dshape2, mq, adjJ;
+
 
 public:
    DGDiffusionIntegrator(const double s, const double k)
@@ -2126,8 +2138,8 @@ public:
       : Q(NULL), MQ(&q), sigma(s), kappa(k) { use_MIP = false; }
 
    // ADDED //
-   void SetMIP(bool use_MIP0) 
-         { use_MIP = use_MIP0; }
+   void SetMIP(bool use_MIP0, Coefficient *Q0) 
+         { use_MIP = use_MIP0; Q1 = Q0; }
    // ADDED //
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
