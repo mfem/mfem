@@ -273,7 +273,7 @@ MFEM_TEST_MK   ?= @MFEM_DIR@/config/test.mk
 MFEM_CONFIG_EXTRA ?= $(if $(BUILD_DIR_DEF),MFEM_BUILD_DIR ?= @MFEM_DIR@,)
 
 MFEM_SOURCE_DIR = $(MFEM_REAL_DIR)
-MFEM_INSTALL_DIR = $(MFEM_PREFIX)
+MFEM_INSTALL_DIR = $(abspath $(MFEM_PREFIX))
 
 # If we have 'config' target, export variables used by config/makefile
 ifneq (,$(filter config,$(MAKECMDGOALS)))
@@ -365,6 +365,7 @@ doc:
 -include $(BLD)deps.mk
 
 $(BLD)libmfem.a: $(OBJECT_FILES)
+	[ ! -e $(@) ] || rm -f $(@)
 	$(AR) $(ARFLAGS) $(@) $(OBJECT_FILES)
 	$(RANLIB) $(@)
 
@@ -504,26 +505,6 @@ build-config:
 help:
 	$(info $(value MFEM_HELP_MSG))
 	@true
-
-config: $(if $(MFEM_USE_OCCA:YES=),,okl-hack)
-okl-hack:
-	set -- $$(find $(SRC)backends/occa -name \*.okl); \
-	for okl; do \
-	  printf "processing file: %s\n" $${okl}; \
-	  sed -e 's#@MFEM_OKL_PREFIX@#$(MFEM_REAL_DIR)/backends/occa#g' \
-	    $${okl} > $${okl}.new; \
-	  mv -f $${okl}.new $${okl}; \
-	done
-
-clean: $(if $(MFEM_USE_OCCA:YES=),,okl-unhack)
-okl-unhack:
-	set -- $$(find $(SRC)backends/occa -name \*.okl); \
-	for okl; do \
-	  printf "un-processing file: %s\n" $${okl}; \
-	  sed -e 's#$(MFEM_REAL_DIR)/backends/occa#@MFEM_OKL_PREFIX@#g' \
-	    $${okl} > $${okl}.new; \
-	  mv -f $${okl}.new $${okl}; \
-	done
 
 status info:
 	$(info MFEM_VERSION         = $(MFEM_VERSION) [v$(MFEM_VERSION_STRING)])

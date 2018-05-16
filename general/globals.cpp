@@ -23,6 +23,7 @@ OutStream out(std::cout);
 OutStream err(std::cerr);
 
 
+/// TODO: doxygen
 const char *GetSourcePath()
 {
    return MFEM_SOURCE_DIR;

@@ -159,10 +159,10 @@ void FiniteElementSpace::SetupKernels()
    ::occa::device device = GetDevice();
    const std::string &okl_path = OccaEngine().GetOklPath();
    const std::string &okl_defines = OccaEngine().GetOklDefines();
-   globalToLocalKernel = device.buildKernel(okl_path + "/fespace.okl",
+   globalToLocalKernel = device.buildKernel(okl_path + "fespace.okl",
                                             "GlobalToLocal",
                                             props + okl_defines);
-   localToGlobalKernel = device.buildKernel(okl_path + "/fespace.okl",
+   localToGlobalKernel = device.buildKernel(okl_path + "fespace.okl",
                                             "LocalToGlobal",
                                             props + okl_defines);
 }

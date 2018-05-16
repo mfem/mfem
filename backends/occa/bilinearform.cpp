@@ -67,7 +67,7 @@ void OccaBilinearForm::Init(const Engine &e,
       const std::string &okl_path = OccaEngine().GetOklPath();
       const std::string &okl_defines = OccaEngine().GetOklDefines();
       ::occa::kernel initLocalKernel =
-         GetDevice().buildKernel(okl_path + "/utils.okl",
+         GetDevice().buildKernel(okl_path + "utils.okl",
                                  "InitLocalVector",
                                  okl_defines);
 

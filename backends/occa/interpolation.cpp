@@ -73,11 +73,11 @@ RestrictionOperator::RestrictionOperator(Layout &in_layout, Layout &out_layout,
    ::occa::device device = in_layout.OccaEngine().GetDevice();
    const std::string &okl_path = in_layout.OccaEngine().GetOklPath();
    const std::string &okl_defines = in_layout.OccaEngine().GetOklDefines();
-   multOp = device.buildKernel(okl_path + "/mappings.okl",
+   multOp = device.buildKernel(okl_path + "mappings.okl",
                                "ExtractSubVector",
                                "defines: { TILESIZE: 256 }" + okl_defines);
 
-   multTransposeOp = device.buildKernel(okl_path + "/mappings.okl",
+   multTransposeOp = device.buildKernel(okl_path + "mappings.okl",
                                         "SetSubVector",
                                         "defines: { TILESIZE: 256 }" +
                                         okl_defines);

@@ -40,6 +40,7 @@ protected:
    // double *workers_weights;
    // int *workers_mem_res;
 
+   static bool fileOpenerRegistered;
    ::occa::device *device; // An array of OCCA devices
    std::string okl_path, okl_defines;
 

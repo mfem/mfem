@@ -108,7 +108,7 @@ OccaGeometry OccaGeometry::Get(::occa::device device,
 
    const std::string &okl_path = ofespace.OccaEngine().GetOklPath();
    const std::string &okl_defines = ofespace.OccaEngine().GetOklDefines();
-   ::occa::kernel init = device.buildKernel(okl_path + "/geometry.okl",
+   ::occa::kernel init = device.buildKernel(okl_path + "geometry.okl",
                                             stringWithDim("InitGeometryInfo",
                                                           fe.GetDim()),
                                             props + okl_defines);
@@ -731,7 +731,7 @@ OccaGeometry OccaIntegrator::GetGeometry(const int flags)
    const std::string filename = GetName() + ".okl";
    const std::string &okl_path = OccaEngine().GetOklPath();
    const std::string &okl_defines = OccaEngine().GetOklDefines();
-   return GetDevice().buildKernel(okl_path + "/" + filename,
+   return GetDevice().buildKernel(okl_path + filename,
                                   kernelName,
                                   props + okl_defines);
 }

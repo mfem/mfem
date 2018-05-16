@@ -40,7 +40,8 @@ PVector *Vector::DoVectorClone(bool copy_data, void **buffer,
 void Vector::DoDotProduct(const PVector &x, void *result,
                           int result_type_id) const
 {
-   // called only when Size() != 0
+   // Can be called when Size() == 0, e.g. when an MPI-parallel vector has a
+   // local size of 0.
 
    MFEM_ASSERT(result_type_id == ScalarId<double>::value, "");
    double *res = (double *)result;

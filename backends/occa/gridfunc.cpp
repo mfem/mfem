@@ -52,7 +52,7 @@ std::map<std::string, ::occa::kernel> gridFunctionKernels;
    if (!kernel.isInitialized())
    {
       const std::string &okl_path = fespace.OccaEngine().GetOklPath();
-      kernel = device.buildKernel(okl_path + "/gridfunc.okl",
+      kernel = device.buildKernel(okl_path + "gridfunc.okl",
                                   stringWithDim("GridFuncToQuad", dim),
                                   props);
    }
