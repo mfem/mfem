@@ -3136,8 +3136,11 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       emb.matrix = el % r_elem_factor;
    }
 
-   MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
-   MFEM_ASSERT(CheckBdrElementOrientation(false) == 0, "");
+   CheckElementOrientation(true);
+   CheckBdrElementOrientation(true);
+
+  // MFEM_ASSERT(CheckElementOrientation(false) == 0, "");
+  // MFEM_ASSERT(CheckBdrElementOrientation(false) == 0, "");
 }
 
 void Mesh::KnotInsert(Array<KnotVector *> &kv)

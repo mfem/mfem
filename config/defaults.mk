@@ -63,13 +63,13 @@ MFEM_USE_MEMALLOC    = YES
 MFEM_TIMER_TYPE      = $(if $(findstring Darwin,$(SYSNAME)),0,2)
 MFEM_USE_MESQUITE    = NO
 MFEM_USE_SUITESPARSE = YES
-MFEM_USE_SUPERLU     = NO
+MFEM_USE_SUPERLU     = YES
 MFEM_USE_GECKO       = NO
 MFEM_USE_GNUTLS      = NO
 MFEM_USE_NETCDF      = NO
 
 # HYPRE library configuration (needed to build the parallel version)
-HYPRE_DIR = @MFEM_DIR@/../buildAtratusParLcClang/TPL/hypre-2.11.1/src/hypre/
+HYPRE_DIR = @MFEM_DIR@/../hypre-AIR4/src/hypre
 HYPRE_OPT = -I$(HYPRE_DIR)/include
 HYPRE_LIB = -L$(HYPRE_DIR)/lib -lHYPRE
 
@@ -81,7 +81,7 @@ ifeq ($(MFEM_USE_SUPERLU),NO)
    MFEM_USE_METIS_5 ?= NO
 else
    # ParMETIS currently needed only with SuperLU
-   METIS_DIR ?= @MFEM_DIR@/../parmetis-4.0.3
+   METIS_DIR ?= @MFEM_DIR@/../parmetis-4.0.3/SRC
    METIS_OPT ?=
    METIS_LIB ?= -L$(METIS_DIR) -lparmetis -lmetis
    MFEM_USE_METIS_5 ?= YES
@@ -89,7 +89,8 @@ endif
 
 # LAPACK library configuration
 LAPACK_OPT =
-LAPACK_LIB = -llapack
+LAPACK_DIR ?= @MFEM_DIR@/../lapack-3.7.1
+LAPACK_LIB = -L./../lapack-3.7.1 -llapack -lblas -lgfortran
 ifeq ($(SYSNAME),Darwin)
    LAPACK_LIB = -framework Accelerate
 endif

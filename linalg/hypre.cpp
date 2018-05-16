@@ -147,6 +147,7 @@ HypreParMatrix *HypreParMatrixAdd(double alpha, const HypreParMatrix &A,
 }
 
 
+
 // ADDED //
 
 Vector * HypreParVector::GlobalVector() const
