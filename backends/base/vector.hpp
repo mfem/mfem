@@ -30,8 +30,10 @@ protected:
     */
    ///@{
 
-   /** @brief Create and return a new array of the same dynamic type as this
-       vector using the same layout and data type.
+   /** @brief Create and return a new vector of the same dynamic type as this
+       vector using the same layout with entries specified by @a buffer_type_id
+       which should be a constant defined by the `value` field in a
+       specialization of the template class mfem::ScalarId.
 
        Returns NULL if allocation fails.
 
@@ -96,15 +98,13 @@ public:
     */
    ///@{
 
-   /** @brief Create and return a new array (in @a *clone) of the same dynamic
-       type as this array using the same layout and ItemSize().
+   /** @brief Create and return a new vector of the same dynamic type as this
+       vector using the same layout with entries of type @a scalar_t.
 
-       Set @a *clone to NULL if allocation fails.
+       If @a copy_data is true, the contents of this vector is copied to the new
+       vector; otherwise, the new vector remains uninitialized.
 
-       If @a copy_data is true, the contents of this array is copied to the new
-       array; otherwise, the new array remains uninitialized.
-
-       If @a buffer is not NULL, return the array data of the newly created
+       If @a buffer is not NULL, return the vector data of the newly created
        object (in @a *buffer) , if it is stored as a contiguous array on the
        host; otherwise, set @a *buffer to NULL. */
    template <typename scalar_t>
@@ -114,12 +114,13 @@ public:
                                    ScalarId<scalar_t>::value));
    }
 
-   /// Compute and return the dot product of @a *this and @a x.
+   /** @brief Compute and return the dot product of @a *this and @a x. In the
+       case of an MPI-parallel vector, the result must be the MPI-global dot
+       product. */
    /** Both vectors must have the same dynamic type and layout. */
    template <typename scalar_t>
    scalar_t DotProduct(const PVector &x) const
    {
-      if (Size() == 0) { return scalar_t(0); }
       scalar_t result;
       DoDotProduct(x, &result, ScalarId<scalar_t>::value);
       return result;
