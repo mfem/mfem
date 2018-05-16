@@ -32,9 +32,9 @@
 #endif
 
 #if USING_TENSOR_OPS
-#  include "@MFEM_OKL_PREFIX@/defines/tensor.okl"
+#  include "mfem-occa://defines/tensor.okl"
 #else
-#  include "@MFEM_OKL_PREFIX@/defines/simplex.okl"
+#  include "mfem-occa://defines/simplex.okl"
 #endif
 
 #endif

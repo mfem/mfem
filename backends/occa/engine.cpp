@@ -13,6 +13,7 @@
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_OCCA)
 
 #include "backend.hpp"
+#include "url_handler.hpp"
 #include "bilinearform.hpp"
 #include "../../general/array.hpp"
 
@@ -21,6 +22,8 @@ namespace mfem
 
 namespace occa
 {
+
+bool Engine::fileOpenerRegistered = false;
 
 Engine::Engine(const std::string &engine_spec)
    : mfem::Engine(NULL, 1, 1)
@@ -39,12 +42,22 @@ Engine::Engine(const std::string &engine_spec)
    device = new ::occa::device[1];
    device[0].setup(props);
 
-   // FIXME
-   // okl_path = "occa[mfem]:";
-   std::string mfem_prefix = mfem::GetSourcePath();
-   okl_path = mfem_prefix + "/backends/occa";
-   // okl_path = mfem::GetInstallPath() + "lib/mfem/occa" ???
-   // okl_defines = "defines: { MFEM_OKL_PREFIX: '\"" + okl_path + "\"' }";
+   okl_path = "mfem-occa://";
+   // okl_defines = "...";
+   if (!fileOpenerRegistered)
+   {
+      // The directories from "MFEM_OCCA_OKL_PATH", if any, have the highest
+      // priority.
+      FileOpener *fo = new FileOpener("mfem-occa://", "MFEM_OCCA_OKL_PATH");
+      // Next in priority is the source path, if it exists.
+      std::string mfem_src_prefix = mfem::GetSourcePath();
+      fo->AddDir(mfem_src_prefix + "/backends/occa");
+      // And last in priority is the install path, if it exists.
+      std::string mfem_install_prefix = mfem::GetInstallPath();
+      fo->AddDir(mfem_install_prefix + "/lib/mfem/occa");
+      ::occa::io::fileOpener::add(fo);
+      fileOpenerRegistered = true;
+   }
 }
 
 DLayout Engine::MakeLayout(std::size_t size) const

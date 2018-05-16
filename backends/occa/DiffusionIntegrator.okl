@@ -41,26 +41,26 @@
   |   }
 */
 
-#include "@MFEM_OKL_PREFIX@/defines.okl"
+#include "mfem-occa://defines.okl"
 
 #if USING_TENSOR_OPS
 #  if OCCA_USING_CPU
-#    include "@MFEM_OKL_PREFIX@/diffusion/tensor/cpu.okl"
+#    include "mfem-occa://diffusion/tensor/cpu.okl"
 #  else
 #    if USING_LOW_ORDER
-#      include "@MFEM_OKL_PREFIX@/diffusion/tensor/gpuHighOrder.okl"
+#      include "mfem-occa://diffusion/tensor/gpuHighOrder.okl"
 #    else
-#      include "@MFEM_OKL_PREFIX@/diffusion/tensor/gpuHighOrder.okl"
+#      include "mfem-occa://diffusion/tensor/gpuHighOrder.okl"
 #    endif
 #  endif
 #else
 #  if OCCA_USING_CPU
-#    include "@MFEM_OKL_PREFIX@/diffusion/simplex/cpu.okl"
+#    include "mfem-occa://diffusion/simplex/cpu.okl"
 #  else
 #    if USING_LOW_ORDER
-#      include "@MFEM_OKL_PREFIX@/diffusion/simplex/gpuHighOrder.okl"
+#      include "mfem-occa://diffusion/simplex/gpuHighOrder.okl"
 #    else
-#      include "@MFEM_OKL_PREFIX@/diffusion/simplex/gpuHighOrder.okl"
+#      include "mfem-occa://diffusion/simplex/gpuHighOrder.okl"
 #    endif
 #  endif
 #endif

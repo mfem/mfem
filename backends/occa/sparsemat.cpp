@@ -115,11 +115,11 @@ void OccaSparseMatrix::SetupKernel(::occa::device device,
 
    const std::string &okl_path = InLayout_().OccaEngine().GetOklPath();
    const std::string &okl_defines = InLayout_().OccaEngine().GetOklDefines();
-   mapKernel = device.buildKernel(okl_path + "/mappings.okl",
+   mapKernel = device.buildKernel(okl_path + "mappings.okl",
                                   "MapSubVector",
                                   defaultProps + props + okl_defines);
 
-   multKernel = device.buildKernel(okl_path + "/sparse.okl",
+   multKernel = device.buildKernel(okl_path + "sparse.okl",
                                    hasOutIndices ? "MappedMult" : "Mult",
                                    defaultProps + props + okl_defines);
 }

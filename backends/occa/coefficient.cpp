@@ -304,7 +304,7 @@ void OccaCoefficient::Eval(Vector &quadCoeff)
    const std::string &okl_path = OccaEngine().GetOklPath();
    const std::string &okl_defines = OccaEngine().GetOklDefines();
    static ::occa::kernelBuilder builder =
-      ::occa::kernelBuilder::fromFile(okl_path + "/coefficient.okl",
+      ::occa::kernelBuilder::fromFile(okl_path + "coefficient.okl",
                                       "CoefficientEval", okl_defines);
 
    if (integ == NULL)
