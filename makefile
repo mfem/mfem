@@ -356,6 +356,7 @@ doc:
 -include $(BLD)deps.mk
 
 $(BLD)libmfem.a: $(OBJECT_FILES)
+	[ ! -e $(@) ] || rm -f $(@)
 	$(AR) $(ARFLAGS) $(@) $(OBJECT_FILES)
 	$(RANLIB) $(@)
 
