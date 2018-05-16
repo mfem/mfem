@@ -80,11 +80,28 @@ void NonlinearFormIntegrator::AssembleElementVector(
               " is not overloaded!");
 }
 
+void NonlinearFormIntegrator::AssembleElementVector2(
+   const FiniteElement &trial_fe, const FiniteElement &test_fe,
+   ElementTransformation &Tr, const Vector &elfun, Vector &elvect)
+{
+   mfem_error("NonlinearFormIntegrator::AssembleElementVector2"
+              " is not overloaded!");
+}
+
 void NonlinearFormIntegrator::AssembleFaceVector(
    const FiniteElement &el1, const FiniteElement &el2,
    FaceElementTransformations &Tr, const Vector &elfun, Vector &elvect)
 {
    mfem_error("NonlinearFormIntegrator::AssembleFaceVector"
+              " is not overloaded!");
+}
+
+void NonlinearFormIntegrator::AssembleFaceVector(
+   const FiniteElement &trial_fe1, const FiniteElement &trial_fe2,
+   const FiniteElement &test_fe1, const FiniteElement &test_fe2,
+   FaceElementTransformations &Tr, const Vector &elfun, Vector &elvect)
+{
+   mfem_error("NonlinearFormIntegrator::AssembleFaceVector (mixed)"
               " is not overloaded!");
 }
 
