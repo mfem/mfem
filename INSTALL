@@ -25,9 +25,12 @@ The library supports two build systems: one based on GNU make, and a second one
 based on CMake. Both build systems are described below. Some hints for building
 without GNU make or CMake can be found at the end of this file.
 
-In addition to the native build systems, MFEM packages are also available in
-the Homebrew/Science, https://github.com/Homebrew/homebrew-science, and the
-Spack, https://github.com/LLNL/spack, package managers.
+In addition to the native build systems, MFEM packages are also available in the
+following package managers:
+
+- Spack, https://github.com/LLNL/spack
+- OpenHPC, http://openhpc.community
+- Homebrew/Science, https://github.com/Homebrew/homebrew-science
 
 
 Quick start with GNU make
