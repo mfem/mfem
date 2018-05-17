@@ -794,6 +794,7 @@ extern "C" void
 dgesvd_(char *JOBU, char *JOBVT, int *M, int *N, double *A, int *LDA,
         double *S, double *U, int *LDU, double *VT, int *LDVT, double *WORK,
         int *LWORK, int *INFO);
+
 // ADDED //
 extern "C" void
 dgeevx_(char *BALANC, char *JOBVL, char *JOBVR, char *SENSE, 
@@ -1070,6 +1071,7 @@ void dgeevx_Eigensystem(DenseMatrix &a, Vector &evI, Vector &evR,
 // ADDED //
 
 
+
 void dsyev_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 {
 
@@ -1126,7 +1128,6 @@ void dsyev_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 #endif
 }
 
-
 void DenseMatrix::Eigensystem(Vector &ev, DenseMatrix *evect)
 {
 #ifdef MFEM_USE_LAPACK
@@ -1141,7 +1142,6 @@ void DenseMatrix::Eigensystem(Vector &ev, DenseMatrix *evect)
 
 #endif
 }
-
 
 // ADDED //
 
@@ -1159,7 +1159,6 @@ void DenseMatrix::EigensystemNonSymmetric(Vector &evI, Vector &evR, DenseMatrix 
 }
 
 // ADDED //
-
 
 void DenseMatrix::SingularValues(Vector &sv) const
 {
@@ -3039,19 +3038,8 @@ dgemm_(char *, char *, int *, int *, int *, double *, double *,
 
 void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
 {
-
-// REMOVE, UNCOMMENT BELOW //
-
-bool good;
-int xxx = 0;
-good = a.Height() == b.Height() && a.Width() == c.Width() &&
-                b.Width() == c.Height();
-if (not good) { xxx = 1; } 
-
-//   MFEM_ASSERT(a.Height() == b.Height() && a.Width() == c.Width() &&
-//               b.Width() == c.Height(), "incompatible dimensions");
-
-// REMOVE, UNCOMMENT BELOW //
+   MFEM_ASSERT(a.Height() == b.Height() && a.Width() == c.Width() &&
+               b.Width() == c.Height(), "incompatible dimensions");
 
 #ifdef MFEM_USE_LAPACK
    static char transa = 'N', transb = 'N';
@@ -4383,8 +4371,8 @@ void DenseMatrixSVD::Eval(DenseMatrix &M)
 #endif
 
 #ifdef MFEM_USE_LAPACK
-  // dgesvd_(&jobu, &jobvt, &m, &n, M.Data(), &m, sv.GetData(), NULL, &m,
-  //         NULL, &n, work, &lwork, &info);
+   //dgesvd_(&jobu, &jobvt, &m, &n, M.Data(), &m, sv.GetData(), NULL, &m,
+   //        NULL, &n, work, &lwork, &info);
 
    // ADDED //   
    dgesvd_(&jobu, &jobvt, &m, &n, M.GetData(), &m, sv.GetData(), U.GetData(), &m,

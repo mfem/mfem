@@ -148,7 +148,7 @@ public:
    // ADDED //
    virtual int TransformBack(const Vector &, IntegrationPoint &,
    	                         IntegrationPoint &);
-   // ADDED //  
+   // ADDED // 
 
    virtual ~IsoparametricTransformation() { }
 };

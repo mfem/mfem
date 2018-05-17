@@ -124,6 +124,7 @@ HypreParVector::HypreParVector(ParFiniteElementSpace *pfes)
    own_ParVector = 1;
 }
 
+
 // ADDED //
 
 void HypreParVector::WrapHypreParVector(hypre_ParVector *y)
@@ -149,6 +150,7 @@ HypreParMatrix *HypreParMatrixAdd(double alpha, const HypreParMatrix &A,
 
 
 // ADDED //
+
 
 Vector * HypreParVector::GlobalVector() const
 {
@@ -1488,6 +1490,29 @@ HypreParMatrix * ParAdd(HypreParMatrix *A, HypreParMatrix *B)
    return new HypreParMatrix(C);
 }
 
+HypreParMatrix * RAP(HypreParMatrix *A, HypreParMatrix *P)
+{
+   HYPRE_Int P_owns_its_col_starts =
+      hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*P));
+
+   hypre_ParCSRMatrix * rap;
+   hypre_BoomerAMGBuildCoarseOperator(*P,*A,*P,&rap);
+   hypre_ParCSRMatrixSetNumNonzeros(rap);
+   // hypre_MatvecCommPkgCreate(rap);
+
+   /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
+      from P (even if it does not own them)! */
+   hypre_ParCSRMatrixSetRowStartsOwner(rap,0);
+   hypre_ParCSRMatrixSetColStartsOwner(rap,0);
+
+   if (P_owns_its_col_starts)
+   {
+      hypre_ParCSRMatrixSetColStartsOwner(*P, 1);
+   }
+
+   return new HypreParMatrix(rap);
+}
+
 
 // ADDED //
 
@@ -1551,29 +1576,6 @@ int BlockInvScal(const HypreParMatrix *A, HypreParMatrix *C,
 
 // ADDED //
 
-
-HypreParMatrix * RAP(HypreParMatrix *A, HypreParMatrix *P)
-{
-   HYPRE_Int P_owns_its_col_starts =
-      hypre_ParCSRMatrixOwnsColStarts((hypre_ParCSRMatrix*)(*P));
-
-   hypre_ParCSRMatrix * rap;
-   hypre_BoomerAMGBuildCoarseOperator(*P,*A,*P,&rap);
-   hypre_ParCSRMatrixSetNumNonzeros(rap);
-   // hypre_MatvecCommPkgCreate(rap);
-
-   /* Warning: hypre_BoomerAMGBuildCoarseOperator steals the col_starts
-      from P (even if it does not own them)! */
-   hypre_ParCSRMatrixSetRowStartsOwner(rap,0);
-   hypre_ParCSRMatrixSetColStartsOwner(rap,0);
-
-   if (P_owns_its_col_starts)
-   {
-      hypre_ParCSRMatrixSetColStartsOwner(*P, 1);
-   }
-
-   return new HypreParMatrix(rap);
-}
 
 HypreParMatrix * RAP(HypreParMatrix * Rt, HypreParMatrix *A, HypreParMatrix *P)
 {
@@ -2701,85 +2703,6 @@ HypreBoomerAMG::~HypreBoomerAMG()
 
    HYPRE_BoomerAMGDestroy(amg_precond);
 }
-
-
-
-void HypreBoomerAMG::SetAIROptions(int distance,  std::string prerelax,
-                                   std::string postrelax, double strength_tol,
-                                   int interp_type, 
-                                   int relax_type,
-                                   double filterA_tol, 
-                                   int splitting)
-{
-   int ns_down = prerelax.length();
-   int ns_up = postrelax.length();
-   int ns_coarse = 1;
-   std::string F("F");
-   std::string C("C");
-   std::string A("A");
-
-   // Array to store relaxation scheme and pass to Hypre
-   int **grid_relax_points = (int **) malloc(4*sizeof(int *));
-   grid_relax_points[0] = NULL;
-   grid_relax_points[1] = (int *) malloc(sizeof(int)*ns_down);
-   grid_relax_points[2] = (int *) malloc(sizeof(int)*ns_up);
-   grid_relax_points[3] = (int *) malloc(sizeof(int));
-   grid_relax_points[3][0] = 0;
-
-   // set down relax scheme 
-   for(unsigned int i = 0; i<ns_down; i++) {
-      if (prerelax.compare(i,1,F) == 0) {
-         grid_relax_points[1][i] = -1;
-      }
-      else if (prerelax.compare(i,1,C) == 0) {
-         grid_relax_points[1][i] = 1;
-      }
-      else if (prerelax.compare(i,1,A) == 0) {
-         grid_relax_points[1][i] = 0;
-      }
-   }
-
-   // set up relax scheme 
-   for(unsigned int i = 0; i<ns_up; i++) {
-      if (postrelax.compare(i,1,F) == 0) {
-         grid_relax_points[2][i] = -1;
-      }
-      else if (postrelax.compare(i,1,C) == 0) {
-         grid_relax_points[2][i] = 1;
-      }
-      else if (postrelax.compare(i,1,A) == 0) {
-         grid_relax_points[2][i] = 0;
-      }
-   }
-
-   HYPRE_BoomerAMGSetRestriction(amg_precond, distance);
-
-   HYPRE_BoomerAMGSetGridRelaxPoints(amg_precond, grid_relax_points);
-
-   HYPRE_BoomerAMGSetInterpType(amg_precond, interp_type);
-   
-   HYPRE_BoomerAMGSetCoarsenType(amg_precond, splitting);
-   
-   /* does not support aggressive coarsening */
-   HYPRE_BoomerAMGSetAggNumLevels(amg_precond, 0);
-   
-   HYPRE_BoomerAMGSetStrongThreshold(amg_precond, strength_tol);
-
-   if (relax_type > -1)
-   {
-      HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type);
-   }
-
-   HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, ns_coarse, 3);
-   HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, ns_down,   1);
-   HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, ns_up,     2);
-
-   HYPRE_BoomerAMGSetADropTol(amg_precond, filterA_tol);
-   /* type = -1: drop based on row inf-norm */
-   HYPRE_BoomerAMGSetADropType(amg_precond, -1);
-}
-
-
 
 
 HypreAMS::HypreAMS(HypreParMatrix &A, ParFiniteElementSpace *edge_fespace)

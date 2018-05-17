@@ -205,8 +205,7 @@ public:
 
    /** @brief Set the exponent, p, of the discrete p-norm used to compute the
        total error from the local element errors. */
-   void SetTotalErrorNormP(double norm_p =
-                              std::numeric_limits<double>::infinity())
+   void SetTotalErrorNormP(double norm_p = infinity())
    { total_norm_p = norm_p; }
 
    /** @brief Set the total error stopping criterion: stop when

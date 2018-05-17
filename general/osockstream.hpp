@@ -23,8 +23,8 @@ namespace mfem
     writes in the stream, as in any other output stream and when the data
     is ready to be send function send() has to be executed. Otherwise (if
     not executed) the destructor will send the data.
-    This class is DEPRECATED. New code should use class socketstream (see
-    "socketstream.hpp"). */
+    @deprecated This class is DEPRECATED. New code should use class
+    @ref socketstream (see socketstream.hpp). */
 class osockstream : public socketstream
 {
 public:
