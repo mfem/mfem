@@ -424,8 +424,16 @@ void ParNCMesh::InitGroups(int num, Array<GroupId> &entity_group)
    }
 }
 
+struct MasterSlaveInfo
+{
+   int master; // master index if this is a slave
+   int slaves_begin, slaves_end; // slave list if this is a master
+   MasterSlaveInfo() : master(-1), slaves_begin(0), slaves_end(0) {}
+};
+
 void ParNCMesh::AddMasterSlaveConnections(int nitems, const NCList& list)
 {
+#if 1
    Array<int> masters(nitems);
    masters = -1;
 
@@ -454,6 +462,51 @@ void ParNCMesh::AddMasterSlaveConnections(int nitems, const NCList& list)
          index_rank.Append(Connection(master, rank));
       }
    }
+#else
+   // create an auxiliary structure for each edge/face
+   std::vector<MasterSlaveInfo> info(nitems);
+
+   for (unsigned i = 0; i < list.masters.size(); i++)
+   {
+      const Master &mf = list.masters[i];
+      info[mf.index].slaves_begin = mf.slaves_begin;
+      info[mf.index].slaves_end = mf.slaves_end;
+   }
+   for (unsigned i = 0; i < list.slaves.size(); i++)
+   {
+      const Slave& sf = list.slaves[i];
+      info[sf.index].master = sf.master;
+   }
+
+   // We need the processor groups of master edges/faces to contain the ranks of
+   // their slaves (so that master DOFs get sent to those who share the slaves).
+   // Conversely, we need the groups of slave edges/faces to contain the ranks
+   // of their masters. Both can be done by appending more items to the
+   // 'index_rank' array, before it is sorted and converted to the group table.
+   // (Note that a master/slave edge can be shared by more than one processor.)
+
+   int size = index_rank.Size();
+   for (int i = 0; i < size; i++)
+   {
+      int index = index_rank[i].from;
+      int rank = index_rank[i].to;
+
+      const MasterSlaveInfo &msi = info[index];
+      if (msi.master >= 0)
+      {
+         // 'index' is a slave, add its rank to the master's group
+         index_rank.Append(Connection(msi.master, rank));
+      }
+      else
+      {
+         for (int j = msi.slaves_begin; j < msi.slaves_end; j++)
+         {
+            // 'index' is a master, add its rank to the groups of the slaves
+            index_rank.Append(Connection(list.slaves[j].index, rank));
+         }
+      }
+   }
+#endif
 }
 
 void ParNCMesh::AugmentMasterGroups()
