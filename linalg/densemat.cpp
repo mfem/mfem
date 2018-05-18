@@ -557,7 +557,7 @@ DenseMatrix &DenseMatrix::operator=(const DenseMatrix &m)
    return *this;
 }
 
-DenseMatrix &DenseMatrix::operator+=(DenseMatrix &m)
+DenseMatrix &DenseMatrix::operator+=(const DenseMatrix &m)
 {
    MFEM_ASSERT(Height() == m.Height() && Width() == m.Width(),
                "incompatible matrix sizes.");
@@ -571,7 +571,7 @@ DenseMatrix &DenseMatrix::operator+=(DenseMatrix &m)
    return *this;
 }
 
-DenseMatrix &DenseMatrix::operator-=(DenseMatrix &m)
+DenseMatrix &DenseMatrix::operator-=(const DenseMatrix &m)
 {
    for (int j = 0; j < width; j++)
       for (int i = 0; i < height; i++)
@@ -752,7 +752,7 @@ double DenseMatrix::MaxMaxNorm() const
    return norm;
 }
 
-double DenseMatrix::FNorm() const
+void DenseMatrix::FNorm(double &scale_factor, double &scaled_fnorm2) const
 {
    int i, hw = Height() * Width();
    double max_norm = 0.0, entry, fnorm2;
@@ -768,7 +768,8 @@ double DenseMatrix::FNorm() const
 
    if (max_norm == 0.0)
    {
-      return 0.0;
+      scale_factor = scaled_fnorm2 = 0.0;
+      return;
    }
 
    fnorm2 = 0.0;
@@ -778,7 +779,8 @@ double DenseMatrix::FNorm() const
       fnorm2 += entry * entry;
    }
 
-   return max_norm * sqrt(fnorm2);
+   scale_factor = max_norm;
+   scaled_fnorm2 = fnorm2;
 }
 
 #ifdef MFEM_USE_LAPACK
@@ -2363,7 +2365,7 @@ void DenseMatrix::CalcEigenvalues(double *lambda, double *vec) const
    }
 }
 
-void DenseMatrix::GetRow(int r, Vector &row)
+void DenseMatrix::GetRow(int r, Vector &row) const
 {
    int m = Height();
    int n = Width();
@@ -2490,7 +2492,7 @@ void DenseMatrix::Transpose()
    }
 }
 
-void DenseMatrix::Transpose(DenseMatrix &A)
+void DenseMatrix::Transpose(const DenseMatrix &A)
 {
    SetSize(A.Width(),A.Height());
 
