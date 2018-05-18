@@ -10017,8 +10017,12 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int type)
    dshape_x.SetSize(p + 1);
    dshape_y.SetSize(p + 1);
    dshape_l.SetSize(p + 1);
+   ddshape_x.SetSize(p + 1);
+   ddshape_y.SetSize(p + 1);
+   ddshape_l.SetSize(p + 1);
    u.SetSize(Dof);
    du.SetSize(Dof, Dim);
+   ddu.SetSize(Dof, (Dim*(Dim+1))/2);
 #else
    Vector shape_x(p + 1), shape_y(p + 1), shape_l(p + 1);
 #endif
@@ -10120,6 +10124,36 @@ void H1_TriangleElement::CalcDShape(const IntegrationPoint &ip,
       }
 
    Ti.Mult(du, dshape);
+}
+
+void H1_TriangleElement::CalcHessian(const IntegrationPoint &ip,
+                                    DenseMatrix &ddshape) const
+{
+   const int p = Order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector   shape_x(p + 1),   shape_y(p + 1),   shape_l(p + 1);
+   Vector  dshape_x(p + 1),  dshape_y(p + 1),  dshape_l(p + 1);
+   Vector ddshape_x(p + 1), ddshape_y(p + 1), ddshape_l(p + 1);
+   DenseMatrix ddu(Dof, (Dim*(Dim+1))/2);
+#endif
+
+   poly1d.CalcBasis(p, ip.y, shape_y, dshape_y, ddshape_y);
+   poly1d.CalcBasis(p, ip.x, shape_x, dshape_x, ddshape_x);
+   poly1d.CalcBasis(p, 1. - ip.x - ip.y, shape_l, dshape_l, ddshape_l);
+
+   for (int o = 0, j = 0; j <= p; j++)
+      for (int i = 0; i + j <= p; i++)
+      {
+         int k = p - i - j;
+         // u_xx, u_xy, u_yy
+         ddu(o,0) = ((ddshape_x(i)* shape_l(k)) - 2*(dshape_x(i)*dshape_l(k)) + (shape_x(i)*ddshape_l(k)))*shape_y(j);
+         ddu(o,1) = (((shape_x(i)*ddshape_l(k)) - dshape_x(i)*dshape_l(k)) * shape_y(j)) + dshape_y(j) * ((dshape_x(i)* shape_l(k)) - (shape_x(i)*dshape_l(k)));
+         ddu(o,2) = ((ddshape_y(j)* shape_l(k)) - 2*(dshape_y(j)*dshape_l(k)) + (shape_y(j)*ddshape_l(k)))*shape_x(i);
+         o++;
+      }
+
+   Ti.Mult(ddu, ddshape);
 }
 
 
@@ -10611,33 +10645,38 @@ void H1_PentatopeElement::CalcHessian(const IntegrationPoint &ip,
                                        DenseMatrix &ddshape) const
 {
    const int p = Order;
-   mfem_error("H1_PentatopeElement::CalcHessian: not implemented");
 #ifdef MFEM_THREAD_SAFE
-   Vector   shape_x(p + 1),   shape_y(p + 1),   shape_z(p + 1),   shape_l(p + 1);
-   Vector  dshape_x(p + 1),  dshape_y(p + 1),  dshape_z(p + 1),  dshape_l(p + 1);
-   Vector ddshape_x(p + 1), ddshape_y(p + 1), ddshape_z(p + 1), ddshape_l(p + 1);
+   Vector   shape_x(p + 1),   shape_y(p + 1),   shape_z(p + 1),   shape_t(p+1),   shape_l(p + 1);
+   Vector  dshape_x(p + 1),  dshape_y(p + 1),  dshape_z(p + 1),  dshape_t(p+1),  dshape_l(p + 1);
+   Vector ddshape_x(p + 1), ddshape_y(p + 1), ddshape_z(p + 1), ddshape_t(p+1), ddshape_l(p + 1);
    DenseMatrix ddu(Dof, ((Dim+1)*Dim)/2);
 #endif
 
    poly1d.CalcBasis(p, ip.x, shape_x, dshape_x, ddshape_x);
    poly1d.CalcBasis(p, ip.y, shape_y, dshape_y, ddshape_y);
    poly1d.CalcBasis(p, ip.z, shape_z, dshape_z, ddshape_z);
-   poly1d.CalcBasis(p, 1. - ip.x - ip.y - ip.z, shape_l, dshape_l, ddshape_l);
+   poly1d.CalcBasis(p, ip.t, shape_t, dshape_t, ddshape_t);
+   poly1d.CalcBasis(p, 1. - ip.x - ip.y - ip.z - ip.t, shape_l, dshape_l, ddshape_l);
 
-   for (int o = 0, k = 0; k <= p; k++)
-      for (int j = 0; j + k <= p; j++)
-         for (int i = 0; i + j + k <= p; i++)
-         {
-             // u_xx, u_xy, u_xz, u_yy, u_yz, u_zz
-            int l = p - i - j - k;
-            ddu(o,0) = ((ddshape_x(i)*shape_l(l)) - 2.* (dshape_x(i)*dshape_l(l)) + (shape_x(i)*ddshape_l(l))) * shape_y(j) * shape_z(k);
-            ddu(o,1) = ((dshape_y(j)* ( (dshape_x(i)*shape_l(l)) - (shape_x(i)*dshape_l(l))) ) + (shape_y(j)* ((ddshape_l(l)*shape_x(i)) - (dshape_x(i) * dshape_l(l)) ) ) )* shape_z(k);
-            ddu(o,2) = ((dshape_z(k)* ( (dshape_x(i)*shape_l(l)) - (shape_x(i)*dshape_l(l))) ) + (shape_z(k)* ((ddshape_l(l)*shape_x(i)) - (dshape_x(i) * dshape_l(l)) ) ) )* shape_y(j);
-            ddu(o,3) = ((ddshape_y(j)*shape_l(l)) - 2.* (dshape_y(j)*dshape_l(l)) + (shape_y(j)*ddshape_l(l))) * shape_x(i) * shape_z(k);
-            ddu(o,4) = ((dshape_z(k)* ( (dshape_y(j)*shape_l(l)) - (shape_y(j)*dshape_l(l))) ) + (shape_z(k)* ((ddshape_l(l)*shape_y(j)) - (dshape_y(j) * dshape_l(l)) ) ) )* shape_x(i);
-            ddu(o,5) = ((ddshape_z(k)*shape_l(l)) - 2.* (dshape_z(k)*dshape_l(l)) + (shape_z(k)*ddshape_l(l))) * shape_y(j) * shape_x(i);
-            o++;
-         }
+   for (int o = 0, l = 0; l <= p; l++)
+      for (int k = 0; k + l <= p; k++)
+         for (int j = 0; j + k + l <= p; j++)
+            for (int i = 0; i + j + k + l <= p; i++)
+            {
+               // u_xx, u_xy, u_xz, u_xt, u_yy, u_yz, u_yt, u_zz, u_zt, u_tt
+               int m = p - i - j - k - l;
+               ddu(o,0) = ((ddshape_x(i)*shape_l(m)) - 2.* (dshape_x(i)*dshape_l(m)) + (shape_x(i)*ddshape_l(m))) * shape_y(j) * shape_z(k) * shape_t(l);
+               ddu(o,1) = ((dshape_y(j)* ( (dshape_x(i)*shape_l(m)) - (shape_x(i)*dshape_l(m))) ) + (shape_y(j)* ((ddshape_l(m)*shape_x(i)) - (dshape_x(i) * dshape_l(m)) ) ) )* shape_z(k) * shape_t(l);
+               ddu(o,2) = ((dshape_z(k)* ( (dshape_x(i)*shape_l(m)) - (shape_x(i)*dshape_l(m))) ) + (shape_z(k)* ((ddshape_l(m)*shape_x(i)) - (dshape_x(i) * dshape_l(m)) ) ) )* shape_y(j) * shape_t(l);
+               ddu(o,3) = ((dshape_t(l)* ( (dshape_x(i)*shape_l(m)) - (shape_x(i)*dshape_l(m))) ) + (shape_t(l)* ((ddshape_l(m)*shape_x(i)) - (dshape_x(i) * dshape_l(m)) ) ) )* shape_y(j) * shape_z(k);
+               ddu(o,4) = ((ddshape_y(j)*shape_l(m)) - 2.* (dshape_y(j)*dshape_l(m)) + (shape_y(j)*ddshape_l(m))) * shape_x(i) * shape_z(k) * shape_t(l);
+               ddu(o,5) = ((dshape_z(k)* ( (dshape_y(j)*shape_l(m)) - (shape_y(j)*dshape_l(m))) ) + (shape_z(k)* ((ddshape_l(m)*shape_y(j)) - (dshape_y(j) * dshape_l(m)) ) ) )* shape_x(i) * shape_t(l);
+               ddu(o,5) = ((dshape_t(l)* ( (dshape_y(j)*shape_l(m)) - (shape_y(j)*dshape_l(m))) ) + (shape_t(l)* ((ddshape_l(m)*shape_y(j)) - (dshape_y(j) * dshape_l(m)) ) ) )* shape_x(i) * shape_z(k);
+               ddu(o,7) = ((ddshape_z(k)*shape_l(m)) - 2.* (dshape_z(k)*dshape_l(m)) + (shape_z(k)*ddshape_l(m))) * shape_y(j) * shape_x(i) * shape_t(l);
+               ddu(o,8) = ((dshape_t(l)* ( (dshape_z(k)*shape_l(m)) - (shape_z(k)*dshape_l(m))) ) + (shape_t(l)* ((ddshape_l(m)*shape_z(k)) - (dshape_z(k) * dshape_l(m)) ) ) )* shape_x(i) * shape_y(j);
+               ddu(o,9) = ((ddshape_t(l)*shape_l(m)) - 2.* (dshape_t(l)*dshape_l(m)) + (shape_t(l)*ddshape_l(m))) * shape_y(j) * shape_x(i) * shape_z(k);
+               o++;
+            }
    Ti.Mult(ddu, ddshape);
 }
 

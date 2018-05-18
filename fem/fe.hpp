@@ -1797,8 +1797,8 @@ class H1_TriangleElement : public NodalFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
-   mutable Vector shape_x, shape_y, shape_l, dshape_x, dshape_y, dshape_l, u;
-   mutable DenseMatrix du;
+   mutable Vector shape_x, shape_y, shape_l, dshape_x, dshape_y, dshape_l, ddshape_x, ddshape_y, ddshape_l, u;
+   mutable DenseMatrix du, ddu;
 #endif
    DenseMatrixInverse Ti;
 
@@ -1807,6 +1807,7 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void CalcHessian(const IntegrationPoint &ip, DenseMatrix &ddshape) const;
 };
 
 

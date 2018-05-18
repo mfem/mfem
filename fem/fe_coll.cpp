@@ -1694,6 +1694,10 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int type)
    {
       QuadDofOrd[i] = NULL;
    }
+   for (int i = 0; i < 24; i++)
+   {
+      TetDofOrd[i] = NULL;
+   }
 
    H1_dof[Geometry::POINT] = 1;
    H1_Elements[Geometry::POINT] = new PointFiniteElement;
@@ -1807,6 +1811,47 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int type)
             {
                H1_Elements[Geometry::PENTATOPE] = new H1_PentatopeElement(p, pt_type);
             }
+            const int &TetDof = H1_dof[Geometry::TETRAHEDRON];
+            TetDofOrd[0] = new int[24*TetDof];
+            for (int i = 1; i < 24; i++)
+            {
+               TetDofOrd[i] = TetDofOrd[i-1] + TetDof;
+            }
+            for(int k=0;k<pm3;k++)
+            {
+               for(int j=0;j+k<pm3;j++)
+               {
+                  for(int i=0;i+j+k<pm3;i++)
+                  {
+                     int o=TetDof-((pm1-k)*(pm2-k)*(pm3-k))/6.+i+j*pm3;
+                     int l=pm4-k-j-i;
+                     TetDofOrd[0][o]  = o;
+                     TetDofOrd[1][o]  = TetDof-((pm1-k)*(pm2-k)*(pm3-k))/6+l+j*pm3;
+                     TetDofOrd[2][o]  = TetDof-((pm1-k)*(pm2-k)*(pm3-k))/6+l+i*pm3;
+                     TetDofOrd[3][o]  = TetDof-((pm1-k)*(pm2-k)*(pm3-k))/6+i+l*pm3;
+                     TetDofOrd[4][o]  = TetDof-((pm1-k)*(pm2-k)*(pm3-k))/6+j+l*pm3;
+                     TetDofOrd[5][o]  = TetDof-((pm1-k)*(pm2-k)*(pm3-k))/6+j+i*pm3;
+                     TetDofOrd[6][o]  = TetDof-((pm1-j)*(pm2-j)*(pm3-j))/6+k+i*pm3;
+                     TetDofOrd[7][o]  = TetDof-((pm1-j)*(pm2-j)*(pm3-j))/6+k+l*pm3;
+                     TetDofOrd[8][o]  = TetDof-((pm1-i)*(pm2-i)*(pm3-i))/6+k+l*pm3;
+                     TetDofOrd[9][o]  = TetDof-((pm1-l)*(pm2-l)*(pm3-l))/6+k+i*pm3;
+                     TetDofOrd[10][o] = TetDof-((pm1-l)*(pm2-l)*(pm3-l))/6+k+j*pm3;
+                     TetDofOrd[11][o] = TetDof-((pm1-i)*(pm2-i)*(pm3-i))/6+k+j*pm3;
+                     TetDofOrd[12][o] = TetDof-((pm1-i)*(pm2-i)*(pm3-i))/6+j+k*pm3;
+                     TetDofOrd[13][o] = TetDof-((pm1-l)*(pm2-l)*(pm3-l))/6+j+k*pm3;
+                     TetDofOrd[14][o] = TetDof-((pm1-l)*(pm2-l)*(pm3-l))/6+i+k*pm3;
+                     TetDofOrd[15][o] = TetDof-((pm1-i)*(pm2-i)*(pm3-i))/6+l+k*pm3;
+                     TetDofOrd[16][o] = TetDof-((pm1-j)*(pm2-j)*(pm3-j))/6+l+k*pm3;
+                     TetDofOrd[17][o] = TetDof-((pm1-j)*(pm2-j)*(pm3-j))/6+i+k*pm3;
+                     TetDofOrd[18][o] = TetDof-((pm1-j)*(pm2-j)*(pm3-j))/6+i+l*pm3;
+                     TetDofOrd[19][o] = TetDof-((pm1-j)*(pm2-j)*(pm3-j))/6+l+i*pm3;
+                     TetDofOrd[20][o] = TetDof-((pm1-i)*(pm2-i)*(pm3-i))/6+l+j*pm3;
+                     TetDofOrd[21][o] = TetDof-((pm1-l)*(pm2-l)*(pm3-l))/6+i+j*pm3;
+                     TetDofOrd[22][o] = TetDof-((pm1-l)*(pm2-l)*(pm3-l))/6+j+i*pm3;
+                     TetDofOrd[23][o] = TetDof-((pm1-i)*(pm2-i)*(pm3-i))/6+j+l*pm3;
+                  }
+               }
+            }
          }
       }
    }
@@ -1825,6 +1870,10 @@ int *H1_FECollection::DofOrderForOrientation(int GeomType, int Or) const
    else if (GeomType == Geometry::SQUARE)
    {
       return QuadDofOrd[Or%8];
+   }
+   else if (GeomType == Geometry::TETRAHEDRON)
+   {
+      return TetDofOrd[Or%24];
    }
    return NULL;
 }
