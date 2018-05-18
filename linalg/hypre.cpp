@@ -181,6 +181,7 @@ void HypreParVector::WrapHypreParVector(hypre_ParVector *y)
    own_ParVector = 0;
 }
 
+
 Vector * HypreParVector::GlobalVector() const
 {
    hypre_Vector *hv = hypre_ParVectorToVectorAll(*this);

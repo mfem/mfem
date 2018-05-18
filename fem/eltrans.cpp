@@ -536,8 +536,6 @@ void IntegrationPointTransformation::Transform (const IntegrationRule &ir1,
 
 
 ////////////////////////////// ADDED /////////////////////////////////
-
-
 int IsoparametricTransformation::TransformBack(const Vector &pt,
                                                IntegrationPoint &ip,
                                                IntegrationPoint &xip)
