@@ -342,6 +342,7 @@ void BackwardEulerSolver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
    k.SetSize(f->Width());
+   k = 0.0;
 }
 
 void BackwardEulerSolver::Step(Vector &x, double &t, double &dt)
