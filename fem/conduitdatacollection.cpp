@@ -304,32 +304,43 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
    if ( n_mesh_topo.has_child("boundary_topology") )
    {
       std::string bndry_topo_name = n_mesh_topo["boundary_topology"].as_string();
-      const Node &n_bndry_topo    = n_mesh["topologies"][bndry_topo_name];
-      std::string bndry_ele_shape = n_bndry_topo["elements/shape"].as_string();
 
-      bndry_geo = ShapeNameToGeomType(bndry_ele_shape);
-      int num_idxs_per_bndry_ele = Geometry::NumVerts[mesh_geo];
+      // In VisIt, we encountered a case were a mesh specified a boundary
+      // topology, but the boundary topology was omitted from the blueprint
+      // index, so it's data could not be obtained.
+      //
+      // This guard prevents an error in that case, allowing the mesh to be
+      // created without boundary info
 
-      const Node &n_bndry_conn = n_bndry_topo["elements/connectivity"];
-
-      // mfem requires ints, we could have int64s, etc convert if necessary
-      if ( n_bndry_conn.dtype().is_int() &&
-           n_bndry_conn.is_compact())
+      if (n_mesh["topologies"].has_child(bndry_topo_name))
       {
-         bndry_indices = n_bndry_conn.value();
-      }
-      else
-      {
-         Node &(n_bndry_conn_conv) =
-            n_conv["topologies"][bndry_topo_name]["elements/connectivity"];
-         n_bndry_conn.to_int_array(n_bndry_conn_conv);
-         bndry_indices = (n_bndry_conn_conv).value();
+         const Node &n_bndry_topo    = n_mesh["topologies"][bndry_topo_name];
+         std::string bndry_ele_shape = n_bndry_topo["elements/shape"].as_string();
 
-      }
+         bndry_geo = ShapeNameToGeomType(bndry_ele_shape);
+         int num_idxs_per_bndry_ele = Geometry::NumVerts[mesh_geo];
 
-      num_bndry_ele =
-         n_bndry_topo["elements/connectivity"].dtype().number_of_elements();
-      num_bndry_ele = num_bndry_ele / num_idxs_per_bndry_ele;
+         const Node &n_bndry_conn = n_bndry_topo["elements/connectivity"];
+
+         // mfem requires ints, we could have int64s, etc convert if necessary
+         if ( n_bndry_conn.dtype().is_int() &&
+              n_bndry_conn.is_compact())
+         {
+            bndry_indices = n_bndry_conn.value();
+         }
+         else
+         {
+            Node &(n_bndry_conn_conv) =
+               n_conv["topologies"][bndry_topo_name]["elements/connectivity"];
+            n_bndry_conn.to_int_array(n_bndry_conn_conv);
+            bndry_indices = (n_bndry_conn_conv).value();
+
+         }
+
+         num_bndry_ele =
+            n_bndry_topo["elements/connectivity"].dtype().number_of_elements();
+         num_bndry_ele = num_bndry_ele / num_idxs_per_bndry_ele;
+      }
    }
    else
    {
