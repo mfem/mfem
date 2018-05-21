@@ -245,7 +245,9 @@ int main(int argc, char *argv[])
       fform->Update(W_space, rhs_F, 0);
       fform->Assemble();
 
-      AVarf->AssembleSC(rhs_R, rhs_F, ess_bdr, lambda_variable, memA, memB);
+      GridFunction *R = new GridFunction(V_space, rhs_R);
+      GridFunction *F = new GridFunction(W_space, rhs_F);
+      AVarf->AssembleSC(*R, *F, ess_bdr, lambda_variable, memA, memB);
       AVarf->Finalize();
 
       SparseMatrix* SC = AVarf->SpMatSC();
@@ -284,7 +286,7 @@ int main(int argc, char *argv[])
 
       // 11. Reconstruction
       // Reconstruct the solution u and q from the facet solution lambda
-      AVarf->Reconstruct(&rhs_R, &rhs_F, lambda_variable, &q_variable, &u_variable);
+      AVarf->Reconstruct(R, F, lambda_variable, &q_variable, &u_variable);
 
       // 12. Compute the discretization error
       int order_quad = max(2, 2*order+2);

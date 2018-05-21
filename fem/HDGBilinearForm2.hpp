@@ -12,8 +12,9 @@
 #include "gridfunc.hpp"
 #include "linearform.hpp"
 #include "bilininteg.hpp"
-#include "staticcond.hpp"
-#include "hybridization.hpp"
+#ifdef MFEM_USE_MPI
+#include <mpi.h>
+#endif
 
 namespace mfem
 {
@@ -63,6 +64,8 @@ protected:
    /// FE spaces on which the form lives.
    FiniteElementSpace *fes1, *fes2;
 
+   bool parallel;
+
    /// Sparse matrix to be assembled
    SparseMatrix *mat;
 
@@ -73,7 +76,7 @@ protected:
    Table *el_to_face;
 
    /// List that separates the interior edges from the boundary edges
-   Array<int> Edge_to_Be;
+   Array<int> Edge_to_Be, Edge_to_SharedEdge;
 
    /// Vectors to store A and B, the corresponding offsets and the number
    /// of elements on which A and B will be stroed
@@ -92,6 +95,7 @@ protected:
    HDGBilinearForm2()
    {
       fes1 = NULL; fes2 = NULL;
+      parallel = false;
       mat = NULL;
       rhs_SC = NULL;
       el_to_face = NULL;
@@ -101,7 +105,9 @@ protected:
 
 public:
    /// Creates bilinear form associated with FE spaces *_fes1 and _fes2.
-   HDGBilinearForm2(FiniteElementSpace *_fes1, FiniteElementSpace *_fes2);
+   HDGBilinearForm2(FiniteElementSpace *_fes1, 
+                    FiniteElementSpace *_fes2,
+                    bool _parallel = false);
 
    // Arrays of the HDG domain integrators
    Array<BilinearFormIntegrator*> *GetHDG_DBFI() { return &hdg_dbfi; }
@@ -150,7 +156,7 @@ public:
    void Allocate(const double memA = 0.0, const double memB = 0.0);
 
    /// Assembles the Schur complement
-   void AssembleSC(const Vector rhs_F,
+   void AssembleSC(const GridFunction rhs_F,
                    const double memA = 0.0, const double memB = 0.0,
                    int skip_zeros = 1);
 
@@ -168,19 +174,35 @@ public:
                                DenseMatrix *D_local);
 
    /// Reconstructs u from the facet unknowns
-   void Reconstruct(const Vector *F, const Vector *ubar,
+   void Reconstruct(const GridFunction *F, const GridFunction *ubar,
                     GridFunction *u);
 
    /// Updates the spaces
    virtual void Update(FiniteElementSpace *nfes1 = NULL,
                        FiniteElementSpace *nfes2 = NULL);
 
-   /// Returns the FE space associated with the BilinearForm.
-   FiniteElementSpace *GetFES1() { return fes1; }
-   FiniteElementSpace *GetFES2() { return fes2; }
-
    /// Destroys bilinear form.
    virtual ~HDGBilinearForm2();
+   
+#ifdef MFEM_USE_MPI
+   /// Computes face based integrators for shared faces
+   void compute_face_integrals_shared(const int elem,
+                                      const int edge,
+                                      const int sf,
+                                      const bool is_reconstruction,
+                                      DenseMatrix *A_local,
+                                      DenseMatrix *B_local,
+                                      DenseMatrix *C_local,
+                                      DenseMatrix *D_local);
+
+   /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
+   HypreParMatrix *ParallelAssembleSC() { return ParallelAssembleSC(mat); }
+   /// Return the matrix m assembled on the true dofs, i.e. P^t A P
+   HypreParMatrix *ParallelAssembleSC(SparseMatrix *m);
+
+   /// Returns the rhs vector assembled on the true dofs
+   HypreParVector *ParallelVectorSC();
+#endif
 };
 
 

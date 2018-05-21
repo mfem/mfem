@@ -12,11 +12,15 @@ namespace mfem
 {
 
 HDGBilinearForm3::HDGBilinearForm3 (FiniteElementSpace * f1,
-                                    FiniteElementSpace * f2, FiniteElementSpace * f3)
+                                    FiniteElementSpace * f2, 
+                                    FiniteElementSpace * f3,
+                                    bool _parallel)
 {
    fes1 = f1;
    fes2 = f2;
    fes3 = f3;
+   
+   parallel = _parallel;
 
    mat = NULL;
    rhs_SC = NULL;
@@ -94,6 +98,10 @@ HDGBilinearForm3::~HDGBilinearForm3()
  * Moreover, Edge_to_be[i] = n means that the n-th boundary face is the i-th face.
  * el_to_faces has number of element rows and the i-th row contains the faces of the i-th element
  * elements_A and elements_B are the number of elements on which A and B are stored, respectively
+ * Create an array to identify the shared faces. The entry is -1
+ if the face is not shared, otherwise, is gives the number of
+ the face in the shared face list, so that GetSharedFaceTransformation
+ can be used.
  */
 void HDGBilinearForm3::Allocate(Array<int> &bdr_attr_is_ess, const double memA,
                                 const double memB)
@@ -120,6 +128,30 @@ void HDGBilinearForm3::Allocate(Array<int> &bdr_attr_is_ess, const double memA,
    }
 
    fes3->GetEssentialVDofs(bdr_attr_is_ess, ess_dofs);
+
+#ifdef MFEM_USE_MPI
+   // ExchangeFaceNbrData to be able to use shared faces
+   ParFiniteElementSpace* pfes1 = dynamic_cast<ParFiniteElementSpace*>(fes1);
+   if (parallel)
+       pfes1->ExchangeFaceNbrData();
+
+   int nedge = Edge_to_Be.Size();
+
+   Edge_to_SharedEdge.SetSize(nedge);
+   Edge_to_SharedEdge = -1;
+   if (parallel)
+   {
+       int nsharedfaces = pfes1 -> GetParMesh()->GetNSharedFaces();
+
+       // Create an array to identify the shared faces. The entry is one of the face is not shared,
+       // otherwise, is gives the number of the face in the shared face list, so that GetSharedFaceTransformation
+       // can be used.
+       for (int i = 0; i < nsharedfaces; i++)
+       {
+           Edge_to_SharedEdge[pfes1 -> GetParMesh()->GetSharedFace(i)] = i; 
+       }
+   }
+#endif
 
    elements_A = (int)(memA * fes1->GetNE());
    elements_B = (int)(memB * fes1->GetNE());
@@ -183,9 +215,9 @@ void HDGBilinearForm3::Allocate(Array<int> &bdr_attr_is_ess, const double memA,
 }
 
 // Compute the Schur complement element-wise.
-void HDGBilinearForm3::AssembleSC(const Vector rhs_R, const Vector rhs_F,
+void HDGBilinearForm3::AssembleSC(const GridFunction rhs_R, const GridFunction rhs_F,
                                   Array<int> &bdr_attr_is_ess,
-                                  Vector &sol,
+                                  GridFunction &sol,
                                   const double memA, const double memB,
                                   int skip_zeros)
 {
@@ -242,8 +274,20 @@ void HDGBilinearForm3::AssembleSC(const Vector rhs_R, const Vector rhs_F,
          D_local[edge1] = 0.0;
 
          // compute the face integrals
-         compute_face_integrals(i, fcs[edge1], Edge_to_Be[fcs[edge1]], false,
-                                &A_local, &B_local[edge1], &C_local[edge1], &D_local[edge1]);
+#ifdef MFEM_USE_MPI
+         if ( Edge_to_SharedEdge[fcs[edge1]] > -1 )
+         {
+            compute_face_integrals_shared(i, fcs[edge1], Edge_to_SharedEdge[fcs[edge1]], false,
+                            &A_local, &B_local[edge1], &C_local[edge1], &D_local[edge1]);
+         }
+         else
+         {
+#endif
+            compute_face_integrals(i, fcs[edge1], Edge_to_Be[fcs[edge1]], false,
+                            &A_local, &B_local[edge1], &C_local[edge1], &D_local[edge1]);
+#ifdef MFEM_USE_MPI
+         }
+#endif
       }
 
       // compute the negative inverse of A
@@ -435,7 +479,7 @@ void HDGBilinearForm3::compute_face_integrals(const int elem,
 // Eliminate boundary conditions
 void HDGBilinearForm3::Eliminate_BC(const Array<int> &vdofs_e1,
                                     const int ndof_u, const int ndof_q,
-                                    const Vector &sol,
+                                    const GridFunction &sol,
                                     Vector *rhs_RF, Vector *rhs_L,
                                     DenseMatrix *B_local, DenseMatrix *C_local, DenseMatrix *D_local)
 {
@@ -487,8 +531,8 @@ void HDGBilinearForm3::Eliminate_BC(const Array<int> &vdofs_e1,
 }
 
 // Reconstruct u and q from the facet solution
-void HDGBilinearForm3::Reconstruct(const Vector *R, const Vector *F,
-                                   Vector &sol,
+void HDGBilinearForm3::Reconstruct(const GridFunction *R, const GridFunction *F,
+                                   GridFunction &sol,
                                    GridFunction *q, GridFunction *u)
 {
    DenseMatrix A_local;
@@ -558,8 +602,24 @@ void HDGBilinearForm3::Reconstruct(const Vector *R, const Vector *F,
          // If B is not saved then compute the face integrals
          // otherwise load the matrices
          if (i>=elements_B)
-            compute_face_integrals(i, fcs[edge1], Edge_to_Be[fcs[edge1]], true,
-                                   &A_local, &B_local[edge1], &dummy_DM, &dummy_DM);
+#ifdef MFEM_USE_MPI
+            if ( Edge_to_SharedEdge[fcs[edge1]] > -1 )
+            {
+                compute_face_integrals_shared(i, fcs[edge1],
+                                              Edge_to_SharedEdge[fcs[edge1]], true,
+                                              &A_local, &B_local[edge1], 
+                                              &dummy_DM, &dummy_DM);
+            }
+            else
+            {
+#endif
+                compute_face_integrals(i, fcs[edge1], 
+                                       Edge_to_Be[fcs[edge1]], true,
+                                       &A_local, &B_local[edge1],
+                                       &dummy_DM, &dummy_DM);
+#ifdef MFEM_USE_MPI
+            }
+#endif
          else
          {
             for (int row = 0; row < ndof_e1; row++)
@@ -624,5 +684,101 @@ void HDGBilinearForm3::Reconstruct(const Vector *R, const Vector *F,
 
    }
 }
+
+
+#ifdef MFEM_USE_MPI
+void HDGBilinearForm3::compute_face_integrals_shared(const int elem, 
+                                                     const int edge,
+                                                     const int sf,
+                                                     const bool onlyB,
+                                                     DenseMatrix *A_local,
+                                                     DenseMatrix *B_local,
+                                                     DenseMatrix *C_local,
+                                                     DenseMatrix *D_local)
+{
+   ParFiniteElementSpace* pfes1 = dynamic_cast<ParFiniteElementSpace*>(fes1);
+   ParMesh *pmesh = pfes1 -> GetParMesh();
+   FaceElementTransformations *tr;
+
+   // Over a shared edge get the shared face transformation
+   tr = pmesh->GetSharedFaceTransformations(sf);
+
+   const FiniteElement &trial_face_fe = *fes3->GetFaceElement(edge);
+   const FiniteElement &testq_fe1 = *fes1->GetFE(tr->Elem1No);
+   const FiniteElement &testq_fe2 = *fes1->GetFE(tr->Elem2No);
+   const FiniteElement &testu_fe1 = *fes2->GetFE(tr->Elem1No);
+   const FiniteElement &testu_fe2 = *fes2->GetFE(tr->Elem2No);
+
+   // Compute the integrals using element 1
+   // For the serial there was an if condition to check if element 1 or 2
+   // is needed. Over a shared face every processor uses the element it owns
+   // as element 1
+   hdg_bbfi[0]->AssembleFaceMatrixOneElement2and1FES(testq_fe1, testq_fe2,
+                                                     testu_fe1, testu_fe2, 
+                                                     trial_face_fe,
+                                                     *tr, 1, onlyB, 
+                                                     elemmat1, elemmat2, 
+                                                     elemmat3, elemmat4);
+
+   // Add the face matrices to the local matrices
+   A_local->Add(1.0, elemmat1);
+   B_local->Add(1.0, elemmat2);
+   // If it is not reconstruction C and D will be needed
+   if (!onlyB)
+   {
+      C_local->Add(1.0, elemmat3);
+      D_local->Add(1.0, elemmat4);
+   }
+}
+
+// Create the parallel matrix from the local sparce matrices
+HypreParMatrix *HDGBilinearForm3::ParallelAssembleSC(SparseMatrix *m)
+{
+   if (m == NULL) { return NULL; }
+
+   MFEM_VERIFY(m->Finalized(), "local matrix needs to be finalized for "
+               "ParallelAssemble3");
+
+   ParFiniteElementSpace* pfes3 = dynamic_cast<ParFiniteElementSpace*>(fes3);
+   int lvsize = pfes3->GetVSize();
+   const HYPRE_Int *face_nbr_glob_ldof = pfes3->GetFaceNbrGlobalDofMap();
+   HYPRE_Int ldof_offset = pfes3->GetMyDofOffset();
+
+   Array<HYPRE_Int> glob_J(m->NumNonZeroElems());
+   int *J = m->GetJ();
+   for (int i = 0; i < glob_J.Size(); i++)
+   {
+        if (J[i] < lvsize)
+        {
+           glob_J[i] = J[i] + ldof_offset;
+        }
+        else
+        {
+           glob_J[i] = face_nbr_glob_ldof[J[i] - lvsize];
+        }
+   }
+
+   HypreParMatrix *A = new HypreParMatrix(pfes3->GetComm(), lvsize, pfes3->GlobalVSize(),
+                                          pfes3->GlobalVSize(), m->GetI(), glob_J,
+                                          m->GetData(), pfes3->GetDofOffsets(),
+                                          pfes3->GetDofOffsets());
+
+   HypreParMatrix *rap = RAP(A, pfes3->Dof_TrueDof_Matrix());
+
+   delete A;
+
+   return rap;
+}
+
+// Create the parallel vector from the local vectors
+HypreParVector *HDGBilinearForm3::ParallelVectorSC()
+{
+   ParFiniteElementSpace* pfes3 = dynamic_cast<ParFiniteElementSpace*>(fes3);
+   HypreParVector *tv = pfes3->NewTrueDofVector();
+
+   pfes3->Dof_TrueDof_Matrix()->MultTranspose(*rhs_SC, *tv);
+   return tv;
+}
+#endif
 
 }

@@ -223,7 +223,8 @@ int main(int argc, char *argv[])
       gform->Assemble(); // This is a vector
 
       // Compute and Finalize the Schur complement
-      AVarf->AssembleSC(rhs_F, memA, memB);
+      GridFunction *F = new GridFunction(Uh_space, rhs_F);
+      AVarf->AssembleSC(*F, memA, memB);
       AVarf->Finalize();
 
       SparseMatrix *SC = AVarf->SpMatSC();
@@ -247,10 +248,10 @@ int main(int argc, char *argv[])
       solver.SetOperator(*SC);
       solver.SetPrintLevel(PrintLevel);
       solver.SetPreconditioner(M);
-      UBAR = 0.0;
+      ubar = 0.0;
       chrono.Clear();
       chrono.Start();
-      solver.Mult(*rhs_SC, UBAR);
+      solver.Mult(*rhs_SC, ubar);
       chrono.Stop();
 
       if (solver.GetConverged())
@@ -273,7 +274,7 @@ int main(int argc, char *argv[])
 
       // 10. Reconstruction
       // Reconstruct the solution u from the facet solution ubar
-      AVarf->Reconstruct(&rhs_F, &UBAR, &u);
+      AVarf->Reconstruct(F, &ubar, &u);
 
       // 11. Compute the discretization error
       const int order_quad = max(2, 2*order+2);

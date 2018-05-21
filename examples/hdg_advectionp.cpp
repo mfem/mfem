@@ -238,7 +238,7 @@ int main(int argc, char *argv[])
 
    // Set up the bilinear form for the whole system. ParHDGBilinearForm2 can compute
    // the Schur complement locally for a 2x2 problem.
-   ParHDGBilinearForm2 *AVarf(new ParHDGBilinearForm2(Uh_space, Uhbar_space));
+   HDGBilinearForm2 *AVarf(new HDGBilinearForm2(Uh_space, Uhbar_space, true));
    AVarf->AddHDGDomainIntegrator(
       new HDGDomainIntegratorAdvection(mu, advection));
    AVarf->AddHDGBdrIntegrator(
@@ -285,7 +285,7 @@ int main(int argc, char *argv[])
 
       chrono.Clear();
       chrono.Start();
-      AVarf->AssembleSC(F, memA, memB);
+      AVarf->AssembleSC(*F, memA, memB);
       chrono.Stop();
       AVarf->Finalize();
 

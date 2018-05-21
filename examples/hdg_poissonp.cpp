@@ -237,7 +237,7 @@ int main(int argc, char *argv[])
    double tau_D = 5.0;
 
    // 7. Define the different forms and gridfunctions.
-   ParHDGBilinearForm3 *AVarf(new ParHDGBilinearForm3(V_space, W_space, M_space));
+   HDGBilinearForm3 *AVarf(new HDGBilinearForm3(V_space, W_space, M_space, true));
    AVarf->AddHDGDomainIntegrator(new HDGDomainIntegratorDiffusion(diffusion));
    AVarf->AddHDGBdrIntegrator(new HDGFaceIntegratorDiffusion(tau_D));
 
@@ -290,7 +290,7 @@ int main(int argc, char *argv[])
 
       chrono.Clear();
       chrono.Start();
-      AVarf->AssembleSC(R, F, ess_bdr, lambda, memA, memB);
+      AVarf->AssembleSC(*R, *F, ess_bdr, lambda, memA, memB);
       chrono.Stop();
       AVarf->Finalize();
 
@@ -381,7 +381,7 @@ int main(int argc, char *argv[])
 
       chrono.Clear();
       chrono.Start();
-      AVarf->Reconstruct(R, F, &lambda, &q_variable, &u_variable);
+      AVarf->Reconstruct(R, F, lambda, &q_variable, &u_variable);
       chrono.Stop();
 
       reconstructTime = chrono.RealTime();

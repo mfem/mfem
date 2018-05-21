@@ -12,6 +12,9 @@
 #include "gridfunc.hpp"
 #include "linearform.hpp"
 #include "bilininteg.hpp"
+#ifdef MFEM_USE_MPI
+#include <mpi.h>
+#endif
 
 namespace mfem
 {
@@ -70,6 +73,8 @@ class HDGBilinearForm3
 protected:
    /// FE spaces on which the form lives.
    FiniteElementSpace *fes1, *fes2, *fes3;
+   
+   bool parallel;
 
    /// Sparse matrix to be assembled.
    SparseMatrix *mat;
@@ -82,7 +87,7 @@ protected:
 
    /// List that separates the interior edges from the boundary edges
    /// and the list of essential boundary conditions
-   Array<int> Edge_to_Be, ess_dofs;
+   Array<int> Edge_to_Be, ess_dofs, Edge_to_SharedEdge;
 
    /// Vectors to store A and B, the corresponding offsets and the number
    /// of elements on which A and B will be stroed
@@ -101,6 +106,7 @@ protected:
    HDGBilinearForm3()
    {
       fes1 = NULL; fes2 = NULL; fes3 = NULL;
+      parallel = false;
       mat = NULL;
       rhs_SC = NULL;
       el_to_face = NULL;
@@ -111,7 +117,7 @@ protected:
 public:
    /// Creates bilinear form associated with FE spaces *f1, f2, f3
    HDGBilinearForm3(FiniteElementSpace *f1, FiniteElementSpace *f2,
-                    FiniteElementSpace *f3);
+                    FiniteElementSpace *f3, bool _parallel = false);
 
    // Arrays of the HDG domain integrators
    Array<BilinearFormIntegrator*> *GetHDG_DBFI() { return &hdg_dbfi; }
@@ -161,9 +167,9 @@ public:
                  const double memB = 0.0);
 
    /// Assembles the Schur complement
-   void AssembleSC(const Vector rhs_R, const Vector rhs_F,
+   void AssembleSC(const GridFunction rhs_R, const GridFunction rhs_F,
                    Array<int> &bdr_attr_is_ess,
-                   Vector &sol,
+                   GridFunction &sol,
                    const double memA = 0.0, const double memB = 0.0,
                    int skip_zeros = 1);
 
@@ -184,26 +190,39 @@ public:
    /// matrices and modifies the right hand side vector
    void Eliminate_BC(const Array<int> &vdofs_e1,
                      const int ndof_u, const int ndof_q,
-                     const Vector &sol,
+                     const GridFunction &sol,
                      Vector *rhs_RF, Vector *rhs_L,
                      DenseMatrix *B_local, DenseMatrix *C_local, DenseMatrix *D_local);
 
    /// Reconstructs u and q from the facet unknowns
-   void Reconstruct(const Vector *R, const Vector *F,
-                    Vector &sol,
+   void Reconstruct(const GridFunction *R, const GridFunction *F,
+                    GridFunction &sol,
                     GridFunction *q, GridFunction *u);
 
    /// Updates the spaces
    virtual void Update(FiniteElementSpace *nfes1 = NULL,
                        FiniteElementSpace *nfes2 = NULL, FiniteElementSpace *nfes3 = NULL);
 
-   /// Returns the FE space associated with the BilinearForm.
-   FiniteElementSpace *GetFES1() { return fes1; }
-   FiniteElementSpace *GetFES2() { return fes2; }
-   FiniteElementSpace *GetFES3() { return fes3; }
-
    /// Destroys bilinear form.
    virtual ~HDGBilinearForm3();
+   
+#ifdef MFEM_USE_MPI
+   void compute_face_integrals_shared(const int elem, 
+                                      const int edge,
+                                      const int sf,
+                                      const bool onlyB,
+                                      DenseMatrix *A_local,
+                                      DenseMatrix *B_local,
+                                      DenseMatrix *C_local,
+                                      DenseMatrix *D_local);
+
+   /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
+   HypreParMatrix *ParallelAssembleSC() { return ParallelAssembleSC(mat); }
+   /// Return the matrix m assembled on the true dofs, i.e. P^t A P
+   HypreParMatrix *ParallelAssembleSC(SparseMatrix *m);
+
+   HypreParVector *ParallelVectorSC();
+#endif
 };
 
 

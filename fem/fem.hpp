@@ -41,9 +41,6 @@
 #include "plinearform.hpp"
 #include "pbilinearform.hpp"
 #include "pnonlinearform.hpp"
-/* HDG */
-#include "pHDGBilinearForm2.hpp"
-#include "pHDGBilinearForm3.hpp"
 #endif
 
 #ifdef MFEM_USE_SIDRE
