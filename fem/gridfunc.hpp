@@ -472,6 +472,19 @@ public:
    /// Set the QuadratureSpace ownership flag.
    void SetOwnsSpace(bool own) { own_qspace = own; }
 
+   /// Redefine '=' for QuadratureFunction = constant.
+   QuadratureFunction &operator=(double value);
+
+   /// Copy the data from @a v.
+   /** The size of @a v must be equal to the size of the QuadratureSpace
+       @a qspace. */
+   QuadratureFunction &operator=(const Vector &v);
+
+   /// Copy the data from @a v.
+   /** The QuadratureFunctions @a v and @a *this must have QuadratureSpaces with
+       the same size. */
+   QuadratureFunction &operator=(const QuadratureFunction &v);
+
    /// Get the IntegrationRule associated with mesh element @a idx.
    const IntegrationRule &GetElementIntRule(int idx)
    { return qspace->GetElementIntRule(idx); }
