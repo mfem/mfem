@@ -1,7 +1,7 @@
 //                       PUMI Example 6 - Parallel Version
 //
 //
-// Sample runs:  mpirun -np 8 ./pumi_ma_ex6p 
+// Sample runs:  mpirun -np 8 ./pumi_ma_ex6p
 //
 // Description:  This is a version of Example 1 with a simple adaptive mesh
 //               refinement loop. The problem being solved is again the Laplace
@@ -13,10 +13,10 @@
 //               This example also performs a "uniform" refinement, similar to
 //               MFEM examples, for coarse meshes. However, the refinement is
 //               performed using the PUMi Api's.
-// 
-//               A new switch "-ar" is added to modify the "adapt_ratio" which 
-//               is the fraction of allowable error that scales the output                                            
-//               size field of the error estimator. 
+//
+//               A new switch "-ar" is added to modify the "adapt_ratio" which
+//               is the fraction of allowable error that scales the output
+//               size field of the error estimator.
 
 
 #include "mfem.hpp"
@@ -74,13 +74,13 @@ int main(int argc, char *argv[])
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&model_file, "-p", "--model",
-                  "parasolid or .dmg model to use.");  
+                  "parasolid or .dmg model to use.");
    args.AddOption(&smd_file, "-sm", "--smd_model",
-                  "smd model file to use.");   
+                  "smd model file to use.");
    args.AddOption(&geom_order, "-go", "--geometry_order",
                   "Geometric order of the model");
    args.AddOption(&adapt_ratio, "-ar", "--adapt_ratio",
-                  "adaptation factor used in MeshAdapt");   
+                  "adaptation factor used in MeshAdapt");
 
    args.Parse();
    if (!args.Good())
@@ -107,12 +107,15 @@ int main(int argc, char *argv[])
    gmi_register_mesh();
 
    apf::Mesh2* pumi_mesh;
-   if (smd_file){
-       gmi_model *mixed_model = gmi_sim_load(model_file, smd_file);
-       pumi_mesh = apf::loadMdsMesh(mixed_model, mesh_file);
+   if (smd_file)
+   {
+      gmi_model *mixed_model = gmi_sim_load(model_file, smd_file);
+      pumi_mesh = apf::loadMdsMesh(mixed_model, mesh_file);
    }
    else
-        pumi_mesh = apf::loadMdsMesh(model_file, mesh_file);
+   {
+      pumi_mesh = apf::loadMdsMesh(model_file, mesh_file);
+   }
 
    //4. Increase the geometry order and refine the mesh if necessary.
    //   Parallel uniform refinement is performed if the total numebr of
@@ -129,8 +132,10 @@ int main(int argc, char *argv[])
 
    // Perform Uniform refinement
    if (myid == 1)
-     std::cout << " ref level : " <<     ref_levels << std::endl; 
-   
+   {
+      std::cout << " ref level : " <<     ref_levels << std::endl;
+   }
+
    if (ref_levels > 1)
    {
       ma::Input* uniInput = ma::configureUniformRefine(pumi_mesh, ref_levels);
@@ -192,7 +197,7 @@ int main(int argc, char *argv[])
    ParLinearForm *b = new ParLinearForm(fespace);
    ConstantCoefficient one(1.0);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
-   
+
 
    // 9. Define the solution vector x as a parallel finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
@@ -211,148 +216,152 @@ int main(int argc, char *argv[])
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, static condensation, etc.
    if (static_cond) { a->EnableStaticCondensation(); }
-   
+
    // 12. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and adapt the mesh.
-   //     
+   //
    apf::Field* Tmag_field = 0;
-   apf::Field* temp_field = 0; 
+   apf::Field* temp_field = 0;
    apf::Field* ipfield = 0;
    apf::Field* sizefield = 0;
    int max_iter = 3;
 
    for (int Itr = 0; Itr < max_iter; Itr++)
-   {    
-        HYPRE_Int global_dofs = fespace->GlobalTrueVSize();
-        if (myid == 1)
-        {
+   {
+      HYPRE_Int global_dofs = fespace->GlobalTrueVSize();
+      if (myid == 1)
+      {
          cout << "\nAMR iteration " << Itr << endl;
          cout << "Number of unknowns: " << global_dofs << endl;
-        }        
-        
-        //Assemble 
-        a->Assemble();
-        b->Assemble();
-        
-        //Essentail boundary condition
-        Array<int> ess_tdof_list;
-        if (pmesh->bdr_attributes.Size())
-        {
-            Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-            ess_bdr = 1;
-            fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-        }      
-        
-        //Form linear system
-        HypreParMatrix A;
-        Vector B, X;
-        const int copy_interior = 1;
-        a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B, copy_interior);        
+      }
 
-        // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
-        //     preconditioner from hypre.
-        HypreBoomerAMG amg;
-        amg.SetPrintLevel(0);
-        CGSolver pcg(A.GetComm());
-        pcg.SetPreconditioner(amg);
-        pcg.SetOperator(A);
-        pcg.SetRelTol(1e-6);
-        pcg.SetMaxIter(200);
-        pcg.SetPrintLevel(3); // print the first and the last iterations only
-        pcg.Mult(B, X);  
-      
-        // 13. Recover the parallel grid function corresponding to X. This is the
-        //     local finite element solution on each processor.
-        a->RecoverFEMSolution(X, *b, x);
-        
-        // 16. Save in parallel the displaced mesh and the inverted solution (which
-        //     gives the backward displacements to the original grid). This output
-        //     can be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
-        {
-           ostringstream mesh_name, sol_name;
-           mesh_name << "mesh." << setfill('0') << setw(6) << myid;
-           sol_name << "sol." << setfill('0') << setw(6) << myid;
+      //Assemble
+      a->Assemble();
+      b->Assemble();
 
-           ofstream mesh_ofs(mesh_name.str().c_str());
-           mesh_ofs.precision(8);
-           pmesh->Print(mesh_ofs);
+      //Essentail boundary condition
+      Array<int> ess_tdof_list;
+      if (pmesh->bdr_attributes.Size())
+      {
+         Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+         ess_bdr = 1;
+         fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
 
-           ofstream sol_ofs(sol_name.str().c_str());
-           sol_ofs.precision(8);
-           x.Save(sol_ofs);
-        }
+      //Form linear system
+      HypreParMatrix A;
+      Vector B, X;
+      const int copy_interior = 1;
+      a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B, copy_interior);
 
-        // 17. Send the above data by socket to a GLVis server.  Use the "n" and "b"
-        //     keys in GLVis to visualize the displacements.
-        if (visualization)
-        {
-           char vishost[] = "localhost";
-           int  visport   = 19916;
-           socketstream sol_sock(vishost, visport);
-           sol_sock << "parallel " << num_procs << " " << myid << "\n";
-           sol_sock.precision(8);
-           sol_sock << "solution\n" << *pmesh << x << flush;
-        }       
+      // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
+      //     preconditioner from hypre.
+      HypreBoomerAMG amg;
+      amg.SetPrintLevel(0);
+      CGSolver pcg(A.GetComm());
+      pcg.SetPreconditioner(amg);
+      pcg.SetOperator(A);
+      pcg.SetRelTol(1e-6);
+      pcg.SetMaxIter(200);
+      pcg.SetPrintLevel(3); // print the first and the last iterations only
+      pcg.Mult(B, X);
 
-        // 18. Field transfer. Scalar solution field and magnitude field for 
-        //     error estimation are created the pumi mesh. 
-        if (order > geom_order)
-        {
-            Tmag_field = apf::createField(pumi_mesh, "field_mag",
-                    apf::SCALAR, apf::getLagrange(order));
-            temp_field = apf::createField(pumi_mesh, "T_field",
-                    apf::SCALAR, apf::getLagrange(order));
-        }
-        else
-        {
-            Tmag_field = apf::createFieldOn(pumi_mesh, "field_mag",apf::SCALAR);
-            temp_field = apf::createFieldOn(pumi_mesh, "T_field", apf::SCALAR);  
-        }
+      // 13. Recover the parallel grid function corresponding to X. This is the
+      //     local finite element solution on each processor.
+      a->RecoverFEMSolution(X, *b, x);
 
-        ParPumiMesh* pPPmesh = dynamic_cast<ParPumiMesh*>(pmesh);
-        pPPmesh->FieldMFEMtoPUMI(pumi_mesh, &x, temp_field, Tmag_field);
+      // 16. Save in parallel the displaced mesh and the inverted solution (which
+      //     gives the backward displacements to the original grid). This output
+      //     can be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+      {
+         ostringstream mesh_name, sol_name;
+         mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+         sol_name << "sol." << setfill('0') << setw(6) << myid;
 
-        ipfield= spr::getGradIPField(Tmag_field, "MFEM_gradip", 2);
-        sizefield = spr::getSPRSizeField(ipfield, adapt_ratio);
+         ofstream mesh_ofs(mesh_name.str().c_str());
+         mesh_ofs.precision(8);
+         pmesh->Print(mesh_ofs);
 
-        apf::destroyField(Tmag_field);
-        apf::destroyField(ipfield);
-        apf::destroyNumbering(pumi_mesh->findNumbering("LocalVertexNumbering"));
-        
-        // 19. Perform MesAdapt
-        ma::Input* erinput = ma::configure(pumi_mesh, sizefield);
-        erinput->shouldFixShape = true;
-        erinput->maximumIterations = 2;
-        if ( geom_order > 1)
-             crv::adapt(erinput);
-        else
-             ma::adapt(erinput);   
+         ofstream sol_ofs(sol_name.str().c_str());
+         sol_ofs.precision(8);
+         x.Save(sol_ofs);
+      }
 
-        ParMesh* Adapmesh = new ParPumiMesh(MPI_COMM_WORLD, pumi_mesh);
-        pPPmesh->UpdateMesh(Adapmesh);
-        delete Adapmesh;
-        
-        // 20. Update the FiniteElementSpace, Gridfunction, ad bilinear form
-        fespace->Update();
-        x.Update();
-        x = 0.0;
+      // 17. Send the above data by socket to a GLVis server.  Use the "n" and "b"
+      //     keys in GLVis to visualize the displacements.
+      if (visualization)
+      {
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+         socketstream sol_sock(vishost, visport);
+         sol_sock << "parallel " << num_procs << " " << myid << "\n";
+         sol_sock.precision(8);
+         sol_sock << "solution\n" << *pmesh << x << flush;
+      }
 
-        pPPmesh->FieldPUMItoMFEM(pumi_mesh, temp_field, &x);
-        a->Update();
-        b->Update();
-        
-        //Destroy fields 
-        apf::destroyField(temp_field);
-        apf::destroyField(sizefield);         
+      // 18. Field transfer. Scalar solution field and magnitude field for
+      //     error estimation are created the pumi mesh.
+      if (order > geom_order)
+      {
+         Tmag_field = apf::createField(pumi_mesh, "field_mag",
+                                       apf::SCALAR, apf::getLagrange(order));
+         temp_field = apf::createField(pumi_mesh, "T_field",
+                                       apf::SCALAR, apf::getLagrange(order));
+      }
+      else
+      {
+         Tmag_field = apf::createFieldOn(pumi_mesh, "field_mag",apf::SCALAR);
+         temp_field = apf::createFieldOn(pumi_mesh, "T_field", apf::SCALAR);
+      }
+
+      ParPumiMesh* pPPmesh = dynamic_cast<ParPumiMesh*>(pmesh);
+      pPPmesh->FieldMFEMtoPUMI(pumi_mesh, &x, temp_field, Tmag_field);
+
+      ipfield= spr::getGradIPField(Tmag_field, "MFEM_gradip", 2);
+      sizefield = spr::getSPRSizeField(ipfield, adapt_ratio);
+
+      apf::destroyField(Tmag_field);
+      apf::destroyField(ipfield);
+      apf::destroyNumbering(pumi_mesh->findNumbering("LocalVertexNumbering"));
+
+      // 19. Perform MesAdapt
+      ma::Input* erinput = ma::configure(pumi_mesh, sizefield);
+      erinput->shouldFixShape = true;
+      erinput->maximumIterations = 2;
+      if ( geom_order > 1)
+      {
+         crv::adapt(erinput);
+      }
+      else
+      {
+         ma::adapt(erinput);
+      }
+
+      ParMesh* Adapmesh = new ParPumiMesh(MPI_COMM_WORLD, pumi_mesh);
+      pPPmesh->UpdateMesh(Adapmesh);
+      delete Adapmesh;
+
+      // 20. Update the FiniteElementSpace, Gridfunction, ad bilinear form
+      fespace->Update();
+      x.Update();
+      x = 0.0;
+
+      pPPmesh->FieldPUMItoMFEM(pumi_mesh, temp_field, &x);
+      a->Update();
+      b->Update();
+
+      //Destroy fields
+      apf::destroyField(temp_field);
+      apf::destroyField(sizefield);
    }
-   
+
    // 16. Free the used memory.
    delete a;
    delete b;
    delete fespace;
    if (order > 0) { delete fec; }
-   delete pmesh;   
-   
+   delete pmesh;
+
    pumi_mesh->destroyNative();
    apf::destroyMesh(pumi_mesh);
    PCU_Comm_Free();

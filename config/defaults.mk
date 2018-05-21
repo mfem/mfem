@@ -272,6 +272,12 @@ SIDRE_LIB = \
    -Wl,-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib \
    -lsidre -lslic -laxom_utils -lconduit -lconduit_relay -lhdf5 $(ZLIB_LIB) -ldl
 
+# PUMI
+PUMI_DIR = @MFEM_DIR@/../pumi/install
+PUMI_OPT = -I$(PUMI_DIR)/include
+PUMI_LIB = -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf -lpcu -lgmi -lparma\
+   -llion -lmth -lapf_zoltan
+
 # If YES, enable some informational messages
 VERBOSE = NO
 

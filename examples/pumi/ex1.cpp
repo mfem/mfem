@@ -37,11 +37,11 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-    //initilize mpi
-    int num_proc, myId;
-    MPI_Init(&argc, &argv);
-    MPI_Comm_size(MPI_COMM_WORLD, &num_proc);
-    MPI_Comm_rank(MPI_COMM_WORLD, &myId);
+   //initilize mpi
+   int num_proc, myId;
+   MPI_Init(&argc, &argv);
+   MPI_Comm_size(MPI_COMM_WORLD, &num_proc);
+   MPI_Comm_rank(MPI_COMM_WORLD, &myId);
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/pumi/serial/Kova.smb";
@@ -74,17 +74,17 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-       if (myId == 0)
-       {
-            args.PrintUsage(cout);
-       }
-       MPI_Finalize();
-       return 1;
+      if (myId == 0)
+      {
+         args.PrintUsage(cout);
+      }
+      MPI_Finalize();
+      return 1;
    }
 
    if (myId == 1)
    {
-        args.PrintOptions(cout);
+      args.PrintOptions(cout);
    }
 
    // 3. Read the SCOREC Mesh
@@ -100,9 +100,10 @@ int main(int argc, char *argv[])
    pumi_mesh = apf::loadMdsMesh(model_file, mesh_file);
 
    // 4. Increase the geometry order if necessary.
-   if (geom_order > 1){
-       crv::BezierCurver bc(pumi_mesh, geom_order, 2);
-       bc.run();
+   if (geom_order > 1)
+   {
+      crv::BezierCurver bc(pumi_mesh, geom_order, 2);
+      bc.run();
    }
 
    pumi_mesh->verify();
