@@ -326,11 +326,11 @@ void GroupTopology::Load(istream &in)
 
 void GroupTopology::Copy(GroupTopology& copy) const
 {
-    copy.SetComm(MyComm);
-    group_lproc.Copy(copy.group_lproc);
-    groupmaster_lproc.Copy(copy.groupmaster_lproc);
-    lproc_proc.Copy(copy.lproc_proc);
-    group_mgroup.Copy(copy.group_mgroup);
+   copy.SetComm(MyComm);
+   group_lproc.Copy(copy.group_lproc);
+   groupmaster_lproc.Copy(copy.groupmaster_lproc);
+   lproc_proc.Copy(copy.lproc_proc);
+   group_mgroup.Copy(copy.group_mgroup);
 }
 
 // Initialize the static mpi_type for the specializations of MPITypeMap:
