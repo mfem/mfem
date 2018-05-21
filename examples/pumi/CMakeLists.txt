@@ -10,16 +10,14 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 set(PUMI_EXAMPLES_SRCS)
-
 if (MFEM_USE_PUMI AND MFEM_USE_MPI)
   list(APPEND PUMI_EXAMPLES_SRCS
     ex1.cpp
     ex1p.cpp
-    ex2.cpp
+    ex2p.cpp
     ex6p.cpp
     )
 endif()
-
 
 # Include the source directory where mfem.hpp and mfem-performance.hpp are.
 include_directories(BEFORE ${PROJECT_BINARY_DIR})
@@ -39,15 +37,7 @@ add_mfem_examples(PUMI_EXAMPLES_SRCS ${PFX} "" test_pumi)
 #   ctest -R pumi
 
 # Command line options for the tests.
-# Example 9: test explicit CVODE time stepping
-#set(EX9_COMMON_OPTS -m ../../data/periodic-hexagon.mesh -p 0 -s 11)
-#set(EX9_TEST_OPTS ${EX9_COMMON_OPTS}  -r  2 -dt 0.0018 -vs 25)
-#set(EX9P_TEST_OPTS ${EX9_COMMON_OPTS} -rp 1 -dt 0.0009 -vs 50)
-# Example 10: test implicit CVODE time stepping
-#set(EX10_COMMON_OPTS -m ../../data/beam-quad.mesh -o 2 -s 5 -dt 0.15 -vs 10)
-#set(EX10_TEST_OPTS ${EX10_COMMON_OPTS}  -r  2)
-#set(EX10P_TEST_OPTS ${EX10_COMMON_OPTS} -rp 1)
-# Example 16: use the default options
+# TODO...
 
 # Add the tests: one test per source file.
 foreach(SRC_FILE ${PUMI_EXAMPLES_SRCS})

@@ -190,7 +190,7 @@ void PumiMesh::ReadSCORECMesh(apf::Mesh2* apf_mesh, apf::Numbering* v_num_loc,
       }*/
       apf::ModelEntity* me = apf_mesh->toModel(ent);
       attr = 1; // apf_mesh->getModelTag(me);
-      int geom_type = apf_mesh->getType(ent); // Make sure this works!!!
+      int geom_type = apf_mesh->getType(ent); // Make sure this works!
       elements[j] = ReadElement(ent, geom_type, verts, attr, v_num_loc);
       j++;
    }
@@ -225,7 +225,6 @@ void PumiMesh::ReadSCORECMesh(apf::Mesh2* apf_mesh, apf::Numbering* v_num_loc,
 
    // Fill vertices
    vertices.SetSize(NumOfVertices);
-
 
    if (!curved)
    {
@@ -307,9 +306,8 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
 
    ncmesh = pncmesh = NULL;
 
-   // Global numbering of vertices
-   // This is necessary to build a local numbering that has the same ordering in
-   // each process
+   // Global numbering of vertices.  This is necessary to build a local
+   // numbering that has the same ordering in each process
    apf::FieldShape* v_shape = apf::getConstant(0);
    apf::Numbering* vLocNum = apf::createNumbering(apf_mesh, "AuxVertexNumbering",
                                                   v_shape, 1);
@@ -398,7 +396,7 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
       for (unsigned int ii=0; ii<spaceDim; ii++)
       {
          vertices[id](ii) =
-            Crds[ii];   // !! I am assuming the ids are ordered and from 0
+            Crds[ii];   // Assuming the ids are ordered and from 0
       }
    }
    apf_mesh->end(itr);
@@ -427,7 +425,7 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
       // apf::ModelEntity* me = apf_mesh->toModel(ent);
       // attr = 1; // apf_mesh->getModelTag(me);
 
-      int geom_type = BaseGeom;// apf_mesh->getType(ent); // Make sure this works!!!
+      int geom_type = BaseGeom;// apf_mesh->getType(ent); // Make sure this works!
       elements[j] = ReadElement(ent, geom_type, verts, attr, v_num_loc);
       j++;
    }
@@ -1031,13 +1029,11 @@ GridFunctionPumi::GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM,
    sequence = 0;
 }
 
-/// Copy the adapted mesh to the original mesh
-/// and Increasing the sequence to be able to
-/// Call Update() methods of FESpace, Linear
-/// and Bilinear forms.
+/// Copy the adapted mesh to the original mesh and increase the sequence to be
+/// able to Call Update() methods of FESpace, Linear and Bilinear forms.
 void ParPumiMesh::UpdateMesh(const ParMesh* AdaptedpMesh)
 {
-   //Assuming Dim, spaceDim, geom type is unchanged
+   // Assuming Dim, spaceDim, geom type is unchanged
    NumOfVertices = AdaptedpMesh->GetNV();//NumOfVertices;
    NumOfElements = AdaptedpMesh->GetNE();//NumOfElements;
    NumOfBdrElements = AdaptedpMesh->GetNBE();//NumOfBdrElements;
@@ -1171,8 +1167,8 @@ void ParPumiMesh::UpdateMesh(const ParMesh* AdaptedpMesh)
 
 }
 
-///Transfer a mixed vector-scalar field (i.e. velocity,pressure)
-///and the magnitude of the vector field to use for mesh adaptation
+// Transfer a mixed vector-scalar field (i.e. velocity,pressure) and the
+// magnitude of the vector field to use for mesh adaptation
 void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                                   ParGridFunction* grid_vel,
                                   ParGridFunction* grid_pr,
@@ -1397,7 +1393,7 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
    //apf::destroyNumbering(v_num_loc);
 }
 
-///Transfer a scalar field its magnitude to use for mesh adaptation
+// Transfer a scalar field its magnitude to use for mesh adaptation
 void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                                   ParGridFunction* grid_pr,
                                   apf::Field* PrField,
@@ -1601,8 +1597,8 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
    //apf::destroyNumbering(v_num_loc);
 }
 
-///Transfer a vector field
-///and the magnitude of the vector field to use for mesh adaptation
+// Transfer a vector field and the magnitude of the vector field to use for mesh
+// adaptation
 void ParPumiMesh::VectorFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                                         ParGridFunction* grid_vel,
                                         apf::Field* VelField,
@@ -1891,7 +1887,6 @@ void ParPumiMesh::FieldPUMItoMFEM(apf::Mesh2* apf_mesh,
       apf_mesh->end(itr);
    }
 }
-
 
 }
 
