@@ -1,10 +1,11 @@
-//                                PUMI Example 1
+//                                MFEM Example 1
+//                               PUMI Modification
 //
-// Sample runs:  ./pumi_ex1 -m ../data/pumi/serial/Kova.smb
+// Sample runs:   ex1 -m ../data/pumi/serial/Kova.smb
 //                    -p ../data/pumi/geom/Kova.x_t -o 1 -go 2
 //
-// NOTE:          Example model and meshes for PUMI examples can be downloaded
-//                from github.com/mfem/data/pumi.
+// NOTE:         Example model and meshes for PUMI examples can be downloaded
+//               from github.com/mfem/data/pumi.
 //
 // Description:  This example is the counterpart of ex1 in the MFEM examples list
 //               with the difference that pumi Api's are used to load a pumi mesh
@@ -34,10 +35,9 @@
 using namespace std;
 using namespace mfem;
 
-
 int main(int argc, char *argv[])
 {
-   //initilize mpi
+   // 1. Initilize MPI
    int num_proc, myId;
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_proc);
@@ -108,9 +108,9 @@ int main(int argc, char *argv[])
 
    pumi_mesh->verify();
 
-   // 5. Create the MFEM mesh object from the PUMI mesh. We can handle triangular
-   //    and tetrahedral meshes. Other inputs are the same as MFEM default
-   //    constructor.
+   // 5. Create the MFEM mesh object from the PUMI mesh. We can handle
+   //    triangular and tetrahedral meshes. Other inputs are the same as MFEM
+   //    default constructor.
    Mesh *mesh = new PumiMesh(pumi_mesh, 1, 1);
    int dim = mesh->Dimension();
 

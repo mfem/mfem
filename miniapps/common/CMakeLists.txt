@@ -27,6 +27,3 @@ endif()
 
 add_library(mfem_miniapps_common ${MFEM_MINIAPPS_COMMON_SOURCES}
             ${MFEM_MINIAPPS_COMMON_HEADERS})
-if (MFEM_USE_PUMI)
-  target_link_libraries(mfem_miniapps_common PUBLIC SCOREC::core)
-endif()

@@ -40,11 +40,10 @@
 namespace mfem
 {
 
+/// Base class for PUMI meshes
 class PumiMesh : public Mesh
 {
-
 protected:
-
    Element *ReadElement(apf::MeshEntity* Ent, const int geom, apf::Downward Verts,
                         const int Attr, apf::Numbering* vert_num);
    void CountBoundaryEntity(apf::Mesh2* apf_mesh, const int BcDim, int &NumBC);
@@ -54,16 +53,13 @@ protected:
                        const int curved);
 
 public:
-
-   /// This is to generate a MFEM mesh from a PUMI mesh
+   /// Generate an MFEM mesh from a PUMI mesh.
    PumiMesh(apf::Mesh2* apf_mesh, int generate_edges = 0, int refine = 1,
             bool fix_orientation = true);
 
-   /** This is to load a PUMI mesh, it is written following the steps in MFEM
-       load function */
+   /// Load a PUMI mesh (following the steps in the MFEM Load function).
    void Load(apf::Mesh2* apf_mesh, int generate_edges = 0, int refine = 1,
              bool fix_orientation = true);
-
 
    /// Destroys Mesh.
    virtual ~PumiMesh() { }
@@ -79,11 +75,10 @@ protected:
    Element *ReadElement(apf::MeshEntity* Ent, const int geom, apf::Downward Verts,
                         const int Attr, apf::Numbering* vert_num);
 public:
-   /// Build a parallel MFEM mesh from a parallel PUMI mesh
+   /// Build a parallel MFEM mesh from a parallel PUMI mesh.
    ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh);
 
-   ///Transfer field from MFEM mesh to pumi mesh
-   /// Mixed
+   /// Transfer field from MFEM mesh to PUMI mesh [Mixed].
    void FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                         ParGridFunction* Vel,
                         ParGridFunction* Pr,
@@ -91,25 +86,22 @@ public:
                         apf::Field* PrField,
                         apf::Field* VelMagField);
 
-   ///Transfer field from MFEM mesh to pumi mesh
-   ///Scalar
+   /// Transfer field from MFEM mesh to PUMI mesh [Scalar].
    void FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                         ParGridFunction* Pr,
                         apf::Field* PrField,
                         apf::Field* PrMagField);
 
-   ///Transfer field from MFEM mesh to pumi mesh
-   /// Vector
+   /// Transfer field from MFEM mesh to PUMI mesh [Vector].
    void VectorFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                               ParGridFunction* Vel,
                               apf::Field* VelField,
                               apf::Field* VelMagField);
 
-   ///Update the mesh after adaptation
+   /// Update the mesh after adaptation.
    void UpdateMesh(const ParMesh* AdaptedpMesh);
 
-   //Transfer field from PUMI to MFEM after mesh adapt
-   //Scalar
+   /// Transfer a field from PUMI to MFEM after mesh adapt [Scalar].
    void FieldPUMItoMFEM(apf::Mesh2* apf_mesh,
                         apf::Field* ScalarField,
                         ParGridFunction* Pr);
@@ -122,12 +114,11 @@ public:
 class GridFunctionPumi : public GridFunction
 {
 public:
-
-   /// Construct a GridFunction from PUMI mesh
+   /// Construct a GridFunction from a PUMI mesh.
    GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM, apf::Numbering* v_num_loc,
                     const int mesh_order);
 
-   /// Destroy the grid function
+   /// Destroy the grid function.
    virtual ~GridFunctionPumi() { }
 };
 
