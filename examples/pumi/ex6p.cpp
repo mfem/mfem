@@ -75,8 +75,10 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&model_file, "-p", "--model",
                   "parasolid or .dmg model to use.");
+#ifdef MFEM_USE_SIMMETRIX
    args.AddOption(&smd_file, "-sm", "--smd_model",
                   "smd model file to use.");
+#endif
    args.AddOption(&geom_order, "-go", "--geometry_order",
                   "Geometric order of the model");
    args.AddOption(&adapt_ratio, "-ar", "--adapt_ratio",
@@ -107,12 +109,14 @@ int main(int argc, char *argv[])
    gmi_register_mesh();
 
    apf::Mesh2* pumi_mesh;
+#ifdef MFEM_USE_SIMMETRIX
    if (smd_file)
    {
       gmi_model *mixed_model = gmi_sim_load(model_file, smd_file);
       pumi_mesh = apf::loadMdsMesh(mixed_model, mesh_file);
    }
    else
+#endif
    {
       pumi_mesh = apf::loadMdsMesh(model_file, mesh_file);
    }
