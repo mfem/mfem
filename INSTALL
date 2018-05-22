@@ -470,7 +470,7 @@ The specific libraries and their options are:
 
 - PUMI, used when MFEM_USE_PUMI = YES.
   URL: https://scorec.rpi.edu/pumi
-  Options: PUMi_OPT, PUMI_LIB.
+  Options: PUMI_OPT, PUMI_LIB.
 
 - MPFR (optional), used when MFEM_USE_MPFR = YES.
   URL: http://mpfr.org, it depends on the GMP library: https://gmplib.org

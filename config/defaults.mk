@@ -273,6 +273,7 @@ SIDRE_LIB = \
    -lsidre -lslic -laxom_utils -lconduit -lconduit_relay -lhdf5 $(ZLIB_LIB) -ldl
 
 # PUMI
+# Note that PUMI_DIR is needed -- it is used to check for gmi_sim.h
 PUMI_DIR = @MFEM_DIR@/../pumi-2.1.0
 PUMI_OPT = -I$(PUMI_DIR)/include
 PUMI_LIB = -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf -lpcu -lgmi -lparma\
