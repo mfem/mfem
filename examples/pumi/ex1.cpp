@@ -81,8 +81,7 @@ int main(int argc, char *argv[])
       MPI_Finalize();
       return 1;
    }
-
-   if (myId == 1)
+   if (myId == 0)
    {
       args.PrintOptions(cout);
    }
