@@ -36,7 +36,7 @@ namespace mfem
 PumiMesh::PumiMesh(apf::Mesh2* apf_mesh, int generate_edges, int refine,
                    bool fix_orientation)
 {
-   SetEmpty();
+   // SetEmpty(); // called by the default Mesh constructor
    Load(apf_mesh, generate_edges, refine, fix_orientation);
 }
 
@@ -83,7 +83,7 @@ void PumiMesh::CountBoundaryEntity( apf::Mesh2* apf_mesh, const int BcDim,
    // Check if any boundary is detected
    if (NumBc==0)
    {
-      MFEM_ABORT("In CountBoundaryEntity; no boundary is detected!");
+      MFEM_ABORT("no boundary detected!");
    }
 }
 
@@ -105,7 +105,7 @@ void PumiMesh::Load(apf::Mesh2* apf_mesh, int generate_edges, int refine,
 
    // Read mesh
    ReadSCORECMesh(apf_mesh, v_num_loc, curved);
-   cout<< "After ReadSCORECMesh" <<endl;
+   mfem::out << "After ReadSCORECMesh" << endl;
    // at this point the following should be defined:
    //  1) Dim
    //  2) NumOfElements, elements
@@ -127,7 +127,7 @@ void PumiMesh::Load(apf::Mesh2* apf_mesh, int generate_edges, int refine,
    if (curved && read_gf)
    {
       // Check it to be only Quadratic if higher order
-      //cout << "Is Curved?: "<< curved << "\n" <<read_gf <<endl;
+      // mfem::out << "Is Curved?: "<< curved << "\n" <<read_gf <<endl;
       Nodes = new GridFunctionPumi(this, apf_mesh, v_num_loc,
                                    crd_shape->getOrder());
       edge_vertex = NULL;
@@ -293,7 +293,7 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
    MPI_Comm_size(MyComm, &NRanks);
    MPI_Comm_rank(MyComm, &MyRank);
 
-   Mesh::SetEmpty();
+   // Mesh::SetEmpty(); // called by the default Mesh constructor
    // The ncmesh part is deleted
 
    Dim = apf_mesh->getDimension();
@@ -308,7 +308,7 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
    BaseBdrGeom = apf_mesh->getType( apf_mesh->iterate(itr) );
    apf_mesh->end(itr);
 
-   ncmesh = pncmesh = NULL;
+   // ncmesh = pncmesh = NULL; // done by the default ParMesh and Mesh ctors
 
    // Global numbering of vertices.  This is necessary to build a local
    // numbering that has the same ordering in each process
@@ -367,7 +367,7 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
       // Id from global numbering
       unsigned int id = apf::getNumber(VertexNumbering, ent, 0, 0);
       // Find its position at sorted list
-      int ordered_id = thisIds.Find(id);
+      int ordered_id = thisIds.FindSorted(id);
       // Assign as local number
       apf::number(v_num_loc, ent, 0, 0, ordered_id);
       NumOfVertices++;
@@ -438,11 +438,6 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
    apf_mesh->end(itr);
 
    Table *edge_element = NULL;
-   /*if (mesh.NURBSext)
-   {
-      activeBdrElem.SetSize(mesh.GetNBE());
-      activeBdrElem = false;
-   }*/
 
    // Count number of boundaries by classification
    int BcDim = Dim - 1;
@@ -485,36 +480,20 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
    }
    apf_mesh->end(itr);
 
-   Mesh::SetMeshGen();
-   Mesh::SetAttributes();
+   // The next two methods are called by FinalizeTopology() called below:
+   // Mesh::SetMeshGen();
+   // Mesh::SetAttributes();
 
    // This is called by the default Mesh constructor
-   Mesh::InitTables();
-   bool refine = false;
-   bool fix_orientation = true;
+   // Mesh::InitTables();
+
    this->FinalizeTopology();
-   Mesh::Finalize(refine, fix_orientation);
-   if (Dim > 1)
-   {
-      el_to_edge = new Table;
-      NumOfEdges = Mesh::GetElementToEdgeTable(*el_to_edge, be_to_edge);
-   }
-   else
-   {
-      NumOfEdges = 0;
-   }
 
-   STable3D *faces_tbl = NULL;
-   if (Dim == 3)
-   {
-      faces_tbl = GetElementToFaceTable(1);
-   }
-   else
-   {
-      NumOfFaces = 0;
-   }
+   // bool refine = false;
+   // bool fix_orientation = true;
+   // Mesh::Finalize(refine, fix_orientation);
 
-   GenerateFaces();
+   STable3D *faces_tbl = (Dim == 3) ? GetFacesTable() : NULL;
 
    ListOfIntegerSets  groups;
    IntegerSet         group;
@@ -523,14 +502,8 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
    group.Recreate(1, &MyRank);
    groups.Insert(group);
 
-#ifdef MFEM_DEBUG
-   if (Dim < 3 && GetNFaces() != 0)
-   {
-      cerr << "ParMesh::ParMesh (proc " << MyRank << ") : "
-           "(Dim < 3 && mesh.GetNFaces() != 0) is true!" << endl;
-      mfem_error();
-   }
-#endif
+   MFEM_ASSERT(Dim >= 3 || GetNFaces() == 0,
+               "[proc " << MyRank << "]: invalid state");
 
    // Determine shared faces
    int sface_counter = 0;
@@ -574,7 +547,7 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
          // Id from global numbering
          unsigned int id = apf::getNumber(GlobalFaceNum, ent, 0, 0);
          // Find its position at sorted list
-         int ordered_id = thisFaceIds.Find(id);
+         int ordered_id = thisFaceIds.FindSorted(id);
          // Assign as local number
          apf::number(faceNum, ent, 0, 0, ordered_id);
 
@@ -669,7 +642,7 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
       // Id from global numbering
       unsigned int id = apf::getNumber(GlobalEdgeNum, ent, 0, 0);
       // Find its position at sorted list
-      int ordered_id = thisEdgeIds.Find(id);
+      int ordered_id = thisEdgeIds.FindSorted(id);
       // Assign as local number
       apf::number(edgeNum, ent, 0, 0, ordered_id);
 
@@ -847,7 +820,7 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
          {
             // Generate the face
             int fcId = apf::getNumber(faceNum, ent, 0, 0);
-            int ctr = SharedFaceIds.Find(fcId);
+            int ctr = SharedFaceIds.FindSorted(fcId);
 
             apf::Downward verts;
             // int num_vert =
@@ -891,7 +864,7 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
          if (apf_mesh->isShared(ent))
          {
             int edId = apf::getNumber(edgeNum, ent, 0, 0);
-            int ctr = SharedEdgeIds.Find(edId);
+            int ctr = SharedEdgeIds.FindSorted(edId);
             apf::Downward verts;
             apf_mesh->getDownward(ent, 0, verts);
             int id1, id2;
@@ -902,8 +875,8 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
             shared_edges[ctr] = new Segment(id1, id2, 1);
             if ((sedge_ledge[ctr] = v_to_v(id1,id2)) < 0)
             {
-               cerr << "\n\n\n" << MyRank << ": ParMesh::ParMesh: "
-                    << "ERROR in v_to_v\n\n" << endl;
+               mfem::err << "\n\n\n" << MyRank << ": ParPumiMesh::ParPumiMesh: "
+                         << "ERROR in v_to_v\n\n" << endl;
                mfem_error();
             }
 
@@ -925,7 +898,7 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
       if (apf_mesh->isShared(ent))
       {
          int vt_id = apf::getNumber(v_num_loc, ent, 0, 0);
-         int ctr = SharedVertIds.Find(vt_id);
+         int ctr = SharedVertIds.FindSorted(vt_id);
          svert_lvert[ctr] = vt_id;
          svert_counter++;
       }
@@ -940,10 +913,10 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
 
    if (curved) // curved mesh
    {
-      GridFunctionPumi* auxNodes =
-         new GridFunctionPumi(this, apf_mesh, v_num_loc, crd_shape->getOrder());
-      Nodes = new ParGridFunction(this, auxNodes);
-      Nodes->SetData(auxNodes->GetData());
+      GridFunctionPumi auxNodes(this, apf_mesh, v_num_loc,
+                                crd_shape->getOrder());
+      Nodes = new ParGridFunction(this, &auxNodes);
+      Nodes->Vector::Swap(auxNodes);
       this->edge_vertex = NULL;
       own_nodes = 1;
    }
@@ -952,7 +925,7 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
    //apf::destroyNumbering(v_num_loc);
    apf::destroyNumbering(edgeNum);
    apf::destroyNumbering(faceNum);
-   have_face_nbr_data = false;
+   // have_face_nbr_data = false; // done by the default ParMesh ctor
 }
 
 
@@ -963,23 +936,12 @@ GridFunctionPumi::GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM,
                                    const int mesh_order)
 {
    // Set to zero
-   SetDataAndSize(NULL, 0);
-   // int ec;
+   // SetDataAndSize(NULL, 0); // done by the default Vector constructor
+
    int spDim = m->SpaceDimension();
-   // Needs to be modified for other orders
-   if (mesh_order == 1)
-   {
-      mfem_error("GridFunction::GridFunction : First order mesh!");
-   }
-   else if (mesh_order == 2)
-   {
-      fec =  FiniteElementCollection::New("Quadratic");
-   }
-   else
-   {
-      fec = new H1_FECollection(mesh_order, m->Dimension());
-   }
-   int ordering = 1; // x1y1z1/x2y2z2/...
+   // Note: default BasisType for 'fec' is GaussLobatto.
+   fec = new H1_FECollection(mesh_order, m->Dimension());
+   int ordering = Ordering::byVDIM; // x1y1z1/x2y2z2/...
    fes = new FiniteElementSpace(m, fec, spDim, ordering);
    int data_size = fes->GetVSize();
 
@@ -1361,7 +1323,7 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
             dofId += ndOnEdge;
          }
       }
-      //cout << " after MFEM call rwady to transfer " <<endl;
+      //mfem::out << " after MFEM call rwady to transfer " <<endl;
       //Face Dofs
       if (VelFieldShape->hasNodesIn(apf::Mesh::TRIANGLE))
       {
@@ -1421,8 +1383,8 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                    6 * PrFieldShape->countNodesOn(1) + //edge
                    4 * PrFieldShape->countNodesOn(2) + //Triangle
                    PrFieldShape->countNodesOn(4);//Tetrahedron
-   //cout << " tot nodes : " << num_nodes << " vol nodes : "
-   //     << PrFieldShape->countNodesOn(4) <<endl;
+   //mfem::out << " tot nodes : " << num_nodes << " vol nodes : "
+   //          << PrFieldShape->countNodesOn(4) <<endl;
    //define integration points
    IntegrationRule* pumi_nodes = new IntegrationRule(num_nodes);
    int ip_cnt = 0;
@@ -1572,7 +1534,7 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
             dofId += ndOnEdge;
          }
       }
-      //cout << " after MFEM call rwady to transfer " <<endl;
+      //mfem::out << " after MFEM call rwady to transfer " <<endl;
       //Face Dofs
       if (PrFieldShape->hasNodesIn(apf::Mesh::TRIANGLE))
       {
@@ -1627,8 +1589,8 @@ void ParPumiMesh::VectorFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                    6 * VelFieldShape->countNodesOn(1) + //edge
                    4 * VelFieldShape->countNodesOn(2) + //Triangle
                    VelFieldShape->countNodesOn(4);//Tetrahedron
-   //cout << " tot nodes : " << num_nodes << " vol nodes : "
-   //     << VelFieldShape->countNodesOn(4) <<endl;
+   //mfem::out << " tot nodes : " << num_nodes << " vol nodes : "
+   //          << VelFieldShape->countNodesOn(4) <<endl;
    //define integration points
    IntegrationRule* pumi_nodes = new IntegrationRule(num_nodes);
    int ip_cnt = 0;
@@ -1786,7 +1748,7 @@ void ParPumiMesh::VectorFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
             dofId += ndOnEdge;
          }
       }
-      //cout << " after MFEM call rwady to transfer " <<endl;
+      //mfem::out << " after MFEM call rwady to transfer " <<endl;
       //Face Dofs
       if (VelFieldShape->hasNodesIn(apf::Mesh::TRIANGLE))
       {
@@ -1859,8 +1821,8 @@ void ParPumiMesh::FieldPUMItoMFEM(apf::Mesh2* apf_mesh,
    //Check for higher order
    // apf::FieldShape* SolFieldShape =
    getShape(ScalarField);
-   //cout << " Pr->FESpace()->GetOrder(1) : " << Pr->FESpace()->GetOrder(1)
-   //     <<endl;
+   //mfem::out << " Pr->FESpace()->GetOrder(1) : "
+   //          << Pr->FESpace()->GetOrder(1) <<endl;
    if ( Pr->FESpace()->GetOrder(1) > 1 )
    {
       //Assume all element type are the same i.e. tetrahedral
