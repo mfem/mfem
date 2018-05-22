@@ -645,6 +645,12 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
    }
    MFEM_VERIFY(counter == 0, "internal MFEM error: counter = " << counter);
 #endif
+#ifdef MFEM_USE_BACKENDS
+   if (dev_ext)
+   {
+      ess_tdof_list.SetEngine(dev_ext->GetEngine());
+   }
+#endif
    MarkerToList(true_ess_dofs, ess_tdof_list);
 }
 
