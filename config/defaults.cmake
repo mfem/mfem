@@ -146,13 +146,13 @@ set(AXOM_DIR "${MFEM_DIR}/../axom" CACHE PATH "Path to the Axom library.")
 set(Axom_REQUIRED_PACKAGES "Conduit/relay" CACHE STRING
     "Additional packages required by Axom.")
 
+set(PUMI_DIR "${MFEM_DIR}/../pumi-2.1.0" CACHE STRING
+    "Directory where PUMI is installed")
+
 set(BLAS_INCLUDE_DIRS "" CACHE STRING "Path to BLAS headers.")
 set(BLAS_LIBRARIES "" CACHE STRING "The BLAS library.")
 set(LAPACK_INCLUDE_DIRS "" CACHE STRING "Path to LAPACK headers.")
 set(LAPACK_LIBRARIES "" CACHE STRING "The LAPACK library.")
-
-set(SCOREC_PREFIX "${MFEM_DIR}/../core/install" CACHE STRING
-  "Directory where PUMI is installed")
 
 # Some useful variables:
 set(CMAKE_SKIP_PREPROCESSED_SOURCE_RULES ON) # Skip *.i rules
