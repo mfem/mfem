@@ -10,7 +10,8 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 set(PUMI_EXAMPLES_SRCS)
-if (MFEM_USE_PUMI AND MFEM_USE_MPI)
+# All PUMI examples require MPI
+if (MFEM_USE_MPI)
   list(APPEND PUMI_EXAMPLES_SRCS
     ex1.cpp
     ex1p.cpp
@@ -40,6 +41,7 @@ add_mfem_examples(PUMI_EXAMPLES_SRCS ${PFX} "" test_pumi)
 # TODO...
 
 # Set the number of processors for the parallel examples.
+set(EX1_TEST_NP 1)
 set(EX1P_TEST_NP 8)
 set(EX2P_TEST_NP 1)
 set(EX6P_TEST_NP 8)
@@ -55,7 +57,8 @@ foreach(SRC_FILE ${PUMI_EXAMPLES_SRCS})
   list(APPEND THIS_TEST_OPTIONS ${${UP_TEST_NAME}_TEST_OPTS})
   # message(STATUS "Test ${TEST_NAME} options: ${THIS_TEST_OPTIONS}")
 
-  if (NOT (${TEST_NAME} MATCHES ".*p$"))
+  # All PUMI examples require MPI
+  if (FALSE)
     add_test(NAME ${TEST_NAME}_ser
       COMMAND ${TEST_NAME} ${THIS_TEST_OPTIONS})
   else()

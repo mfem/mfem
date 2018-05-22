@@ -21,8 +21,9 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = ex1
-PAR_EXAMPLES = ex1p ex2p ex6p
+# All PUMI examples require MPI
+SEQ_EXAMPLES =
+PAR_EXAMPLES = ex1 ex1p ex2p ex6p
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
@@ -61,6 +62,8 @@ PARALLEL_NAME := Parallel PUMI example
 	@$(call mfem-test,$<,, $(SERIAL_NAME))
 
 # Testing: Example-specific execution options:
+ex1-test-par: ex1
+	@$(call mfem-test,$<, $(RUN_MPI_NP) 1, $(PARALLEL_NAME))
 ex1p-test-par: ex1p
 	@$(call mfem-test,$<, $(RUN_MPI_NP) 8, $(PARALLEL_NAME))
 ex2p-test-par: ex2p
