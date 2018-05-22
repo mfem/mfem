@@ -39,6 +39,11 @@ add_mfem_examples(PUMI_EXAMPLES_SRCS ${PFX} "" test_pumi)
 # Command line options for the tests.
 # TODO...
 
+# Set the number of processors for the parallel examples.
+set(EX1P_TEST_NP 8)
+set(EX2P_TEST_NP 1)
+set(EX6P_TEST_NP 8)
+
 # Add the tests: one test per source file.
 foreach(SRC_FILE ${PUMI_EXAMPLES_SRCS})
   get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
@@ -54,8 +59,9 @@ foreach(SRC_FILE ${PUMI_EXAMPLES_SRCS})
     add_test(NAME ${TEST_NAME}_ser
       COMMAND ${TEST_NAME} ${THIS_TEST_OPTIONS})
   else()
-    add_test(NAME ${TEST_NAME}_np=4
-      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4
+    set(TEST_NP ${${UP_TEST_NAME}_TEST_NP})
+    add_test(NAME ${TEST_NAME}_np=${TEST_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${TEST_NP}
       ${MPIEXEC_PREFLAGS}
       $<TARGET_FILE:${TEST_NAME}> ${THIS_TEST_OPTIONS}
       ${MPIEXEC_POSTFLAGS})

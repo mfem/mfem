@@ -246,11 +246,19 @@ if (MFEM_USE_SIDRE)
   find_package(Axom REQUIRED Sidre SLIC axom_utils)
 endif()
 
-# If SCOREC_PREFIX was specified, only link to that directory,
+# If PUMI_DIR was specified, only link to that directory,
 # i.e. don't link to another installation in /usr/lib by mistake
 if (MFEM_USE_PUMI)
   find_package(SCOREC 2.1.0 REQUIRED OPTIONAL_COMPONENTS gmi_sim
-    CONFIG PATHS ${SCOREC_PREFIX} NO_DEFAULT_PATH)
+    CONFIG PATHS ${PUMI_DIR} NO_DEFAULT_PATH)
+  if (SCOREC_FOUND)
+    # Define a header file with the MFEM_USE_SIMMETRIX preprocessor variable
+    set(MFEM_USE_SIMMETRIX ${SCOREC_gmi_sim_FOUND})
+    set(PUMI_FOUND ${SCOREC_FOUND})
+    get_target_property(PUMI_INCLUDE_DIRS
+      SCOREC::apf INTERFACE_INCLUDE_DIRECTORIES)
+    set(PUMI_LIBRARIES SCOREC::core)
+  endif()
 endif()
 
 # MFEM_TIMER_TYPE
@@ -277,8 +285,8 @@ endif()
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
-    MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT GECKO GNUTLS NETCDF MPFR POSIXCLOCKS
-    MFEMBacktrace ZLIB)
+    MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT GECKO GNUTLS NETCDF MPFR PUMI
+    POSIXCLOCKS MFEMBacktrace ZLIB)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")
@@ -302,13 +310,6 @@ endif()
 message(STATUS "MFEM build type: CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 message(STATUS "MFEM version: v${MFEM_VERSION_STRING}")
 message(STATUS "MFEM git string: ${MFEM_GIT_STRING}")
-
-if (SCOREC_FOUND)
- message(STATUS "MFEM: using package PUMI")
- # Define a header file with the MFEM_USE_SIMMETRIX preprocessor variable
- set(MFEM_USE_SIMMETRIX ${SCOREC_gmi_sim_FOUND})
- list(APPEND TPL_LIBRARIES SCOREC::core)
-endif()
 
 # Windows specific
 set(_USE_MATH_DEFINES ${WIN32})
