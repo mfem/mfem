@@ -173,7 +173,7 @@ void PumiMesh::ReadSCORECMesh(apf::Mesh2* apf_mesh, apf::Numbering* v_num_loc,
    elements.SetSize(NumOfElements);
 
    // Get the attribute tag
-   apf::MeshTag* attTag = apf_mesh->findTag("attribute");
+   // apf::MeshTag* attTag = apf_mesh->findTag("attribute");
 
    // read elements from SCOREC Mesh
    itr = apf_mesh->begin(Dim);
@@ -182,13 +182,13 @@ void PumiMesh::ReadSCORECMesh(apf::Mesh2* apf_mesh, apf::Numbering* v_num_loc,
    {
       // Get vertices
       apf::Downward verts;
-      int num_vert =  apf_mesh->getDownward(ent,0,verts);
+      // int num_vert =  apf_mesh->getDownward(ent,0,verts);
       // Get attribute Tag vs Geometry
       int attr = 1;
       /*if (apf_mesh->hasTag(ent,atts)){
           attr = apf_mesh->getIntTag(ent,attTag,&attr);
       }*/
-      apf::ModelEntity* me = apf_mesh->toModel(ent);
+      // apf::ModelEntity* me = apf_mesh->toModel(ent);
       attr = 1; // apf_mesh->getModelTag(me);
       int geom_type = apf_mesh->getType(ent); // Make sure this works!
       elements[j] = ReadElement(ent, geom_type, verts, attr, v_num_loc);
@@ -214,7 +214,7 @@ void PumiMesh::ReadSCORECMesh(apf::Mesh2* apf_mesh, apf::Numbering* v_num_loc,
       if (apf_mesh->getModelType(mdEnt) == BCdim)
       {
          apf::Downward verts;
-         int num_verts = apf_mesh->getDownward(ent, 0, verts);
+         // int num_verts = apf_mesh->getDownward(ent, 0, verts);
          int attr = 1 ; // apf_mesh->getModelTag(mdEnt);
          int geom_type = apf_mesh->getType(ent);
          boundary[j] = ReadElement( ent, geom_type, verts, attr, v_num_loc);
@@ -237,7 +237,7 @@ void PumiMesh::ReadSCORECMesh(apf::Mesh2* apf_mesh, apf::Numbering* v_num_loc,
          apf::Vector3 Crds;
          apf_mesh->getPoint(ent,0,Crds);
 
-         for (unsigned int ii=0; ii<spaceDim; ii++)
+         for (int ii=0; ii<spaceDim; ii++)
          {
             vertices[id](ii) = Crds[ii];
          }
@@ -393,7 +393,7 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
       apf::Vector3 Crds;
       apf_mesh->getPoint(ent,0,Crds);
 
-      for (unsigned int ii=0; ii<spaceDim; ii++)
+      for (int ii=0; ii<spaceDim; ii++)
       {
          vertices[id](ii) =
             Crds[ii];   // Assuming the ids are ordered and from 0
@@ -407,7 +407,7 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
    elements.SetSize(NumOfElements);
 
    // Get the attribute tag
-   apf::MeshTag* attTag = apf_mesh->findTag("attribute");
+   // apf::MeshTag* attTag = apf_mesh->findTag("attribute");
 
    // Read elements from SCOREC Mesh
    itr = apf_mesh->begin(Dim);
@@ -416,7 +416,7 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
    {
       // Get vertices
       apf::Downward verts;
-      int num_vert =  apf_mesh->getDownward(ent,0,verts);
+      // int num_vert =  apf_mesh->getDownward(ent,0,verts);
       // Get attribute Tag vs Geometry
       int attr = 1;
       /*if (apf_mesh->hasTag(ent,atts)){
@@ -465,7 +465,7 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
       if (apf_mesh->getModelType(mdEnt) == BcDim)
       {
          apf::Downward verts;
-         int num_verts = apf_mesh->getDownward(ent, 0, verts);
+         // int num_verts = apf_mesh->getDownward(ent, 0, verts);
          int attr = 1 ;// apf_mesh->getModelTag(mdEnt);
          /*if (apf_mesh->hasTag(ent,atts)){
              apf_mesh->getIntTag(ent,attTag,&attr);
@@ -678,11 +678,11 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
    i = 0;
    while ((ent = apf_mesh->iterate(itr)))
    {
-      apf::Downward verts;
-      int num_verts = apf_mesh->getDownward(ent,0,verts);
-      int ed_ids[2];
-      ed_ids[0] = apf::getNumber(v_num_loc, verts[0], 0, 0);
-      ed_ids[1] = apf::getNumber(v_num_loc, verts[1], 0, 0);
+      // apf::Downward verts;
+      // int num_verts = apf_mesh->getDownward(ent,0,verts);
+      // int ed_ids[2];
+      // ed_ids[0] = apf::getNumber(v_num_loc, verts[0], 0, 0);
+      // ed_ids[1] = apf::getNumber(v_num_loc, verts[1], 0, 0);
 
       int edId = apf::getNumber(edgeNum, ent, 0, 0);
 
@@ -837,7 +837,7 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
             int ctr = SharedFaceIds.Find(fcId);
 
             apf::Downward verts;
-            int num_vert =  apf_mesh->getDownward(ent,0,verts);
+            // int num_vert =  apf_mesh->getDownward(ent,0,verts);
             int geom = BaseBdrGeom;
             int attr = 1;
             shared_faces[ctr] = ReadElement(ent, geom, verts, attr,
@@ -950,7 +950,7 @@ GridFunctionPumi::GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM,
 {
    // Set to zero
    SetDataAndSize(NULL, 0);
-   int ec;
+   // int ec;
    int spDim = m->SpaceDimension();
    // Needs to be modified for other orders
    if (mesh_order == 1)
@@ -980,7 +980,7 @@ GridFunctionPumi::GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM,
    // Assume all element type are the same i.e. tetrahedral
    const FiniteElement* H1_elem = fes->GetFE(1);
    const IntegrationRule &All_nodes = H1_elem->GetNodes();
-   int num_vert = m->GetElement(1)->GetNVertices();
+   // int num_vert = m->GetElement(1)->GetNVertices();
    int nnodes = All_nodes.Size();
 
    // loop over elements
@@ -999,7 +999,7 @@ GridFunctionPumi::GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM,
       apf::Element* elem = apf::createElement(crd_field, mE);
 
       // Vertices are already interpolated
-      for (int ip = 0; ip < nnodes; ip++)// num_vert
+      for (int ip = 0; ip < nnodes; ip++) // num_vert
       {
          // Take parametric coordinates of the node
          apf::Vector3 param;
@@ -1278,11 +1278,11 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
 
 
    //other dofs
-   apf::Downward vtxs;
+   // apf::Downward vtxs;
    apf::MeshEntity* ent;
    apf::MeshIterator* itr = apf_mesh->begin(3);
    int iel = 0;
-   while (ent = apf_mesh->iterate(itr))
+   while ((ent = apf_mesh->iterate(itr)))
    {
       //Get the solution
       Vector u_vel, v_vel, w_vel;
@@ -1503,11 +1503,11 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
 
 
    //other dofs
-   apf::Downward vtxs;
+   // apf::Downward vtxs;
    apf::MeshEntity* ent;
    apf::MeshIterator* itr = apf_mesh->begin(3);
    int iel = 0;
-   while (ent = apf_mesh->iterate(itr))
+   while ((ent = apf_mesh->iterate(itr)))
    {
       //Get the solution
       Vector pr;
@@ -1706,11 +1706,11 @@ void ParPumiMesh::VectorFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
 
 
    //other dofs
-   apf::Downward vtxs;
+   // apf::Downward vtxs;
    apf::MeshEntity* ent;
    apf::MeshIterator* itr = apf_mesh->begin(3);
    int iel = 0;
-   while (ent = apf_mesh->iterate(itr))
+   while ((ent = apf_mesh->iterate(itr)))
    {
 
       //Get the solution
@@ -1822,7 +1822,7 @@ void ParPumiMesh::FieldPUMItoMFEM(apf::Mesh2* apf_mesh,
    v_num_loc = apf_mesh->findNumbering("LocalVertexNumbering");
 
    //Loop over field to copy
-   apf::FieldShape* ScalarFieldShape = getShape(ScalarField);
+   // apf::FieldShape* ScalarFieldShape = getShape(ScalarField);
    apf::MeshEntity* ent;
    apf::MeshIterator* itr = apf_mesh->begin(0);
    while ((ent = apf_mesh->iterate(itr)))
@@ -1836,14 +1836,14 @@ void ParPumiMesh::FieldPUMItoMFEM(apf::Mesh2* apf_mesh,
    apf_mesh->end(itr);
 
    //Check for higher order
-   apf::FieldShape* SolFieldShape = getShape(ScalarField);
+   // apf::FieldShape* SolFieldShape = getShape(ScalarField);
    //cout << " Pr->FESpace()->GetOrder(1) : " << Pr->FESpace()->GetOrder(1)<<endl;
    if ( Pr->FESpace()->GetOrder(1) > 1 )
    {
       //Assume all element type are the same i.e. tetrahedral
       const FiniteElement* H1_elem = Pr->FESpace()->GetFE(1);
       const IntegrationRule &All_nodes = H1_elem->GetNodes();
-      int num_vert = 4; //TET only
+      // int num_vert = 4; //TET only
       int nnodes = All_nodes.Size();
 
       //loop over elements
@@ -1860,7 +1860,7 @@ void ParPumiMesh::FieldPUMItoMFEM(apf::Mesh2* apf_mesh,
          apf::Element* elem = apf::createElement(ScalarField, mE);
 
          //Vertices are already interpolated
-         for (int ip = 0; ip < nnodes; ip++)//num_vert
+         for (int ip = 0; ip < nnodes; ip++) //num_vert
          {
             //Take parametric coordinates of the node
             apf::Vector3 param;
