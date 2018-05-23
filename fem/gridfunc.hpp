@@ -624,8 +624,8 @@ inline void QuadratureFunction::GetElementValues(int idx,
    const int sl_size = qspace->element_offsets[idx+1] - s_offset;
    values.SetSize(vdim, sl_size);
    double *q = data + vdim*s_offset;
-   for (int i = 0; i<vdim; i++)
-      for (int j = 0; j<sl_size; j++)
+   for (int j = 0; j<sl_size; j++)
+      for (int i = 0; i<vdim; i++)
       {
          values(i,j) = *(q++);
       }
