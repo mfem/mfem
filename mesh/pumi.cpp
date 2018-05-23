@@ -40,9 +40,9 @@ PumiMesh::PumiMesh(apf::Mesh2* apf_mesh, int generate_edges, int refine,
    Load(apf_mesh, generate_edges, refine, fix_orientation);
 }
 
-Element *PumiMesh::ReadElement( apf::MeshEntity* Ent, const int geom,
-                                apf::Downward Verts,
-                                const int Attr, apf::Numbering* vert_num)
+Element *PumiMesh::ReadElement(apf::MeshEntity* Ent, const int geom,
+                               apf::Downward Verts,
+                               const int Attr, apf::Numbering* vert_num)
 {
    Element *el;
    int nv, *v;
@@ -64,8 +64,8 @@ Element *PumiMesh::ReadElement( apf::MeshEntity* Ent, const int geom,
    return el;
 }
 
-void PumiMesh::CountBoundaryEntity( apf::Mesh2* apf_mesh, const int BcDim,
-                                    int &NumBc)
+void PumiMesh::CountBoundaryEntity(apf::Mesh2* apf_mesh, const int BcDim,
+                                   int &NumBc)
 {
    apf::MeshEntity* ent;
    apf::MeshIterator* itr = apf_mesh->begin(BcDim);
@@ -256,9 +256,9 @@ void PumiMesh::ReadSCORECMesh(apf::Mesh2* apf_mesh, apf::Numbering* v_num_loc,
 
 // ParPumiMesh implementation
 
-Element *ParPumiMesh::ReadElement( apf::MeshEntity* Ent, const int geom,
-                                   apf::Downward Verts,
-                                   const int Attr, apf::Numbering* vert_num)
+Element *ParPumiMesh::ReadElement(apf::MeshEntity* Ent, const int geom,
+                                  apf::Downward Verts,
+                                  const int Attr, apf::Numbering* vert_num)
 {
    Element *el;
    int nv, *v;
@@ -301,11 +301,11 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
 
    // Iterator to get type
    apf::MeshIterator* itr = apf_mesh->begin(Dim);
-   BaseGeom = apf_mesh->getType( apf_mesh->iterate(itr) );
+   BaseGeom = apf_mesh->getType(apf_mesh->iterate(itr));
    apf_mesh->end(itr);
 
    itr = apf_mesh->begin(Dim - 1);
-   BaseBdrGeom = apf_mesh->getType( apf_mesh->iterate(itr) );
+   BaseBdrGeom = apf_mesh->getType(apf_mesh->iterate(itr));
    apf_mesh->end(itr);
 
    // ncmesh = pncmesh = NULL; // done by the default ParMesh and Mesh ctors
@@ -377,12 +377,10 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
       {
          SharedVertIds[shared_num++] = ordered_id;
       }
-
    }
    apf_mesh->end(itr);
    SharedVertIds.Sort();
    apf::destroyGlobalNumbering(VertexNumbering);
-
 
    vertices.SetSize(NumOfVertices);
    // Set vertices for non-curved mesh
@@ -587,7 +585,6 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
          }
       }
       apf_mesh->end(itr);
-
    }
 
    // Determine shared edges
@@ -710,7 +707,6 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
    {
       int vtId = apf::getNumber(v_num_loc, ent, 0, 0);
       vert_element->GetRow(vtId)[0] = -1;
-
 
       if (apf_mesh->isShared(ent))
       {
@@ -910,7 +906,6 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
    // Build the group communication topology
    gtopo.Create(groups, 822);
 
-
    if (curved) // curved mesh
    {
       GridFunctionPumi auxNodes(this, apf_mesh, v_num_loc,
@@ -952,7 +947,6 @@ GridFunctionPumi::GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM,
    apf::MeshEntity* ent;
    apf::MeshIterator* itr;
 
-
    // Assume all element type are the same i.e. tetrahedral
    const FiniteElement* H1_elem = fes->GetFE(0);
    const IntegrationRule &All_nodes = H1_elem->GetNodes();
@@ -983,7 +977,6 @@ GridFunctionPumi::GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM,
          param[1] = All_nodes.IntPoint(ip).y;
          param[2] = All_nodes.IntPoint(ip).z;
 
-
          // Compute the interpolating coordinates
          apf::DynamicVector phCrd(nc);
          apf::getComponents(elem, param, &phCrd[0]);
@@ -994,7 +987,6 @@ GridFunctionPumi::GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM,
             int dof_ctr = ip + kk * nnodes;
             PumiData[vdofs[dof_ctr]] = phCrd[kk];
          }
-
       }
       iel++;
       apf::destroyElement(elem);
@@ -1170,7 +1162,6 @@ void ParPumiMesh::UpdateMesh(const ParMesh* AdaptedpMesh)
       *Nodes = *(AdaptedpMesh->Nodes);
       own_nodes = 1;
    }
-
 }
 
 // Transfer a mixed vector-scalar field (i.e. velocity,pressure) and the
@@ -1182,7 +1173,6 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                                   apf::Field* PrField,
                                   apf::Field* VelMagField)
 {
-
    apf::FieldShape* VelFieldShape = getShape(VelField);
    int num_nodes = 4 * VelFieldShape->countNodesOn(0) + //vertex
                    6 * VelFieldShape->countNodesOn(1) + //edge
@@ -1283,7 +1273,6 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
       }
    }
    MFEM_ASSERT(ip_cnt == num_nodes, "");
-
 
    //other dofs
    // apf::Downward vtxs;
@@ -1407,7 +1396,6 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                                   apf::Field* PrField,
                                   apf::Field* PrMagField)
 {
-
    apf::FieldShape* PrFieldShape = getShape(PrField);
    int num_nodes = 4 * PrFieldShape->countNodesOn(0) + //vertex
                    6 * PrFieldShape->countNodesOn(1) + //edge
@@ -1509,7 +1497,6 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
       }
    }
    MFEM_ASSERT(ip_cnt == num_nodes, "");
-
 
    //other dofs
    // apf::Downward vtxs;
@@ -1613,7 +1600,6 @@ void ParPumiMesh::VectorFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                                         apf::Field* VelField,
                                         apf::Field* VelMagField)
 {
-
    apf::FieldShape* VelFieldShape = getShape(VelField);
    int num_nodes = 4 * VelFieldShape->countNodesOn(0) + //vertex
                    6 * VelFieldShape->countNodesOn(1) + //edge
@@ -1716,7 +1702,6 @@ void ParPumiMesh::VectorFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
    }
    MFEM_ASSERT(ip_cnt == num_nodes, "");
 
-
    //other dofs
    // apf::Downward vtxs;
    apf::MeshEntity* ent;
@@ -1724,13 +1709,11 @@ void ParPumiMesh::VectorFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
    int iel = 0;
    while ((ent = apf_mesh->iterate(itr)))
    {
-
       //Get the solution
       Vector u_vel, v_vel, w_vel;
       grid_vel->GetValues(iel, pumi_nodes, u_vel, 1);
       grid_vel->GetValues(iel, pumi_nodes, v_vel, 2);
       grid_vel->GetValues(iel, pumi_nodes, w_vel, 3);
-
 
       //Transfer
       apf::Downward vtxs;
@@ -1772,7 +1755,6 @@ void ParPumiMesh::VectorFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                //set vel
                double vels[3] = {u_vel[cnt], v_vel[cnt], w_vel[cnt]};
                apf::setComponents(VelField, edges[ii], jj, vels);
-
             }
             //counter
             dofId += ndOnEdge;
@@ -1809,7 +1791,6 @@ void ParPumiMesh::VectorFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                //set vel
                double vels[3] = {u_vel[cnt], v_vel[cnt], w_vel[cnt]};
                apf::setComponents(VelField, faces[ii], jj, vels);
-
             }
             //counter
             dofId += ndOnFace;
@@ -1823,7 +1804,6 @@ void ParPumiMesh::VectorFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
    //Destroy local numbering
    //apf::destroyNumbering(v_num_loc);
 }
-
 
 void ParPumiMesh::FieldPUMItoMFEM(apf::Mesh2* apf_mesh,
                                   apf::Field* ScalarField,
@@ -1844,7 +1824,6 @@ void ParPumiMesh::FieldPUMItoMFEM(apf::Mesh2* apf_mesh,
       double fieldVal = apf::getScalar(ScalarField, ent, 0);
 
       (Pr->GetData())[id] = fieldVal;
-
    }
    apf_mesh->end(itr);
 
@@ -1893,7 +1872,6 @@ void ParPumiMesh::FieldPUMItoMFEM(apf::Mesh2* apf_mesh,
                int dof_ctr = ip + kk * nnodes;
                (Pr->GetData())[vdofs[dof_ctr]] = phCrd[kk];
             }
-
          }
          iel++;
          apf::destroyElement(elem);
