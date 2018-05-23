@@ -1,5 +1,5 @@
-//                       PUMI Example 6 - Parallel Version
-//
+//                       MFEM Example 6 - Parallel Version
+//                              PUMI Modification
 //
 // Sample runs:  mpirun -np 8 ./pumi_ma_ex6p
 //

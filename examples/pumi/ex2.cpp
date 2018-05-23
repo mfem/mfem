@@ -1,5 +1,5 @@
-//                                MFEM Example 2 modified
-//
+//                                MFEM Example 2
+//                               PUMI Modification
 //
 // Sample runs:  atr_ex2 -m ../data/pumi/serial/pillbox.smb
 //               -p ../data/pumi/geom/pillbox.smd
