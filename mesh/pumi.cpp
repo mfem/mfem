@@ -1009,16 +1009,49 @@ GridFunctionPumi::GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM,
 /// able to Call Update() methods of FESpace, Linear and Bilinear forms.
 void ParPumiMesh::UpdateMesh(const ParMesh* AdaptedpMesh)
 {
+   // Destroy the ParMesh data fields.
+   delete pncmesh;
+   pncmesh = NULL;
+
+   DeleteFaceNbrData();
+
+   for (int i = 0; i < shared_faces.Size(); i++)
+   {
+      FreeElement(shared_faces[i]);
+   }
+   for (int i = 0; i < shared_edges.Size(); i++)
+   {
+      FreeElement(shared_edges[i]);
+   }
+   shared_faces.DeleteAll();
+   shared_edges.DeleteAll();
+   group_svert.Clear();
+   group_sedge.Clear();
+   group_sface.Clear();
+   svert_lvert.DeleteAll();
+   sedge_ledge.DeleteAll();
+   sface_lface.DeleteAll();
+
+   // Destroy the Mesh data fields.
+   Destroy();
+
    // Assuming Dim, spaceDim, geom type is unchanged
+   MFEM_ASSERT(Dim == AdaptedpMesh->Dim, "");
+   MFEM_ASSERT(spaceDim == AdaptedpMesh->spaceDim, "");
+   MFEM_ASSERT(BaseGeom == AdaptedpMesh->BaseGeom, "");
+   MFEM_ASSERT(BaseBdrGeom == AdaptedpMesh->BaseBdrGeom, "");
+
    NumOfVertices = AdaptedpMesh->GetNV();//NumOfVertices;
    NumOfElements = AdaptedpMesh->GetNE();//NumOfElements;
    NumOfBdrElements = AdaptedpMesh->GetNBE();//NumOfBdrElements;
    NumOfEdges = AdaptedpMesh->GetNEdges();//NumOfEdges;
    NumOfFaces = AdaptedpMesh->GetNFaces();//NumOfFaces;
 
+   meshgen = AdaptedpMesh->meshgen;
+
    // Sequence is increased by one to trigger update in FEspace etc.
    sequence++;
-   last_operation = Mesh::NONE;
+   last_operation = Mesh::NONE; // FIXME: Mesh::Refine or Mesh::Derefine?
 
    // Duplicate the elements
    elements.SetSize(NumOfElements);
@@ -1028,8 +1061,6 @@ void ParPumiMesh::UpdateMesh(const ParMesh* AdaptedpMesh)
    }
 
    // Copy the vertices
-   MFEM_ASSERT(AdaptedpMesh->GetNV() == NumOfVertices,
-               "internal MFEM error!");
    AdaptedpMesh->vertices.Copy(vertices);
 
    // Duplicate the boundary
@@ -1080,13 +1111,16 @@ void ParPumiMesh::UpdateMesh(const ParMesh* AdaptedpMesh)
    AdaptedpMesh->attributes.Copy(attributes);
    AdaptedpMesh->bdr_attributes.Copy(bdr_attributes);
 
-   // No support for NURBS meshes, yet. Need deep copy for NURBSExtension.
+   // PUMI meshes cannot use NURBS meshes.
    MFEM_VERIFY(AdaptedpMesh->NURBSext == NULL,
-               "copying NURBS meshes is not implemented");
+               "invalid adapted mesh: it is a NURBS mesh");
    NURBSext = NULL;
 
-   // Deep copy the NCMesh.
-   ncmesh = AdaptedpMesh->ncmesh ? new NCMesh(*(AdaptedpMesh->ncmesh)) : NULL;
+   // PUMI meshes cannot use NCMesh/ParNCMesh.
+   MFEM_VERIFY(AdaptedpMesh->ncmesh == NULL && AdaptedpMesh->pncmesh == NULL,
+               "invalid adapted mesh: it is a non-conforming mesh");
+   ncmesh = NULL;
+   pncmesh = NULL;
 
    //Parallel Implications
    AdaptedpMesh->group_svert.Copy(group_svert);
@@ -1119,10 +1153,6 @@ void ParPumiMesh::UpdateMesh(const ParMesh* AdaptedpMesh)
 
    // Do not copy face-neighbor data (can be generated if needed)
    have_face_nbr_data = false;
-
-   MFEM_VERIFY(AdaptedpMesh->pncmesh == NULL,
-               "copying non-conforming meshes is not implemented");
-   pncmesh = NULL;
 
    // Copy the Nodes as a ParGridFunction, including the FiniteElementCollection
    // and the FiniteElementSpace (as a ParFiniteElementSpace)
@@ -1160,19 +1190,19 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                    VelFieldShape->countNodesOn(4);//Tetrahedron
 
    //define integration points
-   IntegrationRule* pumi_nodes = new IntegrationRule(num_nodes);
+   IntegrationRule pumi_nodes(num_nodes);
    int ip_cnt = 0;
    apf::Vector3 xi_crd(0.,0.,0.);
    //Create a template of dof holders coordinates
    //in parametric coordinates. The ordering is
    //taken care of when the field is transfered to PUMI.
    //Dofs on Vertices
-   IntegrationPoint& ip = pumi_nodes->IntPoint(ip_cnt++);
+   IntegrationPoint& ip = pumi_nodes.IntPoint(ip_cnt++);
    double pt_crd[3] = {0., 0., 0.};
    ip.Set(pt_crd, 3);
    for (int kk = 0; kk < 3; kk++)
    {
-      IntegrationPoint& ip = pumi_nodes->IntPoint(ip_cnt++);
+      IntegrationPoint& ip = pumi_nodes.IntPoint(ip_cnt++);
       double pt_crd[3] = {0.,0.,0.};
       pt_crd[kk] = 1.0;
       ip.Set(pt_crd, 3);
@@ -1212,7 +1242,7 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                   pt_crd[2] = xi_crd[0];
                   break;
             }
-            IntegrationPoint& ip = pumi_nodes->IntPoint(ip_cnt++);
+            IntegrationPoint& ip = pumi_nodes.IntPoint(ip_cnt++);
             ip.Set(pt_crd, 3);
          }
       }
@@ -1247,7 +1277,7 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                   pt_crd[2] = xi_crd[1];
                   break;
             }
-            IntegrationPoint& ip = pumi_nodes->IntPoint(ip_cnt++);
+            IntegrationPoint& ip = pumi_nodes.IntPoint(ip_cnt++);
             ip.Set(pt_crd, 3);
          }
       }
@@ -1264,12 +1294,12 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
    {
       //Get the solution
       Vector u_vel, v_vel, w_vel;
-      grid_vel->GetValues(iel, *pumi_nodes, u_vel, 1);
-      grid_vel->GetValues(iel, *pumi_nodes, v_vel, 2);
-      grid_vel->GetValues(iel, *pumi_nodes, w_vel, 3);
+      grid_vel->GetValues(iel, pumi_nodes, u_vel, 1);
+      grid_vel->GetValues(iel, pumi_nodes, v_vel, 2);
+      grid_vel->GetValues(iel, pumi_nodes, w_vel, 3);
 
       Vector pr;
-      grid_pr->GetValues(iel, *pumi_nodes, pr, 1);
+      grid_pr->GetValues(iel, pumi_nodes, pr, 1);
 
       //Transfer
       apf::Downward vtxs;
@@ -1386,19 +1416,19 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
    //mfem::out << " tot nodes : " << num_nodes << " vol nodes : "
    //          << PrFieldShape->countNodesOn(4) <<endl;
    //define integration points
-   IntegrationRule* pumi_nodes = new IntegrationRule(num_nodes);
+   IntegrationRule pumi_nodes(num_nodes);
    int ip_cnt = 0;
    apf::Vector3 xi_crd(0.,0.,0.);
    //Create a template of dof holders coordinates
    //in parametric coordinates. The ordering is
    //taken care of when the field is transfered to PUMI.
    //Dofs on Vertices
-   IntegrationPoint& ip = pumi_nodes->IntPoint(ip_cnt++);
+   IntegrationPoint& ip = pumi_nodes.IntPoint(ip_cnt++);
    double pt_crd[3] = {0., 0., 0.};
    ip.Set(pt_crd, 3);
    for (int kk = 0; kk < 3; kk++)
    {
-      IntegrationPoint& ip = pumi_nodes->IntPoint(ip_cnt++);
+      IntegrationPoint& ip = pumi_nodes.IntPoint(ip_cnt++);
       double pt_crd[3] = {0.,0.,0.};
       pt_crd[kk] = 1.0;
       ip.Set(pt_crd, 3);
@@ -1438,7 +1468,7 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                   pt_crd[2] = xi_crd[0];
                   break;
             }
-            IntegrationPoint& ip = pumi_nodes->IntPoint(ip_cnt++);
+            IntegrationPoint& ip = pumi_nodes.IntPoint(ip_cnt++);
             ip.Set(pt_crd, 3);
          }
       }
@@ -1473,7 +1503,7 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                   pt_crd[2] = xi_crd[1];
                   break;
             }
-            IntegrationPoint& ip = pumi_nodes->IntPoint(ip_cnt++);
+            IntegrationPoint& ip = pumi_nodes.IntPoint(ip_cnt++);
             ip.Set(pt_crd, 3);
          }
       }
@@ -1490,7 +1520,7 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
    {
       //Get the solution
       Vector pr;
-      grid_pr->GetValues(iel, *pumi_nodes, pr, 1);
+      grid_pr->GetValues(iel, pumi_nodes, pr, 1);
 
       //Transfer
       apf::Downward vtxs;
@@ -1592,19 +1622,19 @@ void ParPumiMesh::VectorFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
    //mfem::out << " tot nodes : " << num_nodes << " vol nodes : "
    //          << VelFieldShape->countNodesOn(4) <<endl;
    //define integration points
-   IntegrationRule* pumi_nodes = new IntegrationRule(num_nodes);
+   IntegrationRule pumi_nodes(num_nodes);
    int ip_cnt = 0;
    apf::Vector3 xi_crd(0.,0.,0.);
    //Create a template of dof holders coordinates
    //in parametric coordinates. The ordering is
    //taken care of when the field is transfered to PUMI.
    //Dofs on Vertices
-   IntegrationPoint& ip = pumi_nodes->IntPoint(ip_cnt++);
+   IntegrationPoint& ip = pumi_nodes.IntPoint(ip_cnt++);
    double pt_crd[3] = {0., 0., 0.};
    ip.Set(pt_crd, 3);
    for (int kk = 0; kk < 3; kk++)
    {
-      IntegrationPoint& ip = pumi_nodes->IntPoint(ip_cnt++);
+      IntegrationPoint& ip = pumi_nodes.IntPoint(ip_cnt++);
       double pt_crd[3] = {0.,0.,0.};
       pt_crd[kk] = 1.0;
       ip.Set(pt_crd, 3);
@@ -1644,7 +1674,7 @@ void ParPumiMesh::VectorFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                   pt_crd[2] = xi_crd[0];
                   break;
             }
-            IntegrationPoint& ip = pumi_nodes->IntPoint(ip_cnt++);
+            IntegrationPoint& ip = pumi_nodes.IntPoint(ip_cnt++);
             ip.Set(pt_crd, 3);
          }
       }
@@ -1679,7 +1709,7 @@ void ParPumiMesh::VectorFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                   pt_crd[2] = xi_crd[1];
                   break;
             }
-            IntegrationPoint& ip = pumi_nodes->IntPoint(ip_cnt++);
+            IntegrationPoint& ip = pumi_nodes.IntPoint(ip_cnt++);
             ip.Set(pt_crd, 3);
          }
       }
@@ -1697,9 +1727,9 @@ void ParPumiMesh::VectorFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
 
       //Get the solution
       Vector u_vel, v_vel, w_vel;
-      grid_vel->GetValues(iel, *pumi_nodes, u_vel, 1);
-      grid_vel->GetValues(iel, *pumi_nodes, v_vel, 2);
-      grid_vel->GetValues(iel, *pumi_nodes, w_vel, 3);
+      grid_vel->GetValues(iel, pumi_nodes, u_vel, 1);
+      grid_vel->GetValues(iel, pumi_nodes, v_vel, 2);
+      grid_vel->GetValues(iel, pumi_nodes, w_vel, 3);
 
 
       //Transfer
