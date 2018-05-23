@@ -98,6 +98,10 @@ New and updated examples and miniapps
   meshes. Example 10 and its SUNDIALS version have also been updated to support
   non-conforming ARM meshes.
 
+- Added PUMI version of examples ex1, ex1p, ex2 and ex6p to demonstrate use of
+  PUMI API's to perform  parallel/serial mesh loading (ex1 & ex1p), applying 
+  BC's using classification (ex2), and performing parallel MeshAdapt (ex6p).   
+
 Miscellaneous
 -------------
 - Documented project workflow and provided contribution guidelines in the new
