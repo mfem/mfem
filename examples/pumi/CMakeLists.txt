@@ -15,7 +15,7 @@ if (MFEM_USE_MPI)
   list(APPEND PUMI_EXAMPLES_SRCS
     ex1.cpp
     ex1p.cpp
-    ex2p.cpp
+    ex2.cpp
     ex6p.cpp
     )
 endif()
@@ -43,7 +43,7 @@ add_mfem_examples(PUMI_EXAMPLES_SRCS ${PFX} "" test_pumi)
 # Set the number of processors for the parallel examples.
 set(EX1_TEST_NP 1)
 set(EX1P_TEST_NP 8)
-set(EX2P_TEST_NP 1)
+set(EX2_TEST_NP 1)
 set(EX6P_TEST_NP 8)
 
 # Add the tests: one test per source file.

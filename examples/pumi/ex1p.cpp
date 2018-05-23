@@ -1,6 +1,5 @@
-//                       PUMI Example 1 - Parallel Version
-//
-// Compile with: Add pumi_ex1p.cpp in the CMakeLists.txt
+//                       MFEM Example 1 - Parallel Version
+//                              PUMI Modification
 //
 // Sample runs:  mpirun -np 8 ./pumi_ex1p -m ../data/pumi/Kova/Kova4.smb
 //                    -p ../data/pumi/Kova/Kova.x_t -o 1 -go 2
