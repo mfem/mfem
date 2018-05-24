@@ -23,7 +23,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 # All PUMI examples require MPI
 SEQ_EXAMPLES =
-PAR_EXAMPLES = ex1 ex1p ex2p ex6p
+PAR_EXAMPLES = ex1 ex1p ex2 ex6p
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
@@ -66,7 +66,7 @@ ex1-test-par: ex1
 	@$(call mfem-test,$<, $(RUN_MPI_NP) 1, $(PARALLEL_NAME))
 ex1p-test-par: ex1p
 	@$(call mfem-test,$<, $(RUN_MPI_NP) 8, $(PARALLEL_NAME))
-ex2p-test-par: ex2p
+ex2-test-par: ex2
 	@$(call mfem-test,$<, $(RUN_MPI_NP) 1, $(PARALLEL_NAME))
 ex6p-test-par: ex6p
 	@$(call mfem-test,$<, $(RUN_MPI_NP) 8, $(PARALLEL_NAME))

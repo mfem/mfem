@@ -132,7 +132,7 @@ void PumiMesh::Load(apf::Mesh2* apf_mesh, int generate_edges, int refine,
       edge_vertex = NULL;
       own_nodes = 1;
       spaceDim = Nodes->VectorDim();
-      
+
       // Set the 'vertices' from the 'Nodes'
       for (int i = 0; i < spaceDim; i++)
       {
@@ -240,7 +240,7 @@ void PumiMesh::ReadSCORECMesh(apf::Mesh2* apf_mesh, apf::Numbering* v_num_loc,
    }
 }
 
-// ParPumiMesh implementation 
+// ParPumiMesh implementation
 Element *ParPumiMesh::ReadElement(apf::MeshEntity* Ent, const int geom,
                                   apf::Downward Verts,
                                   const int Attr, apf::Numbering* vert_num)
@@ -266,7 +266,7 @@ Element *ParPumiMesh::ReadElement(apf::MeshEntity* Ent, const int geom,
 }
 
 //This function loads a  parallel PUMI mesh and returns
-//the parallel MFEM mesh corresponding to it. 
+//the parallel MFEM mesh corresponding to it.
 ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
 {
    // Set the communicator for gtopo
@@ -392,7 +392,7 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
       // Get vertices
       apf::Downward verts;
       apf_mesh->getDownward(ent,0,verts);
-      
+
       // Get attribute Tag vs Geometry
       int attr = 1;
       int geom_type = BaseGeom;
