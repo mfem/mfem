@@ -87,6 +87,13 @@ New and updated examples and miniapps
   NURBS meshes in the miniapps/nurbs directory. Currently the directory contains
   variable order NURBS versions of examples 1, 1p and 11p.
 
+
+- Added PUMI versions of examples ex1, ex1p, ex2 and ex6p in a new examples/pumi
+  directory. The new examples demonstrate the use of the Parallel Unstructured
+  Mesh Infrastructure APIs (https://scorec.rpi.edu/pumi) to perform parallel &
+  serial mesh loading (ex1 & ex1p), applying BCs using classification (ex2), and
+  performing parallel mesh adaptation (ex6p).
+
 - Added two new miniapps related to DataCollection I/O in miniapps/tools:
   load-dc.cpp can be used to visualize fields saved via DataCollection classes;
   convert-dc.cpp demonstrates how to convert between MFEM's different concrete
@@ -97,10 +104,6 @@ New and updated examples and miniapps
   (see the "API changes" section) and now works correctly on non-conforming AMR
   meshes. Example 10 and its SUNDIALS version have also been updated to support
   non-conforming ARM meshes.
-
-- Added PUMI version of examples ex1, ex1p, ex2 and ex6p to demonstrate use of
-  PUMI API's to perform  parallel/serial mesh loading (ex1 & ex1p), applying 
-  BC's using classification (ex2), and performing parallel MeshAdapt (ex6p).   
 
 Miscellaneous
 -------------
