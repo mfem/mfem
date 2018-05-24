@@ -73,9 +73,11 @@ class ParPumiMesh : public ParMesh
 {
 private:
    apf::Numbering* v_num_loc;
+
 protected:
    Element *ReadElement(apf::MeshEntity* Ent, const int geom, apf::Downward Verts,
                         const int Attr, apf::Numbering* vert_num);
+
 public:
    /// Build a parallel MFEM mesh from a parallel PUMI mesh.
    ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh);
@@ -108,7 +110,7 @@ public:
                         apf::Field* ScalarField,
                         ParGridFunction* Pr);
 
-   virtual ~ParPumiMesh() {};
+   virtual ~ParPumiMesh() { }
 };
 
 
@@ -124,7 +126,7 @@ public:
    virtual ~GridFunctionPumi() { }
 };
 
-}
+} // namespace mfem
 
 #endif // MFEM_USE_MPI
 #endif // MFEM_USE_PUMI
