@@ -825,7 +825,8 @@ void BilinearForm::EliminateVDofs(const Array<int> &vdofs,
 }
 
 void BilinearForm::EliminateEssentialBCFromDofs(
-   const Array<int> &ess_dofs, const Vector &sol, Vector &rhs, DiagonalPolicy dpolicy)
+   const Array<int> &ess_dofs, const Vector &sol, Vector &rhs,
+   DiagonalPolicy dpolicy)
 {
    MFEM_ASSERT(ess_dofs.Size() == height, "incorrect dof Array size");
    MFEM_ASSERT(sol.Size() == height, "incorrect sol Vector size");
