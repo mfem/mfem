@@ -398,6 +398,7 @@ protected:
    // Additional data needed in the VisIt root file, which describes the mesh
    // and all the fields in the collection
    int spatial_dim, topo_dim;
+   int visit_levels_of_detail;
    int visit_max_levels_of_detail;
    std::map<std::string, VisItFieldInfo> field_info_map;
    typedef std::map<std::string, VisItFieldInfo>::iterator FieldInfoMapIterator;
