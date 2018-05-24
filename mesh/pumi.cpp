@@ -36,7 +36,6 @@ namespace mfem
 PumiMesh::PumiMesh(apf::Mesh2* apf_mesh, int generate_edges, int refine,
                    bool fix_orientation)
 {
-   // SetEmpty(); // called by the default Mesh constructor
    Load(apf_mesh, generate_edges, refine, fix_orientation);
 }
 
@@ -133,7 +132,7 @@ void PumiMesh::Load(apf::Mesh2* apf_mesh, int generate_edges, int refine,
       edge_vertex = NULL;
       own_nodes = 1;
       spaceDim = Nodes->VectorDim();
-      // if (ncmesh) { ncmesh->spaceDim = spaceDim; }
+      
       // Set the 'vertices' from the 'Nodes'
       for (int i = 0; i < spaceDim; i++)
       {
@@ -173,9 +172,6 @@ void PumiMesh::ReadSCORECMesh(apf::Mesh2* apf_mesh, apf::Numbering* v_num_loc,
    NumOfElements = countOwned(apf_mesh,Dim);
    elements.SetSize(NumOfElements);
 
-   // Get the attribute tag
-   // apf::MeshTag* attTag = apf_mesh->findTag("attribute");
-
    // read elements from SCOREC Mesh
    itr = apf_mesh->begin(Dim);
    unsigned int j=0;
@@ -187,13 +183,8 @@ void PumiMesh::ReadSCORECMesh(apf::Mesh2* apf_mesh, apf::Numbering* v_num_loc,
       apf_mesh->getDownward(ent,0,verts);
       // Get attribute Tag vs Geometry
       int attr = 1;
-      /*if (apf_mesh->hasTag(ent,atts)){
-          attr = apf_mesh->getIntTag(ent,attTag,&attr);
-      }*/
-      // apf::ModelEntity* me =
-      apf_mesh->toModel(ent);
-      attr = 1; // apf_mesh->getModelTag(me);
-      int geom_type = apf_mesh->getType(ent); // Make sure this works!
+
+      int geom_type = apf_mesh->getType(ent);
       elements[j] = ReadElement(ent, geom_type, verts, attr, v_num_loc);
       j++;
    }
@@ -217,9 +208,8 @@ void PumiMesh::ReadSCORECMesh(apf::Mesh2* apf_mesh, apf::Numbering* v_num_loc,
       if (apf_mesh->getModelType(mdEnt) == BCdim)
       {
          apf::Downward verts;
-         // int num_verts =
          apf_mesh->getDownward(ent, 0, verts);
-         int attr = 1 ; // apf_mesh->getModelTag(mdEnt);
+         int attr = 1;
          int geom_type = apf_mesh->getType(ent);
          boundary[j] = ReadElement( ent, geom_type, verts, attr, v_num_loc);
          j++;
@@ -247,15 +237,10 @@ void PumiMesh::ReadSCORECMesh(apf::Mesh2* apf_mesh, apf::Numbering* v_num_loc,
          }
       }
       apf_mesh->end(itr);
-
-      // initialize vertex positions in NCMesh
-      // if (ncmesh) { ncmesh->SetVertexPositions(vertices); }
    }
 }
 
-
-// ParPumiMesh implementation
-
+// ParPumiMesh implementation 
 Element *ParPumiMesh::ReadElement(apf::MeshEntity* Ent, const int geom,
                                   apf::Downward Verts,
                                   const int Attr, apf::Numbering* vert_num)
@@ -280,7 +265,8 @@ Element *ParPumiMesh::ReadElement(apf::MeshEntity* Ent, const int geom,
    return el;
 }
 
-
+//This function loads a  parallel PUMI mesh and returns
+//the parallel MFEM mesh corresponding to it. 
 ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
 {
    // Set the communicator for gtopo
@@ -293,9 +279,6 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
    MPI_Comm_size(MyComm, &NRanks);
    MPI_Comm_rank(MyComm, &MyRank);
 
-   // Mesh::SetEmpty(); // called by the default Mesh constructor
-   // The ncmesh part is deleted
-
    Dim = apf_mesh->getDimension();
    spaceDim = Dim;// mesh.spaceDim;
 
@@ -307,8 +290,6 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
    itr = apf_mesh->begin(Dim - 1);
    BaseBdrGeom = apf_mesh->getType(apf_mesh->iterate(itr));
    apf_mesh->end(itr);
-
-   // ncmesh = pncmesh = NULL; // done by the default ParMesh and Mesh ctors
 
    // Global numbering of vertices.  This is necessary to build a local
    // numbering that has the same ordering in each process
@@ -335,7 +316,7 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
    }
    apf_mesh->end(itr);
 
-   // Make it global
+   // Make the local numbering global
    apf::GlobalNumbering* VertexNumbering = apf::makeGlobal(vLocNum, true);
    apf::synchronize(VertexNumbering);
 
@@ -383,11 +364,7 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
    apf::destroyGlobalNumbering(VertexNumbering);
 
    vertices.SetSize(NumOfVertices);
-   // Set vertices for non-curved mesh
-   int curved = (crd_shape->getOrder() > 1) ? 1 : 0;
-
-   // if (!curved)
-   // {
+   // Set vertices
    itr = apf_mesh->begin(0);
    while ((ent = apf_mesh->iterate(itr)))
    {
@@ -402,14 +379,10 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
       }
    }
    apf_mesh->end(itr);
-   // }
 
    // Fill the elements
    NumOfElements = countOwned(apf_mesh,Dim);
    elements.SetSize(NumOfElements);
-
-   // Get the attribute tag
-   // apf::MeshTag* attTag = apf_mesh->findTag("attribute");
 
    // Read elements from SCOREC Mesh
    itr = apf_mesh->begin(Dim);
@@ -418,17 +391,11 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
    {
       // Get vertices
       apf::Downward verts;
-      // int num_vert =
       apf_mesh->getDownward(ent,0,verts);
+      
       // Get attribute Tag vs Geometry
       int attr = 1;
-      /*if (apf_mesh->hasTag(ent,atts)){
-         apf_mesh->getIntTag(ent,attTag,&attr);
-      }*/
-      // apf::ModelEntity* me = apf_mesh->toModel(ent);
-      // attr = 1; // apf_mesh->getModelTag(me);
-
-      int geom_type = BaseGeom;// apf_mesh->getType(ent); // Make sure this works!
+      int geom_type = BaseGeom;
       elements[j] = ReadElement(ent, geom_type, verts, attr, v_num_loc);
       j++;
    }
@@ -463,13 +430,8 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
       if (apf_mesh->getModelType(mdEnt) == BcDim)
       {
          apf::Downward verts;
-         // int num_verts =
          apf_mesh->getDownward(ent, 0, verts);
-         int attr = 1 ;// apf_mesh->getModelTag(mdEnt);
-         /*if (apf_mesh->hasTag(ent,atts)){
-             apf_mesh->getIntTag(ent,attTag,&attr);
-           }*/
-
+         int attr = 1 ;
          int geom_type = BaseBdrGeom;// apf_mesh->getType(ent);
          boundary[bdr_ctr] = ReadElement(ent, geom_type, verts, attr,
                                          v_num_loc);
@@ -486,10 +448,6 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
    // Mesh::InitTables();
 
    this->FinalizeTopology();
-
-   // bool refine = false;
-   // bool fix_orientation = true;
-   // Mesh::Finalize(refine, fix_orientation);
 
    STable3D *faces_tbl = (Dim == 3) ? GetFacesTable() : NULL;
 
@@ -656,17 +614,7 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
    i = 0;
    while ((ent = apf_mesh->iterate(itr)))
    {
-      apf::Downward verts;
-      // int num_verts =
-      apf_mesh->getDownward(ent,0,verts);
-      // int ed_ids[2];
-      // ed_ids[0] =
-      apf::getNumber(v_num_loc, verts[0], 0, 0);
-      // ed_ids[1] =
-      apf::getNumber(v_num_loc, verts[1], 0, 0);
-
       int edId = apf::getNumber(edgeNum, ent, 0, 0);
-
       edge_element->GetRow(edId)[0] = -1;
 
       if (apf_mesh->isShared(ent))
@@ -690,7 +638,6 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
          // Generate the group
          group.Recreate(thisNumAdjs, eleRanks);
          edge_element->GetRow(edId)[0] = groups.Insert(group) - 1;
-         // edge_element->GetRow(i)[0] = groups.Insert(group) - 1;
 
       }
       i++;
@@ -819,7 +766,6 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
             int ctr = SharedFaceIds.FindSorted(fcId);
 
             apf::Downward verts;
-            // int num_vert =
             apf_mesh->getDownward(ent,0,verts);
             int geom = BaseBdrGeom;
             int attr = 1;
@@ -906,6 +852,8 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
    // Build the group communication topology
    gtopo.Create(groups, 822);
 
+   //Set nodes for higher order mesh
+   int curved = (crd_shape->getOrder() > 1) ? 1 : 0;
    if (curved) // curved mesh
    {
       GridFunctionPumi auxNodes(this, apf_mesh, v_num_loc,
@@ -915,23 +863,16 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
       this->edge_vertex = NULL;
       own_nodes = 1;
    }
-
-   //pumi_ghost_delete(apf_mesh);
-   //apf::destroyNumbering(v_num_loc);
    apf::destroyNumbering(edgeNum);
    apf::destroyNumbering(faceNum);
-   // have_face_nbr_data = false; // done by the default ParMesh ctor
 }
 
 
-// GridFunctionPumi Implementation
-
+// GridFunctionPumi Implementation needed for high order meshes
 GridFunctionPumi::GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM,
                                    apf::Numbering* v_num_loc,
                                    const int mesh_order)
 {
-   // Set to zero
-   // SetDataAndSize(NULL, 0); // done by the default Vector constructor
 
    int spDim = m->SpaceDimension();
    // Note: default BasisType for 'fec' is GaussLobatto.
@@ -950,7 +891,6 @@ GridFunctionPumi::GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM,
    // Assume all element type are the same i.e. tetrahedral
    const FiniteElement* H1_elem = fes->GetFE(0);
    const IntegrationRule &All_nodes = H1_elem->GetNodes();
-   // int num_vert = m->GetElement(1)->GetNVertices();
    int nnodes = All_nodes.Size();
 
    // loop over elements
@@ -969,7 +909,7 @@ GridFunctionPumi::GridFunctionPumi(Mesh* m, apf::Mesh2* PumiM,
       apf::Element* elem = apf::createElement(crd_field, mE);
 
       // Vertices are already interpolated
-      for (int ip = 0; ip < nnodes; ip++) // num_vert
+      for (int ip = 0; ip < nnodes; ip++)
       {
          // Take parametric coordinates of the node
          apf::Vector3 param;
@@ -1033,17 +973,17 @@ void ParPumiMesh::UpdateMesh(const ParMesh* AdaptedpMesh)
    MFEM_ASSERT(BaseGeom == AdaptedpMesh->BaseGeom, "");
    MFEM_ASSERT(BaseBdrGeom == AdaptedpMesh->BaseBdrGeom, "");
 
-   NumOfVertices = AdaptedpMesh->GetNV();//NumOfVertices;
-   NumOfElements = AdaptedpMesh->GetNE();//NumOfElements;
-   NumOfBdrElements = AdaptedpMesh->GetNBE();//NumOfBdrElements;
-   NumOfEdges = AdaptedpMesh->GetNEdges();//NumOfEdges;
-   NumOfFaces = AdaptedpMesh->GetNFaces();//NumOfFaces;
+   NumOfVertices = AdaptedpMesh->GetNV();
+   NumOfElements = AdaptedpMesh->GetNE();
+   NumOfBdrElements = AdaptedpMesh->GetNBE();
+   NumOfEdges = AdaptedpMesh->GetNEdges();
+   NumOfFaces = AdaptedpMesh->GetNFaces();
 
    meshgen = AdaptedpMesh->meshgen;
 
    // Sequence is increased by one to trigger update in FEspace etc.
    sequence++;
-   last_operation = Mesh::NONE; // FIXME: Mesh::Refine or Mesh::Derefine?
+   last_operation = Mesh::NONE;
 
    // Duplicate the elements
    elements.SetSize(NumOfElements);
@@ -1275,7 +1215,6 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
    MFEM_ASSERT(ip_cnt == num_nodes, "");
 
    //other dofs
-   // apf::Downward vtxs;
    apf::MeshEntity* ent;
    apf::MeshIterator* itr = apf_mesh->begin(3);
    int iel = 0;
@@ -1385,9 +1324,6 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
       iel++;
    }
    apf_mesh->end(itr);
-
-   //Destroy local numbering
-   //apf::destroyNumbering(v_num_loc);
 }
 
 // Transfer a scalar field its magnitude to use for mesh adaptation
@@ -1401,8 +1337,7 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                    6 * PrFieldShape->countNodesOn(1) + //edge
                    4 * PrFieldShape->countNodesOn(2) + //Triangle
                    PrFieldShape->countNodesOn(4);//Tetrahedron
-   //mfem::out << " tot nodes : " << num_nodes << " vol nodes : "
-   //          << PrFieldShape->countNodesOn(4) <<endl;
+
    //define integration points
    IntegrationRule pumi_nodes(num_nodes);
    int ip_cnt = 0;
@@ -1499,7 +1434,6 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
    MFEM_ASSERT(ip_cnt == num_nodes, "");
 
    //other dofs
-   // apf::Downward vtxs;
    apf::MeshEntity* ent;
    apf::MeshIterator* itr = apf_mesh->begin(3);
    int iel = 0;
@@ -1551,7 +1485,7 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
             dofId += ndOnEdge;
          }
       }
-      //mfem::out << " after MFEM call rwady to transfer " <<endl;
+
       //Face Dofs
       if (PrFieldShape->hasNodesIn(apf::Mesh::TRIANGLE))
       {
@@ -1588,9 +1522,6 @@ void ParPumiMesh::FieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
       iel++;
    }
    apf_mesh->end(itr);
-
-   //Destroy local numbering
-   //apf::destroyNumbering(v_num_loc);
 }
 
 // Transfer a vector field and the magnitude of the vector field to use for mesh
@@ -1605,8 +1536,7 @@ void ParPumiMesh::VectorFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
                    6 * VelFieldShape->countNodesOn(1) + //edge
                    4 * VelFieldShape->countNodesOn(2) + //Triangle
                    VelFieldShape->countNodesOn(4);//Tetrahedron
-   //mfem::out << " tot nodes : " << num_nodes << " vol nodes : "
-   //          << VelFieldShape->countNodesOn(4) <<endl;
+
    //define integration points
    IntegrationRule pumi_nodes(num_nodes);
    int ip_cnt = 0;
@@ -1703,7 +1633,6 @@ void ParPumiMesh::VectorFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
    MFEM_ASSERT(ip_cnt == num_nodes, "");
 
    //other dofs
-   // apf::Downward vtxs;
    apf::MeshEntity* ent;
    apf::MeshIterator* itr = apf_mesh->begin(3);
    int iel = 0;
@@ -1760,7 +1689,7 @@ void ParPumiMesh::VectorFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
             dofId += ndOnEdge;
          }
       }
-      //mfem::out << " after MFEM call rwady to transfer " <<endl;
+
       //Face Dofs
       if (VelFieldShape->hasNodesIn(apf::Mesh::TRIANGLE))
       {
@@ -1800,9 +1729,6 @@ void ParPumiMesh::VectorFieldMFEMtoPUMI(apf::Mesh2* apf_mesh,
       iel++;
    }
    apf_mesh->end(itr);
-
-   //Destroy local numbering
-   //apf::destroyNumbering(v_num_loc);
 }
 
 void ParPumiMesh::FieldPUMItoMFEM(apf::Mesh2* apf_mesh,
@@ -1814,7 +1740,6 @@ void ParPumiMesh::FieldPUMItoMFEM(apf::Mesh2* apf_mesh,
    v_num_loc = apf_mesh->findNumbering("LocalVertexNumbering");
 
    //Loop over field to copy
-   // apf::FieldShape* ScalarFieldShape =
    getShape(ScalarField);
    apf::MeshEntity* ent;
    apf::MeshIterator* itr = apf_mesh->begin(0);
@@ -1828,16 +1753,12 @@ void ParPumiMesh::FieldPUMItoMFEM(apf::Mesh2* apf_mesh,
    apf_mesh->end(itr);
 
    //Check for higher order
-   // apf::FieldShape* SolFieldShape =
    getShape(ScalarField);
-   //mfem::out << " Pr->FESpace()->GetOrder(1) : "
-   //          << Pr->FESpace()->GetOrder(1) <<endl;
    if ( Pr->FESpace()->GetOrder(1) > 1 )
    {
       //Assume all element type are the same i.e. tetrahedral
       const FiniteElement* H1_elem = Pr->FESpace()->GetFE(1);
       const IntegrationRule &All_nodes = H1_elem->GetNodes();
-      // int num_vert = 4; //TET only
       int nnodes = All_nodes.Size();
 
       //loop over elements
