@@ -62,7 +62,7 @@ make check
 make install PREFIX=<dir>
    Install the library and headers in <dir>/lib and <dir>/include.
 make clean
-   Clean the library and object files, but keep configuration.
+   Clean the library and object files, but keep the configuration.
 make distclean
    In addition to "make clean", clean the configuration and remove the local
    installation directory.
