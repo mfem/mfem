@@ -432,7 +432,7 @@ MFEM uses a `master`/`next`-branch workflow as described below:
     - [ ] `CHANGELOG`
     - [ ] `makefile`
     - [ ] `CMakeLists.txt`
-    - [ ] `doc/CodeDocumentation.conf`
+    - [ ] `doc/CodeDocumentation.conf.in`
 - [ ] (LLNL only) Make sure all `README.html` files in the source repo are up to date.
 - [ ] Tag the repository:
 
