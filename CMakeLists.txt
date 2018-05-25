@@ -543,3 +543,81 @@ install(FILES
 # Install the export set for use with the install-tree
 install(EXPORT ${PROJECT_NAME_UC}Targets
     DESTINATION ${INSTALL_CMAKE_DIR})
+
+# Generate configuration file in the build directory: config/config.mk
+execute_process(COMMAND "uname" "-snm" OUTPUT_VARIABLE MFEM_BUILD_TAG)
+set(MFEM_CXX ${CMAKE_CXX_COMPILER})
+set(MFEM_CXXFLAGS ${CMAKE_CXX_FLAGS})
+set(MFEM_TPLFLAGS "")
+foreach(dir ${MFEM_TPL_INCLUDE_DIRS})
+  set(MFEM_TPLFLAGS "-I${dir} ${MFEM_TPLFLAGS}")
+endforeach()
+# The following variables should use either the installed path (i.e., the destination
+# of directory of 'make install') or the build path.  I'm not sure how to
+# support both - going with the installed path.
+set(MFEM_INCFLAGS "-I${CMAKE_INSTALL_PREFIX}/include ${MFEM_TPLFLAGS}")
+set(MFEM_FLAGS "${MFEM_CPPFLAGS} ${MFEM_CXXFLAGS} ${MFEM_INCFLAGS}")
+set(MFEM_PREFIX ${CMAKE_INSTALL_PREFIX})
+set(MFEM_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
+if(BUILD_SHARED_LIBS)
+  set(MFEM_SHARED YES)
+  set(MFEM_STATIC)
+  set(MFEM_LIB_FILE
+    "${CMAKE_INSTALL_PREFIX}/lib/libmfem.${CMAKE_SHARED_LIBRARY_SUFFIX}")
+else()
+  set(MFEM_SHARED)
+  set(MFEM_STATIC YES)
+  set(MFEM_LIB_FILE "${CMAKE_INSTALL_PREFIX}/lib/libmfem.a")
+  set(shared_link_flag)
+endif()
+set(shared_link_flag ${CMAKE_SHARED_LIBRARY_RUNTIME_C_FLAG})
+
+# handle pumi libs
+if(MFEM_USE_PUMI)
+  get_target_property(liblist ${PUMI_LIBRARIES} INTERFACE_LINK_LIBRARIES)
+  set(pumi_dep_libs "${liblist}")
+  foreach(pumilib ${liblist})
+    get_target_property(libdeps ${pumilib} INTERFACE_LINK_LIBRARIES)
+    if( NOT "${libdeps}" MATCHES "libdeps-NOTFOUND" )
+      list(APPEND pumi_dep_libs ${libdeps})
+    endif()
+  endforeach()
+  list(REMOVE_DUPLICATES pumi_dep_libs)
+  foreach(pumilib ${pumi_dep_libs})
+    unset(lib CACHE)
+    string(REGEX REPLACE "^SCOREC::" "" libname ${pumilib})
+    find_library(lib ${libname} PATHS ${PUMI_DIR}/lib NO_DEFUALT_PATH)
+    if( NOT "${lib}" MATCHES "lib-NOTFOUND" )
+      set(MFEM_LIBS "${lib} ${MFEM_LIBS}")
+    elseif( "${lib}" MATCHES "lib-NOTFOUND" AND NOT "${libname}" MATCHES "can")
+      message(FATAL_ERROR "SCOREC lib ${libname} not found")
+    endif()
+  endforeach()
+endif()
+
+foreach(lib ${MFEM_LIB_FILE} ${TPL_LIBRARIES})
+  get_filename_component(suffix ${lib} EXT)
+  # handle interfaces (e.g., SCOREC::apf)
+  if("${lib}" MATCHES "SCOREC::.*" )
+  elseif( NOT "${lib}" MATCHES "SCOREC::.*" AND "${lib}" MATCHES ".*::.*" )
+    message(FATAL_ERROR "***** interface lib found ... exiting*****")
+  # handle static and shared libs
+  elseif( "${suffix}" STREQUAL "${CMAKE_SHARED_LIBRARY_SUFFIX}" )
+    get_filename_component(dir ${lib} DIRECTORY)
+    get_filename_component(fullLibName ${lib} NAME_WE)
+    string(REGEX REPLACE "^lib" "" libname ${fullLibName})
+    set(MFEM_LIBS "${MFEM_LIBS} ${shared_link_flag}${dir} -L${dir} -l${libname}")
+  else()
+    set(MFEM_LIBS "${MFEM_LIBS} ${lib}")
+  endif()
+endforeach()
+set(MFEM_INC_DIR "${CMAKE_INSTALL_PREFIX}/include")
+set(MFEM_TEST_MK "${CMAKE_INSTALL_PREFIX}/share/mfem/test.mk")
+install(FILES ${PROJECT_SOURCE_DIR}/config/test.mk
+  DESTINATION ${CMAKE_INSTALL_PREFIX}/share/mfem/)
+configure_file(
+  "${PROJECT_SOURCE_DIR}/config/config.mk.in"
+  "${PROJECT_BINARY_DIR}/share/mfem/config.mk")
+install(FILES ${PROJECT_BINARY_DIR}/share/mfem/config.mk
+  DESTINATION ${CMAKE_INSTALL_PREFIX}/share/mfem/)
+

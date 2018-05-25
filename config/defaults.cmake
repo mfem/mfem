@@ -19,6 +19,10 @@ if (NOT CMAKE_BUILD_TYPE)
 endif()
 
 # MFEM options. Set to mimic the default "defaults.mk" file.
+set(MFEM_CPPFLAGS ${CPPFLAGS} CACHE STRING "MFEM C preprocessor flags")
+set(MFEM_MPIEXEC "mpirun" CACHE FILEPATH "MPI process launcher")
+set(MFEM_MPIEXEC_NP "-np" CACHE STRING "MPI flag for setting the number of processes")
+set(MFEM_MPI_NP 4 CACHE STRING "MPI default number of processes")
 option(MFEM_USE_MPI "Enable MPI parallel build" OFF)
 option(MFEM_USE_METIS "Enable METIS usage" ${MFEM_USE_MPI})
 option(MFEM_USE_EXCEPTIONS "Enable the use of exceptions" OFF)
