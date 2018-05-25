@@ -20,7 +20,7 @@ flexible visualization, and tight integration with the hypre library.
   interactive documentation in examples/README.html.
 
 * Developers interested in contributing to the library, should read the
-  documentation and detailed instructions in the CONTRIBUTING.md file.
+  instructions and documentation in the CONTRIBUTING.md file.
 
 Conceptually, MFEM can be viewed as a finite element toolbox that provides the
 building blocks for developing finite element algorithms in a manner similar to
