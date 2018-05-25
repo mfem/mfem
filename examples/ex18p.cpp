@@ -1,353 +1,364 @@
-//                       MFEM Example 18 - Parallel Version
+//                         MFEM Example 18 - Parallel Version
 //
-// Compile with: make ex18p
+// Compile with: make ex18
 //
-// Sample runs:  mpirun -np 4 ex18p
+// Sample runs:
 //
-// Description: This example demonstrates the use of the variable
-//              order, symplectic ODE integration algorithm.
-//              Symplectic integration algorithms are designed to
-//              conserve energy when integrating, in time, systems of
-//              ODEs which are derived from Hamiltonain systems.
+//       mpirun -np 4 ex18p -p 1 -rs 2 -rp 1 -o 1 -s 3
+//       mpirun -np 4 ex18p -p 1 -rs 1 -rp 1 -o 3 -s 4
+//       mpirun -np 4 ex18p -p 1 -rs 1 -rp 1 -o 5 -s 6
+//       mpirun -np 4 ex18p -p 2 -rs 1 -rp 1 -o 1 -s 3
+//       mpirun -np 4 ex18p -p 2 -rs 1 -rp 1 -o 3 -s 3
 //
-//              Hamiltonian systems define the energy of a system as a
-//              function of time (t), a set of generalized coordinates
-//              (q), and their corresponding generalized momenta (p).
-//                 H(q,p,t) = T(p) + V(q,t)
-//              Hamilton's equations then specify how q and p evolve
-//              in time:
-//                 dq/dt =  dH/dp
-//                 dp/dt = -dH/dq
-//              To use the symplectic integration classes we need to
-//              define an mfem::Operator P which evaluates the action
-//              of dH/dp, and an mfem::TimeDependentOperator F which
-//              computes -dH/dq.
+// Description:  This example code solves the compressible Euler system of
+//               equations, a model nonlinear hyperbolic PDE, with a
+//               discontinuous Galerkin (DG) formulation.
 //
-//              This example offers five simple 1D Hamiltonians:
-//                 0) Simple Harmonic Oscillator (mass on a spring)
-//                    H = ( p^2 / m + q^2 / k ) / 2
-//                 1) Pendulum
-//                    H = ( p^2 / m - k ( 1 - cos(q) ) ) / 2
-//                 2) Gaussian Potential Well
-//                    H = ( p^2 / m ) / 2 - k exp(-q^2 / 2)
-//                 3) Quartic Potential
-//                    H = ( p^2 / m + k ( 1 + q^2 ) q^2 ) / 2
-//                 4) Negative Quartic Potential
-//                    H = ( p^2 / m + k ( 1 - q^2 /8 ) q^2 ) / 2
-//              In all cases these Hamiltonians are shifted by constant
-//              values so that the energy will remain positive.
+//               Specifically, it solves for an exact solution of the equations
+//               whereby a vortex is transported by a uniform flow. Since all
+//               boundaries are periodic here, the method's accuracy can be
+//               assessed by measuring the difference between the solution and
+//               the initial condition at a later time when the vortex returns
+//               to its initial location.
 //
-//              When run in parallel the same Hamiltonian system is
-//              evolved on each processor but starting from different
-//              initial conditions.
+//               Note that as the order of the spatial discretization increases,
+//               the timestep must become smaller. This example currently uses a
+//               simple estimate derived by Cockburn and Shu for the 1D RKDG
+//               method. An additional factor can be tuned by passing the --cfl
+//               (or -c shorter) flag.
 //
-//              We then use GLVis to visualize the results in a
-//              non-standard way by defining the axes to be q, p, and
-//              t rather than x, y, and z.  In this space we build a
-//              ribbon-like mesh on each processor with nodes at
-//              (0,0,t) and (q,p,t).  When these ribbons are bonded
-//              together on the t-axis they resemble a Rotini pasta.
-//              Finally we plot the energy as a function of time as a
-//              scalar field on this Rotini-like mesh.
+//               The example demonstrates user-defined bilinear and nonlinear
+//               form integrators for systems of equations that are defined with
+//               block vectors, and how these are used with an operator for
+//               explicit time integrators. In this case the system also
+//               involves an external approximate Riemann solver for the DG
+//               interface flux. It also demonstrates how to use GLVis for
+//               in-situ visualization of vector grid functions.
+//
+//               We recommend viewing examples 9, 14 and 17 before viewing this
+//               example.
 
 #include "mfem.hpp"
 #include <fstream>
+#include <sstream>
 #include <iostream>
 
-using namespace std;
-using namespace mfem;
+// Classes FE_Evolution, RiemannSolver, DomainIntegrator and FaceIntegrator
+// shared between the serial and parallel version of the example.
+#include "ex18.hpp"
 
-static int prob_ = 0;
-static double m_ = 1.0;
-static double k_ = 1.0;
+// Choice for the problem setup. See InitialCondition in ex18.hpp.
+int problem;
 
-double hamiltonian(double q, double p, double t);
+// Equation constant parameters.
+const int num_equation = 4;
+const double specific_heat_ratio = 1.4;
+const double gas_constant = 1.0;
 
-class GradT : public Operator
-{
-public:
-   GradT() : Operator(1) {}
-
-   void Mult(const Vector &x, Vector &y) const { y.Set(1.0/m_, x); }
-
-private:
-};
-
-class NegGradV : public TimeDependentOperator
-{
-public:
-   NegGradV() : TimeDependentOperator(1) {}
-
-   void Mult(const Vector &x, Vector &y) const;
-
-private:
-};
+// Maximum characteristic speed (updated by integrators)
+double max_char_speed;
 
 int main(int argc, char *argv[])
 {
-   // Initialize MPI.
-   int num_procs, myid;
-   MPI_Comm comm = MPI_COMM_WORLD;
-   MPI_Init(&argc, &argv);
-   MPI_Comm_size(comm, &num_procs);
-   MPI_Comm_rank(comm, &myid);
+   // 1. Initialize MPI.
+   MPI_Session mpi(argc, argv);
 
-   // Parse command-line options.
-   int order  = 1;
-   int nsteps = 100;
-   double dt  = 0.1;
+   // 2. Parse command-line options.
+   problem = 1;
+   const char *mesh_file = "../data/periodic-square.mesh";
+   int ser_ref_levels = 0;
+   int par_ref_levels = 1;
+   int order = 3;
+   int ode_solver_type = 4;
+   double t_final = 2.0;
+   double dt = -0.01;
+   double cfl = 0.3;
    bool visualization = true;
-   bool gnuplot = false;
+   int vis_steps = 50;
+
+   int precision = 8;
+   cout.precision(precision);
 
    OptionsParser args(argc, argv);
+   args.AddOption(&mesh_file, "-m", "--mesh",
+                  "Mesh file to use.");
+   args.AddOption(&problem, "-p", "--problem",
+                  "Problem setup to use. See options in velocity_function().");
+   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
+                  "Number of times to refine the mesh uniformly before parallel"
+                  " partitioning, -1 for auto.");
+   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
+                  "Number of times to refine the mesh uniformly after parallel"
+                  " partitioning.");
    args.AddOption(&order, "-o", "--order",
-                  "Time integration order.");
-   args.AddOption(&prob_, "-p", "--problem-type",
-                  "Problem Type: \n"
-                  "\t  0 - Simple Harmonic Oscillator\n"
-                  "\t  1 - Pendulum\n"
-                  "\t  2 - Gaussian Potential Well\n"
-                  "\t  3 - Quartic Potential\n"
-                  "\t  4 - Negative Quartic Potential");
-   args.AddOption(&nsteps, "-n", "--number-of-steps",
-                  "Number of time steps.");
+                  "Order (degree) of the finite elements.");
+   args.AddOption(&ode_solver_type, "-s", "--ode-solver",
+                  "ODE solver: 1 - Forward Euler,\n\t"
+                  "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
+   args.AddOption(&t_final, "-tf", "--t-final",
+                  "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
-                  "Time step size.");
-   args.AddOption(&m_, "-m", "--mass",
-                  "Mass.");
-   args.AddOption(&k_, "-k", "--spring-const",
-                  "Spring Constant.");
+                  "Time step. Positive number skips CFL timestep calculation.");
+   args.AddOption(&cfl, "-c", "--cfl-number",
+                  "CFL number for timestep calculation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&gnuplot, "-gp", "--gnuplot", "-no-gp",
-                  "--no-gnuplot",
-                  "Enable or disable GnuPlot visualization.");
+   args.AddOption(&vis_steps, "-vs", "--visualization-steps",
+                  "Visualize every n-th timestep.");
+
    args.Parse();
    if (!args.Good())
    {
-      if (myid == 0)
-      {
-         args.PrintUsage(cout);
-      }
-      MPI_Finalize();
+      if (mpi.Root()) { args.PrintUsage(cout); }
       return 1;
    }
-   if (myid == 0)
+   if (mpi.Root()) { args.PrintOptions(cout); }
+
+   // 3. Read the mesh from the given mesh file. This example requires a 2D
+   //    periodic mesh, such as ../data/periodic-square.mesh.
+   Mesh mesh(mesh_file, 1, 1);
+   const int dim = mesh.Dimension();
+
+   MFEM_ASSERT(dim == 2, "Need a two-dimensional mesh for the problem definition");
+
+   // 4. Define the ODE solver used for time integration. Several explicit
+   //    Runge-Kutta methods are available.
+   ODESolver *ode_solver = NULL;
+   switch (ode_solver_type)
    {
-      args.PrintOptions(cout);
-   }
-
-   SIAVSolver siaSolver(order);
-
-   GradT    P;
-   NegGradV F;
-
-   siaSolver.Init(P,F);
-
-   double t = 0.0;
-
-   Vector q(1), p(1);
-   q(0) = sin(2.0*M_PI*(double)myid/num_procs);
-   p(0) = cos(2.0*M_PI*(double)myid/num_procs);
-
-   ostringstream oss;
-   ofstream ofs;
-   if ( gnuplot )
-   {
-      oss << "ex18p_" << setfill('0') << setw(5) << myid << ".dat";
-      ofs.open(oss.str().c_str());
-      ofs << t << "\t" << q(0) << "\t" << p(0) << endl;
-   }
-
-   Vector e(nsteps+1);
-
-   int nverts = (visualization)?(num_procs+1)*(nsteps+1):0;
-   int nelems = (visualization)?(nsteps * num_procs):0;
-   Mesh mesh(2, nverts, nelems, 0, 3);
-
-   int * part = (visualization)?(new int[nelems]):NULL;
-   int    v[4];
-   Vector x0(3); x0 = 0.0;
-   Vector x1(3); x1 = 0.0;
-
-   double e_mean = 0.0;
-
-   for (int i=0; i<nsteps; i++)
-   {
-      if ( i == 0 )
-      {
-         e[0] = hamiltonian(q(0),p(0),t);
-         e_mean += e[0];
-
-         if ( visualization )
+      case 1: ode_solver = new ForwardEulerSolver; break;
+      case 2: ode_solver = new RK2Solver(1.0); break;
+      case 3: ode_solver = new RK3SSPSolver; break;
+      case 4: ode_solver = new RK4Solver; break;
+      case 6: ode_solver = new RK6Solver; break;
+      default:
+         if (mpi.Root())
          {
-            mesh.AddVertex(x0);
-            for (int j=0; j<num_procs; j++)
-            {
-               x1[0] = q(0);
-               x1[1] = p(0);
-               x1[2] = 0.0;
-               mesh.AddVertex(x1);
-            }
+            cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          }
-      }
+         return 3;
+   }
 
-      siaSolver.Step(q,p,t,dt);
+   // 5. Refine the mesh in serial to increase the resolution. In this example
+   //    we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
+   //    a command-line parameter.
+   for (int lev = 0; lev < ser_ref_levels; lev++)
+   {
+      mesh.UniformRefinement();
+   }
 
-      e[i+1] = hamiltonian(q(0),p(0),t);
-      e_mean += e[i+1];
+   // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
+   //    this mesh further in parallel to increase the resolution. Once the
+   //    parallel mesh is defined, the serial mesh can be deleted.
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   mesh.Clear();
+   for (int lev = 0; lev < par_ref_levels; lev++)
+   {
+      pmesh.UniformRefinement();
+   }
 
-      if ( gnuplot )
+   // 7. Define the discontinuous DG finite element space of the given
+   //    polynomial order on the refined mesh.
+   DG_FECollection fec(order, dim);
+   // Finite element space for a scalar (thermodynamic quantity)
+   ParFiniteElementSpace fes(&pmesh, &fec);
+   // Finite element space for a mesh-dim vector quantity (momentum)
+   ParFiniteElementSpace dfes(&pmesh, &fec, dim, Ordering::byNODES);
+   // Finite element space for all variables together (total thermodynamic state)
+   ParFiniteElementSpace vfes(&pmesh, &fec, num_equation, Ordering::byNODES);
+
+   // This example depends on this ordering of the space.
+   MFEM_ASSERT(fes.GetOrdering() == Ordering::byNODES, "");
+
+   HYPRE_Int glob_size = vfes.GlobalTrueVSize();
+   if (mpi.Root()) { cout << "Number of unknowns: " << glob_size << endl; }
+
+   // 8. Define the initial conditions, save the corresponding mesh and grid
+   //    functions to a file. This can be opened with GLVis with the -gc option.
+
+   // The solution u has components {density, x-momentum, y-momentum, energy}.
+   // These are stored contiguously in the BlockVector u_block.
+   Array<int> offsets(num_equation + 1);
+   for (int k = 0; k <= num_equation; k++) { offsets[k] = k * vfes.GetNDofs(); }
+   BlockVector u_block(offsets);
+
+   // Momentum grid function on dfes for visualization.
+   ParGridFunction mom(&dfes, u_block.GetData() + offsets[1]);
+
+   // Initialize the state.
+   VectorFunctionCoefficient u0(num_equation, InitialCondition);
+   ParGridFunction sol(&vfes, u_block.GetData());
+   sol.ProjectCoefficient(u0);
+
+   // Output the initial solution.
+   {
+      ostringstream mesh_name;
+      mesh_name << "vortex-mesh." << setfill('0') << setw(6) << mpi.WorldRank();
+      ofstream mesh_ofs(mesh_name.str().c_str());
+      mesh_ofs.precision(precision);
+      mesh_ofs << pmesh;
+
+      for (int k = 0; k < num_equation; k++)
       {
-         ofs << t << "\t" << q(0) << "\t" << p(0) << "\t" << e[i+1] << endl;
-      }
-
-      if ( visualization )
-      {
-         x0[2] = t;
-         mesh.AddVertex(x0);
-         for (int j=0; j<num_procs; j++)
-         {
-            x1[0] = q(0);
-            x1[1] = p(0);
-            x1[2] = t;
-            mesh.AddVertex(x1);
-            v[0] = (num_procs + 1) * i;
-            v[1] = (num_procs + 1) * (i + 1);
-            v[2] = (num_procs + 1) * (i + 1) + j + 1;
-            v[3] = (num_procs + 1) * i + j + 1;
-            mesh.AddQuad(v);
-            part[num_procs * i + j] = j;
-         }
+         ParGridFunction uk(&fes, u_block.GetBlock(k));
+         ostringstream sol_name;
+         sol_name << "vortex-" << k << "-init."
+                  << setfill('0') << setw(6) << mpi.WorldRank();
+         ofstream sol_ofs(sol_name.str().c_str());
+         sol_ofs.precision(precision);
+         sol_ofs << uk;
       }
    }
 
-   e_mean /= (nsteps + 1);
-   double e_var = 0.0;
-   for (int i=0; i<=nsteps; i++)
+   // 9. Set up the nonlinear form corresponding to the DG discretization of the
+   //    flux divergence, and assemble the corresponding mass matrix.
+   MixedBilinearForm Aflux(&dfes, &fes);
+   Aflux.AddDomainIntegrator(new DomainIntegrator(dim));
+   Aflux.Assemble();
+
+   ParNonlinearForm A(&vfes);
+   RiemannSolver rsolver;
+   A.AddInteriorFaceIntegrator(new FaceIntegrator(rsolver, dim));
+
+   // 10. Define the time-dependent evolution operator describing the ODE
+   //     right-hand side, and perform time-integration (looping over the time
+   //     iterations, ti, with a time-step dt).
+   FE_Evolution euler(vfes, A, Aflux.SpMat());
+
+   // Visualize the density
+   socketstream sout;
+   if (visualization)
    {
-      e_var += pow(e[i] - e_mean, 2);
-   }
-   e_var /= (nsteps + 1);
-   double e_sd = sqrt(e_var);
-
-   if ( myid == 0 )
-   {
-      cout << endl << "Mean and standard deviation of the energy" << endl;
-   }
-   for (int i=0; i<num_procs; i++)
-   {
-      if ( myid == i )
-      {
-         cout << myid << ": " << e_mean << "\t" << e_sd << endl;
-      }
-      MPI_Barrier(comm);
-   }
-
-   if ( gnuplot )
-   {
-      ofs.close();
-      if ( myid == 0 )
-      {
-         ofs.open("gnuplot_ex18p.inp");
-         for (int i=0; i<num_procs; i++)
-         {
-            ostringstream ossi;
-            ossi << "ex18p_" << setfill('0') << setw(5) << i << ".dat";
-            if ( i == 0 )
-            {
-               ofs << "plot";
-            }
-            ofs << " '" << ossi.str() << "' using 1:2 w l t 'q" << i << "',"
-                << " '" << ossi.str() << "' using 1:3 w l t 'p" << i << "',"
-                << " '" << ossi.str() << "' using 1:4 w l t 'H" << i << "'";
-            if ( i < num_procs-1 )
-            {
-               ofs << ",";
-            }
-            else
-            {
-               ofs << ";" << endl;
-            }
-         }
-         ofs.close();
-      }
-   }
-
-   if ( visualization )
-   {
-      mesh.FinalizeQuadMesh(1);
-      ParMesh pmesh(comm, mesh, part);
-      delete part;
-
-      H1_FECollection fec(order = 1, 2);
-      ParFiniteElementSpace fespace(&pmesh, &fec);
-      ParGridFunction energy(&fespace);
-      energy = 0.0;
-
-      for (int i=0; i<=nsteps; i++)
-      {
-         energy[2*i+0] = e[i];
-         energy[2*i+1] = e[i];
-      }
-
       char vishost[] = "localhost";
       int  visport   = 19916;
-      socketstream sock(vishost, visport);
-      sock.precision(8);
-      sock << "parallel " << num_procs << " " << myid << "\n"
-           << "solution\n" << pmesh << energy
-           << "window_title 'Energy in Phase Space'\n"
-           << "keys\n maac\n" << "axis_labels 'q' 'p' 't'\n"<< flush;
+
+      MPI_Barrier(pmesh.GetComm());
+      sout.open(vishost, visport);
+      if (!sout)
+      {
+         if (mpi.Root())
+         {
+            cout << "Unable to connect to GLVis server at "
+                 << vishost << ':' << visport << endl;
+         }
+         visualization = false;
+         if (mpi.Root()) { cout << "GLVis visualization disabled.\n"; }
+      }
+      else
+      {
+         sout << "parallel " << mpi.WorldSize() << " " << mpi.WorldRank() << "\n";
+         sout.precision(precision);
+         sout << "solution\n" << pmesh << mom;
+         sout << "pause\n";
+         sout << flush;
+         if (mpi.Root())
+         {
+            cout << "GLVis visualization paused."
+                 << " Press space (in the GLVis window) to resume it.\n";
+         }
+      }
    }
 
-   MPI_Finalize();
-}
-
-double hamiltonian(double q, double p, double t)
-{
-   double h = 1.0 - 0.5 / m_ + 0.5 * p * p / m_;
-   switch (prob_)
+   // Determine the minimum element size.
+   double hmin;
+   if (cfl > 0)
    {
-      case 1:
-         h += k_ * (1.0 - cos(q));
-         break;
-      case 2:
-         h += k_ * (1.0 - exp(-0.5 * q * q));
-         break;
-      case 3:
-         h += 0.5 * k_ * (1.0 + q * q) * q * q;
-         break;
-      case 4:
-         h += 0.5 * k_ * (1.0 - 0.125 * q * q) * q * q;
-         break;
-      default:
-         h += 0.5 * k_ * q * q;
-         break;
+      double my_hmin = pmesh.GetElementSize(0, 1);
+      for (int i = 1; i < pmesh.GetNE(); i++)
+      {
+         my_hmin = min(pmesh.GetElementSize(i, 1), my_hmin);
+      }
+      // Reduce to find the global minimum element size
+      MPI_Allreduce(&my_hmin, &hmin, 1, MPI_DOUBLE, MPI_MIN, pmesh.GetComm());
    }
-   return h;
-}
 
-void
-NegGradV::Mult(const Vector &x, Vector &y) const
-{
-   switch (prob_)
+   // Start the timer.
+   tic_toc.Clear();
+   tic_toc.Start();
+
+   double t = 0.0;
+   euler.SetTime(t);
+   ode_solver->Init(euler);
+
+   if (cfl > 0)
    {
-      case 1:
-         y(0) = - k_* sin(x(0));
-         break;
-      case 2:
-         y(0) = - k_ * x(0) * exp(-0.5 * x(0) * x(0));
-         break;
-      case 3:
-         y(0) = - k_ * (1.0 + 2.0 * x(0) * x(0)) * x(0);
-         break;
-      case 4:
-         y(0) = - k_ * (1.0 - 0.25 * x(0) * x(0)) * x(0);
-         break;
-      default:
-         y(0) = - k_ * x(0);
-         break;
-   };
+      // Find a safe dt, using a temporary vector. Calling Mult() computes the
+      // maximum char speed at all quadrature points on all faces.
+      max_char_speed = 0.;
+      Vector z(sol.Size());
+      A.Mult(sol, z);
+      // Reduce to find the global maximum wave speed
+      {
+         double all_max_char_speed;
+         MPI_Allreduce(&max_char_speed, &all_max_char_speed,
+                       1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+         max_char_speed = all_max_char_speed;
+      }
+      dt = cfl * hmin / max_char_speed / (2*order+1);
+   }
+
+   // Integrate in time.
+   bool done = false;
+   for (int ti = 0; !done; )
+   {
+      double dt_real = min(dt, t_final - t);
+
+      ode_solver->Step(sol, t, dt_real);
+      if (cfl > 0)
+      {
+         // Reduce to find the global maximum wave speed
+         {
+            double all_max_char_speed;
+            MPI_Allreduce(&max_char_speed, &all_max_char_speed,
+                          1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+            max_char_speed = all_max_char_speed;
+         }
+         dt = cfl * hmin / max_char_speed / (2*order+1);
+      }
+      ti++;
+
+      done = (t >= t_final - 1e-8*dt);
+      if (done || ti % vis_steps == 0)
+      {
+         if (mpi.Root())
+         {
+            cout << "time step: " << ti << ", time: " << t << endl;
+         }
+         if (visualization)
+         {
+            MPI_Barrier(pmesh.GetComm());
+            sout << "parallel " << mpi.WorldSize() << " " << mpi.WorldRank() << "\n";
+            sout << "solution\n" << pmesh << mom << flush;
+         }
+      }
+   }
+
+   tic_toc.Stop();
+   if (mpi.Root()) { cout << " done, " << tic_toc.RealTime() << "s." << endl; }
+
+   // 11. Save the final solution. This output can be viewed later using GLVis:
+   //     "glvis -np 4 -m vortex-mesh -g vortex-1-final".
+   for (int k = 0; k < num_equation; k++)
+   {
+      ParGridFunction uk(&fes, u_block.GetBlock(k));
+      ostringstream sol_name;
+      sol_name << "vortex-" << k << "-final."
+               << setfill('0') << setw(6) << mpi.WorldRank();
+      ofstream sol_ofs(sol_name.str().c_str());
+      sol_ofs.precision(precision);
+      sol_ofs << uk;
+   }
+
+   // 12. Compute the L2 solution error summed for all components.
+   if (t_final == 2.0)
+   {
+      const double error = sol.ComputeLpError(2, u0);
+      if (mpi.Root()) { cout << "Solution error: " << error << endl; }
+   }
+
+   // Free the used memory.
+   delete ode_solver;
+
+   return 0;
 }
