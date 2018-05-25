@@ -1,28 +1,41 @@
 //                       MFEM Example 1 - Parallel Version
 //                              PUMI Modification
 //
-// Sample runs:  mpirun -np 8 ./pumi_ex1p -m ../data/pumi/Kova/Kova4.smb
-//                    -p ../data/pumi/Kova/Kova.x_t -o 1 -go 2
+// Compile with: make ex1p
 //
-// NOTE:          Example model and meshes for PUMI examples can be downloaded
-//                from github.com/mfem/data/pumi.
+// Sample runs:
+//    mpirun -np 8 ex1p -m ../../data/pumi/parallel/Kova/Kova100k_8.smb
+//                      -p ../../data/pumi/geom/Kova.dmg -o 1 -go 2
 //
-// Description:  This example is the counterpart of ex1 in the MFEM examples list
-//               with the difference that pumi Api's are used to load a parallel
-//               pumi mesh classified on a geometric model and then generate the
-//               corresponding parallel  MFEM meshes.
+// Note:         Example models + meshes for the PUMI examples can be downloaded
+//               from github.com/mfem/data/pumi. After downloading we recommend
+//               creating a symbolic link to the above directory in ../../data.
 //
-//               This example also performs a "uniform" refinement, similar to
+// Description:  This example code demonstrates the use of MFEM to define a
+//               simple finite element discretization of the Laplace problem
+//               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
+//               Specifically, we discretize using a FE space of the specified
+//               order, or if order < 1 using an isoparametric/isogeometric
+//               space (i.e. quadratic for quadratic curvilinear mesh, NURBS for
+//               NURBS mesh, etc.)
+//
+//               The example highlights the use of mesh refinement, finite
+//               element grid functions, as well as linear and bilinear forms
+//               corresponding to the left-hand side and right-hand side of the
+//               discrete linear system. We also cover the explicit elimination
+//               of essential boundary conditions, static condensation, and the
+//               optional connection to the GLVis tool for visualization.
+//
+//               This PUMI modification demonstrates how PUMI's API can be used
+//               to load a parallel PUMI mesh classified on a geometric model
+//               and then generate the corresponding parallel MFEM mesh. The
+//               example also performs a "uniform" refinement, similar to the
 //               MFEM examples, for coarse meshes. However, the refinement is
-//               performed using the PUMi Api's.
-//
-//               The inputs for this example are a Parasolid model, "*.xmt_txt"
-//               and SCOREC parallel meshes "*.smb". Switch "-o" is used for
-//               the Finite Element order and switch "-go" for the geometry order.
-//               Note that they can be used independently. i.e. "-o 8 -go 3"
-//               solves for 8th order FE on a third order geometry.
-
-
+//               performed using the PUMI API.  The inputs are a Parasolid
+//               model, "*.xmt_txt" and SCOREC parallel meshes "*.smb". The
+//               option "-o" is used for the Finite Element order and "-go" for
+//               the geometry order. Note that they can be used independently:
+//               "-o 8 -go 3" solves for 8th order FE on third order geometry.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -41,7 +54,6 @@
 
 using namespace std;
 using namespace mfem;
-
 
 int main(int argc, char *argv[])
 {
@@ -78,7 +90,6 @@ int main(int argc, char *argv[])
                   "Parasolid model to use.");
    args.AddOption(&geom_order, "-go", "--geometry_order",
                   "Geometric order of the model");
-
    args.Parse();
    if (!args.Good())
    {
@@ -94,7 +105,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   //3. Read the SCOREC Mesh
+   // 3. Read the SCOREC Mesh
    PCU_Comm_Init();
 #ifdef MFEM_USE_SIMMETRIX
    Sim_readLicenseFile(0);
@@ -106,12 +117,12 @@ int main(int argc, char *argv[])
    apf::Mesh2* pumi_mesh;
    pumi_mesh = apf::loadMdsMesh(model_file, mesh_file);
 
-   //4. Increase the geometry order and refine the mesh if necessary.
-   //   Parallel uniform refinement is performed if the total numebr of
-   //   elements is less than 10000.
+   // 4. Increase the geometry order and refine the mesh if necessary. Parallel
+   //    uniform refinement is performed if the total number of elements is less
+   //    than 10,000.
    int dim = pumi_mesh->getDimension();
    int nEle = pumi_mesh->count(dim);
-   int ref_levels = (int)floor(log(50000./nEle)/log(2.)/dim);
+   int ref_levels = (int)floor(log(10000./nEle)/log(2.)/dim);
 
    if (geom_order > 1)
    {
@@ -124,7 +135,7 @@ int main(int argc, char *argv[])
    {
       ma::Input* uniInput = ma::configureUniformRefine(pumi_mesh, ref_levels);
 
-      if ( geom_order > 1)
+      if (geom_order > 1)
       {
          crv::adapt(uniInput);
       }
@@ -140,7 +151,6 @@ int main(int argc, char *argv[])
    //    We can handle triangular and tetrahedral meshes. Note that the
    //    mesh resolution is performed on the PUMI mesh.
    ParMesh *pmesh = new ParPumiMesh(MPI_COMM_WORLD, pumi_mesh);
-
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If

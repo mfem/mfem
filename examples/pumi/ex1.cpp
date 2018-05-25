@@ -1,21 +1,37 @@
 //                                MFEM Example 1
-//                               PUMI Modification
+//                              PUMI Modification
 //
-// Sample runs:   ex1 -m ../data/pumi/serial/Kova.smb
-//                    -p ../data/pumi/geom/Kova.x_t -o 1 -go 2
+// Compile with: make ex1
 //
-// NOTE:         Example model and meshes for PUMI examples can be downloaded
-//               from github.com/mfem/data/pumi.
+// Sample runs:
+//    ex1 -m ../../data/pumi/serial/Kova.smb -p ../../data/pumi/geom/Kova.dmg
 //
-// Description:  This example is the counterpart of ex1 in the MFEM examples list
-//               with the difference that pumi Api's are used to load a pumi mesh
-//               classified on a geometric model and then load it to the MFEM mesh
-//               format.The inputs are a Parasolid model, "*.xmt_txt"
-//               and a SCOREC mesh "*.smb". Switch "-o" is used for the Finite
-//               Element order and switch "-go" for the geometry order. Note that
-//               they can be used independently. i.e. "-o 8 -go 3" solves for
-//               8th order FE on a third order geometry.
+// Note:         Example models + meshes for the PUMI examples can be downloaded
+//               from github.com/mfem/data/pumi. After downloading we recommend
+//               creating a symbolic link to the above directory in ../../data.
 //
+// Description:  This example code demonstrates the use of MFEM to define a
+//               simple finite element discretization of the Laplace problem
+//               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
+//               Specifically, we discretize using a FE space of the specified
+//               order, or if order < 1 using an isoparametric/isogeometric
+//               space (i.e. quadratic for quadratic curvilinear mesh, NURBS for
+//               NURBS mesh, etc.)
+//
+//               The example highlights the use of mesh refinement, finite
+//               element grid functions, as well as linear and bilinear forms
+//               corresponding to the left-hand side and right-hand side of the
+//               discrete linear system. We also cover the explicit elimination
+//               of essential boundary conditions, static condensation, and the
+//               optional connection to the GLVis tool for visualization.
+//
+//               This PUMI modification demonstrates how PUMI's API can be used
+//               to load a PUMI mesh classified on a geometric model and then
+//               convert it to the MFEM mesh format. The inputs are a Parasolid
+//               model, "*.xmt_txt" and a SCOREC mesh "*.smb". The option "-o"
+//               is used for the Finite Element order and "-go" is used for the
+//               geometry order. Note that they can be used independently, i.e.
+//               "-o 8 -go 3" solves for 8th order FE on a third order geometry.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -37,11 +53,11 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 1. Initilize MPI
-   int num_proc, myId;
+   // 1. Initialize MPI (required by PUMI).
+   int num_procs, myid;
    MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_proc);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myId);
+   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/pumi/serial/Kova.smb";
@@ -70,23 +86,22 @@ int main(int argc, char *argv[])
                   "Parasolid model to use.");
    args.AddOption(&geom_order, "-go", "--geometry_order",
                   "Geometric order of the model");
-
    args.Parse();
    if (!args.Good())
    {
-      if (myId == 0)
+      if (myid == 0)
       {
          args.PrintUsage(cout);
       }
       MPI_Finalize();
       return 1;
    }
-   if (myId == 0)
+   if (myid == 0)
    {
       args.PrintOptions(cout);
    }
 
-   // 3. Read the SCOREC Mesh
+   // 3. Read the SCOREC Mesh.
    PCU_Comm_Init();
 #ifdef MFEM_USE_SIMMETRIX
    Sim_readLicenseFile(0);
@@ -108,18 +123,18 @@ int main(int argc, char *argv[])
    pumi_mesh->verify();
 
    // 5. Create the MFEM mesh object from the PUMI mesh. We can handle
-   //    triangular and tetrahedral meshes. Other inputs are the same as MFEM
-   //    default constructor.
+   //    triangular and tetrahedral meshes. Other inputs are the same as the
+   //    MFEM default constructor.
    Mesh *mesh = new PumiMesh(pumi_mesh, 1, 1);
    int dim = mesh->Dimension();
 
    // 6. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
-   //    largest number that gives a final mesh with no more than 10,000
+   //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
       int ref_levels =
-         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -168,21 +183,21 @@ int main(int argc, char *argv[])
    b->Assemble();
 
    // 10. Define the solution vector x as a finite element grid function
-   //    corresponding to fespace. Initialize x with initial guess of zero,
-   //    which satisfies the boundary conditions.
+   //     corresponding to fespace. Initialize x with initial guess of zero,
+   //     which satisfies the boundary conditions.
    GridFunction x(fespace);
    x = 0.0;
 
    // 11. Set up the bilinear form a(.,.) on the finite element space
-   //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
-   //    domain integrator.
+   //     corresponding to the Laplacian operator -Delta, by adding the
+   //     Diffusion domain integrator.
    BilinearForm *a = new BilinearForm(fespace);
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 12. Assemble the bilinear form and the corresponding linear system,
-   //    applying any necessary transformations such as: eliminating boundary
-   //    conditions, applying conforming constraints for non-conforming AMR,
-   //    static condensation, etc.
+   //     applying any necessary transformations such as: eliminating boundary
+   //     conditions, applying conforming constraints for non-conforming AMR,
+   //     static condensation, etc.
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
@@ -198,17 +213,17 @@ int main(int argc, char *argv[])
    GSSmoother M(A);
    PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
 #else
-   // 14. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+   // 13. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;
    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
    umf_solver.SetOperator(A);
    umf_solver.Mult(B, X);
 #endif
 
-   // 15. Recover the solution as a finite element grid function.
+   // 14. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
 
-   // 16. Save the refined mesh and the solution. This output can be viewed later
+   // 15. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
    ofstream mesh_ofs("refined.mesh");
    mesh_ofs.precision(8);
@@ -217,7 +232,7 @@ int main(int argc, char *argv[])
    sol_ofs.precision(8);
    x.Save(sol_ofs);
 
-   // 17. Send the solution by socket to a GLVis server.
+   // 16. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -227,7 +242,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *mesh << x << flush;
    }
 
-   // 18. Free the used memory.
+   // 17. Free the used memory.
    delete a;
    delete b;
    delete fespace;
