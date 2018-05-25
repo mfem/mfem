@@ -150,6 +150,8 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   in the simple example codes and more fully-featured mini applications in the
   `examples/` and `miniapps/` directories.
 
+- See also the [code overview](http://mfem.org/code-overview/) section on the
+  MFEM website.
 
 ## GitHub Workflow
 
