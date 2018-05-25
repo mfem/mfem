@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-<a href="https://github.com/mfem/mfem/blob/master/COPYRIGHT"><img alt="License" src="https://img.shields.io/badge/License-LGPL--2.1-yellow.svg"></a>
+<a href="https://github.com/mfem/mfem/blob/master/COPYRIGHT"><img alt="License" src="https://img.shields.io/badge/License-LGPL--2.1-brightgreen.svg"></a>
 <a href="https://travis-ci.org/mfem/mfem"><img alt="Build Status" src="https://travis-ci.org/mfem/mfem.svg?branch=master"></a>
 <a href="https://ci.appveyor.com/project/mfem/mfem"><img alt="Build Status" src="https://ci.appveyor.com/api/projects/status/19non9sqm6msi2wy?svg=true"></a>
 <a href="http://mfem.github.io/doxygen/html/index.html"><img alt="Doxygen" src="https://img.shields.io/badge/code-documented-brightgreen.svg"></a>
