@@ -1,12 +1,15 @@
 //                                MFEM Example 2
-//                               PUMI Modification
+//                              PUMI Modification
 //
-// Sample runs:  atr_ex2 -m ../data/pumi/serial/pillbox.smb
-//               -p ../data/pumi/geom/pillbox.smd
-//               -bf ../data/pumi/serial/boundary.mesh
+// Compile with: make ex2
 //
-// NOTE:          Example model and meshes for PUMI examples can be downloaded
-//                from github.com/mfem/data/pumi.
+// Sample runs:
+//    ex2 -m ../../data/pumi/serial/pillbox.smb -p ../../data/pumi/geom/pillbox.dmg
+//        -bf ../../data/pumi/serial/boundary.mesh
+//
+// Note:         Example models + meshes for the PUMI examples can be downloaded
+//               from github.com/mfem/data/pumi. After downloading we recommend
+//               creating a symbolic link to the above directory in ../../data.
 //
 // Description:  This example code solves a simple linear elasticity problem
 //               describing a multi-material cantilever beam.
@@ -22,7 +25,7 @@
 //               follows:
 //                                        boundary
 //                                       attribute 2
-//                                       (pull down)
+//                                       (push down)
 //                                            ||
 //                                            \/
 //                                       +----------+
@@ -44,7 +47,6 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include <sstream>
 
 #include "../../general/text.hpp"
 
@@ -64,14 +66,13 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   // 1. Parse command-line options.
-   //initilize mpi
+   // 1. Initialize MPI (required by PUMI).
    int num_proc, myId;
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_proc);
    MPI_Comm_rank(MPI_COMM_WORLD, &myId);
 
-   // 1. Parse command-line options.
+   // 2. Parse command-line options.
    const char *mesh_file = "../../data/pumi/serial/pillbox.smb";
    const char *boundary_file = "../../data/pumi/serial/boundary.mesh";
 #ifdef MFEM_USE_SIMMETRIX
@@ -79,11 +80,10 @@ int main(int argc, char *argv[])
 #else
    const char *model_file = "../../data/pumi/geom/pillbox.dmg";
 #endif
-
+   int order = 1;
    bool static_cond = false;
    bool visualization = 1;
    int geom_order = 1;
-   int order = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -101,7 +101,6 @@ int main(int argc, char *argv[])
                   "Geometric order of the model");
    args.AddOption(&boundary_file, "-bf", "--txt",
                   "txt file containing boundary tags");
-
    args.Parse();
    if (!args.Good())
    {
@@ -110,9 +109,7 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // 2. Read the mesh from the given mesh file. We can handle triangular,
-   //    quadrilateral, tetrahedral or hexahedral elements with the same code.
-   // 3. Read the SCOREC Mesh
+   // 3. Read the SCOREC Mesh.
    PCU_Comm_Init();
 #ifdef MFEM_USE_SIMMETRIX
    Sim_readLicenseFile(0);
@@ -132,7 +129,7 @@ int main(int argc, char *argv[])
    }
    pumi_mesh->verify();
 
-   //Read boundary
+   // Read boundary
    string bdr_tags;
    named_ifgzstream input_bdr(boundary_file);
    input_bdr >> ws;
@@ -144,7 +141,7 @@ int main(int argc, char *argv[])
    if (bdr_tags == "Dirichlet")
    {
       input_bdr >> numOfent;
-      cout << " num of Dirirchlet bdr conditions : " << numOfent << endl;
+      cout << " num of Dirichlet bdr conditions : " << numOfent << endl;
       Dirichlet.SetSize(numOfent);
       for (int kk = 0; kk < numOfent; kk++)
       {
@@ -170,14 +167,13 @@ int main(int argc, char *argv[])
    }
    load_bdr.Print();
 
-
    // 5. Create the MFEM mesh object from the PUMI mesh. We can handle triangular
    //    and tetrahedral meshes. Other inputs are the same as MFEM default
    //    constructor.
    Mesh *mesh = new PumiMesh(pumi_mesh, 1, 1);
    int dim = mesh->Dimension();
 
-   //Hack for the boundary condition
+   //  Boundary conditions hack.
    apf::MeshIterator* itr = pumi_mesh->begin(dim-1);
    apf::MeshEntity* ent ;
    int bdr_cnt = 0;
@@ -186,17 +182,17 @@ int main(int argc, char *argv[])
       apf::ModelEntity *me = pumi_mesh->toModel(ent);
       if (pumi_mesh->getModelType(me) == (dim-1))
       {
-         //Evrywhere 3 as initial
+         // Everywhere 3 as initial
          (mesh->GetBdrElement(bdr_cnt))->SetAttribute(3);
          int tag = pumi_mesh->getModelTag(me);
          if (Dirichlet.Find(tag) != -1)
          {
-            //Dirichlet attr -> 1
+            // Dirichlet attr -> 1
             (mesh->GetBdrElement(bdr_cnt))->SetAttribute(1);
          }
          else if (load_bdr.Find(tag) != -1)
          {
-            //load attr -> 2
+            // Load attr -> 2
             (mesh->GetBdrElement(bdr_cnt))->SetAttribute(2);
          }
          bdr_cnt++;
@@ -204,13 +200,13 @@ int main(int argc, char *argv[])
    }
    pumi_mesh->end(itr);
 
-   //assign attr for elements
+   // Assign attributes for elements.
    double ppt[3];
    Vector cent(ppt, dim);
    for (int el = 0; el < mesh->GetNE(); el++)
    {
-      (mesh->GetElementTransformation(el))->Transform(Geometries.GetCenter(
-                                                         mesh->GetElementBaseGeometry(el)),cent);
+      (mesh->GetElementTransformation(el))->
+      Transform(Geometries.GetCenter(mesh->GetElementBaseGeometry(el)),cent);
       if (cent(0) <= -0.05)
       {
          mesh->SetAttribute(el , 1);
@@ -223,12 +219,8 @@ int main(int argc, char *argv[])
       {
          mesh->SetAttribute(el , 3);
       }
-
    }
    mesh->SetAttributes();
-
-   cout << " elem attr max " << mesh->attributes.Max() << " bdr attr max " <<
-        mesh->bdr_attributes.Max() <<endl;
    if (mesh->attributes.Max() < 2 || mesh->bdr_attributes.Max() < 2)
    {
       cerr << "\nInput mesh should have at least two materials and "
@@ -237,14 +229,7 @@ int main(int argc, char *argv[])
       return 3;
    }
 
-   // 3. Select the order of the finite element discretization space. For NURBS
-   //    meshes, we increase the order by degree elevation.
-   if (mesh->NURBSext && order > mesh->NURBSext->GetOrder())
-   {
-      mesh->DegreeElevate(order - mesh->NURBSext->GetOrder());
-   }
-
-   // 4. Refine the mesh to increase the resolution. In this example we do
+   // 6. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 5,000
    //    elements.
@@ -257,7 +242,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 5. Define a finite element space on the mesh. Here we use vector finite
+   // 7. Define a finite element space on the mesh. Here we use vector finite
    //    elements, i.e. dim copies of a scalar finite element space. The vector
    //    dimension is specified by the last argument of the FiniteElementSpace
    //    constructor. For NURBS meshes, we use the (degree elevated) NURBS space
@@ -277,7 +262,7 @@ int main(int argc, char *argv[])
    cout << "Number of finite element unknowns: " << fespace->GetTrueVSize()
         << endl << "Assembling: " << flush;
 
-   // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
+   // 8. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking only
    //    boundary attribute 1 from the mesh as essential and converting it to a
    //    list of true dofs.
@@ -286,7 +271,7 @@ int main(int argc, char *argv[])
    ess_bdr[0] = 1;
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-   // 7. Set up the linear form b(.) which corresponds to the right-hand side of
+   // 9. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system. In this case, b_i equals the boundary integral
    //    of f*phi_i where f represents a "pull down" force on the Neumann part
    //    of the boundary and phi_i are the basis functions in the finite element
@@ -302,8 +287,7 @@ int main(int argc, char *argv[])
    {
       Vector pull_force(mesh->bdr_attributes.Max());
       pull_force = 0.0;
-      //pull_force(0) = -1.0e-2;
-      pull_force(1) = -7.0e-2;
+      pull_force(1) = -3.0e-2;
       f.Set(dim-1, new PWConstCoefficient(pull_force));
       f.Set(dim-2, new PWConstCoefficient(pull_force));
    }
@@ -313,15 +297,15 @@ int main(int argc, char *argv[])
    cout << "r.h.s. ... " << flush;
    b->Assemble();
 
-   // 8. Define the solution vector x as a finite element grid function
-   //    corresponding to fespace. Initialize x with initial guess of zero,
-   //    which satisfies the boundary conditions.
+   // 10. Define the solution vector x as a finite element grid function
+   //     corresponding to fespace. Initialize x with initial guess of zero,
+   //     which satisfies the boundary conditions.
    GridFunction x(fespace);
    x = 0.0;
 
-   // 9. Set up the bilinear form a(.,.) on the finite element space
-   //    corresponding to the linear elasticity integrator with piece-wise
-   //    constants coefficient lambda and mu.
+   // 11. Set up the bilinear form a(.,.) on the finite element space
+   //     corresponding to the linear elasticity integrator with piece-wise
+   //     constants coefficient lambda and mu.
    Vector lambda(mesh->attributes.Max());
    lambda = 1.0;
    lambda(0) = lambda(1)*10;
@@ -336,7 +320,7 @@ int main(int argc, char *argv[])
    BilinearForm *a = new BilinearForm(fespace);
    a->AddDomainIntegrator(new ElasticityIntegrator(lambda_func,mu_func));
 
-   // 10. Assemble the bilinear form and the corresponding linear system,
+   // 12. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
    //     conditions, applying conforming constraints for non-conforming AMR,
    //     static condensation, etc.
@@ -352,22 +336,22 @@ int main(int argc, char *argv[])
    cout << "Size of linear system: " << A.Height() << endl;
 
 #ifndef MFEM_USE_SUITESPARSE
-   // 11. Define a simple symmetric Gauss-Seidel preconditioner and use it to
+   // 13. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //     solve the system Ax=b with PCG.
    GSSmoother M(A);
    PCG(A, M, B, X, 1, 500, 1e-8, 0.0);
 #else
-   // 11. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+   // 13. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;
    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
    umf_solver.SetOperator(A);
    umf_solver.Mult(B, X);
 #endif
 
-   // 12. Recover the solution as a finite element grid function.
+   // 14. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
 
-   // 13. For non-NURBS meshes, make the mesh curved based on the finite element
+   // 15. For non-NURBS meshes, make the mesh curved based on the finite element
    //     space. This means that we define the mesh elements through a fespace
    //     based transformation of the reference element. This allows us to save
    //     the displaced mesh as a curved mesh when using high-order finite
@@ -379,7 +363,7 @@ int main(int argc, char *argv[])
       mesh->SetNodalFESpace(fespace);
    }
 
-   // 14. Save the displaced mesh and the inverted solution (which gives the
+   // 16. Save the displaced mesh and the inverted solution (which gives the
    //     backward displacements to the original grid). This output can be
    //     viewed later using GLVis: "glvis -m displaced.mesh -g sol.gf".
    {
@@ -394,7 +378,7 @@ int main(int argc, char *argv[])
       x.Save(sol_ofs);
    }
 
-   // 15. Send the above data by socket to a GLVis server. Use the "n" and "b"
+   // 17. Send the above data by socket to a GLVis server. Use the "n" and "b"
    //     keys in GLVis to visualize the displacements.
    if (visualization)
    {
@@ -405,7 +389,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *mesh << x << flush;
    }
 
-   // 16. Free the used memory.
+   // 18. Free the used memory.
    delete a;
    delete b;
    if (fec)

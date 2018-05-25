@@ -1,7 +1,9 @@
 //                       MFEM Example 6 - Parallel Version
 //                              PUMI Modification
 //
-// Sample runs:  mpirun -np 8 ./pumi_ma_ex6p
+// Compile with: make ex1p
+//
+// Sample runs:  mpirun -np 8 ex6p
 //
 // Description:  This is a version of Example 1 with a simple adaptive mesh
 //               refinement loop. The problem being solved is again the Laplace
@@ -10,14 +12,12 @@
 //               are adapted in a conforming (tetrahedrons) manner according
 //               to a simple SPR ZZ error estimator.
 //
-//               This example also performs a "uniform" refinement, similar to
-//               MFEM examples, for coarse meshes. However, the refinement is
-//               performed using the PUMi Api's.
-//
-//               A new switch "-ar" is added to modify the "adapt_ratio" which
-//               is the fraction of allowable error that scales the output
-//               size field of the error estimator.
-
+//               This PUMI variation also performs a "uniform" refinement,
+//               similar to MFEM examples, for coarse meshes. However, the
+//               refinement is performed using the PUMI API. A new option "-ar"
+//               is added to modify the "adapt_ratio" which is the fraction of
+//               allowable error that scales the output size field of the error
+//               estimator.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -35,10 +35,8 @@
 #include <gmi_mesh.h>
 #include <crv.h>
 
-
 using namespace std;
 using namespace mfem;
-
 
 int main(int argc, char *argv[])
 {
@@ -83,7 +81,6 @@ int main(int argc, char *argv[])
                   "Geometric order of the model");
    args.AddOption(&adapt_ratio, "-ar", "--adapt_ratio",
                   "adaptation factor used in MeshAdapt");
-
    args.Parse();
    if (!args.Good())
    {
@@ -99,7 +96,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   //3. Read the SCOREC Mesh
+   // 3. Read the SCOREC Mesh.
    PCU_Comm_Init();
 #ifdef MFEM_USE_SIMMETRIX
    Sim_readLicenseFile(0);
@@ -121,9 +118,9 @@ int main(int argc, char *argv[])
       pumi_mesh = apf::loadMdsMesh(model_file, mesh_file);
    }
 
-   //4. Increase the geometry order and refine the mesh if necessary.
-   //   Parallel uniform refinement is performed if the total numebr of
-   //   elements is less than 10000.
+   // 4. Increase the geometry order and refine the mesh if necessary.  Parallel
+   //    uniform refinement is performed if the total number of elements is less
+   //    than 100,000.
    int dim = pumi_mesh->getDimension();
    int nEle = pumi_mesh->count(dim);
    int ref_levels = (int)floor(log(100000./nEle)/log(2.)/dim);
@@ -156,11 +153,10 @@ int main(int argc, char *argv[])
 
    pumi_mesh->verify();
 
-   // 5. Create the parallel MFEM mesh object from the parallel PUMI mesh.
-   //    We can handle triangular and tetrahedral meshes. Note that the
-   //    mesh resolution is performed on the PUMI mesh.
+   // 5. Create the parallel MFEM mesh object from the parallel PUMI mesh.  We
+   //    can handle triangular and tetrahedral meshes. Note that the mesh
+   //    resolution is performed on the PUMI mesh.
    ParMesh *pmesh = new ParPumiMesh(MPI_COMM_WORLD, pumi_mesh);
-
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
@@ -189,29 +185,44 @@ int main(int argc, char *argv[])
       cout << "Number of finite element unknowns: " << size << endl;
    }
 
-   // 7. Determine the list of true (i.e. parallel conforming) essential
-   //    boundary dofs. In this example, the boundary conditions are defined
-   //    by marking all the boundary attributes from the mesh as essential
-   //    (Dirichlet) and converting them to a list of true dofs.
-
-
-   // 8. Set up the parallel linear form b(.) which corresponds to the
+   // 7. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is
    //    (1,phi_i) where phi_i are the basis functions in fespace.
    ParLinearForm *b = new ParLinearForm(fespace);
    ConstantCoefficient one(1.0);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
 
-
-   // 9. Define the solution vector x as a parallel finite element grid function
+   // 8. Define the solution vector x as a parallel finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
    ParGridFunction x(fespace);
    x = 0.0;
 
+   // 9. Connect to GLVis.
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+
+   socketstream sout;
+   if (visualization)
+   {
+      sout.open(vishost, visport);
+      if (!sout)
+      {
+         if (myid == 0)
+         {
+            cout << "Unable to connect to GLVis server at "
+                 << vishost << ':' << visport << endl;
+            cout << "GLVis visualization disabled.\n";
+         }
+         visualization = false;
+      }
+
+      sout.precision(8);
+   }
+
    // 10. Set up the parallel bilinear form a(.,.) on the finite element space
-   //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
-   //     domain integrator.
+   //     corresponding to the Laplacian operator -Delta, by adding the
+   //     Diffusion domain integrator.
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
 
@@ -223,7 +234,6 @@ int main(int argc, char *argv[])
 
    // 12. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and adapt the mesh.
-   //
    apf::Field* Tmag_field = 0;
    apf::Field* temp_field = 0;
    apf::Field* ipfield = 0;
@@ -239,11 +249,11 @@ int main(int argc, char *argv[])
          cout << "Number of unknowns: " << global_dofs << endl;
       }
 
-      //Assemble
+      // Assemble.
       a->Assemble();
       b->Assemble();
 
-      //Essentail boundary condition
+      // Essential boundary condition.
       Array<int> ess_tdof_list;
       if (pmesh->bdr_attributes.Size())
       {
@@ -252,13 +262,13 @@ int main(int argc, char *argv[])
          fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
       }
 
-      //Form linear system
+      // Form linear system.
       HypreParMatrix A;
       Vector B, X;
       const int copy_interior = 1;
       a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B, copy_interior);
 
-      // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
+      // 13. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
       //     preconditioner from hypre.
       HypreBoomerAMG amg;
       amg.SetPrintLevel(0);
@@ -270,11 +280,11 @@ int main(int argc, char *argv[])
       pcg.SetPrintLevel(3); // print the first and the last iterations only
       pcg.Mult(B, X);
 
-      // 13. Recover the parallel grid function corresponding to X. This is the
+      // 14. Recover the parallel grid function corresponding to X. This is the
       //     local finite element solution on each processor.
       a->RecoverFEMSolution(X, *b, x);
 
-      // 16. Save in parallel the displaced mesh and the inverted solution (which
+      // 15. Save in parallel the displaced mesh and the inverted solution (which
       //     gives the backward displacements to the original grid). This output
       //     can be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
       {
@@ -291,20 +301,16 @@ int main(int argc, char *argv[])
          x.Save(sol_ofs);
       }
 
-      // 17. Send the above data by socket to a GLVis server.  Use the "n" and "b"
+      // 16. Send the above data by socket to a GLVis server.  Use the "n" and "b"
       //     keys in GLVis to visualize the displacements.
       if (visualization)
       {
-         char vishost[] = "localhost";
-         int  visport   = 19916;
-         socketstream sol_sock(vishost, visport);
-         sol_sock << "parallel " << num_procs << " " << myid << "\n";
-         sol_sock.precision(8);
-         sol_sock << "solution\n" << *pmesh << x << flush;
+         sout << "parallel " << num_procs << " " << myid << "\n";
+         sout << "solution\n" << *pmesh << x << flush;
       }
 
-      // 18. Field transfer. Scalar solution field and magnitude field for
-      //     error estimation are created the pumi mesh.
+      // 17. Field transfer. Scalar solution field and magnitude field for error
+      //     estimation are created the PUMI mesh.
       if (order > geom_order)
       {
          Tmag_field = apf::createField(pumi_mesh, "field_mag",
@@ -328,7 +334,7 @@ int main(int argc, char *argv[])
       apf::destroyField(ipfield);
       apf::destroyNumbering(pumi_mesh->findNumbering("LocalVertexNumbering"));
 
-      // 19. Perform MesAdapt
+      // 18. Perform MesAdapt.
       ma::Input* erinput = ma::configure(pumi_mesh, sizefield);
       erinput->shouldFixShape = true;
       erinput->maximumIterations = 2;
@@ -345,7 +351,7 @@ int main(int argc, char *argv[])
       pPPmesh->UpdateMesh(Adapmesh);
       delete Adapmesh;
 
-      // 20. Update the FiniteElementSpace, Gridfunction, ad bilinear form
+      // 19. Update the FiniteElementSpace, GridFunction, and bilinear form.
       fespace->Update();
       x.Update();
       x = 0.0;
@@ -354,12 +360,12 @@ int main(int argc, char *argv[])
       a->Update();
       b->Update();
 
-      //Destroy fields
+      // Destroy fields.
       apf::destroyField(temp_field);
       apf::destroyField(sizefield);
    }
 
-   // 16. Free the used memory.
+   // 20. Free the used memory.
    delete a;
    delete b;
    delete fespace;
