@@ -58,7 +58,14 @@ public:
 
    LinearForm() { fes = NULL; }
 
+   /// (DEPRECATED) Return the FE space associated with the LinearForm.
+   /** @deprecated Use FESpace() instead. */
    FiniteElementSpace * GetFES() { return fes; }
+
+   /// Read+write access to the associated FiniteElementSpace.
+   FiniteElementSpace *FESpace() { return fes; }
+   /// Read-only access to the associated FiniteElementSpace.
+   const FiniteElementSpace *FESpace() const { return fes; }
 
    /// Adds new Domain Integrator.
    void AddDomainIntegrator (LinearFormIntegrator * lfi);

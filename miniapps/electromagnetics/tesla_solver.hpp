@@ -13,6 +13,7 @@
 #define MFEM_TESLA_SOLVER
 
 #include "../common/pfem_extras.hpp"
+#include "electromagnetics.hpp"
 
 #ifdef MFEM_USE_MPI
 
@@ -31,10 +32,6 @@ using miniapps::DivergenceFreeProjector;
 
 namespace electromagnetics
 {
-
-// Physical Constants
-// Permeability of Free Space (units H/m)
-static double mu0_ = 4.0e-7*M_PI;
 
 class SurfaceCurrent;
 class TeslaSolver

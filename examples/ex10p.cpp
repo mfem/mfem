@@ -9,6 +9,7 @@
 //    mpirun -np 4 ex10p -m ../data/beam-tet.mesh -s 2 -rs 1 -dt 3
 //    mpirun -np 4 ex10p -m ../data/beam-quad.mesh -s 14 -rs 2 -dt 0.03 -vs 20
 //    mpirun -np 4 ex10p -m ../data/beam-hex.mesh -s 14 -rs 1 -dt 0.05 -vs 20
+//    mpirun -np 4 ex10p -m ../data/beam-quad-amr.mesh -s 3 -rs 2 -dt 3
 //
 // Description:  This examples solves a time dependent nonlinear elasticity
 //               problem of the form dv/dt = H(x) + S v, dx/dt = v, where H is a
@@ -57,6 +58,7 @@ class HyperelasticOperator : public TimeDependentOperator
 {
 protected:
    ParFiniteElementSpace &fespace;
+   Array<int> ess_tdof_list;
 
    ParBilinearForm M, S;
    ParNonlinearForm H;
@@ -91,9 +93,10 @@ public:
        This is the only requirement for high-order SDIRK implicit integration.*/
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &k);
 
-   double ElasticEnergy(ParGridFunction &x) const;
-   double KineticEnergy(ParGridFunction &v) const;
-   void GetElasticEnergyDensity(ParGridFunction &x, ParGridFunction &w) const;
+   double ElasticEnergy(const ParGridFunction &x) const;
+   double KineticEnergy(const ParGridFunction &v) const;
+   void GetElasticEnergyDensity(const ParGridFunction &x,
+                                ParGridFunction &w) const;
 
    virtual ~HyperelasticOperator();
 };
@@ -111,10 +114,11 @@ private:
    double dt;
    const Vector *v, *x;
    mutable Vector w, z;
+   const Array<int> &ess_tdof_list;
 
 public:
    ReducedSystemOperator(ParBilinearForm *M_, ParBilinearForm *S_,
-                         ParNonlinearForm *H_);
+                         ParNonlinearForm *H_, const Array<int> &ess_tdof_list);
 
    /// Set current dt, v, x values - needed to compute action and Jacobian.
    void SetParameters(double dt_, const Vector *v_, const Vector *x_);
@@ -134,12 +138,12 @@ public:
 class ElasticEnergyCoefficient : public Coefficient
 {
 private:
-   HyperelasticModel &model;
-   ParGridFunction   &x;
-   DenseMatrix        J;
+   HyperelasticModel     &model;
+   const ParGridFunction &x;
+   DenseMatrix            J;
 
 public:
-   ElasticEnergyCoefficient(HyperelasticModel &m, ParGridFunction &x_)
+   ElasticEnergyCoefficient(HyperelasticModel &m, const ParGridFunction &x_)
       : model(m), x(x_) { }
    virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
    virtual ~ElasticEnergyCoefficient() { }
@@ -240,6 +244,7 @@ int main(int argc, char *argv[])
       case 12: ode_solver = new RK2Solver(0.5); break; // midpoint method
       case 13: ode_solver = new RK3SSPSolver; break;
       case 14: ode_solver = new RK4Solver; break;
+      case 15: ode_solver = new GeneralizedAlphaSolver(0.5); break;
       // Implicit A-stable methods (not L-stable)
       case 22: ode_solver = new ImplicitMidpointSolver; break;
       case 23: ode_solver = new SDIRK23Solver; break;
@@ -249,6 +254,7 @@ int main(int argc, char *argv[])
          {
             cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          }
+         delete mesh;
          MPI_Finalize();
          return 3;
    }
@@ -292,7 +298,9 @@ int main(int argc, char *argv[])
    true_offset[2] = 2*true_size;
 
    BlockVector vx(true_offset);
-   ParGridFunction v_gf(&fespace), x_gf(&fespace);
+   ParGridFunction v_gf, x_gf;
+   v_gf.MakeTRef(&fespace, vx, true_offset[0]);
+   x_gf.MakeTRef(&fespace, vx, true_offset[1]);
 
    ParGridFunction x_ref(&fespace);
    pmesh->GetNodes(x_ref);
@@ -305,11 +313,12 @@ int main(int argc, char *argv[])
    //    boundary conditions on a beam-like mesh (see description above).
    VectorFunctionCoefficient velo(dim, InitialVelocity);
    v_gf.ProjectCoefficient(velo);
+   v_gf.SetTrueVector();
    VectorFunctionCoefficient deform(dim, InitialDeformation);
    x_gf.ProjectCoefficient(deform);
+   x_gf.SetTrueVector();
 
-   v_gf.GetTrueDofs(vx.GetBlock(0));
-   x_gf.GetTrueDofs(vx.GetBlock(1));
+   v_gf.SetFromTrueVector(); x_gf.SetFromTrueVector();
 
    Array<int> ess_bdr(fespace.GetMesh()->bdr_attributes.Max());
    ess_bdr = 0;
@@ -365,8 +374,7 @@ int main(int argc, char *argv[])
 
       if (last_step || (ti % vis_steps) == 0)
       {
-         v_gf.Distribute(vx.GetBlock(0));
-         x_gf.Distribute(vx.GetBlock(1));
+         v_gf.SetFromTrueVector(); x_gf.SetFromTrueVector();
 
          double ee = oper.ElasticEnergy(x_gf);
          double ke = oper.KineticEnergy(v_gf);
@@ -391,6 +399,7 @@ int main(int argc, char *argv[])
 
    // 11. Save the displaced mesh, the velocity and elastic energy.
    {
+      v_gf.SetFromTrueVector(); x_gf.SetFromTrueVector();
       GridFunction *nodes = &x_gf;
       int owns_nodes = 0;
       pmesh->SwapNodes(nodes, owns_nodes);
@@ -458,9 +467,11 @@ void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
 
 
 ReducedSystemOperator::ReducedSystemOperator(
-   ParBilinearForm *M_, ParBilinearForm *S_, ParNonlinearForm *H_)
+   ParBilinearForm *M_, ParBilinearForm *S_, ParNonlinearForm *H_,
+   const Array<int> &ess_tdof_list_)
    : Operator(M_->ParFESpace()->TrueVSize()), M(M_), S(S_), H(H_),
-     Jacobian(NULL), dt(0.0), v(NULL), x(NULL), w(height), z(height)
+     Jacobian(NULL), dt(0.0), v(NULL), x(NULL), w(height), z(height),
+     ess_tdof_list(ess_tdof_list_)
 { }
 
 void ReducedSystemOperator::SetParameters(double dt_, const Vector *v_,
@@ -477,6 +488,7 @@ void ReducedSystemOperator::Mult(const Vector &k, Vector &y) const
    H->Mult(z, y);
    M->TrueAddMult(k, y);
    S->TrueAddMult(w, y);
+   y.SetSubVector(ess_tdof_list, 0.0);
 }
 
 Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
@@ -488,6 +500,8 @@ Operator &ReducedSystemOperator::GetGradient(const Vector &k) const
    localJ->Add(dt*dt, H->GetLocalGradient(z));
    Jacobian = M->ParallelAssemble(localJ);
    delete localJ;
+   HypreParMatrix *Je = Jacobian->EliminateRowsCols(ess_tdof_list);
+   delete Je;
    return *Jacobian;
 }
 
@@ -512,9 +526,11 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
    ConstantCoefficient rho0(ref_density);
    M.AddDomainIntegrator(new VectorMassIntegrator(rho0));
    M.Assemble(skip_zero_entries);
-   M.EliminateEssentialBC(ess_bdr);
    M.Finalize(skip_zero_entries);
    Mmat = M.ParallelAssemble();
+   fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+   HypreParMatrix *Me = Mmat->EliminateRowsCols(ess_tdof_list);
+   delete Me;
 
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(rel_tol);
@@ -527,15 +543,14 @@ HyperelasticOperator::HyperelasticOperator(ParFiniteElementSpace &f,
 
    model = new NeoHookeanModel(mu, K);
    H.AddDomainIntegrator(new HyperelasticNLFIntegrator(model));
-   H.SetEssentialBC(ess_bdr);
+   H.SetEssentialTrueDofs(ess_tdof_list);
 
    ConstantCoefficient visc_coeff(viscosity);
    S.AddDomainIntegrator(new VectorDiffusionIntegrator(visc_coeff));
    S.Assemble(skip_zero_entries);
-   S.EliminateEssentialBC(ess_bdr);
    S.Finalize(skip_zero_entries);
 
-   reduced_oper = new ReducedSystemOperator(&M, &S, &H);
+   reduced_oper = new ReducedSystemOperator(&M, &S, &H, ess_tdof_list);
 
    HypreSmoother *J_hypreSmoother = new HypreSmoother;
    J_hypreSmoother->SetType(HypreSmoother::l1Jacobi);
@@ -572,6 +587,7 @@ void HyperelasticOperator::Mult(const Vector &vx, Vector &dvx_dt) const
    if (viscosity != 0.0)
    {
       S.TrueAddMult(v, z);
+      z.SetSubVector(ess_tdof_list, 0.0);
    }
    z.Neg(); // z = -z
    M_solver.Mult(z, dv_dt);
@@ -601,12 +617,12 @@ void HyperelasticOperator::ImplicitSolve(const double dt,
    add(v, dt, dv_dt, dx_dt);
 }
 
-double HyperelasticOperator::ElasticEnergy(ParGridFunction &x) const
+double HyperelasticOperator::ElasticEnergy(const ParGridFunction &x) const
 {
    return H.GetEnergy(x);
 }
 
-double HyperelasticOperator::KineticEnergy(ParGridFunction &v) const
+double HyperelasticOperator::KineticEnergy(const ParGridFunction &v) const
 {
    double loc_energy = 0.5*M.InnerProduct(v, v);
    double energy;
@@ -616,7 +632,7 @@ double HyperelasticOperator::KineticEnergy(ParGridFunction &v) const
 }
 
 void HyperelasticOperator::GetElasticEnergyDensity(
-   ParGridFunction &x, ParGridFunction &w) const
+   const ParGridFunction &x, ParGridFunction &w) const
 {
    ElasticEnergyCoefficient w_coeff(*model, x);
    w.ProjectCoefficient(w_coeff);
