@@ -18,8 +18,10 @@ if (NOT CMAKE_BUILD_TYPE)
       "Build type: Debug, Release, RelWithDebInfo, or MinSizeRel." FORCE)
 endif()
 
-# MFEM options. Set to mimic the default "default.mk" file.
+# MFEM options. Set to mimic the default "defaults.mk" file.
 option(MFEM_USE_MPI "Enable MPI parallel build" OFF)
+option(MFEM_USE_METIS "Enable METIS usage" ${MFEM_USE_MPI})
+option(MFEM_USE_EXCEPTIONS "Enable the use of exceptions" OFF)
 option(MFEM_USE_GZSTREAM "Enable gzstream for compressed data streams." OFF)
 option(MFEM_USE_LIBUNWIND "Enable backtrace for errors." OFF)
 option(MFEM_USE_LAPACK "Enable LAPACK usage" OFF)
@@ -30,17 +32,20 @@ option(MFEM_USE_SUNDIALS "Enable SUNDIALS usage" OFF)
 option(MFEM_USE_MESQUITE "Enable MESQUITE usage" OFF)
 option(MFEM_USE_SUITESPARSE "Enable SuiteSparse usage" OFF)
 option(MFEM_USE_SUPERLU "Enable SuperLU_DIST usage" OFF)
+option(MFEM_USE_STRUMPACK "Enable STRUMPACK usage" OFF)
 option(MFEM_USE_GECKO "Enable GECKO usage" OFF)
 option(MFEM_USE_GNUTLS "Enable GNUTLS usage" OFF)
 option(MFEM_USE_NETCDF "Enable NETCDF usage" OFF)
 option(MFEM_USE_PETSC "Enable PETSc support." OFF)
 option(MFEM_USE_MPFR "Enable MPFR usage." OFF)
-option(MFEM_USE_SIDRE "Enable ATK/Sidre usage" OFF)
+option(MFEM_USE_SIDRE "Enable Axom/Sidre usage" OFF)
+option(MFEM_USE_CONDUIT "Enable Conduit usage" OFF)
 
 # Allow a user to disable testing, examples, and/or miniapps at CONFIGURE TIME
 # if they don't want/need them (e.g. if MFEM is "just a dependency" and all they
-# need is the library, building all that stuff adds unnecessary overhead). To
-# match "makefile" behavior, they are all enabled by default.
+# need is the library, building all that stuff adds unnecessary overhead). Note
+# that the examples or miniapps can always be built using the targets 'examples'
+# or 'miniapps', respectively.
 option(MFEM_ENABLE_TESTING "Enable the ctest framework for testing" ON)
 option(MFEM_ENABLE_EXAMPLES "Build all of the examples" OFF)
 option(MFEM_ENABLE_MINIAPPS "Build all of the miniapps" OFF)
@@ -66,7 +71,7 @@ set(METIS_DIR "${MFEM_DIR}/../metis-4.0" CACHE PATH "Path to the METIS library."
 
 set(LIBUNWIND_DIR "" CACHE PATH "Path to Libunwind.")
 
-set(SUNDIALS_DIR "${MFEM_DIR}/../sundials-2.7.0" CACHE PATH
+set(SUNDIALS_DIR "${MFEM_DIR}/../sundials-3.0.0" CACHE PATH
     "Path to the SUNDIALS library.")
 # The following may be necessary, if SUNDIALS was built with KLU:
 # set(SUNDIALS_REQUIRED_PACKAGES "SuiteSparse/KLU/AMD/BTF/COLAMD/config"
@@ -91,6 +96,32 @@ set(SuperLUDist_DIR "${MFEM_DIR}/../SuperLU_DIST_5.1.0" CACHE PATH
 set(SuperLUDist_REQUIRED_PACKAGES "MPI" "BLAS" "ParMETIS" CACHE STRING
     "Additional packages required by SuperLU_DIST.")
 
+set(STRUMPACK_DIR "${MFEM_DIR}/../STRUMPACK-build" CACHE PATH
+    "Path to the STRUMPACK library.")
+# STRUMPACK may also depend on "OpenMP", depending on how it was compiled.
+set(STRUMPACK_REQUIRED_PACKAGES "MPI" "MPI_Fortran" "ParMETIS" "METIS"
+    "ScaLAPACK" "Scotch/ptscotch/ptscotcherr/scotch/scotcherr" CACHE STRING
+    "Additional packages required by STRUMPACK.")
+# If the MPI package does not find all required Fortran libraries:
+# set(STRUMPACK_REQUIRED_LIBRARIES "gfortran" "mpi_mpifh" CACHE STRING
+#     "Additional libraries required by STRUMPACK.")
+
+# The Scotch library, required by STRUMPACK
+set(Scotch_DIR "${MFEM_DIR}/../scotch_6.0.4" CACHE PATH
+    "Path to the Scotch and PT-Scotch libraries.")
+set(Scotch_REQUIRED_PACKAGES "Threads" CACHE STRING
+    "Additional packages required by Scotch.")
+# Tell the "Threads" package/module to prefer pthreads.
+set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
+set(Threads_LIB_VARS CMAKE_THREAD_LIBS_INIT)
+
+# The ScaLAPACK library, required by STRUMPACK
+set(ScaLAPACK_DIR "${MFEM_DIR}/../scalapack-2.0.2/lib/cmake/scalapack-2.0.2"
+    CACHE PATH "Path to the configuration file scalapack-config.cmake")
+set(ScaLAPACK_TARGET_NAMES scalapack)
+# set(ScaLAPACK_TARGET_FORCE)
+# set(ScaLAPACK_IMPORT_CONFIG DEBUG)
+
 set(GECKO_DIR "${MFEM_DIR}/../gecko" CACHE PATH "Path to the Gecko library.")
 
 set(GNUTLS_DIR "" CACHE PATH "Path to the GnuTLS library.")
@@ -102,19 +133,17 @@ set(NetCDF_REQUIRED_PACKAGES "" CACHE STRING
 
 set(PETSC_DIR "${MFEM_DIR}/../petsc" CACHE PATH
     "Path to the PETSc main directory.")
-set(PETSC_ARCH "arch-linux2-c-debug" CACHE PATH "PETSc build architecture.")
+set(PETSC_ARCH "arch-linux2-c-debug" CACHE STRING "PETSc build architecture.")
 
 set(MPFR_DIR "" CACHE PATH "Path to the MPFR library.")
 
 set(CONDUIT_DIR "${MFEM_DIR}/../conduit" CACHE PATH
     "Path to the Conduit library.")
-set(Conduit_REQUIRED_PACKAGES "HDF5" CACHE STRING
-    "Additional packages required by Conduit.")
 
-set(ATK_DIR "${MFEM_DIR}/../asctoolkit" CACHE PATH "Path to the ATK library.")
+set(AXOM_DIR "${MFEM_DIR}/../axom" CACHE PATH "Path to the Axom library.")
 # May need to add "Boost" as requirement.
-set(ATK_REQUIRED_PACKAGES "Conduit/relay" CACHE STRING
-    "Additional packages required by ATK.")
+set(Axom_REQUIRED_PACKAGES "Conduit/relay" CACHE STRING
+    "Additional packages required by Axom.")
 
 set(BLAS_INCLUDE_DIRS "" CACHE STRING "Path to BLAS headers.")
 set(BLAS_LIBRARIES "" CACHE STRING "The BLAS library.")

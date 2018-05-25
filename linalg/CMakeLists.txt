@@ -13,6 +13,7 @@ list(APPEND SRCS
   blockmatrix.cpp
   blockoperator.cpp
   blockvector.cpp
+  complex_operator.cpp
   densemat.cpp
   handle.cpp
   matrix.cpp
@@ -28,8 +29,10 @@ list(APPEND HDRS
   blockmatrix.hpp
   blockoperator.hpp
   blockvector.hpp
+  complex_operator.hpp
   densemat.hpp
   handle.hpp
+  invariants.hpp
   linalg.hpp
   matrix.hpp
   ode.hpp
@@ -70,6 +73,11 @@ if (MFEM_USE_SUPERLU)
   # If this list (HDRS -> HEADERS) is used for install, we probably want the
   # header added all the time.
   list(APPEND HDRS superlu.hpp)
+endif()
+
+if (MFEM_USE_STRUMPACK)
+  list(APPEND SRCS strumpack.cpp)
+  list(APPEND HDRS strumpack.hpp)
 endif()
 
 convert_filenames_to_full_paths(SRCS)

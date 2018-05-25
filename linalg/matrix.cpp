@@ -11,10 +11,10 @@
 
 // Implementation of class matrix
 
+#include "matrix.hpp"
 #include <iostream>
 #include <iomanip>
 
-#include "matrix.hpp"
 
 namespace mfem
 {
