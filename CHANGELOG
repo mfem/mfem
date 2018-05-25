@@ -87,11 +87,9 @@ New and updated examples and miniapps
   NURBS meshes in the miniapps/nurbs directory. Currently the directory contains
   variable order NURBS versions of examples 1, 1p and 11p.
 
-
 - Added PUMI versions of examples ex1, ex1p, ex2 and ex6p in a new examples/pumi
-  directory. The new examples demonstrate the use of the Parallel Unstructured
-  Mesh Infrastructure APIs (https://scorec.rpi.edu/pumi) to perform parallel &
-  serial mesh loading (ex1 & ex1p), applying BCs using classification (ex2), and
+  directory. The new examples demonstrate the PUMI APIs for parallel and serial
+  mesh loading (ex1 and ex1p), applying BCs using classification (ex2), and
   performing parallel mesh adaptation (ex6p).
 
 - Added two new miniapps related to DataCollection I/O in miniapps/tools:
