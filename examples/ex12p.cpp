@@ -2,14 +2,15 @@
 //
 // Compile with: make ex12p
 //
-// Sample runs:  mpirun -np 4 ex12p -m ../data/beam-tri.mesh
-//               mpirun -np 4 ex12p -m ../data/beam-quad.mesh
-//               mpirun -np 4 ex12p -m ../data/beam-tet.mesh -n 10 -o 2 -elast
-//               mpirun -np 4 ex12p -m ../data/beam-hex.mesh -s 3876
-//               mpirun -np 4 ex12p -m ../data/beam-tri.mesh -o 2 -sys
-//               mpirun -np 4 ex12p -m ../data/beam-quad.mesh -n 6 -o 3 -elast
-//               mpirun -np 4 ex12p -m ../data/beam-quad-nurbs.mesh
-//               mpirun -np 4 ex12p -m ../data/beam-hex-nurbs.mesh
+// Sample runs:
+//    mpirun -np 4 ex12p -m ../data/beam-tri.mesh
+//    mpirun -np 4 ex12p -m ../data/beam-quad.mesh
+//    mpirun -np 4 ex12p -m ../data/beam-tet.mesh -n 10 -o 2 -elast
+//    mpirun -np 4 ex12p -m ../data/beam-hex.mesh -s 3876
+//    mpirun -np 4 ex12p -m ../data/beam-tri.mesh -o 2 -sys
+//    mpirun -np 4 ex12p -m ../data/beam-quad.mesh -s 4526 -n 6 -o 3 -elast
+//    mpirun -np 4 ex12p -m ../data/beam-quad-nurbs.mesh
+//    mpirun -np 4 ex12p -m ../data/beam-hex-nurbs.mesh
 //
 // Description:  This example code solves the linear elasticity eigenvalue
 //               problem for a multi-material cantilever beam.
@@ -108,9 +109,9 @@ int main(int argc, char *argv[])
 
    // 4. Select the order of the finite element discretization space. For NURBS
    //    meshes, we increase the order by degree elevation.
-   if (mesh->NURBSext && order > mesh->NURBSext->GetOrder())
+   if (mesh->NURBSext)
    {
-      mesh->DegreeElevate(order - mesh->NURBSext->GetOrder());
+      mesh->DegreeElevate(order, order);
    }
 
    // 5. Refine the serial mesh on all processors to increase the resolution. In

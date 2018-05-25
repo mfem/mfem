@@ -18,6 +18,9 @@ requires an MPI C++ compiler, as well as the following external libraries:
 - METIS (a family of multilevel partitioning algorithms)
   http://glaros.dtc.umn.edu/gkhome/metis/metis/overview
 
+The METIS dependency can be disabled but that is not generally recommended, see
+the option MFEM_USE_METIS.
+
 The library supports two build systems: one based on GNU make, and a second one
 based on CMake. Both build systems are described below. Some hints for building
 without GNU make or CMake can be found at the end of this file.
@@ -138,7 +141,7 @@ check the results from all the serial/parallel MFEM examples and miniapps use:
 
 Note that by default MFEM uses "mpirun -np" in its test runs (this is also what
 is used in the sample runs of its examples and miniapps). The MPI launcher can
-be changed by the user as described in the "Specifying a MPI job launcher"
+be changed by the user as described in the "Specifying an MPI job launcher"
 section at the end of this file.
 
 Running all the tests may take a while. Implementation details about the check
@@ -150,8 +153,8 @@ An optional installation of the library and the headers can be performed with
    make install [PREFIX=<dir>]
 
 The library will be installed in $(PREFIX)/lib, the headers in
-$(PREFIX)/include, and the configuration makefile (config.mk) in $(PREFIX).
-The PREFIX option can also be set during configuration.
+$(PREFIX)/include, and the configuration makefile (config.mk) in
+$(PREFIX)/share/mfem. The PREFIX option can also be set during configuration.
 
 Information about the current build configuration can be viewed using
 
@@ -181,6 +184,8 @@ examples/ directory.
 
 Configuration options (GNU make)
 ================================
+See the configuration file config/defaults.mk for the default settings.
+
 Compilers:
    CXX    - C++ compiler, serial build
    MPICXX - MPI C++ compiler, parallel build
@@ -191,10 +196,14 @@ Compiler options:
    CXXFLAGS    - If not set, defined based on the above optimized/debug flags
    CPPFLAGS    - Additional compiler options
 
+Build options:
+   STATIC - Build a static version of the library (YES/NO), default = YES
+   SHARED - Build a shared version of the library (YES/NO), default = NO
+
 Installation options:
    PREFIX  - Specify the installation directory. The library (libmfem.a) will be
              installed in $(PREFIX)/lib, the headers in $(PREFIX)/include, and
-             the configuration makefile (config.mk) in $(PREFIX).
+             the configuration makefile (config.mk) in $(PREFIX)/share/mfem.
    INSTALL - Specify the install program, e.g /usr/bin/install
 
 MFEM library features/options (GNU make)
@@ -203,9 +212,20 @@ MFEM_USE_MPI = YES/NO
    Choose parallel/serial build. The parallel build requires proper setup of the
    HYPRE_* and METIS_* library options, see below.
 
+MFEM_USE_METIS = YES/NO
+   Enable/disable the use of the METIS library. By default, this option is set
+   to the value of MFEM_USE_MPI. If this option is explicitly disabled in a
+   parallel build, then the only parallel partitioning (domain decomposition)
+   option in the library will be Cartesian partitioning with box meshes, and
+   thus most of the parallel examples and miniapps will fail.
+
 MFEM_DEBUG = YES/NO
    Choose debug/optimized build. The debug build enables a number of messages
    and consistency checks that may simplify bug-hunting.
+
+MFEM_USE_EXCEPTIONS = YES/NO
+   Enable the use of exceptions. In particular, modifies the default bahavior
+   when errors are encountered: throw an exception, instead of aborting.
 
 MFEM_USE_LIBUNWIND = YES/NO
    Use libunwind to print a stacktrace whenever mfem_error is raised. The
@@ -231,13 +251,16 @@ MFEM_USE_MEMALLOC = YES/NO
    Internal MFEM option: enable batch allocation for some small objects.
    Recommended value is YES.
 
-MFEM_TIMER_TYPE = 0/1/2/3/NO
+MFEM_TIMER_TYPE = 0/1/2/3/4/5/6/NO
    Specify which library functions to use in the class StopWatch used for
    measuring time. The available options are:
       0  - use std::clock from <ctime>, standard C++
       1  - use times from <sys/times.h>
       2  - use high-resolution POSIX clocks (see option POSIX_CLOCKS_LIB)
       3  - use QueryPerformanceCounter from <windows.h>
+      4  - use mach_absolute_time from <mach/mach_time.h> + std::clock (Mac)
+      5  - use gettimeofday from <sys/time.h>
+      6  - use MPI_Wtime from <mpi.h>
       NO - use option 3 if the compiler macro _WIN32 is defined, 0 otherwise
 
 MFEM_USE_SUNDIALS = YES/NO
@@ -261,6 +284,12 @@ MFEM_USE_SUPERLU = YES/NO
    SuperLURowLocMatrix a distributed CSR matrix class needed by SuperLU. When
    enabled, this option uses the SUPERLU_* library options, see below.
 
+MFEM_USE_STRUMPACK = YES/NO
+   Enable MFEM functionality based on the STRUMPACK sparse direct solver and
+   preconditioner through the STRUMPACKSolver and STRUMPACKRowLocMatrix
+   classes. When enabled, this option uses the STRUMPACK_* library options, see
+   below.
+
 MFEM_USE_GNUTLS = YES/NO
    Enable secure socket support in class socketstream, using the auxiliary
    GnuTLS_* classes, based on the GnuTLS library. This option may be useful in
@@ -272,6 +301,9 @@ MFEM_USE_GNUTLS = YES/NO
    the script 'glvis-keygen.sh' in the main GLVis directory can be used to do
    that:
       bash glvis-keygen.sh ["Your Name"] ["Your Email"]
+   In MFEM v3.3.2 and earlier, the secure authentication is based on OpenPGP
+   keys, while later versions use X.509 certificates. The latest version of the
+   script 'glvis-keygen.sh' can be used to generate both types of keys.
    When MFEM_USE_GNUTLS is enabled, the additional build options, GNUTLS_*, are
    also used, see below.
 
@@ -298,6 +330,13 @@ MFEM_USE_SIDRE = YES/NO
    specification. When enabled, this option requires installation of HDF5 (see
    also MFEM_USE_NETCDF), Conduit and LLNL's axom project.
 
+MFEM_USE_CONDUIT = YES/NO
+   Enables support for converting MFEM Mesh and Grid Function objects to and
+   from Conduit Mesh Blueprint Descriptions (https://github.com/LLNL/conduit/)
+   and support for JSON and Binary I/O via Conduit Relay. This option requires
+   an installation of Conduit. If Conduit was built with HDF5 support, it also
+   requires an installation of HDF5 (see also MFEM_USE_NETCDF).
+
 MFEM_USE_GZSTREAM = YES/NO
    Enables use of on-the-fly gzip compressed streams. With this feature enabled
    (YES), MFEM can compress its output files on-the-fly. In addition, it can
@@ -308,6 +347,7 @@ MFEM_USE_GZSTREAM = YES/NO
    able to properly read an input file if it is gzip compressed. In that case,
    the solution is to uncompress the file with an external tool (such as gunzip)
    before attempting to use it with MFEM.
+   When enabled, this option uses the ZLIB_* library options, see below.
 
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
@@ -333,8 +373,8 @@ The specific libraries and their options are:
   URL: http://www.llnl.gov/CASC/hypre
   Options: HYPRE_OPT, HYPRE_LIB.
 
-- METIS, required for the parallel build, i.e. when MFEM_USE_MPI = YES. If using
-  METIS 5, set MFEM_USE_METIS_5 = YES (default is to use METIS 4).
+- METIS, used when MFEM_USE_METIS = YES. If using METIS 5, set
+  MFEM_USE_METIS_5 = YES (default is to use METIS 4).
   URL: http://glaros.dtc.umn.edu/gkhome/metis/metis/overview
   Options: METIS_OPT, METIS_LIB.
 
@@ -352,7 +392,10 @@ The specific libraries and their options are:
   Option: POSIX_CLOCKS_LIB (default = -lrt).
 
 - SUNDIALS (optional), used when MFEM_USE_SUNDIALS = YES.
-  In parallel we expect that SUNDIALS is built with support for MPI and hypre.
+  Beginning with MFEM v3.3, SUNDIALS v2.7.0 is supported.
+  Beginning with MFEM v3.3.2, SUNDIALS v3.0.0 is also supported.
+  If MFEM_USE_MPI is enabled, we expect that SUNDIALS is built with support for
+  both MPI and hypre.
   URL: http://computation.llnl.gov/projects/sundials/sundials-software
   Options: SUNDIALS_OPT, SUNDIALS_LIB.
 
@@ -371,6 +414,14 @@ The specific libraries and their options are:
   URL: http://crd-legacy.lbl.gov/~xiaoye/SuperLU
   Options: SUPERLU_OPT, SUPERLU_LIB.
 
+- STRUMPACK (optional), used when MFEM_USE_STRUMPACK = YES. Note that STRUMPACK
+  requires the PT-Scotch and Scalapack libraries as well as ParMETIS, which
+  includes METIS 5 in its distribution.
+  The support for STRUMPACK was added in MFEM v3.3.2 and it requires STRUMPACK
+  2.0.0 or later.
+  URL: http://portal.nersc.gov/project/sparse/strumpack
+  Options: STRUMPACK_OPT, STRUMPACK_LIB.
+
 - GnuTLS (optional), used when MFEM_USE_GNUTLS = YES. On most Linux systems,
   GnuTLS is available as a development package, e.g. gnutls-devel. On Mac OS X,
   one can get the library through the Homebrew package manager (http://brew.sh).
@@ -384,7 +435,7 @@ The specific libraries and their options are:
   URL: www.unidata.ucar.edu/software/netcdf
   Options: NETCDF_OPT, NETCDF_LIB.
 
-- PETSc (optional), used when MFEM_USE_PETSC = YES.  Version 3.8 or higher of
+- PETSc (optional), used when MFEM_USE_PETSC = YES. Version 3.8 or higher of
   the PETSC dev branch is required. The MFEM and PETSc builds can share common
   libraries, e.g., hypre and SUNDIALS. Here's an example configuration, assuming
   PETSc has been cloned on the same level as mfem and hypre:
@@ -401,6 +452,12 @@ The specific libraries and their options are:
        https://support.hdfgroup.org/HDF5 (HDF5)
   Options: SIDRE_OPT, SIDRE_LIB.
 
+- Conduit, used when MFEM_USE_CONDUIT = YES. Direct Conduit Mesh Blueprint
+  support requires Conduit >= v0.3.1 and VisIt >= v2.13.1 to read the output.
+  URL: https://github.com/LLNL/conduit (Conduit)
+       https://support.hdfgroup.org/HDF5 (HDF5)
+  Options: CONDUIT_OPT, CONDUIT_LIB.
+
 - MPFR (optional), used when MFEM_USE_MPFR = YES.
   URL: http://mpfr.org, it depends on the GMP library: https://gmplib.org
   Options: MPFR_OPT, MPFR_LIB.
@@ -410,6 +467,11 @@ The specific libraries and their options are:
   the libunwind-devel package.
   URL: http://www.nongnu.org/libunwind
   Options: LIBUNWIND_OPT, LIBUNWIND_LIB.
+
+- ZLIB (optional), used when MFEM_USE_GZSTREAM = YES, or when MFEM_USE_NETCDF =
+  YES (in the default settings for NETCDF_OPT and NETCDF_LIB).
+  URL: https://zlib.net
+  Options: ZLIB_OPT, ZLIB_LIB.
 
 
 Building with CMake
@@ -442,6 +504,12 @@ Debug and optimization options are controlled through the CMake variable
 CMAKE_BUILD_TYPE which can be set to standard values like "Debug", and "Release"
 (default).
 
+To use a specific generator use the "-G <generator>" option of cmake:
+
+   cmake <mfem-source-dir> -G "Xcode"
+   cmake <mfem-source-dir> -G "Visual Studio 12 2013"
+   cmake <mfem-source-dir> -G "MinGW Makefiles"
+
 With CMake it is possible to build MFEM as a shared library using the standard
 CMake option -DBUILD_SHARED_LIBS=1.
 
@@ -449,15 +517,30 @@ Once configured, the library can be built simply with (assuming a UNIX type
 system, where the default is to generate "UNIX Makefiles")
 
    make -j 4
+or
+   cmake --build .
+or
+   cmake --build . --config Release  [Visual Studio, Xcode]
 
 The build can be quick-tested by running
 
    make check
+or
+   cmake --build . --target check
+or
+   cmake --build . --config Release --target check  [Visual Studio, Xcode]
 
 which will simply compile and run Example 1/1p. For more extensive tests that
 check the results from all the serial/parallel MFEM examples and miniapps use:
 
+   make exec -j 4
    make test
+or
+   cmake --build . --target exec
+   cmake --build . --target test
+or
+   cmake --build . --config Release --target exec  [Visual Studio, Xcode]
+   cmake --build . --config Release --target RUN_TESTS  [Visual Studio, Xcode]
 
 Note that running all the tests may take a while.
 
@@ -465,6 +548,11 @@ Installation prefix can be configured by setting the standard CMake variable
 CMAKE_INSTALL_PREFIX. To install the library, use
 
    make install
+or
+   cmake --build . --target install
+or
+   cmake --build . --config Release --target install  [Xcode]
+   cmake --build . --config Release --target INSTALL  [Visual Studio]
 
 The library will be installed in <PREFIX>/lib, the headers in <PREFIX>/include,
 and the configuration CMake files in <PREFIX>/lib/cmake/mfem.
@@ -472,6 +560,8 @@ and the configuration CMake files in <PREFIX>/lib/cmake/mfem.
 
 Configuration variables (CMake)
 ===============================
+See the configuration file config/defaults.cmake for the default settings.
+
 Non-standard CMake variables for compilers:
    CXX    - If set, overwrite the auto-detected C++ compiler, serial build
    MPICXX - If set, overwrite the auto-detected MPI C++ compiler, parallel build
@@ -485,6 +575,7 @@ The following options are equivalent to the GNU make options with the same name:
 [see "MFEM library features/options (GNU make)" above]
 
 MFEM_USE_MPI
+MFEM_USE_METIS - Set to ${MFEM_USE_MPI}, can be overwritten.
 MFEM_USE_LIBUNWIND
 MFEM_USE_LAPACK
 MFEM_THREAD_SAFE
@@ -494,6 +585,7 @@ MFEM_TIMER_TYPE - Set automatically, can be overwritten.
 MFEM_USE_MESQUITE
 MFEM_USE_SUITESPARSE
 MFEM_USE_SUPERLU
+MFEM_USE_STRUMPACK
 MFEM_USE_GNUTLS
 MFEM_USE_NETCDF
 MFEM_USE_MPFR
@@ -536,7 +628,7 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - METIS - The option MFEM_USE_METIS_5 is auto-detected.
  - MESQUITE
  - SuiteSparse
- - SuperLUDist
+ - SuperLUDist, STRUMPACK
  - ParMETIS
  - GNUTLS - Extends the built-in CMake support, to search GNUTLS_DIR as well.
  - NETCDF
@@ -558,15 +650,15 @@ Before using another build system (e.g. Visual Studio) it is necessary to create
 a proper configuration header file, config/config.hpp, using the template from
 config/config.hpp.in:
 
-   cp config/config.hpp.in config/config.hpp
+   cp config/config.hpp.in config/_config.hpp
 
-The file config/config.hpp can then be edited to enable desired options.  The
+The file config/_config.hpp can then be edited to enable desired options.  The
 MFEM library is simply a combination of all object files obtained by compiling
 the .cpp source files in the source directories: general, linalg, mesh, and fem.
 
 
-Specifying a MPI job launcher
-=============================
+Specifying an MPI job launcher
+==============================
 By default, MFEM will use 'mpirun -np #' to launch any of its parallel tests or
 miniapps, where # is the number of MPI tasks.  An alternate MPI launcher can be
 provided by setting the MFEM_MPIEXEC and MFEM_MPIEXEC_NP config variables.

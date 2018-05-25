@@ -32,29 +32,35 @@ private:
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
-   /// Parallel mesh.
+   /// Parallel mesh; #mesh points to this object as well. Not owned.
    ParMesh *pmesh;
+   /** Parallel non-conforming mesh extension object; same as pmesh->pncmesh.
+       Not owned. */
+   ParNCMesh *pncmesh;
 
-   /// GroupCommunicator on the local VDofs
+   /// GroupCommunicator on the local VDofs. Owned.
    GroupCommunicator *gcomm;
 
    /// Number of true dofs in this processor (local true dofs).
-   int ltdof_size;
+   mutable int ltdof_size;
+
+   /// Number of vertex/edge/face/total ghost DOFs (nonconforming case).
+   int ngvdofs, ngedofs, ngfdofs, ngdofs;
 
    /// The group of each local dof.
    Array<int> ldof_group;
 
    /// For a local dof: the local true dof number in the master of its group.
-   Array<int> ldof_ltdof;
+   mutable Array<int> ldof_ltdof;
 
    /// Offsets for the dofs in each processor in global numbering.
-   Array<HYPRE_Int> dof_offsets;
+   mutable Array<HYPRE_Int> dof_offsets;
 
    /// Offsets for the true dofs in each processor in global numbering.
-   Array<HYPRE_Int> tdof_offsets;
+   mutable Array<HYPRE_Int> tdof_offsets;
 
    /// Offsets for the true dofs in neighbor processor in global numbering.
-   Array<HYPRE_Int> tdof_nb_offsets;
+   mutable Array<HYPRE_Int> tdof_nb_offsets;
 
    /// Previous 'dof_offsets' (before Update()), column partition of T.
    Array<HYPRE_Int> old_dof_offsets;
@@ -62,17 +68,25 @@ private:
    /// The sign of the basis functions at the scalar local dofs.
    Array<int> ldof_sign;
 
-   /// The matrix P (interpolation from true dof to dof).
-   HypreParMatrix *P;
+   /// The matrix P (interpolation from true dof to dof). Owned.
+   mutable HypreParMatrix *P;
+   /// Optimized action-only prolongation operator for conforming meshes. Owned.
+   mutable class ConformingProlongationOperator *Pconf;
 
-   /// The (block-diagonal) matrix R (restriction of dof to true dof)
-   SparseMatrix *R;
+   /// The (block-diagonal) matrix R (restriction of dof to true dof). Owned.
+   mutable SparseMatrix *R;
 
    ParNURBSExtension *pNURBSext() const
    { return dynamic_cast<ParNURBSExtension *>(NURBSext); }
 
+   static ParNURBSExtension *MakeLocalNURBSext(
+      const NURBSExtension *globNURBSext, const NURBSExtension *parNURBSext);
+
    GroupTopology &GetGroupTopo() const
    { return (NURBSext) ? pNURBSext()->gtopo : pmesh->gtopo; }
+
+   // Auxiliary method used in constructors
+   void ParInit(ParMesh *pm);
 
    void Construct();
    void Destroy();
@@ -82,52 +96,64 @@ private:
                      Array<int> *ldof_sign = NULL);
 
    /// Construct dof_offsets and tdof_offsets using global communication.
-   void GenerateGlobalOffsets();
+   void GenerateGlobalOffsets() const;
 
    /// Construct ldof_group and ldof_ltdof.
    void ConstructTrueDofs();
    void ConstructTrueNURBSDofs();
 
    void ApplyLDofSigns(Array<int> &dofs) const;
+   void ApplyLDofSigns(Table &el_dof) const;
 
-   /// Helper struct to store DOF dependencies in a parallel NC mesh.
-   struct Dependency
-   {
-      int rank, dof; ///< master DOF, may be on another processor
-      double coef;
-      Dependency(int r, int d, double c) : rank(r), dof(d), coef(c) {}
-   };
+   typedef NCMesh::MeshId MeshId;
+   typedef ParNCMesh::GroupId GroupId;
 
-   /// Dependency list for a local vdof.
-   struct DepList
-   {
-      Array<Dependency> list;
-      int type; ///< 0 = independent, 1 = one-to-one (conforming), 2 = slave
+   void GetGhostVertexDofs(const MeshId &id, Array<int> &dofs) const;
+   void GetGhostEdgeDofs(const MeshId &edge_id, Array<int> &dofs) const;
+   void GetGhostFaceDofs(const MeshId &face_id, Array<int> &dofs) const;
 
-      DepList() : type(0) {}
+   void GetGhostDofs(int entity, const MeshId &id, Array<int> &dofs) const;
+   // Return the dofs associated with the interior of the given mesh entity.
+   // The MeshId may be the id of a regular or a ghost mesh entity.
+   void GetBareDofs(int entity, const MeshId &id, Array<int> &dofs) const;
 
-      bool IsTrueDof(int my_rank) const
-      { return type == 0 || (type == 1 && list[0].rank == my_rank); }
-   };
+   int  PackDof(int entity, int index, int edof) const;
+   void UnpackDof(int dof, int &entity, int &index, int &edof) const;
 
-   void AddSlaveDependencies(DepList deps[], int master_rank,
-                             const Array<int> &master_dofs, int master_ndofs,
-                             const Array<int> &slave_dofs, DenseMatrix& I);
+   void ScheduleSendRow(const struct PMatrixRow &row, int dof, GroupId group_id,
+                        std::map<int, class NeighborRowMessage> &send_msg) const;
 
-   void Add1To1Dependencies(DepList deps[], int owner_rank,
-                            const Array<int> &owner_dofs, int owner_ndofs,
-                            const Array<int> &dependent_dofs);
+   void ForwardRow(const struct PMatrixRow &row, int dof,
+                   GroupId group_sent_id, GroupId group_id,
+                   std::map<int, class NeighborRowMessage> &send_msg) const;
 
-   void GetDofs(int type, int index, Array<int>& dofs);
-   void ReorderFaceDofs(Array<int> &dofs, int orient);
+#ifdef MFEM_DEBUG_PMATRIX
+   void DebugDumpDOFs(std::ofstream &os,
+                      const SparseMatrix &deps,
+                      const Array<GroupId> &dof_group,
+                      const Array<GroupId> &dof_owner,
+                      const Array<bool> &finalized) const;
+#endif
+
+   /// Helper: create a HypreParMatrix from a list of PMatrixRows.
+   HypreParMatrix*
+   MakeVDimHypreMatrix(const std::vector<struct PMatrixRow> &rows,
+                       int local_rows, int local_cols,
+                       Array<HYPRE_Int> &row_starts,
+                       Array<HYPRE_Int> &col_starts) const;
 
    /// Build the P and R matrices.
-   void Build_Dof_TrueDof_Matrix();
+   void Build_Dof_TrueDof_Matrix() const;
 
-   // Used when the ParMesh is non-conforming, i.e. pmesh->pncmesh != NULL.
-   // Constructs the matrices P and R. Determines ltdof_size. Calls
-   // GenerateGlobalOffsets(). Constructs ldof_ltdof.
-   void GetParallelConformingInterpolation();
+   /** Used when the ParMesh is non-conforming, i.e. pmesh->pncmesh != NULL.
+       Constructs the matrices P and R, the DOF and true DOF offset arrays,
+       and the DOF -> true DOF map ('dof_tdof'). Returns the number of
+       vector true DOFs. All pointer arguments are optional and can be NULL. */
+   int BuildParallelConformingInterpolation(HypreParMatrix **P, SparseMatrix **R,
+                                            Array<HYPRE_Int> &dof_offs,
+                                            Array<HYPRE_Int> &tdof_offs,
+                                            Array<int> *dof_tdof,
+                                            bool partial = false) const;
 
    /** Calculate a GridFunction migration matrix after mesh load balancing.
        The result is a parallel permutation matrix that can be used to update
@@ -155,26 +181,74 @@ public:
    // Local face-neighbor data: face-neighbor to ldof
    Table send_face_nbr_ldof;
 
+   /** @brief Copy constructor: deep copy all data from @a orig except the
+       ParMesh, the FiniteElementCollection, and some derived data. */
+   /** If the @a pmesh or @a fec poiters are NULL (default), then the new
+       ParFiniteElementSpace will reuse the respective pointers from @a orig. If
+       any of these pointers is not NULL, the given pointer will be used instead
+       of the one used by @a orig.
+
+       @note The objects pointed to by the @a pmesh and @a fec parameters must
+       be either the same objects as the ones used by @a orig, or copies of
+       them. Otherwise, the behavior is undefined.
+
+       @note Derived data objects, such as the parallel prolongation and
+       restriction operators, the update operator, and any of the face-neighbor
+       data, will not be copied, even if they are created in the @a orig object.
+   */
+   ParFiniteElementSpace(const ParFiniteElementSpace &orig,
+                         ParMesh *pmesh = NULL,
+                         const FiniteElementCollection *fec = NULL);
+
+   /** @brief Convert/copy the *local* (Par)FiniteElementSpace @a orig to
+       ParFiniteElementSpace: deep copy all data from @a orig except the Mesh,
+       the FiniteElementCollection, and some derived data. */
+   ParFiniteElementSpace(const FiniteElementSpace &orig, ParMesh &pmesh,
+                         const FiniteElementCollection *fec = NULL);
+
+   /** @brief Construct the *local* ParFiniteElementSpace corresponing to the
+       global FE space, @a global_fes. */
+   /** The parameter @a pm is the *local* ParMesh obtained by decomposing the
+       global Mesh used by @a global_fes. The array @a partitioning represents
+       the parallel decomposition - it maps global element ids to MPI ranks.
+       If the FiniteElementCollection, @a f, is NULL (default), the FE
+       collection used by @a global_fes will be reused. If @a f is not NULL, it
+       must be the same as, or a copy of, the FE collection used by
+       @a global_fes. */
+   ParFiniteElementSpace(ParMesh *pm, const FiniteElementSpace *global_fes,
+                         const int *partitioning,
+                         const FiniteElementCollection *f = NULL);
+
    ParFiniteElementSpace(ParMesh *pm, const FiniteElementCollection *f,
                          int dim = 1, int ordering = Ordering::byNODES);
 
-   MPI_Comm GetComm() { return MyComm; }
-   int GetNRanks() { return NRanks; }
-   int GetMyRank() { return MyRank; }
+   /// Construct a NURBS FE space based on the given NURBSExtension, @a ext.
+   /** The parameter @a ext will be deleted by this constructor, replaced by a
+       ParNURBSExtension owned by the ParFiniteElementSpace.
+       @note If the pointer @a ext is NULL, this constructor is equivalent to
+       the standard constructor with the same arguments minus the
+       NURBSExtension, @a ext. */
+   ParFiniteElementSpace(ParMesh *pm, NURBSExtension *ext,
+                         const FiniteElementCollection *f,
+                         int dim = 1, int ordering = Ordering::byNODES);
+
+   MPI_Comm GetComm() const { return MyComm; }
+   int GetNRanks() const { return NRanks; }
+   int GetMyRank() const { return MyRank; }
 
    inline ParMesh *GetParMesh() { return pmesh; }
 
    int GetDofSign(int i)
    { return NURBSext || Nonconforming() ? 1 : ldof_sign[VDofToDof(i)]; }
-   HYPRE_Int *GetDofOffsets()     { return dof_offsets; }
-   HYPRE_Int *GetTrueDofOffsets() { return tdof_offsets; }
-   HYPRE_Int GlobalVSize()
+   HYPRE_Int *GetDofOffsets()     const { return dof_offsets; }
+   HYPRE_Int *GetTrueDofOffsets() const { return tdof_offsets; }
+   HYPRE_Int GlobalVSize() const
    { return Dof_TrueDof_Matrix()->GetGlobalNumRows(); }
-   HYPRE_Int GlobalTrueVSize()
+   HYPRE_Int GlobalTrueVSize() const
    { return Dof_TrueDof_Matrix()->GetGlobalNumCols(); }
 
    /// Return the number of local vector true dofs.
-   virtual int GetTrueVSize() { return ltdof_size; }
+   virtual int GetTrueVSize() const { return ltdof_size; }
 
    /// Returns indexes of degrees of freedom in array dofs for i'th element.
    virtual void GetElementDofs(int i, Array<int> &dofs) const;
@@ -190,12 +264,12 @@ public:
    void GetSharedFaceDofs(int group, int fi, Array<int> &dofs) const;
 
    /// The true dof-to-dof interpolation matrix
-   HypreParMatrix *Dof_TrueDof_Matrix()
+   HypreParMatrix *Dof_TrueDof_Matrix() const
    { if (!P) { Build_Dof_TrueDof_Matrix(); } return P; }
 
    /** @brief For a non-conforming mesh, construct and return the interpolation
-       matrix from the partially conforming true dofs to the local dofs. The
-       returned pointer must be deleted by the caller. */
+       matrix from the partially conforming true dofs to the local dofs. */
+   /** @note The returned pointer must be deleted by the caller. */
    HypreParMatrix *GetPartialConformingInterpolation();
 
    /** Create and return a new HypreParVector on the true dofs, which is
@@ -209,6 +283,9 @@ public:
    /// Return a reference to the internal GroupCommunicator (on VDofs)
    GroupCommunicator &GroupComm() { return *gcomm; }
 
+   /// Return a const reference to the internal GroupCommunicator (on VDofs)
+   const GroupCommunicator &GroupComm() const { return *gcomm; }
+
    /// Return a new GroupCommunicator on Dofs
    GroupCommunicator *ScalarGroupComm();
 
@@ -218,18 +295,20 @@ public:
 
    /// Determine the boundary degrees of freedom
    virtual void GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
-                                  Array<int> &ess_dofs) const;
+                                  Array<int> &ess_dofs,
+                                  int component = -1) const;
 
    /** Get a list of essential true dofs, ess_tdof_list, corresponding to the
        boundary attributes marked in the array bdr_attr_is_ess. */
    virtual void GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
-                                     Array<int> &ess_tdof_list);
+                                     Array<int> &ess_tdof_list,
+                                     int component = -1);
 
    /** If the given ldof is owned by the current processor, return its local
        tdof number, otherwise return -1 */
-   int GetLocalTDofNumber(int ldof);
+   int GetLocalTDofNumber(int ldof) const;
    /// Returns the global tdof number of the given local degree of freedom
-   HYPRE_Int GetGlobalTDofNumber(int ldof);
+   HYPRE_Int GetGlobalTDofNumber(int ldof) const;
    /** Returns the global tdof number of the given local degree of freedom in
        the scalar version of the current finite element space. The input should
        be a scalar local dof. */
@@ -238,10 +317,9 @@ public:
    HYPRE_Int GetMyDofOffset() const;
    HYPRE_Int GetMyTDofOffset() const;
 
-   virtual const Operator *GetProlongationMatrix()
-   { return Dof_TrueDof_Matrix(); }
+   virtual const Operator *GetProlongationMatrix() const;
    /// Get the R matrix which restricts a local dof vector to true dof vector.
-   virtual const SparseMatrix *GetRestrictionMatrix()
+   virtual const SparseMatrix *GetRestrictionMatrix() const
    { Dof_TrueDof_Matrix(); return R; }
 
    // Face-neighbor functions
@@ -260,6 +338,12 @@ public:
    bool Conforming() const { return pmesh->pncmesh == NULL; }
    bool Nonconforming() const { return pmesh->pncmesh != NULL; }
 
+   // Transfer parallel true-dof data from coarse_fes, defined on a coarse mesh,
+   // to this FE space, defined on a refined mesh. See full documentation in the
+   // base class, FiniteElementSpace::GetTrueTransferOperator.
+   virtual void GetTrueTransferOperator(const FiniteElementSpace &coarse_fes,
+                                        OperatorHandle &T) const;
+
    /** Reflect changes in the mesh. Calculate one of the refinement/derefinement
        /rebalance matrices, unless want_transform is false. */
    virtual void Update(bool want_transform = true);
@@ -274,7 +358,23 @@ public:
    virtual ~ParFiniteElementSpace() { Destroy(); }
 
    // Obsolete, kept for backward compatibility
-   int TrueVSize() { return ltdof_size; }
+   int TrueVSize() const { return ltdof_size; }
+};
+
+
+/// Auxiliary class used by ParFiniteElementSpace.
+class ConformingProlongationOperator : public Operator
+{
+protected:
+   Array<int> external_ldofs;
+   const GroupCommunicator &gc;
+
+public:
+   ConformingProlongationOperator(const ParFiniteElementSpace &pfes);
+
+   virtual void Mult(const Vector &x, Vector &y) const;
+
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
 };
 
 }

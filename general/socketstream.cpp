@@ -35,7 +35,9 @@ typedef int ssize_t;
 
 #ifdef MFEM_USE_GNUTLS
 #include <cstdlib>  // getenv
+#ifndef MFEM_USE_GNUTLS_X509
 #include <gnutls/openpgp.h>
+#endif
 // Enable debug messages from GnuTLS_* classes
 // #define MFEM_USE_GNUTLS_DEBUG
 #endif
@@ -116,7 +118,7 @@ int socketbuf::close()
 int socketbuf::sync()
 {
    ssize_t bw, n = pptr() - pbase();
-   // std::cout << "[socketbuf::sync n=" << n << ']' << std::endl;
+   // mfem::out << "[socketbuf::sync n=" << n << ']' << std::endl;
    while (n > 0)
    {
 #ifdef MSG_NOSIGNAL
@@ -127,7 +129,7 @@ int socketbuf::sync()
       if (bw < 0)
       {
 #ifdef MFEM_DEBUG
-         std::cout << "Error in send(): " << strerror(errno) << std::endl;
+         mfem::out << "Error in send(): " << strerror(errno) << std::endl;
 #endif
          setp(pptr() - n, obuf + buflen);
          pbump(n);
@@ -143,14 +145,14 @@ socketbuf::int_type socketbuf::underflow()
 {
    // assuming (gptr() < egptr()) is false
    ssize_t br = recv(socket_descriptor, ibuf, buflen, 0);
-   // std::cout << "[socketbuf::underflow br=" << br << ']'
+   // mfem::out << "[socketbuf::underflow br=" << br << ']'
    //           << std::endl;
    if (br <= 0)
    {
 #ifdef MFEM_DEBUG
       if (br < 0)
       {
-         std::cout << "Error in recv(): " << strerror(errno) << std::endl;
+         mfem::out << "Error in recv(): " << strerror(errno) << std::endl;
       }
 #endif
       setg(NULL, NULL, NULL);
@@ -177,7 +179,7 @@ socketbuf::int_type socketbuf::overflow(int_type c)
 
 std::streamsize socketbuf::xsgetn(char_type *__s, std::streamsize __n)
 {
-   // std::cout << "[socketbuf::xsgetn __n=" << __n << ']'
+   // mfem::out << "[socketbuf::xsgetn __n=" << __n << ']'
    //           << std::endl;
    const std::streamsize bn = egptr() - gptr();
    if (__n <= bn)
@@ -199,7 +201,7 @@ std::streamsize socketbuf::xsgetn(char_type *__s, std::streamsize __n)
 #ifdef MFEM_DEBUG
          if (br < 0)
          {
-            std::cout << "Error in recv(): " << strerror(errno) << std::endl;
+            mfem::out << "Error in recv(): " << strerror(errno) << std::endl;
          }
 #endif
          return (__n - remain);
@@ -211,7 +213,7 @@ std::streamsize socketbuf::xsgetn(char_type *__s, std::streamsize __n)
 
 std::streamsize socketbuf::xsputn(const char_type *__s, std::streamsize __n)
 {
-   // std::cout << "[socketbuf::xsputn __n=" << __n << ']'
+   // mfem::out << "[socketbuf::xsputn __n=" << __n << ']'
    //           << std::endl;
    if (pptr() + __n <= epptr())
    {
@@ -236,7 +238,7 @@ std::streamsize socketbuf::xsputn(const char_type *__s, std::streamsize __n)
       if (bw < 0)
       {
 #ifdef MFEM_DEBUG
-         std::cout << "Error in send(): " << strerror(errno) << std::endl;
+         mfem::out << "Error in send(): " << strerror(errno) << std::endl;
 #endif
          return (__n - remain);
       }
@@ -251,7 +253,7 @@ std::streamsize socketbuf::xsputn(const char_type *__s, std::streamsize __n)
 }
 
 
-socketserver::socketserver(int port)
+socketserver::socketserver(int port, int backlog)
 {
    listen_socket = socket(PF_INET, SOCK_STREAM, 0); // tcp socket
    if (listen_socket < 0)
@@ -277,7 +279,7 @@ socketserver::socketserver(int port)
       listen_socket = -3;
       return;
    }
-   const int backlog = 4;
+
    if (listen(listen_socket, backlog) < 0)
    {
       closesocket(listen_socket);
@@ -322,7 +324,7 @@ int socketserver::accept(socketstream &sockstr)
 
 static void mfem_gnutls_log_func(int level, const char *str)
 {
-   std::cout << "GnuTLS <" << level << "> " << str << std::flush;
+   mfem::out << "GnuTLS <" << level << "> " << str << std::flush;
 }
 
 GnuTLS_global_state::GnuTLS_global_state()
@@ -361,10 +363,10 @@ void GnuTLS_global_state::generate_dh_params()
 #else
          unsigned bits = 1024;
 #endif
-         std::cout << "Generating DH params (" << bits << " bits) ..."
+         mfem::out << "Generating DH params (" << bits << " bits) ..."
                    << std::flush;
          status.set_result(gnutls_dh_params_generate2(dh_params, bits));
-         std::cout << " done." << std::endl;
+         mfem::out << " done." << std::endl;
          status.print_on_error("gnutls_dh_params_generate2");
          if (!status.good())
          {
@@ -383,7 +385,7 @@ static int mfem_gnutls_verify_callback(gnutls_session_t session)
    int ret = gnutls_certificate_verify_peers3(session, hostname, &status);
    if (ret < 0)
    {
-      std::cout << "Error in gnutls_certificate_verify_peers3:"
+      mfem::out << "Error in gnutls_certificate_verify_peers3:"
                 << gnutls_strerror(ret) << std::endl;
       return GNUTLS_E_CERTIFICATE_ERROR;
    }
@@ -394,23 +396,23 @@ static int mfem_gnutls_verify_callback(gnutls_session_t session)
    ret = gnutls_certificate_verification_status_print(status, type, &out, 0);
    if (ret < 0)
    {
-      std::cout << "Error in gnutls_certificate_verification_status_print:"
+      mfem::out << "Error in gnutls_certificate_verification_status_print:"
                 << gnutls_strerror(ret) << std::endl;
       return GNUTLS_E_CERTIFICATE_ERROR;
    }
-   std::cout << out.data << std::endl;
+   mfem::out << out.data << std::endl;
    gnutls_free(out.data);
 #endif
 #else // --> GNUTLS_VERSION_NUMBER < 0x030104
    int ret = gnutls_certificate_verify_peers2(session, &status);
    if (ret < 0)
    {
-      std::cout << "Error in gnutls_certificate_verify_peers2:"
+      mfem::out << "Error in gnutls_certificate_verify_peers2:"
                 << gnutls_strerror(ret) << std::endl;
       return GNUTLS_E_CERTIFICATE_ERROR;
    }
 #ifdef MFEM_DEBUG
-   std::cout << (status ?
+   mfem::out << (status ?
                  "The certificate is NOT trusted." :
                  "The certificate is trusted.") << std::endl;
 #endif
@@ -437,10 +439,18 @@ GnuTLS_session_params::GnuTLS_session_params(
    if (!status.good()) { my_cred = NULL; }
    else
    {
+#ifndef MFEM_USE_GNUTLS_X509
       status.set_result(
          gnutls_certificate_set_openpgp_key_file(
             my_cred, pubkey_file, privkey_file, GNUTLS_OPENPGP_FMT_RAW));
       status.print_on_error("gnutls_certificate_set_openpgp_key_file");
+#else
+      status.set_result(
+         gnutls_certificate_set_x509_key_file(
+            my_cred, pubkey_file, privkey_file, GNUTLS_X509_FMT_PEM));
+      // e.g. pubkey_file, privkey_file == "cert.pem", "key.pem"
+      status.print_on_error("gnutls_certificate_set_x509_key_file");
+#endif
    }
 
    if (status.good())
@@ -455,10 +465,24 @@ GnuTLS_session_params::GnuTLS_session_params(
 
    if (status.good())
    {
+#ifndef MFEM_USE_GNUTLS_X509
       status.set_result(
          gnutls_certificate_set_openpgp_keyring_file(
             my_cred, trustedkeys_file, GNUTLS_OPENPGP_FMT_RAW));
       status.print_on_error("gnutls_certificate_set_openpgp_keyring_file");
+#else
+      int num_certs =
+         gnutls_certificate_set_x509_trust_file(
+            my_cred, trustedkeys_file, GNUTLS_X509_FMT_PEM);
+      // e.g. trustedkeys_file == "trusted-certs.pem"
+#ifdef MFEM_USE_GNUTLS_DEBUG
+      mfem::out << "[GnuTLS_session_params::GnuTLS_session_params] "
+                "number of trusted certificates = " << num_certs << std::endl;
+#endif
+      status.set_result(num_certs > 0 ?
+                        GNUTLS_E_SUCCESS : GNUTLS_E_CERTIFICATE_ERROR);
+      status.print_on_error("gnutls_certificate_set_x509_trust_file");
+#endif
    }
 
 #if GNUTLS_VERSION_NUMBER >= 0x021000
@@ -483,7 +507,7 @@ GnuTLS_session_params::GnuTLS_session_params(
 void GnuTLS_socketbuf::handshake()
 {
 #ifdef MFEM_USE_GNUTLS_DEBUG
-   std::cout << "[GnuTLS_socketbuf::handshake]" << std::endl;
+   mfem::out << "[GnuTLS_socketbuf::handshake]" << std::endl;
 #endif
 
    // Called at the end of start_session.
@@ -495,7 +519,7 @@ void GnuTLS_socketbuf::handshake()
       if (status.good())
       {
 #if 0
-         std::cout << "handshake successful, TLS version is "
+         mfem::out << "handshake successful, TLS version is "
                    << gnutls_protocol_get_name(
                       gnutls_protocol_get_version(session)) << std::endl;
 #endif
@@ -521,7 +545,7 @@ static ssize_t mfem_gnutls_push_function(
 void GnuTLS_socketbuf::start_session()
 {
 #ifdef MFEM_USE_GNUTLS_DEBUG
-   std::cout << "[GnuTLS_socketbuf::start_session]" << std::endl;
+   mfem::out << "[GnuTLS_socketbuf::start_session]" << std::endl;
 #endif
 
    // check for valid 'socket_descriptor' and inactive session
@@ -542,20 +566,35 @@ void GnuTLS_socketbuf::start_session()
    session_started = status.good();
    if (status.good())
    {
-#if GNUTLS_VERSION_NUMBER >= 0x030000 // what is the right version here?
-      const char *priorities =
-         "NONE:+VERS-TLS1.2:+CIPHER-ALL:+MAC-ALL:+SIGN-ALL:+COMP-ALL:"
-         "+KX-ALL:+CTYPE-OPENPGP:+CURVE-ALL";
+      const char *priorities;
+      // what is the right version here?
+      if (gnutls_check_version("2.12.0") != NULL)
+      {
+         // This works for version 2.12.23 (0x020c17) and above
+#ifndef MFEM_USE_GNUTLS_X509
+         priorities = "NONE:+VERS-TLS1.2:+CIPHER-ALL:+MAC-ALL:+SIGN-ALL:"
+                      "+COMP-ALL:+KX-ALL:+CTYPE-OPENPGP:+CURVE-ALL";
 #else
-      const char *priorities = "NORMAL:-CTYPE-X.509";
+         priorities = "NONE:+VERS-TLS1.2:+CIPHER-ALL:+MAC-ALL:+SIGN-ALL:"
+                      "+COMP-ALL:+KX-ALL:+CTYPE-X509:+CURVE-ALL";
 #endif
+      }
+      else
+      {
+         // This works for version 2.8.5 (0x020805) and below
+#ifndef MFEM_USE_GNUTLS_X509
+         priorities = "NORMAL:-CTYPE-X.509";
+#else
+         priorities = "NORMAL:";
+#endif
+      }
       const char *err_ptr;
       status.set_result(
          gnutls_priority_set_direct(session, priorities, &err_ptr));
       status.print_on_error("gnutls_priority_set_direct");
       if (!status.good())
       {
-         std::cout << "Error ptr = \"" << err_ptr << '"' << std::endl;
+         mfem::out << "Error ptr = \"" << err_ptr << '"' << std::endl;
       }
    }
 
@@ -631,7 +670,7 @@ void GnuTLS_socketbuf::start_session()
 void GnuTLS_socketbuf::end_session()
 {
 #ifdef MFEM_USE_GNUTLS_DEBUG
-   std::cout << "[GnuTLS_socketbuf::end_session]" << std::endl;
+   mfem::out << "[GnuTLS_socketbuf::end_session]" << std::endl;
 #endif
 
    // check for valid 'socket_descriptor'
@@ -641,7 +680,7 @@ void GnuTLS_socketbuf::end_session()
    {
       pubsync();
 #ifdef MFEM_USE_GNUTLS_DEBUG
-      std::cout << "[GnuTLS_socketbuf::end_session: gnutls_bye]" << std::endl;
+      mfem::out << "[GnuTLS_socketbuf::end_session: gnutls_bye]" << std::endl;
 #endif
       int err;
       do
@@ -661,7 +700,7 @@ void GnuTLS_socketbuf::end_session()
 int GnuTLS_socketbuf::attach(int sd)
 {
 #ifdef MFEM_USE_GNUTLS_DEBUG
-   std::cout << "[GnuTLS_socketbuf::attach]" << std::endl;
+   mfem::out << "[GnuTLS_socketbuf::attach]" << std::endl;
 #endif
 
    end_session();
@@ -676,7 +715,7 @@ int GnuTLS_socketbuf::attach(int sd)
 int GnuTLS_socketbuf::open(const char hostname[], int port)
 {
 #ifdef MFEM_USE_GNUTLS_DEBUG
-   std::cout << "[GnuTLS_socketbuf::open]" << std::endl;
+   mfem::out << "[GnuTLS_socketbuf::open]" << std::endl;
 #endif
 
    int err = socketbuf::open(hostname, port); // calls close()
@@ -690,7 +729,7 @@ int GnuTLS_socketbuf::open(const char hostname[], int port)
 int GnuTLS_socketbuf::close()
 {
 #ifdef MFEM_USE_GNUTLS_DEBUG
-   std::cout << "[GnuTLS_socketbuf::close]" << std::endl;
+   mfem::out << "[GnuTLS_socketbuf::close]" << std::endl;
 #endif
 
    end_session();
@@ -704,7 +743,7 @@ int GnuTLS_socketbuf::sync()
 {
    ssize_t bw, n = pptr() - pbase();
 #ifdef MFEM_USE_GNUTLS_DEBUG
-   std::cout << "[GnuTLS_socketbuf::sync n=" << n << ']' << std::endl;
+   mfem::out << "[GnuTLS_socketbuf::sync n=" << n << ']' << std::endl;
 #endif
    if (!session_started || !status.good()) { return -1; }
    while (n > 0)
@@ -730,7 +769,7 @@ int GnuTLS_socketbuf::sync()
 GnuTLS_socketbuf::int_type GnuTLS_socketbuf::underflow()
 {
 #ifdef MFEM_USE_GNUTLS_DEBUG
-   std::cout << "[GnuTLS_socketbuf::underflow ...]" << std::endl;
+   mfem::out << "[GnuTLS_socketbuf::underflow ...]" << std::endl;
 #endif
    if (!session_started || !status.good()) { return traits_type::eof(); }
 
@@ -745,7 +784,7 @@ GnuTLS_socketbuf::int_type GnuTLS_socketbuf::underflow()
    }
    while (br == GNUTLS_E_INTERRUPTED || br == GNUTLS_E_AGAIN);
 #ifdef MFEM_USE_GNUTLS_DEBUG
-   std::cout << "[GnuTLS_socketbuf::underflow br=" << br << ']' << std::endl;
+   mfem::out << "[GnuTLS_socketbuf::underflow br=" << br << ']' << std::endl;
 #endif
 
    if (br <= 0)
@@ -767,7 +806,7 @@ GnuTLS_socketbuf::int_type GnuTLS_socketbuf::underflow()
 std::streamsize GnuTLS_socketbuf::xsgetn(char_type *__s, std::streamsize __n)
 {
 #ifdef MFEM_USE_GNUTLS_DEBUG
-   std::cout << "[GnuTLS_socketbuf::xsgetn __n=" << __n << ']' << std::endl;
+   mfem::out << "[GnuTLS_socketbuf::xsgetn __n=" << __n << ']' << std::endl;
 #endif
    if (!session_started || !status.good()) { return 0; }
 
@@ -814,7 +853,7 @@ std::streamsize GnuTLS_socketbuf::xsputn(const char_type *__s,
                                          std::streamsize __n)
 {
 #ifdef MFEM_USE_GNUTLS_DEBUG
-   std::cout << "[GnuTLS_socketbuf::xsputn __n=" << __n << ']' << std::endl;
+   mfem::out << "[GnuTLS_socketbuf::xsputn __n=" << __n << ']' << std::endl;
 #endif
    if (!session_started || !status.good()) { return 0; }
 
@@ -836,7 +875,7 @@ std::streamsize GnuTLS_socketbuf::xsputn(const char_type *__s,
       bw = gnutls_record_send(session, end - remain, remain);
       if (bw == GNUTLS_E_INTERRUPTED || bw == GNUTLS_E_AGAIN) { continue; }
 #ifdef MFEM_USE_GNUTLS_DEBUG
-      std::cout << "[GnuTLS_socketbuf::xsputn bw=" << bw << ']' << std::endl;
+      mfem::out << "[GnuTLS_socketbuf::xsputn bw=" << bw << ']' << std::endl;
 #endif
       if (bw < 0)
       {
@@ -870,18 +909,24 @@ GnuTLS_session_params &socketstream::add_socket()
       // state->set_log_level(1000);
       std::string home_dir(getenv("HOME"));
       std::string client_dir = home_dir + "/.config/glvis/client/";
+#ifndef MFEM_USE_GNUTLS_X509
       std::string pubkey  = client_dir + "pubring.gpg";
       std::string privkey = client_dir + "secring.gpg";
       std::string trustedkeys = client_dir + "trusted-servers.gpg";
+#else
+      std::string pubkey  = client_dir + "cert.pem";
+      std::string privkey = client_dir + "key.pem";
+      std::string trustedkeys = client_dir + "trusted-servers.pem";
+#endif
       params = new GnuTLS_session_params(
          *state, pubkey.c_str(), privkey.c_str(), trustedkeys.c_str(),
          GNUTLS_CLIENT);
       if (!params->status.good())
       {
-         std::cout << "  public key   = " << pubkey << '\n'
+         mfem::out << "  public key   = " << pubkey << '\n'
                    << "  private key  = " << privkey << '\n'
                    << "  trusted keys = " << trustedkeys << std::endl;
-         std::cout << "Error setting GLVis client parameters.\n"
+         mfem::out << "Error setting GLVis client parameters.\n"
                    "Use the following GLVis script to create your GLVis keys:\n"
                    "   bash glvis-keygen.sh [\"Your Name\"] [\"Your Email\"]"
                    << std::endl;

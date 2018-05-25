@@ -33,6 +33,8 @@ public:
 
    ParLinearForm(ParFiniteElementSpace *pf) : LinearForm(pf) { pfes = pf; }
 
+   ParFiniteElementSpace *ParFESpace() const { return pfes; }
+
    void Update(ParFiniteElementSpace *pf = NULL);
 
    void Update(ParFiniteElementSpace *pf, Vector &v, int v_offset);
@@ -44,7 +46,7 @@ public:
    HypreParVector *ParallelAssemble();
 
    /// Return the action of the ParLinearForm as a linear mapping.
-   /** Linear forms are linear functionals which map ParGridFunctions to
+   /** Linear forms are linear functionals which map ParGridFunction%s to
        the real numbers.  This method performs this mapping which in
        this case is equivalent as an inner product of the ParLinearForm
        and ParGridFunction. */

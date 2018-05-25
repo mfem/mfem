@@ -29,12 +29,27 @@ private:
    /// Set of Domain Integrators to be applied.
    Array<LinearFormIntegrator*> dlfi;
 
+   /// Separate array for integrators with delta function coefficients.
+   Array<DeltaLFIntegrator*> dlfi_delta;
+
    /// Set of Boundary Integrators to be applied.
    Array<LinearFormIntegrator*> blfi;
 
    /// Set of Boundary Face Integrators to be applied.
    Array<LinearFormIntegrator*> flfi;
    Array<Array<int>*>           flfi_marker;
+
+   /// The element ids where the centers of the delta functions lie
+   Array<int> dlfi_delta_elem_id;
+
+   /// The reference coordinates where the centers of the delta functions lie
+   Array<IntegrationPoint> dlfi_delta_ip;
+
+   /// If true, the delta locations are not (re)computed during assembly.
+   bool HaveDeltaLocations() { return (dlfi_delta_elem_id.Size() != 0); }
+
+   /// Force (re)computation of delta locations.
+   void ResetDeltaLocations() { dlfi_delta_elem_id.SetSize(0); }
 
 public:
    /// Creates linear form associated with FE space *f.
@@ -43,7 +58,14 @@ public:
 
    LinearForm() { fes = NULL; }
 
+   /// (DEPRECATED) Return the FE space associated with the LinearForm.
+   /** @deprecated Use FESpace() instead. */
    FiniteElementSpace * GetFES() { return fes; }
+
+   /// Read+write access to the associated FiniteElementSpace.
+   FiniteElementSpace *FESpace() { return fes; }
+   /// Read-only access to the associated FiniteElementSpace.
+   const FiniteElementSpace *FESpace() const { return fes; }
 
    /// Adds new Domain Integrator.
    void AddDomainIntegrator (LinearFormIntegrator * lfi);
@@ -62,9 +84,13 @@ public:
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
    void Assemble();
 
-   void Update() { SetSize(fes->GetVSize()); }
+   /// Assembles delta functions of the linear form
+   void AssembleDelta();
 
-   void Update(FiniteElementSpace *f) { fes = f; SetSize(f->GetVSize()); }
+   void Update() { SetSize(fes->GetVSize()); ResetDeltaLocations(); }
+
+   void Update(FiniteElementSpace *f)
+   { fes = f; SetSize(f->GetVSize()); ResetDeltaLocations(); }
 
    void Update(FiniteElementSpace *f, Vector &v, int v_offset);
 
