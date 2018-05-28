@@ -433,7 +433,7 @@ struct MasterSlaveInfo
 
 void ParNCMesh::AddMasterSlaveConnections(int nitems, const NCList& list)
 {
-#if 1
+#if 0 // optimal version for P matrix construction but breaks ParMesh::Print and DG
    Array<int> masters(nitems);
    masters = -1;
 
@@ -462,7 +462,8 @@ void ParNCMesh::AddMasterSlaveConnections(int nitems, const NCList& list)
          index_rank.Append(Connection(master, rank));
       }
    }
-#else
+#else // suboptimal version fully linking master and slave entities in groups
+
    // create an auxiliary structure for each edge/face
    std::vector<MasterSlaveInfo> info(nitems);
 
