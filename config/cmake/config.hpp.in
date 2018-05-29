@@ -98,6 +98,9 @@
 // Enable MFEM functionality based on Conduit
 #cmakedefine MFEM_USE_CONDUIT
 
+// Enable MFEM functionality based on the PUMI library
+#cmakedefine MFEM_USE_PUMI
+
 // Which library functions to use in class StopWatch for measuring time.
 // For a list of the available options, see INSTALL.
 // If not defined, an option is selected automatically.
@@ -112,5 +115,9 @@
 
 // Version of HYPRE used for building MFEM.
 #cmakedefine MFEM_HYPRE_VERSION @MFEM_HYPRE_VERSION@
+
+// Macro defined when PUMI is built with support for the Simmetrix SimModSuite
+// library.
+#cmakedefine MFEM_USE_SIMMETRIX
 
 #endif // MFEM_CONFIG_HEADER

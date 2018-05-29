@@ -2583,6 +2583,24 @@ QuadratureFunction::QuadratureFunction(Mesh *mesh, std::istream &in)
    Load(in, vdim*qspace->GetSize());
 }
 
+QuadratureFunction & QuadratureFunction::operator=(double value)
+{
+   Vector::operator=(value);
+   return *this;
+}
+
+QuadratureFunction & QuadratureFunction::operator=(const Vector &v)
+{
+   MFEM_ASSERT(qspace && v.Size() == qspace->GetSize(), "");
+   Vector::operator=(v);
+   return *this;
+}
+
+QuadratureFunction & QuadratureFunction::operator=(const QuadratureFunction &v)
+{
+   return this->operator=((const Vector &)v);
+}
+
 void QuadratureFunction::Save(std::ostream &out) const
 {
    qspace->Save(out);

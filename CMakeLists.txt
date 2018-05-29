@@ -139,7 +139,7 @@ if (MFEM_USE_MPI)
     set(PETSC_INCLUDE_DIRS ${PETSC_INCLUDES})
   endif()
 else()
-  set(PKGS_NEED_MPI SUPERLU PETSC STRUMPACK)
+  set(PKGS_NEED_MPI SUPERLU PETSC STRUMPACK PUMI)
   foreach(PKG IN LISTS PKGS_NEED_MPI)
     if (MFEM_USE_${PKG})
       message(STATUS "Disabling package ${PKG} - requires MPI")
@@ -246,6 +246,22 @@ if (MFEM_USE_SIDRE)
   find_package(Axom REQUIRED Sidre SLIC axom_utils)
 endif()
 
+# PUMI
+if (MFEM_USE_PUMI)
+  # If PUMI_DIR was specified, only link to that directory,
+  # i.e. don't link to another installation in /usr/lib by mistake
+  find_package(SCOREC 2.1.0 REQUIRED OPTIONAL_COMPONENTS gmi_sim
+    CONFIG PATHS ${PUMI_DIR} NO_DEFAULT_PATH)
+  if (SCOREC_FOUND)
+    # Define a header file with the MFEM_USE_SIMMETRIX preprocessor variable
+    set(MFEM_USE_SIMMETRIX ${SCOREC_gmi_sim_FOUND})
+    set(PUMI_FOUND ${SCOREC_FOUND})
+    get_target_property(PUMI_INCLUDE_DIRS
+      SCOREC::apf INTERFACE_INCLUDE_DIRECTORIES)
+    set(PUMI_LIBRARIES SCOREC::core)
+  endif()
+endif()
+
 # MFEM_TIMER_TYPE
 if (NOT DEFINED MFEM_TIMER_TYPE)
   if (APPLE)
@@ -270,8 +286,8 @@ endif()
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
-    MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT GECKO GNUTLS NETCDF MPFR POSIXCLOCKS
-    MFEMBacktrace ZLIB)
+    MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT GECKO GNUTLS NETCDF MPFR PUMI
+    POSIXCLOCKS MFEMBacktrace ZLIB)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")
