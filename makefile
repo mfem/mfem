@@ -10,7 +10,7 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 # The current MFEM version as an integer, see also `CMakeLists.txt`.
-MFEM_VERSION = 30303
+MFEM_VERSION = 30400
 MFEM_VERSION_STRING = $(shell printf "%06d" $(MFEM_VERSION) | \
   sed -e 's/^0*\(.*.\)\(..\)\(..\)$$/\1.\2.\3/' -e 's/\.0/./g' -e 's/\.0$$//')
 
@@ -26,7 +26,7 @@ MFEM makefile targets:
    make parallel
    make debug
    make pdebug
-   make check/test
+   make test/check
    make install
    make clean
    make distclean
@@ -55,14 +55,14 @@ make debug
    A shortcut to configure and build the serial debug version of the library.
 make pdebug
    A shortcut to configure and build the parallel debug version of the library.
-make check
-   Quick-check the build by compiling and running Example 1/1p.
 make test
    Verify the build by checking the results from running all examples and miniapps.
+make check
+   Quick-check the build by compiling and running Example 1/1p.
 make install PREFIX=<dir>
    Install the library and headers in <dir>/lib and <dir>/include.
 make clean
-   Clean the library and object files, but keep configuration.
+   Clean the library and object files, but keep the configuration.
 make distclean
    In addition to "make clean", clean the configuration and remove the local
    installation directory.
