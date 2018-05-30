@@ -910,6 +910,9 @@ public:
    void GetNumIterations(int &num_it)
    { HYPRE_BoomerAMGGetNumIterations(amg_precond, &num_it); }
 
+   void SetCycleType(int cycle_type)
+   { HYPRE_BoomerAMGSetCycleType(amg_precond, cycle_type); }
+
    /// The typecast to HYPRE_Solver returns the internal amg_precond
    virtual operator HYPRE_Solver() const { return amg_precond; }
 
