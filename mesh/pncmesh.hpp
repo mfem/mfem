@@ -95,39 +95,11 @@ public:
    int GetNGhostFaces() const { return NGhostFaces; }
    int GetNGhostElements() const { return NGhostElements; }
 
-   /** Return a list of vertices shared by this processor and at least one other
-       processor. (NOTE: only NCList::conforming will be set.) */
-   const NCList& GetSharedVertices()
-   {
-      if (shared_vertices.Empty())
-      {
-         MakeShared(vertex_group, GetVertexList(), shared_vertices);
-      }
-      return shared_vertices;
-   }
-
-   /** Return a list of edges shared by this processor and at least one other
-       processor. (NOTE: this is a subset of the NCMesh::edge_list; slaves are
-       empty.) */
-   const NCList& GetSharedEdges()
-   {
-      if (shared_edges.Empty())
-      {
-         MakeShared(edge_group, GetEdgeList(), shared_edges);
-      }
-      return shared_edges;
-   }
-
-   /** Return a list of faces shared by this processor and another processor.
-       (NOTE: this is a subset of NCMesh::face_list; slaves are empty.) */
-   const NCList& GetSharedFaces()
-   {
-      if (shared_faces.Empty())
-      {
-         MakeShared(face_group, GetFaceList(), shared_faces);
-      }
-      return shared_faces;
-   }
+   // Return a list of vertices/edges/faces shared by this processor and at
+   // least one other processor. This is always a subset of NCMesh::xxx_list. */
+   const NCList& GetSharedVertices() { GetVertexList(); return shared_vertices; }
+   const NCList& GetSharedEdges() { GetEdgeList(); return shared_edges; }
+   const NCList& GetSharedFaces() { GetFaceList(); return shared_faces; }
 
    /// Helper to get shared vertices/edges/faces ('entity' == 0/1/2 resp.).
    const NCList& GetSharedList(int entity)
@@ -160,7 +132,9 @@ public:
       }
    }
 
-   /// Return the communication group ID for a vertex/edge/face.
+   /** Return the communication group ID for a vertex/edge/face.
+       NOTE: the groups are designed specifically for the P matrix construction
+       algorithm and its communication pattern. */
    GroupId GetGroupId(int entity, int index) const
    {
       switch (entity)
@@ -267,18 +241,14 @@ protected:
    GroupList groups;  // comm group list; NOTE: groups[0] = { MyRank }
    GroupMap group_id; // search index over groups
 
-   // group and owner Id for each vertex, edge and face
-   Array<GroupId> vertex_group, edge_group, face_group;
+   // owner and group Id for each vertex, edge and face
    Array<GroupId> vertex_owner, edge_owner, face_owner; // NOTE: singleton groups
+   Array<GroupId> vertex_group, edge_group, face_group; //
 
    // lists of vertices/edges/faces shared by us and at least one more processor
-   NCList shared_vertices;
-   NCList shared_edges;
-   NCList shared_faces;
+   NCList shared_vertices, shared_edges, shared_faces;
 
    Array<char> face_orient; // see CalcFaceOrientations
-
-   bool groups_augmented; // was AugmentMasterGroups called?
 
    /** Type of each leaf element:
          1 - our element (rank == MyRank),
@@ -327,8 +297,10 @@ protected:
    virtual void ElementSharesEdge(int elem, int enode);
    virtual void ElementSharesVertex(int elem, int vnode);
 
-   void InitOwners(int num, Array<GroupId> &entity_owner);
-   void InitGroups(int num, Array<GroupId> &entity_group);
+   void AssignOwners(int num, Array<GroupId> &entity_owner);
+
+   void CreateGroups(const Array<Connection> &index_rank,
+                     Array<GroupId> &entity_group);
 
    void BuildSharedVertices();
 
@@ -338,8 +310,8 @@ protected:
 
    void UpdateLayers();
 
-   Array<int> tmp_owner; // temporary
-   Array<Connection> index_rank; // temporary
+   Array<Connection> tmp_index_rank; // temporary
+   Array<Connection> entity_index_rank[3]; // temporary
 
    void AddMasterSlaveConnections(int nitems, const NCList& list);
    void AddMasterSlaveConnections(const NCList& list, int entity);
