@@ -891,6 +891,22 @@ public:
    void SetTol(double tol)
    { HYPRE_BoomerAMGSetTol(amg_precond, tol); }
 
+   void SetInterpolation(int interp_type)
+   { HYPRE_BoomerAMGSetInterpType(amg_precond, interp_type); }
+
+   void SetRestriction(int restrict_type)
+   { HYPRE_BoomerAMGSetRestriction(amg_precond, restrict_type); }
+
+   void SetCoarsening(int coarsen_type)
+   { HYPRE_BoomerAMGSetCoarsenType(amg_precond, coarsen_type); }
+
+   void SetRelaxType(int relax_type)
+   { HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type); }
+
+   void SetRelaxCycle(int prerelax, int postrelax)
+   {  HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, prerelax,  1);
+      HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, postrelax, 2); }
+
    void GetNumIterations(int &num_it)
    { HYPRE_BoomerAMGGetNumIterations(amg_precond, &num_it); }
 
