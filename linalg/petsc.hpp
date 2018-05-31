@@ -177,6 +177,9 @@ public:
        @param[in]  ref  If true, we increase the reference count of @a a. */
    PetscParMatrix(Mat a, bool ref=false);
 
+   /** @brief Convert a PetscParMatrix @a pa with a new PETSc format @a tid. */
+   explicit PetscParMatrix(const PetscParMatrix *pa, Operator::Type tid);
+
    /** @brief Creates a PetscParMatrix extracting the submatrix of @a A with
        @a rows row indices and @a cols column indices */
    PetscParMatrix(const PetscParMatrix& A, const mfem::Array<PetscInt>& rows,
