@@ -437,6 +437,14 @@ PetscParMatrix::PetscParMatrix(const PetscParMatrix& pB,
    width  = GetNumCols();
 }
 
+PetscParMatrix::PetscParMatrix(const PetscParMatrix *pa, Operator::Type tid)
+{
+   Init();
+   height = pa->Height();
+   width  = pa->Width();
+   ConvertOperator(pa->GetComm(),*pa,&A,tid);
+}
+
 PetscParMatrix::PetscParMatrix(const HypreParMatrix *ha, Operator::Type tid)
 {
    Init();
