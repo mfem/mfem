@@ -74,6 +74,7 @@ EX1_ARGS_P       := -m ../../data/amr-quad.mesh --usepetsc --petscopts rc_ex1p
 EX2_ARGS         := -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex2p
 EX3_ARGS         := -m ../../data/klein-bottle.mesh -o 2 -f 0.1 --usepetsc --petscopts rc_ex3p_bddc --nonoverlapping
 EX4_ARGS         := -m ../../data/klein-bottle.mesh -o 2 --usepetsc --petscopts rc_ex4p_bddc --nonoverlapping
+EX4_HYB_ARGS     := -m ../../data/klein-bottle.mesh -o 2 --usepetsc --petscopts rc_ex4p_bddc --nonoverlapping --hybridization
 EX5_BDDC_LB_ARGS := -m ../../data/star.mesh --usepetsc -o 0 --petscopts rc_ex5p_bddc --nonoverlapping --local-bdr
 EX5_BDDC_GB_ARGS := -m ../../data/star.mesh --usepetsc -o 0 --petscopts rc_ex5p_bddc --nonoverlapping
 EX5_FSPL_ARGS    := -m ../../data/beam-tet.mesh --usepetsc -o 0 --petscopts rc_ex5p_fieldsplit
@@ -91,6 +92,7 @@ ex3p-test-par: ex3p
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX3_ARGS))
 ex4p-test-par: ex4p
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX4_ARGS))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX4_HYB_ARGS))
 ex5p-test-par: ex5p
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX5_BDDC_LB_ARGS))
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX5_BDDC_GB_ARGS))
