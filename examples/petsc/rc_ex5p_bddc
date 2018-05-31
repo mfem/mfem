@@ -27,14 +27,17 @@
 
 # local solvers (needs PETSc compiled with support for SuiteSparse)
 # default solvers will fail
+# With PETSc versions older than 3.9
+# use "mat_solver_package" instead of "mat_solver_type"
+#
 -prec_pc_bddc_neumann_pc_type lu
--prec_pc_bddc_neumann_pc_factor_mat_solver_package umfpack
+-prec_pc_bddc_neumann_pc_factor_mat_solver_type umfpack
 -prec_pc_bddc_dirichlet_pc_type lu
--prec_pc_bddc_dirichlet_pc_factor_mat_solver_package umfpack
+-prec_pc_bddc_dirichlet_pc_factor_mat_solver_type umfpack
 
 # coarse solver (needs PETSc compiled with support for MUMPS)
 # default solver may fail
--prec_pc_bddc_coarse_pc_factor_mat_solver_package mumps
+-prec_pc_bddc_coarse_pc_factor_mat_solver_type mumps
 -prec_pc_bddc_coarse_pc_type cholesky
 
 # deluxe scaling (needs PETSc compiled with support for MUMPS)
