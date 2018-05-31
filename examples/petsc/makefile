@@ -79,6 +79,7 @@ EX5_BDDC_LB_ARGS := -m ../../data/star.mesh --usepetsc -o 0 --petscopts rc_ex5p_
 EX5_BDDC_GB_ARGS := -m ../../data/star.mesh --usepetsc -o 0 --petscopts rc_ex5p_bddc --nonoverlapping
 EX5_FSPL_ARGS    := -m ../../data/beam-tet.mesh --usepetsc -o 0 --petscopts rc_ex5p_fieldsplit
 EX6_ARGS         := -m ../../data/amr-quad.mesh --usepetsc
+EX6_NONOVL_ARGS  := -m ../../data/amr-quad.mesh --usepetsc --nonoverlapping
 EX9_E_ARGS       := -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts rc_ex9p_expl -dt 0.1
 EX9_ES_ARGS      := -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts rc_ex9p_expl --no-step
 EX9_IS_ARGS      := -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts rc_ex9p_impl --implicit -tf 0.5
@@ -99,6 +100,7 @@ ex5p-test-par: ex5p
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX5_FSPL_ARGS))
 ex6p-test-par: ex6p
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX6_ARGS))
+	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX6_NONOVL_ARGS))
 ex9p-test-par: ex9p
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX9_E_ARGS))
 	@$(call mfem-test,$<, $(RUN_MPI), $(TESTNAME),$(EX9_ES_ARGS))
