@@ -64,6 +64,10 @@ void ParNCMesh::Update()
    groups.push_back(self);
    group_id[self] = 0;
 
+   vertex_group.DeleteAll();
+   edge_group.DeleteAll();
+   face_group.DeleteAll();
+
    shared_vertices.Clear();
    shared_edges.Clear();
    shared_faces.Clear();
@@ -335,7 +339,7 @@ ParNCMesh::GroupId ParNCMesh::GetGroupId(const CommGroup &group)
    return id;
 }
 
-ParNCMesh::GroupId ParNCMesh::JoinGroups(GroupId g1, GroupId g2)
+/*ParNCMesh::GroupId ParNCMesh::JoinGroups(GroupId g1, GroupId g2)
 {
    if (g1 == g2) { return g1; }
 
@@ -350,7 +354,7 @@ ParNCMesh::GroupId ParNCMesh::JoinGroups(GroupId g1, GroupId g2)
    join.erase(std::unique(join.begin(), join.end()), join.end());
 
    return GetGroupId(join);
-}
+}*/
 
 ParNCMesh::GroupId ParNCMesh::GetSingletonGroup(int rank)
 {
@@ -476,6 +480,79 @@ void ParNCMesh::AddMasterSlaveConnections(int nitems, const NCList& list)
       }
    }
 }
+
+void ParNCMesh::AddConnections(int entity, int index, const Array<int> &ranks)
+{
+   for (int i = 0; i < ranks.Size(); i++)
+   {
+      entity_index_rank[entity].Append(Connection(index, ranks[i]));
+   }
+}
+
+void ParNCMesh::CalculatePMatrixGroups()
+{
+   GetSharedVertices();
+   GetSharedEdges();
+   GetSharedFaces();
+
+   int v[2], e[4], eo[4];
+
+   Array<int> ranks;
+   ranks.Reserve(256);
+
+   // connect slave edges to master edges and their vertices
+   for (unsigned i = 0; i < shared_edges.masters.size(); i++)
+   {
+      const Master &master_edge = shared_edges.masters[i];
+      for (int j = master_edge.slaves_begin; j < master_edge.slaves_end; j++)
+      {
+         int owner = edge_owner[edge_list.slaves[j].index];
+         ranks.Append(groups[owner][0]);
+      }
+      ranks.Sort();
+      ranks.Unique();
+
+      AddConnections(1, master_edge.index, ranks);
+
+      GetEdgeVertices(master_edge, v);
+      for (int j = 0; j < 2; j++)
+      {
+         AddConnections(0, v[j], ranks);
+      }
+   }
+
+   // connect slave faces to master faces and their
+   for (unsigned i = 0; i < shared_faces.masters.size(); i++)
+   {
+      const Master &master_face = shared_faces.masters[i];
+      for (int j = master_face.slaves_begin; j < master_face.slaves_end; j++)
+      {
+         int owner = face_owner[face_list.slaves[j].index];
+         ranks.Append(groups[owner][0]);
+      }
+      ranks.Sort();
+      ranks.Unique();
+
+      AddConnections(2, master_face.index, ranks);
+
+      GetFaceVerticesEdges(face_id, v, e, eo);
+      for (int j = 0; j < 4; j++)
+      {
+         AddConnections(0, v[j], ranks);
+         AddConnections(1, e[j], ranks);
+      }
+   }
+
+   CreateGroups(entity_index_rank[0], vertex_group);
+   CreateGroups(entity_index_rank[1], edge_group);
+   CreateGroups(entity_index_rank[2], face_group);
+
+   for (int i = 0; i < 3; i++)
+   {
+      entity_index_rank[i].DeleteAll();
+   }
+}
+
 
 void ParNCMesh::AugmentMasterGroups() // TODO: replace
 {
