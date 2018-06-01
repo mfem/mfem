@@ -57,16 +57,18 @@ void ParNCMesh::Update()
 
    groups.clear();
    group_id.clear();
-   groups_augmented = false;
 
    CommGroup self;
    self.push_back(MyRank);
    groups.push_back(self);
    group_id[self] = 0;
 
-   vertex_group.DeleteAll();
-   edge_group.DeleteAll();
-   face_group.DeleteAll();
+   for (int i = 0; i < 3; i++)
+   {
+      entity_owner[i].DeleteAll();
+      entity_pmat_group[i].DeleteAll();
+      entity_index_rank[i].DeleteAll();
+   }
 
    shared_vertices.Clear();
    shared_edges.Clear();
@@ -206,7 +208,18 @@ void ParNCMesh::OnMeshUpdated(Mesh *mesh)
 void ParNCMesh::ElementSharesFace(int elem, int face)
 {
    // Analogous to ElementSharesEdge.
-   tmp_index_rank.Append(Connection(faces[face].index, elements[elem].rank));
+
+   int el_rank = elements[elem].rank;
+   int f_index = faces[face].index;
+
+   int &owner = tmp_owner[f_index];
+   owner = std::min(owner, el_rank);
+
+   char &flag = tmp_shared_flag[f_index];
+   if (el_rank == MyRank) { flag |= 0x1; }
+   if (el_rank != MyRank) { flag |= 0x2; }
+
+   entity_index_rank[2].Append(Connection(f_index, el_rank));
 }
 
 void ParNCMesh::BuildFaceList()
@@ -214,21 +227,25 @@ void ParNCMesh::BuildFaceList()
    // This is an extension of NCMesh::BuildFaceList() which also determines
    // face ownership and prepares face processor groups.
 
-   tmp_index_rank.SetSize(6*leaf_elements.Size() * 3/2);
-   tmp_index_rank.SetSize(0);
+   int nfaces = NFaces + NGhostFaces;
+
+   tmp_owner.SetSize(nfaces);
+   tmp_owner = INT_MAX;
+
+   tmp_shared_flag.SetSize(nfaces);
+   tmp_shared_flag = 0;
+
+   entity_index_rank[2].SetSize(6*leaf_elements.Size() * 3/2);
+   entity_index_rank[2].SetSize(0);
 
    NCMesh::BuildFaceList();
 
-   AssignOwners(NFaces + NGhostFaces, face_owner);
-
-   // save the raw incidence data for later
-   tmp_index_rank.Copy(entity_index_rank[2]);
-
-   // connect masters with slaves (both ways)
-   AddMasterSlaveConnections(nfaces, face_list);
-
+   InitOwners(nfaces, entity_owner[2]);
    MakeSharedList(face_list, shared_faces);
-   tmp_index_rank.DeleteAll();
+
+   tmp_owner.DeleteAll();
+   tmp_shared_flag.DeleteAll();
+   // NOTE: entity_index_rank[2] is not deleted until CalculatePMatrixGroups
 
    CalcFaceOrientations();
 }
@@ -236,10 +253,20 @@ void ParNCMesh::BuildFaceList()
 void ParNCMesh::ElementSharesEdge(int elem, int enode)
 {
    // Called by NCMesh::BuildEdgeList when an edge is visited in a leaf element.
-   // This allows us to determine edge ownership and processors that share it
+   // This allows us to determine edge ownership and whether it is shared
    // without duplicating all the HashTable lookups in NCMesh::BuildEdgeList().
 
-   index_rank.Append(Connection(nodes[enode].edge_index, elements[elem].rank));
+   int el_rank = elements[elem].rank;
+   int e_index = nodes[enode].edge_index;
+
+   int &owner = tmp_owner[e_index];
+   owner = std::min(owner, el_rank);
+
+   char &flag = tmp_shared_flag[e_index];
+   if (el_rank == MyRank) { flag |= 0x1; }
+   if (el_rank != MyRank) { flag |= 0x2; }
+
+   entity_index_rank[1].Append(Connection(e_index, el_rank));
 }
 
 void ParNCMesh::BuildEdgeList()
@@ -248,21 +275,24 @@ void ParNCMesh::BuildEdgeList()
    // edge ownership and prepares edge processor groups.
 
    int nedges = NEdges + NGhostEdges;
+
    tmp_owner.SetSize(nedges);
    tmp_owner = INT_MAX;
 
-   index_rank.SetSize(12*leaf_elements.Size() * 3/2);
-   index_rank.SetSize(0);
+   tmp_shared_flag.SetSize(nedges);
+   tmp_shared_flag = 0;
+
+   entity_index_rank[1].SetSize(12*leaf_elements.Size() * 3/2);
+   entity_index_rank[1].SetSize(0);
 
    NCMesh::BuildEdgeList();
 
-   AddMasterSlaveConnections(nedges, edge_list);
-
-   AssignOwners(nedges, edge_owner);
-   CreateGroups(nedges, edge_group);
+   InitOwners(nedges, entity_owner[1]);
+   MakeSharedList(edge_list, shared_edges);
 
    tmp_owner.DeleteAll();
-   index_rank.DeleteAll();
+   tmp_shared_flag.DeleteAll();
+   // NOTE: entity_index_rank[1] is not deleted until CalculatePMatrixGroups
 }
 
 void ParNCMesh::ElementSharesVertex(int elem, int vnode)
@@ -275,7 +305,11 @@ void ParNCMesh::ElementSharesVertex(int elem, int vnode)
    int &owner = tmp_owner[v_index];
    owner = std::min(owner, el_rank);
 
-   index_rank.Append(Connection(v_index, el_rank));
+   char &flag = tmp_shared_flag[v_index];
+   if (el_rank == MyRank) { flag |= 0x1; }
+   if (el_rank != MyRank) { flag |= 0x2; }
+
+   entity_index_rank[0].Append(Connection(v_index, el_rank));
 }
 
 void ParNCMesh::BuildVertexList()
@@ -287,16 +321,72 @@ void ParNCMesh::BuildVertexList()
    tmp_owner.SetSize(nvertices);
    tmp_owner = INT_MAX;
 
-   index_rank.SetSize(8*leaf_elements.Size());
-   index_rank.SetSize(0);
+   tmp_shared_flag.SetSize(nvertices);
+   tmp_shared_flag = 0;
+
+   entity_index_rank[0].SetSize(8*leaf_elements.Size());
+   entity_index_rank[0].SetSize(0);
 
    NCMesh::BuildVertexList();
 
-   AssignOwners(nvertices, vertex_owner);
-   CreateGroups(nvertices, vertex_group);
+   InitOwners(nvertices, entity_owner[0]);
+   MakeSharedList(vertex_list, shared_vertices);
 
    tmp_owner.DeleteAll();
-   index_rank.DeleteAll();
+   tmp_shared_flag.DeleteAll();
+   // NOTE: entity_index_rank[0] is not deleted until CalculatePMatrixGroups
+}
+
+void ParNCMesh::InitOwners(int num, Array<GroupId> &entity_owner)
+{
+   entity_owner.SetSize(num);
+   for (int i = 0; i < num; i++)
+   {
+      entity_owner[i] = GetSingletonGroup(tmp_owner[i]);
+   }
+}
+
+void ParNCMesh::MakeSharedList(const NCList &list, NCList &shared)
+{
+   MFEM_VERIFY(tmp_shared_flag.Size(), "wrong code path");
+
+   // combine flags of masters and slaves
+   for (unsigned i = 0; i < list.masters.size(); i++)
+   {
+      const Master &master = list.masters[i];
+      char master_old_flag = tmp_shared_flag[master.index];
+
+      for (int j = master.slaves_begin; j < master.slaves_end; j++)
+      {
+         char &slave_flag = tmp_shared_flag[list.slaves[j].index];
+         tmp_shared_flag[master.index] |= slave_flag;
+         slave_flag |= master_old_flag;
+      }
+   }
+
+   shared.Clear();
+
+   for (unsigned i = 0; i < list.conforming.size(); i++)
+   {
+      if (tmp_shared_flag[list.conforming[i].index] == 0x3)
+      {
+         shared.conforming.push_back(list.conforming[i]);
+      }
+   }
+   for (unsigned i = 0; i < list.masters.size(); i++)
+   {
+      if (tmp_shared_flag[list.masters[i].index] == 0x3)
+      {
+         shared.masters.push_back(list.masters[i]);
+      }
+   }
+   for (unsigned i = 0; i < list.slaves.size(); i++)
+   {
+      if (tmp_shared_flag[list.slaves[i].index] == 0x3)
+      {
+         shared.slaves.push_back(list.slaves[i]);
+      }
+   }
 }
 
 bool operator<(const ParNCMesh::CommGroup &lhs, const ParNCMesh::CommGroup &rhs)
@@ -339,23 +429,6 @@ ParNCMesh::GroupId ParNCMesh::GetGroupId(const CommGroup &group)
    return id;
 }
 
-/*ParNCMesh::GroupId ParNCMesh::JoinGroups(GroupId g1, GroupId g2)
-{
-   if (g1 == g2) { return g1; }
-
-   CommGroup &cg1 = groups[g1], &cg2 = groups[g2];
-
-   CommGroup join;
-   join.reserve(cg1.size() + cg2.size());
-   join.insert(join.end(), cg1.begin(), cg1.end());
-   join.insert(join.end(), cg2.begin(), cg2.end());
-
-   std::sort(join.begin(), join.end());
-   join.erase(std::unique(join.begin(), join.end()), join.end());
-
-   return GetGroupId(join);
-}*/
-
 ParNCMesh::GroupId ParNCMesh::GetSingletonGroup(int rank)
 {
    if (rank == INT_MAX) { return -1; } // invalid
@@ -376,26 +449,7 @@ bool ParNCMesh::GroupContains(GroupId id, int rank) const
    return false;
 }
 
-void ParNCMesh::AssignOwners(int num, Array<GroupId> &entity_owner)
-{
-   Array<int> min_rank(num);
-   min_rank = INT_MAX;
-
-   for (int i = 0; i < tmp_index_rank.Size(); i++)
-   {
-      int index = tmp_index_rank[i].from;
-      int rank = tmp_index_rank[i].to;
-      min_rank[index] = std::min(rank, min_rank[index]);
-   }
-
-   entity_owner.SetSize(num);
-   for (int i = 0; i < num; i++)
-   {
-      entity_owner[i] = GetSingletonGroup(min_rank[i]);
-   }
-}
-
-void ParNCMesh::CreateGroups(const Array<Connection> &index_rank,
+void ParNCMesh::CreateGroups(Array<Connection> &index_rank,
                              Array<GroupId> &entity_group)
 {
    index_rank.Sort();
@@ -426,61 +480,6 @@ void ParNCMesh::CreateGroups(const Array<Connection> &index_rank,
    }
 }
 
-// TODO: use NCList::LookUp instead
-struct MasterSlaveInfo
-{
-   int master; // master index if this is a slave
-   int slaves_begin, slaves_end; // slave list if this is a master
-   MasterSlaveInfo() : master(-1), slaves_begin(0), slaves_end(0) {}
-};
-
-void ParNCMesh::AddMasterSlaveConnections(int nitems, const NCList& list)
-{
-   // create an auxiliary structure for each edge/face
-   std::vector<MasterSlaveInfo> info(nitems);
-
-   for (unsigned i = 0; i < list.masters.size(); i++)
-   {
-      const Master &mf = list.masters[i];
-      info[mf.index].slaves_begin = mf.slaves_begin;
-      info[mf.index].slaves_end = mf.slaves_end;
-   }
-   for (unsigned i = 0; i < list.slaves.size(); i++)
-   {
-      const Slave& sf = list.slaves[i];
-      info[sf.index].master = sf.master;
-   }
-
-   // We need the processor groups of master edges/faces to contain the ranks of
-   // their slaves (so that master DOFs get sent to those who share the slaves).
-   // Conversely, we need the groups of slave edges/faces to contain the ranks
-   // of their masters. Both can be done by appending more items to the
-   // 'index_rank' array, before it is sorted and converted to the group table.
-   // (Note that a master/slave edge can be shared by more than one processor.)
-
-   int size = index_rank.Size();
-   for (int i = 0; i < size; i++)
-   {
-      int index = index_rank[i].from;
-      int rank = index_rank[i].to;
-
-      const MasterSlaveInfo &msi = info[index];
-      if (msi.master >= 0)
-      {
-         // 'index' is a slave, add its rank to the master's group
-         index_rank.Append(Connection(msi.master, rank));
-      }
-      else
-      {
-         for (int j = msi.slaves_begin; j < msi.slaves_end; j++)
-         {
-            // 'index' is a master, add its rank to the groups of the slaves
-            index_rank.Append(Connection(list.slaves[j].index, rank));
-         }
-      }
-   }
-}
-
 void ParNCMesh::AddConnections(int entity, int index, const Array<int> &ranks)
 {
    for (int i = 0; i < ranks.Size(); i++)
@@ -491,6 +490,7 @@ void ParNCMesh::AddConnections(int entity, int index, const Array<int> &ranks)
 
 void ParNCMesh::CalculatePMatrixGroups()
 {
+   // make sure all entity_index_rank[i] arrays are filled
    GetSharedVertices();
    GetSharedEdges();
    GetSharedFaces();
@@ -506,7 +506,7 @@ void ParNCMesh::CalculatePMatrixGroups()
       const Master &master_edge = shared_edges.masters[i];
       for (int j = master_edge.slaves_begin; j < master_edge.slaves_end; j++)
       {
-         int owner = edge_owner[edge_list.slaves[j].index];
+         int owner = entity_owner[1][edge_list.slaves[j].index];
          ranks.Append(groups[owner][0]);
       }
       ranks.Sort();
@@ -521,13 +521,13 @@ void ParNCMesh::CalculatePMatrixGroups()
       }
    }
 
-   // connect slave faces to master faces and their
+   // connect slave faces to master faces and their edges and vertices
    for (unsigned i = 0; i < shared_faces.masters.size(); i++)
    {
       const Master &master_face = shared_faces.masters[i];
       for (int j = master_face.slaves_begin; j < master_face.slaves_end; j++)
       {
-         int owner = face_owner[face_list.slaves[j].index];
+         int owner = entity_owner[2][face_list.slaves[j].index];
          ranks.Append(groups[owner][0]);
       }
       ranks.Sort();
@@ -535,7 +535,7 @@ void ParNCMesh::CalculatePMatrixGroups()
 
       AddConnections(2, master_face.index, ranks);
 
-      GetFaceVerticesEdges(face_id, v, e, eo);
+      GetFaceVerticesEdges(master_face, v, e, eo);
       for (int j = 0; j < 4; j++)
       {
          AddConnections(0, v[j], ranks);
@@ -543,161 +543,13 @@ void ParNCMesh::CalculatePMatrixGroups()
       }
    }
 
-   CreateGroups(entity_index_rank[0], vertex_group);
-   CreateGroups(entity_index_rank[1], edge_group);
-   CreateGroups(entity_index_rank[2], face_group);
-
+   // compress the index-rank arrays into group representation
    for (int i = 0; i < 3; i++)
    {
+      CreateGroups(entity_index_rank[i], entity_pmat_group[i]);
       entity_index_rank[i].DeleteAll();
    }
 }
-
-
-void ParNCMesh::AugmentMasterGroups() // TODO: replace
-{
-   if (groups_augmented) { return; }
-
-   GetSharedVertices();
-   GetSharedEdges();
-   GetSharedFaces();
-
-   if (!shared_edges.masters.size() && !shared_faces.masters.size()) { return; }
-
-   // augment comm groups of vertices of shared master edges, so that their
-   // DOFs get sent to the slave ranks along with master edge DOFs
-   for (unsigned i = 0; i < shared_edges.masters.size(); i++)
-   {
-      int v[2];
-      const MeshId &edge_id = shared_edges.masters[i];
-      GetEdgeVertices(edge_id, v);
-
-      for (int j = 0; j < 2; j++)
-      {
-         vertex_group[v[j]] = JoinGroups(vertex_group[v[j]],
-                                         edge_group[edge_id.index]);
-      }
-   }
-
-   // similarly, augment comm groups of vertices and edges of shared master
-   // faces, to make sure slave ranks receive all the necessary master DOFs
-   for (unsigned i = 0; i < shared_faces.masters.size(); i++)
-   {
-      int v[4], e[4], eo[4];
-      const MeshId &face_id = shared_faces.masters[i];
-      GetFaceVerticesEdges(face_id, v, e, eo);
-
-      int f_group = face_group[face_id.index];
-      for (int j = 0; j < 4; j++)
-      {
-         vertex_group[v[j]] = JoinGroups(vertex_group[v[j]], f_group);
-         edge_group[e[j]]   = JoinGroups(edge_group[e[j]], f_group);
-      }
-   }
-
-   groups_augmented = true;
-
-   // force recreating shared entities according to new groups
-   shared_vertices.Clear();
-   shared_edges.Clear();
-   shared_faces.Clear();
-}
-
-
-void ParNCMesh::MakeSharedList(const NCList &list, NCList &shared)
-{
-   Array<char> flags(list.TotalSize());
-   flags = 0;
-
-   for (int i = 0; i < tmp_index_rank.Size(); i++)
-   {
-      int index = tmp_index_rank[i].from;
-      int rank = tmp_index_rank[i].to;
-
-      char &fl = flags[index];
-      if (rank == MyRank) { fl |= 0x1; }
-      if (rank != MyRank) { fl |= 0x2; }
-   }
-
-   shared.Clear();
-
-   for (unsigned i = 0; i < list.conforming.size(); i++)
-   {
-      if (flags[list.conforming[i].index] == 0x3)
-      {
-         shared.conforming.push_back(list.conforming[i]);
-      }
-   }
-   for (unsigned i = 0; i < list.masters.size(); i++)
-   {
-      if (flags[list.masters[i].index] == 0x3)
-      {
-         shared.masters.push_back(list.masters[i]);
-      }
-   }
-   for (unsigned i = 0; i < list.slaves.size(); i++)
-   {
-      if (flags[list.slaves[i].index] == 0x3)
-      {
-         shared.slaves.push_back(list.slaves[i]);
-      }
-   }
-}
-
-/*void ParNCMesh::GetGroupShared(Array<bool> &group_shared)
-{
-   group_shared.SetSize(groups.size());
-   group_shared = false;
-
-   // A vertex/edge/face is shared if its group contains more than one
-   // processor and at the same time one of them is ourselves.
-   for (unsigned i = 0; i < groups.size(); i++)
-   {
-      const CommGroup &group = groups[i];
-      if (group.size() > 1)
-      {
-         for (unsigned j = 0; j < group.size(); j++)
-         {
-            if (group[j] == MyRank)
-            {
-               group_shared[i] = true;
-               break;
-            }
-         }
-      }
-   }
-}
-
-void ParNCMesh::MakeShared(const Array<GroupId> &entity_group,
-                           const NCList &list, NCList &shared)
-{
-   Array<bool> group_shared;
-   GetGroupShared(group_shared);
-
-   shared.Clear();
-
-   for (unsigned i = 0; i < list.conforming.size(); i++)
-   {
-      if (group_shared[entity_group[list.conforming[i].index]])
-      {
-         shared.conforming.push_back(list.conforming[i]);
-      }
-   }
-   for (unsigned i = 0; i < list.masters.size(); i++)
-   {
-      if (group_shared[entity_group[list.masters[i].index]])
-      {
-         shared.masters.push_back(list.masters[i]);
-      }
-   }
-   for (unsigned i = 0; i < list.slaves.size(); i++)
-   {
-      if (group_shared[entity_group[list.slaves[i].index]])
-      {
-         shared.slaves.push_back(list.slaves[i]);
-      }
-   }
-}*/
 
 int ParNCMesh::get_face_orientation(Face &face, Element &e1, Element &e2,
                                     int local[2])
@@ -2123,7 +1975,7 @@ void ParNCMesh::AdjustMeshIds(Array<MeshId> ids[], int rank)
    for (unsigned i = 0; i < shared_edges.masters.size(); i++)
    {
       const MeshId &edge_id = shared_edges.masters[i];
-      if (contains_rank[edge_group[edge_id.index]])
+      if (contains_rank[entity_pmat_group[1][edge_id.index]])
       {
          int v[2], pos, k;
          GetEdgeVertices(edge_id, v);
@@ -2155,7 +2007,7 @@ void ParNCMesh::AdjustMeshIds(Array<MeshId> ids[], int rank)
    for (unsigned i = 0; i < shared_faces.masters.size(); i++)
    {
       const MeshId &face_id = shared_faces.masters[i];
-      if (contains_rank[face_group[face_id.index]])
+      if (contains_rank[entity_pmat_group[2][face_id.index]])
       {
          int v[4], e[4], eo[4], pos, k;
          GetFaceVerticesEdges(face_id, v, e, eo);
@@ -2565,6 +2417,13 @@ void ParNCMesh::Trim()
    shared_edges.Clear(true);
    shared_faces.Clear(true);
 
+   for (int i = 0; i < 3; i++)
+   {
+      entity_owner[i].DeleteAll();
+      entity_pmat_group[i].DeleteAll();
+      entity_index_rank[i].DeleteAll();
+   }
+
    send_rebalance_dofs.clear();
    recv_rebalance_dofs.clear();
 
@@ -2603,16 +2462,31 @@ long ParNCMesh::GroupsMemoryUsage() const
    return groups_size + group_id.size() * approx_node_size;
 }
 
+template<typename Type, int Size>
+static long arrays_memory_usage(const Array<Type> (&arrays)[Size])
+{
+   long total = 0;
+   for (int i = 0; i < Size; i++)
+   {
+      total += arrays[i].MemoryUsage();
+   }
+   return total;
+}
+
 long ParNCMesh::MemoryUsage(bool with_base) const
 {
+   long total_groups_owners = 0;
+   for (int i = 0; i < 3; i++)
+   {
+      total_groups_owners += entity_owner[i].MemoryUsage() +
+                             entity_pmat_group[i].MemoryUsage() +
+                             entity_index_rank[i].MemoryUsage();
+   }
+
    return (with_base ? NCMesh::MemoryUsage() : 0) +
           GroupsMemoryUsage() +
-          vertex_group.MemoryUsage() +
-          vertex_owner.MemoryUsage() +
-          edge_group.MemoryUsage() +
-          edge_owner.MemoryUsage() +
-          face_group.MemoryUsage() +
-          face_owner.MemoryUsage() +
+          arrays_memory_usage(entity_owner) +
+          arrays_memory_usage(entity_pmat_group) +
           shared_vertices.MemoryUsage() +
           shared_edges.MemoryUsage() +
           shared_faces.MemoryUsage() +
@@ -2621,7 +2495,8 @@ long ParNCMesh::MemoryUsage(bool with_base) const
           ghost_layer.MemoryUsage() +
           boundary_layer.MemoryUsage() +
           tmp_owner.MemoryUsage() +
-          index_rank.MemoryUsage() +
+          tmp_shared_flag.MemoryUsage() +
+          arrays_memory_usage(entity_index_rank) +
           tmp_neighbors.MemoryUsage() +
           map_memory_usage(send_rebalance_dofs) +
           map_memory_usage(recv_rebalance_dofs) +
@@ -2635,12 +2510,8 @@ int ParNCMesh::PrintMemoryDetail(bool with_base) const
    if (with_base) { NCMesh::PrintMemoryDetail(); }
 
    mfem::out << GroupsMemoryUsage() << " groups\n"
-             << vertex_group.MemoryUsage() << " vertex_group\n"
-             << vertex_owner.MemoryUsage() << " vertex_owner\n"
-             << edge_group.MemoryUsage() << " edge_group\n"
-             << edge_owner.MemoryUsage() << " edge_owner\n"
-             << face_group.MemoryUsage() << " face_group\n"
-             << face_owner.MemoryUsage() << " face_owner\n"
+             << arrays_memory_usage(entity_owner) << " entity_owner\n"
+             << arrays_memory_usage(entity_pmat_group) << " entity_pmat_group\n"
              << shared_vertices.MemoryUsage() << " shared_vertices\n"
              << shared_edges.MemoryUsage() << " shared_edges\n"
              << shared_faces.MemoryUsage() << " shared_faces\n"
@@ -2649,7 +2520,8 @@ int ParNCMesh::PrintMemoryDetail(bool with_base) const
              << ghost_layer.MemoryUsage() << " ghost_layer\n"
              << boundary_layer.MemoryUsage() << " boundary_layer\n"
              << tmp_owner.MemoryUsage() << " tmp_owner\n"
-             << index_rank.MemoryUsage() << " index_rank\n"
+             << tmp_shared_flag.MemoryUsage() << " tmp_shared_flag\n"
+             << arrays_memory_usage(entity_index_rank) << " entity_index_rank\n"
              << tmp_neighbors.MemoryUsage() << " tmp_neighbors\n"
              << map_memory_usage(send_rebalance_dofs) << " send_rebalance_dofs\n"
              << map_memory_usage(recv_rebalance_dofs) << " recv_rebalance_dofs\n"

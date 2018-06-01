@@ -1800,9 +1800,6 @@ int ParFiniteElementSpace
          }
       }
 
-      // make sure all master DOFs are transmitted to participating slave ranks
-      pncmesh->AugmentMasterGroups();
-
       deps.Finalize();
    }
 
@@ -1839,8 +1836,8 @@ int ParFiniteElementSpace
                for (int j = 0; j < dofs.Size(); j++)
                {
                   int dof = dofs[j];
-                  dof_owner[dof] = pncmesh->GetOwnerId(entity, id.index);
-                  dof_group[dof] = pncmesh->GetGroupId(entity, id.index);
+                  dof_owner[dof] = pncmesh->GetEntityOwnerId(entity, id.index);
+                  dof_group[dof] = pncmesh->GetEntityGroupId(entity, id.index);
                }
             }
          }
