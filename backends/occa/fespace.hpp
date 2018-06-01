@@ -83,8 +83,12 @@ public:
 
    Layout &OccaEVLayout() { return e_layout; }
 
+#ifdef MFEM_USE_MPI
+   bool isDistributed() const { return (OccaEngine().GetComm() != MPI_COMM_NULL); }
+#else
+   bool isDistributed() const { return false; }
+#endif
 
-   bool isDistributed() const { return false; /* FIXME: MPI */ }
    bool hasTensorBasis() const
    { return dynamic_cast<const mfem::TensorBasisElement*>(fes->GetFE(0)); }
 
