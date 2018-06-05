@@ -703,7 +703,7 @@ ParMesh::ParMesh(const ParNCMesh &pncmesh)
    have_face_nbr_data = false;
 }
 
-ParMesh::ParMesh(MPI_Comm comm, istream &input)
+ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
    : gtopo(comm)
 {
    MyComm = comm;
@@ -849,7 +849,6 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input)
    delete faces_tbl;
    delete v_to_v;
 
-   const bool refine = true;
    const bool fix_orientation = false;
    Finalize(refine, fix_orientation);
 
