@@ -2336,8 +2336,12 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       while (need_refinement == 1);
 
       if (NumOfBdrElements != boundary.Size())
+      {
          mfem_error("ParMesh::LocalRefinement :"
                     " (NumOfBdrElements != boundary.Size())");
+      }
+
+      DeleteLazyTables();
 
       // 5a. Update the groups after refinement.
       if (el_to_face != NULL)
@@ -2473,9 +2477,11 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
                if (edges_in_group != 0)
                {
                   for (j = 0; j < edges_in_group; j++)
+                  {
                      edge_splittings[i][j] =
                         GetEdgeSplittings(shared_edges[group_edges[j]], v_to_v,
                                           middle);
+                  }
                   const int *nbs = gtopo.GetGroup(i+1);
                   if (nbs[0] == 0)
                   {
@@ -2579,6 +2585,8 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
          }
       }
       NumOfBdrElements = boundary.Size();
+
+      DeleteLazyTables();
 
       // 5a. Update the groups after refinement.
       RefineGroups(v_to_v, middle);

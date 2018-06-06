@@ -255,6 +255,9 @@ public:
    bool HasAttributeField(const std::string& field_name) const
    { return attr_map.Has(field_name); }
 
+   /** Checks if any rank in the mesh has boundary elements */
+   bool HasBoundaryMesh() const;
+
    /// Set the name of the mesh nodes field.
    /** This name will be used by SetMesh() to register the mesh nodes, if not
        already registered. Also, this method should be called if the mesh nodes
