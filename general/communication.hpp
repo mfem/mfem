@@ -78,9 +78,9 @@ public:
    GroupTopology(const GroupTopology &gt);
    void SetComm(MPI_Comm comm) { MyComm = comm; }
 
-   MPI_Comm GetComm() { return MyComm; }
-   int MyRank() { int r; MPI_Comm_rank(MyComm, &r); return r; }
-   int NRanks() { int s; MPI_Comm_size(MyComm, &s); return s; }
+   MPI_Comm GetComm() const { return MyComm; }
+   int MyRank() const { int r; MPI_Comm_rank(MyComm, &r); return r; }
+   int NRanks() const { int s; MPI_Comm_size(MyComm, &s); return s; }
 
    void Create(ListOfIntegerSets &groups, int mpitag);
 
@@ -109,6 +109,9 @@ public:
    /// Load the data from a stream.
    void Load(std::istream &in);
 
+   /// Copy
+   void Copy(GroupTopology & copy) const;
+
    virtual ~GroupTopology() {}
 };
 
@@ -125,17 +128,18 @@ public:
                        aggregating over groups. */
    };
 
-private:
+protected:
    GroupTopology &gtopo;
    Mode mode;
    Table group_ldof;
    Table group_ltdof; // only for groups for which this processor is master.
    int group_buf_size;
-   Array<char> group_buf;
+   mutable Array<char> group_buf;
    MPI_Request *requests;
    // MPI_Status  *statuses;
-   int comm_lock; // 0 - no lock, 1 - locked for Bcast, 2 - locked for Reduce
-   int num_requests;
+   // comm_lock: 0 - no lock, 1 - locked for Bcast, 2 - locked for Reduce
+   mutable int comm_lock;
+   mutable int num_requests;
    int *request_marker;
    int *buf_offsets; // size = max(number of groups, number of neighbors)
    Table nbr_send_groups, nbr_recv_groups; // nbr 0 = me
@@ -152,11 +156,14 @@ public:
 
    /** @brief Initialize the communicator from a local-dof to group map.
        Finalize() is called internally. */
-   void Create(Array<int> &ldof_group);
+   void Create(const Array<int> &ldof_group);
 
    /** @brief Fill-in the returned Table reference to initialize the
        GroupCommunicator then call Finalize(). */
    Table &GroupLDofTable() { return group_ldof; }
+
+   /// Read-only access to group-ldof Table.
+   const Table &GroupLDofTable() const { return group_ldof; }
 
    /// Allocate internal buffers after the GroupLDofTable is defined
    void Finalize();
@@ -164,10 +171,13 @@ public:
    /// Initialize the internal group_ltdof Table.
    /** This method must be called before performing operations that use local
        data layout 2, see CopyGroupToBuffer() for layout descriptions. */
-   void SetLTDofTable(Array<int> &ldof_ltdof);
+   void SetLTDofTable(const Array<int> &ldof_ltdof);
 
    /// Get a reference to the associated GroupTopology object
    GroupTopology &GetGroupTopology() { return gtopo; }
+
+   /// Get a const reference to the associated GroupTopology object
+   const GroupTopology &GetGroupTopology() const { return gtopo; }
 
    /** @brief Data structure on which we define reduce operations.
 
@@ -175,7 +185,8 @@ public:
      at a time. */
    template <class T> struct OpData
    {
-      int nldofs, nb, *ldofs;
+      int nldofs, nb;
+      const int *ldofs;
       T *ldata, *buf;
    };
 
@@ -211,7 +222,7 @@ public:
 
    /// Begin a broadcast within each group where the master is the root.
    /** For a description of @a layout, see CopyGroupToBuffer(). */
-   template <class T> void BcastBegin(T *ldata, int layout);
+   template <class T> void BcastBegin(T *ldata, int layout) const;
 
    /** @brief Finalize a broadcast started with BcastBegin().
 
@@ -222,23 +233,24 @@ public:
              layout should be 1.
 
        For more details about @a layout, see CopyGroupToBuffer(). */
-   template <class T> void BcastEnd(T *ldata, int layout);
+   template <class T> void BcastEnd(T *ldata, int layout) const;
 
    /** @brief Broadcast within each group where the master is the root.
 
        The data @a layout can be either 0 or 1.
 
        For a description of @a layout, see CopyGroupToBuffer(). */
-   template <class T> void Bcast(T *ldata, int layout)
+   template <class T> void Bcast(T *ldata, int layout) const
    {
       BcastBegin(ldata, layout);
       BcastEnd(ldata, layout);
    }
 
    /// Broadcast within each group where the master is the root.
-   template <class T> void Bcast(T *ldata) { Bcast<T>(ldata, 0); }
+   template <class T> void Bcast(T *ldata) const { Bcast<T>(ldata, 0); }
    /// Broadcast within each group where the master is the root.
-   template <class T> void Bcast(Array<T> &ldata) { Bcast<T>((T *)ldata); }
+   template <class T> void Bcast(Array<T> &ldata) const
+   { Bcast<T>((T *)ldata); }
 
    /** @brief Begin reduction operation within each group where the master is
        the root. */
@@ -247,7 +259,7 @@ public:
 
        The reduce operation will be specified when calling ReduceEnd(). This
        method is instantiated for int and double. */
-   template <class T> void ReduceBegin(const T *ldata);
+   template <class T> void ReduceBegin(const T *ldata) const;
 
    /** @brief Finalize reduction operation started with ReduceBegin().
 
@@ -263,20 +275,20 @@ public:
        data for master-groups has to be identical in both arrays.
    */
    template <class T> void ReduceEnd(T *ldata, int layout,
-                                     void (*Op)(OpData<T>));
+                                     void (*Op)(OpData<T>)) const;
 
    /** @brief Reduce within each group where the master is the root.
 
        The reduce operation is given by the second argument (see below for list
        of the supported operations.) */
-   template <class T> void Reduce(T *ldata, void (*Op)(OpData<T>))
+   template <class T> void Reduce(T *ldata, void (*Op)(OpData<T>)) const
    {
       ReduceBegin(ldata);
       ReduceEnd(ldata, 0, Op);
    }
 
    /// Reduce within each group where the master is the root.
-   template <class T> void Reduce(Array<T> &ldata, void (*Op)(OpData<T>))
+   template <class T> void Reduce(Array<T> &ldata, void (*Op)(OpData<T>)) const
    { Reduce<T>((T *)ldata, Op); }
 
    /// Reduce operation Sum, instantiated for int and double
@@ -307,7 +319,7 @@ struct VarMessage
    /// Non-blocking send to processor 'rank'.
    void Isend(int rank, MPI_Comm comm)
    {
-      Encode();
+      Encode(rank);
       MPI_Isend((void*) data.data(), data.length(), MPI_BYTE, rank, Tag, comm,
                 &send_request);
    }
@@ -372,7 +384,16 @@ struct VarMessage
       MPI_Get_count(&status, MPI_BYTE, &count);
       MFEM_VERIFY(count == size, "");
 #endif
-      Decode();
+      Decode(rank);
+   }
+
+   /// Like Recv(), but throw away the messsage.
+   void RecvDrop(int rank, int size, MPI_Comm comm)
+   {
+      data.resize(size);
+      MPI_Status status;
+      MPI_Recv((void*) data.data(), size, MPI_BYTE, rank, Tag, comm, &status);
+      data.resize(0); // don't decode
    }
 
    /// Helper to receive all messages in a rank-to-message map container.
@@ -409,14 +430,17 @@ struct VarMessage
    }
 
 protected:
-   virtual void Encode() {}
-   virtual void Decode() {}
+   virtual void Encode(int rank) {}
+   virtual void Decode(int rank) {}
 };
 
 
 /// Helper struct to convert a C++ type to an MPI type
-template <typename Type>
-struct MPITypeMap { static const MPI_Datatype mpi_type; };
+template <typename Type> struct MPITypeMap;
+
+// Specializations of MPITypeMap; mpi_type initialized in communication.cpp:
+template<> struct MPITypeMap<int>    { static const MPI_Datatype mpi_type; };
+template<> struct MPITypeMap<double> { static const MPI_Datatype mpi_type; };
 
 
 /** Reorder MPI ranks to follow the Z-curve within the physical machine topology

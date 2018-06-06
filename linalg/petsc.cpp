@@ -1,4 +1,4 @@
-// Copyright (c) 2016, Lawrence Livermore National Security, LLC. Produced at
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
 // the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
 // reserved. See file COPYRIGHT for details.
 //
@@ -2357,7 +2357,7 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
       bool      edgespace, rtspace;
       bool      needint = false;
       bool      tracespace, rt_tracespace, edge_tracespace;
-      int       dim , p;
+      int       dim, p;
       PetscBool B_is_Trans = PETSC_FALSE;
 
       ParMesh *pmesh = (ParMesh *) fespace->GetMesh();
