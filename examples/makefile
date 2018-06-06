@@ -38,6 +38,9 @@ endif
 ifeq ($(MFEM_USE_PETSC),YES)
    SUBDIRS += petsc
 endif
+ifeq ($(MFEM_USE_PUMI),YES)
+   SUBDIRS += pumi
+endif
 SUBDIRS_ALL = $(addsuffix /all,$(SUBDIRS))
 SUBDIRS_TEST = $(addsuffix /test,$(SUBDIRS))
 SUBDIRS_CLEAN = $(addsuffix /clean,$(SUBDIRS))

@@ -25,6 +25,7 @@ list(APPEND ALL_EXE_SRCS
   ex16.cpp
   ex17.cpp
   ex18.cpp
+  ex19.cpp
   ex20.cpp
   )
 
@@ -63,8 +64,6 @@ foreach(SRC_FILE ${ALL_EXE_SRCS})
   get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
   string(REPLACE ".cpp" "" TEST_NAME ${SRC_FILENAME})
 
-  string(FIND ${TEST_NAME} "p" is_parallel_test)
-
   set(THIS_TEST_OPTIONS "-no-vis")
   if (${TEST_NAME} MATCHES "ex10p*")
     list(APPEND THIS_TEST_OPTIONS "-tf" "5")
@@ -72,7 +71,7 @@ foreach(SRC_FILE ${ALL_EXE_SRCS})
     list(APPEND THIS_TEST_OPTIONS "-e" "1")
   endif()
 
-  if (is_parallel_test EQUAL -1)
+  if (NOT (${TEST_NAME} MATCHES ".*p$"))
     add_test(NAME ${TEST_NAME}_ser
       COMMAND ${TEST_NAME} ${THIS_TEST_OPTIONS})
   else()
@@ -92,4 +91,9 @@ endif()
 # Include the examples/petsc directory if PETSc is enabled.
 if (MFEM_USE_PETSC)
   add_subdirectory(petsc)
+endif()
+
+# Include the examples/pumi directory if PUMI is enabled
+if (MFEM_USE_PUMI)
+  add_subdirectory(pumi)
 endif()
