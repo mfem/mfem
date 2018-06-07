@@ -1040,7 +1040,7 @@ void RajaDiffusionIntegrator::Assemble()
                       maps->quadWeights,
                       geo->J,
                       1.0,//COEFF
-                      assembledOperator.RajaMem());
+                      (double*)assembledOperator.RajaMem().ptr());
 /*   for(size_t i=0;i<assembledOperator.Size();i+=1)
       printf("\n\t\033[35m[Assemble] assembledOperator[%ld]=%f",i,
       ((double*)assembledOperator.RajaMem().ptr())[i]);
@@ -1076,9 +1076,9 @@ void RajaDiffusionIntegrator::MultAdd(Vector &x, Vector &y)
                      maps->dofToQuadD,
                      maps->quadToDof,
                      maps->quadToDofD,
-                     assembledOperator.RajaMem(),
-                     x.RajaMem(),
-                     y.RajaMem());
+                     (double*)assembledOperator.RajaMem().ptr(),
+                     (const double*)x.RajaMem().ptr(),
+                     (double*)y.RajaMem().ptr());
 /*   for(size_t i=0;i<y.Size();i+=1)
       printf("\n\t\033[36m[MultAdd] y[%ld]=%f",i, ((double*)y.RajaMem().ptr())[i]);
 */

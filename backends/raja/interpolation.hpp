@@ -32,28 +32,25 @@ void CreateRPOperators(Layout &v_layout, Layout &t_layout,
                        const mfem::SparseMatrix *R, const mfem::Operator *P,
                        mfem::Operator *&RajaR, mfem::Operator *&RajaP);
 
+// *****************************************************************************
 class RestrictionOperator : public Operator
 {
 protected:
    int entries;
    raja::array<int> trueIndices;
-   //::raja::kernel multOp, multTransposeOp;
-
 public:
    RestrictionOperator(Layout &in_layout, Layout &out_layout,
                        raja::array<int> indices);
-
-   // overrides
    virtual void Mult_(const Vector &x, Vector &y) const;
    virtual void MultTranspose_(const Vector &x, Vector &y) const;
 };
 
+// *****************************************************************************
 class ProlongationOperator : public Operator
 {
 protected:
    const mfem::Operator *pmat;
    RajaSparseMatrix multOp, multTransposeOp;
-
 public:
    ProlongationOperator(RajaSparseMatrix &multOp_,
                         RajaSparseMatrix &multTransposeOp_);

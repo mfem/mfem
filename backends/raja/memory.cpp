@@ -47,7 +47,7 @@ namespace raja
   }
   
   void memory::copyTo(void *dest) {
-    MFEM_ABORT("FIXME");
+    memcpy(dest,data,bytes);
   }
     
   void* memory::ptr() const {    

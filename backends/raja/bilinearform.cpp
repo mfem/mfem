@@ -251,23 +251,23 @@ void RajaBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
    else
    {
       // rap, X and B point to the same data as this, x and b
+      assert(false);
       X.MakeRef(x);
       B.MakeRef(b);
    }
-
+   
    if (!copy_interior && constraintList.Size() > 0)
    {
-      //assert(false);
       const Array &constrList = constraintList.Get_PArray()->As<Array>();
       Vector subvec(constrList.RajaLayout());
       vector_get_subvector(constraintList.Size(),
-                           subvec.RajaMem(),
-                           X.Get_PVector()->As<Vector>().RajaMem(),
+                           (double*)subvec.RajaMem().ptr(),
+                           (double*)X.Get_PVector()->As<Vector>().RajaMem().ptr(),
                            (int*)constrList.RajaMem().ptr());
       X.Fill(0.0);
       vector_set_subvector(constraintList.Size(),
-                           X.Get_PVector()->As<Vector>().RajaMem(),
-                           subvec.RajaMem(),
+                           (double*)X.Get_PVector()->As<Vector>().RajaMem().ptr(),
+                           (double*)subvec.RajaMem().ptr(),
                            (int*)constrList.RajaMem().ptr());
    }
 
@@ -287,6 +287,7 @@ void RajaBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
 // Matrix vector multiplication.
 void RajaBilinearForm::Mult_(const Vector &x, Vector &y) const
 {
+   //assert(false);
    otrialFESpace->GlobalToLocal(x, localX);
    localY.Fill<double>(0.0);
 

@@ -100,6 +100,7 @@ void RajaSparseMatrix::SetupKernel(raja::device device)
 
 void RajaSparseMatrix::Mult_(const Vector &x, Vector &y) const
 {
+   assert(false);
    if (reorderIndices.isInitialized() ||
        mappedIndices.isInitialized())
    {
@@ -147,6 +148,7 @@ RajaSparseMatrix* CreateMappedSparseMatrix(Layout &in_layout,
       trueCount += ((I[i + 1] - I[i]) == 1);
    }
    const int dupCount = (mHeight - trueCount);
+   dbg("\n[CreateMappedSparseMatrix] mHeight=%d trueCount=%d, dupCount is %s",mHeight,trueCount,dupCount?"TRUE":"false");
 
    // Create the reordering map for entries that aren't modified (true dofs)
    raja::device device(in_layout.RajaEngine().GetDevice());

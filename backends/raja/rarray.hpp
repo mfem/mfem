@@ -30,14 +30,22 @@ template <class T> class array<T,true> : public rmalloc<T>
 {
 private:
    T* data = NULL;
-   size_t sz,d[4];
+   size_t sz=0;
+   size_t d[4]={0};
 public:
    array():data(NULL),sz(0),d{0,0,0,0} {}
    array(const size_t x) {allocate(x);}
    array(const size_t x,const size_t y) {allocate(x,y);}
-   array(const array<T,true> &r) {assert(false);}
-   array& operator=(mfem::Array<T> &a)
-   {
+   array(const array<T,true> &r) {
+      allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
+      memcpy(data,r.GetData(),r.bytes());
+   }
+   array& operator=(const array<T,true> &r){
+      allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
+      memcpy(data,r.GetData(),r.bytes());
+      return *this;
+   }
+   array& operator=(mfem::Array<T> &a){
       rmemcpy::rHtoD(data,a.GetData(),a.Size()*sizeof(T));
       return *this;
    }
@@ -88,17 +96,26 @@ template <class T> class array<T,false> : public rmalloc<T>
 private:
    static const int DIM = 4;
    T* data = NULL;
-   size_t sz,d[DIM];
+   size_t sz=0;
+   size_t d[DIM]={0};
 public:
    array():data(NULL),sz(0),d{0,0,0,0} {}
    array(const size_t d0) {allocate(d0);}
-   array(const array<T,false> &r) {assert(false);}
-   ~array() {dbg("\033[32m[~I"); rmalloc<T>::operator delete (data);}
+   array(const array<T,false> &r) {
+      allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
+      memcpy(data,r.GetData(),r.bytes());
+   }
+   array& operator=(const array<T,true> &r){
+      allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
+      memcpy(data,r.GetData(),r.bytes());
+      return *this;
+   }
    array& operator=(mfem::Array<T> &a)
    {
       rmemcpy::rHtoD(data,a.GetData(),a.Size()*sizeof(T));
       return *this;
    }
+   ~array() {dbg("\033[32m[~I"); rmalloc<T>::operator delete (data);}
    inline size_t* dim() { return &d[0]; }
    inline T* ptr() { return data; }
    inline T* GetData() const { return data; }

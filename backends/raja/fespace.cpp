@@ -68,7 +68,7 @@ FiniteElementSpace::FiniteElementSpace(const Engine &e,
 
    mfem::Array<int> h_indices(localDofs*elements);
    mfem::Array<int> h_map(localDofs*elements);
-   // For each global dof, fill in all local nodes that point   to it
+   // For each global dof, fill in all local nodes that point to it
    for (int e = 0; e < elements; ++e)
    {
       for (int d = 0; d < localDofs; ++d)
@@ -137,7 +137,7 @@ FiniteElementSpace::~FiniteElementSpace()
                      globalToLocalIndices,
                      (const double*)localVec.RajaMem().ptr(),
                      (double*)globalVec.RajaMem().ptr());
-   pop();
+      pop();
    }
 
 } // namespace mfem::raja

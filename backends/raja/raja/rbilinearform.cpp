@@ -30,7 +30,7 @@ RajaBilinearForm::RajaBilinearForm(FiniteElementSpace *fes) :
    testFESpace(fes->GetFESpace()),
    localX(fes->RajaEVLayout()),
    localY(fes->RajaEVLayout()) {
-   dbg("\033[31m[RajaBilinearForm]");
+   dbg("\n\033[31m[RajaBilinearForm]");
 }
 
 // ***************************************************************************

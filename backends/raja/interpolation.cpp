@@ -35,35 +35,36 @@ mfem::Vector& GetHostVector(const int id, const int64_t size) {
    
 void RajaMult(const mfem::Operator &op,
               const Vector &x, Vector &y) {
-   assert(false);
-   /*if (device.hasSeparateMemorySpace()) {
-     mfem::Vector &hostX = GetHostVector(0, op.Width());
-     mfem::Vector &hostY = GetHostVector(1, op.Height());
-     x.RajaMem().copyTo(hostX.GetData(), hostX.Size() * sizeof(double));
-     op.Mult(hostX, hostY);
-     y.RajaMem().copyFrom(hostY.GetData(), hostY.Size() * sizeof(double));
-     } else {
-     mfem::Vector hostX((double*) x.RajaMem().ptr(), x.Size());
-     mfem::Vector hostY((double*) y.RajaMem().ptr(), y.Size());
-     op.Mult(hostX, hostY);
-     }*/
+   raja::device device = x.RajaLayout().RajaEngine().GetDevice();
+   if (device.hasSeparateMemorySpace()) {
+      assert(false);/*
+                      mfem::Vector &hostX = GetHostVector(0, op.Width());
+                      mfem::Vector &hostY = GetHostVector(1, op.Height());
+                      x.RajaMem().copyTo(hostX.GetData(), hostX.Size() * sizeof(double));
+                      op.Mult(hostX, hostY);
+                      y.RajaMem().copyFrom(hostY.GetData(), hostY.Size() * sizeof(double));*/
+   } else {
+      mfem::Vector hostX((double*) x.RajaMem().ptr(), x.Size());
+      mfem::Vector hostY((double*) y.RajaMem().ptr(), y.Size());
+      op.Mult(hostX, hostY);
+   }
 }
 
 void RajaMultTranspose(const mfem::Operator &op,
                        const Vector &x, Vector &y) {
-   assert(false);
-   /*
-     if (device.hasSeparateMemorySpace()) {
-     mfem::Vector &hostX = GetHostVector(1, op.Height());
-     mfem::Vector &hostY = GetHostVector(0, op.Width());
-     x.RajaMem().copyTo(hostX.GetData(), hostX.Size() * sizeof(double));
-     op.MultTranspose(hostX, hostY);
-     y.RajaMem().copyFrom(hostY.GetData(), hostY.Size() * sizeof(double));
-     } else {
-     mfem::Vector hostX((double*) x.RajaMem().ptr(), x.Size());
-     mfem::Vector hostY((double*) y.RajaMem().ptr(), y.Size());
-     op.MultTranspose(hostX, hostY);
-     }*/
+   raja::device device = x.RajaLayout().RajaEngine().GetDevice();
+   if (device.hasSeparateMemorySpace()) {
+      assert(false);/*
+      mfem::Vector &hostX = GetHostVector(1, op.Height());
+      mfem::Vector &hostY = GetHostVector(0, op.Width());
+      x.RajaMem().copyTo((void*)hostX.GetData(), hostX.Size() * sizeof(double));
+      op.MultTranspose(hostX, hostY);
+      y.RajaMem().copyFrom(hostY.GetData(), hostY.Size() * sizeof(double));*/
+   } else {
+      mfem::Vector hostX((double*) x.RajaMem().ptr(), x.Size());
+      mfem::Vector hostY((double*) y.RajaMem().ptr(), y.Size());
+      op.MultTranspose(hostX, hostY);
+   }
 }
 
 // *****************************************************************************
@@ -87,7 +88,6 @@ void CreateRPOperators(Layout &v_layout, Layout &t_layout,
          CreateMappedSparseMatrix(v_layout, t_layout, *R);
       raja::array<int> reorderIndices = rajaR->reorderIndices;
       delete rajaR;
-
       RajaR = new RestrictionOperator(v_layout, t_layout, reorderIndices);
    }
 
@@ -108,6 +108,7 @@ void CreateRPOperators(Layout &v_layout, Layout &t_layout,
    }
 }
 
+// *****************************************************************************
 RestrictionOperator::RestrictionOperator(Layout &in_layout, Layout &out_layout,
                                          raja::array<int> indices) :
    Operator(in_layout, out_layout)
@@ -119,17 +120,19 @@ RestrictionOperator::RestrictionOperator(Layout &in_layout, Layout &out_layout,
 
 void RestrictionOperator::Mult_(const Vector &x, Vector &y) const
 {
-   assert(false);
-   //multOp(entries, trueIndices, x.RajaMem(), y.RajaMem());
+   dbg("\033[34;1m[Mult_] entries=%ld, trueIndices size=%ld",entries, trueIndices.Size());
+   rExtractSubVector(entries, trueIndices, (double*)x.RajaMem().ptr(), (double*)y.RajaMem().ptr());
+   //assert(false);
 }
 
 void RestrictionOperator::MultTranspose_(const Vector &x, Vector &y) const
 {
    y.Fill<double>(0.0);
    assert(false);
-   //multTransposeOp(entries, trueIndices, x.RajaMem(), y.RajaMem());
+   rMapSubVector(entries, trueIndices, (double*)x.RajaMem().ptr(), (double*)y.RajaMem().ptr());
 }
 
+// *****************************************************************************
 ProlongationOperator::ProlongationOperator(RajaSparseMatrix &multOp_,
                                            RajaSparseMatrix &multTransposeOp_) :
    Operator(multOp_),
@@ -148,6 +151,7 @@ ProlongationOperator::ProlongationOperator(Layout &in_layout,
 
 void ProlongationOperator::Mult_(const Vector &x, Vector &y) const
 {
+   //assert(false);
    if (pmat)
    {
       RajaMult(*pmat, x, y);

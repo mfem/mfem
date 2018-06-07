@@ -35,7 +35,7 @@ static inline void rdbge(const char *format,...)
    fflush(stdout);
    printf("\033[32;1m");
    vfprintf(stdout,format,args);
-   printf("\033[m\n");
+   printf("\033[m");//\n
    fflush(stdout);
    va_end(args);
 }

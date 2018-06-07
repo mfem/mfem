@@ -42,18 +42,18 @@ void Vector::DoDotProduct(const PVector &x, void *result,
                           int result_type_id) const
 {
    // called only when Size() != 0
-
    MFEM_ASSERT(result_type_id == ScalarId<double>::value, "");
    double *res = (double *)result;
-   double local_dot = 0.;
    MFEM_ASSERT(dynamic_cast<const Vector *>(&x) != NULL, "invalid Vector type");
    const Vector *xp = static_cast<const Vector *>(&x);
    MFEM_ASSERT(this->Size() == xp->Size(), "");
-   local_dot = raja::linalg::dot(this->slice, xp->slice);
-#ifndef MFEM_USE_MPI
-   *res = local_dot;
-#else
-   MPI_Allreduce(&local_dot, res, 1, MPI_DOUBLE, MPI_SUM, RajaLayout().RajaEngine().GetComm());
+   *res = raja::linalg::dot(this->slice, xp->slice);
+#ifdef MFEM_USE_MPI
+   double local_dot = *res;
+   if (IsParallel())
+   {
+      MPI_Allreduce(&local_dot, res, 1, MPI_DOUBLE, MPI_SUM, RajaLayout().RajaEngine().GetComm());
+   }
 #endif
 }
 
@@ -133,19 +133,19 @@ void Vector::DoAxpby(const void *a, const PVector &x,
          //MFEM_ASSERT(xp->slice != yp->slice, "invalid input");
          if (this->slice == xp->slice)
          {
-            dbg("[DoAxpby] 1");
+            dbg("\n[DoAxpby] 1");
             // *this = da * (*this) + db * y
             vector_axpby((int)Size(), da, db, slice, yp->slice);
          }
          else if (this->slice == yp->slice)
          {
-            dbg("[DoAxpby] 2");
+            dbg("\n[DoAxpby] 2");
             // *this = da * x + db * (*this)
              vector_axpby((int)Size(), db, da, slice, xp->slice);
          }
          else
          {
-            dbg("[DoAxpby] 3");
+            dbg("\n[DoAxpby] 3");
             // *this = da * x + db * y
             vector_axpby3((int)Size(), da, db, slice, xp->slice, yp->slice);
          }

@@ -59,8 +59,8 @@ void RajaConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
    {
       //assert(false);
       vector_map_dofs(constraintIndices,
-                      w.RajaMem(),
-                      x.RajaMem(),
+                      (double*)w.RajaMem().ptr(),
+                      (double*)x.RajaMem().ptr(),
                       (int*)constraintList.ptr());
    }
 
@@ -72,7 +72,7 @@ void RajaConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
    {
       //mapDofs(constraintIndices, b.RajaMem(), x.RajaMem(), constraintList);
       vector_map_dofs(constraintIndices,
-                      b.RajaMem(),
+                      (double*)b.RajaMem().ptr(),
                       (double*)x.RajaMem().ptr(),
                       (int*)constraintList.ptr());
     }

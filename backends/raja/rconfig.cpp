@@ -43,7 +43,7 @@ void computeCapabilityOfTheDevice(const int mpi_rank,
    int major, minor;
    cuDeviceGetName(name, 128, cuDevice);
    cuDeviceComputeCapability(&major, &minor, device);
-   printf("\033[32m[laghos] Rank_%d => Device_%d (%s:sm_%d.%d)\033[m\n",
+   dbg("\n\033[32m[laghos] Rank_%d => Device_%d (%s:sm_%d.%d)\033[m\n",
           mpi_rank, device, name, major, minor);
 }
 #endif

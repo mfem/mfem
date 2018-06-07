@@ -59,6 +59,11 @@ public:
    mfem::Vector Wrap();
 
    const mfem::Vector Wrap() const;
+
+#if defined(MFEM_USE_MPI)
+   bool IsParallel() const { return (RajaLayout().RajaEngine().GetComm() != MPI_COMM_NULL); }
+#endif
+
 };
 
 } // namespace mfem::raja

@@ -12,6 +12,7 @@
 #include "../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
+#include <assert.h>
 #include "layout.hpp"
 #include "../../general/array.hpp"
 
@@ -30,6 +31,7 @@ void Layout::Resize(const Array<std::size_t> &offsets)
 {
    MFEM_ASSERT(offsets.Size() == 2,
                "multiple workers are not supported yet");
+   assert(offsets.Size() == 2);
    size = offsets.Last();
 }
 
