@@ -94,6 +94,9 @@ public:
        @name Machine resources interface
     */
    ///@{
+#ifdef MFEM_USE_MPI
+   MPI_Comm GetComm() const { return comm; }
+#endif
 
    /// TODO
    int GetNumMemRes() const { return num_mem_res; }

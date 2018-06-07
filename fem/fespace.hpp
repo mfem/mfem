@@ -273,7 +273,6 @@ public:
    /// TODO: doxygen
    DLayout &GetVLayout() { return v_layout; }
 
-   // FIXME: parallel
    /// TODO: doxygen
    DLayout &GetTrueVLayout() { SetCP(); return t_layout; }
 

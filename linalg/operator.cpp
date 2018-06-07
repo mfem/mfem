@@ -114,7 +114,7 @@ ProductOperator::~ProductOperator()
 
 RAPOperator::RAPOperator(const Operator &Rt_, const Operator &A_,
                          const Operator &P_)
-   : Operator(P_, Rt_, false, true),
+   : Operator(Rt_, P_, true, false),
      Rt(Rt_), A(A_), P(P_)
 {
 #ifdef MFEM_USE_BACKENDS

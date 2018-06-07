@@ -284,43 +284,53 @@ void ParBilinearForm::FormLinearSystem(
    const Array<int> &ess_tdof_list, Vector &x, Vector &b,
    OperatorHandle &A, Vector &X, Vector &B, int copy_interior)
 {
-   // Finish the matrix assembly and perform BC elimination, storing the
-   // eliminated part of the matrix.
-   FormSystemMatrix(ess_tdof_list, A);
-
-   const Operator &P = *pfes->GetProlongationMatrix();
-   const SparseMatrix &R = *pfes->GetRestrictionMatrix();
-
-   // Transform the system and perform the elimination in B, based on the
-   // essential BC values from x. Restrict the BC part of x in X, and set the
-   // non-BC part to zero. Since there is no good initial guess for the Lagrange
-   // multipliers, set X = 0.0 for hybridization.
-   if (static_cond)
+#ifdef MFEM_USE_BACKENDS
+   if (dev_ext)
    {
-      // Schur complement reduction to the exposed dofs
-      static_cond->ReduceSystem(x, b, X, B, copy_interior);
-   }
-   else if (hybridization)
-   {
-      // Reduction to the Lagrange multipliers system
-      HypreParVector true_X(pfes), true_B(pfes);
-      P.MultTranspose(b, true_B);
-      R.Mult(x, true_X);
-      p_mat.EliminateBC(p_mat_e, ess_tdof_list, true_X, true_B);
-      R.MultTranspose(true_B, b);
-      hybridization->ReduceRHS(true_B, B);
-      X.SetSize(B.Size());
-      X = 0.0;
+      MFEM_VERIFY(!static_cond && !hybridization, "");
+      dev_ext->FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
    }
    else
+#endif
    {
-      // Variational restriction with P
-      X.SetSize(pfes->TrueVSize());
-      B.SetSize(X.Size());
-      P.MultTranspose(b, B);
-      R.Mult(x, X);
-      p_mat.EliminateBC(p_mat_e, ess_tdof_list, X, B);
-      if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
+      // Finish the matrix assembly and perform BC elimination, storing the
+      // eliminated part of the matrix.
+      FormSystemMatrix(ess_tdof_list, A);
+
+      const Operator &P = *pfes->GetProlongationMatrix();
+      const SparseMatrix &R = *pfes->GetRestrictionMatrix();
+
+      // Transform the system and perform the elimination in B, based on the
+      // essential BC values from x. Restrict the BC part of x in X, and set the
+      // non-BC part to zero. Since there is no good initial guess for the Lagrange
+      // multipliers, set X = 0.0 for hybridization.
+      if (static_cond)
+      {
+	 // Schur complement reduction to the exposed dofs
+	 static_cond->ReduceSystem(x, b, X, B, copy_interior);
+      }
+      else if (hybridization)
+      {
+	 // Reduction to the Lagrange multipliers system
+	 HypreParVector true_X(pfes), true_B(pfes);
+	 P.MultTranspose(b, true_B);
+	 R.Mult(x, true_X);
+	 p_mat.EliminateBC(p_mat_e, ess_tdof_list, true_X, true_B);
+	 R.MultTranspose(true_B, b);
+	 hybridization->ReduceRHS(true_B, B);
+	 X.SetSize(B.Size());
+	 X = 0.0;
+      }
+      else
+      {
+	 // Variational restriction with P
+	 X.SetSize(pfes->TrueVSize());
+	 B.SetSize(X.Size());
+	 P.MultTranspose(b, B);
+	 R.Mult(x, X);
+	 p_mat.EliminateBC(p_mat_e, ess_tdof_list, X, B);
+	 if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
+      }
    }
 }
 
@@ -369,6 +379,14 @@ void ParBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
 void ParBilinearForm::RecoverFEMSolution(
    const Vector &X, const Vector &b, Vector &x)
 {
+#ifdef MFEM_USE_BACKENDS
+   if (dev_ext)
+   {
+      dev_ext->RecoverFEMSolution(X, b, x);
+      return;
+   }
+#endif
+
    const Operator &P = *pfes->GetProlongationMatrix();
 
    if (static_cond)

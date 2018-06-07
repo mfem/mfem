@@ -44,8 +44,14 @@ protected:
    ::occa::device *device; // An array of OCCA devices
    std::string okl_path, okl_defines;
 
+   void Init(const std::string &engine_spec);
+
 public:
    Engine(const std::string &engine_spec);
+
+#ifdef MFEM_USE_MPI
+   Engine(MPI_Comm comm, const std::string &engine_spec);
+#endif
 
    virtual ~Engine() { delete [] device; }
 

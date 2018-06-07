@@ -13,6 +13,7 @@
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_OCCA)
 
 #include "backend.hpp"
+#include "engine.hpp"
 
 namespace mfem
 {
@@ -20,9 +21,23 @@ namespace mfem
 namespace occa
 {
 
-//
-// Empty for now.
-//
+bool Backend::Supports(const std::string &engine_spec) const
+{
+   return true;
+}
+
+mfem::Engine *Create(const std::string &engine_spec)
+{
+   return new Engine(engine_spec);
+}
+
+#ifdef MFEM_USE_MPI
+mfem::Engine *Create(MPI_Comm comm, const std::string &engine_spec)
+{
+   return new Engine(comm, engine_spec);
+}
+#endif
+
 
 } // namespace mfem::occa
 

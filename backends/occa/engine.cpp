@@ -25,8 +25,7 @@ namespace occa
 
 bool Engine::fileOpenerRegistered = false;
 
-Engine::Engine(const std::string &engine_spec)
-   : mfem::Engine(NULL, 1, 1)
+void Engine::Init(const std::string &engine_spec)
 {
    //
    // Initialize inherited fields
@@ -59,6 +58,21 @@ Engine::Engine(const std::string &engine_spec)
       fileOpenerRegistered = true;
    }
 }
+
+Engine::Engine(const std::string &engine_spec)
+   : mfem::Engine(NULL, 1, 1)
+{
+   Init(engine_spec);
+}
+
+#ifdef MFEM_USE_MPI
+Engine::Engine(MPI_Comm _comm, const std::string &engine_spec)
+   : mfem::Engine(NULL, 1, 1)
+{
+   comm = _comm;
+   Init(engine_spec);
+}
+#endif
 
 DLayout Engine::MakeLayout(std::size_t size) const
 {

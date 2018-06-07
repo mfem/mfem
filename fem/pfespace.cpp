@@ -124,6 +124,16 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
    {
       ApplyLDofSigns(*elem_dof);
    }
+
+#ifdef MFEM_USE_BACKENDS
+   if (pmesh->HasEngine())
+   {
+      // Ensure GetVLayout() and GetTrueVLayout() will work correctly before
+      // calling MakeFESpace().
+      // Overwrite dev_ext with one that uses parallel finite element space
+      dev_ext = pmesh->GetEngine().MakeFESpace(*this);
+   }
+#endif
 }
 
 void ParFiniteElementSpace::Construct()
@@ -169,6 +179,19 @@ void ParFiniteElementSpace::Construct()
       // to overlap its communication with processing between this constructor
       // and the point where the P matrix is actually needed.
    }
+
+#ifdef MFEM_USE_BACKENDS
+   // Now that we have the local true dof size (ltdof_size), we need to initialize t_layout
+   MFEM_ASSERT(t_layout != NULL, "Internal error");
+   if (pmesh->HasEngine())
+   {
+      t_layout = pmesh->GetEngine().MakeLayout(ltdof_size);
+   }
+   else
+   {
+      t_layout.Reset(new PLayout(ltdof_size));
+   }
+#endif
 }
 
 void ParFiniteElementSpace::GetGroupComm(
@@ -644,6 +667,12 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
       if (bool(true_ess_dofs[i]) != bool(true_ess_dofs2[i])) { counter++; }
    }
    MFEM_VERIFY(counter == 0, "internal MFEM error: counter = " << counter);
+#endif
+#ifdef MFEM_USE_BACKENDS
+   if (dev_ext)
+   {
+      ess_tdof_list.SetEngine(dev_ext->GetEngine());
+   }
 #endif
    MarkerToList(true_ess_dofs, ess_tdof_list);
 }
