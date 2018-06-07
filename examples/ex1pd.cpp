@@ -160,8 +160,8 @@ int main(int argc, char *argv[])
    // HypreParMatrix *Amat;
 
    CGSolver *pcg = new CGSolver(MPI_COMM_WORLD);
-   pcg->SetRelTol(1e-12);
-   pcg->SetAbsTol(1e-14);
+   pcg->SetRelTol(sqrt(1e-12));
+   pcg->SetAbsTol(0.0);
    pcg->SetMaxIter(200);
    pcg->SetPrintLevel(1);
    // pcg->SetPreconditioner(*amg);
