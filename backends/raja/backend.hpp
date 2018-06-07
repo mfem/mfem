@@ -16,6 +16,7 @@
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
 // Only the Backend and Engine classes should be exposed through "backend.hpp"
+#include "engine.hpp"
 #include "../base/backend.hpp"
 
 namespace mfem
@@ -34,8 +35,7 @@ public:
    virtual mfem::Engine *Create(const std::string &engine_spec);
 
 #ifdef MFEM_USE_MPI
-   // TODO
-   // virtual mfem::Engine *Create(MPI_Comm comm, const std::string &engine_spec);
+   virtual mfem::Engine *Create(MPI_Comm comm, const std::string &engine_spec);
 #endif
 };
 

@@ -19,7 +19,54 @@ namespace mfem
 
 namespace raja
 {
+   
+mfem::Vector& GetHostVector(const int id, const int64_t size) {
+   static std::vector<mfem::Vector*> v;
+   if (v.size() <= (size_t) id) {
+      for (int i = (int) v.size(); i < (id + 1); ++i) {
+         v.push_back(new mfem::Vector);
+      }
+   }
+   if (size >= 0) {
+      v[id]->SetSize(size);
+   }
+   return *(v[id]);
+}
+   
+void RajaMult(const mfem::Operator &op,
+              const Vector &x, Vector &y) {
+   assert(false);
+   /*if (device.hasSeparateMemorySpace()) {
+     mfem::Vector &hostX = GetHostVector(0, op.Width());
+     mfem::Vector &hostY = GetHostVector(1, op.Height());
+     x.RajaMem().copyTo(hostX.GetData(), hostX.Size() * sizeof(double));
+     op.Mult(hostX, hostY);
+     y.RajaMem().copyFrom(hostY.GetData(), hostY.Size() * sizeof(double));
+     } else {
+     mfem::Vector hostX((double*) x.RajaMem().ptr(), x.Size());
+     mfem::Vector hostY((double*) y.RajaMem().ptr(), y.Size());
+     op.Mult(hostX, hostY);
+     }*/
+}
 
+void RajaMultTranspose(const mfem::Operator &op,
+                       const Vector &x, Vector &y) {
+   assert(false);
+   /*
+     if (device.hasSeparateMemorySpace()) {
+     mfem::Vector &hostX = GetHostVector(1, op.Height());
+     mfem::Vector &hostY = GetHostVector(0, op.Width());
+     x.RajaMem().copyTo(hostX.GetData(), hostX.Size() * sizeof(double));
+     op.MultTranspose(hostX, hostY);
+     y.RajaMem().copyFrom(hostY.GetData(), hostY.Size() * sizeof(double));
+     } else {
+     mfem::Vector hostX((double*) x.RajaMem().ptr(), x.Size());
+     mfem::Vector hostY((double*) y.RajaMem().ptr(), y.Size());
+     op.MultTranspose(hostX, hostY);
+     }*/
+}
+
+// *****************************************************************************
 void CreateRPOperators(Layout &v_layout, Layout &t_layout,
                        const mfem::SparseMatrix *R, const mfem::Operator *P,
                        mfem::Operator *&RajaR, mfem::Operator *&RajaP)
@@ -103,9 +150,7 @@ void ProlongationOperator::Mult_(const Vector &x, Vector &y) const
 {
    if (pmat)
    {
-      // FIXME: ???
-      // RajaMult(*pmat, x, y);
-      MFEM_ABORT("not implemented yet");
+      RajaMult(*pmat, x, y);
    }
    else
    {
@@ -118,9 +163,7 @@ void ProlongationOperator::MultTranspose_(const Vector &x, Vector &y) const
 {
    if (pmat)
    {
-      // FIXME: ???
-      // RajaMultTranspose(*pmat, x, y);
-      MFEM_ABORT("not implemented yet");
+      RajaMultTranspose(*pmat, x, y);
    }
    else
    {
