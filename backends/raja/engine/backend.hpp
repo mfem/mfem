@@ -15,10 +15,6 @@
 #include "../../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
-// Only the Backend and Engine classes should be exposed through "backend.hpp"
-#include "../engine/engine.hpp"
-#include "../../base/backend.hpp"
-
 namespace mfem
 {
 

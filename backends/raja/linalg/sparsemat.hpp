@@ -15,12 +15,6 @@
 #include "../../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
-#include "../raja.hpp"
-#include "../linalg/vector.hpp"
-#include "../engine/engine.hpp"
-#include "../linalg/operator.hpp"
-#include "../../../linalg/sparsemat.hpp"
-
 namespace mfem
 {
 

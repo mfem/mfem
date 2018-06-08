@@ -13,11 +13,6 @@
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
 #include "../raja.hpp"
-#include "../fem/prolong.hpp"
-#include "../linalg/vector.hpp"
-#include "../engine/engine.hpp"
-#include "../linalg/sparsemat.hpp"
-#include "../../../fem/fem.hpp"
 
 namespace mfem
 {

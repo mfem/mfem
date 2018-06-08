@@ -8,14 +8,10 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
-//#include "raja.hpp"
 
 #include "../../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
-#include "../engine/device.hpp"
-#include "../engine/memory.hpp"
-#include <assert.h>
 #include "../raja.hpp"
 
 namespace mfem
@@ -23,19 +19,21 @@ namespace mfem
 
 namespace raja
 {
-memory::memory(const std::size_t _bytes,
-               const void *src)://mHandle(new memory_v()),
+// **************************************************************************
+memory::memory(const std::size_t _bytes, const void *src):
    bytes(_bytes),
    data(::new char[bytes])
 {
    assert(src==NULL);
 }
 
+// **************************************************************************
 raja::device memory::getDevice()
 {
    return raja::device();
 }
 
+// **************************************************************************
 size_t memory::size() const
 {
    return bytes;

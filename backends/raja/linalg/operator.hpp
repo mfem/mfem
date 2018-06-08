@@ -15,15 +15,13 @@
 #include "../../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
-#include "../linalg/vector.hpp"
-#include "../../../linalg/operator.hpp"
-
 namespace mfem
 {
 
 namespace raja
 {
 
+// **************************************************************************
 class Operator : public mfem::Operator
 {
 public:
@@ -64,6 +62,7 @@ public:
 };
 
 
+// **************************************************************************
 class RajaConstrainedOperator : public Operator
 {
 protected:

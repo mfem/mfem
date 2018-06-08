@@ -12,8 +12,7 @@
 #include "../../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
-#include "../general/layout.hpp"
-#include "../general/array.hpp"
+#include "../raja.hpp"
 
 namespace mfem
 {

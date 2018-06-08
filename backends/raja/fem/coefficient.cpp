@@ -12,8 +12,7 @@
 #include "../../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
-#include "../fem/coefficient.hpp"
-#include "../fem/bilininteg.hpp"
+#include "../raja.hpp"
 
 namespace mfem
 {

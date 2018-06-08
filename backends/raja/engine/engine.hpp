@@ -15,9 +15,6 @@
 #include "../../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
-#include "../../base/backend.hpp"
-#include "device.hpp"
-
 namespace mfem
 {
 
@@ -28,7 +25,6 @@ class Engine : public mfem::Engine
 {
 protected:
    raja::device *dev=NULL;
-   std::string okl_path, okl_defines;
 
    void Init(const std::string &engine_spec);
 

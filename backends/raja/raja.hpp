@@ -15,13 +15,15 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <assert.h>
+#include <assert.h>
 #include <sys/time.h>
+#include <unistd.h>
 
-// backend/raja/kernels ********************************************************
-#include "kernels/include/kernels.hpp"
-
-// MFEM/base/backend ***********************************************************
-#include "../base/backend.hpp"
+// MPI *************************************************************************
+#ifdef MFEM_USE_MPI
+#include <mpi.h>
+#include <mpi-ext.h>
+#endif
 
 // MFEM ************************************************************************
 #include "../../config/config.hpp"
@@ -31,33 +33,47 @@
 #include "../../fem/fespace.hpp"
 #include "../../fem/bilinearform.hpp"
 
-// backend/raja/* **************************************************************
+// RAJA/kernels ****************************************************************
+#include "kernels/include/kernels.hpp"
+
+// MFEM/backends ***************************************************************
+#include "../base/backend.hpp"
+
+// RAJA/engine *****************************************************************
 #include "engine/memory.hpp"
 #include "engine/device.hpp"
 #include "engine/engine.hpp"
 #include "engine/backend.hpp"
-#include "linalg/linalg.hpp"
-#include "general/layout.hpp"
-#include "general/array.hpp"
-#include "linalg/vector.hpp"
 
-// backend/raja/config *********************************************************
+// RAJA/config *****************************************************************
 #include "config/rdbg.hpp"
 #include "config/rnvvp.hpp"
 #include "config/rconfig.hpp"
 
-// backend/raja/general ********************************************************
+// RAJA/general ****************************************************************
+#include "linalg/linalg.hpp"
+#include "general/layout.hpp"
+#include "general/array.hpp"
 #include "general/rmemcpy.hpp"
 #include "general/rmalloc.hpp"
 #include "general/rarray.hpp"
 #include "general/rtable.hpp"
 
-// backend/raja/linalg *********************************************************
+// RAJA/linalg *****************************************************************
+#include "linalg/vector.hpp"
 #include "linalg/rvector.hpp"
-
-// backend/raja/fem ************************************************************
 #include "linalg/operator.hpp"
+#include "linalg/sparsemat.hpp"
+
+// RAJA/fem ********************************************************************
 #include "fem/fespace.hpp"
+#include "fem/gridfunc.hpp"
+#include "fem/bilinearform.hpp"
+#include "fem/coefficient.hpp"
+#include "fem/bilininteg.hpp"
+#include "fem/restrict.hpp"
+#include "fem/prolong.hpp"
+
 
 #endif // MFEM_BACKENDS_RAJA_HPP
 

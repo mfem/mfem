@@ -15,10 +15,6 @@
 #include "../../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
-#include "../../base/layout.hpp"
-#include "../engine/engine.hpp"
-#include "../engine/memory.hpp"
-
 namespace mfem
 {
 

@@ -13,7 +13,6 @@
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
 #include "../raja.hpp"
-#include "../fem/restrict.hpp"
 
 namespace mfem
 {

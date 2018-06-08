@@ -13,6 +13,10 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
+
+#include "../../../config/config.hpp"
+#if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
+
 #include "../raja.hpp"
 
 #if defined(__NVCC__) and defined(__NVVP__)
@@ -91,3 +95,5 @@ int rNvtxSyncPop(void)  // Enforce Kernel Synchronization
 }
 
 #endif // defined(__NVCC__) and defined(__NVVP__)
+
+#endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)

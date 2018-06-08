@@ -13,8 +13,12 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
-#ifndef LAGHOS_RAJA_DBG
-#define LAGHOS_RAJA_DBG
+
+#ifndef MFEM_BACKENDS_RAJA_DBG_HPP
+#define MFEM_BACKENDS_RAJA_DBG_HPP
+
+#include "../../../config/config.hpp"
+#if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
 // DBG *************************************************************************
 inline void rdbg(const char *format,...)
@@ -49,4 +53,6 @@ static inline void rdbge(const char *format,...)
 #define dbg(...) //rdbge(__VA_ARGS__)
 #endif // LAGHOS_DEBUG
 
-#endif // LAGHOS_RAJA_DBG
+#endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
+
+#endif // MFEM_BACKENDS_RAJA_DBG_HPP

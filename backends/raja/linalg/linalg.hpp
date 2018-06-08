@@ -8,9 +8,12 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
+
 #ifndef MFEM_BACKENDS_RAJA_LINALG_HPP
 #define MFEM_BACKENDS_RAJA_LINALG_HPP
-#include "../kernels/include/kernels.hpp"
+
+#include "../../../config/config.hpp"
+#if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
 namespace mfem
 {
@@ -37,5 +40,7 @@ inline void operator_eq(raja::memory vec, T value)
 } // namespace mfem::raja
 
 } // namespace mfem
+
+#endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
 #endif // MFEM_BACKENDS_RAJA_LINALG_HPP

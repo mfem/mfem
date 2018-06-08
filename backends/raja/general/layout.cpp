@@ -12,22 +12,21 @@
 #include "../../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
-#include <assert.h>
-#include "../general/layout.hpp"
-#include "../../../general/array.hpp"
+#include "../raja.hpp"
 
 namespace mfem
 {
 
 namespace raja
 {
-
+// **************************************************************************
 void Layout::Resize(std::size_t new_size)
 {
    size = new_size;
 }
 
-void Layout::Resize(const Array<std::size_t> &offsets)
+// **************************************************************************
+void Layout::Resize(const mfem::Array<std::size_t> &offsets)
 {
    MFEM_ASSERT(offsets.Size() == 2,
                "multiple workers are not supported yet");

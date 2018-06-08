@@ -13,8 +13,12 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
-#ifndef LAGHOS_RAJA_VECTOR
-#define LAGHOS_RAJA_VECTOR
+
+#ifndef MFEM_BACKENDS_RAJA_RVECTOR_HPP
+#define MFEM_BACKENDS_RAJA_RVECTOR_HPP
+
+#include "../../../config/config.hpp"
+#if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
 namespace mfem
 {
@@ -74,4 +78,6 @@ void subtract(const RajaVector&,const RajaVector&,RajaVector&);
 
 } // mfem
 
-#endif // LAGHOS_RAJA_VECTOR
+#endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
+
+#endif // MFEM_BACKENDS_RAJA_RVECTOR_HPP

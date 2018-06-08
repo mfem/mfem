@@ -8,6 +8,10 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
+
+#include "../../../config/config.hpp"
+#if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
+
 #include "../raja.hpp"
 
 namespace mfem
@@ -226,3 +230,5 @@ void subtract(const RajaVector& v1,
 } // raja
 
 } // mfem
+
+#endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)

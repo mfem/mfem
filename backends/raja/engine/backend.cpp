@@ -12,8 +12,7 @@
 #include "../../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
-#include "assert.h"
-#include "../engine/backend.hpp"
+#include "../raja.hpp"
 
 namespace mfem
 {

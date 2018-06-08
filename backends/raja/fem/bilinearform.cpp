@@ -13,9 +13,6 @@
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
 #include "../raja.hpp"
-#include "../engine/backend.hpp"
-#include "../fem/bilininteg.hpp"
-#include "../../../fem/bilinearform.hpp"
 
 namespace mfem
 {

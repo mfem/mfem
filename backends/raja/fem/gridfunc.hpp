@@ -15,9 +15,6 @@
 #include "../../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
-#include "../linalg/vector.hpp"
-#include "../fem/fespace.hpp"
-
 namespace mfem
 {
 

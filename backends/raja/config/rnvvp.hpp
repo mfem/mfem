@@ -13,8 +13,18 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
-#ifndef LAGHOS_RAJA_NVVP
-#define LAGHOS_RAJA_NVVP
+
+#ifndef MFEM_BACKENDS_RAJA_NVVP_HPP
+#define MFEM_BACKENDS_RAJA_NVVP_HPP
+
+#include "../../../config/config.hpp"
+#if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
+
+namespace mfem
+{
+
+namespace raja
+{
 
 // *****************************************************************************
 // en.wikipedia.org/wiki/Web_colors#Hex_triplet
@@ -87,5 +97,11 @@ NVTX_DECLSPEC int NVTX_API rNvtxSyncPop(void);
 
 #endif // defined(__NVCC__) and defined(__NVVP__)
 
-#endif // LAGHOS_RAJA_NVVP
 
+} // namespace mfem::raja
+
+} // namespace mfem
+
+#endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
+
+#endif // MFEM_BACKENDS_RAJA_NVVP_HPP

@@ -13,8 +13,13 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
-#ifndef LAGHOS_RAJA_MEMCPY
-#define LAGHOS_RAJA_MEMCPY
+
+#ifndef MFEM_BACKENDS_RAJA_MEMCPY_HPP
+#define MFEM_BACKENDS_RAJA_MEMCPY_HPP
+
+#include "../../../config/config.hpp"
+#if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
+
 
 namespace mfem
 {
@@ -35,4 +40,6 @@ struct rmemcpy
 
 } // mfem
 
-#endif // LAGHOS_RAJA_MEMCPY
+#endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
+
+#endif // MFEM_BACKENDS_RAJA_MEMCPY_HPP

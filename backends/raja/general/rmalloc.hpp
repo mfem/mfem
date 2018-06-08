@@ -13,8 +13,12 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
-#ifndef LAGHOS_RAJA_MALLOC
-#define LAGHOS_RAJA_MALLOC
+
+#ifndef MFEM_BACKENDS_RAJA_MALLOC_HPP
+#define MFEM_BACKENDS_RAJA_MALLOC_HPP
+
+#include "../../../config/config.hpp"
+#if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
 namespace mfem
 {
@@ -80,4 +84,6 @@ template<class T> struct rmalloc: public rmemcpy
 
 } // mfem
 
-#endif // LAGHOS_RAJA_MALLOC
+#endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
+
+#endif // MFEM_BACKENDS_RAJA_MALLOC_HPP

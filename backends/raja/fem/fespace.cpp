@@ -12,10 +12,7 @@
 #include "../../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
-#include "../engine/backend.hpp"
-#include "../fem/fespace.hpp"
-#include "../fem/restrict.hpp"
-#include "../fem/prolong.hpp"
+#include "../raja.hpp"
 
 namespace mfem
 {

@@ -12,10 +12,7 @@
 #include "../../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
-#include "../engine/backend.hpp"
-#include "../fem/bilinearform.hpp"
-#include "../../../general/array.hpp"
-#include "../engine/device.hpp"
+#include "../raja.hpp"
 
 namespace mfem
 {
@@ -57,6 +54,7 @@ DLayout Engine::MakeLayout(std::size_t size) const
 {
    return DLayout(new Layout(*this, size));
 }
+
 
 DLayout Engine::MakeLayout(const mfem::Array<std::size_t> &offsets) const
 {

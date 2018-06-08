@@ -13,11 +13,11 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
+
+#include "../../../config/config.hpp"
+#if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
+
 #include "../raja.hpp"
-#ifdef MFEM_USE_MPI
-#include <mpi-ext.h>
-#endif
-#include <unistd.h>
 
 namespace mfem
 {
@@ -247,3 +247,5 @@ bool rconfig::DoHostConformingProlongationOperator()
 } // raja
 
 } // namespace mfem
+
+#endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)

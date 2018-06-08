@@ -15,10 +15,6 @@
 #include "../../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
-#include "../fem/fespace.hpp"
-#include "../fem/bilinearform.hpp"
-#include "../fem/coefficient.hpp"
-
 namespace mfem
 {
 
