@@ -99,11 +99,11 @@ public:
    const raja::array<int> GetLocalToGlobalMap() const
    { return localToGlobalMap; }
 
-   void GlobalToLocal(const Vector &globalVec, Vector &localVec) const;
+   void GlobalToLocal(const raja::Vector &globalVec, Vector &localVec) const;
    void LocalToGlobal(const Vector &localVec, Vector &globalVec) const;
 
 };
-
+   
 } // namespace mfem::raja
 
 } // namespace mfem

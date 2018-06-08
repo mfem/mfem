@@ -39,7 +39,7 @@ RajaGeometry::~RajaGeometry()
 // *****************************************************************************
 // * RajaGeometry Get: use this one to fetch nodes from vector Sx
 // *****************************************************************************
-RajaGeometry* RajaGeometry::GetV(FiniteElementSpace& fes,
+RajaGeometry* RajaGeometry::GetV(RajaFiniteElementSpace& fes,
                                  const IntegrationRule& ir,
                                  const RajaVector& Sx)
 {
@@ -71,7 +71,7 @@ RajaGeometry* RajaGeometry::GetV(FiniteElementSpace& fes,
 
 
 // *****************************************************************************
-RajaGeometry* RajaGeometry::Get(FiniteElementSpace& fes,
+RajaGeometry* RajaGeometry::Get(RajaFiniteElementSpace& fes,
                                 const IntegrationRule& ir)
 {
    push(SteelBlue);
@@ -218,16 +218,16 @@ void RajaDofQuadMaps::delRajaDofQuadMaps()
 }
 
 // *****************************************************************************
-RajaDofQuadMaps* RajaDofQuadMaps::Get(const FiniteElementSpace& fespace,
+RajaDofQuadMaps* RajaDofQuadMaps::Get(const RajaFiniteElementSpace& fespace,
                                       const mfem::IntegrationRule& ir,
                                       const bool transpose)
 {
    return Get(*fespace.GetFE(0),*fespace.GetFE(0),ir,transpose);
 }
 
-RajaDofQuadMaps* RajaDofQuadMaps::Get(const FiniteElementSpace&
+RajaDofQuadMaps* RajaDofQuadMaps::Get(const RajaFiniteElementSpace&
                                       trialFESpace,
-                                      const FiniteElementSpace& testFESpace,
+                                      const RajaFiniteElementSpace& testFESpace,
                                       const mfem::IntegrationRule& ir,
                                       const bool transpose)
 {
@@ -489,7 +489,7 @@ RajaDofQuadMaps* RajaDofQuadMaps::GetD2QSimplexMaps(const mfem::FiniteElement&
 std::map<std::string, RajaDofQuadMaps> RajaDofQuadMaps::AllDofQuadMaps;
 
 RajaGeometry RajaGeometry::Get(raja::device device,
-                               FiniteElementSpace &ofespace,
+                               RajaFiniteElementSpace &ofespace,
                                const mfem::IntegrationRule &ir,
                                const int flags)
 {
@@ -596,7 +596,7 @@ RajaDofQuadMaps& RajaDofQuadMaps::operator = (const RajaDofQuadMaps &maps)
 }
 
 RajaDofQuadMaps& RajaDofQuadMaps::Get(raja::device device,
-                                      const FiniteElementSpace &fespace,
+                                      const RajaFiniteElementSpace &fespace,
                                       const mfem::IntegrationRule &ir,
                                       const bool transpose)
 {
@@ -616,8 +616,8 @@ RajaDofQuadMaps& RajaDofQuadMaps::Get(raja::device device,
 }
 
 RajaDofQuadMaps& RajaDofQuadMaps::Get(raja::device device,
-                                      const FiniteElementSpace &trialFESpace,
-                                      const FiniteElementSpace &testFESpace,
+                                      const RajaFiniteElementSpace &trialFESpace,
+                                      const RajaFiniteElementSpace &testFESpace,
                                       const mfem::IntegrationRule &ir,
                                       const bool transpose)
 {
@@ -880,14 +880,14 @@ int closestMultipleWarpBatch(const int multiple, const int maxSize)
    return batch;
 }
 
-void SetProperties(FiniteElementSpace &fespace,
+void SetProperties(RajaFiniteElementSpace &fespace,
                    const mfem::IntegrationRule &ir)
 {
    SetProperties(fespace, fespace, ir);
 }
 
-void SetProperties(FiniteElementSpace &trialFESpace,
-                   FiniteElementSpace &testFESpace,
+void SetProperties(RajaFiniteElementSpace &trialFESpace,
+                   RajaFiniteElementSpace &testFESpace,
                    const mfem::IntegrationRule &ir)
 {
    //props["defines/TRIAL_VDIM"] = trialFESpace.GetVDim();
@@ -904,27 +904,27 @@ void SetProperties(FiniteElementSpace &trialFESpace,
    }
 }
 
-void SetTensorProperties(FiniteElementSpace &fespace,
+void SetTensorProperties(RajaFiniteElementSpace &fespace,
                          const mfem::IntegrationRule &ir)
 {
    SetTensorProperties(fespace, fespace, ir);
 }
 
-void SetTensorProperties(FiniteElementSpace &trialFESpace,
-                         FiniteElementSpace &testFESpace,
+void SetTensorProperties(RajaFiniteElementSpace &trialFESpace,
+                         RajaFiniteElementSpace &testFESpace,
                          const mfem::IntegrationRule &ir)
 {
    assert(false);
 }
 
-void SetSimplexProperties(FiniteElementSpace &fespace,
+void SetSimplexProperties(RajaFiniteElementSpace &fespace,
                           const mfem::IntegrationRule &ir)
 {
    SetSimplexProperties(fespace, fespace, ir);
 }
 
-void SetSimplexProperties(FiniteElementSpace &trialFESpace,
-                          FiniteElementSpace &testFESpace,
+void SetSimplexProperties(RajaFiniteElementSpace &trialFESpace,
+                          RajaFiniteElementSpace &testFESpace,
                           const mfem::IntegrationRule &ir)
 {
 
@@ -957,12 +957,12 @@ void RajaIntegrator::SetupMaps()
                                         *ir);
 }
 
-FiniteElementSpace& RajaIntegrator::GetTrialRajaFESpace() const
+RajaFiniteElementSpace& RajaIntegrator::GetTrialRajaFESpace() const
 {
    return *otrialFESpace;
 }
 
-FiniteElementSpace& RajaIntegrator::GetTestRajaFESpace() const
+RajaFiniteElementSpace& RajaIntegrator::GetTestRajaFESpace() const
 {
    return *otestFESpace;
 }

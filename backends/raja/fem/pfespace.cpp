@@ -8,6 +8,10 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
+
+#include "../../../config/config.hpp"
+#if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
+
 #include "../raja.hpp"
 
 namespace mfem
@@ -17,13 +21,13 @@ namespace raja
 {
 
 // ***************************************************************************
-// * RajaFiniteElementSpace
+// * RajaParFiniteElementSpace
 //  ***************************************************************************
-RajaFiniteElementSpace::RajaFiniteElementSpace(Mesh* mesh,
-                                               const FiniteElementCollection* fec,
-                                               const int vdim_,
-                                               Ordering::Type ordering_)
-   :ParFiniteElementSpace(static_cast<ParMesh*>(mesh),fec,vdim_,ordering_),
+RajaParFiniteElementSpace::RajaParFiniteElementSpace(const Engine &engine,
+                                                     mfem::ParFiniteElementSpace &pfes)
+   :PParFiniteElementSpace(engine,pfes),
+    ParFiniteElementSpace(pfes),//static_cast<ParMesh*>(mesh),fec,vdim_,ordering_),
+    e_layout(engine, 0),
     globalDofs(GetNDofs()),
     localDofs(GetFE(0)->GetDof()),
     offsets(globalDofs+1),
@@ -40,6 +44,9 @@ RajaFiniteElementSpace::RajaFiniteElementSpace(Mesh* mesh,
    const int* elementMap = e2dTable.GetJ();
    const int elements = GetNE();
    mfem::Array<int> h_offsets(globalDofs+1);
+   
+   e_layout.Resize(localDofs * elements * this->GetVDim());
+   
    // We'll be keeping a count of how many local nodes point to its global dof
    for (int i = 0; i <= globalDofs; ++i)
    {
@@ -88,8 +95,8 @@ RajaFiniteElementSpace::RajaFiniteElementSpace(Mesh* mesh,
 
    const SparseMatrix* R = GetRestrictionMatrix(); assert(R);
    //const Operator* P = GetProlongationMatrix(); assert(P);
-   const RajaConformingProlongationOperator *P = new
-   RajaConformingProlongationOperator(*this);
+   const ConformingProlongationOperator *P = new
+   ConformingProlongationOperator(*this);
 
    const int mHeight = R->Height();
    const int* I = R->GetI();
@@ -110,29 +117,33 @@ RajaFiniteElementSpace::RajaFiniteElementSpace(Mesh* mesh,
       }
    }
 
-   reorderIndices = ::new RajaArray<int>(2*trueCount);
+   reorderIndices = ::new raja::array<int>(2*trueCount);
    *reorderIndices = h_reorderIndices;
 
-   restrictionOp = new RajaRestrictionOperator(R->Height(),
-                                               R->Width(),
-                                               reorderIndices);
-   prolongationOp = new RajaProlongationOperator(P);
+   restrictionOp = new RestrictionOperator(RajaVLayout(), RajaTrueVLayout(),
+                                           //R->Height(),
+                                           //R->Width(),
+                                           *reorderIndices);
+   prolongationOp = new ProlongationOperator(RajaTrueVLayout(),RajaVLayout(),P);
    pop();
 }
 
 // ***************************************************************************
-RajaFiniteElementSpace::~RajaFiniteElementSpace()
+RajaParFiniteElementSpace::~RajaParFiniteElementSpace()
 {
    ::delete reorderIndices;
 }
 
 // ***************************************************************************
-bool RajaFiniteElementSpace::hasTensorBasis() const
+bool RajaParFiniteElementSpace::hasTensorBasis() const
 {
    assert(dynamic_cast<const TensorBasisElement*>(GetFE(0)));
    return true;
 }
 
-} // namespace raja
+
+} // namespace mfem::raja
 
 } // namespace mfem
+
+#endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)

@@ -14,13 +14,15 @@
 
 #include "../raja.hpp"
 
+//#if 0
+
 namespace mfem
 {
 
 namespace raja
 {
 
-RajaBilinearForm::RajaBilinearForm(FiniteElementSpace *ofespace_) :
+RajaBilinearForm::RajaBilinearForm(RajaFiniteElementSpace *ofespace_) :
    Operator(ofespace_->RajaVLayout()),
    localX(ofespace_->RajaEVLayout()),
    localY(ofespace_->RajaEVLayout())
@@ -28,8 +30,8 @@ RajaBilinearForm::RajaBilinearForm(FiniteElementSpace *ofespace_) :
    Init(ofespace_->RajaEngine(), ofespace_, ofespace_);
 }
 
-RajaBilinearForm::RajaBilinearForm(FiniteElementSpace *otrialFESpace_,
-                                   FiniteElementSpace *otestFESpace_) :
+RajaBilinearForm::RajaBilinearForm(RajaFiniteElementSpace *otrialFESpace_,
+                                   RajaFiniteElementSpace *otestFESpace_) :
    Operator(otrialFESpace_->RajaVLayout(),
             otestFESpace_->RajaVLayout()),
    localX(otrialFESpace_->RajaEVLayout()),
@@ -39,16 +41,16 @@ RajaBilinearForm::RajaBilinearForm(FiniteElementSpace *otrialFESpace_,
 }
 
 void RajaBilinearForm::Init(const Engine &e,
-                            FiniteElementSpace *otrialFESpace_,
-                            FiniteElementSpace *otestFESpace_)
+                            RajaFiniteElementSpace *otrialFESpace_,
+                            RajaFiniteElementSpace *otestFESpace_)
 {
    engine.Reset(&e);
 
    otrialFESpace = otrialFESpace_;
-   trialFESpace  = otrialFESpace_->GetFESpace();
+   trialFESpace  = otrialFESpace/*_->GetFESpace()*/;
 
    otestFESpace = otestFESpace_;
-   testFESpace  = otestFESpace_->GetFESpace();
+   testFESpace  = otestFESpace/*_->GetFESpace()*/;
 
    mesh = trialFESpace->GetMesh();
 }
@@ -73,12 +75,12 @@ Mesh& RajaBilinearForm::GetMesh() const
    return *mesh;
 }
 
-FiniteElementSpace& RajaBilinearForm::GetTrialRajaFESpace() const
+RajaFiniteElementSpace& RajaBilinearForm::GetTrialRajaFESpace() const
 {
    return *otrialFESpace;
 }
 
-FiniteElementSpace& RajaBilinearForm::GetTestRajaFESpace() const
+RajaFiniteElementSpace& RajaBilinearForm::GetTestRajaFESpace() const
 {
    return *otestFESpace;
 }
@@ -284,8 +286,7 @@ void RajaBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
 // Matrix vector multiplication.
 void RajaBilinearForm::Mult_(const Vector &x, Vector &y) const
 {
-   //assert(false);
-   otrialFESpace->GlobalToLocal(x, localX);
+   assert(false);//   otrialFESpace->GlobalToLocal(x, localX);
    localY.Fill<double>(0.0);
 
    const int integratorCount = (int) integrators.size();
@@ -294,13 +295,13 @@ void RajaBilinearForm::Mult_(const Vector &x, Vector &y) const
       integrators[i]->MultAdd(localX, localY);
    }
 
-   otestFESpace->LocalToGlobal(localY, y);
+   assert(false);//otestFESpace->LocalToGlobal(localY, y);
 }
 
 // Matrix transpose vector multiplication.
 void RajaBilinearForm::MultTranspose_(const Vector &x, Vector &y) const
 {
-   otestFESpace->GlobalToLocal(x, localX);
+  assert(false);// otestFESpace->GlobalToLocal(x, localX);
    localY.Fill<double>(0.0);
 
    const int integratorCount = (int) integrators.size();
@@ -309,7 +310,7 @@ void RajaBilinearForm::MultTranspose_(const Vector &x, Vector &y) const
       integrators[i]->MultTransposeAdd(localX, localY);
    }
 
-   otrialFESpace->LocalToGlobal(localY, y);
+   assert(false);//otrialFESpace->LocalToGlobal(localY, y);
 }
 
 void RajaBilinearForm::RajaRecoverFEMSolution(const mfem::Vector &X,
@@ -345,8 +346,8 @@ void BilinearForm::InitRajaBilinearForm()
    MFEM_ASSERT(bform != NULL, "");
    MFEM_ASSERT(obform == NULL, "");
 
-   FiniteElementSpace &ofes =
-      bform->FESpace()->Get_PFESpace()->As<FiniteElementSpace>();
+   RajaFiniteElementSpace &ofes =
+      bform->FESpace()->Get_PFESpace()->As<RajaFiniteElementSpace>();
    obform = new RajaBilinearForm(&ofes);
 
    // Transfer domain integrators
@@ -431,5 +432,7 @@ void BilinearForm::RecoverFEMSolution(const mfem::Vector &X,
 } // namespace mfem::raja
 
 } // namespace mfem
+
+//#endif // 0
 
 #endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)

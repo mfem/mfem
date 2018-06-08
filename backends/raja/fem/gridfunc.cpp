@@ -62,11 +62,11 @@ namespace raja
 //    ofespace(NULL),
 //    sequence(0) {}
 
-RajaGridFunction::RajaGridFunction(FiniteElementSpace *ofespace_)
-   : PArray(ofespace_->RajaVLayout()),
-     Array(ofespace_->RajaVLayout(), sizeof(double)),
-     Vector(ofespace_->RajaVLayout()),
-     ofespace(ofespace_),
+RajaGridFunction::RajaGridFunction(FiniteElementSpace &f)
+   : PArray(f.RajaVLayout()),
+     Array(f.RajaVLayout(), sizeof(double)),
+     Vector(f.RajaVLayout()),
+     fes(f),
      sequence(0) {}
 
 // RajaGridFunction::RajaGridFunction(RajaFiniteElementSpace *ofespace_,
@@ -79,7 +79,7 @@ RajaGridFunction::RajaGridFunction(const RajaGridFunction &v)
    : PArray(v),
      Array(v),
      Vector(v),
-     ofespace(v.ofespace),
+     fes(v.fes),
      sequence(v.sequence) {}
 
 RajaGridFunction& RajaGridFunction::operator = (double value)
@@ -116,7 +116,7 @@ RajaGridFunction& RajaGridFunction::operator = (const RajaGridFunction &v)
 
 void RajaGridFunction::GetTrueDofs(Vector &v)
 {
-   const mfem::Operator *R = ofespace->GetRestrictionOperator();
+   const mfem::Operator *R = fes.GetRestrictionOperator();
    if (!R)
    {
       v.MakeRef(*this);
@@ -131,7 +131,7 @@ void RajaGridFunction::GetTrueDofs(Vector &v)
 
 void RajaGridFunction::SetFromTrueDofs(Vector &v)
 {
-   const mfem::Operator *P = ofespace->GetProlongationOperator();
+   const mfem::Operator *P = fes.GetProlongationOperator();
    if (!P)
    {
       MakeRef(v);
@@ -146,12 +146,12 @@ void RajaGridFunction::SetFromTrueDofs(Vector &v)
 
 mfem::FiniteElementSpace* RajaGridFunction::GetFESpace()
 {
-   return ofespace->GetFESpace();
+   return fes.GetFESpace();
 }
 
 const mfem::FiniteElementSpace* RajaGridFunction::GetFESpace() const
 {
-   return ofespace->GetFESpace();
+   return fes.GetFESpace();
 }
 
 void RajaGridFunction::ToQuad(const IntegrationRule &ir, Vector &quadValues)
@@ -161,7 +161,7 @@ void RajaGridFunction::ToQuad(const IntegrationRule &ir, Vector &quadValues)
 
    //RajaDofQuadMaps *maps = RajaDofQuadMaps::Get(*ofespace, ir);
 
-   const int elements = ofespace->GetNE();
+   const int elements = fes.GetNE();
    const int numQuad  = ir.GetNPoints();
    quadValues.Resize<double>(*(new Layout(engine, numQuad * elements)), NULL);
 
@@ -176,10 +176,10 @@ void RajaGridFunction::ToQuad(const IntegrationRule &ir, Vector &quadValues)
 
 void RajaGridFunction::Distribute(const Vector &v)
 {
-   if (ofespace->isDistributed())
+   if (fes.isDistributed())
    {
       mfem::Vector mfem_this(*this);
-      ofespace->GetProlongationOperator()->Mult(v.Wrap(), mfem_this);
+      fes.GetProlongationOperator()->Mult(v.Wrap(), mfem_this);
    }
    else
    {

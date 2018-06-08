@@ -23,9 +23,6 @@
 #include <math.h>
 #include <stdarg.h>
 #include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <functional>
 #include <unordered_map>
 
 // *****************************************************************************

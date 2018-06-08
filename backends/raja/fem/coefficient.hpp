@@ -190,6 +190,7 @@ private:
    std::vector<RajaParameter*> params;
 
 public:
+   RajaCoefficient(const double value = 1.0);
    RajaCoefficient(const Engine &e, const double value = 1.0);
    RajaCoefficient(const Engine &e, const std::string &source);
    RajaCoefficient(const Engine &e, const char *source);

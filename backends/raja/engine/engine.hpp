@@ -59,9 +59,12 @@ public:
    virtual DVector MakeVector(PLayout &layout,
                               int type_id = ScalarId<double>::value) const;
 
-   virtual DFiniteElementSpace MakeFESpace(mfem::FiniteElementSpace &
-                                           fespace) const;
-
+#ifdef MFEM_USE_MPI
+   virtual DFiniteElementSpace MakeFESpace(mfem::ParFiniteElementSpace &) const;
+#else
+   virtual DFiniteElementSpace MakeFESpace(mfem::FiniteElementSpace &) const;
+#endif
+   
    virtual DBilinearForm MakeBilinearForm(mfem::BilinearForm &bf) const;
 
    /// FIXME - What will the actual parameters be?

@@ -15,7 +15,7 @@ namespace mfem
 
 namespace raja
 {
-
+/*
 // ***************************************************************************
 void RajaGridFunction::ToQuad(const IntegrationRule& ir,
                               RajaVector& quadValues)
@@ -46,7 +46,7 @@ void RajaGridFunction::ToQuad(const IntegrationRule& ir,
                       quadValues);
    pop();
 }
-   
+*/
 } // namespace raja
 
 } // mfem

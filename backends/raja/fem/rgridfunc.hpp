@@ -21,7 +21,7 @@ namespace mfem
 
 namespace raja
 {
-   
+   /*
 class RajaGridFunction : public RajaVector
 {
 public:
@@ -47,7 +47,7 @@ public:
       return *this;
    }
 };
-
+   */
 } // raja
    
 } // mfem

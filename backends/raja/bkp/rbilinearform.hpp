@@ -13,8 +13,12 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
-#ifndef LAGHOS_RAJA_BILINEARFORM
-#define LAGHOS_RAJA_BILINEARFORM
+
+#ifndef MFEM_BACKENDS_RAJA_RBILINEAR_FORM_HPP
+#define MFEM_BACKENDS_RAJA_RBILINEAR_FORM_HPP
+
+#include "../../../config/config.hpp"
+#if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
 namespace mfem
 {
@@ -45,15 +49,15 @@ protected:
    typedef std::vector<RajaIntegrator*> IntegratorVector;
    SharedPtr<const Engine> engine;
    mutable mfem::Mesh* mesh;
-   mutable FiniteElementSpace *rtrialFESpace;
+   mutable RajaFiniteElementSpace *rtrialFESpace;
    mutable mfem::FiniteElementSpace *trialFESpace;
-   mutable FiniteElementSpace *rtestFESpace;
+   mutable RajaFiniteElementSpace *rtestFESpace;
    mutable mfem::FiniteElementSpace *testFESpace;
    IntegratorVector integrators;
    mutable Vector localX, localY;
 public:
    // **************************************************************************
-   RajaBilinearForm(FiniteElementSpace*);
+   RajaBilinearForm(RajaFiniteElementSpace*);
    ~RajaBilinearForm();
    // **************************************************************************
    const Engine &OccaEngine() const { return *engine; }
@@ -93,7 +97,7 @@ public:
 // ***************************************************************************
 // * Constrained Operator
 // ***************************************************************************
-class RajaConstrainedOperator : public Operator
+/*class RajaConstrainedOperator : public Operator
 {
 protected:
    mfem::Operator *A;
@@ -108,7 +112,7 @@ public:
    virtual void Mult_(const Vector&, Vector&) const;
    virtual ~RajaConstrainedOperator() {}
 };
-
+*/
 // *****************************************************************************
 // *****************************************************************************
 class BilinearForm : public mfem::PBilinearForm
@@ -154,5 +158,6 @@ public:
    
 } // mfem
 
-#endif // LAGHOS_RAJA_BILINEARFORM
+#endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
+#endif // MFEM_BACKENDS_RAJA_BILINEAR_FORM_HPP

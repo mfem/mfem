@@ -12,6 +12,7 @@
 #define MFEM_BACKENDS_RAJA_HPP
 
 // stdincs *********************************************************************
+#include <math.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <assert.h>
@@ -67,8 +68,10 @@
 
 // RAJA/fem ********************************************************************
 #include "fem/fespace.hpp"
+#include "fem/pfespace.hpp"
 #include "fem/gridfunc.hpp"
 #include "fem/bilinearform.hpp"
+//#include "fem/rbilinearform.hpp"
 #include "fem/coefficient.hpp"
 #include "fem/bilininteg.hpp"
 #include "fem/restrict.hpp"

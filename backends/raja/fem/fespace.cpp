@@ -155,7 +155,7 @@ FiniteElementSpace::~FiniteElementSpace()
 }
 
 // **************************************************************************
-void FiniteElementSpace::GlobalToLocal(const Vector &globalVec,
+   void FiniteElementSpace::GlobalToLocal(const raja::Vector &globalVec,
                                        Vector &localVec) const
 {
    push(PowderBlue);

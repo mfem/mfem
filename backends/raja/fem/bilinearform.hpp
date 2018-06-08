@@ -15,6 +15,8 @@
 #include "../../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
+//#if 0
+
 namespace mfem
 {
 
@@ -46,16 +48,13 @@ protected:
    // State information
    mutable mfem::Mesh *mesh;
 
-   mutable FiniteElementSpace *otrialFESpace;
+   mutable RajaParFiniteElementSpace *otrialFESpace;
    mutable mfem::FiniteElementSpace *trialFESpace;
 
-   mutable FiniteElementSpace *otestFESpace;
+   mutable RajaParFiniteElementSpace *otestFESpace;
    mutable mfem::FiniteElementSpace *testFESpace;
 
    IntegratorVector integrators;
-
-   // Device data
-   //::raja::properties baseKernelProps;
 
    // The input and output vectors are mapped to local nodes for efficient
    // operations. In other words, they are E-vectors.
@@ -63,14 +62,14 @@ protected:
    mutable Vector localX, localY;
 
 public:
-   RajaBilinearForm(FiniteElementSpace *ofespace_);
+   RajaBilinearForm(RajaParFiniteElementSpace *ofespace_);
 
-   RajaBilinearForm(FiniteElementSpace *otrialFESpace_,
-                    FiniteElementSpace *otestFESpace_);
+   RajaBilinearForm(RajaParFiniteElementSpace *otrialFESpace_,
+                    RajaParFiniteElementSpace *otestFESpace_);
 
    void Init(const Engine &e,
-             FiniteElementSpace *otrialFESpace_,
-             FiniteElementSpace *otestFESpace_);
+             RajaParFiniteElementSpace *otrialFESpace_,
+             RajaParFiniteElementSpace *otestFESpace_);
 
    const Engine &RajaEngine() const { return *engine; }
 
@@ -84,8 +83,8 @@ public:
 
    mfem::Mesh& GetMesh() const;
 
-   FiniteElementSpace& GetTrialRajaFESpace() const;
-   FiniteElementSpace& GetTestRajaFESpace() const;
+   RajaParFiniteElementSpace& GetTrialRajaFESpace() const;
+   RajaParFiniteElementSpace& GetTestRajaFESpace() const;
 
    mfem::FiniteElementSpace& GetTrialFESpace() const;
    mfem::FiniteElementSpace& GetTestFESpace() const;
@@ -196,6 +195,8 @@ public:
 } // namespace mfem::raja
 
 } // namespace mfem
+
+//#endif // 0
 
 #endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 

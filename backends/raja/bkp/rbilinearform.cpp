@@ -8,9 +8,11 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
-#include "../raja.hpp"
 
+#include "../../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
+
+#include "../raja.hpp"
 
 namespace mfem
 {
@@ -21,15 +23,15 @@ namespace raja
 // ***************************************************************************
 // * RajaBilinearForm
 // ***************************************************************************
-RajaBilinearForm::RajaBilinearForm(FiniteElementSpace *fes) :
-   Operator(fes->RajaVLayout),
-   mesh(fes->GetMesh()),
-   rtrialFESpace(fes),
-   trialFESpace(fes->GetFESpace()),
-   rtestFESpace(fes),
-   testFESpace(fes->GetFESpace()),
-   localX(fes->RajaEVLayout()),
-   localY(fes->RajaEVLayout()) {
+RajaBilinearForm::RajaBilinearForm(RajaFiniteElementSpace *pfes) :
+   Operator(pfes->RajaVLayout),
+   mesh(pfes->GetMesh()),
+   rtrialFESpace(pfes),
+   trialFESpace(pfes->Get_PFESpace()),//GetFESpace
+   rtestFESpace(pfes),
+   testFESpace(pfes->Get_PFESpace()),//GetFESpace
+   localX(pfes->RajaEVLayout()),
+   localY(pfes->RajaEVLayout()) {
    dbg("\n\033[31m[RajaBilinearForm]");
 }
 

@@ -34,35 +34,15 @@ public:
    static const int Jacobian    = (1 << 0);
    static const int JacobianInv = (1 << 1);
    static const int JacobianDet = (1 << 2);
-   static RajaGeometry* Get(FiniteElementSpace&,
+   static RajaGeometry* Get(RajaParFiniteElementSpace&,
                             const IntegrationRule&);
-   static RajaGeometry* GetV(FiniteElementSpace&,
+   static RajaGeometry* GetV(RajaParFiniteElementSpace&,
                              const IntegrationRule&,
                              const RajaVector&);
    static void ReorderByVDim(GridFunction& nodes);
    static void ReorderByNodes(GridFunction& nodes);
 };
-/*
-class RajaGeometry
-{
-public:
-   raja::array<double> meshNodes;
-   raja::array<double> J, invJ, detJ;
-
-   // byVDIM  -> [x y z x y z x y z]
-   // byNodes -> [x x x y y y z z z]
-   static const int Jacobian    = (1 << 0);
-   static const int JacobianInv = (1 << 1);
-   static const int JacobianDet = (1 << 2);
-
-   static RajaGeometry Get(raja::device device,
-                           FiniteElementSpace &ofespace,
-                           const IntegrationRule &ir,
-                           const int flags = (Jacobian    |
-                                              JacobianInv |
-                                              JacobianDet));
-};
-*/
+   
 // ***************************************************************************
 // * RajaDofQuadMaps
 // ***************************************************************************
@@ -77,11 +57,11 @@ public:
 public:
    ~RajaDofQuadMaps();
    static void delRajaDofQuadMaps();
-   static RajaDofQuadMaps* Get(const FiniteElementSpace&,
+   static RajaDofQuadMaps* Get(const RajaParFiniteElementSpace&,
                                const mfem::IntegrationRule&,
                                const bool = false);
-   static RajaDofQuadMaps* Get(const FiniteElementSpace&,
-                               const FiniteElementSpace&,
+   static RajaDofQuadMaps* Get(const RajaParFiniteElementSpace&,
+                               const RajaParFiniteElementSpace&,
                                const mfem::IntegrationRule&,
                                const bool = false);
    static RajaDofQuadMaps* Get(const mfem::FiniteElement&,
@@ -106,125 +86,18 @@ public:
                                              const mfem::IntegrationRule&,
                                              const bool = false);
 };
-/*class RajaDofQuadMaps
-{
-private:
-   // Reuse dof-quad maps
-   static std::map<std::string, RajaDofQuadMaps> AllDofQuadMaps;
-   std::string hash;
-
-public:
-   // Local stiffness matrices (B and B^T operators)
-   raja::array<double, raja::dynamic> dofToQuad, dofToQuadD; // B
-   raja::array<double, raja::dynamic> quadToDof, quadToDofD; // B^T
-   raja::array<double> quadWeights;
-
-   RajaDofQuadMaps();
-   RajaDofQuadMaps(const RajaDofQuadMaps &maps);
-   RajaDofQuadMaps& operator = (const RajaDofQuadMaps &maps);
-
-   // [[x y] [x y] [x y]]
-   // [[x y z] [x y z] [x y z]]
-   // mfem::GridFunction* mfem::Mesh::GetNodes() { return Nodes; }
-
-   // mfem::FiniteElementSpace *Nodes->FESpace()
-   // 25
-   // 1D [x x x x x x]
-   // 2D [x y x y x y]
-   // GetVdim()
-   // 3D ordering == byVDIM  -> [x y z x y z x y z x y z x y z x y z]
-   //    ordering == byNODES -> [x x x x x x y y y y y y z z z z z z]
-   static RajaDofQuadMaps& Get(raja::device device,
-                               const FiniteElementSpace &fespace,
-                               const mfem::IntegrationRule &ir,
-                               const bool transpose = false);
-
-   static RajaDofQuadMaps& Get(raja::device device,
-                               const mfem::FiniteElement &fe,
-                               const mfem::IntegrationRule &ir,
-                               const bool transpose = false);
-
-   static RajaDofQuadMaps& Get(raja::device device,
-                               const FiniteElementSpace &trialFESpace,
-                               const FiniteElementSpace &testFESpace,
-                               const mfem::IntegrationRule &ir,
-                               const bool transpose = false);
-
-   static RajaDofQuadMaps& Get(raja::device device,
-                               const mfem::FiniteElement &trialFE,
-                               const mfem::FiniteElement &testFE,
-                               const mfem::IntegrationRule &ir,
-                               const bool transpose = false);
-
-   static RajaDofQuadMaps& GetTensorMaps(raja::device device,
-                                         const mfem::FiniteElement &fe,
-                                         const mfem::IntegrationRule &ir,
-                                         const bool transpose = false);
-
-   static RajaDofQuadMaps& GetTensorMaps(raja::device device,
-                                         const mfem::FiniteElement &trialFE,
-                                         const mfem::FiniteElement &testFE,
-                                         const mfem::IntegrationRule &ir,
-                                         const bool transpose = false);
-
-   static RajaDofQuadMaps GetD2QTensorMaps(raja::device device,
-                                           const mfem::FiniteElement &fe,
-                                           const mfem::IntegrationRule &ir,
-                                           const bool transpose = false);
-
-   static RajaDofQuadMaps& GetSimplexMaps(raja::device device,
-                                          const mfem::FiniteElement &fe,
-                                          const mfem::IntegrationRule &ir,
-                                          const bool transpose = false);
-
-   static RajaDofQuadMaps& GetSimplexMaps(raja::device device,
-                                          const mfem::FiniteElement &trialFE,
-                                          const mfem::FiniteElement &testFE,
-                                          const mfem::IntegrationRule &ir,
-                                          const bool transpose = false);
-
-   static RajaDofQuadMaps GetD2QSimplexMaps(raja::device device,
-                                            const mfem::FiniteElement &fe,
-                                            const mfem::IntegrationRule &ir,
-                                            const bool transpose = false);
-};
-
-//---[ Define Methods ]---------------
-std::string stringWithDim(const std::string &s, const int dim);
-int closestWarpBatch(const int multiple, const int maxSize);
-
-void SetProperties(FiniteElementSpace &fespace,
-                   const mfem::IntegrationRule &ir);
-
-void SetProperties(FiniteElementSpace &trialFESpace,
-                   FiniteElementSpace &testFESpace,
-                   const mfem::IntegrationRule &ir);
-
-void SetTensorProperties(FiniteElementSpace &fespace,
-                         const mfem::IntegrationRule &ir);
-
-void SetTensorProperties(FiniteElementSpace &trialFESpace,
-                         FiniteElementSpace &testFESpace,
-                         const IntegrationRule &ir);
-
-void SetSimplexProperties(FiniteElementSpace &fespace,
-                          const IntegrationRule &ir);
-
-void SetSimplexProperties(FiniteElementSpace &trialFESpace,
-                          FiniteElementSpace &testFESpace,
-                          const IntegrationRule &ir);
-*/
+   
 //---[ Base Integrator ]--------------
 class RajaIntegrator
 {
 protected:
    SharedPtr<const Engine> engine;
 
-   RajaBilinearForm *bform;
+   raja::RajaBilinearForm *bform;
    mfem::Mesh *mesh;
 
-   FiniteElementSpace *otrialFESpace;
-   FiniteElementSpace *otestFESpace;
+   RajaParFiniteElementSpace *otrialFESpace;
+   RajaParFiniteElementSpace *otestFESpace;
 
    mfem::FiniteElementSpace *trialFESpace;
    mfem::FiniteElementSpace *testFESpace;
@@ -243,8 +116,8 @@ public:
    raja::device GetDevice(int idx = 0) const
    { return engine->GetDevice(idx); }
    virtual std::string GetName() = 0;
-   FiniteElementSpace& GetTrialRajaFESpace() const;
-   FiniteElementSpace& GetTestRajaFESpace() const;
+   RajaParFiniteElementSpace& GetTrialRajaFESpace() const;
+   RajaParFiniteElementSpace& GetTestRajaFESpace() const;
    mfem::FiniteElementSpace& GetTrialFESpace() const;
    mfem::FiniteElementSpace& GetTestFESpace() const;
    void SetIntegrationRule(const mfem::IntegrationRule &ir_);
