@@ -21,38 +21,40 @@ namespace mfem
 
 namespace raja
 {
-   class device;
-      
-   // ***************************************************************************
-  class memory {
-  public:
-     std::size_t bytes;
-    char *data;
-  public:
-    memory(const std::size_t =0, const void* =NULL);
-     
-    size_t size() const;
-     raja::device getDevice();
-    void copyTo(void *dest);
-  
-    void copyFrom(memory &src);
-  
-    void copyFrom(const void*);
-     
-    void* ptr() const;
-     inline operator double* () { return (double*)data; }
-     inline operator const double* () const { return (const double*)data; }
+class device;
 
-    memory slice(const size_t offset,
-                 const size_t bytes = -1) const;
-    
-    inline char* operator[](const size_t i) {
+// ***************************************************************************
+class memory
+{
+public:
+   std::size_t bytes;
+   char *data;
+public:
+   memory(const std::size_t =0, const void* =NULL);
+
+   size_t size() const;
+   raja::device getDevice();
+   void copyTo(void *dest);
+
+   void copyFrom(memory &src);
+
+   void copyFrom(const void*);
+
+   void* ptr() const;
+   inline operator double* () { return (double*)data; }
+   inline operator const double* () const { return (const double*)data; }
+
+   memory slice(const size_t offset,
+                const size_t bytes = -1) const;
+
+   inline char* operator[](const size_t i)
+   {
       return data+i;
-    }
-     
-     bool operator == (const memory &);
-  };
-  
+   }
+
+   bool operator == (const memory &);
+};
+
 
 } // namespace mfem::raja
 

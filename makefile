@@ -307,7 +307,8 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # RAJA dirs
-RAJA_BACKEND_DIR = $(patsubst %/,%,$(dir $(abspath $(firstword $(MAKEFILE_LIST)))))/backends/raja
+MAKEFILE_DIR = $(dir $(abspath $(firstword $(MAKEFILE_LIST))))
+RAJA_BACKEND_DIR = $(patsubst %/,%,$(MAKEFILE_DIR))/backends/raja
 RAJA_SRC_DIRS := 	\
 	$(RAJA_BACKEND_DIR)/config \
 	$(RAJA_BACKEND_DIR)/engine \

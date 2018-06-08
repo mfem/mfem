@@ -22,16 +22,17 @@ namespace mfem
 
 namespace raja
 {
-   class memory;
+class memory;
 
-   // ***************************************************************************
-  class device  {
-  public:
-     device();
-     ~device();
-     bool hasSeparateMemorySpace();
-     raja::memory malloc(const std::size_t,const void * = NULL);
-  };
+// ***************************************************************************
+class device
+{
+public:
+   device();
+   ~device();
+   bool hasSeparateMemorySpace();
+   raja::memory malloc(const std::size_t,const void * = NULL);
+};
 
 } // namespace mfem::raja
 

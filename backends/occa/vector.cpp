@@ -54,7 +54,8 @@ void Vector::DoDotProduct(const PVector &x, void *result,
    double local_dot = *res;
    if (IsParallel())
    {
-      MPI_Allreduce(&local_dot, res, 1, MPI_DOUBLE, MPI_SUM, OccaLayout().OccaEngine().GetComm());
+      MPI_Allreduce(&local_dot, res, 1, MPI_DOUBLE, MPI_SUM,
+                    OccaLayout().OccaEngine().GetComm());
    }
 #endif
 }

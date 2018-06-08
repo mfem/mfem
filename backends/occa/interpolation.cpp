@@ -21,30 +21,39 @@ namespace occa
 {
 
 // TODO this should be moved somewhere more useful
-namespace {
-mfem::Vector& GetHostVector(const int id, const int64_t size) {
+namespace
+{
+mfem::Vector& GetHostVector(const int id, const int64_t size)
+{
    static std::vector<mfem::Vector*> v;
-   if (v.size() <= (size_t) id) {
-      for (int i = (int) v.size(); i < (id + 1); ++i) {
-	 v.push_back(new mfem::Vector);
+   if (v.size() <= (size_t) id)
+   {
+      for (int i = (int) v.size(); i < (id + 1); ++i)
+      {
+         v.push_back(new mfem::Vector);
       }
    }
-   if (size >= 0) {
+   if (size >= 0)
+   {
       v[id]->SetSize(size);
    }
    return *(v[id]);
 }
 
 void OccaMult(const mfem::Operator &op,
-	      const Vector &x, Vector &y) {
+              const Vector &x, Vector &y)
+{
    ::occa::device device = x.OccaLayout().OccaEngine().GetDevice();
-   if (device.hasSeparateMemorySpace()) {
+   if (device.hasSeparateMemorySpace())
+   {
       mfem::Vector &hostX = GetHostVector(0, op.Width());
       mfem::Vector &hostY = GetHostVector(1, op.Height());
       x.OccaMem().copyTo(hostX.GetData(), hostX.Size() * sizeof(double));
       op.Mult(hostX, hostY);
       y.OccaMem().copyFrom(hostY.GetData(), hostY.Size() * sizeof(double));
-   } else {
+   }
+   else
+   {
       mfem::Vector hostX((double*) x.OccaMem().ptr(), x.Size());
       mfem::Vector hostY((double*) y.OccaMem().ptr(), y.Size());
       op.Mult(hostX, hostY);
@@ -52,15 +61,19 @@ void OccaMult(const mfem::Operator &op,
 }
 
 void OccaMultTranspose(const mfem::Operator &op,
-		       const Vector &x, Vector &y) {
+                       const Vector &x, Vector &y)
+{
    ::occa::device device = x.OccaLayout().OccaEngine().GetDevice();
-   if (device.hasSeparateMemorySpace()) {
+   if (device.hasSeparateMemorySpace())
+   {
       mfem::Vector &hostX = GetHostVector(1, op.Height());
       mfem::Vector &hostY = GetHostVector(0, op.Width());
       x.OccaMem().copyTo(hostX.GetData(), hostX.Size() * sizeof(double));
       op.MultTranspose(hostX, hostY);
       y.OccaMem().copyFrom(hostY.GetData(), hostY.Size() * sizeof(double));
-   } else {
+   }
+   else
+   {
       mfem::Vector hostX((double*) x.OccaMem().ptr(), x.Size());
       mfem::Vector hostY((double*) y.OccaMem().ptr(), y.Size());
       op.MultTranspose(hostX, hostY);

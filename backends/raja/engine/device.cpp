@@ -17,20 +17,22 @@ namespace mfem
 
 namespace raja
 {
-   device::device() {}
-   device::~device() {}
+device::device() {}
+device::~device() {}
 
-  // ***************************************************************************
-  bool device::hasSeparateMemorySpace(){
-    return false;
-  }
+// ***************************************************************************
+bool device::hasSeparateMemorySpace()
+{
+   return false;
+}
 
-  // ***************************************************************************
-  memory device::malloc(const std::size_t bytes,
-                        const void *src){
-     assert(src==NULL);
-     return memory(bytes,src);
-  }
+// ***************************************************************************
+memory device::malloc(const std::size_t bytes,
+                      const void *src)
+{
+   assert(src==NULL);
+   return memory(bytes,src);
+}
 
 } // namespace mfem::raja
 

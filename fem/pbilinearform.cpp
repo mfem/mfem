@@ -306,30 +306,30 @@ void ParBilinearForm::FormLinearSystem(
       // multipliers, set X = 0.0 for hybridization.
       if (static_cond)
       {
-	 // Schur complement reduction to the exposed dofs
-	 static_cond->ReduceSystem(x, b, X, B, copy_interior);
+         // Schur complement reduction to the exposed dofs
+         static_cond->ReduceSystem(x, b, X, B, copy_interior);
       }
       else if (hybridization)
       {
-	 // Reduction to the Lagrange multipliers system
-	 HypreParVector true_X(pfes), true_B(pfes);
-	 P.MultTranspose(b, true_B);
-	 R.Mult(x, true_X);
-	 p_mat.EliminateBC(p_mat_e, ess_tdof_list, true_X, true_B);
-	 R.MultTranspose(true_B, b);
-	 hybridization->ReduceRHS(true_B, B);
-	 X.SetSize(B.Size());
-	 X = 0.0;
+         // Reduction to the Lagrange multipliers system
+         HypreParVector true_X(pfes), true_B(pfes);
+         P.MultTranspose(b, true_B);
+         R.Mult(x, true_X);
+         p_mat.EliminateBC(p_mat_e, ess_tdof_list, true_X, true_B);
+         R.MultTranspose(true_B, b);
+         hybridization->ReduceRHS(true_B, B);
+         X.SetSize(B.Size());
+         X = 0.0;
       }
       else
       {
-	 // Variational restriction with P
-	 X.SetSize(pfes->TrueVSize());
-	 B.SetSize(X.Size());
-	 P.MultTranspose(b, B);
-	 R.Mult(x, X);
-	 p_mat.EliminateBC(p_mat_e, ess_tdof_list, X, B);
-	 if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
+         // Variational restriction with P
+         X.SetSize(pfes->TrueVSize());
+         B.SetSize(X.Size());
+         P.MultTranspose(b, B);
+         R.Mult(x, X);
+         p_mat.EliminateBC(p_mat_e, ess_tdof_list, X, B);
+         if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
       }
    }
 }

@@ -29,12 +29,12 @@ class Engine : public mfem::Engine
 protected:
    raja::device *dev=NULL;
    std::string okl_path, okl_defines;
-   
+
    void Init(const std::string &engine_spec);
-   
+
 public:
    Engine(const std::string &engine_spec);
-   
+
 #ifdef MFEM_USE_MPI
    Engine(MPI_Comm comm, const std::string &engine_spec);
 #endif

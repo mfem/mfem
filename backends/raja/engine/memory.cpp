@@ -23,46 +23,55 @@ namespace mfem
 
 namespace raja
 {
-  memory::memory(const std::size_t _bytes,
-                 const void *src)://mHandle(new memory_v()),
-                                  bytes(_bytes),
-                                  data(::new char[bytes]){
-    assert(src==NULL);
-  }
-   
-   raja::device memory::getDevice(){
-     return raja::device();
-  }
+memory::memory(const std::size_t _bytes,
+               const void *src)://mHandle(new memory_v()),
+   bytes(_bytes),
+   data(::new char[bytes])
+{
+   assert(src==NULL);
+}
 
-  size_t memory::size() const {
-    return bytes;
-  }
- 
-  void memory::copyFrom(memory &src) {
-     memcpy(data,src,bytes);
- }
-  
-  void memory::copyFrom(const void *src) {
-    memcpy(data,src,bytes);
-  }
-  
-  void memory::copyTo(void *dest) {
-    memcpy(dest,data,bytes);
-  }
-    
-  void* memory::ptr() const {    
-    return (void*)data;
-  }
-    
-  memory memory::slice(const size_t offset,
-                       const size_t bytes) const{
-    MFEM_ABORT("FIXME");
-    return memory();
-  }
-   
-   bool memory::operator == (const memory &m){
-      return (ptr() == m.ptr()) && (size() == m.size());
-   }
+raja::device memory::getDevice()
+{
+   return raja::device();
+}
+
+size_t memory::size() const
+{
+   return bytes;
+}
+
+void memory::copyFrom(memory &src)
+{
+   memcpy(data,src,bytes);
+}
+
+void memory::copyFrom(const void *src)
+{
+   memcpy(data,src,bytes);
+}
+
+void memory::copyTo(void *dest)
+{
+   memcpy(dest,data,bytes);
+}
+
+void* memory::ptr() const
+{
+   return (void*)data;
+}
+
+memory memory::slice(const size_t offset,
+                     const size_t bytes) const
+{
+   MFEM_ABORT("FIXME");
+   return memory();
+}
+
+bool memory::operator == (const memory &m)
+{
+   return (ptr() == m.ptr()) && (size() == m.size());
+}
 
 } // namespace mfem::raja
 

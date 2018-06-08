@@ -9,8 +9,8 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_BACKENDS_RAJA_INTERPOLATION_HPP
-#define MFEM_BACKENDS_RAJA_INTERPOLATION_HPP
+#ifndef MFEM_BACKENDS_RAJA_RESTRICT_HPP
+#define MFEM_BACKENDS_RAJA_RESTRICT_HPP
 
 #include "../../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
@@ -27,11 +27,6 @@ namespace mfem
 namespace raja
 {
 
-// [MISSING] Proper destructors
-void CreateRPOperators(Layout &v_layout, Layout &t_layout,
-                       const mfem::SparseMatrix *R, const mfem::Operator *P,
-                       mfem::Operator *&RajaR, mfem::Operator *&RajaP);
-
 // *****************************************************************************
 class RestrictionOperator : public Operator
 {
@@ -45,28 +40,10 @@ public:
    virtual void MultTranspose_(const Vector &x, Vector &y) const;
 };
 
-// *****************************************************************************
-class ProlongationOperator : public Operator
-{
-protected:
-   const mfem::Operator *pmat;
-   RajaSparseMatrix multOp, multTransposeOp;
-public:
-   ProlongationOperator(RajaSparseMatrix &multOp_,
-                        RajaSparseMatrix &multTransposeOp_);
-
-   ProlongationOperator(Layout &in_layout, Layout &out_layout,
-                        const mfem::Operator *pmat_);
-
-   // overrides
-   virtual void Mult_(const Vector &x, Vector &y) const;
-   virtual void MultTranspose_(const Vector &x, Vector &y) const;
-};
-
 } // namespace mfem::raja
 
 } // namespace mfem
 
 #endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
-#endif // MFEM_BACKENDS_RAJA_INTERPOLATION_HPP
+#endif // MFEM_BACKENDS_RAJA_RESTRICT_HPP

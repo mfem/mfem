@@ -44,7 +44,7 @@ void computeCapabilityOfTheDevice(const int mpi_rank,
    cuDeviceGetName(name, 128, cuDevice);
    cuDeviceComputeCapability(&major, &minor, device);
    dbg("\n\033[32m[laghos] Rank_%d => Device_%d (%s:sm_%d.%d)\033[m\n",
-          mpi_rank, device, name, major, minor);
+       mpi_rank, device, name, major, minor);
 }
 #endif
 
@@ -243,7 +243,7 @@ bool rconfig::DoHostConformingProlongationOperator()
    if (Occa()) { return true; }
    return (Cuda())?hcpo:true;
 }
-   
+
 } // raja
 
 } // namespace mfem

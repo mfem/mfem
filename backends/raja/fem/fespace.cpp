@@ -14,7 +14,8 @@
 
 #include "../engine/backend.hpp"
 #include "../fem/fespace.hpp"
-#include "../linalg/interpolation.hpp"
+#include "../fem/restrict.hpp"
+#include "../fem/prolong.hpp"
 
 namespace mfem
 {
@@ -22,6 +23,49 @@ namespace mfem
 namespace raja
 {
 
+
+// *****************************************************************************
+void CreateRPOperators(Layout &v_layout, Layout &t_layout,
+                       const mfem::SparseMatrix *R, const mfem::Operator *P,
+                       mfem::Operator *&RajaR, mfem::Operator *&RajaP)
+{
+   if (!P)
+   {
+      RajaR = new IdentityOperator(t_layout);
+      RajaP = new IdentityOperator(t_layout);
+      return;
+   }
+
+   const mfem::SparseMatrix *pmat = dynamic_cast<const mfem::SparseMatrix*>(P);
+   raja::device device = v_layout.RajaEngine().GetDevice();
+
+   if (R)
+   {
+      RajaSparseMatrix *rajaR =
+         CreateMappedSparseMatrix(v_layout, t_layout, *R);
+      raja::array<int> reorderIndices = rajaR->reorderIndices;
+      delete rajaR;
+      RajaR = new RestrictionOperator(v_layout, t_layout, reorderIndices);
+   }
+
+   if (pmat)
+   {
+      const mfem::SparseMatrix *pmatT = Transpose(*pmat);
+
+      RajaSparseMatrix *rajaP  =
+         CreateMappedSparseMatrix(t_layout, v_layout, *pmat);
+      RajaSparseMatrix *rajaPT =
+         CreateMappedSparseMatrix(v_layout, t_layout, *pmatT);
+
+      RajaP = new ProlongationOperator(*rajaP, *rajaPT);
+   }
+   else
+   {
+      RajaP = new ProlongationOperator(t_layout, v_layout, P);
+   }
+}
+
+   
 FiniteElementSpace::FiniteElementSpace(const Engine &e,
                                        mfem::FiniteElementSpace &fespace)
    : PFiniteElementSpace(e, fespace),
@@ -95,6 +139,7 @@ FiniteElementSpace::FiniteElementSpace(const Engine &e,
    
    const mfem::SparseMatrix *R = fes->GetRestrictionMatrix();
    const mfem::Operator *P = fes->GetProlongationMatrix();
+   
    CreateRPOperators(RajaVLayout(), RajaTrueVLayout(),
                      R, P,
                      restrictionOp,
