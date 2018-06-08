@@ -255,7 +255,7 @@ void RajaBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
       X.MakeRef(x);
       B.MakeRef(b);
    }
-   
+
    if (!copy_interior && constraintList.Size() > 0)
    {
       const Array &constrList = constraintList.Get_PArray()->As<Array>();

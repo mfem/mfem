@@ -18,21 +18,23 @@
 #ifndef __LAMBDA__
 extern "C" kernel
 void vector_clear_dofs0(const int N,
-                       double* __restrict v0,
-                       const int* __restrict v1) {
-  const int i = blockDim.x * blockIdx.x + threadIdx.x;
-  if (i < N) v0[v1[i]] = 0.0;
+                        double* __restrict v0,
+                        const int* __restrict v1)
+{
+   const int i = blockDim.x * blockIdx.x + threadIdx.x;
+   if (i < N) { v0[v1[i]] = 0.0; }
 }
 #endif
 
 void vector_clear_dofs(const int N,
                        double* __restrict v0,
-                       const int* __restrict v1) {
-  push(clear,Cyan);
+                       const int* __restrict v1)
+{
+   push(clear,Cyan);
 #ifndef __LAMBDA__
-  cuKer(vector_clear_dofs,N,v0,v1);
+   cuKer(vector_clear_dofs,N,v0,v1);
 #else
-  forall(i,N,v0[v1[i]] = 0.0;);
+   forall(i,N,v0[v1[i]] = 0.0;);
 #endif
-  pop();
+   pop();
 }

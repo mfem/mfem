@@ -18,7 +18,7 @@
 
 namespace mfem
 {
-   
+
 namespace raja
 {
 
@@ -35,7 +35,7 @@ public:
    const int *GetRow(int i) const { return J+I[i]; }
    int *GetRow(int i) { return J+I[i]; }
 };
-   
+
 } // raja
 
 } // mfem

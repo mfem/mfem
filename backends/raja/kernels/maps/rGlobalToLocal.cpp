@@ -19,30 +19,33 @@
 extern "C" kernel
 void rGlobalToLocal0(const int globalEntries,
                      const int NUM_VDIM,
-                     const bool VDIM_ORDERING,                     
+                     const bool VDIM_ORDERING,
                      const int localEntries,
                      const int* __restrict offsets,
                      const int* __restrict indices,
                      const double* __restrict globalX,
-                     double* __restrict localX) {
+                     double* __restrict localX)
+{
 #ifdef __LAMBDA__
-  forall(i,globalEntries,
+   forall(i,globalEntries,
 #else
-  const int i = blockDim.x * blockIdx.x + threadIdx.x;
-  if (i < globalEntries)
+   const int i = blockDim.x * blockIdx.x + threadIdx.x;
+   if (i < globalEntries)
 #endif
-  {
-    const int offset = offsets[i];
-    const int nextOffset = offsets[i+1];
-    for (int v = 0; v < NUM_VDIM; ++v) {
-      const int g_offset = ijNMt(v,i,NUM_VDIM,globalEntries,VDIM_ORDERING);
+          {
+             const int offset = offsets[i];
+             const int nextOffset = offsets[i+1];
+             for (int v = 0; v < NUM_VDIM; ++v)
+{
+   const int g_offset = ijNMt(v,i,NUM_VDIM,globalEntries,VDIM_ORDERING);
       const double dofValue = globalX[g_offset];
-      for (int j = offset; j < nextOffset; ++j) {
-        const int l_offset = ijNMt(v,indices[j],NUM_VDIM,localEntries,VDIM_ORDERING);
-        localX[l_offset] = dofValue;
+      for (int j = offset; j < nextOffset; ++j)
+      {
+         const int l_offset = ijNMt(v,indices[j],NUM_VDIM,localEntries,VDIM_ORDERING);
+         localX[l_offset] = dofValue;
       }
-    }
-  }
+   }
+          }
 #ifdef __LAMBDA__
          );
 #endif
@@ -54,9 +57,10 @@ void rGlobalToLocal(const int NUM_VDIM,
                     const int* __restrict offsets,
                     const int* __restrict indices,
                     const double* __restrict globalX,
-                    double* __restrict localX) {
-  push(Lime);
-  cuKer(rGlobalToLocal,globalEntries,NUM_VDIM,VDIM_ORDERING,
-        localEntries,offsets,indices,globalX,localX);
-  pop();
+                    double* __restrict localX)
+{
+   push(Lime);
+   cuKer(rGlobalToLocal,globalEntries,NUM_VDIM,VDIM_ORDERING,
+         localEntries,offsets,indices,globalX,localX);
+   pop();
 }

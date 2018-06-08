@@ -18,7 +18,7 @@
 
 namespace mfem
 {
-   
+
 namespace raja
 {
 
@@ -71,7 +71,7 @@ void add(const double,const RajaVector&,const double,const RajaVector&,
 void subtract(const RajaVector&,const RajaVector&,RajaVector&);
 
 } // raja
-   
+
 } // mfem
 
 #endif // LAGHOS_RAJA_VECTOR

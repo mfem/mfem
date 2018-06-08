@@ -24,10 +24,13 @@ namespace raja
 {
 
 
-// *****************************************************************************
-void CreateRPOperators(Layout &v_layout, Layout &t_layout,
-                       const mfem::SparseMatrix *R, const mfem::Operator *P,
-                       mfem::Operator *&RajaR, mfem::Operator *&RajaP)
+// **************************************************************************
+static void CreateRPOperators(Layout &v_layout,
+                              Layout &t_layout,
+                              const mfem::SparseMatrix *R,
+                              const mfem::Operator *P,
+                              mfem::Operator *&RajaR,
+                              mfem::Operator *&RajaP)
 {
    if (!P)
    {
@@ -65,7 +68,7 @@ void CreateRPOperators(Layout &v_layout, Layout &t_layout,
    }
 }
 
-   
+// **************************************************************************
 FiniteElementSpace::FiniteElementSpace(const Engine &e,
                                        mfem::FiniteElementSpace &fespace)
    : PFiniteElementSpace(e, fespace),
@@ -80,7 +83,8 @@ FiniteElementSpace::FiniteElementSpace(const Engine &e,
 {
    push(PowderBlue);
    const mfem::FiniteElement &fe = *(fes->GetFE(0));
-   const mfem::TensorBasisElement* el = dynamic_cast<const mfem::TensorBasisElement*>(&fe);
+   const mfem::TensorBasisElement* el =
+      dynamic_cast<const mfem::TensorBasisElement*>(&fe);
    const mfem::Array<int> &dof_map = el->GetDofMap();
    const bool dof_map_is_identity = (dof_map.Size()==0);
 
@@ -136,54 +140,60 @@ FiniteElementSpace::FiniteElementSpace(const Engine &e,
    globalToLocalOffsets = h_offsets;
    globalToLocalIndices = h_indices;
    localToGlobalMap = h_map;
-   
+
    const mfem::SparseMatrix *R = fes->GetRestrictionMatrix();
    const mfem::Operator *P = fes->GetProlongationMatrix();
-   
+
    CreateRPOperators(RajaVLayout(), RajaTrueVLayout(),
                      R, P,
                      restrictionOp,
                      prolongationOp);
 }
 
+// **************************************************************************
 FiniteElementSpace::~FiniteElementSpace()
 {
    delete restrictionOp;
    delete prolongationOp;
 }
-   
-   void FiniteElementSpace::GlobalToLocal(const Vector &globalVec, Vector &localVec) const
-   {
-      push(PowderBlue);
-      const int vdim = GetVDim();
-      const int localEntries = localDofs * GetNE();
-      const bool vdim_ordering = ordering == Ordering::byVDIM;
-      rGlobalToLocal(vdim,
-                     vdim_ordering,
-                     globalDofs,
-                     localEntries,
-                     globalToLocalOffsets,
-                     globalToLocalIndices,
-                     (const double*)globalVec.RajaMem().ptr(),
-                     (double*)localVec.RajaMem().ptr());
-      pop();
-   }
-   void FiniteElementSpace::LocalToGlobal(const Vector &localVec, Vector &globalVec) const
-   {
-      push(PowderBlue);
-      const int vdim = GetVDim();
-      const int localEntries = localDofs * GetNE();
-      const bool vdim_ordering = ordering == Ordering::byVDIM;
-      rLocalToGlobal(vdim,
-                     vdim_ordering,
-                     globalDofs,
-                     localEntries,
-                     globalToLocalOffsets,
-                     globalToLocalIndices,
-                     (const double*)localVec.RajaMem().ptr(),
-                     (double*)globalVec.RajaMem().ptr());
-      pop();
-   }
+
+// **************************************************************************
+void FiniteElementSpace::GlobalToLocal(const Vector &globalVec,
+                                       Vector &localVec) const
+{
+   push(PowderBlue);
+   const int vdim = GetVDim();
+   const int localEntries = localDofs * GetNE();
+   const bool vdim_ordering = ordering == Ordering::byVDIM;
+   rGlobalToLocal(vdim,
+                  vdim_ordering,
+                  globalDofs,
+                  localEntries,
+                  globalToLocalOffsets,
+                  globalToLocalIndices,
+                  (const double*)globalVec.RajaMem().ptr(),
+                  (double*)localVec.RajaMem().ptr());
+   pop();
+}
+
+// **************************************************************************
+void FiniteElementSpace::LocalToGlobal(const Vector &localVec,
+                                       Vector &globalVec) const
+{
+   push(PowderBlue);
+   const int vdim = GetVDim();
+   const int localEntries = localDofs * GetNE();
+   const bool vdim_ordering = ordering == Ordering::byVDIM;
+   rLocalToGlobal(vdim,
+                  vdim_ordering,
+                  globalDofs,
+                  localEntries,
+                  globalToLocalOffsets,
+                  globalToLocalIndices,
+                  (const double*)localVec.RajaMem().ptr(),
+                  (double*)globalVec.RajaMem().ptr());
+   pop();
+}
 
 } // namespace mfem::raja
 

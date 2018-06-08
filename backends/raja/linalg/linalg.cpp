@@ -17,18 +17,18 @@ namespace mfem
 
 namespace raja
 {
-  
+
 namespace linalg
 {
-  
-  // ***************************************************************************
-   double dot(const raja::memory vec1, const raja::memory vec2)
-   {
-      const double d = vector_dot(vec1.size()/sizeof(double),vec1,vec2);
-      //printf("\n[dot] result=%f", d);fflush(0);
-      return d;
-  }
-  
+
+// ***************************************************************************
+double dot(const raja::memory vec1, const raja::memory vec2)
+{
+   const double d = vector_dot(vec1.size()/sizeof(double),vec1,vec2);
+   //printf("\n[dot] result=%f", d);fflush(0);
+   return d;
+}
+
 } // namespace mfem::raja::linalg
 
 } // namespace mfem::raja

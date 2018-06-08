@@ -19,7 +19,7 @@
 
 namespace mfem
 {
-   
+
 namespace raja
 {
 
@@ -31,21 +31,24 @@ template <class T> class array<T,true> : public rmalloc<T>
 private:
    T* data = NULL;
    size_t sz=0;
-   size_t d[4]={0};
+   size_t d[4]= {0};
 public:
    array():data(NULL),sz(0),d{0,0,0,0} {}
    array(const size_t x) {allocate(x);}
    array(const size_t x,const size_t y) {allocate(x,y);}
-   array(const array<T,true> &r) {
+   array(const array<T,true> &r)
+   {
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
       memcpy(data,r.GetData(),r.bytes());
    }
-   array& operator=(const array<T,true> &r){
+   array& operator=(const array<T,true> &r)
+   {
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
       memcpy(data,r.GetData(),r.bytes());
       return *this;
    }
-   array& operator=(mfem::Array<T> &a){
+   array& operator=(mfem::Array<T> &a)
+   {
       rmemcpy::rHtoD(data,a.GetData(),a.Size()*sizeof(T));
       return *this;
    }
@@ -69,7 +72,7 @@ public:
       dbg("\033[32m[i");
       data=(T*) rmalloc<T>::operator new (sz);
    }
-   inline bool isInitialized(void)const{return true;}
+   inline bool isInitialized(void)const {return true;}
    inline T& operator[](const size_t x) { return data[x]; }
    inline T& operator()(const size_t x, const size_t y)
    {
@@ -97,15 +100,17 @@ private:
    static const int DIM = 4;
    T* data = NULL;
    size_t sz=0;
-   size_t d[DIM]={0};
+   size_t d[DIM]= {0};
 public:
    array():data(NULL),sz(0),d{0,0,0,0} {}
    array(const size_t d0) {allocate(d0);}
-   array(const array<T,false> &r) {
+   array(const array<T,false> &r)
+   {
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
       memcpy(data,r.GetData(),r.bytes());
    }
-   array& operator=(const array<T,true> &r){
+   array& operator=(const array<T,true> &r)
+   {
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
       memcpy(data,r.GetData(),r.bytes());
       return *this;
@@ -144,7 +149,7 @@ public:
       d[0]=1;
       if (transposed) { xsw(d[0],d[1]); }
    }
-   inline bool isInitialized(void)const{return true;}
+   inline bool isInitialized(void)const {return true;}
    inline T& operator[](const size_t x) { return data[x]; }
    inline T& operator()(const size_t x, const size_t y)
    {
@@ -166,7 +171,7 @@ public:
 };
 
 } // raja
-   
+
 } // mfem
 
 #endif // LAGHOS_RAJA_ARRAY

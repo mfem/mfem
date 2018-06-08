@@ -21,38 +21,42 @@
 
 // *****************************************************************************
 static double cub_vector_min(const int N,
-                             const double* __restrict vec) {
-  static double *h_min = NULL;
-  if (!h_min) h_min = (double*)mfem::rmalloc<double>::operator new(1,true);
-  static double *d_min = NULL;
-  if (!d_min) d_min=(double*)mfem::rmalloc<double>::operator new(1);
-  static void *d_storage = NULL;
-  static size_t storage_bytes = 0;
-  if (!d_storage){
-    cub::DeviceReduce::Min(d_storage, storage_bytes, vec, d_min, N);
-    d_storage = mfem::rmalloc<char>::operator new(storage_bytes);
-  }
-  cub::DeviceReduce::Min(d_storage, storage_bytes, vec, d_min, N);
-  mfem::rmemcpy::rDtoH(h_min,d_min,sizeof(double));
-  return *h_min;
+                             const double* __restrict vec)
+{
+   static double *h_min = NULL;
+   if (!h_min) { h_min = (double*)mfem::rmalloc<double>::operator new (1,true); }
+   static double *d_min = NULL;
+   if (!d_min) { d_min=(double*)mfem::rmalloc<double>::operator new (1); }
+   static void *d_storage = NULL;
+   static size_t storage_bytes = 0;
+   if (!d_storage)
+   {
+      cub::DeviceReduce::Min(d_storage, storage_bytes, vec, d_min, N);
+      d_storage = mfem::rmalloc<char>::operator new (storage_bytes);
+   }
+   cub::DeviceReduce::Min(d_storage, storage_bytes, vec, d_min, N);
+   mfem::rmemcpy::rDtoH(h_min,d_min,sizeof(double));
+   return *h_min;
 }
 #endif // __NVCC__
 
 
 // *****************************************************************************
 double vector_min(const int N,
-                  const double* __restrict vec) {
-  push(min,Cyan);
+                  const double* __restrict vec)
+{
+   push(min,Cyan);
 #ifdef __NVCC__
-  if (mfem::rconfig::Get().Cuda()){
-    const double result = cub_vector_min(N,vec);
-    pop();
-    return result;
-  }
+   if (mfem::rconfig::Get().Cuda())
+   {
+      const double result = cub_vector_min(N,vec);
+      pop();
+      return result;
+   }
 #endif
-  ReduceDecl(Min,red,vec[0]);
-  ReduceForall(i,N,red.min(vec[i]););
-  pop();
-  return red;
+   ReduceDecl(Min,red,vec[0]);
+   ReduceForall(i,N,red.min(vec[i]););
+   pop();
+   return red;
 }
 

@@ -24,26 +24,27 @@ namespace mfem
 
 namespace raja
 {
-   
+
 // ***************************************************************************
 // * RajaGeometry
 // ***************************************************************************
-class RajaGeometry {
- public:
-  ~RajaGeometry();
+class RajaGeometry
+{
+public:
+   ~RajaGeometry();
    raja::array<int> eMap;
    raja::array<double> meshNodes;
    raja::array<double> J, invJ, detJ;
    static const int Jacobian    = (1 << 0);
    static const int JacobianInv = (1 << 1);
    static const int JacobianDet = (1 << 2);
-  static RajaGeometry* Get(FiniteElementSpace&,
-                           const IntegrationRule&);
-  static RajaGeometry* GetV(FiniteElementSpace&,
-                           const IntegrationRule&,
-                           const RajaVector&);
-  static void ReorderByVDim(GridFunction& nodes);
-  static void ReorderByNodes(GridFunction& nodes);
+   static RajaGeometry* Get(FiniteElementSpace&,
+                            const IntegrationRule&);
+   static RajaGeometry* GetV(FiniteElementSpace&,
+                             const IntegrationRule&,
+                             const RajaVector&);
+   static void ReorderByVDim(GridFunction& nodes);
+   static void ReorderByNodes(GridFunction& nodes);
 };
 /*
 class RajaGeometry
@@ -69,44 +70,45 @@ public:
 // ***************************************************************************
 // * RajaDofQuadMaps
 // ***************************************************************************
-class RajaDofQuadMaps {
- private:
-  std::string hash;
- public:
+class RajaDofQuadMaps
+{
+private:
+   std::string hash;
+public:
    raja::array<double, false> dofToQuad, dofToQuadD; // B
    raja::array<double, false> quadToDof, quadToDofD; // B^T
    raja::array<double> quadWeights;
 public:
-  ~RajaDofQuadMaps();
-  static void delRajaDofQuadMaps();
-  static RajaDofQuadMaps* Get(const FiniteElementSpace&,
-                              const mfem::IntegrationRule&,
-                              const bool = false);
-  static RajaDofQuadMaps* Get(const FiniteElementSpace&,
-                              const FiniteElementSpace&,
-                              const mfem::IntegrationRule&,
-                              const bool = false);
-  static RajaDofQuadMaps* Get(const mfem::FiniteElement&,
-                              const mfem::FiniteElement&,
-                              const mfem::IntegrationRule&,
-                              const bool = false);
+   ~RajaDofQuadMaps();
+   static void delRajaDofQuadMaps();
+   static RajaDofQuadMaps* Get(const FiniteElementSpace&,
+                               const mfem::IntegrationRule&,
+                               const bool = false);
+   static RajaDofQuadMaps* Get(const FiniteElementSpace&,
+                               const FiniteElementSpace&,
+                               const mfem::IntegrationRule&,
+                               const bool = false);
+   static RajaDofQuadMaps* Get(const mfem::FiniteElement&,
+                               const mfem::FiniteElement&,
+                               const mfem::IntegrationRule&,
+                               const bool = false);
    static RajaDofQuadMaps* GetTensorMaps(const mfem::FiniteElement&,
                                          const mfem::FiniteElement&,
-                                        const mfem::IntegrationRule&,
-                                        const bool = false);
+                                         const mfem::IntegrationRule&,
+                                         const bool = false);
    static RajaDofQuadMaps* GetD2QTensorMaps(const mfem::FiniteElement&,
-                                           const mfem::IntegrationRule&,
-                                           const bool = false);
-   static RajaDofQuadMaps* GetSimplexMaps(const mfem::FiniteElement&,
-                                         const mfem::IntegrationRule&,
-                                         const bool = false);
-   static RajaDofQuadMaps* GetSimplexMaps(const mfem::FiniteElement&,
-                                          const mfem::FiniteElement&,
-                                         const mfem::IntegrationRule&,
-                                         const bool = false);
-   static RajaDofQuadMaps* GetD2QSimplexMaps(const mfem::FiniteElement&,
                                             const mfem::IntegrationRule&,
                                             const bool = false);
+   static RajaDofQuadMaps* GetSimplexMaps(const mfem::FiniteElement&,
+                                          const mfem::IntegrationRule&,
+                                          const bool = false);
+   static RajaDofQuadMaps* GetSimplexMaps(const mfem::FiniteElement&,
+                                          const mfem::FiniteElement&,
+                                          const mfem::IntegrationRule&,
+                                          const bool = false);
+   static RajaDofQuadMaps* GetD2QSimplexMaps(const mfem::FiniteElement&,
+                                             const mfem::IntegrationRule&,
+                                             const bool = false);
 };
 /*class RajaDofQuadMaps
 {
@@ -265,8 +267,8 @@ public:
       mfem_error("RajaIntegrator::MultTransposeAdd() is not overloaded!");
    }
    RajaGeometry *GetGeometry(const int flags = (RajaGeometry::Jacobian    |
-                                               RajaGeometry::JacobianInv |
-                                               RajaGeometry::JacobianDet));
+                                                RajaGeometry::JacobianInv |
+                                                RajaGeometry::JacobianDet));
 
 };
 //====================================

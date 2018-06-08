@@ -75,7 +75,7 @@ void RajaConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
                       (double*)b.RajaMem().ptr(),
                       (double*)x.RajaMem().ptr(),
                       (int*)constraintList.ptr());
-    }
+   }
 }
 
 void RajaConstrainedOperator::Mult_(const Vector &x, Vector &y) const
@@ -95,7 +95,8 @@ void RajaConstrainedOperator::Mult_(const Vector &x, Vector &y) const
 
    //assert(false);
    //clearDofs
-   vector_clear_dofs(constraintIndices, (double*)z.RajaMem().ptr(), (int*)constraintList.ptr());
+   vector_clear_dofs(constraintIndices, (double*)z.RajaMem().ptr(),
+                     (int*)constraintList.ptr());
 
    A->Mult(mfem_z, mfem_y);
 

@@ -21,22 +21,24 @@ extern "C" kernel
 void rSetSubVector0(const int N,
                     const int* indices,
                     const double* in,
-                    double* __restrict out) {
-  const int i = blockDim.x * blockIdx.x + threadIdx.x;
-  if (i < N) out[indices[i]] = in[i];
+                    double* __restrict out)
+{
+   const int i = blockDim.x * blockIdx.x + threadIdx.x;
+   if (i < N) { out[indices[i]] = in[i]; }
 }
 #endif
 void rSetSubVector(const int N,
                    const int* indices,
                    const double* in,
-                   double* __restrict out) {
-  push(Lime);
+                   double* __restrict out)
+{
+   push(Lime);
 #ifndef __LAMBDA__
-  cuKer(rSetSubVector,N,indices,in,out);
+   cuKer(rSetSubVector,N,indices,in,out);
 #else
-  forall(i,N,out[indices[i]] = in[i];);
+   forall(i,N,out[indices[i]] = in[i];);
 #endif
-  pop();
+   pop();
 }
 
 // *****************************************************************************
@@ -45,31 +47,34 @@ extern "C" kernel
 void rMapSubVector0(const int N,
                     const int* indices,
                     const double* in,
-                    double* __restrict out) {
-  const int i = blockDim.x * blockIdx.x + threadIdx.x;
-  if (i < N)
-  {
-    const int fromIdx = indices[2*i + 0];
-    const int toIdx   = indices[2*i + 1];
-    out[toIdx] = in[fromIdx];
-  }
+                    double* __restrict out)
+{
+   const int i = blockDim.x * blockIdx.x + threadIdx.x;
+   if (i < N)
+   {
+      const int fromIdx = indices[2*i + 0];
+      const int toIdx   = indices[2*i + 1];
+      out[toIdx] = in[fromIdx];
+   }
 }
 #endif
 void rMapSubVector(const int N,
                    const int* indices,
                    const double* in,
-                   double* __restrict out) {
-  push(Lime);
+                   double* __restrict out)
+{
+   push(Lime);
 #ifndef __LAMBDA__
-  cuKer(rMapSubVector,N,indices,in,out);
+   cuKer(rMapSubVector,N,indices,in,out);
 #else
-  forall(i,N,{
+   forall(i,N,
+   {
       const int fromIdx = indices[2*i + 0];
       const int toIdx   = indices[2*i + 1];
       out[toIdx] = in[fromIdx];
-    });
+   });
 #endif
-  pop();
+   pop();
 }
 
 // *****************************************************************************
@@ -78,20 +83,22 @@ extern "C" kernel
 void rExtractSubVector0(const int N,
                         const int* indices,
                         const double* in,
-                        double* __restrict out) {
-  const int i = blockDim.x * blockIdx.x + threadIdx.x;
-  if (i < N) out[i] = in[indices[i]];
+                        double* __restrict out)
+{
+   const int i = blockDim.x * blockIdx.x + threadIdx.x;
+   if (i < N) { out[i] = in[indices[i]]; }
 }
 #endif
 void rExtractSubVector(const int N,
                        const int* indices,
                        const double* in,
-                       double* __restrict out) {
-  push(Lime);
+                       double* __restrict out)
+{
+   push(Lime);
 #ifndef __LAMBDA__
-  cuKer(rExtractSubVector,N,indices,in,out);
+   cuKer(rExtractSubVector,N,indices,in,out);
 #else
-  forall(i,N,out[i] = in[indices[i]];);
+   forall(i,N,out[i] = in[indices[i]];);
 #endif
-  pop();
+   pop();
 }

@@ -18,7 +18,7 @@
 
 namespace mfem
 {
-   
+
 namespace raja
 {
 
@@ -30,7 +30,7 @@ struct rmemcpy
    static void* rDtoH(void*, const void*, std::size_t, const bool =false);
    static void* rDtoD(void*, const void*, std::size_t, const bool =false);
 };
-   
+
 } // raja
 
 } // mfem

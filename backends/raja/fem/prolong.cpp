@@ -24,31 +24,39 @@ namespace mfem
 
 namespace raja
 {
-      
-mfem::Vector& GetHostVector(const int id, const int64_t size) {
+
+mfem::Vector& GetHostVector(const int id, const int64_t size)
+{
    static std::vector<mfem::Vector*> v;
-   if (v.size() <= (size_t) id) {
-      for (int i = (int) v.size(); i < (id + 1); ++i) {
+   if (v.size() <= (size_t) id)
+   {
+      for (int i = (int) v.size(); i < (id + 1); ++i)
+      {
          v.push_back(new mfem::Vector);
       }
    }
-   if (size >= 0) {
+   if (size >= 0)
+   {
       v[id]->SetSize(size);
    }
    return *(v[id]);
 }
-   
+
 void RajaMult(const mfem::Operator &op,
-              const Vector &x, Vector &y) {
+              const Vector &x, Vector &y)
+{
    raja::device device = x.RajaLayout().RajaEngine().GetDevice();
-   if (device.hasSeparateMemorySpace()) {
+   if (device.hasSeparateMemorySpace())
+   {
       assert(false);/*
                       mfem::Vector &hostX = GetHostVector(0, op.Width());
                       mfem::Vector &hostY = GetHostVector(1, op.Height());
                       x.RajaMem().copyTo(hostX.GetData(), hostX.Size() * sizeof(double));
                       op.Mult(hostX, hostY);
                       y.RajaMem().copyFrom(hostY.GetData(), hostY.Size() * sizeof(double));*/
-   } else {
+   }
+   else
+   {
       mfem::Vector hostX((double*) x.RajaMem().ptr(), x.Size());
       mfem::Vector hostY((double*) y.RajaMem().ptr(), y.Size());
       op.Mult(hostX, hostY);
@@ -56,67 +64,71 @@ void RajaMult(const mfem::Operator &op,
 }
 
 void RajaMultTranspose(const mfem::Operator &op,
-                       const Vector &x, Vector &y) {
+                       const Vector &x, Vector &y)
+{
    raja::device device = x.RajaLayout().RajaEngine().GetDevice();
-   if (device.hasSeparateMemorySpace()) {
+   if (device.hasSeparateMemorySpace())
+   {
       assert(false);/*
       mfem::Vector &hostX = GetHostVector(1, op.Height());
       mfem::Vector &hostY = GetHostVector(0, op.Width());
       x.RajaMem().copyTo((void*)hostX.GetData(), hostX.Size() * sizeof(double));
       op.MultTranspose(hostX, hostY);
       y.RajaMem().copyFrom(hostY.GetData(), hostY.Size() * sizeof(double));*/
-   } else {
+   }
+   else
+   {
       mfem::Vector hostX((double*) x.RajaMem().ptr(), x.Size());
       mfem::Vector hostY((double*) y.RajaMem().ptr(), y.Size());
       op.MultTranspose(hostX, hostY);
    }
 }
 
-   // **************************************************************************
-   ProlongationOperator::ProlongationOperator(RajaSparseMatrix &multOp_,
-                                              RajaSparseMatrix &multTransposeOp_) :
-      Operator(multOp_),
-      pmat(NULL),
-      multOp(multOp_),
-      multTransposeOp(multTransposeOp_) {}
-   
-   // **************************************************************************
-   ProlongationOperator::ProlongationOperator(Layout &in_layout,
-                                              Layout &out_layout,
-                                              const mfem::Operator *pmat_) :
-      Operator(in_layout, out_layout),
-      pmat(pmat_),
-      multOp(*this),
-      multTransposeOp(*this)
-   { }
+// **************************************************************************
+ProlongationOperator::ProlongationOperator(RajaSparseMatrix &multOp_,
+                                           RajaSparseMatrix &multTransposeOp_) :
+   Operator(multOp_),
+   pmat(NULL),
+   multOp(multOp_),
+   multTransposeOp(multTransposeOp_) {}
 
-   // **************************************************************************
-   void ProlongationOperator::Mult_(const Vector &x, Vector &y) const
-   {
-      //assert(false);
-      if (pmat)
-      {
-         RajaMult(*pmat, x, y);
-      }
-      else
-      {
-         // TODO: define 'ox' and 'oy'
-         multOp.Mult_(x, y);
-      }
-   }
+// **************************************************************************
+ProlongationOperator::ProlongationOperator(Layout &in_layout,
+                                           Layout &out_layout,
+                                           const mfem::Operator *pmat_) :
+   Operator(in_layout, out_layout),
+   pmat(pmat_),
+   multOp(*this),
+   multTransposeOp(*this)
+{ }
 
-   // **************************************************************************
-   void ProlongationOperator::MultTranspose_(const Vector &x, Vector &y) const
+// **************************************************************************
+void ProlongationOperator::Mult_(const Vector &x, Vector &y) const
+{
+   //assert(false);
+   if (pmat)
    {
-      if (pmat)
-      {
-         RajaMultTranspose(*pmat, x, y);
-      }
-      else
-      {
-         multTransposeOp.Mult_(x, y);
-      }
+      RajaMult(*pmat, x, y);
    }
+   else
+   {
+      // TODO: define 'ox' and 'oy'
+      multOp.Mult_(x, y);
+   }
+}
+
+// **************************************************************************
+void ProlongationOperator::MultTranspose_(const Vector &x, Vector &y) const
+{
+   if (pmat)
+   {
+      RajaMultTranspose(*pmat, x, y);
+   }
+   else
+   {
+      multTransposeOp.Mult_(x, y);
+   }
+}
 
 } // namespace mfem::raja
 

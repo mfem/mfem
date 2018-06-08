@@ -20,20 +20,22 @@
 extern "C" kernel
 void vector_vec_mul0(const int N,
                      double* __restrict v0,
-                     const double d) {
-  const int i = blockDim.x*blockIdx.x+threadIdx.x;
-  if (i < N) v0[i]*=d;
+                     const double d)
+{
+   const int i = blockDim.x*blockIdx.x+threadIdx.x;
+   if (i < N) { v0[i]*=d; }
 }
 #endif
 
 void vector_vec_mul(const int N,
                     double* __restrict v0,
-                    const double d) {
-  push(mul,Cyan);
+                    const double d)
+{
+   push(mul,Cyan);
 #ifndef __LAMBDA__
-  cuKer(vector_vec_mul,N,v0,d);
+   cuKer(vector_vec_mul,N,v0,d);
 #else
-  forall(i,N,v0[i]*=d;);
+   forall(i,N,v0[i]*=d;);
 #endif
-  pop();
+   pop();
 }

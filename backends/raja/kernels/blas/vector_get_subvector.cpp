@@ -18,14 +18,16 @@
 #ifndef __LAMBDA__
 extern "C" kernel
 void vector_get_subvector0(const int N,
-                          double* __restrict v0,
-                          const double* __restrict v1,
-                          const int* __restrict v2) {
-  const int i = blockDim.x * blockIdx.x + threadIdx.x;
-  if (i < N){
-    const int dof_i = v2[i];
-    v0[i] = dof_i >= 0 ? v1[dof_i] : -v1[-dof_i-1];
-  }
+                           double* __restrict v0,
+                           const double* __restrict v1,
+                           const int* __restrict v2)
+{
+   const int i = blockDim.x * blockIdx.x + threadIdx.x;
+   if (i < N)
+   {
+      const int dof_i = v2[i];
+      v0[i] = dof_i >= 0 ? v1[dof_i] : -v1[-dof_i-1];
+   }
 }
 #endif
 
@@ -33,16 +35,18 @@ void vector_get_subvector0(const int N,
 void vector_get_subvector(const int N,
                           double* __restrict v0,
                           const double* __restrict v1,
-                          const int* __restrict v2) {
-  push(get,Cyan);
+                          const int* __restrict v2)
+{
+   push(get,Cyan);
 #ifndef __LAMBDA__
-  cuKer(vector_get_subvector,N,v0,v1,v2);
+   cuKer(vector_get_subvector,N,v0,v1,v2);
 #else
-  forall(i,N,{
+   forall(i,N,
+   {
       const int dof_i = v2[i];
       v0[i] = dof_i >= 0 ? v1[dof_i] : -v1[-dof_i-1];
-    });
+   });
 #endif
-  pop();
+   pop();
 }
 

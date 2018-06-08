@@ -18,19 +18,21 @@
 #ifndef __LAMBDA__
 extern "C" kernel
 void vector_neg0(const int N,
-                double* __restrict vec) {
-  const int i = blockDim.x * blockIdx.x + threadIdx.x;
-  if (i < N) vec[i] *= -1.0;
+                 double* __restrict vec)
+{
+   const int i = blockDim.x * blockIdx.x + threadIdx.x;
+   if (i < N) { vec[i] *= -1.0; }
 }
 #endif
 
 void vector_neg(const int N,
-                double* __restrict vec) {
-  push(neg,Cyan);
+                double* __restrict vec)
+{
+   push(neg,Cyan);
 #ifndef __LAMBDA__
-  cuKer(vector_neg,N,vec);
+   cuKer(vector_neg,N,vec);
 #else
-  forall(i,N,vec[i] *= -1.0;);
+   forall(i,N,vec[i] *= -1.0;);
 #endif
-  pop();
+   pop();
 }

@@ -103,7 +103,7 @@ public:
 
    void GlobalToLocal(const Vector &globalVec, Vector &localVec) const;
    void LocalToGlobal(const Vector &localVec, Vector &globalVec) const;
-   
+
 };
 
 } // namespace mfem::raja

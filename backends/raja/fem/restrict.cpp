@@ -20,31 +20,34 @@ namespace mfem
 
 namespace raja
 {
-   
-   // **************************************************************************
-   RestrictionOperator::RestrictionOperator(Layout &in_layout, Layout &out_layout,
-                                            raja::array<int> indices) :
-      Operator(in_layout, out_layout)
-   {
-      entries     = indices.size() / 2;
-      trueIndices = indices;
-   }
 
-   // **************************************************************************
-   void RestrictionOperator::Mult_(const Vector &x, Vector &y) const
-   {
-      dbg("\033[34;1m[Mult_] entries=%ld, trueIndices size=%ld",entries, trueIndices.Size());
-      rExtractSubVector(entries, trueIndices, (double*)x.RajaMem().ptr(), (double*)y.RajaMem().ptr());
-      //assert(false);
-   }
+// **************************************************************************
+RestrictionOperator::RestrictionOperator(Layout &in_layout, Layout &out_layout,
+                                         raja::array<int> indices) :
+   Operator(in_layout, out_layout)
+{
+   entries     = indices.size() / 2;
+   trueIndices = indices;
+}
 
-   // **************************************************************************
-   void RestrictionOperator::MultTranspose_(const Vector &x, Vector &y) const
-   {
-      y.Fill<double>(0.0);
-      assert(false);
-      rMapSubVector(entries, trueIndices, (double*)x.RajaMem().ptr(), (double*)y.RajaMem().ptr());
-   }
+// **************************************************************************
+void RestrictionOperator::Mult_(const Vector &x, Vector &y) const
+{
+   dbg("\033[34;1m[Mult_] entries=%ld, trueIndices size=%ld",entries,
+       trueIndices.Size());
+   rExtractSubVector(entries, trueIndices, (double*)x.RajaMem().ptr(),
+                     (double*)y.RajaMem().ptr());
+   //assert(false);
+}
+
+// **************************************************************************
+void RestrictionOperator::MultTranspose_(const Vector &x, Vector &y) const
+{
+   y.Fill<double>(0.0);
+   assert(false);
+   rMapSubVector(entries, trueIndices, (double*)x.RajaMem().ptr(),
+                 (double*)y.RajaMem().ptr());
+}
 
 } // namespace mfem::raja
 

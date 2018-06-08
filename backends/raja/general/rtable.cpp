@@ -12,10 +12,10 @@
 
 namespace mfem
 {
-   
+
 namespace raja
 {
-   
+
 // ***************************************************************************
 RajaTable::RajaTable(const Table &table)
 {

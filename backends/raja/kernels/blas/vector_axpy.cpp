@@ -18,23 +18,25 @@
 #ifndef __LAMBDA__
 extern "C" kernel
 void vector_axpy0(const int N,
-                 const double alpha,
-                 double* __restrict v0,
-                 const double* __restrict v1) {
-  const int i = blockDim.x * blockIdx.x + threadIdx.x;
-  if (i < N) v0[i] += alpha * v1[i];
+                  const double alpha,
+                  double* __restrict v0,
+                  const double* __restrict v1)
+{
+   const int i = blockDim.x * blockIdx.x + threadIdx.x;
+   if (i < N) { v0[i] += alpha * v1[i]; }
 }
 #endif
 
 void vector_axpy(const int N,
                  const double alpha,
                  double* __restrict v0,
-                 const double* __restrict v1) {
-  push(axpy,Cyan);
+                 const double* __restrict v1)
+{
+   push(axpy,Cyan);
 #ifndef __LAMBDA__
-  cuKer(vector_axpy,N,alpha,v0,v1);
+   cuKer(vector_axpy,N,alpha,v0,v1);
 #else
-  forall(i,N,v0[i] += alpha * v1[i];);
+   forall(i,N,v0[i] += alpha * v1[i];);
 #endif
-  pop();
+   pop();
 }

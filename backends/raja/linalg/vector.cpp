@@ -52,7 +52,8 @@ void Vector::DoDotProduct(const PVector &x, void *result,
    double local_dot = *res;
    if (IsParallel())
    {
-      MPI_Allreduce(&local_dot, res, 1, MPI_DOUBLE, MPI_SUM, RajaLayout().RajaEngine().GetComm());
+      MPI_Allreduce(&local_dot, res, 1, MPI_DOUBLE, MPI_SUM,
+                    RajaLayout().RajaEngine().GetComm());
    }
 #endif
 }
@@ -61,7 +62,7 @@ void Vector::DoAxpby(const void *a, const PVector &x,
                      const void *b, const PVector &y,
                      int ab_type_id)
 {
-  
+
    // called only when Size() != 0
 
    MFEM_ASSERT(ab_type_id == ScalarId<double>::value, "");
@@ -76,14 +77,14 @@ void Vector::DoAxpby(const void *a, const PVector &x,
 
    MFEM_ASSERT(da == 0.0 || this->Size() == xp->Size(), "");
    MFEM_ASSERT(db == 0.0 || this->Size() == yp->Size(), "");
-   
+
    /*for(size_t i=0;i<this->Size();i+=1){
       printf("\n\t\033[36m[DoAxpby] da=%f, db=%f this[%ld]=%f x:%f y:%f",da,db,i,
              ((double*)this->RajaMem().ptr())[i],
              ((double*)xp->RajaMem().ptr())[i],
              ((double*)yp->RajaMem().ptr())[i]);
              }*/
-   
+
    if (da == 0.0)
    {
       if (db == 0.0)
@@ -141,7 +142,7 @@ void Vector::DoAxpby(const void *a, const PVector &x,
          {
             dbg("\n[DoAxpby] 2");
             // *this = da * x + db * (*this)
-             vector_axpby((int)Size(), db, da, slice, xp->slice);
+            vector_axpby((int)Size(), db, da, slice, xp->slice);
          }
          else
          {

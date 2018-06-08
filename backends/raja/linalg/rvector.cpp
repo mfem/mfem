@@ -15,7 +15,7 @@ namespace mfem
 
 namespace raja
 {
-   
+
 RajaVector::~RajaVector()
 {
    if (!own) { return; }
@@ -224,5 +224,5 @@ void subtract(const RajaVector& v1,
 }
 
 } // raja
-   
+
 } // mfem

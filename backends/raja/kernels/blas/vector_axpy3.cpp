@@ -21,7 +21,8 @@ void vector_axpby3(const int N,
                    const double beta,
                    double* __restrict v0,
                    const double* __restrict v1,
-                   const double* restrict v2) {
+                   const double* restrict v2)
+{
    push();
    forall(i,N,v0[i] = alpha * v1[i] + beta * v2[i];);
    pop();

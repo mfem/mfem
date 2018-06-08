@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
-   
+
    /// Engine *engine = EngineDepot.Select(spec);
    // string occa_spec("mode: 'Serial'");
    // string occa_spec("mode: 'CUDA', deviceID: 0");
@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-//#warning NO UniformRefinement
+      //#warning NO UniformRefinement
       int ref_levels =
          (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)

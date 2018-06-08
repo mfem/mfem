@@ -21,16 +21,17 @@ namespace raja
 namespace linalg
 {
 
-  // ***************************************************************************
-   double dot(const raja::memory vec1, const raja::memory vec2);
+// ***************************************************************************
+double dot(const raja::memory vec1, const raja::memory vec2);
 
-  // ***************************************************************************
-  template <typename T>
-  inline void operator_eq(raja::memory vec, T value){
-    const std::size_t sz = vec.size();
-    vector_op_eq(sz/sizeof(T),value,(double*)vec.ptr());
-  } 
-  
+// ***************************************************************************
+template <typename T>
+inline void operator_eq(raja::memory vec, T value)
+{
+   const std::size_t sz = vec.size();
+   vector_op_eq(sz/sizeof(T),value,(double*)vec.ptr());
+}
+
 } // namespace mfem::raja::linalg
 
 } // namespace mfem::raja

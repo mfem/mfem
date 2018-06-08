@@ -24,28 +24,31 @@ void rLocalToGlobal0(const int globalEntries,
                      const int* offsets,
                      const int* indices,
                      const double* localX,
-                     double* __restrict globalX) {
+                     double* __restrict globalX)
+{
 #ifndef __LAMBDA__
-  const int i = blockDim.x * blockIdx.x + threadIdx.x;
-  if (i < globalEntries)
+   const int i = blockDim.x * blockIdx.x + threadIdx.x;
+   if (i < globalEntries)
 #else
-    forall(i,globalEntries,
+   forall(i,globalEntries,
 #endif
-  {
-    const int offset = offsets[i];
-    const int nextOffset = offsets[i + 1];
-    for (int v = 0; v < NUM_VDIM; ++v) {
-      double dofValue = 0;
-      for (int j = offset; j < nextOffset; ++j) {
-        const int l_offset = ijNMt(v,indices[j],NUM_VDIM,localEntries,VDIM_ORDERING);
-        dofValue += localX[l_offset];
+   {
+      const int offset = offsets[i];
+      const int nextOffset = offsets[i + 1];
+      for (int v = 0; v < NUM_VDIM; ++v)
+      {
+         double dofValue = 0;
+         for (int j = offset; j < nextOffset; ++j)
+         {
+            const int l_offset = ijNMt(v,indices[j],NUM_VDIM,localEntries,VDIM_ORDERING);
+            dofValue += localX[l_offset];
+         }
+         const int g_offset = ijNMt(v,i,NUM_VDIM,globalEntries,VDIM_ORDERING);
+         globalX[g_offset] = dofValue;
       }
-      const int g_offset = ijNMt(v,i,NUM_VDIM,globalEntries,VDIM_ORDERING);
-      globalX[g_offset] = dofValue;
-    }
-  }
+   }
 #ifdef __LAMBDA__
-           );
+   );
 #endif
 }
 
@@ -57,9 +60,10 @@ void rLocalToGlobal(const int NUM_VDIM,
                     const int* offsets,
                     const int* indices,
                     const double* localX,
-                    double* __restrict globalX) {
-  push(Lime);
-  cuKer(rLocalToGlobal,globalEntries,NUM_VDIM,VDIM_ORDERING,
-        localEntries,offsets,indices,localX,globalX);
-  pop();
+                    double* __restrict globalX)
+{
+   push(Lime);
+   cuKer(rLocalToGlobal,globalEntries,NUM_VDIM,VDIM_ORDERING,
+         localEntries,offsets,indices,localX,globalX);
+   pop();
 }

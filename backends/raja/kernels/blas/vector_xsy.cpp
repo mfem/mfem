@@ -20,21 +20,23 @@ extern "C" kernel
 void vector_xsy0(const int N,
                  double* __restrict v0,
                  const double* __restrict v1,
-                 const double* __restrict v2) {
-  const int i = blockDim.x * blockIdx.x + threadIdx.x;
-  if (i < N) v0[i] = v1[i]-v2[i];
+                 const double* __restrict v2)
+{
+   const int i = blockDim.x * blockIdx.x + threadIdx.x;
+   if (i < N) { v0[i] = v1[i]-v2[i]; }
 }
 #endif
 
 void vector_xsy(const int N,
                 double* __restrict v0,
                 const double* __restrict v1,
-                const double* __restrict v2) {
-  push(xsy,Cyan);
+                const double* __restrict v2)
+{
+   push(xsy,Cyan);
 #ifndef __LAMBDA__
-  cuKer(vector_xsy,N,v0,v1,v2);
+   cuKer(vector_xsy,N,v0,v1,v2);
 #else
-  forall(i,N,{v0[i] = v1[i]-v2[i];});
+   forall(i,N, {v0[i] = v1[i]-v2[i];});
 #endif
-  pop();
+   pop();
 }
