@@ -32,7 +32,7 @@ class Backend;
 template <typename T> class Array;
 class Operator;
 class FiniteElementSpace;
-class ParFiniteElementSpace;
+//class ParFiniteElementSpace;
 class LinearForm;
 class BilinearForm;
 class MixedBilinearForm;
@@ -179,11 +179,11 @@ public:
                               int type_id = ScalarId<double>::value) const = 0;
 
    /// TODO: doxygen
-#ifdef MFEM_USE_MPI
+/*#ifdef MFEM_USE_MPI
    virtual DFiniteElementSpace MakeFESpace(ParFiniteElementSpace &fes) const;
-#else
+   #else*/
    virtual DFiniteElementSpace MakeFESpace(FiniteElementSpace &fes) const;
-#endif
+//#endif
    
    /// TODO: doxygen
    virtual DBilinearForm MakeBilinearForm(BilinearForm &bf) const = 0;

@@ -220,8 +220,8 @@ typedef SharedPtr<PArray> DArray;
 class PVector;
 typedef SharedPtr<PVector> DVector;
 
-class PParFiniteElementSpace;
-typedef SharedPtr<PParFiniteElementSpace> DParFiniteElementSpace;
+//class PParFiniteElementSpace;
+//typedef SharedPtr<PParFiniteElementSpace> DParFiniteElementSpace;
    
 class PFiniteElementSpace;
 typedef SharedPtr<PFiniteElementSpace> DFiniteElementSpace;

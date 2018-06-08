@@ -286,7 +286,7 @@ void RajaBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
 // Matrix vector multiplication.
 void RajaBilinearForm::Mult_(const Vector &x, Vector &y) const
 {
-   assert(false);//   otrialFESpace->GlobalToLocal(x, localX);
+   otrialFESpace->GlobalToLocal(x, localX);
    localY.Fill<double>(0.0);
 
    const int integratorCount = (int) integrators.size();
@@ -295,7 +295,7 @@ void RajaBilinearForm::Mult_(const Vector &x, Vector &y) const
       integrators[i]->MultAdd(localX, localY);
    }
 
-   assert(false);//otestFESpace->LocalToGlobal(localY, y);
+   otestFESpace->LocalToGlobal(localY, y);
 }
 
 // Matrix transpose vector multiplication.
