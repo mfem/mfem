@@ -66,8 +66,8 @@ static void CreateRPOperators(Layout &v_layout,
 }
 
 // **************************************************************************
-FiniteElementSpace::FiniteElementSpace(const Engine &e,
-                                       mfem::FiniteElementSpace &fespace)
+RajaFiniteElementSpace::RajaFiniteElementSpace(const Engine &e,
+                                               mfem::FiniteElementSpace &fespace)
    : PFiniteElementSpace(e, fespace),
      e_layout(e, 0), // resized in SetupLocalGlobalMaps()
      globalDofs(fes->GetNDofs()),
@@ -148,14 +148,14 @@ FiniteElementSpace::FiniteElementSpace(const Engine &e,
 }
 
 // **************************************************************************
-FiniteElementSpace::~FiniteElementSpace()
+   RajaFiniteElementSpace::~RajaFiniteElementSpace()
 {
    delete restrictionOp;
    delete prolongationOp;
 }
 
 // **************************************************************************
-   void FiniteElementSpace::GlobalToLocal(const raja::Vector &globalVec,
+   void RajaFiniteElementSpace::GlobalToLocal(const raja::Vector &globalVec,
                                        Vector &localVec) const
 {
    push(PowderBlue);
@@ -174,7 +174,7 @@ FiniteElementSpace::~FiniteElementSpace()
 }
 
 // **************************************************************************
-void FiniteElementSpace::LocalToGlobal(const Vector &localVec,
+void RajaFiniteElementSpace::LocalToGlobal(const Vector &localVec,
                                        Vector &globalVec) const
 {
    push(PowderBlue);

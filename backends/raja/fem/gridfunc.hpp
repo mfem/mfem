@@ -36,7 +36,7 @@ class RajaDofQuadMaps;
 class RajaGridFunction : public Vector
 {
 protected:
-   FiniteElementSpace &fes;
+   RajaFiniteElementSpace &fes;
    long sequence;
 
    //::raja::kernel gridFuncToQuad[3];
@@ -44,7 +44,7 @@ protected:
 public:
    // RajaGridFunction();
 
-   RajaGridFunction(FiniteElementSpace &ofespace_);
+   RajaGridFunction(RajaFiniteElementSpace &ofespace_);
 
    // RajaGridFunction(FiniteElementSpace *ofespace_,
    //                  RajaVectorRef ref);

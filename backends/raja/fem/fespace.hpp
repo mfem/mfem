@@ -22,7 +22,7 @@ namespace raja
 {
 
 /// TODO: doxygen
-class FiniteElementSpace : public mfem::PFiniteElementSpace
+class RajaFiniteElementSpace : public mfem::PFiniteElementSpace
 {
 protected:
 
@@ -36,10 +36,10 @@ protected:
    mfem::Operator *restrictionOp, *prolongationOp;
 public:
    /// TODO: doxygen
-   FiniteElementSpace(const Engine &e, mfem::FiniteElementSpace &fespace);
+   RajaFiniteElementSpace(const Engine &e, mfem::FiniteElementSpace &fespace);
 
    /// Virtual destructor
-   virtual ~FiniteElementSpace();
+   virtual ~RajaFiniteElementSpace();
 
    /// TODO: doxygen
    const Engine &RajaEngine() const

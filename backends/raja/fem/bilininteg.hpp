@@ -34,9 +34,9 @@ public:
    static const int Jacobian    = (1 << 0);
    static const int JacobianInv = (1 << 1);
    static const int JacobianDet = (1 << 2);
-   static RajaGeometry* Get(RajaParFiniteElementSpace&,
+   static RajaGeometry* Get(RajaFiniteElementSpace&,
                             const IntegrationRule&);
-   static RajaGeometry* GetV(RajaParFiniteElementSpace&,
+   static RajaGeometry* GetV(RajaFiniteElementSpace&,
                              const IntegrationRule&,
                              const RajaVector&);
    static void ReorderByVDim(GridFunction& nodes);
@@ -57,11 +57,11 @@ public:
 public:
    ~RajaDofQuadMaps();
    static void delRajaDofQuadMaps();
-   static RajaDofQuadMaps* Get(const RajaParFiniteElementSpace&,
+   static RajaDofQuadMaps* Get(const RajaFiniteElementSpace&,
                                const mfem::IntegrationRule&,
                                const bool = false);
-   static RajaDofQuadMaps* Get(const RajaParFiniteElementSpace&,
-                               const RajaParFiniteElementSpace&,
+   static RajaDofQuadMaps* Get(const RajaFiniteElementSpace&,
+                               const RajaFiniteElementSpace&,
                                const mfem::IntegrationRule&,
                                const bool = false);
    static RajaDofQuadMaps* Get(const mfem::FiniteElement&,
@@ -96,8 +96,8 @@ protected:
    raja::RajaBilinearForm *bform;
    mfem::Mesh *mesh;
 
-   RajaParFiniteElementSpace *otrialFESpace;
-   RajaParFiniteElementSpace *otestFESpace;
+   RajaFiniteElementSpace *otrialFESpace;
+   RajaFiniteElementSpace *otestFESpace;
 
    mfem::FiniteElementSpace *trialFESpace;
    mfem::FiniteElementSpace *testFESpace;
@@ -116,8 +116,8 @@ public:
    raja::device GetDevice(int idx = 0) const
    { return engine->GetDevice(idx); }
    virtual std::string GetName() = 0;
-   RajaParFiniteElementSpace& GetTrialRajaFESpace() const;
-   RajaParFiniteElementSpace& GetTestRajaFESpace() const;
+   RajaFiniteElementSpace& GetTrialRajaFESpace() const;
+   RajaFiniteElementSpace& GetTestRajaFESpace() const;
    mfem::FiniteElementSpace& GetTrialFESpace() const;
    mfem::FiniteElementSpace& GetTestFESpace() const;
    void SetIntegrationRule(const mfem::IntegrationRule &ir_);

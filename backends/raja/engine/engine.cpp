@@ -80,17 +80,17 @@ DVector Engine::MakeVector(PLayout &layout, int type_id) const
    return DVector(new Vector(*lt));
 }
    
-#ifdef MFEM_USE_MPI
+/*#ifdef MFEM_USE_MPI
 DFiniteElementSpace Engine::MakeFESpace(mfem::ParFiniteElementSpace &pfespace) const
 {
    return DFiniteElementSpace(new ParFiniteElementSpace(*this, pfespace));
-}
-#else
+   }
+#else*/
 DFiniteElementSpace Engine::MakeFESpace(mfem::FiniteElementSpace &fespace) const
 {
-   return DFiniteElementSpace(new FiniteElementSpace(*this, fespace));
+   return DFiniteElementSpace(new RajaFiniteElementSpace(*this, fespace));
 }
-#endif
+//#endif
 
 DBilinearForm Engine::MakeBilinearForm(mfem::BilinearForm &bf) const
 {

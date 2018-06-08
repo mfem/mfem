@@ -48,10 +48,10 @@ protected:
    // State information
    mutable mfem::Mesh *mesh;
 
-   mutable RajaParFiniteElementSpace *otrialFESpace;
+   mutable RajaFiniteElementSpace *otrialFESpace;
    mutable mfem::FiniteElementSpace *trialFESpace;
 
-   mutable RajaParFiniteElementSpace *otestFESpace;
+   mutable RajaFiniteElementSpace *otestFESpace;
    mutable mfem::FiniteElementSpace *testFESpace;
 
    IntegratorVector integrators;
@@ -62,14 +62,14 @@ protected:
    mutable Vector localX, localY;
 
 public:
-   RajaBilinearForm(RajaParFiniteElementSpace *ofespace_);
+   RajaBilinearForm(RajaFiniteElementSpace *ofespace_);
 
-   RajaBilinearForm(RajaParFiniteElementSpace *otrialFESpace_,
-                    RajaParFiniteElementSpace *otestFESpace_);
+   RajaBilinearForm(RajaFiniteElementSpace *otrialFESpace_,
+                    RajaFiniteElementSpace *otestFESpace_);
 
    void Init(const Engine &e,
-             RajaParFiniteElementSpace *otrialFESpace_,
-             RajaParFiniteElementSpace *otestFESpace_);
+             RajaFiniteElementSpace *otrialFESpace_,
+             RajaFiniteElementSpace *otestFESpace_);
 
    const Engine &RajaEngine() const { return *engine; }
 
@@ -83,8 +83,8 @@ public:
 
    mfem::Mesh& GetMesh() const;
 
-   RajaParFiniteElementSpace& GetTrialRajaFESpace() const;
-   RajaParFiniteElementSpace& GetTestRajaFESpace() const;
+   RajaFiniteElementSpace& GetTrialRajaFESpace() const;
+   RajaFiniteElementSpace& GetTestRajaFESpace() const;
 
    mfem::FiniteElementSpace& GetTrialFESpace() const;
    mfem::FiniteElementSpace& GetTestFESpace() const;

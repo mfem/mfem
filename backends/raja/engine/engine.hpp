@@ -59,11 +59,11 @@ public:
    virtual DVector MakeVector(PLayout &layout,
                               int type_id = ScalarId<double>::value) const;
 
-#ifdef MFEM_USE_MPI
+/*#ifdef MFEM_USE_MPI
    virtual DFiniteElementSpace MakeFESpace(mfem::ParFiniteElementSpace &) const;
-#else
+   #else*/
    virtual DFiniteElementSpace MakeFESpace(mfem::FiniteElementSpace &) const;
-#endif
+//#endif
    
    virtual DBilinearForm MakeBilinearForm(mfem::BilinearForm &bf) const;
 

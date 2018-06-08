@@ -62,7 +62,7 @@ namespace raja
 //    ofespace(NULL),
 //    sequence(0) {}
 
-RajaGridFunction::RajaGridFunction(FiniteElementSpace &f)
+RajaGridFunction::RajaGridFunction(RajaFiniteElementSpace &f)
    : PArray(f.RajaVLayout()),
      Array(f.RajaVLayout(), sizeof(double)),
      Vector(f.RajaVLayout()),

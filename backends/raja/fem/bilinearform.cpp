@@ -47,10 +47,10 @@ void RajaBilinearForm::Init(const Engine &e,
    engine.Reset(&e);
 
    otrialFESpace = otrialFESpace_;
-   trialFESpace  = otrialFESpace/*_->GetFESpace()*/;
+   trialFESpace  = otrialFESpace_->GetFESpace();
 
    otestFESpace = otestFESpace_;
-   testFESpace  = otestFESpace/*_->GetFESpace()*/;
+   testFESpace  = otestFESpace_->GetFESpace();
 
    mesh = trialFESpace->GetMesh();
 }
