@@ -306,14 +306,22 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
    export VERBOSE
 endif
 
+# RAJA dirs
+RAJA_BACKEND_DIR = $(patsubst %/,%,$(dir $(abspath $(firstword $(MAKEFILE_LIST)))))/backends/raja
+RAJA_SRC_DIRS := 	\
+	$(RAJA_BACKEND_DIR)/config \
+	$(RAJA_BACKEND_DIR)/engine \
+	$(RAJA_BACKEND_DIR)/fem \
+	$(RAJA_BACKEND_DIR)/general \
+	$(RAJA_BACKEND_DIR)/kernels/maps \
+	$(RAJA_BACKEND_DIR)/kernels/diffusion \
+	$(RAJA_BACKEND_DIR)/kernels/geom \
+	$(RAJA_BACKEND_DIR)/kernels/blas \
+	$(RAJA_BACKEND_DIR)/linalg \
+
 # Source dirs in logical order
 ALL_SRC_DIRS := general linalg mesh fem \
-	backends/base backends/occa \
-	backends/raja \
-	backends/raja/kernels/maps \
-	backends/raja/kernels/diffusion \
-	backends/raja/kernels/geom \
-	backends/raja/kernels/blas
+	backends/base backends/occa $(RAJA_SRC_DIRS)
 DIRS := $(ALL_SRC_DIRS)
 ifeq ($(MFEM_USE_BACKENDS),NO)
    DIRS := $(filter-out backends/%,$(DIRS))
@@ -322,7 +330,7 @@ else
       DIRS := $(filter-out backends/occa,$(DIRS))
    endif
    ifeq ($(MFEM_USE_RAJA),NO)
-      DIRS := $(filter-out backends/raja,$(DIRS))
+      DIRS := $(filter-out $(RAJA_BACKEND_DIR),$(DIRS))
    endif
 endif
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))

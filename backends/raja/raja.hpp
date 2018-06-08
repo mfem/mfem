@@ -27,39 +27,37 @@
 #include "../../config/config.hpp"
 #include "../../general/array.hpp"
 #include "../../fem/gridfunc.hpp"
-//#include "../../general/communication.hpp"
-//#include "../../fem/pfespace.hpp"
 #include "../../fem/fem.hpp"
 #include "../../fem/fespace.hpp"
 #include "../../fem/bilinearform.hpp"
 
-// backend/raja ****************************************************************
-#include "memory.hpp"
-#include "device.hpp"
-#include "engine.hpp"
-#include "backend.hpp"
-#include "linalg.hpp"
-#include "layout.hpp"
-#include "array.hpp"
-#include "vector.hpp"
+// backend/raja/* **************************************************************
+#include "engine/memory.hpp"
+#include "engine/device.hpp"
+#include "engine/engine.hpp"
+#include "engine/backend.hpp"
+#include "linalg/linalg.hpp"
+#include "general/layout.hpp"
+#include "general/array.hpp"
+#include "linalg/vector.hpp"
 
 // backend/raja/config *********************************************************
-#include "rdbg.hpp"
-#include "rnvvp.hpp"
-#include "rconfig.hpp"
+#include "config/rdbg.hpp"
+#include "config/rnvvp.hpp"
+#include "config/rconfig.hpp"
 
 // backend/raja/general ********************************************************
-#include "rmemcpy.hpp"
-#include "rmalloc.hpp"
-#include "rarray.hpp"
-#include "rtable.hpp"
+#include "general/rmemcpy.hpp"
+#include "general/rmalloc.hpp"
+#include "general/rarray.hpp"
+#include "general/rtable.hpp"
 
 // backend/raja/linalg *********************************************************
-#include "rvector.hpp"
+#include "linalg/rvector.hpp"
 
-// backend/raja ****************************************************************
-#include "operator.hpp"
-#include "fespace.hpp"
+// backend/raja/fem ************************************************************
+#include "linalg/operator.hpp"
+#include "fem/fespace.hpp"
 
 #endif // MFEM_BACKENDS_RAJA_HPP
 
