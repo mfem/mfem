@@ -21,33 +21,34 @@ namespace mfem
 
 namespace raja
 {
-   /*
-class RajaGridFunction : public RajaVector
+
+// *****************************************************************************
+class RajaParGridFunction : public raja::RajaVector
 {
 public:
-   const RajaFiniteElementSpace& fes;
+   const RajaParFiniteElementSpace& pfes;
 public:
 
-   RajaGridFunction(const RajaFiniteElementSpace& f):
-      RajaVector(f.GetVSize()),fes(f) {}
+   RajaParGridFunction(const RajaParFiniteElementSpace& f):
+      RajaVector(f.GetFESpace()->GetVSize()),pfes(f) {}
 
-   RajaGridFunction(const RajaFiniteElementSpace& f,const RajaVector* v):
-      RajaVector(v), fes(f) {}
+   RajaParGridFunction(const RajaParFiniteElementSpace& f,const raja::RajaVector* v):
+      RajaVector(v), pfes(f) {}
 
-   void ToQuad(const IntegrationRule&,RajaVector&);
+   void ToQuad(const IntegrationRule&,raja::RajaVector&);
 
-   RajaGridFunction& operator=(const RajaVector& v)
+   RajaParGridFunction& operator=(const raja::RajaVector& v)
    {
       RajaVector::operator=(v);
       return *this;
    }
-   RajaGridFunction& operator=(const mfem::Vector& v)
+   RajaParGridFunction& operator=(const mfem::Vector& v)
    {
       RajaVector::operator=(v);
       return *this;
    }
 };
-   */
+   
 } // raja
    
 } // mfem

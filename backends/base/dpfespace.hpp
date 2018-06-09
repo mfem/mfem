@@ -34,9 +34,8 @@ protected:
 
 public:
    /// TODO: doxygen
-   PParFiniteElementSpace(const Engine &e,
-                          mfem::ParFiniteElementSpace *fes)
-      : engine(&e), pfes(fes) { }
+   PParFiniteElementSpace(const Engine &e, mfem::ParFiniteElementSpace &fes)
+      : engine(&e), pfes(&fes) { }
 
    /// Virtual destructor
    virtual ~PParFiniteElementSpace() { }

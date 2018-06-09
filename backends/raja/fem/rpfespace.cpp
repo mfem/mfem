@@ -24,28 +24,27 @@ namespace raja
 // * RajaParFiniteElementSpace
 //  ***************************************************************************
 RajaParFiniteElementSpace::RajaParFiniteElementSpace(const Engine &engine,
-                                                     mfem::ParFiniteElementSpace &pfes)
-   :PParFiniteElementSpace(engine,pfes),
-    ParFiniteElementSpace(pfes),//static_cast<ParMesh*>(mesh),fec,vdim_,ordering_),
-    e_layout(engine, 0),
-    globalDofs(GetNDofs()),
-    localDofs(GetFE(0)->GetDof()),
-    offsets(globalDofs+1),
-    indices(localDofs, GetNE()),
-    map(localDofs, GetNE())
+                                                     mfem::ParFiniteElementSpace &pf)
+   : PParFiniteElementSpace(engine,*pfes),
+     e_layout(engine, 0),
+     globalDofs(pfes->GetNDofs()),
+     localDofs(pfes->GetFE(0)->GetDof()),
+     offsets(globalDofs+1),
+     indices(localDofs, pfes->GetNE()),
+     map(localDofs, pfes->GetNE())
 {
    push(PowderBlue);
-   const mfem::FiniteElement *fe = GetFE(0);
+   const mfem::FiniteElement *fe = pfes->GetFE(0);
    const TensorBasisElement* el = dynamic_cast<const TensorBasisElement*>(fe);
    const mfem::Array<int> &dof_map = el->GetDofMap();
    const bool dof_map_is_identity = (dof_map.Size()==0);
 
-   const Table& e2dTable = GetElementToDofTable();
+   const Table& e2dTable = pfes->GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
-   const int elements = GetNE();
+   const int elements = pfes->GetNE();
    mfem::Array<int> h_offsets(globalDofs+1);
    
-   e_layout.Resize(localDofs * elements * this->GetVDim());
+   e_layout.Resize(localDofs * elements * pfes->GetVDim());
    
    // We'll be keeping a count of how many local nodes point to its global dof
    for (int i = 0; i <= globalDofs; ++i)
@@ -93,10 +92,10 @@ RajaParFiniteElementSpace::RajaParFiniteElementSpace(const Engine &engine,
    indices = h_indices;
    map = h_map;
 
-   const SparseMatrix* R = GetRestrictionMatrix(); assert(R);
+   const SparseMatrix* R = pfes->GetRestrictionMatrix(); assert(R);
    //const Operator* P = GetProlongationMatrix(); assert(P);
    const ConformingProlongationOperator *P = new
-   ConformingProlongationOperator(*this);
+      ConformingProlongationOperator(*pfes);
 
    const int mHeight = R->Height();
    const int* I = R->GetI();
@@ -137,7 +136,7 @@ RajaParFiniteElementSpace::~RajaParFiniteElementSpace()
 // ***************************************************************************
 bool RajaParFiniteElementSpace::hasTensorBasis() const
 {
-   assert(dynamic_cast<const TensorBasisElement*>(GetFE(0)));
+   assert(dynamic_cast<const TensorBasisElement*>(pfes->GetFE(0)));
    return true;
 }
 

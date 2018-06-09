@@ -301,7 +301,7 @@ void RajaBilinearForm::Mult_(const Vector &x, Vector &y) const
 // Matrix transpose vector multiplication.
 void RajaBilinearForm::MultTranspose_(const Vector &x, Vector &y) const
 {
-  assert(false);// otestFESpace->GlobalToLocal(x, localX);
+   assert(false);// otestFESpace->GlobalToLocal(x, localX);
    localY.Fill<double>(0.0);
 
    const int integratorCount = (int) integrators.size();

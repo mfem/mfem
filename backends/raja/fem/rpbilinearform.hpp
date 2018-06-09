@@ -26,39 +26,28 @@ namespace mfem
 namespace raja
 {
 
-// ***************************************************************************
-// * RajaIntegratorType
-// ***************************************************************************
-enum RajaIntegratorType
-{
-   DomainIntegrator       = 0,
-   BoundaryIntegrator     = 1,
-   InteriorFaceIntegrator = 2,
-   BoundaryFaceIntegrator = 3,
-};
-
 class RajaIntegrator;
 
 // ***************************************************************************
-// * RajaBilinearForm
+// * RajaParBilinearForm
 // ***************************************************************************
-class RajaBilinearForm : public Operator
+class RajaParBilinearForm : public Operator
 {
    friend class RajaIntegrator;
 protected:
    typedef std::vector<RajaIntegrator*> IntegratorVector;
    SharedPtr<const Engine> engine;
    mutable mfem::Mesh* mesh;
-   mutable RajaFiniteElementSpace *rtrialFESpace;
+   mutable RajaParFiniteElementSpace *rtrialFESpace;
    mutable mfem::FiniteElementSpace *trialFESpace;
-   mutable RajaFiniteElementSpace *rtestFESpace;
+   mutable RajaParFiniteElementSpace *rtestFESpace;
    mutable mfem::FiniteElementSpace *testFESpace;
    IntegratorVector integrators;
    mutable Vector localX, localY;
 public:
    // **************************************************************************
-   RajaBilinearForm(RajaFiniteElementSpace*);
-   ~RajaBilinearForm();
+   RajaParBilinearForm(RajaParFiniteElementSpace*);
+   ~RajaParBilinearForm();
    // **************************************************************************
    const Engine &OccaEngine() const { return *engine; }
    mfem::Mesh& GetMesh() const { return *mesh; }
@@ -94,45 +83,26 @@ public:
 };
 
 
-// ***************************************************************************
-// * Constrained Operator
-// ***************************************************************************
-/*class RajaConstrainedOperator : public Operator
-{
-protected:
-   mfem::Operator *A;
-   bool own_A;
-   RajaArray<int> constraintList;
-   int constraintIndices;
-   mutable mfem::Vector z, w;
-public:
-   RajaConstrainedOperator(mfem::Operator*, const mfem::Array<int>&, bool = false);
-   void Setup(mfem::Operator*, const mfem::Array<int>&, bool = false);
-   void EliminateRHS(const Vector&, Vector&) const;
-   virtual void Mult_(const Vector&, Vector&) const;
-   virtual ~RajaConstrainedOperator() {}
-};
-*/
 // *****************************************************************************
 // *****************************************************************************
-class BilinearForm : public mfem::PBilinearForm
+class ParBilinearForm : public mfem::PBilinearForm
 {
 protected:
    //
    // Inherited fields
    //
-   RajaBilinearForm *rbform;
+   RajaParBilinearForm *rbform;
 
    // Called from Assemble() if rbform is NULL to initialize rbform.
-   void InitRajaBilinearForm();
+   void InitRajaParBilinearForm();
 
 public:
    /// TODO: doxygen
-   BilinearForm(const Engine &e, mfem::BilinearForm &bf)
+   ParBilinearForm(const Engine &e, mfem::BilinearForm &bf)
       : mfem::PBilinearForm(e, bf), rbform(NULL) {push();pop(); }
 
    /// Virtual destructor
-   virtual ~BilinearForm() { }
+   virtual ~ParBilinearForm() { }
 
    /// Assemble the PBilinearForm.
    /** This method is called from the method mfem::BilinearForm::Assemble() of

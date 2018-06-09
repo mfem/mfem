@@ -34,6 +34,7 @@ private:
 
    /// Parallel mesh; #mesh points to this object as well. Not owned.
    ParMesh *pmesh;
+
    /** Parallel non-conforming mesh extension object; same as pmesh->pncmesh.
        Not owned. */
    ParNCMesh *pncmesh;
@@ -237,7 +238,7 @@ public:
    int GetMyRank() const { return MyRank; }
 
    inline ParMesh *GetParMesh() { return pmesh; }
-
+   
    int GetDofSign(int i)
    { return NURBSext || Nonconforming() ? 1 : ldof_sign[VDofToDof(i)]; }
    HYPRE_Int *GetDofOffsets()     const { return dof_offsets; }

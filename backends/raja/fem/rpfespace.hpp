@@ -24,8 +24,7 @@ namespace raja
    // ***************************************************************************
    // * RajaParFiniteElementSpace
    //  **************************************************************************
-   class RajaParFiniteElementSpace : public mfem::PParFiniteElementSpace,
-                                     public mfem::ParFiniteElementSpace {
+   class RajaParFiniteElementSpace : public mfem::PParFiniteElementSpace{
    protected:
       Layout e_layout;
       int globalDofs, localDofs;
@@ -50,7 +49,9 @@ namespace raja
       { return *pfes->GetTrueVLayout().As<Layout>(); }
 
       Layout &RajaEVLayout() { return e_layout; }
-
+      
+      mfem::FiniteElementSpace* GetFESpace() const { return this->pfes; }
+      
 #ifdef MFEM_USE_MPI
       bool isDistributed() const { return (RajaEngine().GetComm() != MPI_COMM_NULL); }
 #else

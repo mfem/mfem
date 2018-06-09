@@ -138,6 +138,7 @@ RajaFiniteElementSpace::RajaFiniteElementSpace(const Engine &e,
    globalToLocalIndices = h_indices;
    localToGlobalMap = h_map;
 
+   assert(fes);
    const mfem::SparseMatrix *R = fes->GetRestrictionMatrix();
    const mfem::Operator *P = fes->GetProlongationMatrix();
 

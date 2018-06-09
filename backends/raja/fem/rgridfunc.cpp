@@ -15,18 +15,20 @@ namespace mfem
 
 namespace raja
 {
-/*
+
 // ***************************************************************************
-void RajaGridFunction::ToQuad(const IntegrationRule& ir,
+void RajaParGridFunction::ToQuad(const IntegrationRule& ir,
                               RajaVector& quadValues)
 {
    push(PowderBlue);
-   const mfem::FiniteElement& fe = *(fes.GetFE(0));
+   assert(false);
+   /*
+   const mfem::FiniteElement& fe = *(pfes.GetFESpace()->GetFE(0));
    const int dim  = fe.GetDim();
-   const int vdim = fes.GetVDim();
-   const int elements = fes.GetNE();
+   const int vdim = pfes.GetFESpace()->GetVDim();
+   const int elements = pfes.GetFESpace()->GetNE();
    const int numQuad  = ir.GetNPoints();
-   const RajaDofQuadMaps* maps = RajaDofQuadMaps::Get(fes, ir);
+   const RajaDofQuadMaps* maps = RajaDofQuadMaps::Get(pfes, ir);
    const int quad1D  = IntRules.Get(Geometry::SEGMENT,ir.GetOrder()).GetNPoints();
    const int dofs1D =fes.GetFE(0)->GetOrder() + 1;
    quadValues.SetSize(numQuad * elements);
@@ -44,9 +46,10 @@ void RajaGridFunction::ToQuad(const IntegrationRule& ir,
                       fes.GetLocalToGlobalMap(),
                       ptr(),
                       quadValues);
+   */
    pop();
 }
-*/
+
 } // namespace raja
 
 } // mfem
