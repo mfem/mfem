@@ -27,9 +27,9 @@ RajaParBilinearForm::RajaParBilinearForm(RajaParFiniteElementSpace *pfes) :
    Operator(pfes->RajaVLayout()),
    mesh(pfes->GetFESpace()->GetMesh()),
    rtrialFESpace(pfes),
-   trialFESpace(pfes->GetFESpace()),
+   trialFESpace(pfes->GetParFESpace()),
    rtestFESpace(pfes),
-   testFESpace(pfes->GetFESpace()),
+   testFESpace(pfes->GetParFESpace()),
    localX(pfes->RajaEVLayout()),
    localY(pfes->RajaEVLayout()) {
    dbg("\n\033[31m[RajaParBilinearForm]");

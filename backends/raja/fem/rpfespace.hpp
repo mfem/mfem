@@ -51,6 +51,7 @@ namespace raja
       Layout &RajaEVLayout() { return e_layout; }
       
       mfem::FiniteElementSpace* GetFESpace() const { return this->pfes; }
+      mfem::ParFiniteElementSpace* GetParFESpace() const { return this->pfes; }
       
 #ifdef MFEM_USE_MPI
       bool isDistributed() const { return (RajaEngine().GetComm() != MPI_COMM_NULL); }

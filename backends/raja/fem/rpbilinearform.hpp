@@ -39,20 +39,22 @@ protected:
    SharedPtr<const Engine> engine;
    mutable mfem::Mesh* mesh;
    mutable RajaParFiniteElementSpace *rtrialFESpace;
-   mutable mfem::FiniteElementSpace *trialFESpace;
+   mutable mfem::ParFiniteElementSpace *trialFESpace;
    mutable RajaParFiniteElementSpace *rtestFESpace;
-   mutable mfem::FiniteElementSpace *testFESpace;
+   mutable mfem::ParFiniteElementSpace *testFESpace;
    IntegratorVector integrators;
    mutable Vector localX, localY;
 public:
    // **************************************************************************
-   RajaParBilinearForm(RajaParFiniteElementSpace*);
+   RajaParBilinearForm(raja::RajaParFiniteElementSpace*);
    ~RajaParBilinearForm();
    // **************************************************************************
-   const Engine &OccaEngine() const { return *engine; }
+   const Engine &RajaEngine() const { return *engine; }
    mfem::Mesh& GetMesh() const { return *mesh; }
-   mfem::FiniteElementSpace& GetTrialFESpace() const { return *trialFESpace;}
-   mfem::FiniteElementSpace& GetTestFESpace() const { return *testFESpace;}
+   RajaParFiniteElementSpace& GetTrialRajaFESpace() const { return *rtrialFESpace;}
+   RajaParFiniteElementSpace& GetTestRajaFESpace() const { return *rtestFESpace;}
+   mfem::ParFiniteElementSpace& GetTrialFESpace() const { return *trialFESpace;}
+   mfem::ParFiniteElementSpace& GetTestFESpace() const { return *testFESpace;}
    // *************************************************************************
    void AddDomainIntegrator(RajaIntegrator*);
    void AddBoundaryIntegrator(RajaIntegrator*);

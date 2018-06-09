@@ -29,7 +29,7 @@ public:
    const RajaParFiniteElementSpace& pfes;
 public:
 
-   RajaParGridFunction(const RajaParFiniteElementSpace& f):
+   RajaParGridFunction(const raja::RajaParFiniteElementSpace& f):
       RajaVector(f.GetFESpace()->GetVSize()),pfes(f) {}
 
    RajaParGridFunction(const RajaParFiniteElementSpace& f,const raja::RajaVector* v):

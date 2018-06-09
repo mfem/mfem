@@ -64,7 +64,7 @@ static void CreateRPOperators(Layout &v_layout,
       RajaP = new ProlongationOperator(t_layout, v_layout, P);
    }
 }
-
+ 
 // **************************************************************************
 RajaFiniteElementSpace::RajaFiniteElementSpace(const Engine &e,
                                                mfem::FiniteElementSpace &fespace)

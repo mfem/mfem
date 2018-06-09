@@ -44,7 +44,7 @@ RajaGeometry* RajaGeometry::GetV(RajaFiniteElementSpace& fes,
                                  const RajaVector& Sx)
 {
    push(SteelBlue);
-   const Mesh *mesh = fes.GetMesh();
+   const Mesh *mesh = fes.GetFESpace()->GetMesh();
    const GridFunction *nodes = mesh->GetNodes();
    const mfem::FiniteElementSpace *fespace = nodes->FESpace();
    const mfem::FiniteElement *fe = fespace->GetFE(0);
@@ -75,7 +75,7 @@ RajaGeometry* RajaGeometry::Get(RajaFiniteElementSpace& fes,
                                 const IntegrationRule& ir)
 {
    push(SteelBlue);
-   Mesh& mesh = *(fes.GetMesh());
+   Mesh& mesh = *(fes.GetFESpace()->GetMesh());
    const bool geom_to_allocate =
       (!geom) || rconfig::Get().GeomNeedsUpdate(mesh.GetSequence());
    if (geom_to_allocate) { geom=new RajaGeometry(); }
@@ -222,7 +222,8 @@ RajaDofQuadMaps* RajaDofQuadMaps::Get(const RajaFiniteElementSpace& fespace,
                                       const mfem::IntegrationRule& ir,
                                       const bool transpose)
 {
-   return Get(*fespace.GetFE(0),*fespace.GetFE(0),ir,transpose);
+   return Get(*fespace.GetFESpace()->GetFE(0),
+              *fespace.GetFESpace()->GetFE(0),ir,transpose);
 }
 
 RajaDofQuadMaps* RajaDofQuadMaps::Get(const RajaFiniteElementSpace&
@@ -231,7 +232,8 @@ RajaDofQuadMaps* RajaDofQuadMaps::Get(const RajaFiniteElementSpace&
                                       const mfem::IntegrationRule& ir,
                                       const bool transpose)
 {
-   return Get(*trialFESpace.GetFE(0),*testFESpace.GetFE(0),ir,transpose);
+   return Get(*trialFESpace.GetFESpace()->GetFE(0),
+              *testFESpace.GetFESpace()->GetFE(0),ir,transpose);
 }
 
 RajaDofQuadMaps* RajaDofQuadMaps::Get(const mfem::FiniteElement& trialFE,
