@@ -24,7 +24,9 @@ memory::memory(const std::size_t _bytes, const void *src):
    bytes(_bytes),
    data(::new char[bytes])
 {
+   push();
    assert(src==NULL);
+   pop();
 }
 
 // **************************************************************************
@@ -46,12 +48,16 @@ void memory::copyFrom(memory &src)
 
 void memory::copyFrom(const void *src)
 {
+   push();
    memcpy(data,src,bytes);
+   pop();
 }
 
 void memory::copyTo(void *dest)
 {
+   push();
    memcpy(dest,data,bytes);
+   pop();
 }
 
 void* memory::ptr() const
@@ -62,12 +68,16 @@ void* memory::ptr() const
 memory memory::slice(const size_t offset,
                      const size_t bytes) const
 {
+   push();
    MFEM_ABORT("FIXME");
+   pop();
    return memory();
 }
 
 bool memory::operator == (const memory &m)
 {
+   push();
+   pop();
    return (ptr() == m.ptr()) && (size() == m.size());
 }
 

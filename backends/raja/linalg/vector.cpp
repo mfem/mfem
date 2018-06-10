@@ -23,6 +23,7 @@ namespace raja
 PVector *Vector::DoVectorClone(bool copy_data, void **buffer,
                                int buffer_type_id) const
 {
+   push();
    MFEM_ASSERT(buffer_type_id == ScalarId<double>::value, "");
    Vector *new_vector = new Vector(RajaLayout());
    if (copy_data)
@@ -33,12 +34,14 @@ PVector *Vector::DoVectorClone(bool copy_data, void **buffer,
    {
       *buffer = new_vector->GetBuffer();
    }
+   pop();
    return new_vector;
 }
 
 void Vector::DoDotProduct(const PVector &x, void *result,
                           int result_type_id) const
 {
+   push();
    // called only when Size() != 0
    MFEM_ASSERT(result_type_id == ScalarId<double>::value, "");
    double *res = (double *)result;
@@ -53,6 +56,7 @@ void Vector::DoDotProduct(const PVector &x, void *result,
       MPI_Allreduce(&local_dot, res, 1, MPI_DOUBLE, MPI_SUM,
                     RajaLayout().RajaEngine().GetComm());
    }
+   pop();
 #endif
 }
 
@@ -60,7 +64,7 @@ void Vector::DoAxpby(const void *a, const PVector &x,
                      const void *b, const PVector &y,
                      int ab_type_id)
 {
-
+   push();
    // called only when Size() != 0
 
    MFEM_ASSERT(ab_type_id == ScalarId<double>::value, "");
@@ -156,6 +160,7 @@ void Vector::DoAxpby(const void *a, const PVector &x,
              ((double*)xp->RajaMem().ptr())[i],
              ((double*)yp->RajaMem().ptr())[i]);
              }*/
+   pop();
 }
 
 mfem::Vector Vector::Wrap()

@@ -116,6 +116,7 @@ RajaGridFunction& RajaGridFunction::operator = (const RajaGridFunction &v)
 
 void RajaGridFunction::GetTrueDofs(Vector &v)
 {
+   push();
    const mfem::Operator *R = fes.GetRestrictionOperator();
    if (!R)
    {
@@ -127,10 +128,12 @@ void RajaGridFunction::GetTrueDofs(Vector &v)
       mfem::Vector mfem_v(v);
       R->Mult(this->Wrap(), mfem_v);
    }
+   pop();
 }
 
 void RajaGridFunction::SetFromTrueDofs(Vector &v)
 {
+   push();
    const mfem::Operator *P = fes.GetProlongationOperator();
    if (!P)
    {
@@ -142,6 +145,7 @@ void RajaGridFunction::SetFromTrueDofs(Vector &v)
       mfem::Vector mfem_this(*this);
       P->Mult(v.Wrap(), mfem_this);
    }
+   pop();
 }
 
 mfem::FiniteElementSpace* RajaGridFunction::GetFESpace()
@@ -156,6 +160,7 @@ const mfem::FiniteElementSpace* RajaGridFunction::GetFESpace() const
 
 void RajaGridFunction::ToQuad(const IntegrationRule &ir, Vector &quadValues)
 {
+   push();
    const Engine &engine = RajaLayout().RajaEngine();
    raja::device device = engine.GetDevice();
 
@@ -172,10 +177,12 @@ void RajaGridFunction::ToQuad(const IntegrationRule &ir, Vector &quadValues)
              ofespace->GetLocalToGlobalMap(),
              this->RajaMem(),
              quadValues.RajaMem());*/
+   pop();
 }
 
 void RajaGridFunction::Distribute(const Vector &v)
 {
+   push();
    if (fes.isDistributed())
    {
       mfem::Vector mfem_this(*this);
@@ -185,6 +192,7 @@ void RajaGridFunction::Distribute(const Vector &v)
    {
       *this = v;
    }
+   pop();
 }
 
 } // namespace mfem::raja

@@ -23,38 +23,43 @@
 // DBG *************************************************************************
 inline void rdbg(const char *format,...)
 {
-  va_list args;
-  va_start(args, format);
-  fflush(stdout);
-  vfprintf(stdout,format,args);
-  fflush(stdout);
-  va_end(args);
+   va_list args;
+   va_start(args, format);
+   fflush(stdout);
+   vfprintf(stdout,format,args);
+   fflush(stdout);
+   va_end(args);
 }
 
 //*****************************************************************************
 static inline uint8_t chk8(const char *bfr)
 {
-  //printf("\n\033[33m[chk8] %s\033[m",bfr);
-  unsigned int chk = 0;
-  size_t len = strlen(bfr);
-  for(;len;len--,bfr++)
-    chk += *bfr;
-  return (uint8_t) chk;
+   unsigned int chk = 0;
+   size_t len = strlen(bfr);
+   for(;len;len--,bfr++)
+      chk += *bfr;
+   return (uint8_t) chk;
 }
+
+
+// *****************************************************************************
+static bool env_ini = false;
+static bool env_dbg = false;
 
 // *****************************************************************************
 static inline void rdbge(const char *file, const char *format, ...)
 {
-  if (false) return;
-  const uint8_t color = 17 + chk8(file)%216;
-  va_list args;
-  va_start(args, format);
-  fflush(stdout);
-  fprintf(stdout,"\033[38;5;%dm",color);
-  vfprintf(stdout,format,args);
-  fprintf(stdout,"\033[m");
-  fflush(stdout);
-  va_end(args);
+   if (!env_ini) { env_dbg = getenv("DBG"); env_ini = true; }
+   if (!env_dbg) return;
+   const uint8_t color = 17 + chk8(file)%216;
+   va_list args;
+   va_start(args, format);
+   fflush(stdout);
+   fprintf(stdout,"\033[38;5;%dm",color);
+   vfprintf(stdout,format,args);
+   fprintf(stdout,"\033[m");
+   fflush(stdout);
+   va_end(args);
 }
 
 // *****************************************************************************

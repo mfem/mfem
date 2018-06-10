@@ -27,7 +27,9 @@ RajaBilinearForm::RajaBilinearForm(RajaFiniteElementSpace *ofespace_) :
    localX(ofespace_->RajaEVLayout()),
    localY(ofespace_->RajaEVLayout())
 {
+   push();
    Init(ofespace_->RajaEngine(), ofespace_, ofespace_);
+   pop();
 }
 
 RajaBilinearForm::RajaBilinearForm(RajaFiniteElementSpace *otrialFESpace_,
@@ -37,66 +39,80 @@ RajaBilinearForm::RajaBilinearForm(RajaFiniteElementSpace *otrialFESpace_,
    localX(otrialFESpace_->RajaEVLayout()),
    localY(otestFESpace_->RajaEVLayout())
 {
+   push();
    Init(otrialFESpace_->RajaEngine(), otrialFESpace_, otestFESpace_);
+   pop();
 }
 
 void RajaBilinearForm::Init(const Engine &e,
                             RajaFiniteElementSpace *otrialFESpace_,
                             RajaFiniteElementSpace *otestFESpace_)
 {
-   engine.Reset(&e);
+  push();
+  engine.Reset(&e);
+  otrialFESpace = otrialFESpace_;
+  trialFESpace  = otrialFESpace_->GetFESpace();
+  
+  otestFESpace = otestFESpace_;
+  testFESpace  = otestFESpace_->GetFESpace();
 
-   otrialFESpace = otrialFESpace_;
-   trialFESpace  = otrialFESpace_->GetFESpace();
-
-   otestFESpace = otestFESpace_;
-   testFESpace  = otestFESpace_->GetFESpace();
-
-   mesh = trialFESpace->GetMesh();
+  mesh = trialFESpace->GetMesh();
+  dbg(" done!");
+  pop();
 }
 
 int RajaBilinearForm::BaseGeom() const
 {
-   return mesh->GetElementBaseGeometry();
+  push();
+  pop();
+  return mesh->GetElementBaseGeometry();
 }
 
 int RajaBilinearForm::GetDim() const
 {
-   return mesh->Dimension();
+  push();pop();
+  return mesh->Dimension();
 }
 
 int64_t RajaBilinearForm::GetNE() const
 {
-   return mesh->GetNE();
+  push();pop();
+  return mesh->GetNE();
 }
 
 Mesh& RajaBilinearForm::GetMesh() const
 {
+   push();pop();
    return *mesh;
 }
 
 RajaFiniteElementSpace& RajaBilinearForm::GetTrialRajaFESpace() const
 {
+   push();pop();
    return *otrialFESpace;
 }
 
 RajaFiniteElementSpace& RajaBilinearForm::GetTestRajaFESpace() const
 {
+   push();pop();
    return *otestFESpace;
 }
 
 mfem::FiniteElementSpace& RajaBilinearForm::GetTrialFESpace() const
 {
+   push();pop();
    return *trialFESpace;
 }
 
 mfem::FiniteElementSpace& RajaBilinearForm::GetTestFESpace() const
 {
+   push();pop();
    return *testFESpace;
 }
 
 int64_t RajaBilinearForm::GetTrialNDofs() const
 {
+   push();pop();
    return trialFESpace->GetNDofs();
 }
 
@@ -128,19 +144,25 @@ const FiniteElement& RajaBilinearForm::GetTestFE(const int i) const
 // Adds new Domain Integrator.
 void RajaBilinearForm::AddDomainIntegrator(RajaIntegrator *integrator)
 {
+   push();
    AddIntegrator(integrator, DomainIntegrator);
+   pop();
 }
 
 // Adds new Boundary Integrator.
 void RajaBilinearForm::AddBoundaryIntegrator(RajaIntegrator *integrator)
 {
+   push();
    AddIntegrator(integrator, BoundaryIntegrator);
+   pop();
 }
 
 // Adds new interior Face Integrator.
 void RajaBilinearForm::AddInteriorFaceIntegrator(RajaIntegrator *integrator)
 {
+   push();
    AddIntegrator(integrator, InteriorFaceIntegrator);
+   pop();
 }
 
 // Adds new boundary Face Integrator.
@@ -153,6 +175,7 @@ void RajaBilinearForm::AddBoundaryFaceIntegrator(RajaIntegrator *integrator)
 void RajaBilinearForm::AddIntegrator(RajaIntegrator *integrator,
                                      const RajaIntegratorType itype)
 {
+   push();
    if (integrator == NULL)
    {
       std::stringstream error_ss;
@@ -171,6 +194,7 @@ void RajaBilinearForm::AddIntegrator(RajaIntegrator *integrator,
    }
    integrator->SetupIntegrator(*this, itype);
    integrators.push_back(integrator);
+   pop();
 }
 
 const mfem::Operator* RajaBilinearForm::GetTrialProlongation() const
@@ -195,6 +219,7 @@ const mfem::Operator* RajaBilinearForm::GetTestRestriction() const
 
 void RajaBilinearForm::Assemble()
 {
+   push();
    // [MISSING] Find geometric information that is needed by intergrators
    //             to share between integrators.
    const int integratorCount = (int) integrators.size();
@@ -202,6 +227,7 @@ void RajaBilinearForm::Assemble()
    {
       integrators[i]->Assemble();
    }
+   pop();
 }
 
 void RajaBilinearForm::FormLinearSystem(const mfem::Array<int> &constraintList,
@@ -210,13 +236,16 @@ void RajaBilinearForm::FormLinearSystem(const mfem::Array<int> &constraintList,
                                         mfem::Vector &X, mfem::Vector &B,
                                         int copy_interior)
 {
+   push();
    FormOperator(constraintList, Aout);
    InitRHS(constraintList, x, b, Aout, X, B, copy_interior);
+   pop();
 }
 
 void RajaBilinearForm::FormOperator(const mfem::Array<int> &constraintList,
                                     mfem::Operator *&Aout)
 {
+   push();
    const mfem::Operator *trialP = GetTrialProlongation();
    const mfem::Operator *testP  = GetTestProlongation();
    mfem::Operator *rap = this;
@@ -228,6 +257,7 @@ void RajaBilinearForm::FormOperator(const mfem::Array<int> &constraintList,
 
    Aout = new RajaConstrainedOperator(rap, constraintList,
                                       rap != this);
+   pop();
 }
 
 void RajaBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
@@ -286,6 +316,7 @@ void RajaBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
 // Matrix vector multiplication.
 void RajaBilinearForm::Mult_(const Vector &x, Vector &y) const
 {
+   push();
    otrialFESpace->GlobalToLocal(x, localX);
    localY.Fill<double>(0.0);
 
@@ -294,13 +325,14 @@ void RajaBilinearForm::Mult_(const Vector &x, Vector &y) const
    {
       integrators[i]->MultAdd(localX, localY);
    }
-
    otestFESpace->LocalToGlobal(localY, y);
+   pop();
 }
 
 // Matrix transpose vector multiplication.
 void RajaBilinearForm::MultTranspose_(const Vector &x, Vector &y) const
 {
+   push();
    assert(false);// otestFESpace->GlobalToLocal(x, localX);
    localY.Fill<double>(0.0);
 
@@ -311,6 +343,7 @@ void RajaBilinearForm::MultTranspose_(const Vector &x, Vector &y) const
    }
 
    assert(false);//otrialFESpace->LocalToGlobal(localY, y);
+   pop();
 }
 
 void RajaBilinearForm::RajaRecoverFEMSolution(const mfem::Vector &X,
@@ -342,6 +375,7 @@ RajaBilinearForm::~RajaBilinearForm()
 
 void BilinearForm::InitRajaBilinearForm()
 {
+   push();
    // Init 'obform' using 'bform'
    MFEM_ASSERT(bform != NULL, "");
    MFEM_ASSERT(obform == NULL, "");
@@ -350,12 +384,12 @@ void BilinearForm::InitRajaBilinearForm()
       bform->FESpace()->Get_PFESpace()->As<RajaFiniteElementSpace>();
    obform = new RajaBilinearForm(&ofes);
 
-   // Transfer domain integrators
+   dbg(", transfer domain integrators");
    mfem::Array<mfem::BilinearFormIntegrator*> &dbfi = *bform->GetDBFI();
    for (int i = 0; i < dbfi.Size(); i++)
    {
       std::string integ_name(dbfi[i]->Name());
-      //printf("\033[33;1minteg_name: %s\033[m",integ_name.c_str());
+      dbg(", integ_name: %s",integ_name.c_str());
       Coefficient *scal_coeff = dbfi[i]->GetScalarCoefficient();
       ConstantCoefficient *const_coeff =
          dynamic_cast<ConstantCoefficient*>(scal_coeff);
@@ -367,9 +401,8 @@ void BilinearForm::InitRajaBilinearForm()
 
       if (integ_name == "(undefined)")
       {
-        //MFEM_ABORT("BilinearFormIntegrator does not define Name()");
+        MFEM_ABORT("BilinearFormIntegrator does not define Name()");
         ointeg = new RajaDiffusionIntegrator(ocoeff);
-        #warning Undefined BilinearFormIntegrator
       }
       else if (integ_name == "diffusion")
       {
@@ -386,22 +419,23 @@ void BilinearForm::InitRajaBilinearForm()
 
       obform->AddDomainIntegrator(ointeg);
    }
-
+   pop();
    // TODO: other types of integrators ...
 }
 
 bool BilinearForm::Assemble()
 {
+   push();
    if (obform == NULL) { InitRajaBilinearForm(); }
-
    obform->Assemble();
-
+   pop();
    return true; // --> host assembly is not needed
 }
 
 void BilinearForm::FormSystemMatrix(const mfem::Array<int> &ess_tdof_list,
                                     mfem::OperatorHandle &A)
 {
+   push();
    if (A.Type() == mfem::Operator::ANY_TYPE)
    {
       mfem::Operator *Aout = NULL;
@@ -412,6 +446,7 @@ void BilinearForm::FormSystemMatrix(const mfem::Array<int> &ess_tdof_list,
    {
       MFEM_ABORT("Operator::Type is not supported, type = " << A.Type());
    }
+   pop();
 }
 
 void BilinearForm::FormLinearSystem(const mfem::Array<int> &ess_tdof_list,
@@ -420,15 +455,19 @@ void BilinearForm::FormLinearSystem(const mfem::Array<int> &ess_tdof_list,
                                     mfem::Vector &X, mfem::Vector &B,
                                     int copy_interior)
 {
+   push();
    FormSystemMatrix(ess_tdof_list, A);
    obform->InitRHS(ess_tdof_list, x, b, A.Ptr(), X, B, copy_interior);
+   pop();
 }
 
 void BilinearForm::RecoverFEMSolution(const mfem::Vector &X,
                                       const mfem::Vector &b,
                                       mfem::Vector &x)
 {
+   push();
    obform->RajaRecoverFEMSolution(X, b, x);
+   pop();
 }
 
 } // namespace mfem::raja

@@ -89,9 +89,11 @@ NVTX_DECLSPEC int NVTX_API rNvtxSyncPop(void);
 #define push(...) CHOOSE(__VA_ARGS__)(__VA_ARGS__)
 
 #else // __NVCC__ && _NVVP__ ***************************************************
-
+  
+//#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 :__FILE__)
+#define __FILENAME__ ({const char * pStr = strrchr(__FILE__, '/'); pStr ? pStr + 1 : __FILE__;})
 #define pop(...)
-#define push(...) dbg("\n%s",__PRETTY_FUNCTION__)
+#define push(...) dbg("\n%24s\b\b\b\b:\033[2m%3d\033[22m: %s",__FILENAME__,__LINE__,__FUNCTION__)
 //#define push(...) dbg("%s",__FUNCTION__)
 #define cuProfilerStart(...)
 #define cuProfilerStop(...)

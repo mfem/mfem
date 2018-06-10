@@ -25,27 +25,34 @@ RestrictionOperator::RestrictionOperator(Layout &in_layout, Layout &out_layout,
                                          raja::array<int> indices) :
    Operator(in_layout, out_layout)
 {
+   push();
    entries     = indices.size() / 2;
    trueIndices = indices;
+   pop();
 }
 
 // **************************************************************************
 void RestrictionOperator::Mult_(const Vector &x, Vector &y) const
 {
+   push();
    dbg("\033[34;1m[Mult_] entries=%ld, trueIndices size=%ld",entries,
        trueIndices.Size());
    rExtractSubVector(entries, trueIndices, (double*)x.RajaMem().ptr(),
                      (double*)y.RajaMem().ptr());
    //assert(false);
+   pop();
 }
 
 // **************************************************************************
 void RestrictionOperator::MultTranspose_(const Vector &x, Vector &y) const
 {
+   push();
    y.Fill<double>(0.0);
    assert(false);
-   rMapSubVector(entries, trueIndices, (double*)x.RajaMem().ptr(),
+   rMapSubVector(entries, trueIndices,
+                 (double*)x.RajaMem().ptr(),
                  (double*)y.RajaMem().ptr());
+   pop();
 }
 
 } // namespace mfem::raja

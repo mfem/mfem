@@ -9,10 +9,11 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
+#ifndef MFEM_BACKENDS_RAJA_BILIN_INTEG_DIFFUSION_HPP
+#define MFEM_BACKENDS_RAJA_BILIN_INTEG_DIFFUSION_HPP
+
 #include "../../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
-
-#include "../raja.hpp"
 
 namespace mfem
 {
@@ -20,26 +21,25 @@ namespace mfem
 namespace raja
 {
 
-// ***************************************************************************
-RajaTable::RajaTable(const Table &table)
+class RajaDiffusionIntegrator : public RajaIntegrator
 {
-   push();
-   size = table.Size();
-   assert(size > 0);
-   const int nnz = table.GetI()[size];
-   I = new int[size+1];
-   J = (int*) operator new (nnz);
-   rHtoH(I,table.GetI(),sizeof(int)*(size+1));
-   if (nnz>0)
-   {
-      assert(table.GetJ());
-      rHtoD(J,table.GetJ(),sizeof(int)*nnz);
-   }
-   pop();
-}
+private:
+   RajaCoefficient coeff;
+   Vector assembledOperator;
+public:
+   RajaDiffusionIntegrator(const RajaCoefficient &coeff_);
+   virtual ~RajaDiffusionIntegrator();
+   virtual std::string GetName();
+   virtual void SetupIntegrationRule();
+   virtual void Setup();
+   virtual void Assemble();
+   virtual void MultAdd(Vector &x, Vector &y);
+};
 
-} // raja
+} // namespace mfem::raja
 
-} // mfem
+} // namespace mfem
 
 #endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
+
+#endif // MFEM_BACKENDS_RAJA_BILIN_INTEG_DIFFUSION_HPP

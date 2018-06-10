@@ -24,8 +24,9 @@ RajaSparseMatrix::RajaSparseMatrix(Layout &in_layout, Layout &out_layout,
                                    const mfem::SparseMatrix &m) :
    Operator(in_layout, out_layout)
 {
-
+   push();
    Setup(in_layout.RajaEngine().GetDevice(), m);
+   pop();
 }
 
 RajaSparseMatrix::RajaSparseMatrix(Layout &in_layout, Layout &out_layout,
@@ -34,9 +35,10 @@ RajaSparseMatrix::RajaSparseMatrix(Layout &in_layout, Layout &out_layout,
                                    raja::array<int> mappedIndices_) :
    Operator(in_layout, out_layout)
 {
-
+   push();
    Setup(in_layout.RajaEngine().GetDevice(), m,
          reorderIndices, mappedIndices_);
+   pop();
 }
 
 RajaSparseMatrix::RajaSparseMatrix(Layout &in_layout, Layout &out_layout,
@@ -48,8 +50,9 @@ RajaSparseMatrix::RajaSparseMatrix(Layout &in_layout, Layout &out_layout,
    indices(indices_),
    weights(weights_)
 {
-
+   push();
    SetupKernel(in_layout.RajaEngine().GetDevice());
+   pop();
 }
 
 RajaSparseMatrix::RajaSparseMatrix(Layout &in_layout, Layout &out_layout,
@@ -65,20 +68,23 @@ RajaSparseMatrix::RajaSparseMatrix(Layout &in_layout, Layout &out_layout,
    reorderIndices(reorderIndices_),
    mappedIndices(mappedIndices_)
 {
-
+   push();
    SetupKernel(in_layout.RajaEngine().GetDevice());
+   pop();
 }
 
 void RajaSparseMatrix::Setup(raja::device device, const mfem::SparseMatrix &m)
 {
+   push();
    Setup(device, m, raja::array<int>(), raja::array<int>());
+   pop();
 }
 
 void RajaSparseMatrix::Setup(raja::device device, const SparseMatrix &m,
                              raja::array<int> reorderIndices_,
                              raja::array<int> mappedIndices_)
 {
-
+   push();
    //const int nnz = m.GetI()[height];
    assert(false);
    //offsets.allocate(device,height + 1, m.GetI());
@@ -87,19 +93,21 @@ void RajaSparseMatrix::Setup(raja::device device, const SparseMatrix &m,
    //offsets.keepInDevice();
    //indices.keepInDevice();
    //weights.keepInDevice();
-
    reorderIndices = reorderIndices_;
    mappedIndices  = mappedIndices_;
-
    SetupKernel(device);
+   pop();
 }
 
 void RajaSparseMatrix::SetupKernel(raja::device device)
 {
+   push();
+   pop();
 }
 
 void RajaSparseMatrix::Mult_(const Vector &x, Vector &y) const
 {
+   push();
    assert(false);
    if (reorderIndices.isInitialized() ||
        mappedIndices.isInitialized())
@@ -127,6 +135,7 @@ void RajaSparseMatrix::Mult_(const Vector &x, Vector &y) const
                  offsets, indices, weights,
                  x.RajaMem(), y.RajaMem());*/
    }
+   pop();
 }
 
 
@@ -134,6 +143,7 @@ RajaSparseMatrix* CreateMappedSparseMatrix(Layout &in_layout,
                                            Layout &out_layout,
                                            const mfem::SparseMatrix &m)
 {
+   push();
    const int mHeight = m.Height();
    // const int mWidth  = m.Width();
 
@@ -148,8 +158,7 @@ RajaSparseMatrix* CreateMappedSparseMatrix(Layout &in_layout,
       trueCount += ((I[i + 1] - I[i]) == 1);
    }
    const int dupCount = (mHeight - trueCount);
-   dbg("\n[CreateMappedSparseMatrix] mHeight=%d trueCount=%d, dupCount is %s",
-       mHeight,trueCount,dupCount?"TRUE":"false");
+   dbg(": mHeight=%d trueCount=%d", mHeight,trueCount);
 
    // Create the reordering map for entries that aren't modified (true dofs)
    raja::device device(in_layout.RajaEngine().GetDevice());
@@ -209,10 +218,11 @@ RajaSparseMatrix* CreateMappedSparseMatrix(Layout &in_layout,
       //indices.keepInDevice();
       //weights.keepInDevice();
    }
-
-   return new RajaSparseMatrix(in_layout, out_layout,
-                               offsets, indices, weights,
-                               reorderIndices, mappedIndices);
+   RajaSparseMatrix *nRSM = new RajaSparseMatrix(in_layout, out_layout,
+                                                 offsets, indices, weights,
+                                                 reorderIndices, mappedIndices);
+   pop();
+   return nRSM;
 }
 
 } // namespace mfem::raja

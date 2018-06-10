@@ -72,6 +72,9 @@
 #include "fem/bilinearform.hpp"
 #include "fem/coefficient.hpp"
 #include "fem/bilininteg.hpp"
+#include "fem/bilinIntDiffusion.hpp"
+#include "fem/bilinIntMass.hpp"
+#include "fem/bilinIntVMass.hpp"
 #include "fem/restrict.hpp"
 #include "fem/prolong.hpp"
 

@@ -22,6 +22,7 @@ namespace raja
 
 mfem::Vector& GetHostVector(const int id, const int64_t size)
 {
+   push();
    static std::vector<mfem::Vector*> v;
    if (v.size() <= (size_t) id)
    {
@@ -34,12 +35,14 @@ mfem::Vector& GetHostVector(const int id, const int64_t size)
    {
       v[id]->SetSize(size);
    }
+   pop();
    return *(v[id]);
 }
 
 void RajaMult(const mfem::Operator &op,
               const Vector &x, Vector &y)
 {
+   push();
    raja::device device = x.RajaLayout().RajaEngine().GetDevice();
    if (device.hasSeparateMemorySpace())
    {
@@ -56,11 +59,13 @@ void RajaMult(const mfem::Operator &op,
       mfem::Vector hostY((double*) y.RajaMem().ptr(), y.Size());
       op.Mult(hostX, hostY);
    }
+   pop();
 }
 
 void RajaMultTranspose(const mfem::Operator &op,
                        const Vector &x, Vector &y)
 {
+   push();
    raja::device device = x.RajaLayout().RajaEngine().GetDevice();
    if (device.hasSeparateMemorySpace())
    {
@@ -77,6 +82,7 @@ void RajaMultTranspose(const mfem::Operator &op,
       mfem::Vector hostY((double*) y.RajaMem().ptr(), y.Size());
       op.MultTranspose(hostX, hostY);
    }
+   pop();
 }
 
 // **************************************************************************
@@ -94,12 +100,12 @@ ProlongationOperator::ProlongationOperator(Layout &in_layout,
    Operator(in_layout, out_layout),
    pmat(pmat_),
    multOp(*this),
-   multTransposeOp(*this)
-{ }
+   multTransposeOp(*this) {}
 
 // **************************************************************************
 void ProlongationOperator::Mult_(const Vector &x, Vector &y) const
 {
+   push();
    //assert(false);
    if (pmat)
    {
@@ -110,11 +116,13 @@ void ProlongationOperator::Mult_(const Vector &x, Vector &y) const
       // TODO: define 'ox' and 'oy'
       multOp.Mult_(x, y);
    }
+   pop();
 }
 
 // **************************************************************************
 void ProlongationOperator::MultTranspose_(const Vector &x, Vector &y) const
 {
+   push();
    if (pmat)
    {
       RajaMultTranspose(*pmat, x, y);
@@ -123,6 +131,7 @@ void ProlongationOperator::MultTranspose_(const Vector &x, Vector &y) const
    {
       multTransposeOp.Mult_(x, y);
    }
+   pop();
 }
 
 } // namespace mfem::raja

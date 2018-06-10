@@ -22,16 +22,20 @@ namespace raja
 // **************************************************************************
 void Layout::Resize(std::size_t new_size)
 {
+   push();
    size = new_size;
+   pop();
 }
 
 // **************************************************************************
 void Layout::Resize(const mfem::Array<std::size_t> &offsets)
 {
+   push();
    MFEM_ASSERT(offsets.Size() == 2,
                "multiple workers are not supported yet");
    assert(offsets.Size() == 2);
    size = offsets.Last();
+   pop();
 }
 
 } // namespace mfem::raja

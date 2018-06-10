@@ -29,10 +29,12 @@ static void CreateRPOperators(Layout &v_layout,
                               mfem::Operator *&RajaR,
                               mfem::Operator *&RajaP)
 {
+   push();
    if (!P)
    {
       RajaR = new IdentityOperator(t_layout);
       RajaP = new IdentityOperator(t_layout);
+      pop();
       return;
    }
 
@@ -63,6 +65,7 @@ static void CreateRPOperators(Layout &v_layout,
    {
       RajaP = new ProlongationOperator(t_layout, v_layout, P);
    }
+   pop();
 }
  
 // **************************************************************************
@@ -146,6 +149,7 @@ RajaFiniteElementSpace::RajaFiniteElementSpace(const Engine &e,
                      R, P,
                      restrictionOp,
                      prolongationOp);
+   pop();
 }
 
 // **************************************************************************

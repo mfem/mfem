@@ -23,6 +23,7 @@ namespace raja
 // *****************************************************************************
 void Engine::Init(const std::string &engine_spec)
 {
+   push();
    //
    // Initialize inherited fields
    //
@@ -30,13 +31,16 @@ void Engine::Init(const std::string &engine_spec)
    workers_weights[0]= 1.0;
    workers_mem_res[0] = 0;
    dev=new device();
+   pop();
 }
 
 // *****************************************************************************
 Engine::Engine(const std::string &engine_spec)
    : mfem::Engine(NULL, 1, 1)
 {
+   push();
    Init(engine_spec);
+   pop();
 }
 
 // *****************************************************************************
@@ -44,14 +48,17 @@ Engine::Engine(const std::string &engine_spec)
 Engine::Engine(MPI_Comm _comm, const std::string &engine_spec)
    : mfem::Engine(NULL, 1, 1)
 {
+   push();
    comm = _comm;
    Init(engine_spec);
+   pop();
 }
 #endif
 
 // *****************************************************************************
 DLayout Engine::MakeLayout(std::size_t size) const
 {
+   push();pop();
    return DLayout(new Layout(*this, size));
 }
 
@@ -60,23 +67,28 @@ DLayout Engine::MakeLayout(const mfem::Array<std::size_t> &offsets) const
 {
    MFEM_ASSERT(offsets.Size() == 2,
                "multiple workers are not supported yet");
+   push();pop();
    return DLayout(new Layout(*this, offsets.Last()));
 }
 
 DArray Engine::MakeArray(PLayout &layout, std::size_t item_size) const
 {
+   push();
    MFEM_ASSERT(dynamic_cast<Layout *>(&layout) != NULL,
                "invalid input layout");
    Layout *lt = static_cast<Layout *>(&layout);
+   pop();
    return DArray(new Array(*lt, item_size));
 }
 
 DVector Engine::MakeVector(PLayout &layout, int type_id) const
 {
+   push();
    MFEM_ASSERT(type_id == ScalarId<double>::value, "invalid type_id");
    MFEM_ASSERT(dynamic_cast<Layout *>(&layout) != NULL,
                "invalid input layout");
    Layout *lt = static_cast<Layout *>(&layout);
+   pop();
    return DVector(new Vector(*lt));
 }
    
@@ -88,12 +100,16 @@ DFiniteElementSpace Engine::MakeFESpace(mfem::ParFiniteElementSpace &pfespace) c
 #else*/
 DFiniteElementSpace Engine::MakeFESpace(mfem::FiniteElementSpace &fespace) const
 {
+   push();
+   pop();
    return DFiniteElementSpace(new RajaFiniteElementSpace(*this, fespace));
 }
 //#endif
 
 DBilinearForm Engine::MakeBilinearForm(mfem::BilinearForm &bf) const
 {
+   push();
+   pop();
    return DBilinearForm(new BilinearForm(*this, bf));
 }
 

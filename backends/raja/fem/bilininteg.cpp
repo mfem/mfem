@@ -27,7 +27,7 @@ static RajaGeometry *geom=NULL;
 // ***************************************************************************
 RajaGeometry::~RajaGeometry()
 {
-   push(SteelBlue);
+   push();
    free(geom->meshNodes);
    free(geom->J);
    free(geom->invJ);
@@ -43,7 +43,7 @@ RajaGeometry* RajaGeometry::GetV(RajaFiniteElementSpace& fes,
                                  const IntegrationRule& ir,
                                  const RajaVector& Sx)
 {
-   push(SteelBlue);
+   push();
    const Mesh *mesh = fes.GetFESpace()->GetMesh();
    const GridFunction *nodes = mesh->GetNodes();
    const mfem::FiniteElementSpace *fespace = nodes->FESpace();
@@ -57,7 +57,7 @@ RajaGeometry* RajaGeometry::GetV(RajaFiniteElementSpace& fes,
    push(rNodeCopyByVDim,SteelBlue);
    rNodeCopyByVDim(elements,numDofs,ndofs,dims,geom->eMap,Sx,geom->meshNodes);
    pop(rNodeCopyByVDim);
-   push(rIniGeom,SteelBlue);
+   push(rIniGeom);
    rIniGeom(dims,numDofs,numQuad,elements,
             maps->dofToQuadD,
             geom->meshNodes,
@@ -74,7 +74,7 @@ RajaGeometry* RajaGeometry::GetV(RajaFiniteElementSpace& fes,
 RajaGeometry* RajaGeometry::Get(RajaFiniteElementSpace& fes,
                                 const IntegrationRule& ir)
 {
-   push(SteelBlue);
+   push();
    Mesh& mesh = *(fes.GetFESpace()->GetMesh());
    const bool geom_to_allocate =
       (!geom) || rconfig::Get().GeomNeedsUpdate(mesh.GetSequence());
@@ -152,7 +152,7 @@ RajaGeometry* RajaGeometry::Get(RajaFiniteElementSpace& fes,
 // ***************************************************************************
 void RajaGeometry::ReorderByVDim(GridFunction& nodes)
 {
-   push(SteelBlue);
+   push();
    const mfem::FiniteElementSpace *fes=nodes.FESpace();
    const int size = nodes.Size();
    const int vdim = fes->GetVDim();
@@ -176,7 +176,7 @@ void RajaGeometry::ReorderByVDim(GridFunction& nodes)
 // ***************************************************************************
 void RajaGeometry::ReorderByNodes(GridFunction& nodes)
 {
-   push(SteelBlue);
+   push();
    const mfem::FiniteElementSpace *fes=nodes.FESpace();
    const int size = nodes.Size();
    const int vdim = fes->GetVDim();
@@ -316,7 +316,7 @@ RajaDofQuadMaps* RajaDofQuadMaps::GetD2QTensorMaps(const mfem::FiniteElement&
       return AllDofQuadMaps[hash];
    }
 
-   push(SteelBlue);
+   push();
    RajaDofQuadMaps *maps = new RajaDofQuadMaps();
    AllDofQuadMaps[hash]=maps;
    maps->hash = hash;
@@ -403,7 +403,7 @@ RajaDofQuadMaps* RajaDofQuadMaps::GetSimplexMaps(const mfem::FiniteElement&
    {
       return AllDofQuadMaps[hash];
    }
-   push(SteelBlue);
+   push();
    RajaDofQuadMaps *maps = new RajaDofQuadMaps();
    AllDofQuadMaps[hash]=maps;
    maps->hash = hash;
@@ -933,7 +933,9 @@ void SetSimplexProperties(RajaFiniteElementSpace &trialFESpace,
 }
 
 */
-//---[ Base Integrator ]--------------
+
+
+// *****************************************************************************
 RajaIntegrator::RajaIntegrator(const Engine &e)
    : engine(&e),
      bform(),
@@ -948,8 +950,10 @@ RajaIntegrator::RajaIntegrator(const Engine &e)
 
 RajaIntegrator::~RajaIntegrator() {}
 
+// *****************************************************************************
 void RajaIntegrator::SetupMaps()
 {
+   push();
    maps = RajaDofQuadMaps::Get(*otrialFESpace,
                                *otestFESpace,
                                *ir);
@@ -957,8 +961,10 @@ void RajaIntegrator::SetupMaps()
    mapsTranspose = RajaDofQuadMaps::Get(*otestFESpace,
                                         *otrialFESpace,
                                         *ir);
+   pop();
 }
 
+// *****************************************************************************
 RajaFiniteElementSpace& RajaIntegrator::GetTrialRajaFESpace() const
 {
    return *otrialFESpace;
@@ -994,9 +1000,11 @@ RajaDofQuadMaps *RajaIntegrator::GetDofQuadMaps()
    return maps;
 }
 
+// *****************************************************************************
 void RajaIntegrator::SetupIntegrator(RajaBilinearForm &bform_,
                                      const RajaIntegratorType itype_)
 {
+   push();
    MFEM_ASSERT(engine == &bform_.RajaEngine(), "");
    bform     = &bform_;
    mesh      = &(bform_.GetMesh());
@@ -1020,282 +1028,15 @@ void RajaIntegrator::SetupIntegrator(RajaBilinearForm &bform_,
    //SetProperties(*otrialFESpace,*otestFESpace,*ir);
 
    Setup();
+   pop();
 }
 
+// *****************************************************************************
 RajaGeometry *RajaIntegrator::GetGeometry(const int flags)
 {
    push();
    pop();
    return RajaGeometry::Get(*otrialFESpace, *ir/*, flags*/);
-}
-
-
-//====================================
-
-
-//---[ Diffusion Integrator ]---------
-RajaDiffusionIntegrator::RajaDiffusionIntegrator(const RajaCoefficient &coeff_)
-   :
-   RajaIntegrator(coeff_.RajaEngine()),
-   coeff(coeff_),
-   assembledOperator(*(new Layout(coeff_.RajaEngine(), 0)))
-{
-   coeff.SetName("COEFF");
-}
-
-RajaDiffusionIntegrator::~RajaDiffusionIntegrator() {}
-
-
-std::string RajaDiffusionIntegrator::GetName()
-{
-   return "DiffusionIntegrator";
-}
-
-void RajaDiffusionIntegrator::SetupIntegrationRule()
-{
-   const FiniteElement &trialFE = *(trialFESpace->GetFE(0));
-   const FiniteElement &testFE  = *(testFESpace->GetFE(0));
-   ir = &mfem::DiffusionIntegrator::GetRule(trialFE, testFE);
-}
-
-void RajaDiffusionIntegrator::Setup()
-{
-}
-
-void RajaDiffusionIntegrator::Assemble()
-{
-   push(SteelBlue);
-   const mfem::FiniteElement &fe = *(trialFESpace->GetFE(0));
-   const int dim = mesh->Dimension();
-   const int dims = fe.GetDim();
-   assert(dim==dims);
-
-   const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
-   const int elements = trialFESpace->GetNE();
-   assert(elements==mesh->GetNE());
-
-   const int quadraturePoints = ir->GetNPoints();
-   const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
-   //assert(quad1D==quadraturePoints);
-
-   RajaGeometry *geo = GetGeometry(RajaGeometry::Jacobian);
-   assert(geo);
-
-   assembledOperator.Resize<double>(symmDims * quadraturePoints * elements,NULL);
-
-   /*   dbg("maps->quadWeights.Size()=%d",maps->quadWeights.Size());
-      dbg("geom->J.Size()=%d",geom->J.Size());
-      dbg("assembledOperator.Size()=%d",assembledOperator.Size());
-      dbg("\t\033[35mCOEFF=%f",1.0);
-      dbg("\t\033[35mquad1D=%d",quad1D);
-      dbg("\t\033[35mmesh->GetNE()=%d",mesh->GetNE());
-      for(size_t i=0;i<maps->quadWeights.Size();i+=1)
-         printf("\n\t\033[35m[Assemble] quadWeights[%ld]=%f",i, maps->quadWeights[i]);
-      //for(size_t i=0;i<geo->J.Size();i+=1) printf("\n\t\033[35m[Assemble] J[%ld]=%f",i, geo->J[i]);
-      */
-   rDiffusionAssemble(dim,
-                      quad1D,
-                      mesh->GetNE(),
-                      maps->quadWeights,
-                      geo->J,
-                      1.0,//COEFF
-                      (double*)assembledOperator.RajaMem().ptr());
-   /*   for(size_t i=0;i<assembledOperator.Size();i+=1)
-         printf("\n\t\033[35m[Assemble] assembledOperator[%ld]=%f",i,
-         ((double*)assembledOperator.RajaMem().ptr())[i]);
-   */
-   pop();
-}
-
-void RajaDiffusionIntegrator::MultAdd(Vector &x, Vector &y)
-{
-   push(SteelBlue);
-   const int dim = mesh->Dimension();
-   const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
-   const int dofs1D = trialFESpace->GetFE(0)->GetOrder() + 1;
-   // Note: x and y are E-vectors
-   /*   for(size_t i=0;i<x.Size();i+=1)
-         printf("\n\t\033[36m[MultAdd] x[%ld]=%f",i, ((double*)x.RajaMem().ptr())[i]);
-      for(size_t i=0;i<maps->dofToQuad.Size();i+=1)
-         printf("\n\t\033[36m[MultAdd] dofToQuad[%ld]=%f",i, maps->dofToQuad[i]);
-      for(size_t i=0;i<maps->dofToQuadD.Size();i+=1)
-         printf("\n\t\033[36m[MultAdd] dofToQuadD[%ld]=%f",i, maps->dofToQuadD[i]);
-      for(size_t i=0;i<maps->quadToDof.Size();i+=1)
-         printf("\n\t\033[36m[MultAdd] quadToDof[%ld]=%f",i, maps->quadToDof[i]);
-      for(size_t i=0;i<maps->quadToDofD.Size();i+=1)
-         printf("\n\t\033[36m[MultAdd] quadToDofD[%ld]=%f",i, maps->quadToDofD[i]);
-      for(size_t i=0;i<assembledOperator.Size();i+=1)
-         printf("\n\t\033[36m[MultAdd] assembledOperator[%ld]=%f",i, ((double*)assembledOperator.RajaMem().ptr())[i]);
-   */
-   rDiffusionMultAdd(dim,
-                     dofs1D,
-                     quad1D,
-                     mesh->GetNE(),
-                     maps->dofToQuad,
-                     maps->dofToQuadD,
-                     maps->quadToDof,
-                     maps->quadToDofD,
-                     (double*)assembledOperator.RajaMem().ptr(),
-                     (const double*)x.RajaMem().ptr(),
-                     (double*)y.RajaMem().ptr());
-   /*   for(size_t i=0;i<y.Size();i+=1)
-         printf("\n\t\033[36m[MultAdd] y[%ld]=%f",i, ((double*)y.RajaMem().ptr())[i]);
-   */
-   /*
-     multKernel((int) mesh->GetNE(),
-     maps.dofToQuad,
-                 maps.dofToQuadD,
-                 maps.quadToDof,
-                 maps.quadToDofD,
-                 assembledOperator.RajaMem(),
-                 x.RajaMem(), y.RajaMem());*/
-   pop();
-}
-//====================================
-
-
-//---[ Mass Integrator ]--------------
-RajaMassIntegrator::RajaMassIntegrator(const RajaCoefficient &coeff_) :
-   RajaIntegrator(coeff_.RajaEngine()),
-   coeff(coeff_),
-   assembledOperator(*(new Layout(coeff_.RajaEngine(), 0)))
-{
-   coeff.SetName("COEFF");
-}
-
-RajaMassIntegrator::~RajaMassIntegrator() {}
-
-std::string RajaMassIntegrator::GetName()
-{
-   return "MassIntegrator";
-}
-
-void RajaMassIntegrator::SetupIntegrationRule()
-{
-   const mfem::FiniteElement &trialFE = *(trialFESpace->GetFE(0));
-   const mfem::FiniteElement &testFE  = *(testFESpace->GetFE(0));
-   mfem::ElementTransformation &T = *trialFESpace->GetElementTransformation(0);
-   ir = &mfem::MassIntegrator::GetRule(trialFE, testFE, T);
-}
-
-void RajaMassIntegrator::Setup()
-{
-   assert(false);/*
-   ::raja::properties kernelProps = props;
-
-   coeff.Setup(*this, kernelProps);
-
-   // Setup assemble and mult kernels
-   assembleKernel = GetAssembleKernel(kernelProps);
-   multKernel     = GetMultAddKernel(kernelProps);*/
-}
-
-void RajaMassIntegrator::Assemble()
-{
-   assert(false);/*
-  if (assembledOperator.Size())
-   {
-      return;
-   }
-
-   const int elements = trialFESpace->GetNE();
-   const int quadraturePoints = ir->GetNPoints();
-
-   RajaGeometry geom = GetGeometry(RajaGeometry::Jacobian);
-
-   assembledOperator.Resize<double>(quadraturePoints * elements, NULL);
-
-   assembleKernel((int) mesh->GetNE(),
-                  maps.quadWeights,
-                  geom.J,
-                  coeff,
-                  assembledOperator.RajaMem());*/
-}
-
-void RajaMassIntegrator::SetOperator(Vector &v)
-{
-   assembledOperator = v;
-}
-
-void RajaMassIntegrator::MultAdd(Vector &x, Vector &y)
-{
-   assert(false);/*
- multKernel((int) mesh->GetNE(),
-              maps.dofToQuad,
-              maps.dofToQuadD,
-              maps.quadToDof,
-              maps.quadToDofD,
-              assembledOperator.RajaMem(),
-              x.RajaMem(), y.RajaMem());*/
-}
-//====================================
-
-
-//---[ Vector Mass Integrator ]--------------
-RajaVectorMassIntegrator::RajaVectorMassIntegrator(const RajaCoefficient &
-                                                   coeff_)
-   :
-   RajaIntegrator(coeff_.RajaEngine()),
-   coeff(coeff_),
-   assembledOperator(*(new Layout(coeff_.RajaEngine(), 0)))
-{
-   coeff.SetName("COEFF");
-}
-
-RajaVectorMassIntegrator::~RajaVectorMassIntegrator() {}
-
-std::string RajaVectorMassIntegrator::GetName()
-{
-   return "VectorMassIntegrator";
-}
-
-void RajaVectorMassIntegrator::SetupIntegrationRule()
-{
-   const mfem::FiniteElement &trialFE = *(trialFESpace->GetFE(0));
-   const mfem::FiniteElement &testFE  = *(testFESpace->GetFE(0));
-   mfem::ElementTransformation &T = *trialFESpace->GetElementTransformation(0);
-   ir = &mfem::MassIntegrator::GetRule(trialFE, testFE, T);
-}
-
-void RajaVectorMassIntegrator::Setup()
-{
-   assert(false);/*
- ::raja::properties kernelProps = props;
-
-   coeff.Setup(*this, kernelProps);
-
-   // Setup assemble and mult kernels
-   assembleKernel = GetAssembleKernel(kernelProps);
-   multKernel     = GetMultAddKernel(kernelProps);*/
-}
-
-void RajaVectorMassIntegrator::Assemble()
-{
-   assert(false);/*
-const int elements = trialFESpace->GetNE();
-   const int quadraturePoints = ir->GetNPoints();
-
-   RajaGeometry geom = GetGeometry(RajaGeometry::Jacobian);
-
-   assembledOperator.Resize<double>(quadraturePoints * elements, NULL);
-
-   assembleKernel((int) mesh->GetNE(),
-                  maps.quadWeights,
-                  geom.J,
-                  coeff,
-                  assembledOperator.RajaMem());*/
-}
-
-void RajaVectorMassIntegrator::MultAdd(Vector &x, Vector &y)
-{
-   assert(false);/*
- multKernel((int) mesh->GetNE(),
-              maps.dofToQuad,
-              maps.dofToQuadD,
-              maps.quadToDof,
-              maps.quadToDofD,
-              assembledOperator.RajaMem(),
-              x.RajaMem(), y.RajaMem());*/
 }
 
 } // namespace mfem::raja

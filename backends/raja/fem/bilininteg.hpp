@@ -140,60 +140,6 @@ public:
                                                 RajaGeometry::JacobianDet));
 
 };
-//====================================
-
-
-//---[ Diffusion Integrator ]---------
-class RajaDiffusionIntegrator : public RajaIntegrator
-{
-private:
-   RajaCoefficient coeff;
-   Vector assembledOperator;
-public:
-   RajaDiffusionIntegrator(const RajaCoefficient &coeff_);
-   virtual ~RajaDiffusionIntegrator();
-   virtual std::string GetName();
-   virtual void SetupIntegrationRule();
-   virtual void Setup();
-   virtual void Assemble();
-   virtual void MultAdd(Vector &x, Vector &y);
-};
-//====================================
-
-
-//---[ Mass Integrator ]--------------
-class RajaMassIntegrator : public RajaIntegrator
-{
-private:
-   RajaCoefficient coeff;
-   Vector assembledOperator;
-public:
-   RajaMassIntegrator(const RajaCoefficient &coeff_);
-   virtual ~RajaMassIntegrator();
-   virtual std::string GetName();
-   virtual void SetupIntegrationRule();
-   virtual void Setup();
-   virtual void Assemble();
-   void SetOperator(Vector &v);
-   virtual void MultAdd(Vector &x, Vector &y);
-};
-//====================================
-
-//---[ Vector Mass Integrator ]--------------
-class RajaVectorMassIntegrator : public RajaIntegrator
-{
-private:
-   RajaCoefficient coeff;
-   Vector assembledOperator;
-public:
-   RajaVectorMassIntegrator(const RajaCoefficient &coeff_);
-   virtual ~RajaVectorMassIntegrator();
-   virtual std::string GetName();
-   virtual void SetupIntegrationRule();
-   virtual void Setup();
-   virtual void Assemble();
-   virtual void MultAdd(Vector &x, Vector &y);
-};
 
 } // namespace mfem::raja
 

@@ -23,6 +23,7 @@ namespace raja
 PArray *Array::DoClone(bool copy_data, void **buffer,
                        std::size_t item_size) const
 {
+   push();
    Array *new_array = new Array(RajaLayout(), item_size);
    if (copy_data)
    {
@@ -32,12 +33,14 @@ PArray *Array::DoClone(bool copy_data, void **buffer,
    {
       *buffer = new_array->GetBuffer();
    }
+   pop();
    return new_array;
 }
 
 int Array::DoResize(PLayout &new_layout, void **buffer,
                     std::size_t item_size)
 {
+   push();
    MFEM_ASSERT(dynamic_cast<Layout *>(&new_layout) != NULL,
                "new_layout is not an RAJA Layout");
    Layout *lt = static_cast<Layout *>(&new_layout);
@@ -47,11 +50,13 @@ int Array::DoResize(PLayout &new_layout, void **buffer,
    {
       *buffer = GetBuffer();
    }
+   pop();
    return err;
 }
 
 int Array::ResizeData(const Layout *lt, std::size_t item_size)
 {
+   push();
    const std::size_t new_bytes = lt->Size()*item_size;
    if (data.size() <
        new_bytes )//|| data.getDHandle() != lt->RajaEngine().GetDevice().getDHandle())
@@ -64,26 +69,31 @@ int Array::ResizeData(const Layout *lt, std::size_t item_size)
    {
       slice = data.slice(0, new_bytes);
    }
+   pop();
    return 0;
 }
 
 void *Array::DoPullData(void *buffer, std::size_t item_size)
 {
+   push();
    // called only when Size() != 0
 
    if (!slice.getDevice().hasSeparateMemorySpace())
    {
+      pop();
       return slice.ptr();
    }
    if (buffer)
    {
       slice.copyTo(buffer);
    }
+   pop();
    return buffer;
 }
 
 void Array::DoFill(const void *value_ptr, std::size_t item_size)
 {
+   push();
    // called only when Size() != 0
 
    switch (item_size)
@@ -109,20 +119,24 @@ void Array::DoFill(const void *value_ptr, std::size_t item_size)
       default:
          MFEM_ABORT("item_size = " << item_size << " is not supported");
    }
+   pop();
 }
 
 void Array::DoPushData(const void *src_buffer, std::size_t item_size)
 {
+   push();
    // called only when Size() != 0
 
    if (slice.getDevice().hasSeparateMemorySpace() || slice.ptr() != src_buffer)
    {
       slice.copyFrom(src_buffer);
    }
+   pop();
 }
 
 void Array::DoAssign(const PArray &src, std::size_t item_size)
 {
+   push();
    // called only when Size() != 0
 
    // Note: static_cast can not be used here since PArray is a virtual base
@@ -131,6 +145,7 @@ void Array::DoAssign(const PArray &src, std::size_t item_size)
    MFEM_ASSERT(source != NULL, "invalid source Array type");
    MFEM_ASSERT(Size() == source->Size(), "");
    slice.copyFrom(source->slice);
+   pop();
 }
 
 } // namespace mfem::raja
