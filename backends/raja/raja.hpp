@@ -67,12 +67,9 @@
 #include "linalg/sparsemat.hpp"
 
 // RAJA/fem ********************************************************************
-#include "fem/rfespace.hpp"
-#include "fem/rpfespace.hpp"
+#include "fem/fespace.hpp"
 #include "fem/gridfunc.hpp"
-#include "fem/rgridfunc.hpp"
 #include "fem/bilinearform.hpp"
-#include "fem/rpbilinearform.hpp"
 #include "fem/coefficient.hpp"
 #include "fem/bilininteg.hpp"
 #include "fem/restrict.hpp"

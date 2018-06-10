@@ -21,8 +21,8 @@ NOTMAC := $(subst Darwin,,$(shell uname -s))
 CXX = g++
 MPICXX = mpicxx
 
-OPTIM_FLAGS = -O3 -g
-DEBUG_FLAGS = -g -Wall
+OPTIM_FLAGS = -O2 -g -std=c++11
+DEBUG_FLAGS = -O1 -g -Wall -std=c++11
 
 # Destination location of make install
 # PREFIX = $(HOME)/mfem
@@ -82,14 +82,14 @@ MFEM_MPI_NP = 4
 # config.hpp. The values below are the defaults for generating the actual values
 # in config.mk and config.hpp.
 
-MFEM_USE_MPI         = NO
+MFEM_USE_MPI         = YES
 # FIXME: add MFEM_USE_BACKENDS, MFEM_USE_OCCA|RAJA to the CMake build system
 MFEM_USE_BACKENDS    = YES
 MFEM_USE_OCCA        = NO
 MFEM_USE_RAJA        = YES
 MFEM_USE_METIS       = $(MFEM_USE_MPI)
-MFEM_USE_METIS_5     = NO
-MFEM_DEBUG           = NO
+MFEM_USE_METIS_5     = YES
+MFEM_DEBUG           = YES
 MFEM_USE_EXCEPTIONS  = NO
 MFEM_USE_GZSTREAM    = NO
 MFEM_USE_LIBUNWIND   = NO
@@ -121,7 +121,8 @@ LIBUNWIND_OPT = -g
 LIBUNWIND_LIB = $(if $(NOTMAC),-lunwind -ldl,)
 
 # HYPRE library configuration (needed to build the parallel version)
-HYPRE_DIR = @MFEM_DIR@/../hypre-2.10.0b/src/hypre
+#HYPRE_DIR = @MFEM_DIR@/../hypre-2.10.0b/src/hypre
+HYPRE_DIR = /Users/camierjs/home/hypre-2.11.2/src/hypre
 HYPRE_OPT = -I$(HYPRE_DIR)/include
 HYPRE_LIB = -L$(HYPRE_DIR)/lib -lHYPRE
 
@@ -132,7 +133,8 @@ ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK),NONO)
      METIS_OPT =
      METIS_LIB = -L$(METIS_DIR) -lmetis
    else
-     METIS_DIR = @MFEM_DIR@/../metis-5.0
+     METIS_DIR = /usr/local
+#@MFEM_DIR@/../metis-5.0
      METIS_OPT = -I$(METIS_DIR)/include
      METIS_LIB = -L$(METIS_DIR)/lib -lmetis
    endif
@@ -279,9 +281,10 @@ OCCA_DIR = @MFEM_DIR@/../occa
 OCCA_OPT = -I$(OCCA_DIR)/include
 OCCA_LIB = -Wl,-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
 
-RAJA_DIR = @MFEM_DIR@/../raja
-RAJA_OPT = -I$(RAJA_DIR)/include -I$(CUDA_DIR)/include
-RAJA_LIB = -Wl,-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
+#RAJA_DIR = @MFEM_DIR@/../raja
+#RAJA_OPT = -I$(RAJA_DIR)/include -I$(CUDA_DIR)/include
+#RAJA_LIB = -Wl,-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA
+RAJA_LIB = -L.
 
 # If YES, enable some informational messages
 VERBOSE = NO

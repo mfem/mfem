@@ -367,7 +367,9 @@ void BilinearForm::InitRajaBilinearForm()
 
       if (integ_name == "(undefined)")
       {
-         MFEM_ABORT("BilinearFormIntegrator does not define Name()");
+        //MFEM_ABORT("BilinearFormIntegrator does not define Name()");
+        ointeg = new RajaDiffusionIntegrator(ocoeff);
+        #warning Undefined BilinearFormIntegrator
       }
       else if (integ_name == "diffusion")
       {
