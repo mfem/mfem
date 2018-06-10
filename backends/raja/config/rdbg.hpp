@@ -23,25 +23,38 @@
 // DBG *************************************************************************
 inline void rdbg(const char *format,...)
 {
-   va_list args;
-   va_start(args, format);
-   fflush(stdout);
-   vfprintf(stdout,format,args);
-   fflush(stdout);
-   va_end(args);
+  va_list args;
+  va_start(args, format);
+  fflush(stdout);
+  vfprintf(stdout,format,args);
+  fflush(stdout);
+  va_end(args);
+}
+
+//*****************************************************************************
+static inline uint8_t chk8(const char *bfr)
+{
+  //printf("\n\033[33m[chk8] %s\033[m",bfr);
+  unsigned int chk = 0;
+  size_t len = strlen(bfr);
+  for(;len;len--,bfr++)
+    chk += *bfr;
+  return (uint8_t) chk;
 }
 
 // *****************************************************************************
-static inline void rdbge(const char *format,...)
+static inline void rdbge(const char *file, const char *format, ...)
 {
-   va_list args;
-   va_start(args, format);
-   fflush(stdout);
-   printf("\033[32;1m");
-   vfprintf(stdout,format,args);
-   printf("\033[m");//\n
-   fflush(stdout);
-   va_end(args);
+  if (false) return;
+  const uint8_t color = 17 + chk8(file)%216;
+  va_list args;
+  va_start(args, format);
+  fflush(stdout);
+  fprintf(stdout,"\033[38;5;%dm",color);
+  vfprintf(stdout,format,args);
+  fprintf(stdout,"\033[m");
+  fflush(stdout);
+  va_end(args);
 }
 
 // *****************************************************************************
@@ -50,7 +63,7 @@ static inline void rdbge(const char *format,...)
 #define dbg(...) rdbg(__VA_ARGS__)
 #else
 //#warning LAGHOS_DEBUG else
-#define dbg(...) //rdbge(__VA_ARGS__)
+#define dbg(...) rdbge(__FILE__,__VA_ARGS__)
 #endif // LAGHOS_DEBUG
 
 #endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)

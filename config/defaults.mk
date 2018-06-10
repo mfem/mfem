@@ -122,9 +122,9 @@ LIBUNWIND_LIB = $(if $(NOTMAC),-lunwind -ldl,)
 
 # HYPRE library configuration (needed to build the parallel version)
 #HYPRE_DIR = @MFEM_DIR@/../hypre-2.10.0b/src/hypre
-HYPRE_DIR = /Users/camierjs/home/hypre-2.11.2/src/hypre
+HYPRE_DIR = /usr/local/Cellar/hypre/2.11.2_3
 HYPRE_OPT = -I$(HYPRE_DIR)/include
-HYPRE_LIB = -L$(HYPRE_DIR)/lib -lHYPRE
+HYPRE_LIB = -L$(HYPRE_DIR)/lib -lHYPRE -L/usr/local/opt/lapack/lib -lclapack
 
 # METIS library configuration
 ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK),NONO)
