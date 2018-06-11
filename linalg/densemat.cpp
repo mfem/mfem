@@ -3776,6 +3776,30 @@ void AddMultVWt(const Vector &v, const Vector &w, DenseMatrix &VWt)
    }
 }
 
+void AddMultVVt(const Vector &v, DenseMatrix &VVt)
+{
+   int n = v.Size();
+
+#ifdef MFEM_DEBUG
+   if (VVt.Height() != n || VVt.Width() != n)
+   {
+      mfem_error("AddMultVVt(...)");
+   }
+#endif
+
+   for (int i = 0; i < n; i++)
+   {
+      double vi = v(i);
+      for (int j = 0; j < i; j++)
+      {
+         double vivj = vi * v(j);
+         VVt(i, j) += vivj;
+         VVt(j, i) += vivj;
+      }
+      VVt(i, i) += vi * v(i);
+   }
+}
+
 void AddMult_a_VWt(const double a, const Vector &v, const Vector &w,
                    DenseMatrix &VWt)
 {
