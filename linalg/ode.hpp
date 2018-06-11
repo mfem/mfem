@@ -96,6 +96,7 @@ public:
    virtual ~ODESolver() { }
 };
 
+ODESolver *SelectODESolver(const int ode_solver_type);
 
 /// The classical forward Euler method
 class ForwardEulerSolver : public ODESolver
@@ -205,6 +206,26 @@ private:
 
 public:
    RK8Solver() : ExplicitRKSolver(12, a, b, c) { }
+};
+
+
+/** An explicit Adams-Bashforth method */
+class AdamsBashforthSolver : public ODESolver
+{
+private:
+   int s, smax;
+   static const double a[5][5];
+   Vector k[5];
+   Array<int> idx;
+
+public:
+   AdamsBashforthSolver(int _s);
+
+   virtual void Init(TimeDependentOperator &_f);
+
+   virtual void Step(Vector &x, double &t, double &dt);
+
+   virtual ~AdamsBashforthSolver();
 };
 
 
