@@ -12,13 +12,13 @@
 #include "occa://mfem/fem/defines.okl"
 
 //---[ 1D ]-----------------------------
-kernel void GridFuncToQuad1D(const int numElements,
+@kernel void GridFuncToQuad1D(const int numElements,
                              const DofToQuad_t restrict dofToQuad,
                              const DLocalMap1D_t restrict l2gMap,
                              const double * restrict gf,
                              QVLocal1D_t restrict out) {
-  for (int e = 0; e < numElements; ++e; outer) {
-    for (int dummy = 0; dummy < 1; ++dummy; inner) {
+  for (int e = 0; e < numElements; ++e; @outer) {
+    for (int dummy = 0; dummy < 1; ++dummy; @inner) {
       double r_out[NUM_VDIM][NUM_QUAD_1D];
       for (int v = 0; v < NUM_VDIM; ++v) {
         for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
@@ -46,14 +46,14 @@ kernel void GridFuncToQuad1D(const int numElements,
 
 
 //---[ 2D ]-----------------------------
-kernel void GridFuncToQuad2D(const int numElements,
+@kernel void GridFuncToQuad2D(const int numElements,
                              const DofToQuad_t restrict dofToQuad,
                              const DLocalMap2D_t restrict l2gMap,
                              const double * restrict gf,
                              QVLocal2D_t restrict out) {
   // Iterate over elements
-  for (int e = 0; e < numElements; ++e; outer) {
-    for (int dummy = 0; dummy < 1; ++dummy; inner) {
+  for (int e = 0; e < numElements; ++e; @outer) {
+    for (int dummy = 0; dummy < 1; ++dummy; @inner) {
       double out_xy[NUM_VDIM][NUM_QUAD_1D][NUM_QUAD_1D];
       for (int v = 0; v < NUM_VDIM; ++v) {
         for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
@@ -105,13 +105,13 @@ kernel void GridFuncToQuad2D(const int numElements,
 
 
 //---[ 3D ]-----------------------------
-kernel void GridFuncToQuad3D(const int numElements,
+@kernel void GridFuncToQuad3D(const int numElements,
                              const DofToQuad_t restrict dofToQuad,
                              const DLocalMap3D_t restrict l2gMap,
                              const double * restrict gf,
                              QVLocal3D_t restrict out) {
-  for (int e = 0; e < numElements; ++e; outer) {
-    for (int dummy = 0; dummy < 1; ++dummy; inner) {
+  for (int e = 0; e < numElements; ++e; @outer) {
+    for (int dummy = 0; dummy < 1; ++dummy; @inner) {
       double out_xyz[NUM_VDIM][NUM_QUAD_1D][NUM_QUAD_1D][NUM_QUAD_1D];
       for (int v = 0; v < NUM_VDIM; ++v) {
         for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {

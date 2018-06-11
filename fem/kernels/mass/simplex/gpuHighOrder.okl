@@ -12,15 +12,15 @@
 #include "occa://mfem/fem/defines.okl"
 
 //---[ 2D ]-----------------------------
-kernel void Assemble2D(const int numElements,
-                       const double * restrict quadWeights,
-                       const Jacobian2D_t restrict J,
-                       COEFF_ARGS
-                       QLocal_t restrict oper) {
-  for (int eOff = 0; eOff < numElements; eOff += A2_ELEMENT_BATCH; outer) {
-    for (int e = eOff; e < (eOff + A2_ELEMENT_BATCH); ++e; inner) {
+@kernel void Assemble2D(const int numElements,
+                        const double * restrict quadWeights,
+                        const Jacobian2D_t restrict J,
+                        COEFF_ARGS
+                        QLocal_t restrict oper) {
+  for (int eOff = 0; eOff < numElements; eOff += A2_ELEMENT_BATCH; @outer) {
+    for (int e = eOff; e < (eOff + A2_ELEMENT_BATCH); ++e; @inner) {
       if (e < numElements) {
-        for (int qOff = 0; qOff < A2_QUAD_BATCH; ++qOff; inner) {
+        for (int qOff = 0; qOff < A2_QUAD_BATCH; ++qOff; @inner) {
           for (int q = qOff; q < NUM_QUAD; q += A2_QUAD_BATCH) {
             const double J11 = J(0, 0, q, e), J12 = J(1, 0, q, e);
             const double J21 = J(0, 1, q, e), J22 = J(1, 1, q, e);
@@ -33,18 +33,18 @@ kernel void Assemble2D(const int numElements,
   }
 }
 
-kernel void MultAdd2D(const int numElements,
-                      const DofToQuad_t restrict dofToQuad,
-                      const DofToQuadD2D_t restrict dofToQuadD,
-                      const QuadToDof_t restrict quadToDof,
-                      const QuadToDofD2D_t restrict quadToDofD,
-                      const QLocal_t restrict oper,
-                      const DLocal_t restrict solIn,
-                      DLocal_t restrict solOut) {
-  for (int e = 0; e < numElements; ++e; outer) {
-    shared double s_sol[NUM_QUAD];
+@kernel void MultAdd2D(const int numElements,
+                       const DofToQuad_t restrict dofToQuad,
+                       const DofToQuadD2D_t restrict dofToQuadD,
+                       const QuadToDof_t restrict quadToDof,
+                       const QuadToDofD2D_t restrict quadToDofD,
+                       const QLocal_t restrict oper,
+                       const DLocal_t restrict solIn,
+                       DLocal_t restrict solOut) {
+  for (int e = 0; e < numElements; ++e; @outer) {
+    @shared double s_sol[NUM_QUAD];
 
-    for (int qOff = 0; qOff < M2_INNER_BATCH; ++qOff; inner) {
+    for (int qOff = 0; qOff < M2_INNER_BATCH; ++qOff; @inner) {
       for (int q = qOff; q < NUM_QUAD; q += M2_INNER_BATCH) {
         double s = 0;
         for (int d = 0; d < NUM_DOFS; ++d) {
@@ -69,15 +69,15 @@ kernel void MultAdd2D(const int numElements,
 
 
 //---[ 3D ]-----------------------------
-kernel void Assemble3D(const int numElements,
-                       const double * restrict quadWeights,
-                       const Jacobian3D_t restrict J,
-                       COEFF_ARGS
-                       QLocal_t restrict oper) {
-  for (int eOff = 0; eOff < numElements; eOff += A3_ELEMENT_BATCH; outer) {
-    for (int e = eOff; e < (eOff + A3_ELEMENT_BATCH); ++e; inner) {
+@kernel void Assemble3D(const int numElements,
+                        const double * restrict quadWeights,
+                        const Jacobian3D_t restrict J,
+                        COEFF_ARGS
+                        QLocal_t restrict oper) {
+  for (int eOff = 0; eOff < numElements; eOff += A3_ELEMENT_BATCH; @outer) {
+    for (int e = eOff; e < (eOff + A3_ELEMENT_BATCH); ++e; @inner) {
       if (e < numElements) {
-        for (int qOff = 0; qOff < A3_QUAD_BATCH; ++qOff; inner) {
+        for (int qOff = 0; qOff < A3_QUAD_BATCH; ++qOff; @inner) {
           for (int q = qOff; q < NUM_QUAD; q += A3_QUAD_BATCH) {
             const double J11 = J(0, 0, q, e), J12 = J(1, 0, q, e), J13 = J(2, 0, q, e);
             const double J21 = J(0, 1, q, e), J22 = J(1, 1, q, e), J23 = J(2, 1, q, e);
@@ -94,18 +94,18 @@ kernel void Assemble3D(const int numElements,
   }
 }
 
-kernel void MultAdd3D(const int numElements,
-                      const DofToQuad_t restrict dofToQuad,
-                      const DofToQuadD3D_t restrict dofToQuadD,
-                      const QuadToDof_t restrict quadToDof,
-                      const QuadToDofD3D_t restrict quadToDofD,
-                      const QLocal_t restrict oper,
-                      const DLocal_t restrict solIn,
-                      DLocal_t restrict solOut) {
-  for (int e = 0; e < numElements; ++e; outer) {
-    shared double s_sol[NUM_QUAD];
+@kernel void MultAdd3D(const int numElements,
+                       const DofToQuad_t restrict dofToQuad,
+                       const DofToQuadD3D_t restrict dofToQuadD,
+                       const QuadToDof_t restrict quadToDof,
+                       const QuadToDofD3D_t restrict quadToDofD,
+                       const QLocal_t restrict oper,
+                       const DLocal_t restrict solIn,
+                       DLocal_t restrict solOut) {
+  for (int e = 0; e < numElements; ++e; @outer) {
+    @shared double s_sol[NUM_QUAD];
 
-    for (int qOff = 0; qOff < M3_INNER_BATCH; ++qOff; inner) {
+    for (int qOff = 0; qOff < M3_INNER_BATCH; ++qOff; @inner) {
       for (int q = qOff; q < NUM_QUAD; q += M3_INNER_BATCH) {
         double s = 0;
         for (int d = 0; d < NUM_DOFS; ++d) {

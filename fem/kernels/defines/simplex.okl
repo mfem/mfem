@@ -30,8 +30,8 @@ typedef double* QLocal_t @dim(NUM_QUAD, numElements);
 typedef double* DVLocal_t @dim(NUM_VDIM, NUM_DOFS, numElements);
 typedef double* QVLocal_t @dim(NUM_VDIM, NUM_QUAD, numElements);
 #else
-typedef double* DVLocal_t @(dim(NUM_VDIM, NUM_DOFS, numElements), idxOrder(2,0,1));
-typedef double* QVLocal_t @(dim(NUM_VDIM, NUM_QUAD, numElements), idxOrder(2,0,1));
+typedef double* DVLocal_t @(dim(NUM_VDIM, NUM_DOFS, numElements) @dimOrder(2,0,1);
+typedef double* QVLocal_t @(dim(NUM_VDIM, NUM_QUAD, numElements) @dimOrder(2,0,1);
 #endif
 
 typedef int* DLocalMap_t @dim(NUM_DOFS, numElements);

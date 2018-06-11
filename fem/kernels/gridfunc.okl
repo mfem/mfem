@@ -12,15 +12,15 @@
 #include "occa://mfem/fem/defines.okl"
 
 #if USING_TENSOR_OPS
-#  if OCCA_USING_CPU
-#    include "occa://mfem/fem/gridfunc/tensor/cpu.okl"
-#  else
+#  ifdef OCCA_USING_GPU
 #    include "occa://mfem/fem/gridfunc/tensor/gpuHighOrder.okl"
+#  else
+#    include "occa://mfem/fem/gridfunc/tensor/cpu.okl"
 #  endif
 #else
-#  if OCCA_USING_CPU
-#    include "occa://mfem/fem/gridfunc/simplex/cpu.okl"
-#  else
+#  ifdef OCCA_USING_GPU
 #    include "occa://mfem/fem/gridfunc/simplex/gpuHighOrder.okl"
+#  else
+#    include "occa://mfem/fem/gridfunc/simplex/cpu.okl"
 #  endif
 #endif

@@ -15,40 +15,34 @@
   ================================================
 */
 
-kernel void ExtractSubVector(const int entries,
+@kernel void ExtractSubVector(const int entries,
                              const int * restrict indices,
                              const double * restrict in,
                              double * restrict out) {
 
-  for (int i = 0; i < entries; ++i; tile(TILESIZE)) {
-    if (i < entries) {
-      out[i] = in[indices[i]];
-    }
+  for (int i = 0; i < entries; ++i; @tile(TILESIZE, @outer, @inner)) {
+    out[i] = in[indices[i]];
   }
 }
 
-kernel void SetSubVector(const int entries,
+@kernel void SetSubVector(const int entries,
                          const int * restrict indices,
                          const double * restrict in,
                          double * restrict out) {
 
-  for (int i = 0; i < entries; ++i; tile(TILESIZE)) {
-    if (i < entries) {
-      out[indices[i]] = in[i];
-    }
+  for (int i = 0; i < entries; ++i; @tile(TILESIZE, @outer, @inner)) {
+    out[indices[i]] = in[i];
   }
 }
 
-kernel void MapSubVector(const int entries,
+@kernel void MapSubVector(const int entries,
                          const int * restrict indices,
                          const double * restrict in,
                          double * restrict out) {
 
-  for (int i = 0; i < entries; ++i; tile(TILESIZE)) {
-    if (i < entries) {
-      const int fromIdx = indices[2*i + 0];
-      const int toIdx   = indices[2*i + 1];
-      out[toIdx] = in[fromIdx];
-    }
+  for (int i = 0; i < entries; ++i; @tile(TILESIZE, @outer, @inner)) {
+    const int fromIdx = indices[2*i + 0];
+    const int toIdx   = indices[2*i + 1];
+    out[toIdx] = in[fromIdx];
   }
 }

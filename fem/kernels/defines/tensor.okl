@@ -68,15 +68,15 @@ typedef double* QVLocal1D_t @dim(NUM_VDIM, NUM_QUAD_1D, numElements);
 typedef double* QVLocal2D_t @dim(NUM_VDIM, NUM_QUAD_1D, NUM_QUAD_1D, numElements);
 typedef double* QVLocal3D_t @dim(NUM_VDIM, NUM_QUAD_1D, NUM_QUAD_1D, NUM_QUAD_1D, numElements);
 #else
-typedef double* DVLocal_t   @(dim(NUM_VDIM, NUM_DOFS, numElements), idxOrder(2,0,1));
-typedef double* DVLocal1D_t @(dim(NUM_VDIM, NUM_DOFS_1D, numElements), idxOrder(2,0,1));
-typedef double* DVLocal2D_t @(dim(NUM_VDIM, NUM_DOFS_1D, NUM_DOFS_1D, numElements), idxOrder(3,0,1,2));
-typedef double* DVLocal3D_t @(dim(NUM_VDIM, NUM_DOFS_1D, NUM_DOFS_1D, NUM_DOFS_1D, numElements), idxOrder(4,0,1,2,3));
+typedef double* DVLocal_t   @(dim(NUM_VDIM, NUM_DOFS, numElements) @dimOrder(2,0,1);
+typedef double* DVLocal1D_t @(dim(NUM_VDIM, NUM_DOFS_1D, numElements) @dimOrder(2,0,1);
+typedef double* DVLocal2D_t @(dim(NUM_VDIM, NUM_DOFS_1D, NUM_DOFS_1D, numElements) @dimOrder(3,0,1,2);
+typedef double* DVLocal3D_t @(dim(NUM_VDIM, NUM_DOFS_1D, NUM_DOFS_1D, NUM_DOFS_1D, numElements) @dimOrder(4,0,1,2,3);
 
-typedef double* QVLocal_t   @(dim(NUM_VDIM, NUM_QUAD, numElements), idxOrder(2,0,1));
-typedef double* QVLocal1D_t @(dim(NUM_VDIM, NUM_QUAD_1D, numElements), idxOrder(2,0,1));
-typedef double* QVLocal2D_t @(dim(NUM_VDIM, NUM_QUAD_1D, NUM_QUAD_1D, numElements), idxOrder(3,0,1,2));
-typedef double* QVLocal3D_t @(dim(NUM_VDIM, NUM_QUAD_1D, NUM_QUAD_1D, NUM_QUAD_1D, numElements), idxOrder(4,0,1,2,3));
+typedef double* QVLocal_t   @(dim(NUM_VDIM, NUM_QUAD, numElements) @dimOrder(2,0,1);
+typedef double* QVLocal1D_t @(dim(NUM_VDIM, NUM_QUAD_1D, numElements) @dimOrder(2,0,1);
+typedef double* QVLocal2D_t @(dim(NUM_VDIM, NUM_QUAD_1D, NUM_QUAD_1D, numElements) @dimOrder(3,0,1,2);
+typedef double* QVLocal3D_t @(dim(NUM_VDIM, NUM_QUAD_1D, NUM_QUAD_1D, NUM_QUAD_1D, numElements) @dimOrder(4,0,1,2,3);
 #endif
 
 typedef int* DLocalMap_t   @dim(NUM_DOFS, numElements);

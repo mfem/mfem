@@ -12,24 +12,24 @@
 #include "occa://mfem/fem/defines.okl"
 
 //---[ 1D ]-----------------------------
-kernel void GridFuncToQuad1D(const int numElements,
+@kernel void GridFuncToQuad1D(const int numElements,
                              const DofToQuad_t restrict dofToQuad,
                              const DLocalMap1D_t restrict l2gMap,
                              const double * restrict gf,
                              QLocal1D_t restrict out) {
   // Iterate over elements
-  for (int eOff = 0; eOff < numElements; eOff += M1_ELEMENT_BATCHES; outer) {
-    shared double s_dofToQuad[NUM_QUAD_DOFS_1D] @dim(NUM_QUAD_1D, NUM_DOFS_1D);
-    exclusive double r_out[NUM_QUAD_1D];
+  for (int eOff = 0; eOff < numElements; eOff += M1_ELEMENT_BATCHES; @outer) {
+    @shared double s_dofToQuad[NUM_QUAD_DOFS_1D] @dim(NUM_QUAD_1D, NUM_DOFS_1D);
+    @exclusive double r_out[NUM_QUAD_1D];
 
-    for (int el = 0; el < M1_INNER_ELEMENT_BATCH; ++el; inner) {
+    for (int el = 0; el < M1_INNER_ELEMENT_BATCH; ++el; @inner) {
       for (int i = el; i < NUM_QUAD_DOFS_1D; i += M1_INNER_ELEMENT_BATCH) {
         s_dofToQuad[i] = dofToQuad[i];
       }
     }
 
     for (int b = 0; b < M1_OUTER_ELEMENT_BATCH; ++b) {
-      for (int el = 0; el < M1_INNER_ELEMENT_BATCH; ++el; inner) {
+      for (int el = 0; el < M1_INNER_ELEMENT_BATCH; ++el; @inner) {
         const int e = eOff + b*M1_INNER_ELEMENT_BATCH + el;
         if (e < numElements) {
           for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
@@ -53,20 +53,20 @@ kernel void GridFuncToQuad1D(const int numElements,
 
 
 //---[ 2D ]-----------------------------
-kernel void GridFuncToQuad2D(const int numElements,
+@kernel void GridFuncToQuad2D(const int numElements,
                              const DofToQuad_t restrict dofToQuad,
                              const DLocalMap2D_t restrict l2gMap,
                              const double * restrict gf,
                              QLocal2D_t restrict out) {
   // Iterate over elements
-  for (int eOff = 0; eOff < numElements; eOff += M2_ELEMENT_BATCH; outer) {
+  for (int eOff = 0; eOff < numElements; eOff += M2_ELEMENT_BATCH; @outer) {
     // Store dof <--> quad mappings
-    shared double s_dofToQuad[NUM_QUAD_DOFS_1D] @dim(NUM_QUAD_1D, NUM_DOFS_1D);
+    @shared double s_dofToQuad[NUM_QUAD_DOFS_1D] @dim(NUM_QUAD_1D, NUM_DOFS_1D);
 
-    // Store xy planes in shared memory
-    shared double s_xy[NUM_QUAD_DOFS_1D] @dim(NUM_DOFS_1D, NUM_QUAD_1D);
+    // Store xy planes in @shared memory
+    @shared double s_xy[NUM_QUAD_DOFS_1D] @dim(NUM_DOFS_1D, NUM_QUAD_1D);
 
-    for (int x = 0; x < NUM_MAX_1D; ++x; inner) {
+    for (int x = 0; x < NUM_MAX_1D; ++x; @inner) {
       for (int id = x; id < NUM_QUAD_DOFS_1D; id += NUM_MAX_1D) {
         s_dofToQuad[id] = dofToQuad[id];
       }
@@ -74,7 +74,7 @@ kernel void GridFuncToQuad2D(const int numElements,
 
     for (int e = eOff; e < (eOff + M2_ELEMENT_BATCH); ++e) {
       if (e < numElements) {
-        for (int dx = 0; dx < NUM_MAX_1D; ++dx; inner) {
+        for (int dx = 0; dx < NUM_MAX_1D; ++dx; @inner) {
           if (dx < NUM_DOFS_1D) {
             double r_x[NUM_DOFS_1D];
             for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
@@ -89,7 +89,7 @@ kernel void GridFuncToQuad2D(const int numElements,
             }
           }
         }
-        for (int qy = 0; qy < NUM_MAX_1D; ++qy; inner) {
+        for (int qy = 0; qy < NUM_MAX_1D; ++qy; @inner) {
           if (qy < NUM_QUAD_1D) {
             for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
               double val = 0;
@@ -108,24 +108,24 @@ kernel void GridFuncToQuad2D(const int numElements,
 
 
 //---[ 3D ]-----------------------------
-kernel void GridFuncToQuad3D(const int numElements,
+@kernel void GridFuncToQuad3D(const int numElements,
                              const DofToQuad_t restrict dofToQuad,
                              const DLocalMap3D_t restrict l2gMap,
                              const double * restrict gf,
                              QLocal3D_t restrict out) {
   // Iterate over elements
-  for (int e = 0; e < numElements; ++e; outer) {
+  for (int e = 0; e < numElements; ++e; @outer) {
     // Store dof <--> quad mappings
-    shared double s_dofToQuad[NUM_QUAD_DOFS_1D] @dim(NUM_QUAD_1D, NUM_DOFS_1D);
+    @shared double s_dofToQuad[NUM_QUAD_DOFS_1D] @dim(NUM_QUAD_1D, NUM_DOFS_1D);
 
-    // Store xy planes in shared memory
-    shared double s_z[NUM_MAX_2D] @dim(NUM_MAX_1D, NUM_MAX_1D);
+    // Store xy planes in @shared memory
+    @shared double s_z[NUM_MAX_2D] @dim(NUM_MAX_1D, NUM_MAX_1D);
 
     // Store z axis as registers
-    exclusive double r_qz[NUM_QUAD_1D];
+    @exclusive double r_qz[NUM_QUAD_1D];
 
-    for (int y = 0; y < NUM_MAX_1D; ++y; inner) {
-      for (int x = 0; x < NUM_MAX_1D; ++x; inner) {
+    for (int y = 0; y < NUM_MAX_1D; ++y; @inner) {
+      for (int x = 0; x < NUM_MAX_1D; ++x; @inner) {
         const int id = (y * NUM_MAX_1D) + x;
         // Fetch Q <--> D maps
         if (id < NUM_QUAD_DOFS_1D) {
@@ -138,8 +138,8 @@ kernel void GridFuncToQuad3D(const int numElements,
       }
     }
 
-    for (int dy = 0; dy < NUM_MAX_1D; ++dy; inner) {
-      for (int dx = 0; dx < NUM_MAX_1D; ++dx; inner) {
+    for (int dy = 0; dy < NUM_MAX_1D; ++dy; @inner) {
+      for (int dx = 0; dx < NUM_MAX_1D; ++dx; @inner) {
         if ((dx < NUM_DOFS_1D) && (dy < NUM_DOFS_1D)) {
           for (int dz = 0; dz < NUM_DOFS_1D; ++dz) {
             const double val = gf[l2gMap(dx, dy, dz, e)];
@@ -154,16 +154,16 @@ kernel void GridFuncToQuad3D(const int numElements,
     // For each xy plane
     for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
       // Fill xy plane at given z position
-      for (int dy = 0; dy < NUM_MAX_1D; ++dy; inner) {
-        for (int dx = 0; dx < NUM_MAX_1D; ++dx; inner) {
+      for (int dy = 0; dy < NUM_MAX_1D; ++dy; @inner) {
+        for (int dx = 0; dx < NUM_MAX_1D; ++dx; @inner) {
           if ((dx < NUM_DOFS_1D) && (dy < NUM_DOFS_1D)) {
             s_z(dx, dy) = r_qz[qz];
           }
         }
       }
       // Calculate Dxyz, xDyz, xyDz in plane
-      for (int qy = 0; qy < NUM_MAX_1D; ++qy; inner) {
-        for (int qx = 0; qx < NUM_MAX_1D; ++qx; inner) {
+      for (int qy = 0; qy < NUM_MAX_1D; ++qy; @inner) {
+        for (int qx = 0; qx < NUM_MAX_1D; ++qx; @inner) {
           if ((qx < NUM_QUAD_1D) && (qy < NUM_QUAD_1D)) {
             double val = 0;
             for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {

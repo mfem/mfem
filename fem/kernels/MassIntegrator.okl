@@ -32,15 +32,15 @@
 #include "occa://mfem/fem/defines.okl"
 
 #if USING_TENSOR_OPS
-#  if OCCA_USING_CPU
-#    include "occa://mfem/fem/mass/tensor/cpu.okl"
-#  else
+#  ifdef OCCA_USING_GPU
 #    include "occa://mfem/fem/mass/tensor/gpuHighOrder.okl"
+#  else
+#    include "occa://mfem/fem/mass/tensor/cpu.okl"
 #  endif
 #else
-#  if OCCA_USING_CPU
-#    include "occa://mfem/fem/mass/simplex/cpu.okl"
-#  else
+#  ifdef OCCA_USING_GPU
 #    include "occa://mfem/fem/mass/simplex/gpuHighOrder.okl"
+#  else
+#    include "occa://mfem/fem/mass/simplex/cpu.okl"
 #  endif
 #endif

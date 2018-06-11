@@ -44,23 +44,23 @@
 #include "occa://mfem/fem/defines.okl"
 
 #if USING_TENSOR_OPS
-#  if OCCA_USING_CPU
-#    include "occa://mfem/fem/diffusion/tensor/cpu.okl"
-#  else
+#  ifdef OCCA_USING_GPU
 #    if USING_LOW_ORDER
 #      include "occa://mfem/fem/diffusion/tensor/gpuHighOrder.okl"
 #    else
 #      include "occa://mfem/fem/diffusion/tensor/gpuHighOrder.okl"
 #    endif
+#  else
+#    include "occa://mfem/fem/diffusion/tensor/cpu.okl"
 #  endif
 #else
-#  if OCCA_USING_CPU
-#    include "occa://mfem/fem/diffusion/simplex/cpu.okl"
-#  else
+#  ifdef OCCA_USING_GPU
 #    if USING_LOW_ORDER
 #      include "occa://mfem/fem/diffusion/simplex/gpuHighOrder.okl"
 #    else
 #      include "occa://mfem/fem/diffusion/simplex/gpuHighOrder.okl"
 #    endif
+#  else
+#    include "occa://mfem/fem/diffusion/simplex/cpu.okl"
 #  endif
 #endif

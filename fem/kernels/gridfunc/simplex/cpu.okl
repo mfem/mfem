@@ -12,14 +12,14 @@
 #include "occa://mfem/fem/defines.okl"
 
 //---[ 2D ]-----------------------------
-kernel void GridFuncToQuad2D(const int numElements,
+@kernel void GridFuncToQuad2D(const int numElements,
                              const DofToQuad_t restrict dofToQuad,
                              const DLocalMap_t restrict l2gMap,
                              const double * restrict gf,
                              QVLocal_t restrict out) {
   // Iterate over elements
-  for (int e = 0; e < numElements; ++e; outer) {
-    for (int dummy = 0; dummy < 1; ++dummy; inner) {
+  for (int e = 0; e < numElements; ++e; @outer) {
+    for (int dummy = 0; dummy < 1; ++dummy; @inner) {
       for (int d = 0; d < NUM_DOFS; ++d) {
         const int gid = l2gMap(d, e);
         for (int v = 0; v < NUM_VDIM; ++v) {
@@ -38,14 +38,14 @@ kernel void GridFuncToQuad2D(const int numElements,
 
 
 //---[ 3D ]-----------------------------
-kernel void GridFuncToQuad3D(const int numElements,
+@kernel void GridFuncToQuad3D(const int numElements,
                              const DofToQuad_t restrict dofToQuad,
                              const DLocalMap_t restrict l2gMap,
                              const double * restrict gf,
                              QVLocal_t restrict out) {
   // Iterate over elements
-  for (int e = 0; e < numElements; ++e; outer) {
-    for (int dummy = 0; dummy < 1; ++dummy; inner) {
+  for (int e = 0; e < numElements; ++e; @outer) {
+    for (int dummy = 0; dummy < 1; ++dummy; @inner) {
       for (int d = 0; d < NUM_DOFS; ++d) {
         const int gid = l2gMap(d, e);
         for (int v = 0; v < NUM_VDIM; ++v) {

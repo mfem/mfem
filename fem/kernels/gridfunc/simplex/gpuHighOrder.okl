@@ -12,15 +12,15 @@
 #include "occa://mfem/fem/defines.okl"
 
 //---[ 2D ]-----------------------------
-kernel void GridFuncToQuad2D(const int numElements,
+@kernel void GridFuncToQuad2D(const int numElements,
                              const DofToQuad_t restrict dofToQuad,
                              const DLocalMap_t restrict l2gMap,
                              const double * restrict gf,
                              QVLocal_t restrict out) {
-  for (int e = 0; e < numElements; ++e; outer) {
-    shared double s_gf[NUM_VDIM][NUM_DOFS];
+  for (int e = 0; e < numElements; ++e; @outer) {
+    @shared double s_gf[NUM_VDIM][NUM_DOFS];
 
-    for (int dOff = 0; dOff < M2_INNER_BATCH; ++dOff; inner) {
+    for (int dOff = 0; dOff < M2_INNER_BATCH; ++dOff; @inner) {
       for (int d = dOff; d < NUM_DOFS; d += M2_INNER_BATCH) {
         const int gid = l2gMap(d, e);
         for (int v = 0; v < NUM_VDIM; ++v) {
@@ -29,7 +29,7 @@ kernel void GridFuncToQuad2D(const int numElements,
       }
     }
 
-    for (int qOff = 0; qOff < M2_INNER_BATCH; ++qOff; inner) {
+    for (int qOff = 0; qOff < M2_INNER_BATCH; ++qOff; @inner) {
       for (int q = qOff; q < NUM_QUAD; q += M2_INNER_BATCH) {
         for (int v = 0; v < NUM_VDIM; ++v) {
           double r_out = 0;
@@ -46,15 +46,15 @@ kernel void GridFuncToQuad2D(const int numElements,
 
 
 //---[ 3D ]-----------------------------
-kernel void GridFuncToQuad3D(const int numElements,
+@kernel void GridFuncToQuad3D(const int numElements,
                              const DofToQuad_t restrict dofToQuad,
                              const DLocalMap_t restrict l2gMap,
                              const double * restrict gf,
                              QVLocal_t restrict out) {
-  for (int e = 0; e < numElements; ++e; outer) {
-    shared double s_gf[NUM_VDIM][NUM_DOFS];
+  for (int e = 0; e < numElements; ++e; @outer) {
+    @shared double s_gf[NUM_VDIM][NUM_DOFS];
 
-    for (int dOff = 0; dOff < M3_INNER_BATCH; ++dOff; inner) {
+    for (int dOff = 0; dOff < M3_INNER_BATCH; ++dOff; @inner) {
       for (int d = dOff; d < NUM_DOFS; d += M3_INNER_BATCH) {
         const int gid = l2gMap(d, e);
         for (int v = 0; v < NUM_VDIM; ++v) {
@@ -63,7 +63,7 @@ kernel void GridFuncToQuad3D(const int numElements,
       }
     }
 
-    for (int qOff = 0; qOff < M3_INNER_BATCH; ++qOff; inner) {
+    for (int qOff = 0; qOff < M3_INNER_BATCH; ++qOff; @inner) {
       for (int q = qOff; q < NUM_QUAD; q += M3_INNER_BATCH) {
         for (int v = 0; v < NUM_VDIM; ++v) {
           double r_out = 0;

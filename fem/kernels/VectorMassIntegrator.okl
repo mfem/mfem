@@ -32,7 +32,7 @@
 #include "occa://mfem/fem/defines.okl"
 
 #if USING_TENSOR_OPS
-#  if OCCA_USING_CPU
+#  ifndef OCCA_USING_GPU
 #    include "occa://mfem/fem/vmass/tensor/cpu.okl"
 #  endif
 #endif

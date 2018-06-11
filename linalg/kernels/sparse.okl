@@ -15,43 +15,39 @@
   ================================================
 */
 
-kernel void Mult(const int entries,
-                 const int * restrict offsets,
-                 const int * restrict indices,
-                 const double * restrict weights,
-                 const double * restrict in,
-                 double * restrict out) {
+@kernel void Mult(const int entries,
+                  const int * restrict offsets,
+                  const int * restrict indices,
+                  const double * restrict weights,
+                  const double * restrict in,
+                  double * restrict out) {
 
-  for (int i = 0; i < entries; ++i; tile(TILESIZE)) {
-    if (i < entries) {
-      const int offset = offsets[i];
-      const int nextOffset = offsets[i + 1];
-      double value = 0;
-      for (int j = offset; j < nextOffset; ++j) {
-        value += weights[j] * in[indices[j]];
-      }
-      out[i] = value;
+  for (int i = 0; i < entries; ++i; @tile(TILESIZE, @outer, @inner)) {
+    const int offset = offsets[i];
+    const int nextOffset = offsets[i + 1];
+    double value = 0;
+    for (int j = offset; j < nextOffset; ++j) {
+      value += weights[j] * in[indices[j]];
     }
+    out[i] = value;
   }
 }
 
-kernel void MappedMult(const int entries,
-                       const int * restrict offsets,
-                       const int * restrict indices,
-                       const double * restrict weights,
-                       const int * restrict outIndices,
-                       const double * restrict in,
-                       double * restrict out) {
+@kernel void MappedMult(const int entries,
+                        const int * restrict offsets,
+                        const int * restrict indices,
+                        const double * restrict weights,
+                        const int * restrict outIndices,
+                        const double * restrict in,
+                        double * restrict out) {
 
-  for (int i = 0; i < entries; ++i; tile(TILESIZE)) {
-    if (i < entries) {
-      const int offset = offsets[i];
-      const int nextOffset = offsets[i + 1];
-      double value = 0;
-      for (int j = offset; j < nextOffset; ++j) {
-        value += weights[j] * in[indices[j]];
-      }
-      out[outIndices[i]] = value;
+  for (int i = 0; i < entries; ++i; @tile(TILESIZE, @outer, @inner)) {
+    const int offset = offsets[i];
+    const int nextOffset = offsets[i + 1];
+    double value = 0;
+    for (int j = offset; j < nextOffset; ++j) {
+      value += weights[j] * in[indices[j]];
     }
+    out[outIndices[i]] = value;
   }
 }
