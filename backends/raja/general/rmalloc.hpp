@@ -33,7 +33,7 @@ template<class T> struct rmalloc: public rmemcpy
    // *************************************************************************
    inline void* operator new (size_t n, bool lock_page = false)
    {
-      dbg("+]\033[m");
+      dbp("+]\033[m");
       if (!rconfig::Get().Cuda()) { return ::new T[n]; }
 #ifdef __NVCC__
       void *ptr;
@@ -60,7 +60,7 @@ template<class T> struct rmalloc: public rmemcpy
    // ***************************************************************************
    inline void operator delete (void *ptr)
    {
-      dbg("-]\033[m");
+      dbp("-]\033[m");
       if (!rconfig::Get().Cuda())
       {
          if (ptr)

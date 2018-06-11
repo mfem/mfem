@@ -168,7 +168,9 @@ void RajaBilinearForm::AddInteriorFaceIntegrator(RajaIntegrator *integrator)
 // Adds new boundary Face Integrator.
 void RajaBilinearForm::AddBoundaryFaceIntegrator(RajaIntegrator *integrator)
 {
+   push();
    AddIntegrator(integrator, BoundaryFaceIntegrator);
+   pop();
 }
 
 // Adds Integrator based on RajaIntegratorType
@@ -402,10 +404,11 @@ void BilinearForm::InitRajaBilinearForm()
       if (integ_name == "(undefined)")
       {
         MFEM_ABORT("BilinearFormIntegrator does not define Name()");
-        ointeg = new RajaDiffusionIntegrator(ocoeff);
+        ointeg = new RajaMassIntegrator(ocoeff);
       }
       else if (integ_name == "diffusion")
       {
+         assert(false);
          ointeg = new RajaDiffusionIntegrator(ocoeff);
       }
       else

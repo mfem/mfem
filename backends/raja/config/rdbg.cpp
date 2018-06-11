@@ -13,30 +13,10 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
+
+#include "../../../config/config.hpp"
+#if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
+
 #include "../raja.hpp"
 
-#ifndef __LAMBDA__
-extern "C" kernel
-void vector_xsy0(const int N,
-                 double* __restrict v0,
-                 const double* __restrict v1,
-                 const double* __restrict v2)
-{
-   const int i = blockDim.x * blockIdx.x + threadIdx.x;
-   if (i < N) { v0[i] = v1[i]-v2[i]; }
-}
-#endif
-
-void vector_xsy(const int N,
-                double* __restrict v0,
-                const double* __restrict v1,
-                const double* __restrict v2)
-{
-   push();
-#ifndef __LAMBDA__
-   cuKer(vector_xsy,N,v0,v1,v2);
-#else
-   forall(i,N, {v0[i] = v1[i]-v2[i];});
-#endif
-   pop();
-}
+#endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)

@@ -39,7 +39,7 @@ void vector_set_subvector(const int N,
                           const double* __restrict v1,
                           const int* __restrict v2)
 {
-   push(set,Cyan);
+   push();
 #ifndef __LAMBDA__
    cuKer(vector_set_subvector,N,v0,v1,v2);
 #else

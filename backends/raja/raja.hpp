@@ -71,6 +71,8 @@
 #include "fem/gridfunc.hpp"
 #include "fem/bilinearform.hpp"
 #include "fem/coefficient.hpp"
+#include "fem/rdqm.hpp"
+#include "fem/rgeom.hpp"
 #include "fem/bilininteg.hpp"
 #include "fem/bilinIntDiffusion.hpp"
 #include "fem/bilinIntMass.hpp"

@@ -1758,6 +1758,7 @@ public:
                                        const FiniteElement &test_fe,
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
+   virtual const char *Name() const { return "vector_mass"; }
 };
 
 

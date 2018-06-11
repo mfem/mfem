@@ -21,73 +21,6 @@ namespace mfem
 namespace raja
 {
 
-// ***************************************************************************
-// * RajaGeometry
-// ***************************************************************************
-class RajaGeometry
-{
-public:
-   ~RajaGeometry();
-   raja::array<int> eMap;
-   raja::array<double> meshNodes;
-   raja::array<double> J, invJ, detJ;
-   static const int Jacobian    = (1 << 0);
-   static const int JacobianInv = (1 << 1);
-   static const int JacobianDet = (1 << 2);
-   static RajaGeometry* Get(RajaFiniteElementSpace&,
-                            const IntegrationRule&);
-   static RajaGeometry* GetV(RajaFiniteElementSpace&,
-                             const IntegrationRule&,
-                             const RajaVector&);
-   static void ReorderByVDim(GridFunction& nodes);
-   static void ReorderByNodes(GridFunction& nodes);
-};
-   
-// ***************************************************************************
-// * RajaDofQuadMaps
-// ***************************************************************************
-class RajaDofQuadMaps
-{
-private:
-   std::string hash;
-public:
-   raja::array<double, false> dofToQuad, dofToQuadD; // B
-   raja::array<double, false> quadToDof, quadToDofD; // B^T
-   raja::array<double> quadWeights;
-public:
-   ~RajaDofQuadMaps();
-   static void delRajaDofQuadMaps();
-   static RajaDofQuadMaps* Get(const RajaFiniteElementSpace&,
-                               const mfem::IntegrationRule&,
-                               const bool = false);
-   static RajaDofQuadMaps* Get(const RajaFiniteElementSpace&,
-                               const RajaFiniteElementSpace&,
-                               const mfem::IntegrationRule&,
-                               const bool = false);
-   static RajaDofQuadMaps* Get(const mfem::FiniteElement&,
-                               const mfem::FiniteElement&,
-                               const mfem::IntegrationRule&,
-                               const bool = false);
-   static RajaDofQuadMaps* GetTensorMaps(const mfem::FiniteElement&,
-                                         const mfem::FiniteElement&,
-                                         const mfem::IntegrationRule&,
-                                         const bool = false);
-   static RajaDofQuadMaps* GetD2QTensorMaps(const mfem::FiniteElement&,
-                                            const mfem::IntegrationRule&,
-                                            const bool = false);
-   static RajaDofQuadMaps* GetSimplexMaps(const mfem::FiniteElement&,
-                                          const mfem::IntegrationRule&,
-                                          const bool = false);
-   static RajaDofQuadMaps* GetSimplexMaps(const mfem::FiniteElement&,
-                                          const mfem::FiniteElement&,
-                                          const mfem::IntegrationRule&,
-                                          const bool = false);
-   static RajaDofQuadMaps* GetD2QSimplexMaps(const mfem::FiniteElement&,
-                                             const mfem::IntegrationRule&,
-                                             const bool = false);
-};
-   
-//---[ Base Integrator ]--------------
 class RajaIntegrator
 {
 protected:
@@ -138,7 +71,6 @@ public:
    RajaGeometry *GetGeometry(const int flags = (RajaGeometry::Jacobian    |
                                                 RajaGeometry::JacobianInv |
                                                 RajaGeometry::JacobianDet));
-
 };
 
 } // namespace mfem::raja

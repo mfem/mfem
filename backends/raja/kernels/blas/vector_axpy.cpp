@@ -32,7 +32,7 @@ void vector_axpy(const int N,
                  double* __restrict v0,
                  const double* __restrict v1)
 {
-   push(axpy,Cyan);
+   push();
 #ifndef __LAMBDA__
    cuKer(vector_axpy,N,alpha,v0,v1);
 #else

@@ -89,12 +89,23 @@ NVTX_DECLSPEC int NVTX_API rNvtxSyncPop(void);
 #define push(...) CHOOSE(__VA_ARGS__)(__VA_ARGS__)
 
 #else // __NVCC__ && _NVVP__ ***************************************************
-  
-//#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 :__FILE__)
-#define __FILENAME__ ({const char * pStr = strrchr(__FILE__, '/'); pStr ? pStr + 1 : __FILE__;})
+// *****************************************************************************
+static inline void push_flf(const char *file, const int line, const char *func)
+{
+   if (!env_ini) { env_dbg = getenv("DBG"); env_ini = true; }
+   if (!env_dbg) return;
+   const uint8_t color = 17 + chk8(file)%216;
+   fflush(stdout);
+   fprintf(stdout,"\033[38;5;%dm",color);
+   fprintf(stdout,"\n%24s\b\b\b\b:\033[2m%3d\033[22m: %s", file, line, func);
+   fprintf(stdout,"\033[m");
+   fflush(stdout);
+}
+
+// *****************************************************************************
 #define pop(...)
-#define push(...) dbg("\n%24s\b\b\b\b:\033[2m%3d\033[22m: %s",__FILENAME__,__LINE__,__FUNCTION__)
-//#define push(...) dbg("%s",__FUNCTION__)
+#define __FILENAME__ ({const char *f = strrchr(__FILE__,'/'); f?f+1:__FILE__;})
+#define push(...) mfem::raja::push_flf(__FILENAME__,__LINE__,__FUNCTION__)
 #define cuProfilerStart(...)
 #define cuProfilerStop(...)
 

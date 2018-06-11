@@ -35,8 +35,7 @@ RestrictionOperator::RestrictionOperator(Layout &in_layout, Layout &out_layout,
 void RestrictionOperator::Mult_(const Vector &x, Vector &y) const
 {
    push();
-   dbg("\033[34;1m[Mult_] entries=%ld, trueIndices size=%ld",entries,
-       trueIndices.Size());
+   //dbg("[Mult_] entries=%ld, trueIndices size=%ld",entries,trueIndices.Size());
    rExtractSubVector(entries, trueIndices, (double*)x.RajaMem().ptr(),
                      (double*)y.RajaMem().ptr());
    //assert(false);

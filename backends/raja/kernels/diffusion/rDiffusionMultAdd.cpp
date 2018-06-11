@@ -164,7 +164,7 @@ void rDiffusionMultAdd(const int DIM,
                        const double* x,
                        double* __restrict y)
 {
-   push(Lime);
+   push();
 #ifndef __LAMBDA__
    const int blck = 256;
    const int grid = (numElements+blck-1)/blck;

@@ -30,7 +30,7 @@ void vector_clear_dofs(const int N,
                        double* __restrict v0,
                        const int* __restrict v1)
 {
-   push(clear,Cyan);
+   push();
 #ifndef __LAMBDA__
    cuKer(vector_clear_dofs,N,v0,v1);
 #else

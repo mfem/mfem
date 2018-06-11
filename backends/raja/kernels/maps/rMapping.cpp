@@ -32,7 +32,7 @@ void rSetSubVector(const int N,
                    const double* in,
                    double* __restrict out)
 {
-   push(Lime);
+   push();
 #ifndef __LAMBDA__
    cuKer(rSetSubVector,N,indices,in,out);
 #else
@@ -63,7 +63,7 @@ void rMapSubVector(const int N,
                    const double* in,
                    double* __restrict out)
 {
-   push(Lime);
+   push();
 #ifndef __LAMBDA__
    cuKer(rMapSubVector,N,indices,in,out);
 #else
@@ -94,7 +94,7 @@ void rExtractSubVector(const int N,
                        const double* in,
                        double* __restrict out)
 {
-   push(Lime);
+   push();
 #ifndef __LAMBDA__
    cuKer(rExtractSubVector,N,indices,in,out);
 #else

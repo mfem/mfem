@@ -50,7 +50,7 @@ double vector_dot(const int N,
                   const double* __restrict vec1,
                   const double* __restrict vec2)
 {
-   push(dot,Cyan);
+   push();
 #ifdef __NVCC__
    if (mfem::rconfig::Get().Cuda())
    {

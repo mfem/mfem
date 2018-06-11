@@ -31,7 +31,7 @@ void vector_op_eq(const int N,
                   const double c0,
                   double* __restrict v0)
 {
-   push(eq,Cyan);
+   push();
 #ifndef __LAMBDA__
    cuKer(vector_op_eq,N,c0,v0);
 #else

@@ -36,7 +36,7 @@ void vector_map_dofs(const int N,
                      const double* __restrict v1,
                      const int* v2)
 {
-   push(map,Cyan);
+   push();
 #ifndef __LAMBDA__
    cuKer(vector_map_dofs,N,v0,v1,v2);
 #else
