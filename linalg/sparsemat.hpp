@@ -485,6 +485,8 @@ SparseMatrix * Add(double a, const SparseMatrix & A, double b,
 /// Matrix addition result = sum_i A_i
 SparseMatrix * Add(Array<SparseMatrix *> & Ai);
 
+/// Matrix scaling result = a*A_i
+SparseMatrix * Scale(double a, const SparseMatrix & A);
 
 // Inline methods
 
