@@ -182,8 +182,6 @@ ifneq ($(MFEM_USE_MPI),YES)
      $(eval override MFEM_USE_$(mpidep)=NO),))
 else
    MFEM_CXX ?= $(MPICXX)
-   INCFLAGS += $(HYPRE_OPT)
-   ALL_LIBS += $(HYPRE_LIB)
 endif
 
 DEP_CXX ?= $(MFEM_CXX)
@@ -197,8 +195,8 @@ ifeq ($(MFEM_USE_OPENMP),YES)
 endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
-MFEM_REQ_LIB_DEPS = SUPERLU METIS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE\
- SUITESPARSE STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR PUMI
+MFEM_REQ_LIB_DEPS = PETSC SUPERLU METIS CONDUIT SIDRE SUNDIALS MESQUITE\
+ SUITESPARSE STRUMPACK GECKO GNUTLS NETCDF LAPACK MPFR PUMI
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 
 define mfem_check_dependency
@@ -226,6 +224,13 @@ endef
 
 # Process dependencies
 $(foreach dep,$(MFEM_DEPENDENCIES),$(eval $(call mfem_add_dependency,$(dep))))
+
+# Hypre is separately listed because it is keyed off of _MPI
+ifeq ($(MFEM_USE_MPI),YES)
+  INCFLAGS += $(HYPRE_OPT)
+  ALL_LIBS += $(HYPRE_LIB)
+endif
+
 
 # Timer option
 ifeq ($(MFEM_TIMER_TYPE),2)
