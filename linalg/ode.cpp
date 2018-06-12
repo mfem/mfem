@@ -59,6 +59,14 @@ ODESolver *SelectODESolver(const int ode_solver_type)
       case 48:  ode_solver = new GeneralizedAlphaSolver(0.8); break;
       case 49:  ode_solver = new GeneralizedAlphaSolver(0.9); break;
       case 50:  ode_solver = new GeneralizedAlphaSolver(1.0); break;
+
+      // Implicit AM methods
+      case 51: ode_solver = new AdamsMoultonSolver(1); break;
+      case 52: ode_solver = new AdamsMoultonSolver(2); break;
+      case 53: ode_solver = new AdamsMoultonSolver(3); break;
+      case 54: ode_solver = new AdamsMoultonSolver(4); break;
+      case 55: ode_solver = new AdamsMoultonSolver(5); break;
+
    }
 
    return ode_solver;
@@ -78,7 +86,6 @@ void ForwardEulerSolver::Step(Vector &x, double &t, double &dt)
    x.Add(dt, dxdt);
    t += dt;
 }
-
 
 void RK2Solver::Init(TimeDependentOperator &_f)
 {
@@ -387,8 +394,6 @@ const double RK8Solver::c[] =
    1.,
 };
 
-
-
 const double  AdamsBashforthSolver::a[5][5] =
 {
    {1.0, 0.0, 0.0, 0.0, 0.0},
@@ -438,12 +443,54 @@ void AdamsBashforthSolver::Step(Vector &x, double &t, double &dt)
    idx[0] = tmp;
 
 }
-
-AdamsBashforthSolver::~AdamsBashforthSolver()
+const double  AdamsMoultonSolver::a[5][5] =
 {
+   {1.0, 0.0, 0.0, 0.0, 0.0},
+   {0.5, 0.5, 0.0, 0.0, 0.0},
+   {5.0/12.0, 2.0/3.0, -1.0/12.0, 0.0, 0.0},
+   {3.0/8.0, 19.0/24.0,-5.0/24.0, 1.0/24.0, 0.0},
+   {251.0/720.0,646.0/720.0,-264.0/720.0, 106.0/720.0, -19.0/720.0}
+};
 
+AdamsMoultonSolver::AdamsMoultonSolver(int _s)
+{
+   s = 0;
+   smax = std::min(_s,5);
 }
 
+void AdamsMoultonSolver::Init(TimeDependentOperator &_f)
+{
+   ODESolver::Init(_f);
+   int n = f->Width();
+   idx.SetSize(smax);
+   for (int i = 0; i < smax; i++)
+   {
+      idx[i] = i;
+      k[i].SetSize(n);
+   }
+}
+
+void AdamsMoultonSolver::Step(Vector &x, double &t, double &dt)
+{
+   f->SetTime(t);
+   s = std::min(++s, smax);
+   for (int i = 1; i < s; i++)
+   {
+      x.Add(a[s-1][i]*dt, k[idx[i]]);
+   }
+   f->ImplicitSolve(a[s-1][0]*dt, x, k[idx[0]]);
+   x.Add(a[s-1][0]*dt, k[idx[0]]);
+   t += dt;
+
+   // Shift the index
+   int tmp = idx[smax-1];
+   for (int i = smax-1; i > 0; i--)
+   {
+      idx[i] = idx[i-1];
+   }
+   idx[0] = tmp;
+
+}
 void BackwardEulerSolver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
