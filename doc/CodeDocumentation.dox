@@ -36,8 +36,8 @@ namespace mfem {
  * - HypreSolver and other \link hypre.hpp hypre classes\endlink
  *
  * <H3>Example codes</H3>
- * - <a class="el" href="ex1_8cpp_source.html">Example 1</a>: nodal H1 FEM for the Laplace problem
- * - <a class="el" href="ex1p_8cpp_source.html">Example 1p</a>: parallel nodal H1 FEM for the Laplace problem
+ * - <a class="el" href="examples_2ex1_8cpp_source.html">Example 1</a>: nodal H1 FEM for the Laplace problem
+ * - <a class="el" href="examples_2ex1p_8cpp_source.html">Example 1p</a>: parallel nodal H1 FEM for the Laplace problem
  * - <a class="el" href="ex2_8cpp_source.html">Example 2</a>: vector FEM for linear elasticity
  * - <a class="el" href="ex2p_8cpp_source.html">Example 2p</a>: parallel vector FEM for linear elasticity
  * - <a class="el" href="ex3_8cpp_source.html">Example 3</a>: Nedelec H(curl) FEM for the definite Maxwell problem
@@ -56,7 +56,7 @@ namespace mfem {
  * - <a class="el" href="ex9p_8cpp_source.html">Example 9p</a>: parallel Discontinuous Galerkin (DG) time-dependent advection
  * - <a class="el" href="ex10_8cpp_source.html">Example 10</a>: time-dependent implicit nonlinear elasticity
  * - <a class="el" href="ex10p_8cpp_source.html">Example 10p</a>: parallel time-dependent implicit nonlinear elasticity
- * - <a class="el" href="ex11p_8cpp_source.html">Example 11p</a>: parallel Laplace eigensolver
+ * - <a class="el" href="examples_2ex11p_8cpp_source.html">Example 11p</a>: parallel Laplace eigensolver
  * - <a class="el" href="ex12p_8cpp_source.html">Example 12p</a>: parallel linear elasticity eigensolver
  * - <a class="el" href="ex13p_8cpp_source.html">Example 13p</a>: parallel Maxwell eigensolver
  * - <a class="el" href="ex14_8cpp_source.html">Example 14</a>: Discontinuous Galerkin (DG) for the Laplace problem
@@ -98,8 +98,8 @@ namespace mfem {
  *
  * <H4>PUMI Examples</H4>
  * - Variants of Examples
- *   <a class="el" href="pumi_2ex1_8cpp_source.html">1</a>,
- *   <a class="el" href="pumi_2ex1p_8cpp_source.html">1p</a>,
+ *   <a class="el" href="examples_2pumi_2ex1_8cpp_source.html">1</a>,
+ *   <a class="el" href="examples_2pumi_2ex1p_8cpp_source.html">1p</a>,
  *   <a class="el" href="pumi_2ex2_8cpp_source.html">2</a>,
  *   and
  *   <a class="el" href="pumi_2ex6p_8cpp_source.html">6p</a>
