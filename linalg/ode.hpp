@@ -224,10 +224,24 @@ public:
    virtual void Init(TimeDependentOperator &_f);
 
    virtual void Step(Vector &x, double &t, double &dt);
-
-   virtual ~AdamsBashforthSolver();
 };
 
+/** An implicit Adams-Moulton method */
+class AdamsMoultonSolver : public ODESolver
+{
+private:
+   int s, smax;
+   static const double a[5][5];
+   Vector k[5];
+   Array<int> idx;
+
+public:
+   AdamsMoultonSolver(int _s);
+
+   virtual void Init(TimeDependentOperator &_f);
+
+   virtual void Step(Vector &x, double &t, double &dt);
+};
 
 /// Backward Euler ODE solver. L-stable.
 class BackwardEulerSolver : public ODESolver
