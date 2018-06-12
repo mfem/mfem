@@ -48,16 +48,14 @@ protected:
    // End: Virtual interface
 
 public:
-   Vector(Layout &lt)
-      : PArray(lt), Array(lt, sizeof(double)), PVector(lt)
-   { }
+   Vector(Layout &lt);
 
    mfem::Vector Wrap();
 
    const mfem::Vector Wrap() const;
 
 #if defined(MFEM_USE_MPI)
-   bool IsParallel() const { return (RajaLayout().RajaEngine().GetComm() != MPI_COMM_NULL); }
+   bool IsParallel() const;
 #endif
 
 };

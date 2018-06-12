@@ -25,6 +25,8 @@ device::~device() {}
 // ***************************************************************************
 bool device::hasSeparateMemorySpace()
 {
+   push();
+   pop();
    return false;
 }
 
@@ -32,7 +34,9 @@ bool device::hasSeparateMemorySpace()
 memory device::malloc(const std::size_t bytes,
                       const void *src)
 {
+   push();
    assert(src==NULL);
+   pop();
    return memory(bytes,src);
 }
 

@@ -60,7 +60,11 @@ protected:
 
    template <typename T>
    inline void RajaFill(const T *val_ptr)
-   { raja::linalg::operator_eq<T>(slice, *val_ptr); }
+   {
+      push();
+      raja::linalg::operator_eq<T>(slice, *val_ptr);
+      pop();
+   }
 
 public:
    Array(Layout &lt, std::size_t item_size)
@@ -74,9 +78,10 @@ public:
    inline void MakeRef(Array &master);
 
    Layout &RajaLayout() const
-   { return *static_cast<Layout *>(layout.Get()); }
+   { return *static_cast<Layout*>(layout.Get()); }
 
    raja::memory &RajaMem() { return slice; }
+
    const raja::memory &RajaMem() const { return slice; }
 };
 

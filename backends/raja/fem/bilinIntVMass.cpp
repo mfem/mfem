@@ -77,7 +77,7 @@ const int elements = trialFESpace->GetNE();
                   coeff,
                   assembledOperator.RajaMem());*/
 }
-   
+
 // *****************************************************************************
 void RajaVectorMassIntegrator::MultAdd(Vector &x, Vector &y)
 {
@@ -90,7 +90,7 @@ void RajaVectorMassIntegrator::MultAdd(Vector &x, Vector &y)
               assembledOperator.RajaMem(),
               x.RajaMem(), y.RajaMem());*/
 }
-   
+
 } // namespace mfem::raja
 
 } // namespace mfem

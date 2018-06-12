@@ -39,12 +39,12 @@ RajaIntegrator::~RajaIntegrator() {}
 void RajaIntegrator::SetupMaps()
 {
    push();
-   maps = RajaDofQuadMaps::Get(*otrialFESpace,
-                               *otestFESpace,
+   maps = RajaDofQuadMaps::Get(*otrialFESpace->GetFESpace(),
+                               *otestFESpace->GetFESpace(),
                                *ir);
 
-   mapsTranspose = RajaDofQuadMaps::Get(*otestFESpace,
-                                        *otrialFESpace,
+   mapsTranspose = RajaDofQuadMaps::Get(*otestFESpace->GetFESpace(),
+                                        *otrialFESpace->GetFESpace(),
                                         *ir);
    pop();
 }

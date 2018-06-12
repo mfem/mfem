@@ -36,8 +36,10 @@ static inline uint8_t chk8(const char *bfr)
 {
    unsigned int chk = 0;
    size_t len = strlen(bfr);
-   for(;len;len--,bfr++)
+   for (; len; len--,bfr++)
+   {
       chk += *bfr;
+   }
    return (uint8_t) chk;
 }
 
@@ -51,15 +53,20 @@ inline void rdbge(const char *file, const int line, const char *func,
                   const bool header, const int nargs, ...)
 {
    if (!env_ini) { env_dbg = getenv("DBG"); env_ini = true; }
-   if (!env_dbg) return;
+   if (!env_dbg) { return; }
    assert(nargs>0);
    const uint8_t color = 17 + chk8(file)%216;
    fflush(stdout);
    fprintf(stdout,"\033[38;5;%dm",color);
    if (header)
-      fprintf(stdout,"\n%24s\b\b\b\b:\033[2m%3d\033[22m: %s: \033[1m", file, line, func);
+   {
+      fprintf(stdout,"\n%24s\b\b\b\b:\033[2m%3d\033[22m: %s: \033[1m", file, line,
+              func);
+   }
    else
+   {
       fprintf(stdout,"\033[1m");
+   }
    va_list args;
    va_start(args,nargs);
    const char *format=va_arg(args,const char*);

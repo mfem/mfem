@@ -69,11 +69,15 @@ RajaGridFunction::RajaGridFunction(RajaFiniteElementSpace &f)
      fes(f),
      sequence(0) {}
 
-// RajaGridFunction::RajaGridFunction(RajaFiniteElementSpace *ofespace_,
-//                                    RajaVectorRef ref) :
-//    RajaVector(ref),
-//    ofespace(ofespace_),
-//    sequence(0) {}
+RajaGridFunction::RajaGridFunction(RajaFiniteElementSpace &f,
+                                   const RajaVector *_v) :
+   PArray(f.RajaVLayout()),
+   Array(f.RajaVLayout(), sizeof(double)),
+   Vector(f.RajaVLayout()),
+   fes(f),
+   sequence(0),
+   v(_v) {}
+
 
 RajaGridFunction::RajaGridFunction(const RajaGridFunction &v)
    : PArray(v),

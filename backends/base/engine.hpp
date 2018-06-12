@@ -179,12 +179,8 @@ public:
                               int type_id = ScalarId<double>::value) const = 0;
 
    /// TODO: doxygen
-/*#ifdef MFEM_USE_MPI
-   virtual DFiniteElementSpace MakeFESpace(ParFiniteElementSpace &fes) const;
-   #else*/
    virtual DFiniteElementSpace MakeFESpace(FiniteElementSpace &fes) const;
-//#endif
-   
+
    /// TODO: doxygen
    virtual DBilinearForm MakeBilinearForm(BilinearForm &bf) const = 0;
 

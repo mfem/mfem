@@ -52,6 +52,7 @@ public:
    ///@{
 
    virtual DLayout MakeLayout(std::size_t size) const;
+
    virtual DLayout MakeLayout(const mfem::Array<std::size_t> &offsets) const;
 
    virtual DArray MakeArray(PLayout &layout, std::size_t item_size) const;
@@ -59,12 +60,12 @@ public:
    virtual DVector MakeVector(PLayout &layout,
                               int type_id = ScalarId<double>::value) const;
 
-/*#ifdef MFEM_USE_MPI
-   virtual DFiniteElementSpace MakeFESpace(mfem::ParFiniteElementSpace &) const;
-   #else*/
+   /*#ifdef MFEM_USE_MPI
+      virtual DFiniteElementSpace MakeFESpace(mfem::ParFiniteElementSpace &) const;
+      #else*/
    virtual DFiniteElementSpace MakeFESpace(mfem::FiniteElementSpace &) const;
-//#endif
-   
+   //#endif
+
    virtual DBilinearForm MakeBilinearForm(mfem::BilinearForm &bf) const;
 
    /// FIXME - What will the actual parameters be?

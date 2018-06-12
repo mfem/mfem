@@ -19,6 +19,7 @@
 #include <assert.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include <string.h>
 
 // MPI *************************************************************************
 #ifdef MFEM_USE_MPI

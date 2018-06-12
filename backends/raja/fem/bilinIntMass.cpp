@@ -19,7 +19,7 @@ namespace mfem
 
 namespace raja
 {
-   
+
 // *****************************************************************************
 RajaMassIntegrator::RajaMassIntegrator(const RajaCoefficient &coeff_) :
    RajaIntegrator(coeff_.RajaEngine()),
@@ -101,7 +101,7 @@ void RajaMassIntegrator::MultAdd(Vector &x, Vector &y)
               assembledOperator.RajaMem(),
               x.RajaMem(), y.RajaMem());*/
 }
-   
+
 } // namespace mfem::raja
 
 } // namespace mfem

@@ -27,27 +27,17 @@ namespace raja
 class RajaIntegrator;
 class RajaDofQuadMaps;
 
-//extern std::map<std::string, raja::kernel> gridFunctionKernels;
-
-/*::raja::kernel GetGridFunctionKernel(::raja::device device,
-                                     FiniteElementSpace &fespace,
-                                     const mfem::IntegrationRule &ir);
-*/
 class RajaGridFunction : public Vector
 {
 protected:
    RajaFiniteElementSpace &fes;
    long sequence;
-
-   //::raja::kernel gridFuncToQuad[3];
-
+   RajaVector v;
 public:
-   // RajaGridFunction();
 
-   RajaGridFunction(RajaFiniteElementSpace &ofespace_);
+   RajaGridFunction(RajaFiniteElementSpace&);
 
-   // RajaGridFunction(FiniteElementSpace *ofespace_,
-   //                  RajaVectorRef ref);
+   RajaGridFunction(RajaFiniteElementSpace&, const RajaVector*);
 
    RajaGridFunction(const RajaGridFunction &gf);
 

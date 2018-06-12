@@ -32,7 +32,9 @@ public:
    memory(const std::size_t =0, const void* =NULL);
 
    size_t size() const;
+
    raja::device getDevice();
+
    void copyTo(void *dest);
 
    void copyFrom(memory &src);
@@ -40,7 +42,9 @@ public:
    void copyFrom(const void*);
 
    void* ptr() const;
+
    inline operator double* () { return (double*)data; }
+
    inline operator const double* () const { return (const double*)data; }
 
    memory slice(const size_t offset,

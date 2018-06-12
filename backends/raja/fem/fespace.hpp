@@ -25,7 +25,6 @@ namespace raja
 class RajaFiniteElementSpace : public mfem::PFiniteElementSpace
 {
 protected:
-
    Layout e_layout;
    int globalDofs, localDofs;
    int vdim;
@@ -36,7 +35,7 @@ protected:
    mfem::Operator *restrictionOp, *prolongationOp;
 public:
    /// TODO: doxygen
-   RajaFiniteElementSpace(const Engine &e, mfem::FiniteElementSpace &fespace);
+   RajaFiniteElementSpace(const Engine&, mfem::FiniteElementSpace&);
 
    /// Virtual destructor
    virtual ~RajaFiniteElementSpace();
@@ -53,6 +52,11 @@ public:
 
    mfem::FiniteElementSpace* GetFESpace() const { return fes; }
 
+   mfem::ParFiniteElementSpace& GetParFESpace() const
+   {
+      return *static_cast<ParFiniteElementSpace*>(fes);
+   }
+
    Layout &RajaVLayout() const
    { return *fes->GetVLayout().As<Layout>(); }
 
@@ -62,13 +66,18 @@ public:
    Layout &RajaEVLayout() { return e_layout; }
 
 #ifdef MFEM_USE_MPI
-   bool isDistributed() const { return (RajaEngine().GetComm() != MPI_COMM_NULL); }
+   bool isDistributed() const
+   {
+      return (RajaEngine().GetComm() != MPI_COMM_NULL);
+   }
 #else
    bool isDistributed() const { return false; }
 #endif
 
    bool hasTensorBasis() const
-   { return dynamic_cast<const mfem::TensorBasisElement*>(fes->GetFE(0)); }
+   {
+      return dynamic_cast<const mfem::TensorBasisElement*>(fes->GetFE(0));
+   }
 
    mfem::Ordering::Type GetOrdering() const { return ordering; }
 
@@ -87,6 +96,7 @@ public:
 
    const mfem::FiniteElementCollection* FEColl() const
    { return fes->FEColl(); }
+
    const mfem::FiniteElement* GetFE(const int idx) const
    { return fes->GetFE(idx); }
 
@@ -99,11 +109,11 @@ public:
    const raja::array<int> GetLocalToGlobalMap() const
    { return localToGlobalMap; }
 
-   void GlobalToLocal(const raja::Vector &globalVec, Vector &localVec) const;
-   void LocalToGlobal(const Vector &localVec, Vector &globalVec) const;
+   void GlobalToLocal(const raja::Vector &global, raja::Vector &local) const;
+   void LocalToGlobal(const raja::Vector &local, raja::Vector &global) const;
 
 };
-   
+
 } // namespace mfem::raja
 
 } // namespace mfem

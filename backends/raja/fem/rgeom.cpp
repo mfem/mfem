@@ -39,9 +39,9 @@ RajaGeometry::~RajaGeometry()
 // *****************************************************************************
 // * RajaGeometry Get: use this one to fetch nodes from vector Sx
 // *****************************************************************************
-RajaGeometry* RajaGeometry::GetV(RajaFiniteElementSpace& fes,
-                                 const IntegrationRule& ir,
-                                 const RajaVector& Sx)
+RajaGeometry* RajaGeometry::Get(RajaFiniteElementSpace& fes,
+                                const IntegrationRule& ir,
+                                const RajaVector& Sx)
 {
    push();
    const Mesh *mesh = fes.GetFESpace()->GetMesh();

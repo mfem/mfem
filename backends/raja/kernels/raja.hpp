@@ -22,6 +22,7 @@
 // *****************************************************************************
 #include <math.h>
 #include <stdarg.h>
+#include <string.h>
 #include <assert.h>
 #include <unordered_map>
 

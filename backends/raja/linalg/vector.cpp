@@ -19,6 +19,12 @@ namespace mfem
 
 namespace raja
 {
+Vector::Vector(Layout &lt) : PArray(lt),
+   Array(lt, sizeof(double)),
+   PVector(lt)
+{
+   dbg("new raja::Vector");
+}
 
 PVector *Vector::DoVectorClone(bool copy_data, void **buffer,
                                int buffer_type_id) const
@@ -172,6 +178,14 @@ const mfem::Vector Vector::Wrap() const
 {
    return mfem::Vector(*const_cast<Vector*>(this));
 }
+
+#if defined(MFEM_USE_MPI)
+bool Vector::IsParallel() const
+{
+   dbg("IsParallel");
+   return (RajaLayout().RajaEngine().GetComm() != MPI_COMM_NULL);
+}
+#endif
 
 } // namespace mfem::raja
 

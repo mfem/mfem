@@ -316,6 +316,7 @@ RAJA_SRC_DIRS := 	\
 	$(RAJA_BACKEND_DIR)/general \
 	$(RAJA_BACKEND_DIR)/kernels/maps \
 	$(RAJA_BACKEND_DIR)/kernels/diffusion \
+	$(RAJA_BACKEND_DIR)/kernels/force \
 	$(RAJA_BACKEND_DIR)/kernels/geom \
 	$(RAJA_BACKEND_DIR)/kernels/blas \
 	$(RAJA_BACKEND_DIR)/linalg \

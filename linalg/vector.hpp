@@ -201,7 +201,7 @@ class Vector : public Vector_<double>
 {
 public:
    /// Default constructor for Vector. Sets size = 0 and data = NULL.
-   Vector() : Vector_<double>() { }
+   Vector() : Vector_<double>() {}
 
    /** @brief Copy constructor. Create a Vector of the same size/layout as
        @a orig and if @a copy_data == true, copy the contents from @a orig. */

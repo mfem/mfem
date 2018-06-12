@@ -36,13 +36,13 @@ public:
    static const int JacobianDet = (1 << 2);
    static RajaGeometry* Get(RajaFiniteElementSpace&,
                             const IntegrationRule&);
-   static RajaGeometry* GetV(RajaFiniteElementSpace&,
-                             const IntegrationRule&,
-                             const RajaVector&);
+   static RajaGeometry* Get(RajaFiniteElementSpace&,
+                            const IntegrationRule&,
+                            const RajaVector&);
    static void ReorderByVDim(GridFunction& nodes);
    static void ReorderByNodes(GridFunction& nodes);
 };
-   
+
 
 } // namespace mfem::raja
 

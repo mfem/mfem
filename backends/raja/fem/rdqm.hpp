@@ -20,7 +20,7 @@ namespace mfem
 
 namespace raja
 {
-   
+
 // ***************************************************************************
 // * RajaDofQuadMaps
 // ***************************************************************************
@@ -35,11 +35,11 @@ public:
 public:
    ~RajaDofQuadMaps();
    static void delRajaDofQuadMaps();
-   static RajaDofQuadMaps* Get(const RajaFiniteElementSpace&,
+   static RajaDofQuadMaps* Get(const mfem::FiniteElementSpace&,
                                const mfem::IntegrationRule&,
                                const bool = false);
-   static RajaDofQuadMaps* Get(const RajaFiniteElementSpace&,
-                               const RajaFiniteElementSpace&,
+   static RajaDofQuadMaps* Get(const mfem::FiniteElementSpace&,
+                               const mfem::FiniteElementSpace&,
                                const mfem::IntegrationRule&,
                                const bool = false);
    static RajaDofQuadMaps* Get(const mfem::FiniteElement&,
@@ -64,7 +64,7 @@ public:
                                              const mfem::IntegrationRule&,
                                              const bool = false);
 };
-   
+
 } // namespace mfem::raja
 
 } // namespace mfem

@@ -31,7 +31,9 @@ RajaConstrainedOperator::RajaConstrainedOperator(
      mfem_z((z.DontDelete(), z)),
      mfem_w((w.DontDelete(), w))
 {
+   push();
    Setup(OutLayout_().RajaEngine().GetDevice(), A_, constraintList_, own_A_);
+   pop();
 }
 
 void RajaConstrainedOperator::Setup(raja::device device_,

@@ -40,22 +40,22 @@ void RajaDofQuadMaps::delRajaDofQuadMaps()
 }
 
 // *****************************************************************************
-RajaDofQuadMaps* RajaDofQuadMaps::Get(const RajaFiniteElementSpace& fespace,
+RajaDofQuadMaps* RajaDofQuadMaps::Get(const mfem::FiniteElementSpace& fespace,
                                       const mfem::IntegrationRule& ir,
                                       const bool transpose)
 {
-   return Get(*fespace.GetFESpace()->GetFE(0),
-              *fespace.GetFESpace()->GetFE(0),ir,transpose);
+   return Get(*fespace.GetFE(0),
+              *fespace.GetFE(0),ir,transpose);
 }
 
-RajaDofQuadMaps* RajaDofQuadMaps::Get(const RajaFiniteElementSpace&
+RajaDofQuadMaps* RajaDofQuadMaps::Get(const mfem::FiniteElementSpace&
                                       trialFESpace,
-                                      const RajaFiniteElementSpace& testFESpace,
+                                      const mfem::FiniteElementSpace& testFESpace,
                                       const mfem::IntegrationRule& ir,
                                       const bool transpose)
 {
-   return Get(*trialFESpace.GetFESpace()->GetFE(0),
-              *testFESpace.GetFESpace()->GetFE(0),ir,transpose);
+   return Get(*trialFESpace.GetFE(0),
+              *testFESpace.GetFE(0),ir,transpose);
 }
 
 RajaDofQuadMaps* RajaDofQuadMaps::Get(const mfem::FiniteElement& trialFE,

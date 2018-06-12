@@ -112,14 +112,14 @@ void RajaGridFunctionParameter::Setup(RajaIntegrator &integ)
 
 
 //---[ Coefficient ]------------------
-   RajaCoefficient::RajaCoefficient(const double value) :
+RajaCoefficient::RajaCoefficient(const double value) :
    engine(NULL),
    integ(NULL),
    name("COEFF")
 {
 }
 //---[ Coefficient ]------------------
-   RajaCoefficient::RajaCoefficient(const Engine &e, const double value) :
+RajaCoefficient::RajaCoefficient(const Engine &e, const double value) :
    engine(&e),
    integ(NULL),
    name("COEFF")

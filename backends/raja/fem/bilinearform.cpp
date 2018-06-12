@@ -48,71 +48,71 @@ void RajaBilinearForm::Init(const Engine &e,
                             RajaFiniteElementSpace *otrialFESpace_,
                             RajaFiniteElementSpace *otestFESpace_)
 {
-  push();
-  engine.Reset(&e);
-  otrialFESpace = otrialFESpace_;
-  trialFESpace  = otrialFESpace_->GetFESpace();
-  
-  otestFESpace = otestFESpace_;
-  testFESpace  = otestFESpace_->GetFESpace();
+   push();
+   engine.Reset(&e);
+   otrialFESpace = otrialFESpace_;
+   trialFESpace  = otrialFESpace_->GetFESpace();
 
-  mesh = trialFESpace->GetMesh();
-  dbg(" done!");
-  pop();
+   otestFESpace = otestFESpace_;
+   testFESpace  = otestFESpace_->GetFESpace();
+
+   mesh = trialFESpace->GetMesh();
+   dbg(" done!");
+   pop();
 }
 
 int RajaBilinearForm::BaseGeom() const
 {
-  push();
-  pop();
-  return mesh->GetElementBaseGeometry();
+   push();
+   pop();
+   return mesh->GetElementBaseGeometry();
 }
 
 int RajaBilinearForm::GetDim() const
 {
-  push();pop();
-  return mesh->Dimension();
+   push(); pop();
+   return mesh->Dimension();
 }
 
 int64_t RajaBilinearForm::GetNE() const
 {
-  push();pop();
-  return mesh->GetNE();
+   push(); pop();
+   return mesh->GetNE();
 }
 
 Mesh& RajaBilinearForm::GetMesh() const
 {
-   push();pop();
+   push(); pop();
    return *mesh;
 }
 
 RajaFiniteElementSpace& RajaBilinearForm::GetTrialRajaFESpace() const
 {
-   push();pop();
+   push(); pop();
    return *otrialFESpace;
 }
 
 RajaFiniteElementSpace& RajaBilinearForm::GetTestRajaFESpace() const
 {
-   push();pop();
+   push(); pop();
    return *otestFESpace;
 }
 
 mfem::FiniteElementSpace& RajaBilinearForm::GetTrialFESpace() const
 {
-   push();pop();
+   push(); pop();
    return *trialFESpace;
 }
 
 mfem::FiniteElementSpace& RajaBilinearForm::GetTestFESpace() const
 {
-   push();pop();
+   push(); pop();
    return *testFESpace;
 }
 
 int64_t RajaBilinearForm::GetTrialNDofs() const
 {
-   push();pop();
+   push(); pop();
    return trialFESpace->GetNDofs();
 }
 
@@ -403,8 +403,8 @@ void BilinearForm::InitRajaBilinearForm()
 
       if (integ_name == "(undefined)")
       {
-        MFEM_ABORT("BilinearFormIntegrator does not define Name()");
-        ointeg = new RajaMassIntegrator(ocoeff);
+         MFEM_ABORT("BilinearFormIntegrator does not define Name()");
+         ointeg = new RajaMassIntegrator(ocoeff);
       }
       else if (integ_name == "diffusion")
       {

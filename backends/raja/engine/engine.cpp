@@ -23,10 +23,10 @@ namespace raja
 // *****************************************************************************
 void Engine::Init(const std::string &engine_spec)
 {
-   push();
    //
    // Initialize inherited fields
    //
+   push();
    memory_resources[0] = NULL;
    workers_weights[0]= 1.0;
    workers_mem_res[0] = 0;
@@ -58,17 +58,18 @@ Engine::Engine(MPI_Comm _comm, const std::string &engine_spec)
 // *****************************************************************************
 DLayout Engine::MakeLayout(std::size_t size) const
 {
-   push();pop();
-   return DLayout(new Layout(*this, size));
+   push(); pop();
+   return DLayout(new raja::Layout(*this, size));
 }
 
 
 DLayout Engine::MakeLayout(const mfem::Array<std::size_t> &offsets) const
 {
+   push();
    MFEM_ASSERT(offsets.Size() == 2,
                "multiple workers are not supported yet");
-   push();pop();
-   return DLayout(new Layout(*this, offsets.Last()));
+   pop();
+   return DLayout(new raja::Layout(*this, offsets.Last()));
 }
 
 DArray Engine::MakeArray(PLayout &layout, std::size_t item_size) const
@@ -78,7 +79,7 @@ DArray Engine::MakeArray(PLayout &layout, std::size_t item_size) const
                "invalid input layout");
    Layout *lt = static_cast<Layout *>(&layout);
    pop();
-   return DArray(new Array(*lt, item_size));
+   return DArray(new raja::Array(*lt, item_size));
 }
 
 DVector Engine::MakeVector(PLayout &layout, int type_id) const
@@ -89,22 +90,15 @@ DVector Engine::MakeVector(PLayout &layout, int type_id) const
                "invalid input layout");
    Layout *lt = static_cast<Layout *>(&layout);
    pop();
-   return DVector(new Vector(*lt));
+   return DVector(new raja::Vector(*lt));
 }
-   
-/*#ifdef MFEM_USE_MPI
-DFiniteElementSpace Engine::MakeFESpace(mfem::ParFiniteElementSpace &pfespace) const
-{
-   return DFiniteElementSpace(new ParFiniteElementSpace(*this, pfespace));
-   }
-#else*/
+
 DFiniteElementSpace Engine::MakeFESpace(mfem::FiniteElementSpace &fespace) const
 {
    push();
    pop();
    return DFiniteElementSpace(new RajaFiniteElementSpace(*this, fespace));
 }
-//#endif
 
 DBilinearForm Engine::MakeBilinearForm(mfem::BilinearForm &bf) const
 {

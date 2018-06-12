@@ -43,7 +43,9 @@ size_t memory::size() const
 
 void memory::copyFrom(memory &src)
 {
+   push();
    memcpy(data,src,bytes);
+   pop();
 }
 
 void memory::copyFrom(const void *src)

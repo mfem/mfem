@@ -67,7 +67,7 @@ static void CreateRPOperators(Layout &v_layout,
    }
    pop();
 }
- 
+
 // **************************************************************************
 RajaFiniteElementSpace::RajaFiniteElementSpace(const Engine &e,
                                                mfem::FiniteElementSpace &fespace)
@@ -153,15 +153,15 @@ RajaFiniteElementSpace::RajaFiniteElementSpace(const Engine &e,
 }
 
 // **************************************************************************
-   RajaFiniteElementSpace::~RajaFiniteElementSpace()
+RajaFiniteElementSpace::~RajaFiniteElementSpace()
 {
    delete restrictionOp;
    delete prolongationOp;
 }
 
 // **************************************************************************
-   void RajaFiniteElementSpace::GlobalToLocal(const raja::Vector &globalVec,
-                                       Vector &localVec) const
+void RajaFiniteElementSpace::GlobalToLocal(const Vector &globalVec,
+                                           Vector &localVec) const
 {
    push(PowderBlue);
    const int vdim = GetVDim();
@@ -180,7 +180,7 @@ RajaFiniteElementSpace::RajaFiniteElementSpace(const Engine &e,
 
 // **************************************************************************
 void RajaFiniteElementSpace::LocalToGlobal(const Vector &localVec,
-                                       Vector &globalVec) const
+                                           Vector &globalVec) const
 {
    push(PowderBlue);
    const int vdim = GetVDim();

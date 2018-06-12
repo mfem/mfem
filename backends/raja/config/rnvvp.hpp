@@ -93,7 +93,7 @@ NVTX_DECLSPEC int NVTX_API rNvtxSyncPop(void);
 static inline void push_flf(const char *file, const int line, const char *func)
 {
    if (!env_ini) { env_dbg = getenv("DBG"); env_ini = true; }
-   if (!env_dbg) return;
+   if (!env_dbg) { return; }
    const uint8_t color = 17 + chk8(file)%216;
    fflush(stdout);
    fprintf(stdout,"\033[38;5;%dm",color);

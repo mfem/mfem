@@ -20,7 +20,7 @@ namespace mfem
 
 namespace raja
 {
-   
+
 class RajaMassIntegrator : public RajaIntegrator
 {
 private:
@@ -36,7 +36,7 @@ public:
    void SetOperator(Vector &v);
    virtual void MultAdd(Vector &x, Vector &y);
 };
-   
+
 } // namespace mfem::raja
 
 } // namespace mfem
