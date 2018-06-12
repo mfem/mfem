@@ -169,6 +169,14 @@ void Vector::DoAxpby(const void *a, const PVector &x,
    pop();
 }
 
+// *****************************************************************************
+void Vector::Print(){
+   for(size_t i=0;i<Size();i+=1){
+      printf("%f ",((double*)RajaMem().ptr())[i]);
+   }
+}
+   
+// *****************************************************************************
 mfem::Vector Vector::Wrap()
 {
    return mfem::Vector(*this);

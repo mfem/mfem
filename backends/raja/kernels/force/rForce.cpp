@@ -1,4 +1,3 @@
-
 // Copyright (c) 2017, Lawrence Livermore National Security, LLC. Produced at
 // the Lawrence Livermore National Laboratory. LLNL-CODE-734707. All Rights
 // reserved. See files LICENSE and NOTICE for details.
@@ -97,10 +96,10 @@ static void rForceMult2D(
          }
          for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
          {
-            const double esx = e_xy[ijN(qx,qy,NUM_QUAD_1D)] * stressJinvT[__ijklmNM(0,c,qx,
-                                                                                    qy,el,NUM_DIM,NUM_QUAD_1D)];
-            const double esy = e_xy[ijN(qx,qy,NUM_QUAD_1D)] * stressJinvT[__ijklmNM(1,c,qx,
-                                                                                    qy,el,NUM_DIM,NUM_QUAD_1D)];
+            const double esx = e_xy[ijN(qx,qy,NUM_QUAD_1D)] *
+               stressJinvT[__ijklmNM(0,c,qx,qy,el,NUM_DIM,NUM_QUAD_1D)];
+            const double esy = e_xy[ijN(qx,qy,NUM_QUAD_1D)] *
+               stressJinvT[__ijklmNM(1,c,qx,qy,el,NUM_DIM,NUM_QUAD_1D)];
             for (int dx = 0; dx < H1_DOFS_1D; ++dx)
             {
                Dxy[dx] += esx * H1QuadToDofD[ijN(dx,qx,H1_DOFS_1D)];
@@ -203,10 +202,10 @@ static void rForceMultTranspose2D(
          for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
          {
             vStress[ijN(qx,qy,NUM_QUAD_1D)] +=
-               ((v_Dxy[ijN(qx,qy,NUM_QUAD_1D)] * stressJinvT[ijklmNM(0,c,qx,qy,el,NUM_DIM,
-                                                                     NUM_QUAD_1D)]) +
-                (v_xDy[ijN(qx,qy,NUM_QUAD_1D)] * stressJinvT[ijklmNM(1,c,qx,qy,el,NUM_DIM,
-                                                                     NUM_QUAD_1D)]));
+               ((v_Dxy[ijN(qx,qy,NUM_QUAD_1D)] *
+                 stressJinvT[__ijklmNM(0,c,qx,qy,el,NUM_DIM,NUM_QUAD_1D)]) +
+                (v_xDy[ijN(qx,qy,NUM_QUAD_1D)] *
+                 stressJinvT[__ijklmNM(1,c,qx,qy,el,NUM_DIM,NUM_QUAD_1D)]));
          }
       }
    }

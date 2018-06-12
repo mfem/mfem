@@ -20,6 +20,10 @@
 #include "../../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)
 
+#include <stdarg.h>
+#include <assert.h>
+#include <string.h>
+
 // DBG *************************************************************************
 inline void rdbg(const char *format,...)
 {
@@ -78,9 +82,12 @@ inline void rdbge(const char *file, const int line, const char *func,
 }
 
 // *****************************************************************************
+const char * strrnchr(const char *, const unsigned char ,const int);
+
+// *****************************************************************************
 #define __NB_ARGS__(z,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,cnt,...) cnt
 #define NB_ARGS(...) __NB_ARGS__(,##__VA_ARGS__,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0)
-#define __FILENAME__ ({const char *f = strrchr(__FILE__,'/'); f?f+1:__FILE__;})
+#define __FILENAME__ ({const char *f = strrnchr(__FILE__,'/',2);f?f+1:__FILE__;})
 #define dbp(...) rdbge(__FILENAME__,__LINE__,__FUNCTION__,false,NB_ARGS(__VA_ARGS__),__VA_ARGS__)
 #define dbg(...) rdbge(__FILENAME__,__LINE__,__FUNCTION__,true,NB_ARGS(__VA_ARGS__),__VA_ARGS__)
 

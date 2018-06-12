@@ -104,7 +104,6 @@ static inline void push_flf(const char *file, const int line, const char *func)
 
 // *****************************************************************************
 #define pop(...)
-#define __FILENAME__ ({const char *f = strrchr(__FILE__,'/'); f?f+1:__FILE__;})
 #define push(...) mfem::raja::push_flf(__FILENAME__,__LINE__,__FUNCTION__)
 #define cuProfilerStart(...)
 #define cuProfilerStop(...)

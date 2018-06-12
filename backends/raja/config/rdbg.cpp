@@ -19,4 +19,17 @@
 
 #include "../raja.hpp"
 
+// *****************************************************************************
+const char *strrnchr(const char *s, const unsigned char c, int n){
+   size_t len = strlen(s);
+   char *p = (char*)s+len-1;
+   for(;n;n--,p--,len--){
+      for(;len;p--,len--)
+         if (*p==c) break;
+      if (!len) return NULL;
+      if (n==1) return p;
+   }
+   return NULL;
+}
+
 #endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)

@@ -49,6 +49,8 @@ protected:
 
 public:
    Vector(Layout &lt);
+   
+   void Print();
 
    mfem::Vector Wrap();
 
