@@ -223,7 +223,7 @@ will allow us to reach you directly with project announcements.
   # Work on "feature-dev", add local commits
   # ...
 
-  # One time only) push the branch to github and setup your local
+  # (One time only) push the branch to github and setup your local
   # branch to track the github branch (for "git pull"):
   git push -u origin feature-dev
 
