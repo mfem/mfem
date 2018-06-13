@@ -786,6 +786,8 @@ public:
       mfem::CalcHcurlShapes(*my_fe, ir, B, G, my_dof_map);
    }
 
+   /// note that B is created with both open and closed quadratures, while
+   /// G only has closed.
    template <typename real_t>
    void Calc1DShapes(const IntegrationRule &ir, real_t *B_c,real_t *B_o,
                      real_t *G_c) const

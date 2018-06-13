@@ -57,7 +57,7 @@ typedef TIntegrationRule<geom,ir_order>       int_rule_t;
 typedef TConstantCoefficient<>                coeff_t;
 typedef TIntegrator<coeff_t,TDiffusionKernel> integ_t;
 
-typedef ShapeEvaluator<sol_fe_t,int_rule_t>  sol_Shape_Eval;
+typedef ShapeEvaluator<sol_fe_t,int_rule_t,double>  sol_Shape_Eval;
 typedef FieldEvaluator<sol_fes_t,ScalarLayout,int_rule_t> sol_Field_Eval;
 
 // Static bilinear form type, combining the above types

@@ -1637,7 +1637,7 @@ public:
 template <int Dim, int DOF1,int DOF2, int NIP, typename real_t>
 class NDTProductShapeEvaluator;
 
-/// Nedelc ShapeEvaluator with 2D tensor-product structure
+/// Nedelec ShapeEvaluator with 2D tensor-product structure
 template <int DOF1,int DOF2, int NIP, typename real_t>
 class NDTProductShapeEvaluator<2, DOF1, DOF2, NIP, real_t>
 {
@@ -1655,6 +1655,7 @@ public:
    NDTProductShapeEvaluator()
    {
    }
+
    void init()
    {
       for (int ip = 0; ip < NIP; ip++)
@@ -1785,8 +1786,9 @@ public:
                    B_1d_o.layout,  B_1d_o);
       AddOrientation(dof_data);
    }
+
    // Multi-component gradient evaluation from DOFs to quadrature points.
-   // dof_layout is (TDOF x NumComp) and grad_layout is (TNIP x DIM x NumComp).
+   // dof_layout is (TDOF x NumComp) and curl_layout is (TNIP x DIM x NumComp).
    template <typename dof_layout_t, typename dof_data_t,
              typename curl_layout_t, typename curl_data_t>
    MFEM_ALWAYS_INLINE
