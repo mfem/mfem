@@ -325,9 +325,9 @@ void OccaBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
    if (!copy_interior && constraintList.Size() > 0)
    {
       ::occa::kernel get_subvector_kernel =
-            get_subvector_builder.build(GetDevice());
+         get_subvector_builder.build(GetDevice());
       ::occa::kernel set_subvector_kernel =
-            set_subvector_builder.build(GetDevice());
+         set_subvector_builder.build(GetDevice());
 
       const Array &constrList = constraintList.Get_PArray()->As<Array>();
       Vector subvec(constrList.OccaLayout());
