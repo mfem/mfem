@@ -33,6 +33,8 @@ void rMassMultAdd2D(
                     const double* restrict oper,
                     const double* restrict solIn,
                     double* restrict solOut) {
+   #warning return
+   return;
 #ifndef __LAMBDA__
   const int e = blockDim.x * blockIdx.x + threadIdx.x;
   if (e < numElements)
@@ -229,7 +231,7 @@ void rMassMultAdd(const int DIM,
                   const double* op,
                   const double* x,
                   double* __restrict y) {
-  push(Lime);
+  dbg("\033[7mrMassMultAdd");
 #ifndef __LAMBDA__
   const int blck = 256;
   const int grid = (numElements+blck-1)/blck;

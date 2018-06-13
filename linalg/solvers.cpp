@@ -315,7 +315,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 
    if (iterative_mode)
    {
-      oper->Mult(x, r);
+      oper->Mult(x, r); printf("\033[31;7m[CGSolver::Mult] r size=%d\033[m",r.Size());
       r.Axpby(1.0, b, -1.0, r); // r = b - A x
    }
    else

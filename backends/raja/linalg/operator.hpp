@@ -70,9 +70,9 @@ protected:
 
    mfem::Operator *A;              //< The unconstrained Operator.
    bool own_A;                     //< Ownership flag for A.
-   raja::memory constraintList;  //< List of constrained indices/dofs.
+   raja::memory constraintList;    //< List of constrained indices/dofs.
    int constraintIndices;
-   mutable Vector z, w;       //< Auxiliary vectors.
+   mutable raja::Vector z, w;      //< Auxiliary vectors.
    mutable mfem::Vector mfem_z, mfem_w; // Wrap z, w
 
 public:

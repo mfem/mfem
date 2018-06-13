@@ -43,9 +43,9 @@ protected:
    RajaDofQuadMaps *mapsTranspose;
 
 public:
-   RajaIntegrator(const Engine &e);
+   RajaIntegrator(const raja::Engine &e);
    virtual ~RajaIntegrator();
-   const Engine &RajaEngine() const { return *engine; }
+   const Engine &RajaEngine() const { assert(engine); return *engine; }
    raja::device GetDevice(int idx = 0) const
    { return engine->GetDevice(idx); }
    virtual std::string GetName() = 0;

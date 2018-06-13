@@ -22,13 +22,13 @@ template<const int NUM_QUAD> kernel
 #endif
 void rInitQuadData(
 #ifndef __TEMPLATES__
-                         const int NUM_QUAD,
+                   const int NUM_QUAD,
 #endif
-                         const int nzones,
-                         const double* restrict rho0,
-                         const double* restrict detJ,
-                         const double* restrict quadWeights,
-                         double* restrict rho0DetJ0w) {
+                   const int nzones,
+                   const double* restrict rho0,
+                   const double* restrict detJ,
+                   const double* restrict quadWeights,
+                   double* restrict rho0DetJ0w) {
 #ifndef __LAMBDA__
   const int el = blockDim.x * blockIdx.x + threadIdx.x;
   if (el < nzones)

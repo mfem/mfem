@@ -272,9 +272,11 @@ public:
 #ifdef MFEM_USE_BACKENDS
    /// TODO: doxygen
    DLayout &GetVLayout() { return v_layout; }
+   const DLayout &GetVLayout() const { return v_layout; }
 
    /// TODO: doxygen
    DLayout &GetTrueVLayout() { SetCP(); return t_layout; }
+   const DLayout &GetTrueVLayout() const { SetCP(); return t_layout; }
 
    /// TODO: doxygen
    const DFiniteElementSpace &Get_PFESpace() const { return dev_ext; }

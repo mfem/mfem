@@ -25,15 +25,16 @@ class RajaMassIntegrator : public RajaIntegrator
 {
 private:
    RajaCoefficient coeff;
-   Vector assembledOperator;
+   raja::Vector assembledOperator;
 public:
-   RajaMassIntegrator(const RajaCoefficient &coeff_);
+   RajaMassIntegrator(const mfem::Engine&);
+   RajaMassIntegrator(const RajaCoefficient&);
    virtual ~RajaMassIntegrator();
    virtual std::string GetName();
    virtual void SetupIntegrationRule();
    virtual void Setup();
    virtual void Assemble();
-   void SetOperator(Vector &v);
+   void SetOperator(mfem::Vector &v);
    virtual void MultAdd(Vector &x, Vector &y);
 };
 

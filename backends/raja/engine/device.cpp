@@ -25,8 +25,6 @@ device::~device() {}
 // ***************************************************************************
 bool device::hasSeparateMemorySpace()
 {
-   push();
-   pop();
    return false;
 }
 

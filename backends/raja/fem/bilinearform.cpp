@@ -14,14 +14,12 @@
 
 #include "../raja.hpp"
 
-//#if 0
-
 namespace mfem
 {
 
 namespace raja
 {
-
+   
 RajaBilinearForm::RajaBilinearForm(RajaFiniteElementSpace *ofespace_) :
    Operator(ofespace_->RajaVLayout()),
    localX(ofespace_->RajaEVLayout()),
@@ -34,8 +32,7 @@ RajaBilinearForm::RajaBilinearForm(RajaFiniteElementSpace *ofespace_) :
 
 RajaBilinearForm::RajaBilinearForm(RajaFiniteElementSpace *otrialFESpace_,
                                    RajaFiniteElementSpace *otestFESpace_) :
-   Operator(otrialFESpace_->RajaVLayout(),
-            otestFESpace_->RajaVLayout()),
+   Operator(otrialFESpace_->RajaVLayout(), otestFESpace_->RajaVLayout()),
    localX(otrialFESpace_->RajaEVLayout()),
    localY(otestFESpace_->RajaEVLayout())
 {
@@ -101,12 +98,14 @@ RajaFiniteElementSpace& RajaBilinearForm::GetTestRajaFESpace() const
 mfem::FiniteElementSpace& RajaBilinearForm::GetTrialFESpace() const
 {
    push(); pop();
+   assert(trialFESpace);
    return *trialFESpace;
 }
 
 mfem::FiniteElementSpace& RajaBilinearForm::GetTestFESpace() const
 {
    push(); pop();
+   assert(testFESpace);
    return *testFESpace;
 }
 
@@ -352,6 +351,7 @@ void RajaBilinearForm::RajaRecoverFEMSolution(const mfem::Vector &X,
                                               const mfem::Vector &b,
                                               mfem::Vector &x)
 {
+   push();
    const mfem::Operator *P = this->GetTrialProlongation();
    if (P)
    {
@@ -360,6 +360,7 @@ void RajaBilinearForm::RajaRecoverFEMSolution(const mfem::Vector &X,
       P->Mult(X, x);
    }
    // Otherwise X and x point to the same data
+   pop();
 }
 
 // Frees memory bilinear form.
@@ -476,7 +477,5 @@ void BilinearForm::RecoverFEMSolution(const mfem::Vector &X,
 } // namespace mfem::raja
 
 } // namespace mfem
-
-//#endif // 0
 
 #endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_RAJA)

@@ -75,7 +75,6 @@ int Array::ResizeData(const Layout *lt, std::size_t item_size)
 
 void *Array::DoPullData(void *buffer, std::size_t item_size)
 {
-   push();
    // called only when Size() != 0
 
    if (!slice.getDevice().hasSeparateMemorySpace())
@@ -83,6 +82,7 @@ void *Array::DoPullData(void *buffer, std::size_t item_size)
       pop();
       return slice.ptr();
    }
+   push();
    if (buffer)
    {
       slice.copyTo(buffer);

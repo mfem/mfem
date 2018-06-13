@@ -19,7 +19,17 @@ namespace mfem
 
 namespace raja
 {
-
+   
+// *****************************************************************************
+RajaMassIntegrator::RajaMassIntegrator(const mfem::Engine &ng) :
+   RajaIntegrator(ng.As<raja::Engine>()),
+   coeff(ng.As<raja::Engine>(),1.0),
+   assembledOperator(*(new Layout(ng.As<raja::Engine>(), 0)))
+{
+   push();
+   pop();
+}
+   
 // *****************************************************************************
 RajaMassIntegrator::RajaMassIntegrator(const RajaCoefficient &coeff_) :
    RajaIntegrator(coeff_.RajaEngine()),
@@ -48,58 +58,36 @@ void RajaMassIntegrator::SetupIntegrationRule()
 }
 
 // *****************************************************************************
-void RajaMassIntegrator::Setup()
-{
-   assert(false);/*
-   ::raja::properties kernelProps = props;
-
-   coeff.Setup(*this, kernelProps);
-
-   // Setup assemble and mult kernels
-   assembleKernel = GetAssembleKernel(kernelProps);
-   multKernel     = GetMultAddKernel(kernelProps);*/
-}
+void RajaMassIntegrator::Setup() { }
 
 // *****************************************************************************
-void RajaMassIntegrator::Assemble()
-{
-   assert(false);/*
-  if (assembledOperator.Size())
-   {
-      return;
-   }
-
-   const int elements = trialFESpace->GetNE();
-   const int quadraturePoints = ir->GetNPoints();
-
-   RajaGeometry geom = GetGeometry(RajaGeometry::Jacobian);
-
-   assembledOperator.Resize<double>(quadraturePoints * elements, NULL);
-
-   assembleKernel((int) mesh->GetNE(),
-                  maps.quadWeights,
-                  geom.J,
-                  coeff,
-                  assembledOperator.RajaMem());*/
-}
+void RajaMassIntegrator::Assemble() { }
 
 // *****************************************************************************
-void RajaMassIntegrator::SetOperator(Vector &v)
+void RajaMassIntegrator::SetOperator(mfem::Vector &v)
 {
-   assembledOperator = v;
+   assembledOperator.PushData(v.GetData());
 }
 
 // *****************************************************************************
 void RajaMassIntegrator::MultAdd(Vector &x, Vector &y)
 {
-   assert(false);/*
- multKernel((int) mesh->GetNE(),
-              maps.dofToQuad,
-              maps.dofToQuadD,
-              maps.quadToDof,
-              maps.quadToDofD,
-              assembledOperator.RajaMem(),
-              x.RajaMem(), y.RajaMem());*/
+   push();
+   const int dim = mesh->Dimension();
+   const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
+   const int dofs1D = trialFESpace->GetFE(0)->GetOrder() + 1;
+   rMassMultAdd(dim,
+                dofs1D,
+                quad1D,
+                mesh->GetNE(),
+                maps->dofToQuad,
+                maps->dofToQuadD,
+                maps->quadToDof,
+                maps->quadToDofD,
+                (double*)assembledOperator.RajaMem().ptr(),
+                (const double*)x.RajaMem().ptr(),
+                (double*)y.RajaMem().ptr());
+   pop();
 }
 
 } // namespace mfem::raja

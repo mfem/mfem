@@ -32,7 +32,6 @@ class Backend;
 template <typename T> class Array;
 class Operator;
 class FiniteElementSpace;
-//class ParFiniteElementSpace;
 class LinearForm;
 class BilinearForm;
 class MixedBilinearForm;
@@ -119,11 +118,11 @@ public:
 
    /// TODO
    template <typename derived_t>
-   derived_t &As() { *util::As<derived_t>(this); }
+   derived_t &As() { return *util::As<derived_t>(this); }
 
    /// TODO
    template <typename derived_t>
-   const derived_t &As() const { *util::As<const derived_t>(this); }
+   const derived_t &As() const { return *util::As<const derived_t>(this); }
 
 
    // TODO: Error handling ... handle errors at the Engine level, at the class

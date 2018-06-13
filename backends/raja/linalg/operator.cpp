@@ -20,10 +20,10 @@ namespace mfem
 namespace raja
 {
 
-RajaConstrainedOperator::RajaConstrainedOperator(
-   mfem::Operator *A_,
-   const mfem::Array<int> &constraintList_,
-   bool own_A_)
+// *****************************************************************************
+RajaConstrainedOperator::RajaConstrainedOperator(mfem::Operator *A_,
+                                                 const mfem::Array<int> &constraintList_,
+                                                 bool own_A_)
 
    : Operator(A_->InLayout()->As<Layout>()),
      z(OutLayout_()),
@@ -36,6 +36,7 @@ RajaConstrainedOperator::RajaConstrainedOperator(
    pop();
 }
 
+// *****************************************************************************
 void RajaConstrainedOperator::Setup(raja::device device_,
                                     mfem::Operator *A_,
                                     const mfem::Array<int> &constraintList_,
@@ -46,19 +47,24 @@ void RajaConstrainedOperator::Setup(raja::device device_,
    A = A_;
    own_A = own_A_;
    constraintIndices = constraintList_.Size();
-   constraintList = constraintList_.Get_PArray()->As<Array>().RajaMem();
+   if (constraintIndices) {
+      assert(false);
+      //constraintList.allocate(constraintIndices);
+      assert(constraintList_.Get_PArray());
+      //constraintList = constraintList_.Get_PArray()->As<Array>().RajaMem();
+   }
+   //z.SetSize(height);
+   //w.SetSize(height);
    pop();
 }
 
+// *****************************************************************************
 void RajaConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
    push();
-   //const std::string &okl_defines = InLayout_().RajaEngine().GetOklDefines();
-   //raja::kernel mapDofs = mapDofBuilder.build(device, okl_defines);
    w.Fill<double>(0.0);
    if (constraintIndices)
    {
-      //assert(false);
       vector_map_dofs(constraintIndices,
                       (double*)w.RajaMem().ptr(),
                       (double*)x.RajaMem().ptr(),
@@ -68,7 +74,6 @@ void RajaConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
    b.Axpby<double>(1.0, b, -1.0, z);
    if (constraintIndices)
    {
-      //mapDofs(constraintIndices, b.RajaMem(), x.RajaMem(), constraintList);
       vector_map_dofs(constraintIndices,
                       (double*)b.RajaMem().ptr(),
                       (double*)x.RajaMem().ptr(),
@@ -77,6 +82,7 @@ void RajaConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
    pop();
 }
 
+// *****************************************************************************
 void RajaConstrainedOperator::Mult_(const Vector &x, Vector &y) const
 {
    push();
@@ -87,21 +93,13 @@ void RajaConstrainedOperator::Mult_(const Vector &x, Vector &y) const
       return;
    }
 
-   //const std::string &okl_defines = InLayout_().RajaEngine().GetOklDefines();
-   //::raja::kernel mapDofs   = mapDofBuilder.build(device, okl_defines);
-   //::raja::kernel clearDofs = clearDofBuilder.build(device, okl_defines);
-
    z.Assign<double>(x); // z = x
 
-   //assert(false);
-   //clearDofs
    vector_clear_dofs(constraintIndices, (double*)z.RajaMem().ptr(),
                      (int*)constraintList.ptr());
 
    A->Mult(mfem_z, mfem_y);
 
-   //assert(false);
-   //mapDofs
    vector_map_dofs(constraintIndices,
                    (double*)y.RajaMem().ptr(),
                    (double*)x.RajaMem().ptr(),
@@ -109,6 +107,7 @@ void RajaConstrainedOperator::Mult_(const Vector &x, Vector &y) const
    pop();
 }
 
+// *****************************************************************************
 RajaConstrainedOperator::~RajaConstrainedOperator()
 {
    if (own_A)

@@ -177,6 +177,19 @@ void Vector::Print(){
 }
    
 // *****************************************************************************
+void Vector::SetSubVector(const mfem::Array<int> &ess_tdofs,
+                          const double value,
+                          const int N)
+{
+   push();
+   dbg("ess_tdofs:\n");
+   ess_tdofs.Print();
+   for(int i=0;i<ess_tdofs.Size();i+=1)dbg(" %d",ess_tdofs[i]);
+   vector_set_subvector_const(N, value, data, ess_tdofs.GetData());
+   pop();
+}
+
+// *****************************************************************************
 mfem::Vector Vector::Wrap()
 {
    return mfem::Vector(*this);

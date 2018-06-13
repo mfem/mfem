@@ -109,6 +109,7 @@ void ProlongationOperator::Mult_(const Vector &x, Vector &y) const
    //assert(false);
    if (pmat)
    {
+      dbg("\033[31;7mpmat %dx%d",pmat->Width(),pmat->Height());
       RajaMult(*pmat, x, y);
    }
    else

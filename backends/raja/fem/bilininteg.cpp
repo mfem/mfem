@@ -21,7 +21,7 @@ namespace raja
 {
 
 // *****************************************************************************
-RajaIntegrator::RajaIntegrator(const Engine &e)
+RajaIntegrator::RajaIntegrator(const raja::Engine &e)
    : engine(&e),
      bform(),
      mesh(),
@@ -33,6 +33,7 @@ RajaIntegrator::RajaIntegrator(const Engine &e)
      ir(NULL),
      hasTensorBasis(false) { }
 
+// *****************************************************************************
 RajaIntegrator::~RajaIntegrator() {}
 
 // *****************************************************************************
@@ -90,6 +91,7 @@ void RajaIntegrator::SetupIntegrator(RajaBilinearForm &bform_,
                                      const RajaIntegratorType itype_)
 {
    push();
+//#warning engine ?!
    MFEM_ASSERT(engine == &bform_.RajaEngine(), "");
    bform     = &bform_;
    mesh      = &(bform_.GetMesh());
