@@ -26,6 +26,7 @@ class RajaMassIntegrator : public RajaIntegrator
 private:
    RajaCoefficient coeff;
    raja::Vector assembledOperator;
+   mfem::Vector op;
 public:
    RajaMassIntegrator(const mfem::Engine&);
    RajaMassIntegrator(const RajaCoefficient&);

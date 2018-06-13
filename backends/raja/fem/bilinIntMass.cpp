@@ -58,7 +58,10 @@ void RajaMassIntegrator::SetupIntegrationRule()
 }
 
 // *****************************************************************************
-void RajaMassIntegrator::Setup() { }
+void RajaMassIntegrator::Setup() {
+   push();
+   pop();
+ }
 
 // *****************************************************************************
 void RajaMassIntegrator::Assemble() { }
@@ -66,6 +69,7 @@ void RajaMassIntegrator::Assemble() { }
 // *****************************************************************************
 void RajaMassIntegrator::SetOperator(mfem::Vector &v)
 {
+   op = v;
    assembledOperator.PushData(v.GetData());
 }
 
@@ -84,7 +88,8 @@ void RajaMassIntegrator::MultAdd(Vector &x, Vector &y)
                 maps->dofToQuadD,
                 maps->quadToDof,
                 maps->quadToDofD,
-                (double*)assembledOperator.RajaMem().ptr(),
+                op.GetData(),
+                //(double*)assembledOperator.RajaMem().ptr(),
                 (const double*)x.RajaMem().ptr(),
                 (double*)y.RajaMem().ptr());
    pop();

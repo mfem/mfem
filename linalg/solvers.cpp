@@ -10,6 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "linalg.hpp"
+#include "../backends/raja/raja.hpp"
 #include "../general/globals.hpp"
 #include <iostream>
 #include <iomanip>
@@ -313,11 +314,16 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    int i;
    double r0, den, nom, nom0, betanom, alpha, beta;
 
+   dbg("\033[7mCGSolver::Mult");
    if (iterative_mode)
    {
-      oper->Mult(x, r); printf("\033[31;7m[CGSolver::Mult] r size=%d\033[m",r.Size());
+      dbg("\033[7m[CGSolver::Mult] iterative_mode");
+      oper->Mult(x, r); 
+      //dbg("\033[7m[CGSolver::Mult] r:\n"); r.Print();
+      dbg("\033[7m[CGSolver::Mult] r.Axpby");
       r.Axpby(1.0, b, -1.0, r); // r = b - A x
-   }
+      //dbg("\033[7m[CGSolver::Mult] r:\n"); r.Print();
+    }
    else
    {
       r.Assign(b); // r = b
@@ -331,7 +337,9 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    }
    else
    {
+      dbg("\033[7m[CGSolver::Mult] d.Assign(r)");
       d.Assign(r); // d = r
+      //dbg("\033[7m[CGSolver::Mult] d:\n"); d.Print();
    }
    nom0 = nom = Dot(d, r);
    MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
@@ -348,11 +356,16 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       converged = 1;
       final_iter = 0;
       final_norm = sqrt(nom);
+      dbg("\033[7mreturn nom <= r0");
       return;
    }
 
+   dbg("\033[7m[CGSolver::Mult] oper->Mult(d, z)");
    oper->Mult(d, z);  // z = A d
+   //dbg("\033[7m[CGSolver::Mult] z:\n"); z.Print();
+   dbg("\033[7m[CGSolver::Mult] Dot(z, d)");
    den = Dot(z, d);
+   dbg("\033[7m[CGSolver::Mult] den=%f",den);
    MFEM_ASSERT(IsFinite(den), "den = " << den);
 
    if (print_level >= 0 && den < 0.0)
@@ -365,6 +378,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       converged = 0;
       final_iter = 0;
       final_norm = sqrt(nom);
+      dbg("\033[7mreturn den == r0");
       return;
    }
 
@@ -373,8 +387,15 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    final_iter = max_iter;
    for (i = 1; true; )
    {
+      dbg("\t\033[7m[CGSolver::Mult] iteration #%d",i);
       alpha = nom/den;
+      dbg("\t\033[7m[CGSolver::Mult] alpha=%f",alpha);
+      dbg("\t\033[7m[CGSolver::Mult] x.Axpby(1.0, x, alpha, d");
+      //Vector kd(oper->InLayout()); kd.PushData(d.GetData());
       x.Axpby(1.0, x,  alpha, d);     //  x = x + alpha d
+      //dbg("\033[7m[CGSolver::Mult] d:\n"); d.Print();
+      //dbg("\033[7m[CGSolver::Mult] x:\n"); x.Print();
+      dbg("\t\033[7m[CGSolver::Mult] r.Axpby(1.0, r, -alpha, z)");
       r.Axpby(1.0, r, -alpha, z);     //  r = r - alpha A d
 
       if (prec)
@@ -422,9 +443,12 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       }
       else
       {
+         dbg("\t\033[7m[CGSolver::Mult] d.Axpby(1.0, r, beta, d)");
          d.Axpby(1.0, r, beta, d);
       }
+      dbg("\t\033[7m[CGSolver::Mult] oper->Mult(d, z)");
       oper->Mult(d, z);       //  z = A d
+      dbg("\t\033[7m[CGSolver::Mult] Dot(d, z)");
       den = Dot(d, z);
       MFEM_ASSERT(IsFinite(den), "den = " << den);
       if (den <= 0.0)
@@ -455,6 +479,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
                 << pow (betanom/nom0, 0.5/final_iter) << '\n';
    }
    final_norm = sqrt(betanom);
+   dbg("\033[7m[CGSolver::Mult] done");
 }
 
 void CG(const Operator &A, const Vector &b, Vector &x,

@@ -139,14 +139,6 @@ void RajaDiffusionIntegrator::MultAdd(Vector &x, Vector &y)
    /*   for(size_t i=0;i<y.Size();i+=1)
          printf("\n\t\033[36m[MultAdd] y[%ld]=%f",i, ((double*)y.RajaMem().ptr())[i]);
    */
-   /*
-     multKernel((int) mesh->GetNE(),
-     maps.dofToQuad,
-                 maps.dofToQuadD,
-                 maps.quadToDof,
-                 maps.quadToDofD,
-                 assembledOperator.RajaMem(),
-                 x.RajaMem(), y.RajaMem());*/
    pop();
 }
 

@@ -140,7 +140,10 @@ public:
    template <typename scalar_t>
    void Axpby(const scalar_t &a, const PVector &x,
               const scalar_t &b, const PVector &y)
-   { if (Size()) { DoAxpby(&a, x, &b, y, ScalarId<scalar_t>::value); } }
+   {
+      MFEM_ASSERT(Size()>0, "");
+      if (Size()) { DoAxpby(&a, x, &b, y, ScalarId<scalar_t>::value); }
+   }
 
    ///@}
    // End: Virtual interface

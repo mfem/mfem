@@ -33,8 +33,6 @@ void rMassMultAdd2D(
                     const double* restrict oper,
                     const double* restrict solIn,
                     double* restrict solOut) {
-   #warning return
-   return;
 #ifndef __LAMBDA__
   const int e = blockDim.x * blockIdx.x + threadIdx.x;
   if (e < numElements)

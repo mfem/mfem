@@ -90,6 +90,7 @@ public:
 
    /// Returns the matrix data array.
    inline double *Data() const { return data; }
+   
    /// Returns the matrix data array.
    inline double *GetData() const { return data; }
 

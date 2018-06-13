@@ -65,11 +65,13 @@
 #include "linalg/vector.hpp"
 #include "linalg/rvector.hpp"
 #include "linalg/operator.hpp"
+#include "linalg/rconstrained.hpp"
 #include "linalg/sparsemat.hpp"
 
 // RAJA/fem ********************************************************************
 #include "fem/fespace.hpp"
 #include "fem/gridfunc.hpp"
+#include "fem/rbilinear.hpp"
 #include "fem/bilinearform.hpp"
 #include "fem/coefficient.hpp"
 #include "fem/rdqm.hpp"

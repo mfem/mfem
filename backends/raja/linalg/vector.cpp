@@ -51,7 +51,7 @@ void Vector::DoDotProduct(const PVector &x, void *result,
    // called only when Size() != 0
    MFEM_ASSERT(result_type_id == ScalarId<double>::value, "");
    double *res = (double *)result;
-   MFEM_ASSERT(dynamic_cast<const Vector *>(&x) != NULL, "invalid Vector type");
+   MFEM_ASSERT(dynamic_cast<const Vector *>(&x) != NULL, "\033[31minvalid Vector type\033[m");
    const Vector *xp = static_cast<const Vector *>(&x);
    MFEM_ASSERT(this->Size() == xp->Size(), "");
    *res = raja::linalg::dot(this->slice, xp->slice);
@@ -76,10 +76,11 @@ void Vector::DoAxpby(const void *a, const PVector &x,
    MFEM_ASSERT(ab_type_id == ScalarId<double>::value, "");
    const double da = *static_cast<const double *>(a);
    const double db = *static_cast<const double *>(b);
-   MFEM_ASSERT(da == 0.0 || dynamic_cast<const Vector *>(&x) != NULL,
-               "invalid Vector x");
-   MFEM_ASSERT(db == 0.0 || dynamic_cast<const Vector *>(&y) != NULL,
-               "invalid Vector y");
+   //dbg("da=%f",da);
+   //dbg("db=%f",db);
+   
+   MFEM_ASSERT(da == 0.0 || dynamic_cast<const Vector *>(&x) != NULL, "\033[31minvalid Vector x\033[m");
+   MFEM_ASSERT(db == 0.0 || dynamic_cast<const Vector *>(&y) != NULL, "\033[31minvalid Vector y\033[m");
    const Vector *xp = static_cast<const Vector *>(&x);
    const Vector *yp = static_cast<const Vector *>(&y);
 
@@ -182,9 +183,8 @@ void Vector::SetSubVector(const mfem::Array<int> &ess_tdofs,
                           const int N)
 {
    push();
-   dbg("ess_tdofs:\n");
-   ess_tdofs.Print();
-   for(int i=0;i<ess_tdofs.Size();i+=1)dbg(" %d",ess_tdofs[i]);
+   //dbg("ess_tdofs:\n"); ess_tdofs.Print();
+   //for(int i=0;i<ess_tdofs.Size();i+=1)dbg(" %d",ess_tdofs[i]);
    vector_set_subvector_const(N, value, data, ess_tdofs.GetData());
    pop();
 }

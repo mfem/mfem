@@ -25,8 +25,8 @@ RajaIntegrator::RajaIntegrator(const raja::Engine &e)
    : engine(&e),
      bform(),
      mesh(),
-     otrialFESpace(),
-     otestFESpace(),
+     rtrialFESpace(),
+     rtestFESpace(),
      trialFESpace(),
      testFESpace(),
      itype(DomainIntegrator),
@@ -40,12 +40,12 @@ RajaIntegrator::~RajaIntegrator() {}
 void RajaIntegrator::SetupMaps()
 {
    push();
-   maps = RajaDofQuadMaps::Get(*otrialFESpace->GetFESpace(),
-                               *otestFESpace->GetFESpace(),
+   maps = RajaDofQuadMaps::Get(*rtrialFESpace->GetFESpace(),
+                               *rtestFESpace->GetFESpace(),
                                *ir);
 
-   mapsTranspose = RajaDofQuadMaps::Get(*otestFESpace->GetFESpace(),
-                                        *otrialFESpace->GetFESpace(),
+   mapsTranspose = RajaDofQuadMaps::Get(*rtestFESpace->GetFESpace(),
+                                        *rtrialFESpace->GetFESpace(),
                                         *ir);
    pop();
 }
@@ -53,12 +53,12 @@ void RajaIntegrator::SetupMaps()
 // *****************************************************************************
 RajaFiniteElementSpace& RajaIntegrator::GetTrialRajaFESpace() const
 {
-   return *otrialFESpace;
+   return *rtrialFESpace;
 }
 
 RajaFiniteElementSpace& RajaIntegrator::GetTestRajaFESpace() const
 {
-   return *otestFESpace;
+   return *rtestFESpace;
 }
 
 mfem::FiniteElementSpace& RajaIntegrator::GetTrialFESpace() const
@@ -78,6 +78,7 @@ void RajaIntegrator::SetIntegrationRule(const mfem::IntegrationRule &ir_)
 
 const mfem::IntegrationRule& RajaIntegrator::GetIntegrationRule() const
 {
+   assert(ir);
    return *ir;
 }
 
@@ -91,18 +92,17 @@ void RajaIntegrator::SetupIntegrator(RajaBilinearForm &bform_,
                                      const RajaIntegratorType itype_)
 {
    push();
-//#warning engine ?!
    MFEM_ASSERT(engine == &bform_.RajaEngine(), "");
    bform     = &bform_;
    mesh      = &(bform_.GetMesh());
 
-   otrialFESpace = &(bform_.GetTrialRajaFESpace());
-   otestFESpace  = &(bform_.GetTestRajaFESpace());
+   rtrialFESpace = &(bform_.GetTrialRajaFESpace());
+   rtestFESpace  = &(bform_.GetTestRajaFESpace());
 
    trialFESpace = &(bform_.GetTrialFESpace());
    testFESpace  = &(bform_.GetTestFESpace());
 
-   hasTensorBasis = otrialFESpace->hasTensorBasis();
+   hasTensorBasis = rtrialFESpace->hasTensorBasis();
 
    itype = itype_;
 
@@ -111,9 +111,6 @@ void RajaIntegrator::SetupIntegrator(RajaBilinearForm &bform_,
       SetupIntegrationRule();
    }
    SetupMaps();
-
-   //SetProperties(*otrialFESpace,*otestFESpace,*ir);
-
    Setup();
    pop();
 }
@@ -123,7 +120,7 @@ RajaGeometry *RajaIntegrator::GetGeometry(const int flags)
 {
    push();
    pop();
-   return RajaGeometry::Get(*otrialFESpace, *ir/*, flags*/);
+   return RajaGeometry::Get(*rtrialFESpace, *ir);
 }
 
 } // namespace mfem::raja

@@ -29,8 +29,8 @@ protected:
    raja::RajaBilinearForm *bform;
    mfem::Mesh *mesh;
 
-   RajaFiniteElementSpace *otrialFESpace;
-   RajaFiniteElementSpace *otestFESpace;
+   RajaFiniteElementSpace *rtrialFESpace;
+   RajaFiniteElementSpace *rtestFESpace;
 
    mfem::FiniteElementSpace *trialFESpace;
    mfem::FiniteElementSpace *testFESpace;
@@ -39,7 +39,7 @@ protected:
 
    const IntegrationRule *ir;
    bool hasTensorBasis;
-   RajaDofQuadMaps *maps;
+   raja::RajaDofQuadMaps *maps;
    RajaDofQuadMaps *mapsTranspose;
 
 public:
