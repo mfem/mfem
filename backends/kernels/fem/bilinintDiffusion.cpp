@@ -21,7 +21,8 @@ namespace kernels
 {
 
 // *****************************************************************************
-KernelsDiffusionIntegrator::KernelsDiffusionIntegrator(const KernelsCoefficient &coeff_)
+KernelsDiffusionIntegrator::KernelsDiffusionIntegrator(const KernelsCoefficient
+                                                       &coeff_)
    :
    KernelsIntegrator(coeff_.KernelsEngine()),
    coeff(coeff_),

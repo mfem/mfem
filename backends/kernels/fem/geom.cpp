@@ -40,8 +40,8 @@ KernelsGeometry::~KernelsGeometry()
 // * KernelsGeometry Get: use this one to fetch nodes from vector Sx
 // *****************************************************************************
 KernelsGeometry* KernelsGeometry::Get(KernelsFiniteElementSpace& fes,
-                                const IntegrationRule& ir,
-                                const KernelsVector& Sx)
+                                      const IntegrationRule& ir,
+                                      const KernelsVector& Sx)
 {
    push();
    const Mesh *mesh = fes.GetFESpace()->GetMesh();
@@ -72,7 +72,7 @@ KernelsGeometry* KernelsGeometry::Get(KernelsFiniteElementSpace& fes,
 
 // *****************************************************************************
 KernelsGeometry* KernelsGeometry::Get(KernelsFiniteElementSpace& fes,
-                                const IntegrationRule& ir)
+                                      const IntegrationRule& ir)
 {
    push();
    Mesh& mesh = *(fes.GetFESpace()->GetMesh());

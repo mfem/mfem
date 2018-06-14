@@ -20,8 +20,9 @@ namespace mfem
 namespace kernels
 {
 // *****************************************************************************
-KernelsVectorMassIntegrator::KernelsVectorMassIntegrator(const KernelsCoefficient &
-                                                   coeff_)
+KernelsVectorMassIntegrator::KernelsVectorMassIntegrator(
+   const KernelsCoefficient &
+   coeff_)
    :
    KernelsIntegrator(coeff_.KernelsEngine()),
    coeff(coeff_),

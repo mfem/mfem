@@ -43,8 +43,8 @@ public:
        ownership flag @a own_A is true, the operator @a *A will be destroyed
        when this object is destroyed. */
    KernelsConstrainedOperator(mfem::Operator *A_,
-                           const mfem::Array<int> &constraintList_,
-                           bool own_A_ = false);
+                              const mfem::Array<int> &constraintList_,
+                              bool own_A_ = false);
 
    void Setup(kernels::device device_,
               mfem::Operator *A_,

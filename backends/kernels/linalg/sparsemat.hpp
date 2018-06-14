@@ -35,24 +35,24 @@ public:
       : Operator(orig) { }
 
    KernelsSparseMatrix(Layout &in_layout, Layout &out_layout,
-                    const mfem::SparseMatrix &m);
+                       const mfem::SparseMatrix &m);
 
    KernelsSparseMatrix(Layout &in_layout, Layout &out_layout,
-                    const mfem::SparseMatrix &m,
-                    kernels::array<int> reorderIndices_,
-                    kernels::array<int> mappedIndices_);
+                       const mfem::SparseMatrix &m,
+                       kernels::array<int> reorderIndices_,
+                       kernels::array<int> mappedIndices_);
 
    KernelsSparseMatrix(Layout &in_layout, Layout &out_layout,
-                    kernels::array<int> offsets_,
-                    kernels::array<int> indices_,
-                    kernels::array<double> weights_);
+                       kernels::array<int> offsets_,
+                       kernels::array<int> indices_,
+                       kernels::array<double> weights_);
 
    KernelsSparseMatrix(Layout &in_layout, Layout &out_layout,
-                    kernels::array<int> offsets_,
-                    kernels::array<int> indices_,
-                    kernels::array<double> weights_,
-                    kernels::array<int> reorderIndices_,
-                    kernels::array<int> mappedIndices_);
+                       kernels::array<int> offsets_,
+                       kernels::array<int> indices_,
+                       kernels::array<double> weights_,
+                       kernels::array<int> reorderIndices_,
+                       kernels::array<int> mappedIndices_);
 
    void Setup(kernels::device device, const mfem::SparseMatrix &m);
 

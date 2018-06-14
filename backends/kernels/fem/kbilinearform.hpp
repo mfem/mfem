@@ -63,7 +63,7 @@ public:
    KernelsBilinearForm(KernelsFiniteElementSpace *ofespace_);
 
    KernelsBilinearForm(KernelsFiniteElementSpace *otrialFESpace_,
-                    KernelsFiniteElementSpace *otestFESpace_);
+                       KernelsFiniteElementSpace *otestFESpace_);
 
    void Init(const Engine &e,
              KernelsFiniteElementSpace *otrialFESpace_,
@@ -142,7 +142,7 @@ public:
    virtual void MultTranspose_(const Vector &x, Vector &y) const;
 
    void KernelsRecoverFEMSolution(const mfem::Vector &X, const mfem::Vector &b,
-                               mfem::Vector &x);
+                                  mfem::Vector &x);
 
    // Destroys bilinear form.
    ~KernelsBilinearForm();

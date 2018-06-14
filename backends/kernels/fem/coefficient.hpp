@@ -79,7 +79,7 @@ private:
 
 public:
    KernelsDefineParameter(const std::string &name_,
-                       const TM &value_) :
+                          const TM &value_) :
       name(name_),
       value(value_) {}
 
@@ -105,7 +105,7 @@ private:
 
 public:
    KernelsVariableParameter(const std::string &name_,
-                         const TM &value_) :
+                            const TM &value_) :
       name(name_),
       value(value_) {}
 
@@ -135,13 +135,13 @@ private:
 
 public:
    KernelsVectorParameter(const std::string &name_,
-                       Vector &v_,
-                       const bool useRestrict_ = false);
+                          Vector &v_,
+                          const bool useRestrict_ = false);
 
    KernelsVectorParameter(const std::string &name_,
-                       Vector &v_,
-                       const std::string &attr_,
-                       const bool useRestrict_ = false);
+                          Vector &v_,
+                          const std::string &attr_,
+                          const bool useRestrict_ = false);
 
    virtual KernelsParameter* Clone();
 
@@ -161,8 +161,8 @@ private:
 
 public:
    KernelsGridFunctionParameter(const std::string &name_,
-                             KernelsGridFunction &gf_,
-                             const bool useRestrict_ = false);
+                                KernelsGridFunction &gf_,
+                                const bool useRestrict_ = false);
 
    virtual KernelsParameter* Clone();
 
@@ -225,18 +225,18 @@ public:
    }
 
    KernelsCoefficient& AddVector(const std::string &name_,
-                              Vector &v,
-                              const bool useRestrict = false);
+                                 Vector &v,
+                                 const bool useRestrict = false);
 
 
    KernelsCoefficient& AddVector(const std::string &name_,
-                              Vector &v,
-                              const std::string &attr,
-                              const bool useRestrict = false);
+                                 Vector &v,
+                                 const std::string &attr,
+                                 const bool useRestrict = false);
 
    KernelsCoefficient& AddGridFunction(const std::string &name_,
-                                    KernelsGridFunction &gf,
-                                    const bool useRestrict = false);
+                                       KernelsGridFunction &gf,
+                                       const bool useRestrict = false);
 
    bool IsConstant();
    double GetConstantValue();

@@ -40,38 +40,39 @@ void KernelsDofQuadMaps::delKernelsDofQuadMaps()
 }
 
 // *****************************************************************************
-KernelsDofQuadMaps* KernelsDofQuadMaps::Get(const mfem::FiniteElementSpace& fespace,
-                                      const mfem::IntegrationRule& ir,
-                                      const bool transpose)
+KernelsDofQuadMaps* KernelsDofQuadMaps::Get(const mfem::FiniteElementSpace&
+                                            fespace,
+                                            const mfem::IntegrationRule& ir,
+                                            const bool transpose)
 {
    return Get(*fespace.GetFE(0),
               *fespace.GetFE(0),ir,transpose);
 }
 
 KernelsDofQuadMaps* KernelsDofQuadMaps::Get(const mfem::FiniteElementSpace&
-                                      trialFESpace,
-                                      const mfem::FiniteElementSpace& testFESpace,
-                                      const mfem::IntegrationRule& ir,
-                                      const bool transpose)
+                                            trialFESpace,
+                                            const mfem::FiniteElementSpace& testFESpace,
+                                            const mfem::IntegrationRule& ir,
+                                            const bool transpose)
 {
    return Get(*trialFESpace.GetFE(0),
               *testFESpace.GetFE(0),ir,transpose);
 }
 
 KernelsDofQuadMaps* KernelsDofQuadMaps::Get(const mfem::FiniteElement& trialFE,
-                                      const mfem::FiniteElement& testFE,
-                                      const mfem::IntegrationRule& ir,
-                                      const bool transpose)
+                                            const mfem::FiniteElement& testFE,
+                                            const mfem::IntegrationRule& ir,
+                                            const bool transpose)
 {
    return GetTensorMaps(trialFE, testFE, ir, transpose);
 }
 
 // ***************************************************************************
 KernelsDofQuadMaps* KernelsDofQuadMaps::GetTensorMaps(const mfem::FiniteElement&
-                                                trialFE,
-                                                const mfem::FiniteElement& testFE,
-                                                const mfem::IntegrationRule& ir,
-                                                const bool transpose)
+                                                      trialFE,
+                                                      const mfem::FiniteElement& testFE,
+                                                      const mfem::IntegrationRule& ir,
+                                                      const bool transpose)
 {
    const TensorBasisElement& trialTFE =
       dynamic_cast<const TensorBasisElement&>(trialFE);
@@ -107,10 +108,11 @@ KernelsDofQuadMaps* KernelsDofQuadMaps::GetTensorMaps(const mfem::FiniteElement&
 }
 
 // ***************************************************************************
-KernelsDofQuadMaps* KernelsDofQuadMaps::GetD2QTensorMaps(const mfem::FiniteElement&
-                                                   fe,
-                                                   const mfem::IntegrationRule& ir,
-                                                   const bool transpose)
+KernelsDofQuadMaps* KernelsDofQuadMaps::GetD2QTensorMaps(
+   const mfem::FiniteElement&
+   fe,
+   const mfem::IntegrationRule& ir,
+   const bool transpose)
 {
    const mfem::TensorBasisElement& tfe = dynamic_cast<const TensorBasisElement&>
                                          (fe);
@@ -200,19 +202,20 @@ KernelsDofQuadMaps* KernelsDofQuadMaps::GetD2QTensorMaps(const mfem::FiniteEleme
 }
 
 // ***************************************************************************
-KernelsDofQuadMaps* KernelsDofQuadMaps::GetSimplexMaps(const mfem::FiniteElement& fe,
-                                                 const mfem::IntegrationRule& ir,
-                                                 const bool transpose)
+KernelsDofQuadMaps* KernelsDofQuadMaps::GetSimplexMaps(const
+                                                       mfem::FiniteElement& fe,
+                                                       const mfem::IntegrationRule& ir,
+                                                       const bool transpose)
 {
    return GetSimplexMaps(fe, fe, ir, transpose);
 }
 
 // *****************************************************************************
 KernelsDofQuadMaps* KernelsDofQuadMaps::GetSimplexMaps(const mfem::FiniteElement&
-                                                 trialFE,
-                                                 const mfem::FiniteElement& testFE,
-                                                 const mfem::IntegrationRule& ir,
-                                                 const bool transpose)
+                                                       trialFE,
+                                                       const mfem::FiniteElement& testFE,
+                                                       const mfem::IntegrationRule& ir,
+                                                       const bool transpose)
 {
    std::stringstream ss;
    ss << "SimplexMap:"
@@ -241,10 +244,11 @@ KernelsDofQuadMaps* KernelsDofQuadMaps::GetSimplexMaps(const mfem::FiniteElement
 }
 
 // ***************************************************************************
-KernelsDofQuadMaps* KernelsDofQuadMaps::GetD2QSimplexMaps(const mfem::FiniteElement&
-                                                    fe,
-                                                    const mfem::IntegrationRule& ir,
-                                                    const bool transpose)
+KernelsDofQuadMaps* KernelsDofQuadMaps::GetD2QSimplexMaps(
+   const mfem::FiniteElement&
+   fe,
+   const mfem::IntegrationRule& ir,
+   const bool transpose)
 {
    const int dims = fe.GetDim();
    const int numDofs = fe.GetDof();

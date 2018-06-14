@@ -70,7 +70,7 @@ static void CreateRPOperators(Layout &v_layout,
 
 // **************************************************************************
 KernelsFiniteElementSpace::KernelsFiniteElementSpace(const Engine &e,
-                                               mfem::FiniteElementSpace &fespace)
+                                                     mfem::FiniteElementSpace &fespace)
    : PFiniteElementSpace(e, fespace),
      e_layout(e, 0), // resized in SetupLocalGlobalMaps()
      globalDofs(fes->GetNDofs()),
@@ -161,7 +161,7 @@ KernelsFiniteElementSpace::~KernelsFiniteElementSpace()
 
 // **************************************************************************
 void KernelsFiniteElementSpace::GlobalToLocal(const Vector &globalVec,
-                                           Vector &localVec) const
+                                              Vector &localVec) const
 {
    push(PowderBlue);
    const int vdim = GetVDim();
@@ -180,7 +180,7 @@ void KernelsFiniteElementSpace::GlobalToLocal(const Vector &globalVec,
 
 // **************************************************************************
 void KernelsFiniteElementSpace::LocalToGlobal(const Vector &localVec,
-                                           Vector &globalVec) const
+                                              Vector &globalVec) const
 {
    push(PowderBlue);
    const int vdim = GetVDim();

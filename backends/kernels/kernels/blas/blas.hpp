@@ -23,7 +23,8 @@ void vector_xpay(const int, const double, double*, const double*,const double*);
 void vector_xsy(const int, double*, const double*, const double*);
 void vector_axpy(const int, const double, double*, const double*);
 void vector_axpby(const int, const double,const double, double*, const double*);
-void vector_axpby3(const int, const double,const double, double*, const double*, const double*);
+void vector_axpby3(const int, const double,const double, double*, const double*,
+                   const double*);
 void vector_map_dofs(const int, double*, const double*, const int*);
 template <class T>
 void vector_map_add_dofs(const int, T*, const T*, const int*);

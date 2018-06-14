@@ -41,12 +41,12 @@ void KernelsIntegrator::SetupMaps()
 {
    push();
    maps = KernelsDofQuadMaps::Get(*rtrialFESpace->GetFESpace(),
-                               *rtestFESpace->GetFESpace(),
-                               *ir);
+                                  *rtestFESpace->GetFESpace(),
+                                  *ir);
 
    mapsTranspose = KernelsDofQuadMaps::Get(*rtestFESpace->GetFESpace(),
-                                        *rtrialFESpace->GetFESpace(),
-                                        *ir);
+                                           *rtrialFESpace->GetFESpace(),
+                                           *ir);
    pop();
 }
 
@@ -89,7 +89,7 @@ KernelsDofQuadMaps *KernelsIntegrator::GetDofQuadMaps()
 
 // *****************************************************************************
 void KernelsIntegrator::SetupIntegrator(KernelsBilinearForm &bform_,
-                                     const KernelsIntegratorType itype_)
+                                        const KernelsIntegratorType itype_)
 {
    push();
    MFEM_ASSERT(engine == &bform_.KernelsEngine(), "");

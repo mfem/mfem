@@ -69,8 +69,8 @@ public:
       mfem_error("KernelsIntegrator::MultTransposeAdd() is not overloaded!");
    }
    KernelsGeometry *GetGeometry(const int flags = (KernelsGeometry::Jacobian    |
-                                                KernelsGeometry::JacobianInv |
-                                                KernelsGeometry::JacobianDet));
+                                                   KernelsGeometry::JacobianInv |
+                                                   KernelsGeometry::JacobianDet));
 };
 
 } // namespace mfem::kernels

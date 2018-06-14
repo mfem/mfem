@@ -59,17 +59,17 @@ void KernelsSourceParameter::Setup(KernelsIntegrator &integ)
 
 //---[ Vector Parameter ]-------
 KernelsVectorParameter::KernelsVectorParameter(const std::string &name_,
-                                         Vector &v_,
-                                         const bool useRestrict_) :
+                                               Vector &v_,
+                                               const bool useRestrict_) :
    name(name_),
    v(v_),
    useRestrict(useRestrict_),
    attr("") {}
 
 KernelsVectorParameter::KernelsVectorParameter(const std::string &name_,
-                                         Vector &v_,
-                                         const std::string &attr_,
-                                         const bool useRestrict_) :
+                                               Vector &v_,
+                                               const std::string &attr_,
+                                               const bool useRestrict_) :
    name(name_),
    v(v_),
    useRestrict(useRestrict_),
@@ -88,9 +88,10 @@ void KernelsVectorParameter::Setup(KernelsIntegrator &integ)
 
 
 //---[ GridFunction Parameter ]-------
-KernelsGridFunctionParameter::KernelsGridFunctionParameter(const std::string &name_,
-                                                     KernelsGridFunction &gf_,
-                                                     const bool useRestrict_)
+KernelsGridFunctionParameter::KernelsGridFunctionParameter(
+   const std::string &name_,
+   KernelsGridFunction &gf_,
+   const bool useRestrict_)
    : name(name_),
      gf(gf_),
      gfQuad(*(new Layout(gf_.KernelsLayout().KernelsEngine(), 0))),
@@ -126,7 +127,8 @@ KernelsCoefficient::KernelsCoefficient(const Engine &e, const double value) :
 {
 }
 
-KernelsCoefficient::KernelsCoefficient(const Engine &e, const std::string &source) :
+KernelsCoefficient::KernelsCoefficient(const Engine &e,
+                                       const std::string &source) :
    engine(&e),
    integ(NULL),
    name("COEFF")
@@ -179,7 +181,8 @@ KernelsCoefficient& KernelsCoefficient::Add(KernelsParameter *param)
    return *this;
 }
 
-KernelsCoefficient& KernelsCoefficient::IncludeHeader(const std::string &filename)
+KernelsCoefficient& KernelsCoefficient::IncludeHeader(const std::string
+                                                      &filename)
 {
    return Add(new KernelsIncludeParameter(filename));
 }
@@ -190,23 +193,24 @@ KernelsCoefficient& KernelsCoefficient::IncludeSource(const std::string &source)
 }
 
 KernelsCoefficient& KernelsCoefficient::AddVector(const std::string &name_,
-                                            Vector &v,
-                                            const bool useRestrict)
+                                                  Vector &v,
+                                                  const bool useRestrict)
 {
    return Add(new KernelsVectorParameter(name_, v, useRestrict));
 }
 
 KernelsCoefficient& KernelsCoefficient::AddVector(const std::string &name_,
-                                            Vector &v,
-                                            const std::string &attr,
-                                            const bool useRestrict)
+                                                  Vector &v,
+                                                  const std::string &attr,
+                                                  const bool useRestrict)
 {
    return Add(new KernelsVectorParameter(name_, v, attr, useRestrict));
 }
 
-KernelsCoefficient& KernelsCoefficient::AddGridFunction(const std::string &name_,
-                                                  KernelsGridFunction &gf,
-                                                  const bool useRestrict)
+KernelsCoefficient& KernelsCoefficient::AddGridFunction(
+   const std::string &name_,
+   KernelsGridFunction &gf,
+   const bool useRestrict)
 {
    return Add(new KernelsGridFunctionParameter(name_, gf, useRestrict));
 }

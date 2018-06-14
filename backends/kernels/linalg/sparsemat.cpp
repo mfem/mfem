@@ -21,7 +21,7 @@ namespace kernels
 {
 
 KernelsSparseMatrix::KernelsSparseMatrix(Layout &in_layout, Layout &out_layout,
-                                   const mfem::SparseMatrix &m) :
+                                         const mfem::SparseMatrix &m) :
    Operator(in_layout, out_layout)
 {
    push();
@@ -30,9 +30,9 @@ KernelsSparseMatrix::KernelsSparseMatrix(Layout &in_layout, Layout &out_layout,
 }
 
 KernelsSparseMatrix::KernelsSparseMatrix(Layout &in_layout, Layout &out_layout,
-                                   const mfem::SparseMatrix &m,
-                                   kernels::array<int> reorderIndices_,
-                                   kernels::array<int> mappedIndices_) :
+                                         const mfem::SparseMatrix &m,
+                                         kernels::array<int> reorderIndices_,
+                                         kernels::array<int> mappedIndices_) :
    Operator(in_layout, out_layout)
 {
    push();
@@ -42,9 +42,9 @@ KernelsSparseMatrix::KernelsSparseMatrix(Layout &in_layout, Layout &out_layout,
 }
 
 KernelsSparseMatrix::KernelsSparseMatrix(Layout &in_layout, Layout &out_layout,
-                                   kernels::array<int> offsets_,
-                                   kernels::array<int> indices_,
-                                   kernels::array<double> weights_) :
+                                         kernels::array<int> offsets_,
+                                         kernels::array<int> indices_,
+                                         kernels::array<double> weights_) :
    Operator(in_layout, out_layout),
    offsets(offsets_),
    indices(indices_),
@@ -56,11 +56,11 @@ KernelsSparseMatrix::KernelsSparseMatrix(Layout &in_layout, Layout &out_layout,
 }
 
 KernelsSparseMatrix::KernelsSparseMatrix(Layout &in_layout, Layout &out_layout,
-                                   kernels::array<int> offsets_,
-                                   kernels::array<int> indices_,
-                                   kernels::array<double> weights_,
-                                   kernels::array<int> reorderIndices_,
-                                   kernels::array<int> mappedIndices_) :
+                                         kernels::array<int> offsets_,
+                                         kernels::array<int> indices_,
+                                         kernels::array<double> weights_,
+                                         kernels::array<int> reorderIndices_,
+                                         kernels::array<int> mappedIndices_) :
    Operator(in_layout, out_layout),
    offsets(offsets_),
    indices(indices_),
@@ -73,7 +73,8 @@ KernelsSparseMatrix::KernelsSparseMatrix(Layout &in_layout, Layout &out_layout,
    pop();
 }
 
-void KernelsSparseMatrix::Setup(kernels::device device, const mfem::SparseMatrix &m)
+void KernelsSparseMatrix::Setup(kernels::device device,
+                                const mfem::SparseMatrix &m)
 {
    push();
    Setup(device, m, kernels::array<int>(), kernels::array<int>());
@@ -81,8 +82,8 @@ void KernelsSparseMatrix::Setup(kernels::device device, const mfem::SparseMatrix
 }
 
 void KernelsSparseMatrix::Setup(kernels::device device, const SparseMatrix &m,
-                             kernels::array<int> reorderIndices_,
-                             kernels::array<int> mappedIndices_)
+                                kernels::array<int> reorderIndices_,
+                                kernels::array<int> mappedIndices_)
 {
    push();
    //const int nnz = m.GetI()[height];
@@ -140,8 +141,8 @@ void KernelsSparseMatrix::Mult_(const Vector &x, Vector &y) const
 
 
 KernelsSparseMatrix* CreateMappedSparseMatrix(Layout &in_layout,
-                                           Layout &out_layout,
-                                           const mfem::SparseMatrix &m)
+                                              Layout &out_layout,
+                                              const mfem::SparseMatrix &m)
 {
    push();
    const int mHeight = m.Height();
@@ -219,8 +220,8 @@ KernelsSparseMatrix* CreateMappedSparseMatrix(Layout &in_layout,
       //weights.keepInDevice();
    }
    KernelsSparseMatrix *nRSM = new KernelsSparseMatrix(in_layout, out_layout,
-                                                 offsets, indices, weights,
-                                                 reorderIndices, mappedIndices);
+                                                       offsets, indices, weights,
+                                                       reorderIndices, mappedIndices);
    pop();
    return nRSM;
 }

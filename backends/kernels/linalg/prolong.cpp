@@ -40,7 +40,7 @@ mfem::Vector& GetHostVector(const int id, const int64_t size)
 }
 
 void KernelsMult(const mfem::Operator &op,
-              const Vector &x, Vector &y)
+                 const Vector &x, Vector &y)
 {
    push();
    kernels::device device = x.KernelsLayout().KernelsEngine().GetDevice();
@@ -63,7 +63,7 @@ void KernelsMult(const mfem::Operator &op,
 }
 
 void KernelsMultTranspose(const mfem::Operator &op,
-                       const Vector &x, Vector &y)
+                          const Vector &x, Vector &y)
 {
    push();
    kernels::device device = x.KernelsLayout().KernelsEngine().GetDevice();

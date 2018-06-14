@@ -22,8 +22,8 @@ namespace kernels
 
 // *****************************************************************************
 KernelsConstrainedOperator::KernelsConstrainedOperator(mfem::Operator *A_,
-                                                 const mfem::Array<int> &constraintList_,
-                                                 bool own_A_)
+                                                       const mfem::Array<int> &constraintList_,
+                                                       bool own_A_)
 
    : Operator(A_->InLayout()->As<Layout>()),
      z(OutLayout_()),
@@ -39,9 +39,9 @@ KernelsConstrainedOperator::KernelsConstrainedOperator(mfem::Operator *A_,
 
 // *****************************************************************************
 void KernelsConstrainedOperator::Setup(kernels::device device_,
-                                    mfem::Operator *A_,
-                                    const mfem::Array<int> &constraintList_,
-                                    bool own_A_)
+                                       mfem::Operator *A_,
+                                       const mfem::Array<int> &constraintList_,
+                                       bool own_A_)
 {
    push();
    device = device_;

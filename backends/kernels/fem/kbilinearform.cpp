@@ -30,8 +30,9 @@ KernelsBilinearForm::KernelsBilinearForm(KernelsFiniteElementSpace *ofespace_) :
    pop();
 }
 
-KernelsBilinearForm::KernelsBilinearForm(KernelsFiniteElementSpace *otrialFESpace_,
-                                   KernelsFiniteElementSpace *otestFESpace_) :
+KernelsBilinearForm::KernelsBilinearForm(KernelsFiniteElementSpace
+                                         *otrialFESpace_,
+                                         KernelsFiniteElementSpace *otestFESpace_) :
    Operator(otrialFESpace_->KernelsVLayout(), otestFESpace_->KernelsVLayout()),
    localX(otrialFESpace_->KernelsEVLayout()),
    localY(otestFESpace_->KernelsEVLayout())
@@ -42,8 +43,8 @@ KernelsBilinearForm::KernelsBilinearForm(KernelsFiniteElementSpace *otrialFESpac
 }
 
 void KernelsBilinearForm::Init(const Engine &e,
-                            KernelsFiniteElementSpace *otrialFESpace_,
-                            KernelsFiniteElementSpace *otestFESpace_)
+                               KernelsFiniteElementSpace *otrialFESpace_,
+                               KernelsFiniteElementSpace *otestFESpace_)
 {
    push();
    engine.Reset(&e);
@@ -157,7 +158,8 @@ void KernelsBilinearForm::AddBoundaryIntegrator(KernelsIntegrator *integrator)
 }
 
 // Adds new interior Face Integrator.
-void KernelsBilinearForm::AddInteriorFaceIntegrator(KernelsIntegrator *integrator)
+void KernelsBilinearForm::AddInteriorFaceIntegrator(KernelsIntegrator
+                                                    *integrator)
 {
    push();
    AddIntegrator(integrator, InteriorFaceIntegrator);
@@ -165,7 +167,8 @@ void KernelsBilinearForm::AddInteriorFaceIntegrator(KernelsIntegrator *integrato
 }
 
 // Adds new boundary Face Integrator.
-void KernelsBilinearForm::AddBoundaryFaceIntegrator(KernelsIntegrator *integrator)
+void KernelsBilinearForm::AddBoundaryFaceIntegrator(KernelsIntegrator
+                                                    *integrator)
 {
    push();
    AddIntegrator(integrator, BoundaryFaceIntegrator);
@@ -174,7 +177,7 @@ void KernelsBilinearForm::AddBoundaryFaceIntegrator(KernelsIntegrator *integrato
 
 // Adds Integrator based on KernelsIntegratorType
 void KernelsBilinearForm::AddIntegrator(KernelsIntegrator *integrator,
-                                     const KernelsIntegratorType itype)
+                                        const KernelsIntegratorType itype)
 {
    push();
    if (integrator == NULL)
@@ -233,11 +236,12 @@ void KernelsBilinearForm::Assemble()
 }
 
 // *****************************************************************************
-void KernelsBilinearForm::FormLinearSystem(const mfem::Array<int> &constraintList,
-                                        mfem::Vector &x, mfem::Vector &b,
-                                        mfem::Operator *&Aout,
-                                        mfem::Vector &X, mfem::Vector &B,
-                                        int copy_interior)
+void KernelsBilinearForm::FormLinearSystem(const mfem::Array<int>
+                                           &constraintList,
+                                           mfem::Vector &x, mfem::Vector &b,
+                                           mfem::Operator *&Aout,
+                                           mfem::Vector &X, mfem::Vector &B,
+                                           int copy_interior)
 {
    push();
    assert(false);
@@ -248,7 +252,7 @@ void KernelsBilinearForm::FormLinearSystem(const mfem::Array<int> &constraintLis
 
 // *****************************************************************************
 void KernelsBilinearForm::FormOperator(const mfem::Array<int> &constraintList,
-                                    mfem::Operator *&Aout)
+                                       mfem::Operator *&Aout)
 {
    push();
    assert(constraintList.Size()==0);
@@ -261,16 +265,16 @@ void KernelsBilinearForm::FormOperator(const mfem::Array<int> &constraintList,
    }
    dbg("KernelsConstrainedOperator");
    Aout = new KernelsConstrainedOperator(rap, constraintList,
-                                      rap != this);
+                                         rap != this);
    pop();
 }
 
 // *****************************************************************************
 void KernelsBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
-                               mfem::Vector &x, mfem::Vector &b,
-                               mfem::Operator *A,
-                               mfem::Vector &X, mfem::Vector &B,
-                               int copy_interior)
+                                  mfem::Vector &x, mfem::Vector &b,
+                                  mfem::Operator *A,
+                                  mfem::Vector &X, mfem::Vector &B,
+                                  int copy_interior)
 {
    push(); assert(false);
    const mfem::Operator *P = GetTrialProlongation();
@@ -354,8 +358,8 @@ void KernelsBilinearForm::MultTranspose_(const Vector &x, Vector &y) const
 
 // *****************************************************************************
 void KernelsBilinearForm::KernelsRecoverFEMSolution(const mfem::Vector &X,
-                                              const mfem::Vector &b,
-                                              mfem::Vector &x)
+                                                    const mfem::Vector &b,
+                                                    mfem::Vector &x)
 {
    push();
    const mfem::Operator *P = this->GetTrialProlongation();

@@ -44,7 +44,8 @@ void KernelsVector::SetSize(const size_t sz, const void* ptr)
 }
 
 // ***************************************************************************
-KernelsVector::KernelsVector(const size_t sz):size(sz),data(alloc(sz)),own(true) {}
+KernelsVector::KernelsVector(const size_t sz):size(sz),data(alloc(sz)),
+   own(true) {}
 KernelsVector::KernelsVector(const size_t sz,double value):
    size(sz),data(alloc(sz)),own(true)
 {
@@ -56,14 +57,17 @@ KernelsVector::KernelsVector(const size_t sz,double value):
 KernelsVector::KernelsVector(const KernelsVector& v):
    size(0),data(NULL),own(true) { SetSize(v.Size(), v); }
 
-KernelsVector::KernelsVector(const KernelsVector *v):size(v->size),data(v->data),
+KernelsVector::KernelsVector(const KernelsVector *v):size(v->size),
+   data(v->data),
    own(false) {}
 
-KernelsVector::KernelsVector(kernels::array<double>& v):size(v.size()),data(v.ptr()),
+KernelsVector::KernelsVector(kernels::array<double>& v):size(v.size()),
+   data(v.ptr()),
    own(false) {}
 
 // Host 2 Device ***************************************************************
-KernelsVector::KernelsVector(const mfem::Vector& v):size(v.Size()),data(alloc(size)),
+KernelsVector::KernelsVector(const mfem::Vector& v):size(v.Size()),
+   data(alloc(size)),
    own(true)
 {
    assert(v.GetData());
@@ -105,7 +109,7 @@ void KernelsVector::Print(std::ostream& out, int width) const
 
 // ***************************************************************************
 KernelsVector* KernelsVector::GetRange(const size_t offset,
-                                 const size_t entries) const
+                                       const size_t entries) const
 {
    static KernelsVector ref;
    ref.size = entries;
@@ -192,8 +196,8 @@ void KernelsVector::Neg()
 
 // *****************************************************************************
 void KernelsVector::SetSubVector(const kernels::array<int> &ess_tdofs,
-                              const double value,
-                              const int N)
+                                 const double value,
+                                 const int N)
 {
    vector_set_subvector_const(N, value, data, ess_tdofs.ptr());
 }

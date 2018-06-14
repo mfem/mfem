@@ -31,15 +31,15 @@ void rMassMultAdd(const int dim,
 
 // *****************************************************************************
 void rMassMultAddS(const int dim,
-                  const int NUM_DOFS_1D,
-                  const int NUM_QUAD_1D,
-                  const int numElements,
-                  const double* restrict dofToQuad,
-                  const double* restrict dofToQuadD,
-                  const double* restrict quadToDof,
-                  const double* restrict quadToDofD,
-                  const double* restrict op,
-                  const double* restrict x,
-                  double* restrict y);
+                   const int NUM_DOFS_1D,
+                   const int NUM_QUAD_1D,
+                   const int numElements,
+                   const double* restrict dofToQuad,
+                   const double* restrict dofToQuadD,
+                   const double* restrict quadToDof,
+                   const double* restrict quadToDofD,
+                   const double* restrict op,
+                   const double* restrict x,
+                   double* restrict y);
 
 #endif // MFEM_KERNELS_MASS

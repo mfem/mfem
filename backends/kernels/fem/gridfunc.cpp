@@ -70,7 +70,7 @@ KernelsGridFunction::KernelsGridFunction(KernelsFiniteElementSpace &f)
      sequence(0) {}
 
 KernelsGridFunction::KernelsGridFunction(KernelsFiniteElementSpace &f,
-                                   const KernelsVector *_v) :
+                                         const KernelsVector *_v) :
    PArray(f.KernelsVLayout()),
    Array(f.KernelsVLayout(), sizeof(double)),
    Vector(f.KernelsVLayout()),
@@ -104,7 +104,8 @@ KernelsGridFunction& KernelsGridFunction::operator = (const Vector &v)
 //    return *this;
 // }
 
-KernelsGridFunction& KernelsGridFunction::operator = (const KernelsGridFunction &v)
+KernelsGridFunction& KernelsGridFunction::operator = (const KernelsGridFunction
+                                                      &v)
 {
    Assign<double>(v);
    return *this;

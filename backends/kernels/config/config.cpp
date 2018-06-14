@@ -95,17 +95,17 @@ static void printDevProp(cudaDeviceProp devProp)
 // *   Setup
 // ***************************************************************************
 void config::Setup(const int _mpi_rank,
-                    const int _mpi_size,
-                    const bool _cuda,
-                    const bool _dcg,
-                    const bool _uvm,
-                    const bool _aware,
-                    const bool _share,
-                    const bool _occa,
-                    const bool _hcpo,
-                    const bool _sync,
-                    const bool _dot,
-                    const int rs_levels)
+                   const int _mpi_size,
+                   const bool _cuda,
+                   const bool _dcg,
+                   const bool _uvm,
+                   const bool _aware,
+                   const bool _share,
+                   const bool _occa,
+                   const bool _hcpo,
+                   const bool _sync,
+                   const bool _dot,
+                   const int rs_levels)
 {
    mpi_rank=_mpi_rank;
    mpi_size=_mpi_size;
