@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
 
    //SharedPtr<Engine> engine(new mfem::occa::Engine("mode: 'Serial'"));
    dbg("\033[34m[ex1d] engine");
-   SharedPtr<Engine> engine(new mfem::raja::Engine("cpu"));
+   SharedPtr<Engine> engine(new mfem::kernels::Engine("cpu"));
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with

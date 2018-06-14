@@ -9,23 +9,19 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_BACKENDS_ALL_HPP
-#define MFEM_BACKENDS_ALL_HPP
+#include "../../../config/config.hpp"
+#if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_KERNELS)
 
-#include "../config/config.hpp"
+#include "../kernels.hpp"
 
-#ifdef MFEM_USE_BACKENDS
+namespace mfem
+{
 
-#include "base/backend.hpp"
+namespace kernels
+{
 
-#ifdef MFEM_USE_OCCA
-#include "occa/backend.hpp"
-#endif
+} // namespace mfem::kernels
 
-#ifdef MFEM_USE_KERNELS
-#include "kernels/kernels.hpp"
-#endif
+} // namespace mfem
 
-#endif // MFEM_USE_BACKENDS
-
-#endif // MFEM_BACKENDS_ALL_HPP
+#endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_KERNELS)

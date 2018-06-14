@@ -197,7 +197,7 @@ endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
 MFEM_REQ_LIB_DEPS = SUPERLU METIS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE SUITESPARSE\
- STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR OCCA RAJA
+ STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR OCCA
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 
 define mfem_check_dependency
@@ -245,7 +245,7 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU\
  MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC\
  MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_BACKENDS MFEM_USE_OCCA\
- MFEM_USE_RAJA MFEM_SOURCE_DIR MFEM_INSTALL_DIR
+ MFEM_USE_KERNELS MFEM_SOURCE_DIR MFEM_INSTALL_DIR
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
@@ -306,26 +306,26 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
    export VERBOSE
 endif
 
-# RAJA dirs
+# KERNELS dirs
 MAKEFILE_DIR = $(dir $(abspath $(firstword $(MAKEFILE_LIST))))
-RAJA_BACKEND_DIR = $(patsubst %/,%,$(MAKEFILE_DIR))/backends/raja
-RAJA_SRC_DIRS := 	\
-	$(RAJA_BACKEND_DIR)/config \
-	$(RAJA_BACKEND_DIR)/engine \
-	$(RAJA_BACKEND_DIR)/fem \
-	$(RAJA_BACKEND_DIR)/general \
-	$(RAJA_BACKEND_DIR)/kernels/blas \
-	$(RAJA_BACKEND_DIR)/kernels/diffusion \
-	$(RAJA_BACKEND_DIR)/kernels/force \
-	$(RAJA_BACKEND_DIR)/kernels/geom \
-	$(RAJA_BACKEND_DIR)/kernels/maps \
-	$(RAJA_BACKEND_DIR)/kernels/mass \
-	$(RAJA_BACKEND_DIR)/linalg
-#	$(RAJA_BACKEND_DIR)/kernels/quad
+KERNELS_BACKEND_DIR = $(patsubst %/,%,$(MAKEFILE_DIR))/backends/kernels
+KERNELS_SRC_DIRS := 	\
+	$(KERNELS_BACKEND_DIR)/config \
+	$(KERNELS_BACKEND_DIR)/engine \
+	$(KERNELS_BACKEND_DIR)/fem \
+	$(KERNELS_BACKEND_DIR)/general \
+	$(KERNELS_BACKEND_DIR)/kernels/blas \
+	$(KERNELS_BACKEND_DIR)/kernels/diffusion \
+	$(KERNELS_BACKEND_DIR)/kernels/force \
+	$(KERNELS_BACKEND_DIR)/kernels/geom \
+	$(KERNELS_BACKEND_DIR)/kernels/mapping \
+	$(KERNELS_BACKEND_DIR)/kernels/mass \
+	$(KERNELS_BACKEND_DIR)/linalg
+#	$(KERNELS_BACKEND_DIR)/kernels/quad
 
 # Source dirs in logical order
 ALL_SRC_DIRS := general linalg mesh fem \
-	backends/base backends/occa $(RAJA_SRC_DIRS)
+	backends/base backends/occa $(KERNELS_SRC_DIRS)
 DIRS := $(ALL_SRC_DIRS)
 ifeq ($(MFEM_USE_BACKENDS),NO)
    DIRS := $(filter-out backends/%,$(DIRS))
@@ -333,8 +333,8 @@ else
    ifeq ($(MFEM_USE_OCCA),NO)
       DIRS := $(filter-out backends/occa,$(DIRS))
    endif
-   ifeq ($(MFEM_USE_RAJA),NO)
-      DIRS := $(filter-out $(RAJA_BACKEND_DIR),$(DIRS))
+   ifeq ($(MFEM_USE_KERNELS),NO)
+      DIRS := $(filter-out $(KERNELS_BACKEND_DIR),$(DIRS))
    endif
 endif
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
@@ -524,7 +524,7 @@ status info:
 	$(info MFEM_USE_MPI         = $(MFEM_USE_MPI))
 	$(info MFEM_USE_BACKENDS    = $(MFEM_USE_BACKENDS))
 	$(info MFEM_USE_OCCA        = $(MFEM_USE_OCCA))
-	$(info MFEM_USE_RAJA        = $(MFEM_USE_RAJA))
+	$(info MFEM_USE_KERNELS     = $(MFEM_USE_KERNELS))
 	$(info MFEM_USE_METIS       = $(MFEM_USE_METIS))
 	$(info MFEM_USE_METIS_5     = $(MFEM_USE_METIS_5))
 	$(info MFEM_DEBUG           = $(MFEM_DEBUG))

@@ -121,8 +121,8 @@
 // Enable the OCCA backend.
 // #define MFEM_USE_OCCA
 
-// Enable the RAJA backend.
-// #define MFEM_USE_RAJA
+// Enable the KERNELS backend.
+// #define MFEM_USE_KERNELS
 
 // Windows specific options
 #ifdef _WIN32
