@@ -43,6 +43,8 @@ namespace mfem
 namespace internal
 {
 
+long long flop_count;
+
 class StopWatch
 {
 private:
