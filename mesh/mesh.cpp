@@ -890,6 +890,13 @@ void Mesh::Destroy()
    bdr_attributes.DeleteAll();
 }
 
+void Mesh::DeleteLazyTables()
+{
+   delete el_to_el;     el_to_el = NULL;
+   delete face_edge;    face_edge = NULL;
+   delete edge_vertex;  edge_vertex = NULL;
+}
+
 void Mesh::SetAttributes()
 {
    Array<int> attribs;
@@ -5878,6 +5885,7 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
       delete [] edge2;
       delete [] middle;
 
+      DeleteLazyTables();
       if (el_to_edge != NULL)
       {
          NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
@@ -5993,6 +6001,7 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
       // 7. Free the allocated memory.
       delete [] middle;
 
+      DeleteLazyTables();
       if (el_to_edge != NULL)
       {
          NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
