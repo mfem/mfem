@@ -19,18 +19,18 @@
 typedef double *Global_t @dim(NUM_VDIM, globalEntries);
 typedef double *Local_t  @dim(NUM_VDIM, localEntries);
 #else
-typedef double *Global_t @(dim(NUM_VDIM, globalEntries), idxOrder(1, 0));
-typedef double *Local_t  @(dim(NUM_VDIM, localEntries), idxOrder(1, 0));
+typedef double *Global_t @dim(NUM_VDIM, globalEntries) @dimOrder(1, 0);
+typedef double *Local_t  @dim(NUM_VDIM, localEntries)  @dimOrder(1, 0);
 #endif
 
-kernel void GlobalToLocal(const int globalEntries,
-                          const int localEntries,
-                          const int * restrict offsets,
-                          const int * restrict indices,
-                          const Global_t restrict globalX,
-                          Local_t restrict localX) {
+@kernel void GlobalToLocal(const int globalEntries,
+                           const int localEntries,
+                           const int * restrict offsets,
+                           const int * restrict indices,
+                           const Global_t restrict globalX,
+                           Local_t restrict localX) {
 
-  for (int i = 0; i < globalEntries; ++i; tile(TILESIZE)) {
+  for (int i = 0; i < globalEntries; ++i; @tile(TILESIZE, @outer, @inner)) {
     if (i < globalEntries) {
       const int offset = offsets[i];
       const int nextOffset = offsets[i + 1];
@@ -44,14 +44,14 @@ kernel void GlobalToLocal(const int globalEntries,
   }
 }
 
-kernel void LocalToGlobal(const int globalEntries,
-                          const int localEntries,
-                          const int * restrict offsets,
-                          const int * restrict indices,
-                          const Local_t restrict localX,
-                          Global_t restrict globalX) {
+@kernel void LocalToGlobal(const int globalEntries,
+                           const int localEntries,
+                           const int * restrict offsets,
+                           const int * restrict indices,
+                           const Local_t restrict localX,
+                           Global_t restrict globalX) {
 
-  for (int i = 0; i < globalEntries; ++i; tile(TILESIZE)) {
+  for (int i = 0; i < globalEntries; ++i; @tile(TILESIZE, @outer, @inner)) {
     if (i < globalEntries) {
       const int offset = offsets[i];
       const int nextOffset = offsets[i + 1];

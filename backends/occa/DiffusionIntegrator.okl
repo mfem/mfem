@@ -36,7 +36,7 @@
   |   @set(a, idxOrder(1,0));
   |   a(0,1) -> a[0][1]
   - Add support to iterate over loop depending on mode
-  |   for(i; inner) {
+  |   for(i; @inner) {
   |     for(0 < j < N) {} <-- ++j or j += block?
   |   }
 */
@@ -44,23 +44,23 @@
 #include "mfem-occa://defines.okl"
 
 #if USING_TENSOR_OPS
-#  if OCCA_USING_CPU
-#    include "mfem-occa://diffusion/tensor/cpu.okl"
-#  else
+#  ifdef OCCA_USING_GPU
 #    if USING_LOW_ORDER
 #      include "mfem-occa://diffusion/tensor/gpuHighOrder.okl"
 #    else
 #      include "mfem-occa://diffusion/tensor/gpuHighOrder.okl"
 #    endif
+#  else
+#    include "mfem-occa://diffusion/tensor/cpu.okl"
 #  endif
 #else
-#  if OCCA_USING_CPU
-#    include "mfem-occa://diffusion/simplex/cpu.okl"
-#  else
+#  ifdef OCCA_USING_GPU
 #    if USING_LOW_ORDER
 #      include "mfem-occa://diffusion/simplex/gpuHighOrder.okl"
 #    else
 #      include "mfem-occa://diffusion/simplex/gpuHighOrder.okl"
 #    endif
+#  else
+#    include "mfem-occa://diffusion/simplex/cpu.okl"
 #  endif
 #endif
