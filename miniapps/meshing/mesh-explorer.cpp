@@ -222,6 +222,7 @@ int main (int argc, char *argv[])
            "--> " << flush;
       char mk;
       cin >> mk;
+      if (!cin) { break; }
 
       if (mk == 'q')
       {
@@ -481,6 +482,7 @@ int main (int argc, char *argv[])
          }
       }
 
+      // These are the cases that open a new GLVis window
       if (mk == 'm' || mk == 'b' || mk == 'e' || mk == 'v' || mk == 'h' ||
           mk == 'k' || mk == 'p')
       {
@@ -756,4 +758,5 @@ int main (int argc, char *argv[])
 
    delete attr_fec;
    delete mesh;
+   return 0;
 }
