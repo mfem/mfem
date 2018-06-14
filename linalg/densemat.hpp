@@ -235,7 +235,7 @@ public:
        2x2 or 3x3 symmetric matrix. */
    void CalcEigenvalues(double *lambda, double *vec) const;
 
-   void GetRow(int r, Vector &row);
+   void GetRow(int r, Vector &row) const;
    void GetColumn(int c, Vector &col) const;
    double *GetColumn(int col) { return data + col*height; }
    const double *GetColumn(int col) const { return data + col*height; }
@@ -420,6 +420,9 @@ void MultVWt(const Vector &v, const Vector &w, DenseMatrix &VWt);
 
 /// VWt += v w^t
 void AddMultVWt(const Vector &v, const Vector &w, DenseMatrix &VWt);
+
+/// VVt += v v^t
+void AddMultVVt(const Vector &v, DenseMatrix &VWt);
 
 /// VWt += a * v w^t
 void AddMult_a_VWt(const double a, const Vector &v, const Vector &w,

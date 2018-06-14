@@ -40,6 +40,9 @@
 // Enable debug checks in MFEM.
 #cmakedefine MFEM_DEBUG
 
+// Throw an exception on errors.
+#cmakedefine MFEM_USE_EXCEPTIONS
+
 // Enable gzstream in MFEM.
 #cmakedefine MFEM_USE_GZSTREAM
 
@@ -91,6 +94,9 @@
 
 // Enable MFEM functionality based on the Sidre library
 #cmakedefine MFEM_USE_SIDRE
+
+// Enable MFEM functionality based on Conduit
+#cmakedefine MFEM_USE_CONDUIT
 
 // Which library functions to use in class StopWatch for measuring time.
 // For a list of the available options, see INSTALL.

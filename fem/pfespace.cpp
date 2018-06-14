@@ -169,6 +169,24 @@ void ParFiniteElementSpace::Construct()
       // to overlap its communication with processing between this constructor
       // and the point where the P matrix is actually needed.
    }
+
+#if PARTITION_STATS
+   long ltdofs = ltdof_size;
+   long min_ltdofs, max_ltdofs, sum_ltdofs;
+
+   MPI_Reduce(&ltdofs, &min_ltdofs, 1, MPI_LONG, MPI_MIN, 0, MyComm);
+   MPI_Reduce(&ltdofs, &max_ltdofs, 1, MPI_LONG, MPI_MAX, 0, MyComm);
+   MPI_Reduce(&ltdofs, &sum_ltdofs, 1, MPI_LONG, MPI_SUM, 0, MyComm);
+
+   if (MyRank == 0)
+   {
+      std::cout << "DOF partitioning: min " << min_ltdofs
+                << ", avg " << double(sum_ltdofs) / NRanks
+                << ", max " << max_ltdofs
+                << ", max diff " << 100.0*(max_ltdofs - min_ltdofs)/min_ltdofs
+                << "%" << std::endl;
+   }
+#endif
 }
 
 void ParFiniteElementSpace::GetGroupComm(
@@ -739,7 +757,7 @@ HYPRE_Int ParFiniteElementSpace::GetMyTDofOffset() const
    return HYPRE_AssumedPartitionCheck()? tdof_offsets[0] : tdof_offsets[MyRank];
 }
 
-const Operator *ParFiniteElementSpace::GetProlongationMatrix()
+const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
 {
    if (Conforming())
    {
@@ -1640,6 +1658,9 @@ ParFiniteElementSpace::ScheduleSendRow(const PMatrixRow &row, int dof,
          msg.AddRow(ent, idx, edof, group_id, row);
          msg.SetNCMesh(pncmesh);
          msg.SetFEC(fec);
+#ifdef PMATRIX_STATS
+         n_rows_sent++;
+#endif
       }
    }
 }
@@ -1662,7 +1683,9 @@ void ParFiniteElementSpace::ForwardRow(const PMatrixRow &row, int dof,
          msg.AddRow(ent, idx, edof, invalid, row);
          msg.SetNCMesh(pncmesh);
          msg.SetFEC(fec);
-
+#ifdef PMATRIX_STATS
+         n_rows_fwd++;
+#endif
 #ifdef MFEM_DEBUG_PMATRIX
          mfem::out << "Rank " << pncmesh->GetMyRank() << " forwarding to "
                    << rank << ": ent " << ent << ", index" << idx
@@ -1743,6 +1766,11 @@ int ParFiniteElementSpace
                                        bool partial) const
 {
    bool dg = (nvdofs == 0 && nedofs == 0 && nfdofs == 0);
+
+#ifdef PMATRIX_STATS
+   n_msgs_sent = n_msgs_recv = 0;
+   n_rows_sent = n_rows_recv = n_rows_fwd = 0;
+#endif
 
    // *** STEP 1: build master-slave dependency lists ***
 
@@ -1921,6 +1949,9 @@ int ParFiniteElementSpace
 
    // send identity rows
    NeighborRowMessage::IsendAll(send_msg.back(), MyComm);
+#ifdef PMATRIX_STATS
+   n_msgs_sent += send_msg.back().size();
+#endif
 
    if (R) { (*R)->Finalize(); }
 
@@ -1948,6 +1979,10 @@ int ParFiniteElementSpace
       while (NeighborRowMessage::IProbe(rank, size, MyComm))
       {
          recv_msg.Recv(rank, size, MyComm);
+#ifdef PMATRIX_STATS
+         n_msgs_recv++;
+         n_rows_recv += recv_msg.GetRows().size();
+#endif
 
          const NeighborRowMessage::RowInfo::List &rows = recv_msg.GetRows();
          for (unsigned i = 0; i < rows.size(); i++)
@@ -2022,6 +2057,9 @@ int ParFiniteElementSpace
 
       // send current batch of messages
       NeighborRowMessage::IsendAll(send_msg.back(), MyComm);
+#ifdef PMATRIX_STATS
+      n_msgs_sent += send_msg.back().size();
+#endif
    }
 
    if (P)
@@ -2044,6 +2082,31 @@ int ParFiniteElementSpace
    {
       NeighborRowMessage::WaitAllSent(*it);
    }
+
+#ifdef PMATRIX_STATS
+   int n_rounds = send_msg.size();
+   int glob_rounds, glob_msgs_sent, glob_msgs_recv;
+   int glob_rows_sent, glob_rows_recv, glob_rows_fwd;
+
+   MPI_Reduce(&n_rounds,    &glob_rounds,    1, MPI_INT, MPI_SUM, 0, MyComm);
+   MPI_Reduce(&n_msgs_sent, &glob_msgs_sent, 1, MPI_INT, MPI_SUM, 0, MyComm);
+   MPI_Reduce(&n_msgs_recv, &glob_msgs_recv, 1, MPI_INT, MPI_SUM, 0, MyComm);
+   MPI_Reduce(&n_rows_sent, &glob_rows_sent, 1, MPI_INT, MPI_SUM, 0, MyComm);
+   MPI_Reduce(&n_rows_recv, &glob_rows_recv, 1, MPI_INT, MPI_SUM, 0, MyComm);
+   MPI_Reduce(&n_rows_fwd,  &glob_rows_fwd,  1, MPI_INT, MPI_SUM, 0, MyComm);
+
+   if (MyRank == 0)
+   {
+      std::cout << "P matrix stats (avg per rank): "
+                << double(glob_rounds)/NRanks << " rounds, "
+                << double(glob_msgs_sent)/NRanks << " msgs sent, "
+                << double(glob_msgs_recv)/NRanks << " msgs recv, "
+                << double(glob_rows_sent)/NRanks << " rows sent, "
+                << double(glob_rows_recv)/NRanks << " rows recv, "
+                << double(glob_rows_fwd)/NRanks << " rows forwarded."
+                << std::endl;
+   }
+#endif
 
    return num_true_dofs*vdim;
 }
@@ -2538,6 +2601,33 @@ void ParFiniteElementSpace::Destroy()
    send_face_nbr_ldof.Clear();
 }
 
+void ParFiniteElementSpace::GetTrueTransferOperator(
+   const FiniteElementSpace &coarse_fes, OperatorHandle &T) const
+{
+   OperatorHandle Tgf(T.Type() == Operator::Hypre_ParCSR ?
+                      Operator::MFEM_SPARSEMAT : Operator::ANY_TYPE);
+   GetTransferOperator(coarse_fes, Tgf);
+   Dof_TrueDof_Matrix(); // Make sure R is built - we need R in all cases.
+   if (T.Type() == Operator::Hypre_ParCSR)
+   {
+      const ParFiniteElementSpace *c_pfes =
+         dynamic_cast<const ParFiniteElementSpace *>(&coarse_fes);
+      MFEM_ASSERT(c_pfes != NULL, "coarse_fes must be a parallel space");
+      SparseMatrix *RA = mfem::Mult(*R, *Tgf.As<SparseMatrix>());
+      Tgf.Clear();
+      T.Reset(c_pfes->Dof_TrueDof_Matrix()->
+              LeftDiagMult(*RA, GetTrueDofOffsets()));
+      delete RA;
+   }
+   else
+   {
+      T.Reset(new TripleProductOperator(R, Tgf.Ptr(),
+                                        coarse_fes.GetProlongationMatrix(),
+                                        false, Tgf.OwnsOperator(), false));
+      Tgf.SetOperatorOwner(false);
+   }
+}
+
 void ParFiniteElementSpace::Update(bool want_transform)
 {
    if (mesh->GetSequence() == sequence)
@@ -2627,21 +2717,19 @@ void ParFiniteElementSpace::Update(bool want_transform)
 
 
 ConformingProlongationOperator::ConformingProlongationOperator(
-   ParFiniteElementSpace &pfes)
+   const ParFiniteElementSpace &pfes)
    : Operator(pfes.GetVSize(), pfes.GetTrueVSize()),
      external_ldofs(),
      gc(pfes.GroupComm())
 {
    MFEM_VERIFY(pfes.Conforming(), "");
-   Array<int> ldofs;
-   Table &group_ldof = gc.GroupLDofTable();
+   const Table &group_ldof = gc.GroupLDofTable();
    external_ldofs.Reserve(Height()-Width());
    for (int gr = 1; gr < group_ldof.Size(); gr++)
    {
       if (!gc.GetGroupTopology().IAmMaster(gr))
       {
-         ldofs.MakeRef(group_ldof.GetRow(gr), group_ldof.RowSize(gr));
-         external_ldofs.Append(ldofs);
+         external_ldofs.Append(group_ldof.GetRow(gr), group_ldof.RowSize(gr));
       }
    }
    external_ldofs.Sort();
