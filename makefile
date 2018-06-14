@@ -314,13 +314,13 @@ RAJA_SRC_DIRS := 	\
 	$(RAJA_BACKEND_DIR)/engine \
 	$(RAJA_BACKEND_DIR)/fem \
 	$(RAJA_BACKEND_DIR)/general \
-	$(RAJA_BACKEND_DIR)/kernels/maps \
+	$(RAJA_BACKEND_DIR)/kernels/blas \
 	$(RAJA_BACKEND_DIR)/kernels/diffusion \
-	$(RAJA_BACKEND_DIR)/kernels/mass \
 	$(RAJA_BACKEND_DIR)/kernels/force \
 	$(RAJA_BACKEND_DIR)/kernels/geom \
-	$(RAJA_BACKEND_DIR)/kernels/blas \
-	$(RAJA_BACKEND_DIR)/linalg \
+	$(RAJA_BACKEND_DIR)/kernels/maps \
+	$(RAJA_BACKEND_DIR)/linalg
+#	$(RAJA_BACKEND_DIR)/kernels/quad
 
 # Source dirs in logical order
 ALL_SRC_DIRS := general linalg mesh fem \
