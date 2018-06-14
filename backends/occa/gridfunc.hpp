@@ -30,8 +30,10 @@ namespace occa
 class OccaIntegrator;
 class OccaDofQuadMaps;
 
+// TODO: make this object part of the backend or the engine.
 extern std::map<std::string, ::occa::kernel> gridFunctionKernels;
 
+// TODO: make this a method of the backend or the engine.
 ::occa::kernel GetGridFunctionKernel(::occa::device device,
                                      FiniteElementSpace &fespace,
                                      const mfem::IntegrationRule &ir);

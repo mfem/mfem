@@ -64,6 +64,10 @@ public:
    // overrides
    virtual void Mult_(const Vector &x, Vector &y) const;
    virtual void MultTranspose_(const Vector &x, Vector &y) const;
+
+   // overrides
+   virtual void Mult(const mfem::Vector &x, mfem::Vector &y) const;
+   virtual void MultTranspose(const mfem::Vector &x, mfem::Vector &y) const;
 };
 
 } // namespace mfem::occa

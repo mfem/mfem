@@ -145,7 +145,7 @@ int main(int argc, char *argv[])
    cout << "Size of linear system: " << A.Ptr()->Height() << endl;
 
    // 10. Solve the system A X = B with CG.
-   CG(*A.Ptr(), B, X, 1, 200, 1e-12, 0.0);
+   CG(*A.Ptr(), B, X, 3, 1000, 1e-12, 0.0);
 
    // 11. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
