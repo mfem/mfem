@@ -362,6 +362,8 @@ public:
 
    virtual ~ParFiniteElementSpace() { Destroy(); }
 
+   void PrintPartitionStats();
+
    // Obsolete, kept for backward compatibility
    int TrueVSize() const { return ltdof_size; }
 };
