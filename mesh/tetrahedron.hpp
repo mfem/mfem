@@ -110,6 +110,7 @@ public:
    virtual ~Tetrahedron() { }
 };
 
+class Linear3DFiniteElement;
 extern Linear3DFiniteElement TetrahedronFE;
 
 }
