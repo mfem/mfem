@@ -318,12 +318,12 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    if (iterative_mode)
    {
       dbg("\033[7m[CGSolver::Mult] iterative_mode");
-      oper->Mult(x, r); 
+      oper->Mult(x, r);
       //dbg("\033[7m[CGSolver::Mult] r:\n"); r.Print();
       dbg("\033[7m[CGSolver::Mult] r.Axpby");
       r.Axpby(1.0, b, -1.0, r); // r = b - A x
       //dbg("\033[7m[CGSolver::Mult] r:\n"); r.Print();
-    }
+   }
    else
    {
       r.Assign(b); // r = b

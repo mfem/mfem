@@ -82,7 +82,7 @@ inline void rdbge(const char *file, const int line, const char *func,
 }
 
 // *****************************************************************************
-const char * strrnchr(const char *, const unsigned char ,const int);
+const char * strrnchr(const char *, const unsigned char,const int);
 
 // *****************************************************************************
 #define __NB_ARGS__(z,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,cnt,...) cnt

@@ -103,7 +103,7 @@ void BilinearForm::FormLinearSystem(const mfem::Array<int> &ess_tdof_list,
                                     mfem::Vector &X, mfem::Vector &B,
                                     int copy_interior)
 {
-   push();assert(false);
+   push(); assert(false);
    FormSystemMatrix(ess_tdof_list, A);
    obform->InitRHS(ess_tdof_list, x, b, A.Ptr(), X, B, copy_interior);
    pop();

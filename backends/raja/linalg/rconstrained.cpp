@@ -48,7 +48,8 @@ void RajaConstrainedOperator::Setup(raja::device device_,
    A = A_;
    own_A = own_A_;
    constraintIndices = constraintList_.Size();
-   if (constraintIndices) {
+   if (constraintIndices)
+   {
       assert(false);
       //constraintList.allocate(constraintIndices);
       assert(constraintList_.Get_PArray());

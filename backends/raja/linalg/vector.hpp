@@ -49,11 +49,11 @@ protected:
 
 public:
    Vector(Layout &lt);
-   
+
    void Print();
-   
+
    void SetSubVector(const mfem::Array<int> &, const double, const int);
-   
+
    mfem::Vector Wrap();
 
    const mfem::Vector Wrap() const;

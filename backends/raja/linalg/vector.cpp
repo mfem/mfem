@@ -51,7 +51,8 @@ void Vector::DoDotProduct(const PVector &x, void *result,
    // called only when Size() != 0
    MFEM_ASSERT(result_type_id == ScalarId<double>::value, "");
    double *res = (double *)result;
-   MFEM_ASSERT(dynamic_cast<const Vector *>(&x) != NULL, "\033[31minvalid Vector type\033[m");
+   MFEM_ASSERT(dynamic_cast<const Vector *>(&x) != NULL,
+               "\033[31minvalid Vector type\033[m");
    const Vector *xp = static_cast<const Vector *>(&x);
    MFEM_ASSERT(this->Size() == xp->Size(), "");
    *res = raja::linalg::dot(this->slice, xp->slice);
@@ -78,9 +79,11 @@ void Vector::DoAxpby(const void *a, const PVector &x,
    const double db = *static_cast<const double *>(b);
    //dbg("da=%f",da);
    //dbg("db=%f",db);
-   
-   MFEM_ASSERT(da == 0.0 || dynamic_cast<const Vector *>(&x) != NULL, "\033[31minvalid Vector x\033[m");
-   MFEM_ASSERT(db == 0.0 || dynamic_cast<const Vector *>(&y) != NULL, "\033[31minvalid Vector y\033[m");
+
+   MFEM_ASSERT(da == 0.0 ||
+               dynamic_cast<const Vector *>(&x) != NULL, "\033[31minvalid Vector x\033[m");
+   MFEM_ASSERT(db == 0.0 ||
+               dynamic_cast<const Vector *>(&y) != NULL, "\033[31minvalid Vector y\033[m");
    const Vector *xp = static_cast<const Vector *>(&x);
    const Vector *yp = static_cast<const Vector *>(&y);
 
@@ -171,12 +174,14 @@ void Vector::DoAxpby(const void *a, const PVector &x,
 }
 
 // *****************************************************************************
-void Vector::Print(){
-   for(size_t i=0;i<Size();i+=1){
+void Vector::Print()
+{
+   for (size_t i=0; i<Size(); i+=1)
+   {
       printf("%f ",((double*)RajaMem().ptr())[i]);
    }
 }
-   
+
 // *****************************************************************************
 void Vector::SetSubVector(const mfem::Array<int> &ess_tdofs,
                           const double value,

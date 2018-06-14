@@ -19,7 +19,7 @@ namespace mfem
 
 namespace raja
 {
-   
+
 RajaBilinearForm::RajaBilinearForm(RajaFiniteElementSpace *ofespace_) :
    Operator(ofespace_->RajaVLayout()),
    localX(ofespace_->RajaEVLayout()),
@@ -272,7 +272,7 @@ void RajaBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
                                mfem::Vector &X, mfem::Vector &B,
                                int copy_interior)
 {
-   push();assert(false);
+   push(); assert(false);
    const mfem::Operator *P = GetTrialProlongation();
    const mfem::Operator *R = GetTrialRestriction();
    if (P)
@@ -321,7 +321,7 @@ void RajaBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
    pop();
 }
 
-   
+
 // Matrix vector multiplication ************************************************
 void RajaBilinearForm::Mult_(const Vector &x, Vector &y) const
 {

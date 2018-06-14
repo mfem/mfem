@@ -97,9 +97,9 @@ static void rForceMult2D(
          for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
          {
             const double esx = e_xy[ijN(qx,qy,NUM_QUAD_1D)] *
-               stressJinvT[__ijklmNM(0,c,qx,qy,el,NUM_DIM,NUM_QUAD_1D)];
+                               stressJinvT[__ijklmNM(0,c,qx,qy,el,NUM_DIM,NUM_QUAD_1D)];
             const double esy = e_xy[ijN(qx,qy,NUM_QUAD_1D)] *
-               stressJinvT[__ijklmNM(1,c,qx,qy,el,NUM_DIM,NUM_QUAD_1D)];
+                               stressJinvT[__ijklmNM(1,c,qx,qy,el,NUM_DIM,NUM_QUAD_1D)];
             for (int dx = 0; dx < H1_DOFS_1D; ++dx)
             {
                Dxy[dx] += esx * H1QuadToDofD[ijN(dx,qx,H1_DOFS_1D)];

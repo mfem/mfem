@@ -19,7 +19,7 @@ namespace mfem
 
 namespace raja
 {
-   
+
 // *****************************************************************************
 RajaMassIntegrator::RajaMassIntegrator(const mfem::Engine &ng) :
    RajaIntegrator(ng.As<raja::Engine>()),
@@ -29,7 +29,7 @@ RajaMassIntegrator::RajaMassIntegrator(const mfem::Engine &ng) :
    push();
    pop();
 }
-   
+
 // *****************************************************************************
 RajaMassIntegrator::RajaMassIntegrator(const RajaCoefficient &coeff_) :
    RajaIntegrator(coeff_.RajaEngine()),
@@ -58,10 +58,11 @@ void RajaMassIntegrator::SetupIntegrationRule()
 }
 
 // *****************************************************************************
-void RajaMassIntegrator::Setup() {
+void RajaMassIntegrator::Setup()
+{
    push();
    pop();
- }
+}
 
 // *****************************************************************************
 void RajaMassIntegrator::Assemble() { }
