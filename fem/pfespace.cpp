@@ -22,6 +22,8 @@
 #include <limits>
 #include <list>
 
+#include <fstream>
+
 namespace mfem
 {
 
@@ -1674,7 +1676,7 @@ void ParFiniteElementSpace::ForwardRow(const PMatrixRow &row, int dof,
 
 #ifdef MFEM_DEBUG_PMATRIX
 void ParFiniteElementSpace
-::DebugDumpDOFs(std::ofstream &os,
+::DebugDumpDOFs(std::ostream &os,
                 const SparseMatrix &deps,
                 const Array<GroupId> &dof_group,
                 const Array<GroupId> &dof_owner,
@@ -2006,7 +2008,7 @@ int ParFiniteElementSpace
       }
 
 #ifdef MFEM_DEBUG_PMATRIX
-      /*static int dump = 0;
+      static int dump = 0;
       if (dump < 10)
       {
          char fname[100];
@@ -2014,7 +2016,7 @@ int ParFiniteElementSpace
          std::ofstream f(fname);
          DebugDumpDOFs(f, deps, dof_group, dof_owner, finalized);
          dump++;
-      }*/
+      }
 #endif
 
       // send current batch of messages

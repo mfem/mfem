@@ -125,6 +125,7 @@ public:
    GroupId GetEntityOwnerId(int entity, int index)
    {
       MFEM_ASSERT(entity >= 0 && entity < 3, "");
+      MFEM_ASSERT(index >= 0, "");
       if (!entity_owner[entity].Size())
       {
          GetSharedList(entity);
@@ -138,6 +139,7 @@ public:
    GroupId GetEntityGroupId(int entity, int index)
    {
       MFEM_ASSERT(entity >= 0 && entity < 3, "");
+      MFEM_ASSERT(index >= 0, "");
       if (!entity_pmat_group[entity].Size())
       {
          CalculatePMatrixGroups();

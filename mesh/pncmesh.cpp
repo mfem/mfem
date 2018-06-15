@@ -318,6 +318,7 @@ void ParNCMesh::BuildVertexList()
    // vertex ownership and creates vertex processor groups.
 
    int nvertices = NVertices + NGhostVertices;
+
    tmp_owner.SetSize(nvertices);
    tmp_owner = INT_MAX;
 
