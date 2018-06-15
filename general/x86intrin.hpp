@@ -66,12 +66,12 @@ public:
 #pragma message "[33;1mX86intrin::AVX2[m"
 template <> struct x86intrin<3>{
 public:
-  static const int align = 32;
-  static const int width = 4;
-  typedef real vreal_t;
-  typedef integer vint_t;
-  static inline vreal_t set(double a){return _mm256_set1_pd(a);}
-  static inline void* alloc(size_t size){return ::aligned_alloc(align,size);}
+   static const int align = 32;
+   static const int width = 4;
+   typedef real vreal_t;
+   typedef integer vint_t;
+   static inline vreal_t set(double a){return _mm256_set1_pd(a);}
+   static inline void* alloc(size_t size){return ::aligned_alloc(align,size);}
 };
 #endif // __AVX2__
 

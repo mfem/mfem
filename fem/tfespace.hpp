@@ -63,7 +63,15 @@ public:
       else
       {
          // reorder the local dofs according to loc_dof_map
+#ifndef MFEM_USE_X86INTRIN
          int *el_dof_list_ = new int[num_dofs];
+#else
+         //const int aligned_size =  MFEM_ALIGN_SIZE(num_dofs,int);
+         void* result = nullptr;
+         const auto alloc_failed = posix_memalign(&result, 32, 2*num_dofs*sizeof(int));
+         if (alloc_failed) throw ::std::bad_alloc();
+         int *el_dof_list_ = (int*) result;
+#endif
          const int *loc_dof_map_ = loc_dof_map->GetData();
          for (int i = 0; i < el_dof.Size(); i++)
          {
@@ -90,7 +98,13 @@ public:
    { }
 
    inline MFEM_ALWAYS_INLINE
-   ~ElementDofIndexer() { if (own_list) { delete [] el_dof_list; } }
+   ~ElementDofIndexer() {
+#ifndef MFEM_USE_X86INTRIN
+      if (own_list) { delete [] el_dof_list; }
+#else
+      if (own_list) { free((void*)el_dof_list); }
+#endif
+   }
 
    inline MFEM_ALWAYS_INLINE
    void SetElement(int elem_idx)
@@ -246,6 +260,7 @@ public:
               for(int n=0; n<x86::width; n++)
               {
                 ind.SetElement(el+n);
+                assert(glob_vdof_data);
                 gather[n]=glob_vdof_data[vl.ind(ind.map(i,j),k)];
               }
               Assign<Op>(vdof_data[vdof_layout.ind(i,k,j)],gather);

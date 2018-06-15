@@ -300,8 +300,10 @@ public:
    { delete element_matrices; element_matrices = NULL; }
 
    void ComputeElementMatrix(int i, DenseMatrix &elmat);
+#ifdef MFEM_USE_X86INTRIN
    void AssembleElementMatrix(int, const TDenseMatrix<x86::vreal_t>&,
                               Array<x86::vint_t>&);
+#endif
    void AssembleElementMatrix(int i, const DenseMatrix &elmat,
                               Array<int> &vdofs, int skip_zeros = 1);
    void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,

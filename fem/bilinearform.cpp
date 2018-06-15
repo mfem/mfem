@@ -263,6 +263,7 @@ void BilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat)
    }
 }
 
+#ifdef MFEM_USE_X86INTRIN
 void BilinearForm::AssembleElementMatrix(int i,
                                          const TDenseMatrix<x86::vreal_t> &M,
                                          Array<x86::vint_t> &vdofs){
@@ -272,7 +273,8 @@ void BilinearForm::AssembleElementMatrix(int i,
   }
   mat->AddSubMatrix(vdofs, M);
 }
-  
+#endif
+   
 void BilinearForm::AssembleElementMatrix(
    int i, const DenseMatrix &elmat, Array<int> &vdofs, int skip_zeros)
 {

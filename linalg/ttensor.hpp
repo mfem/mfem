@@ -16,6 +16,7 @@
 #include "../general/tassign.hpp"
 #include "tlayout.hpp"
 #include "tmatrix.hpp"
+#include <assert.h>
 
 // Templated tensor implementation (up to order 4)
 
@@ -243,6 +244,7 @@ template <int S, typename data_t = double, bool align = false>
 struct TVector
 {
 public:
+   //TVector(){assert(align);}
    static const int size = S;
    static const int aligned_size = align ? MFEM_ALIGN_SIZE(S,data_t) : size;
    typedef data_t data_type;

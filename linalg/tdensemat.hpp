@@ -12,7 +12,9 @@
 #ifndef MFEM_TDENSEMAT
 #define MFEM_TDENSEMAT
 
+#ifdef MFEM_USE_X86INTRIN
 #include "../general/x86intrin.hpp"
+#endif
 
 #include <iostream>
 #include <iomanip>
@@ -38,8 +40,11 @@ public:
                 "invalid TDenseMatrix size: " << m << " x " << n);
     capacity = m*n;
     MFEM_ASSERT(capacity>0,"invalid TDenseMatrix capacity");
-    //data = new data_t[capacity]();
+#ifndef MFEM_USE_X86INTRIN
+    data = new data_t[capacity]();
+#else
     data = (data_t*)aligned_alloc(x86::align,capacity*sizeof(data_t));
+#endif
   }
    
    TDenseMatrix(data_t *d, int h, int w) : Matrix(h, w)

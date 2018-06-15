@@ -20,10 +20,33 @@
 #include "tcoefficient.hpp"
 #include "fespace.hpp"
 #include "../linalg/tdensemat.hpp"
-
+#include <assert.h>
 namespace mfem
 {
+   
+using size_t = ::std::size_t;
 
+template <size_t ALIGNMENT>
+struct alignas(ALIGNMENT) AlignedNew {
+  static_assert(ALIGNMENT > 0, "ALIGNMENT must be positive");
+  static_assert((ALIGNMENT & (ALIGNMENT - 1)) == 0,
+      "ALIGNMENT must be a power of 2");
+  static_assert((ALIGNMENT % sizeof(void*)) == 0,
+      "ALIGNMENT must be a multiple of sizeof(void *)");
+  static void* operator new(size_t count) { return Allocate(count); }
+  static void* operator new[](size_t count) { return Allocate(count); }
+  static void operator delete(void* ptr) { free(ptr); }
+  static void operator delete[](void* ptr) { free(ptr); }
+
+ private:
+  static void* Allocate(size_t count) {
+    void* result = nullptr;
+    const auto alloc_failed = posix_memalign(&result, ALIGNMENT, count);
+    if (alloc_failed)  throw ::std::bad_alloc();
+    return result;
+  }
+};
+   
 // Templated bilinear form class, cf. bilinearform.?pp
 
 // complex_t - sol dof data type
@@ -32,7 +55,7 @@ template <typename meshType, typename solFESpace,
           typename IR, typename IntegratorType,
           typename solVecLayout_t = ScalarLayout,
           typename complex_t = double, typename real_t = double>
-class TBilinearForm : public Operator
+class TBilinearForm : public Operator, public AlignedNew<32>
 {
 protected:
    typedef complex_t complex_type;
@@ -108,11 +131,17 @@ public:
 
    virtual ~TBilinearForm()
    {
+#ifndef MFEM_USE_X86INTRIN
       delete [] assembled_data;
+#else
+      free(assembled_data);
+#endif
    }
 
+#ifdef MFEM_USE_X86INTRIN
    // Allocate aligned memory with x86 intrinsics alignment requirements
-   static void* operator new(size_t count) { return x86::alloc(count); }
+   //static void* operator new(size_t count) { return x86::alloc(count); }
+#endif
 
    /// Get the input finite element space prolongation matrix
    virtual const Operator *GetProlongation() const
@@ -195,7 +224,17 @@ public:
       const int NE = mesh.GetNE();
       if (!assembled_data)
       {
+#ifndef MFEM_USE_X86INTRIN
          assembled_data = new p_assembled_t[NE];
+#else
+         //assembled_data = new p_assembled_t[NE];
+         void* result = nullptr;
+         //const int aligned_size =  MFEM_ALIGN_SIZE(NE,p_assembled_t);
+         const int size =  NE*sizeof(p_assembled_t);
+         const auto alloc_failed = posix_memalign(&result, 32, size);
+         if (alloc_failed) throw ::std::bad_alloc();
+         assembled_data = (p_assembled_t*) result;
+#endif
       }
       for (int el = 0; el < NE; el++) // BE == 1
       {

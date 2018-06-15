@@ -142,7 +142,7 @@ template <int Q, typename real_t>
 class TProductIntegrationRule_base<3,Q,real_t>
 {
 protected:
-   TVector<Q,real_t> weights_1d;
+   TVector<Q,real_t,true> weights_1d;
 
 public:
    // Multi-component weight assignment. qpt_layout_t must be (qpts x n1 x ...)
