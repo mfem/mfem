@@ -30,6 +30,7 @@
 #include "datacollection.hpp"
 #include "estimators.hpp"
 #include "staticcond.hpp"
+#include "tmop.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
@@ -41,6 +42,10 @@
 
 #ifdef MFEM_USE_SIDRE
 #include "sidredatacollection.hpp"
+#endif
+
+#ifdef MFEM_USE_CONDUIT
+#include "conduitdatacollection.hpp"
 #endif
 
 #endif

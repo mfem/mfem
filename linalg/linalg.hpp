@@ -18,6 +18,7 @@
 #include "operator.hpp"
 #include "matrix.hpp"
 #include "sparsemat.hpp"
+#include "complex_operator.hpp"
 #include "blockvector.hpp"
 #include "blockmatrix.hpp"
 #include "blockoperator.hpp"
@@ -26,6 +27,7 @@
 #include "ode.hpp"
 #include "solvers.hpp"
 #include "handle.hpp"
+#include "invariants.hpp"
 
 #ifdef MFEM_USE_SUNDIALS
 #include "sundials.hpp"

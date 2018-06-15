@@ -18,6 +18,7 @@
 #include "../general/sets.hpp"
 #include "../general/sort_pairs.hpp"
 #include "../general/text.hpp"
+#include "../general/globals.hpp"
 
 #include <iostream>
 using namespace std;
@@ -58,8 +59,11 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
    // Do not copy face-neighbor data (can be generated if needed)
    have_face_nbr_data = false;
 
+   // If pmesh has a ParNURBSExtension, it was copied by the Mesh copy ctor, so
+   // there is no need to do anything here.
+
    MFEM_VERIFY(pmesh.pncmesh == NULL,
-               "copying non-conforming meshes is not implemented");
+               "copy of parallel non-conforming meshes is not implemented");
    pncmesh = NULL;
 
    // Copy the Nodes as a ParGridFunction, including the FiniteElementCollection
@@ -71,8 +75,7 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
       FiniteElementCollection *fec_copy =
          FiniteElementCollection::New(fec->Name());
       ParFiniteElementSpace *pfes_copy =
-         new ParFiniteElementSpace(this, fec_copy, fes->GetVDim(),
-                                   fes->GetOrdering());
+         new ParFiniteElementSpace(*fes, *this, fec_copy);
       Nodes = new ParGridFunction(pfes_copy);
       Nodes->MakeOwner(fec_copy);
       *Nodes = *pmesh.Nodes;
@@ -172,7 +175,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
    NumOfElements = element_counter;
    vertices.SetSize(NumOfVertices);
 
-   // re-enumerate the local vertices to preserve the global ordering
+   // Re-enumerate the local vertices to preserve the global ordering.
    for (i = vert_counter = 0; i < vert_global_local.Size(); i++)
       if (vert_global_local[i] >= 0)
       {
@@ -187,7 +190,9 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
                                                   mesh.GetVertex(i));
       }
 
-   // determine elements
+   // Determine elements, enumerating the local elements to preserve the global
+   // order. This is used, e.g. by the ParGridFunction ctor that takes a global
+   // GridFunction as input parameter.
    element_counter = 0;
    elements.SetSize(NumOfElements);
    for (i = 0; i < mesh.GetNE(); i++)
@@ -357,8 +362,8 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 #ifdef MFEM_DEBUG
    if (Dim < 3 && mesh.GetNFaces() != 0)
    {
-      cerr << "ParMesh::ParMesh (proc " << MyRank << ") : "
-           "(Dim < 3 && mesh.GetNFaces() != 0) is true!" << endl;
+      mfem::err << "ParMesh::ParMesh (proc " << MyRank << ") : "
+                "(Dim < 3 && mesh.GetNFaces() != 0) is true!" << endl;
       mfem_error();
    }
 #endif
@@ -607,8 +612,8 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
                     v_to_v(vert_global_local[vert[0]],
                            vert_global_local[vert[1]])) < 0)
             {
-               cerr << "\n\n\n" << MyRank << ": ParMesh::ParMesh: "
-                    << "ERROR in v_to_v\n\n" << endl;
+               mfem::err << "\n\n\n" << MyRank << ": ParMesh::ParMesh: "
+                         << "ERROR in v_to_v\n\n" << endl;
                mfem_error();
             }
 
@@ -638,13 +643,30 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
    if (mesh.NURBSext)
    {
+      MFEM_ASSERT(mesh.GetNodes() &&
+                  mesh.GetNodes()->FESpace()->GetNURBSext() == mesh.NURBSext,
+                  "invalid NURBS mesh");
       NURBSext = new ParNURBSExtension(comm, mesh.NURBSext, partitioning,
                                        activeBdrElem);
    }
 
    if (mesh.GetNodes()) // curved mesh
    {
-      Nodes = new ParGridFunction(this, mesh.GetNodes());
+      if (!NURBSext)
+      {
+         Nodes = new ParGridFunction(this, mesh.GetNodes());
+      }
+      else
+      {
+         const FiniteElementSpace *glob_fes = mesh.GetNodes()->FESpace();
+         FiniteElementCollection *nfec =
+            FiniteElementCollection::New(glob_fes->FEColl()->Name());
+         ParFiniteElementSpace *pfes =
+            new ParFiniteElementSpace(this, nfec, glob_fes->GetVDim(),
+                                      glob_fes->GetOrdering());
+         Nodes = new ParGridFunction(pfes);
+         Nodes->MakeOwner(nfec); // Nodes will own nfec and pfes
+      }
       own_nodes = 1;
 
       Array<int> gvdofs, lvdofs;
@@ -681,7 +703,7 @@ ParMesh::ParMesh(const ParNCMesh &pncmesh)
    have_face_nbr_data = false;
 }
 
-ParMesh::ParMesh(MPI_Comm comm, istream &input)
+ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
    : gtopo(comm)
 {
    MyComm = comm;
@@ -763,8 +785,8 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input)
       input >> ident >> g; // group
       if (g != gr)
       {
-         cerr << "ParMesh::ParMesh : expecting group " << gr
-              << ", read group " << g << endl;
+         mfem::err << "ParMesh::ParMesh : expecting group " << gr
+                   << ", read group " << g << endl;
          mfem_error();
       }
 
@@ -827,7 +849,6 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input)
    delete faces_tbl;
    delete v_to_v;
 
-   const bool refine = true;
    const bool fix_orientation = false;
    Finalize(refine, fix_orientation);
 
@@ -1133,15 +1154,15 @@ void ParMesh::MarkTetMeshForRefinement(DSTable &v_to_v)
 
 #if 0
       // Debug message from every MPI rank.
-      cout << "proc. " << MyRank << '/' << NRanks << ": d_max = " << d_max
-           << endl;
+      mfem::out << "proc. " << MyRank << '/' << NRanks << ": d_max = " << d_max
+                << endl;
 #else
       // Debug message just from rank 0.
       double glob_d_max;
       MPI_Reduce(&d_max, &glob_d_max, 1, MPI_DOUBLE, MPI_MAX, 0, MyComm);
       if (MyRank == 0)
       {
-         cout << "glob_d_max = " << glob_d_max << endl;
+         mfem::out << "glob_d_max = " << glob_d_max << endl;
       }
 #endif
    }
@@ -1329,6 +1350,7 @@ void ParMesh::GetFaceNbrElementTransformation(
          MFEM_ABORT("Nodes are not ParGridFunction!");
       }
    }
+   ElTr->FinalizeTransformation();
 }
 
 void ParMesh::DeleteFaceNbrData()
@@ -1914,6 +1936,7 @@ ElementTransformation* ParMesh::GetGhostFaceTransformation(
 #endif
       FaceTransformation.SetFE(face_el);
    }
+   FaceTransformation.FinalizeTransformation();
    return &FaceTransformation;
 }
 
@@ -2282,9 +2305,9 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       MPI_Reduce(&i, &ref_loops_all, 1, MPI_INT, MPI_MAX, 0, MyComm);
       if (MyRank == 0)
       {
-         cout << "\n\nParMesh::LocalRefinement : max. ref_loops_all = "
-              << ref_loops_all << ", ref_loops_par = " << ref_loops_par
-              << '\n' << endl;
+         mfem::out << "\n\nParMesh::LocalRefinement : max. ref_loops_all = "
+                   << ref_loops_all << ", ref_loops_par = " << ref_loops_par
+                   << '\n' << endl;
       }
 #endif
 
@@ -2312,8 +2335,12 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       while (need_refinement == 1);
 
       if (NumOfBdrElements != boundary.Size())
+      {
          mfem_error("ParMesh::LocalRefinement :"
                     " (NumOfBdrElements != boundary.Size())");
+      }
+
+      DeleteLazyTables();
 
       // 5a. Update the groups after refinement.
       if (el_to_face != NULL)
@@ -2352,7 +2379,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       int uniform_refinement = 0;
       if (type < 0)
       {
-         type = -type;
+         // type = -type; // not used
          uniform_refinement = 1;
       }
 
@@ -2449,9 +2476,11 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
                if (edges_in_group != 0)
                {
                   for (j = 0; j < edges_in_group; j++)
+                  {
                      edge_splittings[i][j] =
                         GetEdgeSplittings(shared_edges[group_edges[j]], v_to_v,
                                           middle);
+                  }
                   const int *nbs = gtopo.GetGroup(i+1);
                   if (nbs[0] == 0)
                   {
@@ -2517,9 +2546,9 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       MPI_Reduce(&i, &ref_loops_all, 1, MPI_INT, MPI_MAX, 0, MyComm);
       if (MyRank == 0)
       {
-         cout << "\n\nParMesh::LocalRefinement : max. ref_loops_all = "
-              << ref_loops_all << ", ref_loops_par = " << ref_loops_par
-              << '\n' << endl;
+         mfem::out << "\n\nParMesh::LocalRefinement : max. ref_loops_all = "
+                   << ref_loops_all << ", ref_loops_par = " << ref_loops_par
+                   << '\n' << endl;
       }
 #endif
 
@@ -2555,6 +2584,8 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
          }
       }
       NumOfBdrElements = boundary.Size();
+
+      DeleteLazyTables();
 
       // 5a. Update the groups after refinement.
       RefineGroups(v_to_v, middle);
@@ -3181,7 +3212,7 @@ void ParMesh::NURBSUniformRefinement()
 {
    if (MyRank == 0)
    {
-      cout << "\nParMesh::NURBSUniformRefinement : Not supported yet!\n";
+      mfem::out << "\nParMesh::NURBSUniformRefinement : Not supported yet!\n";
    }
 }
 
@@ -3688,7 +3719,7 @@ void ParMesh::PrintAsOne(std::ostream &out)
          {
             // processor number + 1 as bdr. attr. and bdr. geometry type
             out << p+1 << ' ' << ints[i];
-            k = Geometries.GetVertices(ints[i++])->GetNPoints();
+            k = Geometries.NumVerts[ints[i++]];
             // vertices
             for (j = 0; j < k; j++)
             {
@@ -4207,7 +4238,7 @@ void ParMesh::PrintAsOneXG(std::ostream &out)
          out << ne << '\n';
          for (i = 0; i < NumOfElements; i++)
          {
-            attr = elements[i]->GetAttribute();
+            // attr = elements[i]->GetAttribute(); // not used
             elements[i]->GetVertices(v);
             out << 1 << "   " << 3 << "   ";
             for (j = 0; j < v.Size(); j++)
@@ -4524,13 +4555,14 @@ void ParMesh::ParPrint(ostream &out) const
 }
 
 int ParMesh::FindPoints(DenseMatrix& point_mat, Array<int>& elem_id,
-                        Array<IntegrationPoint>& ip, bool warn)
+                        Array<IntegrationPoint>& ip, bool warn,
+                        InverseElementTransformation *inv_trans)
 {
    const int npts = point_mat.Width();
    if (npts == 0) { return 0; }
 
    const bool no_warn = false;
-   Mesh::FindPoints(point_mat, elem_id, ip, no_warn);
+   Mesh::FindPoints(point_mat, elem_id, ip, no_warn, inv_trans);
 
    // If multiple processors find the same point, we need to choose only one of
    // the processors to mark that point as found.
@@ -4548,8 +4580,12 @@ int ParMesh::FindPoints(DenseMatrix& point_mat, Array<int>& elem_id,
    int pts_found = 0;
    for (int k = 0; k < npts; k++)
    {
-      if (glob_point_rank[k] != MyRank) { elem_id[k] = -1; }
-      if (glob_point_rank[k] != NRanks) { pts_found++; }
+      if (glob_point_rank[k] == NRanks) { elem_id[k] = -1; }
+      else
+      {
+         pts_found++;
+         if (glob_point_rank[k] != MyRank) { elem_id[k] = -2; }
+      }
    }
    if (warn && pts_found != npts && MyRank == 0)
    {
