@@ -256,7 +256,7 @@ struct IntRuleCoefficient
    template <bool dummy> struct Aux<true,dummy>
    {
       typedef struct { } result_t;
-      TMatrix<qpts,1,complex_type> cw;
+      TMatrix<qpts,1,complex_type,true> cw;
 
       inline MFEM_ALWAYS_INLINE Aux(const IR &int_rule, const coeff_t &c)
       {

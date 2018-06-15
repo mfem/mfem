@@ -629,8 +629,8 @@ public:
              const qpt_layout_t &qpt_layout, qpt_data_t &qpt_data) const
    {
       const int NC = dof_layout_t::dim_2;
-      TVector<NIP*DOF*DOF*NC,real_t> QDD;
-      TVector<NIP*NIP*DOF*NC,real_t> QQD;
+      TVector<NIP*DOF*DOF*NC,real_t,true> QDD;
+      TVector<NIP*NIP*DOF*NC,real_t,true> QQD;
 
       // QDD_{i,jj,k} = \sum_s B_1d_{i,s} dof_data_{s,jj,k}
       Mult_2_1<false>(B_1d.layout, Dx ? G_1d : B_1d,
@@ -665,8 +665,8 @@ public:
               const dof_layout_t &dof_layout, dof_data_t &dof_data) const
    {
       const int NC = dof_layout_t::dim_2;
-      TVector<NIP*DOF*DOF*NC,real_t> QDD;
-      TVector<NIP*NIP*DOF*NC,real_t> QQD;
+      TVector<NIP*DOF*DOF*NC,real_t,true> QDD;
+      TVector<NIP*NIP*DOF*NC,real_t,true> QQD;
 
       // QQD_{ii,j,k} = \sum_s B_1d_{s,j} qpt_data_{ii,s,k}
       Mult_1_2<false>(B_1d.layout, Dz ? G_1d : B_1d,
@@ -1201,9 +1201,9 @@ public:
       typedef TTensor3<dofs,vdim,NE,complex_t,true> val_dofs_t;
       val_dofs_t val_dofs;
 #else
-      typedef TTensor3<dofs,vdim,NE,complex_t> val_dofs_t;
+      typedef TTensor3<dofs,vdim,NE,complex_t,true> val_dofs_t;
 #endif
-      TTensor4<qpts,dim,vdim,NE,complex_t>      grad_qpts;
+      TTensor4<qpts,dim,vdim,NE,complex_t,true>      grad_qpts;
    };
 
    template <int NE> struct AData<3,NE> // 3 = Values+Gradients

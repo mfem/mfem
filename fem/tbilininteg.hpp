@@ -173,7 +173,7 @@ struct TDiffusionKernel<1,1,complex_t>
    // quadrature points. This type is used in partial assembly, and partially
    // assembled action.
    template <int qpts>
-   struct p_asm_data { typedef TMatrix<qpts,1,complex_t> type; };
+   struct p_asm_data { typedef TMatrix<qpts,1,complex_t,true> type; };
 
    // Partially assembled data type for one element with the given number of
    // quadrature points. This type is used in full element matrix assembly.
@@ -501,7 +501,7 @@ struct TDiffusionKernel<3,3,complex_t>
       const bool Symm = (asm_type::layout_type::rank == 2);
       for (int i = 0; i < M; i++)
       {
-         TMatrix<3,3,real_t> B; // = adj(J)
+         TMatrix<3,3,real_t,true> B; // = adj(J)
          const complex_t u =
             (Q.get(q,i,k) /
              TAdjDet<real_t>(F.Jt.layout.ind14(i,k).transpose_12(), F.Jt,

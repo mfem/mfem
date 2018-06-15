@@ -48,7 +48,7 @@ public:
 // * error 0x81e350
 // * ok with: 0x81e020
 // ****************************************************************************
-struct real {
+struct __attribute__ ((aligned(32))) real {
  protected:
   __m256d vec;
  public:

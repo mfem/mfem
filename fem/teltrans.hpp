@@ -153,8 +153,8 @@ public:
       typedef TTensor3<qpts,sdim,NE,real_t/*,true*/> x_type;
 #endif
       x_type x;
-
-      typedef TTensor3<dofs,sdim,NE,real_t> nodes_dof_t;
+      
+      typedef TTensor3<dofs,sdim,NE,real_t,true> nodes_dof_t;
 #ifdef MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES
       nodes_dof_t nodes_dof;
 #endif
@@ -172,7 +172,7 @@ public:
 #ifndef MFEM_USE_X86INTRIN
          T.fes.VectorExtract(T.node_layout, T.nodes,
 #else
-         T.fes.VectorExtract(el,T.node_layout, T.nodes,
+         T.fes.VectorExtract(el, T.node_layout, T.nodes,
 #endif
                              nodes_dof.layout, nodes_dof);
          T.evaluator.Calc(nodes_dof.layout.merge_23(), nodes_dof,
@@ -195,11 +195,11 @@ public:
 #ifdef MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES
       typedef TTensor4<qpts,dim,sdim,NE,real_t,true> Jt_type;
 #else
-      typedef TTensor4<qpts,dim,sdim,NE,real_t/*,true*/> Jt_type;
+      typedef TTensor4<qpts,dim,sdim,NE,real_t,true> Jt_type;
 #endif
       Jt_type Jt;
 
-      typedef TTensor3<dofs,sdim,NE,real_t> nodes_dof_t;
+      typedef TTensor3<dofs,sdim,NE,real_t,true> nodes_dof_t;
 #ifdef MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES
       nodes_dof_t nodes_dof;
 #endif
@@ -246,7 +246,7 @@ public:
 #endif
       Jt_type Jt;
 
-      typedef TTensor3<dofs,sdim,NE,real_t> nodes_dof_t;
+      typedef TTensor3<dofs,sdim,NE,real_t,true> nodes_dof_t;
 #ifdef MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES
       nodes_dof_t nodes_dof;
 #endif
@@ -296,7 +296,7 @@ public:
 #endif
       Jt_type Jt;
 
-      typedef TTensor3<dofs,sdim,NE,real_t> nodes_dof_t;
+      typedef TTensor3<dofs,sdim,NE,real_t,true> nodes_dof_t;
 #ifdef MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES
       nodes_dof_t nodes_dof;
 #endif
@@ -344,7 +344,7 @@ public:
 #endif
       Jt_type Jt;
 
-      typedef TTensor3<dofs,sdim,NE,real_t> nodes_dof_t;
+      typedef TTensor3<dofs,sdim,NE,real_t,true> nodes_dof_t;
 #ifdef MFEM_TEMPLATE_ELTRANS_RESULT_HAS_NODES
       nodes_dof_t nodes_dof;
 #endif
