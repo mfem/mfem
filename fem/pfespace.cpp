@@ -182,30 +182,32 @@ void ParFiniteElementSpace::PrintPartitionStats()
 
    if (MyRank == 0)
    {
-      std::cout << "DOF partitioning: min " << min_ltdofs
-                << ", avg " << std::setprecision(6)
-                << double(sum_ltdofs) / NRanks
+      double avg = double(sum_ltdofs) / NRanks;
+      mfem::out << "True DOF partitioning: min " << min_ltdofs
+                << ", avg " << std::fixed << std::setprecision(1) << avg
                 << ", max " << max_ltdofs
-                << ", max diff " << std::setprecision(3)
-                << 100.0*(max_ltdofs - min_ltdofs)/min_ltdofs
+                << ", (max-avg)/avg " << 100.0*(max_ltdofs - avg)/avg
                 << "%" << std::endl;
    }
 
-   /*if (MyRank == 0)
+   if (NRanks <= 32)
    {
-      std::cout << "True DOFs by rank: " << ltdofs;
-      for (int i = 1; i < NRanks; i++)
+      if (MyRank == 0)
       {
-         MPI_Status status;
-         MPI_Recv(&ltdofs, 1, MPI_LONG, i, 123, MyComm, &status);
-         std::cout << " " << ltdofs;
+         std::cout << "True DOFs by rank: " << ltdofs;
+         for (int i = 1; i < NRanks; i++)
+         {
+            MPI_Status status;
+            MPI_Recv(&ltdofs, 1, MPI_LONG, i, 123, MyComm, &status);
+            std::cout << " " << ltdofs;
+         }
+         std::cout << "\n";
       }
-      std::cout << "\n";
+      else
+      {
+         MPI_Send(&ltdofs, 1, MPI_LONG, 0, 123, MyComm);
+      }
    }
-   else
-   {
-      MPI_Send(&ltdofs, 1, MPI_LONG, 0, 123, MyComm);
-   }*/
 }
 
 void ParFiniteElementSpace::GetGroupComm(
