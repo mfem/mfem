@@ -120,11 +120,14 @@ int main(int argc, char *argv[])
       }
    }
 
-   /*{
+   {
       Array<int> refs;
       if (myid == 0) { refs.Append(0); }
       pmesh->GeneralRefinement(refs);
-   }*/
+      /*if (myid == 0) { refs[0] = 1; }
+      pmesh->GeneralRefinement(refs);*/
+      pmesh->Rebalance();
+   }
 
    {
       ostringstream mesh_name;
@@ -133,6 +136,12 @@ int main(int argc, char *argv[])
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
       pmesh->Print(mesh_ofs);
+
+      ostringstream ncd_name;
+      ncd_name << "ncdump." << setfill('0') << setw(6) << myid;
+
+      ofstream ncd_ofs(ncd_name.str().c_str());
+      pmesh->pncmesh->DebugDump(ncd_ofs);
    }
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
