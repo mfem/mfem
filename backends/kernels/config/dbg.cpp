@@ -19,6 +19,10 @@
 
 #include "../kernels.hpp"
 
+///#include <stdarg.h>
+//#include <assert.h>
+//#include <string.h>
+
 // DBG *************************************************************************
 void kdbg(const char *format,...)
 {
