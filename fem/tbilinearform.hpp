@@ -55,7 +55,7 @@ template <typename meshType, typename solFESpace,
           typename IR, typename IntegratorType,
           typename solVecLayout_t = ScalarLayout,
           typename complex_t = double, typename real_t = double>
-class TBilinearForm : public Operator, public AlignedNew<32>
+class TBilinearForm : public Operator//, public AlignedNew<32>
 {
 protected:
    typedef complex_t complex_type;
@@ -140,7 +140,7 @@ public:
 
 #ifdef MFEM_USE_X86INTRIN
    // Allocate aligned memory with x86 intrinsics alignment requirements
-   //static void* operator new(size_t count) { return x86::alloc(count); }
+   static void* operator new(size_t count) { return x86::alloc(count); }
 #endif
 
    /// Get the input finite element space prolongation matrix
@@ -224,20 +224,20 @@ public:
       const int NE = mesh.GetNE();
       if (!assembled_data)
       {
-#ifndef MFEM_USE_X86INTRIN
-         assembled_data = new p_assembled_t[NE];
+#ifndef MFEM_USE_X86INTRIN      
+        assembled_data = new p_assembled_t[NE];
 #else
-         //assembled_data = new p_assembled_t[NE];
-         void* result = nullptr;
-         //const int aligned_size =  MFEM_ALIGN_SIZE(NE,p_assembled_t);
-         const int size =  NE*sizeof(p_assembled_t);
-         const auto alloc_failed = posix_memalign(&result, 32, size);
-         if (alloc_failed) throw ::std::bad_alloc();
-         assembled_data = (p_assembled_t*) result;
+        assembled_data = new p_assembled_t[NE/x86::width];
 #endif
       }
+#ifndef MFEM_USE_X86INTRIN      
       for (int el = 0; el < NE; el++) // BE == 1
+#else
+      assert((NE%x86::width)==0);
+      for (int el = 0; el < NE; el+=x86::width)
+#endif
       {
+         //p_assembled_t _assembled_data;
          typename T_result<BE>::Type F;
          T.Eval(el, F);
 
@@ -246,7 +246,7 @@ public:
 
          for (int k = 0; k < BE; k++)
          {
-            kernel_t::Assemble(k, F, wQ, res, assembled_data[el+k]);
+            kernel_t::Assemble(k, F, wQ, res, assembled_data[el]);
          }
       }
    }
@@ -260,6 +260,7 @@ public:
 
       for (int k = 0; k < num_elem; k++)
       {
+         assert(k==0);
          kernel_t::MultAssembled(k, assembled_data[el+k], R);
       }
 
@@ -275,11 +276,11 @@ public:
    void MultAssembled(const Vector &x, Vector &y) const
    {
       y = 0.0;
-
       solFieldEval solFEval(solFES, solEval, solVecLayout,
                             x.GetData(), y.GetData());
 
       const int NE = mesh.GetNE();
+#ifndef MFEM_USE_X86INTRIN      
       const int bNE = NE-NE%num_elem;
       for (int el = 0; el < bNE; el += num_elem)
       {
@@ -289,6 +290,14 @@ public:
       {
          ElementAddMultAssembled<1>(el, solFEval);
       }
+#else
+      assert(num_elem==1);
+      printf("\n\033[31;1m[MultAssembled] NE=%d & num_elem=%d\033[m\n",NE,num_elem);
+      for (int el = 0; el < NE; el += 1/*x86::width*/)
+      {
+         ElementAddMultAssembled<1>(el, solFEval);
+      }
+#endif
    }
 
 #ifdef MFEM_TEMPLATE_ENABLE_SERIALIZE
@@ -528,7 +537,7 @@ public:
          // diagonal block for all components.
 #ifndef MFEM_USE_X86INTRIN      
          TMatrix<dofs,dofs> M_loc;
-#else // MFEM_USE_X86INTRIN      
+#else
          TMatrix<dofs,dofs,real_t,true> M_loc;
 #endif
          S_spec<BE>::ElementMatrix::Compute(
