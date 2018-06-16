@@ -65,10 +65,10 @@ struct TMassKernel
    template <int qpts>
    struct f_asm_data { typedef TVector<qpts,complex_t> type; };
 
-   template <typename IR, typename coeff_t, int NE>
+   template <typename IR, typename coeff_t, typename impl_traits_t>
    struct CoefficientEval
    {
-      typedef typename IntRuleCoefficient<IR,coeff_t,NE>::Type Type;
+      typedef typename IntRuleCoefficient<IR,coeff_t,impl_traits_t>::Type Type;
    };
 
    // Method used for un-assembled (matrix free) action.
@@ -173,17 +173,17 @@ struct TDiffusionKernel<1,1,complex_t>
    // quadrature points. This type is used in partial assembly, and partially
    // assembled action.
    template <int qpts>
-   struct p_asm_data { typedef TMatrix<qpts,1,complex_t,true> type; };
+   struct p_asm_data { typedef TMatrix<qpts,1,complex_t> type; };
 
    // Partially assembled data type for one element with the given number of
    // quadrature points. This type is used in full element matrix assembly.
    template <int qpts>
    struct f_asm_data { typedef TTensor3<qpts,1,1,complex_t> type; };
 
-   template <typename IR, typename coeff_t, int NE>
+   template <typename IR, typename coeff_t, typename impl_traits_t>
    struct CoefficientEval
    {
-      typedef typename IntRuleCoefficient<IR,coeff_t,NE>::Type Type;
+      typedef typename IntRuleCoefficient<IR,coeff_t,impl_traits_t>::Type Type;
    };
 
    // Method used for un-assembled (matrix free) action.
@@ -293,10 +293,10 @@ struct TDiffusionKernel<2,2,complex_t>
    template <int qpts>
    struct f_asm_data { typedef TTensor3<qpts,2,2,complex_t> type; };
 
-   template <typename IR, typename coeff_t, int NE>
+   template <typename IR, typename coeff_t, typename impl_traits_t>
    struct CoefficientEval
    {
-      typedef typename IntRuleCoefficient<IR,coeff_t,NE>::Type Type;
+      typedef typename IntRuleCoefficient<IR,coeff_t,impl_traits_t>::Type Type;
    };
 
    // Method used for un-assembled (matrix free) action.
@@ -434,10 +434,10 @@ struct TDiffusionKernel<3,3,complex_t>
    template <int qpts>
    struct f_asm_data { typedef TTensor3<qpts,3,3,complex_t> type; };
 
-   template <typename IR, typename coeff_t, int NE>
+   template <typename IR, typename coeff_t, typename impl_traits_t>
    struct CoefficientEval
    {
-      typedef typename IntRuleCoefficient<IR,coeff_t,NE>::Type Type;
+      typedef typename IntRuleCoefficient<IR,coeff_t,impl_traits_t>::Type Type;
    };
 
    // Method used for un-assembled (matrix free) action.
@@ -501,7 +501,7 @@ struct TDiffusionKernel<3,3,complex_t>
       const bool Symm = (asm_type::layout_type::rank == 2);
       for (int i = 0; i < M; i++)
       {
-         TMatrix<3,3,real_t,true> B; // = adj(J)
+         TMatrix<3,3,real_t> B; // = adj(J)
          const complex_t u =
             (Q.get(q,i,k) /
              TAdjDet<real_t>(F.Jt.layout.ind14(i,k).transpose_12(), F.Jt,

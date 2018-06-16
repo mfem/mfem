@@ -63,15 +63,7 @@ public:
       else
       {
          // reorder the local dofs according to loc_dof_map
-#ifndef MFEM_USE_X86INTRIN
          int *el_dof_list_ = new int[num_dofs];
-#else
-         //const int aligned_size =  MFEM_ALIGN_SIZE(num_dofs,int);
-         void* result = nullptr;
-         const auto alloc_failed = posix_memalign(&result, 32, 2*num_dofs*sizeof(int));
-         if (alloc_failed) throw ::std::bad_alloc();
-         int *el_dof_list_ = (int*) result;
-#endif
          const int *loc_dof_map_ = loc_dof_map->GetData();
          for (int i = 0; i < el_dof.Size(); i++)
          {
@@ -98,20 +90,14 @@ public:
    { }
 
    inline MFEM_ALWAYS_INLINE
-   ~ElementDofIndexer() {
-#ifndef MFEM_USE_X86INTRIN
-      if (own_list) { delete [] el_dof_list; }
-#else
-      if (own_list) { free((void*)el_dof_list); }
-#endif
-   }
+   ~ElementDofIndexer() { if (own_list) { delete [] el_dof_list; } }
 
    inline MFEM_ALWAYS_INLINE
    void SetElement(int elem_idx)
    {
       loc_dof_list = el_dof_list + elem_idx * FE::dofs;
    }
-   
+
    inline MFEM_ALWAYS_INLINE
    int map(int loc_dof_idx, int elem_offset) const
    {
@@ -131,15 +117,19 @@ public:
 
 protected:
    index_type ind;
+   int num_elems, remain_elems;
 
 public:
    TFiniteElementSpace_simple(const FE &fe, const FiniteElementSpace &fes)
-      : ind(fe, fes) { }
+      : ind(fe, fes), num_elems(fes.GetNE()), remain_elems(num_elems) { }
 
    // default copy constructor
 
-   void SetElement(int el) { ind.SetElement(el); }
+   int GetNE() const { return num_elems; }
 
+   void SetElement(int el) { ind.SetElement(el); remain_elems = num_elems-el; }
+
+#if 0
    // Multi-element Extract:
    // Extract dofs for multiple elements starting with the current element.
    // The number of elements to extract is given by the second dimension of
@@ -151,6 +141,7 @@ public:
                 const dof_layout_t    &dof_layout,
                 dof_data_t            &dof_data) const
    {
+      const int SS = sizeof(dof_data[0])/sizeof(dof_data[0][0]);
       const int NE = dof_layout_t::dim_2;
       MFEM_STATIC_ASSERT(FE::dofs == dof_layout_t::dim_1,
                          "invalid number of dofs");
@@ -158,8 +149,11 @@ public:
       {
          for (int i = 0; i < FE::dofs; i++)
          {
-            Assign<Op>(dof_data[dof_layout.ind(i,j)],
-                       glob_dof_data[ind.map(i,j)]);
+            for (int s = 0; s < SS; s++)
+            {
+               Assign<Op>(dof_data[dof_layout.ind(i,j)][s],
+                          glob_dof_data[ind.map(i,s+SS*j)]);
+            }
          }
       }
    }
@@ -183,6 +177,7 @@ public:
                  const dof_data_t   &dof_data,
                  glob_dof_data_t    &glob_dof_data) const
    {
+      const int SS = sizeof(dof_data[0])/sizeof(dof_data[0][0]);
       const int NE = dof_layout_t::dim_2;
       MFEM_STATIC_ASSERT(FE::dofs == dof_layout_t::dim_1,
                          "invalid number of dofs");
@@ -190,8 +185,11 @@ public:
       {
          for (int i = 0; i < FE::dofs; i++)
          {
-            Assign<Op>(glob_dof_data[ind.map(i,j)],
-                       dof_data[dof_layout.ind(i,j)]);
+            for (int s = 0; s < SS; s++)
+            {
+               Assign<Op>(glob_dof_data[ind.map(i,s+SS*j)],
+                          dof_data[dof_layout.ind(i,j)][s]);
+            }
          }
       }
    }
@@ -205,9 +203,9 @@ public:
    {
       Assemble<AssignOp::Add>(dof_layout, dof_data, glob_dof_data);
    }
+#endif
 
    // Multi-element VectorExtract: vdof_layout is (DOFS x NumComp x NumElems).
-#ifndef MFEM_USE_X86INTRIN
    template <AssignOp::Type Op,
              typename vec_layout_t, typename glob_vdof_data_t,
              typename vdof_layout_t, typename vdof_data_t>
@@ -217,59 +215,42 @@ public:
                       const vdof_layout_t    &vdof_layout,
                       vdof_data_t            &vdof_data) const
    {
+      const int SS = sizeof(vdof_data[0])/sizeof(vdof_data[0][0]);
       const int NC = vdof_layout_t::dim_2;
       const int NE = vdof_layout_t::dim_3;
       MFEM_STATIC_ASSERT(FE::dofs == vdof_layout_t::dim_1,
                          "invalid number of dofs");
       MFEM_ASSERT(NC == vl.NumComponents(), "invalid number of components");
+      const int TE = std::min(SS*NE, remain_elems);
+      // const int TE = SS*NE;
       for (int k = 0; k < NC; k++)
       {
+#if 0
          for (int j = 0; j < NE; j++)
          {
             for (int i = 0; i < FE::dofs; i++)
             {
-               Assign<Op>(vdof_data[vdof_layout.ind(i,k,j)],
-                          glob_vdof_data[vl.ind(ind.map(i,j), k)]);
+               for (int s = 0; s < SS; s++)
+               {
+                  Assign<Op>(vdof_data[vdof_layout.ind(i,k,j)][s],
+                             glob_vdof_data[vl.ind(ind.map(i,s+SS*j), k)]);
+               }
             }
          }
-      }
-   }
 #else
-   template <AssignOp::Type Op,
-             typename vec_layout_t, typename glob_vdof_data_t,
-             typename vdof_layout_t, typename vdof_data_t>
-   inline MFEM_ALWAYS_INLINE
-   void VectorExtract(const int el,
-                      const vec_layout_t     &vl,
-                      const glob_vdof_data_t &glob_vdof_data,
-                      const vdof_layout_t    &vdof_layout,
-                      vdof_data_t            &vdof_data) /*const*/
-   {
-      const int NC = vdof_layout_t::dim_2;
-      const int NE = vdof_layout_t::dim_3;
-      MFEM_STATIC_ASSERT(FE::dofs == vdof_layout_t::dim_1,
-                         "invalid number of dofs");
-      MFEM_ASSERT(NC == vl.NumComponents(), "invalid number of components");
-      x86::vreal_t gather;
-      for (int k = 0; k < NC; k++)
-      {
-         for (int j = 0; j < NE; j++)
+         for (int js = 0; js < TE; js++)
          {
             for (int i = 0; i < FE::dofs; i++)
             {
-              for(int n=0; n<x86::width; n++)
-              {
-                ind.SetElement(el+n);
-                gather[n]=glob_vdof_data[vl.ind(ind.map(i,j),k)];
-              }
-              Assign<Op>(vdof_data[vdof_layout.ind(i,k,j)],gather);
+               const int s = js % SS, j = js / SS;
+               Assign<Op>(vdof_data[vdof_layout.ind(i,k,j)][s],
+                          glob_vdof_data[vl.ind(ind.map(i,js), k)]);
             }
          }
+#endif
       }
    }
-#endif
 
-#ifndef MFEM_USE_X86INTRIN
    template <typename vec_layout_t, typename glob_vdof_data_t,
              typename vdof_layout_t, typename vdof_data_t>
    inline MFEM_ALWAYS_INLINE
@@ -291,21 +272,39 @@ public:
                        const vec_layout_t  &vl,
                        glob_vdof_data_t    &glob_vdof_data) const
    {
+      const int SS = sizeof(vdof_data[0])/sizeof(vdof_data[0][0]);
       const int NC = vdof_layout_t::dim_2;
       const int NE = vdof_layout_t::dim_3;
       MFEM_STATIC_ASSERT(FE::dofs == vdof_layout_t::dim_1,
                          "invalid number of dofs");
       MFEM_ASSERT(NC == vl.NumComponents(), "invalid number of components");
+      const int TE = std::min(SS*NE, remain_elems);
+      // const int TE = SS*NE;
       for (int k = 0; k < NC; k++)
       {
+#if 0
          for (int j = 0; j < NE; j++)
          {
             for (int i = 0; i < FE::dofs; i++)
             {
-               Assign<Op>(glob_vdof_data[vl.ind(ind.map(i,j), k)],
-                          vdof_data[vdof_layout.ind(i,k,j)]);
+               for (int s = 0; s < SS; s++)
+               {
+                  Assign<Op>(glob_vdof_data[vl.ind(ind.map(i,s+SS*j), k)],
+                             vdof_data[vdof_layout.ind(i,k,j)][s]);
+               }
             }
          }
+#else
+         for (int js = 0; js < TE; js++)
+         {
+            for (int i = 0; i < FE::dofs; i++)
+            {
+               const int s = js % SS, j = js / SS;
+               Assign<Op>(glob_vdof_data[vl.ind(ind.map(i,js), k)],
+                          vdof_data[vdof_layout.ind(i,k,j)][s]);
+            }
+         }
+#endif
       }
    }
 
@@ -319,64 +318,6 @@ public:
    {
       VectorAssemble<AssignOp::Add>(vdof_layout, vdof_data, vl, glob_vdof_data);
    }
-#else
-   template <typename vec_layout_t, typename glob_vdof_data_t,
-             typename vdof_layout_t, typename vdof_data_t>
-   inline MFEM_ALWAYS_INLINE
-   void VectorExtract(const int el,
-                      const vec_layout_t     &vl,
-                      const glob_vdof_data_t &glob_vdof_data,
-                      const vdof_layout_t    &vdof_layout,
-                      vdof_data_t            &vdof_data) /*const*/
-   {
-     VectorExtract<AssignOp::Set>(el,vl, glob_vdof_data, vdof_layout, vdof_data);
-   }
-
-   // Multi-element VectorAssemble: vdof_layout is (DOFS x NumComp x NumElems).
-   template <AssignOp::Type Op,
-             typename vdof_layout_t, typename vdof_data_t,
-             typename vec_layout_t, typename glob_vdof_data_t>
-   inline MFEM_ALWAYS_INLINE
-   void VectorAssemble(const int el,
-                       const vdof_layout_t &vdof_layout,
-                       const vdof_data_t   &vdof_data,
-                       const vec_layout_t  &vl,
-                       glob_vdof_data_t    &glob_vdof_data) //const
-   {
-      const int NC = vdof_layout_t::dim_2;
-      const int NE = vdof_layout_t::dim_3;
-      MFEM_STATIC_ASSERT(FE::dofs == vdof_layout_t::dim_1,
-                         "invalid number of dofs");
-      MFEM_ASSERT(NC == vl.NumComponents(), "invalid number of components");
-      for (int k = 0; k < NC; k++)
-      {
-         for (int j = 0; j < NE; j++)
-         {
-            for (int i = 0; i < FE::dofs; i++)
-            {
-              for(int n=0; n<x86::width; n++)
-              {
-                ind.SetElement(el+n);
-                Assign<Op>(glob_vdof_data[vl.ind(ind.map(i,j), k)],
-                          vdof_data[vdof_layout.ind(i,k,j)][n]);
-              }
-            }
-         }
-      }
-   }
-   
-   template <typename vdof_layout_t, typename vdof_data_t,
-             typename vec_layout_t, typename glob_vdof_data_t>
-   inline MFEM_ALWAYS_INLINE
-   void VectorAssemble(const int el,
-                       const vdof_layout_t &vdof_layout,
-                       const vdof_data_t   &vdof_data,
-                       const vec_layout_t  &vl,
-                       glob_vdof_data_t    &glob_vdof_data) const
-   {
-     VectorAssemble<AssignOp::Add>(el,vdof_layout, vdof_data, vl, glob_vdof_data);
-   }
-#endif
 
    // Extract a static number of consecutive components; vdof_layout is
    // (dofs x NC x NE), where NC is the number of components to extract. It is
@@ -390,21 +331,24 @@ public:
                           const vdof_layout_t    &vdof_layout,
                           vdof_data_t            &vdof_data) const
    {
+      const int SS = sizeof(vdof_data[0])/sizeof(vdof_data[0][0]);
       const int NC = vdof_layout_t::dim_2;
       const int NE = vdof_layout_t::dim_3;
+      const int TE = std::min(SS*NE, remain_elems);
       MFEM_STATIC_ASSERT(FE::dofs == vdof_layout_t::dim_1,
                          "invalid number of dofs");
       MFEM_ASSERT(first_comp + NC <= vl.NumComponents(),
                   "invalid number of components");
       for (int k = 0; k < NC; k++)
       {
-         for (int j = 0; j < NE; j++)
+         for (int js = 0; js < TE; js++)
          {
             for (int i = 0; i < FE::dofs; i++)
             {
+               const int s = js % SS, j = js / SS;
                Assign<AssignOp::Set>(
-                  vdof_data[vdof_layout.ind(i,k,j)],
-                  glob_vdof_data[vl.ind(ind.map(i,j), first_comp+k)]);
+                  vdof_data[vdof_layout.ind(i,k,j)][s],
+                  glob_vdof_data[vl.ind(ind.map(i,js), first_comp+k)]);
             }
          }
       }
@@ -422,55 +366,69 @@ public:
                            const vec_layout_t  &vl,
                            glob_vdof_data_t    &glob_vdof_data) const
    {
+      const int SS = sizeof(vdof_data[0])/sizeof(vdof_data[0][0]);
       const int NC = vdof_layout_t::dim_2;
       const int NE = vdof_layout_t::dim_3;
+      const int TE = std::min(SS*NE, remain_elems);
       MFEM_STATIC_ASSERT(FE::dofs == vdof_layout_t::dim_1,
                          "invalid number of dofs");
       MFEM_ASSERT(first_comp + NC <= vl.NumComponents(),
                   "invalid number of components");
       for (int k = 0; k < NC; k++)
       {
-         for (int j = 0; j < NE; j++)
+         for (int js = 0; js < TE; js++)
          {
             for (int i = 0; i < FE::dofs; i++)
             {
+               const int s = js % SS, j = js / SS;
                Assign<AssignOp::Add>(
-                  glob_vdof_data[vl.ind(ind.map(i,j), first_comp+k)],
-                  vdof_data[vdof_layout.ind(i,k,j)]);
+                  glob_vdof_data[vl.ind(ind.map(i,js), first_comp+k)],
+                  vdof_data[vdof_layout.ind(i,k,j)][s]);
             }
          }
       }
    }
 
-   void Assemble(const TMatrix<FE::dofs,FE::dofs,double> &m,
+   template <typename vcomplex_t>
+   void Assemble(const TMatrix<FE::dofs,FE::dofs,vcomplex_t> &m,
                  SparseMatrix &M) const
    {
+      const int SS = sizeof(m[0])/sizeof(m[0][0]);
+      const int TE = std::min(SS, remain_elems);
       MFEM_FLOPS_ADD(FE::dofs*FE::dofs);
-      for (int i = 0; i < FE::dofs; i++)
+      for (int s = 0; s < TE; s++)
       {
-         M.SetColPtr(ind.map(i,0));
-         for (int j = 0; j < FE::dofs; j++)
+         for (int i = 0; i < FE::dofs; i++)
          {
-            M._Add_(ind.map(j,0), m(i,j));
+            M.SetColPtr(ind.map(i,s));
+            for (int j = 0; j < FE::dofs; j++)
+            {
+               M._Add_(ind.map(j,s), m(i,j)[s]);
+            }
+            M.ClearColPtr();
          }
-         M.ClearColPtr();
       }
    }
 
-   template <typename vec_layout_t>
+   template <typename vec_layout_t, typename vcomplex_t>
    void AssembleBlock(int block_i, int block_j, const vec_layout_t &vl,
-                      const TMatrix<FE::dofs,FE::dofs,double> &m,
+                      const TMatrix<FE::dofs,FE::dofs,vcomplex_t> &m,
                       SparseMatrix &M) const
    {
+      const int SS = sizeof(m[0])/sizeof(m[0][0]);
+      const int TE = std::min(SS, remain_elems);
       MFEM_FLOPS_ADD(FE::dofs*FE::dofs);
-      for (int i = 0; i < FE::dofs; i++)
+      for (int s = 0; s < TE; s++)
       {
-         M.SetColPtr(vl.ind(ind.map(i,0), block_i));
-         for (int j = 0; j < FE::dofs; j++)
+         for (int i = 0; i < FE::dofs; i++)
          {
-            M._Add_(vl.ind(ind.map(j,0), block_j), m(i,j));
+            M.SetColPtr(vl.ind(ind.map(i,s), block_i));
+            for (int j = 0; j < FE::dofs; j++)
+            {
+               M._Add_(vl.ind(ind.map(j,s), block_j), m(i,j)[s]);
+            }
+            M.ClearColPtr();
          }
-         M.ClearColPtr();
       }
    }
 };

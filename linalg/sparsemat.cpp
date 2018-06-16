@@ -1975,18 +1975,6 @@ void SparseMatrix::Jacobi3(const Vector &b, const Vector &x0, Vector &x1,
    }
 }
 
-#ifdef MFEM_USE_X86INTRIN
-void SparseMatrix::AddSubMatrix(const Array<x86::vint_t> &idx,
-                                const TDenseMatrix<x86::vreal_t> &subm){
-  for (int i = 0; i < idx.Size(); i++){
-    SetColPtr(idx[i]);
-    for (int j = 0; j < idx.Size(); j++){
-      _Add_(idx[j],subm(i,j));
-    }
-  }
-}
-#endif
-
 void SparseMatrix::AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
                                 const DenseMatrix &subm, int skip_zeros)
 {

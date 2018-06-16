@@ -19,10 +19,6 @@
 #include "../general/globals.hpp"
 #include "densemat.hpp"
 
-#ifdef MFEM_USE_X86INTRIN
-#include "tdensemat.hpp"
-#endif
-
 namespace mfem
 {
 
@@ -331,12 +327,6 @@ public:
    { SearchRow(col) = a; }
    inline double _Get_(const int col) const;
 
-#ifdef MFEM_USE_X86INTRIN
-  inline void SetColPtr(const x86::vint_t row) const;
-  inline void SearchRow(const x86::vint_t col, const x86::vreal_t a);
-  inline void _Add_(const x86::vint_t col, const x86::vreal_t a){ SearchRow(col,a);}
-#endif
-   
    inline double &SearchRow(const int row, const int col);
    inline void _Add_(const int row, const int col, const double a)
    { SearchRow(row, col) += a; }
@@ -354,10 +344,6 @@ public:
 
    void AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
                      const DenseMatrix &subm, int skip_zeros = 1);
-#ifdef MFEM_USE_X86INTRIN
-   void AddSubMatrix(const Array<x86::vint_t> &idx,
-                     const TDenseMatrix<x86::vreal_t> &subm);
-#endif
 
    bool RowIsEmpty(const int row) const;
 
@@ -501,39 +487,8 @@ SparseMatrix * Add(double a, const SparseMatrix & A, double b,
 SparseMatrix * Add(Array<SparseMatrix *> & Ai);
 
 
-#ifdef MFEM_USE_X86INTRIN
 // Inline methods
-// ****************************************************************************
-// * SetColPtr - gather
-// ****************************************************************************
-inline void SparseMatrix::SetColPtr(const x86::vint_t row) const{ 
-  if (ColPtrJ == NULL){
-    ColPtrJ = new int[width*x86::width];
-    for (int i = 0; i < width; i++)
-      for(int k = 0;k<x86::width; k++)
-        ColPtrJ[k*width+i] = -1;
-  }
-  for(int k=0;k<x86::width;k+=1){
-    const int r=((int*)&row)[k];
-    for (int j = I[r], end = I[r+1]; j < end; j++){
-      ColPtrJ[k*width+J[j]] = j;
-    }
-  }
-  
-}
-    
-// ****************************************************************************
-// * SearchRow - scatter
-// ****************************************************************************
-inline void SparseMatrix::SearchRow(const x86::vint_t col, const x86::vreal_t a){
-   for(int k=0;k<x86::width;k+=1){
-      const int j=ColPtrJ[k*width+col[k]];
-      MFEM_VERIFY(j != -1, "Entry for column " << col[k] << " is not allocated.");
-      A[j]+=a[k];
-   }
-}
-#endif
-   
+
 inline void SparseMatrix::SetColPtr(const int row) const
 {
    if (Rows)
