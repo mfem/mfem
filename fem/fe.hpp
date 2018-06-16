@@ -1564,6 +1564,7 @@ private:
 
    static void CalcChebyshev(const int p, const double x, double *u);
    static void CalcChebyshev(const int p, const double x, double *u, double *d);
+   static void CalcChebyshev(const int p, const double x, double *u, double *d, double *dd);
 
    QuadratureFunctions1D quad_func;
 
@@ -1617,6 +1618,13 @@ public:
    // { CalcBernstein(p, x, u, d); }
    // { CalcLegendre(p, x, u, d); }
    { CalcChebyshev(p, x, u, d); }
+   
+   // Evaluate the values, derivatives and second derivatives of a hierarchical 1D basis at point x
+   static void CalcBasis(const int p, const double x, double *u, double *d, double *dd)
+   // { CalcMono(p, x, u, d); }
+   // { CalcBernstein(p, x, u, d); }
+   // { CalcLegendre(p, x, u, d); }
+   { CalcChebyshev(p, x, u, d, dd); }
 
    // Evaluate a representation of a Delta function at point x
    static double CalcDelta(const int p, const double x)
@@ -1820,7 +1828,8 @@ class H1_TriangleElement : public NodalFiniteElement
 private:
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_l, dshape_x, dshape_y, dshape_l, u;
-   mutable DenseMatrix du;
+   mutable Vector ddshape_x, ddshape_y, ddshape_l;
+   mutable DenseMatrix du, ddu;
 #endif
    DenseMatrixInverse Ti;
 
@@ -1829,6 +1838,8 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void CalcHessian(const IntegrationPoint &ip,
+                           DenseMatrix &ddshape) const;
 };
 
 
@@ -1838,7 +1849,8 @@ private:
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_x, shape_y, shape_z, shape_l;
    mutable Vector dshape_x, dshape_y, dshape_z, dshape_l, u;
-   mutable DenseMatrix du;
+   mutable Vector ddshape_x, ddshape_y, ddshape_z, ddshape_l;
+   mutable DenseMatrix du, ddu;
 #endif
    DenseMatrixInverse Ti;
 
@@ -1848,6 +1860,8 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void CalcHessian(const IntegrationPoint &ip,
+                           DenseMatrix &ddshape) const;
 };
 
 
