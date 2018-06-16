@@ -44,7 +44,7 @@ template <int> struct x86intrin;
 // * AVX512 (-mavx512f)
 // ****************************************************************************
 #if __SIMD__==4
-#include "x86_m512.hpp"
+#include "x86/m512.hpp"
 #define MFEM_SIMD_SIZE 64
 #pragma message "[33;1mX86intrin::AVX512[m"
 template <> struct x86intrin<4>{
@@ -62,7 +62,7 @@ public:
 // * AVX2 (-mavx2)
 // ****************************************************************************
 #if __SIMD__==3
-#include "x86_m256.hpp"
+#include "x86/m256.hpp"
 #pragma message "[33;1mX86intrin::AVX2[m"
 template <> struct x86intrin<3>{
 public:
@@ -80,7 +80,7 @@ public:
 // ****************************************************************************
 #if __SIMD__==2
 #pragma message "[33;1mX86intrin::AVX[m"
-#include "x86_m256.hpp"
+#include "x86/m256.hpp"
 template <> struct x86intrin<2>{
 public:
   static const int align = 32;
@@ -96,7 +96,7 @@ public:
 // * SSE (-mno-avx)
 // ****************************************************************************
 #if __SIMD__==1
-#include "x86_m128.hpp"
+#include "x86/m128.hpp"
 #pragma message "[33;1mX86intrin::SSE[m"
 template <> struct x86intrin<1>{
 public:
@@ -113,7 +113,7 @@ public:
 // * 'SCALAR' (-mno-sse2)
 // ****************************************************************************
 #if __SIMD__==0
-#include "x86_m64.hpp"
+#include "x86/m64.hpp"
 #pragma message "[33;1mX86intrin::STD[m"
 template <> struct x86intrin<0>{
 public:
