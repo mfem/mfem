@@ -121,7 +121,8 @@ public:
 
    virtual ~TBilinearForm()
    {
-      delete [] assembled_data;
+      //delete [] assembled_data;
+      free(assembled_data);
    }
 
    /// Get the input finite element space prolongation matrix
@@ -197,7 +198,12 @@ public:
       {
          // TODO: How do we make sure that this array is aligned properly, AND
          //       the compiler knows that it is aligned?
-         assembled_data = new p_assembled_t[((NE+TE-1)/TE)*BE];
+         //assembled_data = new p_assembled_t[((NE+TE-1)/TE)*BE];
+         void* result = nullptr;
+         const int size =  ((NE+TE-1)/TE)*BE*sizeof(p_assembled_t);
+         const auto alloc_failed = posix_memalign(&result, 32, size);
+         if (alloc_failed) throw ::std::bad_alloc();
+         assembled_data = (p_assembled_t*) result;
       }
       for (int el = 0; el < NE; el += TE)
       {
