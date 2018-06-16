@@ -1442,6 +1442,7 @@ public:
       void Compute(const qpt_layout_t &a, const qpt_data_t &A,
                    const M_layout_t &m, M_data_t &M, ShapeEval_type &ev)
       {
+         assert(false);
          ev.Assemble(a.template split_1<qpts,1>(), A,
                      m.template split_2<dofs,1>(), M);
       }

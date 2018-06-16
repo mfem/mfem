@@ -111,7 +111,7 @@ public:
    {
       loc_dof_list = el_dof_list + elem_idx * FE::dofs;
    }
-
+   
    inline MFEM_ALWAYS_INLINE
    int map(int loc_dof_idx, int elem_offset) const
    {
@@ -260,7 +260,6 @@ public:
               for(int n=0; n<x86::width; n++)
               {
                 ind.SetElement(el+n);
-                assert(glob_vdof_data);
                 gather[n]=glob_vdof_data[vl.ind(ind.map(i,j),k)];
               }
               Assign<Op>(vdof_data[vdof_layout.ind(i,k,j)],gather);
