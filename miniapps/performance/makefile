@@ -24,7 +24,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 # Distinguish x86 from PowerPC systems
 MFEM_MACHINE ?= $(shell uname -m)
 
-# Choose the switch MFEM_PERF_SW: gcc_x86_64, gcc_ppc64, or clang.
+# Choose the switch MFEM_PERF_SW: gcc_x86_64, gcc_ppc64, clang, or icc.
 # The value of MFEM_PERF_SW is used to select MFEM_PERF_CXXFLAGS below.
 ifneq (,$(MFEM_PERF_SW))
    # Use the value of MFEM_PERF_SW if already defined
@@ -36,6 +36,8 @@ else ifneq (,$(filter %g++ %mpicxx %mpic++,$(MFEM_CXX)))
    else ifneq (,$(findstring ppc64,$(MFEM_MACHINE)))
       MFEM_PERF_SW = gcc_ppc64
    endif
+else ifneq (,$(filter %icpc %mpiicpc,$(MFEM_CXX)))
+   MFEM_PERF_SW = icc
 endif
 
 # Compiler specific optimizations.
@@ -45,8 +47,8 @@ endif
 # MFEM_PERF_CXXFLAGS_gcc_common += -std=c++03
 MFEM_PERF_CXXFLAGS_gcc_common += -std=c++11
 MFEM_PERF_CXXFLAGS_gcc_common += -pedantic -Wall
-MFEM_PERF_CXXFLAGS_gcc_common += --param max-completely-peel-times=3
-# MFEM_PERF_CXXFLAGS_gcc_common += -fdump-tree-optimized-blocks
+# MFEM_PERF_CXXFLAGS_gcc_common += --param max-completely-peel-times=3
+MFEM_PERF_CXXFLAGS_gcc_common += -fdump-tree-optimized-blocks
 MFEM_PERF_CXXFLAGS_gcc_x86_64 = -march=native $(MFEM_PERF_CXXFLAGS_gcc_common)
 MFEM_PERF_CXXFLAGS_gcc_ppc64 = -mcpu=native -mtune=native\
  $(MFEM_PERF_CXXFLAGS_gcc_common)
@@ -61,6 +63,11 @@ MFEM_PERF_CXXFLAGS_clang += -fvectorize
 MFEM_PERF_CXXFLAGS_clang += -fslp-vectorize
 MFEM_PERF_CXXFLAGS_clang += -fslp-vectorize-aggressive
 MFEM_PERF_CXXFLAGS_clang += -ffp-contract=fast
+
+# - Intel C++ compiler extra options:
+MFEM_PERF_CXXFLAGS_icc += -xHost
+# MFEM_PERF_CXXFLAGS_icc += -std=c++03
+MFEM_PERF_CXXFLAGS_icc += -std=c++11
 
 # Choose MFEM_PERF_CXXFLAGS based on MFEM_PERF_SW:
 MFEM_PERF_CXXFLAGS = $(MFEM_PERF_CXXFLAGS_$(MFEM_PERF_SW))

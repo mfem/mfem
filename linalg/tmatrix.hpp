@@ -20,6 +20,18 @@ namespace mfem
 
 // Matrix-matrix products
 
+namespace internal
+{
+
+template <typename T> struct entry_type
+{ typedef typename T::data_type type; };
+
+template <typename T> struct entry_type<T*>
+{ typedef T type; };
+
+} // namespace mfem::internal
+
+
 // C  {=|+=}  A.B -- simple version (no blocks)
 template <bool Add,
           typename A_layout_t, typename A_data_t,
@@ -44,23 +56,26 @@ void sMult_AB(const A_layout_t &A_layout, const A_data_t &A_data,
    MFEM_FLOPS_ADD(Add ? 2*A1*A2*B2 : 2*A1*A2*B2-A1*B2);
    for (int b2 = 0; b2 < B2; b2++)
    {
-      for (int s = 0; s < A2; s++)
+      for (int a1 = 0; a1 < A1; a1++)
       {
-         for (int a1 = 0; a1 < A1; a1++)
+         typename internal::entry_type<C_data_t>::type c_a1_b2;
+         if (Add)
          {
-            if (!Add && s == 0)
-            {
-               // C(a1,b2) = A(a1,s) * B(s,b2);
-               C_data[C_layout.ind(a1,b2)] =
-                  A_data[A_layout.ind(a1,s)] * B_data[B_layout.ind(s,b2)];
-            }
-            else
-            {
-               // C(a1,b2) += A(a1,s) * B(s,b2);
-               C_data[C_layout.ind(a1,b2)] +=
-                  A_data[A_layout.ind(a1,s)] * B_data[B_layout.ind(s,b2)];
-            }
+            // C(a1,b2) += A(a1,0) * B(0,b2);
+            c_a1_b2 = C_data[C_layout.ind(a1,b2)];
+            c_a1_b2.fma(A_data[A_layout.ind(a1,0)], B_data[B_layout.ind(0,b2)]);
          }
+         else
+         {
+            // C(a1,b2) = A(a1,0) * B(0,b2);
+            c_a1_b2.mul(A_data[A_layout.ind(a1,0)], B_data[B_layout.ind(0,b2)]);
+         }
+         for (int s = 1; s < A2; s++)
+         {
+            // C(a1,b2) += A(a1,s) * B(s,b2);
+            c_a1_b2.fma(A_data[A_layout.ind(a1,s)], B_data[B_layout.ind(s,b2)]);
+         }
+         C_data[C_layout.ind(a1,b2)] = c_a1_b2;
       }
    }
 }

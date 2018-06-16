@@ -27,7 +27,11 @@ elseif (${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
     "-std=c++11"
     "-pedantic"
     "-Wall"
-    "--param" "max-completely-peel-times=3")
+#    "--param" "max-completely-peel-times=3"
+    )
+elseif (${CMAKE_CXX_COMPILER_ID} MATCHES "Intel")
+  list(APPEND PERFORMANCE_CXX_OPTIONS
+    "-xHost")
 endif()
 
 add_mfem_miniapp(performance_ex1

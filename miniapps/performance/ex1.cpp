@@ -53,24 +53,12 @@ typedef H1_FiniteElement<geom,sol_p>          sol_fe_t;
 typedef H1_FiniteElementSpace<sol_fe_t>       sol_fes_t;
 
 // Static quadrature, coefficient and integrator types
-#ifdef MFEM_USE_X86INTRIN
-typedef TIntegrationRule<geom,ir_order,x86::vreal_t> int_rule_t;
-typedef TConstantCoefficient<x86::vreal_t>         coeff_t;
-#else
 typedef TIntegrationRule<geom,ir_order>       int_rule_t;
 typedef TConstantCoefficient<>                coeff_t;
-#endif
 typedef TIntegrator<coeff_t,TDiffusionKernel> integ_t;
 
 // Static bilinear form type, combining the above types
-#ifdef MFEM_USE_X86INTRIN
-typedef TBilinearForm<mesh_t,sol_fes_t,
-                      int_rule_t,integ_t,
-                      ScalarLayout,
-                      x86::vreal_t,x86::vreal_t> HPCBilinearForm;
-#else
 typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t> HPCBilinearForm;
-#endif
 
 int main(int argc, char *argv[])
 {
@@ -357,6 +345,8 @@ int main(int argc, char *argv[])
    cout << " done, " << tic_toc.RealTime() << "s." << endl;
 
    // Solve with CG or PCG, depending if the matrix A_pc is available
+   tic_toc.Clear();
+   tic_toc.Start();
    if (pc_choice != NONE)
    {
       GSSmoother M(A_pc);
@@ -366,6 +356,8 @@ int main(int argc, char *argv[])
    {
       CG(*a_oper, B, X, 1, 500, 1e-12, 0.0);
    }
+   tic_toc.Stop();
+   cout << "Solve time: " << tic_toc.RealTime() << "s." << endl;
 
    // 13. Recover the solution as a finite element grid function.
    if (perf && matrix_free)
