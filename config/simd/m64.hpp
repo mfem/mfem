@@ -8,47 +8,204 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
-#ifndef MFEM_X86_M64_HPP
-#define MFEM_X86_M64_HPP
+
+#ifndef MFEM_TEMPLATE_CONFIG_SIMD_M64
+#define MFEM_TEMPLATE_CONFIG_SIMD_M64
 
 // ****************************************************************************
-// * STD integer
-// ****************************************************************************
-struct integer {
-protected:
-  int vec;
-public:
-  // Constructors
-  inline integer():vec(){}
-  inline	integer(int i):vec(i){}
-  // Convertors
-  inline operator int() const { return vec; }
-  // Arithmetics
-  friend inline integer operator *(const integer &a, const integer &b) { return a*b; }
-  // [] operator
-  inline int& operator[](int k) { return vec; }
-  inline const int& operator[](int k) const { return vec; }
+template <typename scalar_t> struct AutoSIMD<scalar_t,1,1>
+{
+   typedef scalar_t scalar_type;
+   static const int size = 1;
+   static const int align_size = 8;
+
+   scalar_t vec[size];
+
+   scalar_t &operator[](int i) { return vec[0]; }
+   const scalar_t &operator[](int i) const { return vec[0]; }
+
+   AutoSIMD &operator=(const AutoSIMD &v)
+   {
+      vec[0] = v[0];
+      return *this;
+   }
+   AutoSIMD &operator=(const scalar_t &e)
+   {
+      vec[0] = e;
+      return *this;
+   }
+   AutoSIMD &operator+=(const AutoSIMD &v)
+   {
+      vec[0] += v[0];
+      return *this;
+   }
+   AutoSIMD &operator+=(const scalar_t &e)
+   {
+      vec[0] += e;
+      return *this;
+   }
+   AutoSIMD &operator-=(const AutoSIMD &v)
+   {
+      vec[0] -= v[0];
+      return *this;
+   }
+   AutoSIMD &operator-=(const scalar_t &e)
+   {
+      vec[0] -= e;
+      return *this;
+   }
+   AutoSIMD &operator*=(const AutoSIMD &v)
+   {
+      vec[0] *= v[0];
+      return *this;
+   }
+   AutoSIMD &operator*=(const scalar_t &e)
+   {
+      vec[0] *= e;
+      return *this;
+   }
+   AutoSIMD &operator/=(const AutoSIMD &v)
+   {
+      vec[0] /= v[0];
+      return *this;
+   }
+   AutoSIMD &operator/=(const scalar_t &e)
+   {
+      vec[0] /= e;
+      return *this;
+   }
+
+   AutoSIMD operator-() const
+   {
+      AutoSIMD r;
+      r[0] = -vec[0];
+      return r;
+   }
+
+   AutoSIMD operator+(const AutoSIMD &v) const
+   {
+      AutoSIMD r;
+      r[0] = vec[0] + v[0];
+      return r;
+   }
+   AutoSIMD operator+(const scalar_t &e) const
+   {
+      AutoSIMD r;
+      r[0] = vec[0] + e;
+      return r;
+   }
+   AutoSIMD operator-(const AutoSIMD &v) const
+   {
+      AutoSIMD r;
+      r[0] = vec[0] - v[0];
+      return r;
+   }
+   AutoSIMD operator-(const scalar_t &e) const
+   {
+      AutoSIMD r;
+      r[0] = vec[0] - e;
+      return r;
+   }
+   AutoSIMD operator*(const AutoSIMD &v) const
+   {
+      AutoSIMD r;
+      r[0] = vec[0] * v[0];
+      return r;
+   }
+   AutoSIMD operator*(const scalar_t &e) const
+   {
+      AutoSIMD r;
+      r[0] = vec[0] * e;
+      return r;
+   }
+   AutoSIMD operator/(const AutoSIMD &v) const
+   {
+      AutoSIMD r;
+      r[0] = vec[0] / v[0];
+      return r;
+   }
+   AutoSIMD operator/(const scalar_t &e) const
+   {
+      AutoSIMD r;
+      r[0] = vec[0] / e;
+      return r;
+   }
+
+   AutoSIMD &fma(const AutoSIMD &v, const AutoSIMD &w)
+   {
+      vec[0] += v[0] * w[0];
+      return *this;
+   }
+   AutoSIMD &fma(const AutoSIMD &v, const scalar_t &e)
+   {
+      vec[0] += v[0] * e;
+      return *this;
+   }
+   AutoSIMD &fma(const scalar_t &e, const AutoSIMD &v)
+   {
+      vec[0] += e * v[0];
+      return *this;
+   }
+
+   AutoSIMD &mul(const AutoSIMD &v, const AutoSIMD &w)
+   {
+      vec[0] = v[0] * w[0];
+      return *this;
+   }
+   AutoSIMD &mul(const AutoSIMD &v, const scalar_t &e)
+   {
+      vec[0] = v[0] * e;
+      return *this;
+   }
+   AutoSIMD &mul(const scalar_t &e, const AutoSIMD &v)
+   {
+      vec[0] = e * v[0];
+      return *this;
+   }
 };
 
-// ****************************************************************************
-// * STD real type class
-// ****************************************************************************
-struct real {
- protected:
-  double vec;
- public:
-  // Constructors
-  inline real(): vec(){}
-  inline real(double a): vec(a){}
-   // Convertors
-  inline operator double() const { return vec; }
-  // Arithmetics  
-  inline real& operator+=(const real &a) { return *this = vec+a; }
-  // Mixed vector-scalar operations
-  inline real& operator*=(const double &f) { return *this = vec*f; }
-  // [] operators
-  inline const double& operator[](int k) const { return vec; }
-  inline double& operator[](int k) { return vec; }
-};
+// *****************************************************************************
+template <typename scalar_t>
+AutoSIMD<scalar_t,1,1> operator+(const scalar_t &e,
+                                 const AutoSIMD<scalar_t,1,1> &v)
+{
+   AutoSIMD<scalar_t,1,1> r;
+   MFEM_VECTORIZE_LOOP
+   r[0] = e + v[0];
+   return r;
+}
 
-#endif // MFEM_X86_M64_HPP
+// *****************************************************************************
+template <typename scalar_t>
+AutoSIMD<scalar_t,1,1> operator-(const scalar_t &e,
+                                 const AutoSIMD<scalar_t,1,1> &v)
+{
+   AutoSIMD<scalar_t,1,1> r;
+   r[0] = e - v[0];
+   return r;
+}
+
+// *****************************************************************************
+template <typename scalar_t>
+AutoSIMD<scalar_t,1,1> operator*(const scalar_t &e,
+                                 const AutoSIMD<scalar_t,1,1> &v)
+{
+   AutoSIMD<scalar_t,1,1> r;
+   r[0] = e * v[0];
+   return r;
+}
+
+// *****************************************************************************
+template <typename scalar_t>
+AutoSIMD<scalar_t,1,1> operator/(const scalar_t &e,
+                                 const AutoSIMD<scalar_t,1,1> &v)
+{
+   AutoSIMD<scalar_t,1,1> r;
+   r[0] = e / v[0];
+   return r;
+}
+
+
+//template<typename type_t> typedef struct AutoSIMD<type_t,1,1,0>  AutoSIMD<type_t,1,1,2>;
+
+#endif // MFEM_TEMPLATE_CONFIG_SIMD_M64
