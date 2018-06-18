@@ -31,7 +31,7 @@
 
 // --- MFEM_VECTORIZE_LOOP (disabled)
 #if (__cplusplus >= 201103L) && !defined(MFEM_DEBUG) && defined(__GNUC__)
-// #define MFEM_VECTORIZE_LOOP _Pragma("GCC ivdep")
+//#define MFEM_VECTORIZE_LOOP _Pragma("GCC ivdep")
 #define MFEM_VECTORIZE_LOOP
 #else
 #define MFEM_VECTORIZE_LOOP
@@ -47,11 +47,11 @@
 #endif
 
 // --- X86 or AutoSIMD
-#ifdef MFEM_USE_X86INTRIN
-#include "simd/x86.hpp"
-#else
+#ifndef MFEM_USE_X86INTRIN
 #include "simd/auto.hpp"
-#endif
+#else
+#include "simd/x86.hpp"
+#endif // MFEM_USE_X86INTRIN
 
 // --- SIMD Traits
 #define MFEM_TEMPLATE_BLOCK_SIZE 4
@@ -62,16 +62,19 @@ struct AutoImplTraits
    static const int block_size = MFEM_TEMPLATE_BLOCK_SIZE;
    static const int align_size = MFEM_SIMD_SIZE; // in bytes
 
+   static const int batch_size = 1;
+   
    static const int simd_size = MFEM_SIMD_SIZE/sizeof(complex_t);
    static const int valign_size = simd_size;
    
    //static const int simd_size = 1;
    //static const int valign_size = 1;
    
-   static const int batch_size = 1;
    typedef AutoSIMD<complex_t,simd_size,valign_size> vcomplex_t;
    typedef AutoSIMD<   real_t,simd_size,valign_size> vreal_t;
+#ifndef MFEM_USE_X86INTRIN
    typedef AutoSIMD<      int,simd_size,valign_size> vint_t;
+#endif // MFEM_USE_X86INTRIN
 };
 
 
