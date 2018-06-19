@@ -43,6 +43,8 @@ public:
    /// Get the associated engine
    const Engine &GetEngine() const { return *engine; }
 
+   mfem::FiniteElementSpace* GetFESpace() const { return fes; }
+
    /// TODO
    template <typename derived_t>
    derived_t &As() { return *util::As<derived_t>(this); }

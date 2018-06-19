@@ -121,6 +121,15 @@
 // Enable the OCCA backend.
 // #define MFEM_USE_OCCA
 
+// Enable the OMP backend.
+// #define MFEM_USE_OMP
+
+// Enable use of acrotensor in backends.
+// #define MFEM_USE_ACROTENSOR
+
+// Enable use of unified memory.
+// #define MFEM_USE_CUDAUM
+
 // Windows specific options
 #ifdef _WIN32
 // Macro needed to get defines like M_PI from <cmath>. (Visual Studio C++ only?)

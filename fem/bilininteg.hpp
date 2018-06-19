@@ -83,6 +83,13 @@ public:
    virtual ~BilinearFormIntegrator() { }
 };
 
+class TensorBilinearFormIntegrator : public Operator
+{
+public:
+   virtual ~TensorBilinearFormIntegrator() { }
+   virtual void Reassemble() = 0;
+};
+
 class TransposeIntegrator : public BilinearFormIntegrator
 {
 private:

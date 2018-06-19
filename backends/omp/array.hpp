@@ -1,0 +1,134 @@
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
+
+#ifndef MFEM_BACKENDS_OMP_ARRAY_HPP
+#define MFEM_BACKENDS_OMP_ARRAY_HPP
+
+#include "../../config/config.hpp"
+#if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_OMP)
+
+#include "layout.hpp"
+#include "../base/array.hpp"
+
+namespace mfem
+{
+
+namespace omp
+{
+
+class Array : public virtual mfem::PArray
+{
+protected:
+   //
+   // Inherited fields
+   //
+   // DLayout layout;
+
+   char *data;
+   std::size_t bytes;
+
+   //
+   // Virtual interface
+   //
+
+   virtual PArray *DoClone(bool copy_data, void **buffer,
+                           std::size_t item_size) const;
+
+   virtual int DoResize(PLayout &new_layout, void **buffer,
+                        std::size_t item_size);
+
+   virtual void *DoPullData(void *buffer, std::size_t item_size);
+
+   virtual void DoFill(const void *value_ptr, std::size_t item_size);
+
+   virtual void DoPushData(const void *src_buffer, std::size_t item_size);
+
+   virtual void DoAssign(const PArray &src, std::size_t item_size);
+
+   //
+   // Auxiliary methods
+   //
+
+   inline char *GetBuffer() const;
+
+   inline int ResizeData(const Layout *lt, std::size_t item_size);
+
+   inline bool ComputeOnDevice() const { return (OmpLayout().OmpEngine().ExecTarget() == Device); }
+
+   inline bool IsUnifiedMemory() const { return OmpLayout().OmpEngine().UnifiedMemory(); }
+
+   template <typename T>
+   void OmpFill(const T *pval)
+   {
+      const int size = layout->Size();
+      T *ptr = (T*) data;
+#pragma omp target teams distribute parallel for if (target: ComputeOnDevice()) map(to: ptr)
+      for (int i = 0; i < size; i++) ptr[i] = (*pval);
+   }
+
+public:
+   Array(Layout &lt, std::size_t item_size)
+      : PArray(lt),
+        data(static_cast<char *>(lt.Alloc(lt.Size()*item_size))),
+	bytes(lt.Size())
+   {
+      if (!IsUnifiedMemory())
+      {
+#pragma omp target enter data if(ComputeOnDevice()) map(alloc:data[:lt.Size()*item_size])
+      }
+   }
+
+   virtual ~Array() { }
+
+   inline void MakeRef(Array &master);
+
+   Layout &OmpLayout() const
+   { return *static_cast<Layout *>(layout.Get()); }
+};
+
+
+//
+// Inline methods
+//
+
+inline char *Array::GetBuffer() const
+{
+   return data;
+}
+
+inline int Array::ResizeData(const Layout *lt, std::size_t item_size)
+{
+   const std::size_t new_bytes = lt->Size() * item_size;
+   if (bytes < new_bytes)
+   {
+#pragma omp target exit data map(delete:data)
+      OmpLayout().Dealloc(data);
+      data = static_cast<char *>(OmpLayout().Alloc(new_bytes));
+      MFEM_VERIFY(data != NULL, "");
+      // If memory allocation fails - an exception is thrown.
+#pragma omp target enter data map(alloc:data[:new_bytes])
+   }
+   return 0;
+}
+
+inline void Array::MakeRef(Array &master)
+{
+   layout = master.layout;
+   data = master.data;
+}
+
+} // namespace mfem::omp
+
+} // namespace mfem
+
+#endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_OMP)
+
+#endif // MFEM_BACKENDS_OMP_ARRAY_HPP

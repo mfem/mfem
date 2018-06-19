@@ -30,6 +30,7 @@ namespace mfem
 // Forward declarations.
 class Backend;
 template <typename T> class Array;
+class Vector;
 class Operator;
 class FiniteElementSpace;
 class LinearForm;

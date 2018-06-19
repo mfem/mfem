@@ -109,6 +109,10 @@ MFEM_USE_PETSC       = NO
 MFEM_USE_MPFR        = NO
 MFEM_USE_SIDRE       = NO
 MFEM_USE_CONDUIT     = NO
+# FIXME: add MFEM_USE_OMP and MFEM_USE_ACROTENSOR to the CMake build system
+MFEM_USE_OMP         = NO
+MFEM_USE_ACROTENSOR  = NO
+MFEM_USE_CUDAUM      = NO
 
 # Compile and link options for zlib.
 ZLIB_DIR =
@@ -277,6 +281,18 @@ SIDRE_LIB = \
 OCCA_DIR = @MFEM_DIR@/../occa
 OCCA_OPT = -I$(OCCA_DIR)/include
 OCCA_LIB = -Wl,-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
+
+CUDA_DIR = /usr/local/cuda
+CUDAUM_LIB = -L$(CUDA_DIR)/lib64 -lcudart
+CUDAUM_OPT = -I$(CUDA_DIR)/include
+
+ACROTENSOR_DIR = @MFEM_DIR@/../acrotensor
+ACROTENSOR_OPT = -std=c++11 -I$(ACROTENSOR_DIR)/inc
+ACROTENSOR_LIB = -Wl,-rpath,$(ACROTENSOR_DIR)/lib/shared -L$(ACROTENSOR_DIR)/lib/shared -lacrotensor
+ifdef CUDA_DIR
+ACROTENSOR_OPT += -I$(CUDA_DIR)/include
+ACROTENSOR_LIB += -L$(CUDA_DIR)/lib64 -lcuda -lcudart -lnvrtc
+endif
 
 # If YES, enable some informational messages
 VERBOSE = NO

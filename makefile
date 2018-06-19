@@ -197,7 +197,7 @@ endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
 MFEM_REQ_LIB_DEPS = SUPERLU METIS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE SUITESPARSE\
- STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR OCCA
+ STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR OCCA ACROTENSOR
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 
 define mfem_check_dependency
@@ -245,7 +245,7 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU\
  MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC\
  MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_BACKENDS MFEM_USE_OCCA\
- MFEM_SOURCE_DIR MFEM_INSTALL_DIR
+ MFEM_SOURCE_DIR MFEM_INSTALL_DIR MFEM_USE_OMP MFEM_USE_ACROTENSOR MFEM_USE_CUDAUM
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
@@ -307,13 +307,16 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # Source dirs in logical order
-ALL_SRC_DIRS := general linalg mesh fem backends/base backends/occa
+ALL_SRC_DIRS := general linalg mesh fem backends/base backends/occa backends/omp
 DIRS := $(ALL_SRC_DIRS)
 ifeq ($(MFEM_USE_BACKENDS),NO)
    DIRS := $(filter-out backends/%,$(DIRS))
 else
    ifeq ($(MFEM_USE_OCCA),NO)
       DIRS := $(filter-out backends/occa,$(DIRS))
+   endif
+   ifeq ($(MFEM_USE_OMP),NO)
+      DIRS := $(filter-out backends/omp,$(DIRS))
    endif
 endif
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
@@ -526,6 +529,9 @@ status info:
 	$(info MFEM_USE_MPFR        = $(MFEM_USE_MPFR))
 	$(info MFEM_USE_SIDRE       = $(MFEM_USE_SIDRE))
 	$(info MFEM_USE_CONDUIT     = $(MFEM_USE_CONDUIT))
+	$(info MFEM_USE_OMP         = $(MFEM_USE_OMP))
+	$(info MFEM_USE_ACROTENSOR  = $(MFEM_USE_ACROTENSOR))
+	$(info MFEM_USE_CUDAUM      = $(MFEM_USE_CUDAUM))
 	$(info MFEM_CXX             = $(value MFEM_CXX))
 	$(info MFEM_CPPFLAGS        = $(value MFEM_CPPFLAGS))
 	$(info MFEM_CXXFLAGS        = $(value MFEM_CXXFLAGS))
