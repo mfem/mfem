@@ -133,29 +133,17 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,8,8>
 
    AutoSIMD &fma(const AutoSIMD &v, const AutoSIMD &w)
    {
-#if __SIMD__==2 //-mavx -mno-avx2
-      m512d = _mm512_add_pd(_mm512_mul_pd(w.m512d,v.m512d),m512d);
-#else
       m512d = _mm512_fmadd_pd(w.m512d,v.m512d,m512d);
-#endif
       return *this;
    }
    AutoSIMD &fma(const AutoSIMD &v, const scalar_t &e)
    {
-#if __SIMD__==2 //-mavx -mno-avx2
-      m512d = _mm512_add_pd(_mm512_mul_pd(_mm512_set1_pd(e),v.m512d),m512d);
-#else
       m512d = _mm512_fmadd_pd(_mm512_set1_pd(e),v.m512d,m512d);
-#endif
       return *this;
    }
    AutoSIMD &fma(const scalar_t &e, const AutoSIMD &v)
    {
-#if __SIMD__==2 //-mavx -mno-avx2
-      m512d = _mm512_add_pd(_mm512_mul_pd(v.m512d,_mm512_set1_pd(e)),m512d);
-#else
       m512d = _mm512_fmadd_pd(v.m512d,_mm512_set1_pd(e),m512d);
-#endif
       return *this;
    }
 

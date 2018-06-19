@@ -205,7 +205,4 @@ AutoSIMD<scalar_t,1,1> operator/(const scalar_t &e,
    return r;
 }
 
-
-//template<typename type_t> typedef struct AutoSIMD<type_t,1,1,0>  AutoSIMD<type_t,1,1,2>;
-
 #endif // MFEM_TEMPLATE_CONFIG_SIMD_M64

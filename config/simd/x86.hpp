@@ -12,27 +12,8 @@
 #ifndef MFEM_TEMPLATE_CONFIG_X86INTRIN_HPP
 #define MFEM_TEMPLATE_CONFIG_X86INTRIN_HPP
 
-#include "assert.h"
 #include "x86intrin.h"
 
-// ****************************************************************************
-// * ifdef switch between SCALAR, SSE, AVX, AVX2, AVX512F
-// ****************************************************************************
-#ifndef __SSE2__
-#define __SSE2__ 0
-#endif
-#ifndef __AVX__
-#define __AVX__ 0
-#endif
-#ifndef __AVX2__
-#define __AVX2__ 0
-#endif
-#ifndef __AVX512F__
-#define __AVX512F__ 0
-#endif
-#define __SIMD__ __SSE2__+__AVX__+__AVX2__+__AVX512F__
-
-// *****************************************************************************
 template <typename,int,int=1> struct AutoSIMD;
 
 #include "m64.hpp"
