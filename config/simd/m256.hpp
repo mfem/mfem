@@ -133,7 +133,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,4,4>
 
    AutoSIMD &fma(const AutoSIMD &v, const AutoSIMD &w)
    {
-#if __SIMD__==2 //-mavx -mno-avx2
+#ifndef __AVX2__
       m256d = _mm256_add_pd(_mm256_mul_pd(w.m256d,v.m256d),m256d);
 #else
       m256d = _mm256_fmadd_pd(w.m256d,v.m256d,m256d);
@@ -142,7 +142,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,4,4>
    }
    AutoSIMD &fma(const AutoSIMD &v, const scalar_t &e)
    {
-#if __SIMD__==2 //-mavx -mno-avx2
+#ifndef __AVX2__
       m256d = _mm256_add_pd(_mm256_mul_pd(_mm256_set1_pd(e),v.m256d),m256d);
 #else
       m256d = _mm256_fmadd_pd(_mm256_set1_pd(e),v.m256d,m256d);
@@ -151,7 +151,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,4,4>
    }
    AutoSIMD &fma(const scalar_t &e, const AutoSIMD &v)
    {
-#if __SIMD__==2 //-mavx -mno-avx2
+#ifndef __AVX2__
       m256d = _mm256_add_pd(_mm256_mul_pd(v.m256d,_mm256_set1_pd(e)),m256d);
 #else
       m256d = _mm256_fmadd_pd(v.m256d,_mm256_set1_pd(e),m256d);
