@@ -170,7 +170,6 @@ AutoSIMD<scalar_t,1,1> operator+(const scalar_t &e,
                                  const AutoSIMD<scalar_t,1,1> &v)
 {
    AutoSIMD<scalar_t,1,1> r;
-   MFEM_VECTORIZE_LOOP
    r[0] = e + v[0];
    return r;
 }
