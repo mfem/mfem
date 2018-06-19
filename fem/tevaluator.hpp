@@ -58,7 +58,7 @@ public:
    // dof_layout is (DOF x NumComp) and qpt_layout is (NIP x NumComp).
    template <typename dof_layout_t, typename dof_data_t,
              typename qpt_layout_t, typename qpt_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void Calc(const dof_layout_t &dof_layout, const dof_data_t &dof_data,
              const qpt_layout_t &qpt_layout, qpt_data_t &qpt_data) const
    {
@@ -81,7 +81,7 @@ public:
    template <bool Add,
              typename qpt_layout_t, typename qpt_data_t,
              typename dof_layout_t, typename dof_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void CalcT(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
               const dof_layout_t &dof_layout, dof_data_t &dof_data) const
    {
@@ -103,7 +103,7 @@ public:
    // dof_layout is (DOF x NumComp) and grad_layout is (NIP x DIM x NumComp).
    template <typename dof_layout_t, typename dof_data_t,
              typename grad_layout_t, typename grad_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void CalcGrad(const dof_layout_t  &dof_layout,
                  const dof_data_t    &dof_data,
                  const grad_layout_t &grad_layout,
@@ -129,7 +129,7 @@ public:
    template <bool Add,
              typename grad_layout_t, typename grad_data_t,
              typename dof_layout_t, typename dof_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void CalcGradT(const grad_layout_t &grad_layout,
                   const grad_data_t   &grad_data,
                   const dof_layout_t  &dof_layout,
@@ -154,7 +154,7 @@ public:
    // qpt_layout is (NIP x NumComp), M_layout is (DOF x DOF x NumComp)
    template <typename qpt_layout_t, typename qpt_data_t,
              typename M_layout_t, typename M_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void Assemble(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
                  const M_layout_t &M_layout, M_data_t &M_data) const
    {
@@ -178,7 +178,7 @@ public:
    // D_layout is (DOF x DOF x NumComp).
    template <typename qpt_layout_t, typename qpt_data_t,
              typename D_layout_t, typename D_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void AssembleGradGrad(const qpt_layout_t &qpt_layout,
                          const qpt_data_t   &qpt_data,
                          const D_layout_t   &D_layout,
@@ -225,7 +225,7 @@ public:
    // dof_layout is (DOF x NumComp) and qpt_layout is (NIP x NumComp).
    template <typename dof_layout_t, typename dof_data_t,
              typename qpt_layout_t, typename qpt_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void Calc(const dof_layout_t &dof_layout, const dof_data_t &dof_data,
              const qpt_layout_t &qpt_layout, qpt_data_t &qpt_data) const
    {
@@ -239,7 +239,7 @@ public:
    template <bool Add,
              typename qpt_layout_t, typename qpt_data_t,
              typename dof_layout_t, typename dof_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void CalcT(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
               const dof_layout_t &dof_layout, dof_data_t &dof_data) const
    {
@@ -252,7 +252,7 @@ public:
    // dof_layout is (DOF x NumComp) and grad_layout is (NIP x DIM x NumComp).
    template <typename dof_layout_t, typename dof_data_t,
              typename grad_layout_t, typename grad_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void CalcGrad(const dof_layout_t  &dof_layout,
                  const dof_data_t    &dof_data,
                  const grad_layout_t &grad_layout,
@@ -269,7 +269,7 @@ public:
    template <bool Add,
              typename grad_layout_t, typename grad_data_t,
              typename dof_layout_t, typename dof_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void CalcGradT(const grad_layout_t &grad_layout,
                   const grad_data_t   &grad_data,
                   const dof_layout_t  &dof_layout,
@@ -286,7 +286,7 @@ public:
    // qpt_layout is (NIP x NumComp), M_layout is (DOF x DOF x NumComp)
    template <typename qpt_layout_t, typename qpt_data_t,
              typename M_layout_t, typename M_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void Assemble(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
                  const M_layout_t &M_layout, M_data_t &M_data) const
    {
@@ -310,7 +310,7 @@ public:
    // D_layout is (DOF x DOF x NumComp).
    template <typename qpt_layout_t, typename qpt_data_t,
              typename D_layout_t, typename D_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void AssembleGradGrad(const qpt_layout_t &qpt_layout,
                          const qpt_data_t   &qpt_data,
                          const D_layout_t   &D_layout,
@@ -349,7 +349,7 @@ public:
    template <bool Dx, bool Dy,
              typename dof_layout_t, typename dof_data_t,
              typename qpt_layout_t, typename qpt_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void Calc(const dof_layout_t &dof_layout, const dof_data_t &dof_data,
              const qpt_layout_t &qpt_layout, qpt_data_t &qpt_data) const
    {
@@ -372,7 +372,7 @@ public:
    // dof_layout is (TDOF x NumComp) and qpt_layout is (TNIP x NumComp).
    template <typename dof_layout_t, typename dof_data_t,
              typename qpt_layout_t, typename qpt_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void Calc(const dof_layout_t &dof_layout, const dof_data_t &dof_data,
              const qpt_layout_t &qpt_layout, qpt_data_t &qpt_data) const
    {
@@ -382,7 +382,7 @@ public:
    template <bool Dx, bool Dy, bool Add,
              typename qpt_layout_t, typename qpt_data_t,
              typename dof_layout_t, typename dof_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void CalcT(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
               const dof_layout_t &dof_layout, dof_data_t &dof_data) const
    {
@@ -406,7 +406,7 @@ public:
    template <bool Add,
              typename qpt_layout_t, typename qpt_data_t,
              typename dof_layout_t, typename dof_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void CalcT(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
               const dof_layout_t &dof_layout, dof_data_t &dof_data) const
    {
@@ -417,7 +417,7 @@ public:
    // dof_layout is (TDOF x NumComp) and grad_layout is (TNIP x DIM x NumComp).
    template <typename dof_layout_t, typename dof_data_t,
              typename grad_layout_t, typename grad_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void CalcGrad(const dof_layout_t  &dof_layout,
                  const dof_data_t    &dof_data,
                  const grad_layout_t &grad_layout,
@@ -435,7 +435,7 @@ public:
    template <bool Add,
              typename grad_layout_t, typename grad_data_t,
              typename dof_layout_t, typename dof_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void CalcGradT(const grad_layout_t &grad_layout,
                   const grad_data_t   &grad_data,
                   const dof_layout_t  &dof_layout,
@@ -451,7 +451,7 @@ public:
    // qpt_layout is (TNIP x NumComp), M_layout is (TDOF x TDOF x NumComp)
    template <typename qpt_layout_t, typename qpt_data_t,
              typename M_layout_t, typename M_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void Assemble(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
                  const M_layout_t &M_layout, M_data_t &M_data) const
    {
@@ -514,7 +514,7 @@ public:
    template <int D1, int D2, bool Add,
              typename qpt_layout_t, typename qpt_data_t,
              typename D_layout_t, typename D_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void Assemble(const qpt_layout_t &qpt_layout,
                  const qpt_data_t   &qpt_data,
                  const D_layout_t   &D_layout,
@@ -545,7 +545,7 @@ public:
    // D_layout is (TDOF x TDOF x NumComp).
    template <typename qpt_layout_t, typename qpt_data_t,
              typename D_layout_t, typename D_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void AssembleGradGrad(const qpt_layout_t &qpt_layout,
                          const qpt_data_t   &qpt_data,
                          const D_layout_t   &D_layout,
@@ -629,7 +629,7 @@ public:
    template <bool Dx, bool Dy, bool Dz,
              typename dof_layout_t, typename dof_data_t,
              typename qpt_layout_t, typename qpt_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void Calc(const dof_layout_t &dof_layout, const dof_data_t &dof_data,
              const qpt_layout_t &qpt_layout, qpt_data_t &qpt_data) const
    {
@@ -656,7 +656,7 @@ public:
    // dof_layout is (TDOF x NumComp) and qpt_layout is (TNIP x NumComp).
    template <typename dof_layout_t, typename dof_data_t,
              typename qpt_layout_t, typename qpt_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void Calc(const dof_layout_t &dof_layout, const dof_data_t &dof_data,
              const qpt_layout_t &qpt_layout, qpt_data_t &qpt_data) const
    {
@@ -666,7 +666,7 @@ public:
    template <bool Dx, bool Dy, bool Dz, bool Add,
              typename qpt_layout_t, typename qpt_data_t,
              typename dof_layout_t, typename dof_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void CalcT(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
               const dof_layout_t &dof_layout, dof_data_t &dof_data) const
    {
@@ -694,7 +694,7 @@ public:
    template <bool Add,
              typename qpt_layout_t, typename qpt_data_t,
              typename dof_layout_t, typename dof_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void CalcT(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
               const dof_layout_t &dof_layout, dof_data_t &dof_data) const
    {
@@ -705,7 +705,7 @@ public:
    // dof_layout is (TDOF x NumComp) and grad_layout is (TNIP x DIM x NumComp).
    template <typename dof_layout_t, typename dof_data_t,
              typename grad_layout_t, typename grad_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void CalcGrad(const dof_layout_t  &dof_layout,
                  const dof_data_t    &dof_data,
                  const grad_layout_t &grad_layout,
@@ -727,7 +727,7 @@ public:
    template <bool Add,
              typename grad_layout_t, typename grad_data_t,
              typename dof_layout_t, typename dof_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void CalcGradT(const grad_layout_t &grad_layout,
                   const grad_data_t   &grad_data,
                   const dof_layout_t  &dof_layout,
@@ -745,7 +745,7 @@ public:
    // qpt_layout is (TNIP x NumComp), M_layout is (TDOF x TDOF x NumComp)
    template <typename qpt_layout_t, typename qpt_data_t,
              typename M_layout_t, typename M_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void Assemble(const qpt_layout_t &qpt_layout, const qpt_data_t &qpt_data,
                  const M_layout_t &M_layout, M_data_t &M_data) const
    {
@@ -796,7 +796,7 @@ public:
    template <int D1, int D2, bool Add,
              typename qpt_layout_t, typename qpt_data_t,
              typename D_layout_t, typename D_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void Assemble(const qpt_layout_t &qpt_layout,
                  const qpt_data_t   &qpt_data,
                  const D_layout_t   &D_layout,
@@ -833,7 +833,7 @@ public:
 #if 0
    template <typename qpt_layout_t, typename qpt_data_t,
              typename D_layout_t, typename D_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void Assemble(int D1, int D2,
                  const qpt_layout_t &qpt_layout,
                  const qpt_data_t   &qpt_data,
@@ -873,7 +873,7 @@ public:
    // D_layout is (TDOF x TDOF x NumComp).
    template <typename qpt_layout_t, typename qpt_data_t,
              typename D_layout_t, typename D_data_t>
-   MFEM_ALWAYS_INLINE
+   inline MFEM_ALWAYS_INLINE
    void AssembleGradGrad(const qpt_layout_t &qpt_layout,
                          const qpt_data_t   &qpt_data,
                          const D_layout_t   &D_layout,
