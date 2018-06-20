@@ -34,7 +34,7 @@ PArray *Array::DoClone(bool copy_data, void **buffer,
       {
 	 char *new_data = new_array->GetBuffer();
 #pragma omp target teams distribute parallel for is_device_ptr(new_data)
-	 for (int i = 0; i < total_size; i++) new_data[i] = data[i];
+	 for (std::size_t i = 0; i < total_size; i++) new_data[i] = data[i];
       }
    }
    if (buffer)

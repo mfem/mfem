@@ -25,7 +25,7 @@ namespace omp
 
 enum ExecutionTarget { Host, Device };
 
-enum MultType { Acrotensor };
+enum IntegratorType { Acrotensor };
 
 class Engine : public mfem::Engine
 {
@@ -46,7 +46,7 @@ protected:
    enum ExecutionTarget exec_target;
    bool unified_memory;
    int device_number;
-   MultType mult_type;
+   IntegratorType mult_type;
 
    void Init(const std::string &engine_spec);
 
@@ -64,7 +64,7 @@ public:
     */
    ///@{
 
-   MultType MultType() const { return mult_type; }
+   IntegratorType IntegType() const { return mult_type; }
 
    ExecutionTarget ExecTarget() const { return exec_target; }
 

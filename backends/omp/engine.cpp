@@ -65,22 +65,42 @@ void Engine::Init(const std::string &engine_spec)
       device_number = -1;
    }
 
-   if (spec.find("memtype:") != std::string::npos) {
+   if (spec.find("mem_type:") != std::string::npos) {
       if (spec.find("unified") != std::string::npos)
       {
+#if defined(MFEM_USE_CUDAUM)
          memory_resources[0] = new UnifiedMemoryResource();
 	 unified_memory = true;
+#else
+	 mfem_error("Have not compiled support for CUDA unified memory");
+#endif
       }
-      else if (spec.find("target") != std::string::npos)
+      else if (spec.find("host") != std::string::npos)
       {
-	 unified_memory = false;
 	 memory_resources[0] = new NewDeleteMemoryResource();
+	 unified_memory = false;
       }
    }
    else {
-      // Default to unified memory
-      memory_resources[0] = new UnifiedMemoryResource();
-      unified_memory = true;
+      if (exec_target == Device)
+      {
+#if defined(MFEM_USE_CUDAUM)
+         mfem::out << "Did not specify mem_type in engine spec. Defaulting to unified memory" << std::endl;
+	 // Default to unified memory
+         memory_resources[0] = new UnifiedMemoryResource();
+	 unified_memory = true;
+#else
+         mfem::out << "Did not specify mem_type in engine spec. Defaulting to standard host memory" << std::endl;
+	 memory_resources[0] = new NewDeleteMemoryResource();
+	 unified_memory = false;
+#endif
+      }
+      else
+      {
+         mfem::out << "Did not specify mem_type in engine spec. Defaulting to standard host memory" << std::endl;
+	 memory_resources[0] = new NewDeleteMemoryResource();
+	 unified_memory = false;
+      }
    }
 
    if (spec.find("mult_engine:") != std::string::npos)

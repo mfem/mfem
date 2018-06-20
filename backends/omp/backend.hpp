@@ -17,6 +17,7 @@
 
 // Only the Backend and Engine classes should be exposed through "backend.hpp"
 #include "../base/backend.hpp"
+#include "engine.hpp"
 
 namespace mfem
 {

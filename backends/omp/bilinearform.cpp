@@ -29,10 +29,10 @@ void BilinearForm::TransferIntegrators()
    {
       std::string integ_name(dbfi[i]->Name());
       Coefficient *scal_coeff = dbfi[i]->GetScalarCoefficient();
-      ConstantCoefficient *const_coeff =
-         dynamic_cast<ConstantCoefficient*>(scal_coeff);
-      // TODO: other types of coefficients ...
-      double val = const_coeff ? const_coeff->constant : 1.0;
+      // ConstantCoefficient *const_coeff =
+      //    dynamic_cast<ConstantCoefficient*>(scal_coeff);
+      // // TODO: other types of coefficients ...
+      // double val = const_coeff ? const_coeff->constant : 1.0;
 
       if (integ_name == "(undefined)")
       {
@@ -40,7 +40,7 @@ void BilinearForm::TransferIntegrators()
       }
       else if (integ_name == "diffusion")
       {
-	 switch (OmpEngine().MultType())
+	 switch (OmpEngine().IntegType())
 	 {
 	 case Acrotensor:
 	    tbfi.Append(new AcroDiffusionIntegrator(*scal_coeff, bform->FESpace()->Get_PFESpace()->As<FiniteElementSpace>()));
@@ -67,6 +67,30 @@ bool BilinearForm::Assemble()
    }
 
    return true;
+}
+
+/// TODO: doxygen
+void BilinearForm::FormSystemMatrix(const mfem::Array<int> &ess_tdof_list,
+				    OperatorHandle &A)
+{
+   mfem_error("FIXME: FormSystemMatrix");
+}
+
+/// TODO: doxygen
+void BilinearForm::FormLinearSystem(const mfem::Array<int> &ess_tdof_list,
+				    mfem::Vector &x, mfem::Vector &b,
+				    OperatorHandle &A, mfem::Vector &X, mfem::Vector &B,
+				    int copy_interior)
+{
+   mfem_error("FIXME: FormLinearSystem");
+
+}
+
+/// TODO: doxygen
+void BilinearForm::RecoverFEMSolution(const mfem::Vector &X, const mfem::Vector &b,
+				      mfem::Vector &x)
+{
+   mfem_error("FIXME: RecoverFEMSolution");
 }
 
 
