@@ -28,7 +28,7 @@ namespace omp
 
 #ifdef MFEM_USE_CUDAUM
 void *UnifiedMemoryResource::DoAllocate(std::size_t bytes,
-					std::size_t alignment)
+                                        std::size_t alignment)
 {
    void *p = NULL;
    if (bytes > 0)
@@ -40,7 +40,7 @@ void *UnifiedMemoryResource::DoAllocate(std::size_t bytes,
 }
 
 void UnifiedMemoryResource::DoDeallocate(void *p, std::size_t bytes,
-					 std::size_t alignment)
+                                         std::size_t alignment)
 {
    if (p != NULL)
    {

@@ -29,12 +29,12 @@ PArray *Array::DoClone(bool copy_data, void **buffer,
    {
       const std::size_t total_size = item_size * OmpLayout().Size();
       if (!ComputeOnDevice())
-	 std::memcpy(new_array->GetBuffer(), data, total_size);
+         std::memcpy(new_array->GetBuffer(), data, total_size);
       else
       {
-	 char *new_data = new_array->GetBuffer();
+         char *new_data = new_array->GetBuffer();
 #pragma omp target teams distribute parallel for is_device_ptr(new_data)
-	 for (std::size_t i = 0; i < total_size; i++) new_data[i] = data[i];
+         for (std::size_t i = 0; i < total_size; i++) new_data[i] = data[i];
       }
    }
    if (buffer)
@@ -82,14 +82,14 @@ void Array::DoFill(const void *value_ptr, std::size_t item_size)
 
    switch (item_size)
    {
-      case sizeof(int):
-         OmpFill((const int *)value_ptr);
-         break;
-      case sizeof(double):
-         OmpFill((const double *)value_ptr);
-         break;
-      default:
-         MFEM_ABORT("item_size = " << item_size << " is not supported");
+   case sizeof(int):
+      OmpFill((const int *)value_ptr);
+      break;
+   case sizeof(double):
+      OmpFill((const double *)value_ptr);
+      break;
+   default:
+      MFEM_ABORT("item_size = " << item_size << " is not supported");
    }
 }
 

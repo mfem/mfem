@@ -48,8 +48,8 @@ public:
    virtual ~Layout() { }
 
    /**
-       @name Virtual interface
-    */
+      @name Virtual interface
+   */
    ///@{
 
    /// Resize the layout

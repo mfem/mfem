@@ -13,12 +13,13 @@
 #define MFEM_BACKENDS_OMP_ADIFFUSIONINTEG_HPP
 
 #include "../../config/config.hpp"
-#if defined(MFEM_USE_BACKENDS) && \
-   defined(MFEM_USE_OMP) && \
+#if defined(MFEM_USE_BACKENDS) &&               \
+   defined(MFEM_USE_OMP) &&                     \
    defined(MFEM_USE_ACROTENSOR)
 
 #include "../../fem/bilininteg.hpp"
 #include "../../fem/fem.hpp"
+#include "vector.hpp"
 #include "fespace.hpp"
 #include "AcroTensor.hpp"
 
@@ -30,58 +31,58 @@ namespace omp
 
 class PAIntegrator : public TensorBilinearFormIntegrator
 {
-    protected:
-    Coefficient *Q;
-    FiniteElementSpace *ofes;
-    mfem::FiniteElementSpace *fes;
-    const FiniteElement *fe;
-    const TensorBasisElement *tfe;
-    const IntegrationRule *ir;
-    Array<int> tDofMap;
-    int GeomType;
-    int FEOrder;
-    bool onGPU;
-    bool hasTensorBasis;
-    int nDim;
-    int nElem;
-    int nDof;
-    int nQuad;
+protected:
+   Coefficient *Q;
+   FiniteElementSpace *ofes;
+   mfem::FiniteElementSpace *fes;
+   const FiniteElement *fe;
+   const TensorBasisElement *tfe;
+   const IntegrationRule *ir;
+   mfem::Array<int> tDofMap;
+   int GeomType;
+   int FEOrder;
+   bool onGPU;
+   bool hasTensorBasis;
+   int nDim;
+   int nElem;
+   int nDof;
+   int nQuad;
 
-    public:
-    PAIntegrator(Coefficient &q, FiniteElementSpace &f);
-    virtual bool PAIsEnabled() const {return true;}
-    int GetExpandedNDOF() {return nElem*nDof;}
-    virtual ~PAIntegrator();
+public:
+   PAIntegrator(Coefficient &q, FiniteElementSpace &f);
+   virtual bool PAIsEnabled() const {return true;}
+   int GetExpandedNDOF() {return nElem*nDof;}
+   virtual ~PAIntegrator();
 };
 
 class AcroDiffusionIntegrator : public PAIntegrator
 {
-  private:
-  acro::TensorEngine TE;
-  int nDof1D;
-  int nQuad1D;
+private:
+   acro::TensorEngine TE;
+   int nDof1D;
+   int nQuad1D;
 
-  acro::Tensor B, G;         //Basis and dbasis evaluated on the quad points
-  acro::Tensor W;            //Integration weights
-  Array<acro::Tensor*> Btil; //Btilde used to compute stiffness matrix
-  acro::Tensor D;            //Product of integration weight, physical consts, and element shape info
-  acro::Tensor S;            //The assembled local stiffness matrices
-  acro::Tensor U, Z, T1, T2; //Intermediate computations for tensor product partial assembly
-  Vector vectorX, vectorY;
-  acro::Tensor X, Y;
+   acro::Tensor B, G;         //Basis and dbasis evaluated on the quad points
+   acro::Tensor W;            //Integration weights
+   mfem::Array<acro::Tensor*> Btil; //Btilde used to compute stiffness matrix
+   acro::Tensor D;            //Product of integration weight, physical consts, and element shape info
+   acro::Tensor S;            //The assembled local stiffness matrices
+   acro::Tensor U, Z, T1, T2; //Intermediate computations for tensor product partial assembly
+   Vector vectorX, vectorY;
+   acro::Tensor X, Y;
 
-  void ComputeBTilde();
+   void ComputeBTilde();
 
 public:
-  AcroDiffusionIntegrator(BilinearFormIntegrator *integ);
-  AcroDiffusionIntegrator(Coefficient &q, FiniteElementSpace &f);
-  virtual ~AcroDiffusionIntegrator();
-  void BatchedPartialAssemble();
-  void BatchedAssembleElementMatrices(DenseTensor &elmats);
-  void PAMult(const Vector &x, Vector &y);
-  virtual void MultTranspose(const Vector &x, Vector &y) const;
-  virtual void Mult(const Vector &x, Vector &y) const;
-  virtual void Reassemble();
+   AcroDiffusionIntegrator(BilinearFormIntegrator *integ);
+   AcroDiffusionIntegrator(Coefficient &q, FiniteElementSpace &f);
+   virtual ~AcroDiffusionIntegrator();
+   void BatchedPartialAssemble();
+   void BatchedAssembleElementMatrices(DenseTensor &elmats);
+   void PAMult(const Vector &x, Vector &y);
+   virtual void MultTranspose(const mfem::Vector &x, mfem::Vector &y) const;
+   virtual void Mult(const mfem::Vector &x, mfem::Vector &y) const;
+   virtual void Reassemble();
 };
 
 

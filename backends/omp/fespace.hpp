@@ -16,6 +16,8 @@
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_OMP)
 
 #include "engine.hpp"
+#include "array.hpp"
+#include "vector.hpp"
 #include "../../fem/fem.hpp"
 
 namespace mfem
@@ -34,7 +36,9 @@ protected:
    // SharedPtr<const mfem::Engine> engine;
    // mfem::FiniteElementSpace *fes;
 
-   std::size_t lsize;
+   Layout e_layout;
+
+   mfem::Array<int> tensor_offsets, tensor_indices;
 
 public:
    /// Nearly-empty class that stores a pointer to a mfem::FiniteElementSpace instance and the engine
@@ -43,16 +47,16 @@ public:
    /// Virtual destructor
    virtual ~FiniteElementSpace() { }
 
-   std::size_t GetLocalVSize() const;
+   Layout &GetELayout() { return e_layout; }
 
    /// Return the engine as an OpenMP engine
    const Engine &OmpEngine() { return static_cast<const Engine&>(*engine); }
 
    /// Convert an E vector to L vector
-   void ToLVector(const Vector &e_vector, Vector &l_vector) const;
+   void ToLVector(const Vector &e_vector, Vector &l_vector);
 
    /// Covert an L vector to E vector
-   void ToEVector(const Vector &l_vector, Vector &e_vector) const;
+   void ToEVector(const Vector &l_vector, Vector &e_vector);
 };
 
 } // namespace mfem::omp

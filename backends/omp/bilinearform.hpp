@@ -16,6 +16,8 @@
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_OMP)
 
 #include "fespace.hpp"
+#include "array.hpp"
+#include "vector.hpp"
 #include "../../fem/bilininteg.hpp"
 
 namespace mfem
@@ -25,7 +27,7 @@ namespace omp
 {
 
 /// TODO: doxygen
-class BilinearForm : public mfem::PBilinearForm
+class BilinearForm : public mfem::PBilinearForm, public mfem::Operator
 {
 protected:
    //
@@ -41,20 +43,34 @@ protected:
 
    void TransferIntegrators();
 
+   void InitRHS(const mfem::Array<int> &constraint_list,
+                mfem::Vector &mfem_x, mfem::Vector &mfem_b,
+                mfem::Operator *A,
+                mfem::Vector &mfem_X, mfem::Vector &mfem_B,
+                int copy_interior = 0) const;
+
 public:
    /// TODO: doxygen
    BilinearForm(const Engine &e, mfem::BilinearForm &bf)
       : mfem::PBilinearForm(e, bf),
-	tbfi(),
-	has_assembled(false),
-	trial_fes(bf.FESpace()->Get_PFESpace()),
-	test_fes(bf.FESpace()->Get_PFESpace()) { }
+        tbfi(),
+        has_assembled(false),
+        trial_fes(bf.FESpace()->Get_PFESpace()),
+        test_fes(bf.FESpace()->Get_PFESpace()) { }
 
    /// Return the engine as an OpenMP engine
    const Engine &OmpEngine() { return static_cast<const Engine&>(*engine); }
 
    /// Virtual destructor
    virtual ~BilinearForm() { }
+
+   /** @brief Prolongation operator from linear algebra (linear system) vectors,
+       to input vectors for the operator. `NULL` means identity. */
+   virtual const Operator *GetProlongation() const { return bform->GetProlongation(); }
+
+   /** @brief Restriction operator from input vectors for the operator to linear
+       algebra (linear system) vectors. `NULL` means identity. */
+   virtual const Operator *GetRestriction() const  { return bform->GetRestriction(); }
 
    /// Assemble the PBilinearForm.
    /** This method is called from the method BilinearForm::Assemble() of the
@@ -64,17 +80,62 @@ public:
 
    /// TODO: doxygen
    virtual void FormSystemMatrix(const mfem::Array<int> &ess_tdof_list,
-                                 OperatorHandle &A);
+                                 mfem::OperatorHandle &A);
 
    /// TODO: doxygen
    virtual void FormLinearSystem(const mfem::Array<int> &ess_tdof_list,
                                  mfem::Vector &x, mfem::Vector &b,
-                                 OperatorHandle &A, mfem::Vector &X, mfem::Vector &B,
+                                 mfem::OperatorHandle &A, mfem::Vector &mfem_X, mfem::Vector &mfem_B,
                                  int copy_interior);
 
    /// TODO: doxygen
-   virtual void RecoverFEMSolution(const mfem::Vector &X, const mfem::Vector &b,
-                                   mfem::Vector &x);
+   virtual void RecoverFEMSolution(const mfem::Vector &mfem_X, const mfem::Vector &mfem_b,
+                                   mfem::Vector &mfem_x);
+
+   /// Operator application: `y=A(x)`.
+   virtual void Mult(const mfem::Vector &mfem_x, mfem::Vector &mfem_y) const;
+
+   /** @brief Action of the transpose operator: `y=A^t(x)`. The default behavior
+       in class Operator is to generate an error. */
+   virtual void MultTranspose(const mfem::Vector &mfem_x, mfem::Vector &mfem_y) const;
+};
+
+class ConstrainedOperator : public mfem::Operator
+{
+   const mfem::Operator *A;
+   const bool own_A;
+   const Array constraint_list;
+   mutable Vector z, w;
+   mutable mfem::Vector mfem_z, mfem_w;
+
+public:
+   ConstrainedOperator(mfem::Operator *A_,
+                       const mfem::Array<int> &constraint_list_,
+                       bool own_A_ = false);
+
+   /** @brief Eliminate "essential boundary condition" values specified in @a x
+       from the given right-hand side @a b.
+
+       Performs the following steps:
+
+       z = A((0,x_b));  b_i -= z_i;  b_b = x_b;
+
+       where the "_b" subscripts denote the essential (boundary) indices/dofs of
+       the vectors, and "_i" -- the rest of the entries. */
+   void EliminateRHS(const mfem::Vector &mfem_x, mfem::Vector &mfem_b) const;
+
+   /** @brief Constrained operator action.
+
+       Performs the following steps:
+
+       z = A((x_i,0));  y_i = z_i;  y_b = x_b;
+
+       where the "_b" subscripts denote the essential (boundary) indices/dofs of
+       the vectors, and "_i" -- the rest of the entries. */
+   virtual void Mult(const mfem::Vector &mfem_x, mfem::Vector &mfem_y) const;
+
+   // Destructor: destroys the unconstrained Operator @a A if @a own_A is true.
+   virtual ~ConstrainedOperator();
 };
 
 } // namespace mfem::omp

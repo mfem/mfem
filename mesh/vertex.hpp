@@ -26,9 +26,9 @@ protected:
 public:
    Vertex() { }
 
-   Vertex (double *xx, int dim);
-   Vertex( double x, double y) { coord[0] = x; coord[1] = y; coord[2] = 0.; }
-   Vertex( double x, double y, double z)
+   Vertex(double *xx, int dim);
+   Vertex(double x, double y) { coord[0] = x; coord[1] = y; coord[2] = 0.; }
+   Vertex(double x, double y, double z)
    { coord[0] = x; coord[1] = y; coord[2] = z; }
 
    /// Returns pointer to the coordinates of the vertex.
@@ -48,8 +48,6 @@ public:
    /// Sets vertex location based on given point p
    void SetCoords(int dim, const double *p)
    { for (int i = 0; i < dim; i++) { coord[i] = p[i]; } }
-
-   ~Vertex() { }
 };
 
 }

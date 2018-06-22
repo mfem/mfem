@@ -60,8 +60,8 @@ public:
    virtual ~Engine() { }
 
    /**
-       @name OMP specific interface, used by other objects in the OMP backend
-    */
+      @name OMP specific interface, used by other objects in the OMP backend
+   */
    ///@{
 
    IntegratorType IntegType() const { return mult_type; }
@@ -84,8 +84,8 @@ public:
    // End: OMP specific interface
 
    /**
-       @name Virtual interface: finite element data structures and algorithms
-    */
+      @name Virtual interface: finite element data structures and algorithms
+   */
    ///@{
 
    virtual DLayout MakeLayout(std::size_t size) const;

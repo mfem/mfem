@@ -35,8 +35,8 @@ protected:
    // std::size_t size;
 
    /**
-       @name Virtual interface
-    */
+      @name Virtual interface
+   */
    ///@{
 
    virtual PVector *DoVectorClone(bool copy_data, void **buffer,

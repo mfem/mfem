@@ -30,12 +30,12 @@ PVector *Vector::DoVectorClone(bool copy_data, void **buffer,
    {
       const std::size_t total_size = sizeof(double) * OmpLayout().Size();
       if (!ComputeOnDevice())
-	 std::memcpy(new_vector->GetBuffer(), data, total_size);
+         std::memcpy(new_vector->GetBuffer(), data, total_size);
       else
       {
-	 char *new_data = new_vector->GetBuffer();
+         char *new_data = new_vector->GetBuffer();
 #pragma omp target teams distribute parallel for is_device_ptr(new_data)
-	 for (std::size_t i = 0; i < total_size; i++) new_data[i] = data[i];
+         for (std::size_t i = 0; i < total_size; i++) new_data[i] = data[i];
       }
    }
    if (buffer)
@@ -69,7 +69,7 @@ void Vector::DoDotProduct(const PVector &x, void *result,
    else
    {
 #pragma omp target teams distribute parallel for map(to: ptr, xptr) is_device_ptr(xptr) reduction(+:local_dot)
-	 for (std::size_t i = 0; i < size; i++) local_dot += ptr[i] * xptr[i];
+      for (std::size_t i = 0; i < size; i++) local_dot += ptr[i] * xptr[i];
    }
 
 #ifndef MFEM_USE_MPI
@@ -116,13 +116,13 @@ void Vector::DoAxpby(const void *a, const PVector &x,
          {
             // *this *= db
 #pragma omp target teams distribute parallel for if (target: ComputeOnDevice()) if (parallel: Size() > critical_size)
-	    for (std::size_t i = 0; i < size; i++) td[i] *= db;
+            for (std::size_t i = 0; i < size; i++) td[i] *= db;
          }
          else
          {
             // *this = db * y
 #pragma omp target teams distribute parallel for if (target: ComputeOnDevice()) if (parallel: Size() > critical_size)
-	    for (std::size_t i = 0; i < size; i++) td[i] = yd[i] * db;
+            for (std::size_t i = 0; i < size; i++) td[i] = yd[i] * db;
          }
       }
    }
@@ -134,13 +134,13 @@ void Vector::DoAxpby(const void *a, const PVector &x,
          {
             // *this *= da
 #pragma omp target teams distribute parallel for if (target: ComputeOnDevice()) if (parallel: Size() > critical_size)
-	    for (std::size_t i = 0; i < size; i++) td[i] *= da;
+            for (std::size_t i = 0; i < size; i++) td[i] *= da;
          }
          else
          {
             // *this = da * x
 #pragma omp target teams distribute parallel for if (target: ComputeOnDevice()) if (parallel: Size() > critical_size)
-	    for (std::size_t i = 0; i < size; i++) td[i] = xd[i] * da;
+            for (std::size_t i = 0; i < size; i++) td[i] = xd[i] * da;
          }
       }
       else
@@ -150,19 +150,19 @@ void Vector::DoAxpby(const void *a, const PVector &x,
          {
             // *this = da * (*this) + db * y
 #pragma omp target teams distribute parallel for if (target: ComputeOnDevice()) if (parallel: Size() > critical_size)
-	    for (std::size_t i = 0; i < size; i++) td[i] = da * td[i] + db * yd[i];
+            for (std::size_t i = 0; i < size; i++) td[i] = da * td[i] + db * yd[i];
          }
          else if (td == yd)
          {
             // *this = da * x + db * (*this)
 #pragma omp target teams distribute parallel for if (target: ComputeOnDevice()) if (parallel: Size() > critical_size)
-	    for (std::size_t i = 0; i < size; i++) td[i] = da * xd[i] + db * td[i];
+            for (std::size_t i = 0; i < size; i++) td[i] = da * xd[i] + db * td[i];
          }
          else
          {
             // *this = da * x + db * y
 #pragma omp target teams distribute parallel for if (target: ComputeOnDevice()) if (parallel: Size() > critical_size)
-	    for (std::size_t i = 0; i < size; i++) td[i] = da * xd[i] + db * yd[i];
+            for (std::size_t i = 0; i < size; i++) td[i] = da * xd[i] + db * yd[i];
          }
       }
    }

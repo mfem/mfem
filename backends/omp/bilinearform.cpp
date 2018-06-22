@@ -40,15 +40,15 @@ void BilinearForm::TransferIntegrators()
       }
       else if (integ_name == "diffusion")
       {
-	 switch (OmpEngine().IntegType())
-	 {
-	 case Acrotensor:
-	    tbfi.Append(new AcroDiffusionIntegrator(*scal_coeff, bform->FESpace()->Get_PFESpace()->As<FiniteElementSpace>()));
-	    break;
-	 default:
-	    mfem_error("integrator is not supported for any MultType");
-	    break;
-	 }
+         switch (OmpEngine().IntegType())
+         {
+         case Acrotensor:
+            tbfi.Append(new AcroDiffusionIntegrator(*scal_coeff, bform->FESpace()->Get_PFESpace()->As<FiniteElementSpace>()));
+            break;
+         default:
+            mfem_error("integrator is not supported for any MultType");
+            break;
+         }
       }
       else
       {
@@ -57,6 +57,73 @@ void BilinearForm::TransferIntegrators()
       }
    }
 }
+
+void BilinearForm::InitRHS(const mfem::Array<int> &ess_tdof_list,
+                           mfem::Vector &mfem_x, mfem::Vector &mfem_b,
+                           mfem::Operator *A,
+                           mfem::Vector &mfem_X, mfem::Vector &mfem_B,
+                           int copy_interior) const
+{
+   const mfem::Operator *P = GetProlongation();
+   const mfem::Operator *R = GetRestriction();
+
+   if (P)
+   {
+      // Variational restriction with P
+      mfem_B.Resize(P->InLayout());
+      P->MultTranspose(mfem_b, mfem_B);
+      mfem_X.Resize(R->OutLayout());
+      R->Mult(mfem_x, mfem_X);
+   }
+   else
+   {
+      // rap, X and B point to the same data as this, x and b
+      mfem_X.MakeRef(mfem_x);
+      mfem_B.MakeRef(mfem_b);
+   }
+
+   if (!copy_interior && ess_tdof_list.Size() > 0)
+   {
+      Vector &X = mfem_X.Get_PVector()->As<Vector>();
+      const Array &constraint_list = ess_tdof_list.Get_PArray()->As<Array>();
+
+      double *X_data = X.GetData();
+      const int* constraint_data = constraint_list.GetData<int>();
+
+      Vector subvec(constraint_list.OmpLayout());
+      double *subvec_data = subvec.GetData();
+
+      const std::size_t num_constr = constraint_list.Size();
+
+      // This operation is a general version of mfem::Vector::SetSubVectorComplement()
+      // {
+#pragma omp target teams distribute parallel for        \
+   map(to: subvec_data, constraint_data, X_data)        \
+   if (target: constrList.ComputeOnDevice())            \
+   if (parallel: Size() > 1000)
+      for (std::size_t i = 0; i < num_constr; i++) subvec_data[i] = X_data[constraint_data[i]];
+
+      X.Fill(0.0);
+
+#pragma omp target teams distribute parallel for        \
+   map(to: X_data, constraint_data, subvec_data)        \
+   if (target: constrList.ComputeOnDevice())            \
+   if (parallel: Size() > 1000)
+      for (std::size_t i = 0; i < num_constr; i++) X_data[i] = subvec_data[i];
+      // }
+   }
+
+   ConstrainedOperator *A_constrained = dynamic_cast<ConstrainedOperator*>(A);
+   if (A_constrained)
+   {
+      A_constrained->EliminateRHS(mfem_X, mfem_B);
+   }
+   else
+   {
+      mfem_error("mfem::omp::BilinearForm::InitRHS expects a ConstrainedOperator");
+   }
+}
+
 
 bool BilinearForm::Assemble()
 {
@@ -69,28 +136,143 @@ bool BilinearForm::Assemble()
    return true;
 }
 
-/// TODO: doxygen
 void BilinearForm::FormSystemMatrix(const mfem::Array<int> &ess_tdof_list,
-				    OperatorHandle &A)
+                                    mfem::OperatorHandle &A)
 {
-   mfem_error("FIXME: FormSystemMatrix");
+   if (A.Type() == mfem::Operator::ANY_TYPE)
+   {
+      mfem::Operator *Aout = NULL;
+      // TODO: Support different test and trial spaces (MixedBilinearForm)
+      const mfem::Operator *P = GetProlongation();
+      mfem::Operator *rap = this;
+      if (P != NULL) rap = new RAPOperator(*P, *this, *P);
+
+      Aout = new ConstrainedOperator(rap, ess_tdof_list, (rap != this));
+      A.Reset(Aout);
+   }
+   else
+   {
+      MFEM_ABORT("Operator::Type is not supported, type = " << A.Type());
+   }
 }
 
-/// TODO: doxygen
 void BilinearForm::FormLinearSystem(const mfem::Array<int> &ess_tdof_list,
-				    mfem::Vector &x, mfem::Vector &b,
-				    OperatorHandle &A, mfem::Vector &X, mfem::Vector &B,
-				    int copy_interior)
+                                    mfem::Vector &x, mfem::Vector &b,
+                                    mfem::OperatorHandle &A, mfem::Vector &X, mfem::Vector &B,
+                                    int copy_interior)
 {
-   mfem_error("FIXME: FormLinearSystem");
-
+   FormSystemMatrix(ess_tdof_list, A);
+   InitRHS(ess_tdof_list, x, b, A.Ptr(), X, B, copy_interior);
 }
 
-/// TODO: doxygen
 void BilinearForm::RecoverFEMSolution(const mfem::Vector &X, const mfem::Vector &b,
-				      mfem::Vector &x)
+                                      mfem::Vector &x)
 {
    mfem_error("FIXME: RecoverFEMSolution");
+}
+
+void BilinearForm::Mult(const mfem::Vector &x, mfem::Vector &y) const
+{
+
+}
+
+void BilinearForm::MultTranspose(const mfem::Vector &x, mfem::Vector &y) const
+{ mfem_error("mfem::omp::BilinearForm::MultTranspose() is not overloaded!"); }
+
+
+ConstrainedOperator::ConstrainedOperator(mfem::Operator *A_,
+                                         const mfem::Array<int> &constraint_list_,
+                                         bool own_A_)
+   : A(A_),
+     own_A(own_A_),
+     constraint_list(constraint_list_.Get_PArray()->As<Array>()),
+     z(OutLayout()->As<Layout>()),
+     w(OutLayout()->As<Layout>()),
+     mfem_z((z.DontDelete(), z)),
+     mfem_w((w.DontDelete(), w)) { }
+
+void ConstrainedOperator::EliminateRHS(const mfem::Vector &mfem_x, mfem::Vector &mfem_b) const
+{
+   w.Fill<double>(0.0);
+
+   const Vector &x = mfem_x.Get_PVector()->As<Vector>();
+   Vector &b = mfem_b.Get_PVector()->As<Vector>();
+
+   const double *x_data = x.GetData();
+   double *b_data = b.GetData();
+   double *w_data = w.GetData();
+   const int* constraint_data = constraint_list.GetData<int>();
+
+   const std::size_t num_constr = constraint_list.Size();
+
+   if (constraint_list.Size() > 0)
+   {
+#pragma omp target teams distribute parallel for        \
+   map(to: w_data, constraint_data, x_data)             \
+   if (target: constrList.ComputeOnDevice())            \
+   if (parallel: Size() > 1000)
+      for (std::size_t i = 0; i < num_constr; i++)
+         w_data[constraint_data[i]] = x_data[constraint_data[i]];
+   }
+
+   A->Mult(mfem_w, mfem_z);
+
+   b.Axpby<double>(1.0, b, -1.0, z);
+
+   if (constraint_list.Size() > 0)
+   {
+#pragma omp target teams distribute parallel for        \
+   map(to: b_data, constraint_data, x_data)             \
+   if (target: constrList.ComputeOnDevice())            \
+   if (parallel: Size() > 1000)
+      for (std::size_t i = 0; i < num_constr; i++)
+         b_data[constraint_data[i]] = x_data[constraint_data[i]];
+   }
+}
+
+void ConstrainedOperator::Mult(const mfem::Vector &mfem_x, mfem::Vector &mfem_y) const
+{
+   if (constraint_list.Size() == 0)
+   {
+      A->Mult(mfem_x, mfem_y);
+      return;
+   }
+
+   const Vector &x = mfem_x.Get_PVector()->As<Vector>();
+
+   const double *x_data = x.GetData();
+   double *y_data = w.GetData();
+   double *z_data = z.GetData();
+   const int* constraint_data = constraint_list.GetData<int>();
+
+   const std::size_t num_constr = constraint_list.Size();
+
+   z.Assign<double>(x); // z = x
+
+   // z[constraint_list] = 0.0
+#pragma omp target teams distribute parallel for        \
+   map(to: z_data, constraint_data)                     \
+   if (target: constrList.ComputeOnDevice())            \
+   if (parallel: Size() > 1000)
+   for (std::size_t i = 0; i < num_constr; i++)
+      z_data[constraint_data[i]] = 0.0;
+
+   // y = A * z
+   A->Mult(mfem_z, mfem_y);
+
+   // y[constraint_list] = x[constraint_list]
+#pragma omp target teams distribute parallel for        \
+   map(to: y_data, constraint_data, x_data)             \
+   if (target: constrList.ComputeOnDevice())            \
+   if (parallel: Size() > 1000)
+   for (std::size_t i = 0; i < num_constr; i++)
+      y_data[constraint_data[i]] = x_data[constraint_data[i]];
+}
+
+// Destructor: destroys the unconstrained Operator @a A if @a own_A is true.
+ConstrainedOperator::~ConstrainedOperator()
+{
+   if (own_A) delete A;
 }
 
 

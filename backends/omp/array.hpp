@@ -78,7 +78,7 @@ public:
    Array(Layout &lt, std::size_t item_size)
       : PArray(lt),
         data(static_cast<char *>(lt.Alloc(lt.Size()*item_size))),
-	bytes(lt.Size())
+        bytes(lt.Size())
    {
       if (!IsUnifiedMemory())
       {
@@ -89,6 +89,12 @@ public:
    virtual ~Array() { }
 
    inline void MakeRef(Array &master);
+
+   template <class T>
+   T* GetData() { return (T *) data; }
+
+   template <class T>
+   const T* GetData() const { return (T *) data; }
 
    Layout &OmpLayout() const
    { return *static_cast<Layout *>(layout.Get()); }

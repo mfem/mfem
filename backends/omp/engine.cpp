@@ -29,11 +29,11 @@ namespace omp
 template<typename T, typename P>
 static T remove_if(T beg, T end, P pred)
 {
-    T dest = beg;
-    for (T itr = beg;itr != end; ++itr)
-        if (!pred(*itr))
-            *(dest++) = *itr;
-    return dest;
+   T dest = beg;
+   for (T itr = beg;itr != end; ++itr)
+      if (!pred(*itr))
+         *(dest++) = *itr;
+   return dest;
 }
 
 void Engine::Init(const std::string &engine_spec)
@@ -47,16 +47,16 @@ void Engine::Init(const std::string &engine_spec)
    {
       if (spec.find("device") != std::string::npos)
       {
-	 exec_target = Device;
-	 device_number = 0;
+         exec_target = Device;
+         device_number = 0;
       }
       else if (spec.find("host") != std::string::npos)
       {
-	 exec_target = Host;
-	 device_number = -1;
+         exec_target = Host;
+         device_number = -1;
       }
       else
-	 mfem_error("Parse error");
+         mfem_error("Parse error");
    }
    else
    {
@@ -70,15 +70,15 @@ void Engine::Init(const std::string &engine_spec)
       {
 #if defined(MFEM_USE_CUDAUM)
          memory_resources[0] = new UnifiedMemoryResource();
-	 unified_memory = true;
+         unified_memory = true;
 #else
-	 mfem_error("Have not compiled support for CUDA unified memory");
+         mfem_error("Have not compiled support for CUDA unified memory");
 #endif
       }
       else if (spec.find("host") != std::string::npos)
       {
-	 memory_resources[0] = new NewDeleteMemoryResource();
-	 unified_memory = false;
+         memory_resources[0] = new NewDeleteMemoryResource();
+         unified_memory = false;
       }
    }
    else {
@@ -86,20 +86,20 @@ void Engine::Init(const std::string &engine_spec)
       {
 #if defined(MFEM_USE_CUDAUM)
          mfem::out << "Did not specify mem_type in engine spec. Defaulting to unified memory" << std::endl;
-	 // Default to unified memory
+         // Default to unified memory
          memory_resources[0] = new UnifiedMemoryResource();
-	 unified_memory = true;
+         unified_memory = true;
 #else
          mfem::out << "Did not specify mem_type in engine spec. Defaulting to standard host memory" << std::endl;
-	 memory_resources[0] = new NewDeleteMemoryResource();
-	 unified_memory = false;
+         memory_resources[0] = new NewDeleteMemoryResource();
+         unified_memory = false;
 #endif
       }
       else
       {
          mfem::out << "Did not specify mem_type in engine spec. Defaulting to standard host memory" << std::endl;
-	 memory_resources[0] = new NewDeleteMemoryResource();
-	 unified_memory = false;
+         memory_resources[0] = new NewDeleteMemoryResource();
+         unified_memory = false;
       }
    }
 
@@ -107,11 +107,11 @@ void Engine::Init(const std::string &engine_spec)
    {
       if (spec.find("acrotensor") != std::string::npos)
       {
-	 mult_type = Acrotensor;
+         mult_type = Acrotensor;
       }
       else
       {
-	 mfem_error("Supported engines: 'acrotensor'");
+         mfem_error("Supported engines: 'acrotensor'");
       }
    }
    else
