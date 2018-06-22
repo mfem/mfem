@@ -13,10 +13,10 @@
 
 //---[ 1D ]-----------------------------
 @kernel void GridFuncToQuad1D(const int numElements,
-                             const DofToQuad_t restrict dofToQuad,
-                             const DLocalMap1D_t restrict l2gMap,
-                             const double * restrict gf,
-                             QLocal1D_t restrict out) {
+                              @restrict const DofToQuad_t dofToQuad,
+                              @restrict const DLocalMap1D_t l2gMap,
+                              @restrict const double * gf,
+                              @restrict QLocal1D_t out) {
   // Iterate over elements
   for (int eOff = 0; eOff < numElements; eOff += M1_ELEMENT_BATCHES; @outer) {
     @shared double s_dofToQuad[NUM_QUAD_DOFS_1D] @dim(NUM_QUAD_1D, NUM_DOFS_1D);
@@ -54,10 +54,10 @@
 
 //---[ 2D ]-----------------------------
 @kernel void GridFuncToQuad2D(const int numElements,
-                             const DofToQuad_t restrict dofToQuad,
-                             const DLocalMap2D_t restrict l2gMap,
-                             const double * restrict gf,
-                             QLocal2D_t restrict out) {
+                              @restrict const DofToQuad_t dofToQuad,
+                              @restrict const DLocalMap2D_t l2gMap,
+                              @restrict const double * gf,
+                              @restrict QLocal2D_t out) {
   // Iterate over elements
   for (int eOff = 0; eOff < numElements; eOff += M2_ELEMENT_BATCH; @outer) {
     // Store dof <--> quad mappings
@@ -109,10 +109,10 @@
 
 //---[ 3D ]-----------------------------
 @kernel void GridFuncToQuad3D(const int numElements,
-                             const DofToQuad_t restrict dofToQuad,
-                             const DLocalMap3D_t restrict l2gMap,
-                             const double * restrict gf,
-                             QLocal3D_t restrict out) {
+                              @restrict const DofToQuad_t dofToQuad,
+                              @restrict const DLocalMap3D_t l2gMap,
+                              @restrict const double * gf,
+                              @restrict QLocal3D_t out) {
   // Iterate over elements
   for (int e = 0; e < numElements; ++e; @outer) {
     // Store dof <--> quad mappings

@@ -13,7 +13,7 @@
 
 @kernel void CoefficientEval(const int numElements,
                              COEFF_ARGS
-                             QLocal_t restrict quadCoeff) {
+                             @restrict QLocal_t quadCoeff) {
   for (int e = 0; e < numElements; ++e; @outer) {
     for (int q = 0; q < NUM_QUAD; ++q; @inner) {
       quadCoeff(q, e) = COEFF;

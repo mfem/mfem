@@ -16,11 +16,11 @@
 */
 
 @kernel void Mult(const int entries,
-                  const int * restrict offsets,
-                  const int * restrict indices,
-                  const double * restrict weights,
-                  const double * restrict in,
-                  double * restrict out) {
+                  @restrict const int * offsets,
+                  @restrict const int * indices,
+                  @restrict const double * weights,
+                  @restrict const double * in,
+                  @restrict double * out) {
 
   for (int i = 0; i < entries; ++i; @tile(TILESIZE, @outer, @inner)) {
     const int offset = offsets[i];
@@ -34,12 +34,12 @@
 }
 
 @kernel void MappedMult(const int entries,
-                        const int * restrict offsets,
-                        const int * restrict indices,
-                        const double * restrict weights,
-                        const int * restrict outIndices,
-                        const double * restrict in,
-                        double * restrict out) {
+                        @restrict const int * offsets,
+                        @restrict const int * indices,
+                        @restrict const double * weights,
+                        @restrict const int * outIndices,
+                        @restrict const double * in,
+                        @restrict double * out) {
 
   for (int i = 0; i < entries; ++i; @tile(TILESIZE, @outer, @inner)) {
     const int offset = offsets[i];

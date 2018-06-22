@@ -13,10 +13,10 @@
 
 //---[ 1D ]-----------------------------
 @kernel void GridFuncToQuad1D(const int numElements,
-                             const DofToQuad_t restrict dofToQuad,
-                             const DLocalMap1D_t restrict l2gMap,
-                             const double * restrict gf,
-                             QVLocal1D_t restrict out) {
+                              @restrict const DofToQuad_t dofToQuad,
+                              @restrict const DLocalMap1D_t l2gMap,
+                              @restrict const double * gf,
+                              @restrict QVLocal1D_t out) {
   for (int e = 0; e < numElements; ++e; @outer) {
     for (int dummy = 0; dummy < 1; ++dummy; @inner) {
       double r_out[NUM_VDIM][NUM_QUAD_1D];
@@ -47,10 +47,10 @@
 
 //---[ 2D ]-----------------------------
 @kernel void GridFuncToQuad2D(const int numElements,
-                             const DofToQuad_t restrict dofToQuad,
-                             const DLocalMap2D_t restrict l2gMap,
-                             const double * restrict gf,
-                             QVLocal2D_t restrict out) {
+                              @restrict const DofToQuad_t dofToQuad,
+                              @restrict const DLocalMap2D_t l2gMap,
+                              @restrict const double * gf,
+                              @restrict QVLocal2D_t out) {
   // Iterate over elements
   for (int e = 0; e < numElements; ++e; @outer) {
     for (int dummy = 0; dummy < 1; ++dummy; @inner) {
@@ -106,10 +106,10 @@
 
 //---[ 3D ]-----------------------------
 @kernel void GridFuncToQuad3D(const int numElements,
-                             const DofToQuad_t restrict dofToQuad,
-                             const DLocalMap3D_t restrict l2gMap,
-                             const double * restrict gf,
-                             QVLocal3D_t restrict out) {
+                              @restrict const DofToQuad_t dofToQuad,
+                              @restrict const DLocalMap3D_t l2gMap,
+                              @restrict const double * gf,
+                              @restrict QVLocal3D_t out) {
   for (int e = 0; e < numElements; ++e; @outer) {
     for (int dummy = 0; dummy < 1; ++dummy; @inner) {
       double out_xyz[NUM_VDIM][NUM_QUAD_1D][NUM_QUAD_1D][NUM_QUAD_1D];

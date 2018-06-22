@@ -13,10 +13,10 @@
 
 //---[ 2D ]-----------------------------
 @kernel void GridFuncToQuad2D(const int numElements,
-                             const DofToQuad_t restrict dofToQuad,
-                             const DLocalMap_t restrict l2gMap,
-                             const double * restrict gf,
-                             QVLocal_t restrict out) {
+                              @restrict const DofToQuad_t dofToQuad,
+                              @restrict const DLocalMap_t l2gMap,
+                              @restrict const double * gf,
+                              @restrict QVLocal_t out) {
   for (int e = 0; e < numElements; ++e; @outer) {
     @shared double s_gf[NUM_VDIM][NUM_DOFS];
 
@@ -47,10 +47,10 @@
 
 //---[ 3D ]-----------------------------
 @kernel void GridFuncToQuad3D(const int numElements,
-                             const DofToQuad_t restrict dofToQuad,
-                             const DLocalMap_t restrict l2gMap,
-                             const double * restrict gf,
-                             QVLocal_t restrict out) {
+                              @restrict const DofToQuad_t dofToQuad,
+                              @restrict const DLocalMap_t l2gMap,
+                              @restrict const double * gf,
+                              @restrict QVLocal_t out) {
   for (int e = 0; e < numElements; ++e; @outer) {
     @shared double s_gf[NUM_VDIM][NUM_DOFS];
 

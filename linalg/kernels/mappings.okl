@@ -16,9 +16,9 @@
 */
 
 @kernel void ExtractSubVector(const int entries,
-                             const int * restrict indices,
-                             const double * restrict in,
-                             double * restrict out) {
+                              @restrict const int * indices,
+                              @restrict const double * in,
+                              @restrict double * out) {
 
   for (int i = 0; i < entries; ++i; @tile(TILESIZE, @outer, @inner)) {
     out[i] = in[indices[i]];
@@ -26,9 +26,9 @@
 }
 
 @kernel void SetSubVector(const int entries,
-                         const int * restrict indices,
-                         const double * restrict in,
-                         double * restrict out) {
+                          @restrict const int * indices,
+                          @restrict const double * in,
+                          @restrict double * out) {
 
   for (int i = 0; i < entries; ++i; @tile(TILESIZE, @outer, @inner)) {
     out[indices[i]] = in[i];
@@ -36,9 +36,9 @@
 }
 
 @kernel void MapSubVector(const int entries,
-                         const int * restrict indices,
-                         const double * restrict in,
-                         double * restrict out) {
+                          @restrict const int * indices,
+                          @restrict const double * in,
+                          @restrict double * out) {
 
   for (int i = 0; i < entries; ++i; @tile(TILESIZE, @outer, @inner)) {
     const int fromIdx = indices[2*i + 0];

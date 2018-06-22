@@ -13,10 +13,10 @@
 
 //---[ 1D ]-----------------------------
 @kernel void Assemble1D(const int numElements,
-                       const double * restrict quadWeights,
-                       const Jacobian1D_t restrict J,
+                        @restrict const double * quadWeights,
+                        @restrict const Jacobian1D_t J,
                        COEFF_ARGS
-                       SymmOperator1D_t restrict oper) {
+                        @restrict SymmOperator1D_t oper) {
   for (int e = 0; e < numElements; ++e; @outer) {
     for (int q = 0; q < NUM_QUAD_1D; ++q; @inner) {
       oper(q, e) = quadWeights[q] * COEFF / J(q, e);
@@ -25,13 +25,13 @@
 }
 
 @kernel void MultAdd1D(const int numElements,
-                      const DofToQuad_t restrict dofToQuad,
-                      const DofToQuad_t restrict dofToQuadD,
-                      const QuadToDof_t restrict quadToDof,
-                      const QuadToDof_t restrict quadToDofD,
-                      const SymmOperator1D_t restrict oper,
-                      const DLocal1D_t restrict solIn,
-                      DLocal1D_t restrict solOut) {
+                       @restrict const DofToQuad_t dofToQuad,
+                       @restrict const DofToQuad_t dofToQuadD,
+                       @restrict const QuadToDof_t quadToDof,
+                       @restrict const QuadToDof_t quadToDofD,
+                       @restrict const SymmOperator1D_t oper,
+                       @restrict const DLocal1D_t solIn,
+                       @restrict DLocal1D_t solOut) {
   // Iterate over elements
   for (int e = 0; e < numElements; ++e; @outer) {
     for (int dummy = 0; dummy < 1; ++dummy; @inner) {
@@ -62,10 +62,10 @@
 
 //---[ 2D ]-----------------------------
 @kernel void Assemble2D(const int numElements,
-                       const double * restrict quadWeights,
-                       const Jacobian2D_t restrict J,
+                        @restrict const double * quadWeights,
+                        @restrict const Jacobian2D_t J,
                        COEFF_ARGS
-                       SymmOperator2D_t restrict oper) {
+                        @restrict SymmOperator2D_t oper) {
   for (int e = 0; e < numElements; ++e; @outer) {
     for (int q = 0; q < NUM_QUAD_2D; ++q; @inner) {
       const double J11 = J(0, 0, q, e), J12 = J(1, 0, q, e);
@@ -81,13 +81,13 @@
 }
 
 @kernel void MultAdd2D(const int numElements,
-                      const DofToQuad_t restrict dofToQuad,
-                      const DofToQuad_t restrict dofToQuadD,
-                      const QuadToDof_t restrict quadToDof,
-                      const QuadToDof_t restrict quadToDofD,
-                      const SymmOperator2D_t restrict oper,
-                      const DLocal2D_t restrict solIn,
-                      DLocal2D_t restrict solOut) {
+                       @restrict const DofToQuad_t dofToQuad,
+                       @restrict const DofToQuad_t dofToQuadD,
+                       @restrict const QuadToDof_t quadToDof,
+                       @restrict const QuadToDof_t quadToDofD,
+                       @restrict const SymmOperator2D_t oper,
+                       @restrict const DLocal2D_t solIn,
+                       @restrict DLocal2D_t solOut) {
   // Iterate over elements
   for (int e = 0; e < numElements; ++e; @outer) {
     for (int dummy = 0; dummy < 1; ++dummy; @inner) {
@@ -175,10 +175,10 @@
 
 //---[ 3D ]-----------------------------
 @kernel void Assemble3D(const int numElements,
-                       const double * restrict quadWeights,
-                       const Jacobian3D_t restrict J,
+                        @restrict const double * quadWeights,
+                        @restrict const Jacobian3D_t J,
                        COEFF_ARGS
-                       SymmOperator3D_t restrict oper) {
+                        @restrict SymmOperator3D_t oper) {
   for (int e = 0; e < numElements; ++e; @outer) {
     for (int q = 0; q < NUM_QUAD_3D; ++q; @inner) {
       const double J11 = J(0, 0, q, e), J12 = J(1, 0, q, e), J13 = J(2, 0, q, e);
@@ -215,13 +215,13 @@
 }
 
 @kernel void MultAdd3D(const int numElements,
-                      const DofToQuad_t restrict dofToQuad,
-                      const DofToQuad_t restrict dofToQuadD,
-                      const QuadToDof_t restrict quadToDof,
-                      const QuadToDof_t restrict quadToDofD,
-                      const SymmOperator3D_t restrict oper,
-                      const DLocal3D_t restrict solIn,
-                      DLocal3D_t restrict solOut) {
+                       @restrict const DofToQuad_t dofToQuad,
+                       @restrict const DofToQuad_t dofToQuadD,
+                       @restrict const QuadToDof_t quadToDof,
+                       @restrict const QuadToDof_t quadToDofD,
+                       @restrict const SymmOperator3D_t oper,
+                       @restrict const DLocal3D_t solIn,
+                       @restrict DLocal3D_t solOut) {
   // Iterate over elements
   for (int e = 0; e < numElements; ++e; @outer) {
     for (int dummy = 0; dummy < 1; ++dummy; @inner) {

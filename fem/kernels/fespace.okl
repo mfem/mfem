@@ -24,11 +24,11 @@ typedef double *Local_t  @dim(NUM_VDIM, localEntries)  @dimOrder(1, 0));
 #endif
 
 @kernel void GlobalToLocal(const int globalEntries,
-                          const int localEntries,
-                          const int * restrict offsets,
-                          const int * restrict indices,
-                          const Global_t restrict globalX,
-                          Local_t restrict localX) {
+                           const int localEntries,
+                           @restrict const int * offsets,
+                           @restrict const int * indices,
+                           @restrict const Global_t globalX,
+                           @restrict Local_t localX) {
 
   for (int i = 0; i < globalEntries; ++i; @tile(TILESIZE, @outer, @inner)) {
     const int offset = offsets[i];
@@ -44,10 +44,10 @@ typedef double *Local_t  @dim(NUM_VDIM, localEntries)  @dimOrder(1, 0));
 
 @kernel void LocalToGlobal(const int globalEntries,
                            const int localEntries,
-                           const int * restrict offsets,
-                           const int * restrict indices,
-                           const Local_t restrict localX,
-                           Global_t restrict globalX) {
+                           @restrict const int * offsets,
+                           @restrict const int * indices,
+                           @restrict const Local_t localX,
+                           @restrict Global_t globalX) {
 
   for (int i = 0; i < globalEntries; ++i; @tile(TILESIZE, @outer, @inner)) {
     const int offset = offsets[i];
