@@ -496,7 +496,7 @@ void ParNCMesh::CalculatePMatrixGroups()
    GetSharedEdges();
    GetSharedFaces();
 
-   int v[2], e[4], eo[4];
+   int v[4], e[4], eo[4];
 
    Array<int> ranks;
    ranks.Reserve(256);
@@ -505,6 +505,7 @@ void ParNCMesh::CalculatePMatrixGroups()
    for (unsigned i = 0; i < shared_edges.masters.size(); i++)
    {
       const Master &master_edge = shared_edges.masters[i];
+      ranks.SetSize(0);
       for (int j = master_edge.slaves_begin; j < master_edge.slaves_end; j++)
       {
          int owner = entity_owner[1][edge_list.slaves[j].index];
@@ -526,6 +527,7 @@ void ParNCMesh::CalculatePMatrixGroups()
    for (unsigned i = 0; i < shared_faces.masters.size(); i++)
    {
       const Master &master_face = shared_faces.masters[i];
+      ranks.SetSize(0);
       for (int j = master_face.slaves_begin; j < master_face.slaves_end; j++)
       {
          int owner = entity_owner[2][face_list.slaves[j].index];

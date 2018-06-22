@@ -1817,6 +1817,7 @@ int ParFiniteElementSpace
       Array<int> dofs;
 
       // initialize dof_group[], dof_owner[]
+#if 0
       for (int entity = 0; entity <= 2; entity++)
       {
          const NCMesh::NCList &list = pncmesh->GetSharedList(entity);
@@ -1844,6 +1845,30 @@ int ParFiniteElementSpace
             }
          }
       }
+#else
+      for (int entity = 0; entity <= 2; entity++)
+      {
+         int nent;
+         switch (entity) {
+            case 0: nent = pncmesh->GetNVertices() + pncmesh->GetNGhostVertices(); break;
+            case 1: nent = pncmesh->GetNEdges() + pncmesh->GetNGhostEdges(); break;
+            default: nent = pncmesh->GetNFaces() + pncmesh->GetNGhostFaces(); break;
+         }
+
+         for (int i = 0; i < nent; i++)
+         {
+            NCMesh::MeshId id(i); // FIXME
+            GetBareDofs(entity, id, dofs);
+
+            for (int j = 0; j < dofs.Size(); j++)
+            {
+               int dof = dofs[j];
+               dof_owner[dof] = pncmesh->GetEntityOwnerId(entity, id.index);
+               dof_group[dof] = pncmesh->GetEntityGroupId(entity, id.index);
+            }
+         }
+      }
+#endif
    }
 
    // *** STEP 3: count true DOFs and calculate P row/column partitions ***
