@@ -2,6 +2,9 @@
 // Description:  BP1 benchmark (from CEED Bake-off Problems)
 //               test the performance of high-order mass matrix operator
 //               evaluation with "partial assembly" algorithms.
+//
+//               More details about CEED's bake-off problems can be found at
+//               http://ceed.exascaleproject.org/bps.
 // *****************************************************************************
 
 #include "mfem-performance.hpp"
@@ -12,16 +15,42 @@ using namespace std;
 using namespace mfem;
 
 // *****************************************************************************
+#ifndef GEOM
 #define GEOM Geometry::CUBE
-#define MESH_P 3
-#define SOL_P 3
-#define IR_ORDER 0
-#define IR_TYPE 0
-#define PROBLEM 1
-#define USE_MPI_WTIME
-#define VDIM 1
-#define VEC_LAYOUT Ordering::byVDIM
+#endif
 
+#ifndef MESH_P
+#define MESH_P 3
+#endif
+
+#ifndef SOL_P
+#define SOL_P 3
+#endif
+
+#ifndef IR_ORDER
+#define IR_ORDER 0
+#endif
+
+#ifndef IR_TYPE
+// 0 - Gauss quadrature, 1 - Gauss-Lobatto quadrature
+#define IR_TYPE 0
+#endif
+
+// 0 - TDiffusionKernel, else TMassKernel
+#ifndef PROBLEM
+#define PROBLEM 0
+#endif
+
+#ifndef VDIM
+#define VDIM 1
+#endif
+
+// This vector layout is used for the solution space only.
+#ifndef VEC_LAYOUT
+#define VEC_LAYOUT Ordering::byVDIM
+#endif
+
+#define USE_MPI_WTIME
 
 IntegrationRules GaussLobattoRules(0, Quadrature1D::GaussLobatto);
 
@@ -114,14 +143,14 @@ int main(int argc, char *argv[])
    const Ordering::Type ordering = VEC_LAYOUT; // for solution space only
 
    // 2. Parse command-line options.
-   const char *mesh_file = "../../data/fichera.mesh";
+   const char *mesh_file = "../../data/inline-hex-2x1x1.mesh";
    int ser_ref_levels = -1;
    int par_ref_levels = +1;
    Array<int> nxyz;
    int order = sol_p;
    const char *basis_type = "G"; // Gauss-Lobatto
    bool static_cond = false;
-   const char *pc = "none";//"lor";
+   const char *pc = "none";
    bool perf = true;
    bool matrix_free = true;
    int max_iter = 50;
