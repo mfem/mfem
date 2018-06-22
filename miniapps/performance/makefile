@@ -47,7 +47,9 @@ endif
 # MFEM_PERF_CXXFLAGS_gcc_common += -std=c++03
 MFEM_PERF_CXXFLAGS_gcc_common += -std=c++11
 MFEM_PERF_CXXFLAGS_gcc_common += -pedantic -Wall
-#MFEM_PERF_CXXFLAGS_gcc_common += --param max-completely-peel-times=3
+ifeq ($(MFEM_USE_X86INTRIN),NO)
+MFEM_PERF_CXXFLAGS_gcc_common += --param max-completely-peel-times=3
+endif
 #MFEM_PERF_CXXFLAGS_gcc_common += -fdump-tree-optimized-blocks
 MFEM_PERF_CXXFLAGS_gcc_x86_64 = -march=native $(MFEM_PERF_CXXFLAGS_gcc_common)
 MFEM_PERF_CXXFLAGS_gcc_ppc64 = -mcpu=native -mtune=native\
