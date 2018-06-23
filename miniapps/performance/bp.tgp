@@ -1,0 +1,94 @@
+reset
+set encoding iso_8859_15
+set datafile separator "|"
+set datafile missing '-'
+
+##########
+# Output #
+##########
+set terminal png transparent truecolor size GEOX,GEOY enhanced fontscale FNTS
+
+#########
+# Style #
+#########
+set style data pm3d
+set pm3d at s interpolate 0,0 nohidden3d implicit #corners2color min #hidden3d 128
+#show pm3d
+set style line 128 lt 1 lw 4
+
+set hidden3d
+unset surf
+set grid layerdefault front
+
+#########
+# View #
+#########
+set size 1,1
+set origin 0,0
+set ticslevel 0.1
+set view VIEWX,VIEWY
+
+###########
+# Palette #
+###########
+set palette model RGB maxcolors 256
+set palette defined (1 "blue", 2 "cyan", 3 "green", 4 "yellow", 5 "red" )
+
+###########
+# Contour #
+# The first contour linetype, or only contour linetype when clabel is off, is the surface linetype +1
+###########
+unset contour
+#unset clabel
+#stats 'FILE' using 11 name 'M' output
+set cntrparam level auto
+#set contour surface
+set cntrparam bspline
+set cntrparam points 16
+set cntrparam order 10
+set cntrparam levels discrete CNTD
+#show contour
+
+#########
+# Title #
+#########
+set title "TITLE" offset -8,-2 textcolor lt 3 enhanced
+set autoscale
+
+##########
+# X Axis #
+##########
+set xlabel "Order" textcolor lt 3
+#set logscale x 2
+#set xrange [1:XMAX]
+#set xtics 2,2,14 offset 0,0
+#set xtics 1 offset 0,0
+
+##########
+# Y Axis #
+# http://soc.if.usp.br/manual/gnuplot-doc/htmldocs/stats_005f_0028Statistical_005fSummary_0029.html
+##########
+#stats 'FILE' using 4 name 'Y' nooutput
+set ylabel "Refines" textcolor lt 3
+#set logscale y
+set ytics 1,YSTP,YMAX border offset 0,-0.5
+#show ytics
+
+##########
+# Z Axis #
+##########
+set zlabel "Speedup" textcolor lt 3 rotate
+set ztics 1 #,1,8 #offset 1
+set zrange [ZMIN:ZMAX]
+
+#############
+# Color Box #
+#############
+set style line 1024 linetype -1
+set colorbox vertical border 1024 front user size .01,.25 origin 0.9,.4
+set cbtics nomirror border offset 0
+set cbrange [ZMIN:ZMAX]
+set cbtics 1
+
+unset multiplot
+splot 'FILE' using 2:3:($NUM/$DNM):xticlabels(sprintf("%d",$2)) ls 128 title ""

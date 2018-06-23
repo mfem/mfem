@@ -1,30 +1,53 @@
-// *****************************************************************************
-// Description:  BP1 benchmark (from CEED Bake-off Problems)
-//               test the performance of high-order mass matrix operator
-//               evaluation with "partial assembly" algorithms.
+// Copyright (c) 2017, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-734707. All Rights
+// reserved. See files LICENSE and NOTICE for details.
+//
+// This file is part of CEED, a collection of benchmarks, miniapps, software
+// libraries and APIs for efficient high-order finite element and spectral
+// element discretizations for exascale applications. For more information and
+// source code availability see http://github.com/ceed.
+//
+// The CEED research is supported by the Exascale Computing Project
+// (17-SC-20-SC), a collaborative effort of two U.S. Department of Energy
+// organizations (Office of Science and the National Nuclear Security
+// Administration) responsible for the planning and preparation of a capable
+// exascale ecosystem, including software, applications, hardware, advanced
+// system engineering and early testbed platforms, in support of the nation's
+// exascale computing imperative.
+
+
+//==============================================================================
+//                  MFEM Bake-off Problems 1, 2, 3, and 4
+//                                Version 1
+//
+// Compile with: see README.md
+//
+// Sample runs:  see README.md
+//
+// Description:  These benchmarks (CEED Bake-off Problems BP1 and BP3) test the
+//               performance of high-order mass (BP1) and stiffness (BP3) matrix
+//               operator evaluation with "partial assembly" algorithms.
+//
+//               Code is based on MFEM's HPC ex1, http://mfem.org/performance.
 //
 //               More details about CEED's bake-off problems can be found at
 //               http://ceed.exascaleproject.org/bps.
-// *****************************************************************************
+//==============================================================================
 
-#include "mfem-performance.hpp"
-#include <fstream>
-#include <iostream>
+#include <mfem.hpp>
 
-using namespace std;
 using namespace mfem;
 
-// *****************************************************************************
 #ifndef GEOM
 #define GEOM Geometry::CUBE
 #endif
 
 #ifndef MESH_P
-#define MESH_P 3
+#define MESH_P 6
 #endif
 
 #ifndef SOL_P
-#define SOL_P 3
+#define SOL_P 6
 #endif
 
 #ifndef IR_ORDER
@@ -36,8 +59,8 @@ using namespace mfem;
 #define IR_TYPE 0
 #endif
 
-// 0 - TDiffusionKernel, else TMassKernel
 #ifndef PROBLEM
+// 0- Diffusion, else TMassKernel
 #define PROBLEM 0
 #endif
 
@@ -45,12 +68,40 @@ using namespace mfem;
 #define VDIM 1
 #endif
 
+#ifndef MESH_FILE
+#define MESH_FILE "../../data/fichera.mesh"
+#endif
+
 // This vector layout is used for the solution space only.
 #ifndef VEC_LAYOUT
 #define VEC_LAYOUT Ordering::byVDIM
 #endif
 
-#define USE_MPI_WTIME
+// Define template parameters for optimized build.
+const Geometry::Type geom     = GEOM;      // mesh elements  (default: hex)
+const int            mesh_p   = MESH_P;    // mesh curvature (default: 3)
+const int            sol_p    = SOL_P;     // solution order (default: 3)
+const int            ir_q     = IR_TYPE ? sol_p+1 : sol_p+2;
+const int            ir_order = IR_ORDER ? IR_ORDER :
+                                (IR_TYPE ? 2*ir_q-3 : 2*ir_q-1);
+
+
+// Workaround for a bug in XL C++ on BG/Q version 12.01.0000.0014
+#if defined(__xlC__) && (__xlC__ < 0x0d00)
+#include <../mfem/linalg/tlayout.hpp>
+namespace mfem
+{
+const int mesh_dim = Geometry::Constants<geom>::Dimension;
+template class StridedLayout1D<mesh_dim*VDIM,1>;
+}
+#endif // defined(__xlC__) && (__xlC__ < 0x0d00)
+
+
+#include <mfem-performance.hpp>
+#include <fstream>
+#include <iostream>
+
+using namespace std;
 
 IntegrationRules GaussLobattoRules(0, Quadrature1D::GaussLobatto);
 
@@ -90,14 +141,6 @@ public:
 };
 
 
-// Define template parameters for optimized build.
-const Geometry::Type geom     = GEOM;      // mesh elements  (default: hex)
-const int            mesh_p   = MESH_P;    // mesh curvature (default: 3)
-const int            sol_p    = SOL_P;     // solution order (default: 3)
-const int            ir_q     = IR_TYPE ? sol_p+1 : sol_p+2;
-const int            ir_order = IR_ORDER ? IR_ORDER :
-                                (IR_TYPE ? 2*ir_q-3 : 2*ir_q-1);
-
 // Static mesh type
 typedef H1_FiniteElement<geom,mesh_p>         mesh_fe_t;
 typedef H1_FiniteElementSpace<mesh_fe_t>      mesh_fes_t;
@@ -113,7 +156,7 @@ typedef TIntegrationRule<geom,ir_order>       int_rule_t;
 #else
 const int rdim = Geometry::Constants<geom>::Dimension;
 typedef GaussLobattoIntegrationRule<rdim,ir_order/2+2,double>
-int_rule_t;
+                                              int_rule_t;
 #endif
 typedef TConstantCoefficient<>                coeff_t;
 #if (PROBLEM == 0)
@@ -143,7 +186,7 @@ int main(int argc, char *argv[])
    const Ordering::Type ordering = VEC_LAYOUT; // for solution space only
 
    // 2. Parse command-line options.
-   const char *mesh_file = "../../data/inline-hex-2x1x1.mesh";
+   const char *mesh_file = MESH_FILE;
    int ser_ref_levels = -1;
    int par_ref_levels = +1;
    Array<int> nxyz;
@@ -661,18 +704,16 @@ int main(int argc, char *argv[])
    MPI_Reduce(&my_rt, &rt_max, 1, MPI_DOUBLE, MPI_MAX, 0, pmesh->GetComm());
    if (myid == 0)
    {
-      const int cg_num_iterations = pcg->GetNumIterations();
       // Note: In the pcg algorithm, the number of operator Mult() calls is
       //       N_iter and the number of preconditioner Mult() calls is N_iter+1.
       cout << "Total CG time:    " << rt_max << " (" << rt_min << ") sec."
            << endl;
-      cout << "CG number of iterations: " << cg_num_iterations << endl;
       cout << "Time per CG step: "
-           << rt_max / cg_num_iterations << " ("
-           << rt_min / cg_num_iterations << ") sec." << endl;
+           << rt_max / pcg->GetNumIterations() << " ("
+           << rt_min / pcg->GetNumIterations() << ") sec." << endl;
       cout << "\n\"DOFs/sec\" in CG: "
-           << 1e-6*size*cg_num_iterations/rt_max << " ("
-           << 1e-6*size*cg_num_iterations/rt_min << ") million.\n"
+           << 1e-6*size*pcg->GetNumIterations()/rt_max << " ("
+           << 1e-6*size*pcg->GetNumIterations()/rt_min << ") million.\n"
            << endl;
    }
 
