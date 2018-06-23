@@ -19,8 +19,8 @@
 typedef double *Global_t @dim(NUM_VDIM, globalEntries);
 typedef double *Local_t  @dim(NUM_VDIM, localEntries);
 #else
-typedef double *Global_t @dim(NUM_VDIM, globalEntries) @dimOrder(1, 0));
-typedef double *Local_t  @dim(NUM_VDIM, localEntries)  @dimOrder(1, 0));
+typedef double *Global_t @dim(NUM_VDIM, globalEntries) @dimOrder(1, 0);
+typedef double *Local_t  @dim(NUM_VDIM, localEntries)  @dimOrder(1, 0);
 #endif
 
 @kernel void GlobalToLocal(const int globalEntries,
