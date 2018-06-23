@@ -9,6 +9,10 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
+// TODO: Fix later
+#define USING_LOW_ORDER 0
+#define USING_HI_ORDER  1
+
 typedef double* DofToQuad_t @dim(NUM_QUAD, NUM_DOFS);
 typedef double* DofToQuadD2D_t @dim(2, NUM_QUAD, NUM_DOFS);
 typedef double* DofToQuadD3D_t @dim(3, NUM_QUAD, NUM_DOFS);

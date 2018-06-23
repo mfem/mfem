@@ -54,7 +54,7 @@
       for (int q = qOff; q < NUM_QUAD; q += M2_INNER_BATCH) {
         double gradX = 0, gradY = 0;
         for (int d = 0; d < NUM_DOFS; ++d) {
-          const double s = solInt(d, e);
+          const double s = solIn(d, e);
           gradX += s * quadToDofD(0, d, q);
           gradY += s * quadToDofD(1, d, q);
         }
@@ -67,7 +67,7 @@
       }
     }
 
-    for (int dOff = 0; dOff < M2_INNER_BATCH; ++dOff) {
+    for (int dOff = 0; dOff < M2_INNER_BATCH; ++dOff; @inner) {
       for (int d = dOff; d < NUM_DOFS; d += M2_INNER_BATCH) {
         double r_sol = 0;
         for (int q = 0; q < NUM_QUAD; ++q) {
@@ -165,7 +165,7 @@
       }
     }
 
-    for (int dOff = 0; dOff < M3_INNER_BATCH; ++dOff) {
+    for (int dOff = 0; dOff < M3_INNER_BATCH; ++dOff; @inner) {
       for (int d = dOff; d < NUM_DOFS; d += M3_INNER_BATCH) {
         double r_sol = 0;
         for (int q = 0; q < NUM_QUAD; ++q) {
