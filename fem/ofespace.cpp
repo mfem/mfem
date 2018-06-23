@@ -92,7 +92,8 @@ namespace mfem {
 
     elementDofMap        = new int[localDofs];
     elementDofMapInverse = new int[localDofs];
-    if (el) {
+    if (el &&
+        el->GetDofMap().GetData()) {
       ::memcpy(elementDofMap,
                el->GetDofMap().GetData(),
                localDofs * sizeof(int));
