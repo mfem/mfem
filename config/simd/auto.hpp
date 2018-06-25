@@ -232,7 +232,6 @@ AutoSIMD<scalar_t,S,A> operator-(const scalar_t &e,
    return r;
 }
 
-// warning: always_inline function might not be inlinable
 template <typename scalar_t, int S, int A>
 inline MFEM_ALWAYS_INLINE
 AutoSIMD<scalar_t,S,A> operator*(const scalar_t &e,
@@ -244,7 +243,6 @@ AutoSIMD<scalar_t,S,A> operator*(const scalar_t &e,
    return r;
 }
 
-//warning: always_inline function might not be inlinable
 template <typename scalar_t, int S, int A>
 inline MFEM_ALWAYS_INLINE
 AutoSIMD<scalar_t,S,A> operator/(const scalar_t &e,
