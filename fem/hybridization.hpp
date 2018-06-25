@@ -63,6 +63,10 @@ protected:
    FiniteElementSpace *fes, *c_fes;
    BilinearFormIntegrator *c_bfi;
 
+   /// Set of contraint boundary face Integrators to be applied.
+   Array<BilinearFormIntegrator*> c_bfbfi;
+   Array<Array<int>*>             c_bfbfi_marker;
+
    SparseMatrix *Ct, *H;
 
    Array<int> hat_offsets, hat_dofs_marker;
@@ -104,6 +108,21 @@ public:
        will delete the integrator when destroyed. */
    void SetConstraintIntegrator(BilinearFormIntegrator *c_integ)
    { delete c_bfi; c_bfi = c_integ; }
+
+   /** Add the boundary face integrator that will be used to construct the
+       constraint matrix C. The Hybridization object assumes ownership of the
+       integrator, i.e. it will delete the integrator when destroyed. */
+   void AddBdrConstraintIntegrator(BilinearFormIntegrator *c_integ)
+   {
+      c_bfbfi.Append(c_integ);
+      c_bfbfi_marker.Append(NULL); // NULL marker means apply everywhere
+   }
+   void AddBdrConstraintIntegrator(BilinearFormIntegrator *c_integ,
+                                   Array<int> &bdr_marker)
+   {
+      c_bfbfi.Append(c_integ);
+      c_bfbfi_marker.Append(&bdr_marker);
+   }
 
    /// Prepare the Hybridization object for assembly.
    void Init(const Array<int> &ess_tdof_list);
