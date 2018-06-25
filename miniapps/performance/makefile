@@ -40,6 +40,8 @@ else ifneq (,$(filter %icpc %mpiicpc,$(MFEM_CXX)))
    MFEM_PERF_SW = icc
 endif
 
+#$(warning MFEM_PERF_SW = $(MFEM_PERF_SW))
+
 # Compiler specific optimizations.
 # For best performance, GCC 5 (or newer) is recommended.
 
@@ -52,8 +54,12 @@ MFEM_PERF_CXXFLAGS_gcc_common += --param max-completely-peel-times=3
 endif
 #MFEM_PERF_CXXFLAGS_gcc_common += -fdump-tree-optimized-blocks
 MFEM_PERF_CXXFLAGS_gcc_x86_64 = -march=native $(MFEM_PERF_CXXFLAGS_gcc_common)
-MFEM_PERF_CXXFLAGS_gcc_ppc64 = -mcpu=native -mtune=native\
+#MFEM_PERF_CXXFLAGS_gcc_ppc64 = -mcpu=native -mtune=native\
  $(MFEM_PERF_CXXFLAGS_gcc_common)
+MFEM_PERF_CXXFLAGS_gcc_ppc64 = $(MFEM_PERF_CXXFLAGS_gcc_common) 
+MFEM_PERF_CXXFLAGS_gcc_ppc64 += -mcpu=pwr8 -mtune=pwr8 \
+ $(MFEM_PERF_CXXFLAGS_gcc_common)
+#$(warning MFEM_PERF_CXXFLAGS_gcc_ppc64=$(MFEM_PERF_CXXFLAGS_gcc_ppc64))
 
 # - Clang extra options:
 MFEM_PERF_CXXFLAGS_clang += -march=native

@@ -50,12 +50,26 @@
 #ifndef MFEM_USE_X86INTRIN
 #include "simd/auto.hpp"
 #else
+#ifdef __VSX__
+#include "simd/vsx128.hpp"
+#else
 #include "simd/x86.hpp"
+#endif
 #endif
 
 // --- SIMD Traits
+#ifndef MFEM_USE_X86INTRIN
 #define MFEM_SIMD_SIZE 32
 #define MFEM_TEMPLATE_BLOCK_SIZE 4
+#else
+#ifdef __VSX__
+#define MFEM_SIMD_SIZE 16
+#define MFEM_TEMPLATE_BLOCK_SIZE 2
+#else
+#define MFEM_SIMD_SIZE 32
+#define MFEM_TEMPLATE_BLOCK_SIZE 4
+#endif
+#endif
 
 template<typename complex_t, typename real_t>
 struct AutoImplTraits
