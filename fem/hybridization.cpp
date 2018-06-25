@@ -49,6 +49,7 @@ Hybridization::~Hybridization()
    delete H;
    delete Ct;
    delete c_bfi;
+   for (int k=0; k < c_bfbfi.Size(); k++) { delete c_bfbfi[k]; }
 }
 
 void Hybridization::ConstructC()
@@ -127,6 +128,72 @@ void Hybridization::ConstructC()
          // zero-out small elements in elmat
          elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
          Ct->AddSubMatrix(vdofs, c_vdofs, elmat, skip_zeros);
+      }
+
+      if (c_bfbfi.Size())
+      {
+         const int skip_zeros = 1;
+         DenseMatrix elmat;
+         FaceElementTransformations *FTr;
+         const FiniteElement *fe1, *fe2;
+         const FiniteElement *face_el;
+         Mesh *mesh = fes->GetMesh();
+
+         // Which boundary attributes need to be processed?
+         Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                                    mesh->bdr_attributes.Max() : 0);
+         bdr_attr_marker = 0;
+         for (int k = 0; k < c_bfbfi.Size(); k++)
+         {
+            if (c_bfbfi_marker[k] == NULL)
+            {
+               bdr_attr_marker = 1;
+               break;
+            }
+            Array<int> &bdr_marker = *c_bfbfi_marker[k];
+            MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                        "invalid boundary marker for boundary face integrator #"
+                        << k << ", counting from zero");
+            for (int i = 0; i < bdr_attr_marker.Size(); i++)
+            {
+               bdr_attr_marker[i] |= bdr_marker[i];
+            }
+         }
+
+         for (int i = 0; i < fes->GetNBE(); i++)
+         {
+            const int bdr_attr = mesh->GetBdrAttribute(i);
+            if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
+            FTr = mesh->GetBdrFaceTransformations(i);
+            if (!FTr) { continue; }
+
+            int o1 = hat_offsets[FTr->Elem1No];
+            int s1 = hat_offsets[FTr->Elem1No+1] - o1;
+
+            vdofs.SetSize(s1);
+            for (int j = 0; j < s1; j++)
+            {
+               vdofs[j] = o1 + j;
+            }
+            c_fes->GetFaceVDofs(i, c_vdofs);
+            face_el = c_fes->GetFaceElement(i);
+            fe1 = fes -> GetFE (FTr -> Elem1No);
+            // The fe2 object is really a dummy and not used on the boundaries,
+            // but we can't dereference a NULL pointer, and we don't want to
+            // actually make a fake element.
+            fe2 = fe1;
+            for (int k = 0; k < c_bfbfi.Size(); k++)
+            {
+               if (c_bfbfi_marker[k] &&
+                   (*c_bfbfi_marker[k])[bdr_attr-1] == 0) { continue; }
+
+               c_bfbfi[k]->AssembleFaceMatrix(*face_el, *fe1, *fe2, *FTr, elmat);
+               // zero-out small elements in elmat
+               elmat.Threshold(1e-12 * elmat.MaxMaxNorm());
+               Ct->AddSubMatrix(vdofs, c_vdofs, elmat, skip_zeros);
+            }
+         }
       }
 #ifdef MFEM_USE_MPI
       if (pmesh)
