@@ -30,6 +30,7 @@
 #include "datacollection.hpp"
 #include "estimators.hpp"
 #include "staticcond.hpp"
+#include "tmop.hpp"
 /* HDG */
 #include "hdg_integrators.hpp"
 #include "HDGBilinearForm2.hpp"
@@ -45,6 +46,10 @@
 
 #ifdef MFEM_USE_SIDRE
 #include "sidredatacollection.hpp"
+#endif
+
+#ifdef MFEM_USE_CONDUIT
+#include "conduitdatacollection.hpp"
 #endif
 
 #endif

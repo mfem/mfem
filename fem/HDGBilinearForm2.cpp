@@ -478,9 +478,7 @@ void HDGBilinearForm2::Reconstruct(const GridFunction *F,
       {
          fes2 -> GetFaceVDofs(fcs[edge1], vdofs_e1);
          ndof_e1 = vdofs_e1.Size();
-
          B_local[edge1].SetSize(ndof_u, ndof_e1);
-
          B_local[edge1] = 0.0;
 
          // If B is not saved then compute the face integrals
@@ -575,7 +573,6 @@ void HDGBilinearForm2::compute_face_integrals_shared(const int elem,
    const FiniteElement &test_fe1 = *fes1->GetFE(tr->Elem1No);
    const FiniteElement &test_fe2 = *fes1->GetFE(tr->Elem2No);
 
-   // For the parallel case the element the processor owns is tr->Elem1No
    // Compute the integrals using element 1
    // For the serial there was an if condition to check if element 1 or 2
    // is needed. Over a shared face every processor uses the element it owns

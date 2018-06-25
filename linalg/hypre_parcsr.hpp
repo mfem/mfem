@@ -69,6 +69,14 @@ void hypre_CSRMatrixBooleanMatvec(hypre_CSRMatrix *A,
                                   HYPRE_Bool beta,
                                   HYPRE_Bool *y);
 
+/** The "Boolean" analog of y = alpha * A^T * x + beta * y, where elements in
+    the sparsity pattern of the CSR matrix A are treated as "true". */
+void hypre_CSRMatrixBooleanMatvecT(hypre_CSRMatrix *A,
+                                   HYPRE_Bool alpha,
+                                   HYPRE_Bool *x,
+                                   HYPRE_Bool beta,
+                                   HYPRE_Bool *y);
+
 hypre_ParCSRCommHandle *
 hypre_ParCSRCommHandleCreate_bool(HYPRE_Int            job,
                                   hypre_ParCSRCommPkg *comm_pkg,
@@ -83,6 +91,14 @@ void hypre_ParCSRMatrixBooleanMatvec(hypre_ParCSRMatrix *A,
                                      HYPRE_Bool beta,
                                      HYPRE_Bool *y);
 
+/** The "Boolean" analog of y = alpha * A^T * x + beta * y, where elements in
+    the sparsity pattern of the ParCSR matrix A are treated as "true". */
+void hypre_ParCSRMatrixBooleanMatvecT(hypre_ParCSRMatrix *A,
+                                      HYPRE_Bool alpha,
+                                      HYPRE_Bool *x,
+                                      HYPRE_Bool beta,
+                                      HYPRE_Bool *y);
+
 /** Perform the operation A += beta*B, assuming that the sparsity pattern of A
     contains that of B. */
 HYPRE_Int
@@ -91,8 +107,9 @@ hypre_CSRMatrixSum(hypre_CSRMatrix *A,
                    hypre_CSRMatrix *B);
 
 /** Return a new matrix containing the sum of A and B, assuming that both
-    matrices use the same row and column partitions and the same col_map_offd
-    arrays. */
+    matrices use the same row and column partitions. The col_map_offd do not
+    need to be the same, but a more efficient algorithm is used if that's the
+    case. */
 hypre_ParCSRMatrix *
 hypre_ParCSRMatrixAdd(hypre_ParCSRMatrix *A,
                       hypre_ParCSRMatrix *B);
