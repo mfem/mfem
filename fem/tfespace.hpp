@@ -36,6 +36,7 @@ namespace mfem
 // elements are assumed to have the same number of dofs. Such an array is
 // constructed from the J array of an element-to-dof Table with optional local
 // renumbering to ensure tensor-product local dof ordering when needed.
+
 template <typename FE>
 class ElementDofIndexer
 {
@@ -114,6 +115,7 @@ class TFiniteElementSpace_simple
 public:
    typedef FE        FE_type;
    typedef IndexType index_type;
+   static const int dofs = FE::dofs;
 
 protected:
    index_type ind;

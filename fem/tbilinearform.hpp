@@ -195,7 +195,7 @@ public:
       const int NE = mesh.GetNE();
       if (!assembled_data)
       {
-         void* result = nullptr;
+         void* result;
          const int size = ((NE+TE-1)/TE)*BE*sizeof(p_assembled_t);
          const auto alloc_failed = posix_memalign(&result, 32, size);
          if (alloc_failed) { throw ::std::bad_alloc(); }
