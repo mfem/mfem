@@ -9,4 +9,4 @@
 # Petsc 3.9
 -solver_pc_factor_mat_solver_type mumps
 # Older versions of PETSc
-#-solver_pc_factor_mat_solver_package mumps
+-solver_pc_factor_mat_solver_package mumps
