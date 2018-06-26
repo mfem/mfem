@@ -51,7 +51,11 @@
 #include "simd/auto.hpp"
 #else
 #ifdef __VSX__
+#warning __VSX__
 #include "simd/vsx128.hpp"
+#endif
+#ifdef __bgq__
+#include "simd/qpx256.hpp"
 #else
 #include "simd/x86.hpp"
 #endif
@@ -62,10 +66,10 @@
 #define MFEM_SIMD_SIZE 32
 #define MFEM_TEMPLATE_BLOCK_SIZE 4
 #else
-#ifdef __VSX__
+#ifdef __VSX__ // 128
 #define MFEM_SIMD_SIZE 16
 #define MFEM_TEMPLATE_BLOCK_SIZE 2
-#else
+#else // 256
 #define MFEM_SIMD_SIZE 32
 #define MFEM_TEMPLATE_BLOCK_SIZE 4
 #endif
