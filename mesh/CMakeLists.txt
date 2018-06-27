@@ -60,6 +60,13 @@ if (MFEM_USE_MESQUITE)
   list(APPEND HDRS mesquite.hpp)
 endif()
 
+if (MFEM_USE_PUMI)
+  list(APPEND SRCS
+    pumi.cpp)
+  list(APPEND HDRS
+    pumi.hpp)
+endif()
+
 convert_filenames_to_full_paths(SRCS)
 convert_filenames_to_full_paths(HDRS)
 

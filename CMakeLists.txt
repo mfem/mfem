@@ -47,11 +47,11 @@ endif()
 #-------------------------------------------------------------------------------
 # Project name and version
 #-------------------------------------------------------------------------------
-project(mfem CXX)
+project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 3.3.1)
+set(${PROJECT_NAME}_VERSION 3.4.1)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -59,21 +59,43 @@ if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
     "MFEM does not support in-source CMake builds at this time.")
 endif (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
 
-# Suppress warnings about MACOSX_RPATH
-set(CMAKE_MACOSX_RPATH OFF CACHE BOOL "")
+# Set xSDK defaults.
+set(USE_XSDK_DEFAULTS_DEFAULT OFF)
+set(XSDK_ENABLE_CXX ON)
+set(XSDK_ENABLE_C OFF)
+set(XSDK_ENABLE_Fortran OFF)
 
-if (CMAKE_VERSION VERSION_LESS 3.2 OR MFEM_USE_SIDRE OR MFEM_USE_PETSC)
+# Check if we need to enable C or Fortran.
+if (CMAKE_VERSION VERSION_LESS 3.2 OR
+    MFEM_USE_CONDUIT OR
+    MFEM_USE_SIDRE OR
+    MFEM_USE_PETSC)
    # This seems to be needed by:
    #  * find_package(BLAS REQUIRED) and
    #  * find_package(HDF5 REQUIRED) needed, in turn, by:
    #    - find_package(AXOM REQUIRED)
    #  * find_package(PETSc REQUIRED)
-   enable_language(C)
+   set(XSDK_ENABLE_C ON)
 endif()
 if (MFEM_USE_STRUMPACK)
   # Just needed to find the MPI_Fortran libraries to link with
-  enable_language(Fortran)
+  set(XSDK_ENABLE_Fortran ON)
 endif()
+
+# Include xSDK default CMake file.
+include("${CMAKE_CURRENT_SOURCE_DIR}/config/XSDKDefaults.cmake")
+
+# Enable languages.
+enable_language(CXX)
+if (XSDK_ENABLE_C)
+   enable_language(C)
+endif()
+if (XSDK_ENABLE_Fortran)
+   enable_language(Fortran)
+endif()
+
+# Suppress warnings about MACOSX_RPATH
+set(CMAKE_MACOSX_RPATH OFF CACHE BOOL "")
 
 # CMake needs to know where to find things
 set(MFEM_CMAKE_PATH ${PROJECT_SOURCE_DIR}/config)
@@ -84,6 +106,17 @@ include(MfemCmakeUtilities)
 
 string(TOUPPER "${PROJECT_NAME}" PROJECT_NAME_UC)
 mfem_version_to_int(${${PROJECT_NAME}_VERSION} ${PROJECT_NAME_UC}_VERSION)
+set(${PROJECT_NAME_UC}_VERSION_STRING ${${PROJECT_NAME}_VERSION})
+if (EXISTS ${PROJECT_SOURCE_DIR}/.git)
+   execute_process(
+     COMMAND git describe --all --long --abbrev=40 --dirty --always
+     WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+     OUTPUT_VARIABLE ${PROJECT_NAME_UC}_GIT_STRING
+     ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE)
+endif()
+if (NOT ${PROJECT_NAME_UC}_GIT_STRING)
+   set(${PROJECT_NAME_UC}_GIT_STRING "(unknown)")
+endif()
 
 #-------------------------------------------------------------------------------
 # Process configuration options
@@ -106,13 +139,13 @@ if (MFEM_USE_MPI)
   if (MFEM_USE_PETSC)
     find_package(PETSc REQUIRED)
     message(STATUS "Found PETSc version ${PETSC_VERSION}")
-    if (PETSC_VERSION AND (PETSC_VERSION VERSION_LESS 3.7.5.99))
-      message(FATAL_ERROR "PETSc version >= 3.7.5.99 is required")
+    if (PETSC_VERSION AND (PETSC_VERSION VERSION_LESS 3.8.0))
+      message(FATAL_ERROR "PETSc version >= 3.8.0 is required")
     endif()
     set(PETSC_INCLUDE_DIRS ${PETSC_INCLUDES})
   endif()
 else()
-  set(PKGS_NEED_MPI SUPERLU PETSC STRUMPACK)
+  set(PKGS_NEED_MPI SUPERLU PETSC STRUMPACK PUMI)
   foreach(PKG IN LISTS PKGS_NEED_MPI)
     if (MFEM_USE_${PKG})
       message(STATUS "Disabling package ${PKG} - requires MPI")
@@ -210,12 +243,28 @@ if (MFEM_USE_MPFR)
   find_package(MPFR REQUIRED)
 endif()
 
+if (MFEM_USE_CONDUIT)
+    find_package(Conduit REQUIRED conduit relay blueprint )
+endif()
+
 # Axom/Sidre
 if (MFEM_USE_SIDRE)
-  if (NOT MFEM_USE_MPI)
-    find_package(Axom REQUIRED Sidre SLIC axom_utils)
-  else()
-    find_package(Axom REQUIRED Sidre SPIO SLIC axom_utils)
+  find_package(Axom REQUIRED Sidre SLIC axom_utils)
+endif()
+
+# PUMI
+if (MFEM_USE_PUMI)
+  # If PUMI_DIR was specified, only link to that directory,
+  # i.e. don't link to another installation in /usr/lib by mistake
+  find_package(SCOREC 2.1.0 REQUIRED OPTIONAL_COMPONENTS gmi_sim
+    CONFIG PATHS ${PUMI_DIR} NO_DEFAULT_PATH)
+  if (SCOREC_FOUND)
+    # Define a header file with the MFEM_USE_SIMMETRIX preprocessor variable
+    set(MFEM_USE_SIMMETRIX ${SCOREC_gmi_sim_FOUND})
+    set(PUMI_FOUND ${SCOREC_FOUND})
+    get_target_property(PUMI_INCLUDE_DIRS
+      SCOREC::apf INTERFACE_INCLUDE_DIRECTORIES)
+    set(PUMI_LIBRARIES SCOREC::core)
   endif()
 endif()
 
@@ -257,10 +306,8 @@ endif()
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
-    MESQUITE SuperLUDist STRUMPACK AXOM GECKO GNUTLS NETCDF MPFR POSIXCLOCKS
-    MFEMBacktrace ZLIB MOONOLITH)
-
-
+    MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT GECKO GNUTLS NETCDF MPFR PUMI
+    POSIXCLOCKS MFEMBacktrace ZLIB MOONOLITH)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")
@@ -282,6 +329,8 @@ if (OPENMP_FOUND)
 endif()
 
 message(STATUS "MFEM build type: CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
+message(STATUS "MFEM version: v${MFEM_VERSION_STRING}")
+message(STATUS "MFEM git string: ${MFEM_GIT_STRING}")
 
 # Windows specific
 set(_USE_MATH_DEFINES ${WIN32})
@@ -404,12 +453,12 @@ endif()
 # Add 'check' target - quick test
 if (NOT MFEM_USE_MPI)
   add_custom_target(check
-    ${CMAKE_CTEST_COMMAND} -R ex1_ser -E performance -C ${CMAKE_CFG_INTDIR}
+    ${CMAKE_CTEST_COMMAND} -R '^ex1_ser' -C ${CMAKE_CFG_INTDIR}
     USES_TERMINAL)
   add_dependencies(check ex1)
 else()
   add_custom_target(check
-    ${CMAKE_CTEST_COMMAND} -R ex1p -E performance -C ${CMAKE_CFG_INTDIR}
+    ${CMAKE_CTEST_COMMAND} -R '^ex1p' -C ${CMAKE_CFG_INTDIR}
     USES_TERMINAL)
   add_dependencies(check ex1p)
 endif()

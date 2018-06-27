@@ -541,7 +541,7 @@ VoltaSolver::DisplayToGLVis()
    {
       VisualizeField(*socks_["Sigma"], vishost, visport,
                      *sigma_, "Surface Charge Density (Sigma)", Wx, Wy, Ww, Wh);
-      Wx += offx;
+      // Wx += offx; // not used
    }
    if (myid_ == 0) { cout << " done." << endl; }
 }

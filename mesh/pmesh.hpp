@@ -17,16 +17,23 @@
 #ifdef MFEM_USE_MPI
 
 #include "../general/communication.hpp"
+#include "../general/globals.hpp"
 #include "mesh.hpp"
 #include "pncmesh.hpp"
 #include <iostream>
 
 namespace mfem
 {
+#ifdef MFEM_USE_PUMI
+class ParPumiMesh;
+#endif
 
 /// Class for parallel meshes
 class ParMesh : public Mesh
 {
+#ifdef MFEM_USE_PUMI
+   friend class ParPumiMesh;
+#endif
 protected:
    ParMesh() : MyComm(0), NRanks(0), MyRank(-1),
       have_face_nbr_data(false), pncmesh(NULL) {}
@@ -98,7 +105,8 @@ public:
            int part_method = 1);
 
    /// Read a parallel mesh, each MPI rank from its own file/stream.
-   ParMesh(MPI_Comm comm, std::istream &input);
+   /** The @a refine parameter is passed to the method Mesh::Finalize(). */
+   ParMesh(MPI_Comm comm, std::istream &input, bool refine = true);
 
    /// Create a uniformly refined (by any factor) version of @a orig_mesh.
    /** @param[in] orig_mesh  The starting coarse mesh.
@@ -185,20 +193,20 @@ public:
 
    /** Print the part of the mesh in the calling processor adding the interface
        as boundary (for visualization purposes) using the mfem v1.0 format. */
-   virtual void Print(std::ostream &out = std::cout) const;
+   virtual void Print(std::ostream &out = mfem::out) const;
 
    /** Print the part of the mesh in the calling processor adding the interface
        as boundary (for visualization purposes) using Netgen/Truegrid format .*/
-   virtual void PrintXG(std::ostream &out = std::cout) const;
+   virtual void PrintXG(std::ostream &out = mfem::out) const;
 
    /** Write the mesh to the stream 'out' on Process 0 in a form suitable for
        visualization: the mesh is written as a disjoint mesh and the shared
        boundary is added to the actual boundary; both the element and boundary
        attributes are set to the processor number.  */
-   void PrintAsOne(std::ostream &out = std::cout);
+   void PrintAsOne(std::ostream &out = mfem::out);
 
    /// Old mesh format (Netgen/Truegrid) version of 'PrintAsOne'
-   void PrintAsOneXG(std::ostream &out = std::cout);
+   void PrintAsOneXG(std::ostream &out = mfem::out);
 
    /// Returns the minimum and maximum corners of the mesh bounding box. For
    /// high-order meshes, the geometry is refined first "ref" times.
@@ -208,13 +216,14 @@ public:
                            double &kappa_min, double &kappa_max);
 
    /// Print various parallel mesh stats
-   virtual void PrintInfo(std::ostream &out = std::cout);
+   virtual void PrintInfo(std::ostream &out = mfem::out);
 
    /// Save the mesh in a parallel mesh format.
    void ParPrint(std::ostream &out) const;
 
-   virtual int FindPoints(DenseMatrix& point_mat, Array<int>& elem_id,
-                          Array<IntegrationPoint>& ip, bool warn = true);
+   virtual int FindPoints(DenseMatrix& point_mat, Array<int>& elem_ids,
+                          Array<IntegrationPoint>& ips, bool warn = true,
+                          InverseElementTransformation *inv_trans = NULL);
 
    virtual ~ParMesh();
 };

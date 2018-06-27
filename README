@@ -12,11 +12,15 @@ to enable the research and development of scalable finite element discretization
 and solver algorithms through general finite element abstractions, accurate and
 flexible visualization, and tight integration with the hypre library.
 
-For building instructions, see the file INSTALL, or type "make help". Copyright
-information and licensing restrictions can be found in the file COPYRIGHT.
+* For building instructions, see the file INSTALL, or type "make help".
 
-The best starting point for new users interested in MFEM's features is the
-interactive documentation in examples/README.html.
+* Copyright and licensing information can be found in the file COPYRIGHT.
+
+* The best starting point for new users interested in MFEM's features is the
+  interactive documentation in examples/README.html.
+
+* Developers interested in contributing to the library, should read the
+  instructions and documentation in the CONTRIBUTING.md file.
 
 Conceptually, MFEM can be viewed as a finite element toolbox that provides the
 building blocks for developing finite element algorithms in a manner similar to
@@ -56,7 +60,8 @@ time integrators, etc.
 For examples of using MFEM, see the examples/ and miniapps/ directories, as well
 as the OpenGL visualization tool GLVis which is available at http://glvis.org.
 
-This project is released under the LGPL v2.1 license. See LICENSE file for full
-details.
+This project is released under the LGPL v2.1 license with static linking
+exception. See files COPYRIGHT and LICENSE file for full details.
 
 LLNL Release Number: LLNL-CODE-443211
+DOI: 10.11578/dc.20171025.1248
