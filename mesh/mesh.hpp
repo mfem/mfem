@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "../general/stable3d.hpp"
+#include "../general/globals.hpp"
 #include "triangle.hpp"
 #include "tetrahedron.hpp"
 #include "quadrilateral.hpp" //FIXME maybe there was a reason why these includes were not here
@@ -24,7 +25,6 @@
 #include "../fem/coefficient.hpp"
 #include "../general/gzstream.hpp"
 #include <iostream>
-#include <fstream>
 
 namespace mfem
 {
@@ -69,7 +69,9 @@ protected:
 
    Array<Element *> elements;
    // Vertices are only at the corners of elements, where you would expect them
-   // in the lowest-order mesh.
+   // in the lowest-order mesh. In some cases, e.g. in a Mesh that defines the
+   // patch topology for a NURBS mesh (see LoadPatchTopo()) the vertices may be
+   // empty while NumOfVertices is positive.
    Array<Vertex> vertices;
    Array<Element *> boundary;
    Array<Element *> faces;
@@ -176,6 +178,11 @@ public:
    NURBSExtension *NURBSext; ///< Optional NURBS mesh extension.
    NCMesh *ncmesh;           ///< Optional non-conforming mesh extension.
 
+   // Global parameter that can be used to control the removal of unused
+   // vertices performed when reading a mesh in MFEM format. The default value
+   // (true) is set in mesh_readers.cpp.
+   static bool remove_unused_vertices;
+
 protected:
    Operation last_operation;
 
@@ -186,6 +193,7 @@ protected:
    void DeleteTables() { DestroyTables(); InitTables(); }
    void DestroyPointers(); // Delete data specifically allocated by class Mesh.
    void Destroy();         // Delete all owned data.
+   void DeleteLazyTables();
 
    Element *ReadElementWithoutAttr(std::istream &);
    static void PrintElementWithoutAttr(const Element *, std::ostream &);
@@ -304,10 +312,6 @@ protected:
    /// Used in GetFaceElementTransformations (...)
    void GetLocalQuadToHexTransformation (IsoparametricTransformation &loc,
                                          int i);
-   /// Used in GetFaceElementTransformations (...)
-   void GetLocalFaceTransformation(int face_type, int elem_type,
-                                   IsoparametricTransformation &Transf,
-                                   int inf);
    /** Used in GetFaceElementTransformations to account for the fact that a
        slave face occupies only a portion of its master face. */
    void ApplyLocalSlaveTransformation(IsoparametricTransformation &transf,
@@ -377,7 +381,7 @@ protected:
    // If NURBS mesh, write NURBS format. If NCMesh, write mfem v1.1 format.
    // If section_delimiter is empty, write mfem v1.0 format. Otherwise, write
    // mfem v1.2 format with the given section_delimiter at the end.
-   void Printer(std::ostream &out = std::cout,
+   void Printer(std::ostream &out = mfem::out,
                 std::string section_delimiter = "") const;
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
@@ -401,7 +405,7 @@ protected:
    void InitFromNCMesh(const NCMesh &ncmesh);
 
    /// Create from a nonconforming mesh.
-   Mesh(const NCMesh &ncmesh);
+   explicit Mesh(const NCMesh &ncmesh);
 
    /// Swaps internal data with another mesh. By default, non-geometry members
    /// like 'ncmesh' and 'NURBSExt' are only swapped when 'non_geometry' is set.
@@ -559,14 +563,14 @@ public:
    /** Creates mesh by reading a file in MFEM, netgen, or VTK format. If
        generate_edges = 0 (default) edges are not generated, if 1 edges are
        generated. */
-   Mesh(const char *filename, int generate_edges = 0, int refine = 1,
-        bool fix_orientation = true);
+   explicit Mesh(const char *filename, int generate_edges = 0, int refine = 1,
+                 bool fix_orientation = true);
 
    /** Creates mesh by reading data stream in MFEM, netgen, or VTK format. If
        generate_edges = 0 (default) edges are not generated, if 1 edges are
        generated. */
-   Mesh(std::istream &input, int generate_edges = 0, int refine = 1,
-        bool fix_orientation = true);
+   explicit Mesh(std::istream &input, int generate_edges = 0, int refine = 1,
+                 bool fix_orientation = true);
 
    /// Create a disjoint mesh from the given mesh array
    Mesh(Mesh *mesh_array[], int num_pieces);
@@ -689,13 +693,13 @@ public:
    int GetBdrElementBaseGeometry(int i = 0) const
    { return i < GetNBE() ? boundary[i]->GetGeometryType() : BaseBdrGeom; }
 
-   /// Returns the indices of the dofs of element i.
-   void GetElementVertices(int i, Array<int> &dofs) const
-   { elements[i]->GetVertices(dofs); }
+   /// Returns the indices of the vertices of element i.
+   void GetElementVertices(int i, Array<int> &v) const
+   { elements[i]->GetVertices(v); }
 
-   /// Returns the indices of the dofs of boundary element i.
-   void GetBdrElementVertices(int i, Array<int> &dofs) const
-   { boundary[i]->GetVertices(dofs); }
+   /// Returns the indices of the vertices of boundary element i.
+   void GetBdrElementVertices(int i, Array<int> &v) const
+   { boundary[i]->GetVertices(v); }
 
    /// Return the indices and the orientations of all edges of element i.
    void GetElementEdges(int i, Array<int> &edges, Array<int> &cor) const;
@@ -750,14 +754,12 @@ public:
    /// Returns the type of boundary element i.
    int GetBdrElementType(int i) const;
 
-   /* Return point matrix of element i of dimension Dim X #dofs, where for
-      every degree of freedom we give its coordinates in space of dimension
-      Dim. */
+   /* Return point matrix of element i of dimension Dim X #v, where for every
+      vertex we give its coordinates in space of dimension Dim. */
    void GetPointMatrix(int i, DenseMatrix &pointmat) const;
 
-   /* Return point matrix of boundary element i of dimension Dim X #dofs,
-      where for every degree of freedom we give its coordinates in space
-      of dimension Dim. */
+   /* Return point matrix of boundary element i of dimension Dim X #v, where for
+      every vertex we give its coordinates in space of dimension Dim. */
    void GetBdrPointMatrix(int i, DenseMatrix &pointmat) const;
 
    static FiniteElement *GetTransformationFEforElementType(int);
@@ -778,9 +780,18 @@ public:
    ElementTransformation * GetBdrElementTransformation(int i);
    void GetBdrElementTransformation(int i, IsoparametricTransformation *ElTr);
 
-   /** Returns the transformation defining the given face element.
-       The transformation is stored in a user-defined variable. */
+   /** @brief Returns the transformation defining the given face element in a
+       user-defined variable. */
    void GetFaceTransformation(int i, IsoparametricTransformation *FTr);
+
+   /** @brief A helper method that constructs a transformation from the
+       reference space of a face to the reference space of an element. */
+   /** The local index of the face as a face in the element and its orientation
+       are given by the input parameter @a info, as @a info = 64*loc_face_idx +
+       loc_face_orientation. */
+   void GetLocalFaceTransformation(int face_type, int elem_type,
+                                   IsoparametricTransformation &Transf,
+                                   int info);
 
    /// Returns the transformation defining the given face element
    ElementTransformation *GetFaceTransformation(int FaceNo);
@@ -991,7 +1002,9 @@ public:
 
    ///@{ @name NURBS mesh refinement methods
    void KnotInsert(Array<KnotVector *> &kv);
-   void DegreeElevate(int t);
+   /* For each knot vector:
+         new_degree = max(old_degree, min(old_degree + rel_degree, degree)). */
+   void DegreeElevate(int rel_degree, int degree = 16);
    ///@}
 
    /** Make sure that a quad/hex mesh is considered to be non-conforming (i.e.,
@@ -1016,11 +1029,11 @@ public:
    long GetSequence() const { return sequence; }
 
    /// Print the mesh to the given stream using Netgen/Truegrid format.
-   virtual void PrintXG(std::ostream &out = std::cout) const;
+   virtual void PrintXG(std::ostream &out = mfem::out) const;
 
    /// Print the mesh to the given stream using the default MFEM mesh format.
    /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
-   virtual void Print(std::ostream &out = std::cout) const { Printer(out); }
+   virtual void Print(std::ostream &out = mfem::out) const { Printer(out); }
 
    /// Print the mesh in VTK format (linear and quadratic meshes only).
    /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
@@ -1083,33 +1096,43 @@ public:
                            Vector *Vh = NULL, Vector *Vk = NULL);
 
    void PrintCharacteristics(Vector *Vh = NULL, Vector *Vk = NULL,
-                             std::ostream &out = std::cout);
+                             std::ostream &out = mfem::out);
 
-   virtual void PrintInfo(std::ostream &out = std::cout)
+   virtual void PrintInfo(std::ostream &out = mfem::out)
    {
       PrintCharacteristics(NULL, NULL, out);
    }
 
    void MesquiteSmooth(const int mesquite_option = 0);
 
-   /// Returns the ids of the elements that contain the given points.
-   /** The DenseMatrix @a point_mat describes the given points - one point for
+   /** @brief Find the ids of the elements that contain the given points, and
+       their corresponding reference coordinates.
+
+       The DenseMatrix @a point_mat describes the given points - one point for
        each column; it should have SpaceDimension() rows.
 
-       If no element is found for the i-th point, elem_id[i] is set to -1.
+       The InverseElementTransformation object, @a inv_trans, is used to attempt
+       the element transformation inversion. If NULL pointer is given, the
+       method will use a default constructed InverseElementTransformation. Note
+       that the algorithms in the base class InverseElementTransformation can be
+       completely overwritten by deriving custom classes that override the
+       Transform() method.
 
-       If an element is found, the method also returns the coordinates of the
-       point in the reference space of the corresponding element.
+       If no element is found for the i-th point, elem_ids[i] is set to -1.
 
-       In parallel, if a point is shared by multiple processors, only one of
-       them will mark that point as found.
+       In the ParMesh implementation, the @a point_mat is expected to be the
+       same on all ranks. If the i-th point is found by multiple ranks, only one
+       of them will mark that point as found, i.e. set its elem_ids[i] to a
+       non-negative number; the other ranks will set their elem_ids[i] to -2 to
+       indicate that the point was found but assigned to another rank.
 
        @returns The total number of points that were found.
 
        @note This method is not 100 percent reliable, i.e. it is not guaranteed
        to find a point, even if it lies inside a mesh element. */
-   virtual int FindPoints(DenseMatrix& point_mat, Array<int>& elem_id,
-                          Array<IntegrationPoint>& ip, bool warn = true);
+   virtual int FindPoints(DenseMatrix& point_mat, Array<int>& elem_ids,
+                          Array<IntegrationPoint>& ips, bool warn = true,
+                          InverseElementTransformation *inv_trans = NULL);
 
    /// Destroys Mesh.
    virtual ~Mesh() { DestroyPointers(); }

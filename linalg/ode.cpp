@@ -485,4 +485,185 @@ void SDIRK33Solver::Step(Vector &x, double &t, double &dt)
    t += dt;
 }
 
+
+void GeneralizedAlphaSolver::Init(TimeDependentOperator &_f)
+{
+   ODESolver::Init(_f);
+   k.SetSize(f->Width());
+   y.SetSize(f->Width());
+   xdot.SetSize(f->Width());
+   xdot = 0.0;
+   first = true;
+}
+
+void GeneralizedAlphaSolver::SetRhoInf(double rho_inf)
+{
+   rho_inf = (rho_inf > 1.0) ? 1.0 : rho_inf;
+   rho_inf = (rho_inf < 0.0) ? 0.0 : rho_inf;
+
+   alpha_m = 0.5*(3.0 - rho_inf)/(1.0 + rho_inf);
+   alpha_f = 1.0/(1.0 + rho_inf);
+   gamma = 0.5 + alpha_m - alpha_f;
+}
+
+void GeneralizedAlphaSolver::PrintProperties(std::ostream &out)
+{
+   out << "Generalized alpha time integrator:" << std::endl;
+   out << "alpha_m = " << alpha_m << std::endl;
+   out << "alpha_f = " << alpha_f << std::endl;
+   out << "gamma   = " << gamma   << std::endl;
+
+   if (gamma == 0.5 + alpha_m - alpha_f)
+   {
+      out<<"Second order"<<" and ";
+   }
+   else
+   {
+      out<<"First order"<<" and ";
+   }
+
+   if ((alpha_m >= alpha_f)&&(alpha_f >= 0.5))
+   {
+      out<<"Stable"<<std::endl;
+   }
+   else
+   {
+      out<<"Unstable"<<std::endl;
+   }
+}
+
+// This routine assumes xdot is initialized.
+void GeneralizedAlphaSolver::Step(Vector &x, double &t, double &dt)
+{
+   double dt_fac1 = alpha_f*(1.0 - gamma/alpha_m);
+   double dt_fac2 = alpha_f*gamma/alpha_m;
+   double dt_fac3 = 1.0/alpha_m;
+
+   // In the first pass xdot is not yet computed. If parameter choices requires
+   // xdot midpoint rule is used instead for the first step only.
+   if (first && (dt_fac1 != 0.0))
+   {
+      dt_fac1 = 0.0;
+      dt_fac2 = 0.5;
+      dt_fac3 = 2.0;
+      first = false;
+   }
+
+   add(x, dt_fac1*dt, xdot, y);
+   f->SetTime(t + dt_fac2*dt);
+   f->ImplicitSolve(dt_fac2*dt, y, k);
+
+   add(y, dt_fac2*dt, k, x);
+   k.Add(-1.0, xdot);
+   xdot.Add(dt_fac3, k);
+
+   t += dt;
+}
+
+
+void
+SIASolver::Init(Operator &P, TimeDependentOperator & F)
+{
+   P_ = &P; F_ = &F;
+
+   dp_.SetSize(F_->Height());
+   dq_.SetSize(P_->Height());
+}
+
+void
+SIA1Solver::Step(Vector &q, Vector &p, double &t, double &dt)
+{
+   F_->SetTime(t);
+   F_->Mult(q,dp_);
+   p.Add(dt,dp_);
+
+   P_->Mult(p,dq_);
+   q.Add(dt,dq_);
+
+   t += dt;
+}
+
+void
+SIA2Solver::Step(Vector &q, Vector &p, double &t, double &dt)
+{
+   P_->Mult(p,dq_);
+   q.Add(0.5*dt,dq_);
+
+   F_->SetTime(t+0.5*dt);
+   F_->Mult(q,dp_);
+   p.Add(dt,dp_);
+
+   P_->Mult(p,dq_);
+   q.Add(0.5*dt,dq_);
+
+   t += dt;
+}
+
+SIAVSolver::SIAVSolver(int order)
+   : order_(order)
+{
+   a_.SetSize(order);
+   b_.SetSize(order);
+
+   switch (order_)
+   {
+      case 1:
+         a_[0] = 1.0;
+         b_[0] = 1.0;
+         break;
+      case 2:
+         a_[0] = 0.5;
+         a_[1] = 0.5;
+         b_[0] = 0.0;
+         b_[1] = 1.0;
+         break;
+      case 3:
+         a_[0] =  2.0/3.0;
+         a_[1] = -2.0/3.0;
+         a_[2] =  1.0;
+         b_[0] =  7.0/24.0;
+         b_[1] =  0.75;
+         b_[2] = -1.0/24.0;
+         break;
+      case 4:
+         a_[0] = (2.0+pow(2.0,1.0/3.0)+pow(2.0,-1.0/3.0))/6.0;
+         a_[1] = (1.0-pow(2.0,1.0/3.0)-pow(2.0,-1.0/3.0))/6.0;
+         a_[2] = a_[1];
+         a_[3] = a_[0];
+         b_[0] = 0.0;
+         b_[1] = 1.0/(2.0-pow(2.0,1.0/3.0));
+         b_[2] = 1.0/(1.0-pow(2.0,2.0/3.0));
+         b_[3] = b_[1];
+         break;
+      default:
+         MFEM_ASSERT(false, "Unsupported order in SIAVSolver");
+   };
+}
+
+void
+SIAVSolver::Step(Vector &q, Vector &p, double &t, double &dt)
+{
+   for (int i=0; i<order_; i++)
+   {
+      if ( b_[i] != 0.0 )
+      {
+         F_->SetTime(t);
+         if ( F_->isExplicit() )
+         {
+            F_->Mult(q, dp_);
+         }
+         else
+         {
+            F_->ImplicitSolve(b_[i] * dt, q, dp_);
+         }
+         p.Add(b_[i] * dt, dp_);
+      }
+
+      P_->Mult(p, dq_);
+      q.Add(a_[i] * dt, dq_);
+
+      t += a_[i] * dt;
+   }
+}
+
 }
