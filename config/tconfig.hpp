@@ -51,7 +51,6 @@
 #include "simd/auto.hpp"
 #else
 #ifdef __VSX__
-#warning __VSX__
 #include "simd/vsx128.hpp"
 #endif
 #ifdef __bgq__
@@ -85,10 +84,8 @@ struct AutoImplTraits
    static const int batch_size = 1;
 
    static const int simd_size = MFEM_SIMD_SIZE/sizeof(complex_t);
-   //static const int simd_size = 1;
 
    static const int valign_size = simd_size;
-   //static const int valign_size = 1;
 
    typedef AutoSIMD<complex_t,simd_size,valign_size> vcomplex_t;
    typedef AutoSIMD<   real_t,simd_size,valign_size> vreal_t;
