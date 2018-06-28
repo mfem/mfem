@@ -147,7 +147,7 @@ void BilinearForm::FormSystemMatrix(const mfem::Array<int> &ess_tdof_list,
 {
    if (A.Type() == mfem::Operator::ANY_TYPE)
    {
-      // TODO: Support different test and trial spaces (MixedBilinearForm)
+      // FIXME: Support different test and trial spaces (MixedBilinearForm)
       const mfem::Operator *P = GetProlongation();
 
       mfem::Operator *rap = this;
@@ -222,30 +222,29 @@ void ConstrainedOperator::EliminateRHS(const mfem::Vector &mfem_x, mfem::Vector 
    const int* constraint_data = constraint_list.GetData<int>();
 
    const std::size_t num_constraint = constraint_list.Size();
+   const bool use_target = constraint_list.ComputeOnDevice();
+   const bool use_parallel = use_target || num_constraint > 1000;
 
    if (num_constraint > 0)
    {
 #pragma omp target teams distribute parallel for             \
    map(to: w_data, constraint_data, x_data)                  \
    if (target: constraint_list.ComputeOnDevice())            \
-   if (parallel: num_constraint > 1000)
+   if (parallel: use_parallel)
       for (std::size_t i = 0; i < num_constraint; i++)
          w_data[constraint_data[i]] = x_data[constraint_data[i]];
    }
 
    A->Mult(mfem_w, mfem_z);
-   std::cout << "here" << std::endl;
-   z.Fill<double>(0.0);
 
-   std::cout << b.Size() << " " << z.Size() << std::endl;
    b.Axpby<double>(1.0, b, -1.0, z);
 
    if (num_constraint > 0)
    {
 #pragma omp target teams distribute parallel for        \
    map(to: b_data, constraint_data, x_data)             \
-   if (target: constraint_list.ComputeOnDevice())       \
-   if (parallel: num_constraint > 1000)
+   if (target: use_target)       \
+   if (parallel: use_parallel)
       for (std::size_t i = 0; i < num_constraint; i++)
          b_data[constraint_data[i]] = x_data[constraint_data[i]];
    }
@@ -268,14 +267,16 @@ void ConstrainedOperator::Mult(const mfem::Vector &mfem_x, mfem::Vector &mfem_y)
    const int* constraint_data = constraint_list.GetData<int>();
 
    const std::size_t num_constraint = constraint_list.Size();
+   const bool use_target = constraint_list.ComputeOnDevice();
+   const bool use_parallel = use_target || num_constraint > 1000;
 
    z.Assign<double>(x); // z = x
 
    // z[constraint_list] = 0.0
-#pragma omp target teams distribute parallel for        \
-   map(to: z_data, constraint_data)                     \
-   if (target: constraint_list.ComputeOnDevice())            \
-   if (parallel: num_constraint > 1000)
+#pragma omp target teams distribute parallel for             \
+   map(to: z_data, constraint_data)                          \
+   if (target: use_target)            \
+   if (parallel: use_parallel)
    for (std::size_t i = 0; i < num_constraint; i++)
       z_data[constraint_data[i]] = 0.0;
 
@@ -283,10 +284,10 @@ void ConstrainedOperator::Mult(const mfem::Vector &mfem_x, mfem::Vector &mfem_y)
    A->Mult(mfem_z, mfem_y);
 
    // y[constraint_list] = x[constraint_list]
-#pragma omp target teams distribute parallel for        \
-   map(to: y_data, constraint_data, x_data)             \
-   if (target: constraint_list.ComputeOnDevice())            \
-   if (parallel: num_constraint > 1000)
+#pragma omp target teams distribute parallel for             \
+   map(to: y_data, constraint_data, x_data)                  \
+   if (target: use_target)            \
+   if (parallel: use_parallel)
    for (std::size_t i = 0; i < num_constraint; i++)
       y_data[constraint_data[i]] = x_data[constraint_data[i]];
 }

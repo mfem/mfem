@@ -72,10 +72,13 @@ void Vector::DoDotProduct(const PVector &x, void *result,
       for (std::size_t i = 0; i < size; i++) local_dot += ptr[i] * xptr[i];
    }
 
-#ifndef MFEM_USE_MPI
    *res = local_dot;
-#else
-   MPI_Allreduce(&local_dot, res, 1, MPI_DOUBLE, MPI_SUM, OmpLayout().OmpEngine().GetComm());
+#ifdef MFEM_USE_MPI
+   MPI_Comm comm = OmpLayout().OmpEngine().GetComm();
+   if (comm != MPI_COMM_NULL)
+   {
+      MPI_Allreduce(&local_dot, res, 1, MPI_DOUBLE, MPI_SUM, comm);
+   }
 #endif
 }
 

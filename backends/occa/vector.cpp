@@ -51,10 +51,13 @@ void Vector::DoDotProduct(const PVector &x, void *result,
    MFEM_ASSERT(this->Size() == xp->Size(), "");
    local_dot = ::occa::linalg::dot<double, double, double>(this->slice, xp->slice);
 
-#ifndef MFEM_USE_MPI
    *res = local_dot;
-#else
-   MPI_Allreduce(&local_dot, res, 1, MPI_DOUBLE, MPI_SUM, OccaLayout().OccaEngine().GetComm());
+#ifdef MFEM_USE_MPI
+   MPI_Comm comm = OccaLayout().OccaEngine().GetComm();
+   if (comm != MPI_COMM_NULL)
+   {
+      MPI_Allreduce(&local_dot, res, 1, MPI_DOUBLE, MPI_SUM, comm);
+   }
 #endif
 }
 
