@@ -114,8 +114,7 @@ private:
 
    void GetGhostDofs(int entity, const MeshId &id, Array<int> &dofs) const;
    // Return the dofs associated with the interior of the given mesh entity.
-   // The MeshId may be the id of a regular or a ghost mesh entity.
-   void GetBareDofs(int entity, const MeshId &id, Array<int> &dofs) const;
+   void GetBareDofs(int entity, int index, Array<int> &dofs) const;
 
    int  PackDof(int entity, int index, int edof) const;
    void UnpackDof(int dof, int &entity, int &index, int &edof) const;

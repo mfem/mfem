@@ -2093,7 +2093,6 @@ const NCMesh::MeshId& NCMesh::NCList::LookUp(int index, int *type) const
 {
    if (!inv_index.Size())
    {
-      // TODO: use TotalSize()?
       int max_index = -1;
       for (unsigned i = 0; i < conforming.size(); i++)
       {
