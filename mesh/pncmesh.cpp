@@ -343,7 +343,8 @@ void ParNCMesh::InitOwners(int num, Array<GroupId> &entity_owner)
    entity_owner.SetSize(num);
    for (int i = 0; i < num; i++)
    {
-      entity_owner[i] = GetSingletonGroup(tmp_owner[i]);
+      entity_owner[i] =
+         (tmp_owner[i] != INT_MAX) ? GetSingletonGroup(tmp_owner[i]) : 0;
    }
 }
 
@@ -432,7 +433,7 @@ ParNCMesh::GroupId ParNCMesh::GetGroupId(const CommGroup &group)
 
 ParNCMesh::GroupId ParNCMesh::GetSingletonGroup(int rank)
 {
-   if (rank == INT_MAX) { return -1; } // invalid
+   MFEM_ASSERT(rank != INT_MAX, "invalid rank");
    static std::vector<int> group;
    group.resize(1);
    group[0] = rank;
@@ -450,14 +451,13 @@ bool ParNCMesh::GroupContains(GroupId id, int rank) const
    return false;
 }
 
-void ParNCMesh::CreateGroups(Array<Connection> &index_rank,
+void ParNCMesh::CreateGroups(int nentities, Array<Connection> &index_rank,
                              Array<GroupId> &entity_group)
 {
    index_rank.Sort();
    index_rank.Unique();
 
-   int num = index_rank.Last().from + 1;
-   entity_group.SetSize(num);
+   entity_group.SetSize(nentities);
    entity_group = 0;
 
    CommGroup group;
@@ -546,10 +546,17 @@ void ParNCMesh::CalculatePMatrixGroups()
       }
    }
 
+   int nentities[3] =
+   {
+      NVertices + NGhostVertices,
+      NEdges + NGhostEdges,
+      NFaces + NGhostFaces
+   };
+
    // compress the index-rank arrays into group representation
    for (int i = 0; i < 3; i++)
    {
-      CreateGroups(entity_index_rank[i], entity_pmat_group[i]);
+      CreateGroups(nentities[i], entity_index_rank[i], entity_pmat_group[i]);
       entity_index_rank[i].DeleteAll();
    }
 }
