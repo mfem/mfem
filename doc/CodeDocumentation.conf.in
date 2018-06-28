@@ -38,7 +38,7 @@ PROJECT_NAME           = "MFEM"
 # could be handy for archiving the generated documentation or if some version
 # control system is used.
 
-PROJECT_NUMBER         = v3.4
+PROJECT_NUMBER         = v3.4.1
 
 # Using the PROJECT_BRIEF tag one can provide an optional one line description
 # for a project that appears at the top of each page and should give viewer a
@@ -767,6 +767,7 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/fem \
                          @MFEM_SOURCE_DIR@/examples \
                          @MFEM_SOURCE_DIR@/examples/petsc \
+                         @MFEM_SOURCE_DIR@/examples/pumi \
                          @MFEM_SOURCE_DIR@/examples/sundials \
                          @MFEM_SOURCE_DIR@/miniapps/common \
                          @MFEM_SOURCE_DIR@/miniapps/meshing \
