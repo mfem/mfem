@@ -21,6 +21,7 @@
 #include "../../fem/fem.hpp"
 #include "vector.hpp"
 #include "fespace.hpp"
+#include "bilinearform.hpp"
 #include "AcroTensor.hpp"
 
 namespace mfem
@@ -50,8 +51,6 @@ protected:
 
 public:
    PAIntegrator(Coefficient &q, FiniteElementSpace &f);
-   virtual bool PAIsEnabled() const {return true;}
-   int GetExpandedNDOF() {return nElem*nDof;}
    virtual ~PAIntegrator();
 };
 
@@ -68,7 +67,6 @@ private:
    acro::Tensor D;            //Product of integration weight, physical consts, and element shape info
    acro::Tensor S;            //The assembled local stiffness matrices
    acro::Tensor U, Z, T1, T2; //Intermediate computations for tensor product partial assembly
-   Vector vectorX, vectorY;
    acro::Tensor X, Y;
 
    void ComputeBTilde();
@@ -77,12 +75,13 @@ public:
    AcroDiffusionIntegrator(BilinearFormIntegrator *integ);
    AcroDiffusionIntegrator(Coefficient &q, FiniteElementSpace &f);
    virtual ~AcroDiffusionIntegrator();
+
    void BatchedPartialAssemble();
    void BatchedAssembleElementMatrices(DenseTensor &elmats);
    void PAMult(const Vector &x, Vector &y);
-   virtual void MultTranspose(const mfem::Vector &x, mfem::Vector &y) const;
-   virtual void Mult(const mfem::Vector &x, mfem::Vector &y) const;
-   virtual void Reassemble();
+   virtual void MultTransposeAdd(const Vector &x, Vector &y) const;
+   virtual void MultAdd(const Vector &x, Vector &y) const;
+   virtual void ReassembleOperator();
 };
 
 

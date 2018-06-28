@@ -26,6 +26,22 @@ namespace mfem
 namespace omp
 {
 
+class TensorBilinearFormIntegrator
+{
+public:
+   virtual ~TensorBilinearFormIntegrator() { }
+
+   virtual void ReassembleOperator() = 0;
+
+   virtual void ComputeElementMatrices(DenseTensor &element_matrices)
+   { mfem_error("TensorBilinaerFormIntegrator::ComputeElementMatrices is not overloaded"); }
+
+   virtual void MultAdd(const Vector &x, Vector &y) const = 0;
+
+   virtual void Mult(const Vector &x, Vector &y) const
+   { y.Fill<double>(0.0); MultAdd(x, y); }
+};
+
 /// TODO: doxygen
 class BilinearForm : public mfem::PBilinearForm, public mfem::Operator
 {
@@ -36,10 +52,12 @@ protected:
    // SharedPtr<const mfem::Engine> engine;
    // mfem::BilinearForm *bform;
 
-   mfem::Array<mfem::TensorBilinearFormIntegrator*> tbfi;
+   mfem::Array<TensorBilinearFormIntegrator*> tbfi;
    bool has_assembled;
 
-   DFiniteElementSpace trial_fes, test_fes;
+   mutable FiniteElementSpace *trial_fes, *test_fes;
+
+   mutable Vector x_local, y_local;
 
    void TransferIntegrators();
 
@@ -53,16 +71,20 @@ public:
    /// TODO: doxygen
    BilinearForm(const Engine &e, mfem::BilinearForm &bf)
       : mfem::PBilinearForm(e, bf),
+        // FIXME: for mixed bilinear forms
+        mfem::Operator(*bf.FESpace()->GetVLayout().As<Layout>()),
         tbfi(),
         has_assembled(false),
-        trial_fes(bf.FESpace()->Get_PFESpace()),
-        test_fes(bf.FESpace()->Get_PFESpace()) { }
+        trial_fes(&bf.FESpace()->Get_PFESpace()->As<FiniteElementSpace>()),
+        test_fes(&bf.FESpace()->Get_PFESpace()->As<FiniteElementSpace>()),
+        x_local(trial_fes->GetELayout()),
+        y_local(test_fes->GetELayout()) { }
+
+   /// Virtual destructor
+   virtual ~BilinearForm();
 
    /// Return the engine as an OpenMP engine
    const Engine &OmpEngine() { return static_cast<const Engine&>(*engine); }
-
-   /// Virtual destructor
-   virtual ~BilinearForm() { }
 
    /** @brief Prolongation operator from linear algebra (linear system) vectors,
        to input vectors for the operator. `NULL` means identity. */
@@ -113,6 +135,9 @@ public:
                        const mfem::Array<int> &constraint_list_,
                        bool own_A_ = false);
 
+   // Destructor: destroys the unconstrained Operator @a A if @a own_A is true.
+   virtual ~ConstrainedOperator();
+
    /** @brief Eliminate "essential boundary condition" values specified in @a x
        from the given right-hand side @a b.
 
@@ -133,9 +158,6 @@ public:
        where the "_b" subscripts denote the essential (boundary) indices/dofs of
        the vectors, and "_i" -- the rest of the entries. */
    virtual void Mult(const mfem::Vector &mfem_x, mfem::Vector &mfem_y) const;
-
-   // Destructor: destroys the unconstrained Operator @a A if @a own_A is true.
-   virtual ~ConstrainedOperator();
 };
 
 } // namespace mfem::omp

@@ -67,9 +67,7 @@ PAIntegrator::~PAIntegrator()
 }
 
 AcroDiffusionIntegrator::AcroDiffusionIntegrator(Coefficient &q, FiniteElementSpace &f) :
-   PAIntegrator(q,f),
-   vectorX(f.GetELayout()),
-   vectorY(f.GetELayout())
+   PAIntegrator(q,f)
 {
    if (onGPU)
    {
@@ -174,12 +172,15 @@ AcroDiffusionIntegrator::AcroDiffusionIntegrator(Coefficient &q, FiniteElementSp
       G.MapToGPU();
       W.MapToGPU();
    }
+
+   // Assemble in the constructor!
+   BatchedPartialAssemble();
 }
 
 
 AcroDiffusionIntegrator::~AcroDiffusionIntegrator()
 {
-
+   for (int i = 0; i < Btil.Size(); i++) delete Btil[i];
 }
 
 
@@ -444,7 +445,7 @@ void AcroDiffusionIntegrator::BatchedAssembleElementMatrices(DenseTensor &elmats
    }
 }
 
-void AcroDiffusionIntegrator::Reassemble()
+void AcroDiffusionIntegrator::ReassembleOperator()
 {
    BatchedPartialAssemble();
 }
@@ -455,9 +456,9 @@ void AcroDiffusionIntegrator::PAMult(const Vector &x, Vector &y)
 
    if (!U.IsInitialized())
    {
-      // NOTE: vectorX and vectorY are already sized for the fespace in the constructor
-      double *Xptr = const_cast<double*>(vectorX.GetData());
-      double *Yptr = vectorY.GetData();
+      // NOTE: x and y are already sized for the fespace in the constructor
+      double *Xptr = const_cast<double*>(x.GetData());
+      double *Yptr = y.GetData();
       if (nDim == 1) {
          X.Init(nElem,nDof1D,Xptr,Xptr,onGPU);
          Y.Init(nElem,nDof1D,Yptr,Yptr,onGPU);
@@ -500,8 +501,15 @@ void AcroDiffusionIntegrator::PAMult(const Vector &x, Vector &y)
          }
       }
    }
+   else
+   {
+      // NOTE: x and y are already sized for the fespace in the constructor
+      double *Xptr = const_cast<double*>(x.GetData());
+      double *Yptr = y.GetData();
+      X.Retarget(Xptr,Xptr);
+      Y.Retarget(Yptr,Yptr);
+   }
 
-   ofes->ToLVector(x, vectorX);
    acro::SliceTensor U1,U2,U3,Z1,Z2,Z3;
    if (nDim == 1)
    {
@@ -570,16 +578,14 @@ void AcroDiffusionIntegrator::PAMult(const Vector &x, Vector &y)
       TE("Y_e_i1_i2_i3 += B_k1_i1 T2_e_i2_i3_k1", Y, B, T2);
       TE.EndMultiKernelLaunch();
    }
-   ofes->ToEVector(vectorY, y);
 }
 
-void AcroDiffusionIntegrator::Mult(const mfem::Vector &x, mfem::Vector &y) const
+void AcroDiffusionIntegrator::MultAdd(const Vector &x, Vector &y) const
 {
-   const_cast<AcroDiffusionIntegrator*>(this)->PAMult(x.Get_PVector()->As<Vector>(),
-                                                      y.Get_PVector()->As<Vector>());
+   const_cast<AcroDiffusionIntegrator*>(this)->PAMult(x, y);
 }
 
-void AcroDiffusionIntegrator::MultTranspose(const mfem::Vector &x, mfem::Vector &y) const
+void AcroDiffusionIntegrator::MultTransposeAdd(const Vector &x, Vector &y) const
 {
    mfem_error("Not supported");
 }

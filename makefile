@@ -213,7 +213,7 @@ ifeq ($(MAKECMDGOALS),config)
 endif
 
 # List of MFEM dependencies, processed below
-MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP
+MFEM_DEPENDENCIES = $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP OMP
 
 # Macro for adding dependencies
 define mfem_add_dependency

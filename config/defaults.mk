@@ -286,6 +286,8 @@ CUDA_DIR = /usr/local/cuda
 CUDAUM_LIB = -L$(CUDA_DIR)/lib64 -lcudart
 CUDAUM_OPT = -I$(CUDA_DIR)/include
 
+OMP_OPT = -qsmp=omp -qoffload
+
 ACROTENSOR_DIR = @MFEM_DIR@/../acrotensor
 ACROTENSOR_OPT = -std=c++11 -I$(ACROTENSOR_DIR)/inc
 ACROTENSOR_LIB = -Wl,-rpath,$(ACROTENSOR_DIR)/lib/shared -L$(ACROTENSOR_DIR)/lib/shared -lacrotensor

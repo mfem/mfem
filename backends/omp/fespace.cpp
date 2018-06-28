@@ -24,27 +24,28 @@ FiniteElementSpace::FiniteElementSpace(const Engine &e,
                                        mfem::FiniteElementSpace &fespace)
    : PFiniteElementSpace(e, fespace),
      e_layout(e, 0),
-     tensor_offsets(),
-     tensor_indices()
+     tensor_offsets(NULL),
+     tensor_indices(NULL)
 {
    std::size_t lsize = 0;
    for (int e = 0; e < fespace.GetNE(); e++) { lsize += fespace.GetFE(e)->GetDof(); }
    e_layout.Resize(lsize);
 }
 
-static void BuildDofMaps(FiniteElementSpace *fes,
-                         mfem::Array<int> &offsets,
-                         mfem::Array<int> &indices)
+void FiniteElementSpace::BuildDofMaps()
 {
-   mfem::FiniteElementSpace *mfem_fes = fes->GetFESpace();
+   mfem::FiniteElementSpace *mfem_fes = GetFESpace();
 
-   const int local_size = fes->GetELayout().Size();
+   const int local_size = GetELayout().Size();
    const int global_size = mfem_fes->GetVLayout()->Size();
    const int vdim = mfem_fes->GetVDim();
 
    // Now we can allocate and fill the global map
-   offsets.Resize(global_size + 1);
-   indices.Resize(local_size);
+   tensor_offsets = new mfem::Array<int>(*(new Layout(OmpEngine(), global_size + 1)));
+   tensor_indices = new mfem::Array<int>(*(new Layout(OmpEngine(), local_size)));
+
+   mfem::Array<int> &offsets = *tensor_offsets;
+   mfem::Array<int> &indices = *tensor_indices;
 
    mfem::Array<int> global_map(local_size);
    mfem::Array<int> elem_vdof;
@@ -109,28 +110,28 @@ static void BuildDofMaps(FiniteElementSpace *fes,
 /// Convert an E vector to L vector
 void FiniteElementSpace::ToLVector(const Vector &e_vector, Vector &l_vector)
 {
-   if (tensor_indices.Size() == 0)
-   {
-      BuildDofMaps(this, tensor_offsets, tensor_indices);
-   }
+   if (tensor_indices == NULL) BuildDofMaps();
 
    if (l_vector.Size() != (std::size_t) GetFESpace()->GetVSize())
    {
       l_vector.Resize<double>(GetFESpace()->GetVLayout(), NULL);
    }
 
-   const int size = l_vector.Size();
-   const int *offsets = tensor_offsets.GetData();
-   const int *indices = tensor_indices.GetData();
+   const int lsize = l_vector.Size();
+   const int *offsets = tensor_offsets->Get_PArray()->As<Array>().GetData<int>();
+   const int *indices = tensor_indices->Get_PArray()->As<Array>().GetData<int>();
 
    const double *e_data = e_vector.GetData();
    double *l_data = l_vector.GetData();
 
+   const bool use_target = l_vector.ComputeOnDevice();
+   const bool use_parallel = (use_target || lsize > 1000);
+
 #pragma omp target teams distribute parallel for        \
-   map(to: offsets, indices, l_data, e_data)            \
-   if (target: l_vector.ComputeOnDevice())              \
-   if (parallel: l_vector.Size() > 1000)
-   for (int i = 0; i < size; i++)
+   map (to: offsets, indices, l_data, e_data)           \
+   if (target: use_target)                              \
+   if (parallel: use_parallel)
+   for (int i = 0; i < lsize; i++)
    {
       const int offset = offsets[i];
       const int next_offset = offsets[i + 1];
@@ -146,11 +147,7 @@ void FiniteElementSpace::ToLVector(const Vector &e_vector, Vector &l_vector)
 /// Covert an L vector to E vector
 void FiniteElementSpace::ToEVector(const Vector &l_vector, Vector &e_vector)
 {
-   if (tensor_indices.Size() == 0)
-   {
-      BuildDofMaps(this, tensor_offsets, tensor_indices);
-      std::cout << "Building maps!" << std::endl;
-   }
+   if (tensor_indices == NULL) BuildDofMaps();
 
    if (e_vector.Size() != (std::size_t) e_layout.Size())
    {
@@ -158,16 +155,19 @@ void FiniteElementSpace::ToEVector(const Vector &l_vector, Vector &e_vector)
    }
 
    const int lsize = l_vector.Size();
-   const int *offsets = tensor_offsets.GetData();
-   const int *indices = tensor_indices.GetData();
+   const int *offsets = tensor_offsets->Get_PArray()->As<Array>().GetData<int>();
+   const int *indices = tensor_indices->Get_PArray()->As<Array>().GetData<int>();
 
    const double *l_data = l_vector.GetData();
    double *e_data = e_vector.GetData();
 
-#pragma omp target teams distribute parallel for        \
-   map(to: offsets, indices, l_data, e_data)            \
-   if (target: l_vector.ComputeOnDevice())              \
-   if (parallel: l_vector.Size() > 1000)
+   const bool use_target = l_vector.ComputeOnDevice();
+   const bool use_parallel = (use_target || lsize > 1000);
+
+#pragma omp target teams distribute parallel for         \
+   map (to: offsets, indices, l_data, e_data)            \
+   if (target: use_target)                               \
+   if (parallel: use_parallel)
    for (int i = 0; i < lsize; i++)
    {
       const int offset = offsets[i];

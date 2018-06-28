@@ -61,8 +61,6 @@ protected:
 
    inline int ResizeData(const Layout *lt, std::size_t item_size);
 
-   inline bool ComputeOnDevice() const { return (OmpLayout().OmpEngine().ExecTarget() == Device); }
-
    inline bool IsUnifiedMemory() const { return OmpLayout().OmpEngine().UnifiedMemory(); }
 
    template <typename T>
@@ -70,8 +68,13 @@ protected:
    {
       const int size = layout->Size();
       T *ptr = (T*) data;
-#pragma omp target teams distribute parallel for if (target: ComputeOnDevice()) map(to: ptr)
-      for (int i = 0; i < size; i++) ptr[i] = (*pval);
+      T val = *pval;
+      const bool use_target = ComputeOnDevice();
+      const bool use_parallel = (use_target || layout->Size() > 1000);
+#pragma omp target teams distribute parallel for        \
+   if (target: use_target)                              \
+   if (parallel: use_parallel) map (to: ptr, val)
+      for (int i = 0; i < size; i++) ptr[i] = val;
    }
 
 public:
@@ -85,6 +88,8 @@ public:
 #pragma omp target enter data if(ComputeOnDevice()) map(alloc:data[:lt.Size()*item_size])
       }
    }
+
+   inline bool ComputeOnDevice() const { return (OmpLayout().OmpEngine().ExecTarget() == Device); }
 
    virtual ~Array() { }
 

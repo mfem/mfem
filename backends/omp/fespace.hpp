@@ -38,14 +38,20 @@ protected:
 
    Layout e_layout;
 
-   mfem::Array<int> tensor_offsets, tensor_indices;
+   mfem::Array<int> *tensor_offsets, *tensor_indices;
+
+   void BuildDofMaps();
 
 public:
    /// Nearly-empty class that stores a pointer to a mfem::FiniteElementSpace instance and the engine
    FiniteElementSpace(const Engine &e, mfem::FiniteElementSpace &fespace);
 
    /// Virtual destructor
-   virtual ~FiniteElementSpace() { }
+   virtual ~FiniteElementSpace()
+   {
+      delete tensor_offsets;
+      delete tensor_indices;
+   }
 
    Layout &GetELayout() { return e_layout; }
 
