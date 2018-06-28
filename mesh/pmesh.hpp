@@ -105,7 +105,8 @@ public:
            int part_method = 1);
 
    /// Read a parallel mesh, each MPI rank from its own file/stream.
-   ParMesh(MPI_Comm comm, std::istream &input);
+   /** The @a refine parameter is passed to the method Mesh::Finalize(). */
+   ParMesh(MPI_Comm comm, std::istream &input, bool refine = true);
 
    /// Create a uniformly refined (by any factor) version of @a orig_mesh.
    /** @param[in] orig_mesh  The starting coarse mesh.
