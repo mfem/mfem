@@ -127,7 +127,6 @@ private:
                    GroupId group_sent_id, GroupId group_id,
                    std::map<int, class NeighborRowMessage> &send_msg) const;
 
-#define MFEM_DEBUG_PMATRIX
 #ifdef MFEM_DEBUG_PMATRIX
    void DebugDumpDOFs(std::ostream &os,
                       const SparseMatrix &deps,

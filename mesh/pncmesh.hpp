@@ -150,6 +150,7 @@ public:
    /// Return a list of ranks contained in the group of the given ID.
    const CommGroup& GetGroup(GroupId id) const
    {
+      MFEM_ASSERT(id >= 0, "");
       return groups[id];
    }
 
@@ -304,7 +305,7 @@ protected:
 
    void AddConnections(int entity, int index, const Array<int> &ranks);
    void CalculatePMatrixGroups();
-   void CreateGroups(Array<Connection> &index_rank,
+   void CreateGroups(int nentities, Array<Connection> &index_rank,
                      Array<GroupId> &entity_group);
 
    static int get_face_orientation(Face &face, Element &e1, Element &e2,
