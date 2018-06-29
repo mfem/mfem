@@ -7835,17 +7835,20 @@ void H1_TetrahedronElement::CalcHessian(const IntegrationPoint &ip,
             int l = p - i - j - k;
             ddu(o,0) = ((ddshape_x(i) * shape_l(l)) - 2. * (dshape_x(i) * dshape_l(l)) +
                         (shape_x(i) * ddshape_l(l))) * shape_y(j) * shape_z(k);
-            ddu(o,1) = ((dshape_y(j) * ((dshape_x(i) * shape_l(l)) - (shape_x(i) * dshape_l(
-                                                                         l)))) + (shape_y(j) * ((ddshape_l(l) * shape_x(i)) - (dshape_x(i) * dshape_l(
-                                                                                     l)))))* shape_z(k);
-            ddu(o,2) = ((dshape_z(k) * ((dshape_x(i) * shape_l(l)) - (shape_x(i) * dshape_l(
-                                                                         l)))) + (shape_z(k) * ((ddshape_l(l) * shape_x(i)) - (dshape_x(i) * dshape_l(
-                                                                                     l)))))* shape_y(j);
+            ddu(o,1) = ((dshape_y(j) * ((dshape_x(i) * shape_l(l)) -
+                                        (shape_x(i) * dshape_l(l)))) +
+                        (shape_y(j) * ((ddshape_l(l) * shape_x(i)) -
+                                       (dshape_x(i) * dshape_l(l)))))* shape_z(k);
+            ddu(o,2) = ((dshape_z(k) * ((dshape_x(i) * shape_l(l)) -
+                                        (shape_x(i) * dshape_l(l)))) +
+                        (shape_z(k) * ((ddshape_l(l) * shape_x(i)) -
+                                       (dshape_x(i) * dshape_l(l)))))* shape_y(j);
             ddu(o,3) = ((ddshape_y(j) * shape_l(l)) - 2. * (dshape_y(j) * dshape_l(l)) +
                         (shape_y(j) * ddshape_l(l))) * shape_x(i) * shape_z(k);
-            ddu(o,4) = ((dshape_z(k) * ((dshape_y(j) * shape_l(l)) - (shape_y(j)*dshape_l(
-                                                                         l))) ) + (shape_z(k)* ((ddshape_l(l)*shape_y(j)) - (dshape_y(j) * dshape_l(
-                                                                                      l)) ) ) )* shape_x(i);
+            ddu(o,4) = ((dshape_z(k) * ((dshape_y(j) * shape_l(l)) -
+                                        (shape_y(j)*dshape_l(l))) ) +
+                        (shape_z(k)* ((ddshape_l(l)*shape_y(j)) -
+                                      (dshape_y(j) * dshape_l(l)) ) ) )* shape_x(i);
             ddu(o,5) = ((ddshape_z(k) * shape_l(l)) - 2. * (dshape_z(k) * dshape_l(l)) +
                         (shape_z(k) * ddshape_l(l))) * shape_y(j) * shape_x(i);
             o++;
