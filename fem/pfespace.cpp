@@ -1814,28 +1814,34 @@ int ParFiniteElementSpace
    {
       Array<int> dofs;
 
-      int num_ent[3] =
-      {
-         pncmesh->GetNVertices() + pncmesh->GetNGhostVertices(),
-         pncmesh->GetNEdges() + pncmesh->GetNGhostEdges(),
-         pncmesh->GetNFaces() + pncmesh->GetNGhostFaces()
-      };
-
       // initialize dof_group[], dof_owner[]
-      for (int entity = 0; entity < pmesh->Dimension(); entity++)
+      for (int entity = 0; entity <= 2; entity++)
       {
-         for (int index = 0; index < num_ent[entity]; index++)
+         const NCMesh::NCList &list = pncmesh->GetNCList(entity);
+
+         std::size_t lsize[3] =
+         { list.conforming.size(), list.masters.size(), list.slaves.size() };
+
+         for (int l = 0; l < 3; l++)
          {
-            GroupId owner = pncmesh->GetEntityOwnerId(entity, index);
-            GroupId group = pncmesh->GetEntityGroupId(entity, index);
-
-            GetBareDofs(entity, index, dofs);
-
-            for (int i = 0; i < dofs.Size(); i++)
+            for (std::size_t i = 0; i < lsize[l]; i++)
             {
-               int dof = dofs[i];
-               dof_owner[dof] = owner;
-               dof_group[dof] = group;
+               const MeshId &id =
+                  (l == 0) ? list.conforming[i] :
+                  (l == 1) ? (const MeshId&) list.masters[i]
+                  /*    */ : (const MeshId&) list.slaves[i];
+
+               GroupId owner = pncmesh->GetEntityOwnerId(entity, id.index);
+               GroupId group = pncmesh->GetEntityGroupId(entity, id.index);
+
+               GetBareDofs(entity, id.index, dofs);
+
+               for (int j = 0; j < dofs.Size(); j++)
+               {
+                  int dof = dofs[j];
+                  dof_owner[dof] = owner;
+                  dof_group[dof] = group;
+               }
             }
          }
       }
