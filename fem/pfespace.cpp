@@ -1822,7 +1822,7 @@ int ParFiniteElementSpace
       };
 
       // initialize dof_group[], dof_owner[]
-      for (int entity = 0; entity <= 2; entity++)
+      for (int entity = 0; entity < pmesh->Dimension(); entity++)
       {
          for (int index = 0; index < num_ent[entity]; index++)
          {
