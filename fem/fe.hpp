@@ -1564,7 +1564,8 @@ private:
 
    static void CalcChebyshev(const int p, const double x, double *u);
    static void CalcChebyshev(const int p, const double x, double *u, double *d);
-   static void CalcChebyshev(const int p, const double x, double *u, double *d, double *dd);
+   static void CalcChebyshev(const int p, const double x, double *u, double *d,
+                             double *dd);
 
    QuadratureFunctions1D quad_func;
 
@@ -1618,9 +1619,10 @@ public:
    // { CalcBernstein(p, x, u, d); }
    // { CalcLegendre(p, x, u, d); }
    { CalcChebyshev(p, x, u, d); }
-   
+
    // Evaluate the values, derivatives and second derivatives of a hierarchical 1D basis at point x
-   static void CalcBasis(const int p, const double x, double *u, double *d, double *dd)
+   static void CalcBasis(const int p, const double x, double *u, double *d,
+                         double *dd)
    // { CalcMono(p, x, u, d); }
    // { CalcBernstein(p, x, u, d); }
    // { CalcLegendre(p, x, u, d); }
@@ -1839,7 +1841,7 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void CalcHessian(const IntegrationPoint &ip,
-                           DenseMatrix &ddshape) const;
+                            DenseMatrix &ddshape) const;
 };
 
 
@@ -1861,7 +1863,7 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void CalcHessian(const IntegrationPoint &ip,
-                           DenseMatrix &ddshape) const;
+                            DenseMatrix &ddshape) const;
 };
 
 

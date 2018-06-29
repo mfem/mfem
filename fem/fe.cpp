@@ -6598,7 +6598,8 @@ void Poly_1D::CalcChebyshev(const int p, const double x, double *u, double *d)
    }
 }
 
-void Poly_1D::CalcChebyshev(const int p, const double x, double *u, double *d, double *dd)
+void Poly_1D::CalcChebyshev(const int p, const double x, double *u, double *d,
+                            double *dd)
 {
    // recursive definition, z in [-1,1]
    // T_0(z) = 1,  T_1(z) = z
@@ -6623,7 +6624,8 @@ void Poly_1D::CalcChebyshev(const int p, const double x, double *u, double *d, d
    {
       u[n+1] = 2*z*u[n] - u[n-1];
       d[n+1] = (n + 1)*(z*d[n]/n + 2*u[n]);
-      dd[n+1] = (denom == 0 ? 4.*((n+1)*(n+1)*((n+1)*(n+1) - 1)/3. ) : 2.*(z*n*d[n+1] - ( (n+1.)*(n+1.)/n ) * d[n] ) / (z*z - 1.) );
+      dd[n+1] = (denom == 0 ? 4.*((n+1)*(n+1)*((n+1)*(n+1) - 1)/3. ) : 2.*
+                 (z*n*d[n+1] - ( (n+1.)*(n+1.)/n ) * d[n] ) / (z*z - 1.) );
    }
 }
 
@@ -7604,29 +7606,32 @@ void H1_TriangleElement::CalcDShape(const IntegrationPoint &ip,
 void H1_TriangleElement::CalcHessian(const IntegrationPoint &ip,
                                      DenseMatrix &ddshape) const
 {
-    const int p = Order;
+   const int p = Order;
 #ifdef MFEM_THREAD_SAFE
    Vector   shape_x(p + 1),   shape_y(p + 1),   shape_l(p + 1);
    Vector  dshape_x(p + 1),  dshape_y(p + 1),  dshape_l(p + 1);
    Vector ddshape_x(p + 1), ddshape_y(p + 1), ddshape_l(p + 1);
    DenseMatrix ddu(Dof, Dim);
 #endif
-   
+
    poly1d.CalcBasis(p, ip.x, shape_x, dshape_x, ddshape_x);
    poly1d.CalcBasis(p, ip.y, shape_y, dshape_y, ddshape_y);
    poly1d.CalcBasis(p, 1. - ip.x - ip.y, shape_l, dshape_l, ddshape_l);
-   
+
    for (int o = 0, j = 0; j <= p; j++)
       for (int i = 0; i + j <= p; i++)
       {
          int k = p - i - j;
          // u_xx, u_xy, u_yy
-         ddu(o,0) = ((ddshape_x(i) * shape_l(k)) - 2. * (dshape_x(i) * dshape_l(k)) + (shape_x(i) * ddshape_l(k))) * shape_y(j);
-         ddu(o,1) = (((shape_x(i) * ddshape_l(k)) - dshape_x(i) * dshape_l(k)) * shape_y(j)) + (((dshape_x(i) * shape_l(k)) - (shape_x(i) * dshape_l(k))) * dshape_y(j));
-         ddu(o,2) = ((ddshape_y(j) * shape_l(k)) - 2. * (dshape_y(j) * dshape_l(k)) + (shape_y(j) * ddshape_l(k))) * shape_x(i);
+         ddu(o,0) = ((ddshape_x(i) * shape_l(k)) - 2. * (dshape_x(i) * dshape_l(k)) +
+                     (shape_x(i) * ddshape_l(k))) * shape_y(j);
+         ddu(o,1) = (((shape_x(i) * ddshape_l(k)) - dshape_x(i) * dshape_l(k)) * shape_y(
+                        j)) + (((dshape_x(i) * shape_l(k)) - (shape_x(i) * dshape_l(k))) * dshape_y(j));
+         ddu(o,2) = ((ddshape_y(j) * shape_l(k)) - 2. * (dshape_y(j) * dshape_l(k)) +
+                     (shape_y(j) * ddshape_l(k))) * shape_x(i);
          o++;
       }
-      
+
    Ti.Mult(ddu, ddshape);
 }
 
@@ -7806,7 +7811,7 @@ void H1_TetrahedronElement::CalcDShape(const IntegrationPoint &ip,
 }
 
 void H1_TetrahedronElement::CalcHessian(const IntegrationPoint &ip,
-                                       DenseMatrix &ddshape) const
+                                        DenseMatrix &ddshape) const
 {
    const int p = Order;
 
@@ -7826,14 +7831,23 @@ void H1_TetrahedronElement::CalcHessian(const IntegrationPoint &ip,
       for (int j = 0; j + k <= p; j++)
          for (int i = 0; i + j + k <= p; i++)
          {
-             // u_xx, u_xy, u_xz, u_yy, u_yz, u_zz
+            // u_xx, u_xy, u_xz, u_yy, u_yz, u_zz
             int l = p - i - j - k;
-            ddu(o,0) = ((ddshape_x(i) * shape_l(l)) - 2. * (dshape_x(i) * dshape_l(l)) + (shape_x(i) * ddshape_l(l))) * shape_y(j) * shape_z(k);
-            ddu(o,1) = ((dshape_y(j) * ((dshape_x(i) * shape_l(l)) - (shape_x(i) * dshape_l(l)))) + (shape_y(j) * ((ddshape_l(l) * shape_x(i)) - (dshape_x(i) * dshape_l(l)))))* shape_z(k);
-            ddu(o,2) = ((dshape_z(k) * ((dshape_x(i) * shape_l(l)) - (shape_x(i) * dshape_l(l)))) + (shape_z(k) * ((ddshape_l(l) * shape_x(i)) - (dshape_x(i) * dshape_l(l)))))* shape_y(j);
-            ddu(o,3) = ((ddshape_y(j) * shape_l(l)) - 2. * (dshape_y(j) * dshape_l(l)) + (shape_y(j) * ddshape_l(l))) * shape_x(i) * shape_z(k);
-            ddu(o,4) = ((dshape_z(k) * ((dshape_y(j) * shape_l(l)) - (shape_y(j)*dshape_l(l))) ) + (shape_z(k)* ((ddshape_l(l)*shape_y(j)) - (dshape_y(j) * dshape_l(l)) ) ) )* shape_x(i);
-            ddu(o,5) = ((ddshape_z(k) * shape_l(l)) - 2. * (dshape_z(k) * dshape_l(l)) + (shape_z(k) * ddshape_l(l))) * shape_y(j) * shape_x(i);
+            ddu(o,0) = ((ddshape_x(i) * shape_l(l)) - 2. * (dshape_x(i) * dshape_l(l)) +
+                        (shape_x(i) * ddshape_l(l))) * shape_y(j) * shape_z(k);
+            ddu(o,1) = ((dshape_y(j) * ((dshape_x(i) * shape_l(l)) - (shape_x(i) * dshape_l(
+                                                                         l)))) + (shape_y(j) * ((ddshape_l(l) * shape_x(i)) - (dshape_x(i) * dshape_l(
+                                                                                     l)))))* shape_z(k);
+            ddu(o,2) = ((dshape_z(k) * ((dshape_x(i) * shape_l(l)) - (shape_x(i) * dshape_l(
+                                                                         l)))) + (shape_z(k) * ((ddshape_l(l) * shape_x(i)) - (dshape_x(i) * dshape_l(
+                                                                                     l)))))* shape_y(j);
+            ddu(o,3) = ((ddshape_y(j) * shape_l(l)) - 2. * (dshape_y(j) * dshape_l(l)) +
+                        (shape_y(j) * ddshape_l(l))) * shape_x(i) * shape_z(k);
+            ddu(o,4) = ((dshape_z(k) * ((dshape_y(j) * shape_l(l)) - (shape_y(j)*dshape_l(
+                                                                         l))) ) + (shape_z(k)* ((ddshape_l(l)*shape_y(j)) - (dshape_y(j) * dshape_l(
+                                                                                      l)) ) ) )* shape_x(i);
+            ddu(o,5) = ((ddshape_z(k) * shape_l(l)) - 2. * (dshape_z(k) * dshape_l(l)) +
+                        (shape_z(k) * ddshape_l(l))) * shape_y(j) * shape_x(i);
             o++;
          }
    Ti.Mult(ddu, ddshape);
