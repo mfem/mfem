@@ -72,7 +72,7 @@ void Engine::Init(const std::string &engine_spec)
          memory_resources[0] = new UnifiedMemoryResource();
          unified_memory = true;
 #else
-         mfem_error("Have not compiled support for CUDA unified memory");
+         mfem_error("Have not compiled support for CUDA unified memory.");
 #endif
       }
       else if (spec.find("host") != std::string::npos)
@@ -85,19 +85,19 @@ void Engine::Init(const std::string &engine_spec)
       if (exec_target == Device)
       {
 #if defined(MFEM_USE_CUDAUM)
-         mfem::out << "Did not specify mem_type in engine spec. Defaulting to unified memory" << std::endl;
+         mfem::out << "Did not specify mem_type in engine spec. Defaulting to unified memory..." << std::endl;
          // Default to unified memory
          memory_resources[0] = new UnifiedMemoryResource();
          unified_memory = true;
 #else
-         mfem::out << "Did not specify mem_type in engine spec. Defaulting to standard host memory" << std::endl;
+         mfem::out << "Did not specify mem_type in engine spec. Defaulting to standard host memory..." << std::endl;
          memory_resources[0] = new NewDeleteMemoryResource();
          unified_memory = false;
 #endif
       }
       else
       {
-         mfem::out << "Did not specify mem_type in engine spec. Defaulting to standard host memory" << std::endl;
+         mfem::out << "Did not specify mem_type in engine spec. Defaulting to standard host memory..." << std::endl;
          memory_resources[0] = new NewDeleteMemoryResource();
          unified_memory = false;
       }
@@ -116,6 +116,7 @@ void Engine::Init(const std::string &engine_spec)
    }
    else
    {
+      mfem::out << "Did not specify mult_engine in engine spec. Defaulting to Acrotensor..." << std::endl;
 #ifndef MFEM_USE_ACROTENSOR
       mfem_error("Must compile with Acrotensor support");
 #endif

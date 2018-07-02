@@ -457,8 +457,8 @@ void AcroDiffusionIntegrator::PAMult(const Vector &x, Vector &y)
    if (!U.IsInitialized())
    {
       // NOTE: x and y are already sized for the fespace in the constructor
-      double *Xptr = const_cast<double*>(x.GetData());
-      double *Yptr = y.GetData();
+      double *Xptr = const_cast<double*>(x.GetData<double>());
+      double *Yptr = y.GetData<double>();
       if (nDim == 1) {
          X.Init(nElem,nDof1D,Xptr,Xptr,onGPU);
          Y.Init(nElem,nDof1D,Yptr,Yptr,onGPU);
@@ -504,8 +504,8 @@ void AcroDiffusionIntegrator::PAMult(const Vector &x, Vector &y)
    else
    {
       // NOTE: x and y are already sized for the fespace in the constructor
-      double *Xptr = const_cast<double*>(x.GetData());
-      double *Yptr = y.GetData();
+      double *Xptr = const_cast<double*>(x.GetData<double>());
+      double *Yptr = y.GetData<double>();
       X.Retarget(Xptr,Xptr);
       Y.Retarget(Yptr,Yptr);
    }

@@ -57,9 +57,6 @@ public:
       : PArray(lt), Array(lt, sizeof(double)), PVector(lt)
    { }
 
-   double *GetData() { return (double *) data; }
-   const double *GetData() const { return (const double *) data; }
-
    mfem::Vector Wrap();
 
    const mfem::Vector Wrap() const;

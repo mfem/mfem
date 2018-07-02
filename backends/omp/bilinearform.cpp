@@ -93,28 +93,30 @@ void BilinearForm::InitRHS(const mfem::Array<int> &ess_tdof_list,
       Vector &X = mfem_X.Get_PVector()->As<Vector>();
       const Array &constraint_list = ess_tdof_list.Get_PArray()->As<Array>();
 
-      double *X_data = X.GetData();
+      double *X_data = X.GetData<double>();
       const int* constraint_data = constraint_list.GetData<int>();
 
       Vector subvec(constraint_list.OmpLayout());
-      double *subvec_data = subvec.GetData();
+      double *subvec_data = subvec.GetData<double>();
 
       const std::size_t num_constraint = constraint_list.Size();
+      const bool use_target = constraint_list.ComputeOnDevice();
+      const bool use_parallel = false;//(use_target || num_constraint > 1000);
 
       // This operation is a general version of mfem::Vector::SetSubVectorComplement()
       // {
 #pragma omp target teams distribute parallel for        \
    map(to: subvec_data, constraint_data, X_data)        \
-   if (target: constraint_list.ComputeOnDevice())            \
-   if (parallel: num_constraint > 1000)
+   if (target: use_target)                              \
+   if (parallel: use_parallel)
       for (std::size_t i = 0; i < num_constraint; i++) subvec_data[i] = X_data[constraint_data[i]];
 
       X.Fill(0.0);
 
 #pragma omp target teams distribute parallel for        \
    map(to: X_data, constraint_data, subvec_data)        \
-   if (target: constraint_list.ComputeOnDevice())            \
-   if (parallel: num_constraint > 1000)
+   if (target: use_target)                              \
+   if (parallel: use_parallel)
       for (std::size_t i = 0; i < num_constraint; i++) X_data[constraint_data[i]] = subvec_data[i];
       // }
    }
@@ -216,20 +218,20 @@ void ConstrainedOperator::EliminateRHS(const mfem::Vector &mfem_x, mfem::Vector 
    const Vector &x = mfem_x.Get_PVector()->As<Vector>();
    Vector &b = mfem_b.Get_PVector()->As<Vector>();
 
-   const double *x_data = x.GetData();
-   double *b_data = b.GetData();
-   double *w_data = w.GetData();
+   const double *x_data = x.GetData<double>();
+   double *b_data = b.GetData<double>();
+   double *w_data = w.GetData<double>();
    const int* constraint_data = constraint_list.GetData<int>();
 
    const std::size_t num_constraint = constraint_list.Size();
    const bool use_target = constraint_list.ComputeOnDevice();
-   const bool use_parallel = use_target || num_constraint > 1000;
+   const bool use_parallel = false;//(use_target || num_constraint > 1000);
 
    if (num_constraint > 0)
    {
 #pragma omp target teams distribute parallel for             \
    map(to: w_data, constraint_data, x_data)                  \
-   if (target: constraint_list.ComputeOnDevice())            \
+   if (target: use_target)                                   \
    if (parallel: use_parallel)
       for (std::size_t i = 0; i < num_constraint; i++)
          w_data[constraint_data[i]] = x_data[constraint_data[i]];
@@ -243,7 +245,7 @@ void ConstrainedOperator::EliminateRHS(const mfem::Vector &mfem_x, mfem::Vector 
    {
 #pragma omp target teams distribute parallel for        \
    map(to: b_data, constraint_data, x_data)             \
-   if (target: use_target)       \
+   if (target: use_target)                              \
    if (parallel: use_parallel)
       for (std::size_t i = 0; i < num_constraint; i++)
          b_data[constraint_data[i]] = x_data[constraint_data[i]];
@@ -261,21 +263,21 @@ void ConstrainedOperator::Mult(const mfem::Vector &mfem_x, mfem::Vector &mfem_y)
    const Vector &x = mfem_x.Get_PVector()->As<Vector>();
    Vector &y = mfem_y.Get_PVector()->As<Vector>();
 
-   const double *x_data = x.GetData();
-   double *y_data = y.GetData();
-   double *z_data = z.GetData();
+   const double *x_data = x.GetData<double>();
+   double *y_data = y.GetData<double>();
+   double *z_data = z.GetData<double>();
    const int* constraint_data = constraint_list.GetData<int>();
 
    const std::size_t num_constraint = constraint_list.Size();
    const bool use_target = constraint_list.ComputeOnDevice();
-   const bool use_parallel = use_target || num_constraint > 1000;
+   const bool use_parallel = false;//(use_target || num_constraint > 1000);
 
    z.Assign<double>(x); // z = x
 
    // z[constraint_list] = 0.0
 #pragma omp target teams distribute parallel for             \
    map(to: z_data, constraint_data)                          \
-   if (target: use_target)            \
+   if (target: use_target)                                   \
    if (parallel: use_parallel)
    for (std::size_t i = 0; i < num_constraint; i++)
       z_data[constraint_data[i]] = 0.0;
@@ -286,7 +288,7 @@ void ConstrainedOperator::Mult(const mfem::Vector &mfem_x, mfem::Vector &mfem_y)
    // y[constraint_list] = x[constraint_list]
 #pragma omp target teams distribute parallel for             \
    map(to: y_data, constraint_data, x_data)                  \
-   if (target: use_target)            \
+   if (target: use_target)                                   \
    if (parallel: use_parallel)
    for (std::size_t i = 0; i < num_constraint; i++)
       y_data[constraint_data[i]] = x_data[constraint_data[i]];

@@ -25,7 +25,9 @@ FiniteElementSpace::FiniteElementSpace(const Engine &e,
    : PFiniteElementSpace(e, fespace),
      e_layout(e, 0),
      tensor_offsets(NULL),
-     tensor_indices(NULL)
+     tensor_indices(NULL),
+     prolongation(NULL),
+     restriction(NULL)
 {
    std::size_t lsize = 0;
    for (int e = 0; e < fespace.GetNE(); e++) { lsize += fespace.GetFE(e)->GetDof(); }
@@ -121,11 +123,11 @@ void FiniteElementSpace::ToLVector(const Vector &e_vector, Vector &l_vector)
    const int *offsets = tensor_offsets->Get_PArray()->As<Array>().GetData<int>();
    const int *indices = tensor_indices->Get_PArray()->As<Array>().GetData<int>();
 
-   const double *e_data = e_vector.GetData();
-   double *l_data = l_vector.GetData();
+   const double *e_data = e_vector.GetData<double>();
+   double *l_data = l_vector.GetData<double>();
 
    const bool use_target = l_vector.ComputeOnDevice();
-   const bool use_parallel = (use_target || lsize > 1000);
+   const bool use_parallel = false;//(use_target || lsize > 1000);
 
 #pragma omp target teams distribute parallel for        \
    map (to: offsets, indices, l_data, e_data)           \
@@ -158,11 +160,11 @@ void FiniteElementSpace::ToEVector(const Vector &l_vector, Vector &e_vector)
    const int *offsets = tensor_offsets->Get_PArray()->As<Array>().GetData<int>();
    const int *indices = tensor_indices->Get_PArray()->As<Array>().GetData<int>();
 
-   const double *l_data = l_vector.GetData();
-   double *e_data = e_vector.GetData();
+   const double *l_data = l_vector.GetData<double>();
+   double *e_data = e_vector.GetData<double>();
 
    const bool use_target = l_vector.ComputeOnDevice();
-   const bool use_parallel = (use_target || lsize > 1000);
+   const bool use_parallel = false;//(use_target || lsize > 1000);
 
 #pragma omp target teams distribute parallel for         \
    map (to: offsets, indices, l_data, e_data)            \
@@ -179,6 +181,51 @@ void FiniteElementSpace::ToEVector(const Vector &l_vector, Vector &e_vector)
       }
    }
 }
+
+/// Get the finite element space prolongation matrix
+const Operator *FiniteElementSpace::GetProlongation() const
+{
+   // FIXME: This relies on unified memory if using a device other than the CPU
+   if (!prolongation)
+   {
+      Layout &v_layout = GetVLayout();
+      Layout &t_layout = GetTrueVLayout();
+
+      const mfem::Operator *op = GetFESpace()->GetProlongationMatrix();
+      if (!op)
+      {
+         prolongation = new mfem::IdentityOperator(t_layout);
+      }
+      else
+      {
+         prolongation = new BackendOperator(t_layout, v_layout, op);
+      }
+   }
+   return prolongation;
+}
+
+/// Get the finite element space restriction matrix
+const Operator *FiniteElementSpace::GetRestriction() const
+{
+   // FIXME: This relies on unified memory if using a device other than the CPU
+   if (!restriction)
+   {
+      Layout &v_layout = GetVLayout();
+      Layout &t_layout = GetTrueVLayout();
+
+      const mfem::Operator *op = GetFESpace()->GetRestrictionMatrix();
+      if (!op)
+      {
+         restriction = new mfem::IdentityOperator(t_layout);
+      }
+      else
+      {
+         restriction = new BackendOperator(v_layout, t_layout, op);
+      }
+   }
+   return restriction;
+}
+
 
 
 } // namespace mfem::omp

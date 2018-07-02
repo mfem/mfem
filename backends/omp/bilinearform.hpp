@@ -88,11 +88,11 @@ public:
 
    /** @brief Prolongation operator from linear algebra (linear system) vectors,
        to input vectors for the operator. `NULL` means identity. */
-   virtual const Operator *GetProlongation() const { return bform->GetProlongation(); }
+   virtual const Operator *GetProlongation() const { return trial_fes->GetProlongation(); }
 
    /** @brief Restriction operator from input vectors for the operator to linear
        algebra (linear system) vectors. `NULL` means identity. */
-   virtual const Operator *GetRestriction() const  { return bform->GetRestriction(); }
+   virtual const Operator *GetRestriction() const  { return test_fes->GetRestriction(); }
 
    /// Assemble the PBilinearForm.
    /** This method is called from the method BilinearForm::Assemble() of the

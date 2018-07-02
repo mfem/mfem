@@ -39,8 +39,8 @@ public:
    const Engine &OmpEngine() const
    { return *static_cast<const Engine *>(engine.Get()); }
 
-   char *Alloc(std::size_t bytes) const
-   { return static_cast<char *>(OmpEngine().Malloc(bytes)); }
+   void *Alloc(std::size_t bytes) const
+   { return OmpEngine().Malloc(bytes); }
 
    void Dealloc(void *ptr) const
    { return OmpEngine().Dealloc(ptr); }

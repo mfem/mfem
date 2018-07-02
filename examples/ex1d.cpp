@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
    // string occa_spec("mode: 'OpenCL', deviceID: 0, platformID: 0");
    // SharedPtr<Engine> engine(new mfem::occa::Engine(occa_spec));
 
-   string omp_spec("exec_target:'device', mem_type:'unified'");
+   string omp_spec("mult_engine:'acrotensor', exec_target:'host', mem_type:'host'");
    SharedPtr<Engine> engine(new mfem::omp::Engine(omp_spec));
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
    //    elements.
    {
       int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(2000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();

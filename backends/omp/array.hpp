@@ -32,8 +32,8 @@ protected:
    //
    // DLayout layout;
 
-   char *data;
    std::size_t bytes;
+   char *data;
 
    //
    // Virtual interface
@@ -70,7 +70,7 @@ protected:
       T *ptr = (T*) data;
       T val = *pval;
       const bool use_target = ComputeOnDevice();
-      const bool use_parallel = (use_target || layout->Size() > 1000);
+      const bool use_parallel = false;//(use_target || layout->Size() > 1000);
 #pragma omp target teams distribute parallel for        \
    if (target: use_target)                              \
    if (parallel: use_parallel) map (to: ptr, val)
@@ -80,12 +80,12 @@ protected:
 public:
    Array(Layout &lt, std::size_t item_size)
       : PArray(lt),
-        data(static_cast<char *>(lt.Alloc(lt.Size()*item_size))),
-        bytes(lt.Size())
+        bytes(lt.Size() * item_size),
+        data(static_cast<char *>(lt.Alloc(bytes)))
    {
-      if (!IsUnifiedMemory())
+      if (!IsUnifiedMemory() && ComputeOnDevice())
       {
-#pragma omp target enter data if(ComputeOnDevice()) map(alloc:data[:lt.Size()*item_size])
+#pragma omp target enter data map(alloc:data[:lt.Size()*item_size])
       }
    }
 

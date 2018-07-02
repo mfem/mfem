@@ -26,6 +26,21 @@ namespace mfem
 namespace omp
 {
 
+/*
+  Wraps an mfem::Operator that does not contain layout information.
+ */
+class BackendOperator : public mfem::Operator
+{
+   const mfem::Operator *op;
+
+public:
+   BackendOperator(Layout &in_layout, Layout &out_layout,
+                   const mfem::Operator *op_) : Operator(in_layout, out_layout), op(op_) { }
+
+   virtual void Mult(const mfem::Vector &x, mfem::Vector &y) const { op->Mult(x, y); }
+   virtual void MultTranspose(const mfem::Vector &x, mfem::Vector &y) const { op->MultTranspose(x, y); }
+};
+
 /// TODO: doxygen
 class FiniteElementSpace : public mfem::PFiniteElementSpace
 {
@@ -40,6 +55,8 @@ protected:
 
    mfem::Array<int> *tensor_offsets, *tensor_indices;
 
+   mutable mfem::Operator *prolongation, *restriction;
+
    void BuildDofMaps();
 
 public:
@@ -51,9 +68,17 @@ public:
    {
       delete tensor_offsets;
       delete tensor_indices;
+      delete prolongation;
+      delete restriction;
    }
 
    Layout &GetELayout() { return e_layout; }
+
+   Layout &GetVLayout() const
+   { return *fes->GetVLayout().As<Layout>(); }
+
+   Layout &GetTrueVLayout() const
+   { return *fes->GetTrueVLayout().As<Layout>(); }
 
    /// Return the engine as an OpenMP engine
    const Engine &OmpEngine() { return static_cast<const Engine&>(*engine); }
@@ -63,6 +88,13 @@ public:
 
    /// Covert an L vector to E vector
    void ToEVector(const Vector &l_vector, Vector &e_vector);
+
+   /// Get the finite element space prolongation matrix
+   const Operator *GetProlongation() const;
+
+   /// Get the finite element space restriction matrix
+   const Operator *GetRestriction() const;
+
 };
 
 } // namespace mfem::omp

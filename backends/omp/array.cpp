@@ -27,14 +27,17 @@ PArray *Array::DoClone(bool copy_data, void **buffer,
    Array *new_array = new Array(OmpLayout(), item_size);
    if (copy_data)
    {
-      const std::size_t total_size = item_size * OmpLayout().Size();
       if (!ComputeOnDevice())
-         std::memcpy(new_array->GetBuffer(), data, total_size);
+         std::memcpy(new_array->GetBuffer(), data, bytes);
       else
       {
          char *new_data = new_array->GetBuffer();
-#pragma omp target teams distribute parallel for is_device_ptr(new_data)
-         for (std::size_t i = 0; i < total_size; i++) new_data[i] = data[i];
+         const bool use_target = ComputeOnDevice();
+         const bool use_parallel = Size() > 1000;
+#pragma omp target teams distribute parallel for       \
+   if (target: use_target) if (parallel: use_parallel) \
+   is_device_ptr(new_data)
+         for (std::size_t i = 0; i < bytes; i++) new_data[i] = data[i];
       }
    }
    if (buffer)
@@ -66,7 +69,7 @@ void *Array::DoPullData(void *buffer, std::size_t item_size)
    if (!IsUnifiedMemory() && ComputeOnDevice())
    {
 #pragma omp target update from(data)
-      std::memcpy(buffer, data, item_size * Size());
+      std::memcpy(buffer, data, bytes);
    }
    else
    {
@@ -97,7 +100,7 @@ void Array::DoPushData(const void *src_buffer, std::size_t item_size)
 {
    // called only when Size() != 0
 
-   std::memcpy(data, (char *) src_buffer, Size() * item_size);
+   std::memcpy(data, (char *) src_buffer, bytes);
 
    if ((!IsUnifiedMemory() && ComputeOnDevice()) && (data != src_buffer))
    {

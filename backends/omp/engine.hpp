@@ -68,7 +68,8 @@ public:
 
    ExecutionTarget ExecTarget() const { return exec_target; }
 
-   inline bool UnifiedMemory() const { return unified_memory; }
+   inline bool UnifiedMemory() const { return false; // return unified_memory;
+   }
 
    void* Malloc(std::size_t bytes) const
    {

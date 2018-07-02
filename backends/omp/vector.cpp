@@ -58,8 +58,8 @@ void Vector::DoDotProduct(const PVector &x, void *result,
    const Vector *xp = static_cast<const Vector *>(&x);
    MFEM_ASSERT(this->Size() == xp->Size(), "");
 
-   double *ptr = (double *) data;
-   double *xptr = (double *) xp->GetData();
+   const double *ptr = GetData<double>();
+   const double *xptr = xp->GetData<double>();
    const std::size_t size = Size();
 
    if (!ComputeOnDevice())
@@ -103,12 +103,12 @@ void Vector::DoAxpby(const void *a, const PVector &x,
 
    const std::size_t size = Size();
    const std::size_t critical_size = 1000;
-   const double *xd = xp->GetData();
-   const double *yd = yp->GetData();
-   double *td = GetData();
+   const double *xd = xp->GetData<double>();
+   const double *yd = yp->GetData<double>();
+   double *td = GetData<double>();
 
    const bool use_target = ComputeOnDevice();
-   const bool use_parallel = (use_target || size > critical_size);
+   const bool use_parallel = false;//(use_target || size > critical_size);
 
    if (da == 0.0)
    {
