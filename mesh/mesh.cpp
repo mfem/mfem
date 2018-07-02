@@ -5499,6 +5499,7 @@ void Mesh::UpdateNodes()
 
 void Mesh::QuadUniformRefinement()
 {
+   DeleteLazyTables();
    int i, j, *v, vv[2], attr;
    const int *e;
 
@@ -5601,6 +5602,7 @@ void Mesh::QuadUniformRefinement()
 
 void Mesh::HexUniformRefinement()
 {
+   DeleteLazyTables();
    int i;
    int * v;
    const int *e, *f;
