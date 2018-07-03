@@ -408,6 +408,8 @@ protected:
    /// Read in a VisIt root file in JSON format
    void ParseVisItRootString(const std::string& json);
 
+   void UpdateMeshInfo();
+
    // Helper functions for Load()
    void LoadVisItRootFile(const std::string& root_name);
    void LoadMesh();
@@ -437,6 +439,9 @@ public:
 
    /// Add a grid function to the collection and update the root file
    virtual void RegisterField(const std::string& field_name, GridFunction *gf);
+
+   /// Set VisIt parameter: default levels of detail for the MultiresControl
+   void SetLevelsOfDetail(int levels_of_detail);
 
    /// Set VisIt parameter: maximum levels of detail for the MultiresControl
    void SetMaxLevelsOfDetail(int max_levels_of_detail);
