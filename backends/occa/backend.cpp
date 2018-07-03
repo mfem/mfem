@@ -23,6 +23,7 @@ namespace occa
 
 bool Backend::Supports(const std::string &engine_spec) const
 {
+   // TODO: check if 'engine_spec' is valid OCCA string.
    return true;
 }
 

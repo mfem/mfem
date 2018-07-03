@@ -35,22 +35,22 @@ typedef double* Jacobian1D_t @dim(NUM_QUAD, numElements);
 typedef double* Jacobian2D_t @dim(2, 2, NUM_QUAD, numElements);
 typedef double* Jacobian3D_t @dim(3, 3, NUM_QUAD, numElements);
 
-kernel void InitGeometryInfo1D(const int numElements,
-                               const DofToQuadD1D_t restrict dofToQuadD,
-                               const Local1D_t restrict nodes,
-                               Jacobian1D_t restrict J,
-                               Jacobian1D_t restrict invJ,
-                               QLocal_t restrict detJ) {
+@kernel void InitGeometryInfo1D(const int numElements,
+                                const DofToQuadD1D_t restrict dofToQuadD,
+                                const Local1D_t restrict nodes,
+                                Jacobian1D_t restrict J,
+                                Jacobian1D_t restrict invJ,
+                                QLocal_t restrict detJ) {
 
-  for (int e = 0; e < numElements; ++e; outer) {
-    shared double s_nodes[NUM_DOFS];
+  for (int e = 0; e < numElements; ++e; @outer) {
+    @shared double s_nodes[NUM_DOFS];
 
-    for (int q = 0; q < NUM_QUAD; ++q; inner) {
+    for (int q = 0; q < NUM_QUAD; ++q; @inner) {
       for (int d = q; d < NUM_DOFS; d += NUM_QUAD) {
         s_nodes[d] = nodes(0, d, e);
       }
     }
-    for (int q = 0; q < NUM_QUAD; ++q; inner) {
+    for (int q = 0; q < NUM_QUAD; ++q; @inner) {
       double J11 = 0;
       for (int d = 0; d < NUM_DOFS; ++d) {
         const double wx = dofToQuadD(q, d);
@@ -69,23 +69,23 @@ kernel void InitGeometryInfo1D(const int numElements,
   }
 }
 
-kernel void InitGeometryInfo2D(const int numElements,
-                               const DofToQuadD2D_t restrict dofToQuadD,
-                               const Local2D_t restrict nodes,
-                               Jacobian2D_t restrict J,
-                               Jacobian2D_t restrict invJ,
-                               QLocal_t restrict detJ) {
+@kernel void InitGeometryInfo2D(const int numElements,
+                                const DofToQuadD2D_t restrict dofToQuadD,
+                                const Local2D_t restrict nodes,
+                                Jacobian2D_t restrict J,
+                                Jacobian2D_t restrict invJ,
+                                QLocal_t restrict detJ) {
 
-  for (int e = 0; e < numElements; ++e; outer) {
-    shared double s_nodes[2 * NUM_DOFS] @dim(2, NUM_DOFS);
+  for (int e = 0; e < numElements; ++e; @outer) {
+    @shared double s_nodes[2 * NUM_DOFS] @dim(2, NUM_DOFS);
 
-    for (int q = 0; q < NUM_QUAD; ++q; inner) {
+    for (int q = 0; q < NUM_QUAD; ++q; @inner) {
       for (int d = q; d < NUM_DOFS; d += NUM_QUAD) {
         s_nodes(0, d) = nodes(0, d, e);
         s_nodes(1, d) = nodes(1, d, e);
       }
     }
-    for (int q = 0; q < NUM_QUAD; ++q; inner) {
+    for (int q = 0; q < NUM_QUAD; ++q; @inner) {
       double J11 = 0, J12 = 0;
       double J21 = 0, J22 = 0;
       for (int d = 0; d < NUM_DOFS; ++d) {
@@ -118,24 +118,24 @@ kernel void InitGeometryInfo2D(const int numElements,
   }
 }
 
-kernel void InitGeometryInfo3D(const int numElements,
-                               const DofToQuadD3D_t restrict dofToQuadD,
-                               const Local3D_t restrict nodes,
-                               Jacobian3D_t restrict J,
-                               Jacobian3D_t restrict invJ,
-                               QLocal_t restrict detJ) {
+@kernel void InitGeometryInfo3D(const int numElements,
+                                const DofToQuadD3D_t restrict dofToQuadD,
+                                const Local3D_t restrict nodes,
+                                Jacobian3D_t restrict J,
+                                Jacobian3D_t restrict invJ,
+                                QLocal_t restrict detJ) {
 
-  for (int e = 0; e < numElements; ++e; outer) {
-    shared double s_nodes[3 * NUM_DOFS] @dim(3, NUM_DOFS);
+  for (int e = 0; e < numElements; ++e; @outer) {
+    @shared double s_nodes[3 * NUM_DOFS] @dim(3, NUM_DOFS);
 
-    for (int q = 0; q < NUM_QUAD; ++q; inner) {
+    for (int q = 0; q < NUM_QUAD; ++q; @inner) {
       for (int d = q; d < NUM_DOFS; d += NUM_QUAD) {
         s_nodes(0, d) = nodes(0, d, e);
         s_nodes(1, d) = nodes(1, d, e);
         s_nodes(2, d) = nodes(2, d, e);
       }
     }
-    for (int q = 0; q < NUM_QUAD; ++q; inner) {
+    for (int q = 0; q < NUM_QUAD; ++q; @inner) {
       double J11 = 0, J12 = 0, J13 = 0;
       double J21 = 0, J22 = 0, J23 = 0;
       double J31 = 0, J32 = 0, J33 = 0;

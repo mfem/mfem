@@ -45,18 +45,17 @@ void Vector::DoDotProduct(const PVector &x, void *result,
 
    MFEM_ASSERT(result_type_id == ScalarId<double>::value, "");
    double *res = (double *)result;
-   double local_dot = 0.;
    MFEM_ASSERT(dynamic_cast<const Vector *>(&x) != NULL, "invalid Vector type");
    const Vector *xp = static_cast<const Vector *>(&x);
    MFEM_ASSERT(this->Size() == xp->Size(), "");
-   local_dot = ::occa::linalg::dot<double, double, double>(this->slice, xp->slice);
+   *res = ::occa::linalg::dot<double, double, double>(this->slice, xp->slice);
 
-   *res = local_dot;
 #ifdef MFEM_USE_MPI
-   MPI_Comm comm = OccaLayout().OccaEngine().GetComm();
-   if (comm != MPI_COMM_NULL)
+   double local_dot = *res;
+   if (IsParallel())
    {
-      MPI_Allreduce(&local_dot, res, 1, MPI_DOUBLE, MPI_SUM, comm);
+      MPI_Allreduce(&local_dot, res, 1, MPI_DOUBLE, MPI_SUM,
+                    OccaLayout().OccaEngine().GetComm());
    }
 #endif
 }

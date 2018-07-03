@@ -54,7 +54,7 @@ public:
 
 protected:
    /// Pointer to data
-   entry_t *data;
+   mutable entry_t *data;
    /// Size of the array
    idx_t size;
    /** @brief Size of the allocated memory. Values <= 0 mean that the data is
@@ -516,7 +516,7 @@ public:
        host, however a host buffer of the appropriate size is still allocated
        and the Array data is set to point to it. If the DArray uses contiguous
        data representation in host memory, only a pointer value is copied. */
-   inline void Pull(bool copy_data = true);
+   inline void Pull(bool copy_data = true) const;
 
    /** @brief If the Array has an associated DArray, copy the contents of the
        #data array to the DArray. Otherwise, do nothing. */
@@ -1163,7 +1163,7 @@ inline void DevExtension<array_t,dev_ext_t>::Resize(const DLayout &new_layout)
 #endif
 
 template <typename array_t, typename dev_ext_t>
-inline void DevExtension<array_t,dev_ext_t>::Pull(bool copy_data)
+inline void DevExtension<array_t,dev_ext_t>::Pull(bool copy_data) const
 {
    AssertDGood();
 #ifdef MFEM_USE_BACKENDS

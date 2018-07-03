@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
    //    more than 10,000 elements.
    {
       int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -83,7 +83,7 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      int par_ref_levels = 0;
+      int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
@@ -161,30 +161,12 @@ int main(int argc, char *argv[])
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    CGSolver *pcg = new CGSolver(MPI_COMM_WORLD);
-   pcg->SetRelTol(1e-12);
-   pcg->SetAbsTol(1e-14);
-   pcg->SetMaxIter(200);
-   pcg->SetPrintLevel(1);
-   // pcg->SetPreconditioner(*amg);
+   pcg->SetRelTol(1e-6);
+   pcg->SetAbsTol(0.0);
+   pcg->SetMaxIter(1000);
+   pcg->SetPrintLevel(3);
    pcg->SetOperator(*A.Ptr());
    pcg->Mult(B, X);
-
-   // HypreParMatrix *Amat = static_cast<HypreParMatrix*>(A.Ptr());
-
-   // if (myid == 0)
-   // {
-   //    cout << "Size of linear system: " << Amat->GetGlobalNumRows() << endl;
-   // }
-
-   // // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
-   // //     preconditioner from hypre.
-   // HypreSolver *amg = new HypreBoomerAMG(*Amat);
-   // HyprePCG *pcg = new HyprePCG(*Amat);
-   // pcg->SetTol(1e-12);
-   // pcg->SetMaxIter(200);
-   // pcg->SetPrintLevel(2);
-   // pcg->SetPreconditioner(*amg);
-   // pcg->Mult(B, X);
 
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
@@ -220,7 +202,6 @@ int main(int argc, char *argv[])
 
    // 16. Free the used memory.
    delete pcg;
-   // delete amg;
    delete a;
    delete b;
    delete fespace;

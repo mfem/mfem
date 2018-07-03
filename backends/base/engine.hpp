@@ -95,7 +95,9 @@ public:
        @name Machine resources interface
     */
    ///@{
+
 #ifdef MFEM_USE_MPI
+   /// Get the associated MPI_Comm
    MPI_Comm GetComm() const { return comm; }
 #endif
 
