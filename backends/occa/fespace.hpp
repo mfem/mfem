@@ -73,8 +73,6 @@ public:
 
    mfem::Mesh* GetMesh() const { return fes->GetMesh(); }
 
-   mfem::FiniteElementSpace* GetFESpace() const { return fes; }
-
    Layout &OccaVLayout() const
    { return *fes->GetVLayout().As<Layout>(); }
 
