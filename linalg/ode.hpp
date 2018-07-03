@@ -282,6 +282,29 @@ public:
    virtual void Step(Vector &x, double &t, double &dt);
 };
 
+
+/// Generalized-alpha ODE solver from "A generalized-α method for integrating
+/// the filtered Navier–Stokes equations with a stabilized finite element
+/// method" by K.E. Jansen, C.H. Whiting and G.M. Hulbert.
+class GeneralizedAlphaSolver : public ODESolver
+{
+protected:
+   Vector xdot,k,y;
+   double alpha_f, alpha_m, gamma;
+   bool first;
+
+   void SetRhoInf(double rho_inf);
+   void PrintProperties(std::ostream &out = mfem::out);
+public:
+
+   GeneralizedAlphaSolver(double rho = 1.0) { SetRhoInf(rho); };
+
+   virtual void Init(TimeDependentOperator &_f);
+
+   virtual void Step(Vector &x, double &t, double &dt);
+};
+
+
 /// The SIASolver class is based on the Symplectic Integration Algorithm
 /// described in "A Symplectic Integration Algorithm for Separable Hamiltonian
 /// Functions" by J. Candy and W. Rozmus, Journal of Computational Physics,

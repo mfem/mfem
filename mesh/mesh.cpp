@@ -890,6 +890,13 @@ void Mesh::Destroy()
    bdr_attributes.DeleteAll();
 }
 
+void Mesh::DeleteLazyTables()
+{
+   delete el_to_el;     el_to_el = NULL;
+   delete face_edge;    face_edge = NULL;
+   delete edge_vertex;  edge_vertex = NULL;
+}
+
 void Mesh::SetAttributes()
 {
    Array<int> attribs;
@@ -5492,6 +5499,7 @@ void Mesh::UpdateNodes()
 
 void Mesh::QuadUniformRefinement()
 {
+   DeleteLazyTables();
    int i, j, *v, vv[2], attr;
    const int *e;
 
@@ -5594,6 +5602,7 @@ void Mesh::QuadUniformRefinement()
 
 void Mesh::HexUniformRefinement()
 {
+   DeleteLazyTables();
    int i;
    int * v;
    const int *e, *f;
@@ -5878,6 +5887,7 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
       delete [] edge2;
       delete [] middle;
 
+      DeleteLazyTables();
       if (el_to_edge != NULL)
       {
          NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
@@ -5993,6 +6003,7 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
       // 7. Free the allocated memory.
       delete [] middle;
 
+      DeleteLazyTables();
       if (el_to_edge != NULL)
       {
          NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
@@ -7265,17 +7276,23 @@ void Mesh::PrintVTK(std::ostream &out)
       for (int i = 0; i < NumOfElements; i++)
       {
          Nodes->FESpace()->GetElementDofs(i, dofs);
+         MFEM_ASSERT(Dim != 0 || dofs.Size() == 1,
+                     "Point meshes should have a single dof per element");
          size += dofs.Size() + 1;
       }
       out << "CELLS " << NumOfElements << ' ' << size << '\n';
       const char *fec_name = Nodes->FESpace()->FEColl()->Name();
+
       if (!strcmp(fec_name, "Linear") ||
+          !strcmp(fec_name, "H1_0D_P1") ||
+          !strcmp(fec_name, "H1_1D_P1") ||
           !strcmp(fec_name, "H1_2D_P1") ||
           !strcmp(fec_name, "H1_3D_P1"))
       {
          order = 1;
       }
       else if (!strcmp(fec_name, "Quadratic") ||
+               !strcmp(fec_name, "H1_1D_P2") ||
                !strcmp(fec_name, "H1_2D_P2") ||
                !strcmp(fec_name, "H1_3D_P2"))
       {
@@ -7303,6 +7320,7 @@ void Mesh::PrintVTK(std::ostream &out)
             const int *vtk_mfem;
             switch (elements[i]->GetGeometryType())
             {
+               case Geometry::SEGMENT:
                case Geometry::TRIANGLE:
                case Geometry::SQUARE:
                   vtk_mfem = vtk_quadratic_hex; break; // identity map

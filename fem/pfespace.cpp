@@ -739,7 +739,7 @@ HYPRE_Int ParFiniteElementSpace::GetMyTDofOffset() const
    return HYPRE_AssumedPartitionCheck()? tdof_offsets[0] : tdof_offsets[MyRank];
 }
 
-const Operator *ParFiniteElementSpace::GetProlongationMatrix()
+const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
 {
    if (Conforming())
    {
@@ -2538,6 +2538,33 @@ void ParFiniteElementSpace::Destroy()
    send_face_nbr_ldof.Clear();
 }
 
+void ParFiniteElementSpace::GetTrueTransferOperator(
+   const FiniteElementSpace &coarse_fes, OperatorHandle &T) const
+{
+   OperatorHandle Tgf(T.Type() == Operator::Hypre_ParCSR ?
+                      Operator::MFEM_SPARSEMAT : Operator::ANY_TYPE);
+   GetTransferOperator(coarse_fes, Tgf);
+   Dof_TrueDof_Matrix(); // Make sure R is built - we need R in all cases.
+   if (T.Type() == Operator::Hypre_ParCSR)
+   {
+      const ParFiniteElementSpace *c_pfes =
+         dynamic_cast<const ParFiniteElementSpace *>(&coarse_fes);
+      MFEM_ASSERT(c_pfes != NULL, "coarse_fes must be a parallel space");
+      SparseMatrix *RA = mfem::Mult(*R, *Tgf.As<SparseMatrix>());
+      Tgf.Clear();
+      T.Reset(c_pfes->Dof_TrueDof_Matrix()->
+              LeftDiagMult(*RA, GetTrueDofOffsets()));
+      delete RA;
+   }
+   else
+   {
+      T.Reset(new TripleProductOperator(R, Tgf.Ptr(),
+                                        coarse_fes.GetProlongationMatrix(),
+                                        false, Tgf.OwnsOperator(), false));
+      Tgf.SetOperatorOwner(false);
+   }
+}
+
 void ParFiniteElementSpace::Update(bool want_transform)
 {
    if (mesh->GetSequence() == sequence)
@@ -2627,21 +2654,19 @@ void ParFiniteElementSpace::Update(bool want_transform)
 
 
 ConformingProlongationOperator::ConformingProlongationOperator(
-   ParFiniteElementSpace &pfes)
+   const ParFiniteElementSpace &pfes)
    : Operator(pfes.GetVSize(), pfes.GetTrueVSize()),
      external_ldofs(),
      gc(pfes.GroupComm())
 {
    MFEM_VERIFY(pfes.Conforming(), "");
-   Array<int> ldofs;
-   Table &group_ldof = gc.GroupLDofTable();
+   const Table &group_ldof = gc.GroupLDofTable();
    external_ldofs.Reserve(Height()-Width());
    for (int gr = 1; gr < group_ldof.Size(); gr++)
    {
       if (!gc.GetGroupTopology().IAmMaster(gr))
       {
-         ldofs.MakeRef(group_ldof.GetRow(gr), group_ldof.RowSize(gr));
-         external_ldofs.Append(ldofs);
+         external_ldofs.Append(group_ldof.GetRow(gr), group_ldof.RowSize(gr));
       }
    }
    external_ldofs.Sort();
