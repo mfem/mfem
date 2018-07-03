@@ -183,7 +183,7 @@ public:
       : mfem::PBilinearForm(e, bf), obform(NULL) { }
 
    /// Virtual destructor
-   virtual ~BilinearForm() { }
+   virtual ~BilinearForm();
 
    /// Assemble the PBilinearForm.
    /** This method is called from the method mfem::BilinearForm::Assemble() of
