@@ -32,6 +32,7 @@ protected:
    //
    // DLayout layout;
 
+   bool own_data;
    std::size_t bytes;
    char *data;
 
@@ -80,6 +81,7 @@ protected:
 public:
    Array(Layout &lt, std::size_t item_size)
       : PArray(lt),
+        own_data(true),
         bytes(lt.Size() * item_size),
         data(static_cast<char *>(lt.Alloc(bytes)))
    {
@@ -89,9 +91,18 @@ public:
       }
    }
 
+   Array(const Array &array)
+      : PArray(array.GetLayout()),
+        own_data(false),
+        bytes(array.bytes),
+        data(array.data) { }
+
    inline bool ComputeOnDevice() const { return (OmpLayout().OmpEngine().ExecTarget() == Device); }
 
-   virtual ~Array() { }
+   virtual ~Array()
+   {
+      if (own_data) layout->As<Layout>().Dealloc(data);
+   }
 
    inline void MakeRef(Array &master);
 

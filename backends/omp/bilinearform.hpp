@@ -77,8 +77,8 @@ public:
         has_assembled(false),
         trial_fes(&bf.FESpace()->Get_PFESpace()->As<FiniteElementSpace>()),
         test_fes(&bf.FESpace()->Get_PFESpace()->As<FiniteElementSpace>()),
-        x_local((trial_fes->GetELayout().DontDelete(), trial_fes->GetELayout())),
-        y_local((test_fes->GetELayout().DontDelete(), test_fes->GetELayout())) { }
+        x_local(trial_fes->GetELayout()),
+        y_local(test_fes->GetELayout()) { }
 
    /// Virtual destructor
    virtual ~BilinearForm();

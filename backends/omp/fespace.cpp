@@ -32,6 +32,8 @@ FiniteElementSpace::FiniteElementSpace(const Engine &e,
    std::size_t lsize = 0;
    for (int e = 0; e < fespace.GetNE(); e++) { lsize += fespace.GetFE(e)->GetDof(); }
    e_layout.Resize(lsize);
+   // The e_layout will be stored inside multiple shared DLayout objects
+   e_layout.DontDelete();
 }
 
 void FiniteElementSpace::BuildDofMaps()
