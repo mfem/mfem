@@ -24,8 +24,8 @@ namespace occa
 
 OccaBilinearForm::OccaBilinearForm(FiniteElementSpace *ofespace_) :
    Operator(ofespace_->OccaVLayout()),
-   localX((ofespace_->OccaEVLayout().DontDelete(), ofespace_->OccaEVLayout())),
-   localY((ofespace_->OccaEVLayout().DontDelete(), ofespace_->OccaEVLayout()))
+   localX(ofespace_->OccaEVLayout()),
+   localY(ofespace_->OccaEVLayout())
 {
    Init(ofespace_->OccaEngine(), ofespace_, ofespace_);
 }
@@ -34,8 +34,8 @@ OccaBilinearForm::OccaBilinearForm(FiniteElementSpace *otrialFESpace_,
                                    FiniteElementSpace *otestFESpace_) :
    Operator(otrialFESpace_->OccaVLayout(),
             otestFESpace_->OccaVLayout()),
-   localX((otrialFESpace_->OccaEVLayout().DontDelete(), otrialFESpace_->OccaEVLayout())),
-   localY((otestFESpace_->OccaEVLayout().DontDelete(), otestFESpace_->OccaEVLayout()))
+   localX(otrialFESpace_->OccaEVLayout()),
+   localY(otestFESpace_->OccaEVLayout())
 {
    Init(otrialFESpace_->OccaEngine(), otrialFESpace_, otestFESpace_);
 }
