@@ -1272,7 +1272,7 @@ void Mesh::ReadGmshMesh(std::istream &input)
 #ifdef MFEM_USE_NETCDF
 void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 {
-  read_gf = 0;
+   read_gf = 0;
 
    // curved set to zero will change if mesh is indeed curved
    curved = 0;
@@ -1294,18 +1294,18 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    };
 
    const int sideMapTri6[3][3] =
-     {
-       {1,2,4},
-       {2,3,5},
-       {3,1,6},
+   {
+      {1,2,4},
+      {2,3,5},
+      {3,1,6},
    };
 
    const int sideMapQuad9[4][3] =
    {
-     {1,2,5},
-     {2,3,6},
-     {3,4,7},
-     {4,1,8},
+      {1,2,5},
+      {2,3,6},
+      {3,4,7},
+      {4,1,8},
    };
 
    const int sideMapTet4[4][3] =
@@ -1435,101 +1435,123 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    }
 
    // Determine CUBIT element and face type
-   enum CubitElementType {
-     ELEMENT_TRI3,
-     ELEMENT_TRI6,
-     ELEMENT_QUAD4,
-     ELEMENT_QUAD9,
-     ELEMENT_TET4,
-     ELEMENT_TET10,
-     ELEMENT_HEX8,
-     ELEMENT_HEX27};
+   enum CubitElementType
+   {
+      ELEMENT_TRI3,
+      ELEMENT_TRI6,
+      ELEMENT_QUAD4,
+      ELEMENT_QUAD9,
+      ELEMENT_TET4,
+      ELEMENT_TET10,
+      ELEMENT_HEX8,
+      ELEMENT_HEX27
+   };
 
-   enum CubitFaceType {
-     FACE_EDGE2,
-     FACE_EDGE3,
-     FACE_TRI3,
-     FACE_TRI6,
-     FACE_QUAD4,
-     FACE_QUAD9,
-     };
+   enum CubitFaceType
+   {
+      FACE_EDGE2,
+      FACE_EDGE3,
+      FACE_TRI3,
+      FACE_TRI6,
+      FACE_QUAD4,
+      FACE_QUAD9,
+   };
 
    CubitElementType cubit_element_type;
    CubitFaceType cubit_face_type;
    int num_element_linear_nodes;
 
-   if (num_dim == 2) {
-     switch (num_node_per_el) {
-     case (3) : {
-       cubit_element_type = ELEMENT_TRI3;
-       cubit_face_type = FACE_EDGE2;
-       num_element_linear_nodes = 3;
-       break;
-     }
-     case (6) : {
-       cubit_element_type = ELEMENT_TRI6;
-       cubit_face_type = FACE_EDGE3;
-       num_element_linear_nodes = 3;
-       break;
-     }
-     case (4) : {
-       cubit_element_type = ELEMENT_QUAD4;
-       cubit_face_type = FACE_EDGE2;
-       num_element_linear_nodes = 4;
-       break;
-     }
-     case (9) : {
-       cubit_element_type = ELEMENT_QUAD9;
-       cubit_face_type = FACE_EDGE3;
-       num_element_linear_nodes = 4;
-       break;
-     }
-     default : {
-       MFEM_ABORT("Don't know what to do with a " << num_node_per_el <<
-                  " node 2D element\n");
-     }
-     }
-   } else if (num_dim == 3) {
-     switch (num_node_per_el) {
-     case (4) : {
-       cubit_element_type = ELEMENT_TET4;
-       cubit_face_type = FACE_TRI3;
-       num_element_linear_nodes = 4;
-       break;
-     }
-     case (10) : {
-         cubit_element_type = ELEMENT_TET10;
-         cubit_face_type = FACE_TRI6;
-         num_element_linear_nodes = 4;
-         break;
-     }
-     case (8) : {
-       cubit_element_type = ELEMENT_HEX8;
-       cubit_face_type = FACE_QUAD4;
-       num_element_linear_nodes = 8;
-       break;
-     }
-     case (27) :{
-       cubit_element_type = ELEMENT_HEX27;
-       cubit_face_type = FACE_QUAD9;
-       num_element_linear_nodes = 8;
-       break;
-     }
-     default : {
-       MFEM_ABORT("Don't know what to do with a " << num_node_per_el <<
-                  " node 3D element\n");
-     }
-     }
+   if (num_dim == 2)
+   {
+      switch (num_node_per_el)
+      {
+         case (3) :
+         {
+            cubit_element_type = ELEMENT_TRI3;
+            cubit_face_type = FACE_EDGE2;
+            num_element_linear_nodes = 3;
+            break;
+         }
+         case (6) :
+         {
+            cubit_element_type = ELEMENT_TRI6;
+            cubit_face_type = FACE_EDGE3;
+            num_element_linear_nodes = 3;
+            break;
+         }
+         case (4) :
+         {
+            cubit_element_type = ELEMENT_QUAD4;
+            cubit_face_type = FACE_EDGE2;
+            num_element_linear_nodes = 4;
+            break;
+         }
+         case (9) :
+         {
+            cubit_element_type = ELEMENT_QUAD9;
+            cubit_face_type = FACE_EDGE3;
+            num_element_linear_nodes = 4;
+            break;
+         }
+         default :
+         {
+            MFEM_ABORT("Don't know what to do with a " << num_node_per_el <<
+                       " node 2D element\n");
+         }
+      }
+   }
+   else if (num_dim == 3)
+   {
+      switch (num_node_per_el)
+      {
+         case (4) :
+         {
+            cubit_element_type = ELEMENT_TET4;
+            cubit_face_type = FACE_TRI3;
+            num_element_linear_nodes = 4;
+            break;
+         }
+         case (10) :
+         {
+            cubit_element_type = ELEMENT_TET10;
+            cubit_face_type = FACE_TRI6;
+            num_element_linear_nodes = 4;
+            break;
+         }
+         case (8) :
+         {
+            cubit_element_type = ELEMENT_HEX8;
+            cubit_face_type = FACE_QUAD4;
+            num_element_linear_nodes = 8;
+            break;
+         }
+         case (27) :
+         {
+            cubit_element_type = ELEMENT_HEX27;
+            cubit_face_type = FACE_QUAD9;
+            num_element_linear_nodes = 8;
+            break;
+         }
+         default :
+         {
+            MFEM_ABORT("Don't know what to do with a " << num_node_per_el <<
+                       " node 3D element\n");
+         }
+      }
    }
 
    // Determine order of elements
    int order = 0;
    if (cubit_element_type == ELEMENT_TRI3 || cubit_element_type == ELEMENT_QUAD4 ||
-       cubit_element_type == ELEMENT_TET4 || cubit_element_type == ELEMENT_HEX8) {
-     order = 1;
-   } else if(cubit_element_type == ELEMENT_TRI6 || cubit_element_type == ELEMENT_QUAD9 ||
-             cubit_element_type == ELEMENT_TET10 || cubit_element_type == ELEMENT_HEX27) {
-     order = 2;
+       cubit_element_type == ELEMENT_TET4 || cubit_element_type == ELEMENT_HEX8)
+   {
+      order = 1;
+   }
+   else if (cubit_element_type == ELEMENT_TRI6 ||
+            cubit_element_type == ELEMENT_QUAD9 ||
+            cubit_element_type == ELEMENT_TET10 || cubit_element_type == ELEMENT_HEX27)
+   {
+      order = 2;
    }
 
    // create array for number of sides in side sets
@@ -1623,37 +1645,44 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    int num_face_nodes = 0;
    int num_face_linear_nodes = 0;
 
-   switch (cubit_face_type) {
-   case (FACE_EDGE2): {
-     num_face_nodes = 2;
-     num_face_linear_nodes = 2;
-     break;
-   }
-   case (FACE_EDGE3): {
-     num_face_nodes = 3;
-     num_face_linear_nodes = 2;
-     break;
-   }
-   case (FACE_TRI3): {
-     num_face_nodes = 3;
-     num_face_linear_nodes = 3;
-     break;
-   }
-   case (FACE_TRI6): {
-     num_face_nodes = 6;
-     num_face_linear_nodes = 3;
-     break;
-   }
-   case (FACE_QUAD4): {
-     num_face_nodes = 4;
-     num_face_linear_nodes = 4;
-     break;
-   }
-   case (FACE_QUAD9): {
-     num_face_nodes = 9;
-     num_face_linear_nodes = 4;
-     break;
-   }
+   switch (cubit_face_type)
+   {
+      case (FACE_EDGE2):
+      {
+         num_face_nodes = 2;
+         num_face_linear_nodes = 2;
+         break;
+      }
+      case (FACE_EDGE3):
+      {
+         num_face_nodes = 3;
+         num_face_linear_nodes = 2;
+         break;
+      }
+      case (FACE_TRI3):
+      {
+         num_face_nodes = 3;
+         num_face_linear_nodes = 3;
+         break;
+      }
+      case (FACE_TRI6):
+      {
+         num_face_nodes = 6;
+         num_face_linear_nodes = 3;
+         break;
+      }
+      case (FACE_QUAD4):
+      {
+         num_face_nodes = 4;
+         num_face_linear_nodes = 4;
+         break;
+      }
+      case (FACE_QUAD9):
+      {
+         num_face_nodes = 9;
+         num_face_linear_nodes = 4;
+         break;
+      }
    }
 
    // given a global element number, determine the element block and local
@@ -1687,44 +1716,54 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
          int this_side = side_ss[i][j];
          int ielem = loc_ind*num_node_per_el;
 
-         for (int k = 0; k < num_face_nodes; k++) {
-           int inode;
-           switch (cubit_element_type) {
-           case (ELEMENT_TRI3): {
-             inode = sideMapTri3[this_side-1][k];
-             break;
-           }
-           case (ELEMENT_TRI6): {
-             inode = sideMapTri6[this_side-1][k];
-             break;
-           }
-           case (ELEMENT_QUAD4): {
-             inode = sideMapQuad4[this_side-1][k];
-             break;
-           }
-           case (ELEMENT_QUAD9): {
-             inode = sideMapQuad9[this_side-1][k];
-             break;
-           }
-           case (ELEMENT_TET4): {
-             inode = sideMapTet4[this_side-1][k];
-             break;
-           }
-           case (ELEMENT_TET10): {
-             inode = sideMapTet10[this_side-1][k];
-             break;
-           }
-           case (ELEMENT_HEX8): {
-             inode = sideMapHex8[this_side-1][k];
-             break;
-           }
-           case (ELEMENT_HEX27): {
-             inode = sideMapHex27[this_side-1][k];
-             break;
-           }
-           }
-           ss_node_id[i][j*num_face_nodes+k] =
-             elem_blk[iblk][ielem + inode - 1];
+         for (int k = 0; k < num_face_nodes; k++)
+         {
+            int inode;
+            switch (cubit_element_type)
+            {
+               case (ELEMENT_TRI3):
+               {
+                  inode = sideMapTri3[this_side-1][k];
+                  break;
+               }
+               case (ELEMENT_TRI6):
+               {
+                  inode = sideMapTri6[this_side-1][k];
+                  break;
+               }
+               case (ELEMENT_QUAD4):
+               {
+                  inode = sideMapQuad4[this_side-1][k];
+                  break;
+               }
+               case (ELEMENT_QUAD9):
+               {
+                  inode = sideMapQuad9[this_side-1][k];
+                  break;
+               }
+               case (ELEMENT_TET4):
+               {
+                  inode = sideMapTet4[this_side-1][k];
+                  break;
+               }
+               case (ELEMENT_TET10):
+               {
+                  inode = sideMapTet10[this_side-1][k];
+                  break;
+               }
+               case (ELEMENT_HEX8):
+               {
+                  inode = sideMapHex8[this_side-1][k];
+                  break;
+               }
+               case (ELEMENT_HEX27):
+               {
+                  inode = sideMapHex27[this_side-1][k];
+                  break;
+               }
+            }
+            ss_node_id[i][j*num_face_nodes+k] =
+               elem_blk[iblk][ielem + inode - 1];
          }
       }
    }
@@ -1769,8 +1808,9 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    {
       vertices[i](0) = coordx[uniqueVertexID[i] - 1];
       vertices[i](1) = coordy[uniqueVertexID[i] - 1];
-      if (Dim == 3) {
-        vertices[i](2) = coordz[uniqueVertexID[i] - 1];
+      if (Dim == 3)
+      {
+         vertices[i](2) = coordz[uniqueVertexID[i] - 1];
       }
    }
 
@@ -1779,40 +1819,46 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    int elcount = 0;
    int renumberedVertID[8];
    for (int iblk = 0; iblk < (int) num_el_blk; iblk++)
-     {
-       int NumNodePerEl = num_node_per_el;
-       for (int i = 0; i < (int) num_el_in_blk[iblk]; i++)
+   {
+      int NumNodePerEl = num_node_per_el;
+      for (int i = 0; i < (int) num_el_in_blk[iblk]; i++)
+      {
+         for (int j = 0; j < num_element_linear_nodes; j++)
          {
-           for (int j = 0; j < num_element_linear_nodes; j++) {
-             renumberedVertID[j] =
+            renumberedVertID[j] =
                cubitToMFEMVertMap[elem_blk[iblk][i*NumNodePerEl+j]]-1;
-           }
-
-           switch (cubit_element_type) {
-           case (ELEMENT_TRI3):
-           case (ELEMENT_TRI6): {
-             elements[elcount] = new Triangle(renumberedVertID,ebprop[iblk]);
-             break;
-           }
-           case (ELEMENT_QUAD4):
-           case (ELEMENT_QUAD9): {
-             elements[elcount] = new Quadrilateral(renumberedVertID,ebprop[iblk]);
-             break;
-           }
-           case (ELEMENT_TET4):
-           case (ELEMENT_TET10): {
-             elements[elcount] = new Tetrahedron(renumberedVertID,ebprop[iblk]);
-             break;
-           }
-           case (ELEMENT_HEX8):
-           case (ELEMENT_HEX27): {
-             elements[elcount] = new Hexahedron(renumberedVertID,ebprop[iblk]);
-             break;
-           }
-           }
-           elcount++;
          }
-     }
+
+         switch (cubit_element_type)
+         {
+            case (ELEMENT_TRI3):
+            case (ELEMENT_TRI6):
+            {
+               elements[elcount] = new Triangle(renumberedVertID,ebprop[iblk]);
+               break;
+            }
+            case (ELEMENT_QUAD4):
+            case (ELEMENT_QUAD9):
+            {
+               elements[elcount] = new Quadrilateral(renumberedVertID,ebprop[iblk]);
+               break;
+            }
+            case (ELEMENT_TET4):
+            case (ELEMENT_TET10):
+            {
+               elements[elcount] = new Tetrahedron(renumberedVertID,ebprop[iblk]);
+               break;
+            }
+            case (ELEMENT_HEX8):
+            case (ELEMENT_HEX27):
+            {
+               elements[elcount] = new Hexahedron(renumberedVertID,ebprop[iblk]);
+               break;
+            }
+         }
+         elcount++;
+      }
+   }
 
    // load up the boundary elements
 
@@ -1825,31 +1871,36 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    int sidecount = 0;
    for (int iss = 0; iss < (int) num_side_sets; iss++)
    {
-     for (int i = 0; i < (int) num_side_in_ss[iss]; i++)
-       {
-         for (int j = 0; j < num_face_linear_nodes; j++) {
-           renumberedVertID[j] =
-             cubitToMFEMVertMap[ss_node_id[iss][i*num_face_nodes+j]] - 1;
+      for (int i = 0; i < (int) num_side_in_ss[iss]; i++)
+      {
+         for (int j = 0; j < num_face_linear_nodes; j++)
+         {
+            renumberedVertID[j] =
+               cubitToMFEMVertMap[ss_node_id[iss][i*num_face_nodes+j]] - 1;
          }
-         switch (cubit_face_type) {
-         case (FACE_EDGE2):
-         case (FACE_EDGE3): {
-           boundary[sidecount] = new Segment(renumberedVertID,ssprop[iss]);
-           break;
-         }
-         case (FACE_TRI3):
-         case (FACE_TRI6): {
-           boundary[sidecount] = new Triangle(renumberedVertID,ssprop[iss]);
-           break;
-         }
-         case (FACE_QUAD4):
-         case (FACE_QUAD9): {
-           boundary[sidecount] = new Quadrilateral(renumberedVertID,ssprop[iss]);
-           break;
-         }
+         switch (cubit_face_type)
+         {
+            case (FACE_EDGE2):
+            case (FACE_EDGE3):
+            {
+               boundary[sidecount] = new Segment(renumberedVertID,ssprop[iss]);
+               break;
+            }
+            case (FACE_TRI3):
+            case (FACE_TRI6):
+            {
+               boundary[sidecount] = new Triangle(renumberedVertID,ssprop[iss]);
+               break;
+            }
+            case (FACE_QUAD4):
+            case (FACE_QUAD9):
+            {
+               boundary[sidecount] = new Quadrilateral(renumberedVertID,ssprop[iss]);
+               break;
+            }
          }
          sidecount++;
-       }
+      }
    }
 
    if (order == 2)
@@ -1857,30 +1908,36 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
       curved = 1;
       int *mymap = NULL;
 
-      switch (cubit_element_type) {
-      case (ELEMENT_TRI6): {
-        mymap = (int *) mfemToGenesisTri6;
-        break;
-      }
-      case (ELEMENT_QUAD9): {
-        mymap = (int *) mfemToGenesisQuad9;
-        break;
-      }
-      case (ELEMENT_TET10): {
-         mymap = (int *) mfemToGenesisTet10;
-         break;
-      }
-      case (ELEMENT_HEX27): {
-         mymap = (int *) mfemToGenesisHex27;
-        break;
-      }
-      case (ELEMENT_TRI3):
-      case (ELEMENT_QUAD4):
-      case (ELEMENT_TET4):
-      case (ELEMENT_HEX8): {
-        MFEM_ABORT("Something went wrong. Linear elements detected when order is 2.");
-        break;
-      }
+      switch (cubit_element_type)
+      {
+         case (ELEMENT_TRI6):
+         {
+            mymap = (int *) mfemToGenesisTri6;
+            break;
+         }
+         case (ELEMENT_QUAD9):
+         {
+            mymap = (int *) mfemToGenesisQuad9;
+            break;
+         }
+         case (ELEMENT_TET10):
+         {
+            mymap = (int *) mfemToGenesisTet10;
+            break;
+         }
+         case (ELEMENT_HEX27):
+         {
+            mymap = (int *) mfemToGenesisHex27;
+            break;
+         }
+         case (ELEMENT_TRI3):
+         case (ELEMENT_QUAD4):
+         case (ELEMENT_TET4):
+         case (ELEMENT_HEX8):
+         {
+            MFEM_ABORT("Something went wrong. Linear elements detected when order is 2.");
+            break;
+         }
       }
 
       // Generate faces and edges so that we can define quadratic
@@ -1894,7 +1951,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
       }
       else
       {
-        NumOfFaces = 0;
+         NumOfFaces = 0;
       }
 
       // Generate edges
@@ -1902,7 +1959,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
       NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
       if (Dim == 2)
       {
-        GenerateFaces(); // 'Faces' in 2D refers to the edges
+         GenerateFaces(); // 'Faces' in 2D refers to the edges
       }
 
       // Define quadratic FE space
@@ -1936,8 +1993,9 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
             int point_id = elem_blk[iblk][loc_ind*num_node_per_el + mymap[j] - 1] - 1;
             (*Nodes)(vdofs[j])   = coordx[point_id];
             (*Nodes)(vdofs[j]+1) = coordy[point_id];
-            if (Dim == 3) {
-              (*Nodes)(vdofs[j]+2) = coordz[point_id];
+            if (Dim == 3)
+            {
+               (*Nodes)(vdofs[j]+2) = coordz[point_id];
             }
          }
       }
