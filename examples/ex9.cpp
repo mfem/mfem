@@ -62,8 +62,7 @@ class FE_Evolution : public TimeDependentOperator
 private:
    FiniteElementSpace* fes;
    SparseMatrix &M, &K;
-   const Vector &b;
-   VectorFunctionCoefficient &coeff;
+   const Vector &b, &elDiff, &lumpedM;
    DSmoother M_prec;
    CGSolver M_solver;
    int m_mono_type;
@@ -72,12 +71,73 @@ private:
 
 public:
    FE_Evolution(FiniteElementSpace* fes, SparseMatrix &_M, SparseMatrix &_K, 
-                const Vector &_b, int mono_type, VectorFunctionCoefficient &_coeff);
+                const Vector &_b, const Vector &_elDiff, const Vector &_lumpedM, 
+                int mono_type);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
    virtual ~FE_Evolution() { }
 };
+
+
+void preprocessLowOrderScheme(FiniteElementSpace* fes, VectorFunctionCoefficient & coef, 
+                              int mono_type, Vector &elDiff, Vector &lumpedM)
+{
+   if (mono_type == 0)
+      return;
+   
+   Mesh *mesh = fes->GetMesh();
+   int i, j, k, nd, dim = mesh->Dimension(), ne = mesh->GetNE();
+   ElementTransformation *tr;
+   Vector shape, vec1, vec2, estim1, estim2, vval(dim);
+   DenseMatrix dshape, adjJ;
+   
+   elDiff.SetSize(ne); elDiff = 0.;
+   lumpedM.SetSize(ne); lumpedM = 0.;
+   
+   for (k = 0; k < ne; k++)
+   {
+      const FiniteElement &el = *fes->GetFE(k);
+      nd = el.GetDof();
+      tr = mesh->GetElementTransformation(k);
+      //TODO choose right formula
+      int order = 2*(tr->Order() + el.GetOrder());
+      const IntegrationRule *ir = &IntRules.Get(el.GetGeomType(), order);
+      
+      // data is deleted every iteration
+      shape.SetSize(nd);
+      dshape.SetSize(nd,dim);
+      adjJ.SetSize(dim,dim);
+      estim1.SetSize(nd);
+      estim2.SetSize(nd);
+      vec1.SetSize(nd);
+      vec2.SetSize(nd);
+      estim1 = estim2 = 0.;
+      
+      for (i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+         tr->SetIntPoint(&ip);
+         
+         coef.Eval(vval, *tr, ip);
+         el.CalcDShape(ip, dshape);
+         CalcAdjugate(tr->Jacobian(), adjJ);
+         el.CalcShape(ip, shape);
+         
+         adjJ.Mult(vval, vec1);
+         dshape.Mult(vec1, vec2);
+         for (j = 0; j < nd; j++)
+         {
+            //divide due to square in L2-norm
+            estim1(j) += ip.weight / tr->Weight() * pow(vec2(j), 2.); 
+            estim2(j) += ip.weight * tr->Weight() * pow(shape(j), 2.);
+         }
+         lumpedM(k) += ip.weight * tr->Weight();
+      }
+      elDiff(k) = std::sqrt(estim1.Max() * estim2.Max());
+      lumpedM(k) /= nd;
+   }
+}
 
 
 int main(int argc, char *argv[])
@@ -203,6 +263,10 @@ int main(int argc, char *argv[])
    k.Assemble(skip_zeros);
    k.Finalize(skip_zeros);
    b.Assemble();
+   
+   // Precompute data required for low order scheme
+   Vector elDiff, lumpedM;
+   preprocessLowOrderScheme(&fes, velocity, mono_type, elDiff, lumpedM);
 
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
@@ -270,7 +334,7 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(&fes, m.SpMat(), k.SpMat(), b, mono_type, velocity);
+   FE_Evolution adv(&fes, m.SpMat(), k.SpMat(), b, elDiff, lumpedM, mono_type);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -321,9 +385,10 @@ int main(int argc, char *argv[])
 
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(FiniteElementSpace* _fes, SparseMatrix &_M, SparseMatrix &_K, 
-                           const Vector &_b, int mono_type, VectorFunctionCoefficient &_coeff)
-   : TimeDependentOperator(_M.Size()), fes(_fes), M(_M), K(_K), b(_b), m_mono_type(mono_type),
-                           z(_M.Size()), coeff(_coeff)
+                           const Vector &_b, const Vector &_elDiff, const Vector &_lumpedM, 
+                           int mono_type)
+   : TimeDependentOperator(_M.Size()), fes(_fes), M(_M), K(_K), b(_b), elDiff(_elDiff), 
+   lumpedM(_lumpedM), m_mono_type(mono_type), z(_M.Size())
 {
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(M);
@@ -337,7 +402,7 @@ FE_Evolution::FE_Evolution(FiniteElementSpace* _fes, SparseMatrix &_M, SparseMat
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
-   // TODO maybe assert for Bernstein basis
+   // TODO maybe assert for Bernstein basis, how?
    if (m_mono_type == 0)
    {
       // No monotonicity treatment, straightforward high-order scheme
@@ -349,13 +414,8 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    else if (m_mono_type == 1)
    {
       // Rusanov scheme I
-      int i, j, k, nd;
-      double uAvg, elDiff, sumM;
-      Mesh *mesh = fes->GetMesh();
-      int ctr = 0, dim = mesh->Dimension(), ne = mesh->GetNE();
-      ElementTransformation *tr;
-      Vector vval(dim), mass, shape, vec1, vec2, estim1, estim2;
-      DenseMatrix dshape, adjJ;
+      int j, k, nd, ctr = 0;
+      double uAvg;
       
       // Discretization terms
       K.Mult(x, z);
@@ -365,55 +425,25 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
       {
          const FiniteElement &el = *fes->GetFE(k);
          nd = el.GetDof();
-         tr = mesh->GetElementTransformation(k);
-         int order = 2*(tr->Order() + el.GetOrder()); //TODO choose right formula
-         const IntegrationRule *ir = &IntRules.Get(el.GetGeomType(), order);
-         
-         // works since data is deleted every iteration
-         shape.SetSize(nd);
-         dshape.SetSize(nd,dim);
-         adjJ.SetSize(dim,dim);
-         estim1.SetSize(nd);
-         estim2.SetSize(nd);
-         mass.SetSize(nd);
-         vec1.SetSize(nd);
-         vec2.SetSize(nd);
-         estim1 = estim2 = mass = 0.;
-         
-         for (i = 0; i < ir->GetNPoints(); i++)
-         {
-            const IntegrationPoint &ip = ir->IntPoint(i);
-            tr->SetIntPoint(&ip);
-            
-            coeff.Eval(vval, *tr, ip);
-            el.CalcDShape(ip, dshape);
-            CalcAdjugate(tr->Jacobian(), adjJ);
-            el.CalcShape(ip, shape);
-            
-            adjJ.Mult(vval, vec1);
-            dshape.Mult(vec1, vec2);
-            for (j = 0; j < nd; j++)
-            {
-               //divide due to square in L2-norm
-               estim1(j) += ip.weight / tr->Weight() * pow(vec2(j), 2.); 
-               estim2(j) += ip.weight * tr->Weight() * pow(shape(j), 2.);
-               mass(j) += ip.weight * tr->Weight() * shape(j);
-            }
-         }
-         
-         elDiff = std::sqrt(estim1.Max() * estim2.Max());
-
-         uAvg = sumM = 0.;
-         for (j = 0; j < nd; j++)
-         {
-            uAvg += x(ctr+j) * mass(j);
-            sumM += mass(j);
-         }
-         uAvg /= sumM; // TODO this may not be equal to element area
+         uAvg = 0.;
          
          for (j = 0; j < nd; j++)
          {
-            y(ctr) = (z(ctr) + nd*elDiff*(uAvg - x(ctr))) / mass(j);
+            uAvg += x(ctr+j);
+            // If mass(j) is the integral of the j-th basis function, this is the general
+            // case, where mass may not be distributed equally between basis functions. 
+            // uAvg += x(ctr+j) * mass(j);
+            // sumM += mass(j);
+         }
+         // If quadrature is inexact (element curved) sumM may not be equal to element area.
+         // Mass may not be equally distributed between Bernstein basis functions.
+         // The low-order properties of the Rusanov scheme may be violated.
+         // uAvg /= sumM;
+         uAvg /= nd;
+         
+         for (j = 0; j < nd; j++)
+         {
+            y(ctr) = (z(ctr) + nd*elDiff(k)*(uAvg - x(ctr))) / lumpedM(k);
             ctr++;
          }
       }
