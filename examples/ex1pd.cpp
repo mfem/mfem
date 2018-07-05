@@ -65,11 +65,11 @@ int main(int argc, char *argv[])
    SharedPtr<Engine> engine;
    if (!strncmp(engine_type, "omp", 3))
    {
-      engine.Reset(new mfem::omp::Engine(engine_spec));
+      engine.Reset(new mfem::omp::Engine(MPI_COMM_WORLD, engine_spec));
    }
    else if (!strncmp(engine_type, "occa", 4))
    {
-      engine.Reset(new mfem::occa::Engine(engine_spec));
+      engine.Reset(new mfem::occa::Engine(MPI_COMM_WORLD, engine_spec));
    }
 
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We

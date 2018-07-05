@@ -291,9 +291,16 @@ OMP_OPT = -qsmp=omp -qoffload
 ACROTENSOR_DIR = @MFEM_DIR@/../acrotensor
 ACROTENSOR_OPT = -std=c++11 -I$(ACROTENSOR_DIR)/inc
 ACROTENSOR_LIB = -Wl,-rpath,$(ACROTENSOR_DIR)/lib/shared -L$(ACROTENSOR_DIR)/lib/shared -lacrotensor
-ifdef CUDA_DIR
-ACROTENSOR_OPT += -I$(CUDA_DIR)/include
-ACROTENSOR_LIB += -L$(CUDA_DIR)/lib64 -lcuda -lcudart -lnvrtc
+# If Acrotensor was compile with CUDA support, but MFEM_USE_CUDAUM==NO, then uncomment the lines below
+# ACROTENSOR_OPT += -I$(CUDA_DIR)/include
+# ACROTENSOR_LIB += -L$(CUDA_DIR)/lib64 -lcuda -lcudart -lnvrtc
+ifeq ($(MFEM_USE_CUDAUM),YES)
+ifeq ($(MFEM_USE_MPI),YES)
+# HYPRE needs some extra libraries in parallel on the GPU
+# FIXME: We need another solution for compilers other than XL for the
+#        dlink CUDA step, but fixes need to happen elsewhere as well.
+HYPRE_LIB += -qcuda -lcublas -lcusparse -lnvToolsExt
+endif
 endif
 
 # If YES, enable some informational messages
