@@ -216,8 +216,7 @@ void ParNCMesh::ElementSharesFace(int elem, int face)
    owner = std::min(owner, el_rank);
 
    char &flag = tmp_shared_flag[f_index];
-   if (el_rank == MyRank) { flag |= 0x1; }
-   if (el_rank != MyRank) { flag |= 0x2; }
+   flag |= (el_rank == MyRank) ? 0x1 : 0x2;
 
    entity_index_rank[2].Append(Connection(f_index, el_rank));
 }
@@ -263,8 +262,7 @@ void ParNCMesh::ElementSharesEdge(int elem, int enode)
    owner = std::min(owner, el_rank);
 
    char &flag = tmp_shared_flag[e_index];
-   if (el_rank == MyRank) { flag |= 0x1; }
-   if (el_rank != MyRank) { flag |= 0x2; }
+   flag |= (el_rank == MyRank) ? 0x1 : 0x2;
 
    entity_index_rank[1].Append(Connection(e_index, el_rank));
 }
