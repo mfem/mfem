@@ -20,11 +20,15 @@
 #include "bilinearform.hpp"
 #include "memory_resource.hpp"
 
+#include <map>
+
 namespace mfem
 {
 
 namespace omp
 {
+
+typedef std::map<std::string, std::string> keyval_pair_t;
 
 template<typename T, typename P>
 static T remove_if(T beg, T end, P pred)
@@ -36,37 +40,76 @@ static T remove_if(T beg, T end, P pred)
    return dest;
 }
 
+void parse_token(const std::string &token, std::string &key, std::string &val)
+{
+   std::size_t sep = token.find_first_of(':');
+   if (sep > token.size()) mfem_error("Parse error");
+
+   key = token.substr(0, sep);
+   key.erase(mfem::omp::remove_if(key.begin(), key.end(), isspace), key.end());
+   key.erase(std::remove(key.begin(), key.end(), '\''), key.end());
+
+   val = token.substr(sep+1);
+   val.erase(mfem::omp::remove_if(val.begin(), val.end(), isspace), val.end());
+   val.erase(std::remove(val.begin(), val.end(), '\''), val.end());
+}
+
+keyval_pair_t parse_engine_spec(const std::string &engine_spec)
+{
+   keyval_pair_t map;
+   std::size_t token_extent = 0;
+   std::string key, val;
+   while (token_extent < engine_spec.size())
+   {
+      const std::string remaining(engine_spec, token_extent);
+
+      std::size_t next_comma = remaining.find_first_of(',');
+      if (next_comma == std::string::npos) next_comma = engine_spec.size() - 1;
+
+      const std::string token(remaining, 0, next_comma);
+      parse_token(token, key, val);
+
+      map[key] = val;
+      token_extent += next_comma+1;
+   }
+   return map;
+}
+
 void Engine::Init(const std::string &engine_spec)
 {
-   std::string spec(engine_spec);
-   spec.erase(
-      mfem::omp::remove_if(spec.begin(), spec.end(), isspace),
-      spec.end());
+   keyval_pair_t tokens(parse_engine_spec(engine_spec));
+   keyval_pair_t::iterator it;
 
-   if (spec.find("exec_target:") != std::string::npos)
+   it = tokens.find("exec_target");
+   if (it != tokens.end())
    {
-      if (spec.find("device") != std::string::npos)
+      if (!std::strncmp(it->second.data(), "device", 6))
       {
          exec_target = Device;
          device_number = 0;
       }
-      else if (spec.find("host") != std::string::npos)
+      else if (!std::strncmp(it->second.data(), "host", 4))
       {
          exec_target = Host;
          device_number = -1;
       }
       else
-         mfem_error("Parse error");
+      {
+         mfem_error("Parse error. Possible values for exec_target are: ['host', 'device']");
+      }
    }
    else
    {
-      // Default to host if not specified as a device:'CPU' or device:'GPU'
+      // Default to host if not specified
+      mfem::out << "Did not specify exec_target. Defaulting to host..." << std::endl;
       exec_target = Host;
       device_number = -1;
    }
 
-   if (spec.find("mem_type:") != std::string::npos) {
-      if (spec.find("unified") != std::string::npos)
+   it = tokens.find("mem_type");
+   if (it != tokens.end())
+   {
+      if (!std::strncmp(it->second.data(), "unified", 7))
       {
 #if defined(MFEM_USE_CUDAUM)
          memory_resources[0] = new UnifiedMemoryResource();
@@ -75,10 +118,14 @@ void Engine::Init(const std::string &engine_spec)
          mfem_error("Have not compiled support for CUDA unified memory.");
 #endif
       }
-      else if (spec.find("host") != std::string::npos)
+      else if (!std::strncmp(it->second.data(), "separate", 4))
       {
          memory_resources[0] = new NewDeleteMemoryResource();
          unified_memory = false;
+      }
+      else
+      {
+         mfem_error("Parse error. Possible values for mem_type are: ['separate', 'unified']");
       }
    }
    else {
@@ -103,15 +150,16 @@ void Engine::Init(const std::string &engine_spec)
       }
    }
 
-   if (spec.find("mult_engine:") != std::string::npos)
+   it = tokens.find("mult_engine");
+   if (it != tokens.end())
    {
-      if (spec.find("acrotensor") != std::string::npos)
+      if (!std::strncmp(it->second.data(), "acrotensor", 10))
       {
          mult_type = Acrotensor;
       }
       else
       {
-         mfem_error("Supported engines: 'acrotensor'");
+         mfem_error("Parse error. Possible values for mem_type are: ['acrotensor'].");
       }
    }
    else
@@ -128,7 +176,6 @@ Engine::Engine(const std::string &engine_spec)
    : mfem::Engine(NULL, 1, 1)
 {
    Init(engine_spec);
-
 }
 
 #ifdef MFEM_USE_MPI

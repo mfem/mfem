@@ -19,6 +19,10 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool visualization = 1;
+   const char *engine_type = "omp";
+   const char *engine_spec = "mult_engine:'acrotensor', exec_target:'device', mem_type:'unified'";
+   int serial_ref_levels = -1;
+   int parallel_ref_levels = 2;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -31,6 +35,10 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&engine_type, "-et", "--engine-type", "Engine type");
+   args.AddOption(&engine_spec, "-es", "--engine-spec", "Engine specification");
+   args.AddOption(&serial_ref_levels, "-sr", "--serial-refs", "Number of serial uniform refinements (negative implies dof ~ 10000)");
+   args.AddOption(&parallel_ref_levels, "-pr", "--parallel-refs", "Number of parallel uniform refinements");
    args.Parse();
    if (!args.Good())
    {
@@ -54,8 +62,15 @@ int main(int argc, char *argv[])
    // string occa_spec("mode: 'OpenCL', deviceID: 0, platformID: 0");
    // SharedPtr<Engine> engine(new mfem::occa::Engine(MPI_COMM_WORLD, occa_spec));
 
-   string omp_spec("exec_target:'device', mem_type:'unified'");
-   SharedPtr<Engine> engine(new mfem::omp::Engine(MPI_COMM_WORLD, omp_spec));
+   SharedPtr<Engine> engine;
+   if (!strncmp(engine_type, "omp", 3))
+   {
+      engine.Reset(new mfem::omp::Engine(engine_spec));
+   }
+   else if (!strncmp(engine_type, "occa", 4))
+   {
+      engine.Reset(new mfem::occa::Engine(engine_spec));
+   }
 
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
@@ -69,9 +84,9 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-      int ref_levels =
-         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels; l++)
+      if (serial_ref_levels < 0)
+         serial_ref_levels = (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+      for (int l = 0; l < serial_ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
@@ -83,8 +98,7 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      int par_ref_levels = 2;
-      for (int l = 0; l < par_ref_levels; l++)
+      for (int l = 0; l < parallel_ref_levels; l++)
       {
          pmesh->UniformRefinement();
       }
@@ -163,8 +177,8 @@ int main(int argc, char *argv[])
    CGSolver *pcg = new CGSolver(MPI_COMM_WORLD);
    pcg->SetRelTol(1e-6);
    pcg->SetAbsTol(0.0);
-   pcg->SetMaxIter(1000);
-   pcg->SetPrintLevel(3);
+   pcg->SetMaxIter(500);
+   pcg->SetPrintLevel(1);
    pcg->SetOperator(*A.Ptr());
    pcg->Mult(B, X);
 

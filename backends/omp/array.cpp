@@ -66,7 +66,7 @@ void *Array::DoPullData(void *buffer, std::size_t item_size)
 {
    // called only when Size() != 0
 
-   if (!IsUnifiedMemory() && ComputeOnDevice())
+   if (!IsUnifiedMemory() && ComputeOnDevice() && (buffer != NULL))
    {
 #pragma omp target update from(data)
       std::memcpy(buffer, data, bytes);

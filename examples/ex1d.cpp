@@ -14,6 +14,9 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool visualization = 1;
+   const char *engine_type = "omp";
+   const char *engine_spec = "mult_engine:'acrotensor', exec_target:'device', mem_type:'unified'";
+   int ref_levels = -1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&spec, "-s", "--spec",
@@ -28,6 +31,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&engine_type, "-et", "--engine-type", "Engine type");
+   args.AddOption(&engine_spec, "-es", "--engine-spec", "Engine specification");
+   args.AddOption(&ref_levels, "-r", "--refs", "Number of uniform refinements (negative implies dof ~ 50000)");
    args.Parse();
    if (!args.Good())
    {
@@ -38,14 +44,21 @@ int main(int argc, char *argv[])
 
    /// Engine *engine = EngineDepot.Select(spec);
 
-   // string occa_spec("mode: 'Serial'");
-   // string occa_spec("mode: 'CUDA', deviceID: 0");
-   // string occa_spec("mode: 'OpenMP', threads: 4");
-   // string occa_spec("mode: 'OpenCL', deviceID: 0, platformID: 0");
-   // SharedPtr<Engine> engine(new mfem::occa::Engine(occa_spec));
+   // string spec("mode: 'Serial'");
+   // string spec("mode: 'CUDA', deviceID: 0");
+   // string spec("mode: 'OpenMP', threads: 4");
+   // string spec("mode: 'OpenCL', deviceID: 0, platformID: 0");
+   // SharedPtr<Engine> engine(new mfem::occa::Engine(spec));
 
-   string omp_spec("mult_engine:'acrotensor', exec_target:'host', mem_type:'host'");
-   SharedPtr<Engine> engine(new mfem::omp::Engine(omp_spec));
+   SharedPtr<Engine> engine;
+   if (!strncmp(engine_type, "omp", 3))
+   {
+      engine.Reset(new mfem::omp::Engine(engine_spec));
+   }
+   else if (!strncmp(engine_type, "occa", 4))
+   {
+      engine.Reset(new mfem::occa::Engine(engine_spec));
+   }
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
@@ -59,8 +72,7 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels =
-         (int)floor(log(2000./mesh->GetNE())/log(2.)/dim);
+      if (ref_levels < 0) ref_levels = (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -134,7 +146,7 @@ int main(int argc, char *argv[])
    cout << "Size of linear system: " << A.Ptr()->Height() << endl;
 
    // 10. Solve the system A X = B with CG.
-   CG(*A.Ptr(), B, X, 3, 1000, 1e-12, 0.0);
+   CG(*A.Ptr(), B, X, 3, 500, 1e-12, 0.0);
 
    // 11. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);

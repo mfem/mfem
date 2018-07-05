@@ -33,8 +33,8 @@ void *UnifiedMemoryResource::DoAllocate(std::size_t bytes,
    void *p = NULL;
    if (bytes > 0)
    {
-      cudaError_t err = cudaMallocManaged(&p, bytes);
-      MFEM_VERIFY(err == CUDA_SUCCESS, "");
+      cudaError_t ret = cudaMallocManaged(&p, bytes);
+      MFEM_VERIFY(ret == cudaSuccess, "");
    }
    return p;
 }

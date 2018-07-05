@@ -101,7 +101,7 @@ void BilinearForm::InitRHS(const mfem::Array<int> &ess_tdof_list,
 
       const std::size_t num_constraint = constraint_list.Size();
       const bool use_target = constraint_list.ComputeOnDevice();
-      const bool use_parallel = false;//(use_target || num_constraint > 1000);
+      const bool use_parallel = (use_target || num_constraint > 1000);
 
       // This operation is a general version of mfem::Vector::SetSubVectorComplement()
       // {
@@ -225,7 +225,7 @@ void ConstrainedOperator::EliminateRHS(const mfem::Vector &mfem_x, mfem::Vector 
 
    const std::size_t num_constraint = constraint_list.Size();
    const bool use_target = constraint_list.ComputeOnDevice();
-   const bool use_parallel = false;//(use_target || num_constraint > 1000);
+   const bool use_parallel = (use_target || num_constraint > 1000);
 
    if (num_constraint > 0)
    {
@@ -270,7 +270,7 @@ void ConstrainedOperator::Mult(const mfem::Vector &mfem_x, mfem::Vector &mfem_y)
 
    const std::size_t num_constraint = constraint_list.Size();
    const bool use_target = constraint_list.ComputeOnDevice();
-   const bool use_parallel = false;//(use_target || num_constraint > 1000);
+   const bool use_parallel = (use_target || num_constraint > 1000);
 
    z.Assign<double>(x); // z = x
 

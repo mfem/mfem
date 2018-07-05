@@ -129,7 +129,7 @@ void FiniteElementSpace::ToLVector(const Vector &e_vector, Vector &l_vector)
    double *l_data = l_vector.GetData<double>();
 
    const bool use_target = l_vector.ComputeOnDevice();
-   const bool use_parallel = false;//(use_target || lsize > 1000);
+   const bool use_parallel = (use_target || lsize > 1000);
 
 #pragma omp target teams distribute parallel for        \
    map (to: offsets, indices, l_data, e_data)           \
@@ -166,7 +166,7 @@ void FiniteElementSpace::ToEVector(const Vector &l_vector, Vector &e_vector)
    double *e_data = e_vector.GetData<double>();
 
    const bool use_target = l_vector.ComputeOnDevice();
-   const bool use_parallel = false;//(use_target || lsize > 1000);
+   const bool use_parallel = (use_target || lsize > 1000);
 
 #pragma omp target teams distribute parallel for         \
    map (to: offsets, indices, l_data, e_data)            \

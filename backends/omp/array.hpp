@@ -67,11 +67,11 @@ protected:
    template <typename T>
    void OmpFill(const T *pval)
    {
-      const int size = layout->Size();
       T *ptr = (T*) data;
       T val = *pval;
       const bool use_target = ComputeOnDevice();
-      const bool use_parallel = false;//(use_target || layout->Size() > 1000);
+      const bool use_parallel = (use_target || layout->Size() > 1000);
+      const std::size_t size = layout->Size();
 #pragma omp target teams distribute parallel for        \
    if (target: use_target)                              \
    if (parallel: use_parallel) map (to: ptr, val)
@@ -85,10 +85,7 @@ public:
         bytes(lt.Size() * item_size),
         data(static_cast<char *>(lt.Alloc(bytes)))
    {
-      if (!IsUnifiedMemory() && ComputeOnDevice())
-      {
-#pragma omp target enter data map(alloc:data[:lt.Size()*item_size])
-      }
+#pragma omp target enter data map(alloc:data[:bytes]) if (!IsUnifiedMemory() && ComputeOnDevice())
    }
 
    Array(const Array &array)
@@ -101,6 +98,7 @@ public:
 
    virtual ~Array()
    {
+#pragma omp target exit data map(delete:data[:bytes]) if (!IsUnifiedMemory() && ComputeOnDevice())
       if (own_data) layout->As<Layout>().Dealloc(data);
    }
 

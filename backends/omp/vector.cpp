@@ -108,7 +108,7 @@ void Vector::DoAxpby(const void *a, const PVector &x,
    double *td = GetData<double>();
 
    const bool use_target = ComputeOnDevice();
-   const bool use_parallel = false;//(use_target || size > critical_size);
+   const bool use_parallel = (use_target || size > critical_size);
 
    if (da == 0.0)
    {
