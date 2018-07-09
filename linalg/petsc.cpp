@@ -2917,6 +2917,15 @@ void PetscODESolver::Run(Vector &x, double &t, double &dt, double t_final)
 
    Customize();
 
+   // Reset Jacobian caching since the user may have changed
+   // the parameters of the solver
+   // We don't do this in the Step method because two consecutive
+   // Step() calls are done with the same operator
+   __mfem_ts_ctx *ts_ctx = (__mfem_ts_ctx*)private_ctx;
+   ts_ctx->cached_shift = std::numeric_limits<PetscReal>::min();
+   ts_ctx->cached_ijacstate = -1;
+   ts_ctx->cached_rhsjacstate = -1;
+
    // Take the steps.
    ierr = TSSolve(ts, X->x); PCHKERRQ(ts, ierr);
    X->ResetArray();
