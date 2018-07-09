@@ -1799,7 +1799,7 @@ void PetscBCHandler::SetUp(PetscInt n)
 
 void PetscBCHandler::ApplyBC(const Vector &x, Vector &y)
 {
-   if (!setup) { MFEM_ABORT("PetscBCHandler not yet setup"); }
+   (*this).SetUp(x.Size());
    y = x;
    if (bctype == ZERO)
    {
@@ -1824,7 +1824,7 @@ void PetscBCHandler::ApplyBC(const Vector &x, Vector &y)
 
 void PetscBCHandler::FixResidualBC(const Vector& x, Vector& y)
 {
-   if (!setup) { MFEM_ABORT("PetscBCHandler not yet setup"); }
+   (*this).SetUp(x.Size());
    if (bctype == ZERO)
    {
       for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
@@ -2721,8 +2721,6 @@ void PetscNonlinearSolver::Mult(const Vector &b, Vector &x) const
 
    if (!iterative_mode) { *X = 0.; }
 
-   if (bchandler) { bchandler->SetUp(X->Size()); }
-
    // Solve the system.
    ierr = SNESSolve(snes, B->x, X->x); PCHKERRQ(snes, ierr);
    X->ResetArray();
@@ -2891,8 +2889,6 @@ void PetscODESolver::Step(Vector &x, double &t, double &dt)
 
    Customize();
 
-   if (bchandler) { bchandler->SetUp(x.Size()); }
-
    // Take the step.
    ierr = TSSetSolution(ts, *X); PCHKERRQ(ts, ierr);
    ierr = TSStep(ts); PCHKERRQ(ts, ierr);
@@ -2920,8 +2916,6 @@ void PetscODESolver::Run(Vector &x, double &t, double &dt, double t_final)
    X->PlaceArray(x.GetData());
 
    Customize();
-
-   if (bchandler) { bchandler->SetUp(x.Size()); }
 
    // Take the steps.
    ierr = TSSolve(ts, X->x); PCHKERRQ(ts, ierr);
