@@ -89,12 +89,16 @@ void preprocessLowOrderScheme(FiniteElementSpace* fes, VectorFunctionCoefficient
    Mesh *mesh = fes->GetMesh();
    int i, j, k, nd, dim = mesh->Dimension(), ne = mesh->GetNE();
    ElementTransformation *tr;
-   Vector shape, vec1, vec2, estim1, estim2, vval(dim);
+   Vector shape, vec1, vec2, estim1, estim2, vval(dim), nor(dim);
    DenseMatrix dshape, adjJ;
    
    elDiff.SetSize(ne); elDiff = 0.;
    lumpedM.SetSize(ne); lumpedM = 0.;
+   adjJ.SetSize(dim,dim);
    
+   ///////////////////////////
+   // Element contributions //
+   ///////////////////////////
    for (k = 0; k < ne; k++)
    {
       const FiniteElement &el = *fes->GetFE(k);
@@ -104,10 +108,8 @@ void preprocessLowOrderScheme(FiniteElementSpace* fes, VectorFunctionCoefficient
       int order = 2*(tr->Order() + el.GetOrder());
       const IntegrationRule *ir = &IntRules.Get(el.GetGeomType(), order);
       
-      // data is deleted every iteration
       shape.SetSize(nd);
       dshape.SetSize(nd,dim);
-      adjJ.SetSize(dim,dim);
       estim1.SetSize(nd);
       estim2.SetSize(nd);
       vec1.SetSize(nd);
@@ -137,20 +139,77 @@ void preprocessLowOrderScheme(FiniteElementSpace* fes, VectorFunctionCoefficient
       elDiff(k) = std::sqrt(estim1.Max() * estim2.Max());
       lumpedM(k) /= nd;
    }
+   ////////////////////////
+   // Face contributions //
+   ////////////////////////
+   FaceElementTransformations *Trans;
+   int nf = mesh->GetNumFaces();
+   double est1, est2; //TODO data structure
+   for (k = 0; k < nf; k++)
+   {
+      Trans = mesh -> GetInteriorFaceTransformations (k);
+      const FiniteElement &el1 = *fes->GetFE(Trans -> Elem1No);
+      const FiniteElement &el2 = *fes->GetFE(Trans -> Elem2No);
+      //TODO choose right formulas
+      int order1 = Trans->Loc1.Transf.Order() + 2*el1.GetOrder();
+      int order2 = Trans->Loc2.Transf.Order() + 2*el2.GetOrder();
+      const IntegrationRule *irF1 = &IntRules.Get(Trans->FaceGeom, order1);
+      const IntegrationRule *irF2 = &IntRules.Get(Trans->FaceGeom, order2);
+      double un = 0.;
+      nd = el1.GetDof();
+      Vector bas(nd);
+      bas = 0.;
+      
+      for (int p = 0; p < irF1->GetNPoints(); p++)
+      {
+         const IntegrationPoint &ip = irF1->IntPoint(p);
+         IntegrationPoint eip1;
+         Trans->Loc1.Transform(ip, eip1);
+         shape.SetSize(nd);
+         
+         /*if (ndof2)
+         {
+            Trans.Loc2.Transform(ip, eip2);
+         }*/
+         el1.CalcShape(eip1, shape);
+         
+         Trans->Face->SetIntPoint(&ip);
+         Trans->Elem1->SetIntPoint(&eip1);
+         
+         coef.Eval(vval, *Trans->Elem1, eip1);
+         
+         if (dim == 1)
+         {
+            nor(0) = 2.*eip1.x - 1.0;
+         }
+         else
+         {
+            CalcOrtho(Trans->Face->Jacobian(), nor);
+         }
+         un = std::max(vval * nor, un); //TODO sign of normal, TODO put un into estim1
+         for(j = 0; j < nd; j++) //TODO change nd to ndS
+         {
+            bas(j) += ip.weight * Trans->Face->Weight() * pow(shape(j), 2.);
+         }
+      }
+      est2 = bas.Max(); //TODO est2 properly
+      
+      // TODO copy paste for el2
+   }
 }
 
 
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   problem = 0;
+   problem = 1;
    const char *mesh_file = "../data/periodic-hexagon.mesh";
-   int ref_levels = 2;
+   int ref_levels = 4;
    int order = 1;
    int ode_solver_type = 3;
    int mono_type = 1;
-   double t_final = 10.0;
-   double dt = 0.01;
+   double t_final = 1.0;
+   double dt = 0.001;
    bool visualization = true;
    bool visit = false;
    bool binary = false;
@@ -416,12 +475,16 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
       // Rusanov scheme I
       int j, k, nd, ctr = 0;
       double uAvg;
+      Mesh *mesh = fes->GetMesh();
       
       // Discretization terms
       K.Mult(x, z);
       z += b;
       
-      for (k = 0; k < fes->GetMesh()->GetNE(); k++)
+      ///////////////////////////
+      // Element contributions //
+      ///////////////////////////
+      for (k = 0; k < mesh->GetNE(); k++)
       {
          const FiniteElement &el = *fes->GetFE(k);
          nd = el.GetDof();
@@ -446,6 +509,21 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
             y(ctr) = (z(ctr) + nd*elDiff(k)*(uAvg - x(ctr))) / lumpedM(k);
             ctr++;
          }
+      }
+      ////////////////////////
+      // Face contributions //
+      ////////////////////////
+      Array< int > dofs; //, vdofs2;
+      //fes -> GetElementVDofs (0, vdofs2);
+      //std::cout << vdofs2[4] << std::endl;
+      for (k = 0; k < mesh->GetNumFaces(); k++)
+      {
+         FaceElementTransformations *tr = mesh->GetInteriorFaceTransformations(k);
+         const FiniteElement &el1 = *fes->GetFE(tr->Elem1No);
+         const FiniteElement &el2 = *fes->GetFE(tr->Elem2No);
+         fes->GetFaceDofs(k, dofs);
+//         if (dofs != NULL)
+//            std::cout << dofs[0] << std::endl;
       }
    }
 }
