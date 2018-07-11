@@ -21,55 +21,6 @@
 #include <cmath>
 #include <cstdlib>
 
-// Define macro wrappers for hypre_TAlloc, hypre_CTAlloc and hypre_TFree:
-// mfem_hypre_TAlloc, mfem_hypre_CTAlloc, and mfem_hypre_TFree, respectively.
-// Note: the same macros are defined in hypre_parcsr.cpp.
-#if MFEM_HYPRE_VERSION < 21400
-
-#define mfem_hypre_TAlloc(type, size) hypre_TAlloc(type, size)
-#define mfem_hypre_CTAlloc(type, size) hypre_CTAlloc(type, size)
-#define mfem_hypre_TFree(ptr) hypre_TFree(ptr)
-
-#else // MFEM_HYPRE_VERSION >= 21400
-
-#define mfem_hypre_TAlloc(type, size) \
-   hypre_TAlloc(type, size, HYPRE_MEMORY_HOST)
-#define mfem_hypre_CTAlloc(type, size) \
-   hypre_CTAlloc(type, size, HYPRE_MEMORY_HOST)
-#define mfem_hypre_TFree(ptr) hypre_TFree(ptr, HYPRE_MEMORY_HOST)
-
-// Notes regarding allocation and deallocation of hypre objects in 2.14.0
-//-----------------------------------------------------------------------
-//
-// 1. hypre_CSRMatrix: i, j, data, and rownnz use HYPRE_MEMORY_SHARED while the
-//    hypre_CSRMatrix structure uses HYPRE_MEMORY_HOST.
-//
-//    Note: the function HYPRE_CSRMatrixCreate creates the i array using
-//          HYPRE_MEMORY_HOST!
-//    Note: the functions hypre_CSRMatrixAdd and hypre_CSRMatrixMultiply create
-//          C_i using HYPRE_MEMORY_HOST!
-//
-// 2. hypre_Vector: data uses HYPRE_MEMORY_SHARED while the hypre_Vector
-//    structure uses HYPRE_MEMORY_HOST.
-//
-// 3. hypre_ParVector: the structure hypre_ParVector uses HYPRE_MEMORY_HOST;
-//    partitioning uses HYPRE_MEMORY_HOST.
-//
-// 4. hypre_ParCSRMatrix: the structure hypre_ParCSRMatrix uses
-//    HYPRE_MEMORY_HOST; col_map_offd, row_starts, col_starts, rowindices,
-//    rowvalues also use HYPRE_MEMORY_HOST.
-//
-//    Note: the function hypre_ParCSRMatrixToCSRMatrixAll allocates matrix_i
-//          using HYPRE_MEMORY_HOST!
-//
-// 5. The goal for the MFEM wrappers of hypre objects is to support only the
-//    standard hypre build case, i.e. when hypre is build without device support
-//    and all memory types correspond to host memory. In this case memory
-//    allocated with operator new can be used by hypre but (as usual) it must
-//    not be owned by hypre.
-
-#endif // #if MFEM_HYPRE_VERSION < 21400
-
 using namespace std;
 
 namespace mfem
@@ -197,17 +148,15 @@ HypreParVector& HypreParVector::operator=(const HypreParVector &y)
       mfem_error("HypreParVector::operator=");
    }
 #endif
+   hypre_ParVectorCopy(x, y.x);
 
-   for (int i = 0; i < size; i++)
-   {
-      data[i] = y.data[i];
-   }
    return *this;
 }
 
 void HypreParVector::SetData(double *_data)
 {
-   Vector::data = hypre_VectorData(hypre_ParVectorLocalVector(x)) = _data;
+   Vector::data = _data;
+   hypre_VectorData(hypre_ParVectorLocalVector(x)) = _data;
 }
 
 HYPRE_Int HypreParVector::Randomize(HYPRE_Int seed)
@@ -328,7 +277,7 @@ char HypreParMatrix::CopyCSR(SparseMatrix *csr, hypre_CSRMatrix *hypre_csr)
 char HypreParMatrix::CopyBoolCSR(Table *bool_csr, hypre_CSRMatrix *hypre_csr)
 {
    int nnz = bool_csr->Size_of_connections();
-   double *data = new double[nnz];
+   double *data = mfem_hypre_TAlloc(HYPRE_Real, nnz);
    for (int i = 0; i < nnz; i++)
    {
       data[i] = 1.0;
@@ -550,8 +499,8 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    A = hypre_CSRMatrixToParCSRMatrix(comm, csr_a, row_starts, col_starts);
 
 #ifdef HYPRE_BIGINT
-   delete [] hypre_CSRMatrixI(csr_a);
-   delete [] hypre_CSRMatrixJ(csr_a);
+   mfem_hypre_TFree(hypre_CSRMatrixI(csr_a));
+   mfem_hypre_TFree(hypre_CSRMatrixJ(csr_a));
 #endif
    hypre_CSRMatrixI(csr_a) = NULL;
    hypre_CSRMatrixDestroy(csr_a);
@@ -641,13 +590,13 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
 
    HYPRE_Int i;
 
-   double *a_diag = new double[diag_nnz];
+   double *a_diag = mfem_hypre_TAlloc(HYPRE_Real, diag_nnz);
    for (i = 0; i < diag_nnz; i++)
    {
       a_diag[i] = 1.0;
    }
 
-   double *a_offd = new double[offd_nnz];
+   double *a_offd = mfem_hypre_TAlloc(HYPRE_Real, offd_nnz);
    for (i = 0; i < offd_nnz; i++)
    {
       a_offd[i] = 1.0;
@@ -1477,14 +1426,14 @@ void HypreParMatrix::Destroy()
    {
       if (diagOwner & 1)
       {
-         delete [] hypre_CSRMatrixI(A->diag);
-         delete [] hypre_CSRMatrixJ(A->diag);
+         mfem_hypre_TFree(hypre_CSRMatrixI(A->diag));
+         mfem_hypre_TFree(hypre_CSRMatrixJ(A->diag));
       }
       hypre_CSRMatrixI(A->diag) = NULL;
       hypre_CSRMatrixJ(A->diag) = NULL;
       if (diagOwner & 2)
       {
-         delete [] hypre_CSRMatrixData(A->diag);
+         mfem_hypre_TFree(hypre_CSRMatrixData(A->diag));
       }
       hypre_CSRMatrixData(A->diag) = NULL;
    }
@@ -1492,14 +1441,14 @@ void HypreParMatrix::Destroy()
    {
       if (offdOwner & 1)
       {
-         delete [] hypre_CSRMatrixI(A->offd);
-         delete [] hypre_CSRMatrixJ(A->offd);
+         mfem_hypre_TFree(hypre_CSRMatrixI(A->offd));
+         mfem_hypre_TFree(hypre_CSRMatrixJ(A->offd));
       }
       hypre_CSRMatrixI(A->offd) = NULL;
       hypre_CSRMatrixJ(A->offd) = NULL;
       if (offdOwner & 2)
       {
-         delete [] hypre_CSRMatrixData(A->offd);
+         mfem_hypre_TFree(hypre_CSRMatrixData(A->offd));
       }
       hypre_CSRMatrixData(A->offd) = NULL;
    }
@@ -1507,7 +1456,7 @@ void HypreParMatrix::Destroy()
    {
       if (colMapOwner & 1)
       {
-         delete [] hypre_ParCSRMatrixColMapOffd(A);
+         mfem_hypre_TFree(hypre_ParCSRMatrixColMapOffd(A));
       }
       hypre_ParCSRMatrixColMapOffd(A) = NULL;
    }
@@ -1891,7 +1840,7 @@ void HypreSmoother::SetOperator(const Operator &op)
    }
    else if (type == 5)
    {
-      l1_norms = mfem_hypre_CTAlloc(double, height);
+      l1_norms = mfem_hypre_CTAlloc(HYPRE_Real, height);
       Vector ones(height), diag(l1_norms, height);
       ones = 1.0;
       A->Mult(ones, diag);

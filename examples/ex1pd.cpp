@@ -23,6 +23,7 @@ int main(int argc, char *argv[])
    const char *engine_spec = "mult_engine:'acrotensor', exec_target:'device', mem_type:'unified'";
    int serial_ref_levels = -1;
    int parallel_ref_levels = 2;
+   bool use_preconditioner = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -39,6 +40,7 @@ int main(int argc, char *argv[])
    args.AddOption(&engine_spec, "-es", "--engine-spec", "Engine specification");
    args.AddOption(&serial_ref_levels, "-sr", "--serial-refs", "Number of serial uniform refinements (negative implies dof ~ 10000)");
    args.AddOption(&parallel_ref_levels, "-pr", "--parallel-refs", "Number of parallel uniform refinements");
+   args.AddOption(&use_preconditioner, "-prec", "--use-preconditioner", "-no-prec", "--no-preconditioner", "Enable HYPRE AMG preconditioner");
    args.Parse();
    if (!args.Good())
    {
@@ -170,17 +172,37 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
-   OperatorHandle A(Operator::ANY_TYPE);
    Vector B, X;
-   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+   if (!use_preconditioner)
+   {
+      OperatorHandle A(Operator::ANY_TYPE);
+      a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
-   CGSolver *pcg = new CGSolver(MPI_COMM_WORLD);
-   pcg->SetRelTol(1e-6);
-   pcg->SetAbsTol(0.0);
-   pcg->SetMaxIter(500);
-   pcg->SetPrintLevel(1);
-   pcg->SetOperator(*A.Ptr());
-   pcg->Mult(B, X);
+      CGSolver *pcg = new CGSolver(MPI_COMM_WORLD);
+      pcg->SetRelTol(1e-6);
+      pcg->SetAbsTol(0.0);
+      pcg->SetMaxIter(500);
+      pcg->SetPrintLevel(1);
+      pcg->SetOperator(*A.Ptr());
+      pcg->Mult(B, X);
+      delete pcg;
+   }
+   else
+   {
+      HypreParMatrix A;
+      a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+
+      HypreSolver *amg = new HypreBoomerAMG(A);
+      HyprePCG *pcg = new HyprePCG(A);
+      pcg->SetTol(1e-12);
+      pcg->SetMaxIter(200);
+      pcg->SetPrintLevel(2);
+      pcg->SetPreconditioner(*amg);
+      Vector X_backend(*X.Get_PVector()), B_backend(*B.Get_PVector());
+      pcg->Mult(B_backend, X_backend);
+      delete amg;
+      delete pcg;
+   }
 
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
@@ -215,7 +237,6 @@ int main(int argc, char *argv[])
    }
 
    // 16. Free the used memory.
-   delete pcg;
    delete a;
    delete b;
    delete fespace;

@@ -337,6 +337,14 @@ void ParBilinearForm::FormLinearSystem(
 void ParBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
                                        OperatorHandle &A)
 {
+#ifdef MFEM_USE_BACKENDS
+   if (dev_ext)
+   {
+      dev_ext->FormSystemMatrix(ess_tdof_list, A);
+      return;
+   }
+#endif
+
    // Finish the matrix assembly and perform BC elimination, storing the
    // eliminated part of the matrix.
    if (static_cond)

@@ -445,6 +445,84 @@ void AcroDiffusionIntegrator::BatchedAssembleElementMatrices(DenseTensor &elmats
    }
 }
 
+
+void AcroDiffusionIntegrator::ComputeElementMatrices(Vector &elmats)
+{
+   if (hasTensorBasis && Btil.Size() == 0)
+   {
+      ComputeBTilde();
+   }
+
+   if (!D.IsInitialized())
+   {
+      BatchedPartialAssemble();
+   }
+
+   if (!S.IsInitialized())
+   {
+      if (hasTensorBasis)
+      {
+         if (nDim == 1)
+         {
+            S.Init(nElem, nDof1D, nDof1D);
+         }
+         else if (nDim == 2)
+         {
+            S.Init(nElem, nDof1D, nDof1D, nDof1D, nDof1D);
+         }
+         else if (nDim == 3)
+         {
+            S.Init(nElem, nDof1D, nDof1D, nDof1D, nDof1D, nDof1D, nDof1D);
+         }
+      }
+      else
+      {
+         S.Init(nElem, nDof, nDof);
+      }
+      if (onGPU) {S.SwitchToGPU();}
+   }
+
+
+   if (hasTensorBasis) {
+      if (nDim == 1) {
+         TE("S_e_i1_j1 += Btil_m_n_k1_i1_j1 D_e_m_n_k1",
+            S, *Btil[0], D);
+      }
+      else if (nDim == 2)
+      {
+         TE("S_e_i1_i2_j1_j2 += Btil1_m_n_k1_i1_j1 Btil2_m_n_k2_i2_j2 D_e_m_n_k1_k2",
+            S, *Btil[0], *Btil[1], D);
+      }
+      else if (nDim == 3)
+      {
+         TE("S_e_i1_i2_i3_j1_j2_j3 += Btil1_m_n_k1_i1_j1 Btil2_m_n_k2_i2_j2 Btil3_m_n_k3_i3_j3 D_e_m_n_k1_k2_k3",
+            S, *Btil[0], *Btil[1], *Btil[2], D);
+      }
+   }
+   else
+   {
+      TE("S_e_i_j += G_k_i_m G_k_i_n D_e_m_n_k",
+         S, G, G, D);
+   }
+
+   S.MoveFromGPU();
+
+   double *edata = elmats.GetData<double>();
+   for (int e = 0; e < nElem; ++e)
+   {
+      const int e_offset = e * nDof * nDof;
+      for (int ei = 0; ei < nDof; ++ei)
+      {
+         const int offset = e_offset + ei * tDofMap[ei] * nDof;
+         for (int ej = 0; ej < nDof; ++ej)
+         {
+            const int index = offset + tDofMap[ej];
+            edata[index] = S[e*nDof*nDof + ei*nDof + ej];
+         }
+      }
+   }
+}
+
 void AcroDiffusionIntegrator::ReassembleOperator()
 {
    BatchedPartialAssemble();

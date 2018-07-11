@@ -167,6 +167,17 @@ public:
       A.MakeRef(*A_ptr);
    }
 
+   void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
+                         HypreParMatrix &A, Vector &X, Vector &B,
+                         int copy_interior = 0)
+   {
+      OperatorHandle Ah(Operator::Hypre_ParCSR);
+      FormLinearSystem(ess_tdof_list, x, b, Ah, X, B, copy_interior);
+      HypreParMatrix *A_ptr = static_cast<HypreParMatrix*>(Ah.Ptr());
+      MFEM_VERIFY(A_ptr, "invalid OpType used");
+      A.MakeRef(*A_ptr);
+   }
+
    virtual void FormSystemMatrix(const Array<int> &ess_tdof_list,
                                  OperatorHandle &A);
 

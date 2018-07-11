@@ -87,8 +87,8 @@ void Vector::DoAxpby(const void *a, const PVector &x,
                      int ab_type_id)
 {
    // called only when Size() != 0
-
    MFEM_ASSERT(ab_type_id == ScalarId<double>::value, "");
+
    const double da = *static_cast<const double *>(a);
    const double db = *static_cast<const double *>(b);
    MFEM_ASSERT(da == 0.0 || dynamic_cast<const Vector *>(&x) != NULL,

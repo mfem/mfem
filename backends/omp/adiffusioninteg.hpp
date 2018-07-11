@@ -78,6 +78,7 @@ public:
 
    void BatchedPartialAssemble();
    void BatchedAssembleElementMatrices(DenseTensor &elmats);
+   void ComputeElementMatrices(Vector &elmats);
    void PAMult(const Vector &x, Vector &y);
    virtual void MultTransposeAdd(const Vector &x, Vector &y) const;
    virtual void MultAdd(const Vector &x, Vector &y) const;

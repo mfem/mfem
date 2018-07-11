@@ -33,7 +33,7 @@ public:
 
    virtual void ReassembleOperator() = 0;
 
-   virtual void ComputeElementMatrices(DenseTensor &element_matrices)
+   virtual void ComputeElementMatrices(Vector &element_matrices)
    { mfem_error("TensorBilinaerFormIntegrator::ComputeElementMatrices is not overloaded"); }
 
    virtual void MultAdd(const Vector &x, Vector &y) const = 0;
@@ -59,11 +59,16 @@ protected:
 
    mutable Vector x_local, y_local;
 
+   mfem::Vector *element_matrices;
+   OperatorHandle mat_e;
+
    void TransferIntegrators();
+
+   void ComputeElementMatrices();
 
    void InitRHS(const mfem::Array<int> &constraint_list,
                 mfem::Vector &mfem_x, mfem::Vector &mfem_b,
-                mfem::Operator *A,
+                mfem::OperatorHandle &A,
                 mfem::Vector &mfem_X, mfem::Vector &mfem_B,
                 int copy_interior = 0) const;
 
@@ -78,7 +83,9 @@ public:
         trial_fes(&bf.FESpace()->Get_PFESpace()->As<FiniteElementSpace>()),
         test_fes(&bf.FESpace()->Get_PFESpace()->As<FiniteElementSpace>()),
         x_local(trial_fes->GetELayout()),
-        y_local(test_fes->GetELayout()) { }
+        y_local(test_fes->GetELayout()),
+        element_matrices(NULL),
+        mat_e() { }
 
    /// Virtual destructor
    virtual ~BilinearForm();

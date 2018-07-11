@@ -26,6 +26,8 @@ BilinearForm::~BilinearForm()
 {
    // Make sure all integrators free their data
    for (int i = 0; i < tbfi.Size(); i++) delete tbfi[i];
+
+   delete element_matrices;
 }
 
 void BilinearForm::TransferIntegrators()
@@ -66,7 +68,7 @@ void BilinearForm::TransferIntegrators()
 
 void BilinearForm::InitRHS(const mfem::Array<int> &ess_tdof_list,
                            mfem::Vector &mfem_x, mfem::Vector &mfem_b,
-                           mfem::Operator *A,
+                           mfem::OperatorHandle &A,
                            mfem::Vector &mfem_X, mfem::Vector &mfem_B,
                            int copy_interior) const
 {
@@ -121,14 +123,14 @@ void BilinearForm::InitRHS(const mfem::Array<int> &ess_tdof_list,
       // }
    }
 
-   ConstrainedOperator *A_constrained = dynamic_cast<ConstrainedOperator*>(A);
-   if (A_constrained)
+   if (A.Type() == mfem::Operator::ANY_TYPE)
    {
+      ConstrainedOperator *A_constrained = static_cast<ConstrainedOperator*>(A.Ptr());
       A_constrained->EliminateRHS(mfem_X, mfem_B);
    }
    else
    {
-      mfem_error("mfem::omp::BilinearForm::InitRHS expects a ConstrainedOperator");
+      A.EliminateBC(mat_e, ess_tdof_list, mfem_X, mfem_B);
    }
 }
 
@@ -144,6 +146,31 @@ bool BilinearForm::Assemble()
    return true;
 }
 
+void BilinearForm::ComputeElementMatrices()
+{
+   // Only called if performing full assembly
+   const int nelements = trial_fes->GetFESpace()->GetNE();
+   const int trial_ndofs = trial_fes->GetFESpace()->GetFE(0)->GetDof() * trial_fes->GetFESpace()->GetVDim();
+   const int test_ndofs = test_fes->GetFESpace()->GetFE(0)->GetDof() * test_fes->GetFESpace()->GetVDim();
+   const std::size_t length = nelements * trial_ndofs * test_ndofs;
+
+   if (!element_matrices) element_matrices = new mfem::Vector(*(new Layout(OmpEngine(), length)));
+   else element_matrices->Push();
+
+   element_matrices->Fill(0.0);
+   Vector &elmats = element_matrices->Get_PVector()->As<Vector>();
+
+   tbfi[0]->ComputeElementMatrices(elmats);
+
+   if (tbfi.Size() > 1)
+   {
+      for (int k = 1; k < tbfi.Size(); k++)
+      {
+         tbfi[k]->ComputeElementMatrices(elmats);
+      }
+   }
+}
+
 void BilinearForm::FormSystemMatrix(const mfem::Array<int> &ess_tdof_list,
                                     mfem::OperatorHandle &A)
 {
@@ -156,7 +183,56 @@ void BilinearForm::FormSystemMatrix(const mfem::Array<int> &ess_tdof_list,
       if (P != NULL) rap = new mfem::RAPOperator(*P, *this, *P);
 
       A.Reset(new ConstrainedOperator(rap, ess_tdof_list, (rap != this)));
+
+      return;
    }
+   else
+   {
+      // ASSUMPTION: some sort of sparse matrix
+      // Compute the local matrices (stored in bform->element_matrices
+      ComputeElementMatrices();
+      bform->AllocateMatrix();
+      mfem::SparseMatrix &mat = bform->SpMat();
+
+      element_matrices->Pull();
+      double *data = element_matrices->GetData();
+
+      const bool skip_zeros = true;
+      mfem::Array<int> tr_vdofs, te_vdofs;
+      for (int i = 0; i < trial_fes->GetFESpace()->GetNE(); i++)
+      {
+         trial_fes->GetFESpace()->GetElementVDofs(i, tr_vdofs);
+         test_fes->GetFESpace()->GetElementVDofs(i, te_vdofs);
+         const mfem::DenseMatrix elmat(data, te_vdofs.Size(), tr_vdofs.Size());
+         mat.AddSubMatrix(te_vdofs, tr_vdofs, elmat, skip_zeros);
+         data += tr_vdofs.Size() * te_vdofs.Size();
+      }
+   }
+
+   if (A.Type() == mfem::Operator::MFEM_SPARSEMAT)
+   {
+      // This works because the FormSystemMatrix call with an explicit
+      // SparseMatrix doesnt call the backend version... This might
+      // change in the future.
+      bform->FormSystemMatrix(ess_tdof_list, static_cast<mfem::SparseMatrix&>(*A.Ptr()));
+   }
+#ifdef MFEM_USE_MPI
+   else if (A.Type() == mfem::Operator::Hypre_ParCSR)
+   {
+      mfem::ParBilinearForm *par_bform = dynamic_cast<mfem::ParBilinearForm*>(bform);
+
+      mfem::SparseMatrix &mat = bform->SpMat();
+
+      const bool skip_zeros = false;
+      mat.Finalize(skip_zeros);
+
+      par_bform->ParallelAssemble(A, &mat);
+      mat.Clear();
+      mat_e.Clear();
+
+      mat_e.EliminateRowsCols(A, ess_tdof_list);
+   }
+#endif
    else
    {
       MFEM_ABORT("Operator::Type is not supported, type = " << A.Type());
@@ -169,7 +245,7 @@ void BilinearForm::FormLinearSystem(const mfem::Array<int> &ess_tdof_list,
                                     int copy_interior)
 {
    FormSystemMatrix(ess_tdof_list, A);
-   InitRHS(ess_tdof_list, x, b, A.Ptr(), X, B, copy_interior);
+   InitRHS(ess_tdof_list, x, b, A, X, B, copy_interior);
 }
 
 void BilinearForm::RecoverFEMSolution(const mfem::Vector &X, const mfem::Vector &b,

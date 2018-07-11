@@ -17,26 +17,6 @@
 #include "hypre_parcsr.hpp"
 #include <limits>
 
-// Define macro wrappers for hypre_TAlloc, hypre_CTAlloc and hypre_TFree:
-// mfem_hypre_TAlloc, mfem_hypre_CTAlloc, and mfem_hypre_TFree, respectively.
-// Note: the same macros are defined in hypre.cpp.
-#if MFEM_HYPRE_VERSION < 21400
-
-#define mfem_hypre_TAlloc(type, size) hypre_TAlloc(type, size)
-#define mfem_hypre_CTAlloc(type, size) hypre_CTAlloc(type, size)
-#define mfem_hypre_TFree(ptr) hypre_TFree(ptr)
-
-#else // MFEM_HYPRE_VERSION >= 21400
-
-// See the notes about hypre 2.14.0 in hypre.cpp
-#define mfem_hypre_TAlloc(type, size) \
-   hypre_TAlloc(type, size, HYPRE_MEMORY_HOST)
-#define mfem_hypre_CTAlloc(type, size) \
-   hypre_CTAlloc(type, size, HYPRE_MEMORY_HOST)
-#define mfem_hypre_TFree(ptr) hypre_TFree(ptr, HYPRE_MEMORY_HOST)
-
-#endif // #if MFEM_HYPRE_VERSION < 21400
-
 namespace mfem
 {
 namespace internal
@@ -1114,7 +1094,7 @@ hypre_ParCSRCommHandleCreate_bool(HYPRE_Int            job,
    HYPRE_Int                  ip, vec_start, vec_len;
 
    num_requests = num_sends + num_recvs;
-   requests = mfem_hypre_CTAlloc(hypre_MPI_Request, num_requests);
+   requests = mfem_hypre_CTAlloc_host(hypre_MPI_Request, num_requests);
 
    hypre_MPI_Comm_size(comm, &num_procs);
    hypre_MPI_Comm_rank(comm, &my_id);
@@ -1171,7 +1151,7 @@ hypre_ParCSRCommHandleCreate_bool(HYPRE_Int            job,
     * set up comm_handle and return
     *--------------------------------------------------------------------*/
 
-   comm_handle = mfem_hypre_CTAlloc(hypre_ParCSRCommHandle, 1);
+   comm_handle = mfem_hypre_CTAlloc_host(hypre_ParCSRCommHandle, 1);
 
    hypre_ParCSRCommHandleCommPkg(comm_handle)     = comm_pkg;
    hypre_ParCSRCommHandleSendData(comm_handle)    = send_data;
