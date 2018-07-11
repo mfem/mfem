@@ -307,6 +307,24 @@ PetscParVector& PetscParVector::operator=(const PetscParVector &y)
    return *this;
 }
 
+PetscParVector& PetscParVector::operator+=(const PetscParVector &y)
+{
+   ierr = VecAXPY(x,1.0,y.x); PCHKERRQ(x,ierr);
+   return *this;
+}
+
+PetscParVector& PetscParVector::operator-=(const PetscParVector &y)
+{
+   ierr = VecAXPY(y,-1.0,y.x); PCHKERRQ(x,ierr);
+   return *this;
+}
+
+PetscParVector& PetscParVector::operator*=(PetscScalar s)
+{
+   ierr = VecScale(x,s); PCHKERRQ(x,ierr);
+   return *this;
+}
+
 void PetscParVector::PlaceArray(PetscScalar *temp_data)
 {
    ierr = VecPlaceArray(x,temp_data); PCHKERRQ(x,ierr);
@@ -319,12 +337,15 @@ void PetscParVector::ResetArray()
 
 void PetscParVector::Randomize(PetscInt seed)
 {
-   PetscRandom rctx;
+   PetscRandom rctx = NULL;
 
-   ierr = PetscRandomCreate(PetscObjectComm((PetscObject)x),&rctx);
-   PCHKERRQ(x,ierr);
-   ierr = PetscRandomSetSeed(rctx,(unsigned long)seed); PCHKERRQ(x,ierr);
-   ierr = PetscRandomSeed(rctx); PCHKERRQ(x,ierr);
+   if (seed)
+   {
+      ierr = PetscRandomCreate(PetscObjectComm((PetscObject)x),&rctx);
+      PCHKERRQ(x,ierr);
+      ierr = PetscRandomSetSeed(rctx,(unsigned long)seed); PCHKERRQ(x,ierr);
+      ierr = PetscRandomSeed(rctx); PCHKERRQ(x,ierr);
+   }
    ierr = VecSetRandom(x,rctx); PCHKERRQ(x,ierr);
    ierr = PetscRandomDestroy(&rctx); PCHKERRQ(x,ierr);
 }
