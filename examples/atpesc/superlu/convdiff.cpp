@@ -22,7 +22,10 @@ int main(int argc, char *argv[])
    double velocity = 100.0;
    bool visit = false;
    bool slu_solver = false;
-   int slu_colperm = 0;
+   int slu_colperm = 4;
+   int slu_rowperm = 1;
+   int slu_iterref = 2;
+   int slu_parsymbfact = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&ref_levels, "-r", "--refine",
@@ -39,7 +42,12 @@ int main(int argc, char *argv[])
                   "Use the SuperLU Solver.");
    args.AddOption(&slu_colperm, "-cp", "--slu-colperm",
                   "Set the SuperLU Column permutation algorithm:  0-natural, "
-                  "1-mmd-ata, 2-mmd_at_plus_a, 3-colamd, 4-metis_at_plus_a, 5-parmetis, 6-zoltan");   
+                  "1-mmd-ata, 2-mmd_at_plus_a, 3-colamd, 4-metis_at_plus_a, 5-parmetis, 6-zoltan");
+   args.AddOption(&slu_rowperm, "-rp", "--slu-rowperm",
+                  "Set the SuperLU Row permutation algorithm:  0-NoRowPerm, "
+                  "1-LargeDiag, 2-MyPermR");
+   args.AddOption(&slu_parsymbfact, "-psf", "--slu-parsymbfact",
+                  "Set the SuperLU ParSymbFact option:  0-No, 1-Yes");                                 
 #endif
    args.Parse();
    if (myid == 0)
@@ -157,6 +165,24 @@ int main(int argc, char *argv[])
          superlu->SetColumnPermutation(superlu::PARMETIS);
       else if (slu_colperm == 6)
          superlu->SetColumnPermutation(superlu::ZOLTAN);
+
+      if (slu_rowperm == 0)
+         superlu->SetRowPermutation(superlu::NOROWPERM);
+      else if (slu_rowperm == 1)
+         superlu->SetRowPermutation(superlu::LargeDiag);
+      else if (slu_rowperm == 2)
+         superlu->SetRowPermutation(superlu::MY_PERMR);
+
+      if (slu_iterref == 0)
+         superlu->SetIterativeRefine(superlu::NOREFINE);
+      else if (slu_iterref == 1)
+         superlu->SetIterativeRefine(superlu::SLU_SINGLE);
+      else if (slu_iterref == 2)
+         superlu->SetIterativeRefine(superlu::SLU_DOUBLE);
+      else if (slu_iterref == 3)
+         superlu->SetIterativeRefine(superlu::SLU_EXTRA); 
+
+      superlu->SetParSymbFact(slu_parsymbfact);
 
       superlu->SetOperator(*Mrow);
       solver = superlu;
