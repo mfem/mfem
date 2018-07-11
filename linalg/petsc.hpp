@@ -105,8 +105,11 @@ public:
    /// Set constant values
    PetscParVector& operator= (PetscScalar d);
 
-   /// Define '=' for PETSc vectors.
+   /// Define operators for PETSc vectors.
    PetscParVector& operator= (const PetscParVector &y);
+   PetscParVector& operator+= (const PetscParVector &y);
+   PetscParVector& operator-= (const PetscParVector &y);
+   PetscParVector& operator*= (PetscScalar d);
 
    /** @brief Temporarily replace the data of the PETSc Vec object. To return to
        the original data array, call ResetArray().
@@ -122,7 +125,7 @@ public:
    void ResetArray();
 
    /// Set random values
-   void Randomize(PetscInt seed);
+   void Randomize(PetscInt seed = 0);
 
    /// Prints the vector (to stdout if @a fname is NULL)
    void Print(const char *fname = NULL, bool binary = false) const;
