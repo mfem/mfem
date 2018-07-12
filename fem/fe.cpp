@@ -6598,6 +6598,34 @@ void Poly_1D::CalcChebyshev(const int p, const double x, double *u, double *d)
    }
 }
 
+void Poly_1D::CalcChebyshev(const int p, const double x, double *u, double *d,
+                            double *dd)
+{
+   // recursive definition, z in [-1,1]
+   // T_0(z) = 1,  T_1(z) = z
+   // T_{n+1}(z) = 2*z*T_n(z) - T_{n-1}(z)
+   // T'_n(z) = n*U_{n-1}(z)
+   // U_0(z) = 1  U_1(z) = 2*z
+   // U_{n+1}(z) = 2*z*U_n(z) - U_{n-1}(z)
+   // U_n(z) = z*U_{n-1}(z) + T_n(z) = z*T'_n(z)/n + T_n(z)
+   // T'_{n+1}(z) = (n + 1)*(z*T'_n(z)/n + T_n(z))
+   // T''_{n+1}(z) = (n + 1)*(2*(n + 1)*T'_n(z) + z*T''_n(z)) / n
+   double z;
+   u[0] = 1.;
+   d[0] = 0.;
+   dd[0]= 0.;
+   if (p == 0) { return; }
+   u[1] = z = 2.*x - 1.;
+   d[1] = 2.;
+   dd[1] = 0;
+   for (int n = 1; n < p; n++)
+   {
+      u[n+1] = 2*z*u[n] - u[n-1];
+      d[n+1] = (n + 1)*(z*d[n]/n + 2*u[n]);
+      dd[n+1] = (n + 1)*(2.*(n + 1)*d[n] + z*dd[n])/n;
+   }
+}
+
 const double *Poly_1D::GetPoints(const int p, const int btype)
 {
    BasisType::Check(btype);
@@ -7463,8 +7491,12 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
    dshape_x.SetSize(p + 1);
    dshape_y.SetSize(p + 1);
    dshape_l.SetSize(p + 1);
+   ddshape_x.SetSize(p + 1);
+   ddshape_y.SetSize(p + 1);
+   ddshape_l.SetSize(p + 1);
    u.SetSize(Dof);
    du.SetSize(Dof, Dim);
+   ddu.SetSize(Dof, (Dim * (Dim + 1)) / 2 );
 #else
    Vector shape_x(p + 1), shape_y(p + 1), shape_l(p + 1);
 #endif
@@ -7568,6 +7600,38 @@ void H1_TriangleElement::CalcDShape(const IntegrationPoint &ip,
    Ti.Mult(du, dshape);
 }
 
+void H1_TriangleElement::CalcHessian(const IntegrationPoint &ip,
+                                     DenseMatrix &ddshape) const
+{
+   const int p = Order;
+#ifdef MFEM_THREAD_SAFE
+   Vector   shape_x(p + 1),   shape_y(p + 1),   shape_l(p + 1);
+   Vector  dshape_x(p + 1),  dshape_y(p + 1),  dshape_l(p + 1);
+   Vector ddshape_x(p + 1), ddshape_y(p + 1), ddshape_l(p + 1);
+   DenseMatrix ddu(Dof, Dim);
+#endif
+
+   poly1d.CalcBasis(p, ip.x, shape_x, dshape_x, ddshape_x);
+   poly1d.CalcBasis(p, ip.y, shape_y, dshape_y, ddshape_y);
+   poly1d.CalcBasis(p, 1. - ip.x - ip.y, shape_l, dshape_l, ddshape_l);
+
+   for (int o = 0, j = 0; j <= p; j++)
+      for (int i = 0; i + j <= p; i++)
+      {
+         int k = p - i - j;
+         // u_xx, u_xy, u_yy
+         ddu(o,0) = ((ddshape_x(i) * shape_l(k)) - 2. * (dshape_x(i) * dshape_l(k)) +
+                     (shape_x(i) * ddshape_l(k))) * shape_y(j);
+         ddu(o,1) = (((shape_x(i) * ddshape_l(k)) - dshape_x(i) * dshape_l(k)) * shape_y(
+                        j)) + (((dshape_x(i) * shape_l(k)) - (shape_x(i) * dshape_l(k))) * dshape_y(j));
+         ddu(o,2) = ((ddshape_y(j) * shape_l(k)) - 2. * (dshape_y(j) * dshape_l(k)) +
+                     (shape_y(j) * ddshape_l(k))) * shape_x(i);
+         o++;
+      }
+
+   Ti.Mult(ddu, ddshape);
+}
+
 
 H1_TetrahedronElement::H1_TetrahedronElement(const int p, const int btype)
    : NodalFiniteElement(3, Geometry::TETRAHEDRON, ((p + 1)*(p + 2)*(p + 3))/6,
@@ -7584,8 +7648,13 @@ H1_TetrahedronElement::H1_TetrahedronElement(const int p, const int btype)
    dshape_y.SetSize(p + 1);
    dshape_z.SetSize(p + 1);
    dshape_l.SetSize(p + 1);
+   ddshape_x.SetSize(p + 1);
+   ddshape_y.SetSize(p + 1);
+   ddshape_z.SetSize(p + 1);
+   ddshape_l.SetSize(p + 1);
    u.SetSize(Dof);
    du.SetSize(Dof, Dim);
+   ddu.SetSize(Dof, (Dim * (Dim + 1)) / 2);
 #else
    Vector shape_x(p + 1), shape_y(p + 1), shape_z(p + 1), shape_l(p + 1);
 #endif
@@ -7738,6 +7807,51 @@ void H1_TetrahedronElement::CalcDShape(const IntegrationPoint &ip,
    Ti.Mult(du, dshape);
 }
 
+void H1_TetrahedronElement::CalcHessian(const IntegrationPoint &ip,
+                                        DenseMatrix &ddshape) const
+{
+   const int p = Order;
+
+#ifdef MFEM_THREAD_SAFE
+   Vector   shape_x(p + 1),   shape_y(p + 1),   shape_z(p + 1),   shape_l(p + 1);
+   Vector  dshape_x(p + 1),  dshape_y(p + 1),  dshape_z(p + 1),  dshape_l(p + 1);
+   Vector ddshape_x(p + 1), ddshape_y(p + 1), ddshape_z(p + 1), ddshape_l(p + 1);
+   DenseMatrix ddu(Dof, ((Dim + 1) * Dim) / 2);
+#endif
+
+   poly1d.CalcBasis(p, ip.x, shape_x, dshape_x, ddshape_x);
+   poly1d.CalcBasis(p, ip.y, shape_y, dshape_y, ddshape_y);
+   poly1d.CalcBasis(p, ip.z, shape_z, dshape_z, ddshape_z);
+   poly1d.CalcBasis(p, 1. - ip.x - ip.y - ip.z, shape_l, dshape_l, ddshape_l);
+
+   for (int o = 0, k = 0; k <= p; k++)
+      for (int j = 0; j + k <= p; j++)
+         for (int i = 0; i + j + k <= p; i++)
+         {
+            // u_xx, u_xy, u_xz, u_yy, u_yz, u_zz
+            int l = p - i - j - k;
+            ddu(o,0) = ((ddshape_x(i) * shape_l(l)) - 2. * (dshape_x(i) * dshape_l(l)) +
+                        (shape_x(i) * ddshape_l(l))) * shape_y(j) * shape_z(k);
+            ddu(o,1) = ((dshape_y(j) * ((dshape_x(i) * shape_l(l)) -
+                                        (shape_x(i) * dshape_l(l)))) +
+                        (shape_y(j) * ((ddshape_l(l) * shape_x(i)) -
+                                       (dshape_x(i) * dshape_l(l)))))* shape_z(k);
+            ddu(o,2) = ((dshape_z(k) * ((dshape_x(i) * shape_l(l)) -
+                                        (shape_x(i) * dshape_l(l)))) +
+                        (shape_z(k) * ((ddshape_l(l) * shape_x(i)) -
+                                       (dshape_x(i) * dshape_l(l)))))* shape_y(j);
+            ddu(o,3) = ((ddshape_y(j) * shape_l(l)) - 2. * (dshape_y(j) * dshape_l(l)) +
+                        (shape_y(j) * ddshape_l(l))) * shape_x(i) * shape_z(k);
+            ddu(o,4) = ((dshape_z(k) * ((dshape_y(j) * shape_l(l)) -
+                                        (shape_y(j)*dshape_l(l))) ) +
+                        (shape_z(k)* ((ddshape_l(l)*shape_y(j)) -
+                                      (dshape_y(j) * dshape_l(l)) ) ) )* shape_x(i);
+            ddu(o,5) = ((ddshape_z(k) * shape_l(l)) - 2. * (dshape_z(k) * dshape_l(l)) +
+                        (shape_z(k) * ddshape_l(l))) * shape_y(j) * shape_x(i);
+            o++;
+         }
+   Ti.Mult(ddu, ddshape);
+}
 
 H1Pos_TriangleElement::H1Pos_TriangleElement(const int p)
    : PositiveFiniteElement(2, Geometry::TRIANGLE, ((p + 1)*(p + 2))/2, p,
