@@ -57,6 +57,8 @@ static PetscErrorCode __mfem_ts_ifunction(TS,PetscReal,Vec,Vec,Vec,void*);
 static PetscErrorCode __mfem_ts_ijacobian(TS,PetscReal,Vec,Vec,
                                           PetscReal,Mat,
                                           Mat,void*);
+static PetscErrorCode __mfem_ts_computesplits(TS,PetscReal,Vec,Vec,
+                                              Mat,Mat,Mat,Mat);
 static PetscErrorCode __mfem_snes_monitor(SNES,PetscInt,PetscReal,void*);
 static PetscErrorCode __mfem_snes_jacobian(SNES,Vec,Mat,Mat,void*);
 static PetscErrorCode __mfem_snes_function(SNES,Vec,Vec,void*);
@@ -121,6 +123,8 @@ typedef struct
    PetscReal                       cached_shift;
    PetscObjectState                cached_ijacstate;
    PetscObjectState                cached_rhsjacstate;
+   PetscObjectState                cached_splits_xstate;
+   PetscObjectState                cached_splits_xdotstate;
 } __mfem_ts_ctx;
 
 // use global scope ierr to check PETSc errors inside mfem calls
@@ -1780,6 +1784,8 @@ void PetscSolver::CreatePrivateContext()
       ts_ctx->cached_shift = std::numeric_limits<PetscReal>::min();
       ts_ctx->cached_ijacstate = -1;
       ts_ctx->cached_rhsjacstate = -1;
+      ts_ctx->cached_splits_xstate = -1;
+      ts_ctx->cached_splits_xdotstate = -1;
       ts_ctx->type = PetscODESolver::ODE_SOLVER_GENERAL;
       ts_ctx->jacType = Operator::PETSC_MATAIJ;
       private_ctx = (void*) ts_ctx;
@@ -2850,6 +2856,8 @@ void PetscODESolver::Init(TimeDependentOperator &f_,
          ts_ctx->cached_shift = std::numeric_limits<PetscReal>::min();
          ts_ctx->cached_ijacstate = -1;
          ts_ctx->cached_rhsjacstate = -1;
+         ts_ctx->cached_splits_xstate = -1;
+         ts_ctx->cached_splits_xdotstate = -1;
       }
    }
    f = &f_;
@@ -2884,6 +2892,22 @@ void PetscODESolver::Init(TimeDependentOperator &f_,
    // Set solution vector
    PetscParVector X(PetscObjectComm(obj),*f,false,true);
    ierr = TSSetSolution(ts,X); PCHKERRQ(ts,ierr);
+
+   // Compose special purpose function for PDE-constrained optimization
+   PetscBool use = PETSC_TRUE;
+   ierr = PetscOptionsGetBool(NULL,NULL,"-mfem_use_splitjac",&use,NULL);
+   if (use && f_.isImplicit())
+   {
+      ierr = PetscObjectComposeFunction((PetscObject)ts,"TSComputeSplitJacobians_C",
+                                        __mfem_ts_computesplits);
+      PCHKERRQ(ts,ierr);
+   }
+   else
+   {
+      ierr = PetscObjectComposeFunction((PetscObject)ts,"TSComputeSplitJacobians_C",
+                                        NULL);
+      PCHKERRQ(ts,ierr);
+   }
 }
 
 void PetscODESolver::SetJacobianType(Operator::Type jacType)
@@ -2964,6 +2988,8 @@ void PetscODESolver::Run(Vector &x, double &t, double &dt, double t_final)
    ts_ctx->cached_shift = std::numeric_limits<PetscReal>::min();
    ts_ctx->cached_ijacstate = -1;
    ts_ctx->cached_rhsjacstate = -1;
+   ts_ctx->cached_splits_xstate = -1;
+   ts_ctx->cached_splits_xdotstate = -1;
 
    // Take the steps.
    ierr = TSSolve(ts, X->x); PCHKERRQ(ts, ierr);
@@ -3103,10 +3129,6 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    PetscErrorCode   ierr;
 
    PetscFunctionBeginUser;
-   // update time
-   mfem::TimeDependentOperator *op = ts_ctx->op;
-   op->SetTime(t);
-
    // prevent to recompute a Jacobian if we already did so
    // the relative tolerance comparison should be fine given the fact
    // that two consecutive shifts should have similar magnitude
@@ -3114,6 +3136,10 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR &&
        std::abs(ts_ctx->cached_shift/shift - 1.0) < eps &&
        state == ts_ctx->cached_ijacstate) { PetscFunctionReturn(0); }
+
+   // update time
+   mfem::TimeDependentOperator *op = ts_ctx->op;
+   op->SetTime(t);
 
    // wrap Vecs with Vectors
    ierr = VecGetLocalSize(x,&n); CHKERRQ(ierr);
@@ -3173,6 +3199,166 @@ static PetscErrorCode __mfem_ts_ijacobian(TS ts, PetscReal t, Vec x,
    PetscFunctionReturn(0);
 }
 
+static PetscErrorCode __mfem_ts_computesplits(TS ts,PetscReal t,Vec x,Vec xp,
+                                              Mat Jx,Mat precJx,
+                                              Mat Jxp,Mat precJxp)
+{
+   __mfem_ts_ctx*   ts_ctx;
+   mfem::Vector     *xx;
+   PetscScalar      *array;
+   PetscInt         n;
+   PetscObjectState state;
+   PetscBool        rx = PETSC_TRUE, rxp = PETSC_TRUE;
+   PetscBool        assembled;
+   PetscErrorCode   ierr;
+
+   PetscFunctionBeginUser;
+   ierr = TSGetIJacobian(ts,NULL,NULL,NULL,(void**)&ts_ctx); CHKERRQ(ierr);
+
+   // prevent to recompute the Jacobians if we already did so
+   ierr = PetscObjectStateGet((PetscObject)Jx,&state); CHKERRQ(ierr);
+   if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR &&
+       state == ts_ctx->cached_splits_xstate) { rx = PETSC_FALSE; }
+   ierr = PetscObjectStateGet((PetscObject)Jxp,&state); CHKERRQ(ierr);
+   if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR &&
+       state == ts_ctx->cached_splits_xdotstate) { rxp = PETSC_FALSE; }
+
+   if (!rx && !rxp) { PetscFunctionReturn(0); }
+
+   // update time
+   mfem::TimeDependentOperator *op = ts_ctx->op;
+   op->SetTime(t);
+
+   // wrap Vecs with Vectors
+   ierr = VecGetLocalSize(x,&n); CHKERRQ(ierr);
+   ierr = VecGetArrayRead(xp,(const PetscScalar**)&array); CHKERRQ(ierr);
+   mfem::Vector yy(array,n);
+   ierr = VecRestoreArrayRead(xp,(const PetscScalar**)&array); CHKERRQ(ierr);
+   ierr = VecGetArrayRead(x,(const PetscScalar**)&array); CHKERRQ(ierr);
+   if (!ts_ctx->bchandler)
+   {
+      xx = new mfem::Vector(array,n);
+   }
+   else
+   {
+      // make sure we compute a Jacobian with the correct boundary values
+      if (!ts_ctx->work) { ts_ctx->work = new mfem::Vector(n); }
+      mfem::Vector txx(array,n);
+      mfem::PetscBCHandler *bchandler = ts_ctx->bchandler;
+      xx = ts_ctx->work;
+      bchandler->SetTime(t);
+      bchandler->ApplyBC(txx,*xx);
+   }
+   ierr = VecRestoreArrayRead(x,(const PetscScalar**)&array); CHKERRQ(ierr);
+
+   // We don't have a specialized interface, so we just compute the split jacobians
+   // evaluating twice the implicit gradient method with the correct shifts
+
+   // first we do the state jacobian
+   mfem::Operator& oJx = op->GetImplicitGradient(*xx,yy,0.0);
+
+   // Convert to the operator type requested if needed
+   bool delete_mat = false;
+   mfem::PetscParMatrix *pJx = const_cast<mfem::PetscParMatrix *>
+                               (dynamic_cast<const mfem::PetscParMatrix *>(&oJx));
+   if (!pJx || pJx->GetType() != ts_ctx->jacType)
+   {
+      if (pJx)
+      {
+         Mat B = *pJx;
+         ierr = PetscObjectReference((PetscObject)B); CHKERRQ(ierr);
+      }
+      pJx = new mfem::PetscParMatrix(PetscObjectComm((PetscObject)ts),&oJx,
+                                     ts_ctx->jacType);
+      delete_mat = true;
+   }
+   if (rx)
+   {
+      ierr = MatAssembled(Jx,&assembled); CHKERRQ(ierr);
+      if (assembled)
+      {
+         ierr = MatCopy(*pJx,Jx,SAME_NONZERO_PATTERN); CHKERRQ(ierr);
+      }
+      else
+      {
+         Mat B;
+         ierr = MatDuplicate(*pJx,MAT_COPY_VALUES,&B); CHKERRQ(ierr);
+         ierr = MatHeaderReplace(Jx,&B); CHKERRQ(ierr);
+      }
+   }
+   if (delete_mat) { delete pJx; }
+   pJx = new mfem::PetscParMatrix(Jx,true);
+
+   // Eliminate essential dofs
+   if (ts_ctx->bchandler)
+   {
+      mfem::PetscBCHandler *bchandler = ts_ctx->bchandler;
+      mfem::PetscParVector dummy(PetscObjectComm((PetscObject)ts),0);
+      pJx->EliminateRowsCols(bchandler->GetTDofs(),dummy,dummy);
+   }
+
+   // Then we do the jacobian wrt the time derivative of the state
+   // Note that this is usually the mass matrix
+   mfem::PetscParMatrix *pJxp = NULL;
+   if (rxp)
+   {
+      delete_mat = false;
+      mfem::Operator& oJxp = op->GetImplicitGradient(*xx,yy,1.0);
+      pJxp = const_cast<mfem::PetscParMatrix *>
+             (dynamic_cast<const mfem::PetscParMatrix *>(&oJxp));
+      if (!pJxp || pJxp->GetType() != ts_ctx->jacType)
+      {
+         if (pJxp)
+         {
+            Mat B = *pJxp;
+            ierr = PetscObjectReference((PetscObject)B); CHKERRQ(ierr);
+         }
+         pJxp = new mfem::PetscParMatrix(PetscObjectComm((PetscObject)ts),
+                                         &oJxp,ts_ctx->jacType);
+         delete_mat = true;
+      }
+
+      ierr = MatAssembled(Jxp,&assembled); CHKERRQ(ierr);
+      if (assembled)
+      {
+         ierr = MatCopy(*pJxp,Jxp,SAME_NONZERO_PATTERN); CHKERRQ(ierr);
+      }
+      else
+      {
+         Mat B;
+         ierr = MatDuplicate(*pJxp,MAT_COPY_VALUES,&B); CHKERRQ(ierr);
+         ierr = MatHeaderReplace(Jxp,&B); CHKERRQ(ierr);
+      }
+      if (delete_mat) { delete pJxp; }
+      pJxp = new mfem::PetscParMatrix(Jxp,true);
+
+      // Eliminate essential dofs
+      if (ts_ctx->bchandler)
+      {
+         mfem::PetscBCHandler *bchandler = ts_ctx->bchandler;
+         mfem::PetscParVector dummy(PetscObjectComm((PetscObject)ts),0);
+         pJxp->EliminateRowsCols(bchandler->GetTDofs(),dummy,dummy,2.0);
+      }
+
+      // Obtain the time dependent part of the  jacobian by subtracting
+      // the state jacobian
+      // We don't do it with the class operator "-=" since we know that
+      // the sparsity pattern of the two matrices is the same
+      ierr = MatAXPY(*pJxp,-1.0,*pJx,SAME_NONZERO_PATTERN); PCHKERRQ(ts,ierr);
+   }
+
+   // Jacobian reusage
+   ierr = PetscObjectStateGet((PetscObject)Jx,&ts_ctx->cached_splits_xstate);
+   CHKERRQ(ierr);
+   ierr = PetscObjectStateGet((PetscObject)Jxp,&ts_ctx->cached_splits_xdotstate);
+   CHKERRQ(ierr);
+
+   delete pJx;
+   delete pJxp;
+   if (!ts_ctx->bchandler) { delete xx; }
+   PetscFunctionReturn(0);
+}
+
 static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
                                             Mat A, Mat P, void *ctx)
 {
@@ -3184,14 +3370,14 @@ static PetscErrorCode __mfem_ts_rhsjacobian(TS ts, PetscReal t, Vec x,
    PetscErrorCode   ierr;
 
    PetscFunctionBeginUser;
-   // update time
-   mfem::TimeDependentOperator *op = ts_ctx->op;
-   op->SetTime(t);
-
    // prevent to recompute a Jacobian if we already did so
    ierr = PetscObjectStateGet((PetscObject)A,&state); CHKERRQ(ierr);
    if (ts_ctx->type == mfem::PetscODESolver::ODE_SOLVER_LINEAR &&
        state == ts_ctx->cached_rhsjacstate) { PetscFunctionReturn(0); }
+
+   // update time
+   mfem::TimeDependentOperator *op = ts_ctx->op;
+   op->SetTime(t);
 
    // wrap Vec with Vector
    ierr = VecGetLocalSize(x,&n); CHKERRQ(ierr);
