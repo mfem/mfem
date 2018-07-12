@@ -1290,14 +1290,16 @@ PetscParMatrix* PetscParMatrix::EliminateRowsCols(const Array<int> &rows_cols)
 
 void PetscParMatrix::EliminateRowsCols(const Array<int> &rows_cols,
                                        const HypreParVector &X,
-                                       HypreParVector &B)
+                                       HypreParVector &B,
+                                       double diag)
 {
-   MFEM_ABORT("PetscParMatrix::EliminateRowsCols(). To be implemented");
+   MFEM_ABORT("Missing PetscParMatrix::EliminateRowsCols() with HypreParVectors");
 }
 
 void PetscParMatrix::EliminateRowsCols(const Array<int> &rows_cols,
                                        const PetscParVector &X,
-                                       PetscParVector &B)
+                                       PetscParVector &B,
+                                       double diag)
 {
    PetscInt M,N;
    ierr = MatGetSize(A,&M,&N); PCHKERRQ(A,ierr);
@@ -1314,11 +1316,11 @@ void PetscParMatrix::EliminateRowsCols(const Array<int> &rows_cols,
    ierr = Convert_Array_IS(GetComm(),true,&rows_cols,rst,&dir); PCHKERRQ(A,ierr);
    if (!X.GlobalSize() && !B.GlobalSize())
    {
-      ierr = MatZeroRowsColumnsIS(A,dir,1.,NULL,NULL); PCHKERRQ(A,ierr);
+      ierr = MatZeroRowsColumnsIS(A,dir,diag,NULL,NULL); PCHKERRQ(A,ierr);
    }
    else
    {
-      ierr = MatZeroRowsColumnsIS(A,dir,1.,X,B); PCHKERRQ(A,ierr);
+      ierr = MatZeroRowsColumnsIS(A,dir,diag,X,B); PCHKERRQ(A,ierr);
    }
    ierr = ISDestroy(&dir); PCHKERRQ(A,ierr);
 }
