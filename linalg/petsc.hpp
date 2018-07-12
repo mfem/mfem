@@ -307,11 +307,12 @@ public:
    void operator*=(double s);
 
    /** @brief Eliminate rows and columns from the matrix, and rows from the
-       vector @a B. Modify @a B with the BC values in @a X. */
+       vector @a B. Modify @a B with the BC values in @a X. Put @a diag
+       on the diagonal corresponding to eliminated entries */
    void EliminateRowsCols(const Array<int> &rows_cols, const PetscParVector &X,
-                          PetscParVector &B);
+                          PetscParVector &B, double diag = 1.);
    void EliminateRowsCols(const Array<int> &rows_cols, const HypreParVector &X,
-                          HypreParVector &B);
+                          HypreParVector &B, double diag = 1.);
 
    /** @brief Eliminate rows and columns from the matrix and store the
        eliminated elements in a new matrix Ae (returned).
