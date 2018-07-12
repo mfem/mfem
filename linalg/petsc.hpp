@@ -237,6 +237,7 @@ public:
    PetscParMatrix& operator=(const PetscParMatrix& B);
    PetscParMatrix& operator=(const HypreParMatrix& B);
    PetscParMatrix& operator+=(const PetscParMatrix& B);
+   PetscParMatrix& operator-=(const PetscParMatrix& B);
    ///@}
 
    /// Matvec: @a y = @a a A @a x + @a b @a y.

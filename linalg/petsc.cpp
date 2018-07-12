@@ -315,7 +315,7 @@ PetscParVector& PetscParVector::operator+=(const PetscParVector &y)
 
 PetscParVector& PetscParVector::operator-=(const PetscParVector &y)
 {
-   ierr = VecAXPY(y,-1.0,y.x); PCHKERRQ(x,ierr);
+   ierr = VecAXPY(x,-1.0,y.x); PCHKERRQ(x,ierr);
    return *this;
 }
 
@@ -555,6 +555,22 @@ PetscParMatrix& PetscParMatrix::operator+=(const PetscParMatrix& B)
       MFEM_VERIFY(height == B.Height(),"Invalid number of local rows");
       MFEM_VERIFY(width  == B.Width(), "Invalid number of local columns");
       ierr = MatAXPY(A,1.0,B,DIFFERENT_NONZERO_PATTERN); CCHKERRQ(B.GetComm(),ierr);
+   }
+   return *this;
+}
+
+PetscParMatrix& PetscParMatrix::operator-=(const PetscParMatrix& B)
+{
+   if (!A)
+   {
+      ierr = MatDuplicate(B,MAT_COPY_VALUES,&A); CCHKERRQ(B.GetComm(),ierr);
+      ierr = MatScale(A,-1.0); PCHKERRQ(A,ierr);
+   }
+   else
+   {
+      MFEM_VERIFY(height == B.Height(),"Invalid number of local rows");
+      MFEM_VERIFY(width  == B.Width(), "Invalid number of local columns");
+      ierr = MatAXPY(A,-1.0,B,DIFFERENT_NONZERO_PATTERN); CCHKERRQ(B.GetComm(),ierr);
    }
    return *this;
 }
