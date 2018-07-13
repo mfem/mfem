@@ -1867,6 +1867,30 @@ void PetscBCHandler::ApplyBC(const Vector &x, Vector &y)
    }
 }
 
+void PetscBCHandler::ApplyBC(Vector &x)
+{
+   (*this).SetUp(x.Size());
+   if (bctype == ZERO)
+   {
+      for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+      {
+         x[ess_tdof_list[i]] = 0.0;
+      }
+   }
+   else
+   {
+      if (bctype != CONSTANT && eval_t != eval_t_cached)
+      {
+         Eval(eval_t,eval_g);
+         eval_t_cached = eval_t;
+      }
+      for (PetscInt i = 0; i < ess_tdof_list.Size(); ++i)
+      {
+         x[ess_tdof_list[i]] = eval_g[ess_tdof_list[i]];
+      }
+   }
+}
+
 void PetscBCHandler::FixResidualBC(const Vector& x, Vector& y)
 {
    (*this).SetUp(x.Size());

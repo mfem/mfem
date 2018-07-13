@@ -390,6 +390,9 @@ public:
    /// y = x on ess_tdof_list_c and y = g (internally evaluated) on ess_tdof_list
    void ApplyBC(const Vector &x, Vector &y);
 
+   /// Replace boundary dofs with the current value
+   void ApplyBC(Vector &x);
+
    /// y = x-g on ess_tdof_list, the rest of y is unchanged
    void FixResidualBC(const Vector& x, Vector& y);
 
