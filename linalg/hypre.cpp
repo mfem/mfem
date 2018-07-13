@@ -342,6 +342,42 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_Int glob_size,
    hypre_MatvecCommPkgCreate(A);
 }
 
+HypreParMatrix::HypreParMatrix(MPI_Comm comm, PLayout &layout,
+                               HYPRE_Int *row_starts, SparseMatrix *diag)
+   : Operator(layout, layout)
+{
+   const HYPRE_Int glob_size = layout.Size();
+
+   Init();
+   A = hypre_ParCSRMatrixCreate(comm, glob_size, glob_size, row_starts,
+                                row_starts, 0, diag->NumNonZeroElems(), 0);
+   hypre_ParCSRMatrixSetDataOwner(A,1);
+   hypre_ParCSRMatrixSetRowStartsOwner(A,0);
+   hypre_ParCSRMatrixSetColStartsOwner(A,0);
+
+   hypre_CSRMatrixSetDataOwner(A->diag,0);
+   diagOwner = CopyCSR(diag, A->diag);
+   hypre_CSRMatrixSetRownnz(A->diag);
+
+   hypre_CSRMatrixSetDataOwner(A->offd,1);
+   hypre_CSRMatrixI(A->offd) = mfem_hypre_CTAlloc(HYPRE_Int, diag->Height()+1);
+
+   /* Don't need to call these, since they allocate memory only
+      if it was not already allocated */
+   // hypre_CSRMatrixInitialize(A->diag);
+   // hypre_ParCSRMatrixInitialize(A);
+
+   hypre_ParCSRMatrixSetNumNonzeros(A);
+
+   /* Make sure that the first entry in each row is the diagonal one. */
+   hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
+#ifdef HYPRE_BIGINT
+   CopyCSR_J(A->diag, diag->GetJ());
+#endif
+
+   hypre_MatvecCommPkgCreate(A);
+}
+
 // Rectangular block-diagonal constructor (6 arguments, v1)
 HypreParMatrix::HypreParMatrix(MPI_Comm comm,
                                HYPRE_Int global_num_rows,
@@ -634,6 +670,89 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
 
    height = GetNumRows();
    width = GetNumCols();
+}
+
+HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
+                               PLayout &in_layout, PLayout &out_layout,
+                               HYPRE_Int *row, HYPRE_Int *col,
+                               HYPRE_Int *i_diag, HYPRE_Int *j_diag,
+                               HYPRE_Int *i_offd, HYPRE_Int *j_offd,
+                               HYPRE_Int *cmap, HYPRE_Int cmap_size)
+   : Operator(in_layout, out_layout)
+{
+   HYPRE_Int diag_nnz, offd_nnz;
+
+   Init();
+   if (HYPRE_AssumedPartitionCheck())
+   {
+      diag_nnz = i_diag[row[1]-row[0]];
+      offd_nnz = i_offd[row[1]-row[0]];
+
+      A = hypre_ParCSRMatrixCreate(comm, row[2], col[2], row, col,
+                                   cmap_size, diag_nnz, offd_nnz);
+   }
+   else
+   {
+      diag_nnz = i_diag[row[id+1]-row[id]];
+      offd_nnz = i_offd[row[id+1]-row[id]];
+
+      A = hypre_ParCSRMatrixCreate(comm, row[np], col[np], row, col,
+                                   cmap_size, diag_nnz, offd_nnz);
+   }
+
+   hypre_ParCSRMatrixSetDataOwner(A,1);
+   hypre_ParCSRMatrixSetRowStartsOwner(A,0);
+   hypre_ParCSRMatrixSetColStartsOwner(A,0);
+
+   HYPRE_Int i;
+
+   double *a_diag = mfem_hypre_TAlloc(HYPRE_Real, diag_nnz);
+   for (i = 0; i < diag_nnz; i++)
+   {
+      a_diag[i] = 1.0;
+   }
+
+   double *a_offd = mfem_hypre_TAlloc(HYPRE_Real, offd_nnz);
+   for (i = 0; i < offd_nnz; i++)
+   {
+      a_offd[i] = 1.0;
+   }
+
+   hypre_CSRMatrixSetDataOwner(A->diag,0);
+   hypre_CSRMatrixI(A->diag)    = i_diag;
+   hypre_CSRMatrixJ(A->diag)    = j_diag;
+   hypre_CSRMatrixData(A->diag) = a_diag;
+   hypre_CSRMatrixSetRownnz(A->diag);
+   // Prevent hypre from destroying A->diag->{i,j,data}, own A->diag->{i,j,data}
+   diagOwner = 3;
+
+   hypre_CSRMatrixSetDataOwner(A->offd,0);
+   hypre_CSRMatrixI(A->offd)    = i_offd;
+   hypre_CSRMatrixJ(A->offd)    = j_offd;
+   hypre_CSRMatrixData(A->offd) = a_offd;
+   hypre_CSRMatrixSetRownnz(A->offd);
+   // Prevent hypre from destroying A->offd->{i,j,data}, own A->offd->{i,j,data}
+   offdOwner = 3;
+
+   hypre_ParCSRMatrixColMapOffd(A) = cmap;
+   // Prevent hypre from destroying A->col_map_offd, own A->col_map_offd
+   colMapOwner = 1;
+
+   hypre_ParCSRMatrixSetNumNonzeros(A);
+
+   /* Make sure that the first entry in each row is the diagonal one. */
+   if (row == col)
+   {
+      hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
+   }
+
+   hypre_MatvecCommPkgCreate(A);
+
+   height = GetNumRows();
+   width = GetNumCols();
+
+   MFEM_VERIFY(height == OutLayout()->Size(), "");
+   MFEM_VERIFY(width == InLayout()->Size(), "");
 }
 
 // General rectangular constructor with diagonal and off-diagonal constructed

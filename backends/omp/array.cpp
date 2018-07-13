@@ -28,10 +28,10 @@ PArray *Array::DoClone(bool copy_data, void **buffer,
    if (copy_data)
    {
       if (!ComputeOnDevice())
-         std::memcpy(new_array->GetBuffer(), data, bytes);
+         std::memcpy(new_array->GetData<void>(), data, bytes);
       else
       {
-         char *new_data = new_array->GetBuffer();
+         char *new_data = new_array->GetData<char>();
          const bool use_target = ComputeOnDevice();
          const bool use_parallel = Size() > 1000;
 #pragma omp target teams distribute parallel for       \
@@ -42,7 +42,7 @@ PArray *Array::DoClone(bool copy_data, void **buffer,
    }
    if (buffer)
    {
-      *buffer = new_array->GetBuffer();
+      *buffer = new_array->GetData<void>();
    }
    return new_array;
 }
@@ -57,7 +57,7 @@ int Array::DoResize(PLayout &new_layout, void **buffer,
    int err = ResizeData(lt, item_size);
    if (!err && buffer)
    {
-      *buffer = GetBuffer();
+      *buffer = GetData<void>();
    }
    return err;
 }
@@ -118,7 +118,7 @@ void Array::DoAssign(const PArray &src, std::size_t item_size)
    MFEM_ASSERT(source != NULL, "invalid source Array type");
    MFEM_ASSERT(Size() == source->Size(), "");
    // All arrays from this engine are of the same type, so we can simply check *this and assume the same is used in src.
-   DoPushData(source->GetBuffer(), item_size);
+   DoPushData(source->GetData<void>(), item_size);
 }
 
 } // namespace mfem::omp

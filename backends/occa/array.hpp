@@ -40,6 +40,8 @@ protected:
    // Virtual interface
    //
 
+   virtual void *DoGetData() const { return GetBuffer(); }
+
    virtual PArray *DoClone(bool copy_data, void **buffer,
                            std::size_t item_size) const;
 

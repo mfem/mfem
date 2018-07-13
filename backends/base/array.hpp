@@ -34,6 +34,8 @@ protected:
     */
    ///@{
 
+   virtual void *DoGetData() const = 0;
+
    /** @brief Create and return a new array (in @a *clone) of the same dynamic
        type as this array using the same layout and ItemSize().
 
@@ -116,7 +118,6 @@ public:
    template <typename derived_t>
    const derived_t &As() const { return dynamic_cast<const derived_t&>(*this); }
 
-
    // TODO: Error handling ... handle errors at the Engine level, at the class
    //       level, or at the method level?
 
@@ -127,6 +128,9 @@ public:
        @name Public virtual interface
     */
    ///@{
+
+   template <typename T=void>
+   T* GetData() const { return (T*) DoGetData(); }
 
    /** @brief Create and return a new array (in @a *clone) of the same dynamic
        type as this array using the same layout and ItemSize().

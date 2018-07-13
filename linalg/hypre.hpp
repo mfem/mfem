@@ -242,6 +242,8 @@ public:
        the diagonal one. This is expected by most hypre functions. */
    HypreParMatrix(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *row_starts,
                   SparseMatrix *diag); // constructor with 4 arguments, v1
+   HypreParMatrix(MPI_Comm comm, PLayout &layout, HYPRE_Int *row_starts,
+                  SparseMatrix *diag); // constructor with 4 arguments, v1
 
    /** Creates block-diagonal rectangular parallel matrix. Diagonal is given by
        diag which must be in CSR format (finalized). The new HypreParMatrix does
@@ -283,6 +285,14 @@ public:
        ownership of the arrays i_diag, j_diag, i_offd, j_offd, and cmap; does
        not take ownership of the arrays row and col. */
    HypreParMatrix(MPI_Comm comm, int id, int np, HYPRE_Int *row, HYPRE_Int *col,
+                  HYPRE_Int *i_diag, HYPRE_Int *j_diag, HYPRE_Int *i_offd,
+                  HYPRE_Int *j_offd, HYPRE_Int *cmap,
+                  HYPRE_Int cmap_size); // constructor with 11 arguments
+
+   // FIXME: This needs ifdef guards
+   HypreParMatrix(MPI_Comm comm, int id, int np,
+                  PLayout &in_layout, PLayout &out_layout,
+                  HYPRE_Int *row, HYPRE_Int *col,
                   HYPRE_Int *i_diag, HYPRE_Int *j_diag, HYPRE_Int *i_offd,
                   HYPRE_Int *j_offd, HYPRE_Int *cmap,
                   HYPRE_Int cmap_size); // constructor with 11 arguments

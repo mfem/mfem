@@ -140,6 +140,8 @@ public:
    /** The operator ownership flag is set to true. */
    void MakeSquareBlockDiag(MPI_Comm comm, HYPRE_Int glob_size,
                             HYPRE_Int *row_starts, SparseMatrix *diag);
+   void MakeSquareBlockDiag(MPI_Comm comm, PLayout &layout,
+                            HYPRE_Int *row_starts, SparseMatrix *diag);
 
    /** @brief Reset the OperatorHandle to hold a parallel rectangular
        block-diagonal matrix using the currently set type id. */

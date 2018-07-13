@@ -172,37 +172,36 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
+   CGSolver *pcg = new CGSolver(MPI_COMM_WORLD);
+   HypreSolver *amg = NULL;
+   pcg->SetRelTol(1e-6);
+   pcg->SetAbsTol(0.0);
+   pcg->SetMaxIter(500);
+   pcg->SetPrintLevel(1);
+
    Vector B, X;
    if (!use_preconditioner)
    {
       OperatorHandle A(Operator::ANY_TYPE);
       a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
-      CGSolver *pcg = new CGSolver(MPI_COMM_WORLD);
-      pcg->SetRelTol(1e-6);
-      pcg->SetAbsTol(0.0);
-      pcg->SetMaxIter(500);
-      pcg->SetPrintLevel(1);
       pcg->SetOperator(*A.Ptr());
       pcg->Mult(B, X);
-      delete pcg;
    }
    else
    {
       HypreParMatrix A;
       a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
-      HypreSolver *amg = new HypreBoomerAMG(A);
-      HyprePCG *pcg = new HyprePCG(A);
-      pcg->SetTol(1e-12);
-      pcg->SetMaxIter(200);
-      pcg->SetPrintLevel(2);
+      amg = new HypreBoomerAMG(A);
+      std::cout << "operator size: " << A.InLayout()->Size() << " " << A.OutLayout()->Size() << std::endl;
+      pcg->SetOperator(A);
       pcg->SetPreconditioner(*amg);
       Vector X_backend(*X.Get_PVector()), B_backend(*B.Get_PVector());
       pcg->Mult(B_backend, X_backend);
       delete amg;
-      delete pcg;
    }
+   delete pcg;
 
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.

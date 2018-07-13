@@ -173,7 +173,8 @@ public:
    {
       OperatorHandle Ah(Operator::Hypre_ParCSR);
       FormLinearSystem(ess_tdof_list, x, b, Ah, X, B, copy_interior);
-      HypreParMatrix *A_ptr = static_cast<HypreParMatrix*>(Ah.Ptr());
+      HypreParMatrix *A_ptr = Ah.As<HypreParMatrix>();
+      Ah.SetOperatorOwner(false);
       MFEM_VERIFY(A_ptr, "invalid OpType used");
       A.MakeRef(*A_ptr);
    }

@@ -133,8 +133,18 @@ void ParBilinearForm::ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local)
    if (fbfi.Size() == 0)
    {
       // construct a parallel block-diagonal matrix 'A' based on 'a'
-      dA.MakeSquareBlockDiag(pfes->GetComm(), pfes->GlobalVSize(),
-                             pfes->GetDofOffsets(), A_local);
+#ifdef MFEM_USE_BACKENDS
+      if (pfes->GetMesh()->HasEngine())
+      {
+         dA.MakeSquareBlockDiag(pfes->GetComm(), *pfes->GetMesh()->GetEngine().MakeLayout(pfes->GlobalVSize()),
+                                pfes->GetDofOffsets(), A_local);
+      }
+      else
+#endif
+      {
+         dA.MakeSquareBlockDiag(pfes->GetComm(), pfes->GlobalVSize(),
+                                pfes->GetDofOffsets(), A_local);
+      }
    }
    else
    {

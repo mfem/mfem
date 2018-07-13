@@ -1272,7 +1272,18 @@ void ParMesh::GenerateOffsets(int N, HYPRE_Int loc_sizes[],
       MPI_Scan(loc_sizes, temp.GetData(), N, HYPRE_MPI_INT, MPI_SUM, MyComm);
       for (int i = 0; i < N; i++)
       {
+#ifdef MFEM_USE_BACKENDS
+         if (HasEngine())
+         {
+            offsets[i]->Resize(engine->MakeLayout(3));
+         }
+         else
+         {
+            offsets[i]->Resize(3);
+         }
+#else
          offsets[i]->SetSize(3);
+#endif
          (*offsets[i])[0] = temp[i] - loc_sizes[i];
          (*offsets[i])[1] = temp[i];
       }
@@ -1293,7 +1304,18 @@ void ParMesh::GenerateOffsets(int N, HYPRE_Int loc_sizes[],
       for (int i = 0; i < N; i++)
       {
          Array<HYPRE_Int> &offs = *offsets[i];
+#ifdef MFEM_USE_BACKENDS
+         if (HasEngine())
+         {
+            offs.Resize(engine->MakeLayout(NRanks+1));
+         }
+         else
+         {
+            offs.Resize(NRanks+1);
+         }
+#else
          offs.SetSize(NRanks+1);
+#endif
          offs[0] = 0;
          for (int j = 0; j < NRanks; j++)
          {

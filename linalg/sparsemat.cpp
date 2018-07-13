@@ -96,6 +96,7 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n,
    }
 }
 
+
 SparseMatrix::SparseMatrix(int nrows, int ncols, int rowsize)
    : AbstractSparseMatrix(nrows, ncols)
    , Rows(NULL)

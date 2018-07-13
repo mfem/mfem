@@ -86,6 +86,29 @@ void OperatorHandle::MakeSquareBlockDiag(MPI_Comm comm, HYPRE_Int glob_size,
    own_oper = true;
 }
 
+void OperatorHandle::MakeSquareBlockDiag(MPI_Comm comm, PLayout &layout,
+                                         HYPRE_Int *row_starts,
+                                         SparseMatrix *diag)
+{
+   if (own_oper) { delete oper; }
+
+   switch (type_id)
+   {
+      case Operator::ANY_TYPE: // --> MFEM_SPARSEMAT
+      case Operator::MFEM_SPARSEMAT:
+         // As a parallel Operator, the SparseMatrix simply represents the local
+         // Operator, without the need of any communication.
+         pSet(diag, false);
+         return;
+      case Operator::Hypre_ParCSR:
+         oper = new HypreParMatrix(comm, layout, row_starts, diag);
+         break;
+      default: MFEM_ABORT(not_supported_msg << type_id);
+   }
+   own_oper = true;
+}
+
+
 void OperatorHandle::
 MakeRectangularBlockDiag(MPI_Comm comm, HYPRE_Int glob_num_rows,
                          HYPRE_Int glob_num_cols, HYPRE_Int *row_starts,

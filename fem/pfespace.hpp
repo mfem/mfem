@@ -240,8 +240,29 @@ public:
 
    int GetDofSign(int i)
    { return NURBSext || Nonconforming() ? 1 : ldof_sign[VDofToDof(i)]; }
-   HYPRE_Int *GetDofOffsets()     const { return dof_offsets; }
-   HYPRE_Int *GetTrueDofOffsets() const { return tdof_offsets; }
+
+   HYPRE_Int *GetDofOffsets() const
+   {
+#ifdef MFEM_USE_BACKENDS
+      if (pmesh->HasEngine())
+      {
+         return dof_offsets.Get_PArray()->GetData<HYPRE_Int>();
+      }
+#endif
+      return dof_offsets;
+   }
+
+   HYPRE_Int *GetTrueDofOffsets() const
+   {
+#ifdef MFEM_USE_BACKENDS
+      if (pmesh->HasEngine())
+      {
+         return tdof_offsets.Get_PArray()->GetData<HYPRE_Int>();
+      }
+#endif
+      return tdof_offsets;
+   }
+
    HYPRE_Int GlobalVSize() const
    { return Dof_TrueDof_Matrix()->GetGlobalNumRows(); }
    HYPRE_Int GlobalTrueVSize() const

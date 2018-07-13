@@ -40,6 +40,8 @@ protected:
    // Virtual interface
    //
 
+   virtual void *DoGetData() const { return (void *) data; }
+
    virtual PArray *DoClone(bool copy_data, void **buffer,
                            std::size_t item_size) const;
 
@@ -57,8 +59,6 @@ protected:
    //
    // Auxiliary methods
    //
-
-   inline char *GetBuffer() const;
 
    inline int ResizeData(const Layout *lt, std::size_t item_size);
 
@@ -104,12 +104,6 @@ public:
 
    inline void MakeRef(Array &master);
 
-   template <class T>
-   T* GetData() { return (T *) data; }
-
-   template <class T>
-   const T* GetData() const { return (T *) data; }
-
    Layout &OmpLayout() const
    { return *static_cast<Layout *>(layout.Get()); }
 };
@@ -118,11 +112,6 @@ public:
 //
 // Inline methods
 //
-
-inline char *Array::GetBuffer() const
-{
-   return data;
-}
 
 inline int Array::ResizeData(const Layout *lt, std::size_t item_size)
 {

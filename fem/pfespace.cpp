@@ -505,6 +505,14 @@ void ParFiniteElementSpace::GenerateGlobalOffsets() const
       delete [] statuses;
       delete [] requests;
    }
+
+#ifdef MFEM_USE_BACKENDS
+   if (pmesh->HasEngine())
+   {
+      dof_offsets.Push();
+      tdof_offsets.Push();
+   }
+#endif
 }
 
 void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
@@ -558,7 +566,12 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
       j_offd[cmap_j_offd[i].two] = i;
    }
 
-   P = new HypreParMatrix(MyComm, MyRank, NRanks, row_starts, col_starts,
+   ParFiniteElementSpace &this_pfes = const_cast<ParFiniteElementSpace&>(*this);
+
+   // FIXME: This needs ifdef guards
+   P = new HypreParMatrix(MyComm, MyRank, NRanks,
+                          *this_pfes.GetVLayout(), *this_pfes.GetTrueVLayout(),
+                          row_starts, col_starts,
                           i_diag, j_diag, i_offd, j_offd, cmap, offd_counter);
 
    SparseMatrix Pdiag;

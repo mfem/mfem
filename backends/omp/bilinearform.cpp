@@ -90,6 +90,11 @@ void BilinearForm::InitRHS(const mfem::Array<int> &ess_tdof_list,
       mfem_B.MakeRef(mfem_b);
    }
 
+   if (A.Type() != mfem::Operator::ANY_TYPE)
+   {
+      A.EliminateBC(mat_e, ess_tdof_list, mfem_X, mfem_B);
+   }
+
    if (!copy_interior && ess_tdof_list.Size() > 0)
    {
       Vector &X = mfem_X.Get_PVector()->As<Vector>();
@@ -127,10 +132,6 @@ void BilinearForm::InitRHS(const mfem::Array<int> &ess_tdof_list,
    {
       ConstrainedOperator *A_constrained = static_cast<ConstrainedOperator*>(A.Ptr());
       A_constrained->EliminateRHS(mfem_X, mfem_B);
-   }
-   else
-   {
-      A.EliminateBC(mat_e, ess_tdof_list, mfem_X, mfem_B);
    }
 }
 
@@ -219,16 +220,28 @@ void BilinearForm::FormSystemMatrix(const mfem::Array<int> &ess_tdof_list,
 #ifdef MFEM_USE_MPI
    else if (A.Type() == mfem::Operator::Hypre_ParCSR)
    {
-      mfem::ParBilinearForm *par_bform = dynamic_cast<mfem::ParBilinearForm*>(bform);
-
       mfem::SparseMatrix &mat = bform->SpMat();
+      mfem::ParBilinearForm *pbform = dynamic_cast<mfem::ParBilinearForm*>(bform);
 
       const bool skip_zeros = false;
       mat.Finalize(skip_zeros);
 
-      par_bform->ParallelAssemble(A, &mat);
+      // -------- FOR SOME VERY AGGREVATING REASON THIS DOESN'T WORK ---------
+      // mfem::ParFiniteElementSpace *pfes = pbform->ParFESpace();
+      // OperatorHandle dA(Operator::Hypre_ParCSR);
+      // // construct a parallel block-diagonal matrix 'A' based on 'a'
+      // dA.MakeSquareBlockDiag(pfes->GetComm(), *engine->MakeLayout(pfes->GlobalTrueVSize()),
+      //                        pfes->GetDofOffsets(), &mat);
+      // OperatorHandle Ph(pfes->Dof_TrueDof_Matrix());
+      // A.MakePtAP(dA, Ph);
+      // A.SetOperatorOwner(false);
+      // -------- BUT THIS DOES ---------
+      pbform->ParallelAssemble(A, &mat);
+      A.SetOperatorOwner(false);
+      // ---------------------
       mat.Clear();
       mat_e.Clear();
+      std::cout << "operator size (FormSystemMatrix): " << A.Ptr()->InLayout()->Size() << " " << A.Ptr()->OutLayout()->Size() << std::endl;
 
       mat_e.EliminateRowsCols(A, ess_tdof_list);
    }
@@ -245,6 +258,7 @@ void BilinearForm::FormLinearSystem(const mfem::Array<int> &ess_tdof_list,
                                     int copy_interior)
 {
    FormSystemMatrix(ess_tdof_list, A);
+   std::cout << "operator size (FormLinearSystem 1): " << A.Ptr()->InLayout()->Size() << " " << A.Ptr()->OutLayout()->Size() << std::endl;
    InitRHS(ess_tdof_list, x, b, A, X, B, copy_interior);
 }
 
@@ -281,6 +295,7 @@ ConstrainedOperator::ConstrainedOperator(mfem::Operator *A_,
    : Operator(A_->InLayout()->As<Layout>()),
      A(A_),
      own_A(own_A_),
+     // FIXME: @dudouit1 has a general fix for this
      constraint_list(constraint_list_.Get_PArray()->As<Array>()),
      z(OutLayout()->As<Layout>()),
      w(OutLayout()->As<Layout>()),

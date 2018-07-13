@@ -42,6 +42,9 @@ public:
    /// Creates a matrix of the given height and width.
    explicit Matrix(int h, int w) : Operator(h, w) { }
 
+   /// Creates a matrix of the given layouts.
+   explicit Matrix(PLayout &in_layout, PLayout &out_layout) : Operator(in_layout, out_layout) { }
+
    /// Returns reference to a_{ij}.
    virtual double &Elem(int i, int j) = 0;
 
@@ -82,6 +85,9 @@ public:
 
    /// Creates a matrix of the given height and width.
    explicit AbstractSparseMatrix(int h, int w) : Matrix(h, w) { }
+
+   /// Creates a matrix of the given height and width.
+   explicit AbstractSparseMatrix(PLayout &in_layout, PLayout &out_layout) : Matrix(in_layout, out_layout) { }
 
    /// Returns the number of non-zeros in a matrix
    virtual int NumNonZeroElems() const = 0;

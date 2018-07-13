@@ -30,17 +30,17 @@ PVector *Vector::DoVectorClone(bool copy_data, void **buffer,
    {
       const std::size_t total_size = sizeof(double) * OmpLayout().Size();
       if (!ComputeOnDevice())
-         std::memcpy(new_vector->GetBuffer(), data, total_size);
+         std::memcpy(new_vector->GetData<void>(), data, total_size);
       else
       {
-         char *new_data = new_vector->GetBuffer();
+         char *new_data = new_vector->GetData<char>();
 #pragma omp target teams distribute parallel for is_device_ptr(new_data)
          for (std::size_t i = 0; i < total_size; i++) new_data[i] = data[i];
       }
    }
    if (buffer)
    {
-      *buffer = new_vector->GetBuffer();
+      *buffer = new_vector->GetData<void>();
    }
    return new_vector;
 }
