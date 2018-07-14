@@ -400,7 +400,7 @@ protected:
    void Make1D(int n, double sx = 1.0);
 
    /// Initialize vertices/elements/boundary/tables from a nonconforming mesh.
-   void InitFromNCMesh(const NCMesh &ncmesh);
+   STable3D* InitFromNCMesh(const NCMesh &ncmesh);
 
    /// Create from a nonconforming mesh.
    explicit Mesh(const NCMesh &ncmesh);
@@ -845,8 +845,8 @@ public:
    {
       return (faces_info[FaceNo].Elem2No >= 0);
    }
-   void GetFaceElements (int Face, int *Elem1, int *Elem2);
-   void GetFaceInfos (int Face, int *Inf1, int *Inf2);
+   void GetFaceElements (int Face, int *Elem1, int *Elem2) const;
+   void GetFaceInfos (int Face, int *Inf1, int *Inf2) const;
 
    int GetFaceGeometryType(int Face) const;
    int GetFaceElementType(int Face) const;
