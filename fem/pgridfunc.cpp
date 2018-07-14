@@ -362,9 +362,11 @@ void ParGridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
    AccumulateAndCountZones(coeff, type, zones_per_vdof);
 
    // Count the zones globally.
-   GroupCommunicator &gcomm = pfes->GroupComm();
-   gcomm.Reduce<int>(zones_per_vdof, GroupCommunicator::Sum);
-   gcomm.Bcast(zones_per_vdof);
+   GroupCommunicator* gcomm = pfes->ScalarGroupComm();
+   gcomm->Reduce<int>(zones_per_vdof, GroupCommunicator::Sum);
+   gcomm->Bcast(zones_per_vdof);
+   delete gcomm;
+
    // Accumulate for all tdofs.
    HypreParVector *tv = this->ParallelAssemble();
    this->Distribute(tv);
