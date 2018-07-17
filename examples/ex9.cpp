@@ -63,6 +63,7 @@ private:
    FiniteElementSpace* fes;
    SparseMatrix &M, &K;
    const Vector &b, &elDiff, &lumpedM;
+   const DenseMatrix &bdrDiff;
    DSmoother M_prec;
    CGSolver M_solver;
    int m_mono_type;
@@ -71,8 +72,8 @@ private:
 
 public:
    FE_Evolution(FiniteElementSpace* fes, SparseMatrix &_M, SparseMatrix &_K, 
-                const Vector &_b, const Vector &_elDiff, const Vector &_lumpedM, 
-                int mono_type);
+                const Vector &_b, const Vector &_elDiff, const DenseMatrix &_bdrDiff, 
+                const Vector &_lumpedM, int mono_type);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -80,33 +81,140 @@ public:
 };
 
 
+void extractBdrDofs(int GeomType, int nd, const int bdrID, Array< int > &dofs)
+{
+   if (nd == 1)
+   {
+      dofs.SetSize(1);
+      dofs[0] = 0;
+      return;
+   }
+   switch (GeomType)
+   {
+      case Geometry::POINT:
+         mfem_error ("No boundaries for geometry POINT.");
+      case Geometry::SEGMENT:
+      {
+         dofs.SetSize(1);
+         switch (bdrID)
+         {
+            case 0:
+               dofs[0] = 0; return;
+            case 1:
+               dofs[0] = nd-1; return;
+            default:
+               mfem_error ("No more boundaries for geometry SEGMENT.");
+         }
+      }
+      case Geometry::TRIANGLE:
+      {
+         //TODO
+      }
+      case Geometry::SQUARE:
+      {
+         int j = 0, n = sqrt(nd);
+         dofs.SetSize(n);
+         switch (bdrID)
+         {
+            case 0:
+               for (int i = 0; i < n; i++)
+                  dofs[j++] = i;
+               return;
+            case 1:
+               for (int i = n-1; i < n*n; i+=n)
+                  dofs[j++] = i;
+               return;
+            case 2:
+               for (int i = n*(n-1); i < n*n; i++)
+                  dofs[j++] = i;
+               return;
+            case 3:
+               for (int i = 0; i <= n*(n-1); i+=n)
+                  dofs[j++] = i;
+               return;
+            default:
+               mfem_error ("No more boundaries for geometry SQUARE.");
+         }
+      }
+      case Geometry::TETRAHEDRON: 
+      {
+         //TODO
+      }
+      case Geometry::CUBE:
+      {
+         int k = 0, n = cbrt(nd);
+         dofs.SetSize(n*n);
+         switch (bdrID)
+         {
+            case 0:
+               for (int i = 0; i < n*n; i++)
+                  dofs[k++] = i;
+               return;
+            case 1:
+               for (int i = 0; i <= n*n*(n-1); i+=n*n)
+                  for (int j = 0; j < n; j++)
+                     dofs[k++] = i+j;
+               return;
+            case 2:
+               for (int i = n-1; i < n*n*n; i+=n)
+                  dofs[k++] = i;
+               return;
+            case 3:
+               for (int i = 0; i <= n*n*(n-1); i+=n*n)
+                  for (int j = n*(n-1); j < n*n; j++)
+                     dofs[k++] = i+j;
+               return;
+            case 4:
+               for (int i = 0; i <= n*(n*n-1); i+=n)
+                  dofs[k++] = i;
+               return;
+            case 5:
+               for (int i = n*n*(n-1); i < n*n*n; i++)
+                  dofs[k++] = i;
+               return;
+            default:
+               mfem_error ("No more boundaries for geometry CUBE.");
+         }
+      }
+      default:
+         mfem_error ("extractBdrDofs(...)");
+   }
+}
+
+
 void preprocessLowOrderScheme(FiniteElementSpace* fes, VectorFunctionCoefficient & coef, 
-                              int mono_type, Vector &elDiff, Vector &lumpedM)
+                              int mono_type, Vector &elDiff, DenseMatrix &bdrDiff, 
+                              Vector &lumpedM)
 {
    if (mono_type == 0)
       return;
    
    Mesh *mesh = fes->GetMesh();
-   int i, j, k, nd, dim = mesh->Dimension(), ne = mesh->GetNE();
+   int i, j, k, p, qOrd, nd, geomType, numBdrs, numDofs,
+   dim = mesh->Dimension(), ne = mesh->GetNE();
    ElementTransformation *tr;
    Vector shape, vec1, vec2, estim1, estim2, vval(dim), nor(dim);
    DenseMatrix dshape, adjJ;
+   Array< int > dofs, bdrs, orientation;
+   DenseMatrix velEval;
    
    elDiff.SetSize(ne); elDiff = 0.;
    lumpedM.SetSize(ne); lumpedM = 0.;
    adjJ.SetSize(dim,dim);
    
-   ///////////////////////////
-   // Element contributions //
-   ///////////////////////////
    for (k = 0; k < ne; k++)
    {
+      ///////////////////////////
+      // Element contributions //
+      ///////////////////////////
       const FiniteElement &el = *fes->GetFE(k);
       nd = el.GetDof();
       tr = mesh->GetElementTransformation(k);
-      //TODO choose right formula
-      int order = 2*(tr->Order() + el.GetOrder());
-      const IntegrationRule *ir = &IntRules.Get(el.GetGeomType(), order);
+      // estim1 can not be integrated exactly due to transforamtion dependent denominator
+      // use tr->Order()-1 + 4*el.GetOrder() instead
+      // appropriate qOrd for estim2 is tr->Order()-1 + 2*el.GetOrder(), choose max
+      qOrd = tr->Order()-1 + 4*el.GetOrder();
+      const IntegrationRule *ir = &IntRules.Get(el.GetGeomType(), qOrd);
       
       shape.SetSize(nd);
       dshape.SetSize(nd,dim);
@@ -116,16 +224,18 @@ void preprocessLowOrderScheme(FiniteElementSpace* fes, VectorFunctionCoefficient
       vec2.SetSize(nd);
       estim1 = estim2 = 0.;
       
-      for (i = 0; i < ir->GetNPoints(); i++)
+      coef.Eval(velEval, *tr, *ir);
+            
+      for (p = 0; p < ir->GetNPoints(); p++)
       {
-         const IntegrationPoint &ip = ir->IntPoint(i);
+         const IntegrationPoint &ip = ir->IntPoint(p);
          tr->SetIntPoint(&ip);
-         
-         coef.Eval(vval, *tr, ip);
+
          el.CalcDShape(ip, dshape);
          CalcAdjugate(tr->Jacobian(), adjJ);
          el.CalcShape(ip, shape);
          
+         velEval.GetColumnReference(p, vval);
          adjJ.Mult(vval, vec1);
          dshape.Mult(vec1, vec2);
          for (j = 0; j < nd; j++)
@@ -138,63 +248,85 @@ void preprocessLowOrderScheme(FiniteElementSpace* fes, VectorFunctionCoefficient
       }
       elDiff(k) = std::sqrt(estim1.Max() * estim2.Max());
       lumpedM(k) /= nd;
-   }
-   ////////////////////////
-   // Face contributions //
-   ////////////////////////
-   FaceElementTransformations *Trans;
-   int nf = mesh->GetNumFaces();
-   double est1, est2; //TODO data structure
-   for (k = 0; k < nf; k++)
-   {
-      Trans = mesh -> GetInteriorFaceTransformations (k);
-      const FiniteElement &el1 = *fes->GetFE(Trans -> Elem1No);
-      const FiniteElement &el2 = *fes->GetFE(Trans -> Elem2No);
-      //TODO choose right formulas
-      int order1 = Trans->Loc1.Transf.Order() + 2*el1.GetOrder();
-      int order2 = Trans->Loc2.Transf.Order() + 2*el2.GetOrder();
-      const IntegrationRule *irF1 = &IntRules.Get(Trans->FaceGeom, order1);
-      const IntegrationRule *irF2 = &IntRules.Get(Trans->FaceGeom, order2);
-      double un = 0.;
-      nd = el1.GetDof();
-      Vector bas(nd);
-      bas = 0.;
       
-      for (int p = 0; p < irF1->GetNPoints(); p++)
+      ////////////////////////
+      // Face contributions //
+      ////////////////////////
+      if (dim==1)
+         mesh->GetElementVertices(k, bdrs);
+      else if (dim==2)
+         mesh->GetElementEdges(k, bdrs, orientation);
+      else if (dim==3)
+         mesh->GetElementFaces(k, bdrs, orientation);
+      
+      numBdrs = bdrs.Size();
+      geomType = el.GetGeomType();
+
+      if (k==0)
+         bdrDiff.SetSize(ne,numBdrs);
+
+      for (i = 0; i < numBdrs; i++)
       {
-         const IntegrationPoint &ip = irF1->IntPoint(p);
-         IntegrationPoint eip1;
-         Trans->Loc1.Transform(ip, eip1);
-         shape.SetSize(nd);
+         extractBdrDofs(geomType, nd, i, dofs);
+         numDofs = dofs.Size();
          
-         /*if (ndof2)
+         FaceElementTransformations *Trans = mesh -> GetFaceElementTransformations(bdrs[i]); 
+         // qOrd is chosen such that L2-norm of basis is computed accurately.
+         // Normal velocity term relies on L^{infty}-norm which is approximated 
+         // by its maximum value in the quadrature points of the same rule.
+         if (Trans->Elem1No != k)
          {
-            Trans.Loc2.Transform(ip, eip2);
-         }*/
-         el1.CalcShape(eip1, shape);
-         
-         Trans->Face->SetIntPoint(&ip);
-         Trans->Elem1->SetIntPoint(&eip1);
-         
-         coef.Eval(vval, *Trans->Elem1, eip1);
-         
-         if (dim == 1)
-         {
-            nor(0) = 2.*eip1.x - 1.0;
+            if (Trans->Elem2No != k)
+               mfem_error("Boundary edge does not belong to this element.");
+            else
+               qOrd = Trans->Loc2.Transf.Order() + 2*el.GetOrder();
          }
          else
          {
-            CalcOrtho(Trans->Face->Jacobian(), nor);
+            qOrd = Trans->Loc1.Transf.Order() + 2*el.GetOrder();
          }
-         un = std::max(vval * nor, un); //TODO sign of normal, TODO put un into estim1
-         for(j = 0; j < nd; j++) //TODO change nd to ndS
+
+         const IntegrationRule *irF1 = &IntRules.Get(Trans->FaceGeom, qOrd);
+         double un = 0.;
+         Vector bas(numDofs);
+         bas = 0.;
+         
+         for (int p = 0; p < irF1->GetNPoints(); p++)
          {
-            bas(j) += ip.weight * Trans->Face->Weight() * pow(shape(j), 2.);
+            const IntegrationPoint &ip = irF1->IntPoint(p);
+            IntegrationPoint eip1;
+            
+            Trans->Face->SetIntPoint(&ip);
+            
+            if (dim == 1)
+               nor(0) = 2.*eip1.x - 1.0;
+            else
+               CalcOrtho(Trans->Face->Jacobian(), nor);
+            
+            if (Trans->Elem1No != k)
+            {
+               Trans->Loc2.Transform(ip, eip1);
+               el.CalcShape(eip1, shape);
+               Trans->Elem2->SetIntPoint(&eip1);
+               coef.Eval(vval, *Trans->Elem2, eip1);
+               nor *= -1.;
+            }
+            else
+            {
+               Trans->Loc1.Transform(ip, eip1);
+               el.CalcShape(eip1, shape);
+               Trans->Elem1->SetIntPoint(&eip1);
+               coef.Eval(vval, *Trans->Elem1, eip1);
+            }
+            
+            nor /= nor.Norml2();
+
+            un = std::max(vval * nor, un);
+            for(j = 0; j < numDofs; j++)
+               bas(j) += ip.weight * Trans->Face->Weight() * pow(shape(dofs[j]), 2.);
          }
+         bdrDiff(k,i) = un * bas.Max();
       }
-      est2 = bas.Max(); //TODO est2 properly
-      
-      // TODO copy paste for el2
    }
 }
 
@@ -205,8 +337,8 @@ int main(int argc, char *argv[])
    problem = 1;
    const char *mesh_file = "../data/periodic-hexagon.mesh";
    int ref_levels = 4;
-   int order = 1;
-   int ode_solver_type = 3;
+   int order = 0;
+   int ode_solver_type = 1;
    int mono_type = 1;
    double t_final = 1.0;
    double dt = 0.001;
@@ -230,6 +362,8 @@ int main(int argc, char *argv[])
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Forward Euler,\n\t"
                   "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
+   args.AddOption(&mono_type, "-mt", "--mono_type",
+                  "Type of monotonicity treatment.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -293,6 +427,16 @@ int main(int argc, char *argv[])
    const int btype = BasisType::Positive;
    DG_FECollection fec(order, dim, btype);
    FiniteElementSpace fes(mesh, &fec);
+   if (mono_type==1)
+   {
+      if (btype != 2)
+      {
+         cout << "Monotonicity treatment requires use of Bernstein basis." << endl;
+         return 5;
+      }
+      if (order==0)
+         mfem_warning("No need to use monotonicity treatment for polynomial order 0.");
+   }
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
 
@@ -325,7 +469,8 @@ int main(int argc, char *argv[])
    
    // Precompute data required for low order scheme
    Vector elDiff, lumpedM;
-   preprocessLowOrderScheme(&fes, velocity, mono_type, elDiff, lumpedM);
+   DenseMatrix bdrDiff;
+   preprocessLowOrderScheme(&fes, velocity, mono_type, elDiff, bdrDiff, lumpedM);
 
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
@@ -393,8 +538,8 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(&fes, m.SpMat(), k.SpMat(), b, elDiff, lumpedM, mono_type);
-
+   FE_Evolution adv(&fes, m.SpMat(), k.SpMat(), b, elDiff, bdrDiff, lumpedM, mono_type);
+   
    double t = 0.0;
    adv.SetTime(t);
    ode_solver->Init(adv);
@@ -437,17 +582,16 @@ int main(int argc, char *argv[])
    // 10. Free the used memory.
    delete ode_solver;
    delete dc;
-
    return 0;
 }
 
 
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(FiniteElementSpace* _fes, SparseMatrix &_M, SparseMatrix &_K, 
-                           const Vector &_b, const Vector &_elDiff, const Vector &_lumpedM, 
-                           int mono_type)
+                           const Vector &_b, const Vector &_elDiff, const DenseMatrix 
+                           &_bdrDiff, const Vector &_lumpedM, int mono_type)
    : TimeDependentOperator(_M.Size()), fes(_fes), M(_M), K(_K), b(_b), elDiff(_elDiff), 
-   lumpedM(_lumpedM), m_mono_type(mono_type), z(_M.Size())
+   lumpedM(_lumpedM), bdrDiff(_bdrDiff), m_mono_type(mono_type), z(_M.Size())
 {
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(M);
@@ -459,9 +603,9 @@ FE_Evolution::FE_Evolution(FiniteElementSpace* _fes, SparseMatrix &_M, SparseMat
    M_solver.SetPrintLevel(0);
 }
 
+
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
-   // TODO maybe assert for Bernstein basis, how?
    if (m_mono_type == 0)
    {
       // No monotonicity treatment, straightforward high-order scheme
@@ -473,57 +617,58 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    else if (m_mono_type == 1)
    {
       // Rusanov scheme I
-      int j, k, nd, ctr = 0;
-      double uAvg;
       Mesh *mesh = fes->GetMesh();
+      int i, j, k, geomType, nd, numDofs, numBdrs, dim = mesh->Dimension();
+      Array< int > bdrs, orientation, dofs;
+      double uSum;
       
       // Discretization terms
       K.Mult(x, z);
       z += b;
       
-      ///////////////////////////
-      // Element contributions //
-      ///////////////////////////
+      // Monotonicity terms
+      // Note: the same polynomial order for each element is assumed when accessing solution
       for (k = 0; k < mesh->GetNE(); k++)
       {
          const FiniteElement &el = *fes->GetFE(k);
          nd = el.GetDof();
-         uAvg = 0.;
          
-         for (j = 0; j < nd; j++)
-         {
-            uAvg += x(ctr+j);
-            // If mass(j) is the integral of the j-th basis function, this is the general
-            // case, where mass may not be distributed equally between basis functions. 
-            // uAvg += x(ctr+j) * mass(j);
-            // sumM += mass(j);
-         }
-         // If quadrature is inexact (element curved) sumM may not be equal to element area.
-         // Mass may not be equally distributed between Bernstein basis functions.
-         // The low-order properties of the Rusanov scheme may be violated.
-         // uAvg /= sumM;
-         uAvg /= nd;
+         if (dim==1)
+            mesh->GetElementVertices(k, bdrs);
+         else if (dim==2)
+            mesh->GetElementEdges(k, bdrs, orientation);
+         else if (dim==3)
+            mesh->GetElementFaces(k, bdrs, orientation);
          
-         for (j = 0; j < nd; j++)
+         geomType = el.GetGeomType();
+         numBdrs = bdrs.Size();
+
+         ////////////////////////
+         // Face contributions //
+         ////////////////////////
+         for (i = 0; i < numBdrs; i++)
          {
-            y(ctr) = (z(ctr) + nd*elDiff(k)*(uAvg - x(ctr))) / lumpedM(k);
-            ctr++;
+            extractBdrDofs(geomType, nd, i, dofs);
+            numDofs = dofs.Size();
+            
+            uSum = 0.;
+            for (j = 0; j < numDofs; j++)
+               uSum += x(k*nd+dofs[j]);
+            
+            // boundary update
+            for (j = 0; j < nd; j++)
+               z(k*nd+j) += bdrDiff(k,i)*(uSum - numDofs*x(k*nd+j));
          }
-      }
-      ////////////////////////
-      // Face contributions //
-      ////////////////////////
-      Array< int > dofs; //, vdofs2;
-      //fes -> GetElementVDofs (0, vdofs2);
-      //std::cout << vdofs2[4] << std::endl;
-      for (k = 0; k < mesh->GetNumFaces(); k++)
-      {
-         FaceElementTransformations *tr = mesh->GetInteriorFaceTransformations(k);
-         const FiniteElement &el1 = *fes->GetFE(tr->Elem1No);
-         const FiniteElement &el2 = *fes->GetFE(tr->Elem2No);
-         fes->GetFaceDofs(k, dofs);
-//         if (dofs != NULL)
-//            std::cout << dofs[0] << std::endl;
+         ///////////////////////////
+         // Element contributions //
+         ///////////////////////////
+         uSum = 0.;
+         for (j = 0; j < nd; j++)
+            uSum += x(k*nd+j);
+
+         // element update and inversion of lumped mass matrix
+         for (j = 0; j < nd; j++)
+            y(k*nd+j) = ( z(k*nd+j) + elDiff(k)*(uSum - nd*x(k*nd+j)) ) / lumpedM(k);
       }
    }
 }
