@@ -1343,6 +1343,15 @@ PetscParMatrix * RAP(PetscParMatrix *A, PetscParMatrix *P)
    return out;
 }
 
+PetscParMatrix * ParMult(const PetscParMatrix *A, const PetscParMatrix *B)
+{
+   Mat AB;
+
+   ierr = MatMatMult(*A,*B,MAT_INITIAL_MATRIX,PETSC_DEFAULT,&AB);
+   CCHKERRQ(A->GetComm(),ierr);
+   return new PetscParMatrix(AB);
+}
+
 PetscParMatrix* PetscParMatrix::EliminateRowsCols(const Array<int> &rows_cols)
 {
    Mat Ae;
