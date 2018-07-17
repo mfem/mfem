@@ -348,6 +348,9 @@ public:
    Type GetType() const;
 };
 
+/// Returns the matrix A * B
+PetscParMatrix * ParMult(const PetscParMatrix *A, const PetscParMatrix *B);
+
 /// Returns the matrix Rt^t * A * P
 PetscParMatrix * RAP(PetscParMatrix *Rt, PetscParMatrix *A, PetscParMatrix *P);
 
