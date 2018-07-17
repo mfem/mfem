@@ -155,12 +155,20 @@ PetscInt PetscParVector::GlobalSize() const
    return N;
 }
 
-PetscParVector::PetscParVector(MPI_Comm comm, const Vector &_x) : Vector()
+PetscParVector::PetscParVector(MPI_Comm comm, const Vector &_x, bool copy) : Vector()
 {
    ierr = VecCreate(comm,&x); CCHKERRQ(comm,ierr);
    ierr = VecSetSizes(x,_x.Size(),PETSC_DECIDE); PCHKERRQ(x,ierr);
    ierr = VecSetType(x,VECSTANDARD); PCHKERRQ(x,ierr);
    _SetDataAndSize_();
+   if (copy)
+   {
+      PetscScalar *array;
+
+      ierr = VecGetArray(x,&array); PCHKERRQ(x,ierr);
+      for (int i = 0; i < _x.Size(); i++) array[i] = _x[i];
+      ierr = VecRestoreArray(x,&array); PCHKERRQ(x,ierr);
+   }
 }
 
 PetscParVector::PetscParVector(MPI_Comm comm, PetscInt glob_size,
