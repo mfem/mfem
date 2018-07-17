@@ -63,8 +63,10 @@ public:
    /// Creates vector compatible with @a y
    PetscParVector(const PetscParVector &y);
 
-   /// Creates a PetscParVector from a Vector (data is not copied)
-   PetscParVector(MPI_Comm comm, const Vector &_x);
+   /** @brief Creates a PetscParVector from a Vector
+       @param[in] _x    The mfem Vector (data is not shared)
+       @param[in] copy  Whether to copy the data in _x or not */
+   PetscParVector(MPI_Comm comm, const Vector &_x, bool copy = false);
 
    /** @brief Creates vector compatible with the Operator (i.e. in the domain
        of) @a op or its adjoint. */
