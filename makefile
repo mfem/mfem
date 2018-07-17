@@ -245,7 +245,7 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU\
  MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC\
  MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_BACKENDS MFEM_USE_OCCA\
- MFEM_SOURCE_DIR MFEM_INSTALL_DIR
+ MFEM_USE_PA MFEM_SOURCE_DIR MFEM_INSTALL_DIR
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
@@ -307,13 +307,16 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # Source dirs in logical order
-ALL_SRC_DIRS := general linalg mesh fem backends/base backends/occa
+ALL_SRC_DIRS := general linalg mesh fem backends/base backends/occa backends/partialassembly
 DIRS := $(ALL_SRC_DIRS)
 ifeq ($(MFEM_USE_BACKENDS),NO)
    DIRS := $(filter-out backends/%,$(DIRS))
 else
    ifeq ($(MFEM_USE_OCCA),NO)
       DIRS := $(filter-out backends/occa,$(DIRS))
+   endif
+   ifeq ($(MFEM_USE_PA),NO)
+      DIRS := $(filter-out backends/partialassembly,$(DIRS))
    endif
 endif
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
@@ -503,6 +506,7 @@ status info:
 	$(info MFEM_USE_MPI         = $(MFEM_USE_MPI))
 	$(info MFEM_USE_BACKENDS    = $(MFEM_USE_BACKENDS))
 	$(info MFEM_USE_OCCA        = $(MFEM_USE_OCCA))
+	$(info MFEM_USE_PA          = $(MFEM_USE_PA))
 	$(info MFEM_USE_METIS       = $(MFEM_USE_METIS))
 	$(info MFEM_USE_METIS_5     = $(MFEM_USE_METIS_5))
 	$(info MFEM_DEBUG           = $(MFEM_DEBUG))

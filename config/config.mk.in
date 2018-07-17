@@ -41,6 +41,7 @@ MFEM_USE_SIDRE       = @MFEM_USE_SIDRE@
 MFEM_USE_CONDUIT     = @MFEM_USE_CONDUIT@
 MFEM_USE_BACKENDS    = @MFEM_USE_BACKENDS@
 MFEM_USE_OCCA        = @MFEM_USE_OCCA@
+MFEM_USE_PA          = @MFEM_USE_PA@
 
 # Compiler, compile options, and link options
 MFEM_CXX       = @MFEM_CXX@

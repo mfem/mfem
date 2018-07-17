@@ -659,6 +659,14 @@ public:
       own_data = true;
    }
 
+   DenseTensor(double* ext_data, int i, int j, int k)
+   {
+      Mk.UseExternalData(NULL, i, j);
+      nk = k;
+      tdata = ext_data;
+      own_data = false;
+   }
+
    /// Copy constructor: deep copy
    DenseTensor(const DenseTensor& other)
       : Mk(NULL, other.Mk.height, other.Mk.width), nk(other.nk), own_data(true)

@@ -1627,6 +1627,8 @@ public:
 
    virtual Coefficient *GetScalarCoefficient() const { return Q; }
 
+   void GetParameters(Coefficient*& coef) const { coef = Q; }
+
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe);
 };
@@ -1660,6 +1662,8 @@ public:
    virtual const char *Name() const { return "mass"; }
 
    virtual Coefficient *GetScalarCoefficient() const { return Q; }
+
+   void GetParameters(Coefficient*& coef) const { coef = Q; }
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
@@ -1697,6 +1701,14 @@ public:
    virtual void AssembleElementMatrix(const FiniteElement &,
                                       ElementTransformation &,
                                       DenseMatrix &);
+
+   virtual const char *Name() const { return "convection"; }
+
+   void GetParameters(VectorCoefficient*& vcoef, double*& a)
+   {
+    vcoef = &Q;
+    a = &alpha;
+   }
 };
 
 /// alpha (q . grad u, v) using the "group" FE discretization
@@ -2082,6 +2094,16 @@ public:
                                    const FiniteElement &el2,
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
+
+   virtual const char *Name() const { return "dgtrace"; }
+
+   void GetParameters(Coefficient*& _rho, VectorCoefficient*& _u, double*& _alpha, double*& _beta)
+   {
+    _rho   = rho;
+    _u     = u;
+    _alpha = &alpha;
+    _beta  = &beta;
+   }
 };
 
 /** Integrator for the DG form:

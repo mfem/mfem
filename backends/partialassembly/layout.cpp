@@ -9,23 +9,32 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_BACKENDS_ALL_HPP
-#define MFEM_BACKENDS_ALL_HPP
+#include "../../config/config.hpp"
+#if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_PA)
 
-#include "../config/config.hpp"
+#include "layout.hpp"
+#include "../../general/array.hpp"
 
-#ifdef MFEM_USE_BACKENDS
+namespace mfem
+{
 
-#include "base/backend.hpp"
+namespace pa
+{
 
-#ifdef MFEM_USE_OCCA
-#include "occa/backend.hpp"
-#endif
+void Layout::Resize(std::size_t new_size)
+{
+	size = new_size;
+}
 
-#ifdef MFEM_USE_PA
-#include "partialassembly/backend.hpp"
-#endif
+void Layout::Resize(const Array<std::size_t> &offsets)
+{
+	MFEM_ASSERT(offsets.Size() == 2,
+	            "multiple workers are not supported yet");
+	size = offsets.Last();
+}
 
-#endif // MFEM_USE_BACKENDS
+} // namespace mfem::pa
 
-#endif // MFEM_BACKENDS_ALL_HPP
+} // namespace mfem
+
+#endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_PA)
