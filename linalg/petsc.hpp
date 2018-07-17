@@ -246,6 +246,9 @@ public:
    /// Calls PETSc's destroy function.
    virtual ~PetscParMatrix() { Destroy(); }
 
+   /// Replace the inner Mat Object. The reference count of newA is increased
+   void SetMat(Mat newA);
+
    /// @name Assignment operators
    ///@{
    PetscParMatrix& operator=(const PetscParMatrix& B);
