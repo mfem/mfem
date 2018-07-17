@@ -776,7 +776,13 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
    IdentityOperator *pI = const_cast<IdentityOperator *>
                           (dynamic_cast<const IdentityOperator *>(&op));
 
-   if (pA)
+   PetscBool avoidmatconvert = PETSC_FALSE;
+   if (pA) // we test for these types since MatConvert will fail
+   {
+      ierr = PetscObjectTypeCompareAny((PetscObject)(pA->A),&avoidmatconvert,MATMFFD,MATSHELL,"");
+      CCHKERRQ(comm,ierr);
+   }
+   if (pA && !avoidmatconvert)
    {
       Mat       At = NULL;
       PetscBool ismatis,istrans;
@@ -989,9 +995,8 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
       for (i=0; i<nr*nc; i++) { ierr = MatDestroy(&mats[i]); CCHKERRQ(comm,ierr); }
       ierr = PetscFree(mats); CCHKERRQ(PETSC_COMM_SELF,ierr);
    }
-   else if (pI)
+   else if (pI && tid == PETSC_MATAIJ)
    {
-      MFEM_VERIFY(tid == PETSC_MATAIJ,"Unsupported operation");
       PetscInt rst;
 
       ierr = MatCreate(comm,A); CCHKERRQ(comm,ierr);
@@ -1011,7 +1016,26 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
    }
    else // fallback to general operator
    {
+      MFEM_VERIFY(tid == PETSC_MATSHELL || tid == PETSC_MATAIJ,"Supported types are PETSC_MATSHELL or PETSC_MATAIJ");
       MakeWrapper(comm,&op,A);
+      if (tid == PETSC_MATAIJ)
+      {
+         Mat B;
+         PetscBool isaij;
+
+         ierr = MatComputeExplicitOperator(*A,&B); CCHKERRQ(comm,ierr);
+         ierr = PetscObjectTypeCompare((PetscObject)B,MATMPIAIJ,&isaij); CCHKERRQ(comm,ierr);
+         ierr = MatDestroy(A); CCHKERRQ(comm,ierr);
+         if (!isaij)
+         {
+            ierr = MatConvert(B,MATAIJ,MAT_INITIAL_MATRIX,A); CCHKERRQ(comm,ierr);
+            ierr = MatDestroy(&B); CCHKERRQ(comm,ierr);
+         }
+         else
+         {
+            *A = B;
+         }
+      }
    }
 }
 
