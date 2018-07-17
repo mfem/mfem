@@ -1040,6 +1040,16 @@ PetscParMatrix::PetscParMatrix(Mat a, bool ref)
    width = GetNumCols();
 }
 
+void PetscParMatrix::SetMat(Mat _A)
+{
+   if (_A == A) return;
+   Destroy();
+   ierr = PetscObjectReference((PetscObject)_A); PCHKERRQ(_A,ierr);
+   A = _A;
+   height = GetNumRows();
+   width = GetNumCols();
+}
+
 // Computes y = alpha * A  * x + beta * y
 //       or y = alpha * A^T* x + beta * y
 static void MatMultKernel(Mat A,PetscScalar a,Vec X,PetscScalar b,Vec Y,
