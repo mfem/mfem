@@ -313,6 +313,26 @@ PetscParVector& PetscParVector::operator=(PetscScalar d)
    return *this;
 }
 
+PetscParVector& PetscParVector::SetValues(const Array<PetscInt>& idx, const Array<PetscScalar>& vals)
+{
+   MFEM_VERIFY(idx.Size() == vals.Size(),"Size mismatch between indices and values");
+   PetscInt n = idx.Size();
+   ierr = VecSetValues(x,n,idx.GetData(),vals.GetData(),INSERT_VALUES); PCHKERRQ(x,ierr);
+   ierr = VecAssemblyBegin(x); PCHKERRQ(x,ierr);
+   ierr = VecAssemblyEnd(x); PCHKERRQ(x,ierr);
+   return *this;
+}
+
+PetscParVector& PetscParVector::AddValues(const Array<PetscInt>& idx, const Array<PetscScalar>& vals)
+{
+   MFEM_VERIFY(idx.Size() == vals.Size(),"Size mismatch between indices and values");
+   PetscInt n = idx.Size();
+   ierr = VecSetValues(x,n,idx.GetData(),vals.GetData(),ADD_VALUES); PCHKERRQ(x,ierr);
+   ierr = VecAssemblyBegin(x); PCHKERRQ(x,ierr);
+   ierr = VecAssemblyEnd(x); PCHKERRQ(x,ierr);
+   return *this;
+}
+
 PetscParVector& PetscParVector::operator=(const PetscParVector &y)
 {
    ierr = VecCopy(y.x,x); PCHKERRQ(x,ierr);

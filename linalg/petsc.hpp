@@ -107,6 +107,18 @@ public:
    /// Set constant values
    PetscParVector& operator= (PetscScalar d);
 
+   /** @brief Set values in a vector.
+
+       @note any process can insert in any location
+       @note This is a collective operation, so all process needs to call it  */
+   PetscParVector& SetValues(const Array<PetscInt>&, const Array<PetscScalar>&);
+
+   /** @brief Add values in a vector.
+
+       @note any process can add to any location
+       @note This is a collective operation, so all process needs to call it  */
+   PetscParVector& AddValues(const Array<PetscInt>&, const Array<PetscScalar>&);
+
    /// Define operators for PETSc vectors.
    PetscParVector& operator= (const PetscParVector &y);
    PetscParVector& operator+= (const PetscParVector &y);
