@@ -1408,6 +1408,42 @@ int ParMesh::GetFaceSplittings(Element *face, const DSTable &v_to_v,
    return number_of_splittings;
 }
 
+int ParMesh::GetFaceSplittings(Element *face, const HashTable<Hashed2> &v_to_v)
+{
+   int m, right = 0;
+   int number_of_splittings = 0;
+   int *v = face->GetVertices();
+
+   if (v_to_v.FindId(v[0], v[1]) != -1)
+   {
+      number_of_splittings++;
+      if (v_to_v.FindId(v[1], v[2]) != -1)
+      {
+         right = 1;
+         number_of_splittings++;
+      }
+      if (v_to_v.FindId(v[2], v[0]) != -1)
+      {
+         number_of_splittings++;
+      }
+
+      switch (number_of_splittings)
+      {
+         case 2:
+            if (right == 0)
+            {
+               number_of_splittings++;
+            }
+            break;
+         case 3:
+            number_of_splittings++;
+            break;
+      }
+   }
+
+   return number_of_splittings;
+}
+
 void ParMesh::GenerateOffsets(int N, HYPRE_Int loc_sizes[],
                               Array<HYPRE_Int> *offsets[]) const
 {
@@ -2284,12 +2320,13 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       }
 
       // 1. Get table of vertex to vertex connections.
-      DSTable v_to_v(NumOfVertices);
-      GetVertexToVertexTable(v_to_v);
+//      DSTable v_to_v(NumOfVertices);
+//      GetVertexToVertexTable(v_to_v);
+      HashTable<Hashed2> v_to_v;
 
       // 2. Create a marker array for all edges (vertex to vertex connections).
-      Array<int> middle(v_to_v.NumberOfEntries());
-      middle = -1;
+//      Array<int> middle(v_to_v.NumberOfEntries());
+//      middle = -1;
 
       // 3. Do the red refinement.
       switch (type)
@@ -2297,31 +2334,31 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
          case 1:
             for (i = 0; i < marked_el.Size(); i++)
             {
-               Bisection(marked_el[i], v_to_v, NULL, NULL, middle);
+               Bisection(marked_el[i], v_to_v);
             }
             break;
          case 2:
             for (i = 0; i < marked_el.Size(); i++)
             {
-               Bisection(marked_el[i], v_to_v, NULL, NULL, middle);
+               Bisection(marked_el[i], v_to_v);
 
-               Bisection(NumOfElements - 1, v_to_v, NULL, NULL, middle);
-               Bisection(marked_el[i], v_to_v, NULL, NULL, middle);
+               Bisection(NumOfElements - 1, v_to_v);
+               Bisection(marked_el[i], v_to_v);
             }
             break;
          case 3:
             for (i = 0; i < marked_el.Size(); i++)
             {
-               Bisection(marked_el[i], v_to_v, NULL, NULL, middle);
+               Bisection(marked_el[i], v_to_v);
 
                j = NumOfElements - 1;
-               Bisection(j, v_to_v, NULL, NULL, middle);
-               Bisection(NumOfElements - 1, v_to_v, NULL, NULL, middle);
-               Bisection(j, v_to_v, NULL, NULL, middle);
+               Bisection(j, v_to_v);
+               Bisection(NumOfElements - 1, v_to_v);
+               Bisection(j, v_to_v);
 
-               Bisection(marked_el[i], v_to_v, NULL, NULL, middle);
-               Bisection(NumOfElements-1, v_to_v, NULL, NULL, middle);
-               Bisection(marked_el[i], v_to_v, NULL, NULL, middle);
+               Bisection(marked_el[i], v_to_v);
+               Bisection(NumOfElements-1, v_to_v);
+               Bisection(marked_el[i], v_to_v);
             }
             break;
       }
@@ -2363,10 +2400,10 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
          need_refinement = 0;
          for (i = 0; i < NumOfElements; i++)
          {
-            if (elements[i]->NeedRefinement(v_to_v, middle))
+            if (elements[i]->NeedRefinement(v_to_v))
             {
                need_refinement = 1;
-               Bisection(i, v_to_v, NULL, NULL, middle);
+               Bisection(i, v_to_v);
             }
          }
 #ifdef MFEM_DEBUG_PARMESH_LOCALREF
@@ -2399,8 +2436,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
                for (j = 0; j < faces_in_group; j++)
                {
                   face_splittings[i][j] =
-                     GetFaceSplittings(shared_faces[group_faces[j]], v_to_v,
-                                       middle);
+                     GetFaceSplittings(shared_faces[group_faces[j]], v_to_v);
                }
                const int *nbs = gtopo.GetGroup(i+1);
                neighbor = gtopo.GetNeighborRank(nbs[0] ? nbs[0] : nbs[1]);
@@ -2432,11 +2468,12 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
                      { continue; }
 
                      int ind[2] = { v[k], v[(k+1)%3] };
-                     int ii = v_to_v(ind[0], ind[1]);
-                     if (middle[ii] == -1)
+                     int ii = v_to_v.FindId(ind[0], ind[1]);
+                     if (ii == -1)
                      {
                         need_refinement = 1;
-                        middle[ii] = NumOfVertices++;
+                        //middle[ii] = NumOfVertices++;
+                        ii = v_to_v.GetId(ind[0],ind[1]);
                         vertices.Append(Vertex());
                         AverageVertices(ind, 2, vertices.Size()-1);
                      }
@@ -2475,10 +2512,10 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
          need_refinement = 0;
          for (i = 0; i < NumOfBdrElements; i++)
          {
-            if (boundary[i]->NeedRefinement(v_to_v, middle))
+            if (boundary[i]->NeedRefinement(v_to_v))
             {
                need_refinement = 1;
-               Bisection(i, v_to_v, middle);
+               BdrBisection(i, v_to_v);
             }
          }
       }
@@ -2495,27 +2532,28 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       // 5a. Update the groups after refinement.
       if (el_to_face != NULL)
       {
-         RefineGroups(v_to_v, middle);
+         RefineGroups(v_to_v);
          // GetElementToFaceTable(); // Called by RefineGroups
          GenerateFaces();
       }
+      NumOfVertices = vertices.Size();
 
       // 6. Un-mark the Pf elements.
-      int refinement_edges[2], type, flag;
-      for (i = 0; i < NumOfElements; i++)
-      {
-         Tetrahedron* el = (Tetrahedron*) elements[i];
-         el->ParseRefinementFlag(refinement_edges, type, flag);
-
-         if (type == Tetrahedron::TYPE_PF)
-         {
-            el->CreateRefinementFlag(refinement_edges, Tetrahedron::TYPE_PU,
-                                     flag);
-         }
-      }
+//      int refinement_edges[2], type, flag;
+//      for (i = 0; i < NumOfElements; i++)
+//      {
+//         Tetrahedron* el = (Tetrahedron*) elements[i];
+//         el->ParseRefinementFlag(refinement_edges, type, flag);
+//
+//         if (type == Tetrahedron::TYPE_PF)
+//         {
+//            el->CreateRefinementFlag(refinement_edges, Tetrahedron::TYPE_PU,
+//                                     flag);
+//         }
+//      }
 
       // 7. Free the allocated memory.
-      middle.DeleteAll();
+      //middle.DeleteAll();
 
       if (el_to_edge != NULL)
       {
@@ -3085,6 +3123,198 @@ void ParMesh::RefineGroups(const DSTable &v_to_v, int *middle)
 
    // Fix the local numbers of shared edges and faces
    {
+      DSTable new_v_to_v(NumOfVertices);
+      GetVertexToVertexTable(new_v_to_v);
+      for (i = 0; i < shared_edges.Size(); i++)
+      {
+         v = shared_edges[i]->GetVertices();
+         sedge_ledge[i] = new_v_to_v(v[0], v[1]);
+      }
+   }
+   if (Dim == 3)
+   {
+      STable3D *faces_tbl = GetElementToFaceTable(1);
+      for (i = 0; i < shared_faces.Size(); i++)
+      {
+         v = shared_faces[i]->GetVertices();
+         sface_lface[i] = (*faces_tbl)(v[0], v[1], v[2]);
+      }
+      delete faces_tbl;
+   }
+
+   group_svert.SetIJ(I_group_svert, J_group_svert);
+   group_sedge.SetIJ(I_group_sedge, J_group_sedge);
+   if (Dim == 3)
+   {
+      group_sface.SetIJ(I_group_sface, J_group_sface);
+   }
+}
+
+void ParMesh::RefineGroups(const HashTable<Hashed2> &v_to_v)
+{
+   int i, attr, newv[3], ind, f_ind, *v;
+
+   int group;
+   Array<int> group_verts, group_edges, group_faces;
+
+   // To update the groups after a refinement, we observe that:
+   // - every (new and old) vertex, edge and face belongs to exactly one group
+   // - the refinement does not create new groups
+   // - a new vertex appears only as the middle of a refined edge
+   // - a face can be refined 2, 3 or 4 times producing new edges and faces
+
+   int *I_group_svert, *J_group_svert;
+   int *I_group_sedge, *J_group_sedge;
+   int *I_group_sface, *J_group_sface;
+
+   I_group_svert = new int[GetNGroups()+1];
+   I_group_sedge = new int[GetNGroups()+1];
+   if (Dim == 3)
+   {
+      I_group_sface = new int[GetNGroups()+1];
+   }
+   else
+   {
+      I_group_sface = NULL;
+   }
+
+   I_group_svert[0] = I_group_svert[1] = 0;
+   I_group_sedge[0] = I_group_sedge[1] = 0;
+   if (Dim == 3)
+   {
+      I_group_sface[0] = I_group_sface[1] = 0;
+   }
+
+   // overestimate the size of the J arrays
+   if (Dim == 3)
+   {
+      J_group_svert = new int[group_svert.Size_of_connections()
+                              + group_sedge.Size_of_connections()];
+      J_group_sedge = new int[2*group_sedge.Size_of_connections()
+                              + 3*group_sface.Size_of_connections()];
+      J_group_sface = new int[4*group_sface.Size_of_connections()];
+   }
+   else if (Dim == 2)
+   {
+      J_group_svert = new int[group_svert.Size_of_connections()
+                              + group_sedge.Size_of_connections()];
+      J_group_sedge = new int[2*group_sedge.Size_of_connections()];
+      J_group_sface = NULL;
+   }
+   else
+   {
+      J_group_svert = J_group_sedge = J_group_sface = NULL;
+   }
+
+   for (group = 0; group < GetNGroups()-1; group++)
+   {
+      // Get the group shared objects
+      group_svert.GetRow(group, group_verts);
+      group_sedge.GetRow(group, group_edges);
+      group_sface.GetRow(group, group_faces);
+
+      // Check which edges have been refined
+      for (i = 0; i < group_sedge.RowSize(group); i++)
+      {
+         v = shared_edges[group_edges[i]]->GetVertices();
+         ind = v_to_v.FindId(v[0], v[1]);
+         if (ind != -1)
+         {
+        	ind += NumOfVertices;
+            // add a vertex
+            group_verts.Append(svert_lvert.Append(ind)-1);
+            // update the edges
+            attr = shared_edges[group_edges[i]]->GetAttribute();
+            shared_edges.Append(new Segment(v[1], ind, attr));
+            group_edges.Append(sedge_ledge.Append(-1)-1);
+            v[1] = ind;
+         }
+      }
+
+      // Check which faces have been refined
+      for (i = 0; i < group_sface.RowSize(group); i++)
+      {
+         v = shared_faces[group_faces[i]]->GetVertices();
+         ind = v_to_v.FindId(v[0], v[1]);
+         if (ind != -1)
+         {
+        	ind += NumOfVertices;
+            attr = shared_faces[group_faces[i]]->GetAttribute();
+            // add the refinement edge
+            shared_edges.Append(new Segment(v[2], ind, attr));
+            group_edges.Append(sedge_ledge.Append(-1)-1);
+            // add a face
+            f_ind = group_faces.Size();
+            shared_faces.Append(new Triangle(v[1], v[2], ind, attr));
+            group_faces.Append(sface_lface.Append(-1)-1);
+            newv[0] = v[2]; newv[1] = v[0]; newv[2] = ind;
+            shared_faces[group_faces[i]]->SetVertices(newv);
+
+            // check if the left face has also been refined
+            // v = shared_faces[group_faces[i]]->GetVertices();
+            ind = v_to_v.FindId(v[0], v[1]);
+            if (ind != -1)
+            {
+               ind += NumOfVertices;
+               // add the refinement edge
+               shared_edges.Append(new Segment(v[2], ind, attr));
+               group_edges.Append(sedge_ledge.Append(-1)-1);
+               // add a face
+               shared_faces.Append(new Triangle(v[1], v[2], ind, attr));
+               group_faces.Append(sface_lface.Append(-1)-1);
+               newv[0] = v[2]; newv[1] = v[0]; newv[2] = ind;
+               shared_faces[group_faces[i]]->SetVertices(newv);
+            }
+
+            // check if the right face has also been refined
+            v = shared_faces[group_faces[f_ind]]->GetVertices();
+            ind = v_to_v.FindId(v[0], v[1]);
+            if (ind != -1)
+            {
+               ind += NumOfVertices;
+               // add the refinement edge
+               shared_edges.Append(new Segment(v[2], ind, attr));
+               group_edges.Append(sedge_ledge.Append(-1)-1);
+               // add a face
+               shared_faces.Append(new Triangle(v[1], v[2], ind, attr));
+               group_faces.Append(sface_lface.Append(-1)-1);
+               newv[0] = v[2]; newv[1] = v[0]; newv[2] = ind;
+               shared_faces[group_faces[f_ind]]->SetVertices(newv);
+            }
+         }
+      }
+
+      I_group_svert[group+1] = I_group_svert[group] + group_verts.Size();
+      I_group_sedge[group+1] = I_group_sedge[group] + group_edges.Size();
+      if (Dim == 3)
+      {
+         I_group_sface[group+1] = I_group_sface[group] + group_faces.Size();
+      }
+
+      int *J;
+      J = J_group_svert+I_group_svert[group];
+      for (i = 0; i < group_verts.Size(); i++)
+      {
+         J[i] = group_verts[i];
+      }
+      J = J_group_sedge+I_group_sedge[group];
+      for (i = 0; i < group_edges.Size(); i++)
+      {
+         J[i] = group_edges[i];
+      }
+      if (Dim == 3)
+      {
+         J = J_group_sface+I_group_sface[group];
+         for (i = 0; i < group_faces.Size(); i++)
+         {
+            J[i] = group_faces[i];
+         }
+      }
+   }
+
+   // Fix the local numbers of shared edges and faces
+   {
+	   NumOfVertices = vertices.Size();
       DSTable new_v_to_v(NumOfVertices);
       GetVertexToVertexTable(new_v_to_v);
       for (i = 0; i < shared_edges.Size(); i++)
