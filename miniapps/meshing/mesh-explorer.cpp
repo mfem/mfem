@@ -94,6 +94,7 @@ Mesh *read_par_mesh(int np, const char *mesh_prefix)
    return mesh;
 }
 
+
 int main (int argc, char *argv[])
 {
    int np = 0;
@@ -193,6 +194,8 @@ int main (int argc, char *argv[])
            "k) View element ratios, kappa\n"
            "x) Print sub-element stats\n"
            "p) Generate a partitioning\n"
+           "o) Reorder the mesh elements\n"
+           "n) Convert to nonconforming mesh\n"
            "S) Save\n"
            "--> " << flush;
       char mk;
@@ -399,6 +402,7 @@ int main (int argc, char *argv[])
                << "\nmax kappa    = " << max_kappa << endl;
       }
 
+      // Choices that send data to GLVis.
       if (mk == 'm' || mk == 'b' || mk == 'e' || mk == 'v' || mk == 'h' ||
           mk == 'k' || mk == 'p')
       {
@@ -420,6 +424,7 @@ int main (int argc, char *argv[])
 
          if (mk == 'e')
          {
+#if USE_CHECKERBOARD_ELEMENT_COLORING
             Array<int> coloring;
             srand(time(0));
             double a = double(rand()) / (double(RAND_MAX) + 1.);
@@ -432,10 +437,14 @@ int main (int argc, char *argv[])
                attr(i) = coloring[i];
             }
             cout << "Number of colors: " << attr.Max() + 1 << endl;
+#endif
             for (int i = 0; i < mesh->GetNE(); i++)
             {
-               // part[i] = i; // checkerboard element coloring
+#if USE_CHECKERBOARD_ELEMENT_COLORING
+               part[i] = i; // checkerboard element coloring
+#else
                attr(i) = part[i] = i; // coloring by element number
+#endif
             }
          }
 
@@ -658,6 +667,70 @@ int main (int argc, char *argv[])
                  << vishost << ':' << visport << endl;
          }
          delete attr_fespace;
+      }
+
+      if (mk == 'o')
+      {
+         Array<int> ordering;
+
+         cout << "Current element-to-element Table stats:\n";
+         mesh->ElementToElementTable().PrintOrderingStats();
+
+         cout << "Choose reordering algorithm:\n"
+              "c) Cuthill-McKee\n"
+              "r) reverse Cuthill-McKee\n"
+#ifdef MFEM_USE_GECKO
+              "g) Gecko\n"
+#endif
+#ifdef MFEM_USE_METIS
+              "m) Metis\n"
+#endif
+              "other char) skip reordering\n"
+              "--> " << flush;
+         char pk;
+         cin >> pk;
+         if (pk == 'c')
+         {
+            cout << "Reordering the elements using Cuthill-McKee ..." << flush;
+            mesh->GetCMElementReordering(ordering, false);
+         }
+         else if (pk == 'r')
+         {
+            cout << "Reordering the elements using reverse Cuthill-McKee ..."
+                 << flush;
+            mesh->GetCMElementReordering(ordering, true);
+         }
+#ifdef MFEM_USE_GECKO
+         else if (pk == 'g')
+         {
+            cout << "Reordering the elements using Gecko ..." << flush;
+            mesh->GetGeckoElementReordering(ordering);
+         }
+#endif
+#ifdef MFEM_USE_METIS
+         else if (pk == 'm')
+         {
+            cout << "Reordering the elements using Metis ..." << flush;
+            mesh->GetMetisElementReordering(ordering);
+         }
+#endif
+         else
+         {
+            cout << "Skipping reordering." << endl;
+            continue;
+         }
+         bool reorder_vertices = true;
+         mesh->ReorderElements(ordering, reorder_vertices);
+         cout << " done." << endl;
+
+         cout << "New element-to-element Table stats:\n";
+         mesh->ElementToElementTable().PrintOrderingStats();
+      }
+
+      if (mk == 'n')
+      {
+         bool triangles_nonconforming = true;
+         mesh->EnsureNCMesh(triangles_nonconforming);
       }
 
       if (mk == 'S')

@@ -2287,8 +2287,18 @@ void ParFiniteElementSpace::Update(bool want_transform)
             break;
          }
 
-         default:
+         case Mesh::REORDER:
+         {
+            T = GetElementReorderingOperator(old_elem_dof);
+            break;
+         }
+
+         case Mesh::NONE:
             break; // T stays NULL
+
+         default:
+            MFEM_ABORT("Mesh::Operation not supported!");
+            break;
       }
       delete old_elem_dof;
    }

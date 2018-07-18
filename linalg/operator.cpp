@@ -146,4 +146,24 @@ void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
    }
 }
 
+
+int PermutationOperator::CheckPermutation() const
+{
+   // Make sure 'perm' is a permutation of [0,height)
+   const int n = Height();
+   if (Width() != n) { return 1; }
+   if (perm.Size() != n) { return 2; }
+   Array<int> inv_perm(n);
+   inv_perm = n;
+   for (int oi = 0; oi < n; oi++)
+   {
+      const int sni = perm[oi];
+      const int ni = sni >= 0 ? sni : -1-sni;
+      if (ni >= n) { return 3; }
+      if (inv_perm[ni] != n) { return 4; }
+      inv_perm[ni] = oi;
+   }
+   return 0;
+}
+
 }

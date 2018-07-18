@@ -127,6 +127,7 @@ protected:
    /// Calculate GridFunction restriction matrix after mesh derefinement.
    SparseMatrix* DerefinementMatrix(int old_ndofs, const Table* old_elem_dof);
 
+   PermutationOperator *GetElementReorderingOperator(const Table *old_elem_dof);
 
 public:
    FiniteElementSpace(Mesh *mesh, const FiniteElementCollection *fec,

@@ -16,6 +16,9 @@
 
 #include "mem_alloc.hpp"
 #include "array.hpp"
+#ifdef MFEM_USE_GECKO
+#include <graph.h>
+#endif
 
 namespace mfem
 {
@@ -31,6 +34,27 @@ struct Connection
    bool operator< (const Connection &rhs) const
    { return (from == rhs.from) ? (to < rhs.to) : (from < rhs.from); }
 };
+
+
+#ifdef MFEM_USE_GECKO
+class GeckoParameters
+{
+public:
+   Gecko::Functional *functional;
+   unsigned int iterations;  ///< number of V cycles
+   unsigned int window;      ///< initial window size
+   unsigned int period;      ///< iterations between window increment
+   unsigned int seed;        ///< random number seed
+
+   /// Constructor. Assumes ownership of @a f.
+   /** If @a f is NULL (default), an instance of Gecko::FunctionalGeometric is
+       used. */
+   GeckoParameters(Gecko::Functional *f = NULL)
+      : functional(f ? f : new Gecko::FunctionalGeometric()),
+        iterations(1), window(2), period(1), seed(0) { }
+   ~GeckoParameters() { delete functional; }
+};
+#endif // #ifdef MFEM_USE_GECKO
 
 
 /** Data type Table. Table stores the connectivity of elements of TYPE I
@@ -140,9 +164,30 @@ public:
    /// Call this if data has been stolen.
    void LoseData() { size = -1; I = J = NULL; }
 
+   /** @brief Assuming a symmetric Table, compute a row (and column) reordering
+       using the Cuthill-McKee (CM) algorithm. */
+   void GetCMReordering(Array<int> &ordering, bool reverse = false) const;
+
+#ifdef MFEM_USE_GECKO
+   /** @brief Assuming a symmetric Table, compute a row (and column) reordering
+       using the Gecko library. */
+   void GetGeckoReordering(const GeckoParameters &g_params,
+                           Array<int> &ordering) const;
+#endif
+
+#ifdef MFEM_USE_METIS
+   /** @brief Assuming a symmetric Table, compute a row (and column) reordering
+       using the Metis library. */
+   void GetMetisReordering(Array<int> &ordering, int type = 0,
+                           bool check_for_diag = true) const;
+#endif
+
    /// Prints the table to stream out.
    void Print(std::ostream & out = std::cout, int width = 4) const;
    void PrintMatlab(std::ostream & out) const;
+
+   /// Print statistics about the ordering of the J array.
+   void PrintOrderingStats(std::ostream &out = std::cout) const;
 
    void Save(std::ostream &out) const;
    void Load(std::istream &in);

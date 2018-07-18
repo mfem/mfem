@@ -424,6 +424,67 @@ public:
    virtual ~ConstrainedOperator() { if (own_A) { delete A; } }
 };
 
+
+/// Local permutation operator.
+class PermutationOperator : public Operator
+{
+protected:
+   Array<int> perm;
+
+public:
+   /// Construct a (square) permutation Operator.
+   /** This constructor allocates a new permutation array without initializing
+       it. Use the method GetPermutation() to set the permutation. */
+   explicit PermutationOperator(int n) : Operator(n), perm(n) { }
+
+   /// Construct a (square) permutation Operator.
+   /** This constructor wraps already existing permutation array, @a p. If the
+       parameter @a own_p is true, the PermutationOperator assumes ownership of
+       the array @a p. */
+   PermutationOperator(int n, int *p, bool own_p = true)
+      : Operator(n), perm(p, n) { if (own_p) { perm.MakeDataOwner(); } }
+
+   // Default destructor.
+
+   /// Read + write access to the permutation array.
+   /** The permutation array, `perm`, defines the operator as follows:
+
+           x_new(   perm[oi]) = +x_old(oi),   perm[oi] >= 0,
+           x_new(-1-perm[oi]) = -x_old(oi),   perm[oi] <  0.
+
+       This method should be used to initialize the permutation array. */
+   Array<int> &GetPermutation() { return perm; }
+
+   /// Read-only access to the permutation array.
+   /** The permutation array, `perm`, defines the operator as follows:
+
+           x_new(   perm[oi]) = +x_old(oi),   perm[oi] >= 0,
+           x_new(-1-perm[oi]) = -x_old(oi),   perm[oi] <  0.
+   */
+   const Array<int> &GetPermutation() const { return perm; }
+
+   /// Return 0 if the permutation array defines a valid permutation.
+   int CheckPermutation() const;
+
+   virtual void Mult(const Vector &x, Vector &y) const
+   {
+      for (int oi = 0; oi < Width(); oi++)
+      {
+         const int ni = perm[oi];
+         ni >= 0 ? y(ni) = x(oi) : y(-1-ni) = -x(oi);
+      }
+   }
+
+   virtual void MultTranspose(const Vector &x, Vector &y) const
+   {
+      for (int oi = 0; oi < Width(); oi++)
+      {
+         const int ni = perm[oi];
+         ni >= 0 ? y(oi) = x(ni) : y(oi) = -x(-1-ni);
+      }
+   }
+};
+
 }
 
 #endif

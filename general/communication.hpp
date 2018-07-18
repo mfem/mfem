@@ -16,6 +16,7 @@
 
 #ifdef MFEM_USE_MPI
 
+#include "tic_toc.hpp"
 #include "array.hpp"
 #include "table.hpp"
 #include "sets.hpp"
@@ -48,6 +49,42 @@ public:
    /// Return true if WorldRank() == 0.
    bool Root() const { return world_rank == 0; }
 };
+
+
+/** @brief This class extends class StopWatch with an MPI communicator,
+    providing parallel timing statistics. */
+/** The statistics are: the minimal, average, and maximal real times from all
+    instances of the StopWatch, across the MPI communicator. The statistics are
+    accessible from rank 0 only. */
+class ParTimer : public StopWatch
+{
+protected:
+   MPI_Comm comm;
+   int comm_rank, comm_size;
+   double max_rt, avg_rt, min_rt;
+
+public:
+   ParTimer(MPI_Comm comm_) : comm(comm_)
+   {
+      MPI_Comm_rank(comm, &comm_rank);
+      MPI_Comm_size(comm, &comm_size);
+      max_rt = avg_rt = min_rt = 0.0;
+   }
+   int CommRank() const { return comm_rank; }
+   int CommSize() const { return comm_size; }
+   /** @brief This method computes the parallel statistics. It must be called on
+       all ranks. */
+   void GetParStats();
+   /// Shortcut for Stop() plus GetParStats().
+   void ParStop() { Stop(); GetParStats(); }
+   double RealTimeMax() const { return max_rt; }
+   double RealTimeAvg() const { return avg_rt; }
+   double RealTimeMin() const { return min_rt; }
+};
+
+/// Overload operator<< for std::ostream and ParTimer.
+std::ostream &operator<<(std::ostream &out, ParTimer &pt);
+
 
 class GroupTopology
 {

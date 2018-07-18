@@ -25,6 +25,7 @@ class Pair
 public:
    A one;
    B two;
+   Pair(A a, B b) : one(a), two(b) { }
 };
 
 /// @brief Comparison operator for class Pair, based on the first element only.

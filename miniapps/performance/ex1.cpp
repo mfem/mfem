@@ -168,6 +168,20 @@ int main(int argc, char *argv[])
                   " the LOR preconditioner yet");
    }
 
+   // FIXME: add a command line option ...
+   Array<int> ordering;
+   cout << "Computing mesh element reordering ..." << flush;
+   // cout << " (no reordering) ..." << flush;
+   cout << " (CM) ..." << flush; mesh->GetCMElementReordering(ordering);
+   // cout << " (Metis) ..." << flush; mesh->GetMetisElementReordering(ordering);
+   // cout << " (Gecko) ..." << flush; mesh->GetGeckoElementReordering(ordering);
+   cout << " done.\nApplying the mesh element reordering ..." << flush;
+   if (ordering.Size() > 0)
+   {
+      mesh->ReorderElements(ordering);
+   }
+   cout << " done." << endl;
+
    // 5. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
@@ -340,6 +354,9 @@ int main(int argc, char *argv[])
    cout << " done, " << tic_toc.RealTime() << "s." << endl;
 
    // Solve with CG or PCG, depending if the matrix A_pc is available
+   cout << "Solving the linear system ..." << endl;
+   tic_toc.Clear();
+   tic_toc.Start();
    if (pc_choice != NONE)
    {
       GSSmoother M(A_pc);
@@ -349,6 +366,9 @@ int main(int argc, char *argv[])
    {
       CG(*a_oper, B, X, 1, 500, 1e-12, 0.0);
    }
+   tic_toc.Stop();
+   cout << "Solving the linear system ... done, "
+        << tic_toc.RealTime() << " sec." << endl;
 
    // 13. Recover the solution as a finite element grid function.
    if (perf && matrix_free)

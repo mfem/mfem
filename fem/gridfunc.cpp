@@ -160,7 +160,7 @@ void GridFunction::Update()
    {
       Vector tmp(T->Height());
       T->Mult(*this, tmp);
-      *this = tmp;
+      this->Swap(tmp);
    }
    else
    {

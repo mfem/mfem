@@ -516,15 +516,18 @@ void Vector::SetSubVector(const Array<int> &dofs, const double value)
 void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
 {
    int i, j, n = dofs.Size();
+   MFEM_ASSERT(n == elemvect.Size(), "");
 
    for (i = 0; i < n; i++)
    {
       if ((j=dofs[i]) >= 0)
       {
+         MFEM_ASSERT(j < size, "");
          data[j] = elemvect(i);
       }
       else
       {
+         MFEM_ASSERT(-1-j < size, "");
          data[-1-j] = -elemvect(i);
       }
    }

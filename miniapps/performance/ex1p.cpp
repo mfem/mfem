@@ -2,17 +2,18 @@
 //
 // Compile with: make ex1p
 //
-// Sample runs:  mpirun -np 4 ex1p -m ../../data/fichera.mesh -perf -mf  -pc lor
-//               mpirun -np 4 ex1p -m ../../data/fichera.mesh -perf -asm -pc ho
-//               mpirun -np 4 ex1p -m ../../data/fichera.mesh -perf -asm -pc ho -sc
-//               mpirun -np 4 ex1p -m ../../data/fichera.mesh -std  -asm -pc ho
-//               mpirun -np 4 ex1p -m ../../data/fichera.mesh -std  -asm -pc ho -sc
-//               mpirun -np 4 ex1p -m ../../data/amr-hex.mesh -perf -asm -pc ho -sc
-//               mpirun -np 4 ex1p -m ../../data/amr-hex.mesh -std  -asm -pc ho -sc
-//               mpirun -np 4 ex1p -m ../../data/ball-nurbs.mesh -perf -asm -pc ho  -sc
-//               mpirun -np 4 ex1p -m ../../data/ball-nurbs.mesh -std  -asm -pc ho  -sc
-//               mpirun -np 4 ex1p -m ../../data/pipe-nurbs.mesh -perf -mf  -pc lor
-//               mpirun -np 4 ex1p -m ../../data/pipe-nurbs.mesh -std  -asm -pc ho  -sc
+// Sample runs:
+//    mpirun -np 4 ex1p -m ../../data/fichera.mesh -perf -mf  -pc lor
+//    mpirun -np 4 ex1p -m ../../data/fichera.mesh -perf -asm -pc ho
+//    mpirun -np 4 ex1p -m ../../data/fichera.mesh -perf -asm -pc ho -sc
+//    mpirun -np 4 ex1p -m ../../data/fichera.mesh -std  -asm -pc ho
+//    mpirun -np 4 ex1p -m ../../data/fichera.mesh -std  -asm -pc ho -sc
+//    mpirun -np 4 ex1p -m ../../data/amr-hex.mesh -perf -asm -pc ho -sc
+//    mpirun -np 4 ex1p -m ../../data/amr-hex.mesh -std  -asm -pc ho -sc
+//    mpirun -np 4 ex1p -m ../../data/ball-nurbs.mesh -perf -asm -pc ho  -sc
+//    mpirun -np 4 ex1p -m ../../data/ball-nurbs.mesh -std  -asm -pc ho  -sc
+//    mpirun -np 4 ex1p -m ../../data/pipe-nurbs.mesh -perf -mf  -pc lor
+//    mpirun -np 4 ex1p -m ../../data/pipe-nurbs.mesh -std  -asm -pc ho  -sc
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -67,20 +68,26 @@ int main(int argc, char *argv[])
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   ParTimer timer(MPI_COMM_WORLD);
 
    // 2. Parse command-line options.
    const char *mesh_file = "../../data/fichera.mesh";
+   int el_reord_type = 0;
    int order = sol_p;
    const char *basis_type = "G"; // Gauss-Lobatto
    bool static_cond = false;
    const char *pc = "lor";
    bool perf = true;
    bool matrix_free = true;
+   int max_iter = 500;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&el_reord_type, "-er", "--element-reorder-type",
+                  "How to reorder the mesh elements:\n\t0 - no reordering, "
+                  "1 - Cuthill-McKee, 2 - Metis, 3 - Gecko.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -96,6 +103,8 @@ int main(int argc, char *argv[])
                   "ho - high-order (assembled) AMG, none.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
+   args.AddOption(&max_iter, "-mi", "--max-iter",
+                  "Maximum number of iterations.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -162,8 +171,8 @@ int main(int argc, char *argv[])
       {
          if (myid == 0)
          {
-            cout << "The given mesh does not match the optimized 'geom' parameter.\n"
-                 << "Recompile with suitable 'geom' value." << endl;
+            cout << "The given mesh does not match the optimized 'geom' "
+                 << "parameter.\nRecompile with suitable 'geom' value." << endl;
          }
          delete mesh;
          MPI_Finalize();
@@ -220,6 +229,36 @@ int main(int argc, char *argv[])
       MFEM_VERIFY(pc_choice != LOR, "triangle and tet meshes do not support"
                   " the LOR preconditioner yet");
    }
+
+   // Perform local reordering of the mesh elements.
+   Array<int> ordering;
+   const char *el_reord_str[] = { "no reordering", "CM", "Metis", "Gecko" };
+   if (myid == 0)
+   {
+      cout << "Computing mesh element reordering ... ("
+           << el_reord_str[el_reord_type] << ") ..." << flush;
+   }
+   switch (el_reord_type)
+   {
+      case 1: pmesh->GetCMElementReordering(ordering); break;
+#ifdef MFEM_USE_METIS
+      case 2: pmesh->GetMetisElementReordering(ordering); break;
+#endif
+#ifdef MFEM_USE_GECKO
+      case 3: pmesh->GetGeckoElementReordering(ordering); break;
+#endif
+      default: MFEM_VERIFY(el_reord_type == 0, "invalid reordering type: "
+                           << el_reord_type);
+   }
+   if (el_reord_type != 0)
+   {
+      if (myid == 0)
+      {
+         cout << " done.\nApplying the mesh element reordering ..." << flush;
+      }
+      pmesh->ReorderElements(ordering);
+   }
+   if (myid == 0) { cout << " done." << endl; }
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
@@ -323,8 +362,8 @@ int main(int argc, char *argv[])
    {
       cout << "Assembling the matrix ..." << flush;
    }
-   tic_toc.Clear();
-   tic_toc.Start();
+   timer.Clear();
+   timer.Start();
    // Pre-allocate sparsity assuming dense element matrices
    a->UsePrecomputedSparsity();
 
@@ -350,10 +389,10 @@ int main(int argc, char *argv[])
          a_hpc->AssembleBilinearForm(*a); // full matrix assembly
       }
    }
-   tic_toc.Stop();
+   timer.ParStop();
    if (myid == 0)
    {
-      cout << " done, " << tic_toc.RealTime() << "s." << endl;
+      cout << " done, time: " << timer << "." << endl;
    }
 
    // 14. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
@@ -387,8 +426,8 @@ int main(int argc, char *argv[])
    {
       cout << "Assembling the preconditioning matrix ..." << flush;
    }
-   tic_toc.Clear();
-   tic_toc.Start();
+   timer.Clear();
+   timer.Start();
 
    HypreParMatrix A_pc;
    if (pc_choice == LOR)
@@ -412,18 +451,18 @@ int main(int argc, char *argv[])
          a_pc->FormSystemMatrix(ess_tdof_list, A_pc);
       }
    }
-   tic_toc.Stop();
+   timer.ParStop();
    if (myid == 0)
    {
-      cout << " done, " << tic_toc.RealTime() << "s." << endl;
+      cout << " done, time: " << timer << "." << endl;
    }
 
    // Solve with CG or PCG, depending if the matrix A_pc is available
    CGSolver *pcg;
    pcg = new CGSolver(MPI_COMM_WORLD);
    pcg->SetRelTol(1e-6);
-   pcg->SetMaxIter(500);
-   pcg->SetPrintLevel(1);
+   pcg->SetMaxIter(max_iter);
+   pcg->SetPrintLevel(3);
 
    HypreSolver *amg = NULL;
 
@@ -434,20 +473,21 @@ int main(int argc, char *argv[])
       pcg->SetPreconditioner(*amg);
    }
 
-   tic_toc.Clear();
-   tic_toc.Start();
+   timer.Clear();
+   timer.Start();
 
    pcg->Mult(B, X);
 
-   tic_toc.Stop();
+   timer.ParStop();
    delete amg;
 
    if (myid == 0)
    {
+      cout << "Total solve time: " << timer << ".\n";
       // Note: In the pcg algorithm, the number of operator Mult() calls is
       //       N_iter and the number of preconditioner Mult() calls is N_iter+1.
-      cout << "Time per CG step: "
-           << tic_toc.RealTime() / pcg->GetNumIterations() << "s." << endl;
+      cout << "Time per CG step: max: "
+           << timer.RealTimeMax() / pcg->GetNumIterations() << "s." << endl;
    }
 
    // 15. Recover the parallel grid function corresponding to X. This is the

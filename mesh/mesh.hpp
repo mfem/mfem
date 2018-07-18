@@ -164,7 +164,9 @@ public:
    typedef Geometry::Constants<Geometry::TETRAHEDRON> tet_t;
    typedef Geometry::Constants<Geometry::CUBE>        hex_t;
 
-   enum Operation { NONE, REFINE, DEREFINE, REBALANCE };
+   /// Mesh operations that, generally, change the topology of the mesh.
+   /** This enumeration defines the values returned by GetLastOperation(). */
+   enum Operation { NONE, REFINE, DEREFINE, REBALANCE, REORDER };
 
    /// A list of all unique element attributes used by the Mesh.
    Array<int> attributes;
@@ -176,6 +178,7 @@ public:
 
 protected:
    Operation last_operation;
+   const int *el_perm;  ///< Pointer to the last element reordering array.
 
    void Init();
    void InitTables();
@@ -216,6 +219,11 @@ protected:
    /** Compute the Jacobian of the transformation from the perfect
        reference element at the center of the element. */
    void GetElementJacobian(int i, DenseMatrix &J);
+
+   void ReorderElements_internal(const Array<int> &ordering,
+                                 bool reorder_vertices,
+                                 Array<int> &vertex_ordering,
+                                 bool update_nodes);
 
    void MarkForRefinement();
    void MarkTriMeshForRefinement();
@@ -515,18 +523,53 @@ public:
 
    void SetAttributes();
 
+   /// Generate element reordering using the Cuthill-McKee (CM) algorithm.
+   /** The generated re-ordering can be applied to the Mesh using the method
+       ReorderElements(). */
+   void GetCMElementReordering(Array<int> &ordering, bool reverse = false)
+   {
+      ElementToElementTable().GetCMReordering(ordering, reverse);
+   }
+
 #ifdef MFEM_USE_GECKO
    /** This is our integration with the Gecko library.  This will call the
        Gecko library to find an element ordering that will increase memory
        coherency by putting elements that are in physical proximity closer in
        memory. */
-   void GetGeckoElementReordering(Array<int> &ordering);
+   void GetGeckoElementReordering(Array<int> &ordering)
+   {
+      ElementToElementTable().GetGeckoReordering(GeckoParameters(), ordering);
+   }
+#endif
+
+#ifdef MFEM_USE_METIS
+   /// Generate element reordering using the Metis library.
+   /** The generated re-ordering can be applied to the Mesh using the method
+       ReorderElements(). */
+   void GetMetisElementReordering(Array<int> &ordering, int type = 0)
+   {
+      const bool check_diag = false;
+      ElementToElementTable().GetMetisReordering(ordering, type, check_diag);
+   }
 #endif
 
    /** Rebuilds the mesh with a different order of elements.  The ordering
-       vector maps the old element number to the new element number.  This also
-       reorders the vertices and nodes edges and faces along with the elements.  */
-   void ReorderElements(const Array<int> &ordering, bool reorder_vertices = true);
+       vector maps the old element number to the new element number, i.e.
+       `new_element_id = ordering[old_element_id]`.  This also reorders the
+       vertices (if @a reorder_vertices is true), as well as the edges and faces
+       along with the elements. */
+   virtual void ReorderElements(const Array<int> &ordering,
+                                bool reorder_vertices = true)
+   {
+      const bool update_nodes = true;
+      Array<int> vertex_ordering;
+      ReorderElements_internal(ordering, reorder_vertices, vertex_ordering,
+                               update_nodes);
+   }
+
+   /** @brief Returns the permutation/ordering used in the last call to
+       ReorderElements(). */
+   const int *GetElementPermutation() const { return el_perm; }
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
        nx*ny*nz hexahedrals if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons

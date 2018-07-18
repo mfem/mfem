@@ -50,6 +50,9 @@ protected:
    /// Create from a nonconforming mesh.
    ParMesh(const ParNCMesh &pncmesh);
 
+   // Set sedge_ledge and sface_lface
+   void SetSharedToLocalMaps();
+
    // Mark all tets to ensure consistency across MPI tasks; also mark the
    // shared and boundary triangle faces using the consistently marked tets.
    virtual void MarkTetMeshForRefinement(DSTable &v_to_v);
@@ -129,6 +132,7 @@ public:
    // Local face-neighbor elements and vertices ordered by face-neighbor
    Table            send_face_nbr_elements;
    Table            send_face_nbr_vertices;
+   // Note: additional face-neighbor data is stored in 'faces_info'.
 
    ParNCMesh* pncmesh;
 
@@ -182,6 +186,9 @@ public:
 
    /// Load balance the mesh. NC meshes only.
    void Rebalance();
+
+   virtual void ReorderElements(const Array<int> &ordering,
+                                bool reorder_vertices = true);
 
    /** Print the part of the mesh in the calling processor adding the interface
        as boundary (for visualization purposes) using the mfem v1.0 format. */

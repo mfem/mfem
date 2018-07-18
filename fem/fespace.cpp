@@ -924,6 +924,35 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
    return R;
 }
 
+PermutationOperator *FiniteElementSpace::GetElementReorderingOperator(
+   const Table *old_elem_dof)
+{
+   PermutationOperator *pT = new PermutationOperator(GetVSize());
+   Array<int> perm;
+   perm.MakeRef(pT->GetPermutation());
+   const int *el_perm = mesh->GetElementPermutation();
+   for (int old_el = 0; old_el < GetNE(); ++old_el)
+   {
+      const int new_el = el_perm[old_el];
+      const int nd = old_elem_dof->RowSize(old_el);
+      const int *old_dofs = old_elem_dof->GetRow(old_el);
+      const int *new_dofs = elem_dof->GetRow(new_el);
+      MFEM_ASSERT(nd == elem_dof->RowSize(new_el), "internal error");
+      for (int i = 0; i < nd; ++i)
+      {
+         for (int vd = 0; vd < vdim; ++vd)
+         {
+            const int ovd = DofToVDof(old_dofs[i],vd);
+            const int nvd = DofToVDof(new_dofs[i],vd);
+            (ovd >= 0) ? (perm[ovd] = nvd) : (perm[-1-ovd] = -1-nvd);
+         }
+      }
+   }
+   MFEM_DEBUG_DO(int err = pT->CheckPermutation());
+   MFEM_ASSERT(!err, "internal error: " << err);
+   return pT;
+}
+
 FiniteElementSpace::FiniteElementSpace(Mesh *mesh,
                                        const FiniteElementCollection *fec,
                                        int vdim, int ordering)
@@ -1544,8 +1573,19 @@ void FiniteElementSpace::Update(bool want_transform)
             break;
          }
 
-         default:
+         case Mesh::NONE:
+         case Mesh::REBALANCE:
             break; // T stays NULL
+
+         case Mesh::REORDER:
+         {
+            T = GetElementReorderingOperator(old_elem_dof);
+            break;
+         }
+
+         default:
+            MFEM_ABORT("Mesh::Operation not supported!");
+            break;
       }
    }
 

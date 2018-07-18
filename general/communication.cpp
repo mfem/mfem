@@ -33,6 +33,26 @@ using namespace std;
 namespace mfem
 {
 
+void ParTimer::GetParStats()
+{
+   double my_rt = RealTime();
+   MPI_Reduce(&my_rt, &min_rt, 1, MPI_DOUBLE, MPI_MIN, 0, comm);
+   MPI_Reduce(&my_rt, &avg_rt, 1, MPI_DOUBLE, MPI_SUM, 0, comm);
+   MPI_Reduce(&my_rt, &max_rt, 1, MPI_DOUBLE, MPI_MAX, 0, comm);
+   avg_rt /= comm_size;
+}
+
+std::ostream &operator<<(std::ostream &out, ParTimer &pt)
+{
+   if (pt.CommRank() == 0)
+   {
+      out << "max: " << pt.RealTimeMax()
+          << "s, avg: " << pt.RealTimeAvg()
+          << "s, min: " << pt.RealTimeMin() << "s";
+   }
+   return out;
+}
+
 GroupTopology::GroupTopology(const GroupTopology &gt)
    : MyComm(gt.MyComm),
      group_lproc(gt.group_lproc)

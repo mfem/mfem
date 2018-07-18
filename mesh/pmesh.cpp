@@ -986,9 +986,15 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
    group_sedge.ShiftUpI();
    group_sface.ShiftUpI();
 
+   SetSharedToLocalMaps();
+}
+
+void ParMesh::SetSharedToLocalMaps()
+{
    // determine sedge_ledge
    if (shared_edges.Size() > 0)
    {
+      sedge_ledge.SetSize(shared_edges.Size());
       DSTable v_to_v(NumOfVertices);
       GetVertexToVertexTable(v_to_v);
       for (int se = 0; se < shared_edges.Size(); se++)
@@ -1003,6 +1009,7 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
    // determine sface_lface
    if (shared_faces.Size() > 0)
    {
+      sface_lface.SetSize(shared_faces.Size());
       STable3D *faces_tbl = GetFacesTable();
       for (int sf = 0; sf < shared_faces.Size(); sf++)
       {
@@ -1389,10 +1396,12 @@ void ParMesh::ExchangeFaceNbrData()
 
    int num_face_nbrs = 0;
    for (int g = 1; g < GetNGroups(); g++)
+   {
       if (gr_sface->RowSize(g-1) > 0)
       {
          num_face_nbrs++;
       }
+   }
 
    face_nbr_group.SetSize(num_face_nbrs);
 
@@ -1407,12 +1416,15 @@ void ParMesh::ExchangeFaceNbrData()
       Array<Pair<int, int> > rank_group(num_face_nbrs);
 
       for (int g = 1, counter = 0; g < GetNGroups(); g++)
+      {
          if (gr_sface->RowSize(g-1) > 0)
          {
 #ifdef MFEM_DEBUG
             if (gtopo.GetGroupSize(g) != 2)
+            {
                mfem_error("ParMesh::ExchangeFaceNbrData() : "
                           "group size is not 2!");
+            }
 #endif
             const int *nbs = gtopo.GetGroup(g);
             int lproc = (nbs[0]) ? nbs[0] : nbs[1];
@@ -1420,6 +1432,7 @@ void ParMesh::ExchangeFaceNbrData()
             rank_group[counter].two = g;
             counter++;
          }
+      }
 
       SortPairs<int, int>(rank_group, rank_group.Size());
 
@@ -1451,9 +1464,9 @@ void ParMesh::ExchangeFaceNbrData()
    send_face_nbr_facedata.MakeI(num_face_nbrs);
    for (int fn = 0; fn < num_face_nbrs; fn++)
    {
-      int nbr_group = face_nbr_group[fn];
-      int  num_sfaces = gr_sface->RowSize(nbr_group-1);
-      int *sface = gr_sface->GetRow(nbr_group-1);
+      int nbr_group    = face_nbr_group[fn];
+      int num_sfaces   = gr_sface->RowSize(nbr_group-1);
+      const int *sface = gr_sface->GetRow(nbr_group-1);
       for (int i = 0; i < num_sfaces; i++)
       {
          int lface = s2l_face[sface[i]];
@@ -1466,11 +1479,13 @@ void ParMesh::ExchangeFaceNbrData()
             const int nv = elements[el]->GetNVertices();
             const int *v = elements[el]->GetVertices();
             for (int j = 0; j < nv; j++)
+            {
                if (vertex_marker[v[j]] != fn)
                {
                   vertex_marker[v[j]] = fn;
                   send_face_nbr_vertices.AddAColumnInRow(fn);
                }
+            }
 
             send_face_nbr_elemdata.AddColumnsInRow(fn, nv + 2);
          }
@@ -1497,9 +1512,9 @@ void ParMesh::ExchangeFaceNbrData()
    vertex_marker = -1;
    for (int fn = 0; fn < num_face_nbrs; fn++)
    {
-      int nbr_group = face_nbr_group[fn];
-      int  num_sfaces = gr_sface->RowSize(nbr_group-1);
-      int *sface = gr_sface->GetRow(nbr_group-1);
+      int nbr_group    = face_nbr_group[fn];
+      int num_sfaces   = gr_sface->RowSize(nbr_group-1);
+      const int *sface = gr_sface->GetRow(nbr_group-1);
       for (int i = 0; i < num_sfaces; i++)
       {
          int lface = s2l_face[sface[i]];
@@ -1512,11 +1527,13 @@ void ParMesh::ExchangeFaceNbrData()
             const int nv = elements[el]->GetNVertices();
             const int *v = elements[el]->GetVertices();
             for (int j = 0; j < nv; j++)
+            {
                if (vertex_marker[v[j]] != fn)
                {
                   vertex_marker[v[j]] = fn;
                   send_face_nbr_vertices.AddConnection(fn, v[j]);
                }
+            }
 
             send_face_nbr_elemdata.AddConnection(fn, GetAttribute(el));
             send_face_nbr_elemdata.AddConnection(
@@ -1553,13 +1570,13 @@ void ParMesh::ExchangeFaceNbrData()
    // convert the element indices in send_face_nbr_facedata
    for (int fn = 0; fn < num_face_nbrs; fn++)
    {
-      int  num_elems  = send_face_nbr_elements.RowSize(fn);
-      int *elems      = send_face_nbr_elements.GetRow(fn);
-      int  num_verts  = send_face_nbr_vertices.RowSize(fn);
-      int *verts      = send_face_nbr_vertices.GetRow(fn);
-      int *elemdata   = send_face_nbr_elemdata.GetRow(fn);
-      int  num_sfaces = send_face_nbr_facedata.RowSize(fn)/2;
-      int *facedata   = send_face_nbr_facedata.GetRow(fn);
+      int  num_elems   = send_face_nbr_elements.RowSize(fn);
+      const int *elems = send_face_nbr_elements.GetRow(fn);
+      int  num_verts   = send_face_nbr_vertices.RowSize(fn);
+      const int *verts = send_face_nbr_vertices.GetRow(fn);
+      int *elemdata    = send_face_nbr_elemdata.GetRow(fn);
+      int  num_sfaces  = send_face_nbr_facedata.RowSize(fn)/2;
+      int *facedata    = send_face_nbr_facedata.GetRow(fn);
 
       for (int i = 0; i < num_verts; i++)
       {
@@ -1687,11 +1704,11 @@ void ParMesh::ExchangeFaceNbrData()
          break;
       }
 
-      int  elem_off   = face_nbr_elements_offset[fn];
-      int  nbr_group  = face_nbr_group[fn];
-      int  num_sfaces = gr_sface->RowSize(nbr_group-1);
-      int *sface      = gr_sface->GetRow(nbr_group-1);
-      int *facedata =
+      int elem_off     = face_nbr_elements_offset[fn];
+      int nbr_group    = face_nbr_group[fn];
+      int num_sfaces   = gr_sface->RowSize(nbr_group-1);
+      const int *sface = gr_sface->GetRow(nbr_group-1);
+      const int *facedata =
          &recv_face_nbr_facedata[send_face_nbr_facedata.GetI()[fn]];
 
       for (int i = 0; i < num_sfaces; i++)
@@ -2110,9 +2127,14 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
          uniform_refinement = 1;
       }
 
+      const bool have_el_to_edge = (el_to_edge != NULL);
+      const bool have_el_to_face = (el_to_face != NULL);
+
       // 1. Get table of vertex to vertex connections.
       DSTable v_to_v(NumOfVertices);
       GetVertexToVertexTable(v_to_v);
+
+      DeleteTables();
 
       // 2. Create a marker array for all edges (vertex to vertex connections).
       Array<int> middle(v_to_v.NumberOfEntries());
@@ -2312,13 +2334,15 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       while (need_refinement == 1);
 
       if (NumOfBdrElements != boundary.Size())
+      {
          mfem_error("ParMesh::LocalRefinement :"
                     " (NumOfBdrElements != boundary.Size())");
+      }
 
       // 5a. Update the groups after refinement.
-      if (el_to_face != NULL)
+      RefineGroups(v_to_v, middle);
+      if (have_el_to_face)
       {
-         RefineGroups(v_to_v, middle);
          // GetElementToFaceTable(); // Called by RefineGroups
          GenerateFaces();
       }
@@ -2340,7 +2364,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       // 7. Free the allocated memory.
       middle.DeleteAll();
 
-      if (el_to_edge != NULL)
+      if (have_el_to_edge)
       {
          NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
       }
@@ -2356,9 +2380,13 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
          uniform_refinement = 1;
       }
 
+      const bool have_el_to_edge = (el_to_edge != NULL);
+
       // 1. Get table of vertex to vertex connections.
       DSTable v_to_v(NumOfVertices);
       GetVertexToVertexTable(v_to_v);
+
+      DeleteTables();
 
       // 2. Get edge to element connections in arrays edge1 and edge2
       int nedges  = v_to_v.NumberOfEntries();
@@ -2564,7 +2592,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       delete [] edge2;
       delete [] middle;
 
-      if (el_to_edge != NULL)
+      if (have_el_to_edge)
       {
          NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
          GenerateFaces();
@@ -2744,6 +2772,106 @@ void ParMesh::Rebalance()
    }
 }
 
+void ParMesh::ReorderElements(const Array<int> &ordering,
+                              bool reorder_vertices)
+{
+   if (NURBSext)
+   {
+      MFEM_WARNING("element reordering of NURBS meshes is not supported.");
+      return;
+   }
+   if (Nonconforming())
+   {
+      MFEM_WARNING("element reordering of non-conforming meshes is not"
+                   " supported.");
+      return;
+   }
+
+   const Array<int>* s2l_face = NULL;
+   Array<Pair<int,int> > sface_info;
+   if (have_face_nbr_data)
+   {
+      // Save face-neighbor data from 'faces_info'.
+      s2l_face = ((Dim == 1) ? &svert_lvert :
+                  ((Dim == 2) ? &sedge_ledge : &sface_lface));
+      sface_info.SetSize(s2l_face->Size());
+      for (int sf = 0; sf < sface_info.Size(); ++sf)
+      {
+         const FaceInfo &fi = faces_info[(*s2l_face)[sf]];
+         sface_info[sf] = Pair<int,int>(fi.Elem2No, fi.Elem2Inf);
+      }
+   }
+
+   const bool update_nodes = false;
+   Array<int> vertex_ordering;
+   ReorderElements_internal(ordering, reorder_vertices, vertex_ordering,
+                            update_nodes);
+
+   if (reorder_vertices)
+   {
+      // Replace the vertex ids in the 'shared_faces' and 'shared edges' with
+      // the reordered vertex numbers.
+      for (int sf_id = 0; sf_id < shared_faces.Size(); ++sf_id)
+      {
+         int *v = shared_faces[sf_id]->GetVertices();
+         int nv = shared_faces[sf_id]->GetNVertices();
+         for (int vi = 0; vi < nv; ++vi)
+         {
+            v[vi] = vertex_ordering[v[vi]];
+         }
+      }
+      for (int se_id = 0; se_id < shared_edges.Size(); ++se_id)
+      {
+         int *v = shared_edges[se_id]->GetVertices();
+         int nv = shared_edges[se_id]->GetNVertices();
+         for (int vi = 0; vi < nv; ++vi)
+         {
+            v[vi] = vertex_ordering[v[vi]];
+         }
+      }
+      // svert_lvert
+      for (int sv_id = 0; sv_id < svert_lvert.Size(); ++sv_id)
+      {
+         svert_lvert[sv_id] = vertex_ordering[svert_lvert[sv_id]];
+      }
+      // send_face_nbr_vertices
+      if (have_face_nbr_data)
+      {
+         int *J = send_face_nbr_vertices.GetJ();
+         const int nnz = send_face_nbr_vertices.Size_of_connections();
+         for (int j = 0; j < nnz; j++)
+         {
+            J[j] = vertex_ordering[J[j]];
+         }
+      }
+   }
+
+   // Set 'sedge_ledge' and 'sface_lface'.
+   SetSharedToLocalMaps();
+
+   if (have_face_nbr_data)
+   {
+      // Restore face-neighbor data to 'faces_info'.
+      for (int sf = 0; sf < sface_info.Size(); ++sf)
+      {
+         FaceInfo &fi = faces_info[(*s2l_face)[sf]];
+         MFEM_ASSERT(fi.Elem2No == -1 && fi.Elem2Inf == -1, "internal error");
+         fi.Elem2No = sface_info[sf].one;
+         fi.Elem2Inf = sface_info[sf].two;
+      }
+
+      // send_face_nbr_elements
+      int *J = send_face_nbr_elements.GetJ();
+      const int nnz = send_face_nbr_elements.Size_of_connections();
+      for (int j = 0; j < nnz; j++)
+      {
+         J[j] = ordering[J[j]];
+      }
+   }
+
+   if (Nodes) { Nodes->Update(); }
+}
+
 void ParMesh::RefineGroups(const DSTable &v_to_v, int *middle)
 {
    int i, attr, newv[3], ind, f_ind, *v;
@@ -2782,6 +2910,7 @@ void ParMesh::RefineGroups(const DSTable &v_to_v, int *middle)
    // overestimate the size of the J arrays
    if (Dim == 3)
    {
+      // Assuming only triangle shared faces
       J_group_svert = new int[group_svert.Size_of_connections()
                               + group_sedge.Size_of_connections()];
       J_group_sedge = new int[2*group_sedge.Size_of_connections()

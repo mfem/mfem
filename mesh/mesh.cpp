@@ -31,9 +31,6 @@
 #include "metis.h"
 #endif
 
-#ifdef MFEM_USE_GECKO
-#include "graph.h"
-#endif
 
 using namespace std;
 
@@ -764,6 +761,7 @@ void Mesh::Init()
    NURBSext = NULL;
    ncmesh = NULL;
    last_operation = Mesh::NONE;
+   el_perm = NULL;
 }
 
 void Mesh::InitTables()
@@ -1131,54 +1129,10 @@ void Mesh::FinalizeQuadMesh(int generate_edges, int refine,
    meshgen = 2;
 }
 
-
-#ifdef MFEM_USE_GECKO
-void Mesh::GetGeckoElementReordering(Array<int> &ordering)
-{
-   Gecko::Graph graph;
-
-   // We will put some accesors in for these later
-   Gecko::Functional *functional =
-      new Gecko::FunctionalGeometric(); // ordering functional
-   unsigned int iterations = 1;         // number of V cycles
-   unsigned int window = 2;             // initial window size
-   unsigned int period = 1;             // iterations between window increment
-   unsigned int seed = 0;               // random number seed
-
-   // Run through all the elements and insert the nodes in the graph for them
-   for (int elemid = 0; elemid < GetNE(); ++elemid)
-   {
-      graph.insert();
-   }
-
-   // Run through all the elems and insert arcs to the graph for each element
-   // face Indices in Gecko are 1 based hence the +1 on the insertion
-   const Table &my_el_to_el = ElementToElementTable();
-   for (int elemid = 0; elemid < GetNE(); ++elemid)
-   {
-      const int *neighid = my_el_to_el.GetRow(elemid);
-      for (int i = 0; i < my_el_to_el.RowSize(elemid); ++i)
-      {
-         graph.insert(elemid + 1,  neighid[i] + 1);
-      }
-   }
-
-   // Get the reordering from Gecko and copy it into the ordering Array<int>
-   graph.order(functional, iterations, window, period, seed);
-   ordering.DeleteAll();
-   ordering.SetSize(GetNE());
-   Gecko::Node::Index NE = GetNE();
-   for (Gecko::Node::Index gnodeid = 1; gnodeid <= NE; ++gnodeid)
-   {
-      ordering[gnodeid - 1] = graph.rank(gnodeid);
-   }
-
-   delete functional;
-}
-#endif
-
-
-void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
+void Mesh::ReorderElements_internal(const Array<int> &ordering,
+                                    bool reorder_vertices,
+                                    Array<int> &vertex_ordering,
+                                    bool update_nodes)
 {
    if (NURBSext)
    {
@@ -1191,7 +1145,16 @@ void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
                    " supported.");
       return;
    }
-   MFEM_VERIFY(ordering.Size() == GetNE(), "invalid reordering array.")
+   MFEM_VERIFY(ordering.Size() == GetNE(), "invalid reordering array.");
+#ifdef MFEM_DEBUG
+   {
+      // Make sure 'ordering' is a permutation of [0,NumOfElements)
+      PermutationOperator po(GetNE(), const_cast<int*>(ordering.GetData()),
+                             false);
+      int err = po.CheckPermutation();
+      MFEM_VERIFY(!err, "invalid reordering array.");
+   }
+#endif
 
    // Data members that need to be updated:
 
@@ -1215,22 +1178,8 @@ void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
 
    // - Nodes
 
-   // Save the locations of the Nodes so we can rebuild them later
-   Array<Vector*> old_elem_node_vals;
-   FiniteElementSpace *nodes_fes = NULL;
-   if (Nodes)
-   {
-      old_elem_node_vals.SetSize(GetNE());
-      nodes_fes = Nodes->FESpace();
-      Array<int> old_dofs;
-      Vector vals;
-      for (int old_elid = 0; old_elid < GetNE(); ++old_elid)
-      {
-         nodes_fes->GetElementVDofs(old_elid, old_dofs);
-         Nodes->GetSubVector(old_dofs, vals);
-         old_elem_node_vals[old_elid] = new Vector(vals);
-      }
-   }
+   // Destroy tables that need to be rebuild
+   DeleteTables();
 
    // Get the newly ordered elements
    Array<Element *> new_elements(GetNE());
@@ -1246,7 +1195,7 @@ void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
    {
       // Get the new vertex ordering permutation vectors and fill the new
       // vertices
-      Array<int> vertex_ordering(GetNV());
+      vertex_ordering.SetSize(GetNV());
       vertex_ordering = -1;
       Array<Vertex> new_vertices(GetNV());
       int new_vertex_ind = 0;
@@ -1292,9 +1241,6 @@ void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
       }
    }
 
-   // Destroy tables that need to be rebuild
-   DeleteTables();
-
    if (Dim > 1)
    {
       // generate el_to_edge, be_to_edge (2D), bel_to_edge (3D)
@@ -1309,18 +1255,14 @@ void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
    // Update faces and faces_info
    GenerateFaces();
 
-   // Build the nodes from the saved locations if they were around before
-   if (Nodes)
+   // Element reordering is a `Mesh::Operation`.
+   last_operation = Mesh::REORDER;
+   sequence++;
+   el_perm = ordering.GetData();
+
+   if (Nodes && update_nodes)
    {
-      nodes_fes->Update();
-      Array<int> new_dofs;
-      for (int old_elid = 0; old_elid < GetNE(); ++old_elid)
-      {
-         int new_elid = ordering[old_elid];
-         nodes_fes->GetElementVDofs(new_elid, new_dofs);
-         Nodes->SetSubVector(new_dofs, *(old_elem_node_vals[old_elid]));
-         delete old_elem_node_vals[old_elid];
-      }
+      Nodes->Update();
    }
 }
 
@@ -2296,6 +2238,7 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    // Create the new Mesh instance without a record of its refinement history
    sequence = 0;
    last_operation = Mesh::NONE;
+   el_perm = NULL;
 
    // Duplicate the elements
    elements.SetSize(NumOfElements);
@@ -3043,6 +2986,9 @@ void Mesh::KnotInsert(Array<KnotVector *> &kv)
 
    NURBSext->KnotInsert(kv);
 
+   last_operation = Mesh::REFINE;
+   sequence++;
+
    UpdateNURBS();
 }
 
@@ -3335,6 +3281,10 @@ static const char *fixed_or_not[] = { "fixed", "NOT FIXED" };
 
 int Mesh::CheckElementOrientation(bool fix_it)
 {
+   // Note: this public operation may change the mesh topology (rotate elements)
+   //       if 'fix_it' is true, however, it is not a 'Mesh::Operation', i.e. it
+   //       does not change 'last_operation' and 'sequence'.
+
    int i, j, k, wo = 0, fo = 0, *vi = 0;
    double *v[4];
 
@@ -3542,6 +3492,11 @@ int Mesh::GetQuadOrientation(const int *base, const int *test)
 
 int Mesh::CheckBdrElementOrientation(bool fix_it)
 {
+   // Note: this public operation may change the mesh topology (rotate boundary
+   //       elements) if 'fix_it' is true, however, it is not a
+   //       'Mesh::Operation', i.e. it does not change 'last_operation' and
+   //       'sequence'.
+
    int i, wo = 0;
 
    if (Dim == 2)
@@ -4120,10 +4075,13 @@ const Table & Mesh::ElementToElementTable()
 {
    if (el_to_el)
    {
+      MFEM_ASSERT(el_to_el->Size() == GetNE(),
+                  "internal error, el_to_el->Size() = "
+                  << el_to_el->Size() << ", GetNE() = " << GetNE());
       return *el_to_el;
    }
 
-   int num_faces = GetNumFaces();
+   MFEM_DEBUG_DO(int num_faces = GetNumFaces());
    // Note that, for ParNCMeshes, faces_info will contain also the ghost faces
    MFEM_ASSERT(faces_info.Size() >= num_faces, "faces were not generated!");
 
@@ -4159,6 +4117,7 @@ const Table & Mesh::ElementToFaceTable() const
    {
       mfem_error("Mesh::ElementToFaceTable()");
    }
+   MFEM_ASSERT(el_to_face->Size() == GetNE(), "internal error");
    return *el_to_face;
 }
 
@@ -4168,6 +4127,7 @@ const Table & Mesh::ElementToEdgeTable() const
    {
       mfem_error("Mesh::ElementToEdgeTable()");
    }
+   MFEM_ASSERT(el_to_edge->Size() == GetNE(), "internal error");
    return *el_to_edge;
 }
 
@@ -4416,10 +4376,7 @@ STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)
    int i, *v;
    STable3D *faces_tbl;
 
-   if (el_to_face != NULL)
-   {
-      delete el_to_face;
-   }
+   delete el_to_face;
    el_to_face = new Table(NumOfElements, 6);  // must be 6 for hexahedra
    faces_tbl = new STable3D(NumOfVertices);
    for (i = 0; i < NumOfElements; i++)
@@ -4486,7 +4443,7 @@ STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)
 
 void Mesh::ReorientTetMesh()
 {
-   int *v;
+   // This operation could be a 'Mesh::Operation'.
 
    if (Dim != 3 || !(meshgen & 1))
    {
@@ -4505,7 +4462,7 @@ void Mesh::ReorientTetMesh()
    {
       if (GetElementType(i) == Element::TETRAHEDRON)
       {
-         v = elements[i]->GetVertices();
+         int *v = elements[i]->GetVertices();
 
          Rotate3(v[0], v[1], v[2]);
          if (v[0] < v[3])
@@ -4523,7 +4480,7 @@ void Mesh::ReorientTetMesh()
    {
       if (GetBdrElementType(i) == Element::TRIANGLE)
       {
-         v = boundary[i]->GetVertices();
+         int *v = boundary[i]->GetVertices();
 
          Rotate3(v[0], v[1], v[2]);
       }
@@ -4630,7 +4587,7 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
 #else
       int ncon = 1;
       int err;
-      int options[40];
+      int options[METIS_NOPTIONS];
 #endif
       int edgecut;
 
@@ -4687,9 +4644,11 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
                                         options,
                                         &edgecut,
                                         partitioning);
-         if (err != 1)
+         if (err != METIS_OK)
+         {
             mfem_error("Mesh::GeneratePartitioning: "
                        " error in METIS_PartGraphRecursive!");
+         }
 #endif
       }
 
@@ -4723,9 +4682,11 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
                                    options,
                                    &edgecut,
                                    partitioning);
-         if (err != 1)
+         if (err != METIS_OK)
+         {
             mfem_error("Mesh::GeneratePartitioning: "
                        " error in METIS_PartGraphKway!");
+         }
 #endif
       }
 
@@ -4760,9 +4721,11 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
                                    options,
                                    &edgecut,
                                    partitioning);
-         if (err != 1)
+         if (err != METIS_OK)
+         {
             mfem_error("Mesh::GeneratePartitioning: "
                        " error in METIS_PartGraphKway!");
+         }
 #endif
       }
 
@@ -5469,6 +5432,14 @@ void Mesh::QuadUniformRefinement()
    int i, j, *v, vv[2], attr;
    const int *e;
 
+   // Call DeleteTables() but preserve el_to_edge, if built.
+   {
+      Table *elem_to_edge = el_to_edge;
+      el_to_edge = NULL;
+      DeleteTables();
+      el_to_edge = elem_to_edge;
+   }
+
    if (el_to_edge == NULL)
    {
       el_to_edge = new Table;
@@ -5573,10 +5544,24 @@ void Mesh::HexUniformRefinement()
    const int *e, *f;
    int vv[4];
 
+   // Call DeleteTables() but preserve el_to_edge, el_to_face, and bel_to_edge,
+   // if built.
+   {
+      Table *elem_to_edge = el_to_edge;
+      Table *elem_to_face = el_to_face;
+      Table *belem_to_edge = bel_to_edge;
+      el_to_edge = el_to_face = bel_to_edge = NULL;
+      DeleteTables();
+      el_to_edge = elem_to_edge;
+      el_to_face = elem_to_face;
+      bel_to_edge = belem_to_edge;
+   }
+
    if (el_to_edge == NULL)
    {
       el_to_edge = new Table;
       NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+      // the above call creates 'bel_to_edge' too
    }
    if (el_to_face == NULL)
    {
@@ -5774,9 +5759,13 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
    } // end of 'if (Dim == 1)'
    else if (Dim == 2) // ---------------------------------------------------
    {
+      const bool have_el_to_edge = (el_to_edge != NULL);
+
       // 1. Get table of vertex to vertex connections.
       DSTable v_to_v(NumOfVertices);
       GetVertexToVertexTable(v_to_v);
+
+      DeleteTables();
 
       // 2. Get edge to element connections in arrays edge1 and edge2
       nedges = v_to_v.NumberOfEntries();
@@ -5841,8 +5830,10 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
                boundary.Append(new Segment(v2, boundary[i]->GetAttribute()));
             }
             else
+            {
                mfem_error("Only bisection of segment is implemented"
                           " for bdr elem.");
+            }
          }
       }
       NumOfBdrElements = boundary.Size();
@@ -5852,8 +5843,9 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
       delete [] edge2;
       delete [] middle;
 
-      if (el_to_edge != NULL)
+      if (have_el_to_edge)
       {
+         el_to_edge = new Table; // el_to_edge was deleted by DeleteTables()
          NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
          GenerateFaces();
       }
@@ -5861,9 +5853,14 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
    }
    else if (Dim == 3) // ---------------------------------------------------
    {
+      const bool have_el_to_edge = (el_to_edge != NULL);
+      const bool have_el_to_face = (el_to_face != NULL);
+
       // 1. Get table of vertex to vertex connections.
       DSTable v_to_v(NumOfVertices);
       GetVertexToVertexTable(v_to_v);
+
+      DeleteTables();
 
       // 2. Get edge to element connections in arrays edge1 and edge2
       nedges = v_to_v.NumberOfEntries();
@@ -5967,11 +5964,12 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
       // 7. Free the allocated memory.
       delete [] middle;
 
-      if (el_to_edge != NULL)
+      if (have_el_to_edge)
       {
+         el_to_edge = new Table; // was deleted by DeleteTables()
          NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
       }
-      if (el_to_face != NULL)
+      if (have_el_to_face)
       {
          GetElementToFaceTable();
          GenerateFaces();
@@ -8307,6 +8305,10 @@ void Mesh::Transform(VectorCoefficient &deformation)
 
 void Mesh::RemoveUnusedVertices()
 {
+   // Note: this public operation may change the mesh topology, however, it is
+   //       not a 'Mesh::Operation', i.e. it does not change 'last_operation'
+   //       and 'sequence'.
+
    if (NURBSext || ncmesh) { return; }
 
    Array<int> v2v(GetNV());
@@ -8414,6 +8416,10 @@ void Mesh::RemoveUnusedVertices()
 
 void Mesh::RemoveInternalBoundaries()
 {
+   // Note: this public operation may change the mesh topology, however, it is
+   //       not a 'Mesh::Operation', i.e. it does not change 'last_operation'
+   //       and 'sequence'.
+
    if (NURBSext || ncmesh) { return; }
 
    int num_bdr_elem = 0;
