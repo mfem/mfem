@@ -656,8 +656,8 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
                uSum += x(k*nd+dofs[j]);
             
             // boundary update
-            for (j = 0; j < nd; j++)
-               z(k*nd+j) += bdrDiff(k,i)*(uSum - numDofs*x(k*nd+j));
+            for (j = 0; j < numDofs; j++)
+               z(k*nd+dofs[j]) += bdrDiff(k,i)*(uSum - numDofs*x(k*nd+dofs[j]));
          }
          ///////////////////////////
          // Element contributions //
