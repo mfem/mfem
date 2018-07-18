@@ -5898,17 +5898,18 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
    else if (Dim == 3) // ---------------------------------------------------
    {
       // 1. Get table of vertex to vertex connections.
-      DSTable v_to_v(NumOfVertices);
-      GetVertexToVertexTable(v_to_v);
+      //DSTable v_to_v(NumOfVertices);
+      //GetVertexToVertexTable(v_to_v);
+      HashTable<Hashed2> v_to_v;
 
       // 2. Get edge to element connections in arrays edge1 and edge2
-      nedges = v_to_v.NumberOfEntries();
-      int *middle = new int[nedges];
-
-      for (i = 0; i < nedges; i++)
-      {
-         middle[i] = -1;
-      }
+//      nedges = v_to_v.NumberOfEntries();
+//      int *middle = new int[nedges];
+//
+//      for (i = 0; i < nedges; i++)
+//      {
+//         middle[i] = -1;
+//      }
 
       // 3. Do the red refinement.
       int ii;
@@ -5917,31 +5918,31 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
          case 1:
             for (i = 0; i < marked_el.Size(); i++)
             {
-               Bisection(marked_el[i], v_to_v, NULL, NULL, middle);
+               Bisection(marked_el[i], v_to_v);
             }
             break;
          case 2:
             for (i = 0; i < marked_el.Size(); i++)
             {
-               Bisection(marked_el[i], v_to_v, NULL, NULL, middle);
+               Bisection(marked_el[i], v_to_v);
 
-               Bisection(NumOfElements - 1, v_to_v, NULL, NULL, middle);
-               Bisection(marked_el[i], v_to_v, NULL, NULL, middle);
+               Bisection(NumOfElements - 1, v_to_v);
+               Bisection(marked_el[i], v_to_v);
             }
             break;
          case 3:
             for (i = 0; i < marked_el.Size(); i++)
             {
-               Bisection(marked_el[i], v_to_v, NULL, NULL, middle);
+               Bisection(marked_el[i], v_to_v);
 
                ii = NumOfElements - 1;
-               Bisection(ii, v_to_v, NULL, NULL, middle);
-               Bisection(NumOfElements - 1, v_to_v, NULL, NULL, middle);
-               Bisection(ii, v_to_v, NULL, NULL, middle);
+               Bisection(ii, v_to_v);
+               Bisection(NumOfElements - 1, v_to_v);
+               Bisection(ii, v_to_v);
 
-               Bisection(marked_el[i], v_to_v, NULL, NULL, middle);
-               Bisection(NumOfElements-1, v_to_v, NULL, NULL, middle);
-               Bisection(marked_el[i], v_to_v, NULL, NULL, middle);
+               Bisection(marked_el[i], v_to_v);
+               Bisection(NumOfElements-1, v_to_v);
+               Bisection(marked_el[i], v_to_v);
             }
             break;
       }
@@ -5960,10 +5961,10 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
             // ((Tetrahedron *)elements[i])->
             // ParseRefinementFlag(redges, type, flag);
             // if (flag > max_gen)  max_gen = flag;
-            if (elements[i]->NeedRefinement(v_to_v, middle))
+            if (elements[i]->NeedRefinement(v_to_v))
             {
                need_refinement = 1;
-               Bisection(i, v_to_v, NULL, NULL, middle);
+               Bisection(i, v_to_v);
             }
          }
       }
@@ -5976,32 +5977,33 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
       {
          need_refinement = 0;
          for (i = 0; i < NumOfBdrElements; i++)
-            if (boundary[i]->NeedRefinement(v_to_v, middle))
+            if (boundary[i]->NeedRefinement(v_to_v))
             {
                need_refinement = 1;
-               Bisection(i, v_to_v, middle);
+               BdrBisection(i, v_to_v);
             }
       }
       while (need_refinement == 1);
 
+      NumOfVertices = vertices.Size();
       // 6. Un-mark the Pf elements.
-      int refinement_edges[2], type, flag;
-      for (i = 0; i < NumOfElements; i++)
-      {
-         Tetrahedron* el = (Tetrahedron*) elements[i];
-         el->ParseRefinementFlag(refinement_edges, type, flag);
-
-         if (type == Tetrahedron::TYPE_PF)
-         {
-            el->CreateRefinementFlag(refinement_edges, Tetrahedron::TYPE_PU,
-                                     flag);
-         }
-      }
+//      int refinement_edges[2], type, flag;
+//      for (i = 0; i < NumOfElements; i++)
+//      {
+//         Tetrahedron* el = (Tetrahedron*) elements[i];
+//         el->ParseRefinementFlag(refinement_edges, type, flag);
+//
+//         if (type == Tetrahedron::TYPE_PF)
+//         {
+//            el->CreateRefinementFlag(refinement_edges, Tetrahedron::TYPE_PU,
+//                                     flag);
+//         }
+//      }
 
       NumOfBdrElements = boundary.Size();
 
       // 7. Free the allocated memory.
-      delete [] middle;
+      //delete [] middle;
 
       DeleteLazyTables();
       if (el_to_edge != NULL)
@@ -6708,6 +6710,136 @@ void Mesh::Bisection(int i, const DSTable &v_to_v,
    }
 }
 
+void Mesh::Bisection(int i, HashTable<Hashed2> &v_to_v)
+{
+   int *vert;
+   int v[2][4], v_new, bisect, t;
+   Element *el = elements[i];
+   Vertex V;
+
+   t = el->GetType();
+   if (t == Element::TETRAHEDRON)
+   {
+      int j, type, new_type, old_redges[2], new_redges[2][2], flag;
+      Tetrahedron *tet = (Tetrahedron *) el;
+
+      MFEM_VERIFY(tet->GetRefinementFlag() != 0,
+                  "TETRAHEDRON element is not marked for refinement.");
+
+      vert = tet->GetVertices();
+
+      // 1. Get the index for the new vertex in v_new.
+      bisect = v_to_v.FindId(vert[0], vert[1]);
+//      if (bisect == -1)
+//      {
+//         tet->ParseRefinementFlag(old_redges, type, flag);
+//         mfem::err << "Error in Bisection(...) of tetrahedron!" << endl
+//                   << "   redge[0] = " << old_redges[0]
+//                   << "   redge[1] = " << old_redges[1]
+//                   << "   type = " << type
+//                   << "   flag = " << flag << endl;
+//         mfem_error();
+//      }
+
+      if (bisect == -1)
+      {
+         v_new = NumOfVertices + v_to_v.GetId(vert[0],vert[1]);
+         for (j = 0; j < 3; j++)
+         {
+            V(j) = 0.5 * (vertices[vert[0]](j) + vertices[vert[1]](j));
+         }
+         vertices.Append(V);
+      }
+      else
+      {
+         v_new = NumOfVertices + bisect;
+      }
+
+      // 2. Set the node indices for the new elements in v[2][4] so that
+      //    the edge marked for refinement is between the first two nodes.
+      tet->ParseRefinementFlag(old_redges, type, flag);
+
+      v[0][3] = v_new;
+      v[1][3] = v_new;
+      new_redges[0][0] = 2;
+      new_redges[0][1] = 1;
+      new_redges[1][0] = 2;
+      new_redges[1][1] = 1;
+      int tr1 = -1, tr2 = -1;
+      switch (old_redges[0])
+      {
+         case 2:
+            v[0][0] = vert[0]; v[0][1] = vert[2]; v[0][2] = vert[3];
+            if (type == Tetrahedron::TYPE_PF) { new_redges[0][1] = 4; }
+            tr1 = 0;
+            break;
+         case 3:
+            v[0][0] = vert[3]; v[0][1] = vert[0]; v[0][2] = vert[2];
+            tr1 = 2;
+            break;
+         case 5:
+            v[0][0] = vert[2]; v[0][1] = vert[3]; v[0][2] = vert[0];
+            tr1 = 4;
+      }
+      switch (old_redges[1])
+      {
+         case 1:
+            v[1][0] = vert[2]; v[1][1] = vert[1]; v[1][2] = vert[3];
+            if (type == Tetrahedron::TYPE_PF) { new_redges[1][0] = 3; }
+            tr2 = 1;
+            break;
+         case 4:
+            v[1][0] = vert[1]; v[1][1] = vert[3]; v[1][2] = vert[2];
+            tr2 = 3;
+            break;
+         case 5:
+            v[1][0] = vert[3]; v[1][1] = vert[2]; v[1][2] = vert[1];
+            tr2 = 5;
+      }
+
+      int attr = tet->GetAttribute();
+      tet->SetVertices(v[0]);
+
+#ifdef MFEM_USE_MEMALLOC
+      Tetrahedron *tet2 = TetMemory.Alloc();
+      tet2->SetVertices(v[1]);
+      tet2->SetAttribute(attr);
+#else
+      Tetrahedron *tet2 = new Tetrahedron(v[1], attr);
+#endif
+      tet2->ResetTransform(tet->GetTransform());
+      elements.Append(tet2);
+
+      // record the sequence of refinements
+      tet->PushTransform(tr1);
+      tet2->PushTransform(tr2);
+
+      int coarse = FindCoarseElement(i);
+      CoarseFineTr.embeddings[i].parent = coarse;
+      CoarseFineTr.embeddings.Append(Embedding(coarse));
+
+      // 3. Set the bisection flag
+      switch (type)
+      {
+         case Tetrahedron::TYPE_PU:
+            new_type = Tetrahedron::TYPE_PF; break;
+         case Tetrahedron::TYPE_PF:
+            new_type = Tetrahedron::TYPE_A;  break;
+         default:
+            new_type = Tetrahedron::TYPE_PU;
+      }
+
+      tet->CreateRefinementFlag(new_redges[0], new_type, flag+1);
+      tet2->CreateRefinementFlag(new_redges[1], new_type, flag+1);
+
+      NumOfElements++;
+   }
+   else
+   {
+      MFEM_ABORT("Bisection with HashTable for now works only for tetrahedra.");
+   }
+}
+
 void Mesh::Bisection(int i, const DSTable &v_to_v, int *middle)
 {
    int *vert;
@@ -6741,6 +6873,42 @@ void Mesh::Bisection(int i, const DSTable &v_to_v, int *middle)
    else
    {
       MFEM_ABORT("Bisection of boundary elements works only for triangles!");
+   }
+}
+
+void Mesh::BdrBisection(int i, const HashTable<Hashed2> &v_to_v)
+{
+   int *vert;
+   int v[2][3], v_new, bisect, t;
+   Element *bdr_el = boundary[i];
+
+   t = bdr_el->GetType();
+   if (t == Element::TRIANGLE)
+   {
+      Triangle *tri = (Triangle *) bdr_el;
+
+      vert = tri->GetVertices();
+
+      // 1. Get the index for the new vertex in v_new.
+      bisect = v_to_v.FindId(vert[0], vert[1]);
+      MFEM_ASSERT(bisect >= 0, "");
+      v_new = NumOfVertices + bisect;
+      MFEM_ASSERT(v_new != -1, "");
+
+      // 2. Set the node indices for the new elements in v[0] and v[1] so that
+      //    the  edge marked for refinement is between the first two nodes.
+      v[0][0] = vert[2]; v[0][1] = vert[0]; v[0][2] = v_new;
+      v[1][0] = vert[1]; v[1][1] = vert[2]; v[1][2] = v_new;
+
+      tri->SetVertices(v[0]);
+
+      boundary.Append(new Triangle(v[1], tri->GetAttribute()));
+
+      NumOfBdrElements++;
+   }
+   else
+   {
+      MFEM_ABORT("Bisection of boundary elements with HashTable works only for triangles!");
    }
 }
 

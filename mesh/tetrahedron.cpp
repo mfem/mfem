@@ -172,6 +172,23 @@ int Tetrahedron::NeedRefinement(DSTable &v_to_v, int *middle) const
    return 0;
 }
 
+int Tetrahedron::NeedRefinement(HashTable<Hashed2> &v_to_v) const
+{
+   if (v_to_v.FindId(indices[0], indices[1]) != -1)
+      { return 1; }
+   if (v_to_v.FindId(indices[1], indices[2]) != -1)
+      { return 1; }
+   if (v_to_v.FindId(indices[2], indices[0]) != -1)
+      { return 1; }
+   if (v_to_v.FindId(indices[0], indices[3]) != -1)
+      { return 1; }
+   if (v_to_v.FindId(indices[1], indices[3]) != -1)
+      { return 1; }
+   if (v_to_v.FindId(indices[2], indices[3]) != -1)
+      { return 1; }
+   return 0;
+}
+
 void Tetrahedron::SetVertices(const int *ind)
 {
    for (int i = 0; i < 4; i++)
