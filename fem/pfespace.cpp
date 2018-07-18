@@ -140,8 +140,6 @@ void ParFiniteElementSpace::Construct()
    }
    else // Nonconforming()
    {
-      ConstructTrueDofs();
-
       // calculate number of ghost DOFs
       ngvdofs = pncmesh->GetNGhostVertices()
                 * fec->DofForGeometry(Geometry::POINT);
@@ -558,6 +556,11 @@ HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
 
 void ParFiniteElementSpace::DivideByGroupSize(double *vec)
 {
+   if (Nonconforming())
+   {
+      MFEM_ABORT("Not implemented for NC mesh.");
+   }
+
    GroupTopology &gt = GetGroupTopo();
 
    for (int i = 0; i < ldof_group.Size(); i++)
@@ -571,6 +574,12 @@ void ParFiniteElementSpace::DivideByGroupSize(double *vec)
 
 GroupCommunicator *ParFiniteElementSpace::ScalarGroupComm()
 {
+   if (Nonconforming())
+   {
+      // MFEM_WARNING("Not implemented for NC mesh.");
+      return NULL;
+   }
+
    GroupCommunicator *gc = new GroupCommunicator(GetGroupTopo());
    if (NURBSext)
    {
