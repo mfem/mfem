@@ -65,6 +65,7 @@ public:
 
    /// Return 1 if the element needs refinement in order to get conforming mesh.
    virtual int NeedRefinement(DSTable &v_to_v, int *middle) const;
+   virtual int NeedRefinement(HashTable<Hashed2> &v_to_v) const;
 
    /// Set the vertices according to the given input.
    virtual void SetVertices(const int *ind);

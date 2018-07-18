@@ -251,8 +251,14 @@ protected:
    /** Bisection. Element with index i is bisected. */
    void Bisection(int i, const DSTable &, int *, int *, int *);
 
+   /** Bisection. Element or boundary element with index i is bisected. */
+   void Bisection(int i, HashTable<Hashed2> &);
+
    /** Bisection. Boundary element with index i is bisected. */
    void Bisection(int i, const DSTable &, int *);
+
+   /** Bisection. Boundary element with index i is bisected (using HashTable). */
+   void BdrBisection(int i, const HashTable<Hashed2> &);
 
    /** Uniform Refinement. Element with index i is refined uniformly. */
    void UniformRefinement(int i, const DSTable &, int *, int *, int *);

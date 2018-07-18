@@ -44,6 +44,16 @@ int Triangle::NeedRefinement(DSTable &v_to_v, int *middle) const
    return 0;
 }
 
+int Triangle::NeedRefinement(HashTable<Hashed2> &v_to_v) const
+{
+   int m;
+
+   if (v_to_v.FindId(indices[0], indices[1]) != -1) { return 1; }
+   if (v_to_v.FindId(indices[1], indices[2]) != -1) { return 1; }
+   if (v_to_v.FindId(indices[2], indices[0]) != -1) { return 1; }
+   return 0;
+}
+
 void Triangle::SetVertices(const int *ind)
 {
    for (int i = 0; i < 3; i++)
