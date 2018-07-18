@@ -65,6 +65,7 @@ protected:
    int GetEdgeSplittings(Element *edge, const DSTable &v_to_v, int *middle);
    /// Return a number(0-4) identifying how the given face has been split
    int GetFaceSplittings(Element *face, const DSTable &v_to_v, int *middle);
+   int GetFaceSplittings(Element *face, const HashTable<Hashed2> &v_to_v);
 
    void GetFaceNbrElementTransformation(
       int i, IsoparametricTransformation *ElTr);
@@ -238,6 +239,7 @@ public:
 
    /// Update the groups after tet refinement
    void RefineGroups(const DSTable &v_to_v, int *middle);
+   void RefineGroups(const HashTable<Hashed2> &v_to_v);
 
    /// Load balance the mesh. NC meshes only.
    void Rebalance();
