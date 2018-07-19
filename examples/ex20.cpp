@@ -1,8 +1,8 @@
-//                       MFEM Example 18 - Version
+//                                MFEM Example 20
 //
-// Compile with: make ex18
+// Compile with: make ex20
 //
-// Sample runs:  ex18
+// Sample runs:  ex20
 //
 // Description: This example demonstrates the use of the variable
 //              order, symplectic ODE integration algorithm.
@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Time integration order.");
    args.AddOption(&prob_, "-p", "--problem-type",
-                  "Problem Type: \n"
+                  "Problem Type:\n"
                   "\t  0 - Simple Harmonic Oscillator\n"
                   "\t  1 - Pendulum\n"
                   "\t  2 - Gaussian Potential Well\n"
@@ -134,7 +134,7 @@ int main(int argc, char *argv[])
    ofstream ofs;
    if ( gnuplot )
    {
-      ofs.open("ex18.dat");
+      ofs.open("ex20.dat");
       ofs << t << "\t" << q(0) << "\t" << p(0) << endl;
    }
 
@@ -208,10 +208,10 @@ int main(int argc, char *argv[])
    {
       ofs.close();
 
-      ofs.open("gnuplot_ex18.inp");
-      ofs << "plot 'ex18.dat' using 1:2 w l t 'q', "
-          << "'ex18.dat' using 1:3 w l t 'p', "
-          << "'ex18.dat' using 1:4 w l t 'H'" << endl;
+      ofs.open("gnuplot_ex20.inp");
+      ofs << "plot 'ex20.dat' using 1:2 w l t 'q', "
+          << "'ex20.dat' using 1:3 w l t 'p', "
+          << "'ex20.dat' using 1:4 w l t 'H'" << endl;
       ofs.close();
    }
 

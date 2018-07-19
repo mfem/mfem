@@ -1,8 +1,8 @@
-//                       MFEM Example 18 - Parallel Version
+//                       MFEM Example 20 - Parallel Version
 //
-// Compile with: make ex18p
+// Compile with: make ex20p
 //
-// Sample runs:  mpirun -np 4 ex18p
+// Sample runs:  mpirun -np 4 ex20p
 //
 // Description: This example demonstrates the use of the variable
 //              order, symplectic ODE integration algorithm.
@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Time integration order.");
    args.AddOption(&prob_, "-p", "--problem-type",
-                  "Problem Type: \n"
+                  "Problem Type:\n"
                   "\t  0 - Simple Harmonic Oscillator\n"
                   "\t  1 - Pendulum\n"
                   "\t  2 - Gaussian Potential Well\n"
@@ -155,7 +155,7 @@ int main(int argc, char *argv[])
    ofstream ofs;
    if ( gnuplot )
    {
-      oss << "ex18p_" << setfill('0') << setw(5) << myid << ".dat";
+      oss << "ex20p_" << setfill('0') << setw(5) << myid << ".dat";
       ofs.open(oss.str().c_str());
       ofs << t << "\t" << q(0) << "\t" << p(0) << endl;
    }
@@ -250,11 +250,11 @@ int main(int argc, char *argv[])
       ofs.close();
       if ( myid == 0 )
       {
-         ofs.open("gnuplot_ex18p.inp");
+         ofs.open("gnuplot_ex20p.inp");
          for (int i=0; i<num_procs; i++)
          {
             ostringstream ossi;
-            ossi << "ex18p_" << setfill('0') << setw(5) << i << ".dat";
+            ossi << "ex20p_" << setfill('0') << setw(5) << i << ".dat";
             if ( i == 0 )
             {
                ofs << "plot";
