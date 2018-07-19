@@ -20,26 +20,19 @@ public:
       void gslib_findpts_setup(double bb_t, double newt_tol, int npt_max);
 
 //    finds r,s,t,e,p for given x,y,z
-      void gslib_findpts(uint *pcode, uint *pproc, uint *pel,
-      double *pr,double *pd,double *xp, double *yp, double *zp, int nxyz);
+      void gslib_findpts(Array<uint> *pcode,Array<uint> *pproc,Array<uint> *pel,
+      Vector *pr,Vector *pd,Vector *xp, Vector *yp, Vector *zp, int nxyz);
+
+      void gslib_findpts(Array<uint> *pcode,Array<uint> *pproc,Array<uint> *pel,
+      Vector *pr,Vector *pd,Vector *xyzp, int nxyz);
 
 //    Interpolates fieldin for given r,s,t,e,p and puts it in fieldout
-      void gslib_findpts_eval (double *fieldout, uint *pcode, uint *pproc, uint *pel,
-            double *pr,double *fieldin, int nxyz);
+      void gslib_findpts_eval (Vector *fieldout,Array<uint> *pcode,Array<uint> *pproc,Array<uint> *pel,
+            Vector *pr,double *fieldin, int nxyz);
 
-//    routine to convert grid function to a double field
-#ifdef MFEM_USE_MPI
-      void gslib_gf2db (ParGridFunction *pgf, double *fieldout);
-#else
-      void gslib_gf2db (GridFunction *pgf, double *fieldout);
-#endif
-
-//    optional vdif for vector pargridfunction
-#ifdef MFEM_USE_MPI
-      void gslib_gf2db (ParGridFunction *pgf, double *fieldout, int vdim);
-#else
-      void gslib_gf2db (GridFunction *pgf, double *fieldout, int vdim);
-#endif
+//    Interpolates fieldin for given r,s,t,e,p and puts it in fieldout
+      void gslib_findpts_eval (Vector *fieldout,Array<uint> *pcode,Array<uint> *pproc,Array<uint> *pel,
+            Vector *pr,ParGridFunction *fieldin, int nxyz);
 
 //    clears up memory
       void gslib_findpts_free ();
@@ -111,24 +104,23 @@ void findpts_gslib::gslib_findpts_setup(double bb_t, double newt_tol, int npt_ma
    }
 }
 
-void findpts_gslib::gslib_findpts(uint *pcode, uint *pproc, uint *pel,double *pr,double *pd,double *xp, double *yp, double *zp, int nxyz)
+void findpts_gslib::gslib_findpts(Array<uint> *pcode,Array<uint> *pproc,Array<uint> *pel,Vector *pr,Vector *pd,Vector *xp,Vector *yp, Vector *zp, int nxyz)
 {
-    uint *const code_base = pcode;
-    uint *const proc_base = pproc;
-    uint *const el_base = pel;
-    double *const r_base = pr;
-    double *const dist_base = pd;
+    uint *const code_base = pcode->GetData();
+    uint *const proc_base = pproc->GetData();
+    uint *const el_base = pel->GetData();
+    double *const dist_base = pd->GetData();
     if (dim==2)
     {
     const double *xv_base[2];
-    xv_base[0]=xp, xv_base[1]=yp;
+    xv_base[0]=xp->GetData(), xv_base[1]=yp->GetData();
     unsigned xv_stride[2];
     xv_stride[0] = sizeof(double),xv_stride[1] = sizeof(double);
     findpts_2(
       code_base,sizeof(uint),
       proc_base,sizeof(uint),
       el_base,sizeof(uint),
-      pr,sizeof(double)*dim,
+      pr->GetData(),sizeof(double)*dim,
       dist_base,sizeof(double),
       xv_base,     xv_stride,
       nxyz,this->fda);
@@ -136,71 +128,81 @@ void findpts_gslib::gslib_findpts(uint *pcode, uint *pproc, uint *pel,double *pr
    else
    {
     const double *xv_base[3];
-    xv_base[0]=xp, xv_base[1]=yp;xv_base[2]=zp;
+    xv_base[0]=xp->GetData(), xv_base[1]=yp->GetData();xv_base[2]=zp->GetData();
     unsigned xv_stride[3];
     xv_stride[0] = sizeof(double),xv_stride[1] = sizeof(double),xv_stride[2] = sizeof(double);
     findpts_3(
       code_base,sizeof(uint),
       proc_base,sizeof(uint),
       el_base,sizeof(uint),
-      pr,sizeof(double)*dim,
+      pr->GetData(),sizeof(double)*dim,
       dist_base,sizeof(double),
       xv_base,     xv_stride,
       nxyz,this->fdb);
    }
-}
-
-#ifdef MFEM_USE_MPI
-void findpts_gslib::gslib_gf2db(ParGridFunction *pgf, double *fieldout)
-#else
-void findpts_gslib::gslib_gf2db(GridFunction *pgf, double *fieldout)
-#endif
-{
-   int np, npt;
-   np = 0;
-   npt = nel*pow(qo,dim);
-   int nsp = pow(qo,dim);
-   for (int i = 0; i < nel; i++)
-   {  
-     for (int j = 0; j < nsp; j++)
-      { 
-        const IntegrationPoint &ip = this->ir.IntPoint(j);
-        fieldout[np] = pgf->GetValue(i, ip);
-        np = np+1;
-      }
+// Recast from -1 to 1 to 0 to 1 for MFEM
+   for (int i = 0; i < pr->Size(); i++)
+   {
+    pr->GetData()[i] = pr->GetData()[i]*0.5 + 0.5;
    }
 }
 
-#ifdef MFEM_USE_MPI
-void findpts_gslib::gslib_gf2db(ParGridFunction *pgf, double *fieldout, int vdim)
-#else
-void findpts_gslib::gslib_gf2db(GridFunction *pgf, double *fieldout, int vdim)
-#endif
-{  
-   int np, npt;
-   np = 0;
-   npt = nel*pow(qo,dim);
-   int nsp = pow(qo,dim);
-   for (int i = 0; i < nel; i++)
-   {  
-     for (int j = 0; j < nsp; j++)
-      { 
-        const IntegrationPoint &ip = this->ir.IntPoint(j);
-        fieldout[np] = pgf->GetValue(i, ip,vdim);
-        np = np+1;
-      }
-   } 
+void findpts_gslib::gslib_findpts(Array<uint> *pcode,Array<uint> *pproc,Array<uint> *pel,Vector *pr,Vector *pd,Vector *xyzp, int nxyz)
+{
+    uint *const code_base = pcode->GetData();
+    uint *const proc_base = pproc->GetData();
+    uint *const el_base = pel->GetData();
+    double *const dist_base = pd->GetData();
+    if (dim==2)
+    {
+    const double *xv_base[2];
+    xv_base[0]=xyzp->GetData(), xv_base[1]=xyzp->GetData()+nxyz;
+    unsigned xv_stride[2];
+    xv_stride[0] = sizeof(double),xv_stride[1] = sizeof(double);
+    findpts_2(
+      code_base,sizeof(uint),
+      proc_base,sizeof(uint),
+      el_base,sizeof(uint),
+      pr->GetData(),sizeof(double)*dim,
+      dist_base,sizeof(double),
+      xv_base,     xv_stride,
+      nxyz,this->fda);
+    }
+   else
+   {
+    const double *xv_base[3];
+    xv_base[0]=xyzp->GetData(), xv_base[1]=xyzp->GetData()+nxyz;xv_base[2]=xyzp->GetData()+nxyz;
+    unsigned xv_stride[3];
+    xv_stride[0] = sizeof(double),xv_stride[1] = sizeof(double),xv_stride[2] = sizeof(double);
+    findpts_3(
+      code_base,sizeof(uint),
+      proc_base,sizeof(uint),
+      el_base,sizeof(uint),
+      pr->GetData(),sizeof(double)*dim,
+      dist_base,sizeof(double),
+      xv_base,     xv_stride,
+      nxyz,this->fdb);
+   }
+// Recast from -1 to 1 to 0 to 1 for MFEM
+   for (int i = 0; i < pr->Size(); i++)
+   {
+    pr->GetData()[i] = pr->GetData()[i]*0.5 + 0.5;
+   }
 }
 
 void findpts_gslib::gslib_findpts_eval(
-                double *fieldout, uint *pcode, uint *pproc, uint *pel, double *pr,
-                   double *fieldin, int nxyz)
+            Vector *fieldout, Array<uint> *pcode, Array<uint>  *pproc, Array<uint>  *pel, Vector *pr,
+            double *fieldin, int nxyz)
 {
-    uint *const code_base = pcode;
-    uint *const proc_base = pproc;
-    uint *const el_base = pel;
-    double *const r_base = pr;
-    double *const out_base = fieldout;
+// Recast from 0 to 1 to -1 to 1 for GSLIB
+    for (int i = 0; i < pr->Size(); i++)
+    {
+     pr->GetData()[i] = pr->GetData()[i]*2.0 - 1.0;
+    }
+    uint *const code_base = pcode->GetData();
+    uint *const proc_base = pproc->GetData();
+    uint *const el_base = pel->GetData();
+    double *const out_base = fieldout->GetData();
     double *const in_base = fieldin;
     int npt = nel*pow(qo,dim);
     if (dim==2)
@@ -209,7 +211,7 @@ void findpts_gslib::gslib_findpts_eval(
       code_base,sizeof(uint),
       proc_base,sizeof(uint),
       el_base,sizeof(uint),
-      pr,sizeof(double)*dim,
+      pr->GetData(),sizeof(double)*dim,
       nxyz,fieldin,this->fda);
     }
    else
@@ -218,9 +220,79 @@ void findpts_gslib::gslib_findpts_eval(
       code_base,sizeof(uint),
       proc_base,sizeof(uint),
       el_base,sizeof(uint),
-      pr,sizeof(double)*dim,
+      pr->GetData(),sizeof(double)*dim,
       nxyz,fieldin,this->fdb);
    }
+// Recast from -1 to 1 to 0 to 1 for MFEM
+   for (int i = 0; i < pr->Size(); i++)
+   {
+    pr->GetData()[i] = pr->GetData()[i]*0.5 + 0.5;
+   }
+}
+
+#ifdef MFEM_USE_MPI
+void findpts_gslib::gslib_findpts_eval(
+            Vector *fieldout, Array<uint> *pcode, Array<uint>  *pproc, Array<uint>  *pel, Vector *pr,
+            ParGridFunction *fieldin, int nxyz)
+#else
+void findpts_gslib::gslib_findpts_eval(
+            Vector *fieldout, Array<uint> *pcode, Array<uint>  *pproc, Array<uint>  *pel, Vector *pr,
+            GridFunction *fieldin, int nxyz)
+#endif
+{
+
+// convert gridfunction to double field
+   double* fin =  new double[dim*msz]; 
+   int nsp = pow(qo,dim);
+   int np = 0;  
+   for (int i = 0; i < nel; i++)
+   {  
+      for (int j = 0; j < nsp; j++)
+      { 
+        const IntegrationPoint &ip = this->ir.IntPoint(j);
+        fin[np] = fieldin->GetValue(i, ip);
+        np = np+1;
+      }
+   }
+
+// Recast from 0 to 1 to -1 to 1 for GSLIB
+    for (int i = 0; i < pr->Size(); i++)
+    {
+     pr->GetData()[i] = pr->GetData()[i]*2.0 - 1.0;
+    }
+
+//  
+    uint *const code_base = pcode->GetData();
+    uint *const proc_base = pproc->GetData();
+    uint *const el_base = pel->GetData();
+    double *const out_base = fieldout->GetData();
+    double *const in_base = fin;
+    int npt = nel*pow(qo,dim);
+    if (dim==2)
+    {
+    findpts_eval_2(out_base,sizeof(double),
+      code_base,sizeof(uint),
+      proc_base,sizeof(uint),
+      el_base,sizeof(uint),
+      pr->GetData(),sizeof(double)*dim,
+      nxyz,fin,this->fda);
+    }
+   else
+   {
+    findpts_eval_3(out_base,sizeof(double),
+      code_base,sizeof(uint),
+      proc_base,sizeof(uint),
+      el_base,sizeof(uint),
+      pr->GetData(),sizeof(double)*dim,
+      nxyz,fin,this->fdb);
+   }
+// Recast from -1 to 1 to 0 to 1 for MFEM
+   for (int i = 0; i < pr->Size(); i++)
+   {
+    pr->GetData()[i] = pr->GetData()[i]*0.5 + 0.5;
+   }
+
+   delete[] fin;
 }
 
 void findpts_gslib::gslib_findpts_free ()
