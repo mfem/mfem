@@ -1,8 +1,4 @@
-﻿// r-adapt shape+size:
-// ./cfp -m square.mesh -qo 4
-//mpirun -np 2 p1wrapper -m RT2D.mesh -qo 14 -o 3
-// TO DO: Add checks inside wrapper for array sizes etc...
-//
+﻿//mpirun -np 2 p1wrapper -m RT2D.mesh -qo 14 -o 3
 #include "mfem.hpp"
 #include <fstream>
 #include <ctime>
@@ -167,70 +163,65 @@ int main (int argc, char *argv[])
 
    findpts_gslib *gsfl=NULL;
    gsfl = new findpts_gslib(pfespace,pmesh,quad_order);
-   gsfl->gslib_findpts_setup(0.05,1.e-12,256);
+   gsfl->gslib_findpts_setup(0.01,1.e-12,256);
 
 // random vector in domain 
-   int nlim = 50000;
-   double xmn = 0,xmx=0.5,ymn=-1,ymx=1,zmn=0,zmx=0.5; //Domain extent
+// generate points by r,s,t
+   int llim = 100;
+   int nlim = NE*llim;
+   double xmn = 0,xmx=1,ymn=0,ymx=1,zmn=0,zmx=1; //Domain extent
    double mnv,mxv,dlv;
-   Vector vrxv(nlim),vryv(nlim),vrzv(nlim);
-   vrxv.Randomize();
-   vryv.Randomize();
-   vrzv.Randomize();
-   mnv = vrxv.Min();
-   vrxv -= mnv;
-   mxv = vrxv.Max();
-   vrxv *= 1./mxv;
-   dlv = xmx-xmn;
-   vrxv *= dlv;
-   vrxv -= -xmn;
+   Vector vrxa(nlim),vrya(nlim),vrza(nlim);
+   Vector rrxa(nlim),rrya(nlim),rrza(nlim);
+   Vector vxyz(nlim*dim);
 
-   mnv = vryv.Min();
-   vryv -= mnv;
-   mxv = vryv.Max();
-   vryv *= 1./mxv;
-   dlv = ymx-ymn;
-   vryv *= dlv;
-   vryv -= -ymn;
+   np = 0;
+   IntegrationPoint ipt;
+   for (int i = 0; i < NE; i++)
+   {  
+      for (int j = 0; j < llim; j++)
+      {  
+        Geometries.GetRandomPoint(pfespace->GetFE(i)->GetGeomType(),ipt);
+        rrxa[np] = ipt.x;
+        rrya[np] = ipt.y;
+        if (dim==3) {rrza[np] = ipt.z;}
+        vrxa[np] = nodes.GetValue(i, ipt, 1); 
+        vrya[np] = nodes.GetValue(i, ipt, 2);
+        if (dim==3) {vrza[np] = nodes.GetValue(i, ipt, 3);}
+        vxyz[np] = vrxa[np];
+        vxyz[np+NE*llim] = vrya[np];
+        if (dim==3) {vxyz[np+2*NE*llim] = vrza[np];}
+        np = np+1;
+      }
+   }
 
-   mnv = vrzv.Min();
-   vrzv -= mnv;
-   mxv = vrzv.Max();
-   vrzv *= 1./mxv;
-   dlv = zmx-zmn;
-   vrzv *= dlv;
-   vrzv -= -zmn;
 
-   double *vrx;
-   double *vry;
-   double *vrz;
    int nxyz;
-   vrx = vrxv.GetData();
-   vry = vryv.GetData();
-   vrz = vrzv.GetData();
-   nxyz = vrxv.Size();
+   nxyz = vrxa.Size();
 
    if (myid==0) {cout << "Num procs: " << num_procs << " \n";}
    if (myid==0) {cout << "Points per proc: " << nxyz << " \n";}
+   if (myid==0) {cout << "Points per elem: " << llim << " \n";}
    if (myid==0) {cout << "Total Points to be found: " << nxyz*num_procs << " \n";}
 
-   uint pcode[nxyz];
-   uint pproc[nxyz];
-   uint pel[nxyz];
-   double pr[nxyz*dim];
-   double pd[nxyz];
-   double fout[nxyz];
+   Array<uint> pel(nxyz);
+   Array<uint> pcode(nxyz);
+   Array<uint> pproc(nxyz);
+   Vector pr(nxyz*dim);
+   Vector pd(nxyz);
    int start_s=clock();
-   gsfl->gslib_findpts(pcode,pproc,pel,pr,pd,vrx,vry,vrz,nxyz);
+//   gsfl->gslib_findpts(&pcode,&pproc,&pel,&pr,&pd,&vrxa,&vrya,&vrza,nxyz);
+   gsfl->gslib_findpts(&pcode,&pproc,&pel,&pr,&pd,&vxyz,nxyz);
    MPI_Barrier(MPI_COMM_WORLD);
    int stop_s=clock();
    if (myid==0) {cout << "findpts order: " << NR << " \n";}
    if (myid==0) {cout << "findpts time (sec): " << (stop_s-start_s)/1000000. << endl;}
  
 // FINDPTS_EVAL
+   Vector fout(nxyz);
    MPI_Barrier(MPI_COMM_WORLD);
    start_s=clock();
-   gsfl->gslib_findpts_eval(fout,pcode,pproc,pel,pr,dumfield,nxyz);
+   gsfl->gslib_findpts_eval(&fout,&pcode,&pproc,&pel,&pr,dumfield,nxyz);
    stop_s=clock();
    if (myid==0) {cout << "findpts_eval time (sec): " << (stop_s-start_s)/1000000. << endl;}
    gsfl->gslib_findpts_free();
@@ -239,16 +230,23 @@ int main (int argc, char *argv[])
    int nnpt = 0;
    int nerrh = 0;
    double maxv = -100.;
+   double maxvr = -100.;
    int it;
    for (it = 0; it < nxyz; it++)
    {
     if (pcode[it] < 2) {
-    double val = pow(vrx[it],2)+pow(vry[it],2);
-    if (dim==3) val += pow(vrz[it],2);
+    double val = pow(vrxa[it],2)+pow(vrya[it],2);
+    if (dim==3) val += pow(vrza[it],2);
     double delv = abs(val-fout[it]);
+    double rxe = abs(rrxa[it] - pr[it*dim+0]);
+    double rye = abs(rrya[it] - pr[it*dim+1]);
+    double rze = abs(rrza[it] - pr[it*dim+2]);
+    double delvr =  ( rxe < rye ) ? rye : rxe;
+    if (dim==3) {delvr = ( ( delvr < rze ) ? rze : delvr );}
     if (delv > maxv) {maxv = delv;}
+    if (delvr > maxvr) {maxvr = delvr;}
     if (pcode[it] == 1) {nbp += 1;}
-    if (delv > 1.e-10) {nerrh += 1;}
+    if (delvr > 1.e-10) {nerrh += 1;}
    }
    else
    {
@@ -258,6 +256,8 @@ int main (int argc, char *argv[])
    MPI_Barrier(MPI_COMM_WORLD);
    double glob_maxerr;
    MPI_Allreduce(&maxv, &glob_maxerr, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+   double glob_maxrerr;
+   MPI_Allreduce(&maxvr, &glob_maxrerr, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
    int glob_nnpt;
    MPI_Allreduce(&nnpt, &glob_nnpt, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
    int glob_nbp;
@@ -266,6 +266,7 @@ int main (int argc, char *argv[])
    MPI_Allreduce(&nerrh, &glob_nerrh, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
    cout << setprecision(16);
    if (myid==0) {cout << "maximum error: " << glob_maxerr << " \n";}
+   if (myid==0) {cout << "maximum rst error: " << glob_maxrerr << " \n";}
    if (myid==0) {cout << "points not found: " << glob_nnpt << " \n";}
    if (myid==0) {cout << "points on element border: " << glob_nbp << " \n";}
    if (myid==0) {cout << "points with error > 1.e-10: " << glob_nerrh << " \n";}
