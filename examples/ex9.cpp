@@ -334,14 +334,14 @@ void preprocessLowOrderScheme(FiniteElementSpace* fes, VectorFunctionCoefficient
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   problem = 1;
+   problem = 0;
    const char *mesh_file = "../data/periodic-hexagon.mesh";
-   int ref_levels = 4;
-   int order = 0;
-   int ode_solver_type = 1;
+   int ref_levels = 2;
+   int order = 3;
+   int ode_solver_type = 4;
    int mono_type = 1;
-   double t_final = 1.0;
-   double dt = 0.001;
+   double t_final = 10.0;
+   double dt = 0.01;
    bool visualization = true;
    bool visit = false;
    bool binary = false;
@@ -586,6 +586,7 @@ int main(int argc, char *argv[])
    delete ode_solver;
    delete dc;
    return 0;
+   
 }
 
 
@@ -605,7 +606,6 @@ FE_Evolution::FE_Evolution(FiniteElementSpace* _fes, SparseMatrix &_M, SparseMat
    M_solver.SetMaxIter(100);
    M_solver.SetPrintLevel(0);
 }
-
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
@@ -675,6 +675,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
       }
    }
 }
+
 
 // Velocity coefficient
 void velocity_function(const Vector &x, Vector &v)
