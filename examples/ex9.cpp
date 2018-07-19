@@ -363,7 +363,8 @@ int main(int argc, char *argv[])
                   "ODE solver: 1 - Forward Euler,\n\t"
                   "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
    args.AddOption(&mono_type, "-mt", "--mono_type",
-                  "Type of monotonicity treatment.");
+                  "Type of monotonicity treatment: 0 - no monotonicity treatment,\n\t"
+                  "                                1 - matrix-free Rusanov scheme.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -437,6 +438,8 @@ int main(int argc, char *argv[])
       if (order==0)
          mfem_warning("No need to use monotonicity treatment for polynomial order 0.");
    }
+   else if (mono_type!=0)
+      mfem_error("Unsupported option for monotonicity treatment.");
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
 
