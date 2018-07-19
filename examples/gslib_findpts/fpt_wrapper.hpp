@@ -31,8 +31,13 @@ public:
             Vector *pr,double *fieldin, int nxyz);
 
 //    Interpolates fieldin for given r,s,t,e,p and puts it in fieldout
+#ifdef MFEM_USE_MPI
       void gslib_findpts_eval (Vector *fieldout,Array<uint> *pcode,Array<uint> *pproc,Array<uint> *pel,
             Vector *pr,ParGridFunction *fieldin, int nxyz);
+#else
+      void gslib_findpts_eval (Vector *fieldout,Array<uint> *pcode,Array<uint> *pproc,Array<uint> *pel,
+            Vector *pr,GridFunction *fieldin, int nxyz);
+#endif
 
 //    clears up memory
       void gslib_findpts_free ();
@@ -140,7 +145,7 @@ void findpts_gslib::gslib_findpts(Array<uint> *pcode,Array<uint> *pproc,Array<ui
       xv_base,     xv_stride,
       nxyz,this->fdb);
    }
-// Recast from -1 to 1 to 0 to 1 for MFEM
+// Recast from [-1,1] to [0,1] for MFEM
    for (int i = 0; i < pr->Size(); i++)
    {
     pr->GetData()[i] = pr->GetData()[i]*0.5 + 0.5;
@@ -183,7 +188,7 @@ void findpts_gslib::gslib_findpts(Array<uint> *pcode,Array<uint> *pproc,Array<ui
       xv_base,     xv_stride,
       nxyz,this->fdb);
    }
-// Recast from -1 to 1 to 0 to 1 for MFEM
+// Recast from [-1,1] to [0,1] for MFEM
    for (int i = 0; i < pr->Size(); i++)
    {
     pr->GetData()[i] = pr->GetData()[i]*0.5 + 0.5;
@@ -194,7 +199,7 @@ void findpts_gslib::gslib_findpts_eval(
             Vector *fieldout, Array<uint> *pcode, Array<uint>  *pproc, Array<uint>  *pel, Vector *pr,
             double *fieldin, int nxyz)
 {
-// Recast from 0 to 1 to -1 to 1 for GSLIB
+// Recast from [0,1] to [-1,1] for MFEM
     for (int i = 0; i < pr->Size(); i++)
     {
      pr->GetData()[i] = pr->GetData()[i]*2.0 - 1.0;
@@ -223,7 +228,7 @@ void findpts_gslib::gslib_findpts_eval(
       pr->GetData(),sizeof(double)*dim,
       nxyz,fieldin,this->fdb);
    }
-// Recast from -1 to 1 to 0 to 1 for MFEM
+// Recast from [-1,1] to [0,1] for MFEM
    for (int i = 0; i < pr->Size(); i++)
    {
     pr->GetData()[i] = pr->GetData()[i]*0.5 + 0.5;
@@ -255,7 +260,7 @@ void findpts_gslib::gslib_findpts_eval(
       }
    }
 
-// Recast from 0 to 1 to -1 to 1 for GSLIB
+// Recast from [0,1] to [-1,1] for MFEM
     for (int i = 0; i < pr->Size(); i++)
     {
      pr->GetData()[i] = pr->GetData()[i]*2.0 - 1.0;
@@ -286,7 +291,7 @@ void findpts_gslib::gslib_findpts_eval(
       pr->GetData(),sizeof(double)*dim,
       nxyz,fin,this->fdb);
    }
-// Recast from -1 to 1 to 0 to 1 for MFEM
+// Recast from [-1,1] to [0,1] for MFEM
    for (int i = 0; i < pr->Size(); i++)
    {
     pr->GetData()[i] = pr->GetData()[i]*0.5 + 0.5;
