@@ -58,7 +58,7 @@ void BilinearForm::TransferIntegrators() {
          Coefficient* coef;
          integ->GetParameters(coef);
          typename DiffusionEquation::Args args(*coef);
-         AddIntegrator( new PADomainInt<DiffusionEquation, Vector<double>>(fes, ir_order, args) );
+         AddIntegrator( new PADomainInt<DiffusionEquation, Vector<double>, TensorDomainMult>(fes, ir_order, args) );
       }
       else if (integ_name == "convection")
       {
