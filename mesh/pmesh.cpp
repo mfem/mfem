@@ -2639,7 +2639,8 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       }
 
       static double seg_children[3*2] = { 0.0,1.0, 0.0,0.5, 0.5,1.0 };
-      CoarseFineTr.point_matrices.UseExternalData(seg_children, 1, 2, 3);
+      CoarseFineTr.point_matrices[Geometry::SEGMENT].
+	UseExternalData(seg_children, 1, 2, 3);
 
       GenerateFaces();
    } // end of 'if (Dim == 1)'
@@ -3686,6 +3687,7 @@ void ParMesh::Print(std::ostream &out) const
        "# SQUARE      = 3\n"
        "# TETRAHEDRON = 4\n"
        "# CUBE        = 5\n"
+       "# PRISM       = 6\n"
        "#\n";
 
    out << "\ndimension\n" << Dim

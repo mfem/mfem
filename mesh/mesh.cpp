@@ -3247,7 +3247,7 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
 
    // Setup the data for the coarse-fine refinement transformations
    MFEM_VERIFY(BaseGeom != -1, "meshes with mixed elements are not supported");
-   CoarseFineTr.point_matrices.SetSize(Dim, max_nv, r_elem_factor);
+   CoarseFineTr.point_matrices[BaseGeom].SetSize(Dim, max_nv, r_elem_factor);
    CoarseFineTr.embeddings.SetSize(GetNE());
    if (orig_mesh->GetNE() > 0)
    {
@@ -3259,7 +3259,7 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       const IntegrationRule &r_nodes = rfes.GetFE(el)->GetNodes();
       for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
       {
-         DenseMatrix &Pj = CoarseFineTr.point_matrices(j);
+         DenseMatrix &Pj = CoarseFineTr.point_matrices[BaseGeom](j);
          for (int k = 0; k < nvert; k++)
          {
             int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
@@ -5899,7 +5899,8 @@ void Mesh::QuadUniformRefinement()
       0.0,0.5, 0.5,0.5, 0.5,1.0, 0.0,1.0  // upper-left
    };
 
-   CoarseFineTr.point_matrices.UseExternalData(quad_children, 2, 4, 4);
+   CoarseFineTr.point_matrices[Geometry::SQUARE].UseExternalData(quad_children,
+								 2, 4, 4);
    CoarseFineTr.embeddings.SetSize(elements.Size());
 
    for (i = 0; i < elements.Size(); i++)
@@ -6062,7 +6063,8 @@ void Mesh::HexUniformRefinement()
       A,B,B, B,B,B, B,C,B, A,C,B, A,B,C, B,B,C, B,C,C, A,C,C
    };
 
-   CoarseFineTr.point_matrices.UseExternalData(hex_children, 3, 8, 8);
+   CoarseFineTr.point_matrices[Geometry::CUBE].UseExternalData(hex_children,
+							       3, 8, 8);
    CoarseFineTr.embeddings.SetSize(elements.Size());
 
    for (i = 0; i < elements.Size(); i++)
@@ -6263,7 +6265,387 @@ void Mesh::PriUniformRefinement(map<int,int> * f2qf_ptr)
       A,B,B, B,B,B, A,C,B, A,B,C, B,B,C, A,C,C
    };
 
-   CoarseFineTr.point_matrices.UseExternalData(pri_children, 3, 6, 8);
+   CoarseFineTr.point_matrices[Geometry::PRISM].UseExternalData(pri_children,
+								3, 6, 8);
+   CoarseFineTr.embeddings.SetSize(elements.Size());
+
+   for (i = 0; i < elements.Size(); i++)
+   {
+      Embedding &emb = CoarseFineTr.embeddings[i];
+      emb.parent = (i < NumOfElements) ? i : (i - NumOfElements) / 7;
+      emb.matrix = (i < NumOfElements) ? 0 : (i - NumOfElements) % 7 + 1;
+   }
+
+   NumOfVertices    = vertices.Size();
+   NumOfElements    = 8 * NumOfElements;
+   NumOfBdrElements = 4 * NumOfBdrElements;
+
+   if (el_to_face != NULL)
+   {
+      GetElementToFaceTable();
+      GenerateFaces();
+   }
+
+#ifdef MFEM_DEBUG
+   CheckBdrElementOrientation(false);
+#endif
+
+   if (el_to_edge != NULL)
+   {
+      NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+   }
+
+   last_operation = Mesh::REFINE;
+   sequence++;
+
+   UpdateNodes();
+}
+
+void Mesh::Mixed2DUniformRefinement(map<int,int> * e2qe_ptr)
+{
+   int i;
+   int * v;
+   const int *e;
+   int vv[4];
+
+   if (el_to_edge == NULL)
+   {
+      el_to_edge = new Table;
+      NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+   }
+
+   int NumOfTriElems  = 0;
+   int NumOfQuadElems = 0;
+   map<int,int> e2qe_loc;
+   if (e2qe_ptr == NULL)
+   {
+      e2qe_ptr = &e2qe_loc;
+   }
+   for (i = 0; i < NumOfElements; i++)
+   {
+      if (elements[i]->GetType() == Element::TRIANGLE)
+      {
+         NumOfTriElems++;
+      }
+      else
+      {
+         (*e2qe_ptr)[i] = NumOfQuadElems;
+         NumOfQuadElems++;
+      }
+   }
+   MFEM_VERIFY(NumOfElements == NumOfTriElems + NumOfQuadElems,
+               "Mixed element counts don't match!");
+
+   int oedge = NumOfVertices;
+   int oelem = oedge + NumOfEdges;
+   
+   vertices.SetSize(oelem + NumOfQuadElems);
+   for (i = 0; i < NumOfElements; i++)
+   {
+      Element::Type el_type = elements[i]->GetType();
+      v = elements[i]->GetVertices();
+      e = el_to_edge->GetRow(i);
+
+      if ( el_type == Element::TRIANGLE )
+      {
+	 for (int j = 0; j < 3; j++)
+         {
+            for (int k = 0; k < 2; k++)
+            {
+               vv[k] = v[tri_t::Edges[j][k]];
+	    }
+	    AverageVertices(vv, 2, oedge+e[j]);
+	 }
+      }
+      else
+      {
+ 	 AverageVertices(v, 4, oelem+(*e2qe_ptr)[i]);
+
+ 	 for (int j = 0; j < 4; j++)
+         {
+            for (int k = 0; k < 2; k++)
+            {
+               vv[k] = v[quad_t::Edges[j][k]];
+	    }
+	    AverageVertices(vv, 2, oedge+e[j]);
+	 }
+      }
+   }
+
+   int attr, j;
+   elements.SetSize(4 * NumOfElements);
+   for (i = 0; i < NumOfElements; i++)
+   {
+      Element::Type el_type = elements[i]->GetType();
+      attr = elements[i]->GetAttribute();
+      v = elements[i]->GetVertices();
+      e = el_to_edge->GetRow(i);
+      j = NumOfElements + 3 * i;
+
+      if ( el_type == Element::TRIANGLE )
+      {
+	 elements[j+0] = new Triangle(oedge+e[1], oedge+e[2], oedge+e[0], attr);
+	 elements[j+1] = new Triangle(oedge+e[0], v[1], oedge+e[1], attr);
+	 elements[j+2] = new Triangle(oedge+e[2], oedge+e[1], v[2], attr);
+
+	 v[1] = oedge+e[0];
+	 v[2] = oedge+e[2];
+      }
+      else
+      {
+	 int qe = (*e2qe_ptr)[i];
+
+	 elements[j+0] = new Quadrilateral(oedge+e[0], v[1], oedge+e[1],
+					   oelem+qe, attr);
+	 elements[j+1] = new Quadrilateral(oelem+qe, oedge+e[1],
+					   v[2], oedge+e[2], attr);
+	 elements[j+2] = new Quadrilateral(oedge+e[3], oelem+qe,
+					   oedge+e[2], v[3], attr);
+	 
+	 v[1] = oedge+e[0];
+	 v[2] = oelem+qe;
+	 v[3] = oedge+e[3];
+      }
+   }
+
+   boundary.SetSize(2 * NumOfBdrElements);
+   for (i = 0; i < NumOfBdrElements; i++)
+   {
+      attr = boundary[i]->GetAttribute();
+      v = boundary[i]->GetVertices();
+      j = NumOfBdrElements + i;
+
+      boundary[j] = new Segment(oedge+be_to_edge[i], v[1], attr);
+
+      v[1] = oedge+be_to_edge[i];
+   }
+
+   static const double A = 0.0, B = 0.5, C = 1.0;
+   static double tri_children[2*3*4] =
+   {
+      A,A, B,A, A,B,
+      B,B, A,B, B,A,
+      B,A, C,A, B,B,
+      A,B, B,B, A,C
+   };
+   static double quad_children[2*4*4] =
+   {
+      A,A, B,A, B,B, A,B, // lower-left
+      B,A, C,A, C,B, B,B, // lower-right
+      B,B, C,B, C,C, B,C, // upper-right
+      A,B, B,B, B,C, A,C  // upper-left
+   };
+
+   CoarseFineTr.point_matrices[Geometry::TRIANGLE].UseExternalData(tri_children,
+								   2, 3, 4);
+   CoarseFineTr.point_matrices[Geometry::SQUARE].UseExternalData(quad_children,
+								 2, 4, 4);
+   CoarseFineTr.embeddings.SetSize(elements.Size());
+
+   for (i = 0; i < elements.Size(); i++)
+   {
+      Embedding &emb = CoarseFineTr.embeddings[i];
+      emb.parent = (i < NumOfElements) ? i : (i - NumOfElements) / 3;
+      emb.matrix = (i < NumOfElements) ? 0 : (i - NumOfElements) % 3 + 1;
+   }
+
+   NumOfVertices    = vertices.Size();
+   NumOfElements    = 4 * NumOfElements;
+   NumOfBdrElements = 2 * NumOfBdrElements;
+   NumOfFaces       = 0;
+
+   if (el_to_edge != NULL)
+   {
+      NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+      GenerateFaces();
+   }
+
+   last_operation = Mesh::REFINE;
+   sequence++;
+
+   UpdateNodes();
+   
+#ifdef MFEM_DEBUG
+   CheckElementOrientation(false);
+   CheckBdrElementOrientation(false);
+#endif
+}
+
+void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr,
+				    map<int,int> * e2he_ptr)
+{
+   int i;
+   int * v;
+   const int *e, *f;
+   int vv[4];
+
+   if (el_to_edge == NULL)
+   {
+      el_to_edge = new Table;
+      NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+   }
+   if (Dim == 3 && el_to_face == NULL)
+   {
+      GetElementToFaceTable();
+   }
+
+   int NumOfTriFaces  = 0;
+   int NumOfQuadFaces = 0;
+   map<int,int> f2qf_loc;
+   if (f2qf_ptr == NULL)
+   {
+      f2qf_ptr = &f2qf_loc;
+   }
+   for (i = 0; i<faces.Size(); i++)
+   {
+      if (faces[i]->GetType() == Element::TRIANGLE)
+      {
+         NumOfTriFaces++;
+      }
+      else
+      {
+         (*f2qf_ptr)[i] = NumOfQuadFaces;
+         NumOfQuadFaces++;
+      }
+   }
+   MFEM_VERIFY(NumOfFaces == NumOfTriFaces + NumOfQuadFaces,
+               "Mixed element face counts don't match!");
+
+   int NumOfTetElems  = 0;
+   int NumOfPriElems  = 0;
+   int NumOfHexElems  = 0;
+   map<int,int> e2he_loc;
+     
+   int oedge = NumOfVertices;
+   int oface = oedge + NumOfEdges;
+   int oelem = oface + NumOfQuadFaces;
+   
+   vertices.SetSize(oelem + NumOfHexElems);
+   for (i = 0; i < NumOfElements; i++)
+   {
+      MFEM_ASSERT(elements[i]->GetType() == Element::PRISM,
+                  "Element is not a prism!");
+      v = elements[i]->GetVertices();
+
+      f = el_to_face->GetRow(i);
+
+      for (int j = 2; j < 5; j++)
+      {
+         for (int k = 0; k < 4; k++)
+         {
+            vv[k] = v[pri_t::FaceVert[j][k]];
+         }
+         AverageVertices(vv, 4, oface+(*f2qf_ptr)[f[j]]);
+      }
+
+      e = el_to_edge->GetRow(i);
+
+      for (int j = 0; j < 9; j++)
+      {
+         for (int k = 0; k < 2; k++)
+         {
+            vv[k] = v[pri_t::Edges[j][k]];
+         }
+         AverageVertices(vv, 2, oedge+e[j]);
+      }
+   }
+
+   int attr, j;
+   elements.SetSize(8 * NumOfElements);
+   for (i = 0; i < NumOfElements; i++)
+   {
+      attr = elements[i]->GetAttribute();
+      v = elements[i]->GetVertices();
+      e = el_to_edge->GetRow(i);
+      f = el_to_face->GetRow(i);
+      j = NumOfElements + 7 * i;
+
+      int qf2 = (*f2qf_ptr)[f[2]];
+      int qf3 = (*f2qf_ptr)[f[3]];
+      int qf4 = (*f2qf_ptr)[f[4]];
+
+      elements[j+0] = new Prism(oedge+e[1], oedge+e[2], oedge+e[0],
+                                oface+qf3, oface+qf4, oface+qf2,
+                                attr);
+      elements[j+1] = new Prism(oedge+e[0], v[1], oedge+e[1],
+                                oface+qf2, oedge+e[7], oface+qf3,
+                                attr);
+      elements[j+2] = new Prism(oedge+e[2], oedge+e[1], v[2],
+                                oface+qf4, oface+qf3, oedge+e[8],
+                                attr);
+      elements[j+3] = new Prism(oedge+e[6], oface+qf2, oface+qf4,
+                                v[3], oedge+e[3], oedge+e[5],
+                                attr);
+      elements[j+4] = new Prism(oface+qf3, oface+qf4, oface+qf2,
+                                oedge+e[4], oedge+e[5], oedge+e[3],
+                                attr);
+      elements[j+5] = new Prism(oface+qf2, oedge+e[7], oface+qf3,
+                                oedge+e[3], v[4], oedge+e[4],
+                                attr);
+      elements[j+6] = new Prism(oface+qf4, oface+qf3, oedge+e[8],
+                                oedge+e[5], oedge+e[4], v[5],
+                                attr);
+
+      v[1] = oedge+e[0];
+      v[2] = oedge+e[2];
+      v[3] = oedge+e[6];
+      v[4] = oface+qf2;
+      v[5] = oface+qf4;
+   }
+
+   boundary.SetSize(4 * NumOfBdrElements);
+   for (i = 0; i < NumOfBdrElements; i++)
+   {
+      attr = boundary[i]->GetAttribute();
+      v = boundary[i]->GetVertices();
+      e = bel_to_edge->GetRow(i);
+      f = &be_to_face[i];
+      j = NumOfBdrElements + 3 * i;
+
+      if (boundary[i]->GetType() == Element::TRIANGLE)
+      {
+         boundary[j+0] = new Triangle(oedge+e[1], oedge+e[2], oedge+e[0], attr);
+         boundary[j+1] = new Triangle(oedge+e[0], v[1], oedge+e[1], attr);
+         boundary[j+2] = new Triangle(oedge+e[2], oedge+e[1], v[2], attr);
+
+         v[1] = oedge+e[0];
+         v[2] = oedge+e[2];
+      }
+      else if (boundary[i]->GetType() == Element::QUADRILATERAL)
+      {
+         int qf = (*f2qf_ptr)[f[0]];
+         boundary[j+0] = new Quadrilateral(oedge+e[0], v[1], oedge+e[1],
+                                           oface+qf, attr);
+         boundary[j+1] = new Quadrilateral(oface+qf, oedge+e[1], v[2],
+                                           oedge+e[2], attr);
+         boundary[j+2] = new Quadrilateral(oedge+e[3], oface+qf,
+                                           oedge+e[2], v[3], attr);
+
+         v[1] = oedge+e[0];
+         v[2] = oface+qf;
+         v[3] = oedge+e[3];
+      }
+      else
+      {
+         MFEM_ABORT("boundary Element is not a triangle or a quad!");
+      }
+   }
+
+   static const double A = 0.0, B = 0.5, C = 1.0;
+   static double pri_children[3*6*8] =
+   {
+      A,A,A, B,A,A, A,B,A, A,A,B, B,A,B, A,B,B, 
+      B,B,A, A,B,A, B,A,A, B,B,B, A,B,B, B,A,B, 
+      B,A,A, C,A,A, B,B,A, B,A,B, C,A,B, B,B,B,
+      A,B,A, B,B,A, A,C,A, A,B,B, B,B,B, A,C,B,
+      A,A,B, B,A,B, A,B,B, A,A,C, B,A,C, A,B,C,
+      B,B,B, A,B,B, B,A,B, B,B,C, A,B,C, B,A,C,
+      B,A,B, C,A,B, B,B,B, B,A,C, C,A,C, B,B,C,
+      A,B,B, B,B,B, A,C,B, A,B,C, B,B,C, A,C,C
+   };
+
+   CoarseFineTr.point_matrices[Geometry::PRISM].UseExternalData(pri_children,
+								3, 6, 8);
    CoarseFineTr.embeddings.SetSize(elements.Size());
 
    for (i = 0; i < elements.Size(); i++)
@@ -6334,7 +6716,8 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
       }
 
       static double seg_children[3*2] = { 0.0,1.0, 0.0,0.5, 0.5,1.0 };
-      CoarseFineTr.point_matrices.UseExternalData(seg_children, 1, 2, 3);
+      CoarseFineTr.point_matrices[Geometry::SEGMENT].
+	UseExternalData(seg_children, 1, 2, 3);
 
       GenerateFaces();
 
@@ -6859,7 +7242,17 @@ void Mesh::UniformRefinement()
          case Geometry::PRISM:
             PriUniformRefinement();
             break;
-         default:
+         case Geometry::MIXED:
+	    if ( Dim == 2 )
+	    {
+	      Mixed2DUniformRefinement();
+	    }
+	    else
+	    {
+	      Mixed3DUniformRefinement();
+	    }
+            break;
+      default:
          {
             Array<int> elem_to_refine(GetNE());
             for (int i = 0; i < elem_to_refine.Size(); i++)
@@ -7408,7 +7801,8 @@ void Mesh::UniformRefinement(int i, const DSTable &v_to_v,
 void Mesh::InitRefinementTransforms()
 {
    // initialize CoarseFineTr
-   CoarseFineTr.point_matrices.SetSize(0, 0, 0);
+  // CoarseFineTr.point_matrices.SetSize(0, 0, 0);
+   CoarseFineTr.point_matrices.clear();
    CoarseFineTr.embeddings.SetSize(NumOfElements);
    for (int i = 0; i < NumOfElements; i++)
    {
@@ -7442,7 +7836,7 @@ const CoarseFineTransformations& Mesh::GetRefinementTransforms(
       geom = BaseGeom;
    }
 
-   if (!CoarseFineTr.point_matrices.SizeK())
+   if (!CoarseFineTr.point_matrices[geom].SizeK())
    {
       if (geom == Geometry::TRIANGLE ||
           geom == Geometry::TETRAHEDRON)
@@ -7464,7 +7858,7 @@ const CoarseFineTransformations& Mesh::GetRefinementTransforms(
             CoarseFineTr.embeddings[i].matrix = index;
          }
 
-         DenseTensor &pmats = CoarseFineTr.point_matrices;
+         DenseTensor &pmats = CoarseFineTr.point_matrices[geom];
          pmats.SetSize(Dim, Dim+1, mat_no.size());
 
          // calculate the point matrices used
