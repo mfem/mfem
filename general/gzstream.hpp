@@ -568,6 +568,7 @@ private:
    char             mode[16];           // I/O mode chars
 
    int flush_buffer();
+
 public:
    gzstreambuf() : opened(0)
    {
@@ -591,6 +592,7 @@ class gzstreambase : virtual public std::ios
 {
 protected:
    gzstreambuf buf;
+
 public:
    gzstreambase() { init(&buf); }
    gzstreambase(char const * name, char const *mode);
@@ -645,6 +647,10 @@ public:
 protected:
    std::streambuf *buf;
    static bool maybe_gz(const char *fn);
+
+private:
+   ifgzstream(const ifgzstream&);            // Prevent object copy
+   ifgzstream& operator=(const ifgzstream&); // Prevent object assignment
 };
 
 #ifdef MFEM_USE_GZSTREAM
@@ -692,6 +698,10 @@ public:
 
 protected:
    std::streambuf *buf;
+
+private:
+   ofgzstream(const ofgzstream&);            // Prevent object copy
+   ofgzstream& operator=(const ofgzstream&); // Prevent object assignment
 };
 
 } // namespace mfem

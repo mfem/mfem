@@ -2293,13 +2293,13 @@ void DenseMatrix::CalcEigenvalues(double *lambda, double *vec) const
    }
 }
 
-void DenseMatrix::GetRow(int r, Vector &row)
+void DenseMatrix::GetRow(int r, Vector &row) const
 {
    int m = Height();
    int n = Width();
    row.SetSize(n);
 
-   double* rp = data + r;
+   const double* rp = data + r;
    double* vp = row.GetData();
 
    for (int i = 0; i < n; i++)
@@ -3773,6 +3773,30 @@ void AddMultVWt(const Vector &v, const Vector &w, DenseMatrix &VWt)
       {
          VWt(i, j) += vi * w(j);
       }
+   }
+}
+
+void AddMultVVt(const Vector &v, DenseMatrix &VVt)
+{
+   int n = v.Size();
+
+#ifdef MFEM_DEBUG
+   if (VVt.Height() != n || VVt.Width() != n)
+   {
+      mfem_error("AddMultVVt(...)");
+   }
+#endif
+
+   for (int i = 0; i < n; i++)
+   {
+      double vi = v(i);
+      for (int j = 0; j < i; j++)
+      {
+         double vivj = vi * v(j);
+         VVt(i, j) += vivj;
+         VVt(j, i) += vivj;
+      }
+      VVt(i, i) += vi * v(i);
    }
 }
 

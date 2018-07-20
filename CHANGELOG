@@ -8,11 +8,21 @@
                                http://mfem.org
 
 
-Version 3.3.3 (development)
+Version 3.4.1 (development)
 ===========================
 
-More efficient non-conforming adaptive mesh refinement
-------------------------------------------------------
+
+Version 3.4, released on May 29, 2018
+=====================================
+
+More general and efficient mesh adaptivity
+------------------------------------------
+- Added support for PUMI, the Parallel Unstructured Mesh Infrastructure from
+  https://scorec.rpi.edu/pumi. PUMI is an unstructured, distributed mesh data
+  management system that is capable of handling general non-manifold models and
+  effectively supports automated adaptive analysis. PUMI enables for the first
+  time support for parallel unstructured modifications of MFEM meshes.
+
 - Significantly reduced MPI communication in the construction of the parallel
   prolongation matrix in ParFiniteElementSpace, for much improved parallel
   scaling of non-conforming AMR on hundreds of thousands of MPI tasks. The
@@ -26,6 +36,20 @@ More efficient non-conforming adaptive mesh refinement
 
 Discretization improvements
 ---------------------------
+- Added support for a general "high-order"-to-"low-order refined" transfer of
+  GridFunction and true-dof data from a "high-order" finite element space
+  defined on a coarse mesh, to a "low-order refined" space defined on a refined
+  mesh. The new methods, GetTransferOperator and GetTrueTransferOperator in the
+  FiniteElementSpace classes, work in both serial and parallel and support
+  matrix-based as well as matrix-free transfer operator representations. They
+  use a new method, GetTransferMatrix, in the FiniteElement class similar to
+  GetLocalInterpolation, that allows the coarse FiniteElement to be different
+  from the fine FiniteElement.
+
+- Added class ComplexOperator, that implements the action of a complex operator
+  through the equivalent 2x2 real formulation. Both symmetric and antisymmetric
+  block structures are supported.
+
 - Added classes for general block nonlinear finite element operators (deriving
   from BlockNonlinearForm and ParBlockNonlinearForm) enabling solution of
   nonlinear systems with multiple unknowns in different function spaces. Such
@@ -37,8 +61,13 @@ Discretization improvements
   element space header in the NURBS mesh output, so NURBS meshes in the old
   format need to be updated.
 
-- Added symplectic integrators of orders 1-4 for systems of first order ODEs
-  derived from a Hamiltonian, see class SIASolver in linalg/ode.hpp.
+- In the classes NonlinearForm and ParNonlinearForm, added support for
+  non-conforming AMR meshes; see also the "API changes" section.
+
+- New specialized time integrators: symplectic integrators of orders 1-4 for
+  systems of first order ODEs derived from a Hamiltonian and generalized-alpha
+  ODE solver for the filtered Navier–Stokes equations with stabilization. See
+  classes SIASolver and GeneralizedAlphaSolver in linalg/ode.hpp.
 
 - Inherit finite element classes from the new base class TensorBasisElement,
   whenever the basis can be represented by a tensor product of 1D bases.
@@ -62,29 +91,41 @@ New and updated examples and miniapps
   NURBS meshes in the miniapps/nurbs directory. Currently the directory contains
   variable order NURBS versions of examples 1, 1p and 11p.
 
-- In the classes NonlinearForm and ParNonlinearForm, added support for
-  non-conforming AMR meshes; see also the "API changes" section.
+- Added PUMI versions of examples ex1, ex1p, ex2 and ex6p in a new examples/pumi
+  directory. The new examples demonstrate the PUMI APIs for parallel and serial
+  mesh loading (ex1 and ex1p), applying BCs using classification (ex2), and
+  performing parallel mesh adaptation (ex6p).
 
-- Added a new miniapp: miniapps/tools/load-dc.cpp, that can be used to visualize
-  fields saved via DataCollection classes.
+- Added two new miniapps related to DataCollection I/O in miniapps/tools:
+  load-dc.cpp can be used to visualize fields saved via DataCollection classes;
+  convert-dc.cpp demonstrates how to convert between MFEM's different concrete
+  DataCollection options.
 
 - Example 10p with its SUNDIALS and PETSc versions have been updated to reflect
   the change in the behavior of the method ParNonlinearForm::GetLocalGradient()
-  (see the "API changes" section) and now should work correctly on
-  non-conforming AMR meshes. Example 10 and its SUNDIALS version have also been
-  updated to support non-conforming ARM meshes.
+  (see the "API changes" section) and now works correctly on non-conforming AMR
+  meshes. Example 10 and its SUNDIALS version have also been updated to support
+  non-conforming ARM meshes.
 
 Miscellaneous
 -------------
 - Documented project workflow and provided contribution guidelines in the new
   top-level file, CONTRIBUTING.md.
 
+- Added (optional) Conduit Mesh Blueprint support of MFEM data for both in-core
+  and I/O use cases. This includes a new ConduitDataCollection that provides
+  json, simple binary, and HDF5-based I/O. Support requires Conduit >= v0.3.1
+  and VisIt >= v2.13.1 will read the new Data Collection outputs.
+
 - Added a new developer tool, config/sample-runs.sh, that extracts the sample
   runs from all examples and miniapps and runs them. Optionally, it can save the
   output from the execution to files, allowing comparison between different
   versions and builds of the library.
 
-- Add support for building a shared version of the MFEM library with GNU make.
+- Support for building a shared version of the MFEM library with GNU make.
+
+- Added a build option, MFEM_USE_EXCEPTIONS=YES, to throw an exception instead
+  of calling abort on mfem errors.
 
 - When building with the GnuTLS library, switch to using X.509 certificates for
   secure socket authentication. Support for the previously used OpenPGP keys has

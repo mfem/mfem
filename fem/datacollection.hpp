@@ -23,14 +23,122 @@
 namespace mfem
 {
 
+/// Lightweight adaptor over an std::map from strings to pointer to T
+template<typename T>
+class NamedFieldsMap
+{
+public:
+   typedef std::map<std::string, T*> MapType;
+   typedef typename MapType::iterator iterator;
+   typedef typename MapType::const_iterator const_iterator;
+
+   /// Register field @a field with name @a fname
+   /** Replace existing field associated with @a fname (and optionally
+       delete associated pointer if @a own_data is true) */
+   void Register(const std::string& fname, T* field, bool own_data)
+   {
+      T*& ref = field_map[fname];
+      if (own_data)
+      {
+         delete ref; // if newly allocated -> ref is null -> OK
+      }
+      ref = field;
+   }
+
+   /// Unregister association between field @a field and name @a fname
+   /** Optionally delete associated pointer if @a own_data is true */
+   void Deregister(const std::string& fname, bool own_data)
+   {
+      iterator it = field_map.find(fname);
+      if ( it != field_map.end() )
+      {
+         if (own_data)
+         {
+            delete it->second;
+         }
+         field_map.erase(it);
+      }
+   }
+
+   /// Clear all associations between names and fields
+   /** Delete associated pointers when @a own_data is true */
+   void DeleteData(bool own_data)
+   {
+      for (iterator it = field_map.begin(); it != field_map.end(); ++it)
+      {
+         if (own_data)
+         {
+            delete it->second;
+         }
+         it->second = NULL;
+      }
+   }
+
+   /// Predicate to check if a field is associated with name @a fname
+   bool Has(const std::string& fname) const
+   {
+      return field_map.find(fname) != field_map.end();
+   }
+
+   /// Get a pointer to the field associated with name @a fname
+   /** @return Pointer to field associated with @a fname or NULL */
+   T* Get(const std::string& fname) const
+   {
+      const_iterator it = field_map.find(fname);
+      return it != field_map.end() ? it->second : NULL;
+   }
+
+   /// Returns a const reference to the underlying map
+   const MapType& GetMap() const { return field_map; }
+
+   /// Returns the number of registered fields
+   int NumFields() const { return field_map.size(); }
+
+   /// Returns a begin iterator to the registered fields
+   iterator begin() { return field_map.begin(); }
+   /// Returns a begin const iterator to the registered fields
+   const_iterator begin() const { return field_map.begin(); }
+
+   /// Returns an end iterator to the registered fields
+   iterator end() { return field_map.end(); }
+   /// Returns an end const iterator to the registered fields
+   const_iterator end() const { return field_map.end(); }
+
+   /// Returns an iterator to the field @a fname
+   iterator find(const std::string& fname)
+   { return field_map.find(fname); }
+
+   /// Returns a const iterator to the field @a fname
+   const_iterator find(const std::string& fname) const
+   { return field_map.find(fname); }
+
+   /// Clears the map of registered fields without reclaiming memory
+   void clear() { field_map.clear(); }
+
+protected:
+   MapType field_map;
+};
+
+
 /** A class for collecting finite element data that is part of the same
     simulation. Currently, this class groups together grid functions (fields),
     quadrature functions (q-fields), and the mesh that they are defined on. */
 class DataCollection
 {
+private:
+   /// A collection of named GridFunctions
+   typedef NamedFieldsMap<GridFunction> GFieldMap;
+
+   /// A collection of named QuadratureFunctions
+   typedef NamedFieldsMap<QuadratureFunction> QFieldMap;
 public:
-   typedef std::map<std::string, GridFunction*> FieldMapType;
-   typedef std::map<std::string, QuadratureFunction*> QFieldMapType;
+   typedef GFieldMap::MapType FieldMapType;
+   typedef GFieldMap::iterator FieldMapIterator;
+   typedef GFieldMap::const_iterator FieldMapConstIterator;
+
+   typedef QFieldMap::MapType QFieldMapType;
+   typedef QFieldMap::iterator QFieldMapIterator;
+   typedef QFieldMap::const_iterator QFieldMapConstIterator;
 
    /// Format constants to be used with SetFormat().
    /** Derived classes can define their own format enumerations and override the
@@ -53,16 +161,11 @@ protected:
        If not empty, it has '/' at the end. */
    std::string prefix_path;
 
-   /// The fields and their names (used when saving)
-   typedef FieldMapType::iterator FieldMapIterator;
-   typedef FieldMapType::const_iterator FieldMapConstIterator;
-   /** An std::map containing the registered fields' names as keys (std::string)
-       and their GridFunction pointers as values. */
-   FieldMapType field_map;
+   /** A FieldMap mapping registered field names to GridFunction pointers. */
+   GFieldMap field_map;
 
-   typedef QFieldMapType::iterator QFieldMapIterator;
-   typedef QFieldMapType::const_iterator QFieldMapConstIterator;
-   QFieldMapType q_field_map;
+   /** A FieldMap mapping registered names to QuadratureFunction pointers. */
+   QFieldMap q_field_map;
 
    /// The (common) mesh for the collected fields
    Mesh *mesh;
@@ -135,25 +238,31 @@ public:
                            Mesh *mesh_ = NULL);
 
    /// Add a grid function to the collection
-   virtual void RegisterField(const std::string& field_name, GridFunction *gf);
+   virtual void RegisterField(const std::string& field_name, GridFunction *gf)
+   { field_map.Register(field_name, gf, own_data); }
 
    /// Remove a grid function from the collection
-   virtual void DeregisterField(const std::string& field_name);
+   virtual void DeregisterField(const std::string& field_name)
+   { field_map.Deregister(field_name, own_data); }
 
    /// Add a QuadratureFunction to the collection.
    virtual void RegisterQField(const std::string& q_field_name,
-                               QuadratureFunction *qf);
+                               QuadratureFunction *qf)
+   { q_field_map.Register(q_field_name, qf, own_data); }
+
 
    /// Remove a QuadratureFunction from the collection
-   virtual void DeregisterQField(const std::string& field_name);
+   virtual void DeregisterQField(const std::string& field_name)
+   { q_field_map.Deregister(field_name, own_data); }
 
    /// Check if a grid function is part of the collection
    bool HasField(const std::string& name) const
-   { return field_map.find(name) != field_map.end(); }
+   { return field_map.Has(name); }
 
    /// Get a pointer to a grid function in the collection.
    /** Returns NULL if @a field_name is not in the collection. */
-   GridFunction *GetField(const std::string& field_name);
+   GridFunction *GetField(const std::string& field_name)
+   { return field_map.Get(field_name); }
 
 #ifdef MFEM_USE_MPI
    /// Return the associated MPI communicator or MPI_COMM_NULL.
@@ -169,26 +278,39 @@ public:
 
    /// Check if a QuadratureFunction with the given name is in the collection.
    bool HasQField(const std::string& q_field_name) const
-   { return q_field_map.find(q_field_name) != q_field_map.end(); }
+   { return q_field_map.Has(q_field_name); }
 
    /// Get a pointer to a QuadratureFunction in the collection.
    /** Returns NULL if @a field_name is not in the collection. */
-   QuadratureFunction *GetQField(const std::string& q_field_name);
+   QuadratureFunction *GetQField(const std::string& q_field_name)
+   { return q_field_map.Get(q_field_name); }
 
    /// Get a const reference to the internal field map.
    /** The keys in the map are the field names and the values are pointers to
        GridFunction%s. */
-   const FieldMapType &GetFieldMap() const { return field_map; }
+   const FieldMapType &GetFieldMap() const
+   { return field_map.GetMap(); }
 
    /// Get a const reference to the internal q-field map.
    /** The keys in the map are the q-field names and the values are pointers to
        QuadratureFunction%s. */
-   const QFieldMapType &GetQFieldMap() const { return q_field_map; }
+   const QFieldMapType &GetQFieldMap() const
+   { return q_field_map.GetMap(); }
 
    /// Get a pointer to the mesh in the collection
    Mesh *GetMesh() { return mesh; }
    /// Set/change the mesh associated with the collection
+   /** When passed a Mesh, assumes the serial case: MPI rank id is set to 0 and
+       MPI num_procs is set to 1.  When passed a ParMesh, MPI info from the
+       ParMesh is used to set the DataCollection's MPI rank and num_procs. */
    virtual void SetMesh(Mesh *new_mesh);
+#ifdef MFEM_USE_MPI
+   /// Set/change the mesh associated with the collection.
+   /** For this case, @a comm is used to set the DataCollection's MPI rank id
+       and MPI num_procs, which influences the how files are saved for domain
+       decomposed meshes. */
+   virtual void SetMesh(MPI_Comm comm, Mesh *new_mesh);
+#endif
 
    /// Set time cycle (for time-dependent simulations)
    void SetCycle(int c) { cycle = c; }
@@ -276,6 +398,7 @@ protected:
    // Additional data needed in the VisIt root file, which describes the mesh
    // and all the fields in the collection
    int spatial_dim, topo_dim;
+   int visit_levels_of_detail;
    int visit_max_levels_of_detail;
    std::map<std::string, VisItFieldInfo> field_info_map;
    typedef std::map<std::string, VisItFieldInfo>::iterator FieldInfoMapIterator;
@@ -284,6 +407,8 @@ protected:
    std::string GetVisItRootString();
    /// Read in a VisIt root file in JSON format
    void ParseVisItRootString(const std::string& json);
+
+   void UpdateMeshInfo();
 
    // Helper functions for Load()
    void LoadVisItRootFile(const std::string& root_name);
@@ -300,14 +425,23 @@ public:
    /// Construct a parallel VisItDataCollection to be loaded from files.
    /** Before loading the collection with Load(), some parameters in the
        collection can be adjusted, e.g. SetPadDigits(), SetPrefixPath(), etc. */
-   VisItDataCollection(MPI_Comm comm, const std::string& collection_name);
+   VisItDataCollection(MPI_Comm comm, const std::string& collection_name,
+                       Mesh *mesh_ = NULL);
 #endif
 
    /// Set/change the mesh associated with the collection
    virtual void SetMesh(Mesh *new_mesh);
 
+#ifdef MFEM_USE_MPI
+   /// Set/change the mesh associated with the collection.
+   virtual void SetMesh(MPI_Comm comm, Mesh *new_mesh);
+#endif
+
    /// Add a grid function to the collection and update the root file
    virtual void RegisterField(const std::string& field_name, GridFunction *gf);
+
+   /// Set VisIt parameter: default levels of detail for the MultiresControl
+   void SetLevelsOfDetail(int levels_of_detail);
 
    /// Set VisIt parameter: maximum levels of detail for the MultiresControl
    void SetMaxLevelsOfDetail(int max_levels_of_detail);
