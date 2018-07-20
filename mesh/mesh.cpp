@@ -6110,7 +6110,7 @@ void Mesh::PriUniformRefinement(map<int,int> * f2qf_ptr)
    map<int,int> f2qf_loc;
    if (f2qf_ptr == NULL)
    {
-     f2qf_ptr = &f2qf_loc;
+      f2qf_ptr = &f2qf_loc;
    }
    for (i = 0; i<faces.Size(); i++)
    {
@@ -6120,7 +6120,7 @@ void Mesh::PriUniformRefinement(map<int,int> * f2qf_ptr)
       }
       else
       {
-	(*f2qf_ptr)[i] = NumOfQuadFaces;
+         (*f2qf_ptr)[i] = NumOfQuadFaces;
          NumOfQuadFaces++;
       }
    }
@@ -6223,7 +6223,7 @@ void Mesh::PriUniformRefinement(map<int,int> * f2qf_ptr)
       }
       else if (boundary[i]->GetType() == Element::QUADRILATERAL)
       {
-	 int qf = (*f2qf_ptr)[f[0]];
+         int qf = (*f2qf_ptr)[f[0]];
          boundary[j+0] = new Quadrilateral(oedge+e[0], v[1], oedge+e[1],
                                            oface+qf, attr);
          boundary[j+1] = new Quadrilateral(oface+qf, oedge+e[1], v[2],

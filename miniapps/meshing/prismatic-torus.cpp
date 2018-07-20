@@ -57,8 +57,8 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    // args.AddOption(&new_mesh_file, "-m", "--mesh-out-file",
    //              "Output Mesh file to write.");
-   // args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
-   //               "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
+                  "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&nphi_, "-nphi", "--num-elements-phi",
                   "Number of elements in phi-direction.");
    args.AddOption(&ns_, "-ns", "--num-shifts",
@@ -156,12 +156,6 @@ int main(int argc, char *argv[])
    }
    mesh->FinalizeTopology();
 
-   for (int lev = 0; lev < ser_ref_levels; lev++)
-   {
-      mesh->UniformRefinement();
-   }
-
-   
    {
      ostringstream oss;
      oss << "prismatic-stack-o" << order_ << "-s" << ns_;
@@ -218,6 +212,12 @@ int main(int argc, char *argv[])
    {
       mesh->SetCurvature(order_, dg_mesh, 3, Ordering::byVDIM);
    }
+
+   for (int lev = 0; lev < ser_ref_levels; lev++)
+   {
+      mesh->UniformRefinement();
+   }
+
    {
      ostringstream oss;
      if ( el_type_ == Element::PRISM )
@@ -228,7 +228,12 @@ int main(int argc, char *argv[])
      {
        oss << "hexagonal-torus";
      }
-     oss << "-o" << order_ << "-s" << ns_ << ".mesh";
+     oss << "-o" << order_ << "-s" << ns_;
+     if ( ser_ref_levels > 0 )
+     {
+       oss << "-r" << ser_ref_levels;
+     }
+     oss << ".mesh";
      ofstream ofs(oss.str().c_str());
      ofs.precision(8);
      mesh->Print(ofs);
