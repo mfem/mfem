@@ -6248,18 +6248,17 @@ void Mesh::PriUniformRefinement(map<int,int> * f2qf_ptr)
       {
          MFEM_ABORT("boundary Element is not a triangle or a quad!");
       }
-
    }
 
    static const double A = 0.0, B = 0.5, C = 1.0;
    static double pri_children[3*6*8] =
    {
-      A,B,A, A,A,A, B,B,A, A,B,B, A,A,B, B,B,B,
-      B,A,A, B,B,A, A,A,A, B,A,B, B,B,B, A,A,B,
+      A,A,A, B,A,A, A,B,A, A,A,B, B,A,B, A,B,B, 
+      B,B,A, A,B,A, B,A,A, B,B,B, A,B,B, B,A,B, 
       B,A,A, C,A,A, B,B,A, B,A,B, C,A,B, B,B,B,
       A,B,A, B,B,A, A,C,A, A,B,B, B,B,B, A,C,B,
-      A,B,B, A,A,B, B,B,B, A,B,C, A,A,C, B,B,C,
-      B,A,B, B,B,B, A,A,B, B,A,C, B,B,C, A,A,C,
+      A,A,B, B,A,B, A,B,B, A,A,C, B,A,C, A,B,C,
+      B,B,B, A,B,B, B,A,B, B,B,C, A,B,C, B,A,C,
       B,A,B, C,A,B, B,B,B, B,A,C, C,A,C, B,B,C,
       A,B,B, B,B,B, A,C,B, A,B,C, B,B,C, A,C,C
    };
