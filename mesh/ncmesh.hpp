@@ -51,10 +51,12 @@ struct Embedding
 /// Defines the coarse-fine transformations of all fine elements.
 struct CoarseFineTransformations
 {
-   DenseTensor point_matrices;  ///< matrices for IsoparametricTransformation
+   std::map<Geometry::Type, DenseTensor>
+               point_matrices;  ///< matrices for IsoparametricTransformation
    Array<Embedding> embeddings; ///< fine element positions in their parents
 
-   void Clear() { point_matrices.Clear(); embeddings.DeleteAll(); }
+  // void Clear() { point_matrices.Clear(); embeddings.DeleteAll(); }
+   void Clear() { point_matrices.clear(); embeddings.DeleteAll(); }
    long MemoryUsage() const;
 };
 
