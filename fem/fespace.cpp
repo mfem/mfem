@@ -1198,7 +1198,7 @@ void FiniteElementSpace::Construct()
          }
          if (nfdofs == 0)
          {
-            delete fdofs; fdofs = NULL;
+            delete [] fdofs; fdofs = NULL;
          }
       }
    }
