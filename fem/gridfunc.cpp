@@ -1251,6 +1251,58 @@ void GridFunction::AccumulateAndCountZones(Coefficient &coeff,
    }
 }
 
+void GridFunction::AccumulateAndCountZones(VectorCoefficient &vcoeff,
+                                           AvgType type,
+                                           Array<int> &zones_per_vdof)
+{
+   zones_per_vdof.SetSize(fes->GetVSize());
+   zones_per_vdof = 0;
+
+   // Local interpolation
+   Array<int> vdofs;
+   Vector vals;
+   *this = 0.0;
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fes->GetElementVDofs(i, vdofs);
+      // Local interpolation of coeff.
+      vals.SetSize(vdofs.Size());
+      fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
+
+      // Accumulate values in all dofs, count the zones.
+      for (int j = 0; j < vdofs.Size(); j++)
+      {
+         int ldof;
+         int isign;
+         if (vdofs[j] < 0 )
+         {
+            ldof = -1-vdofs[j];
+            isign = -1;
+         }
+         else
+         {
+            ldof = vdofs[j];
+            isign = 1;
+         }
+
+         if (type == HARMONIC)
+         {
+            MFEM_VERIFY(vals[j] != 0.0,
+                        "Coefficient has zeros, harmonic avg is undefined!");
+            (*this)(ldof) += isign / vals[j];
+         }
+         else if (type == ARITHMETIC)
+         {
+            (*this)(ldof) += isign*vals[j];
+
+         }
+         else { MFEM_ABORT("Not implemented"); }
+
+         zones_per_vdof[ldof]++;
+      }
+   }
+}
+
 void GridFunction::ComputeMeans(AvgType type, Array<int> &zones_per_vdof)
 {
    switch (type)
@@ -1455,6 +1507,8 @@ void GridFunction::ProjectCoefficient(Coefficient *coeff[])
          transf->SetIntPoint(&ip);
          for (d = 0; d < vdim; d++)
          {
+            if (!coeff[d]) { continue; }
+
             val = coeff[d]->Eval(*transf, ip);
             if ( (ind = vdofs[fdof*d+j]) < 0 )
             {
@@ -1514,6 +1568,15 @@ void GridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
    ComputeMeans(type, zones_per_vdof);
 }
 
+void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff,
+                                          AvgType type)
+{
+   Array<int> zones_per_vdof;
+   AccumulateAndCountZones(coeff, type, zones_per_vdof);
+
+   ComputeMeans(type, zones_per_vdof);
+}
+
 void GridFunction::ProjectBdrCoefficient(
    Coefficient *coeff[], Array<int> &attr)
 {
@@ -1540,6 +1603,8 @@ void GridFunction::ProjectBdrCoefficient(
             transf->SetIntPoint(&ip);
             for (d = 0; d < vdim; d++)
             {
+               if (!coeff[d]) { continue; }
+
                val = coeff[d]->Eval(*transf, ip);
                if ( (ind = vdofs[fdof*d+j]) < 0 )
                {
@@ -1581,6 +1646,8 @@ void GridFunction::ProjectBdrCoefficient(
          vals.SetSize(fe->GetDof());
          for (d = 0; d < vdim; d++)
          {
+            if (!coeff[d]) { continue; }
+
             fe->Project(*coeff[d], *transf, vals);
             for (int k = 0; k < vals.Size(); k++)
             {
@@ -2529,6 +2596,24 @@ QuadratureFunction::QuadratureFunction(Mesh *mesh, std::istream &in)
    in >> vdim;
 
    Load(in, vdim*qspace->GetSize());
+}
+
+QuadratureFunction & QuadratureFunction::operator=(double value)
+{
+   Vector::operator=(value);
+   return *this;
+}
+
+QuadratureFunction & QuadratureFunction::operator=(const Vector &v)
+{
+   MFEM_ASSERT(qspace && v.Size() == qspace->GetSize(), "");
+   Vector::operator=(v);
+   return *this;
+}
+
+QuadratureFunction & QuadratureFunction::operator=(const QuadratureFunction &v)
+{
+   return this->operator=((const Vector &)v);
 }
 
 void QuadratureFunction::Save(std::ostream &out) const

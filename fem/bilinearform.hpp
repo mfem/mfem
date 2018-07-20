@@ -66,6 +66,13 @@ protected:
    StaticCondensation *static_cond;
    Hybridization *hybridization;
 
+   /**
+    * This member allows one to specify what should be done
+    * to the diagonal matrix entries and corresponding RHS
+    * values upon elimination of the constrained DoFs.
+    */
+   DiagonalPolicy diag_policy;
+
    int precompute_sparsity;
    // Allocate appropriate SparseMatrix and assign it to mat
    void AllocMat();
@@ -79,6 +86,7 @@ protected:
       mat = mat_e = NULL; extern_bfs = 0; element_matrices = NULL;
       static_cond = NULL; hybridization = NULL;
       precompute_sparsity = 0;
+      diag_policy = DIAG_KEEP;
    }
 
 public:
@@ -303,7 +311,7 @@ public:
        essential DOFs is set to 1.0. This behavior is controlled by the argument
        @a dpolicy. */
    void EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
-                             Vector &sol, Vector &rhs,
+                             const Vector &sol, Vector &rhs,
                              DiagonalPolicy dpolicy = DIAG_ONE);
 
    /// Eliminate essential boundary DOFs from the system matrix.
@@ -314,7 +322,7 @@ public:
                                  double value);
 
    /// Eliminate the given @a vdofs. NOTE: here, @a vdofs is a list of DOFs.
-   void EliminateVDofs(const Array<int> &vdofs, Vector &sol, Vector &rhs,
+   void EliminateVDofs(const Array<int> &vdofs, const Vector &sol, Vector &rhs,
                        DiagonalPolicy dpolicy = DIAG_ONE);
 
    /// Eliminate the given @a vdofs, storing the eliminated part internally.
@@ -325,10 +333,10 @@ public:
                        DiagonalPolicy dpolicy = DIAG_ONE);
 
    /** @brief Similar to
-       EliminateVDofs(const Array<int> &, Vector &, Vector &, DiagonalPolicy)
+       EliminateVDofs(const Array<int> &, const Vector &, Vector &, DiagonalPolicy)
        but here @a ess_dofs is a marker (boolean) array on all vector-dofs
        (@a ess_dofs[i] < 0 is true). */
-   void EliminateEssentialBCFromDofs(const Array<int> &ess_dofs, Vector &sol,
+   void EliminateEssentialBCFromDofs(const Array<int> &ess_dofs, const Vector &sol,
                                      Vector &rhs, DiagonalPolicy dpolicy = DIAG_ONE);
 
    /** @brief Similar to EliminateVDofs(const Array<int> &, DiagonalPolicy) but
@@ -359,6 +367,9 @@ public:
    FiniteElementSpace *FESpace() { return fes; }
    /// Read-only access to the associated FiniteElementSpace.
    const FiniteElementSpace *FESpace() const { return fes; }
+
+   /// Sets diagonal policy used upon construction of the linear system
+   void SetDiagonalPolicy(DiagonalPolicy policy);
 
    /// Destroys bilinear form.
    virtual ~BilinearForm();
@@ -449,10 +460,10 @@ public:
    void ConformingAssemble();
 
    void EliminateTrialDofs(Array<int> &bdr_attr_is_ess,
-                           Vector &sol, Vector &rhs);
+                           const Vector &sol, Vector &rhs);
 
    void EliminateEssentialBCFromTrialDofs(Array<int> &marked_vdofs,
-                                          Vector &sol, Vector &rhs);
+                                          const Vector &sol, Vector &rhs);
 
    virtual void EliminateTestDofs(Array<int> &bdr_attr_is_ess);
 

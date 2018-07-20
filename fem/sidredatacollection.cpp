@@ -385,38 +385,41 @@ createMeshBlueprintTopologies(bool hasBP, const std::string& mesh_name)
                             ? mesh->GetNE()
                             : mesh->GetNBE();
 
-   MFEM_VERIFY(num_elements > 0,
-               "TODO: processors with 0 " << mesh_name << " elements");
-
-   const int element_size = !isBdry
-                            ? mesh->GetElement(0)->GetNVertices()
-                            : mesh->GetBdrElement(0)->GetNVertices();
-
-   const int num_indices = num_elements * element_size;
-
-   // Find the element shape
-   // Note: Assumes homogeneous elements, so only check the first element
-   const int geom =
-      isBdry ?
-      mesh->GetBdrElementBaseGeometry(0) :
-      mesh->GetElementBaseGeometry(0);
-   const std::string eltTypeStr =
-      !isBdry
-      ? getElementName( static_cast<Element::Type>(
-                           mesh->GetElement(0)->GetType() ) )
-      : getElementName( static_cast<Element::Type>(
-                           mesh->GetBdrElement(0)->GetType() ) );
-
    const std::string mesh_topo_str = "topologies/" + mesh_name;
-   const std::string mesh_attr_str = "fields/"+mesh_name+"_material_attribute";
+   const std::string mesh_attr_str = mesh_name + "_material_attribute";
 
+   int element_size = 0;
+   int num_indices = 0;
+   int geom = 0;
+   std::string eltTypeStr = "point";
+
+   if (num_elements > 0)
+   {
+      element_size = !isBdry
+                     ? mesh->GetElement(0)->GetNVertices()
+                     : mesh->GetBdrElement(0)->GetNVertices();
+
+      num_indices = num_elements * element_size;
+
+      // Find the element shape
+      // Note: Assumes homogeneous elements, so only check the first element
+      geom = isBdry ?
+             mesh->GetBdrElementBaseGeometry(0) :
+             mesh->GetElementBaseGeometry(0);
+      eltTypeStr =
+         !isBdry
+         ? getElementName( static_cast<Element::Type>(
+                              mesh->GetElement(0)->GetType() ) )
+         : getElementName( static_cast<Element::Type>(
+                              mesh->GetBdrElement(0)->GetType() ) );
+   }
+
+   // Create the blueprint "topology" group, if not present
    if ( !hasBP )
    {
       sidre::Group* topology_grp = bp_grp->createGroup(mesh_topo_str);
 
-      // Add mesh topology
       topology_grp->createViewString("type", "unstructured");
-      // Note: eltTypeStr comes form the mesh
       topology_grp->createViewString("elements/shape", eltTypeStr);
       topology_grp->createViewAndAllocate(
          "elements/connectivity", sidre::INT_ID, num_indices);
@@ -428,21 +431,37 @@ createMeshBlueprintTopologies(bool hasBP, const std::string& mesh_name)
       {
          topology_grp->createViewString("grid_function",m_meshNodesGFName);
       }
-
-      // Add material attribute field to blueprint
-      sidre::Group* attr_grp = bp_grp->createGroup(mesh_attr_str);
-      attr_grp->createViewString("association", "element");
-      attr_grp->createViewAndAllocate("values", sidre::INT_ID, num_elements);
-      attr_grp->createViewString("topology", mesh_name);
    }
 
-   // If rank 0, set up blueprint index for topologies group and material
-   // attribute field.
+   // Add the mesh's attributes as an attribute field
+   RegisterAttributeField(mesh_attr_str, isBdry);
+
+   // Change ownership or copy the element arrays into Sidre
+   if (num_elements > 0)
+   {
+      sidre::View* conn_view =
+         bp_grp->getGroup(mesh_topo_str)->getView("elements/connectivity");
+
+      // The SidreDataCollection always owns these arrays:
+      Array<int> conn_array(conn_view->getData<int*>(), num_indices);
+      Array<int>* attr_array = attr_map.Get(mesh_attr_str);
+      if (!isBdry)
+      {
+         mesh->GetElementData(geom, conn_array, *attr_array);
+      }
+      else
+      {
+         mesh->GetBdrElementData(geom, conn_array, *attr_array);
+      }
+      MFEM_ASSERT(!conn_array.OwnsData(), "");
+      MFEM_ASSERT(!attr_array->OwnsData(), "");
+   }
+
+   // If rank 0, set up blueprint index for topologies group
    if (myid == 0)
    {
       const std::string bp_grp_path = bp_grp->getPathName();
 
-      // Create blueprint index for topologies.
       if (isBdry)
       {
          // "Shallow" copy the bp_grp view into the bp_index_grp sub-group.
@@ -467,40 +486,7 @@ createMeshBlueprintTopologies(bool hasBP, const std::string& mesh_name)
       {
          bp_index_topo_grp->copyView(topology_grp->getView("grid_function"));
       }
-
-      // Create blueprint index for material attributes.
-      sidre::Group *bp_index_attr_grp =
-         bp_index_grp->createGroup(mesh_attr_str);
-      sidre::Group *attr_grp = bp_grp->getGroup(mesh_attr_str);
-
-      bp_index_attr_grp->createViewString(
-         "path", bp_grp_path + "/" + mesh_attr_str );
-      bp_index_attr_grp->copyView( attr_grp->getView("association") );
-      bp_index_attr_grp->copyView( attr_grp->getView("topology") );
-
-      int number_of_components = 1;
-      bp_index_attr_grp->createViewScalar("number_of_components",
-                                          number_of_components);
    }
-
-   // Finally, change ownership or copy the element arrays into Sidre
-   sidre::View* conn_view =
-      bp_grp->getGroup(mesh_topo_str)->getView("elements/connectivity");
-   sidre::View* attr_view =
-      bp_grp->getGroup(mesh_attr_str)->getView("values");
-   // The SidreDataCollection always owns these arrays:
-   Array<int> conn_array(conn_view->getData<int*>(), num_indices);
-   Array<int> attr_array(attr_view->getData<int*>(), num_elements);
-   if (!isBdry)
-   {
-      mesh->GetElementData(geom, conn_array, attr_array);
-   }
-   else
-   {
-      mesh->GetBdrElementData(geom, conn_array, attr_array);
-   }
-   MFEM_ASSERT(!conn_array.OwnsData(), "");
-   MFEM_ASSERT(!attr_array.OwnsData(), "");
 }
 
 // private method
@@ -580,6 +566,28 @@ void SidreDataCollection::verifyMeshBlueprint()
    // Add call to that when it's available to check actual contents in sidre.
 }
 
+
+bool SidreDataCollection::HasBoundaryMesh() const
+{
+   // check if this rank has any boundary elements
+   int hasBndElts = mesh->GetNBE() > 0 ? 1 : 0;
+
+#ifdef MFEM_USE_MPI
+   // check if any rank has boundary elements
+   ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
+   if (pmesh)
+   {
+      int hasBndElts_g;
+      MPI_Allreduce(&hasBndElts, &hasBndElts_g, 1,
+                    MPI_INT, MPI_MAX,pmesh->GetComm());
+
+      hasBndElts = hasBndElts_g;
+   }
+#endif
+
+   return hasBndElts > 0? true : false;
+}
+
 void SidreDataCollection::SetMesh(Mesh *new_mesh)
 {
    DataCollection::SetMesh(new_mesh);
@@ -587,7 +595,7 @@ void SidreDataCollection::SetMesh(Mesh *new_mesh)
    // hasBP is used to indicate if the data currently in the blueprint should be
    // used to replace the data in the mesh.
    bool hasBP = bp_grp->getNumViews() > 0 || bp_grp->getNumGroups() > 0;
-   bool has_bnd_elts = (new_mesh->GetNBE() > 0);
+   bool has_bnd_elts = HasBoundaryMesh();
 
    createMeshBlueprintStubs(hasBP);
    createMeshBlueprintState(hasBP);
@@ -671,6 +679,18 @@ void SidreDataCollection::SetMesh(Mesh *new_mesh)
       }
    }
 }
+
+#ifdef MFEM_USE_MPI
+void SidreDataCollection::SetMesh(MPI_Comm comm, Mesh *new_mesh)
+{
+   // use SidreDataCollection's custom SetMesh, then set MPI info
+   SetMesh(new_mesh);
+
+   m_comm = comm;
+   MPI_Comm_rank(comm, &myid);
+   MPI_Comm_size(comm, &num_procs);
+}
+#endif
 
 void SidreDataCollection::
 SetGroupPointers(axom::sidre::Group *global_grp,
@@ -1073,6 +1093,127 @@ void SidreDataCollection::RegisterField(const std::string &field_name,
 
    // Register field_name + gf in field_map.
    DataCollection::RegisterField(field_name, gf);
+}
+
+void SidreDataCollection::RegisterAttributeField(const std::string& attr_name,
+                                                 bool is_bdry)
+{
+   MFEM_ASSERT(
+      mesh != NULL,
+      "Need to set mesh before registering attributes in SidreDataCollection.");
+
+   // Register attr_name in the blueprint group.
+   sidre::Group* f = bp_grp->getGroup("fields");
+   if (f->hasGroup( attr_name ))
+   {
+      bool isAttr = attr_map.Has(attr_name);
+      bool isFld = field_map.Has(attr_name);
+
+      if (isAttr)
+      {
+         MFEM_WARNING("field with the name '" << attr_name << "' is already "
+                      " registered as an attribute, overwriting old values.");
+         DeregisterAttributeField(attr_name);
+      }
+      else if (isFld)
+      {
+         MFEM_WARNING("field with the name '" << attr_name << "' is already "
+                      " registered as a field, skipping register attribute.");
+         return;
+      }
+   }
+
+   // Generate sidre views and groups for this mesh attribute and allocate space
+   addIntegerAttributeField(attr_name, is_bdry);
+
+   if (myid == 0)
+   {
+      RegisterAttributeFieldInBPIndex(attr_name);
+   }
+
+   // Register new attribute array with attr_map
+   sidre::View* a =
+      bp_grp->getGroup("fields")->getGroup(attr_name)->getView("values");
+   Array<int>* attr = new Array<int>(a->getData<int*>(), a->getNumElements());
+
+   attr_map.Register(attr_name, attr, own_data);
+}
+
+void SidreDataCollection::RegisterAttributeFieldInBPIndex(
+   const std::string& attr_name)
+{
+   const std::string bp_grp_path = bp_grp->getPathName();
+
+   MFEM_ASSERT(bp_grp->getGroup("fields") != NULL,
+               "Mesh blueprint does not have 'fields' group");
+   MFEM_ASSERT(bp_index_grp->getGroup("fields") != NULL,
+               "Mesh blueprint index does not have 'fields' group");
+
+   // get the BP attr group
+   sidre::Group* attr_grp =
+      bp_grp->getGroup("fields")->getGroup(attr_name);
+
+   // create blueprint index for this attribute
+   sidre::Group *bp_index_attr_grp =
+      bp_index_grp->getGroup("fields")->createGroup(attr_name);
+
+   bp_index_attr_grp->createViewString("path", attr_grp->getPathName() );
+   bp_index_attr_grp->copyView( attr_grp->getView("association") );
+   bp_index_attr_grp->copyView( attr_grp->getView("topology") );
+   bp_index_attr_grp->createViewScalar("number_of_components", 1);
+}
+
+void SidreDataCollection::DeregisterAttributeField(const std::string& attr_name)
+{
+   attr_map.Deregister(name, own_data);
+
+   sidre::Group * attr_grp = bp_grp->getGroup("fields");
+   MFEM_VERIFY(attr_grp->hasGroup(attr_name),
+               "No field exists in blueprint with name " << attr_name);
+
+   // Delete attr_name from the blueprint group.
+
+   // Note: This will destroy all orphaned views or buffer classes under this
+   // group also.  If sidre owns this field data, the memory will be deleted
+   // unless it's referenced somewhere else in sidre.
+   attr_grp->destroyGroup(attr_name);
+
+   // Delete field_name from the blueprint_index group.
+   if (myid == 0)
+   {
+      DeregisterAttributeFieldInBPIndex(attr_name);
+   }
+
+   // Delete field_name from the named_buffers group, if allocated.
+   FreeNamedBuffer(attr_name);
+}
+
+void SidreDataCollection::DeregisterAttributeFieldInBPIndex(
+   const std::string& attr_name)
+{
+   sidre::Group * fields_grp = bp_index_grp->getGroup("fields");
+   MFEM_VERIFY(fields_grp->hasGroup(attr_name),
+               "No attribute exists in blueprint index with name " << attr_name);
+
+   // Note: This will destroy all orphaned views or buffer classes under this
+   // group also.  If sidre owns this field data, the memory will be deleted
+   // unless it's referenced somewhere else in sidre.
+   fields_grp->destroyGroup(attr_name);
+}
+
+void SidreDataCollection::
+addIntegerAttributeField(const std::string& attr_name, bool is_bdry)
+{
+   sidre::Group* fld_grp = bp_grp->getGroup("fields");
+   MFEM_ASSERT(fld_grp != NULL, "'fields' group does not exist");
+
+   const int num_elem = is_bdry? mesh->GetNBE() : mesh->GetNE();
+   std::string topo_name = is_bdry ? "boundary" : "mesh";
+
+   sidre::Group* attr_grp = fld_grp->createGroup(attr_name);
+   attr_grp->createViewString("association", "element");
+   attr_grp->createViewAndAllocate("values", sidre::INT_ID, num_elem);
+   attr_grp->createViewString("topology", topo_name);
 }
 
 void SidreDataCollection::DeregisterField(const std::string& field_name)

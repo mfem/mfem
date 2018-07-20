@@ -10,7 +10,7 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 # The current MFEM version as an integer, see also `CMakeLists.txt`.
-MFEM_VERSION = 30303
+MFEM_VERSION = 30401
 MFEM_VERSION_STRING = $(shell printf "%06d" $(MFEM_VERSION) | \
   sed -e 's/^0*\(.*.\)\(..\)\(..\)$$/\1.\2.\3/' -e 's/\.0/./g' -e 's/\.0$$//')
 
@@ -26,7 +26,7 @@ MFEM makefile targets:
    make parallel
    make debug
    make pdebug
-   make check/test
+   make test/check
    make install
    make clean
    make distclean
@@ -55,14 +55,14 @@ make debug
    A shortcut to configure and build the serial debug version of the library.
 make pdebug
    A shortcut to configure and build the parallel debug version of the library.
-make check
-   Quick-check the build by compiling and running Example 1/1p.
 make test
    Verify the build by checking the results from running all examples and miniapps.
+make check
+   Quick-check the build by compiling and running Example 1/1p.
 make install PREFIX=<dir>
    Install the library and headers in <dir>/lib and <dir>/include.
 make clean
-   Clean the library and object files, but keep configuration.
+   Clean the library and object files, but keep the configuration.
 make distclean
    In addition to "make clean", clean the configuration and remove the local
    installation directory.
@@ -89,7 +89,7 @@ $(if $(word 2,$(SRC)),$(error Spaces in SRC = "$(SRC)" are not supported))
 MFEM_GIT_STRING = $(shell [ -d $(MFEM_DIR)/.git ] && git -C $(MFEM_DIR) \
    describe --all --long --abbrev=40 --dirty --always 2> /dev/null)
 
-EXAMPLE_SUBDIRS = sundials petsc
+EXAMPLE_SUBDIRS = sundials petsc pumi
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
@@ -176,7 +176,8 @@ CXXFLAGS ?= $(OPTIM_FLAGS)
 # MPI configuration
 ifneq ($(MFEM_USE_MPI),YES)
    MFEM_CXX ?= $(CXX)
-   $(foreach mpidep,SUPERLU STRUMPACK PETSC,$(if $(MFEM_USE_$(mpidep):NO=),\
+   PKGS_NEED_MPI = SUPERLU STRUMPACK PETSC PUMI
+   $(foreach mpidep,$(PKGS_NEED_MPI),$(if $(MFEM_USE_$(mpidep):NO=),\
      $(warning *** [MPI is OFF] setting MFEM_USE_$(mpidep) = NO)\
      $(eval override MFEM_USE_$(mpidep)=NO),))
 else
@@ -196,8 +197,8 @@ ifeq ($(MFEM_USE_OPENMP),YES)
 endif
 
 # List of MFEM dependencies, that require the *_LIB variable to be non-empty
-MFEM_REQ_LIB_DEPS = SUPERLU METIS SIDRE LAPACK SUNDIALS MESQUITE SUITESPARSE\
- STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR
+MFEM_REQ_LIB_DEPS = SUPERLU METIS CONDUIT SIDRE LAPACK SUNDIALS MESQUITE\
+ SUITESPARSE STRUMPACK GECKO GNUTLS NETCDF PETSC MPFR PUMI
 PETSC_ERROR_MSG = $(if $(PETSC_FOUND),,. PETSC config not found: $(PETSC_VARS))
 
 define mfem_check_dependency
@@ -233,16 +234,18 @@ endif
 
 # gzstream configuration
 ifeq ($(MFEM_USE_GZSTREAM),YES)
-   ALL_LIBS += -lz
+   INCFLAGS += $(ZLIB_OPT)
+   ALL_LIBS += $(ZLIB_LIB)
 endif
 
 # List of all defines that may be enabled in config.hpp and config.mk:
 MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
- MFEM_USE_METIS MFEM_USE_METIS_5 MFEM_DEBUG MFEM_USE_GZSTREAM\
- MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE MFEM_USE_OPENMP\
- MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS MFEM_USE_MESQUITE\
- MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU MFEM_USE_STRUMPACK\
- MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC MFEM_USE_MPFR MFEM_USE_SIDRE
+ MFEM_USE_METIS MFEM_USE_METIS_5 MFEM_DEBUG MFEM_USE_EXCEPTIONS\
+ MFEM_USE_GZSTREAM MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE\
+ MFEM_USE_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS\
+ MFEM_USE_MESQUITE MFEM_USE_SUITESPARSE MFEM_USE_GECKO MFEM_USE_SUPERLU\
+ MFEM_USE_STRUMPACK MFEM_USE_GNUTLS MFEM_USE_NETCDF MFEM_USE_PETSC\
+ MFEM_USE_MPFR MFEM_USE_SIDRE MFEM_USE_CONDUIT MFEM_USE_PUMI
 
 # List of makefile variables that will be written to config.mk:
 MFEM_CONFIG_VARS = MFEM_CXX MFEM_CPPFLAGS MFEM_CXXFLAGS MFEM_INC_DIR\
@@ -272,7 +275,7 @@ MFEM_CONFIG_EXTRA ?= $(if $(BUILD_DIR_DEF),MFEM_BUILD_DIR ?= @MFEM_DIR@,)
 # If we have 'config' target, export variables used by config/makefile
 ifneq (,$(filter config,$(MAKECMDGOALS)))
    export $(MFEM_DEFINES) MFEM_DEFINES $(MFEM_CONFIG_VARS) MFEM_CONFIG_VARS
-   export VERBOSE HYPRE_OPT
+   export VERBOSE HYPRE_OPT PUMI_DIR
 endif
 
 # If we have 'install' target, export variables used by config/makefile
@@ -483,6 +486,7 @@ status info:
 	$(info MFEM_USE_METIS       = $(MFEM_USE_METIS))
 	$(info MFEM_USE_METIS_5     = $(MFEM_USE_METIS_5))
 	$(info MFEM_DEBUG           = $(MFEM_DEBUG))
+	$(info MFEM_USE_EXCEPTIONS  = $(MFEM_USE_EXCEPTIONS))
 	$(info MFEM_USE_GZSTREAM    = $(MFEM_USE_GZSTREAM))
 	$(info MFEM_USE_LIBUNWIND   = $(MFEM_USE_LIBUNWIND))
 	$(info MFEM_USE_LAPACK      = $(MFEM_USE_LAPACK))
@@ -501,6 +505,8 @@ status info:
 	$(info MFEM_USE_PETSC       = $(MFEM_USE_PETSC))
 	$(info MFEM_USE_MPFR        = $(MFEM_USE_MPFR))
 	$(info MFEM_USE_SIDRE       = $(MFEM_USE_SIDRE))
+	$(info MFEM_USE_CONDUIT     = $(MFEM_USE_CONDUIT))
+	$(info MFEM_USE_PUMI        = $(MFEM_USE_PUMI))
 	$(info MFEM_CXX             = $(value MFEM_CXX))
 	$(info MFEM_CPPFLAGS        = $(value MFEM_CPPFLAGS))
 	$(info MFEM_CXXFLAGS        = $(value MFEM_CXXFLAGS))
