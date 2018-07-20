@@ -14,7 +14,6 @@
 
 #include "../config/config.hpp"
 #include "operator.hpp"
-#include <assert.h>
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>

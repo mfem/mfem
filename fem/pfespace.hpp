@@ -34,7 +34,6 @@ private:
 
    /// Parallel mesh; #mesh points to this object as well. Not owned.
    ParMesh *pmesh;
-
    /** Parallel non-conforming mesh extension object; same as pmesh->pncmesh.
        Not owned. */
    ParNCMesh *pncmesh;

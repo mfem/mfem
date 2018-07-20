@@ -317,11 +317,15 @@ KERNELS_SRC_DIRS := 	\
 	$(KERNELS_BACKEND_DIR)/kernels/blas \
 	$(KERNELS_BACKEND_DIR)/kernels/diffusion \
 	$(KERNELS_BACKEND_DIR)/kernels/force \
-	$(KERNELS_BACKEND_DIR)/kernels/geom \
 	$(KERNELS_BACKEND_DIR)/kernels/mapping \
 	$(KERNELS_BACKEND_DIR)/kernels/mass \
 	$(KERNELS_BACKEND_DIR)/linalg
 #	$(KERNELS_BACKEND_DIR)/kernels/quad
+
+# KERNELS that'll be compiled at runtime
+KERNELS_RTC_DIRS = $(KERNELS_BACKEND_DIR)/kernels/geom
+KERNELS_RTC_SRC_FILES = $(foreach dir,$(KERNELS_RTC_DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
+KERNELS_RTC_OKS_FILES = $(patsubst $(SRC)%,$(BLD)%,$(KERNELS_RTC_SRC_FILES:.cpp=.cpp.rtc))
 
 # Source dirs in logical order
 ALL_SRC_DIRS := general linalg mesh fem \
@@ -340,6 +344,9 @@ endif
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
+OBJECT_RTC_FILES = $(KERNELS_RTC_OKS_FILES:.rtc=.o)
+
+rtc:;echo KERNELS_RTC_OKS_FILES=$(KERNELS_RTC_OKS_FILES), OBJECT_RTC_FILES=$(OBJECT_RTC_FILES)
 
 .PHONY: lib all clean distclean install config status info deps serial parallel\
  debug pdebug style check test
@@ -362,6 +369,13 @@ MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
+# Rules for compiling all RTC source files.
+# Warning input files needs to be last
+$(KERNELS_RTC_OKS_FILES): $(BLD)%.cpp.rtc: $(SRC)%.cpp $(CONFIG_MK)
+	@okrtc $(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<)
+$(OBJECT_RTC_FILES): $(BLD)%.o: $(BLD)%.rtc
+	$(MFEM_CXX) -x c++ -I/home/camier1/home/okrtc/include $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
+
 all: examples miniapps
 
 .PHONY: miniapps $(EM_DIRS)
@@ -376,9 +390,9 @@ doc:
 
 -include $(BLD)deps.mk
 
-$(BLD)libmfem.a: $(OBJECT_FILES)
+$(BLD)libmfem.a: $(OBJECT_FILES) $(OBJECT_RTC_FILES)
 	[ ! -e $(@) ] || rm -f $(@)
-	$(AR) $(ARFLAGS) $(@) $(OBJECT_FILES)
+	$(AR) $(ARFLAGS) $(@) $(OBJECT_FILES) $(OBJECT_RTC_FILES)
 	$(RANLIB) $(@)
 
 $(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER)
