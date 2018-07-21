@@ -3409,6 +3409,11 @@ void ParMesh::PriUniformRefinement(map<int,int> * )
       group_svert.SetIJ(I_group_svert, J_group_svert);
       group_sedge.SetIJ(I_group_sedge, J_group_sedge);
       group_sface.SetIJ(I_group_sface, J_group_sface);
+   }
+   
+   UpdateNodes();
+}
+  
 void ParMesh::Mixed2DUniformRefinement()
 {
    DeleteFaceNbrData();
@@ -3499,10 +3504,6 @@ void ParMesh::Mixed2DUniformRefinement()
 
       group_svert.SetIJ(I_group_svert, J_group_svert);
       group_sedge.SetIJ(I_group_sedge, J_group_sedge);
-   }
-
-   UpdateNodes();
-}
    }
 
    UpdateNodes();
