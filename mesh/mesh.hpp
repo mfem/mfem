@@ -280,7 +280,7 @@ protected:
    virtual void PriUniformRefinement(std::map<int,int> * f2qf = NULL);
 
    /// Refine a mixed 2D mesh.
-   virtual void Mixed2DUniformRefinement(std::map<int,int> * e2qe = NULL);
+   virtual void Mixed2DUniformRefinement();
 
    /// Refine a mixed 3D mesh.
    virtual void Mixed3DUniformRefinement(std::map<int,int> * f2qf = NULL,

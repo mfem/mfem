@@ -6301,7 +6301,7 @@ void Mesh::PriUniformRefinement(map<int,int> * f2qf_ptr)
    UpdateNodes();
 }
 
-void Mesh::Mixed2DUniformRefinement(map<int,int> * e2qe_ptr)
+void Mesh::Mixed2DUniformRefinement()
 {
    int i;
    int * v;
@@ -6316,11 +6316,7 @@ void Mesh::Mixed2DUniformRefinement(map<int,int> * e2qe_ptr)
 
    int NumOfTriElems  = 0;
    int NumOfQuadElems = 0;
-   map<int,int> e2qe_loc;
-   if (e2qe_ptr == NULL)
-   {
-      e2qe_ptr = &e2qe_loc;
-   }
+   map<int,int> e2qe;
    for (i = 0; i < NumOfElements; i++)
    {
       if (elements[i]->GetType() == Element::TRIANGLE)
@@ -6329,7 +6325,7 @@ void Mesh::Mixed2DUniformRefinement(map<int,int> * e2qe_ptr)
       }
       else
       {
-         (*e2qe_ptr)[i] = NumOfQuadElems;
+         e2qe[i] = NumOfQuadElems;
          NumOfQuadElems++;
       }
    }
@@ -6359,7 +6355,7 @@ void Mesh::Mixed2DUniformRefinement(map<int,int> * e2qe_ptr)
       }
       else
       {
-         AverageVertices(v, 4, oelem+(*e2qe_ptr)[i]);
+         AverageVertices(v, 4, oelem+e2qe[i]);
 
          for (int j = 0; j < 4; j++)
          {
@@ -6393,7 +6389,7 @@ void Mesh::Mixed2DUniformRefinement(map<int,int> * e2qe_ptr)
       }
       else
       {
-         int qe = (*e2qe_ptr)[i];
+         int qe = e2qe[i];
 
          elements[j+0] = new Quadrilateral(oedge+e[0], v[1], oedge+e[1],
                                            oelem+qe, attr);

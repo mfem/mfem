@@ -82,6 +82,8 @@ protected:
    /// Refine a prism mesh.
    virtual void PriUniformRefinement(std::map<int,int> * f2qf = NULL);
 
+   /// Refine a mixed 2D mesh.
+   virtual void Mixed2DUniformRefinement();
    virtual void NURBSUniformRefinement();
 
    /// This function is not public anymore. Use GeneralRefinement instead.
