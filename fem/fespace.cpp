@@ -847,7 +847,7 @@ SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
 void FiniteElementSpace::GetLocalRefinementMatrices(DenseTensor &localP) const
 {
    Geometry::Type geom =
-     mesh->GetElementBaseGeometry(); // assuming the same geom
+      mesh->GetElementBaseGeometry(); // assuming the same geom
    const FiniteElement *fe = fec->FiniteElementForGeometry(geom);
 
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
@@ -856,9 +856,9 @@ void FiniteElementSpace::GetLocalRefinementMatrices(DenseTensor &localP) const
    pm_it = rtrans.point_matrices.find(geom);
 
    MFEM_VERIFY(pm_it != rtrans.point_matrices.end(),
-	       "GetLocalRefinemntMatrices() cannot find point matrices "
-	       "for geometry type \"" << geom << "\"");
-   
+               "GetLocalRefinemntMatrices() cannot find point matrices "
+               "for geometry type \"" << geom << "\"");
+
    int nmat = pm_it->second.SizeK();
    int ldof = fe->GetDof(); // assuming the same FE everywhere
 
@@ -995,8 +995,8 @@ void FiniteElementSpace::GetLocalDerefinementMatrices(DenseTensor &localR) const
    pm_it = dtrans.point_matrices.find(geom);
 
    MFEM_VERIFY(pm_it != dtrans.point_matrices.end(),
-	       "GetLocalDerefinemntMatrices() cannot find point matrices "
-	       "for geometry type \"" << geom << "\"");
+               "GetLocalDerefinemntMatrices() cannot find point matrices "
+               "for geometry type \"" << geom << "\"");
 
    int nmat = pm_it->second.SizeK();
    int ldof = fe->GetDof();
@@ -1109,9 +1109,9 @@ void FiniteElementSpace::GetLocalRefinementMatrices(
    pm_it = rtrans.point_matrices.find(fine_geom);
 
    MFEM_VERIFY(pm_it != rtrans.point_matrices.end(),
-	       "GetLocalRefinemntMatrices() cannot find point matrices "
-	       "for geometry type \"" << fine_geom << "\"");
-   
+               "GetLocalRefinemntMatrices() cannot find point matrices "
+               "for geometry type \"" << fine_geom << "\"");
+
    int nmat = pm_it->second.SizeK();
 
    IsoparametricTransformation isotr;

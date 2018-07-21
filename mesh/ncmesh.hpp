@@ -52,10 +52,10 @@ struct Embedding
 struct CoarseFineTransformations
 {
    std::map<Geometry::Type, DenseTensor>
-               point_matrices;  ///< matrices for IsoparametricTransformation
+   point_matrices;  ///< matrices for IsoparametricTransformation
    Array<Embedding> embeddings; ///< fine element positions in their parents
 
-  // void Clear() { point_matrices.Clear(); embeddings.DeleteAll(); }
+   // void Clear() { point_matrices.Clear(); embeddings.DeleteAll(); }
    void Clear() { point_matrices.clear(); embeddings.DeleteAll(); }
    long MemoryUsage() const;
 };

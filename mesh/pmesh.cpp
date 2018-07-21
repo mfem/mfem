@@ -2640,7 +2640,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 
       static double seg_children[3*2] = { 0.0,1.0, 0.0,0.5, 0.5,1.0 };
       CoarseFineTr.point_matrices[Geometry::SEGMENT].
-	UseExternalData(seg_children, 1, 2, 3);
+      UseExternalData(seg_children, 1, 2, 3);
 
       GenerateFaces();
    } // end of 'if (Dim == 1)'

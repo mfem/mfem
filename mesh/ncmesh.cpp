@@ -1349,9 +1349,9 @@ void NCMesh::InitDerefTransforms()
    // this will tell GetDerefinementTransforms that transforms are not finished
    std::map<Geometry::Type, DenseTensor>::iterator it;
    for (it=transforms.point_matrices.begin();
-	it!=transforms.point_matrices.end(); it++)
+        it!=transforms.point_matrices.end(); it++)
    {
-     it->second.SetSize(0, 0, 0);
+      it->second.SetSize(0, 0, 0);
    }
 }
 
@@ -2955,7 +2955,7 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
          path[2] = 0;
 
          GetPointMatrix(geom, path,
-			transforms.point_matrices[geom](it->second-1));
+                        transforms.point_matrices[geom](it->second-1));
       }
    }
    return transforms;
@@ -2967,9 +2967,9 @@ void NCMesh::ClearTransforms()
    transforms.embeddings.DeleteAll();
    std::map<Geometry::Type, DenseTensor>::iterator it;
    for (it=transforms.point_matrices.begin();
-	it!=transforms.point_matrices.end(); it++)
+        it!=transforms.point_matrices.end(); it++)
    {
-     it->second.SetSize(0, 0, 0);
+      it->second.SetSize(0, 0, 0);
    }
 }
 
@@ -3554,11 +3554,11 @@ long CoarseFineTransformations::MemoryUsage() const
 
    std::map<Geometry::Type, DenseTensor>::const_iterator it;
    for (it=point_matrices.begin();
-	it!=point_matrices.end(); it++)
+        it!=point_matrices.end(); it++)
    {
-     mem += it->second.MemoryUsage();  
+      mem += it->second.MemoryUsage();
    }
-   
+
    return mem;
 }
 
