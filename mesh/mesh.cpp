@@ -5900,7 +5900,7 @@ void Mesh::QuadUniformRefinement()
    };
 
    CoarseFineTr.point_matrices[Geometry::SQUARE].UseExternalData(quad_children,
-								 2, 4, 4);
+                                                                 2, 4, 4);
    CoarseFineTr.embeddings.SetSize(elements.Size());
 
    for (i = 0; i < elements.Size(); i++)
@@ -6064,7 +6064,7 @@ void Mesh::HexUniformRefinement()
    };
 
    CoarseFineTr.point_matrices[Geometry::CUBE].UseExternalData(hex_children,
-							       3, 8, 8);
+                                                               3, 8, 8);
    CoarseFineTr.embeddings.SetSize(elements.Size());
 
    for (i = 0; i < elements.Size(); i++)
@@ -6255,8 +6255,8 @@ void Mesh::PriUniformRefinement(map<int,int> * f2qf_ptr)
    static const double A = 0.0, B = 0.5, C = 1.0;
    static double pri_children[3*6*8] =
    {
-      A,A,A, B,A,A, A,B,A, A,A,B, B,A,B, A,B,B, 
-      B,B,A, A,B,A, B,A,A, B,B,B, A,B,B, B,A,B, 
+      A,A,A, B,A,A, A,B,A, A,A,B, B,A,B, A,B,B,
+      B,B,A, A,B,A, B,A,A, B,B,B, A,B,B, B,A,B,
       B,A,A, C,A,A, B,B,A, B,A,B, C,A,B, B,B,B,
       A,B,A, B,B,A, A,C,A, A,B,B, B,B,B, A,C,B,
       A,A,B, B,A,B, A,B,B, A,A,C, B,A,C, A,B,C,
@@ -6266,7 +6266,7 @@ void Mesh::PriUniformRefinement(map<int,int> * f2qf_ptr)
    };
 
    CoarseFineTr.point_matrices[Geometry::PRISM].UseExternalData(pri_children,
-								3, 6, 8);
+                                                                3, 6, 8);
    CoarseFineTr.embeddings.SetSize(elements.Size());
 
    for (i = 0; i < elements.Size(); i++)
@@ -6338,7 +6338,7 @@ void Mesh::Mixed2DUniformRefinement(map<int,int> * e2qe_ptr)
 
    int oedge = NumOfVertices;
    int oelem = oedge + NumOfEdges;
-   
+
    vertices.SetSize(oelem + NumOfQuadElems);
    for (i = 0; i < NumOfElements; i++)
    {
@@ -6348,27 +6348,27 @@ void Mesh::Mixed2DUniformRefinement(map<int,int> * e2qe_ptr)
 
       if ( el_type == Element::TRIANGLE )
       {
-	 for (int j = 0; j < 3; j++)
+         for (int j = 0; j < 3; j++)
          {
             for (int k = 0; k < 2; k++)
             {
                vv[k] = v[tri_t::Edges[j][k]];
-	    }
-	    AverageVertices(vv, 2, oedge+e[j]);
-	 }
+            }
+            AverageVertices(vv, 2, oedge+e[j]);
+         }
       }
       else
       {
- 	 AverageVertices(v, 4, oelem+(*e2qe_ptr)[i]);
+         AverageVertices(v, 4, oelem+(*e2qe_ptr)[i]);
 
- 	 for (int j = 0; j < 4; j++)
+         for (int j = 0; j < 4; j++)
          {
             for (int k = 0; k < 2; k++)
             {
                vv[k] = v[quad_t::Edges[j][k]];
-	    }
-	    AverageVertices(vv, 2, oedge+e[j]);
-	 }
+            }
+            AverageVertices(vv, 2, oedge+e[j]);
+         }
       }
    }
 
@@ -6384,27 +6384,27 @@ void Mesh::Mixed2DUniformRefinement(map<int,int> * e2qe_ptr)
 
       if ( el_type == Element::TRIANGLE )
       {
-	 elements[j+0] = new Triangle(oedge+e[1], oedge+e[2], oedge+e[0], attr);
-	 elements[j+1] = new Triangle(oedge+e[0], v[1], oedge+e[1], attr);
-	 elements[j+2] = new Triangle(oedge+e[2], oedge+e[1], v[2], attr);
+         elements[j+0] = new Triangle(oedge+e[1], oedge+e[2], oedge+e[0], attr);
+         elements[j+1] = new Triangle(oedge+e[0], v[1], oedge+e[1], attr);
+         elements[j+2] = new Triangle(oedge+e[2], oedge+e[1], v[2], attr);
 
-	 v[1] = oedge+e[0];
-	 v[2] = oedge+e[2];
+         v[1] = oedge+e[0];
+         v[2] = oedge+e[2];
       }
       else
       {
-	 int qe = (*e2qe_ptr)[i];
+         int qe = (*e2qe_ptr)[i];
 
-	 elements[j+0] = new Quadrilateral(oedge+e[0], v[1], oedge+e[1],
-					   oelem+qe, attr);
-	 elements[j+1] = new Quadrilateral(oelem+qe, oedge+e[1],
-					   v[2], oedge+e[2], attr);
-	 elements[j+2] = new Quadrilateral(oedge+e[3], oelem+qe,
-					   oedge+e[2], v[3], attr);
-	 
-	 v[1] = oedge+e[0];
-	 v[2] = oelem+qe;
-	 v[3] = oedge+e[3];
+         elements[j+0] = new Quadrilateral(oedge+e[0], v[1], oedge+e[1],
+                                           oelem+qe, attr);
+         elements[j+1] = new Quadrilateral(oelem+qe, oedge+e[1],
+                                           v[2], oedge+e[2], attr);
+         elements[j+2] = new Quadrilateral(oedge+e[3], oelem+qe,
+                                           oedge+e[2], v[3], attr);
+
+         v[1] = oedge+e[0];
+         v[2] = oelem+qe;
+         v[3] = oedge+e[3];
       }
    }
 
@@ -6437,9 +6437,9 @@ void Mesh::Mixed2DUniformRefinement(map<int,int> * e2qe_ptr)
    };
 
    CoarseFineTr.point_matrices[Geometry::TRIANGLE].UseExternalData(tri_children,
-								   2, 3, 4);
+                                                                   2, 3, 4);
    CoarseFineTr.point_matrices[Geometry::SQUARE].UseExternalData(quad_children,
-								 2, 4, 4);
+                                                                 2, 4, 4);
    CoarseFineTr.embeddings.SetSize(elements.Size());
 
    for (i = 0; i < elements.Size(); i++)
@@ -6464,7 +6464,7 @@ void Mesh::Mixed2DUniformRefinement(map<int,int> * e2qe_ptr)
    sequence++;
 
    UpdateNodes();
-   
+
 #ifdef MFEM_DEBUG
    CheckElementOrientation(false);
    CheckBdrElementOrientation(false);
@@ -6472,7 +6472,7 @@ void Mesh::Mixed2DUniformRefinement(map<int,int> * e2qe_ptr)
 }
 
 void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr,
-				    map<int,int> * e2he_ptr)
+                                    map<int,int> * e2he_ptr)
 {
    int i;
    int * v;
@@ -6485,7 +6485,7 @@ void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr,
       NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
    }
 
- if (el_to_face == NULL)
+   if (el_to_face == NULL)
    {
       GetElementToFaceTable();
    }
@@ -6522,24 +6522,24 @@ void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr,
    }
    for (i = 0; i<elements.Size(); i++)
    {
-     switch (elements[i]->GetType())
-       {
-       case Element::TETRAHEDRON:
-         NumOfTetElems++;
-	 break;
-       case Element::PRISM:
-	 NumOfPriElems++;
-	 break;
-       case Element::HEXAHEDRON:
-	 (*e2he_ptr)[i] = NumOfHexElems;
-	 NumOfHexElems++;
-	 break;
-      default:
-	MFEM_ABORT("MixedUniformRefinement() "
-		   "Unknown 3D element type \"" << elements[i]->GetType()
-		   << "\"");
-         break;
-       }
+      switch (elements[i]->GetType())
+      {
+         case Element::TETRAHEDRON:
+            NumOfTetElems++;
+            break;
+         case Element::PRISM:
+            NumOfPriElems++;
+            break;
+         case Element::HEXAHEDRON:
+            (*e2he_ptr)[i] = NumOfHexElems;
+            NumOfHexElems++;
+            break;
+         default:
+            MFEM_ABORT("MixedUniformRefinement() "
+                       "Unknown 3D element type \"" << elements[i]->GetType()
+                       << "\"");
+            break;
+      }
    }
    MFEM_VERIFY(NumOfElements == NumOfTetElems + NumOfPriElems + NumOfHexElems,
                "Mixed element counts don't match!");
@@ -6547,7 +6547,7 @@ void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr,
    int oedge = NumOfVertices;
    int oface = oedge + NumOfEdges;
    int oelem = oface + NumOfQuadFaces;
-   
+
    vertices.SetSize(oelem + NumOfHexElems);
    for (i = 0; i < NumOfElements; i++)
    {
@@ -6558,67 +6558,67 @@ void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr,
 
       switch (el_type)
       {
-      case Element::TETRAHEDRON:
-	{
-	  for (int j = 0; j < 6; j++)
-	    {
-	      for (int k = 0; k < 2; k++)
-		{
-		  vv[k] = v[tet_t::Edges[j][k]];
-		}
-	      AverageVertices(vv, 2, oedge+e[j]);
-	    }
-	}
-	break;
-       case Element::PRISM:
-	 {
-	   for (int j = 2; j < 5; j++)
-	     {
-	       for (int k = 0; k < 4; k++)
-		 {
-		   vv[k] = v[pri_t::FaceVert[j][k]];
-		 }
-	       AverageVertices(vv, 4, oface+(*f2qf_ptr)[f[j]]);
-	     }
-	   
-	   for (int j = 0; j < 9; j++)
-	     {
-	       for (int k = 0; k < 2; k++)
-		 {
-		   vv[k] = v[pri_t::Edges[j][k]];
-		 }
-	       AverageVertices(vv, 2, oedge+e[j]);
-	     }
-	 }
-	 break;
-      case Element::HEXAHEDRON:
-	{
-	  AverageVertices(v, 8, oelem+(*e2he_ptr)[i]);
-	  
-	  for (int j = 0; j < 6; j++)
-	    {
-	      for (int k = 0; k < 4; k++)
-		{
-		  vv[k] = v[hex_t::FaceVert[j][k]];
-		}
-	      AverageVertices(vv, 4, oface+(*f2qf_ptr)[f[j]]);
-	    }
-	  
-	  for (int j = 0; j < 12; j++)
-	    {
-	      for (int k = 0; k < 2; k++)
-		{
-		  vv[k] = v[hex_t::Edges[j][k]];
-		}
-	      AverageVertices(vv, 2, oedge+e[j]);
-	    }
-	}
-	break;
-      default:
-	MFEM_ABORT("MixedUniformRefinement() "
-		   "Unknown 3D element type \"" << elements[i]->GetType()
-		   << "\"");
-	break;
+         case Element::TETRAHEDRON:
+         {
+            for (int j = 0; j < 6; j++)
+            {
+               for (int k = 0; k < 2; k++)
+               {
+                  vv[k] = v[tet_t::Edges[j][k]];
+               }
+               AverageVertices(vv, 2, oedge+e[j]);
+            }
+         }
+         break;
+         case Element::PRISM:
+         {
+            for (int j = 2; j < 5; j++)
+            {
+               for (int k = 0; k < 4; k++)
+               {
+                  vv[k] = v[pri_t::FaceVert[j][k]];
+               }
+               AverageVertices(vv, 4, oface+(*f2qf_ptr)[f[j]]);
+            }
+
+            for (int j = 0; j < 9; j++)
+            {
+               for (int k = 0; k < 2; k++)
+               {
+                  vv[k] = v[pri_t::Edges[j][k]];
+               }
+               AverageVertices(vv, 2, oedge+e[j]);
+            }
+         }
+         break;
+         case Element::HEXAHEDRON:
+         {
+            AverageVertices(v, 8, oelem+(*e2he_ptr)[i]);
+
+            for (int j = 0; j < 6; j++)
+            {
+               for (int k = 0; k < 4; k++)
+               {
+                  vv[k] = v[hex_t::FaceVert[j][k]];
+               }
+               AverageVertices(vv, 4, oface+(*f2qf_ptr)[f[j]]);
+            }
+
+            for (int j = 0; j < 12; j++)
+            {
+               for (int k = 0; k < 2; k++)
+               {
+                  vv[k] = v[hex_t::Edges[j][k]];
+               }
+               AverageVertices(vv, 2, oedge+e[j]);
+            }
+         }
+         break;
+         default:
+            MFEM_ABORT("MixedUniformRefinement() "
+                       "Unknown 3D element type \"" << elements[i]->GetType()
+                       << "\"");
+            break;
       }
    }
 
@@ -6635,110 +6635,110 @@ void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr,
 
       switch (el_type)
       {
-      case Element::TETRAHEDRON:
-	{
-	  elements[j+0] = new Tetrahedron(oedge+e[0], v[1],
-					  oedge+e[3], oedge+e[4], attr);
-	  elements[j+1] = new Tetrahedron(oedge+e[1], oedge+e[3],
-					  v[2], oedge+e[5], attr);
-	  elements[j+2] = new Tetrahedron(oedge+e[2], oedge+e[4],
-					  oedge+e[5], v[3], attr);
-	  elements[j+3] = new Tetrahedron(oedge+e[2], oedge+e[0],
-					  oedge+e[1], oedge+e[3], attr);
-	  elements[j+4] = new Tetrahedron(oedge+e[2], oedge+e[1],
-					  oedge+e[5], oedge+e[3], attr);
-	  elements[j+5] = new Tetrahedron(oedge+e[2], oedge+e[5],
-					  oedge+e[4], oedge+e[3], attr);
-	  elements[j+6] = new Tetrahedron(oedge+e[2], oedge+e[4],
-					  oedge+e[0], oedge+e[3], attr);
+         case Element::TETRAHEDRON:
+         {
+            elements[j+0] = new Tetrahedron(oedge+e[0], v[1],
+                                            oedge+e[3], oedge+e[4], attr);
+            elements[j+1] = new Tetrahedron(oedge+e[1], oedge+e[3],
+                                            v[2], oedge+e[5], attr);
+            elements[j+2] = new Tetrahedron(oedge+e[2], oedge+e[4],
+                                            oedge+e[5], v[3], attr);
+            elements[j+3] = new Tetrahedron(oedge+e[2], oedge+e[0],
+                                            oedge+e[1], oedge+e[3], attr);
+            elements[j+4] = new Tetrahedron(oedge+e[2], oedge+e[1],
+                                            oedge+e[5], oedge+e[3], attr);
+            elements[j+5] = new Tetrahedron(oedge+e[2], oedge+e[5],
+                                            oedge+e[4], oedge+e[3], attr);
+            elements[j+6] = new Tetrahedron(oedge+e[2], oedge+e[4],
+                                            oedge+e[0], oedge+e[3], attr);
 
-	  v[1] = oedge+e[0];
-	  v[2] = oedge+e[1];
-	  v[3] = oedge+e[2];
-	}
-	break;
-      case Element::PRISM:
-	{
-	  int qf2 = (*f2qf_ptr)[f[2]];
-	  int qf3 = (*f2qf_ptr)[f[3]];
-	  int qf4 = (*f2qf_ptr)[f[4]];
-	  
-	  elements[j+0] = new Prism(oedge+e[1], oedge+e[2], oedge+e[0],
-				    oface+qf3, oface+qf4, oface+qf2,
-				    attr);
-	  elements[j+1] = new Prism(oedge+e[0], v[1], oedge+e[1],
-				    oface+qf2, oedge+e[7], oface+qf3,
-				    attr);
-	  elements[j+2] = new Prism(oedge+e[2], oedge+e[1], v[2],
-				    oface+qf4, oface+qf3, oedge+e[8],
-				    attr);
-	  elements[j+3] = new Prism(oedge+e[6], oface+qf2, oface+qf4,
-				    v[3], oedge+e[3], oedge+e[5],
-				    attr);
-	  elements[j+4] = new Prism(oface+qf3, oface+qf4, oface+qf2,
-				    oedge+e[4], oedge+e[5], oedge+e[3],
-				    attr);
-	  elements[j+5] = new Prism(oface+qf2, oedge+e[7], oface+qf3,
-				    oedge+e[3], v[4], oedge+e[4],
-				    attr);
-	  elements[j+6] = new Prism(oface+qf4, oface+qf3, oedge+e[8],
-				    oedge+e[5], oedge+e[4], v[5],
-				    attr);
+            v[1] = oedge+e[0];
+            v[2] = oedge+e[1];
+            v[3] = oedge+e[2];
+         }
+         break;
+         case Element::PRISM:
+         {
+            int qf2 = (*f2qf_ptr)[f[2]];
+            int qf3 = (*f2qf_ptr)[f[3]];
+            int qf4 = (*f2qf_ptr)[f[4]];
 
-	  v[1] = oedge+e[0];
-	  v[2] = oedge+e[2];
-	  v[3] = oedge+e[6];
-	  v[4] = oface+qf2;
-	  v[5] = oface+qf4;
-	}
-	break;
-      case Element::HEXAHEDRON:
-	{
-	  int qf0 = (*f2qf_ptr)[f[0]];
-	  int qf1 = (*f2qf_ptr)[f[1]];
-	  int qf2 = (*f2qf_ptr)[f[2]];
-	  int qf3 = (*f2qf_ptr)[f[3]];
-	  int qf4 = (*f2qf_ptr)[f[4]];
-	  int qf5 = (*f2qf_ptr)[f[5]];
+            elements[j+0] = new Prism(oedge+e[1], oedge+e[2], oedge+e[0],
+                                      oface+qf3, oface+qf4, oface+qf2,
+                                      attr);
+            elements[j+1] = new Prism(oedge+e[0], v[1], oedge+e[1],
+                                      oface+qf2, oedge+e[7], oface+qf3,
+                                      attr);
+            elements[j+2] = new Prism(oedge+e[2], oedge+e[1], v[2],
+                                      oface+qf4, oface+qf3, oedge+e[8],
+                                      attr);
+            elements[j+3] = new Prism(oedge+e[6], oface+qf2, oface+qf4,
+                                      v[3], oedge+e[3], oedge+e[5],
+                                      attr);
+            elements[j+4] = new Prism(oface+qf3, oface+qf4, oface+qf2,
+                                      oedge+e[4], oedge+e[5], oedge+e[3],
+                                      attr);
+            elements[j+5] = new Prism(oface+qf2, oedge+e[7], oface+qf3,
+                                      oedge+e[3], v[4], oedge+e[4],
+                                      attr);
+            elements[j+6] = new Prism(oface+qf4, oface+qf3, oedge+e[8],
+                                      oedge+e[5], oedge+e[4], v[5],
+                                      attr);
 
-	  int he = (*e2he_ptr)[i];
-	  
-	  elements[j+0] = new Hexahedron(oedge+e[0], v[1], oedge+e[1], oface+qf0,
-					 oface+qf1, oedge+e[9], oface+qf2,
-					 oelem+he, attr);
-	  elements[j+1] = new Hexahedron(oface+qf0, oedge+e[1], v[2], oedge+e[2],
-					 oelem+he, oface+qf2, oedge+e[10],
-					 oface+qf3, attr);
-	  elements[j+2] = new Hexahedron(oedge+e[3], oface+qf0, oedge+e[2], v[3],
-					 oface+qf4, oelem+he, oface+qf3,
-					 oedge+e[11], attr);
-	  elements[j+3] = new Hexahedron(oedge+e[8], oface+qf1, oelem+he,
-					 oface+qf4, v[4], oedge+e[4], oface+qf5,
-					 oedge+e[7], attr);
-	  elements[j+4] = new Hexahedron(oface+qf1, oedge+e[9], oface+qf2,
-					 oelem+he, oedge+e[4], v[5], oedge+e[5],
-					 oface+qf5, attr);
-	  elements[j+5] = new Hexahedron(oelem+he, oface+qf2, oedge+e[10],
-					 oface+qf3, oface+qf5, oedge+e[5], v[6],
-					 oedge+e[6], attr);
-	  elements[j+6] = new Hexahedron(oface+qf4, oelem+he, oface+qf3,
-					 oedge+e[11], oedge+e[7], oface+qf5,
-					 oedge+e[6], v[7], attr);
-	  
-	  v[1] = oedge+e[0];
-	  v[2] = oface+qf0;
-	  v[3] = oedge+e[3];
-	  v[4] = oedge+e[8];
-	  v[5] = oface+qf1;
-	  v[6] = oelem+he;
-	  v[7] = oface+qf4;
-	}
-	break;
-      default:
-	MFEM_ABORT("MixedUniformRefinement() "
-		   "Unknown 3D element type \"" << elements[i]->GetType()
-		   << "\"");
-	break;
+            v[1] = oedge+e[0];
+            v[2] = oedge+e[2];
+            v[3] = oedge+e[6];
+            v[4] = oface+qf2;
+            v[5] = oface+qf4;
+         }
+         break;
+         case Element::HEXAHEDRON:
+         {
+            int qf0 = (*f2qf_ptr)[f[0]];
+            int qf1 = (*f2qf_ptr)[f[1]];
+            int qf2 = (*f2qf_ptr)[f[2]];
+            int qf3 = (*f2qf_ptr)[f[3]];
+            int qf4 = (*f2qf_ptr)[f[4]];
+            int qf5 = (*f2qf_ptr)[f[5]];
+
+            int he = (*e2he_ptr)[i];
+
+            elements[j+0] = new Hexahedron(oedge+e[0], v[1], oedge+e[1], oface+qf0,
+                                           oface+qf1, oedge+e[9], oface+qf2,
+                                           oelem+he, attr);
+            elements[j+1] = new Hexahedron(oface+qf0, oedge+e[1], v[2], oedge+e[2],
+                                           oelem+he, oface+qf2, oedge+e[10],
+                                           oface+qf3, attr);
+            elements[j+2] = new Hexahedron(oedge+e[3], oface+qf0, oedge+e[2], v[3],
+                                           oface+qf4, oelem+he, oface+qf3,
+                                           oedge+e[11], attr);
+            elements[j+3] = new Hexahedron(oedge+e[8], oface+qf1, oelem+he,
+                                           oface+qf4, v[4], oedge+e[4], oface+qf5,
+                                           oedge+e[7], attr);
+            elements[j+4] = new Hexahedron(oface+qf1, oedge+e[9], oface+qf2,
+                                           oelem+he, oedge+e[4], v[5], oedge+e[5],
+                                           oface+qf5, attr);
+            elements[j+5] = new Hexahedron(oelem+he, oface+qf2, oedge+e[10],
+                                           oface+qf3, oface+qf5, oedge+e[5], v[6],
+                                           oedge+e[6], attr);
+            elements[j+6] = new Hexahedron(oface+qf4, oelem+he, oface+qf3,
+                                           oedge+e[11], oedge+e[7], oface+qf5,
+                                           oedge+e[6], v[7], attr);
+
+            v[1] = oedge+e[0];
+            v[2] = oface+qf0;
+            v[3] = oedge+e[3];
+            v[4] = oedge+e[8];
+            v[5] = oface+qf1;
+            v[6] = oelem+he;
+            v[7] = oface+qf4;
+         }
+         break;
+         default:
+            MFEM_ABORT("MixedUniformRefinement() "
+                       "Unknown 3D element type \"" << elements[i]->GetType()
+                       << "\"");
+            break;
       }
    }
 
@@ -6783,19 +6783,19 @@ void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr,
    static const double A = 0.0, B = 0.5, C = 1.0;
    static double tet_children[3*4*8] =
    {
-     A,A,A, B,A,A, A,B,A, A,A,B,
-     B,A,A, C,A,A, B,B,A, B,A,B,
-     A,B,A, B,B,A, A,C,A, A,B,B,
-     A,A,B, B,A,B, A,B,B, A,A,C,
-     A,A,C, B,A,A, A,B,A, B,B,A,
-     A,A,C, A,B,A, A,B,B, B,B,A,
-     A,A,C, A,B,B, B,A,B, B,B,A,
-     A,A,C, B,A,B, B,A,A, B,B,A
+      A,A,A, B,A,A, A,B,A, A,A,B,
+      B,A,A, C,A,A, B,B,A, B,A,B,
+      A,B,A, B,B,A, A,C,A, A,B,B,
+      A,A,B, B,A,B, A,B,B, A,A,C,
+      A,A,C, B,A,A, A,B,A, B,B,A,
+      A,A,C, A,B,A, A,B,B, B,B,A,
+      A,A,C, A,B,B, B,A,B, B,B,A,
+      A,A,C, B,A,B, B,A,A, B,B,A
    };
    static double pri_children[3*6*8] =
    {
-      A,A,A, B,A,A, A,B,A, A,A,B, B,A,B, A,B,B, 
-      B,B,A, A,B,A, B,A,A, B,B,B, A,B,B, B,A,B, 
+      A,A,A, B,A,A, A,B,A, A,A,B, B,A,B, A,B,B,
+      B,B,A, A,B,A, B,A,A, B,B,B, A,B,B, B,A,B,
       B,A,A, C,A,A, B,B,A, B,A,B, C,A,B, B,B,B,
       A,B,A, B,B,A, A,C,A, A,B,B, B,B,B, A,C,B,
       A,A,B, B,A,B, A,B,B, A,A,C, B,A,C, A,B,C,
@@ -6816,11 +6816,11 @@ void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr,
    };
 
    CoarseFineTr.point_matrices[Geometry::TETRAHEDRON].
-     UseExternalData(tet_children, 3, 4, 8);
+   UseExternalData(tet_children, 3, 4, 8);
    CoarseFineTr.point_matrices[Geometry::PRISM].
-     UseExternalData(pri_children, 3, 6, 8);
+   UseExternalData(pri_children, 3, 6, 8);
    CoarseFineTr.point_matrices[Geometry::CUBE].
-     UseExternalData(hex_children, 3, 8, 8);
+   UseExternalData(hex_children, 3, 8, 8);
 
    CoarseFineTr.embeddings.SetSize(elements.Size());
 
@@ -6893,7 +6893,7 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
 
       static double seg_children[3*2] = { 0.0,1.0, 0.0,0.5, 0.5,1.0 };
       CoarseFineTr.point_matrices[Geometry::SEGMENT].
-	UseExternalData(seg_children, 1, 2, 3);
+      UseExternalData(seg_children, 1, 2, 3);
 
       GenerateFaces();
 
@@ -7419,16 +7419,16 @@ void Mesh::UniformRefinement()
             PriUniformRefinement();
             break;
          case Geometry::MIXED:
-	    if ( Dim == 2 )
-	    {
-	      Mixed2DUniformRefinement();
-	    }
-	    else
-	    {
-	      Mixed3DUniformRefinement();
-	    }
+            if ( Dim == 2 )
+            {
+               Mixed2DUniformRefinement();
+            }
+            else
+            {
+               Mixed3DUniformRefinement();
+            }
             break;
-      default:
+         default:
          {
             Array<int> elem_to_refine(GetNE());
             for (int i = 0; i < elem_to_refine.Size(); i++)
@@ -7977,7 +7977,7 @@ void Mesh::UniformRefinement(int i, const DSTable &v_to_v,
 void Mesh::InitRefinementTransforms()
 {
    // initialize CoarseFineTr
-  // CoarseFineTr.point_matrices.SetSize(0, 0, 0);
+   // CoarseFineTr.point_matrices.SetSize(0, 0, 0);
    CoarseFineTr.point_matrices.clear();
    CoarseFineTr.embeddings.SetSize(NumOfElements);
    for (int i = 0; i < NumOfElements; i++)

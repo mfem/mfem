@@ -284,7 +284,7 @@ protected:
 
    /// Refine a mixed 3D mesh.
    virtual void Mixed3DUniformRefinement(std::map<int,int> * f2qf = NULL,
-					 std::map<int,int> * e2he = NULL);
+                                         std::map<int,int> * e2he = NULL);
 
    /// Refine NURBS mesh.
    virtual void NURBSUniformRefinement();

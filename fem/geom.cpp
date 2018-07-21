@@ -818,10 +818,11 @@ const int Geometry::
 Constants<Geometry::TETRAHEDRON>::VertToVert::I[4] = {0, 3, 5, 6};
 const int Geometry::
 Constants<Geometry::TETRAHEDRON>::VertToVert::J[6][2] =
-  {{1, 0}, {2, 1}, {3, 2}, // 0,1:0   0,2:1   0,3:2
+{
+   {1, 0}, {2, 1}, {3, 2}, // 0,1:0   0,2:1   0,3:2
    {2, 3}, {3, 4},         // 1,2:3   1,3:4
    {3, 5}                  // 2,3:5
-  };
+};
 
 const int Geometry::
 Constants<Geometry::PRISM>::Edges[9][2] =
