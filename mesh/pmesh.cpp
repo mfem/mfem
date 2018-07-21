@@ -3409,6 +3409,100 @@ void ParMesh::PriUniformRefinement(map<int,int> * )
       group_svert.SetIJ(I_group_svert, J_group_svert);
       group_sedge.SetIJ(I_group_sedge, J_group_sedge);
       group_sface.SetIJ(I_group_sface, J_group_sface);
+void ParMesh::Mixed2DUniformRefinement()
+{
+   DeleteFaceNbrData();
+
+   int oedge = NumOfVertices;
+
+   // call Mesh::Mixed2DUniformRefinement so that it won't update the nodes
+   {
+      GridFunction *nodes = Nodes;
+      Nodes = NULL;
+      Mesh::Mixed2DUniformRefinement();
+      Nodes = nodes;
+   }
+
+   // update the groups
+   {
+      int i, attr, ind, *v;
+
+      int group;
+      Array<int> sverts, sedges;
+
+      int *I_group_svert, *J_group_svert;
+      int *I_group_sedge, *J_group_sedge;
+
+#if 0
+      I_group_svert = new int[GetNGroups()+1];
+      I_group_sedge = new int[GetNGroups()+1];
+
+      I_group_svert[0] = I_group_svert[1] = 0;
+      I_group_sedge[0] = I_group_sedge[1] = 0;
+#else
+      I_group_svert = new int[GetNGroups()];
+      I_group_sedge = new int[GetNGroups()];
+
+      I_group_svert[0] = 0;
+      I_group_sedge[0] = 0;
+#endif
+
+      // compute the size of the J arrays
+      J_group_svert = new int[group_svert.Size_of_connections()
+                              + group_sedge.Size_of_connections()];
+      J_group_sedge = new int[2*group_sedge.Size_of_connections()];
+
+      for (group = 0; group < GetNGroups()-1; group++)
+      {
+         // Get the group shared objects
+         group_svert.GetRow(group, sverts);
+         group_sedge.GetRow(group, sedges);
+
+         // Process the edges that have been refined
+         for (i = 0; i < group_sedge.RowSize(group); i++)
+         {
+            v = shared_edges[sedges[i]]->GetVertices();
+            ind = oedge + sedge_ledge[sedges[i]];
+            // add a vertex
+            sverts.Append(svert_lvert.Append(ind)-1);
+            // update the edges
+            attr = shared_edges[sedges[i]]->GetAttribute();
+            shared_edges.Append(new Segment(v[1], ind, attr));
+            sedges.Append(sedge_ledge.Append(-1)-1);
+	    v[1] = ind;
+         }
+
+         I_group_svert[group+1] = I_group_svert[group] + sverts.Size();
+         I_group_sedge[group+1] = I_group_sedge[group] + sedges.Size();
+
+         int *J;
+         J = J_group_svert+I_group_svert[group];
+         for (i = 0; i < sverts.Size(); i++)
+         {
+            J[i] = sverts[i];
+         }
+         J = J_group_sedge+I_group_sedge[group];
+         for (i = 0; i < sedges.Size(); i++)
+         {
+            J[i] = sedges[i];
+         }
+      }
+
+      // Fix the local numbers of shared edges
+      DSTable v_to_v(NumOfVertices);
+      GetVertexToVertexTable(v_to_v);
+      for (i = 0; i < shared_edges.Size(); i++)
+      {
+         v = shared_edges[i]->GetVertices();
+         sedge_ledge[i] = v_to_v(v[0], v[1]);
+      }
+
+      group_svert.SetIJ(I_group_svert, J_group_svert);
+      group_sedge.SetIJ(I_group_sedge, J_group_sedge);
+   }
+
+   UpdateNodes();
+}
    }
 
    UpdateNodes();
