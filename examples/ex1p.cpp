@@ -17,7 +17,7 @@
 //               mpirun -np 4 ex1p -m ../data/star-surf.mesh
 //               mpirun -np 4 ex1p -m ../data/square-disc-surf.mesh
 //               mpirun -np 4 ex1p -m ../data/inline-segment.mesh
-//               mpirun -np 4 ex1p -m ../data/star-mixed.mesh -nz 3 -sz 2
+//               mpirun -np 4 ex1p -m ../data/star-mixed.mesh -nz 3 -hz 2
 //               mpirun -np 4 ex1p -m ../data/amr-quad.mesh
 //               mpirun -np 4 ex1p -m ../data/amr-hex.mesh
 //               mpirun -np 4 ex1p -m ../data/mobius-strip.mesh
