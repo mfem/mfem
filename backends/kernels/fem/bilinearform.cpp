@@ -53,7 +53,7 @@ void BilinearForm::InitKernelsBilinearForm()
       }
       else if (integ_name == "diffusion")
       {
-         assert(false);
+        //assert(false);
          ointeg = new KernelsDiffusionIntegrator(ocoeff);
       }
       else

@@ -22,23 +22,15 @@ void rIniGeom3D(const int, const int, const int, const double*, const double*,
                 double*, double*, double*);
 
 // *****************************************************************************
-typedef void (*fIniGeom)(const int numElements,
-                         const double* __restrict__ dofToQuadD,
-                         const double* __restrict__ nodes,
-                         double* __restrict__ J,
-                         double* __restrict__ invJ,
-                         double* __restrict__ detJ);
-
-// *****************************************************************************
 void rIniGeom(const int DIM,
               const int NUM_DOFS,
               const int NUM_QUAD,
               const int numElements,
               const double* dofToQuadD,
               const double* nodes,
-              double* __restrict__ J,
-              double* __restrict__ invJ,
-              double* __restrict__ detJ)
+              double* J,
+              double* invJ,
+              double* detJ)
 {
   push();
 #ifndef __LAMBDA__

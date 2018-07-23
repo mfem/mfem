@@ -60,7 +60,7 @@ void rLocalToGlobal(const int NUM_VDIM,
                     const int* offsets,
                     const int* indices,
                     const double* localX,
-                    double* __restrict globalX)
+                    double* globalX)
 {
    push();
    cuKer(rLocalToGlobal,globalEntries,NUM_VDIM,VDIM_ORDERING,

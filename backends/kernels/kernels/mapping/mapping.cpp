@@ -20,7 +20,7 @@
 extern "C" kernel
 void rSetSubVector0(const int N,
                     const int* indices,
-                    const double* in,
+                    const double* __restrict in,
                     double* __restrict out)
 {
    const int i = blockDim.x * blockIdx.x + threadIdx.x;
@@ -30,7 +30,7 @@ void rSetSubVector0(const int N,
 void rSetSubVector(const int N,
                    const int* indices,
                    const double* in,
-                   double* __restrict out)
+                   double* out)
 {
    push();
 #ifndef __LAMBDA__
@@ -46,7 +46,7 @@ void rSetSubVector(const int N,
 extern "C" kernel
 void rMapSubVector0(const int N,
                     const int* indices,
-                    const double* in,
+                    const double* __restrict in,
                     double* __restrict out)
 {
    const int i = blockDim.x * blockIdx.x + threadIdx.x;
@@ -61,7 +61,7 @@ void rMapSubVector0(const int N,
 void rMapSubVector(const int N,
                    const int* indices,
                    const double* in,
-                   double* __restrict out)
+                   double* out)
 {
    push();
 #ifndef __LAMBDA__
@@ -82,7 +82,7 @@ void rMapSubVector(const int N,
 extern "C" kernel
 void rExtractSubVector0(const int N,
                         const int* indices,
-                        const double* in,
+                        const double* __restrict in,
                         double* __restrict out)
 {
    const int i = blockDim.x * blockIdx.x + threadIdx.x;
@@ -92,7 +92,7 @@ void rExtractSubVector0(const int N,
 void rExtractSubVector(const int N,
                        const int* indices,
                        const double* in,
-                       double* __restrict out)
+                       double* out)
 {
    push();
 #ifndef __LAMBDA__
