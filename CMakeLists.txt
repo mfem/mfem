@@ -308,6 +308,22 @@ if (OPENMP_FOUND)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 endif()
 
+# Hiop optimizer
+if (MFEM_USE_HIOP)
+  #if (MFEM_USE_MPI)
+  #  find_package(HIOP REQUIRED)
+  #else()
+  #  message(FATAL_ERROR " *** STRUMPACK requires that MPI be enabled.")
+  #endif()
+  add_definitions("-DMFEM_USE_HIOP")
+  # enable/disable MPI with Hiop
+  if (MFEM_USE_MPI)
+    #will have to change this name in hiop to avoid conflicts
+    add_definitions("-DWITH_MPI") 
+  endif()
+endif()
+
+
 message(STATUS "MFEM build type: CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 message(STATUS "MFEM version: v${MFEM_VERSION_STRING}")
 message(STATUS "MFEM git string: ${MFEM_GIT_STRING}")
