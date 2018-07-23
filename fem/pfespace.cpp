@@ -192,7 +192,14 @@ void ParFiniteElementSpace::GetGroupComm(
 
       if (!mixed)
       {
-         nfd = fdofs[1] - fdofs[0];
+         if ( mesh->GetFaceBaseGeometry() == Geometry::TRIANGLE )
+         {
+            ntd = nfd = fec->DofForGeometry(Geometry::TRIANGLE);
+         }
+         else
+         {
+            nqd = nfd = fec->DofForGeometry(Geometry::SQUARE);
+         }
       }
       else
       {
@@ -216,21 +223,19 @@ void ParFiniteElementSpace::GetGroupComm(
       group_ldof_counter += ned * pmesh->GroupNEdges(gr);
       if (!mixed)
       {
-         group_ldof_counter += nfd * pmesh->GroupNFaces(gr);
+         if (mesh->GetFaceBaseGeometry() == Geometry::TRIANGLE)
+         {
+            group_ldof_counter += ntd * pmesh->GroupNTriangles(gr);
+         }
+         else
+         {
+            group_ldof_counter += nqd * pmesh->GroupNQuadrilaterals(gr);
+         }
       }
       else
       {
-         // count face dofs for each face separately
-         int j, k, o, nf;
-
-         nf = pmesh->GroupNFaces(gr);
-
-         for (j = 0; j < nf; j++)
-         {
-            pmesh->GroupFace(gr, j, k, o);
-            Geometry::Type face_geom = mesh->GetFaceBaseGeometry(k);
-            group_ldof_counter += fec->DofForGeometry(face_geom);
-         }
+         group_ldof_counter += ntd * pmesh->GroupNTriangles(gr);
+         group_ldof_counter += nqd * pmesh->GroupNQuadrilaterals(gr);
       }
    }
    if (ldof_type)
@@ -245,12 +250,13 @@ void ParFiniteElementSpace::GetGroupComm(
    group_ldof.GetI()[0] = group_ldof.GetI()[1] = 0;
    for (gr = 1; gr < ng; gr++)
    {
-      int j, k, l, m, o, nv, ne, nf;
+      int j, k, l, m, o, nv, ne, nt, nq;
       const int *ind;
 
       nv = pmesh->GroupNVertices(gr);
       ne = pmesh->GroupNEdges(gr);
-      nf = pmesh->GroupNFaces(gr);
+      nt = pmesh->GroupNTriangles(gr);
+      nq = pmesh->GroupNQuadrilaterals(gr);
 
       // vertices
       if (nvd > 0)
@@ -315,25 +321,59 @@ void ParFiniteElementSpace::GetGroupComm(
             }
          }
       }
-
-      // faces
-      if (nfd > 0)
+      // triangles
+      if (ntd > 0)
       {
-         for (j = 0; j < nf; j++)
+         for (j = 0; j < nt; j++)
          {
-            pmesh->GroupFace(gr, j, k, o);
+            pmesh->GroupTriangle(gr, j, k, o);
 
             Geometry::Type face_geom = mesh->GetFaceBaseGeometry(k);
 
-            if (mixed)
-            {
-               nfd = fec->DofForGeometry(face_geom);
-            }
-
-            dofs.SetSize(nfd);
+            dofs.SetSize(ntd);
             m = nvdofs+nedofs+fdofs[k];
             ind = fec->DofOrderForOrientation(face_geom, o);
-            for (l = 0; l < nfd; l++)
+            for (l = 0; l < ntd; l++)
+            {
+               if (ind[l] < 0)
+               {
+                  dofs[l] = m + (-1-ind[l]);
+                  if (ldof_sign)
+                  {
+                     (*ldof_sign)[dofs[l]] = -1;
+                  }
+               }
+               else
+               {
+                  dofs[l] = m + ind[l];
+               }
+            }
+
+            if (ldof_type)
+            {
+               DofsToVDofs(dofs);
+            }
+
+            for (l = 0; l < dofs.Size(); l++)
+            {
+               group_ldof.GetJ()[group_ldof_counter++] = dofs[l];
+            }
+         }
+      }
+
+      // quadrilaterals
+      if (nqd > 0)
+      {
+         for (j = 0; j < nq; j++)
+         {
+            pmesh->GroupQuadrilateral(gr, j, k, o);
+
+            Geometry::Type face_geom = mesh->GetFaceBaseGeometry(k);
+
+            dofs.SetSize(nqd);
+            m = nvdofs+nedofs+fdofs[k];
+            ind = fec->DofOrderForOrientation(face_geom, o);
+            for (l = 0; l < nqd; l++)
             {
                if (ind[l] < 0)
                {
@@ -456,12 +496,37 @@ void ParFiniteElementSpace::GetSharedEdgeDofs(
    }
 }
 
-void ParFiniteElementSpace::GetSharedFaceDofs(
+void ParFiniteElementSpace::GetSharedTriangleDofs(
    int group, int fi, Array<int> &dofs) const
 {
    int l_face, ori;
-   MFEM_ASSERT(0 <= fi && fi < pmesh->GroupNFaces(group), "invalid face index");
-   pmesh->GroupFace(group, fi, l_face, ori);
+   MFEM_ASSERT(0 <= fi && fi < pmesh->GroupNTriangles(group),
+               "invalid triangular face index");
+   pmesh->GroupTriangle(group, fi, l_face, ori);
+   if (ori == 0)
+   {
+      GetFaceDofs(l_face, dofs);
+   }
+   else
+   {
+      Array<int> rdofs;
+      fec->SubDofOrder(pmesh->GetFaceBaseGeometry(l_face), 2, ori, dofs);
+      GetFaceDofs(l_face, rdofs);
+      for (int i = 0; i < dofs.Size(); i++)
+      {
+         const int di = dofs[i];
+         dofs[i] = (di >= 0) ? rdofs[di] : -1-rdofs[-1-di];
+      }
+   }
+}
+
+void ParFiniteElementSpace::GetSharedQuadrilateralDofs(
+   int group, int fi, Array<int> &dofs) const
+{
+   int l_face, ori;
+   MFEM_ASSERT(0 <= fi && fi < pmesh->GroupNQuadrilaterals(group),
+               "invalid quadrilateral face index");
+   pmesh->GroupQuadrilateral(group, fi, l_face, ori);
    if (ori == 0)
    {
       GetFaceDofs(l_face, dofs);
