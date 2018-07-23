@@ -47,12 +47,22 @@ protected:
    /// Shared objects in each group.
    Table group_svert;
    Table group_sedge;
-   Table group_sface;
+   Table group_stria;  // contains shared triangle indices
+   Table group_squad;  // contains shared quadrilateral indices
 
    /// Shared to local index mapping.
    Array<int> svert_lvert;
    Array<int> sedge_ledge;
-   Array<int> sface_lface;
+   Array<int> stria_lface;
+   Array<int> squad_lface;
+   Array<int> stria_sface;
+   Array<int> squad_sface;
+
+   // Inverse mapping from shared face index to shared triangle or
+   // shared quadrilateral index.  To determine which type of index is
+   // returned the user must rely on the element type returned by
+   // objects stored in the shared_faces array.
+   Array<int> sface_stype;
 
    /// Create from a nonconforming mesh.
    ParMesh(const ParNCMesh &pncmesh);
@@ -84,6 +94,10 @@ protected:
 
    /// Refine a mixed 2D mesh.
    virtual void Mixed2DUniformRefinement();
+
+   /// Refine a mixed 3D mesh.
+   virtual void Mixed3DUniformRefinement(std::map<int,int> * f2qf = NULL);
+
    virtual void NURBSUniformRefinement();
 
    /// This function is not public anymore. Use GeneralRefinement instead.
@@ -151,18 +165,21 @@ public:
    ///@{ @name These methods require group > 0
    int GroupNVertices(int group) { return group_svert.RowSize(group-1); }
    int GroupNEdges(int group)    { return group_sedge.RowSize(group-1); }
-   int GroupNFaces(int group)    { return group_sface.RowSize(group-1); }
+   int GroupNTriangles(int group) { return group_stria.RowSize(group-1); }
+   int GroupNQuadrilaterals(int group) { return group_squad.RowSize(group-1); }
 
    int GroupVertex(int group, int i)
    { return svert_lvert[group_svert.GetRow(group-1)[i]]; }
    void GroupEdge(int group, int i, int &edge, int &o);
-   void GroupFace(int group, int i, int &face, int &o);
+   void GroupTriangle(int group, int i, int &face, int &o);
+   void GroupQuadrilateral(int group, int i, int &face, int &o);
    ///@}
 
    void GenerateOffsets(int N, HYPRE_Int loc_sizes[],
                         Array<HYPRE_Int> *offsets[]) const;
 
    void ExchangeFaceNbrData();
+   void ExchangeFaceNbrData(Table *gr_sface, int *s2l_face);
    void ExchangeFaceNbrNodes();
 
    int GetNFaceNeighbors() const { return face_nbr_group.Size(); }

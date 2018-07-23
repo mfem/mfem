@@ -6467,8 +6467,7 @@ void Mesh::Mixed2DUniformRefinement()
 #endif
 }
 
-void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr,
-                                    map<int,int> * e2he_ptr)
+void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr)
 {
    int i;
    int * v;
@@ -6511,11 +6510,7 @@ void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr,
    int NumOfTetElems  = 0;
    int NumOfPriElems  = 0;
    int NumOfHexElems  = 0;
-   map<int,int> e2he_loc;
-   if (e2he_ptr == NULL)
-   {
-      e2he_ptr = &e2he_loc;
-   }
+   map<int,int> e2he;
    for (i = 0; i<elements.Size(); i++)
    {
       switch (elements[i]->GetType())
@@ -6527,7 +6522,7 @@ void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr,
             NumOfPriElems++;
             break;
          case Element::HEXAHEDRON:
-            (*e2he_ptr)[i] = NumOfHexElems;
+            e2he[i] = NumOfHexElems;
             NumOfHexElems++;
             break;
          default:
@@ -6589,7 +6584,7 @@ void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr,
          break;
          case Element::HEXAHEDRON:
          {
-            AverageVertices(v, 8, oelem+(*e2he_ptr)[i]);
+            AverageVertices(v, 8, oelem+e2he[i]);
 
             for (int j = 0; j < 6; j++)
             {
@@ -6697,7 +6692,7 @@ void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr,
             int qf4 = (*f2qf_ptr)[f[4]];
             int qf5 = (*f2qf_ptr)[f[5]];
 
-            int he = (*e2he_ptr)[i];
+            int he = e2he[i];
 
             elements[j+0] = new Hexahedron(oedge+e[0], v[1], oedge+e[1], oface+qf0,
                                            oface+qf1, oedge+e[9], oface+qf2,
