@@ -8,7 +8,7 @@
 #include <ctime>
 
 extern "C" {
-# include "../gslib/src/cpp/findpts_h.h"
+# include "gslib/src/cpp/findpts_h.h"
 }
 
 

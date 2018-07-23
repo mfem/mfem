@@ -123,7 +123,7 @@ HYPRE_OPT = -I$(HYPRE_DIR)/include
 HYPRE_LIB = -L$(HYPRE_DIR)/lib -lHYPRE
 
 # GSLIB library configuration
-GSLIB_DIR = @MFEM_DIR@/../gslib
+GSLIB_DIR = @MFEM_DIR@/gslib
 GSLIB_LIB = -L$(GSLIB_DIR) -lgs
 
 # METIS library configuration
