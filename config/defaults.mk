@@ -122,6 +122,10 @@ HYPRE_DIR = @MFEM_DIR@/../hypre-2.10.0b/src/hypre
 HYPRE_OPT = -I$(HYPRE_DIR)/include
 HYPRE_LIB = -L$(HYPRE_DIR)/lib -lHYPRE
 
+# GSLIB library configuration
+GSLIB_DIR = @MFEM_DIR@/../gslib
+GSLIB_LIB = -L$(GSLIB_DIR) -lgs
+
 # METIS library configuration
 ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK),NONO)
    ifeq ($(MFEM_USE_METIS_5),NO)

@@ -185,6 +185,7 @@ else
    INCFLAGS += $(HYPRE_OPT)
    ALL_LIBS += $(HYPRE_LIB)
 endif
+ALL_LIBS += $(GSLIB_LIB)
 
 DEP_CXX ?= $(MFEM_CXX)
 
