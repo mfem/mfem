@@ -8,7 +8,7 @@
 #include <ctime>
 
 extern "C" {
-# include "3rd_party/gslib/src/cpp/findpts_h.h"
+# include "../gslib/src/cpp/findpts_h.h"
 }
 
 
@@ -168,7 +168,6 @@ int main (int argc, char *argv[])
 
    findpts_gslib *gsfl=NULL;
    gsfl = new findpts_gslib(pfespace,pmesh,quad_order);
-   gsfl->gslib_findpts_setup();
 
 // random vector in domain 
 // generate points by r,s,t
