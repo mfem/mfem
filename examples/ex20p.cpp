@@ -69,10 +69,12 @@
 using namespace std;
 using namespace mfem;
 
+// Constants used in the Hamiltonian
 static int prob_ = 0;
 static double m_ = 1.0;
 static double k_ = 1.0;
 
+// Hamiltonian functional, see below for implementation
 double hamiltonian(double q, double p, double t);
 
 class GradT : public Operator
@@ -97,14 +99,14 @@ private:
 
 int main(int argc, char *argv[])
 {
-   // Initialize MPI.
+   // 1. Initialize MPI.
    int num_procs, myid;
    MPI_Comm comm = MPI_COMM_WORLD;
    MPI_Init(&argc, &argv);
    MPI_Comm_size(comm, &num_procs);
    MPI_Comm_rank(comm, &myid);
 
-   // Parse command-line options.
+   // 2. Parse command-line options.
    int order  = 1;
    int nsteps = 100;
    double dt  = 0.1;
@@ -150,6 +152,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+   // 3. Create and Initialize the Symplectic Integration Solver
    SIAVSolver siaSolver(order);
 
    GradT    P;
@@ -157,12 +160,15 @@ int main(int argc, char *argv[])
 
    siaSolver.Init(P,F);
 
+   // 4. Set the initial conditions
    double t = 0.0;
 
    Vector q(1), p(1);
+   Vector e(nsteps+1);
    q(0) = sin(2.0*M_PI*(double)myid/num_procs);
    p(0) = cos(2.0*M_PI*(double)myid/num_procs);
 
+   // 5. Prepare GnuPlot output file if needed
    ostringstream oss;
    ofstream ofs;
    if ( gnuplot )
@@ -172,8 +178,7 @@ int main(int argc, char *argv[])
       ofs << t << "\t" << q(0) << "\t" << p(0) << endl;
    }
 
-   Vector e(nsteps+1);
-
+   // 6. Create a Mesh for visualization in phase space
    int nverts = (visualization)?(num_procs+1)*(nsteps+1):0;
    int nelems = (visualization)?(nsteps * num_procs):0;
    Mesh mesh(2, nverts, nelems, 0, 3);
@@ -183,10 +188,12 @@ int main(int argc, char *argv[])
    Vector x0(3); x0 = 0.0;
    Vector x1(3); x1 = 0.0;
 
+   // 7. Perform time-stepping
    double e_mean = 0.0;
 
    for (int i=0; i<nsteps; i++)
    {
+      // 7a. Record initial state
       if ( i == 0 )
       {
          e[0] = hamiltonian(q(0),p(0),t);
@@ -205,16 +212,19 @@ int main(int argc, char *argv[])
          }
       }
 
+      // 7b. Advance the state of the system
       siaSolver.Step(q,p,t,dt);
 
       e[i+1] = hamiltonian(q(0),p(0),t);
       e_mean += e[i+1];
 
+      // 7c. Record the state of the system
       if ( gnuplot )
       {
          ofs << t << "\t" << q(0) << "\t" << p(0) << "\t" << e[i+1] << endl;
       }
 
+      // 7d. Add results to GLVis visualization
       if ( visualization )
       {
          x0[2] = t;
@@ -235,6 +245,7 @@ int main(int argc, char *argv[])
       }
    }
 
+   // 8. Compute and display mean and standard deviation of the energy
    e_mean /= (nsteps + 1);
    double e_var = 0.0;
    for (int i=0; i<=nsteps; i++)
@@ -257,6 +268,7 @@ int main(int argc, char *argv[])
       MPI_Barrier(comm);
    }
 
+   // 9. Finalize the GnuPlot output
    if ( gnuplot )
    {
       ofs.close();
@@ -287,11 +299,12 @@ int main(int argc, char *argv[])
       }
    }
 
+   // 10. Finalize the GLVis output
    if ( visualization )
    {
       mesh.FinalizeQuadMesh(1);
       ParMesh pmesh(comm, mesh, part);
-      delete part;
+      delete [] part;
 
       H1_FECollection fec(order = 1, 2);
       ParFiniteElementSpace fespace(&pmesh, &fec);
