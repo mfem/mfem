@@ -86,6 +86,9 @@ public:
    virtual const int *GetFaceVertices(int fi) const
    { MFEM_ABORT("PENTATOPE::GetFaceVertices not implemented"); return NULL; }
 
+   /// Calculate point matrix corresponding to a chain of transformations.
+   static void GetPointMatrix(unsigned transform, DenseMatrix &pm);
+
    virtual void ResetTransform(int tr) { transform = tr; }
    virtual unsigned GetTransform() const { return transform; }
 

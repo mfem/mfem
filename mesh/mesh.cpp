@@ -597,6 +597,30 @@ void Mesh::GetLocalQuadToHexTransformation(
    }
 }
 
+void Mesh::GetLocalTetToPentTransformation(
+   IsoparametricTransformation &Transf, int i)
+{
+   DenseMatrix &locpm = Transf.GetPointMat();
+
+   Transf.SetFE(&TetrahedronFE);
+   //  (i/64) is the local face no. in the pent
+   const int *tv = pent_t::FaceVert[i/64];
+   //  (i%64) is the orientation of the pentatope face
+   //         w.r.t. the face element
+   const int *to = tet_t::Orient[i%64];
+   const IntegrationRule *PentVert =
+	  Geometries.GetVertices(Geometry::PENTATOPE);
+   locpm.SetSize(4, 4);
+   for (int j = 0; j < 4; j++)
+   {
+	  const IntegrationPoint &vert = PentVert->IntPoint(tv[to[j]]);
+	  locpm(0, j) = vert.x;
+	  locpm(1, j) = vert.y;
+	  locpm(2, j) = vert.z;
+	  locpm(3, j) = vert.t;
+   }
+}
+
 void Mesh::GetLocalFaceTransformation(
    int face_type, int elem_type, IsoparametricTransformation &Transf, int inf)
 {
@@ -626,6 +650,11 @@ void Mesh::GetLocalFaceTransformation(
       case Element::QUADRILATERAL:
          MFEM_ASSERT(elem_type == Element::HEXAHEDRON, "");
          GetLocalQuadToHexTransformation(Transf, inf);
+         break;
+
+      case Element::TETRAHEDRON:
+         MFEM_ASSERT(elem_type == Element::PENTATOPE, "");
+         GetLocalTetToPentTransformation(Transf, inf);
          break;
    }
 }
@@ -4016,7 +4045,6 @@ int Mesh::GetTetOrientation (const int * base, const int * test)
          else { orient = 22; } // 3, 2, 1, 0
       }
    }
-
 #ifdef MFEM_DEBUG
    /* const int *aor = tet_t::Orient[orient];
     for (int j = 0; j < 4; j++)
@@ -4930,7 +4958,6 @@ void Mesh::AddTetrahedralFaceElement(int lf, int gf, int el,
       int orientation, vv[4] = { v0, v1, v2, v3 };
       //   orientation = GetTetOrientation(faces[gf]->GetVertices(), vv) + (faces_info[gf].Elem1Inf)%64;
       orientation = GetTetOrientation(faces[gf]->GetVertices(), vv);
-
       faces_info[gf].Elem2No  = el;
       faces_info[gf].Elem2Inf = 64 * lf + orientation;
    }
@@ -5049,9 +5076,17 @@ void Mesh::GenerateFaces()
                for (int j = 0; j < 5; j++)
                {
                   bool swapFace = false;
-                  if ((swapped && j%2==0) || (!swapped && j%2==1)) { swapFace = true; }
+                  if ((swapped && j % 2 == 0) || (!swapped && j % 2 == 1))
+//                   if ((swapped && j < 3) || ( j % 2 == 1))
+//                   if ( j % 2 == 1)
+                  {
+                     swapFace = true;
+                  }
 
-                  if (faces[ef[filter[j]]]==NULL) { swappedFaces[ef[filter[j]]] = swapFace; }
+                  if (faces[ef[filter[j]]] == NULL)
+                  {
+                     swappedFaces[ef[filter[j]]] = swapFace;
+                  }
 
                   const int *fv = pent_t::FaceVert[j];
                   if (swapFace)
@@ -5318,6 +5353,7 @@ STable4D * Mesh::GetElementToFaceTable4D(int ret_ftbl)
       {
          case Element::TETRAHEDRON:
          {
+//             printf("i=%d:lookup(%d, %d, %d, %d)\n", i, v[0], v[1], v[2], v[3]);
             be_to_face[i] = (*faces_tbl)(v[0], v[1], v[2], v[3]);
          }
          break;
@@ -7718,73 +7754,79 @@ void Mesh::RedRefinementPentatope(int i, const DSTable & v_to_v, int *middle)
    // w[0] = v[4]; w[1] = v_new[3]; w[2] = v_new[6]; w[3] = v_new[8]; w[4] = v_new[9]; elements.Append(new Pentatope(w, attr));
 
    bool mySwaped;
+   int o = 0;
    w[0] = v[0];     w[1] = v_new[0]; w[2] = v_new[1]; w[3] = v_new[2];
    w[4] = v_new[3]; mySwaped = swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[0]; w[1] = v[1];     w[2] = v_new[4]; w[3] = v_new[5];
    w[4] = v_new[6]; mySwaped = swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[1]; w[1] = v_new[4]; w[2] = v[2];     w[3] = v_new[7];
    w[4] = v_new[8]; mySwaped = swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[2]; w[1] = v_new[5]; w[2] = v_new[7]; w[3] = v[3];
    w[4] = v_new[9]; mySwaped = swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[3]; w[1] = v_new[6]; w[2] = v_new[8]; w[3] = v_new[9]; w[4] = v[4];
    mySwaped = swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
 
    w[0] = v_new[0]; w[1] = v_new[1]; w[2] = v_new[4]; w[3] = v_new[5];
    w[4] = v_new[6]; mySwaped = !swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[0]; w[1] = v_new[1]; w[2] = v_new[2]; w[3] = v_new[5];
    w[4] = v_new[6]; mySwaped = swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[0]; w[1] = v_new[1]; w[2] = v_new[2]; w[3] = v_new[3];
    w[4] = v_new[6]; mySwaped = !swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
 
    w[0] = v_new[1]; w[1] = v_new[4]; w[2] = v_new[5]; w[3] = v_new[7];
    w[4] = v_new[8]; mySwaped = !swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[1]; w[1] = v_new[4]; w[2] = v_new[5]; w[3] = v_new[6];
    w[4] = v_new[8]; mySwaped = swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[1]; w[1] = v_new[2]; w[2] = v_new[5]; w[3] = v_new[7];
    w[4] = v_new[8]; mySwaped = swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[1]; w[1] = v_new[2]; w[2] = v_new[5]; w[3] = v_new[6];
    w[4] = v_new[8]; mySwaped = !swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[1]; w[1] = v_new[2]; w[2] = v_new[3]; w[3] = v_new[6];
    w[4] = v_new[8]; mySwaped = swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
 
    w[0] = v_new[2]; w[1] = v_new[5]; w[2] = v_new[7]; w[3] = v_new[8];
    w[4] = v_new[9]; mySwaped = !swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[2]; w[1] = v_new[5]; w[2] = v_new[6]; w[3] = v_new[8];
    w[4] = v_new[9]; mySwaped = swapped;
-   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr));
+   if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[2]; w[1] = v_new[3]; w[2] = v_new[6]; w[3] = v_new[8];
    w[4] = v_new[9]; mySwaped = !swapped;
-   if (mySwaped) { Swap(w); } elements[i]->SetVertices(w);
+   if (mySwaped) { Swap(w); } elements[i]->SetVertices(w); elements[i]->ResetTransform(o);
    swappedElements[i] = mySwaped;
+   
+   int coarse = FindCoarseElement(i);
+   CoarseFineTr.embeddings[i].parent = coarse;
+   for (int j = 0; j < 15; j++)
+      CoarseFineTr.embeddings.Append(Embedding(coarse));
 
    // DenseMatrix J(4,4);
    // for(int k=0; k<16; k++)
@@ -7824,7 +7866,11 @@ void Mesh::RedRefinementBoundaryTet(int i, const DSTable & v_to_v, int *middle)
 
 
    bool swapped = swappedFaces[be_to_face[i]];
-   int *v = boundary[i]->GetVertices();
+   boundary[i]->GetVertices(vold);
+//    int *v = boundary[i]->GetVertices();
+   int v[4];
+   for (int j = 0; j < 4; j++)
+      v[j] = vold[j];
    if (swapped) { Swap(v); }
 
    // cout << swapped << endl << " my computed " << endl;
@@ -8007,7 +8053,8 @@ const CoarseFineTransformations& Mesh::GetRefinementTransforms()
    if (!CoarseFineTr.point_matrices.SizeK())
    {
       if (BaseGeom == Geometry::TRIANGLE ||
-          BaseGeom == Geometry::TETRAHEDRON)
+          BaseGeom == Geometry::TETRAHEDRON ||
+          BaseGeom == Geometry::PENTATOPE)
       {
          std::map<unsigned, int> mat_no;
          mat_no[0] = 1; // identity
@@ -8037,9 +8084,13 @@ const CoarseFineTransformations& Mesh::GetRefinementTransforms()
             {
                Triangle::GetPointMatrix(it->first, pmats(it->second-1));
             }
-            else
+            else if (BaseGeom == Geometry::TETRAHEDRON)
             {
                Tetrahedron::GetPointMatrix(it->first, pmats(it->second-1));
+            }
+            else
+            {
+               Pentatope::GetPointMatrix(it->first, pmats(it->second-1));
             }
          }
       }

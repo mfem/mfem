@@ -123,9 +123,13 @@ void IntegrationRule::GrundmannMollerSimplexRule(int s, int n)
          ip.weight = weight;
          ip.x = double(2*beta[0] + 1)/(d + n - 2*i);
          ip.y = double(2*beta[1] + 1)/(d + n - 2*i);
-         if (n == 3)
+         if (n >= 3)
          {
             ip.z = double(2*beta[2] + 1)/(d + n - 2*i);
+         }
+         if (n == 4)
+         {
+            ip.t = double(2*beta[3] + 1)/(d + n - 2*i);
          }
 
          int j = 0;
@@ -1630,6 +1634,13 @@ IntegrationRule *IntegrationRules::PentatopeIntegrationRule(int Order)
 
       default:
       {
+         int i = (Order / 2) * 2 + 1;   // Get closest odd # >= Order
+         AllocIntRule(PentatopeIntRules, i);
+         ir = new IntegrationRule;
+         ir->GrundmannMollerSimplexRule(i/2,4);
+         PentatopeIntRules[i-1] = PentatopeIntRules[i] = ir;
+         return ir;
+         /*
          //construct the higher integration rules with the duffy transformation --> 1d integral in time and a tet quad-rule w.r.t space
 
          IntegrationRule *timeIR = SegmentIntegrationRule(Order+3);
@@ -1661,7 +1672,7 @@ IntegrationRule *IntegrationRules::PentatopeIntegrationRule(int Order)
 
                pos++;
             }
-         }
+         } */
       }
    }
 

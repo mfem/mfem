@@ -163,6 +163,15 @@ template <> struct Geometry::Constants<Geometry::TETRAHEDRON>
       static const int I[NumVert];
       static const int J[NumEdges][2]; // {end,edge_idx}
    };
+   // For a given base tuple v={v0,v1,v2,v3}, the orientation of a permutation
+   // u={u0,u1,u2,u3} of v, is an index 'j' such that u[i]=v[Orient[j][i]].
+   // The static method Mesh::GetTetOrientation, computes the index 'j' of the
+   // permutation that maps the second argument 'test' to the first argument
+   // 'base': test[Orient[j][i]]=base[i].
+   static const int NumOrient = 24;
+   static const int Orient[NumOrient][NumVert];
+   // The inverse of orientation 'j' is InvOrient[j].
+   static const int InvOrient[NumOrient];
 };
 
 template <> struct Geometry::Constants<Geometry::CUBE>

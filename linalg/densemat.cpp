@@ -2994,7 +2994,7 @@ void AddMult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
 void CalcAdjugate(const DenseMatrix &a, DenseMatrix &adja)
 {
 #ifdef MFEM_DEBUG
-   if (a.Width() > a.Height() || a.Width() < 1 || a.Height() > 3)
+   if (a.Width() > a.Height() || a.Width() < 1 || a.Height() > 4)
    {
       mfem_error("CalcAdjugate(...)");
    }
@@ -3145,7 +3145,7 @@ void CalcAdjugateTranspose(const DenseMatrix &a, DenseMatrix &adjat)
 
 void CalcInverse(const DenseMatrix &a, DenseMatrix &inva)
 {
-   MFEM_ASSERT(a.Width() <= a.Height() && a.Width() >= 1 && a.Height() <= 3, "");
+   MFEM_ASSERT(a.Width() <= a.Height() && a.Width() >= 1 && a.Height() <= 4, "");
    MFEM_ASSERT(inva.Height() == a.Width(), "incorrect dimensions");
    MFEM_ASSERT(inva.Width() == a.Height(), "incorrect dimensions");
 
@@ -3280,9 +3280,10 @@ void CalcInverseTranspose(const DenseMatrix &a, DenseMatrix &inva)
 void CalcOrtho(const DenseMatrix &J, Vector &n)
 {
    MFEM_ASSERT( ((J.Height() == 2 && J.Width() == 1)
-                 || (J.Height() == 3 && J.Width() == 2))
+                 || (J.Height() == 3 && J.Width() == 2)
+                 || (J.Height() == 4 && J.Width() == 3))
                 && (J.Height() == n.Size()),
-                "Matrix must be 3x2 or 2x1, "
+                "Matrix must be 4x3, 3x2 or 2x1, "
                 << "and the Vector must be sized with the rows. "
                 << " J.Height() = " << J.Height()
                 << ", J.Width() = " << J.Width()
