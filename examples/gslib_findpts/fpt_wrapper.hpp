@@ -3,7 +3,7 @@ class findpts_gslib
 {
 private:
         IntegrationRule ir;
-        double *fmesh;
+        Vector gllmesh;
         struct findpts_data_2 *fda;
         struct findpts_data_3 *fdb;
         struct comm cc;
@@ -11,15 +11,19 @@ private:
 
 public:
 #ifdef MFEM_USE_MPI
-      findpts_gslib (ParFiniteElementSpace *pfes, ParMesh *pmesh, int QORDER, double bb_t, double newt_tol, int npt_max);
+      findpts_gslib (MPI_Comm _comm);
 #else
-      findpts_gslib (FiniteElementSpace *pfes, Mesh *pmesh, int QORDER, double bb_t, double newt_tol, int npt_max);
+      findpts_gslib (); 
 #endif
 
+
+//    sets up findpts
 #ifdef MFEM_USE_MPI
-      findpts_gslib (ParFiniteElementSpace *pfes, ParMesh *pmesh, int QORDER);
+       void gslib_findpts_setup(ParFiniteElementSpace *pfes, ParMesh *pmesh, int QORDER,double bb_t, double newt_tol, int npt_max);
+       void gslib_findpts_setup(ParFiniteElementSpace *pfes, ParMesh *pmesh, int QORDER);
 #else
-      findpts_gslib (FiniteElementSpace *pfes, Mesh *pmesh, int QORDER);
+       void gslib_findpts_setup(FiniteElementSpace *pfes, Mesh *pmesh, int QORDER,double bb_t, double newt_tol, int npt_max);
+       void gslib_findpts_setup(FiniteElementSpace *pfes, Mesh *pmesh, int QORDER);
 #endif
 
 //    finds r,s,t,e,p for given x,y,z
@@ -62,9 +66,22 @@ public:
 
 //  Constructor - sets up the GLL mesh and saves it
 #ifdef MFEM_USE_MPI
-findpts_gslib::findpts_gslib (ParFiniteElementSpace *pfes, ParMesh *pmesh, int QORDER, double bb_t, double newt_tol, int npt_max)
+findpts_gslib::findpts_gslib (MPI_Comm _comm) 
 #else
-findpts_gslib::findpts_gslib (FiniteElementSpace *pfes, Mesh *pmesh, int QORDER, double bb_t, double newt_tol, int npt_max)
+findpts_gslib::findpts_gslib ()
+#endif
+{
+#ifdef MFEM_USE_MPI
+   comm_init(&this->cc,_comm);
+#else
+   comm_init(&this->cc,0);
+#endif
+}
+
+#ifdef MFEM_USE_MPI
+void findpts_gslib::gslib_findpts_setup(ParFiniteElementSpace *pfes, ParMesh *pmesh, int QORDER,double bb_t, double newt_tol, int npt_max)
+#else
+void findpts_gslib::gslib_findpts_setup(FiniteElementSpace *pfes, Mesh *pmesh, int QORDER,double bb_t, double newt_tol, int npt_max)
 #endif
 {
    const int geom_type = pfes->GetFE(0)->GetGeomType();
@@ -75,7 +92,7 @@ findpts_gslib::findpts_gslib (FiniteElementSpace *pfes, Mesh *pmesh, int QORDER,
    if (dim==3) qo = cbrt(ir.GetNPoints());
    int nsp = pow(qo,dim);
    msz = nel*nsp;
-   this->fmesh = new double[dim*msz];
+   this->gllmesh.SetSize(dim*msz);
 
    int npt = nel*nsp;
 #ifdef MFEM_USE_MPI
@@ -93,97 +110,37 @@ findpts_gslib::findpts_gslib (FiniteElementSpace *pfes, Mesh *pmesh, int QORDER,
         const IntegrationPoint &ip = this->ir.IntPoint(j);
         for (int k = 0; k < dim; k++)
         {
-         this->fmesh[k*npt+np] = nodes.GetValue(i, ip, k+1);
+         gllmesh[k*npt+np] = nodes.GetValue(i, ip, k+1);
         }
         np = np+1;
       }
    }
 
    const int NE = nel, NR = qo;
-#ifdef MFEM_USE_MPI
-   comm_init(&this->cc,MPI_COMM_WORLD);
-#else
-   comm_init(&this->cc,0);
-#endif
    int ntot = pow(NR,dim)*NE;
    if (dim==2)
    {
     unsigned nr[2] = {NR,NR};
     unsigned mr[2] = {2*NR,2*NR};
-    double *const elx[2] = {&this->fmesh[0],&this->fmesh[ntot]};
+    double *const elx[2] = {&gllmesh[0],&gllmesh[ntot]};
     this->fda=findpts_setup_2(&this->cc,elx,nr,NE,mr,bb_t,ntot,ntot,npt_max,newt_tol);
    }
    else
    {
     unsigned nr[3] = {NR,NR,NR};
     unsigned mr[3] = {2*NR,2*NR,2*NR};
-    double *const elx[3] = {&this->fmesh[0],&this->fmesh[ntot],&this->fmesh[2*ntot]};
+    double *const elx[3] = {&gllmesh[0],&gllmesh[ntot],&gllmesh[2*ntot]};
     this->fdb=findpts_setup_3(&this->cc,elx,nr,NE,mr,bb_t,ntot,ntot,npt_max,newt_tol);
    }
 }
 
 #ifdef MFEM_USE_MPI
-findpts_gslib::findpts_gslib (ParFiniteElementSpace *pfes, ParMesh *pmesh, int QORDER)
+void findpts_gslib::gslib_findpts_setup(ParFiniteElementSpace *pfes, ParMesh *pmesh, int QORDER)
 #else
-findpts_gslib::findpts_gslib (FiniteElementSpace *pfes, Mesh *pmesh, int QORDER)
+void findpts_gslib::gslib_findpts_setup(FiniteElementSpace *pfes, Mesh *pmesh, int QORDER)
 #endif
 {
-   double bb_t = 0.05;
-   double newt_tol = 1.e-12;
-   int npt_max = 256;
-   const int geom_type = pfes->GetFE(0)->GetGeomType();
-   this->ir = IntRulesGLL.Get(geom_type, QORDER);
-   dim = pmesh->Dimension();
-   nel = pmesh->GetNE();
-   qo = sqrt(ir.GetNPoints());
-   if (dim==3) qo = cbrt(ir.GetNPoints());
-   int nsp = pow(qo,dim);
-   msz = nel*nsp;
-   this->fmesh = new double[dim*msz];
-   
-   int npt = nel*nsp;
-#ifdef MFEM_USE_MPI
-   ParGridFunction nodes(pfes);
-#else
-   GridFunction nodes(pfes);
-#endif
-   pmesh->GetNodes(nodes);
-   
-   int np = 0;  
-   for (int i = 0; i < nel; i++)
-   {  
-      for (int j = 0; j < nsp; j++)
-      { 
-        const IntegrationPoint &ip = this->ir.IntPoint(j);
-        for (int k = 0; k < dim; k++)
-        {
-         this->fmesh[k*npt+np] = nodes.GetValue(i, ip, k+1);
-        }
-        np = np+1;
-      }
-   }
-   
-   const int NE = nel, NR = qo;
-#ifdef MFEM_USE_MPI
-   comm_init(&this->cc,MPI_COMM_WORLD);
-#else
-   comm_init(&this->cc,0);
-#endif 
-   int ntot = pow(NR,dim)*NE;
-   if (dim==2)
-   {
-    unsigned nr[2] = {NR,NR};
-    unsigned mr[2] = {2*NR,2*NR};
-    double *const elx[2] = {&this->fmesh[0],&this->fmesh[ntot]};
-    this->fda=findpts_setup_2(&this->cc,elx,nr,NE,mr,bb_t,ntot,ntot,npt_max,newt_tol);
-   }
-   else
-   {
-    unsigned nr[3] = {NR,NR,NR};
-    unsigned mr[3] = {2*NR,2*NR,2*NR};
-    double *const elx[3] = {&this->fmesh[0],&this->fmesh[ntot],&this->fmesh[2*ntot]};
-    this->fdb=findpts_setup_3(&this->cc,elx,nr,NE,mr,bb_t,ntot,ntot,npt_max,newt_tol);
-   }
+   gslib_findpts_setup(pfes,pmesh,QORDER,0.05,1.e-12,256);
 }
 
 
