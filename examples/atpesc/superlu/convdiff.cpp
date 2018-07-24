@@ -25,7 +25,7 @@ int main(int argc, char *argv[])
    int slu_colperm = 4;
    int slu_rowperm = 1;
    int slu_iterref = 2;
-   int slu_parsymbfact = 1;
+   int slu_parsymbfact = 0;
 
    OptionsParser args(argc, argv);
    args.AddOption(&ref_levels, "-r", "--refine",
@@ -132,14 +132,18 @@ int main(int argc, char *argv[])
    Solver *solver = NULL;
    Operator *Mrow = NULL;
    HypreBoomerAMG *amg = NULL;
+   HypreGMRES *gmres = NULL;
+#ifdef MFEM_USE_SUPERLU
+   SuperLUSolver *superlu = NULL;
+#endif
+
    if (!slu_solver)
    {
-      HypreBoomerAMG *amg = new HypreBoomerAMG(CD);
+      amg = new HypreBoomerAMG(CD);
       amg->SetPrintLevel(0);
-      HypreGMRES *gmres = new HypreGMRES(CD);
+      gmres = new HypreGMRES(CD);
       gmres->SetTol(1e-12);
       gmres->SetMaxIter(200);
-      gmres->SetPrintLevel(2);
       gmres->SetPreconditioner(*amg);
       solver = gmres;
    }
@@ -147,7 +151,7 @@ int main(int argc, char *argv[])
    {
 #ifdef MFEM_USE_SUPERLU
       Mrow = new SuperLURowLocMatrix(CD);
-      SuperLUSolver *superlu = new SuperLUSolver(MPI_COMM_WORLD);
+      superlu = new SuperLUSolver(MPI_COMM_WORLD);
       superlu->SetPrintStatistics(true);
       superlu->SetSymmetricPattern(false);
 
@@ -192,12 +196,35 @@ int main(int argc, char *argv[])
    // 9. Complete the solve and recover the concentration in the grid function
    tic();
    solver->Mult(B, X);
-   cout << "Time required for solver:  " << toc() << " (s)" << endl;
-#ifdef MFEM_USE_SUPERLU
+   cout << "Time required for first solve:  " << toc() << " (s)" << endl;
    Vector R(B); // R = B
    CD.Mult(1.0, X, -1.0, R); // R = CD X - B
    cout << "Final L2 norm of residual: " << sqrt(R*R) << endl;
-#endif
+
+   // 9b.  Complete the solve a second time to show off the saved work in superLU
+   X = 0.0;
+   if (!slu_solver)
+   {
+      delete amg;
+      delete gmres;
+      amg = new HypreBoomerAMG(CD);
+      amg->SetPrintLevel(0);
+      gmres = new HypreGMRES(CD);
+      gmres->SetTol(1e-12);
+      gmres->SetMaxIter(200);
+      gmres->SetPreconditioner(*amg);
+      solver = gmres;
+   }
+   else
+   {
+      superlu->SetOperator(*Mrow);
+   }
+   tic();
+   solver->Mult(B, X);
+   cout << "Time required for second solve:  " << toc() << " (s)" << endl;
+   R = B;
+   CD.Mult(1.0, X, -1.0, R); // R = CD X - B
+   cout << "Final L2 norm of residual: " << sqrt(R*R) << endl;
    cd->RecoverFEMSolution(X, *b, x);
 
    // 10. Dump the concentration values out to a visit file

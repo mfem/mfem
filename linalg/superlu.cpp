@@ -190,7 +190,8 @@ SuperLUSolver::SuperLUSolver( MPI_Comm comm )
      npcol_(0),
      firstSolveWithThisA_(false),
      gridInitialized_(false),
-     LUStructInitialized_(false)
+     LUStructInitialized_(false),
+     SPStructInitialized_(false)
 {
    this->Init();
 }
@@ -211,7 +212,8 @@ SuperLUSolver::SuperLUSolver( SuperLURowLocMatrix & A )
      npcol_(0),
      firstSolveWithThisA_(true),
      gridInitialized_(false),
-     LUStructInitialized_(false)
+     LUStructInitialized_(false),
+     SPStructInitialized_(false)
 {
    height = A.Height();
    width  = A.Width();
@@ -231,9 +233,13 @@ SuperLUSolver::~SuperLUSolver()
    SUPERLU_FREE(berr_);
    PStatFree(stat);
 
-   if ( LUStructInitialized_ )
+   if ( SPStructInitialized_ )
    {
       ScalePermstructFree(SPstruct);
+   }
+
+   if ( LUStructInitialized_ )
+   {
       Destroy_LU(width, grid, LUstruct);
       LUstructFree(LUstruct);
    }
@@ -565,6 +571,12 @@ void SuperLUSolver::SetOperator( const Operator & op )
    if (!gridInitialized_)
    {
       this->SetupGrid();
+   }
+
+   if ( LUStructInitialized_ )
+   {
+      Destroy_LU(width, grid, LUstruct);
+      LUstructFree(LUstruct);
    }
 }
 

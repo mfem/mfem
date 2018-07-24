@@ -151,6 +151,7 @@ protected:
    mutable bool  firstSolveWithThisA_;
    bool          gridInitialized_;
    mutable bool  LUStructInitialized_;
+   mutable bool  SPStructInitialized_;
 
 }; // mfem::SuperLUSolver class
 
