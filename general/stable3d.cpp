@@ -218,7 +218,6 @@ void STable3D::Print(std::ostream & out) const
          node_p = node_p->Prev;
       }
    }
-
 }
 
 }
