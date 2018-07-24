@@ -25,10 +25,16 @@ The library supports two build systems: one based on GNU make, and a second one
 based on CMake. Both build systems are described below. Some hints for building
 without GNU make or CMake can be found at the end of this file.
 
-In addition to the native build systems, MFEM packages are also available in
-the Homebrew/Science, https://github.com/Homebrew/homebrew-science, and the
-Spack, https://github.com/LLNL/spack, package managers.
+In addition to the native build systems, MFEM packages are also available in the
+following package managers:
 
+- Spack, https://github.com/spack/spack
+- OpenHPC, http://openhpc.community
+- Homebrew/Science, https://github.com/Homebrew/homebrew-science
+
+We also recommend downloading and building the MFEM-based GLVis visualization
+tool which can be used to visualize the meshes and solution in MFEM's examples
+and miniapps. See http://glvis.org and http://mfem.org/building.
 
 Quick start with GNU make
 =========================
@@ -349,6 +355,13 @@ MFEM_USE_GZSTREAM = YES/NO
    before attempting to use it with MFEM.
    When enabled, this option uses the ZLIB_* library options, see below.
 
+MFEM_USE_PUMI = YES/NO
+   Enable the usage of PUMI (https://scorec.rpi.edu/pumi/) in MFEM. The Parallel
+   Unstructured Mesh Infrastructure (PUMI) is an unstructured, distributed mesh
+   data management system that is capable of handling general non-manifold
+   models and effectively supports automated adaptive analysis. PUMI enables
+   support for parallel unstructured mesh modifications in MFEM.
+
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
    Can be used to identify the MFEM build from other makefiles.
@@ -457,6 +470,10 @@ The specific libraries and their options are:
   URL: https://github.com/LLNL/conduit (Conduit)
        https://support.hdfgroup.org/HDF5 (HDF5)
   Options: CONDUIT_OPT, CONDUIT_LIB.
+
+- PUMI, used when MFEM_USE_PUMI = YES.
+  URL: https://scorec.rpi.edu/pumi
+  Options: PUMI_OPT, PUMI_LIB.
 
 - MPFR (optional), used when MFEM_USE_MPFR = YES.
   URL: http://mpfr.org, it depends on the GMP library: https://gmplib.org
@@ -590,6 +607,7 @@ MFEM_USE_GNUTLS
 MFEM_USE_NETCDF
 MFEM_USE_MPFR
 MFEM_USE_GZSTREAM
+MFEM_USE_PUMI
 
 The following options are CMake specific:
 
@@ -635,6 +653,7 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - MPFR
  - LIBUNWIND
  - POSIXCLOCKS
+ - PUMI
 
 The following built-in CMake packages are also used:
 

@@ -1170,7 +1170,8 @@ void SparseMatrix::EliminateCol(int col, DiagonalPolicy dpolicy)
    }
 }
 
-void SparseMatrix::EliminateCols(const Array<int> &cols, Vector *x, Vector *b)
+void SparseMatrix::EliminateCols(const Array<int> &cols, const Vector *x,
+                                 Vector *b)
 {
    if (Rows == NULL)
    {

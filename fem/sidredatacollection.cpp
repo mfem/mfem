@@ -385,38 +385,41 @@ createMeshBlueprintTopologies(bool hasBP, const std::string& mesh_name)
                             ? mesh->GetNE()
                             : mesh->GetNBE();
 
-   MFEM_VERIFY(num_elements > 0,
-               "TODO: processors with 0 " << mesh_name << " elements");
-
-   const int element_size = !isBdry
-                            ? mesh->GetElement(0)->GetNVertices()
-                            : mesh->GetBdrElement(0)->GetNVertices();
-
-   const int num_indices = num_elements * element_size;
-
-   // Find the element shape
-   // Note: Assumes homogeneous elements, so only check the first element
-   const int geom =
-      isBdry ?
-      mesh->GetBdrElementBaseGeometry(0) :
-      mesh->GetElementBaseGeometry(0);
-   const std::string eltTypeStr =
-      !isBdry
-      ? getElementName( static_cast<Element::Type>(
-                           mesh->GetElement(0)->GetType() ) )
-      : getElementName( static_cast<Element::Type>(
-                           mesh->GetBdrElement(0)->GetType() ) );
-
    const std::string mesh_topo_str = "topologies/" + mesh_name;
    const std::string mesh_attr_str = mesh_name + "_material_attribute";
 
+   int element_size = 0;
+   int num_indices = 0;
+   int geom = 0;
+   std::string eltTypeStr = "point";
+
+   if (num_elements > 0)
+   {
+      element_size = !isBdry
+                     ? mesh->GetElement(0)->GetNVertices()
+                     : mesh->GetBdrElement(0)->GetNVertices();
+
+      num_indices = num_elements * element_size;
+
+      // Find the element shape
+      // Note: Assumes homogeneous elements, so only check the first element
+      geom = isBdry ?
+             mesh->GetBdrElementBaseGeometry(0) :
+             mesh->GetElementBaseGeometry(0);
+      eltTypeStr =
+         !isBdry
+         ? getElementName( static_cast<Element::Type>(
+                              mesh->GetElement(0)->GetType() ) )
+         : getElementName( static_cast<Element::Type>(
+                              mesh->GetBdrElement(0)->GetType() ) );
+   }
+
+   // Create the blueprint "topology" group, if not present
    if ( !hasBP )
    {
       sidre::Group* topology_grp = bp_grp->createGroup(mesh_topo_str);
 
-      // Add mesh topology
       topology_grp->createViewString("type", "unstructured");
-      // Note: eltTypeStr comes form the mesh
       topology_grp->createViewString("elements/shape", eltTypeStr);
       topology_grp->createViewAndAllocate(
          "elements/connectivity", sidre::INT_ID, num_indices);
@@ -428,18 +431,37 @@ createMeshBlueprintTopologies(bool hasBP, const std::string& mesh_name)
       {
          topology_grp->createViewString("grid_function",m_meshNodesGFName);
       }
-
-      // Add the mesh's attributes as an attribute field
-      RegisterAttributeField(mesh_attr_str, isBdry);
    }
 
-   // If rank 0, set up blueprint index for topologies group and material
-   // attribute field.
+   // Add the mesh's attributes as an attribute field
+   RegisterAttributeField(mesh_attr_str, isBdry);
+
+   // Change ownership or copy the element arrays into Sidre
+   if (num_elements > 0)
+   {
+      sidre::View* conn_view =
+         bp_grp->getGroup(mesh_topo_str)->getView("elements/connectivity");
+
+      // The SidreDataCollection always owns these arrays:
+      Array<int> conn_array(conn_view->getData<int*>(), num_indices);
+      Array<int>* attr_array = attr_map.Get(mesh_attr_str);
+      if (!isBdry)
+      {
+         mesh->GetElementData(geom, conn_array, *attr_array);
+      }
+      else
+      {
+         mesh->GetBdrElementData(geom, conn_array, *attr_array);
+      }
+      MFEM_ASSERT(!conn_array.OwnsData(), "");
+      MFEM_ASSERT(!attr_array->OwnsData(), "");
+   }
+
+   // If rank 0, set up blueprint index for topologies group
    if (myid == 0)
    {
       const std::string bp_grp_path = bp_grp->getPathName();
 
-      // Create blueprint index for topologies.
       if (isBdry)
       {
          // "Shallow" copy the bp_grp view into the bp_index_grp sub-group.
@@ -465,24 +487,6 @@ createMeshBlueprintTopologies(bool hasBP, const std::string& mesh_name)
          bp_index_topo_grp->copyView(topology_grp->getView("grid_function"));
       }
    }
-
-   // Finally, change ownership or copy the element arrays into Sidre
-   sidre::View* conn_view =
-      bp_grp->getGroup(mesh_topo_str)->getView("elements/connectivity");
-
-   // The SidreDataCollection always owns these arrays:
-   Array<int> conn_array(conn_view->getData<int*>(), num_indices);
-   Array<int>* attr_array = attr_map.Get(mesh_attr_str);
-   if (!isBdry)
-   {
-      mesh->GetElementData(geom, conn_array, *attr_array);
-   }
-   else
-   {
-      mesh->GetBdrElementData(geom, conn_array, *attr_array);
-   }
-   MFEM_ASSERT(!conn_array.OwnsData(), "");
-   MFEM_ASSERT(!attr_array->OwnsData(), "");
 }
 
 // private method
@@ -562,6 +566,28 @@ void SidreDataCollection::verifyMeshBlueprint()
    // Add call to that when it's available to check actual contents in sidre.
 }
 
+
+bool SidreDataCollection::HasBoundaryMesh() const
+{
+   // check if this rank has any boundary elements
+   int hasBndElts = mesh->GetNBE() > 0 ? 1 : 0;
+
+#ifdef MFEM_USE_MPI
+   // check if any rank has boundary elements
+   ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
+   if (pmesh)
+   {
+      int hasBndElts_g;
+      MPI_Allreduce(&hasBndElts, &hasBndElts_g, 1,
+                    MPI_INT, MPI_MAX,pmesh->GetComm());
+
+      hasBndElts = hasBndElts_g;
+   }
+#endif
+
+   return hasBndElts > 0? true : false;
+}
+
 void SidreDataCollection::SetMesh(Mesh *new_mesh)
 {
    DataCollection::SetMesh(new_mesh);
@@ -569,7 +595,7 @@ void SidreDataCollection::SetMesh(Mesh *new_mesh)
    // hasBP is used to indicate if the data currently in the blueprint should be
    // used to replace the data in the mesh.
    bool hasBP = bp_grp->getNumViews() > 0 || bp_grp->getNumGroups() > 0;
-   bool has_bnd_elts = (new_mesh->GetNBE() > 0);
+   bool has_bnd_elts = HasBoundaryMesh();
 
    createMeshBlueprintStubs(hasBP);
    createMeshBlueprintState(hasBP);
