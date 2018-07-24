@@ -62,10 +62,12 @@
 using namespace std;
 using namespace mfem;
 
+// Constants used in the Hamiltonian
 static int prob_ = 0;
 static double m_ = 1.0;
 static double k_ = 1.0;
 
+// Hamiltonian functional, see below for implementation
 double hamiltonian(double q, double p, double t);
 
 class GradT : public Operator
@@ -90,7 +92,7 @@ private:
 
 int main(int argc, char *argv[])
 {
-   // Parse command-line options.
+   // 1. Parse command-line options.
    int order  = 1;
    int nsteps = 100;
    double dt  = 0.1;
@@ -129,6 +131,7 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
+   // 2. Create and Initialize the Symplectic Integration Solver
    SIAVSolver siaSolver(order);
 
    GradT    P;
@@ -136,12 +139,15 @@ int main(int argc, char *argv[])
 
    siaSolver.Init(P,F);
 
+   // 3. Set the initial conditions
    double t = 0.0;
 
    Vector q(1), p(1);
+   Vector e(nsteps+1);
    q(0) = 0.0;
    p(0) = 1.0;
 
+   // 4. Prepare GnuPlot output file if needed
    ofstream ofs;
    if ( gnuplot )
    {
@@ -149,8 +155,7 @@ int main(int argc, char *argv[])
       ofs << t << "\t" << q(0) << "\t" << p(0) << endl;
    }
 
-   Vector e(nsteps+1);
-
+   // 5. Create a Mesh for visualization in phase space
    int nverts = (visualization)?2*(nsteps+1):0;
    int nelems = (visualization)?nsteps:0;
    Mesh mesh(2, nverts, nelems, 0, 3);
@@ -159,10 +164,12 @@ int main(int argc, char *argv[])
    Vector x0(3); x0 = 0.0; //x0(0) = M_PI;
    Vector x1(3); x1 = 0.0;
 
+   // 6. Perform time-stepping
    double e_mean = 0.0;
 
    for (int i=0; i<nsteps; i++)
    {
+      // 6a. Record initial state
       if ( i == 0 )
       {
          e[0] = hamiltonian(q(0),p(0),t);
@@ -178,16 +185,19 @@ int main(int argc, char *argv[])
          }
       }
 
+      // 6b. Advance the state of the system
       siaSolver.Step(q,p,t,dt);
 
       e[i+1] = hamiltonian(q(0),p(0),t);
       e_mean += e[i+1];
 
+      // 6c. Record the state of the system
       if ( gnuplot )
       {
          ofs << t << "\t" << q(0) << "\t" << p(0) << "\t" << e[i+1] << endl;
       }
 
+      // 6d. Add results to GLVis visualization
       if ( visualization )
       {
          x0[2] = t;
@@ -204,6 +214,7 @@ int main(int argc, char *argv[])
       }
    }
 
+   // 7. Compute and display mean and standard deviation of the energy
    e_mean /= (nsteps + 1);
    double e_var = 0.0;
    for (int i=0; i<=nsteps; i++)
@@ -215,6 +226,7 @@ int main(int argc, char *argv[])
    cout << endl << "Mean and standard deviation of the energy" << endl;
    cout << e_mean << "\t" << e_sd << endl;
 
+   // 8. Finalize the GnuPlot output
    if ( gnuplot )
    {
       ofs.close();
@@ -226,6 +238,7 @@ int main(int argc, char *argv[])
       ofs.close();
    }
 
+   // 9. Finalize the GLVis output
    if ( visualization )
    {
       H1_FECollection fec(order = 1, 2);
