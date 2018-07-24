@@ -230,18 +230,17 @@ public:
    void Eigensystem(Vector &ev, DenseMatrix &evect)
    { Eigensystem(ev, &evect); }
 
-   /// Compute generalized eigenvalues and eigenvectors of A x = ev B x,
-   /// where A = *this
+   /** Compute generalized eigenvalues and eigenvectors of A x = ev B x,
+       where A = *this */
    void Eigenvalues(DenseMatrix &b, Vector &ev)
    { Eigensystem(b, ev); }
 
-   /// Compute generalized eigenvalues of A x = ev B x,
-   /// where A = *this
+   /// Compute generalized eigenvalues of A x = ev B x, where A = *this
    void Eigenvalues(DenseMatrix &b, Vector &ev, DenseMatrix &evect)
    { Eigensystem(b, ev, evect); }
 
-   /// Compute generalized eigenvalues and eigenvectors of A x = ev B x,
-   /// where A = *this
+   /** Compute generalized eigenvalues and eigenvectors of A x = ev B x,
+       where A = *this */
    void Eigensystem(DenseMatrix &b, Vector &ev, DenseMatrix &evect)
    { Eigensystem(b, ev, evect); }
 

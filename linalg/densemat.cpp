@@ -861,9 +861,7 @@ void DenseMatrix::FNorm(double &scale_factor, double &scaled_fnorm2) const
 
 void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 {
-
 #ifdef MFEM_USE_LAPACK
-
    ev.SetSize(a.Width());
 
    char      JOBZ     = 'N';
@@ -1023,9 +1021,7 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 
 void dsyev_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 {
-
 #ifdef MFEM_USE_LAPACK
-
    int   N      = a.Width();
    char  JOBZ   = 'N';
    char  UPLO   = 'U';
@@ -1073,7 +1069,6 @@ void dsyev_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 
    delete [] WORK;
    if (evect == NULL) { delete [] A; }
-
 #endif
 }
 
@@ -1095,9 +1090,7 @@ void DenseMatrix::Eigensystem(Vector &ev, DenseMatrix *evect)
 void dsygv_Eigensystem(DenseMatrix &a, DenseMatrix &b, Vector &ev,
                        DenseMatrix *evect)
 {
-
 #ifdef MFEM_USE_LAPACK
-
    int   N      = a.Width();
    int   ITYPE  = 1;
    char  JOBZ   = 'N';
@@ -1151,7 +1144,6 @@ void dsygv_Eigensystem(DenseMatrix &a, DenseMatrix &b, Vector &ev,
    delete [] WORK;
    delete [] B;
    if (evect == NULL) { delete [] A; }
-
 #endif
 }
 
