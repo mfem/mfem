@@ -101,8 +101,8 @@ int main(int argc, char *argv[])
    {
       if (myid == 0)
       {
-	cout << "Extruding 2D mesh to a height of " << hz
-	     << " using " << nz << " elements." << endl;
+         cout << "Extruding 2D mesh to a height of " << hz
+              << " using " << nz << " elements." << endl;
       }
       Mesh *mesh3d = Extrude2D(mesh, nz, hz);
       delete mesh;

@@ -1951,7 +1951,7 @@ void Mesh::FinalizeHexMesh(int generate_edges, int refine, bool fix_orientation)
 }
 
 void Mesh::FinalizeMixedMesh(int generate_edges, int refine,
-			     bool fix_orientation)
+                             bool fix_orientation)
 {
    FinalizeCheck();
    CheckElementOrientation(fix_orientation);
@@ -10069,7 +10069,7 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
 
    bool priMesh = false;
    bool hexMesh = false;
-   
+
    // vertices
    double vc[3];
    for (int i = 0; i < mesh->GetNV(); i++)
