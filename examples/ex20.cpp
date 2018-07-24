@@ -35,7 +35,9 @@
 //                 4) Negative Quartic Potential
 //                    H = ( p^2 / m + k ( 1 - q^2 /8 ) q^2 ) / 2
 //              In all cases these Hamiltonians are shifted by constant
-//              values so that the energy will remain positive.
+//              values so that the energy will remain positive.  The mean
+//              and standard deviation of the computed energies at each
+//              time step are displayed upon completion.
 //
 //              We then use GLVis to visualize the results in a
 //              non-standard way by defining the axes to be q, p, and
@@ -43,7 +45,16 @@
 //              ribbon-like mesh with nodes at (0,0,t) and (q,p,t).
 //              Finally we plot the energy as a function of time as a
 //              scalar field on this ribbon-like mesh.
-
+//
+//              For a more traditional plot of the results, including
+//              q, p, and H, can be obtained by selecting the "-gp"
+//              option.  This creates a data file and input deck for
+//              the GnuPlot application (not included with MFEM).  To
+//              visualize these results on most linux systems type the
+//              command "gnuplot gnuplot_ex20.inp". The data file,
+//              named "ex20.dat", should be simple enough to display
+//              with other plotting programs as well.
+//
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
