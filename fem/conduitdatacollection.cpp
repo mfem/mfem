@@ -164,6 +164,7 @@ ConduitDataCollection::SetProtocol(const std::string &protocol)
 //---------------------------------------------------------------------------//
 mfem::Mesh *
 ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
+                                           const std::string &main_toplogy_name,
                                            bool zero_copy)
 {
    // n_conv holds converted data (when necessary for mfem api)
@@ -172,11 +173,31 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
    // can't return a mesh that zero copies the conduit data
    Node n_conv;
 
-   MFEM_ASSERT(n_mesh.has_path("coordsets/coords"),
-               "Expected topology named \"coords\" "
-               "(node is missing path \"coordsets/coords\")");
+   //
+   // we need to find the topology and its coordset.
+   //
 
-   const Node &n_coordset = n_mesh["coordsets/coords"];
+   std::string topo_name = main_toplogy_name;
+   // if topo name is not set, look for first topology
+   if (topo_name == "")
+   {
+      topo_name = n_mesh["topologies"].schema().child_name(0);
+   }
+
+   MFEM_ASSERT(n_mesh.has_path("topologies/" + topo_name),
+               "Expected topology named \"" + topo_name + "\" "
+               "(node is missing path \"topologies/" + topo_name + "\")");
+
+   // find the coord set
+   std::string coords_name =
+      n_mesh["topologies"][topo_name]["coordset"].as_string();
+
+
+   MFEM_ASSERT(n_mesh.has_path("coordsets/" + coords_name),
+               "Expected topology named \"" + coords_name + "\" "
+               "(node is missing path \"coordsets/" + coords_name + "\")");
+
+   const Node &n_coordset = n_mesh["coordsets"][coords_name];
    const Node &n_coordset_vals = n_coordset["values"];
 
    // get the number of dims of the coordset
@@ -238,17 +259,15 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
          n_tmp["y"].set(DataType::c_double(num_verts));
       }
 
-      Node &n_conv_coords_vals = n_conv["coordsets/coords/values"];
+      Node &n_conv_coords_vals = n_conv["coordsets"][coords_name]["values"];
       blueprint::mcarray::to_interleaved(n_tmp,
                                          n_conv_coords_vals);
       verts_ptr = n_conv_coords_vals[0].value();
    }
 
-   MFEM_ASSERT(n_mesh.has_path("topologies/main"),
-               "Expected topology named \"main\" "
-               "(node is missing path \"topologies/main\")");
 
-   const Node &n_mesh_topo    = n_mesh["topologies/main"];
+
+   const Node &n_mesh_topo    = n_mesh["topologies"][topo_name];
    std::string mesh_ele_shape = n_mesh_topo["elements/shape"].as_string();
 
    mfem::Geometry::Type mesh_geo = ShapeNameToGeomType(mesh_ele_shape);
@@ -265,7 +284,8 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
    }
    else
    {
-      Node &n_mesh_conn_conv= n_conv["topologies/main/elements/connectivity"];
+      Node &n_mesh_conn_conv=
+         n_conv["topologies"][topo_name]["elements/connectivity"];
       n_mesh_conn.to_int_array(n_mesh_conn_conv);
       elem_indices = n_mesh_conn_conv.value();
    }
@@ -281,33 +301,46 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
    // table lookup, even if we don't have boundary info.
    mfem::Geometry::Type bndry_geo = mfem::Geometry::POINT;
 
-   if ( n_mesh.has_path("topologies/boundary") )
+   if ( n_mesh_topo.has_child("boundary_topology") )
    {
-      const Node &n_bndry_topo    = n_mesh["topologies/boundary"];
-      std::string bndry_ele_shape = n_bndry_topo["elements/shape"].as_string();
+      std::string bndry_topo_name = n_mesh_topo["boundary_topology"].as_string();
 
-      bndry_geo = ShapeNameToGeomType(bndry_ele_shape);
-      int num_idxs_per_bndry_ele = Geometry::NumVerts[mesh_geo];
+      // In VisIt, we encountered a case were a mesh specified a boundary
+      // topology, but the boundary topology was omitted from the blueprint
+      // index, so it's data could not be obtained.
+      //
+      // This guard prevents an error in that case, allowing the mesh to be
+      // created without boundary info
 
-      const Node &n_bndry_conn = n_bndry_topo["elements/connectivity"];
-
-      // mfem requires ints, we could have int64s, etc convert if necessary
-      if ( n_bndry_conn.dtype().is_int() &&
-           n_bndry_conn.is_compact())
+      if (n_mesh["topologies"].has_child(bndry_topo_name))
       {
-         bndry_indices = n_bndry_conn.value();
-      }
-      else
-      {
-         Node &(n_bndry_conn_conv) = n_conv["topologies/boundary/elements/connectivity"];
-         n_bndry_conn.to_int_array(n_bndry_conn_conv);
-         bndry_indices = (n_bndry_conn_conv).value();
+         const Node &n_bndry_topo    = n_mesh["topologies"][bndry_topo_name];
+         std::string bndry_ele_shape = n_bndry_topo["elements/shape"].as_string();
 
-      }
+         bndry_geo = ShapeNameToGeomType(bndry_ele_shape);
+         int num_idxs_per_bndry_ele = Geometry::NumVerts[mesh_geo];
 
-      num_bndry_ele =
-         n_bndry_topo["elements/connectivity"].dtype().number_of_elements();
-      num_bndry_ele = num_bndry_ele / num_idxs_per_bndry_ele;
+         const Node &n_bndry_conn = n_bndry_topo["elements/connectivity"];
+
+         // mfem requires ints, we could have int64s, etc convert if necessary
+         if ( n_bndry_conn.dtype().is_int() &&
+              n_bndry_conn.is_compact())
+         {
+            bndry_indices = n_bndry_conn.value();
+         }
+         else
+         {
+            Node &(n_bndry_conn_conv) =
+               n_conv["topologies"][bndry_topo_name]["elements/connectivity"];
+            n_bndry_conn.to_int_array(n_bndry_conn_conv);
+            bndry_indices = (n_bndry_conn_conv).value();
+
+         }
+
+         num_bndry_ele =
+            n_bndry_topo["elements/connectivity"].dtype().number_of_elements();
+         num_bndry_ele = num_bndry_ele / num_idxs_per_bndry_ele;
+      }
    }
    else
    {
@@ -609,14 +642,17 @@ ConduitDataCollection::BlueprintFieldToGridFunction(Mesh *mesh,
 //---------------------------------------------------------------------------//
 void
 ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
-                                           Node &n_mesh)
+                                           Node &n_mesh,
+                                           const std::string &coordset_name,
+                                           const std::string &main_topology_name,
+                                           const std::string &boundary_topology_name)
 {
    int dim = mesh->SpaceDimension();
 
    MFEM_ASSERT(dim >= 1 && dim <= 3, "invalid mesh dimension");
 
    ////////////////////////////////////////////
-   // Setup main coordset "coords"
+   // Setup main coordset
    ////////////////////////////////////////////
 
    // Assumes  mfem::Vertex has the layout of a double array.
@@ -628,38 +664,40 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
    MFEM_ASSERT( ( stride == 3 * sizeof(double) ),
                 "Unexpected stride for Vertex");
 
-   n_mesh["coordsets/coords/type"] =  "explicit";
+   Node &n_mesh_coords = n_mesh["coordsets"][coordset_name];
+   n_mesh_coords["type"] =  "explicit";
+
 
    double *coords_ptr = mesh->GetVertex(0);
 
-   n_mesh["coordsets/coords/values/x"].set_external(coords_ptr,
-                                                    num_vertices,
-                                                    0,
-                                                    stride);
+   n_mesh_coords["values/x"].set_external(coords_ptr,
+                                          num_vertices,
+                                          0,
+                                          stride);
 
    if (dim >= 2)
    {
-      n_mesh["coordsets/coords/values/y"].set_external(coords_ptr,
-                                                       num_vertices,
-                                                       sizeof(double),
-                                                       stride);
+      n_mesh_coords["values/y"].set_external(coords_ptr,
+                                             num_vertices,
+                                             sizeof(double),
+                                             stride);
    }
    if (dim >= 3)
    {
-      n_mesh["coordsets/coords/values/z"].set_external(coords_ptr,
-                                                       num_vertices,
-                                                       sizeof(double) * 2,
-                                                       stride);
+      n_mesh_coords["values/z"].set_external(coords_ptr,
+                                             num_vertices,
+                                             sizeof(double) * 2,
+                                             stride);
    }
 
    ////////////////////////////////////////////
-   // Setup main topo "main"
+   // Setup main topo
    ////////////////////////////////////////////
 
-   Node &n_topo = n_mesh["topologies/main"];
+   Node &n_topo = n_mesh["topologies"][main_topology_name];
 
    n_topo["type"]  = "unstructured";
-   n_topo["coordset"] = "coords";
+   n_topo["coordset"] = coordset_name;
 
    Element::Type ele_type = static_cast<Element::Type>(mesh->GetElement(
                                                           0)->GetType());
@@ -702,7 +740,8 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
    if (gf_mesh_nodes != NULL)
    {
       GridFunctionToBlueprintField(gf_mesh_nodes,
-                                   n_mesh["fields/mesh_nodes"]);
+                                   n_mesh["fields/mesh_nodes"],
+                                   main_topology_name);
    }
 
    ////////////////////////////////////////////
@@ -712,7 +751,7 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
    Node &n_mesh_att = n_mesh["fields/element_attribute"];
 
    n_mesh_att["association"] = "element";
-   n_mesh_att["topology"] = "main";
+   n_mesh_att["topology"] = main_topology_name;
    n_mesh_att["values"].set(DataType::c_int(num_ele));
 
    int_array att_vals = n_mesh_att["values"].value();
@@ -728,10 +767,12 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
    // guard vs if we have boundary elements
    if (mesh->GetNBE() > 0)
    {
-      Node &n_bndry_topo = n_mesh["topologies/boundary"];
+      n_topo["boundary_topology"] = boundary_topology_name;
+
+      Node &n_bndry_topo = n_mesh["topologies"][boundary_topology_name];
 
       n_bndry_topo["type"]     = "unstructured";
-      n_bndry_topo["coordset"] = "coords";
+      n_bndry_topo["coordset"] = coordset_name;
 
       Element::Type bndry_ele_type = static_cast<Element::Type>(mesh->GetBdrElement(
                                                                    0)->GetType());
@@ -767,7 +808,7 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
       Node &n_bndry_mesh_att = n_mesh["fields/boundary_attribute"];
 
       n_bndry_mesh_att["association"] = "element";
-      n_bndry_mesh_att["topology"] = "boundary";
+      n_bndry_mesh_att["topology"] = boundary_topology_name;
       n_bndry_mesh_att["values"].set(DataType::c_int(num_bndry_ele));
 
       int_array bndry_att_vals = n_bndry_mesh_att["values"].value();
@@ -781,10 +822,11 @@ ConduitDataCollection::MeshToBlueprintMesh(Mesh *mesh,
 //---------------------------------------------------------------------------//
 void
 ConduitDataCollection::GridFunctionToBlueprintField(mfem::GridFunction *gf,
-                                                    Node &n_field)
+                                                    Node &n_field,
+                                                    const std::string &main_topology_name)
 {
    n_field["basis"] = gf->FESpace()->FEColl()->Name();
-   n_field["topology"] = "main";
+   n_field["topology"] = main_topology_name;
 
    int vdim  = gf->FESpace()->GetVDim();
    int ndofs = gf->FESpace()->GetNDofs();
