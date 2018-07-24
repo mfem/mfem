@@ -39,7 +39,9 @@
 //
 //              When run in parallel the same Hamiltonian system is
 //              evolved on each processor but starting from different
-//              initial conditions.
+//              initial conditions.  The mean and standard deviation
+//              of the computed energies at each time step are
+//              displayed upon completion.
 //
 //              We then use GLVis to visualize the results in a
 //              non-standard way by defining the axes to be q, p, and
@@ -49,7 +51,17 @@
 //              together on the t-axis they resemble a Rotini pasta.
 //              Finally we plot the energy as a function of time as a
 //              scalar field on this Rotini-like mesh.
-
+//
+//              For a more traditional plot of the results, including
+//              q, p, and H from each processor, can be obtained by
+//              selecting the "-gp" option.  This creates a collection
+//              of data files and an input deck for the GnuPlot
+//              application (not included with MFEM).  To visualize
+//              these results on most linux systems type the command
+//              "gnuplot gnuplot_ex20p.inp". The data files, named
+//              "ex20p_?????.dat", should be simple enough to display
+//              with other plotting programs as well.
+//
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
