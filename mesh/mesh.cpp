@@ -5343,8 +5343,6 @@ STable4D * Mesh::GetElementToFaceTable4D(int ret_ftbl)
    el_to_face->Finalize();
    NumOfFaces = faces_tbl->NumberOfElements();
 
-   //   cout << "num faces: " << NumOfFaces << endl << endl;
-
    be_to_face.SetSize(NumOfBdrElements);
    for (i = 0; i < NumOfBdrElements; i++)
    {
@@ -5353,7 +5351,6 @@ STable4D * Mesh::GetElementToFaceTable4D(int ret_ftbl)
       {
          case Element::TETRAHEDRON:
          {
-//             printf("i=%d:lookup(%d, %d, %d, %d)\n", i, v[0], v[1], v[2], v[3]);
             be_to_face[i] = (*faces_tbl)(v[0], v[1], v[2], v[3]);
          }
          break;
@@ -5375,8 +5372,11 @@ STable3D * Mesh::GetElementToPlanarTable(int ret_trigtbl)
    STable3D *trig_tbl;
 
    if (el_to_planar != NULL) { delete el_to_planar; }
+   // TODO this standard choice may lead to on overflow of the underlying ints, even on relatively small meshes, e.g. 4mio dofs
+   // TODO as anyway we are using just pentatopes set it to 10 for now
    el_to_planar = new Table(NumOfElements,
-                            24);  // 24 planars at most for a tesseract (pentatope only 10)
+ //                           24);  // 24 planars at most for a tesseract (pentatope only 10)
+                              10);  // 10 planars for a pentatope
    trig_tbl = new STable3D(NumOfVertices);
    for (i = 0; i < NumOfElements; i++)
    {
