@@ -255,7 +255,7 @@ void KernelsBilinearForm::FormOperator(const mfem::Array<int> &constraintList,
                                        mfem::Operator *&Aout)
 {
    push();
-   assert(constraintList.Size()==0);
+   //assert(constraintList.Size()==0);
    const mfem::Operator *trialP = GetTrialProlongation();
    const mfem::Operator *testP  = GetTestProlongation();
    mfem::Operator *rap = this;
@@ -276,13 +276,13 @@ void KernelsBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
                                   mfem::Vector &X, mfem::Vector &B,
                                   int copy_interior)
 {
-   push(); assert(false);
+  push(); //assert(false);
    const mfem::Operator *P = GetTrialProlongation();
    const mfem::Operator *R = GetTrialRestriction();
    if (P)
    {
       // Variational restriction with P
-      assert(false);
+     //assert(false);
       B.Resize(P->InLayout());
       P->MultTranspose(b, B);
       X.Resize(R->OutLayout());
@@ -298,7 +298,7 @@ void KernelsBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
 
    if (!copy_interior && constraintList.Size() > 0)
    {
-      assert(false);
+     //assert(false);
       const Array &constrList = constraintList.Get_PArray()->As<Array>();
       Vector subvec(constrList.KernelsLayout());
       vector_get_subvector(constraintList.Size(),

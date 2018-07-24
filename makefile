@@ -326,7 +326,6 @@ KERNELS_RTC_DIRS = 	\
 	$(KERNELS_BACKEND_DIR)/kernels/mapping \
 	$(KERNELS_BACKEND_DIR)/kernels/force
 KERNELS_RTC_SRC_FILES = $(foreach dir,$(KERNELS_RTC_DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
-KERNELS_RTC_FILES = $(patsubst $(SRC)%,$(BLD)%,$(KERNELS_RTC_SRC_FILES:.cpp=.cpp.rtc))
 
 # Source dirs in logical order
 ALL_SRC_DIRS := general linalg mesh fem \
@@ -345,9 +344,9 @@ endif
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
-OBJECT_RTC_FILES = $(KERNELS_RTC_FILES:.rtc=.o)
+OBJECT_RTC_FILES = $(patsubst $(SRC)%,$(BLD)%,$(KERNELS_RTC_SRC_FILES:.cpp=.o))
 
-#rtc:;echo KERNELS_RTC_FILES=$(KERNELS_RTC_FILES), OBJECT_RTC_FILES=$(OBJECT_RTC_FILES)
+#rtc:$(OBJECT_RTC_FILES);@echo OBJECT_RTC_FILES=$(OBJECT_RTC_FILES)
 
 .PHONY: lib all clean distclean install config status info deps serial parallel\
  debug pdebug style check test
@@ -371,12 +370,9 @@ $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
 # Rules for compiling all RTC source files.
-# Warning input files needs to be last
-$(KERNELS_RTC_FILES): $(BLD)%.cpp.rtc: $(SRC)%.cpp $(CONFIG_MK)
-	@okrtc $(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<)
-$(OBJECT_RTC_FILES): $(BLD)%.o: $(BLD)%.rtc
-	$(MFEM_CXX) -x c++ -I/home/camier1/home/okrtc/include $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
-#	rm $(<)
+# WARNING: the input file needs to be in last position
+$(OBJECT_RTC_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
+	okrtc $(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c -o $(@) -I/home/camier1/home/okrtc/include $(<)
 
 all: examples miniapps
 
@@ -456,7 +452,7 @@ comma = ,
 CLEANPAT := $(subst $1 ,$(comma),$(strip $(ALL_SRC_DIRS)))
 clean: $(addsuffix /clean,$(EM_DIRS))
 	rm -rf $(addprefix $(BLD),{$(CLEANPAT)}/*{.o,~} *~ libmfem.* deps.mk)
-	rm -f $(KERNELS_RTC_FILES)
+	rm -f $(OBJECT_RTC_FILES)
 
 distclean: clean config/clean doc/clean
 	rm -rf mfem/

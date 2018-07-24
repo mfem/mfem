@@ -50,10 +50,10 @@ void KernelsConstrainedOperator::Setup(kernels::device device_,
    constraintIndices = constraintList_.Size();
    if (constraintIndices)
    {
-      assert(false);
-      //constraintList.allocate(constraintIndices);
-      assert(constraintList_.Get_PArray());
-      //constraintList = constraintList_.Get_PArray()->As<Array>().KernelsMem();
+     //assert(false);
+     //constraintList.allocate(constraintIndices);
+     assert(constraintList_.Get_PArray());
+     constraintList = constraintList_.Get_PArray()->As<Array>().KernelsMem();
    }
    //z.SetSize(height);
    //w.SetSize(height);
@@ -68,7 +68,7 @@ void KernelsConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
    w.Fill<double>(0.0);
    if (constraintIndices)
    {
-      assert(false);
+     //assert(false);
       vector_map_dofs(constraintIndices,
                       (double*)w.KernelsMem().ptr(),
                       (double*)x.KernelsMem().ptr(),
@@ -78,7 +78,7 @@ void KernelsConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
    b.Axpby<double>(1.0, b, -1.0, z);
    if (constraintIndices)
    {
-      assert(false);
+     //assert(false);
       vector_map_dofs(constraintIndices,
                       (double*)b.KernelsMem().ptr(),
                       (double*)x.KernelsMem().ptr(),
