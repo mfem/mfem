@@ -184,7 +184,7 @@ public:
 
        @param[in] collection_name  Name of the collection used as a file name
                                    when saving
-       @param[in] bp_index_group   Pointer to the blueprint index group in the
+       @param[in] bp_index_grp     Pointer to the blueprint index group in the
                                    datastore, see the above schematic
        @param[in] domain_grp       Pointer to the domain group in the datastore,
                                    see the above schematic
