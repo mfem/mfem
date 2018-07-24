@@ -48,7 +48,7 @@ int main(int argc, char *argv[])
    // int nphi = 8;
    // int ns = 0;
    // int order = 3;
-  // int trans_type = 1;
+   // int trans_type = 1;
    int ser_ref_levels = 0;
    int el_type = 0;
    bool dg_mesh = false;
@@ -89,13 +89,13 @@ int main(int argc, char *argv[])
 
    el_type_ = (el_type == 0)?Element::PRISM:Element::HEXAHEDRON;
    if ( el_type_ != Element::PRISM && el_type_ != Element::HEXAHEDRON )
-     {
-       cout << "Unsupported element type" << endl;
-       exit(1);
-     }
-   
+   {
+      cout << "Unsupported element type" << endl;
+      exit(1);
+   }
+
    int nnode = (el_type_ == Element::PRISM)? 3:4;
-   
+
    Mesh *mesh;
    mesh = new Mesh(3, nnode * (nphi_+1), nphi_);
 
@@ -103,73 +103,73 @@ int main(int argc, char *argv[])
    double c[3];
    for (int i=0; i<=nphi_; i++)
    {
-     /*
-     pts(i, 0, &coords[9 * i + 0]);
-     pts(i, 1, &coords[9 * i + 3]);
-     pts(i, 2, &coords[9 * i + 6]);
+      /*
+      pts(i, 0, &coords[9 * i + 0]);
+      pts(i, 1, &coords[9 * i + 3]);
+      pts(i, 2, &coords[9 * i + 6]);
 
-     mesh->AddVertex(&coords[9 * i + 0]);
-     mesh->AddVertex(&coords[9 * i + 3]);
-     mesh->AddVertex(&coords[9 * i + 6]);
-     */
-     c[0] = 0.0; c[1] = 0.0; c[2] = i;
-     mesh->AddVertex(c);
+      mesh->AddVertex(&coords[9 * i + 0]);
+      mesh->AddVertex(&coords[9 * i + 3]);
+      mesh->AddVertex(&coords[9 * i + 6]);
+      */
+      c[0] = 0.0; c[1] = 0.0; c[2] = i;
+      mesh->AddVertex(c);
 
-     c[0] = 1.0;
-     mesh->AddVertex(c);
+      c[0] = 1.0;
+      mesh->AddVertex(c);
 
-     if ( el_type_ == Element::HEXAHEDRON )
-     {
-       c[0] = 1.0; c[1] = 1.0;
-       mesh->AddVertex(c);
-     }
-     
-     c[0] = 0.0; c[1] = 1.0;
-     mesh->AddVertex(c);
+      if ( el_type_ == Element::HEXAHEDRON )
+      {
+         c[0] = 1.0; c[1] = 1.0;
+         mesh->AddVertex(c);
+      }
+
+      c[0] = 0.0; c[1] = 1.0;
+      mesh->AddVertex(c);
    }
 
    int v[8];
    for (int i=0; i<nphi_; i++)
    {
-     if ( el_type_ == Element::PRISM )
-     {
-       v[0] = 3 * i + 0;
-       v[1] = 3 * i + 1;
-       v[2] = 3 * i + 2;
-       v[3] = 3 * i + 3;
-       v[4] = 3 * i + 4;
-       v[5] = 3 * i + 5;
-       mesh->AddPri(v);
-     }
-     else
-     {
-       v[0] = 4 * i + 0;
-       v[1] = 4 * i + 1;
-       v[2] = 4 * i + 2;
-       v[3] = 4 * i + 3;
-       v[4] = 4 * i + 4;
-       v[5] = 4 * i + 5;
-       v[6] = 4 * i + 6;
-       v[7] = 4 * i + 7;
-       mesh->AddHex(v);
-     }
+      if ( el_type_ == Element::PRISM )
+      {
+         v[0] = 3 * i + 0;
+         v[1] = 3 * i + 1;
+         v[2] = 3 * i + 2;
+         v[3] = 3 * i + 3;
+         v[4] = 3 * i + 4;
+         v[5] = 3 * i + 5;
+         mesh->AddPri(v);
+      }
+      else
+      {
+         v[0] = 4 * i + 0;
+         v[1] = 4 * i + 1;
+         v[2] = 4 * i + 2;
+         v[3] = 4 * i + 3;
+         v[4] = 4 * i + 4;
+         v[5] = 4 * i + 5;
+         v[6] = 4 * i + 6;
+         v[7] = 4 * i + 7;
+         mesh->AddHex(v);
+      }
    }
    mesh->FinalizeTopology();
 
    {
-     ostringstream oss;
-     oss << "prismatic-stack-o" << order_ << "-s" << ns_;
-     if ( ser_ref_levels > 0 ) oss << "-r" << ser_ref_levels;
-     oss << ".mesh";
-     ofstream ofs(oss.str().c_str());
-     ofs.precision(8);
-     mesh->Print(ofs);
-     ofs.close();
+      ostringstream oss;
+      oss << "prismatic-stack-o" << order_ << "-s" << ns_;
+      if ( ser_ref_levels > 0 ) { oss << "-r" << ser_ref_levels; }
+      oss << ".mesh";
+      ofstream ofs(oss.str().c_str());
+      ofs.precision(8);
+      mesh->Print(ofs);
+      ofs.close();
    }
    if ( order_ > 1 )
    {
-     mesh->SetCurvature(order_, true, 3, Ordering::byVDIM);
-     mesh->Transform(trans);
+      mesh->SetCurvature(order_, true, 3, Ordering::byVDIM);
+      mesh->Transform(trans);
    }
 
    {
@@ -181,7 +181,7 @@ int main(int argc, char *argv[])
       // identify vertices at the extremes of the stack of prisms
       for (int i=0; i<nnode; i++)
       {
-	v2v[v2v.Size() - nnode + i] = (ns_ + i) % nnode;
+         v2v[v2v.Size() - nnode + i] = (ns_ + i) % nnode;
       }
       // renumber elements
       for (int i = 0; i < mesh->GetNE(); i++)
@@ -219,25 +219,25 @@ int main(int argc, char *argv[])
    }
 
    {
-     ostringstream oss;
-     if ( el_type_ == Element::PRISM )
-     {
-       oss << "prismatic-torus";
-     }
-     else
-     {
-       oss << "hexagonal-torus";
-     }
-     oss << "-o" << order_ << "-s" << ns_;
-     if ( ser_ref_levels > 0 )
-     {
-       oss << "-r" << ser_ref_levels;
-     }
-     oss << ".mesh";
-     ofstream ofs(oss.str().c_str());
-     ofs.precision(8);
-     mesh->Print(ofs);
-     ofs.close();
+      ostringstream oss;
+      if ( el_type_ == Element::PRISM )
+      {
+         oss << "prismatic-torus";
+      }
+      else
+      {
+         oss << "hexagonal-torus";
+      }
+      oss << "-o" << order_ << "-s" << ns_;
+      if ( ser_ref_levels > 0 )
+      {
+         oss << "-r" << ser_ref_levels;
+      }
+      oss << ".mesh";
+      ofstream ofs(oss.str().c_str());
+      ofs.precision(8);
+      mesh->Print(ofs);
+      ofs.close();
    }
    if (visualization)
    {
@@ -247,7 +247,7 @@ int main(int argc, char *argv[])
       sol_sock.precision(8);
       sol_sock << "mesh\n" << *mesh << flush;
    }
-   
+
    delete mesh;
    // delete [] coords;
    return 0;
@@ -269,86 +269,86 @@ void trans(const Vector &x, Vector &p)
    double phi = 2.0 * M_PI * x[2] / nphi_;
    double theta = phi * ns_ / nnode;
 
-  double u = (1.5 * (x[0] + x[1]) - 1.0) * r_;
-  double v = sqrt(0.75) * (x[0] - x[1]) * r_;
+   double u = (1.5 * (x[0] + x[1]) - 1.0) * r_;
+   double v = sqrt(0.75) * (x[0] - x[1]) * r_;
 
-  if ( el_type_ == Element::PRISM )
-  {
-     u = (1.5 * (x[0] + x[1]) - 1.0) * r_;
-     v = sqrt(0.75) * (x[0] - x[1]) * r_;
-  }
-  else
-  {
-    u = M_SQRT2 * (x[1] - 0.5) * r_;
-    v = M_SQRT2 * (x[0] - 0.5) * r_;
-  }
-  
-  p[0] = ( R_ + u * cos(theta) + v * sin(theta)) * cos(phi);
-  p[1] = ( R_ + u * cos(theta) + v * sin(theta)) * sin(phi);
-  p[2] = v * cos(theta) - u * sin(theta);
-  /*
-  double phi = atan2(x[1],x[0]);
-  phi = (phi >= 0.0)?phi:(phi + 2.0 * M_PI);
-  int iphi = (int)floor(phi * nphi_ / (2.0 * M_PI));
+   if ( el_type_ == Element::PRISM )
+   {
+      u = (1.5 * (x[0] + x[1]) - 1.0) * r_;
+      v = sqrt(0.75) * (x[0] - x[1]) * r_;
+   }
+   else
+   {
+      u = M_SQRT2 * (x[1] - 0.5) * r_;
+      v = M_SQRT2 * (x[0] - 0.5) * r_;
+   }
 
-  double x0[3]; Vector v0(x0, 3);
-  double x1[3]; Vector v1(x1, 3);
-  double x2[3]; Vector v2(x2, 3);
-  double x3[3]; Vector v3(x3, 3);
-  double x4[3]; Vector v4(x4, 3);
-  double x5[3]; Vector v5(x5, 3);
+   p[0] = ( R_ + u * cos(theta) + v * sin(theta)) * cos(phi);
+   p[1] = ( R_ + u * cos(theta) + v * sin(theta)) * sin(phi);
+   p[2] = v * cos(theta) - u * sin(theta);
+   /*
+   double phi = atan2(x[1],x[0]);
+   phi = (phi >= 0.0)?phi:(phi + 2.0 * M_PI);
+   int iphi = (int)floor(phi * nphi_ / (2.0 * M_PI));
 
-  pts(iphi, 0, x0);
-  pts(iphi, 1, x1);
-  pts(iphi, 2, x2);
-  if ( iphi < nphi_ - 1 )
-  {
-    pts(iphi + 1, 0, x3);
-    pts(iphi + 1, 1, x4);
-    pts(iphi + 1, 2, x5);
-  }
-  else
-  {
-    pts(0, (ns_ + 0) % 3, x3);
-    pts(0, (ns_ + 1) % 3, x4);
-    pts(0, (ns_ + 2) % 3, x5);
-  }
-  
-  double dPtr[3];
-  Vector d(dPtr,3);
-  
-  int l, m, n;
-  double nrm = x.Normlinf();
-  for (int k=0; k<=order_; k++)
-  {
-     for (int j=0; j<=order_; j++)
-     {
-        for (int i=0; i<=order_-j; i++)
-	{
-	  d.Set((order_-k)*(order_-i-j), v0);
-	  d.Add((order_-k)*i, v1);
-	  d.Add((order_-k)*j, v2);
-	  d.Add(k*(order_-i-j), v3);
-	  d.Add(k*i, v4);
-	  d.Add(k*j, v5);
-	  d /= order_ * order_;
-	  d -= x;
-	  if ( d.Norml2() < nrm ) {
-	    nrm = d.Norml2();
-	    l = i; m = j; n = k; 
-	  }
-	}
+   double x0[3]; Vector v0(x0, 3);
+   double x1[3]; Vector v1(x1, 3);
+   double x2[3]; Vector v2(x2, 3);
+   double x3[3]; Vector v3(x3, 3);
+   double x4[3]; Vector v4(x4, 3);
+   double x5[3]; Vector v5(x5, 3);
+
+   pts(iphi, 0, x0);
+   pts(iphi, 1, x1);
+   pts(iphi, 2, x2);
+   if ( iphi < nphi_ - 1 )
+   {
+     pts(iphi + 1, 0, x3);
+     pts(iphi + 1, 1, x4);
+     pts(iphi + 1, 2, x5);
+   }
+   else
+   {
+     pts(0, (ns_ + 0) % 3, x3);
+     pts(0, (ns_ + 1) % 3, x4);
+     pts(0, (ns_ + 2) % 3, x5);
+   }
+
+   double dPtr[3];
+   Vector d(dPtr,3);
+
+   int l, m, n;
+   double nrm = x.Normlinf();
+   for (int k=0; k<=order_; k++)
+   {
+      for (int j=0; j<=order_; j++)
+      {
+         for (int i=0; i<=order_-j; i++)
+   {
+     d.Set((order_-k)*(order_-i-j), v0);
+     d.Add((order_-k)*i, v1);
+     d.Add((order_-k)*j, v2);
+     d.Add(k*(order_-i-j), v3);
+     d.Add(k*i, v4);
+     d.Add(k*j, v5);
+     d /= order_ * order_;
+     d -= x;
+     if ( d.Norml2() < nrm ) {
+       nrm = d.Norml2();
+       l = i; m = j; n = k;
      }
-  }
-  d.Set((order_-n)*(order_-l-m), v0);
-  d.Add((order_-n)*l, v1);
-  d.Add((order_-n)*m, v2);
-  d.Add(n*(order_-l-m), v3);
-  d.Add(n*l, v4);
-  d.Add(n*m, v5);
-  d /= order_ * order_;
-  
-  cout << iphi << " " << nrm << " " << l << " " << m << " " << n << " "; x.Print(cout); d.Print(cout);
-  p = x;
-  */
+   }
+      }
+   }
+   d.Set((order_-n)*(order_-l-m), v0);
+   d.Add((order_-n)*l, v1);
+   d.Add((order_-n)*m, v2);
+   d.Add(n*(order_-l-m), v3);
+   d.Add(n*l, v4);
+   d.Add(n*m, v5);
+   d /= order_ * order_;
+
+   cout << iphi << " " << nrm << " " << l << " " << m << " " << n << " "; x.Print(cout); d.Print(cout);
+   p = x;
+   */
 }
