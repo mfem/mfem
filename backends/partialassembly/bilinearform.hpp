@@ -44,7 +44,7 @@ protected:
 
    mutable Vector<double> x_local, y_local;
 
-   void TransferIntegrators();
+   void TransferIntegrators(mfem::Array<mfem::BilinearFormIntegrator*>& bfi);
 
    void InitRHS(const mfem::Array<int> &constraint_list,
                 mfem::Vector &mfem_x, mfem::Vector &mfem_b,

@@ -110,6 +110,10 @@ public:
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 
+   void GetParameters(BilinearFormIntegrator*& _bfi){_bfi=bfi;}
+
+   virtual const char *Name() const { return "transpose"; }
+
    virtual ~TransposeIntegrator() { if (own_bfi) { delete bfi; } }
 };
 

@@ -27,21 +27,21 @@ BilinearForm::~BilinearForm()
    for (int i = 0; i < tbfi.Size(); i++) delete tbfi[i];
 }
 
-void BilinearForm::TransferIntegrators() {
-   mfem::Array<mfem::BilinearFormIntegrator*> &dbfi = *bform->GetDBFI();
-   for (int i = 0; i < dbfi.Size(); i++)
+void BilinearForm::TransferIntegrators(mfem::Array<mfem::BilinearFormIntegrator*>& bfi) {
+   for (int i = 0; i < bfi.Size(); i++)
    {
       mfem::FiniteElementSpace* fes = bform->FESpace();
       const int order = fes->GetFE(0)->GetOrder();
       const int ir_order = 2*order + 1;
-      std::string integ_name(dbfi[i]->Name());
+      std::string integ_name(bfi[i]->Name());
       if (integ_name == "(undefined)")
       {
          MFEM_ABORT("BilinearFormIntegrator does not define Name()");
       }
       else if (integ_name == "mass")
       {
-         MassIntegrator* integ = dynamic_cast<MassIntegrator*>(dbfi[i]);
+         std::cout << "=> " << integ_name <<" Integrator transfered" << std::endl;
+         MassIntegrator* integ = dynamic_cast<MassIntegrator*>(bfi[i]);
          Coefficient* coef;
          integ->GetParameters(coef);
          if (coef) {
@@ -54,7 +54,8 @@ void BilinearForm::TransferIntegrators() {
       }
       else if (integ_name == "diffusion")
       {
-         DiffusionIntegrator* integ = dynamic_cast<DiffusionIntegrator*>(dbfi[i]);
+         std::cout << "=> " << integ_name <<" Integrator transfered" << std::endl;
+         DiffusionIntegrator* integ = dynamic_cast<DiffusionIntegrator*>(bfi[i]);
          Coefficient* coef;
          integ->GetParameters(coef);
          typename DiffusionEquation::Args args(*coef);
@@ -62,23 +63,38 @@ void BilinearForm::TransferIntegrators() {
       }
       else if (integ_name == "convection")
       {
-         ConvectionIntegrator* integ = dynamic_cast<ConvectionIntegrator*>(dbfi[i]);
+         std::cout << "=> " << integ_name <<" Integrator transfered" << std::endl;
+         ConvectionIntegrator* integ = dynamic_cast<ConvectionIntegrator*>(bfi[i]);
          VectorCoefficient* u;
          double* alpha;
          integ->GetParameters(u, alpha);
          typename DGConvectionEquation::Args args(*u, *alpha);
          AddIntegrator( new PADomainInt<DGConvectionEquation, Vector<double>>(fes, ir_order, args) );
       }
-      else if (integ_name == "dgtrace")
+      else if(integ_name=="transpose")
       {
-         DGTraceIntegrator* integ = dynamic_cast<DGTraceIntegrator*>(dbfi[i]);
-         Coefficient* rho;
-         VectorCoefficient* u;
-         double* alpha;
-         double* beta;
-         integ->GetParameters(rho, u, alpha, beta);
-         typename DGConvectionEquation::Args args(*u, *alpha, *beta);
-         AddIntegrator( new PAFaceInt<DGConvectionEquation, Vector<double>>(fes, ir_order, args) );
+         std::cout << "=> " << integ_name <<" Integrator transfered" << std::endl;
+         TransposeIntegrator* transInteg = dynamic_cast<TransposeIntegrator*>(bfi[i]);
+         BilinearFormIntegrator* bf;
+         transInteg->GetParameters(bf);
+         integ_name = bf->Name();
+         if (integ_name == "dgtrace")
+         {
+            std::cout << "==> " << integ_name <<" Integrator transfered" << std::endl;
+            DGTraceIntegrator* integ = dynamic_cast<DGTraceIntegrator*>(bf);
+            Coefficient* rho;
+            VectorCoefficient* u;
+            double* alpha;
+            double* beta;
+            integ->GetParameters(rho, u, alpha, beta);
+            typename DGConvectionEquation::Args args(*u, -(*alpha), *beta);
+            AddIntegrator( new PAFaceInt<DGConvectionEquation, Vector<double>>(fes, ir_order, args) );
+         }
+         else
+         {
+            MFEM_ABORT("Transpose BilinearFormIntegrator [Name() = " << integ_name
+                       << "] is not supported");
+         }
       }
       else
       {
@@ -150,7 +166,8 @@ bool BilinearForm::Assemble()
 {
    if (!has_assembled)
    {
-      TransferIntegrators();
+      TransferIntegrators(*bform->GetDBFI());
+      TransferIntegrators(*bform->GetFBFI());
       has_assembled = true;
    }
 

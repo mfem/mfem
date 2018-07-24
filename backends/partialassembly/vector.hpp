@@ -108,7 +108,7 @@ void Vector<T>::DoDotProduct(const PVector &x, void *result,
    const T* data_v2 = x.As<Vector<T>>().GetData();
    T& result_d = *static_cast<T*>(result);
    result_d = 0;
-   for (int i = 0; i < layout->Size(); ++i)
+   for (std::size_t i = 0; i < layout->Size(); ++i)
    {
       result_d += data_v1[i] * data_v2[i];
    }
@@ -122,12 +122,28 @@ void Vector<T>::DoAxpby(const void *a, const PVector &x,
    MFEM_ASSERT(ab_type_id == ScalarId<T>::value, "The buffer has a different type.");
    const T& va = *static_cast<const T*>(a);
    const T& vb = *static_cast<const T*>(b);
-   const T* vx = x.As<Vector<T>>().GetData();
-   const T* vy = y.As<Vector<T>>().GetData();
-   T* typed_data = GetData();
-   for (int i = 0; i < layout->Size(); ++i)
-   {
-      typed_data[i] = va * vx[i] + vb * vy[i];
+   if(va!=0.0 && vb!=0.0){
+      const T* vx = x.As<Vector<T>>().GetData();
+      const T* vy = y.As<Vector<T>>().GetData();
+      T* typed_data = GetData();
+      for (std::size_t i = 0; i < layout->Size(); ++i)
+      {
+         typed_data[i] = va * vx[i] + vb * vy[i];
+      }
+   }else if(va==0.0){
+      const T* vy = y.As<Vector<T>>().GetData();
+      T* typed_data = GetData();
+      for (std::size_t i = 0; i < layout->Size(); ++i)
+      {
+         typed_data[i] = vb * vy[i];
+      }
+   }else if(vb==0.0){
+      const T* vx = x.As<Vector<T>>().GetData();
+      T* typed_data = GetData();
+      for (std::size_t i = 0; i < layout->Size(); ++i)
+      {
+         typed_data[i] = va * vx[i];
+      }      
    }
 }
 

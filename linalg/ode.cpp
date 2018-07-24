@@ -95,9 +95,21 @@ void RK4Solver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
    int n = f->Width();
-   y.SetSize(n);
-   k.SetSize(n);
-   z.SetSize(n);
+#ifdef MFEM_USE_BACKENDS
+   const DLayout& in_layout = f->InLayout(); 
+   if (in_layout)
+   {
+      y.Resize(in_layout);
+      k.Resize(in_layout);
+      z.Resize(in_layout);
+   }
+   else
+#endif
+   {
+      y.SetSize(n);
+      k.SetSize(n);
+      z.SetSize(n);
+   }
 }
 
 void RK4Solver::Step(Vector &x, double &t, double &dt)
@@ -109,23 +121,31 @@ void RK4Solver::Step(Vector &x, double &t, double &dt)
    // -----+-------------------
    //      | 1/6  1/3  1/3  1/6
 
+   // rewritting Add and add methods would make more sense...
    f->SetTime(t);
    f->Mult(x, k); // k1
-   add(x, dt/2, k, y);
-   add(x, dt/6, k, z);
+   // add(x, dt/2, k, y);
+   y.Axpby(1.0, x, dt/2, k);
+   // add(x, dt/6, k, z);
+   z.Axpby(1.0, x, dt/6, k);
 
    f->SetTime(t + dt/2);
    f->Mult(y, k); // k2
-   add(x, dt/2, k, y);
-   z.Add(dt/3, k);
+   // add(x, dt/2, k, y);
+   y.Axpby(1.0, x, dt/2, k);
+   // z.Add(dt/3, k);
+   z.Axpby(1.0, z, dt/3, k);
 
    f->Mult(y, k); // k3
-   add(x, dt, k, y);
-   z.Add(dt/3, k);
+   // add(x, dt, k, y);
+   y.Axpby(1.0, x, dt, k);
+   // z.Add(dt/3, k);
+   z.Axpby(1.0, z, dt/3, k);
 
    f->SetTime(t + dt);
    f->Mult(y, k); // k4
-   add(z, dt/6, k, x);
+   // add(z, dt/6, k, x);
+   x.Axpby(1.0, z, dt/6, k);
    t += dt;
 }
 

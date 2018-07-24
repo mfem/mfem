@@ -235,6 +235,9 @@ public:
    TimeDependentOperator(int h, int w, double t_ = 0.0, Type type_ = EXPLICIT)
       : Operator(h, w) { t = t_; type = type_; }
 
+  TimeDependentOperator(const Operator& A, double t_ = 0.0, Type type_ = EXPLICIT)
+      : Operator(A) { t = t_; type = type_; }
+
    /// Read the currently set time.
    virtual double GetTime() const { return t; }
 

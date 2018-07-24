@@ -8,6 +8,8 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
+   tic_toc.Clear();
+   tic_toc.Start();
    // 1. Parse command-line options.
    const char *spec = "cpu";
    const char *mesh_file = "../data/star.mesh";
@@ -136,11 +138,13 @@ int main(int argc, char *argv[])
    cout << "Size of linear system: " << A.Ptr()->Height() << endl;
 
    // 10. Solve the system A X = B with CG.
-   tic_toc.Clear();
-   tic_toc.Start();
-   CG(*A.Ptr(), B, X, 1, 1000, 1e-12, 0.0);
    tic_toc.Stop();
    cout << " Initialization time: " << tic_toc.RealTime() << "s." << endl;
+   tic_toc.Clear();
+   tic_toc.Start();
+   CG(*A.Ptr(), B, X, 3, 1000, 1e-12, 0.0);
+   tic_toc.Stop();
+   cout << " Computation time: " << tic_toc.RealTime() << "s." << endl;
 
    // 11. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);

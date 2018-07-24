@@ -110,7 +110,7 @@ public:
    *  Defines the variables needed to build D for the Domain kernel
    */
    struct Args {
-      Args(VectorCoefficient& _q, double _a = 1.0, double _b = -1.0) : q(_q), a(_a), b(_b) {}
+      Args(VectorCoefficient& _q, double _a, double _b = 0.0) : q(_q), a(_a), b(_b) {}
       VectorCoefficient& q;
       double a;
       double b;
