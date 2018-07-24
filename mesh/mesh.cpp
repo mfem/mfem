@@ -1950,6 +1950,52 @@ void Mesh::FinalizeHexMesh(int generate_edges, int refine, bool fix_orientation)
    meshgen = 2;
 }
 
+void Mesh::FinalizeMixedMesh(int generate_edges, int refine,
+			     bool fix_orientation)
+{
+   FinalizeCheck();
+   CheckElementOrientation(fix_orientation);
+
+   if (NumOfBdrElements == 0)
+   {
+      GetElementToFaceTable();
+      GenerateFaces();
+      GenerateBoundaryElements();
+   }
+
+   if (refine)
+   {
+      DSTable v_to_v(NumOfVertices);
+      GetVertexToVertexTable(v_to_v);
+      MarkTetMeshForRefinement(v_to_v);
+   }
+
+   GetElementToFaceTable();
+   GenerateFaces();
+
+   CheckBdrElementOrientation();
+
+   if (generate_edges == 1)
+   {
+      el_to_edge = new Table;
+      NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+   }
+   else
+   {
+      el_to_edge = NULL;  // Not really necessary -- InitTables was called
+      bel_to_edge = NULL;
+      NumOfEdges = 0;
+   }
+
+   SetAttributes();
+
+   BaseGeom = Geometry::MIXED;
+   BaseBdrGeom = Geometry::MIXED;
+   BaseFaceGeom = Geometry::MIXED;
+
+   meshgen = 4;
+}
+
 void Mesh::FinalizeTopology()
 {
    // Requirements: the following should be defined:
@@ -10023,7 +10069,7 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
 
    bool priMesh = false;
    bool hexMesh = false;
-
+   
    // vertices
    double vc[3];
    for (int i = 0; i < mesh->GetNV(); i++)
@@ -10156,8 +10202,11 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
       }
    }
 
-   // TODO: Support mixed meshes
-   if ( hexMesh )
+   if ( hexMesh && priMesh )
+   {
+      mesh3d->FinalizeMixedMesh(1, 0, false);
+   }
+   else if ( hexMesh )
    {
       mesh3d->FinalizeHexMesh(1, 0, false);
    }
