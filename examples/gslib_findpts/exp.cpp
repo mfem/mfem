@@ -1,8 +1,4 @@
-﻿// r-adapt shape+size:
-// ./cfp -m square.mesh -qo 4
-//mpirun -np 2 p1wrapper -m RT2D.mesh -qo 8 -o 3
-// TO DO: Add checks inside wrapper for array sizes etc...
-//
+﻿//mpirun -np 2 p1wrapper -m RT2D.mesh -qo 8 -o 3
 #include "mfem.hpp"
 #include <fstream>
 #include <ctime>
@@ -145,7 +141,7 @@ int main (int argc, char *argv[])
    if (dim==3) {NR = cbrt(nsp);}
 
    int sz1 = pow(NR,dim);
-   double fx[dim*NE*sz1];
+   Vector fx(dim*NE*sz1);
    Vector dumfield(NE*sz1);
    int np;
 
@@ -158,24 +154,22 @@ int main (int argc, char *argv[])
          const IntegrationPoint &ip = ir->IntPoint(j);
         fx[np] = nodes.GetValue(i, ip, 1); 
         fx[tnp+np] =nodes.GetValue(i, ip, 2);
-        *(dumfield.GetData()+np) = pow(fx[np],2)+pow(fx[tnp+np],2);
+        dumfield[np] = pow(fx[np],2)+pow(fx[tnp+np],2);
         if (dim==3) {fx[2*tnp+np] =nodes.GetValue(i, ip, 3);
-                    *(dumfield.GetData()+np) += pow(fx[2*tnp+np],2);}
-//        cout << i << " " << j << " " <<  fx[np] << " " << fx[tnp+np] << " k10a\n";
+                    dumfield[np] += pow(fx[2*tnp+np],2);}
         np = np+1;
       }
    }
 
    findpts_gslib *gsfl=NULL;
-   gsfl = new findpts_gslib(pfespace,pmesh,quad_order);
+   gsfl = new findpts_gslib(MPI_COMM_WORLD);
+   gsfl->gslib_findpts_setup(pfespace,pmesh,quad_order);
 
-// random vector in domain 
-// generate points by r,s,t
+// generate random points by r,s,t
    int llim = 100;
    int nlim = NE*llim;
    double xmn = 0,xmx=1,ymn=0,ymx=1,zmn=0,zmx=1; //Domain extent
    double mnv,mxv,dlv;
-   Vector vrxa(nlim),vrya(nlim),vrza(nlim);
    Vector rrxa(nlim),rrya(nlim),rrza(nlim);
    Vector vxyz(nlim*dim);
 
@@ -189,20 +183,15 @@ int main (int argc, char *argv[])
         rrxa[np] = ipt.x;
         rrya[np] = ipt.y;
         if (dim==3) {rrza[np] = ipt.z;}
-        vrxa[np] = nodes.GetValue(i, ipt, 1); 
-        vrya[np] = nodes.GetValue(i, ipt, 2);
-        if (dim==3) {vrza[np] = nodes.GetValue(i, ipt, 3);}
-        vxyz[np] = vrxa[np];
-        vxyz[np+NE*llim] = vrya[np];
-        if (dim==3) {vxyz[np+2*NE*llim] = vrza[np];}
-//        cout << i << " " << j << " " <<  vrxa[np] << " " << vrya[np] << " k10b\n";
+        vxyz[np] = nodes.GetValue(i, ipt, 1);
+        vxyz[np+nlim] = nodes.GetValue(i, ipt, 2);
+        if (dim==3) {vxyz[np+2*nlim] = nodes.GetValue(i, ipt, 3);}
         np = np+1;
       }
    }
 
 
-   int nxyz;
-   nxyz = vrxa.Size();
+   int nxyz = nlim;
 
    if (myid==0) {cout << "Num procs: " << num_procs << " \n";}
    if (myid==0) {cout << "Points per proc: " << nxyz << " \n";}
@@ -215,7 +204,6 @@ int main (int argc, char *argv[])
    Vector pr(nxyz*dim);
    Vector pd(nxyz);
    int start_s=clock();
-//   gsfl->gslib_findpts(&pcode,&pproc,&pel,&pr,&pd,&vrxa,&vrya,&vrza,nxyz);
    gsfl->gslib_findpts(&pcode,&pproc,&pel,&pr,&pd,&vxyz,nxyz);
    MPI_Barrier(MPI_COMM_WORLD);
    int stop_s=clock();
@@ -240,8 +228,8 @@ int main (int argc, char *argv[])
    for (it = 0; it < nxyz; it++)
    {
     if (pcode[it] < 2) {
-    double val = pow(vrxa[it],2)+pow(vrya[it],2);
-    if (dim==3) val += pow(vrza[it],2);
+    double val = pow(vxyz[it],2)+pow(vxyz[it+nlim],2);
+    if (dim==3) val += pow(vxyz[it+2*nlim],2);
     double delv = abs(val-fout[it]);
     double rxe = abs(rrxa[it] - 0.5*pr[it*dim+0]-0.5);
     double rye = abs(rrya[it] - 0.5*pr[it*dim+1]-0.5);
@@ -259,7 +247,6 @@ int main (int argc, char *argv[])
     cout <<  val << " " << fout[it] << " k10s\n";
      }
     if (delvr > 1.e-10) {
-//    cout << rrxa[it] << " " << rrya[it] << " " << vrxa[it] << " " << vrya[it] << " k10e\n";
       }
    }
    else

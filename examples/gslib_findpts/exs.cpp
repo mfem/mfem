@@ -1,11 +1,8 @@
-﻿// r-adapt shape+size:
-// ./cfp -m square.mesh -qo 4
-// ./s1wrapper -m RT2D.mesh -qo 8 -o 3
-// TO DO: Add checks inside wrapper for array sizes etc...
+﻿// ./s1wrapper -m RT2D.mesh -qo 8 -o 3
 //
 #include "mfem.hpp"
 extern "C" {
-# include "3rd_party/gslib/src/cpp/findpts_h.h"
+# include "gslib/src/cpp/findpts_h.h"
 }
 
 #include <fstream>
@@ -139,10 +136,9 @@ int main (int argc, char *argv[])
    int NR = sqrt(nsp);
    if (dim==3) {NR = cbrt(nsp);}
 
-   int sz1 = NR*NR;
-   if (dim==3) {sz1 *= NR;}
-   double fx[dim*NE*sz1];
-   double dumfield[NE*sz1];
+   int sz1 = pow(NR,dim);
+   Vector fx(dim*NE*sz1);
+   Vector dumfield(NE*sz1);
    int np;
 
    np = 0;
@@ -152,7 +148,7 @@ int main (int argc, char *argv[])
       for (int j = 0; j < nsp; j++)
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
-        fx[np] = nodes.GetValue(i, ip, 1); 
+        fx[np] = nodes.GetValue(i, ip, 1);
         fx[tnp+np] =nodes.GetValue(i, ip, 2);
         dumfield[np] = pow(fx[np],2)+pow(fx[tnp+np],2);
         if (dim==3) {fx[2*tnp+np] =nodes.GetValue(i, ip, 3);
@@ -161,93 +157,95 @@ int main (int argc, char *argv[])
       }
    }
 
-//kkkk
    findpts_gslib *gsfl=NULL;
-   gsfl = new findpts_gslib(fespace,mesh,quad_order);
-   gsfl->gslib_findpts_setup(0.05,1.e-12,256);
+   gsfl = new findpts_gslib();
+   gsfl->gslib_findpts_setup(fespace,mesh,quad_order);
 
-// random vector in domain 
-   int nlim = 5000;
-   double xmn = 0,xmx=0.5,ymn=-1,ymx=1,zmn=0,zmx=0.5;
+// generate random points by r,s,t
+   int llim = 100;
+   int nlim = NE*llim;
+   double xmn = 0,xmx=1,ymn=0,ymx=1,zmn=0,zmx=1; //Domain extent
    double mnv,mxv,dlv;
-   Vector vrxv(nlim),vryv(nlim),vrzv(nlim);
-   vrxv.Randomize();
-   vryv.Randomize();
-   vrzv.Randomize();
-   mnv = vrxv.Min();
-   vrxv -= mnv;
-   mxv = vrxv.Max();
-   vrxv *= 1./mxv;
-   dlv = xmx-xmn;
-   vrxv *= dlv;
-   vrxv -= -xmn;
+   Vector rrxa(nlim),rrya(nlim),rrza(nlim);
+   Vector vxyz(nlim*dim);
 
-   mnv = vryv.Min();
-   vryv -= mnv;
-   mxv = vryv.Max();
-   vryv *= 1./mxv;
-   dlv = ymx-ymn;
-   vryv *= dlv;
-   vryv -= -ymn;
+   np = 0;
+   IntegrationPoint ipt;
+   for (int i = 0; i < NE; i++)
+   {
+      for (int j = 0; j < llim; j++)
+      {
+        Geometries.GetRandomPoint(fespace->GetFE(i)->GetGeomType(),ipt);
+        rrxa[np] = ipt.x;
+        rrya[np] = ipt.y;
+        if (dim==3) {rrza[np] = ipt.z;}
+        vxyz[np] = nodes.GetValue(i, ipt, 1);
+        vxyz[np+nlim] = nodes.GetValue(i, ipt, 2);
+        if (dim==3) {vxyz[np+2*nlim] = nodes.GetValue(i, ipt, 3);}
+        np = np+1;
+      }
+   }
 
-   mnv = vrzv.Min();
-   vrzv -= mnv;
-   mxv = vrzv.Max();
-   vrzv *= 1./mxv;
-   dlv = zmx-zmn;
-   vrzv *= dlv;
-   vrzv -= -zmn;
-
-  double *vrx = new double[nlim];
-  double *vry = new double[nlim];
-  double *vrz = new double[nlim];
-  int nxyz;
-  vrx = vrxv.GetData();
-  vry = vryv.GetData();
-  vrz = vrzv.GetData();
-  nxyz = vrxv.Size();
+   int nxyz = nlim;
 
   if (myid==0) {cout << "Total Points to be found: " << nxyz << " \n";}
 
-    uint pcode[nxyz];
-    uint pproc[nxyz];
-    uint pel[nxyz];
-    double pr[nxyz*dim];
-    double pd[nxyz];
-    double fout[nxyz];
-    int start_s=clock();
-    gsfl->gslib_findpts(pcode,pproc,pel,pr,pd,vrx,vry,vrz,nxyz);
-    int stop_s=clock();
-    if (myid==0) {cout << "findpts order: " << NR << " \n";}
-    if (myid==0) {cout << "findpts time (sec): " << (stop_s-start_s)/1000000. << endl;}
-// FINDPTS_EVAL
-    start_s=clock();
-    gsfl->gslib_findpts_eval(fout,pcode,pproc,pel,pr,dumfield,nxyz);
-    stop_s=clock();
-    if (myid==0) {cout << "findpts_eval time (sec): " << (stop_s-start_s)/1000000. << endl;}
-    gsfl->gslib_findpts_free();
+   Array<uint> pel(nxyz);
+   Array<uint> pcode(nxyz);
+   Array<uint> pproc(nxyz);
+   Vector pr(nxyz*dim);
+   Vector pd(nxyz);
+   int start_s=clock();
+//   gsfl->gslib_findpts(&pcode,&pproc,&pel,&pr,&pd,&vrxa,&vrya,&vrza,nxyz);
+   gsfl->gslib_findpts(&pcode,&pproc,&pel,&pr,&pd,&vxyz,nxyz);
+   int stop_s=clock();
+   if (myid==0) {cout << "findpts order: " << NR << " \n";}
+   if (myid==0) {cout << "findpts time (sec): " << (stop_s-start_s)/1000000. << endl;}
 
-    int it;
-    int nbp = 0;
-    int nnpt = 0;
-    int nerrh = 0;
-    double maxv = -100.;
-    for (it = 0; it < nxyz; it++)
-    {
+// FINDPTS_EVAL
+   Vector fout(nxyz);
+   start_s=clock();
+   gsfl->gslib_findpts_eval(&fout,&pcode,&pproc,&pel,&pr,&dumfield,nxyz);
+   stop_s=clock();
+   if (myid==0) {cout << "findpts_eval time (sec): " << (stop_s-start_s)/1000000. << endl;}
+   gsfl->gslib_findpts_free();
+
+   int nbp = 0;
+   int nnpt = 0;
+   int nerrh = 0;
+   double maxv = -100.;
+   double maxvr = -100.;
+   int it;
+   for (it = 0; it < nxyz; it++)
+   {
     if (pcode[it] < 2) {
-    double val = pow(vrx[it],2)+pow(vry[it],2);
-    if (dim==3) val += pow(vrz[it],2);
+    double val = pow(vxyz[it],2)+pow(vxyz[it+nlim],2);
+    if (dim==3) val += pow(vxyz[it+2*nlim],2);
     double delv = abs(val-fout[it]);
+    double rxe = abs(rrxa[it] - 0.5*pr[it*dim+0]-0.5);
+    double rye = abs(rrya[it] - 0.5*pr[it*dim+1]-0.5);
+    double rze = abs(rrza[it] - 0.5*pr[it*dim+2]-0.5);
+    double delvr =  ( rxe < rye ) ? rye : rxe;
+    if (dim==3) {delvr = ( ( delvr < rze ) ? rze : delvr );}
     if (delv > maxv) {maxv = delv;}
+    if (delvr > maxvr) {maxvr = delvr;}
     if (pcode[it] == 1) {nbp += 1;}
-    if (delv > 1.e-10) {nerrh += 1;}
-//    cout << it << " " << vrx[it] << " " << vry[it] << " " << fout[it] << " k10a\n";
-    }
-    else
-    {
-     nnpt += 1;
-    }
-    }
+    if (delvr > 1.e-10) {nerrh += 1;}
+    if (delvr > 1.e-10) {
+    cout << rrxa[it] << " " << pr[it*dim] << " " << rrya[it] << " " << pr[it*dim+1] <<  " " << delvr << " k10r\n";
+      }
+    if (delv > 1.e-10) {
+    cout <<  val << " " << fout[it] << " k10s\n";
+     }
+    if (delvr > 1.e-10) {
+//    cout << rrxa[it] << " " << rrya[it] << " " << vrxa[it] << " " << vrya[it] << " k10e\n";
+      }
+   }
+   else
+   {
+    nnpt += 1;
+   }
+   }
   double glob_maxerr=maxv;
   int glob_nnpt=nnpt;
   int glob_nbp=nbp;
