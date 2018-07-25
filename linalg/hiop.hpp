@@ -27,7 +27,7 @@ namespace mfem
 class HiopNlpOptimizer : public IterativeSolver
 {
 public:
-  HiopNlpOptimizer() {}; 
+  HiopNlpOptimizer() {}
 #ifdef MFEM_USE_MPI
   HiopNlpOptimizer(MPI_Comm _comm);
 #endif
