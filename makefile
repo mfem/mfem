@@ -372,7 +372,7 @@ $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 # Rules for compiling all RTC source files.
 # WARNING: the input file needs to be in last position
 $(OBJECT_RTC_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
-	okrtc $(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c -o $(@) -I/home/camier1/home/okrtc/include $(<)
+	okrtc $(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c -o $(@) -I/home/camier1/home/okrtc/include -I$(realpath $(dir $(<))) $(<)
 
 all: examples miniapps
 
