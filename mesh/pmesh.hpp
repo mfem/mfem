@@ -95,57 +95,6 @@ protected:
 
    bool WantSkipSharedMaster(const NCMesh::Master &master) const;
 
-   int FindSharedFaces(const Mesh &mesh, const int* partition,
-                       Array<int>& face_group,
-                       ListOfIntegerSets& groups);
-
-   int FindSharedEdges(const Mesh &mesh, const int* partition,
-                       Table*& edge_element, ListOfIntegerSets& groups);
-
-   int FindSharedVertices(const Mesh &mesh, const int *partition,
-                          Table* vertex_element,
-                          ListOfIntegerSets& groups);
-
-   void BuildFaceGroup(int ngroups, const Array<int>& face_group,
-                       Table& group_sface);
-
-   void BuildEdgeGroup(int ngroups, const Table& edge_element,
-                       Table& group_sedge);
-
-   void BuildVertexGroup(int ngroups, const Table& vert_element,
-                         Table& group_svert);
-
-   void BuildSharedFaceElems(int nfaces, const Mesh& mesh,
-                             int* partitioning,
-                             STable3D* faces_tbl,
-                             Array<int>& face_group,
-                             Array<int>& vert_global_local);
-
-   void BuildSharedEdgeElems(int nedges, Mesh& mesh,
-                             Array<int>& vert_global_local,
-                             Table* edge_element);
-
-   void BuildSharedVertMapping(int nvert, Table* vert_element,
-                               Array<int>& vert_global_local);
-
-   int BuildVertGlobalLocal(Mesh& mesh, int* partitioning,
-                            Array<int>& vert_global_local);
-
-   /// fills out partitioned Mesh::vertices
-   int BuildLocalVertices(const Mesh& global_mesh, const int* partitioning,
-                          Array<int>& vert_global_local);
-
-   /// fills out partitioned Mesh::elements
-   int BuildLocalElements(const Mesh& global_mesh, const int* partitioning,
-                          const Array<int>& vert_global_local);
-
-   /// fills out partitioned Mesh::boundary
-   int BuildLocalBoundary(const Mesh& global_mesh, const int* partitioning,
-                          const Array<int>& vert_global_local,
-                          Array<bool>& activeBdrElem,
-                          Table*& edge_element);
-
-
 public:
    /** Copy constructor. Performs a deep copy of (almost) all data, so that the
        source mesh can be modified (e.g. deleted, refined) without affecting the

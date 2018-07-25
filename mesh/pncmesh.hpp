@@ -95,39 +95,11 @@ public:
    int GetNGhostFaces() const { return NGhostFaces; }
    int GetNGhostElements() const { return NGhostElements; }
 
-   /** Return a list of vertices shared by this processor and at least one other
-       processor. (NOTE: only NCList::conforming will be set.) */
-   const NCList& GetSharedVertices()
-   {
-      if (shared_vertices.Empty())
-      {
-         MakeShared(vertex_group, GetVertexList(), shared_vertices);
-      }
-      return shared_vertices;
-   }
-
-   /** Return a list of edges shared by this processor and at least one other
-       processor. (NOTE: this is a subset of the NCMesh::edge_list; slaves are
-       empty.) */
-   const NCList& GetSharedEdges()
-   {
-      if (shared_edges.Empty())
-      {
-         MakeShared(edge_group, GetEdgeList(), shared_edges);
-      }
-      return shared_edges;
-   }
-
-   /** Return a list of faces shared by this processor and another processor.
-       (NOTE: this is a subset of NCMesh::face_list; slaves are empty.) */
-   const NCList& GetSharedFaces()
-   {
-      if (shared_faces.Empty())
-      {
-         MakeShared(face_group, GetFaceList(), shared_faces);
-      }
-      return shared_faces;
-   }
+   // Return a list of vertices/edges/faces shared by this processor and at
+   // least one other processor. These are subsets of NCMesh::<entity>_list. */
+   const NCList& GetSharedVertices() { GetVertexList(); return shared_vertices; }
+   const NCList& GetSharedEdges() { GetEdgeList(); return shared_edges; }
+   const NCList& GetSharedFaces() { GetFaceList(); return shared_faces; }
 
    /// Helper to get shared vertices/edges/faces ('entity' == 0/1/2 resp.).
    const NCList& GetSharedList(int entity)
@@ -150,39 +122,40 @@ public:
    typedef std::vector<int> CommGroup;
 
    /// Return vertex/edge/face ('entity' == 0/1/2, resp.) owner.
-   GroupId GetOwnerId(int entity, int index) const
+   GroupId GetEntityOwnerId(int entity, int index)
    {
-      switch (entity)
+      MFEM_ASSERT(entity >= 0 && entity < 3, "");
+      MFEM_ASSERT(index >= 0, "");
+      if (!entity_owner[entity].Size())
       {
-         case 0: return vertex_owner[index];
-         case 1: return edge_owner[index];
-         default: return face_owner[index];
+         GetSharedList(entity);
       }
+      return entity_owner[entity][index];
    }
 
-   /// Return the communication group ID for a vertex/edge/face.
-   GroupId GetGroupId(int entity, int index) const
+   /** Return the P matrix communication group ID for a vertex/edge/face.
+       The groups are calculated specifically to match the P matrix
+       construction algorithm and its communication pattern. */
+   GroupId GetEntityGroupId(int entity, int index)
    {
-      switch (entity)
+      MFEM_ASSERT(entity >= 0 && entity < 3, "");
+      MFEM_ASSERT(index >= 0, "");
+      if (!entity_pmat_group[entity].Size())
       {
-         case 0: return vertex_group[index];
-         case 1: return edge_group[index];
-         default: return face_group[index];
+         CalculatePMatrixGroups();
       }
+      return entity_pmat_group[entity][index];
    }
 
    /// Return a list of ranks contained in the group of the given ID.
    const CommGroup& GetGroup(GroupId id) const
    {
+      MFEM_ASSERT(id >= 0, "");
       return groups[id];
    }
 
    /// Return true if group 'id' contains the given rank.
    bool GroupContains(GroupId id, int rank) const;
-
-   /// Make sure comm groups of master edges and faces contain all ranks
-   /// necessary to communicate master DOFs correctly.
-   void AugmentMasterGroups();
 
    /// Return true if the specified vertex/edge/face is a ghost.
    bool IsGhost(int entity, int index) const
@@ -267,18 +240,15 @@ protected:
    GroupList groups;  // comm group list; NOTE: groups[0] = { MyRank }
    GroupMap group_id; // search index over groups
 
-   // group and owner Id for each vertex, edge and face
-   Array<GroupId> vertex_group, edge_group, face_group;
-   Array<GroupId> vertex_owner, edge_owner, face_owner; // NOTE: singleton groups
+   // owner rank for each vertex, edge and face (encoded as singleton groups)
+   Array<GroupId> entity_owner[3];
+   // P matrix comm pattern groups for each vertex, edge and face (0/1/2)
+   Array<GroupId> entity_pmat_group[3];
 
    // lists of vertices/edges/faces shared by us and at least one more processor
-   NCList shared_vertices;
-   NCList shared_edges;
-   NCList shared_faces;
+   NCList shared_vertices, shared_edges, shared_faces;
 
    Array<char> face_orient; // see CalcFaceOrientations
-
-   bool groups_augmented; // was AugmentMasterGroups called?
 
    /** Type of each leaf element:
          1 - our element (rank == MyRank),
@@ -315,10 +285,6 @@ protected:
    virtual void AssignLeafIndices();
    virtual void OnMeshUpdated(Mesh *mesh);
 
-   GroupId GetGroupId(const CommGroup &group);
-   GroupId JoinGroups(GroupId g1, GroupId g2);
-   GroupId GetSingletonGroup(int rank);
-
    virtual void BuildFaceList();
    virtual void BuildEdgeList();
    virtual void BuildVertexList();
@@ -327,25 +293,26 @@ protected:
    virtual void ElementSharesEdge(int elem, int enode);
    virtual void ElementSharesVertex(int elem, int vnode);
 
-   void InitOwners(int num, Array<GroupId> &entity_owner);
-   void InitGroups(int num, Array<GroupId> &entity_group);
+   GroupId GetGroupId(const CommGroup &group);
+   GroupId GetSingletonGroup(int rank);
 
-   void BuildSharedVertices();
+   Array<int> tmp_owner; // temporary
+   Array<char> tmp_shared_flag; // temporary
+   Array<Connection> entity_index_rank[3]; // temporary
+
+   void InitOwners(int num, Array<GroupId> &entity_owner);
+   void MakeSharedList(const NCList &list, NCList &shared);
+
+   void AddConnections(int entity, int index, const Array<int> &ranks);
+   void CalculatePMatrixGroups();
+   void CreateGroups(int nentities, Array<Connection> &index_rank,
+                     Array<GroupId> &entity_group);
 
    static int get_face_orientation(Face &face, Element &e1, Element &e2,
                                    int local[2] = NULL /* optional output */);
    void CalcFaceOrientations();
 
    void UpdateLayers();
-
-   Array<int> tmp_owner; // temporary
-   Array<Connection> index_rank; // temporary
-
-   void AddMasterSlaveConnections(int nitems, const NCList& list);
-   void AddMasterSlaveConnections(const NCList& list, int entity);
-   void GetGroupShared(Array<bool> &group_shared);
-   void MakeShared(const Array<GroupId> &entity_group,
-                   const NCList &list, NCList &shared);
 
    /** Uniquely encodes a set of leaf elements in the refinement hierarchy of
        an NCMesh. Can be dumped to a stream, sent to another processor, loaded,
