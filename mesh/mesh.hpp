@@ -248,13 +248,13 @@ protected:
                         int *edge1, int *edge2, int *middle)
    { Bisection(i, v_to_v, edge1, edge2, middle); }
 
-   /// Bisection. Element with index @a i is bisected.
+   /// Bisect a triangle: element with index @a i is bisected.
    void Bisection(int i, const DSTable &, int *, int *, int *);
 
-   /// Bisection. Element with index @a i is bisected.
+   /// Bisect a tetrahedron: element with index @a i is bisected.
    void Bisection(int i, HashTable<Hashed2> &);
 
-   /// Boundary bisection. Boundary element with index @a i is bisected.
+   /// Bisect a boundary triangle: boundary element with index @a i is bisected.
    void BdrBisection(int i, const HashTable<Hashed2> &);
 
    /** Uniform Refinement. Element with index i is refined uniformly. */
