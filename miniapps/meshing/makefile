@@ -21,7 +21,8 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = mobius-strip klein-bottle mesh-explorer shaper mesh-optimizer
+SEQ_MINIAPPS = mobius-strip klein-bottle prismatic-torus \
+	mesh-explorer shaper mesh-optimizer
 PAR_MINIAPPS = pmesh-optimizer
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -72,11 +73,13 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ mobius-strip klein-bottle mesh-explorer shaper
+	rm -f *.o *~ mobius-strip klein-bottle prismatic-torus
+	rm -r mesh-explorer shaper
 	rm -f mesh-optimizer pmesh-optimizer
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
 	@rm -f mobius-strip.mesh klein-bottle.mesh mesh-explorer.mesh
+	@rm -f prismatic-torus-o*.mesh hexagonal-torus-o*.mesh
 	@rm -f partitioning.txt shaper.mesh
 	@rm -f optimized* perturbed*
