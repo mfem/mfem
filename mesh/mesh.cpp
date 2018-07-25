@@ -764,13 +764,13 @@ FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
    return tr;
 }
 
-void Mesh::GetFaceElements(int Face, int *Elem1, int *Elem2) const
+void Mesh::GetFaceElements(int Face, int *Elem1, int *Elem2)
 {
    *Elem1 = faces_info[Face].Elem1No;
    *Elem2 = faces_info[Face].Elem2No;
 }
 
-void Mesh::GetFaceInfos(int Face, int *Inf1, int *Inf2) const
+void Mesh::GetFaceInfos(int Face, int *Inf1, int *Inf2)
 {
    *Inf1 = faces_info[Face].Elem1Inf;
    *Inf2 = faces_info[Face].Elem2Inf;
@@ -4422,8 +4422,8 @@ void Mesh::GenerateNCFaceInfo()
       slave_fi.NCFace = nc_faces_info.Size();
       nc_faces_info.Append(NCFaceInfo(true, slave.master, &slave.point_matrix));
 
-      // slave_fi.Elem2No = master_fi.Elem1No;
-      // slave_fi.Elem2Inf = 64 * master_nc.MasterFace; // get lf no. stored above
+      slave_fi.Elem2No = master_fi.Elem1No;
+      slave_fi.Elem2Inf = 64 * master_nc.MasterFace; // get lf no. stored above
       // NOTE: orientation part of Elem2Inf is encoded in the point matrix
    }
 }
@@ -6176,7 +6176,7 @@ bool Mesh::DerefineByError(const Vector &elem_error, double threshold,
 }
 
 
-STable3D* Mesh::InitFromNCMesh(const NCMesh &ncmesh)
+void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
 {
    Dim = ncmesh.Dimension();
    spaceDim = ncmesh.SpaceDimension();
@@ -6213,18 +6213,14 @@ STable3D* Mesh::InitFromNCMesh(const NCMesh &ncmesh)
       el_to_edge = new Table;
       NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
    }
-
-   STable3D *faces_tbl = NULL;
    if (Dim > 2)
    {
-      faces_tbl = GetElementToFaceTable(1);
+      GetElementToFaceTable();
    }
    GenerateFaces();
 #ifdef MFEM_DEBUG
    CheckBdrElementOrientation(false);
 #endif
-
-   return faces_tbl;
 
    // NOTE: ncmesh->OnMeshUpdated() and GenerateNCFaceInfo() should be called
    // outside after this method.
