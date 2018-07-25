@@ -45,6 +45,8 @@ examples/ex[1-9]
 examples/ex[1-9]p
 examples/ex1[04-9]
 examples/ex1[0-9]p
+examples/ex20
+examples/ex20p
 
 examples/refined.mesh
 examples/displaced.mesh
@@ -76,6 +78,10 @@ examples/vortex-?-init.*
 examples/vortex-?-final.*
 examples/deformation.*
 examples/pressure.*
+examples/ex20.dat
+examples/ex20p_?????.dat
+examples/gnuplot_ex20.inp
+examples/gnuplot_ex20p.inp
 
 examples/sundials/ex9
 examples/sundials/ex1[06]

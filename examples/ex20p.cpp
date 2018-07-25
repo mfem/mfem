@@ -4,64 +4,63 @@
 //
 // Sample runs:  mpirun -np 4 ex20p
 //
-// Description: This example demonstrates the use of the variable
-//              order, symplectic ODE integration algorithm.
-//              Symplectic integration algorithms are designed to
-//              conserve energy when integrating, in time, systems of
-//              ODEs which are derived from Hamiltonain systems.
+// Description: This example demonstrates the use of the variable order,
+//              symplectic ODE integration algorithm.  Symplectic integration
+//              algorithms are designed to conserve energy when integrating, in
+//              time, systems of ODEs which are derived from Hamiltonian
+//              systems.
 //
-//              Hamiltonian systems define the energy of a system as a
-//              function of time (t), a set of generalized coordinates
-//              (q), and their corresponding generalized momenta (p).
+//              Hamiltonian systems define the energy of a system as a function
+//              of time (t), a set of generalized coordinates (q), and their
+//              corresponding generalized momenta (p).
+//
 //                 H(q,p,t) = T(p) + V(q,t)
-//              Hamilton's equations then specify how q and p evolve
-//              in time:
+//
+//              Hamilton's equations then specify how q and p evolve in time:
+//
 //                 dq/dt =  dH/dp
 //                 dp/dt = -dH/dq
-//              To use the symplectic integration classes we need to
-//              define an mfem::Operator P which evaluates the action
-//              of dH/dp, and an mfem::TimeDependentOperator F which
-//              computes -dH/dq.
+//
+//              To use the symplectic integration classes we need to define an
+//              mfem::Operator P which evaluates the action of dH/dp, and an
+//              mfem::TimeDependentOperator F which computes -dH/dq.
 //
 //              This example offers five simple 1D Hamiltonians:
-//                 0) Simple Harmonic Oscillator (mass on a spring)
-//                    H = ( p^2 / m + q^2 / k ) / 2
-//                 1) Pendulum
-//                    H = ( p^2 / m - k ( 1 - cos(q) ) ) / 2
-//                 2) Gaussian Potential Well
-//                    H = ( p^2 / m ) / 2 - k exp(-q^2 / 2)
-//                 3) Quartic Potential
-//                    H = ( p^2 / m + k ( 1 + q^2 ) q^2 ) / 2
-//                 4) Negative Quartic Potential
-//                    H = ( p^2 / m + k ( 1 - q^2 /8 ) q^2 ) / 2
-//              In all cases these Hamiltonians are shifted by constant
-//              values so that the energy will remain positive.
+//              0) Simple Harmonic Oscillator (mass on a spring)
+//                 H = ( p^2 / m + q^2 / k ) / 2
+//              1) Pendulum
+//                 H = ( p^2 / m - k ( 1 - cos(q) ) ) / 2
+//              2) Gaussian Potential Well
+//                 H = ( p^2 / m ) / 2 - k exp(-q^2 / 2)
+//              3) Quartic Potential
+//                 H = ( p^2 / m + k ( 1 + q^2 ) q^2 ) / 2
+//              4) Negative Quartic Potential
+//                 H = ( p^2 / m + k ( 1 - q^2 /8 ) q^2 ) / 2
 //
-//              When run in parallel the same Hamiltonian system is
-//              evolved on each processor but starting from different
-//              initial conditions.  The mean and standard deviation
-//              of the computed energies at each time step are
-//              displayed upon completion.
+//              In all cases these Hamiltonians are shifted by constant values
+//              so that the energy will remain positive. The mean and standard
+//              deviation of the computed energies at each time step are
+//              displayed upon completion. When run in parallel the same
+//              Hamiltonian system is evolved on each processor but starting
+//              from different initial conditions.
 //
-//              We then use GLVis to visualize the results in a
-//              non-standard way by defining the axes to be q, p, and
-//              t rather than x, y, and z.  In this space we build a
-//              ribbon-like mesh on each processor with nodes at
-//              (0,0,t) and (q,p,t).  When these ribbons are bonded
-//              together on the t-axis they resemble a Rotini pasta.
-//              Finally we plot the energy as a function of time as a
-//              scalar field on this Rotini-like mesh.
+//              We then use GLVis to visualize the results in a non-standard way
+//              by defining the axes to be q, p, and t rather than x, y, and z.
+//              In this space we build a ribbon-like mesh on each processor with
+//              nodes at (0,0,t) and (q,p,t).  When these ribbons are bonded
+//              together on the t-axis they resemble a Rotini pasta.  Finally we
+//              plot the energy as a function of time as a scalar field on this
+//              Rotini-like mesh.
 //
-//              For a more traditional plot of the results, including
-//              q, p, and H from each processor, can be obtained by
-//              selecting the "-gp" option.  This creates a collection
-//              of data files and an input deck for the GnuPlot
-//              application (not included with MFEM).  To visualize
-//              these results on most linux systems type the command
+//              For a more traditional plot of the results, including q, p, and
+//              H from each processor, can be obtained by selecting the "-gp"
+//              option. This creates a collection of data files and an input
+//              deck for the GnuPlot application (not included with MFEM). To
+//              visualize these results on most linux systems type the command
 //              "gnuplot gnuplot_ex20p.inp". The data files, named
-//              "ex20p_?????.dat", should be simple enough to display
-//              with other plotting programs as well.
-//
+//              "ex20p_?????.dat", should be simple enough to display with other
+//              plotting programs as well.
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -81,20 +80,14 @@ class GradT : public Operator
 {
 public:
    GradT() : Operator(1) {}
-
    void Mult(const Vector &x, Vector &y) const { y.Set(1.0/m_, x); }
-
-private:
 };
 
 class NegGradV : public TimeDependentOperator
 {
 public:
    NegGradV() : TimeDependentOperator(1) {}
-
    void Mult(const Vector &x, Vector &y) const;
-
-private:
 };
 
 int main(int argc, char *argv[])
@@ -130,12 +123,11 @@ int main(int argc, char *argv[])
    args.AddOption(&m_, "-m", "--mass",
                   "Mass.");
    args.AddOption(&k_, "-k", "--spring-const",
-                  "Spring Constant.");
+                  "Spring constant.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&gnuplot, "-gp", "--gnuplot", "-no-gp",
-                  "--no-gnuplot",
+   args.AddOption(&gnuplot, "-gp", "--gnuplot", "-no-gp", "--no-gnuplot",
                   "Enable or disable GnuPlot visualization.");
    args.Parse();
    if (!args.Good())
@@ -154,15 +146,12 @@ int main(int argc, char *argv[])
 
    // 3. Create and Initialize the Symplectic Integration Solver
    SIAVSolver siaSolver(order);
-
    GradT    P;
    NegGradV F;
-
    siaSolver.Init(P,F);
 
    // 4. Set the initial conditions
    double t = 0.0;
-
    Vector q(1), p(1);
    Vector e(nsteps+1);
    q(0) = sin(2.0*M_PI*(double)myid/num_procs);
@@ -171,7 +160,7 @@ int main(int argc, char *argv[])
    // 5. Prepare GnuPlot output file if needed
    ostringstream oss;
    ofstream ofs;
-   if ( gnuplot )
+   if (gnuplot)
    {
       oss << "ex20p_" << setfill('0') << setw(5) << myid << ".dat";
       ofs.open(oss.str().c_str());
@@ -179,11 +168,11 @@ int main(int argc, char *argv[])
    }
 
    // 6. Create a Mesh for visualization in phase space
-   int nverts = (visualization)?(num_procs+1)*(nsteps+1):0;
-   int nelems = (visualization)?(nsteps * num_procs):0;
+   int nverts = (visualization) ? (num_procs+1)*(nsteps+1) : 0;
+   int nelems = (visualization) ? (nsteps * num_procs) : 0;
    Mesh mesh(2, nverts, nelems, 0, 3);
 
-   int * part = (visualization)?(new int[nelems]):NULL;
+   int   *part = (visualization) ? (new int[nelems]) : NULL;
    int    v[4];
    Vector x0(3); x0 = 0.0;
    Vector x1(3); x1 = 0.0;
@@ -191,18 +180,18 @@ int main(int argc, char *argv[])
    // 7. Perform time-stepping
    double e_mean = 0.0;
 
-   for (int i=0; i<nsteps; i++)
+   for (int i = 0; i < nsteps; i++)
    {
       // 7a. Record initial state
-      if ( i == 0 )
+      if (i == 0)
       {
          e[0] = hamiltonian(q(0),p(0),t);
          e_mean += e[0];
 
-         if ( visualization )
+         if (visualization)
          {
             mesh.AddVertex(x0);
-            for (int j=0; j<num_procs; j++)
+            for (int j = 0; j < num_procs; j++)
             {
                x1[0] = q(0);
                x1[1] = p(0);
@@ -214,22 +203,21 @@ int main(int argc, char *argv[])
 
       // 7b. Advance the state of the system
       siaSolver.Step(q,p,t,dt);
-
       e[i+1] = hamiltonian(q(0),p(0),t);
       e_mean += e[i+1];
 
       // 7c. Record the state of the system
-      if ( gnuplot )
+      if (gnuplot)
       {
          ofs << t << "\t" << q(0) << "\t" << p(0) << "\t" << e[i+1] << endl;
       }
 
       // 7d. Add results to GLVis visualization
-      if ( visualization )
+      if (visualization)
       {
          x0[2] = t;
          mesh.AddVertex(x0);
-         for (int j=0; j<num_procs; j++)
+         for (int j = 0; j < num_procs; j++)
          {
             x1[0] = q(0);
             x1[1] = p(0);
@@ -248,20 +236,20 @@ int main(int argc, char *argv[])
    // 8. Compute and display mean and standard deviation of the energy
    e_mean /= (nsteps + 1);
    double e_var = 0.0;
-   for (int i=0; i<=nsteps; i++)
+   for (int i = 0; i <= nsteps; i++)
    {
       e_var += pow(e[i] - e_mean, 2);
    }
    e_var /= (nsteps + 1);
    double e_sd = sqrt(e_var);
 
-   if ( myid == 0 )
+   if (myid == 0)
    {
       cout << endl << "Mean and standard deviation of the energy" << endl;
    }
-   for (int i=0; i<num_procs; i++)
+   for (int i = 0; i < num_procs; i++)
    {
-      if ( myid == i )
+      if (myid == i)
       {
          cout << myid << ": " << e_mean << "\t" << e_sd << endl;
       }
@@ -269,24 +257,24 @@ int main(int argc, char *argv[])
    }
 
    // 9. Finalize the GnuPlot output
-   if ( gnuplot )
+   if (gnuplot)
    {
       ofs.close();
-      if ( myid == 0 )
+      if (myid == 0)
       {
          ofs.open("gnuplot_ex20p.inp");
-         for (int i=0; i<num_procs; i++)
+         for (int i = 0; i < num_procs; i++)
          {
             ostringstream ossi;
             ossi << "ex20p_" << setfill('0') << setw(5) << i << ".dat";
-            if ( i == 0 )
+            if (i == 0)
             {
                ofs << "plot";
             }
             ofs << " '" << ossi.str() << "' using 1:2 w l t 'q" << i << "',"
                 << " '" << ossi.str() << "' using 1:3 w l t 'p" << i << "',"
                 << " '" << ossi.str() << "' using 1:4 w l t 'H" << i << "'";
-            if ( i < num_procs-1 )
+            if (i < num_procs-1)
             {
                ofs << ",";
             }
@@ -300,7 +288,7 @@ int main(int argc, char *argv[])
    }
 
    // 10. Finalize the GLVis output
-   if ( visualization )
+   if (visualization)
    {
       mesh.FinalizeQuadMesh(1);
       ParMesh pmesh(comm, mesh, part);
@@ -310,8 +298,7 @@ int main(int argc, char *argv[])
       ParFiniteElementSpace fespace(&pmesh, &fec);
       ParGridFunction energy(&fespace);
       energy = 0.0;
-
-      for (int i=0; i<=nsteps; i++)
+      for (int i = 0; i <= nsteps; i++)
       {
          energy[2*i+0] = e[i];
          energy[2*i+1] = e[i];
@@ -354,8 +341,7 @@ double hamiltonian(double q, double p, double t)
    return h;
 }
 
-void
-NegGradV::Mult(const Vector &x, Vector &y) const
+void NegGradV::Mult(const Vector &x, Vector &y) const
 {
    switch (prob_)
    {
