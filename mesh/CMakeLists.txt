@@ -18,6 +18,7 @@ set(SRCS
   ncmesh.cpp
   nurbs.cpp
   point.cpp
+  prism.cpp
   quadrilateral.cpp
   segment.cpp
   tetrahedron.cpp
@@ -34,6 +35,7 @@ set(HDRS
   ncmesh.hpp
   nurbs.hpp
   point.hpp
+  prism.hpp
   quadrilateral.hpp
   segment.hpp
   tetrahedron.hpp
