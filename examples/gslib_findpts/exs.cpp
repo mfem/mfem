@@ -97,18 +97,11 @@ int main (int argc, char *argv[])
    //    changing x automatically changes the shapes of the mesh elements.
    GridFunction *x = mesh->GetNodes();
 
-   // 9. Save the starting (prior to the optimization) mesh to a file. This
-   //    output can be viewed later using GLVis: "glvis -m perturbed.mesh".
-   {
-      ofstream mesh_ofs("perturbed.mesh");
-      mesh->Print(mesh_ofs);
-   }
-
-   // 10. Store the starting (prior to the optimization) positions.
+   // 8. Store the starting (prior to the optimization) positions.
    GridFunction x0(fespace);
    x0 = *x;
 
-   // 12. Setup the quadrature rule for the non-linear form integrator.
+   // 9. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
    const int geom_type = fespace->GetFE(0)->GetGeomType();
    int quad_eval = quad_order;
@@ -125,7 +118,7 @@ int main (int argc, char *argv[])
    }
    if (myid==0) {cout << "Quadrature points per cell: " << ir->GetNPoints() << endl;}
 
-   // 11. write out all dofs
+   // 10. write out all dofs
    const int NE = fespace->GetMesh()->GetNE(),
    dof = fespace->GetFE(0)->GetDof(), nsp = ir->GetNPoints();
    

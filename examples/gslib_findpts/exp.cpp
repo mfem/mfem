@@ -102,22 +102,11 @@ int main (int argc, char *argv[])
    x.SetTrueVector();
    x.SetFromTrueVector();
 
-   // 10. Save the starting (prior to the optimization) mesh to a file. This
-   //     output can be viewed later using GLVis: "glvis -m perturbed -np
-   //     num_mpi_tasks".
-   {
-      ostringstream mesh_name;
-      mesh_name << "perturbed." << setfill('0') << setw(6) << myid;
-      ofstream mesh_ofs(mesh_name.str().c_str());
-      mesh_ofs.precision(8);
-      pmesh->Print(mesh_ofs);
-   }
-
-   // 11. Store the starting (prior to the optimization) positions.
+   // 8. Store the starting (prior to the optimization) positions.
    ParGridFunction x0(pfespace);
    x0 = x;
 
-   // 12. Setup the quadrature rule for the non-linear form integrator.
+   // 9. Setup the quadrature rule for the non-linear form integrator.
    const IntegrationRule *ir = NULL;
    const int geom_type = pfespace->GetFE(0)->GetGeomType();
    if (quad_order > 4) 
