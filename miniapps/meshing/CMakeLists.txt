@@ -29,6 +29,10 @@ add_mfem_miniapp(mesh-optimizer
   MAIN mesh-optimizer.cpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(prismatic-torus
+  MAIN prismatic-torus.cpp
+  LIBRARIES mfem)
+
 # Add serial tests.
 add_test(NAME mesh-optimizer
   COMMAND mesh-optimizer -no-vis -m ${CMAKE_CURRENT_SOURCE_DIR}/icf.mesh)
