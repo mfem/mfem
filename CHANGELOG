@@ -11,6 +11,13 @@
 Version 3.4.1 (development)
 ===========================
 
+New and updated examples and miniapps
+-------------------------------------
+
+- Added a new serial and parallel example (ex20) that solves 1D ordinary
+  differential equations derived from a Hamiltonian. The example
+  demonstrates the use of the variable order, symplectic integration algorithm
+  implemented in SIAVSolver.
 
 Version 3.4, released on May 29, 2018
 =====================================
