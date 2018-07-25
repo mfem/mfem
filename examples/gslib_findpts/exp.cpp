@@ -246,8 +246,6 @@ int main (int argc, char *argv[])
     if (delv > 1.e-10) {
     cout <<  val << " " << fout[it] << " k10s\n";
      }
-    if (delvr > 1.e-10) {
-      }
    }
    else
    {

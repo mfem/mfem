@@ -42,11 +42,6 @@ endif
 
 all: $(EXAMPLES)
 
-ifeq ($(MFEM_USE_GSLIB_FPT),NO)
-$(EXAMPLES):
-	$(error MFEM is not configured with GSLIB_FPT)
-endif
-
 MFEM_TESTS = EXAMPLES
 include $(MFEM_TEST_MK)
 
