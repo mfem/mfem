@@ -1,4 +1,4 @@
-﻿// ./s1wrapper -m RT2D.mesh -qo 8 -o 3
+﻿// ./exs -m RT2D.mesh -qo 8 -o 3
 //
 #include "mfem.hpp"
 extern "C" {

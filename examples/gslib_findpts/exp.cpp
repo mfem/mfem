@@ -1,4 +1,4 @@
-﻿//mpirun -np 2 p1wrapper -m RT2D.mesh -qo 8 -o 3
+﻿//mpirun -np 2 exp -m RT2D.mesh -qo 8 -o 3
 #include "mfem.hpp"
 #include <fstream>
 #include <ctime>
