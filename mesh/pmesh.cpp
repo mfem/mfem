@@ -1221,46 +1221,9 @@ int ParMesh::GetEdgeSplittings(Element *edge, const DSTable &v_to_v,
 // 2 - the face was refined twice by splitting v[0],v[1] and then v[1],v[2]
 // 3 - the face was refined twice by splitting v[0],v[1] and then v[0],v[2]
 // 4 - the face was refined three times (as in 2+3)
-int ParMesh::GetFaceSplittings(Element *face, const DSTable &v_to_v,
-                               int *middle)
-{
-   int m, right = 0;
-   int number_of_splittings = 0;
-   int *v = face->GetVertices();
-
-   if ((m = v_to_v(v[0], v[1])) != -1 && middle[m] != -1)
-   {
-      number_of_splittings++;
-      if ((m = v_to_v(v[1], v[2])) != -1 && middle[m] != -1)
-      {
-         right = 1;
-         number_of_splittings++;
-      }
-      if ((m = v_to_v(v[2], v[0])) != -1 && middle[m] != -1)
-      {
-         number_of_splittings++;
-      }
-
-      switch (number_of_splittings)
-      {
-         case 2:
-            if (right == 0)
-            {
-               number_of_splittings++;
-            }
-            break;
-         case 3:
-            number_of_splittings++;
-            break;
-      }
-   }
-
-   return number_of_splittings;
-}
-
 int ParMesh::GetFaceSplittings(Element *face, const HashTable<Hashed2> &v_to_v)
 {
-   int m, right = 0;
+   int right = 0;
    int number_of_splittings = 0;
    int *v = face->GetVertices();
 
@@ -2169,16 +2132,11 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
          uniform_refinement = 1;
       }
 
-      // 1. Get table of vertex to vertex connections.
-//      DSTable v_to_v(NumOfVertices);
-//      GetVertexToVertexTable(v_to_v);
+      // 1. Hash table of vertex to vertex connections corresponding to refined
+      //    edges.
       HashTable<Hashed2> v_to_v;
 
-      // 2. Create a marker array for all edges (vertex to vertex connections).
-//      Array<int> middle(v_to_v.NumberOfEntries());
-//      middle = -1;
-
-      // 3. Do the red refinement.
+      // 2. Do the red refinement.
       switch (type)
       {
          case 1:
@@ -2213,7 +2171,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
             break;
       }
 
-      // 4. Do the green refinement (to get conforming mesh).
+      // 3. Do the green refinement (to get conforming mesh).
       int need_refinement;
       int refined_edge[5][3] =
       {
@@ -2322,7 +2280,6 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
                      if (ii == -1)
                      {
                         need_refinement = 1;
-                        //middle[ii] = NumOfVertices++;
                         ii = v_to_v.GetId(ind[0],ind[1]);
                         vertices.Append(Vertex());
                         AverageVertices(ind, 2, vertices.Size()-1);
@@ -2356,7 +2313,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       delete [] face_splittings;
 
 
-      // 5. Update the boundary elements.
+      // 4. Update the boundary elements.
       do
       {
          need_refinement = 0;
@@ -2379,7 +2336,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 
       DeleteLazyTables();
 
-      // 5a. Update the groups after refinement.
+      // 5. Update the groups after refinement.
       if (el_to_face != NULL)
       {
          RefineGroups(v_to_v);
@@ -2388,23 +2345,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       }
       NumOfVertices = vertices.Size();
 
-      // 6. Un-mark the Pf elements.
-//      int refinement_edges[2], type, flag;
-//      for (i = 0; i < NumOfElements; i++)
-//      {
-//         Tetrahedron* el = (Tetrahedron*) elements[i];
-//         el->ParseRefinementFlag(refinement_edges, type, flag);
-//
-//         if (type == Tetrahedron::TYPE_PF)
-//         {
-//            el->CreateRefinementFlag(refinement_edges, Tetrahedron::TYPE_PU,
-//                                     flag);
-//         }
-//      }
-
-      // 7. Free the allocated memory.
-      //middle.DeleteAll();
-
+      // 6. Update element-to-edge relations.
       if (el_to_edge != NULL)
       {
          NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
@@ -3070,7 +3011,7 @@ void ParMesh::RefineGroups(const HashTable<Hashed2> &v_to_v)
          ind = v_to_v.FindId(v[0], v[1]);
          if (ind != -1)
          {
-        	ind += NumOfVertices;
+            ind += NumOfVertices;
             // add a vertex
             group_verts.Append(svert_lvert.Append(ind)-1);
             // update the edges
@@ -3088,7 +3029,7 @@ void ParMesh::RefineGroups(const HashTable<Hashed2> &v_to_v)
          ind = v_to_v.FindId(v[0], v[1]);
          if (ind != -1)
          {
-        	ind += NumOfVertices;
+            ind += NumOfVertices;
             attr = shared_faces[group_faces[i]]->GetAttribute();
             // add the refinement edge
             shared_edges.Append(new Segment(v[2], ind, attr));
@@ -3164,7 +3105,7 @@ void ParMesh::RefineGroups(const HashTable<Hashed2> &v_to_v)
 
    // Fix the local numbers of shared edges and faces
    {
-	   NumOfVertices = vertices.Size();
+      NumOfVertices = vertices.Size();
       DSTable new_v_to_v(NumOfVertices);
       GetVertexToVertexTable(new_v_to_v);
       for (i = 0; i < shared_edges.Size(); i++)
