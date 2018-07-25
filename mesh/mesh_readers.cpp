@@ -1391,12 +1391,14 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
        (retval = nc_inq_dim(ncid, id, str_dummy, &num_elem)) ||
 
        (retval = nc_inq_dimid(ncid, "num_el_blk", &id)) ||
-       (retval = nc_inq_dim(ncid, id, str_dummy, &num_el_blk)) ||
-
-       (retval = nc_inq_dimid(ncid, "num_side_sets", &id)) ||
-       (retval = nc_inq_dim(ncid, id, str_dummy, &num_side_sets)))
+       (retval = nc_inq_dim(ncid, id, str_dummy, &num_el_blk)))
    {
       MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(retval));
+   }
+   if ((retval = nc_inq_dimid(ncid, "num_side_sets", &id)) ||
+       (retval = nc_inq_dim(ncid, id, str_dummy, &num_side_sets)))
+   {
+      num_side_sets = 0;
    }
 
    Dim = num_dim;
@@ -1454,10 +1456,10 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
       FACE_TRI3,
       FACE_TRI6,
       FACE_QUAD4,
-      FACE_QUAD9,
+      FACE_QUAD9
    };
 
-   CubitElementType cubit_element_type;
+   CubitElementType cubit_element_type = ELEMENT_TRI3; // suppress a warning
    CubitFaceType cubit_face_type;
    int num_element_linear_nodes;
 
@@ -1538,6 +1540,10 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
                        " node 3D element\n");
          }
       }
+   }
+   else
+   {
+      MFEM_ABORT("Invalid dimension: num_dim = " << num_dim);
    }
 
    // Determine order of elements
@@ -1633,8 +1639,9 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    }
 
    int *ssprop = new int[num_side_sets];
-   if ((retval = nc_inq_varid(ncid, "ss_prop1", &id)) ||
-       (retval = nc_get_var_int(ncid, id, ssprop)))
+   if ((num_side_sets > 0) &&
+       ((retval = nc_inq_varid(ncid, "ss_prop1", &id)) ||
+        (retval = nc_get_var_int(ncid, id, ssprop))))
    {
       MFEM_ABORT("Fatal NetCDF error: " << nc_strerror(retval));
    }
