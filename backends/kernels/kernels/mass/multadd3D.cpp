@@ -19,12 +19,12 @@
 void rMassMultAdd3D(const int NUM_DOFS_1D,
                     const int NUM_QUAD_1D,
                     const int numElements,
-                    const double* dofToQuad,
-                    const double* dofToQuadD,
-                    const double* quadToDof,
-                    const double* quadToDofD,
-                    const double* oper,
-                    const double* solIn,
+                    const double* __restrict__ dofToQuad,
+                    const double* __restrict__ dofToQuadD,
+                    const double* __restrict__ quadToDof,
+                    const double* __restrict__ quadToDofD,
+                    const double* __restrict__ oper,
+                    const double* __restrict__ solIn,
                     double* __restrict__ solOut)
 {
 #ifndef __LAMBDA__

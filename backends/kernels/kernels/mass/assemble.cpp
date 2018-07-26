@@ -28,7 +28,7 @@ void rMassAssemble(const int dim,
                    const double* quadWeights,
                    const double* J,
                    const double COEFF,
-                   double* __restrict oper)
+                   double* oper)
 {
    push(Lime);
    //assert(false);

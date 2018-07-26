@@ -316,12 +316,12 @@ KERNELS_SRC_DIRS := 	\
 	$(KERNELS_BACKEND_DIR)/general \
 	$(KERNELS_BACKEND_DIR)/kernels/blas \
 	$(KERNELS_BACKEND_DIR)/kernels/diffusion \
-	$(KERNELS_BACKEND_DIR)/kernels/mass \
 	$(KERNELS_BACKEND_DIR)/linalg
 #	$(KERNELS_BACKEND_DIR)/kernels/quad
 
 # KERNELS that'll be compiled at runtime
 KERNELS_RTC_DIRS = 	\
+	$(KERNELS_BACKEND_DIR)/kernels/mass \
 	$(KERNELS_BACKEND_DIR)/kernels/geom \
 	$(KERNELS_BACKEND_DIR)/kernels/mapping \
 	$(KERNELS_BACKEND_DIR)/kernels/force

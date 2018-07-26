@@ -32,7 +32,7 @@ void rMassMultAdd2S(
    const double* __restrict__ quadToDofD,
    const double* __restrict__ oper,
    const double* __restrict__ solIn,
-   double* __restrict__ solOut)
+   double* solOut)
 {
    const int NUM_QUAD_2D = NUM_QUAD_1D*NUM_QUAD_1D;
    const int NUM_QUAD_DOFS_1D = (NUM_QUAD_1D * NUM_DOFS_1D);

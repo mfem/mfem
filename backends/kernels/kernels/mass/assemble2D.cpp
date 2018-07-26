@@ -20,8 +20,8 @@ extern "C" kernel
 void rMassAssemble2D0(const int numElements,
                       const int NUM_QUAD_2D,
                       const double COEFF,
-                      const double* quadWeights,
-                      const double* J,
+                      const double* __restrict quadWeights,
+                      const double* __restrict J,
                       double* __restrict oper)
 {
 #ifndef __LAMBDA__
@@ -53,7 +53,7 @@ void rMassAssemble2D(const int numElements,
                      const double COEFF,
                      const double* quadWeights,
                      const double* J,
-                     double* __restrict oper)
+                     double* oper)
 {
    push(Lime);
    cuKer(rMassAssemble2D,numElements,NUM_QUAD_2D,COEFF,quadWeights,J,oper);

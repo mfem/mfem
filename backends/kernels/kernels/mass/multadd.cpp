@@ -38,7 +38,7 @@ void rMassMultAdd(const int DIM,
                   const double* quadToDofD,
                   const double* op,
                   const double* x,
-                  double* __restrict__ y)
+                  double* y)
 {
    dbg("\033[7mrMassMultAdd");
 #ifndef __LAMBDA__
