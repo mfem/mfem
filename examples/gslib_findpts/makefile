@@ -77,6 +77,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f ex9.mesh ex9-mesh.* ex9-init.* ex9-final.* Example9*
-	@rm -f deformed.* velocity.* elastic_energy.*
-	@rm -f ex16.mesh ex16-mesh.* ex16-init.* ex16-final.* Example16*
+	@rm -f perturbed.*
