@@ -70,11 +70,11 @@ void Pentatope::GetPointMatrix(unsigned transform, DenseMatrix &pm)
    b[0] = 1.0, b[1] = 0.0, b[2] = 0.0, b[3] = 0.0;
    c[0] = 0.0, c[1] = 1.0, c[2] = 0.0, c[3] = 0.0;
    d[0] = 0.0, d[1] = 0.0, d[2] = 1.0, d[3] = 0.0;
-   e[0] = 0.0, e[1] = 0.0, e[2] = 0.0, d[3] = 1.0;
+   e[0] = 0.0, e[1] = 0.0, e[2] = 0.0, e[3] = 1.0;
 
-#define ASGN(a, b) (a[0] = b[0], a[1] = b[1], a[2] = b[2])
-#define SWAP(a, b) for (int i = 0; i < 3; i++) { std::swap(a[i], b[i]); }
-#define AVG(a, b, c) for (int i = 0; i < 3; i++) { a[i] = (b[i]+c[i])*0.5; }
+#define ASGN(a, b) (a[0] = b[0], a[1] = b[1], a[2] = b[2], a[3] = b[3])
+#define SWAP(a, b) for (int i = 0; i < 4; i++) { std::swap(a[i], b[i]); }
+#define AVG(a, b, c) for (int i = 0; i < 4; i++) { a[i] = (b[i]+c[i])*0.5; }
 
    double f[4], g[4];
    switch(transform)

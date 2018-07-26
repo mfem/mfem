@@ -202,7 +202,7 @@ void NodalFiniteElement::NodalLocalInterpolation (
    ElementTransformation &Trans, DenseMatrix &I,
    const NodalFiniteElement &fine_fe) const
 {
-   double v[3];
+   double v[4];
    Vector vv (v, Dim);
    IntegrationPoint f_ip;
 
