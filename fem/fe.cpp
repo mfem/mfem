@@ -9006,7 +9006,7 @@ void H1Pos_TetrahedronElement::CalcDShape(const IntegrationPoint &ip,
 }
 
 
-H1_PrismElement::H1_PrismElement(const int p,
+H1_WedgeElement::H1_WedgeElement(const int p,
                                  const int btype)
    : NodalFiniteElement(3, Geometry::PRISM, ((p + 1)*(p + 1)*(p + 2))/2,
                         p, FunctionSpace::Qk),
@@ -9106,7 +9106,7 @@ H1_PrismElement::H1_PrismElement(const int p,
    }
 }
 
-void H1_PrismElement::CalcShape(const IntegrationPoint &ip,
+void H1_WedgeElement::CalcShape(const IntegrationPoint &ip,
                                 Vector &shape) const
 {
 #ifdef MFEM_THREAD_SAFE
@@ -9125,7 +9125,7 @@ void H1_PrismElement::CalcShape(const IntegrationPoint &ip,
    }
 }
 
-void H1_PrismElement::CalcDShape(const IntegrationPoint &ip,
+void H1_WedgeElement::CalcDShape(const IntegrationPoint &ip,
                                  DenseMatrix &dshape) const
 {
 #ifdef MFEM_THREAD_SAFE
@@ -9151,7 +9151,7 @@ void H1_PrismElement::CalcDShape(const IntegrationPoint &ip,
 }
 
 
-H1Pos_PrismElement::H1Pos_PrismElement(const int p)
+H1Pos_WedgeElement::H1Pos_WedgeElement(const int p)
    : PositiveFiniteElement(3, Geometry::PRISM,
                            ((p + 1)*(p + 1)*(p + 2))/2, p, FunctionSpace::Qk),
      TriangleFE(p),
@@ -9249,7 +9249,7 @@ H1Pos_PrismElement::H1Pos_PrismElement(const int p)
    }
 }
 
-void H1Pos_PrismElement::CalcShape(const IntegrationPoint &ip,
+void H1Pos_WedgeElement::CalcShape(const IntegrationPoint &ip,
                                    Vector &shape) const
 {
 #ifdef MFEM_THREAD_SAFE
@@ -9268,7 +9268,7 @@ void H1Pos_PrismElement::CalcShape(const IntegrationPoint &ip,
    }
 }
 
-void H1Pos_PrismElement::CalcDShape(const IntegrationPoint &ip,
+void H1Pos_WedgeElement::CalcDShape(const IntegrationPoint &ip,
                                     DenseMatrix &dshape) const
 {
 #ifdef MFEM_THREAD_SAFE
@@ -10197,7 +10197,7 @@ void L2Pos_TetrahedronElement::ProjectDelta(int vertex, Vector &dofs) const
 }
 
 
-L2_PrismElement::L2_PrismElement(const int p, const int type)
+L2_WedgeElement::L2_WedgeElement(const int p, const int type)
    : NodalFiniteElement(3, Geometry::PRISM, ((p + 1)*(p + 1)*(p + 2))/2,
                         p, FunctionSpace::Qk),
      TriangleFE(p, type),
@@ -10240,7 +10240,7 @@ L2_PrismElement::L2_PrismElement(const int p, const int type)
    }
 }
 
-void L2_PrismElement::CalcShape(const IntegrationPoint &ip,
+void L2_WedgeElement::CalcShape(const IntegrationPoint &ip,
                                 Vector &shape) const
 {
 #ifdef MFEM_THREAD_SAFE
@@ -10259,7 +10259,7 @@ void L2_PrismElement::CalcShape(const IntegrationPoint &ip,
    }
 }
 
-void L2_PrismElement::CalcDShape(const IntegrationPoint &ip,
+void L2_WedgeElement::CalcDShape(const IntegrationPoint &ip,
                                  DenseMatrix &dshape) const
 {
 #ifdef MFEM_THREAD_SAFE
@@ -10285,7 +10285,7 @@ void L2_PrismElement::CalcDShape(const IntegrationPoint &ip,
 }
 
 
-L2Pos_PrismElement::L2Pos_PrismElement(const int p)
+L2Pos_WedgeElement::L2Pos_WedgeElement(const int p)
    : PositiveFiniteElement(3, Geometry::PRISM,
                            ((p + 1)*(p + 1)*(p + 2))/2, p, FunctionSpace::Qk),
      TriangleFE(p),
@@ -10328,7 +10328,7 @@ L2Pos_PrismElement::L2Pos_PrismElement(const int p)
    }
 }
 
-void L2Pos_PrismElement::CalcShape(const IntegrationPoint &ip,
+void L2Pos_WedgeElement::CalcShape(const IntegrationPoint &ip,
                                    Vector &shape) const
 {
 #ifdef MFEM_THREAD_SAFE
@@ -10347,7 +10347,7 @@ void L2Pos_PrismElement::CalcShape(const IntegrationPoint &ip,
    }
 }
 
-void L2Pos_PrismElement::CalcDShape(const IntegrationPoint &ip,
+void L2Pos_WedgeElement::CalcDShape(const IntegrationPoint &ip,
                                     DenseMatrix &dshape) const
 {
 #ifdef MFEM_THREAD_SAFE

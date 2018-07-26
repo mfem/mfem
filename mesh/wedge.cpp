@@ -9,14 +9,14 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-// Implementation of class Prism
+// Implementation of class Wedge
 
 #include "mesh_headers.hpp"
 
 namespace mfem
 {
 
-Prism::Prism(const int *ind, int attr)
+Wedge::Wedge(const int *ind, int attr)
    : Element(Geometry::PRISM)
 {
    attribute = attr;
@@ -28,7 +28,7 @@ Prism::Prism(const int *ind, int attr)
    // transform = 0;
 }
 
-Prism::Prism(int ind1, int ind2, int ind3, int ind4, int ind5, int ind6,
+Wedge::Wedge(int ind1, int ind2, int ind3, int ind4, int ind5, int ind6,
              int attr)
    : Element(Geometry::PRISM)
 {
@@ -43,12 +43,12 @@ Prism::Prism(int ind1, int ind2, int ind3, int ind4, int ind5, int ind6,
    // transform = 0;
 }
 /*
-void Prism::ParseRefinementFlag(int refinement_edges[2], int &type,
+void Wedge::ParseRefinementFlag(int refinement_edges[2], int &type,
             int &flag)
 {
    int i, f = refinement_flag;
 
-   MFEM_VERIFY(f != 0, "prism is not marked");
+   MFEM_VERIFY(f != 0, "wedge is not marked");
 
    for (i = 0; i < 2; i++)
    {
@@ -59,7 +59,7 @@ void Prism::ParseRefinementFlag(int refinement_edges[2], int &type,
    flag = (f >> 3);
 }
 
-void Prism::CreateRefinementFlag(int refinement_edges[2], int type,
+void Wedge::CreateRefinementFlag(int refinement_edges[2], int type,
                                        int flag)
 {
    // Check for correct type
@@ -70,45 +70,45 @@ void Prism::CreateRefinementFlag(int refinement_edges[2], int type,
    // if (e1 > e2)  e1 = e2, e2 = refinement_edges[0];
    switch (type)
    {
-      case Prism::TYPE_PU:
+      case Wedge::TYPE_PU:
          if (e1 == 2 && e2 == 1) { break; }
          // if (e1 == 3 && e2 == 4) break;
-         mfem_error("Error in Prism::CreateRefinementFlag(...) #1");
+         mfem_error("Error in Wedge::CreateRefinementFlag(...) #1");
          break;
-      case Prism::TYPE_A:
+      case Wedge::TYPE_A:
          if (e1 == 3 && e2 == 1) { break; }
          if (e1 == 2 && e2 == 4) { break; }
          // if (flag == 0)  // flag is assumed to be the generation
          //   if (e2 == 5)
          //      if (e1 >= 1 && e1 <= 5) break; // type is actually O or M
          //                                     //   ==>  ok for generation = 0
-         mfem_error("Error in Prism::CreateRefinementFlag(...) #2");
+         mfem_error("Error in Wedge::CreateRefinementFlag(...) #2");
          break;
-      case Prism::TYPE_PF:
+      case Wedge::TYPE_PF:
          if (flag > 0)  // PF is ok only for generation > 0
          {
             if (e1 == 2 && e2 == 1) { break; }
             // if (e1 == 3 && e2 == 4) break;
          }
-         mfem_error("Error in Prism::CreateRefinementFlag(...) #3");
+         mfem_error("Error in Wedge::CreateRefinementFlag(...) #3");
          break;
-      case Prism::TYPE_O:
+      case Wedge::TYPE_O:
          if (flag == 0 && e1 == 5 && e2 == 5)
          {
             break;
          }
-         mfem_error("Error in Prism::CreateRefinementFlag(...) #4");
+         mfem_error("Error in Wedge::CreateRefinementFlag(...) #4");
          break;
-      case Prism::TYPE_M:
+      case Wedge::TYPE_M:
          if (flag == 0)
          {
             if (e1 == 5 && e2 == 1) { break; }
             if (e1 == 2 && e2 == 5) { break; }
          }
-         mfem_error("Error in Prism::CreateRefinementFlag(...) #5");
+         mfem_error("Error in Wedge::CreateRefinementFlag(...) #5");
          break;
       default:
-         mfem_error("Error in Prism::CreateRefinementFlag(...) #6");
+         mfem_error("Error in Wedge::CreateRefinementFlag(...) #6");
          break;
    }
 #endif
@@ -125,7 +125,7 @@ void Prism::CreateRefinementFlag(int refinement_edges[2], int type,
    refinement_flag |= refinement_edges[0];
 }
 
-void Prism::GetMarkedFace(const int face, int *fv)
+void Wedge::GetMarkedFace(const int face, int *fv)
 {
    int re[2], type, flag, *tv = this->indices;
    ParseRefinementFlag(re, type, flag);
@@ -156,7 +156,7 @@ void Prism::GetMarkedFace(const int face, int *fv)
    }
 }
 
-int Prism::NeedRefinement(DSTable &v_to_v, int *middle) const
+int Wedge::NeedRefinement(DSTable &v_to_v, int *middle) const
 {
    int m;
 
@@ -175,7 +175,7 @@ int Prism::NeedRefinement(DSTable &v_to_v, int *middle) const
    return 0;
 }
 */
-void Prism::SetVertices(const int *ind)
+void Wedge::SetVertices(const int *ind)
 {
    for (int i = 0; i < 6; i++)
    {
@@ -183,7 +183,7 @@ void Prism::SetVertices(const int *ind)
    }
 }
 /*
-void Prism::MarkEdge(const DSTable &v_to_v, const int *length)
+void Wedge::MarkEdge(const DSTable &v_to_v, const int *length)
 {
    int ind[4], i, j, l, L, type;
 
@@ -241,20 +241,20 @@ void Prism::MarkEdge(const DSTable &v_to_v, const int *length)
       case 2:
          switch (ind[1])
          {
-            case 1:  type = Prism::TYPE_PU; break;
-            case 4:  type = Prism::TYPE_A;  break;
+            case 1:  type = Wedge::TYPE_PU; break;
+            case 4:  type = Wedge::TYPE_A;  break;
             case 5:
-            default: type = Prism::TYPE_M;
+            default: type = Wedge::TYPE_M;
          }
          break;
       case 3:
          switch (ind[1])
          {
-            case 1:  type = Prism::TYPE_A;  break;
-            case 4:  type = Prism::TYPE_PU;
+            case 1:  type = Wedge::TYPE_A;  break;
+            case 4:  type = Wedge::TYPE_PU;
                j = 1; ind[0] = 2; ind[1] = 1; break;
             case 5:
-            default: type = Prism::TYPE_M;
+            default: type = Wedge::TYPE_M;
                j = 1; ind[0] = 5; ind[1] = 1;
          }
          break;
@@ -262,11 +262,11 @@ void Prism::MarkEdge(const DSTable &v_to_v, const int *length)
       default:
          switch (ind[1])
          {
-            case 1:  type = Prism::TYPE_M;  break;
-            case 4:  type = Prism::TYPE_M;
+            case 1:  type = Wedge::TYPE_M;  break;
+            case 4:  type = Wedge::TYPE_M;
                j = 1; ind[0] = 2; ind[1] = 5; break;
             case 5:
-            default: type = Prism::TYPE_O;
+            default: type = Wedge::TYPE_O;
          }
    }
 
@@ -281,7 +281,7 @@ void Prism::MarkEdge(const DSTable &v_to_v, const int *length)
 */
 /*
 // static method
-void Prism::GetPointMatrix(unsigned transform, DenseMatrix &pm)
+void Wedge::GetPointMatrix(unsigned transform, DenseMatrix &pm)
 {
    double *a = &pm(0,0), *b = &pm(0,1), *c = &pm(0,2), *d = &pm(0,3);
 
@@ -323,7 +323,7 @@ void Prism::GetPointMatrix(unsigned transform, DenseMatrix &pm)
    }
 }
 */
-void Prism::GetVertices(Array<int> &v) const
+void Wedge::GetVertices(Array<int> &v) const
 {
    v.SetSize(6);
    for (int i = 0; i < 6; i++)
@@ -332,12 +332,12 @@ void Prism::GetVertices(Array<int> &v) const
    }
 }
 /*
-Element *Prism::Duplicate(Mesh *m) const
+Element *Wedge::Duplicate(Mesh *m) const
 {
 #ifdef MFEM_USE_MEMALLOC
-   Prism *pri = m->PriMemory.Alloc();
+   Wedge *pri = m->PriMemory.Alloc();
 #else
-   Prism *pri = new Prism;
+   Wedge *pri = new Wedge;
 #endif
    pri->SetVertices(indices);
    pri->SetAttribute(attribute);
@@ -345,6 +345,6 @@ Element *Prism::Duplicate(Mesh *m) const
    return pri;
 }
 */
-BiLinear3DFiniteElement PrismFE;
+BiLinear3DFiniteElement WedgeFE;
 
 }

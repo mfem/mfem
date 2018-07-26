@@ -39,7 +39,7 @@ public:
    /// Constants for the classes derived from Element.
    enum Type { INVALID = -2, MIXED = -1, POINT, SEGMENT,
                TRIANGLE, QUADRILATERAL,
-               TETRAHEDRON, PRISM, HEXAHEDRON
+               TETRAHEDRON, WEDGE, HEXAHEDRON
              };
 
    /// Default element constructor.

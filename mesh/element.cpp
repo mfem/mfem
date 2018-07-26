@@ -30,7 +30,7 @@ Geometry::Type Element::GeometryType(Element::Type type)
          return Geometry::SQUARE;
       case Element::TETRAHEDRON:
          return Geometry::TETRAHEDRON;
-      case Element::PRISM:
+      case Element::WEDGE:
          return Geometry::PRISM;
       case Element::HEXAHEDRON:
          return Geometry::CUBE;

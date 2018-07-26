@@ -542,7 +542,7 @@ LinearFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
       case Geometry::TRIANGLE:    return &TriangleFE;
       case Geometry::SQUARE:      return &QuadrilateralFE;
       case Geometry::TETRAHEDRON: return &TetrahedronFE;
-      case Geometry::PRISM:       return &PrismFE;
+      case Geometry::PRISM:       return &WedgeFE;
       case Geometry::CUBE:        return &ParallelepipedFE;
       default:
          mfem_error ("LinearFECollection: unknown geometry type.");
@@ -584,7 +584,7 @@ QuadraticFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
       case Geometry::TRIANGLE:    return &TriangleFE;
       case Geometry::SQUARE:      return &QuadrilateralFE;
       case Geometry::TETRAHEDRON: return &TetrahedronFE;
-      case Geometry::PRISM:       return &PrismFE;
+      case Geometry::PRISM:       return &WedgeFE;
       case Geometry::CUBE:        return &ParallelepipedFE;
       default:
          mfem_error ("QuadraticFECollection: unknown geometry type.");
@@ -665,7 +665,7 @@ CubicFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
       case Geometry::TRIANGLE:    return &TriangleFE;
       case Geometry::SQUARE:      return &QuadrilateralFE;
       case Geometry::TETRAHEDRON: return &TetrahedronFE;
-      case Geometry::PRISM:       return &PrismFE;
+      case Geometry::PRISM:       return &WedgeFE;
       case Geometry::CUBE:        return &ParallelepipedFE;
       default:
          mfem_error ("CubicFECollection: unknown geometry type.");
@@ -1217,7 +1217,7 @@ Const3DFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
    switch (GeomType)
    {
       case Geometry::TETRAHEDRON: return &TetrahedronFE;
-      case Geometry::PRISM:       return &PrismFE;
+      case Geometry::PRISM:       return &WedgeFE;
       case Geometry::CUBE:        return &ParallelepipedFE;
       default:
          mfem_error ("Const3DFECollection: unknown geometry type.");
@@ -1652,14 +1652,14 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          if (b_type == BasisType::Positive)
          {
             H1_Elements[Geometry::TETRAHEDRON] = new H1Pos_TetrahedronElement(p);
-            H1_Elements[Geometry::PRISM] = new H1Pos_PrismElement(p);
+            H1_Elements[Geometry::PRISM] = new H1Pos_WedgeElement(p);
             H1_Elements[Geometry::CUBE] = new H1Pos_HexahedronElement(p);
          }
          else
          {
             H1_Elements[Geometry::TETRAHEDRON] =
                new H1_TetrahedronElement(p, btype);
-            H1_Elements[Geometry::PRISM] = new H1_PrismElement(p, btype);
+            H1_Elements[Geometry::PRISM] = new H1_WedgeElement(p, btype);
             H1_Elements[Geometry::CUBE] = new H1_HexahedronElement(p, btype);
          }
       }
@@ -1870,14 +1870,14 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
       if (b_type == BasisType::Positive)
       {
          L2_Elements[Geometry::TETRAHEDRON] = new L2Pos_TetrahedronElement(p);
-         L2_Elements[Geometry::PRISM] = new L2Pos_PrismElement(p);
+         L2_Elements[Geometry::PRISM] = new L2Pos_WedgeElement(p);
          L2_Elements[Geometry::CUBE] = new L2Pos_HexahedronElement(p);
       }
       else
       {
          L2_Elements[Geometry::TETRAHEDRON] =
             new L2_TetrahedronElement(p, btype);
-         L2_Elements[Geometry::PRISM] = new L2_PrismElement(p, btype);
+         L2_Elements[Geometry::PRISM] = new L2_WedgeElement(p, btype);
          L2_Elements[Geometry::CUBE] = new L2_HexahedronElement(p, btype);
       }
       L2_Elements[Geometry::TETRAHEDRON]->SetMapType(map_type);

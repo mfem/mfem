@@ -9,8 +9,8 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_PRISM
-#define MFEM_PRISM
+#ifndef MFEM_WEDGE
+#define MFEM_WEDGE
 
 #include "../config/config.hpp"
 #include "element.hpp"
@@ -18,8 +18,8 @@
 namespace mfem
 {
 
-/// Data type Prism element
-class Prism : public Element
+/// Data type Wedge element
+class Wedge : public Element
 {
 protected:
    int indices[6];
@@ -33,17 +33,17 @@ protected:
 public:
    typedef Geometry::Constants<Geometry::PRISM> geom_t;
 
-   Prism() : Element(Geometry::PRISM) { }
+   Wedge() : Element(Geometry::PRISM) { }
 
-   /// Constructs prism by specifying the indices and the attribute.
-   Prism(const int *ind, int attr = 1);
+   /// Constructs wedge by specifying the indices and the attribute.
+   Wedge(const int *ind, int attr = 1);
 
-   /// Constructs prism by specifying the indices and the attribute.
-   Prism(int ind1, int ind2, int ind3, int ind4, int ind5, int ind6,
+   /// Constructs wedge by specifying the indices and the attribute.
+   Wedge(int ind1, int ind2, int ind3, int ind4, int ind5, int ind6,
          int attr = 1);
 
    /// Return element's type.
-   virtual Type GetType() const { return Element::PRISM; }
+   virtual Type GetType() const { return Element::WEDGE; }
 
    // void  ParseRefinementFlag(int refinement_edges[2], int &type, int &flag);
    // void CreateRefinementFlag(int refinement_edges[2], int  type, int  flag = 0);
@@ -100,12 +100,12 @@ public:
    { return geom_t::FaceVert[fi]; }
 
    virtual Element *Duplicate(Mesh *m) const
-   { return new Prism(indices, attribute); }
+   { return new Wedge(indices, attribute); }
 
-   virtual ~Prism() { }
+   virtual ~Wedge() { }
 };
 
-extern BiLinear3DFiniteElement PrismFE;
+extern BiLinear3DFiniteElement WedgeFE;
 
 }
 

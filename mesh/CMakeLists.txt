@@ -18,12 +18,12 @@ set(SRCS
   ncmesh.cpp
   nurbs.cpp
   point.cpp
-  prism.cpp
   quadrilateral.cpp
   segment.cpp
   tetrahedron.cpp
   triangle.cpp
   vertex.cpp
+  wedge.cpp
   )
 
 set(HDRS
@@ -35,13 +35,13 @@ set(HDRS
   ncmesh.hpp
   nurbs.hpp
   point.hpp
-  prism.hpp
   quadrilateral.hpp
   segment.hpp
   tetrahedron.hpp
   tmesh.hpp
   triangle.hpp
   vertex.hpp
+  wedge.hpp
   )
 
 if (MFEM_USE_MPI)

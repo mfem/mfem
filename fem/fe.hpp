@@ -1018,11 +1018,11 @@ public:
    { dofs = 0.0; dofs(vertex) = 1.0; }
 };
 
-/// Class for linear FE on prism
+/// Class for linear FE on wedge
 class BiLinear3DFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct a linear FE on prism
+   /// Construct a linear FE on wedge
    BiLinear3DFiniteElement();
 
    /** virtual function which evaluates the values of all
@@ -1043,11 +1043,11 @@ public:
    virtual void GetFaceDofs(int face, int **dofs, int *ndofs) const;
 };
 
-/// Class for quadratic FE on prism
+/// Class for quadratic FE on wedge
 class BiQuadratic3DFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct a quadratic FE on prism
+   /// Construct a quadratic FE on wedge
    BiQuadratic3DFiniteElement();
 
    /** virtual function which evaluates the values of all
@@ -1068,11 +1068,11 @@ public:
    virtual void GetFaceDofs(int face, int **dofs, int *ndofs) const;
 };
 
-/// Class for cubic FE on prism
+/// Class for cubic FE on wedge
 class BiCubic3DFiniteElement : public NodalFiniteElement
 {
 public:
-   /// Construct a cubic FE on prism
+   /// Construct a cubic FE on wedge
    BiCubic3DFiniteElement();
 
    /** virtual function which evaluates the values of all
@@ -2004,7 +2004,7 @@ public:
 };
 
 
-class H1_PrismElement : public NodalFiniteElement
+class H1_WedgeElement : public NodalFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
@@ -2017,7 +2017,7 @@ private:
    H1_SegmentElement  SegmentFE;
 
 public:
-   H1_PrismElement(const int p,
+   H1_WedgeElement(const int p,
                    const int type = Quadrature1D::GaussLobatto);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -2025,7 +2025,7 @@ public:
 };
 
 
-class H1Pos_PrismElement : public PositiveFiniteElement
+class H1Pos_WedgeElement : public PositiveFiniteElement
 {
 protected:
 #ifndef MFEM_THREAD_SAFE
@@ -2038,7 +2038,7 @@ protected:
    H1Pos_SegmentElement  SegmentFE;
 
 public:
-   H1Pos_PrismElement(const int p);
+   H1Pos_WedgeElement(const int p);
 
    // The size of shape is (p+1)(p+1)(p+2)/2 (dof).
    // static void CalcShape(const int p, const double x, const double y,
@@ -2231,7 +2231,7 @@ public:
 };
 
 
-class L2_PrismElement : public NodalFiniteElement
+class L2_WedgeElement : public NodalFiniteElement
 {
 private:
 #ifndef MFEM_THREAD_SAFE
@@ -2244,7 +2244,7 @@ private:
    L2_SegmentElement  SegmentFE;
 
 public:
-   L2_PrismElement(const int p,
+   L2_WedgeElement(const int p,
                    const int type = Quadrature1D::GaussLegendre);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
@@ -2252,7 +2252,7 @@ public:
 };
 
 
-class L2Pos_PrismElement : public PositiveFiniteElement
+class L2Pos_WedgeElement : public PositiveFiniteElement
 {
 protected:
 #ifndef MFEM_THREAD_SAFE
@@ -2265,7 +2265,7 @@ protected:
    L2Pos_SegmentElement  SegmentFE;
 
 public:
-   L2Pos_PrismElement(const int p);
+   L2Pos_WedgeElement(const int p);
 
    // The size of shape is (p+1)(p+1)(p+2)/2 (dof).
    // static void CalcShape(const int p, const double x, const double y,

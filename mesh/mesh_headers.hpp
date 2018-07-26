@@ -22,11 +22,11 @@
 #include "quadrilateral.hpp"
 #include "hexahedron.hpp"
 #include "tetrahedron.hpp"
-#include "prism.hpp"
 #include "ncmesh.hpp"
 #include "mesh.hpp"
 #include "mesh_operators.hpp"
 #include "nurbs.hpp"
+#include "wedge.hpp"
 
 #ifdef MFEM_USE_MESQUITE
 #include "mesquite.hpp"
