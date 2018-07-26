@@ -575,6 +575,8 @@ void SuperLUSolver::SetOperator( const Operator & op )
 
    if ( LUStructInitialized_ )
    {
+      gridinfo_t * grid = (gridinfo_t*)gridPtr_;
+      LUstruct_t *LUstruct = (LUstruct_t*)LUstructPtr_;
       Destroy_LU(width, grid, LUstruct);
       LUstructFree(LUstruct);
    }
