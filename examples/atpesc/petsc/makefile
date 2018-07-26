@@ -55,4 +55,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	rm -rf dump_* elastic_energy* velocity* deformed*
+	rm -rf dump_* elastic_energy* velocity* deformed* adv-* adv_*
