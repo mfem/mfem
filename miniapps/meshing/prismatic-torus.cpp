@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
    args.AddOption(&theta0_, "-t0", "--initial-angle",
                   "Starting angle of the cross section (in degrees).");
    args.AddOption(&el_type, "-e", "--element-type",
-                  "Element type: 0 - Prism, 1 - Hexahedron.");
+                  "Element type: 0 - Wedge, 1 - Hexahedron.");
    args.AddOption(&dg_mesh, "-dm", "--discont-mesh", "-cm", "--cont-mesh",
                   "Use discontinuous or continuous space for the mesh nodes.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
