@@ -224,15 +224,6 @@ int main (int argc, char *argv[])
     if (delvr > maxvr) {maxvr = delvr;}
     if (pcode[it] == 1) {nbp += 1;}
     if (delvr > 1.e-10) {nerrh += 1;}
-    if (delvr > 1.e-10) {
-    cout << rrxa[it] << " " << pr[it*dim] << " " << rrya[it] << " " << pr[it*dim+1] <<  " " << delvr << " k10r\n";
-      }
-    if (delv > 1.e-10) {
-    cout <<  val << " " << fout[it] << " k10s\n";
-     }
-    if (delvr > 1.e-10) {
-//    cout << rrxa[it] << " " << rrya[it] << " " << vrxa[it] << " " << vrya[it] << " k10e\n";
-      }
    }
    else
    {
