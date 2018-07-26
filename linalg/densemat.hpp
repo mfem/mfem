@@ -237,12 +237,12 @@ public:
 
    /// Compute generalized eigenvalues of A x = ev B x, where A = *this
    void Eigenvalues(DenseMatrix &b, Vector &ev, DenseMatrix &evect)
-   { Eigensystem(b, ev, evect); }
+   { Eigensystem(b, ev, &evect); }
 
    /** Compute generalized eigenvalues and eigenvectors of A x = ev B x,
        where A = *this */
    void Eigensystem(DenseMatrix &b, Vector &ev, DenseMatrix &evect)
-   { Eigensystem(b, ev, evect); }
+   { Eigensystem(b, ev, &evect); }
 
    void SingularValues(Vector &sv) const;
    int Rank(double tol) const;
