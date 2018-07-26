@@ -330,7 +330,7 @@ private:
    const Linear2DFiniteElement TriangleFE;
    const BiLinear2DFiniteElement QuadrilateralFE;
    const Linear3DFiniteElement TetrahedronFE;
-   const BiLinear3DFiniteElement PrismFE;
+   const BiLinear3DFiniteElement WedgeFE;
    const TriLinear3DFiniteElement ParallelepipedFE;
 public:
    LinearFECollection() { }
@@ -354,7 +354,7 @@ private:
    const Quad2DFiniteElement TriangleFE;
    const BiQuad2DFiniteElement QuadrilateralFE;
    const Quadratic3DFiniteElement TetrahedronFE;
-   const BiQuadratic3DFiniteElement PrismFE;
+   const BiQuadratic3DFiniteElement WedgeFE;
    const LagrangeHexFiniteElement ParallelepipedFE;
 
 public:
@@ -399,7 +399,7 @@ private:
    const Cubic2DFiniteElement TriangleFE;
    const BiCubic2DFiniteElement QuadrilateralFE;
    const Cubic3DFiniteElement TetrahedronFE;
-   const BiCubic3DFiniteElement PrismFE;
+   const BiCubic3DFiniteElement WedgeFE;
    const LagrangeHexFiniteElement ParallelepipedFE;
 
 public:
@@ -682,7 +682,7 @@ class Const3DFECollection : public FiniteElementCollection
 {
 private:
    const P0TetFiniteElement TetrahedronFE;
-   const P0PriFiniteElement PrismFE;
+   const P0PriFiniteElement WedgeFE;
    const P0HexFiniteElement ParallelepipedFE;
 
 public:

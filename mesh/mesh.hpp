@@ -153,7 +153,7 @@ protected:
    int own_nodes;
 
    static const int vtk_quadratic_tet[10];
-   static const int vtk_quadratic_pri[18];
+   static const int vtk_quadratic_wedge[18];
    static const int vtk_quadratic_hex[27];
 
 #ifdef MFEM_USE_MEMALLOC
@@ -486,7 +486,7 @@ public:
    void AddPri(const int *vi, int attr = 1);
    void AddHex(const int *vi, int attr = 1);
    void AddHexAsTets(const int *vi, int attr = 1);
-   void AddHexAsPrisms(const int *vi, int attr = 1);
+   void AddHexAsWedges(const int *vi, int attr = 1);
    // 'elem' should be allocated using the NewElement method
    void AddElement(Element *elem)     { elements[NumOfElements++] = elem; }
    void AddBdrElement(Element *elem)  { boundary[NumOfBdrElements++] = elem; }
@@ -506,8 +506,8 @@ public:
    void FinalizeTetMesh(int generate_edges = 0, int refine = 0,
                         bool fix_orientation = true);
    /// Finalize the construction of a prismal Mesh.
-   void FinalizePriMesh(int generate_edges = 0, int refine = 0,
-                        bool fix_orientation = true);
+   void FinalizeWedgeMesh(int generate_edges = 0, int refine = 0,
+			  bool fix_orientation = true);
    /// Finalize the construction of a hexahedral Mesh.
    void FinalizeHexMesh(int generate_edges = 0, int refine = 0,
                         bool fix_orientation = true);

@@ -269,7 +269,7 @@ FiniteElement *Mesh::GetTransformationFEforElementType(Element::Type ElemType)
       case Element::TRIANGLE :       return &TriangleFE;
       case Element::QUADRILATERAL :  return &QuadrilateralFE;
       case Element::TETRAHEDRON :    return &TetrahedronFE;
-      case Element::PRISM :          return &PrismFE;
+      case Element::WEDGE :          return &WedgeFE;
       case Element::HEXAHEDRON :     return &HexahedronFE;
       default:
          MFEM_ABORT("Unknown element type \"" << ElemType << "\"");
@@ -611,9 +611,9 @@ void Mesh::GetLocalTriToPriTransformation(
    Transf.SetFE(&TriangleFE);
    //  (i/64) is the local face no. in the pri
    MFEM_VERIFY(i < 128, "Local face index " << i/64
-               << " is not a triangular face of a prism.");
+               << " is not a triangular face of a wedge.");
    const int *pv = pri_t::FaceVert[i/64];
-   //  (i%64) is the orientation of the prism face
+   //  (i%64) is the orientation of the wedge face
    //         w.r.t. the face element
    const int *to = tri_t::Orient[i%64];
    const IntegrationRule *PriVert =
@@ -659,7 +659,7 @@ void Mesh::GetLocalQuadToPriTransformation(
    Transf.SetFE(&QuadrilateralFE);
    //  (i/64) is the local face no. in the pri
    MFEM_VERIFY(i >= 128, "Local face index " << i/64
-               << " is not a quadrilateral face of a prism.");
+               << " is not a quadrilateral face of a wedge.");
    const int *pv = pri_t::FaceVert[i/64];
    //  (i%64) is the orientation of the quad
    const int *qo = quad_t::Orient[i%64];
@@ -703,7 +703,7 @@ void Mesh::GetLocalFaceTransformation(
          }
          else
          {
-            MFEM_ASSERT(elem_type == Element::PRISM, "");
+            MFEM_ASSERT(elem_type == Element::WEDGE, "");
             GetLocalTriToPriTransformation(Transf, info);
          }
          break;
@@ -715,7 +715,7 @@ void Mesh::GetLocalFaceTransformation(
          }
          else
          {
-            MFEM_ASSERT(elem_type == Element::PRISM, "");
+            MFEM_ASSERT(elem_type == Element::WEDGE, "");
             GetLocalQuadToPriTransformation(Transf, info);
          }
          break;
@@ -1100,7 +1100,7 @@ void Mesh::AddTet(const int *vi, int attr)
 
 void Mesh::AddPri(const int *vi, int attr)
 {
-   elements[NumOfElements++] = new Prism(vi, attr);
+   elements[NumOfElements++] = new Wedge(vi, attr);
 }
 
 void Mesh::AddHex(const int *vi, int attr)
@@ -1127,7 +1127,7 @@ void Mesh::AddHexAsTets(const int *vi, int attr)
    }
 }
 
-void Mesh::AddHexAsPrisms(const int *vi, int attr)
+void Mesh::AddHexAsWedges(const int *vi, int attr)
 {
    static const int hex_to_pri[2][6] =
    {
@@ -1871,7 +1871,8 @@ void Mesh::FinalizeTetMesh(int generate_edges, int refine, bool fix_orientation)
    meshgen = 1;
 }
 
-void Mesh::FinalizePriMesh(int generate_edges, int refine, bool fix_orientation)
+void Mesh::FinalizeWedgeMesh(int generate_edges, int refine,
+			     bool fix_orientation)
 {
    FinalizeCheck();
    CheckElementOrientation(fix_orientation);
@@ -2149,7 +2150,7 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
       NElem *= 6;
       NBdrElem *= 2;
    }
-   else if (type == Element::PRISM)
+   else if (type == Element::WEDGE)
    {
       NElem *= 2;
       NBdrElem += 2*nx*ny;
@@ -2196,9 +2197,9 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
             {
                AddHexAsTets(ind, 1);
             }
-            else if (type == Element::PRISM)
+            else if (type == Element::WEDGE)
             {
-               AddHexAsPrisms(ind, 1);
+               AddHexAsWedges(ind, 1);
             }
             else
             {
@@ -2221,7 +2222,7 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
          {
             AddBdrQuadAsTriangles(ind, 1);
          }
-         else if (type == Element::PRISM)
+         else if (type == Element::WEDGE)
          {
             AddBdrQuadAsTriangles(ind, 1);
          }
@@ -2242,7 +2243,7 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
          {
             AddBdrQuadAsTriangles(ind, 6);
          }
-         else if (type == Element::PRISM)
+         else if (type == Element::WEDGE)
          {
             AddBdrQuadAsTriangles(ind, 1);
          }
@@ -2333,9 +2334,9 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    {
       FinalizeTetMesh(generate_edges, refine, fix_orientation);
    }
-   else if (type == Element::PRISM)
+   else if (type == Element::WEDGE)
    {
-      FinalizePriMesh(generate_edges, refine, fix_orientation);
+      FinalizeWedgeMesh(generate_edges, refine, fix_orientation);
    }
    else
    {
@@ -2769,7 +2770,7 @@ Element *Mesh::NewElement(int geom)
       case Geometry::SEGMENT:   return (new Segment);
       case Geometry::TRIANGLE:  return (new Triangle);
       case Geometry::SQUARE:    return (new Quadrilateral);
-      case Geometry::PRISM:     return (new Prism);
+      case Geometry::PRISM:     return (new Wedge);
       case Geometry::CUBE:      return (new Hexahedron);
       case Geometry::TETRAHEDRON:
 #ifdef MFEM_USE_MEMALLOC
@@ -2849,7 +2850,7 @@ void Mesh::SetMeshGen()
          case Element::HEXAHEDRON:
             meshgen |= 2; break;
 
-         case Element::PRISM:
+         case Element::WEDGE:
             meshgen |= 4; break;
          default:
             MFEM_VERIFY(false, "MixedMesh::SetMeshGen "
@@ -3720,7 +3721,7 @@ int Mesh::CheckElementOrientation(bool fix_it)
                }
                break;
 
-            case Element::PRISM:
+            case Element::WEDGE:
                // only check the Jacobian at the center of the element
                GetElementJacobian(i, J);
                if (J.Det() < 0.0)
@@ -3921,7 +3922,7 @@ int Mesh::CheckBdrElementOrientation(bool fix_it)
                }
                break;
 
-               case Element::PRISM:
+               case Element::WEDGE:
                {
                   switch (GetBdrElementType(i))
                   {
@@ -3952,7 +3953,7 @@ int Mesh::CheckBdrElementOrientation(bool fix_it)
                      case Element::QUADRILATERAL:
                      {
                         // MFEM_ABORT("Need to fix this!");
-                        // The following is almost certainly wrong for PRISMs
+                        // The following is almost certainly wrong for WEDGEs
                         int lf = faces_info[be_to_face[i]].Elem1Inf/64;
                         for (int j = 0; j < 4; j++)
                         {
@@ -4695,7 +4696,7 @@ void Mesh::GenerateFaces()
                }
                break;
             }
-            case Element::PRISM:
+            case Element::WEDGE:
             {
                for (int j = 0; j < 2; j++)
                {
@@ -4792,7 +4793,7 @@ STable3D *Mesh::GetFacesTable()
             }
             break;
          }
-         case Element::PRISM:
+         case Element::WEDGE:
          {
             for (int j = 0; j < 2; j++)
             {
@@ -4850,7 +4851,7 @@ STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)
             }
             break;
          }
-         case Element::PRISM:
+         case Element::WEDGE:
          {
             for (int j = 0; j < 2; j++)
             {
@@ -6182,7 +6183,7 @@ void Mesh::PriUniformRefinement(map<int,int> * f2qf_ptr)
       }
    }
    MFEM_VERIFY(NumOfFaces == NumOfTriFaces + NumOfQuadFaces,
-               "Prism face counts don't match!");
+               "Wedge face counts don't match!");
 
    int oedge = NumOfVertices;
    int oface = oedge + NumOfEdges;
@@ -6190,8 +6191,8 @@ void Mesh::PriUniformRefinement(map<int,int> * f2qf_ptr)
    vertices.SetSize(oface + NumOfQuadFaces);
    for (i = 0; i < NumOfElements; i++)
    {
-      MFEM_ASSERT(elements[i]->GetType() == Element::PRISM,
-                  "Element is not a prism!");
+      MFEM_ASSERT(elements[i]->GetType() == Element::WEDGE,
+                  "Element is not a wedge!");
       v = elements[i]->GetVertices();
 
       f = el_to_face->GetRow(i);
@@ -6231,25 +6232,25 @@ void Mesh::PriUniformRefinement(map<int,int> * f2qf_ptr)
       int qf3 = (*f2qf_ptr)[f[3]];
       int qf4 = (*f2qf_ptr)[f[4]];
 
-      elements[j+0] = new Prism(oedge+e[1], oedge+e[2], oedge+e[0],
+      elements[j+0] = new Wedge(oedge+e[1], oedge+e[2], oedge+e[0],
                                 oface+qf3, oface+qf4, oface+qf2,
                                 attr);
-      elements[j+1] = new Prism(oedge+e[0], v[1], oedge+e[1],
+      elements[j+1] = new Wedge(oedge+e[0], v[1], oedge+e[1],
                                 oface+qf2, oedge+e[7], oface+qf3,
                                 attr);
-      elements[j+2] = new Prism(oedge+e[2], oedge+e[1], v[2],
+      elements[j+2] = new Wedge(oedge+e[2], oedge+e[1], v[2],
                                 oface+qf4, oface+qf3, oedge+e[8],
                                 attr);
-      elements[j+3] = new Prism(oedge+e[6], oface+qf2, oface+qf4,
+      elements[j+3] = new Wedge(oedge+e[6], oface+qf2, oface+qf4,
                                 v[3], oedge+e[3], oedge+e[5],
                                 attr);
-      elements[j+4] = new Prism(oface+qf3, oface+qf4, oface+qf2,
+      elements[j+4] = new Wedge(oface+qf3, oface+qf4, oface+qf2,
                                 oedge+e[4], oedge+e[5], oedge+e[3],
                                 attr);
-      elements[j+5] = new Prism(oface+qf2, oedge+e[7], oface+qf3,
+      elements[j+5] = new Wedge(oface+qf2, oedge+e[7], oface+qf3,
                                 oedge+e[3], v[4], oedge+e[4],
                                 attr);
-      elements[j+6] = new Prism(oface+qf4, oface+qf3, oedge+e[8],
+      elements[j+6] = new Wedge(oface+qf4, oface+qf3, oedge+e[8],
                                 oedge+e[5], oedge+e[4], v[5],
                                 attr);
 
@@ -6564,7 +6565,7 @@ void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr)
          case Element::TETRAHEDRON:
             NumOfTetElems++;
             break;
-         case Element::PRISM:
+         case Element::WEDGE:
             NumOfPriElems++;
             break;
          case Element::HEXAHEDRON:
@@ -6607,7 +6608,7 @@ void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr)
             }
          }
          break;
-         case Element::PRISM:
+         case Element::WEDGE:
          {
             for (int j = 2; j < 5; j++)
             {
@@ -6694,31 +6695,31 @@ void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr)
             v[3] = oedge+e[2];
          }
          break;
-         case Element::PRISM:
+         case Element::WEDGE:
          {
             int qf2 = (*f2qf_ptr)[f[2]];
             int qf3 = (*f2qf_ptr)[f[3]];
             int qf4 = (*f2qf_ptr)[f[4]];
 
-            elements[j+0] = new Prism(oedge+e[1], oedge+e[2], oedge+e[0],
+            elements[j+0] = new Wedge(oedge+e[1], oedge+e[2], oedge+e[0],
                                       oface+qf3, oface+qf4, oface+qf2,
                                       attr);
-            elements[j+1] = new Prism(oedge+e[0], v[1], oedge+e[1],
+            elements[j+1] = new Wedge(oedge+e[0], v[1], oedge+e[1],
                                       oface+qf2, oedge+e[7], oface+qf3,
                                       attr);
-            elements[j+2] = new Prism(oedge+e[2], oedge+e[1], v[2],
+            elements[j+2] = new Wedge(oedge+e[2], oedge+e[1], v[2],
                                       oface+qf4, oface+qf3, oedge+e[8],
                                       attr);
-            elements[j+3] = new Prism(oedge+e[6], oface+qf2, oface+qf4,
+            elements[j+3] = new Wedge(oedge+e[6], oface+qf2, oface+qf4,
                                       v[3], oedge+e[3], oedge+e[5],
                                       attr);
-            elements[j+4] = new Prism(oface+qf3, oface+qf4, oface+qf2,
+            elements[j+4] = new Wedge(oface+qf3, oface+qf4, oface+qf2,
                                       oedge+e[4], oedge+e[5], oedge+e[3],
                                       attr);
-            elements[j+5] = new Prism(oface+qf2, oedge+e[7], oface+qf3,
+            elements[j+5] = new Wedge(oface+qf2, oedge+e[7], oface+qf3,
                                       oedge+e[3], v[4], oedge+e[4],
                                       attr);
-            elements[j+6] = new Prism(oface+qf4, oface+qf3, oedge+e[8],
+            elements[j+6] = new Wedge(oface+qf4, oface+qf3, oedge+e[8],
                                       oedge+e[5], oedge+e[4], v[5],
                                       attr);
 
@@ -8516,7 +8517,7 @@ void Mesh::PrintVTK(std::ostream &out)
                case Geometry::TETRAHEDRON:
                   vtk_mfem = vtk_quadratic_tet; break;
                case Geometry::PRISM:
-                  vtk_mfem = vtk_quadratic_pri; break;
+                  vtk_mfem = vtk_quadratic_wedge; break;
                case Geometry::CUBE:
                default:
                   vtk_mfem = vtk_quadratic_hex; break;
@@ -8827,7 +8828,7 @@ void Mesh::PrintWithPartitioning(int *partitioning, std::ostream &out,
        "# SQUARE      = 3\n"
        "# TETRAHEDRON = 4\n"
        "# CUBE        = 5\n"
-       "# PRISM       = 6\n"
+       "# WEDGE       = 6\n"
        "#\n";
 
    out << "\ndimension\n" << Dim
@@ -9322,7 +9323,7 @@ void Mesh::PrintSurfaces(const Table & Aface_face, std::ostream &out) const
        "# SQUARE      = 3\n"
        "# TETRAHEDRON = 4\n"
        "# CUBE        = 5\n"
-       "# PRISM       = 6\n"
+       "# WEDGE       = 6\n"
        "#\n";
 
    out << "\ndimension\n" << Dim
@@ -10212,7 +10213,7 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
    }
    else if ( priMesh )
    {
-      mesh3d->FinalizePriMesh(1, 0, false);
+      mesh3d->FinalizeWedgeMesh(1, 0, false);
    }
 
    GridFunction *nodes = mesh->GetNodes();

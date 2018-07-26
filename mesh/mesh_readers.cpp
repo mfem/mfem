@@ -360,8 +360,8 @@ void Mesh::ReadTrueGridMesh(std::istream &input)
 const int Mesh::vtk_quadratic_tet[10] =
 { 0, 1, 2, 3, 4, 7, 5, 6, 8, 9 };
 
-// see Prism::edges & Mesh::GenerateFaces
-const int Mesh::vtk_quadratic_pri[18] =
+// see Wedge::edges & Mesh::GenerateFaces
+const int Mesh::vtk_quadratic_wedge[18] =
 { 0, 2, 1, 3, 5, 4, 8, 7, 6, 11, 10, 9, 12, 14, 13, 17, 16, 15};
 
 // see Hexahedron::edges & Mesh::GenerateFaces
@@ -791,7 +791,7 @@ void Mesh::ReadInlineMesh(std::istream &input, int generate_edges)
          }
          else if (eltype == "pri")
          {
-            type = Element::PRISM;
+            type = Element::WEDGE;
          }
          else if (eltype == "tet")
          {
@@ -846,7 +846,7 @@ void Mesh::ReadInlineMesh(std::istream &input, int generate_edges)
                   << "   sy = " << sy << "\n");
       Make2D(nx, ny, type, generate_edges, sx, sy);
    }
-   else if (type == Element::TETRAHEDRON || type == Element::PRISM ||
+   else if (type == Element::TETRAHEDRON || type == Element::WEDGE ||
             type == Element::HEXAHEDRON)
    {
       MFEM_VERIFY(nx > 0 && ny > 0 && nz > 0 &&
@@ -958,7 +958,7 @@ void Mesh::ReadGmshMesh(std::istream &input)
             4, // 4-node quadrangle.
             4, // 4-node tetrahedron.
             8, // 8-node hexahedron.
-            6, // 6-node prism.
+            6, // 6-node wedge.
             5, // 5-node pyramid.
             3, /* 3-node second order line (2 nodes associated with the vertices
                     and 1 with the edge). */
@@ -971,7 +971,7 @@ void Mesh::ReadGmshMesh(std::istream &input)
             27,/* 27-node second order hexahedron (8 nodes associated with the
                      vertices, 12 with the edges, 6 with the faces and 1 with
                      the volume). */
-            18,/* 18-node second order prism (6 nodes associated with the
+            18,/* 18-node second order wedge (6 nodes associated with the
                      vertices, 9 with the edges and 3 with the quadrangular
                      faces). */
             14,/* 14-node second order pyramid (5 nodes associated with the
@@ -982,7 +982,7 @@ void Mesh::ReadGmshMesh(std::istream &input)
                     vertices and 4 with the edges). */
             20,/* 20-node second order hexahedron (8 nodes associated with the
                      vertices and 12 with the edges). */
-            15,/* 15-node second order prism (6 nodes associated with the
+            15,/* 15-node second order wedge (6 nodes associated with the
                      vertices and 9 with the edges). */
             13,/* 13-node second order pyramid (5 nodes associated with the
                      vertices and 8 with the edges). */

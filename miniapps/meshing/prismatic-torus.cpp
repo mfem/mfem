@@ -38,7 +38,7 @@
 using namespace std;
 using namespace mfem;
 
-static Element::Type el_type_ = Element::PRISM;
+static Element::Type el_type_ = Element::WEDGE;
 static int    order_  = 3;
 static int    nphi_   = 8;
 static int    ns_     = 0;
@@ -87,15 +87,15 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    // The output mesh could be hexahedra or prisms
-   el_type_ = (el_type == 0)?Element::PRISM:Element::HEXAHEDRON;
-   if ( el_type_ != Element::PRISM && el_type_ != Element::HEXAHEDRON )
+   el_type_ = (el_type == 0)?Element::WEDGE:Element::HEXAHEDRON;
+   if ( el_type_ != Element::WEDGE && el_type_ != Element::HEXAHEDRON )
    {
       cout << "Unsupported element type" << endl;
       exit(1);
    }
 
    // Determine the number of nodes in the cross section
-   int nnode = (el_type_ == Element::PRISM)? 3:4;
+   int nnode = (el_type_ == Element::WEDGE)? 3:4;
    int nshift = (ns_ >= 0) ? 0 : (nnode * (1 - ns_ / nnode));
 
    // Convert initial angle from degrees to radians
@@ -129,7 +129,7 @@ int main(int argc, char *argv[])
    int v[8];
    for (int i=0; i<nphi_; i++)
    {
-      if ( el_type_ == Element::PRISM )
+      if ( el_type_ == Element::WEDGE )
       {
          v[0] = 3 * i + 0;
          v[1] = 3 * i + 1;
@@ -212,7 +212,7 @@ int main(int argc, char *argv[])
    // Output the resulting mesh to a file
    {
       ostringstream oss;
-      if ( el_type_ == Element::PRISM )
+      if ( el_type_ == Element::WEDGE )
       {
          oss << "prismatic-torus";
       }
@@ -249,7 +249,7 @@ int main(int argc, char *argv[])
 
 void trans(const Vector &x, Vector &p)
 {
-   int nnode = (el_type_ == Element::PRISM)? 3:4;
+   int nnode = (el_type_ == Element::WEDGE)? 3:4;
 
    double phi = 2.0 * M_PI * x[2] / nphi_;
    double theta = theta0_ + phi * ns_ / nnode;
@@ -257,7 +257,7 @@ void trans(const Vector &x, Vector &p)
    double u = (1.5 * (x[0] + x[1]) - 1.0) * r_;
    double v = sqrt(0.75) * (x[0] - x[1]) * r_;
 
-   if ( el_type_ == Element::PRISM )
+   if ( el_type_ == Element::WEDGE )
    {
       u = (1.5 * (x[0] + x[1]) - 1.0) * r_;
       v = sqrt(0.75) * (x[0] - x[1]) * r_;
