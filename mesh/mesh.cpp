@@ -1872,7 +1872,7 @@ void Mesh::FinalizeTetMesh(int generate_edges, int refine, bool fix_orientation)
 }
 
 void Mesh::FinalizeWedgeMesh(int generate_edges, int refine,
-			     bool fix_orientation)
+                             bool fix_orientation)
 {
    FinalizeCheck();
    CheckElementOrientation(fix_orientation);

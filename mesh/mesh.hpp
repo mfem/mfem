@@ -507,7 +507,7 @@ public:
                         bool fix_orientation = true);
    /// Finalize the construction of a prismal Mesh.
    void FinalizeWedgeMesh(int generate_edges = 0, int refine = 0,
-			  bool fix_orientation = true);
+                          bool fix_orientation = true);
    /// Finalize the construction of a hexahedral Mesh.
    void FinalizeHexMesh(int generate_edges = 0, int refine = 0,
                         bool fix_orientation = true);
