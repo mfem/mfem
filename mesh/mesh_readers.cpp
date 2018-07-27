@@ -1277,7 +1277,6 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    // curved set to zero will change if mesh is indeed curved
    curved = 0;
 
-
    const int sideMapTri3[3][2] =
    {
       {1,2},
