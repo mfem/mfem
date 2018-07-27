@@ -323,8 +323,7 @@ KERNELS_SRC_DIRS := 	\
 KERNELS_RTC_DIRS = 	\
 	$(KERNELS_BACKEND_DIR)/kernels/mass \
 	$(KERNELS_BACKEND_DIR)/kernels/geom \
-	$(KERNELS_BACKEND_DIR)/kernels/mapping \
-	$(KERNELS_BACKEND_DIR)/kernels/force
+	$(KERNELS_BACKEND_DIR)/kernels/mapping
 KERNELS_RTC_SRC_FILES = $(foreach dir,$(KERNELS_RTC_DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 
 # Source dirs in logical order

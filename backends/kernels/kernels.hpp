@@ -44,7 +44,6 @@
 // kernels *********************************************************************
 #include "kernels/blas/blas.hpp"
 #include "kernels/diffusion/diffusion.hpp"
-#include "kernels/force/force.hpp"
 #include "kernels/geom/geom.hpp"
 #include "kernels/mapping/mapping.hpp"
 #include "kernels/mass/mass.hpp"
