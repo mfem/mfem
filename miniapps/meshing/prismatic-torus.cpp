@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
 
    // Convert initial angle from degrees to radians
    theta0_ *= M_PI / 180.0;
-   
+
    // Define an empty mesh
    Mesh *mesh;
    mesh = new Mesh(3, nnode * (nphi_+1), nphi_);
