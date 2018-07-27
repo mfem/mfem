@@ -28,9 +28,9 @@ void Engine::Init(const std::string &engine_spec)
    //
    push();
    memory_resources[0] = NULL;
-   workers_weights[0]= 1.0;
+   workers_weights[0] = 1.0;
    workers_mem_res[0] = 0;
-   dev=new device();
+   dev = new device();
    pop();
 }
 

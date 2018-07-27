@@ -102,7 +102,8 @@ void KernelsVector::Print(std::ostream& out, int width) const
    rmemcpy::rDtoH(h_data,data,bytes());
    for (size_t i=0; i<size; i+=1)
    {
-      printf("\n\t[%ld] %.15e",i,h_data[i]);
+      //printf("\n\t[%ld] %.15e",i,h_data[i]);
+      printf("\n\t[%ld] %f",i,h_data[i]);
    }
    free(h_data);
 }

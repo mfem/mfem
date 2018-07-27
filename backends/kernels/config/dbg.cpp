@@ -19,10 +19,6 @@
 
 #include "../kernels.hpp"
 
-///#include <stdarg.h>
-//#include <assert.h>
-//#include <string.h>
-
 // DBG *************************************************************************
 void kdbg(const char *format,...)
 {
@@ -62,6 +58,10 @@ uint8_t chk8(const char *bfr)
 }
 
 // *****************************************************************************
+// * file: __FILENAME__, line: __LINE__, func: __FUNCTION__
+// * header will display the file, line & func
+// * nargs: number of arguments that follow
+// *****************************************************************************
 void kdbge(const char *file, const int line, const char *func,
            const bool header, const int nargs, ...)
 {
@@ -75,8 +75,8 @@ void kdbge(const char *file, const int line, const char *func,
    fprintf(stdout,"\033[38;5;%dm",color);
    if (header)
    {
-      fprintf(stdout,"\n%24s\b\b\b\b:\033[2m%3d\033[22m: %s: \033[1m", file, line,
-              func);
+      fprintf(stdout,"\n%24s\b\b\b\b:\033[2m%3d\033[22m: %s: \033[1m",
+              file, line, func);
    }
    else
    {
