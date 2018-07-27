@@ -42,8 +42,6 @@
 using namespace std;
 using namespace mfem;
 
-double circle(const Vector &x);
-
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -82,8 +80,8 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels = 0;
-      //         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels =
+         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -181,14 +179,6 @@ int main(int argc, char *argv[])
    sol_ofs.precision(8);
    x.Save(sol_ofs);
 
-   Mesh *mesh_lor = new Mesh(mesh, order, BasisType::GaussLobatto);
-   {
-      ofstream mesh2_ofs("refined2.mesh");
-      mesh2_ofs.precision(8);
-      mesh2->Print(mesh_ofs);
-   }
-   FunctionCoefficient Test(circle);
-   x.ProjectCoefficient(Test);
    // 13. Send the solution by socket to a GLVis server.
    if (visualization)
    {
@@ -196,8 +186,7 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      // sol_sock << "solution\n" << *mesh << x << flush;
-      sol_sock << "mesh\n" << *mesh2 << flush;
+      sol_sock << "solution\n" << *mesh << x << flush;
    }
 
    // 14. Free the used memory.
@@ -208,20 +197,4 @@ int main(int argc, char *argv[])
    delete mesh;
 
    return 0;
-}
-
-
-double circle(const Vector &x)
-{
-   double X = x(0), Y = x(1);
-   X -= 0.5;
-   Y -= 0.5;
-   if (X*X + Y*Y <= 0.1)
-   {
-      return 1.0;
-   }
-   else
-   {
-      return 0.0;
-   }
 }
