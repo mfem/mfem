@@ -10,15 +10,15 @@
 // Software Foundation) version 2.1 dated February 1999.
 //
 //     ---------------------------------------------------------
-//     Prismatic Torus Miniapp:  Generate Simple Toroidal meshes
+//     Prismatic Torus Miniapp:  Generate simple toroidal meshes
 //     ---------------------------------------------------------
 //
-// This miniapp generates two types of Toroidal meshes; one with
-// triangular cross sections and one with square cross sections.  It
-// works by defining a stack of individual elements and bending them
-// so that the bottom and top of the stack can be joined to form a
-// torus.  The stack can also be twisted so that the vertices of the
-// bottom and top can be joined with any integer offset.
+// This miniapp generates two types of Toroidal meshes; one with triangular
+// cross sections and one with square cross sections.  It works by defining a
+// stack of individual elements and bending them so that the bottom and top of
+// the stack can be joined to form a torus.  The stack can also be twisted so
+// that the vertices of the bottom and top can be joined with any integer
+// offset.
 //
 // Compile with: make prismatic-torus
 //
@@ -30,7 +30,8 @@
 //               prismatic-torus -R 2 -r 1 -ns -3
 //               prismatic-torus -R 2 -r 1 -ns 3 -e 1
 //               prismatic-torus -R 2 -r 1 -ns 3 -e 1 -rs 1
-//
+//               prismatic-torus -nphi 2 -ns 10 -e 1 -o 4
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -57,14 +58,14 @@ int main(int argc, char *argv[])
    bool visualization = true;
 
    OptionsParser args(argc, argv);
-   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
-                  "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&nphi_, "-nphi", "--num-elements-phi",
                   "Number of elements in phi-direction.");
    args.AddOption(&ns_, "-ns", "--num-shifts",
                   "Number of shifts.");
    args.AddOption(&order_, "-o", "--mesh-order",
                   "Order (polynomial degree) of the mesh elements.");
+   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
+                  "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&R_, "-R", "--major-radius",
                   "Major radius of the torus.");
    args.AddOption(&r_, "-r", "--minor-radius",
@@ -87,8 +88,8 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    // The output mesh could be hexahedra or prisms
-   el_type_ = (el_type == 0)?Element::WEDGE:Element::HEXAHEDRON;
-   if ( el_type_ != Element::WEDGE && el_type_ != Element::HEXAHEDRON )
+   el_type_ = (el_type == 0) ? Element::WEDGE : Element::HEXAHEDRON;
+   if (el_type_ != Element::WEDGE && el_type_ != Element::HEXAHEDRON)
    {
       cout << "Unsupported element type" << endl;
       exit(1);
@@ -115,7 +116,7 @@ int main(int argc, char *argv[])
       c[0] = 1.0;
       mesh->AddVertex(c);
 
-      if ( el_type_ == Element::HEXAHEDRON )
+      if (el_type_ == Element::HEXAHEDRON)
       {
          c[0] = 1.0; c[1] = 1.0;
          mesh->AddVertex(c);
@@ -127,35 +128,23 @@ int main(int argc, char *argv[])
 
    // Add Elements of the desired type
    int v[8];
-   for (int i=0; i<nphi_; i++)
+   for (int i=0; i < nphi_; i++)
    {
-      if ( el_type_ == Element::WEDGE )
+      if (el_type_ == Element::WEDGE)
       {
-         v[0] = 3 * i + 0;
-         v[1] = 3 * i + 1;
-         v[2] = 3 * i + 2;
-         v[3] = 3 * i + 3;
-         v[4] = 3 * i + 4;
-         v[5] = 3 * i + 5;
+         for (int j = 0; j < 6; j++) { v[j] = 3*i+j; }
          mesh->AddPri(v);
       }
       else
       {
-         v[0] = 4 * i + 0;
-         v[1] = 4 * i + 1;
-         v[2] = 4 * i + 2;
-         v[3] = 4 * i + 3;
-         v[4] = 4 * i + 4;
-         v[5] = 4 * i + 5;
-         v[6] = 4 * i + 6;
-         v[7] = 4 * i + 7;
+         for (int j = 0; j < 8; j++) { v[j] = 4*i+j; }
          mesh->AddHex(v);
       }
    }
    mesh->FinalizeTopology();
 
    // Promote to high order mesh and transform into a torus shape
-   if ( order_ > 1 )
+   if (order_ > 1)
    {
       mesh->SetCurvature(order_, true, 3, Ordering::byVDIM);
       mesh->Transform(trans);
@@ -198,7 +187,7 @@ int main(int argc, char *argv[])
       mesh->RemoveUnusedVertices();
       mesh->RemoveInternalBoundaries();
    }
-   if ( order_ > 1 )
+   if (order_ > 1)
    {
       mesh->SetCurvature(order_, dg_mesh, 3, Ordering::byVDIM);
    }
@@ -212,7 +201,7 @@ int main(int argc, char *argv[])
    // Output the resulting mesh to a file
    {
       ostringstream oss;
-      if ( el_type_ == Element::WEDGE )
+      if (el_type_ == Element::WEDGE)
       {
          oss << "prismatic-torus";
       }
@@ -221,7 +210,7 @@ int main(int argc, char *argv[])
          oss << "hexagonal-torus";
       }
       oss << "-o" << order_ << "-s" << ns_;
-      if ( ser_ref_levels > 0 )
+      if (ser_ref_levels > 0)
       {
          oss << "-r" << ser_ref_levels;
       }
@@ -257,7 +246,7 @@ void trans(const Vector &x, Vector &p)
    double u = (1.5 * (x[0] + x[1]) - 1.0) * r_;
    double v = sqrt(0.75) * (x[0] - x[1]) * r_;
 
-   if ( el_type_ == Element::WEDGE )
+   if (el_type_ == Element::WEDGE)
    {
       u = (1.5 * (x[0] + x[1]) - 1.0) * r_;
       v = sqrt(0.75) * (x[0] - x[1]) * r_;
