@@ -52,6 +52,8 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 	@$(call mfem-test-file,$<, $(RUN_MPI), Meshing miniapp,$(<).mesh)
 %-test-seq: %
 	@$(call mfem-test-file,$<,, Meshing miniapp,$(<).mesh)
+prismatic-torus-test-seq: prismatic-torus
+	@$(call mfem-test-file,$<,, Meshing miniapp,$(<)-o3-s0.mesh)
 mesh-optimizer-test-seq: mesh-optimizer
 	@$(call mfem-test,$<,, Meshing miniapp,-m $(SRC)icf.mesh)
 pmesh-optimizer-test-par: pmesh-optimizer
