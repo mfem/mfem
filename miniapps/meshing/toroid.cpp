@@ -9,9 +9,9 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 //
-//     ---------------------------------------------------------
-//     Prismatic Torus Miniapp:  Generate simple toroidal meshes
-//     ---------------------------------------------------------
+//             ------------------------------------------------
+//             Toroid Miniapp:  Generate simple toroidal meshes
+//             ------------------------------------------------
 //
 // This miniapp generates two types of Toroidal meshes; one with triangular
 // cross sections and one with square cross sections.  It works by defining a
@@ -20,17 +20,17 @@
 // that the vertices of the bottom and top can be joined with any integer
 // offset.
 //
-// Compile with: make prismatic-torus
+// Compile with: make toroid
 //
-// Sample runs:  prismatic-torus
-//               prismatic-torus -nphi 6
-//               prismatic-torus -ns 1
-//               prismatic-torus -ns 0 -t0 -30
-//               prismatic-torus -R 2 -r 1 -ns 3
-//               prismatic-torus -R 2 -r 1 -ns -3
-//               prismatic-torus -R 2 -r 1 -ns 3 -e 1
-//               prismatic-torus -R 2 -r 1 -ns 3 -e 1 -rs 1
-//               prismatic-torus -nphi 2 -ns 10 -e 1 -o 4
+// Sample runs:  toroid
+//               toroid -nphi 6
+//               toroid -ns 1
+//               toroid -ns 0 -t0 -30
+//               toroid -R 2 -r 1 -ns 3
+//               toroid -R 2 -r 1 -ns -3
+//               toroid -R 2 -r 1 -ns 3 -e 1
+//               toroid -R 2 -r 1 -ns 3 -e 1 -rs 1
+//               toroid -nphi 2 -ns 10 -e 1 -o 4
 
 #include "mfem.hpp"
 #include <fstream>
@@ -203,11 +203,11 @@ int main(int argc, char *argv[])
       ostringstream oss;
       if (el_type_ == Element::WEDGE)
       {
-         oss << "prismatic-torus";
+         oss << "toroid-wedge";
       }
       else
       {
-         oss << "hexagonal-torus";
+         oss << "toroid-hex";
       }
       oss << "-o" << order_ << "-s" << ns_;
       if (ser_ref_levels > 0)
