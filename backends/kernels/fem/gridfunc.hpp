@@ -30,14 +30,12 @@ class KernelsDofQuadMaps;
 class KernelsGridFunction : public Vector
 {
 protected:
-   KernelsFiniteElementSpace &fes;
+   kFiniteElementSpace &fes;
    long sequence;
-   KernelsVector v;
+   kvector v;
 public:
 
-   KernelsGridFunction(KernelsFiniteElementSpace&);
-
-   KernelsGridFunction(KernelsFiniteElementSpace&, const KernelsVector*);
+   KernelsGridFunction(kFiniteElementSpace&);
 
    KernelsGridFunction(const KernelsGridFunction &gf);
 

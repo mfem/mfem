@@ -79,7 +79,9 @@ memory memory::slice(const size_t offset,
    push();
    MFEM_ABORT("FIXME");
    pop();
-   return memory();
+   memory m = memory(bytes-offset,NULL);
+   memcpy(m.data,data+offset,m.bytes);
+   return m;
 }
 
 // *****************************************************************************

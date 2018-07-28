@@ -21,21 +21,13 @@ namespace mfem
 namespace kernels
 {
 
-class Array : public virtual PArray
+class Array : public virtual mfem::PArray
 {
 protected:
-   //
-   // Inherited fields
-   //
-   // DLayout layout;
-
-   // Always true: Size()*item_size == slice.size() <= data.size()
+   
    mutable kernels::memory data, slice;
-
-   //
-   // Virtual interface
-   //
-
+   
+   // Virtual interface ********************************************************
    virtual PArray *DoClone(bool copy_data, void **buffer,
                            std::size_t item_size) const;
 
@@ -50,10 +42,7 @@ protected:
 
    virtual void DoAssign(const PArray &src, std::size_t item_size);
 
-   //
-   // Auxiliary methods
-   //
-
+   // Auxiliary methods ********************************************************
    inline void *GetBuffer() const;
 
    int ResizeData(const Layout *lt, std::size_t item_size);

@@ -61,9 +61,9 @@ static void CreateRPOperators(Layout& v_layout,
 }
 
 // **************************************************************************
-KernelsFiniteElementSpace::
-KernelsFiniteElementSpace(const Engine& e,
-                          mfem::FiniteElementSpace& fespace)
+kFiniteElementSpace::
+kFiniteElementSpace(const Engine& e,
+                    mfem::FiniteElementSpace& fespace)
   : PFiniteElementSpace(e, fespace),
     e_layout(e, 0),
     globalDofs(fes->GetNDofs()),
@@ -138,14 +138,14 @@ KernelsFiniteElementSpace(const Engine& e,
 }
 
 // **************************************************************************
-KernelsFiniteElementSpace::~KernelsFiniteElementSpace() {
+kFiniteElementSpace::~kFiniteElementSpace() {
   delete restrictionOp;
   delete prolongationOp;
 }
 
 // **************************************************************************
-void KernelsFiniteElementSpace::GlobalToLocal(const Vector& globalVec,
-                                              Vector& localVec) const {
+void kFiniteElementSpace::GlobalToLocal(const Vector& globalVec,
+                                        Vector& localVec) const {
   push(PowderBlue);
   const int vdim = GetVDim();
   const int localEntries = localDofs * GetNE();
@@ -162,8 +162,8 @@ void KernelsFiniteElementSpace::GlobalToLocal(const Vector& globalVec,
 }
 
 // **************************************************************************
-void KernelsFiniteElementSpace::LocalToGlobal(const Vector& localVec,
-                                              Vector& globalVec) const {
+void kFiniteElementSpace::LocalToGlobal(const Vector& localVec,
+                                        Vector& globalVec) const {
   push(PowderBlue);
   const int vdim = GetVDim();
   const int localEntries = localDofs * GetNE();

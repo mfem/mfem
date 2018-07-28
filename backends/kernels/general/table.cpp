@@ -21,7 +21,7 @@ namespace kernels
 {
 
 // ***************************************************************************
-KernelsTable::KernelsTable(const Table &table)
+ktable::ktable(const Table &table)
 {
    push();
    size = table.Size();

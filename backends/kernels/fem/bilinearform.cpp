@@ -20,16 +20,68 @@ namespace mfem
 namespace kernels
 {
 
-void BilinearForm::InitKernelsBilinearForm()
+// *****************************************************************************
+bool BilinearForm::Assemble()
 {
    push();
-   // Init 'obform' using 'bform'
-   MFEM_ASSERT(bform != NULL, "");
-   MFEM_ASSERT(obform == NULL, "");
+   if (kbform == NULL) InitKBilinearForm();
+   kbform->Assemble();
+   pop();
+   return true; // --> host assembly is not needed
+}
 
-   KernelsFiniteElementSpace &ofes =
-      bform->FESpace()->Get_PFESpace()->As<KernelsFiniteElementSpace>();
-   obform = new KernelsBilinearForm(&ofes);
+// *****************************************************************************
+void BilinearForm::FormSystemMatrix(const mfem::Array<int> &ess_tdof_list,
+                                    mfem::OperatorHandle &A)
+{
+   push();
+   if (A.Type() == mfem::Operator::ANY_TYPE)
+   {
+      mfem::Operator *Aout = NULL;
+      kbform->FormOperator(ess_tdof_list, Aout);
+      A.Reset(Aout);
+   }
+   else
+   {
+      MFEM_ABORT("Operator::Type is not supported, type = " << A.Type());
+   }
+   pop();
+}
+
+// *****************************************************************************
+void BilinearForm::FormLinearSystem(const mfem::Array<int> &ess_tdof_list,
+                                    mfem::Vector &x, mfem::Vector &b,
+                                    mfem::OperatorHandle &A,
+                                    mfem::Vector &X, mfem::Vector &B,
+                                    int copy_interior)
+{
+   push();
+   FormSystemMatrix(ess_tdof_list, A);
+   kbform->InitRHS(ess_tdof_list, x, b, A.Ptr(), X, B, copy_interior);
+   pop();
+}
+
+// *****************************************************************************
+void BilinearForm::RecoverFEMSolution(const mfem::Vector &X,
+                                      const mfem::Vector &b,
+                                      mfem::Vector &x)
+{
+   push();
+   kbform->KernelsRecoverFEMSolution(X, b, x);
+   pop();
+}
+
+// *****************************************************************************
+void BilinearForm::InitKBilinearForm()
+{
+   push();
+   // Init 'kbform' using 'bform'
+   MFEM_ASSERT(bform != NULL, "");
+   MFEM_ASSERT(kbform == NULL, "");
+
+   kFiniteElementSpace &ofes =
+      bform->FESpace()->Get_PFESpace()->As<kFiniteElementSpace>();
+   kbform = new kBilinearForm(&ofes);
 
    dbg(", transfer domain integrators");
    mfem::Array<mfem::BilinearFormIntegrator*> &dbfi = *bform->GetDBFI();
@@ -42,19 +94,18 @@ void BilinearForm::InitKernelsBilinearForm()
          dynamic_cast<ConstantCoefficient*>(scal_coeff);
       // TODO: other types of coefficients ...
       double val = const_coeff ? const_coeff->constant : 1.0;
-      KernelsCoefficient ocoeff(obform->KernelsEngine(), val);
-
-      KernelsIntegrator *ointeg = NULL;
+      KernelsCoefficient coeff(kbform->engine(), val);
+      KernelsIntegrator *integ = NULL;
 
       if (integ_name == "(undefined)")
       {
          MFEM_ABORT("BilinearFormIntegrator does not define Name()");
-         ointeg = new KernelsMassIntegrator(ocoeff);
+         integ = new KernelsMassIntegrator(coeff);
       }
       else if (integ_name == "diffusion")
       {
         //assert(false);
-         ointeg = new KernelsDiffusionIntegrator(ocoeff);
+         integ = new KernelsDiffusionIntegrator(coeff);
       }
       else
       {
@@ -63,59 +114,12 @@ void BilinearForm::InitKernelsBilinearForm()
       }
 
       const mfem::IntegrationRule *ir = dbfi[i]->GetIntRule();
-      if (ir) { ointeg->SetIntegrationRule(*ir); }
+      if (ir) { integ->SetIntegrationRule(*ir); }
 
-      obform->AddDomainIntegrator(ointeg);
+      kbform->AddDomainIntegrator(integ);
    }
    pop();
    // TODO: other types of integrators ...
-}
-
-bool BilinearForm::Assemble()
-{
-   push();
-   if (obform == NULL) { InitKernelsBilinearForm(); }
-   obform->Assemble();
-   pop();
-   return true; // --> host assembly is not needed
-}
-
-void BilinearForm::FormSystemMatrix(const mfem::Array<int> &ess_tdof_list,
-                                    mfem::OperatorHandle &A)
-{
-   push();
-   if (A.Type() == mfem::Operator::ANY_TYPE)
-   {
-      mfem::Operator *Aout = NULL;
-      obform->FormOperator(ess_tdof_list, Aout);
-      A.Reset(Aout);
-   }
-   else
-   {
-      MFEM_ABORT("Operator::Type is not supported, type = " << A.Type());
-   }
-   pop();
-}
-
-void BilinearForm::FormLinearSystem(const mfem::Array<int> &ess_tdof_list,
-                                    mfem::Vector &x, mfem::Vector &b,
-                                    mfem::OperatorHandle &A,
-                                    mfem::Vector &X, mfem::Vector &B,
-                                    int copy_interior)
-{
-   push(); //assert(false);
-   FormSystemMatrix(ess_tdof_list, A);
-   obform->InitRHS(ess_tdof_list, x, b, A.Ptr(), X, B, copy_interior);
-   pop();
-}
-
-void BilinearForm::RecoverFEMSolution(const mfem::Vector &X,
-                                      const mfem::Vector &b,
-                                      mfem::Vector &x)
-{
-   push();
-   obform->KernelsRecoverFEMSolution(X, b, x);
-   pop();
 }
 
 } // namespace mfem::kernels

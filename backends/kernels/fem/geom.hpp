@@ -22,23 +22,23 @@ namespace kernels
 {
 
 // ***************************************************************************
-// * KernelsGeometry
+// * kGeometry
 // ***************************************************************************
-class KernelsGeometry
+class kGeometry
 {
 public:
-   ~KernelsGeometry();
+   ~kGeometry();
    kernels::array<int> eMap;
    kernels::array<double> meshNodes;
    kernels::array<double> J, invJ, detJ;
    static const int Jacobian    = (1 << 0);
    static const int JacobianInv = (1 << 1);
    static const int JacobianDet = (1 << 2);
-   static KernelsGeometry* Get(KernelsFiniteElementSpace&,
+   static kGeometry* Get(kFiniteElementSpace&,
                                const IntegrationRule&);
-   static KernelsGeometry* Get(KernelsFiniteElementSpace&,
+   static kGeometry* Get(kFiniteElementSpace&,
                                const IntegrationRule&,
-                               const KernelsVector&);
+                               const kvector&);
    static void ReorderByVDim(GridFunction& nodes);
    static void ReorderByNodes(GridFunction& nodes);
 };

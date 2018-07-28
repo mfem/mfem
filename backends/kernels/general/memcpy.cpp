@@ -26,7 +26,7 @@ namespace kernels
 {
 
 // *************************************************************************
-void* rmemcpy::rHtoH(void *dest, const void *src, std::size_t bytes,
+void* kmemcpy::rHtoH(void *dest, const void *src, std::size_t bytes,
                      const bool async)
 {
    dbg(">\033[m");
@@ -37,7 +37,7 @@ void* rmemcpy::rHtoH(void *dest, const void *src, std::size_t bytes,
 }
 
 // *************************************************************************
-void* rmemcpy::rHtoD(void *dest, const void *src, std::size_t bytes,
+void* kmemcpy::rHtoD(void *dest, const void *src, std::size_t bytes,
                      const bool async)
 {
    dbg(">\033[m");
@@ -55,7 +55,7 @@ void* rmemcpy::rHtoD(void *dest, const void *src, std::size_t bytes,
 }
 
 // ***************************************************************************
-void* rmemcpy::rDtoH(void *dest, const void *src, std::size_t bytes,
+void* kmemcpy::rDtoH(void *dest, const void *src, std::size_t bytes,
                      const bool async)
 {
    dbg("<\033[m");
@@ -73,7 +73,7 @@ void* rmemcpy::rDtoH(void *dest, const void *src, std::size_t bytes,
 }
 
 // ***************************************************************************
-void* rmemcpy::rDtoD(void *dest, const void *src, std::size_t bytes,
+void* kmemcpy::rDtoD(void *dest, const void *src, std::size_t bytes,
                      const bool async)
 {
    dbg("<\033[m");

@@ -31,87 +31,62 @@ enum KernelsIntegratorType
 
 class KernelsIntegrator;
 
-
-/** Class for bilinear form - "Matrix" with associated FE space and
-    BLFIntegrators. */
-class KernelsBilinearForm : public Operator
-{
+// *****************************************************************************
+// * Class for bilinear form - "Matrix" with associated FE space and
+// * BLFIntegrators.
+// *****************************************************************************
+class kBilinearForm : public Operator{
    friend class KernelsIntegrator;
-
 protected:
    typedef std::vector<KernelsIntegrator*> IntegratorVector;
-
-   SharedPtr<const Engine> engine;
-
+   SharedPtr<const Engine> ng;
    // State information
    mutable mfem::Mesh *mesh;
-
-   mutable KernelsFiniteElementSpace *otrialFESpace;
+   mutable kFiniteElementSpace *otrialFESpace;
    mutable mfem::FiniteElementSpace *trialFESpace;
-
-   mutable KernelsFiniteElementSpace *otestFESpace;
+   mutable kFiniteElementSpace *otestFESpace;
    mutable mfem::FiniteElementSpace *testFESpace;
-
    IntegratorVector integrators;
-
    // The input and output vectors are mapped to local nodes for efficient
    // operations. In other words, they are E-vectors.
    // The size is: (number of elements) * (nodes in element) * (vector dim)
-   mutable Vector localX, localY;
-
+   mutable kernels::Vector localX, localY;
 public:
-   KernelsBilinearForm(KernelsFiniteElementSpace *ofespace_);
-
-   KernelsBilinearForm(KernelsFiniteElementSpace *otrialFESpace_,
-                       KernelsFiniteElementSpace *otestFESpace_);
-
-   void Init(const Engine &e,
-             KernelsFiniteElementSpace *otrialFESpace_,
-             KernelsFiniteElementSpace *otestFESpace_);
-
-   const Engine &KernelsEngine() const { return *engine; }
-
-   kernels::device GetDevice(int idx = 0) const
-   { return engine->GetDevice(idx); }
+   kBilinearForm(kFiniteElementSpace *ofespace_);
+   kBilinearForm(kFiniteElementSpace*, kFiniteElementSpace*);
+   void Init(const Engine&, kFiniteElementSpace*, kFiniteElementSpace*);
+   const Engine &engine() const { return *ng; }
+   device GetDevice(int idx = 0) const { return ng->GetDevice(idx); }
 
    // Useful mesh Information
-   int BaseGeom() const;
-   int GetDim() const;
-   int64_t GetNE() const;
+   int BaseGeom() const { return mesh->GetElementBaseGeometry(); }
+   int GetDim() const { return mesh->Dimension(); }
+   int64_t GetNE() const{ return mesh->GetNE(); }
+   mfem::Mesh& GetMesh() const { return *mesh; }
 
-   mfem::Mesh& GetMesh() const;
-
-   KernelsFiniteElementSpace& GetTrialKernelsFESpace() const;
-   KernelsFiniteElementSpace& GetTestKernelsFESpace() const;
-
+   kFiniteElementSpace& GetTrialKernelsFESpace() const;
+   kFiniteElementSpace& GetTestKernelsFESpace() const;
    mfem::FiniteElementSpace& GetTrialFESpace() const;
    mfem::FiniteElementSpace& GetTestFESpace() const;
 
    // Useful FE information
    int64_t GetTrialNDofs() const;
    int64_t GetTestNDofs() const;
-
    int64_t GetTrialVDim() const;
    int64_t GetTestVDim() const;
-
    const mfem::FiniteElement& GetTrialFE(const int i) const;
    const mfem::FiniteElement& GetTestFE(const int i) const;
 
    // Adds new Domain Integrator.
-   void AddDomainIntegrator(KernelsIntegrator *integrator);
-
+   void AddDomainIntegrator(KernelsIntegrator*);
    // Adds new Boundary Integrator.
-   void AddBoundaryIntegrator(KernelsIntegrator *integrator);
-
+   void AddBoundaryIntegrator(KernelsIntegrator*);
    // Adds new interior Face Integrator.
-   void AddInteriorFaceIntegrator(KernelsIntegrator *integrator);
-
+   void AddInteriorFaceIntegrator(KernelsIntegrator*);
    // Adds new boundary Face Integrator.
-   void AddBoundaryFaceIntegrator(KernelsIntegrator *integrator);
-
+   void AddBoundaryFaceIntegrator(KernelsIntegrator*);
    // Adds Integrator based on KernelsIntegratorType
-   void AddIntegrator(KernelsIntegrator *integrator,
-                      const KernelsIntegratorType itype);
+   void AddIntegrator(KernelsIntegrator*, const KernelsIntegratorType );
 
    virtual const mfem::Operator *GetTrialProlongation() const;
    virtual const mfem::Operator *GetTestProlongation() const;
@@ -145,7 +120,7 @@ public:
                                   mfem::Vector &x);
 
    // Destroys bilinear form.
-   ~KernelsBilinearForm();
+   ~kBilinearForm();
 };
 
 } // namespace mfem::kernels

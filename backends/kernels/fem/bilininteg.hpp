@@ -26,11 +26,11 @@ class KernelsIntegrator
 protected:
    SharedPtr<const Engine> engine;
 
-   kernels::KernelsBilinearForm *bform;
+   kernels::kBilinearForm *bform;
    mfem::Mesh *mesh;
 
-   KernelsFiniteElementSpace *rtrialFESpace;
-   KernelsFiniteElementSpace *rtestFESpace;
+   kFiniteElementSpace *rtrialFESpace;
+   kFiniteElementSpace *rtestFESpace;
 
    mfem::FiniteElementSpace *trialFESpace;
    mfem::FiniteElementSpace *testFESpace;
@@ -49,8 +49,8 @@ public:
    kernels::device GetDevice(int idx = 0) const
    { return engine->GetDevice(idx); }
    virtual std::string GetName() = 0;
-   KernelsFiniteElementSpace& GetTrialKernelsFESpace() const;
-   KernelsFiniteElementSpace& GetTestKernelsFESpace() const;
+   kFiniteElementSpace& GetTrialKernelsFESpace() const;
+   kFiniteElementSpace& GetTestKernelsFESpace() const;
    mfem::FiniteElementSpace& GetTrialFESpace() const;
    mfem::FiniteElementSpace& GetTestFESpace() const;
    void SetIntegrationRule(const mfem::IntegrationRule &ir_);
@@ -58,7 +58,7 @@ public:
    KernelsDofQuadMaps* GetDofQuadMaps();
    void SetupMaps();
    virtual void SetupIntegrationRule() = 0;
-   virtual void SetupIntegrator(KernelsBilinearForm &bform_,
+   virtual void SetupIntegrator(kBilinearForm &bform_,
                                 const KernelsIntegratorType itype_);
    virtual void Setup() = 0;
    virtual void Assemble() = 0;
@@ -68,9 +68,9 @@ public:
    {
       mfem_error("KernelsIntegrator::MultTransposeAdd() is not overloaded!");
    }
-   KernelsGeometry *GetGeometry(const int flags = (KernelsGeometry::Jacobian    |
-                                                   KernelsGeometry::JacobianInv |
-                                                   KernelsGeometry::JacobianDet));
+   kGeometry *GetGeometry(const int flags = (kGeometry::Jacobian    |
+                                             kGeometry::JacobianInv |
+                                             kGeometry::JacobianDet));
 };
 
 } // namespace mfem::kernels

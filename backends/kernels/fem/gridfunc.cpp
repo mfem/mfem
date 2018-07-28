@@ -62,22 +62,12 @@ namespace kernels
 //    ofespace(NULL),
 //    sequence(0) {}
 
-KernelsGridFunction::KernelsGridFunction(KernelsFiniteElementSpace &f)
+KernelsGridFunction::KernelsGridFunction(kFiniteElementSpace &f)
    : PArray(f.KernelsVLayout()),
      Array(f.KernelsVLayout(), sizeof(double)),
      Vector(f.KernelsVLayout()),
      fes(f),
      sequence(0) {}
-
-KernelsGridFunction::KernelsGridFunction(KernelsFiniteElementSpace &f,
-                                         const KernelsVector *_v) :
-   PArray(f.KernelsVLayout()),
-   Array(f.KernelsVLayout(), sizeof(double)),
-   Vector(f.KernelsVLayout()),
-   fes(f),
-   sequence(0),
-   v(_v) {}
-
 
 KernelsGridFunction::KernelsGridFunction(const KernelsGridFunction &v)
    : PArray(v),
@@ -98,9 +88,9 @@ KernelsGridFunction& KernelsGridFunction::operator = (const Vector &v)
    return *this;
 }
 
-// KernelsGridFunction& KernelsGridFunction::operator = (const KernelsVectorRef &v)
+// KernelsGridFunction& KernelsGridFunction::operator = (const kvectorRef &v)
 // {
-//    KernelsVector::operator = (v);
+//    kvector::operator = (v);
 //    return *this;
 // }
 

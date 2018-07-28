@@ -26,14 +26,14 @@ namespace mfem
 namespace kernels
 {
 
-class KernelsTable : public rmalloc<int>
+class ktable : public kmalloc<int>
 {
 private:
    int size = 0;
    int *I = NULL;
    int *J = NULL;
 public:
-   KernelsTable(const Table&);
+   ktable(const Table&);
    inline int Size() {return size;}
    int RowSize(int i) const { return I[i+1]-I[i]; }
    const int *GetRow(int i) const { return J+I[i]; }

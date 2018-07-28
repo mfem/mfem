@@ -25,20 +25,13 @@ namespace kernels
 class BilinearForm : public mfem::PBilinearForm
 {
 protected:
-   //
-   // Inherited fields
-   //
-   // SharedPtr<const mfem::Engine> engine;
-   // mfem::BilinearForm *bform;
-   KernelsBilinearForm *obform;
-
-   // Called from Assemble() if obform is NULL to initialize obform.
-   void InitKernelsBilinearForm();
-
+   kBilinearForm *kbform;
 public:
    /// TODO: doxygen
-   BilinearForm(const Engine &e, mfem::BilinearForm &bf)
-      : mfem::PBilinearForm(e, bf), obform(NULL) { }
+   BilinearForm(const Engine &e,
+                mfem::BilinearForm &bf)
+      : mfem::PBilinearForm(e, bf),
+        kbform(NULL) { }
 
    /// Virtual destructor
    virtual ~BilinearForm() { }
@@ -60,6 +53,10 @@ public:
 
    virtual void RecoverFEMSolution(const mfem::Vector &X, const mfem::Vector &b,
                                    mfem::Vector &x);
+   
+protected:
+   // Called from Assemble() if kbform is NULL to initialize kbform.
+   void InitKBilinearForm();
 };
 
 } // namespace mfem::kernels

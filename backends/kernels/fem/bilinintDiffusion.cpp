@@ -74,23 +74,11 @@ void KernelsDiffusionIntegrator::Assemble()
 
    const int quadraturePoints = ir->GetNPoints();
    const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
-   //assert(quad1D==quadraturePoints);
 
-   KernelsGeometry *geo = GetGeometry(KernelsGeometry::Jacobian);
+   kGeometry *geo = GetGeometry(kGeometry::Jacobian);
    assert(geo);
 
    assembledOperator.Resize<double>(symmDims * quadraturePoints * elements,NULL);
-
-   /*   dbg("maps->quadWeights.Size()=%d",maps->quadWeights.Size());
-      dbg("geom->J.Size()=%d",geom->J.Size());
-      dbg("assembledOperator.Size()=%d",assembledOperator.Size());
-      dbg("\t\033[35mCOEFF=%f",1.0);
-      dbg("\t\033[35mquad1D=%d",quad1D);
-      dbg("\t\033[35mmesh->GetNE()=%d",mesh->GetNE());
-      for(size_t i=0;i<maps->quadWeights.Size();i+=1)
-         printf("\n\t\033[35m[Assemble] quadWeights[%ld]=%f",i, maps->quadWeights[i]);
-      //for(size_t i=0;i<geo->J.Size();i+=1) printf("\n\t\033[35m[Assemble] J[%ld]=%f",i, geo->J[i]);
-      */
    rDiffusionAssemble(dim,
                       quad1D,
                       mesh->GetNE(),
@@ -98,10 +86,6 @@ void KernelsDiffusionIntegrator::Assemble()
                       geo->J,
                       1.0,//COEFF
                       (double*)assembledOperator.KernelsMem().ptr());
-   /*   for(size_t i=0;i<assembledOperator.Size();i+=1)
-         printf("\n\t\033[35m[Assemble] assembledOperator[%ld]=%f",i,
-         ((double*)assembledOperator.KernelsMem().ptr())[i]);
-   */
    pop();
 }
 
@@ -112,20 +96,6 @@ void KernelsDiffusionIntegrator::MultAdd(Vector &x, Vector &y)
    const int dim = mesh->Dimension();
    const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
    const int dofs1D = trialFESpace->GetFE(0)->GetOrder() + 1;
-   // Note: x and y are E-vectors
-   /*   for(size_t i=0;i<x.Size();i+=1)
-         printf("\n\t\033[36m[MultAdd] x[%ld]=%f",i, ((double*)x.KernelsMem().ptr())[i]);
-      for(size_t i=0;i<maps->dofToQuad.Size();i+=1)
-         printf("\n\t\033[36m[MultAdd] dofToQuad[%ld]=%f",i, maps->dofToQuad[i]);
-      for(size_t i=0;i<maps->dofToQuadD.Size();i+=1)
-         printf("\n\t\033[36m[MultAdd] dofToQuadD[%ld]=%f",i, maps->dofToQuadD[i]);
-      for(size_t i=0;i<maps->quadToDof.Size();i+=1)
-         printf("\n\t\033[36m[MultAdd] quadToDof[%ld]=%f",i, maps->quadToDof[i]);
-      for(size_t i=0;i<maps->quadToDofD.Size();i+=1)
-         printf("\n\t\033[36m[MultAdd] quadToDofD[%ld]=%f",i, maps->quadToDofD[i]);
-      for(size_t i=0;i<assembledOperator.Size();i+=1)
-         printf("\n\t\033[36m[MultAdd] assembledOperator[%ld]=%f",i, ((double*)assembledOperator.KernelsMem().ptr())[i]);
-   */
    rDiffusionMultAdd(dim,
                      dofs1D,
                      quad1D,
@@ -137,9 +107,6 @@ void KernelsDiffusionIntegrator::MultAdd(Vector &x, Vector &y)
                      (double*)assembledOperator.KernelsMem().ptr(),
                      (const double*)x.KernelsMem().ptr(),
                      (double*)y.KernelsMem().ptr());
-   /*   for(size_t i=0;i<y.Size();i+=1)
-         printf("\n\t\033[36m[MultAdd] y[%ld]=%f",i, ((double*)y.KernelsMem().ptr())[i]);
-   */
    pop();
 }
 

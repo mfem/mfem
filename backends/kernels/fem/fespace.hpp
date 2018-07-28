@@ -22,7 +22,7 @@ namespace kernels
 {
 
 // *****************************************************************************
-class KernelsFiniteElementSpace : public mfem::PFiniteElementSpace
+class kFiniteElementSpace : public mfem::PFiniteElementSpace
 {
 protected:
    Layout e_layout;
@@ -35,10 +35,10 @@ protected:
    mfem::Operator *restrictionOp, *prolongationOp;
 public:
    /// TODO: doxygen
-   KernelsFiniteElementSpace(const Engine&, mfem::FiniteElementSpace&);
+   kFiniteElementSpace(const Engine&, mfem::FiniteElementSpace&);
 
    /// Virtual destructor
-   virtual ~KernelsFiniteElementSpace();
+   virtual ~kFiniteElementSpace();
 
    /// TODO: doxygen
    const Engine &KernelsEngine() const

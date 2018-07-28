@@ -19,14 +19,18 @@ namespace mfem
 
 namespace kernels
 {
-Vector::Vector(Layout &lt) : PArray(lt),
-   Array(lt, sizeof(double)),
-   PVector(lt)
+
+// *****************************************************************************
+Vector::Vector(Layout &lt) : mfem::PArray(lt),
+                             kernels::Array(lt, sizeof(double)),
+                             mfem::PVector(lt)
 {
    dbg("new kernels::Vector");
 }
 
-PVector *Vector::DoVectorClone(bool copy_data, void **buffer,
+// *****************************************************************************
+PVector *Vector::DoVectorClone(bool copy_data,
+                               void **buffer,
                                int buffer_type_id) const
 {
    push();
@@ -44,7 +48,9 @@ PVector *Vector::DoVectorClone(bool copy_data, void **buffer,
    return new_vector;
 }
 
-void Vector::DoDotProduct(const PVector &x, void *result,
+// *****************************************************************************
+void Vector::DoDotProduct(const mfem::PVector &x,
+                          void *result,
                           int result_type_id) const
 {
    push();
@@ -67,35 +73,25 @@ void Vector::DoDotProduct(const PVector &x, void *result,
 #endif
 }
 
-void Vector::DoAxpby(const void *a, const PVector &x,
-                     const void *b, const PVector &y,
+// *****************************************************************************
+void Vector::DoAxpby(const void *a, const mfem::PVector &x,
+                     const void *b, const mfem::PVector &y,
                      int ab_type_id)
 {
    push();
-   // called only when Size() != 0
-
    MFEM_ASSERT(ab_type_id == ScalarId<double>::value, "");
    const double da = *static_cast<const double *>(a);
    const double db = *static_cast<const double *>(b);
-   //dbg("da=%f",da);
-   //dbg("db=%f",db);
-
    MFEM_ASSERT(da == 0.0 ||
-               dynamic_cast<const Vector *>(&x) != NULL, "\033[31minvalid Vector x\033[m");
+               dynamic_cast<const Vector *>(&x) != NULL,
+               "\033[31minvalid Vector x\033[m");
    MFEM_ASSERT(db == 0.0 ||
-               dynamic_cast<const Vector *>(&y) != NULL, "\033[31minvalid Vector y\033[m");
+               dynamic_cast<const Vector *>(&y) != NULL,
+               "\033[31minvalid Vector y\033[m");
    const Vector *xp = static_cast<const Vector *>(&x);
    const Vector *yp = static_cast<const Vector *>(&y);
-
    MFEM_ASSERT(da == 0.0 || this->Size() == xp->Size(), "");
    MFEM_ASSERT(db == 0.0 || this->Size() == yp->Size(), "");
-
-   /*for(size_t i=0;i<this->Size();i+=1){
-      printf("\n\t\033[36m[DoAxpby] da=%f, db=%f this[%ld]=%f x:%f y:%f",da,db,i,
-             ((double*)this->KernelsMem().ptr())[i],
-             ((double*)xp->KernelsMem().ptr())[i],
-             ((double*)yp->KernelsMem().ptr())[i]);
-             }*/
 
    if (da == 0.0)
    {
@@ -164,12 +160,6 @@ void Vector::DoAxpby(const void *a, const PVector &x,
          }
       }
    }
-   /*for(size_t i=0;i<this->Size();i+=1){
-      printf("\n\t\033[36m[DoAxpby] da=%f, db=%f this[%ld]=%f x:%f y:%f",da,db,i,
-             ((double*)this->KernelsMem().ptr())[i],
-             ((double*)xp->KernelsMem().ptr())[i],
-             ((double*)yp->KernelsMem().ptr())[i]);
-             }*/
    pop();
 }
 
@@ -188,8 +178,6 @@ void Vector::SetSubVector(const mfem::Array<int> &ess_tdofs,
                           const int N)
 {
    push();
-   //dbg("ess_tdofs:\n"); ess_tdofs.Print();
-   //for(int i=0;i<ess_tdofs.Size();i+=1)dbg(" %d",ess_tdofs[i]);
    vector_set_subvector_const(N, value, data, ess_tdofs.GetData());
    pop();
 }
@@ -200,11 +188,13 @@ mfem::Vector Vector::Wrap()
    return mfem::Vector(*this);
 }
 
+// *****************************************************************************
 const mfem::Vector Vector::Wrap() const
 {
    return mfem::Vector(*const_cast<Vector*>(this));
 }
 
+// *****************************************************************************
 #if defined(MFEM_USE_MPI)
 bool Vector::IsParallel() const
 {

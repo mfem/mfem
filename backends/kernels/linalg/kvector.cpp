@@ -20,22 +20,22 @@ namespace mfem
 namespace kernels
 {
 
-KernelsVector::~KernelsVector()
+kvector::~kvector()
 {
    if (!own) { return; }
    dbg("\033[33m[~v");
-   rmalloc::operator delete (data);
+   kmalloc::operator delete (data);
 }
 
 // ***************************************************************************
-double* KernelsVector::alloc(const size_t sz)
+double* kvector::alloc(const size_t sz)
 {
    dbg("\033[33m[v");
-   return (double*) rmalloc::operator new (sz);
+   return (double*) kmalloc::operator new (sz);
 }
 
 // ***************************************************************************
-void KernelsVector::SetSize(const size_t sz, const void* ptr)
+void kvector::SetSize(const size_t sz, const void* ptr)
 {
    own=true;
    size = sz;
@@ -44,62 +44,65 @@ void KernelsVector::SetSize(const size_t sz, const void* ptr)
 }
 
 // ***************************************************************************
-KernelsVector::KernelsVector(const size_t sz):size(sz),data(alloc(sz)),
-   own(true) {}
-KernelsVector::KernelsVector(const size_t sz,double value):
+kvector::kvector(const size_t sz):
+   size(sz),
+   data(alloc(sz)),
+   own(true) {assert(false);}
+   
+kvector::kvector(const size_t sz,double value):
    size(sz),data(alloc(sz)),own(true)
-{
+{assert(false);
    push(SkyBlue);
    *this=value;
    pop();
 }
 
-KernelsVector::KernelsVector(const KernelsVector& v):
-   size(0),data(NULL),own(true) { SetSize(v.Size(), v); }
+kvector::kvector(const kvector& v):
+   size(0),data(NULL),own(true) { assert(false);SetSize(v.Size(), v); }
 
-KernelsVector::KernelsVector(const KernelsVector *v):size(v->size),
+kvector::kvector(const kvector *v):size(v->size),
    data(v->data),
-   own(false) {}
+   own(false) {assert(false);}
 
-KernelsVector::KernelsVector(kernels::array<double>& v):size(v.size()),
+kvector::kvector(kernels::array<double>& v):size(v.size()),
    data(v.ptr()),
-   own(false) {}
+   own(false) {assert(false);}
 
 // Host 2 Device ***************************************************************
-KernelsVector::KernelsVector(const mfem::Vector& v):size(v.Size()),
+kvector::kvector(const mfem::Vector& v):size(v.Size()),
    data(alloc(size)),
    own(true)
 {
    assert(v.GetData());
-   rmemcpy::rHtoD(data,v.GetData(),size*sizeof(double));
+   kmemcpy::rHtoD(data,v.GetData(),size*sizeof(double));
 }
 
 // Device 2 Host ***************************************************************
-KernelsVector::operator mfem::Vector()
+kvector::operator mfem::Vector()
 {
    if (!config::Get().Cuda()) { return mfem::Vector(data,size); }
    double *h_data= (double*) ::malloc(bytes());
-   rmemcpy::rDtoH(h_data,data,bytes());
+   kmemcpy::rDtoH(h_data,data,bytes());
    mfem::Vector mfem_vector(h_data,size);
    mfem_vector.MakeDataOwner();
    return mfem_vector;
 }
 
-KernelsVector::operator mfem::Vector() const
+kvector::operator mfem::Vector() const
 {
    if (!config::Get().Cuda()) { return mfem::Vector(data,size); }
    double *h_data= (double*) ::malloc(bytes());
-   rmemcpy::rDtoH(h_data,data,bytes());
+   kmemcpy::rDtoH(h_data,data,bytes());
    mfem::Vector mfem_vector(h_data,size);
    mfem_vector.MakeDataOwner();
    return mfem_vector;
 }
 
 // ***************************************************************************
-void KernelsVector::Print(std::ostream& out, int width) const
+void kvector::Print(std::ostream& out, int width) const
 {
    double *h_data = (double*) ::malloc(bytes());
-   rmemcpy::rDtoH(h_data,data,bytes());
+   kmemcpy::rDtoH(h_data,data,bytes());
    for (size_t i=0; i<size; i+=1)
    {
       //printf("\n\t[%ld] %.15e",i,h_data[i]);
@@ -109,10 +112,10 @@ void KernelsVector::Print(std::ostream& out, int width) const
 }
 
 // ***************************************************************************
-KernelsVector* KernelsVector::GetRange(const size_t offset,
+kvector* kvector::GetRange(const size_t offset,
                                        const size_t entries) const
 {
-   static KernelsVector ref;
+   static kvector ref;
    ref.size = entries;
    ref.data = (double*) ((unsigned char*)data + (offset*sizeof(double)));
    ref.own = false;
@@ -120,7 +123,7 @@ KernelsVector* KernelsVector::GetRange(const size_t offset,
 }
 
 // ***************************************************************************
-KernelsVector& KernelsVector::operator=(const KernelsVector& v)
+kvector& kvector::operator=(const kvector& v)
 {
    SetSize(v.Size(),v.data);
    own = false;
@@ -128,7 +131,7 @@ KernelsVector& KernelsVector::operator=(const KernelsVector& v)
 }
 
 // ***************************************************************************
-KernelsVector& KernelsVector::operator=(const mfem::Vector& v)
+kvector& kvector::operator=(const mfem::Vector& v)
 {
    size=v.Size();
    if (!config::Get().Cuda()) { SetSize(size,v.GetData()); }
@@ -138,65 +141,65 @@ KernelsVector& KernelsVector::operator=(const mfem::Vector& v)
 }
 
 // ***************************************************************************
-KernelsVector& KernelsVector::operator=(double value)
+kvector& kvector::operator=(double value)
 {
    vector_op_eq(size, value, data);
    return *this;
 }
 
 // ***************************************************************************
-double KernelsVector::operator*(const KernelsVector& v) const
+double kvector::operator*(const kvector& v) const
 {
    return vector_dot(size, data, v.data);
 }
 
 // *****************************************************************************
-KernelsVector& KernelsVector::operator-=(const KernelsVector& v)
+kvector& kvector::operator-=(const kvector& v)
 {
    vector_vec_sub(size, data, v.data);
    return *this;
 }
 
 // ***************************************************************************
-KernelsVector& KernelsVector::operator+=(const KernelsVector& v)
+kvector& kvector::operator+=(const kvector& v)
 {
    vector_vec_add(size, data, v.data);
    return *this;
 }
 
 // ***************************************************************************
-KernelsVector& KernelsVector::operator+=(const mfem::Vector& v)
+kvector& kvector::operator+=(const mfem::Vector& v)
 {
    double *d_v_data;
    assert(v.GetData());
    if (!config::Get().Cuda()) { d_v_data=v.GetData(); }
-   else { rmemcpy::rHtoD(d_v_data = alloc(size),v.GetData(),bytes()); }
+   else { kmemcpy::rHtoD(d_v_data = alloc(size),v.GetData(),bytes()); }
    vector_vec_add(size, data, d_v_data);
    return *this;
 }
 
 // ***************************************************************************
-KernelsVector& KernelsVector::operator*=(const double d)
+kvector& kvector::operator*=(const double d)
 {
    vector_vec_mul(size, data, d);
    return *this;
 }
 
 // ***************************************************************************
-KernelsVector& KernelsVector::Add(const double alpha, const KernelsVector& v)
+kvector& kvector::Add(const double alpha, const kvector& v)
 {
    vector_axpy(Size(),alpha, data, v.data);
    return *this;
 }
 
 // ***************************************************************************
-void KernelsVector::Neg()
+void kvector::Neg()
 {
    vector_neg(Size(),ptr());
 }
 
 // *****************************************************************************
-void KernelsVector::SetSubVector(const kernels::array<int> &ess_tdofs,
+void kvector::SetSubVector(const kernels::array<int> &ess_tdofs,
                                  const double value,
                                  const int N)
 {
@@ -205,29 +208,29 @@ void KernelsVector::SetSubVector(const kernels::array<int> &ess_tdofs,
 
 
 // ***************************************************************************
-double KernelsVector::Min() const
+double kvector::Min() const
 {
    return vector_min(Size(),(double*)data);
 }
 
 // ***************************************************************************
-void add(const KernelsVector& v1, const double alpha,
-         const KernelsVector& v2, KernelsVector& out)
+void add(const kvector& v1, const double alpha,
+         const kvector& v2, kvector& out)
 {
    vector_xpay(out.Size(),alpha,out.ptr(),v1.ptr(),v2.ptr());
 }
 
 // *****************************************************************************
 void add(const double alpha,
-         const KernelsVector& v1,
+         const kvector& v1,
          const double beta,
-         const KernelsVector& v2,
-         KernelsVector& out) { assert(false); }
+         const kvector& v2,
+         kvector& out) { assert(false); }
 
 // ***************************************************************************
-void subtract(const KernelsVector& v1,
-              const KernelsVector& v2,
-              KernelsVector& out)
+void subtract(const kvector& v1,
+              const kvector& v2,
+              kvector& out)
 {
    vector_xsy(out.Size(),out.ptr(),v1.ptr(),v2.ptr());
 }

@@ -21,18 +21,9 @@ namespace mfem
 namespace kernels
 {
 
-class Vector : virtual public Array, public PVector
+class Vector : virtual public kernels::Array, public mfem::PVector
 {
 protected:
-   //
-   // Inherited fields
-   //
-   // DLayout layout;
-
-   /**
-       @name Virtual interface
-    */
-   ///@{
 
    virtual PVector *DoVectorClone(bool copy_data, void **buffer,
                                   int buffer_type_id) const;
@@ -43,10 +34,6 @@ protected:
    virtual void DoAxpby(const void *a, const PVector &x,
                         const void *b, const PVector &y,
                         int ab_type_id);
-
-   ///@}
-   // End: Virtual interface
-
 public:
    Vector(Layout &lt);
 

@@ -20,7 +20,8 @@ namespace mfem
 namespace kernels
 {
 
-KernelsBilinearForm::KernelsBilinearForm(KernelsFiniteElementSpace *ofespace_) :
+// *****************************************************************************
+kBilinearForm::kBilinearForm(kFiniteElementSpace *ofespace_) :
    Operator(ofespace_->KernelsVLayout()),
    localX(ofespace_->KernelsEVLayout()),
    localY(ofespace_->KernelsEVLayout())
@@ -30,9 +31,10 @@ KernelsBilinearForm::KernelsBilinearForm(KernelsFiniteElementSpace *ofespace_) :
    pop();
 }
 
-KernelsBilinearForm::KernelsBilinearForm(KernelsFiniteElementSpace
-                                         *otrialFESpace_,
-                                         KernelsFiniteElementSpace *otestFESpace_) :
+// *****************************************************************************
+kBilinearForm::kBilinearForm(kFiniteElementSpace
+                             *otrialFESpace_,
+                             kFiniteElementSpace *otestFESpace_) :
    Operator(otrialFESpace_->KernelsVLayout(), otestFESpace_->KernelsVLayout()),
    localX(otrialFESpace_->KernelsEVLayout()),
    localY(otestFESpace_->KernelsEVLayout())
@@ -42,12 +44,13 @@ KernelsBilinearForm::KernelsBilinearForm(KernelsFiniteElementSpace
    pop();
 }
 
-void KernelsBilinearForm::Init(const Engine &e,
-                               KernelsFiniteElementSpace *otrialFESpace_,
-                               KernelsFiniteElementSpace *otestFESpace_)
+// *****************************************************************************
+void kBilinearForm::Init(const Engine &e,
+                         kFiniteElementSpace *otrialFESpace_,
+                         kFiniteElementSpace *otestFESpace_)
 {
    push();
-   engine.Reset(&e);
+   ng.Reset(&e);
    otrialFESpace = otrialFESpace_;
    trialFESpace  = otrialFESpace_->GetFESpace();
 
@@ -55,94 +58,72 @@ void KernelsBilinearForm::Init(const Engine &e,
    testFESpace  = otestFESpace_->GetFESpace();
 
    mesh = trialFESpace->GetMesh();
-   dbg(" done!");
    pop();
 }
 
-int KernelsBilinearForm::BaseGeom() const
-{
-   push();
-   pop();
-   return mesh->GetElementBaseGeometry();
-}
-
-int KernelsBilinearForm::GetDim() const
-{
-   push(); pop();
-   return mesh->Dimension();
-}
-
-int64_t KernelsBilinearForm::GetNE() const
-{
-   push(); pop();
-   return mesh->GetNE();
-}
-
-Mesh& KernelsBilinearForm::GetMesh() const
-{
-   push(); pop();
-   return *mesh;
-}
-
-KernelsFiniteElementSpace& KernelsBilinearForm::GetTrialKernelsFESpace() const
+// *****************************************************************************
+kFiniteElementSpace& kBilinearForm::GetTrialKernelsFESpace() const
 {
    push(); pop();
    return *otrialFESpace;
 }
 
-KernelsFiniteElementSpace& KernelsBilinearForm::GetTestKernelsFESpace() const
+// *****************************************************************************
+kFiniteElementSpace& kBilinearForm::GetTestKernelsFESpace() const
 {
    push(); pop();
    return *otestFESpace;
 }
 
-mfem::FiniteElementSpace& KernelsBilinearForm::GetTrialFESpace() const
+// *****************************************************************************
+mfem::FiniteElementSpace& kBilinearForm::GetTrialFESpace() const
 {
    push(); pop();
    assert(trialFESpace);
    return *trialFESpace;
 }
 
-mfem::FiniteElementSpace& KernelsBilinearForm::GetTestFESpace() const
+// *****************************************************************************
+mfem::FiniteElementSpace& kBilinearForm::GetTestFESpace() const
 {
    push(); pop();
    assert(testFESpace);
    return *testFESpace;
 }
 
-int64_t KernelsBilinearForm::GetTrialNDofs() const
+int64_t kBilinearForm::GetTrialNDofs() const
 {
    push(); pop();
    return trialFESpace->GetNDofs();
 }
 
-int64_t KernelsBilinearForm::GetTestNDofs() const
+int64_t kBilinearForm::GetTestNDofs() const
 {
    return testFESpace->GetNDofs();
 }
 
-int64_t KernelsBilinearForm::GetTrialVDim() const
+int64_t kBilinearForm::GetTrialVDim() const
 {
    return trialFESpace->GetVDim();
 }
 
-int64_t KernelsBilinearForm::GetTestVDim() const
+int64_t kBilinearForm::GetTestVDim() const
 {
    return testFESpace->GetVDim();
 }
 
-const FiniteElement& KernelsBilinearForm::GetTrialFE(const int i) const
+const FiniteElement& kBilinearForm::GetTrialFE(const int i) const
 {
    return *(trialFESpace->GetFE(i));
 }
 
-const FiniteElement& KernelsBilinearForm::GetTestFE(const int i) const
+const FiniteElement& kBilinearForm::GetTestFE(const int i) const
 {
    return *(testFESpace->GetFE(i));
 }
 
 // Adds new Domain Integrator.
-void KernelsBilinearForm::AddDomainIntegrator(KernelsIntegrator *integrator)
+void kBilinearForm::AddDomainIntegrator(KernelsIntegrator *integrator)
 {
    push();
    AddIntegrator(integrator, DomainIntegrator);
@@ -150,7 +131,7 @@ void KernelsBilinearForm::AddDomainIntegrator(KernelsIntegrator *integrator)
 }
 
 // Adds new Boundary Integrator.
-void KernelsBilinearForm::AddBoundaryIntegrator(KernelsIntegrator *integrator)
+void kBilinearForm::AddBoundaryIntegrator(KernelsIntegrator *integrator)
 {
    push();
    AddIntegrator(integrator, BoundaryIntegrator);
@@ -158,7 +139,7 @@ void KernelsBilinearForm::AddBoundaryIntegrator(KernelsIntegrator *integrator)
 }
 
 // Adds new interior Face Integrator.
-void KernelsBilinearForm::AddInteriorFaceIntegrator(KernelsIntegrator
+void kBilinearForm::AddInteriorFaceIntegrator(KernelsIntegrator
                                                     *integrator)
 {
    push();
@@ -167,7 +148,7 @@ void KernelsBilinearForm::AddInteriorFaceIntegrator(KernelsIntegrator
 }
 
 // Adds new boundary Face Integrator.
-void KernelsBilinearForm::AddBoundaryFaceIntegrator(KernelsIntegrator
+void kBilinearForm::AddBoundaryFaceIntegrator(KernelsIntegrator
                                                     *integrator)
 {
    push();
@@ -176,14 +157,14 @@ void KernelsBilinearForm::AddBoundaryFaceIntegrator(KernelsIntegrator
 }
 
 // Adds Integrator based on KernelsIntegratorType
-void KernelsBilinearForm::AddIntegrator(KernelsIntegrator *integrator,
+void kBilinearForm::AddIntegrator(KernelsIntegrator *integrator,
                                         const KernelsIntegratorType itype)
 {
    push();
    if (integrator == NULL)
    {
       std::stringstream error_ss;
-      error_ss << "KernelsBilinearForm::";
+      error_ss << "kBilinearForm::";
       switch (itype)
       {
          case DomainIntegrator      : error_ss << "AddDomainIntegrator";       break;
@@ -201,28 +182,28 @@ void KernelsBilinearForm::AddIntegrator(KernelsIntegrator *integrator,
    pop();
 }
 
-const mfem::Operator* KernelsBilinearForm::GetTrialProlongation() const
+const mfem::Operator* kBilinearForm::GetTrialProlongation() const
 {
    return otrialFESpace->GetProlongationOperator();
 }
 
-const mfem::Operator* KernelsBilinearForm::GetTestProlongation() const
+const mfem::Operator* kBilinearForm::GetTestProlongation() const
 {
    return otestFESpace->GetProlongationOperator();
 }
 
-const mfem::Operator* KernelsBilinearForm::GetTrialRestriction() const
+const mfem::Operator* kBilinearForm::GetTrialRestriction() const
 {
    return otrialFESpace->GetRestrictionOperator();
 }
 
-const mfem::Operator* KernelsBilinearForm::GetTestRestriction() const
+const mfem::Operator* kBilinearForm::GetTestRestriction() const
 {
    return otestFESpace->GetRestrictionOperator();
 }
 
 // *****************************************************************************
-void KernelsBilinearForm::Assemble()
+void kBilinearForm::Assemble()
 {
    push();
    // [MISSING] Find geometric information that is needed by intergrators
@@ -236,7 +217,7 @@ void KernelsBilinearForm::Assemble()
 }
 
 // *****************************************************************************
-void KernelsBilinearForm::FormLinearSystem(const mfem::Array<int>
+void kBilinearForm::FormLinearSystem(const mfem::Array<int>
                                            &constraintList,
                                            mfem::Vector &x, mfem::Vector &b,
                                            mfem::Operator *&Aout,
@@ -251,7 +232,7 @@ void KernelsBilinearForm::FormLinearSystem(const mfem::Array<int>
 }
 
 // *****************************************************************************
-void KernelsBilinearForm::FormOperator(const mfem::Array<int> &constraintList,
+void kBilinearForm::FormOperator(const mfem::Array<int> &constraintList,
                                        mfem::Operator *&Aout)
 {
    push();
@@ -270,7 +251,7 @@ void KernelsBilinearForm::FormOperator(const mfem::Array<int> &constraintList,
 }
 
 // *****************************************************************************
-void KernelsBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
+void kBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
                                   mfem::Vector &x, mfem::Vector &b,
                                   mfem::Operator *A,
                                   mfem::Vector &X, mfem::Vector &B,
@@ -279,17 +260,13 @@ void KernelsBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
   push(); //assert(false);
    const mfem::Operator *P = GetTrialProlongation();
    const mfem::Operator *R = GetTrialRestriction();
-   if (P)
-   {
+   if (P) {
       // Variational restriction with P
-     //assert(false);
       B.Resize(P->InLayout());
       P->MultTranspose(b, B);
       X.Resize(R->OutLayout());
       R->Mult(x, X);
-   }
-   else
-   {
+   } else {
       // rap, X and B point to the same data as this, x and b
       assert(false);
       X.MakeRef(x);
@@ -320,21 +297,20 @@ void KernelsBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
    }
    else
    {
-      mfem_error("KernelsBilinearForm::InitRHS expects an KernelsConstrainedOperator");
+      mfem_error("kBilinearForm::InitRHS expects an KernelsConstrainedOperator");
    }
    pop();
 }
 
 
 // Matrix vector multiplication ************************************************
-void KernelsBilinearForm::Mult_(const Vector &x, Vector &y) const
+void kBilinearForm::Mult_(const Vector &x, Vector &y) const
 {
-   dbg("\033[7mKernelsBilinearForm::Mult_");
+   dbg("\033[7mkBilinearForm::Mult_");
    otrialFESpace->GlobalToLocal(x, localX);
    localY.Fill<double>(0.0);
    const int integratorCount = (int) integrators.size();
-   for (int i = 0; i < integratorCount; ++i)
-   {
+   for (int i = 0; i < integratorCount; ++i) {
       integrators[i]->MultAdd(localX, localY);
    }
    otestFESpace->LocalToGlobal(localY, y);
@@ -342,14 +318,13 @@ void KernelsBilinearForm::Mult_(const Vector &x, Vector &y) const
 }
 
 // Matrix transpose vector multiplication **************************************
-void KernelsBilinearForm::MultTranspose_(const Vector &x, Vector &y) const
+void kBilinearForm::MultTranspose_(const Vector &x, Vector &y) const
 {
    push();
    otestFESpace->GlobalToLocal(x, localX);
    localY.Fill<double>(0.0);
    const int integratorCount = (int) integrators.size();
-   for (int i = 0; i < integratorCount; ++i)
-   {
+   for (int i = 0; i < integratorCount; ++i){
       integrators[i]->MultTransposeAdd(localX, localY);
    }
    otrialFESpace->LocalToGlobal(localY, y);
@@ -357,14 +332,13 @@ void KernelsBilinearForm::MultTranspose_(const Vector &x, Vector &y) const
 }
 
 // *****************************************************************************
-void KernelsBilinearForm::KernelsRecoverFEMSolution(const mfem::Vector &X,
+void kBilinearForm::KernelsRecoverFEMSolution(const mfem::Vector &X,
                                                     const mfem::Vector &b,
                                                     mfem::Vector &x)
 {
    push();
    const mfem::Operator *P = this->GetTrialProlongation();
-   if (P)
-   {
+   if (P) {
       // Apply conforming prolongation
       x.Resize(P->OutLayout());
       P->Mult(X, x);
@@ -374,7 +348,7 @@ void KernelsBilinearForm::KernelsRecoverFEMSolution(const mfem::Vector &X,
 }
 
 // Frees memory bilinear form **************************************************
-KernelsBilinearForm::~KernelsBilinearForm()
+kBilinearForm::~kBilinearForm()
 {
    // Make sure all integrators free their data
    IntegratorVector::iterator it = integrators.begin();

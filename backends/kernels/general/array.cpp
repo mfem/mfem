@@ -20,6 +20,7 @@ namespace mfem
 namespace kernels
 {
 
+// *****************************************************************************
 PArray *Array::DoClone(bool copy_data, void **buffer,
                        std::size_t item_size) const
 {
@@ -37,6 +38,7 @@ PArray *Array::DoClone(bool copy_data, void **buffer,
    return new_array;
 }
 
+// *****************************************************************************
 int Array::DoResize(PLayout &new_layout, void **buffer,
                     std::size_t item_size)
 {
@@ -54,12 +56,12 @@ int Array::DoResize(PLayout &new_layout, void **buffer,
    return err;
 }
 
+// *****************************************************************************
 int Array::ResizeData(const Layout *lt, std::size_t item_size)
 {
    push();
    const std::size_t new_bytes = lt->Size()*item_size;
-   if (data.size() <
-       new_bytes )//|| data.getDHandle() != lt->KernelsEngine().GetDevice().getDHandle())
+   if (data.size() < new_bytes )
    {
       data = lt->Alloc(new_bytes);
       slice = data;
@@ -73,10 +75,9 @@ int Array::ResizeData(const Layout *lt, std::size_t item_size)
    return 0;
 }
 
+// *****************************************************************************
 void *Array::DoPullData(void *buffer, std::size_t item_size)
 {
-   // called only when Size() != 0
-
    if (!slice.getDevice().hasSeparateMemorySpace())
    {
       pop();
@@ -91,11 +92,10 @@ void *Array::DoPullData(void *buffer, std::size_t item_size)
    return buffer;
 }
 
+// *****************************************************************************
 void Array::DoFill(const void *value_ptr, std::size_t item_size)
 {
    push();
-   // called only when Size() != 0
-
    switch (item_size)
    {
       case sizeof(int8_t):
@@ -107,26 +107,19 @@ void Array::DoFill(const void *value_ptr, std::size_t item_size)
       case sizeof(int32_t):
          KernelsFill((const int32_t *)value_ptr);
          break;
-      // case sizeof(int64_t):
-      //    KernelsFill((const int64_t *)value_ptr);
-      //    break;
       case sizeof(double):
          KernelsFill((const double *)value_ptr);
          break;
-      // case sizeof(::kernels::double2):
-      //    KernelsFill((const ::kernels::double2 *)value_ptr);
-      //    break;
       default:
          MFEM_ABORT("item_size = " << item_size << " is not supported");
    }
    pop();
 }
 
+// *****************************************************************************
 void Array::DoPushData(const void *src_buffer, std::size_t item_size)
 {
    push();
-   // called only when Size() != 0
-
    if (slice.getDevice().hasSeparateMemorySpace() || slice.ptr() != src_buffer)
    {
       slice.copyFrom(src_buffer);
@@ -134,13 +127,10 @@ void Array::DoPushData(const void *src_buffer, std::size_t item_size)
    pop();
 }
 
+// *****************************************************************************
 void Array::DoAssign(const PArray &src, std::size_t item_size)
 {
    push();
-   // called only when Size() != 0
-
-   // Note: static_cast can not be used here since PArray is a virtual base
-   //       class.
    const Array *source = dynamic_cast<const Array *>(&src);
    MFEM_ASSERT(source != NULL, "invalid source Array type");
    MFEM_ASSERT(Size() == source->Size(), "");

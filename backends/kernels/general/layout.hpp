@@ -21,15 +21,10 @@ namespace mfem
 namespace kernels
 {
 
-class Layout : public PLayout
+class Layout : public mfem::PLayout
 {
 protected:
-   //
-   // Inherited fields
-   //
-   // SharedPtr<const mfem::Engine> engine;
-   // std::size_t size;
-
+   
 public:
    Layout(const Engine &e, std::size_t s = 0) : PLayout(e, s) { }
 
@@ -41,19 +36,11 @@ public:
 
    virtual ~Layout() { }
 
-   /**
-       @name Virtual interface
-    */
-   ///@{
-
    /// Resize the layout
    virtual void Resize(std::size_t new_size);
 
    /// Resize the layout based on the given worker offsets
    virtual void Resize(const Array<std::size_t> &offsets);
-
-   ///@}
-   // End: Virtual interface
 };
 
 } // namespace mfem::kernels

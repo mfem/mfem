@@ -101,7 +101,7 @@ DFiniteElementSpace Engine::MakeFESpace(mfem::FiniteElementSpace &fespace) const
 {
    push();
    pop();
-   return DFiniteElementSpace(new KernelsFiniteElementSpace(*this, fespace));
+   return DFiniteElementSpace(new kFiniteElementSpace(*this, fespace));
 }
 
 // *****************************************************************************

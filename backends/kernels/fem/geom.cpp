@@ -20,12 +20,12 @@ namespace mfem
 namespace kernels
 {
 // *****************************************************************************
-static KernelsGeometry *geom=NULL;
+static kGeometry *geom=NULL;
 
 // ***************************************************************************
-// * ~ KernelsGeometry
+// * ~ kGeometry
 // ***************************************************************************
-KernelsGeometry::~KernelsGeometry()
+kGeometry::~kGeometry()
 {
    push();
    free(geom->meshNodes);
@@ -37,11 +37,11 @@ KernelsGeometry::~KernelsGeometry()
 }
 
 // *****************************************************************************
-// * KernelsGeometry Get: use this one to fetch nodes from vector Sx
+// * kGeometry Get: use this one to fetch nodes from vector Sx
 // *****************************************************************************
-KernelsGeometry* KernelsGeometry::Get(KernelsFiniteElementSpace& fes,
+kGeometry* kGeometry::Get(kFiniteElementSpace& fes,
                                       const IntegrationRule& ir,
-                                      const KernelsVector& Sx)
+                                      const kvector& Sx)
 {
    push();
    const Mesh *mesh = fes.GetFESpace()->GetMesh();
@@ -71,14 +71,14 @@ KernelsGeometry* KernelsGeometry::Get(KernelsFiniteElementSpace& fes,
 
 
 // *****************************************************************************
-KernelsGeometry* KernelsGeometry::Get(KernelsFiniteElementSpace& fes,
+kGeometry* kGeometry::Get(kFiniteElementSpace& fes,
                                       const IntegrationRule& ir)
 {
    push();
    Mesh& mesh = *(fes.GetFESpace()->GetMesh());
    const bool geom_to_allocate =
       (!geom) || config::Get().GeomNeedsUpdate(mesh.GetSequence());
-   if (geom_to_allocate) { geom=new KernelsGeometry(); }
+   if (geom_to_allocate) { geom=new kGeometry(); }
    if (!mesh.GetNodes()) { mesh.SetCurvature(1, false, -1, Ordering::byVDIM); }
    GridFunction& nodes = *(mesh.GetNodes());
    const mfem::FiniteElementSpace& fespace = *(nodes.FESpace());
@@ -150,7 +150,7 @@ KernelsGeometry* KernelsGeometry::Get(KernelsFiniteElementSpace& fes,
 }
 
 // ***************************************************************************
-void KernelsGeometry::ReorderByVDim(GridFunction& nodes)
+void kGeometry::ReorderByVDim(GridFunction& nodes)
 {
    push();
    const mfem::FiniteElementSpace *fes=nodes.FESpace();
@@ -174,7 +174,7 @@ void KernelsGeometry::ReorderByVDim(GridFunction& nodes)
 }
 
 // ***************************************************************************
-void KernelsGeometry::ReorderByNodes(GridFunction& nodes)
+void kGeometry::ReorderByNodes(GridFunction& nodes)
 {
    push();
    const mfem::FiniteElementSpace *fes=nodes.FESpace();

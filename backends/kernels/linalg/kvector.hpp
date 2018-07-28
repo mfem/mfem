@@ -26,20 +26,20 @@ namespace mfem
 namespace kernels
 {
 
-class KernelsVector : public rmalloc<double>
+class kvector : public kmalloc<double>
 {
 private:
    size_t size = 0;
    double* data = NULL;
    bool own = true;
 public:
-   KernelsVector(): size(0),data(NULL),own(true) {}
-   KernelsVector(const KernelsVector&);
-   KernelsVector(const KernelsVector*);
-   KernelsVector(const size_t);
-   KernelsVector(const size_t,double);
-   KernelsVector(const mfem::Vector& v);
-   KernelsVector(array<double>& v);
+   kvector(): size(0),data(NULL),own(true) {}
+   kvector(const kvector&);
+   kvector(const kvector*);
+   kvector(const size_t);
+   kvector(const size_t,double);
+   kvector(const mfem::Vector& v);
+   kvector(array<double>& v);
    operator mfem::Vector();
    operator mfem::Vector() const;
    double* alloc(const size_t);
@@ -51,28 +51,28 @@ public:
    void SetSize(const size_t,const void* =NULL);
    inline size_t Size() const { return size; }
    inline size_t bytes() const { return size*sizeof(double); }
-   double operator* (const KernelsVector& v) const;
-   KernelsVector& operator = (const KernelsVector& v);
-   KernelsVector& operator = (const mfem::Vector& v);
-   KernelsVector& operator = (double value);
-   KernelsVector& operator -= (const KernelsVector& v);
-   KernelsVector& operator += (const KernelsVector& v);
-   KernelsVector& operator += (const mfem::Vector& v);
-   KernelsVector& operator *=(const double d);
-   KernelsVector& Add(const double a, const KernelsVector& Va);
+   double operator* (const kvector& v) const;
+   kvector& operator = (const kvector& v);
+   kvector& operator = (const mfem::Vector& v);
+   kvector& operator = (double value);
+   kvector& operator -= (const kvector& v);
+   kvector& operator += (const kvector& v);
+   kvector& operator += (const mfem::Vector& v);
+   kvector& operator *=(const double d);
+   kvector& Add(const double a, const kvector& Va);
    void Neg();
-   KernelsVector* GetRange(const size_t, const size_t) const;
+   kvector* GetRange(const size_t, const size_t) const;
    void SetSubVector(const array<int> &, const double, const int);
    double Min() const;
-   ~KernelsVector();
+   ~kvector();
 };
 
 // ***************************************************************************
-void add(const KernelsVector&,const double,const KernelsVector&,KernelsVector&);
-void add(const KernelsVector&,const KernelsVector&,KernelsVector&);
-void add(const double,const KernelsVector&,const double,const KernelsVector&,
-         KernelsVector&);
-void subtract(const KernelsVector&,const KernelsVector&,KernelsVector&);
+void add(const kvector&,const double,const kvector&,kvector&);
+void add(const kvector&,const kvector&,kvector&);
+void add(const double,const kvector&,const double,const kvector&,
+         kvector&);
+void subtract(const kvector&,const kvector&,kvector&);
 
 } // kernels
 

@@ -28,7 +28,7 @@ namespace kernels
 {
 
 // ***************************************************************************
-struct rmemcpy
+struct kmemcpy
 {
    static void* rHtoH(void*, const void*, std::size_t, const bool =false);
    static void* rHtoD(void*, const void*, std::size_t, const bool =false);

@@ -29,7 +29,7 @@ namespace kernels
 template <class T, bool xyz = true> class array;
 
 // Partial Specializations for xyz==TRUE *************************************
-template <class T> class array<T,true> : public rmalloc<T>
+template <class T> class array<T,true> : public kmalloc<T>
 {
 private:
    T* data = NULL;
@@ -57,11 +57,11 @@ public:
    array& operator=(mfem::Array<T> &a)
    {
       push();
-      rmemcpy::rHtoD(data,a.GetData(),a.Size()*sizeof(T));
+      kmemcpy::rHtoD(data,a.GetData(),a.Size()*sizeof(T));
       pop();
       return *this;
    }
-   ~array() {dbp("\033[32m[~i"); rmalloc<T>::operator delete (data);}
+   ~array() {dbp("\033[32m[~i"); kmalloc<T>::operator delete (data);}
    inline size_t* dim() { return &d[0]; }
    inline T* ptr() { return data; }
    inline const T* GetData() const { return data; }
@@ -80,7 +80,7 @@ public:
       d[0]=X; d[1]=Y; d[2]=Z; d[3]=D;
       sz=d[0]*d[1]*d[2]*d[3];
       dbp("\033[32m[i");
-      data=(T*) rmalloc<T>::operator new (sz);
+      data=(T*) kmalloc<T>::operator new (sz);
       pop();
    }
    inline bool isInitialized(void)const {return true;}
@@ -96,7 +96,7 @@ public:
    void Print(std::ostream& out= std::cout, int width = 8) const
    {
       T *h_data = (double*) ::malloc(bytes());
-      rmemcpy::rDtoH(h_data,data,bytes());
+      kmemcpy::rDtoH(h_data,data,bytes());
       for (size_t i=0; i<sz; i+=1)
          if (sizeof(T)==8) { printf("\n\t[%ld] %.15e",i,h_data[i]); }
          else { printf("\n\t[%ld] %d",i,h_data[i]); }
@@ -105,7 +105,7 @@ public:
 };
 
 // Partial Specializations for xyz==FALSE ************************************
-template <class T> class array<T,false> : public rmalloc<T>
+template <class T> class array<T,false> : public kmalloc<T>
 {
 private:
    static const int DIM = 4;
@@ -133,11 +133,11 @@ public:
    array& operator=(mfem::Array<T> &a)
    {
       push();
-      rmemcpy::rHtoD(data,a.GetData(),a.Size()*sizeof(T));
+      kmemcpy::rHtoD(data,a.GetData(),a.Size()*sizeof(T));
       pop();
       return *this;
    }
-   ~array() {dbp("\033[32m[~I"); rmalloc<T>::operator delete (data);}
+   ~array() {dbp("\033[32m[~I"); kmalloc<T>::operator delete (data);}
    inline size_t* dim() { return &d[0]; }
    inline T* ptr() { return data; }
    inline T* GetData() const { return data; }
@@ -157,7 +157,7 @@ public:
       sz=d[0]*d[1]*d[2]*d[3];
       dbp("\033[32m[I");
       assert(sz>0);
-      data=(T*) rmalloc<T>::operator new (sz);
+      data=(T*) kmalloc<T>::operator new (sz);
 #define xsw(a,b) a^=b^=a^=b
       if (transposed) { xsw(d[0],d[1]); }
       for (size_t i=1,b=d[0]; i<DIM; xsw(d[i],b),++i)
@@ -181,7 +181,7 @@ public:
    void Print(std::ostream& out= std::cout, int width = 8) const
    {
       T *h_data = (double*) ::malloc(bytes());
-      rmemcpy::rDtoH(h_data,data,bytes());
+      kmemcpy::rDtoH(h_data,data,bytes());
       for (size_t i=0; i<sz; i+=1)
          if (sizeof(T)==8) { printf("\n\t[%ld] %.15e",i,h_data[i]); }
          else { printf("\n\t[%ld] %d",i,h_data[i]); }

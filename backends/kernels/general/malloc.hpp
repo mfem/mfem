@@ -27,7 +27,7 @@ namespace kernels
 {
 
 // ***************************************************************************
-template<class T> struct rmalloc: public rmemcpy
+template<class T> struct kmalloc: public kmemcpy
 {
 
    // *************************************************************************

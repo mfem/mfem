@@ -51,12 +51,12 @@ void KernelsIntegrator::SetupMaps()
 }
 
 // *****************************************************************************
-KernelsFiniteElementSpace& KernelsIntegrator::GetTrialKernelsFESpace() const
+kFiniteElementSpace& KernelsIntegrator::GetTrialKernelsFESpace() const
 {
    return *rtrialFESpace;
 }
 
-KernelsFiniteElementSpace& KernelsIntegrator::GetTestKernelsFESpace() const
+kFiniteElementSpace& KernelsIntegrator::GetTestKernelsFESpace() const
 {
    return *rtestFESpace;
 }
@@ -88,7 +88,7 @@ KernelsDofQuadMaps *KernelsIntegrator::GetDofQuadMaps()
 }
 
 // *****************************************************************************
-void KernelsIntegrator::SetupIntegrator(KernelsBilinearForm &bform_,
+void KernelsIntegrator::SetupIntegrator(kBilinearForm &bform_,
                                         const KernelsIntegratorType itype_)
 {
    push();
@@ -116,11 +116,11 @@ void KernelsIntegrator::SetupIntegrator(KernelsBilinearForm &bform_,
 }
 
 // *****************************************************************************
-KernelsGeometry *KernelsIntegrator::GetGeometry(const int flags)
+kGeometry *KernelsIntegrator::GetGeometry(const int flags)
 {
    push();
    pop();
-   return KernelsGeometry::Get(*rtrialFESpace, *ir);
+   return kGeometry::Get(*rtrialFESpace, *ir);
 }
 
 } // namespace mfem::kernels
