@@ -63,8 +63,11 @@ protected:
 
    /// Return a number(0-1) identifying how the given edge has been split
    int GetEdgeSplittings(Element *edge, const DSTable &v_to_v, int *middle);
-   /// Return a number(0-4) identifying how the given face has been split
+   /// Return a code identifying how the given face has been split
    int GetFaceSplittings(Element *face, const HashTable<Hashed2> &v_to_v);
+
+   bool DecodeFaceSplittings(HashTable<Hashed2> &v_to_v, const int *v,
+                             int code);
 
    void GetFaceNbrElementTransformation(
       int i, IsoparametricTransformation *ElTr);
