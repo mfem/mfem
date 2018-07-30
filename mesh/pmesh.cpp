@@ -2215,7 +2215,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       int neighbor;
       Array<unsigned> iBuf(max_faces_in_group);
 
-      MPI_Request request;
+      MPI_Request *requests = new MPI_Request[GetNGroups()-1];
       MPI_Status  status;
 
 #ifdef MFEM_DEBUG_PARMESH_LOCALREF
@@ -2252,6 +2252,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
             const int tag = 293;
 
             // (a) send the type of interface splitting
+            int req_count = 0;
             for (int i = 0; i < GetNGroups()-1; i++)
             {
                const int *group_faces = group_sface.GetRow(i);
@@ -2267,7 +2268,8 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
                const int *nbs = gtopo.GetGroup(i+1);
                neighbor = gtopo.GetNeighborRank(nbs[0] ? nbs[0] : nbs[1]);
                MPI_Isend(face_splittings[i], face_splittings[i].Size(),
-                         MPI_UNSIGNED, neighbor, tag, MyComm, &request);
+                         MPI_UNSIGNED, neighbor, tag, MyComm,
+                         &requests[req_count++]);
             }
 
             // (b) receive the type of interface splitting
@@ -2284,7 +2286,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
                MPI_Get_count(&status, MPI_UNSIGNED, &count);
                iBuf.SetSize(count);
                MPI_Recv(iBuf, count, MPI_UNSIGNED, neighbor, tag, MyComm,
-                        &status);
+                        MPI_STATUS_IGNORE);
 
                for (int j = 0, pos = 0; j < faces_in_group; j++)
                {
@@ -2295,6 +2297,8 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 
             int nr = need_refinement;
             MPI_Allreduce(&nr, &need_refinement, 1, MPI_INT, MPI_LOR, MyComm);
+
+            MPI_Waitall(req_count, requests, MPI_STATUSES_IGNORE);
          }
       }
       while (need_refinement == 1);
@@ -2312,6 +2316,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       }
 #endif
 
+      delete [] requests;
       iBuf.DeleteAll();
       delete [] face_splittings;
 
