@@ -50,6 +50,9 @@ extern "C" void
 dsyev_(char *JOBZ, char *UPLO, int *N, double *A, int *LDA, double *W,
        double *WORK, int *LWORK, int *INFO);
 extern "C" void
+dsygv_ (int *ITYPE, char *JOBZ, char *UPLO, int * N, double *A, int *LDA,
+        double *B, int *LDB, double *W,  double *WORK, int *LWORK, int *INFO);
+extern "C" void
 dgesvd_(char *JOBU, char *JOBVT, int *M, int *N, double *A, int *LDA,
         double *S, double *U, int *LDU, double *VT, int *LDVT, double *WORK,
         int *LWORK, int *INFO);
@@ -858,9 +861,7 @@ void DenseMatrix::FNorm(double &scale_factor, double &scaled_fnorm2) const
 
 void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 {
-
 #ifdef MFEM_USE_LAPACK
-
    ev.SetSize(a.Width());
 
    char      JOBZ     = 'N';
@@ -1020,9 +1021,7 @@ void dsyevr_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 
 void dsyev_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 {
-
 #ifdef MFEM_USE_LAPACK
-
    int   N      = a.Width();
    char  JOBZ   = 'N';
    char  UPLO   = 'U';
@@ -1070,7 +1069,6 @@ void dsyev_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 
    delete [] WORK;
    if (evect == NULL) { delete [] A; }
-
 #endif
 }
 
@@ -1086,6 +1084,79 @@ void DenseMatrix::Eigensystem(Vector &ev, DenseMatrix *evect)
 
    mfem_error("DenseMatrix::Eigensystem");
 
+#endif
+}
+
+void dsygv_Eigensystem(DenseMatrix &a, DenseMatrix &b, Vector &ev,
+                       DenseMatrix *evect)
+{
+#ifdef MFEM_USE_LAPACK
+   int   N      = a.Width();
+   int   ITYPE  = 1;
+   char  JOBZ   = 'N';
+   char  UPLO   = 'U';
+   int   LDA    = N;
+   int   LDB    = N;
+   int   LWORK  = -1; /* query optimal workspace size */
+   int   INFO;
+
+   ev.SetSize(N);
+
+   double *A    = NULL;
+   double *B    = new double[N*N];
+   double *W    = ev.GetData();
+   double *WORK = NULL;
+   double  QWORK;
+
+   if (evect)
+   {
+      JOBZ = 'V';
+      evect->SetSize(N);
+      A = evect->Data();
+   }
+   else
+   {
+      A = new double[N*N];
+   }
+
+   int hw = a.Height() * a.Width();
+   double *a_data = a.Data();
+   double *b_data = b.Data();
+   for (int i = 0; i < hw; i++)
+   {
+      A[i] = a_data[i];
+      B[i] = b_data[i];
+   }
+
+   dsygv_(&ITYPE, &JOBZ, &UPLO, &N, A, &LDA, B, &LDB, W, &QWORK, &LWORK, &INFO);
+
+   LWORK = (int) QWORK;
+   WORK = new double[LWORK];
+
+   dsygv_(&ITYPE, &JOBZ, &UPLO, &N, A, &LDA, B, &LDB, W, WORK, &LWORK, &INFO);
+
+   if (INFO != 0)
+   {
+      mfem::err << "dsygv_Eigensystem: DSYGV error code: " << INFO << endl;
+      mfem_error();
+   }
+
+   delete [] WORK;
+   delete [] B;
+   if (evect == NULL) { delete [] A; }
+#endif
+}
+
+void DenseMatrix::Eigensystem(DenseMatrix &b, Vector &ev,
+                              DenseMatrix *evect)
+{
+#ifdef MFEM_USE_LAPACK
+
+   dsygv_Eigensystem(*this, b, ev, evect);
+
+#else
+
+   mfem_error("DenseMatrix::Eigensystem for generalized eigenvalues");
 #endif
 }
 
