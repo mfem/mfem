@@ -35,7 +35,7 @@ protected:
    mfem::Operator *restrictionOp, *prolongationOp;
 public:
    /// TODO: doxygen
-   kFiniteElementSpace(const Engine&, mfem::ParFiniteElementSpace&);
+   kFiniteElementSpace(const Engine&, mfem::FiniteElementSpace&);
 
    /// Virtual destructor
    virtual ~kFiniteElementSpace();

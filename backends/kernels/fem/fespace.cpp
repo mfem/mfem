@@ -19,19 +19,19 @@ namespace mfem {
 namespace kernels {
 
 
-// **************************************************************************
+// ************************************************************************** 
 kFiniteElementSpace::
 kFiniteElementSpace(const Engine& e,
-                    mfem::ParFiniteElementSpace& pfespace)
-  : PFiniteElementSpace(e, pfespace),
-    e_layout(e, 0),
-    globalDofs(fes->GetNDofs()),
-    localDofs(GetFE(0)->GetDof()),
-    vdim(pfespace.GetVDim()),
-    ordering(pfespace.GetOrdering()),
-    offsets(globalDofs+1),
-    indices(localDofs, GetNE()),
-    map(localDofs, GetNE()) {
+                    mfem::FiniteElementSpace& fespace)
+   : PFiniteElementSpace(e, fespace),
+     e_layout(e, 0),
+     globalDofs(fes->GetNDofs()),
+     localDofs(GetFE(0)->GetDof()),
+     vdim(fespace.GetVDim()),
+     ordering(fespace.GetOrdering()),
+     offsets(globalDofs+1),
+     indices(localDofs, GetNE()),
+     map(localDofs, GetNE()) {
   push(PowderBlue);
   const mfem::FiniteElement& fe = *(fes->GetFE(0));
   const mfem::TensorBasisElement* el =
@@ -87,10 +87,20 @@ kFiniteElementSpace(const Engine& e,
   indices = h_indices;
   map = h_map;
 
-  const mfem::SparseMatrix* R = fes->GetRestrictionMatrix(); assert(R);
-  //const mfem::Operator* P = fes->GetProlongationMatrix();
-  const RajaConformingProlongationOperator *P =
-     new RajaConformingProlongationOperator(this->GetParFESpace());
+  const mfem::SparseMatrix* R = fes->GetRestrictionMatrix();
+  const mfem::Operator* P = fes->GetProlongationMatrix();
+
+  if (!P) {
+    restrictionOp = new IdentityOperator(KernelsTrueVLayout());
+    prolongationOp = new IdentityOperator(KernelsTrueVLayout());
+    pop();
+    return;
+  }
+
+  assert(R);
+  assert(P);
+  /*const RajaConformingProlongationOperator *P =
+    new RajaConformingProlongationOperator(this->GetParFESpace());*/
 
   const int mHeight = R->Height();
   const int* I = R->GetI();
@@ -111,10 +121,12 @@ kFiniteElementSpace(const Engine& e,
   reorderIndices = ::new kernels::array<int>(2*trueCount);
   *reorderIndices = h_reorderIndices;
   
-  restrictionOp = new RajaRestrictionOperator(R->Height(),
-                                                       R->Width(),
-                                                       reorderIndices);
-  prolongationOp = new RajaProlongationOperator(P);
+  restrictionOp = new kernels::RestrictionOperator(KernelsVLayout(),
+                                                   KernelsTrueVLayout(),
+                                                   *reorderIndices);
+  prolongationOp = new kernels::ProlongationOperator(KernelsTrueVLayout(),
+                                                     KernelsVLayout(),
+                                                     P);
   pop();
 }
 
@@ -160,6 +172,7 @@ void kFiniteElementSpace::LocalToGlobal(const Vector& localVec,
   pop();
 }
 
+   
 } // namespace mfem::kernels
 
 } // namespace mfem

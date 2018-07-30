@@ -17,7 +17,7 @@
 namespace mfem {
   
 namespace kernels {
-
+/*
    // ***************************************************************************
    // * RajaProlongationOperator
    // ***************************************************************************
@@ -100,7 +100,7 @@ namespace kernels {
     
       pop();
    }
-   
+*/
 } // namespace mfem::kernels
    
 } // namespace mfem

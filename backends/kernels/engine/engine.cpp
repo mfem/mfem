@@ -97,10 +97,15 @@ DVector Engine::MakeVector(PLayout &layout, int type_id) const
 }
 
 // *****************************************************************************
-DFiniteElementSpace Engine::MakeFESpace(mfem::FiniteElementSpace &fespace) const
+DFiniteElementSpace Engine::MakeFESpace(mfem::ParFiniteElementSpace &pfes) const
 {
-   //push();  pop();
-   return DFiniteElementSpace(new kFiniteElementSpace(*this, fespace));
+   return DFiniteElementSpace(new kFiniteElementSpace(*this, pfes));
+}
+
+// *****************************************************************************
+DFiniteElementSpace Engine::MakeFESpace(mfem::FiniteElementSpace &fes) const
+{
+   return DFiniteElementSpace(new kFiniteElementSpace(*this, fes));
 }
 
 // *****************************************************************************

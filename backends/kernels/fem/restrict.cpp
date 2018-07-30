@@ -17,7 +17,7 @@
 namespace mfem {
   
 namespace kernels {
-
+/*
    // ***************************************************************************
    // * RajaRestrictionOperator
    // ***************************************************************************
@@ -27,7 +27,7 @@ namespace kernels {
       rExtractSubVector(entries, indices->ptr(), x, y);
       pop();
    }
-
+*/
 } // namespace mfem::kernels
    
 } // namespace mfem

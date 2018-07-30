@@ -51,31 +51,28 @@ public:
     */
    ///@{
 
-   virtual DLayout MakeLayout(std::size_t size) const;
+   virtual DLayout MakeLayout(std::size_t) const;
 
-   virtual DLayout MakeLayout(const mfem::Array<std::size_t> &offsets) const;
+   virtual DLayout MakeLayout(const mfem::Array<std::size_t>&) const;
 
-   virtual DArray MakeArray(PLayout &layout, std::size_t item_size) const;
+   virtual DArray MakeArray(PLayout&, std::size_t) const;
 
-   virtual DVector MakeVector(PLayout &layout,
-                              int type_id = ScalarId<double>::value) const;
+   virtual DVector MakeVector(PLayout&, int type_id = ScalarId<double>::value) const;
 
-   /*#ifdef MFEM_USE_MPI
-      virtual DFiniteElementSpace MakeFESpace(mfem::ParFiniteElementSpace &) const;
-      #else*/
-   virtual DFiniteElementSpace MakeFESpace(mfem::FiniteElementSpace &) const;
-   //#endif
+   virtual DFiniteElementSpace MakeFESpace(mfem::ParFiniteElementSpace &) const;
 
-   virtual DBilinearForm MakeBilinearForm(mfem::BilinearForm &bf) const;
+   virtual DFiniteElementSpace MakeFESpace(mfem::FiniteElementSpace&) const;
+
+   virtual DBilinearForm MakeBilinearForm(mfem::BilinearForm&) const;
 
    /// FIXME - What will the actual parameters be?
-   virtual void AssembleLinearForm(LinearForm &l_form) const;
+   virtual void AssembleLinearForm(LinearForm&) const;
 
    /// FIXME - What will the actual parameters be?
-   virtual mfem::Operator *MakeOperator(const MixedBilinearForm &mbl_form) const;
+   virtual mfem::Operator *MakeOperator(const MixedBilinearForm&) const;
 
    /// FIXME - What will the actual parameters be?
-   virtual mfem::Operator *MakeOperator(const NonlinearForm &nl_form) const;
+   virtual mfem::Operator *MakeOperator(const NonlinearForm&) const;
 
    ///@}
    // End: Virtual interface
