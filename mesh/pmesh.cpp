@@ -2260,6 +2260,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
                // it is enough to communicate through the faces
                if (faces_in_group == 0) { continue; }
 
+               face_splittings[i].SetSize(0);
                for (int j = 0; j < faces_in_group; j++)
                {
                   GetFaceSplittings(shared_faces[group_faces[j]], v_to_v,
