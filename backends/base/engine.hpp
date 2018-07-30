@@ -180,7 +180,7 @@ public:
                               int type_id = ScalarId<double>::value) const = 0;
 
    /// TODO: doxygen
-   virtual DFiniteElementSpace MakeFESpace(FiniteElementSpace &fes) const;
+   virtual DFiniteElementSpace MakeFESpace(FiniteElementSpace &fes) const = 0;
 
    /// TODO: doxygen
    virtual DBilinearForm MakeBilinearForm(BilinearForm &bf) const = 0;

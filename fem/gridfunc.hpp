@@ -112,7 +112,7 @@ public:
 
    /// @brief Extract the true-dofs from the GridFunction. If all dofs are true,
    /// then `tv` will be set to point to the data of `*this`.
-   void GetTrueDofs(Vector &tv) const;
+   void GetTrueDofs(Vector &tv);
 
    /// Shortcut for calling GetTrueDofs() with GetTrueVector() as argument.
    void SetTrueVector() { GetTrueDofs(GetTrueVector()); }

@@ -313,18 +313,28 @@ int GridFunction::VectorDim() const
    return fes->GetVDim()*fes->GetMesh()->SpaceDimension();
 }
 
-void GridFunction::GetTrueDofs(Vector &tv) const
+void GridFunction::GetTrueDofs(Vector &tv)
 {
    const SparseMatrix *R = fes->GetRestrictionMatrix();
    if (!R)
    {
       // R is identity -> make tv a reference to *this
-      tv.NewDataAndSize(data, size);
+      tv.MakeRef(*this);
    }
    else
    {
-      tv.SetSize(R->Height());
-      R->Mult(*this, tv);
+#ifdef MFEM_USE_BACKENDS
+      if (fes->GetMesh()->HasEngine())
+      {
+         tv.Resize(fes->GetTrueVLayout());
+         fes->Get_PFESpace()->GetRestrictionOperator()->Mult(*this, tv);
+      }
+      else
+#endif
+      {
+         tv.SetSize(R->Height());
+         R->Mult(*this, tv);
+      }
    }
 }
 
@@ -334,14 +344,21 @@ void GridFunction::SetFromTrueDofs(const Vector &tv)
    const SparseMatrix *cP = fes->GetConformingProlongation();
    if (!cP)
    {
-      if (tv.GetData() != data)
-      {
-         *this = tv;
-      }
+      Assign(tv);
    }
    else
    {
-      cP->Mult(tv, *this);
+#ifdef MFEM_USE_BACKENDS
+      if (fes->GetMesh()->HasEngine())
+      {
+         Resize(fes->GetTrueVLayout());
+         fes->Get_PFESpace()->GetProlongationOperator()->Mult(tv, *this);
+      }
+      else
+#endif
+      {
+         cP->Mult(tv, *this);
+      }
    }
 }
 

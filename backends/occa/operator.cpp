@@ -73,7 +73,10 @@ void OccaConstrainedOperator::Setup(::occa::device device_,
    own_A = own_A_;
 
    constraintIndices = constraintList_.Size();
-   constraintList = constraintList_.Get_PArray()->As<Array>().OccaMem();
+   if (constraintList_.Size() > 0)
+      constraintList = constraintList_.Get_PArray()->As<Array>().OccaMem();
+   else
+      constraintList = ::occa::memory();
 }
 
 void OccaConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const

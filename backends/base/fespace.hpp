@@ -30,7 +30,7 @@ protected:
    /// Engine with shared ownership
    SharedPtr<const Engine> engine;
    /// Not owned.
-   FiniteElementSpace *fes;
+   mfem::FiniteElementSpace *fes;
 
 public:
    /// TODO: doxygen
@@ -52,6 +52,12 @@ public:
    /// TODO
    template <typename derived_t>
    const derived_t &As() const { return *util::As<const derived_t>(this); }
+
+   /// TODO
+   virtual const mfem::Operator *GetProlongationOperator() const = 0;
+
+   /// TODO
+   virtual const mfem::Operator *GetRestrictionOperator() const = 0;
 };
 
 } // namespace mfem
