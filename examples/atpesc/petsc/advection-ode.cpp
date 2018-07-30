@@ -134,17 +134,16 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    problem = 0;
    const char *mesh_file = "../../../data/periodic-hexagon.mesh";
-   int ser_ref_levels = 2;
+   int ser_ref_levels = 3;
    int par_ref_levels = 0;
-   int order = 3;
-   int ode_solver_type = 4;
-   double t_final = 10.0;
+   int order = 2;
+   double t_final = 5.0;
    double dt = 0.01;
    bool visualization = true;
    bool visit = true;
-   int vis_steps = 50;
+   int vis_steps = 10;
    bool implicit = false;
-   bool use_step = true;
+   bool use_step = false;
 
    int precision = 8;
    cout.precision(precision);
@@ -160,9 +159,6 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
-   args.AddOption(&ode_solver_type, "-s", "--ode-solver",
-                  "ODE solver: 1 - Forward Euler,\n\t"
-                  "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -220,10 +216,6 @@ int main(int argc, char *argv[])
    for (int lev = 0; lev < ser_ref_levels; lev++)
    {
       mesh->UniformRefinement();
-   }
-   if (mesh->NURBSext)
-   {
-      mesh->SetCurvature(max(order, 1));
    }
    mesh->GetBoundingBox(bb_min, bb_max, max(order, 1));
 

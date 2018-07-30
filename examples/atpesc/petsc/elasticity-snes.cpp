@@ -173,7 +173,8 @@ int main(int argc, char *argv[])
    double visc = 1e-2;
    double mu = 0.25;
    double K = 5.0;
-   bool visualization = true;
+   bool visualization = false;
+   bool visit = true;
    int vis_steps = 1;
    const char *petscrc_file = "rc-elasticity-snes";
 
@@ -203,6 +204,9 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
+                  "--no-visit-datafiles",
+                  "Save data files for VisIt (visit.llnl.gov) visualization.");   
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.Parse();
@@ -348,6 +352,19 @@ int main(int argc, char *argv[])
       }
    }
 
+   // Create data collection for solution output VisItDataCollection 
+   DataCollection *dc = NULL;
+   if (visit)
+   {
+      dc = new VisItDataCollection("elas", pmesh);
+      dc->RegisterField("x", &x_gf);
+      dc->RegisterField("v", &v_gf);
+      dc->RegisterField("w", &w_gf);
+      dc->SetCycle(0);
+      dc->SetTime(0.0);
+      dc->Save();
+   }
+
    double ee0 = oper->ElasticEnergy(x_gf);
    double ke0 = oper->KineticEnergy(v_gf);
    if (myid == 0)
@@ -385,15 +402,22 @@ int main(int argc, char *argv[])
                  << ", KE = " << ke << ", ΔTE = " << (ee+ke)-(ee0+ke0) << endl;
          }
 
+         oper->GetElasticEnergyDensity(x_gf, w_gf);
          if (visualization)
          {
             visualize(vis_v, pmesh, &x_gf, &v_gf);
             if (vis_w)
             {
-               oper->GetElasticEnergyDensity(x_gf, w_gf);
                visualize(vis_w, pmesh, &x_gf, &w_gf);
             }
          }
+
+         if (visit)
+         {
+            dc->SetCycle(ti);
+            dc->SetTime(t);            
+            dc->Save();
+         }         
       }
    }
 

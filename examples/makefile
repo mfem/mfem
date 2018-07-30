@@ -37,10 +37,23 @@ ifeq ($(MFEM_USE_SUNDIALS),YES)
 endif
 ifeq ($(MFEM_USE_PETSC),YES)
    SUBDIRS += petsc
+   ifeq ($(MFEM_USE_MPI),YES)
+      SUBDIRS += atpesc/petsc
+   endif   
 endif
 ifeq ($(MFEM_USE_PUMI),YES)
    SUBDIRS += pumi
 endif
+ifeq ($(MFEM_USE_MPI),YES)
+   SUBDIRS += atpesc/mfem
+   ifeq ($(MFEM_USE_PETSC),YES)
+      SUBDIRS += atpesc/petsc
+   endif
+   ifeq ($(MFEM_USE_SUPERLU),YES)
+      SUBDIRS += atpesc/superlu
+   endif   
+endif
+
 SUBDIRS_ALL = $(addsuffix /all,$(SUBDIRS))
 SUBDIRS_TEST = $(addsuffix /test,$(SUBDIRS))
 SUBDIRS_CLEAN = $(addsuffix /clean,$(SUBDIRS))
