@@ -20,59 +20,18 @@ namespace kernels {
 
 
 // **************************************************************************
-static void CreateRPOperators(Layout& v_layout,
-                              Layout& t_layout,
-                              const mfem::SparseMatrix* R,
-                              const mfem::Operator* P,
-                              mfem::Operator*& KernelsR,
-                              mfem::Operator*& KernelsP) {
-  push();
-  if (!P) {
-    KernelsR = new IdentityOperator(t_layout);
-    KernelsP = new IdentityOperator(t_layout);
-    pop();
-    return;
-  }
-
-  const mfem::SparseMatrix* pmat = dynamic_cast<const mfem::SparseMatrix*>(P);
-  kernels::device device = v_layout.KernelsEngine().GetDevice();
-
-  if (R) {
-    KernelsSparseMatrix* kernelsR =
-      CreateMappedSparseMatrix(v_layout, t_layout, *R);
-    kernels::array<int> reorderIndices = kernelsR->reorderIndices;
-    delete kernelsR;
-    KernelsR = new RestrictionOperator(v_layout, t_layout, reorderIndices);
-  }
-
-  if (pmat) {
-    const mfem::SparseMatrix* pmatT = Transpose(*pmat);
-
-    KernelsSparseMatrix* kernelsP  =
-      CreateMappedSparseMatrix(t_layout, v_layout, *pmat);
-    KernelsSparseMatrix* kernelsPT =
-      CreateMappedSparseMatrix(v_layout, t_layout, *pmatT);
-
-    KernelsP = new ProlongationOperator(*kernelsP, *kernelsPT);
-  } else {
-    KernelsP = new ProlongationOperator(t_layout, v_layout, P);
-  }
-  pop();
-}
-
-// **************************************************************************
 kFiniteElementSpace::
 kFiniteElementSpace(const Engine& e,
-                    mfem::FiniteElementSpace& fespace)
-  : PFiniteElementSpace(e, fespace),
+                    mfem::ParFiniteElementSpace& pfespace)
+  : PFiniteElementSpace(e, pfespace),
     e_layout(e, 0),
     globalDofs(fes->GetNDofs()),
     localDofs(GetFE(0)->GetDof()),
-    vdim(fespace.GetVDim()),
-    ordering(fespace.GetOrdering()),
-    globalToLocalOffsets(globalDofs+1),
-    globalToLocalIndices(localDofs, GetNE()),
-    localToGlobalMap(localDofs, GetNE()) {
+    vdim(pfespace.GetVDim()),
+    ordering(pfespace.GetOrdering()),
+    offsets(globalDofs+1),
+    indices(localDofs, GetNE()),
+    map(localDofs, GetNE()) {
   push(PowderBlue);
   const mfem::FiniteElement& fe = *(fes->GetFE(0));
   const mfem::TensorBasisElement* el =
@@ -85,7 +44,9 @@ kFiniteElementSpace(const Engine& e,
   const int elements = GetNE();
   mfem::Array<int> h_offsets(globalDofs+1);
 
-  e_layout.Resize(localDofs * elements * fes->GetVDim());
+  const int e_size = localDofs * elements * fes->GetVDim();
+  e_layout.Resize(e_size);
+  dbg("\033[7m[kFiniteElementSpace] e_size/fes->GetVDim()=%d",e_size/fes->GetVDim());
 
   // We'll be keeping a count of how many local nodes point to its global dof
   for (int i = 0; i <= globalDofs; ++i) {
@@ -122,18 +83,38 @@ kFiniteElementSpace(const Engine& e,
   }
   h_offsets[0] = 0;
 
-  globalToLocalOffsets = h_offsets;
-  globalToLocalIndices = h_indices;
-  localToGlobalMap = h_map;
+  offsets = h_offsets;
+  indices = h_indices;
+  map = h_map;
 
-  assert(fes);
-  const mfem::SparseMatrix* R = fes->GetRestrictionMatrix();
-  const mfem::Operator* P = fes->GetProlongationMatrix();
+  const mfem::SparseMatrix* R = fes->GetRestrictionMatrix(); assert(R);
+  //const mfem::Operator* P = fes->GetProlongationMatrix();
+  const RajaConformingProlongationOperator *P =
+     new RajaConformingProlongationOperator(this->GetParFESpace());
 
-  CreateRPOperators(KernelsVLayout(), KernelsTrueVLayout(),
-                    R, P,
-                    restrictionOp,
-                    prolongationOp);
+  const int mHeight = R->Height();
+  const int* I = R->GetI();
+  const int* J = R->GetJ();
+  int trueCount = 0;
+  for (int i = 0; i < mHeight; ++i) {
+     trueCount += ((I[i + 1] - I[i]) == 1); 
+  }
+  
+  mfem::Array<int> h_reorderIndices(2*trueCount);
+  for (int i = 0, trueIdx=0; i < mHeight; ++i) {
+     if ((I[i + 1] - I[i]) == 1) {
+        h_reorderIndices[trueIdx++] = J[I[i]];
+        h_reorderIndices[trueIdx++] = i;
+     }
+  }
+
+  reorderIndices = ::new kernels::array<int>(2*trueCount);
+  *reorderIndices = h_reorderIndices;
+  
+  restrictionOp = new RajaRestrictionOperator(R->Height(),
+                                                       R->Width(),
+                                                       reorderIndices);
+  prolongationOp = new RajaProlongationOperator(P);
   pop();
 }
 
@@ -154,8 +135,8 @@ void kFiniteElementSpace::GlobalToLocal(const Vector& globalVec,
                  vdim_ordering,
                  globalDofs,
                  localEntries,
-                 globalToLocalOffsets,
-                 globalToLocalIndices,
+                 offsets,
+                 indices,
                  (const double*)globalVec.KernelsMem().ptr(),
                  (double*)localVec.KernelsMem().ptr());
   pop();
@@ -172,8 +153,8 @@ void kFiniteElementSpace::LocalToGlobal(const Vector& localVec,
                  vdim_ordering,
                  globalDofs,
                  localEntries,
-                 globalToLocalOffsets,
-                 globalToLocalIndices,
+                 offsets,
+                 indices,
                  (const double*)localVec.KernelsMem().ptr(),
                  (double*)globalVec.KernelsMem().ptr());
   pop();

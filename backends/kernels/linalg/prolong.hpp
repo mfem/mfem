@@ -34,9 +34,11 @@ public:
    ProlongationOperator(Layout &in_layout, Layout &out_layout,
                         const mfem::Operator *pmat_);
 
-   // overrides
-   virtual void Mult_(const Vector &x, Vector &y) const;
-   virtual void MultTranspose_(const Vector &x, Vector &y) const;
+   virtual void Mult_(const kernels::Vector &x, kernels::Vector &y) const;
+   virtual void MultTranspose_(const kernels::Vector &x, kernels::Vector &y) const;
+   
+   //virtual void Mult(const mfem::Vector &x, mfem::Vector &y) const;
+   //virtual void MultTranspose(const mfem::Vector &x, mfem::Vector &y) const;
 };
 
 } // namespace mfem::kernels

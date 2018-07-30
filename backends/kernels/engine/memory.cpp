@@ -77,10 +77,10 @@ memory memory::slice(const size_t offset,
                      const size_t bytes) const
 {
    push();
-   MFEM_ABORT("FIXME");
+   //MFEM_ABORT("FIXME");
    pop();
-   memory m = memory(bytes-offset,NULL);
-   memcpy(m.data,data+offset,m.bytes);
+   memory m = memory(bytes,NULL);
+   memcpy(m.data,data+offset,bytes);
    return m;
 }
 

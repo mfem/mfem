@@ -9,43 +9,33 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
+#ifndef MFEM_BACKENDS_KERNELS_PROLONG_HPP
+#define MFEM_BACKENDS_KERNELS_PROLONG_HPP
+
 #include "../../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_KERNELS)
-
-#include "../kernels.hpp"
 
 namespace mfem
 {
 
 namespace kernels
 {
-
-// *****************************************************************************
-device::device() {
-   //push();   pop();
-}
-
-// *****************************************************************************
-device::~device() {}
-
-// ***************************************************************************
-bool device::hasSeparateMemorySpace()
-{
-   return false;
-}
-
-// ***************************************************************************
-memory device::malloc(const std::size_t bytes,
-                      const void *src)
-{
-   //push();
-   assert(src==NULL);
-   //pop();
-   return memory(bytes,src);
-}
+  // ***************************************************************************
+  // * RajaProlongationOperator
+  // ***************************************************************************
+  class RajaProlongationOperator : public Operator {
+  protected:
+    const RajaConformingProlongationOperator* pmat = NULL;
+  public:
+    RajaProlongationOperator(const RajaConformingProlongationOperator*);
+    void Mult(const kernels::Vector& x, kernels::Vector& y) const;
+    void MultTranspose(const kernels::Vector& x, kernels::Vector& y) const ;
+  };
 
 } // namespace mfem::kernels
 
 } // namespace mfem
 
 #endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_KERNELS)
+
+#endif // MFEM_BACKENDS_KERNELS_RESTRICT_HPP

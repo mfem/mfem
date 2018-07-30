@@ -14,8 +14,8 @@
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
 
-#ifndef MFEM_BACKENDS_KERNELS_RVECTOR_HPP
-#define MFEM_BACKENDS_KERNELS_RVECTOR_HPP
+#ifndef MFEM_BACKENDS_KERNELS_KVECTOR_HPP
+#define MFEM_BACKENDS_KERNELS_KVECTOR_HPP
 
 #include "../../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_KERNELS)
@@ -80,4 +80,4 @@ void subtract(const kvector&,const kvector&,kvector&);
 
 #endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_KERNELS)
 
-#endif // MFEM_BACKENDS_KERNELS_RVECTOR_HPP
+#endif // MFEM_BACKENDS_KERNELS_KVECTOR_HPP

@@ -92,7 +92,7 @@ void KernelsIntegrator::SetupIntegrator(kBilinearForm &bform_,
                                         const KernelsIntegratorType itype_)
 {
    push();
-   MFEM_ASSERT(engine == &bform_.KernelsEngine(), "");
+   //MFEM_ASSERT(engine == &bform_.KernelsEngine(), "");
    bform     = &bform_;
    mesh      = &(bform_.GetMesh());
 

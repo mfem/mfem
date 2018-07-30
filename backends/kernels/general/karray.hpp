@@ -41,27 +41,27 @@ public:
    array(const size_t x,const size_t y) {allocate(x,y);}
    array(const array<T,true> &r)
    {
-      push();
+      //push();
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
       memcpy(data,r.GetData(),r.bytes());
-      pop();
+      //pop();
    }
    array& operator=(const array<T,true> &r)
    {
-      push();
+      //push();
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
       memcpy(data,r.GetData(),r.bytes());
-      pop();
+      //pop();
       return *this;
    }
    array& operator=(mfem::Array<T> &a)
    {
-      push();
+      //push();
       kmemcpy::rHtoD(data,a.GetData(),a.Size()*sizeof(T));
-      pop();
+      //pop();
       return *this;
    }
-   ~array() {dbp("\033[32m[~i"); kmalloc<T>::operator delete (data);}
+   ~array() {/*dbp("\033[32m[~i");*/ kmalloc<T>::operator delete (data);}
    inline size_t* dim() { return &d[0]; }
    inline T* ptr() { return data; }
    inline const T* GetData() const { return data; }
@@ -76,12 +76,12 @@ public:
                  const size_t Z =1, const size_t D =1,
                  const bool transposed = false)
    {
-      push();
+      //push();
       d[0]=X; d[1]=Y; d[2]=Z; d[3]=D;
       sz=d[0]*d[1]*d[2]*d[3];
-      dbp("\033[32m[i");
+      //dbp("\033[32m[i");
       data=(T*) kmalloc<T>::operator new (sz);
-      pop();
+      //pop();
    }
    inline bool isInitialized(void)const {return true;}
    inline T& operator[](const size_t x) { return data[x]; }
@@ -117,27 +117,27 @@ public:
    array(const size_t d0) {allocate(d0);}
    array(const array<T,false> &r)
    {
-      push();
+      //push();
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
       memcpy(data,r.GetData(),r.bytes());
-      pop();
+      //pop();
    }
    array& operator=(const array<T,true> &r)
    {
-      push();
+      //push();
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
       memcpy(data,r.GetData(),r.bytes());
-      pop();
+      //pop();
       return *this;
    }
    array& operator=(mfem::Array<T> &a)
    {
-      push();
+      //push();
       kmemcpy::rHtoD(data,a.GetData(),a.Size()*sizeof(T));
-      pop();
+      //pop();
       return *this;
    }
-   ~array() {dbp("\033[32m[~I"); kmalloc<T>::operator delete (data);}
+   ~array() {/*dbp("\033[32m[~I"); */kmalloc<T>::operator delete (data);}
    inline size_t* dim() { return &d[0]; }
    inline T* ptr() { return data; }
    inline T* GetData() const { return data; }
@@ -152,13 +152,13 @@ public:
                  const size_t Z =1, const size_t D =1,
                  const bool transposed = false)
    {
-      push();
+      //push();
       d[0]=X; d[1]=Y; d[2]=Z; d[3]=D;
       sz=d[0]*d[1]*d[2]*d[3];
-      dbp("\033[32m[I");
+      //dbp("\033[32m[I");
       assert(sz>0);
       data=(T*) kmalloc<T>::operator new (sz);
-#define xsw(a,b) a^=b^=a^=b
+#define xsw(a,b) (a)^=(b)^=(a)^=(b)
       if (transposed) { xsw(d[0],d[1]); }
       for (size_t i=1,b=d[0]; i<DIM; xsw(d[i],b),++i)
       {
@@ -166,7 +166,7 @@ public:
       }
       d[0]=1;
       if (transposed) { xsw(d[0],d[1]); }
-      pop();
+      //pop();
    }
    inline bool isInitialized(void)const {return true;}
    inline T& operator[](const size_t x) { return data[x]; }

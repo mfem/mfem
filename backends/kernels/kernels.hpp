@@ -34,9 +34,12 @@
 #include "../../config/config.hpp"
 #include "../../general/array.hpp"
 #include "../../fem/gridfunc.hpp"
+#include "../../general/communication.hpp"
 #include "../../fem/fem.hpp"
 #include "../../fem/fespace.hpp"
+#include "../../fem/pfespace.hpp"
 #include "../../fem/bilinearform.hpp"
+#include "../../linalg/operator.hpp"
 
 // backends ********************************************************************
 #include "../base/backend.hpp"
@@ -68,6 +71,7 @@
 #include "general/malloc.hpp"
 #include "general/karray.hpp"
 #include "general/table.hpp"
+#include "general/commd.hpp"
 
 // linalg **********************************************************************
 #include "linalg/vector.hpp"
@@ -79,6 +83,9 @@
 #include "linalg/prolong.hpp"
 
 // fem *************************************************************************
+#include "fem/conform.hpp"
+#include "fem/prolong.hpp"
+#include "fem/restrict.hpp"
 #include "fem/fespace.hpp"
 #include "fem/gridfunc.hpp"
 #include "fem/kbilinearform.hpp"

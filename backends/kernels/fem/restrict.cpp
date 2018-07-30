@@ -14,38 +14,22 @@
 
 #include "../kernels.hpp"
 
-namespace mfem
-{
+namespace mfem {
+  
+namespace kernels {
 
-namespace kernels
-{
-
-// *****************************************************************************
-device::device() {
-   //push();   pop();
-}
-
-// *****************************************************************************
-device::~device() {}
-
-// ***************************************************************************
-bool device::hasSeparateMemorySpace()
-{
-   return false;
-}
-
-// ***************************************************************************
-memory device::malloc(const std::size_t bytes,
-                      const void *src)
-{
-   //push();
-   assert(src==NULL);
-   //pop();
-   return memory(bytes,src);
-}
+   // ***************************************************************************
+   // * RajaRestrictionOperator
+   // ***************************************************************************
+   void RajaRestrictionOperator::Mult(const kernels::Vector& x,
+                                      kernels::Vector& y) const {
+      push(DeepSkyBlue);
+      rExtractSubVector(entries, indices->ptr(), x, y);
+      pop();
+   }
 
 } // namespace mfem::kernels
-
+   
 } // namespace mfem
 
 #endif // defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_KERNELS)

@@ -29,13 +29,13 @@ protected:
    int globalDofs, localDofs;
    int vdim;
    mfem::Ordering::Type ordering;
-   kernels::array<int> globalToLocalOffsets;
-   kernels::array<int> globalToLocalIndices,*reorderIndicess;
-   kernels::array<int> localToGlobalMap;
+   kernels::array<int> offsets;
+   kernels::array<int> indices,*reorderIndices;
+   kernels::array<int> map;
    mfem::Operator *restrictionOp, *prolongationOp;
 public:
    /// TODO: doxygen
-   kFiniteElementSpace(const Engine&, mfem::FiniteElementSpace&);
+   kFiniteElementSpace(const Engine&, mfem::ParFiniteElementSpace&);
 
    /// Virtual destructor
    virtual ~kFiniteElementSpace();
@@ -104,7 +104,7 @@ public:
    const mfem::Operator* GetProlongationOperator() const { return prolongationOp; }
 
    const kernels::array<int> GetLocalToGlobalMap() const
-   { return localToGlobalMap; }
+   { return map; }
 
    void GlobalToLocal(const kernels::Vector &global, kernels::Vector &local) const;
    void LocalToGlobal(const kernels::Vector &local, kernels::Vector &global) const;
