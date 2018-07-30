@@ -100,8 +100,8 @@ public:
    const mfem::FiniteElement* GetFE(const int idx) const
    { return fes->GetFE(idx); }
 
-   const mfem::Operator* GetRestrictionOperator() { return restrictionOp; }
-   const mfem::Operator* GetProlongationOperator() { return prolongationOp; }
+   const mfem::Operator* GetRestrictionOperator() const { return restrictionOp; }
+   const mfem::Operator* GetProlongationOperator() const { return prolongationOp; }
 
    const kernels::array<int> GetLocalToGlobalMap() const
    { return localToGlobalMap; }
