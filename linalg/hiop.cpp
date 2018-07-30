@@ -18,16 +18,32 @@
 
 #pragma message "Compiling " __FILE__ "..."
 
+using namespace hiop;
+
 namespace mfem
 { 
 
+
+HiopNlpOptimizer::HiopNlpOptimizer()
+{
+  _optProb = new HiopProblemSpec();
+  _hiopInstance = new hiopNlpDenseConstraints(*_optProb);
+}
+
 #ifdef MFEM_USE_MPI
-  HiopNlpOptimizer::HiopNlpOptimizer(MPI_Comm _comm) 
+HiopNlpOptimizer::HiopNlpOptimizer(MPI_Comm _comm) 
   : IterativeSolver(_comm)
 {
-
+  _optProb = NULL;
+  _hiopInstance = NULL;
 };
 #endif
+
+HiopNlpOptimizer::~HiopNlpOptimizer()
+{
+  if(_optProb) delete _optProb;
+  if(_hiopInstance) delete _hiopInstance;
+}
 
 void HiopNlpOptimizer::Mult(const Vector &xt, Vector &x) const
 {
