@@ -217,6 +217,24 @@ if (MFEM_USE_STRUMPACK)
   endif()
 endif()
 
+# Hiop optimizer
+if (MFEM_USE_HIOP)
+  #if (MFEM_USE_MPI)
+  find_package(HIOP REQUIRED)
+  #else()
+  #endif()
+
+  # find_package updates HIOP_FOUND, HIOP_INCLUDE_DIRS, HIOP_LIBRARIES
+  # 
+
+  add_definitions("-DMFEM_USE_HIOP")
+  # enable/disable MPI with Hiop
+  if (MFEM_USE_MPI)
+    add_definitions("-DHIOP_USE_MPI") 
+  endif()
+endif()
+
+
 # Gecko
 if (MFEM_USE_GECKO)
   find_package(Gecko REQUIRED)
@@ -286,7 +304,7 @@ endif()
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
-    MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT GECKO GNUTLS NETCDF MPFR PUMI
+    MESQUITE SuperLUDist STRUMPACK HIOP AXOM CONDUIT GECKO GNUTLS NETCDF MPFR PUMI
     POSIXCLOCKS MFEMBacktrace ZLIB)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
@@ -307,22 +325,6 @@ if (OPENMP_FOUND)
   message(STATUS "MFEM: using package OpenMP")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 endif()
-
-# Hiop optimizer
-if (MFEM_USE_HIOP)
-  #if (MFEM_USE_MPI)
-  #  find_package(HIOP REQUIRED)
-  #else()
-  #  message(FATAL_ERROR " *** STRUMPACK requires that MPI be enabled.")
-  #endif()
-  add_definitions("-DMFEM_USE_HIOP")
-  # enable/disable MPI with Hiop
-  if (MFEM_USE_MPI)
-    #will have to change this name in hiop to avoid conflicts
-    add_definitions("-DWITH_MPI") 
-  endif()
-endif()
-
 
 message(STATUS "MFEM build type: CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 message(STATUS "MFEM version: v${MFEM_VERSION_STRING}")
