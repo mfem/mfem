@@ -1,4 +1,4 @@
-//                       MFEM Analytic Convergence - Parallel Version
+//                        MFEM Analytic Convergence Example
 //
 // Compile with: make convergence
 //
@@ -97,7 +97,6 @@ int main(int argc, char *argv[])
    // Loop over number of refinements for convergence study
    for (int ref = 0; ref < total_refinements; ref++)
    {
-
       // Read the (serial) mesh from the given mesh file on all processors.  We
       // can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
       // and volume meshes with the same code.
@@ -125,8 +124,8 @@ int main(int argc, char *argv[])
       HYPRE_Int size = fespace->GlobalTrueVSize();
 
       // Determine the list of true (i.e. parallel conforming) essential
-      // boundary dofs. In this example, the boundary conditions are defined
-      // by marking all the boundary attributes from the mesh as essential
+      // boundary dofs. In this example, the boundary conditions are defined by
+      // marking all the boundary attributes from the mesh as essential
       // (Dirichlet) and converting them to a list of true dofs.
       Array<int> ess_tdof_list;
       if (pmesh->bdr_attributes.Size())
@@ -137,17 +136,17 @@ int main(int argc, char *argv[])
       }
 
       // Set up the parallel linear form b(.) which corresponds to the
-      // right-hand side of the FEM linear system, which in this case is
-      // (f, phi_i) where phi_i are the basis functions in fespace and
-      // f is the Laplacian of the exact solution.
+      // right-hand side of the FEM linear system, which in this case is (f,
+      // phi_i) where phi_i are the basis functions in fespace and f is the
+      // Laplacian of the exact solution.
       FunctionCoefficient f(f_exact);
       ParLinearForm *b = new ParLinearForm(fespace);
       b->AddDomainIntegrator(new DomainLFIntegrator(f));
       b->Assemble();
 
       // Define the solution vector x as a parallel finite element grid function
-      // corresponding to fespace. Initialize x with the exact solution,
-      // which satisfies the boundary conditions.
+      // corresponding to fespace. Initialize x with the exact solution, which
+      // satisfies the boundary conditions.
       ParGridFunction x(fespace);
       FunctionCoefficient u(u_exact);
       VectorFunctionCoefficient u_grad(dim, u_grad_exact);
@@ -241,7 +240,6 @@ double u_exact(const Vector &x)
    }
 
    return u;
-
 }
 
 void u_grad_exact(const Vector &x, Vector &u)
@@ -273,6 +271,5 @@ double f_exact(const Vector &x)
    }
 
    return f;
-
 }
 

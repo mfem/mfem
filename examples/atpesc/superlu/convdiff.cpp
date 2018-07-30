@@ -1,3 +1,5 @@
+//                 MFEM Convection-Diffusion Example with SuperLU
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -47,14 +49,13 @@ int main(int argc, char *argv[])
                   "Set the SuperLU Row permutation algorithm:  0-NoRowPerm, "
                   "1-LargeDiag, 2-MyPermR");
    args.AddOption(&slu_parsymbfact, "-psf", "--slu-parsymbfact",
-                  "Set the SuperLU ParSymbFact option:  0-No, 1-Yes");                                 
+                  "Set the SuperLU ParSymbFact option:  0-No, 1-Yes");
 #endif
    args.Parse();
    if (myid == 0)
    {
       args.PrintOptions(cout);
    }
-
 
    // 3. Read the (serial) mesh from the given mesh file on all processors. We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
@@ -96,7 +97,8 @@ int main(int argc, char *argv[])
       cout << "Number of unknowns: " << size << endl;
    }
 
-   // 7. Set up the parallel bilinear form representing the convection-diffusion system.
+   // 7. Set up the parallel bilinear form representing the convection-diffusion
+   //    system.
    Array<int> ess_tdof_list;
    if (pmesh->bdr_attributes.Size())
    {
@@ -156,35 +158,63 @@ int main(int argc, char *argv[])
       superlu->SetSymmetricPattern(false);
 
       if (slu_colperm == 0)
+      {
          superlu->SetColumnPermutation(superlu::NATURAL);
+      }
       else if (slu_colperm == 1)
+      {
          superlu->SetColumnPermutation(superlu::MMD_ATA);
+      }
       else if (slu_colperm == 2)
+      {
          superlu->SetColumnPermutation(superlu::MMD_AT_PLUS_A);
+      }
       else if (slu_colperm == 3)
+      {
          superlu->SetColumnPermutation(superlu::COLAMD);
+      }
       else if (slu_colperm == 4)
+      {
          superlu->SetColumnPermutation(superlu::METIS_AT_PLUS_A);
+      }
       else if (slu_colperm == 5)
+      {
          superlu->SetColumnPermutation(superlu::PARMETIS);
+      }
       else if (slu_colperm == 6)
+      {
          superlu->SetColumnPermutation(superlu::ZOLTAN);
+      }
 
       if (slu_rowperm == 0)
+      {
          superlu->SetRowPermutation(superlu::NOROWPERM);
+      }
       else if (slu_rowperm == 1)
+      {
          superlu->SetRowPermutation(superlu::LargeDiag);
+      }
       else if (slu_rowperm == 2)
+      {
          superlu->SetRowPermutation(superlu::MY_PERMR);
+      }
 
       if (slu_iterref == 0)
+      {
          superlu->SetIterativeRefine(superlu::NOREFINE);
+      }
       else if (slu_iterref == 1)
+      {
          superlu->SetIterativeRefine(superlu::SLU_SINGLE);
+      }
       else if (slu_iterref == 2)
+      {
          superlu->SetIterativeRefine(superlu::SLU_DOUBLE);
+      }
       else if (slu_iterref == 3)
-         superlu->SetIterativeRefine(superlu::SLU_EXTRA); 
+      {
+         superlu->SetIterativeRefine(superlu::SLU_EXTRA);
+      }
 
       superlu->SetParSymbFact(slu_parsymbfact);
 
@@ -201,7 +231,7 @@ int main(int argc, char *argv[])
    CD.Mult(1.0, X, -1.0, R); // R = CD X - B
    cout << "Final L2 norm of residual: " << sqrt(R*R) << endl;
 
-   // 9b.  Complete the solve a second time to show off the saved work in superLU
+   // 9b. Complete the solve a second time to show off the saved work in SuperLU
    X = 0.0;
    if (!slu_solver)
    {

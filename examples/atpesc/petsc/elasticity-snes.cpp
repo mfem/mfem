@@ -1,3 +1,7 @@
+//                  MFEM Nonlinear Elasticity Example with PETSc
+//
+// Compile with: make elasticity-snes
+//
 // Sample runs:
 //    mpirun -np 4 elasticity-snes -m ../../data/beam-quad.mesh -s 3 -rs 2 -dt 3
 //
@@ -206,7 +210,7 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
                   "--no-visit-datafiles",
-                  "Save data files for VisIt (visit.llnl.gov) visualization.");   
+                  "Save data files for VisIt (visit.llnl.gov) visualization.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.Parse();
@@ -352,7 +356,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // Create data collection for solution output VisItDataCollection 
+   // Create data collection for solution output VisItDataCollection
    DataCollection *dc = NULL;
    if (visit)
    {
@@ -415,9 +419,9 @@ int main(int argc, char *argv[])
          if (visit)
          {
             dc->SetCycle(ti);
-            dc->SetTime(t);            
+            dc->SetTime(t);
             dc->Save();
-         }         
+         }
       }
    }
 
