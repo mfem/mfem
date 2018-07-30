@@ -175,6 +175,26 @@ void OccaGridFunction::ToQuad(const IntegrationRule &ir, Vector &quadValues)
              quadValues.OccaMem());
 }
 
+void ToQuad(const IntegrationRule &ir, FiniteElementSpace &fespace, Vector &gf, Vector &quadValues)
+{
+   const Engine &engine = fespace.OccaEngine();
+   ::occa::device device = engine.GetDevice();
+
+   OccaDofQuadMaps &maps = OccaDofQuadMaps::Get(device, fespace, ir);
+
+   const int elements = fespace.GetNE();
+   const int numQuad  = ir.GetNPoints();
+   quadValues.Resize<double>(*(new Layout(engine, numQuad * elements)), NULL);
+
+   ::occa::kernel g2qKernel = GetGridFunctionKernel(device, fespace, ir);
+   g2qKernel(elements,
+             maps.dofToQuad,
+             fespace.GetLocalToGlobalMap(),
+             gf.OccaMem(),
+             quadValues.OccaMem());
+}
+
+
 void OccaGridFunction::Distribute(const Vector &v)
 {
    if (ofespace->isDistributed())

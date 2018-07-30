@@ -11,14 +11,14 @@
 
 #include "mfem-occa://defines.okl"
 
-#if USING_TENSOR_OPS
-#  if OCCA_USING_CPU
+#ifdef USING_TENSOR_OPS
+#  ifdef OCCA_USING_CPU
 #    include "mfem-occa://gridfunc/tensor/cpu.okl"
 #  else
 #    include "mfem-occa://gridfunc/tensor/gpuHighOrder.okl"
 #  endif
 #else
-#  if OCCA_USING_CPU
+#  ifdef OCCA_USING_CPU
 #    include "mfem-occa://gridfunc/simplex/cpu.okl"
 #  else
 #    include "mfem-occa://gridfunc/simplex/gpuHighOrder.okl"

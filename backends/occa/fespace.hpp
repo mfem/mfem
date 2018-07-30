@@ -73,8 +73,6 @@ public:
 
    mfem::Mesh* GetMesh() const { return fes->GetMesh(); }
 
-   mfem::FiniteElementSpace* GetFESpace() const { return fes; }
-
    Layout &OccaVLayout() const
    { return *fes->GetVLayout().As<Layout>(); }
 
@@ -115,8 +113,8 @@ public:
    const int* GetElementDofMap() const { return elementDofMap; }
    const int* GetElementDofMapInverse() const { return elementDofMapInverse; }
 
-   const mfem::Operator* GetRestrictionOperator() { return restrictionOp; }
-   const mfem::Operator* GetProlongationOperator() { return prolongationOp; }
+   virtual const mfem::Operator* GetRestrictionOperator() const { return restrictionOp; }
+   virtual const mfem::Operator* GetProlongationOperator() const { return prolongationOp; }
 
    const ::occa::array<int> GetLocalToGlobalMap() const
    { return localToGlobalMap; }

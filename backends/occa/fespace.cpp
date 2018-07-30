@@ -33,6 +33,8 @@ FiniteElementSpace::FiniteElementSpace(const Engine &e,
    SetupLocalGlobalMaps();
    SetupOperators();
    SetupKernels();
+
+   e_layout.DontDelete();
 }
 
 FiniteElementSpace::~FiniteElementSpace()

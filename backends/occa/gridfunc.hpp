@@ -38,6 +38,9 @@ extern std::map<std::string, ::occa::kernel> gridFunctionKernels;
                                      FiniteElementSpace &fespace,
                                      const mfem::IntegrationRule &ir);
 
+// DEPRECATED: This used to be used to be an extension of
+// mfem::GridFunction, esecially for use in OccaCoefficient, but this
+// is now deprecated.
 class OccaGridFunction : public Vector
 {
 protected:
@@ -73,6 +76,9 @@ public:
 
    void Distribute(const Vector &v);
 };
+
+// ToQuad version without the deprecated class.
+void ToQuad(const IntegrationRule &ir, FiniteElementSpace &ofespace, Vector &gf, Vector &quadValues);
 
 } // namespace mfem::occa
 

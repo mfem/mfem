@@ -9,6 +9,9 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
+#define USING_LOW_ORDER 1
+#define USING_HI_ORDER  0
+
 typedef double* DofToQuad_t @dim(NUM_QUAD, NUM_DOFS);
 typedef double* DofToQuadD2D_t @dim(2, NUM_QUAD, NUM_DOFS);
 typedef double* DofToQuadD3D_t @dim(3, NUM_QUAD, NUM_DOFS);
@@ -23,15 +26,15 @@ typedef double* Jacobian3D_t @dim(3, 3, NUM_QUAD, numElements);
 typedef double* SymmOperator2D_t @dim(3, NUM_QUAD, numElements);
 typedef double* SymmOperator3D_t @dim(6, NUM_QUAD, numElements);
 
-typedef double* DLocal_t  @dim(NUM_DOFS, numElements);
+typedef double* DLocal_t @dim(NUM_DOFS, numElements);
 typedef double* QLocal_t @dim(NUM_QUAD, numElements);
 
 #if VDIM_ORDERING == ORDERING_BY_VDIM
 typedef double* DVLocal_t @dim(NUM_VDIM, NUM_DOFS, numElements);
 typedef double* QVLocal_t @dim(NUM_VDIM, NUM_QUAD, numElements);
 #else
-typedef double* DVLocal_t @(dim(NUM_VDIM, NUM_DOFS, numElements), idxOrder(2,0,1));
-typedef double* QVLocal_t @(dim(NUM_VDIM, NUM_QUAD, numElements), idxOrder(2,0,1));
+typedef double* DVLocal_t @dim(NUM_VDIM, NUM_DOFS, numElements) @dimOrder(2,0,1);
+typedef double* QVLocal_t @dim(NUM_VDIM, NUM_QUAD, numElements) @dimOrder(2,0,1);
 #endif
 
 typedef int* DLocalMap_t @dim(NUM_DOFS, numElements);

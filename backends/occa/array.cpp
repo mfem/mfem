@@ -113,7 +113,10 @@ void Array::DoAssign(const PArray &src, std::size_t item_size)
    const Array *source = dynamic_cast<const Array *>(&src);
    MFEM_ASSERT(source != NULL, "invalid source Array type");
    MFEM_ASSERT(Size() == source->Size(), "");
-   slice.copyFrom(source->slice);
+   if (slice != source->slice)
+   {
+      slice.copyFrom(source->slice);
+   }
 }
 
 } // namespace mfem::occa

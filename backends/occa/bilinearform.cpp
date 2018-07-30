@@ -345,6 +345,7 @@ void OccaBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
                            constrList.OccaMem());
    }
 
+   // FIXME: add case for HypreParMatrix here
    OccaConstrainedOperator *cA = dynamic_cast<OccaConstrainedOperator*>(A);
    if (cA)
    {
@@ -432,25 +433,49 @@ void BilinearForm::InitOccaBilinearForm()
       Coefficient *scal_coeff = dbfi[i]->GetScalarCoefficient();
       ConstantCoefficient *const_coeff =
          dynamic_cast<ConstantCoefficient*>(scal_coeff);
+      GridFunctionCoefficient *gridfunc_coeff =
+         dynamic_cast<GridFunctionCoefficient*>(scal_coeff);
       // TODO: other types of coefficients ...
-      double val = const_coeff ? const_coeff->constant : 1.0;
-      OccaCoefficient ocoeff(obform->OccaEngine(), val);
+
+      OccaCoefficient *ocoeff = NULL;
+      if (const_coeff)
+      {
+         ocoeff = new OccaCoefficient(obform->OccaEngine(), const_coeff->constant);
+      }
+      else if (gridfunc_coeff)
+      {
+         ocoeff = new OccaCoefficient(obform->OccaEngine(), *gridfunc_coeff->GetGridFunction(), true);
+      }
+      else if (!scal_coeff)
+      {
+         ocoeff = new OccaCoefficient(obform->OccaEngine(), 1.0);
+      }
+      else if (scal_coeff != NULL)
+      {
+          mfem_error("Coefficient type not supported");
+      }
 
       OccaIntegrator *ointeg = NULL;
-
       if (integ_name == "(undefined)")
       {
          MFEM_ABORT("BilinearFormIntegrator does not define Name()");
       }
+      else if (integ_name == "mass")
+      {
+         ointeg = new OccaMassIntegrator(*ocoeff);
+      }
       else if (integ_name == "diffusion")
       {
-         ointeg = new OccaDiffusionIntegrator(ocoeff);
+         ointeg = new OccaDiffusionIntegrator(*ocoeff);
       }
       else
       {
          MFEM_ABORT("BilinearFormIntegrator [Name() = " << integ_name
                     << "] is not supported");
       }
+
+      // NOTE: The integrators copy ocoeff, so it can be deleted here so there is no memory leak.
+      delete ocoeff;
 
       const mfem::IntegrationRule *ir = dbfi[i]->GetIntRule();
       if (ir) { ointeg->SetIntegrationRule(*ir); }
@@ -500,6 +525,11 @@ void BilinearForm::RecoverFEMSolution(const mfem::Vector &X,
                                       mfem::Vector &x)
 {
    obform->OccaRecoverFEMSolution(X, b, x);
+}
+
+BilinearForm::~BilinearForm()
+{
+   delete obform;
 }
 
 } // namespace mfem::occa

@@ -38,6 +38,7 @@ protected:
    Operator      *oper;
    Operator::Type type_id;
    bool           own_oper;
+   const std::string spec;
 
    Operator::Type CheckType(Operator::Type tid);
 
@@ -53,12 +54,16 @@ public:
    /** @brief Create an OperatorHandle with type id = Operator::MFEM_SPARSEMAT
        without allocating the actual matrix. */
    OperatorHandle()
-      : oper(NULL), type_id(Operator::MFEM_SPARSEMAT), own_oper(false) { }
+      : oper(NULL), type_id(Operator::MFEM_SPARSEMAT), own_oper(false), spec() { }
 
    /** @brief Create a OperatorHandle with a specified type id, @a tid, without
        allocating the actual matrix. */
    explicit OperatorHandle(Operator::Type tid)
-      : oper(NULL), type_id(CheckType(tid)), own_oper(false) { }
+      : oper(NULL), type_id(CheckType(tid)), own_oper(false), spec() { }
+
+   /** @brief Create a OperatorHandle with a string specifier. */
+   explicit OperatorHandle(const char *spec_)
+      : oper(NULL), type_id(Operator::ANY_TYPE), own_oper(false), spec(spec_) { }
 
    /// Create an OperatorHandle for the given OpType pointer, @a A.
    /** Presently, OpType can be SparseMatrix, HypreParMatrix, or PetscParMatrix.
@@ -133,6 +138,8 @@ public:
       if (own_oper) { delete oper; }
       pSet(A, own_A);
    }
+
+   const char *GetSpec() const { return spec.c_str(); }
 
 #ifdef MFEM_USE_MPI
    /** @brief Reset the OperatorHandle to hold a parallel square block-diagonal

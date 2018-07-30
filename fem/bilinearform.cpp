@@ -688,7 +688,7 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    else
 #endif
    {
-      if (A.Type() == Operator::MFEM_SPARSEMAT)
+      if (A.Type() == Operator::MFEM_SPARSEMAT || A.Type() == Operator::ANY_TYPE)
       {
          SparseMatrix A_sm;
          FormLinearSystem(ess_tdof_list, x, b, A_sm, X, B, copy_interior);
@@ -724,7 +724,7 @@ void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
    else
 #endif
    {
-      if (A.Type() == Operator::MFEM_SPARSEMAT)
+      if (A.Type() == Operator::MFEM_SPARSEMAT || A.Type() == Operator::ANY_TYPE)
       {
          SparseMatrix A_sm;
          FormSystemMatrix(ess_tdof_list, A_sm);

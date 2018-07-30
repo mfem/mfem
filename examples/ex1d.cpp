@@ -53,6 +53,7 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    dbg("\033[34m[ex1d] SetEngine");
    mesh->SetEngine(*engine);
+   
    int dim = mesh->Dimension();
 
    // 3. Refine the mesh to increase the resolution. In this example we do

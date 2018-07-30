@@ -235,6 +235,16 @@ public:
    TimeDependentOperator(int h, int w, double t_ = 0.0, Type type_ = EXPLICIT)
       : Operator(h, w) { t = t_; type = type_; }
 
+#ifdef MFEM_USE_BACKENDS
+   TimeDependentOperator(PLayout &in_layout_, PLayout &out_layout_,
+                         double t_ = 0.0, Type type_ = EXPLICIT)
+      : Operator(in_layout_, out_layout_) { t = t_; type = type_; }
+
+   explicit TimeDependentOperator(PLayout &layout_,
+                                  double t_ = 0.0, Type type_ = EXPLICIT)
+      : Operator(layout_) { t = t_; type = type_; }
+#endif
+
    /// Read the currently set time.
    virtual double GetTime() const { return t; }
 

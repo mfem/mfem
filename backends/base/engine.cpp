@@ -19,11 +19,6 @@
 namespace mfem
 {
 
-DFiniteElementSpace Engine::MakeFESpace(FiniteElementSpace &fes) const
-{
-   return DFiniteElementSpace(new PFiniteElementSpace(*this, fes));
-}
-
 } // namespace mfem
 
 #endif // MFEM_USE_BACKENDS

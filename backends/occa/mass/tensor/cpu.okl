@@ -16,10 +16,11 @@
                         @restrict const double * quadWeights,
                         @restrict const Jacobian1D_t J,
                         COEFF_ARGS
-                        @restrict SymmOperator1D_t oper) {
+                        @restrict QLocal_t oper) {
   for (int e = 0; e < numElements; ++e; @outer) {
     for (int q = 0; q < NUM_QUAD_1D; ++q; @inner) {
-      oper(q, e) = quadWeights[q] * COEFF / J(q, e);
+      const double detJ = J(q, e);
+      oper(q, e) = quadWeights[q] * COEFF * detJ;
     }
   }
 }
@@ -29,29 +30,30 @@
                        @restrict const DofToQuad_t dofToQuadD,
                        @restrict const QuadToDof_t quadToDof,
                        @restrict const QuadToDof_t quadToDofD,
-                       @restrict const SymmOperator1D_t oper,
+                       @restrict const QLocal1D_t oper,
                        @restrict const DLocal1D_t solIn,
                        @restrict DLocal1D_t solOut) {
-  // Iterate over elements
   for (int e = 0; e < numElements; ++e; @outer) {
     for (int dummy = 0; dummy < 1; ++dummy; @inner) {
-      double grad[NUM_QUAD_1D];
+      double sol_x[NUM_QUAD_1D];
       for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-        grad[qx] = 0;
+        sol_x[qx] = 0;
       }
+      // sol_x{qx} = dofToQuad{qx,dx} * sol{dx}
       for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
         const double s = solIn(dx, e);
         for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-          grad[qx] += s * dofToQuadD(qx, dx);
+          sol_x[qx] += s * dofToQuad(qx, dx);
         }
       }
+      // sol_x{q} *= oper{q}
       for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-        grad[qx] *= oper(qx, e);
+        sol_x[qx] *= oper(qx, e);
       }
+      // sol{dx} = quadToDof{dx,qx} * sol_x{qx}
       for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-        const double gradX = grad[qx];
         for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
-          solOut(dx, e) += gradX * quadToDofD(dx, qx);
+          solOut(dx, e) += sol_x[qx] * quadToDof(dx, qx);
         }
       }
     }
@@ -65,17 +67,14 @@
                         @restrict const double * quadWeights,
                         @restrict const Jacobian2D_t J,
                         COEFF_ARGS
-                        @restrict SymmOperator2D_t oper) {
+                        @restrict QLocal_t oper) {
   for (int e = 0; e < numElements; ++e; @outer) {
     for (int q = 0; q < NUM_QUAD_2D; ++q; @inner) {
       const double J11 = J(0, 0, q, e), J12 = J(1, 0, q, e);
       const double J21 = J(0, 1, q, e), J22 = J(1, 1, q, e);
+      const double detJ = ((J11 * J22) - (J21 * J12));
 
-      const double c_detJ = quadWeights[q] * COEFF / ((J11 * J22) - (J21 * J12));
-
-      oper(0, q, e) =  c_detJ * (J21*J21 + J22*J22); // (1,1)
-      oper(1, q, e) = -c_detJ * (J21*J11 + J22*J12); // (1,2), (2,1)
-      oper(2, q, e) =  c_detJ * (J11*J11 + J12*J12); // (2,2)
+      oper(q, e) = quadWeights[q] * COEFF * detJ;
     }
   }
 }
@@ -85,85 +84,63 @@
                        @restrict const DofToQuad_t dofToQuadD,
                        @restrict const QuadToDof_t quadToDof,
                        @restrict const QuadToDof_t quadToDofD,
-                       @restrict const SymmOperator2D_t oper,
+                       @restrict const QLocal2D_t oper,
                        @restrict const DLocal2D_t solIn,
                        @restrict DLocal2D_t solOut) {
-  // Iterate over elements
   for (int e = 0; e < numElements; ++e; @outer) {
     for (int dummy = 0; dummy < 1; ++dummy; @inner) {
-      double grad[NUM_QUAD_1D][NUM_QUAD_1D][2];
+      double sol_xy[NUM_QUAD_1D][NUM_QUAD_1D];
+
       for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
         for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-          grad[qy][qx][0] = 0;
-          grad[qy][qx][1] = 0;
+          sol_xy[qy][qx] = 0;
         }
       }
 
       for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
-        double gradX[NUM_QUAD_1D][2];
-        for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-          gradX[qx][0] = 0;
-          gradX[qx][1] = 0;
+        double sol_x[NUM_QUAD_1D];
+        for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+          sol_x[qy] = 0;
         }
 
         for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
           const double s = solIn(dx, dy, e);
           for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-            gradX[qx][0] += s * dofToQuad(qx, dx);
-            gradX[qx][1] += s * dofToQuadD(qx, dx);
+            sol_x[qx] += dofToQuad(qx, dx) * s;
           }
         }
 
         for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
-          const double wy  = dofToQuad(qy, dy);
-          const double wDy = dofToQuadD(qy, dy);
+          const double d2q = dofToQuad(qy, dy);
           for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-            grad[qy][qx][0] += gradX[qx][1] * wy;
-            grad[qy][qx][1] += gradX[qx][0] * wDy;
+            sol_xy[qy][qx] += d2q * sol_x[qx];
           }
         }
       }
 
-      // Calculate Dxy, xDy in plane
       for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
         for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-          const int q = QUAD_2D_ID(qx, qy);
-          const double O11 = oper(0, q, e);
-          const double O12 = oper(1, q, e);
-          const double O22 = oper(2, q, e);
-
-          const double gradX = grad[qy][qx][0];
-          const double gradY = grad[qy][qx][1];
-
-          grad[qy][qx][0] = (O11 * gradX) + (O12 * gradY);
-          grad[qy][qx][1] = (O12 * gradX) + (O22 * gradY);
+          sol_xy[qy][qx] *= oper(qx, qy, e);
         }
       }
 
       for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
-        double gradX[NUM_DOFS_1D][2];
+        double sol_x[NUM_DOFS_1D];
         for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
-          gradX[dx][0] = 0;
-          gradX[dx][1] = 0;
+          sol_x[dx] = 0;
         }
 
         for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-          const double gX = grad[qy][qx][0];
-          const double gY = grad[qy][qx][1];
+          const double s = sol_xy[qy][qx];
           for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
-            const double wx  = quadToDof(dx, qx);
-            const double wDx = quadToDofD(dx, qx);
-            gradX[dx][0] += gX * wDx;
-            gradX[dx][1] += gY * wx;
+            sol_x[dx] += quadToDof(dx, qx) * s;
           }
         }
 
         for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
-          const double wy  = quadToDof(dy, qy);
-          const double wDy = quadToDofD(dy, qy);
+          const double q2d = quadToDof(dy, qy);
           for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
-            solOut(dx, dy, e) += ((gradX[dx][0] * wy) +
-                                  (gradX[dx][1] * wDy));
+            solOut(dx, dy, e) += q2d * sol_x[dx];
           }
         }
       }
@@ -178,7 +155,7 @@
                         @restrict const double * quadWeights,
                         @restrict const Jacobian3D_t J,
                         COEFF_ARGS
-                        @restrict SymmOperator3D_t oper) {
+                        @restrict QLocal_t oper) {
   for (int e = 0; e < numElements; ++e; @outer) {
     for (int q = 0; q < NUM_QUAD_3D; ++q; @inner) {
       const double J11 = J(0, 0, q, e), J12 = J(1, 0, q, e), J13 = J(2, 0, q, e);
@@ -188,28 +165,7 @@
       const double detJ = ((J11 * J22 * J33) + (J12 * J23 * J31) + (J13 * J21 * J32) -
                            (J13 * J22 * J31) - (J12 * J21 * J33) - (J11 * J23 * J32));
 
-      const double c_detJ = quadWeights[q] * COEFF / detJ;
-
-      // adj(J)
-      const double A11 = (J22 * J33) - (J23 * J32);
-      const double A12 = (J23 * J31) - (J21 * J33);
-      const double A13 = (J21 * J32) - (J22 * J31);
-
-      const double A21 = (J13 * J32) - (J12 * J33);
-      const double A22 = (J11 * J33) - (J13 * J31);
-      const double A23 = (J12 * J31) - (J11 * J32);
-
-      const double A31 = (J12 * J23) - (J13 * J22);
-      const double A32 = (J13 * J21) - (J11 * J23);
-      const double A33 = (J11 * J22) - (J12 * J21);
-
-      // adj(J)^Tadj(J)
-      oper(0, q, e) = c_detJ * (A11*A11 + A21*A21 + A31*A31); // (1,1)
-      oper(1, q, e) = c_detJ * (A11*A12 + A21*A22 + A31*A32); // (1,2), (2,1)
-      oper(2, q, e) = c_detJ * (A11*A13 + A21*A23 + A31*A33); // (1,3), (3,1)
-      oper(3, q, e) = c_detJ * (A12*A12 + A22*A22 + A32*A32); // (2,2)
-      oper(4, q, e) = c_detJ * (A12*A13 + A22*A23 + A32*A33); // (2,3), (3,2)
-      oper(5, q, e) = c_detJ * (A13*A13 + A23*A23 + A33*A33); // (3,3)
+      oper(q, e) = quadWeights[q] * COEFF * detJ;
     }
   }
 }
@@ -219,147 +175,102 @@
                        @restrict const DofToQuad_t dofToQuadD,
                        @restrict const QuadToDof_t quadToDof,
                        @restrict const QuadToDof_t quadToDofD,
-                       @restrict const SymmOperator3D_t oper,
+                       @restrict const QLocal3D_t oper,
                        @restrict const DLocal3D_t solIn,
                        @restrict DLocal3D_t solOut) {
   // Iterate over elements
   for (int e = 0; e < numElements; ++e; @outer) {
     for (int dummy = 0; dummy < 1; ++dummy; @inner) {
-      double grad[NUM_QUAD_1D][NUM_QUAD_1D][NUM_QUAD_1D][4];
+      double sol_xyz[NUM_QUAD_1D][NUM_QUAD_1D][NUM_QUAD_1D];
       for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
         for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
           for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-            grad[qz][qy][qx][0] = 0;
-            grad[qz][qy][qx][1] = 0;
-            grad[qz][qy][qx][2] = 0;
+            sol_xyz[qz][qy][qx] = 0;
           }
         }
       }
 
       for (int dz = 0; dz < NUM_DOFS_1D; ++dz) {
-        double gradXY[NUM_QUAD_1D][NUM_QUAD_1D][4];
+        double sol_xy[NUM_QUAD_1D][NUM_QUAD_1D];
         for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
           for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-            gradXY[qy][qx][0] = 0;
-            gradXY[qy][qx][1] = 0;
-            gradXY[qy][qx][2] = 0;
+            sol_xy[qy][qx] = 0;
           }
         }
 
         for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
-          double gradX[NUM_QUAD_1D][2];
+          double sol_x[NUM_QUAD_1D];
           for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-            gradX[qx][0] = 0;
-            gradX[qx][1] = 0;
+            sol_x[qx] = 0;
           }
 
           for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
             const double s = solIn(dx, dy, dz, e);
             for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-              gradX[qx][0] += s * dofToQuad(qx, dx);
-              gradX[qx][1] += s * dofToQuadD(qx, dx);
+              sol_x[qx] += dofToQuad(qx, dx) * s;
             }
           }
 
           for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
-            const double wy  = dofToQuad(qy, dy);
-            const double wDy = dofToQuadD(qy, dy);
+            const double wy = dofToQuad(qy, dy);
             for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-              const double wx  = gradX[qx][0];
-              const double wDx = gradX[qx][1];
-              gradXY[qy][qx][0] += wDx * wy;
-              gradXY[qy][qx][1] += wx  * wDy;
-              gradXY[qy][qx][2] += wx  * wy;
+              sol_xy[qy][qx] += wy * sol_x[qx];
             }
           }
         }
 
         for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
-          const double wz  = dofToQuad(qz, dz);
-          const double wDz = dofToQuadD(qz, dz);
+          const double wz = dofToQuad(qz, dz);
           for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
             for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-              grad[qz][qy][qx][0] += gradXY[qy][qx][0] * wz;
-              grad[qz][qy][qx][1] += gradXY[qy][qx][1] * wz;
-              grad[qz][qy][qx][2] += gradXY[qy][qx][2] * wDz;
+              sol_xyz[qz][qy][qx] += wz * sol_xy[qy][qx];
             }
           }
         }
       }
 
-      // Calculate Dxyz, xDyz, xyDz in plane
       for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
         for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
           for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-            const int q = QUAD_3D_ID(qx, qy, qz);
-            const double O11 = oper(0, q, e);
-            const double O12 = oper(1, q, e);
-            const double O13 = oper(2, q, e);
-            const double O22 = oper(3, q, e);
-            const double O23 = oper(4, q, e);
-            const double O33 = oper(5, q, e);
-
-            const double gradX = grad[qz][qy][qx][0];
-            const double gradY = grad[qz][qy][qx][1];
-            const double gradZ = grad[qz][qy][qx][2];
-
-            grad[qz][qy][qx][0] = (O11 * gradX) + (O12 * gradY) + (O13 * gradZ);
-            grad[qz][qy][qx][1] = (O12 * gradX) + (O22 * gradY) + (O23 * gradZ);
-            grad[qz][qy][qx][2] = (O13 * gradX) + (O23 * gradY) + (O33 * gradZ);
+            sol_xyz[qz][qy][qx] *= oper(qx, qy, qz, e);
           }
         }
       }
 
       for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
-        double gradXY[NUM_DOFS_1D][NUM_DOFS_1D][4];
+        double sol_xy[NUM_DOFS_1D][NUM_DOFS_1D];
         for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
           for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
-            gradXY[dy][dx][0] = 0;
-            gradXY[dy][dx][1] = 0;
-            gradXY[dy][dx][2] = 0;
+            sol_xy[dy][dx] = 0;
           }
         }
 
         for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
-          double gradX[NUM_DOFS_1D][4];
+          double sol_x[NUM_DOFS_1D];
           for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
-            gradX[dx][0] = 0;
-            gradX[dx][1] = 0;
-            gradX[dx][2] = 0;
+            sol_x[dx] = 0;
           }
 
           for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
-            const double gX = grad[qz][qy][qx][0];
-            const double gY = grad[qz][qy][qx][1];
-            const double gZ = grad[qz][qy][qx][2];
+            const double s = sol_xyz[qz][qy][qx];
             for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
-              const double wx  = quadToDof(dx, qx);
-              const double wDx = quadToDofD(dx, qx);
-              gradX[dx][0] += gX * wDx;
-              gradX[dx][1] += gY * wx;
-              gradX[dx][2] += gZ * wx;
+              sol_x[dx] += quadToDof(dx, qx) * s;
             }
           }
 
           for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
-            const double wy  = quadToDof(dy, qy);
-            const double wDy = quadToDofD(dy, qy);
+            const double wy = quadToDof(dy, qy);
             for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
-              gradXY[dy][dx][0] += gradX[dx][0] * wy;
-              gradXY[dy][dx][1] += gradX[dx][1] * wDy;
-              gradXY[dy][dx][2] += gradX[dx][2] * wy;
+              sol_xy[dy][dx] += wy * sol_x[dx];
             }
           }
         }
 
         for (int dz = 0; dz < NUM_DOFS_1D; ++dz) {
-          const double wz  = quadToDof(dz, qz);
-          const double wDz = quadToDofD(dz, qz);
+          const double wz = quadToDof(dz, qz);
           for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
             for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
-              solOut(dx, dy, dz, e) += ((gradXY[dy][dx][0] * wz) +
-                                        (gradXY[dy][dx][1] * wz) +
-                                        (gradXY[dy][dx][2] * wDz));
+              solOut(dx, dy, dz, e) += wz * sol_xy[dy][dx];
             }
           }
         }

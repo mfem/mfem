@@ -95,9 +95,21 @@ void RK4Solver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
    int n = f->Width();
-   y.SetSize(n);
-   k.SetSize(n);
-   z.SetSize(n);
+#ifdef MFEM_USE_BACKENDS
+   const DLayout& in_layout = f->InLayout();
+   if (in_layout)
+   {
+      y.Resize(in_layout);
+      k.Resize(in_layout);
+      z.Resize(in_layout);
+   }
+   else
+#endif
+   {
+      y.SetSize(n);
+      k.SetSize(n);
+      z.SetSize(n);
+   }
 }
 
 void RK4Solver::Step(Vector &x, double &t, double &dt)
@@ -111,21 +123,28 @@ void RK4Solver::Step(Vector &x, double &t, double &dt)
 
    f->SetTime(t);
    f->Mult(x, k); // k1
-   add(x, dt/2, k, y);
-   add(x, dt/6, k, z);
+   // add(x, dt/2, k, y);
+   y.Axpby(1.0, x, dt/2, k);
+   // add(x, dt/6, k, z);
+   z.Axpby(1.0, x, dt/6, k);
 
    f->SetTime(t + dt/2);
    f->Mult(y, k); // k2
-   add(x, dt/2, k, y);
-   z.Add(dt/3, k);
+   // add(x, dt/2, k, y);
+   y.Axpby(1.0, x, dt/2, k);
+   // z.Add(dt/3, k);
+   z.Axpby(1.0, z, dt/3, k);
 
    f->Mult(y, k); // k3
-   add(x, dt, k, y);
-   z.Add(dt/3, k);
+   // add(x, dt, k, y);
+   y.Axpby(1.0, x, dt, k);
+   // z.Add(dt/3, k);
+   z.Axpby(1.0, z, dt/3, k);
 
    f->SetTime(t + dt);
    f->Mult(y, k); // k4
-   add(z, dt/6, k, x);
+   // add(z, dt/6, k, x);
+   x.Axpby(1.0, z, dt/6, k);
    t += dt;
 }
 
@@ -455,8 +474,20 @@ void SDIRK34Solver::Step(Vector &x, double &t, double &dt)
 void SDIRK33Solver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
-   k.SetSize(f->Width());
-   y.SetSize(f->Width());
+#ifdef MFEM_USE_BACKENDS
+   const DLayout &in_layout = _f.InLayout();
+   if (in_layout)
+   {
+      k.Resize(in_layout);
+      y.Resize(in_layout);
+   }
+   else
+#endif
+   {
+      const int n = f->Width();
+      k.SetSize(n);
+      y.SetSize(n);
+   }
 }
 
 void SDIRK33Solver::Step(Vector &x, double &t, double &dt)
@@ -472,16 +503,20 @@ void SDIRK33Solver::Step(Vector &x, double &t, double &dt)
 
    f->SetTime(t + a*dt);
    f->ImplicitSolve(a*dt, x, k);
-   add(x, (c-a)*dt, k, y);
-   x.Add(b*dt, k);
+   // add(x, (c-a)*dt, k, y);
+   y.Axpby(1.0, x, (c-a)*dt, k);
+   // x.Add(b*dt, k);
+   x.Axpby(1.0, x, b*dt, k);
 
    f->SetTime(t + c*dt);
    f->ImplicitSolve(a*dt, y, k);
-   x.Add((1.-a-b)*dt, k);
+   // x.Add((1.-a-b)*dt, k);
+   x.Axpby(1.0, x, (1.-a-b)*dt, k);
 
    f->SetTime(t + dt);
    f->ImplicitSolve(a*dt, x, k);
-   x.Add(a*dt, k);
+   // x.Add(a*dt, k);
+   x.Axpby(1.0, x, a*dt, k);
    t += dt;
 }
 
