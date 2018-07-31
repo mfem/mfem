@@ -148,7 +148,7 @@ private:
 
       int dim = fes->GetMesh()->Dimension();
       int num_cells = fes->GetNE();
-      int NDOFs        = fes->GetVSize();
+      int NDOFs = fes->GetVSize();
       int NDOFs_shared = 0; //fes->num_face_nbr_dofs;
       DOFs_coord.SetSize(dim, NDOFs + NDOFs_shared);
 
@@ -206,8 +206,8 @@ private:
 
       int dim = mesh->Dimension();
       int num_cells = mesh->GetNE();
-      int NDOFs     = fes->GetVSize();
-      double dist=0;
+      int NDOFs = fes->GetVSize();
+      double dist = 0;
       const double tol = 1e-10;
       // hk at ref element with some tolerance
       //double dist_level = 1.0 / fes->GetOrder(0) + tol;
@@ -750,9 +750,9 @@ int main(int argc, char *argv[])
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Forward Euler,\n\t"
                   "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
-   //args.AddOption(&mono, "-mt", "--mono",
-   //               "Type of monotonicity treatment: 0 - no monotonicity treatment,\n\t"
-   //               "                                1 - matrix-free Rusanov scheme.");
+   args.AddOption((int*)(&mono), "-mt", "--mono",
+                  "Type of monotonicity treatment: 0 - no monotonicity treatment,\n\t"
+                  "                                1 - matrix-free Rusanov scheme.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -867,7 +867,7 @@ int main(int argc, char *argv[])
    DenseMatrix bdrDiff;
    preprocessLowOrderScheme(&fes, velocity, mono, elDiff, bdrDiff, lumpedM);
    
-   int method = 1; // from sparsity
+   int method = 0; // from sparsity
 //   int method = 1; // local bounds
    SolutionBounds bnds(&fes, k, method);
 
