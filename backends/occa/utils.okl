@@ -13,7 +13,7 @@ typedef double* Local_t @dim(numDofs, numElements);
 
 @kernel void InitLocalVector(const int numElements,
                              const int numDofs,
-                             Local_t restrict sol) {
+                             @restrict Local_t sol) {
   for (int e = 0; e < numElements; ++e; @outer) {
     for (int d = 0; d < numDofs; ++d; @inner) {
       sol(d, e) = 0;

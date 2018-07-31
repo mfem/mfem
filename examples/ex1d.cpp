@@ -37,10 +37,10 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    /// Engine *engine = EngineDepot.Select(spec);
-   // string occa_spec("mode: 'Serial'");
-   // string occa_spec("mode: 'CUDA', deviceID: 0");
+   string occa_spec("mode: 'Serial'");
+   // string occa_spec("mode: 'CUDA', device_id: 0");
    // string occa_spec("mode: 'OpenMP', threads: 4");
-   // string occa_spec("mode: 'OpenCL', deviceID: 0, platformID: 0");
+   // string occa_spec("mode: 'OpenCL', device_id: 0, platform_id: 0");
 
    //SharedPtr<Engine> engine(new mfem::occa::Engine("mode: 'Serial'"));
    dbg("\033[34m[ex1d] engine");
@@ -51,9 +51,8 @@ int main(int argc, char *argv[])
    //    the same code.
    dbg("\033[34m[ex1d] mesh");
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   dbg("\033[34m[ex1d] SetEngine");
    mesh->SetEngine(*engine);
-   
+
    int dim = mesh->Dimension();
 
    // 3. Refine the mesh to increase the resolution. In this example we do

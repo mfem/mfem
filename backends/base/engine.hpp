@@ -65,29 +65,10 @@ protected:
 
 public:
    /// TODO: doxygen
-   Engine(Backend *b, int n_mem, int n_workers)
-      : backend(b),
-#ifdef MFEM_USE_MPI
-        comm(MPI_COMM_NULL),
-#endif
-        num_mem_res(n_mem),
-        num_workers(n_workers),
-        memory_resources(new MemoryResource*[num_mem_res]()),
-        workers_weights(new double[num_workers]()),
-        workers_mem_res(new int[num_workers]())
-   { /* Note: all arrays are value-initialized with zeros. */ }
+   Engine(Backend *b, int n_mem, int n_workers);
 
    /// TODO: doxygen
-   virtual ~Engine()
-   {
-      delete [] workers_mem_res;
-      delete [] workers_weights;
-      for (int i = 0; i < num_mem_res; i++)
-      {
-         delete memory_resources[i];
-      }
-      delete [] memory_resources;
-   }
+   virtual ~Engine();
 
 
    /**
