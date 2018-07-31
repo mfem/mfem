@@ -1,3 +1,7 @@
+//                     MFEM DG Advection Example with PETSc
+//
+// Compile with: make advection-ode
+//
 // Sample runs:
 //    mpirun -np 4 advection-ode -m ../../data/periodic-hexagon.mesh
 //    mpirun -np 4 advection-ode -m ../../data/periodic-hexagon.mesh -implicit
@@ -289,7 +293,7 @@ int main(int argc, char *argv[])
       u->Save(osol);
    }
 
-   // Create data collection for solution output VisItDataCollection 
+   // Create data collection for solution output VisItDataCollection
    DataCollection *dc = NULL;
    if (visit)
    {

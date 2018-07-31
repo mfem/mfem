@@ -1,7 +1,6 @@
-//                         MFEM Example 16 - Parallel Version
-//                             SUNDIALS Example
+//                   MFEM Transient Heat Example with SUNDIALS
 //
-// Compile with: make ex16p
+// Compile with: make transient-heat
 //
 // Sample runs:
 //
