@@ -43,6 +43,11 @@ size_t memory::size() const
 }
 
 // *****************************************************************************
+void memory::copyFrom(memory &src, size_t b) const {
+   push();
+   memcpy(data,src,b);
+   pop();
+}
 void memory::copyFrom(memory &src)
 {
    push();
@@ -51,14 +56,23 @@ void memory::copyFrom(memory &src)
 }
 
 // *****************************************************************************
-void memory::copyFrom(const void *src)
-{
+void memory::copyFrom(const void *src, size_t b) const {
+   push();
+   memcpy(data,src,b);
+   pop();
+}
+void memory::copyFrom(const void *src){
    push();
    memcpy(data,src,bytes);
    pop();
 }
 
 // *****************************************************************************
+void memory::copyTo(void *dest, size_t b) const {
+   push();
+   memcpy(dest,data,b);
+   pop();
+ }
 void memory::copyTo(void *dest)
 {
    push();

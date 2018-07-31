@@ -21,7 +21,7 @@ namespace kernels
 {
 
 // *****************************************************************************
-mfem::Vector& GetHostVector(const int id, const int64_t size)
+/*mfem::Vector& GetHostVector(const int id, const int64_t size)
 {
    push();
    static std::vector<mfem::Vector*> v;
@@ -38,13 +38,13 @@ mfem::Vector& GetHostVector(const int id, const int64_t size)
    }
    pop();
    return *(v[id]);
-}
+   }*/
 
 // *****************************************************************************
 void KernelsMult(const mfem::Operator &op, const kernels::Vector &x,
                  kernels::Vector &y)
 {
-   push();
+   push();assert(false);
    kernels::device device = x.KernelsLayout().KernelsEngine().GetDevice();
    if (device.hasSeparateMemorySpace()) {
       assert(false);
@@ -56,22 +56,35 @@ void KernelsMult(const mfem::Operator &op, const kernels::Vector &x,
    }
    else
    {
-      dbg("[KernelsMult] op:%dx%d, x:%d, y:%d", op.Width(), op.Height(), x.Size(), y.Size());
-      mfem::Vector hostX((double*) x.KernelsMem().ptr(), x.Size());
-      hostX.Pull();
-      mfem::Vector hostY((double*) y.KernelsMem().ptr(), y.Size());
-      hostY.Pull(false);
+      
+      //dbg("[KernelsMult] op:%dx%d, x:%d, y:%d", op.Width(), op.Height(), x.Size(), y.Size());
+      mfem::Vector hostX((double*) x.KernelsMem().ptr(), op.Width());
+      //dbg("[KernelsMult] hostX:\n");hostX.Print();      
+      //hostX.Pull();      
+      x.KernelsMem().copyTo(hostX.GetData(), hostX.Size() * sizeof(double));
+      //x.KernelsMem().copyFrom(hostX.GetData(), hostX.Size() * sizeof(double));
+      
+      mfem::Vector hostY((double*) y.KernelsMem().ptr(), op.Height());
       op.Mult(hostX, hostY);
+      
+      //hostY.Pull(false);
+      
+      //dbg("[KernelsMult] hostY:\n");hostY.Print();
+      //assert(false);
+      //y.KernelsMem().copyFrom(hostY.GetData(), hostY.Size() * sizeof(double));
+      //y.KernelsMem().copyTo(hostY.GetData(), hostY.Size() * sizeof(double));
       hostY.Push();
-   }
+      //y.Push();
+      //dbg("[KernelsMult] y:\n");y.Print();
+     }
    pop();
 }
 
 // *****************************************************************************
 void KernelsMultTranspose(const mfem::Operator &op,
-                          const Vector &x, Vector &y)
+                          const kernels::Vector &x, kernels::Vector &y)
 {
-   push();
+   push();assert(false);
    kernels::device device = x.KernelsLayout().KernelsEngine().GetDevice();
    if (device.hasSeparateMemorySpace())
    {
@@ -85,13 +98,23 @@ void KernelsMultTranspose(const mfem::Operator &op,
    }
    else
    {
-      dbg("[KernelsMult] op:%dx%d, x:%d, y:%d", op.Height(), op.Width(), x.Size(), y.Size());
-      mfem::Vector hostX((double*) x.KernelsMem().ptr(), x.Size());
-      hostX.Pull();
-      mfem::Vector hostY((double*) y.KernelsMem().ptr(), y.Size());
-      hostY.Pull(false);
+      //dbg("[KernelsMultTranspose] op:%dx%d, x:%d, y:%d", op.Height(), op.Width(), x.Size(), y.Size());
+      mfem::Vector hostX((double*) x.KernelsMem().ptr(), op.Height());
+      //hostX.Pull();
+      x.KernelsMem().copyTo(hostX.GetData(), hostX.Size() * sizeof(double));
+      //x.KernelsMem().copyFrom(hostX.GetData(), hostX.Size() * sizeof(double));
+      mfem::Vector hostY((double*) y.KernelsMem().ptr(), op.Width());
+      //hostY.Pull(false);
       op.MultTranspose(hostX, hostY);
+      // -0.1307 -5.55112e-17 0.1307 -0.14772 -4.85723e-17 0.14772 -0.1307 -6.93889e-17
+      // 0.1307 0.0378933 -5.55112e-17 0.0757866 -0.40912 -0.0378933 0.40912 -0.0757866
+      // -5.55112e-17 0.0378933 -0.40912 0.40912 -0.0378933 0.151573 -0.151573 0.151573
+      // -0.151573
+      //assert(false);
+      //y.KernelsMem().copyFrom(hostY.GetData(), hostY.Size() * sizeof(double));
+      //y.KernelsMem().copyTo(hostY.GetData(), hostY.Size() * sizeof(double));
       hostY.Push();
+      //dbg("[KernelsMultTranspose] y:\n");y.Print();
    }
    pop();
 }
@@ -116,16 +139,16 @@ ProlongationOperator::ProlongationOperator(Layout &in_layout,
 // **************************************************************************
 void ProlongationOperator::Mult_(const kernels::Vector &x,
                                  kernels::Vector &y) const
-{//assert(false);
-   push();
+{
+   push();assert(false);
    if (pmat) {
       //assert(false);
-      assert(y.Size()==pmat->Width());
-      dbg("\033[31;7mpmat %dx%d",pmat->Width(),pmat->Height());
+      //assert(y.Size()==pmat->Width());
+      //dbg("\033[31;7mpmat %dx%d",pmat->Width(),pmat->Height());
       KernelsMult(*pmat, x, y);
    }
    else
-   {
+   {assert(false);
       // TODO: define 'ox' and 'oy'
       multOp.Mult_(x, y);
    }
@@ -135,21 +158,21 @@ void ProlongationOperator::Mult_(const kernels::Vector &x,
 // **************************************************************************
 void ProlongationOperator::MultTranspose_(const kernels::Vector &x,
                                           kernels::Vector &y) const
-{//assert(false);
-   push();
+{
+   push();assert(false);
    if (pmat) {
       //assert(false);
       KernelsMultTranspose(*pmat, x, y);
    }
    else
-   {
+   {assert(false);
       multTransposeOp.Mult_(x, y);
    }
    pop();
 }
 
 // *****************************************************************************
-/*void ProlongationOperator::Mult(const mfem::Vector &x, mfem::Vector &y) const
+void ProlongationOperator::Mult(const mfem::Vector &x, mfem::Vector &y) const
 {
    if (pmat)
    {
@@ -163,10 +186,10 @@ void ProlongationOperator::MultTranspose_(const kernels::Vector &x,
    {
       multOp.Mult(x, y);
    }
-   }*/
+   }
 
 // *****************************************************************************
-/*void ProlongationOperator::MultTranspose(const mfem::Vector &x,
+void ProlongationOperator::MultTranspose(const mfem::Vector &x,
                                          mfem::Vector &y) const
 {
    if (pmat)
@@ -181,7 +204,7 @@ void ProlongationOperator::MultTranspose_(const kernels::Vector &x,
    {
       multTransposeOp.Mult(x, y);
    }
-   }*/
+}
 
 } // namespace mfem::kernels
 

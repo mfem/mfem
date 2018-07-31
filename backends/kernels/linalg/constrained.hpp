@@ -60,7 +60,7 @@ public:
 
        where the "_b" subscripts denote the essential (boundary) indices/dofs of
        the vectors, and "_i" -- the rest of the entries. */
-   void EliminateRHS(const Vector &x, Vector &b) const;
+   void EliminateRHS(const kernels::Vector &x, kernels::Vector &b) const;
 
    /** @brief Constrained operator action.
 
@@ -70,7 +70,7 @@ public:
 
        where the "_b" subscripts denote the essential (boundary) indices/dofs of
        the vectors, and "_i" -- the rest of the entries. */
-   virtual void Mult_(const Vector &x, Vector &y) const;
+   virtual void Mult_(const kernels::Vector &x, kernels::Vector &y) const;
 
    // Destructor: destroys the unconstrained Operator @a A if @a own_A is true.
    virtual ~KernelsConstrainedOperator();

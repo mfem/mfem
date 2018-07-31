@@ -48,16 +48,13 @@ void KernelsConstrainedOperator::Setup(kernels::device device_,
    A = A_;
    own_A = own_A_;
    constraintIndices = constraintList_.Size();
-   if (constraintIndices)
+   dbg("[KernelsConstrainedOperator::Setup] constraintIndices=%d", constraintIndices);
+   //assert(false);
+   if (constraintIndices > 0)
    {
-     //assert(false);
-     //constraintList.allocate(constraintIndices);
      assert(constraintList_.Get_PArray());
      constraintList = constraintList_.Get_PArray()->As<Array>().KernelsMem();
    }
-   //z.SetSize(height);
-   //w.SetSize(height);
-   dbg("done");
    pop();
 }
 
@@ -68,7 +65,7 @@ void KernelsConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
    w.Fill<double>(0.0);
    if (constraintIndices)
    {
-     //assert(false);
+      assert(false);
       vector_map_dofs(constraintIndices,
                       (double*)w.KernelsMem().ptr(),
                       (double*)x.KernelsMem().ptr(),
@@ -78,7 +75,7 @@ void KernelsConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
    b.Axpby<double>(1.0, b, -1.0, z);
    if (constraintIndices)
    {
-     //assert(false);
+      assert(false);
       vector_map_dofs(constraintIndices,
                       (double*)b.KernelsMem().ptr(),
                       (double*)x.KernelsMem().ptr(),
@@ -99,10 +96,11 @@ void KernelsConstrainedOperator::Mult_(const Vector &x, Vector &y) const
       pop();
       return;
    }
-
+   assert(false);
    z.Assign<double>(x); // z = x
 
-   vector_clear_dofs(constraintIndices, (double*)z.KernelsMem().ptr(),
+   vector_clear_dofs(constraintIndices,
+                     (double*)z.KernelsMem().ptr(),
                      (int*)constraintList.ptr());
 
    A->Mult(mfem_z, mfem_y);

@@ -40,6 +40,7 @@ public:
    void Print();
 
    void SetSubVector(const mfem::Array<int> &, const double, const int);
+   void MapSubVector(const mfem::Array<int> &, const kernels::Vector&, const int);
 
    mfem::Vector Wrap();
 

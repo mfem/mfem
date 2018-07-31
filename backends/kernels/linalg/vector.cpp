@@ -181,6 +181,16 @@ void Vector::SetSubVector(const mfem::Array<int> &ess_tdofs,
    vector_set_subvector_const(N, value, data, ess_tdofs.GetData());
    pop();
 }
+   
+// *****************************************************************************
+void Vector::MapSubVector(const mfem::Array<int> &ess_tdofs,
+                          const kernels::Vector &v,
+                          const int N)
+{
+   push();
+   vector_map_dofs(N, data, v.data, ess_tdofs.GetData());
+   pop();
+}
 
 // *****************************************************************************
 mfem::Vector Vector::Wrap()

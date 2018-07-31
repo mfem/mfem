@@ -58,8 +58,10 @@ public:
    // override
    virtual void MultTranspose(const mfem::Vector &x, mfem::Vector &y) const
    {
+      push();
       MultTranspose_(x.Get_PVector()->As<Vector>(),
                      y.Get_PVector()->As<Vector>());
+      pop();
    }
 };
 

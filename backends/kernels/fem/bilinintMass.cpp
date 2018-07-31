@@ -90,7 +90,6 @@ void KernelsMassIntegrator::MultAdd(Vector &x, Vector &y)
                 maps->quadToDof,
                 maps->quadToDofD,
                 op.GetData(),
-                //(double*)assembledOperator.KernelsMem().ptr(),
                 (const double*)x.KernelsMem().ptr(),
                 (double*)y.KernelsMem().ptr());
    pop();

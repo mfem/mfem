@@ -2727,7 +2727,7 @@ ConformingProlongationOperator::ConformingProlongationOperator(
 
 void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
 {
-   MFEM_ASSERT(x.Size() == Width(), "");
+   MFEM_ASSERT(x.Size() == Width(), "x.Size()=" << x.Size()<<", Width()="<<Width());
    MFEM_ASSERT(y.Size() == Height(), "");
 
    const double *xdata = x.GetData();
@@ -2754,7 +2754,7 @@ void ConformingProlongationOperator::MultTranspose(
    const Vector &x, Vector &y) const
 {
    MFEM_ASSERT(x.Size() == Height(), "");
-   MFEM_ASSERT(y.Size() == Width(), "");
+   MFEM_ASSERT(y.Size() == Width(), "y.Size()=" << y.Size()<<", Width()="<<Width());
 
    const double *xdata = x.GetData();
    double *ydata = y.GetData();

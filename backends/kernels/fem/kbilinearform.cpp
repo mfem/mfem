@@ -244,7 +244,7 @@ void kBilinearForm::FormOperator(const mfem::Array<int> &constraintList,
    {
       rap = new RAPOperator(*testP, *this, *trialP);
    }
-   dbg("KernelsConstrainedOperator");
+   dbg("[kBilinearForm::FormOperatorKernels] constraintList=%d",constraintList.Size());
    Aout = new KernelsConstrainedOperator(rap, constraintList,
                                          rap != this);
    pop();

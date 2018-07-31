@@ -35,11 +35,14 @@ public:
 
    kernels::device getDevice();
 
-   void copyTo(void *dest);
+   void copyTo(void*);
+   void copyTo(void*, size_t)const;
 
-   void copyFrom(memory &src);
+   void copyFrom(memory&);
+   void copyFrom(memory&, size_t)const;
 
    void copyFrom(const void*);
+   void copyFrom(const void*, size_t)const;
 
    void* ptr() const;
 
