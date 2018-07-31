@@ -11,6 +11,13 @@
 Version 3.4.1 (development)
 ===========================
 
+- The tetrahedral mesh refinement algorithm in serial and in parallel now
+  follows precisely the paper:
+     D. Arnold, A. Mukherjee, and L. Pouly, "Locally Adapted Tetrahedral Meshes
+     Using Bisection", SIAM J. Sci. Comput., 22(2), 431–448.
+  This guarantees that the shape regularity of the elements will be preserved
+  under refinement.
+
 
 Version 3.4, released on May 29, 2018
 =====================================
