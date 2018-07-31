@@ -37,7 +37,6 @@ int main(int argc, char *argv[])
                   "Constant velocity in x that the fluid is flowing with.");
    args.AddOption(&visit, "-v", "--visit", "-nov", "--no-visit",
                   "Enable VisIt visualization.");
-#ifdef MFEM_USE_SUPERLU
    args.AddOption(&slu_solver, "-slu", "--superlu", "-no-slu", "--no-superlu",
                   "Use the SuperLU Solver.");
    args.AddOption(&slu_colperm, "-cp", "--slu-colperm",
@@ -48,8 +47,16 @@ int main(int argc, char *argv[])
                   "1-LargeDiag, 2-MyPermR");
    args.AddOption(&slu_parsymbfact, "-psf", "--slu-parsymbfact",
                   "Set the SuperLU ParSymbFact option:  0-No, 1-Yes");                                 
-#endif
    args.Parse();
+   if (!args.Good())
+   {
+      if (myid == 0)
+      {
+         args.PrintUsage(cout);
+      }
+      MPI_Finalize();
+      return 0;
+   }   
    if (myid == 0)
    {
       args.PrintOptions(cout);
@@ -120,7 +127,7 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new DomainLFIntegrator(source));
    b->Assemble();
 
-   HypreParMatrix CD;
+   HypreParMatrix CD, CD2;
    ParGridFunction x(fespace);
    x = 0.0;
    Vector B, X;
@@ -130,12 +137,10 @@ int main(int argc, char *argv[])
    //    the preconditioner, or use SuperLU which will handle the full solve in
    //    one go.
    Solver *solver = NULL;
-   Operator *Mrow = NULL;
    HypreBoomerAMG *amg = NULL;
    HypreGMRES *gmres = NULL;
-#ifdef MFEM_USE_SUPERLU
    SuperLUSolver *superlu = NULL;
-#endif
+   Operator *SLUCD = NULL;
 
    if (!slu_solver)
    {
@@ -149,8 +154,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-#ifdef MFEM_USE_SUPERLU
-      Mrow = new SuperLURowLocMatrix(CD);
+      SLUCD = new SuperLURowLocMatrix(CD);
       superlu = new SuperLUSolver(MPI_COMM_WORLD);
       superlu->SetPrintStatistics(true);
       superlu->SetSymmetricPattern(false);
@@ -188,9 +192,8 @@ int main(int argc, char *argv[])
 
       superlu->SetParSymbFact(slu_parsymbfact);
 
-      superlu->SetOperator(*Mrow);
+      superlu->SetOperator(*SLUCD);
       solver = superlu;
-#endif
    }
 
    // 9. Complete the solve and recover the concentration in the grid function
@@ -199,7 +202,7 @@ int main(int argc, char *argv[])
    cout << "Time required for first solve:  " << toc() << " (s)" << endl;
    Vector R(B); // R = B
    CD.Mult(1.0, X, -1.0, R); // R = CD X - B
-   cout << "Final L2 norm of residual: " << sqrt(R*R) << endl;
+   cout << "Final L2 norm of residual: " << sqrt(R*R) << endl << endl;
 
    // 9b.  Complete the solve a second time to show off the saved work in superLU
    X = 0.0;
@@ -216,8 +219,10 @@ int main(int argc, char *argv[])
       solver = gmres;
    }
    else
-   {
-      superlu->SetOperator(*Mrow);
+   {  
+      delete SLUCD;
+      SLUCD = new SuperLURowLocMatrix(CD);
+      superlu->SetOperator(*SLUCD);
    }
    tic();
    solver->Mult(B, X);
@@ -242,9 +247,7 @@ int main(int argc, char *argv[])
    delete solver;
    if (slu_solver)
    {
-#if defined(MFEM_USE_SUPERLU)
-      delete Mrow;
-#endif
+      delete SLUCD;
    }
    else
    {

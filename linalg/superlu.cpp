@@ -282,7 +282,7 @@ void SuperLUSolver::Init()
    set_default_options_dist(options);
 
    // options->ParSymbFact = YES;
-   options->ColPerm     = NATURAL;
+   //options->ColPerm     = NATURAL;
 
    // Choose nprow and npcol so that the process grid is as square as possible.
    // If the processes cannot be divided evenly, keep the row dimension smaller
@@ -487,20 +487,20 @@ void SuperLUSolver::Mult( const Vector & x, Vector & y ) const
    {
       options->Fact = FACTORED; // Indicate the factored form of A is supplied.
    }
-   else // This is the first solve with this A
+   else if (SPStructInitialized_)   //New matrix same sparisty.   Reuse the sparisty in SPstruct/LUstruct
    {
-      firstSolveWithThisA_ = false;
+      options->Fact = DOFACT;
+      options->Fact = SamePattern;
+   }
+   else //First solve ever, no sparsity info yet
+   {
+      options->Fact = DOFACT;
 
-      // Make sure that the parameters have been initialized The only parameter
-      // we might have to worry about is ScalePermstruct, if the user is
-      // supplying a row or column permutation.
-
-      // Initialize ScalePermstruct and LUstruct.
+      // Initialize ScalePermstruct by hand since we might be supplying perm_r
       SPstruct->DiagScale = NOEQUIL;
-
-      // Transfer ownership of the row permutations if available
       if ( perm_r_ != NULL )
       {
+         // Transfer ownership of the row permutations if available
          SPstruct->perm_r = perm_r_;
          perm_r_ = NULL;
       }
@@ -511,6 +511,7 @@ void SuperLUSolver::Mult( const Vector & x, Vector & y ) const
             ABORT("Malloc fails for perm_r[].");
          }
       }
+
       if ( !(SPstruct->perm_c = intMalloc_dist(A->ncol)) )
       {
          ABORT("Malloc fails for perm_c[].");
@@ -531,6 +532,8 @@ void SuperLUSolver::Mult( const Vector & x, Vector & y ) const
    // Solve the system
    pdgssvx(options, A, SPstruct, yPtr, locSize, nrhs_, grid,
            LUstruct, SOLVEstruct, berr_, stat, &info);
+
+   firstSolveWithThisA_ = false;
 
    if ( info != 0 )
    {
@@ -573,13 +576,22 @@ void SuperLUSolver::SetOperator( const Operator & op )
       this->SetupGrid();
    }
 
+   if (statPtr_ != NULL)
+   {
+      SuperLUStat_t *stat = (SuperLUStat_t*)statPtr_;
+      PStatFree(stat);
+      if (stat != NULL) {delete stat;}
+      statPtr_ = new SuperLUStat_t;
+      PStatInit(stat);
+   }
+   
    if ( LUStructInitialized_ )
    {
       gridinfo_t * grid = (gridinfo_t*)gridPtr_;
       LUstruct_t *LUstruct = (LUstruct_t*)LUstructPtr_;
       Destroy_LU(width, grid, LUstruct);
-      LUstructFree(LUstruct);
    }
+
 }
 
 } // mfem namespace
