@@ -51,7 +51,7 @@ double inflow_function(const Vector &x);
 // Mesh bounding box
 Vector bb_min, bb_max;
 
-
+enum MONOTYPE { NONE, RUSANOV, FLUXSCALING };
 
 double distance_(const IntegrationPoint &a, const IntegrationPoint &b)
 {
@@ -371,7 +371,7 @@ private:
     be written as a general ODE, du/dt = M^{-1} (K u + b), and this class is
     used to evaluate the right-hand side. */
 class FE_Evolution : public TimeDependentOperator
-{
+{   
 private:
    FiniteElementSpace* fes;
    SparseMatrix &M, &K;
@@ -379,7 +379,7 @@ private:
    const DenseMatrix &bdrDiff;
    DSmoother M_prec;
    CGSolver M_solver;
-   int m_mono_type;
+   MONOTYPE monoType;
    
    SolutionBounds &bnds;
 
@@ -390,7 +390,7 @@ private:
 public:
    FE_Evolution(FiniteElementSpace* fes, SparseMatrix &_M, SparseMatrix &_K, 
                 const Vector &_b, const Vector &_elDiff, const DenseMatrix &_bdrDiff, 
-                const Vector &_lumpedM, int mono_type, SolutionBounds& bnds);
+                const Vector &_lumpedM, MONOTYPE mono, SolutionBounds& bnds);
 
    virtual void Mult(const Vector &x, Vector &y) const;
    
@@ -399,7 +399,17 @@ public:
    virtual ~FE_Evolution() { }
 };
 
-
+// routine written by Hennes used for finding the indices of Bernstein basis functions 
+// (DOFs) that are non-zero on a (dim-1)-dimensional boundary of an element of GeomType
+// which has a total of nd local DOFs. The local boundary ID is given by bdrID according to 
+// Geometry and the Array dofs is filled with the required indices.
+// NOTE: ideally this routine is already implemented 
+//       (which is why I didn't bother to put it in another class) but the call
+//
+//       fes->FEColl()->SubDofOrder(GeomType, dim-1, 64*i, dofs);
+//
+//       always returns an empty array. The following routine can be used instead but only 
+//       for segments, squares and hexes, no triangles or tets are supported. 
 void extractBdrDofs(int GeomType, int nd, const int bdrID, Array< int > &dofs)
 {
    if (nd == 1)
@@ -500,7 +510,7 @@ void extractBdrDofs(int GeomType, int nd, const int bdrID, Array< int > &dofs)
    }
 }
 /* TODO remove or implement and remove Manuel's code
-void getNeighbourDofs(int mono_type, const Vector &x, int dofInd, int nd, 
+void getNeighbourDofs(int mono, const Vector &x, int dofInd, int nd, 
                       int GeomType, Array< int > &nghbrs)
 {
    //nghbrs.SetSize(pow(3, Geometry::Dimension[GeomType])); // works for Q-spaces
@@ -536,15 +546,15 @@ void getNeighbourDofs(int mono_type, const Vector &x, int dofInd, int nd,
    }
 }
 
-void computeAdmissibleBounds(int mono_type, const Vector &x, int dofInd, int nd,
+void computeAdmissibleBounds(int mono, const Vector &x, int dofInd, int nd,
                              int GeomType, double &xMin, double &xMax)
 {
-   if (mono_type == 0)
+   if (mono == 0)
       return;
-   else if (mono_type == 1)
+   else if (mono == 1)
    {
       Array< int > nghbrs;
-      getNeighbourDofs(mono_type, x, dofInd, nd, GeomType, nghbrs);
+      getNeighbourDofs(mono, x, dofInd, nd, GeomType, nghbrs);
       
       xMin = x(dofInd);
       xMax = x(dofInd);
@@ -560,10 +570,10 @@ void computeAdmissibleBounds(int mono_type, const Vector &x, int dofInd, int nd,
 */
 
 void preprocessLowOrderScheme(FiniteElementSpace* fes, VectorFunctionCoefficient & coef, 
-                              int mono_type, Vector &elDiff, DenseMatrix &bdrDiff, 
+                              MONOTYPE mono, Vector &elDiff, DenseMatrix &bdrDiff, 
                               Vector &lumpedM)
 {
-   if (mono_type == 0)
+   if (mono == NONE)
       return;
    
    Mesh *mesh = fes->GetMesh();
@@ -717,7 +727,7 @@ int main(int argc, char *argv[])
    int ref_levels = 2;
    int order = 3;
    int ode_solver_type = 4;
-   int mono_type = 1;
+   MONOTYPE mono = FLUXSCALING;
    double t_final = 10.0;
    double dt = 0.01;
    bool visualization = true;
@@ -740,9 +750,9 @@ int main(int argc, char *argv[])
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Forward Euler,\n\t"
                   "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
-   args.AddOption(&mono_type, "-mt", "--mono_type",
-                  "Type of monotonicity treatment: 0 - no monotonicity treatment,\n\t"
-                  "                                1 - matrix-free Rusanov scheme.");
+   //args.AddOption(&mono, "-mt", "--mono",
+   //               "Type of monotonicity treatment: 0 - no monotonicity treatment,\n\t"
+   //               "                                1 - matrix-free Rusanov scheme.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -807,13 +817,13 @@ int main(int argc, char *argv[])
    DG_FECollection fec(order, dim, btype);
    FiniteElementSpace fes(mesh, &fec);
    
-   if ((mono_type != 0) && (mono_type != 1) && (mono_type != 2))
+   if (mono != NONE)
    {
-      cout << "Unsupported option for monotonicity treatment." << endl;
-      return 5;
-   }
-   if (mono_type > 0)
-   {
+      if ((mono != RUSANOV) && (mono != FLUXSCALING))
+      {
+         cout << "Unsupported option for monotonicity treatment." << endl;
+         return 5;
+      }
       if (btype != 2)
       {
          cout << "Monotonicity treatment requires use of Bernstein basis." << endl;
@@ -855,9 +865,9 @@ int main(int argc, char *argv[])
    // Precompute data required for low order scheme
    Vector elDiff, lumpedM;
    DenseMatrix bdrDiff;
-   preprocessLowOrderScheme(&fes, velocity, mono_type, elDiff, bdrDiff, lumpedM);
+   preprocessLowOrderScheme(&fes, velocity, mono, elDiff, bdrDiff, lumpedM);
    
-   int method = 0; // from sparsity
+   int method = 1; // from sparsity
 //   int method = 1; // local bounds
    SolutionBounds bnds(&fes, k, method);
 
@@ -927,7 +937,8 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(&fes, m.SpMat(), k.SpMat(), b, elDiff, bdrDiff, lumpedM, mono_type, bnds);
+   FE_Evolution adv( &fes, m.SpMat(), k.SpMat(), b, 
+                     elDiff, bdrDiff, lumpedM, mono, bnds);
    
    double t = 0.0;
    adv.SetTime(t);
@@ -983,10 +994,10 @@ int main(int argc, char *argv[])
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(FiniteElementSpace* _fes, SparseMatrix &_M, SparseMatrix &_K, 
                            const Vector &_b, const Vector &_elDiff, const DenseMatrix 
-                           &_bdrDiff, const Vector &_lumpedM, int mono_type, 
+                           &_bdrDiff, const Vector &_lumpedM, MONOTYPE mono, 
                            SolutionBounds& _bnds)
    : TimeDependentOperator(_M.Size()), fes(_fes), M(_M), K(_K), b(_b), elDiff(_elDiff), 
-   lumpedM(_lumpedM), bdrDiff(_bdrDiff), m_mono_type(mono_type), z(_M.Size()), bnds(_bnds)
+   lumpedM(_lumpedM), bdrDiff(_bdrDiff), monoType(mono), z(_M.Size()), bnds(_bnds)
 {
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(M);
@@ -1000,7 +1011,7 @@ FE_Evolution::FE_Evolution(FiniteElementSpace* _fes, SparseMatrix &_M, SparseMat
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
-   if (m_mono_type == 0)
+   if (monoType == NONE)
    {
       // No monotonicity treatment, straightforward high-order scheme
       // ydot = M^{-1} (K x + b)
@@ -1008,7 +1019,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
       z += b;
       M_solver.Mult(z, y);
    }
-   else if (m_mono_type == 1)
+   else if (monoType == RUSANOV)
    {
       // low order matrix-free Rusanov scheme
       Mesh *mesh = fes->GetMesh();
@@ -1070,7 +1081,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
          }
       }
    }
-   else if (m_mono_type == 2)
+   else if (monoType == FLUXSCALING)
    {
       // High order reconstruction that leads to an updated admissible solution.
       Mesh *mesh = fes->GetMesh();
@@ -1107,7 +1118,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
          for (i = 0; i < numBdrs; i++)
          {
             extractBdrDofs(geomType, nd, i, dofs);
-            //fes->FEColl()->SubDofOrder(geomType, dim-1, 64*i, dofs); TODO
+            //fes->FEColl()->SubDofOrder(geomType, dim-1, 64*i, dofs); //TODO
             numDofs = dofs.Size();
             
             uSum = 0.;
@@ -1130,7 +1141,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
             uDof = x(dofInd);
             uSum += uDof;
             // Use this loop also to compute local min-/max-values TODO Kommentar weg
-            //computeAdmissibleBounds(m_mono_type, x, dofInd, nd, geomType, uMin, uMax);//mine
+            //computeAdmissibleBounds(monoType, x, dofInd, nd, geomType, uMin, uMax);//mine
             
             uClipped(j) = std::min(bnds.x_max(dofInd), 
                                    std::max(x(dofInd) + dt * y(dofInd), bnds.x_min(dofInd))); //TODO more gneral than Euler
