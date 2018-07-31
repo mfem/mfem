@@ -110,6 +110,10 @@ public:
                         apf::Field* ScalarField,
                         ParGridFunction* Pr);
 
+   void VectorFieldPUMItoMFEM(apf::Mesh2* apf_mesh,                           
+                             apf::Field* VectorField,                        
+		             ParGridFunction* Vel); 
+
    virtual ~ParPumiMesh() { }
 };
 

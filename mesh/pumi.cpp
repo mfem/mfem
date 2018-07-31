@@ -1800,6 +1800,100 @@ void ParPumiMesh::FieldPUMItoMFEM(apf::Mesh2* apf_mesh,
    }
 }
 
+void ParPumiMesh::VectorFieldPUMItoMFEM(apf::Mesh2* apf_mesh,
+                                  apf::Field* VectorField,
+                                  ParGridFunction* Vel)
+{
+   // Find local numbering
+   v_num_loc = apf_mesh->findNumbering("LocalVertexNumbering");
+
+   // Loop over field to copy
+   int nc = apf::countComponents(VectorField);
+   apf::DynamicVector nd_vel(nc);
+   //getShape(VectorField);
+   double *VelData = Vel->GetData();
+   int tot_vtxs_nds = int(Vel->Size() / nc); 
+   Ordering::Type Ord = Vel->FESpace()->GetOrdering();
+
+   apf::MeshEntity* ent;
+   apf::MeshIterator* itr = apf_mesh->begin(0);
+   if (Ord == Ordering::byNODES) // xxx...yyy...zzz
+   {
+      while ((ent = apf_mesh->iterate(itr)))
+      {
+         unsigned int id = apf::getNumber(v_num_loc, ent, 0, 0);
+         apf::getComponents(VectorField, ent, 0, &nd_vel[0]);
+         for (int kk = 0; kk < nc; kk++)
+         {
+           VelData[tot_vtxs_nds * kk + id] = nd_vel[kk];           
+         }
+      }
+      apf_mesh->end(itr);     
+   }
+   else // xyz, xyz,....
+   {
+      while ((ent = apf_mesh->iterate(itr)))
+      {
+         unsigned int id = apf::getNumber(v_num_loc, ent, 0, 0);
+         apf::getComponents(VectorField, ent, 0, &nd_vel[0]);
+         int index = 3 * id; 
+         for (int kk = 0; kk < nc; kk++)
+         {
+             VelData[index + kk] = nd_vel[kk];
+         }         
+      }
+      apf_mesh->end(itr);          
+   }
+
+   // Check for higher order
+   if ( Vel->FESpace()->GetOrder(1) > 1 )
+   {
+      // Assume all element type are the same i.e. tetrahedral
+      const FiniteElement* H1_elem = Vel->FESpace()->GetFE(1);
+      const IntegrationRule &All_nodes = H1_elem->GetNodes();
+      int nnodes = All_nodes.Size();
+
+      // Loop over elements
+      int iel = 0;
+      itr = apf_mesh->begin(3);
+      while ((ent = apf_mesh->iterate(itr)))
+      {
+         Array<int> vdofs;
+         Vel->FESpace()->GetElementVDofs(iel, vdofs);
+
+         // Create PUMI element to interpolate
+         apf::MeshElement* mE = apf::createMeshElement(apf_mesh, ent);
+         apf::Element* elem = apf::createElement(VectorField, mE);
+
+         // Vertices are already interpolated
+         for (int ip = 0; ip < nnodes; ip++) //num_vert
+         {
+            // Take parametric coordinates of the node
+            apf::Vector3 param;
+            param[0] = All_nodes.IntPoint(ip).x;
+            param[1] = All_nodes.IntPoint(ip).y;
+            param[2] = All_nodes.IntPoint(ip).z;
+
+            // Compute the interpolating coordinates
+            apf::DynamicVector phCrd(nc);
+            apf::getComponents(elem, param, &phCrd[0]);
+
+            // Fill the nodes list
+            for (int kk = 0; kk < nc; ++kk)
+            {
+               int dof_ctr = ip + kk * nnodes;
+               (Vel->GetData())[vdofs[dof_ctr]] = phCrd[kk];
+            }
+         }
+         iel++;
+         apf::destroyElement(elem);
+         apf::destroyMeshElement(mE);
+      }
+      apf_mesh->end(itr);
+   }
+   
+}
+
 }
 
 #endif // MFEM_USE_MPI
