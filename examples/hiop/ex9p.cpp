@@ -66,8 +66,11 @@ private:
 
    mutable Vector z;
 
+   ParBilinearForm &pbf;
+
 public:
-   FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K, const Vector &_b);
+   FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
+                const Vector &_b, ParBilinearForm &_pbf);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -313,7 +316,7 @@ int main(int argc, char *argv[])
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   FE_Evolution adv(*M, *K, *B);
+   FE_Evolution adv(*M, *K, *B, *k);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -386,9 +389,9 @@ int main(int argc, char *argv[])
 
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
-                           const Vector &_b)
+                           const Vector &_b, ParBilinearForm &_pbf)
    : TimeDependentOperator(_M.Height()),
-     M(_M), K(_K), b(_b), M_solver(M.GetComm()), z(_M.Height())
+     M(_M), K(_K), b(_b), M_solver(M.GetComm()), z(_M.Height()), pbf(_pbf)
 {
    M_prec.SetType(HypreSmoother::Jacobi);
    M_solver.SetPreconditioner(M_prec);
@@ -403,18 +406,72 @@ FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
-   // TODO compute bounds from y (ldofs).
+   // TODO get it from the simulation.
+   const double dt = 1e-6;
 
-   // y = M^{-1} (K x + b) - high-order solution.
+   // Get values on the ldofs.
+   ParFiniteElementSpace *pfes = pbf.ParFESpace();
+   ParGridFunction x_gf(pfes);
+   pfes->GetProlongationMatrix()->Mult(x, x_gf);
+
+   // Compute bounds y_min, y_max for y from from x on the ldofs.
+   const int ldofs = x_gf.Size();
+   Vector y_min(ldofs), y_max(ldofs);
+   x_gf.ExchangeFaceNbrData();
+   Vector &x_nd = x_gf.FaceNbrData();
+   const int *In = pbf.SpMat().GetI(), *Jn = pbf.SpMat().GetJ();
+   for (int i = 0, k = 0; i < ldofs; i++)
+   {
+      double x_i_min = +std::numeric_limits<double>::infinity();
+      double x_i_max = -std::numeric_limits<double>::infinity();
+      for (int end = In[i+1]; k < end; k++)
+      {
+         const int j = Jn[k];
+         const double x_j = (j < ldofs) ? x(j): x_nd(j-ldofs);
+
+         if (x_j > x_i_max) { x_i_max = x_j; }
+         if (x_j < x_i_min) { x_i_min = x_j; }
+      }
+      y_min(i) = x_i_min;
+      y_max(i) = x_i_max;
+   }
+   for (int i = 0; i < ldofs; i++)
+   {
+      y_min(i) = (y_min(i) - x_gf(i) ) / dt;
+      y_max(i) = (y_max(i) - x_gf(i) ) / dt;
+   }
+
+   // Compute the high-order solution y = M^{-1} (K x + b) on the tdofs.
    K.Mult(x, z);
    z += b;
    M_solver.Mult(z, y);
+   Vector y_loc(ldofs);
+   // Get the HO solution on the ldofs.
+   pfes->GetProlongationMatrix()->Mult(y, y_loc);
+
 
    // TODO compute mass.
 
-   // TODO call SLBQP (ldofs).
+   // Perform SLBQP optimization on the ldofs.
+   Vector y_out(ldofs);
+   y_out = y_loc;
+   /*
+   const int max_iter = 30;
+   const double rtol = 1.e-12;
+   SLBQPOptimizer slbqp(MPI_COMM_WORLD);
+   slbqp.SetMaxIter(max_iter);
+   slbqp.SetAbsTol(0.0);
+   slbqp.SetRelTol(rtol);
+   slbqp.SetBounds(y_min, y_max);
+   // TODO
+   //slbqp.SetLinearConstraint(mass_weights, tot_mass);
+   slbqp.SetPrintLevel(0);
+   slbqp.Mult(y_loc, y_out);
+   */
 
-   // TODO go back to y on the tdofs.
+
+   // Write the solution on the tdofs.
+   pfes->GetRestrictionMatrix()->Mult(y_out, y);
 }
 
 
