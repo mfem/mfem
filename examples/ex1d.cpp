@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   // mesh->SetEngine(*engine);
+   mesh->SetEngine(*engine);
    int dim = mesh->Dimension();
 
    // 3. Refine the mesh to increase the resolution. In this example we do

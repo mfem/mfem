@@ -42,7 +42,6 @@ void Engine::Init(const std::string &engine_spec)
    device[0].setup(props);
 
    okl_path = "mfem-occa://";
-   // okl_defines = "...";
    if (!fileOpenerRegistered)
    {
       // The directories from "MFEM_OCCA_OKL_PATH", if any, have the highest
@@ -57,6 +56,7 @@ void Engine::Init(const std::string &engine_spec)
       ::occa::io::fileOpener::add(fo);
       fileOpenerRegistered = true;
    }
+   // std::cout << "OCCA device properties:\n" << device[0].properties();
 }
 
 Engine::Engine(const std::string &engine_spec)
