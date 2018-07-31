@@ -65,7 +65,7 @@ void KernelsConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
    w.Fill<double>(0.0);
    if (constraintIndices)
    {
-      assert(false);
+      //assert(false); // ex1pd comes here
       vector_map_dofs(constraintIndices,
                       (double*)w.KernelsMem().ptr(),
                       (double*)x.KernelsMem().ptr(),
@@ -75,7 +75,7 @@ void KernelsConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
    b.Axpby<double>(1.0, b, -1.0, z);
    if (constraintIndices)
    {
-      assert(false);
+      //assert(false); // ex1pd comes here
       vector_map_dofs(constraintIndices,
                       (double*)b.KernelsMem().ptr(),
                       (double*)x.KernelsMem().ptr(),
@@ -96,7 +96,7 @@ void KernelsConstrainedOperator::Mult_(const Vector &x, Vector &y) const
       pop();
       return;
    }
-   assert(false);
+   //assert(false); // ex1pd comes here
    z.Assign<double>(x); // z = x
 
    vector_clear_dofs(constraintIndices,

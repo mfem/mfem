@@ -92,9 +92,9 @@ memory memory::slice(const size_t offset,
 {
    push();
    //MFEM_ABORT("FIXME");
-   pop();
    memory m = memory(bytes,NULL);
    memcpy(m.data,data+offset,bytes);
+   pop();
    return m;
 }
 

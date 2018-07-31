@@ -23,96 +23,104 @@ namespace kernels
 // *****************************************************************************
 void Engine::Init(const std::string &engine_spec)
 {
-   //
-   // Initialize inherited fields
-   //
-   //push();
+   push();
    memory_resources[0] = NULL;
    workers_weights[0] = 1.0;
    workers_mem_res[0] = 0;
    dev = new device();
-   //pop();
+   pop();
 }
 
 // *****************************************************************************
-Engine::Engine(const std::string &engine_spec)
-   : mfem::Engine(NULL, 1, 1)
+Engine::Engine(const std::string &engine_spec) : mfem::Engine(NULL, 1, 1)
 {
-   //push();
+   push();
    Init(engine_spec);
-   //pop();
+   pop();
 }
 
 // *****************************************************************************
 #ifdef MFEM_USE_MPI
 Engine::Engine(MPI_Comm _comm,
-               const std::string &engine_spec) :
-   mfem::Engine(NULL, 1, 1)
+               const std::string &engine_spec) : mfem::Engine(NULL, 1, 1)
 {
-   //push();
+   push();
    comm = _comm;
    Init(engine_spec);
-   //pop();
+   pop();
 }
 #endif
 
 // *****************************************************************************
 DLayout Engine::MakeLayout(std::size_t size) const
 {
-   //push(); pop();
-   return DLayout(new kernels::Layout(*this, size));
+   push();
+   const DLayout layout = DLayout(new kernels::Layout(*this, size));
+   pop();
+   return layout;
 }
 
 // *****************************************************************************
 DLayout Engine::MakeLayout(const mfem::Array<std::size_t> &offsets) const
 {
-   //push();
+   push();
    MFEM_ASSERT(offsets.Size() == 2,
                "multiple workers are not supported yet");
-   //pop();
-   return DLayout(new kernels::Layout(*this, offsets.Last()));
+   const DLayout layout = DLayout(new kernels::Layout(*this, offsets.Last()));
+   pop();
+   return layout;
 }
 
 // *****************************************************************************
 DArray Engine::MakeArray(PLayout &layout, std::size_t item_size) const
 {
-   //push();
+   push();
    MFEM_ASSERT(dynamic_cast<Layout *>(&layout) != NULL,
                "invalid input layout");
    Layout *lt = static_cast<Layout *>(&layout);
-   //pop();
-   return DArray(new kernels::Array(*lt, item_size));
+   const DArray array = DArray(new kernels::Array(*lt, item_size));
+   pop();
+   return array;
 }
 
 // *****************************************************************************
 DVector Engine::MakeVector(PLayout &layout, int type_id) const
 {
-   //push();
+   push();
    MFEM_ASSERT(type_id == ScalarId<double>::value, "invalid type_id");
    MFEM_ASSERT(dynamic_cast<Layout *>(&layout) != NULL,
                "invalid input layout");
    Layout *lt = static_cast<Layout *>(&layout);
-   //pop();
-   return DVector(new kernels::Vector(*lt));
+   const DVector vector(new kernels::Vector(*lt));
+   pop();
+   return vector;
 }
 
 // *****************************************************************************
 DFiniteElementSpace Engine::MakeFESpace(mfem::ParFiniteElementSpace &pfes) const
 {
-   return DFiniteElementSpace(new kFiniteElementSpace(*this, pfes));
+   push();
+   const DFiniteElementSpace dfes(new kFiniteElementSpace(*this, pfes));
+   pop();
+   return dfes;
 }
 
 // *****************************************************************************
 DFiniteElementSpace Engine::MakeFESpace(mfem::FiniteElementSpace &fes) const
 {
-   return DFiniteElementSpace(new kFiniteElementSpace(*this, fes));
+   push();
+   DFiniteElementSpace dfes(new kFiniteElementSpace(*this, fes));
+   pop();
+   return dfes;
 }
 
 // *****************************************************************************
 DBilinearForm Engine::MakeBilinearForm(mfem::BilinearForm &bf) const
 {
-   //push();  pop();
-   return DBilinearForm(new BilinearForm(*this, bf));
+   push();
+   const DBilinearForm dbf(new BilinearForm(*this, bf));
+   pop();
+   return dbf;
 }
 
 // *****************************************************************************
