@@ -1400,6 +1400,20 @@ void PetscParMatrix::EliminateRowsCols(const Array<int> &rows_cols,
    ierr = ISDestroy(&dir); PCHKERRQ(A,ierr);
 }
 
+void PetscParMatrix::EliminateRows(const Array<int> &rows)
+{
+   ierr = MatSetOption(A,MAT_NO_OFF_PROC_ZERO_ROWS,PETSC_TRUE); PCHKERRQ(A,ierr);
+
+   // rows need to be in global numbering
+   PetscInt rst;
+   ierr = MatGetOwnershipRange(A,&rst,NULL); PCHKERRQ(A,ierr);
+
+   IS dir;
+   ierr = Convert_Array_IS(GetComm(),true,&rows,rst,&dir); PCHKERRQ(A,ierr);
+   ierr = MatZeroRowsIS(A,dir,0.0,NULL,NULL); PCHKERRQ(A,ierr);
+   ierr = ISDestroy(&dir); PCHKERRQ(A,ierr);
+}
+
 Mat PetscParMatrix::ReleaseMat(bool dereference)
 {
 

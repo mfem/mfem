@@ -338,6 +338,9 @@ public:
        the original matrix. */
    PetscParMatrix* EliminateRowsCols(const Array<int> &rows_cols);
 
+   /** @brief Eliminate only the rows from the matrix */
+   void EliminateRows(const Array<int> &rows);
+
    /// Makes this object a reference to another PetscParMatrix
    void MakeRef(const PetscParMatrix &master);
 
