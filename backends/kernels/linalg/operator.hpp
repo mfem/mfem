@@ -26,11 +26,9 @@ class Operator : public mfem::Operator
 {
 public:
    /// Creare an operator with the same dimensions as @a orig.
-   Operator(const Operator &orig)
-      : mfem::Operator(orig) { }
+   Operator(const Operator &orig) : mfem::Operator(orig) { }
 
-   Operator(Layout &layout)
-      : mfem::Operator(layout) { }
+   Operator(Layout &layout) : mfem::Operator(layout) { }
 
    Operator(Layout &in_layout, Layout &out_layout)
       : mfem::Operator(in_layout, out_layout) { }
@@ -41,17 +39,17 @@ public:
    Layout &OutLayout_() const
    { return *static_cast<Layout*>(out_layout.Get()); }
 
-   virtual void Mult_(const Vector &x, Vector &y) const = 0;
+   virtual void Mult_(const kernels::Vector&, kernels::Vector&) const = 0;
 
-   virtual void MultTranspose_(const Vector &x, Vector &y) const
+   virtual void MultTranspose_(const kernels::Vector&, kernels::Vector&) const
    { MFEM_ABORT("method is not supported"); }
 
    // override
    virtual void Mult(const mfem::Vector &x, mfem::Vector &y) const
    {
       push();
-      Mult_(x.Get_PVector()->As<Vector>(),
-            y.Get_PVector()->As<Vector>());
+      Mult_(x.Get_PVector()->As<kernels::Vector>(),
+            y.Get_PVector()->As<kernels::Vector>());
       pop();
    }
 
@@ -59,8 +57,8 @@ public:
    virtual void MultTranspose(const mfem::Vector &x, mfem::Vector &y) const
    {
       push();
-      MultTranspose_(x.Get_PVector()->As<Vector>(),
-                     y.Get_PVector()->As<Vector>());
+      MultTranspose_(x.Get_PVector()->As<kernels::Vector>(),
+                     y.Get_PVector()->As<kernels::Vector>());
       pop();
    }
 };
