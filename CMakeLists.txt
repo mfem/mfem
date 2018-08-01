@@ -572,6 +572,7 @@ else()
 endif()
 set(shared_link_flag ${CMAKE_SHARED_LIBRARY_RUNTIME_C_FLAG})
 
+message("simmodsuite_dir ${SIMMODSUITE_DIR}")
 # handle pumi libs
 if(MFEM_USE_PUMI)
   get_target_property(liblist ${PUMI_LIBRARIES} INTERFACE_LINK_LIBRARIES)
@@ -586,10 +587,16 @@ if(MFEM_USE_PUMI)
   foreach(pumilib ${pumi_dep_libs})
     unset(lib CACHE)
     string(REGEX REPLACE "^SCOREC::" "" libname ${pumilib})
+    string(FIND "${pumilib}" ".a" staticlib)
+    string(FIND "${pumilib}" ".so" sharedlib)
     find_library(lib ${libname} PATHS ${PUMI_DIR}/lib NO_DEFUALT_PATH)
-    if( NOT "${lib}" MATCHES "lib-NOTFOUND" )
+    if( NOT "${lib}" MATCHES "lib-NOTFOUND" OR
+        NOT "${staticlib}" MATCHES "-1" OR
+        NOT "${sharedlib}" MATCHES "-1" )
       set(MFEM_LIBS "${lib} ${MFEM_LIBS}")
-    elseif( "${lib}" MATCHES "lib-NOTFOUND" AND NOT "${libname}" MATCHES "can")
+    elseif( "${lib}" MATCHES "lib-NOTFOUND" AND
+        NOT "${libname}" MATCHES "can" AND
+        NOT "${libname}" MATCHES "pthread")
       message(FATAL_ERROR "SCOREC lib ${libname} not found")
     endif()
   endforeach()
