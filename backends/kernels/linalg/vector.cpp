@@ -124,8 +124,8 @@ void Vector::DoAxpby(const void *a, const mfem::PVector &x,
          if (this->slice == xp->slice)
          {
             // *this *= da
-            assert(false);
             //kernels::linalg::operator_mult_eq(slice, da);
+            vector_vec_mul((int)Size(), slice, da);
          }
          else
          {

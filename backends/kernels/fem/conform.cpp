@@ -17,7 +17,9 @@
 namespace mfem {
   
 namespace kernels {
-   
+
+#ifdef MFEM_USE_MPI
+
 // ***************************************************************************
 // * RajaConformingProlongationOperator
 // ***************************************************************************
@@ -297,6 +299,8 @@ void RajaConformingProlongationOperator::d_Mult(const kernels::kvector &x,
     pop();
   }
 
+#endif
+   
 } // namespace mfem::kernels
    
 } // namespace mfem

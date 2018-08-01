@@ -21,7 +21,7 @@ namespace kernels
 {
 
 // *****************************************************************************
-KernelsConstrainedOperator::KernelsConstrainedOperator(mfem::Operator *A_,
+kConstrainedOperator::kConstrainedOperator(mfem::Operator *A_,
                                                        const mfem::Array<int> &constraintList_,
                                                        bool own_A_)
 
@@ -38,7 +38,7 @@ KernelsConstrainedOperator::KernelsConstrainedOperator(mfem::Operator *A_,
 }
 
 // *****************************************************************************
-void KernelsConstrainedOperator::Setup(kernels::device device_,
+void kConstrainedOperator::Setup(kernels::device device_,
                                        mfem::Operator *A_,
                                        const mfem::Array<int> &constraintList_,
                                        bool own_A_)
@@ -48,9 +48,7 @@ void KernelsConstrainedOperator::Setup(kernels::device device_,
    A = A_;
    own_A = own_A_;
    constraintIndices = constraintList_.Size();
-   dbg("[KernelsConstrainedOperator::Setup] constraintIndices=%d", constraintIndices);
-   //assert(false);
-   if (constraintIndices > 0)
+   if (constraintIndices)
    {
      assert(constraintList_.Get_PArray());
      constraintList = constraintList_.Get_PArray()->As<Array>().KernelsMem();
@@ -59,9 +57,10 @@ void KernelsConstrainedOperator::Setup(kernels::device device_,
 }
 
 // *****************************************************************************
-void KernelsConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
+void kConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
-   push();
+   push();//assert(false); // ex1pd comes here, Laghos dont
+   
    w.Fill<double>(0.0);
    if (constraintIndices)
    {
@@ -81,11 +80,13 @@ void KernelsConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
                       (double*)x.KernelsMem().ptr(),
                       (int*)constraintList.ptr());
    }
+
    pop();
 }
 
 // *****************************************************************************
-void KernelsConstrainedOperator::Mult_(const Vector &x, Vector &y) const
+void kConstrainedOperator::Mult_(const kernels::Vector &x,
+                                       kernels::Vector &y) const
 {
    push();
    mfem::Vector mfem_y(y);
@@ -113,7 +114,7 @@ void KernelsConstrainedOperator::Mult_(const Vector &x, Vector &y) const
 }
 
 // *****************************************************************************
-KernelsConstrainedOperator::~KernelsConstrainedOperator()
+kConstrainedOperator::~kConstrainedOperator()
 {
    if (own_A)
    {

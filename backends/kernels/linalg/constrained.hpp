@@ -22,29 +22,18 @@ namespace kernels
 {
 
 // **************************************************************************
-class KernelsConstrainedOperator : public Operator
+class kConstrainedOperator : public Operator
 {
 protected:
    kernels::device device;
-
    mfem::Operator *A;              //< The unconstrained Operator.
    bool own_A;                     //< Ownership flag for A.
-   kernels::memory constraintList;    //< List of constrained indices/dofs.
+   kernels::memory constraintList; //< List of constrained indices/dofs.
    int constraintIndices;
    mutable kernels::Vector z, w;      //< Auxiliary vectors.
-   mutable mfem::Vector mfem_z, mfem_w; // Wrap z, w
-
+   mutable mfem::Vector mfem_y, mfem_z, mfem_w; // Wrap z, w
 public:
-   /** @brief Constructor from a general Operator and a list of essential
-       indices/dofs.
-
-       Specify the unconstrained operator @a *A and a @a list of indices to
-       constrain, i.e. each entry @a list[i] represents an essential-dof. If the
-       ownership flag @a own_A is true, the operator @a *A will be destroyed
-       when this object is destroyed. */
-   KernelsConstrainedOperator(mfem::Operator *A_,
-                              const mfem::Array<int> &constraintList_,
-                              bool own_A_ = false);
+   kConstrainedOperator(mfem::Operator*, const mfem::Array<int>&, bool = false);
 
    void Setup(kernels::device device_,
               mfem::Operator *A_,
@@ -73,7 +62,7 @@ public:
    virtual void Mult_(const kernels::Vector &x, kernels::Vector &y) const;
 
    // Destructor: destroys the unconstrained Operator @a A if @a own_A is true.
-   virtual ~KernelsConstrainedOperator();
+   virtual ~kConstrainedOperator();
 };
 
 } // namespace mfem::kernels

@@ -42,10 +42,10 @@ protected:
    SharedPtr<const Engine> ng;
    // State information
    mutable mfem::Mesh *mesh;
-   mutable kFiniteElementSpace *otrialFESpace;
-   mutable mfem::FiniteElementSpace *trialFESpace;
-   mutable kFiniteElementSpace *otestFESpace;
-   mutable mfem::FiniteElementSpace *testFESpace;
+   mutable kFiniteElementSpace *kTrialFes;
+   mutable mfem::FiniteElementSpace *mTrialFes;
+   mutable kFiniteElementSpace *kTestFes;
+   mutable mfem::FiniteElementSpace *mTestFes;
    IntegratorVector integrators;
    // The input and output vectors are mapped to local nodes for efficient
    // operations. In other words, they are E-vectors.

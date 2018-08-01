@@ -52,10 +52,12 @@ public:
 
    mfem::FiniteElementSpace* GetFESpace() const { return fes; }
 
+#ifdef MFEM_USE_MPI
    mfem::ParFiniteElementSpace& GetParFESpace() const
    {
       return *static_cast<ParFiniteElementSpace*>(fes);
    }
+#endif
 
    Layout &KernelsVLayout() const
    { return *fes->GetVLayout().As<Layout>(); }

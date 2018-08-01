@@ -65,7 +65,10 @@ void KernelsMassIntegrator::Setup()
 }
 
 // *****************************************************************************
-void KernelsMassIntegrator::Assemble() { }
+void KernelsMassIntegrator::Assemble() {
+   // assert(false);
+   // Not yet implemented
+}
 
 // *****************************************************************************
 void KernelsMassIntegrator::SetOperator(mfem::Vector &v)

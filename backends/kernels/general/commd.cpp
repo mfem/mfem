@@ -18,6 +18,8 @@ namespace mfem {
 
 namespace kernels {
    
+#ifdef MFEM_USE_MPI
+   
   // ***************************************************************************
   // * kCommD
   // ***************************************************************************
@@ -470,6 +472,8 @@ namespace kernels {
   template void kCommD::d_ReduceEnd<double>(double*,int,void (*)(OpData<double>));
 #endif // __NVCC__
 
+#endif // MFEM_USE_MPI
+   
 } // namespace mfem::kernels
    
 } // namespace mfem

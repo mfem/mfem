@@ -177,12 +177,17 @@ int main(int argc, char *argv[])
    // string occa_spec("mode: 'OpenMP', threads: 4");
    // string occa_spec("mode: 'OpenCL', device_id: 0, platform_id: 0");
 
-   SharedPtr<Engine> engine(new mfem::occa::Engine(occa_spec));
+   //SharedPtr<Engine> engine(new mfem::occa::Engine(occa_spec));
+#ifdef MFEM_USE_MPI
+   SharedPtr<Engine> engine(new mfem::kernels::Engine(MPI_COMM_WORLD,"cpu"));
+#else
+   SharedPtr<Engine> engine(new mfem::kernels::Engine("cpu"));
+#endif
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   // mesh->SetEngine(*engine);
+   mesh->SetEngine(*engine);
    int dim = mesh->Dimension();
 
    // 3. Define the ODE solver used for time integration. Several implicit

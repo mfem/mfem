@@ -34,7 +34,7 @@ bool BilinearForm::Assemble()
 void BilinearForm::FormSystemMatrix(const mfem::Array<int> &ess_tdof_list,
                                     mfem::OperatorHandle &A)
 {
-   push();
+   push();//assert(false);// ex1pd comes here, Laghos dont
    if (A.Type() == mfem::Operator::ANY_TYPE)
    {
       mfem::Operator *Aout = NULL;
@@ -55,7 +55,7 @@ void BilinearForm::FormLinearSystem(const mfem::Array<int> &ess_tdof_list,
                                     mfem::Vector &X, mfem::Vector &B,
                                     int copy_interior)
 {
-   push();
+   push();//assert(false); // ex1pd comes here, Laghos dont
    FormSystemMatrix(ess_tdof_list, A);
    kbform->InitRHS(ess_tdof_list, x, b, A.Ptr(), X, B, copy_interior);
    pop();
@@ -97,9 +97,9 @@ void BilinearForm::InitKBilinearForm()
       KernelsCoefficient coeff(kbform->engine(), val);
       KernelsIntegrator *integ = NULL;
 
-      if (integ_name == "(undefined)")
+      if (integ_name == "mass")
       {
-         MFEM_ABORT("BilinearFormIntegrator does not define Name()");
+         //MFEM_ABORT("BilinearFormIntegrator does not define Name()");
          integ = new KernelsMassIntegrator(coeff);
       }
       else if (integ_name == "diffusion")

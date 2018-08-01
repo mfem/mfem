@@ -97,6 +97,7 @@ DVector Engine::MakeVector(PLayout &layout, int type_id) const
 }
 
 // *****************************************************************************
+#ifdef MFEM_USE_MPI
 DFiniteElementSpace Engine::MakeFESpace(mfem::ParFiniteElementSpace &pfes) const
 {
    push();
@@ -104,6 +105,7 @@ DFiniteElementSpace Engine::MakeFESpace(mfem::ParFiniteElementSpace &pfes) const
    pop();
    return dfes;
 }
+#endif
 
 // *****************************************************************************
 DFiniteElementSpace Engine::MakeFESpace(mfem::FiniteElementSpace &fes) const

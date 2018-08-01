@@ -22,7 +22,9 @@
 namespace mfem {
   
 namespace kernels {
-   
+
+#ifdef MFEM_USE_MPI
+
 // ***************************************************************************
 // * RajaConformingProlongationOperator
 //  **************************************************************************
@@ -41,6 +43,8 @@ public:
    virtual void MultTranspose(const mfem::Vector &x, mfem::Vector &y) const;
 };
   
+#endif
+
 } // namespace mfem::kernels
    
 } // mfem

@@ -28,10 +28,12 @@ namespace mfem {
 
 namespace kernels {
    
+#ifdef MFEM_USE_MPI
+
   // ***************************************************************************
   // * First communicator, buf goes on the device
   // ***************************************************************************
-  class kCommD : public GroupCommunicator, public kmemcpy{
+class kCommD : public GroupCommunicator, public kmemcpy{
   private:
     ktable d_group_ldof;
     ktable d_group_ltdof;
@@ -51,7 +53,9 @@ namespace kernels {
     
     template <class T> void d_ReduceBegin(const T*);
     template <class T> void d_ReduceEnd(T*,int,void (*)(OpData<T>));
- };
+};
+
+#endif
 
 } // namespace mfem::kernels
 
