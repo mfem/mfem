@@ -3,6 +3,9 @@
 // Compile with: make ex9p
 //
 // Sample runs:
+//
+//    mpirun -np 4 ex9p -m ../../data/periodic-segment.mesh -rs 3 -p 0 -o 2 -dt 0.002
+//
 //    mpirun -np 4 ex9p -m ../data/periodic-segment.mesh -p 0 -dt 0.005
 //    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 0 -dt 0.01
 //    mpirun -np 4 ex9p -m ../data/periodic-hexagon.mesh -p 0 -dt 0.01
@@ -66,12 +69,15 @@ private:
 
    mutable Vector z;
 
+   double dt;
    ParBilinearForm &pbf;
+   Vector &M_rowsums;
 
 public:
    FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
-                const Vector &_b, ParBilinearForm &_pbf);
+                const Vector &_b, ParBilinearForm &_pbf, Vector &M_rs);
 
+   void SetTimeStep(double _dt) { dt = dt; }
    virtual void Mult(const Vector &x, Vector &y) const;
 
    virtual ~FE_Evolution() { }
@@ -92,7 +98,7 @@ int main(int argc, char *argv[])
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
    int order = 3;
-   int ode_solver_type = 4;
+   int ode_solver_type = 3;
    double t_final = 10.0;
    double dt = 0.01;
    bool visualization = true;
@@ -198,7 +204,7 @@ int main(int argc, char *argv[])
 
    // 7. Define the parallel discontinuous DG finite element space on the
    //    parallel refined mesh of the given polynomial order.
-   DG_FECollection fec(order, dim);
+   DG_FECollection fec(order, dim, BasisType::Positive);
    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, &fec);
 
    HYPRE_Int global_vSize = fes->GlobalTrueVSize();
@@ -313,19 +319,25 @@ int main(int argc, char *argv[])
       }
    }
 
+   Vector M_rowsums(m->Size());
+   m->SpMat().GetRowSums(M_rowsums);
+
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
-   FE_Evolution adv(*M, *K, *B, *k);
+   FE_Evolution adv(*M, *K, *B, *k, M_rowsums);
 
    double t = 0.0;
    adv.SetTime(t);
    ode_solver->Init(adv);
 
+   *u = *U;
+
    bool done = false;
    for (int ti = 0; !done; )
    {
       double dt_real = min(dt, t_final - t);
+      adv.SetTime(dt_real);
       ode_solver->Step(*U, t, dt_real);
       ti++;
 
@@ -389,9 +401,10 @@ int main(int argc, char *argv[])
 
 // Implementation of class FE_Evolution
 FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
-                           const Vector &_b, ParBilinearForm &_pbf)
+                           const Vector &_b, ParBilinearForm &_pbf, Vector &M_rs)
    : TimeDependentOperator(_M.Height()),
-     M(_M), K(_K), b(_b), M_solver(M.GetComm()), z(_M.Height()), pbf(_pbf)
+     M(_M), K(_K), b(_b), M_solver(M.GetComm()), z(_M.Height()),
+     pbf(_pbf), M_rowsums(M_rs)
 {
    M_prec.SetType(HypreSmoother::Jacobi);
    M_solver.SetPreconditioner(M_prec);
@@ -406,9 +419,6 @@ FE_Evolution::FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
-   // TODO get it from the simulation.
-   const double dt = 1e-6;
-
    // Get values on the ldofs.
    ParFiniteElementSpace *pfes = pbf.ParFESpace();
    ParGridFunction x_gf(pfes);
@@ -449,13 +459,13 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    // Get the HO solution on the ldofs.
    pfes->GetProlongationMatrix()->Mult(y, y_loc);
 
-
-   // TODO compute mass.
+   // Compute total mass.
+   const double loc_mass = M_rowsums * y_loc;
+   double tot_mass;
+   MPI_Allreduce(&loc_mass, &tot_mass, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
    // Perform SLBQP optimization on the ldofs.
    Vector y_out(ldofs);
-   y_out = y_loc;
-   /*
    const int max_iter = 30;
    const double rtol = 1.e-12;
    SLBQPOptimizer slbqp(MPI_COMM_WORLD);
@@ -463,12 +473,9 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    slbqp.SetAbsTol(0.0);
    slbqp.SetRelTol(rtol);
    slbqp.SetBounds(y_min, y_max);
-   // TODO
-   //slbqp.SetLinearConstraint(mass_weights, tot_mass);
+   slbqp.SetLinearConstraint(M_rowsums, tot_mass);
    slbqp.SetPrintLevel(0);
    slbqp.Mult(y_loc, y_out);
-   */
-
 
    // Write the solution on the tdofs.
    pfes->GetRestrictionMatrix()->Mult(y_out, y);
@@ -553,7 +560,8 @@ double u0_function(const Vector &x)
          switch (dim)
          {
             case 1:
-               return exp(-40.*pow(X(0)-0.5,2));
+               return (X(0) > -0.15 && X(0) < 0.15) ? 1.0 : 0.0;
+               //return exp(-40.*pow(X(0)-0.0,2));
             case 2:
             case 3:
             {
