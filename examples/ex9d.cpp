@@ -192,6 +192,9 @@ int main(int argc, char *argv[])
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
 
+   tic_toc.Clear();
+   tic_toc.Start();
+
    // 6. Set up and assemble the bilinear and linear forms corresponding to the
    //    DG discretization. The DGTraceIntegrator involves integrals over mesh
    //    interior faces.
@@ -234,6 +237,9 @@ int main(int argc, char *argv[])
    k.FormLinearSystem(ess_tdof_list, u, b, K, X, B);
    OperatorHandle M(Operator::ANY_TYPE);
    m.FormSystemMatrix(ess_tdof_list, M);
+
+   tic_toc.Stop();
+   cout << " Initialization time: " << tic_toc.RealTime() << "s." << endl;
 
    {
       ofstream omesh("ex9.mesh");
@@ -301,6 +307,9 @@ int main(int argc, char *argv[])
    adv.SetTime(t);
    ode_solver->Init(adv);
 
+   tic_toc.Clear();
+   tic_toc.Start();
+
    bool done = false;
    for (int ti = 0; !done; )
    {
@@ -328,6 +337,9 @@ int main(int argc, char *argv[])
       }
    }
 
+   tic_toc.Stop();
+   cout << " done, " << tic_toc.RealTime() << "s." << endl;
+   
    // 9. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m ex9.mesh -g ex9-final.gf".
    {
@@ -369,7 +381,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    // z += b;
    z.Axpby(1.0, z, 1.0, b);
    // M.Mult(z, y);
-   CG(*M.Ptr(), z, y, 3, 1000, 1e-12, 0.0);
+   CG(*M.Ptr(), z, y, 0, 1000, 1e-12, 0.0);
 }
 
 

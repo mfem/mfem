@@ -76,7 +76,7 @@ void ScatterDofs(const mfem::FiniteElementSpace* mfes, const Table& eldof, const
    }   
 }
 
-void EvalJacobians1D(const mfem::FiniteElementSpace* fes, const int order, Tensor<1>& J)
+static void EvalJacobians1D(const mfem::FiniteElementSpace* fes, const int order, Tensor<1>& J)
 {
    const int dim = 1;
 
@@ -118,7 +118,7 @@ void EvalJacobians1D(const mfem::FiniteElementSpace* fes, const int order, Tenso
    }
 }
 
-void EvalJacobians2D(const mfem::FiniteElementSpace* fes, const int order, Tensor<1>& J)
+static void EvalJacobians2D(const mfem::FiniteElementSpace* fes, const int order, Tensor<1>& J)
 {
    const int dim = 2;
 
@@ -179,7 +179,7 @@ void EvalJacobians2D(const mfem::FiniteElementSpace* fes, const int order, Tenso
    }
 }
 
-void EvalJacobians3D(const mfem::FiniteElementSpace* fes, const int order, Tensor<1>& J)
+static void EvalJacobians3D(const mfem::FiniteElementSpace* fes, const int order, Tensor<1>& J)
 {
    const int dim = 3;
 

@@ -22,6 +22,8 @@
 #include "partialassemblykernel.hpp"
 #include "integrator.hpp"
 
+#include "padomainkernel.hpp"
+
 namespace mfem
 {
 
@@ -38,6 +40,7 @@ protected:
    // mfem::BilinearForm *bform;
 
    mfem::Array<TensorBilinearFormIntegrator*> tbfi;
+   mfem::Array<PAIntegrator<Vector<double>>*> pabfi;
    bool has_assembled;
 
    mutable FiniteElementSpace *trial_fes, *test_fes;
@@ -53,6 +56,7 @@ protected:
                 int copy_interior = 0) const;
 
    void AddIntegrator(TensorBilinearFormIntegrator* integrator){ tbfi.Append(integrator); }
+   void AddIntegrator(PAIntegrator<Vector<double>>* integrator){ pabfi.Append(integrator); }
 
 public:
    /// TODO: doxygen
@@ -61,6 +65,7 @@ public:
         // FIXME: for mixed bilinear forms
         mfem::Operator(*bf.FESpace()->GetVLayout().As<Layout>()),
         tbfi(),
+        pabfi(),
         has_assembled(false),
         trial_fes(&bf.FESpace()->Get_PFESpace()->As<FiniteElementSpace>()),
         test_fes(&bf.FESpace()->Get_PFESpace()->As<FiniteElementSpace>()),

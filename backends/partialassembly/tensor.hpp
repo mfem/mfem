@@ -35,6 +35,7 @@ class TensorInd
 public:
    static int result(const int* sizes, T first, Args... args)
    {
+      MFEM_ASSERT(first<sizes[N-1],"Trying to access out of boundary.");
       return first + sizes[N - 1] * TensorInd < N + 1, Dim, Args... >::result(sizes, args...);
    }
 };
@@ -45,6 +46,7 @@ class TensorInd<Dim, Dim, T, Args...>
 public:
    static int result(const int* sizes, T first, Args... args)
    {
+      MFEM_ASSERT(first<sizes[Dim-1],"Trying to access out of boundary.");
       return first;
    }
 };
@@ -89,12 +91,12 @@ public:
    *  A default constructor
    */
    explicit Tensor()
-      : capacity(0), data(NULL), own_data(true)
+      : capacity(0), data(NULL), own_data(false)
    {
    }
 
    /**
-   *  A default destructor
+   *  The destructor
    */
    ~Tensor()
    {
@@ -271,7 +273,7 @@ public:
          }
          if (own_data)
          {
-            if (data != NULL) delete [] data;
+            delete [] data;
          }
          data = _data;
          own_data = true;
@@ -399,6 +401,27 @@ public:
    }
 
    /**
+   *  Returns a sub-tensor contained in the last dimension at @index in the Tensor @T.
+   */
+   void slice(Tensor<Dim+1, Scalar>& T, const int index) {
+      if (own_data)
+      {
+         mfem_error("I didn't expect you to do that");
+      }
+      int offset = 1;
+      for (int i = 0; i < Dim; ++i)
+      {
+         const int size = T.size(i);
+         offset *= size;
+         this->sizes[i] = size;
+      }
+      this->capacity = offset;
+      const int ind = offset * index;
+      this->data = T.getData() + ind;
+      this->own_data = false;
+   }
+
+   /**
    *  Basic printing method.
    */
    friend std::ostream& operator<<(std::ostream& os, const Tensor& T)
@@ -421,6 +444,34 @@ public:
    }
 };
 
+template <typename Scalar>
+class Tensor<0,Scalar>{
+private:
+   Scalar* data;
+   bool own_data;
+public:
+   Tensor(): data(new Scalar), own_data(true) {}
+
+   Tensor& operator=(Scalar& val) {
+      *data = val;
+      return *this;
+   }
+
+   Tensor& operator=(Scalar val) {
+      *data = val;
+      return *this;
+   }
+
+   void slice(Tensor<1,Scalar>& T, const int index) {
+      data = &T(index);
+   }
+
+   friend std::ostream& operator<<(std::ostream& os, const Tensor& T)
+   {
+      os << *T.data;
+      return os;
+   }
+};
 // template <typename Scalar,int N>
 // void zero(Tensor<N,Scalar>& t)
 // {
@@ -656,17 +707,17 @@ inline void contractT(const Tensor<2, Scalar>& B, const Tensor<1, Scalar>& U, Te
 ///////
 // 2d
 template <typename Scalar>
-inline void contract(const Tensor<2,Scalar>& B, const Tensor<2,Scalar>& U, Tensor<2,Scalar>& V)
+inline void contract(const Tensor<2, Scalar>& B, const Tensor<2, Scalar>& U, Tensor<2, Scalar>& V)
 {
-   MFEM_ASSERT(B.size(0)==U.size(0), "Size mismatch for contraction.");
+   MFEM_ASSERT(B.size(0) == U.size(0), "Size mismatch for contraction.");
    for (int j1 = 0; j1 < B.size(1); ++j1)
    {
       for (int i2 = 0; i2 < U.size(1); ++i2)
       {
-         V(i2,j1) = Scalar();
+         V(i2, j1) = Scalar();
          for (int i1 = 0; i1 < B.size(0); ++i1)
          {
-            V(i2,j1) += B(i1,j1) * U(i1,i2);
+            V(i2, j1) += B(i1, j1) * U(i1, i2);
          }
       }
    }
@@ -756,19 +807,19 @@ inline void contractT(const Tensor<2, Scalar>& B, const Tensor<2, Scalar>& U, Te
 ///////
 // 3d
 template <typename Scalar>
-inline void contract(const Tensor<2,Scalar>& B, const Tensor<3,Scalar>& U, Tensor<3,Scalar>& V)
+inline void contract(const Tensor<2, Scalar>& B, const Tensor<3, Scalar>& U, Tensor<3, Scalar>& V)
 {
-   MFEM_ASSERT(B.size(0)==U.size(0), "Size mismatch for contraction.");
+   MFEM_ASSERT(B.size(0) == U.size(0), "Size mismatch for contraction.");
    for (int j1 = 0; j1 < B.size(1); ++j1)
    {
       for (int i3 = 0; i3 < U.size(2); ++i3)
       {
          for (int i2 = 0; i2 < U.size(1); ++i2)
          {
-            V(i2,i3,j1) = Scalar();
+            V(i2, i3, j1) = Scalar();
             for (int i1 = 0; i1 < B.size(0); ++i1)
             {
-               V(i2,i3,j1) += B(i1,j1) * U(i1,i2,i3);
+               V(i2, i3, j1) += B(i1, j1) * U(i1, i2, i3);
             }
          }
       }
@@ -836,19 +887,19 @@ inline void contract(const Tensor<2,Scalar>& B, const Tensor<3,Scalar>& U, Tenso
 // }
 
 template <typename Scalar>
-inline void contractT(const Tensor<2,Scalar>& B, const Tensor<3,Scalar>& U, Tensor<3,Scalar>& V)
+inline void contractT(const Tensor<2, Scalar>& B, const Tensor<3, Scalar>& U, Tensor<3, Scalar>& V)
 {
-   MFEM_ASSERT(B.size(1)==U.size(0), "Size mismatch for contraction.");
+   MFEM_ASSERT(B.size(1) == U.size(0), "Size mismatch for contraction.");
    for (int j1 = 0; j1 < B.size(0); ++j1)
    {
       for (int i3 = 0; i3 < U.size(2); ++i3)
       {
          for (int i2 = 0; i2 < U.size(1); ++i2)
          {
-            V(i2,i3,j1) = Scalar();
+            V(i2, i3, j1) = Scalar();
             for (int i1 = 0; i1 < B.size(1); ++i1)
             {
-               V(i2,i3,j1) += B(j1,i1) * U(i1,i2,i3);
+               V(i2, i3, j1) += B(j1, i1) * U(i1, i2, i3);
             }
          }
       }
@@ -1160,14 +1211,14 @@ inline void cWiseMult(const Tensor<5, Scalar>& D,
          {
             const Scalar v1 = BBGT(i1, i2, i3), v2 = BGBT(i1, i2, i3), v3 = GBBT(i1, i2, i3);
             D0GT(i1, i2, i3) = D(0, 0, i1, i2, i3) * v1
-                             + D(0, 1, i1, i2, i3) * v2
-                             + D(0, 2, i1, i2, i3) * v3;
+                               + D(0, 1, i1, i2, i3) * v2
+                               + D(0, 2, i1, i2, i3) * v3;
             D1GT(i1, i2, i3) = D(1, 0, i1, i2, i3) * v1
-                             + D(1, 1, i1, i2, i3) * v2
-                             + D(1, 2, i1, i2, i3) * v3;
+                               + D(1, 1, i1, i2, i3) * v2
+                               + D(1, 2, i1, i2, i3) * v3;
             D2GT(i1, i2, i3) = D(2, 0, i1, i2, i3) * v1
-                             + D(2, 1, i1, i2, i3) * v2
-                             + D(2, 2, i1, i2, i3) * v3;
+                               + D(2, 1, i1, i2, i3) * v2
+                               + D(2, 2, i1, i2, i3) * v3;
          }
       }
    }

@@ -122,7 +122,7 @@ void Vector<T>::DoAxpby(const void *a, const PVector &x,
    MFEM_ASSERT(ab_type_id == ScalarId<T>::value, "The buffer has a different type.");
    const T& va = *static_cast<const T*>(a);
    const T& vb = *static_cast<const T*>(b);
-   if(va!=0.0 && vb!=0.0){
+   if (va != 0.0 && vb != 0.0) {
       const T* vx = x.As<Vector<T>>().GetData();
       const T* vy = y.As<Vector<T>>().GetData();
       T* typed_data = GetData();
@@ -130,20 +130,20 @@ void Vector<T>::DoAxpby(const void *a, const PVector &x,
       {
          typed_data[i] = va * vx[i] + vb * vy[i];
       }
-   }else if(va==0.0){
+   } else if (va == 0.0) {
       const T* vy = y.As<Vector<T>>().GetData();
       T* typed_data = GetData();
       for (std::size_t i = 0; i < layout->Size(); ++i)
       {
          typed_data[i] = vb * vy[i];
       }
-   }else if(vb==0.0){
+   } else if (vb == 0.0) {
       const T* vx = x.As<Vector<T>>().GetData();
       T* typed_data = GetData();
       for (std::size_t i = 0; i < layout->Size(); ++i)
       {
          typed_data[i] = va * vx[i];
-      }      
+      }
    }
 }
 

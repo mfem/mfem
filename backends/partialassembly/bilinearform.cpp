@@ -32,7 +32,7 @@ void BilinearForm::TransferIntegrators(mfem::Array<mfem::BilinearFormIntegrator*
    {
       mfem::FiniteElementSpace* fes = bform->FESpace();
       const int order = fes->GetFE(0)->GetOrder();
-      const int ir_order = 2*order + 1;
+      const int ir_order = 2 * order + 1;
       std::string integ_name(bfi[i]->Name());
       if (integ_name == "(undefined)")
       {
@@ -40,21 +40,26 @@ void BilinearForm::TransferIntegrators(mfem::Array<mfem::BilinearFormIntegrator*
       }
       else if (integ_name == "mass")
       {
-         std::cout << "=> " << integ_name <<" Integrator transfered" << std::endl;
+         std::cout << "=> " << integ_name << " Integrator transfered" << std::endl;
          MassIntegrator* integ = dynamic_cast<MassIntegrator*>(bfi[i]);
          Coefficient* coef;
          integ->GetParameters(coef);
          if (coef) {
+            std::cout << "==> with Coefficient" << std::endl;
             typename MassEquation::ArgsCoeff args(*coef);
             AddIntegrator( new PADomainInt<MassEquation, Vector<double>>(fes, ir_order, args) );
          } else {
-            typename MassEquation::ArgsEmpty args;
-            AddIntegrator( new PADomainInt<MassEquation, Vector<double>>(fes, ir_order, args) );
+            std::cout << "==> without Coefficient" << std::endl;
+            // typename MassEquation::ArgsEmpty args;
+            // AddIntegrator( new PADomainInt<MassEquation, Vector<double>>(fes, ir_order, args) );
+            HostMassEq eq(*fes, ir_order);
+            // AddIntegrator( createPADomainKernel(eq) );
+            AddIntegrator( createMFDomainKernel(eq) );
          }
       }
       else if (integ_name == "diffusion")
       {
-         std::cout << "=> " << integ_name <<" Integrator transfered" << std::endl;
+         std::cout << "=> " << integ_name << " Integrator transfered" << std::endl;
          DiffusionIntegrator* integ = dynamic_cast<DiffusionIntegrator*>(bfi[i]);
          Coefficient* coef;
          integ->GetParameters(coef);
@@ -63,7 +68,7 @@ void BilinearForm::TransferIntegrators(mfem::Array<mfem::BilinearFormIntegrator*
       }
       else if (integ_name == "convection")
       {
-         std::cout << "=> " << integ_name <<" Integrator transfered" << std::endl;
+         std::cout << "=> " << integ_name << " Integrator transfered" << std::endl;
          ConvectionIntegrator* integ = dynamic_cast<ConvectionIntegrator*>(bfi[i]);
          VectorCoefficient* u;
          double* alpha;
@@ -71,16 +76,16 @@ void BilinearForm::TransferIntegrators(mfem::Array<mfem::BilinearFormIntegrator*
          typename DGConvectionEquation::Args args(*u, *alpha);
          AddIntegrator( new PADomainInt<DGConvectionEquation, Vector<double>>(fes, ir_order, args) );
       }
-      else if(integ_name=="transpose")
+      else if (integ_name == "transpose")
       {
-         std::cout << "=> " << integ_name <<" Integrator transfered" << std::endl;
+         std::cout << "=> " << integ_name << " Integrator transfered" << std::endl;
          TransposeIntegrator* transInteg = dynamic_cast<TransposeIntegrator*>(bfi[i]);
          BilinearFormIntegrator* bf;
          transInteg->GetParameters(bf);
          integ_name = bf->Name();
          if (integ_name == "dgtrace")
          {
-            std::cout << "==> " << integ_name <<" Integrator transfered" << std::endl;
+            std::cout << "==> " << integ_name << " Integrator transfered" << std::endl;
             DGTraceIntegrator* integ = dynamic_cast<DGTraceIntegrator*>(bf);
             Coefficient* rho;
             VectorCoefficient* u;
@@ -221,6 +226,7 @@ void BilinearForm::Mult(const mfem::Vector &x, mfem::Vector &y) const
 
    y_local.Fill<double>(0.0);
    for (int i = 0; i < tbfi.Size(); i++) tbfi[i]->MultAdd(x_local, y_local);
+   for (int i = 0; i < pabfi.Size(); i++) pabfi[i]->MultAdd(x_local, y_local);
 
    test_fes->ToLVector(y_local, y.Get_PVector()->As<Vector<double>>());
 }
