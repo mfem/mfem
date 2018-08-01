@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../../data/pumi/parallel/upright/2p5kg1.smb";
    const char *boundary_file = "../../data/pumi/serial/boundary_upright.mesh";
 #ifdef MFEM_USE_SIMMETRIX
-   const char *model_file = ".../../data/pumi/geom/upright_defeatured_geomsim.smd";
+   const char *model_file = "../../data/pumi/geom/upright_defeatured_geomsim.smd";
 #else
    const char *model_file = "../../data/pumi/geom/pillbox.dmg";
 #endif
