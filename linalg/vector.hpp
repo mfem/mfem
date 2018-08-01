@@ -464,17 +464,7 @@ inline void Vector_<scalar_t>::Axpby(const scalar_t &a, const Vector_ &x,
                                      const scalar_t &b, const Vector_ &y)
 {
 #ifdef MFEM_USE_BACKENDS
-   const bool t_ok = dev_ext!=NULL;
-   const bool x_ok = x.dev_ext!=NULL;
-   const bool y_ok = y.dev_ext!=NULL;
-   const bool all_ok = t_ok && x_ok && y_ok;
-   printf("\n\033[32;7m[Axpby] ext:%s, x:%s & y%s\033[m",
-          t_ok?"ok":"\033[31mX",
-          x_ok?"ok":"\033[31mX",
-          y_ok?"ok":"\033[31mX");
-   fflush(0);
-   all_ok ? dev_ext->Axpby(a, *x.dev_ext, b, *y.dev_ext) : Sum(a, x, b, y);
-   //dev_ext ? dev_ext->Axpby(a, *x.dev_ext, b, *y.dev_ext) : Sum(a, x, b, y);
+   dev_ext ? dev_ext->Axpby(a, *x.dev_ext, b, *y.dev_ext) : Sum(a, x, b, y);
 #else
    Sum(a, x, b, y);
 #endif
