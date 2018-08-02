@@ -440,19 +440,21 @@ void BilinearForm::InitOccaBilinearForm()
       OccaCoefficient *ocoeff = NULL;
       if (const_coeff)
       {
-         ocoeff = new OccaCoefficient(obform->OccaEngine(), const_coeff->constant);
+         ocoeff = new OccaCoefficient(obform->OccaEngine(),
+                                      const_coeff->constant);
       }
       else if (gridfunc_coeff)
       {
-         ocoeff = new OccaCoefficient(obform->OccaEngine(), *gridfunc_coeff->GetGridFunction(), true);
+         ocoeff = new OccaCoefficient(obform->OccaEngine(),
+                                      *gridfunc_coeff->GetGridFunction(), true);
       }
       else if (!scal_coeff)
       {
          ocoeff = new OccaCoefficient(obform->OccaEngine(), 1.0);
       }
-      else if (scal_coeff != NULL)
+      else
       {
-          mfem_error("Coefficient type not supported");
+         MFEM_ABORT("Coefficient type not supported");
       }
 
       OccaIntegrator *ointeg = NULL;
@@ -474,7 +476,8 @@ void BilinearForm::InitOccaBilinearForm()
                     << "] is not supported");
       }
 
-      // NOTE: The integrators copy ocoeff, so it can be deleted here so there is no memory leak.
+      // NOTE: The integrators copy ocoeff, so it can be deleted here so there
+      //       is no memory leak.
       delete ocoeff;
 
       const mfem::IntegrationRule *ir = dbfi[i]->GetIntRule();

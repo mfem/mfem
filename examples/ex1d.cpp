@@ -17,7 +17,7 @@ int main(int argc, char *argv[])
 
    OptionsParser args(argc, argv);
    args.AddOption(&spec, "-s", "--spec",
-                  "Compute resurce specification.");
+                  "Compute resource specification.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
@@ -42,6 +42,11 @@ int main(int argc, char *argv[])
    // string occa_spec("mode: 'CUDA', device_id: 0");
    // string occa_spec("mode: 'OpenMP', threads: 4");
    // string occa_spec("mode: 'OpenCL', device_id: 0, platform_id: 0");
+
+   // The following flag affects only 'Serial' and 'OpenMP' modes.
+   // In 'CUDA' mode, '-O3' affects only host code.
+   // In 'OpenCL' mode, adding '-O3' breaks compilation.
+   // occa_spec += ", kernel: { compiler_flags: '-O3' }";
 
    SharedPtr<Engine> engine(new mfem::occa::Engine(occa_spec));
 

@@ -74,6 +74,36 @@ Engine::Engine(MPI_Comm _comm, const std::string &engine_spec)
 }
 #endif
 
+bool Engine::CheckEngine(const mfem::Engine *engine) const
+{
+   return (engine != NULL && util::Is<const Engine>(engine) != NULL &&
+           *util::As<const Engine>(engine) == *this);
+}
+
+bool Engine::CheckLayout(const PLayout *layout) const
+{
+   return (layout != NULL && util::Is<const Layout>(layout) != NULL &&
+           layout->As<Layout>().OccaEngine() == *this);
+}
+
+bool Engine::CheckArray(const PArray *array) const
+{
+   return (array != NULL && util::Is<const Array>(array) != NULL &&
+           array->As<Array>().OccaEngine() == *this);
+}
+
+bool Engine::CheckVector(const PVector *vector) const
+{
+   return (vector != NULL && util::Is<const Vector>(vector) != NULL &&
+           vector->As<Vector>().OccaEngine() == *this);
+}
+
+bool Engine::CheckFESpace(const PFiniteElementSpace *fes) const
+{
+   return (fes != NULL && util::Is<const FiniteElementSpace>(fes) != NULL &&
+           fes->As<FiniteElementSpace>().OccaEngine() == *this);
+}
+
 DLayout Engine::MakeLayout(std::size_t size) const
 {
    return DLayout(new Layout(*this, size));

@@ -55,7 +55,7 @@ void Vector::DoDotProduct(const PVector &x, void *result,
    if (IsParallel())
    {
       MPI_Allreduce(&local_dot, res, 1, MPI_DOUBLE, MPI_SUM,
-                    OccaLayout().OccaEngine().GetComm());
+                    OccaEngine().GetComm());
    }
 #endif
 }
@@ -64,7 +64,7 @@ void Vector::DoAxpby(const void *a, const PVector &x,
                      const void *b, const PVector &y,
                      int ab_type_id)
 {
-   const std::string &okl_defines = OccaLayout().OccaEngine().GetOklDefines();
+   const std::string &okl_defines = OccaEngine().GetOklDefines();
 
    //
    // TODO: move all kernel builders to class mfem::occa::Backend

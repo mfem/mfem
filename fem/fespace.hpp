@@ -271,13 +271,16 @@ public:
 
 #ifdef MFEM_USE_BACKENDS
    /// TODO: doxygen
-   DLayout &GetVLayout() { return v_layout; }
+   const DLayout &GetVLayout() { return v_layout; }
 
    /// TODO: doxygen
-   DLayout &GetTrueVLayout() { SetCP(); return t_layout; }
+   const DLayout &GetTrueVLayout() { SetCP(); return t_layout; }
 
    /// TODO: doxygen
-   const DFiniteElementSpace &Get_PFESpace() const { return dev_ext; }
+   PFiniteElementSpace *Get_PFESpace() { return dev_ext.Get(); }
+
+   /// TODO: doxygen
+   const PFiniteElementSpace *Get_PFESpace() const { return dev_ext.Get(); }
 #endif
 
    /// Returns the number of conforming ("true") degrees of freedom
