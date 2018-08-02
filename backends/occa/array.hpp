@@ -102,7 +102,7 @@ inline int Array::ResizeData(const Layout *lt, std::size_t item_size)
 {
    const std::size_t new_bytes = lt->Size()*item_size;
    if (data.size() < new_bytes ||
-       data.getDHandle() != lt->OccaEngine().GetDevice().getDHandle())
+       !(data.getDevice() == lt->OccaEngine().GetDevice()))
    {
       data = lt->Alloc(new_bytes);
       slice = data;
