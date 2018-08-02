@@ -28,6 +28,8 @@ int main(int argc, char *argv[])
    int slu_rowperm = 1;
    int slu_iterref = 2;
    int slu_parsymbfact = 0;
+   bool two_matrix = false;
+   bool two_rhs = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&ref_levels, "-r", "--refine",
@@ -46,10 +48,13 @@ int main(int argc, char *argv[])
                   "1-mmd-ata, 2-mmd_at_plus_a, 3-colamd, 4-metis_at_plus_a, 5-parmetis, 6-zoltan");
    args.AddOption(&slu_rowperm, "-rp", "--slu-rowperm",
                   "Set the SuperLU Row permutation algorithm:  0-NoRowPerm, "
-                  "1-LargeDiag, 2-MyPermR");
+                  "1-LargeDiag_MC64, 2-LargeDiag_AWPM, 3-MyPermR");
    args.AddOption(&slu_parsymbfact, "-psf", "--slu-parsymbfact",
-                  "Set the SuperLU ParSymbFact option:  0-No, 1-Yes");                                 
-
+                  "Set the SuperLU ParSymbFact option:  0-No, 1-Yes");
+   args.AddOption(&two_matrix, "-2mat", "--two-matrix", "-1mat", "--one-matrix",
+                  "Solve with 1 or two different matrices.");
+   args.AddOption(&two_rhs, "-2rhs", "--two-rhs", "-1rhs", "--one-rhs",
+                  "Solve with 1 or two different rhs.");    
    args.Parse();
    if (!args.Good())
    {
@@ -58,7 +63,7 @@ int main(int argc, char *argv[])
          args.PrintUsage(cout);
       }
       MPI_Finalize();
-      return 0;
+      return 1;
    }   
    if (myid == 0)
    {
@@ -159,7 +164,7 @@ int main(int argc, char *argv[])
    {
       SLUCD = new SuperLURowLocMatrix(CD);
       superlu = new SuperLUSolver(MPI_COMM_WORLD);
-      superlu->SetPrintStatistics(true);
+      superlu->SetPrintStatistics(false);
       superlu->SetSymmetricPattern(false);
 
       if (slu_colperm == 0)
@@ -197,9 +202,13 @@ int main(int argc, char *argv[])
       }
       else if (slu_rowperm == 1)
       {
-         superlu->SetRowPermutation(superlu::LargeDiag);
+         superlu->SetRowPermutation(superlu::LargeDiag_MC64);
       }
       else if (slu_rowperm == 2)
+      {
+         superlu->SetRowPermutation(superlu::LargeDiag_AWPM);
+      }      
+      else if (slu_rowperm == 3)
       {
          superlu->SetRowPermutation(superlu::MY_PERMR);
       }
@@ -234,33 +243,50 @@ int main(int argc, char *argv[])
    Vector R(B); // R = B
    CD.Mult(1.0, X, -1.0, R); // R = CD X - B
    cout << "Final L2 norm of residual: " << sqrt(R*R) << endl << endl;
-
-   // 9b. Complete the solve a second time to show off the saved work in SuperLU
-   X = 0.0;
-   if (!slu_solver)
+   if (slu_solver) {superlu->StatPrint();}
+   if (two_rhs)
    {
-      delete amg;
-      delete gmres;
-      amg = new HypreBoomerAMG(CD);
-      amg->SetPrintLevel(0);
-      gmres = new HypreGMRES(CD);
-      gmres->SetTol(1e-12);
-      gmres->SetMaxIter(200);
-      gmres->SetPreconditioner(*amg);
-      solver = gmres;
+      X = 0.0;
+      tic();
+      solver->Mult(B, X);
+      cout << "Time required for second solve (new rhs):  " << toc() << " (s)" << endl;
+      Vector R(B); // R = B
+      CD.Mult(1.0, X, -1.0, R); // R = CD X - B
+      cout << "Final L2 norm of residual: " << sqrt(R*R) << endl << endl;
+      if (slu_solver) {superlu->StatPrint();}      
    }
-   else
-   {  
-      delete SLUCD;
-      SLUCD = new SuperLURowLocMatrix(CD);
-      superlu->SetOperator(*SLUCD);
+
+   // 9b. Complete the solve a second time with another matrix to show off the saved
+   //     permutation work in SuperLU.
+   if (two_matrix)
+   {
+      X = 0.0;
+      if (!slu_solver)
+      {
+         delete amg;
+         delete gmres;
+         amg = new HypreBoomerAMG(CD);
+         amg->SetPrintLevel(0);
+         gmres = new HypreGMRES(CD);
+         gmres->SetTol(1e-12);
+         gmres->SetMaxIter(200);
+         gmres->SetPreconditioner(*amg);
+         solver = gmres;
+      }
+      else
+      {  
+         delete SLUCD;
+         SLUCD = new SuperLURowLocMatrix(CD);
+         superlu->SetOperator(*SLUCD);
+      }
+      tic();
+      solver->Mult(B, X);
+      cout << "Time required for second matrix (same sparsity):  " << toc() << " (s)" << endl;
+      R = B;
+      CD.Mult(1.0, X, -1.0, R); // R = CD X - B
+      cout << "Final L2 norm of residual: " << sqrt(R*R) << endl;
+      if (slu_solver) {superlu->StatPrint();}
    }
-   tic();
-   solver->Mult(B, X);
-   cout << "Time required for second solve:  " << toc() << " (s)" << endl;
-   R = B;
-   CD.Mult(1.0, X, -1.0, R); // R = CD X - B
-   cout << "Final L2 norm of residual: " << sqrt(R*R) << endl;
    cd->RecoverFEMSolution(X, *b, x);
 
    // 10. Dump the concentration values out to a visit file

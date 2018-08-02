@@ -12,14 +12,14 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../../..
 MFEM_BUILD_DIR ?= ../../..
-SRC = $(if $(MFEM_DIR:../../..=),$(MFEM_DIR)/examples/atpesc/superlu,)
+SRC = $(if $(MFEM_DIR:../../..=),$(MFEM_DIR)/examples/atpesc/tao,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_EXAMPLES =
-PAR_EXAMPLES = convdiff
+PAR_EXAMPLES = obstacle
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
@@ -39,6 +39,11 @@ endif
 
 all: $(EXAMPLES)
 
+ifeq ($(MFEM_USE_PETSC),NO)
+$(EXAMPLES):
+	$(error MFEM is not configured with PETSC)
+endif
+
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
@@ -50,4 +55,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	rm -rf dump_* mesh.* sol.* *.core
+	rm -rf obstacle_* *.core

@@ -309,6 +309,16 @@ void SuperLUSolver::SetPrintStatistics( bool print_stat )
    options->PrintStat = opt;
 }
 
+
+void SuperLUSolver::StatPrint()
+{
+   superlu_dist_options_t  * options      = (superlu_dist_options_t*)optionsPtr_;
+   SuperLUStat_t           * stat         = (SuperLUStat_t*)statPtr_;
+   gridinfo_t              * grid         = (gridinfo_t*)gridPtr_;
+   PStatPrint(options, stat, grid);
+}
+
+
 void SuperLUSolver::SetEquilibriate( bool equil )
 {
    superlu_dist_options_t * options = (superlu_dist_options_t*)optionsPtr_;
