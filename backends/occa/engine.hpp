@@ -60,6 +60,7 @@ public:
     */
    ///@{
 
+   /// Get the associated OCCA device.
    ::occa::device GetDevice(int idx = 0) const { return device[idx]; }
 
    /// TODO: doxygen
@@ -67,6 +68,29 @@ public:
 
    /// TODO: doxygen
    const std::string &GetOklDefines() const { return okl_defines; }
+
+   /// OCCA device memory allocation.
+   ::occa::memory Alloc(std::size_t bytes) const
+   { return GetDevice().malloc(bytes); }
+
+   /// Two mfem::occa::Engine are equal if they use the same OCCA device.
+   bool operator==(const Engine &other) const
+   { return GetDevice() == other.GetDevice(); }
+
+   /// TODO: doxygen
+   bool CheckEngine(const mfem::Engine *e) const;
+
+   /// TODO: doxygen
+   bool CheckLayout(const PLayout *layout) const;
+
+   /// TODO: doxygen
+   bool CheckArray(const PArray *array) const;
+
+   /// TODO: doxygen
+   bool CheckVector(const PVector *vector) const;
+
+   /// TODO: doxygen
+   bool CheckFESpace(const PFiniteElementSpace *fes) const;
 
    ///@}
    // End: OCCA specific interface

@@ -41,8 +41,7 @@ int Array::DoResize(PLayout &new_layout, void **buffer,
    MFEM_ASSERT(dynamic_cast<Layout *>(&new_layout) != NULL,
                "new_layout is not an OCCA Layout");
    Layout *lt = static_cast<Layout *>(&new_layout);
-   layout.Reset(lt); // Reset() checks if the pointer is the same
-   int err = ResizeData(lt, item_size);
+   int err = OccaResize(lt, item_size);
    if (!err && buffer)
    {
       *buffer = GetBuffer();

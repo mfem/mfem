@@ -109,10 +109,12 @@ public:
    PLayout &GetLayout() const { return *layout; }
 
    /// TODO
+   /// Note: we cannot use static_cast for class PArray.
    template <typename derived_t>
    derived_t &As() { return dynamic_cast<derived_t&>(*this); }
 
    /// TODO
+   /// Note: we cannot use static_cast for class PArray.
    template <typename derived_t>
    const derived_t &As() const { return dynamic_cast<const derived_t&>(*this); }
 

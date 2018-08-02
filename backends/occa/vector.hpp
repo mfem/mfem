@@ -52,6 +52,10 @@ protected:
    // End: Virtual interface
 
 public:
+   Vector(const Engine &e)
+      : PArray(*(new Layout(e, 0))), Array(e), PVector(*layout)
+   { }
+
    Vector(Layout &lt)
       : PArray(lt), Array(lt, sizeof(double)), PVector(lt)
    { }
@@ -61,7 +65,7 @@ public:
    const mfem::Vector Wrap() const;
 
 #if defined(MFEM_USE_MPI)
-   bool IsParallel() const { return (OccaLayout().OccaEngine().GetComm() != MPI_COMM_NULL); }
+   bool IsParallel() const { return (OccaEngine().GetComm() != MPI_COMM_NULL); }
 #endif
 };
 

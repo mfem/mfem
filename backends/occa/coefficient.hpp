@@ -184,6 +184,7 @@ private:
 
 public:
    OccaGridFunctionParameter(const std::string &name_,
+                             const Engine &e,
                              mfem::GridFunction &gf_,
                              const bool useRestrict_ = false);
 
@@ -219,7 +220,8 @@ private:
 
 public:
    OccaCoefficient(const Engine &e, const double value = 1.0);
-   OccaCoefficient(const Engine &e, mfem::GridFunction &gf, const bool useRestrict = false);
+   OccaCoefficient(const Engine &e, mfem::GridFunction &gf,
+                   const bool useRestrict = false);
    OccaCoefficient(const Engine &e, const std::string &source);
    OccaCoefficient(const Engine &e, const char *source);
    ~OccaCoefficient();
