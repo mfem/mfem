@@ -61,6 +61,14 @@ void Mesh::GetElementJacobian(int i, DenseMatrix &J)
    Geometries.JacToPerfJac(geom, eltransf->Jacobian(), J);
 }
 
+void Mesh::GetElementCenter(int i, Vector &cent)
+{
+   cent.SetSize(spaceDim);
+   int geom = GetElementBaseGeometry(i);
+   ElementTransformation *eltransf = GetElementTransformation(i);
+   eltransf->Transform(Geometries.GetCenter(geom), cent);
+}
+
 double Mesh::GetElementSize(int i, int type)
 {
    DenseMatrix J(Dim);
