@@ -39,6 +39,7 @@ ifeq ($(MFEM_USE_PETSC),YES)
    SUBDIRS += petsc
    ifeq ($(MFEM_USE_MPI),YES)
       SUBDIRS += atpesc/petsc
+      SUBDIRS += atpesc/tao
    endif   
 endif
 ifeq ($(MFEM_USE_PUMI),YES)

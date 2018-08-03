@@ -36,10 +36,6 @@
 using namespace std;
 using namespace mfem;
 
-// Choice for the problem setup. The fluid velocity, initial condition and
-// inflow boundary condition are chosen based on this parameter.
-int problem;
-
 // Velocity coefficient
 void velocity_function(const Vector &x, Vector &v);
 
@@ -136,12 +132,11 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 2. Parse command-line options.
-   problem = 0;
    const char *mesh_file = "../../../data/periodic-hexagon.mesh";
    int ser_ref_levels = 3;
    int par_ref_levels = 0;
    int order = 2;
-   double t_final = 5.0;
+   double t_final = 3.0;
    double dt = 0.01;
    bool visualization = true;
    bool visit = true;
@@ -155,8 +150,6 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-   args.AddOption(&problem, "-p", "--problem",
-                  "Problem setup to use. See options in velocity_function().");
    args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
                   "Number of times to refine the mesh uniformly in serial.");
    args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
@@ -264,6 +257,7 @@ int main(int argc, char *argv[])
    b->AddBdrFaceIntegrator(
       new BoundaryFlowIntegrator(inflow, velocity, -1.0, -0.5));
 
+   tic();
    m->Assemble();
    m->Finalize();
    int skip_zeros = 0;
@@ -274,6 +268,7 @@ int main(int argc, char *argv[])
    HypreParMatrix *M = m->ParallelAssemble();
    HypreParMatrix *K = k->ParallelAssemble();
    HypreParVector *B = b->ParallelAssemble();
+   cout << "Time for Matrix and vector assembly (s):  " << toc() << endl;
 
    // 9. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
@@ -328,6 +323,7 @@ int main(int argc, char *argv[])
 
    // Explicitly perform time-integration (looping over the time iterations, ti,
    // with a time-step dt), or use the Run method of the ODE solver class.
+   tic();
    if (use_step)
    {
       bool done = false;
@@ -365,6 +361,7 @@ int main(int argc, char *argv[])
       }
    }
    else { ode_solver->Run(*U, t, dt, t_final); }
+   cout << "Time for all ODE steps (s):  " << toc() << endl;
 
    // 12. Save the final solution in parallel. This output can be viewed later
    {
@@ -375,6 +372,10 @@ int main(int argc, char *argv[])
       osol.precision(precision);
       u->Save(osol);
    }
+
+   FunctionCoefficient u_exact_coef(u0_function);
+   double l2_err = u->ComputeL2Error(u_exact_coef);
+   cout << "L2 Error after trip around hexagon:  " << l2_err << endl;
 
    // 13. Free the used memory.
    delete U;
@@ -502,55 +503,12 @@ void velocity_function(const Vector &x, Vector &v)
 {
    int dim = x.Size();
 
-   // map to the reference [-1,1] domain
-   Vector X(dim);
-   for (int i = 0; i < dim; i++)
+   // Translations in 1D, 2D, and 3D
+   switch (dim)
    {
-      double center = (bb_min[i] + bb_max[i]) * 0.5;
-      X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
-   }
-
-   switch (problem)
-   {
-      case 0:
-      {
-         // Translations in 1D, 2D, and 3D
-         switch (dim)
-         {
-            case 1: v(0) = 1.0; break;
-            case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
-            case 3: v(0) = sqrt(3./6.); v(1) = sqrt(2./6.); v(2) = sqrt(1./6.);
-               break;
-         }
-         break;
-      }
-      case 1:
-      case 2:
-      {
-         // Clockwise rotation in 2D around the origin
-         const double w = M_PI/2;
-         switch (dim)
-         {
-            case 1: v(0) = 1.0; break;
-            case 2: v(0) = w*X(1); v(1) = -w*X(0); break;
-            case 3: v(0) = w*X(1); v(1) = -w*X(0); v(2) = 0.0; break;
-         }
-         break;
-      }
-      case 3:
-      {
-         // Clockwise twisting rotation in 2D around the origin
-         const double w = M_PI/2;
-         double d = max((X(0)+1.)*(1.-X(0)),0.) * max((X(1)+1.)*(1.-X(1)),0.);
-         d = d*d;
-         switch (dim)
-         {
-            case 1: v(0) = 1.0; break;
-            case 2: v(0) = d*w*X(1); v(1) = -d*w*X(0); break;
-            case 3: v(0) = d*w*X(1); v(1) = -d*w*X(0); v(2) = 0.0; break;
-         }
-         break;
-      }
+      case 1: v(0) = 1.0; break;
+      case 2: v(0) = 1.0; v(1) = 0.0; break;
+      case 3: v(0) = 1.0; v(1) = 0.0; v(2) = 0.0; break;
    }
 }
 
@@ -567,55 +525,30 @@ double u0_function(const Vector &x)
       X(i) = 2 * (x(i) - center) / (bb_max[i] - bb_min[i]);
    }
 
-   switch (problem)
+   switch (dim)
    {
-      case 0:
       case 1:
-      {
-         switch (dim)
-         {
-            case 1:
-               return exp(-40.*pow(X(0)-0.5,2));
-            case 2:
-            case 3:
-            {
-               double rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
-               if (dim == 3)
-               {
-                  const double s = (1. + 0.25*cos(2*M_PI*X(2)));
-                  rx *= s;
-                  ry *= s;
-               }
-               return ( erfc(w*(X(0)-cx-rx))*erfc(-w*(X(0)-cx+rx)) *
-                        erfc(w*(X(1)-cy-ry))*erfc(-w*(X(1)-cy+ry)) )/16;
-            }
-         }
-      }
+         return exp(-40.*pow(X(0)-0.5,2));
       case 2:
-      {
-         double x_ = X(0), y_ = X(1), rho, phi;
-         rho = hypot(x_, y_);
-         phi = atan2(y_, x_);
-         return pow(sin(M_PI*rho),2)*sin(3*phi);
-      }
       case 3:
       {
-         const double f = M_PI;
-         return sin(f*X(0))*sin(f*X(1));
+         double rx = 0.45, ry = 0.25, cx = 0., cy = -0.2, w = 10.;
+         if (dim == 3)
+         {
+            const double s = (1. + 0.25*cos(2*M_PI*X(2)));
+            rx *= s;
+            ry *= s;
+         }
+         return ( erfc(w*(X(0)-cx-rx))*erfc(-w*(X(0)-cx+rx)) *
+                  erfc(w*(X(1)-cy-ry))*erfc(-w*(X(1)-cy+ry)) )/16;
       }
    }
+
    return 0.0;
 }
 
 // Inflow boundary condition (zero for the problems considered in this example)
 double inflow_function(const Vector &x)
 {
-   switch (problem)
-   {
-      case 0:
-      case 1:
-      case 2:
-      case 3: return 0.0;
-   }
    return 0.0;
 }
