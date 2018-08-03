@@ -42,6 +42,7 @@ using namespace mfem;
 int problem;
 
 // Velocity coefficient
+bool invert_velocity = false;
 void velocity_function(const Vector &x, Vector &v);
 
 // Initial condition
@@ -78,6 +79,7 @@ public:
                 const Vector &_b, ParBilinearForm &_pbf, Vector &M_rs);
 
    void SetTimeStep(double _dt) { dt = dt; }
+   void SetK(HypreParMatrix &_K) { K = _K; }
    virtual void Mult(const Vector &x, Vector &y) const;
 
    virtual ~FE_Evolution() { }
@@ -99,7 +101,7 @@ int main(int argc, char *argv[])
    int par_ref_levels = 0;
    int order = 3;
    int ode_solver_type = 3;
-   double t_final = 10.0;
+   double t_final = 1.0;
    double dt = 0.01;
    bool visualization = true;
    bool visit = false;
@@ -141,17 +143,11 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (myid == 0)
-      {
-         args.PrintUsage(cout);
-      }
+      if (myid == 0) { args.PrintUsage(cout); }
       MPI_Finalize();
       return 1;
    }
-   if (myid == 0)
-   {
-      args.PrintOptions(cout);
-   }
+   if (myid == 0) { args.PrintOptions(cout); }
 
    // 3. Read the serial mesh from the given mesh file on all processors. We can
    //    handle geometrically periodic meshes in this code.
@@ -333,6 +329,11 @@ int main(int argc, char *argv[])
 
    *u = *U;
 
+   // Compute initial volume.
+   const double vol0_loc = M_rowsums * (*u);
+   double vol0;
+   MPI_Allreduce(&vol0_loc, &vol0, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
    bool done = false;
    for (int ti = 0; !done; )
    {
@@ -367,6 +368,55 @@ int main(int argc, char *argv[])
             dc->Save();
          }
       }
+   }
+
+   // Print the error vs exact solution.
+   const double max_error = u->ComputeMaxError(u0),
+                l1_error  = u->ComputeL1Error(u0),
+                l2_error  = u->ComputeL2Error(u0);
+   if (myid == 0)
+   {
+      std::cout << "Linf error = " << max_error << endl
+                << "L1   error = " << l1_error << endl
+                << "L2   error = " << l2_error << endl;
+   }
+
+   // Print error in volume.
+   const double vol_loc = M_rowsums * (*u);
+   double vol;
+   MPI_Allreduce(&vol_loc, &vol, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+   if (myid == 0)
+   {
+      std::cout << "Vol  error = " << vol - vol0 << endl;
+   }
+
+   // Compute and print symmetry error (re-run with the opposite velocity).
+   invert_velocity = true;
+   k->BilinearForm::operator=(0.0);
+   k->Assemble(skip_zeros);
+   HypreParMatrix *K2 = k->ParallelAssemble();
+   adv.SetK(*K2);
+   ParGridFunction u_inv(fes);
+   u_inv.ProjectCoefficient(u0);
+   fes->GetRestrictionMatrix()->Mult(u_inv, *U);
+   done = false;
+   t = 0.0;
+   adv.SetTime(t);
+   for (int ti = 0; !done; )
+   {
+      double dt_real = min(dt, t_final - t);
+      adv.SetTime(dt_real);
+      ode_solver->Step(*U, t, dt_real);
+      ti++;
+
+      done = (t >= t_final - 1e-8*dt);
+   }
+   u_inv = *U;
+   GridFunctionCoefficient u_inv_coeff(&u_inv);
+   const double symm_error = u->ComputeMaxError(u_inv_coeff) / 2.0;
+   if (myid == 0)
+   {
+      std::cout << "Symm error = " << symm_error << std::endl;
    }
 
    // 12. Save the final solution in parallel. This output can be viewed later
@@ -466,11 +516,11 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
 
    // Perform SLBQP optimization on the ldofs.
    Vector y_out(ldofs);
-   const int max_iter = 30;
-   const double rtol = 1.e-12;
+   const int max_iter = 50;
+   const double rtol = 1.e-12, atol = 1e-15;
    SLBQPOptimizer slbqp(MPI_COMM_WORLD);
    slbqp.SetMaxIter(max_iter);
-   slbqp.SetAbsTol(0.0);
+   slbqp.SetAbsTol(atol);
    slbqp.SetRelTol(rtol);
    slbqp.SetBounds(y_min, y_max);
    slbqp.SetLinearConstraint(M_rowsums, tot_mass);
@@ -502,7 +552,7 @@ void velocity_function(const Vector &x, Vector &v)
          // Translations in 1D, 2D, and 3D
          switch (dim)
          {
-            case 1: v(0) = 1.0; break;
+            case 1: v(0) = (invert_velocity) ? -1.0 : 1.0; break;
             case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
             case 3: v(0) = sqrt(3./6.); v(1) = sqrt(2./6.); v(2) = sqrt(1./6.);
                break;
