@@ -268,7 +268,10 @@ int main(int argc, char *argv[])
    HypreParMatrix *M = m->ParallelAssemble();
    HypreParMatrix *K = k->ParallelAssemble();
    HypreParVector *B = b->ParallelAssemble();
-   cout << "Time for Matrix and vector assembly (s):  " << toc() << endl;
+   if (myid == 0)
+   {
+      cout << "Time for Matrix and vector assembly (s):  " << toc() << endl;
+   }
 
    // 9. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
@@ -361,7 +364,11 @@ int main(int argc, char *argv[])
       }
    }
    else { ode_solver->Run(*U, t, dt, t_final); }
-   cout << "Time for all ODE steps (s):  " << toc() << endl;
+   if (myid == 0)
+   {
+      cout << "Time for all ODE steps (s):  " << toc() << endl;
+   }
+   
 
    // 12. Save the final solution in parallel. This output can be viewed later
    {
@@ -375,7 +382,10 @@ int main(int argc, char *argv[])
 
    FunctionCoefficient u_exact_coef(u0_function);
    double l2_err = u->ComputeL2Error(u_exact_coef);
-   cout << "L2 Error after trip around hexagon:  " << l2_err << endl;
+   if (myid == 0)
+   {   
+      cout << "L2 Error after trip around hexagon:  " << l2_err << endl;
+   }
 
    // 13. Free the used memory.
    delete U;

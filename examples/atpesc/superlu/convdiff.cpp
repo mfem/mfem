@@ -239,20 +239,32 @@ int main(int argc, char *argv[])
    // 9. Complete the solve and recover the concentration in the grid function
    tic();
    solver->Mult(B, X);
-   cout << "Time required for first solve:  " << toc() << " (s)" << endl;
+   if (myid == 0)
+   {
+      cout << "Time required for first solve:  " << toc() << " (s)" << endl;
+   }
    Vector R(B); // R = B
    CD.Mult(1.0, X, -1.0, R); // R = CD X - B
-   cout << "Final L2 norm of residual: " << sqrt(R*R) << endl << endl;
+   if (myid == 0)
+   {
+      cout << "Final L2 norm of residual: " << sqrt(R*R) << endl << endl;
+   }
    if (slu_solver) {superlu->StatPrint();}
    if (two_rhs)
    {
       X = 0.0;
       tic();
       solver->Mult(B, X);
-      cout << "Time required for second solve (new rhs):  " << toc() << " (s)" << endl;
+      if (myid == 0)
+      {
+         cout << "Time required for second solve (new rhs):  " << toc() << " (s)" << endl;
+      }
       Vector R(B); // R = B
       CD.Mult(1.0, X, -1.0, R); // R = CD X - B
-      cout << "Final L2 norm of residual: " << sqrt(R*R) << endl << endl;
+      if (myid == 0)
+      {
+         cout << "Final L2 norm of residual: " << sqrt(R*R) << endl << endl;
+      }
       if (slu_solver) {superlu->StatPrint();}      
    }
 
@@ -281,10 +293,16 @@ int main(int argc, char *argv[])
       }
       tic();
       solver->Mult(B, X);
-      cout << "Time required for second matrix (same sparsity):  " << toc() << " (s)" << endl;
+      if (myid == 0)
+      {
+         cout << "Time required for second matrix (same sparsity):  " << toc() << " (s)" << endl;
+      }
       R = B;
       CD.Mult(1.0, X, -1.0, R); // R = CD X - B
-      cout << "Final L2 norm of residual: " << sqrt(R*R) << endl;
+      if (myid == 0)
+      {
+         cout << "Final L2 norm of residual: " << sqrt(R*R) << endl;
+      }
       if (slu_solver) {superlu->StatPrint();}
    }
    cd->RecoverFEMSolution(X, *b, x);
