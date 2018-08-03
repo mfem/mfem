@@ -17,7 +17,7 @@ namespace mfem
 {
 
 LinearForm::LinearForm (FiniteElementSpace * f, LinearForm *lf)
-  : Vector(f -> GetVSize())
+   : Vector(f -> GetVSize())
 {
    int i;
    Array<LinearFormIntegrator*> *lfi;
@@ -63,7 +63,7 @@ LinearForm::LinearForm (FiniteElementSpace * f, LinearForm *lf)
       flfi_marker[i] = (*mkr)[i];
    }
 }
-  
+
 void LinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi)
 {
    DeltaLFIntegrator *maybe_delta =

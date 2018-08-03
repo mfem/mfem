@@ -60,7 +60,7 @@ public:
    { fes = f; extern_lfs = 0; }
 
    LinearForm (FiniteElementSpace * f, LinearForm *lf);
-					 
+
    LinearForm() { fes = NULL; }
 
    /// (DEPRECATED) Return the FE space associated with the LinearForm.

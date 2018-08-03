@@ -82,7 +82,7 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
    int i;
    Array<BilinearFormIntegrator*> *bfi;
    Array<Array<int>*> *mkr;
-   
+
    fes = f;
    sequence = f->GetSequence();
    mat_e = NULL;
@@ -124,7 +124,7 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
       bfbfi[i] = (*bfi)[i];
       bfbfi_marker[i] = NULL;
    }
-   
+
    mkr = bf->GetBBFI_Marker();
    for (i=0; i<mkr->Size(); i++)
    {
@@ -963,7 +963,7 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
 
 MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
                                       FiniteElementSpace *te_fes,
-				      MixedBilinearForm * mbf)
+                                      MixedBilinearForm * mbf)
    : Matrix(te_fes->GetVSize(), tr_fes->GetVSize())
 {
    int i;

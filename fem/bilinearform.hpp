@@ -148,12 +148,12 @@ public:
 
    Array<BilinearFormIntegrator*> *GetBBFI() { return &bbfi; }
    Array<Array<int>*> *GetBBFI_Marker() { return &bbfi_marker; }
-  
+
    Array<BilinearFormIntegrator*> *GetFBFI() { return &fbfi; }
 
    Array<BilinearFormIntegrator*> *GetBFBFI() { return &bfbfi; }
    Array<Array<int>*> *GetBFBFI_Marker() { return &bfbfi_marker; }
-  
+
    const double &operator()(int i, int j) { return (*mat)(i,j); }
 
    /// Returns reference to a_{ij}.
@@ -413,7 +413,7 @@ public:
 
    MixedBilinearForm (FiniteElementSpace *tr_fes,
                       FiniteElementSpace *te_fes,
-		      MixedBilinearForm * mbf);
+                      MixedBilinearForm * mbf);
 
    virtual double& Elem (int i, int j);
 
