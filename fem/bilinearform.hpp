@@ -42,6 +42,7 @@ protected:
    /// BilinearForm.
    long sequence;
 
+   /// Indicates the BilinerFormIntegrators are owned by another BilinearForm
    int extern_bfs;
 
    /// Set of Domain Integrators to be applied.
@@ -146,11 +147,13 @@ public:
    Array<BilinearFormIntegrator*> *GetDBFI() { return &dbfi; }
 
    Array<BilinearFormIntegrator*> *GetBBFI() { return &bbfi; }
-
+   Array<Array<int>*> *GetBBFI_Marker() { return &bbfi_marker; }
+  
    Array<BilinearFormIntegrator*> *GetFBFI() { return &fbfi; }
 
    Array<BilinearFormIntegrator*> *GetBFBFI() { return &bfbfi; }
-
+   Array<Array<int>*> *GetBFBFI_Marker() { return &bfbfi_marker; }
+  
    const double &operator()(int i, int j) { return (*mat)(i,j); }
 
    /// Returns reference to a_{ij}.
@@ -397,6 +400,9 @@ protected:
 
    FiniteElementSpace *trial_fes, *test_fes;
 
+   /// Indicates the BilinerFormIntegrators are owned by another BilinearForm
+   int extern_bfs;
+
    Array<BilinearFormIntegrator*> dom;
    Array<BilinearFormIntegrator*> bdr;
    Array<BilinearFormIntegrator*> skt; // trace face integrators
@@ -404,6 +410,10 @@ protected:
 public:
    MixedBilinearForm (FiniteElementSpace *tr_fes,
                       FiniteElementSpace *te_fes);
+
+   MixedBilinearForm (FiniteElementSpace *tr_fes,
+                      FiniteElementSpace *te_fes,
+		      MixedBilinearForm * mbf);
 
    virtual double& Elem (int i, int j);
 

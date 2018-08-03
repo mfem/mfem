@@ -26,6 +26,9 @@ private:
    /// FE space on which LF lives.
    FiniteElementSpace * fes;
 
+   /// Indicates the LinerFormIntegrators are owned by another LinearForm
+   int extern_lfs;
+
    /// Set of Domain Integrators to be applied.
    Array<LinearFormIntegrator*> dlfi;
 
@@ -54,8 +57,10 @@ private:
 public:
    /// Creates linear form associated with FE space *f.
    LinearForm (FiniteElementSpace * f) : Vector (f -> GetVSize())
-   { fes = f; }
+   { fes = f; extern_lfs = 0; }
 
+   LinearForm (FiniteElementSpace * f, LinearForm *lf);
+					 
    LinearForm() { fes = NULL; }
 
    /// (DEPRECATED) Return the FE space associated with the LinearForm.
@@ -80,6 +85,15 @@ public:
        attributes. */
    void AddBdrFaceIntegrator(LinearFormIntegrator *lfi,
                              Array<int> &bdr_attr_marker);
+
+   Array<LinearFormIntegrator*> *GetDLFI() { return &dlfi; }
+
+   Array<DeltaLFIntegrator*> *GetDLFI_Delta() { return &dlfi_delta; }
+
+   Array<LinearFormIntegrator*> *GetBLFI() { return &blfi; }
+
+   Array<LinearFormIntegrator*> *GetFLFI() { return &flfi; }
+   Array<Array<int>*> *GetFLFI_Marker() { return &flfi_marker; }
 
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
    void Assemble();

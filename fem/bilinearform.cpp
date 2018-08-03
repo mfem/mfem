@@ -81,7 +81,8 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
 {
    int i;
    Array<BilinearFormIntegrator*> *bfi;
-
+   Array<Array<int>*> *mkr;
+   
    fes = f;
    sequence = f->GetSequence();
    mat_e = NULL;
@@ -101,9 +102,11 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
 
    bfi = bf->GetBBFI();
    bbfi.SetSize (bfi->Size());
+   bbfi_marker.SetSize (bfi->Size());
    for (i = 0; i < bfi->Size(); i++)
    {
       bbfi[i] = (*bfi)[i];
+      bbfi_marker[i] = NULL;
    }
 
    bfi = bf->GetFBFI();
@@ -115,9 +118,23 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
 
    bfi = bf->GetBFBFI();
    bfbfi.SetSize (bfi->Size());
+   bfbfi_marker.SetSize(bfi->Size());
    for (i = 0; i < bfi->Size(); i++)
    {
       bfbfi[i] = (*bfi)[i];
+      bfbfi_marker[i] = NULL;
+   }
+   
+   mkr = bf->GetBBFI_Marker();
+   for (i=0; i<mkr->Size(); i++)
+   {
+      bbfi_marker[i] = (*mkr)[i];
+   }
+
+   mkr = bf->GetBFBFI_Marker();
+   for (i=0; i<mkr->Size(); i++)
+   {
+      bfbfi_marker[i] = (*mkr)[i];
    }
 
    AllocMat();
@@ -941,6 +958,42 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    trial_fes = tr_fes;
    test_fes = te_fes;
    mat = NULL;
+   extern_bfs = 0;
+}
+
+MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
+                                      FiniteElementSpace *te_fes,
+				      MixedBilinearForm * mbf)
+   : Matrix(te_fes->GetVSize(), tr_fes->GetVSize())
+{
+   int i;
+   Array<BilinearFormIntegrator*> *bfi;
+
+   trial_fes = tr_fes;
+   test_fes = te_fes;
+   mat = NULL;
+   extern_bfs = 1;
+
+   bfi = mbf->GetDBFI();
+   dom.SetSize (bfi->Size());
+   for (i = 0; i < bfi->Size(); i++)
+   {
+      dom[i] = (*bfi)[i];
+   }
+
+   bfi = mbf->GetBBFI();
+   bdr.SetSize (bfi->Size());
+   for (i = 0; i < bfi->Size(); i++)
+   {
+      bdr[i] = (*bfi)[i];
+   }
+
+   bfi = mbf->GetTFBFI();
+   skt.SetSize (bfi->Size());
+   for (i = 0; i < bfi->Size(); i++)
+   {
+      skt[i] = (*bfi)[i];
+   }
 }
 
 double & MixedBilinearForm::Elem (int i, int j)
@@ -1177,12 +1230,14 @@ void MixedBilinearForm::Update()
 
 MixedBilinearForm::~MixedBilinearForm()
 {
-   int i;
-
    if (mat) { delete mat; }
-   for (i = 0; i < dom.Size(); i++) { delete dom[i]; }
-   for (i = 0; i < bdr.Size(); i++) { delete bdr[i]; }
-   for (i = 0; i < skt.Size(); i++) { delete skt[i]; }
+   if (!extern_bfs)
+   {
+      int i;
+      for (i = 0; i < dom.Size(); i++) { delete dom[i]; }
+      for (i = 0; i < bdr.Size(); i++) { delete bdr[i]; }
+      for (i = 0; i < skt.Size(); i++) { delete skt[i]; }
+   }
 }
 
 
