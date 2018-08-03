@@ -62,6 +62,9 @@ static PetscErrorCode __mfem_ts_computesplits(TS,PetscReal,Vec,Vec,
 static PetscErrorCode __mfem_snes_monitor(SNES,PetscInt,PetscReal,void*);
 static PetscErrorCode __mfem_snes_jacobian(SNES,Vec,Mat,Mat,void*);
 static PetscErrorCode __mfem_snes_function(SNES,Vec,Vec,void*);
+static PetscErrorCode __mfem_snes_objective(SNES,Vec,PetscReal*,void*);
+static PetscErrorCode __mfem_snes_postcheck(SNESLineSearch,Vec,Vec,Vec,
+                                            PetscBool*,PetscBool*,void*);
 static PetscErrorCode __mfem_ksp_monitor(KSP,PetscInt,PetscReal,void*);
 static PetscErrorCode __mfem_pc_shell_apply(PC,Vec,Vec);
 static PetscErrorCode __mfem_pc_shell_apply_transpose(PC,Vec,Vec);
@@ -107,10 +110,15 @@ typedef struct
 
 typedef struct
 {
-   mfem::Operator        *op;          // The nonlinear operator
-   mfem::PetscBCHandler  *bchandler;   // Handling of essential bc
-   mfem::Vector          *work;        // Work vector
-   mfem::Operator::Type  jacType;      // OperatorType for the Jacobian
+   mfem::Operator        *op;        // The nonlinear operator
+   mfem::PetscBCHandler  *bchandler; // Handling of essential bc
+   mfem::Vector          *work;      // Work vector
+   mfem::Operator::Type  jacType;    // OperatorType for the Jacobian
+   // Objective for line search
+   void (*objective)(mfem::Operator *op, const mfem::Vector&, double*);
+   // PostCheck function (to be called after successfull line search)
+   void (*postcheck)(mfem::Operator *op, const mfem::Vector&, mfem::Vector&,
+                     mfem::Vector&, bool&, bool&);
 } __mfem_snes_ctx;
 
 typedef struct
@@ -2837,6 +2845,14 @@ void PetscNonlinearSolver::SetOperator(const Operator &op)
          X = B = NULL;
       }
    }
+   else
+   {
+      /* PETSc sets the linesearch type to basic (i.e. no linesearch) if not
+         yet set. We default to backtracking */
+      SNESLineSearch ls;
+      ierr = SNESGetLineSearch(snes, &ls); PCHKERRQ(snes,ierr);
+      ierr = SNESLineSearchSetType(ls, SNESLINESEARCHBT); PCHKERRQ(snes,ierr);
+   }
 
    __mfem_snes_ctx *snes_ctx = (__mfem_snes_ctx*)private_ctx;
    snes_ctx->op = (mfem::Operator*)&op;
@@ -2858,6 +2874,30 @@ void PetscNonlinearSolver::SetJacobianType(Operator::Type jacType)
 {
    __mfem_snes_ctx *snes_ctx = (__mfem_snes_ctx*)private_ctx;
    snes_ctx->jacType = jacType;
+}
+
+void PetscNonlinearSolver::SetObjective(void (*objfn)(Operator *,const Vector&, double*))
+{
+   __mfem_snes_ctx *snes_ctx = (__mfem_snes_ctx*)private_ctx;
+   snes_ctx->objective = objfn;
+
+   SNES snes = (SNES)obj;
+   ierr = SNESSetObjective(snes, __mfem_snes_objective, (void *)snes_ctx);
+   PCHKERRQ(snes, ierr);
+}
+
+void PetscNonlinearSolver::SetPostCheck(void (*post)(Operator *,const Vector&,
+                                                     Vector&, Vector&,
+                                                     bool&, bool&))
+{
+   __mfem_snes_ctx *snes_ctx = (__mfem_snes_ctx*)private_ctx;
+   snes_ctx->postcheck = post;
+
+   SNES snes = (SNES)obj;
+   SNESLineSearch ls;
+   ierr = SNESGetLineSearch(snes, &ls); PCHKERRQ(snes,ierr);
+   ierr = SNESLineSearchSetPostCheck(ls, __mfem_snes_postcheck, (void *)snes_ctx);
+   PCHKERRQ(ls, ierr);
 }
 
 void PetscNonlinearSolver::Mult(const Vector &b, Vector &x) const
@@ -3655,6 +3695,38 @@ static PetscErrorCode __mfem_snes_function(SNES snes, Vec x, Vec f, void *ctx)
    }
    // need to tell PETSc the Vec has been updated
    ierr = PetscObjectStateIncrease((PetscObject)f); CHKERRQ(ierr);
+   PetscFunctionReturn(0);
+}
+
+static PetscErrorCode __mfem_snes_objective(SNES snes, Vec x, PetscReal *f, void *ctx)
+{
+   __mfem_snes_ctx* snes_ctx = (__mfem_snes_ctx*)ctx;
+
+   PetscFunctionBeginUser;
+   if (!snes_ctx->objective)
+   {
+      SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"Missing objective function");
+   }
+   mfem::PetscParVector xx(x,true);
+   double lf;
+   (*snes_ctx->objective)(snes_ctx->op,xx,&lf);
+   *f = (PetscReal)lf;
+   PetscFunctionReturn(0);
+}
+
+static PetscErrorCode __mfem_snes_postcheck(SNESLineSearch ls,Vec X,Vec Y,Vec W,
+                                            PetscBool *cy,PetscBool *cw, void* ctx)
+{
+   __mfem_snes_ctx* snes_ctx = (__mfem_snes_ctx*)ctx;
+   bool lcy,lcw;
+
+   PetscFunctionBeginUser;
+   mfem::PetscParVector x(X,true);
+   mfem::PetscParVector y(Y,true);
+   mfem::PetscParVector w(W,true);
+   snes_ctx->postcheck(snes_ctx->op,x,y,w,lcy,lcw);
+   if (lcy) { *cy = PETSC_TRUE; }
+   if (lcw) { *cw = PETSC_TRUE; }
    PetscFunctionReturn(0);
 }
 

@@ -659,11 +659,21 @@ public:
    virtual void SetOperator(const Operator &op);
 
    /// Specifies the desired format of the Jacobian in case a PetscParMatrix
-   /// is not returned by the GetGradient method
+   /// is not returned by the GetGradient method.
    void SetJacobianType(Operator::Type type);
 
    /// Application of the solver.
    virtual void Mult(const Vector &b, Vector &x) const;
+
+   /// Specification of an objective function to be used for line search.
+   void SetObjective(void (*obj)(Operator* op, const Vector &x, double *f));
+
+   /// User-defined routine to be applied after a successful line search step.
+   /// The user can change the current direction Y and/or the updated solution W
+   /// (with W = X - lambda * Y) but not the previous solution X.
+   /// If Y or W have been changed, the corresponding booleans need to updated.
+   void SetPostCheck(void (*post)(Operator *op, const Vector &X, Vector &Y,
+                                  Vector &W, bool &changed_y, bool &changed_w));
 
    /// Conversion function to PETSc's SNES type.
    operator SNES() const { return (SNES)obj; }
