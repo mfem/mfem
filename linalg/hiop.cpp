@@ -16,6 +16,8 @@
 #ifdef MFEM_USE_HIOP
 #include <iostream>
 
+#include "hiopAlgFilterIPM.hpp"
+
 #pragma message "Compiling " __FILE__ "..."
 
 using namespace hiop;
@@ -25,29 +27,58 @@ namespace mfem
 
 
 HiopNlpOptimizer::HiopNlpOptimizer()
+  : optProb_(NULL), hiopInstance_(NULL)
 {
-  _optProb = new HiopProblemSpec();
-  _hiopInstance = new hiopNlpDenseConstraints(*_optProb);
 }
 
 #ifdef MFEM_USE_MPI
 HiopNlpOptimizer::HiopNlpOptimizer(MPI_Comm _comm) 
-  : IterativeSolver(_comm)
+  : IterativeSolver(_comm), comm_(_comm), optProb_(NULL), hiopInstance_(NULL)
+
 {
-  _optProb = NULL;
-  _hiopInstance = NULL;
 };
 #endif
 
 HiopNlpOptimizer::~HiopNlpOptimizer()
 {
-  if(_optProb) delete _optProb;
-  if(_hiopInstance) delete _hiopInstance;
+  if(optProb_) delete optProb_;
+  if(hiopInstance_) delete hiopInstance_;
 }
 
-void HiopNlpOptimizer::Mult(const Vector &xt, Vector &x) const
+  void HiopNlpOptimizer::Mult(const Vector &xt, Vector &x)// const
 {
- 
+  //set xt in the problemSpec to compute the objective
+  //todo
+
+  //instantiate Hiop's NLP formulation (dense constraints) 
+  assert(hiopInstance_==NULL);
+  hiopInstance_ = new hiop::hiopNlpDenseConstraints(*optProb_);
+  {
+    //use the IPM solver
+    hiop::hiopAlgFilterIPM solver(hiopInstance_);
+    hiop::hiopSolveStatus status = solver.run();
+    double objective = solver.getObjective();
+
+    //get the solution from the solver and copy it to x
+    //todo
+  }
+
+  delete hiopInstance_; 
+  hiopInstance_ = NULL;
+}
+
+void HiopNlpOptimizer::SetBounds(const Vector &_lo, const Vector &_hi)
+{
+  if(NULL==optProb_) 
+    allocHiopProbSpec(_lo.Size());
+}
+
+void HiopNlpOptimizer::SetLinearConstraint(const Vector &_w, double _a)
+{
+  if(NULL==optProb_) 
+    allocHiopProbSpec(_w.Size());
+
+  
 }
 
 void HiopNlpOptimizer::SetPreconditioner(Solver &pr)
@@ -62,7 +93,14 @@ void HiopNlpOptimizer::SetOperator(const Operator &op)
               "not meaningful for this solver");
 }
 
+
+
+void HiopNlpOptimizer::allocHiopProbSpec(const long long& numvars) {
+  //! mfem assert strategy
+  assert(optProb_==NULL && "HiopProbSpec object already created");
+  optProb_ = new HiopProblemSpec(comm_, numvars);
+};
+
+
 } // mfem namespace
-
-
 #endif // MFEM_USE_HIOP
