@@ -736,6 +736,9 @@ public:
    {
       MFEM_ABORT("MonitorResidual() is not implemented!")
    }
+
+   /// Generic monitor to take access to the solver
+   virtual void MonitorSolver(PetscSolver* solver) {}
 };
 
 

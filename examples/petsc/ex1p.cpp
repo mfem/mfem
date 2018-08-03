@@ -266,7 +266,6 @@ int main(int argc, char *argv[])
       if (visualization && petscmonitor)
       {
          pcg->SetMonitor(&mymon);
-         pcg->SetPrintLevel(4);
          pcg->iterative_mode = true;
          X.Randomize();
       }
