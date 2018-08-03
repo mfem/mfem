@@ -232,6 +232,15 @@ public:
       test_pfes  = test_fes;
    }
 
+   ParMixedBilinearForm(ParFiniteElementSpace *trial_fes,
+                        ParFiniteElementSpace *test_fes,
+			ParMixedBilinearForm * mbf)
+     : MixedBilinearForm(trial_fes, test_fes, mbf)
+   {
+      trial_pfes = trial_fes;
+      test_pfes  = test_fes;
+   }
+
    /// Returns the matrix assembled on the true dofs, i.e. P_test^t A P_trial.
    HypreParMatrix *ParallelAssemble();
 
