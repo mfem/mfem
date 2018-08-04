@@ -469,7 +469,7 @@ public:
    { vdim = vdim_; SetSize(vdim*qspace->GetSize()); }
 
    /// Get the QuadratureSpace ownership flag.
-   bool OwnsSpace() { return own_qspace; }
+   bool OwnsSpace() const { return own_qspace; }
 
    /// Set the QuadratureSpace ownership flag.
    void SetOwnsSpace(bool own) { own_qspace = own; }
