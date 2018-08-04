@@ -8,11 +8,23 @@
                                http://mfem.org
 
 
-Version 3.3.3 (development)
+Version 3.4.1 (development)
 ===========================
+- Added support for reading linear and quadratic 2D quadrilateral and triangular
+  Cubit meshes.
 
-More efficient non-conforming adaptive mesh refinement
-------------------------------------------------------
+
+Version 3.4, released on May 29, 2018
+=====================================
+
+More general and efficient mesh adaptivity
+------------------------------------------
+- Added support for PUMI, the Parallel Unstructured Mesh Infrastructure from
+  https://scorec.rpi.edu/pumi. PUMI is an unstructured, distributed mesh data
+  management system that is capable of handling general non-manifold models and
+  effectively supports automated adaptive analysis. PUMI enables for the first
+  time support for parallel unstructured modifications of MFEM meshes.
+
 - Significantly reduced MPI communication in the construction of the parallel
   prolongation matrix in ParFiniteElementSpace, for much improved parallel
   scaling of non-conforming AMR on hundreds of thousands of MPI tasks. The
@@ -80,6 +92,11 @@ New and updated examples and miniapps
 - Added a set of miniapps specifically focused on Isogeometric Analysis (IGA) on
   NURBS meshes in the miniapps/nurbs directory. Currently the directory contains
   variable order NURBS versions of examples 1, 1p and 11p.
+
+- Added PUMI versions of examples ex1, ex1p, ex2 and ex6p in a new examples/pumi
+  directory. The new examples demonstrate the PUMI APIs for parallel and serial
+  mesh loading (ex1 and ex1p), applying BCs using classification (ex2), and
+  performing parallel mesh adaptation (ex6p).
 
 - Added two new miniapps related to DataCollection I/O in miniapps/tools:
   load-dc.cpp can be used to visualize fields saved via DataCollection classes;

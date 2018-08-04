@@ -591,10 +591,10 @@ public:
    virtual ~QuadratureSpace() { delete [] element_offsets; }
 
    /// Return the total number of quadrature points.
-   int GetSize() { return size; }
+   int GetSize() const { return size; }
 
    /// Get the IntegrationRule associated with mesh element @a idx.
-   const IntegrationRule &GetElementIntRule(int idx)
+   const IntegrationRule &GetElementIntRule(int idx) const
    { return *int_rule[mesh->GetElementBaseGeometry(idx)]; }
 
    /// Write the QuadratureSpace to the stream @a out.

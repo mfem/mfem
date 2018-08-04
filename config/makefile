@@ -38,6 +38,9 @@ all: header config-mk
 MPI = $(MFEM_USE_MPI:NO=)
 GHV = get_hypre_version
 GHV_FLAGS = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(HYPRE_OPT))
+SMX = $(if $(MFEM_USE_PUMI:NO=),MFEM_USE_SIMMETRIX)
+SMX_PATH = $(PUMI_DIR)/include/gmi_sim.h
+SMX_FILE = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(SMX_PATH))
 
 $(GHV): $(SRC)$(GHV).cpp
 	$(call mfem-info, Determining HYPRE version ...)
@@ -52,10 +55,16 @@ get-hypre-version: $(GHV).out
 	$(info HYPRE version: $(MFEM_HYPRE_VERSION)),\
 	$(error Unable to determine HYPRE version))
 
-header: $(if $(MPI),get-hypre-version,)
+check-smx:
+	$(call mfem-info, Checking for Simmetrix header [$(SMX_FILE)] ...)
+	$(eval MFEM_USE_SIMMETRIX:=$(if $(wildcard $(SMX_FILE)),YES,NO))
+	$(call mfem-info, MFEM_USE_SIMMETRIX = $(MFEM_USE_SIMMETRIX))
+	$(eval export MFEM_USE_SIMMETRIX)
+
+header: $(if $(MPI),get-hypre-version,) $(if $(SMX),check-smx)
 	$(call mfem-info, Writing $(CONFIG_HPP) ...)
 	@set -- && \
-	for def in $${MFEM_DEFINES} $(if $(MPI),MFEM_HYPRE_VERSION,); do \
+	for def in $${MFEM_DEFINES} $(if $(MPI),MFEM_HYPRE_VERSION) $(SMX); do \
 	   eval var=\$$$$def && \
 	   if [ "NO" != "$${var}" ]; then \
 	      set -- "$$@" -e "s|// \(#define $${def} \)|\1|" && \

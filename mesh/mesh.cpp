@@ -61,6 +61,14 @@ void Mesh::GetElementJacobian(int i, DenseMatrix &J)
    Geometries.JacToPerfJac(geom, eltransf->Jacobian(), J);
 }
 
+void Mesh::GetElementCenter(int i, Vector &cent)
+{
+   cent.SetSize(spaceDim);
+   int geom = GetElementBaseGeometry(i);
+   ElementTransformation *eltransf = GetElementTransformation(i);
+   eltransf->Transform(Geometries.GetCenter(geom), cent);
+}
+
 double Mesh::GetElementSize(int i, int type)
 {
    DenseMatrix J(Dim);
@@ -893,6 +901,13 @@ void Mesh::Destroy()
 
    attributes.DeleteAll();
    bdr_attributes.DeleteAll();
+}
+
+void Mesh::DeleteLazyTables()
+{
+   delete el_to_el;     el_to_el = NULL;
+   delete face_edge;    face_edge = NULL;
+   delete edge_vertex;  edge_vertex = NULL;
 }
 
 void Mesh::SetAttributes()
@@ -5509,6 +5524,7 @@ void Mesh::UpdateNodes()
 
 void Mesh::QuadUniformRefinement()
 {
+   DeleteLazyTables();
    int i, j, *v, vv[2], attr;
    const int *e;
 
@@ -5611,6 +5627,7 @@ void Mesh::QuadUniformRefinement()
 
 void Mesh::HexUniformRefinement()
 {
+   DeleteLazyTables();
    int i;
    int * v;
    const int *e, *f;
@@ -5895,6 +5912,7 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
       delete [] edge2;
       delete [] middle;
 
+      DeleteLazyTables();
       if (el_to_edge != NULL)
       {
          NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
@@ -6010,6 +6028,7 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
       // 7. Free the allocated memory.
       delete [] middle;
 
+      DeleteLazyTables();
       if (el_to_edge != NULL)
       {
          NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
