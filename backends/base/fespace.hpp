@@ -22,6 +22,7 @@ namespace mfem
 {
 
 class FiniteElementSpace;
+class QuadratureSpace;
 
 /// TODO: doxygen
 class PFiniteElementSpace : public RefCounted
@@ -43,7 +44,8 @@ public:
    /// Get the associated engine
    const Engine &GetEngine() const { return *engine; }
 
-   mfem::FiniteElementSpace* GetFESpace() const { return fes; }
+   /// Return the associated mfem::FiniteElementSpace
+   mfem::FiniteElementSpace *GetFESpace() const { return fes; }
 
    /// TODO
    template <typename derived_t>
@@ -53,11 +55,40 @@ public:
    template <typename derived_t>
    const derived_t &As() const { return *util::As<const derived_t>(this); }
 
+
+   /**
+       @name Virtual interface: finite element space functionality
+    */
+   ///@{
+
    /// TODO
+   /** Return the operator mapping T-vectors to L-vectors. If a NULL pointer is
+       returned then the mapping is the idenity. */
    virtual const mfem::Operator *GetProlongationOperator() const = 0;
 
    /// TODO
+   /** Return the operator mapping L-vectors to T-vectors that extracts the
+       subset of all true dofs, i.e. no assembly is performed. If a NULL pointer
+       is returned then the mapping is the idenity. */
    virtual const mfem::Operator *GetRestrictionOperator() const = 0;
+
+   /// TODO
+   /** Return the operator mapping L-vectors to Q-vectors that evaluates the
+       values of a GridFunction as a QuadratureFunction on the given
+       QuadratureSpace. If the returned pointer is NULL, then the mapping is the
+       identity. */
+   virtual const mfem::Operator *GetInterpolationOperator(
+      const mfem::QuadratureSpace &qspace) const = 0;
+
+   /// TODO
+   /** Return the operator mapping L-vectors to Q-vectors that evaluates the
+       _reference element_ gradients of a GridFunction as a QuadratureFunction
+       on the given QuadratureSpace. */
+   virtual const mfem::Operator *GetGradientOperator(
+      const mfem::QuadratureSpace &qspace) const = 0;
+
+   ///@}
+   // End: Virtual interface
 };
 
 } // namespace mfem

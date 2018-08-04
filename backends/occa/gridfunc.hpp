@@ -22,13 +22,9 @@ namespace mfem
 {
 
 class IntegrationRule;
-class GridFunction;
 
 namespace occa
 {
-
-class OccaIntegrator;
-class OccaDofQuadMaps;
 
 // TODO: make this object part of the backend or the engine.
 extern std::map<std::string, ::occa::kernel> gridFunctionKernels;
@@ -44,6 +40,9 @@ extern std::map<std::string, ::occa::kernel> gridFunctionKernels;
 //        so it should be made into an operator that can be constructed by the
 //        FE space class. A batched version, where only a subset of the elements
 //        are processed should be defined as well.
+//
+//        The abstract operator construction method in the FE space class is:
+//           PFiniteElementSpace::GetInterpolationOperator(...)
 void ToQuad(const IntegrationRule &ir, FiniteElementSpace &ofespace, Vector &gf,
             Vector &quadValues);
 

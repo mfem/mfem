@@ -105,20 +105,32 @@ public:
 
    int GetNE() const { return fes->GetNE(); }
 
-   const mfem::FiniteElementCollection* FEColl() const
+   const mfem::FiniteElementCollection *FEColl() const
    { return fes->FEColl(); }
-   const mfem::FiniteElement* GetFE(const int idx) const
+   const mfem::FiniteElement *GetFE(const int idx) const
    { return fes->GetFE(idx); }
 
-   const int* GetElementDofMap() const { return elementDofMap; }
-   const int* GetElementDofMapInverse() const { return elementDofMapInverse; }
+   const int *GetElementDofMap() const { return elementDofMap; }
+   const int *GetElementDofMapInverse() const { return elementDofMapInverse; }
 
-   virtual const mfem::Operator* GetRestrictionOperator() const { return restrictionOp; }
-   virtual const mfem::Operator* GetProlongationOperator() const { return prolongationOp; }
+   virtual const mfem::Operator *GetProlongationOperator() const
+   { return prolongationOp; }
+
+   virtual const mfem::Operator *GetRestrictionOperator() const
+   { return restrictionOp; }
+
+   virtual const mfem::Operator *GetInterpolationOperator(
+      const mfem::QuadratureSpace &qspace) const
+   { return NULL; /* FIXME */ }
+
+   virtual const mfem::Operator *GetGradientOperator(
+      const mfem::QuadratureSpace &qspace) const
+   { return NULL; /* FIXME */ }
 
    const ::occa::array<int> GetLocalToGlobalMap() const
    { return localToGlobalMap; }
 
+   /// L-vector to E-vector
    void GlobalToLocal(const Vector &globalVec, Vector &localVec) const
    {
       globalToLocalKernel(globalDofs,
@@ -127,6 +139,8 @@ public:
                           globalToLocalIndices,
                           globalVec.OccaMem(), localVec.OccaMem());
    }
+
+   /// E-vector to L-vector, transpose of GlobalToLocal
    void LocalToGlobal(const Vector &localVec, Vector &globalVec) const
    {
       localToGlobalKernel(globalDofs,
