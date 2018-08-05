@@ -153,7 +153,7 @@ int main(int argc, char *argv[])
    if (!slu_solver)
    {
       amg = new HypreBoomerAMG(CD);
-      amg->SetPrintLevel(0);
+      amg->SetPrintLevel(1);
       gmres = new HypreGMRES(CD);
       gmres->SetTol(1e-12);
       gmres->SetMaxIter(200);
