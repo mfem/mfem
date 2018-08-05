@@ -155,6 +155,7 @@ int main(int argc, char *argv[])
       amg = new HypreBoomerAMG(CD);
       amg->SetPrintLevel(1);
       gmres = new HypreGMRES(CD);
+      gmres->SetPrintLevel(1);
       gmres->SetTol(1e-12);
       gmres->SetMaxIter(200);
       gmres->SetPreconditioner(*amg);
@@ -278,8 +279,9 @@ int main(int argc, char *argv[])
          delete amg;
          delete gmres;
          amg = new HypreBoomerAMG(CD);
-         amg->SetPrintLevel(0);
+         amg->SetPrintLevel(1);
          gmres = new HypreGMRES(CD);
+         gmres->SetPrintLevel(1);
          gmres->SetTol(1e-12);
          gmres->SetMaxIter(200);
          gmres->SetPreconditioner(*amg);
