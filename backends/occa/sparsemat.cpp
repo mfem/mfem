@@ -22,54 +22,26 @@ namespace occa
 
 OccaSparseMatrix::OccaSparseMatrix(Layout &in_layout, Layout &out_layout,
                                    const mfem::SparseMatrix &m,
-                                   const ::occa::properties &props) :
-   Operator(in_layout, out_layout)
+                                   const ::occa::properties &props)
+   : Operator(in_layout, out_layout)
 {
-
    Setup(in_layout.OccaEngine().GetDevice(), m, props);
 }
 
 OccaSparseMatrix::OccaSparseMatrix(Layout &in_layout, Layout &out_layout,
-                                   const mfem::SparseMatrix &m,
-                                   ::occa::array<int> reorderIndices_,
-                                   ::occa::array<int> mappedIndices_,
-                                   const ::occa::properties &props) :
-   Operator(in_layout, out_layout)
-{
-
-   Setup(in_layout.OccaEngine().GetDevice(), m,
-         reorderIndices, mappedIndices_, props);
-}
-
-OccaSparseMatrix::OccaSparseMatrix(Layout &in_layout, Layout &out_layout,
-                                   ::occa::array<int> offsets_,
-                                   ::occa::array<int> indices_,
-                                   ::occa::array<double> weights_,
-                                   const ::occa::properties &props) :
-   Operator(in_layout, out_layout),
-   offsets(offsets_),
-   indices(indices_),
-   weights(weights_)
-{
-
-   SetupKernel(in_layout.OccaEngine().GetDevice(), props);
-}
-
-OccaSparseMatrix::OccaSparseMatrix(Layout &in_layout, Layout &out_layout,
                                    ::occa::array<int> offsets_,
                                    ::occa::array<int> indices_,
                                    ::occa::array<double> weights_,
                                    ::occa::array<int> reorderIndices_,
                                    ::occa::array<int> mappedIndices_,
-                                   const ::occa::properties &props) :
-   Operator(in_layout, out_layout),
-   offsets(offsets_),
-   indices(indices_),
-   weights(weights_),
-   reorderIndices(reorderIndices_),
-   mappedIndices(mappedIndices_)
+                                   const ::occa::properties &props)
+   : Operator(in_layout, out_layout),
+     offsets(offsets_),
+     indices(indices_),
+     weights(weights_),
+     reorderIndices(reorderIndices_),
+     mappedIndices(mappedIndices_)
 {
-
    SetupKernel(in_layout.OccaEngine().GetDevice(), props);
 }
 
@@ -84,7 +56,6 @@ void OccaSparseMatrix::Setup(::occa::device device, const SparseMatrix &m,
                              ::occa::array<int> mappedIndices_,
                              const ::occa::properties &props)
 {
-
    const int nnz = m.GetI()[height];
    offsets.allocate(device,
                     height + 1, m.GetI());
@@ -106,7 +77,6 @@ void OccaSparseMatrix::Setup(::occa::device device, const SparseMatrix &m,
 void OccaSparseMatrix::SetupKernel(::occa::device device,
                                    const ::occa::properties &props)
 {
-
    const bool hasOutIndices = mappedIndices.isInitialized();
 
    const ::occa::properties defaultProps("defines: {"
@@ -114,14 +84,13 @@ void OccaSparseMatrix::SetupKernel(::occa::device device,
                                          "}");
 
    const std::string &okl_path = InLayout_().OccaEngine().GetOklPath();
-   const std::string &okl_defines = InLayout_().OccaEngine().GetOklDefines();
    mapKernel = device.buildKernel(okl_path + "mappings.okl",
                                   "MapSubVector",
-                                  defaultProps + props + okl_defines);
+                                  defaultProps + props);
 
    multKernel = device.buildKernel(okl_path + "sparse.okl",
                                    hasOutIndices ? "MappedMult" : "Mult",
-                                   defaultProps + props + okl_defines);
+                                   defaultProps + props);
 }
 
 void OccaSparseMatrix::Mult_(const Vector &x, Vector &y) const

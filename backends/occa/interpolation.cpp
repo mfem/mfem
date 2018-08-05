@@ -26,8 +26,7 @@ void CreateRPOperators(Layout &v_layout, Layout &t_layout,
 {
    if (!P)
    {
-      OccaR = new IdentityOperator(t_layout);
-      OccaP = new IdentityOperator(t_layout);
+      OccaR = OccaP = NULL;
       return;
    }
 
@@ -38,7 +37,7 @@ void CreateRPOperators(Layout &v_layout, Layout &t_layout,
    {
       OccaSparseMatrix *occaR =
          CreateMappedSparseMatrix(v_layout, t_layout, *R);
-      ::occa::array<int> reorderIndices = occaR->reorderIndices;
+      ::occa::array<int> reorderIndices = occaR->GetReorderIndices();
       delete occaR;
 
       OccaR = new RestrictionOperator(v_layout, t_layout, reorderIndices);
@@ -62,25 +61,21 @@ void CreateRPOperators(Layout &v_layout, Layout &t_layout,
 }
 
 RestrictionOperator::RestrictionOperator(Layout &in_layout, Layout &out_layout,
-                                         ::occa::array<int> indices) :
-   Operator(in_layout, out_layout)
+                                         ::occa::array<int> indices)
+   : Operator(in_layout, out_layout)
 {
-
    entries     = indices.size() / 2;
    trueIndices = indices;
 
-   // FIXME: paths ...
    ::occa::device device = in_layout.OccaEngine().GetDevice();
    const std::string &okl_path = in_layout.OccaEngine().GetOklPath();
-   const std::string &okl_defines = in_layout.OccaEngine().GetOklDefines();
    multOp = device.buildKernel(okl_path + "mappings.okl",
                                "ExtractSubVector",
-                               "defines: { TILESIZE: 256 }" + okl_defines);
+                               "defines: { TILESIZE: 256 }");
 
    multTransposeOp = device.buildKernel(okl_path + "mappings.okl",
                                         "SetSubVector",
-                                        "defines: { TILESIZE: 256 }" +
-                                        okl_defines);
+                                        "defines: { TILESIZE: 256 }");
 }
 
 void RestrictionOperator::Mult_(const Vector &x, Vector &y) const
@@ -90,24 +85,25 @@ void RestrictionOperator::Mult_(const Vector &x, Vector &y) const
 
 void RestrictionOperator::MultTranspose_(const Vector &x, Vector &y) const
 {
-   y.Fill<double>(0.0);
+   y.OccaFill<double>(0.0);
    multTransposeOp(entries, trueIndices, x.OccaMem(), y.OccaMem());
 }
 
 ProlongationOperator::ProlongationOperator(OccaSparseMatrix &multOp_,
-                                           OccaSparseMatrix &multTransposeOp_) :
-   Operator(multOp_),
-   pmat(NULL),
-   multOp(multOp_),
-   multTransposeOp(multTransposeOp_) {}
+                                           OccaSparseMatrix &multTransposeOp_)
+   : Operator(multOp_),
+     pmat(NULL),
+     multOp(multOp_),
+     multTransposeOp(multTransposeOp_)
+{ }
 
 ProlongationOperator::ProlongationOperator(Layout &in_layout,
                                            Layout &out_layout,
-                                           const mfem::Operator *pmat_) :
-   Operator(in_layout, out_layout),
-   pmat(pmat_),
-   multOp(*this),
-   multTransposeOp(*this)
+                                           const mfem::Operator *pmat_)
+   : Operator(in_layout, out_layout),
+     pmat(pmat_),
+     multOp(*this),
+     multTransposeOp(*this)
 { }
 
 void ProlongationOperator::Mult_(const Vector &x, Vector &y) const

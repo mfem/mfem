@@ -317,10 +317,9 @@ Vector OccaCoefficient::Eval()
 void OccaCoefficient::Eval(Vector &quadCoeff)
 {
    const std::string &okl_path = OccaEngine().GetOklPath();
-   const std::string &okl_defines = OccaEngine().GetOklDefines();
    static ::occa::kernelBuilder builder =
       ::occa::kernelBuilder::fromFile(okl_path + "coefficient.okl",
-                                      "CoefficientEval", okl_defines);
+                                      "CoefficientEval");
 
    if (integ == NULL)
    {
@@ -335,7 +334,6 @@ void OccaCoefficient::Eval(Vector &quadCoeff)
       kernelProps["defines/COEFF"]      = name;
       kernelProps["defines/COEFF_ARGS"] = name + "_ARGS";
    }
-   kernelProps += okl_defines;
 
    ::occa::kernel evalKernel = builder.build(GetDevice(), kernelProps);
    evalKernel(elements, *this, quadCoeff.OccaMem());

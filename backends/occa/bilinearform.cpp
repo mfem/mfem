@@ -65,11 +65,9 @@ void OccaBilinearForm::Init(const Engine &e,
    if (GetDevice().mode() == "OpenMP")
    {
       const std::string &okl_path = OccaEngine().GetOklPath();
-      const std::string &okl_defines = OccaEngine().GetOklDefines();
       ::occa::kernel initLocalKernel =
          GetDevice().buildKernel(okl_path + "utils.okl",
-                                 "InitLocalVector",
-                                 okl_defines);
+                                 "InitLocalVector");
 
       const std::size_t sd = sizeof(double);
       const uint64_t trialEntries = sd * (elements * trialLocalDofs);
@@ -273,8 +271,6 @@ void OccaBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
                                mfem::Vector &X, mfem::Vector &B,
                                int copy_interior)
 {
-   const std::string okl_defines = OccaEngine().GetOklDefines();
-
    // FIXME: move these kernels to the Backend?
    static ::occa::kernelBuilder get_subvector_builder =
       ::occa::linalg::customLinearMethod(
@@ -288,7 +284,7 @@ void OccaBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
          "  VTYPE1: 'double',"
          "  VTYPE2: 'int',"
          "  TILESIZE: 128,"
-         "}" + okl_defines);
+         "}");
 
    static ::occa::kernelBuilder set_subvector_builder =
       ::occa::linalg::customLinearMethod(
@@ -302,7 +298,7 @@ void OccaBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
          "  VTYPE1: 'double',"
          "  VTYPE2: 'int',"
          "  TILESIZE: 128,"
-         "}" + okl_defines);
+         "}");
 
    const mfem::Operator *P = GetTrialProlongation();
    const mfem::Operator *R = GetTrialRestriction();

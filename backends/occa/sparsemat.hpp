@@ -30,39 +30,11 @@ namespace occa
 /// TODO: doxygen
 class OccaSparseMatrix : public Operator
 {
-public:
+protected:
    ::occa::array<int> offsets, indices;
    ::occa::array<double> weights;
    ::occa::array<int> reorderIndices, mappedIndices;
    ::occa::kernel mapKernel, multKernel;
-
-   /// Construct an empty OccaSparseMatrix.
-   OccaSparseMatrix(const Operator &orig)
-      : Operator(orig) { }
-
-   OccaSparseMatrix(Layout &in_layout, Layout &out_layout,
-                    const mfem::SparseMatrix &m,
-                    const ::occa::properties &props = ::occa::properties());
-
-   OccaSparseMatrix(Layout &in_layout, Layout &out_layout,
-                    const mfem::SparseMatrix &m,
-                    ::occa::array<int> reorderIndices_,
-                    ::occa::array<int> mappedIndices_,
-                    const ::occa::properties &props = ::occa::properties());
-
-   OccaSparseMatrix(Layout &in_layout, Layout &out_layout,
-                    ::occa::array<int> offsets_,
-                    ::occa::array<int> indices_,
-                    ::occa::array<double> weights_,
-                    const ::occa::properties &props = ::occa::properties());
-
-   OccaSparseMatrix(Layout &in_layout, Layout &out_layout,
-                    ::occa::array<int> offsets_,
-                    ::occa::array<int> indices_,
-                    ::occa::array<double> weights_,
-                    ::occa::array<int> reorderIndices_,
-                    ::occa::array<int> mappedIndices_,
-                    const ::occa::properties &props = ::occa::properties());
 
    void Setup(::occa::device device, const mfem::SparseMatrix &m,
               const ::occa::properties &props);
@@ -74,6 +46,28 @@ public:
 
    void SetupKernel(::occa::device device,
                     const ::occa::properties &props);
+
+public:
+   /// Construct an empty OccaSparseMatrix.
+   OccaSparseMatrix(const Operator &orig)
+      : Operator(orig) { }
+
+   // Implicitly defined copy constructor.
+
+   OccaSparseMatrix(Layout &in_layout, Layout &out_layout,
+                    const mfem::SparseMatrix &m,
+                    const ::occa::properties &props = ::occa::properties());
+
+   OccaSparseMatrix(Layout &in_layout, Layout &out_layout,
+                    ::occa::array<int> offsets_,
+                    ::occa::array<int> indices_,
+                    ::occa::array<double> weights_,
+                    ::occa::array<int> reorderIndices_,
+                    ::occa::array<int> mappedIndices_,
+                    const ::occa::properties &props = ::occa::properties());
+
+   const ::occa::array<int> &GetReorderIndices() const
+   { return reorderIndices; }
 
    // override
    virtual void Mult_(const Vector &x, Vector &y) const;

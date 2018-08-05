@@ -62,10 +62,6 @@ protected:
 
    inline int OccaResize(Layout *lt, std::size_t item_size);
 
-   template <typename T>
-   inline void OccaFill(const T *val_ptr)
-   { ::occa::linalg::operator_eq<T>(slice, *val_ptr); }
-
 public:
    Array(const Engine &e)
       : PArray(*(new Layout(e, 0))),
@@ -83,8 +79,7 @@ public:
 
    inline void MakeRef(Array &master);
 
-   Layout &OccaLayout() const
-   { return *static_cast<Layout *>(layout.Get()); }
+   Layout &OccaLayout() const { return layout->As<Layout>(); }
 
    const Engine &OccaEngine() const { return OccaLayout().OccaEngine(); }
 
@@ -92,6 +87,9 @@ public:
    const ::occa::memory &OccaMem() const { return slice; }
 
    inline int OccaResize(std::size_t new_size, std::size_t item_size);
+
+   template <typename T>
+   inline void OccaFill(const T val);
 };
 
 
@@ -138,6 +136,12 @@ inline int Array::OccaResize(std::size_t new_size, std::size_t item_size)
    Layout &ol = OccaLayout();
    ol.OccaResize(new_size);
    return OccaResize(&ol, item_size);
+}
+
+template <typename T>
+inline void Array::OccaFill(const T val)
+{
+   ::occa::linalg::operator_eq<T>(slice, val);
 }
 
 } // namespace mfem::occa
