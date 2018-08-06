@@ -34,6 +34,8 @@ void BilinearForm::TransferIntegrators(mfem::Array<mfem::BilinearFormIntegrator*
       const int order = fes->GetFE(0)->GetOrder();
       const int ir_order = 2 * order + 1;
       std::string integ_name(bfi[i]->Name());
+      // A better approach to this would be to use a map containing function pointers to create the desired Integrator
+      // using the integ_name as a key.
       if (integ_name == "(undefined)")
       {
          MFEM_ABORT("BilinearFormIntegrator does not define Name()");
@@ -50,11 +52,8 @@ void BilinearForm::TransferIntegrators(mfem::Array<mfem::BilinearFormIntegrator*
             AddIntegrator( new PADomainInt<MassEquation, Vector<double>>(fes, ir_order, args) );
          } else {
             std::cout << "==> without Coefficient" << std::endl;
-            // typename MassEquation::ArgsEmpty args;
-            // AddIntegrator( new PADomainInt<MassEquation, Vector<double>>(fes, ir_order, args) );
-            HostMassEq eq(*fes, ir_order);
-            // AddIntegrator( createPADomainKernel(eq) );
-            AddIntegrator( createMFDomainKernel(eq) );
+            typename MassEquation::ArgsEmpty args;
+            AddIntegrator( new PADomainInt<MassEquation, Vector<double>>(fes, ir_order, args) );
          }
       }
       else if (integ_name == "diffusion")

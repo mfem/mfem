@@ -51,11 +51,6 @@ void ComputeBasis0d(const FiniteElement *fe, double x,
    const int quads0d = 1;
    const int dofs = fe->GetOrder() + 1;
 
-   // We use Matrix and not Vector because we don't want shape0d and dshape0d to have
-   // a different treatment than shape1d and dshape1d
-   // shape0d  = Tensor(dofs, quads0d);
-   // dshape0d = Tensor(dofs, quads0d);
-
    mfem::Vector u(dofs);
    mfem::Vector d(dofs);
    basis0d.Eval(x, u, d);
@@ -79,9 +74,6 @@ void ComputeBasis1d(const FiniteElement *fe, int order, Tensor& shape1d,
 
    const int quads1d = ir1d.GetNPoints();
    const int dofs = fe->GetOrder() + 1;
-
-   // shape1d  = Tensor(dofs, quads1d);
-   // dshape1d = Tensor(dofs, quads1d);
 
    mfem::Vector u(dofs);
    mfem::Vector d(dofs);
@@ -107,13 +99,7 @@ void ComputeBasis0d(const FiniteElement *fe, double x, Tensor& shape0d)
    const TensorBasisElement* tfe(dynamic_cast<const TensorBasisElement*>(fe));
    const Poly_1D::Basis &basis0d = tfe->GetBasis1D();
 
-   // const int quads0d = 1;
    const int dofs = fe->GetOrder() + 1;
-
-   // We use Matrix and not Vector because we don't want shape0d and dshape0d to have
-   // a different treatment than shape1d and dshape1d
-   // Well... that was before, we might want to reconsider this.
-   // shape0d  = Tensor(dofs, quads0d);
 
    mfem::Vector u(dofs);
    mfem::Vector d(dofs);
@@ -136,8 +122,6 @@ void ComputeBasis1d(const FiniteElement *fe, int order, Tensor& shape1d, bool ba
 
    const int quads1d = ir1d.GetNPoints();
    const int dofs = fe->GetOrder() + 1;
-
-   // shape1d  = Tensor(dofs, quads1d);
 
    mfem::Vector u(dofs);
    mfem::Vector d(dofs);
@@ -648,9 +632,15 @@ void ScatterDofs(const mfem::FiniteElementSpace* mfes, const Table& eldof, const
                   const GridFunction* nodes, const int dofs, const int dim, const int e,
                   Tensor<2>& LexPointMat);
 
+/**
+*  Eval the Jacobian of all elements in a Finite Element Space.
+*/
 void EvalJacobians( const int dim, const mfem::FiniteElementSpace* fes, const int order,
                      Tensor<1>& J );
 
+/**
+*  Return the diagonal of a 1d Partial Assembly Operator
+*/
 template <int Dim, typename Op>
 void GetDiag1d(const mfem::FiniteElementSpace& fes, const int order, const Op& op, Tensor<Dim>& diag)
 {
@@ -676,6 +666,9 @@ void GetDiag1d(const mfem::FiniteElementSpace& fes, const int order, const Op& o
    }
 }
 
+/**
+*  Return the diagonal of a 2d Partial Assembly Operator
+*/
 template <int Dim, typename Op>
 void GetDiag2d(const mfem::FiniteElementSpace& fes, const int order, const Op& op, Tensor<Dim>& diag)
 {
@@ -717,6 +710,9 @@ void GetDiag2d(const mfem::FiniteElementSpace& fes, const int order, const Op& o
    }
 }
 
+/**
+*  Return the diagonal of a 3d Partial Assembly Operator
+*/
 template <int Dim, typename Op>
 void GetDiag3d(const mfem::FiniteElementSpace& fes, const int order, const Op& op, Tensor<Dim>& diag)
 {
@@ -778,6 +774,9 @@ void GetDiag3d(const mfem::FiniteElementSpace& fes, const int order, const Op& o
    }
 }
 
+/**
+*  Return the diagonal of a Partial Assembly Operator
+*/
 template <int Dim, typename Op>
 void GetDiag(const FiniteElementSpace& fes, const int order, const Op& op, Tensor<Dim>& diag)
 {

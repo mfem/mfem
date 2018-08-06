@@ -54,7 +54,7 @@ public:
       double val = 0.0;
       double qval = 1.0;
       double detJ = det(Jac);
-      qval = 1.0;//args.q.Eval(*Tr, ip);
+      qval = 1.0;//args.q.Eval(*Tr, ip);//FIXME
       for (int i = 0; i < dim; ++i)
       {
          for (int j = 0; j < dim; ++j)
@@ -63,36 +63,11 @@ public:
             for (int k = 0; k < dim; ++k)
             {
                val += Adj(i,k)*Adj(j,k); //Adj*Adj^T
-               // val += Adj(k,i)*Adj(k,j); //Adj*Adj^T
             }
             res(i,j) = ip.weight * qval / detJ * val;
          }
       }
    }
-
-   // void evalD(Tensor<2>& res, ElementTransformation *Tr, const IntegrationPoint& ip,
-   //                const Tensor<2>& Jac, const Args& args)
-   // {
-   //    const int dim = res.size(0);
-   //    const DenseMatrix& Adj = Tr->AdjugateJacobian();
-   //    double val = 0.0;
-   //    double qval = 1.0;
-   //    double detJ = Tr->Weight();
-   //    qval = 1.0;//args.q.Eval(*Tr, ip);
-   //    for (int i = 0; i < dim; ++i)
-   //    {
-   //       for (int j = 0; j < dim; ++j)
-   //       {
-   //          val = 0.0;
-   //          for (int k = 0; k < dim; ++k)
-   //          {
-   //             val += Adj(i,k)*Adj(j,k); //Adj*Adj^T
-   //          }
-   //          res(i,j) = ip.weight * qval / detJ * val;
-   //       }
-   //    }
-   // }
-
 };
 
 /**
@@ -115,27 +90,6 @@ public:
       double a;
       double b;
    };
-
-   /**
-   *  Returns the values of the D tensor at a given integration Point.
-   */
-   void evalD(Tensor<1>& res, ElementTransformation *Tr, const IntegrationPoint& ip,
-                  const Args& args)
-   {
-      const int dim = res.size(0);
-      mfem::Vector qvec(dim);
-      const DenseMatrix& locD = Tr->AdjugateJacobian();
-      args.q.Eval(qvec, *Tr, ip);
-      for (int i = 0; i < dim; ++i)
-      {
-         double val = 0.0;
-         for (int j = 0; j < dim; ++j)
-         {
-            val += locD(i,j) * qvec(j);
-         }
-         res(i) = ip.weight * args.a * val;
-      }
-   }
 
    /**
    *  Returns the values of the D tensor at a given integration Point.
@@ -171,24 +125,6 @@ public:
    void evalFaceD(double& res11, double& res21, double& res22, double& res12,
       const FaceElementTransformations* face_tr, const mfem::Vector& normal,
       const IntegrationPoint& ip1, const IntegrationPoint& ip2,
-      const Args& args)
-   {
-      const int dim = normal.Size();
-      mfem::Vector qvec(dim);
-      // FIXME: qvec might be discontinuous if not constant with a periodic mesh
-      // We should then use the evaluation on Elem2 and eip2
-      args.q.Eval( qvec, *(face_tr->Elem1), ip1 );
-      const double res = qvec * normal;
-      const double a = -args.a, b = args.b;
-      res11 = ip1.weight * (   a/2 * res + b * abs(res) );
-      res21 = ip1.weight * (   a/2 * res - b * abs(res) );
-      res22 = ip1.weight * ( - a/2 * res + b * abs(res) );
-      res12 = ip1.weight * ( - a/2 * res - b * abs(res) );
-   }
-
-   void evalFaceD(double& res11, double& res21, double& res22, double& res12,
-      const FaceElementTransformations* face_tr, const mfem::Vector& normal,
-      const IntegrationPoint& ip1, const IntegrationPoint& ip2,
       const Tensor<2>& Jac1, const Tensor<2>& Jac2,
       const Args& args)
    {
@@ -206,35 +142,9 @@ public:
    }  
 };
 
-class MassEq
-{
-public:
-   MassEq();
-   ~MassEq();
-   
-   void operator()(double& res, ElementTransformation* Tr, const IntegrationPoint& ip,
-               const Tensor<2>& Jac)
-   {
-      res = ip.weight * det(Jac);
-   }
-};
-
-class MassCoeffEq
-{
-private:
-   Coefficient& coeff;
-public:
-   MassCoeffEq() = delete;
-   MassCoeffEq(Coefficient& coeff): coeff(coeff){}
-   ~MassCoeffEq();
-   
-   void operator()(double& res, ElementTransformation* Tr, const IntegrationPoint& ip,
-               const Tensor<2>& Jac)
-   {
-      res = coeff.Eval(*Tr, ip) * ip.weight * det(Jac);
-   }
-};
-
+/**
+*  A class that describes a Mass Equation using Partial Assembly
+*/
 class MassEquation
 {
 public:

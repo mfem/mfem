@@ -153,41 +153,6 @@ void GetLocalCoordMap2D(vector<pair<int,int> >& map, const int nb_rot)
 	map[1] = pair<int,int>(-1,1);
 }
 
-// Default parameter nb_rot=0 should be only use with a structured mesh.
-// Rotations follow the ordering of the nodes.
-/*void GetLocalCoordMap3D(vector<pair<int,int> >& map, const int nb_rot)
-{
-	map.resize(3);
-	// Normal to the face are always of opposite direction
-	map[2] = pair<int,int>(-1,2);
-	// nb_rot determines how local coordinates are oriented from one face to the other.
-	// See case 2 for an example.
-	switch(nb_rot)
-	{
-		case 0:
-			map[0] = pair<int,int>( 1,1);
-			map[1] = pair<int,int>( 1,0);
-			break;
-		case 1:
-			map[0] = pair<int,int>(-1,0);
-			map[1] = pair<int,int>( 1,1);
-			break;
-		case 2:
-			//first vector equals -1 times the second vector of the other face coordinates
-			map[0] = pair<int,int>(-1,1);
-			//second vector equals -1 times the first vector of the other face coordinates
-			map[1] = pair<int,int>(-1,0);
-			break;
-		case 3:
-			map[0] = pair<int,int>( 1,0);
-			map[1] = pair<int,int>(-1,1);
-			break;
-		default:
-			mfem_error("There shouldn't be that many rotations.");
-			break;
-	}
-}*/
-
 void GetLocalCoordMap3D(vector< pair<int,int> >& map, const int orientation)
 {
 	map.resize(3);
@@ -250,36 +215,7 @@ void GetLocalCoordMap3D(vector< pair<int,int> >& map, const int orientation)
 void GetChangeOfBasis(const IntMatrix& base_K1, IntMatrix& base_K2,
 								const vector<pair<int,int> >& map, IntMatrix& P)
 {
-/*	int dim = map.size();
-	for (int j = 0; j < dim; j++)
-	{
-		int i = 0;
-		//we look if the vector is colinear with e_j
-		// Can be replaced by base_K2(j,i)!=0
-		while (base_K2(j,i)!=0) i++;
-		int coeff = map[i].first;
-		int ind = map[i].second;
-		for (int k = 0; k < dim; ++k)
-		{
-			P(k,j) = coeff * base_K1(k,ind);
-		}
-	}*/
-	//TODO make it valid for 3D!!!
 	int dim = base_K1.Height();
-	// for (int i = 0; i < dim; ++i)
-	// {
-	// 	int coeff = map[i].first;
-	// 	int ind   = map[i].second;
-	// 	for (int j = 0; j < dim; ++j)
-	// 	{
-	// 		int sum = 0;
-	// 		for (int k = 0; k < dim; ++k)
-	// 		{
-	// 			sum += coeff*base_K1(i,k)*base_K2(j,k);
-	// 		}
-	// 		P(ind,j) =  sum;
-	// 	}
-	// }
 	int i,j,ind;
 	double coeff;
 	for (int n = 0; n < dim; ++n)
@@ -298,10 +234,6 @@ void GetChangeOfBasis2D(const int face_id1, const int face_id2, IntMatrix& P)
 {
 	// We add 8 because of C++ stupid definition of modulo
 	int nb_rot = (8 + face_id2 - face_id1 - 2)%4;
-	// if (face_id2!=-1)
-	// {
-		// cout << "face_id1=" << face_id1 << ", face_id2=" << face_id2 << ", nb_rot=" << nb_rot << endl;
-	// }
 	P.zero();
 	switch(nb_rot)
 	{
@@ -349,9 +281,7 @@ void GetChangeOfBasis(const int permutation, IntMatrix& P)
 void GetIdRotInfo(const int face_info, int& face_id, int& nb_rot){
 	int orientation = face_info % 64;
 	face_id = face_info / 64;
-	// Test if my understanding of mfem code is correct, error if not
-	//MFEM_ASSERT(orientation % 2 == 0, "Unexpected inside out face");
-	nb_rot = orientation;// / 2;
+	nb_rot = orientation;
 }
 
 void GetFaceInfo(const Mesh* mesh, const int face, int& ind_elt1, int& ind_elt2, int& face_id1, int& face_id2, int& nb_rot1, int& nb_rot2)
@@ -392,10 +322,6 @@ void Permutation3D(const int face_id1, const int face_id2, const int orientation
 	IntMatrix P(3,3);
 	P.zero();
 	GetChangeOfBasis(K1, K2, map, P);
-	// cout << "orientation=" << orientation << endl;
-	// cout << P(0,0) << ", " << P(0,1) << ", " << P(0,2) << endl;
-	// cout << P(1,0) << ", " << P(1,1) << ", " << P(1,2) << endl;
-	// cout << P(2,0) << ", " << P(2,1) << ", " << P(2,2) << endl;
 	perm1  = 0;
 	// Encrypts first column
 	perm1 += 100*(0*(P(0,0)==-1) + 1*(P(0,0)==1) + 2*(P(1,0)==-1) + 3*(P(1,0)==1) + 4*(P(2,0)==-1) + 5*(P(2,0)==1));
@@ -437,7 +363,6 @@ void GetPermutation(const int dim, const int face_id1, const int face_id2, const
 */
 int GetFaceQuadIndex3D(const int face_id, const int orientation, const int qind, const int quads, Tensor<1,int>& ind_f)
 {
-	// cout << "orientation=" << orientation << endl;
 	int& k1 = ind_f(0);
 	int& k2 = ind_f(1);
 	int kf1,kf2;

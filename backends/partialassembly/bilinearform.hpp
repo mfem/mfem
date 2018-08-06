@@ -22,14 +22,15 @@
 #include "partialassemblykernel.hpp"
 #include "integrator.hpp"
 
-#include "padomainkernel.hpp"
-
 namespace mfem
 {
 
 namespace pa
 {
 
+/**
+*  A backend BilinearForm for cpu that mostly duplicate the mfem::BilinearForm code...
+*/
 class BilinearForm : public mfem::PBilinearForm, public mfem::Operator
 {
 protected:
@@ -47,6 +48,9 @@ protected:
 
    mutable Vector<double> x_local, y_local;
 
+   /**
+   *  This function transfers the mfem::BilinearFormIntegrator to backend integrators.
+   */
    void TransferIntegrators(mfem::Array<mfem::BilinearFormIntegrator*>& bfi);
 
    void InitRHS(const mfem::Array<int> &constraint_list,
@@ -56,10 +60,8 @@ protected:
                 int copy_interior = 0) const;
 
    void AddIntegrator(TensorBilinearFormIntegrator* integrator){ tbfi.Append(integrator); }
-   void AddIntegrator(PAIntegrator<Vector<double>>* integrator){ pabfi.Append(integrator); }
 
 public:
-   /// TODO: doxygen
    BilinearForm(const Engine &e, mfem::BilinearForm &bf)
       : mfem::PBilinearForm(e, bf),
         // FIXME: for mixed bilinear forms
@@ -75,7 +77,7 @@ public:
    /// Virtual destructor
    virtual ~BilinearForm();
 
-   /// Return the engine as an OpenMP engine
+   /// Return the engine as a backend engine
    const Engine &GetEngine() { return static_cast<const Engine&>(*engine); }
 
    /** @brief Prolongation operator from linear algebra (linear system) vectors,
@@ -92,17 +94,14 @@ public:
        @returns True, if the host assembly should be skipped. */
    virtual bool Assemble();
 
-   /// TODO: doxygen
    virtual void FormSystemMatrix(const mfem::Array<int> &ess_tdof_list,
                                  mfem::OperatorHandle &A);
 
-   /// TODO: doxygen
    virtual void FormLinearSystem(const mfem::Array<int> &ess_tdof_list,
                                  mfem::Vector &x, mfem::Vector &b,
                                  mfem::OperatorHandle &A, mfem::Vector &mfem_X, mfem::Vector &mfem_B,
                                  int copy_interior);
 
-   /// TODO: doxygen
    virtual void RecoverFEMSolution(const mfem::Vector &mfem_X, const mfem::Vector &mfem_b,
                                    mfem::Vector &mfem_x);
 
@@ -114,6 +113,9 @@ public:
    virtual void MultTranspose(const mfem::Vector &mfem_x, mfem::Vector &mfem_y) const;
 };
 
+/**
+*  Duplicates the mfem::ConstrainedOperator in the backend
+*/
 class ConstrainedOperator : public mfem::Operator
 {
    const mfem::Operator *A;

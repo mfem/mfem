@@ -27,6 +27,9 @@ namespace mfem
 namespace pa
 {
 
+/**
+*  A simple Vector class with type information.
+*/
 template <typename T>
 class Vector : public Array, public PVector
 {

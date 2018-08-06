@@ -96,10 +96,6 @@ private:
 /**
 *  The Operator selector class
 */
-// template <typename Equation, PAOp Op>
-// class FacePAK;
-
-
 template<typename Equation, PAOp Op, typename Vector>
 class FaceMult;
 
@@ -124,8 +120,6 @@ public:
 protected:
    mfem::FiniteElementSpace *fes;
    DTensor Dint, Dext;
-   // Tensor2d shape1d, dshape1d;
-   // Tensor2d shape0d0, shape0d1, dshape0d0, dshape0d1;
 
 public:
    template <typename Args>
@@ -140,22 +134,6 @@ public:
       Dint.setSize(quads,nb_elts,nb_faces_elt);
       Dext.setSize(quads,nb_elts,nb_faces_elt);
    }
-
-   // template <typename Args>
-   // void evalEq(const int dim, const int k1, const int k2, const Vector& normal,
-   //             const int ind_elt1, const int face_id1,
-   //             const int ind_elt2, const int face_id2, FaceElementTransformations* face_tr,
-   //             const IntegrationPoint & ip1, const IntegrationPoint & ip2,
-   //             const Args& args)
-   // {
-   //    //res'i''j' is the value from element 'j' to element 'i'
-   //    double res11, res21, res22, res12;
-   //    this->evalFaceD(res11,res21,res22,res12,face_tr,normal,ip1,ip2,args);
-   //    Dint(k1, ind_elt1, face_id1) = res11;
-   //    Dext(k2, ind_elt2, face_id2) = res21;
-   //    Dint(k2, ind_elt2, face_id2) = res22;
-   //    Dext(k1, ind_elt1, face_id1) = res12;
-   // }
 
    template <typename Args>
    void evalEq(const int dim, const int k1, const int k2, const mfem::Vector& normal,
@@ -367,82 +345,6 @@ void FaceMult<Equation,PAOp::BtDB,Vector>::MultIntX2D(int face_id, const Vector&
 //       contractT(B,T2,T3);
 //       contractTX(B0d,T3,R);
 //       // R+=T4;
-//    }
-// }
-
-// Loop unrolling version
-// template <typename Equation, typename Vector>
-// void FaceMult<Equation,PAOp::BtDB,Vector>::MultIntX2D(int face_id, const Vector& U, Vector& V) const
-// {
-//    // nunber of elements
-//    const int nbe = fes->GetNE();
-//    // number of degrees of freedom in 1d (assumes that i1=i2=i3)
-//    // Tensor2d& B = shape1d;
-//    const Tensor2d& B = getB();
-//    const Tensor2d& B0d = getB0d(face_id);
-//    const int dofs1d = B.Height();
-//    // number of quadrature points
-//    const int quads1d = B.Width();
-//    DTensor T0(U.GetData(),dofs1d,dofs1d,nbe);
-//    DTensor R(V.GetData(),dofs1d,dofs1d,nbe);
-//    Tensor<1> T1(dofs1d),T2(quads1d),T3(dofs1d);
-//    for (int e = 0; e < nbe; ++e)
-//    {
-//       // T1.zero();
-//       for (int i2 = 0; i2 < dofs1d; ++i2)
-//       {
-//          T1(i2) = 0.0;
-//          for (int i1 = 0; i1 < dofs1d/2*2; i1+=2)
-//          {
-//             T1(i2) += B0d(i1,0) * T0(i1,i2,e) + B0d(i1+1,0) * T0(i1+1,i2,e);
-//          }
-//          for (int i1 = dofs1d/2*2; i1 < dofs1d; ++i1)
-//          {
-//             T1(i2) += B0d(i1,0) * T0(i1,i2,e);
-//          }
-//       }
-//       // T2.zero();
-//       for (int k2 = 0; k2 < quads1d; ++k2)
-//       {
-//          T2(k2) = 0.0;
-//          for (int i2 = 0; i2 < dofs1d/2*2; i2+=2)
-//          {
-//             T2(k2) += B(i2,k2) * T1(i2) + B(i2+1,k2) * T1(i2+1);
-//          }
-//          for (int i2 = dofs1d/2*2; i2 < dofs1d; ++i2)
-//          {
-//             T2(k2) += B(i2,k2) * T1(i2);
-//          }
-//       }
-//       for (int k2 = 0; k2 < quads1d; ++k2)
-//       {
-//          T2(k2) = Dint(k2,e,face_id) * T2(k2);
-//       }
-//       // T3.zero();
-//       for (int j2 = 0; j2 < dofs1d; ++j2)
-//       {
-//          T3(j2) = 0.0;
-//          for (int k2 = 0; k2 < quads1d/2*2; k2+=2)
-//          {
-//             T3(j2) += B(j2,k2) * T2(k2) + B(j2,k2+1) * T2(k2+1);
-//          }
-//          for (int k2 = quads1d/2*2; k2 < quads1d; ++k2)
-//          {
-//             T3(j2) += B(j2,k2) * T2(k2);
-//          }
-//       }
-//       for (int j2 = 0; j2 < dofs1d; ++j2)
-//       {
-//          for (int j1 = 0; j1 < dofs1d/2*2; j1+=2)
-//          {
-//             R(j1,j2,e) += B0d(j1,0) * T3(j2);
-//             R(j1+1,j2,e) += B0d(j1+1,0) * T3(j2);
-//          }
-//          for (int j1 = dofs1d/2*2; j1 < dofs1d; ++j1)
-//          {
-//             R(j1,j2,e) += B0d(j1,0) * T3(j2);
-//          }
-//       }
 //    }
 // }
 

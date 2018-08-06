@@ -76,6 +76,9 @@ void Permutation::Permutation2d(int face_id, int nbe, int dofs1d, const Tensor3d
    }
 }
 
+/**
+*  The Permutation3d works differently than the 2d version, here we receive a change of basis matrix encrypted in one integer.
+*/
 void Permutation::Permutation3d(int face_id, int nbe, int dofs1d, const Tensor4d& T0, Tensor4d& T0p) const
 {
    const double* U = T0.getData();
@@ -90,10 +93,6 @@ void Permutation::Permutation3d(int face_id, int nbe, int dofs1d, const Tensor4d
          elt = trial*step_elt;
          IntMatrix P(3,3);
          GetChangeOfBasis(permutation, P);
-         // cout << "decoding P" << endl;
-         // cout << P(0,0) << ", " << P(0,1) << ", " << P(0,2) << endl;
-         // cout << P(1,0) << ", " << P(1,1) << ", " << P(1,2) << endl;
-         // cout << P(2,0) << ", " << P(2,1) << ", " << P(2,2) << endl;
          int begin_ii = (P(0,0)==-1)*(dofs1d-1) + (P(1,0)==-1)*(dofs1d*dofs1d-1) + (P(2,0)==-1)*(dofs1d*dofs1d*dofs1d-1);
          int begin_jj = (P(0,1)==-1)*(dofs1d-1) + (P(1,1)==-1)*(dofs1d*dofs1d-1) + (P(2,1)==-1)*(dofs1d*dofs1d*dofs1d-1);
          int begin_kk = (P(0,2)==-1)*(dofs1d-1) + (P(1,2)==-1)*(dofs1d*dofs1d-1) + (P(2,2)==-1)*(dofs1d*dofs1d*dofs1d-1);

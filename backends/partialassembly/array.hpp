@@ -24,6 +24,9 @@ namespace mfem
 namespace pa
 {
 
+/**
+*  Simple cpu backend array
+*/
 class Array : public virtual PArray
 {
 protected:
@@ -39,13 +42,13 @@ protected:
    // Virtual interface
    //
 
-   virtual PArray *DoClone(bool copy_data, void **buffer,
+   virtual Array* DoClone(bool copy_data, void **buffer,
                            std::size_t item_size) const;
 
    virtual int DoResize(PLayout &new_layout, void **buffer,
                         std::size_t item_size);
 
-   virtual void *DoPullData(void *buffer, std::size_t item_size);
+   virtual void* DoPullData(void *buffer, std::size_t item_size);
 
    virtual void DoFill(const void *value_ptr, std::size_t item_size);
 
@@ -68,16 +71,22 @@ public:
 
    virtual ~Array() { }
 
+   /**
+   *  An unsafe way to access the data, tries to provide a semblance of type safety.
+   */
    template <typename T>
    T* GetTypedData() { return static_cast<T*>(data); }
 
    template <typename T>
    const T* GetTypedData() const { return static_cast<const T*>(data); }
 
+   /**
+   *  Overload the GetLayout of PArray to return Layout instead of PLayout to avoid to have to cast in the backend
+   *  This is compliant with PArray's definition since Layout is a Covariant type of PLayout.
+   */
    Layout &GetLayout() const
    { return *static_cast<Layout *>(layout.Get()); }
 };
-
 
 //
 // Inline methods
