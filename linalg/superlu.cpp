@@ -592,6 +592,7 @@ void SuperLUSolver::SetOperator( const Operator & op )
       PStatFree(stat);
       if (stat != NULL) {delete stat;}
       statPtr_ = new SuperLUStat_t;
+      stat = (SuperLUStat_t*)statPtr_;
       PStatInit(stat);
    }
    
