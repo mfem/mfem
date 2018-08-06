@@ -17,6 +17,10 @@
 
 #ifdef MFEM_USE_MPI
 #include "operator.hpp"
+
+//mfem Vector will be assumed to be HypreParVector when mfem is with MPI
+#include "hypre.hpp" 
+#include <typeinfo>
 #endif
 
 #ifdef MFEM_USE_HIOP
@@ -32,7 +36,7 @@ class HiopProblemSpec : public hiop::hiopInterfaceDenseConstraints
 
 public:
   HiopProblemSpec(const MPI_Comm& _comm, const long long& _n) 
-    : comm_(_comm), n_(_n), lo_(NULL), hi_(NULL), conbody_(NULL), conrhs_(0.) {}
+    : comm_(_comm), n_(_n), n_local_(-1), a_(0.) {}
 
   /** problem dimensions: n number of variables, m number of constraints */
   virtual bool get_prob_sizes(long long int& n, long long int& m) {
@@ -43,27 +47,51 @@ public:
 
   virtual bool get_vars_info(const long long& n, double *xlow, double* xupp, NonlinearityType* type) {
     assert(n==n_);
+
+    if(n_local_==-1)
+      n_local_ = getLocalSize(lo_);
+
     //!mfem memcpy
-    memcpy(xlow, lo_, n_local_*sizeof(double));
-    memcpy(xupp, hi_, n_local_*sizeof(double));
+    memcpy(xlow, lo_.GetData(), n_local_*sizeof(double));
+    memcpy(xupp, hi_.GetData(), n_local_*sizeof(double));
     return true;
   };
   /** bounds on the constraints 
    *  (clow<=-1e20 means no lower bound, cupp>=1e20 means no upper bound) */
   virtual bool get_cons_info(const long long& m, double* clow, double* cupp, NonlinearityType* type) {
     assert(m==1);
-    *clow = *cupp = conrhs_;
+    *clow = *cupp = a_;
     return true;
   };
 
   /** Objective function evaluation. Each rank returns the global obj. value. */
   virtual bool eval_f(const long long& n, const double* x, bool new_x, double& obj_value) {
-    //! what is the obj exactly
+    assert(n==n_);
+
+    double* _x = const_cast<double*>(x);
+    auxVec_.SetDataAndSize(_x, n_);
+
+    //! opt new_x
+    auxVec_.Add(-1.0, xt_);
+    obj_value = 0.5*(auxVec_*auxVec_);
+
     return true;
   };
 
   /** Gradient of objective (local chunk) */
   virtual bool eval_grad_f(const long long& n, const double* x, bool new_x, double* gradf) {
+    assert(n==n_);
+
+    if(n_local_==-1)
+      n_local_ = getLocalSize(lo_);
+
+    double* _x = const_cast<double*>(x);
+    auxVec_.SetDataAndSize(_x, n_);
+    auxVec_.Add(-1.0, xt_);
+ 
+    //!
+    memcpy(gradf, auxVec_.GetData(), n_local_*sizeof(double));
+
     return true;
   }
 
@@ -92,23 +120,22 @@ public:
     assert(num_cons<=1);
     if(num_cons>0) {
       assert(idx_cons[0]==0);
-      //! mfem dotprod - probably better to keep conbody_ as an mfem vector and use * (note: also see Dot in IterativeSolver)
-      cons[0]=0.;
-      for(int it=0; it<n_local_; it++) cons[0] += x[it]*conbody_[it];
+      //dirty cast to avoid copying
+      double* _x = const_cast<double*>(x);
+
+      //! mfem: does this work in parallel? Also see SetData(double*) as in auxVec_.SetData(_x);
+      auxVec_.SetDataAndSize(_x, n_);
+      
+      //w' * x - a
+      cons[0] = (w_*auxVec_ - a_);
     }
-#ifdef MFEM_USE_MPI
-    double gcon;
-    int comm_ = MPI_COMM_WORLD;
-    int ierr = MPI_Allreduce(cons, &gcon, 1, MPI_DOUBLE, MPI_SUM, comm_); assert(ierr==MPI_SUCCESS);
-    cons[0] = gcon;
-#endif
     return true;
   };
 
   /** provide a primal starting point. This point is subject to adjustments internally in hiOP.*/
   virtual bool get_starting_point(const long long&n, double* x0) {
-
-    return true;
+    //let hiop decide
+    return false;
   };
 
 
@@ -127,14 +154,90 @@ public:
     
     return true;
   };
-  
+
+  /**  column partitioning specification for distributed memory vectors 
+   *  Process P owns cols[P], cols[P]+1, ..., cols[P+1]-1, P={0,1,...,NumRanks}.
+   *  Example: for a vector x of 6 elements on 3 ranks, the col partitioning is cols=[0,2,4,6].
+   *  The caller manages memory associated with 'cols', array of size NumRanks+1 
+   */
+  virtual bool get_vecdistrib_info(long long global_n, long long* cols) {
+#ifdef MFEM_USE_MPI
+
+    try {
+      //use xt_ as template
+      HypreParVector& templateVec = dynamic_cast<HypreParVector&>(xt_);
+
+      //do some checks
+      const HYPRE_Int globSize = templateVec.GlobalSize();
+      assert(global_n==globSize & "vectors size mismatch between mfem and hiop; maybe method called prematurely?");
+
+      int nRanks;
+      int ierr = MPI_Comm_size(comm_, &nRanks);
+      assert(ierr==MPI_SUCCESS);
+    
+      const HYPRE_Int* part = templateVec.Partitioning();
+    
+      //elementwize assignment (no memcpy) in case HYPRE_Int is not a 'long int'
+      for(int r=0; r<=nRanks; r++)
+	cols[r] = part[r];
+    } catch(const std::bad_cast& e) {
+	assert(false && "mfem vector is not an HypreParVector");
+    }
+    return true;
+#else
+    return false; //hiop runs in non-distributed mode 
+#endif    
+    
+  };
+
+  /** Seter/geter methods below; not inherited from the HiOp interface class */
+  virtual void setBounds(const Vector &_lo, const Vector &_hi) {
+    //! mfem: I understand these are copied 
+    lo_.SetDataAndSize(_lo.GetData(), _lo.Size());
+    hi_.SetDataAndSize(_hi.GetData(), _hi.Size());
+  };
+  virtual void setLinearConstraint(const Vector &_w, const double& _a) {
+    w_.SetDataAndSize(_w.GetData(), _w.Size());
+    a_ = _a;
+  };
+
+  virtual void setObjectiveTarget(const Vector &_xt) {
+    xt_.SetDataAndSize(_xt.GetData(), _xt.Size());
+  };
+
+protected:
+  virtual long long getLocalSize(Vector& _template) {
+#ifdef MFEM_USE_MPI
+    //!mfem exceptions
+    long long locsize=-1;
+    try {
+      HypreParVector& templateVec = dynamic_cast<HypreParVector&>(_template);
+      const HYPRE_Int* part = templateVec.Partitioning();
+      int myrank;
+      int ierr = MPI_Comm_rank(comm_, &myrank);
+      assert(ierr==MPI_SUCCESS);
+      locsize = part[myrank+1]-part[myrank];
+
+    } catch(const std::bad_cast& e) {
+	assert(false && "mfem vector is not an HypreParVector");
+    }
+    return locsize;
+#else
+    return template.Size();
+#endif   
+  };
 private: 
   MPI_Comm comm_;
   //members that store problem info
   long long n_; //number of variables (global)
   int n_local_; //number of variables (local to the MPI process)
-  double *lo_, *hi_;
-  double *conbody_, conrhs_; //these are w and a from SetLinearConstraints
+
+  Vector xt_;     //target vector in the L2 objective
+  Vector lo_,hi_; //lower and upper bounds
+  Vector w_;      //linear constraint coefficients 
+  double a_;      //linear constraint rhs
+
+  Vector auxVec_; //used as auxiliary object
 };
 
 

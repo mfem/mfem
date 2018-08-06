@@ -20,6 +20,10 @@
 
 #pragma message "Compiling " __FILE__ "..."
 
+#ifdef MFEM_USE_MPI
+
+#endif
+
 using namespace hiop;
 
 namespace mfem
@@ -48,10 +52,10 @@ HiopNlpOptimizer::~HiopNlpOptimizer()
   void HiopNlpOptimizer::Mult(const Vector &xt, Vector &x)// const
 {
   //set xt in the problemSpec to compute the objective
-  //todo
+  optProb_->setObjectiveTarget(xt);
 
   //instantiate Hiop's NLP formulation (dense constraints) 
-  assert(hiopInstance_==NULL);
+  assert(hiopInstance_==NULL && "This should be allocated and deallocated in the Mult operator");
   hiopInstance_ = new hiop::hiopNlpDenseConstraints(*optProb_);
   {
     //use the IPM solver
@@ -71,6 +75,9 @@ void HiopNlpOptimizer::SetBounds(const Vector &_lo, const Vector &_hi)
 {
   if(NULL==optProb_) 
     allocHiopProbSpec(_lo.Size());
+
+  optProb_->setBounds(_lo, _hi);
+
 }
 
 void HiopNlpOptimizer::SetLinearConstraint(const Vector &_w, double _a)
@@ -78,7 +85,7 @@ void HiopNlpOptimizer::SetLinearConstraint(const Vector &_w, double _a)
   if(NULL==optProb_) 
     allocHiopProbSpec(_w.Size());
 
-  
+  optProb_->setLinearConstraint(_w, _a);
 }
 
 void HiopNlpOptimizer::SetPreconditioner(Solver &pr)
@@ -96,7 +103,7 @@ void HiopNlpOptimizer::SetOperator(const Operator &op)
 
 
 void HiopNlpOptimizer::allocHiopProbSpec(const long long& numvars) {
-  //! mfem assert strategy
+  //! mfem assert strategy?
   assert(optProb_==NULL && "HiopProbSpec object already created");
   optProb_ = new HiopProblemSpec(comm_, numvars);
 };
