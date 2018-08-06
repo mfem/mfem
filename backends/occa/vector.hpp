@@ -25,7 +25,8 @@ namespace mfem
 namespace occa
 {
 
-class Vector : virtual public Array, public PVector
+// FIXME: Once XL fixes this code quirk we can switch back to 'virtual public Array'
+class Vector : public Array, public PVector
 {
 protected:
    //

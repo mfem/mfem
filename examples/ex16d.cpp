@@ -165,7 +165,7 @@ int main(int argc, char *argv[])
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.AddOption(&oper_spec, "-s", "--oper-spec", "Operator specification");
-   args.AddOption(&occa_spec, "-os", "--occa-spec", "OCCCA engine specification");
+   args.AddOption(&occa_spec, "-os", "--occa-spec", "OCCA engine specification");
    args.Parse();
    if (!args.Good())
    {
@@ -233,7 +233,7 @@ int main(int argc, char *argv[])
    GridFunction u_gf(&fespace);
 
    // 6. Set the initial conditions for u. All boundaries are considered
-   //    natural.
+   //    natural. This computes this on the host, so pull/push is needed.
    u_gf.Pull();
    FunctionCoefficient u_0(InitialTemperature);
    u_gf.ProjectCoefficient(u_0);
@@ -245,13 +245,13 @@ int main(int argc, char *argv[])
    ConductionOperator oper(fespace, oper_spec, alpha, kappa, u);
 
    u_gf.SetFromTrueDofs(u);
-   u_gf.Pull();
    {
       ofstream omesh("ex16.mesh");
       omesh.precision(precision);
       mesh->Print(omesh);
       ofstream osol("ex16-init.gf");
       osol.precision(precision);
+      u_gf.Pull(); // pull back to host before saving
       u_gf.Save(osol);
    }
 
@@ -307,10 +307,11 @@ int main(int argc, char *argv[])
       {
          cout << "step " << ti << ", t = " << t << endl;
 
+         // u_gf and u are both on the device at this point.
          u_gf.SetFromTrueDofs(u);
-         u_gf.Pull();
          if (visualization)
          {
+            u_gf.Pull(); // pull back to host before saving
             sout << "solution\n" << *mesh << u_gf << flush;
          }
 
@@ -329,6 +330,7 @@ int main(int argc, char *argv[])
    {
       ofstream osol("ex16-final.gf");
       osol.precision(precision);
+      u_gf.Pull(); // pull back to host before saving
       u_gf.Save(osol);
    }
 
