@@ -64,8 +64,6 @@ void Vector::DoAxpby(const void *a, const PVector &x,
                      const void *b, const PVector &y,
                      int ab_type_id)
 {
-   const std::string &okl_defines = OccaEngine().GetOklDefines();
-
    //
    // TODO: move all kernel builders to class mfem::occa::Backend
    //
@@ -124,7 +122,7 @@ void Vector::DoAxpby(const void *a, const PVector &x,
    {
       if (db == 0.0)
       {
-         OccaFill(&da);
+         OccaFill(da);
       }
       else
       {
@@ -136,8 +134,7 @@ void Vector::DoAxpby(const void *a, const PVector &x,
          else
          {
             // *this = db * y
-            ::occa::kernel kernel = axpby1_builder.build(slice.getDevice(),
-                                                         okl_defines);
+            ::occa::kernel kernel = axpby1_builder.build(slice.getDevice());
             kernel((int)Size(), db, slice, yp->slice);
          }
       }
@@ -154,8 +151,7 @@ void Vector::DoAxpby(const void *a, const PVector &x,
          else
          {
             // *this = da * x
-            ::occa::kernel kernel = axpby1_builder.build(slice.getDevice(),
-                                                         okl_defines);
+            ::occa::kernel kernel = axpby1_builder.build(slice.getDevice());
             kernel((int)Size(), da, slice, xp->slice);
          }
       }
@@ -165,22 +161,19 @@ void Vector::DoAxpby(const void *a, const PVector &x,
          if (this->slice == xp->slice)
          {
             // *this = da * (*this) + db * y
-            ::occa::kernel kernel = axpby2_builder.build(slice.getDevice(),
-                                                         okl_defines);
+            ::occa::kernel kernel = axpby2_builder.build(slice.getDevice());
             kernel((int)Size(), da, db, slice, yp->slice);
          }
          else if (this->slice == yp->slice)
          {
             // *this = da * x + db * (*this)
-            ::occa::kernel kernel = axpby2_builder.build(slice.getDevice(),
-                                                         okl_defines);
+            ::occa::kernel kernel = axpby2_builder.build(slice.getDevice());
             kernel((int)Size(), db, da, slice, xp->slice);
          }
          else
          {
             // *this = da * x + db * y
-            ::occa::kernel kernel = axpby3_builder.build(slice.getDevice(),
-                                                         okl_defines);
+            ::occa::kernel kernel = axpby3_builder.build(slice.getDevice());
             kernel((int)Size(), da, db, slice, xp->slice, yp->slice);
          }
       }

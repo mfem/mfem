@@ -27,16 +27,10 @@ namespace mfem
 namespace occa
 {
 
-// [MISSING] Proper destructors
-void CreateRPOperators(Layout &v_layout, Layout &t_layout,
-                       const mfem::SparseMatrix *R, const mfem::Operator *P,
-                       mfem::Operator *&OccaR, mfem::Operator *&OccaP);
-
 class RestrictionOperator : public Operator
 {
 protected:
-   int entries;
-   ::occa::array<int> trueIndices;
+   ::occa::array<int> trueIndices; // ldof = trueIndices[ltdof]
    ::occa::kernel multOp, multTransposeOp;
 
 public:

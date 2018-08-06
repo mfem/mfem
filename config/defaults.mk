@@ -109,6 +109,7 @@ MFEM_USE_PETSC       = NO
 MFEM_USE_MPFR        = NO
 MFEM_USE_SIDRE       = NO
 MFEM_USE_CONDUIT     = NO
+MFEM_USE_PUMI        = NO
 
 # Compile and link options for zlib.
 ZLIB_DIR =
@@ -273,6 +274,13 @@ SIDRE_LIB = \
    -Wl,-rpath,$(CONDUIT_DIR)/lib -L$(CONDUIT_DIR)/lib \
    -Wl,-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib \
    -lsidre -lslic -laxom_utils -lconduit -lconduit_relay -lhdf5 $(ZLIB_LIB) -ldl
+
+# PUMI
+# Note that PUMI_DIR is needed -- it is used to check for gmi_sim.h
+PUMI_DIR = @MFEM_DIR@/../pumi-2.1.0
+PUMI_OPT = -I$(PUMI_DIR)/include
+PUMI_LIB = -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf -lpcu -lgmi -lparma\
+   -llion -lmth -lapf_zoltan -lspr
 
 OCCA_DIR = @MFEM_DIR@/../occa
 OCCA_OPT = -I$(OCCA_DIR)/include

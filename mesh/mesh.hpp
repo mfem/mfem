@@ -198,6 +198,7 @@ protected:
    void DeleteTables() { DestroyTables(); InitTables(); }
    void DestroyPointers(); // Delete data specifically allocated by class Mesh.
    void Destroy();         // Delete all owned data.
+   void DeleteLazyTables();
 
    Element *ReadElementWithoutAttr(std::istream &);
    static void PrintElementWithoutAttr(const Element *, std::ostream &);
@@ -230,6 +231,8 @@ protected:
    /** Compute the Jacobian of the transformation from the perfect
        reference element at the center of the element. */
    void GetElementJacobian(int i, DenseMatrix &J);
+
+   void GetElementCenter(int i, Vector &c);
 
    void MarkForRefinement();
    void MarkTriMeshForRefinement();

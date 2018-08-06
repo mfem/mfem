@@ -42,7 +42,7 @@ protected:
 
    static bool fileOpenerRegistered;
    ::occa::device *device; // An array of OCCA devices
-   std::string okl_path, okl_defines;
+   std::string okl_path;
 
    void Init(const std::string &engine_spec);
 
@@ -65,9 +65,6 @@ public:
 
    /// TODO: doxygen
    const std::string &GetOklPath() const { return okl_path; }
-
-   /// TODO: doxygen
-   const std::string &GetOklDefines() const { return okl_defines; }
 
    /// OCCA device memory allocation.
    ::occa::memory Alloc(std::size_t bytes) const

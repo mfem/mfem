@@ -25,43 +25,42 @@ namespace occa
 FiniteElementSpace::FiniteElementSpace(const Engine &e,
                                        mfem::FiniteElementSpace &fespace)
    : PFiniteElementSpace(e, fespace),
-     e_layout(e, 0) // resized in SetupLocalGlobalMaps()
+     e_layout(new Layout(e, 0)) // resized in SetupLocalGlobalMaps()
 {
    vdim     = fespace.GetVDim();
    ordering = fespace.GetOrdering();
 
    SetupLocalGlobalMaps();
-   SetupOperators();
+   SetupOperators(); // calls virtual methods of 'fes'
    SetupKernels();
-
-   e_layout.DontDelete();
 }
 
 FiniteElementSpace::~FiniteElementSpace()
 {
-   delete [] elementDofMap;
-   delete [] elementDofMapInverse;
    delete restrictionOp;
    delete prolongationOp;
 }
 
 void FiniteElementSpace::SetupLocalGlobalMaps()
 {
-   const mfem::FiniteElement &fe = *(fes->GetFE(0));
+   const int elements = fes->GetNE();
+
+   if (elements == 0) { return; }
+
+   // Assuming of finite elements are the same.
+   const mfem::FiniteElement &fe = *fes->GetFE(0);
    const mfem::TensorBasisElement *el =
       dynamic_cast<const mfem::TensorBasisElement*>(&fe);
 
    const mfem::Table &e2dTable = fes->GetElementToDofTable();
    const int *elementMap = e2dTable.GetJ();
-   const int elements = fes->GetNE();
 
    globalDofs = fes->GetNDofs();
    localDofs  = fe.GetDof();
 
-   e_layout.Resize(localDofs * elements * fes->GetVDim());
+   e_layout->OccaResize(e2dTable.Size_of_connections());
 
-   elementDofMap        = new int[localDofs];
-   elementDofMapInverse = new int[localDofs];
+   int *elementDofMap = new int[localDofs];
    if (el)
    {
       ::memcpy(elementDofMap,
@@ -74,10 +73,6 @@ void FiniteElementSpace::SetupLocalGlobalMaps()
       {
          elementDofMap[i] = i;
       }
-   }
-   for (int i = 0; i < localDofs; ++i)
-   {
-      elementDofMapInverse[elementDofMap[i]] = i;
    }
 
    // Allocate device offsets and indices
@@ -101,6 +96,7 @@ void FiniteElementSpace::SetupLocalGlobalMaps()
 
    for (int e = 0; e < elements; ++e)
    {
+      MFEM_ASSERT(e2dTable.RowSize(e) == localDofs, "");
       for (int d = 0; d < localDofs; ++d)
       {
          const int gid = elementMap[localDofs*e + d];
@@ -132,19 +128,63 @@ void FiniteElementSpace::SetupLocalGlobalMaps()
    }
    offsets[0] = 0;
 
+   delete [] elementDofMap;
+
    globalToLocalOffsets.keepInDevice();
    globalToLocalIndices.keepInDevice();
    localToGlobalMap.keepInDevice();
 }
 
-void FiniteElementSpace::SetupOperators()
+void FiniteElementSpace::SetupOperators() const
 {
+   // Construct 'restrictionOp' and 'prolongationOp'.
+
+   prolongationOp = restrictionOp = NULL;
+
    const mfem::SparseMatrix *R = fes->GetRestrictionMatrix();
    const mfem::Operator *P = fes->GetProlongationMatrix();
-   CreateRPOperators(OccaVLayout(), OccaTrueVLayout(),
-                     R, P,
-                     restrictionOp,
-                     prolongationOp);
+
+   if (!P) { return; }
+
+   Layout &v_layout = OccaVLayout();
+   Layout &t_layout = OccaTrueVLayout();
+
+   // Assuming R has one entry per row equal to 1.
+   MFEM_ASSERT(R->Finalized(), "");
+   const int tdofs = R->Height();
+   MFEM_ASSERT(tdofs == t_layout.Size(), "");
+   MFEM_ASSERT(tdofs == R->GetI()[tdofs], "");
+   ::occa::array<int> ltdof_ldof(GetDevice(), tdofs, R->GetJ());
+
+   restrictionOp = new RestrictionOperator(v_layout, t_layout, ltdof_ldof);
+
+   const mfem::SparseMatrix *pmat = dynamic_cast<const mfem::SparseMatrix*>(P);
+   if (pmat)
+   {
+      const mfem::SparseMatrix *pmatT = Transpose(*pmat);
+
+      OccaSparseMatrix *occaP  =
+         CreateMappedSparseMatrix(t_layout, v_layout, *pmat);
+      OccaSparseMatrix *occaPT =
+         CreateMappedSparseMatrix(v_layout, t_layout, *pmatT);
+
+      prolongationOp = new ProlongationOperator(*occaP, *occaPT);
+
+      delete occaPT;
+      delete occaP;
+   }
+#ifdef MFEM_USE_MPI
+   else if (fes->Conforming() && dynamic_cast<ParFiniteElementSpace*>(fes))
+   {
+      ParFiniteElementSpace *pfes = static_cast<ParFiniteElementSpace*>(fes);
+      prolongationOp = new OccaConformingProlongation(*this, *pfes,
+                                                      ltdof_ldof.memory());
+   }
+#endif
+   else
+   {
+      prolongationOp = new ProlongationOperator(t_layout, v_layout, P);
+   }
 }
 
 void FiniteElementSpace::SetupKernels()
@@ -160,14 +200,243 @@ void FiniteElementSpace::SetupKernels()
 
    ::occa::device device = GetDevice();
    const std::string &okl_path = OccaEngine().GetOklPath();
-   const std::string &okl_defines = OccaEngine().GetOklDefines();
    globalToLocalKernel = device.buildKernel(okl_path + "fespace.okl",
                                             "GlobalToLocal",
-                                            props + okl_defines);
+                                            props);
    localToGlobalKernel = device.buildKernel(okl_path + "fespace.okl",
                                             "LocalToGlobal",
-                                            props + okl_defines);
+                                            props);
 }
+
+
+#ifdef MFEM_USE_MPI
+
+OccaConformingProlongation::OccaConformingProlongation(
+   const FiniteElementSpace &ofes, const mfem::ParFiniteElementSpace &pfes,
+   ::occa::memory ltdof_ldof_)
+
+   : Operator(ofes.OccaTrueVLayout(), ofes.OccaVLayout()),
+     shr_ltdof(ofes.OccaEngine()),
+     ext_ldof(ofes.OccaEngine()),
+     shr_buf(shr_ltdof.OccaLayout(), sizeof(double)),
+     ext_buf(ext_ldof.OccaLayout(), sizeof(double)),
+     shr_buf_offsets(NULL), ext_buf_offsets(NULL),
+     ltdof_ldof(ltdof_ldof_),
+     gc(pfes.GroupComm())
+{
+   MFEM_ASSERT(pfes.Conforming(), "internal error");
+
+   const Engine &engine = ofes.OccaEngine();
+   const std::string &okl_path = engine.GetOklPath();
+   ::occa::device device = engine.GetDevice();
+
+   {
+      Table nbr_ltdof;
+      gc.GetNeighborLTDofTable(nbr_ltdof);
+      shr_ltdof.OccaResize(nbr_ltdof.Size_of_connections(), sizeof(int));
+      shr_ltdof.OccaPush(nbr_ltdof.GetJ());
+      shr_buf.OccaResize(&shr_ltdof.OccaLayout(), sizeof(double));
+      shr_buf_offsets = nbr_ltdof.GetI();
+      {
+         mfem::Array<int> shr_ltdof(nbr_ltdof.GetJ(),
+                                    nbr_ltdof.Size_of_connections());
+         mfem::Array<int> unique_ltdof(shr_ltdof);
+         unique_ltdof.Sort();
+         unique_ltdof.Unique();
+         // Note: the next loop modifies the J array of nbr_ltdof
+         for (int i = 0; i < shr_ltdof.Size(); i++)
+         {
+            shr_ltdof[i] = unique_ltdof.FindSorted(shr_ltdof[i]);
+            MFEM_ASSERT(shr_ltdof[i] != -1, "internal error");
+         }
+         Table unique_shr;
+         Transpose(shr_ltdof, unique_shr, unique_ltdof.Size());
+
+         unq_ltdof = device.malloc(unique_ltdof.Size()*sizeof(int),
+                                   unique_ltdof.GetData());
+         unq_shr_i = device.malloc((unique_shr.Size()+1)*sizeof(int),
+                                   unique_shr.GetI());
+         unq_shr_j = device.malloc(unique_shr.Size_of_connections()*sizeof(int),
+                                   unique_shr.GetJ());
+      }
+      delete [] nbr_ltdof.GetJ();
+      nbr_ltdof.LoseData();
+   }
+   {
+      Table nbr_ldof;
+      gc.GetNeighborLDofTable(nbr_ldof);
+      ext_ldof.OccaResize(nbr_ldof.Size_of_connections(), sizeof(int));
+      ext_ldof.OccaPush(nbr_ldof.GetJ());
+      ext_buf.OccaResize(&ext_ldof.OccaLayout(), sizeof(double));
+      ext_buf_offsets = nbr_ldof.GetI();
+      delete [] nbr_ldof.GetJ();
+      nbr_ldof.LoseData();
+   }
+
+   ExtractSubVector = device.buildKernel(okl_path + "mappings.okl",
+                                         "ExtractSubVector",
+                                         "defines: { TILESIZE: 256 }");
+   SetSubVector = device.buildKernel(okl_path + "mappings.okl",
+                                     "SetSubVector",
+                                     "defines: { TILESIZE: 256 }");
+   AddSubVector = device.buildKernel(okl_path + "mappings.okl",
+                                     "AddSubVector",
+                                     "defines: { TILESIZE: 256 }");
+
+   const GroupTopology &gtopo = gc.GetGroupTopology();
+   int req_counter = 0;
+   for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
+   {
+      const int send_offset = shr_buf_offsets[nbr];
+      const int send_size = shr_buf_offsets[nbr+1] - send_offset;
+      if (send_size > 0) { req_counter++; }
+
+      const int recv_offset = ext_buf_offsets[nbr];
+      const int recv_size = ext_buf_offsets[nbr+1] - recv_offset;
+      if (recv_size > 0) { req_counter++; }
+   }
+   requests = new MPI_Request[req_counter];
+}
+
+OccaConformingProlongation::~OccaConformingProlongation()
+{
+   delete [] requests;
+   delete [] ext_buf_offsets;
+   delete [] shr_buf_offsets;
+}
+
+void OccaConformingProlongation::BcastBeginCopy(const ::occa::memory &src,
+                                                std::size_t item_size) const
+{
+   // shr_buf[i] = src[shr_ltdof[i]]
+   MFEM_ASSERT(item_size == sizeof(double), "");
+   if (shr_ltdof.Size() == 0) { return; }
+   ExtractSubVector((int)shr_ltdof.Size(), shr_ltdof.OccaMem(), src,
+                    shr_buf.OccaMem());
+}
+
+void OccaConformingProlongation::BcastLocalCopy(const ::occa::memory &src,
+                                                ::occa::memory &dst,
+                                                std::size_t item_size) const
+{
+   // dst[ltdof_ldof[i]] = src[i]
+   MFEM_ASSERT(item_size == sizeof(double), "");
+   if (ltdof_ldof.size<int>() == 0) { return; }
+   SetSubVector((int)ltdof_ldof.size<int>(), ltdof_ldof, src, dst);
+}
+
+void OccaConformingProlongation::BcastEndCopy(::occa::memory &dst,
+                                              std::size_t item_size) const
+{
+   // dst[ext_ldof[i]] = ext_buf[i]
+   MFEM_ASSERT(item_size == sizeof(double), "");
+   if (ext_ldof.Size() == 0) { return; }
+   SetSubVector((int)ext_ldof.Size(), ext_ldof.OccaMem(),
+                ext_buf.OccaMem(), dst);
+}
+
+void OccaConformingProlongation::ReduceBeginCopy(const ::occa::memory &src,
+                                                 std::size_t item_size) const
+{
+   // ext_buf[i] = src[ext_ldof[i]]
+   MFEM_ASSERT(item_size == sizeof(double), "");
+   if (ext_ldof.Size() == 0) { return; }
+   ExtractSubVector((int)ext_ldof.Size(), ext_ldof.OccaMem(), src,
+                    ext_buf.OccaMem());
+}
+
+void OccaConformingProlongation::ReduceLocalCopy(const ::occa::memory &src,
+                                                 ::occa::memory &dst,
+                                                 std::size_t item_size) const
+{
+   // dst[i] = src[ltdof_ldof[i]]
+   MFEM_ASSERT(item_size == sizeof(double), "");
+   if (ltdof_ldof.size<int>() == 0) { return; }
+   ExtractSubVector((int)ltdof_ldof.size<int>(), ltdof_ldof, src, dst);
+}
+
+void OccaConformingProlongation::ReduceEndAssemble(::occa::memory &dst,
+                                                   std::size_t item_size) const
+{
+   // dst[shr_ltdof[i]] += shr_buf[i]
+   MFEM_ASSERT(item_size == sizeof(double), "");
+   if (unq_ltdof.size<int>() == 0) { return; }
+   AddSubVector((int)unq_ltdof.size<int>(), unq_ltdof, unq_shr_i, unq_shr_j,
+                shr_buf.OccaMem(), dst);
+}
+
+void OccaConformingProlongation::Mult_(const Vector &x, Vector &y) const
+{
+   const GroupTopology &gtopo = gc.GetGroupTopology();
+
+   BcastBeginCopy(x.OccaMem(), sizeof(double)); // copy to 'shr_buf'
+
+   int req_counter = 0;
+   for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
+   {
+      const int send_offset = shr_buf_offsets[nbr];
+      const int send_size = shr_buf_offsets[nbr+1] - send_offset;
+      if (send_size > 0)
+      {
+         MPI_Isend((shr_buf.OccaMem() + send_offset*sizeof(double)).ptr(),
+                   send_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
+                   41822, gtopo.GetComm(), &requests[req_counter++]);
+      }
+
+      const int recv_offset = ext_buf_offsets[nbr];
+      const int recv_size = ext_buf_offsets[nbr+1] - recv_offset;
+      if (recv_size > 0)
+      {
+         MPI_Irecv((ext_buf.OccaMem() + recv_offset*sizeof(double)).ptr(),
+                   recv_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
+                   41822, gtopo.GetComm(), &requests[req_counter++]);
+      }
+   }
+
+   BcastLocalCopy(x.OccaMem(), y.OccaMem(), sizeof(double));
+
+   MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
+
+   BcastEndCopy(y.OccaMem(), sizeof(double)); // copy from 'ext_buf'
+}
+
+void OccaConformingProlongation::MultTranspose_(const Vector &x,
+                                                Vector &y) const
+{
+   const GroupTopology &gtopo = gc.GetGroupTopology();
+
+   ReduceBeginCopy(x.OccaMem(), sizeof(double)); // copy to 'ext_buf'
+
+   int req_counter = 0;
+   for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
+   {
+      const int send_offset = ext_buf_offsets[nbr];
+      const int send_size = ext_buf_offsets[nbr+1] - send_offset;
+      if (send_size > 0)
+      {
+         MPI_Isend((ext_buf.OccaMem() + send_offset*sizeof(double)).ptr(),
+                   send_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
+                   41823, gtopo.GetComm(), &requests[req_counter++]);
+      }
+
+      const int recv_offset = shr_buf_offsets[nbr];
+      const int recv_size = shr_buf_offsets[nbr+1] - recv_offset;
+      if (recv_size > 0)
+      {
+         MPI_Irecv((shr_buf.OccaMem() + recv_offset*sizeof(double)).ptr(),
+                   recv_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
+                   41823, gtopo.GetComm(), &requests[req_counter++]);
+      }
+   }
+
+   ReduceLocalCopy(x.OccaMem(), y.OccaMem(), sizeof(double));
+
+   MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
+
+   ReduceEndAssemble(y.OccaMem(), sizeof(double)); // assemble from 'shr_buf'
+}
+
+#endif // MFEM_USE_MPI
 
 } // namespace mfem::occa
 
