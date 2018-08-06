@@ -60,8 +60,6 @@ protected:
 
    inline void *GetBuffer() const;
 
-   inline int OccaResize(Layout *lt, std::size_t item_size);
-
 public:
    Array(const Engine &e)
       : PArray(*(new Layout(e, 0))),
@@ -86,10 +84,16 @@ public:
    ::occa::memory &OccaMem() { return slice; }
    const ::occa::memory &OccaMem() const { return slice; }
 
+   inline int OccaResize(Layout *lt, std::size_t item_size);
+
    inline int OccaResize(std::size_t new_size, std::size_t item_size);
 
    template <typename T>
    inline void OccaFill(const T val);
+
+   inline void OccaAssign(const Array &src);
+
+   inline void OccaPush(const void *src);
 };
 
 
@@ -111,7 +115,7 @@ inline int Array::OccaResize(Layout *lt, std::size_t item_size)
    layout.Reset(lt); // Reset() checks if the pointer is the same
    const std::size_t new_bytes = lt->Size()*item_size;
    if (data.size() < new_bytes ||
-       !(data.getDevice() == lt->OccaEngine().GetDevice()))
+       data.getDevice() != lt->OccaEngine().GetDevice())
    {
       data = lt->OccaEngine().Alloc(new_bytes);
       slice = data;
@@ -143,6 +147,24 @@ inline void Array::OccaFill(const T val)
 {
    ::occa::linalg::operator_eq<T>(slice, val);
 }
+
+inline void Array::OccaAssign(const Array &src)
+{
+   if (slice != src.slice && slice.size() != 0)
+   {
+      MFEM_ASSERT(slice.size() == src.slice.size(), "");
+      slice.copyFrom(src.slice);
+   }
+}
+
+inline void Array::OccaPush(const void *src)
+{
+   if (slice.size() != 0)
+   {
+      slice.copyFrom(src);
+   }
+}
+
 
 } // namespace mfem::occa
 

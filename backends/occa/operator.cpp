@@ -79,7 +79,7 @@ void OccaConstrainedOperator::Setup(::occa::device device_,
    }
    else
    {
-      constraintList = ::occa::memory();
+      // constraintList is not used
    }
 }
 
@@ -87,7 +87,7 @@ void OccaConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
    ::occa::kernel mapDofs = mapDofBuilder.build(device);
 
-   w.Fill<double>(0.0);
+   w.OccaFill(0.0);
 
    if (constraintIndices)
    {
@@ -116,7 +116,7 @@ void OccaConstrainedOperator::Mult_(const Vector &x, Vector &y) const
    ::occa::kernel mapDofs   = mapDofBuilder.build(device);
    ::occa::kernel clearDofs = clearDofBuilder.build(device);
 
-   z.Assign<double>(x); // z = x
+   z.OccaAssign(x); // z = x
 
    clearDofs(constraintIndices, z.OccaMem(), constraintList);
 

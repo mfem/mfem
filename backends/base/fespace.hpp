@@ -35,7 +35,7 @@ protected:
 
 public:
    /// TODO: doxygen
-   PFiniteElementSpace(const Engine &e, FiniteElementSpace &fespace)
+   PFiniteElementSpace(const Engine &e, mfem::FiniteElementSpace &fespace)
       : engine(&e), fes(&fespace) { }
 
    /// Virtual destructor

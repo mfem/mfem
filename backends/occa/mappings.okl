@@ -22,7 +22,7 @@
 
   for (int i = 0; i < entries; ++i; @tile(TILESIZE, @outer, @inner)) {
     if (i < entries) {
-      out[i] = in[indices[i]];
+      out[i] = in[indices[i]]; // indices can be repeated
     }
   }
 }
@@ -34,7 +34,29 @@
 
   for (int i = 0; i < entries; ++i; @tile(TILESIZE, @outer, @inner)) {
     if (i < entries) {
-      out[indices[i]] = in[i];
+      out[indices[i]] = in[i]; // indices CANNOT be repeated
+    }
+  }
+}
+
+@kernel void AddSubVector(const int num_unique_dst_indices,
+                          @restrict const int *unique_dst_indices,
+                          @restrict const int *unique_to_src_offsets,
+                          @restrict const int *unique_to_src_indices,
+                          @restrict const double *src,
+                          @restrict double *dst) {
+
+  for (int i = 0; i < num_unique_dst_indices; ++i;
+       @tile(TILESIZE, @outer, @inner)) {
+
+    if (i < num_unique_dst_indices) {
+      const int dst_idx = unique_dst_indices[i];
+      double sum = dst[dst_idx];
+      const int end = unique_to_src_offsets[i+1];
+      for (int j = unique_to_src_offsets[i]; j != end; ++j) {
+        sum += src[unique_to_src_indices[j]];
+      }
+      dst[dst_idx] = sum;
     }
   }
 }
@@ -46,8 +68,8 @@
 
   for (int i = 0; i < entries; ++i; @tile(TILESIZE, @outer, @inner)) {
     if (i < entries) {
-      const int fromIdx = indices[2*i + 0];
-      const int toIdx   = indices[2*i + 1];
+      const int fromIdx = indices[2*i + 0]; // fromIdx indices can be repeated
+      const int toIdx   = indices[2*i + 1]; // toIdx indices CANNOT be repeated
       out[toIdx] = in[fromIdx];
     }
   }

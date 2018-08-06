@@ -88,8 +88,8 @@ private:
    // Auxiliary method used in constructors
    void ParInit(ParMesh *pm);
 
-   void Construct();
-   void Destroy();
+   void ParConstruct();
+   void ParDestroy();
 
    // ldof_type = 0 : DOFs communicator, otherwise VDOFs communicator
    void GetGroupComm(GroupCommunicator &gcomm, int ldof_type,
@@ -334,8 +334,8 @@ public:
    void LoseDofOffsets() { dof_offsets.LoseData(); }
    void LoseTrueDofOffsets() { tdof_offsets.LoseData(); }
 
-   bool Conforming() const { return pmesh->pncmesh == NULL; }
-   bool Nonconforming() const { return pmesh->pncmesh != NULL; }
+   bool Conforming() const { return pncmesh == NULL; }
+   bool Nonconforming() const { return pncmesh != NULL; }
 
    // Transfer parallel true-dof data from coarse_fes, defined on a coarse mesh,
    // to this FE space, defined on a refined mesh. See full documentation in the
@@ -354,7 +354,7 @@ public:
       old_dof_offsets.DeleteAll();
    }
 
-   virtual ~ParFiniteElementSpace() { Destroy(); }
+   virtual ~ParFiniteElementSpace() { ParDestroy(); }
 
    // Obsolete, kept for backward compatibility
    int TrueVSize() const { return ltdof_size; }

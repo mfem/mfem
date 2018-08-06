@@ -35,10 +35,7 @@ protected:
    // SharedPtr<const mfem::Engine> engine;
    // mfem::FiniteElementSpace *fes;
 
-   Layout e_layout;
-
-   int *elementDofMap;
-   int *elementDofMapInverse;
+   SharedPtr<Layout> e_layout;
 
    ::occa::array<int> globalToLocalOffsets;
    ::occa::array<int> globalToLocalIndices;
@@ -50,10 +47,10 @@ protected:
    int globalDofs, localDofs;
    int vdim;
 
-   mfem::Operator *restrictionOp, *prolongationOp;
+   mutable Operator *prolongationOp, *restrictionOp;
 
    void SetupLocalGlobalMaps();
-   void SetupOperators();
+   void SetupOperators() const; // calls virtual methods of 'fes' !!!
    void SetupKernels();
 
 public:
@@ -64,8 +61,7 @@ public:
    virtual ~FiniteElementSpace();
 
    /// TODO: doxygen
-   const Engine &OccaEngine() const
-   { return *static_cast<const Engine *>(engine.Get()); }
+   const Engine &OccaEngine() const { return engine->As<Engine>(); }
 
    /// TODO: doxygen
    ::occa::device GetDevice(int idx = 0) const
@@ -79,13 +75,7 @@ public:
    Layout &OccaTrueVLayout() const
    { return *fes->GetTrueVLayout().As<Layout>(); }
 
-   Layout &OccaEVLayout() { return e_layout; }
-
-#ifdef MFEM_USE_MPI
-   bool isDistributed() const { return (OccaEngine().GetComm() != MPI_COMM_NULL); }
-#else
-   bool isDistributed() const { return false; }
-#endif
+   Layout &OccaEVLayout() { return *e_layout; }
 
    bool hasTensorBasis() const
    { return dynamic_cast<const mfem::TensorBasisElement*>(fes->GetFE(0)); }
@@ -109,9 +99,6 @@ public:
    { return fes->FEColl(); }
    const mfem::FiniteElement *GetFE(const int idx) const
    { return fes->GetFE(idx); }
-
-   const int *GetElementDofMap() const { return elementDofMap; }
-   const int *GetElementDofMapInverse() const { return elementDofMapInverse; }
 
    virtual const mfem::Operator *GetProlongationOperator() const
    { return prolongationOp; }
@@ -150,6 +137,68 @@ public:
                           localVec.OccaMem(), globalVec.OccaMem());
    }
 };
+
+
+#ifdef MFEM_USE_MPI
+
+/// OCCA version of mfem::ConformingProlongationOperator
+class OccaConformingProlongation : public Operator
+{
+protected:
+   // size(shr_buf)=size(shr_ltdof)
+   // size(ext_buf)=size(ext_ldof)
+   Array shr_ltdof, ext_ldof;
+   mutable Array shr_buf, ext_buf;
+   // Offsets into {shr,ext}_buf; size is num. neighbors, i.e.
+   // gc.GetGroupTopology().GetNumNeighbors():
+   int *shr_buf_offsets, *ext_buf_offsets;
+
+   ::occa::memory ltdof_ldof; // shared with the restriction operator
+
+   ::occa::memory unq_ltdof; // enumeration of the unique ltdofs in shr_ltdof
+   ::occa::memory unq_shr_i, unq_shr_j;
+
+   ::occa::kernel ExtractSubVector, SetSubVector, AddSubVector;
+
+   MPI_Request *requests;
+
+   const GroupCommunicator &gc;
+
+   // Kernel: copy ltdofs from 'src' to 'shr_buf' - prepare for send.
+   //         shr_buf[i] = src[shr_ltdof[i]]
+   void BcastBeginCopy(const ::occa::memory &src, std::size_t item_size) const;
+   // Kernel: copy ltdofs from 'src' to ldofs in 'dst'.
+   //         dst[ltdof_ldof[i]] = src[i]
+   void BcastLocalCopy(const ::occa::memory &src, ::occa::memory &dst,
+                       std::size_t item_size) const;
+   // Kernel: copy ext. dofs from 'ext_buf' to 'dst' - after recv.
+   //         dst[ext_ldof[i]] = ext_buf[i]
+   void BcastEndCopy(::occa::memory &dst, std::size_t item_size) const;
+
+   // Kernel: copy ext. dofs from 'src' to 'ext_buf' - prepare for send.
+   //         ext_buf[i] = src[ext_ldof[i]]
+   void ReduceBeginCopy(const ::occa::memory &src, std::size_t item_size) const;
+   // Kernel: copy owned ldofs from 'src' to ltdofs in 'dst'.
+   //         dst[i] = src[ltdof_ldof[i]]
+   void ReduceLocalCopy(const ::occa::memory &src, ::occa::memory &dst,
+                       std::size_t item_size) const;
+   // Kernel: assemble dofs from 'shr_buf' into to 'dst' - after recv.
+   //         dst[shr_ltdof[i]] += shr_buf[i]
+   void ReduceEndAssemble(::occa::memory &dst, std::size_t item_size) const;
+
+public:
+   OccaConformingProlongation(const FiniteElementSpace &ofes,
+                              const mfem::ParFiniteElementSpace &pfes,
+                              ::occa::memory ltdof_ldof_);
+
+   virtual ~OccaConformingProlongation();
+
+   // overrides
+   virtual void Mult_(const Vector &x, Vector &y) const;
+   virtual void MultTranspose_(const Vector &x, Vector &y) const;
+};
+
+#endif // MFEM_USE_MPI
 
 } // namespace mfem::occa
 

@@ -56,6 +56,10 @@ void OccaSparseMatrix::Setup(::occa::device device, const SparseMatrix &m,
                              ::occa::array<int> mappedIndices_,
                              const ::occa::properties &props)
 {
+   MFEM_ASSERT(m.Finalized(), "");
+   MFEM_ASSERT(m.Height() == height, "");
+   MFEM_ASSERT(m.Width() == width, "");
+
    const int nnz = m.GetI()[height];
    offsets.allocate(device,
                     height + 1, m.GetI());

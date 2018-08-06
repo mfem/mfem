@@ -179,6 +179,12 @@ public:
    /// Get a const reference to the associated GroupTopology object
    const GroupTopology &GetGroupTopology() const { return gtopo; }
 
+   // TODO: doxygen
+   void GetNeighborLTDofTable(Table &nbr_ltdof) const;
+
+   // TODO: doxygen
+   void GetNeighborLDofTable(Table &nbr_ldof) const;
+
    /** @brief Data structure on which we define reduce operations.
 
      The data is associated with (and the operation is performed on) one group

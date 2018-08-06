@@ -36,6 +36,7 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
+#ifdef MFEM_USE_BACKENDS
    /// Engine *engine = EngineDepot.Select(spec);
 
    string occa_spec("mode: 'Serial'");
@@ -49,12 +50,15 @@ int main(int argc, char *argv[])
    // occa_spec += ", kernel: { compiler_flags: '-O3' }";
 
    SharedPtr<Engine> engine(new mfem::occa::Engine(occa_spec));
+#endif
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
+#ifdef MFEM_USE_BACKENDS
    mesh->SetEngine(*engine);
+#endif
    int dim = mesh->Dimension();
 
    // 3. Refine the mesh to increase the resolution. In this example we do

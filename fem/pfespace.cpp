@@ -117,7 +117,7 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
       UpdateNURBS();
    }
 
-   Construct(); // parallel version of Construct().
+   ParConstruct();
 
    // Apply the ldof_signs to the elem_dof Table
    if (Conforming() && !NURBSext)
@@ -128,15 +128,12 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
 #ifdef MFEM_USE_BACKENDS
    if (pmesh->HasEngine())
    {
-      // Ensure GetVLayout() and GetTrueVLayout() will work correctly before
-      // calling MakeFESpace().
-      // Overwrite dev_ext with one that uses parallel finite element space
       dev_ext = pmesh->GetEngine().MakeFESpace(*this);
    }
 #endif
 }
 
-void ParFiniteElementSpace::Construct()
+void ParFiniteElementSpace::ParConstruct()
 {
    if (NURBSext)
    {
@@ -181,9 +178,13 @@ void ParFiniteElementSpace::Construct()
    }
 
 #ifdef MFEM_USE_BACKENDS
-   // Now that we have the local true dof size (ltdof_size), we need to initialize t_layout
-   MFEM_ASSERT(t_layout != NULL, "Internal error");
-   if (pmesh->HasEngine())
+   // Now that we have the local true dof size (ltdof_size), we need to
+   // initialize/update t_layout.
+   if (t_layout != v_layout)
+   {
+      t_layout->Resize(ltdof_size);
+   }
+   else if (pmesh->HasEngine())
    {
       t_layout = pmesh->GetEngine().MakeLayout(ltdof_size);
    }
@@ -1183,7 +1184,7 @@ void ParFiniteElementSpace::GetGhostEdgeDofs(const MeshId &edge_id,
    dofs.SetSize(2*nv + ne);
 
    int V[2], ghost = pncmesh->GetNVertices();
-   pmesh->pncmesh->GetEdgeVertices(edge_id, V);
+   pncmesh->GetEdgeVertices(edge_id, V);
 
    for (int i = 0; i < 2; i++)
    {
@@ -1212,7 +1213,7 @@ void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
    dofs.SetSize(4*nv + 4*ne + nf);
 
    int V[4], E[4], Eo[4];
-   pmesh->pncmesh->GetFaceVerticesEdges(face_id, V, E, Eo);
+   pncmesh->GetFaceVerticesEdges(face_id, V, E, Eo);
 
    int offset = 0;
    for (int i = 0; i < 4; i++)
@@ -2219,7 +2220,6 @@ ParFiniteElementSpace::RebalanceMatrix(int old_ndofs,
                           ? old_dof_offsets[0] : old_dof_offsets[MyRank];
 
    // send old DOFs of elements we used to own
-   ParNCMesh* pncmesh = pmesh->pncmesh;
    pncmesh->SendRebalanceDofs(old_ndofs, *old_elem_dof, old_offset, this);
 
    Array<int> dofs;
@@ -2333,7 +2333,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    Array<int> dofs, old_dofs, old_vdofs;
    Vector row;
 
-   ParNCMesh* pncmesh = pmesh->pncmesh;
+   ParNCMesh* pncmesh = this->pncmesh;
    int geom = pncmesh->GetElementGeometry();
    int ldof = fec->FiniteElementForGeometry(geom)->GetDof();
 
@@ -2544,7 +2544,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    return R;
 }
 
-void ParFiniteElementSpace::Destroy()
+void ParFiniteElementSpace::ParDestroy()
 {
    ldof_group.DeleteAll();
    ldof_ltdof.DeleteAll();
@@ -2625,13 +2625,17 @@ void ParFiniteElementSpace::Update(bool want_transform)
       Swap(dof_offsets, old_dof_offsets);
    }
 
-   Destroy();
+   ParDestroy();
    FiniteElementSpace::Destroy(); // calls Th.Clear()
 
    FiniteElementSpace::Construct();
-   Construct();
+   ParConstruct();
 
    BuildElementToDofTable();
+
+#ifdef MFEM_USE_BACKENDS
+   // TODO: update dev_ext ...
+#endif
 
    if (want_transform)
    {

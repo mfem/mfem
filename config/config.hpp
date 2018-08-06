@@ -44,7 +44,7 @@
 // Macro that returns its first arg when MFEM_USE_BACKENDS is defined, and its
 // second arg if it is not defined.
 #ifdef MFEM_USE_BACKENDS
-#define MFEM_IF_BACKENDS(x,y) (x)
+#define MFEM_IF_BACKENDS(x,y) x
 #else
-#define MFEM_IF_BACKENDS(x,y) (y)
+#define MFEM_IF_BACKENDS(x,y) y
 #endif
