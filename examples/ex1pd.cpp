@@ -59,6 +59,7 @@ int main(int argc, char *argv[])
 #else
    SharedPtr<Engine> engine(new mfem::kernels::Engine(MPI_COMM_WORLD,"cpu"));
 #endif
+#endif
 
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface

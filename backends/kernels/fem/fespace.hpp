@@ -104,6 +104,14 @@ public:
 
    const mfem::Operator* GetRestrictionOperator() const { return restrictionOp; }
    const mfem::Operator* GetProlongationOperator() const { return prolongationOp; }
+   
+   virtual const mfem::Operator *GetInterpolationOperator(
+      const mfem::QuadratureSpace &qspace) const
+   { return NULL; /* FIXME */ }
+   
+   virtual const mfem::Operator *GetGradientOperator(
+      const mfem::QuadratureSpace &qspace) const
+   { return NULL; /* FIXME */ }
 
    const kernels::array<int> GetLocalToGlobalMap() const
    { return map; }
