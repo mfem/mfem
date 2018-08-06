@@ -16,6 +16,7 @@
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_PA)
 
 #include "hostdomainkernel.hpp"
+#include "tensor.hpp"
 
 namespace mfem
 {
@@ -105,11 +106,18 @@ private:
 	const int dim;
 	Tensor<3> J;
 public:
-	MeshJac(const int dim, const int quads, const int nb_elts): dim(dim), J(dim, dim, nb_elts) {
-		//TODO
+	MeshJac(mfem::FiniteElementSpace& fes, const int dim, const int quads, const int nbElts, const int ir_order)
+	: dim(dim), J(dim, dim, nbElts) {
+		//Needlessly expensive
+		MeshJac<Vector<double>, false, true> Jac(fes,dim,quads,nbElts,ir_order);
+		Tensor<2> locJ(J.getData(),dim,dim);
+		for (int i = 0; i < nbElts; ++i)
+		{
+			locJ.setView(&J(0,0,i)) = Jac(i,0);
+		}
 	}
 
-	Tensor<2> operator()(int e, int k) {
+	Tensor<2> operator()(const int& e, const int& k) const {
 		return Tensor<2>(&J(0, 0, e), dim, dim);
 	}
 };
@@ -125,18 +133,22 @@ struct QuadInfo
 	Tensor<2> J_ek;
 };
 
-template <typename Vector, bool IsLinear=false, bool IsTimeConstant=true>
+//Might only be for CPU too
+template <PAOp Op, typename Vector, bool IsLinear=false, bool IsTimeConstant=true>
 class Equation
 {
 public:
 	typedef Vector VectorType;
+	static const PAOp OpName = Op;
+protected:
+	typedef typename TensorType<QuadDimVal<OpName>::value, Vector>::type QuadTensor;
 private:
 	typedef typename FESpaceType<Vector>::type FESpace;
 	typedef typename TensorType<2, Vector>::type JTensor;
 	FESpace& fes;
 	const int dim;
-	const IntegrationRule& ir;
-	const IntegrationRule& ir1d;
+	const IntegrationRule& ir;//FIXME: not yet on GPU
+	const IntegrationRule& ir1d;//FIXME: not yet on GPU
 	MeshJac<Vector,IsLinear,IsTimeConstant> Jac;
 public:
 	// Equation(mfem::FiniteElementSpace& fes, const IntegrationRule& ir): fes(fes), dim(fes.GetFE(0)->GetDim()), ir(ir) {}
@@ -163,29 +175,25 @@ public:
 	// }
 };
 
-class TestEq: public Equation<Vector<double>>
+class TestEq: public Equation<BtDB,Vector<double>>
 {
 public:
-	static const PAOp OpName = BtDB;
-	typedef typename TensorType<QuadDimVal<OpName>::value, Vector<double>>::type QuadTensor;
 	TestEq() = delete;
 	// TestEq(mfem::FiniteElementSpace& fes, const IntegrationRule& ir): Equation(fes, ir) {}
 	TestEq(mfem::FiniteElementSpace& fes, const int ir_order): Equation(fes, ir_order) {}
 
-	void evalD(const ElementInfo& elt, Tensor<1>& De) {
-		De(elt.k) = 1.0;
+	void evalD(QuadTensor& D_ek, QuadInfo& info) const {
+		D_ek = 1.0;
 	}
 
-	void evalD(QuadTensor& D_ek, const int dim, const int k , const int e, ElementTransformation* Tr, const IntegrationPoint& ip, const Tensor<2>& J_ek) {
+	void evalD(QuadTensor& D_ek, const int dim, const int k , const int e, ElementTransformation* Tr, const IntegrationPoint& ip, const Tensor<2>& J_ek) const {
 
 	}
 };
 
-class HostMassEq: public Equation<Vector<double>>
+class HostMassEq: public Equation<BtDB,Vector<double>,true>
 {
 public:
-	static const PAOp OpName = BtDB;
-	typedef typename TensorType<QuadDimVal<OpName>::value, Vector<double>>::type QuadTensor;
 	HostMassEq() = delete;
 	// HostMassEq(mfem::FiniteElementSpace& fes, const IntegrationRule& ir): Equation(fes, ir) {}
 	HostMassEq(mfem::FiniteElementSpace& fes, const int ir_order): Equation(fes, ir_order) {}
