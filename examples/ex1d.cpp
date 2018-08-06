@@ -17,7 +17,7 @@ int main(int argc, char *argv[])
 
    OptionsParser args(argc, argv);
    args.AddOption(&spec, "-s", "--spec",
-                  "Compute resurce specification.");
+                  "Compute resource specification.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
@@ -36,23 +36,33 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
+#ifdef MFEM_USE_BACKENDS
    /// Engine *engine = EngineDepot.Select(spec);
    string occa_spec("mode: 'Serial'");
    // string occa_spec("mode: 'CUDA', device_id: 0");
    // string occa_spec("mode: 'OpenMP', threads: 4");
    // string occa_spec("mode: 'OpenCL', device_id: 0, platform_id: 0");
 
-   //SharedPtr<Engine> engine(new mfem::occa::Engine("mode: 'Serial'"));
-   dbg("\033[34m[ex1d] engine");
+#ifdef MFEM_USE_OCCA
+   // The following flag affects only 'Serial' and 'OpenMP' modes.
+   // In 'CUDA' mode, '-O3' affects only host code.
+   // In 'OpenCL' mode, adding '-O3' breaks compilation.
+   // occa_spec += ", kernel: { compiler_flags: '-O3' }";
+
+   SharedPtr<Engine> engine(new mfem::occa::Engine(occa_spec));
+#else
    SharedPtr<Engine> engine(new mfem::kernels::Engine("cpu"));
+#endif
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
    dbg("\033[34m[ex1d] mesh");
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
+#ifdef MFEM_USE_BACKENDS
    mesh->SetEngine(*engine);
-
+#endif
+   
    int dim = mesh->Dimension();
 
    // 3. Refine the mesh to increase the resolution. In this example we do

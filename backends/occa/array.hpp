@@ -60,16 +60,16 @@ protected:
 
    inline void *GetBuffer() const;
 
-   inline int ResizeData(const Layout *lt, std::size_t item_size);
-
-   template <typename T>
-   inline void OccaFill(const T *val_ptr)
-   { ::occa::linalg::operator_eq<T>(slice, *val_ptr); }
-
 public:
+   Array(const Engine &e)
+      : PArray(*(new Layout(e, 0))),
+        data(e.Alloc(0)),
+        slice(data)
+   { }
+
    Array(Layout &lt, std::size_t item_size)
       : PArray(lt),
-        data(lt.Alloc(lt.Size()*item_size)),
+        data(lt.OccaEngine().Alloc(lt.Size()*item_size)),
         slice(data)
    { }
 
@@ -77,11 +77,23 @@ public:
 
    inline void MakeRef(Array &master);
 
-   Layout &OccaLayout() const
-   { return *static_cast<Layout *>(layout.Get()); }
+   Layout &OccaLayout() const { return layout->As<Layout>(); }
+
+   const Engine &OccaEngine() const { return OccaLayout().OccaEngine(); }
 
    ::occa::memory &OccaMem() { return slice; }
    const ::occa::memory &OccaMem() const { return slice; }
+
+   inline int OccaResize(Layout *lt, std::size_t item_size);
+
+   inline int OccaResize(std::size_t new_size, std::size_t item_size);
+
+   template <typename T>
+   inline void OccaFill(const T val);
+
+   inline void OccaAssign(const Array &src);
+
+   inline void OccaPush(const void *src);
 };
 
 
@@ -98,13 +110,14 @@ inline void *Array::GetBuffer() const
    return NULL;
 }
 
-inline int Array::ResizeData(const Layout *lt, std::size_t item_size)
+inline int Array::OccaResize(Layout *lt, std::size_t item_size)
 {
+   layout.Reset(lt); // Reset() checks if the pointer is the same
    const std::size_t new_bytes = lt->Size()*item_size;
    if (data.size() < new_bytes ||
-       data.getDHandle() != lt->OccaEngine().GetDevice().getDHandle())
+       data.getDevice() != lt->OccaEngine().GetDevice())
    {
-      data = lt->Alloc(new_bytes);
+      data = lt->OccaEngine().Alloc(new_bytes);
       slice = data;
       // If memory allocation fails - an exception is thrown.
    }
@@ -121,6 +134,37 @@ inline void Array::MakeRef(Array &master)
    data = master.data;
    slice = master.slice;
 }
+
+inline int Array::OccaResize(std::size_t new_size, std::size_t item_size)
+{
+   Layout &ol = OccaLayout();
+   ol.OccaResize(new_size);
+   return OccaResize(&ol, item_size);
+}
+
+template <typename T>
+inline void Array::OccaFill(const T val)
+{
+   ::occa::linalg::operator_eq<T>(slice, val);
+}
+
+inline void Array::OccaAssign(const Array &src)
+{
+   if (slice != src.slice && slice.size() != 0)
+   {
+      MFEM_ASSERT(slice.size() == src.slice.size(), "");
+      slice.copyFrom(src.slice);
+   }
+}
+
+inline void Array::OccaPush(const void *src)
+{
+   if (slice.size() != 0)
+   {
+      slice.copyFrom(src);
+   }
+}
+
 
 } // namespace mfem::occa
 

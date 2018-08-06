@@ -39,8 +39,7 @@ public:
    const Engine &OccaEngine() const
    { return *static_cast<const Engine *>(engine.Get()); }
 
-   ::occa::memory Alloc(std::size_t bytes) const
-   { return OccaEngine().GetDevice().malloc(bytes); }
+   void OccaResize(std::size_t new_size) { size = new_size; }
 
    virtual ~Layout() { }
 

@@ -1182,7 +1182,8 @@ inline void DevExtension<array_t,dev_ext_t>::Pull(bool copy_data) const
 }
 
 template <typename array_t, typename dev_ext_t>
-inline void DevExtension<array_t,dev_ext_t>::Pull(DevExtension &dst, bool copy_data)
+inline void DevExtension<array_t,dev_ext_t>::Pull(DevExtension &dst,
+                                                  bool copy_data)
 {
    AssertDGood();
 #ifdef MFEM_USE_BACKENDS

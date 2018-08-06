@@ -339,11 +339,12 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-ConductionOperator::ConductionOperator(FiniteElementSpace &f, const char *oper_spec, double al,
+ConductionOperator::ConductionOperator(FiniteElementSpace &f,
+                                       const char *oper_spec, double al,
                                        double kap, const Vector &u)
-   : TimeDependentOperator(*f.GetTrueVLayout()), fespace(f), M(&fespace), K(&fespace),
-     u_alpha_gf(&f), u_coeff(&u_alpha_gf), Moper(oper_spec), Koper(oper_spec), T(NULL),
-     current_dt(0.0), z(f.GetTrueVLayout())
+   : TimeDependentOperator(*f.GetTrueVLayout()), fespace(f), M(&fespace),
+     K(&fespace), u_alpha_gf(&f), u_coeff(&u_alpha_gf), Moper(oper_spec),
+     Koper(oper_spec), T(NULL), current_dt(0.0), z(f.GetTrueVLayout())
 {
    const double rel_tol = 1e-8;
 

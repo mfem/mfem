@@ -22,13 +22,9 @@ namespace mfem
 {
 
 class IntegrationRule;
-class GridFunction;
 
 namespace occa
 {
-
-class OccaIntegrator;
-class OccaDofQuadMaps;
 
 // TODO: make this object part of the backend or the engine.
 extern std::map<std::string, ::occa::kernel> gridFunctionKernels;
@@ -38,47 +34,17 @@ extern std::map<std::string, ::occa::kernel> gridFunctionKernels;
                                      FiniteElementSpace &fespace,
                                      const mfem::IntegrationRule &ir);
 
-// DEPRECATED: This used to be used to be an extension of
-// mfem::GridFunction, esecially for use in OccaCoefficient, but this
-// is now deprecated.
-class OccaGridFunction : public Vector
-{
-protected:
-   FiniteElementSpace *ofespace;
-   long sequence;
-
-   ::occa::kernel gridFuncToQuad[3];
-
-public:
-   // OccaGridFunction();
-
-   OccaGridFunction(FiniteElementSpace *ofespace_);
-
-   // OccaGridFunction(FiniteElementSpace *ofespace_,
-   //                  OccaVectorRef ref);
-
-   OccaGridFunction(const OccaGridFunction &gf);
-
-   OccaGridFunction& operator = (double value);
-   OccaGridFunction& operator = (const Vector &v);
-   // OccaGridFunction& operator = (const OccaVectorRef &v);
-   OccaGridFunction& operator = (const OccaGridFunction &gf);
-
-   // void SetGridFunction(mfem::GridFunction &gf);
-
-   void GetTrueDofs(Vector &v);
-   void SetFromTrueDofs(Vector &v);
-
-   mfem::FiniteElementSpace* GetFESpace();
-   const mfem::FiniteElementSpace* GetFESpace() const;
-
-   void ToQuad(const mfem::IntegrationRule &ir, Vector &quadValues);
-
-   void Distribute(const Vector &v);
-};
-
 // ToQuad version without the deprecated class.
-void ToQuad(const IntegrationRule &ir, FiniteElementSpace &ofespace, Vector &gf, Vector &quadValues);
+//
+// FIXME: This is the action of a global B matrix, mapping L-vector to Q-vector,
+//        so it should be made into an operator that can be constructed by the
+//        FE space class. A batched version, where only a subset of the elements
+//        are processed should be defined as well.
+//
+//        The abstract operator construction method in the FE space class is:
+//           PFiniteElementSpace::GetInterpolationOperator(...)
+void ToQuad(const IntegrationRule &ir, FiniteElementSpace &ofespace, Vector &gf,
+            Vector &quadValues);
 
 } // namespace mfem::occa
 

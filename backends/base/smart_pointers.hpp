@@ -160,11 +160,12 @@ public:
 
    template <typename U>
    bool operator==(const SharedPtr<U> &other) const
-   { return ptr == other.Ptr(); }
+   { return ptr == other.Get(); }
    template <typename U>
    bool operator!=(const SharedPtr<U> &other) const
-   { return ptr != other.Ptr(); }
+   { return ptr != other.Get(); }
 
+   // Comparison to any type convertible to void *, e.g. the type of NULL.
    template <typename U>
    bool operator==(const U &p) const { return ptr == (void*) p; }
    template <typename U>

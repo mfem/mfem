@@ -111,7 +111,6 @@ protected:
    mutable SparseMatrix *cP; // owned
    /// Conforming restriction matrix such that cR.cP=I.
    mutable SparseMatrix *cR; // owned
-   mutable bool cP_is_set;
 
    /// Transformation to apply to GridFunctions after space Update().
    OperatorHandle Th;
@@ -134,9 +133,6 @@ protected:
 
    /// Calculate the cP and cR matrices for a nonconforming mesh.
    void BuildConformingInterpolation() const;
-
-   // Shortcut
-   void SetCP() const { if (!cP_is_set) { BuildConformingInterpolation(); } }
 
    static void AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
                                Array<int>& slave_dofs, DenseMatrix& I);
@@ -194,6 +190,7 @@ protected:
                                    DenseTensor &localP) const;
 
    /// Help function for constructors + Load().
+   /** Indirectly calls the virtual method GetElementDofs(). */
    void Constructor(Mesh *mesh, NURBSExtension *ext,
                     const FiniteElementCollection *fec,
                     int vdim = 1, int ordering = Ordering::byNODES);
@@ -244,8 +241,8 @@ public:
    bool Conforming() const { return mesh->Conforming(); }
    bool Nonconforming() const { return mesh->Nonconforming(); }
 
-   const SparseMatrix *GetConformingProlongation() const { SetCP(); return cP; }
-   const SparseMatrix *GetConformingRestriction() const { SetCP(); return cR; }
+   const SparseMatrix *GetConformingProlongation() const { return cP; }
+   const SparseMatrix *GetConformingRestriction() const { return cR; }
 
    virtual const Operator *GetProlongationMatrix() const
    { return GetConformingProlongation(); }
@@ -271,24 +268,25 @@ public:
 
 #ifdef MFEM_USE_BACKENDS
    /// TODO: doxygen
-   DLayout &GetVLayout() { return v_layout; }
-   const DLayout &GetVLayout() const { return v_layout; }
+   const DLayout &GetVLayout() { return v_layout; }
 
    /// TODO: doxygen
-   DLayout &GetTrueVLayout() { SetCP(); return t_layout; }
-   const DLayout &GetTrueVLayout() const { SetCP(); return t_layout; }
+   const DLayout &GetTrueVLayout() { return t_layout; }
 
    /// TODO: doxygen
-   const DFiniteElementSpace &Get_PFESpace() const { return dev_ext; }
+   PFiniteElementSpace *Get_PFESpace() { return dev_ext.Get(); }
+
+   /// TODO: doxygen
+   const PFiniteElementSpace *Get_PFESpace() const { return dev_ext.Get(); }
 #endif
 
    /// Returns the number of conforming ("true") degrees of freedom
    /// (if the space is on a nonconforming mesh with hanging nodes).
    int GetNConformingDofs() const
-   { SetCP(); return cP ? (cP->Width() / vdim) : ndofs; }
+   { return cP ? (cP->Width() / vdim) : ndofs; }
 
    int GetConformingVSize() const
-   { SetCP(); return cP ? cP->Width() : GetVSize(); }
+   { return cP ? cP->Width() : GetVSize(); }
 
    /// Return the ordering method.
    inline Ordering::Type GetOrdering() const { return ordering; }
@@ -590,10 +588,10 @@ public:
    virtual ~QuadratureSpace() { delete [] element_offsets; }
 
    /// Return the total number of quadrature points.
-   int GetSize() { return size; }
+   int GetSize() const { return size; }
 
    /// Get the IntegrationRule associated with mesh element @a idx.
-   const IntegrationRule &GetElementIntRule(int idx)
+   const IntegrationRule &GetElementIntRule(int idx) const
    { return *int_rule[mesh->GetElementBaseGeometry(idx)]; }
 
    /// Write the QuadratureSpace to the stream @a out.

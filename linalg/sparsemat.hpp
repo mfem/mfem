@@ -112,6 +112,10 @@ public:
        ownership. */
    SparseMatrix(const SparseMatrix &mat, bool copy_graph = true);
 
+   /// Create a SparseMatrix with diagonal v, i.e. A = Diag(v)
+   SparseMatrix(const Vector & v);
+
+
    /// Assignment operator: deep copy
    SparseMatrix& operator=(const SparseMatrix &rhs);
 
@@ -183,6 +187,12 @@ public:
    /// Returns the Diagonal of A
    void GetDiag(Vector & d) const;
 
+   /// Produces a DenseMatrix from a SparseMatrix
+   DenseMatrix *ToDenseMatrix() const;
+
+   /// Produces a DenseMatrix from a SparseMatrix
+   void ToDenseMatrix(DenseMatrix & B) const;
+
    /// Matrix vector multiplication.
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -240,7 +250,8 @@ public:
        zero. In addition, if the pointers @a x and @a b are not NULL, the
        eliminated matrix entries are multiplied by the corresponding solution
        value in @a *x and subtracted from the r.h.s. vector, @a *b. */
-   void EliminateCols(const Array<int> &cols, Vector *x = NULL, Vector *b = NULL);
+   void EliminateCols(const Array<int> &cols, const Vector *x = NULL,
+                      Vector *b = NULL);
 
    /// Eliminate row @a rc and column @a rc and modify the @a rhs using @a sol.
    /** Eliminates the column @a rc to the @a rhs, deletes the row @a rc and
@@ -453,6 +464,9 @@ SparseMatrix *TransposeAbstractSparseMatrix (const AbstractSparseMatrix &A,
 SparseMatrix *Mult(const SparseMatrix &A, const SparseMatrix &B,
                    SparseMatrix *OAB = NULL);
 
+/// C = A^T B
+SparseMatrix *TransposeMult(const SparseMatrix &A, const SparseMatrix &B);
+
 /// Matrix product of sparse matrices. A and B do not need to be CSR matrices
 SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
                                         const AbstractSparseMatrix &B);
@@ -462,6 +476,9 @@ DenseMatrix *Mult(const SparseMatrix &A, DenseMatrix &B);
 
 /// RAP matrix product (with R=P^T)
 DenseMatrix *RAP(const SparseMatrix &A, DenseMatrix &P);
+
+/// RAP matrix product (with R=P^T)
+DenseMatrix *RAP(DenseMatrix &A, const SparseMatrix &P);
 
 /** RAP matrix product (with P=R^T). ORAP is like OAB above.
     All matrices must be finalized. */
@@ -484,6 +501,21 @@ SparseMatrix * Add(double a, const SparseMatrix & A, double b,
                    const SparseMatrix & B);
 /// Matrix addition result = sum_i A_i
 SparseMatrix * Add(Array<SparseMatrix *> & Ai);
+
+/// B += alpha * A
+void Add(const SparseMatrix &A, double alpha, DenseMatrix &B);
+
+/// Produces a block matrix with blocks A_{ij}*B
+DenseMatrix *OuterProduct(const DenseMatrix &A, const DenseMatrix &B);
+
+/// Produces a block matrix with blocks A_{ij}*B
+SparseMatrix *OuterProduct(const DenseMatrix &A, const SparseMatrix &B);
+
+/// Produces a block matrix with blocks A_{ij}*B
+SparseMatrix *OuterProduct(const SparseMatrix &A, const DenseMatrix &B);
+
+/// Produces a block matrix with blocks A_{ij}*B
+SparseMatrix *OuterProduct(const SparseMatrix &A, const SparseMatrix &B);
 
 
 // Inline methods

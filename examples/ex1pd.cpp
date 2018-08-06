@@ -46,6 +46,7 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+#ifdef MFEM_USE_BACKENDS
    /// Engine *engine = EngineDepot.Select(spec);
 
    string occa_spec("mode: 'Serial'");
@@ -53,14 +54,19 @@ int main(int argc, char *argv[])
    // string occa_spec("mode: 'OpenMP', threads: 4");
    // string occa_spec("mode: 'OpenCL', device_id: 0, platform_id: 0");
 
-   //SharedPtr<Engine> engine(new mfem::occa::Engine(MPI_COMM_WORLD, occa_spec));
+#ifdef MFEM_USE_OCCA
+   SharedPtr<Engine> engine(new mfem::occa::Engine(MPI_COMM_WORLD, occa_spec));
+#else
    SharedPtr<Engine> engine(new mfem::kernels::Engine(MPI_COMM_WORLD,"cpu"));
+#endif
 
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
+#ifdef MFEM_USE_BACKENDS
    mesh->SetEngine(*engine);
+#endif
    int dim = mesh->Dimension();
 
    // 4. Refine the serial mesh on all processors to increase the resolution. In
@@ -163,7 +169,7 @@ int main(int argc, char *argv[])
    pcg->SetRelTol(1e-6);
    pcg->SetAbsTol(0.0);
    pcg->SetMaxIter(1000);
-   pcg->SetPrintLevel(3);
+   pcg->SetPrintLevel(1);
    pcg->SetOperator(*A.Ptr());
    pcg->Mult(B, X);
 

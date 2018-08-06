@@ -36,12 +36,15 @@
 #ifdef MFEM_USE_PETSC
 #error Building with PETSc (MFEM_USE_PETSC=YES) requires MPI (MFEM_USE_MPI=YES)
 #endif
+#ifdef MFEM_USE_PUMI
+#error Building with PUMI (MFEM_USE_PUMI=YES) requires MPI (MFEM_USE_MPI=YES)
+#endif
 #endif // MFEM_USE_MPI not defined
 
 // Macro that returns its first arg when MFEM_USE_BACKENDS is defined, and its
 // second arg if it is not defined.
 #ifdef MFEM_USE_BACKENDS
-#define MFEM_IF_BACKENDS(x,y) (x)
+#define MFEM_IF_BACKENDS(x,y) x
 #else
-#define MFEM_IF_BACKENDS(x,y) (y)
+#define MFEM_IF_BACKENDS(x,y) y
 #endif

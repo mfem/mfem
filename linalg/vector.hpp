@@ -167,7 +167,7 @@ public:
                      const scalar_t &b, const Vector_ &y);
 
    /// Destroy (clear) a vector, deleting any owned data.
-   inline void Destroy() { this->Clear(); dev_ext.Reset(); }
+   inline void Destroy() { this->Clear(); MFEM_IF_BACKENDS(dev_ext.Reset();,;) }
 
    /// Swap the contents of two Vectors
    inline void Swap(Vector_ &other);
@@ -455,7 +455,7 @@ inline scalar_t Vector_<scalar_t>::DotProduct(const Vector_ &x) const
    return (dev_ext ? dev_ext->template DotProduct<scalar_t>(*x.dev_ext) :
            operator*(x));
 #else
-   operator*(x);
+   return operator*(x);
 #endif
 }
 
