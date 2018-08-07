@@ -306,6 +306,29 @@ public:
                                  Coefficient *weight = NULL,
                                  const IntegrationRule *irs[] = NULL) const;
 
+   /** Compute the Lp error in each element of the mesh and store the
+       results in a GridFunction, error.  The result should be an L2
+       GridFunction of order zero using map type VALUE. */
+   virtual void ComputeLpError(const double p, Coefficient &exsol,
+			       GridFunction &error,
+			       Coefficient *weight = NULL,
+			       const IntegrationRule *irs[] = NULL) const;
+
+   virtual void ComputeL1Error(Coefficient &exsol,
+			       GridFunction &error,
+			       const IntegrationRule *irs[] = NULL) const
+   { ComputeLpError(1.0, exsol, error, NULL, irs); }
+
+   virtual void ComputeL2Error(Coefficient &exsol,
+			       GridFunction &error,
+			       const IntegrationRule *irs[] = NULL) const
+   { ComputeLpError(2.0, exsol, error, NULL, irs); }
+
+   virtual void ComputeMaxError(Coefficient &exsol,
+				GridFunction &error,
+				const IntegrationRule *irs[] = NULL) const
+   { ComputeLpError(infinity(), exsol, error, NULL, irs); }
+
    /** When given a vector weight, compute the pointwise (scalar) error as the
        dot product of the vector error with the vector weight. Otherwise, the
        scalar error is the l_2 norm of the vector error. */
@@ -313,6 +336,30 @@ public:
                                  Coefficient *weight = NULL,
                                  VectorCoefficient *v_weight = NULL,
                                  const IntegrationRule *irs[] = NULL) const;
+
+   /** Compute the Lp error in each element of the mesh and store the
+       results in a GridFunction, error.  The result should be an L2
+       GridFunction of order zero using map type VALUE. */
+   virtual void ComputeLpError(const double p, VectorCoefficient &exsol,
+			       GridFunction &error,
+			       Coefficient *weight = NULL,
+			       VectorCoefficient *v_weight = NULL,
+			       const IntegrationRule *irs[] = NULL) const;
+
+   virtual void ComputeL1Error(VectorCoefficient &exsol,
+			       GridFunction &error,
+			       const IntegrationRule *irs[] = NULL) const
+   { ComputeLpError(1.0, exsol, error, NULL, NULL, irs); }
+
+   virtual void ComputeL2Error(VectorCoefficient &exsol,
+			       GridFunction &error,
+			       const IntegrationRule *irs[] = NULL) const
+   { ComputeLpError(2.0, exsol, error, NULL, NULL, irs); }
+
+   virtual void ComputeMaxError(VectorCoefficient &exsol,
+				GridFunction &error,
+				const IntegrationRule *irs[] = NULL) const
+   { ComputeLpError(infinity(), exsol, error, NULL, NULL, irs); }
 
    virtual void ComputeFlux(BilinearFormIntegrator &blfi,
                             GridFunction &flux,
