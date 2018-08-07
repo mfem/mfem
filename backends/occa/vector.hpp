@@ -25,8 +25,12 @@ namespace mfem
 namespace occa
 {
 
-// FIXME: Once XL fixes this code quirk we can switch back to 'virtual public Array'
+// FIXME: Once XL fixes this code quirk we can remove this #ifdef switch
+#ifdef __ibmxl__
 class Vector : public Array, public PVector
+#else
+class Vector : virtual public Array, public PVector
+#endif
 {
 protected:
    //

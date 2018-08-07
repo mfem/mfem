@@ -152,7 +152,7 @@ void FiniteElementSpace::SetupOperators() const
    // Assuming R has one entry per row equal to 1.
    MFEM_ASSERT(R->Finalized(), "");
    const int tdofs = R->Height();
-   MFEM_ASSERT(tdofs == t_layout.Size(), "");
+   MFEM_ASSERT(tdofs == (int)t_layout.Size(), "");
    MFEM_ASSERT(tdofs == R->GetI()[tdofs], "");
    ::occa::array<int> ltdof_ldof(GetDevice(), tdofs, R->GetJ());
 
