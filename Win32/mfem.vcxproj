@@ -1,0 +1,441 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="MinSizeRel|x64">
+      <Configuration>MinSizeRel</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="RelWithDebInfo|x64">
+      <Configuration>RelWithDebInfo</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{25075912-CFED-3EDF-B674-D1E646B131A4}</ProjectGuid>
+    <WindowsTargetPlatformVersion>10.0.16299.0</WindowsTargetPlatformVersion>
+    <Keyword>Win32Proj</Keyword>
+    <Platform>x64</Platform>
+    <ProjectName>mfem</ProjectName>
+    <VCProjectUpgraderObjectName>NoUpgrade</VCProjectUpgraderObjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>Intel C++ Compiler 18.0</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>Intel C++ Compiler 18.0</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>Intel C++ Compiler 18.0</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>Intel C++ Compiler 18.0</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="..\..\hypre\src\Windows\Hypre_Includes.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">
+    <Import Project="..\..\hypre\src\Windows\Hypre_Includes.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="..\..\hypre\src\Windows\Hypre_Includes.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">
+    <Import Project="..\..\hypre\src\Windows\Hypre_Includes.props" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.20506.1</_ProjectFileVersion>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\Win32\Debug\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">mfem.dir\Debug\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">mfem</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.lib</TargetExt>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\Win32\Release\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">mfem.dir\Release\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">mfem</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.lib</TargetExt>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\Win32\MinSizeRel\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">mfem.dir\MinSizeRel\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">mfem</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">.lib</TargetExt>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\Win32\RelWithDebInfo\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">mfem.dir\RelWithDebInfo\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">mfem</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">.lib</TargetExt>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\mpi\intel64\include;C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\redist\intel64_win\mkl;C:\Users\bramwell1\Documents\Repos\ale3d\imports\hypre\src\Windows;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AssemblerListingLocation>Debug/</AssemblerListingLocation>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <CompileAs>CompileAsCpp</CompileAs>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
+      <Optimization>Disabled</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;MFEM_BUILD_DIR=C:/Users/bramwell1/Documents/Repos/ale3d/imports/mfem/Win32;CMAKE_INTDIR="Debug";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;MFEM_BUILD_DIR=C:/Users/bramwell1/Documents/Repos/ale3d/imports/mfem/Win32;CMAKE_INTDIR=\"Debug\";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\mpi\intel64\include;C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\redist\intel64_win\mkl;C:\Users\bramwell1\Documents\Repos\ale3d\imports\hypre\src\Windows;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\mpi\intel64\include;C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\redist\intel64_win\mkl;C:\Users\bramwell1\Documents\Repos\ale3d\imports\hypre\src\Windows;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\mpi\intel64\include;C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\redist\intel64_win\mkl;C:\Users\bramwell1\Documents\Repos\ale3d\imports\hypre\src\Windows;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AssemblerListingLocation>Release/</AssemblerListingLocation>
+      <CompileAs>CompileAsCpp</CompileAs>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;MFEM_BUILD_DIR=C:/Users/bramwell1/Documents/Repos/ale3d/imports/mfem/Win32;CMAKE_INTDIR="Release";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <DebugInformationFormat>
+      </DebugInformationFormat>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;MFEM_BUILD_DIR=C:/Users/bramwell1/Documents/Repos/ale3d/imports/mfem/Win32;CMAKE_INTDIR=\"Release\";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\mpi\intel64\include;C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\redist\intel64_win\mkl;C:\Users\bramwell1\Documents\Repos\ale3d\imports\hypre\src\Windows;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\mpi\intel64\include;C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\redist\intel64_win\mkl;C:\Users\bramwell1\Documents\Repos\ale3d\imports\hypre\src\Windows;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\mpi\intel64\include;C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\redist\intel64_win\mkl;C:\Users\bramwell1\Documents\Repos\ale3d\imports\hypre\src\Windows;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AssemblerListingLocation>MinSizeRel/</AssemblerListingLocation>
+      <CompileAs>CompileAsCpp</CompileAs>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <Optimization>MinSpace</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;MFEM_BUILD_DIR=C:/Users/bramwell1/Documents/Repos/ale3d/imports/mfem/Win32;CMAKE_INTDIR="MinSizeRel";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <DebugInformationFormat>
+      </DebugInformationFormat>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;MFEM_BUILD_DIR=C:/Users/bramwell1/Documents/Repos/ale3d/imports/mfem/Win32;CMAKE_INTDIR=\"MinSizeRel\";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\mpi\intel64\include;C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\redist\intel64_win\mkl;C:\Users\bramwell1\Documents\Repos\ale3d\imports\hypre\src\Windows;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\mpi\intel64\include;C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\redist\intel64_win\mkl;C:\Users\bramwell1\Documents\Repos\ale3d\imports\hypre\src\Windows;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\mpi\intel64\include;C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\redist\intel64_win\mkl;C:\Users\bramwell1\Documents\Repos\ale3d\imports\hypre\src\Windows;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AssemblerListingLocation>RelWithDebInfo/</AssemblerListingLocation>
+      <CompileAs>CompileAsCpp</CompileAs>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;MFEM_BUILD_DIR=C:/Users/bramwell1/Documents/Repos/ale3d/imports/mfem/Win32;CMAKE_INTDIR="RelWithDebInfo";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;MFEM_BUILD_DIR=C:/Users/bramwell1/Documents/Repos/ale3d/imports/mfem/Win32;CMAKE_INTDIR=\"RelWithDebInfo\";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\mpi\intel64\include;C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\redist\intel64_win\mkl;C:\Users\bramwell1\Documents\Repos\ale3d\imports\hypre\src\Windows;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\mpi\intel64\include;C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\redist\intel64_win\mkl;C:\Users\bramwell1\Documents\Repos\ale3d\imports\hypre\src\Windows;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\CMakeLists.txt">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building Custom Rule C:/Users/bramwell1/Documents/Repos/ale3d/imports/mfem/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -HC:/Users/bramwell1/Documents/Repos/ale3d/imports/mfem -BC:/Users/bramwell1/Documents/Repos/ale3d/imports/mfem/Win32 --check-stamp-file C:/Users/bramwell1/Documents/Repos/ale3d/imports/mfem/Win32/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:/Users/bramwell1/Documents/Repos/ale3d/imports/mfem/CMakeLists.txt;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\CMakeLists.txt;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\defaults.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\Win32\CMakeFiles\3.10.0-rc2\CMakeSystem.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeGenericSystem.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\Windows.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\WindowsPaths.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\XSDKDefaults.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\Win32\CMakeFiles\3.10.0-rc2\CMakeCXXCompiler.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeCXXInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeLanguageInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\Windows-MSVC.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\Win32\CMakeFiles\3.10.0-rc2\CMakeRCCompiler.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeRCInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeCommonLanguageInclude.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\cmake\modules\MfemCmakeUtilities.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindMPI.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\ProcessorCount.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindMPI\test_mpi.c;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\Win32\CMakeFiles\FindMPI\test_mpi.cpp;C:\Program Files\CMake\share\cmake-3.10\Modules\FindMPI\test_mpi.c;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\Win32\CMakeFiles\FindMPI\test_mpi.cpp;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\cmake\modules\FindHYPRE.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\cmake\modules\MfemCmakeUtilities.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindBLAS.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFortranFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePushCheckState.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindLAPACK.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePushCheckState.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindBLAS.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFortranFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePushCheckState.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\cmake\config.hpp.in;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePackageConfigHelpers.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\WriteBasicConfigVersionFile.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\cmake\MFEMConfig.cmake.in;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\cmake\MFEMConfig.cmake.in;C:\Program Files\CMake\share\cmake-3.10\Modules\BasicConfigVersion-SameMajorVersion.cmake.in;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\CMakeLists.txt;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\Win32\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building Custom Rule C:/Users/bramwell1/Documents/Repos/ale3d/imports/mfem/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -HC:/Users/bramwell1/Documents/Repos/ale3d/imports/mfem -BC:/Users/bramwell1/Documents/Repos/ale3d/imports/mfem/Win32 --check-stamp-file C:/Users/bramwell1/Documents/Repos/ale3d/imports/mfem/Win32/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:/Users/bramwell1/Documents/Repos/ale3d/imports/mfem/CMakeLists.txt;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\CMakeLists.txt;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\defaults.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\Win32\CMakeFiles\3.10.0-rc2\CMakeSystem.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeGenericSystem.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\Windows.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\WindowsPaths.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\XSDKDefaults.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\Win32\CMakeFiles\3.10.0-rc2\CMakeCXXCompiler.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeCXXInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeLanguageInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\Windows-MSVC.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\Win32\CMakeFiles\3.10.0-rc2\CMakeRCCompiler.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeRCInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeCommonLanguageInclude.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\cmake\modules\MfemCmakeUtilities.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindMPI.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\ProcessorCount.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindMPI\test_mpi.c;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\Win32\CMakeFiles\FindMPI\test_mpi.cpp;C:\Program Files\CMake\share\cmake-3.10\Modules\FindMPI\test_mpi.c;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\Win32\CMakeFiles\FindMPI\test_mpi.cpp;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\cmake\modules\FindHYPRE.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\cmake\modules\MfemCmakeUtilities.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindBLAS.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFortranFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePushCheckState.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindLAPACK.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePushCheckState.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindBLAS.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFortranFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePushCheckState.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\cmake\config.hpp.in;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePackageConfigHelpers.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\WriteBasicConfigVersionFile.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\cmake\MFEMConfig.cmake.in;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\cmake\MFEMConfig.cmake.in;C:\Program Files\CMake\share\cmake-3.10\Modules\BasicConfigVersion-SameMajorVersion.cmake.in;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\CMakeLists.txt;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\Win32\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Building Custom Rule C:/Users/bramwell1/Documents/Repos/ale3d/imports/mfem/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -HC:/Users/bramwell1/Documents/Repos/ale3d/imports/mfem -BC:/Users/bramwell1/Documents/Repos/ale3d/imports/mfem/Win32 --check-stamp-file C:/Users/bramwell1/Documents/Repos/ale3d/imports/mfem/Win32/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:/Users/bramwell1/Documents/Repos/ale3d/imports/mfem/CMakeLists.txt;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\CMakeLists.txt;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\defaults.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\Win32\CMakeFiles\3.10.0-rc2\CMakeSystem.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeGenericSystem.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\Windows.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\WindowsPaths.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\XSDKDefaults.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\Win32\CMakeFiles\3.10.0-rc2\CMakeCXXCompiler.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeCXXInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeLanguageInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\Windows-MSVC.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\Win32\CMakeFiles\3.10.0-rc2\CMakeRCCompiler.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeRCInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeCommonLanguageInclude.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\cmake\modules\MfemCmakeUtilities.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindMPI.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\ProcessorCount.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindMPI\test_mpi.c;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\Win32\CMakeFiles\FindMPI\test_mpi.cpp;C:\Program Files\CMake\share\cmake-3.10\Modules\FindMPI\test_mpi.c;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\Win32\CMakeFiles\FindMPI\test_mpi.cpp;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\cmake\modules\FindHYPRE.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\cmake\modules\MfemCmakeUtilities.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindBLAS.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFortranFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePushCheckState.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindLAPACK.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePushCheckState.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindBLAS.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFortranFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePushCheckState.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\cmake\config.hpp.in;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePackageConfigHelpers.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\WriteBasicConfigVersionFile.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\cmake\MFEMConfig.cmake.in;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\cmake\MFEMConfig.cmake.in;C:\Program Files\CMake\share\cmake-3.10\Modules\BasicConfigVersion-SameMajorVersion.cmake.in;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\CMakeLists.txt;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\Win32\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Building Custom Rule C:/Users/bramwell1/Documents/Repos/ale3d/imports/mfem/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -HC:/Users/bramwell1/Documents/Repos/ale3d/imports/mfem -BC:/Users/bramwell1/Documents/Repos/ale3d/imports/mfem/Win32 --check-stamp-file C:/Users/bramwell1/Documents/Repos/ale3d/imports/mfem/Win32/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:/Users/bramwell1/Documents/Repos/ale3d/imports/mfem/CMakeLists.txt;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\CMakeLists.txt;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\defaults.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\Win32\CMakeFiles\3.10.0-rc2\CMakeSystem.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeGenericSystem.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\Windows.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\WindowsPaths.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\XSDKDefaults.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\Win32\CMakeFiles\3.10.0-rc2\CMakeCXXCompiler.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeCXXInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeLanguageInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\Windows-MSVC.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\Win32\CMakeFiles\3.10.0-rc2\CMakeRCCompiler.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeRCInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeCommonLanguageInclude.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\cmake\modules\MfemCmakeUtilities.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindMPI.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\ProcessorCount.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindMPI\test_mpi.c;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\Win32\CMakeFiles\FindMPI\test_mpi.cpp;C:\Program Files\CMake\share\cmake-3.10\Modules\FindMPI\test_mpi.c;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\Win32\CMakeFiles\FindMPI\test_mpi.cpp;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\cmake\modules\FindHYPRE.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\cmake\modules\MfemCmakeUtilities.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindBLAS.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFortranFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePushCheckState.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindLAPACK.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePushCheckState.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindBLAS.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFortranFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePushCheckState.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\cmake\config.hpp.in;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePackageConfigHelpers.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\WriteBasicConfigVersionFile.cmake;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\cmake\MFEMConfig.cmake.in;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\cmake\MFEMConfig.cmake.in;C:\Program Files\CMake\share\cmake-3.10\Modules\BasicConfigVersion-SameMajorVersion.cmake.in;C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\CMakeLists.txt;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\Win32\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\array.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\error.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\globals.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\gzstream.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\isockstream.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\optparser.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\osockstream.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\sets.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\socketstream.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\stable3d.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\table.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\tic_toc.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\version.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\communication.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\blockmatrix.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\blockoperator.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\blockvector.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\complex_operator.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\densemat.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\handle.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\matrix.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\ode.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\operator.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\solvers.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\sparsemat.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\sparsesmoothers.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\vector.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\hypre.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\hypre_parcsr.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\element.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\hexahedron.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\mesh.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\mesh_operators.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\mesh_readers.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\ncmesh.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\nurbs.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\point.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\quadrilateral.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\segment.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\tetrahedron.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\triangle.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\vertex.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\pmesh.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\pncmesh.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\bilinearform.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\bilininteg.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\coefficient.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\datacollection.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\eltrans.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\estimators.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\fe.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\fe_coll.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\fespace.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\geom.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\gridfunc.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\hybridization.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\intrules.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\linearform.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\lininteg.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\nonlinearform.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\nonlininteg.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\staticcond.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\tmop.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\pbilinearform.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\pfespace.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\pgridfunc.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\plinearform.cpp" />
+    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\pnonlinearform.cpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\array.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\error.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\globals.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\gzstream.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\hash.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\isockstream.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\mem_alloc.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\optparser.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\osockstream.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\sets.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\socketstream.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\sort_pairs.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\stable3d.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\table.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\tassign.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\tic_toc.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\text.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\version.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\communication.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\blockmatrix.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\blockoperator.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\blockvector.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\complex_operator.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\densemat.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\handle.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\invariants.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\linalg.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\matrix.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\ode.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\operator.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\solvers.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\sparsemat.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\sparsesmoothers.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\tlayout.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\tmatrix.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\ttensor.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\vector.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\hypre.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\hypre_parcsr.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\element.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\hexahedron.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\mesh.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\mesh_headers.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\mesh_operators.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\ncmesh.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\nurbs.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\point.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\quadrilateral.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\segment.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\tetrahedron.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\tmesh.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\triangle.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\vertex.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\pmesh.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\pncmesh.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\bilinearform.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\bilininteg.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\coefficient.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\datacollection.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\eltrans.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\estimators.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\fe.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\fe_coll.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\fem.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\fespace.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\geom.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\gridfunc.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\hybridization.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\intrules.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\linearform.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\lininteg.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\nonlinearform.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\nonlininteg.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\staticcond.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\tbilinearform.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\tbilininteg.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\tcoefficient.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\teltrans.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\tevaluator.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\tfe.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\tfespace.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\tintrules.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\tmop.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\pbilinearform.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\pfespace.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\pgridfunc.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\plinearform.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\pnonlinearform.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\config.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\tconfig.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mfem.hpp" />
+    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mfem-performance.hpp" />
+    <ClInclude Include="config\_config.hpp" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
