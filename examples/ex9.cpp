@@ -14,6 +14,10 @@
 //    ex9 -m ../data/disc-nurbs.mesh -p 2 -r 3 -dt 0.005 -tf 9
 //    ex9 -m ../data/periodic-square.mesh -p 3 -r 4 -dt 0.0025 -tf 9 -vs 20
 //    ex9 -m ../data/periodic-cube.mesh -p 0 -r 2 -o 2 -dt 0.02 -tf 8
+//    ex9 -m ../data/periodic-square.mesh -p 4 -r 4 -o 0 -dt 0.01 -tf 4 -s 1 -mt 0
+//    ex9 -m ../data/periodic-square.mesh -p 4 -r 4 -o 1 -dt 0.001 -tf 4 -s 1 -mt 0
+//    ex9 -m ../data/periodic-square.mesh -p 4 -r 4 -o 1 -dt 0.002 -tf 4 -s 2 -mt 1
+//    ex9 -m ../data/periodic-square.mesh -p 4 -r 4 -o 1 -dt 0.005 -tf 4 -s 3 -mt 2 -st 1
 //
 // Description:  This example code solves the time-dependent advection equation
 //               du/dt + v.grad(u) = 0, where v is a given fluid velocity, and
@@ -52,13 +56,7 @@ double inflow_function(const Vector &x);
 Vector bb_min, bb_max;
 
 enum MONOTYPE { NONE, RUSANOV, FLUXSCALING };
-
-double distance_(const IntegrationPoint &a, const IntegrationPoint &b)
-{
-   return sqrt((a.x - b.x) * (a.x - b.x) +
-               (a.y - b.y) * (a.y - b.y) +
-               (a.z - b.z) * (a.z - b.z));
-}
+enum STENCIL  { FULL, LOCAL, LOCALPLUSDIAG };
 
 
 class SolutionBounds {
@@ -67,56 +65,57 @@ class SolutionBounds {
    Mesh* mesh;
    FiniteElementSpace* fes;
 
-   // 0 - sparsity pattern of K, 1 - local bounds
-   int method;
+   STENCIL stencil;
 
    // metadata for computing local bounds
-
-   DenseMatrix DOFs_coord;                           // size #dofs
-   std::map<int, int> dof2elem;                      // size #dofs
-   std::map<int, int> dof2ldof;                      // size #dofs
-   std::map<int, std::vector<int> > map_for_bounds;  // size #dofs
-   std::map<int, std::map<int, int> > cell_Ni;
+   
+   // Info for all dofs, including ones on face-neighbor cells.
+   mutable DenseMatrix DOFs_coord;                   // size #dofs
+   
+   // Map to compute localized bounds on unstructured grids.
+   // For each dof index we have a vector of neighbor dof indices.
+   mutable std::map<int, std::vector<int> > map_for_bounds;
    
 public:
 
    Vector x_min;
    Vector x_max;
 
-   SolutionBounds(FiniteElementSpace* fes_,
-                  const BilinearForm& K, int method_) {
-
-      fes = fes_;
+   SolutionBounds(FiniteElementSpace* _fes, const BilinearForm& K, STENCIL _stencil)
+   {
+      fes = _fes;
       mesh = fes->GetMesh();
-      method = method_;
+      stencil = _stencil;
 
-      if (method == 1) GetBoundsMap(fes, K);
-      
+      if (stencil > 0) GetBoundsMap(fes, K);
    }
 
-
-   void Compute(const SparseMatrix &K, const Vector &x) {
-            
+   void Compute(const SparseMatrix &K, const Vector &x)
+   {
       x_min.SetSize(x.Size());
       x_max.SetSize(x.Size());
       
-      switch (method) {
-      case 0:
-         ComputeFromSparsity(K,x);
-         break;
-      case 1:
-         ComputeFromLocalDOF(x);
-         break;
+      switch (stencil)
+      {
+         case 0:
+            ComputeFromSparsity(K, x);
+            break;
+         case 1:
+         case 2:
+            ComputeLocalBounds(x);
+            break;
+         defualt:
+            mfem_error("Unsupported stencil.");
       }
    }
 
-   void ComputeFromSparsity(const SparseMatrix& K, const Vector& x) {
-      
+   void ComputeFromSparsity(const SparseMatrix& K, const Vector& x) 
+   {
       const int *I = K.GetI(), *J = K.GetJ(), size = K.Size();
       
       for (int i = 0, k = 0; i < size; i++)
       {
-         double x_i_min = std::numeric_limits<double>::infinity();
+         double x_i_min = numeric_limits<double>::infinity();
          double x_i_max = -x_i_min;
          for (int end = I[i+1]; k < end; k++)
          {
@@ -127,98 +126,154 @@ public:
             if (x_j < x_i_min)
                x_i_min = x_j;
          }
-         
          x_min(i) = x_i_min;
          x_max(i) = x_i_max;
       }
-      
    }
-
-   void ComputeFromLocalDOF(const Vector& u) {
-      printf("TODO\n");
-      exit(1);
+   
+   // Computation of localized bounds.
+   void ComputeLocalBounds(const Vector &x)
+   {
+      const int size = x.Size();
+      //const Vector &x_nd = x.FaceNbrData(); // for parallel
+      
+      for (int i = 0; i < size; i++)
+      {
+         double x_i_min = +numeric_limits<double>::infinity();
+         double x_i_max = -x_i_min;
+         for (int j = 0; j < map_for_bounds[i].size(); j++)
+         {
+            const int dof_id = map_for_bounds[i][j];
+            double x_j = x(map_for_bounds[i][j]);
+            // const double x_j = (dof_id < size) ? x(map_for_bounds[i][j])
+            //                                : x_nd(dof_id - size); // for parallel
+            if (x_j > x_i_max) { x_i_max = x_j; }
+            if (x_j < x_i_min) { x_i_min = x_j; }
+         }
+         x_min(i) = x_i_min;
+         x_max(i) = x_i_max;
+      }
    }
 
 private:
-
-   // construct a matrix of coordinates for each DOF & construct maps
-   // dof2elem and dof2ldof.
    
-   void ComputeCoordinates(FiniteElementSpace* fes) {
-
-      int dim = fes->GetMesh()->Dimension();
-      int num_cells = fes->GetNE();
-      int NDOFs = fes->GetVSize();
-      int NDOFs_shared = 0; //fes->num_face_nbr_dofs;
-      DOFs_coord.SetSize(dim, NDOFs + NDOFs_shared);
-
+   double distance_(const IntegrationPoint &a, const IntegrationPoint &b)
+   {
+      return sqrt((a.x - b.x) * (a.x - b.x) +
+                  (a.y - b.y) * (a.y - b.y) +
+                  (a.z - b.z) * (a.z - b.z));
+   }
+   
+   double Distance(const int dof1, const int dof2) const
+   {
+      const int dim = fes->GetMesh()->Dimension();
+      
+      if (dim==1)
+      {
+         return abs(DOFs_coord(0, dof1) - DOFs_coord(0, dof2));
+      }
+      else if (dim==2)
+      {
+         const double d1 = DOFs_coord(0, dof1) - DOFs_coord(0, dof2),
+         d2 = DOFs_coord(1, dof1) - DOFs_coord(1, dof2);
+         return sqrt(d1*d1 + d2*d2);
+      }
+      else
+      {
+         const double d1 = DOFs_coord(0, dof1) - DOFs_coord(0, dof2),
+         d2 = DOFs_coord(1, dof1) - DOFs_coord(1, dof2),
+         d3 = DOFs_coord(2, dof1) - DOFs_coord(2, dof2);
+         return sqrt(d1*d1 + d2*d2 + d3*d3);
+      }
+   }
+   
+   // Fills DOFs_coord
+   void ComputeCoordinates(FiniteElementSpace *fes)
+   {
+      const int dim = fes->GetMesh()->Dimension();
+      const int num_cells = fes->GetNE();
+      const int NDOFs     = fes->GetVSize();
+      DOFs_coord.SetSize(dim, NDOFs);
+      // DOFs_coord.SetSize(dim, NDOFs + fes->num_face_nbr_dofs); // for parallel
+      
       Array<int> ldofs;
-      const FiniteElement *fe;
       DenseMatrix physical_coord;
-
+      
+      // Cells for the current process.
       for (int i = 0; i < num_cells; i++)
       {
-         fe = fes->GetFE(i);
-         const IntegrationRule &ir = fe->GetNodes();
+         const IntegrationRule &ir = fes->GetFE(i)->GetNodes();
          ElementTransformation *el_trans = fes->GetElementTransformation(i);
-
+         
          el_trans->Transform(ir, physical_coord);
          fes->GetElementDofs(i, ldofs);
-
+         
          for (int j = 0; j < ldofs.Size(); j++)
          {
+            for (int d = 0; d < dim; d++)
+            {
+               DOFs_coord(d, ldofs[j]) = physical_coord(d, j);
+            }
+         }
+      }
+      
+      // Face-neighbor cells.
+      /* for parallel
+      IsoparametricTransformation el_trans;
+      for (int i = 0; i < fes->GetMesh()->face_nbr_elements.Size(); i++)
+      {
+         const IntegrationRule &ir = fes->GetFaceNbrFE(i)->GetNodes();
+         fes->GetMesh()->GetFaceNbrElementTransformation(i, &el_trans);
+         
+         el_trans.Transform(ir, physical_coord);
+         fes->GetFaceNbrElementVDofs(i, ldofs);
+         
+         for (int j = 0; j < ldofs.Size(); j++)
+         {
+            ldofs[j] += NDOFs;
+            
             for (int d = 0; d < dim; ++d)
             {
                DOFs_coord(d, ldofs[j]) = physical_coord(d, j);
             }
-            dof2elem[ldofs[j]] = i;
-            dof2ldof[ldofs[j]] = j;
          }
-      }
-
-      // Closest neighbors map on a reference cell.
-      // dummy reference cell
-      fe = fes->GetFE(0);
-      int xd = fe->GetDof();
-      const IntegrationRule &ir = fe->GetNodes();
-      double tol = 1e-10;
-      // hk at ref element with some tolerance
-      double dist_level = 1.0 / fes->GetOrder(0)+tol;
-
-      for (int i=0; i<xd; i++)
-      {
-         int count = 0;
-         for (int j=0; j<xd; j++)
-         {
-            if (distance_(ir.IntPoint(i), ir.IntPoint(j)) <= dist_level)
-            {
-               cell_Ni[i][count++] = j;
-            }
-         }
-      }
-      
+      } */
    }
    
-   void GetBoundsMap(FiniteElementSpace *fes,
-                     const BilinearForm &K) {
-
+   // Fills map_for_bounds
+   void GetBoundsMap(FiniteElementSpace *fes, const BilinearForm &K)
+   {
       ComputeCoordinates(fes);
-
-      int dim = mesh->Dimension();
-      int num_cells = mesh->GetNE();
-      int NDOFs = fes->GetVSize();
-      double dist = 0;
-      const double tol = 1e-10;
-      // hk at ref element with some tolerance
-      //double dist_level = 1.0 / fes->GetOrder(0) + tol;
-      // Include the diagonal neighbors.
-      double dist_level = 1.5 / fes->GetOrder(0) + tol;
+      
+      int num_cells = fes->GetMesh()->GetNE();
+      int NDOFs     = fes->GetVSize();
+      double dist_level, dist = 0;
+      const double tol = 1.e-10;
       Array<int> ldofs;
       Array<int> ldofs_external;
       const int *I = K.SpMat().GetI(), *J = K.SpMat().GetJ();
-
+      
+      // use the first mesh element as an indicator
+      switch (stencil)
+      {
+         case 1:
+            // hk at ref element with some tolerance
+            dist_level = 1.0 / fes->GetOrder(0) + tol; 
+            break;
+         case 2:
+            // Include the diagonal neighbors, use the first mesh element as an indicator
+            // modified by Hennes, this should be larger than sqrt(3) to support 3D
+            dist_level = 1.8 / fes->GetOrder(0) + tol; 
+            break;
+         default:
+            mfem_error("Unsupported stencil.");
+      }
+      
+      // what is the sense of this? I replaced boundsmap with map_for_bounds
+      //std::map< int, std::vector<int> > &boundsmap = F.init_state.map_for_bounds;
+      
       const FiniteElement *fe_external;
-
+      
       // loop over cells
       for (int k = 0; k < num_cells; k++)
       {
@@ -226,8 +281,11 @@ private:
          const FiniteElement &fe = *fes->GetFE(k);
          int n_dofs = fe.GetDof();
          const IntegrationRule &ir = fe.GetNodes();
-
-         //loop over DOF within cell
+         
+// Use for debugging.
+#define DOF_ID -1
+         
+         // Fill map_for_bounds for each dof within the cell.
          for (int i = 0; i < n_dofs; i++)
          {
             //////////////////////
@@ -242,6 +300,14 @@ private:
                   map_for_bounds[ldofs[i]].push_back(ldofs[j]);
                }
             }
+            if (ldofs[i] == DOF_ID)
+            {
+               for (int j = 0; j < map_for_bounds[DOF_ID].size(); j++)
+               {
+                  cout << map_for_bounds[DOF_ID][j] << endl;
+               }
+            }
+            
             //////////////////////
             // ADD EXTERNAL DOF //
             //////////////////////
@@ -254,114 +320,134 @@ private:
             // 3. Periodic BC - points that are at the boundary of the domain or a
             //    DOF next to it have to consider DOFs on the other end of the
             //    domain (NOT IMPLEMENTED YET!!!).
+            
             //////////////
             // SOURCE 1 //
             //////////////
-            // Loop over the already included internal DOFs (except on ith-DOF).
-            // For each I have to find if within the sparsity pattern there is
-            // other DOF with same physical location and add them to the map.
-            vector<int> vector_of_internal_dofs = map_for_bounds[ldofs[i]];
-            for (unsigned int it = 0; it < vector_of_internal_dofs.size(); it++)
-            {
-               int idof = vector_of_internal_dofs[it];
-               if (idof != ldofs[i])
-               {
-                  // check sparsity pattern
-                  for (int j = I[idof]; j < I[idof + 1]; j++)
-                  {
-                     if (dim==1)
-                        dist = abs(DOFs_coord(0, idof) -
-                                   DOFs_coord(0, J[j]));
-                     else if (dim==2)
-                        dist = sqrt(pow(DOFs_coord(0, idof) -
-                                        DOFs_coord(0, J[j]), 2) +
-                                    pow(DOFs_coord(1, idof) -
-                                        DOFs_coord(1, J[j]), 2));
-                     else
-                        dist = sqrt(pow(DOFs_coord(0, idof) -
-                                        DOFs_coord(0, J[j]), 2) +
-                                    pow(DOFs_coord(1, idof) -
-                                        DOFs_coord(1, J[j]), 2) +
-                                    pow(DOFs_coord(2, idof) -
-                                        DOFs_coord(2, J[j]), 2));
-                     if (dist <= tol && idof != J[j])
-                     {
-                        map_for_bounds[ldofs[i]].push_back(J[j]);
-                     }
-                  }
-               }
-            }
+            // Loop over the already included internal DOFs (except the ith-DOF).
+            // For each, find if its sparsity pattern contains
+            // other DOFs with same physical location, and add them to the map.
+            /*
+             *         vector<int> vector_of_internal_dofs = map_for_bounds[ldofs[i]];
+             *         for (int it = 0; it < vector_of_internal_dofs.size(); it++)
+             *         {
+             *            const int idof = vector_of_internal_dofs[it];
+             *            if (idof == ldofs[i]) { continue; }
+             * 
+             *            // check sparsity pattern
+             *            for (int j = I[idof]; j < I[idof + 1]; j++)
+             *            {
+             *               if (idof != J[j] && Distance(idof, J[j]) <= tol)
+             *               {
+             *                  boundsmap[ldofs[i]].push_back(J[j]);
+         }
+         }
+         }
+         
+         if (ldofs[i] == DOF_ID)
+         {
+         cout << "sdf " << vector_of_internal_dofs.size() << endl;
+         for (int j = 0; j < F.init_state.map_for_bounds[DOF_ID].size(); j++)
+         {
+         cout << boundsmap[DOF_ID][j] << endl;
+         }
+         }
+         */
+            
             //////////////
             // SOURCE 2 //
             //////////////
-            // Check if the current dof is on a face.
-            // For the current ith DOF, loop over DOF in sparsity pattern of K
-            // and find DOFs at ith-location.
+            // Check if the current dof is on a face:
+            // Loop over its sparsity pattern and find DOFs at the same location.
             vector<int> DOFs_at_ith_location;
             for (int j = I[ldofs[i]]; j < I[ldofs[i] + 1]; j++)
             {
-               if (dim==1)
-                  dist = abs(DOFs_coord(0, ldofs[i]) -
-                             DOFs_coord(0, J[j]));
-               else if (dim==2)
-                  dist = sqrt(pow(DOFs_coord(0, ldofs[i]) -
-                                  DOFs_coord(0, J[j]), 2)   +
-                              pow(DOFs_coord(1, ldofs[i]) -
-                                  DOFs_coord(1, J[j]), 2));
-               else
-                  dist = sqrt(pow(DOFs_coord(0, ldofs[i]) -
-                                  DOFs_coord(0, J[j]), 2) +
-                              pow(DOFs_coord(1, ldofs[i]) -
-                                  DOFs_coord(1, J[j]), 2) +
-                              pow(DOFs_coord(2, ldofs[i]) -
-                                  DOFs_coord(2, J[j]), 2));
+               dist = Distance(ldofs[i], J[j]);
+               if (ldofs[i] == DOF_ID)
+               {
+                  cout << "checking " << J[j] << " " << dist << endl;
+               }
                if (dist <= tol && ldofs[i] != J[j]) // dont include the ith DOF
                {
-                  DOFs_at_ith_location.push_back(J[j]);   // here j is global
+                  DOFs_at_ith_location.push_back(J[j]);
+                  
+                  // Now look over the sparcity pattern of J[j] to find more
+                  // dofs at the same location
+                  // (adds diagonal neighbors, if they are on the same mpi task).
+                  const int d = J[j];
+                  bool is_new = true;
+                  for (int jj = I[d]; jj < I[d+1]; jj++)
+                  {
+                     if (J[jj] == ldofs[i]) { continue; }
+                     for (int dd = 0; dd < DOFs_at_ith_location.size(); dd++)
+                     {
+                        if (J[jj] == DOFs_at_ith_location[dd])
+                        { is_new = false; break; }
+                     }
+                     if (is_new && Distance(d, J[jj]) < tol)
+                     { DOFs_at_ith_location.push_back(J[jj]); }
+                  }
                }
             }
-            // Loop over the j-DOFs at i-th location and for each loop over DOFs
+            if (ldofs[i] == DOF_ID)
+            {
+               cout << "same location " << DOFs_at_ith_location.size() << endl;
+            }
+            // Loop over the dofs at i-th location; for each, loop over DOFs
             // local on its cell to find those within dist(1).
-            // NOTE: this distance has to be on the reference element.
-            for (unsigned int it = 0; it < DOFs_at_ith_location.size(); it++)
+            // Note that distance has to be measured on the reference element.
+            for (int it = 0; it < DOFs_at_ith_location.size(); it++)
             {
                int dof = DOFs_at_ith_location[it];
-               int cell_id = dof2elem[dof];
                if (dof < NDOFs)
                {
+                  const int cell_id = dof / n_dofs;
                   fes->GetElementDofs(cell_id, ldofs_external);
                   fe_external = fes->GetFE(cell_id);
                }
-               else
+               /* else
                {
-                  // not needed in serial?
-                  exit(1);
+                  const int cell_id = dof / n_dofs - num_cells;
+                  fes->GetFaceNbrElementVDofs(cell_id, ldofs_external);
+                  fe_external = fes->GetFaceNbrFE(cell_id);
                   
-                  // fes->GetFaceNbrElementVDofs(cell_id, ldofs_external);
-                  // fe_external = fes->GetFaceNbrFE(cell_id);
-
-                  // for (int j = 0; j < ldofs.Size(); j++)
-                  // {
-                  //    ldofs_external[j] += NDOFs;
-                  // }
-               }
-
+                  for (int j = 0; j < ldofs.Size(); j++)
+                  {
+                     ldofs_external[j] += NDOFs;
+                  }
+               }*/ // for parallel
+               
                int n_dofs_external = fe_external->GetDof();
                const IntegrationRule &ir_ext = fe_external->GetNodes();
                for (int j = 0; j < n_dofs_external; j++) // here j is local
                {
-                  if (distance_(ir_ext.IntPoint(dof2ldof[dof]),
-                                ir_ext.IntPoint(j)) <= dist_level)
+                  bool is_new = true;
+                  for (int dd = 0; dd < map_for_bounds[ldofs[i]].size(); dd++)
+                  {
+                     if (ldofs_external[j] == map_for_bounds[ldofs[i]][dd])
+                     { is_new = false; break; }
+                  }
+                  
+                  int loc_index = dof % n_dofs;
+                  if (is_new &&
+                     distance_(ir_ext.IntPoint(loc_index),
+                               ir_ext.IntPoint(j)) <= dist_level)
                   {
                      map_for_bounds[ldofs[i]].push_back(ldofs_external[j]);
                   }
                }
             }
+            if (ldofs[i] == DOF_ID)
+            {
+               cout << " --- " << endl;
+               for (int j = 0; j < map_for_bounds[DOF_ID].size(); j++)
+               {
+                  cout << map_for_bounds[DOF_ID][j] << endl;
+               }
+            }
          }
       }
-
    }
-   
 };
 
 
@@ -376,7 +462,7 @@ private:
    FiniteElementSpace* fes;
    SparseMatrix &M, &K;
    const Vector &b, &elDiff, &lumpedM;
-   const DenseMatrix &bdrDiff;
+   const DenseMatrix &bdrDiff, &dofs;
    DSmoother M_prec;
    CGSolver M_solver;
    MONOTYPE monoType;
@@ -390,7 +476,8 @@ private:
 public:
    FE_Evolution(FiniteElementSpace* fes, SparseMatrix &_M, SparseMatrix &_K, 
                 const Vector &_b, const Vector &_elDiff, const DenseMatrix &_bdrDiff, 
-                const Vector &_lumpedM, MONOTYPE mono, SolutionBounds& bnds);
+                const Vector &_lumpedM, MONOTYPE mono, SolutionBounds& bnds, 
+                const DenseMatrix &_dofs);
 
    virtual void Mult(const Vector &x, Vector &y) const;
    
@@ -399,179 +486,10 @@ public:
    virtual ~FE_Evolution() { }
 };
 
-// routine written by Hennes used for finding the indices of Bernstein basis functions 
-// (DOFs) that are non-zero on a (dim-1)-dimensional boundary of an element of GeomType
-// which has a total of nd local DOFs. The local boundary ID is given by bdrID according to 
-// Geometry and the Array dofs is filled with the required indices.
-// NOTE: ideally this routine is already implemented 
-//       (which is why I didn't bother to put it in another class) but the call
-//
-//       fes->FEColl()->SubDofOrder(GeomType, dim-1, 64*i, dofs);
-//
-//       always returns an empty array. The following routine can be used instead but only 
-//       for segments, squares and hexes, no triangles or tets are supported. 
-void extractBdrDofs(int GeomType, int nd, const int bdrID, Array< int > &dofs)
-{
-   if (nd == 1)
-   {
-      dofs.SetSize(1);
-      dofs[0] = 0;
-      return;
-   }
-   switch (GeomType)
-   {
-      case Geometry::POINT:
-         mfem_error ("No boundaries for geometry POINT.");
-      case Geometry::SEGMENT:
-      {
-         dofs.SetSize(1);
-         switch (bdrID)
-         {
-            case 0:
-               dofs[0] = 0; return;
-            case 1:
-               dofs[0] = nd-1; return;
-            default:
-               mfem_error ("No more boundaries for geometry SEGMENT.");
-         }
-      }
-      case Geometry::TRIANGLE:
-      {
-         //TODO
-      }
-      case Geometry::SQUARE:
-      {
-         int j = 0, n = sqrt(nd);
-         dofs.SetSize(n);
-         switch (bdrID)
-         {
-            case 0:
-               for (int i = 0; i < n; i++)
-                  dofs[j++] = i;
-               return;
-            case 1:
-               for (int i = n-1; i < n*n; i+=n)
-                  dofs[j++] = i;
-               return;
-            case 2:
-               for (int i = n*(n-1); i < n*n; i++)
-                  dofs[j++] = i;
-               return;
-            case 3:
-               for (int i = 0; i <= n*(n-1); i+=n)
-                  dofs[j++] = i;
-               return;
-            default:
-               mfem_error ("No more boundaries for geometry SQUARE.");
-         }
-      }
-      case Geometry::TETRAHEDRON: 
-      {
-         //TODO
-      }
-      case Geometry::CUBE:
-      {
-         int k = 0, n = cbrt(nd);
-         dofs.SetSize(n*n);
-         switch (bdrID)
-         {
-            case 0:
-               for (int i = 0; i < n*n; i++)
-                  dofs[k++] = i;
-               return;
-            case 1:
-               for (int i = 0; i <= n*n*(n-1); i+=n*n)
-                  for (int j = 0; j < n; j++)
-                     dofs[k++] = i+j;
-               return;
-            case 2:
-               for (int i = n-1; i < n*n*n; i+=n)
-                  dofs[k++] = i;
-               return;
-            case 3:
-               for (int i = 0; i <= n*n*(n-1); i+=n*n)
-                  for (int j = n*(n-1); j < n*n; j++)
-                     dofs[k++] = i+j;
-               return;
-            case 4:
-               for (int i = 0; i <= n*(n*n-1); i+=n)
-                  dofs[k++] = i;
-               return;
-            case 5:
-               for (int i = n*n*(n-1); i < n*n*n; i++)
-                  dofs[k++] = i;
-               return;
-            default:
-               mfem_error ("No more boundaries for geometry CUBE.");
-         }
-      }
-      default:
-         mfem_error ("extractBdrDofs(...)");
-   }
-}
-/* TODO remove or implement and remove Manuel's code
-void getNeighbourDofs(int mono, const Vector &x, int dofInd, int nd, 
-                      int GeomType, Array< int > &nghbrs)
-{
-   //nghbrs.SetSize(pow(3, Geometry::Dimension[GeomType])); // works for Q-spaces
-   nghbrs.SetSize(nd); // element-based
-   int locInd = dofInd % nd;
-   for (int i = 0; i < nd; i++)
-      nghbrs[i] = dofInd - locInd + i;
-   
-   switch (GeomType)
-   {
-      case Geometry::POINT:
-         mfem_error ("Nothing to do for geometry POINT.");
-      case Geometry::SEGMENT:
-      {
-         return;//TODO
-      }
-      case Geometry::TRIANGLE:
-      {
-         return;//TODO
-      }
-      case Geometry::SQUARE:
-      {
-         return;//TODO
-      }
-      case Geometry::TETRAHEDRON:
-      {
-         return;//TODO
-      }
-      case Geometry::CUBE:
-      {
-         return;//TODO
-      }
-   }
-}
-
-void computeAdmissibleBounds(int mono, const Vector &x, int dofInd, int nd,
-                             int GeomType, double &xMin, double &xMax)
-{
-   if (mono == 0)
-      return;
-   else if (mono == 1)
-   {
-      Array< int > nghbrs;
-      getNeighbourDofs(mono, x, dofInd, nd, GeomType, nghbrs);
-      
-      xMin = x(dofInd);
-      xMax = x(dofInd);
-      for (int i = 0; i < nghbrs.Size(); i++)
-      {
-         if (nghbrs[i] == dofInd)
-            continue;
-         xMin = std::min(xMin, x(nghbrs[i]));
-         xMax = std::min(xMin, x(nghbrs[i]));
-      }
-   }
-}
-*/
 
 void preprocessLowOrderScheme(FiniteElementSpace* fes, VectorFunctionCoefficient & coef, 
                               MONOTYPE mono, Vector &elDiff, DenseMatrix &bdrDiff, 
-                              Vector &lumpedM)
+                              Vector &lumpedM, DenseMatrix &dofs)
 {
    if (mono == NONE)
       return;
@@ -579,15 +497,25 @@ void preprocessLowOrderScheme(FiniteElementSpace* fes, VectorFunctionCoefficient
    Mesh *mesh = fes->GetMesh();
    int i, j, k, p, qOrd, nd, geomType, numBdrs, numDofs,
    dim = mesh->Dimension(), ne = mesh->GetNE();
+   double un;
    ElementTransformation *tr;
-   Vector shape, vec1, vec2, estim1, estim2, vval(dim), nor(dim);
+   Vector shape, vec1, vec2, estim1, estim2, bas, vval(dim), nor(dim);
    DenseMatrix dshape, adjJ;
-   Array< int > dofs, bdrs, orientation;
+   Array< int > bdrs, orientation;
    DenseMatrix velEval;
    
    elDiff.SetSize(ne); elDiff = 0.;
    lumpedM.SetSize(ne); lumpedM = 0.;
    adjJ.SetSize(dim,dim);
+   
+   // fill the dofs array to access the correct dofs for boundaries
+   const FiniteElement &dummy = *fes->GetFE(0); // use the first mesh element as an indicator
+   geomType = dummy.GetGeomType();
+   dummy.ExtractBdrDofs(dofs);
+   numBdrs = dofs.Width();
+   bdrDiff.SetSize(ne, numBdrs);
+   numDofs = dofs.Height();
+   bas.SetSize(numDofs);
    
    for (k = 0; k < ne; k++)
    {
@@ -597,10 +525,12 @@ void preprocessLowOrderScheme(FiniteElementSpace* fes, VectorFunctionCoefficient
       const FiniteElement &el = *fes->GetFE(k);
       nd = el.GetDof();
       tr = mesh->GetElementTransformation(k);
+      // Assuming order(u)==order(mesh)
       // estim1 can not be integrated exactly due to transforamtion dependent denominator
-      // use tr->Order()-1 + 4*el.GetOrder() instead
-      // appropriate qOrd for estim2 is tr->Order()-1 + 2*el.GetOrder(), choose max
-      qOrd = tr->Order()-1 + 4*el.GetOrder();
+      // use tr->OrderW() + 2*el.GetOrder() + 2*el.GetOrderJ() instead
+      // appropriate qOrd for estim2 is tr->OrderW() + 2*el.GetOrder(), choose max
+      qOrd = tr->OrderW() + 2*el.GetOrder() + 2*tr->OrderJ();
+      
       const IntegrationRule *ir = &IntRules.Get(el.GetGeomType(), qOrd);
       
       shape.SetSize(nd);
@@ -636,9 +566,9 @@ void preprocessLowOrderScheme(FiniteElementSpace* fes, VectorFunctionCoefficient
       elDiff(k) = std::sqrt(estim1.Max() * estim2.Max());
       lumpedM(k) /= nd;
       
-      ////////////////////////
-      // Face contributions //
-      ////////////////////////
+      ////////////////////////////
+      // Boundary contributions //
+      ////////////////////////////
       if (dim==1)
          mesh->GetElementVertices(k, bdrs);
       else if (dim==2)
@@ -646,18 +576,8 @@ void preprocessLowOrderScheme(FiniteElementSpace* fes, VectorFunctionCoefficient
       else if (dim==3)
          mesh->GetElementFaces(k, bdrs, orientation);
       
-      numBdrs = bdrs.Size();
-      geomType = el.GetGeomType();
-
-      if (k==0)
-         bdrDiff.SetSize(ne,numBdrs);
-
       for (i = 0; i < numBdrs; i++)
       {
-         extractBdrDofs(geomType, nd, i, dofs);
-         //fes->FEColl()->SubDofOrder(geomType, dim-1, 64*i, dofs); TODO
-         numDofs = dofs.Size();
-         
          FaceElementTransformations *Trans = mesh -> GetFaceElementTransformations(bdrs[i]); 
          // qOrd is chosen such that L2-norm of basis is computed accurately.
          // Normal velocity term relies on L^{infty}-norm which is approximated 
@@ -667,17 +587,15 @@ void preprocessLowOrderScheme(FiniteElementSpace* fes, VectorFunctionCoefficient
             if (Trans->Elem2No != k)
                mfem_error("Boundary edge does not belong to this element.");
             else
-               qOrd = Trans->Loc2.Transf.Order() + 2*el.GetOrder();
+               qOrd = Trans->Elem2->OrderW() + 2*el.GetOrder();
          }
          else
          {
-            qOrd = Trans->Loc1.Transf.Order() + 2*el.GetOrder();
+            qOrd = Trans->Elem1->OrderW() + 2*el.GetOrder();
          }
 
          const IntegrationRule *irF1 = &IntRules.Get(Trans->FaceGeom, qOrd);
-         double un = 0.;
-         Vector bas(numDofs);
-         bas = 0.;
+         un = 0.;  bas = 0.;
          
          for (int p = 0; p < irF1->GetNPoints(); p++)
          {
@@ -711,7 +629,7 @@ void preprocessLowOrderScheme(FiniteElementSpace* fes, VectorFunctionCoefficient
 
             un = std::max(vval * nor, un);
             for(j = 0; j < numDofs; j++)
-               bas(j) += ip.weight * Trans->Face->Weight() * pow(shape(dofs[j]), 2.);
+               bas(j) += ip.weight * Trans->Face->Weight() * pow(shape(dofs(j,i)), 2.);
          }
          bdrDiff(k,i) = un * bas.Max();
       }
@@ -728,6 +646,7 @@ int main(int argc, char *argv[])
    int order = 3;
    int ode_solver_type = 4;
    MONOTYPE mono = FLUXSCALING;
+   STENCIL stencil = LOCAL;
    double t_final = 10.0;
    double dt = 0.01;
    bool visualization = true;
@@ -753,6 +672,10 @@ int main(int argc, char *argv[])
    args.AddOption((int*)(&mono), "-mt", "--mono",
                   "Type of monotonicity treatment: 0 - no monotonicity treatment,\n\t"
                   "                                1 - matrix-free Rusanov scheme.");
+   args.AddOption((int*)(&stencil), "-st", "--stencil",
+                  "Type of stencil for high order scheme: 0 - all neighbors,\n\t"
+                  "                                       1 - closest neighbors,\n\t"
+                  "                                       2 - closest plus diagonal neighbors.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -838,6 +761,7 @@ int main(int argc, char *argv[])
    // 6. Set up and assemble the bilinear and linear forms corresponding to the
    //    DG discretization. The DGTraceIntegrator involves integrals over mesh
    //    interior faces.
+   //    Also prepare for the use of low and high order schemes.
    VectorFunctionCoefficient velocity(dim, velocity_function);
    FunctionCoefficient inflow(inflow_function);
    FunctionCoefficient u0(u0_function);
@@ -864,12 +788,11 @@ int main(int argc, char *argv[])
    
    // Precompute data required for low order scheme
    Vector elDiff, lumpedM;
-   DenseMatrix bdrDiff;
-   preprocessLowOrderScheme(&fes, velocity, mono, elDiff, bdrDiff, lumpedM);
+   DenseMatrix bdrDiff, dofs;
+   preprocessLowOrderScheme(&fes, velocity, mono, elDiff, bdrDiff, lumpedM, dofs);
    
-   int method = 0; // from sparsity
-//   int method = 1; // local bounds
-   SolutionBounds bnds(&fes, k, method);
+   // Compute data required to easily find the min-/max-values for the high order scheme
+   SolutionBounds bnds(&fes, k, stencil);
 
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
@@ -937,8 +860,8 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv( &fes, m.SpMat(), k.SpMat(), b, 
-                     elDiff, bdrDiff, lumpedM, mono, bnds);
+   FE_Evolution adv( &fes, m.SpMat(), k.SpMat(), b, elDiff, bdrDiff, lumpedM,
+                     mono, bnds, dofs );
    
    double t = 0.0;
    adv.SetTime(t);
@@ -984,6 +907,7 @@ int main(int argc, char *argv[])
    }
 
    // 10. Free the used memory.
+   delete mesh;
    delete ode_solver;
    delete dc;
    return 0;
@@ -995,9 +919,10 @@ int main(int argc, char *argv[])
 FE_Evolution::FE_Evolution(FiniteElementSpace* _fes, SparseMatrix &_M, SparseMatrix &_K, 
                            const Vector &_b, const Vector &_elDiff, const DenseMatrix 
                            &_bdrDiff, const Vector &_lumpedM, MONOTYPE mono, 
-                           SolutionBounds& _bnds)
+                           SolutionBounds& _bnds, const DenseMatrix &_dofs)
    : TimeDependentOperator(_M.Size()), fes(_fes), M(_M), K(_K), b(_b), elDiff(_elDiff), 
-   lumpedM(_lumpedM), bdrDiff(_bdrDiff), monoType(mono), z(_M.Size()), bnds(_bnds)
+   lumpedM(_lumpedM), bdrDiff(_bdrDiff), monoType(mono), z(_M.Size()), bnds(_bnds),
+   dofs(_dofs)
 {
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(M);
@@ -1023,8 +948,8 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    {
       // low order matrix-free Rusanov scheme
       Mesh *mesh = fes->GetMesh();
-      int i, j, k, geomType, nd, numDofs, numBdrs, dofInd, dim = mesh->Dimension();
-      Array< int > bdrs, orientation, dofs;
+      int i, j, k, nd, numBdrs, dofInd, dim(mesh->Dimension()), numDofs(dofs.Width());
+      Array< int > bdrs, orientation;
       double uSum;
       
       // Discretization terms
@@ -1045,25 +970,20 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
          else if (dim==3)
             mesh->GetElementFaces(k, bdrs, orientation);
          
-         geomType = el.GetGeomType();
          numBdrs = bdrs.Size();
 
-         ////////////////////////
-         // Face contributions //
-         ////////////////////////
+         ////////////////////////////
+         // Boundary contributions //
+         ////////////////////////////
          for (i = 0; i < numBdrs; i++)
          {
-            extractBdrDofs(geomType, nd, i, dofs);
-            //fes->FEColl()->SubDofOrder(geomType, dim-1, 64*i, dofs); TODO
-            numDofs = dofs.Size();
-            
             uSum = 0.;
             for (j = 0; j < numDofs; j++)
-               uSum += x(k*nd+dofs[j]);
+               uSum += x(k*nd+dofs(i,j));
             
             // boundary update
             for (j = 0; j < numDofs; j++)
-               z(k*nd+dofs[j]) += bdrDiff(k,i)*(uSum - numDofs*x(k*nd+dofs[j]));
+               z(k*nd+dofs(i,j)) += bdrDiff(k,i)*(uSum - numDofs*x(k*nd+dofs(i,j)));
          }
          ///////////////////////////
          // Element contributions //
@@ -1083,11 +1003,13 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    }
    else if (monoType == FLUXSCALING)
    {
-      // High order reconstruction that leads to an updated admissible solution.
+      // High order reconstruction that yields an updated admissible solution by means of 
+      // clipping the solution coefficients within certain bounds and scaling the anti-
+      // diffusive fluxes in a way that leads to local conservation of mass.
       Mesh *mesh = fes->GetMesh();
-      int i, j, k, geomType, nd, numDofs, numBdrs, dofInd, dim = mesh->Dimension();
-      Array< int > bdrs, orientation, dofs;
-      double uDof, uSum, uMin, uMax, sumPos, sumNeg, eps = 1.E-15;
+      int i, j, k, nd, numBdrs, dofInd, dim = mesh->Dimension(), numDofs(dofs.Width());
+      Array< int > bdrs, orientation;
+      double uDof, uSum, sumPos, sumNeg, eps = 1.E-15;
       Vector uClipped, fClipped;
       
       // Discretization terms
@@ -1109,7 +1031,6 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
          else if (dim==3)
             mesh->GetElementFaces(k, bdrs, orientation);
          
-         geomType = el.GetGeomType();
          numBdrs = bdrs.Size();
 
          ////////////////////////
@@ -1117,17 +1038,13 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
          ////////////////////////
          for (i = 0; i < numBdrs; i++)
          {
-            extractBdrDofs(geomType, nd, i, dofs);
-            //fes->FEColl()->SubDofOrder(geomType, dim-1, 64*i, dofs); //TODO
-            numDofs = dofs.Size();
-            
             uSum = 0.;
             for (j = 0; j < numDofs; j++)
-               uSum += x(k*nd+dofs[j]);
+               uSum += x(k*nd+dofs(i,j));
             
             // boundary update
             for (j = 0; j < numDofs; j++)
-               z(k*nd+dofs[j]) += bdrDiff(k,i)*(uSum - numDofs*x(k*nd+dofs[j]));
+               z(k*nd+dofs(i,j)) += bdrDiff(k,i)*(uSum - numDofs*x(k*nd+dofs(i,j)));
          }
          ///////////////////////////
          // Element contributions //
@@ -1140,11 +1057,9 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
             dofInd = k*nd+j;
             uDof = x(dofInd);
             uSum += uDof;
-            // Use this loop also to compute local min-/max-values TODO Kommentar weg
-            //computeAdmissibleBounds(monoType, x, dofInd, nd, geomType, uMin, uMax);//mine
             
             uClipped(j) = std::min(bnds.x_max(dofInd), 
-                                   std::max(x(dofInd) + dt * y(dofInd), bnds.x_min(dofInd))); //TODO more gneral than Euler
+                                   std::max(x(dofInd) + dt * y(dofInd), bnds.x_min(dofInd)));
          }
          
          sumPos = sumNeg = 0.;
@@ -1158,9 +1073,9 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
             // compute coefficients for the high-order corrections
             // NOTE: The multiplication and inversion of the lumped mass matrix is 
             //       avoided here, this is only possible due to its positive diagonal 
-            //       entries AND the way this method works
+            //       entries AND the way this high order scheme works
             fClipped(j) = uClipped(j) - ( x(dofInd) + dt * z(dofInd) );
-            //TODO more gneral than Euler
+            
             sumPos += std::max(fClipped(j), 0.);
             sumNeg += std::min(fClipped(j), 0.);
          }
@@ -1176,9 +1091,9 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
             // y is high order discrete time derivative
             // z is low order discrete time derivative
             y(dofInd) = z(dofInd) + fClipped(j) / dt;
-            // y is now the discrete time derivative featuring the high order anti-
-            // diffusive reconstruction that leads to an forward Euler updated admissible // solution. The factor dt in the denominator is used for compensation in the // ODE solver.
-            //TODO more gneral than Euler
+            // y is now the discrete time derivative featuring the high order anti-diffusive
+            // reconstruction that leads to an forward Euler updated admissible solution.
+            // The factor dt in the denominator is used for compensation in the ODE solver.
          }
       }
    }
@@ -1214,6 +1129,7 @@ void velocity_function(const Vector &x, Vector &v)
       }
       case 1:
       case 2:
+      case 4:
       {
          // Clockwise rotation in 2D around the origin
          const double w = M_PI/2;
@@ -1281,11 +1197,18 @@ double u0_function(const Vector &x)
       }
       case 2:
       {
-         /*double x_ = X(0), y_ = X(1), rho, phi;
+         double x_ = X(0), y_ = X(1), rho, phi;
          rho = hypot(x_, y_);
          phi = atan2(y_, x_);
-         return pow(sin(M_PI*rho),2)*sin(3*phi);*/
-         
+         return pow(sin(M_PI*rho),2)*sin(3*phi);
+      }
+      case 3:
+      {
+         const double f = M_PI;
+         return .5*(sin(f*X(0))*sin(f*X(1)) + 1.); // modified by Hennes 
+      }
+      case 4: // new
+      {
          double scale = 0.09;
          double G1 = (1./sqrt(scale)) * sqrt(pow(X(0),2.) + pow(X(1)+0.5,2.));
          double G2 = (1./sqrt(scale)) * sqrt(pow(X(0)-0.5,2.) + pow(X(1),2.));
@@ -1294,11 +1217,6 @@ double u0_function(const Vector &x)
                   (X(0) <= -0.05 | X(0) >= 0.05 | X(1) >= 0.7)) ? 1. : 0. +
                   (1-G1) * (pow(X(0),2.) + pow(X(1) + 0.5,2.) <= scale) + 
                   0.25*(1.+cos(M_PI*G2))*(pow(X(0) - 0.5,2.) + pow(X(1),2.) <= scale);
-      }
-      case 3:
-      {
-         const double f = M_PI;
-         return .5*(sin(f*X(0))*sin(f*X(1)) + 1.); //modified by Hennes 
       }
    }
    return 0.0;
@@ -1312,7 +1230,8 @@ double inflow_function(const Vector &x)
       case 0:
       case 1:
       case 2:
-      case 3: return 0.0;
+      case 3: 
+      case 4: return 0.0;
    }
    return 0.0;
 }
