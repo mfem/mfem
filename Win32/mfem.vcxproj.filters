@@ -1,494 +1,171 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\array.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\error.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\globals.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\gzstream.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\isockstream.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\optparser.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\osockstream.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\sets.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\socketstream.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\stable3d.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\table.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\tic_toc.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\version.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\communication.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\blockmatrix.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\blockoperator.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\blockvector.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\complex_operator.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\densemat.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\handle.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\matrix.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\ode.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\operator.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\solvers.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\sparsemat.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\sparsesmoothers.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\vector.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\hypre.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\hypre_parcsr.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\element.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\hexahedron.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\mesh.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\mesh_operators.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\mesh_readers.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\ncmesh.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\nurbs.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\point.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\quadrilateral.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\segment.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\tetrahedron.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\triangle.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\vertex.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\pmesh.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\pncmesh.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\bilinearform.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\bilininteg.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\coefficient.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\datacollection.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\eltrans.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\estimators.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\fe.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\fe_coll.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\fespace.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\geom.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\gridfunc.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\hybridization.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\intrules.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\linearform.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\lininteg.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\nonlinearform.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\nonlininteg.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\staticcond.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\tmop.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\pbilinearform.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\pfespace.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\pgridfunc.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\plinearform.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\pnonlinearform.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
+    <ClCompile Include="..\general\array.cpp" />
+    <ClCompile Include="..\general\error.cpp" />
+    <ClCompile Include="..\general\globals.cpp" />
+    <ClCompile Include="..\general\gzstream.cpp" />
+    <ClCompile Include="..\general\isockstream.cpp" />
+    <ClCompile Include="..\general\optparser.cpp" />
+    <ClCompile Include="..\general\osockstream.cpp" />
+    <ClCompile Include="..\general\sets.cpp" />
+    <ClCompile Include="..\general\socketstream.cpp" />
+    <ClCompile Include="..\general\stable3d.cpp" />
+    <ClCompile Include="..\general\table.cpp" />
+    <ClCompile Include="..\general\tic_toc.cpp" />
+    <ClCompile Include="..\general\version.cpp" />
+    <ClCompile Include="..\general\communication.cpp" />
+    <ClCompile Include="..\linalg\blockmatrix.cpp" />
+    <ClCompile Include="..\linalg\blockoperator.cpp" />
+    <ClCompile Include="..\linalg\blockvector.cpp" />
+    <ClCompile Include="..\linalg\complex_operator.cpp" />
+    <ClCompile Include="..\linalg\densemat.cpp" />
+    <ClCompile Include="..\linalg\handle.cpp" />
+    <ClCompile Include="..\linalg\matrix.cpp" />
+    <ClCompile Include="..\linalg\ode.cpp" />
+    <ClCompile Include="..\linalg\operator.cpp" />
+    <ClCompile Include="..\linalg\solvers.cpp" />
+    <ClCompile Include="..\linalg\sparsemat.cpp" />
+    <ClCompile Include="..\linalg\sparsesmoothers.cpp" />
+    <ClCompile Include="..\linalg\vector.cpp" />
+    <ClCompile Include="..\linalg\hypre.cpp" />
+    <ClCompile Include="..\linalg\hypre_parcsr.cpp" />
+    <ClCompile Include="..\mesh\element.cpp" />
+    <ClCompile Include="..\mesh\hexahedron.cpp" />
+    <ClCompile Include="..\mesh\mesh.cpp" />
+    <ClCompile Include="..\mesh\mesh_operators.cpp" />
+    <ClCompile Include="..\mesh\mesh_readers.cpp" />
+    <ClCompile Include="..\mesh\ncmesh.cpp" />
+    <ClCompile Include="..\mesh\nurbs.cpp" />
+    <ClCompile Include="..\mesh\point.cpp" />
+    <ClCompile Include="..\mesh\quadrilateral.cpp" />
+    <ClCompile Include="..\mesh\segment.cpp" />
+    <ClCompile Include="..\mesh\tetrahedron.cpp" />
+    <ClCompile Include="..\mesh\triangle.cpp" />
+    <ClCompile Include="..\mesh\vertex.cpp" />
+    <ClCompile Include="..\mesh\pmesh.cpp" />
+    <ClCompile Include="..\mesh\pncmesh.cpp" />
+    <ClCompile Include="..\fem\bilinearform.cpp" />
+    <ClCompile Include="..\fem\bilininteg.cpp" />
+    <ClCompile Include="..\fem\coefficient.cpp" />
+    <ClCompile Include="..\fem\datacollection.cpp" />
+    <ClCompile Include="..\fem\eltrans.cpp" />
+    <ClCompile Include="..\fem\estimators.cpp" />
+    <ClCompile Include="..\fem\fe.cpp" />
+    <ClCompile Include="..\fem\fe_coll.cpp" />
+    <ClCompile Include="..\fem\fespace.cpp" />
+    <ClCompile Include="..\fem\geom.cpp" />
+    <ClCompile Include="..\fem\gridfunc.cpp" />
+    <ClCompile Include="..\fem\hybridization.cpp" />
+    <ClCompile Include="..\fem\intrules.cpp" />
+    <ClCompile Include="..\fem\linearform.cpp" />
+    <ClCompile Include="..\fem\lininteg.cpp" />
+    <ClCompile Include="..\fem\nonlinearform.cpp" />
+    <ClCompile Include="..\fem\nonlininteg.cpp" />
+    <ClCompile Include="..\fem\staticcond.cpp" />
+    <ClCompile Include="..\fem\tmop.cpp" />
+    <ClCompile Include="..\fem\pbilinearform.cpp" />
+    <ClCompile Include="..\fem\pfespace.cpp" />
+    <ClCompile Include="..\fem\pgridfunc.cpp" />
+    <ClCompile Include="..\fem\plinearform.cpp" />
+    <ClCompile Include="..\fem\pnonlinearform.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\array.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\error.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\globals.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\gzstream.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\hash.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\isockstream.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\mem_alloc.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\optparser.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\osockstream.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\sets.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\socketstream.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\sort_pairs.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\stable3d.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\table.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\tassign.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\tic_toc.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\text.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\version.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\general\communication.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\blockmatrix.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\blockoperator.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\blockvector.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\complex_operator.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\densemat.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\handle.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\invariants.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\linalg.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\matrix.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\ode.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\operator.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\solvers.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\sparsemat.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\sparsesmoothers.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\tlayout.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\tmatrix.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\ttensor.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\vector.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\hypre.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\linalg\hypre_parcsr.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\element.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\hexahedron.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\mesh.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\mesh_headers.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\mesh_operators.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\ncmesh.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\nurbs.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\point.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\quadrilateral.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\segment.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\tetrahedron.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\tmesh.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\triangle.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\vertex.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\pmesh.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mesh\pncmesh.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\bilinearform.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\bilininteg.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\coefficient.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\datacollection.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\eltrans.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\estimators.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\fe.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\fe_coll.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\fem.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\fespace.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\geom.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\gridfunc.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\hybridization.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\intrules.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\linearform.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\lininteg.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\nonlinearform.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\nonlininteg.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\staticcond.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\tbilinearform.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\tbilininteg.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\tcoefficient.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\teltrans.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\tevaluator.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\tfe.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\tfespace.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\tintrules.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\tmop.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\pbilinearform.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\pfespace.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\pgridfunc.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\plinearform.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\fem\pnonlinearform.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\config.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\config\tconfig.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mfem.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\mfem-performance.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="config\_config.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
+    <ClInclude Include="..\general\array.hpp" />
+    <ClInclude Include="..\general\error.hpp" />
+    <ClInclude Include="..\general\globals.hpp" />
+    <ClInclude Include="..\general\gzstream.hpp" />
+    <ClInclude Include="..\general\hash.hpp" />
+    <ClInclude Include="..\general\isockstream.hpp" />
+    <ClInclude Include="..\general\mem_alloc.hpp" />
+    <ClInclude Include="..\general\optparser.hpp" />
+    <ClInclude Include="..\general\osockstream.hpp" />
+    <ClInclude Include="..\general\sets.hpp" />
+    <ClInclude Include="..\general\socketstream.hpp" />
+    <ClInclude Include="..\general\sort_pairs.hpp" />
+    <ClInclude Include="..\general\stable3d.hpp" />
+    <ClInclude Include="..\general\table.hpp" />
+    <ClInclude Include="..\general\tassign.hpp" />
+    <ClInclude Include="..\general\tic_toc.hpp" />
+    <ClInclude Include="..\general\text.hpp" />
+    <ClInclude Include="..\general\version.hpp" />
+    <ClInclude Include="..\general\communication.hpp" />
+    <ClInclude Include="..\linalg\blockmatrix.hpp" />
+    <ClInclude Include="..\linalg\blockoperator.hpp" />
+    <ClInclude Include="..\linalg\blockvector.hpp" />
+    <ClInclude Include="..\linalg\complex_operator.hpp" />
+    <ClInclude Include="..\linalg\densemat.hpp" />
+    <ClInclude Include="..\linalg\handle.hpp" />
+    <ClInclude Include="..\linalg\invariants.hpp" />
+    <ClInclude Include="..\linalg\linalg.hpp" />
+    <ClInclude Include="..\linalg\matrix.hpp" />
+    <ClInclude Include="..\linalg\ode.hpp" />
+    <ClInclude Include="..\linalg\operator.hpp" />
+    <ClInclude Include="..\linalg\solvers.hpp" />
+    <ClInclude Include="..\linalg\sparsemat.hpp" />
+    <ClInclude Include="..\linalg\sparsesmoothers.hpp" />
+    <ClInclude Include="..\linalg\tlayout.hpp" />
+    <ClInclude Include="..\linalg\tmatrix.hpp" />
+    <ClInclude Include="..\linalg\ttensor.hpp" />
+    <ClInclude Include="..\linalg\vector.hpp" />
+    <ClInclude Include="..\linalg\hypre.hpp" />
+    <ClInclude Include="..\linalg\hypre_parcsr.hpp" />
+    <ClInclude Include="..\mesh\element.hpp" />
+    <ClInclude Include="..\mesh\hexahedron.hpp" />
+    <ClInclude Include="..\mesh\mesh.hpp" />
+    <ClInclude Include="..\mesh\mesh_headers.hpp" />
+    <ClInclude Include="..\mesh\mesh_operators.hpp" />
+    <ClInclude Include="..\mesh\ncmesh.hpp" />
+    <ClInclude Include="..\mesh\nurbs.hpp" />
+    <ClInclude Include="..\mesh\point.hpp" />
+    <ClInclude Include="..\mesh\quadrilateral.hpp" />
+    <ClInclude Include="..\mesh\segment.hpp" />
+    <ClInclude Include="..\mesh\tetrahedron.hpp" />
+    <ClInclude Include="..\mesh\tmesh.hpp" />
+    <ClInclude Include="..\mesh\triangle.hpp" />
+    <ClInclude Include="..\mesh\vertex.hpp" />
+    <ClInclude Include="..\mesh\pmesh.hpp" />
+    <ClInclude Include="..\mesh\pncmesh.hpp" />
+    <ClInclude Include="..\fem\bilinearform.hpp" />
+    <ClInclude Include="..\fem\bilininteg.hpp" />
+    <ClInclude Include="..\fem\coefficient.hpp" />
+    <ClInclude Include="..\fem\datacollection.hpp" />
+    <ClInclude Include="..\fem\eltrans.hpp" />
+    <ClInclude Include="..\fem\estimators.hpp" />
+    <ClInclude Include="..\fem\fe.hpp" />
+    <ClInclude Include="..\fem\fe_coll.hpp" />
+    <ClInclude Include="..\fem\fem.hpp" />
+    <ClInclude Include="..\fem\fespace.hpp" />
+    <ClInclude Include="..\fem\geom.hpp" />
+    <ClInclude Include="..\fem\gridfunc.hpp" />
+    <ClInclude Include="..\fem\hybridization.hpp" />
+    <ClInclude Include="..\fem\intrules.hpp" />
+    <ClInclude Include="..\fem\linearform.hpp" />
+    <ClInclude Include="..\fem\lininteg.hpp" />
+    <ClInclude Include="..\fem\nonlinearform.hpp" />
+    <ClInclude Include="..\fem\nonlininteg.hpp" />
+    <ClInclude Include="..\fem\staticcond.hpp" />
+    <ClInclude Include="..\fem\tbilinearform.hpp" />
+    <ClInclude Include="..\fem\tbilininteg.hpp" />
+    <ClInclude Include="..\fem\tcoefficient.hpp" />
+    <ClInclude Include="..\fem\teltrans.hpp" />
+    <ClInclude Include="..\fem\tevaluator.hpp" />
+    <ClInclude Include="..\fem\tfe.hpp" />
+    <ClInclude Include="..\fem\tfespace.hpp" />
+    <ClInclude Include="..\fem\tintrules.hpp" />
+    <ClInclude Include="..\fem\tmop.hpp" />
+    <ClInclude Include="..\fem\pbilinearform.hpp" />
+    <ClInclude Include="..\fem\pfespace.hpp" />
+    <ClInclude Include="..\fem\pgridfunc.hpp" />
+    <ClInclude Include="..\fem\plinearform.hpp" />
+    <ClInclude Include="..\fem\pnonlinearform.hpp" />
+    <ClInclude Include="..\config\config.hpp" />
+    <ClInclude Include="..\config\tconfig.hpp" />
+    <ClInclude Include="..\mfem.hpp" />
+    <ClInclude Include="..\mfem-performance.hpp" />
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="C:\Users\bramwell1\Documents\Repos\ale3d\imports\mfem\CMakeLists.txt" />
+    <CustomBuild Include="..\CMakeLists.txt" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Source Files">

@@ -31,11 +31,11 @@
 #define MFEM_VERSION_PATCH ((MFEM_VERSION)%100)
 
 // Description of the git commit used to build MFEM.
-#define MFEM_GIT_STRING "heads/feature/bramwell/mfem-0-gc5bf9822d6b966751c782796975792ebc02425d7"
+#define MFEM_GIT_STRING "heads/feature/bramwell/mfem-0-g77f956eb950d289cdcbdf35d00d60cb26bb106b5-dirty"
 
 // Build the parallel MFEM library.
 // Requires an MPI compiler, and the libraries HYPRE and METIS.
-#define MFEM_USE_MPI
+// #define MFEM_USE_MPI
 
 // Enable debug checks in MFEM.
 /* #undef MFEM_DEBUG */
