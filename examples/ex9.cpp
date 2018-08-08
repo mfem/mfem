@@ -499,7 +499,7 @@ void preprocessLowOrderScheme(FiniteElementSpace* fes, VectorFunctionCoefficient
    dim = mesh->Dimension(), ne = mesh->GetNE();
    double un;
    ElementTransformation *tr;
-   Vector shape, vec1, vec2, estim1, estim2, bas, vval(dim), nor(dim);
+   Vector shape, vec1, vec2, estim1, estim2, bas, vval, nor(dim);
    DenseMatrix dshape, adjJ;
    Array< int > bdrs, orientation;
    DenseMatrix velEval;
@@ -745,11 +745,15 @@ int main(int argc, char *argv[])
       if ((mono != RUSANOV) && (mono != FLUXSCALING))
       {
          cout << "Unsupported option for monotonicity treatment." << endl;
+         delete mesh;
+         delete ode_solver;
          return 5;
       }
       if (btype != 2)
       {
          cout << "Monotonicity treatment requires use of Bernstein basis." << endl;
+         delete mesh;
+         delete ode_solver;
          return 5;
       }
       if (order == 0)
