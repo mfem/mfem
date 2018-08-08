@@ -429,6 +429,12 @@ public:
    {
       return BasisType::CheckNodal(b_type);
    }
+
+   /** Routine that extracts the indices of all p-th order Bernstein basis functions
+       that are non-zero on each of the (dim-1)-dimensional boundaries of a finite
+       element. The columns of dofs hold the indices of basis functions corresponding
+       to one respective boundary defined according to the class Geometry. */
+   virtual void ExtractBdrDofs(DenseMatrix &dofs) const;
 };
 
 class ScalarFiniteElement : public FiniteElement
@@ -474,6 +480,9 @@ public:
    void ScalarLocalInterpolation(ElementTransformation &Trans,
                                  DenseMatrix &I,
                                  const ScalarFiniteElement &fine_fe) const;
+
+   /// Overrides the ExtractBdrDofs function to print an error.
+   virtual void ExtractBdrDofs(DenseMatrix &dofs) const;
 };
 
 class NodalFiniteElement : public ScalarFiniteElement
@@ -516,6 +525,9 @@ public:
    virtual void ProjectDiv(const FiniteElement &fe,
                            ElementTransformation &Trans,
                            DenseMatrix &div) const;
+
+   /// Overrides the ExtractBdrDofs function to print an error.
+   virtual void ExtractBdrDofs(DenseMatrix &dofs) const;
 };
 
 
@@ -545,6 +557,9 @@ public:
 
    virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
                         DenseMatrix &I) const;
+
+   /// Overrides the ExtractBdrDofs function to print an error.
+   virtual void ExtractBdrDofs(DenseMatrix &dofs) const;
 };
 
 class VectorFiniteElement : public FiniteElement
@@ -644,6 +659,9 @@ public:
       FiniteElement(D, G, Do, O, F), Jinv(D)
    { RangeType = VECTOR; MapType = M; SetDerivMembers(); }
 #endif
+
+   /// Overrides the ExtractBdrDofs function to print an error.
+   virtual void ExtractBdrDofs(DenseMatrix &dofs) const;
 };
 
 class PointFiniteElement : public NodalFiniteElement
@@ -786,6 +804,7 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   void ExtractBdrDofs(DenseMatrix &dofs) const;
 };
 
 /// Class for quadratic FE on triangle
@@ -865,6 +884,7 @@ public:
                         Vector &dofs) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const
    { dofs = 0.; dofs(vertex) = 1.; }
+   void ExtractBdrDofs(DenseMatrix &dofs) const;
 };
 
 /// Bi-quadratic element on quad with nodes at the 9 Gaussian points
@@ -1710,6 +1730,9 @@ class PositiveTensorFiniteElement : public PositiveFiniteElement,
 public:
    PositiveTensorFiniteElement(const int dims, const int p,
                                const DofMapType dmtype);
+
+   /// Overrides the ExtractBdrDofs function to print an error.
+   virtual void ExtractBdrDofs(DenseMatrix &dofs) const;
 };
 
 class H1_SegmentElement : public NodalTensorFiniteElement
@@ -1778,6 +1801,7 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   void ExtractBdrDofs(DenseMatrix &dofs) const;
 };
 
 
@@ -1795,6 +1819,7 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   void ExtractBdrDofs(DenseMatrix &dofs) const;
 };
 
 
@@ -1812,6 +1837,7 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   void ExtractBdrDofs(DenseMatrix &dofs) const;
 };
 
 
@@ -1874,6 +1900,7 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   void ExtractBdrDofs(DenseMatrix &dofs) const;
 };
 
 
@@ -1900,6 +1927,7 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   void ExtractBdrDofs(DenseMatrix &dofs) const;
 };
 
 
@@ -1932,6 +1960,7 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   void ExtractBdrDofs(DenseMatrix &dofs) const;
 };
 
 
@@ -1969,6 +1998,7 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   void ExtractBdrDofs(DenseMatrix &dofs) const;
 };
 
 
@@ -2002,6 +2032,7 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   void ExtractBdrDofs(DenseMatrix &dofs) const;
 };
 
 
@@ -2041,6 +2072,7 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   void ExtractBdrDofs(DenseMatrix &dofs) const;
 };
 
 
@@ -2077,6 +2109,7 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
+   void ExtractBdrDofs(DenseMatrix &dofs) const;
 };
 
 
@@ -2556,6 +2589,9 @@ public:
    Vector              &Weights    ()         const { return weights; }
    /// Update the NURBSFiniteElement according to the currently set knot vectors
    virtual void         SetOrder   ()         const { }
+
+   /// Overrides the ExtractBdrDofs function to print an error.
+   virtual void ExtractBdrDofs(DenseMatrix &dofs) const;
 };
 
 class NURBS1DFiniteElement : public NURBSFiniteElement

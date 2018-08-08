@@ -197,6 +197,12 @@ void FiniteElement::CalcPhysDShape(ElementTransformation &Trans,
    Mult(vshape, Trans.InverseJacobian(), dshape);
 }
 
+void FiniteElement::ExtractBdrDofs(DenseMatrix &dofs) const
+{ 
+   mfem_error ("Error: Cannot use ExtractBdrDofs(...) function with\n"
+               "   FiniteElements!");
+}
+
 
 void ScalarFiniteElement::NodalLocalInterpolation (
    ElementTransformation &Trans, DenseMatrix &I,
@@ -270,6 +276,12 @@ void ScalarFiniteElement::ScalarLocalInterpolation(
       Trans.SetIntPoint(&Geometries.GetCenter(GeomType));
       I *= Trans.Weight();
    }
+}
+
+void ScalarFiniteElement::ExtractBdrDofs(DenseMatrix &dofs) const
+{ 
+   mfem_error ("Error: Cannot use ExtractBdrDofs(...) function with\n"
+               "   ScalarFiniteElements!");
 }
 
 
@@ -454,6 +466,12 @@ void NodalFiniteElement::ProjectDiv(
    }
 }
 
+void NodalFiniteElement::ExtractBdrDofs(DenseMatrix &dofs) const
+{ 
+   mfem_error ("Error: Cannot use ExtractBdrDofs(...) function with\n"
+               "   NodalFiniteElements!");
+}
+
 
 void PositiveFiniteElement::Project(
    Coefficient &coeff, ElementTransformation &Trans, Vector &dofs) const
@@ -492,6 +510,11 @@ void PositiveFiniteElement::Project(
    }
 }
 
+void PositiveFiniteElement::ExtractBdrDofs(DenseMatrix &dofs) const
+{ 
+   mfem_error ("Error: Cannot use ExtractBdrDofs(...) function with\n"
+               "   PositiveFiniteElements!");
+}
 
 void VectorFiniteElement::CalcShape (
    const IntegrationPoint &ip, Vector &shape ) const
@@ -933,6 +956,12 @@ void VectorFiniteElement::LocalInterpolation_ND(
    }
 }
 
+void VectorFiniteElement::ExtractBdrDofs(DenseMatrix &dofs) const
+{ 
+   mfem_error ("Error: Cannot use ExtractBdrDofs(...) function with\n"
+               "   VectorFiniteElements!");
+}
+
 
 PointFiniteElement::PointFiniteElement()
    : NodalFiniteElement(0, Geometry::POINT, 1, 0)
@@ -1232,6 +1261,14 @@ Quad2DFiniteElement::Quad2DFiniteElement()
    Nodes.IntPoint(5).x = 0.0;
    Nodes.IntPoint(5).y = 0.5;
 }
+
+void QuadPos1DFiniteElement::ExtractBdrDofs(DenseMatrix &dofs) const
+{
+   dofs.SetSize(1,2);
+   dofs(0,0) = 0;
+   dofs(0,1) = 1;
+}
+
 
 void Quad2DFiniteElement::CalcShape(const IntegrationPoint &ip,
                                     Vector &shape) const
@@ -1664,6 +1701,15 @@ void BiQuadPos2DFiniteElement::Project (
       d[8] = 4. * d[8] - 0.5 * (d[4] + d[5] + d[6] + d[7]) -
              0.25 * (d[0] + d[1] + d[2] + d[3]);
    }
+}
+
+void BiQuadPos2DFiniteElement::ExtractBdrDofs(DenseMatrix &dofs) const
+{
+   dofs.SetSize(3,4);
+   dofs(0,0) = 0;  dofs(1,0) = 4;  dofs(2,0) = 1;
+   dofs(0,1) = 1;  dofs(1,1) = 5;  dofs(2,1) = 2;
+   dofs(0,2) = 3;  dofs(1,2) = 6;  dofs(2,2) = 2;
+   dofs(0,3) = 0;  dofs(1,3) = 7;  dofs(2,3) = 3;
 }
 
 
@@ -6889,6 +6935,12 @@ PositiveTensorFiniteElement::PositiveTensorFiniteElement(
                            dims > 1 ? FunctionSpace::Qk : FunctionSpace::Pk),
      TensorBasisElement(dims, p, BasisType::Positive, dmtype) { }
 
+void PositiveTensorFiniteElement::ExtractBdrDofs(DenseMatrix &dofs) const
+{ 
+   mfem_error ("Error: Cannot use ExtractBdrDofs(...) function with\n"
+               "   PositiveTensorFiniteElements!");
+}
+
 
 H1_SegmentElement::H1_SegmentElement(const int p, const int btype)
    : NodalTensorFiniteElement(1, p, VerifyClosed(btype), H1_DOF_MAP)
@@ -7307,6 +7359,13 @@ void H1Pos_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
    dofs[vertex] = 1.0;
 }
 
+void H1Pos_SegmentElement::ExtractBdrDofs(DenseMatrix &dofs) const
+{
+   dofs.SetSize(1,2);
+   dofs(0,0) = 0;
+   dofs(0,1) = Order;
+}
+
 
 H1Pos_QuadrilateralElement::H1Pos_QuadrilateralElement(const int p)
    : PositiveTensorFiniteElement(2, p, H1_DOF_MAP)
@@ -7373,6 +7432,19 @@ void H1Pos_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
 {
    dofs = 0.0;
    dofs[vertex] = 1.0;
+}
+
+void H1Pos_QuadrilateralElement::ExtractBdrDofs(DenseMatrix &dofs) const
+{
+   int p = Order;
+   dofs.SetSize(p+1,4);
+   for (int i = 0; i <= p; i++)
+   {
+      dofs(i,0) = i;
+      dofs(i,1) = i*(p+1) + p;
+      dofs(i,2) = p*(p+1) + i;
+      dofs(i,3) = i*(p+1);
+   }
 }
 
 
@@ -7447,6 +7519,45 @@ void H1Pos_HexahedronElement::ProjectDelta(int vertex, Vector &dofs) const
 {
    dofs = 0.0;
    dofs[vertex] = 1.0;
+}
+
+void H1Pos_HexahedronElement::ExtractBdrDofs(DenseMatrix &dofs) const
+{
+   int p = Order;
+   dofs.SetSize((p+1)*(p+1), 6);
+   for (int bdrID = 0; bdrID < 6; bdrID++)
+   {
+      int o(0);
+      switch (bdrID)
+      {
+         case 0:
+            for (int i = 0; i < (p+1)*(p+1); i++)
+               dofs(o++,bdrID) = i;
+            break;
+         case 1:
+            for (int i = 0; i <= p*(p+1)*(p+1); i+=(p+1)*(p+1))
+               for (int j = 0; j < p+1; j++)
+                  dofs(o++,bdrID) = i+j;
+               break;
+         case 2:
+            for (int i = p; i < (p+1)*(p+1)*(p+1); i+=p+1)
+               dofs(o++,bdrID) = i;
+            break;
+         case 3:
+            for (int i = 0; i <= p*(p+1)*(p+1); i+=(p+1)*(p+1))
+               for (int j = p*(p+1); j < (p+1)*(p+1); j++)
+                  dofs(o++,bdrID) = i+j;
+               break;
+         case 4:
+            for (int i = 0; i <= (p+1)*((p+1)*(p+1)-1); i+=p+1)
+               dofs(o++,bdrID) = i;
+            break;
+         case 5:
+            for (int i = p*(p+1)*(p+1); i < (p+1)*(p+1)*(p+1); i++)
+               dofs(o++,bdrID) = i;
+            break;
+      }
+   }
 }
 
 
@@ -7883,6 +7994,19 @@ void H1Pos_TriangleElement::CalcDShape(const IntegrationPoint &ip,
    }
 }
 
+void H1Pos_TriangleElement::ExtractBdrDofs(DenseMatrix &dofs) const
+{
+   int ctr = 0, p = Order;
+   dofs.SetSize(p+1, 3);
+   for (int i = 0; i <= p; i++)
+   {
+      dofs(i,0) = i;
+      dofs(i,1) = ctr + p;
+      dofs(i,2) = ctr + i;
+      ctr += p - i;
+   }
+}
+
 
 H1Pos_TetrahedronElement::H1Pos_TetrahedronElement(const int p)
    : PositiveFiniteElement(3, Geometry::TETRAHEDRON,
@@ -8135,6 +8259,55 @@ void H1Pos_TetrahedronElement::CalcDShape(const IntegrationPoint &ip,
    }
 }
 
+void H1Pos_TetrahedronElement::ExtractBdrDofs(DenseMatrix &dofs) const
+{
+   int ctr, p = Order;
+   dofs.SetSize((p+1)*(p+2)/2, 4);
+   for (int bdrID = 0; bdrID < 4; bdrID++)
+   {
+      int o = 0;
+      switch (bdrID)
+      {
+         case 0:
+            ctr = p;
+            for (int i = 0; i <= p; i++)
+            {
+               for (int j = 0; j <= p - i; j++)
+               {
+                  dofs(o++,bdrID) = ctr;
+                  ctr += p - i - j;
+               }
+               ctr += p - i;
+            }
+            break;
+         case 1:
+            ctr = 0;
+            for (int i = 0; i <= p; i++)
+            {
+               for (int j = 0; j <= p - i; j++)
+               {
+                  dofs(o++,bdrID) = ctr;
+                  ctr += p + 1 - i - j;
+               }
+            }
+            break;
+         case 2:
+            ctr = 0;
+            for (int i = 0; i <= p; i++)
+            {
+               for (int j = 0; j <= p - i; j++)
+                  dofs(o++,bdrID) = ctr++;
+               ctr += - p + i - 1 + (p-i+1)*(p-i+2)/2;
+            }
+            break;
+         case 3:
+            for (int i = 0; i < (p+1)*(p+2)/2; i++)
+               dofs(o++,bdrID) = i;
+            break;
+      }
+   }
+}
+
 
 L2_SegmentElement::L2_SegmentElement(const int p, const int btype)
    : NodalTensorFiniteElement(1, p, VerifyOpen(btype), L2_DOF_MAP)
@@ -8235,6 +8408,13 @@ void L2Pos_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
 {
    dofs = 0.0;
    dofs[vertex*Order] = 1.0;
+}
+
+void L2Pos_SegmentElement::ExtractBdrDofs(DenseMatrix &dofs) const
+{
+   dofs.SetSize(1,2);
+   dofs(0,0) = 0;
+   dofs(0,1) = Order;
 }
 
 
@@ -8419,6 +8599,19 @@ void L2Pos_QuadrilateralElement::ProjectDelta(int vertex, Vector &dofs) const
       case 1: dofs[p] = 1.0; break;
       case 2: dofs[p*(p + 2)] = 1.0; break;
       case 3: dofs[p*(p + 1)] = 1.0; break;
+   }
+}
+
+void L2Pos_QuadrilateralElement::ExtractBdrDofs(DenseMatrix &dofs) const
+{
+   int p = Order;
+   dofs.SetSize(p+1,4);
+   for (int i = 0; i <= p; i++)
+   {
+      dofs(i,0) = i;
+      dofs(i,1) = i*(p+1) + p;
+      dofs(i,2) = p*(p+1) + i;
+      dofs(i,3) = i*(p+1);
    }
 }
 
@@ -8665,6 +8858,45 @@ void L2Pos_HexahedronElement::ProjectDelta(int vertex, Vector &dofs) const
    }
 }
 
+void L2Pos_HexahedronElement::ExtractBdrDofs(DenseMatrix &dofs) const
+{
+   int p = Order;
+   dofs.SetSize((p+1)*(p+1), 6);
+   for (int bdrID = 0; bdrID < 6; bdrID++)
+   {
+      int o(0);
+      switch (bdrID)
+      {
+         case 0:
+            for (int i = 0; i < (p+1)*(p+1); i++)
+               dofs(o++,bdrID) = i;
+            break;
+         case 1:
+            for (int i = 0; i <= p*(p+1)*(p+1); i+=(p+1)*(p+1))
+               for (int j = 0; j < p+1; j++)
+                  dofs(o++,bdrID) = i+j;
+               break;
+         case 2:
+            for (int i = p; i < (p+1)*(p+1)*(p+1); i+=p+1)
+               dofs(o++,bdrID) = i;
+            break;
+         case 3:
+            for (int i = 0; i <= p*(p+1)*(p+1); i+=(p+1)*(p+1))
+               for (int j = p*(p+1); j < (p+1)*(p+1); j++)
+                  dofs(o++,bdrID) = i+j;
+               break;
+         case 4:
+            for (int i = 0; i <= (p+1)*((p+1)*(p+1)-1); i+=p+1)
+               dofs(o++,bdrID) = i;
+            break;
+         case 5:
+            for (int i = p*(p+1)*(p+1); i < (p+1)*(p+1)*(p+1); i++)
+               dofs(o++,bdrID) = i;
+            break;
+      }
+   }
+}
+
 
 L2_TriangleElement::L2_TriangleElement(const int p, const int btype)
    : NodalFiniteElement(2, Geometry::TRIANGLE, ((p + 1)*(p + 2))/2, p,
@@ -8838,6 +9070,19 @@ void L2Pos_TriangleElement::ProjectDelta(int vertex, Vector &dofs) const
       case 0: dofs[0] = 1.0; break;
       case 1: dofs[Order] = 1.0; break;
       case 2: dofs[Dof-1] = 1.0; break;
+   }
+}
+
+void L2Pos_TriangleElement::ExtractBdrDofs(DenseMatrix &dofs) const
+{
+   int ctr = 0, p = Order;
+   dofs.SetSize(p+1, 3);
+   for (int i = 0; i <= p; i++)
+   {
+      dofs(i,0) = i;
+      dofs(i,1) = ctr + p;
+      dofs(i,2) = ctr + i;
+      ctr += p - i;
    }
 }
 
@@ -9035,6 +9280,55 @@ void L2Pos_TetrahedronElement::ProjectDelta(int vertex, Vector &dofs) const
       case 1: dofs[Order] = 1.0; break;
       case 2: dofs[(Order*(Order+3))/2] = 1.0; break;
       case 3: dofs[Dof-1] = 1.0; break;
+   }
+}
+
+void L2Pos_TetrahedronElement::ExtractBdrDofs(DenseMatrix &dofs) const
+{
+   int ctr, p = Order;
+   dofs.SetSize((p+1)*(p+2)/2, 4);
+   for (int bdrID = 0; bdrID < 4; bdrID++)
+   {
+      int o = 0;
+      switch (bdrID)
+      {
+         case 0:
+            ctr = p;
+            for (int i = 0; i <= p; i++)
+            {
+               for (int j = 0; j <= p - i; j++)
+               {
+                  dofs(o++,bdrID) = ctr;
+                  ctr += p - i - j;
+               }
+               ctr += p - i;
+            }
+            break;
+         case 1:
+            ctr = 0;
+            for (int i = 0; i <= p; i++)
+            {
+               for (int j = 0; j <= p - i; j++)
+               {
+                  dofs(o++,bdrID) = ctr;
+                  ctr += p + 1 - i - j;
+               }
+            }
+            break;
+         case 2:
+            ctr = 0;
+            for (int i = 0; i <= p; i++)
+            {
+               for (int j = 0; j <= p - i; j++)
+                  dofs(o++,bdrID) = ctr++;
+               ctr += - p + i - 1 + (p-i+1)*(p-i+2)/2;
+            }
+            break;
+         case 3:
+            for (int i = 0; i < (p+1)*(p+2)/2; i++)
+               dofs(o++,bdrID) = i;
+            break;
+      }
    }
 }
 
@@ -10911,6 +11205,14 @@ void ND_SegmentElement::CalcVShape(const IntegrationPoint &ip,
 
    obasis1d.Eval(ip.x, vshape);
 }
+
+
+void NURBSFiniteElement::ExtractBdrDofs(DenseMatrix &dofs) const
+{ 
+   mfem_error ("Error: Cannot use ExtractBdrDofs(...) function with\n"
+               "   NURBSFiniteElements!");
+}
+
 
 void NURBS1DFiniteElement::SetOrder() const
 {
