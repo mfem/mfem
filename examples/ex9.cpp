@@ -17,7 +17,7 @@
 //    ex9 -m ../data/periodic-square.mesh -p 4 -r 4 -o 0 -dt 0.01 -tf 4 -s 1 -mt 0
 //    ex9 -m ../data/periodic-square.mesh -p 4 -r 4 -o 1 -dt 0.001 -tf 4 -s 1 -mt 0
 //    ex9 -m ../data/periodic-square.mesh -p 4 -r 4 -o 1 -dt 0.002 -tf 4 -s 2 -mt 1
-//    ex9 -m ../data/periodic-square.mesh -p 4 -r 4 -o 1 -dt 0.005 -tf 4 -s 3 -mt 2 -st 1
+//    ex9 -m ../data/periodic-square.mesh -p 4 -r 4 -o 1 -dt 0.0008 -tf 4 -s 3 -mt 2 -st 1
 //
 // Description:  This example code solves the time-dependent advection equation
 //               du/dt + v.grad(u) = 0, where v is a given fluid velocity, and
@@ -527,9 +527,9 @@ void preprocessLowOrderScheme(FiniteElementSpace* fes, VectorFunctionCoefficient
       tr = mesh->GetElementTransformation(k);
       // Assuming order(u)==order(mesh)
       // estim1 can not be integrated exactly due to transforamtion dependent denominator
-      // use tr->OrderW() + 2*el.GetOrder() + 2*el.GetOrderJ() instead
+      // use tr->OrderW() + 2*el.GetOrder() + 2*el.max(tr->OrderGrad(&el), 0) instead
       // appropriate qOrd for estim2 is tr->OrderW() + 2*el.GetOrder(), choose max
-      qOrd = tr->OrderW() + 2*el.GetOrder() + 2*tr->OrderJ();
+      qOrd = tr->OrderW() + 2*el.GetOrder() + 2*max(tr->OrderGrad(&el), 0);
       
       const IntegrationRule *ir = &IntRules.Get(el.GetGeomType(), qOrd);
       
