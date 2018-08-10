@@ -30,8 +30,7 @@ namespace mfem
   /// Vector data type.
   class OccaVector {
   protected:
-    uint64_t size;
-    occa::memory data;
+    occa::memory buffer, data;
 
   public:
     /// Default constructor for Vector. Sets size = 0 and data = NULL.
@@ -44,11 +43,11 @@ namespace mfem
 
     /// @brief Creates vector of size s using the current OCCA device
     /// @warning Entries are not initialized to zero!
-    OccaVector(const int64_t size_);
+    OccaVector(const int64_t size);
 
     /// @brief Creates vector of size s using the passed OCCA device
     /// @warning Entries are not initialized to zero!
-    OccaVector(occa::device device, const int64_t size_);
+    OccaVector(occa::device device, const int64_t size);
 
     /// Creates vector based on Vector using the current OCCA device
     OccaVector(const Vector &v);
@@ -65,7 +64,7 @@ namespace mfem
     void Load(std::istream **in, int np, int *dim);
 
     /// Load a vector from an input stream.
-    void Load(std::istream &in, int size_);
+    void Load(std::istream &in, int size);
 
     /// Load a vector from an input stream, reading the size from the stream.
     inline void Load(std::istream &in) {
@@ -80,27 +79,27 @@ namespace mfem
         owned, and a new array of size @a s is allocated without copying the
         previous content of the Vector.
         @warning New entries are not initialized! */
-    void SetSize(const int64_t size_, const void *src = NULL);
-    void SetSize(occa::device device, const int64_t size_, const void *src = NULL);
+    void SetSize(const int64_t size, const void *src = NULL);
+    void SetSize(occa::device device, const int64_t size, const void *src = NULL);
 
-    inline void SetDataAndSize(occa::memory newData, int size_) {
-      data = newData;
-      size = size_;
+    inline void SetDataAndSize(occa::memory newData, int size) {
+      buffer = newData;
+      data = buffer.slice(0, size * sizeof(double));
     }
 
-    inline void NewDataAndSize(occa::memory newData, int size_) {
-      SetDataAndSize(newData, size_);
+    inline void NewDataAndSize(occa::memory newData, int size) {
+      SetDataAndSize(newData, size);
     }
 
     /// Returns the size of the vector.
     inline uint64_t Size() const {
-      return size;
+      return data.size() / sizeof(double);
     }
 
     /// Return the size of the currently allocated data array.
     /** It is always true that Capacity() >= Size(). */
     inline uint64_t Capacity() const {
-      return data.size() / sizeof(double);
+      return buffer.size() / sizeof(double);
     }
 
     inline occa::memory GetData() {
@@ -118,7 +117,6 @@ namespace mfem
     /// Changes the ownership of the data; after the call the Vector is empty
     inline void StealData(OccaVector &v) {
       v.data = data;
-      size = 0;
     }
 
     /// Changes the ownership of the data; after the call the Vector is empty
@@ -164,8 +162,8 @@ namespace mfem
 
     /// Swap the contents of two Vectors
     inline void Swap(OccaVector &other) {
-      mfem::Swap(size, other.size);
-      mfem::Swap(data, other.data);
+      buffer.swap(other.buffer);
+      data.swap(other.data);
     }
 
     /// v = median(v,lo,hi) entrywise.  Implementation assumes lo <= hi.

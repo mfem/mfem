@@ -17,56 +17,48 @@
 #include "../general/outils.hpp"
 
 namespace mfem {
-  OccaVector::OccaVector() :
-    size(0) {}
+  OccaVector::OccaVector() {}
 
   /// @brief Creates vector of size s using the current OCCA device
   /// @warning Entries are not initialized to zero!
-  OccaVector::OccaVector(const int64_t size_) :
-    size(0) {
-    SetSize(size_);
+  OccaVector::OccaVector(const int64_t size) {
+    SetSize(size);
   }
 
   /// Copy constructor.
-  OccaVector::OccaVector(const OccaVector &other) :
-    size(0) {
-    const int entries = other.Size();
-    SetSize(other.data.getDevice(), entries);
-    occa::memcpy(data, other.data, entries * sizeof(double));
+  OccaVector::OccaVector(const OccaVector &other) {
+    SetSize(other.data.getDevice(), other.Size());
+    data.copyFrom(other.data);
   }
 
   OccaVector::OccaVector(const OccaVectorRef &ref) {
-    SetDataAndSize(ref.v.data, ref.v.size);
+    SetDataAndSize(ref.v.data, ref.v.Size());
   }
 
   /// @brief Creates vector of size s using the default OCCA device
   /// @warning Entries are not initialized to zero!
-  OccaVector::OccaVector(occa::device device, const int64_t size_) :
-    size(0) {
-    SetSize(device, size_);
+  OccaVector::OccaVector(occa::device device, const int64_t size) {
+    SetSize(device, size);
   }
 
   /// Creates vector based on Vector using the current OCCA device
-  OccaVector::OccaVector(const Vector &v) :
-    size(0) {
+  OccaVector::OccaVector(const Vector &v) {
     SetSize(v.Size(), v.GetData());
   }
 
   /// Creates vector based on Vector using the passed OCCA device
-  OccaVector::OccaVector(occa::device device, const Vector &v) :
-    size(0) {
+  OccaVector::OccaVector(occa::device device, const Vector &v) {
     SetSize(device, v.Size(), v.GetData());
   }
 
-  OccaVector::OccaVector(occa::array<double> &v) :
-    size(0) {
+  OccaVector::OccaVector(occa::array<double> &v) {
     SetDataAndSize(v.memory(), v.size());
   }
 
   /// Convert to Vector
   OccaVector::operator Vector() const {
-    Vector v(size);
-    occa::memcpy(v.GetData(), data, size * sizeof(double));
+    Vector v(Size());
+    data.copyTo(v.GetData());
     return v;
   }
 
@@ -78,9 +70,9 @@ namespace mfem {
   }
 
   /// Load a vector from an input stream.
-  void OccaVector::Load(std::istream &in, int size_) {
+  void OccaVector::Load(std::istream &in, int size) {
     Vector v;
-    v.Load(in, size_);
+    v.Load(in, size);
     *this = v;
   }
 
@@ -90,20 +82,22 @@ namespace mfem {
       owned, and a new array of size @a s is allocated without copying the
       previous content of the Vector.
       @warning New entries are not initialized! */
-  void OccaVector::SetSize(const int64_t size_, const void *src) {
+  void OccaVector::SetSize(const int64_t size, const void *src) {
     if (data.isInitialized()) {
-      SetSize(data.getDevice(), size_, src);
+      SetSize(data.getDevice(), size, src);
     } else {
-      SetSize(occa::getDevice(), size_, src);
+      SetSize(occa::getDevice(), size, src);
     }
   }
 
-  void OccaVector::SetSize(occa::device device, const int64_t size_, const void *src) {
-    size = size_;
+  void OccaVector::SetSize(occa::device device, const int64_t size, const void *src) {
     if (size > (int64_t) Capacity()) {
-      data = device.malloc(size * sizeof(double), src);
-    } else if (size && src) {
-      occa::memcpy(data, src, size * sizeof(double));
+      buffer = data = device.malloc(size * sizeof(double), src);
+    } else if (size) {
+      data = buffer.slice(0, size * sizeof(double));
+      if (src) {
+        data.copyFrom(src);
+      }
     }
   }
 
@@ -118,12 +112,12 @@ namespace mfem {
 
   OccaVector& OccaVector::operator = (const OccaVector &v) {
     SetSize(v.Size());
-    occa::memcpy(data, v.data, size * sizeof(double));
+    data.copyFrom(v.data);
     return *this;
   }
 
   OccaVector& OccaVector::operator = (const OccaVectorRef &ref) {
-    SetDataAndSize(ref.v.data, ref.v.size);
+    SetDataAndSize(ref.v.data, ref.v.Size());
     return *this;
   }
 
@@ -265,8 +259,8 @@ namespace mfem {
   OccaVectorRef OccaVector::GetRange(const uint64_t offset, const uint64_t entries) const {
     OccaVectorRef ret;
     OccaVector &v = ret.v;
-    v.data = data + (offset * sizeof(double));
-    v.size = entries;
+    v.buffer = data + (offset * sizeof(double));
+    v.data = v.buffer;
     return ret;
   }
 
@@ -288,10 +282,10 @@ namespace mfem {
       return;
     }
 
-    OccaVector buffer(GetDevice(), dofCount);
-    GetSubVector(dofs, buffer);
+    OccaVector subBuffer(GetDevice(), dofCount);
+    GetSubVector(dofs, subBuffer);
 
-    occa::memcpy(elem_data, buffer.data, dofCount * sizeof(double));
+    occa::memcpy(elem_data, subBuffer.data, dofCount * sizeof(double));
   }
 
   void OccaVector::GetSubVector(const Array<int> &dofs,
@@ -342,10 +336,10 @@ namespace mfem {
       return;
     }
 
-    OccaVector buffer(GetDevice(), dofCount);
-    occa::memcpy(buffer.data, elem_data, dofCount * sizeof(double));
+    OccaVector subBuffer(GetDevice(), dofCount);
+    occa::memcpy(subBuffer.data, elem_data, dofCount * sizeof(double));
 
-    SetSubVector(dofs, buffer);
+    SetSubVector(dofs, subBuffer);
   }
 
   void OccaVector::SetSubVector(const Array<int> &dofs,
@@ -430,10 +424,10 @@ namespace mfem {
       return;
     }
 
-    OccaVector buffer(GetDevice(), dofCount);
-    occa::memcpy(buffer.data, elem_data, dofCount * sizeof(double));
+    OccaVector subBuffer(GetDevice(), dofCount);
+    occa::memcpy(subBuffer.data, elem_data, dofCount * sizeof(double));
 
-    AddElementVector(dofs, buffer);
+    AddElementVector(dofs, subBuffer);
   }
 
   void OccaVector::AddElementVector(const Array<int> &dofs,
@@ -484,10 +478,10 @@ namespace mfem {
       return;
     }
 
-    OccaVector buffer(GetDevice(), dofCount);
-    occa::memcpy(buffer.data, elem_data, dofCount * sizeof(double));
+    OccaVector subBuffer(GetDevice(), dofCount);
+    occa::memcpy(subBuffer.data, elem_data, dofCount * sizeof(double));
 
-    AddElementVector(dofs, a, buffer);
+    AddElementVector(dofs, a, subBuffer);
   }
 
   void OccaVector::AddElementVector(const Array<int> &dofs,
@@ -544,8 +538,8 @@ namespace mfem {
   /// Prints vector to stream out.
   void OccaVector::Print(std::ostream & out, int width) const
   {
-    Vector v(size);
-    occa::memcpy(v.GetData(), data, size * sizeof(double));
+    Vector v(Size());
+    data.copyTo(v.GetData());
     v.Print(out, width);
   }
 
@@ -593,6 +587,7 @@ namespace mfem {
   }
 
   int OccaVector::CheckFinite() const {
+    int64_t size = Size();
     double *ptr = (double*) data.ptr();
     if (data.getDevice().hasSeparateMemorySpace()) {
       ptr = GetOccaHostVector(0, size).GetData();

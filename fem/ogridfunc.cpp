@@ -114,7 +114,7 @@ namespace mfem {
   void OccaGridFunction::GetTrueDofs(OccaVector &v) const {
     const Operator *R = ofespace->GetRestrictionOperator();
     if (!R) {
-      v.NewDataAndSize(data, size);
+      v.NewDataAndSize(data, Size());
     } else {
       v.SetSize(data.getDevice(), R->Height());
       R->Mult(*this, v);
