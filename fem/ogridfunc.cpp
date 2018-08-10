@@ -84,6 +84,11 @@ namespace mfem {
     return *this;
   }
 
+  OccaGridFunction& OccaGridFunction::operator = (const Vector &v) {
+    OccaVector::operator = (v);
+    return *this;
+  }
+
   OccaGridFunction& OccaGridFunction::operator = (const OccaVector &v) {
     OccaVector::operator = (v);
     return *this;

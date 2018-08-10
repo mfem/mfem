@@ -53,6 +53,7 @@ namespace mfem {
     OccaGridFunction(const OccaGridFunction &gf);
 
     OccaGridFunction& operator = (double value);
+    OccaGridFunction& operator = (const Vector &v);
     OccaGridFunction& operator = (const OccaVector &v);
     OccaGridFunction& operator = (const OccaVectorRef &v);
     OccaGridFunction& operator = (const OccaGridFunction &gf);
