@@ -109,24 +109,24 @@ public:
    /**
    *  A constructor to initialize the sizes of a tensor with an array of integers
    */
-   Tensor(int* _sizes)
-      : own_data(true)
-   {
-      int nb = 1;
-      for (int i = 0; i < Dim; ++i)
-      {
-         sizes[i] = _sizes[i];
-         nb *= sizes[i];
-      }
-      capacity = nb;
-      data = new Scalar[nb];
-   }
+   // explicit Tensor(int* _sizes)
+   //    : own_data(true)
+   // {
+   //    int nb = 1;
+   //    for (int i = 0; i < Dim; ++i)
+   //    {
+   //       sizes[i] = _sizes[i];
+   //       nb *= sizes[i];
+   //    }
+   //    capacity = nb;
+   //    data = new Scalar[nb];
+   // }
 
    /**
    *  A constructor to initialize a tensor from a different size Tensor
    */
    template <int Dim1, typename... Args>
-   Tensor(Tensor<Dim1, Scalar>& t, Args... args)
+   explicit Tensor(Tensor<Dim1, Scalar>& t, Args... args)
       : own_data(false)
    {
       static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
@@ -140,7 +140,7 @@ public:
    *  A constructor to initialize the sizes of a tensor with a variadic function
    */
    template <typename... Args>
-   Tensor(Args... args)
+   explicit Tensor(Args... args)
       : own_data(true)
    {
       static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
@@ -154,7 +154,7 @@ public:
    *  A constructor to initialize a tensor from the Scalar array _data
    */
    template <typename... Args>
-   Tensor(Scalar* _data, Args... args)
+   explicit Tensor(Scalar* _data, Args... args)
       : own_data(false)
    {
       static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
@@ -166,7 +166,7 @@ public:
 
    // Let's write some uggly code
    template <typename... Args>
-   Tensor(const Scalar* _data, Args... args)
+   explicit Tensor(const Scalar* _data, Args... args)
       : own_data(false)
    {
       static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
@@ -274,6 +274,12 @@ public:
    Tensor& setView(Scalar* ptr){
       MFEM_ASSERT(own_data,"you should get rid of your data first.");
       data = ptr;
+      return *this;
+   }
+
+   const Tensor& setView(const Scalar* ptr){
+      MFEM_ASSERT(own_data,"you should get rid of your data first.");
+      data = const_cast<Scalar*>(ptr);
       return *this;
    }
 

@@ -554,6 +554,7 @@ public:
                return shape0d1;
          }
       }
+      return shape0d0;//To avoid warning...
    }
 
    const Tensor2d& getB0dTrial(const int face_id) const
@@ -597,6 +598,7 @@ public:
                return shape0d0;
          }
       }
+      return shape0d0;//To avoid warning...
    }
 
    const Tensor2d& getB0dTest(const int face_id) const
@@ -640,6 +642,7 @@ public:
                return shape0d1;
          }
       }
+      return shape0d0;//To avoid warning...
    }
 };
 

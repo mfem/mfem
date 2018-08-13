@@ -152,7 +152,7 @@ private:
 		const int dofs1d  = shape1d.Height();
 		const int dofs    = dofs1d;
 		const int quads1d = shape1d.Width();
-		const int quads   = quads1d;
+		// const int quads   = quads1d;
 		Tensor<dim> BT(quads1d), DBT(quads1d);
 		Tensor<dim> De(quads1d);
 		for (int e = 0; e < nbElts; e++)
@@ -176,7 +176,7 @@ private:
 		Tensor<dim> BT(dofs1d, quads1d), BBT(quads1d, quads1d),
 		       DBT(quads1d, quads1d), BDBT(quads1d, dofs1d);
 		Tensor<1> D_e(quads);
-		Tensor<dim> De(D_e,quads1d, quads1d);
+		Tensor<dim> De(D_e, quads1d, quads1d);
 		for (int e = 0; e < nbElts; e++)
 		{
 			const Tensor<dim> T(U.GetData() + e * dofs, dofs1d, dofs1d);
@@ -289,7 +289,7 @@ private:
 		const int dofs1d  = shape1d.Height();
 		const int dofs    = dofs1d;
 		const int quads1d = shape1d.Width();
-		const int quads   = quads1d;
+		// const int quads   = quads1d;
 		Tensor<dim> BT(quads1d), DBT(quads1d), BDBT(dofs1d);
 		Tensor<dim> De(quads1d);
 		for (int e = 0; e < nbElts; e++)
