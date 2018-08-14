@@ -64,47 +64,41 @@
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Import Project="..\..\hypre\src\Windows\Hypre_Includes.props" />
+    <Import Project="..\..\..\src\Win32\Properties\Serial.props" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='ParDebug|x64'" Label="PropertySheets">
     <Import Project="..\..\hypre\src\Windows\Hypre_Includes.props" />
+    <Import Project="..\..\..\src\Win32\Properties\Parallel.x64.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='ReleaseWithDebugInfo|x64'">
     <Import Project="..\..\hypre\src\Windows\Hypre_Includes.props" />
+    <Import Project="..\..\..\src\Win32\Properties\Serial.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Import Project="..\..\hypre\src\Windows\Hypre_Includes.props" />
+    <Import Project="..\..\..\src\Win32\Properties\Serial.props" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='ParRelease|x64'" Label="PropertySheets">
     <Import Project="..\..\hypre\src\Windows\Hypre_Includes.props" />
+    <Import Project="..\..\..\src\Win32\Properties\Parallel.x64.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <_ProjectFileVersion>10.0.20506.1</_ProjectFileVersion>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">..\Win32\Debug\</OutDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='ParDebug|x64'">..\Win32\Debug\</OutDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">mfem.dir\Debug\</IntDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='ParDebug|x64'">mfem.dir\Debug\</IntDir>
     <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">mfem</TargetName>
     <TargetName Condition="'$(Configuration)|$(Platform)'=='ParDebug|x64'">mfem</TargetName>
     <TargetExt Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.lib</TargetExt>
     <TargetExt Condition="'$(Configuration)|$(Platform)'=='ParDebug|x64'">.lib</TargetExt>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">..\Win32\Release\</OutDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='ParRelease|x64'">..\Win32\Release\</OutDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">mfem.dir\Release\</IntDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='ParRelease|x64'">mfem.dir\Release\</IntDir>
     <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">mfem</TargetName>
     <TargetName Condition="'$(Configuration)|$(Platform)'=='ParRelease|x64'">mfem</TargetName>
     <TargetExt Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.lib</TargetExt>
     <TargetExt Condition="'$(Configuration)|$(Platform)'=='ParRelease|x64'">.lib</TargetExt>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='ReleaseWithDebugInfo|x64'">..\Win32\RelWithDebInfo\</OutDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='ReleaseWithDebugInfo|x64'">mfem.dir\RelWithDebInfo\</IntDir>
     <TargetName Condition="'$(Configuration)|$(Platform)'=='ReleaseWithDebugInfo|x64'">mfem</TargetName>
     <TargetExt Condition="'$(Configuration)|$(Platform)'=='ReleaseWithDebugInfo|x64'">.lib</TargetExt>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\mpi\intel64\include;C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\redist\intel64_win\mkl;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <AssemblerListingLocation>Debug/</AssemblerListingLocation>
+      <AdditionalIncludeDirectories>config;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <CompileAs>CompileAsCpp</CompileAs>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
@@ -115,11 +109,10 @@
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
       <WarningLevel>Level3</WarningLevel>
-      <PreprocessorDefinitions>WIN32;_WINDOWS;MFEM_BUILD_DIR=../Win32;CMAKE_INTDIR="Debug";%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;MFEM_BUILD_DIR=../Win32;CMAKE_INTDIR=\"Debug\";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\mpi\intel64\include;C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\redist\intel64_win\mkl;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Midl>
@@ -130,14 +123,11 @@
       <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
       <ProxyFileName>%(Filename)_p.c</ProxyFileName>
     </Midl>
-    <Lib>
-      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
-    </Lib>
+    <Lib />
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ParDebug|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\mpi\intel64\include;C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\redist\intel64_win\mkl;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <AssemblerListingLocation>Debug/</AssemblerListingLocation>
+      <AdditionalIncludeDirectories>config;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <CompileAs>CompileAsCpp</CompileAs>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
@@ -148,11 +138,10 @@
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
       <WarningLevel>Level3</WarningLevel>
-      <PreprocessorDefinitions>WIN32;_WINDOWS;MFEM_BUILD_DIR=../Win32;CMAKE_INTDIR="Debug";MFEM_USE_MPI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;MFEM_USE_MPI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;MFEM_BUILD_DIR=../Win32;CMAKE_INTDIR=\"Debug\";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\mpi\intel64\include;C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\redist\intel64_win\mkl;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Midl>
@@ -163,14 +152,11 @@
       <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
       <ProxyFileName>%(Filename)_p.c</ProxyFileName>
     </Midl>
-    <Lib>
-      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
-    </Lib>
+    <Lib />
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\mpi\intel64\include;C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\redist\intel64_win\mkl;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <AssemblerListingLocation>Release/</AssemblerListingLocation>
+      <AdditionalIncludeDirectories>config;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <CompileAs>CompileAsCpp</CompileAs>
       <ExceptionHandling>Sync</ExceptionHandling>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
@@ -179,13 +165,12 @@
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
       <WarningLevel>Level3</WarningLevel>
-      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;MFEM_BUILD_DIR=../Win32;CMAKE_INTDIR="Release";%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DebugInformationFormat>
       </DebugInformationFormat>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;MFEM_BUILD_DIR=../Win32;CMAKE_INTDIR=\"Release\";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\mpi\intel64\include;C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\redist\intel64_win\mkl;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Midl>
@@ -196,14 +181,11 @@
       <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
       <ProxyFileName>%(Filename)_p.c</ProxyFileName>
     </Midl>
-    <Lib>
-      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
-    </Lib>
+    <Lib />
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ParRelease|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\mpi\intel64\include;C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\redist\intel64_win\mkl;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <AssemblerListingLocation>Release/</AssemblerListingLocation>
+      <AdditionalIncludeDirectories>config;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <CompileAs>CompileAsCpp</CompileAs>
       <ExceptionHandling>Sync</ExceptionHandling>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
@@ -212,13 +194,12 @@
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
       <WarningLevel>Level3</WarningLevel>
-      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;MFEM_BUILD_DIR=../Win32;CMAKE_INTDIR="Release";MFEM_USE_MPI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;MFEM_USE_MPI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DebugInformationFormat>
       </DebugInformationFormat>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;MFEM_BUILD_DIR=../Win32;CMAKE_INTDIR=\"Release\";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\mpi\intel64\include;C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\redist\intel64_win\mkl;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Midl>
@@ -229,14 +210,11 @@
       <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
       <ProxyFileName>%(Filename)_p.c</ProxyFileName>
     </Midl>
-    <Lib>
-      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
-    </Lib>
+    <Lib />
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseWithDebugInfo|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\mpi\intel64\include;C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\redist\intel64_win\mkl;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <AssemblerListingLocation>RelWithDebInfo/</AssemblerListingLocation>
+      <AdditionalIncludeDirectories>config;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <CompileAs>CompileAsCpp</CompileAs>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <ExceptionHandling>Sync</ExceptionHandling>
@@ -246,11 +224,10 @@
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
       <WarningLevel>Level3</WarningLevel>
-      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;MFEM_BUILD_DIR=../Win32;CMAKE_INTDIR="RelWithDebInfo";MFEM_USE_MPI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;MFEM_USE_MPI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;MFEM_BUILD_DIR=../Win32;CMAKE_INTDIR=\"RelWithDebInfo\";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\mpi\intel64\include;C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\redist\intel64_win\mkl;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Midl>
@@ -261,79 +238,8 @@
       <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
       <ProxyFileName>%(Filename)_p.c</ProxyFileName>
     </Midl>
-    <Lib>
-      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
-    </Lib>
+    <Lib />
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <CustomBuild Include="..\CMakeLists.txt">
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building Custom Rule ../CMakeLists.txt</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='ParDebug|x64'">Building Custom Rule ../CMakeLists.txt</Message>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -H.. -B../Win32 --check-stamp-file ../Win32/CMakeFiles/generate.stamp
-if %errorlevel% neq 0 goto :cmEnd
-:cmEnd
-endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
-:cmErrorLevel
-exit /b %1
-:cmDone
-if %errorlevel% neq 0 goto :VCEnd</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='ParDebug|x64'">setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -H.. -B../Win32 --check-stamp-file ../Win32/CMakeFiles/generate.stamp
-if %errorlevel% neq 0 goto :cmEnd
-:cmEnd
-endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
-:cmErrorLevel
-exit /b %1
-:cmDone
-if %errorlevel% neq 0 goto :VCEnd</Command>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../CMakeLists.txt;..\CMakeLists.txt;..\config\defaults.cmake;..\Win32\CMakeFiles\3.10.0-rc2\CMakeSystem.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeGenericSystem.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\Windows.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\WindowsPaths.cmake;..\config\XSDKDefaults.cmake;..\Win32\CMakeFiles\3.10.0-rc2\CMakeCXXCompiler.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeCXXInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeLanguageInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\Windows-MSVC.cmake;..\Win32\CMakeFiles\3.10.0-rc2\CMakeRCCompiler.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeRCInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeCommonLanguageInclude.cmake;..\config\cmake\modules\MfemCmakeUtilities.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindMPI.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\ProcessorCount.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindMPI\test_mpi.c;..\Win32\CMakeFiles\FindMPI\test_mpi.cpp;C:\Program Files\CMake\share\cmake-3.10\Modules\FindMPI\test_mpi.c;..\Win32\CMakeFiles\FindMPI\test_mpi.cpp;..\config\cmake\modules\FindHYPRE.cmake;..\config\cmake\modules\MfemCmakeUtilities.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindBLAS.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFortranFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePushCheckState.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindLAPACK.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePushCheckState.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindBLAS.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFortranFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePushCheckState.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;..\config\cmake\config.hpp.in;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePackageConfigHelpers.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\WriteBasicConfigVersionFile.cmake;..\config\cmake\MFEMConfig.cmake.in;..\config\cmake\MFEMConfig.cmake.in;C:\Program Files\CMake\share\cmake-3.10\Modules\BasicConfigVersion-SameMajorVersion.cmake.in;..\CMakeLists.txt;%(AdditionalInputs)</AdditionalInputs>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ParDebug|x64'">../CMakeLists.txt;..\CMakeLists.txt;..\config\defaults.cmake;..\Win32\CMakeFiles\3.10.0-rc2\CMakeSystem.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeGenericSystem.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\Windows.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\WindowsPaths.cmake;..\config\XSDKDefaults.cmake;..\Win32\CMakeFiles\3.10.0-rc2\CMakeCXXCompiler.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeCXXInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeLanguageInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\Windows-MSVC.cmake;..\Win32\CMakeFiles\3.10.0-rc2\CMakeRCCompiler.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeRCInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeCommonLanguageInclude.cmake;..\config\cmake\modules\MfemCmakeUtilities.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindMPI.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\ProcessorCount.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindMPI\test_mpi.c;..\Win32\CMakeFiles\FindMPI\test_mpi.cpp;C:\Program Files\CMake\share\cmake-3.10\Modules\FindMPI\test_mpi.c;..\Win32\CMakeFiles\FindMPI\test_mpi.cpp;..\config\cmake\modules\FindHYPRE.cmake;..\config\cmake\modules\MfemCmakeUtilities.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindBLAS.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFortranFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePushCheckState.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindLAPACK.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePushCheckState.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindBLAS.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFortranFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePushCheckState.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;..\config\cmake\config.hpp.in;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePackageConfigHelpers.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\WriteBasicConfigVersionFile.cmake;..\config\cmake\MFEMConfig.cmake.in;..\config\cmake\MFEMConfig.cmake.in;C:\Program Files\CMake\share\cmake-3.10\Modules\BasicConfigVersion-SameMajorVersion.cmake.in;..\CMakeLists.txt;%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">..\Win32\CMakeFiles\generate.stamp</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='ParDebug|x64'">..\Win32\CMakeFiles\generate.stamp</Outputs>
-      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
-      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='ParDebug|x64'">false</LinkObjects>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building Custom Rule ../CMakeLists.txt</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='ParRelease|x64'">Building Custom Rule ../CMakeLists.txt</Message>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -H.. -B../Win32 --check-stamp-file ../Win32/CMakeFiles/generate.stamp
-if %errorlevel% neq 0 goto :cmEnd
-:cmEnd
-endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
-:cmErrorLevel
-exit /b %1
-:cmDone
-if %errorlevel% neq 0 goto :VCEnd</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='ParRelease|x64'">setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -H.. -B../Win32 --check-stamp-file ../Win32/CMakeFiles/generate.stamp
-if %errorlevel% neq 0 goto :cmEnd
-:cmEnd
-endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
-:cmErrorLevel
-exit /b %1
-:cmDone
-if %errorlevel% neq 0 goto :VCEnd</Command>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../CMakeLists.txt;..\CMakeLists.txt;..\config\defaults.cmake;..\Win32\CMakeFiles\3.10.0-rc2\CMakeSystem.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeGenericSystem.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\Windows.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\WindowsPaths.cmake;..\config\XSDKDefaults.cmake;..\Win32\CMakeFiles\3.10.0-rc2\CMakeCXXCompiler.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeCXXInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeLanguageInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\Windows-MSVC.cmake;..\Win32\CMakeFiles\3.10.0-rc2\CMakeRCCompiler.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeRCInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeCommonLanguageInclude.cmake;..\config\cmake\modules\MfemCmakeUtilities.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindMPI.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\ProcessorCount.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindMPI\test_mpi.c;..\Win32\CMakeFiles\FindMPI\test_mpi.cpp;C:\Program Files\CMake\share\cmake-3.10\Modules\FindMPI\test_mpi.c;..\Win32\CMakeFiles\FindMPI\test_mpi.cpp;..\config\cmake\modules\FindHYPRE.cmake;..\config\cmake\modules\MfemCmakeUtilities.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindBLAS.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFortranFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePushCheckState.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindLAPACK.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePushCheckState.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindBLAS.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFortranFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePushCheckState.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;..\config\cmake\config.hpp.in;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePackageConfigHelpers.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\WriteBasicConfigVersionFile.cmake;..\config\cmake\MFEMConfig.cmake.in;..\config\cmake\MFEMConfig.cmake.in;C:\Program Files\CMake\share\cmake-3.10\Modules\BasicConfigVersion-SameMajorVersion.cmake.in;..\CMakeLists.txt;%(AdditionalInputs)</AdditionalInputs>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ParRelease|x64'">../CMakeLists.txt;..\CMakeLists.txt;..\config\defaults.cmake;..\Win32\CMakeFiles\3.10.0-rc2\CMakeSystem.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeGenericSystem.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\Windows.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\WindowsPaths.cmake;..\config\XSDKDefaults.cmake;..\Win32\CMakeFiles\3.10.0-rc2\CMakeCXXCompiler.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeCXXInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeLanguageInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\Windows-MSVC.cmake;..\Win32\CMakeFiles\3.10.0-rc2\CMakeRCCompiler.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeRCInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeCommonLanguageInclude.cmake;..\config\cmake\modules\MfemCmakeUtilities.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindMPI.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\ProcessorCount.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindMPI\test_mpi.c;..\Win32\CMakeFiles\FindMPI\test_mpi.cpp;C:\Program Files\CMake\share\cmake-3.10\Modules\FindMPI\test_mpi.c;..\Win32\CMakeFiles\FindMPI\test_mpi.cpp;..\config\cmake\modules\FindHYPRE.cmake;..\config\cmake\modules\MfemCmakeUtilities.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindBLAS.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFortranFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePushCheckState.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindLAPACK.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePushCheckState.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindBLAS.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFortranFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePushCheckState.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;..\config\cmake\config.hpp.in;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePackageConfigHelpers.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\WriteBasicConfigVersionFile.cmake;..\config\cmake\MFEMConfig.cmake.in;..\config\cmake\MFEMConfig.cmake.in;C:\Program Files\CMake\share\cmake-3.10\Modules\BasicConfigVersion-SameMajorVersion.cmake.in;..\CMakeLists.txt;%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">..\Win32\CMakeFiles\generate.stamp</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='ParRelease|x64'">..\Win32\CMakeFiles\generate.stamp</Outputs>
-      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
-      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='ParRelease|x64'">false</LinkObjects>
-      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseWithDebugInfo|x64'">Building Custom Rule ../CMakeLists.txt</Message>
-      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseWithDebugInfo|x64'">setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -H.. -B../Win32 --check-stamp-file ../Win32/CMakeFiles/generate.stamp
-if %errorlevel% neq 0 goto :cmEnd
-:cmEnd
-endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
-:cmErrorLevel
-exit /b %1
-:cmDone
-if %errorlevel% neq 0 goto :VCEnd</Command>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseWithDebugInfo|x64'">../CMakeLists.txt;..\CMakeLists.txt;..\config\defaults.cmake;..\Win32\CMakeFiles\3.10.0-rc2\CMakeSystem.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeGenericSystem.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\Windows.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\WindowsPaths.cmake;..\config\XSDKDefaults.cmake;..\Win32\CMakeFiles\3.10.0-rc2\CMakeCXXCompiler.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeCXXInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeLanguageInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\Platform\Windows-MSVC.cmake;..\Win32\CMakeFiles\3.10.0-rc2\CMakeRCCompiler.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeRCInformation.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakeCommonLanguageInclude.cmake;..\config\cmake\modules\MfemCmakeUtilities.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindMPI.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\ProcessorCount.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindMPI\test_mpi.c;..\Win32\CMakeFiles\FindMPI\test_mpi.cpp;C:\Program Files\CMake\share\cmake-3.10\Modules\FindMPI\test_mpi.c;..\Win32\CMakeFiles\FindMPI\test_mpi.cpp;..\config\cmake\modules\FindHYPRE.cmake;..\config\cmake\modules\MfemCmakeUtilities.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindBLAS.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFortranFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePushCheckState.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindLAPACK.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePushCheckState.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindBLAS.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckFortranFunctionExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePushCheckState.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckSymbolExists.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\FindPackageMessage.cmake;..\config\cmake\config.hpp.in;C:\Program Files\CMake\share\cmake-3.10\Modules\CMakePackageConfigHelpers.cmake;C:\Program Files\CMake\share\cmake-3.10\Modules\WriteBasicConfigVersionFile.cmake;..\config\cmake\MFEMConfig.cmake.in;..\config\cmake\MFEMConfig.cmake.in;C:\Program Files\CMake\share\cmake-3.10\Modules\BasicConfigVersion-SameMajorVersion.cmake.in;..\CMakeLists.txt;%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseWithDebugInfo|x64'">..\Win32\CMakeFiles\generate.stamp</Outputs>
-      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='ReleaseWithDebugInfo|x64'">false</LinkObjects>
-    </CustomBuild>
-  </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\general\array.cpp" />
     <ClCompile Include="..\general\error.cpp" />
