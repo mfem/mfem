@@ -1229,7 +1229,7 @@ void ParFiniteElementSpace::GetGhostDofs(int entity, const MeshId &id,
    }
 }
 
-void ParFiniteElementSpace::GetBareDofs(int entity, const MeshId &id,
+void ParFiniteElementSpace::GetBareDofs(int entity, int index,
                                         Array<int> &dofs) const
 {
    int ned, ghost, first;
@@ -1238,25 +1238,25 @@ void ParFiniteElementSpace::GetBareDofs(int entity, const MeshId &id,
       case 0:
          ned = fec->DofForGeometry(Geometry::POINT);
          ghost = pncmesh->GetNVertices();
-         first = (id.index < ghost)
-                 ? id.index*ned // regular vertex
-                 : ndofs + (id.index - ghost)*ned; // ghost vertex
+         first = (index < ghost)
+                 ? index*ned // regular vertex
+                 : ndofs + (index - ghost)*ned; // ghost vertex
          break;
 
       case 1:
          ned = fec->DofForGeometry(Geometry::SEGMENT);
          ghost = pncmesh->GetNEdges();
-         first = (id.index < ghost)
-                 ? nvdofs + id.index*ned // regular edge
-                 : ndofs + ngvdofs + (id.index - ghost)*ned; // ghost edge
+         first = (index < ghost)
+                 ? nvdofs + index*ned // regular edge
+                 : ndofs + ngvdofs + (index - ghost)*ned; // ghost edge
          break;
 
       default:
          ned = fec->DofForGeometry(mesh->GetFaceBaseGeometry(0));
          ghost = pncmesh->GetNFaces();
-         first = (id.index < ghost)
-                 ? nvdofs + nedofs + id.index*ned // regular face
-                 : ndofs + ngvdofs + ngedofs + (id.index - ghost)*ned; // ghost
+         first = (index < ghost)
+                 ? nvdofs + nedofs + index*ned // regular face
+                 : ndofs + ngvdofs + ngedofs + (index - ghost)*ned; // ghost
          break;
    }
 
@@ -1674,7 +1674,7 @@ void ParFiniteElementSpace::ForwardRow(const PMatrixRow &row, int dof,
 
 #ifdef MFEM_DEBUG_PMATRIX
 void ParFiniteElementSpace
-::DebugDumpDOFs(std::ofstream &os,
+::DebugDumpDOFs(std::ostream &os,
                 const SparseMatrix &deps,
                 const Array<GroupId> &dof_group,
                 const Array<GroupId> &dof_owner,
@@ -1800,9 +1800,6 @@ int ParFiniteElementSpace
          }
       }
 
-      // make sure all master DOFs are transmitted to participating slave ranks
-      pncmesh->AugmentMasterGroups();
-
       deps.Finalize();
    }
 
@@ -1820,7 +1817,7 @@ int ParFiniteElementSpace
       // initialize dof_group[], dof_owner[]
       for (int entity = 0; entity <= 2; entity++)
       {
-         const NCMesh::NCList &list = pncmesh->GetSharedList(entity);
+         const NCMesh::NCList &list = pncmesh->GetNCList(entity);
 
          std::size_t lsize[3] =
          { list.conforming.size(), list.masters.size(), list.slaves.size() };
@@ -1834,13 +1831,16 @@ int ParFiniteElementSpace
                   (l == 1) ? (const MeshId&) list.masters[i]
                   /*    */ : (const MeshId&) list.slaves[i];
 
-               GetBareDofs(entity, id, dofs);
+               GroupId owner = pncmesh->GetEntityOwnerId(entity, id.index);
+               GroupId group = pncmesh->GetEntityGroupId(entity, id.index);
+
+               GetBareDofs(entity, id.index, dofs);
 
                for (int j = 0; j < dofs.Size(); j++)
                {
                   int dof = dofs[j];
-                  dof_owner[dof] = pncmesh->GetOwnerId(entity, id.index);
-                  dof_group[dof] = pncmesh->GetGroupId(entity, id.index);
+                  dof_owner[dof] = owner;
+                  dof_group[dof] = group;
                }
             }
          }
