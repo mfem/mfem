@@ -500,9 +500,8 @@ void preprocessLowOrderScheme(FiniteElementSpace* fes, VectorFunctionCoefficient
    double un;
    ElementTransformation *tr;
    Vector shape, vec1, vec2, estim1, estim2, bas, vval, nor(dim);
-   DenseMatrix dshape, adjJ;
+   DenseMatrix dshape, adjJ, velEval;
    Array< int > bdrs, orientation;
-   DenseMatrix velEval;
    
    elDiff.SetSize(ne); elDiff = 0.;
    lumpedM.SetSize(ne); lumpedM = 0.;
@@ -542,7 +541,7 @@ void preprocessLowOrderScheme(FiniteElementSpace* fes, VectorFunctionCoefficient
       estim1 = estim2 = 0.;
       
       coef.Eval(velEval, *tr, *ir);
-            
+      
       for (p = 0; p < ir->GetNPoints(); p++)
       {
          const IntegrationPoint &ip = ir->IntPoint(p);
@@ -558,12 +557,13 @@ void preprocessLowOrderScheme(FiniteElementSpace* fes, VectorFunctionCoefficient
          for (j = 0; j < nd; j++)
          {
             //divide due to square in L2-norm
-            estim1(j) += ip.weight / tr->Weight() * pow(vec2(j), 2.); 
+            estim1(j) += ip.weight / tr->Weight() * pow(vec2(j), 2.);
             estim2(j) += ip.weight * tr->Weight() * pow(shape(j), 2.);
          }
          lumpedM(k) += ip.weight * tr->Weight();
       }
       elDiff(k) = std::sqrt(estim1.Max() * estim2.Max());
+      // use: max_j(sqrt(estim1)) * max_j(sqrt(estim2)) = sqrt( (max_j estim1) * (max_j estim2) )
       lumpedM(k) /= nd;
       
       ////////////////////////////
