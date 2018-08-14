@@ -1468,6 +1468,9 @@ const
 
 H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
 {
+   MFEM_VERIFY( p >= 1, "H1_FECollection requires order >= 1.");
+   MFEM_VERIFY( dim >= 1 && dim <=3, "H1_FECollection requires 1 <= dim <= 3.");
+
    const int pm1 = p - 1, pm2 = pm1 - 1, pm3 = pm2 - 1;
 
    int pt_type = BasisType::GetQuadrature1D(btype);
@@ -1708,6 +1711,8 @@ H1_Trace_FECollection::H1_Trace_FECollection(const int p, const int dim,
 L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
                                  const int map_type)
 {
+   MFEM_VERIFY( p >= 0, "L2_FECollection requires order >= 0.");
+
    b_type = BasisType::Check(btype);
    const char *prefix = NULL;
    switch (map_type)
@@ -1882,6 +1887,8 @@ RT_FECollection::RT_FECollection(const int p, const int dim,
                                  const int cb_type, const int ob_type)
    : ob_type(ob_type)
 {
+   MFEM_VERIFY( p >= 0, "RT_FECollection requires order >= 0.");
+
    int cp_type = BasisType::GetQuadrature1D(cb_type);
    int op_type = BasisType::GetQuadrature1D(ob_type);
 
@@ -2157,6 +2164,9 @@ DG_Interface_FECollection::DG_Interface_FECollection(const int p, const int dim,
 ND_FECollection::ND_FECollection(const int p, const int dim,
                                  const int cb_type, const int ob_type)
 {
+   MFEM_VERIFY( p >= 1, "ND_FECollection requires order >= 1.");
+   MFEM_VERIFY( dim >= 1 && dim <=3, "ND_FECollection requires 1 <= dim <= 3.");
+
    const int pm1 = p - 1, pm2 = p - 2;
 
    if (cb_type == BasisType::GaussLobatto &&
