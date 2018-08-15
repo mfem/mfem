@@ -29,9 +29,10 @@ namespace mfem
 // real_t - mesh nodes, sol basis, mesh basis data type
 template <typename meshType, typename solFESpace,
           typename IR, typename IntegratorType,
+          bool simd,
           typename solVecLayout_t = ScalarLayout,
           typename complex_t = double, typename real_t = double,
-          typename impl_traits_t = AutoImplTraits<complex_t,real_t> >
+          typename impl_traits_t = AutoImplTraits<complex_t,real_t,simd> >
 class TBilinearForm : public Operator
 {
 public:
