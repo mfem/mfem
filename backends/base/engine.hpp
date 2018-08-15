@@ -120,10 +120,10 @@ public:
    // TODO: Asynchronous execution in this class ...
 
    /// Allocate and return a new layout for the given @a size.
-   /** The layout decomposition is determined automatically by the Engine using
-       a deterministic algorithm: calls to this method with the same @a size
-       will produce the same result, as long as the Engine remains unmodified
-       between the calls.
+   /** The layout decomposition (in the case of multiple workers) is determined
+       automatically by the Engine using a deterministic algorithm: calls to
+       this method with the same @a size will produce the same result, as long
+       as the Engine remains unmodified between the calls.
 
        The returned object is allocated with operator new and must be
        deallocated by the caller.

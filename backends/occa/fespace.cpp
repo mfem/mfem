@@ -155,6 +155,7 @@ void FiniteElementSpace::SetupOperators() const
    MFEM_ASSERT(tdofs == (int)t_layout.Size(), "");
    MFEM_ASSERT(tdofs == R->GetI()[tdofs], "");
    ::occa::array<int> ltdof_ldof(GetDevice(), tdofs, R->GetJ());
+   ltdof_ldof.keepInDevice();
 
    restrictionOp = new RestrictionOperator(v_layout, t_layout, ltdof_ldof);
 
@@ -313,6 +314,8 @@ void OccaConformingProlongation::BcastBeginCopy(const ::occa::memory &src,
    if (shr_ltdof.Size() == 0) { return; }
    ExtractSubVector((int)shr_ltdof.Size(), shr_ltdof.OccaMem(), src,
                     shr_buf.OccaMem());
+   // If the above kernel is executed asynchronously, wait for it to complete:
+   shr_buf.OccaMem().getDevice().finish();
 }
 
 void OccaConformingProlongation::BcastLocalCopy(const ::occa::memory &src,
@@ -343,6 +346,8 @@ void OccaConformingProlongation::ReduceBeginCopy(const ::occa::memory &src,
    if (ext_ldof.Size() == 0) { return; }
    ExtractSubVector((int)ext_ldof.Size(), ext_ldof.OccaMem(), src,
                     ext_buf.OccaMem());
+   // If the above kernel is executed asynchronously, wait for it to complete:
+   ext_buf.OccaMem().getDevice().finish();
 }
 
 void OccaConformingProlongation::ReduceLocalCopy(const ::occa::memory &src,

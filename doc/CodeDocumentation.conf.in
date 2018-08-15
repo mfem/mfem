@@ -761,6 +761,7 @@ WARN_LOGFILE           =
 INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/mfem.hpp \
                          @MFEM_SOURCE_DIR@/backends/base \
+                         @MFEM_SOURCE_DIR@/backends/occa \
                          @MFEM_SOURCE_DIR@/config \
                          @MFEM_SOURCE_DIR@/general \
                          @MFEM_SOURCE_DIR@/linalg \

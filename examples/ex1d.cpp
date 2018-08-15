@@ -39,8 +39,8 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_BACKENDS
    /// Engine *engine = EngineDepot.Select(spec);
 
-   string occa_spec("mode: 'Serial'");
-   // string occa_spec("mode: 'CUDA', device_id: 0");
+   // string occa_spec("mode: 'Serial'");
+   string occa_spec("mode: 'CUDA', device_id: 0");
    // string occa_spec("mode: 'OpenMP', threads: 4");
    // string occa_spec("mode: 'OpenCL', device_id: 0, platform_id: 0");
 
@@ -141,7 +141,12 @@ int main(int argc, char *argv[])
    cout << "Size of linear system: " << A.Ptr()->Height() << endl;
 
    // 10. Solve the system A X = B with CG.
-   CG(*A.Ptr(), B, X, 3, 1000, 1e-12, 0.0);
+   tic_toc.Clear();
+   tic_toc.Start();
+   const int print_level = 3;
+   CG(*A.Ptr(), B, X, print_level, 1000, 1e-12, 0.0);
+   tic_toc.Stop();
+   cout << "CG time: " << tic_toc.RealTime() << " sec." << endl;
 
    // 11. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);

@@ -116,7 +116,9 @@ void OccaConstrainedOperator::Mult_(const Vector &x, Vector &y) const
    ::occa::kernel mapDofs   = mapDofBuilder.build(device);
    ::occa::kernel clearDofs = clearDofBuilder.build(device);
 
-   z.OccaAssign(x); // z = x
+   // z.OccaAssign(x); // z = x
+   // Is Axpy faster than DtoD copy on Volta?
+   z.Axpby(1.0, x, 0.0, x);
 
    clearDofs(constraintIndices, z.OccaMem(), constraintList);
 
