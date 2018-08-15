@@ -13,14 +13,11 @@
 #define MFEM_HIOP
 
 #include "linalg.hpp"
-//#include "../config/config.hpp"
+#include "../config/config.hpp"
+#include "../general/globals.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "operator.hpp"
-
-//mfem Vector will be assumed to be HypreParVector when mfem is with MPI
-#include "hypre.hpp" 
-#include <typeinfo>
 #endif
 
 #ifdef MFEM_USE_HIOP
@@ -35,8 +32,16 @@ class HiopProblemSpec : public hiop::hiopInterfaceDenseConstraints
 {
 
 public:
-  HiopProblemSpec(const MPI_Comm& _comm, const long long& _n) 
-    : comm_(_comm), n_(_n), n_local_(-1), a_(0.) {}
+  HiopProblemSpec(const MPI_Comm& _comm, const long long& _n_local) 
+    : comm_(_comm), n_local_(_n_local), a_(0.), workVec_(_n_local) 
+  { 
+#ifdef MFEM_USE_MPI
+    int ierr = MPI_Allreduce(&n_local_, &n_, 1, MPI_LONG_LONG_INT, MPI_SUM, comm_);
+    MFEM_ASSERT(ierr==MPI_SUCCESS, "MPI_Allreduce failed with error" << ierr);
+#else
+    n_ = n_local_;
+#endif
+  };
 
   /** problem dimensions: n number of variables, m number of constraints */
   virtual bool get_prob_sizes(long long int& n, long long int& m) {
@@ -46,51 +51,44 @@ public:
   };
 
   virtual bool get_vars_info(const long long& n, double *xlow, double* xupp, NonlinearityType* type) {
-    assert(n==n_);
-
-    if(n_local_==-1)
-      n_local_ = getLocalSize(lo_);
-
-    //!mfem memcpy
-    memcpy(xlow, lo_.GetData(), n_local_*sizeof(double));
-    memcpy(xupp, hi_.GetData(), n_local_*sizeof(double));
+    MFEM_ASSERT(n==n_, "global size input mismatch");
+    std::memcpy(xlow, lo_.GetData(), n_local_*sizeof(double));
+    std::memcpy(xupp, hi_.GetData(), n_local_*sizeof(double));
     return true;
   };
   /** bounds on the constraints 
    *  (clow<=-1e20 means no lower bound, cupp>=1e20 means no upper bound) */
   virtual bool get_cons_info(const long long& m, double* clow, double* cupp, NonlinearityType* type) {
-    assert(m==1);
+    MFEM_ASSERT(m==1, "only one constraint should be present");
     *clow = *cupp = a_;
     return true;
   };
 
   /** Objective function evaluation. Each rank returns the global obj. value. */
   virtual bool eval_f(const long long& n, const double* x, bool new_x, double& obj_value) {
-    assert(n==n_);
+    MFEM_ASSERT(n==n_, "global size input mismatch");
 
-    double* _x = const_cast<double*>(x);
-    auxVec_.SetDataAndSize(_x, n_);
+    workVec_ = x;
+    workVec_.Add(-1.0, xt_);
+    obj_value = 0.5 * (workVec_ * workVec_);
 
-    //! opt new_x
-    auxVec_.Add(-1.0, xt_);
-    obj_value = 0.5*(auxVec_*auxVec_);
+#ifdef MFEM_USE_MPI
+    double loc_obj = obj_value;
+    int ierr = MPI_Allreduce(&loc_obj, &obj_value, 1, MPI_DOUBLE, MPI_SUM, comm_);
+    MFEM_ASSERT(ierr==MPI_SUCCESS, "MPI_Allreduce failed with error" << ierr);
+#endif
 
     return true;
   };
 
   /** Gradient of objective (local chunk) */
   virtual bool eval_grad_f(const long long& n, const double* x, bool new_x, double* gradf) {
-    assert(n==n_);
+    MFEM_ASSERT(n==n_, "global size input mismatch");
 
-    if(n_local_==-1)
-      n_local_ = getLocalSize(lo_);
-
-    double* _x = const_cast<double*>(x);
-    auxVec_.SetDataAndSize(_x, n_);
-    auxVec_.Add(-1.0, xt_);
- 
-    //!
-    memcpy(gradf, auxVec_.GetData(), n_local_*sizeof(double));
+    // compute gradf = x-xt
+    workVec_  = x;
+    workVec_ -= xt_;
+    std::memcpy(gradf, workVec_.GetData(), n_local_*sizeof(double));
 
     return true;
   }
@@ -115,19 +113,22 @@ public:
 			 const long long& num_cons, const long long* idx_cons,  
 			 const double* x, bool new_x, 
 			 double* cons) {
-    assert(n==n_);
-    assert(m==1);
-    assert(num_cons<=1);
+    MFEM_ASSERT(n==n_, "global size input mismatch");
+    MFEM_ASSERT(m==1, "only one constraint should be present");
+    MFEM_ASSERT(num_cons<=m, "num_cons should be at most m=" << m);
     if(num_cons>0) {
-      assert(idx_cons[0]==0);
-      //dirty cast to avoid copying
-      double* _x = const_cast<double*>(x);
+      MFEM_ASSERT(idx_cons[0]==0, "index of the constraint should be 0");
 
-      //! mfem: does this work in parallel? Also see SetData(double*) as in auxVec_.SetData(_x);
-      auxVec_.SetDataAndSize(_x, n_);
-      
+      workVec_ = x;
+      double wtx = w_ * workVec_;
+
+#ifdef MFEM_USE_MPI
+      double loc_wtx = wtx;
+      int ierr = MPI_Allreduce(&loc_wtx, &wtx, 1, MPI_DOUBLE, MPI_SUM, comm_);
+      MFEM_ASSERT(ierr==MPI_SUCCESS, "MPI_Allreduce failed with error" << ierr);
+#endif
       //w' * x - a
-      cons[0] = (w_*auxVec_ - a_);
+      cons[0] = wtx - a_;
     }
     return true;
   };
@@ -151,7 +152,14 @@ public:
 			     const long long& num_cons, const long long* idx_cons,  
 			     const double* x, bool new_x,
 			     double** Jac) {
-    
+    MFEM_ASSERT(n==n_, "global size input mismatch");
+    MFEM_ASSERT(m==1, "only one constraint should be present");
+    MFEM_ASSERT(num_cons<=m, "num_cons should be at most m=" << m);
+    if(num_cons>0) {
+      MFEM_ASSERT(idx_cons[0]==0, "index of the constraint should be 0");
+
+      std::memcpy(Jac[0], w_.GetData(), n_local_*sizeof(double));
+    }
     return true;
   };
 
@@ -162,27 +170,22 @@ public:
    */
   virtual bool get_vecdistrib_info(long long global_n, long long* cols) {
 #ifdef MFEM_USE_MPI
-
-    try {
-      //use xt_ as template
-      HypreParVector& templateVec = dynamic_cast<HypreParVector&>(xt_);
-
-      //do some checks
-      const HYPRE_Int globSize = templateVec.GlobalSize();
-      assert(global_n==globSize & "vectors size mismatch between mfem and hiop; maybe method called prematurely?");
-
-      int nRanks;
-      int ierr = MPI_Comm_size(comm_, &nRanks);
-      assert(ierr==MPI_SUCCESS);
+    int nranks;
+    int ierr = MPI_Comm_size(comm_, &nranks);
+    MFEM_ASSERT(ierr==MPI_SUCCESS, "MPI_Comm_size failed with error" << ierr);
     
-      const HYPRE_Int* part = templateVec.Partitioning();
+    long long* sizes = new long long[nranks];
+    ierr = MPI_Allgather(&n_local_, 1, MPI_LONG_LONG_INT, sizes, 1, MPI_LONG_LONG_INT, comm_);
+    MFEM_ASSERT(MPI_SUCCESS==ierr,
+		"Error in MPI_Allgather of number of decision variables." << ierr);
     
-      //elementwize assignment (no memcpy) in case HYPRE_Int is not a 'long int'
-      for(int r=0; r<=nRanks; r++)
-	cols[r] = part[r];
-    } catch(const std::bad_cast& e) {
-	assert(false && "mfem vector is not an HypreParVector");
+    //compute global indeces
+    cols[0]=0;
+    for (int r=1; r<=nranks; r++) {
+      cols[r] = sizes[r-1] + cols[r-1];
     }
+
+    delete[] sizes;
     return true;
 #else
     return false; //hiop runs in non-distributed mode 
@@ -192,41 +195,19 @@ public:
 
   /** Seter/geter methods below; not inherited from the HiOp interface class */
   virtual void setBounds(const Vector &_lo, const Vector &_hi) {
-    //! mfem: I understand these are copied 
-    lo_.SetDataAndSize(_lo.GetData(), _lo.Size());
-    hi_.SetDataAndSize(_hi.GetData(), _hi.Size());
+    lo_ = _lo;
+    hi_ = _hi;
   };
   virtual void setLinearConstraint(const Vector &_w, const double& _a) {
-    w_.SetDataAndSize(_w.GetData(), _w.Size());
+    w_ = _w;
     a_ = _a;
   };
 
   virtual void setObjectiveTarget(const Vector &_xt) {
-    xt_.SetDataAndSize(_xt.GetData(), _xt.Size());
+    xt_ = _xt;
   };
 
-protected:
-  virtual long long getLocalSize(Vector& _template) {
-#ifdef MFEM_USE_MPI
-    //!mfem exceptions
-    long long locsize=-1;
-    try {
-      HypreParVector& templateVec = dynamic_cast<HypreParVector&>(_template);
-      const HYPRE_Int* part = templateVec.Partitioning();
-      int myrank;
-      int ierr = MPI_Comm_rank(comm_, &myrank);
-      assert(ierr==MPI_SUCCESS);
-      locsize = part[myrank+1]-part[myrank];
-
-    } catch(const std::bad_cast& e) {
-	assert(false && "mfem vector is not an HypreParVector");
-    }
-    return locsize;
-#else
-    return template.Size();
-#endif   
-  };
-private: 
+protected: 
   MPI_Comm comm_;
   //members that store problem info
   long long n_; //number of variables (global)
@@ -237,11 +218,11 @@ private:
   Vector w_;      //linear constraint coefficients 
   double a_;      //linear constraint rhs
 
-  Vector auxVec_; //used as auxiliary object
+  Vector workVec_; //used as work space of size n_local_
 };
 
 
-class HiopNlpOptimizer : public IterativeSolver
+class HiopNlpOptimizer : public OptimizationSolver
 {
 public:
   HiopNlpOptimizer();
@@ -255,11 +236,7 @@ public:
 
   // For this problem type, we let the target values play the role of the
   // initial vector xt, from which the operator generates the optimal vector x.
-  virtual void Mult(const Vector &xt, Vector &x); //! const;
-
-  /// These are not currently meaningful for this solver and will error out.
-  virtual void SetPreconditioner(Solver &pr);
-  virtual void SetOperator(const Operator &op);
+  virtual void Mult(const Vector &xt, Vector &x) const;
 
 private:
   void allocHiopProbSpec(const long long& numvars);
@@ -269,8 +246,6 @@ private:
   MPI_Comm comm_;
 #endif
   HiopProblemSpec* optProb_;
-  hiop::hiopNlpDenseConstraints* hiopInstance_;
-
 }; //end of hiop class
 
 
