@@ -38,8 +38,8 @@ using namespace mfem;
 
 // Define template parameters for optimized build.
 const Geometry::Type geom     = Geometry::CUBE; // mesh elements  (default: hex)
-const int            mesh_p   = 8;              // mesh curvature (default: 3)
-const int            sol_p    = 8;              // solution order (default: 3)
+const int            mesh_p   = 2;              // mesh curvature (default: 3)
+const int            sol_p    = 2;              // solution order (default: 3)
 const int            rdim     = Geometry::Constants<geom>::Dimension;
 const int            ir_order = 2*sol_p+rdim-1;
 
@@ -58,7 +58,8 @@ typedef TConstantCoefficient<>                coeff_t;
 typedef TIntegrator<coeff_t,TDiffusionKernel> integ_t;
 
 // Static bilinear form type, combining the above types
-typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t> HPCBilinearForm;
+typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t,true> avx_HPCBilinearForm;
+typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t,false> m64_HPCBilinearForm;
 
 int main(int argc, char *argv[])
 {
@@ -133,7 +134,7 @@ int main(int argc, char *argv[])
    //    the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
-
+   
    // 3. Check if the optimized version matches the given mesh
    if (perf)
    {
@@ -171,6 +172,16 @@ int main(int argc, char *argv[])
    {
       MFEM_VERIFY(pc_choice != LOR, "triangle and tet meshes do not support"
                   " the LOR preconditioner yet");
+   }
+   
+   const int NE = mesh->GetNE();
+   AutoImplTraits<double,double,true> simd_impl;
+   const bool simd = (NE > simd_impl.simd_size);
+   printf("\033[32m[ex1] GetNE()=%d\033[m\n",NE);
+   if (simd){
+     printf("\033[32m[ex1] SIMD!\033[m\n");
+   }else{
+     printf("\033[32m[ex1] SCALAR!\033[m\n");
    }
 
    // 5. Define a finite element space on the mesh. Here we use continuous
@@ -270,7 +281,8 @@ int main(int argc, char *argv[])
    // Pre-allocate sparsity assuming dense element matrices
    a->UsePrecomputedSparsity();
 
-   HPCBilinearForm *a_hpc = NULL;
+   avx_HPCBilinearForm *a_hpc_simd = NULL;
+   m64_HPCBilinearForm *a_hpc_scalar = NULL;
    Operator *a_oper = NULL;
 
    if (!perf)
@@ -282,14 +294,23 @@ int main(int argc, char *argv[])
    else
    {
       // High-performance assembly/evaluation using the templated operator type
-      a_hpc = new HPCBilinearForm(integ_t(coeff_t(1.0)), *fespace);
+      if (simd)
+        a_hpc_simd = new avx_HPCBilinearForm(integ_t(coeff_t(1.0)), *fespace);
+      else
+        a_hpc_scalar = new m64_HPCBilinearForm(integ_t(coeff_t(1.0)), *fespace);
       if (matrix_free)
       {
-         a_hpc->Assemble(); // partial assembly
+        if (simd)
+         a_hpc_simd->Assemble(); // partial assembly
+        else
+         a_hpc_scalar->Assemble(); // partial assembly
       }
       else
       {
-         a_hpc->AssembleBilinearForm(*a); // full matrix assembly
+         if (simd)
+          a_hpc_simd->AssembleBilinearForm(*a); // full matrix assembly
+         else
+          a_hpc_scalar->AssembleBilinearForm(*a); // full matrix assembly
       }
    }
    tic_toc.Stop();
@@ -303,8 +324,13 @@ int main(int argc, char *argv[])
    Vector B, X;
    if (perf && matrix_free)
    {
-      a_hpc->FormLinearSystem(ess_tdof_list, x, *b, a_oper, X, B);
-      cout << "Size of linear system: " << a_hpc->Height() << endl;
+     if (simd){
+       a_hpc_simd->FormLinearSystem(ess_tdof_list, x, *b, a_oper, X, B);
+       cout << "Size of linear system: " << a_hpc_simd->Height() << endl;
+     }else{
+       a_hpc_scalar->FormLinearSystem(ess_tdof_list, x, *b, a_oper, X, B);
+       cout << "Size of linear system: " << a_hpc_scalar->Height() << endl;
+     }
    }
    else
    {
@@ -336,7 +362,10 @@ int main(int argc, char *argv[])
       else
       {
          a_pc->UsePrecomputedSparsity();
-         a_hpc->AssembleBilinearForm(*a_pc);
+         if (simd)
+           a_hpc_simd->AssembleBilinearForm(*a_pc);
+         else
+           a_hpc_scalar->AssembleBilinearForm(*a_pc);
          a_pc->FormSystemMatrix(ess_tdof_list, A_pc);
       }
    }
@@ -362,7 +391,10 @@ int main(int argc, char *argv[])
    // 13. Recover the solution as a finite element grid function.
    if (perf && matrix_free)
    {
-      a_hpc->RecoverFEMSolution(X, *b, x);
+     if (simd)
+       a_hpc_simd->RecoverFEMSolution(X, *b, x);
+     else
+       a_hpc_scalar->RecoverFEMSolution(X, *b, x);
    }
    else
    {
@@ -390,7 +422,10 @@ int main(int argc, char *argv[])
 
    // 16. Free the used memory.
    delete a;
-   delete a_hpc;
+   if (simd)
+     delete a_hpc_simd;
+   else
+     delete a_hpc_scalar;
    if (a_oper != &A) { delete a_oper; }
    delete a_pc;
    delete b;
