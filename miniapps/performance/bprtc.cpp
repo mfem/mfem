@@ -84,18 +84,6 @@ const int            ir_q     = IR_TYPE ? sol_p+1 : sol_p+2;
 const int            ir_order = IR_ORDER ? IR_ORDER :
                                 (IR_TYPE ? 2*ir_q-3 : 2*ir_q-1);
 
-
-// Workaround for a bug in XL C++ on BG/Q version 12.01.0000.0014
-#if defined(__xlC__) && (__xlC__ < 0x0d00)
-#include <../mfem/linalg/tlayout.hpp>
-namespace mfem
-{
-const int mesh_dim = Geometry::Constants<geom>::Dimension;
-template class StridedLayout1D<mesh_dim*VDIM,1>;
-}
-#endif // defined(__xlC__) && (__xlC__ < 0x0d00)
-
-
 #include <mfem-performance.hpp>
 #include <fstream>
 #include <iostream>
@@ -171,9 +159,417 @@ typedef VectorLayout<VEC_LAYOUT,VDIM>         vec_layout_t;
 
 // Static bilinear form type, combining the above types
 typedef TBilinearForm<mesh_t, sol_fes_t, int_rule_t, integ_t, true, vec_layout_t> HPCBilinearForm;
+enum PCType { NONE, LOR, HO };
 
-int main(int argc, char *argv[])
+// Workaround for a bug in XL C++ on BG/Q version 12.01.0000.0014
+#if defined(__xlC__) && (__xlC__ < 0x0d00)
+#include <../mfem/linalg/tlayout.hpp>
+namespace mfem
 {
+const int mesh_dim = Geometry::Constants<geom>::Dimension;
+template class StridedLayout1D<mesh_dim*VDIM,1>;
+}
+#endif // defined(__xlC__) && (__xlC__ < 0x0d00)
+
+// *****************************************************************************
+// -L/home/camier1/home/mfem/x86 -lmfem -L/home/camier1/usr/local/hypre/2.11.2/lib -lHYPRE -L/home/camier1/usr/local/metis/5.1.0/lib -lmetis -lrt -ldl
+// *****************************************************************************
+void bp_kernel(const int num_procs,
+               const HYPRE_Int size,
+               const int myid,
+               const int dim,
+               const int vdim,
+               const Ordering::Type ordering,
+               const int order,
+               const bool static_cond,
+               const bool perf,
+               const bool matrix_free,
+               const int max_iter,
+               const bool visualization,
+               const int pc_choice, // PCType
+               const int basis,
+               // **************************************************************
+               const bool simd,
+               // **************************************************************
+               const Geometry::Type geom,
+               const int mesh_p,
+               const int sol_p,
+               const int ir_q,
+               const int ir_order,
+               // **************************************************************
+               const char* __restrict mesh_file,
+               const ParMesh* __restrict pmesh,
+               ParFiniteElementSpace* __restrict fespace,
+               ParFiniteElementSpace* __restrict fespace_lor){
+  // Should be captured while parsing
+  using namespace std;
+  using namespace mfem;
+  enum PCType { NONE, LOR, HO };
+  const Geometry::Type g = Geometry::CUBE;
+  
+  typedef H1_FiniteElement<g,2>            mesh_fe_t;
+  typedef H1_FiniteElementSpace<mesh_fe_t> mesh_fes_t;
+  typedef TMesh<mesh_fes_t>                mesh_t;
+  
+  typedef H1_FiniteElement<g,2>            sol_fe_t;
+  typedef H1_FiniteElementSpace<sol_fe_t>  sol_fes_t;
+  
+  typedef TIntegrationRule<g,0>            int_rule_t;
+  
+  typedef TConstantCoefficient<>           coeff_t;
+  typedef TIntegrator<coeff_t,TDiffusionKernel> integ_t;
+
+  typedef ScalarLayout                     vec_layout_t;
+
+  typedef TBilinearForm<mesh_t,
+                        sol_fes_t,
+                        int_rule_t,
+                        integ_t,
+                        true,
+                        vec_layout_t> HPCBilinearForm;
+  
+  /*
+  typedef H1_FiniteElementSpace<mesh_fe_t>      mesh_fes_t;
+  typedef TMesh<mesh_fes_t>                     mesh_t;
+  typedef TIntegrationRule<geom,ir_order>       int_rule_t;
+
+  typedef TBilinearForm<mesh_t, sol_fes_t, int_rule_t, integ_t, true, vec_layout_t> HPCBilinearForm;
+  */
+  
+  // 9. Determine the list of true (i.e. parallel conforming) essential
+  //    boundary dofs. In this example, the boundary conditions are defined
+  //    by marking all the boundary attributes from the mesh as essential
+  //    (Dirichlet) and converting them to a list of true dofs.
+  mfem::Array<int> ess_tdof_list;
+  if (pmesh->bdr_attributes.Size())
+  {
+    Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+    ess_bdr = 1;
+    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+  }
+
+  // 10. Set up the parallel linear form b(.) which corresponds to the
+  //     right-hand side of the FEM linear system, which in this case is
+  //     (1,phi_i) where phi_i are the basis functions in fespace.
+  ParLinearForm *b = new ParLinearForm(fespace);
+  ConstantCoefficient one(1.0);
+  Vector uvec(vdim);
+  for (int i = 0; i < vdim; i++)
+  {
+    uvec(i) = i + 1.0;
+  }
+  uvec /= uvec.Norml2();
+  VectorConstantCoefficient unit_vec(uvec);
+  if (vdim == 1)
+  {
+    b->AddDomainIntegrator(new DomainLFIntegrator(one));
+  }
+  else
+  {
+    b->AddDomainIntegrator(new VectorDomainLFIntegrator(unit_vec));
+  }
+  b->Assemble();
+
+  // 11. Define the solution vector x as a parallel finite element grid
+  //     function corresponding to fespace. Initialize x with initial guess of
+  //     zero, which satisfies the boundary conditions.
+  ParGridFunction x(fespace);
+  x = 0.0;
+
+  // 12. Set up the parallel bilinear form a(.,.) on the finite element space
+  //     that will hold the matrix corresponding to the Laplacian operator.
+  ParBilinearForm *a = new ParBilinearForm(fespace);
+  ParBilinearForm *a_pc = NULL;
+  if (pc_choice == LOR) { a_pc = new ParBilinearForm(fespace_lor); }
+  if (pc_choice == HO)  { a_pc = new ParBilinearForm(fespace); }
+
+  // 13. Assemble the parallel bilinear form and the corresponding linear
+  //     system, applying any necessary transformations such as: parallel
+  //     assembly, eliminating boundary conditions, applying conforming
+  //     constraints for non-conforming AMR, static condensation, etc.
+  if (static_cond)
+  {
+    a->EnableStaticCondensation();
+    MFEM_VERIFY(pc_choice != LOR,
+                "cannot use LOR preconditioner with static condensation");
+  }
+
+  if (myid == 0)
+  {
+    cout << "Assembling the local matrix ..." << flush;
+  }
+#ifdef USE_MPI_WTIME
+  double my_rt_start = MPI_Wtime();
+#else
+  tic_toc.Clear();
+  tic_toc.Start();
+#endif
+  // Pre-allocate sparsity assuming dense element matrices; the actual memory
+  // allocation happens when a->Assemble() is called.
+  a->UsePrecomputedSparsity();
+
+  HPCBilinearForm *a_hpc = NULL;
+  Operator *a_oper = NULL;
+
+  if (!perf)
+  {
+    // Standard assembly using a diffusion domain integrator
+    if (vdim == 1)
+    {
+      a->AddDomainIntegrator(new DiffusionIntegrator(one));
+    }
+    else
+    {
+      a->AddDomainIntegrator(new VectorDiffusionIntegrator(one));
+    }
+    a->Assemble();
+  }
+  else
+  {
+    // High-performance assembly/evaluation using the templated operator type
+    a_hpc = new HPCBilinearForm(integ_t(coeff_t(1.0)), *fespace);
+    if (matrix_free)
+    {
+      a_hpc->Assemble(); // partial assembly
+    }
+    else
+    {
+      a_hpc->AssembleBilinearForm(*a); // full matrix assembly
+    }
+  }
+#ifdef USE_MPI_WTIME
+  double rt_min, rt_max, my_rt;
+  my_rt = MPI_Wtime() - my_rt_start;
+#else
+  tic_toc.Stop();
+  double rt_min, rt_max, my_rt;
+  my_rt = tic_toc.RealTime();
+#endif
+  MPI_Reduce(&my_rt, &rt_min, 1, MPI_DOUBLE, MPI_MIN, 0, pmesh->GetComm());
+  MPI_Reduce(&my_rt, &rt_max, 1, MPI_DOUBLE, MPI_MAX, 0, pmesh->GetComm());
+  if (myid == 0)
+  {
+    cout << " done, " << rt_max << " (" << rt_min << ") s." << endl;
+    cout << "\n\"DOFs/sec\" in assembly: "
+         << 1e-6*size/rt_max << " ("
+         << 1e-6*size/rt_min << ") million.\n" << endl;
+  }
+
+  // 14. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
+  //     preconditioner from hypre.
+
+  // Setup the operator matrix (if applicable)
+  HypreParMatrix A;
+  Vector B, X;
+  if (myid == 0)
+  {
+    cout << "FormLinearSystem() ..." << endl;
+  }
+#ifdef USE_MPI_WTIME
+  my_rt_start = MPI_Wtime();
+#else
+  tic_toc.Clear();
+  tic_toc.Start();
+#endif
+  if (perf && matrix_free)
+  {
+    a_hpc->FormLinearSystem(ess_tdof_list, x, *b, a_oper, X, B);
+    if (myid == 0)
+    {
+      cout << "Size of linear system: " << size << endl;
+    }
+  }
+  else
+  {
+    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+    HYPRE_Int glob_size = A.GetGlobalNumRows();
+    HYPRE_Int glob_nnz = A.NNZ();
+    if (myid == 0)
+    {
+      cout << "Size of linear system: " << glob_size << endl;
+      cout << "Average nonzero entries per row: "
+           << 1.0*glob_nnz/glob_size << endl;
+    }
+    a_oper = &A;
+  }
+#ifdef USE_MPI_WTIME
+  my_rt = MPI_Wtime() - my_rt_start;
+#else
+  tic_toc.Stop();
+  my_rt = tic_toc.RealTime();
+#endif
+  MPI_Reduce(&my_rt, &rt_min, 1, MPI_DOUBLE, MPI_MIN, 0, pmesh->GetComm());
+  MPI_Reduce(&my_rt, &rt_max, 1, MPI_DOUBLE, MPI_MAX, 0, pmesh->GetComm());
+  if (myid == 0)
+  {
+    cout << "FormLinearSystem() ... done, " << rt_max << " (" << rt_min
+         << ") s." << endl;
+    cout << "\n\"DOFs/sec\" in FormLinearSystem(): "
+         << 1e-6*size/rt_max << " ("
+         << 1e-6*size/rt_min << ") million.\n" << endl;
+  }
+
+  // Setup the matrix used for preconditioning
+  if (myid == 0)
+  {
+    cout << "Assembling the preconditioning matrix ..." << flush;
+  }
+#ifdef USE_MPI_WTIME
+  my_rt_start = MPI_Wtime();
+#else
+  tic_toc.Clear();
+  tic_toc.Start();
+#endif
+
+  HypreParMatrix A_pc;
+  if (pc_choice == LOR)
+  {
+    // TODO: assemble the LOR matrix using the performance code
+    if (vdim == 1)
+    {
+      a_pc->AddDomainIntegrator(new DiffusionIntegrator(one));
+    }
+    else
+    {
+      a_pc->AddDomainIntegrator(new VectorDiffusionIntegrator(one));
+    }
+    a_pc->UsePrecomputedSparsity();
+    a_pc->Assemble();
+    a_pc->FormSystemMatrix(ess_tdof_list, A_pc);
+  }
+  else if (pc_choice == HO)
+  {
+    if (!matrix_free)
+    {
+      A_pc.MakeRef(A); // matrix already assembled, reuse it
+    }
+    else
+    {
+      a_pc->UsePrecomputedSparsity();
+      a_hpc->AssembleBilinearForm(*a_pc);
+      a_pc->FormSystemMatrix(ess_tdof_list, A_pc);
+    }
+  }
+#ifdef USE_MPI_WTIME
+  my_rt = MPI_Wtime() - my_rt_start;
+#else
+  tic_toc.Stop();
+  my_rt = tic_toc.RealTime();
+#endif
+  MPI_Reduce(&my_rt, &rt_min, 1, MPI_DOUBLE, MPI_MIN, 0, pmesh->GetComm());
+  MPI_Reduce(&my_rt, &rt_max, 1, MPI_DOUBLE, MPI_MAX, 0, pmesh->GetComm());
+  if (myid == 0)
+  {
+    cout << " done, " << rt_max << "s." << endl;
+  }
+
+  // Solve with CG or PCG, depending if the matrix A_pc is available
+  CGSolver *pcg;
+  pcg = new CGSolver(MPI_COMM_WORLD);
+  pcg->SetRelTol(1e-6);
+  pcg->SetMaxIter(max_iter);
+  pcg->SetPrintLevel(3);
+
+  HypreSolver *amg = NULL;
+
+  pcg->SetOperator(*a_oper);
+  if (pc_choice != NONE)
+  {
+    HypreBoomerAMG *bamg = new HypreBoomerAMG(A_pc);
+    if (vdim > 1 && ordering == Ordering::byVDIM)
+    {
+      bamg->SetSystemsOptions(vdim);
+    }
+    amg = bamg;
+    pcg->SetPreconditioner(*amg);
+  }
+
+#ifdef USE_MPI_WTIME
+  my_rt_start = MPI_Wtime();
+#else
+  tic_toc.Clear();
+  tic_toc.Start();
+#endif
+
+  pcg->Mult(B, X);
+
+#ifdef USE_MPI_WTIME
+  my_rt = MPI_Wtime() - my_rt_start;
+#else
+  tic_toc.Stop();
+  my_rt = tic_toc.RealTime();
+#endif
+  delete amg;
+
+  MPI_Reduce(&my_rt, &rt_min, 1, MPI_DOUBLE, MPI_MIN, 0, pmesh->GetComm());
+  MPI_Reduce(&my_rt, &rt_max, 1, MPI_DOUBLE, MPI_MAX, 0, pmesh->GetComm());
+  if (myid == 0)
+  {
+    // Note: In the pcg algorithm, the number of operator Mult() calls is
+    //       N_iter and the number of preconditioner Mult() calls is N_iter+1.
+    cout << "Total CG time:    " << rt_max << " (" << rt_min << ") sec."
+         << endl;
+    cout << "Time per CG step: "
+         << rt_max / pcg->GetNumIterations() << " ("
+         << rt_min / pcg->GetNumIterations() << ") sec." << endl;
+    cout << "\n\"DOFs/sec\" in CG: "
+         << 1e-6*size*pcg->GetNumIterations()/rt_max << " ("
+         << 1e-6*size*pcg->GetNumIterations()/rt_min << ") million.\n"
+         << endl;
+  }
+
+  // 15. Recover the parallel grid function corresponding to X. This is the
+  //     local finite element solution on each processor.
+  if (perf && matrix_free)
+  {
+    a_hpc->RecoverFEMSolution(X, *b, x);
+  }
+  else
+  {
+    a->RecoverFEMSolution(X, *b, x);
+  }
+
+  // 16. Save the refined mesh and the solution in parallel. This output can
+  //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+  if (false)
+  {
+    ostringstream mesh_name, sol_name;
+    mesh_name << "mesh." << setfill('0') << std::setw(6) << myid;
+    sol_name << "sol." << setfill('0') << std::setw(6) << myid;
+
+    ofstream mesh_ofs(mesh_name.str().c_str());
+    mesh_ofs.precision(8);
+    pmesh->Print(mesh_ofs);
+
+    ofstream sol_ofs(sol_name.str().c_str());
+    sol_ofs.precision(8);
+    x.Save(sol_ofs);
+  }
+
+  // 17. Send the solution by socket to a GLVis server.
+  if (visualization)
+  {
+    char vishost[] = "localhost";
+    int  visport   = 19916;
+    socketstream sol_sock(vishost, visport);
+    sol_sock << "parallel " << num_procs << " " << myid << "\n";
+    sol_sock.precision(8);
+    sol_sock << "solution\n" << *pmesh << x << flush;
+  }
+
+  // 18. Free the used memory.
+  delete a;
+  delete a_hpc;
+  if (a_oper != &A) { delete a_oper; }
+  delete a_pc;
+  delete b;
+  delete pmesh;
+  delete pcg;
+}
+
+
+// *****************************************************************************
+int main(int argc, char *argv[]){
    // 1. Initialize MPI.
    int num_procs, myid;
    MPI_Init(&argc, &argv);
@@ -253,7 +649,6 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   enum PCType { NONE, LOR, HO };
    PCType pc_choice;
    if (!strcmp(pc, "ho")) { pc_choice = HO; }
    else if (!strcmp(pc, "lor")) { pc_choice = LOR; }
@@ -270,7 +665,6 @@ int main(int argc, char *argv[])
    {
       cout << "Using " << BasisType::Name(basis) << " basis ..." << endl;
    }
-
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
@@ -376,7 +770,6 @@ int main(int argc, char *argv[])
    }
 
    pmesh->PrintInfo(cout);
-
    // 7. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
    //    order < 1, we instead use an isoparametric/isogeometric space.
@@ -433,341 +826,37 @@ int main(int argc, char *argv[])
       return 5;
    }
 
-   // 9. Determine the list of true (i.e. parallel conforming) essential
-   //    boundary dofs. In this example, the boundary conditions are defined
-   //    by marking all the boundary attributes from the mesh as essential
-   //    (Dirichlet) and converting them to a list of true dofs.
-   Array<int> ess_tdof_list;
-   if (pmesh->bdr_attributes.Size())
-   {
-      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-      ess_bdr = 1;
-      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   }
-
-   // 10. Set up the parallel linear form b(.) which corresponds to the
-   //     right-hand side of the FEM linear system, which in this case is
-   //     (1,phi_i) where phi_i are the basis functions in fespace.
-   ParLinearForm *b = new ParLinearForm(fespace);
-   ConstantCoefficient one(1.0);
-   Vector uvec(vdim);
-   for (int i = 0; i < vdim; i++)
-   {
-      uvec(i) = i + 1.0;
-   }
-   uvec /= uvec.Norml2();
-   VectorConstantCoefficient unit_vec(uvec);
-   if (vdim == 1)
-   {
-      b->AddDomainIntegrator(new DomainLFIntegrator(one));
-   }
-   else
-   {
-      b->AddDomainIntegrator(new VectorDomainLFIntegrator(unit_vec));
-   }
-   b->Assemble();
-
-   // 11. Define the solution vector x as a parallel finite element grid
-   //     function corresponding to fespace. Initialize x with initial guess of
-   //     zero, which satisfies the boundary conditions.
-   ParGridFunction x(fespace);
-   x = 0.0;
-
-   // 12. Set up the parallel bilinear form a(.,.) on the finite element space
-   //     that will hold the matrix corresponding to the Laplacian operator.
-   ParBilinearForm *a = new ParBilinearForm(fespace);
-   ParBilinearForm *a_pc = NULL;
-   if (pc_choice == LOR) { a_pc = new ParBilinearForm(fespace_lor); }
-   if (pc_choice == HO)  { a_pc = new ParBilinearForm(fespace); }
-
-   // 13. Assemble the parallel bilinear form and the corresponding linear
-   //     system, applying any necessary transformations such as: parallel
-   //     assembly, eliminating boundary conditions, applying conforming
-   //     constraints for non-conforming AMR, static condensation, etc.
-   if (static_cond)
-   {
-      a->EnableStaticCondensation();
-      MFEM_VERIFY(pc_choice != LOR,
-                  "cannot use LOR preconditioner with static condensation");
-   }
-
-   if (myid == 0)
-   {
-      cout << "Assembling the local matrix ..." << flush;
-   }
-#ifdef USE_MPI_WTIME
-   double my_rt_start = MPI_Wtime();
-#else
-   tic_toc.Clear();
-   tic_toc.Start();
-#endif
-   // Pre-allocate sparsity assuming dense element matrices; the actual memory
-   // allocation happens when a->Assemble() is called.
-   a->UsePrecomputedSparsity();
-
-   HPCBilinearForm *a_hpc = NULL;
-   Operator *a_oper = NULL;
-
-   if (!perf)
-   {
-      // Standard assembly using a diffusion domain integrator
-      if (vdim == 1)
-      {
-         a->AddDomainIntegrator(new DiffusionIntegrator(one));
-      }
-      else
-      {
-         a->AddDomainIntegrator(new VectorDiffusionIntegrator(one));
-      }
-      a->Assemble();
-   }
-   else
-   {
-      // High-performance assembly/evaluation using the templated operator type
-      a_hpc = new HPCBilinearForm(integ_t(coeff_t(1.0)), *fespace);
-      if (matrix_free)
-      {
-         a_hpc->Assemble(); // partial assembly
-      }
-      else
-      {
-         a_hpc->AssembleBilinearForm(*a); // full matrix assembly
-      }
-   }
-#ifdef USE_MPI_WTIME
-   double rt_min, rt_max, my_rt;
-   my_rt = MPI_Wtime() - my_rt_start;
-#else
-   tic_toc.Stop();
-   double rt_min, rt_max, my_rt;
-   my_rt = tic_toc.RealTime();
-#endif
-   MPI_Reduce(&my_rt, &rt_min, 1, MPI_DOUBLE, MPI_MIN, 0, pmesh->GetComm());
-   MPI_Reduce(&my_rt, &rt_max, 1, MPI_DOUBLE, MPI_MAX, 0, pmesh->GetComm());
-   if (myid == 0)
-   {
-      cout << " done, " << rt_max << " (" << rt_min << ") s." << endl;
-      cout << "\n\"DOFs/sec\" in assembly: "
-           << 1e-6*size/rt_max << " ("
-           << 1e-6*size/rt_min << ") million.\n" << endl;
-   }
-
-   // 14. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
-   //     preconditioner from hypre.
-
-   // Setup the operator matrix (if applicable)
-   HypreParMatrix A;
-   Vector B, X;
-   if (myid == 0)
-   {
-      cout << "FormLinearSystem() ..." << endl;
-   }
-#ifdef USE_MPI_WTIME
-   my_rt_start = MPI_Wtime();
-#else
-   tic_toc.Clear();
-   tic_toc.Start();
-#endif
-   if (perf && matrix_free)
-   {
-      a_hpc->FormLinearSystem(ess_tdof_list, x, *b, a_oper, X, B);
-      if (myid == 0)
-      {
-         cout << "Size of linear system: " << size << endl;
-      }
-   }
-   else
-   {
-      a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-      HYPRE_Int glob_size = A.GetGlobalNumRows();
-      HYPRE_Int glob_nnz = A.NNZ();
-      if (myid == 0)
-      {
-         cout << "Size of linear system: " << glob_size << endl;
-         cout << "Average nonzero entries per row: "
-              << 1.0*glob_nnz/glob_size << endl;
-      }
-      a_oper = &A;
-   }
-#ifdef USE_MPI_WTIME
-   my_rt = MPI_Wtime() - my_rt_start;
-#else
-   tic_toc.Stop();
-   my_rt = tic_toc.RealTime();
-#endif
-   MPI_Reduce(&my_rt, &rt_min, 1, MPI_DOUBLE, MPI_MIN, 0, pmesh->GetComm());
-   MPI_Reduce(&my_rt, &rt_max, 1, MPI_DOUBLE, MPI_MAX, 0, pmesh->GetComm());
-   if (myid == 0)
-   {
-      cout << "FormLinearSystem() ... done, " << rt_max << " (" << rt_min
-           << ") s." << endl;
-      cout << "\n\"DOFs/sec\" in FormLinearSystem(): "
-           << 1e-6*size/rt_max << " ("
-           << 1e-6*size/rt_min << ") million.\n" << endl;
-   }
-
-   // Setup the matrix used for preconditioning
-   if (myid == 0)
-   {
-      cout << "Assembling the preconditioning matrix ..." << flush;
-   }
-#ifdef USE_MPI_WTIME
-   my_rt_start = MPI_Wtime();
-#else
-   tic_toc.Clear();
-   tic_toc.Start();
-#endif
-
-   HypreParMatrix A_pc;
-   if (pc_choice == LOR)
-   {
-      // TODO: assemble the LOR matrix using the performance code
-      if (vdim == 1)
-      {
-         a_pc->AddDomainIntegrator(new DiffusionIntegrator(one));
-      }
-      else
-      {
-         a_pc->AddDomainIntegrator(new VectorDiffusionIntegrator(one));
-      }
-      a_pc->UsePrecomputedSparsity();
-      a_pc->Assemble();
-      a_pc->FormSystemMatrix(ess_tdof_list, A_pc);
-   }
-   else if (pc_choice == HO)
-   {
-      if (!matrix_free)
-      {
-         A_pc.MakeRef(A); // matrix already assembled, reuse it
-      }
-      else
-      {
-         a_pc->UsePrecomputedSparsity();
-         a_hpc->AssembleBilinearForm(*a_pc);
-         a_pc->FormSystemMatrix(ess_tdof_list, A_pc);
-      }
-   }
-#ifdef USE_MPI_WTIME
-   my_rt = MPI_Wtime() - my_rt_start;
-#else
-   tic_toc.Stop();
-   my_rt = tic_toc.RealTime();
-#endif
-   MPI_Reduce(&my_rt, &rt_min, 1, MPI_DOUBLE, MPI_MIN, 0, pmesh->GetComm());
-   MPI_Reduce(&my_rt, &rt_max, 1, MPI_DOUBLE, MPI_MAX, 0, pmesh->GetComm());
-   if (myid == 0)
-   {
-      cout << " done, " << rt_max << "s." << endl;
-   }
-
-   // Solve with CG or PCG, depending if the matrix A_pc is available
-   CGSolver *pcg;
-   pcg = new CGSolver(MPI_COMM_WORLD);
-   pcg->SetRelTol(1e-6);
-   pcg->SetMaxIter(max_iter);
-   pcg->SetPrintLevel(3);
-
-   HypreSolver *amg = NULL;
-
-   pcg->SetOperator(*a_oper);
-   if (pc_choice != NONE)
-   {
-      HypreBoomerAMG *bamg = new HypreBoomerAMG(A_pc);
-      if (vdim > 1 && ordering == Ordering::byVDIM)
-      {
-         bamg->SetSystemsOptions(vdim);
-      }
-      amg = bamg;
-      pcg->SetPreconditioner(*amg);
-   }
-
-#ifdef USE_MPI_WTIME
-   my_rt_start = MPI_Wtime();
-#else
-   tic_toc.Clear();
-   tic_toc.Start();
-#endif
-
-   pcg->Mult(B, X);
-
-#ifdef USE_MPI_WTIME
-   my_rt = MPI_Wtime() - my_rt_start;
-#else
-   tic_toc.Stop();
-   my_rt = tic_toc.RealTime();
-#endif
-   delete amg;
-
-   MPI_Reduce(&my_rt, &rt_min, 1, MPI_DOUBLE, MPI_MIN, 0, pmesh->GetComm());
-   MPI_Reduce(&my_rt, &rt_max, 1, MPI_DOUBLE, MPI_MAX, 0, pmesh->GetComm());
-   if (myid == 0)
-   {
-      // Note: In the pcg algorithm, the number of operator Mult() calls is
-      //       N_iter and the number of preconditioner Mult() calls is N_iter+1.
-      cout << "Total CG time:    " << rt_max << " (" << rt_min << ") sec."
-           << endl;
-      cout << "Time per CG step: "
-           << rt_max / pcg->GetNumIterations() << " ("
-           << rt_min / pcg->GetNumIterations() << ") sec." << endl;
-      cout << "\n\"DOFs/sec\" in CG: "
-           << 1e-6*size*pcg->GetNumIterations()/rt_max << " ("
-           << 1e-6*size*pcg->GetNumIterations()/rt_min << ") million.\n"
-           << endl;
-   }
-
-   // 15. Recover the parallel grid function corresponding to X. This is the
-   //     local finite element solution on each processor.
-   if (perf && matrix_free)
-   {
-      a_hpc->RecoverFEMSolution(X, *b, x);
-   }
-   else
-   {
-      a->RecoverFEMSolution(X, *b, x);
-   }
-
-   // 16. Save the refined mesh and the solution in parallel. This output can
-   //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
-   if (false)
-   {
-      ostringstream mesh_name, sol_name;
-      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
-      sol_name << "sol." << setfill('0') << setw(6) << myid;
-
-      ofstream mesh_ofs(mesh_name.str().c_str());
-      mesh_ofs.precision(8);
-      pmesh->Print(mesh_ofs);
-
-      ofstream sol_ofs(sol_name.str().c_str());
-      sol_ofs.precision(8);
-      x.Save(sol_ofs);
-   }
-
-   // 17. Send the solution by socket to a GLVis server.
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << *pmesh << x << flush;
-   }
-
-   // 18. Free the used memory.
-   delete a;
-   delete a_hpc;
-   if (a_oper != &A) { delete a_oper; }
-   delete a_pc;
-   delete b;
+   bp_kernel(num_procs,
+             size,
+             myid,
+             dim,
+             vdim,
+             ordering,
+             order,
+             static_cond,
+             perf,
+             matrix_free,
+             max_iter,
+             visualization,
+             pc_choice,
+             basis,
+             true, // simd
+             geom,
+             mesh_p,
+             sol_p,
+             ir_q,
+             ir_order,
+             mesh_file,
+             pmesh,
+             fespace,
+             fespace_lor);
+   
    delete fespace;
    delete fespace_lor;
    delete fec_lor;
    delete pmesh_lor;
    if (order > 0) { delete fec; }
-   delete pmesh;
-   delete pcg;
-
+      
    MPI_Finalize();
 
    return 0;

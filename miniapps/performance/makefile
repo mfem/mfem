@@ -101,6 +101,25 @@ endif
 
 all: $(MINIAPPS)
 
+ex1rtc:ex1rtc.cpp
+	okrtc g++ -O3 -march=native -std=c++11 -pedantic -Wall \
+	-I/home/camier1/home/mfem/x86 \
+	-o ex1rtc ex1rtc.cpp \
+	-Wl,-rpath,/home/camier1/home/mfem/x86 \
+	-L/home/camier1/home/mfem/x86 -lmfem -lrt
+
+bprtc: bprtc.cpp
+	okrtc mpicxx -O3 -march=native -std=c++11 -pedantic -Wall \
+	-I/home/camier1/home/mfem/x86/ \
+	-I/home/camier1/usr/local/hypre/2.11.2/include \
+	-I/home/camier1/usr/local/metis/5.1.0/include \
+	-I/home/camier1/usr/local/openmpi/3.0.0/include \
+	-o $@ $< \
+	-L/home/camier1/home/mfem/x86 -lmfem \
+	-L/home/camier1/usr/local/hypre/2.11.2/lib -lHYPRE \
+	-L/home/camier1/usr/local/metis/5.1.0/lib -lmetis \
+	-lrt
+
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 

@@ -38,8 +38,8 @@ using namespace mfem;
 
 // Define template parameters for optimized build.
 const Geometry::Type geom     = Geometry::CUBE; // mesh elements  (default: hex)
-const int            mesh_p   = 2;              // mesh curvature (default: 3)
-const int            sol_p    = 2;              // solution order (default: 3)
+const int            mesh_p   = 3;              // mesh curvature (default: 3)
+const int            sol_p    = 3;              // solution order (default: 3)
 const int            rdim     = Geometry::Constants<geom>::Dimension;
 const int            ir_order = 2*sol_p+rdim-1;
 
