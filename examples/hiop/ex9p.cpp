@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    problem = 0;
-   const char *mesh_file = "../../data/periodic-hexagon.mesh";
+   const char *mesh_file = "../data/periodic-hexagon.mesh";
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
    int order = 3;
@@ -518,14 +518,23 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    Vector y_out(ldofs);
    const int max_iter = 50;
    const double rtol = 1.e-12, atol = 1e-15;
-   SLBQPOptimizer slbqp(MPI_COMM_WORLD);
-   slbqp.SetMaxIter(max_iter);
-   slbqp.SetAbsTol(atol);
-   slbqp.SetRelTol(rtol);
-   slbqp.SetBounds(y_min, y_max);
-   slbqp.SetLinearConstraint(M_rowsums, tot_mass);
-   slbqp.SetPrintLevel(0);
-   slbqp.Mult(y_loc, y_out);
+
+   OptimizationSolver* optsolver = NULL;
+   //if(true) {
+   if(false) {
+     optsolver = new SLBQPOptimizer(MPI_COMM_WORLD);
+   } else {
+     optsolver = new HiopNlpOptimizer(MPI_COMM_WORLD);
+   }
+   optsolver->SetMaxIter(max_iter);
+   optsolver->SetAbsTol(atol);
+   optsolver->SetRelTol(rtol);
+   optsolver->SetBounds(y_min, y_max);
+   optsolver->SetLinearConstraint(M_rowsums, tot_mass);
+   optsolver->SetPrintLevel(0);
+   optsolver->Mult(y_loc, y_out);
+
+   delete optsolver;
 
    // Write the solution on the tdofs.
    pfes->GetRestrictionMatrix()->Mult(y_out, y);

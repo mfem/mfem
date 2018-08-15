@@ -96,3 +96,8 @@ endif()
 if (MFEM_USE_PUMI)
   add_subdirectory(pumi)
 endif()
+
+if (MFEM_USE_HIOP)
+  add_subdirectory(hiop)
+endif()
+
