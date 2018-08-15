@@ -189,7 +189,7 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,1,1>
 template <typename scalar_t>
 inline __ATTRS_ai
 AutoSIMD<scalar_t,1,1> operator+(const scalar_t &e,
-                                 const AutoSIMD<scalar_t,4,4> &v)
+                                 const AutoSIMD<scalar_t,1,1> &v)
 {
   AutoSIMD<scalar_t,1,1> r;
   r[0] = e + v[0];
@@ -200,7 +200,7 @@ AutoSIMD<scalar_t,1,1> operator+(const scalar_t &e,
 template <typename scalar_t>
 inline __ATTRS_ai
 AutoSIMD<scalar_t,1,1> operator-(const scalar_t &e,
-                                 const AutoSIMD<scalar_t,4,4> &v)
+                                 const AutoSIMD<scalar_t,1,1> &v)
 {
   AutoSIMD<scalar_t,1,1> r;
   r[0] = e - v[0];
@@ -211,7 +211,7 @@ AutoSIMD<scalar_t,1,1> operator-(const scalar_t &e,
 template <typename scalar_t>
 inline __ATTRS_ai
 AutoSIMD<scalar_t,1,1> operator*(const scalar_t &e,
-                                 const AutoSIMD<scalar_t,4,4> &v)
+                                 const AutoSIMD<scalar_t,1,1> &v)
 {
   AutoSIMD<scalar_t,1,1> r;
   r[0] = e * v[0];
@@ -222,7 +222,7 @@ AutoSIMD<scalar_t,1,1> operator*(const scalar_t &e,
 template <typename scalar_t>
 inline __ATTRS_ai
 AutoSIMD<scalar_t,1,1> operator/(const scalar_t &e,
-                                 const AutoSIMD<scalar_t,4,4> &v)
+                                 const AutoSIMD<scalar_t,1,1> &v)
 {
   AutoSIMD<scalar_t,1,1> r;
   r[0] = e / v[0];
