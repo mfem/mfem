@@ -294,14 +294,38 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
            int m_max, int m_min, int m_step, double cf,
            double &tol, double &atol, int printit);
 
+/** Abstract solver class for optimization solvers used to solve
+ * minimize 1/2 ||x - x_t||^2, subject to:
+ *   lo_i <= x_i <= hi_i
+ *   sum_i w_i x_i = a
+ */
+class OptimizationSolver : public IterativeSolver
+{
+public:
+  OptimizationSolver(): IterativeSolver() {}
+#ifdef MFEM_USE_MPI
+   OptimizationSolver(MPI_Comm _comm) : IterativeSolver(_comm) {}
+#endif
+  virtual ~OptimizationSolver() {}
 
-/** SLBQP: (S)ingle (L)inearly Constrained with (B)ounds (Q)uadratic (P)rogram
+   virtual void SetBounds(const Vector &_lo, const Vector &_hi) = 0;
+   virtual void SetLinearConstraint(const Vector &_w, double _a) = 0;
+   virtual void Mult(const Vector &xt, Vector &x) const = 0;
 
-    minimize 1/2 ||x - x_t||^2, subject to:
-    lo_i <= x_i <= hi_i
-    sum_i w_i x_i = a
+   // These are not currently meaningful for this solver and will error out.
+   virtual void SetPreconditioner(Solver &pr) {
+      mfem_error("OptimizationSolver::SetPreconditioner() : "
+                 "not meaningful for this solver");
+   }
+   virtual void SetOperator(const Operator &op) {
+      mfem_error("OptimizationSolver::SetOperator() : "
+                 "not meaningful for this solver");
+   }
+};
+
+/** SLBQP optimizer: (S)ingle (L)inearly Constrained with (B)ounds (Q)uadratic (P)rogram
 */
-class SLBQPOptimizer : public IterativeSolver
+class SLBQPOptimizer : public OptimizationSolver
 {
 protected:
    Vector lo, hi, w;
@@ -322,7 +346,7 @@ public:
    SLBQPOptimizer() {}
 
 #ifdef MFEM_USE_MPI
-   SLBQPOptimizer(MPI_Comm _comm) : IterativeSolver(_comm) {}
+   SLBQPOptimizer(MPI_Comm _comm) : OptimizationSolver(_comm) {}
 #endif
 
    void SetBounds(const Vector &_lo, const Vector &_hi);
@@ -333,8 +357,8 @@ public:
    virtual void Mult(const Vector &xt, Vector &x) const;
 
    /// These are not currently meaningful for this solver and will error out.
-   virtual void SetPreconditioner(Solver &pr);
-   virtual void SetOperator(const Operator &op);
+   //virtual void SetPreconditioner(Solver &pr);
+   //virtual void SetOperator(const Operator &op);
 };
 
 

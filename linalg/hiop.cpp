@@ -31,13 +31,13 @@ namespace mfem
 
 
 HiopNlpOptimizer::HiopNlpOptimizer()
-  : optProb_(NULL), hiopInstance_(NULL)
+  : optProb_(NULL)//, hiopInstance_(NULL)
 {
 }
 
 #ifdef MFEM_USE_MPI
 HiopNlpOptimizer::HiopNlpOptimizer(MPI_Comm _comm) 
-  : IterativeSolver(_comm), comm_(_comm), optProb_(NULL), hiopInstance_(NULL)
+  : OptimizationSolver(_comm), comm_(_comm), optProb_(NULL)//, hiopInstance_(NULL)
 
 {
 };
@@ -46,29 +46,30 @@ HiopNlpOptimizer::HiopNlpOptimizer(MPI_Comm _comm)
 HiopNlpOptimizer::~HiopNlpOptimizer()
 {
   if(optProb_) delete optProb_;
-  if(hiopInstance_) delete hiopInstance_;
+  //if(hiopInstance_) delete hiopInstance_;
 }
 
-  void HiopNlpOptimizer::Mult(const Vector &xt, Vector &x)// const
+void HiopNlpOptimizer::Mult(const Vector &xt, Vector &x) const
 {
   //set xt in the problemSpec to compute the objective
   optProb_->setObjectiveTarget(xt);
 
   //instantiate Hiop's NLP formulation (dense constraints) 
-  assert(hiopInstance_==NULL && "This should be allocated and deallocated in the Mult operator");
-  hiopInstance_ = new hiop::hiopNlpDenseConstraints(*optProb_);
-  {
-    //use the IPM solver
-    hiop::hiopAlgFilterIPM solver(hiopInstance_);
-    hiop::hiopSolveStatus status = solver.run();
-    double objective = solver.getObjective();
+  //assert(hiopInstance_==NULL && "This should be allocated and deallocated in the Mult operator");
 
-    //get the solution from the solver and copy it to x
-    //todo
-  }
+  hiop::hiopNlpDenseConstraints hiopInstance(*optProb_);
+  hiopInstance.options->SetNumericValue("tolerance", 1e-7);
+  hiopInstance.options->SetIntegerValue("verbosity_level", 0); //0: no output; 3: not too much 
 
-  delete hiopInstance_; 
-  hiopInstance_ = NULL;
+  //use the IPM solver
+  hiop::hiopAlgFilterIPM solver(&hiopInstance);
+  hiop::hiopSolveStatus status = solver.run();
+  double objective = solver.getObjective();
+
+  MFEM_ASSERT(solver.getSolveStatus()==hiop::Solve_Success, "optimizer returned with a non-success status: " << solver.getSolveStatus());
+
+  //copy the solution to x
+  solver.getSolution(x.GetData());
 }
 
 void HiopNlpOptimizer::SetBounds(const Vector &_lo, const Vector &_hi)
@@ -77,7 +78,6 @@ void HiopNlpOptimizer::SetBounds(const Vector &_lo, const Vector &_hi)
     allocHiopProbSpec(_lo.Size());
 
   optProb_->setBounds(_lo, _hi);
-
 }
 
 void HiopNlpOptimizer::SetLinearConstraint(const Vector &_w, double _a)
@@ -87,20 +87,6 @@ void HiopNlpOptimizer::SetLinearConstraint(const Vector &_w, double _a)
 
   optProb_->setLinearConstraint(_w, _a);
 }
-
-void HiopNlpOptimizer::SetPreconditioner(Solver &pr)
-{
-   mfem_error("HiopNlpOptimizer::SetPreconditioner() : "
-              "not meaningful for this solver");
-}
-
-void HiopNlpOptimizer::SetOperator(const Operator &op)
-{
-   mfem_error("HiopNlpOptimizer::SetOperator() : "
-              "not meaningful for this solver");
-}
-
-
 
 void HiopNlpOptimizer::allocHiopProbSpec(const long long& numvars) {
   //! mfem assert strategy?

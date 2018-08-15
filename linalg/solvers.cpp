@@ -1479,17 +1479,17 @@ void SLBQPOptimizer::SetLinearConstraint(const Vector &_w, double _a)
    a = _a;
 }
 
-void SLBQPOptimizer::SetPreconditioner(Solver &pr)
-{
-   mfem_error("SLBQPOptimizer::SetPreconditioner() : "
-              "not meaningful for this solver");
-}
+// void SLBQPOptimizer::SetPreconditioner(Solver &pr)
+// {
+//    mfem_error("SLBQPOptimizer::SetPreconditioner() : "
+//               "not meaningful for this solver");
+// }
 
-void SLBQPOptimizer::SetOperator(const Operator &op)
-{
-   mfem_error("SLBQPOptimizer::SetOperator() : "
-              "not meaningful for this solver");
-}
+// void SLBQPOptimizer::SetOperator(const Operator &op)
+// {
+//    mfem_error("SLBQPOptimizer::SetOperator() : "
+//               "not meaningful for this solver");
+// }
 
 inline void SLBQPOptimizer::print_iteration(int it, double r, double l) const
 {
