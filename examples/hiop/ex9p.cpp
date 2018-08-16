@@ -4,7 +4,8 @@
 //
 // Sample runs:
 //
-//    mpirun -np 4 ex9p -m ../../data/periodic-segment.mesh -rs 3 -p 0 -o 2 -dt 0.002
+//    mpirun -np 4 ex9p -m ../../data/periodic-segment.mesh -rs 3 -p 0 -o 2 -dt 0.002 -opt 1
+//    mpirun -np 4 ex9p -m ../../data/periodic-segment.mesh -rs 3 -p 0 -o 2 -dt 0.002 -opt 2
 //
 //    mpirun -np 4 ex9p -m ../data/periodic-segment.mesh -p 0 -dt 0.005
 //    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 0 -dt 0.01
@@ -40,6 +41,9 @@ using namespace mfem;
 // Choice for the problem setup. The fluid velocity, initial condition and
 // inflow boundary condition are chosen based on this parameter.
 int problem;
+
+// Nonlinear optimizer.
+int optimizer_type;
 
 // Velocity coefficient
 bool invert_velocity = false;
@@ -78,7 +82,7 @@ public:
    FE_Evolution(HypreParMatrix &_M, HypreParMatrix &_K,
                 const Vector &_b, ParBilinearForm &_pbf, Vector &M_rs);
 
-   void SetTimeStep(double _dt) { dt = dt; }
+   void SetTimeStep(double _dt) { dt = _dt; }
    void SetK(HypreParMatrix &_K) { K = _K; }
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -96,6 +100,7 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    problem = 0;
+   optimizer_type = 1;
    const char *mesh_file = "../data/periodic-hexagon.mesh";
    int ser_ref_levels = 2;
    int par_ref_levels = 0;
@@ -122,6 +127,9 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
+   args.AddOption(&optimizer_type, "-opt", "--optimizer",
+                  "Nonlinear optimizer: 1 - SLBQP,\n\t"
+                  "                     2 - HIOP.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Forward Euler,\n\t"
                   "            2 - RK2 SSP, 3 - RK3 SSP.");
@@ -338,7 +346,7 @@ int main(int argc, char *argv[])
    for (int ti = 0; !done; )
    {
       double dt_real = min(dt, t_final - t);
-      adv.SetTime(dt_real);
+      adv.SetTimeStep(dt_real);
       ode_solver->Step(*U, t, dt_real);
       ti++;
 
@@ -405,7 +413,7 @@ int main(int argc, char *argv[])
    for (int ti = 0; !done; )
    {
       double dt_real = min(dt, t_final - t);
-      adv.SetTime(dt_real);
+      adv.SetTimeStep(dt_real);
       ode_solver->Step(*U, t, dt_real);
       ti++;
 
@@ -520,11 +528,13 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    const double rtol = 1.e-12, atol = 1e-15;
 
    OptimizationSolver* optsolver = NULL;
-   //if(true) {
-   if(false) {
-     optsolver = new SLBQPOptimizer(MPI_COMM_WORLD);
-   } else {
-     optsolver = new HiopNlpOptimizer(MPI_COMM_WORLD);
+   if (optimizer_type == 1)
+   {
+      optsolver = new SLBQPOptimizer(MPI_COMM_WORLD);
+   }
+   else
+   {
+      optsolver = new HiopNlpOptimizer(MPI_COMM_WORLD);
    }
    optsolver->SetMaxIter(max_iter);
    optsolver->SetAbsTol(atol);
