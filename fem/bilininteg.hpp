@@ -18,6 +18,7 @@
 namespace mfem
 {
 
+
 /// Abstract base class BilinearFormIntegrator
 class BilinearFormIntegrator : public NonlinearFormIntegrator
 {
@@ -82,6 +83,7 @@ public:
 
    virtual ~BilinearFormIntegrator() { }
 };
+
 
 class TransposeIntegrator : public BilinearFormIntegrator
 {
@@ -1673,6 +1675,28 @@ public:
                                          const FiniteElement &test_fe,
                                          ElementTransformation &Trans,
                                          int coeff_order = 0);
+};
+
+class FCTIntegrator : public BilinearFormIntegrator
+{
+private:
+   VectorCoefficient* q;
+   Vector* d_e;
+   double a;
+   double b;
+public:
+   FCTIntegrator(VectorCoefficient& q, Vector& d_e, const double a, const double b, const IntegrationRule* ir = NULL)
+   : BilinearFormIntegrator(ir),
+     q(&q), d_e(&d_e), a(a), b(b) { }
+
+   virtual const char *Name() const { return "fct"; }
+
+   void GetParameters(VectorCoefficient*& q_ptr, Vector*& d_e_ptr, double*& a_ptr, double*& b_ptr){
+     q_ptr = q;
+     d_e_ptr = d_e;
+     a_ptr = &a;
+     b_ptr = &b;
+   }
 };
 
 class BoundaryMassIntegrator : public MassIntegrator

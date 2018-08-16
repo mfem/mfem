@@ -43,7 +43,7 @@ protected:
    //
 
    virtual Array* DoClone(bool copy_data, void **buffer,
-                           std::size_t item_size) const;
+                          std::size_t item_size) const;
 
    virtual int DoResize(PLayout &new_layout, void **buffer,
                         std::size_t item_size);
@@ -69,7 +69,7 @@ public:
         size(lt.Size() * item_size)
    { }
 
-   virtual ~Array() { }
+   virtual ~Array() { delete [] static_cast<char*>(data); }
 
    /**
    *  An unsafe way to access the data, tries to provide a semblance of type safety.

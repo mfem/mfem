@@ -21,8 +21,11 @@ namespace mfem
 namespace pa
 {
 
-PArray *Array::DoClone(bool copy_data, void **buffer,
-                       std::size_t item_size) const
+////////////
+// CpuArray
+
+Array *Array::DoClone(bool copy_data, void **buffer,
+                      std::size_t item_size) const
 {
    Layout& lay = dynamic_cast<Layout&>(*layout);
    Array *new_array = new Array(lay, item_size);
@@ -59,7 +62,7 @@ void* Array::DoPullData(void *buffer, std::size_t item_size)
 void Array::DoFill(const void *value_ptr, std::size_t item_size)
 {
    char* this_data = GetTypedData<char>();
-   for (std::size_t i = 0; i < size; i+=item_size)
+   for (std::size_t i = 0; i < size; i += item_size)
    {
       memcpy(this_data + i, value_ptr, item_size);
    }
@@ -73,7 +76,7 @@ void Array::DoPushData(const void *src_buffer, std::size_t item_size)
 void Array::DoAssign(const PArray &src, std::size_t item_size)
 {
    // called only when Size() != 0
-   const Array* src_array= dynamic_cast<const Array*>(&src);
+   const Array* src_array = dynamic_cast<const Array*>(&src);
    memcpy(data, src_array->data, size);
 }
 

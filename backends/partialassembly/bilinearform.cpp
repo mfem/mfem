@@ -100,6 +100,18 @@ void BilinearForm::TransferIntegrators(mfem::Array<mfem::BilinearFormIntegrator*
                        << "] is not supported");
          }
       }
+      else if (integ_name == "fct")
+      {
+         std::cout << "=> " << integ_name << " Integrator transfered" << std::endl;
+         FCTIntegrator* integ = dynamic_cast<FCTIntegrator*>(bfi[i]);
+         VectorCoefficient* q;
+         mfem::Vector* d_e;
+         double* a;
+         double* b;
+         integ->GetParameters(q,d_e,a,b);
+         typename FCTEquation::Args args = {*q,*d_e,*a,*b};
+         AddIntegrator( new PAFaceInt<FCTEquation, Vector<double>>(fes, ir_order, args) );
+      }
       else
       {
          MFEM_ABORT("BilinearFormIntegrator [Name() = " << integ_name
@@ -225,7 +237,6 @@ void BilinearForm::Mult(const mfem::Vector &x, mfem::Vector &y) const
 
    y_local.Fill<double>(0.0);
    for (int i = 0; i < tbfi.Size(); i++) tbfi[i]->MultAdd(x_local, y_local);
-   for (int i = 0; i < pabfi.Size(); i++) pabfi[i]->MultAdd(x_local, y_local);
 
    test_fes->ToLVector(y_local, y.Get_PVector()->As<Vector<double>>());
 }

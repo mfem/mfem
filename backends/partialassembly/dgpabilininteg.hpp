@@ -142,6 +142,38 @@ public:
    }  
 };
 
+class FCTEquation
+{
+public:
+   struct Args {
+      VectorCoefficient& q;
+      mfem::Vector& d_e;
+      double a;
+      double b;
+   };
+
+   static const PAOp FaceOpName = BtDB;
+
+   void evalFaceD(double& res11, double& res21, double& res22, double& res12,
+      const FaceElementTransformations* face_tr, const mfem::Vector& normal,
+      const IntegrationPoint& ip1, const IntegrationPoint& ip2,
+      const Tensor<2>& Jac1, const Tensor<2>& Jac2,
+      const Args& args)
+   {
+      const int dim = normal.Size();
+      mfem::Vector qvec(dim);
+      // FIXME: qvec might be discontinuous if not constant with a periodic mesh
+      // We should then use the evaluation on Elem2 and eip2
+      args.q.Eval( qvec, *(face_tr->Elem1), ip1 );
+      const double res = qvec * normal;
+      const double a = -args.a, b = args.b;
+      res11 = 0.0; //ip1.weight * (   a/2 * res + b * abs(res) );
+      res21 = 0.0; //ip1.weight * (   a/2 * res - b * abs(res) );
+      res22 = 0.0; //ip1.weight * ( - a/2 * res + b * abs(res) );
+      res12 = 0.0; //ip1.weight * ( - a/2 * res - b * abs(res) );      
+   }
+};
+
 /**
 *  A class that describes a Mass Equation using Partial Assembly
 */

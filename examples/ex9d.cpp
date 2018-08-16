@@ -208,6 +208,8 @@ int main(int argc, char *argv[])
    k.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
    k.AddInteriorFaceIntegrator(
       new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+   Vector d_e;
+   k.AddInteriorFaceIntegrator(new FCTIntegrator(velocity,d_e,1.0,-0.5));
    k.AddBdrFaceIntegrator(
       new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
 
