@@ -102,7 +102,7 @@ endif
 all: $(MINIAPPS)
 
 ex1rtc:ex1rtc.cpp
-	okrtc g++ -O3 -march=native -std=c++11 -pedantic -Wall \
+	dbg=1 okrtc g++ -O3 -march=native -std=c++11 -pedantic -Wall \
 	-I/home/camier1/home/mfem/x86 \
 	-o ex1rtc ex1rtc.cpp \
 	-Wl,-rpath,/home/camier1/home/mfem/x86 \

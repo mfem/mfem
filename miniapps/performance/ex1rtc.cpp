@@ -45,15 +45,18 @@ void bp_kernel(const Geometry::Type geom,
                const int msh_p,
                const int sol_p,
                const int dim,
+               const bool simd,
                // **************************************************************
                const bool perf,
                const bool matrix_free,
                const int pc_choice, // PCType
                const bool static_cond,
                const bool visualization,
+               // **************************************************************
                const Mesh* __restrict mesh,
                FiniteElementSpace* __restrict fespace,
                FiniteElementSpace* __restrict fespace_lor){
+  
   // Should be captured while parsing
   using namespace std;
   using namespace mfem;
@@ -61,10 +64,11 @@ void bp_kernel(const Geometry::Type geom,
   // Hack to deal with runtime template instanciation
 #ifndef __OKRTC__
 #define GEOM Geometry::CUBE
-#define MSH_P 2
-#define SOL_P 2
+#define MSH_P 1
+#define SOL_P 1
 #define DIM 3
 #define IR_ORDER (2*SOL_P+DIM-1)
+#define SIMD true
 #else
 #undef GEOM
 #define GEOM (Geometry::Type)geom
@@ -74,6 +78,8 @@ void bp_kernel(const Geometry::Type geom,
 #define SOL_P sol_p
 #undef IR_ORDER
 #define IR_ORDER 2*sol_p+dim-1
+#undef SIMD
+#define SIMD simd
 #endif
   
   typedef H1_FiniteElement<GEOM,MSH_P>          mesh_fe_t;
@@ -84,7 +90,7 @@ void bp_kernel(const Geometry::Type geom,
   typedef TIntegrationRule<GEOM,IR_ORDER>       int_rule_t;
   typedef TConstantCoefficient<>                coeff_t;
   typedef TIntegrator<coeff_t,TDiffusionKernel> integ_t;
-  typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t,true> HPCBilinearForm;
+  typedef TBilinearForm<mesh_t,sol_fes_t,int_rule_t,integ_t,SIMD> HPCBilinearForm;
 
   
   // 7. Determine the list of true (i.e. conforming) essential boundary dofs.
@@ -266,7 +272,7 @@ void bp_kernel(const Geometry::Type geom,
 
 
 // *****************************************************************************
-// * Main driver to bp_kernel
+// * Main driver to ex1 kernel
 // *****************************************************************************
 int main(int argc, char *argv[]){
    // 1. Parse command-line options.
@@ -413,7 +419,7 @@ int main(int argc, char *argv[]){
       fespace_lor = new FiniteElementSpace(mesh_lor, fec_lor);
    }
    
-   bp_kernel(geom, order, order, dim,
+   bp_kernel(geom, order, order, dim, simd,
              perf, matrix_free, pc_choice, static_cond,visualization,
              mesh, fespace, fespace_lor);
 
