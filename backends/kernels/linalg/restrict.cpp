@@ -35,6 +35,7 @@ RestrictionOperator::RestrictionOperator(Layout &in_layout, Layout &out_layout,
 void RestrictionOperator::Mult_(const Vector &x, Vector &y) const
 {
    push();
+   assert(false);
    //dbg("[Mult_] entries=%ld, trueIndices size=%ld",entries,trueIndices.Size());
    rExtractSubVector(entries, trueIndices, (double*)x.KernelsMem().ptr(),
                      (double*)y.KernelsMem().ptr());
@@ -46,8 +47,8 @@ void RestrictionOperator::Mult_(const Vector &x, Vector &y) const
 void RestrictionOperator::MultTranspose_(const Vector &x, Vector &y) const
 {
    push();
-   y.Fill<double>(0.0);
    assert(false);
+   y.Fill<double>(0.0);
    rMapSubVector(entries, trueIndices,
                  (double*)x.KernelsMem().ptr(),
                  (double*)y.KernelsMem().ptr());

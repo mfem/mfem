@@ -22,8 +22,8 @@ namespace kernels
 
 // *****************************************************************************
 kConstrainedOperator::kConstrainedOperator(mfem::Operator *A_,
-                                                       const mfem::Array<int> &constraintList_,
-                                                       bool own_A_)
+                                           const mfem::Array<int> &constraintList_,
+                                           bool own_A_)
 
    : Operator(A_->InLayout()->As<Layout>()),
      z(OutLayout_()),
@@ -39,9 +39,9 @@ kConstrainedOperator::kConstrainedOperator(mfem::Operator *A_,
 
 // *****************************************************************************
 void kConstrainedOperator::Setup(kernels::device device_,
-                                       mfem::Operator *A_,
-                                       const mfem::Array<int> &constraintList_,
-                                       bool own_A_)
+                                 mfem::Operator *A_,
+                                 const mfem::Array<int> &constraintList_,
+                                 bool own_A_)
 {
    push();
    device = device_;
@@ -59,7 +59,7 @@ void kConstrainedOperator::Setup(kernels::device device_,
 // *****************************************************************************
 void kConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
-   push();//assert(false); // ex1pd comes here, Laghos dont
+   push();//assert(false); // ex1pd comes here, Laghos does not
    
    w.Fill<double>(0.0);
    if (constraintIndices)

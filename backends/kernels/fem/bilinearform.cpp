@@ -55,7 +55,7 @@ void BilinearForm::FormLinearSystem(const mfem::Array<int> &ess_tdof_list,
                                     mfem::Vector &X, mfem::Vector &B,
                                     int copy_interior)
 {
-   push();//assert(false); // ex1pd comes here, Laghos dont
+   push();//assert(false); // ex1pd comes here, Laghos does not
    FormSystemMatrix(ess_tdof_list, A);
    kbform->InitRHS(ess_tdof_list, x, b, A.Ptr(), X, B, copy_interior);
    pop();

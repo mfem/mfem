@@ -86,14 +86,7 @@ void KernelsSparseMatrix::Setup(kernels::device device, const SparseMatrix &m,
                                 kernels::array<int> mappedIndices_)
 {
    push();
-   //const int nnz = m.GetI()[height];
    assert(false);
-   //offsets.allocate(device,height + 1, m.GetI());
-   //indices.allocate(device,nnz, m.GetJ());
-   //weights.allocate(device,nnz, m.GetData());
-   //offsets.keepInDevice();
-   //indices.keepInDevice();
-   //weights.keepInDevice();
    reorderIndices = reorderIndices_;
    mappedIndices  = mappedIndices_;
    SetupKernel(device);

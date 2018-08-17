@@ -23,9 +23,9 @@ namespace kernels
 // *****************************************************************************
 bool Backend::Supports(const std::string &engine_spec) const
 {
-   push();
-   pop();
-   return true;
+  push();
+  pop();
+  return true;
 }
 
 // *****************************************************************************

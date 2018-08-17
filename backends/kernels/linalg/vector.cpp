@@ -195,12 +195,14 @@ void Vector::MapSubVector(const mfem::Array<int> &ess_tdofs,
 // *****************************************************************************
 mfem::Vector Vector::Wrap()
 {
+   dbg("Wrap");
    return mfem::Vector(*this);
 }
 
 // *****************************************************************************
 const mfem::Vector Vector::Wrap() const
 {
+   dbg("Wrap");
    return mfem::Vector(*const_cast<Vector*>(this));
 }
 

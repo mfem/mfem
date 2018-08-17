@@ -75,10 +75,7 @@ DLayout Engine::MakeLayout(const mfem::Array<std::size_t> &offsets) const
 DArray Engine::MakeArray(PLayout &layout, std::size_t item_size) const
 {
    push();
-   MFEM_ASSERT(dynamic_cast<Layout *>(&layout) != NULL,
-               "invalid input layout");
-   Layout *lt = static_cast<Layout *>(&layout);
-   const DArray array = DArray(new kernels::Array(*lt, item_size));
+   const DArray array = DArray(new kernels::Array(layout.As<Layout>(), item_size));
    pop();
    return array;
 }
@@ -87,11 +84,7 @@ DArray Engine::MakeArray(PLayout &layout, std::size_t item_size) const
 DVector Engine::MakeVector(PLayout &layout, int type_id) const
 {
    push();
-   MFEM_ASSERT(type_id == ScalarId<double>::value, "invalid type_id");
-   MFEM_ASSERT(dynamic_cast<Layout *>(&layout) != NULL,
-               "invalid input layout");
-   Layout *lt = static_cast<Layout *>(&layout);
-   const DVector vector(new kernels::Vector(*lt));
+   const DVector vector(new kernels::Vector(layout.As<Layout>()));
    pop();
    return vector;
 }

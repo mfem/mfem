@@ -118,8 +118,7 @@ void KernelsIntegrator::SetupIntegrator(kBilinearForm &bform_,
 // *****************************************************************************
 kGeometry *KernelsIntegrator::GetGeometry(const int flags)
 {
-   push();
-   pop();
+   dbg("GetGeometry");
    return kGeometry::Get(*rtrialFESpace, *ir);
 }
 

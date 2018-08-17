@@ -66,15 +66,17 @@ void KernelsMassIntegrator::Setup()
 
 // *****************************************************************************
 void KernelsMassIntegrator::Assemble() {
-   // assert(false);
+   assert(false);
    // Not yet implemented
 }
 
 // *****************************************************************************
 void KernelsMassIntegrator::SetOperator(mfem::Vector &v)
 {
+   push();
    op = v;
    assembledOperator.PushData(v.GetData());
+   pop();
 }
 
 // *****************************************************************************

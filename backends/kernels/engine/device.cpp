@@ -22,7 +22,8 @@ namespace kernels
 
 // *****************************************************************************
 device::device() {
-   //push();   pop();
+  push();
+  pop();
 }
 
 // *****************************************************************************
@@ -31,17 +32,19 @@ device::~device() {}
 // ***************************************************************************
 bool device::hasSeparateMemorySpace()
 {
-   return false;
+  push();
+  pop();
+  return false;
 }
 
 // ***************************************************************************
 memory device::malloc(const std::size_t bytes,
                       const void *src)
 {
-   //push();
-   assert(src==NULL);
-   //pop();
-   return memory(bytes,src);
+  push();
+  assert(src==NULL);
+  pop();
+  return memory(bytes,src);
 }
 
 } // namespace mfem::kernels
