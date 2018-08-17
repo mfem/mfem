@@ -2237,10 +2237,10 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
    return error;
 }
 
-void GridFunction::ComputeElementLpError(const double p, Coefficient &exsol,
-                                         GridFunction &error,
-                                         Coefficient *weight,
-                                         const IntegrationRule *irs[]) const
+void GridFunction::ComputeElementLpErrors(const double p, Coefficient &exsol,
+                                          GridFunction &error,
+                                          Coefficient *weight,
+                                          const IntegrationRule *irs[]) const
 {
    error = 0.0;
    const FiniteElement *fe;
@@ -2391,12 +2391,12 @@ double GridFunction::ComputeLpError(const double p, VectorCoefficient &exsol,
    return error;
 }
 
-void GridFunction::ComputeElementLpError(const double p,
-                                         VectorCoefficient &exsol,
-                                         GridFunction &error,
-                                         Coefficient *weight,
-                                         VectorCoefficient *v_weight,
-                                         const IntegrationRule *irs[]) const
+void GridFunction::ComputeElementLpErrors(const double p,
+                                          VectorCoefficient &exsol,
+                                          GridFunction &error,
+                                          Coefficient *weight,
+                                          VectorCoefficient *v_weight,
+                                          const IntegrationRule *irs[]) const
 {
    error = 0.0;
    const FiniteElement *fe;
