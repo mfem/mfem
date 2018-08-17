@@ -2238,9 +2238,9 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
 }
 
 void GridFunction::ComputeLpError(const double p, Coefficient &exsol,
-				  GridFunction &error,
-				  Coefficient *weight,
-				  const IntegrationRule *irs[]) const
+                                  GridFunction &error,
+                                  Coefficient *weight,
+                                  const IntegrationRule *irs[]) const
 {
    error = 0.0;
    const FiniteElement *fe;
@@ -2287,15 +2287,15 @@ void GridFunction::ComputeLpError(const double p, Coefficient &exsol,
       }
       if (p < infinity())
       {
-	 // negative quadrature weights may cause the error to be negative
-	 if (error[i] < 0.)
-	 {
-	    error[i] = -pow(-error[i], 1./p);
-	 }
-	 else
-	 {
- 	    error[i] = pow(error[i], 1./p);
-	 }
+         // negative quadrature weights may cause the error to be negative
+         if (error[i] < 0.)
+         {
+            error[i] = -pow(-error[i], 1./p);
+         }
+         else
+         {
+            error[i] = pow(error[i], 1./p);
+         }
       }
    }
 }
@@ -2392,10 +2392,10 @@ double GridFunction::ComputeLpError(const double p, VectorCoefficient &exsol,
 }
 
 void GridFunction::ComputeLpError(const double p, VectorCoefficient &exsol,
-				  GridFunction &error,
-				  Coefficient *weight,
-				  VectorCoefficient *v_weight,
-				  const IntegrationRule *irs[]) const
+                                  GridFunction &error,
+                                  Coefficient *weight,
+                                  VectorCoefficient *v_weight,
+                                  const IntegrationRule *irs[]) const
 {
    error = 0.0;
    const FiniteElement *fe;
@@ -2468,14 +2468,14 @@ void GridFunction::ComputeLpError(const double p, VectorCoefficient &exsol,
       if (p < infinity())
       {
          // negative quadrature weights may cause the error to be negative
-	 if (error[i] < 0.)
+         if (error[i] < 0.)
          {
             error[i] = -pow(-error[i], 1./p);
-	 }
-	 else
-	 {
+         }
+         else
+         {
             error[i] = pow(error[i], 1./p);
-	 }
+         }
       }
    }
 }
