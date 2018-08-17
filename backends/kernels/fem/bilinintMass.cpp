@@ -66,8 +66,8 @@ void KernelsMassIntegrator::Setup()
 
 // *****************************************************************************
 void KernelsMassIntegrator::Assemble() {
-   assert(false);
-   // Not yet implemented
+   push();
+   pop();
 }
 
 // *****************************************************************************

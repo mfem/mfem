@@ -35,11 +35,8 @@ RestrictionOperator::RestrictionOperator(Layout &in_layout, Layout &out_layout,
 void RestrictionOperator::Mult_(const Vector &x, Vector &y) const
 {
    push();
-   assert(false);
-   //dbg("[Mult_] entries=%ld, trueIndices size=%ld",entries,trueIndices.Size());
    rExtractSubVector(entries, trueIndices, (double*)x.KernelsMem().ptr(),
                      (double*)y.KernelsMem().ptr());
-   //assert(false);
    pop();
 }
 
