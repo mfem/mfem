@@ -133,6 +133,7 @@ int main(int argc, char *argv[])
    bool visit = false;
    int vis_steps = 5;
    const char *oper_spec = "representation: 'partial'";
+   const char *occa_spec = "mode: 'Serial'";
 
    int precision = 8;
    cout.precision(precision);
@@ -164,6 +165,7 @@ int main(int argc, char *argv[])
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.AddOption(&oper_spec, "-s", "--oper-spec", "Operator specification");
+   args.AddOption(&occa_spec, "-os", "--occa-spec", "OCCA engine specification");
    args.Parse();
    if (!args.Good())
    {
@@ -172,10 +174,11 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   string occa_spec("mode: 'Serial'");
-   // string occa_spec("mode: 'CUDA', device_id: 0");
-   // string occa_spec("mode: 'OpenMP', threads: 4");
-   // string occa_spec("mode: 'OpenCL', device_id: 0, platform_id: 0");
+   // Examples for OCCA specifications:
+   //   - CPU (serial): "mode: 'Serial'"
+   //   - CUDA GPU: "mode: 'CUDA', device_id: 0"
+   //   - OpenMP on CPUs: "mode: 'OpenMP', threads: 4"
+   //   - OpenCL on device 0: "mode: 'OpenCL', device_id: 0, platform_id: 0"
 
    //SharedPtr<Engine> engine(new mfem::occa::Engine(occa_spec));
 #ifdef MFEM_USE_MPI
@@ -235,9 +238,11 @@ int main(int argc, char *argv[])
    GridFunction u_gf(&fespace);
 
    // 6. Set the initial conditions for u. All boundaries are considered
-   //    natural.
+   //    natural. This computes this on the host, so pull/push is needed.
+   u_gf.Pull();
    FunctionCoefficient u_0(InitialTemperature);
    u_gf.ProjectCoefficient(u_0);
+   u_gf.Push();
    Vector u;
    u_gf.GetTrueDofs(u);
 
@@ -245,13 +250,13 @@ int main(int argc, char *argv[])
    ConductionOperator oper(fespace, oper_spec, alpha, kappa, u);
 
    u_gf.SetFromTrueDofs(u);
-   u_gf.Pull();
    {
       ofstream omesh("ex16.mesh");
       omesh.precision(precision);
       mesh->Print(omesh);
       ofstream osol("ex16-init.gf");
       osol.precision(precision);
+      u_gf.Pull(); // pull back to host before saving
       u_gf.Save(osol);
    }
 
@@ -307,10 +312,11 @@ int main(int argc, char *argv[])
       {
          cout << "step " << ti << ", t = " << t << endl;
 
+         // u_gf and u are both on the device at this point.
          u_gf.SetFromTrueDofs(u);
-         u_gf.Pull();
          if (visualization)
          {
+            u_gf.Pull(); // pull back to host before saving
             sout << "solution\n" << *mesh << u_gf << flush;
          }
 
@@ -329,6 +335,7 @@ int main(int argc, char *argv[])
    {
       ofstream osol("ex16-final.gf");
       osol.precision(precision);
+      u_gf.Pull(); // pull back to host before saving
       u_gf.Save(osol);
    }
 

@@ -358,7 +358,7 @@ void OccaBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
 void OccaBilinearForm::Mult_(const Vector &x, Vector &y) const
 {
    otrialFESpace->GlobalToLocal(x, localX);
-   localY.Fill<double>(0.0);
+   localY.OccaFill<double>(0.0);
 
    const int integratorCount = (int) integrators.size();
    for (int i = 0; i < integratorCount; ++i)
@@ -373,7 +373,7 @@ void OccaBilinearForm::Mult_(const Vector &x, Vector &y) const
 void OccaBilinearForm::MultTranspose_(const Vector &x, Vector &y) const
 {
    otestFESpace->GlobalToLocal(x, localX);
-   localY.Fill<double>(0.0);
+   localY.OccaFill<double>(0.0);
 
    const int integratorCount = (int) integrators.size();
    for (int i = 0; i < integratorCount; ++i)

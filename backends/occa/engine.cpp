@@ -118,19 +118,14 @@ DLayout Engine::MakeLayout(const mfem::Array<std::size_t> &offsets) const
 
 DArray Engine::MakeArray(PLayout &layout, std::size_t item_size) const
 {
-   MFEM_ASSERT(dynamic_cast<Layout *>(&layout) != NULL,
-               "invalid input layout");
-   Layout *lt = static_cast<Layout *>(&layout);
-   return DArray(new Array(*lt, item_size));
+   return DArray(new Array(layout.As<Layout>(), item_size));
 }
 
 DVector Engine::MakeVector(PLayout &layout, int type_id) const
 {
-   MFEM_ASSERT(type_id == ScalarId<double>::value, "invalid type_id");
-   MFEM_ASSERT(dynamic_cast<Layout *>(&layout) != NULL,
-               "invalid input layout");
-   Layout *lt = static_cast<Layout *>(&layout);
-   return DVector(new Vector(*lt));
+   MFEM_ASSERT(type_id == ScalarId<double>::value, "type_id " << type_id
+               << " is not supported");
+   return DVector(new Vector(layout.As<Layout>()));
 }
 
 DFiniteElementSpace Engine::MakeFESpace(mfem::FiniteElementSpace &fespace) const

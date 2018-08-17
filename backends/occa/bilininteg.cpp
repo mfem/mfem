@@ -784,8 +784,8 @@ void OccaDiffusionIntegrator::Assemble()
 
    OccaGeometry geom = GetGeometry(OccaGeometry::Jacobian);
 
-   assembledOperator.Resize<double>(symmDims * quadraturePoints * elements,
-                                    NULL);
+   assembledOperator.OccaResize(symmDims * quadraturePoints * elements,
+                                sizeof(double));
 
    assembleKernel((int) mesh->GetNE(),
                   maps.quadWeights,

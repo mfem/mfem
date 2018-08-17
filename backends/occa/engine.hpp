@@ -41,18 +41,22 @@ protected:
    // int *workers_mem_res;
 
    static bool fileOpenerRegistered;
-   ::occa::device *device; // An array of OCCA devices
+   /// An array of OCCA devices. Currently only a single device is supported.
+   ::occa::device *device;
    std::string okl_path;
 
    void Init(const std::string &engine_spec);
 
 public:
+   /// TODO: doxygen
    Engine(const std::string &engine_spec);
 
 #ifdef MFEM_USE_MPI
+   /// TODO: doxygen
    Engine(MPI_Comm comm, const std::string &engine_spec);
 #endif
 
+   /// TODO: doxygen
    virtual ~Engine() { delete [] device; }
 
    /**
@@ -70,7 +74,7 @@ public:
    ::occa::memory Alloc(std::size_t bytes) const
    { return GetDevice().malloc(bytes); }
 
-   /// Two mfem::occa::Engine are equal if they use the same OCCA device.
+   /// Two mfem::occa::Engine%s are equal if they use the same OCCA device.
    bool operator==(const Engine &other) const
    { return GetDevice() == other.GetDevice(); }
 
