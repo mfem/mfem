@@ -1012,6 +1012,8 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
                         group_squad.Size_of_connections());
    stria_lface.SetSize(group_stria.Size_of_connections());
    squad_lface.SetSize(group_squad.Size_of_connections());
+   stria_sface.SetSize(group_stria.Size_of_connections());
+   squad_sface.SetSize(group_squad.Size_of_connections());
    sface_stype.SetSize(group_stria.Size_of_connections() +
                        group_squad.Size_of_connections());
 
