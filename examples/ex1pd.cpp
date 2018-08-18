@@ -16,6 +16,8 @@ int main(int argc, char *argv[])
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
+   int ser_ref_levels = -1;
+   int par_ref_levels = -1;
    int order = 1;
    bool static_cond = false;
    bool visualization = 1;
@@ -23,6 +25,10 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
+   args.AddOption(&ser_ref_levels, "-rs", "--refine-serial",
+                  "Number of times to refine the mesh uniformly in serial.");
+   args.AddOption(&par_ref_levels, "-rp", "--refine-parallel",
+                  "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -49,8 +55,15 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_BACKENDS
    /// Engine *engine = EngineDepot.Select(spec);
 
-   string occa_spec("mode: 'Serial'");
-   // string occa_spec("mode: 'CUDA', device_id: 0");
+   // string occa_spec("mode: 'Serial'");
+   string occa_spec;
+   {
+      stringstream occa_spec_ss;
+      occa_spec_ss << "mode: 'CUDA', device_id: 0";
+      // const int nGPUs = 4;
+      // occa_spec_ss << "mode: 'CUDA', device_id: " << (myid % nGPUs);
+      occa_spec = occa_spec_ss.str();
+   }
    // string occa_spec("mode: 'OpenMP', threads: 4");
    // string occa_spec("mode: 'OpenCL', device_id: 0, platform_id: 0");
 
@@ -71,8 +84,12 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-      int ref_levels =
-         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels = (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+      ref_levels = ser_ref_levels >= 0 ? ser_ref_levels : ref_levels;
+      if (myid == 0)
+      {
+         cout << "Serial refinement levels: " << ref_levels << endl;
+      }
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -85,12 +102,18 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      int par_ref_levels = 2;
+      par_ref_levels = par_ref_levels >= 0 ? par_ref_levels : 2;
+      if (myid == 0)
+      {
+         cout << "Parallel refinement levels: " << par_ref_levels << endl;
+      }
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
       }
    }
+   pmesh->PrintInfo(cout);
+   if (myid == 0) { cout << endl; }
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
@@ -166,9 +189,43 @@ int main(int argc, char *argv[])
    pcg->SetRelTol(1e-6);
    pcg->SetAbsTol(0.0);
    pcg->SetMaxIter(1000);
-   pcg->SetPrintLevel(1);
+   pcg->SetPrintLevel(3);
    pcg->SetOperator(*A.Ptr());
+
+   // Run one CG iteration to make sure all kernels are loaded before measuring
+   // time.
+   if (myid == 0)
+   {
+      cout << "Running 1 CG iteration to load all kernels ..." << flush;
+   }
+   {
+      Vector X2(X);
+      pcg->SetMaxIter(1);
+      pcg->SetPrintLevel(-1);
+      pcg->Mult(B, X2);
+      pcg->SetMaxIter(1000);
+      pcg->SetPrintLevel(3);
+   }
+   if (myid == 0)
+   {
+      cout << " done." << endl;
+   }
+
+   double start_time = MPI_Wtime();
    pcg->Mult(B, X);
+   double end_time = MPI_Wtime();
+   double loc_time = end_time - start_time;
+   double max_time, min_time;
+   MPI_Allreduce(&loc_time, &max_time, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+   MPI_Allreduce(&loc_time, &min_time, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+   if (myid == 0)
+   {
+      cout << "CG time: " << max_time << " sec (min: " << min_time << " sec)\n"
+           << "DOFs/sec in CG: "
+           << 1e-6*size*pcg->GetNumIterations()/max_time << " ("
+           << 1e-6*size*pcg->GetNumIterations()/min_time << ") million.\n"
+           << endl;
+   }
 
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.

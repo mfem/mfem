@@ -12,6 +12,7 @@ int main(int argc, char *argv[])
    const char *spec = "cpu";
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
+   int ref_levels = -1;
    bool static_cond = false;
    bool visualization = 1;
 
@@ -23,6 +24,8 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&ref_levels, "-r", "--refine-levels",
+                  "Number of uniform refinements to apply to the mesh.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -66,7 +69,7 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels =
+      ref_levels = ref_levels >= 0 ? ref_levels :
          (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
