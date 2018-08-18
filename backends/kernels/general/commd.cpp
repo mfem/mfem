@@ -51,7 +51,7 @@ namespace kernels {
   // ***************************************************************************
   template <class T> static
   T *d_CopyGroupToBuffer_k(const T *d_ldata,T *d_buf,
-                           const RajaTable &d_dofs,
+                           const ktable &d_dofs,
                            const int group){
     push(PapayaWhip);
     const int ndofs = d_dofs.RowSize(group);
@@ -148,7 +148,7 @@ namespace kernels {
     
     push(Moccasin);
     assert(layout==2);
-    const int rnk = rconfig::Get().Rank();
+    const int rnk = mfem::kernels::config::Get().Rank();
     dbg("\033[33;1m[%d-d_BcastBegin]",rnk);
     int request_counter = 0;
     push(alloc,Moccasin);
@@ -156,7 +156,7 @@ namespace kernels {
     T *buf = (T *)group_buf.GetData();
     if (!d_group_buf){
       push(alloc,Purple);
-      d_group_buf = rmalloc<T>::operator new(group_buf_size);
+      d_group_buf = mfem::kernels::kmalloc<T>::operator new(group_buf_size);
       dbg("\n\033[31;1m[%d-d_ReduceBegin] d_buf cuMemAlloc\033[m",rnk);
       pop();
     }
@@ -177,21 +177,21 @@ namespace kernels {
           d_buf = d_CopyGroupToBuffer(d_ldata, d_buf, grp_list[i], 2);
           buf += d_buf - d_buf_ini;
         }
-        if (!rconfig::Get().Aware()){
+        if (!mfem::kernels::config::Get().Aware()){
           push(BcastBegin:DtoH,Red);
-          rmemcpy::rDtoH(buf_start,d_buf_start,(buf-buf_start)*sizeof(T));
+          mfem::kernels::kmemcpy::rDtoH(buf_start,d_buf_start,(buf-buf_start)*sizeof(T));
           pop();
         }
         
         // make sure the device has finished
-        if (rconfig::Get().Aware()){
+        if (mfem::kernels::config::Get().Aware()){
           push(sync,Lime);
           cudaStreamSynchronize(0);//*rconfig::Get().Stream());
           pop();
         }
 
         push(MPI_Isend,Orange);
-        if (rconfig::Get().Aware())
+        if (mfem::kernels::config::Get().Aware())
           MPI_Isend(d_buf_start,
                     buf - buf_start,
                     MPITypeMap<T>::mpi_type,
@@ -222,7 +222,7 @@ namespace kernels {
           recv_size += group_ldof.RowSize(grp_list[i]);
         }
         push(MPI_Irecv,Orange);
-        if (rconfig::Get().Aware())
+        if (mfem::kernels::config::Get().Aware())
           MPI_Irecv(d_buf,
                     recv_size,
                     MPITypeMap<T>::mpi_type,
@@ -260,7 +260,7 @@ namespace kernels {
   void kCommD::d_BcastEnd(T *d_ldata, int layout) {
     if (comm_lock == 0) { return; }
     push(PeachPuff);
-    const int rnk = rconfig::Get().Rank();
+    const int rnk = mfem::kernels::config::Get().Rank();
     dbg("\033[33;1m[%d-d_BcastEnd]",rnk);
     // The above also handles the case (group_buf_size == 0).
     assert(comm_lock == 1);
@@ -285,9 +285,9 @@ namespace kernels {
         }
         const T *buf = (T*)group_buf.GetData() + buf_offsets[nbr];
         const T *d_buf = (T*)d_group_buf + buf_offsets[nbr];
-        if (!rconfig::Get().Aware()){
+        if (!mfem::kernels::config::Get().Aware()){
           push(BcastEnd:HtoD,Red);
-          rmemcpy::rHtoD((void*)d_buf,buf,recv_size*sizeof(T));
+          mfem::kernels::kmemcpy::rHtoD((void*)d_buf,buf,recv_size*sizeof(T));
           pop();
         }
         for (int i = 0; i < num_recv_groups; i++)
@@ -310,14 +310,14 @@ namespace kernels {
     MFEM_VERIFY(comm_lock == 0, "object is already in use");
     if (group_buf_size == 0) { return; }
     push(PapayaWhip);
-    const int rnk = rconfig::Get().Rank();
+    const int rnk = mfem::kernels::config::Get().Rank();
     dbg("\033[33;1m[%d-d_ReduceBegin]",rnk);
 
     int request_counter = 0;
     group_buf.SetSize(group_buf_size*sizeof(T));
     T *buf = (T *)group_buf.GetData();
     if (!d_group_buf)
-      d_group_buf = rmalloc<T>::operator new(group_buf_size);
+      d_group_buf = mfem::kernels::kmalloc<T>::operator new(group_buf_size);
     T *d_buf = (T*)d_group_buf;
     for (int nbr = 1; nbr < nbr_send_groups.Size(); nbr++)
     {
@@ -332,19 +332,19 @@ namespace kernels {
           buf += d_buf - d_buf_ini;
         }
         dbg("\033[33;1m[%d-d_ReduceBegin] MPI_Isend",rnk);
-        if (!rconfig::Get().Aware()){
+        if (!mfem::kernels::config::Get().Aware()){
           push(ReduceBegin:DtoH,Red);
-          rmemcpy::rDtoH(buf_start,d_buf_start,(buf-buf_start)*sizeof(T));
+          mfem::kernels::kmemcpy::rDtoH(buf_start,d_buf_start,(buf-buf_start)*sizeof(T));
           pop();
         }
         // make sure the device has finished
-        if (rconfig::Get().Aware()){
+        if (mfem::kernels::config::Get().Aware()){
           push(sync,Lime);
           cudaStreamSynchronize(0);//*rconfig::Get().Stream());
           pop();
         }
         push(MPI_Isend,Orange);
-        if (rconfig::Get().Aware())
+        if (mfem::kernels::config::Get().Aware())
           MPI_Isend(d_buf_start,
                     buf - buf_start,
                     MPITypeMap<T>::mpi_type,
@@ -377,7 +377,7 @@ namespace kernels {
         }
         dbg("\033[33;1m[%d-d_ReduceBegin] MPI_Irecv",rnk);
         push(MPI_Irecv,Orange);
-        if (rconfig::Get().Aware())
+        if (mfem::kernels::config::Get().Aware())
           MPI_Irecv(d_buf,
                     recv_size,
                     MPITypeMap<T>::mpi_type,
@@ -416,7 +416,7 @@ namespace kernels {
                               void (*Op)(OpData<T>)){
     if (comm_lock == 0) { return; }
     push(LavenderBlush);
-    const int rnk = rconfig::Get().Rank();
+    const int rnk = mfem::kernels::config::Get().Rank();
     dbg("\033[33;1m[%d-d_ReduceEnd]",rnk);
     // The above also handles the case (group_buf_size == 0).
     assert(comm_lock == 2);
@@ -437,9 +437,9 @@ namespace kernels {
         const T *buf = (T*)group_buf.GetData() + buf_offsets[nbr];
         assert(d_group_buf);
         const T *d_buf = (T*)d_group_buf + buf_offsets[nbr];
-        if (!rconfig::Get().Aware()){
+        if (!mfem::kernels::config::Get().Aware()){
           push(ReduceEnd:HtoD,Red);
-          rmemcpy::rHtoD((void*)d_buf,buf,recv_size*sizeof(T));
+          mfem::kernels::kmemcpy::rHtoD((void*)d_buf,buf,recv_size*sizeof(T));
           pop();
         }
         for (int i = 0; i < num_recv_groups; i++)

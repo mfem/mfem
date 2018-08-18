@@ -29,18 +29,18 @@ static double cub_vector_dot(const int N,
                              const double* __restrict vec2)
 {
    static double *h_dot = NULL;
-   if (!h_dot) { h_dot = (double*)mfem::rmalloc<double>::operator new (1,true); }
+   if (!h_dot) { h_dot = (double*)mfem::kernels::kmalloc<double>::operator new (1,true); }
    static double *d_dot = NULL;
-   if (!d_dot) { d_dot=(double*)mfem::rmalloc<double>::operator new (1); }
+   if (!d_dot) { d_dot=(double*)mfem::kernels::kmalloc<double>::operator new (1); }
    static void *d_storage = NULL;
    static size_t storage_bytes = 0;
    if (!d_storage)
    {
       cub::DeviceReduce::Dot(d_storage, storage_bytes, vec1, vec2, d_dot, N);
-      d_storage = mfem::rmalloc<char>::operator new (storage_bytes);
+      d_storage = mfem::kernels::kmalloc<char>::operator new (storage_bytes);
    }
    cub::DeviceReduce::Dot(d_storage, storage_bytes, vec1, vec2, d_dot, N);
-   mfem::rmemcpy::rDtoH(h_dot,d_dot,sizeof(double));
+   mfem::kernels::kmemcpy::rDtoH(h_dot,d_dot,sizeof(double));
    return *h_dot;
 }
 #endif // __NVCC__
@@ -52,7 +52,7 @@ double vector_dot(const int N,
 {
    push();
 #ifdef __NVCC__
-   if (mfem::rconfig::Get().Cuda())
+   if (mfem::kernels::config::Get().Cuda())
    {
       const double result = cub_vector_dot(N,vec1,vec2);
       pop();

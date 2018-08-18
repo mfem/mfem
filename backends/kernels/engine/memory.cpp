@@ -23,7 +23,7 @@ namespace kernels
 // **************************************************************************
 memory::memory(const std::size_t _bytes, const void *src):
    bytes(_bytes),
-   data(::new char[bytes])
+   data((char*)mfem::kernels::kmalloc<char>::operator new(bytes))
 {
    push();
    assert(src==NULL);
@@ -45,38 +45,44 @@ size_t memory::size() const
 // *****************************************************************************
 void memory::copyFrom(memory &src, size_t b) const {
    push();
-   memcpy(data,src,b);
+   //memcpy(data,src,b);
+   mfem::kernels::kmemcpy::rDtoH(data,src,b);
    pop();
 }
 void memory::copyFrom(memory &src)
 {
    push();
-   memcpy(data,src,bytes);
+   //memcpy(data,src,bytes);
+   mfem::kernels::kmemcpy::rDtoH(data,src,bytes);
    pop();
 }
 
 // *****************************************************************************
 void memory::copyFrom(const void *src, size_t b) const {
    push();
-   memcpy(data,src,b);
+   //memcpy(data,src,b);
+   mfem::kernels::kmemcpy::rDtoH(data,src,b);
    pop();
 }
 void memory::copyFrom(const void *src){
    push();
-   memcpy(data,src,bytes);
+   //memcpy(data,src,bytes);
+   mfem::kernels::kmemcpy::rDtoH(data,src,bytes);
    pop();
 }
 
 // *****************************************************************************
 void memory::copyTo(void *dest, size_t b) const {
    push();
-   memcpy(dest,data,b);
+   //memcpy(dest,data,b);
+   mfem::kernels::kmemcpy::rHtoD(dest,data,b);
    pop();
  }
 void memory::copyTo(void *dest)
 {
    push();
-   memcpy(dest,data,bytes);
+   //memcpy(dest,data,bytes);
+   mfem::kernels::kmemcpy::rHtoD(dest,data,bytes);
    pop();
 }
 
@@ -88,11 +94,12 @@ void* memory::ptr() const
 
 // *****************************************************************************
 memory memory::slice(const size_t offset,
-                     const size_t bytes) const
+                     const int bytes) const
 {
    push();
+   assert(bytes>0);
    memory m = memory(bytes,NULL);
-   memcpy(m.data,data+offset,bytes);
+   ::memcpy(m.data,data+offset,bytes);
    pop();
    return m;
 }

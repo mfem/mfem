@@ -20,6 +20,10 @@
 #include "../../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_KERNELS)
 
+#ifdef __NVCC__
+#include <cuda.h>
+#endif // __NVCC__
+
 namespace mfem
 {
 

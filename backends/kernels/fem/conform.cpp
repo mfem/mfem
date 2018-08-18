@@ -136,7 +136,7 @@ void RajaConformingProlongationOperator::d_Mult(const kernels::kvector &x,
        pop();*/
     
     if (m>0){
-      const int maxXThDim = rconfig::Get().MaxXThreadsDim();
+      const int maxXThDim = mfem::kernels::config::Get().MaxXThreadsDim();
       if (m>maxXThDim){
         const int kTpB=64;
         //printf("\n[k_Mult] m=%d kMaxTh=%d",m,kMaxTh);
@@ -144,7 +144,7 @@ void RajaConformingProlongationOperator::d_Mult(const kernels::kvector &x,
         cuLastCheck();
       }else{
         assert((m/maxXThDim)==0);
-        assert(kMaxTh<rconfig::Get().MaxXGridSize());
+        assert(kMaxTh<mfem::kernels::config::Get().MaxXGridSize());
         for(int of7=0;of7<m/maxXThDim;of7+=1){
           const int base = of7*maxXThDim;
           k_Mult2<<<kMaxTh,maxXThDim>>>(d_ydata,d_xdata,d_external_ldofs,m,base);
@@ -155,7 +155,7 @@ void RajaConformingProlongationOperator::d_Mult(const kernels::kvector &x,
       }
       j = external_ldofs[m-1]+1;
     }
-    rmemcpy::rDtoD(d_ydata+j,d_xdata+j-m,(Width()+m-j)*sizeof(double));
+    mfem::kernels::kmemcpy::rDtoD(d_ydata+j,d_xdata+j-m,(Width()+m-j)*sizeof(double));
 #endif
     pop();
     
@@ -218,14 +218,14 @@ void RajaConformingProlongationOperator::d_Mult(const kernels::kvector &x,
     }
     pop();*/
     if (m>0){      
-      const int maxXThDim = rconfig::Get().MaxXThreadsDim();
+      const int maxXThDim = mfem::kernels::config::Get().MaxXThreadsDim();
       if (m>maxXThDim){
         const int kTpB=64;
         k_MultTranspose<<<(m+kTpB-1)/kTpB,kTpB>>>(d_ydata,d_xdata,d_external_ldofs,m);
         cuLastCheck();
       }else{
-        const int TpB = rconfig::Get().MaxXThreadsDim();
-        assert(kMaxTh<rconfig::Get().MaxXGridSize());
+        const int TpB = mfem::kernels::config::Get().MaxXThreadsDim();
+        assert(kMaxTh<mfem::kernels::config::Get().MaxXGridSize());
         for(int of7=0;of7<m/maxXThDim;of7+=1){
         const int base = of7*maxXThDim;
         k_MultTranspose2<<<kMaxTh,maxXThDim>>>(d_ydata,d_xdata,d_external_ldofs,m,base);
@@ -236,7 +236,7 @@ void RajaConformingProlongationOperator::d_Mult(const kernels::kvector &x,
       }
       j = external_ldofs[m-1]+1;
     }
-    rmemcpy::rDtoD(d_ydata+j-m,d_xdata+j,(Height()-j)*sizeof(double));
+    mfem::kernels::kmemcpy::rDtoD(d_ydata+j-m,d_xdata+j,(Height()-j)*sizeof(double));
 #endif
     pop();
     push(d_ReduceEnd,Coral);

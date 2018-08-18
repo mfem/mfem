@@ -16,8 +16,8 @@
 #include "../kernels.hpp"
 
 // *****************************************************************************
-#ifdef __TEMPLATES__
-kernel
+#ifndef __LAMBDA__
+extern "C" kernel
 #endif
 void rNodeCopyByVDim0(const int elements,
                       const int numDofs,

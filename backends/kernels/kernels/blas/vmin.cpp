@@ -24,18 +24,18 @@ static double cub_vector_min(const int N,
                              const double* __restrict vec)
 {
    static double *h_min = NULL;
-   if (!h_min) { h_min = (double*)mfem::rmalloc<double>::operator new (1,true); }
+   if (!h_min) { h_min = (double*)mfem::kernels::kmalloc<double>::operator new (1,true); }
    static double *d_min = NULL;
-   if (!d_min) { d_min=(double*)mfem::rmalloc<double>::operator new (1); }
+   if (!d_min) { d_min=(double*)mfem::kernels::kmalloc<double>::operator new (1); }
    static void *d_storage = NULL;
    static size_t storage_bytes = 0;
    if (!d_storage)
    {
       cub::DeviceReduce::Min(d_storage, storage_bytes, vec, d_min, N);
-      d_storage = mfem::rmalloc<char>::operator new (storage_bytes);
+      d_storage = mfem::kernels::kmalloc<char>::operator new (storage_bytes);
    }
    cub::DeviceReduce::Min(d_storage, storage_bytes, vec, d_min, N);
-   mfem::rmemcpy::rDtoH(h_min,d_min,sizeof(double));
+   mfem::kernels::kmemcpy::rDtoH(h_min,d_min,sizeof(double));
    return *h_min;
 }
 #endif // __NVCC__
@@ -47,7 +47,7 @@ double vector_min(const int N,
 {
    push();
 #ifdef __NVCC__
-   if (mfem::rconfig::Get().Cuda())
+   if (mfem::kernels::config::Get().Cuda())
    {
       const double result = cub_vector_min(N,vec);
       pop();

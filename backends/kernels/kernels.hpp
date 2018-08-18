@@ -12,7 +12,7 @@
 #define MFEM_BACKENDS_KERNELS_HPP
 
 // *****************************************************************************
-#define __LAMBDA__
+//#define __LAMBDA__
 
 // stdincs *********************************************************************
 #include <math.h>
@@ -28,6 +28,16 @@
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
 #include <mpi-ext.h>
+#endif
+
+// __NVCC__ ********************************************************************
+#ifdef __NVCC__
+//#warning __NVCC__
+#include <cuda.h>
+#include <helper_cuda.h>
+#include <helper_functions.h>
+#define cuCheck checkCudaErrors
+#include "cuda_runtime_api.h"
 #endif
 
 // MFEM ************************************************************************

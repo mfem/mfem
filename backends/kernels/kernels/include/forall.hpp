@@ -24,7 +24,7 @@
 
 // *****************************************************************************
 #ifdef __RAJA__ // *************************************************************
-#warning KERNELS, WITH NVCC
+//#warning RAJA KERNELS, WITH NVCC
 #define sync
 #define share
 #define kernel
@@ -40,7 +40,7 @@ const int CUDA_BLOCK_SIZE = 256;
 #define ReduceForall(i,max,body) \
   RAJA::forall<sq_exec>(0,max,[=]sq_device(RAJA::Index_type i) {body});
 #define forall(i,max,body)                                              \
-  if (mfem::rconfig::Get().Cuda())                                      \
+   if (mfem::config::Get().Cuda())                                      \
     RAJA::forall<cu_exec>(0,max,[=]cu_device(RAJA::Index_type i) {body}); \
   else                                                                  \
     RAJA::forall<sq_exec>(0,max,[=]sq_device(RAJA::Index_type i) {body});
@@ -51,9 +51,10 @@ const int CUDA_BLOCK_SIZE = 256;
 
 
 // *****************************************************************************
-#else // __RAJA__ on GPU, CUDA Kernel launches  *****************************
+#else // KERNELS on GPU, CUDA Kernel launches  *********************************
 #ifdef __NVCC__
 #ifndef __LAMBDA__
+//#warning GPU KERNELS, WITH NVCC direct launch
 #define kernel __global__
 #define share __shared__
 #define sync __syncthreads();
@@ -76,7 +77,8 @@ const int CUDA_BLOCK_SIZE = 256;
 
 
 // *****************************************************************************
-#else // __RAJA__ on GPU, LAMBDA launches  **********************************
+#else // KERNELS on GPU, LAMBDA launches  **************************************
+//#warning GPU KERNELS, WITH NVCC and LAMBDAs
 #define kernel
 #define sync
 #define share
@@ -108,7 +110,7 @@ void cuda_forallT(const int end,
 
 
 // *****************************************************************************
-#else // __RAJA__ on CPU ****************************************************
+#else // KERNELS on CPU ********************************************************
 //#warning NO RAJA, NO NVCC
 #define sync
 #define share
