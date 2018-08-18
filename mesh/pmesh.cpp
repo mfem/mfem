@@ -3371,8 +3371,8 @@ void ParMesh::RefineGroups(const HashTable<Hashed2> &v_to_v)
       {
          v = shared_faces[i]->GetVertices();
          stria_lface[i] = (*faces_tbl)(v[0], v[1], v[2]);
-	 stria_sface[i] = i;
-	 sface_stype[i] = i;
+         stria_sface[i] = i;
+         sface_stype[i] = i;
       }
       delete faces_tbl;
    }
