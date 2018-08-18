@@ -36,7 +36,7 @@ void vector_axpby(const int N,
 {
    push();
 #ifndef __LAMBDA__
-   cuKer(vector_axpy,N,alpha,beta,v0,v1);
+   cuKer(vector_axpby,N,alpha,beta,v0,v1);
 #else
    forall(i,N,v0[i] = alpha * v0[i] + beta * v1[i];);
 #endif

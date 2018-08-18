@@ -16,11 +16,13 @@
 #include "../kernels.hpp"
 
 // *****************************************************************************
+extern "C" kernel
 void rMassMultAdd2D(const int, const int, const int,
                     const double*, const double*, const double*,
                     const double*, const double*, const double*,
                     double*);
 
+extern "C" kernel
 void rMassMultAdd3D(const int, const int, const int,
                     const double*, const double*, const double*,
                     const double*, const double*, const double*,

@@ -16,8 +16,10 @@
 #include "../kernels.hpp"
 
 // *****************************************************************************
+extern "C" kernel
 void rIniGeom2D(const int, const int, const int, const double*, const double*,
                 double*, double*, double*);
+extern "C" kernel
 void rIniGeom3D(const int, const int, const int, const double*, const double*,
                 double*, double*, double*);
 

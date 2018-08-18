@@ -142,16 +142,6 @@ void rDiffusionMultAdd2D(
 }
 
 // *****************************************************************************
-typedef void (*fDiffusionMultAdd)(const int numElements,
-                                  const double* dofToQuad,
-                                  const double* dofToQuadD,
-                                  const double* quadToDof,
-                                  const double* quadToDofD,
-                                  const double* oper,
-                                  const double* solIn,
-                                  double* __restrict__ solOut);
-
-// *****************************************************************************
 void rDiffusionMultAdd(const int DIM,
                        const int NUM_DOFS_1D,
                        const int NUM_QUAD_1D,
@@ -166,14 +156,15 @@ void rDiffusionMultAdd(const int DIM,
 {
    push();
 #ifndef __LAMBDA__
-   const int blck = 256;
-   const int grid = (numElements+blck-1)/blck;
+   //const int blck = 256;
+   //const int grid = (numElements+blck-1)/blck;
 #endif
    if (DIM==1) { assert(false); }
-   if (DIM==2)
-      call0(rDiffusionMultAdd2D,id,grid,blck,
+   if (DIM==2){ assert(false); }
+/*      call0(rDiffusionMultAdd2D,id,grid,blck,
             NUM_DOFS_1D,NUM_QUAD_1D,
             numElements,dofToQuad,dofToQuadD,quadToDof,quadToDofD,op,x,y);
+*/
    if (DIM==3) { assert(false); }
    pop();
 }
