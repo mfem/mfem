@@ -149,6 +149,7 @@ protected:
    // size(ext_buf)=size(ext_ldof)
    Array shr_ltdof, ext_ldof;
    mutable Array shr_buf, ext_buf;
+   mutable char *host_shr_buf, *host_ext_buf;
    // Offsets into {shr,ext}_buf; size is num. neighbors, i.e.
    // gc.GetGroupTopology().GetNumNeighbors():
    int *shr_buf_offsets, *ext_buf_offsets;

@@ -16,6 +16,8 @@
 #include "fespace.hpp"
 #include "interpolation.hpp"
 
+#include <mpi-ext.h> // Check for cuda support
+
 namespace mfem
 {
 
@@ -273,6 +275,26 @@ OccaConformingProlongation::OccaConformingProlongation(
       delete [] nbr_ldof.GetJ();
       nbr_ldof.LoseData();
    }
+   host_shr_buf = NULL;
+   host_ext_buf = NULL;
+   // If the device has a separate memory space (e.g. CUDA device) and the MPI
+   // library does not support buffers in that separate memory space, we
+   // allocate separate host buffers to use for MPI communication.
+   if (device.hasSeparateMemorySpace())
+   {
+      bool need_host_buf = true;
+      if (device.mode() == "CUDA")
+      {
+#ifdef MPIX_CUDA_AWARE_SUPPORT
+         need_host_buf = !MPIX_Query_cuda_support();
+#endif
+      }
+      if (need_host_buf)
+      {
+         host_shr_buf = new char[shr_buf.OccaMem().size()];
+         host_ext_buf = new char[ext_buf.OccaMem().size()];
+      }
+   }
 
    ExtractSubVector = device.buildKernel(okl_path + "mappings.okl",
                                          "ExtractSubVector",
@@ -302,6 +324,8 @@ OccaConformingProlongation::OccaConformingProlongation(
 OccaConformingProlongation::~OccaConformingProlongation()
 {
    delete [] requests;
+   delete [] host_ext_buf;
+   delete [] host_shr_buf;
    delete [] ext_buf_offsets;
    delete [] shr_buf_offsets;
 }
@@ -316,6 +340,10 @@ void OccaConformingProlongation::BcastBeginCopy(const ::occa::memory &src,
                     shr_buf.OccaMem());
    // If the above kernel is executed asynchronously, wait for it to complete:
    shr_buf.OccaMem().getDevice().finish();
+   if (host_shr_buf)
+   {
+      shr_buf.OccaMem().copyTo(host_shr_buf);
+   }
 }
 
 void OccaConformingProlongation::BcastLocalCopy(const ::occa::memory &src,
@@ -334,6 +362,10 @@ void OccaConformingProlongation::BcastEndCopy(::occa::memory &dst,
    // dst[ext_ldof[i]] = ext_buf[i]
    MFEM_ASSERT(item_size == sizeof(double), "");
    if (ext_ldof.Size() == 0) { return; }
+   if (host_ext_buf)
+   {
+      ext_buf.OccaMem().copyFrom(host_ext_buf);
+   }
    SetSubVector((int)ext_ldof.Size(), ext_ldof.OccaMem(),
                 ext_buf.OccaMem(), dst);
 }
@@ -348,6 +380,10 @@ void OccaConformingProlongation::ReduceBeginCopy(const ::occa::memory &src,
                     ext_buf.OccaMem());
    // If the above kernel is executed asynchronously, wait for it to complete:
    ext_buf.OccaMem().getDevice().finish();
+   if (host_ext_buf)
+   {
+      ext_buf.OccaMem().copyTo(host_ext_buf);
+   }
 }
 
 void OccaConformingProlongation::ReduceLocalCopy(const ::occa::memory &src,
@@ -366,6 +402,10 @@ void OccaConformingProlongation::ReduceEndAssemble(::occa::memory &dst,
    // dst[shr_ltdof[i]] += shr_buf[i]
    MFEM_ASSERT(item_size == sizeof(double), "");
    if (unq_ltdof.size<int>() == 0) { return; }
+   if (host_shr_buf)
+   {
+      shr_buf.OccaMem().copyFrom(host_shr_buf);
+   }
    AddSubVector((int)unq_ltdof.size<int>(), unq_ltdof, unq_shr_i, unq_shr_j,
                 shr_buf.OccaMem(), dst);
 }
@@ -383,8 +423,16 @@ void OccaConformingProlongation::Mult_(const Vector &x, Vector &y) const
       const int send_size = shr_buf_offsets[nbr+1] - send_offset;
       if (send_size > 0)
       {
-         MPI_Isend((shr_buf.OccaMem() + send_offset*sizeof(double)).ptr(),
-                   send_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
+         void *send_buf;
+         if (host_shr_buf)
+         {
+            send_buf = host_shr_buf + send_offset*sizeof(double);
+         }
+         else
+         {
+            send_buf = (shr_buf.OccaMem() + send_offset*sizeof(double)).ptr();
+         }
+         MPI_Isend(send_buf, send_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
                    41822, gtopo.GetComm(), &requests[req_counter++]);
       }
 
@@ -392,8 +440,16 @@ void OccaConformingProlongation::Mult_(const Vector &x, Vector &y) const
       const int recv_size = ext_buf_offsets[nbr+1] - recv_offset;
       if (recv_size > 0)
       {
-         MPI_Irecv((ext_buf.OccaMem() + recv_offset*sizeof(double)).ptr(),
-                   recv_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
+         void *recv_buf;
+         if (host_ext_buf)
+         {
+            recv_buf = host_ext_buf + recv_offset*sizeof(double);
+         }
+         else
+         {
+            recv_buf = (ext_buf.OccaMem() + recv_offset*sizeof(double)).ptr();
+         }
+         MPI_Irecv(recv_buf, recv_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
                    41822, gtopo.GetComm(), &requests[req_counter++]);
       }
    }
@@ -419,8 +475,16 @@ void OccaConformingProlongation::MultTranspose_(const Vector &x,
       const int send_size = ext_buf_offsets[nbr+1] - send_offset;
       if (send_size > 0)
       {
-         MPI_Isend((ext_buf.OccaMem() + send_offset*sizeof(double)).ptr(),
-                   send_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
+         void *send_buf;
+         if (host_ext_buf)
+         {
+            send_buf = host_ext_buf + send_offset*sizeof(double);
+         }
+         else
+         {
+            send_buf = (ext_buf.OccaMem() + send_offset*sizeof(double)).ptr();
+         }
+         MPI_Isend(send_buf, send_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
                    41823, gtopo.GetComm(), &requests[req_counter++]);
       }
 
@@ -428,8 +492,16 @@ void OccaConformingProlongation::MultTranspose_(const Vector &x,
       const int recv_size = shr_buf_offsets[nbr+1] - recv_offset;
       if (recv_size > 0)
       {
-         MPI_Irecv((shr_buf.OccaMem() + recv_offset*sizeof(double)).ptr(),
-                   recv_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
+         void *recv_buf;
+         if (host_shr_buf)
+         {
+            recv_buf = host_shr_buf + recv_offset*sizeof(double);
+         }
+         else
+         {
+            recv_buf = (shr_buf.OccaMem() + recv_offset*sizeof(double)).ptr();
+         }
+         MPI_Irecv(recv_buf, recv_size, MPI_DOUBLE, gtopo.GetNeighborRank(nbr),
                    41823, gtopo.GetComm(), &requests[req_counter++]);
       }
    }
