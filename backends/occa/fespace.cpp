@@ -16,7 +16,9 @@
 #include "fespace.hpp"
 #include "interpolation.hpp"
 
+#ifdef MFEM_USE_MPI
 #include <mpi-ext.h> // Check for cuda support
+#endif
 
 namespace mfem
 {
