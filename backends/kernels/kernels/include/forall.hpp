@@ -71,7 +71,6 @@ const int CUDA_BLOCK_SIZE = 256;
 #define call0p(name,id,grid,blck,...)                               \
   printf("\033[32;1m[call0] name=%s grid:%d, block:%d\033[m\n",#name,grid,blck); \
   call[id]<<<grid,blck>>>(__VA_ARGS__)
-//#define call0(name,id,grid,blck,...) name<<<grid,blck>>>(__VA_ARGS__)
 #define call0(name,id,grid,blck,...) call[id]<<<grid,blck>>>(__VA_ARGS__)
 #define ReduceDecl(type,var,ini) double var=ini;
 #define ReduceForall(i,max,body) 

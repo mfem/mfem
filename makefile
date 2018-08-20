@@ -344,7 +344,8 @@ endif
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
-OBJECT_RTC_FILES = $(patsubst $(SRC)%,$(BLD)%,$(KERNELS_RTC_SRC_FILES:.cpp=.o))
+OBJECT_FILES += $(patsubst $(SRC)%,$(BLD)%,$(KERNELS_RTC_SRC_FILES:.cpp=.o))
+#OBJECT_RTC_FILES = $(patsubst $(SRC)%,$(BLD)%,$(KERNELS_RTC_SRC_FILES:.cpp=.o))
 
 #rtc:$(OBJECT_RTC_FILES);@echo OBJECT_RTC_FILES=$(OBJECT_RTC_FILES)
 
@@ -372,7 +373,7 @@ $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 # Rules for compiling all RTC source files.
 # WARNING: the input file needs to be in last position
 $(OBJECT_RTC_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c -o $(@) -I/home/camier1/home/okrtc/include -I$(realpath $(dir $(<))) $(<)
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c -o $(@) -I$(realpath $(dir $(<))) $(<)
 #okrtc
 all: examples miniapps
 
