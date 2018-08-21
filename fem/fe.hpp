@@ -2635,21 +2635,26 @@ public:
 class NURBS3DFiniteElement : public NURBSFiniteElement
 {
 protected:
-   mutable Vector u, shape_x, shape_y, shape_z, dshape_x, dshape_y, dshape_z;
+   mutable Vector u, shape_x, shape_y, shape_z;
+   mutable Vector dshape_x, dshape_y, dshape_z;
+   mutable Vector d2shape_x, d2shape_y, d2shape_z;
+   mutable DenseMatrix du;
 
 public:
    NURBS3DFiniteElement(int p)
       : NURBSFiniteElement(3, Geometry::CUBE, (p + 1)*(p + 1)*(p + 1), p,
                            FunctionSpace::Qk),
-        u(Dof), shape_x(p + 1), shape_y(p + 1), shape_z(p + 1),
-        dshape_x(p + 1), dshape_y(p + 1), dshape_z(p + 1)
+        u(Dof), du(Dof,3), shape_x(p + 1), shape_y(p + 1), shape_z(p + 1),
+        dshape_x(p + 1), dshape_y(p + 1), dshape_z(p + 1),
+        d2shape_x(p + 1), d2shape_y(p + 1), d2shape_z(p + 1)
    { Orders[0] = Orders[1] = Orders[2] = p; }
 
    NURBS3DFiniteElement(int px, int py, int pz)
       : NURBSFiniteElement(3, Geometry::CUBE, (px + 1)*(py + 1)*(pz + 1),
                            std::max(std::max(px,py),pz), FunctionSpace::Qk),
-        u(Dof), shape_x(px + 1), shape_y(py + 1), shape_z(pz + 1),
-        dshape_x(px + 1), dshape_y(py + 1), dshape_z(pz + 1)
+        u(Dof), du(Dof,3), shape_x(px + 1), shape_y(py + 1), shape_z(pz + 1),
+        dshape_x(px + 1), dshape_y(py + 1), dshape_z(pz + 1),
+        d2shape_x(px + 1), d2shape_y(py + 1), d2shape_z(pz + 1)
    { Orders[0] = px; Orders[1] = py; Orders[2] = pz; }
 
    virtual void SetOrder() const;
