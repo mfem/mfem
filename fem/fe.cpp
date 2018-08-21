@@ -197,6 +197,49 @@ void FiniteElement::CalcPhysDShape(ElementTransformation &Trans,
    Mult(vshape, Trans.InverseJacobian(), dshape);
 }
 
+// Assume a linear mapping
+void FiniteElement::CalcPhysLaplacian(ElementTransformation &Trans,
+                                      Vector &Laplacian) const
+{
+   MFEM_ASSERT(MapType == VALUE, "");
+
+   DenseMatrix hess(Dof, (Dim*(Dim-1))/2);
+   DenseMatrix Gij(Dim,Dim);
+   Vector scale((Dim*(Dim-1))/2);
+
+   CalcHessian (Trans.GetIntPoint(), hess);
+   MultAAt(Trans.InverseJacobian(), Gij);
+
+   if (Dim == 3)
+   {
+      scale[0] =   Gij(0,0);
+      scale[1] = 2*Gij(0,1);
+      scale[2] = 2*Gij(0,2);
+
+      scale[3] = 2*Gij(1,2);
+      scale[4] =   Gij(2,2);
+
+      scale[5] =   Gij(1,1);
+   }
+   else if (Dim == 2)
+   {
+      scale[0] =   Gij(0,0);
+      scale[1] = 2*Gij(0,1);
+      scale[2] =   Gij(1,1);
+   }
+   else
+   {
+      scale[0] =   Gij(0,0);
+   }
+
+   for (int nd = 0; nd < Dof; nd++)
+   {
+      Laplacian[nd] = 0;
+      for (int ii = 0; ii < hess.Height(); ii++)
+         Laplacian[nd] += hess(nd,ii)*scale[ii];
+   }
+
+}
 
 void ScalarFiniteElement::NodalLocalInterpolation (
    ElementTransformation &Trans, DenseMatrix &I,
@@ -11068,6 +11111,30 @@ void NURBS1DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    add(sum, grad, -dsum*sum*sum, shape_x, grad);
 }
 
+void NURBS1DFiniteElement::CalcHessian (const IntegrationPoint &ip,
+                                        DenseMatrix &hessian) const
+{
+   Vector grad(Dof);
+   Vector hess(hessian.Data(), Dof);
+
+   kv[0]->CalcShape (shape_x,  ijk[0], ip.x);
+   kv[0]->CalcDShape(grad,     ijk[0], ip.x);
+   kv[0]->CalcD2Shape(hess,    ijk[0], ip.x);
+
+   double sum = 0.0, dsum = 0.0, d2sum = 0.0;
+   for (int i = 0; i <= Order; i++)
+   {
+      sum   += (shape_x(i) *= weights(i));
+      dsum  += (   grad(i) *= weights(i));
+      d2sum += (   hess(i) *= weights(i));
+   }
+
+   sum = 1.0/sum;
+   add(sum, hess, -2*dsum*sum*sum, grad, hess);
+   add(1.0, hess, -(d2sum + 2*dsum*dsum*sum)*sum*sum, shape_x, hess);
+}
+
+//---------------------------------------------------------------------
 void NURBS2DFiniteElement::SetOrder() const
 {
    Orders[0] = kv[0]->GetOrder();
@@ -11135,6 +11202,13 @@ void NURBS2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
       dshape(o,0) = dshape(o,0)*sum - u(o)*dsum[0];
       dshape(o,1) = dshape(o,1)*sum - u(o)*dsum[1];
    }
+}
+
+void NURBS2DFiniteElement::CalcHessian (const IntegrationPoint &ip,
+                                        DenseMatrix &Hessian) const
+{
+   mfem_error ("NURBS2DFiniteElement:CalcHessian (ip, ...)\n"
+               "   is not implemented for this class!");
 }
 
 //---------------------------------------------------------------------
@@ -11225,6 +11299,13 @@ void NURBS3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
       dshape(o,1) = dshape(o,1)*sum - u(o)*dsum[1];
       dshape(o,2) = dshape(o,2)*sum - u(o)*dsum[2];
    }
+}
+
+void NURBS3DFiniteElement::CalcHessian (const IntegrationPoint &ip,
+                                        DenseMatrix &Hessian) const
+{
+   mfem_error ("NURBS3DFiniteElement:CalcHessian (ip, ...)\n"
+               "   is not implemented for this class!");
 }
 
 }

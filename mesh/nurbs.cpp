@@ -211,6 +211,91 @@ void KnotVector::CalcDShape(Vector &grad, int i, double xi) const
    }
 }
 
+// Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
+void KnotVector::CalcDnShape(Vector &gradn, int n, int i, double xi) const
+{
+   int    p = Order, rk, pk, j1, j2,r,j,k;
+   int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
+   double u = getKnotLocation((i >= 0) ? xi : 1. - xi, ip);
+   double temp, saved, d;
+   double a[2][MaxOrder+1],ndu[MaxOrder+1][MaxOrder+1], left[MaxOrder+1], right[MaxOrder+1];
+
+#ifdef MFEM_DEBUG
+   if (p > MaxOrder)
+   {
+      mfem_error("KnotVector::CalcD2Shape : Order > MaxOrder!");
+   }
+#endif
+
+   ndu[0][0] = 1.0;
+   for (j = 1; j <= p; j++){
+      left[j] = u - knot[i-j+1];
+      right[j] = knot[i+j] - u;
+
+      saved = 0.0;
+      for (r = 0; r < j; r++){
+         ndu[j][r] = right[r+1] + left[j-r];
+         temp = ndu[r][j-1]/ndu[j][r];
+         ndu[r][j] = saved + right[r+1]*temp;
+         saved = left[j-r]*temp;
+      }
+      ndu[j][j] = saved;
+   }
+
+   for (j = 0; j <= p; j++) gradn[0*(p+1)+j] = ndu[j][p];
+
+   for (r = 0; r <= p; r++){
+      int s1 = 0;
+      int s2 = 1;
+      a[0][0] = 1.0;
+      for (k = 1; k <= n; k++){
+         d = 0.0;
+         rk = r-k;
+         pk = p-k;
+         if (r >= k){
+            a[s2][0] = a[s1][0]/ndu[pk+1][rk];
+            d = a[s2][0]*ndu[rk][pk];
+         }
+
+         if (rk >= -1){
+            j1 = 1;
+         }
+         else {
+            j1 = -rk;
+         }
+
+         if (r-1<= pk){
+            j2 = k-1;
+         }
+         else {
+            j2 = p-r;
+         }
+
+         for (j = j1; j <= j2; j++) {
+            a[s2][j] = (a[s1][j] - a[s1][j-1])/ndu[pk+1][rk+j];
+            d += a[s2][j]*ndu[rk+j][pk];
+         }
+
+         if (r <= pk){
+            a[s2][k] = - a[s1][k-1]/ndu[pk+1][r];
+            d += a[s2][j]*ndu[rk+j][pk];
+         }
+
+         gradn[k*(p+1)+r] = d;
+         j = s1;
+         s1 = s2;
+         s2 = j;
+      }
+   }
+
+   r = p;
+   for (k = 1; k <= n; k++){
+      for (j = 0; j <= p; j++) gradn[k*(p+1)+j] *= r;
+      r *= (p-k);
+   }
+}
+
+
 int KnotVector::findKnotSpan(double u) const
 {
    int low, mid, high;
