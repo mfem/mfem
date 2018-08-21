@@ -203,13 +203,14 @@ void FiniteElement::CalcPhysLaplacian(ElementTransformation &Trans,
 {
    MFEM_ASSERT(MapType == VALUE, "");
 
-   DenseMatrix hess(Dof, (Dim*(Dim-1))/2);
+   int size = (Dim*(Dim+1))/2;
+   DenseMatrix hess(Dof, size);
    DenseMatrix Gij(Dim,Dim);
-   Vector scale((Dim*(Dim-1))/2);
+   Vector scale(size);
 
    CalcHessian (Trans.GetIntPoint(), hess);
    MultAAt(Trans.InverseJacobian(), Gij);
-
+//Gij.Print();
    if (Dim == 3)
    {
       scale[0] =   Gij(0,0);
@@ -223,20 +224,20 @@ void FiniteElement::CalcPhysLaplacian(ElementTransformation &Trans,
    }
    else if (Dim == 2)
    {
-      scale[0] =   Gij(0,0);
-      scale[1] = 2*Gij(0,1);
-      scale[2] =   Gij(1,1);
+      scale[0] = Gij(0,0);
+      scale[1] = Gij(0,1);
+      scale[2] = Gij(1,1);
    }
    else
    {
       scale[0] =   Gij(0,0);
    }
-
+//scale.Print();
    for (int nd = 0; nd < Dof; nd++)
    {
-      Laplacian[nd] = 0;
-      for (int ii = 0; ii < hess.Height(); ii++)
-         Laplacian[nd] += hess(nd,ii)*scale[ii];
+      Laplacian[nd] = 0.0;
+      for (int ii = 0; ii < size; ii++)
+         Laplacian[nd] += 0.1*hess(nd,ii)*scale[ii];
    }
 
 }

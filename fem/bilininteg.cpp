@@ -432,6 +432,10 @@ void DiffusionIntegrator::AssembleElementMatrix
          AddMultABt(dshape, dshapedxt, elmat);
       }
    }
+
+   cout <<"Std"<<endl;
+   elmat.Print(cout,nd);
+
 }
 
 void DiffusionIntegrator::AssembleElementMatrix2(
@@ -763,17 +767,20 @@ void Diffusion2Integrator::AssembleElementMatrix
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       Trans.SetIntPoint(&ip);
-      w = ip.weight / Trans.Weight();
+      w = -ip.weight / Trans.Weight();
 
       el.CalcShape(ip, shape);
       el.CalcPhysLaplacian(Trans, laplace);
-
+shape.Print();
+laplace.Print();
       if (Q)
       {
-          w *= -Q->Eval(Trans, ip);
+         w *= Q->Eval(Trans, ip);
       }
       AddMult_a_VWt(w, shape, laplace, elmat);
    }
+   cout <<"Strange"<<endl;
+   elmat.Print(cout,nd);
 }
 
 /*
