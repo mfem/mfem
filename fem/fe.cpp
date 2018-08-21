@@ -11354,7 +11354,7 @@ void NURBS3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 }
 
 void NURBS3DFiniteElement::CalcHessian (const IntegrationPoint &ip,
-                                        DenseMatrix &Hessian) const
+                                        DenseMatrix &hessian) const
 {
    double sum, dsum[3], d2sum[6];
 
@@ -11396,7 +11396,7 @@ void NURBS3DFiniteElement::CalcHessian (const IntegrationPoint &ip,
 
             d2sum[4] += ( hessian(o,4) = sx*sy*d2sz*weights(o) );
             d2sum[5] += ( hessian(o,5) = sx*d2sy*sz*weights(o) );
-
+         }
       }
    }
 
