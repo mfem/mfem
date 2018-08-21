@@ -754,11 +754,11 @@ void Diffusion2Integrator::AssembleElementMatrix
 
       if (el.Space() == FunctionSpace::rQk)
       {
-         ir = &RefinedIntRules.Get(el.GetGeomType(), order);
+         ir = &RefinedIntRules.Get(el.GetGeomType(), 0);//order);
       }
       else
       {
-         ir = &IntRules.Get(el.GetGeomType(), order);
+         ir = &IntRules.Get(el.GetGeomType(),0);// order);
       }
    }
 
@@ -771,8 +771,8 @@ void Diffusion2Integrator::AssembleElementMatrix
 
       el.CalcShape(ip, shape);
       el.CalcPhysLaplacian(Trans, laplace);
-shape.Print();
-laplace.Print();
+shape.Print(cout,nd);
+laplace.Print(cout,nd);
       if (Q)
       {
          w *= Q->Eval(Trans, ip);

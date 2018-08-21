@@ -209,6 +209,7 @@ void FiniteElement::CalcPhysLaplacian(ElementTransformation &Trans,
    Vector scale(size);
 
    CalcHessian (Trans.GetIntPoint(), hess);
+hess.Print(cout,Dof);
    MultAAt(Trans.InverseJacobian(), Gij);
 //Gij.Print();
    if (Dim == 3)
@@ -239,7 +240,7 @@ void FiniteElement::CalcPhysLaplacian(ElementTransformation &Trans,
       for (int ii = 0; ii < size; ii++)
          Laplacian[nd] += 0.1*hess(nd,ii)*scale[ii];
    }
-
+Laplacian.Print(cout,Dof);
 }
 
 void ScalarFiniteElement::NodalLocalInterpolation (
