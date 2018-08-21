@@ -333,7 +333,7 @@ public:
        The order in 2D is {u_xx, u_xy, u_yy} 
        The size (#Dof x (#Dim (#Dim-1)/2) of @a Hessian must be set in advance.  */
    virtual void CalcHessian (const IntegrationPoint &ip,
-                             DenseMatrix &Hessian) const;
+                             DenseMatrix &hessian) const;
 
    /** @brief Evaluate the Laplacian of all shape functions of a scalar finite
        element in reference space at the given point @a ip. */

@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
-   int order = 1;
+   int order = -1;
    bool static_cond = false;
    bool visualization = 1;
 
@@ -79,19 +79,46 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
-   {
+  /* {
       int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(5000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
-   }
+   }*/
 
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
-   FiniteElementCollection *fec;
+   FiniteElementCollection *fec = NULL;
+   NURBSExtension *NURBSext = NULL;
+   if (order <= 0)
+   {
+      if (mesh->GetNodes())
+      {
+         fec = mesh->GetNodes()->OwnFEC();
+         cout << "Using isoparametric FEs: " << fec->Name() << endl;
+      }
+      else
+      {
+         fec = new H1_FECollection(order = 1, dim);
+      }
+   }
+   else
+   {
+      if (mesh->NURBSext)
+      {
+         fec = new NURBSFECollection(order);
+         NURBSext = new NURBSExtension(mesh->NURBSext, order);
+      }
+      else
+      {
+         fec = new H1_FECollection(order, dim);
+      }
+   }
+
+   /*
    if (order > 0)
    {
       fec = new H1_FECollection(order, dim);
@@ -104,8 +131,8 @@ int main(int argc, char *argv[])
    else
    {
       fec = new H1_FECollection(order = 1, dim);
-   }
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+   }*/
+   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, NURBSext, fec);
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
 
@@ -118,6 +145,9 @@ int main(int argc, char *argv[])
    {
       Array<int> ess_bdr(mesh->bdr_attributes.Max());
       ess_bdr = 1;
+     // ess_bdr[0] = 0;
+     // ess_bdr[1] = 1;
+      ess_bdr.Print();
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
@@ -127,6 +157,15 @@ int main(int argc, char *argv[])
    LinearForm *b = new LinearForm(fespace);
    ConstantCoefficient one(1.0);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
+
+   //  Array<int> neu_bdr(mesh->bdr_attributes.Max());
+   //  neu_bdr[0] = 1;
+   //   neu_bdr[1] = 0;
+   //   M->AddBoundaryIntegrator(new BoundaryMassIntegrator(*oog), fs_bdr);
+   //   b->AddBoundaryIntegrator(new BoundaryLFIntegrator(one));//,neu_bdr);
+  // ConstantCoefficient zero(0.0);
+  // b->AddBdrFaceIntegrator(new BoundaryLFIntegrator(zero));//,neu_bdr);
+
    b->Assemble();
 
    // 7. Define the solution vector x as a finite element grid function
@@ -140,6 +179,7 @@ int main(int argc, char *argv[])
    //    domain integrator.
    BilinearForm *a = new BilinearForm(fespace);
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   a->AddDomainIntegrator(new Diffusion2Integrator(one));
 
    // 9. Assemble the bilinear form and the corresponding linear system,
    //    applying any necessary transformations such as: eliminating boundary
@@ -170,14 +210,20 @@ int main(int argc, char *argv[])
    // 11. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
 
-   // 12. Save the refined mesh and the solution. This output can be viewed later
-   //     using GLVis: "glvis -m refined.mesh -g sol.gf".
+   // 12 a. Save the refined mesh and the solution.
+   //       This output can be viewed later using
+   //  GLVis: "glvis -m refined.mesh -g sol.gf"
+   //  visit: "visit -o Example1_000000.mfem_root"
    ofstream mesh_ofs("refined.mesh");
    mesh_ofs.precision(8);
    mesh->Print(mesh_ofs);
    ofstream sol_ofs("sol.gf");
    sol_ofs.precision(8);
    x.Save(sol_ofs);
+
+   VisItDataCollection visit_dc("Example1", mesh);
+   visit_dc.RegisterField("solution", &x);
+   visit_dc.Save();
 
    // 13. Send the solution by socket to a GLVis server.
    if (visualization)
