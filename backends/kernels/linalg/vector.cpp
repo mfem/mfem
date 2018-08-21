@@ -57,11 +57,9 @@ void Vector::DoDotProduct(const mfem::PVector &x,
    // called only when Size() != 0
    MFEM_ASSERT(result_type_id == ScalarId<double>::value, "");
    double *res = (double *)result;
-   MFEM_ASSERT(dynamic_cast<const Vector *>(&x) != NULL,
-               "\033[31minvalid Vector type\033[m");
-   const Vector *xp = static_cast<const Vector *>(&x);
-   MFEM_ASSERT(this->Size() == xp->Size(), "");
-   *res = kernels::linalg::dot(this->slice, xp->slice);
+   const Vector &xp = x.As<Vector>();
+   MFEM_ASSERT(this->Size() == xp.Size(), "");
+   *res = kernels::linalg::dot(this->slice, xp.slice);
 #ifdef MFEM_USE_MPI
    double local_dot = *res;
    if (IsParallel())

@@ -25,6 +25,13 @@ class Engine : public mfem::Engine
 {
 protected:
    kernels::device *dev=NULL;
+#ifdef MFEM_USE_MPI
+   const MPI_Comm comm = MPI_COMM_SELF;
+   const MPI_Session &mpi = MPI_Session();
+   const int world_rank = 0;
+   const int world_size = 1;
+
+#endif
 
    void Init(const std::string &engine_spec);
 
@@ -32,7 +39,8 @@ public:
    Engine(const std::string &engine_spec);
 
 #ifdef MFEM_USE_MPI
-   Engine(MPI_Comm comm, const std::string &engine_spec);
+   Engine(MPI_Comm, const std::string&);
+   Engine(MPI_Session&, const std::string&);
 #endif
 
    virtual ~Engine() { }

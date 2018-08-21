@@ -28,6 +28,29 @@ void Engine::Init(const std::string &engine_spec)
    workers_weights[0] = 1.0;
    workers_mem_res[0] = 0;
    dev = new device();
+   
+   bool cuda = false;
+   bool uvm = false;
+   
+   //if (engine_spec.find("cpu")!=std::string::npos) cuda = false;
+   if (engine_spec.find("gpu")!=std::string::npos){
+      cuda = true;
+      uvm = false;
+   }
+   
+   kernels::config::Get().Setup(world_rank,
+                                world_size,
+                                cuda,
+                                false, // CG on device
+                                uvm,
+                                false, // aware
+                                false, // share
+                                false, // occa
+                                false, // hcpo
+                                false, // sync
+                                false, // dot
+                                0); // rp_levels
+
    pop();
 }
 
@@ -42,10 +65,24 @@ Engine::Engine(const std::string &engine_spec) : mfem::Engine(NULL, 1, 1)
 // *****************************************************************************
 #ifdef MFEM_USE_MPI
 Engine::Engine(MPI_Comm _comm,
-               const std::string &engine_spec) : mfem::Engine(NULL, 1, 1)
+               const std::string &engine_spec)
+   : mfem::Engine(NULL, 1, 1),
+     comm(_comm)
 {
    push();
-   comm = _comm;
+   Init(engine_spec);
+   pop();
+}
+   
+Engine::Engine(MPI_Session &_mpi,
+               const std::string &engine_spec)
+   : mfem::Engine(NULL, 1, 1),
+     comm(MPI_COMM_WORLD),
+     mpi(_mpi),
+     world_rank(mpi.WorldRank()),
+     world_size(mpi.WorldSize())
+{
+   push();
    Init(engine_spec);
    pop();
 }
