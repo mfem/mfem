@@ -2606,20 +2606,22 @@ public:
 class NURBS2DFiniteElement : public NURBSFiniteElement
 {
 protected:
-   mutable Vector u, shape_x, shape_y, dshape_x, dshape_y;
+   mutable Vector u, shape_x, shape_y, dshape_x, dshape_y, d2shape_x, d2shape_y;
+   mutable DenseMatrix du;
 
 public:
    NURBS2DFiniteElement(int p)
       : NURBSFiniteElement(2, Geometry::SQUARE, (p + 1)*(p + 1), p,
                            FunctionSpace::Qk),
-        u(Dof), shape_x(p + 1), shape_y(p + 1), dshape_x(p + 1), dshape_y(p + 1)
+        u(Dof), du(Dof,2), shape_x(p + 1), shape_y(p + 1), dshape_x(p + 1), dshape_y(p + 1),
+        d2shape_x(p + 1), d2shape_y(p + 1)
    { Orders[0] = Orders[1] = p; }
 
    NURBS2DFiniteElement(int px, int py)
       : NURBSFiniteElement(2, Geometry::SQUARE, (px + 1)*(py + 1),
                            std::max(px, py), FunctionSpace::Qk),
-        u(Dof), shape_x(px + 1), shape_y(py + 1), dshape_x(px + 1),
-        dshape_y(py + 1)
+        u(Dof), du(Dof,2), shape_x(px + 1), shape_y(py + 1), dshape_x(px + 1),
+        dshape_y(py + 1), d2shape_x(px + 1), d2shape_y(py + 1)
    { Orders[0] = px; Orders[1] = py; }
 
    virtual void SetOrder() const;
