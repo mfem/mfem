@@ -45,10 +45,9 @@ void Vector::DoDotProduct(const PVector &x, void *result,
 
    MFEM_ASSERT(result_type_id == ScalarId<double>::value, "");
    double *res = (double *)result;
-   MFEM_ASSERT(dynamic_cast<const Vector *>(&x) != NULL, "invalid Vector type");
-   const Vector *xp = static_cast<const Vector *>(&x);
-   MFEM_ASSERT(this->Size() == xp->Size(), "");
-   *res = ::occa::linalg::dot<double, double, double>(this->slice, xp->slice);
+   const Vector &xp = x.As<Vector>();
+   MFEM_ASSERT(this->Size() == xp.Size(), "");
+   *res = ::occa::linalg::dot<double, double, double>(this->slice, xp.slice);
 
 #ifdef MFEM_USE_MPI
    double local_dot = *res;

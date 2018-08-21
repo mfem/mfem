@@ -306,6 +306,7 @@
           }
         }
       }
+      @barrier("s_xy_sync_1");
     }
     // Iterate over xy planes to compute solution
     for (int dz = 0; dz < NUM_DOFS_1D; ++dz) {
@@ -333,6 +334,7 @@
           }
         }
       }
+      @barrier("s_xy_sync_2");
     }
   }
 }
