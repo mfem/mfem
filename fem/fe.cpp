@@ -11241,9 +11241,9 @@ void NURBS2DFiniteElement::CalcHessian (const IntegrationPoint &ip,
    dsum[0] *= sum;
    dsum[1] *= sum;
 
-   d2sum[0] *= sum*sum;
-   d2sum[1] *= sum*sum;
-   d2sum[2] *= sum*sum;
+   d2sum[0] *= sum;
+   d2sum[1] *= sum;
+   d2sum[2] *= sum;
 
    for (int o = 0; o < Dof; o++)
    {
@@ -11252,8 +11252,8 @@ void NURBS2DFiniteElement::CalcHessian (const IntegrationPoint &ip,
                    + u[o]*sum*(2*dsum[0]*dsum[0] - d2sum[0]);
 
       hessian(o,1) = hessian(o,1)*sum 
-                   - 2*du(o,0)*sum*dsum[1]
-                   - 2*du(o,1)*sum*dsum[0]
+                   - du(o,0)*sum*dsum[1]
+                   - du(o,1)*sum*dsum[0]
                    + u[o]*sum*(2*dsum[0]*dsum[1] - d2sum[1]);
 
       hessian(o,2) = hessian(o,2)*sum 
@@ -11356,8 +11356,93 @@ void NURBS3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 void NURBS3DFiniteElement::CalcHessian (const IntegrationPoint &ip,
                                         DenseMatrix &Hessian) const
 {
-   mfem_error ("NURBS3DFiniteElement:CalcHessian (ip, ...)\n"
-               "   is not implemented for this class!");
+   double sum, dsum[3], d2sum[6];
+
+   kv[0]->CalcShape ( shape_x, ijk[0], ip.x);
+   kv[1]->CalcShape ( shape_y, ijk[1], ip.y);
+   kv[2]->CalcShape ( shape_z, ijk[2], ip.z);
+
+   kv[0]->CalcDShape(dshape_x, ijk[0], ip.x);
+   kv[1]->CalcDShape(dshape_y, ijk[1], ip.y);
+   kv[2]->CalcDShape(dshape_z, ijk[2], ip.z);
+
+   kv[0]->CalcDShape(d2shape_x, ijk[0], ip.x);
+   kv[1]->CalcDShape(d2shape_y, ijk[1], ip.y);
+   kv[2]->CalcDShape(d2shape_y, ijk[2], ip.z);
+
+   sum = dsum[0] = dsum[1] = dsum[2] = 0.0;
+   d2sum[0] = d2sum[1] = d2sum[2] = d2sum[3] = d2sum[4] = d2sum[5] = 0.0;
+
+   for (int o = 0, k = 0; k <= Orders[2]; k++)
+   {
+      const double sz = shape_z(k), dsz = dshape_z(k), d2sz = d2shape_z(k);
+      for (int j = 0; j <= Orders[1]; j++)
+      {
+         const double sy = shape_y(j), dsy = dshape_y(j), d2sy = d2shape_y(j);
+         for (int i = 0; i <= Orders[0]; i++, o++)
+         {
+            const double sx = shape_x(i), dsx = dshape_x(i), d2sx = d2shape_x(i);
+            sum += ( u(o) = sx*sy*sz*weights(o) );
+
+            dsum[0] += ( du(o,0) = dsx*sy*sz*weights(o) );
+            dsum[1] += ( du(o,1) = sx*dsy*sz*weights(o) );
+            dsum[2] += ( du(o,2) = sx*sy*dsz*weights(o) );
+
+            d2sum[0] += ( hessian(o,0) = d2sx*sy*sz*weights(o) );
+            d2sum[1] += ( hessian(o,1) = dsx*dsy*sz*weights(o) );
+            d2sum[2] += ( hessian(o,2) = dsx*sy*dsz*weights(o) );
+
+            d2sum[3] += ( hessian(o,3) = sx*dsy*dsz*weights(o) );
+
+            d2sum[4] += ( hessian(o,4) = sx*sy*d2sz*weights(o) );
+            d2sum[5] += ( hessian(o,5) = sx*d2sy*sz*weights(o) );
+
+      }
+   }
+
+   sum = 1.0/sum;
+   dsum[0] *= sum;
+   dsum[1] *= sum;
+   dsum[2] *= sum;
+
+   d2sum[0] *= sum;
+   d2sum[1] *= sum;
+   d2sum[2] *= sum;
+
+   d2sum[3] *= sum;
+   d2sum[4] *= sum;
+   d2sum[5] *= sum;
+
+   for (int o = 0; o < Dof; o++)
+   {
+      hessian(o,0) = hessian(o,0)*sum 
+                   - 2*du(o,0)*sum*dsum[0]
+                   + u[o]*sum*(2*dsum[0]*dsum[0] - d2sum[0]);
+
+      hessian(o,1) = hessian(o,1)*sum 
+                   - du(o,0)*sum*dsum[1]
+                   - du(o,1)*sum*dsum[0]
+                   + u[o]*sum*(2*dsum[0]*dsum[1] - d2sum[1]);
+
+      hessian(o,2) = hessian(o,2)*sum 
+                   - du(o,0)*sum*dsum[2]
+                   - du(o,2)*sum*dsum[0]
+                   + u[o]*sum*(2*dsum[0]*dsum[2] - d2sum[2]);
+
+      hessian(o,3) = hessian(o,3)*sum 
+                   - du(o,1)*sum*dsum[2]
+                   - du(o,2)*sum*dsum[1]
+                   + u[o]*sum*(2*dsum[1]*dsum[2] - d2sum[3]);
+
+      hessian(o,4) = hessian(o,4)*sum 
+                   - 2*du(o,2)*sum*dsum[2]
+                   + u[o]*sum*(2*dsum[2]*dsum[2] - d2sum[4]);
+
+      hessian(o,5) = hessian(o,5)*sum 
+                   - 2*du(o,1)*sum*dsum[1]
+                   + u[o]*sum*(2*dsum[1]*dsum[1] - d2sum[5]);
+
+   }
 }
 
 }
