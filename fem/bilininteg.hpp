@@ -1624,6 +1624,40 @@ public:
                                     Vector &flux, Vector *d_energy = NULL);
 };
 
+/** Class for integrating the bilinear form a(u,v) := (Q Laplace u, v) where Q
+    can be a scalar coefficient. */
+class Diffusion2Integrator: public BilinearFormIntegrator
+{
+private:
+   Vector vec, pointflux, shape;
+#ifndef MFEM_THREAD_SAFE
+   DenseMatrix dshape, dshapedxt, invdfdx, mq;
+   DenseMatrix te_dshape, te_dshapedxt;
+#endif
+   Coefficient *Q;
+
+public:
+   /// Construct a diffusion integrator with coefficient Q = 1
+   Diffusion2Integrator() { Q = NULL; }
+
+   /// Construct a diffusion integrator with a scalar coefficient q
+   Diffusion2Integrator (Coefficient &q) : Q(&q) { }
+
+   /** Given a particular Finite Element
+       computes the element stiffness matrix elmat. */
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat);
+   /** Given a trial and test Finite Element computes the element stiffness
+       matrix elmat. */
+//   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+//                                       const FiniteElement &test_fe,
+//                                       ElementTransformation &Trans,
+//                                       DenseMatrix &elmat);
+};
+
+
+
 /** Class for local mass matrix assembling a(u,v) := (Q u, v) */
 class MassIntegrator: public BilinearFormIntegrator
 {

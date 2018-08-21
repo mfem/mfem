@@ -325,10 +325,21 @@ public:
 
    virtual void GetFaceDofs(int face, int **dofs, int *ndofs) const;
 
-   /** each row of h contains the upper triangular part of the hessian
-       of one shape function; the order in 2D is {u_xx, u_xy, u_yy} */
+
+   /** @brief Evaluate the Hessians of all shape functions of a scalar finite
+       element in reference space at the given point @a ip. */
+   /** Each row of the result DenseMatrix @a Hessian contains upper triangular 
+       part of the Hessian of one shape function. 
+       The order in 2D is {u_xx, u_xy, u_yy} 
+       The size (#Dof x (#Dim (#Dim-1)/2) of @a Hessian must be set in advance.  */
    virtual void CalcHessian (const IntegrationPoint &ip,
-                             DenseMatrix &h) const;
+                             DenseMatrix &Hessian) const;
+
+   /** @brief Evaluate the Laplacian of all shape functions of a scalar finite
+       element in reference space at the given point @a ip. */
+   /** The size (#Dof) of @a Laplacian must be set in advance.  */
+   virtual void CalcPhysLaplacian(ElementTransformation &Trans,
+                                  Vector& Laplacian) const;
 
    /** @brief Return the local interpolation matrix @a I (Dof x Dof) where the
        fine element is the image of the base geometry under the given
@@ -2588,6 +2599,8 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void CalcHessian (const IntegrationPoint &ip,
+                             DenseMatrix &hessian) const;
 };
 
 class NURBS2DFiniteElement : public NURBSFiniteElement
@@ -2613,6 +2626,8 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void CalcHessian (const IntegrationPoint &ip,
+                             DenseMatrix &hessian) const;
 };
 
 class NURBS3DFiniteElement : public NURBSFiniteElement
@@ -2639,6 +2654,10 @@ public:
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
+   virtual void CalcHessian (const IntegrationPoint &ip,
+                             DenseMatrix &hessian) const;
+
+
 };
 
 } // namespace mfem

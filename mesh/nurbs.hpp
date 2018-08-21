@@ -61,8 +61,11 @@ public:
 
    int findKnotSpan(double u) const;
 
-   void CalcShape (Vector &shape, int i, double xi) const;
-   void CalcDShape(Vector &grad,  int i, double xi) const;
+   void CalcShape  (Vector &shape, int i, double xi) const;
+   void CalcDShape (Vector &grad,  int i, double xi) const;
+   void CalcDnShape(Vector &gradn, int n, int i, double xi) const;
+   void CalcD2Shape(Vector &grad2, int i, double xi) const { CalcDnShape(grad2, 2, i, xi);}
+
 
    void Difference(const KnotVector &kv, Vector &diff) const;
    void UniformRefinement(Vector &newknots) const;
