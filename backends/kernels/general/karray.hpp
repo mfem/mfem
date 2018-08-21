@@ -39,13 +39,13 @@ public:
    array():data(NULL),sz(0),d{0,0,0,0} {}
    array(const size_t x) {allocate(x);}
    array(const size_t x,const size_t y) {allocate(x,y);}
-   array(const array<T,true> &r)
+   /*array(const array<T,true> &r)
    {
       //push();
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
       memcpy(data,r.GetData(),r.bytes());
       //pop();
-   }
+      }
    array& operator=(const array<T,true> &r)
    {
       //push();
@@ -53,14 +53,14 @@ public:
       memcpy(data,r.GetData(),r.bytes());
       //pop();
       return *this;
-   }
+      }*/
    array& operator=(mfem::Array<T> &a)
    {
       //push();
       kmemcpy::rHtoD(data,a.GetData(),a.Size()*sizeof(T));
       //pop();
       return *this;
-   }
+      }
    ~array() {/*dbp("\033[32m[~i");*/ kmalloc<T>::operator delete (data);}
    inline size_t* dim() { return &d[0]; }
    inline T* ptr() { return data; }
@@ -115,13 +115,13 @@ private:
 public:
    array():data(NULL),sz(0),d{0,0,0,0} {}
    array(const size_t d0) {allocate(d0);}
-   array(const array<T,false> &r)
+   /*array(const array<T,false> &r)
    {
       //push();
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
       memcpy(data,r.GetData(),r.bytes());
       //pop();
-   }
+      }
    array& operator=(const array<T,true> &r)
    {
       //push();
@@ -129,7 +129,7 @@ public:
       memcpy(data,r.GetData(),r.bytes());
       //pop();
       return *this;
-   }
+      }*/
    array& operator=(mfem::Array<T> &a)
    {
       //push();

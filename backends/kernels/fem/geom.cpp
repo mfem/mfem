@@ -40,8 +40,8 @@ kGeometry::~kGeometry()
 // * kGeometry Get: use this one to fetch nodes from vector Sx
 // *****************************************************************************
 kGeometry* kGeometry::Get(kFiniteElementSpace& fes,
-                                      const IntegrationRule& ir,
-                                      const kvector& Sx)
+                          const IntegrationRule& ir,
+                          const kvector& Sx)
 {
    push();
    const Mesh *mesh = fes.GetFESpace()->GetMesh();

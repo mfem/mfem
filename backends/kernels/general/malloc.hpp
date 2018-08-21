@@ -34,17 +34,23 @@ template<class T> struct kmalloc: public kmemcpy
    inline void* operator new (size_t n, bool lock_page = false)
    {
       dbp("+]\033[m");
-      if (!config::Get().Cuda()) { return ::new T[n]; }
+      if (!config::Get().Cuda()) {
+         assert(false);
+         dbg("\033[31;1m>!Cuda new");
+         return ::new T[n];
+      }
 #ifdef __NVCC__
       void *ptr;
       push(new,Purple);
       if (!config::Get().Uvm())
       {
+         dbg("\033[31;1m>cuMemAlloc");
          if (lock_page) { cuMemHostAlloc(&ptr, n*sizeof(T), CU_MEMHOSTALLOC_PORTABLE); }
          else { cuMemAlloc((CUdeviceptr*)&ptr, n*sizeof(T)); }
       }
       else
       {
+         dbg("\033[31;1m>cuMemAllocManaged");
          cuMemAllocManaged((CUdeviceptr*)&ptr, n*sizeof(T),CU_MEM_ATTACH_GLOBAL);
       }
       pop();

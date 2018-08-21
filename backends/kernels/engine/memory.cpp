@@ -46,14 +46,14 @@ size_t memory::size() const
 void memory::copyFrom(memory &src, size_t b) const {
    push();
    //memcpy(data,src,b);
-   mfem::kernels::kmemcpy::rDtoH(data,src,b);
+   mfem::kernels::kmemcpy::rHtoD(data,src,b);
    pop();
 }
 void memory::copyFrom(memory &src)
 {
    push();
    //memcpy(data,src,bytes);
-   mfem::kernels::kmemcpy::rDtoH(data,src,bytes);
+   mfem::kernels::kmemcpy::rHtoD(data,src,bytes);
    pop();
 }
 
@@ -61,13 +61,15 @@ void memory::copyFrom(memory &src)
 void memory::copyFrom(const void *src, size_t b) const {
    push();
    //memcpy(data,src,b);
-   mfem::kernels::kmemcpy::rDtoH(data,src,b);
+   mfem::kernels::kmemcpy::rHtoD(data,src,b);
    pop();
 }
 void memory::copyFrom(const void *src){
    push();
    //memcpy(data,src,bytes);
-   mfem::kernels::kmemcpy::rDtoH(data,src,bytes);
+   assert(data);
+   assert(src);
+   mfem::kernels::kmemcpy::rHtoD(data,src,bytes);
    pop();
 }
 
@@ -75,14 +77,14 @@ void memory::copyFrom(const void *src){
 void memory::copyTo(void *dest, size_t b) const {
    push();
    //memcpy(dest,data,b);
-   mfem::kernels::kmemcpy::rHtoD(dest,data,b);
+   mfem::kernels::kmemcpy::rDtoH(dest,data,b);
    pop();
  }
 void memory::copyTo(void *dest)
 {
    push();
    //memcpy(dest,data,bytes);
-   mfem::kernels::kmemcpy::rHtoD(dest,data,bytes);
+   mfem::kernels::kmemcpy::rDtoH(dest,data,bytes);
    pop();
 }
 

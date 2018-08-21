@@ -67,7 +67,11 @@ private:
    bool nvvp=false;
    // *************************************************************************
 private:
-   config() {}
+   config()
+#ifdef __NVCC__
+      :cuda(true)
+#endif
+   {}
    config(config const&);
    void operator=(config const&);
    // *************************************************************************

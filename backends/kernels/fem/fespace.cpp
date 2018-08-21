@@ -33,6 +33,7 @@ kFiniteElementSpace(const Engine& e,
      indices(localDofs, GetNE()),
      map(localDofs, GetNE()) {
    push(PowderBlue);
+   dbg("\033[7m[kFiniteElementSpace]");
    const mfem::FiniteElement& fe = *(fes->GetFE(0));
    const mfem::TensorBasisElement* el =
       dynamic_cast<const mfem::TensorBasisElement*>(&fe);
@@ -58,7 +59,7 @@ kFiniteElementSpace(const Engine& e,
          ++h_offsets[gid + 1];
       }
    }
-   // Aggregate to find offsets for each global dof
+   dbg("Aggregate to find offsets for each global dof");
    for (int i = 1; i <= globalDofs; ++i) {
       h_offsets[i] += h_offsets[i - 1];
    }
@@ -83,11 +84,14 @@ kFiniteElementSpace(const Engine& e,
    }
    h_offsets[0] = 0;
 
+   dbg("offsets, indices copy");
    offsets = h_offsets;
    indices = h_indices;
    map = h_map;
 
+   dbg("R");
    const mfem::SparseMatrix* R = fes->GetRestrictionMatrix();
+   dbg("P");
    const mfem::Operator* P = fes->GetProlongationMatrix();
 
    if (!P) {
@@ -118,15 +122,21 @@ kFiniteElementSpace(const Engine& e,
       }
    }
 
+   dbg("reorderIndices");
    reorderIndices = ::new kernels::array<int>(2*trueCount);
+   dbg("*=h");   
    *reorderIndices = h_reorderIndices;
-  
+
+   dbg("restrictionOp");
    restrictionOp = new kernels::RestrictionOperator(KernelsVLayout(),
                                                     KernelsTrueVLayout(),
                                                     *reorderIndices);
+   
+   dbg("ProlongationOperator");
    prolongationOp = new kernels::ProlongationOperator(KernelsTrueVLayout(),
                                                       KernelsVLayout(),
                                                       P);
+   dbg("done");
    pop();
 }
 

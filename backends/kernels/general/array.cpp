@@ -63,12 +63,14 @@ int Array::ResizeData(const Layout *lt, std::size_t item_size)
    const std::size_t new_bytes = lt->Size()*item_size;
    if (data.size() < new_bytes )
    {
+      dbg("Alloc");
       data = lt->Alloc(new_bytes);
       slice = data;
       // If memory allocation fails - an exception is thrown.
    }
    else if (slice.size() != new_bytes)
    {
+      dbg("slice");
       slice = data.slice(0, new_bytes);
    }
    pop();
@@ -78,12 +80,12 @@ int Array::ResizeData(const Layout *lt, std::size_t item_size)
 // *****************************************************************************
 void *Array::DoPullData(void *buffer, std::size_t item_size)
 {
+   push();
    if (!slice.getDevice().hasSeparateMemorySpace())
    {
       pop();
       return slice.ptr();
    }
-   push();
    if (buffer)
    {
       slice.copyTo(buffer);

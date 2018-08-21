@@ -33,6 +33,10 @@ device::~device() {}
 bool device::hasSeparateMemorySpace()
 {
   push();
+  if (mfem::kernels::config::Get().Cuda()){
+     pop();
+     return true;
+  }
   pop();
   return false;
 }
