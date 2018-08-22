@@ -99,6 +99,7 @@ void rIniGeom3D(
 }
 
 // instantiation
+#ifdef __TEMPLATES__
 template kernel void rIniGeom3D<8,8>(int, double const*, double const*, double*, double*, double*);
 template kernel void rIniGeom3D<27,64>(int, double const*, double const*, double*, double*, double*);
 template kernel void rIniGeom3D<64,216>(int, double const*, double const*, double*, double*, double*);
@@ -115,3 +116,4 @@ template kernel void rIniGeom3D<2744,17576>(int, double const*, double const*, d
 template kernel void rIniGeom3D<3375,21952>(int, double const*, double const*, double*, double*, double*);
 template kernel void rIniGeom3D<4096,27000>(int, double const*, double const*, double*, double*, double*);
 template kernel void rIniGeom3D<4913,32768>(int, double const*, double const*, double*, double*, double*);
+#endif
