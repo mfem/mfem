@@ -208,7 +208,10 @@ void ProlongationOperator::MultTranspose(const mfem::Vector &x,
 {
    push();
    if (kernels::config::Get().IAmAlone()){
+      x.Pull();
+      y.Pull(false);
       y=x;
+      y.Push();
       pop();
       return;
    }
