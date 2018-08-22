@@ -12,7 +12,11 @@
 #define MFEM_BACKENDS_KERNELS_HPP
 
 // *****************************************************************************
+#ifdef __NVCC__
 #define __TEMPLATES__
+#else
+#define __LAMBDA__
+#endif
 
 // stdincs *********************************************************************
 #include <math.h>

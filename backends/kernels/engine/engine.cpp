@@ -74,13 +74,13 @@ Engine::Engine(MPI_Comm _comm,
    pop();
 }
    
-Engine::Engine(MPI_Session &_mpi,
+Engine::Engine(const MPI_Session *_mpi,
                const std::string &engine_spec)
    : mfem::Engine(NULL, 1, 1),
      comm(MPI_COMM_WORLD),
      mpi(_mpi),
-     world_rank(mpi.WorldRank()),
-     world_size(mpi.WorldSize())
+     world_rank(mpi->WorldRank()),
+     world_size(mpi->WorldSize())
 {
    push();
    Init(engine_spec);

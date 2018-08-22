@@ -27,7 +27,7 @@ protected:
    kernels::device *dev=NULL;
 #ifdef MFEM_USE_MPI
    const MPI_Comm comm = MPI_COMM_SELF;
-   const MPI_Session &mpi = MPI_Session();
+   const MPI_Session *mpi;
    const int world_rank = 0;
    const int world_size = 1;
 
@@ -40,7 +40,7 @@ public:
 
 #ifdef MFEM_USE_MPI
    Engine(MPI_Comm, const std::string&);
-   Engine(MPI_Session&, const std::string&);
+   Engine(const MPI_Session*, const std::string&);
 #endif
 
    virtual ~Engine() { }

@@ -35,8 +35,8 @@ template<class T> struct kmalloc: public kmemcpy
    {
       dbp("+]\033[m");
       if (!config::Get().Cuda()) {
-         assert(false);
-         dbg("\033[31;1m>!Cuda new");
+         //assert(false);
+         //dbg("\033[31;1m>!Cuda new");
          return ::new T[n];
       }
 #ifdef __NVCC__
