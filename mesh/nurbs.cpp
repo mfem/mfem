@@ -297,7 +297,7 @@ void KnotVector::CalcDnShape(Vector &gradn, int n, int i, double xi) const
       u = (knot(ip) - knot(ip+1));
    }
 
-   temp = 1.0;
+   temp = p*u;
    for (k = 1; k <= n-1; k++) temp *= (p-k)*u;
 
    for (j = 0; j <= p; j++) gradn[j] *= temp;
