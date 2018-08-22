@@ -218,7 +218,8 @@ void KnotVector::CalcDnShape(Vector &gradn, int n, int i, double xi) const
    int    ip = (i >= 0) ? (i + p) : (-1 - i + p);
    double u = getKnotLocation((i >= 0) ? xi : 1. - xi, ip);
    double temp, saved, d;
-   double a[2][MaxOrder+1],ndu[MaxOrder+1][MaxOrder+1], left[MaxOrder+1], right[MaxOrder+1];
+   double a[2][MaxOrder+1],ndu[MaxOrder+1][MaxOrder+1], left[MaxOrder+1],
+          right[MaxOrder+1];
 
 #ifdef MFEM_DEBUG
    if (p > MaxOrder)
@@ -228,12 +229,14 @@ void KnotVector::CalcDnShape(Vector &gradn, int n, int i, double xi) const
 #endif
 
    ndu[0][0] = 1.0;
-   for (j = 1; j <= p; j++){
+   for (j = 1; j <= p; j++)
+   {
       left[j] = u - knot(ip-j+1);
       right[j] = knot(ip+j)- u;
 
       saved = 0.0;
-      for (r = 0; r < j; r++){
+      for (r = 0; r < j; r++)
+      {
          ndu[j][r] = right[r+1] + left[j-r];
          temp = ndu[r][j-1]/ndu[j][r];
          ndu[r][j] = saved + right[r+1]*temp;
@@ -242,42 +245,51 @@ void KnotVector::CalcDnShape(Vector &gradn, int n, int i, double xi) const
       ndu[j][j] = saved;
    }
 
-   for (j = 0; j <= p; j++)   gradn[j] = ndu[j][p];
+   // for (j = 0; j <= p; j++) { gradn[j] = ndu[j][p]; }
 
 
-   for (r = 0; r <= p; r++){
+   for (r = 0; r <= p; r++)
+   {
       int s1 = 0;
       int s2 = 1;
       a[0][0] = 1.0;
-      for (k = 1; k <= n; k++){
+      for (k = 1; k <= n; k++)
+      {
          d = 0.0;
          rk = r-k;
          pk = p-k;
-         if (r >= k){
+         if (r >= k)
+         {
             a[s2][0] = a[s1][0]/ndu[pk+1][rk];
             d = a[s2][0]*ndu[rk][pk];
          }
 
-         if (rk >= -1){
+         if (rk >= -1)
+         {
             j1 = 1;
          }
-         else {
+         else
+         {
             j1 = -rk;
          }
 
-         if (r-1<= pk){
+         if (r-1<= pk)
+         {
             j2 = k-1;
          }
-         else {
+         else
+         {
             j2 = p-r;
          }
 
-         for (j = j1; j <= j2; j++) {
+         for (j = j1; j <= j2; j++)
+         {
             a[s2][j] = (a[s1][j] - a[s1][j-1])/ndu[pk+1][rk+j];
             d += a[s2][j]*ndu[rk+j][pk];
          }
 
-         if (r <= pk){
+         if (r <= pk)
+         {
             a[s2][k] = - a[s1][k-1]/ndu[pk+1][r];
             d += a[s2][j]*ndu[rk+j][pk];
          }
@@ -298,9 +310,9 @@ void KnotVector::CalcDnShape(Vector &gradn, int n, int i, double xi) const
    }
 
    temp = p*u;
-   for (k = 1; k <= n-1; k++) temp *= (p-k)*u;
+   for (k = 1; k <= n-1; k++) { temp *= (p-k)*u; }
 
-   for (j = 0; j <= p; j++) gradn[j] *= temp;
+   for (j = 0; j <= p; j++) { gradn[j] *= temp; }
 
 }
 
@@ -1287,8 +1299,11 @@ NURBSExtension::NURBSExtension(const NURBSExtension &orig)
      activeElem(orig.activeElem),
      activeBdrElem(orig.activeBdrElem),
      activeDof(orig.activeDof),
-     patchTopo(new Mesh(*orig.patchTopo)),
-     own_topo(true),
+
+     // patchTopo(new Mesh(*orig.patchTopo)),
+     // own_topo(true),
+     patchTopo(orig.patchTopo),
+     own_topo(false),
      edge_to_knot(orig.edge_to_knot),
      knotVectors(orig.knotVectors.Size()), // knotVectors are copied in the body
      weights(orig.weights),

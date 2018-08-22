@@ -328,12 +328,18 @@ public:
 
    /** @brief Evaluate the Hessians of all shape functions of a scalar finite
        element in reference space at the given point @a ip. */
-   /** Each row of the result DenseMatrix @a Hessian contains upper triangular 
-       part of the Hessian of one shape function. 
-       The order in 2D is {u_xx, u_xy, u_yy} 
+   /** Each row of the result DenseMatrix @a Hessian contains upper triangular
+       part of the Hessian of one shape function.
+       The order in 2D is {u_xx, u_xy, u_yy}
        The size (#Dof x (#Dim (#Dim-1)/2) of @a Hessian must be set in advance.  */
    virtual void CalcHessian (const IntegrationPoint &ip,
-                             DenseMatrix &hessian) const;
+                             DenseMatrix &Hessian) const;
+
+   /** @brief Evaluate the Hessian of all shape functions of a scalar finite
+       element in reference space at the given point @a ip. */
+   /** The size (#Dof, #Dim*(#Dim+1)/2) of @a Hessian must be set in advance.  */
+   virtual void CalcPhysHessian(ElementTransformation &Trans,
+                                DenseMatrix& Hessian) const;
 
    /** @brief Evaluate the Laplacian of all shape functions of a scalar finite
        element in reference space at the given point @a ip. */
@@ -2613,8 +2619,8 @@ public:
    NURBS2DFiniteElement(int p)
       : NURBSFiniteElement(2, Geometry::SQUARE, (p + 1)*(p + 1), p,
                            FunctionSpace::Qk),
-        u(Dof), du(Dof,2), shape_x(p + 1), shape_y(p + 1), dshape_x(p + 1), dshape_y(p + 1),
-        d2shape_x(p + 1), d2shape_y(p + 1)
+        u(Dof), du(Dof,2), shape_x(p + 1), shape_y(p + 1), dshape_x(p + 1),
+        dshape_y(p + 1), d2shape_x(p + 1), d2shape_y(p + 1)
    { Orders[0] = Orders[1] = p; }
 
    NURBS2DFiniteElement(int px, int py)

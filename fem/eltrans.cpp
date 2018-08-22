@@ -53,6 +53,17 @@ const DenseMatrix &ElementTransformation::EvalInverseJ()
    return invJ;
 }
 
+const DenseMatrix &ElementTransformation::EvalInverseH()
+{
+   mfem_error("ElementTransformation::EvalInverseH not implemented!");
+   // TODO
+   MFEM_ASSERT((EvalState & INVHESS_MASK) == 0, "");
+   Hessian();
+   invH.SetSize(d2Fdx2.Width(), d2Fdx2.Height());
+   if (d2Fdx2.Width() > 0) { CalcInverse(d2Fdx2, invH); }
+   EvalState |= INVHESS_MASK;
+   return invH;
+}
 
 int InverseElementTransformation::FindClosestPhysPoint(
    const Vector& pt, const IntegrationRule &ir)
@@ -409,6 +420,30 @@ const DenseMatrix &IsoparametricTransformation::EvalJacobian()
    EvalState |= JACOBIAN_MASK;
 
    return dFdx;
+}
+
+const DenseMatrix &IsoparametricTransformation::EvalHessian()
+{
+   MFEM_ASSERT(space_dim == PointMat.Height(),
+               "the IsoparametricTransformation has not been finalized;"
+               " call FinilizeTransformation() after setup");
+   MFEM_ASSERT((EvalState & HESSIAN_MASK) == 0, "");
+
+   int Dim = FElem->GetDim();
+   d2shape.SetSize(FElem->GetDof(), (Dim*(Dim+1))/2);
+   d2Fdx2.SetSize(PointMat.Height(), d2shape.Width());
+   if (d2shape.Width() > 0)
+   {
+      FElem->CalcHessian(*IntPoint, d2shape);
+      //mfem_error();
+      //d2shape.Print();
+      //PointMat.Print();
+      //d2Fdx2.Print();
+      Mult(PointMat, d2shape, d2Fdx2);
+   }
+   EvalState |= HESSIAN_MASK;
+
+   return d2Fdx2;
 }
 
 int IsoparametricTransformation::OrderJ()
