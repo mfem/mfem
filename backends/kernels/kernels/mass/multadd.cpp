@@ -307,10 +307,10 @@ void rMassMultAdd(const int DIM,
     {0x20C0D,&rMassMultAdd2D<13,26>},  {0x20D0D,&rMassMultAdd2D<14,26>},
     {0x20D0E,&rMassMultAdd2D<14,28>},  {0x20E0E,&rMassMultAdd2D<15,28>},
     {0x20E0F,&rMassMultAdd2D<15,30>},  {0x20F0F,&rMassMultAdd2D<16,30>},
-    {0x20F10,&rMassMultAdd2D<16,32>},  {0x21010,&rMassMultAdd2D<17,32>},
+    {0x20F10,&rMassMultAdd2D<16,32>},  {0x21010,&rMassMultAdd2D<17,32>},*/
     // 3D
     {0x30001,&rMassMultAdd3D<1,2>},    {0x30101,&rMassMultAdd3D<2,2>},
-    {0x30102,&rMassMultAdd3D<2,4>},    {0x30202,&rMassMultAdd3D<3,4>},
+    {0x30102,&rMassMultAdd3D<2,4>},    {0x30202,&rMassMultAdd3D<3,4>},/*
     {0x30203,&rMassMultAdd3D<3,6>},    {0x30303,&rMassMultAdd3D<4,6>},
     {0x30304,&rMassMultAdd3D<4,8>},    {0x30404,&rMassMultAdd3D<5,8>},
     {0x30405,&rMassMultAdd3D<5,10>},   {0x30505,&rMassMultAdd3D<6,10>},
