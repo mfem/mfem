@@ -33,22 +33,22 @@ template <>
 class HostDomainKernel<BtDB> {
 private:
 	template <typename Equation>
-	using QFunc = QuadTensorFunc<Equation, Vector<double>>;
+	using QFunc = QuadTensorFunc<Equation, HostVector<double>>;
 	const mfem::FiniteElementSpace& trial_fes, test_fes;
 	Tensor<2> shape1d;//I don't like that this is not const
 	const int dim;
 	const int nbElts;
 public:
 	template <typename Equation>
-	HostDomainKernel(const Equation& eq)
-		: trial_fes(eq.getTrialFESpace())
-		, test_fes(eq.getTestFESpace())
-		, shape1d(eq.getNbDofs1d(), eq.getNbQuads1d())
-		, dim(eq.getDim())
-		, nbElts(eq.getNbElts()) {
+	HostDomainKernel(const Equation* eq)
+		: trial_fes(eq->getTrialFESpace())
+		, test_fes(eq->getTestFESpace())
+		, shape1d(eq->getNbDofs1d(), eq->getNbQuads1d())
+		, dim(eq->getDim())
+		, nbElts(eq->getNbElts()) {
 		const TensorBasisElement* tfe(dynamic_cast<const TensorBasisElement*>(trial_fes.GetFE(0)));
 		const Poly_1D::Basis &basis1d = tfe->GetBasis1D();
-		const IntegrationRule& ir1d = eq.getIntRule1d();
+		const IntegrationRule& ir1d = eq->getIntRule1d();
 
 		const int dofs = shape1d.Height();
 		const int quads1d = shape1d.Width();
@@ -69,21 +69,21 @@ public:
 	}
 
 	template <typename Tensor>
-	void Mult(const Tensor& D, const Vector<double>& x, Vector<double>& y) const {
+	void Mult(const Tensor& D, const HostVector<double>& x, HostVector<double>& y) const {
 		if(dim == 1) Mult1d(D,x,y);
 		else if(dim == 2 ) Mult2d(D,x,y);
 		else if(dim == 3 ) Mult3d(D,x,y);		
 	}
 
 	template <typename Tensor>
-	void MultAdd(const Tensor& D, const Vector<double>& x, Vector<double>& y) const {
+	void MultAdd(const Tensor& D, const HostVector<double>& x, HostVector<double>& y) const {
 		if(dim == 1) MultAdd1d(D,x,y);
 		else if(dim == 2 ) MultAdd2d(D,x,y);
 		else if(dim == 3 ) MultAdd3d(D,x,y);
 	}
 
 private:
-	void Mult1d(const Tensor<2, double>& D, const Vector<double>& U, Vector<double>& V) const
+	void Mult1d(const Tensor<2, double>& D, const HostVector<double>& U, HostVector<double>& V) const
 	{
 		const int dim     = 1;
 		const int dofs1d  = shape1d.Height();
@@ -101,7 +101,7 @@ private:
 			contractT(shape1d, DBT, R);
 		}
 	}
-	void Mult2d(const Tensor<2, double>& D, const Vector<double>& U, Vector<double>& V) const
+	void Mult2d(const Tensor<2, double>& D, const HostVector<double>& U, HostVector<double>& V) const
 	{
 		const int dim     = 2;
 		const int dofs1d  = shape1d.Height();
@@ -122,7 +122,7 @@ private:
 			contractT(shape1d, BDBT, R);
 		}
 	}
-	void Mult3d(const Tensor<2, double>& D, const Vector<double>& U, Vector<double>& V) const
+	void Mult3d(const Tensor<2, double>& D, const HostVector<double>& U, HostVector<double>& V) const
 	{
 		const int dim     = 3;
 		const int dofs1d  = shape1d.Height();
@@ -146,7 +146,7 @@ private:
 		}
 	}
 	template <typename Equation>
-	void Mult1d(const QFunc<Equation>& D, const Vector<double>& U, Vector<double>& V) const
+	void Mult1d(const QFunc<Equation>& D, const HostVector<double>& U, HostVector<double>& V) const
 	{
 		const int dim     = 1;
 		const int dofs1d  = shape1d.Height();
@@ -166,7 +166,7 @@ private:
 		}
 	}
 	template <typename Equation>
-	void Mult2d(const QFunc<Equation>& D, const Vector<double>& U, Vector<double>& V) const
+	void Mult2d(const QFunc<Equation>& D, const HostVector<double>& U, HostVector<double>& V) const
 	{
 		const int dim     = 2;
 		const int dofs1d  = shape1d.Height();
@@ -190,7 +190,7 @@ private:
 		}
 	}
 	template <typename Equation>
-	void Mult3d(const QFunc<Equation>& D, const Vector<double>& U, Vector<double>& V) const
+	void Mult3d(const QFunc<Equation>& D, const HostVector<double>& U, HostVector<double>& V) const
 	{
 		const int dim     = 3;
 		const int dofs1d  = shape1d.Height();
@@ -215,7 +215,7 @@ private:
 			contractT(shape1d, BBDBT, R);
 		}
 	}
-	void MultAdd1d(const Tensor<2, double>& D, const Vector<double>& U, Vector<double>& V) const
+	void MultAdd1d(const Tensor<2, double>& D, const HostVector<double>& U, HostVector<double>& V) const
 	{
 		const int dim     = 1;
 		const int dofs1d  = shape1d.Height();
@@ -234,7 +234,7 @@ private:
 			R += BDBT;
 		}
 	}
-	void MultAdd2d(const Tensor<2, double>& D, const Vector<double>& U, Vector<double>& V) const
+	void MultAdd2d(const Tensor<2, double>& D, const HostVector<double>& U, HostVector<double>& V) const
 	{
 		const int dim     = 2;
 		const int dofs1d  = shape1d.Height();
@@ -257,7 +257,7 @@ private:
 			R += BBDBT;
 		}
 	}
-	void MultAdd3d(const Tensor<2, double>& D, const Vector<double>& U, Vector<double>& V) const
+	void MultAdd3d(const Tensor<2, double>& D, const HostVector<double>& U, HostVector<double>& V) const
 	{
 		const int dim     = 3;
 		const int dofs1d  = shape1d.Height();
@@ -283,7 +283,7 @@ private:
 		}
 	}
 	template <typename Equation>
-	void MultAdd1d(const QFunc<Equation>& D, const Vector<double>& U, Vector<double>& V) const
+	void MultAdd1d(const QFunc<Equation>& D, const HostVector<double>& U, HostVector<double>& V) const
 	{
 		const int dim     = 1;
 		const int dofs1d  = shape1d.Height();
@@ -304,7 +304,7 @@ private:
 		}
 	}
 	template <typename Equation>
-	void MultAdd2d(const QFunc<Equation>& D, const Vector<double>& U, Vector<double>& V) const
+	void MultAdd2d(const QFunc<Equation>& D, const HostVector<double>& U, HostVector<double>& V) const
 	{
 		const int dim     = 2;
 		const int dofs1d  = shape1d.Height();
@@ -330,7 +330,7 @@ private:
 		}
 	}
 	template <typename Equation>
-	void MultAdd3d(const QFunc<Equation>& D, const Vector<double>& U, Vector<double>& V) const
+	void MultAdd3d(const QFunc<Equation>& D, const HostVector<double>& U, HostVector<double>& V) const
 	{
 		const int dim     = 3;
 		const int dofs1d  = shape1d.Height();

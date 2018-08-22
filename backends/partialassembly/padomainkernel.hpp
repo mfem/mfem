@@ -58,57 +58,64 @@ template <int Dim, typename Vector>
 struct TensorType;
 
 template <int Dim>
-struct TensorType<Dim,Vector<double>>{
+struct TensorType<Dim,HostVector<double>>{
 	typedef Tensor<Dim,double> type;
+};
+
+template <>
+struct TensorType<0,HostVector<double>>{
+	typedef double type;
 };
 
 template <typename Vector>
 struct FESpaceType;
 
 template <>
-struct FESpaceType<mfem::pa::Vector<double>>{
+struct FESpaceType<HostVector<double>>{
 	typedef mfem::FiniteElementSpace type;
 };
 
 template <typename Vector, bool IsLinear, bool IsTimeConstant>
-class MeshJac//;
+class MeshJac;
 
-// template <>
-// class MeshJac<Vector<double>, false, true>
+template <>
+class MeshJac<HostVector<double>, false, true>
 {
 private:
 	const int dim;
 	Tensor<4> J;
-	Tensor<2> locJ;
+	mutable Tensor<2> locJ;
 public:
 	MeshJac(mfem::FiniteElementSpace& fes, const int dim, const int quads, const int nbElts, const int ir_order)
-	: dim(dim), J(dim, dim, quads, nbElts), locJ(dim,dim) {
+	: dim(dim), J(dim, dim, quads, nbElts), locJ() {
+		locJ.createView(dim,dim);
 		Tensor<1> J1d(J.getData(), J.length());
-		EvalJacobians(dim, &fes, ir_order, J1d);
+		EvalJacobians(dim, &fes, ir_order, J1d);	
 	}
 
 	const Tensor<2>& operator()(const int& e, const int& k) const {
-		static Tensor<2> J_ek(dim,dim);//workaround because 'mutable Tensor<2> locJ' does not compile
-		return J_ek.setView(&J(0, 0, k, e));
-		// return locJ.setView(&J(0, 0, k, e));
+		// static Tensor<2> J_ek(dim,dim);//workaround because 'mutable Tensor<2> locJ' does not compile
+		// return J_ek.setView(&J(0, 0, k, e));
+		return locJ.setView(&J(0, 0, k, e));
 	}
 };
 
 template <>
-class MeshJac<Vector<double>, true, true>
+class MeshJac<HostVector<double>, true, true>
 {
 private:
 	Tensor<3> J;
 	mutable Tensor<2> locJ;
 public:
 	MeshJac(mfem::FiniteElementSpace& fes, const int dim, const int quads, const int nbElts, const int ir_order)
-	: J(dim, dim, nbElts), locJ(dim, dim) {
+	: J(dim, dim, nbElts), locJ() {
+		locJ.createView(dim,dim);
 		//Needlessly expensive
-		MeshJac<Vector<double>, false, true> Jac(fes,dim,quads,nbElts,ir_order);
-		Tensor<2> Je(J.getData(),dim,dim);
+		MeshJac<HostVector<double>, false, true> Jac(fes,dim,quads,nbElts,ir_order);
+		// Tensor<2> Je(J.getData(),dim,dim);
 		for (int i = 0; i < nbElts; ++i)
 		{
-			Je.setView(&J(0,0,i)) = Jac(i,0);
+			locJ.setView(&J(0,0,i)) = Jac(i,0);
 		}
 	}
 
@@ -168,7 +175,7 @@ public:
 	// }
 };
 
-class TestEq: public Equation<BtDB,Vector<double>>
+class TestEq: public Equation<BtDB,HostVector<double>>
 {
 public:
 	TestEq() = delete;
@@ -184,7 +191,7 @@ public:
 	}
 };
 
-class HostMassEq: public Equation<BtDB,Vector<double>>
+class HostMassEq: public Equation<BtDB,HostVector<double>>
 {
 public:
 	HostMassEq() = delete;
@@ -208,25 +215,28 @@ private:
 	typedef typename TensorType<EltDim<Equation>::value, Vector>::type Tensor; //Defines the Host/Device Tensor type for quadrature data
 	typedef typename TensorType<QuadDim<Equation>::value, Vector>::type QuadTensor;
 	typedef typename TensorType<2, Vector>::type JTensor;
-	Equation eq;//Maybe Equation needs to be moved on GPU Device<Equation,Vector>& eq? otherwise Vector could be deduced
+	Equation* eq;//Maybe Equation needs to be moved on GPU Device<Equation,Vector>& eq? otherwise Vector could be deduced
 	mutable QuadTensor D_ek;
 public:
 	QuadTensorFunc() = delete;
-	QuadTensorFunc(Equation& eq): eq(eq), D_ek() { }
+	~QuadTensorFunc(){
+		delete eq;
+	}
+	QuadTensorFunc(Equation* eq): eq(eq), D_ek() {  }
 
-	const FESpace& getTrialFESpace() const { return eq.getTrialFESpace(); }
-	const FESpace& getTestFESpace() const { return eq.getTestFESpace(); }
+	const FESpace& getTrialFESpace() const { return eq->getTrialFESpace(); }
+	const FESpace& getTestFESpace() const { return eq->getTestFESpace(); }
 
 	//This will not work on GPU
 	void evalD(const int e, Tensor& D_e) const {
-		ElementTransformation *Tr = eq.getTrialFESpace().GetElementTransformation(e);
-		for (int k = 0; k < eq.getNbQuads(); ++k)
+		ElementTransformation *Tr = eq->getTrialFESpace().GetElementTransformation(e);
+		for (int k = 0; k < eq->getNbQuads(); ++k)
 		{
 			D_ek.slice(D_e, k);
-			const JTensor& J_ek = eq.getJac(e, k);
-			const IntegrationPoint &ip = eq.getIntPoint(k);
+			const JTensor& J_ek = eq->getJac(e, k);
+			const IntegrationPoint &ip = eq->getIntPoint(k);
 			Tr->SetIntPoint(&ip);
-			eq.evalD(D_ek, eq.getDim(), k, e, Tr, ip, J_ek);
+			eq->evalD(D_ek, eq->getDim(), k, e, Tr, ip, J_ek);
 		}
 	}
 };
@@ -244,7 +254,7 @@ template <typename Equation, typename Vector>
 struct DomainKernel;
 
 template <typename Equation>
-struct DomainKernel<Equation,Vector<double>>
+struct DomainKernel<Equation,HostVector<double>>
 {
 	typedef HostDomainKernel<Equation::OpName> type;
 };
@@ -265,7 +275,7 @@ private:
 	mutable EltTensor D_e;
 public:
 	PADomainIntegrator() = delete;
-	PADomainIntegrator(Equation& eq): kernel(eq), qfunc(eq) { }
+	PADomainIntegrator(Equation* eq): kernel(eq), qfunc(eq), D_e() { }
 
 	//This is unlikely to work on GPU
 	void evalD(Tensor& D) const {
@@ -286,17 +296,17 @@ public:
 };
 
 template <typename Equation, typename Vector = typename Equation::VectorType>
-PADomainIntegrator<Equation,Vector>* createMFDomainKernel(Equation& eq){ return new PADomainIntegrator<Equation,Vector>(eq); }
+PADomainIntegrator<Equation,Vector>* createMFDomainKernel(Equation* eq){ return new PADomainIntegrator<Equation,Vector>(eq); }
 
-// static void initFESpaceTensor(const int dim, const int nbQuads, const int nbElts, Tensor<2>& D){
-// 	D.setSize(nbQuads,nbElts);
-// }
-// static void initFESpaceTensor(const int dim, const int nbQuads, const int nbElts, Tensor<3>& D){
-// 	D.setSize(dim,nbQuads,nbElts);
-// }
-// static void initFESpaceTensor(const int dim, const int nbQuads, const int nbElts, Tensor<4>& D){
-// 	D.setSize(dim,dim,nbQuads,nbElts);
-// }
+static void initFESpaceTensor(const int dim, const int nbQuads, const int nbElts, Tensor<2>& D){
+	D.setSize(nbQuads,nbElts);
+}
+static void initFESpaceTensor(const int dim, const int nbQuads, const int nbElts, Tensor<3>& D){
+	D.setSize(dim,nbQuads,nbElts);
+}
+static void initFESpaceTensor(const int dim, const int nbQuads, const int nbElts, Tensor<4>& D){
+	D.setSize(dim,dim,nbQuads,nbElts);
+}
 
 /**
 *	Partial Assembly operator
@@ -314,10 +324,10 @@ private:
 public:
 	PADomainKernel() = delete;
 	//This should work on GPU
-	PADomainKernel(Equation& eq): kernel(eq), D() {
-		const int dim = eq.getDim();
-		const int nbQuads = eq.getNbQuads();
-		const int nbElts = eq.getNbElts();
+	PADomainKernel(Equation* eq): kernel(eq), D() {
+		const int dim = eq->getDim();
+		const int nbQuads = eq->getNbQuads();
+		const int nbElts = eq->getNbElts();
 		initFESpaceTensor(dim, nbQuads, nbElts, D);
 		PADomainIntegrator<Equation, Vector> integ(eq);
 		integ.evalD(D);
@@ -334,13 +344,13 @@ public:
 
 
 template <typename Equation, typename Vector = typename Equation::VectorType>
-PADomainKernel<Equation,Vector>* createPADomainKernel(Equation& eq){ return new PADomainKernel<Equation,Vector>(eq); }
+PADomainKernel<Equation,Vector>* createPADomainKernel(Equation* eq){ return new PADomainKernel<Equation,Vector>(eq); }
 
 template <typename Vector>
 class MatrixType;
 
 template <>
-class MatrixType<Vector<double>>{
+class MatrixType<HostVector<double>>{
 public:
 	typedef mfem::Array<Tensor<2,double>> type;
 };
@@ -379,7 +389,7 @@ template <typename Vector>
 class SpMatrixType;
 
 template <>
-class SpMatrixType<Vector<double>>{
+class SpMatrixType<HostVector<double>>{
 public:
 	typedef Tensor<2,double> type;
 };

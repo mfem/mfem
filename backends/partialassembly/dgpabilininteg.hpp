@@ -12,8 +12,8 @@
 
 // This file contains a prototype version for Discontinuous Galerkin Partial assembly
 
-#ifndef MFEM_DGPABILININTEG
-#define MFEM_DGPABILININTEG
+#ifndef MFEM_PA_DGPABILININTEG
+#define MFEM_PA_DGPABILININTEG
 
 // #include "bilininteg.hpp"
 #include "tensor.hpp"

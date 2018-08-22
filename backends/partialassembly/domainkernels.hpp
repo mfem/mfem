@@ -13,8 +13,8 @@
 // with BilinearFormOperator.
 
 
-#ifndef MFEM_DOMAINKERNELS
-#define MFEM_DOMAINKERNELS
+#ifndef MFEM_PA_DOMAINKERNELS
+#define MFEM_PA_DOMAINKERNELS
 
 #include "../../general/array.hpp"
 #include "tensor.hpp"

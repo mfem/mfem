@@ -16,6 +16,11 @@
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_PA)
 
 #include "../base/backend.hpp"
+#include "util.hpp"
+// #include "layout.hpp"
+// #include "pa_array.hpp"
+// #include "vector.hpp"
+// #include "pa_fespace.hpp"
 
 namespace mfem
 {
@@ -23,7 +28,8 @@ namespace mfem
 namespace pa
 {
 
-class Engine : public mfem::Engine
+template <Location Device>
+class PAEngine : public mfem::Engine
 {
 protected:
    //
@@ -42,14 +48,14 @@ protected:
    void Init(const std::string &engine_spec);
 
 public:
-   Engine();
-   Engine(const std::string &engine_spec);
+   PAEngine();
+   PAEngine(const std::string &engine_spec);
 
 #ifdef MFEM_USE_MPI
-   Engine(MPI_Comm comm, const std::string &engine_spec);
+   PAEngine(MPI_Comm comm, const std::string &engine_spec);
 #endif
 
-   virtual ~Engine() { }
+   virtual ~PAEngine() { }
 
    /**
        @name Virtual interface: finite element data structures and algorithms
@@ -81,6 +87,8 @@ public:
    ///@}
    // End: Virtual interface
 };
+
+mfem::Engine* createEngine(const std::string& engine_spec);
 
 } // namespace mfem::pa
 

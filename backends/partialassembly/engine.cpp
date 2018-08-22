@@ -22,7 +22,8 @@ namespace mfem
 namespace pa
 {
 
-void Engine::Init(const std::string &engine_spec)
+template <Location Device>
+void PAEngine<Device>::Init(const std::string &engine_spec)
 {
    //
    // Initialize inherited fields
@@ -32,20 +33,23 @@ void Engine::Init(const std::string &engine_spec)
    workers_mem_res[0] = 0;
 }
 
-Engine::Engine()
+template <Location Device>
+PAEngine<Device>::PAEngine()
    : mfem::Engine(NULL, 1, 1)
 {
    Init("");
 }
 
-Engine::Engine(const std::string &engine_spec)
+template <Location Device>
+PAEngine<Device>::PAEngine(const std::string &engine_spec)
    : mfem::Engine(NULL, 1, 1)
 {
    Init(engine_spec);
 }
 
 #ifdef MFEM_USE_MPI
-Engine::Engine(MPI_Comm _comm, const std::string &engine_spec)
+template <Location Device>
+PAEngine<Device>::PAEngine(MPI_Comm _comm, const std::string &engine_spec)
    : mfem::Engine(NULL, 1, 1)
 {
    comm = _comm;
@@ -53,37 +57,41 @@ Engine::Engine(MPI_Comm _comm, const std::string &engine_spec)
 }
 #endif
 
-DLayout Engine::MakeLayout(std::size_t size) const
+template <Location Device>
+DLayout PAEngine<Device>::MakeLayout(std::size_t size) const
 {
-   return DLayout(new Layout(*this, size));
+   return DLayout(new LayoutType<Device>(*this, size));
 }
 
-DLayout Engine::MakeLayout(const mfem::Array<std::size_t> &offsets) const
+template <Location Device>
+DLayout PAEngine<Device>::MakeLayout(const mfem::Array<std::size_t> &offsets) const
 {
    MFEM_ASSERT(offsets.Size() == 2,
                "multiple workers are not supported yet");
-   return DLayout(new Layout(*this, offsets.Last()));
+   return DLayout(new LayoutType<Device>(*this, offsets.Last()));
 }
 
-DArray Engine::MakeArray(PLayout &layout, std::size_t item_size) const
+template <Location Device>
+DArray PAEngine<Device>::MakeArray(PLayout &layout, std::size_t item_size) const
 {
-   MFEM_ASSERT(dynamic_cast<Layout *>(&layout) != NULL,
+   MFEM_ASSERT(dynamic_cast<LayoutType<Device> *>(&layout) != NULL,
                "invalid input layout");
-   Layout *lt = static_cast<Layout *>(&layout);
-   return DArray(new Array(*lt, item_size));
+   LayoutType<Device> *lt = static_cast<LayoutType<Device> *>(&layout);
+   return DArray(new ArrayType<Device>(*lt, item_size));
 }
 
-DVector Engine::MakeVector(PLayout &layout, int type_id) const
+template <Location Device>
+DVector PAEngine<Device>::MakeVector(PLayout &layout, int type_id) const
 {
-   MFEM_ASSERT(dynamic_cast<Layout *>(&layout) != NULL,
+   MFEM_ASSERT(dynamic_cast<LayoutType<Device> *>(&layout) != NULL,
                "invalid input layout");
-   Layout *lt = static_cast<Layout *>(&layout);
+   LayoutType<Device> *lt = static_cast<LayoutType<Device> *>(&layout);
    switch (type_id)
    {
    case ScalarId<double>::value:
-      return DVector(new Vector<double>(*lt));
+      return DVector(new VectorType<Device,double>(*lt));
    case ScalarId<std::complex<double>>::value:
-      return DVector(new Vector<std::complex<double>>(*lt));
+      return DVector(new VectorType<Device,std::complex<double>>(*lt));
    // case ScalarId<int>::value:
    //    return DVector(new Vector<int>(*lt));
    default:
@@ -91,35 +99,55 @@ DVector Engine::MakeVector(PLayout &layout, int type_id) const
    }
 }
 
-DFiniteElementSpace Engine::MakeFESpace(mfem::FiniteElementSpace &fespace) const
+template <Location Device>
+DFiniteElementSpace PAEngine<Device>::MakeFESpace(mfem::FiniteElementSpace &fespace) const
 {
-   return DFiniteElementSpace(new FiniteElementSpace(*this, fespace));
+   return DFiniteElementSpace(new PAFiniteElementSpace<Device>(*this, fespace));
 }
 
-DBilinearForm Engine::MakeBilinearForm(mfem::BilinearForm &bf) const
+template <Location Device>
+DBilinearForm PAEngine<Device>::MakeBilinearForm(mfem::BilinearForm &bf) const
 {
-   return DBilinearForm(new BilinearForm(*this, bf));
+   return DBilinearForm(new mfem::pa::BilinearForm<Device>(*this, bf));
 }
 
-void Engine::AssembleLinearForm(LinearForm &l_form) const
+template <Location Device>
+void PAEngine<Device>::AssembleLinearForm(LinearForm &l_form) const
 {
    /// FIXME - What will the actual parameters be?
    MFEM_ABORT("FIXME");
 }
 
-mfem::Operator *Engine::MakeOperator(const MixedBilinearForm &mbl_form) const
+template <Location Device>
+mfem::Operator *PAEngine<Device>::MakeOperator(const MixedBilinearForm &mbl_form) const
+{
+   /// FIXME - What will the actual parameters be?
+   MFEM_ABORT("FIXME");
+   return NULL;
+}
+
+template <Location Device>
+mfem::Operator *PAEngine<Device>::MakeOperator(const NonlinearForm &nl_form) const
 {
    /// FIXME - What will the actual parameters be?
    MFEM_ABORT("FIXME");
    return NULL;
 }
 
-mfem::Operator *Engine::MakeOperator(const NonlinearForm &nl_form) const
-{
-   /// FIXME - What will the actual parameters be?
-   MFEM_ABORT("FIXME");
-   return NULL;
+template class PAEngine<Host>;
+#ifdef __NVCC__
+template class PAEngine<CudaDevice>;
+#endif
+
+mfem::Engine* createEngine(const std::string& engine_spec){
+   Engine* engine = NULL;
+   if (engine_spec=="Host")
+   {
+      engine = new PAEngine<Host>;
+   }
+   return engine;
 }
+
 
 } // namespace mfem::pa
 

@@ -26,15 +26,15 @@ bool Backend::Supports(const std::string &engine_spec) const
 	return true;
 }
 
-mfem::Engine *Create(const std::string &engine_spec)
+mfem::Engine *Backend::Create(const std::string &engine_spec)
 {
-	return new Engine(engine_spec);
+	return new PAEngine<Host>(engine_spec);
 }
 
 #ifdef MFEM_USE_MPI
-mfem::Engine *Create(MPI_Comm comm, const std::string &engine_spec)
+mfem::Engine *Backend::Create(MPI_Comm comm, const std::string &engine_spec)
 {
-	return new Engine(comm, engine_spec);
+	return new PAEngine<Host>(comm, engine_spec);
 }
 #endif
 

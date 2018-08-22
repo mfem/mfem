@@ -53,7 +53,7 @@ public:
    virtual void Resize(std::size_t new_size) { size = new_size; }
 
    /// Resize the layout based on the given worker offsets
-   virtual void Resize(const Array<std::size_t> &offsets)
+   virtual void Resize(const mfem::Array<std::size_t> &offsets)
    { MFEM_ABORT("method not supported"); }
 
    ///@}

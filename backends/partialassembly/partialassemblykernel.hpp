@@ -12,8 +12,8 @@
 // This file contains operator-based bilinear form integrators used
 // with BilinearFormOperator.
 
-#ifndef MFEM_PAK
-#define MFEM_PAK
+#ifndef MFEM_PA_PAK
+#define MFEM_PA_PAK
 
 // #include "fem.hpp"
 // #include "../config/config.hpp"
@@ -46,16 +46,6 @@ namespace pa
 /////////////////////////////
 // Domain Kernel Interface //
 /////////////////////////////
-
-struct ElementInfo
-{
-   int dim;
-   int k;
-   int e;
-   ElementTransformation* tr;
-   IntegrationPoint ip;
-   Tensor<2> J_ek;
-};
 
 /**
 *  A partial assembly Integrator class for domain integrals.
@@ -129,84 +119,9 @@ public:
 
 };
 
-// template < typename Equation, typename Vector,
-//            template<PAOp, typename> class IMPL>
-// class PADomainIntegrator
-//    : public TensorBilinearFormIntegrator, public IMPL<Equation::OpName, Vector>
-// {
-// private:
-//    typedef IMPL<Equation::OpName, Vector> Op;
-//    Equation& eq;
-
-// public:
-//    /**
-//    *  The constructor is templated so that the argument needed for 'evalD' can be
-//    *  packed arbitrarily ('evalD' with the corresponding signature must exist).
-//    */
-//    PADomainIntegrator(mfem::FiniteElementSpace *fes, const int order, Equation& eq)
-//       : Op(fes, order, args), eq(eq)
-//    {
-//       const int nb_elts = fes->GetNE();
-//       const IntegrationRule& ir = IntRules.Get(fes->GetFE(0)->GetGeomType(), order);
-//       const int quads  = ir.GetNPoints();
-//       const FiniteElement* fe = fes->GetFE(0);
-//       const int dim = fe->GetDim();
-//       this->InitD(dim, quads, nb_elts);
-//       Tensor<1> Jac1D(dim * dim * quads * nb_elts);
-//       EvalJacobians(dim, fes, order, Jac1D);
-//       Tensor<4> Jac(Jac1D.getData(), dim, dim, quads, nb_elts);
-//       for (int e = 0; e < nb_elts; ++e)
-//       {
-//          ElementTransformation *Tr = fes->GetElementTransformation(e);
-//          for (int k = 0; k < quads; ++k)
-//          {
-//             Tensor<2> J_ek(&Jac(0, 0, k, e), dim, dim);
-//             const IntegrationPoint &ip = ir.IntPoint(k);
-//             Tr->SetIntPoint(&ip);
-//             this->evalEq(dim, k, e, Tr, ip, J_ek, eq);
-//          }
-//       }
-//    }
-
-//    const typename Op::DTensor& getD() const
-//    {
-//       return Op::getD();
-//    }
-
-//    /**
-//    *  Applies the partial assembly operator.
-//    */
-//    virtual void MultAdd(const Vector& u, Vector& v) const
-//    {
-//       int dim = this->fes->GetFE(0)->GetDim();
-//       switch (dim)
-//       {
-//       case 1: this->Mult1d(u, v); break;
-//       case 2: this->Mult2d(u, v); break;
-//       case 3: this->Mult3d(u, v); break;
-//       default: mfem_error("More than # dimension not yet supported"); break;
-//       }
-//    }
-
-//    virtual void ReassembleOperator() { }
-
-// };
-
 ///////////////////////////
 // Face Kernel Interface //
 ///////////////////////////
-
-struct FaceInfo
-{
-   int dim; // The problem dimension
-   int k1, k2; // The indices of
-   IntegrationPoint eip1, eip2; // The integration points on each element
-   mfem::Vector* normal;  // The normal to the face
-   int ind_elt1, ind_elt2; // The indices of the elements
-   int face_id1, face_id2; // The face ID for the face according to each element
-   FaceElementTransformations* face_tr; // The Face transformation
-   Tensor<2> J_e1, J_e2; // The Jacobians for each element at their respective quadrature point
-};
 
 /**
 *  A partial assembly Integrator interface class for face integrals.
@@ -317,11 +232,9 @@ private:
                IntegrationPoint eip1;
                face_tr->Loc1.Transform(ip, eip1);
                eip1.weight = ip.weight;//Sets the weight since Transform doesn't do it...
-               // face_tr->Elem1->SetIntPoint( &eip1 );
                IntegrationPoint eip2;
                face_tr->Loc2.Transform(ip, eip2);
                eip2.weight = ip.weight;//Sets the weight since Transform doesn't do it...
-               // face_tr->Elem2->SetIntPoint( &eip2 );
                int kg1 = GetGlobalQuadIndex(dim, face_id1, quads1d, ind_f1);
                int kg2 = GetGlobalQuadIndex(dim, face_id2, quads1d, ind_f2);
                Tensor<2> J_e1(&Jac(0, 0, kg1, ind_elt1), dim, dim);
@@ -330,8 +243,6 @@ private:
                adjugate(J_e1, Adj);
                calcOrtho( Adj, face_id1, normal); // normal*determinant (risky, bug prone)
                this->evalEq(dim, k1, k2, n, ind_elt1, face_id1, ind_elt2, face_id2, face_tr, eip1, eip2, J_e1, J_e2, args);
-               // FaceInfo face_info = {dim,k1,k2,n,ind_elt1,face_id1,ind_elt2,face_id2,face_tr,eip1,eip2,J_e1,J_e2};
-               // this->evalEq(face_info,args);
             } else { //Boundary face
                this->initBoundaryFaceData(ind_elt1, face_id1);
                // TODO: Something should be done here when there is boundary conditions!

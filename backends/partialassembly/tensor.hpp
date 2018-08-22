@@ -12,8 +12,8 @@
 // This file contains operator-based bilinear form integrators used
 // with BilinearFormOperator.
 
-#ifndef MFEM_TENSOR
-#define MFEM_TENSOR
+#ifndef MFEM_PA_TENSOR
+#define MFEM_PA_TENSOR
 
 // #include "bilininteg.hpp"
 // #include <vector>
@@ -177,6 +177,23 @@ public:
    }
 
    /**
+   *  Some sort of copy constructor, here because otherwise calls one of the templated function
+   */
+   Tensor(Tensor& t)
+      : capacity(t.length()), data(new Scalar[capacity]), own_data(true)
+   {
+      for (int i = 0; i < Dim; ++i)
+      {
+         sizes[i] = t.size(i);
+      }
+      const Scalar* data_t = t.getData();
+      for (int i = 0; i < capacity; ++i)
+      {
+         data[i] = data_t[i];
+      }
+   }
+
+   /**
    *  A copy constructor
    */
    Tensor(const Tensor& t)
@@ -271,14 +288,28 @@ public:
       }
    }
 
+   template <typename... Args>
+   void createView(Args... args)
+   {
+      static_assert(sizeof...(args) == Dim, "Wrong number of arguments");
+      // Initialize sizes, and compute the number of values
+      long int nb = Init<1, Dim, Args...>::result(sizes, args...);
+      if (own_data)
+      {
+         delete [] data;
+      }
+      own_data = false;
+      capacity = nb;
+   }
+
    Tensor& setView(Scalar* ptr){
-      MFEM_ASSERT(own_data,"you should get rid of your data first.");
+      MFEM_ASSERT(!own_data,"you should get rid of your data first.");
       data = ptr;
       return *this;
    }
 
    const Tensor& setView(const Scalar* ptr){
-      MFEM_ASSERT(own_data,"you should get rid of your data first.");
+      MFEM_ASSERT(!own_data,"you should get rid of your data first.");
       data = const_cast<Scalar*>(ptr);
       return *this;
    }
@@ -426,7 +457,7 @@ private:
    Scalar* data;
    bool own_data;
 public:
-   Tensor(): data(new Scalar), own_data(true) {}
+   explicit Tensor(): data(new Scalar), own_data(true) {}
 
    Tensor& operator=(Scalar& val) {
       *data = val;

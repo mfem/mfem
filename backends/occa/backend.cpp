@@ -12,6 +12,7 @@
 #include "../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_OCCA)
 
+#include "util.hpp"
 #include "backend.hpp"
 #include "engine.hpp"
 

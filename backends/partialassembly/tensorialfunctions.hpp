@@ -12,8 +12,8 @@
 // This file contains operator-based bilinear form integrators used
 // with BilinearFormOperator.
 
-#ifndef MFEM_TENSORFUNC
-#define MFEM_TENSORFUNC
+#ifndef MFEM_PA_TENSORFUNC
+#define MFEM_PA_TENSORFUNC
 
 #include "tensor.hpp"
 // #include "fem.hpp"
@@ -782,7 +782,7 @@ void GetDiag3d(const mfem::FiniteElementSpace& fes, const int order, const Op& o
 }
 
 template <int Dim, typename Op>
-void GetDiag(const FiniteElementSpace& fes, const int order, const Op& op, Tensor<Dim>& diag)
+void GetDiag(const mfem::FiniteElementSpace& fes, const int order, const Op& op, Tensor<Dim>& diag)
 {
    switch(fes.GetFE(0)->GetDim())
    {

@@ -21,17 +21,33 @@ namespace mfem
 namespace pa
 {
 
-void Layout::Resize(std::size_t new_size)
+void HostLayout::Resize(std::size_t new_size)
 {
 	size = new_size;
 }
 
-void Layout::Resize(const Array<std::size_t> &offsets)
+void HostLayout::Resize(const mfem::Array<std::size_t> &offsets)
 {
 	MFEM_ASSERT(offsets.Size() == 2,
 	            "multiple workers are not supported yet");
 	size = offsets.Last();
 }
+
+#ifdef __NVCC__
+
+void CudaLayout::Resize(std::size_t new_size)
+{
+	size = new_size;
+}
+
+void CudaLayout::Resize(const mfem::Array<std::size_t> &offsets)
+{
+	MFEM_ASSERT(offsets.Size() == 2,
+	            "multiple workers are not supported yet");
+	size = offsets.Last();
+}
+
+#endif
 
 } // namespace mfem::pa
 
