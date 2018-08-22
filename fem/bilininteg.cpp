@@ -758,7 +758,7 @@ void Diffusion2Integrator::AssembleElementMatrix
       }
       else
       {
-         ir = &IntRules.Get(el.GetGeomType(), order);
+         ir = &IntRules.Get(el.GetGeomType() , order);
       }
    }
 
@@ -771,8 +771,8 @@ void Diffusion2Integrator::AssembleElementMatrix
 
       el.CalcShape(ip, shape);
       el.CalcPhysLaplacian(Trans, laplace);
-//IDO shape.Print(cout,nd);
-//IDO laplace.Print(cout,nd);
+//shape.Print(cout,nd);
+//laplace.Print(cout,nd);
       if (Q)
       {
          w *= Q->Eval(Trans, ip);
