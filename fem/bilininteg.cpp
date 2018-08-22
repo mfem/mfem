@@ -433,8 +433,8 @@ void DiffusionIntegrator::AssembleElementMatrix
       }
    }
 
-   cout <<"Std"<<endl;
-   elmat.Print(cout,nd);
+  cout <<"Std"<<endl;
+  elmat.Print(cout,nd);
 
 }
 
@@ -754,11 +754,11 @@ void Diffusion2Integrator::AssembleElementMatrix
 
       if (el.Space() == FunctionSpace::rQk)
       {
-         ir = &RefinedIntRules.Get(el.GetGeomType(), 0);//order);
+         ir = &RefinedIntRules.Get(el.GetGeomType(), order);
       }
       else
       {
-         ir = &IntRules.Get(el.GetGeomType(),0);// order);
+         ir = &IntRules.Get(el.GetGeomType(), order);
       }
    }
 
@@ -767,20 +767,21 @@ void Diffusion2Integrator::AssembleElementMatrix
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       Trans.SetIntPoint(&ip);
-      w = -ip.weight / Trans.Weight();
+      w = -0.5*ip.weight / Trans.Weight(); //SHOULD BE 0.5???!!!
 
       el.CalcShape(ip, shape);
       el.CalcPhysLaplacian(Trans, laplace);
-shape.Print(cout,nd);
-laplace.Print(cout,nd);
+//IDO shape.Print(cout,nd);
+//IDO laplace.Print(cout,nd);
       if (Q)
       {
          w *= Q->Eval(Trans, ip);
       }
       AddMult_a_VWt(w, shape, laplace, elmat);
+      AddMult_a_VWt(w, laplace, shape, elmat);
    }
-   cout <<"Strange"<<endl;
-   elmat.Print(cout,nd);
+  cout <<"Strange"<<endl;
+  elmat.Print(cout,nd);
 }
 
 /*

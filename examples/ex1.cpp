@@ -49,6 +49,7 @@ int main(int argc, char *argv[])
    int order = -1;
    bool static_cond = false;
    bool visualization = 1;
+   bool ibp = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -61,6 +62,11 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+
+   args.AddOption(&ibp, "-ibp", "--ibp", "-no-ibp",
+                  "--no-ibp",
+                  "Enable or disable integration by parts.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -79,15 +85,15 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
-  /* {
+/*   {
       int ref_levels =
          (int)floor(log(5000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
-   }*/
-
+   }
+*/
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
@@ -178,8 +184,14 @@ int main(int argc, char *argv[])
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
    BilinearForm *a = new BilinearForm(fespace);
-   a->AddDomainIntegrator(new DiffusionIntegrator(one));
-   a->AddDomainIntegrator(new Diffusion2Integrator(one));
+   if (ibp)
+   {
+      a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   }
+   else 
+   {
+      a->AddDomainIntegrator(new Diffusion2Integrator(one));
+   }
 
    // 9. Assemble the bilinear form and the corresponding linear system,
    //    applying any necessary transformations such as: eliminating boundary
@@ -188,17 +200,27 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
+ess_tdof_list.Print();
    SparseMatrix A;
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+B.Print();
+//A.Print(); 
+
+  for (int i = 0; i < ess_tdof_list.Size(); i++)
+   {
+      A.EliminateRowCol(ess_tdof_list[i]);
+   }
+
+A.Print(); 
 
    cout << "Size of linear system: " << A.Height() << endl;
 
 #ifndef MFEM_USE_SUITESPARSE
    // 10. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //     solve the system A X = B with PCG.
-   GSSmoother M(A);
-   PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
+   DSmoother M(A);
+   GMRES(A, M, B, X, 1, 200,100, 1e-12, 0.0);
 #else
    // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;
@@ -207,8 +229,10 @@ int main(int argc, char *argv[])
    umf_solver.Mult(B, X);
 #endif
 
+X.Print(); 
    // 11. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
+x.Print(); 
 
    // 12 a. Save the refined mesh and the solution.
    //       This output can be viewed later using

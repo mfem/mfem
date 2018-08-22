@@ -209,9 +209,8 @@ void FiniteElement::CalcPhysLaplacian(ElementTransformation &Trans,
    Vector scale(size);
 
    CalcHessian (Trans.GetIntPoint(), hess);
-hess.Print(cout,Dof);
    MultAAt(Trans.InverseJacobian(), Gij);
-//Gij.Print();
+
    if (Dim == 3)
    {
       scale[0] =   Gij(0,0);
@@ -226,21 +225,21 @@ hess.Print(cout,Dof);
    else if (Dim == 2)
    {
       scale[0] = Gij(0,0);
-      scale[1] = Gij(0,1);
+      scale[1] = 2*Gij(0,1);
       scale[2] = Gij(1,1);
    }
    else
    {
       scale[0] =   Gij(0,0);
    }
-//scale.Print();
+
    for (int nd = 0; nd < Dof; nd++)
    {
       Laplacian[nd] = 0.0;
       for (int ii = 0; ii < size; ii++)
-         Laplacian[nd] += 0.1*hess(nd,ii)*scale[ii];
+         Laplacian[nd] += hess(nd,ii)*scale[ii];
    }
-Laplacian.Print(cout,Dof);
+
 }
 
 void ScalarFiniteElement::NodalLocalInterpolation (
@@ -11217,8 +11216,38 @@ void NURBS2DFiniteElement::CalcHessian (const IntegrationPoint &ip,
    kv[0]->CalcDShape(dshape_x, ijk[0], ip.x);
    kv[1]->CalcDShape(dshape_y, ijk[1], ip.y);
 
-   kv[0]->CalcDShape(d2shape_x, ijk[0], ip.x);
-   kv[1]->CalcDShape(d2shape_y, ijk[1], ip.y);
+   kv[0]->CalcD2Shape(d2shape_x, ijk[0], ip.x);
+   kv[1]->CalcD2Shape(d2shape_y, ijk[1], ip.y);
+/*
+cout<<"SHAPES"<<endl;
+cout<<"#-------------------------------------"<<endl;
+   double x, dx = 0.1;
+   for (int j = 0; j <11; j++)
+   {
+      x =j*dx;
+      kv[0]->CalcShape ( shape_x, ijk[0], x);
+      cout<< x <<"\t"<< shape_x[0]<<"\t"<< shape_x[1]<<"\t"<< shape_x[2];
+      kv[0]->CalcDShape ( shape_x, ijk[0], x);
+      cout<<     "\t"<< shape_x[0]<<"\t"<< shape_x[1]<<"\t"<< shape_x[2];
+      kv[0]->CalcD2Shape ( shape_x, ijk[0], x);
+      cout<<     "\t"<< shape_x[0]<<"\t"<< shape_x[1]<<"\t"<< shape_x[2]<<endl;
+   }
+cout<<"#-------------------------------------"<<endl;
+
+
+cout<<"#-------------------------------------"<<endl;
+   for (int j = 0; j <11; j++)
+   {
+      x =j*dx;
+      kv[0]->CalcDnShape ( shape_x,0, ijk[0], x);
+      cout<< x <<"\t"<< shape_x[0]<<"\t"<< shape_x[1]<<"\t"<< shape_x[2];
+      kv[0]->CalcDnShape ( shape_x,1, ijk[0], x);
+      cout<<     "\t"<< shape_x[0]<<"\t"<< shape_x[1]<<"\t"<< shape_x[2];
+      kv[0]->CalcDnShape ( shape_x,2, ijk[0], x);
+      cout<<     "\t"<< shape_x[0]<<"\t"<< shape_x[1]<<"\t"<< shape_x[2]<<endl;
+   }
+cout<<"#-------------------------------------"<<endl;
+*/
 
    sum = dsum[0] = dsum[1] = 0.0;
    d2sum[0] = d2sum[1] = d2sum[2] = 0.0;
@@ -11368,9 +11397,9 @@ void NURBS3DFiniteElement::CalcHessian (const IntegrationPoint &ip,
    kv[1]->CalcDShape(dshape_y, ijk[1], ip.y);
    kv[2]->CalcDShape(dshape_z, ijk[2], ip.z);
 
-   kv[0]->CalcDShape(d2shape_x, ijk[0], ip.x);
-   kv[1]->CalcDShape(d2shape_y, ijk[1], ip.y);
-   kv[2]->CalcDShape(d2shape_y, ijk[2], ip.z);
+   kv[0]->CalcD2Shape(d2shape_x, ijk[0], ip.x);
+   kv[1]->CalcD2Shape(d2shape_y, ijk[1], ip.y);
+   kv[2]->CalcD2Shape(d2shape_y, ijk[2], ip.z);
 
    sum = dsum[0] = dsum[1] = dsum[2] = 0.0;
    d2sum[0] = d2sum[1] = d2sum[2] = d2sum[3] = d2sum[4] = d2sum[5] = 0.0;

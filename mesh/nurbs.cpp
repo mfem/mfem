@@ -223,14 +223,14 @@ void KnotVector::CalcDnShape(Vector &gradn, int n, int i, double xi) const
 #ifdef MFEM_DEBUG
    if (p > MaxOrder)
    {
-      mfem_error("KnotVector::CalcD2Shape : Order > MaxOrder!");
+      mfem_error("KnotVector::CalcDnShape : Order > MaxOrder!");
    }
 #endif
 
    ndu[0][0] = 1.0;
    for (j = 1; j <= p; j++){
-      left[j] = u - knot[i-j+1];
-      right[j] = knot[i+j] - u;
+      left[j] = u - knot(ip-j+1);
+      right[j] = knot(ip+j)- u;
 
       saved = 0.0;
       for (r = 0; r < j; r++){
@@ -241,8 +241,6 @@ void KnotVector::CalcDnShape(Vector &gradn, int n, int i, double xi) const
       }
       ndu[j][j] = saved;
    }
-
-   for (j = 0; j <= p; j++) gradn[0*(p+1)+j] = ndu[j][p];
 
    for (r = 0; r <= p; r++){
       int s1 = 0;
@@ -280,8 +278,7 @@ void KnotVector::CalcDnShape(Vector &gradn, int n, int i, double xi) const
             a[s2][k] = - a[s1][k-1]/ndu[pk+1][r];
             d += a[s2][j]*ndu[rk+j][pk];
          }
-
-         gradn[k*(p+1)+r] = d;
+         gradn[r] = d;
          j = s1;
          s1 = s2;
          s2 = j;
@@ -289,10 +286,11 @@ void KnotVector::CalcDnShape(Vector &gradn, int n, int i, double xi) const
    }
 
    r = p;
-   for (k = 1; k <= n; k++){
-      for (j = 0; j <= p; j++) gradn[k*(p+1)+j] *= r;
-      r *= (p-k);
-   }
+   for (k = 1; k <= n-1; k++) r *= (p-k);
+
+   for (j = 0; j <= p; j++) gradn[j] *= r;
+
+
 }
 
 
