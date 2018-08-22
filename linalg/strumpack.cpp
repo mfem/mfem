@@ -23,7 +23,8 @@ namespace mfem
 {
 
 STRUMPACKRowLocMatrix::STRUMPACKRowLocMatrix(MPI_Comm comm,
-                                             int num_loc_rows, int first_loc_row,
+                                             int num_loc_rows,
+                                             int first_loc_row,
                                              int glob_nrows, int glob_ncols,
                                              int *I, int *J, double *data)
    : comm_(comm), A_(NULL)
@@ -40,8 +41,9 @@ STRUMPACKRowLocMatrix::STRUMPACKRowLocMatrix(MPI_Comm comm,
    dist[rank + 1] = first_loc_row + num_loc_rows;
    dist[0] = 0;
    MPI_Allgather(MPI_IN_PLACE, 0, MPI_INT, dist + 1, 1, MPI_INT, comm_);
-   A_ = new CSRMatrixMPI<double,int>(num_loc_rows, I, J, data, dist, comm_, false);
-   delete[] dist;
+   A_ = new CSRMatrixMPI<double,int>(num_loc_rows, I, J, data,
+                                     dist, comm_, false);
+   delete [] dist;
 }
 
 STRUMPACKRowLocMatrix::STRUMPACKRowLocMatrix(const HypreParMatrix & hypParMat)
@@ -71,7 +73,7 @@ STRUMPACKRowLocMatrix::STRUMPACKRowLocMatrix(const HypreParMatrix & hypParMat)
    MPI_Allgather(MPI_IN_PLACE, 0, MPI_INT, dist + 1, 1, MPI_INT, comm_);
    A_ = new CSRMatrixMPI<double,int>(csr_op->num_rows, csr_op->i, csr_op->j,
                                      csr_op->data, dist, comm_, false);
-   delete[] dist;
+   delete [] dist;
 
    // Everything has been copied or abducted so delete the structure
    hypre_CSRMatrixDestroy(csr_op);
@@ -80,7 +82,7 @@ STRUMPACKRowLocMatrix::STRUMPACKRowLocMatrix(const HypreParMatrix & hypParMat)
 STRUMPACKRowLocMatrix::~STRUMPACKRowLocMatrix()
 {
    // Delete the struct
-   if ( A_ != NULL ) { delete A_; }
+   delete A_;
 }
 
 STRUMPACKRowLocCmplxMatrix::STRUMPACKRowLocCmplxMatrix(MPI_Comm comm,
