@@ -396,11 +396,11 @@ void DiffusionIntegrator::AssembleElementMatrix
 
       if (el.Space() == FunctionSpace::rQk)
       {
-         ir = &RefinedIntRules.Get(el.GetGeomType(), order);
+         ir = &RefinedIntRules.Get(el.GetGeomType(), 3*order);
       }
       else
       {
-         ir = &IntRules.Get(el.GetGeomType(), order);
+         ir = &IntRules.Get(el.GetGeomType(), 3*order);
       }
    }
 
@@ -433,8 +433,8 @@ void DiffusionIntegrator::AssembleElementMatrix
       }
    }
 
-//  cout <<"Std"<<endl;
-//  elmat.Print(cout,nd);
+   cout <<"Std"<<endl;
+   elmat.Print(cout,nd);
 
 }
 
@@ -734,7 +734,7 @@ void Diffusion2Integrator::AssembleElementMatrix
    Vector shape[nd];
 #else
    shape.SetSize(nd);
-#endif 
+#endif
    Vector laplace(nd);
    elmat.SetSize(nd);
 
@@ -758,7 +758,7 @@ void Diffusion2Integrator::AssembleElementMatrix
       }
       else
       {
-         ir = &IntRules.Get(el.GetGeomType() , order);
+         ir = &IntRules.Get(el.GetGeomType(), order);
       }
    }
 
@@ -771,8 +771,8 @@ void Diffusion2Integrator::AssembleElementMatrix
 
       el.CalcShape(ip, shape);
       el.CalcPhysLaplacian(Trans, laplace);
-//shape.Print(cout,nd);
-//laplace.Print(cout,nd);
+      //shape.Print(cout,nd);
+      //laplace.Print(cout,nd);
       if (Q)
       {
          w *= Q->Eval(Trans, ip);
@@ -780,8 +780,8 @@ void Diffusion2Integrator::AssembleElementMatrix
       AddMult_a_VWt(w, shape, laplace, elmat);
       AddMult_a_VWt(w, laplace, shape, elmat);
    }
-//  cout <<"Strange"<<endl;
-//  elmat.Print(cout,nd);
+   cout <<"Strange"<<endl;
+   elmat.Print(cout,nd);
 }
 
 /*

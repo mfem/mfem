@@ -1650,10 +1650,10 @@ public:
                                       DenseMatrix &elmat);
    /** Given a trial and test Finite Element computes the element stiffness
        matrix elmat. */
-//   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
-//                                       const FiniteElement &test_fe,
-//                                       ElementTransformation &Trans,
-//                                       DenseMatrix &elmat);
+   //   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+   //                                       const FiniteElement &test_fe,
+   //                                       ElementTransformation &Trans,
+   //                                       DenseMatrix &elmat);
 };
 
 

@@ -25,6 +25,7 @@ class ElementTransformation
 protected:
    const IntegrationPoint *IntPoint;
    DenseMatrix dFdx, adjJ, invJ;
+   DenseMatrix d2Fdx2, invH;
    double Wght;
    int EvalState;
    enum StateMasks
@@ -32,18 +33,21 @@ protected:
       JACOBIAN_MASK = 1,
       WEIGHT_MASK   = 2,
       ADJUGATE_MASK = 4,
-      INVERSE_MASK  = 8
+      INVERSE_MASK  = 8,
+      HESSIAN_MASK  = 16,
+      INVHESS_MASK  = 32
    };
    int geom, space_dim;
 
    // Evaluate the Jacobian of the transformation at the IntPoint and store it
    // in dFdx.
    virtual const DenseMatrix &EvalJacobian() = 0;
+   virtual const DenseMatrix &EvalHessian() = 0;
 
    double EvalWeight();
    const DenseMatrix &EvalAdjugateJ();
    const DenseMatrix &EvalInverseJ();
-
+   const DenseMatrix &EvalInverseH();
 public:
    int Attribute, ElementNo;
 
@@ -67,6 +71,9 @@ public:
    const DenseMatrix &Jacobian()
    { return (EvalState & JACOBIAN_MASK) ? dFdx : EvalJacobian(); }
 
+   const DenseMatrix &Hessian()
+   { return (EvalState & HESSIAN_MASK) ? d2Fdx2 : EvalHessian(); }
+
    double Weight() { return (EvalState & WEIGHT_MASK) ? Wght : EvalWeight(); }
 
    const DenseMatrix &AdjugateJacobian()
@@ -74,6 +81,9 @@ public:
 
    const DenseMatrix &InverseJacobian()
    { return (EvalState & INVERSE_MASK) ? invJ : EvalInverseJ(); }
+
+   const DenseMatrix &InverseHessian()
+   { return (EvalState & INVHESS_MASK) ? invJ : EvalInverseH(); }
 
    virtual int Order() = 0;
    virtual int OrderJ() = 0;
@@ -284,7 +294,7 @@ public:
 class IsoparametricTransformation : public ElementTransformation
 {
 private:
-   DenseMatrix dshape;
+   DenseMatrix dshape,d2shape;
    Vector shape;
 
    const FiniteElement *FElem;
@@ -293,7 +303,9 @@ private:
    // Evaluate the Jacobian of the transformation at the IntPoint and store it
    // in dFdx.
    virtual const DenseMatrix &EvalJacobian();
-
+   // Evaluate the Hessian of the transformation at the IntPoint and store it
+   // in d2Fdx2.
+   virtual const DenseMatrix &EvalHessian();
 public:
    void SetFE(const FiniteElement *FE) { FElem = FE; geom = FE->GetGeomType(); }
    const FiniteElement* GetFE() const { return FElem; }
