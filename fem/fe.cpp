@@ -210,7 +210,7 @@ void FiniteElement::CalcPhysLaplacian(ElementTransformation &Trans,
 
    CalcHessian (Trans.GetIntPoint(), hess);
    MultAAt(Trans.InverseJacobian(), Gij);
-
+   MultAAt(Trans.Jacobian(), Gij);
    if (Dim == 3)
    {
       scale[0] =   Gij(0,0);
@@ -232,6 +232,13 @@ void FiniteElement::CalcPhysLaplacian(ElementTransformation &Trans,
    {
       scale[0] =   Gij(0,0);
    }
+//cout<<"Gij"<<endl;
+//Gij.Print();
+
+//cout<<"Hessian: 236"<<endl;
+//hess.Print();
+//cout<<"Scale"<<endl;
+//scale.Print();
 
    for (int nd = 0; nd < Dof; nd++)
    {
@@ -239,7 +246,8 @@ void FiniteElement::CalcPhysLaplacian(ElementTransformation &Trans,
       for (int ii = 0; ii < size; ii++)
          Laplacian[nd] += hess(nd,ii)*scale[ii];
    }
-
+//cout<<"Laplace"<<endl;
+//Laplacian.Print();
 }
 
 void ScalarFiniteElement::NodalLocalInterpolation (
@@ -11232,7 +11240,17 @@ cout<<"#-------------------------------------"<<endl;
       kv[0]->CalcD2Shape ( shape_x, ijk[0], x);
       cout<<     "\t"<< shape_x[0]<<"\t"<< shape_x[1]<<"\t"<< shape_x[2]<<endl;
    }
-cout<<"#-------------------------------------"<<endl;
+   for (int j = 0; j <11; j++)
+   {
+      x =j*dx;
+      kv[0]->CalcShape ( shape_x, ijk[0]+1, x);
+      cout<< x +1.0<<"\t"<< shape_x[0]<<"\t"<< shape_x[1]<<"\t"<< shape_x[2];
+      kv[0]->CalcDShape ( shape_x, ijk[0]+1, x);
+      cout<<     "\t"<< shape_x[0]<<"\t"<< shape_x[1]<<"\t"<< shape_x[2];
+      kv[0]->CalcD2Shape ( shape_x, ijk[0]+1, x);
+      cout<<     "\t"<< shape_x[0]<<"\t"<< shape_x[1]<<"\t"<< shape_x[2]<<endl;
+   }
+cout<<"#-------------------------------------"<<endl<<endl;
 
 
 cout<<"#-------------------------------------"<<endl;
@@ -11246,9 +11264,28 @@ cout<<"#-------------------------------------"<<endl;
       kv[0]->CalcDnShape ( shape_x,2, ijk[0], x);
       cout<<     "\t"<< shape_x[0]<<"\t"<< shape_x[1]<<"\t"<< shape_x[2]<<endl;
    }
+   for (int j = 0; j <11; j++)
+   {
+      x =j*dx;
+      kv[0]->CalcDnShape ( shape_x,0, ijk[0]+1, x);
+      cout<< x+1.0 <<"\t"<< shape_x[0]<<"\t"<< shape_x[1]<<"\t"<< shape_x[2];
+      kv[0]->CalcDnShape ( shape_x,1, ijk[0]+1, x);
+      cout<<     "\t"<< shape_x[0]<<"\t"<< shape_x[1]<<"\t"<< shape_x[2];
+      kv[0]->CalcDnShape ( shape_x,2, ijk[0]+1, x);
+      cout<<     "\t"<< shape_x[0]<<"\t"<< shape_x[1]<<"\t"<< shape_x[2]<<endl;
+   }
 cout<<"#-------------------------------------"<<endl;
-*/
+mfem_error("stop");
 
+shape_x.Print();
+shape_y.Print();
+
+dshape_x.Print();
+dshape_y.Print();
+
+d2shape_x.Print();
+d2shape_y.Print();
+*/
    sum = dsum[0] = dsum[1] = 0.0;
    d2sum[0] = d2sum[1] = d2sum[2] = 0.0;
    for (int o = 0, j = 0; j <= Orders[1]; j++)
@@ -11278,20 +11315,22 @@ cout<<"#-------------------------------------"<<endl;
 
    for (int o = 0; o < Dof; o++)
    {
-      hessian(o,0) = hessian(o,0)*sum 
-                   - 2*du(o,0)*sum*dsum[0]
-                   + u[o]*sum*(2*dsum[0]*dsum[0] - d2sum[0]);
+      hessian(o,0) = hessian(o,0)*sum ;
+//                   - 2*du(o,0)*sum*dsum[0]
+//                   + u[o]*sum*(2*dsum[0]*dsum[0] - d2sum[0]);
 
-      hessian(o,1) = hessian(o,1)*sum 
-                   - du(o,0)*sum*dsum[1]
-                   - du(o,1)*sum*dsum[0]
-                   + u[o]*sum*(2*dsum[0]*dsum[1] - d2sum[1]);
+      hessian(o,1) = hessian(o,1)*sum ;
+//                   - du(o,0)*sum*dsum[1]
+//                   - du(o,1)*sum*dsum[0]
+//                   + u[o]*sum*(2*dsum[0]*dsum[1] - d2sum[1]);
 
-      hessian(o,2) = hessian(o,2)*sum 
-                   - 2*du(o,1)*sum*dsum[1]
-                   + u[o]*sum*(2*dsum[1]*dsum[1] - d2sum[2]);
+      hessian(o,2) = hessian(o,2)*sum ;
+//                   - 2*du(o,1)*sum*dsum[1]
+//                   + u[o]*sum*(2*dsum[1]*dsum[1] - d2sum[2]);
 
    }
+//cout<<"Hessian: 11315"<<endl;
+//hessian.Print();
 }
 
 //---------------------------------------------------------------------
