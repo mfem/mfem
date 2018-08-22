@@ -2033,6 +2033,12 @@ public:
    virtual void AssembleElementMatrix(const FiniteElement &,
                                       ElementTransformation &,
                                       DenseMatrix &);
+
+   virtual void ComputeElementFlux(const FiniteElement &el,
+                                   ElementTransformation &Trans,
+                                   Vector &u,
+                                   const FiniteElement &fluxelem,
+                                   Vector &flux, int with_coef = 1);
 };
 
 /** Integrator for the DG form:
