@@ -31,13 +31,13 @@ namespace mfem
 
 
 HiopNlpOptimizer::HiopNlpOptimizer()
-  : optProb_(NULL)//, hiopInstance_(NULL)
+  : optProb_(NULL)
 {
 }
 
 #ifdef MFEM_USE_MPI
 HiopNlpOptimizer::HiopNlpOptimizer(MPI_Comm _comm) 
-  : OptimizationSolver(_comm), comm_(_comm), optProb_(NULL)//, hiopInstance_(NULL)
+  : OptimizationSolver(_comm), comm_(_comm), optProb_(NULL)
 
 {
 };
@@ -46,16 +46,12 @@ HiopNlpOptimizer::HiopNlpOptimizer(MPI_Comm _comm)
 HiopNlpOptimizer::~HiopNlpOptimizer()
 {
   if(optProb_) delete optProb_;
-  //if(hiopInstance_) delete hiopInstance_;
 }
 
 void HiopNlpOptimizer::Mult(const Vector &xt, Vector &x) const
 {
   //set xt in the problemSpec to compute the objective
   optProb_->setObjectiveTarget(xt);
-
-  //instantiate Hiop's NLP formulation (dense constraints) 
-  //assert(hiopInstance_==NULL && "This should be allocated and deallocated in the Mult operator");
 
   hiop::hiopNlpDenseConstraints hiopInstance(*optProb_);
   hiopInstance.options->SetNumericValue("tolerance", 1e-7);
@@ -89,8 +85,7 @@ void HiopNlpOptimizer::SetLinearConstraint(const Vector &_w, double _a)
 }
 
 void HiopNlpOptimizer::allocHiopProbSpec(const long long& numvars) {
-  //! mfem assert strategy?
-  assert(optProb_==NULL && "HiopProbSpec object already created");
+  MFEM_ASSERT(optProb_==NULL, "HiopProbSpec object already created");
   optProb_ = new HiopProblemSpec(comm_, numvars);
 };
 
