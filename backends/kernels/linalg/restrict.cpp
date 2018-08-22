@@ -21,32 +21,41 @@ namespace kernels
 {
 
 // **************************************************************************
-RestrictionOperator::RestrictionOperator(Layout &in_layout, Layout &out_layout,
-                                         kernels::array<int> indices) :
+RestrictionOperator::RestrictionOperator(Layout &in_layout,
+                                         Layout &out_layout,
+                                         const kernels::array<int> *indices) :
    Operator(in_layout, out_layout)
 {
    push();
-   entries     = indices.size() / 2;
+   entries     = indices->size() >> 1;
+   dbg("entries=%d",entries);
+   dbg("=");
    trueIndices = indices;
+   dbg("done");
    pop();
 }
 
 // **************************************************************************
-void RestrictionOperator::Mult_(const Vector &x, Vector &y) const
+void RestrictionOperator::Mult_(const kernels::Vector &x,
+                                kernels::Vector &y) const
 {
    push();
-   rExtractSubVector(entries, trueIndices, (double*)x.KernelsMem().ptr(),
+   rExtractSubVector(entries,
+                     trueIndices->ptr(),
+                     (double*)x.KernelsMem().ptr(),
                      (double*)y.KernelsMem().ptr());
    pop();
 }
 
 // **************************************************************************
-void RestrictionOperator::MultTranspose_(const Vector &x, Vector &y) const
+void RestrictionOperator::MultTranspose_(const kernels::Vector &x,
+                                         kernels::Vector &y) const
 {
    push();
    assert(false);
    y.Fill<double>(0.0);
-   rMapSubVector(entries, trueIndices,
+   rMapSubVector(entries,
+                 trueIndices->ptr(),
                  (double*)x.KernelsMem().ptr(),
                  (double*)y.KernelsMem().ptr());
    pop();

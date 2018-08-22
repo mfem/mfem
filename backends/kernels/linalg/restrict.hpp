@@ -26,12 +26,11 @@ class RestrictionOperator : public Operator
 {
 protected:
    int entries;
-   kernels::array<int> trueIndices;
+   const kernels::array<int> *trueIndices;
 public:
-   RestrictionOperator(Layout &in_layout, Layout &out_layout,
-                       kernels::array<int> indices);
-   virtual void Mult_(const Vector &x, Vector &y) const;
-   virtual void MultTranspose_(const Vector &x, Vector &y) const;
+   RestrictionOperator(Layout&, Layout&, const kernels::array<int>*);
+   virtual void Mult_(const Vector&, Vector&) const;
+   virtual void MultTranspose_(const Vector&, Vector&) const;
 };
 
 } // namespace mfem::kernels

@@ -41,7 +41,7 @@ public:
    virtual ~kFiniteElementSpace();
 
    /// TODO: doxygen
-   const Engine &KernelsEngine() const
+   const kernels::Engine &KernelsEngine() const
    { return *static_cast<const Engine *>(engine.Get()); }
 
    /// TODO: doxygen

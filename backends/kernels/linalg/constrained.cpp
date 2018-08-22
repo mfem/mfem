@@ -57,7 +57,8 @@ void kConstrainedOperator::Setup(kernels::device device_,
 }
 
 // *****************************************************************************
-void kConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
+void kConstrainedOperator::EliminateRHS(const kernels::Vector &x,
+                                              kernels::Vector &b) const
 {
    push();//assert(false); // ex1pd comes here, Laghos does not
    
@@ -89,12 +90,19 @@ void kConstrainedOperator::Mult_(const kernels::Vector &x,
                                        kernels::Vector &y) const
 {
    push();
-   mfem::Vector mfem_y(y);
+   dbg("x.Size()=%d",x.Size());
+   dbg("y.Size()=%d",y.Size());
+   dbg("A->InLayout().Size()=%d",A->InLayout()->Size());
+   dbg("A->OutLayout().Size()=%d",A->OutLayout()->Size());
+   
    if (constraintIndices == 0)
    {
-      push();
-      A->Mult(x.Wrap(), mfem_y);
-      pop();
+      mfem::Vector my(y);
+      // linalg/operator.hpp:441
+      // P.Mult(x, Px); A.Mult(Px, APx); Rt.MultTranspose(APx, y);
+      // kprolong.cpp:177
+      A->Mult(x.Wrap(), my);
+      dbg("\033[7;1mdone");
       return;
    }
    //assert(false); // ex1pd comes here
@@ -110,7 +118,6 @@ void kConstrainedOperator::Mult_(const kernels::Vector &x,
                    (double*)y.KernelsMem().ptr(),
                    (double*)x.KernelsMem().ptr(),
                    (int*)constraintList.ptr());
-   pop();
 }
 
 // *****************************************************************************

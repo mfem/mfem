@@ -289,13 +289,12 @@ void rMassMultAdd(const int DIM,
   assert(LOG2(NUM_DOFS_1D-1)<=8);
   assert(LOG2(NUM_QUAD_1D>>1)<=8);
   const unsigned int id = (DIM<<16)|((NUM_DOFS_1D-1)<<8)|(NUM_QUAD_1D>>1);
-  assert(false);
   static std::unordered_map<unsigned int, fMassMultAdd> call = {
     // 2D
-     /*
+     
     {0x20001,&rMassMultAdd2D<1,2>},    {0x20101,&rMassMultAdd2D<2,2>},
     {0x20102,&rMassMultAdd2D<2,4>},    {0x20202,&rMassMultAdd2D<3,4>},
-    {0x20203,&rMassMultAdd2D<3,6>},    {0x20303,&rMassMultAdd2D<4,6>},
+    {0x20203,&rMassMultAdd2D<3,6>},    {0x20303,&rMassMultAdd2D<4,6>},/*
     {0x20304,&rMassMultAdd2D<4,8>},    {0x20404,&rMassMultAdd2D<5,8>},
     {0x20405,&rMassMultAdd2D<5,10>},   {0x20505,&rMassMultAdd2D<6,10>},
     {0x20506,&rMassMultAdd2D<6,12>},   {0x20606,&rMassMultAdd2D<7,12>},

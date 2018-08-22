@@ -47,6 +47,7 @@ memory device::malloc(const std::size_t bytes,
 {
   push();
   assert(src==NULL);
+  dbg("bytes=%d",bytes);
   pop();
   return memory(bytes,src);
 }

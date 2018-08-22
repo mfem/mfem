@@ -200,8 +200,8 @@ mfem::Vector Vector::Wrap()
 // *****************************************************************************
 const mfem::Vector Vector::Wrap() const
 {
-   dbg("Wrap");
-   return mfem::Vector(*const_cast<Vector*>(this));
+   dbg("const Wrap");
+   return mfem::Vector(*const_cast<kernels::Vector*>(this));   
 }
 
 // *****************************************************************************

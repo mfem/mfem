@@ -138,7 +138,7 @@ ProlongationOperator::ProlongationOperator(Layout &in_layout,
 
 // **************************************************************************
 void ProlongationOperator::Mult_(const kernels::Vector &x,
-                                 kernels::Vector &y) const
+                                       kernels::Vector &y) const
 {
    push();assert(false);
    if (pmat) {
@@ -172,10 +172,23 @@ void ProlongationOperator::MultTranspose_(const kernels::Vector &x,
 }
 
 // *****************************************************************************
-void ProlongationOperator::Mult(const mfem::Vector &x, mfem::Vector &y) const
+void ProlongationOperator::Mult(const mfem::Vector &x,
+                                      mfem::Vector &y) const
 {
-   if (pmat)
-   {
+   push();
+   if (kernels::config::Get().IAmAlone()){
+      dbg("IAmAlone");
+      x.Pull();
+      y.Pull(false);
+      y=x;
+      y.Push();
+      pop();
+      return;
+   }else{
+      assert(false);
+   }
+   
+   if (pmat)   {
       // FIXME: create an OCCA version of 'pmat'
       x.Pull();
       y.Pull(false);
@@ -186,12 +199,20 @@ void ProlongationOperator::Mult(const mfem::Vector &x, mfem::Vector &y) const
    {
       multOp.Mult(x, y);
    }
-   }
+   pop();
+}
 
 // *****************************************************************************
 void ProlongationOperator::MultTranspose(const mfem::Vector &x,
-                                         mfem::Vector &y) const
+                                               mfem::Vector &y) const
 {
+   push();
+   if (kernels::config::Get().IAmAlone()){
+      y=x;
+      pop();
+      return;
+   }
+   assert(false);
    if (pmat)
    {
       // FIXME: create an OCCA version of 'pmat'
@@ -204,6 +225,7 @@ void ProlongationOperator::MultTranspose(const mfem::Vector &x,
    {
       multTransposeOp.Mult(x, y);
    }
+   pop();
 }
 
 } // namespace mfem::kernels

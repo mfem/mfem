@@ -130,7 +130,7 @@ kFiniteElementSpace(const Engine& e,
    dbg("restrictionOp");
    restrictionOp = new kernels::RestrictionOperator(KernelsVLayout(),
                                                     KernelsTrueVLayout(),
-                                                    *reorderIndices);
+                                                    reorderIndices);
    
    dbg("ProlongationOperator");
    prolongationOp = new kernels::ProlongationOperator(KernelsTrueVLayout(),

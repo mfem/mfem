@@ -24,6 +24,7 @@ namespace kernels
 class KernelsMassIntegrator : public KernelsIntegrator
 {
 private:
+   const mfem::Engine& engine;
    KernelsCoefficient coeff;
    kernels::Vector assembledOperator;
    mfem::Vector op;

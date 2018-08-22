@@ -31,7 +31,7 @@ KernelsIntegrator::KernelsIntegrator(const kernels::Engine &e)
      testFESpace(),
      itype(DomainIntegrator),
      ir(NULL),
-     hasTensorBasis(false) { }
+     hasTensorBasis(false) { push(); pop();}
 
 // *****************************************************************************
 KernelsIntegrator::~KernelsIntegrator() {}
