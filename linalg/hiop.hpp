@@ -135,8 +135,10 @@ public:
 
   /** provide a primal starting point. This point is subject to adjustments internally in hiOP.*/
   virtual bool get_starting_point(const long long&n, double* x0) {
-    //let hiop decide
-    return false;
+    MFEM_ASSERT(n_local_ == xt_.Size(), "target vector not set ?!?");
+    memcpy(x0, xt_.GetData(), n_local_*sizeof(double));
+    return true;
+    //let hiop decide: return false;
   };
 
 
@@ -211,7 +213,7 @@ protected:
   MPI_Comm comm_;
   //members that store problem info
   long long n_; //number of variables (global)
-  int n_local_; //number of variables (local to the MPI process)
+  long long n_local_; //number of variables (local to the MPI process)
 
   Vector xt_;     //target vector in the L2 objective
   Vector lo_,hi_; //lower and upper bounds
