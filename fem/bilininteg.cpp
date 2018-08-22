@@ -433,8 +433,8 @@ void DiffusionIntegrator::AssembleElementMatrix
       }
    }
 
-  cout <<"Std"<<endl;
-  elmat.Print(cout,nd);
+//  cout <<"Std"<<endl;
+//  elmat.Print(cout,nd);
 
 }
 
@@ -780,8 +780,8 @@ void Diffusion2Integrator::AssembleElementMatrix
       AddMult_a_VWt(w, shape, laplace, elmat);
       AddMult_a_VWt(w, laplace, shape, elmat);
    }
-  cout <<"Strange"<<endl;
-  elmat.Print(cout,nd);
+//  cout <<"Strange"<<endl;
+//  elmat.Print(cout,nd);
 }
 
 /*
