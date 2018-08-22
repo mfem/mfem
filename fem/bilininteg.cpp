@@ -2254,6 +2254,93 @@ void ElasticityIntegrator::AssembleElementMatrix(
    }
 }
 
+void ElasticityIntegrator::ComputeElementFlux(
+   const mfem::FiniteElement &el, ElementTransformation &Trans,
+   Vector &u, const mfem::FiniteElement &fluxelem, Vector &flux,
+   int with_coef)
+{
+   int nd, dim, vdim, spaceDim;
+   nd       = el.GetDof();
+   dim      = el.GetDim();
+   vdim     = dim;
+   spaceDim = Trans.GetSpaceDim();
+
+   DenseMatrix stress(spaceDim, spaceDim);
+   DenseMatrix gh(vdim,dim);
+   DenseMatrix grad;
+   DenseMatrix dshape(nd, dim);
+
+   const IntegrationRule &ir = fluxelem.GetNodes();
+   int fnd = ir.GetNPoints();
+   flux.SetSize( fnd * spaceDim );
+   flux = 0.0;
+   double L, M, E, v;
+   double e11, e22, e33, e12, e13, e23;
+   double s11, s22, s33, s12, s13, s23;
+
+   for (int i = 0; i < fnd; i++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(i);
+      el.CalcDShape(ip, dshape);
+      DenseMatrix loc_data_mat(u.GetData(), nd, vdim);
+      MultAtB(loc_data_mat, dshape, gh);
+
+      Trans.SetIntPoint(&ip);
+      const DenseMatrix &J = Trans.Jacobian();
+      DenseMatrix Jinv(J.Width(), J.Height());
+      CalcInverse(J, Jinv);
+      grad.SetSize(gh.Height(), Jinv.Width());
+      Mult(gh, Jinv, grad);
+      stress = 0.0;
+      L = lambda->Eval(Trans, ip);
+      M = mu->Eval(Trans, ip);
+      E = M*(3*L+2*M)/(L+M);
+      v = L/(2*(L+M));
+      if (dim == 2)
+      {
+         e11 = grad(0,0);
+         e22 = grad(1,1);
+         e12 = 0.5*(grad(0,1)+grad(1,0));
+         s11 = E/(1-pow(v,2)) * (1*e11+v*e22);
+         s22 = E/(1-pow(v,2)) * (v*e11+1*e22);
+         s12 = E/(1-pow(v,2)) * ((1-v)*e12);
+         stress(0,0) = s11;
+         stress(0,1) = s12;
+         stress(1,0) = s12;
+         stress(1,1) = s22;
+      }
+      else if (dim == 3)
+      {
+         double div_u = grad.Trace();
+         e11 = grad(0,0);
+         e22 = grad(1,1);
+         e33 = grad(2,2);
+         e12 = 0.5*(grad(0,1)+grad(1,0));
+         e13 = 0.5*(grad(0,2)+grad(2,0));
+         e23 = 0.5*(grad(1,2)+grad(2,1));
+         s11 = 2*M*e11 + L*div_u;
+         s22 = 2*M*e22 + L*div_u;
+         s33 = 2*M*e33 + L*div_u;
+         s12 = 2*M*e12;
+         s13 = 2*M*e13;
+         s23 = 2*M*e23;
+         stress(0,0) = s11; stress(0,1) = s12; stress(0,2) = s13;
+         stress(1,0) = s12; stress(1,1) = s22; stress(1,2) = s23;
+         stress(2,0) = s13; stress(2,1) = s23; stress(2,2) = s33;
+      }
+
+      // the stress values at each integration point in the column
+      // selected by flux_col_ are stored in a vector
+      // in principle, flux_col_ could be selected by the user to give
+      // slightly different error estimatros
+      const int flux_col_ = 0;
+      for (int si = 0; si < spaceDim; si++)
+      {
+         flux(fnd*si+i) = stress(si, flux_col_);
+      }
+   }
+}
+
 void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
                                            const FiniteElement &el2,
                                            FaceElementTransformations &Trans,
