@@ -59,7 +59,7 @@ STRUMPACKRowLocMatrix::STRUMPACKRowLocMatrix(const HypreParMatrix & hypParMat)
    // Create the CSRMatrixMPI A_ by borrowing the internal data from a
    // hypre_CSRMatrix.
    hypre_CSRMatrix * csr_op = hypre_MergeDiagAndOffd(parcsr_op);
-   hypre_CSRMatrixSetDataOwner(csr_op,0);
+   // hypre_CSRMatrixSetDataOwner(csr_op,0);
 
    height = csr_op->num_rows;
    width  = csr_op->num_rows;
