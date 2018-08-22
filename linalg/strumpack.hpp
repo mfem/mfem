@@ -20,6 +20,7 @@
 #include "hypre.hpp"
 
 #include <mpi.h>
+#include <complex>
 
 #include "StrumpackSparseSolverMPIDist.hpp"
 
@@ -60,29 +61,66 @@ private:
 
 }; // mfem::STRUMPACKRowLocMatrix
 
+class STRUMPACKRowLocCmplxMatrix : public Operator
+{
+public:
+   /** Creates a general parallel matrix from a local CSR matrix on each
+       processor described by the I, J and data arrays. The local matrix should
+       be of size (local) nrows by (global) glob_ncols. The new parallel matrix
+       contains copies of all input arrays (so they can be deleted). */
+   STRUMPACKRowLocCmplxMatrix(MPI_Comm comm,
+                              int num_loc_rows, int first_loc_row,
+                              int glob_nrows, int glob_ncols,
+                              int *I, int *J, std::complex<double> *data);
+
+   /** Creates a copy of the parallel matrix hypParMats in STRUMPACK's RowLoc
+       format. All data is copied so the original matrices may be deleted.
+       The two matrices do not need to have the same sparsity pattern.
+   */
+   STRUMPACKRowLocCmplxMatrix(const HypreParMatrix & hypParMat_R,
+                              const HypreParMatrix & hypParMat_I);
+
+   ~STRUMPACKRowLocCmplxMatrix();
+
+   void Mult(const Vector &x, Vector &y) const
+   {
+      mfem_error("STRUMPACKRowLocMatrix::Mult(...)\n"
+                 "  matrix vector products are not supported.");
+   }
+
+   MPI_Comm GetComm() const { return comm_; }
+
+   strumpack::CSRMatrixMPI<std::complex<double>,int>* getA() const
+   { return A_; }
+
+private:
+   MPI_Comm   comm_;
+   strumpack::CSRMatrixMPI<std::complex<double>,int>* A_;
+
+}; // mfem::STRUMPACKRowLocCmplxMatrix
+
 /** The MFEM STRUMPACK Direct Solver class.
 
     The mfem::STRUMPACKSolver class uses the STRUMPACK library to perform LU
     factorization of a parallel sparse matrix. The solver is capable of handling
     double precision types. See http://portal.nersc.gov/project/sparse/strumpack
 */
-class STRUMPACKSolver : public mfem::Solver
+template<typename scalar_t, typename integer_t>
+class STRUMPACKBaseSolver : public mfem::Solver
 {
-public:
+protected:
    // Constructor with MPI_Comm parameter.
-   STRUMPACKSolver( int argc, char* argv[], MPI_Comm comm );
+   STRUMPACKBaseSolver( int argc, char* argv[], MPI_Comm comm );
 
-   // Constructor with STRUMPACK Matrix Object.
-   STRUMPACKSolver( STRUMPACKRowLocMatrix & A);
-
+public:
    // Default destructor.
-   ~STRUMPACKSolver( void );
+   virtual ~STRUMPACKBaseSolver( void );
 
    // Factor and solve the linear system y = Op^{-1} x.
-   void Mult( const Vector & x, Vector & y ) const;
+   virtual void Mult( const Vector & x, Vector & y ) const = 0;
 
    // Set the operator.
-   void SetOperator( const Operator & op );
+   virtual void SetOperator( const Operator & op ) = 0;
 
    // Set various solver options. Refer to STRUMPACK documentation for
    // details.
@@ -149,10 +187,83 @@ protected:
    bool factor_verbose_;
    bool solve_verbose_;
 
+   // const STRUMPACKRowLocMatrix * APtr_;
+   strumpack::StrumpackSparseSolverMPIDist<scalar_t, integer_t> * solver_;
+
+}; // mfem::STRUMPACKBaseSolver class
+
+/** The MFEM STRUMPACK Direct Solver class.
+
+    The mfem::STRUMPACKSolver class uses the STRUMPACK library to perform LU
+    factorization of a parallel sparse matrix. The solver is capable of handling
+    double precision types. See http://portal.nersc.gov/project/sparse/strumpack
+*/
+class STRUMPACKSolver : public STRUMPACKBaseSolver<double,int>
+{
+public:
+   // Constructor with MPI_Comm parameter.
+   STRUMPACKSolver( int argc, char* argv[], MPI_Comm comm );
+
+   // Constructor with STRUMPACK Matrix Object.
+   STRUMPACKSolver( STRUMPACKRowLocMatrix & A);
+
+   // Default destructor.
+   ~STRUMPACKSolver( void );
+
+   // Factor and solve the linear system y = Op^{-1} x.
+   void Mult( const Vector & x, Vector & y ) const;
+
+   // Set the operator.
+   void SetOperator( const Operator & op );
+
+private:
+   void Init( int argc, char* argv[] );
+
+protected:
+
    const STRUMPACKRowLocMatrix * APtr_;
-   strumpack::StrumpackSparseSolverMPIDist<double,int> * solver_;
+   // strumpack::StrumpackSparseSolverMPIDist<double,int> * solver_;
 
 }; // mfem::STRUMPACKSolver class
+
+/** The MFEM STRUMPACK Direct Solver class for Complex Matrices.
+
+    The mfem::STRUMPACKCmplxSolver class uses the STRUMPACK library to
+    perform LU factorization of a parallel sparse matrix. The solver is
+    capable of handling complex double precision types. See
+    http://portal.nersc.gov/project/sparse/strumpack
+*/
+class STRUMPACKCmplxSolver :
+   public STRUMPACKBaseSolver<std::complex<double>,int>
+{
+public:
+   // Constructor with MPI_Comm parameter.
+   STRUMPACKCmplxSolver( int argc, char* argv[], MPI_Comm comm );
+
+   // Constructor with STRUMPACK Matrix Object.
+   STRUMPACKCmplxSolver( STRUMPACKRowLocCmplxMatrix & A);
+
+   // Default destructor.
+   ~STRUMPACKCmplxSolver( void );
+
+   // Factor and solve the linear system y = Op^{-1} x.
+   void Mult( const Vector & x, Vector & y ) const;
+
+   // Set the operator.
+   void SetOperator( const Operator & op );
+
+private:
+   void Init( int argc, char* argv[] );
+
+protected:
+
+   const STRUMPACKRowLocCmplxMatrix * APtr_;
+   // strumpack::StrumpackSparseSolverMPIDist<complex<double>,int> * solver_;
+
+   mutable std::complex<double> * xPtr_;
+   mutable std::complex<double> * yPtr_;
+
+}; // mfem::STRUMPACKCmplxSolver class
 
 } // mfem namespace
 
