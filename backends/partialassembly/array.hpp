@@ -17,6 +17,10 @@
 
 #include "layout.hpp"
 #include "../base/array.hpp"
+#ifdef __NVCC__
+#include <cuda_runtime_api.h>
+#include <cuda.h>
+#endif
 
 namespace mfem
 {
@@ -24,7 +28,17 @@ namespace mfem
 namespace pa
 {
 
-class Array : public virtual PArray
+
+template <Location Device>
+struct ArrayType_t;
+
+template <Location Device>
+using ArrayType = typename ArrayType_t<Device>::type;
+
+/**
+*  Simple cpu backend array
+*/
+class HostArray : public virtual PArray
 {
 protected:
    //
@@ -39,13 +53,13 @@ protected:
    // Virtual interface
    //
 
-   virtual PArray *DoClone(bool copy_data, void **buffer,
-                           std::size_t item_size) const;
+   virtual HostArray* DoClone(bool copy_data, void **buffer,
+                          std::size_t item_size) const;
 
    virtual int DoResize(PLayout &new_layout, void **buffer,
                         std::size_t item_size);
 
-   virtual void *DoPullData(void *buffer, std::size_t item_size);
+   virtual void* DoPullData(void *buffer, std::size_t item_size);
 
    virtual void DoFill(const void *value_ptr, std::size_t item_size);
 
@@ -57,33 +71,44 @@ protected:
    // Auxiliary methods
    //
 
-   inline int ResizeData(const Layout *lt, std::size_t item_size);
+   inline int ResizeData(const HostLayout *lt, std::size_t item_size);
 
 public:
-   Array(Layout &lt, std::size_t item_size)
+   HostArray(HostLayout &lt, std::size_t item_size)
       : PArray(lt),
         data(lt.Alloc(lt.Size() * item_size)),
         size(lt.Size() * item_size)
    { }
 
-   virtual ~Array() { }
+   virtual ~HostArray() { delete [] static_cast<char*>(data); }
 
+   /**
+   *  An unsafe way to access the data, tries to provide a semblance of type safety.
+   */
    template <typename T>
    T* GetTypedData() { return static_cast<T*>(data); }
 
    template <typename T>
    const T* GetTypedData() const { return static_cast<const T*>(data); }
 
-   Layout &GetLayout() const
-   { return *static_cast<Layout *>(layout.Get()); }
+   /**
+   *  Overload the GetLayout of PArray to return Layout instead of PLayout to avoid to have to cast in the backend
+   *  This is compliant with PArray's definition since Layout is a Covariant type of PLayout.
+   */
+   HostLayout &GetLayout() const
+   { return *static_cast<HostLayout *>(layout.Get()); }
 };
 
+template <>
+struct ArrayType_t<Host>{
+   typedef HostArray type;
+};
 
 //
 // Inline methods
 //
 
-inline int Array::ResizeData(const Layout *lt, std::size_t item_size)
+inline int HostArray::ResizeData(const HostLayout *lt, std::size_t item_size)
 {
    const std::size_t new_bytes = lt->Size() * item_size;
    if (size < new_bytes)
@@ -93,6 +118,56 @@ inline int Array::ResizeData(const Layout *lt, std::size_t item_size)
    }
    return 0;
 }
+
+#ifdef __NVCC__
+
+class CudaArray : public virtual PArray
+{
+private:
+   void* data; //device_ptr
+
+   virtual CudaArray* DoClone(bool copy_data, void** buffer,
+                              std::size_t item_size) const;
+
+   virtual int DoResize(PLayout& new_layout, void** buffer,
+                        std::size_t item_size);
+
+   virtual void* DoPullData(void* buffer, std::size_t item_size);
+
+   virtual void DoFill(const void *value_ptr, std::size_t item_size);
+
+   virtual void DoPushData(const void *src_buffer, std::size_t item_size);
+
+   virtual void DoAssign(const PArray &src, std::size_t item_size);
+
+public:
+   CudaArray(CudaLayout& lt, std::size_t item_size)
+      : PArray(lt)
+   {
+      int ierr = cudaMalloc(&data, item_size * lt.Size());
+      //TODO check ierr
+   }
+
+   /**
+   *  An unsafe way to access the data, tries to provide a semblance of type safety.
+   */
+   template <typename T>
+   T* GetTypedData() { return static_cast<T*>(data); }
+
+   template <typename T>
+   const T* GetTypedData() const { return static_cast<const T*>(data); }
+   
+   CudaLayout &GetLayout() const
+   { return *static_cast<CudaLayout*>(layout.Get()); }
+};
+
+template <>
+struct ArrayType_t<CudaDevice>
+{
+   typedef CudaArray type;
+};
+
+#endif
 
 } // namespace mfem::pa
 

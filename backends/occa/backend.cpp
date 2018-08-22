@@ -12,6 +12,7 @@
 #include "../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_OCCA)
 
+#include "util.hpp"
 #include "backend.hpp"
 #include "engine.hpp"
 
@@ -29,13 +30,13 @@ bool Backend::Supports(const std::string &engine_spec) const
 
 mfem::Engine *Create(const std::string &engine_spec)
 {
-   return new Engine(engine_spec);
+   return new Engine<Host>(engine_spec);
 }
 
 #ifdef MFEM_USE_MPI
 mfem::Engine *Create(MPI_Comm comm, const std::string &engine_spec)
 {
-   return new Engine(comm, engine_spec);
+   return new Engine<Host>(comm, engine_spec);
 }
 #endif
 

@@ -16,6 +16,7 @@
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_PA)
 
 #include "../base/layout.hpp"
+#include "util.hpp"
 #include "engine.hpp"
 #include <stdlib.h>
 
@@ -25,7 +26,13 @@ namespace mfem
 namespace pa
 {
 
-class Layout : public PLayout
+template <Location Device>
+struct LayoutType_t;
+
+template <Location Device>
+using LayoutType = typename LayoutType_t<Device>::type;
+
+class HostLayout : public PLayout
 {
 protected:
    //
@@ -35,9 +42,9 @@ protected:
    // std::size_t size;
 
 public:
-   Layout(const Engine &e, std::size_t s = 0) : PLayout(e, s) { }
+   HostLayout(const Engine &e, std::size_t s = 0) : PLayout(e, s) { }
 
-   virtual ~Layout() { }
+   virtual ~HostLayout() { }
 
    /**
        @name Virtual interface
@@ -58,11 +65,42 @@ public:
    virtual void Resize(std::size_t new_size);
 
    /// Resize the layout based on the given worker offsets
-   virtual void Resize(const Array<std::size_t> &offsets);
+   virtual void Resize(const mfem::Array<std::size_t> &offsets);
 
    ///@}
    // End: Virtual interface
 };
+
+template <>
+struct LayoutType_t<Host>
+{
+   typedef HostLayout type;
+};
+
+#ifdef __NVCC__
+
+class CudaLayout : public PLayout
+{
+public:
+   CudaLayout(const Engine& e, std::size_t s = 0) : PLayout(e, s) { }
+
+   virtual ~CudaLayout() { }
+
+   
+   /// Resize the layout
+   virtual void Resize(std::size_t new_size);
+
+   /// Resize the layout based on the given worker offsets
+   virtual void Resize(const mfem::Array<std::size_t> &offsets);
+};
+
+template <>
+struct LayoutType_t<CudaDevice>
+{
+   typedef CudaLayout type;
+};
+
+#endif
 
 } // namespace mfem::pa
 

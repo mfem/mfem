@@ -32,9 +32,9 @@ public:
    virtual void ComputeElementMatrices(DenseTensor &element_matrices)
    { mfem_error("TensorBilinaerFormIntegrator::ComputeElementMatrices is not overloaded"); }
 
-   virtual void MultAdd(const Vector<double>& x, Vector<double>& y) const = 0;
+   virtual void MultAdd(const HostVector<double>& x, HostVector<double>& y) const = 0;
 
-   virtual void Mult(const Vector<double>& x, Vector<double>& y) const
+   virtual void Mult(const HostVector<double>& x, HostVector<double>& y) const
    { y.Fill<double>(0.0); MultAdd(x, y); }
 };
 

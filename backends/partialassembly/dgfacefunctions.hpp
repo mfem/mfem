@@ -12,8 +12,8 @@
 //This file contains useful functions to compute fluxes for DG methods.
 
 
-#ifndef MFEM_DGFACEFUNC
-#define MFEM_DGFACEFUNC
+#ifndef MFEM_PA_DGFACEFUNC
+#define MFEM_PA_DGFACEFUNC
 #include "tensor.hpp"
 #include <vector>
 #include <utility>

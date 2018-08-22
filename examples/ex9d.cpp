@@ -146,7 +146,7 @@ int main(int argc, char *argv[])
 
    //Engine stuff
    string pa_spec("Hello world");
-   SharedPtr<Engine> engine(new mfem::pa::Engine());
+   SharedPtr<Engine> engine(mfem::pa::createEngine("Host"));
 
 
    // 2. Read the mesh from the given mesh file. We can handle geometrically

@@ -10,8 +10,8 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 
-#ifndef MFEM_FACEKERNELS
-#define MFEM_FACEKERNELS
+#ifndef MFEM_PA_FACEKERNELS
+#define MFEM_PA_FACEKERNELS
 
 #include "tensor.hpp"
 #include "dgfacefunctions.hpp"
