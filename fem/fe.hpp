@@ -346,6 +346,9 @@ public:
    /** The size (#Dof) of @a Laplacian must be set in advance.  */
    virtual void CalcPhysLaplacian(ElementTransformation &Trans,
                                   Vector& Laplacian) const;
+   virtual void CalcPhysLinLaplacian(ElementTransformation &Trans,
+                                  Vector& Laplacian) const;
+
 
    /** @brief Return the local interpolation matrix @a I (Dof x Dof) where the
        fine element is the image of the base geometry under the given
