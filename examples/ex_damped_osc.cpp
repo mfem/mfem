@@ -209,7 +209,7 @@ int main(int argc, char *argv[])
    //     preconditioner from hypre.
    {
 
-#ifdef MFEM_USE_SUITESPARSE
+#ifndef MFEM_USE_SUITESPARSE
       // 11. Define a simple symmetric Gauss-Seidel preconditioner and use it to
       //     solve the system A X = B with FGMRES.
       cout << "Solving with FGMRES using a block diagonal "
