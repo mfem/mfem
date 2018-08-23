@@ -22,73 +22,9 @@ namespace mfem
 {
 
 /// Extension to the template class Array<T>
+template <typename T>
 class PArray : public RefCounted
 {
-protected:
-   /// Layout with shared ownership (smart pointer)
-   DLayout layout;
-
-
-   /**
-       @name Virtual interface
-    */
-   ///@{
-
-   /** @brief Create and return a new array (in @a *clone) of the same dynamic
-       type as this array using the same layout and ItemSize().
-
-       Set @a *clone to NULL if allocation fails.
-
-       If @a copy_data is true, the contents of this array is copied to the new
-       array; otherwise, the new array remains uninitialized.
-
-       If @a buffer is not NULL, return the array data of the newly created
-       object (in @a *buffer) , if it is stored as a contiguous array on the
-       host; otherwise, set @a *buffer to NULL. */
-   virtual PArray *DoClone(bool copy_data, void **buffer,
-                           std::size_t item_size) const = 0;
-
-   /// Resize the array, reallocating its data if necessary.
-   /** If @a buffer is not NULL, return the array data (in @a *buffer), if it
-       is stored as a contiguous array on the host; otherwise, set @a *buffer to
-       NULL. Returns 0 on success and non-zero otherwise, e.g. if memory
-       allocation fails.
-
-       If the @a new_layout is not supported, a non-zero error code will be
-       returned.
-
-       The @a new_layout has to be valid, i.e. new_layout != NULL and
-       new_layout->HasEngine() == true.
-
-       @note If reallocation is performed, the previous content of the array is
-       NOT copied to the new location. */
-   virtual int DoResize(PLayout &new_layout, void **buffer,
-                        std::size_t item_size) = 0;
-
-   /** @brief Get access to the contents of the array in host memory, as a
-       contiguous array. */
-   /** If the array data is stored as a contiguous array in host memory, return
-       a pointer to it. Otherwise, copy the data to @a buffer (if @a buffer is
-       not NULL) and return @a buffer.
-       @note If not NULL, @a buffer is assumed to be of size greater than or
-       equal to Size(). */
-   virtual void *DoPullData(void *buffer, std::size_t item_size) = 0;
-
-   /** @brief Set all entries of the array to the (single) value pointed to by
-       @a value_ptr. */
-   virtual void DoFill(const void *value_ptr, std::size_t item_size) = 0;
-
-   /** @brief Set all Size() entries of the array from the given contiguous
-       array, @a src_buffer, on the host. */
-   virtual void DoPushData(const void *src_buffer, std::size_t item_size) = 0;
-
-   /// Copy the data from @a src to @a *this.
-   /** Both arrays must have the same dynamic type, layout, and item_size. */
-   virtual void DoAssign(const PArray &src, std::size_t item_size) = 0;
-
-   ///@}
-   // End: Virtual interface
-
 public:
    /** @brief The @a layout parameter will be reference counted and therefore it
        should be dynamically allocated. */
@@ -103,10 +39,10 @@ public:
    virtual ~PArray() { }
 
    /// Get the current size of the array.
-   std::size_t Size() const { return layout->Size(); }
+   virtual std::size_t Size() const = 0;
 
    /// Get the current layout of the array.
-   PLayout &GetLayout() const { return *layout; }
+   virtual PLayout& GetLayout() const = 0;
 
    /// TODO
    /// Note: we cannot use static_cast for class PArray.
@@ -141,9 +77,7 @@ public:
        If @a buffer is not NULL, return the array data of the newly created
        object (in @a *buffer) , if it is stored as a contiguous array on the
        host; otherwise, set @a *buffer to NULL. */
-   template <typename T>
-   DArray Clone(bool copy_data, T **buffer) const
-   { return DArray(DoClone(copy_data, (void**)buffer, sizeof(T))); }
+   virtual DArray<T> Clone(bool copy_data) const = 0;
 
    /// Resize the array, reallocating its data if necessary.
    /** If @a buffer is not NULL, return the array data (in @a *buffer), if it
@@ -159,21 +93,15 @@ public:
 
        @note If reallocation is performed, the previous content of the array is
        NOT copied to the new location. */
-   template <typename T>
-   int Resize(PLayout &new_layout, T **buffer)
-   { return DoResize(new_layout, (void**)buffer, sizeof(T)); }
+   virtual int Resize(PLayout &new_layout) = 0;
 
    /// Shortcut for Resize(*layout, buffer).
    /** This method is useful for updating the array after its layout is changed
        externally. */
-   template <typename T>
-   int Update(T **buffer)
-   { return DoResize(*layout, (void**)buffer, sizeof(T)); }
+   virtual int Update(T **buffer) = 0;
 
    /// Shortcut for layout->Resize(new_size) followed by Update()
-   template <typename T>
-   int Resize(std::size_t new_size, T **buffer)
-   { layout->Resize(new_size); return Update(buffer); }
+   virtual int Resize(std::size_t new_size) = 0;
 
    /** @brief Get access to the contents of the array in host memory, as a
        contiguous array. */
@@ -182,25 +110,19 @@ public:
        not NULL) and return @a buffer.
        @note If not NULL, @a buffer is assumed to be of size greater than or
        equal to Size(). */
-   template <typename T>
-   T *PullData(T *buffer)
-   { return Size() ? (T*)DoPullData((void*)buffer, sizeof(T)) : NULL; }
+   virtual mfem::Array<T>* PullData(mfem::Array<T>* buffer) = 0;
 
    /** @brief Set all entries of the array to the (single) value pointed to by
        @a value_ptr. */
-   template <typename T>
-   void Fill(const T &value) { if (Size()) { DoFill(&value, sizeof(T)); } }
+   virtual void Fill(const T &value) = 0;
 
    /** @brief Set all Size() entries of the array from the given contiguous
        array, @a src_buffer, on the host. */
-   template <typename T>
-   void PushData(const T *src_buffer)
-   { if (Size()) { DoPushData(src_buffer, sizeof(T)); } }
+   virtual void PushData(const mfem::Array<T>* src_buffer) = 0;
 
    /// Copy the data from @a src to @a *this.
    /** Both arrays must have the same dynamic type, layout, and entry type. */
-   template <typename T>
-   void Assign(const PArray &src) { if (Size()) { DoAssign(src, sizeof(T)); } }
+   virtual void Assign(const PArray& src) = 0;
 
    ///@}
    // End: Virtual interface

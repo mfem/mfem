@@ -146,20 +146,6 @@ public:
    // Note: There may be other ways to construct layouts in the future, e.g.
    //       block-vector layouts, or multi-vector layouts.
 
-   /// TODO
-   virtual DArray MakeArray(PLayout &layout, std::size_t item_size) const = 0;
-
-   /// Allocate and return a new vector using the given @a layout.
-   /** The returned object is a smart pointer that will automatically deallocate
-       the vector.
-
-       TODO: Produce an error if memory allocation fails?
-
-       Only layouts returned by this Engine are guaranteed to be supported.
-       Using a type that is not supported will produce an error. */
-   virtual DVector MakeVector(PLayout &layout,
-                              int type_id = ScalarId<double>::value) const = 0;
-
    /// TODO: doxygen
    virtual DFiniteElementSpace MakeFESpace(FiniteElementSpace &fes) const = 0;
 

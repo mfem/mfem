@@ -22,55 +22,9 @@ namespace mfem
 {
 
 /// Polymorphic vector - array of scalars.
-class PVector : virtual public PArray
+template <typename T>
+class PVector : public RefCounted
 {
-protected:
-   /**
-       @name Virtual interface
-    */
-   ///@{
-
-   /** @brief Create and return a new vector of the same dynamic type as this
-       vector using the same layout with entries specified by @a buffer_type_id
-       which should be a constant defined by the `value` field in a
-       specialization of the template class mfem::ScalarId.
-
-       Returns NULL if allocation fails.
-
-       If @a copy_data is true, the contents of this vector is copied to the new
-       vector; otherwise, the new vector remains uninitialized.
-
-       If @a buffer is not NULL, return the vector data of the newly created
-       object (in @a *buffer), if it is stored as a contiguous array on the
-       host; otherwise, set @a *buffer to NULL. */
-   virtual PVector *DoVectorClone(bool copy_data, void **buffer,
-                                  int buffer_type_id) const = 0;
-
-   /** @brief Compute and return the dot product of @a *this and @a x. In the
-       case of an MPI-parallel vector, the result must be the MPI-global dot
-       product. */
-   /** Both vectors must have the same dynamic type and layout. */
-   virtual void DoDotProduct(const PVector &x, void *result,
-                             int result_type_id) const = 0;
-
-   // TODO: add reduction operations: min, max, sum
-
-   /// Perform the operation @a *this = @a a @a x + @a b @a y.
-   /** Rules:
-       - the dynamic type of both @a x and @a y is the same as that of @a *this
-       - if @a a == 0, neither @a x nor its data are accessed
-       - if @a b == 0, neither @a y nor its data are accessed
-       - @a x's data is never the same as @a y's data, unless @a a == 0, or
-         @a b == 0
-       - @a x's data or @a y's data may be the same as the data of @a *this
-       - all accessed vectors, @a x, @a y, and @a *this have the same layout. */
-   virtual void DoAxpby(const void *a, const PVector &x,
-                        const void *b, const PVector &y,
-                        int ab_type_id) = 0;
-
-   ///@}
-   // End: Virtual interface
-
 public:
    /** @brief Create a PVector. */
    /** The @a layout must be valid in the sense that layout != NULL and
@@ -84,6 +38,11 @@ public:
    template <typename derived_t>
    const derived_t &As() const { return *util::As<const derived_t>(this); }
 
+   /// Get the current size of the array.
+   virtual std::size_t Size() const = 0;
+
+   /// Get the current layout of the array.
+   virtual PLayout& GetLayout() const = 0;
 
    // TODO: Error handling ... handle errors at the Engine level, at the class
    //       level, or at the method level?
@@ -107,24 +66,13 @@ public:
        If @a buffer is not NULL, return the vector data of the newly created
        object (in @a *buffer) , if it is stored as a contiguous array on the
        host; otherwise, set @a *buffer to NULL. */
-   template <typename scalar_t>
-   DVector Clone(bool copy_data, scalar_t **buffer) const
-   {
-      return DVector(DoVectorClone(copy_data, (void**)buffer,
-                                   ScalarId<scalar_t>::value));
-   }
+   virtual DVector<T> Clone(bool copy_data) const = 0;
 
    /** @brief Compute and return the dot product of @a *this and @a x. In the
        case of an MPI-parallel vector, the result must be the MPI-global dot
        product. */
    /** Both vectors must have the same dynamic type and layout. */
-   template <typename scalar_t>
-   scalar_t DotProduct(const PVector &x) const
-   {
-      scalar_t result;
-      DoDotProduct(x, &result, ScalarId<scalar_t>::value);
-      return result;
-   }
+   virtual T DotProduct(const PVector<T>& x) const = 0;
 
    // TODO: add reduction operations: min, max, sum
 
@@ -137,10 +85,7 @@ public:
          @a b == 0
        - @a x's data or @a y's data may be the same as the data of @a *this
        - all accessed vectors, @a x, @a y, and @a *this have the same layout. */
-   template <typename scalar_t>
-   void Axpby(const scalar_t &a, const PVector &x,
-              const scalar_t &b, const PVector &y)
-   { if (Size()) { DoAxpby(&a, x, &b, y, ScalarId<scalar_t>::value); } }
+   virtual void Axpby(const T& a, const PVector<T>& x, const T& b, const PVector<T>& y) = 0;
 
    ///@}
    // End: Virtual interface
