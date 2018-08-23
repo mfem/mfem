@@ -2923,7 +2923,7 @@ void DenseMatrix::Print(std::ostream &out, int width_) const
    out << setiosflags(ios::scientific | ios::showpos);
    for (int i = 0; i < height; i++)
    {
-      out << "[row " << i << "]\n";
+      //     out << "[row " << i << "]\n";
       for (int j = 0; j < width; j++)
       {
          out << (*this)(i,j);

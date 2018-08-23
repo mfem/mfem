@@ -198,7 +198,7 @@ void FiniteElement::CalcPhysDShape(ElementTransformation &Trans,
 }
 
 // Assume a linear mapping
-/*void FiniteElement::CalcPhysLinLaplacian(ElementTransformation &Trans,
+void FiniteElement::CalcPhysLinLaplacian(ElementTransformation &Trans,
                                          Vector &Laplacian) const
 {
    MFEM_ASSERT(MapType == VALUE, "");
@@ -242,7 +242,7 @@ void FiniteElement::CalcPhysDShape(ElementTransformation &Trans,
       }
    }
 
-}*/
+}
 
 void  FiniteElement::CalcPhysHessian(ElementTransformation &Trans,
                                      DenseMatrix& Hessian) const
@@ -267,11 +267,11 @@ void  FiniteElement::CalcPhysHessian(ElementTransformation &Trans,
    }
    else if (Dim == 2)
    {
-      map[0] = 0;
+      map[0] = 2;
       map[1] = 1;
 
       map[2] = 1;
-      map[3] = 2;
+      map[3] = 0;
    }
    else
    {
@@ -284,18 +284,34 @@ void  FiniteElement::CalcPhysHessian(ElementTransformation &Trans,
    CalcHessian(Trans.GetIntPoint(), hess);
 
    // Gradient in physical coords
- /*  DenseMatrix grad(Dof, Dim);
+   DenseMatrix grad(Dof, Dim);
    CalcPhysDShape(Trans, grad);
    DenseMatrix gmap(Dof, size);
 
+
+cout<<"grad"<<endl;
+grad.Print();
+
+cout<<"Trans.Hessian()"<<endl;
+Trans.Hessian().Print();
+
    Mult(grad,Trans.Hessian(),gmap);
-   hess -= gmap;*/
+cout<<"gmap"<<endl;
+gmap.Print();
+
+
+
+cout<<"hess"<<endl;
+hess.Print();
+   hess -= gmap;
+cout<<"hess"<<endl;
+hess.Print();
 
    // Correct multiplicity
    Vector mult(size);
    mult = 0.0;
    for (int i = 0; i < Dim*Dim; i++) mult[map[i]]++;
-   hess.RightScaling(mult);
+   //hess.RightScaling(mult);
 
    // LHM
    DenseMatrix lhm(size,size);
@@ -309,22 +325,38 @@ void  FiniteElement::CalcPhysHessian(ElementTransformation &Trans,
          {
             for (int l = 0; l < Dim; l++)
             {
+//cout<<i<<" "<<j<<" "<<k<<" "<<l<<" ---> "
+ //   <<i<<" "<<k<<" "<<j<<" "<<l<<" ---> "
+//    <<map[i*Dim+j]<<","<<map[k*Dim+l]<<" :: "<<invJ(i,k)<<"*"<<invJ(j,l)<<endl;
                lhm(map[i*Dim+j],map[k*Dim+l]) += invJ(i,k)*invJ(j,l);
             }
          }
       }
    }
-
+//mult.Print();
+   lhm.InvRightScaling(mult);
+cout<<"--------------------"<<endl;
+   lhm.Print();
+cout<<"--------------------"<<endl;
    // Hessian in physical coords
    lhm.Invert();
+  // lhm.Print();
+
    Mult( hess, lhm, Hessian);
 
+Hessian.Print();
+//cout<<"--------------------"<<endl;
 }
 
 
 void FiniteElement::CalcPhysLaplacian(ElementTransformation &Trans,
                                       Vector &Laplacian) const
 {
+
+  // CalcPhysLinLaplacian(Trans,Laplacian);
+  // return;
+
+
    MFEM_ASSERT(MapType == VALUE, "");
    int size = (Dim*(Dim+1))/2;
    DenseMatrix hess(Dof, size);
@@ -352,7 +384,7 @@ void FiniteElement::CalcPhysLaplacian(ElementTransformation &Trans,
       }
    }
 
-
+Laplacian.Print(cout,9);
    /*
 
       // Hessian in ref coords
@@ -11374,12 +11406,6 @@ void NURBS2DFiniteElement::CalcShape(const IntegrationPoint &ip,
 void NURBS2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
                                       DenseMatrix &dshape) const
 {
-
-   //   cout<<"11262"<<endl;
-   //cout<<shape_x.Size()<<" "<<shape_y.Size()<<endl;
-   //cout<<dshape_x.Size()<<" "<<dshape_y.Size()<<endl;
-   //cout<<d2shape_x.Size()<<" "<<d2shape_y.Size()<<endl;
-
    double sum, dsum[2];
 
    kv[0]->CalcShape ( shape_x, ijk[0], ip.x);
@@ -11422,76 +11448,10 @@ void NURBS2DFiniteElement::CalcHessian (const IntegrationPoint &ip,
 
    kv[0]->CalcDShape(dshape_x, ijk[0], ip.x);
    kv[1]->CalcDShape(dshape_y, ijk[1], ip.y);
-   //  cout<<"11312"<<endl;
-   //cout<<shape_x.Size()<<" "<<shape_y.Size()<<endl;
-   //cout<<dshape_x.Size()<<" "<<dshape_y.Size()<<endl;
-   //cout<<d2shape_x.Size()<<" "<<d2shape_y.Size()<<endl;
 
    kv[0]->CalcD2Shape(d2shape_x, ijk[0], ip.x);
    kv[1]->CalcD2Shape(d2shape_y, ijk[1], ip.y);
-   //  d2shape_x.Print();
-   //  d2shape_y.Print();
-   //mfem_error();
-   /*
-   cout<<"SHAPES"<<endl;
-   cout<<"#-------------------------------------"<<endl;
-      double x, dx = 0.1;
-      for (int j = 0; j <11; j++)
-      {
-         x =j*dx;
-         kv[0]->CalcShape ( shape_x, ijk[0], x);
-         cout<< x <<"\t"<< shape_x[0]<<"\t"<< shape_x[1]<<"\t"<< shape_x[2];
-         kv[0]->CalcDShape ( shape_x, ijk[0], x);
-         cout<<     "\t"<< shape_x[0]<<"\t"<< shape_x[1]<<"\t"<< shape_x[2];
-         kv[0]->CalcD2Shape ( shape_x, ijk[0], x);
-         cout<<     "\t"<< shape_x[0]<<"\t"<< shape_x[1]<<"\t"<< shape_x[2]<<endl;
-      }
-      for (int j = 0; j <11; j++)
-      {
-         x =j*dx;
-         kv[0]->CalcShape ( shape_x, ijk[0]+1, x);
-         cout<< x +1.0<<"\t"<< shape_x[0]<<"\t"<< shape_x[1]<<"\t"<< shape_x[2];
-         kv[0]->CalcDShape ( shape_x, ijk[0]+1, x);
-         cout<<     "\t"<< shape_x[0]<<"\t"<< shape_x[1]<<"\t"<< shape_x[2];
-         kv[0]->CalcD2Shape ( shape_x, ijk[0]+1, x);
-         cout<<     "\t"<< shape_x[0]<<"\t"<< shape_x[1]<<"\t"<< shape_x[2]<<endl;
-      }
-   cout<<"#-------------------------------------"<<endl<<endl;
 
-
-   cout<<"#-------------------------------------"<<endl;
-      for (int j = 0; j <11; j++)
-      {
-         x =j*dx;
-         kv[0]->CalcDnShape ( shape_x,0, ijk[0], x);
-         cout<< x <<"\t"<< shape_x[0]<<"\t"<< shape_x[1]<<"\t"<< shape_x[2];
-         kv[0]->CalcDnShape ( shape_x,1, ijk[0], x);
-         cout<<     "\t"<< shape_x[0]<<"\t"<< shape_x[1]<<"\t"<< shape_x[2];
-         kv[0]->CalcDnShape ( shape_x,2, ijk[0], x);
-         cout<<     "\t"<< shape_x[0]<<"\t"<< shape_x[1]<<"\t"<< shape_x[2]<<endl;
-      }
-      for (int j = 0; j <11; j++)
-      {
-         x =j*dx;
-         kv[0]->CalcDnShape ( shape_x,0, ijk[0]+1, x);
-         cout<< x+1.0 <<"\t"<< shape_x[0]<<"\t"<< shape_x[1]<<"\t"<< shape_x[2];
-         kv[0]->CalcDnShape ( shape_x,1, ijk[0]+1, x);
-         cout<<     "\t"<< shape_x[0]<<"\t"<< shape_x[1]<<"\t"<< shape_x[2];
-         kv[0]->CalcDnShape ( shape_x,2, ijk[0]+1, x);
-         cout<<     "\t"<< shape_x[0]<<"\t"<< shape_x[1]<<"\t"<< shape_x[2]<<endl;
-      }
-   cout<<"#-------------------------------------"<<endl;
-   mfem_error("stop");
-
-   shape_x.Print();
-   shape_y.Print();
-
-   dshape_x.Print();
-   dshape_y.Print();
-
-   d2shape_x.Print();
-   d2shape_y.Print();
-   */
    sum = dsum[0] = dsum[1] = 0.0;
    d2sum[0] = d2sum[1] = d2sum[2] = 0.0;
    for (int o = 0, j = 0; j <= Orders[1]; j++)
@@ -11508,6 +11468,13 @@ void NURBS2DFiniteElement::CalcHessian (const IntegrationPoint &ip,
          d2sum[0] += ( hessian(o,0) = d2sx*sy*weights(o) );
          d2sum[1] += ( hessian(o,1) = dsx*dsy*weights(o) );
          d2sum[2] += ( hessian(o,2) = sx*d2sy*weights(o) );
+
+         //dsum[0] += ( du(o,0) = sx*dsy*weights(o) );
+       //  dsum[1] += ( du(o,1) = dsx*sy*weights(o) );
+
+        //d2sum[0] += ( hessian(o,0) = sx*d2sy*weights(o) );
+        // d2sum[1] += ( hessian(o,1) = dsx*dsy*weights(o) );
+
       }
    }
 
@@ -11521,16 +11488,16 @@ void NURBS2DFiniteElement::CalcHessian (const IntegrationPoint &ip,
 
    for (int o = 0; o < Dof; o++)
    {
-      hessian(o,0) = hessian(o,0)*sum
+      hessian(o,0) = hessian(o,0)*sum;
                      - 2*du(o,0)*sum*dsum[0]
                      + u[o]*sum*(2*dsum[0]*dsum[0] - d2sum[0]);
 
-      hessian(o,1) = hessian(o,1)*sum
+      hessian(o,1) = hessian(o,1)*sum;
                      - du(o,0)*sum*dsum[1]
                      - du(o,1)*sum*dsum[0]
                      + u[o]*sum*(2*dsum[0]*dsum[1] - d2sum[1]);
 
-      hessian(o,2) = hessian(o,2)*sum
+      hessian(o,2) = hessian(o,2)*sum;
                      - 2*du(o,1)*sum*dsum[1]
                      + u[o]*sum*(2*dsum[1]*dsum[1] - d2sum[2]);
 

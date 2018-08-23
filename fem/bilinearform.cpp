@@ -356,6 +356,9 @@ void BilinearForm::Assemble (int skip_zeros)
          }
          else
          {
+std::cout<<"vdofs..."<<std::endl;
+            vdofs.Print();
+std::cout<<"................"<<std::endl;
             mat->AddSubMatrix(vdofs, vdofs, *elmat_p, skip_zeros);
             if (hybridization)
             {

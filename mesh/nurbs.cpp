@@ -13,6 +13,7 @@
 #include "../fem/fem.hpp"
 #include "../general/text.hpp"
 
+#include <fstream>
 #include <algorithm>
 #if defined(_MSC_VER) && (_MSC_VER < 1800)
 #include <float.h>
@@ -127,6 +128,34 @@ void KnotVector::Print(std::ostream &out) const
    out << Order << ' ' << NumOfControlPoints << ' ';
    knot.Print(out, knot.Size());
 }
+
+
+void KnotVector::PrintFunctions(std::ostream &out, int samples) const
+{
+   Vector shape(Order+1);
+
+   double x, dx = 1.0/double (samples - 1);
+
+   for (int i = 0; i <GetNE() ; i++)
+   {
+         for (int j = 0; j <samples; j++)
+         {
+            x =j*dx;
+            out<< x + i;
+
+            CalcShape ( shape, i, x);
+            for (int d = 0; d < Order+1; d++) out<<"\t"<<shape[d];
+
+            CalcDShape ( shape, i, x);
+            for (int d = 0; d < Order+1; d++) out<<"\t"<<shape[d];
+
+            CalcD2Shape ( shape, i, x);
+            for (int d = 0; d < Order+1; d++) out<<"\t"<<shape[d]; 
+            out<<endl;
+         }
+   }
+}
+
 
 // Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
 void KnotVector::CalcShape(Vector &shape, int i, double xi) const
@@ -1701,6 +1730,19 @@ void NURBSExtension::PrintCharacteristics(std::ostream &out) const
       knotVectors[i]->Print(out);
    }
    out << endl;
+}
+
+void NURBSExtension::PrintFunctions(const char *basename, int samples) const
+{
+   std::ofstream out;
+   for (int i = 0; i < NumOfKnotVectors; i++)
+   {
+      std::ostringstream filename;
+      filename << basename<<"_"<<i<<".dat";
+      out.open(filename.str(), std::ofstream::out);
+      knotVectors[i]->PrintFunctions(out,samples);
+      out.close();
+   }
 }
 
 void NURBSExtension::GenerateActiveVertices()
@@ -3354,7 +3396,7 @@ void NURBSPatchMap::GetPatchKnotVectors(int p, const KnotVector *kv[])
       kv[1] = Ext->KnotVec(edges[3]);
       kv[2] = Ext->KnotVec(edges[8]);
    }
-   opatch = 0;
+   opatch = 0;  // WTF IDO TBD !!!
 }
 
 void NURBSPatchMap::GetBdrPatchKnotVectors(int p, const KnotVector *kv[],

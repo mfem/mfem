@@ -66,7 +66,6 @@ public:
    void CalcDnShape(Vector &gradn, int n, int i, double xi) const;
    void CalcD2Shape(Vector &grad2, int i, double xi) const { CalcDnShape(grad2, 2, i, xi);}
 
-
    void Difference(const KnotVector &kv, Vector &diff) const;
    void UniformRefinement(Vector &newknots) const;
    /** Return a new KnotVector with elevated degree by repeating the endpoints
@@ -76,6 +75,8 @@ public:
    void Flip();
 
    void Print(std::ostream &out) const;
+
+   void PrintFunctions(std::ostream &out = std::cout, int samples=11) const;
 
    /// Destroys KnotVector
    ~KnotVector() { }
@@ -307,6 +308,7 @@ public:
    // Print functions
    void Print(std::ostream &out) const;
    void PrintCharacteristics(std::ostream &out) const;
+   void PrintFunctions(const char *filename, int samples=11) const;
 
    // Meta data functions
    int Dimension() const { return patchTopo->Dimension(); }
@@ -363,6 +365,8 @@ public:
    void LoadSolution(std::istream &input, GridFunction &sol) const;
    // Write a GridFunction patch-by-patch.
    void PrintSolution(const GridFunction &sol, std::ostream &out) const;
+
+
 
    // Refinement methods
    // new_degree = max(old_degree, min(old_degree + rel_degree, degree))
@@ -422,6 +426,10 @@ private:
 
    inline static int Or2D(const int n1, const int n2,
                           const int N1, const int N2, const int Or);
+
+   inline static int Or2Dnp(const int n1, const int n2,
+                          const int N1, const int N2, const int Or);
+
 
    // also set verts, edges, faces, orientations etc
    void GetPatchKnotVectors   (int p, const KnotVector *kv[]);
@@ -548,9 +556,12 @@ const
 
 
 // static method
-inline int NURBSPatchMap::Or2D(const int n1, const int n2,
+inline int NURBSPatchMap::Or2Dnp(const int n1, const int n2,
                                const int N1, const int N2, const int Or)
 {
+
+
+
    // Needs testing
    switch (Or)
    {
@@ -568,6 +579,27 @@ inline int NURBSPatchMap::Or2D(const int n1, const int n2,
 #endif
    return -1;
 }
+
+
+
+
+inline int NURBSPatchMap::Or2D(const int n1, const int n2,
+                               const int N1, const int N2, const int Or)
+{
+/*
+      for (int o = 0; o < 7; o++)
+      {
+         std::cout<<n1<<","<<n2<<","<<N1<<","<<N2<<","<<o<<"  ---> "<<Or2Dnp(n1,n2,N1, N2, o)<<std::endl;
+         std::cout<<Or<<std::endl;
+      }*/
+
+    return Or2Dnp(n1,n2,N1, N2, Or);
+
+
+}
+
+
+
 
 inline int NURBSPatchMap::operator()(const int i) const
 {

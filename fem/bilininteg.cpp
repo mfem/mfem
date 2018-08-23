@@ -15,6 +15,9 @@
 #include <cmath>
 #include <algorithm>
 
+#define OM 10
+#define VERB false
+
 using namespace std;
 
 namespace mfem
@@ -396,11 +399,11 @@ void DiffusionIntegrator::AssembleElementMatrix
 
       if (el.Space() == FunctionSpace::rQk)
       {
-         ir = &RefinedIntRules.Get(el.GetGeomType(), 3*order);
+         ir = &RefinedIntRules.Get(el.GetGeomType(),OM*order);
       }
       else
       {
-         ir = &IntRules.Get(el.GetGeomType(), 3*order);
+         ir = &IntRules.Get(el.GetGeomType(),OM*order);
       }
    }
 
@@ -412,7 +415,8 @@ void DiffusionIntegrator::AssembleElementMatrix
 
       Trans.SetIntPoint(&ip);
       w = Trans.Weight();
-      w = ip.weight / (square ? w : w*w*w);
+      w = ip.weight / (square ? w : w*w*w);  
+      w = ip.weight / Trans.Weight();
       // AdjugateJacobian = / adj(J),         if J is square
       //                    \ adj(J^t.J).J^t, otherwise
       Mult(dshape, Trans.AdjugateJacobian(), dshapedxt);
@@ -433,8 +437,22 @@ void DiffusionIntegrator::AssembleElementMatrix
       }
    }
 
-   cout <<"Std"<<endl;
-   elmat.Print(cout,nd);
+  if(VERB)  cout<<"Std"<<endl;
+  if (VERB) elmat.Print(cout,nd);
+
+if (VERB){
+   DenseMatrix AD(4); 
+   int map[] = {5,6,9,10};
+   for (int i = 0; i < 4; i++)
+   {
+      for (int j = 0; j < 4; j++)
+      {
+         AD(i,j) = elmat(map[i],map[j]);
+      }
+   }
+   cout<<"----------------------------"<<endl;
+   AD.Print();
+}
 
 }
 
@@ -754,20 +772,20 @@ void Diffusion2Integrator::AssembleElementMatrix
 
       if (el.Space() == FunctionSpace::rQk)
       {
-         ir = &RefinedIntRules.Get(el.GetGeomType(), order);
+         ir = &RefinedIntRules.Get(el.GetGeomType(),OM*order);
       }
       else
       {
-         ir = &IntRules.Get(el.GetGeomType(), order);
+         ir = &IntRules.Get(el.GetGeomType(),OM*order);
       }
    }
-
+cout<<"quad points = "<< ir->GetNPoints()<<endl;
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       Trans.SetIntPoint(&ip);
-      w = -0.5*ip.weight / Trans.Weight(); //SHOULD BE 0.5???!!!
+      w = -1*ip.weight / Trans.Weight(); //SHOULD BE 0.5???!!!
 
       el.CalcShape(ip, shape);
       el.CalcPhysLaplacian(Trans, laplace);
@@ -777,11 +795,71 @@ void Diffusion2Integrator::AssembleElementMatrix
       {
          w *= Q->Eval(Trans, ip);
       }
-      AddMult_a_VWt(w, shape, laplace, elmat);
-      AddMult_a_VWt(w, laplace, shape, elmat);
+      //AddMult_a_VWt(w, shape, laplace, elmat);
+      //AddMult_a_VWt(w, laplace, shape, elmat);
+
+   for (int j = 0; j < nd; j++)
+   {
+      for (int i = 0; i < nd; i++)
+      {
+         elmat(i, j) += w*laplace(j)*shape(i);
+      }
    }
-   cout <<"Strange"<<endl;
-   elmat.Print(cout,nd);
+
+   }
+ if(VERB)  cout <<"Strange"<<endl;
+ if(VERB)  elmat.Print(cout,nd);
+
+
+if (VERB){
+   DenseMatrix AD(4); 
+   int map[] = {5,6,9,10};
+   for (int i = 0; i < 4; i++)
+   {
+      for (int j = 0; j < 4; j++)
+      {
+         AD(i,j) = elmat(map[i],map[j]);
+      }
+   }
+   cout<<"----------------------------"<<endl;
+   AD.Print();
+}
+
+/*
+if (VERB){
+   DenseMatrix AD(4); 
+   int map[] = {5,9,6,10};
+   for (int i = 0; i < 4; i++)
+   {
+      for (int j = 0; j < 4; j++)
+      {
+         AD(i,j) = elmat(map[i],map[j]);
+      }
+   }
+   cout<<"----------------------------"<<endl;
+   AD.Print();
+}*/
+/*
+if (VERB){
+   DenseMatrix AD(4); 
+   int map[] = {10,6,9,5};
+   for (int i = 0; i < 4; i++)
+   {
+      for (int j = 0; j < 4; j++)
+      {
+         AD(i,j) = elmat(map[i],map[j]);
+      }
+   }
+   cout<<"----------------------------"<<endl;
+   AD.Print();
+}*/
+/*
+   // Symmetrice!!!
+   DenseMatrix tmp = elmat;
+   tmp.Transpose();
+
+   elmat += tmp;
+   elmat *=0.5;*/
 }
 
 /*
