@@ -90,7 +90,6 @@ void Vector::DoAxpby(const void *a, const mfem::PVector &x,
    const Vector *yp = static_cast<const Vector *>(&y);
    MFEM_ASSERT(da == 0.0 || this->Size() == xp->Size(), "");
    MFEM_ASSERT(db == 0.0 || this->Size() == yp->Size(), "");
-
    if (da == 0.0)
    {
       if (db == 0.0)
@@ -103,15 +102,11 @@ void Vector::DoAxpby(const void *a, const mfem::PVector &x,
          {
             // *this *= db
             assert(false);
-            //kernels::linalg::operator_mult_eq(slice, db);
          }
          else
          {
             // *this = db * y
-            assert(false);/*
-            kernels::kernel kernel = axpby1_builder.build(slice.getDevice(),
-                                                         okl_defines);
-                                                         kernel((int)Size(), db, slice, yp->slice);*/
+            assert(false);
          }
       }
    }
@@ -122,17 +117,12 @@ void Vector::DoAxpby(const void *a, const mfem::PVector &x,
          if (this->slice == xp->slice)
          {
             // *this *= da
-            //kernels::linalg::operator_mult_eq(slice, da);
             vector_vec_mul((int)Size(), slice, da);
          }
          else
          {
             // *this = da * x
             assert(false);
-            /*
-            ::kernels::kernel kernel = axpby1_builder.build(slice.getDevice(),
-                                                         okl_defines);
-                                                         kernel((int)Size(), da, slice, xp->slice);*/
          }
       }
       else

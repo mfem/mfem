@@ -370,6 +370,7 @@ public:
       Free();
       InitDataAndSize(master, master_size, false);
    }
+   
 };
 
 
@@ -497,6 +498,9 @@ public:
    /** @warning After this call, resizing @a master or @a *this will generally
        make the other DevExtension invalid. */
    inline void MakeRef(DevExtension &master);
+   
+   /// TODO: doxygen
+   inline void MakeRefOffset(DevExtension &master, const std::size_t offset);
 
    /// TODO: doxygen
    inline void MakeConstRef(
@@ -1100,6 +1104,18 @@ inline void DevExtension<array_t,dev_ext_t>::MakeRef(DevExtension &master)
       this->Free();
       this->InitAll(master.GetData(), master.Size(), -master.Capacity());
    }
+}
+   
+template <typename array_t, typename dev_ext_t>
+inline void DevExtension<array_t,dev_ext_t>::MakeRefOffset(DevExtension &master,
+                                                           const std::size_t offset)
+{
+#ifdef MFEM_USE_BACKENDS
+   dev_ext = master.dev_ext;
+   this->InitDataAndSize(master.GetData()+offset, this->Size(), false);
+#else
+   assert(false);
+#endif
 }
 
 template <typename array_t, typename dev_ext_t>
