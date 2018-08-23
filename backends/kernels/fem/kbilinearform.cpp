@@ -244,8 +244,15 @@ void kBilinearForm::FormOperator(const mfem::Array<int> &constraintList,
    const mfem::Operator *trialP = GetTrialProlongation();
    const mfem::Operator *testP  = GetTestProlongation();
    mfem::Operator *rap = this;
-   if (trialP) { rap = new RAPOperator(*testP, *this, *trialP); }
+   if (trialP) {
+      dbg("new RAPOperator");
+      rap = new RAPOperator(*testP, *this, *trialP);
+   }
+   dbg("new kConstrainedOperator");
+   dbg("rap->Height()=%d",rap->Height());
+   dbg("rap->Width()=%d",rap->Width());
    Aout = new kConstrainedOperator(rap, constraintList, rap != this);
+   dbg("done");
    pop();
 }
 

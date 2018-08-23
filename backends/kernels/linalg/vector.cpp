@@ -166,7 +166,11 @@ void Vector::SetSubVector(const mfem::Array<int> &ess_tdofs,
                           const int N)
 {
    push();
-   vector_set_subvector_const(N, value, data, ess_tdofs.GetData());
+   const kernels::Array &k_ess_tdofs = ess_tdofs.Get_PArray()->As<kernels::Array>();
+   vector_set_subvector_const(N,
+                              value,
+                              data,
+                              (int*) k_ess_tdofs.KernelsMem().ptr());
    pop();
 }
    
@@ -176,7 +180,11 @@ void Vector::MapSubVector(const mfem::Array<int> &ess_tdofs,
                           const int N)
 {
    push();
-   vector_map_dofs(N, data, v.data, ess_tdofs.GetData());
+   const kernels::Array &k_ess_tdofs = ess_tdofs.Get_PArray()->As<kernels::Array>();
+   vector_map_dofs(N,
+                   data,
+                   v.data,
+                   (int*) k_ess_tdofs.KernelsMem().ptr());
    pop();
 }
 

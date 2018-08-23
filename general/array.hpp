@@ -370,7 +370,6 @@ public:
       Free();
       InitDataAndSize(master, master_size, false);
    }
-   
 };
 
 

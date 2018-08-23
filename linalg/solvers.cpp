@@ -293,7 +293,6 @@ void SLI(const Operator &A, Solver &B, const Vector &b, Vector &x,
 void CGSolver::UpdateVectors()
 {
 #ifdef MFEM_USE_BACKENDS
-   //printf("\n\033[31;1;7m[CGSolver::UpdateVectors] MFEM_USE_BACKENDS\033[m"); fflush(0);
    if (in_layout)
    {
       r.Resize(in_layout);
@@ -308,50 +307,30 @@ void CGSolver::UpdateVectors()
       z.SetSize(width);
    }
 }
-#include <cassert>
-#define dbg(...) //printf(__VA_ARGS__); fflush(0);
+
 void CGSolver::Mult(const Vector &b, Vector &x) const
 {
    int i;
    double r0, den, nom, nom0, betanom, alpha, beta;
-   dbg("\n\033[31;1;7m[CGSolver::Mult]\033[m");
 
    if (iterative_mode)
    {
-      dbg("\n\033[31;1;7m[CGSolver::Mult] iterative_mode\033[m");
       oper->Mult(x, r);
-      //printf("\n\033[31;1;7m[CGSolver::Mult] Mult b:\033[m"); fflush(0); b.Print();
-      //0 -5.55112e-17 0 0 -4.85723e-17 0 0 -6.93889e-17
-      //0 0.0378933 -5.55112e-17 0.0757866 0 -0.0378933 0 -0.0757866
-      //-5.55112e-17 0.0378933 0 0 -0.0378933 0.151573 -0.151573 0.151573
-      //-0.151573
-      //printf("\033[31;1;7m[CGSolver::Mult] Mult x:\033[m\n"); x.Print();fflush(0);
-      //printf("\033[31;1;7m[CGSolver::Mult] Mult r:\033[m\n"); r.Print();fflush(0);
-      
       r.Axpby(1.0, b, -1.0, r); // r = b - A x
-      //0 -5.55112e-17 0 0 -4.85723e-17 0 0 -6.93889e-17
-      //0 0.0378933 -5.55112e-17 0.0757866 0 -0.0378933 0 -0.0757866
-      //-5.55112e-17 0.0378933 0 0 -0.0378933 0.151573 -0.151573 0.151573
-      //-0.151573
-      //printf("\033[31;1;7m[CGSolver::Mult] Axpby r:\033[m\n"); r.Print();fflush(0);
-      //assert(__FILE__&&__LINE__&&false);
    }
    else
    {
-      //printf("\n\033[31;1;7m[CGSolver::Mult] !iterative_mode\033[m"); fflush(0);
       r.Assign(b); // r = b
       x.Fill(0.0); // x = 0
    }
 
    if (prec)
    {
-      //printf("\n\033[31;1;7m[CGSolver::Mult] prec\033[m"); fflush(0);
       prec->Mult(r, z); // z = B r
       d.Assign(z); // d = z
    }
    else
    {
-      dbg("\n\033[31;1;7m[CGSolver::Mult] !prec\033[m");
       d.Assign(r); // d = r
    }
    nom0 = nom = Dot(d, r);
@@ -372,9 +351,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       return;
    }
 
-   dbg("\n\033[31;1;7m[CGSolver::Mult] z = A d\033[m");
    oper->Mult(d, z);  // z = A d
-   dbg("\n\033[31;1;7m[CGSolver::Mult] Dot(z, d);\033[m");
    den = Dot(z, d);
    MFEM_ASSERT(IsFinite(den), "den = " << den);
 
@@ -385,7 +362,6 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 
    if (den == 0.0)
    {
-      dbg("\n\033[31;1;7m[CGSolver::Mult] den == 0.0\033[m");
       converged = 0;
       final_iter = 0;
       final_norm = sqrt(nom);
@@ -397,11 +373,8 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    final_iter = max_iter;
    for (i = 1; true; )
    {
-      dbg("\n\t\033[31;1;7m[CGSolver::Mult] iteration #%d \033[m",i);
       alpha = nom/den;
-      dbg("\n\t\033[31;1;7m[CGSolver::Mult] x = x + alpha d \033[m");
       x.Axpby(1.0, x,  alpha, d);     //  x = x + alpha d
-      dbg("\n\t\033[31;1;7m[CGSolver::Mult] r = r - alpha A d\033[m");
       r.Axpby(1.0, r, -alpha, z);     //  r = r - alpha A d
 
       if (prec)

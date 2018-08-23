@@ -24,8 +24,7 @@ namespace kernels
 KernelsMassIntegrator::KernelsMassIntegrator(const mfem::Engine &ng) :
    engine(ng),
    KernelsIntegrator(ng.As<kernels::Engine>()),
-   coeff(ng.As<kernels::Engine>(),1.0),
-   assembledOperator(*(new Layout(ng.As<kernels::Engine>(), 0)))
+   coeff(ng.As<kernels::Engine>(),1.0)
 {
    push();
    pop();
@@ -35,8 +34,7 @@ KernelsMassIntegrator::KernelsMassIntegrator(const mfem::Engine &ng) :
 KernelsMassIntegrator::KernelsMassIntegrator(const KernelsCoefficient &coeff_) :
    engine(coeff_.KernelsEngine()),
    KernelsIntegrator(coeff_.KernelsEngine()),
-   coeff(coeff_),
-   assembledOperator(*(new Layout(coeff_.KernelsEngine(), 0)))
+   coeff(coeff_)
 {
    push();
    coeff.SetName("COEFF");
@@ -79,7 +77,6 @@ void KernelsMassIntegrator::SetOperator(mfem::Vector &v)
    op = v;
    op.Resize(engine.MakeLayout(v.Size()));
    op.PushData(v.GetData());
-   dbg("v.Size()=%d",v.Size());
    pop();
 }
 

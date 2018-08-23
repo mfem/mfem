@@ -29,8 +29,8 @@ protected:
    const kernels::array<int> *trueIndices;
 public:
    RestrictionOperator(Layout&, Layout&, const kernels::array<int>*);
-   virtual void Mult_(const Vector&, Vector&) const;
-   virtual void MultTranspose_(const Vector&, Vector&) const;
+   virtual void Mult_(const kernels::Vector&, kernels::Vector&) const;
+   virtual void MultTranspose_(const kernels::Vector&, kernels::Vector&) const;
 };
 
 } // namespace mfem::kernels
