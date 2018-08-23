@@ -153,22 +153,14 @@ void Tetrahedron::GetMarkedFace(const int face, int *fv)
    }
 }
 
-int Tetrahedron::NeedRefinement(DSTable &v_to_v, int *middle) const
+int Tetrahedron::NeedRefinement(HashTable<Hashed2> &v_to_v) const
 {
-   int m;
-
-   if ((m = v_to_v(indices[0], indices[1])) != -1)
-      if (middle[m] != -1) { return 1; }
-   if ((m = v_to_v(indices[1], indices[2])) != -1)
-      if (middle[m] != -1) { return 1; }
-   if ((m = v_to_v(indices[2], indices[0])) != -1)
-      if (middle[m] != -1) { return 1; }
-   if ((m = v_to_v(indices[0], indices[3])) != -1)
-      if (middle[m] != -1) { return 1; }
-   if ((m = v_to_v(indices[1], indices[3])) != -1)
-      if (middle[m] != -1) { return 1; }
-   if ((m = v_to_v(indices[2], indices[3])) != -1)
-      if (middle[m] != -1) { return 1; }
+   if (v_to_v.FindId(indices[0], indices[1]) != -1) { return 1; }
+   if (v_to_v.FindId(indices[1], indices[2]) != -1) { return 1; }
+   if (v_to_v.FindId(indices[2], indices[0]) != -1) { return 1; }
+   if (v_to_v.FindId(indices[0], indices[3]) != -1) { return 1; }
+   if (v_to_v.FindId(indices[1], indices[3]) != -1) { return 1; }
+   if (v_to_v.FindId(indices[2], indices[3]) != -1) { return 1; }
    return 0;
 }
 
