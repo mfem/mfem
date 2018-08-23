@@ -63,8 +63,9 @@ int main(int argc, char *argv[])
    // 1. Initialize MPI.
    int num_procs, myid;
    MPI_Init(&argc, &argv);
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+   MPI_Comm comm = MPI_COMM_WORLD;
+   MPI_Comm_size(comm, &num_procs);
+   MPI_Comm_rank(comm, &myid);
 
    // 2. Parse command-line options.
    const char *mesh_file = "../data/inline-quad.mesh";
@@ -77,6 +78,9 @@ int main(int argc, char *argv[])
    bool visualization = 1;
    bool herm_conv = true;
    bool exact_sol = true;
+#ifdef MFEM_USE_STRUMPACK
+   bool strumpack = false;
+#endif
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -104,6 +108,11 @@ int main(int argc, char *argv[])
                   "Conductivity (or damping constant).");
    args.AddOption(&freq, "-f", "--frequency",
                   "Frequency (in Hz).");
+#ifdef MFEM_USE_STRUMPACK
+   args.AddOption(&strumpack, "-strumpack", "--strumpack-solver",
+                  "-no-strumpack", "--no-strumpack-solver",
+                  "Use STRUMPACK's double complex linear solver.");
+#endif
    args.AddOption(&herm_conv, "-herm", "--hermitian", "-no-herm",
                   "--no-hermitian", "Use convention for Hermitian operators.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -176,12 +185,12 @@ int main(int argc, char *argv[])
    //    order < 1, we instead use an isoparametric/isogeometric space.
    if (dim == 1 && prob != 0 )
    {
-     if (myid == 0 )
-     {
-       cout << "Switching to problem type 0, H1 basis functions, "
-	    << "for 1 dimensional mesh." << endl;
-     }
-     prob = 0;
+      if (myid == 0 )
+      {
+         cout << "Switching to problem type 0, H1 basis functions, "
+              << "for 1 dimensional mesh." << endl;
+      }
+      prob = 0;
    }
 
    FiniteElementCollection *fec;
@@ -321,27 +330,33 @@ int main(int argc, char *argv[])
          break;
    }
 
-   // 10a. Set up the parallel bilinear form for the preconditioner
-   //      corresponding to the operator
-   //      -Div(tau Grad) + omega^2 rho + omega sigma
-   ParBilinearForm *pcOp = new ParBilinearForm(fespace);
-   switch (prob)
+   ParBilinearForm *pcOp = NULL;
+#ifdef MFEM_USE_STRUMPACK
+   if (!strumpack)
+#endif
    {
-      case 0:
-         pcOp->AddDomainIntegrator(new DiffusionIntegrator(stiffnessCoef));
-         pcOp->AddDomainIntegrator(new MassIntegrator(massCoef));
-         pcOp->AddDomainIntegrator(new MassIntegrator(lossCoef));
-         break;
-      case 1:
-         pcOp->AddDomainIntegrator(new CurlCurlIntegrator(stiffnessCoef));
-         pcOp->AddDomainIntegrator(new VectorFEMassIntegrator(negMassCoef));
-         pcOp->AddDomainIntegrator(new VectorFEMassIntegrator(lossCoef));
-         break;
-      case 2:
-         pcOp->AddDomainIntegrator(new DivDivIntegrator(stiffnessCoef));
-         pcOp->AddDomainIntegrator(new VectorFEMassIntegrator(massCoef));
-         pcOp->AddDomainIntegrator(new VectorFEMassIntegrator(lossCoef));
-         break;
+      // 10a. Set up the parallel bilinear form for the preconditioner
+      //      corresponding to the operator
+      //      -Div(tau Grad) + omega^2 rho + omega sigma
+      pcOp = new ParBilinearForm(fespace);
+      switch (prob)
+      {
+         case 0:
+            pcOp->AddDomainIntegrator(new DiffusionIntegrator(stiffnessCoef));
+            pcOp->AddDomainIntegrator(new MassIntegrator(massCoef));
+            pcOp->AddDomainIntegrator(new MassIntegrator(lossCoef));
+            break;
+         case 1:
+            pcOp->AddDomainIntegrator(new CurlCurlIntegrator(stiffnessCoef));
+            pcOp->AddDomainIntegrator(new VectorFEMassIntegrator(negMassCoef));
+            pcOp->AddDomainIntegrator(new VectorFEMassIntegrator(lossCoef));
+            break;
+         case 2:
+            pcOp->AddDomainIntegrator(new DivDivIntegrator(stiffnessCoef));
+            pcOp->AddDomainIntegrator(new VectorFEMassIntegrator(massCoef));
+            pcOp->AddDomainIntegrator(new VectorFEMassIntegrator(lossCoef));
+            break;
+      }
    }
 
    // 11. Assemble the parallel bilinear form and the corresponding linear
@@ -349,7 +364,7 @@ int main(int argc, char *argv[])
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, etc.
    a->Assemble();
-   pcOp->Assemble();
+   if (pcOp) { pcOp->Assemble(); }
 
    OperatorHandle A;
    Vector B, U;
@@ -359,7 +374,7 @@ int main(int argc, char *argv[])
    U = 0.0;
 
    OperatorHandle PCOp;
-   pcOp->FormSystemMatrix(ess_tdof_list, PCOp);
+   if (pcOp) { pcOp->FormSystemMatrix(ess_tdof_list, PCOp); }
 
    if (myid == 0)
    {
@@ -372,6 +387,9 @@ int main(int argc, char *argv[])
 
    // 12. Define and apply a parallel FGMRES solver for AX=B with the BoomerAMG
    //     preconditioner from hypre.
+#ifdef MFEM_USE_STRUMPACK
+   if (!strumpack)
+#endif
    {
       Array<HYPRE_Int> blockTrueOffsets;
       blockTrueOffsets.SetSize(3);
@@ -428,6 +446,20 @@ int main(int argc, char *argv[])
       fgmres.SetPrintLevel(1);
       fgmres.Mult(B, U);
    }
+#ifdef MFEM_USE_STRUMPACK
+   else
+   {
+      ComplexHypreParMatrix * Ahyp =
+         dynamic_cast<ComplexHypreParMatrix*>(A.Ptr());
+
+      STRUMPACKRowLocCmplxMatrix A_strmp(Ahyp->real(), Ahyp->imag());
+
+      STRUMPACKCmplxSolver strmp(argc, argv, comm);
+
+      strmp.SetOperator(A_strmp);
+      strmp.Mult(B, U);
+   }
+#endif
 
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
