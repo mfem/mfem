@@ -2278,11 +2278,11 @@ void ElasticityIntegrator::ComputeElementFlux(
    double e11, e22, e33, e12, e13, e23;
    double s11, s22, s33, s12, s13, s23;
 
+   DenseMatrix loc_data_mat(u.GetData(), nd, vdim);
    for (int i = 0; i < fnd; i++)
    {
       const IntegrationPoint &ip = ir.IntPoint(i);
       el.CalcDShape(ip, dshape);
-      DenseMatrix loc_data_mat(u.GetData(), nd, vdim);
       MultAtB(loc_data_mat, dshape, gh);
 
       Trans.SetIntPoint(&ip);
