@@ -30,20 +30,11 @@
 //               angular frequency omega, imposed at the boundary or a portion
 //               of the boundary.
 //
-//               simple finite element discretization of the Laplace problem
-//               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
-//               Specifically, we discretize using a FE space of the specified
-//               order, or if order < 1 using an isoparametric/isogeometric
-//               space (i.e. quadratic for quadratic curvilinear mesh, NURBS for
-//               NURBS mesh, etc.)
+//               In electromagnetics the coefficients are typically named
+//               the permeability, mu = 1/a, permittivity, epsilon = b, and
+//               conductivity, sigma = c.  The user can specify these constants
+//               using either set of names.
 //
-//               The example highlights the use of mesh refinement, finite
-//               element grid functions, as well as linear and bilinear forms
-//               corresponding to the left-hand side and right-hand side of the
-//               discrete linear system. We also cover the explicit elimination
-//               of essential boundary conditions and the optional connection
-//               to the GLVis tool for visualization.
-
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -82,6 +73,7 @@ int main(int argc, char *argv[])
    int order = 1;
    int prob = 0;
    double freq = -1.0;
+   double a_coef = 0.0;
    bool visualization = 1;
    bool herm_conv = true;
    bool exact_sol = true;
@@ -98,6 +90,12 @@ int main(int argc, char *argv[])
    args.AddOption(&prob, "-p", "--problem-type",
                   "Choose from 0: H_1, 1: H(Curl), or 2: H(Div) "
                   "damped harmonic oscillator.");
+   args.AddOption(&a_coef, "-a", "--stiffness-coef",
+                  "Stiffness coefficient (spring constant or 1/mu).");
+   args.AddOption(&epsilon_, "-b", "--mass-coef",
+                  "Mass coefficient (or epsilon).");
+   args.AddOption(&sigma_, "-c", "--damping-coef",
+                  "Damping coefficient (or sigma).");
    args.AddOption(&mu_, "-mu", "--permeability",
                   "Permeability of free space (or 1/(spring constant)).");
    args.AddOption(&epsilon_, "-eps", "--permittivity",
@@ -126,6 +124,10 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+   if ( a_coef != 0.0 )
+   {
+      mu_ = 1.0 / a_coef;
+   }
    if ( freq > 0.0 )
    {
       omega_ = 2.0 * M_PI * freq;
