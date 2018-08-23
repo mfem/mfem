@@ -1,3 +1,15 @@
+<p align="center">
+<a href="http://mfem.org/"><img alt="mfem" src="http://mfem.org/img/logo-300.png"></a>
+</p>
+
+<p align="center">
+<a href="https://github.com/mfem/mfem/blob/master/COPYRIGHT"><img alt="License" src="https://img.shields.io/badge/License-LGPL--2.1-brightgreen.svg"></a>
+<a href="https://travis-ci.org/mfem/mfem"><img alt="Build Status" src="https://travis-ci.org/mfem/mfem.svg?branch=master"></a>
+<a href="https://ci.appveyor.com/project/mfem/mfem"><img alt="Build Status" src="https://ci.appveyor.com/api/projects/status/19non9sqm6msi2wy?svg=true"></a>
+<a href="http://mfem.github.io/doxygen/html/index.html"><img alt="Doxygen" src="https://img.shields.io/badge/code-documented-brightgreen.svg"></a>
+</p>
+
+
 # How to Contribute
 
 The MFEM team welcomes contributions at all levels: bugfixes; code
@@ -16,6 +28,7 @@ See the [Quick Summary](#quick-summary) section for the main highlights of our
 GitHub workflow. For more details, consult the following sections and refer
 back to them before issuing pull requests:
 
+- [Code Overview](#code-overview)
 - [GitHub Workflow](#github-workflow)
   - [MFEM Organization](#mfem-organization)
   - [New Feature Development](#new-feature-development)
@@ -52,6 +65,94 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   work on different PRs toward a release.
 - Don't hesitate to [contact us](#contact-information) if you have any questions.
 
+
+### Code Overview
+
+- The MFEM library uses object-orient design principles which reflect, in code,
+  the independent mathematical concepts of meshing, linear algebra and finite
+  element spaces and operators.
+
+- The MFEM source code has the following structure:
+  ```
+  .
+  ├── config
+  │   └── cmake
+  │       └── modules
+  ├── data
+  ├── doc
+  │   └── web
+  │       └── examples
+  ├── examples
+  │   ├── petsc
+  │   ├── pumi
+  │   └── sundials
+  ├── fem
+  ├── general
+  ├── linalg
+  ├── mesh
+  └── miniapps
+      ├── common
+      ├── electromagnetics
+      ├── meshing
+      ├── nurbs
+      ├── performance
+      └── tools
+  ```
+
+- The main directories are `fem/`, `mesh/` and `linalg/` containing the C++
+  classes implementing the finite element, mesh and linear algebra concepts
+  respectively.
+
+- The main mesh classes are:
+  + [`Mesh`](http://mfem.github.io/doxygen/html/classmfem_1_1Mesh.html)
+  + [`NCMesh`](http://mfem.github.io/doxygen/html/classmfem_1_1NCMesh.html)
+  + [`Element`](http://mfem.github.io/doxygen/html/classmfem_1_1Element.html)
+  + [`ElementTransformation`](http://mfem.github.io/doxygen/html/classmfem_1_1ElementTransformation.html)
+
+- The main finite element classes are:
+  + [`FiniteElement`](http://mfem.github.io/doxygen/html/classmfem_1_1FiniteElement.html)
+  + [`FiniteElementCollection`](http://mfem.github.io/doxygen/html/classmfem_1_1FiniteElement.html)
+  + [`FiniteElementSpace`](http://mfem.github.io/doxygen/html/classmfem_1_1FiniteElementSpace.html)
+  + [`GridFunction`](http://mfem.github.io/doxygen/html/classmfem_1_1GridFunction.html)
+  + [`BilinearFormIntegrator`](http://mfem.github.io/doxygen/html/classmfem_1_1BilinearFormIntegrator.html) and [`LinearFormIntegrator`](http://mfem.github.io/doxygen/html/classmfem_1_1LinearFormIntegrator.html)
+  + [`LinearForm`](http://mfem.github.io/doxygen/html/classmfem_1_1LinearFormIntegrator.html), [`BilinearForm`](http://mfem.github.io/doxygen/html/classmfem_1_1BilinearForm.html) and [`MixedBilinearForm`](http://mfem.github.io/doxygen/html/classmfem_1_1MixedBilinearForm.html)
+
+- The main linear algebra classes and sources are
+  + [`Operator`](http://mfem.github.io/doxygen/html/classmfem_1_1Operator.html) and [`BilinearForm`](http://mfem.github.io/doxygen/html/classmfem_1_1BilinearForm.html)
+  + [`Vector`](http://mfem.github.io/doxygen/html/classmfem_1_1BilinearForm.html) and [`LinearForm`](http://mfem.github.io/doxygen/html/classmfem_1_1LinearForm.html)
+  + [`DenseMatrix`](http://mfem.github.io/doxygen/html/classmfem_1_1DenseMatrix.html) and [`SparseMatrix`](http://mfem.github.io/doxygen/html/classmfem_1_1SparseMatrix.html)
+  + Sparse [smoothers](http://mfem.github.io/doxygen/html/sparsesmoothers_8hpp.html) and linear [solvers](http://mfem.github.io/doxygen/html/solvers_8hpp.html)
+
+- Parallel MPI objects in MFEM inherit their serial counterparts, so a parallel
+  mesh for example is just a serial mesh on each task plus the information on
+  shared geometric entities between different tasks. The parallel source files
+  have a `p` prefix, e.g. `pmesh.cpp` vs. the serial `mesh.cpp`.
+
+- The main parallel classes are
+  + [`ParMesh`](http://mfem.github.io/doxygen/html/solvers_8hpp.html)
+  + [`ParNCMesh`](http://mfem.github.io/doxygen/html/classmfem_1_1ParMesh.html)
+  + [`ParFiniteElementSpace`](http://mfem.github.io/doxygen/html/classmfem_1_1ParFiniteElementSpace.html)
+  + [`ParGridFunction`](http://mfem.github.io/doxygen/html/classmfem_1_1ParGridFunction.html)
+  + [`ParBilinearForm`](http://mfem.github.io/doxygen/html/classmfem_1_1ParBilinearForm.html) and [`ParLinearForm`](http://mfem.github.io/doxygen/html/classmfem_1_1ParLinearForm.html)
+  + [`HypreParMatrix`](http://mfem.github.io/doxygen/html/classmfem_1_1HypreParMatrix.html) and [`HypreParVector`](http://mfem.github.io/doxygen/html/classmfem_1_1HypreParVector.html)
+  + [`HypreSolver`](http://mfem.github.io/doxygen/html/classmfem_1_1HypreSolver.html) and other [hypre classes](http://mfem.github.io/doxygen/html/hypre_8hpp.html)
+
+- The `general/` directory contains C++ classes that serve as utilities for
+  communication, error handling, arrays, (Boolean) tables, timing, etc.
+
+- The `config/` directory contains build-related files, both for the plain
+  Makefile and the CMake build options.
+
+- The `doc/` directory contains configuration for the Doxygen code documentation
+  that can either be build locally, or browsed online at
+  http://mfem.github.io/doxygen/html/index.html.
+
+- The `data/` directory contains a collection of small mesh files, that are used
+  in the simple example codes and more fully-featured mini applications in the
+  `examples/` and `miniapps/` directories.
+
+- See also the [code overview](http://mfem.org/code-overview/) section on the
+  MFEM website.
 
 ## GitHub Workflow
 
@@ -122,7 +223,7 @@ will allow us to reach you directly with project announcements.
   # Work on "feature-dev", add local commits
   # ...
 
-  # One time only) push the branch to github and setup your local
+  # (One time only) push the branch to github and setup your local
   # branch to track the github branch (for "git pull"):
   git push -u origin feature-dev
 
@@ -332,7 +433,7 @@ MFEM uses a `master`/`next`-branch workflow as described below:
     - [ ] `CHANGELOG`
     - [ ] `makefile`
     - [ ] `CMakeLists.txt`
-    - [ ] `doc/CodeDocumentation.conf`
+    - [ ] `doc/CodeDocumentation.conf.in`
 - [ ] (LLNL only) Make sure all `README.html` files in the source repo are up to date.
 - [ ] Tag the repository:
 

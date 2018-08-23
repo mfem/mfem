@@ -184,8 +184,8 @@ public:
 
        @param[in] collection_name  Name of the collection used as a file name
                                    when saving
-       @param[in] global_grp       Pointer to the global group in the datastore,
-                                   see the above schematic
+       @param[in] bp_index_grp     Pointer to the blueprint index group in the
+                                   datastore, see the above schematic
        @param[in] domain_grp       Pointer to the domain group in the datastore,
                                    see the above schematic
        @param[in] owns_mesh_data   Does the SidreDC own the mesh vertices?
@@ -196,7 +196,7 @@ public:
        to be set with SetMesh() and fields registered with RegisterField().
     */
    SidreDataCollection(const std::string& collection_name,
-                       axom::sidre::Group * global_grp,
+                       axom::sidre::Group * bp_index_grp,
                        axom::sidre::Group * domain_grp,
                        bool owns_mesh_data = false);
 
@@ -255,6 +255,9 @@ public:
    bool HasAttributeField(const std::string& field_name) const
    { return attr_map.Has(field_name); }
 
+   /** Checks if any rank in the mesh has boundary elements */
+   bool HasBoundaryMesh() const;
+
    /// Set the name of the mesh nodes field.
    /** This name will be used by SetMesh() to register the mesh nodes, if not
        already registered. Also, this method should be called if the mesh nodes
@@ -278,6 +281,13 @@ public:
        to register the mesh nodes GridFunction, if the mesh uses nodes. */
    virtual void SetMesh(Mesh *new_mesh);
 
+#ifdef MFEM_USE_MPI
+   /// Set/change the mesh associated with the collection
+   /** Uses the field name "mesh_nodes" or the value set by SetMeshNodesName()
+       to register the mesh nodes GridFunction, if the mesh uses nodes. */
+   virtual void SetMesh(MPI_Comm comm, Mesh *new_mesh);
+#endif
+
    /// Reset the domain and global datastore group pointers.
    /** These are set in the constructor, but if a host code changes the
        datastore contents ( such as wiping out the datastore and loading in new
@@ -288,8 +298,8 @@ public:
    void SetGroupPointers(axom::sidre::Group * global_grp,
                          axom::sidre::Group * domain_grp);
 
-   axom::sidre::Group * GetBPGroup() { return bp_grp; }
-   axom::sidre::Group * GetBPIndexGroup() { return bp_index_grp; }
+   axom::sidre::Group * GetBPGroup() { return m_bp_grp; }
+   axom::sidre::Group * GetBPIndexGroup() { return m_bp_index_grp; }
 
    /// Prepare the DataStore for writing
    virtual void PrepareToSave();
@@ -417,11 +427,11 @@ protected:
 private:
    // If the data collection does not own the datastore, it will need pointers
    // to the blueprint and blueprint index group to use.
-   axom::sidre::Group * bp_grp;
-   axom::sidre::Group * bp_index_grp;
+   axom::sidre::Group * m_bp_grp;
+   axom::sidre::Group * m_bp_index_grp;
 
    // This is stored for convenience.
-   axom::sidre::Group * named_bufs_grp;
+   axom::sidre::Group * m_named_bufs_grp;
 
    // Private helper functions
 

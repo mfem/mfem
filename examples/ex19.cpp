@@ -50,7 +50,7 @@ using namespace mfem;
 //
 // and K^-1 is an approximation of the inverse of the displacement part of the
 // Jacobian and S^-1 is an approximation of the inverse of the Schur
-// complement S = B K^-1 B^T. The Schur complement is approximiated using
+// complement S = B K^-1 B^T. The Schur complement is approximated using
 // a mass matrix of the pressure variables.
 class JacobianPreconditioner : public Solver
 {
