@@ -88,6 +88,35 @@ ComplexGridFunction::ProjectCoefficient(VectorCoefficient &real_vcoeff,
    gfi_->ProjectCoefficient(imag_vcoeff);
 }
 
+void
+ComplexGridFunction::ProjectBdrCoefficient(Coefficient &real_coeff,
+                                           Coefficient &imag_coeff,
+                                           Array<int> &attr)
+{
+   gfr_->ProjectBdrCoefficient(real_coeff, attr);
+   gfi_->ProjectBdrCoefficient(imag_coeff, attr);
+}
+
+void
+ComplexGridFunction::ProjectBdrCoefficientNormal(VectorCoefficient &real_vcoeff,
+                                                 VectorCoefficient &imag_vcoeff,
+                                                 Array<int> &attr)
+{
+   gfr_->ProjectBdrCoefficientNormal(real_vcoeff, attr);
+   gfi_->ProjectBdrCoefficientNormal(imag_vcoeff, attr);
+}
+
+void
+ComplexGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient
+                                                  &real_vcoeff,
+                                                  VectorCoefficient
+                                                  &imag_vcoeff,
+                                                  Array<int> &attr)
+{
+   gfr_->ProjectBdrCoefficientTangent(real_vcoeff, attr);
+   gfi_->ProjectBdrCoefficientTangent(imag_vcoeff, attr);
+}
+
 
 ComplexLinearForm::ComplexLinearForm(FiniteElementSpace *f,
                                      ComplexOperator::Convention convention)
@@ -396,6 +425,37 @@ ParComplexGridFunction::ProjectCoefficient(VectorCoefficient &real_vcoeff,
 {
    pgfr_->ProjectCoefficient(real_vcoeff);
    pgfi_->ProjectCoefficient(imag_vcoeff);
+}
+
+void
+ParComplexGridFunction::ProjectBdrCoefficient(Coefficient &real_coeff,
+                                              Coefficient &imag_coeff,
+                                              Array<int> &attr)
+{
+   pgfr_->ProjectBdrCoefficient(real_coeff, attr);
+   pgfi_->ProjectBdrCoefficient(imag_coeff, attr);
+}
+
+void
+ParComplexGridFunction::ProjectBdrCoefficientNormal(VectorCoefficient
+                                                    &real_vcoeff,
+                                                    VectorCoefficient
+                                                    &imag_vcoeff,
+                                                    Array<int> &attr)
+{
+   pgfr_->ProjectBdrCoefficientNormal(real_vcoeff, attr);
+   pgfi_->ProjectBdrCoefficientNormal(imag_vcoeff, attr);
+}
+
+void
+ParComplexGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient
+                                                     &real_vcoeff,
+                                                     VectorCoefficient
+                                                     &imag_vcoeff,
+                                                     Array<int> &attr)
+{
+   pgfr_->ProjectBdrCoefficientTangent(real_vcoeff, attr);
+   pgfi_->ProjectBdrCoefficientTangent(imag_vcoeff, attr);
 }
 
 void

@@ -54,6 +54,16 @@ public:
    virtual void ProjectCoefficient(VectorCoefficient &real_vcoeff,
                                    VectorCoefficient &imag_vcoeff);
 
+   virtual void ProjectBdrCoefficient(Coefficient &real_coeff,
+                                      Coefficient &imag_coeff,
+                                      Array<int> &attr);
+   virtual void ProjectBdrCoefficientNormal(VectorCoefficient &real_coeff,
+                                            VectorCoefficient &imag_coeff,
+                                            Array<int> &attr);
+   virtual void ProjectBdrCoefficientTangent(VectorCoefficient &real_coeff,
+                                             VectorCoefficient &imag_coeff,
+                                             Array<int> &attr);
+
    FiniteElementSpace *FESpace() { return gfr_->FESpace(); }
    const FiniteElementSpace *FESpace() const { return gfr_->FESpace(); }
 
@@ -200,6 +210,16 @@ public:
                                    Coefficient &imag_coeff);
    virtual void ProjectCoefficient(VectorCoefficient &real_vcoeff,
                                    VectorCoefficient &imag_vcoeff);
+
+   virtual void ProjectBdrCoefficient(Coefficient &real_coeff,
+                                      Coefficient &imag_coeff,
+                                      Array<int> &attr);
+   virtual void ProjectBdrCoefficientNormal(VectorCoefficient &real_coeff,
+                                            VectorCoefficient &imag_coeff,
+                                            Array<int> &attr);
+   virtual void ProjectBdrCoefficientTangent(VectorCoefficient &real_coeff,
+                                             VectorCoefficient &imag_coeff,
+                                             Array<int> &attr);
 
    void Distribute(const Vector *tv);
    void Distribute(const Vector &tv) { Distribute(&tv); }
