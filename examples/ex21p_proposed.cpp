@@ -174,6 +174,16 @@ int main(int argc, char *argv[])
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
    //    order < 1, we instead use an isoparametric/isogeometric space.
+   if (dim == 1 && prob != 0 )
+   {
+     if (myid == 0 )
+     {
+       cout << "Switching to problem type 0, H1 basis functions, "
+	    << "for 1 dimensional mesh." << endl;
+     }
+     prob = 0;
+   }
+
    FiniteElementCollection *fec;
    switch (prob)
    {
