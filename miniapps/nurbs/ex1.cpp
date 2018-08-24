@@ -42,12 +42,102 @@
 using namespace std;
 using namespace mfem;
 
+
+/** Class for integrating the bilinear form a(u,v) := (Q Laplace u, v) where Q
+    can be a scalar coefficient. */
+class Diffusion2Integrator: public BilinearFormIntegrator
+{
+private:
+#ifndef MFEM_THREAD_SAFE
+   Vector shape,laplace;
+#endif
+   Coefficient *Q;
+
+public:
+   /// Construct a diffusion integrator with coefficient Q = 1
+   Diffusion2Integrator() { Q = NULL; }
+
+   /// Construct a diffusion integrator with a scalar coefficient q
+   Diffusion2Integrator (Coefficient &q) : Q(&q) { }
+
+   /** Given a particular Finite Element
+       computes the element stiffness matrix elmat. */
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat)
+   {
+      int nd = el.GetDof();
+      int dim = el.GetDim();
+      int spaceDim = Trans.GetSpaceDim();
+      bool square = (dim == spaceDim);
+      double w;
+
+#ifdef MFEM_THREAD_SAFE
+      Vector shape[nd];
+      Vector laplace(nd);
+#else
+      shape.SetSize(nd);
+      laplace.SetSize(nd);
+#endif
+      elmat.SetSize(nd);
+
+      const IntegrationRule *ir = IntRule;
+      if (ir == NULL)
+      {
+         int order;
+         if (el.Space() == FunctionSpace::Pk)
+         {
+            order = 2*el.GetOrder() - 2;
+         }
+         else
+         {
+            order = 2*el.GetOrder() + dim - 1;
+         }
+
+         if (el.Space() == FunctionSpace::rQk)
+         {
+            ir = &RefinedIntRules.Get(el.GetGeomType(),order);
+         }
+         else
+         {
+            ir = &IntRules.Get(el.GetGeomType(),order);
+         }
+      }
+
+      elmat = 0.0;
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+         Trans.SetIntPoint(&ip);
+         w = -ip.weight / Trans.Weight();
+
+         el.CalcShape(ip, shape);
+         el.CalcPhysLaplacian(Trans, laplace);
+
+         if (Q)
+         {
+            w *= Q->Eval(Trans, ip);
+         }
+
+         for (int j = 0; j < nd; j++)
+         {
+            for (int i = 0; i < nd; i++)
+            {
+               elmat(i, j) += w*shape(i)*laplace(j);
+            }
+         }
+      }
+   }
+
+};
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/star.mesh";
    bool static_cond = false;
    bool visualization = 1;
+   bool ibp = 1;
    Array<int> order(1);
    order[0] = 1;
 
@@ -57,6 +147,10 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&ibp, "-ibp", "--ibp", "-no-ibp",
+                  "--no-ibp",
+                  "Selects the standard weak form (IBP) or the nonstandard (NO-IBP).");
+
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -166,7 +260,14 @@ int main(int argc, char *argv[])
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
    BilinearForm *a = new BilinearForm(fespace);
-   a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   if (ibp)
+   {
+      a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   }
+   else
+   {
+      a->AddDomainIntegrator(new Diffusion2Integrator(one));
+   }
 
    // 9. Assemble the bilinear form and the corresponding linear system,
    //    applying any necessary transformations such as: eliminating boundary
