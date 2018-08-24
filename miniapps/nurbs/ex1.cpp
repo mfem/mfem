@@ -131,6 +131,33 @@ public:
 
 };
 
+
+
+/** Class for a forcing for which the exact answer is known. */
+class RectLapForce : public Coefficient
+{
+public:
+   double Lx,Ly,fac;
+
+   /// c is value of constant function
+   explicit RectLapForce(double _Lx = 1.0,double _Ly = 1.0 ) { Lx = _Lx; Ly = _Ly; fac = 32.0/(Lx*Lx*Ly*Ly);}
+
+   /// Evaluate the coefficient
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   {
+      double x[3];
+      Vector transip(x, 3);
+
+      T.Transform(ip, transip);
+
+      return fac*(x[0]*(Lx - x[0]) + x[1]*(Ly - x[1]));
+   }
+};
+
+
+
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -211,6 +238,12 @@ int main(int argc, char *argv[])
          own_fec = 1;
       }
    }
+
+   else if (order[0] == -3) // Cubics
+   {
+      fec = new CubicFECollection();
+      own_fec = 1;
+   }
    else if (mesh->NURBSext && (order[0] > 0) )  // Subparametric NURBS
    {
       fec = new NURBSFECollection(order[0]);
@@ -232,6 +265,14 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(abs(order[0]), dim);
       own_fec = 1;
    }
+
+
+
+
+
+
+
+
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, NURBSext, fec);
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
@@ -253,6 +294,11 @@ int main(int argc, char *argv[])
    //    the basis functions in the finite element fespace.
    LinearForm *b = new LinearForm(fespace);
    ConstantCoefficient one(1.0);
+
+   double coord[2];
+   mesh->GetNode(2, coord);
+   RectLapForce force(coord[0],coord[1]);
+
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
@@ -289,10 +335,10 @@ int main(int argc, char *argv[])
    cout << "Size of linear system: " << A.Height() << endl;
 
 #ifndef MFEM_USE_SUITESPARSE
-   // 10. Define a simple symmetric Gauss-Seidel preconditioner and use it to
-   //     solve the system A X = B with PCG.
-   GSSmoother M(A);
-   PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
+   // 10. Define a simple Jacobi preconditioner and use it to
+   //     solve the system A X = B with GMRES.
+   DSmoother M(A);
+   GMRES(A, M, B, X, 1, 200,100, 1e-12, 0.0);
 #else
    // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;
