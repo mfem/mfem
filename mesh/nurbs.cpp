@@ -138,21 +138,21 @@ void KnotVector::PrintFunctions(std::ostream &out, int samples) const
 
    for (int i = 0; i <GetNE() ; i++)
    {
-         for (int j = 0; j <samples; j++)
-         {
-            x =j*dx;
-            out<< x + i;
+      for (int j = 0; j <samples; j++)
+      {
+         x =j*dx;
+         out<< x + i;
 
-            CalcShape ( shape, i, x);
-            for (int d = 0; d < Order+1; d++) out<<"\t"<<shape[d];
+         CalcShape ( shape, i, x);
+         for (int d = 0; d < Order+1; d++) { out<<"\t"<<shape[d]; }
 
-            CalcDShape ( shape, i, x);
-            for (int d = 0; d < Order+1; d++) out<<"\t"<<shape[d];
+         CalcDShape ( shape, i, x);
+         for (int d = 0; d < Order+1; d++) { out<<"\t"<<shape[d]; }
 
-            CalcD2Shape ( shape, i, x);
-            for (int d = 0; d < Order+1; d++) out<<"\t"<<shape[d]; 
-            out<<endl;
-         }
+         CalcD2Shape ( shape, i, x);
+         for (int d = 0; d < Order+1; d++) { out<<"\t"<<shape[d]; }
+         out<<endl;
+      }
    }
 }
 
