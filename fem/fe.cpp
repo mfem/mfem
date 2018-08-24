@@ -314,7 +314,7 @@ void  FiniteElement::CalcPhysHessian(ElementTransformation &Trans,
    // Correct multiplicity
    Vector mult(size);
    mult = 0.0;
-   for (int i = 0; i < Dim*Dim; i++) mult[map[i]]++;
+   for (int i = 0; i < Dim*Dim; i++) { mult[map[i]]++; }
    lhm.InvRightScaling(mult);
 
    // Hessian in physical coords
@@ -11364,16 +11364,16 @@ void NURBS2DFiniteElement::CalcHessian (const IntegrationPoint &ip,
 
    for (int o = 0; o < Dof; o++)
    {
-      hessian(o,0) = hessian(o,0)*sum;
+      hessian(o,0) = hessian(o,0)*sum
                      - 2*du(o,0)*sum*dsum[0]
                      + u[o]*sum*(2*dsum[0]*dsum[0] - d2sum[0]);
 
-      hessian(o,1) = hessian(o,1)*sum;
+      hessian(o,1) = hessian(o,1)*sum
                      - du(o,0)*sum*dsum[1]
                      - du(o,1)*sum*dsum[0]
                      + u[o]*sum*(2*dsum[0]*dsum[1] - d2sum[1]);
 
-      hessian(o,2) = hessian(o,2)*sum;
+      hessian(o,2) = hessian(o,2)*sum
                      - 2*du(o,1)*sum*dsum[1]
                      + u[o]*sum*(2*dsum[1]*dsum[1] - d2sum[2]);
 

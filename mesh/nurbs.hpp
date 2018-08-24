@@ -427,10 +427,6 @@ private:
    inline static int Or2D(const int n1, const int n2,
                           const int N1, const int N2, const int Or);
 
-   inline static int Or2Dnp(const int n1, const int n2,
-                          const int N1, const int N2, const int Or);
-
-
    // also set verts, edges, faces, orientations etc
    void GetPatchKnotVectors   (int p, const KnotVector *kv[]);
    void GetBdrPatchKnotVectors(int p, const KnotVector *kv[], int *okv);
@@ -556,11 +552,9 @@ const
 
 
 // static method
-inline int NURBSPatchMap::Or2Dnp(const int n1, const int n2,
-                               const int N1, const int N2, const int Or)
+inline int NURBSPatchMap::Or2D(const int n1, const int n2,
+                                 const int N1, const int N2, const int Or)
 {
-
-
 
    // Needs testing
    switch (Or)
@@ -579,26 +573,6 @@ inline int NURBSPatchMap::Or2Dnp(const int n1, const int n2,
 #endif
    return -1;
 }
-
-
-
-
-inline int NURBSPatchMap::Or2D(const int n1, const int n2,
-                               const int N1, const int N2, const int Or)
-{
-/*
-      for (int o = 0; o < 7; o++)
-      {
-         std::cout<<n1<<","<<n2<<","<<N1<<","<<N2<<","<<o<<"  ---> "<<Or2Dnp(n1,n2,N1, N2, o)<<std::endl;
-         std::cout<<Or<<std::endl;
-      }*/
-
-    return Or2Dnp(n1,n2,N1, N2, Or);
-
-
-}
-
-
 
 
 inline int NURBSPatchMap::operator()(const int i) const
