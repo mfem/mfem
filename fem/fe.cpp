@@ -267,11 +267,11 @@ void  FiniteElement::CalcPhysHessian(ElementTransformation &Trans,
    }
    else if (Dim == 2)
    {
-      map[0] = 2;
+      map[0] = 2;  // Should be 0 -->  Needs debugging??!!
       map[1] = 1;
 
       map[2] = 1;
-      map[3] = 0;
+      map[3] = 0;  // Should be 2 -->  Needs debugging??!!
    }
    else
    {
@@ -284,34 +284,15 @@ void  FiniteElement::CalcPhysHessian(ElementTransformation &Trans,
    CalcHessian(Trans.GetIntPoint(), hess);
 
    // Gradient in physical coords
-   DenseMatrix grad(Dof, Dim);
-   CalcPhysDShape(Trans, grad);
-   DenseMatrix gmap(Dof, size);
-
-
-cout<<"grad"<<endl;
-grad.Print();
-
-cout<<"Trans.Hessian()"<<endl;
-Trans.Hessian().Print();
-
-   Mult(grad,Trans.Hessian(),gmap);
-cout<<"gmap"<<endl;
-gmap.Print();
-
-
-
-cout<<"hess"<<endl;
-hess.Print();
-   hess -= gmap;
-cout<<"hess"<<endl;
-hess.Print();
-
-   // Correct multiplicity
-   Vector mult(size);
-   mult = 0.0;
-   for (int i = 0; i < Dim*Dim; i++) mult[map[i]]++;
-   //hess.RightScaling(mult);
+   if (Trans.Hessian().FNorm2() > 1e-10)
+   {
+      mfem_warning("Hessian computation for non-affine mappings need debugging.");
+      DenseMatrix grad(Dof, Dim);
+      CalcPhysDShape(Trans, grad);
+      DenseMatrix gmap(Dof, size);
+      Mult(grad,Trans.Hessian(),gmap);
+      hess -= gmap;
+   }
 
    // LHM
    DenseMatrix lhm(size,size);
@@ -325,38 +306,26 @@ hess.Print();
          {
             for (int l = 0; l < Dim; l++)
             {
-//cout<<i<<" "<<j<<" "<<k<<" "<<l<<" ---> "
- //   <<i<<" "<<k<<" "<<j<<" "<<l<<" ---> "
-//    <<map[i*Dim+j]<<","<<map[k*Dim+l]<<" :: "<<invJ(i,k)<<"*"<<invJ(j,l)<<endl;
                lhm(map[i*Dim+j],map[k*Dim+l]) += invJ(i,k)*invJ(j,l);
             }
          }
       }
    }
-//mult.Print();
+   // Correct multiplicity
+   Vector mult(size);
+   mult = 0.0;
+   for (int i = 0; i < Dim*Dim; i++) mult[map[i]]++;
    lhm.InvRightScaling(mult);
-cout<<"--------------------"<<endl;
-   lhm.Print();
-cout<<"--------------------"<<endl;
+
    // Hessian in physical coords
    lhm.Invert();
-  // lhm.Print();
-
    Mult( hess, lhm, Hessian);
-
-Hessian.Print();
-//cout<<"--------------------"<<endl;
 }
 
 
 void FiniteElement::CalcPhysLaplacian(ElementTransformation &Trans,
                                       Vector &Laplacian) const
 {
-
-  // CalcPhysLinLaplacian(Trans,Laplacian);
-  // return;
-
-
    MFEM_ASSERT(MapType == VALUE, "");
    int size = (Dim*(Dim+1))/2;
    DenseMatrix hess(Dof, size);
@@ -383,91 +352,6 @@ void FiniteElement::CalcPhysLaplacian(ElementTransformation &Trans,
          Laplacian[nd] = hess(nd,0);
       }
    }
-
-Laplacian.Print(cout,9);
-   /*
-
-      // Hessian in ref coords
-      int size = (Dim*(Dim+1))/2;
-      DenseMatrix hess(Dof, size);
-      CalcHessian(Trans.GetIntPoint(), hess);
-
-      // Hessian scalling
-      DenseMatrix Gij(Dim,Dim);
-      Vector hscale(size);
-      MultAAt(Trans.Jacobian(), Gij);
-      if (Dim == 3)
-      {
-         hscale[0] =   Gij(0,0);
-         hscale[1] = 2*Gij(0,1);
-         hscale[2] = 2*Gij(0,2);
-
-         hscale[3] = 2*Gij(1,2);
-         hscale[4] =   Gij(2,2);
-
-         hscale[5] =   Gij(1,1);
-      }
-      else if (Dim == 2)
-      {
-         hscale[0] = Gij(0,0);
-         hscale[1] = 2*Gij(0,1);
-         hscale[2] = Gij(1,1);
-      }
-      else
-      {
-         hscale[0] =   Gij(0,0);
-      }
-
-      // Laplacian in physical coords -- affine map
-      for (int nd = 0; nd < Dof; nd++)
-      {
-         Laplacian[nd] = 0.0;
-         for (int ii = 0; ii < size; ii++)
-         {
-            Laplacian[nd] += hess(nd,ii)*hscale[ii];
-         }
-      }
-
-      // Gradient in ref coords
-      DenseMatrix grad(Dof, Dim);
-      CalcDShape(Trans.GetIntPoint(), grad);
-   */
-   // Gradient scalling
-   /*   DenseMatrix map(Dim,size);
-      Mult(Trans.InverseJacobian(), Trans.Hessian(),  map);
-
-      Vector tmp(size);
-         tmp[0] = Gij(0,0);
-         tmp[1] = Gij(0,1);
-         tmp[2] = Gij(1,1);
-   //   tmp = 0.0;
-
-
-      Vector gscale(Dim);
-      for (int jj = 0; jj < Dim; jj++)
-      {
-         gscale[jj] = 0;
-         for (int ii = 0; ii < size; ii++)
-         {
-            gscale[jj] += map(jj,ii)*tmp[ii];
-         }
-      }*/
-
-   /*  Vector tmp(Dim);
-     Trans.Hessian().Mult(hscale, tmp);
-
-     Vector gscale(Dim);
-     Trans.InverseJacobian().Mult(tmp,gscale);
-
-     // Laplacian in physical coords -- non-affine correction
-     for (int nd = 0; nd < Dof; nd++)
-     {
-        for (int jj = 0; jj < Dim; jj++)
-        {
-           Laplacian[nd] -= grad(nd,jj)*gscale[jj];
-        }
-     }*/
-
 }
 
 
@@ -11376,7 +11260,6 @@ void NURBS2DFiniteElement::SetOrder() const
    d2shape_x.SetSize(Orders[0]+1);
    d2shape_y.SetSize(Orders[1]+1);
 
-
    Order = max(Orders[0], Orders[1]);
    Dof = (Orders[0] + 1)*(Orders[1] + 1);
    u.SetSize(Dof);
@@ -11468,13 +11351,6 @@ void NURBS2DFiniteElement::CalcHessian (const IntegrationPoint &ip,
          d2sum[0] += ( hessian(o,0) = d2sx*sy*weights(o) );
          d2sum[1] += ( hessian(o,1) = dsx*dsy*weights(o) );
          d2sum[2] += ( hessian(o,2) = sx*d2sy*weights(o) );
-
-         //dsum[0] += ( du(o,0) = sx*dsy*weights(o) );
-       //  dsum[1] += ( du(o,1) = dsx*sy*weights(o) );
-
-        //d2sum[0] += ( hessian(o,0) = sx*d2sy*weights(o) );
-        // d2sum[1] += ( hessian(o,1) = dsx*dsy*weights(o) );
-
       }
    }
 
@@ -11502,9 +11378,6 @@ void NURBS2DFiniteElement::CalcHessian (const IntegrationPoint &ip,
                      + u[o]*sum*(2*dsum[1]*dsum[1] - d2sum[2]);
 
    }
-   //  cout<<"Hessian: 11402"<<endl;
-   //  hessian.Print();
-
 }
 
 //---------------------------------------------------------------------

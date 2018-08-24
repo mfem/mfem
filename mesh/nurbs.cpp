@@ -156,7 +156,6 @@ void KnotVector::PrintFunctions(std::ostream &out, int samples) const
    }
 }
 
-
 // Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
 void KnotVector::CalcShape(Vector &shape, int i, double xi) const
 {
@@ -407,7 +406,6 @@ void KnotVector::Difference(const KnotVector &kv, Vector &diff) const
       }
    }
 }
-
 
 void NURBSPatch::init(int dim_)
 {
@@ -3396,7 +3394,7 @@ void NURBSPatchMap::GetPatchKnotVectors(int p, const KnotVector *kv[])
       kv[1] = Ext->KnotVec(edges[3]);
       kv[2] = Ext->KnotVec(edges[8]);
    }
-   opatch = 0;  // WTF IDO TBD !!!
+   opatch = 0;  // Needs debugging
 }
 
 void NURBSPatchMap::GetBdrPatchKnotVectors(int p, const KnotVector *kv[],
