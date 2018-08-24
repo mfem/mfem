@@ -138,6 +138,7 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    bool visualization = 1;
    bool ibp = 1;
+   int ref_levels = -1;
    Array<int> order(1);
    order[0] = 1;
 
@@ -147,6 +148,8 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&ref_levels, "-r", "--refine",
+                  "Levels of refinement or -1 for refinement till 50000 elements.");
    args.AddOption(&ibp, "-ibp", "--ibp", "-no-ibp",
                   "--no-ibp",
                   "Selects the standard weak form (IBP) or the nonstandard (NO-IBP).");
@@ -175,8 +178,11 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+      if (ref_levels < 0)
+      {
+        ref_levels = (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+      }
+
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
