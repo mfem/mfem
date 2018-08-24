@@ -15,7 +15,7 @@
 #include <cmath>
 #include <algorithm>
 
-#define OM 10
+#define OM 4
 #define VERB false
 
 using namespace std;

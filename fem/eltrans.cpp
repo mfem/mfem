@@ -435,10 +435,6 @@ const DenseMatrix &IsoparametricTransformation::EvalHessian()
    if (d2shape.Width() > 0)
    {
       FElem->CalcHessian(*IntPoint, d2shape);
-      //mfem_error();
-      //d2shape.Print();
-      //PointMat.Print();
-      //d2Fdx2.Print();
       Mult(PointMat, d2shape, d2Fdx2);
    }
    EvalState |= HESSIAN_MASK;
