@@ -366,8 +366,6 @@ public:
    // Write a GridFunction patch-by-patch.
    void PrintSolution(const GridFunction &sol, std::ostream &out) const;
 
-
-
    // Refinement methods
    // new_degree = max(old_degree, min(old_degree + rel_degree, degree))
    void DegreeElevate(int rel_degree, int degree = 16);
@@ -555,7 +553,6 @@ const
 inline int NURBSPatchMap::Or2D(const int n1, const int n2,
                                const int N1, const int N2, const int Or)
 {
-
    // Needs testing
    switch (Or)
    {
@@ -573,7 +570,6 @@ inline int NURBSPatchMap::Or2D(const int n1, const int n2,
 #endif
    return -1;
 }
-
 
 inline int NURBSPatchMap::operator()(const int i) const
 {

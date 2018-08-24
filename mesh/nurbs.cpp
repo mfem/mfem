@@ -1326,11 +1326,8 @@ NURBSExtension::NURBSExtension(const NURBSExtension &orig)
      activeElem(orig.activeElem),
      activeBdrElem(orig.activeBdrElem),
      activeDof(orig.activeDof),
-
-     // patchTopo(new Mesh(*orig.patchTopo)),
-     // own_topo(true),
-     patchTopo(orig.patchTopo),
-     own_topo(false),
+     patchTopo(new Mesh(*orig.patchTopo)),
+     own_topo(true),
      edge_to_knot(orig.edge_to_knot),
      knotVectors(orig.knotVectors.Size()), // knotVectors are copied in the body
      weights(orig.weights),
@@ -3394,7 +3391,7 @@ void NURBSPatchMap::GetPatchKnotVectors(int p, const KnotVector *kv[])
       kv[1] = Ext->KnotVec(edges[3]);
       kv[2] = Ext->KnotVec(edges[8]);
    }
-   opatch = 0;  // Needs debugging
+   opatch = 0;
 }
 
 void NURBSPatchMap::GetBdrPatchKnotVectors(int p, const KnotVector *kv[],
