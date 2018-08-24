@@ -202,12 +202,14 @@ void FiniteElement::CalcPhysLaplacian(ElementTransformation &Trans,
 {
    MFEM_ASSERT(MapType == VALUE, "");
 
+   // Simpler routine if mapping is affine
    if (Trans.Hessian().FNorm2() < 1e-10)
    {
       CalcPhysLinLaplacian(Trans, Laplacian);
       return;
    }
 
+   // Compute full Hessian first if non-affine
    int size = (Dim*(Dim+1))/2;
    DenseMatrix hess(Dof, size);
    CalcPhysHessian(Trans,hess);
@@ -262,9 +264,9 @@ void FiniteElement::CalcPhysLinLaplacian(ElementTransformation &Trans,
    }
    else if (Dim == 2)
    {
-      scale[0] = Gij(0,0);
+      scale[2] = Gij(0,0);    // Should be scale [0] -->  Needs debugging??!!
       scale[1] = 2*Gij(0,1);
-      scale[2] = Gij(1,1);
+      scale[0] = Gij(1,1);    // Should be scale [2] -->  Needs debugging??!!
    }
    else
    {
