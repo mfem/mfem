@@ -197,12 +197,50 @@ void FiniteElement::CalcPhysDShape(ElementTransformation &Trans,
    Mult(vshape, Trans.InverseJacobian(), dshape);
 }
 
+void FiniteElement::CalcPhysLaplacian(ElementTransformation &Trans,
+                                      Vector &Laplacian) const
+{
+   MFEM_ASSERT(MapType == VALUE, "");
+
+   if (Trans.Hessian().FNorm2() < 1e-10)
+   {
+      CalcPhysLinLaplacian(Trans, Laplacian);
+      return;
+   }
+
+   int size = (Dim*(Dim+1))/2;
+   DenseMatrix hess(Dof, size);
+   CalcPhysHessian(Trans,hess);
+
+   if (Dim == 3)
+   {
+      for (int nd = 0; nd < Dof; nd++)
+      {
+         Laplacian[nd] = hess(nd,0) + hess(nd,4) + hess(nd,5);
+      }
+   }
+   else if (Dim == 2)
+   {
+      for (int nd = 0; nd < Dof; nd++)
+      {
+         Laplacian[nd] = hess(nd,0) + hess(nd,2);
+      }
+   }
+   else
+   {
+      for (int nd = 0; nd < Dof; nd++)
+      {
+         Laplacian[nd] = hess(nd,0);
+      }
+   }
+}
+
+
 // Assume a linear mapping
 void FiniteElement::CalcPhysLinLaplacian(ElementTransformation &Trans,
                                          Vector &Laplacian) const
 {
    MFEM_ASSERT(MapType == VALUE, "");
-
    int size = (Dim*(Dim+1))/2;
    DenseMatrix hess(Dof, size);
    DenseMatrix Gij(Dim,Dim);
@@ -321,39 +359,6 @@ void  FiniteElement::CalcPhysHessian(ElementTransformation &Trans,
    lhm.Invert();
    Mult( hess, lhm, Hessian);
 }
-
-
-void FiniteElement::CalcPhysLaplacian(ElementTransformation &Trans,
-                                      Vector &Laplacian) const
-{
-   MFEM_ASSERT(MapType == VALUE, "");
-   int size = (Dim*(Dim+1))/2;
-   DenseMatrix hess(Dof, size);
-   CalcPhysHessian(Trans,hess);
-
-   if (Dim == 3)
-   {
-      for (int nd = 0; nd < Dof; nd++)
-      {
-         Laplacian[nd] = hess(nd,0) + hess(nd,4) + hess(nd,5);
-      }
-   }
-   else if (Dim == 2)
-   {
-      for (int nd = 0; nd < Dof; nd++)
-      {
-         Laplacian[nd] = hess(nd,0) + hess(nd,2);
-      }
-   }
-   else
-   {
-      for (int nd = 0; nd < Dof; nd++)
-      {
-         Laplacian[nd] = hess(nd,0);
-      }
-   }
-}
-
 
 void ScalarFiniteElement::NodalLocalInterpolation (
    ElementTransformation &Trans, DenseMatrix &I,
