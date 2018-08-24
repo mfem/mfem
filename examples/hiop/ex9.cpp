@@ -3,6 +3,10 @@
 // Compile with: make ex9
 //
 // Sample runs:
+//
+//    ex9 -m ../../data/periodic-segment.mesh -rs 3 -p 0 -o 2 -dt 0.002 -opt 1
+//    ex9 -m ../../data/periodic-segment.mesh -rs 3 -p 0 -o 2 -dt 0.002 -opt 2
+//
 //    ex9 -m ../data/periodic-segment.mesh -p 0 -r 2 -dt 0.005
 //    ex9 -m ../data/periodic-square.mesh -p 0 -r 2 -dt 0.01 -tf 10
 //    ex9 -m ../data/periodic-hexagon.mesh -p 0 -r 2 -dt 0.01 -tf 10
@@ -30,7 +34,6 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include <algorithm>
 
 using namespace std;
 using namespace mfem;
@@ -39,7 +42,11 @@ using namespace mfem;
 // inflow boundary condition are chosen based on this parameter.
 int problem;
 
+// Nonlinear optimizer.
+int optimizer_type;
+
 // Velocity coefficient
+bool invert_velocity = false;
 void velocity_function(const Vector &x, Vector &v);
 
 // Initial condition
@@ -67,9 +74,16 @@ private:
 
    mutable Vector z;
 
-public:
-   FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b);
+   double dt;
+   BilinearForm &bf;
+   Vector &M_rowsums;
 
+public:
+   FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b,
+                BilinearForm &_bf, Vector &M_rs);
+
+   void SetTimeStep(double _dt) { dt = _dt; }
+   void SetK(SparseMatrix &_K) { K = _K; }
    virtual void Mult(const Vector &x, Vector &y) const;
 
    virtual ~FE_Evolution() { }
@@ -83,8 +97,8 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../../data/periodic-hexagon.mesh";
    int ref_levels = 2;
    int order = 3;
-   int ode_solver_type = 4;
-   double t_final = 10.0;
+   int ode_solver_type = 3;
+   double t_final = 1.0;
    double dt = 0.01;
    bool visualization = true;
    bool visit = false;
@@ -103,6 +117,9 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly.");
    args.AddOption(&order, "-o", "--order",
                   "Order (degree) of the finite elements.");
+   args.AddOption(&optimizer_type, "-opt", "--optimizer",
+                  "Nonlinear optimizer: 1 - SLBQP,\n\t"
+                  "                     2 - HIOP.");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Forward Euler,\n\t"
                   "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
@@ -166,7 +183,7 @@ int main(int argc, char *argv[])
 
    // 5. Define the discontinuous DG finite element space of the given
    //    polynomial order on the refined mesh.
-   DG_FECollection fec(order, dim);
+   DG_FECollection fec(order, dim, BasisType::Positive);
    FiniteElementSpace fes(mesh, &fec);
 
    cout << "Number of unknowns: " << fes.GetVSize() << endl;
@@ -261,19 +278,26 @@ int main(int argc, char *argv[])
       }
    }
 
+   Vector M_rowsums(m.Size());
+   m.SpMat().GetRowSums(M_rowsums);
+
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv(m.SpMat(), k.SpMat(), b);
+   FE_Evolution adv(m.SpMat(), k.SpMat(), b, k, M_rowsums);
 
    double t = 0.0;
    adv.SetTime(t);
    ode_solver->Init(adv);
 
+   // Compute initial volume.
+   const double vol0 = M_rowsums * u;
+
    bool done = false;
    for (int ti = 0; !done; )
    {
       double dt_real = min(dt, t_final - t);
+      adv.SetTimeStep(dt_real);
       ode_solver->Step(u, t, dt_real);
       ti++;
 
@@ -297,6 +321,41 @@ int main(int argc, char *argv[])
       }
    }
 
+   // Print the error vs exact solution.
+   const double max_error = u.ComputeMaxError(u0),
+                l1_error  = u.ComputeL1Error(u0),
+                l2_error  = u.ComputeL2Error(u0);
+   std::cout << "Linf error = " << max_error << endl
+             << "L1   error = " << l1_error << endl
+             << "L2   error = " << l2_error << endl;
+
+   // Print error in volume.
+   const double vol = M_rowsums * u;
+   std::cout << "Vol  error = " << vol - vol0 << endl;
+
+   // Compute and print symmetry error (re-run with the opposite velocity).
+   invert_velocity = true;
+   k.BilinearForm::operator=(0.0);
+   k.Assemble(skip_zeros);
+   k.Finalize();
+   GridFunction u_inv(&fes);
+   u_inv.ProjectCoefficient(u0);
+   done = false;
+   t = 0.0;
+   adv.SetTime(t);
+   for (int ti = 0; !done; )
+   {
+      double dt_real = min(dt, t_final - t);
+      adv.SetTimeStep(dt_real);
+      ode_solver->Step(u_inv, t, dt_real);
+      ti++;
+
+      done = (t >= t_final - 1e-8*dt);
+   }
+   GridFunctionCoefficient u_inv_coeff(&u_inv);
+   const double symm_error = u.ComputeMaxError(u_inv_coeff) / 2.0;
+   std::cout << "Symm error = " << symm_error << std::endl;
+
    // 9. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m ex9.mesh -g ex9-final.gf".
    {
@@ -314,8 +373,11 @@ int main(int argc, char *argv[])
 
 
 // Implementation of class FE_Evolution
-FE_Evolution::FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b)
-   : TimeDependentOperator(_M.Size()), M(_M), K(_K), b(_b), z(_M.Size())
+FE_Evolution::FE_Evolution(SparseMatrix &_M, SparseMatrix &_K,
+                           const Vector &_b, BilinearForm &_bf, Vector &M_rs)
+   : TimeDependentOperator(_M.Size()),
+     M(_M), K(_K), b(_b), M_prec(), M_solver(), z(_M.Size()),
+     bf(_bf), M_rowsums(M_rs)
 {
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(M);
@@ -329,10 +391,60 @@ FE_Evolution::FE_Evolution(SparseMatrix &_M, SparseMatrix &_K, const Vector &_b)
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
-   // y = M^{-1} (K x + b)
+   // Compute bounds y_min, y_max for y from from x on the ldofs.
+   const int dofs = x.Size();
+   Vector y_min(dofs), y_max(dofs);
+   const int *In = bf.SpMat().GetI(), *Jn = bf.SpMat().GetJ();
+   for (int i = 0, k = 0; i < dofs; i++)
+   {
+      double x_i_min = +std::numeric_limits<double>::infinity();
+      double x_i_max = -std::numeric_limits<double>::infinity();
+      for (int end = In[i+1]; k < end; k++)
+      {
+         const int j = Jn[k];
+         if (x(j) > x_i_max) { x_i_max = x(j); }
+         if (x(j) < x_i_min) { x_i_min = x(j); }
+      }
+      y_min(i) = x_i_min;
+      y_max(i) = x_i_max;
+   }
+   for (int i = 0; i < dofs; i++)
+   {
+      y_min(i) = (y_min(i) - x(i) ) / dt;
+      y_max(i) = (y_max(i) - x(i) ) / dt;
+   }
+
+   y_min -= 1e-6;
+   y_max -= (-1e-6);
+
+   // Compute the high-order solution y = M^{-1} (K x + b).
    K.Mult(x, z);
    z += b;
    M_solver.Mult(z, y);
+
+   // Compute total mass.
+   const double tot_mass = M_rowsums * y;
+
+   // Perform optimization.
+   Vector y_out(dofs);
+   const int max_iter = 50;
+   const double rtol = 1.e-12, atol = 1e-15;
+
+   OptimizationSolver* optsolver = NULL;
+   if (optimizer_type == 1) { optsolver = new SLBQPOptimizer(); }
+   else                     { optsolver = new HiopNlpOptimizer(); }
+
+   optsolver->SetMaxIter(max_iter);
+   optsolver->SetAbsTol(atol);
+   optsolver->SetRelTol(rtol);
+   optsolver->SetBounds(y_min, y_max);
+   optsolver->SetLinearConstraint(M_rowsums, tot_mass);
+   optsolver->SetPrintLevel(0);
+   optsolver->Mult(y, y_out);
+
+   delete optsolver;
+
+   y = y_out;
 }
 
 
@@ -356,7 +468,7 @@ void velocity_function(const Vector &x, Vector &v)
          // Translations in 1D, 2D, and 3D
          switch (dim)
          {
-            case 1: v(0) = 1.0; break;
+            case 1: v(0) = (invert_velocity) ? -1.0 : 1.0; break;
             case 2: v(0) = sqrt(2./3.); v(1) = sqrt(1./3.); break;
             case 3: v(0) = sqrt(3./6.); v(1) = sqrt(2./6.); v(2) = sqrt(1./6.);
                break;
@@ -413,8 +525,9 @@ double u0_function(const Vector &x)
       {
          switch (dim)
          {
-            case 1:
-               return exp(-40.*pow(X(0)-0.5,2));
+         case 1:
+            return (X(0) > -0.15 && X(0) < 0.15) ? 1.0 : 0.0;
+            //return exp(-40.*pow(X(0)-0.0,2));
             case 2:
             case 3:
             {
