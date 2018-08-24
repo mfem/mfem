@@ -553,7 +553,7 @@ const
 
 // static method
 inline int NURBSPatchMap::Or2D(const int n1, const int n2,
-                                 const int N1, const int N2, const int Or)
+                               const int N1, const int N2, const int Or)
 {
 
    // Needs testing
