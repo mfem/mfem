@@ -44,6 +44,7 @@ protected:
    /// An array of OCCA devices. Currently only a single device is supported.
    ::occa::device *device;
    std::string okl_path;
+   bool force_cuda_aware_mpi;
 
    void Init(const std::string &engine_spec);
 
@@ -92,6 +93,13 @@ public:
 
    /// TODO: doxygen
    bool CheckFESpace(const PFiniteElementSpace *fes) const;
+
+#ifdef MFEM_USE_MPI
+   void SetForceCudaAwareMPI(bool force = true)
+   { force_cuda_aware_mpi = force; }
+
+   bool GetForceCudaAwareMPI() const { return force_cuda_aware_mpi; }
+#endif
 
    ///@}
    // End: OCCA specific interface

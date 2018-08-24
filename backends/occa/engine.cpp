@@ -57,6 +57,8 @@ void Engine::Init(const std::string &engine_spec)
       fileOpenerRegistered = true;
    }
    // std::cout << "OCCA device properties:\n" << device[0].properties();
+
+   force_cuda_aware_mpi = false;
 }
 
 Engine::Engine(const std::string &engine_spec)

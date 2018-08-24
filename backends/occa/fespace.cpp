@@ -290,6 +290,7 @@ OccaConformingProlongation::OccaConformingProlongation(
 #ifdef MPIX_CUDA_AWARE_SUPPORT
          need_host_buf = !MPIX_Query_cuda_support();
 #endif
+         if (engine.GetForceCudaAwareMPI()) { need_host_buf = false; }
          if (gc.GetGroupTopology().MyRank() == 0)
          {
             mfem::out << "\nOccaConformingProlongation: CUDA-aware MPI: "
