@@ -17,7 +17,9 @@
 #include "interpolation.hpp"
 
 #ifdef MFEM_USE_MPI
+#ifdef OMPI_RELEASE_VERSION
 #include <mpi-ext.h> // Check for cuda support
+#endif
 #endif
 
 namespace mfem
