@@ -32,16 +32,18 @@ class HiopProblemSpec : public hiop::hiopInterfaceDenseConstraints
 {
 
 public:
-  HiopProblemSpec(const MPI_Comm& _comm, const long long& _n_local) 
-    : comm_(_comm), n_local_(_n_local), a_(0.), workVec_(_n_local) 
-  { 
+
+   HiopProblemSpec(const long long& n_loc)
+      : n_(n_loc), n_local_(n_loc), a_(0.), workVec_(n_loc) { }
+
 #ifdef MFEM_USE_MPI
-    int ierr = MPI_Allreduce(&n_local_, &n_, 1, MPI_LONG_LONG_INT, MPI_SUM, comm_);
-    MFEM_ASSERT(ierr==MPI_SUCCESS, "MPI_Allreduce failed with error" << ierr);
-#else
-    n_ = n_local_;
+  HiopProblemSpec(const MPI_Comm& _comm, const long long& _n_local)
+    : comm_(_comm), n_local_(_n_local), a_(0.), workVec_(_n_local)
+  { 
+     int ierr = MPI_Allreduce(&n_local_, &n_, 1, MPI_LONG_LONG_INT, MPI_SUM, comm_);
+     MFEM_ASSERT(ierr==MPI_SUCCESS, "MPI_Allreduce failed with error" << ierr);
+  }
 #endif
-  };
 
   /** problem dimensions: n number of variables, m number of constraints */
   virtual bool get_prob_sizes(long long int& n, long long int& m) {
@@ -209,8 +211,11 @@ public:
     xt_ = _xt;
   };
 
-protected: 
+protected:
+#ifdef MFEM_USE_MPI
   MPI_Comm comm_;
+#endif
+
   //members that store problem info
   long long n_; //number of variables (global)
   long long n_local_; //number of variables (local to the MPI process)
@@ -227,9 +232,13 @@ protected:
 class HiopNlpOptimizer : public OptimizationSolver
 {
 public:
-  HiopNlpOptimizer();
+  HiopNlpOptimizer() : OptimizationSolver(),
+                       optProb_(NULL), is_parallel(false) { }
+
 #ifdef MFEM_USE_MPI
-  HiopNlpOptimizer(MPI_Comm _comm);
+  HiopNlpOptimizer(MPI_Comm _comm) : OptimizationSolver(_comm),
+                                     optProb_(NULL), is_parallel(true),
+                                     comm_(_comm) { }
 #endif
   virtual ~HiopNlpOptimizer();
 
@@ -244,10 +253,13 @@ private:
   void allocHiopProbSpec(const long long& numvars);
 
 private:
+  HiopProblemSpec* optProb_;
+  const bool is_parallel;
+
 #ifdef MFEM_USE_MPI
   MPI_Comm comm_;
 #endif
-  HiopProblemSpec* optProb_;
+
 }; //end of hiop class
 
 

@@ -27,21 +27,7 @@
 using namespace hiop;
 
 namespace mfem
-{ 
-
-
-HiopNlpOptimizer::HiopNlpOptimizer()
-  : optProb_(NULL)
 {
-}
-
-#ifdef MFEM_USE_MPI
-HiopNlpOptimizer::HiopNlpOptimizer(MPI_Comm _comm) 
-  : OptimizationSolver(_comm), comm_(_comm), optProb_(NULL)
-
-{
-};
-#endif
 
 HiopNlpOptimizer::~HiopNlpOptimizer()
 {
@@ -55,7 +41,7 @@ void HiopNlpOptimizer::Mult(const Vector &xt, Vector &x) const
 
   hiop::hiopNlpDenseConstraints hiopInstance(*optProb_);
   hiopInstance.options->SetNumericValue("tolerance", 1e-7);
-  hiopInstance.options->SetIntegerValue("verbosity_level", 0); //0: no output; 3: not too much 
+  hiopInstance.options->SetIntegerValue("verbosity_level", 0); //0: no output; 3: not too much
 
   //use the IPM solver
   hiop::hiopAlgFilterIPM solver(&hiopInstance);
@@ -84,9 +70,19 @@ void HiopNlpOptimizer::SetLinearConstraint(const Vector &_w, double _a)
   optProb_->setLinearConstraint(_w, _a);
 }
 
-void HiopNlpOptimizer::allocHiopProbSpec(const long long& numvars) {
-  MFEM_ASSERT(optProb_==NULL, "HiopProbSpec object already created");
-  optProb_ = new HiopProblemSpec(comm_, numvars);
+void HiopNlpOptimizer::allocHiopProbSpec(const long long& numvars)
+{
+   MFEM_ASSERT(optProb_==NULL, "HiopProbSpec object already created");
+
+#ifdef MFEM_USE_MPI
+   if (is_parallel)
+   {
+      optProb_ = new HiopProblemSpec(comm_, numvars);
+   }
+   else { optProb_ = new HiopProblemSpec(numvars); }
+#else
+   optProb_ = new HiopProblemSpec(numvars);
+#endif
 };
 
 
