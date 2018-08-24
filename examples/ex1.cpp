@@ -190,7 +190,7 @@ int main(int argc, char *argv[])
    }
    else 
    {
-      a->AddDomainIntegrator(new Diffusion2Integrator(one));
+      a->AddDomainIntegrator(new DiffusionIntegrator(one));
    }
 
    // 9. Assemble the bilinear form and the corresponding linear system,
