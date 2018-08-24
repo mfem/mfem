@@ -46,10 +46,9 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
-   int order = -1;
+   int order = 1;
    bool static_cond = false;
    bool visualization = 1;
-   bool ibp = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -62,11 +61,6 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-
-   args.AddOption(&ibp, "-ibp", "--ibp", "-no-ibp",
-                  "--no-ibp",
-                  "Enable or disable integration by parts.");
-
    args.Parse();
    if (!args.Good())
    {
@@ -85,46 +79,19 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
-/*   {
+   {
       int ref_levels =
-         (int)floor(log(5000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
    }
-*/
+
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
-   FiniteElementCollection *fec = NULL;
-   NURBSExtension *NURBSext = NULL;
-   if (order <= 0)
-   {
-      if (mesh->GetNodes())
-      {
-         fec = mesh->GetNodes()->OwnFEC();
-         cout << "Using isoparametric FEs: " << fec->Name() << endl;
-      }
-      else
-      {
-         fec = new H1_FECollection(order = 1, dim);
-      }
-   }
-   else
-   {
-      if (mesh->NURBSext)
-      {
-         fec = new NURBSFECollection(order);
-         NURBSext = new NURBSExtension(mesh->NURBSext, order);
-      }
-      else
-      {
-         fec = new H1_FECollection(order, dim);
-      }
-   }
-
-   /*
+   FiniteElementCollection *fec;
    if (order > 0)
    {
       fec = new H1_FECollection(order, dim);
@@ -137,8 +104,8 @@ int main(int argc, char *argv[])
    else
    {
       fec = new H1_FECollection(order = 1, dim);
-   }*/
-   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, NURBSext, fec);
+   }
+   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
 
@@ -151,9 +118,6 @@ int main(int argc, char *argv[])
    {
       Array<int> ess_bdr(mesh->bdr_attributes.Max());
       ess_bdr = 1;
-     // ess_bdr[0] = 0;
-     // ess_bdr[1] = 1;
-      ess_bdr.Print();
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
@@ -163,15 +127,6 @@ int main(int argc, char *argv[])
    LinearForm *b = new LinearForm(fespace);
    ConstantCoefficient one(1.0);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
-
-   //  Array<int> neu_bdr(mesh->bdr_attributes.Max());
-   //  neu_bdr[0] = 1;
-   //   neu_bdr[1] = 0;
-   //   M->AddBoundaryIntegrator(new BoundaryMassIntegrator(*oog), fs_bdr);
-   //   b->AddBoundaryIntegrator(new BoundaryLFIntegrator(one));//,neu_bdr);
-  // ConstantCoefficient zero(0.0);
-  // b->AddBdrFaceIntegrator(new BoundaryLFIntegrator(zero));//,neu_bdr);
-
    b->Assemble();
 
    // 7. Define the solution vector x as a finite element grid function
@@ -184,14 +139,7 @@ int main(int argc, char *argv[])
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
    BilinearForm *a = new BilinearForm(fespace);
-   if (ibp)
-   {
-      a->AddDomainIntegrator(new DiffusionIntegrator(one));
-   }
-   else 
-   {
-      a->AddDomainIntegrator(new DiffusionIntegrator(one));
-   }
+   a->AddDomainIntegrator(new DiffusionIntegrator(one));
 
    // 9. Assemble the bilinear form and the corresponding linear system,
    //    applying any necessary transformations such as: eliminating boundary
@@ -200,27 +148,17 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
-ess_tdof_list.Print();
    SparseMatrix A;
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-B.Print();
-//A.Print(); 
-
-  for (int i = 0; i < ess_tdof_list.Size(); i++)
-   {
-      A.EliminateRowCol(ess_tdof_list[i]);
-   }
-
-A.Print(); 
 
    cout << "Size of linear system: " << A.Height() << endl;
 
 #ifndef MFEM_USE_SUITESPARSE
    // 10. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //     solve the system A X = B with PCG.
-   DSmoother M(A);
-   GMRES(A, M, B, X, 1, 200,100, 1e-12, 0.0);
+   GSSmoother M(A);
+   PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
 #else
    // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;
@@ -229,25 +167,17 @@ A.Print();
    umf_solver.Mult(B, X);
 #endif
 
-X.Print(); 
    // 11. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
-x.Print(); 
 
-   // 12 a. Save the refined mesh and the solution.
-   //       This output can be viewed later using
-   //  GLVis: "glvis -m refined.mesh -g sol.gf"
-   //  visit: "visit -o Example1_000000.mfem_root"
+   // 12. Save the refined mesh and the solution. This output can be viewed later
+   //     using GLVis: "glvis -m refined.mesh -g sol.gf".
    ofstream mesh_ofs("refined.mesh");
    mesh_ofs.precision(8);
    mesh->Print(mesh_ofs);
    ofstream sol_ofs("sol.gf");
    sol_ofs.precision(8);
    x.Save(sol_ofs);
-
-   VisItDataCollection visit_dc("Example1", mesh);
-   visit_dc.RegisterField("solution", &x);
-   visit_dc.Save();
 
    // 13. Send the solution by socket to a GLVis server.
    if (visualization)

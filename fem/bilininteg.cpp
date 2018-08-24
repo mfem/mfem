@@ -396,11 +396,11 @@ void DiffusionIntegrator::AssembleElementMatrix
 
       if (el.Space() == FunctionSpace::rQk)
       {
-         ir = &RefinedIntRules.Get(el.GetGeomType(),order);
+         ir = &RefinedIntRules.Get(el.GetGeomType(), order);
       }
       else
       {
-         ir = &IntRules.Get(el.GetGeomType(),order);
+         ir = &IntRules.Get(el.GetGeomType(), order);
       }
    }
 
@@ -432,7 +432,6 @@ void DiffusionIntegrator::AssembleElementMatrix
          AddMultABt(dshape, dshapedxt, elmat);
       }
    }
-
 }
 
 void DiffusionIntegrator::AssembleElementMatrix2(
@@ -716,6 +715,7 @@ double DiffusionIntegrator::ComputeFluxEnergy
 
    return energy;
 }
+
 
 void MassIntegrator::AssembleElementMatrix
 ( const FiniteElement &el, ElementTransformation &Trans,
