@@ -22,7 +22,22 @@
 #include <mpi.h>
 #include <complex>
 
+#ifdef MFEM_STRUMPACK_SRC
+// Only include Strumpack header when compiling the strumpack.cpp source file
 #include "StrumpackSparseSolverMPIDist.hpp"
+#else
+// Forward declarations to avoid instantiation of strumpack classes
+// whenever strumpack.hpp is included
+namespace strumpack
+{
+template<typename scalar_t, typename index_t> class CSRMatrixMPI;
+template<typename scalar_t, typename index_t>
+class StrumpackSparseSolverMPIDist;
+class KrylovSolver;
+class ReorderingStrategy;
+class MC64Job;
+}
+#endif
 
 namespace mfem
 {
@@ -114,7 +129,7 @@ protected:
 
 public:
    // Default destructor.
-   virtual ~STRUMPACKBaseSolver( void );
+   virtual ~STRUMPACKBaseSolver();
 
    // Factor and solve the linear system y = Op^{-1} x.
    virtual void Mult( const Vector & x, Vector & y ) const = 0;
@@ -187,7 +202,6 @@ protected:
    bool factor_verbose_;
    bool solve_verbose_;
 
-   // const STRUMPACKRowLocMatrix * APtr_;
    strumpack::StrumpackSparseSolverMPIDist<scalar_t, integer_t> * solver_;
 
 }; // mfem::STRUMPACKBaseSolver class
@@ -208,7 +222,7 @@ public:
    STRUMPACKSolver( STRUMPACKRowLocMatrix & A);
 
    // Default destructor.
-   ~STRUMPACKSolver( void );
+   ~STRUMPACKSolver() {}
 
    // Factor and solve the linear system y = Op^{-1} x.
    void Mult( const Vector & x, Vector & y ) const;
@@ -216,13 +230,9 @@ public:
    // Set the operator.
    void SetOperator( const Operator & op );
 
-private:
-   void Init( int argc, char* argv[] );
-
 protected:
 
    const STRUMPACKRowLocMatrix * APtr_;
-   // strumpack::StrumpackSparseSolverMPIDist<double,int> * solver_;
 
 }; // mfem::STRUMPACKSolver class
 
@@ -244,7 +254,7 @@ public:
    STRUMPACKCmplxSolver( STRUMPACKRowLocCmplxMatrix & A);
 
    // Default destructor.
-   ~STRUMPACKCmplxSolver( void );
+   ~STRUMPACKCmplxSolver();
 
    // Factor and solve the linear system y = Op^{-1} x.
    void Mult( const Vector & x, Vector & y ) const;
@@ -252,13 +262,9 @@ public:
    // Set the operator.
    void SetOperator( const Operator & op );
 
-private:
-   void Init( int argc, char* argv[] );
-
 protected:
 
    const STRUMPACKRowLocCmplxMatrix * APtr_;
-   // strumpack::StrumpackSparseSolverMPIDist<complex<double>,int> * solver_;
 
    mutable std::complex<double> * xPtr_;
    mutable std::complex<double> * yPtr_;

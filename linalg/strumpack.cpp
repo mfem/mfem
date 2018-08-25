@@ -14,6 +14,8 @@
 #ifdef MFEM_USE_STRUMPACK
 #ifdef MFEM_USE_MPI
 
+#define MFEM_STRUMPACK_SRC
+
 #include "strumpack.hpp"
 
 using namespace std;
@@ -438,6 +440,11 @@ void STRUMPACKCmplxSolver::SetOperator( const Operator & op )
    height = op.Height();
    width  = op.Width();
 
+   delete [] xPtr_;
+   delete [] yPtr_;
+
+   xPtr_ = new complex<double>[width];
+   yPtr_ = new complex<double>[height];
 }
 
 } // mfem namespace
