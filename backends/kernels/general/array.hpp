@@ -42,7 +42,13 @@ protected:
 
    virtual void DoAssign(const PArray &src, std::size_t item_size);
 
+   virtual void DoMakeRefOffset(const PArray &src,
+                                const std::size_t offset,
+                                const std::size_t size,
+                                const std::size_t item_size);
+   
    // Auxiliary methods ********************************************************
+   
    inline void *GetBuffer() const;
 
    int ResizeData(const Layout *lt, std::size_t item_size);
@@ -65,7 +71,7 @@ public:
    virtual ~Array() { }
 
    inline void MakeRef(Array &master);
-
+   
    Layout &KernelsLayout() const
    { return *static_cast<Layout*>(layout.Get()); }
 

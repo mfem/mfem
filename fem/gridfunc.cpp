@@ -1121,7 +1121,8 @@ void GridFunction::ProjectGridFunction(const GridFunction &src)
                  " incompatible vector dimensions!");
    Array<int> src_vdofs, dest_vdofs;
    Vector src_lvec, dest_lvec(vdim*P.Height());
-
+   
+   Pull(false);
    for (int i = 0; i < mesh->GetNE(); i++)
    {
       src.fes->GetElementVDofs(i, src_vdofs);
@@ -1403,7 +1404,8 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff)
    {
       Array<int> vdofs;
       Vector vals;
-
+      
+      Pull(false);
       for (int i = 0; i < fes->GetNE(); i++)
       {
          fes->GetElementVDofs(i, vdofs);
@@ -1428,7 +1430,8 @@ void GridFunction::ProjectCoefficient(
    int el = -1;
    ElementTransformation *T = NULL;
    const FiniteElement *fe = NULL;
-
+   
+   Pull(false);
    for (int i = 0; i < dofs.Size(); i++)
    {
       int dof = dofs[i], j = fes->GetElementForDof(dof);

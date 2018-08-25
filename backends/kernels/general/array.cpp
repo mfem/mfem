@@ -140,6 +140,20 @@ void Array::DoAssign(const PArray &src, std::size_t item_size)
    pop();
 }
 
+// *****************************************************************************
+void Array::DoMakeRefOffset(const PArray &src,
+                            const std::size_t offset,
+                            const std::size_t size,
+                            const std::size_t item_size){
+   push();
+   const kernels::Array &ksrc = src.As<const kernels::Array>();
+   const std::size_t bytes_size = size * item_size;
+   const std::size_t bytes_offset = offset * item_size;
+   memory m = memory(bytes_size,ksrc.data[bytes_offset]); 
+   data = slice = m;
+   pop();
+}
+
 } // namespace mfem::kernels
 
 } // namespace mfem

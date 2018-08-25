@@ -26,7 +26,9 @@ memory::memory(const std::size_t _bytes, const void *src):
    data((char*)mfem::kernels::kmalloc<char>::operator new(bytes))
 {
    push();
-   assert(src==NULL);
+   if (src){
+      data=(char*)src;
+   }
    pop();
 }
 
