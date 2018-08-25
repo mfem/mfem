@@ -59,7 +59,7 @@ namespace pa
 template < typename Equation, typename Vector = mfem::Vector,
            template<typename, PAOp, typename> class IMPL = DomainMult>
 class PADomainInt
-   : public TensorBilinearFormIntegrator, public IMPL<Equation, Equation::OpName, Vector>
+   : public PAIntegrator<Host>, public IMPL<Equation, Equation::OpName, Vector>
 {
 private:
    typedef IMPL<Equation, Equation::OpName, Vector> Op;
@@ -130,7 +130,7 @@ public:
 template <typename Equation, typename Vector = mfem::Vector,
           template<typename, PAOp, typename> class IMPL = FaceMult>
 class PAFaceInt
-   : public TensorBilinearFormIntegrator, public IMPL<Equation, Equation::FaceOpName, Vector>
+   : public PAIntegrator<Host>, public IMPL<Equation, Equation::FaceOpName, Vector>
 {
 private:
    typedef IMPL<Equation, Equation::FaceOpName, Vector> Op;

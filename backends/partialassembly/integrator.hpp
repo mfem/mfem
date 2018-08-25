@@ -15,12 +15,23 @@
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_PA)
 
 #include "vector.hpp"
+#include "util.hpp"
 
 namespace mfem
 {
 
 namespace pa
 {
+
+template <Location Device>
+class PAIntegrator
+{
+private:
+	typedef VectorType<Device,double> Vector;
+public:
+	virtual void Mult(const Vector& x, Vector& y) const = 0;
+	virtual void MultAdd(const Vector& x, Vector& y) const = 0;
+};
 
 class TensorBilinearFormIntegrator
 {

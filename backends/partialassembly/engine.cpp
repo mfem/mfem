@@ -90,8 +90,8 @@ DVector PAEngine<Device>::MakeVector(PLayout &layout, int type_id) const
    {
    case ScalarId<double>::value:
       return DVector(new VectorType<Device,double>(*lt));
-   case ScalarId<std::complex<double>>::value:
-      return DVector(new VectorType<Device,std::complex<double>>(*lt));
+   // case ScalarId<std::complex<double>>::value:
+   //    return DVector(new VectorType<Device,std::complex<double>>(*lt));
    // case ScalarId<int>::value:
    //    return DVector(new Vector<int>(*lt));
    default:

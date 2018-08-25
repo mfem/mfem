@@ -15,6 +15,7 @@
 
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_PA)
 
+#include "util.hpp"
 #include "padomainkernel.hpp"
 
 namespace mfem
@@ -26,18 +27,21 @@ namespace pa
 template <PAOp OpName>
 class HostDomainKernel;
 
-template <typename Equation, typename Vector>
+template <typename Equation, Location Device>
 class QuadTensorFunc;
 
 template <>
 class HostDomainKernel<BtDB> {
 private:
 	template <typename Equation>
-	using QFunc = QuadTensorFunc<Equation, HostVector<double>>;
+	using QFunc = QuadTensorFunc<Equation, Host>;
+	// typedef QuadTensorFunc<Equation, Host> QFunc;
 	const mfem::FiniteElementSpace& trial_fes, test_fes;
 	Tensor<2> shape1d;//I don't like that this is not const
 	const int dim;
 	const int nbElts;
+	// typedef typename TensorType<TensorDim<Equation>::value, Device>::type Tensor;
+	mutable Tensor<1> D_e;
 public:
 	template <typename Equation>
 	HostDomainKernel(const Equation* eq)
@@ -45,7 +49,9 @@ public:
 		, test_fes(eq->getTestFESpace())
 		, shape1d(eq->getNbDofs1d(), eq->getNbQuads1d())
 		, dim(eq->getDim())
-		, nbElts(eq->getNbElts()) {
+		, nbElts(eq->getNbElts())
+		, D_e()
+		{
 		const TensorBasisElement* tfe(dynamic_cast<const TensorBasisElement*>(trial_fes.GetFE(0)));
 		const Poly_1D::Basis &basis1d = tfe->GetBasis1D();
 		const IntegrationRule& ir1d = eq->getIntRule1d();
@@ -65,6 +71,15 @@ public:
 			{
 				shape1d(i, k) = u(i);
 			}
+		}
+	}
+
+	template <typename Equation>
+	void evalD(const QFunc<Equation>& qfunc, Tensor<2>& D) const {
+		for (int e = 0; e < qfunc.getTrialFESpace().GetNE(); ++e)
+		{
+			D_e.slice(D, e);
+			qfunc.evalD(e, D_e);
 		}
 	}
 

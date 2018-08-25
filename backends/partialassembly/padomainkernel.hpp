@@ -15,8 +15,11 @@
 
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_PA)
 
+#include "util.hpp"
 #include "hostdomainkernel.hpp"
+#include "cudadomainkernel.hpp"
 #include "tensor.hpp"
+#include "vector.hpp"
 
 namespace mfem
 {
@@ -54,40 +57,62 @@ struct TensorDim{
 	static const int value = EltDim<Equation>::value + 1;
 };
 
-template <int Dim, typename Vector>
+template <int Dim, Location Device>
 struct TensorType;
 
 template <int Dim>
-struct TensorType<Dim,HostVector<double>>{
+struct TensorType<Dim,Host>{
 	typedef Tensor<Dim,double> type;
 };
 
-template <>
-struct TensorType<0,HostVector<double>>{
-	typedef double type;
+template <int Dim>
+struct TensorType<Dim,CudaDevice>{
+	typedef double* type;
 };
 
-template <typename Vector>
+// template <>
+// struct TensorType<0,HostVector<double>>{
+// 	typedef double type;
+// };
+
+template <Location Device>
 struct FESpaceType;
 
 template <>
-struct FESpaceType<HostVector<double>>{
-	typedef mfem::FiniteElementSpace type;
+struct FESpaceType<Host>{
+	typedef mfem::FiniteElementSpace& type;
 };
 
-template <typename Vector, bool IsLinear, bool IsTimeConstant>
+class CudaFESpace
+{
+private:
+	int nbElts;
+public:
+	CudaFESpace(mfem::FiniteElementSpace& fes)
+	: nbElts(fes.GetNE())
+	{ }
+
+	int GetNE() { return nbElts; }
+};
+
+template <>
+struct FESpaceType<CudaDevice>{
+	// typedef CudaFESpace type;
+	typedef mfem::FiniteElementSpace& type;
+};
+
+template <Location Device, bool IsLinear, bool IsTimeConstant>
 class MeshJac;
 
 template <>
-class MeshJac<HostVector<double>, false, true>
+class MeshJac<Host, false, true>
 {
 private:
-	const int dim;
 	Tensor<4> J;
 	mutable Tensor<2> locJ;
 public:
 	MeshJac(mfem::FiniteElementSpace& fes, const int dim, const int quads, const int nbElts, const int ir_order)
-	: dim(dim), J(dim, dim, quads, nbElts), locJ() {
+	: J(dim, dim, quads, nbElts), locJ() {
 		locJ.createView(dim,dim);
 		Tensor<1> J1d(J.getData(), J.length());
 		EvalJacobians(dim, &fes, ir_order, J1d);	
@@ -101,7 +126,7 @@ public:
 };
 
 template <>
-class MeshJac<HostVector<double>, true, true>
+class MeshJac<Host, true, true>
 {
 private:
 	Tensor<3> J;
@@ -111,7 +136,7 @@ public:
 	: J(dim, dim, nbElts), locJ() {
 		locJ.createView(dim,dim);
 		//Needlessly expensive
-		MeshJac<HostVector<double>, false, true> Jac(fes,dim,quads,nbElts,ir_order);
+		MeshJac<Host, false, true> Jac(fes,dim,quads,nbElts,ir_order);
 		// Tensor<2> Je(J.getData(),dim,dim);
 		for (int i = 0; i < nbElts; ++i)
 		{
@@ -122,6 +147,25 @@ public:
 	const Tensor<2>& operator()(const int& e, const int& k) const {
 		return locJ.setView(&J(0,0,e));
 	}
+};
+
+template <>
+class MeshJac<CudaDevice, false, true>
+{
+private:
+
+public:
+	__DEVICE__ MeshJac(mfem::FiniteElementSpace& fes, const int dim, const int quads, const int nbElts, const int ir_order)
+	// : J(dim, dim, quads, nbElts), locJ() 
+	{
+		// locJ.createView(dim,dim);
+		// Tensor<1> J1d(J.getData(), J.length());
+		// EvalJacobians(dim, &fes, ir_order, J1d);	
+	}
+
+	__DEVICE__ const Tensor<2>& operator()(const int& e, const int& k) const {
+		// return locJ.setView(&J(0,0,e));
+	}	
 };
 
 //Only for CPU
@@ -136,21 +180,22 @@ struct QuadInfo
 };
 
 //Might only be for CPU too
-template <PAOp Op, typename Vector, bool IsLinear=false, bool IsTimeConstant=true>
+template <PAOp Op, Location Device, bool IsLinear=false, bool IsTimeConstant=true>
 class Equation
 {
 public:
-	typedef Vector VectorType;
+	typedef VectorType<Device,double> Vector;
+	static const Location device = Device;
 	static const PAOp OpName = Op;
 protected:
-	typedef typename TensorType<QuadDimVal<OpName>::value, Vector>::type QuadTensor;
+	typedef typename TensorType<QuadDimVal<OpName>::value, Device>::type QuadTensor;
 private:
-	typedef typename FESpaceType<Vector>::type FESpace;
-	typedef typename TensorType<2, Vector>::type JTensor;
-	FESpace& fes;
+	typedef typename FESpaceType<Device>::type FESpace;
+	typedef typename TensorType<2, Device>::type JTensor;
+	FESpace fes;
 	const IntegrationRule& ir;//FIXME: not yet on GPU
 	const IntegrationRule& ir1d;//FIXME: not yet on GPU
-	MeshJac<Vector,IsLinear,IsTimeConstant> Jac;
+	MeshJac<Device,IsLinear,IsTimeConstant> Jac;
 public:
 	// Equation(mfem::FiniteElementSpace& fes, const IntegrationRule& ir): fes(fes), dim(fes.GetFE(0)->GetDim()), ir(ir) {}
 	Equation(mfem::FiniteElementSpace& fes, const int ir_order)
@@ -175,7 +220,7 @@ public:
 	// }
 };
 
-class TestEq: public Equation<BtDB,HostVector<double>>
+class TestEq: public Equation<BtDB,Host>
 {
 public:
 	TestEq() = delete;
@@ -191,12 +236,16 @@ public:
 	}
 };
 
-class HostMassEq: public Equation<BtDB,HostVector<double>>
+template <Location Device>
+class PAMassEq;
+
+template <>
+class PAMassEq<Host>: public Equation<BtDB,Host>
 {
 public:
-	HostMassEq() = delete;
+	PAMassEq() = delete;
 	// HostMassEq(mfem::FiniteElementSpace& fes, const IntegrationRule& ir): Equation(fes, ir) {}
-	HostMassEq(mfem::FiniteElementSpace& fes, const int ir_order): Equation(fes, ir_order) {}
+	PAMassEq(mfem::FiniteElementSpace& fes, const int ir_order): Equation(fes, ir_order) {}
 
 	void evalD(QuadTensor& D_ek, const int dim, const int k , const int e, ElementTransformation* Tr, const IntegrationPoint& ip, const Tensor<2>& J_ek) const {
 		D_ek = ip.weight * det(J_ek);
@@ -207,14 +256,38 @@ public:
 	}
 };
 
-template <typename Equation, typename Vector>
+#ifdef __NVCC__
+template <>
+class PAMassEq<CudaDevice>: public Equation<BtDB,CudaDevice>
+{
+private:
+	// ConstCoefficient coef;
+
+public:
+	PAMassEq() = delete;
+	PAMassEq(mfem::FiniteElementSpace& fes, const int ir_order): Equation(fes, ir_order) {}
+	// PAMassEq(mfem::FiniteElementSpace& fes, const IntegrationRule& ir): Equation(fes, ir) {}
+	// __HOST__ PAMassEq(mfem::FiniteElementSpace& fes, const int ir_order, mfem::ConstCoefficient& coeff)
+	// : Equation(fes, ir_order), coeff(coeff) {}
+
+	// void evalD(QuadTensor& D_ek, const int dim, const int k , const int e, ElementTransformation* Tr, const IntegrationPoint& ip, const Tensor<2>& J_ek) const {
+	// 	D_ek = ip.weight * det(J_ek);
+	// }
+
+	// __DEVICE__ void evalD(QuadTensor& D_ek, QuadInfo& info) const {
+	// 	D_ek = info.ip.weight * det(info.J_ek) * coeff(info);
+	// }
+};
+#endif
+
+template <typename Equation, Location Device>
 class QuadTensorFunc
 {
 private:
-	typedef typename FESpaceType<Vector>::type FESpace;
-	typedef typename TensorType<EltDim<Equation>::value, Vector>::type Tensor; //Defines the Host/Device Tensor type for quadrature data
-	typedef typename TensorType<QuadDim<Equation>::value, Vector>::type QuadTensor;
-	typedef typename TensorType<2, Vector>::type JTensor;
+	typedef typename FESpaceType<Device>::type FESpace;
+	typedef typename TensorType<EltDim<Equation>::value, Device>::type Tensor; //Defines the Host/Device Tensor type for quadrature data
+	typedef typename TensorType<QuadDim<Equation>::value, Device>::type QuadTensor;
+	typedef typename TensorType<2, Device>::type JTensor;
 	Equation* eq;//Maybe Equation needs to be moved on GPU Device<Equation,Vector>& eq? otherwise Vector could be deduced
 	mutable QuadTensor D_ek;
 public:
@@ -228,7 +301,7 @@ public:
 	const FESpace& getTestFESpace() const { return eq->getTestFESpace(); }
 
 	//This will not work on GPU
-	void evalD(const int e, Tensor& D_e) const {
+	__HOST__ void evalD(const int e, Tensor& D_e) const {
 		ElementTransformation *Tr = eq->getTrialFESpace().GetElementTransformation(e);
 		for (int k = 0; k < eq->getNbQuads(); ++k)
 		{
@@ -239,52 +312,66 @@ public:
 			eq->evalD(D_ek, eq->getDim(), k, e, Tr, ip, J_ek);
 		}
 	}
+
+	#ifdef __NVCC__
+	__DEVICE__ void evalD(const int e, Tensor& D_e){
+		//TODO
+	}
+	#endif
 };
+//Should specialize GPU version
 
-template <typename Vector>
-class PAIntegrator
-{
-public:
-	virtual void Mult(const Vector& x, Vector& y) const = 0;
-	virtual void MultAdd(const Vector& x, Vector& y) const = 0;
-};
-
-
-template <typename Equation, typename Vector>
+template <typename Equation, Location Device>
 struct DomainKernel;
 
 template <typename Equation>
-struct DomainKernel<Equation,HostVector<double>>
+struct DomainKernel<Equation,Host>
 {
 	typedef HostDomainKernel<Equation::OpName> type;
+};
+
+template <typename Equation>
+struct DomainKernel<Equation,CudaDevice>
+{
+	typedef CudaDomainKernel<Equation::OpName> type;
 };
 
 /**
 *	Can be used as a Matrix Free operator
 */
-template <typename Equation, typename Vector>
-class PADomainIntegrator: public PAIntegrator<Vector>
+template <typename Equation, Location Device = Equation::device>
+class PADomainIntegrator: public PAIntegrator<Device>
 {
 private:
-	typedef typename TensorType<TensorDim<Equation>::value, Vector>::type Tensor;
-	typedef typename TensorType<EltDim<Equation>::value, Vector>::type EltTensor;
-	typedef QuadTensorFunc<Equation, Vector> QFunc;
-	typedef typename DomainKernel<Equation, Vector>::type Kernel;
+	typedef VectorType<Device,double> Vector;
+	typedef typename TensorType<TensorDim<Equation>::value, Device>::type Tensor;
+	typedef typename TensorType<EltDim<Equation>::value, Device>::type EltTensor;
+	typedef QuadTensorFunc<Equation, Device> QFunc;
+	typedef typename DomainKernel<Equation, Device>::type Kernel;
 	Kernel kernel;
-	QFunc qfunc;
+	QFunc qfunc;//has to be pointer for GPU
 	mutable EltTensor D_e;
 public:
 	PADomainIntegrator() = delete;
 	PADomainIntegrator(Equation* eq): kernel(eq), qfunc(eq), D_e() { }
 
-	//This is unlikely to work on GPU
 	void evalD(Tensor& D) const {
-		for (int e = 0; e < qfunc.getTrialFESpace().GetNE(); ++e)
-		{
-			D_e.slice(D, e);
-			qfunc.evalD(e, D_e);
-		}
-	}
+		kernel.evalD(qfunc, D);
+	}	
+
+	// __HOST__ void evalD(Tensor& D) const {
+	// 	for (int e = 0; e < qfunc.getTrialFESpace().GetNE(); ++e)
+	// 	{
+	// 		D_e.slice(D, e);
+	// 		qfunc.evalD(e, D_e);
+	// 	}
+	// }
+
+	// #ifdef __NVCC
+	// __DEVICE__ void evalD(Tensor& D) const {
+	// 	//TODO
+	// }
+	// #endif
 
 	virtual void Mult(const Vector& x, Vector& y) const {
 		kernel.Mult(qfunc, x, y);
@@ -295,8 +382,8 @@ public:
 	}
 };
 
-template <typename Equation, typename Vector = typename Equation::VectorType>
-PADomainIntegrator<Equation,Vector>* createMFDomainKernel(Equation* eq){ return new PADomainIntegrator<Equation,Vector>(eq); }
+template <typename Equation>
+PADomainIntegrator<Equation>* createMFDomainKernel(Equation* eq){ return new PADomainIntegrator<Equation>(eq); }
 
 static void initFESpaceTensor(const int dim, const int nbQuads, const int nbElts, Tensor<2>& D){
 	D.setSize(nbQuads,nbElts);
@@ -308,28 +395,34 @@ static void initFESpaceTensor(const int dim, const int nbQuads, const int nbElts
 	D.setSize(dim,dim,nbQuads,nbElts);
 }
 
+//FOR GPU
+static void initFESpaceTensor(const int dim, const int nbQuads, const int nbElts, double* D){
+	
+}
+
 /**
 *	Partial Assembly operator
 */
-template <typename Equation, typename Vector>
-class PADomainKernel: public PAIntegrator<Vector>
+template <typename Equation, Location Device = Equation::device>
+class PADomainKernel: public PAIntegrator<Device>
 {
 private:
-	typedef typename TensorType<TensorDim<Equation>::value, Vector>::type Tensor;
-	typedef typename DomainKernel<Equation, Vector>::type Kernel;
-	typedef typename FESpaceType<Vector>::type FESpace;
+	typedef VectorType<Device,double> Vector;
+	typedef typename TensorType<TensorDim<Equation>::value, Device>::type Tensor;
+	typedef typename DomainKernel<Equation, Device>::type Kernel;
+	typedef typename FESpaceType<Device>::type FESpace;
 	Kernel kernel;
-	Tensor D;
+	Tensor D;//has to be a pointer for GPU
 	// const FESpace& trial_fes, test_fes;
 public:
 	PADomainKernel() = delete;
-	//This should work on GPU
-	PADomainKernel(Equation* eq): kernel(eq), D() {
+	//This should work on GPU __HOST__ __DEVICE__
+	__HOST__ __DEVICE__ PADomainKernel(Equation* eq): kernel(eq), D() {
 		const int dim = eq->getDim();
 		const int nbQuads = eq->getNbQuads();
 		const int nbElts = eq->getNbElts();
 		initFESpaceTensor(dim, nbQuads, nbElts, D);
-		PADomainIntegrator<Equation, Vector> integ(eq);
+		PADomainIntegrator<Equation, Device> integ(eq);
 		integ.evalD(D);
 	}
 
@@ -343,14 +436,14 @@ public:
 };
 
 
-template <typename Equation, typename Vector = typename Equation::VectorType>
-PADomainKernel<Equation,Vector>* createPADomainKernel(Equation* eq){ return new PADomainKernel<Equation,Vector>(eq); }
+template <typename Equation>
+PADomainKernel<Equation>* createPADomainKernel(Equation* eq){ return new PADomainKernel<Equation>(eq); }
 
-template <typename Vector>
+template <Location Device>
 class MatrixType;
 
 template <>
-class MatrixType<HostVector<double>>{
+class MatrixType<Host>{
 public:
 	typedef mfem::Array<Tensor<2,double>> type;
 };
@@ -358,16 +451,17 @@ public:
 /**
 *	Local Matrices operator
 */
-template <typename Equation, typename Vector>
-class LocMatKernel: public PAIntegrator<Vector>
+template <typename Equation, Location Device>
+class LocMatKernel: public PAIntegrator<Device>
 {
 private:
-	typedef typename MatrixType<Vector>::type MatrixSet;
+	typedef VectorType<Device,double> Vector;
+	typedef typename MatrixType<Device>::type MatrixSet;
 	MatrixSet A;//We should find a way to accumulate those...
 public:
 	LocMatKernel() = delete;
 	LocMatKernel(Equation& eq) {
-		PADomainIntegrator<Equation, Vector> qfunc(eq);
+		PADomainIntegrator<Equation, Device> qfunc(eq);
 		auto trial_fes = qfunc.getTrialFES();
 		auto test_fes = qfunc.getTestFES();
 		//TODO
@@ -385,11 +479,11 @@ public:
 	}
 };
 
-template <typename Vector>
+template <Location Device>
 class SpMatrixType;
 
 template <>
-class SpMatrixType<HostVector<double>>{
+class SpMatrixType<Host>{
 public:
 	typedef Tensor<2,double> type;
 };
@@ -397,16 +491,17 @@ public:
 /**
 *	Sparse Matrix operator
 */
-template <typename Equation, typename Vector>
-class SpMatKernel: public PAIntegrator<Vector>
+template <typename Equation, Location Device>
+class SpMatKernel: public PAIntegrator<Device>
 {
 private:
-	typedef typename SpMatrixType<Vector>::type SpMat;
+	typedef VectorType<Device,double> Vector;
+	typedef typename SpMatrixType<Device>::type SpMat;
 	SpMat A;
 public:
 	SpMatKernel() = delete;
 	SpMatKernel(Equation& eq) {
-		LocMatKernel<Equation, Vector> locA(eq);
+		LocMatKernel<Equation, Device> locA(eq);
 		A = locA;
 	}
 

@@ -28,13 +28,35 @@ bool Backend::Supports(const std::string &engine_spec) const
 
 mfem::Engine *Backend::Create(const std::string &engine_spec)
 {
-	return new PAEngine<Host>(engine_spec);
+	mfem::Engine* engine = nullptr;
+	if (engine_spec=="Host")
+	{
+		engine = new PAEngine<Host>(engine_spec);
+	}
+	#ifdef __NVCC__
+	else if (engine_spec=="CudaDevice")
+	{
+		engine = new PAEngine<CudaDevice>(engine_spec);
+	}
+	#endif
+	return engine;
 }
 
 #ifdef MFEM_USE_MPI
 mfem::Engine *Backend::Create(MPI_Comm comm, const std::string &engine_spec)
 {
-	return new PAEngine<Host>(comm, engine_spec);
+	mfem::Engine* engine = nullptr;
+	if (engine_spec=="Host")
+	{
+		engine = new PAEngine<Host>(comm, engine_spec);
+	}
+	#ifdef __NVCC__
+	else if (engine_spec=="CudaDevice")
+	{
+		engine = new PAEngine<CudaDevice>(comm, engine_spec);
+	}
+	#endif
+	return engine;
 }
 #endif
 

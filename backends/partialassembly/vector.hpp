@@ -193,8 +193,8 @@ public:
       : PArray(lt), CudaArray(lt, sizeof(T)), PVector(lt)
    { }
 
-   T* GetData() { return Array::GetTypedData<T>(); }
-   const T* GetData() const { return Array::GetTypedData<T>(); }
+   T* GetData() { return this->GetTypedData<T>(); }
+   const T* GetData() const { return this->GetTypedData<T>(); }
 };
 
 template <typename T>
@@ -210,7 +210,7 @@ PVector* CudaVector<T>::DoVectorClone(bool copy_data, void **buffer,
    CudaVector* new_vector = new CudaVector<T>(lay);
    if (copy_data)
    {
-      cudaMemcpy(new_vector->data, this->data, lay.Size()*sizeof(T), cudaMemcpyDeviceToDevice);
+      cudaMemcpy(new_vector->GetData(), this->GetData(), lay.Size()*sizeof(T), cudaMemcpyDeviceToDevice);
    }
    if (buffer)
    {
@@ -220,9 +220,9 @@ PVector* CudaVector<T>::DoVectorClone(bool copy_data, void **buffer,
 }
 
 template <typename T>
-__global__ T dotProdKernel(const int size, const T* v1, const T* v2)
+__global__ void dotProdKernel(const int size, const T* v1, const T* v2, T* res)
 {
-   return 0.0;//TODO
+   *res = 0.0;//TODO
 }
 
 template<typename T>
@@ -231,14 +231,17 @@ void CudaVector<T>::DoDotProduct(const PVector &x, void *result,
 {
    MFEM_ASSERT(result_type_id == ScalarId<T>::value, "The buffer has a different type.");
    const T* data_v1 = this->GetData();
-   const T* data_v2 = x.As<Vector<T>>().GetData();
-   T& result_d = *static_cast<T*>(result);
+   const T* data_v2 = x.As<CudaVector<T>>().GetData();
    const int bsize = 512;
    const int vecsize = layout->Size();
+   T* d_answer;
+   cudaMalloc(&d_answer, sizeof(T));
    int gridsize = vecsize/bsize;
    if (bsize*gridsize < vecsize)
         gridsize += 1;
-   result_d = dotProdKernel<T><<<gridsize,bsize>>>(vecsize,data_v1,data_v2);
+   dotProdKernel<T><<<gridsize,bsize>>>(vecsize,data_v1,data_v2,d_answer);
+   cudaMemcpy(result, d_answer, sizeof(T), cudaMemcpyDeviceToHost); 
+   cudaFree(d_answer);
 }
 
 template <typename T>
@@ -266,8 +269,8 @@ void CudaVector<T>::DoAxpby(const void *a, const PVector &x,
 {
    MFEM_ASSERT(ab_type_id == ScalarId<T>::value, "The buffer has a different type.");
    //TODO assert for the sizes
-   const T& va = *static_cast<const T*>(a);
-   const T& vb = *static_cast<const T*>(b);
+   const T va = *static_cast<const T*>(a);
+   const T vb = *static_cast<const T*>(b);
    const int bsize = 512;
    const int vecsize = layout->Size();
    int gridsize = vecsize/bsize;
@@ -275,15 +278,15 @@ void CudaVector<T>::DoAxpby(const void *a, const PVector &x,
         gridsize += 1;
    T* result = GetData();
    if (va != 0.0 && vb != 0.0) {
-      const T* vx = x.As<Vector<T>>().GetData();
-      const T* vy = y.As<Vector<T>>().GetData();
-      axpbyKernel<T><<<gridsize,bsize>>>(a,vx,b,vy,vecsize,result);
+      const T* vx = x.As<CudaVector<T>>().GetData();
+      const T* vy = y.As<CudaVector<T>>().GetData();
+      axpbyKernel<T><<<gridsize,bsize>>>(va,vx,vb,vy,vecsize,result);
    } else if (va == 0.0) {
-      const T* vy = y.As<Vector<T>>().GetData();
-      axKernel<T><<<gridsize,bsize>>>(b,vy,vecsize,result);
+      const T* vy = y.As<CudaVector<T>>().GetData();
+      axKernel<T><<<gridsize,bsize>>>(vb,vy,vecsize,result);
    } else if (vb == 0.0) {
-      const T* vx = x.As<Vector<T>>().GetData();
-      axKernel<T><<<gridsize,bsize>>>(a,vx,vecsize,result);
+      const T* vx = x.As<CudaVector<T>>().GetData();
+      axKernel<T><<<gridsize,bsize>>>(va,vx,vecsize,result);
    }
 }
 

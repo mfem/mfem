@@ -43,8 +43,7 @@ protected:
    // SharedPtr<const mfem::Engine> engine;
    // mfem::BilinearForm *bform;
 
-   mfem::Array<TensorBilinearFormIntegrator*> tbfi;
-   mfem::Array<PAIntegrator<VectorType<Device,double>>*> pabfi;
+   mfem::Array<PAIntegrator<Device>*> pabfi;
    bool has_assembled;
 
    mutable PAFiniteElementSpace<Device> *trial_fes, *test_fes;
@@ -59,8 +58,7 @@ protected:
                 mfem::Vector &mfem_X, mfem::Vector &mfem_B,
                 int copy_interior = 0) const;
 
-   void AddIntegrator(TensorBilinearFormIntegrator* integrator){ tbfi.Append(integrator); }
-   void AddIntegrator(PAIntegrator<VectorType<Device,double>>* integrator){ pabfi.Append(integrator); }
+   void AddIntegrator(PAIntegrator<Device>* integrator){ pabfi.Append(integrator); }
 
 public:
    /// TODO: doxygen
@@ -68,7 +66,6 @@ public:
       : mfem::PBilinearForm(e, bf),
         // FIXME: for mixed bilinear forms
         mfem::Operator(*bf.FESpace()->GetVLayout().As<LayoutType<Device>>()),
-        tbfi(),
         pabfi(),
         has_assembled(false),
         trial_fes(&bf.FESpace()->Get_PFESpace()->As<PAFiniteElementSpace<Device>>()),
@@ -122,7 +119,7 @@ template <Location Device>
 BilinearForm<Device>::~BilinearForm()
 {
    // Make sure all integrators free their data
-   for (int i = 0; i < tbfi.Size(); i++) delete tbfi[i];
+   for (int i = 0; i < pabfi.Size(); i++) delete pabfi[i];
 }
 
 template <Location Device>
@@ -146,12 +143,13 @@ void BilinearForm<Device>::TransferIntegrators(mfem::Array<mfem::BilinearFormInt
          if (coef) {
             std::cout << "==> with Coefficient" << std::endl;
             typename MassEquation::ArgsCoeff args(*coef);
-            AddIntegrator( new PADomainInt<MassEquation, VectorType<Device,double>>(fes, ir_order, args) );
+            // AddIntegrator( new PADomainInt<MassEquation, VectorType<Device,double>>(fes, ir_order, args) );
          } else {
             std::cout << "==> without Coefficient" << std::endl;
-            typename MassEquation::ArgsEmpty args;
-            AddIntegrator( new PADomainInt<MassEquation, VectorType<Device,double>>(fes, ir_order, args) );
+            // typename MassEquation::ArgsEmpty args;
+            // AddIntegrator( new PADomainInt<MassEquation, VectorType<Device,double>>(fes, ir_order, args) );
             // AddIntegrator( createPADomainKernel(new HostMassEq(*fes, ir_order)) );
+            AddIntegrator( createPADomainKernel(new PAMassEq<Device>(*fes, ir_order)) );
             // AddIntegrator( createMFDomainKernel(new HostMassEq(*fes, ir_order)) );
          }
       }
@@ -162,7 +160,7 @@ void BilinearForm<Device>::TransferIntegrators(mfem::Array<mfem::BilinearFormInt
          Coefficient* coef;
          integ->GetParameters(coef);
          typename DiffusionEquation::Args args(*coef);
-         AddIntegrator( new PADomainInt<DiffusionEquation, VectorType<Device,double>, TensorDomainMult>(fes, ir_order, args) );
+         // AddIntegrator( new PADomainInt<DiffusionEquation, VectorType<Device,double>, TensorDomainMult>(fes, ir_order, args) );
       }
       else if (integ_name == "convection")
       {
@@ -172,7 +170,7 @@ void BilinearForm<Device>::TransferIntegrators(mfem::Array<mfem::BilinearFormInt
          double* alpha;
          integ->GetParameters(u, alpha);
          typename DGConvectionEquation::Args args(*u, *alpha);
-         AddIntegrator( new PADomainInt<DGConvectionEquation, VectorType<Device,double>>(fes, ir_order, args) );
+         // AddIntegrator( new PADomainInt<DGConvectionEquation, VectorType<Device,double>>(fes, ir_order, args) );
       }
       else if (integ_name == "transpose")
       {
@@ -191,7 +189,7 @@ void BilinearForm<Device>::TransferIntegrators(mfem::Array<mfem::BilinearFormInt
             double* beta;
             integ->GetParameters(rho, u, alpha, beta);
             typename DGConvectionEquation::Args args(*u, -(*alpha), *beta);
-            AddIntegrator( new PAFaceInt<DGConvectionEquation, VectorType<Device,double>>(fes, ir_order, args) );
+            // AddIntegrator( new PAFaceInt<DGConvectionEquation, VectorType<Device,double>>(fes, ir_order, args) );
          }
          else
          {
@@ -329,7 +327,6 @@ void BilinearForm<Device>::Mult(const mfem::Vector &x, mfem::Vector &y) const
    trial_fes->ToEVector(x.Get_PVector()->As<VectorType<Device,double>>(), x_local);
 
    y_local.template Fill<double>(0.0);
-   for (int i = 0; i < tbfi.Size(); i++) tbfi[i]->MultAdd(x_local, y_local);
    for (int i = 0; i < pabfi.Size(); i++) pabfi[i]->MultAdd(x_local, y_local);
 
    test_fes->ToLVector(y_local, y.Get_PVector()->As<VectorType<Device,double>>());
