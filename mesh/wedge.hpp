@@ -24,12 +24,6 @@ class Wedge : public Element
 protected:
    int indices[6];
 
-   // Rrefinement not yet supported
-   // int refinement_flag;
-
-   // Not sure what this might be
-   // unsigned transform;
-
 public:
    typedef Geometry::Constants<Geometry::PRISM> geom_t;
 
@@ -45,38 +39,11 @@ public:
    /// Return element's type.
    virtual Type GetType() const { return Element::WEDGE; }
 
-   // void  ParseRefinementFlag(int refinement_edges[2], int &type, int &flag);
-   // void CreateRefinementFlag(int refinement_edges[2], int  type, int  flag = 0);
-
-   // void GetMarkedFace(const int face, int *fv);
-
-   // virtual int GetRefinementFlag() { return refinement_flag; }
-
-   // void SetRefinementFlag(int rf) { refinement_flag = rf; }
-
-   /// Return 1 if the element needs refinement in order to get conforming mesh.
-   // virtual int NeedRefinement(DSTable &v_to_v, int *middle) const;
-
    /// Set the vertices according to the given input.
    virtual void SetVertices(const int *ind);
 
    /// Mark the longest edge by assuming/changing the order of the vertices.
    virtual void MarkEdge(DenseMatrix &pmat) { }
-
-   /** Reorder the vertices so that the longest edge is from vertex 0
-       to vertex 1. If called it should be once from the mesh constructor,
-       because the order may be used later for setting the edges. **/
-   // virtual void MarkEdge(const DSTable &v_to_v, const int *length);
-
-   // virtual void ResetTransform(int tr) { transform = tr; }
-   // virtual unsigned GetTransform() const { return transform; }
-
-   /// Add 'tr' to the current chain of coarse-fine transformations.
-   // virtual void PushTransform(int tr)
-   // { transform = (transform << 3) | (tr + 1); }
-
-   /// Calculate point matrix corresponding to a chain of transformations.
-   // static void GetPointMatrix(unsigned transform, DenseMatrix &pm);
 
    /// Returns the indices of the element's  vertices.
    virtual void GetVertices(Array<int> &v) const;
