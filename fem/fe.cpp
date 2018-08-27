@@ -264,9 +264,9 @@ void FiniteElement::CalcPhysLinLaplacian(ElementTransformation &Trans,
    }
    else if (Dim == 2)
    {
-      scale[2] = Gij(0,0);    // Should be scale [0] -->  Needs debugging??!!
+      scale[0] =   Gij(0,0);
       scale[1] = 2*Gij(0,1);
-      scale[0] = Gij(1,1);    // Should be scale [2] -->  Needs debugging??!!
+      scale[2] =   Gij(1,1);
    }
    else
    {
@@ -307,11 +307,11 @@ void  FiniteElement::CalcPhysHessian(ElementTransformation &Trans,
    }
    else if (Dim == 2)
    {
-      map[0] = 2;  // Should be 0 -->  Needs debugging??!!
+      map[0] = 0;
       map[1] = 1;
 
       map[2] = 1;
-      map[3] = 0;  // Should be 2 -->  Needs debugging??!!
+      map[3] = 2;
    }
    else
    {
@@ -336,7 +336,7 @@ void  FiniteElement::CalcPhysHessian(ElementTransformation &Trans,
 
    // LHM
    DenseMatrix lhm(size,size);
-   DenseMatrix invJ = Trans.InverseJacobian();
+   DenseMatrix invJ = Trans.Jacobian();
    lhm = 0.0;
    for (int i = 0; i < Dim; i++)
    {
