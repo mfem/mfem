@@ -326,7 +326,6 @@ void  FiniteElement::CalcPhysHessian(ElementTransformation &Trans,
    // Gradient in physical coords
    if (Trans.Hessian().FNorm2() > 1e-10)
    {
-      mfem_warning("Hessian computation for non-affine mappings need debugging.");
       DenseMatrix grad(Dof, Dim);
       CalcPhysDShape(Trans, grad);
       DenseMatrix gmap(Dof, size);
