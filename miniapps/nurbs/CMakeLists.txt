@@ -13,11 +13,6 @@ add_mfem_miniapp(nurbs_ex1
   MAIN ex1.cpp
   LIBRARIES mfem)
 
-add_mfem_miniapp(nurbs_ex2
-  MAIN ex2.cpp
-  LIBRARIES mfem)
-
-
 add_test(NAME nurbs_ex1_ser
   COMMAND $<TARGET_FILE:nurbs_ex1> -no-vis)
 
