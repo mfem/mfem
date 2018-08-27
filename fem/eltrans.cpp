@@ -53,18 +53,6 @@ const DenseMatrix &ElementTransformation::EvalInverseJ()
    return invJ;
 }
 
-const DenseMatrix &ElementTransformation::EvalInverseH()
-{
-   mfem_error("ElementTransformation::EvalInverseH not implemented!");
-   // TODO
-   MFEM_ASSERT((EvalState & INVHESS_MASK) == 0, "");
-   Hessian();
-   invH.SetSize(d2Fdx2.Width(), d2Fdx2.Height());
-   if (d2Fdx2.Width() > 0) { CalcInverse(d2Fdx2, invH); }
-   EvalState |= INVHESS_MASK;
-   return invH;
-}
-
 int InverseElementTransformation::FindClosestPhysPoint(
    const Vector& pt, const IntegrationRule &ir)
 {
