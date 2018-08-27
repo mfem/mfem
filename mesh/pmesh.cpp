@@ -3643,7 +3643,7 @@ void ParMesh::HexUniformRefinement()
    UpdateNodes();
 }
 
-void ParMesh::PriUniformRefinement(map<int,int> * )
+void ParMesh::WedgeUniformRefinement(map<int,int> * )
 {
    DeleteFaceNbrData();
 
@@ -3654,12 +3654,12 @@ void ParMesh::PriUniformRefinement(map<int,int> * )
    GetVertexToVertexTable(v_to_v);
    STable3D *faces_tbl = GetFacesTable();
 
-   // call Mesh::PriUniformRefinement so that it won't update the nodes
+   // call Mesh::WedgeUniformRefinement so that it won't update the nodes
    map<int,int> f2qf;
    {
       GridFunction *nodes = Nodes;
       Nodes = NULL;
-      Mesh::PriUniformRefinement(&f2qf);
+      Mesh::WedgeUniformRefinement(&f2qf);
       Nodes = nodes;
    }
 
@@ -3975,7 +3975,7 @@ void ParMesh::Mixed3DUniformRefinement(map<int,int> * )
    GetVertexToVertexTable(v_to_v);
    STable3D *faces_tbl = GetFacesTable();
 
-   // call Mesh::PriUniformRefinement so that it won't update the nodes
+   // call Mesh::WedgeUniformRefinement so that it won't update the nodes
    map<int,int> f2qf;
    {
       GridFunction *nodes = Nodes;
