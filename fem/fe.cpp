@@ -249,7 +249,7 @@ void FiniteElement::CalcPhysLinLaplacian(ElementTransformation &Trans,
    Vector scale(size);
 
    CalcHessian (Trans.GetIntPoint(), hess);
-   MultAAt(Trans.Jacobian(), Gij);
+   MultAAt(Trans.InverseJacobian(), Gij);
 
    if (Dim == 3)
    {
