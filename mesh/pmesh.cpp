@@ -125,7 +125,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
    if (mesh.Nonconforming()) {
 
       pncmesh->Prune();
-      Mesh::InitFromNCMesh(*pncmesh);
+      faces_tbl = Mesh::InitFromNCMesh(*pncmesh);
       pncmesh->OnMeshUpdated(this);
 
       // in the nc case we already have local numbering for the

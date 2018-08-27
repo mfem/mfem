@@ -405,7 +405,7 @@ protected:
    void Make1D(int n, double sx = 1.0);
 
    /// Initialize vertices/elements/boundary/tables from a nonconforming mesh.
-   void InitFromNCMesh(const NCMesh &ncmesh);
+   STable3D* InitFromNCMesh(const NCMesh &ncmesh);
 
    /// Create from a nonconforming mesh.
    explicit Mesh(const NCMesh &ncmesh);
