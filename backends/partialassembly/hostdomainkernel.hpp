@@ -568,7 +568,7 @@ private:
 		       BDGT(quads1d, dofs1d), GDGT(quads1d, dofs1d),
 		       GBDGT(dofs1d, dofs1d), BGDGT(dofs1d, dofs1d);
 		Tensor<3> D_e(dim,dim,quads);
-		Tensor<dim+2> De(dim, dim, quads1d, quads1d);
+		Tensor<dim+2> De(D_e, dim, dim, quads1d, quads1d);
 		for (int e = 0; e < nbElts; e++)
 		{
 			const Tensor<dim> T(U.GetData() + e * dofs, dofs1d, dofs1d);
@@ -603,7 +603,7 @@ private:
 		       GBDGT(quads1d, dofs1d, dofs1d), BGDGT(quads1d, dofs1d, dofs1d), BBDGT(quads1d, dofs1d, dofs1d),
 		       BGBDGT(dofs1d, dofs1d, dofs1d), BBGDGT(dofs1d, dofs1d, dofs1d), GBBDGT(dofs1d, dofs1d, dofs1d);
 		Tensor<3> D_e(dim,dim,quads);
-		Tensor<dim+2> De(dim, dim, quads1d, quads1d, quads1d);
+		Tensor<dim+2> De(D_e, dim, dim, quads1d, quads1d, quads1d);
 		for (int e = 0; e < nbElts; e++)
 		{
 			const Tensor<dim> T(U.GetData() + e * dofs, dofs1d, dofs1d, dofs1d);
@@ -756,7 +756,7 @@ private:
 		       BDGT(quads1d, dofs1d), GDGT(quads1d, dofs1d),
 		       GBDGT(dofs1d, dofs1d), BGDGT(dofs1d, dofs1d);
 		Tensor<3> D_e(dim,dim,quads);
-		Tensor<dim+2> De(dim, dim, quads1d, quads1d);
+		Tensor<dim+2> De(D_e, dim, dim, quads1d, quads1d);
 		for (int e = 0; e < nbElts; e++)
 		{
 			const Tensor<dim> T(U.GetData() + e * dofs, dofs1d, dofs1d);
@@ -791,7 +791,7 @@ private:
 		       GBDGT(quads1d, dofs1d, dofs1d), BGDGT(quads1d, dofs1d, dofs1d), BBDGT(quads1d, dofs1d, dofs1d),
 		       BGBDGT(dofs1d, dofs1d, dofs1d), BBGDGT(dofs1d, dofs1d, dofs1d), GBBDGT(dofs1d, dofs1d, dofs1d);
 		Tensor<3> D_e(dim,dim,quads);
-		Tensor<dim+2> De(dim, dim, quads1d, quads1d, quads1d);
+		Tensor<dim+2> De(D_e, dim, dim, quads1d, quads1d, quads1d);
 		for (int e = 0; e < nbElts; e++)
 		{
 			const Tensor<dim> T(U.GetData() + e * dofs, dofs1d, dofs1d, dofs1d);
