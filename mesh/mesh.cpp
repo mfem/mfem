@@ -611,7 +611,7 @@ void Mesh::GetLocalTriToTetTransformation(
    Transf.FinalizeTransformation();
 }
 
-void Mesh::GetLocalTriToPriTransformation(
+void Mesh::GetLocalTriToWdgTransformation(
    IsoparametricTransformation &Transf, int i)
 {
    DenseMatrix &locpm = Transf.GetPointMat();
@@ -659,7 +659,7 @@ void Mesh::GetLocalQuadToHexTransformation(
    Transf.FinalizeTransformation();
 }
 
-void Mesh::GetLocalQuadToPriTransformation(
+void Mesh::GetLocalQuadToWdgTransformation(
    IsoparametricTransformation &Transf, int i)
 {
    DenseMatrix &locpm = Transf.GetPointMat();
@@ -712,7 +712,7 @@ void Mesh::GetLocalFaceTransformation(
          else
          {
             MFEM_ASSERT(elem_type == Element::WEDGE, "");
-            GetLocalTriToPriTransformation(Transf, info);
+            GetLocalTriToWdgTransformation(Transf, info);
          }
          break;
 
@@ -724,7 +724,7 @@ void Mesh::GetLocalFaceTransformation(
          else
          {
             MFEM_ASSERT(elem_type == Element::WEDGE, "");
-            GetLocalQuadToPriTransformation(Transf, info);
+            GetLocalQuadToWdgTransformation(Transf, info);
          }
          break;
    }
@@ -1106,7 +1106,7 @@ void Mesh::AddTet(const int *vi, int attr)
 #endif
 }
 
-void Mesh::AddPri(const int *vi, int attr)
+void Mesh::AddWedge(const int *vi, int attr)
 {
    elements[NumOfElements++] = new Wedge(vi, attr);
 }
@@ -1137,7 +1137,7 @@ void Mesh::AddHexAsTets(const int *vi, int attr)
 
 void Mesh::AddHexAsWedges(const int *vi, int attr)
 {
-   static const int hex_to_pri[2][6] =
+   static const int hex_to_wdg[2][6] =
    {
       { 0, 1, 2, 4, 5, 6 }, { 0, 2, 3, 4, 6, 7 }
    };
@@ -1147,9 +1147,9 @@ void Mesh::AddHexAsWedges(const int *vi, int attr)
    {
       for (int j = 0; j < 6; j++)
       {
-         ti[j] = vi[hex_to_pri[i][j]];
+         ti[j] = vi[hex_to_wdg[i][j]];
       }
-      AddPri(ti, attr);
+      AddWedge(ti, attr);
    }
 }
 
@@ -6154,7 +6154,7 @@ void Mesh::HexUniformRefinement()
    UpdateNodes();
 }
 
-void Mesh::PriUniformRefinement(map<int,int> * f2qf_ptr)
+void Mesh::WedgeUniformRefinement(map<int,int> * f2qf_ptr)
 {
    int i;
    int * v;
@@ -6563,7 +6563,7 @@ void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr)
                "Mixed element face counts don't match!");
 
    int NumOfTetElems  = 0;
-   int NumOfPriElems  = 0;
+   int NumOfWdgElems  = 0;
    int NumOfHexElems  = 0;
    map<int,int> e2he;
    for (i = 0; i<elements.Size(); i++)
@@ -6574,7 +6574,7 @@ void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr)
             NumOfTetElems++;
             break;
          case Element::WEDGE:
-            NumOfPriElems++;
+            NumOfWdgElems++;
             break;
          case Element::HEXAHEDRON:
             e2he[i] = NumOfHexElems;
@@ -6587,7 +6587,7 @@ void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr)
             break;
       }
    }
-   MFEM_VERIFY(NumOfElements == NumOfTetElems + NumOfPriElems + NumOfHexElems,
+   MFEM_VERIFY(NumOfElements == NumOfTetElems + NumOfWdgElems + NumOfHexElems,
                "Mixed element counts don't match!");
 
    int oedge = NumOfVertices;
@@ -7438,7 +7438,7 @@ void Mesh::UniformRefinement()
             HexUniformRefinement();
             break;
          case Geometry::PRISM:
-            PriUniformRefinement();
+            WedgeUniformRefinement();
             break;
          case Geometry::MIXED:
             if ( Dim == 2 )
@@ -10054,7 +10054,7 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
    Mesh *mesh3d = new Mesh(3, nvt, mesh->GetNE()*nz,
                            mesh->GetNBE()*nz+2*mesh->GetNE());
 
-   bool priMesh = false;
+   bool wdgMesh = false;
    bool hexMesh = false;
 
    // vertices
@@ -10080,7 +10080,7 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
       switch (geom)
       {
          case Geometry::TRIANGLE:
-            priMesh = true;
+            wdgMesh = true;
             for (int j = 0; j < nz; j++)
             {
                int pv[6];
@@ -10091,7 +10091,7 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
                pv[4] = vert[1] * nvz + (j + 1) % nvz;
                pv[5] = vert[2] * nvz + (j + 1) % nvz;
 
-               mesh3d->AddPri(pv, attr);
+               mesh3d->AddWedge(pv, attr);
             }
             break;
          case Geometry::SQUARE:
@@ -10189,7 +10189,7 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
       }
    }
 
-   if ( hexMesh && priMesh )
+   if ( hexMesh && wdgMesh )
    {
       mesh3d->FinalizeMixedMesh(1, 0, false);
    }
@@ -10197,7 +10197,7 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
    {
       mesh3d->FinalizeHexMesh(1, 0, false);
    }
-   else if ( priMesh )
+   else if ( wdgMesh )
    {
       mesh3d->FinalizeWedgeMesh(1, 0, false);
    }
