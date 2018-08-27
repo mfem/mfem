@@ -27,7 +27,7 @@ template <Location Device>
 struct FESpaceType;
 
 template <>
-struct FESpaceType<Host>{
+struct FESpaceType<Host> {
 	typedef mfem::FiniteElementSpace& type;
 };
 
@@ -37,14 +37,14 @@ private:
 	int nbElts;
 public:
 	CudaFESpace(mfem::FiniteElementSpace& fes)
-	: nbElts(fes.GetNE())
+		: nbElts(fes.GetNE())
 	{ }
 
 	int GetNE() { return nbElts; }
 };
 
 template <>
-struct FESpaceType<CudaDevice>{
+struct FESpaceType<CudaDevice> {
 	// typedef CudaFESpace type;
 	typedef mfem::FiniteElementSpace& type;
 };
@@ -60,10 +60,10 @@ private:
 	mutable Tensor<2> locJ;
 public:
 	MeshJac(mfem::FiniteElementSpace& fes, const int dim, const int quads, const int nbElts, const int ir_order)
-	: J(dim, dim, quads, nbElts), locJ() {
-		locJ.createView(dim,dim);
+		: J(dim, dim, quads, nbElts), locJ() {
+		locJ.createView(dim, dim);
 		Tensor<1> J1d(J.getData(), J.length());
-		EvalJacobians(dim, &fes, ir_order, J1d);	
+		EvalJacobians(dim, &fes, ir_order, J1d);
 	}
 
 	const Tensor<2>& operator()(const int& e, const int& k) const {
@@ -81,19 +81,19 @@ private:
 	mutable Tensor<2> locJ;
 public:
 	MeshJac(mfem::FiniteElementSpace& fes, const int dim, const int quads, const int nbElts, const int ir_order)
-	: J(dim, dim, nbElts), locJ() {
-		locJ.createView(dim,dim);
+		: J(dim, dim, nbElts), locJ() {
+		locJ.createView(dim, dim);
 		//Needlessly expensive
-		MeshJac<Host, false, true> Jac(fes,dim,quads,nbElts,ir_order);
+		MeshJac<Host, false, true> Jac(fes, dim, quads, nbElts, ir_order);
 		// Tensor<2> Je(J.getData(),dim,dim);
 		for (int i = 0; i < nbElts; ++i)
 		{
-			locJ.setView(&J(0,0,i)) = Jac(i,0);
+			locJ.setView(&J(0, 0, i)) = Jac(i, 0);
 		}
 	}
 
 	const Tensor<2>& operator()(const int& e, const int& k) const {
-		return locJ.setView(&J(0,0,e));
+		return locJ.setView(&J(0, 0, e));
 	}
 };
 
@@ -104,16 +104,16 @@ private:
 
 public:
 	__DEVICE__ MeshJac(mfem::FiniteElementSpace& fes, const int dim, const int quads, const int nbElts, const int ir_order)
-	// : J(dim, dim, quads, nbElts), locJ() 
+	// : J(dim, dim, quads, nbElts), locJ()
 	{
 		// locJ.createView(dim,dim);
 		// Tensor<1> J1d(J.getData(), J.length());
-		// EvalJacobians(dim, &fes, ir_order, J1d);	
+		// EvalJacobians(dim, &fes, ir_order, J1d);
 	}
 
 	__DEVICE__ const Tensor<2>& operator()(const int& e, const int& k) const {
 		// return locJ.setView(&J(0,0,e));
-	}	
+	}
 };
 
 //Only for CPU
@@ -128,11 +128,11 @@ struct QuadInfo
 };
 
 //Might only be for CPU too
-template <PAOp Op, Location Device, bool IsLinear=false, bool IsTimeConstant=true>
+template <PAOp Op, Location Device, bool IsLinear = false, bool IsTimeConstant = true>
 class Equation
 {
 public:
-	typedef VectorType<Device,double> Vector;
+	typedef VectorType<Device, double> Vector;
 	static const Location device = Device;
 	static const PAOp OpName = Op;
 protected:
@@ -143,14 +143,14 @@ private:
 	FESpace fes;
 	const IntegrationRule& ir;//FIXME: not yet on GPU
 	const IntegrationRule& ir1d;//FIXME: not yet on GPU
-	MeshJac<Device,IsLinear,IsTimeConstant> Jac;
+	MeshJac<Device, IsLinear, IsTimeConstant> Jac;
 public:
 	// Equation(mfem::FiniteElementSpace& fes, const IntegrationRule& ir): fes(fes), dim(fes.GetFE(0)->GetDim()), ir(ir) {}
 	Equation(mfem::FiniteElementSpace& fes, const int ir_order)
-	: fes(fes)
-	, ir(IntRules.Get(fes.GetFE(0)->GetGeomType(), ir_order))
-	, ir1d(IntRules.Get(Geometry::SEGMENT, ir_order))
-	, Jac(fes,fes.GetFE(0)->GetDim(),getNbQuads(),getNbElts(),ir_order) {}
+		: fes(fes)
+		, ir(IntRules.Get(fes.GetFE(0)->GetGeomType(), ir_order))
+		, ir1d(IntRules.Get(Geometry::SEGMENT, ir_order))
+		, Jac(fes, fes.GetFE(0)->GetDim(), getNbQuads(), getNbElts(), ir_order) {}
 
 	const FESpace& getTrialFESpace() const { return fes; }
 	const FESpace& getTestFESpace() const { return fes; }
@@ -158,7 +158,7 @@ public:
 	const int getNbQuads() const { return ir.GetNPoints(); }
 	const int getNbQuads1d() const { return ir1d.GetNPoints(); }
 	const int getNbElts() const {return fes.GetNE(); }
-	const JTensor& getJac(const int e, const int k) const { return Jac(e,k); }
+	const JTensor& getJac(const int e, const int k) const { return Jac(e, k); }
 	const IntegrationPoint& getIntPoint(const int k) const { return ir.IntPoint(k); }
 	const IntegrationRule& getIntRule1d() const { return ir1d; }
 	const int getDim() const { return fes.GetFE(0)->GetDim(); }
@@ -168,27 +168,16 @@ public:
 	// }
 };
 
-class TestEq: public Equation<BtDB,Host>
-{
-public:
-	TestEq() = delete;
-	// TestEq(mfem::FiniteElementSpace& fes, const IntegrationRule& ir): Equation(fes, ir) {}
-	TestEq(mfem::FiniteElementSpace& fes, const int ir_order): Equation(fes, ir_order) {}
-
-	void evalD(QuadTensor& D_ek, QuadInfo& info) const {
-		D_ek = 1.0;
-	}
-
-	void evalD(QuadTensor& D_ek, const int dim, const int k , const int e, ElementTransformation* Tr, const IntegrationPoint& ip, const Tensor<2>& J_ek) const {
-
-	}
-};
-
+/**
+*
+*	MASS EQUATION
+*
+*/
 template <Location Device, typename CoeffStruct = Empty>
 class PAMassEq;
 
 template <>
-class PAMassEq<Host, Empty>: public Equation<BtDB,Host>
+class PAMassEq<Host, Empty>: public Equation<BtDB, Host>
 {
 public:
 	PAMassEq() = delete;
@@ -206,7 +195,7 @@ public:
 
 #ifdef __NVCC__
 template <>
-class PAMassEq<CudaDevice, Empty>: public Equation<BtDB,CudaDevice>
+class PAMassEq<CudaDevice, Empty>: public Equation<BtDB, CudaDevice>
 {
 private:
 	// ConstCoefficient coef;
@@ -230,7 +219,7 @@ public:
 
 //Shoudl accept any coefficient that takes @info as argument and returns a Scalar
 template <typename CoeffStruct>
-class PAMassEq<Host, CoeffStruct>: public Equation<BtDB,Host>
+class PAMassEq<Host, CoeffStruct>: public Equation<BtDB, Host>
 {
 private:
 	CoeffStruct& coeff;
@@ -238,12 +227,12 @@ public:
 	PAMassEq() = delete;
 	// HostMassEq(mfem::FiniteElementSpace& fes, const IntegrationRule& ir): Equation(fes, ir) {}
 	PAMassEq(mfem::FiniteElementSpace& fes, const int ir_order, CoeffStruct& coeff)
-	: Equation(fes, ir_order)
-	, coeff(coeff)
+		: Equation(fes, ir_order)
+		, coeff(coeff)
 	{}
 
 	void evalD(QuadTensor& D_ek, const int dim, const int k , const int e, ElementTransformation* Tr, const IntegrationPoint& ip, const Tensor<2>& J_ek) const {
-		D_ek = ip.weight * det(J_ek) * coeff(dim,k,e,Tr,ip,J_ek);
+		D_ek = ip.weight * det(J_ek) * coeff(dim, k, e, Tr, ip, J_ek);
 	}
 
 	void evalD(QuadTensor& D_ek, QuadInfo& info) const {
@@ -253,18 +242,196 @@ public:
 
 #ifdef __NVCC__
 template <typename CoeffStruct>
-class PAMassEq<CudaDevice, CoeffStruct>: public Equation<BtDB,CudaDevice>
+class PAMassEq<CudaDevice, CoeffStruct>: public Equation<BtDB, CudaDevice>
 {
 private:
 	CoeffStruct coeff;
 public:
 	PAMassEq() = delete;
 	PAMassEq(mfem::FiniteElementSpace& fes, const int ir_order, CoeffStruct& coeff)
-	: Equation(fes, ir_order)
-	, coeff(coeff)
+		: Equation(fes, ir_order)
+		, coeff(coeff)
 	{}
 	// PAMassEq(mfem::FiniteElementSpace& fes, const IntegrationRule& ir): Equation(fes, ir) {}
 	// __HOST__ PAMassEq(mfem::FiniteElementSpace& fes, const int ir_order, mfem::ConstCoefficient& coeff)
+	// : Equation(fes, ir_order), coeff(coeff) {}
+
+	// void evalD(QuadTensor& D_ek, const int dim, const int k , const int e, ElementTransformation* Tr, const IntegrationPoint& ip, const Tensor<2>& J_ek) const {
+	// 	D_ek = ip.weight * det(J_ek);
+	// }
+
+	// __DEVICE__ void evalD(QuadTensor& D_ek, QuadInfo& info) const {
+	// 	D_ek = info.ip.weight * det(info.J_ek) * coeff(info);
+	// }
+};
+#endif
+
+/**
+*
+*	DIFFUSION EQUATION
+*
+*/
+template <Location Device, typename CoeffStruct = Empty>
+class PADiffusionEq;
+
+template <>
+class PADiffusionEq<Host, Empty>: public Equation<GtDG, Host>
+{
+public:
+	PADiffusionEq() = delete;
+	// HostMassEq(mfem::FiniteElementSpace& fes, const IntegrationRule& ir): Equation(fes, ir) {}
+	PADiffusionEq(mfem::FiniteElementSpace& fes, const int ir_order): Equation(fes, ir_order) {}
+
+	void evalD(QuadTensor& D_ek, const int dim, const int k , const int e,
+	           ElementTransformation* Tr, const IntegrationPoint& ip, const Tensor<2>& J_ek) const {
+		//TODO add assert on size of D_ek (dim,dim)
+		Tensor<2> Adj(dim, dim);
+		adjugate(J_ek, Adj);
+		double val = 0.0;
+		double qval = 1.0;
+		double detJ = det(J_ek);
+		qval = 1.0;//args.q.Eval(*Tr, ip);
+		for (int i = 0; i < dim; ++i)
+		{
+			for (int j = 0; j < dim; ++j)
+			{
+				val = 0.0;
+				for (int k = 0; k < dim; ++k)
+				{
+					val += Adj(i, k) * Adj(j, k); //Adj*Adj^T
+					// val += Adj(k,i)*Adj(k,j); //Adj*Adj^T
+				}
+				D_ek(i, j) = ip.weight * qval / detJ * val;
+			}
+		}
+	}
+
+	void evalD(QuadTensor& D_ek, QuadInfo& info) const {
+		//TODO add assert on size of D_ek (dim,dim)
+		const int dim = this->getDim();
+		Tensor<2> Adj(dim, dim);
+		adjugate(info.J_ek, Adj);
+		double val = 0.0;
+		double qval = 1.0;
+		double detJ = det(info.J_ek);
+		qval = 1.0;//args.q.Eval(*Tr, ip);
+		for (int i = 0; i < dim; ++i)
+		{
+			for (int j = 0; j < dim; ++j)
+			{
+				val = 0.0;
+				for (int k = 0; k < dim; ++k)
+				{
+					val += Adj(i, k) * Adj(j, k); //Adj*Adj^T
+					// val += Adj(k,i)*Adj(k,j); //Adj*Adj^T
+				}
+				D_ek(i, j) = info.ip.weight * qval / detJ * val;
+			}
+		}
+	}
+};
+
+#ifdef __NVCC__
+template <>
+class PADiffusionEq<CudaDevice, Empty>: public Equation<GtDG, CudaDevice>
+{
+private:
+	// ConstCoefficient coef;
+
+public:
+	PADiffusionEq() = delete;
+	PADiffusionEq(mfem::FiniteElementSpace& fes, const int ir_order): Equation(fes, ir_order) {}
+	// PADiffusionEq(mfem::FiniteElementSpace& fes, const IntegrationRule& ir): Equation(fes, ir) {}
+	// __HOST__ PADiffusionEq(mfem::FiniteElementSpace& fes, const int ir_order, mfem::ConstCoefficient& coeff)
+	// : Equation(fes, ir_order), coeff(coeff) {}
+
+	// void evalD(QuadTensor& D_ek, const int dim, const int k , const int e, ElementTransformation* Tr, const IntegrationPoint& ip, const Tensor<2>& J_ek) const {
+	// 	D_ek = ip.weight * det(J_ek);
+	// }
+
+	// __DEVICE__ void evalD(QuadTensor& D_ek, QuadInfo& info) const {
+	// 	D_ek = info.ip.weight * det(info.J_ek) * coeff(info);
+	// }
+};
+#endif
+
+//Shoudl accept any coefficient that takes @info as argument and returns a Scalar
+template <typename CoeffStruct>
+class PADiffusionEq<Host, CoeffStruct>: public Equation<GtDG, Host>
+{
+private:
+	CoeffStruct coeff;
+public:
+	PADiffusionEq() = delete;
+	// HostMassEq(mfem::FiniteElementSpace& fes, const IntegrationRule& ir): Equation(fes, ir) {}
+	PADiffusionEq(mfem::FiniteElementSpace& fes, const int ir_order, CoeffStruct& coeff)
+		: Equation(fes, ir_order)
+		, coeff(coeff)
+	{}
+
+	void evalD(QuadTensor& D_ek, const int dim, const int k , const int e,
+	           ElementTransformation* Tr, const IntegrationPoint& ip, const Tensor<2>& J_ek) const {
+		//TODO add assert on size of D_ek (dim,dim)
+		Tensor<2> Adj(dim, dim);
+		adjugate(J_ek, Adj);
+		double val = 0.0;
+		double qval = 1.0;
+		double detJ = det(J_ek);
+		qval = coeff(dim, k, e, Tr, ip, J_ek); //1.0;//args.q.Eval(*Tr, ip);
+		for (int i = 0; i < dim; ++i)
+		{
+			for (int j = 0; j < dim; ++j)
+			{
+				val = 0.0;
+				for (int k = 0; k < dim; ++k)
+				{
+					val += Adj(i, k) * Adj(j, k); //Adj*Adj^T
+					// val += Adj(k,i)*Adj(k,j); //Adj*Adj^T
+				}
+				D_ek(i, j) = ip.weight * qval / detJ * val;
+			}
+		}
+	}
+
+	void evalD(QuadTensor& D_ek, QuadInfo& info) const {
+		//TODO add assert on size of D_ek (dim,dim)
+		const int dim = this->getDim();
+		Tensor<2> Adj(dim, dim);
+		adjugate(info.J_ek, Adj);
+		double val = 0.0;
+		double qval = 1.0;
+		double detJ = det(info.J_ek);
+		qval = coeff(info);//1.0;//args.q.Eval(*Tr, ip);
+		for (int i = 0; i < dim; ++i)
+		{
+			for (int j = 0; j < dim; ++j)
+			{
+				val = 0.0;
+				for (int k = 0; k < dim; ++k)
+				{
+					val += Adj(i, k) * Adj(j, k); //Adj*Adj^T
+					// val += Adj(k,i)*Adj(k,j); //Adj*Adj^T
+				}
+				D_ek(i, j) = info.ip.weight * qval / detJ * val;
+			}
+		}
+	}
+};
+
+#ifdef __NVCC__
+template <typename CoeffStruct>
+class PADiffusionEq<CudaDevice, CoeffStruct>: public Equation<GtDG, CudaDevice>
+{
+private:
+	CoeffStruct coeff;
+public:
+	PADiffusionEq() = delete;
+	PADiffusionEq(mfem::FiniteElementSpace& fes, const int ir_order, CoeffStruct& coeff)
+		: Equation(fes, ir_order)
+		, coeff(coeff)
+	{}
+	// PADiffusionEq(mfem::FiniteElementSpace& fes, const IntegrationRule& ir): Equation(fes, ir) {}
+	// __HOST__ PADiffusionEq(mfem::FiniteElementSpace& fes, const int ir_order, mfem::ConstCoefficient& coeff)
 	// : Equation(fes, ir_order), coeff(coeff) {}
 
 	// void evalD(QuadTensor& D_ek, const int dim, const int k , const int e, ElementTransformation* Tr, const IntegrationPoint& ip, const Tensor<2>& J_ek) const {

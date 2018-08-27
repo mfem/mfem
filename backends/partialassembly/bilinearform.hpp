@@ -21,6 +21,7 @@
 #include "../../fem/bilininteg.hpp"
 #include "partialassemblykernel.hpp"
 #include "integrator.hpp"
+#include "coefficient.hpp"
 
 #include "padomainkernel.hpp"
 
@@ -157,9 +158,11 @@ void BilinearForm<Device>::TransferIntegrators(mfem::Array<mfem::BilinearFormInt
       {
          std::cout << "=> " << integ_name << " Integrator transfered" << std::endl;
          DiffusionIntegrator* integ = dynamic_cast<DiffusionIntegrator*>(bfi[i]);
-         Coefficient* coef;
+         mfem::Coefficient* coef;
          integ->GetParameters(coef);
-         typename DiffusionEquation::Args args(*coef);
+         ConstCoefficient coeff(dynamic_cast<mfem::ConstantCoefficient&>(*coef));
+         AddIntegrator( createPADomainKernel(new PADiffusionEq<Device,ConstCoefficient>(*fes, ir_order,coeff)) );
+         // typename DiffusionEquation::Args args(*coef);
          // AddIntegrator( new PADomainInt<DiffusionEquation, VectorType<Device,double>, TensorDomainMult>(fes, ir_order, args) );
       }
       else if (integ_name == "convection")

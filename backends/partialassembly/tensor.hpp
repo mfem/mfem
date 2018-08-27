@@ -937,6 +937,15 @@ inline void cWiseMult(const Tensor<N, Scalar>& D, const Tensor<N, Scalar>& U, Te
 }
 
 template <typename Scalar>
+inline void cWiseMult(const Tensor<3, Scalar>& D, const Tensor<1, Scalar>& U, Tensor<1, Scalar>& V)
+{
+   for (int i = 0; i < U.length(); ++i)
+   {
+      V[i] = D[i] * U[i];
+   }
+}
+
+template <typename Scalar>
 inline void cWiseMult(const Tensor<3, Scalar>& D,
                       const Tensor<2, Scalar>& BGT, const Tensor<2, Scalar>& GBT,
                       Tensor<2, Scalar>& DGT)

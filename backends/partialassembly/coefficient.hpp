@@ -22,26 +22,37 @@ namespace pa
 {
 
 #include "util.hpp"
+#include "../../fem/coefficient.hpp"
 
-class Coefficient{
-public:
-	static const bool uses_coordinates = false;
-	static const bool uses_jacobians   = false;
-	static const bool uses_attributes  = false;
-};
+// class Coefficient{
+// public:
+// 	static const bool uses_coordinates = false;
+// 	static const bool uses_jacobians   = false;
+// 	static const bool uses_attributes  = false;
+// };
 
-class ConstCoefficient{
+class ConstCoefficient {
 private:
 	typedef double Result;
 	double val;
 public:
-	ConstCoefficient(const mfem::ConstCoefficient& coeff): val(coeff.constant) {}
+	ConstCoefficient(const mfem::ConstantCoefficient& coeff): val(coeff.constant) {}
 
+	//A copy constructor
+	ConstCoefficient(const ConstCoefficient& coeff): val(coeff.val) {}
+
+	//We use a template because what Info contains varies on the Equation
 	template <typename Info>
-	__host__ __device__ Result operator()(const Info& info) const {
+	__HOST__ __DEVICE__ Result operator()(const Info& info) const {
 		return val;
 	}
-}
+
+	//Will be deprecated
+	Result operator()(const int dim, const int k , const int e,
+	                  ElementTransformation* Tr, const IntegrationPoint& ip, const Tensor<2>& J_ek) const {
+		return val;
+	}
+};
 
 // #ifdef __NVCC__
 

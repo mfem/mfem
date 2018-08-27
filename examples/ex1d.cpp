@@ -47,7 +47,7 @@ int main(int argc, char *argv[])
 
    // SharedPtr<Engine> engine(new mfem::occa::Engine(occa_spec));
    // SharedPtr<Engine> engine(new mfem::pa::Engine("hello world"));
-   SharedPtr<Engine> engine(new mfem::pa::Engine());
+   SharedPtr<Engine> engine(mfem::pa::createEngine("Host"));
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
