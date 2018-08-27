@@ -25,7 +25,7 @@ class ElementTransformation
 protected:
    const IntegrationPoint *IntPoint;
    DenseMatrix dFdx, adjJ, invJ;
-   DenseMatrix d2Fdx2, invH;
+   DenseMatrix d2Fdx2;
    double Wght;
    int EvalState;
    enum StateMasks
@@ -34,8 +34,7 @@ protected:
       WEIGHT_MASK   = 2,
       ADJUGATE_MASK = 4,
       INVERSE_MASK  = 8,
-      HESSIAN_MASK  = 16,
-      INVHESS_MASK  = 32
+      HESSIAN_MASK  = 16
    };
    int geom, space_dim;
 
@@ -47,7 +46,7 @@ protected:
    double EvalWeight();
    const DenseMatrix &EvalAdjugateJ();
    const DenseMatrix &EvalInverseJ();
-   const DenseMatrix &EvalInverseH();
+
 public:
    int Attribute, ElementNo;
 
@@ -81,9 +80,6 @@ public:
 
    const DenseMatrix &InverseJacobian()
    { return (EvalState & INVERSE_MASK) ? invJ : EvalInverseJ(); }
-
-   const DenseMatrix &InverseHessian()
-   { return (EvalState & INVHESS_MASK) ? invJ : EvalInverseH(); }
 
    virtual int Order() = 0;
    virtual int OrderJ() = 0;
