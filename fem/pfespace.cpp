@@ -574,12 +574,6 @@ void ParFiniteElementSpace::DivideByGroupSize(double *vec)
 
 GroupCommunicator *ParFiniteElementSpace::ScalarGroupComm()
 {
-   if (Nonconforming())
-   {
-      // MFEM_WARNING("Not implemented for NC mesh.");
-      return NULL;
-   }
-
    GroupCommunicator *gc = new GroupCommunicator(GetGroupTopo());
    if (NURBSext)
    {
