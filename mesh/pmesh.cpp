@@ -274,8 +274,8 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
       Array<int> gvdofs, lvdofs;
       Vector lnodes;
-      element_counter = 0;
-      for (i = 0; i < mesh.GetNE(); i++)
+      int element_counter = 0;
+      for (int i = 0; i < mesh.GetNE(); i++)
          if (partitioning[i] == MyRank)
          {
             Nodes->FESpace()->GetElementVDofs(element_counter, lvdofs);
