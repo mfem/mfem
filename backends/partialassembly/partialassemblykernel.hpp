@@ -56,10 +56,9 @@ namespace pa
 *  The 'IMPL' template parameter allows to switch between different implementations
 *  of the tensor contraction kernels.
 */
-template < typename Equation, typename Vector = mfem::Vector,
-           template<typename, PAOp, typename> class IMPL = DomainMult>
+template < typename Equation, template<typename, PAOp, typename> class IMPL = DomainMult>
 class PADomainInt
-   : public PAIntegrator<Host>, public IMPL<Equation, Equation::OpName, Vector>
+   : public PAIntegrator<Host>, public IMPL<Equation, Equation::OpName, typename PAIntegrator<Host>::Vector>
 {
 private:
    typedef IMPL<Equation, Equation::OpName, Vector> Op;
@@ -115,6 +114,19 @@ public:
       }
    }
 
+   //FIXME we might want to set v to 0.0
+   virtual void Mult(const Vector& u, Vector& v) const
+   {
+      int dim = this->fes->GetFE(0)->GetDim();
+      switch (dim)
+      {
+      case 1: this->Mult1d(u, v); break;
+      case 2: this->Mult2d(u, v); break;
+      case 3: this->Mult3d(u, v); break;
+      default: mfem_error("More than # dimension not yet supported"); break;
+      }
+   }
+
    virtual void ReassembleOperator() { }
 
 };
@@ -127,10 +139,9 @@ public:
 *  A partial assembly Integrator interface class for face integrals.
 *  The template parameters have the same role as for 'PADomainInt'.
 */
-template <typename Equation, typename Vector = mfem::Vector,
-          template<typename, PAOp, typename> class IMPL = FaceMult>
+template <typename Equation, template<typename, PAOp, typename> class IMPL = FaceMult>
 class PAFaceInt
-   : public PAIntegrator<Host>, public IMPL<Equation, Equation::FaceOpName, Vector>
+   : public PAIntegrator<Host>, public IMPL<Equation, Equation::FaceOpName, typename PAIntegrator<Host>::Vector>
 {
 private:
    typedef IMPL<Equation, Equation::FaceOpName, Vector> Op;
@@ -159,6 +170,29 @@ public:
 
    // Perform the action of the BilinearFormIntegrator
    virtual void MultAdd(const Vector& u, Vector& v) const
+   {
+      int dim = this->fes->GetFE(0)->GetDim();
+      switch (dim)
+      {
+      case 1:
+         mfem_error("Not yet implemented");
+         break;
+      case 2:
+         this->EvalInt2D(u, v);
+         this->EvalExt2D(u, v);
+         break;
+      case 3:
+         this->EvalInt3D(u, v);
+         this->EvalExt3D(u, v);
+         break;
+      default:
+         mfem_error("Face Kernel does not exist for this dimension.");
+         break;
+      }
+   }
+
+   //FIXME we might want to set v to 0.0
+   virtual void Mult(const Vector& u, Vector& v) const
    {
       int dim = this->fes->GetFE(0)->GetDim();
       switch (dim)

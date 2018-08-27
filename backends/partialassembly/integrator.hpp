@@ -26,9 +26,8 @@ namespace pa
 template <Location Device>
 class PAIntegrator
 {
-private:
-	typedef VectorType<Device,double> Vector;
 public:
+	typedef VectorType<Device,double> Vector;
 	virtual void Mult(const Vector& x, Vector& y) const = 0;
 	virtual void MultAdd(const Vector& x, Vector& y) const = 0;
 };

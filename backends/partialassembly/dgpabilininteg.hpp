@@ -29,12 +29,6 @@ namespace mfem
 namespace pa
 {
 
-/**
-*  The different operators available for the Kernels
-*/
-enum PAOp { BtDB, BtDG, GtDB, GtDG };
-
-
 class DiffusionEquation
 {
 public:

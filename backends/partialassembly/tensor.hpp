@@ -17,6 +17,7 @@
 
 // #include "bilininteg.hpp"
 // #include <vector>
+#include "util.hpp"
 #include <iostream>
 #include "../../general/error.hpp"
 
@@ -1014,6 +1015,26 @@ inline void cWiseMult(const Tensor<5, Scalar>& D,
 }
 
 typedef Tensor<2, int> IntMatrix;
+
+
+template <int Dim, Location Device>
+struct TensorType;
+
+template <int Dim>
+struct TensorType<Dim,Host>{
+   typedef Tensor<Dim,double> type;
+};
+
+template <int Dim>
+struct TensorType<Dim,CudaDevice>{
+   typedef double* type;
+};
+
+// template <>
+// struct TensorType<0,HostVector<double>>{
+//    typedef double type;
+// };
+
 
 }
 

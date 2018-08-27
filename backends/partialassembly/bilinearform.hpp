@@ -170,7 +170,7 @@ void BilinearForm<Device>::TransferIntegrators(mfem::Array<mfem::BilinearFormInt
          double* alpha;
          integ->GetParameters(u, alpha);
          typename DGConvectionEquation::Args args(*u, *alpha);
-         // AddIntegrator( new PADomainInt<DGConvectionEquation, VectorType<Device,double>>(fes, ir_order, args) );
+         // AddIntegrator( new PADomainInt<DGConvectionEquation>(fes, ir_order, args) );
       }
       else if (integ_name == "transpose")
       {
@@ -189,7 +189,7 @@ void BilinearForm<Device>::TransferIntegrators(mfem::Array<mfem::BilinearFormInt
             double* beta;
             integ->GetParameters(rho, u, alpha, beta);
             typename DGConvectionEquation::Args args(*u, -(*alpha), *beta);
-            // AddIntegrator( new PAFaceInt<DGConvectionEquation, VectorType<Device,double>>(fes, ir_order, args) );
+            // AddIntegrator( new PAFaceInt<DGConvectionEquation>(fes, ir_order, args) );
          }
          else
          {

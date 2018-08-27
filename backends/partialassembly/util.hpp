@@ -26,7 +26,44 @@ namespace pa
 #define __DEVICE__
 #endif
 
+/**
+*  The different operators available for the Kernels
+*/
+enum PAOp { BtDB, BtDG, GtDB, GtDG };
+
 enum Location {Host, CudaDevice};
+
+struct Empty{};
+
+template <PAOp OpName>
+struct QuadDimVal{
+	static const int value = 1;
+};
+
+template <>
+struct QuadDimVal<BtDB>{
+	static const int value = 0;
+};
+
+template <>
+struct QuadDimVal<GtDG>{
+	static const int value = 2;
+};
+
+template <typename Equation>
+struct QuadDim{
+	static const int value = QuadDimVal<Equation::OpName>::value;
+};
+
+template <typename Equation>
+struct EltDim{
+	static const int value = QuadDim<Equation>::value + 1;
+};
+
+template <typename Equation>
+struct TensorDim{
+	static const int value = EltDim<Equation>::value + 1;
+};
 
 }
 
