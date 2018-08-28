@@ -877,9 +877,9 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
             ierr = MatConvert(pA->A,MATIS,MAT_INITIAL_MATRIX,A); PCHKERRQ(pA->A,ierr);
          }
       }
-#if defined(PETSC_HAVE_HYPRE)
       else if (tid == PETSC_MATHYPRE)
       {
+#if defined(PETSC_HAVE_HYPRE)
          if (istrans)
          {
             Mat B;
@@ -891,8 +891,10 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
          {
             ierr = MatConvert(pA->A,MATHYPRE,MAT_INITIAL_MATRIX,A); PCHKERRQ(pA->A,ierr);
          }
-      }
+#else
+         MFEM_ABORT("Reconfigure PETSc with --download-hypre or --with-hypre")
 #endif
+      }
       else if (tid == PETSC_MATSHELL)
       {
          MakeWrapper(comm,&op,A);
@@ -924,14 +926,16 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
 #endif
          CCHKERRQ(pH->GetComm(),ierr);
       }
-#if defined(PETSC_HAVE_HYPRE)
       else if (tid == PETSC_MATHYPRE)
       {
+#if defined(PETSC_HAVE_HYPRE)
          ierr = MatCreateFromParCSR(const_cast<HypreParMatrix&>(*pH),MATHYPRE,
                                     PETSC_USE_POINTER,A);
          CCHKERRQ(pH->GetComm(),ierr);
-      }
+#else
+         MFEM_ABORT("Reconfigure PETSc with --download-hypre or --with-hypre")
 #endif
+      }
       else if (tid == PETSC_MATSHELL)
       {
          MakeWrapper(comm,&op,A);
@@ -1357,6 +1361,20 @@ PetscParMatrix * RAP(PetscParMatrix *A, PetscParMatrix *P)
    PetscParMatrix *out = RAP(P,A,P);
    return out;
 }
+
+PetscParMatrix * RAP(HypreParMatrix *hA, PetscParMatrix *P)
+{
+   PetscParMatrix *out,*A;
+#if defined(PETSC_HAVE_HYPRE)
+   A = new PetscParMatrix(hA,Operator::PETSC_MATHYPRE);
+#else
+   A = new PetscParMatrix(hA);
+#endif
+   out = RAP(P,A,P);
+   delete A;
+   return out;
+}
+
 
 PetscParMatrix * ParMult(const PetscParMatrix *A, const PetscParMatrix *B)
 {

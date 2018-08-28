@@ -170,7 +170,7 @@ protected:
    void MakeWrapper(MPI_Comm comm, const Operator* op, Mat *B);
 
    /// Convert an mfem::Operator into a Mat @a B; @a op can be destroyed unless
-   /// tid == PETSC_MATSHELL
+   /// tid == PETSC_MATSHELL or tid == PETSC_MATHYPRE
    /// if op is a BlockOperator, the operator type is relevant to the individual
    /// blocks
    void ConvertOperator(MPI_Comm comm, const Operator& op, Mat *B,
@@ -205,7 +205,10 @@ public:
    /** @brief Convert a HypreParMatrix @a ha to a PetscParMatrix in the given
        PETSc format @a tid. */
    /** The supported type ids are: Operator::PETSC_MATAIJ,
-       Operator::PETSC_MATIS, and Operator::PETSC_MATSHELL. */
+       Operator::PETSC_MATIS, Operator::PETSC_MATSHELL and
+       Operator::PETSC_MATHYPRE
+       @a ha can be destroyed unless tid == PETSC_MATSHELL or
+       tid == PETSC_MATHYPRE */
    explicit PetscParMatrix(const HypreParMatrix *ha,
                            Operator::Type tid = Operator::PETSC_MATAIJ);
 
@@ -217,6 +220,7 @@ public:
        should not be deleted while the constructed PetscParMatrix is used.
 
        Otherwise, it tries to convert the operator in PETSc's classes.
+       @a op cannot be destroyed if tid == PETSC_MATHYPRE.
 
        In particular, if @a op is a BlockOperator, then a MATNEST Mat object is
        created using @a tid as the type for the blocks.
@@ -359,6 +363,9 @@ PetscParMatrix * RAP(PetscParMatrix *Rt, PetscParMatrix *A, PetscParMatrix *P);
 
 /// Returns the matrix P^t * A * P
 PetscParMatrix * RAP(PetscParMatrix *A, PetscParMatrix *P);
+
+/// Returns the matrix P^t * A * P
+PetscParMatrix * RAP(HypreParMatrix *A, PetscParMatrix *P);
 
 /** @brief Eliminate essential BC specified by @a ess_dof_list from the solution
     @a X to the r.h.s. @a B.
