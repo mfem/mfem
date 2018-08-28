@@ -2622,15 +2622,15 @@ public:
    NURBS2DFiniteElement(int p)
       : NURBSFiniteElement(2, Geometry::SQUARE, (p + 1)*(p + 1), p,
                            FunctionSpace::Qk),
-        u(Dof), du(Dof,2), shape_x(p + 1), shape_y(p + 1), dshape_x(p + 1),
-        dshape_y(p + 1), d2shape_x(p + 1), d2shape_y(p + 1)
+        u(Dof), shape_x(p + 1), shape_y(p + 1), dshape_x(p + 1),
+        dshape_y(p + 1), d2shape_x(p + 1), d2shape_y(p + 1), du(Dof,2)
    { Orders[0] = Orders[1] = p; }
 
    NURBS2DFiniteElement(int px, int py)
       : NURBSFiniteElement(2, Geometry::SQUARE, (px + 1)*(py + 1),
                            std::max(px, py), FunctionSpace::Qk),
-        u(Dof), du(Dof,2), shape_x(px + 1), shape_y(py + 1), dshape_x(px + 1),
-        dshape_y(py + 1), d2shape_x(px + 1), d2shape_y(py + 1)
+        u(Dof), shape_x(px + 1), shape_y(py + 1), dshape_x(px + 1),
+        dshape_y(py + 1), d2shape_x(px + 1), d2shape_y(py + 1), du(Dof,2)
    { Orders[0] = px; Orders[1] = py; }
 
    virtual void SetOrder() const;
@@ -2653,17 +2653,17 @@ public:
    NURBS3DFiniteElement(int p)
       : NURBSFiniteElement(3, Geometry::CUBE, (p + 1)*(p + 1)*(p + 1), p,
                            FunctionSpace::Qk),
-        u(Dof), du(Dof,3), shape_x(p + 1), shape_y(p + 1), shape_z(p + 1),
+        u(Dof), shape_x(p + 1), shape_y(p + 1), shape_z(p + 1),
         dshape_x(p + 1), dshape_y(p + 1), dshape_z(p + 1),
-        d2shape_x(p + 1), d2shape_y(p + 1), d2shape_z(p + 1)
+        d2shape_x(p + 1), d2shape_y(p + 1), d2shape_z(p + 1), du(Dof,3)
    { Orders[0] = Orders[1] = Orders[2] = p; }
 
    NURBS3DFiniteElement(int px, int py, int pz)
       : NURBSFiniteElement(3, Geometry::CUBE, (px + 1)*(py + 1)*(pz + 1),
                            std::max(std::max(px,py),pz), FunctionSpace::Qk),
-        u(Dof), du(Dof,3), shape_x(px + 1), shape_y(py + 1), shape_z(pz + 1),
+        u(Dof), shape_x(px + 1), shape_y(py + 1), shape_z(pz + 1),
         dshape_x(px + 1), dshape_y(py + 1), dshape_z(pz + 1),
-        d2shape_x(px + 1), d2shape_y(py + 1), d2shape_z(pz + 1)
+        d2shape_x(px + 1), d2shape_y(py + 1), d2shape_z(pz + 1), du(Dof,3)
    { Orders[0] = px; Orders[1] = py; Orders[2] = pz; }
 
    virtual void SetOrder() const;
