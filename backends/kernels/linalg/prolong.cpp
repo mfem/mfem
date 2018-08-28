@@ -20,101 +20,19 @@ namespace mfem
 namespace kernels
 {
 
-// *****************************************************************************
-void KernelsMult(const mfem::Operator &op, const kernels::Vector &x,
-                 kernels::Vector &y)
+
+// **************************************************************************
+ProlongationOperator::ProlongationOperator(const kernels::kConformingProlongationOperator *P) :
+   Operator(P->InLayout_(), P->OutLayout_()),
+   pmat(P)
 {
-   push();assert(false);
-   kernels::device device = x.KernelsLayout().KernelsEngine().GetDevice();
-   if (device.hasSeparateMemorySpace()) {
-      assert(false);
-      /*mfem::Vector &hostX = GetHostVector(0, op.Width());
-      mfem::Vector &hostY = GetHostVector(1, op.Height());
-      x.KernelsMem().copyTo(hostX.GetData(), hostX.Size() * sizeof(double));
-      op.Mult(hostX, hostY);
-      y.KernelsMem().copyFrom(hostY.GetData(), hostY.Size() * sizeof(double));*/
-   }
-   else
-   {
-      
-      //dbg("[KernelsMult] op:%dx%d, x:%d, y:%d", op.Width(), op.Height(), x.Size(), y.Size());
-      mfem::Vector hostX((double*) x.KernelsMem().ptr(), op.Width());
-      //dbg("[KernelsMult] hostX:\n");hostX.Print();      
-      //hostX.Pull();      
-      x.KernelsMem().copyTo(hostX.GetData(), hostX.Size() * sizeof(double));
-      //x.KernelsMem().copyFrom(hostX.GetData(), hostX.Size() * sizeof(double));
-      
-      mfem::Vector hostY((double*) y.KernelsMem().ptr(), op.Height());
-      op.Mult(hostX, hostY);
-      
-      //hostY.Pull(false);
-      
-      //dbg("[KernelsMult] hostY:\n");hostY.Print();
-      //assert(false);
-      //y.KernelsMem().copyFrom(hostY.GetData(), hostY.Size() * sizeof(double));
-      //y.KernelsMem().copyTo(hostY.GetData(), hostY.Size() * sizeof(double));
-      hostY.Push();
-      //y.Push();
-      //dbg("[KernelsMult] y:\n");y.Print();
-     }
+   dbg("\n\033[7m P->InLayout_().Size()=%d, P->OutLayout_()=%d\033[m",
+          P->InLayout()->Size(), P->OutLayout()->Size());
+   dbg("\n\033[7m Height()=%d, Width()=%d\033[m",Height(),Width());
+   push();
    pop();
 }
 
-// *****************************************************************************
-void KernelsMultTranspose(const mfem::Operator &op,
-                          const kernels::Vector &x, kernels::Vector &y)
-{
-   push();assert(false);
-   kernels::device device = x.KernelsLayout().KernelsEngine().GetDevice();
-   if (device.hasSeparateMemorySpace())
-   {
-      assert(false);
-      /*
-        mfem::Vector &hostX = GetHostVector(1, op.Height());
-        mfem::Vector &hostY = GetHostVector(0, op.Width());
-        x.KernelsMem().copyTo((void*)hostX.GetData(), hostX.Size() * sizeof(double));
-        op.MultTranspose(hostX, hostY);
-        y.KernelsMem().copyFrom(hostY.GetData(), hostY.Size() * sizeof(double));*/
-   }
-   else
-   {
-      //dbg("[KernelsMultTranspose] op:%dx%d, x:%d, y:%d", op.Height(), op.Width(), x.Size(), y.Size());
-      mfem::Vector hostX((double*) x.KernelsMem().ptr(), op.Height());
-      //hostX.Pull();
-      x.KernelsMem().copyTo(hostX.GetData(), hostX.Size() * sizeof(double));
-      //x.KernelsMem().copyFrom(hostX.GetData(), hostX.Size() * sizeof(double));
-      mfem::Vector hostY((double*) y.KernelsMem().ptr(), op.Width());
-      //hostY.Pull(false);
-      op.MultTranspose(hostX, hostY);
-      // -0.1307 -5.55112e-17 0.1307 -0.14772 -4.85723e-17 0.14772 -0.1307 -6.93889e-17
-      // 0.1307 0.0378933 -5.55112e-17 0.0757866 -0.40912 -0.0378933 0.40912 -0.0757866
-      // -5.55112e-17 0.0378933 -0.40912 0.40912 -0.0378933 0.151573 -0.151573 0.151573
-      // -0.151573
-      //assert(false);
-      //y.KernelsMem().copyFrom(hostY.GetData(), hostY.Size() * sizeof(double));
-      //y.KernelsMem().copyTo(hostY.GetData(), hostY.Size() * sizeof(double));
-      hostY.Push();
-      //dbg("[KernelsMultTranspose] y:\n");y.Print();
-   }
-   pop();
-}
-
-// **************************************************************************
-ProlongationOperator::ProlongationOperator(KernelsSparseMatrix &multOp_,
-                                           KernelsSparseMatrix &multTransposeOp_) :
-   Operator(multOp_),
-   pmat(NULL),
-   multOp(multOp_),
-   multTransposeOp(multTransposeOp_) {}
-
-// **************************************************************************
-ProlongationOperator::ProlongationOperator(Layout &in_layout,
-                                           Layout &out_layout,
-                                           const mfem::Operator *pmat_) :
-   Operator(in_layout, out_layout),
-   pmat(pmat_),
-   multOp(*this),
-   multTransposeOp(*this) {}
 
 // **************************************************************************
 void ProlongationOperator::Mult_(const kernels::Vector &x,
@@ -123,12 +41,27 @@ void ProlongationOperator::Mult_(const kernels::Vector &x,
    push();
    if (kernels::config::Get().IAmAlone()){
       const int N = y.Size();
-      vector_op_set(N, 
-                    (const double*)x.KernelsMem().ptr(),
-                    (double*)y.KernelsMem().ptr());
+      vector_op_set(N, x.GetData(), y.GetData());
+      pop();
+      return;
    }
+
+   if (!kernels::config::Get().DoHostConformingProlongationOperator()){
+      dbg("\n\033[35m[DEVICE::Mult]\033[m");
+      pmat->d_Mult(x, y);
+      pop();
+      return;
+   }else{
+      dbg("\n\033[35m[HOST::Mult]\033[m");
+   }
+   assert(false);
+   //x.Pull();
+   //y.Pull(false);
+   //pmat->Mult(x, y);
+   //y.Push();
    pop();
 }
+
 
 // **************************************************************************
 void ProlongationOperator::MultTranspose_(const kernels::Vector &x,
@@ -137,11 +70,24 @@ void ProlongationOperator::MultTranspose_(const kernels::Vector &x,
    push();
    if (kernels::config::Get().IAmAlone()){
       const int N = y.Size();
-      vector_op_set(N,
-                    (const double*)x.KernelsMem().ptr(),
-                    (double*)y.KernelsMem().ptr());
-
+      vector_op_set(N, x.GetData(), y.GetData());
+      pop();
+      return;
    }
+   
+   if (!kernels::config::Get().DoHostConformingProlongationOperator()){
+      dbg("\n\033[35m[DEVICE::MultTranspose]\033[m");
+      pmat->d_MultTranspose(x, y);
+      pop();
+      return;
+   }else{
+      dbg("\n\033[35m[HOST::MultTranspose]\033[m");
+   }
+   assert(false);
+   //x.Pull();
+   //y.Pull(false);
+   //pmat->MultTranspose(x, y);
+   //y.Push();
    pop();
 }
 

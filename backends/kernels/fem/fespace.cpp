@@ -89,31 +89,35 @@ kFiniteElementSpace(const Engine& e,
    indices = h_indices;
    map = h_map;
 
-   dbg("R");
-   const mfem::SparseMatrix* R = fes->GetRestrictionMatrix();
-   dbg("P");
-   const mfem::Operator* P = fes->GetProlongationMatrix();
-
-   if (!P) {
+   if (kernels::config::Get().IAmAlone()){
+      dbg("\033[7m!P, Switching to IdentityOperator!");
       restrictionOp = new IdentityOperator(KernelsTrueVLayout());
       prolongationOp = new IdentityOperator(KernelsTrueVLayout());
       pop();
       return;
    }
-
+   
+   dbg("\033[7mR");
+   const mfem::SparseMatrix* R = fes->GetRestrictionMatrix();
+   dbg("\033[7mP");
+   const kConformingProlongationOperator *P =
+      new kConformingProlongationOperator(this->GetParFESpace());
+   
    assert(R);
    assert(P);
-   /*const RajaConformingProlongationOperator *P =
-     new RajaConformingProlongationOperator(this->GetParFESpace());*/
 
+   dbg("locals");
    const int mHeight = R->Height();
    const int* I = R->GetI();
    const int* J = R->GetJ();
    int trueCount = 0;
+   
+   dbg("trueCount for-loop");
    for (int i = 0; i < mHeight; ++i) {
       trueCount += ((I[i + 1] - I[i]) == 1); 
    }
-  
+
+   dbg("h_reorderIndices");
    mfem::Array<int> h_reorderIndices(2*trueCount);
    for (int i = 0, trueIdx=0; i < mHeight; ++i) {
       if ((I[i + 1] - I[i]) == 1) {
@@ -127,15 +131,15 @@ kFiniteElementSpace(const Engine& e,
    dbg("*=h");   
    *reorderIndices = h_reorderIndices;
 
-   dbg("restrictionOp");
-   restrictionOp = new kernels::RestrictionOperator(KernelsVLayout(),
-                                                    KernelsTrueVLayout(),
+   dbg("\033[7mRestrictionOperator");
+   assert(R->InLayout().As<Layout>()->Size()==R->Width());
+   assert(R->OutLayout().As<Layout>()->Size()==R->Height());
+   restrictionOp = new kernels::RestrictionOperator(*R->InLayout().As<Layout>(),
+                                                    *R->OutLayout().As<Layout>(),
                                                     reorderIndices);
    
-   dbg("ProlongationOperator");
-   prolongationOp = new kernels::ProlongationOperator(KernelsTrueVLayout(),
-                                                      KernelsVLayout(),
-                                                      P);
+   dbg("\033[7mProlongationOperator");
+   prolongationOp = new kernels::ProlongationOperator(P);
    dbg("done");
    pop();
 }

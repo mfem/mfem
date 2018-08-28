@@ -61,6 +61,7 @@ int Array::ResizeData(const Layout *lt, std::size_t item_size)
 {
    push();
    const std::size_t new_bytes = lt->Size()*item_size;
+   dbg("data.size()=%d, slice.size()=%d & new_bytes=%d", data.size(), slice.size(), new_bytes);
    if (data.size() < new_bytes )
    {
       dbg("Alloc");
@@ -70,7 +71,7 @@ int Array::ResizeData(const Layout *lt, std::size_t item_size)
    }
    else if (slice.size() != new_bytes)
    {
-      dbg("slice");
+      dbg("Slice");
       slice = data.slice(0, new_bytes);
    }
    pop();

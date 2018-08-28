@@ -33,7 +33,7 @@ private:
    int *I = NULL;
    int *J = NULL;
 public:
-   ktable(const Table&);
+   ktable(const mfem::Table&);
    inline int Size() {return size;}
    int RowSize(int i) const { return I[i+1]-I[i]; }
    const int *GetRow(int i) const { return J+I[i]; }

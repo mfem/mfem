@@ -27,7 +27,7 @@ namespace kernels {
     GroupCommunicator(pfes.GroupComm()),
     d_group_ldof(group_ldof),
     d_group_ltdof(group_ltdof),
-    d_group_buf(NULL) {comm_lock=0;}
+    d_group_buf(NULL) {push();comm_lock=0;pop();}
 
   
   // ***************************************************************************
@@ -120,19 +120,19 @@ namespace kernels {
                                                      int group, int layout,
                                                      void (*Op)(OpData<T>)) const  {
     push(PaleGoldenrod);
-    dbg("\t\033[33m[d_ReduceGroupFromBuffer]");
+    dbg("\t[d_ReduceGroupFromBuffer]");
     OpData<T> opd;
     opd.ldata = d_ldata;
     opd.nldofs = group_ldof.RowSize(group);
     opd.nb = 1;
     opd.buf = const_cast<T*>(d_buf);
-    dbg("\t\t\033[33m[d_ReduceGroupFromBuffer] layout 2");
+    dbg("\t\t[d_ReduceGroupFromBuffer] layout 2");
     opd.ldofs = const_cast<int*>(d_group_ltdof.GetRow(group));
     assert(opd.nb == 1);
     // this is the operation to perform: opd.ldata[opd.ldofs[i]] += opd.buf[i];
     // mfem/general/communication.cpp, line 1008
     kAtomicAdd<<<opd.nldofs,1>>>(opd.ldata,opd.ldofs,opd.buf);
-    dbg("\t\t\033[33m[d_ReduceGroupFromBuffer] done");
+    dbg("\t\t[d_ReduceGroupFromBuffer] done");
     pop();
     return d_buf + opd.nldofs;
   }
@@ -149,7 +149,7 @@ namespace kernels {
     push(Moccasin);
     assert(layout==2);
     const int rnk = mfem::kernels::config::Get().Rank();
-    dbg("\033[33;1m[%d-d_BcastBegin]",rnk);
+    dbg("[%d-d_BcastBegin]",rnk);
     int request_counter = 0;
     push(alloc,Moccasin);
     group_buf.SetSize(group_buf_size*sizeof(T));
@@ -157,7 +157,7 @@ namespace kernels {
     if (!d_group_buf){
       push(alloc,Purple);
       d_group_buf = mfem::kernels::kmalloc<T>::operator new(group_buf_size);
-      dbg("\n\033[31;1m[%d-d_ReduceBegin] d_buf cuMemAlloc\033[m",rnk);
+      dbg("[%d-d_ReduceBegin] d_buf cuMemAlloc\033[m",rnk);
       pop();
     }
     T *d_buf = (T*)d_group_buf;
@@ -249,7 +249,7 @@ namespace kernels {
     assert(buf - (T*)group_buf.GetData() == group_buf_size);
     comm_lock = 1; // 1 - locked for Bcast
     num_requests = request_counter;
-    dbg("\033[33;1m[%d-d_BcastBegin] done",rnk);
+    dbg("[%d-d_BcastBegin] done",rnk);
     pop();
   }
 
@@ -261,7 +261,7 @@ namespace kernels {
     if (comm_lock == 0) { return; }
     push(PeachPuff);
     const int rnk = mfem::kernels::config::Get().Rank();
-    dbg("\033[33;1m[%d-d_BcastEnd]",rnk);
+    dbg("[%d-d_BcastEnd]",rnk);
     // The above also handles the case (group_buf_size == 0).
     assert(comm_lock == 1);
     // copy the received data from the buffer to d_ldata, as it arrives
@@ -298,7 +298,7 @@ namespace kernels {
     }
     comm_lock = 0; // 0 - no lock
     num_requests = 0;
-    dbg("\033[33;1m[%d-d_BcastEnd] done",rnk);
+    dbg("[%d-d_BcastEnd] done",rnk);
     pop();
   }
 
@@ -311,7 +311,7 @@ namespace kernels {
     if (group_buf_size == 0) { return; }
     push(PapayaWhip);
     const int rnk = mfem::kernels::config::Get().Rank();
-    dbg("\033[33;1m[%d-d_ReduceBegin]",rnk);
+    dbg("[%d-d_ReduceBegin]",rnk);
 
     int request_counter = 0;
     group_buf.SetSize(group_buf_size*sizeof(T));
@@ -331,7 +331,7 @@ namespace kernels {
           d_buf = d_CopyGroupToBuffer(d_ldata, d_buf, grp_list[i], 0);
           buf += d_buf - d_buf_ini;
         }
-        dbg("\033[33;1m[%d-d_ReduceBegin] MPI_Isend",rnk);
+        dbg("[%d-d_ReduceBegin] MPI_Isend",rnk);
         if (!mfem::kernels::config::Get().Aware()){
           push(ReduceBegin:DtoH,Red);
           mfem::kernels::kmemcpy::rDtoH(buf_start,d_buf_start,(buf-buf_start)*sizeof(T));
@@ -375,7 +375,7 @@ namespace kernels {
         {
           recv_size += group_ldof.RowSize(grp_list[i]);
         }
-        dbg("\033[33;1m[%d-d_ReduceBegin] MPI_Irecv",rnk);
+        dbg("[%d-d_ReduceBegin] MPI_Irecv",rnk);
         push(MPI_Irecv,Orange);
         if (mfem::kernels::config::Get().Aware())
           MPI_Irecv(d_buf,
@@ -404,7 +404,7 @@ namespace kernels {
     assert(buf - (T*)group_buf.GetData() == group_buf_size);
     comm_lock = 2;
     num_requests = request_counter;
-    dbg("\033[33;1m[%d-d_ReduceBegin] done",rnk);
+    dbg("[%d-d_ReduceBegin] done",rnk);
     pop();
   }
 
@@ -417,7 +417,7 @@ namespace kernels {
     if (comm_lock == 0) { return; }
     push(LavenderBlush);
     const int rnk = mfem::kernels::config::Get().Rank();
-    dbg("\033[33;1m[%d-d_ReduceEnd]",rnk);
+    dbg("[%d-d_ReduceEnd]",rnk);
     // The above also handles the case (group_buf_size == 0).
     assert(comm_lock == 2);
     
@@ -450,7 +450,7 @@ namespace kernels {
     }
     comm_lock = 0; // 0 - no lock
     num_requests = 0;
-    dbg("\033[33;1m[%d-d_ReduceEnd] end",rnk);
+    dbg("[%d-d_ReduceEnd] end",rnk);
     pop();
   }
 

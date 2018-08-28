@@ -60,9 +60,7 @@ void kConstrainedOperator::EliminateRHS(const kernels::Vector &x,
    {
       const kernels::Array constraints_list =
          constraintList.Get_PArray()->As<const kernels::Array>();
-      vector_map_dofs(constraintIndices,
-                      (double*)kw.KernelsMem().ptr(),
-                      (const double*)x.KernelsMem().ptr(),
+      vector_map_dofs(constraintIndices, kw.GetData(), x.GetData(),
                       (const int*) constraints_list.KernelsMem().ptr());
    }
    
@@ -73,9 +71,7 @@ void kConstrainedOperator::EliminateRHS(const kernels::Vector &x,
    {
       const kernels::Array constraints_list =
          constraintList.Get_PArray()->As<const kernels::Array>();
-      vector_map_dofs(constraintIndices,
-                      (double*)b.KernelsMem().ptr(),
-                      (const double*)x.KernelsMem().ptr(),
+      vector_map_dofs(constraintIndices, b.GetData(), x.GetData(),
                       (const int*) constraints_list.KernelsMem().ptr());
    }
    pop();
@@ -89,12 +85,14 @@ void kConstrainedOperator::Mult_(const kernels::Vector &x,
 
    if (constraintIndices == 0)
    {
+      dbg("constraintIndices==0");
       mfem::Vector my(y);
       A->Mult(x.Wrap(), my);
       dbg("\033[7;1mdone");
       return;
    }
-   
+
+   assert(false);
    // ex1pd comes here
    const kernels::Array &constraints_list =
       constraintList.Get_PArray()->As<const kernels::Array>();

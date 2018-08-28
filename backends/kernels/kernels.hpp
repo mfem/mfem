@@ -93,13 +93,11 @@
 #include "linalg/operator.hpp"
 #include "linalg/constrained.hpp"
 #include "linalg/sparsemat.hpp"
+#include "linalg/conform.hpp"
 #include "linalg/restrict.hpp"
 #include "linalg/prolong.hpp"
 
 // fem *************************************************************************
-#include "fem/conform.hpp"
-//#include "fem/prolong.hpp"
-//#include "fem/restrict.hpp"
 #include "fem/fespace.hpp"
 #include "fem/gridfunc.hpp"
 #include "fem/kbilinearform.hpp"

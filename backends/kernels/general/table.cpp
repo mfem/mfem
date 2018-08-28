@@ -21,10 +21,9 @@ namespace kernels
 {
 
 // ***************************************************************************
-ktable::ktable(const Table &table)
+ktable::ktable(const mfem::Table &table)
 {
    push();
-   assert(false);
    size = table.Size();
    assert(size > 0);
    const int nnz = table.GetI()[size];

@@ -307,15 +307,22 @@ void CGSolver::UpdateVectors()
       z.SetSize(width);
    }
 }
-
+   
+#define cgd(...) //printf("\n\033[32;1;7m");printf(__VA_ARGS__);printf("\033[m");fflush(0); 
 void CGSolver::Mult(const Vector &b, Vector &x) const
 {
+   //b.Pull();cgd("b:\n"); b.Print();//assert(__FILE__ && __LINE__ && false);
+   //x.Pull();cgd("x:\n"); x.Print();//assert(__FILE__ && __LINE__ && false);
+
    int i;
    double r0, den, nom, nom0, betanom, alpha, beta;
-
+   cgd("CGSolver::Mult");
+   
    if (iterative_mode)
    {
+      cgd("oper->Mult(x, r)");
       oper->Mult(x, r);
+      cgd("r = b - A x");
       r.Axpby(1.0, b, -1.0, r); // r = b - A x
    }
    else
@@ -331,6 +338,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    }
    else
    {
+      cgd("d = r");
       d.Assign(r); // d = r
    }
    nom0 = nom = Dot(d, r);
@@ -351,7 +359,9 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       return;
    }
 
+   cgd("z = A d");
    oper->Mult(d, z);  // z = A d
+   cgd("Dot(z, d)");
    den = Dot(z, d);
    MFEM_ASSERT(IsFinite(den), "den = " << den);
 
@@ -368,14 +378,27 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       return;
    }
 
-   // start iteration
+   cgd("start iteration");
    converged = 0;
    final_iter = max_iter;
    for (i = 1; true; )
    {
       alpha = nom/den;
+      cgd("x = x + alpha d");
+      
+      //x.Pull();cgd("x:\n"); x.Print();//assert(__FILE__ && __LINE__ && false);
+      //d.Pull();cgd("d:\n"); d.Print();//assert(__FILE__ && __LINE__ && false);
+      
       x.Axpby(1.0, x,  alpha, d);     //  x = x + alpha d
+      cgd("Axpby done");
+      
+      //x.Pull();cgd("x:\n"); x.Print();assert(__FILE__ && __LINE__ && false);
+      //cgd(" while(true)"); while(true);
+    
+      cgd("r = r - alpha A d");
       r.Axpby(1.0, r, -alpha, z);     //  r = r - alpha A d
+      
+      //cgd(" while(true)"); while(true);
 
       if (prec)
       {
@@ -384,7 +407,9 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       }
       else
       {
+         cgd("betanom = Dot(r, r);");
          betanom = Dot(r, r);
+         //cgd(" while(true)"); while(true);
       }
       MFEM_ASSERT(IsFinite(betanom), "betanom = " << betanom);
 
@@ -422,9 +447,12 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       }
       else
       {
+         cgd("d.Axpby(1.0, r, beta, d);");
          d.Axpby(1.0, r, beta, d);
       }
+      cgd("z = A d");
       oper->Mult(d, z);       //  z = A d
+      cgd("den = Dot(d, z);");
       den = Dot(d, z);
       MFEM_ASSERT(IsFinite(den), "den = " << den);
       if (den <= 0.0)

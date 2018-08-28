@@ -29,12 +29,12 @@ namespace kernels
 void* kmemcpy::rHtoH(void *dest, const void *src, std::size_t bytes,
                      const bool async)
 {
-   push();
-   dbg(">\033[m");
+   //push();
+   dbg("=\033[m");
    if (bytes==0) { return dest; }
    assert(src); assert(dest);
    std::memcpy(dest,src,bytes);
-   pop();
+   //pop();
    return dest;
 }
 
@@ -42,15 +42,15 @@ void* kmemcpy::rHtoH(void *dest, const void *src, std::size_t bytes,
 void* kmemcpy::rHtoD(void *dest, const void *src, std::size_t bytes,
                      const bool async)
 {
-   push();
+   //push();
    dbg(">\033[m");
    if (bytes==0){
-      pop();
+      //pop();
       return dest;
    }
    assert(src); assert(dest);
    if (!config::Get().Cuda()) {
-      pop();
+      //pop();
       return std::memcpy(dest,src,bytes);
    }
 #ifdef __NVCC__
@@ -60,7 +60,7 @@ void* kmemcpy::rHtoD(void *dest, const void *src, std::size_t bytes,
    }
    else { checkCudaErrors(cuMemcpy((CUdeviceptr)dest,(CUdeviceptr)src,bytes)); }
 #endif
-   pop();
+   //pop();
    return dest;
 }
 
@@ -68,11 +68,11 @@ void* kmemcpy::rHtoD(void *dest, const void *src, std::size_t bytes,
 void* kmemcpy::rDtoH(void *dest, const void *src, std::size_t bytes,
                      const bool async)
 {
-   push();
+   //push();
    dbg("<\033[m");
-   if (bytes==0) { pop(); return dest; }
+   if (bytes==0) { /*pop();*/ return dest; }
    assert(src); assert(dest);
-   if (!config::Get().Cuda()) { pop(); return std::memcpy(dest,src,bytes); }
+   if (!config::Get().Cuda()) { /*pop();*/ return std::memcpy(dest,src,bytes); }
 #ifdef __NVCC__
    if (!config::Get().Uvm())
    {
@@ -80,7 +80,7 @@ void* kmemcpy::rDtoH(void *dest, const void *src, std::size_t bytes,
    }
    else { checkCudaErrors(cuMemcpy((CUdeviceptr)dest,(CUdeviceptr)src,bytes)); }
 #endif
-   pop();
+   //pop();
    return dest;
 }
 
@@ -88,11 +88,11 @@ void* kmemcpy::rDtoH(void *dest, const void *src, std::size_t bytes,
 void* kmemcpy::rDtoD(void *dest, const void *src, std::size_t bytes,
                      const bool async)
 {
-   push();
-   dbg("<\033[m");
-   if (bytes==0) { pop(); return dest; }
+   //push();
+   dbg("=\033[m");
+   if (bytes==0) { /*pop();*/ return dest; }
    assert(src); assert(dest);
-   if (!config::Get().Cuda()) { pop(); return std::memcpy(dest,src,bytes); }
+   if (!config::Get().Cuda()) { /*pop();*/ return std::memcpy(dest,src,bytes); }
 #ifdef __NVCC__
    if (!config::Get().Uvm())
    {
@@ -108,7 +108,7 @@ void* kmemcpy::rDtoD(void *dest, const void *src, std::size_t bytes,
    }
    else { checkCudaErrors(cuMemcpy((CUdeviceptr)dest,(CUdeviceptr)src,bytes)); }
 #endif
-   pop();
+   //pop();
    return dest;
 }
 

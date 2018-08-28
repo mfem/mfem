@@ -43,7 +43,8 @@ void Engine::Init(const std::string &engine_spec)
                                 cuda,
                                 false, // CG on device
                                 uvm,
-                                false, // aware
+#warning CUDA aware @ true
+                                true, // aware
                                 false, // share
                                 false, // occa
                                 false, // hcpo

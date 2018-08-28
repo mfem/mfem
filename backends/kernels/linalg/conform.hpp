@@ -26,19 +26,23 @@ namespace kernels {
 #ifdef MFEM_USE_MPI
 
 // ***************************************************************************
-// * RajaConformingProlongationOperator
+// * kConformingProlongationOperator
 //  **************************************************************************
-class RajaConformingProlongationOperator : public mfem::Operator{
+class kConformingProlongationOperator : public kernels::Operator{
 protected:
    mfem::Array<int> external_ldofs;
    kernels::array<int> d_external_ldofs;
    kCommD *gc;
    int kMaxTh;
 public:
-   RajaConformingProlongationOperator(mfem::ParFiniteElementSpace&);
-   ~RajaConformingProlongationOperator();
-   void d_Mult(const kernels::kvector &x, kernels::kvector &y) const;
-   void d_MultTranspose(const kernels::kvector &x, kernels::kvector &y) const;  
+   kConformingProlongationOperator(mfem::ParFiniteElementSpace&);
+   ~kConformingProlongationOperator();
+   void d_Mult(const kernels::Vector &x, kernels::Vector &y) const;
+   void d_MultTranspose(const kernels::Vector &x, kernels::Vector &y) const;
+   
+   virtual void Mult_(const kernels::Vector &x, kernels::Vector &y) const;
+   virtual void MultTranspose_(const kernels::Vector &x, kernels::Vector &y) const;
+
    virtual void Mult(const mfem::Vector &x, mfem::Vector &y) const;
    virtual void MultTranspose(const mfem::Vector &x, mfem::Vector &y) const;
 };

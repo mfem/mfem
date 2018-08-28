@@ -26,7 +26,7 @@ class Engine : public mfem::Engine
 protected:
    kernels::device *dev=NULL;
 #ifdef MFEM_USE_MPI
-   const MPI_Comm comm = MPI_COMM_SELF;
+   const MPI_Comm comm = MPI_COMM_NULL;
    const MPI_Session *mpi;
    const int world_rank = 0;
    const int world_size = 1;

@@ -21,18 +21,30 @@ namespace kernels {
 #ifdef MFEM_USE_MPI
 
 // ***************************************************************************
-// * RajaConformingProlongationOperator
+// * kConformingProlongationOperator
 // ***************************************************************************
-RajaConformingProlongationOperator::RajaConformingProlongationOperator
-(ParFiniteElementSpace &pfes): mfem::Operator(pfes.GetVSize(),
-                                              pfes.GetTrueVSize()),
-                             external_ldofs(),
-                             d_external_ldofs(Height()-Width()), // size can be 0 here
-                             gc(new kCommD(pfes)),
-                             kMaxTh(0){
+kConformingProlongationOperator::kConformingProlongationOperator
+(ParFiniteElementSpace &pfes): kernels::Operator(*pfes.GetTrueVLayout().As<Layout>(), 
+                                                 *pfes.GetVLayout().As<Layout>()),
+                               external_ldofs(),
+                               //d_external_ldofs(Height()-Width()),
+                               gc(new kCommD(pfes)),
+                               kMaxTh(0){
+   push();
    mfem::Array<int> ldofs;
+   assert(pfes.GetTrueVSize()==pfes.GetTrueVLayout()->Size());   
+   dbg("\033[32;7m GetVSize()=%d, GetTrueVSize()=%d",pfes.GetVSize(), pfes.GetTrueVSize());
+   dbg("\033[32;7m GetVLayout()=%d, GetTrueVLayout()=%d",pfes.GetVLayout()->Size(), pfes.GetTrueVLayout()->Size());
+   dbg("\033[32;7m Height()=%d, Width()=%d",Height(),Width());
+   MPI_Barrier(MPI_COMM_WORLD);
+   
+   assert(Height()>=Width());
+   d_external_ldofs.allocate(Height()-Width());
+      
+   const std::size_t absHmW = abs(Height()-Width());
+   
    Table &group_ldof = gc->GroupLDofTable();
-   external_ldofs.Reserve(Height()-Width());
+   external_ldofs.Reserve(absHmW);
    for (int gr = 1; gr < group_ldof.Size(); gr++)
     {
       if (!gc->GetGroupTopology().IAmMaster(gr)) 
@@ -43,14 +55,15 @@ RajaConformingProlongationOperator::RajaConformingProlongationOperator
     }
     external_ldofs.Sort();
 #ifdef __NVCC__
-    const int HmW=Height()-Width();
-    if (HmW>0)
-      d_external_ldofs=external_ldofs;
+    const int HmW = absHmW;
+    if (HmW>0){
+       d_external_ldofs = external_ldofs;
+    }
 #endif
-    assert(external_ldofs.Size() == Height()-Width());
+    assert(external_ldofs.Size() == absHmW);
     // *************************************************************************
     const int m = external_ldofs.Size();
-    // printf("\n[RajaConformingProlongationOperator] m=%d\n",m);fflush(stdout);
+    //printf("\n[kConformingProlongationOperator] m=%d\n",m);fflush(stdout);
     int j = 0;
     for (int i = 0; i < m; i++) {
       const int end = external_ldofs[i];
@@ -59,15 +72,16 @@ RajaConformingProlongationOperator::RajaConformingProlongationOperator
       //printf(" %d",size);
       j = end+1;
     }
-    //printf("\n[RajaConformingProlongationOperator] kMaxTh=%d",kMaxTh);fflush(stdout);
+    //printf("\n[kConformingProlongationOperator] kMaxTh=%d",kMaxTh);fflush(stdout);
     //gc->PrintInfo(); 
     //pfes.Dof_TrueDof_Matrix()->PrintCommPkg();
+    pop();
   }
 
   // ***************************************************************************
-  // * ~RajaConformingProlongationOperator
+  // * ~kConformingProlongationOperator
   // ***************************************************************************
-  RajaConformingProlongationOperator::~RajaConformingProlongationOperator(){
+  kConformingProlongationOperator::~kConformingProlongationOperator(){
     delete  gc;
   }
 
@@ -109,9 +123,11 @@ RajaConformingProlongationOperator::RajaConformingProlongationOperator
   // ***************************************************************************
   // * Device Mult
   // ***************************************************************************
-void RajaConformingProlongationOperator::d_Mult(const kernels::kvector &x,
-                                                kernels::kvector &y) const{
+void kConformingProlongationOperator::d_Mult(const kernels::Vector &x,
+                                                   kernels::Vector &y) const{
     push(Coral);
+    MFEM_ASSERT(x.Size() == Width(), "x.Size()=" << x.Size()<<", Width()="<<Width());
+    MFEM_ASSERT(y.Size() == Height(), "");
     const double *d_xdata = x.GetData();
     const int in_layout = 2; // 2 - input is ltdofs array
     
@@ -137,9 +153,10 @@ void RajaConformingProlongationOperator::d_Mult(const kernels::kvector &x,
     
     if (m>0){
       const int maxXThDim = mfem::kernels::config::Get().MaxXThreadsDim();
+      dbg("maxXThDim=%d",maxXThDim);
       if (m>maxXThDim){
         const int kTpB=64;
-        //printf("\n[k_Mult] m=%d kMaxTh=%d",m,kMaxTh);
+        printf("\n[k_Mult] m=%d kMaxTh=%d",m,kMaxTh);
         k_Mult<<<(m+kTpB-1)/kTpB,kTpB>>>(d_ydata,d_xdata,d_external_ldofs,m);
         cuLastCheck();
       }else{
@@ -154,7 +171,10 @@ void RajaConformingProlongationOperator::d_Mult(const kernels::kvector &x,
         cuLastCheck();
       }
       j = external_ldofs[m-1]+1;
+    }else{
+       dbg("m<0");
     }
+    dbg("last mfem::kernels::kmemcpy::rDtoD");
     mfem::kernels::kmemcpy::rDtoD(d_ydata+j,d_xdata+j-m,(Width()+m-j)*sizeof(double));
 #endif
     pop();
@@ -196,8 +216,8 @@ void RajaConformingProlongationOperator::d_Mult(const kernels::kvector &x,
   // ***************************************************************************
   // * Device MultTranspose
   // ***************************************************************************
-  void RajaConformingProlongationOperator::d_MultTranspose(const kernels::kvector &x,
-                                                           kernels::kvector &y) const{
+  void kConformingProlongationOperator::d_MultTranspose(const kernels::Vector &x,
+                                                           kernels::Vector &y) const{
     push(Coral);
     const double *d_xdata = x.GetData();
     
@@ -247,10 +267,24 @@ void RajaConformingProlongationOperator::d_Mult(const kernels::kvector &x,
   }
 
   // ***************************************************************************
-  // * Host Mult
+  // * Mult_ & MultTranspose_
   // ***************************************************************************
-   void RajaConformingProlongationOperator::Mult(const mfem::Vector &x,
-                                                 mfem::Vector &y) const{
+   void kConformingProlongationOperator::Mult_(const kernels::Vector &x,
+                                               kernels::Vector &y) const{
+      assert(false);
+   }
+
+   // **************************************************************************
+   void kConformingProlongationOperator::MultTranspose_(const kernels::Vector &x,
+                                                        kernels::Vector &y) const{
+      assert(false);
+   }
+
+   // **************************************************************************
+   // * Host Mult
+   // **************************************************************************   
+   void kConformingProlongationOperator::Mult(const mfem::Vector &x,
+                                              mfem::Vector &y) const{
     push(Coral);
     const double *xdata = x.GetData();
     double *ydata = y.GetData(); 
@@ -276,8 +310,8 @@ void RajaConformingProlongationOperator::d_Mult(const kernels::kvector &x,
   // ***************************************************************************
   // * Host MultTranspose
   // ***************************************************************************
-   void RajaConformingProlongationOperator::MultTranspose(const mfem::Vector &x,
-                                                          mfem::Vector &y) const{
+   void kConformingProlongationOperator::MultTranspose(const mfem::Vector &x,
+                                                       mfem::Vector &y) const{
     push(Coral);
     const double *xdata = x.GetData();
     double *ydata = y.GetData();

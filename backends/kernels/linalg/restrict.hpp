@@ -22,7 +22,7 @@ namespace kernels
 {
 
 // *****************************************************************************
-class RestrictionOperator : public Operator
+class RestrictionOperator : public kernels::Operator
 {
 protected:
    int entries;
