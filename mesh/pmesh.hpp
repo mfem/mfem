@@ -63,8 +63,12 @@ protected:
 
    /// Return a number(0-1) identifying how the given edge has been split
    int GetEdgeSplittings(Element *edge, const DSTable &v_to_v, int *middle);
-   /// Return a number(0-4) identifying how the given face has been split
-   int GetFaceSplittings(Element *face, const DSTable &v_to_v, int *middle);
+   /// Append codes identifying how the given face has been split to @a codes
+   void GetFaceSplittings(Element *face, const HashTable<Hashed2> &v_to_v,
+                          Array<unsigned> &codes);
+
+   bool DecodeFaceSplittings(HashTable<Hashed2> &v_to_v, const int *v,
+                             const Array<unsigned> &codes, int &pos);
 
    void GetFaceNbrElementTransformation(
       int i, IsoparametricTransformation *ElTr);
@@ -105,7 +109,8 @@ public:
            int part_method = 1);
 
    /// Read a parallel mesh, each MPI rank from its own file/stream.
-   ParMesh(MPI_Comm comm, std::istream &input);
+   /** The @a refine parameter is passed to the method Mesh::Finalize(). */
+   ParMesh(MPI_Comm comm, std::istream &input, bool refine = true);
 
    /// Create a uniformly refined (by any factor) version of @a orig_mesh.
    /** @param[in] orig_mesh  The starting coarse mesh.
@@ -184,8 +189,10 @@ public:
    /// Utility function: sum integers from all processors (Allreduce).
    virtual long ReduceInt(int value) const;
 
-   /// Update the groups after tet refinement
+   /// Update the groups after triangle refinement
    void RefineGroups(const DSTable &v_to_v, int *middle);
+   /// Update the groups after tetrahedron refinement
+   void RefineGroups(const HashTable<Hashed2> &v_to_v);
 
    /// Load balance the mesh. NC meshes only.
    void Rebalance();
