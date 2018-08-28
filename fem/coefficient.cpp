@@ -170,6 +170,64 @@ void VectorGridFunctionCoefficient::Eval(
    GridFunc->GetVectorValues(T, ir, M);
 }
 
+GradientGridFunctionCoefficient::GradientGridFunctionCoefficient (
+   GridFunction *gf) : VectorCoefficient (gf -> VectorDim())
+{
+   GridFunc = gf;
+}
+
+void GradientGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
+					   const IntegrationPoint &ip)
+{
+   // Perhaps we should avoid altering T so cache its IntegrationPoint
+   const IntegrationPoint & ipT = T.GetIntPoint();
+   T.SetIntPoint(&ip);
+   GridFunc->GetGradient(T, V);
+   // Reset T's IntegrationPoint
+   T.SetIntPoint(&ipT);
+}
+
+void GradientGridFunctionCoefficient::Eval(
+   DenseMatrix &M, ElementTransformation &T, const IntegrationRule &ir)
+{
+   GridFunc->GetGradients(T.ElementNo, ir, M);
+}
+
+CurlGridFunctionCoefficient::CurlGridFunctionCoefficient (
+   GridFunction *gf) : VectorCoefficient (gf -> VectorDim())
+{
+   GridFunc = gf;
+}
+
+void CurlGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
+				       const IntegrationPoint &ip)
+{
+   // Perhaps we should avoid altering T so cache its IntegrationPoint
+   const IntegrationPoint & ipT = T.GetIntPoint();
+   T.SetIntPoint(&ip);
+   GridFunc->GetCurl(T, V);
+   // Reset T's IntegrationPoint
+   T.SetIntPoint(&ipT);
+}
+
+DivergenceGridFunctionCoefficient::DivergenceGridFunctionCoefficient (
+   GridFunction *gf) : Coefficient()
+{
+   GridFunc = gf;
+}
+
+double DivergenceGridFunctionCoefficient::Eval(ElementTransformation &T,
+					       const IntegrationPoint &ip)
+{
+   // Perhaps we should avoid altering T so cache its IntegrationPoint
+   const IntegrationPoint & ipT = T.GetIntPoint();
+   T.SetIntPoint(&ip);
+   double v = GridFunc->GetDivergence(T);
+   // Reset T's IntegrationPoint
+   T.SetIntPoint(&ipT);
+   return v;
+}
+
 void VectorDeltaCoefficient::SetDirection(const Vector &_d)
 {
    dir = _d;

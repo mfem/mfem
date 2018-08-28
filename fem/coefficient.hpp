@@ -388,6 +388,63 @@ public:
    virtual ~VectorGridFunctionCoefficient() { }
 };
 
+/// Vector coefficient defined as the Gradient of a scalar GridFunction
+class GradientGridFunctionCoefficient : public VectorCoefficient
+{
+protected:
+   GridFunction *GridFunc;
+
+public:
+   GradientGridFunctionCoefficient(GridFunction *gf);
+
+   void SetGridFunction(GridFunction *gf) { GridFunc = gf; }
+   GridFunction * GetGridFunction() const { return GridFunc; }
+
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
+   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                     const IntegrationRule &ir);
+
+   virtual ~GradientGridFunctionCoefficient() { }
+};
+
+/// Vector coefficient defined as the Curl of a vector GridFunction
+class CurlGridFunctionCoefficient : public VectorCoefficient
+{
+protected:
+   GridFunction *GridFunc;
+
+public:
+   CurlGridFunctionCoefficient(GridFunction *gf);
+
+   void SetGridFunction(GridFunction *gf) { GridFunc = gf; }
+   GridFunction * GetGridFunction() const { return GridFunc; }
+
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+
+   virtual ~CurlGridFunctionCoefficient() { }
+};
+
+/// Scalar coefficient defined as the Divergence of a vector GridFunction
+class DivergenceGridFunctionCoefficient : public Coefficient
+{
+protected:
+   GridFunction *GridFunc;
+
+public:
+   DivergenceGridFunctionCoefficient(GridFunction *gf);
+
+   void SetGridFunction(GridFunction *gf) { GridFunc = gf; }
+   GridFunction * GetGridFunction() const { return GridFunc; }
+
+   virtual double Eval(ElementTransformation &T,
+		       const IntegrationPoint &ip);
+
+   virtual ~DivergenceGridFunctionCoefficient() { }
+};
+
 /// VectorDeltaCoefficient: DeltaCoefficient with a direction
 class VectorDeltaCoefficient : public VectorCoefficient
 {
