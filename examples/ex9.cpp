@@ -1345,7 +1345,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       Mesh *mesh = fes->GetMesh();
       int i, j, k, dofInd, numBdrs, dim(mesh->Dimension()), numDofs(fct.dofs.Width());
       Array<int> bdrs, orientation;
-      double uSum;
+      double uSum, sA, sB, dA, dB;
       
       bool useSmInd = false; // optional usage of a smoothness indicator to decrease the artificial diffusivity
       // b_ij can use information about the geometry, for structured grids, b_ij = 1 i optimal
@@ -1390,7 +1390,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          ///////////////////////////
          // Element contributions //
          ///////////////////////////
-         double sA  = 0., sB = 0., dA = 0., dB = 0.;
+         sA = sB = dA = dB = 0.;
          for (j = 0; j < nd; j++)
          {
             dofInd = k*nd+j;
@@ -1465,13 +1465,12 @@ void FE_Evolution::ComputeFCTSolution(const Vector &x, const Vector &yH, const V
    // High order reconstruction that yields an updated admissible solution by means of 
    // clipping the solution coefficients within certain bounds and scaling the anti-
    // diffusive fluxes in a way that leads to local conservation of mass.
-   Mesh *mesh = fes->GetMesh();
    int j, k, nd, dofInd;
    double sumPos, sumNeg, eps = 1.E-15;
    Vector uClipped, fClipped;
 
    // Monotonicity terms
-   for (k = 0; k < mesh->GetNE(); k++)
+   for (k = 0; k < fes->GetMesh()->GetNE(); k++)
    {
       const FiniteElement &el = *fes->GetFE(k);
       nd = el.GetDof();
