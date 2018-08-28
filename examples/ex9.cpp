@@ -55,9 +55,8 @@ double inflow_function(const Vector &x);
 // Mesh bounding box
 Vector bb_min, bb_max;
 
-enum MONOTYPE { NONE, RUSANOV, FLUXSCALING };
-enum STENCIL  { FULL, LOCAL, LOCALPLUSDIAG };
-
+enum MONOTYPE { None, AlgUpw, AlgUpw_FS, MaxMax, MaxMax_FS, AlphaBeta, AlphaBeta_FS };
+enum STENCIL  { Full, Local, LocalAndDiag };
 
 class SolutionBounds {
 
@@ -491,7 +490,7 @@ void preprocessLowOrderScheme(FiniteElementSpace* fes, VectorFunctionCoefficient
                               MONOTYPE mono, Vector &elDiff, DenseMatrix &bdrDiff, 
                               Vector &lumpedM, DenseMatrix &dofs)
 {
-   if (mono == NONE)
+   if (mono == None)
       return;
    
    Mesh *mesh = fes->GetMesh();
@@ -541,7 +540,7 @@ void preprocessLowOrderScheme(FiniteElementSpace* fes, VectorFunctionCoefficient
       estim1 = estim2 = 0.;
       
       coef.Eval(velEval, *tr, *ir);
-      
+
       for (p = 0; p < ir->GetNPoints(); p++)
       {
          const IntegrationPoint &ip = ir->IntPoint(p);
@@ -563,7 +562,6 @@ void preprocessLowOrderScheme(FiniteElementSpace* fes, VectorFunctionCoefficient
          lumpedM(k) += ip.weight * tr->Weight();
       }
       elDiff(k) = std::sqrt(estim1.Max() * estim2.Max());
-      // use: max_j(sqrt(estim1)) * max_j(sqrt(estim2)) = sqrt( (max_j estim1) * (max_j estim2) )
       lumpedM(k) /= nd;
       
       ////////////////////////////
@@ -645,8 +643,8 @@ int main(int argc, char *argv[])
    int ref_levels = 2;
    int order = 3;
    int ode_solver_type = 4;
-   MONOTYPE mono = FLUXSCALING;
-   STENCIL stencil = LOCAL;
+   MONOTYPE monoType = MaxMax_FS;
+   STENCIL stencil = Local;
    double t_final = 10.0;
    double dt = 0.01;
    bool visualization = true;
@@ -669,9 +667,14 @@ int main(int argc, char *argv[])
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                   "ODE solver: 1 - Forward Euler,\n\t"
                   "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
-   args.AddOption((int*)(&mono), "-mt", "--mono",
+   args.AddOption((int*)(&monoType), "-mt", "--monoType",
                   "Type of monotonicity treatment: 0 - no monotonicity treatment,\n\t"
-                  "                                1 - matrix-free Rusanov scheme.");
+                  "                                1 - algebraic upwinding - low order,\n\t"
+                  "                                2 - algebraic upwinding - FCT,\n\t"
+                  "                                3 - MaxMax scheme (matrix-free Rusanov) - low order,\n\t"
+                  "                                4 - MaxMax scheme (matrix-free Rusanov) - FCT,\n\t"
+                  "                                5 - AlphaBeta scheme (matrix-free) - low order,\n\t"
+                  "                                6 - AlphaBeta scheme (matrix-free) - FCT.");
    args.AddOption((int*)(&stencil), "-st", "--stencil",
                   "Type of stencil for high order scheme: 0 - all neighbors,\n\t"
                   "                                       1 - closest neighbors,\n\t"
@@ -740,18 +743,18 @@ int main(int argc, char *argv[])
    DG_FECollection fec(order, dim, btype);
    FiniteElementSpace fes(mesh, &fec);
    
-   if (mono != NONE)
+   if (monoType != None)
    {
-      if ((mono != RUSANOV) && (mono != FLUXSCALING))
+      if (((int)monoType != monoType) || (monoType < 0) || (monoType > 6))
       {
          cout << "Unsupported option for monotonicity treatment." << endl;
          delete mesh;
          delete ode_solver;
          return 5;
       }
-      if (btype != 2)
+      if ((btype != 2) && (monoType > 2))
       {
-         cout << "Monotonicity treatment requires use of Bernstein basis." << endl;
+         cout << "Matrix-free monotonicity treatment requires use of Bernstein basis." << endl;
          delete mesh;
          delete ode_solver;
          return 5;
@@ -789,15 +792,14 @@ int main(int argc, char *argv[])
    k.Assemble(skip_zeros);
    k.Finalize(skip_zeros);
    b.Assemble();
-   
+
+   // Compute data required to easily find the min-/max-values for the high order scheme
+   SolutionBounds bnds(&fes, k, stencil);
    // Precompute data required for low order scheme
    Vector elDiff, lumpedM;
    DenseMatrix bdrDiff, dofs;
-   preprocessLowOrderScheme(&fes, velocity, mono, elDiff, bdrDiff, lumpedM, dofs);
+   preprocessLowOrderScheme(&fes, velocity, monoType, elDiff, bdrDiff, lumpedM, dofs);
    
-   // Compute data required to easily find the min-/max-values for the high order scheme
-   SolutionBounds bnds(&fes, k, stencil);
-
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
@@ -865,7 +867,7 @@ int main(int argc, char *argv[])
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
    FE_Evolution adv( &fes, m.SpMat(), k.SpMat(), b, elDiff, bdrDiff, lumpedM,
-                     mono, bnds, dofs );
+                     monoType, bnds, dofs );
    
    double t = 0.0;
    adv.SetTime(t);
@@ -882,7 +884,7 @@ int main(int argc, char *argv[])
       ode_solver->Step(u, t, dt_real);
       ti++;
 
-      done = (t >= t_final - 1e-8*dt);
+      done = (t >= t_final - 1.e-8*dt);
 
       if (done || ti % vis_steps == 0)
       {
@@ -914,8 +916,8 @@ int main(int argc, char *argv[])
    delete mesh;
    delete ode_solver;
    delete dc;
+
    return 0;
-   
 }
 
 
@@ -940,7 +942,7 @@ FE_Evolution::FE_Evolution(FiniteElementSpace* _fes, SparseMatrix &_M, SparseMat
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
-   if (monoType == NONE)
+   if (monoType == None)
    {
       // No monotonicity treatment, straightforward high-order scheme
       // ydot = M^{-1} (K x + b)
@@ -948,7 +950,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
       z += b;
       M_solver.Mult(z, y);
    }
-   else if (monoType == RUSANOV)
+   else if (monoType == MaxMax)
    {
       // low order matrix-free Rusanov scheme
       Mesh *mesh = fes->GetMesh();
@@ -1005,7 +1007,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
          }
       }
    }
-   else if (monoType == FLUXSCALING)
+   else if (monoType == MaxMax_FS)
    {
       // High order reconstruction that yields an updated admissible solution by means of 
       // clipping the solution coefficients within certain bounds and scaling the anti-
@@ -1211,11 +1213,11 @@ double u0_function(const Vector &x)
          const double f = M_PI;
          return .5*(sin(f*X(0))*sin(f*X(1)) + 1.); // modified by Hennes 
       }
-      case 4: // new
+      case 4:
       {
          double scale = 0.09;
-         double G1 = (1./sqrt(scale)) * sqrt(pow(X(0),2.) + pow(X(1)+0.5,2.));
-         double G2 = (1./sqrt(scale)) * sqrt(pow(X(0)-0.5,2.) + pow(X(1),2.));
+         double G1 = (1./sqrt(scale)) * sqrt(pow(X(0), 2.) + pow(X(1) + 0.5,2.));
+         double G2 = (1./sqrt(scale)) * sqrt(pow(X(0) - 0.5,2.) + pow(X(1), 2.));
 
          return ((pow(X(0),2.) + pow(X(1) - 0.5,2.) <= scale) & 
                   (X(0) <= -0.05 | X(0) >= 0.05 | X(1) >= 0.7)) ? 1. : 0. +
