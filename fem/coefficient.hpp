@@ -440,7 +440,7 @@ public:
    GridFunction * GetGridFunction() const { return GridFunc; }
 
    virtual double Eval(ElementTransformation &T,
-		       const IntegrationPoint &ip);
+                       const IntegrationPoint &ip);
 
    virtual ~DivergenceGridFunctionCoefficient() { }
 };
