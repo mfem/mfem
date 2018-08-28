@@ -290,7 +290,7 @@ void  FiniteElement::CalcPhysHessian(ElementTransformation &Trans,
    MFEM_ASSERT(MapType == VALUE, "");
 
    // Roll 2-Tensors in vectors and 4-Tensor in Matrix, exploiting symmetry
-   int map[Dim*Dim];
+   Array<int> map(Dim*Dim);
    if (Dim == 3)
    {
       map[0] = 0;
