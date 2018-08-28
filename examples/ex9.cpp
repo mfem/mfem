@@ -558,7 +558,7 @@ public:
    void ComputeDiffusionCoefficient(FiniteElementSpace* fes, VectorFunctionCoefficient &coef, MONOTYPE monoType, 
                                     Vector &elDiff, DenseMatrix &bdrDiff, Vector &lumpedM, DenseMatrix &dofs)
    {
-      enum ESTIMATE {Schwarz, Hoelder1Inf, Hoelder1Inf_Exact, HoelderInf1, HoelderInf1_Exact};
+      enum ESTIMATE { Schwarz, Hoelder1Inf, Hoelder1Inf_Exact, HoelderInf1, HoelderInf1_Exact };
       ESTIMATE est = Schwarz;
       
       Mesh *mesh = fes->GetMesh();
@@ -681,7 +681,7 @@ public:
             Trans = mesh->GetFaceElementTransformations(bdrs[i]); 
             vn = 0.; shapeBdr = 0.;
             
-            for (int p = 0; p < irF1->GetNPoints(); p++)
+            for (p = 0; p < irF1->GetNPoints(); p++)
             {
                const IntegrationPoint &ip = irF1->IntPoint(p);
                IntegrationPoint eip1;
@@ -720,13 +720,11 @@ public:
    }
    
    void ComputeDiffusionVectors(FiniteElementSpace* fes, VectorFunctionCoefficient &coef, MONOTYPE monoType, 
-                                Vector &alpha, Vector &beta, Array<int> &sortArray, Vector &LumpedM, 
-                                DenseMatrix &dofs)
+                                Vector &alpha, Vector &beta, Array<int> &sortArray, Vector &LumpedM, DenseMatrix &dofs)
    {
       Mesh *mesh = fes->GetMesh();
-      int i, j, k, p, dofInd, qOrdE, numPtsE, qOrdF, numPtsF, nd, numBdrs, numDofs;
-      int dim = mesh->Dimension(), ne = mesh->GetNE();
-      double vn, maxDiag;
+      int i, j, k, p, dofInd, qOrdE, numPtsE, qOrdF, numPtsF, nd, numBdrs, dim = mesh->Dimension(), ne = mesh->GetNE();
+      double maxDiag;
       Array <int> locDofs, bdrs, orientation;
       
       // use the first mesh element as an indicator for the following bunch
@@ -735,8 +733,7 @@ public:
       // fill the dofs array to access the correct dofs for boundaries
       dummy.ExtractBdrDofs(dofs);
       numBdrs = dofs.Width();
-      numDofs = dofs.Height();
-      
+            
       // use the first mesh element as an indicator
       ElementTransformation *tr = mesh->GetElementTransformation(0);
       // Assuming order(u)==order(mesh)
@@ -749,7 +746,7 @@ public:
       
       Vector vval, nor(dim), shape(nd), vec1(dim), vec2(nd), D_M(numPtsE), D_M_Inv(numPtsE);
       DenseMatrix velEval, dshape(nd,dim), adjJ(dim,dim), B1(numPtsE,nd), B2(numPtsE*dim,nd), 
-                  D_K(dim*numPtsE, numPtsE), B1tDMB1(nd,nd), B2tDK(nd,numPtsE*dim), ret(nd,nd);
+                  D_K(dim*numPtsE, numPtsE), B1tDMB1(nd,nd), B2tDK(nd,numPtsE), ret(nd,nd);
       
       D_K = 0.; // I used a DenseMatrix for the blockdiagonal matrix D_K which has diagonal blocks of size dim x 1
       alpha.SetSize(ne*nd); alpha = 0.;
@@ -777,7 +774,6 @@ public:
       const IntegrationRule *irF1 = &IntRules.Get(Trans->FaceGeom, qOrdF);
       numPtsF = irF1->GetNPoints();
       
-      
       Vector D_K_bdr(numPtsF), D_M_bdr(numPtsF);
       DenseMatrix B_Int(numPtsF,nd), B_Ext(numPtsF,nd);
       
@@ -787,8 +783,8 @@ public:
          Trans = mesh->GetFaceElementTransformations(i);
          if (Trans->Elem2No >= 0)
             break;
-         //else
-            //TODO what if no bdr has a neighbor?
+         // NOTE: The case that the simulation is performed on a single element 
+         //       and all boundaries are non-periodic is not covered
       }
       
       for (p = 0; p < irF1->GetNPoints(); p++)
@@ -902,7 +898,7 @@ public:
          for (i = 0; i < numBdrs; i++)
          {
             Trans = mesh->GetFaceElementTransformations(bdrs[i]); 
-            vn = 0.; maxDiag = -numeric_limits<double>::infinity();
+            maxDiag = -numeric_limits<double>::infinity();
             
             for (p = 0; p < irF1->GetNPoints(); p++)
             {
@@ -930,7 +926,7 @@ public:
                }
                nor /= nor.Norml2();
                
-               D_K_bdr(p) = ip.weight * Trans->Face->Weight() * std::max(vn, vval * nor);
+               D_K_bdr(p) = ip.weight * Trans->Face->Weight() * std::max(0., vval * nor);
                D_M_bdr(p) = ip.weight * Trans->Face->Weight();
                maxDiag = std::max(maxDiag, D_K_bdr(p) / D_M_bdr(p));
             }
@@ -1276,6 +1272,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
 {
     if ((fct.monoType == AlgUpw) || (fct.monoType == AlgUpw_FS))
    {
+      // Discretization AND monotonicity terms
       fct.KpD.Mult(x, z);
       z += b;
       for (int k = 0; k < fes->GetNE(); k++)
@@ -1289,7 +1286,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          }
       }
    }
-   else if ((fct.monoType == MaxMax) || (fct.monoType == MaxMax_FS)) // low order matrix-free Rusanov scheme
+   else if ((fct.monoType == MaxMax) || (fct.monoType == MaxMax_FS))
    {
       Mesh *mesh = fes->GetMesh();
       int i, j, k, nd, numBdrs, dofInd, dim(mesh->Dimension()), numDofs(fct.dofs.Width());
@@ -1301,7 +1298,6 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       z += b;
       
       // Monotonicity terms
-      // NOTE: the same polynomial order for each element is assumed for access
       for (k = 0; k < mesh->GetNE(); k++)
       {
          const FiniteElement &el = *fes->GetFE(k);
@@ -1341,7 +1337,6 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
             // element update and inversion of lumped mass matrix
             dofInd = k*nd+j;
             y(dofInd) = ( z(dofInd) + fct.elDiff(k)*(uSum - nd*x(dofInd)) ) / fct.lumpedM(dofInd);
-            // y is now the low order discrete time derivative
          }
       }
    }
@@ -1358,8 +1353,11 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       double nom, den, q = 1., b_ij = 1., Ch = 1.E-15;
       Vector gamma;
       
+      // Discretization terms
       K.Mult(x, z);
       z += b;
+      
+      // Monotonicity terms
       for (k = 0; k < fes->GetNE(); k++)
       {
          const FiniteElement &el = *fes->GetFE(k);
@@ -1469,11 +1467,10 @@ void FE_Evolution::ComputeFCTSolution(const Vector &x, const Vector &yH, const V
    // diffusive fluxes in a way that leads to local conservation of mass.
    Mesh *mesh = fes->GetMesh();
    int j, k, nd, dofInd;
-   double sumPos, sumNeg, eps = 1.E-16;
+   double sumPos, sumNeg, eps = 1.E-15;
    Vector uClipped, fClipped;
 
    // Monotonicity terms
-   // NOTE: the same polynomial order for each element is assumed for access
    for (k = 0; k < mesh->GetNE(); k++)
    {
       const FiniteElement &el = *fes->GetFE(k);
@@ -1481,18 +1478,12 @@ void FE_Evolution::ComputeFCTSolution(const Vector &x, const Vector &yH, const V
 
       uClipped.SetSize(nd); uClipped = 0.;
       fClipped.SetSize(nd); fClipped = 0.;
+      sumPos = sumNeg = 0.;
       for (j = 0; j < nd; j++)
       {
          dofInd = k*nd+j;
          uClipped(j) = std::min(fct.bnds.x_max(dofInd), 
                                 std::max(x(dofInd) + dt * yH(dofInd), fct.bnds.x_min(dofInd)));
-      }
-      
-      sumPos = sumNeg = 0.;
-      for (j = 0; j < nd; j++)
-      {
-         dofInd = k*nd+j;
-
          // compute coefficients for the high-order corrections
          // NOTE: The multiplication and inversion of the lumped mass matrix is 
          //       avoided here, this is only possible due to its positive diagonal 
