@@ -71,12 +71,13 @@ class SolutionBounds {
    // Info for all dofs, including ones on face-neighbor cells.
    mutable DenseMatrix DOFs_coord;                   // size #dofs
    
+public:
+
    // Map to compute localized bounds on unstructured grids.
    // For each dof index we have a vector of neighbor dof indices.
    mutable std::map<int, std::vector<int> > map_for_bounds;
+   mutable std::map<int, std::vector<int> > map_for_SmoothnessIndicator;
    
-public:
-
    Vector x_min;
    Vector x_max;
 
@@ -86,7 +87,7 @@ public:
       mesh = fes->GetMesh();
       stencil = _stencil;
 
-      if (stencil > 0) GetBoundsMap(fes, K);
+      if (stencil > 0) { GetBoundsMap(fes, K); GetAllNeighbors(K.SpMat()); }
    }
 
    void Compute(const SparseMatrix &K, const Vector &x)
@@ -237,6 +238,19 @@ private:
             }
          }
       } */
+   }
+   
+   void GetAllNeighbors(const SparseMatrix& K)
+   {
+      const int *I = K.GetI(), *J = K.GetJ(), size = K.Size();
+      
+      for (int i = 0, k = 0; i < size; i++)
+      {
+         for (int end = I[i+1]; k < end; k++)
+         {
+            map_for_SmoothnessIndicator[i].push_back(J[k]);
+         }
+      }
    }
    
    // Fills map_for_bounds
