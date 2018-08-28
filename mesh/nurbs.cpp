@@ -1734,7 +1734,7 @@ void NURBSExtension::PrintFunctions(const char *basename, int samples) const
    {
       std::ostringstream filename;
       filename << basename<<"_"<<i<<".dat";
-      out.open(filename.str(), std::ofstream::out);
+      out.open(filename.str());
       knotVectors[i]->PrintFunctions(out,samples);
       out.close();
    }
