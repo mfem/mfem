@@ -95,7 +95,8 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
    MPI_Comm_rank(MyComm, &MyRank);
 
    ncmesh = pncmesh = NULL;
-   if (mesh.Nonconforming()) {
+   if (mesh.Nonconforming())
+   {
       ncmesh = pncmesh = new ParNCMesh(comm, *mesh.ncmesh);
    }
 
@@ -105,7 +106,8 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
    }
    else
    {
-      if (mesh.Nonconforming()) {
+      if (mesh.Nonconforming())
+      {
          // save the element partitioning before Prune()
          partitioning = new int[mesh.GetNE()];
          for (int i = 0; i < mesh.GetNE(); i++)
@@ -113,16 +115,18 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
             partitioning[i] = pncmesh->InitialPartition(i);
          }
       }
-      else {
+      else
+      {
          partitioning = mesh.GeneratePartitioning(NRanks, part_method);
       }
    }
-   
+
    Table *edge_element = NULL;
    STable3D *faces_tbl = NULL;
    Array<int> vert_global_local(mesh.GetNV());
-   
-   if (mesh.Nonconforming()) {
+
+   if (mesh.Nonconforming())
+   {
 
       pncmesh->Prune();
       faces_tbl = Mesh::InitFromNCMesh(*pncmesh);
@@ -131,17 +135,19 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       // in the nc case we already have local numbering for the
       // element vertices, which has come from InitFromNCMesh.  So
       // derive vert_global_local from it.
-      
+
       vert_global_local = -1;
       int le = 0;
-      for (int i = 0; i < mesh.GetNE(); i++) {
+      for (int i = 0; i < mesh.GetNE(); i++)
+      {
          if (partitioning[i] == MyRank)
          {
             Array<int> vert_global;
             mesh.GetElementVertices(i,vert_global);
             Array<int> vert_local;
             elements[le++]->GetVertices(vert_local);
-            for (int j = 0; j < vert_local.Size(); j++) {
+            for (int j = 0; j < vert_local.Size(); j++)
+            {
                vert_global_local[vert_global[j]] = vert_local[j];
             }
          }
@@ -149,7 +155,8 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
       GenerateNCFaceInfo();
    }
-   else {
+   else
+   {
 
       // These are the equivalent steps that InitFromNCMesh performs
 
@@ -174,7 +181,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
                                             activeBdrElem, edge_element);
 
       NumOfEdges = NumOfFaces = 0;
-      
+
       if (Dim > 1)
       {
          el_to_edge = new Table;
@@ -185,7 +192,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       {
          faces_tbl = GetElementToFaceTable(1);
       }
-   
+
       GenerateFaces();
    }
 
@@ -196,7 +203,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
    // Build groups.  At this point there is no difference between the
    // conforming and nc cases.
-   
+
    ListOfIntegerSets  groups;
    {
       // the first group is the local one
@@ -209,7 +216,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
    if (Dim < 3 && mesh.GetNFaces() != 0)
    {
       cerr << "ParMesh::ParMesh (proc " << MyRank << ") : "
-         "(Dim < 3 && mesh.GetNFaces() != 0) is true!" << endl;
+           "(Dim < 3 && mesh.GetNFaces() != 0) is true!" << endl;
       mfem_error();
    }
 #endif
@@ -229,7 +236,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
    BuildFaceGroup(ngroups, face_group, group_sface);
    BuildEdgeGroup(ngroups, *edge_element, group_sedge);
    BuildVertexGroup(ngroups, *vert_element, group_svert);
-   
+
    // build shared_faces and sface_lface mapping
    BuildSharedFaceElems(nsfaces, mesh, partitioning, faces_tbl,
                         face_group, vert_global_local);
@@ -657,7 +664,7 @@ int ParMesh::FindSharedFaces(const Mesh &mesh, const int *partitioning,
                              ListOfIntegerSets& groups)
 {
    IntegerSet group;
-   
+
    int sface_counter = 0;
    for (int i = 0; i < face_group.Size(); i++)
    {
@@ -686,7 +693,7 @@ int ParMesh::FindSharedEdges(const Mesh &mesh, const int *partitioning,
                              ListOfIntegerSets& groups)
 {
    IntegerSet group;
-   
+
    int sedge_counter = 0;
    if (!edge_element)
    {
@@ -879,32 +886,32 @@ void ParMesh::BuildSharedFaceElems(int nfaces, const Mesh& mesh,
             }
             switch (shared_faces[sface_counter]->GetType())
             {
-            case Element::TRIANGLE:
-               sface_lface[sface_counter] = (*faces_tbl)(v[0], v[1], v[2]);
-               // mark the shared face for refinement by reorienting
-               // it according to the refinement flag in the tetrahedron
-               // to which this shared face belongs to.
-               {
-                  int lface = sface_lface[sface_counter];
-                  Tetrahedron *tet =
-                     (Tetrahedron *)(elements[faces_info[lface].Elem1No]);
-                  tet->GetMarkedFace(faces_info[lface].Elem1Inf/64, v);
-                  // flip the shared face in the processor that owns the
-                  // second element (in 'mesh')
+               case Element::TRIANGLE:
+                  sface_lface[sface_counter] = (*faces_tbl)(v[0], v[1], v[2]);
+                  // mark the shared face for refinement by reorienting
+                  // it according to the refinement flag in the tetrahedron
+                  // to which this shared face belongs to.
                   {
-                     int gl_el1, gl_el2;
-                     mesh.GetFaceElements(i, &gl_el1, &gl_el2);
-                     if (MyRank == partitioning[gl_el2])
+                     int lface = sface_lface[sface_counter];
+                     Tetrahedron *tet =
+                        (Tetrahedron *)(elements[faces_info[lface].Elem1No]);
+                     tet->GetMarkedFace(faces_info[lface].Elem1Inf/64, v);
+                     // flip the shared face in the processor that owns the
+                     // second element (in 'mesh')
                      {
-                        std::swap(v[0], v[1]);
+                        int gl_el1, gl_el2;
+                        mesh.GetFaceElements(i, &gl_el1, &gl_el2);
+                        if (MyRank == partitioning[gl_el2])
+                        {
+                           std::swap(v[0], v[1]);
+                        }
                      }
                   }
-               }
-               break;
-            case Element::QUADRILATERAL:
-               sface_lface[sface_counter] =
-                  (*faces_tbl)(v[0], v[1], v[2], v[3]);
-               break;
+                  break;
+               case Element::QUADRILATERAL:
+                  sface_lface[sface_counter] =
+                     (*faces_tbl)(v[0], v[1], v[2], v[3]);
+                  break;
             }
             sface_counter++;
          }
@@ -943,9 +950,10 @@ void ParMesh::BuildSharedEdgeElems(int nedges, Mesh& mesh,
             sedge_ledge[sedge_counter] = v_to_v(vert_global_local[vert[0]],
                                                 vert_global_local[vert[1]]);
 
-            
 
-            if (sedge_ledge[sedge_counter] < 0) {
+
+            if (sedge_ledge[sedge_counter] < 0)
+            {
                cerr << "\n\n\n" << MyRank << ": ParMesh::ParMesh: "
                     << "ERROR in v_to_v\n\n" << endl;
                mfem_error();
@@ -981,7 +989,8 @@ int ParMesh::BuildVertGlobalLocal(Mesh& mesh, int* partitioning,
    vert_global_local = -1;
 
    int vert_counter = 0;
-   for (int i = 0; i < mesh.GetNE(); i++) {
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
       if (partitioning[i] == MyRank)
       {
          Array<int> vert;
@@ -993,10 +1002,11 @@ int ParMesh::BuildVertGlobalLocal(Mesh& mesh, int* partitioning,
             }
       }
    }
-   
+
    // re-enumerate the local vertices to preserve the global ordering
    vert_counter = 0;
-   for (int i = 0; i < vert_global_local.Size(); i++) {
+   for (int i = 0; i < vert_global_local.Size(); i++)
+   {
       if (vert_global_local[i] >= 0)
       {
          vert_global_local[i] = vert_counter++;
@@ -1013,7 +1023,8 @@ int ParMesh::BuildLocalVertices(const mfem::Mesh &mesh,
    vert_global_local = -1;
 
    int vert_counter = 0;
-   for (int i = 0; i < mesh.GetNE(); i++) {
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
       if (partitioning[i] == MyRank)
       {
          Array<int> vert;
@@ -1025,10 +1036,11 @@ int ParMesh::BuildLocalVertices(const mfem::Mesh &mesh,
             }
       }
    }
-   
+
    // re-enumerate the local vertices to preserve the global ordering
    vert_counter = 0;
-   for (int i = 0; i < vert_global_local.Size(); i++) {
+   for (int i = 0; i < vert_global_local.Size(); i++)
+   {
       if (vert_global_local[i] >= 0)
       {
          vert_global_local[i] = vert_counter++;
@@ -1036,8 +1048,9 @@ int ParMesh::BuildLocalVertices(const mfem::Mesh &mesh,
    }
 
    vertices.SetSize(vert_counter);
-   
-   for (int i = 0; i < vert_global_local.Size(); i++) {
+
+   for (int i = 0; i < vert_global_local.Size(); i++)
+   {
       if (vert_global_local[i] >= 0)
       {
          vertices[vert_global_local[i]].SetCoords(mesh.SpaceDimension(),
@@ -1052,14 +1065,16 @@ int ParMesh::BuildLocalElements(const Mesh& mesh, const int* partitioning,
                                 const Array<int>& vert_global_local)
 {
    int nelems = 0;
-   for (int i = 0; i < mesh.GetNE(); i++) {
-      if (partitioning[i] == MyRank) nelems++;
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      if (partitioning[i] == MyRank) { nelems++; }
    }
 
    elements.SetSize(nelems);
 
    int element_counter = 0;
-   for (int i = 0; i < mesh.GetNE(); i++) {
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
       if (partitioning[i] == MyRank)
       {
          elements[element_counter] = mesh.GetElement(i)->Duplicate(this);
@@ -1080,10 +1095,10 @@ int ParMesh::BuildLocalBoundary(const Mesh& mesh, const int* partitioning,
                                 const Array<int>& vert_global_local,
                                 Array<bool>& activeBdrElem,
                                 Table*& edge_element)
-  
+
 {
    int nbdry = 0;
-   
+
    if (mesh.NURBSext)
    {
       activeBdrElem.SetSize(mesh.GetNBE());
