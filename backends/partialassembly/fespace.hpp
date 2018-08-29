@@ -63,10 +63,10 @@ public:
    const PAEngine<Device>& GetEngine() { return static_cast<const PAEngine<Device>&>(*engine); }
 
    /// Convert an E vector to L vector
-   void ToLVector(const VectorType<Device,double>& e_vector, VectorType<Device,double>& l_vector);
+   void ToLVector(const VectorType<Device, double>& e_vector, VectorType<Device, double>& l_vector);
 
    /// Covert an L vector to E vector
-   void ToEVector(const VectorType<Device,double>& l_vector, VectorType<Device,double>& e_vector);
+   void ToEVector(const VectorType<Device, double>& l_vector, VectorType<Device, double>& e_vector);
 
    const FiniteElement *GetFE(int i) const { return fes->GetFE(i); }
 
@@ -83,7 +83,7 @@ public:
 
 template <Location Device>
 PAFiniteElementSpace<Device>::PAFiniteElementSpace(const PAEngine<Device> &e,
-                                       mfem::FiniteElementSpace &fespace)
+      mfem::FiniteElementSpace &fespace)
    : PFiniteElementSpace(e, fespace),
      e_layout(e, 0),
      tensor_offsets(NULL),
@@ -93,6 +93,7 @@ PAFiniteElementSpace<Device>::PAFiniteElementSpace(const PAEngine<Device> &e,
    for (int e = 0; e < fespace.GetNE(); e++) { lsize += fespace.GetFE(e)->GetDof(); }
    e_layout.Resize(lsize);
    e_layout.DontDelete();
+   BuildDofMaps();
 }
 
 template <Location Device>
@@ -125,18 +126,18 @@ void PAFiniteElementSpace<Device>::BuildDofMaps()
 
       mfem_fes->GetElementVDofs(e, elem_vdof);
 
-      if (dof_map.Size()==0)
+      if (dof_map.Size() == 0)
       {
          for (int vd = 0; vd < vdim; vd++)
             for (int i = 0; i < vdofs; i++)
             {
-               global_map[offset + dofs*vd + i] = elem_vdof[dofs*vd + i];
+               global_map[offset + dofs * vd + i] = elem_vdof[dofs * vd + i];
             }
-      }else{
+      } else {
          for (int vd = 0; vd < vdim; vd++)
             for (int i = 0; i < vdofs; i++)
             {
-               global_map[offset + dofs*vd + i] = elem_vdof[dofs*vd + dof_map[i]];
+               global_map[offset + dofs * vd + i] = elem_vdof[dofs * vd + dof_map[i]];
             }
       }
       offset += vdofs;
@@ -181,65 +182,40 @@ void PAFiniteElementSpace<Device>::BuildDofMaps()
    indices.Push();
 }
 
+void toLVector(const mfem::Array<int>& tensor_offsets, const mfem::Array<int>& tensor_indices
+               , const HostVector<double>& e_vector, HostVector<double>& l_vector);
+#ifdef __NVCC__
+void toLVector(const mfem::Array<int>& tensor_offsets, const mfem::Array<int>& tensor_indices
+               , const CudaVector<double>& e_vector, CudaVector<double>& l_vector);
+#endif
+
 /// Convert an E vector to L vector
 template <Location Device>
-void PAFiniteElementSpace<Device>::ToLVector(const VectorType<Device,double>& e_vector, VectorType<Device,double>& l_vector)
+void PAFiniteElementSpace<Device>::ToLVector(const VectorType<Device, double>& e_vector, VectorType<Device, double>& l_vector)
 {
-   if (tensor_indices == NULL) BuildDofMaps();
-
    if (l_vector.Size() != (std::size_t) GetFESpace()->GetVSize())
    {
       l_vector.template Resize<double>(GetFESpace()->GetVLayout(), NULL);
    }
-
-   const int lsize = l_vector.Size();
-   const int *offsets = tensor_offsets->Get_PArray()->As<ArrayType<Device>>().template GetTypedData<int>();
-   const int *indices = tensor_indices->Get_PArray()->As<ArrayType<Device>>().template GetTypedData<int>();
-
-   const double *e_data = e_vector.GetData();
-   double *l_data = l_vector.GetData();
-
-   for (int i = 0; i < lsize; i++)
-   {
-      const int offset = offsets[i];
-      const int next_offset = offsets[i + 1];
-      double dof_value = 0;
-      for (int j = offset; j < next_offset; j++)
-      {
-         dof_value += e_data[indices[j]];
-      }
-      l_data[i] = dof_value;
-   }
+   toLVector(*tensor_offsets, *tensor_indices, e_vector, l_vector);
 }
+
+void toEVector(const mfem::Array<int>& tensor_offsets, const mfem::Array<int>& tensor_indices
+               , const HostVector<double>& l_vector, HostVector<double>& e_vector);
+#ifdef __NVCC__
+void toEVector(const mfem::Array<int>& tensor_offsets, const mfem::Array<int>& tensor_indices
+               , const CudaVector<double>& l_vector, CudaVector<double>& e_vector);
+#endif
 
 /// Covert an L vector to E vector
 template <Location Device>
-void PAFiniteElementSpace<Device>::ToEVector(const VectorType<Device,double>& l_vector, VectorType<Device,double>& e_vector)
+void PAFiniteElementSpace<Device>::ToEVector(const VectorType<Device, double>& l_vector, VectorType<Device, double>& e_vector)
 {
-   if (tensor_indices == NULL) BuildDofMaps();
-
    if (e_vector.Size() != (std::size_t) e_layout.Size())
    {
       e_vector.template Resize<double>(GetELayout(), NULL);
    }
-
-   const int lsize = l_vector.Size();
-   const int *offsets = tensor_offsets->Get_PArray()->As<ArrayType<Device>>().template GetTypedData<int>();
-   const int *indices = tensor_indices->Get_PArray()->As<ArrayType<Device>>().template GetTypedData<int>();
-
-   const double *l_data = l_vector.GetData();
-   double *e_data = e_vector.GetData();
-
-   for (int i = 0; i < lsize; i++)
-   {
-      const int offset = offsets[i];
-      const int next_offset = offsets[i + 1];
-      const double dof_value = l_data[i];
-      for (int j = offset; j < next_offset; j++)
-      {
-         e_data[indices[j]] = dof_value;
-      }
-   }
+   toEVector(*tensor_offsets, *tensor_indices, l_vector, e_vector);
 }
 
 } // namespace mfem::pa

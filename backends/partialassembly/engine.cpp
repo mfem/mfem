@@ -145,6 +145,12 @@ mfem::Engine* createEngine(const std::string& engine_spec){
    {
       engine = new PAEngine<Host>;
    }
+   #ifdef __NVCC__
+   else if (engine_spec=="CudaDevice")
+   {
+      engine = new PAEngine<CudaDevice>;
+   }
+   #endif
    return engine;
 }
 

@@ -66,6 +66,43 @@ public:
 
 };
 
+template <>
+class CudaDomainKernel<GtDG> {
+private:
+	typedef VectorType<CudaDevice,double> Vector;
+	// template <typename Equation>
+	// using QFunc = QuadTensorFunc<Equation, CudaDevice>;
+	// const FESpace<CudaDevice>& trial_fes, test_fes;
+	// Tensor<2> shape1d;//I don't like that this is not const
+	const int dim;
+	// const int nbElts;
+public:
+	template <typename Equation>
+	CudaDomainKernel(const Equation* eq)
+	: dim(eq->getDim())
+	{}
+
+	template <typename Tensor>
+	void Mult(const Tensor& D, const Vector& x, Vector& y) const {
+		// if(dim == 1) Mult1d(D,x,y);
+		// else if(dim == 2 ) Mult2d(D,x,y);
+		// else if(dim == 3 ) Mult3d(D,x,y);
+	}
+
+	template <typename Tensor>
+	void MultAdd(const Tensor& D, const Vector& x, Vector& y) const {
+		// if(dim == 1) MultAdd1d(D,x,y);
+		// else if(dim == 2 ) MultAdd2d(D,x,y);
+		// else if(dim == 3 ) MultAdd3d(D,x,y);
+	}
+
+	template <typename QFunc, typename Tensor>// c'est bourrin ca
+	void evalD(QFunc& qfunc, Tensor& D) const {
+		//TODO call the assembly
+	}
+
+};
+
 #endif
 
 }

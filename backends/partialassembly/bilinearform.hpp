@@ -49,7 +49,7 @@ protected:
 
    mutable PAFiniteElementSpace<Device> *trial_fes, *test_fes;
 
-   mutable VectorType<Device,double> x_local, y_local;
+   mutable VectorType<Device, double> x_local, y_local;
 
    void TransferIntegrators(mfem::Array<mfem::BilinearFormIntegrator*>& bfi);
 
@@ -59,7 +59,7 @@ protected:
                 mfem::Vector &mfem_X, mfem::Vector &mfem_B,
                 int copy_interior = 0) const;
 
-   void AddIntegrator(PAIntegrator<Device>* integrator){ pabfi.Append(integrator); }
+   void AddIntegrator(PAIntegrator<Device>* integrator) { pabfi.Append(integrator); }
 
 public:
    /// TODO: doxygen
@@ -161,7 +161,7 @@ void BilinearForm<Device>::TransferIntegrators(mfem::Array<mfem::BilinearFormInt
          mfem::Coefficient* coef;
          integ->GetParameters(coef);
          ConstCoefficient coeff(dynamic_cast<mfem::ConstantCoefficient&>(*coef));
-         AddIntegrator( createPADomainKernel(new PADiffusionEq<Device,ConstCoefficient>(*fes, ir_order,coeff)) );
+         AddIntegrator( createPADomainKernel(new PADiffusionEq<Device, ConstCoefficient>(*fes, ir_order, coeff)) );
          // typename DiffusionEquation::Args args(*coef);
          // AddIntegrator( new PADomainInt<DiffusionEquation, VectorType<Device,double>, TensorDomainMult>(fes, ir_order, args) );
       }
@@ -208,16 +208,24 @@ void BilinearForm<Device>::TransferIntegrators(mfem::Array<mfem::BilinearFormInt
    }
 }
 
+void getSubvector(HostVector<double>& subvec, const HostVector<double>& X, const HostArray& constraint_list);
+void setSubvector(HostVector<double>& X, const HostVector<double>& subvec, const HostArray& constraint_list);
+#ifdef __NVCC__
+void getSubvector(CudaVector<double>& subvec, const CudaVector<double>& X, const CudaArray& constraint_list);
+void setSubvector(CudaVector<double>& X, const CudaVector<double>& subvec, const CudaArray& constraint_list);
+#endif
+
 template <Location Device>
 void BilinearForm<Device>::InitRHS(const mfem::Array<int> &ess_tdof_list,
-                           mfem::Vector &mfem_x, mfem::Vector &mfem_b,
-                           mfem::OperatorHandle& A,
-                           mfem::Vector &mfem_X, mfem::Vector &mfem_B,
-                           int copy_interior) const
+                                   mfem::Vector &mfem_x, mfem::Vector &mfem_b,
+                                   mfem::OperatorHandle& A,
+                                   mfem::Vector &mfem_X, mfem::Vector &mfem_B,
+                                   int copy_interior) const
 {
    const mfem::Operator *P = GetProlongation();
    const mfem::Operator *R = GetRestriction();
 
+   //Only in Parallel?
    if (P)
    {
       // Variational restriction with P
@@ -233,30 +241,24 @@ void BilinearForm<Device>::InitRHS(const mfem::Array<int> &ess_tdof_list,
       mfem_B.MakeRef(mfem_b);
    }
 
-   if (A.Type() != mfem::Operator::ANY_TYPE)
-   {
-      OperatorHandle mat_e;
-      A.EliminateBC(mat_e, ess_tdof_list, mfem_X, mfem_B);
-   }
+   //This is probably never gonna be used in a backend...
+   // if (A.Type() != mfem::Operator::ANY_TYPE)
+   // {
+   //    OperatorHandle mat_e;
+   //    A.EliminateBC(mat_e, ess_tdof_list, mfem_X, mfem_B);
+   // }
 
    if (!copy_interior && ess_tdof_list.Size() > 0)
    {
-      VectorType<Device,double> &X = mfem_X.Get_PVector()->As<VectorType<Device,double>>();
+      VectorType<Device, double> &X = mfem_X.Get_PVector()->As<VectorType<Device, double>>();
       const ArrayType<Device> &constraint_list = ess_tdof_list.Get_PArray()->As<ArrayType<Device>>();
-
-      double *X_data = X.GetData();
-      const int* constraint_data = constraint_list.template GetTypedData<int>();
-
-      VectorType<Device,double> subvec(constraint_list.GetLayout());
-      double *subvec_data = subvec.GetData();
-
-      const std::size_t num_constraint = constraint_list.Size();
-
-      for (std::size_t i = 0; i < num_constraint; i++) subvec_data[i] = X_data[constraint_data[i]];
+      //Look occa, and call kernel here
+      VectorType<Device, double> subvec(constraint_list.GetLayout());
+      getSubvector(subvec, X, constraint_list);
 
       X.Fill(0.0);
 
-      for (std::size_t i = 0; i < num_constraint; i++) X_data[constraint_data[i]] = subvec_data[i];
+      setSubvector(X, subvec, constraint_list);
    }
 
    if (A.Type() == mfem::Operator::ANY_TYPE)
@@ -282,7 +284,7 @@ bool BilinearForm<Device>::Assemble()
 
 template <Location Device>
 void BilinearForm<Device>::FormSystemMatrix(const mfem::Array<int> &ess_tdof_list,
-                                    mfem::OperatorHandle &A)
+      mfem::OperatorHandle &A)
 {
    if (A.Type() == mfem::Operator::ANY_TYPE)
    {
@@ -302,9 +304,9 @@ void BilinearForm<Device>::FormSystemMatrix(const mfem::Array<int> &ess_tdof_lis
 
 template <Location Device>
 void BilinearForm<Device>::FormLinearSystem(const mfem::Array<int> &ess_tdof_list,
-                                    mfem::Vector &x, mfem::Vector &b,
-                                    mfem::OperatorHandle &A, mfem::Vector &X, mfem::Vector &B,
-                                    int copy_interior)
+      mfem::Vector &x, mfem::Vector &b,
+      mfem::OperatorHandle &A, mfem::Vector &X, mfem::Vector &B,
+      int copy_interior)
 {
    FormSystemMatrix(ess_tdof_list, A);
    InitRHS(ess_tdof_list, x, b, A, X, B, copy_interior);
@@ -312,7 +314,7 @@ void BilinearForm<Device>::FormLinearSystem(const mfem::Array<int> &ess_tdof_lis
 
 template <Location Device>
 void BilinearForm<Device>::RecoverFEMSolution(const mfem::Vector &X, const mfem::Vector &b,
-                                      mfem::Vector &x)
+      mfem::Vector &x)
 {
    const mfem::Operator *P = GetProlongation();
    if (P)
@@ -327,12 +329,12 @@ void BilinearForm<Device>::RecoverFEMSolution(const mfem::Vector &X, const mfem:
 template <Location Device>
 void BilinearForm<Device>::Mult(const mfem::Vector &x, mfem::Vector &y) const
 {
-   trial_fes->ToEVector(x.Get_PVector()->As<VectorType<Device,double>>(), x_local);
+   trial_fes->ToEVector(x.Get_PVector()->As<VectorType<Device, double>>(), x_local);
 
    y_local.template Fill<double>(0.0);
    for (int i = 0; i < pabfi.Size(); i++) pabfi[i]->MultAdd(x_local, y_local);
 
-   test_fes->ToLVector(y_local, y.Get_PVector()->As<VectorType<Device,double>>());
+   test_fes->ToLVector(y_local, y.Get_PVector()->As<VectorType<Device, double>>());
 }
 
 template <Location Device>
@@ -345,13 +347,13 @@ class PAConstrainedOperator : public mfem::Operator
    const mfem::Operator *A;
    const bool own_A;
    ArrayType<Device> constraint_list;
-   mutable VectorType<Device,double> z, w;
+   mutable VectorType<Device, double> z, w;
    mutable mfem::Vector mfem_z, mfem_w;
 
 public:
    PAConstrainedOperator(mfem::Operator *A_,
-                       const mfem::Array<int> &constraint_list_,
-                       bool own_A_ = false);
+                         const mfem::Array<int> &constraint_list_,
+                         bool own_A_ = false);
 
    // Destructor: destroys the unconstrained Operator @a A if @a own_A is true.
    virtual ~PAConstrainedOperator();
@@ -388,25 +390,26 @@ PAConstrainedOperator<Device>::PAConstrainedOperator(mfem::Operator *A_,
    constraint_list.PushData(constraint_list_.GetData());
 }
 
+void mapDofs(HostVector<double>& w, const HostVector<double>& x, const HostArray& constraint_list);
+void mapDofsClear(HostVector<double>& w, const HostArray& constraint_list);
+#ifdef __NVCC__
+void mapDofs(CudaVector<double>& w, const CudaVector<double>& x, const CudaArray& constraint_list);
+void mapDofsClear(CudaVector<double>& w, const CudaArray& constraint_list);
+#endif
+
 template <Location Device>
 void PAConstrainedOperator<Device>::EliminateRHS(const mfem::Vector &mfem_x, mfem::Vector &mfem_b) const
 {
    w.template Fill<double>(0.0);
 
-   const VectorType<Device,double> &x = mfem_x.Get_PVector()->As<VectorType<Device,double>>();
-   VectorType<Device,double> &b = mfem_b.Get_PVector()->As<VectorType<Device,double>>();
-
-   const double *x_data = x.GetData();
-   double *b_data = b.GetData();
-   double *w_data = w.GetData();
-   const int* constraint_data = constraint_list.template GetTypedData<int>();
+   const VectorType<Device, double> &x = mfem_x.Get_PVector()->As<VectorType<Device, double>>();
+   VectorType<Device, double> &b = mfem_b.Get_PVector()->As<VectorType<Device, double>>();
 
    const std::size_t num_constraint = constraint_list.Size();
 
    if (num_constraint > 0)
    {
-      for (std::size_t i = 0; i < num_constraint; i++)
-         w_data[constraint_data[i]] = x_data[constraint_data[i]];
+      mapDofs(w, x, constraint_list);
    }
 
    A->Mult(mfem_w, mfem_z);
@@ -415,8 +418,7 @@ void PAConstrainedOperator<Device>::EliminateRHS(const mfem::Vector &mfem_x, mfe
 
    if (num_constraint > 0)
    {
-      for (std::size_t i = 0; i < num_constraint; i++)
-         b_data[constraint_data[i]] = x_data[constraint_data[i]];
+      mapDofs(b, x, constraint_list);
    }
 }
 
@@ -429,28 +431,21 @@ void PAConstrainedOperator<Device>::Mult(const mfem::Vector &mfem_x, mfem::Vecto
       return;
    }
 
-   const VectorType<Device,double> &x = mfem_x.Get_PVector()->As<VectorType<Device,double>>();
-   VectorType<Device,double> &y = mfem_y.Get_PVector()->As<VectorType<Device,double>>();
-
-   const double *x_data = x.GetData();
-   double *y_data = y.GetData();
-   double *z_data = z.GetData();
-   const int* constraint_data = constraint_list.template GetTypedData<int>();
+   const VectorType<Device, double> &x = mfem_x.Get_PVector()->As<VectorType<Device, double>>();
+   VectorType<Device, double> &y = mfem_y.Get_PVector()->As<VectorType<Device, double>>();
 
    const std::size_t num_constraint = constraint_list.Size();
 
    z.template Assign<double>(x); // z = x
 
    // z[constraint_list] = 0.0
-   for (std::size_t i = 0; i < num_constraint; i++)
-      z_data[constraint_data[i]] = 0.0;
+   mapDofsClear(z, constraint_list);
 
    // y = A * z
    A->Mult(mfem_z, mfem_y);
 
    // y[constraint_list] = x[constraint_list]
-   for (std::size_t i = 0; i < num_constraint; i++)
-      y_data[constraint_data[i]] = x_data[constraint_data[i]];
+   mapDofs(y, x, constraint_list);
 }
 
 // Destructor: destroys the unconstrained Operator @a A if @a own_A is true.

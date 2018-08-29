@@ -145,8 +145,9 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    //Engine stuff
-   string pa_spec("Hello world");
-   SharedPtr<Engine> engine(mfem::pa::createEngine("Host"));
+   // string pa_spec("Host");
+   string pa_spec("CudaDevice");
+   SharedPtr<Engine> engine(mfem::pa::createEngine("CudaDevice"));
 
 
    // 2. Read the mesh from the given mesh file. We can handle geometrically

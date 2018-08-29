@@ -12,11 +12,73 @@
 #include "../../config/config.hpp"
 #if defined(MFEM_USE_BACKENDS) && defined(MFEM_USE_PA)
 
+#include "bilinearform.hpp"
+
 namespace mfem
 {
 
 namespace pa
 {
+
+void getSubvector(HostVector<double>& subvec, const HostVector<double>& X, const HostArray& constraint_list)
+{
+   const double *X_data = X.GetData();
+   double *subvec_data = subvec.GetData();
+   const int* constraint_data = constraint_list.template GetTypedData<int>();
+   const std::size_t num_constraint = constraint_list.Size();
+   for (std::size_t i = 0; i < num_constraint; i++) subvec_data[i] = X_data[constraint_data[i]];   
+}
+
+void setSubvector(HostVector<double>& X, const HostVector<double>& subvec, const HostArray& constraint_list)
+{
+   double *X_data = X.GetData();
+   const double *subvec_data = subvec.GetData();
+   const int* constraint_data = constraint_list.template GetTypedData<int>();
+   const std::size_t num_constraint = constraint_list.Size();
+   for (std::size_t i = 0; i < num_constraint; i++) X_data[constraint_data[i]] = subvec_data[i];   
+}
+
+void mapDofs(HostVector<double>& w, const HostVector<double>& x, const HostArray& constraint_list)
+{
+   const double *x_data = x.GetData();
+   double *w_data = w.GetData();
+   const int* constraint_data = constraint_list.template GetTypedData<int>();
+   const std::size_t num_constraint = constraint_list.Size();
+   for (std::size_t i = 0; i < num_constraint; i++)
+      w_data[constraint_data[i]] = x_data[constraint_data[i]];
+}
+
+void mapDofsClear(HostVector<double>& w, const HostArray& constraint_list)
+{
+   double *w_data = w.GetData();
+   const int* constraint_data = constraint_list.template GetTypedData<int>();
+   const std::size_t num_constraint = constraint_list.Size();
+   for (std::size_t i = 0; i < num_constraint; i++)
+      w_data[constraint_data[i]] = 0.0;
+}
+
+#ifdef __NVCC__
+void getSubvector(CudaVector<double>& subvec, const CudaVector<double>& X, const CudaArray& constraint_list)
+{
+   //TODO
+}
+
+void setSubvector(CudaVector<double>& X, const CudaVector<double>& subvec, const CudaArray& constraint_list)
+{
+   //TODO
+}
+
+void mapDofs(CudaVector<double>& w, const CudaVector<double>& x, const CudaArray& constraint_list)
+{
+   //TODO
+}
+
+void mapDofsClear(CudaVector<double>& w, const CudaArray& constraint_list)
+{
+   //TODO
+}
+#endif
+
 
 
 } // namespace mfem::pa
