@@ -31,6 +31,7 @@ public:
 
    void Set(const double *p, const int dim)
    {
+      MFEM_ASSERT(1 <= dim && dim <= 3, "invalid dim: " << dim);
       x = p[0];
       if (dim > 1)
       {
@@ -44,6 +45,7 @@ public:
 
    void Get(double *p, const int dim) const
    {
+      MFEM_ASSERT(1 <= dim && dim <= 3, "invalid dim: " << dim);
       p[0] = x;
       if (dim > 1)
       {
