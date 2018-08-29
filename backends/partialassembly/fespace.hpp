@@ -93,7 +93,6 @@ PAFiniteElementSpace<Device>::PAFiniteElementSpace(const PAEngine<Device> &e,
    for (int e = 0; e < fespace.GetNE(); e++) { lsize += fespace.GetFE(e)->GetDof(); }
    e_layout.Resize(lsize);
    e_layout.DontDelete();
-   BuildDofMaps();
 }
 
 template <Location Device>
@@ -109,8 +108,8 @@ void PAFiniteElementSpace<Device>::BuildDofMaps()
    tensor_offsets = new mfem::Array<int>(*(new LayoutType<Device>(GetEngine(), global_size + 1)));
    tensor_indices = new mfem::Array<int>(*(new LayoutType<Device>(GetEngine(), local_size)));
 
-   mfem::Array<int> &offsets = *tensor_offsets;
-   mfem::Array<int> &indices = *tensor_indices;
+   mfem::Array<int> offsets(tensor_offsets->Size());
+   mfem::Array<int> indices(tensor_indices->Size());
 
    mfem::Array<int> global_map(local_size);
    mfem::Array<int> elem_vdof;
@@ -178,8 +177,10 @@ void PAFiniteElementSpace<Device>::BuildDofMaps()
    }
    offsets[0] = 0;
 
-   offsets.Push();
-   indices.Push();
+   tensor_offsets->PushData(offsets.GetData());
+   tensor_indices->PushData(indices.GetData());
+   // offsets.Push();
+   // indices.Push();
 }
 
 void toLVector(const mfem::Array<int>& tensor_offsets, const mfem::Array<int>& tensor_indices
@@ -193,6 +194,7 @@ void toLVector(const mfem::Array<int>& tensor_offsets, const mfem::Array<int>& t
 template <Location Device>
 void PAFiniteElementSpace<Device>::ToLVector(const VectorType<Device, double>& e_vector, VectorType<Device, double>& l_vector)
 {
+   if (tensor_indices == NULL) BuildDofMaps();
    if (l_vector.Size() != (std::size_t) GetFESpace()->GetVSize())
    {
       l_vector.template Resize<double>(GetFESpace()->GetVLayout(), NULL);
@@ -211,6 +213,7 @@ void toEVector(const mfem::Array<int>& tensor_offsets, const mfem::Array<int>& t
 template <Location Device>
 void PAFiniteElementSpace<Device>::ToEVector(const VectorType<Device, double>& l_vector, VectorType<Device, double>& e_vector)
 {
+   if (tensor_indices == NULL) BuildDofMaps();
    if (e_vector.Size() != (std::size_t) e_layout.Size())
    {
       e_vector.template Resize<double>(GetELayout(), NULL);
