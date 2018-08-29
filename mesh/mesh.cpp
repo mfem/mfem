@@ -6199,7 +6199,7 @@ STable3D* Mesh::InitFromNCMesh(const NCMesh &ncmesh)
    STable3D *faces_tbl = NULL;
    if (Dim > 2)
    {
-     faces_tbl = GetElementToFaceTable(1);
+      faces_tbl = GetElementToFaceTable(1);
    }
    GenerateFaces();
 #ifdef MFEM_DEBUG
