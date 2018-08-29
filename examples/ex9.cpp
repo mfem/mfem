@@ -266,7 +266,7 @@ private:
       Array<int> ldofs_external;
       const int *I = K.SpMat().GetI(), *J = K.SpMat().GetJ();
       
-      // use the first mesh element as an indicator
+      // use the first mesh element as indicator
       switch (stencil)
       {
          case 1:
@@ -274,7 +274,7 @@ private:
             dist_level = 1.0 / fes->GetOrder(0) + tol; 
             break;
          case 2:
-            // Include the diagonal neighbors, use the first mesh element as an indicator
+            // Include the diagonal neighbors, use the first mesh element as indicator
             // modified by Hennes, this should be larger than sqrt(3) to support 3D
             dist_level = 1.8 / fes->GetOrder(0) + tol; 
             break;
@@ -287,7 +287,6 @@ private:
       
       const FiniteElement *fe_external;
       
-      // loop over cells
       for (int k = 0; k < num_cells; k++)
       {
          fes->GetElementDofs(k, ldofs);
@@ -469,7 +468,7 @@ private:
    FiniteElementSpace* fes;
    
 public:
-   // Constructor
+   // Constructor builds structures required for low order scheme
    FluxCorrectedTransport(const MONOTYPE _monoType, FiniteElementSpace* _fes, 
                           const SparseMatrix &K, VectorFunctionCoefficient &coef, SolutionBounds &_bnds) : 
                           monoType(_monoType), fes(_fes), KpD(K), bnds(_bnds)
@@ -566,7 +565,7 @@ public:
       double vn;
       Array< int > bdrs, orientation;
       
-      // use the first mesh element as an indicator for the following bunch
+      // use the first mesh element as indicator for the following bunch
       const FiniteElement &dummy = *fes->GetFE(0);
       nd = dummy.GetDof();
       // fill the dofs array to access the correct dofs for boundaries
@@ -581,16 +580,16 @@ public:
       bdrDiff.SetSize(ne, numBdrs); bdrDiff = 0.;
       lumpedM.SetSize(ne*nd); lumpedM = 0.;
       
-      // use the first mesh element as an indicator
+      // use the first mesh element as indicator
       ElementTransformation *tr = mesh->GetElementTransformation(0);
       // Assuming order(u)==order(mesh)
-      // beta can not be integrated exactly due to transforamtion dependent denominator
+      // Depending on ESTIMATE, beta may be impossible to integrate exactly due to transformation dependent denominator
       // use tr->OrderW() + 2*dummy.GetOrder() + 2*dummy.max(tr->OrderGrad(&dummy), 0) instead
       // appropriate qOrdE for alpha is tr->OrderW() + 2*dummy.GetOrder(), choose max
       qOrdE = tr->OrderW() + 2*dummy.GetOrder() + 2*max(tr->OrderGrad(&dummy), 0);
       const IntegrationRule *ir = &IntRules.Get(dummy.GetGeomType(), qOrdE);
       
-      // use the first mesh boundary as an indicator 
+      // use the first mesh boundary as indicator 
       FaceElementTransformations *Trans = mesh -> GetFaceElementTransformations(0); 
       // qOrdF is chosen such that L2-norm of basis functions is computed accurately.
       // Normal velocity term relies on L^Inf-norm which is approximated 
@@ -726,15 +725,16 @@ public:
       int i, j, k, p, dofInd, qOrdE, numPtsE, qOrdF, numPtsF, nd, numBdrs, dim = mesh->Dimension(), ne = mesh->GetNE();
       double maxDiag;
       Array <int> locDofs, bdrs, orientation;
+      FaceElementTransformations *Trans;
       
-      // use the first mesh element as an indicator for the following bunch
+      // use the first mesh element as indicator for the following bunch
       const FiniteElement &dummy = *fes->GetFE(0);
       nd = dummy.GetDof();
-      // fill the dofs array to access the correct dofs for boundaries
+      // fill the dofs array to access the correct dofs for boundaries later; dofs is not needed here
       dummy.ExtractBdrDofs(dofs);
       numBdrs = dofs.Width();
             
-      // use the first mesh element as an indicator
+      // use the first mesh element as indicator
       ElementTransformation *tr = mesh->GetElementTransformation(0);
       // Assuming order(u)==order(mesh)
       // beta can not be integrated exactly due to transforamtion dependent denominator
@@ -755,29 +755,7 @@ public:
       LumpedM.SetSize(ne*nd); LumpedM = 0.;
       locDofs.SetSize(nd); sortArray.SetSize(ne*nd);
       
-      // use the first mesh boundary as an indicator 
-      FaceElementTransformations *Trans = mesh -> GetFaceElementTransformations(0); 
-      // qOrdF is chosen such that L2-norm of basis functions is computed accurately.
-      // Normal velocity term relies on L^Inf-norm which is approximated 
-      // by its maximum value in the quadrature points of the same rule.
-      if (Trans->Elem1No != 0)
-      {
-         if (Trans->Elem2No != 0)
-            mfem_error("Boundary edge does not belong to this element.");
-         else
-            qOrdF = Trans->Elem2->OrderW() + 2*dummy.GetOrder();
-      }
-      else
-      {
-         qOrdF = Trans->Elem1->OrderW() + 2*dummy.GetOrder();
-      }
-      const IntegrationRule *irF1 = &IntRules.Get(Trans->FaceGeom, qOrdF);
-      numPtsF = irF1->GetNPoints();
-      
-      Vector D_K_bdr(numPtsF), D_M_bdr(numPtsF);
-      DenseMatrix B_Int(numPtsF,nd), B_Ext(numPtsF,nd);
-      
-      // use the first mesh boundary with a neighbor as an indicator
+      // use the first mesh boundary with a neighbor as indicator
       for (i = 0; i < mesh->GetNumFaces(); i++)
       {
          Trans = mesh->GetFaceElementTransformations(i);
@@ -786,6 +764,15 @@ public:
          // NOTE: The case that the simulation is performed on a single element 
          //       and all boundaries are non-periodic is not covered
       }
+      // qOrdF is chosen such that L2-norm of basis functions is computed accurately.
+      // Normal velocity term relies on L^Inf-norm which is approximated 
+      // by its maximum value in the quadrature points of the same rule.
+      qOrdF = std::max(Trans->Elem1->OrderW(), Trans->Elem2->OrderW()) + 2*dummy.GetOrder();
+      const IntegrationRule *irF1 = &IntRules.Get(Trans->FaceGeom, qOrdF);
+      numPtsF = irF1->GetNPoints();
+      
+      Vector D_K_bdr(numPtsF), D_M_bdr(numPtsF);
+      DenseMatrix B_Int(numPtsF,nd), B_Ext(numPtsF,nd);
       
       for (p = 0; p < irF1->GetNPoints(); p++)
       {
@@ -853,7 +840,7 @@ public:
          
          MultAtB(B2, D_K, B2tDK);
          
-         // optional sharper bound incorporating the sign: TOO EXPENSIVE for high orders
+         // optional sharper bound incorporating the sign: TOO EXPENSIVE, it requires evaluation of dense matrix B2^T D_K
          /*
          for (int col = 0; col < B2tDK.Width(); col++)
          {
@@ -1215,7 +1202,7 @@ int main(int argc, char *argv[])
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
    //    iterations, ti, with a time-step dt).
-   FE_Evolution adv( &fes, m.SpMat(), k.SpMat(), b, fct);
+   FE_Evolution adv(&fes, m.SpMat(), k.SpMat(), b, fct);
 
    double t = 0.0;
    adv.SetTime(t);
@@ -1395,7 +1382,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          {
             dofInd = k*nd+j;
             sB += fct.beta(dofInd) * x(dofInd);
-            dB += fct.beta(dofInd); // possible to optimize this
+            dB += fct.beta(dofInd); // possible to store this
             
             // compute smoothness indicator
             if (useSmInd)
