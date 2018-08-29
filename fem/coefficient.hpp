@@ -654,10 +654,10 @@ public:
 
    void SetAlpha(double _alpha) { alpha = _alpha; }
    double GetAlpha() const { return alpha; }
-  
+
    void SetBeta(double _beta) { beta = _beta; }
    double GetBeta() const { return beta; }
-  
+
    /// Evaluate the coefficient
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
@@ -802,7 +802,7 @@ public:
 
    void SetAlpha(double _alpha) { alpha = _alpha; }
    double GetAlpha() const { return alpha; }
-  
+
    void SetBeta(double _beta) { beta = _beta; }
    double GetBeta() const { return beta; }
 
@@ -826,6 +826,24 @@ public:
 
    void SetBCoef(VectorCoefficient &B) { b = &B; }
    VectorCoefficient * GetBCoef() const { return b; }
+
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+};
+
+/// Vector coefficient defined as a normalized vector field (returns v/|v|)
+class NormalizedVectorCoefficient : public VectorCoefficient
+{
+private:
+   VectorCoefficient * a;
+
+   double tol;
+
+public:
+   NormalizedVectorCoefficient(VectorCoefficient &A, double tol = 1e-6);
+
+   void SetACoef(VectorCoefficient &A) { a = &A; }
+   VectorCoefficient * GetACoef() const { return a; }
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
@@ -902,7 +920,7 @@ public:
 
    void SetAlpha(double _alpha) { alpha = _alpha; }
    double GetAlpha() const { return alpha; }
-  
+
    void SetBeta(double _beta) { beta = _beta; }
    double GetBeta() const { return beta; }
 

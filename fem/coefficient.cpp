@@ -428,6 +428,19 @@ void ScalarVectorProductCoefficient::Eval(Vector &V, ElementTransformation &T,
    V *= sa;
 }
 
+NormalizedVectorCoefficient::NormalizedVectorCoefficient(VectorCoefficient &A,
+                                                         double _tol)
+   : VectorCoefficient(A.GetVDim()), a(&A), tol(_tol)
+{}
+
+void NormalizedVectorCoefficient::Eval(Vector &V, ElementTransformation &T,
+                                       const IntegrationPoint &ip)
+{
+   a->Eval(V, T, ip);
+   double nv = V.Norml2();
+   V *= (nv > tol) ? (1.0/nv) : 0.0;
+}
+
 VectorCrossProductCoefficient::VectorCrossProductCoefficient(
    VectorCoefficient &A,
    VectorCoefficient &B)
