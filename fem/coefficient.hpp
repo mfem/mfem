@@ -296,7 +296,7 @@ public:
                      const IntegrationPoint &ip)
    { Eval(V, T); }
 #endif
-  
+
    virtual void Eval(Vector &V, ElementTransformation &T) = 0;
 
    // General implementation using the Eval method for one IntegrationPoint.
@@ -485,7 +485,7 @@ public:
                      const IntegrationPoint &ip)
    { Eval(K, T); }
 #endif
-  
+
    virtual void Eval(DenseMatrix &K, ElementTransformation &T) = 0;
 
    virtual ~MatrixCoefficient() { }
