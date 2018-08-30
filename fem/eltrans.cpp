@@ -23,6 +23,19 @@ ElementTransformation::ElementTransformation()
      ElementNo(-1)
 { }
 
+void ElementTransformation::SetIntPoint(const IntegrationPoint *ip)
+{
+   if ( IntPoint == NULL || ip == NULL )
+   {
+      IntPoint = ip; EvalState = 0;
+   }
+   else if ( *IntPoint != *ip ) // Neither pointer is NULL so this is safe
+   {
+      // Reset EvalState if the argument is not the same as the current point
+      IntPoint = ip; EvalState = 0;
+   }
+}
+
 double ElementTransformation::EvalWeight()
 {
    MFEM_ASSERT((EvalState & WEIGHT_MASK) == 0, "");

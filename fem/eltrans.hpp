@@ -49,9 +49,20 @@ public:
 
    ElementTransformation();
 
-   void SetIntPoint(const IntegrationPoint *ip)
-   { IntPoint = ip; EvalState = 0; }
-   const IntegrationPoint &GetIntPoint() { return *IntPoint; }
+   /** @brief Set a new integration point. */
+   /** Sets a new point and resets the EvalState flag if the new point
+       is different from the previous one. */
+   void SetIntPoint(const IntegrationPoint *ip);
+
+   /** @brief Return the currently set integration point. */
+   /** This could lead to undefined behavior if the integration point
+       has not already been set.  This should never happen but if
+       there is any doubt, users can first call IntPointSet() to check
+       if the integration point has been set. */
+   const IntegrationPoint &GetIntPoint() const { return *IntPoint; }
+
+   /// Check if the integration point has been set
+   bool IntPointSet() const { return IntPoint != NULL; }
 
    virtual void Transform(const IntegrationPoint &, Vector &) = 0;
    virtual void Transform(const IntegrationRule &, DenseMatrix &) = 0;
