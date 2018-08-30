@@ -79,6 +79,12 @@ public:
    void Set1w(const double x1, const double w) { x = x1; weight = w; }
 
    void Set1w(const double *p) { x = p[0]; weight = p[1]; }
+
+   inline bool operator==(const IntegrationPoint & ip) const
+   { return x == ip.x && y == ip.y && z == ip.z && weight == ip.weight; }
+
+   inline bool operator!=(const IntegrationPoint & ip) const
+   { return x != ip.x || y != ip.y || z != ip.z || weight != ip.weight; }
 };
 
 /// Class for an integration rule - an Array of IntegrationPoint.
