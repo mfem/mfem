@@ -151,6 +151,14 @@ mfem::Engine* createEngine(const std::string& engine_spec){
       engine = new PAEngine<CudaDevice>;
    }
    #endif
+   if(!engine)
+   {
+      if(engine_spec=="CudaDevice"){
+         mfem_error("Couldn't find the requested CudaDevice Engine. Did you compile with NVCC?");
+      }else{
+         mfem_error("Couldn't find the requested Engine.");
+      }
+   }
    return engine;
 }
 

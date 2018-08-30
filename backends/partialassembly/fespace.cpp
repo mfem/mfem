@@ -20,8 +20,8 @@ namespace mfem
 namespace pa
 {
 
-void toLVector(const mfem::Array<int>& tensor_offsets, const mfem::Array<int>& tensor_indices
-               , const HostVector<double>& e_vector, HostVector<double>& l_vector)
+void toLVector(const mfem::Array<int>& tensor_offsets, const mfem::Array<int>& tensor_indices,
+               const HostVector<double>& e_vector, HostVector<double>& l_vector)
 {
    const int lsize = l_vector.Size();
    const int *offsets = tensor_offsets.Get_PArray()->As<HostArray>().GetTypedData<int>();
@@ -43,8 +43,8 @@ void toLVector(const mfem::Array<int>& tensor_offsets, const mfem::Array<int>& t
    }
 }
 
-void toEVector(const mfem::Array<int>& tensor_offsets, const mfem::Array<int>& tensor_indices
-               , const HostVector<double>& l_vector, HostVector<double>& e_vector)
+void toEVector(const mfem::Array<int>& tensor_offsets, const mfem::Array<int>& tensor_indices,
+               const HostVector<double>& l_vector, HostVector<double>& e_vector)
 {
    const int lsize = l_vector.Size();
    const int *offsets = tensor_offsets.Get_PArray()->As<HostArray>().GetTypedData<int>();
@@ -66,16 +66,65 @@ void toEVector(const mfem::Array<int>& tensor_offsets, const mfem::Array<int>& t
 }
 
 #ifdef __NVCC__
-void toLVector(const mfem::Array<int>& tensor_offsets, const mfem::Array<int>& tensor_indices
-               , const CudaVector<double>& e_vector, CudaVector<double>& l_vector)
+__global__ void toLVectorKernel(const int lsize, const int* offsets, const int* indices,
+                                const double* e_data, double* l_data)
 {
-   //TODO
+   int i = threadIdx.x + blockDim.x * blockIdx.x;
+   if (i < lsize) {
+      const int offset = offsets[i];
+      const int next_offset = offsets[i + 1];
+      double dof_value = 0;
+      for (int j = offset; j < next_offset; j++)
+      {
+         dof_value += e_data[indices[j]];
+      }
+      l_data[i] = dof_value;
+   }
 }
 
-void toEVector(const mfem::Array<int>& tensor_offsets, const mfem::Array<int>& tensor_indices
-               , const CudaVector<double>& l_vector, CudaVector<double>& e_vector)
+//Maybe that in the future this doesn't do anything because it will be fused with the mult kernel...
+void toLVector(const mfem::Array<int>& tensor_offsets, const mfem::Array<int>& tensor_indices,
+               const CudaVector<double>& e_vector, CudaVector<double>& l_vector)
 {
-   //TODO
+   const int bsize = 512;
+   const int vecsize = l_vector.Size();
+   int gridsize = vecsize/bsize;
+   if (bsize*gridsize < vecsize)
+        gridsize += 1;
+   toLVectorKernel<<<gridsize,bsize>>>(l_vector.Size(),
+                           tensor_offsets.Get_PArray()->As<CudaArray>().GetTypedData<int>(),
+                           tensor_indices.Get_PArray()->As<CudaArray>().GetTypedData<int>(),
+                           e_vector.GetData(), l_vector.GetData());
+}
+
+__global__ void toEVectorKernel(const int lsize, const int* offsets, const int* indices,
+                                const double* l_data, double* e_data)
+{
+   int i = threadIdx.x + blockDim.x * blockIdx.x;
+   if (i < lsize)
+   {
+      const int offset = offsets[i];
+      const int next_offset = offsets[i + 1];
+      const double dof_value = l_data[i];
+      for (int j = offset; j < next_offset; j++)
+      {
+         e_data[indices[j]] = dof_value;
+      }
+   }
+}
+
+void toEVector(const mfem::Array<int>& tensor_offsets, const mfem::Array<int>& tensor_indices,
+               const CudaVector<double>& l_vector, CudaVector<double>& e_vector)
+{
+   const int bsize = 512;
+   const int vecsize = l_vector.Size();
+   int gridsize = vecsize/bsize;
+   if (bsize*gridsize < vecsize)
+        gridsize += 1;
+   toEVectorKernel<<<gridsize,bsize>>>(l_vector.Size(),
+                           tensor_offsets.Get_PArray()->As<CudaArray>().GetTypedData<int>(),
+                           tensor_indices.Get_PArray()->As<CudaArray>().GetTypedData<int>(),
+                           l_vector.GetData(), e_vector.GetData());
 }
 #endif
 

@@ -58,27 +58,78 @@ void mapDofsClear(HostVector<double>& w, const HostArray& constraint_list)
 }
 
 #ifdef __NVCC__
+__global__ void getSubvectorKernel(const int size, double* subvec, const double* X, const int* constraint_list)
+{
+   int idx = threadIdx.x + blockDim.x*blockIdx.x;
+   if (idx>=size)
+      return;
+   subvec[idx] = X[constraint_list[idx]];
+}
+
 void getSubvector(CudaVector<double>& subvec, const CudaVector<double>& X, const CudaArray& constraint_list)
 {
-   //TODO
+   const int bsize = 512;
+   const int vecsize = subvec.Size();
+   int gridsize = vecsize/bsize;
+   if (bsize*gridsize < vecsize)
+        gridsize += 1;
+   getSubvectorKernel<<<gridsize,bsize>>>(vecsize, subvec.GetData(), X.GetData(), constraint_list.GetTypedData<int>());
+}
+
+__global__ void setSubvectorKernel(const int size, double* X, const double* subvec, const int* constraint_list)
+{
+   int idx = threadIdx.x + blockDim.x*blockIdx.x;
+   if (idx>=size)
+      return;
+   X[constraint_list[idx]] = subvec[idx];
 }
 
 void setSubvector(CudaVector<double>& X, const CudaVector<double>& subvec, const CudaArray& constraint_list)
 {
-   //TODO
+   const int bsize = 512;
+   const int vecsize = X.Size();
+   int gridsize = vecsize/bsize;
+   if (bsize*gridsize < vecsize)
+        gridsize += 1;
+   setSubvectorKernel<<<gridsize,bsize>>>(vecsize, X.GetData(), subvec.GetData(), constraint_list.GetTypedData<int>());
+}
+
+__global__ void mapDofsKernel(const int size, double* w, const double* x, const int* constraint_list)
+{
+   int idx = threadIdx.x + blockDim.x*blockIdx.x;
+   if (idx>=size)
+      return;
+   w[constraint_list[idx]] = x[constraint_list[idx]];
 }
 
 void mapDofs(CudaVector<double>& w, const CudaVector<double>& x, const CudaArray& constraint_list)
 {
-   //TODO
+   const int bsize = 512;
+   const int vecsize = w.Size();
+   int gridsize = vecsize/bsize;
+   if (bsize*gridsize < vecsize)
+        gridsize += 1;
+   mapDofsKernel<<<gridsize,bsize>>>(vecsize, w.GetData(), x.GetData(), constraint_list.GetTypedData<int>());
+}
+
+__global__ void mapDofsClearKernel(const int size, double* w, const int* constraint_list)
+{
+   int idx = threadIdx.x + blockDim.x*blockIdx.x;
+   if (idx>=size)
+      return;
+   w[constraint_list[idx]] = 0.0;
 }
 
 void mapDofsClear(CudaVector<double>& w, const CudaArray& constraint_list)
 {
-   //TODO
+   const int bsize = 512;
+   const int vecsize = w.Size();
+   int gridsize = vecsize/bsize;
+   if (bsize*gridsize < vecsize)
+        gridsize += 1;
+   mapDofsClearKernel<<<gridsize,bsize>>>(vecsize, w.GetData(), constraint_list.GetTypedData<int>());
 }
 #endif
-
 
 
 } // namespace mfem::pa
