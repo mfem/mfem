@@ -21,20 +21,20 @@ namespace mfem
 
 using namespace std;
 
-double PWConstCoefficient::Eval(ElementTransformation & T,
-                                const IntegrationPoint & ip)
+double PWConstCoefficient::Eval(ElementTransformation & T)
 {
    int att = T.Attribute;
    return (constants(att-1));
 }
 
-double FunctionCoefficient::Eval(ElementTransformation & T,
-                                 const IntegrationPoint & ip)
+double FunctionCoefficient::Eval(ElementTransformation & T)
 {
+   MFEM_ASSERT(T.IntPointSet(), "Integration point not set.");
+
    double x[3];
    Vector transip(x, 3);
 
-   T.Transform(ip, transip);
+   T.Transform(T.GetIntPoint(), transip);
 
    if (Function)
    {
@@ -46,23 +46,22 @@ double FunctionCoefficient::Eval(ElementTransformation & T,
    }
 }
 
-double GridFunctionCoefficient::Eval (ElementTransformation &T,
-                                      const IntegrationPoint &ip)
+double GridFunctionCoefficient::Eval (ElementTransformation &T)
 {
-   return GridF -> GetValue (T.ElementNo, ip, Component);
+   MFEM_ASSERT(T.IntPointSet(), "Integration point not set.");
+   return GridF -> GetValue (T.ElementNo, T.GetIntPoint(), Component);
 }
 
-double TransformedCoefficient::Eval(ElementTransformation &T,
-                                    const IntegrationPoint &ip)
+double TransformedCoefficient::Eval(ElementTransformation &T)
 {
    if (Q2)
    {
-      return (*Transform2)(Q1->Eval(T, ip, GetTime()),
-                           Q2->Eval(T, ip, GetTime()));
+      return (*Transform2)(Q1->Eval(T, GetTime()),
+                           Q2->Eval(T, GetTime()));
    }
    else
    {
-      return (*Transform1)(Q1->Eval(T, ip, GetTime()));
+      return (*Transform1)(Q1->Eval(T, GetTime()));
    }
 }
 
@@ -80,11 +79,10 @@ void DeltaCoefficient::GetDeltaCenter(Vector& vcenter)
    vcenter = center;
 }
 
-double DeltaCoefficient::EvalDelta(ElementTransformation &T,
-                                   const IntegrationPoint &ip)
+double DeltaCoefficient::EvalDelta(ElementTransformation &T)
 {
    double w = Scale();
-   return weight ? weight->Eval(T, ip, GetTime())*w : w;
+   return weight ? weight->Eval(T, GetTime())*w : w;
 }
 
 
@@ -98,17 +96,18 @@ void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
       M.GetColumnReference(i, Mi);
       const IntegrationPoint &ip = ir.IntPoint(i);
       T.SetIntPoint(&ip);
-      Eval(Mi, T, ip);
+      Eval(Mi, T);
    }
 }
 
-void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
-                                     const IntegrationPoint &ip)
+void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T)
 {
+   MFEM_ASSERT(T.IntPointSet(), "Integration point not set.");
+
    double x[3];
    Vector transip(x, 3);
 
-   T.Transform(ip, transip);
+   T.Transform(T.GetIntPoint(), transip);
 
    V.SetSize(vdim);
    if (Function)
@@ -121,7 +120,7 @@ void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
    }
    if (Q)
    {
-      V *= Q->Eval(T, ip, GetTime());
+      V *= Q->Eval(T, GetTime());
    }
 }
 
@@ -142,13 +141,12 @@ VectorArrayCoefficient::~VectorArrayCoefficient()
    }
 }
 
-void VectorArrayCoefficient::Eval(Vector &V, ElementTransformation &T,
-                                  const IntegrationPoint &ip)
+void VectorArrayCoefficient::Eval(Vector &V, ElementTransformation &T)
 {
    V.SetSize(vdim);
    for (int i = 0; i < vdim; i++)
    {
-      V(i) = this->Eval(i, T, ip);
+      V(i) = this->Eval(i, T);
    }
 }
 
@@ -158,10 +156,10 @@ VectorGridFunctionCoefficient::VectorGridFunctionCoefficient (
    GridFunc = gf;
 }
 
-void VectorGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
-                                         const IntegrationPoint &ip)
+void VectorGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T)
 {
-   GridFunc->GetVectorValue(T.ElementNo, ip, V);
+   MFEM_ASSERT(T.IntPointSet(), "Integration point not set.");
+   GridFunc->GetVectorValue(T.ElementNo, T.GetIntPoint(), V);
 }
 
 void VectorGridFunctionCoefficient::Eval(
@@ -177,21 +175,20 @@ void VectorDeltaCoefficient::SetDirection(const Vector &_d)
 }
 
 void VectorDeltaCoefficient::EvalDelta(
-   Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
+   Vector &V, ElementTransformation &T)
 {
    V = dir;
    d.SetTime(GetTime());
-   V *= d.EvalDelta(T, ip);
+   V *= d.EvalDelta(T);
 }
 
-void VectorRestrictedCoefficient::Eval(Vector &V, ElementTransformation &T,
-                                       const IntegrationPoint &ip)
+void VectorRestrictedCoefficient::Eval(Vector &V, ElementTransformation &T)
 {
    V.SetSize(vdim);
    if (active_attr[T.Attribute-1])
    {
       c->SetTime(GetTime());
-      c->Eval(V, T, ip);
+      c->Eval(V, T);
    }
    else
    {
@@ -214,13 +211,14 @@ void VectorRestrictedCoefficient::Eval(
    }
 }
 
-void MatrixFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
-                                     const IntegrationPoint &ip)
+void MatrixFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T)
 {
+   MFEM_ASSERT(T.IntPointSet(), "Integration point not set.");
+
    double x[3];
    Vector transip(x, 3);
 
-   T.Transform(ip, transip);
+   T.Transform(T.GetIntPoint(), transip);
 
    K.SetSize(height, width);
 
@@ -238,7 +236,7 @@ void MatrixFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    }
    if (Q)
    {
-      K *= Q->Eval(T, ip, GetTime());
+      K *= Q->Eval(T, GetTime());
    }
 }
 
@@ -260,25 +258,23 @@ MatrixArrayCoefficient::~MatrixArrayCoefficient ()
    }
 }
 
-void MatrixArrayCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
-                                  const IntegrationPoint &ip)
+void MatrixArrayCoefficient::Eval(DenseMatrix &K, ElementTransformation &T)
 {
    for (int i = 0; i < height; i++)
    {
       for (int j = 0; j < width; j++)
       {
-         K(i,j) = this->Eval(i, j, T, ip);
+         K(i,j) = this->Eval(i, j, T);
       }
    }
 }
 
-void MatrixRestrictedCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
-                                       const IntegrationPoint &ip)
+void MatrixRestrictedCoefficient::Eval(DenseMatrix &K, ElementTransformation &T)
 {
    if (active_attr[T.Attribute-1])
    {
       c->SetTime(GetTime());
-      c->Eval(K, T, ip);
+      c->Eval(K, T);
    }
    else
    {
@@ -301,7 +297,7 @@ double LpNormLoop(double p, Coefficient &coeff, Mesh &mesh,
       {
          const IntegrationPoint &ip = ir.IntPoint(j);
          tr->SetIntPoint(&ip);
-         double val = fabs(coeff.Eval(*tr, ip));
+         double val = fabs(coeff.Eval(*tr));
          if (p < infinity())
          {
             norm += ip.weight * tr->Weight() * pow(val, p);
@@ -335,7 +331,7 @@ double LpNormLoop(double p, VectorCoefficient &coeff, Mesh &mesh,
       {
          const IntegrationPoint &ip = ir.IntPoint(j);
          tr->SetIntPoint(&ip);
-         coeff.Eval(vval, *tr, ip);
+         coeff.Eval(vval, *tr);
          if (p < infinity())
          {
             for (int idim(0); idim < vdim; ++idim)
