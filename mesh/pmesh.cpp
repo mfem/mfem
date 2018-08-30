@@ -88,7 +88,6 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
    : gtopo(comm)
 {
    int *partitioning;
-   Array<bool> activeBdrElem;
 
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
@@ -123,18 +122,19 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
    Table *edge_element = NULL;
    STable3D *faces_tbl = NULL;
+
    Array<int> vert_global_local(mesh.GetNV());
+   Array<bool> activeBdrElem;
 
    if (mesh.Nonconforming())
    {
-
       pncmesh->Prune();
       faces_tbl = Mesh::InitFromNCMesh(*pncmesh);
       pncmesh->OnMeshUpdated(this);
 
-      // in the nc case we already have local numbering for the
-      // element vertices, which has come from InitFromNCMesh.  So
-      // derive vert_global_local from it.
+      // In the NC case we already have local numbering for the
+      // element vertices, which has come from InitFromNCMesh.
+      // So derive vert_global_local from it.
 
       vert_global_local = -1;
       int le = 0;
@@ -142,9 +142,8 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       {
          if (partitioning[i] == MyRank)
          {
-            Array<int> vert_global;
-            mesh.GetElementVertices(i,vert_global);
-            Array<int> vert_local;
+            Array<int> vert_global, vert_local;
+            mesh.GetElementVertices(i, vert_global);
             elements[le++]->GetVertices(vert_local);
             for (int j = 0; j < vert_local.Size(); j++)
             {
@@ -157,9 +156,6 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
    }
    else
    {
-
-      // These are the equivalent steps that InitFromNCMesh performs
-
       Dim = mesh.Dim;
       spaceDim = mesh.spaceDim;
 
@@ -202,7 +198,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
    mesh.bdr_attributes.Copy(bdr_attributes);
 
    // Build groups.  At this point there is no difference between the
-   // conforming and nc cases.
+   // conforming and NC cases.
 
    ListOfIntegerSets  groups;
    {
@@ -212,14 +208,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       groups.Insert(group);
    }
 
-#ifdef MFEM_DEBUG
-   if (Dim < 3 && mesh.GetNFaces() != 0)
-   {
-      cerr << "ParMesh::ParMesh (proc " << MyRank << ") : "
-           "(Dim < 3 && mesh.GetNFaces() != 0) is true!" << endl;
-      mfem_error();
-   }
-#endif
+   MFEM_ASSERT(mesh.GetNFaces() == 0 || Dim >= 3, "");
 
    Array<int> face_group(mesh.GetNFaces());
    Table *vert_element = mesh.GetVertexToElementTable(); // we must delete this
@@ -1030,10 +1019,12 @@ int ParMesh::BuildLocalVertices(const mfem::Mesh &mesh,
          Array<int> vert;
          mesh.GetElementVertices(i, vert);
          for (int j = 0; j < vert.Size(); j++)
+         {
             if (vert_global_local[vert[j]] < 0)
             {
                vert_global_local[vert[j]] = vert_counter++;
             }
+         }
       }
    }
 
@@ -1095,7 +1086,6 @@ int ParMesh::BuildLocalBoundary(const Mesh& mesh, const int* partitioning,
                                 const Array<int>& vert_global_local,
                                 Array<bool>& activeBdrElem,
                                 Table*& edge_element)
-
 {
    int nbdry = 0;
 
