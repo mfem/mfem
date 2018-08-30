@@ -19,19 +19,20 @@ namespace mfem
 
 namespace kernels
 {
+   
 // ***************************************************************************
-// * KernelsDofQuadMaps
+// * kDofQuadMaps
 // ***************************************************************************
-static std::map<std::string, KernelsDofQuadMaps* > AllDofQuadMaps;
+static std::map<std::string, kDofQuadMaps* > AllDofQuadMaps;
 
 // ***************************************************************************
-KernelsDofQuadMaps::~KernelsDofQuadMaps() {}
+kDofQuadMaps::~kDofQuadMaps() {}
 
 // *****************************************************************************
-void KernelsDofQuadMaps::delKernelsDofQuadMaps()
+void kDofQuadMaps::delkDofQuadMaps()
 {
    for (std::map<std::string,
-        KernelsDofQuadMaps*>::iterator itr = AllDofQuadMaps.begin();
+        kDofQuadMaps*>::iterator itr = AllDofQuadMaps.begin();
         itr != AllDofQuadMaps.end();
         itr++)
    {
@@ -40,39 +41,34 @@ void KernelsDofQuadMaps::delKernelsDofQuadMaps()
 }
 
 // *****************************************************************************
-KernelsDofQuadMaps* KernelsDofQuadMaps::Get(const mfem::FiniteElementSpace&
-                                            fespace,
-                                            const mfem::IntegrationRule& ir,
-                                            const bool transpose)
+kDofQuadMaps* kDofQuadMaps::Get(const mfem::FiniteElementSpace& fes,
+                                const mfem::IntegrationRule& ir,
+                                const bool transpose)
 {
-   return Get(*fespace.GetFE(0),
-              *fespace.GetFE(0),ir,transpose);
+   return Get(*fes.GetFE(0), *fes.GetFE(0), ir, transpose);
 }
 
-KernelsDofQuadMaps* KernelsDofQuadMaps::Get(const mfem::FiniteElementSpace&
-                                            trialFESpace,
-                                            const mfem::FiniteElementSpace& testFESpace,
-                                            const mfem::IntegrationRule& ir,
-                                            const bool transpose)
+kDofQuadMaps* kDofQuadMaps::Get(const mfem::FiniteElementSpace& trialFES,
+                                const mfem::FiniteElementSpace& testFES,
+                                const mfem::IntegrationRule& ir,
+                                const bool transpose)
 {
-   return Get(*trialFESpace.GetFE(0),
-              *testFESpace.GetFE(0),ir,transpose);
+   return Get(*trialFES.GetFE(0), *testFES.GetFE(0), ir, transpose);
 }
 
-KernelsDofQuadMaps* KernelsDofQuadMaps::Get(const mfem::FiniteElement& trialFE,
-                                            const mfem::FiniteElement& testFE,
-                                            const mfem::IntegrationRule& ir,
-                                            const bool transpose)
+kDofQuadMaps* kDofQuadMaps::Get(const mfem::FiniteElement& trialFE,
+                                const mfem::FiniteElement& testFE,
+                                const mfem::IntegrationRule& ir,
+                                const bool transpose)
 {
    return GetTensorMaps(trialFE, testFE, ir, transpose);
 }
 
 // ***************************************************************************
-KernelsDofQuadMaps* KernelsDofQuadMaps::GetTensorMaps(const mfem::FiniteElement&
-                                                      trialFE,
-                                                      const mfem::FiniteElement& testFE,
-                                                      const mfem::IntegrationRule& ir,
-                                                      const bool transpose)
+kDofQuadMaps* kDofQuadMaps::GetTensorMaps(const mfem::FiniteElement& trialFE,
+                                          const mfem::FiniteElement& testFE,
+                                          const mfem::IntegrationRule& ir,
+                                          const bool transpose)
 {
    const TensorBasisElement& trialTFE =
       dynamic_cast<const TensorBasisElement&>(trialFE);
@@ -92,12 +88,12 @@ KernelsDofQuadMaps* KernelsDofQuadMaps::GetTensorMaps(const mfem::FiniteElement&
       return AllDofQuadMaps[hash];
    }
    // Otherwise, build them
-   KernelsDofQuadMaps *maps = new KernelsDofQuadMaps();
+   kDofQuadMaps *maps = new kDofQuadMaps();
    AllDofQuadMaps[hash]=maps;
    maps->hash = hash;
    push();
-   const KernelsDofQuadMaps* trialMaps = GetD2QTensorMaps(trialFE, ir);
-   const KernelsDofQuadMaps* testMaps  = GetD2QTensorMaps(testFE, ir, true);
+   const kDofQuadMaps* trialMaps = GetD2QTensorMaps(trialFE, ir);
+   const kDofQuadMaps* testMaps  = GetD2QTensorMaps(testFE, ir, true);
    maps->dofToQuad   = trialMaps->dofToQuad;
    maps->dofToQuadD  = trialMaps->dofToQuadD;
    maps->quadToDof   = testMaps->dofToQuad;
@@ -108,11 +104,9 @@ KernelsDofQuadMaps* KernelsDofQuadMaps::GetTensorMaps(const mfem::FiniteElement&
 }
 
 // ***************************************************************************
-KernelsDofQuadMaps* KernelsDofQuadMaps::GetD2QTensorMaps(
-   const mfem::FiniteElement&
-   fe,
-   const mfem::IntegrationRule& ir,
-   const bool transpose)
+kDofQuadMaps* kDofQuadMaps::GetD2QTensorMaps(const mfem::FiniteElement& fe,
+                                             const mfem::IntegrationRule& ir,
+                                             const bool transpose)
 {
    const mfem::TensorBasisElement& tfe = dynamic_cast<const TensorBasisElement&>
                                          (fe);
@@ -141,7 +135,7 @@ KernelsDofQuadMaps* KernelsDofQuadMaps::GetD2QTensorMaps(
    }
 
    push();
-   KernelsDofQuadMaps *maps = new KernelsDofQuadMaps();
+   kDofQuadMaps *maps = new kDofQuadMaps();
    AllDofQuadMaps[hash]=maps;
    maps->hash = hash;
 
@@ -202,7 +196,7 @@ KernelsDofQuadMaps* KernelsDofQuadMaps::GetD2QTensorMaps(
 }
 
 // ***************************************************************************
-KernelsDofQuadMaps* KernelsDofQuadMaps::GetSimplexMaps(const
+kDofQuadMaps* kDofQuadMaps::GetSimplexMaps(const
                                                        mfem::FiniteElement& fe,
                                                        const mfem::IntegrationRule& ir,
                                                        const bool transpose)
@@ -211,7 +205,7 @@ KernelsDofQuadMaps* KernelsDofQuadMaps::GetSimplexMaps(const
 }
 
 // *****************************************************************************
-KernelsDofQuadMaps* KernelsDofQuadMaps::GetSimplexMaps(const mfem::FiniteElement&
+kDofQuadMaps* kDofQuadMaps::GetSimplexMaps(const mfem::FiniteElement&
                                                        trialFE,
                                                        const mfem::FiniteElement& testFE,
                                                        const mfem::IntegrationRule& ir,
@@ -229,11 +223,11 @@ KernelsDofQuadMaps* KernelsDofQuadMaps::GetSimplexMaps(const mfem::FiniteElement
       return AllDofQuadMaps[hash];
    }
    push();
-   KernelsDofQuadMaps *maps = new KernelsDofQuadMaps();
+   kDofQuadMaps *maps = new kDofQuadMaps();
    AllDofQuadMaps[hash]=maps;
    maps->hash = hash;
-   const KernelsDofQuadMaps* trialMaps = GetD2QSimplexMaps(trialFE, ir);
-   const KernelsDofQuadMaps* testMaps  = GetD2QSimplexMaps(testFE, ir, true);
+   const kDofQuadMaps* trialMaps = GetD2QSimplexMaps(trialFE, ir);
+   const kDofQuadMaps* testMaps  = GetD2QSimplexMaps(testFE, ir, true);
    maps->dofToQuad   = trialMaps->dofToQuad;
    maps->dofToQuadD  = trialMaps->dofToQuadD;
    maps->quadToDof   = testMaps->dofToQuad;
@@ -244,7 +238,7 @@ KernelsDofQuadMaps* KernelsDofQuadMaps::GetSimplexMaps(const mfem::FiniteElement
 }
 
 // ***************************************************************************
-KernelsDofQuadMaps* KernelsDofQuadMaps::GetD2QSimplexMaps(
+kDofQuadMaps* kDofQuadMaps::GetD2QSimplexMaps(
    const mfem::FiniteElement&
    fe,
    const mfem::IntegrationRule& ir,
@@ -264,7 +258,7 @@ KernelsDofQuadMaps* KernelsDofQuadMaps::GetD2QSimplexMaps(
    {
       return AllDofQuadMaps[hash];
    }
-   KernelsDofQuadMaps* maps = new KernelsDofQuadMaps();
+   kDofQuadMaps* maps = new kDofQuadMaps();
    AllDofQuadMaps[hash]=maps;
    maps->hash = hash;
    push(SteelBlue);

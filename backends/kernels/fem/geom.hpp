@@ -35,10 +35,10 @@ public:
    static const int JacobianInv = (1 << 1);
    static const int JacobianDet = (1 << 2);
    static kGeometry* Get(kFiniteElementSpace&,
-                               const IntegrationRule&);
+                         const IntegrationRule&);
    static kGeometry* Get(kFiniteElementSpace&,
-                               const IntegrationRule&,
-                               const kvector&);
+                         const IntegrationRule&,
+                         const kvector&);
    static void ReorderByVDim(GridFunction& nodes);
    static void ReorderByNodes(GridFunction& nodes);
 };

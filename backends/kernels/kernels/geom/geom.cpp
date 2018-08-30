@@ -59,6 +59,7 @@ void rIniGeom(const int DIM,
    const int grid = (numElements+blck-1)/blck;
 #endif
 #ifdef __TEMPLATES__
+   dbg("__TEMPLATES__");
    const unsigned int dofs1D = IROOT(DIM,NUM_DOFS);
    const unsigned int quad1D = IROOT(DIM,NUM_QUAD);
    const unsigned int id = (DIM<<4)|(dofs1D-2);

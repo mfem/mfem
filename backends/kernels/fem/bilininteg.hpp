@@ -39,8 +39,8 @@ protected:
 
    const IntegrationRule *ir;
    bool hasTensorBasis;
-   kernels::KernelsDofQuadMaps *maps;
-   KernelsDofQuadMaps *mapsTranspose;
+   kernels::kDofQuadMaps *maps;
+   kDofQuadMaps *mapsTranspose;
 
 public:
    KernelsIntegrator(const kernels::Engine &e);
@@ -55,7 +55,7 @@ public:
    mfem::FiniteElementSpace& GetTestFESpace() const;
    void SetIntegrationRule(const mfem::IntegrationRule &ir_);
    const mfem::IntegrationRule& GetIntegrationRule() const;
-   KernelsDofQuadMaps* GetDofQuadMaps();
+   kDofQuadMaps* GetDofQuadMaps();
    void SetupMaps();
    virtual void SetupIntegrationRule() = 0;
    virtual void SetupIntegrator(kBilinearForm &bform_,

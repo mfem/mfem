@@ -30,12 +30,13 @@ void Engine::Init(const std::string &engine_spec)
    dev = new device();
    
    bool cuda = false;
-   bool uvm = false;
+   const bool uvm = false;
    
-   //if (engine_spec.find("cpu")!=std::string::npos) cuda = false;
+   if (engine_spec.find("cpu")!=std::string::npos){
+      cuda = false;
+   }
    if (engine_spec.find("gpu")!=std::string::npos){
       cuda = true;
-      uvm = false;
    }
    
    kernels::config::Get().Setup(world_rank,

@@ -40,13 +40,13 @@ KernelsIntegrator::~KernelsIntegrator() {}
 void KernelsIntegrator::SetupMaps()
 {
    push();
-   maps = KernelsDofQuadMaps::Get(*rtrialFESpace->GetFESpace(),
-                                  *rtestFESpace->GetFESpace(),
-                                  *ir);
+   maps = kDofQuadMaps::Get(*rtrialFESpace->GetFESpace(),
+                            *rtestFESpace->GetFESpace(),
+                            *ir);
 
-   mapsTranspose = KernelsDofQuadMaps::Get(*rtestFESpace->GetFESpace(),
-                                           *rtrialFESpace->GetFESpace(),
-                                           *ir);
+   mapsTranspose = kDofQuadMaps::Get(*rtestFESpace->GetFESpace(),
+                                     *rtrialFESpace->GetFESpace(),
+                                     *ir);
    pop();
 }
 
@@ -82,7 +82,7 @@ const mfem::IntegrationRule& KernelsIntegrator::GetIntegrationRule() const
    return *ir;
 }
 
-KernelsDofQuadMaps *KernelsIntegrator::GetDofQuadMaps()
+kDofQuadMaps *KernelsIntegrator::GetDofQuadMaps()
 {
    return maps;
 }
