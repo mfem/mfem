@@ -12,7 +12,7 @@ Version 3.4.1 (development)
 ===========================
 - Added support for wedge shaped mesh elements of arbitrary order (with
   Geometry type PRISM) which have two triangular faces and three
-  quadrilateral	faces.
+  quadrilateral faces.
 
 - Added H1 and L2 finite elements of arbitrary order for Wedge elements.
 

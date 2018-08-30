@@ -166,8 +166,8 @@ public:
    typedef Geometry::Constants<Geometry::TRIANGLE>    tri_t;
    typedef Geometry::Constants<Geometry::SQUARE>      quad_t;
    typedef Geometry::Constants<Geometry::TETRAHEDRON> tet_t;
-   typedef Geometry::Constants<Geometry::PRISM>       pri_t;
    typedef Geometry::Constants<Geometry::CUBE>        hex_t;
+   typedef Geometry::Constants<Geometry::PRISM>       pri_t;
 
    enum Operation { NONE, REFINE, DEREFINE, REBALANCE };
 
@@ -638,7 +638,8 @@ public:
 
        @return A bitmask:
        - bit 0 - simplices are present in the mesh (triangles, tets),
-       - bit 1 - tensor product elements are present in the mesh (quads, hexes).
+       - bit 1 - tensor product elements are present in the mesh (quads, hexes),
+       - bit 2 - the mesh has wedge elements.
    */
    inline int MeshGenerator() { return meshgen; }
 

@@ -35,7 +35,7 @@ protected:
       INVERSE_MASK  = 8
    };
    Geometry::Type geom;
-   int  space_dim;
+   int space_dim;
 
    // Evaluate the Jacobian of the transformation at the IntPoint and store it
    // in dFdx.

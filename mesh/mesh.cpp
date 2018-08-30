@@ -277,8 +277,8 @@ FiniteElement *Mesh::GetTransformationFEforElementType(Element::Type ElemType)
       case Element::TRIANGLE :       return &TriangleFE;
       case Element::QUADRILATERAL :  return &QuadrilateralFE;
       case Element::TETRAHEDRON :    return &TetrahedronFE;
-      case Element::WEDGE :          return &WedgeFE;
       case Element::HEXAHEDRON :     return &HexahedronFE;
+      case Element::WEDGE :          return &WedgeFE;
       default:
          MFEM_ABORT("Unknown element type \"" << ElemType << "\"");
          break;
@@ -1892,13 +1892,6 @@ void Mesh::FinalizeWedgeMesh(int generate_edges, int refine,
       GenerateBoundaryElements();
    }
 
-   if (refine)
-   {
-      DSTable v_to_v(NumOfVertices);
-      GetVertexToVertexTable(v_to_v);
-      MarkTetMeshForRefinement(v_to_v);
-   }
-
    GetElementToFaceTable();
    GenerateFaces();
 
@@ -2778,14 +2771,16 @@ Element *Mesh::NewElement(int geom)
       case Geometry::SEGMENT:   return (new Segment);
       case Geometry::TRIANGLE:  return (new Triangle);
       case Geometry::SQUARE:    return (new Quadrilateral);
-      case Geometry::PRISM:     return (new Wedge);
-      case Geometry::CUBE:      return (new Hexahedron);
       case Geometry::TETRAHEDRON:
 #ifdef MFEM_USE_MEMALLOC
          return TetMemory.Alloc();
 #else
          return (new Tetrahedron);
 #endif
+      case Geometry::CUBE:      return (new Hexahedron);
+      case Geometry::PRISM:     return (new Wedge);
+      default:
+         MFEM_ABORT("invalid Geometry::Type, geom = " << geom);
    }
 
    return NULL;
@@ -2842,10 +2837,9 @@ void Mesh::PrintElement(const Element *el, std::ostream &out)
 void Mesh::SetMeshGen()
 {
    meshgen = 0;
-   Element::Type type = Element::INVALID;
    for (int i = 0; i < NumOfElements; i++)
    {
-      type = GetElement(i)->GetType();
+      Element::Type type = GetElement(i)->GetType();
       switch (type)
       {
          case Element::POINT:
@@ -2861,8 +2855,7 @@ void Mesh::SetMeshGen()
          case Element::WEDGE:
             meshgen |= 4; break;
          default:
-            MFEM_VERIFY(false, "MixedMesh::SetMeshGen "
-                        "invalid element type " << type);
+            MFEM_ABORT("invalid element type: " << type);
             break;
       }
    }
@@ -8509,8 +8502,8 @@ void Mesh::PrintVTK(std::ostream &out)
             case Geometry::TRIANGLE:     vtk_cell_type = 5;   break;
             case Geometry::SQUARE:       vtk_cell_type = 9;   break;
             case Geometry::TETRAHEDRON:  vtk_cell_type = 10;  break;
-            case Geometry::PRISM:        vtk_cell_type = 13;  break;
             case Geometry::CUBE:         vtk_cell_type = 12;  break;
+            case Geometry::PRISM:        vtk_cell_type = 13;  break;
             default: break;
          }
       }
@@ -8522,8 +8515,8 @@ void Mesh::PrintVTK(std::ostream &out)
             case Geometry::TRIANGLE:     vtk_cell_type = 22;  break;
             case Geometry::SQUARE:       vtk_cell_type = 28;  break;
             case Geometry::TETRAHEDRON:  vtk_cell_type = 24;  break;
-            case Geometry::PRISM:        vtk_cell_type = 32;  break;
             case Geometry::CUBE:         vtk_cell_type = 29;  break;
+            case Geometry::PRISM:        vtk_cell_type = 32;  break;
             default: break;
          }
       }
@@ -8646,8 +8639,8 @@ void Mesh::PrintVTK(std::ostream &out, int ref, int field_data)
          case Geometry::TRIANGLE:     vtk_cell_type = 5;   break;
          case Geometry::SQUARE:       vtk_cell_type = 9;   break;
          case Geometry::TETRAHEDRON:  vtk_cell_type = 10;  break;
-         case Geometry::PRISM:        vtk_cell_type = 13;  break;
          case Geometry::CUBE:         vtk_cell_type = 12;  break;
+         case Geometry::PRISM:        vtk_cell_type = 13;  break;
          default:
             MFEM_ABORT("Unrecognized VTK element type \"" << geom << "\"");
             break;

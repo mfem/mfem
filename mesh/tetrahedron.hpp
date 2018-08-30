@@ -69,9 +69,6 @@ public:
    /// Set the vertices according to the given input.
    virtual void SetVertices(const int *ind);
 
-   /// Mark the longest edge by assuming/changing the order of the vertices.
-   virtual void MarkEdge(DenseMatrix &pmat) { }
-
    /** Reorder the vertices so that the longest edge is from vertex 0
        to vertex 1. If called it should be once from the mesh constructor,
        because the order may be used later for setting the edges. **/
@@ -110,7 +107,8 @@ public:
    virtual ~Tetrahedron() { }
 };
 
-extern Linear3DFiniteElement TetrahedronFE;
+// Defined in fe.cpp to ensure construction before 'mfem::Geometries'.
+extern class Linear3DFiniteElement TetrahedronFE;
 
 }
 
