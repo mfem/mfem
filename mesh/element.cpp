@@ -14,31 +14,6 @@
 namespace mfem
 {
 
-Geometry::Type Element::GeometryType(Element::Type type)
-{
-   switch (type)
-   {
-      case Element::MIXED:
-         return Geometry::MIXED;
-      case Element::POINT:
-         return Geometry::POINT;
-      case Element::SEGMENT:
-         return Geometry::SEGMENT;
-      case Element::TRIANGLE:
-         return Geometry::TRIANGLE;
-      case Element::QUADRILATERAL:
-         return Geometry::SQUARE;
-      case Element::TETRAHEDRON:
-         return Geometry::TETRAHEDRON;
-      case Element::WEDGE:
-         return Geometry::PRISM;
-      case Element::HEXAHEDRON:
-         return Geometry::CUBE;
-      default:
-         return Geometry::INVALID;
-   }
-}
-
 void Element::SetVertices(const int *ind)
 {
    int i, n, *v;

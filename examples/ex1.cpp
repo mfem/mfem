@@ -8,7 +8,7 @@
 //               ex1 -m ../data/escher.mesh
 //               ex1 -m ../data/fichera.mesh
 //               ex1 -m ../data/fichera-mixed.mesh
-//               ex1 -m ../data/toroid-wedge-o3-s3.mesh
+//               ex1 -m ../data/toroid-wedge.mesh
 //               ex1 -m ../data/square-disc-p2.vtk -o 2
 //               ex1 -m ../data/square-disc-p3.mesh -o 3
 //               ex1 -m ../data/square-disc-nurbs.mesh -o -1
