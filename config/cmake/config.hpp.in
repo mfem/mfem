@@ -40,6 +40,9 @@
 // Enable debug checks in MFEM.
 #cmakedefine MFEM_DEBUG
 
+// Activate deprecated code in MFEM.
+#cmakedefine MFEM_DEPRECATED
+
 // Throw an exception on errors.
 #cmakedefine MFEM_USE_EXCEPTIONS
 

@@ -40,6 +40,9 @@
 // Enable debug checks in MFEM.
 // #define MFEM_DEBUG
 
+// Activate deprecated code in MFEM.
+// #define MFEM_DEPRECATED
+
 // Throw an exception on errors.
 // #define MFEM_USE_EXCEPTIONS
 
