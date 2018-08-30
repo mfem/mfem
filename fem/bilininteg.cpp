@@ -173,7 +173,7 @@ void MixedScalarIntegrator::AssembleElementMatrix2(
 
       if (Q)
       {
-         w *= Q->Eval(Trans, ip);
+         w *= Q->Eval(Trans);
       }
       AddMult_a_VWt(w, test_shape, trial_shape, elmat);
    }
@@ -244,20 +244,20 @@ void MixedVectorIntegrator::AssembleElementMatrix2(
 
       if (MQ)
       {
-         MQ->Eval(M, Trans, ip);
+         MQ->Eval(M, Trans);
          M *= w;
          Mult(test_shape, M, test_shape_tmp);
          AddMultABt(test_shape_tmp, trial_shape, elmat);
       }
       else if (DQ)
       {
-         DQ->Eval(D, Trans, ip);
+         DQ->Eval(D, Trans);
          D *= w;
          AddMultADBt(test_shape, D, trial_shape, elmat);
       }
       else if (VQ)
       {
-         VQ->Eval(V, Trans, ip);
+         VQ->Eval(V, Trans);
          V *= w;
          for (int j=0; j<test_nd; j++)
          {
@@ -274,7 +274,7 @@ void MixedVectorIntegrator::AssembleElementMatrix2(
       {
          if (Q)
          {
-            w *= Q -> Eval (Trans, ip);
+            w *= Q -> Eval (Trans);
          }
          if (same_shapes)
          {
@@ -345,7 +345,7 @@ void MixedScalarVectorIntegrator::AssembleElementMatrix2(
 
       double w = Trans.Weight() * ip.weight;
 
-      VQ->Eval(V, Trans, ip);
+      VQ->Eval(V, Trans);
       V *= w;
 
       if ( vec_fe->GetDim() == 2 && cross_2d )
@@ -420,13 +420,13 @@ void DiffusionIntegrator::AssembleElementMatrix
       {
          if (Q)
          {
-            w *= Q->Eval(Trans, ip);
+            w *= Q->Eval(Trans);
          }
          AddMult_a_AAt(w, dshapedxt, elmat);
       }
       else
       {
-         MQ->Eval(invdfdx, Trans, ip);
+         MQ->Eval(invdfdx, Trans);
          invdfdx *= w;
          Mult(dshapedxt, invdfdx, dshape);
          AddMultABt(dshape, dshapedxt, elmat);
@@ -499,14 +499,14 @@ void DiffusionIntegrator::AssembleElementMatrix2(
       {
          if (Q)
          {
-            w *= Q->Eval(Trans, ip);
+            w *= Q->Eval(Trans);
          }
          dshapedxt *= w;
          AddMultABt(te_dshapedxt, dshapedxt, elmat);
       }
       else
       {
-         MQ->Eval(invdfdx, Trans, ip);
+         MQ->Eval(invdfdx, Trans);
          invdfdx *= w;
          Mult(te_dshapedxt, invdfdx, te_dshape);
          AddMultABt(te_dshape, dshapedxt, elmat);
@@ -574,7 +574,7 @@ void DiffusionIntegrator::AssembleElementVector(
          invdfdx.MultTranspose(vec, pointflux);
          if (Q)
          {
-            w *= Q->Eval(Tr, ip);
+            w *= Q->Eval(Tr);
          }
       }
       else
@@ -582,7 +582,7 @@ void DiffusionIntegrator::AssembleElementVector(
 
          dshape.MultTranspose(elfun, pointflux);
          invdfdx.MultTranspose(pointflux, vec);
-         MQ->Eval(mq, Tr, ip);
+         MQ->Eval(mq, Tr);
          mq.Mult(vec, pointflux);
       }
       pointflux *= w;
@@ -628,7 +628,7 @@ void DiffusionIntegrator::ComputeElementFlux
       {
          if (Q && with_coef)
          {
-            pointflux *= Q->Eval(Trans,ip);
+            pointflux *= Q->Eval(Trans);
          }
          for (j = 0; j < spaceDim; j++)
          {
@@ -639,7 +639,7 @@ void DiffusionIntegrator::ComputeElementFlux
       {
          // assuming dim == spaceDim
          MFEM_ASSERT(dim == spaceDim, "TODO");
-         MQ->Eval(invdfdx, Trans, ip);
+         MQ->Eval(invdfdx, Trans);
          invdfdx.Mult(pointflux, vec);
          for (j = 0; j < dim; j++)
          {
@@ -692,12 +692,12 @@ double DiffusionIntegrator::ComputeFluxEnergy
       if (!MQ)
       {
          double e = (pointflux * pointflux);
-         if (Q) { e *= Q->Eval(Trans, ip); }
+         if (Q) { e *= Q->Eval(Trans); }
          energy += w * e;
       }
       else
       {
-         MQ->Eval(mq, Trans, ip);
+         MQ->Eval(mq, Trans);
          energy += w * mq.InnerProduct(pointflux, pointflux);
       }
 
@@ -757,7 +757,7 @@ void MassIntegrator::AssembleElementMatrix
       w = Trans.Weight() * ip.weight;
       if (Q)
       {
-         w *= Q -> Eval(Trans, ip);
+         w *= Q -> Eval(Trans);
       }
 
       AddMult_a_VVt(w, shape, elmat);
@@ -799,7 +799,7 @@ void MassIntegrator::AssembleElementMatrix2(
       w = Trans.Weight() * ip.weight;
       if (Q)
       {
-         w *= Q -> Eval(Trans, ip);
+         w *= Q -> Eval(Trans);
       }
 
       te_shape *= w;
@@ -844,7 +844,7 @@ void BoundaryMassIntegrator::AssembleFaceMatrix(
       w = Trans.Face->Weight() * ip.weight;
       if (Q)
       {
-         w *= Q -> Eval(*Trans.Face, ip);
+         w *= Q -> Eval(*Trans.Face);
       }
 
       AddMult_a_VVt(w, shape, elmat);
@@ -1005,7 +1005,7 @@ void VectorMassIntegrator::AssembleElementMatrix
 
       if (VQ)
       {
-         VQ->Eval(vec, Trans, ip);
+         VQ->Eval(vec, Trans);
          for (int k = 0; k < vdim; k++)
          {
             elmat.AddMatrix(norm*vec(k), partelmat, nd*k, nd*k);
@@ -1013,7 +1013,7 @@ void VectorMassIntegrator::AssembleElementMatrix
       }
       else if (MQ)
       {
-         MQ->Eval(mcoeff, Trans, ip);
+         MQ->Eval(mcoeff, Trans);
          for (int i = 0; i < vdim; i++)
             for (int j = 0; j < vdim; j++)
             {
@@ -1024,7 +1024,7 @@ void VectorMassIntegrator::AssembleElementMatrix
       {
          if (Q)
          {
-            norm *= Q->Eval(Trans, ip);
+            norm *= Q->Eval(Trans);
          }
          partelmat *= norm;
          for (int k = 0; k < vdim; k++)
@@ -1092,7 +1092,7 @@ void VectorMassIntegrator::AssembleElementMatrix2(
 
       if (VQ)
       {
-         VQ->Eval(vec, Trans, ip);
+         VQ->Eval(vec, Trans);
          for (int k = 0; k < vdim; k++)
          {
             elmat.AddMatrix(norm*vec(k), partelmat, te_nd*k, tr_nd*k);
@@ -1100,7 +1100,7 @@ void VectorMassIntegrator::AssembleElementMatrix2(
       }
       else if (MQ)
       {
-         MQ->Eval(mcoeff, Trans, ip);
+         MQ->Eval(mcoeff, Trans);
          for (int i = 0; i < vdim; i++)
             for (int j = 0; j < vdim; j++)
             {
@@ -1111,7 +1111,7 @@ void VectorMassIntegrator::AssembleElementMatrix2(
       {
          if (Q)
          {
-            norm *= Q->Eval(Trans, ip);
+            norm *= Q->Eval(Trans);
          }
          partelmat *= norm;
          for (int k = 0; k < vdim; k++)
@@ -1154,7 +1154,7 @@ void VectorFEDivergenceIntegrator::AssembleElementMatrix2(
       if (Q)
       {
          Trans.SetIntPoint(&ip);
-         w *= Q->Eval(Trans, ip);
+         w *= Q->Eval(Trans);
       }
       shape *= w;
       AddMultVWt(shape, divshape, elmat);
@@ -1235,7 +1235,7 @@ void VectorFEWeakDivergenceIntegrator::AssembleElementMatrix2(
 
       if (Q)
       {
-         w *= Q->Eval(Trans, ip);
+         w *= Q->Eval(Trans);
       }
       dshapedxt *= -w;
 
@@ -1325,7 +1325,7 @@ void VectorFECurlIntegrator::AssembleElementMatrix2(
 
       if (Q)
       {
-         w *= Q->Eval(Trans, ip);
+         w *= Q->Eval(Trans);
       }
       // Note: shapeTest points to the same data as vshapeTest
       vshapeTest *= w;
@@ -1402,7 +1402,7 @@ void DerivativeIntegrator::AssembleElementMatrix2 (
          dshapedxi(l) = dshapedxt(l,xi);
       }
 
-      shape *= Q.Eval(Trans,ip) * det * ip.weight;
+      shape *= Q.Eval(Trans) * det * ip.weight;
       AddMultVWt (shape, dshapedxi, elmat);
    }
 }
@@ -1462,14 +1462,14 @@ void CurlCurlIntegrator::AssembleElementMatrix
 
       if (MQ)
       {
-         MQ->Eval(M, Trans, ip);
+         MQ->Eval(M, Trans);
          M *= w;
          Mult(curlshape_dFt, M, curlshape);
          AddMultABt(curlshape, curlshape_dFt, elmat);
       }
       else if (Q)
       {
-         w *= Q->Eval(Trans, ip);
+         w *= Q->Eval(Trans);
          AddMult_a_AAt(w, curlshape_dFt, elmat);
       }
       else
@@ -1642,7 +1642,7 @@ void VectorCurlCurlIntegrator::AssembleElementMatrix(
 
       if (Q)
       {
-         w *= Q->Eval(Trans, ip);
+         w *= Q->Eval(Trans);
       }
 
       AddMult_a_AAt(w, curlshape, elmat);
@@ -1703,7 +1703,7 @@ double VectorCurlCurlIntegrator::GetElementEnergy(
 
       if (Q)
       {
-         w *= Q->Eval(Tr, ip);
+         w *= Q->Eval(Tr);
       }
 
       energy += w;
@@ -1758,14 +1758,14 @@ void VectorFEMassIntegrator::AssembleElementMatrix(
       w = ip.weight * Trans.Weight();
       if (MQ)
       {
-         MQ->Eval(K, Trans, ip);
+         MQ->Eval(K, Trans);
          K *= w;
          Mult(trial_vshape,K,tmp);
          AddMultABt(tmp,trial_vshape,elmat);
       }
       else if (VQ)
       {
-         VQ->Eval(D, Trans, ip);
+         VQ->Eval(D, Trans);
          D *= w;
          AddMultADAt(trial_vshape, D, elmat);
       }
@@ -1773,7 +1773,7 @@ void VectorFEMassIntegrator::AssembleElementMatrix(
       {
          if (Q)
          {
-            w *= Q -> Eval (Trans, ip);
+            w *= Q -> Eval (Trans);
          }
          AddMult_a_AAt (w, trial_vshape, elmat);
       }
@@ -1826,7 +1826,7 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
          test_fe.CalcShape(ip, shape);
 
          w = ip.weight * Trans.Weight();
-         VQ->Eval(D, Trans, ip);
+         VQ->Eval(D, Trans);
          D *= w;
 
          for (int d = 0; d < dim; d++)
@@ -1883,7 +1883,7 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
          w = ip.weight * Trans.Weight();
          if (Q)
          {
-            w *= Q -> Eval (Trans, ip);
+            w *= Q -> Eval (Trans);
          }
 
          for (int d = 0; d < dim; d++)
@@ -1940,7 +1940,7 @@ void VectorFEMassIntegrator::AssembleElementMatrix2(
          w = ip.weight * Trans.Weight();
          if (Q)
          {
-            w *= Q -> Eval (Trans, ip);
+            w *= Q -> Eval (Trans);
          }
 
          for (int d = 0; d < dim; d++)
@@ -2002,7 +2002,7 @@ void VectorDivergenceIntegrator::AssembleElementMatrix2(
       c = ip.weight;
       if (Q)
       {
-         c *= Q -> Eval (Trans, ip);
+         c *= Q -> Eval (Trans);
       }
 
       // elmat += c * shape * divshape ^ t
@@ -2047,7 +2047,7 @@ void DivDivIntegrator::AssembleElementMatrix(
 
       if (Q)
       {
-         c *= Q -> Eval (Trans, ip);
+         c *= Q -> Eval (Trans);
       }
 
       // elmat += c * divshape * divshape ^ t
@@ -2106,7 +2106,7 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
 
       if (Q)
       {
-         norm *= Q -> Eval (Trans, ip);
+         norm *= Q -> Eval (Trans);
       }
 
       pelmat *= norm;
@@ -2159,7 +2159,7 @@ void VectorDiffusionIntegrator::AssembleElementVector(
       w = ip.weight / Tr.Weight();
       if (Q)
       {
-         w *= Q->Eval(Tr, ip);
+         w *= Q->Eval(Tr);
       }
       MultAAt(Jinv, gshape);
       gshape *= w;
@@ -2215,10 +2215,10 @@ void ElasticityIntegrator::AssembleElementMatrix(
       MultAAt(gshape, pelmat);
       gshape.GradToDiv (divshape);
 
-      M = mu->Eval(Trans, ip);
+      M = mu->Eval(Trans);
       if (lambda)
       {
-         L = lambda->Eval(Trans, ip);
+         L = lambda->Eval(Trans);
       }
       else
       {
@@ -2314,7 +2314,7 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
       Trans.Face->SetIntPoint(&ip);
       Trans.Elem1->SetIntPoint(&eip1);
 
-      u->Eval(vu, *Trans.Elem1, eip1);
+      u->Eval(vu, *Trans.Elem1);
 
       if (dim == 1)
       {
@@ -2338,11 +2338,11 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
          if (un >= 0.0 && ndof2)
          {
             Trans.Elem2->SetIntPoint(&eip2);
-            rho_p = rho->Eval(*Trans.Elem2, eip2);
+            rho_p = rho->Eval(*Trans.Elem2);
          }
          else
          {
-            rho_p = rho->Eval(*Trans.Elem1, eip1);
+            rho_p = rho->Eval(*Trans.Elem1);
          }
          a *= rho_p;
          b *= rho_p;
@@ -2478,14 +2478,14 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
       {
          if (Q)
          {
-            w *= Q->Eval(*Trans.Elem1, eip1);
+            w *= Q->Eval(*Trans.Elem1);
          }
          ni.Set(w, nor);
       }
       else
       {
          nh.Set(w, nor);
-         MQ->Eval(mq, *Trans.Elem1, eip1);
+         MQ->Eval(mq, *Trans.Elem1);
          mq.MultTranspose(nh, ni);
       }
       CalcAdjugate(Trans.Elem1->Jacobian(), adjJ);
@@ -2523,14 +2523,14 @@ void DGDiffusionIntegrator::AssembleFaceMatrix(
          {
             if (Q)
             {
-               w *= Q->Eval(*Trans.Elem2, eip2);
+               w *= Q->Eval(*Trans.Elem2);
             }
             ni.Set(w, nor);
          }
          else
          {
             nh.Set(w, nor);
-            MQ->Eval(mq, *Trans.Elem2, eip2);
+            MQ->Eval(mq, *Trans.Elem2);
             mq.MultTranspose(nh, ni);
          }
          CalcAdjugate(Trans.Elem2->Jacobian(), adjJ);
@@ -2765,8 +2765,8 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
 
          w = ip.weight/2;
          const double w2 = w / Trans.Elem2->Weight();
-         const double wL2 = w2 * lambda->Eval(*Trans.Elem2, eip2);
-         const double wM2 = w2 * mu->Eval(*Trans.Elem2, eip2);
+         const double wL2 = w2 * lambda->Eval(*Trans.Elem2);
+         const double wM2 = w2 * mu->Eval(*Trans.Elem2);
          nL2.Set(wL2, nor);
          nM2.Set(wM2, nor);
          wLM = (wL2 + 2.0*wM2);
@@ -2780,8 +2780,8 @@ void DGElasticityIntegrator::AssembleFaceMatrix(
 
       {
          const double w1 = w / Trans.Elem1->Weight();
-         const double wL1 = w1 * lambda->Eval(*Trans.Elem1, eip1);
-         const double wM1 = w1 * mu->Eval(*Trans.Elem1, eip1);
+         const double wL1 = w1 * lambda->Eval(*Trans.Elem1);
+         const double wM1 = w1 * mu->Eval(*Trans.Elem1);
          nL1.Set(wL1, nor);
          nM1.Set(wM1, nor);
          wLM += (wL1 + 2.0*wM1);
@@ -3063,12 +3063,11 @@ ScalarProductInterpolator::AssembleElementMatrix2(const FiniteElement &dom_fe,
          : VectorCoefficient(fe_.GetDof()), Q(q), fe(fe_) { }
 
       using VectorCoefficient::Eval;
-      virtual void Eval(Vector &V, ElementTransformation &T,
-                        const IntegrationPoint &ip)
+      virtual void Eval(Vector &V, ElementTransformation &T)
       {
          V.SetSize(vdim);
          fe.CalcPhysShape(T, V);
-         V *= Q.Eval(T, ip);
+         V *= Q.Eval(T);
       }
    };
 
@@ -3098,12 +3097,11 @@ ScalarVectorProductInterpolator::AssembleElementMatrix2(
       VShapeCoefficient(Coefficient &q, const FiniteElement &fe_, int sdim)
          : MatrixCoefficient(fe_.GetDof(), sdim), Q(q), fe(fe_) { }
 
-      virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                        const IntegrationPoint &ip)
+      virtual void Eval(DenseMatrix &M, ElementTransformation &T)
       {
          M.SetSize(height, width);
          fe.CalcPhysVShape(T, M);
-         M *= Q.Eval(T, ip);
+         M *= Q.Eval(T);
       }
    };
 
@@ -3135,11 +3133,10 @@ VectorScalarProductInterpolator::AssembleElementMatrix2(
          : MatrixCoefficient(fe_.GetDof(), vq.GetVDim()), VQ(vq), fe(fe_),
            vc(width), shape(height) { }
 
-      virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                        const IntegrationPoint &ip)
+      virtual void Eval(DenseMatrix &M, ElementTransformation &T)
       {
          M.SetSize(height, width);
-         VQ.Eval(vc, T, ip);
+         VQ.Eval(vc, T);
          fe.CalcPhysShape(T, shape);
          MultVWt(shape, vc, M);
       }
@@ -3177,11 +3174,10 @@ VectorCrossProductInterpolator::AssembleElementMatrix2(
          MFEM_ASSERT(width == 3, "");
       }
 
-      virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                        const IntegrationPoint &ip)
+      virtual void Eval(DenseMatrix &M, ElementTransformation &T)
       {
          M.SetSize(height, width);
-         VQ.Eval(vc, T, ip);
+         VQ.Eval(vc, T);
          fe.CalcPhysVShape(T, vshape);
          for (int k = 0; k < height; k++)
          {
@@ -3229,11 +3225,10 @@ VectorInnerProductInterpolator::AssembleElementMatrix2(
            vshape(vdim, vq.GetVDim()), vc(vq.GetVDim()) { }
 
       using VectorCoefficient::Eval;
-      virtual void Eval(Vector &V, ElementTransformation &T,
-                        const IntegrationPoint &ip)
+      virtual void Eval(Vector &V, ElementTransformation &T)
       {
          V.SetSize(vdim);
-         VQ.Eval(vc, T, ip);
+         VQ.Eval(vc, T);
          fe.CalcPhysVShape(T, vshape);
          vshape.Mult(vc, V);
       }

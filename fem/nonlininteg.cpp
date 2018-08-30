@@ -212,11 +212,11 @@ void InverseHarmonicModel::AssembleH(
 
 inline void NeoHookeanModel::EvalCoeffs() const
 {
-   mu = c_mu->Eval(*Ttr, Ttr->GetIntPoint());
-   K = c_K->Eval(*Ttr, Ttr->GetIntPoint());
+   mu = c_mu->Eval(*Ttr);
+   K = c_K->Eval(*Ttr);
    if (c_g)
    {
-      g = c_g->Eval(*Ttr, Ttr->GetIntPoint());
+      g = c_g->Eval(*Ttr);
    }
 }
 
@@ -475,7 +475,7 @@ double IncompressibleNeoHookeanIntegrator::GetElementEnergy(
       MultAtB(PMatI_u, DSh_u, J1);
       Mult(J1, J0i, J);
 
-      mu = c_mu->Eval(Tr, ip);
+      mu = c_mu->Eval(Tr);
 
       energy += ip.weight*Tr.Weight()*(mu/2.0)*(J*J - 3);
    }
@@ -540,7 +540,7 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementVector(
       el[1]->CalcShape(ip, Sh_p);
 
       double pres = Sh_p * *elfun[1];
-      double mu = c_mu->Eval(Tr, ip);
+      double mu = c_mu->Eval(Tr);
       double dJ = F.Det();
 
       CalcInverseTranspose(F, FinvT);
@@ -603,7 +603,7 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementGrad(
 
       el[1]->CalcShape(ip, Sh_p);
       double pres = Sh_p * *elfun[1];
-      double mu = c_mu->Eval(Tr, ip);
+      double mu = c_mu->Eval(Tr);
       double dJ = F.Det();
       double dJ_FinvT_DS;
 

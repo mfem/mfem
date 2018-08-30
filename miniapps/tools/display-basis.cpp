@@ -78,7 +78,7 @@ public:
    Deformation(int dim, DefType dType, const DeformationData & data)
       : VectorCoefficient(dim), dim_(dim), dType_(dType), data_(data) {}
 
-   void Eval(Vector &v, ElementTransformation &T, const IntegrationPoint &ip);
+   void Eval(Vector &v, ElementTransformation &T);
 
 private:
    void Def1D(const Vector & u, Vector & v);
@@ -624,11 +624,13 @@ mapTypeStr(int mType)
 }
 
 void
-Deformation::Eval(Vector &v, ElementTransformation &T,
-                  const IntegrationPoint &ip)
+Deformation::Eval(Vector &v, ElementTransformation &T)
 {
    Vector u(dim_);
-   T.Transform(ip, u);
+
+   MFEM_ASSERT(T.IntPointSet(), "Integration point not set.");
+
+   T.Transform(T.GetIntPoint(), u);
 
    switch (dim_)
    {

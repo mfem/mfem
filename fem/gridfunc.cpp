@@ -888,6 +888,7 @@ void GridFunction::GetDerivative(int comp, int der_comp, GridFunction &der)
 void GridFunction::GetVectorGradientHat(
    ElementTransformation &T, DenseMatrix &gh) const
 {
+   MFEM_ASSERT(T.IntPointSet(), "Integration point not set.");
    int elNo = T.ElementNo;
    const FiniteElement *FElem = fes->GetFE(elNo);
    int dim = FElem->GetDim(), dof = FElem->GetDof();
@@ -934,6 +935,7 @@ double GridFunction::GetDivergence(ElementTransformation &tr) const
       fes->GetElementDofs(elNo, dofs);
       Vector loc_data, divshape(FElem->GetDof());
       GetSubVector(dofs, loc_data);
+      MFEM_ASSERT(tr.IntPointSet(), "Integration point not set.");
       FElem->CalcDivShape(tr.GetIntPoint(), divshape);
       div_v = (loc_data * divshape) / tr.Weight();
    }
@@ -977,6 +979,7 @@ void GridFunction::GetCurl(ElementTransformation &tr, Vector &curl) const
       Vector loc_data;
       GetSubVector(dofs, loc_data);
       DenseMatrix curl_shape(FElem->GetDof(), FElem->GetDim() == 3 ? 3 : 1);
+      MFEM_ASSERT(tr.IntPointSet(), "Integration point not set.");
       FElem->CalcCurlShape(tr.GetIntPoint(), curl_shape);
       curl.SetSize(curl_shape.Width());
       if (curl_shape.Width() == 3)
@@ -1006,6 +1009,7 @@ void GridFunction::GetGradient(ElementTransformation &tr, Vector &grad) const
    grad.SetSize(dim);
    fes->GetElementDofs(elNo, dofs);
    GetSubVector(dofs, lval);
+   MFEM_ASSERT(tr.IntPointSet(), "Integration point not set.");
    fe->CalcDShape(tr.GetIntPoint(), dshape);
    dshape.MultTranspose(lval, gh);
    CalcInverse(tr.Jacobian(), Jinv);
@@ -1421,7 +1425,7 @@ void GridFunction::ProjectCoefficient(
       int ld = fes->GetLocalDofForDof(dof);
       const IntegrationPoint &ip = fe->GetNodes().IntPoint(ld);
       T->SetIntPoint(&ip);
-      (*this)(vdof) = coeff.Eval(*T, ip);
+      (*this)(vdof) = coeff.Eval(*T);
    }
 }
 
@@ -1461,7 +1465,7 @@ void GridFunction::ProjectCoefficient(
       int ld = fes->GetLocalDofForDof(dof);
       const IntegrationPoint &ip = fe->GetNodes().IntPoint(ld);
       T->SetIntPoint(&ip);
-      vcoeff.Eval(val, *T, ip);
+      vcoeff.Eval(val, *T);
       for (int vd = 0; vd < fes->GetVDim(); vd ++)
       {
          int vdof = fes->DofToVDof(dof, vd);
@@ -1494,7 +1498,7 @@ void GridFunction::ProjectCoefficient(Coefficient *coeff[])
          {
             if (!coeff[d]) { continue; }
 
-            val = coeff[d]->Eval(*transf, ip);
+            val = coeff[d]->Eval(*transf);
             if ( (ind = vdofs[fdof*d+j]) < 0 )
             {
                val = -val, ind = -1-ind;
@@ -1590,7 +1594,7 @@ void GridFunction::ProjectBdrCoefficient(
             {
                if (!coeff[d]) { continue; }
 
-               val = coeff[d]->Eval(*transf, ip);
+               val = coeff[d]->Eval(*transf);
                if ( (ind = vdofs[fdof*d+j]) < 0 )
                {
                   val = -val, ind = -1-ind;
@@ -1673,7 +1677,7 @@ void GridFunction::ProjectBdrCoefficientNormal(
       {
          const IntegrationPoint &ip = ir.IntPoint(j);
          T->SetIntPoint(&ip);
-         vcoeff.Eval(vc, *T, ip);
+         vcoeff.Eval(vc, *T);
          CalcOrtho(T->Jacobian(), nor);
          fe->CalcShape(ip, shape);
          lvec.Add(ip.weight * (vc * nor), shape);
@@ -1704,7 +1708,7 @@ void GridFunction::ProjectBdrCoefficientNormal(
       {
          const IntegrationPoint &ip = ir.IntPoint(j);
          T->SetIntPoint(&ip);
-         vcoeff.Eval(vc, *T, ip);
+         vcoeff.Eval(vc, *T);
          CalcOrtho(T->Jacobian(), nor);
          lvec(j) = (vc * nor);
       }
@@ -1803,7 +1807,7 @@ double GridFunction::ComputeL2Error(
                   a -= (*this)(-1-vdofs[fdof*d+k]) * shape(k);
                }
             transf->SetIntPoint(&ip);
-            a -= exsol[d]->Eval(*transf, ip);
+            a -= exsol[d]->Eval(*transf);
             error += ip.weight * transf->Weight() * a * a;
          }
       }
@@ -1909,13 +1913,13 @@ double GridFunction::ComputeH1Error(
             const IntegrationPoint &ip = ir.IntPoint(j);
             fe->CalcDShape(ip, dshape);
             transf->SetIntPoint(&ip);
-            exgrad->Eval(e_grad, *transf, ip);
+            exgrad->Eval(e_grad, *transf);
             CalcInverse(transf->Jacobian(), Jinv);
             Mult(dshape, Jinv, dshapet);
             dshapet.MultTranspose(el_dofs, a_grad);
             e_grad -= a_grad;
             error += (ip.weight * transf->Weight() *
-                      ell_coeff->Eval(*transf, ip) *
+                      ell_coeff->Eval(*transf) *
                       (e_grad * e_grad));
          }
       }
@@ -1958,8 +1962,8 @@ double GridFunction::ComputeH1Error(
             face_elem_transf->Loc1.Transform(ir.IntPoint(j), eip);
             fe->CalcShape(eip, shape);
             transf->SetIntPoint(&eip);
-            ell_coeff_val(j) = ell_coeff->Eval(*transf, eip);
-            err_val(j) = exsol->Eval(*transf, eip) - (shape * el_dofs);
+            ell_coeff_val(j) = ell_coeff->Eval(*transf);
+            err_val(j) = exsol->Eval(*transf) - (shape * el_dofs);
          }
          if (i2 >= 0)
          {
@@ -1985,9 +1989,9 @@ double GridFunction::ComputeH1Error(
                face_elem_transf->Loc2.Transform(ir.IntPoint(j), eip);
                fe->CalcShape(eip, shape);
                transf->SetIntPoint(&eip);
-               ell_coeff_val(j) += ell_coeff->Eval(*transf, eip);
+               ell_coeff_val(j) += ell_coeff->Eval(*transf);
                ell_coeff_val(j) *= 0.5;
-               err_val(j) -= (exsol->Eval(*transf, eip) - (shape * el_dofs));
+               err_val(j) -= (exsol->Eval(*transf) - (shape * el_dofs));
             }
          }
          face_elem_transf = mesh->GetFaceElementTransformations(i, 16);
@@ -2053,7 +2057,7 @@ double GridFunction::ComputeMaxError(
                {
                   a -= (*this)(-1-vdofs[fdof*d+k]) * shape(k);
                }
-            a -= exsol[d]->Eval(*transf, ip);
+            a -= exsol[d]->Eval(*transf);
             a = fabs(a);
             if (error < a)
             {
@@ -2120,7 +2124,7 @@ double GridFunction::ComputeW11Error(
             const IntegrationPoint &ip = ir->IntPoint(j);
             fe->CalcShape(ip, shape);
             transf->SetIntPoint(&ip);
-            a = (el_dofs * shape) - (exsol->Eval(*transf, ip));
+            a = (el_dofs * shape) - (exsol->Eval(*transf));
             error += ip.weight * transf->Weight() * fabs(a);
          }
       }
@@ -2160,7 +2164,7 @@ double GridFunction::ComputeW11Error(
             const IntegrationPoint &ip = ir->IntPoint(j);
             fe->CalcDShape(ip, dshape);
             transf->SetIntPoint(&ip);
-            exgrad->Eval(e_grad, *transf, ip);
+            exgrad->Eval(e_grad, *transf);
             CalcInverse(transf->Jacobian(), Jinv);
             Mult(dshape, Jinv, dshapet);
             dshapet.MultTranspose(el_dofs, a_grad);
@@ -2200,13 +2204,13 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
       {
          const IntegrationPoint &ip = ir->IntPoint(j);
          T->SetIntPoint(&ip);
-         double err = fabs(vals(j) - exsol.Eval(*T, ip));
+         double err = fabs(vals(j) - exsol.Eval(*T));
          if (p < infinity())
          {
             err = pow(err, p);
             if (weight)
             {
-               err *= weight->Eval(*T, ip);
+               err *= weight->Eval(*T);
             }
             error += ip.weight * T->Weight() * err;
          }
@@ -2214,7 +2218,7 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
          {
             if (weight)
             {
-               err *= weight->Eval(*T, ip);
+               err *= weight->Eval(*T);
             }
             error = std::max(error, err);
          }
@@ -2297,7 +2301,7 @@ double GridFunction::ComputeLpError(const double p, VectorCoefficient &exsol,
             err = pow(err, p);
             if (weight)
             {
-               err *= weight->Eval(*T, ip);
+               err *= weight->Eval(*T);
             }
             error += ip.weight * T->Weight() * err;
          }
@@ -2305,7 +2309,7 @@ double GridFunction::ComputeLpError(const double p, VectorCoefficient &exsol,
          {
             if (weight)
             {
-               err *= weight->Eval(*T, ip);
+               err *= weight->Eval(*T);
             }
             error = std::max(error, err);
          }
@@ -2761,13 +2765,14 @@ double ComputeElementLpDistance(double p, int i,
 }
 
 
-double ExtrudeCoefficient::Eval(ElementTransformation &T,
-                                const IntegrationPoint &ip)
+double ExtrudeCoefficient::Eval(ElementTransformation &T)
 {
+   MFEM_ASSERT(T.IntPointSet(), "Integration point not set.");
    ElementTransformation *T_in =
       mesh_in->GetElementTransformation(T.ElementNo / n);
+   const IntegrationPoint &ip = T.GetIntPoint();
    T_in->SetIntPoint(&ip);
-   return sol_in.Eval(*T_in, ip);
+   return sol_in.Eval(*T_in);
 }
 
 

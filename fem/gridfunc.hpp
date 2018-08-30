@@ -555,7 +555,7 @@ private:
 public:
    ExtrudeCoefficient(Mesh *m, Coefficient &s, int _n)
       : n(_n), mesh_in(m), sol_in(s) { }
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   virtual double Eval(ElementTransformation &T);
    virtual ~ExtrudeCoefficient() { }
 };
 

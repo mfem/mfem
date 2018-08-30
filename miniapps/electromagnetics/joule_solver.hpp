@@ -52,7 +52,7 @@ public:
    MeshDependentCoefficient(const std::map<int, double> &inputMap,
                             double scale = 1.0);
    MeshDependentCoefficient(const MeshDependentCoefficient &cloneMe);
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   virtual double Eval(ElementTransformation &T);
    void SetScaleFactor(const double &scale) { scaleFactor = scale; }
    virtual ~MeshDependentCoefficient()
    {
@@ -69,7 +69,7 @@ private:
    MeshDependentCoefficient mdc;
 public:
    ScaledGFCoefficient(GridFunction *gf, MeshDependentCoefficient &input_mdc);
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   virtual double Eval(ElementTransformation &T);
    void SetMDC(const MeshDependentCoefficient &input_mdc) { mdc = input_mdc; }
    virtual ~ScaledGFCoefficient() {}
 };
@@ -234,7 +234,7 @@ public:
    JouleHeatingCoefficient(const MeshDependentCoefficient &sigma_,
                            ParGridFunction &E_gf_)
       : E_gf(E_gf_), sigma(sigma_) {}
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   virtual double Eval(ElementTransformation &T);
    virtual ~JouleHeatingCoefficient() {}
 };
 

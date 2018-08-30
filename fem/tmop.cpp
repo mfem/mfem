@@ -798,6 +798,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       const DenseMatrix &Jtr_i = Jtr(i);
+      if (Tpr) { Tpr->SetIntPoint(&ip); }
       metric->SetTargetJacobian(Jtr_i);
       CalcInverse(Jtr_i, Jrt);
       const double weight = ip.weight * Jtr_i.Det();
@@ -807,14 +808,14 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       Mult(Jpr, Jrt, Jpt);
 
       double val = metric->EvalW(Jpt);
-      if (coeff1) { val *= coeff1->Eval(*Tpr, ip); }
+      if (coeff1) { val *= coeff1->Eval(*Tpr); }
 
       if (coeff0)
       {
          el.CalcShape(ip, shape);
          PMatI.MultTranspose(shape, p);
          pos0.MultTranspose(shape, p0);
-         val += 0.5*p.DistanceSquaredTo(p0)*coeff0->Eval(*Tpr, ip);
+         val += 0.5*p.DistanceSquaredTo(p0)*coeff0->Eval(*Tpr);
       }
       energy += weight * val;
    }
@@ -877,6 +878,7 @@ void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       const DenseMatrix &Jtr_i = Jtr(i);
+      if (Tpr) { Tpr->SetIntPoint(&ip); }
       metric->SetTargetJacobian(Jtr_i);
       CalcInverse(Jtr_i, Jrt);
       const double weight = ip.weight * Jtr_i.Det();
@@ -888,7 +890,7 @@ void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
 
       metric->EvalP(Jpt, P);
 
-      if (coeff1) { weight_m *= coeff1->Eval(*Tpr, ip); }
+      if (coeff1) { weight_m *= coeff1->Eval(*Tpr); }
 
       P *= weight_m;
       AddMultABt(DS, P, PMatO);
@@ -898,7 +900,7 @@ void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
          el.CalcShape(ip, shape);
          PMatI.MultTranspose(shape, p);
          pos0.MultTranspose(shape, p0);
-         weight_m = weight * coeff0->Eval(*Tpr, ip);
+         weight_m = weight * coeff0->Eval(*Tpr);
          subtract(weight_m, p, p0, p); // p = weight_m * (p - p0)
          AddMultVWt(shape, p, PMatO);
       }
@@ -948,6 +950,7 @@ void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       const DenseMatrix &Jtr_i = Jtr(i);
+      if (Tpr) { Tpr->SetIntPoint(&ip); }
       metric->SetTargetJacobian(Jtr_i);
       CalcInverse(Jtr_i, Jrt);
       const double weight = ip.weight * Jtr_i.Det();
@@ -957,14 +960,14 @@ void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
       Mult(DSh, Jrt, DS);
       MultAtB(PMatI, DS, Jpt);
 
-      if (coeff1) { weight_m *= coeff1->Eval(*Tpr, ip); }
+      if (coeff1) { weight_m *= coeff1->Eval(*Tpr); }
 
       metric->AssembleH(Jpt, DS, weight_m, elmat);
 
       if (coeff0)
       {
          el.CalcShape(ip, shape);
-         weight_m = weight * coeff0->Eval(*Tpr, ip);
+         weight_m = weight * coeff0->Eval(*Tpr);
          for (int i = 0; i < dof; i++)
          {
             const double w_shape_i = weight_m * shape(i);

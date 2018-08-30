@@ -61,6 +61,7 @@ void FiniteElement::CalcDivShape (
 void FiniteElement::CalcPhysDivShape(
    ElementTransformation &Trans, Vector &div_shape) const
 {
+   MFEM_ASSERT(Trans.IntPointSet(), "Integration point not set.");
    CalcDivShape(Trans.GetIntPoint(), div_shape);
    div_shape *= (1.0 / Trans.Weight());
 }
@@ -75,6 +76,7 @@ void FiniteElement::CalcCurlShape(const IntegrationPoint &ip,
 void FiniteElement::CalcPhysCurlShape(ElementTransformation &Trans,
                                       DenseMatrix &curl_shape) const
 {
+   MFEM_ASSERT(Trans.IntPointSet(), "Integration point not set.");
    switch (Dim)
    {
       case 3:
@@ -179,6 +181,7 @@ void FiniteElement::ProjectDiv(
 void FiniteElement::CalcPhysShape(ElementTransformation &Trans,
                                   Vector &shape) const
 {
+   MFEM_ASSERT(Trans.IntPointSet(), "Integration point not set.");
    CalcShape(Trans.GetIntPoint(), shape);
    if (MapType == INTEGRAL)
    {
@@ -189,6 +192,7 @@ void FiniteElement::CalcPhysShape(ElementTransformation &Trans,
 void FiniteElement::CalcPhysDShape(ElementTransformation &Trans,
                                    DenseMatrix &dshape) const
 {
+   MFEM_ASSERT(Trans.IntPointSet(), "Integration point not set.");
    MFEM_ASSERT(MapType == VALUE, "");
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix vshape(Dof, Dim);
@@ -301,7 +305,7 @@ void NodalFiniteElement::Project (
       // some coefficients expect that Trans.IntPoint is the same
       // as the second argument of Eval
       Trans.SetIntPoint(&ip);
-      dofs(i) = coeff.Eval (Trans, ip);
+      dofs(i) = coeff.Eval (Trans);
       if (MapType == INTEGRAL)
       {
          dofs(i) *= Trans.Weight();
@@ -319,7 +323,7 @@ void NodalFiniteElement::Project (
    {
       const IntegrationPoint &ip = Nodes.IntPoint(i);
       Trans.SetIntPoint(&ip);
-      vc.Eval (x, Trans, ip);
+      vc.Eval (x, Trans);
       if (MapType == INTEGRAL)
       {
          x *= Trans.Weight();
@@ -341,7 +345,7 @@ void NodalFiniteElement::ProjectMatrixCoefficient(
    for (int k = 0; k < Dof; k++)
    {
       T.SetIntPoint(&Nodes.IntPoint(k));
-      mc.Eval(MQ, T, Nodes.IntPoint(k));
+      mc.Eval(MQ, T);
       if (MapType == INTEGRAL) { MQ *= T.Weight(); }
       for (int r = 0; r < MQ.Height(); r++)
       {
@@ -462,7 +466,7 @@ void PositiveFiniteElement::Project(
    {
       const IntegrationPoint &ip = Nodes.IntPoint(i);
       Trans.SetIntPoint(&ip);
-      dofs(i) = coeff.Eval(Trans, ip);
+      dofs(i) = coeff.Eval(Trans);
    }
 }
 
@@ -547,6 +551,7 @@ void VectorFiniteElement::SetDerivMembers()
 void VectorFiniteElement::CalcVShape_RT (
    ElementTransformation &Trans, DenseMatrix &shape) const
 {
+   MFEM_ASSERT(Trans.IntPointSet(), "Integration point not set.");
    MFEM_ASSERT(MapType == H_DIV, "");
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix vshape(Dof, Dim);
@@ -559,6 +564,7 @@ void VectorFiniteElement::CalcVShape_RT (
 void VectorFiniteElement::CalcVShape_ND (
    ElementTransformation &Trans, DenseMatrix &shape) const
 {
+   MFEM_ASSERT(Trans.IntPointSet(), "Integration point not set.");
    MFEM_ASSERT(MapType == H_CURL, "");
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix vshape(Dof, Dim);
@@ -580,7 +586,7 @@ void VectorFiniteElement::Project_RT(
    for (int k = 0; k < Dof; k++)
    {
       Trans.SetIntPoint(&Nodes.IntPoint(k));
-      vc.Eval(xk, Trans, Nodes.IntPoint(k));
+      vc.Eval(xk, Trans);
       // dof_k = nk^t adj(J) xk
       dofs(k) = Trans.AdjugateJacobian().InnerProduct(vk, nk + d2n[k]*Dim);
       if (!square_J) { dofs(k) /= Trans.Weight(); }
@@ -603,7 +609,7 @@ void VectorFiniteElement::ProjectMatrixCoefficient_RT(
    for (int k = 0; k < Dof; k++)
    {
       T.SetIntPoint(&Nodes.IntPoint(k));
-      mc.Eval(MQ, T, Nodes.IntPoint(k));
+      mc.Eval(MQ, T);
       // nk_phys = adj(J)^t nk
       T.AdjugateJacobian().MultTranspose(nk + d2n[k]*Dim, nk_phys);
       if (!square_J) { nk_phys /= T.Weight(); }
@@ -757,7 +763,7 @@ void VectorFiniteElement::Project_ND(
    {
       Trans.SetIntPoint(&Nodes.IntPoint(k));
 
-      vc.Eval(xk, Trans, Nodes.IntPoint(k));
+      vc.Eval(xk, Trans);
       // dof_k = xk^t J tk
       dofs(k) = Trans.Jacobian().InnerProduct(tk + d2t[k]*Dim, vk);
    }
@@ -778,7 +784,7 @@ void VectorFiniteElement::ProjectMatrixCoefficient_ND(
    for (int k = 0; k < Dof; k++)
    {
       T.SetIntPoint(&Nodes.IntPoint(k));
-      mc.Eval(MQ, T, Nodes.IntPoint(k));
+      mc.Eval(MQ, T);
       // tk_phys = J tk
       T.Jacobian().Mult(tk + d2t[k]*Dim, tk_phys);
       MQ.Mult(tk_phys, dofs_k);
@@ -1626,7 +1632,7 @@ void BiQuadPos2DFiniteElement::Project(
    {
       const IntegrationPoint &ip = Nodes.IntPoint(i);
       Trans.SetIntPoint(&ip);
-      d[i] = coeff.Eval(Trans, ip);
+      d[i] = coeff.Eval(Trans);
    }
    d[4] = 2. * d[4] - 0.5 * (d[0] + d[1]);
    d[5] = 2. * d[5] - 0.5 * (d[1] + d[2]);
@@ -1647,7 +1653,7 @@ void BiQuadPos2DFiniteElement::Project (
    {
       const IntegrationPoint &ip = Nodes.IntPoint(i);
       Trans.SetIntPoint(&ip);
-      vc.Eval (x, Trans, ip);
+      vc.Eval (x, Trans);
       for (int j = 0; j < x.Size(); j++)
       {
          dofs(9*j+i) = v[j];
@@ -2736,7 +2742,7 @@ void RT0TriangleFiniteElement::Project (
       // set Jinv = |J| J^{-t} = adj(J)^t
       CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
 
-      vc.Eval (xk, Trans, Nodes.IntPoint (k));
+      vc.Eval (xk, Trans);
       //  xk^t |J| J^{-t} nk
       dofs(k) = (vk[0] * ( Jinv(0,0)*nk[k][0]+Jinv(0,1)*nk[k][1] ) +
                  vk[1] * ( Jinv(1,0)*nk[k][0]+Jinv(1,1)*nk[k][1] ));
@@ -2851,7 +2857,7 @@ void RT0QuadFiniteElement::Project (
       // set Jinv = |J| J^{-t} = adj(J)^t
       CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
 
-      vc.Eval (xk, Trans, Nodes.IntPoint (k));
+      vc.Eval (xk, Trans);
       //  xk^t |J| J^{-t} nk
       dofs(k) = (vk[0] * ( Jinv(0,0)*nk[k][0]+Jinv(0,1)*nk[k][1] ) +
                  vk[1] * ( Jinv(1,0)*nk[k][0]+Jinv(1,1)*nk[k][1] ));
@@ -2992,7 +2998,7 @@ void RT1TriangleFiniteElement::Project (
       // set Jinv = |J| J^{-t} = adj(J)^t
       CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
 
-      vc.Eval (xk, Trans, Nodes.IntPoint (k));
+      vc.Eval (xk, Trans);
       //  xk^t |J| J^{-t} nk
       dofs(k) = (vk[0] * ( Jinv(0,0)*nk[k][0]+Jinv(0,1)*nk[k][1] ) +
                  vk[1] * ( Jinv(1,0)*nk[k][0]+Jinv(1,1)*nk[k][1] ));
@@ -3174,7 +3180,7 @@ void RT1QuadFiniteElement::Project (
       // set Jinv = |J| J^{-t} = adj(J)^t
       CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
 
-      vc.Eval (xk, Trans, Nodes.IntPoint (k));
+      vc.Eval (xk, Trans);
       //  xk^t |J| J^{-t} nk
       dofs(k) = (vk[0] * ( Jinv(0,0)*nk[k][0]+Jinv(0,1)*nk[k][1] ) +
                  vk[1] * ( Jinv(1,0)*nk[k][0]+Jinv(1,1)*nk[k][1] ));
@@ -3626,7 +3632,7 @@ void RT2QuadFiniteElement::Project (
       // set Jinv = |J| J^{-t} = adj(J)^t
       CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
 
-      vc.Eval (xk, Trans, Nodes.IntPoint (k));
+      vc.Eval (xk, Trans);
       //  xk^t |J| J^{-t} nk
       dofs(k) = (vk[0] * ( Jinv(0,0)*nk[k][0]+Jinv(0,1)*nk[k][1] ) +
                  vk[1] * ( Jinv(1,0)*nk[k][0]+Jinv(1,1)*nk[k][1] ));
@@ -5259,7 +5265,7 @@ void Nedelec1HexFiniteElement::Project (
       Trans.SetIntPoint (&Nodes.IntPoint (k));
       const DenseMatrix &J = Trans.Jacobian();
 
-      vc.Eval (xk, Trans, Nodes.IntPoint (k));
+      vc.Eval (xk, Trans);
       //  xk^t J tk
       dofs(k) =
          vk[0] * ( J(0,0)*tk[k][0]+J(0,1)*tk[k][1]+J(0,2)*tk[k][2] ) +
@@ -5425,7 +5431,7 @@ void Nedelec1TetFiniteElement::Project (
       Trans.SetIntPoint (&Nodes.IntPoint (k));
       const DenseMatrix &J = Trans.Jacobian();
 
-      vc.Eval (xk, Trans, Nodes.IntPoint (k));
+      vc.Eval (xk, Trans);
       //  xk^t J tk
       dofs(k) =
          vk[0] * ( J(0,0)*tk[k][0]+J(0,1)*tk[k][1]+J(0,2)*tk[k][2] ) +
@@ -5579,7 +5585,7 @@ void RT0HexFiniteElement::Project (
       // set Jinv = |J| J^{-t} = adj(J)^t
       CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
 
-      vc.Eval (xk, Trans, Nodes.IntPoint (k));
+      vc.Eval (xk, Trans);
       //  xk^t |J| J^{-t} nk
       dofs(k) =
          vk[0] * ( Jinv(0,0)*nk[k][0]+Jinv(0,1)*nk[k][1]+Jinv(0,2)*nk[k][2] ) +
@@ -5968,7 +5974,7 @@ void RT1HexFiniteElement::Project (
       // set Jinv = |J| J^{-t} = adj(J)^t
       CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
 
-      vc.Eval (xk, Trans, Nodes.IntPoint (k));
+      vc.Eval (xk, Trans);
       //  xk^t |J| J^{-t} nk
       dofs(k) =
          vk[0] * ( Jinv(0,0)*nk[k][0]+Jinv(0,1)*nk[k][1]+Jinv(0,2)*nk[k][2] ) +
@@ -6103,7 +6109,7 @@ void RT0TetFiniteElement::Project (
       // set Jinv = |J| J^{-t} = adj(J)^t
       CalcAdjugateTranspose (Trans.Jacobian(), Jinv);
 
-      vc.Eval (xk, Trans, Nodes.IntPoint (k));
+      vc.Eval (xk, Trans);
       //  xk^t |J| J^{-t} nk
       dofs(k) =
          vk[0] * ( Jinv(0,0)*nk[k][0]+Jinv(0,1)*nk[k][1]+Jinv(0,2)*nk[k][2] ) +

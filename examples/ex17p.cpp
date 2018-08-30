@@ -68,7 +68,7 @@ public:
    void SetDisplacement(GridFunction &u_) { u = &u_; }
    void SetComponent(int i, int j) { si = i; sj = j; }
 
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip);
+   virtual double Eval(ElementTransformation &T);
 };
 
 // Simple GLVis visualization manager.
@@ -374,13 +374,12 @@ void InitDisplacement(const Vector &x, Vector &u)
 }
 
 
-double StressCoefficient::Eval(ElementTransformation &T,
-                               const IntegrationPoint &ip)
+double StressCoefficient::Eval(ElementTransformation &T)
 {
    MFEM_ASSERT(u != NULL, "displacement field is not set");
 
-   double L = lambda.Eval(T, ip);
-   double M = mu.Eval(T, ip);
+   double L = lambda.Eval(T);
+   double M = mu.Eval(T);
    u->GetVectorGradient(T, grad);
    if (si == sj)
    {

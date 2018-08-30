@@ -8659,10 +8659,12 @@ NodeExtrudeCoefficient::NodeExtrudeCoefficient(const int dim, const int _n,
 {
 }
 
-void NodeExtrudeCoefficient::Eval(Vector &V, ElementTransformation &T,
-                                  const IntegrationPoint &ip)
+void NodeExtrudeCoefficient::Eval(Vector &V, ElementTransformation &T)
 {
    V.SetSize(vdim);
+
+   MFEM_ASSERT(T.IntPointSet(), "Integration point not set.");
+   const IntegrationPoint & ip = T.GetIntPoint();
    T.Transform(ip, tip);
    V(0) = p[0];
    if (vdim == 2)

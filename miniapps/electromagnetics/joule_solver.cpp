@@ -901,13 +901,12 @@ void MagneticDiffusionEOperator::Debug(const char *base, double)
    }
 }
 
-double JouleHeatingCoefficient::Eval(ElementTransformation &T,
-                                     const IntegrationPoint &ip)
+double JouleHeatingCoefficient::Eval(ElementTransformation &T)
 {
    Vector E;
    double thisSigma;
-   E_gf.GetVectorValue(T.ElementNo, ip, E);
-   thisSigma = sigma.Eval(T, ip);
+   E_gf.GetVectorValue(T.ElementNo, T.GetIntPoint(), E);
+   thisSigma = sigma.Eval(T);
    return thisSigma*(E*E);
 }
 
@@ -929,8 +928,7 @@ MeshDependentCoefficient::MeshDependentCoefficient(
    scaleFactor = cloneMe.scaleFactor;
 }
 
-double MeshDependentCoefficient::Eval(ElementTransformation &T,
-                                      const IntegrationPoint &ip)
+double MeshDependentCoefficient::Eval(ElementTransformation &T)
 {
    // given the attribute, extract the coefficient value from the map
    std::map<int, double>::iterator it;
@@ -956,10 +954,9 @@ ScaledGFCoefficient::ScaledGFCoefficient(GridFunction *gf,
                                          MeshDependentCoefficient &input_mdc)
    : GridFunctionCoefficient(gf), mdc(input_mdc) {}
 
-double ScaledGFCoefficient::Eval(ElementTransformation &T,
-                                 const IntegrationPoint &ip)
+double ScaledGFCoefficient::Eval(ElementTransformation &T)
 {
-   return mdc.Eval(T,ip) * GridFunctionCoefficient::Eval(T,ip);
+   return mdc.Eval(T) * GridFunctionCoefficient::Eval(T);
 }
 
 } // namespace electromagnetics

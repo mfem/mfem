@@ -46,7 +46,7 @@ void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
       const IntegrationPoint &ip = ir->IntPoint(i);
 
       Tr.SetIntPoint (&ip);
-      double val = Tr.Weight() * Q.Eval(Tr, ip);
+      double val = Tr.Weight() * Q.Eval(Tr);
 
       el.CalcShape(ip, shape);
 
@@ -60,7 +60,7 @@ void DomainLFIntegrator::AssembleDeltaElementVect(
    MFEM_ASSERT(delta != NULL, "coefficient must be DeltaCoefficient");
    elvect.SetSize(fe.GetDof());
    fe.CalcPhysShape(Trans, elvect);
-   elvect *= delta->EvalDelta(Trans, Trans.GetIntPoint());
+   elvect *= delta->EvalDelta(Trans);
 }
 
 
@@ -85,7 +85,7 @@ void BoundaryLFIntegrator::AssembleRHSElementVect(
       const IntegrationPoint &ip = ir->IntPoint(i);
 
       Tr.SetIntPoint (&ip);
-      double val = Tr.Weight() * Q.Eval(Tr, ip);
+      double val = Tr.Weight() * Q.Eval(Tr);
 
       el.CalcShape(ip, shape);
 
@@ -117,7 +117,7 @@ void BoundaryNormalLFIntegrator::AssembleRHSElementVect(
 
       Tr.SetIntPoint(&ip);
       CalcOrtho(Tr.Jacobian(), nor);
-      Q.Eval(Qvec, Tr, ip);
+      Q.Eval(Qvec, Tr);
 
       el.CalcShape(ip, shape);
 
@@ -157,7 +157,7 @@ void BoundaryTangentialLFIntegrator::AssembleRHSElementVect(
       tangent(0) =  Jac(0,0);
       tangent(1) = Jac(1,0);
 
-      Q.Eval(Qvec, Tr, ip);
+      Q.Eval(Qvec, Tr);
 
       el.CalcShape(ip, shape);
 
@@ -193,7 +193,7 @@ void VectorDomainLFIntegrator::AssembleRHSElementVect(
       val = Tr.Weight();
 
       el.CalcShape(ip, shape);
-      Q.Eval (Qvec, Tr, ip);
+      Q.Eval (Qvec, Tr);
 
       for (int k = 0; k < vdim; k++)
       {
@@ -217,7 +217,7 @@ void VectorDomainLFIntegrator::AssembleDeltaElementVect(
    shape.SetSize(dof);
    fe.CalcPhysShape(Trans, shape);
 
-   vec_delta->EvalDelta(Qvec, Trans, Trans.GetIntPoint());
+   vec_delta->EvalDelta(Qvec, Trans);
 
    elvect.SetSize(dof*vdim);
    DenseMatrix elvec_as_mat(elvect.GetData(), dof, vdim);
@@ -248,8 +248,8 @@ void VectorBoundaryLFIntegrator::AssembleRHSElementVect(
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
 
-      Q.Eval(vec, Tr, ip);
       Tr.SetIntPoint (&ip);
+      Q.Eval(vec, Tr);
       vec *= Tr.Weight() * ip.weight;
       el.CalcShape(ip, shape);
       for (int k = 0; k < vdim; k++)
@@ -286,7 +286,7 @@ void VectorBoundaryLFIntegrator::AssembleRHSElementVect(
       Tr.Loc1.Transform(ip, eip);
 
       Tr.Face->SetIntPoint(&ip);
-      Q.Eval(vec, *Tr.Face, ip);
+      Q.Eval(vec, *Tr.Face);
       vec *= Tr.Face->Weight() * ip.weight;
       el.CalcShape(eip, shape);
       for (int k = 0; k < vdim; k++)
@@ -327,7 +327,7 @@ void VectorFEDomainLFIntegrator::AssembleRHSElementVect(
       Tr.SetIntPoint (&ip);
       el.CalcVShape(Tr, vshape);
 
-      QF.Eval (vec, Tr, ip);
+      QF.Eval (vec, Tr);
       vec *= ip.weight * Tr.Weight();
 
       vshape.AddMult (vec, elvect);
@@ -344,7 +344,7 @@ void VectorFEDomainLFIntegrator::AssembleDeltaElementVect(
    vshape.SetSize(dof, spaceDim);
    fe.CalcPhysVShape(Trans, vshape);
 
-   vec_delta->EvalDelta(vec, Trans, Trans.GetIntPoint());
+   vec_delta->EvalDelta(vec, Trans);
 
    elvect.SetSize(dof);
    vshape.Mult(vec, elvect);
@@ -374,7 +374,7 @@ void VectorBoundaryFluxLFIntegrator::AssembleRHSElementVect(
       Tr.SetIntPoint (&ip);
       CalcOrtho(Tr.Jacobian(), nor);
       el.CalcShape (ip, shape);
-      nor *= Sign * ip.weight * F -> Eval (Tr, ip);
+      nor *= Sign * ip.weight * F -> Eval (Tr);
       for (int j = 0; j < dof; j++)
          for (int k = 0; k < dim; k++)
          {
@@ -405,7 +405,7 @@ void VectorFEBoundaryFluxLFIntegrator::AssembleRHSElementVect(
       const IntegrationPoint &ip = ir->IntPoint(i);
 
       Tr.SetIntPoint (&ip);
-      double val = ip.weight*F.Eval(Tr, ip);
+      double val = ip.weight*F.Eval(Tr);
 
       el.CalcShape(ip, shape);
 
@@ -437,7 +437,7 @@ void VectorFEBoundaryTangentLFIntegrator::AssembleRHSElementVect(
       const IntegrationPoint &ip = ir->IntPoint(i);
 
       Tr.SetIntPoint(&ip);
-      f.Eval(f_loc, Tr, ip);
+      f.Eval(f_loc, Tr);
       Tr.Jacobian().MultTranspose(f_loc, f_hat);
       el.CalcVShape(ip, vshape);
 
@@ -492,8 +492,9 @@ void BoundaryFlowIntegrator::AssembleRHSElementVect(
       el.CalcShape(eip, shape);
 
       Tr.Face->SetIntPoint(&ip);
+      Tr.Elem1->SetIntPoint(&eip);
 
-      u->Eval(vu, *Tr.Elem1, eip);
+      u->Eval(vu, *Tr.Elem1);
 
       if (dim == 1)
       {
@@ -506,7 +507,7 @@ void BoundaryFlowIntegrator::AssembleRHSElementVect(
 
       un = vu * nor;
       w = 0.5*alpha*un - beta*fabs(un);
-      w *= ip.weight*f->Eval(*Tr.Elem1, eip);
+      w *= ip.weight*f->Eval(*Tr.Elem1);
       elvect.Add(w, shape);
    }
 }
@@ -572,19 +573,19 @@ void DGDirichletLFIntegrator::AssembleRHSElementVect(
       el.CalcDShape(eip, dshape);
       Tr.Elem1->SetIntPoint(&eip);
       // compute uD through the face transformation
-      w = ip.weight * uD->Eval(*Tr.Face, ip) / Tr.Elem1->Weight();
+      w = ip.weight * uD->Eval(*Tr.Face) / Tr.Elem1->Weight();
       if (!MQ)
       {
          if (Q)
          {
-            w *= Q->Eval(*Tr.Elem1, eip);
+            w *= Q->Eval(*Tr.Elem1);
          }
          ni.Set(w, nor);
       }
       else
       {
          nh.Set(w, nor);
-         MQ->Eval(mq, *Tr.Elem1, eip);
+         MQ->Eval(mq, *Tr.Elem1);
          mq.MultTranspose(nh, ni);
       }
       CalcAdjugate(Tr.Elem1->Jacobian(), adjJ);
@@ -655,7 +656,7 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
       Tr.Elem1->SetIntPoint(&eip);
 
       // Evaluate the Dirichlet b.c. using the face transformation.
-      uD.Eval(u_dir, *Tr.Face, ip);
+      uD.Eval(u_dir, *Tr.Face);
 
       el.CalcShape(eip, shape);
       el.CalcDShape(eip, dshape);
@@ -675,8 +676,8 @@ void DGElasticityDirichletLFIntegrator::AssembleRHSElementVect(
       double wL, wM, jcoef;
       {
          const double w = ip.weight / Tr.Elem1->Weight();
-         wL = w * lambda->Eval(*Tr.Elem1, eip);
-         wM = w * mu->Eval(*Tr.Elem1, eip);
+         wL = w * lambda->Eval(*Tr.Elem1);
+         wM = w * mu->Eval(*Tr.Elem1);
          jcoef = kappa * (wL + 2.0*wM) * (nor*nor);
          dshape_ps.Mult(nor, dshape_dn);
          dshape_ps.Mult(u_dir, dshape_du);
