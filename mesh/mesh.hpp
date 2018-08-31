@@ -253,11 +253,14 @@ protected:
                         int *edge1, int *edge2, int *middle)
    { Bisection(i, v_to_v, edge1, edge2, middle); }
 
-   /** Bisection. Element with index i is bisected. */
+   /// Bisect a triangle: element with index @a i is bisected.
    void Bisection(int i, const DSTable &, int *, int *, int *);
 
-   /** Bisection. Boundary element with index i is bisected. */
-   void Bisection(int i, const DSTable &, int *);
+   /// Bisect a tetrahedron: element with index @a i is bisected.
+   void Bisection(int i, HashTable<Hashed2> &);
+
+   /// Bisect a boundary triangle: boundary element with index @a i is bisected.
+   void BdrBisection(int i, const HashTable<Hashed2> &);
 
    /** Uniform Refinement. Element with index i is refined uniformly. */
    void UniformRefinement(int i, const DSTable &, int *, int *, int *);
@@ -278,8 +281,8 @@ protected:
    /// Refine hexahedral mesh.
    virtual void HexUniformRefinement();
 
-   /// Refine prism mesh.
-   virtual void PriUniformRefinement(std::map<int,int> * f2qf = NULL);
+   /// Refine wedge mesh.
+   virtual void WedgeUniformRefinement(std::map<int,int> * f2qf = NULL);
 
    /// Refine a mixed 2D mesh.
    virtual void Mixed2DUniformRefinement();
@@ -322,13 +325,13 @@ protected:
    void GetLocalTriToTetTransformation (IsoparametricTransformation &loc,
                                         int i);
    /// Used in GetFaceElementTransformations (...)
-   void GetLocalTriToPriTransformation (IsoparametricTransformation &loc,
+   void GetLocalTriToWdgTransformation (IsoparametricTransformation &loc,
                                         int i);
    /// Used in GetFaceElementTransformations (...)
    void GetLocalQuadToHexTransformation (IsoparametricTransformation &loc,
                                          int i);
    /// Used in GetFaceElementTransformations (...)
-   void GetLocalQuadToPriTransformation (IsoparametricTransformation &loc,
+   void GetLocalQuadToWdgTransformation (IsoparametricTransformation &loc,
                                          int i);
 
    /** Used in GetFaceElementTransformations to account for the fact that a
@@ -485,7 +488,7 @@ public:
    void AddTriangle(const int *vi, int attr = 1);
    void AddQuad(const int *vi, int attr = 1);
    void AddTet(const int *vi, int attr = 1);
-   void AddPri(const int *vi, int attr = 1);
+   void AddWedge(const int *vi, int attr = 1);
    void AddHex(const int *vi, int attr = 1);
    void AddHexAsTets(const int *vi, int attr = 1);
    void AddHexAsWedges(const int *vi, int attr = 1);
@@ -507,7 +510,7 @@ public:
    /// Finalize the construction of a tetrahedral Mesh.
    void FinalizeTetMesh(int generate_edges = 0, int refine = 0,
                         bool fix_orientation = true);
-   /// Finalize the construction of a prismal Mesh.
+   /// Finalize the construction of a wedge Mesh.
    void FinalizeWedgeMesh(int generate_edges = 0, int refine = 0,
                           bool fix_orientation = true);
    /// Finalize the construction of a hexahedral Mesh.

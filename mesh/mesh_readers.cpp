@@ -789,7 +789,7 @@ void Mesh::ReadInlineMesh(std::istream &input, int generate_edges)
          {
             type = Element::HEXAHEDRON;
          }
-         else if (eltype == "pri")
+         else if (eltype == "wedge")
          {
             type = Element::WEDGE;
          }

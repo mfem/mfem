@@ -10,8 +10,29 @@
 
 Version 3.4.1 (development)
 ===========================
+- Added support for wedge shaped mesh elements of arbitrary order (with
+  Geometry type PRISM) which have two triangular faces and three
+  quadrilateral	faces.
+
+- Added H1 and L2 finite elements of arbitrary order for Wedge elements.
+
+- Added support for mixed meshes containing triangles and quadrilaterals in
+  2D or tetrahedra, wedges, and hexahedra in 3D.
+
+- Added the capability to produce 3D meshes by extruding 2D meshes.
+
+- Added a new meshing miniapp named "toroid" which can produce a variety
+  of torus shaped meshes by twisting a stack of wedges or hexahedra.
+
 - Added support for reading linear and quadratic 2D quadrilateral and triangular
   Cubit meshes.
+
+- The tetrahedral mesh refinement algorithm in serial and in parallel now
+  follows precisely the paper:
+     D. Arnold, A. Mukherjee, and L. Pouly, "Locally Adapted Tetrahedral Meshes
+     Using Bisection", SIAM J. Sci. Comput., 22(2), 431–448.
+  This guarantees that the shape regularity of the elements will be preserved
+  under refinement.
 
 
 Version 3.4, released on May 29, 2018
