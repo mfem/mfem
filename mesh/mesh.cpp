@@ -705,7 +705,7 @@ void Mesh::GetLocalFaceTransformation(
 
       case Element::TETRAHEDRON:
          MFEM_ASSERT(elem_type == Element::PENTATOPE, "");
-         GetLocalTetToPentTransformation(Transf, inf);
+         GetLocalTetToPentTransformation(Transf, info);
          break;
    }
 }

@@ -176,8 +176,10 @@ void ParFiniteElementSpace::GetGroupComm(
 {
    int gr;
    int ng = pmesh->GetNGroups();
-   int nvd, ned, nfd;
+   int nvd, ned, nfd, npd;
    Array<int> dofs;
+
+   int dim = pmesh->Dimension();
 
    int group_ldof_counter;
    Table &group_ldof = gc.GroupLDofTable();

@@ -906,7 +906,8 @@ IntegrationRule *GeometryRefiner::FindInIntPts(int Geom, int NPts)
    Array<IntegrationRule *> &IPA = IntPts[Geom];
    for (int i = 0; i < IPA.Size(); i++)
    {
-      cp = poly1d.ClosedPoints(Times);
+      IntegrationRule &ir = *IPA[i];
+      if (ir.GetNPoints() == NPts) { return &ir; }
    }
    return NULL;
 }

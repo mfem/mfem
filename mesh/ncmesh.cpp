@@ -24,7 +24,7 @@ NCMesh::GeomInfo NCMesh::GI[Geometry::NumGeom];
 NCMesh::GeomInfo& NCMesh::gi_hex  = NCMesh::GI[Geometry::CUBE];
 NCMesh::GeomInfo& NCMesh::gi_quad = NCMesh::GI[Geometry::SQUARE];
 NCMesh::GeomInfo& NCMesh::gi_tri  = NCMesh::GI[Geometry::TRIANGLE];
-static NCMesh::GeomInfo& gi_pent = NCMesh::GI[Geometry::PENTATOPE];
+NCMesh::GeomInfo& NCMesh::gi_pent = NCMesh::GI[Geometry::PENTATOPE];
 
 void NCMesh::GeomInfo::Initialize(const mfem::Element* elem)
 {

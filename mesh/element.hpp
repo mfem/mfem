@@ -96,6 +96,9 @@ public:
 
    /// Return 1 if the element needs refinement in order to get conforming mesh.
    virtual int NeedRefinement(HashTable<Hashed2> &v_to_v) const { return 0; }
+   
+   /// Return 1 if the element needs refinement in order to get conforming mesh. (needed for 4D) TODO
+   virtual int NeedRefinement(DSTable &v_to_v, int* middle) const { return 0; }
 
    /// Set current coarse-fine transformation number.
    virtual void ResetTransform(int tr) {}

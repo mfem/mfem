@@ -1225,7 +1225,7 @@ void FiniteElementSpace::Construct()
       {
          pdofs = new int[mesh->GetNPlanars()+1];
          pdofs[0] = 0;
-         for (i = 0; i < mesh->GetNPlanars(); i++)
+         for (int i = 0; i < mesh->GetNPlanars(); i++)
          {
             npdofs += pdof;
             // npdofs += fec->DofForGeometry(mesh->GetPlanarBaseGeometry(i));

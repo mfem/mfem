@@ -32,36 +32,6 @@ STable3D::STable3D (int nr)
    NElem = 0;
 }
 
-inline void Sort3 (int &r, int &c, int &f)
-{
-   int t;
-
-   if (r > c)
-      if (c > f)
-      {
-         t = r;  r = f;  f = t;  //  (r,c,f) --> (f,c,r)
-      }
-      else if (r > f)
-      {
-         t = r;  r = c;  c = f;  f = t;  //  (r,c,f) --> (c,f,r)
-      }
-      else
-      {
-         t = r;  r = c;  c = t;  //  (r,c,f) --> (c,r,f)
-      }
-   else if (c > f)
-   {
-      if (r > f)
-      {
-         t = f;  f = c;  c = r;  r = t;  //  (r,c,f) --> (f,r,c)
-      }
-      else
-      {
-         t = c;  c = f;  f = t;  //  (r,c,f) --> (r,f,c)
-      }
-   }
-}
-
 int STable3D::Push (int r, int c, int f)
 {
    STable3DNode *node;

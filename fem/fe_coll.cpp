@@ -1811,7 +1811,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          {
             H1_dof[Geometry::PENTATOPE] = (TriDof*pm3*pm4)/12;
             H1_dof[Geometry::TESSERACT] = QuadDof*pm1*pm1;
-            if (m_type == BasisType::Positive)
+            if (b_type == BasisType::Positive)
             {
                mfem_error("H1_FECollection: BasisType::Positive not implemented");
             }

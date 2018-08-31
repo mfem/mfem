@@ -959,12 +959,11 @@ void VectorMassIntegrator::AssembleElementMatrix
 {
    int nd = el.GetDof();
    int spaceDim = Trans.GetSpaceDim();
-   if (vecDim <=0) { vecDim = spaceDim; }
 
    double norm;
 
    // Get vdim from VQ, MQ, or the space dimension
-   int vdim = (VQ) ? (VQ -> GetVDim()) : ((MQ) ? (MQ -> GetVDim()) : vecDim);
+   int vdim = (VQ) ? (VQ -> GetVDim()) : ((MQ) ? (MQ -> GetVDim()) : spaceDim);
 
    elmat.SetSize(nd*vdim);
    shape.SetSize(nd);
@@ -2099,13 +2098,12 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
    ElementTransformation &Trans,
    DenseMatrix &elmat)
 {
-   if (vecDim <=0) { vecDim = el.GetDim(); }
    int dim = el.GetDim();
    int dof = el.GetDof();
 
    double norm;
 
-   elmat.SetSize (vecDim * dof);
+   elmat.SetSize (dim * dof);
 
    Jinv.  SetSize (dim);
    dshape.SetSize (dof, dim);
@@ -2150,7 +2148,7 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
 
       pelmat *= norm;
 
-      for (int d = 0; d < vecDim; d++)
+      for (int d = 0; d < dim; d++)
       {
          for (int k = 0; k < dof; k++)
             for (int l = 0; l < dof; l++)

@@ -785,7 +785,7 @@ protected: // implementation
 
    static GeomInfo GI[Geometry::NumGeom];
 
-   static GeomInfo &gi_hex, &gi_quad, &gi_tri;
+   static GeomInfo &gi_hex, &gi_quad, &gi_tri, &gi_pent;
 
 #ifdef MFEM_DEBUG
 public:
