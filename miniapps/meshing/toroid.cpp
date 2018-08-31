@@ -133,7 +133,7 @@ int main(int argc, char *argv[])
       if (el_type_ == Element::WEDGE)
       {
          for (int j = 0; j < 6; j++) { v[j] = 3*i+j; }
-         mesh->AddPri(v);
+         mesh->AddWedge(v);
       }
       else
       {

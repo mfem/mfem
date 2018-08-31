@@ -611,7 +611,7 @@ void Mesh::GetLocalTriToTetTransformation(
    Transf.FinalizeTransformation();
 }
 
-void Mesh::GetLocalTriToPriTransformation(
+void Mesh::GetLocalTriToWdgTransformation(
    IsoparametricTransformation &Transf, int i)
 {
    DenseMatrix &locpm = Transf.GetPointMat();
@@ -659,7 +659,7 @@ void Mesh::GetLocalQuadToHexTransformation(
    Transf.FinalizeTransformation();
 }
 
-void Mesh::GetLocalQuadToPriTransformation(
+void Mesh::GetLocalQuadToWdgTransformation(
    IsoparametricTransformation &Transf, int i)
 {
    DenseMatrix &locpm = Transf.GetPointMat();
@@ -712,7 +712,7 @@ void Mesh::GetLocalFaceTransformation(
          else
          {
             MFEM_ASSERT(elem_type == Element::WEDGE, "");
-            GetLocalTriToPriTransformation(Transf, info);
+            GetLocalTriToWdgTransformation(Transf, info);
          }
          break;
 
@@ -724,7 +724,7 @@ void Mesh::GetLocalFaceTransformation(
          else
          {
             MFEM_ASSERT(elem_type == Element::WEDGE, "");
-            GetLocalQuadToPriTransformation(Transf, info);
+            GetLocalQuadToWdgTransformation(Transf, info);
          }
          break;
    }
@@ -1106,7 +1106,7 @@ void Mesh::AddTet(const int *vi, int attr)
 #endif
 }
 
-void Mesh::AddPri(const int *vi, int attr)
+void Mesh::AddWedge(const int *vi, int attr)
 {
    elements[NumOfElements++] = new Wedge(vi, attr);
 }
@@ -1137,7 +1137,7 @@ void Mesh::AddHexAsTets(const int *vi, int attr)
 
 void Mesh::AddHexAsWedges(const int *vi, int attr)
 {
-   static const int hex_to_pri[2][6] =
+   static const int hex_to_wdg[2][6] =
    {
       { 0, 1, 2, 4, 5, 6 }, { 0, 2, 3, 4, 6, 7 }
    };
@@ -1147,9 +1147,9 @@ void Mesh::AddHexAsWedges(const int *vi, int attr)
    {
       for (int j = 0; j < 6; j++)
       {
-         ti[j] = vi[hex_to_pri[i][j]];
+         ti[j] = vi[hex_to_wdg[i][j]];
       }
-      AddPri(ti, attr);
+      AddWedge(ti, attr);
    }
 }
 
@@ -4311,29 +4311,7 @@ void Mesh::GetBdrElementFace(int i, int *f, int *o) const
          mfem_error("Mesh::GetBdrElementFace(...) 2");
    }
 }
-/*
-Geometry::Type Mesh::GetFaceBaseGeometry(int i) const
-{
-  // Here, we assume all faces are of the same type
-  switch (GetElementType(0))
-  {
-     case Element::SEGMENT:
-        return Geometry::POINT;
 
-     case Element::TRIANGLE:
-     case Element::QUADRILATERAL:
-        return Geometry::SEGMENT; // in 2D 'face' is an edge
-
-     case Element::TETRAHEDRON:
-        return Geometry::TRIANGLE;
-     case Element::HEXAHEDRON:
-        return Geometry::SQUARE;
-     default:
-        mfem_error("Mesh::GetFaceBaseGeometry(...) #1");
-  }
-  return (Geometry::INVALID);
-}
-*/
 int Mesh::GetBdrElementEdgeIndex(int i) const
 {
    switch (Dim)
@@ -6154,7 +6132,7 @@ void Mesh::HexUniformRefinement()
    UpdateNodes();
 }
 
-void Mesh::PriUniformRefinement(map<int,int> * f2qf_ptr)
+void Mesh::WedgeUniformRefinement(map<int,int> * f2qf_ptr)
 {
    int i;
    int * v;
@@ -6563,7 +6541,7 @@ void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr)
                "Mixed element face counts don't match!");
 
    int NumOfTetElems  = 0;
-   int NumOfPriElems  = 0;
+   int NumOfWdgElems  = 0;
    int NumOfHexElems  = 0;
    map<int,int> e2he;
    for (i = 0; i<elements.Size(); i++)
@@ -6574,7 +6552,7 @@ void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr)
             NumOfTetElems++;
             break;
          case Element::WEDGE:
-            NumOfPriElems++;
+            NumOfWdgElems++;
             break;
          case Element::HEXAHEDRON:
             e2he[i] = NumOfHexElems;
@@ -6587,7 +6565,7 @@ void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr)
             break;
       }
    }
-   MFEM_VERIFY(NumOfElements == NumOfTetElems + NumOfPriElems + NumOfHexElems,
+   MFEM_VERIFY(NumOfElements == NumOfTetElems + NumOfWdgElems + NumOfHexElems,
                "Mixed element counts don't match!");
 
    int oedge = NumOfVertices;
@@ -7034,56 +7012,47 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
    }
    else if (Dim == 3) // ---------------------------------------------------
    {
-      // 1. Get table of vertex to vertex connections.
-      DSTable v_to_v(NumOfVertices);
-      GetVertexToVertexTable(v_to_v);
+      // 1. Hash table of vertex to vertex connections corresponding to refined
+      //    edges.
+      HashTable<Hashed2> v_to_v;
 
-      // 2. Get edge to element connections in arrays edge1 and edge2
-      nedges = v_to_v.NumberOfEntries();
-      int *middle = new int[nedges];
-
-      for (i = 0; i < nedges; i++)
-      {
-         middle[i] = -1;
-      }
-
-      // 3. Do the red refinement.
+      // 2. Do the red refinement.
       int ii;
       switch (type)
       {
          case 1:
             for (i = 0; i < marked_el.Size(); i++)
             {
-               Bisection(marked_el[i], v_to_v, NULL, NULL, middle);
+               Bisection(marked_el[i], v_to_v);
             }
             break;
          case 2:
             for (i = 0; i < marked_el.Size(); i++)
             {
-               Bisection(marked_el[i], v_to_v, NULL, NULL, middle);
+               Bisection(marked_el[i], v_to_v);
 
-               Bisection(NumOfElements - 1, v_to_v, NULL, NULL, middle);
-               Bisection(marked_el[i], v_to_v, NULL, NULL, middle);
+               Bisection(NumOfElements - 1, v_to_v);
+               Bisection(marked_el[i], v_to_v);
             }
             break;
          case 3:
             for (i = 0; i < marked_el.Size(); i++)
             {
-               Bisection(marked_el[i], v_to_v, NULL, NULL, middle);
+               Bisection(marked_el[i], v_to_v);
 
                ii = NumOfElements - 1;
-               Bisection(ii, v_to_v, NULL, NULL, middle);
-               Bisection(NumOfElements - 1, v_to_v, NULL, NULL, middle);
-               Bisection(ii, v_to_v, NULL, NULL, middle);
+               Bisection(ii, v_to_v);
+               Bisection(NumOfElements - 1, v_to_v);
+               Bisection(ii, v_to_v);
 
-               Bisection(marked_el[i], v_to_v, NULL, NULL, middle);
-               Bisection(NumOfElements-1, v_to_v, NULL, NULL, middle);
-               Bisection(marked_el[i], v_to_v, NULL, NULL, middle);
+               Bisection(marked_el[i], v_to_v);
+               Bisection(NumOfElements-1, v_to_v);
+               Bisection(marked_el[i], v_to_v);
             }
             break;
       }
 
-      // 4. Do the green refinement (to get conforming mesh).
+      // 3. Do the green refinement (to get conforming mesh).
       int need_refinement;
       // int need_refinement, onoe, max_gen = 0;
       do
@@ -7097,10 +7066,10 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
             // ((Tetrahedron *)elements[i])->
             // ParseRefinementFlag(redges, type, flag);
             // if (flag > max_gen)  max_gen = flag;
-            if (elements[i]->NeedRefinement(v_to_v, middle))
+            if (elements[i]->NeedRefinement(v_to_v))
             {
                need_refinement = 1;
-               Bisection(i, v_to_v, NULL, NULL, middle);
+               Bisection(i, v_to_v);
             }
          }
       }
@@ -7108,38 +7077,23 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
 
       // mfem::out << "Maximum generation: " << max_gen << endl;
 
-      // 5. Update the boundary elements.
+      // 4. Update the boundary elements.
       do
       {
          need_refinement = 0;
          for (i = 0; i < NumOfBdrElements; i++)
-            if (boundary[i]->NeedRefinement(v_to_v, middle))
+            if (boundary[i]->NeedRefinement(v_to_v))
             {
                need_refinement = 1;
-               Bisection(i, v_to_v, middle);
+               BdrBisection(i, v_to_v);
             }
       }
       while (need_refinement == 1);
 
-      // 6. Un-mark the Pf elements.
-      int refinement_edges[2], type, flag;
-      for (i = 0; i < NumOfElements; i++)
-      {
-         Tetrahedron* el = (Tetrahedron*) elements[i];
-         el->ParseRefinementFlag(refinement_edges, type, flag);
-
-         if (type == Tetrahedron::TYPE_PF)
-         {
-            el->CreateRefinementFlag(refinement_edges, Tetrahedron::TYPE_PU,
-                                     flag);
-         }
-      }
-
+      NumOfVertices = vertices.Size();
       NumOfBdrElements = boundary.Size();
 
-      // 7. Free the allocated memory.
-      delete [] middle;
-
+      // 5. Update element-to-edge and element-to-face relations.
       DeleteLazyTables();
       if (el_to_edge != NULL)
       {
@@ -7462,7 +7416,7 @@ void Mesh::UniformRefinement()
             HexUniformRefinement();
             break;
          case Geometry::PRISM:
-            PriUniformRefinement();
+            WedgeUniformRefinement();
             break;
          case Geometry::MIXED:
             if ( Dim == 2 )
@@ -7770,7 +7724,21 @@ void Mesh::Bisection(int i, const DSTable &v_to_v,
       }
       NumOfElements++;
    }
-   else if (t == Element::TETRAHEDRON)
+   else
+   {
+      MFEM_ABORT("Bisection for now works only for triangles.");
+   }
+}
+
+void Mesh::Bisection(int i, HashTable<Hashed2> &v_to_v)
+{
+   int *vert;
+   int v[2][4], v_new, bisect, t;
+   Element *el = elements[i];
+   Vertex V;
+
+   t = el->GetType();
+   if (t == Element::TETRAHEDRON)
    {
       int j, type, new_type, old_redges[2], new_redges[2][2], flag;
       Tetrahedron *tet = (Tetrahedron *) el;
@@ -7781,32 +7749,19 @@ void Mesh::Bisection(int i, const DSTable &v_to_v,
       vert = tet->GetVertices();
 
       // 1. Get the index for the new vertex in v_new.
-      bisect = v_to_v(vert[0], vert[1]);
+      bisect = v_to_v.FindId(vert[0], vert[1]);
       if (bisect == -1)
       {
-         tet->ParseRefinementFlag(old_redges, type, flag);
-         mfem::err << "Error in Bisection(...) of tetrahedron!" << endl
-                   << "   redge[0] = " << old_redges[0]
-                   << "   redge[1] = " << old_redges[1]
-                   << "   type = " << type
-                   << "   flag = " << flag << endl;
-         mfem_error();
-      }
-
-      if (middle[bisect] == -1)
-      {
-         v_new = NumOfVertices++;
+         v_new = NumOfVertices + v_to_v.GetId(vert[0],vert[1]);
          for (j = 0; j < 3; j++)
          {
             V(j) = 0.5 * (vertices[vert[0]](j) + vertices[vert[1]](j));
          }
          vertices.Append(V);
-
-         middle[bisect] = v_new;
       }
       else
       {
-         v_new = middle[bisect];
+         v_new = NumOfVertices + bisect;
       }
 
       // 2. Set the node indices for the new elements in v[2][4] so that
@@ -7890,11 +7845,11 @@ void Mesh::Bisection(int i, const DSTable &v_to_v,
    }
    else
    {
-      MFEM_ABORT("Bisection for now works only for triangles & tetrahedra.");
+      MFEM_ABORT("Bisection with HashTable for now works only for tetrahedra.");
    }
 }
 
-void Mesh::Bisection(int i, const DSTable &v_to_v, int *middle)
+void Mesh::BdrBisection(int i, const HashTable<Hashed2> &v_to_v)
 {
    int *vert;
    int v[2][3], v_new, bisect, t;
@@ -7908,9 +7863,9 @@ void Mesh::Bisection(int i, const DSTable &v_to_v, int *middle)
       vert = tri->GetVertices();
 
       // 1. Get the index for the new vertex in v_new.
-      bisect = v_to_v(vert[0], vert[1]);
+      bisect = v_to_v.FindId(vert[0], vert[1]);
       MFEM_ASSERT(bisect >= 0, "");
-      v_new = middle[bisect];
+      v_new = NumOfVertices + bisect;
       MFEM_ASSERT(v_new != -1, "");
 
       // 2. Set the node indices for the new elements in v[0] and v[1] so that
@@ -7926,7 +7881,8 @@ void Mesh::Bisection(int i, const DSTable &v_to_v, int *middle)
    }
    else
    {
-      MFEM_ABORT("Bisection of boundary elements works only for triangles!");
+      MFEM_ABORT("Bisection of boundary elements with HashTable works only for"
+                 " triangles!");
    }
 }
 
@@ -10076,7 +10032,7 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
    Mesh *mesh3d = new Mesh(3, nvt, mesh->GetNE()*nz,
                            mesh->GetNBE()*nz+2*mesh->GetNE());
 
-   bool priMesh = false;
+   bool wdgMesh = false;
    bool hexMesh = false;
 
    // vertices
@@ -10102,7 +10058,7 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
       switch (geom)
       {
          case Geometry::TRIANGLE:
-            priMesh = true;
+            wdgMesh = true;
             for (int j = 0; j < nz; j++)
             {
                int pv[6];
@@ -10113,7 +10069,7 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
                pv[4] = vert[1] * nvz + (j + 1) % nvz;
                pv[5] = vert[2] * nvz + (j + 1) % nvz;
 
-               mesh3d->AddPri(pv, attr);
+               mesh3d->AddWedge(pv, attr);
             }
             break;
          case Geometry::SQUARE:
@@ -10211,7 +10167,7 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
       }
    }
 
-   if ( hexMesh && priMesh )
+   if ( hexMesh && wdgMesh )
    {
       mesh3d->FinalizeMixedMesh(1, 0, false);
    }
@@ -10219,7 +10175,7 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
    {
       mesh3d->FinalizeHexMesh(1, 0, false);
    }
-   else if ( priMesh )
+   else if ( wdgMesh )
    {
       mesh3d->FinalizeWedgeMesh(1, 0, false);
    }
