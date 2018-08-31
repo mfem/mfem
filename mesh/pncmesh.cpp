@@ -47,7 +47,7 @@ ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh)
 }
 
 ParNCMesh::ParNCMesh(const ParNCMesh &other)
-   // copy primary data only
+// copy primary data only
    : NCMesh(other)
    , MyComm(other.MyComm)
    , NRanks(other.NRanks)
