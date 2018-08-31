@@ -140,6 +140,9 @@ void ParFiniteElementSpace::Construct()
    }
    else // Nonconforming()
    {
+      gcomm = new GroupCommunicator(GetGroupTopo());
+      GetGroupComm(*gcomm, 1);
+
       // calculate number of ghost DOFs
       ngvdofs = pncmesh->GetNGhostVertices()
                 * fec->DofForGeometry(Geometry::POINT);
