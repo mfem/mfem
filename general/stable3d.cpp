@@ -32,6 +32,36 @@ STable3D::STable3D (int nr)
    NElem = 0;
 }
 
+inline void Sort3 (int &r, int &c, int &f)
+{
+   int t;
+
+   if (r > c)
+      if (c > f)
+      {
+         t = r;  r = f;  f = t;  //  (r,c,f) --> (f,c,r)
+      }
+      else if (r > f)
+      {
+         t = r;  r = c;  c = f;  f = t;  //  (r,c,f) --> (c,f,r)
+      }
+      else
+      {
+         t = r;  r = c;  c = t;  //  (r,c,f) --> (c,r,f)
+      }
+   else if (c > f)
+   {
+      if (r > f)
+      {
+         t = f;  f = c;  c = r;  r = t;  //  (r,c,f) --> (f,r,c)
+      }
+      else
+      {
+         t = c;  c = f;  f = t;  //  (r,c,f) --> (r,f,c)
+      }
+   }
+}
+
 int STable3D::Push (int r, int c, int f)
 {
    STable3DNode *node;
@@ -113,7 +143,7 @@ int STable3D::Push4 (int r, int c, int f, int t)
 
    if (max < c) { max = c, i = 1; }
    if (max < f) { max = f, i = 2; }
-   if (max < t) { max = t, i = 3; }
+   if (max < t) { i = 3; }
 
    switch (i)
    {
@@ -137,7 +167,7 @@ int STable3D::operator() (int r, int c, int f, int t) const
 
    if (max < c) { max = c, i = 1; }
    if (max < f) { max = f, i = 2; }
-   if (max < t) { max = t, i = 3; }
+   if (max < t) { i = 3; }
 
    switch (i)
    {
@@ -173,9 +203,23 @@ STable3D::~STable3D ()
    delete [] Rows;
 }
 
-
-
-
+void STable3D::Print(std::ostream & out) const
+{
+   out << NElem << endl;
+   for (int row = 0; row < Size; row++)
+   {
+      STable3DNode *node_p = Rows[row];
+      while (node_p != NULL)
+      {
+         out << row
+             << ' ' << node_p->Column
+             << ' ' << node_p->Floor
+             << ' ' << node_p->Number
+             << endl;
+         node_p = node_p->Prev;
+      }
+   }
+}
 
 STable4D::STable4D (int nr)
 {
@@ -421,9 +465,6 @@ STable5D::~STable5D ()
 #endif
    delete [] Rows;
 }
-
-
-
 
 
 }

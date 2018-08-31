@@ -15,6 +15,9 @@
 // MFEM version: integer of the form: (major*100 + minor)*100 + patch.
 #cmakedefine MFEM_VERSION @MFEM_VERSION@
 
+// MFEM version string of the form "3.3" or "3.3.1".
+#cmakedefine MFEM_VERSION_STRING "@MFEM_VERSION_STRING@"
+
 // MFEM version type, see the MFEM_VERSION_TYPE_* constants below.
 #define MFEM_VERSION_TYPE ((MFEM_VERSION)%2)
 
@@ -27,6 +30,9 @@
 #define MFEM_VERSION_MINOR (((MFEM_VERSION)/100)%100)
 #define MFEM_VERSION_PATCH ((MFEM_VERSION)%100)
 
+// Description of the git commit used to build MFEM.
+#cmakedefine MFEM_GIT_STRING "@MFEM_GIT_STRING@"
+
 // Build the parallel MFEM library.
 // Requires an MPI compiler, and the libraries HYPRE and METIS.
 #cmakedefine MFEM_USE_MPI
@@ -34,11 +40,17 @@
 // Enable debug checks in MFEM.
 #cmakedefine MFEM_DEBUG
 
+// Throw an exception on errors.
+#cmakedefine MFEM_USE_EXCEPTIONS
+
 // Enable gzstream in MFEM.
 #cmakedefine MFEM_USE_GZSTREAM
 
 // Enable backtraces for mfem_error through libunwind.
 #cmakedefine MFEM_USE_LIBUNWIND
+
+// Enable MFEM features that use the METIS library (parallel MFEM).
+#cmakedefine MFEM_USE_METIS
 
 // Enable this option if linking with METIS version 5 (parallel MFEM).
 #cmakedefine MFEM_USE_METIS_5
@@ -83,6 +95,12 @@
 // Enable MFEM functionality based on the Sidre library
 #cmakedefine MFEM_USE_SIDRE
 
+// Enable MFEM functionality based on Conduit
+#cmakedefine MFEM_USE_CONDUIT
+
+// Enable MFEM functionality based on the PUMI library
+#cmakedefine MFEM_USE_PUMI
+
 // Which library functions to use in class StopWatch for measuring time.
 // For a list of the available options, see INSTALL.
 // If not defined, an option is selected automatically.
@@ -97,5 +115,9 @@
 
 // Version of HYPRE used for building MFEM.
 #cmakedefine MFEM_HYPRE_VERSION @MFEM_HYPRE_VERSION@
+
+// Macro defined when PUMI is built with support for the Simmetrix SimModSuite
+// library.
+#cmakedefine MFEM_USE_SIMMETRIX
 
 #endif // MFEM_CONFIG_HEADER

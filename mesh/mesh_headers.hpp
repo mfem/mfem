@@ -38,4 +38,8 @@
 #include "pmesh.hpp"
 #endif
 
+#ifdef MFEM_USE_PUMI
+#include "pumi.hpp"
+#endif
+
 #endif
