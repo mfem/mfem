@@ -808,6 +808,20 @@ public:
                      const IntegrationPoint &ip);
 };
 
+/// Matrix coefficient defined as the identity of dimension d
+class IdentityMatrixCoefficient : public MatrixCoefficient
+{
+private:
+   int dim;
+
+public:
+   IdentityMatrixCoefficient(int d)
+      : MatrixCoefficient(d, d), dim(d) { }
+
+   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+};
+
 /// Matrix coefficient defined as the sum of two matrix coefficients
 class MatrixSumCoefficient : public MatrixCoefficient
 {
