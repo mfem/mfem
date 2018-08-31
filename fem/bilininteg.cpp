@@ -2424,6 +2424,7 @@ void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
          }
       }
    }
+//    elmat.PrintMatlab(std::cout);
 }
 
 void DGDiffusionIntegrator::AssembleFaceMatrix(

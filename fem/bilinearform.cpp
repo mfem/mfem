@@ -397,6 +397,8 @@ void BilinearForm::Assemble (int skip_zeros)
             fes -> GetElementVDofs (tr -> Elem1No, vdofs);
             fes -> GetElementVDofs (tr -> Elem2No, vdofs2);
             vdofs.Append (vdofs2);
+            printf("vdofs | vdofs2\n");
+            vdofs.Print(std::cout,vdofs2.Size());
             for (int k = 0; k < fbfi.Size(); k++)
             {
                fbfi[k] -> AssembleFaceMatrix (*fes -> GetFE (tr -> Elem1No),
