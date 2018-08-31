@@ -2365,7 +2365,7 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
       ND_Elements[Geometry::TETRAHEDRON] = new ND_TetrahedronElement(p);
       ND_dof[Geometry::TETRAHEDRON] = p*pm1*pm2/2;
 
-      ND_Elements[Geometry::PRISM] = new ND_PrismElement(p, cb_type, ob_type);
+      ND_Elements[Geometry::PRISM] = new ND_WedgeElement(p, cb_type, ob_type);
       ND_dof[Geometry::PRISM] = p*pm1*(3*p-4)/2;
    }
 }
