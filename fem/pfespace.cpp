@@ -559,11 +559,6 @@ HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
 
 void ParFiniteElementSpace::DivideByGroupSize(double *vec)
 {
-   if (Nonconforming())
-   {
-      MFEM_ABORT("Not implemented for NC mesh.");
-   }
-
    GroupTopology &gt = GetGroupTopo();
 
    for (int i = 0; i < ldof_group.Size(); i++)
