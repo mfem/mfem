@@ -10515,10 +10515,10 @@ H1_PentatopeElement::H1_PentatopeElement(const int p, const int type)
          }
    for (int k = 1; k < p; k++)
       for (int j = 1; j + k < p; j++)
-         for (int i = 1; i + j + k < p; i++)  // (0,1,2,4)
+         for (int i = 1; i + j + k < p; i++)  // (1,0,2,4)
          {
             double w = cp[i] + cp[j] + cp[k] + cp[p-i-j-k];
-            Nodes.IntPoint(o++).Set4(cp[i]/w, cp[j]/w, cp[0], cp[k]/w);
+            Nodes.IntPoint(o++).Set4(cp[p-i-j-k]/w, cp[j]/w, cp[0], cp[k]/w);
          }
    for (int k = 1; k < p; k++)
       for (int j = 1; j + k < p; j++)
@@ -10532,7 +10532,7 @@ H1_PentatopeElement::H1_PentatopeElement(const int p, const int type)
          for (int i = 1; i + j + k < p; i++)  // (0,2,3,4)
          {
             double w = cp[i] + cp[j] + cp[k] + cp[p-i-j-k];
-            Nodes.IntPoint(o++).Set4(cp[0], cp[i]/w, cp[j]/w, cp[k]/w);
+            Nodes.IntPoint(o++).Set4(cp[0], cp[p-i-j-k]/w, cp[j]/w, cp[k]/w);
          }
    for (int k = 1; k < p; k++)
       for (int j = 1; j + k < p; j++)
