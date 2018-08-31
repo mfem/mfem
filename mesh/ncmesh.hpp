@@ -22,6 +22,7 @@
 #include <vector>
 #include <map>
 #include <iostream>
+#include <set>
 
 namespace mfem
 {
@@ -338,15 +339,15 @@ protected: // implementation
    struct Planar : public Hashed4
    {
       int index;
-      Array<int> elem;
+      std::set<int> elem;
 
-      Planar() : index(-1) { elem.SetSize(0); };
+      Planar() : index(-1) { };
 
       // add or remove an element from the elem array
       void RegisterElement(int e);
       void ForgetElement(int e);
 
-
+      bool Unused() const { return elem.empty();}
    };
 
    /** This is an element in the refinement hierarchy. Each element has
@@ -490,10 +491,15 @@ protected: // implementation
 
    void RefElement(int elem);
    void UnrefElement(int elem, Array<int> &elemFaces);
+   void UnrefElement(int elem, Array<int> &elemFaces, Array<int> &elemPlanars);
 
    Face* GetFace(Element &elem, int face_no);
    void RegisterFaces(int elem, int *fattr = NULL);
    void DeleteUnusedFaces(const Array<int> &elemFaces);
+
+   Planar* GetPlanar(Element &elem, int planar_no);
+   void RegisterPlanars(int elem);
+   void DeleteUnusedPlanars(const Array<int> &elemPlanars);
 
    int FindAltParents(int node1, int node2);
 
@@ -512,13 +518,16 @@ protected: // implementation
    static int find_node(const Element &el, int node);
    static int find_element_edge(const Element &el, int vn0, int vn1);
    static int find_hex_face(int a, int b, int c);
-   static int find_pent_face(int a, int b, int c);
+   static int find_pent_face(int a, int b, int c, int d);
 
    int ReorderFacePointMat(int v0, int v1, int v2, int v3,
                            int elem, DenseMatrix& mat) const;
    struct PointMatrix;
    void TraverseFace(int vn0, int vn1, int vn2, int vn3,
                      const PointMatrix& pm, int level);
+
+   void TraversePlanar(int vn0, int vn1, int vn2, const PointMatrix& pm,
+                       int level);
 
    void TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
                      int level);
@@ -529,6 +538,7 @@ protected: // implementation
 
    virtual void ElementSharesEdge(int elem, int enode) {} // ParNCMesh
    virtual void ElementSharesFace(int elem, int face) {} // ParNCMesh
+   virtual void ElementSharesPlanar(int elem, int planar) {} // ParNCMesh
 
 
    // neighbors / element_vertex table
@@ -561,6 +571,7 @@ protected: // implementation
 
 
    void CollectEdgeVertices(int v0, int v1, Array<int> &indices);
+   void CollectPlanarVertices(int v0, int v1, int v2, Array<int> &indices);
    void CollectFaceVertices(int v0, int v1, int v2, int v3,
                             Array<int> &indices);
    void BuildElementToVertexTable();

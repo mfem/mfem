@@ -300,13 +300,58 @@ void NCMesh::UnrefElement(int elem, Array<int> &elemFaces)
       elemFaces.Append(face);
    }
 
-   // unref all planars (possibly destroying them)
-   for (int i = 0; el.geom == Geometry::PENTATOPE && i < gi.np; i++)
+   // unref all edges (possibly destroying them)
+   for (int i = 0; i < gi.ne; i++)
+   {
+      const int* ev = gi.edges[i];
+      int enode = FindAltParents(node[ev[0]], node[ev[1]]);
+      MFEM_ASSERT(enode >= 0, "edge not found.");
+      MFEM_ASSERT(nodes.IdExists(enode), "edge does not exist.");
+      if (!nodes[enode].UnrefEdge())
+      {
+         nodes.Delete(enode);
+      }
+   }
+
+   // unref all vertices (possibly destroying them)
+   for (int i = 0; i < gi.nv; i++)
+   {
+      if (!nodes[node[i]].UnrefVertex())
+      {
+         nodes.Delete(node[i]);
+      }
+   }
+}
+
+void NCMesh::UnrefElement(int elem, Array<int> &elemFaces, Array<int> &elemPlanars)
+{
+   Element &el = elements[elem];
+   int* node = el.node;
+   GeomInfo& gi = GI[(int) el.geom];
+
+   // unref all faces
+   for (int i = 0; i < gi.nf; i++)
+   {
+      const int* fv = gi.faces[i];
+      int face = faces.FindId(node[fv[0]], node[fv[1]],
+                              node[fv[2]], node[fv[3]]);
+      MFEM_ASSERT(face >= 0, "face not found.");
+      faces[face].ForgetElement(elem);
+
+      // NOTE: faces.Delete() called later to avoid destroying and
+      // recreating faces during refinement, see NCMesh::DeleteUnusedFaces.
+      elemFaces.Append(face);
+   }
+
+   // unref all planars
+   for (int i = 0; i < gi.np; i++)
    {
 	   const int *pv = gi.planars[i];
 	   int planar = planars.FindId(node[pv[0]],node[pv[1]],node[pv[2]], INT_MAX);
 	   MFEM_ASSERT(planar >= 0, "planar not found.");
 	   planars[planar].ForgetElement(elem);
+
+	   elemPlanars.Append(planar);
    }
 
    // unref all edges (possibly destroying them)
@@ -356,6 +401,51 @@ void NCMesh::DeleteUnusedFaces(const Array<int> &elemFaces)
       }
    }
 }
+
+void NCMesh::RegisterPlanars(int elem)
+{
+   Element &el = elements[elem];
+   GeomInfo &gi = GI[(int) el.geom];
+
+   for (int i = 0; i < gi.np; i++)
+   {
+      Planar* planar = GetPlanar(el, i);
+      MFEM_ASSERT(planar, "planar not found.");
+      planar->RegisterElement(elem);
+   }
+}
+
+void NCMesh::DeleteUnusedPlanars(const Array<int> &elemPlanars)
+{
+   for (int i = 0; i < elemPlanars.Size(); i++)
+   {
+      if (planars[elemPlanars[i]].Unused())
+      {
+         planars.Delete(elemPlanars[i]);
+      }
+   }
+}
+
+void NCMesh::Planar::ForgetElement(int e)
+{
+	auto rem = elem.find(e);
+	if ( rem != elem.end()){ elem.erase(rem); }
+	else { MFEM_ABORT("element " << e << " not found in Planar::elem."); }
+}
+
+void NCMesh::Planar::RegisterElement(int e)
+{
+	elem.insert(e);
+}
+
+NCMesh::Planar* NCMesh::GetPlanar(Element &elem, int planar_no)
+{
+   GeomInfo& gi = GI[(int) elem.geom];
+   const int* fv = gi.planars[planar_no];
+   int* node = elem.node;
+   return planars.Find(node[fv[0]], node[fv[1]], node[fv[2]], INT_MAX);
+}
+
 
 void NCMesh::Face::RegisterElement(int e)
 {
@@ -1109,22 +1199,22 @@ void NCMesh::RefineElement(int elem, char ref_type)
 	   int no13 = nodes.GetId(no[2],no[4]), no14 = nodes.GetId(no[3],no[4]);
 
 	   // same refinement as in Mesh::RedRefinementPentatope
-	   child[0]  = NewPentatope(no[0], no5,   no6,   no7,   no8,   attr, fa[0], fa[1], fa[2], fa[3], -1);
-	   child[1]  = NewPentatope(no5,   no[1], no9,   no10,  no11,  attr, fa[0], fa[1], fa[2], -1, fa[4]);
-	   child[2]  = NewPentatope(no6,   no9,   no[2], no12,  no13,  attr, fa[0], fa[1], -1, fa[3], fa[4]);
-	   child[3]  = NewPentatope(no7,   no10,  no12,  no[3], no14,  attr, fa[0], -1, fa[2], fa[3], fa[4]);
-	   child[4]  = NewPentatope(no8,   no11,  no13,  no14,  no[4], attr, -1, fa[1], fa[2], fa[3], fa[4]);
-       child[5]  = NewPentatope(no5,   no8,   no9,   no12,  no14,  attr, -1, -1, -1, -1, -1);
-       child[6]  = NewPentatope(no5,   no7,   no8,   no12,  no14,  attr, fa[0], -1, -1, -1, fa[4]);
-       child[7]  = NewPentatope(no6,   no8,   no9,   no12,  no13,  attr, -1, fa[1], fa[2], -1, -1);
-       child[8]  = NewPentatope(no5,   no6,   no7,   no8,   no12,  attr, -1, fa[1], -1, -1, fa[4]);
-       child[9]  = NewPentatope(no8,   no9,   no12,  no13,  no14,  attr, -1, -1,-1, fa[3], fa[4]);
-       child[10] = NewPentatope(no5,   no8,   no9,   no11,  no14,  attr, fa[0], -1, fa[2], -1, -1);
-       child[11] = NewPentatope(no5,   no7,   no10,  no12,  no14,  attr, fa[0], fa[1], -1, -1, -1);
-       child[12] = NewPentatope(no5,   no9,   no10,  no11,  no14,  attr, -1, -1, -1, fa[3], fa[4]);
-       child[13] = NewPentatope(no5,   no6,   no8,   no9,   no12,  attr, fa[0], -1, fa[2], -1, -1);
-       child[14] = NewPentatope(no8,   no9,   no11,  no13,  no14,  attr, fa[0], -1, -1, -1, fa[4]);
-       child[15] = NewPentatope(no5,   no9,   no10,  no12,  no14,  attr, fa[0], -1, -1, -1, fa[4]);
+      child[0]  = NewPentatope(no[0], no5,   no6,   no7,   no8,   attr, fa[0], fa[1], fa[2], fa[3], -1);
+      child[1]  = NewPentatope(no5,   no[1], no9,   no10,  no11,  attr, fa[0], fa[1], fa[2], -1, fa[4]);
+      child[2]  = NewPentatope(no6,   no9,   no[2], no12,  no13,  attr, fa[0], fa[1], -1, fa[3], fa[4]);
+      child[3]  = NewPentatope(no7,   no10,  no12,  no[3], no14,  attr, fa[0], -1, fa[2], fa[3], fa[4]);
+      child[4]  = NewPentatope(no8,   no11,  no13,  no14,  no[4], attr, -1, fa[1], fa[2], fa[3], fa[4]);
+      child[5]  = NewPentatope(no5,   no8,   no9,   no12,  no14,  attr, -1, -1, -1, -1, -1);
+      child[6]  = NewPentatope(no5,   no7,   no8,   no12,  no14,  attr, fa[0], -1, -1, -1, fa[4]);
+      child[7]  = NewPentatope(no6,   no8,   no9,   no12,  no13,  attr, -1, fa[1], fa[2], -1, -1);
+      child[8]  = NewPentatope(no5,   no6,   no7,   no8,   no12,  attr, -1, fa[1], -1, -1, fa[4]);
+      child[9]  = NewPentatope(no8,   no9,   no12,  no13,  no14,  attr, -1, -1,-1, fa[3], fa[4]);
+      child[10] = NewPentatope(no5,   no8,   no9,   no11,  no14,  attr, fa[0], -1, fa[2], -1, -1);
+      child[11] = NewPentatope(no5,   no7,   no10,  no12,  no14,  attr, fa[0], fa[1], -1, -1, -1);
+      child[12] = NewPentatope(no5,   no9,   no10,  no11,  no14,  attr, -1, -1, -1, fa[3], fa[4]);
+      child[13] = NewPentatope(no5,   no6,   no8,   no9,   no12,  attr, fa[0], -1, fa[2], -1, -1);
+      child[14] = NewPentatope(no8,   no9,   no11,  no13,  no14,  attr, fa[0], -1, -1, -1, fa[4]);
+      child[15] = NewPentatope(no5,   no9,   no10,  no12,  no14,  attr, fa[0], -1, -1, -1, fa[4]);
    }
    else
    {
@@ -1138,20 +1228,29 @@ void NCMesh::RefineElement(int elem, char ref_type)
    }
 
    int buf[6];
+   int pbuf[10];
    Array<int> parentFaces(buf, 6);
    parentFaces.SetSize(0);
+   Array<int> parentPlanars(pbuf,10);
+   parentPlanars.SetSize(0);
 
    // sign off of all nodes of the parent, clean up unused nodes, but keep faces
-   UnrefElement(elem, parentFaces);
+   if (Dim < 4)
+	   UnrefElement(elem, parentFaces);
+   else
+	   UnrefElement(elem, parentFaces,parentPlanars);
 
-   // register the children in their faces
-   for (int i = 0; i < 8 && child[i] >= 0; i++)
+   // register the children in their faces (4D: and planars)
+   for (int i = 0; i < 16 && child[i] >= 0; i++)
    {
       RegisterFaces(child[i]);
+      if (Dim == 4)
+         RegisterPlanars(child[i]);
    }
 
    // clean up parent faces, if unused
    DeleteUnusedFaces(parentFaces);
+   DeleteUnusedPlanars(parentPlanars);
 
    // make the children inherit our rank, set the parent element
    for (int i = 0; i < 8 && child[i] >= 0; i++)
@@ -1814,14 +1913,15 @@ int NCMesh::find_hex_face(int a, int b, int c)
    return -1;
 }
 
-int NCMesh::find_pent_face(int a, int b, int c)
+int NCMesh::find_pent_face(int a, int b, int c, int d)
 {
    for (int i = 0; i < 5; i++)
    {
       const int* fv = gi_pent.faces[i];
       if ((a == fv[0] || a == fv[1] || a == fv[2] || a == fv[3]) &&
           (b == fv[0] || b == fv[1] || b == fv[2] || b == fv[3]) &&
-          (c == fv[0] || c == fv[1] || c == fv[2] || c == fv[3]))
+          (c == fv[0] || c == fv[1] || c == fv[2] || c == fv[3]) &&
+          (d == fv[0] || d == fv[1] || d == fv[2] || d == fv[3]))
       {
          return i;
       }
@@ -1840,8 +1940,8 @@ int NCMesh::ReorderFacePointMat(int v0, int v1, int v2, int v3,
       find_node(el, v2), find_node(el, v3)
    };
 
-   int local = find_hex_face(master[0], master[1], master[2]);
-   const int* fv = gi_hex.faces[local];
+   int local = (Dim==4 ? find_pent_face(master[0],master[1],master[2],master[3]) : find_hex_face(master[0], master[1], master[2]));
+   const int* fv = (Dim == 4 ? gi_pent.faces[local] : gi_hex.faces[local]);
 
    DenseMatrix tmp(mat);
    for (int i = 0, j; i < 4; i++)
@@ -1887,6 +1987,37 @@ void NCMesh::TraverseFace(int vn0, int vn1, int vn2, int vn3,
    }
 
    // we need to recurse deeper
+   if (Dim == 4)
+   {
+      int mid[6];
+      mid[0] = nodes.FindId(vn0,vn1); mid[1] = nodes.FindId(vn0,vn2);
+      mid[2] = nodes.FindId(vn0,vn3); mid[3] = nodes.FindId(vn1,vn2);
+      mid[4] = nodes.FindId(vn1,vn3); mid[5] = nodes.FindId(vn2,vn3);
+      Point mid0(pm(0),pm(1)), mid1(pm(0),pm(2));
+      Point mid2(pm(0),pm(3)), mid3(pm(1),pm(2));
+      Point mid4(pm(1),pm(3)), mid5(pm(2),pm(3));
+
+      // corner tetrahedrons
+      TraverseFace(vn0,mid[0],mid[1],mid[2],
+                   PointMatrix(pm(0),mid0,mid1,mid2), level+1);
+      TraverseFace(mid[0],vn1,mid[3],mid[4],
+                   PointMatrix(pm(0),mid0,mid1,mid2), level+1);
+      TraverseFace(mid[1],mid[3],vn2,mid[5],
+                   PointMatrix(pm(0),mid0,mid1,mid2), level+1);
+      TraverseFace(mid[2],mid[4],mid[5],vn3,
+                   PointMatrix(pm(0),mid0,mid1,mid2), level+1);
+      // interior tetrahedrons
+      TraverseFace(mid[0],mid[1],mid[3],mid[4],
+                   PointMatrix(pm(0),mid0,mid1,mid2), level+1);
+      TraverseFace(mid[0],mid[1],mid[2],mid[4],
+                   PointMatrix(pm(0),mid0,mid1,mid2), level+1);
+      TraverseFace(mid[1],mid[3],mid[4],mid[5],
+                   PointMatrix(pm(0),mid0,mid1,mid2), level+1);
+      TraverseFace(mid[1],mid[2],mid[4],mid[5],
+                   PointMatrix(pm(0),mid0,mid1,mid2), level+1);
+
+      return;
+   }
    int mid[4];
    int split = FaceSplitType(vn0, vn1, vn2, vn3, mid);
 
@@ -2123,17 +2254,55 @@ void NCMesh::BuildEdgeList()
    }
 }
 
+void NCMesh::TraversePlanar(int vn0, int vn1, int vn2, const PointMatrix& pm,
+                            int level) // TODO
+{
+   if (level > 0)
+   {
+      // check if we made it to a face that is not split further
+      Planar* pa = planars.Find(vn0, vn1, vn2, INT_MAX);
+      if (pa)
+      {
+         // we have a slave face, add it to the list
+         planar_list.slaves.push_back(Slave(pa->index, -1, -1));
+         DenseMatrix &mat = planar_list.slaves.back().point_matrix;
+         pm.GetMatrix(mat);
+
+         // reorder the point matrix according to slave face orientation
+         int local = -1; //ReorderPlanarPointMat(vn0, vn1, vn2, elem, mat);
+         face_list.slaves.back().local = local;
+
+         return;
+      }
+   }
+
+   // we need to recurse deeper
+   int mid[3];
+   mid[0] = nodes.FindId(vn0,vn1);
+   mid[1] = nodes.FindId(vn1,vn2);
+   mid[2] = nodes.FindId(vn2,vn0);
+   Point mid0(pm(0),pm(1)), mid1(pm(1),pm(2)), mid2(pm(2),pm(0));
+
+   TraversePlanar(vn0, mid[0], mid[2],
+                  PointMatrix(pm(0), mid0, mid2), level+1);
+   TraversePlanar(mid[0], vn1, mid[1],
+                  PointMatrix(mid0, pm(1), mid1), level+1);
+   TraversePlanar(mid[2], mid[1], vn2,
+                  PointMatrix(mid2, mid1, pm(2)), level+1);
+   TraversePlanar(mid[0], mid[1], mid[2],
+                  PointMatrix(mid0, mid1, mid2), level+1);
+}
+
 void NCMesh::BuildPlanarList() // TODO
 {
    planar_list.Clear();
-   //boundary_faces.SetSize(0);
 
    if (Dim < 4) { return; }
 
-   Array<char> processed_faces(faces.NumIds());
-   processed_faces = 0;
+   Array<char> processed_planars(planars.NumIds());
+   processed_planars = 0;
 
-   // visit faces of leaf elements
+   // visit planars of leaf elements
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
 	  int elem = leaf_elements[i];
@@ -2150,67 +2319,43 @@ void NCMesh::BuildPlanarList() // TODO
 			node[k] = el.node[gi.planars[j][k]];
 		 }
 
-		 int face = faces.FindId(node[0], node[1], node[2], node[3]);
-		 MFEM_ASSERT(face >= 0, "face not found!");
+		 int planar = planars.FindId(node[0], node[1], node[2], INT_MAX);
+		 MFEM_ASSERT(planar >= 0, "planar not found!");
 
 		 // tell ParNCMesh about the face
-		 ElementSharesFace(elem, face);
+		 ElementSharesPlanar(elem, planar);
 
-		 // have we already processed this face? skip if yes
-		 if (processed_faces[face]) { continue; }
-		 processed_faces[face] = 1;
+       // have we already processed this face? skip if yes
+       if (processed_planars[planar]) { continue; }
+       processed_planars[planar] = 1;
 
-		 Face &fa = faces[face];
-		 if (fa.elem[0] >= 0 && fa.elem[1] >= 0)
-		 {
-			// this is a conforming face, add it to the list
-			face_list.conforming.push_back(MeshId(fa.index, elem, j));
-		 }
-		 else if (Dim == 3)
-		 {
-			PointMatrix pm(Point(0,0), Point(1,0), Point(1,1), Point(0,1));
+       Planar &pa = planars[planar];
+       {
+          PointMatrix pm(Point(0,0), Point(1,0), Point(0,1));
+          // this is either a master planar or a slave planar, but we can't
+          // tell until we traverse the planar refinement 'tree'...
+          int sb = planar_list.slaves.size();
+          TraversePlanar(node[0], node[1], node[2], pm, 0);
 
-			// this is either a master face or a slave face, but we can't
-			// tell until we traverse the face refinement 'tree'...
-			int sb = face_list.slaves.size();
-			TraverseFace(node[0], node[1], node[2], node[3], pm, 0);
+          int se = planar_list.slaves.size();
+          if (sb < se)
+          {
+             // found slaves, so this is a master face; add it to the list
+             planar_list.masters.push_back(Master(pa.index, elem, j, sb, se));
 
-			int se = face_list.slaves.size();
-			if (sb < se)
-			{
-			   // found slaves, so this is a master face; add it to the list
-			   face_list.masters.push_back(Master(fa.index, elem, j, sb, se));
+             // also, set the master index for the slaves
+             for (int i = sb; i < se; i++)
+             {
+                planar_list.slaves[i].master = pa.index;
+             }
+          }
+          else
+          {
+             // no slaves, this is a conforming edge
+             planar_list.conforming.push_back(MeshId(pa.index, elem, j));
+          }
+       }
 
-			   // also, set the master index for the slaves
-			   for (int i = sb; i < se; i++)
-			   {
-				  face_list.slaves[i].master = fa.index;
-			   }
-			}
-		 }
-		 else
-		 {
-			PointMatrix pm(Point(0,0,0), Point(1,0,0), Point(0,1,0), Point(0,0,1));
-			// this is either a master face or a slave face, but we can't
-			// tell until we traverse the face refinement 'tree'...
-			int sb = face_list.slaves.size();
-			TraverseFace(node[0], node[1], node[2], node[3], pm, 0);
-
-			int se = face_list.slaves.size();
-			if (sb < se)
-			{
-			   // found slaves, so this is a master face; add it to the list
-			   face_list.masters.push_back(Master(fa.index, elem, j, sb, se));
-
-			   // also, set the master index for the slaves
-			   for (int i = sb; i < se; i++)
-			   {
-				  face_list.slaves[i].master = fa.index;
-			   }
-			}
-		 }
-
-		 if (fa.Boundary()) { boundary_faces.Append(face); }
 	  }
    }
 }
@@ -2248,6 +2393,51 @@ void NCMesh::CollectEdgeVertices(int v0, int v1, Array<int> &indices)
 
       CollectEdgeVertices(v0, mid, indices);
       CollectEdgeVertices(mid, v1, indices);
+   }
+}
+
+void NCMesh::CollectPlanarVertices(int v0, int v1, int v2, Array<int> &indices)
+{
+   int mid[3];
+   mid[0] = nodes.FindId(v0,v1);
+   mid[1] = nodes.FindId(v1,v2);
+   mid[2] = nodes.FindId(v2,v0);
+   if (mid[0] >= 0 && nodes[mid[0]].HasVertex())
+   {
+      indices.Append(mid[0]);
+
+      if (mid[1] >= 0 && nodes[mid[1]].HasVertex())
+      {
+         indices.Append(mid[1]);
+
+         CollectPlanarVertices(mid[0],v1,mid[1],indices);
+
+         if (mid[2] >= 0 && nodes[mid[2]].HasVertex())
+         {
+            indices.Append(mid[2]);
+
+            CollectPlanarVertices(v0,mid[0],mid[2],indices);
+            CollectPlanarVertices(mid[0],mid[1],mid[2],indices);
+            CollectPlanarVertices(mid[2],mid[1],v2,indices);
+         }
+      }
+      else if (mid[2] >= 0 && nodes[mid[2]].HasVertex())
+      {
+         indices.Append(mid[2]);
+
+         CollectPlanarVertices(v0,mid[0],mid[2],indices);
+      }
+   }
+   else if (mid[1] >= 0 && nodes[mid[1]].HasVertex())
+   {
+      indices.Append(mid[0]);
+
+      if (mid[2] >= 0 && nodes[mid[2]].HasVertex())
+      {
+         indices.Append(mid[2]);
+
+         CollectPlanarVertices(mid[2],mid[1],v2,indices);
+      }
    }
 }
 
@@ -2308,6 +2498,15 @@ void NCMesh::BuildElementToVertexTable()
             const int* fv = gi.faces[j];
             CollectFaceVertices(node[fv[0]], node[fv[1]],
                                 node[fv[2]], node[fv[3]], indices);
+         }
+      }
+      if (Dim >= 4)
+      {
+         for (int j = 0; j < gi.np; j++)
+         {
+            const int* pv = gi.planars[j];
+            CollectPlanarVertices(node[pv[0]], node[pv[1]],
+                                node[pv[2]], indices);
          }
       }
 
@@ -2944,22 +3143,22 @@ void NCMesh::GetPointMatrix(int geom, const char* ref_path, DenseMatrix& matrix)
    	   Point no13(pm(2),pm(4)), no14(pm(3),pm(4));
 
    	   // same refinement as in Mesh::RedRefinementPentatope
-   	      if (child==0)  {pm = PointMatrix(pm(0), no5,   no6,   no7,   no8  ); }
-   	      else if (child==1)  {pm = PointMatrix(no5,   pm(1), no9,   no10,  no11 ); }
-   	      else if (child==2)  {pm = PointMatrix(no6,   no9,   pm(2), no12,  no13 ); }
-   	      else if (child==3)  {pm = PointMatrix(no7,   no10,  no12,  pm(3), no14 ); }
-   	      else if (child==4)  {pm = PointMatrix(no8,   no11,  no13,  no14,  pm(4)); }
-          else if (child==5)  {pm = PointMatrix(no5,   no8,   no9,   no12,  no14 ); }
-          else if (child==6)  {pm = PointMatrix(no5,   no7,   no8,   no12,  no14 ); }
-          else if (child==7)  {pm = PointMatrix(no6,   no8,   no9,   no12,  no13 ); }
-          else if (child==8)  {pm = PointMatrix(no5,   no6,   no7,   no8,   no12 ); }
-          else if (child==9)  {pm = PointMatrix(no8,   no9,   no12,  no13,  no14 ); }
-          else if (child==10) {pm = PointMatrix(no5,   no8,   no9,   no11,  no14 ); }
-          else if (child==11) {pm = PointMatrix(no5,   no7,   no10,  no12,  no14 ); }
-          else if (child==12) {pm = PointMatrix(no5,   no9,   no10,  no11,  no14 ); }
-          else if (child==13) {pm = PointMatrix(no5,   no6,   no8,   no9,   no12 ); }
-          else if (child==14) {pm = PointMatrix(no8,   no9,   no11,  no13,  no14 ); }
-          else if (child==15) {pm = PointMatrix(no5,   no9,   no10,  no12,  no14 ); }
+         if (child==0)  {pm = PointMatrix(pm(0), no5,   no6,   no7,   no8  ); }
+         else if (child==1)  {pm = PointMatrix(no5,   pm(1), no9,   no10,  no11 ); }
+         else if (child==2)  {pm = PointMatrix(no6,   no9,   pm(2), no12,  no13 ); }
+         else if (child==3)  {pm = PointMatrix(no7,   no10,  no12,  pm(3), no14 ); }
+         else if (child==4)  {pm = PointMatrix(no8,   no11,  no13,  no14,  pm(4)); }
+         else if (child==5)  {pm = PointMatrix(no5,   no8,   no9,   no12,  no14 ); }
+         else if (child==6)  {pm = PointMatrix(no5,   no7,   no8,   no12,  no14 ); }
+         else if (child==7)  {pm = PointMatrix(no6,   no8,   no9,   no12,  no13 ); }
+         else if (child==8)  {pm = PointMatrix(no5,   no6,   no7,   no8,   no12 ); }
+         else if (child==9)  {pm = PointMatrix(no8,   no9,   no12,  no13,  no14 ); }
+         else if (child==10) {pm = PointMatrix(no5,   no8,   no9,   no11,  no14 ); }
+         else if (child==11) {pm = PointMatrix(no5,   no7,   no10,  no12,  no14 ); }
+         else if (child==12) {pm = PointMatrix(no5,   no9,   no10,  no11,  no14 ); }
+         else if (child==13) {pm = PointMatrix(no5,   no6,   no8,   no9,   no12 ); }
+         else if (child==14) {pm = PointMatrix(no8,   no9,   no11,  no13,  no14 ); }
+         else if (child==15) {pm = PointMatrix(no5,   no9,   no10,  no12,  no14 ); }
       }
    }
 
@@ -3180,7 +3379,8 @@ void NCMesh::FindFaceNodes(int face, int node[4])
    else
 	   f = find_pent_face(find_node(el, fa.p1),
                           find_node(el, fa.p2),
-                          find_node(el, fa.p3));
+                          find_node(el, fa.p3), INT_MAX //TODO
+                          /*find_node(el, fa.p4)*/);
 
    const int* fv = GI[el.geom].faces[f];
    for (int i = 0; i < 4; i++)
