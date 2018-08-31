@@ -12246,10 +12246,10 @@ void ND_SegmentElement::CalcVShape(const IntegrationPoint &ip,
    obasis1d.Eval(ip.x, vshape);
 }
 
-const double ND_PrismElement::tk[15] =
+const double ND_WedgeElement::tk[15] =
 { 1.,0.,0., -1.,1.,0., 0.,-1.,0., 0.,0.,1., 0.,1.,0. };
 
-ND_PrismElement::ND_PrismElement(const int p,
+ND_WedgeElement::ND_WedgeElement(const int p,
                                  const int cb_type,
                                  const int ob_type)
    : VectorFiniteElement(3, Geometry::PRISM,
@@ -12266,7 +12266,7 @@ ND_PrismElement::ND_PrismElement(const int p,
    MFEM_ASSERT(H1TriangleFE.GetDof() * NDSegmentFE.GetDof() +
                NDTriangleFE.GetDof() * H1SegmentFE.GetDof() == Dof,
                "Mismatch in number of degrees of freedom "
-               "when building ND_PrismElement!");
+               "when building ND_WedgeElement!");
 
 #ifndef MFEM_THREAD_SAFE
    t1_shape.SetSize(H1TriangleFE.GetDof());
@@ -12402,7 +12402,7 @@ ND_PrismElement::ND_PrismElement(const int p,
    }
 }
 
-void ND_PrismElement::CalcVShape(const IntegrationPoint &ip,
+void ND_WedgeElement::CalcVShape(const IntegrationPoint &ip,
                                  DenseMatrix &shape) const
 {
 #ifdef MFEM_THREAD_SAFE
@@ -12444,7 +12444,7 @@ void ND_PrismElement::CalcVShape(const IntegrationPoint &ip,
    }
 }
 
-void ND_PrismElement::CalcCurlShape(const IntegrationPoint &ip,
+void ND_WedgeElement::CalcCurlShape(const IntegrationPoint &ip,
                                     DenseMatrix &curl_shape) const
 {
    // cout << "Entering CalcCurlShape" << endl << flush;

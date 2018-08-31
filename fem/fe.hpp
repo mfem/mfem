@@ -2728,7 +2728,7 @@ public:
 };
 
 
-class ND_PrismElement : public VectorFiniteElement
+class ND_WedgeElement : public VectorFiniteElement
 {
 private:
    static const double tk[15];
@@ -2746,7 +2746,7 @@ private:
    ND_SegmentElement  NDSegmentFE;
 
 public:
-   ND_PrismElement(const int p,
+   ND_WedgeElement(const int p,
                    const int cb_type = BasisType::GaussLobatto,
                    const int ob_type = BasisType::GaussLegendre);
 
