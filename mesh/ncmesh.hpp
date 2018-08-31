@@ -23,7 +23,6 @@
 #include <vector>
 #include <map>
 #include <iostream>
-#include <set>
 
 namespace mfem
 {
@@ -131,7 +130,7 @@ public:
 
    // master/slave lists
 
-   /// Identifies a vertex/edge/planar/face in both Mesh and NCMesh.
+   /// Identifies a vertex/edge/face in both Mesh and NCMesh.
    struct MeshId
    {
       int index;   ///< Mesh number
@@ -190,12 +189,6 @@ public:
    {
       if (face_list.Empty()) { BuildFaceList(); }
       return face_list;
-   }
-
-   const NCList& GetPlanarList()
-   {
-      if (planar_list.Empty()) { BuildPlanarList(); }
-      return planar_list;
    }
 
    /// Return the current list of conforming and nonconforming edges.
@@ -377,23 +370,6 @@ protected: // implementation
       int GetSingleElement() const;
    };
 
-   /** (4D only) Similarily to faces, planars can be accessed by hashing their
-       three node IDs (the fourth is always INT_MAX). A planar knows about the
-       elements that are using it. */
-   struct Planar : public Hashed4
-   {
-      int index;
-      std::set<int> elem;
-
-      Planar() : index(-1) { };
-
-      // add or remove an element from the elem array
-      void RegisterElement(int e);
-      void ForgetElement(int e);
-
-      bool Unused() const { return elem.empty();}
-   };
-
    /** This is an element in the refinement hierarchy. Each element has
        either been refined and points to its children, or is a leaf and points
        to its vertex nodes. */
@@ -408,7 +384,7 @@ protected: // implementation
       union
       {
          int node[8];  ///< element corners (if ref_type == 0)
-         int child[16]; ///< 2-16 children (if ref_type != 0)
+         int child[8]; ///< 2-8 children (if ref_type != 0)
       };
       int parent; ///< parent element, -1 if this is a root element, -2 if free
 
@@ -419,8 +395,6 @@ protected: // implementation
 
    HashTable<Node> nodes; // associative container holding all Nodes
    HashTable<Face> faces; // associative container holding all Faces
-   HashTable<Planar> planars; // associative container holding all Planars
-
 
    BlockArray<Element> elements; // storage for all Elements
    Array<int> free_element_ids;  // unused element ids - indices into 'elements'
@@ -433,7 +407,6 @@ protected: // implementation
 
    typedef HashTable<Node>::iterator node_iterator;
    typedef HashTable<Face>::iterator face_iterator;
-   typedef HashTable<Planar>::iterator planar_iterator;
    typedef HashTable<Node>::const_iterator node_const_iterator;
    typedef HashTable<Face>::const_iterator face_const_iterator;
    typedef BlockArray<Element>::iterator elem_iterator;
@@ -455,7 +428,6 @@ protected: // implementation
    Array<int> vertex_nodeId; // vertex-index to node-id map, see UpdateVertices
 
    NCList face_list; ///< lazy-initialized list of faces, see GetFaceList
-   NCList planar_list; ///< lazy-initialized list of planars, see GetPlanarList
    NCList edge_list; ///< lazy-initialized list of edges, see GetEdgeList
    NCList vertex_list; ///< lazy-initialized list of vertices, see GetVertexList
 
@@ -502,11 +474,6 @@ protected: // implementation
       elements[id].parent = -2; // mark the element as free
    }
 
-   int NewPentatope(int n0, int n1, int n2, int n3, int n4,
-                    int attr,
-					int fattr0, int fattr1, int fattr2,
-					int fattr3, int fattr4);
-
    int NewHexahedron(int n0, int n1, int n2, int n3,
                      int n4, int n5, int n6, int n7,
                      int attr,
@@ -538,15 +505,10 @@ protected: // implementation
 
    void RefElement(int elem);
    void UnrefElement(int elem, Array<int> &elemFaces);
-   void UnrefElement(int elem, Array<int> &elemFaces, Array<int> &elemPlanars);
 
    Face* GetFace(Element &elem, int face_no);
    void RegisterFaces(int elem, int *fattr = NULL);
    void DeleteUnusedFaces(const Array<int> &elemFaces);
-
-   Planar* GetPlanar(Element &elem, int planar_no);
-   void RegisterPlanars(int elem);
-   void DeleteUnusedPlanars(const Array<int> &elemPlanars);
 
    int FindAltParents(int node1, int node2);
 
@@ -565,7 +527,6 @@ protected: // implementation
    static int find_node(const Element &el, int node);
    static int find_element_edge(const Element &el, int vn0, int vn1);
    static int find_hex_face(int a, int b, int c);
-   static int find_pent_face(int a, int b, int c, int d);
 
    int ReorderFacePointMat(int v0, int v1, int v2, int v3,
                            int elem, DenseMatrix& mat) const;
@@ -573,21 +534,16 @@ protected: // implementation
    void TraverseFace(int vn0, int vn1, int vn2, int vn3,
                      const PointMatrix& pm, int level);
 
-   void TraversePlanar(int vn0, int vn1, int vn2, const PointMatrix& pm,
-                       int level);
-
    void TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
                      int level);
 
    virtual void BuildFaceList();
    virtual void BuildEdgeList();
-   virtual void BuildPlanarList();
    virtual void BuildVertexList();
 
    virtual void ElementSharesFace(int elem, int face) {} // ParNCMesh
    virtual void ElementSharesEdge(int elem, int enode) {} // ParNCMesh
    virtual void ElementSharesVertex(int elem, int vnode) {} // ParNCMesh
-   virtual void ElementSharesPlanar(int elem, int planar) {} // ParNCMesh
 
 
    // neighbors / element_vertex table
@@ -620,7 +576,6 @@ protected: // implementation
 
 
    void CollectEdgeVertices(int v0, int v1, Array<int> &indices);
-   void CollectPlanarVertices(int v0, int v1, int v2, Array<int> &indices);
    void CollectFaceVertices(int v0, int v1, int v2, int v3,
                             Array<int> &indices);
    void BuildElementToVertexTable();
@@ -645,9 +600,6 @@ protected: // implementation
 
       Point(double x, double y, double z)
       { dim = 3; coord[0] = x; coord[1] = y; coord[2] = z; }
-
-      Point(double x, double y, double z, double t)
-      { dim = 4; coord[0] = x; coord[1] = y; coord[2] = z; coord[3] = t; }
 
       Point(const Point& p0, const Point& p1)
       {
@@ -689,14 +641,6 @@ protected: // implementation
       { np = 4; points[0] = p0; points[1] = p1; points[2] = p2; points[3] = p3; }
 
       PointMatrix(const Point& p0, const Point& p1, const Point& p2,
-                  const Point& p3, const Point& p4)
-      {
-         np = 5;
-         points[0] = p0; points[1] = p1; points[2] = p2;
-         points[3] = p3; points[4] = p4;
-      }
-
-      PointMatrix(const Point& p0, const Point& p1, const Point& p2,
                   const Point& p3, const Point& p4, const Point& p5,
                   const Point& p6, const Point& p7)
       {
@@ -714,7 +658,6 @@ protected: // implementation
    static PointMatrix pm_tri_identity;
    static PointMatrix pm_quad_identity;
    static PointMatrix pm_hex_identity;
-   static PointMatrix pm_pent_identity;
 
    static const PointMatrix& GetGeomIdentity(int geom);
 
@@ -740,7 +683,7 @@ protected: // implementation
    struct TmpVertex
    {
       bool valid, visited;
-      double pos[4];
+      double pos[3];
       TmpVertex() : valid(false), visited(false) {}
    };
 
@@ -773,10 +716,8 @@ protected: // implementation
    struct GeomInfo
    {
       int nv, ne, nf, nfv; // number of: vertices, edges, faces, face vertices
-      int np, npv;         // (4D only) number of: planars, planar vertices
       int edges[12][2];    // edge vertices (up to 12 edges)
       int faces[6][4];     // face vertices (up to 6 faces)
-      int planars[10][3];  // (4D only) planar vertices (10 planars (pentatopes only))
 
       bool initialized;
       GeomInfo() : initialized(false) {}
@@ -785,7 +726,7 @@ protected: // implementation
 
    static GeomInfo GI[Geometry::NumGeom];
 
-   static GeomInfo &gi_hex, &gi_quad, &gi_tri, &gi_pent;
+   static GeomInfo &gi_hex, &gi_quad, &gi_tri;
 
 #ifdef MFEM_DEBUG
 public:

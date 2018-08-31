@@ -4292,6 +4292,46 @@ void Mesh::GetBdrElementEdges(int i, Array<int> &edges, Array<int> &cor) const
    }
 }
 
+void Mesh::GetBdrElementPlanars(int i, Array<int> &pls, Array<int> &cor) const
+{
+   if (Dim == 4)
+   {
+      if (bel_to_planar)
+      {
+         bel_to_planar->GetRow(i, pls);
+      }
+      else
+      {
+         mfem_error("Mesh::GetBdrElementPlanars(...)");
+      }
+
+      int n = pls.Size();
+      cor.SetSize(n);
+
+      const int *v = boundary[i]->GetVertices();
+
+      switch (boundary[i]->GetType())
+      {
+         case Element::TETRAHEDRON:
+         {
+            cor.SetSize(4);
+            for (int j = 0; j < 4; j++)
+            {
+               int* baseV = planars[pls[j]]->GetVertices();
+
+               const int *fv = tet_t::FaceVert[j];
+               int myTri[3] = { v[fv[0]], v[fv[1]], v[fv[2]] };
+               cor[j] = GetTriOrientation(baseV, myTri);
+            }
+            break;
+         }
+         default:
+            mfem_error("Mesh::GetBdrElementPlanars(...) 2");
+      }
+   }
+}
+
+
 void Mesh::GetFaceEdges(int i, Array<int> &edges, Array<int> &o) const
 {
    if (Dim == 2)
