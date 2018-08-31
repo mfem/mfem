@@ -35,9 +35,11 @@
 //               conductivity, sigma = c.  The user can specify these constants
 //               using either set of names.
 //
-#include "mfem.hpp"
+//#define MFEM_STRUMPACK_SRC
+
 #include <fstream>
 #include <iostream>
+#include "mfem.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -456,7 +458,16 @@ int main(int argc, char *argv[])
 
       STRUMPACKCmplxSolver strmp(argc, argv, comm);
 
+      strmp.SetPrintFactorStatistics(true);
+      strmp.SetPrintSolveStatistics(true);
+      // strmp.SetKrylovSolver(strumpack::KrylovSolver::AUTO); // core dump
+      strmp.SetKrylovSolver(strumpack::KrylovSolver::DIRECT); // core dump
+      // strmp.SetKrylovSolver(strumpack::KrylovSolver::REFINE); // core dump
+      // strmp.SetKrylovSolver(strumpack::KrylovSolver::PREC_GMRES); // index out of range asserts from strumpack::DenseMatrix
+      // strmp.SetKrylovSolver(strumpack::KrylovSolver::GMRES); // WORKS
+      strmp.SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
       strmp.SetOperator(A_strmp);
+      strmp.SetFromCommandLine();
       strmp.Mult(B, U);
    }
 #endif

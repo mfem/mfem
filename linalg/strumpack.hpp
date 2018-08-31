@@ -22,6 +22,8 @@
 #include <mpi.h>
 #include <complex>
 
+//#include "StrumpackSparseSolverMPIDist.hpp"
+
 #ifdef MFEM_STRUMPACK_SRC
 // Only include Strumpack header when compiling the strumpack.cpp source file
 #include "StrumpackSparseSolverMPIDist.hpp"
@@ -33,10 +35,11 @@ namespace strumpack
 template<typename scalar_t, typename index_t> class CSRMatrixMPI;
 template<typename scalar_t, typename index_t>
 class StrumpackSparseSolverMPIDist;
-class KrylovSolver;
-class ReorderingStrategy;
-class MC64Job;
 }
+#include<StrumpackOptions.hpp>
+  //class KrylovSolver;
+  //class ReorderingStrategy;
+  //class MC64Job;
 #endif
 
 namespace mfem
@@ -188,7 +191,7 @@ public:
     *    MAX_DIAGONAL_PRODUCT_SCALING:  Maximize the product of the diagonal
     *                                   values and perform row & column scaling
     */
-   void SetMC64Job( strumpack::MC64Job job );
+  // void SetMC64Job( strumpack::MC64Job job );
 
 private:
    void Init( int argc, char* argv[] );

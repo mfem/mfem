@@ -273,14 +273,14 @@ SetReorderingStrategy( strumpack::ReorderingStrategy
 {
    solver_->options().set_reordering_method( method );
 }
-
+/*
 template<typename scalar_t, typename integer_t>
 void STRUMPACKBaseSolver<scalar_t,integer_t>::
 SetMC64Job( strumpack::MC64Job job )
 {
    solver_->options().set_mc64job( job );
 }
-
+*/
 template<typename scalar_t, typename integer_t>
 void STRUMPACKBaseSolver<scalar_t,integer_t>::SetRelTol( double rtol )
 {
@@ -293,6 +293,7 @@ void STRUMPACKBaseSolver<scalar_t,integer_t>::SetAbsTol( double atol )
    solver_->options().set_abs_tol( atol );
 }
 
+template class STRUMPACKBaseSolver<double,int>;
 
 STRUMPACKSolver::STRUMPACKSolver(int argc, char* argv[], MPI_Comm comm)
    : STRUMPACKBaseSolver<double,int>(argc, argv, comm)
@@ -357,6 +358,8 @@ void STRUMPACKSolver::SetOperator( const Operator & op )
    width  = op.Width();
 
 }
+
+  template class STRUMPACKBaseSolver<complex<double>,int>;
 
 STRUMPACKCmplxSolver::STRUMPACKCmplxSolver(int argc, char* argv[],
                                            MPI_Comm comm)
