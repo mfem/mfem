@@ -479,6 +479,14 @@ void MatVecCoefficient::Eval(Vector &V, ElementTransformation &T,
    ma.Mult(vb, V);
 }
 
+void IdentityMatrixCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
+                                     const IntegrationPoint &ip)
+{
+   M.SetSize(dim);
+   M = 0.0;
+   for (int d=0; d<dim; d++) { M(d,d) = 1.0; }
+}
+
 MatrixSumCoefficient::MatrixSumCoefficient(MatrixCoefficient &A,
                                            MatrixCoefficient &B,
                                            double _alpha, double _beta)
