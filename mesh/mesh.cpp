@@ -2020,23 +2020,16 @@ void Mesh::FinalizeTopology()
    // set the mesh type ('meshgen')
    SetMeshGen();
 
-   if (NumOfBdrElements == 0 && Dim > 2)
-   {
-      // in 3D, generate boundary elements before we 'MarkForRefinement'
-      GetElementToFaceTable();
-      GenerateFaces();
-      GenerateBoundaryElements();
-   }
-   else if (Dim == 1)
-   {
-      GenerateFaces();
-   }
-
    // generate the faces
    if (Dim > 2)
    {
       GetElementToFaceTable();
       GenerateFaces();
+      if (NumOfBdrElements == 0)
+      {
+         GenerateBoundaryElements();
+         GetElementToFaceTable(); // update be_to_face
+      }
    }
    else
    {
@@ -2061,6 +2054,11 @@ void Mesh::FinalizeTopology()
    else
    {
       NumOfEdges = 0;
+   }
+
+   if (Dim == 1)
+   {
+      GenerateFaces();
    }
 
    if (ncmesh)
@@ -2865,6 +2863,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
                   std::string parse_tag)
 {
    int curved = 0, read_gf = 1;
+   bool finalize_topo = true;
 
    if (!input)
    {
@@ -2917,7 +2916,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    else if (mesh_type == "# vtk DataFile Version 3.0" ||
             mesh_type == "# vtk DataFile Version 2.0") // VTK
    {
-      ReadVTKMesh(input, curved, read_gf);
+      ReadVTKMesh(input, curved, read_gf, finalize_topo);
    }
    else if (mesh_type == "MFEM NURBS mesh v1.0")
    {
@@ -2981,7 +2980,10 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    // - assume that generate_edges is true
    // - assume that refine is false
    // - does not check the orientation of regular and boundary elements
-   FinalizeTopology();
+   if (finalize_topo)
+   {
+      FinalizeTopology();
+   }
 
    if (curved && read_gf)
    {
