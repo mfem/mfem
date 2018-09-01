@@ -2934,7 +2934,9 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
    MFEM_VERIFY(transforms.embeddings.Size() || !leaf_elements.Size(),
                "GetDerefinementTransforms() must be preceded by Derefine().");
 
-   if (!transforms.point_matrices.begin()->second.SizeK())
+   Geometry::Type geom = elements[0].geom;
+
+   if (!transforms.point_matrices[geom].SizeK())
    {
       std::map<int, int> mat_no;
       mat_no[0] = 1; // identity
@@ -2952,7 +2954,6 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
       }
 
       MFEM_ASSERT(elements.Size() > free_element_ids.Size(), "");
-      Geometry::Type geom = elements[0].geom;
       const PointMatrix &identity = GetGeomIdentity(geom);
 
       transforms.point_matrices[geom].SetSize(Dim, identity.np, mat_no.size());
