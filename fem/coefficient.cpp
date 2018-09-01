@@ -415,15 +415,21 @@ void VectorSumCoefficient::Eval(Vector &V, ElementTransformation &T,
 }
 
 ScalarVectorProductCoefficient::ScalarVectorProductCoefficient(
+   double A,
+   VectorCoefficient &B)
+   : VectorCoefficient(B.GetVDim()), aConst(A), a(NULL), b(&B)
+{}
+
+ScalarVectorProductCoefficient::ScalarVectorProductCoefficient(
    Coefficient &A,
    VectorCoefficient &B)
-   : VectorCoefficient(B.GetVDim()), a(&A), b(&B)
+   : VectorCoefficient(B.GetVDim()), aConst(0.0), a(&A), b(&B)
 {}
 
 void ScalarVectorProductCoefficient::Eval(Vector &V, ElementTransformation &T,
                                           const IntegrationPoint &ip)
 {
-   double sa = a->Eval(T, ip);
+   double sa = (a == NULL) ? aConst : a->Eval(T, ip);
    b->Eval(V, T, ip);
    V *= sa;
 }
@@ -509,16 +515,22 @@ void MatrixSumCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
 }
 
 ScalarMatrixProductCoefficient::ScalarMatrixProductCoefficient(
+   double A,
+   MatrixCoefficient &B)
+   : MatrixCoefficient(B.GetHeight(), B.GetWidth()), aConst(A), a(NULL), b(&B)
+{}
+
+ScalarMatrixProductCoefficient::ScalarMatrixProductCoefficient(
    Coefficient &A,
    MatrixCoefficient &B)
-   : MatrixCoefficient(B.GetHeight(), B.GetWidth()), a(&A), b(&B)
+   : MatrixCoefficient(B.GetHeight(), B.GetWidth()), aConst(0.0), a(&A), b(&B)
 {}
 
 void ScalarMatrixProductCoefficient::Eval(DenseMatrix &M,
                                           ElementTransformation &T,
                                           const IntegrationPoint &ip)
 {
-   double sa = a->Eval(T, ip);
+   double sa = (a == NULL) ? aConst : a->Eval(T, ip);
    b->Eval(M, T, ip);
    M *= sa;
 }

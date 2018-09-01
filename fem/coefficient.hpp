@@ -668,12 +668,18 @@ public:
 class ProductCoefficient : public Coefficient
 {
 private:
+   double aConst;
    Coefficient * a;
    Coefficient * b;
 
 public:
+   ProductCoefficient(double A, Coefficient &B)
+      : aConst(A), a(NULL), b(&B) { }
    ProductCoefficient(Coefficient &A, Coefficient &B)
-      : a(&A), b(&B) { }
+      : aConst(0.0), a(&A), b(&B) { }
+
+   void SetAConst(double A) { a = NULL; aConst = A; }
+   double GetAConst() const { return aConst; }
 
    void SetACoef(Coefficient &A) { a = &A; }
    Coefficient * GetACoef() const { return a; }
@@ -684,7 +690,7 @@ public:
    /// Evaluate the coefficient
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
-   { return a->Eval(T, ip) * b->Eval(T, ip); }
+   { return ((a == NULL ) ? aConst : a->Eval(T, ip) ) * b->Eval(T, ip); }
 };
 
 /// Scalar coefficient defined as a scalar raised to a power
@@ -815,11 +821,16 @@ public:
 class ScalarVectorProductCoefficient : public VectorCoefficient
 {
 private:
+   double aConst;
    Coefficient * a;
    VectorCoefficient * b;
 
 public:
+   ScalarVectorProductCoefficient(double A, VectorCoefficient &B);
    ScalarVectorProductCoefficient(Coefficient &A, VectorCoefficient &B);
+
+   void SetAConst(double A) { a = NULL; aConst = A; }
+   double GetAConst() const { return aConst; }
 
    void SetACoef(Coefficient &A) { a = &A; }
    Coefficient * GetACoef() const { return a; }
@@ -947,11 +958,16 @@ public:
 class ScalarMatrixProductCoefficient : public MatrixCoefficient
 {
 private:
+   double aConst;
    Coefficient * a;
    MatrixCoefficient * b;
 
 public:
+   ScalarMatrixProductCoefficient(double A, MatrixCoefficient &B);
    ScalarMatrixProductCoefficient(Coefficient &A, MatrixCoefficient &B);
+
+   void SetAConst(double A) { a = NULL; aConst = A; }
+   double GetAConst() const { return aConst; }
 
    void SetACoef(Coefficient &A) { a = &A; }
    Coefficient * GetACoef() const { return a; }
