@@ -371,7 +371,8 @@ const int Mesh::vtk_quadratic_hex[27] =
    24, 22, 21, 23, 20, 25, 26
 };
 
-void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf)
+void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
+                       bool &finalize_topo)
 {
    int i, j, n, attr;
 
@@ -593,25 +594,8 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf)
 
       // Generate faces and edges so that we can define quadratic
       // FE space on the mesh
-
-      // Generate faces
-      if (Dim > 2)
-      {
-         GetElementToFaceTable();
-         GenerateFaces();
-      }
-      else
-      {
-         NumOfFaces = 0;
-      }
-
-      // Generate edges
-      el_to_edge = new Table;
-      NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
-      if (Dim == 2)
-      {
-         GenerateFaces();   // 'Faces' in 2D refers to the edges
-      }
+      FinalizeTopology();
+      finalize_topo = false;
 
       // Define quadratic FE space
       FiniteElementCollection *fec = new QuadraticFECollection;
