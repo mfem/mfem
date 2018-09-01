@@ -1995,7 +1995,7 @@ void Mesh::FinalizeMixedMesh(int generate_edges, int refine,
    BaseBdrGeom = Geometry::MIXED;
    BaseFaceGeom = Geometry::MIXED;
 
-   meshgen = 4;
+   SetMeshGen();
 }
 
 void Mesh::FinalizeTopology()
@@ -3294,7 +3294,8 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
    last_operation = Mesh::REFINE;
 
    // Setup the data for the coarse-fine refinement transformations
-   MFEM_VERIFY(BaseGeom != -1, "meshes with mixed elements are not supported");
+   MFEM_VERIFY(BaseGeom != Geometry::INVALID && BaseGeom != Geometry::MIXED,
+               "meshes with mixed elements are not supported");
    CoarseFineTr.point_matrices[BaseGeom].SetSize(Dim, max_nv, r_elem_factor);
    CoarseFineTr.embeddings.SetSize(GetNE());
    if (orig_mesh->GetNE() > 0)
@@ -7398,6 +7399,25 @@ void Mesh::UniformRefinement()
    {
       NURBSUniformRefinement();
    }
+   else if (meshgen == 1 || ncmesh)
+   {
+      Array<int> elem_to_refine(GetNE());
+      for (int i = 0; i < elem_to_refine.Size(); i++)
+      {
+         elem_to_refine[i] = i;
+      }
+
+      if (Conforming())
+      {
+         // In parallel we should set the default 2nd argument to -3 to indicate
+         // uniform refinement.
+         LocalRefinement(elem_to_refine);
+      }
+      else
+      {
+         GeneralRefinement(elem_to_refine, 1);
+      }
+   }
    else
    {
       switch (BaseGeom)
@@ -7422,60 +7442,10 @@ void Mesh::UniformRefinement()
             }
             break;
          default:
-         {
-            Array<int> elem_to_refine(GetNE());
-            for (int i = 0; i < elem_to_refine.Size(); i++)
-            {
-               elem_to_refine[i] = i;
-            }
-
-            if (Conforming())
-            {
-               // In parallel we should set the default 2nd argument to -3
-               // to indicate uniform refinement.
-               LocalRefinement(elem_to_refine);
-            }
-            else
-            {
-               GeneralRefinement(elem_to_refine, 1);
-            }
-         }
-         break;
+            MFEM_ABORT("internal error");
+            break;
       }
    }
-   /*
-   else if (meshgen == 1 || ncmesh)
-   {
-      Array<int> elem_to_refine(GetNE());
-      for (int i = 0; i < elem_to_refine.Size(); i++)
-      {
-         elem_to_refine[i] = i;
-      }
-
-      if (Conforming())
-      {
-         // In parallel we should set the default 2nd argument to -3 to indicate
-         // uniform refinement.
-         LocalRefinement(elem_to_refine);
-      }
-      else
-      {
-         GeneralRefinement(elem_to_refine, 1);
-      }
-   }
-   else if (Dim == 2)
-   {
-      QuadUniformRefinement();
-   }
-   else if (Dim == 3)
-   {
-      HexUniformRefinement();
-   }
-   else
-   {
-      mfem_error("Mesh::UniformRefinement()");
-   }
-   */
 }
 
 void Mesh::GeneralRefinement(const Array<Refinement> &refinements,
