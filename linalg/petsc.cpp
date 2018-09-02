@@ -800,7 +800,10 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
    if (pA && !avoidmatconvert)
    {
       Mat       At = NULL;
-      PetscBool ismatis,istrans;
+      PetscBool istrans;
+#if PETSC_VERSION_LT(3,10,0)
+      PetscBool ismatis;
+#endif
 
       ierr = PetscObjectTypeCompare((PetscObject)(pA->A),MATTRANSPOSEMAT,&istrans);
       CCHKERRQ(pA->GetComm(),ierr);
@@ -813,19 +816,24 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
             *A = pA->A;
             return;
          }
+#if PETSC_VERSION_LT(3,10,0)
          ierr = PetscObjectTypeCompare((PetscObject)(pA->A),MATIS,&ismatis);
          CCHKERRQ(pA->GetComm(),ierr);
+#endif
       }
       else
       {
          ierr = MatTransposeGetMat(pA->A,&At); CCHKERRQ(pA->GetComm(),ierr);
+#if PETSC_VERSION_LT(3,10,0)
          ierr = PetscObjectTypeCompare((PetscObject)(At),MATIS,&ismatis);
+#endif
          CCHKERRQ(pA->GetComm(),ierr);
       }
 
       // Try to convert
       if (tid == PETSC_MATAIJ)
       {
+#if PETSC_VERSION_LT(3,10,0)
          if (ismatis)
          {
             if (istrans)
@@ -843,6 +851,7 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
             }
          }
          else
+#endif
          {
             PetscMPIInt size;
             ierr = MPI_Comm_size(comm,&size); CCHKERRQ(comm,ierr);
