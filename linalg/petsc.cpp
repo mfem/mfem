@@ -170,7 +170,8 @@ PetscInt PetscParVector::GlobalSize() const
    return N;
 }
 
-PetscParVector::PetscParVector(MPI_Comm comm, const Vector &_x, bool copy) : Vector()
+PetscParVector::PetscParVector(MPI_Comm comm, const Vector &_x,
+                               bool copy) : Vector()
 {
    ierr = VecCreate(comm,&x); CCHKERRQ(comm,ierr);
    ierr = VecSetSizes(x,_x.Size(),PETSC_DECIDE); PCHKERRQ(x,ierr);
@@ -181,7 +182,7 @@ PetscParVector::PetscParVector(MPI_Comm comm, const Vector &_x, bool copy) : Vec
       PetscScalar *array;
 
       ierr = VecGetArray(x,&array); PCHKERRQ(x,ierr);
-      for (int i = 0; i < _x.Size(); i++) array[i] = _x[i];
+      for (int i = 0; i < _x.Size(); i++) { array[i] = _x[i]; }
       ierr = VecRestoreArray(x,&array); PCHKERRQ(x,ierr);
    }
 }
@@ -328,21 +329,27 @@ PetscParVector& PetscParVector::operator=(PetscScalar d)
    return *this;
 }
 
-PetscParVector& PetscParVector::SetValues(const Array<PetscInt>& idx, const Array<PetscScalar>& vals)
+PetscParVector& PetscParVector::SetValues(const Array<PetscInt>& idx,
+                                          const Array<PetscScalar>& vals)
 {
-   MFEM_VERIFY(idx.Size() == vals.Size(),"Size mismatch between indices and values");
+   MFEM_VERIFY(idx.Size() == vals.Size(),
+               "Size mismatch between indices and values");
    PetscInt n = idx.Size();
-   ierr = VecSetValues(x,n,idx.GetData(),vals.GetData(),INSERT_VALUES); PCHKERRQ(x,ierr);
+   ierr = VecSetValues(x,n,idx.GetData(),vals.GetData(),INSERT_VALUES);
+   PCHKERRQ(x,ierr);
    ierr = VecAssemblyBegin(x); PCHKERRQ(x,ierr);
    ierr = VecAssemblyEnd(x); PCHKERRQ(x,ierr);
    return *this;
 }
 
-PetscParVector& PetscParVector::AddValues(const Array<PetscInt>& idx, const Array<PetscScalar>& vals)
+PetscParVector& PetscParVector::AddValues(const Array<PetscInt>& idx,
+                                          const Array<PetscScalar>& vals)
 {
-   MFEM_VERIFY(idx.Size() == vals.Size(),"Size mismatch between indices and values");
+   MFEM_VERIFY(idx.Size() == vals.Size(),
+               "Size mismatch between indices and values");
    PetscInt n = idx.Size();
-   ierr = VecSetValues(x,n,idx.GetData(),vals.GetData(),ADD_VALUES); PCHKERRQ(x,ierr);
+   ierr = VecSetValues(x,n,idx.GetData(),vals.GetData(),ADD_VALUES);
+   PCHKERRQ(x,ierr);
    ierr = VecAssemblyBegin(x); PCHKERRQ(x,ierr);
    ierr = VecAssemblyEnd(x); PCHKERRQ(x,ierr);
    return *this;
@@ -794,7 +801,8 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
    PetscBool avoidmatconvert = PETSC_FALSE;
    if (pA) // we test for these types since MatConvert will fail
    {
-      ierr = PetscObjectTypeCompareAny((PetscObject)(pA->A),&avoidmatconvert,MATMFFD,MATSHELL,"");
+      ierr = PetscObjectTypeCompareAny((PetscObject)(pA->A),&avoidmatconvert,MATMFFD,
+                                       MATSHELL,"");
       CCHKERRQ(comm,ierr);
    }
    if (pA && !avoidmatconvert)
@@ -1044,7 +1052,8 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
    }
    else // fallback to general operator
    {
-      MFEM_VERIFY(tid == PETSC_MATSHELL || tid == PETSC_MATAIJ,"Supported types are PETSC_MATSHELL or PETSC_MATAIJ");
+      MFEM_VERIFY(tid == PETSC_MATSHELL ||
+                  tid == PETSC_MATAIJ,"Supported types are PETSC_MATSHELL or PETSC_MATAIJ");
       MakeWrapper(comm,&op,A);
       if (tid == PETSC_MATAIJ)
       {
@@ -1052,7 +1061,8 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
          PetscBool isaij;
 
          ierr = MatComputeExplicitOperator(*A,&B); CCHKERRQ(comm,ierr);
-         ierr = PetscObjectTypeCompare((PetscObject)B,MATMPIAIJ,&isaij); CCHKERRQ(comm,ierr);
+         ierr = PetscObjectTypeCompare((PetscObject)B,MATMPIAIJ,&isaij);
+         CCHKERRQ(comm,ierr);
          ierr = MatDestroy(A); CCHKERRQ(comm,ierr);
          if (!isaij)
          {
@@ -1094,7 +1104,7 @@ PetscParMatrix::PetscParMatrix(Mat a, bool ref)
 
 void PetscParMatrix::SetMat(Mat _A)
 {
-   if (_A == A) return;
+   if (_A == A) { return; }
    Destroy();
    ierr = PetscObjectReference((PetscObject)_A); PCHKERRQ(_A,ierr);
    A = _A;
@@ -2917,7 +2927,8 @@ void PetscNonlinearSolver::SetJacobianType(Operator::Type jacType)
    snes_ctx->jacType = jacType;
 }
 
-void PetscNonlinearSolver::SetObjective(void (*objfn)(Operator *,const Vector&, double*))
+void PetscNonlinearSolver::SetObjective(void (*objfn)(Operator *,const Vector&,
+                                                      double*))
 {
    __mfem_snes_ctx *snes_ctx = (__mfem_snes_ctx*)private_ctx;
    snes_ctx->objective = objfn;
@@ -3209,7 +3220,8 @@ static PetscErrorCode __mfem_ts_monitor(TS ts, PetscInt it, PetscReal t, Vec x,
       SETERRQ(PETSC_COMM_SELF,PETSC_ERR_USER,"Missing monitor context");
    }
    mfem::PetscSolver *solver = (mfem::PetscSolver*)(monctx->solver);
-   mfem::PetscSolverMonitor *user_monitor = (mfem::PetscSolverMonitor *)(monctx->monitor);
+   mfem::PetscSolverMonitor *user_monitor = (mfem::PetscSolverMonitor *)(
+                                               monctx->monitor);
 
    if (user_monitor->mon_sol)
    {
@@ -3611,7 +3623,8 @@ static PetscErrorCode __mfem_snes_monitor(SNES snes, PetscInt it, PetscReal res,
    }
 
    mfem::PetscSolver *solver = (mfem::PetscSolver*)(monctx->solver);
-   mfem::PetscSolverMonitor *user_monitor = (mfem::PetscSolverMonitor *)(monctx->monitor);
+   mfem::PetscSolverMonitor *user_monitor = (mfem::PetscSolverMonitor *)(
+                                               monctx->monitor);
    if (user_monitor->mon_sol)
    {
       Vec x;
@@ -3719,7 +3732,8 @@ static PetscErrorCode __mfem_snes_function(SNES snes, Vec x, Vec f, void *ctx)
    PetscFunctionReturn(0);
 }
 
-static PetscErrorCode __mfem_snes_objective(SNES snes, Vec x, PetscReal *f, void *ctx)
+static PetscErrorCode __mfem_snes_objective(SNES snes, Vec x, PetscReal *f,
+                                            void *ctx)
 {
    __mfem_snes_ctx* snes_ctx = (__mfem_snes_ctx*)ctx;
 
@@ -3763,7 +3777,8 @@ static PetscErrorCode __mfem_ksp_monitor(KSP ksp, PetscInt it, PetscReal res,
    }
 
    mfem::PetscSolver *solver = (mfem::PetscSolver*)(monctx->solver);
-   mfem::PetscSolverMonitor *user_monitor = (mfem::PetscSolverMonitor *)(monctx->monitor);
+   mfem::PetscSolverMonitor *user_monitor = (mfem::PetscSolverMonitor *)(
+                                               monctx->monitor);
    if (user_monitor->mon_sol)
    {
       Vec x;
@@ -3979,11 +3994,11 @@ static PetscErrorCode __mfem_matarray_container_destroy(void *ptr)
 
 static PetscErrorCode __mfem_monitor_ctx_destroy(void **ctx)
 {
-  PetscErrorCode  ierr;
+   PetscErrorCode  ierr;
 
-  PetscFunctionBeginUser;
-  ierr = PetscFree(*ctx); CHKERRQ(ierr);
-  PetscFunctionReturn(0);
+   PetscFunctionBeginUser;
+   ierr = PetscFree(*ctx); CHKERRQ(ierr);
+   PetscFunctionReturn(0);
 }
 
 // Sets the type of PC to PCSHELL and wraps the solver action
