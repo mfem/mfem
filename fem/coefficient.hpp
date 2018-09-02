@@ -167,6 +167,7 @@ private:
    int Component;
 
 public:
+   GridFunctionCoefficient() : GridF(NULL), Component(1) { }
    /** Construct GridFunctionCoefficient from a given GridFunction, and
        optionally specify a component to use if it is a vector GridFunction. */
    GridFunctionCoefficient (GridFunction *gf, int comp = 1)
@@ -399,6 +400,7 @@ protected:
    GridFunction *GridFunc;
 
 public:
+   VectorGridFunctionCoefficient() : VectorCoefficient(0), GridFunc(NULL) { }
    VectorGridFunctionCoefficient(GridFunction *gf);
 
    void SetGridFunction(GridFunction *gf);
