@@ -177,6 +177,10 @@ private:
   dChiCoef    * dChiCoef_;
   Coefficient * QCoef_;
   ScalarMatrixProductCoefficient dtChiCoef_;
+
+  mutable ParGridFunction T0_;
+  mutable ParGridFunction T1_;
+
   mutable GradientGridFunctionCoefficient gradTCoef_;
   ScalarVectorProductCoefficient dtGradTCoef_;
   MatVecCoefficient dtdChiGradTCoef_;
@@ -185,9 +189,6 @@ private:
   mutable ParBilinearForm s0chi_;
   mutable ParBilinearForm a0_;
   
-  mutable ParGridFunction T0_;
-  mutable ParGridFunction T1_;
-
   mutable HypreParMatrix A_;
   mutable ParGridFunction dTdt_;
   mutable ParLinearForm Q_;
