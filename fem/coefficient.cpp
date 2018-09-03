@@ -153,9 +153,15 @@ void VectorArrayCoefficient::Eval(Vector &V, ElementTransformation &T,
 }
 
 VectorGridFunctionCoefficient::VectorGridFunctionCoefficient (
-   GridFunction *gf) : VectorCoefficient (gf -> VectorDim())
+   GridFunction *gf)
+   : VectorCoefficient ((gf) ? gf -> VectorDim() : 0)
 {
    GridFunc = gf;
+}
+
+void VectorGridFunctionCoefficient::SetGridFunction(GridFunction *gf)
+{
+   GridFunc = gf; vdim = (gf) ? gf -> VectorDim() : 0;
 }
 
 void VectorGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
@@ -171,9 +177,15 @@ void VectorGridFunctionCoefficient::Eval(
 }
 
 GradientGridFunctionCoefficient::GradientGridFunctionCoefficient (
-   GridFunction *gf) : VectorCoefficient (gf -> VectorDim())
+   GridFunction *gf)
+   : VectorCoefficient((gf) ? gf -> VectorDim() : 0)
 {
    GridFunc = gf;
+}
+
+void GradientGridFunctionCoefficient::SetGridFunction(GridFunction *gf)
+{
+   GridFunc = gf; vdim = (gf) ? gf -> VectorDim() : 0;
 }
 
 void GradientGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
@@ -194,9 +206,15 @@ void GradientGridFunctionCoefficient::Eval(
 }
 
 CurlGridFunctionCoefficient::CurlGridFunctionCoefficient (
-   GridFunction *gf) : VectorCoefficient (gf -> VectorDim())
+   GridFunction *gf)
+   : VectorCoefficient ((gf) ? gf -> VectorDim() : 0)
 {
    GridFunc = gf;
+}
+
+void CurlGridFunctionCoefficient::SetGridFunction(GridFunction *gf)
+{
+   GridFunc = gf; vdim = (gf) ? gf -> VectorDim() : 0;
 }
 
 void CurlGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,

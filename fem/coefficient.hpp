@@ -376,7 +376,7 @@ protected:
 public:
    VectorGridFunctionCoefficient(GridFunction *gf);
 
-   void SetGridFunction(GridFunction *gf) { GridFunc = gf; }
+   void SetGridFunction(GridFunction *gf);
    GridFunction * GetGridFunction() const { return GridFunc; }
 
    virtual void Eval(Vector &V, ElementTransformation &T,
@@ -397,7 +397,7 @@ protected:
 public:
    GradientGridFunctionCoefficient(GridFunction *gf);
 
-   void SetGridFunction(GridFunction *gf) { GridFunc = gf; }
+   void SetGridFunction(GridFunction *gf);
    GridFunction * GetGridFunction() const { return GridFunc; }
 
    virtual void Eval(Vector &V, ElementTransformation &T,
@@ -418,7 +418,7 @@ protected:
 public:
    CurlGridFunctionCoefficient(GridFunction *gf);
 
-   void SetGridFunction(GridFunction *gf) { GridFunc = gf; }
+   void SetGridFunction(GridFunction *gf);
    GridFunction * GetGridFunction() const { return GridFunc; }
 
    virtual void Eval(Vector &V, ElementTransformation &T,
