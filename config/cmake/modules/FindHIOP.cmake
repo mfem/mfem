@@ -19,16 +19,18 @@ mfem_find_package(HIOP HIOP HIOP_DIR
   "include" "hiopInterface.hpp"
   "lib" "hiop"
   "Paths to headers required by HIOP."
-  "Libraries required by HIOP."
-  CHECK_BUILD HIOP_VERSION_OK TRUE
-"
-#include <hiopInterface.hpp>
-using namespace hiop;
-int main(int argc, char *argv[])
-{
-   //MPI_Init(&argc, &argv);
-   //MPI_Comm comm = MPI_COMM_WORLD;
+  "Libraries required by HIOP.")
 
-   return 0;
-}
-")
+# this test fails with parallel MFEM since mpi.h is not available (cxx compiler is used for some reason)
+#  CHECK_BUILD HIOP_VERSION_OK TRUE
+#"
+##include <hiopInterface.hpp>
+#using namespace hiop;
+#int main(int argc, char *argv[])
+#{
+#   MPI_Init(&argc, &argv);
+#   MPI_Comm comm = MPI_COMM_WORLD;
+#
+#   return 0;
+#}
+#")

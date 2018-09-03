@@ -34,7 +34,13 @@ class HiopProblemSpec : public hiop::hiopInterfaceDenseConstraints
 public:
 
    HiopProblemSpec(const long long& n_loc)
-      : n_(n_loc), n_local_(n_loc), a_(0.), workVec_(n_loc) { }
+      : n_(n_loc), n_local_(n_loc), a_(0.), workVec_(n_loc) 
+  { 
+#ifdef MFEM_USE_MPI
+    //in case HiOp with MPI support is called by a serial driver.
+    comm_ = MPI_COMM_WORLD;
+#endif
+  }
 
 #ifdef MFEM_USE_MPI
   HiopProblemSpec(const MPI_Comm& _comm, const long long& _n_local)
@@ -194,8 +200,15 @@ public:
 #else
     return false; //hiop runs in non-distributed mode 
 #endif    
-    
   };
+
+#ifdef MFEM_USE_MPI
+  virtual bool get_MPI_comm(MPI_Comm& comm_out) 
+  { 
+    comm_out=comm_; 
+    return true;
+  }
+#endif
 
   /** Seter/geter methods below; not inherited from the HiOp interface class */
   virtual void setBounds(const Vector &_lo, const Vector &_hi) {
@@ -232,13 +245,9 @@ protected:
 class HiopNlpOptimizer : public OptimizationSolver
 {
 public:
-  HiopNlpOptimizer() : OptimizationSolver(),
-                       optProb_(NULL), is_parallel(false) { }
-
+  HiopNlpOptimizer(); 
 #ifdef MFEM_USE_MPI
-  HiopNlpOptimizer(MPI_Comm _comm) : OptimizationSolver(_comm),
-                                     optProb_(NULL), is_parallel(true),
-                                     comm_(_comm) { }
+  HiopNlpOptimizer(MPI_Comm _comm);
 #endif
   virtual ~HiopNlpOptimizer();
 
@@ -254,7 +263,6 @@ private:
 
 private:
   HiopProblemSpec* optProb_;
-  const bool is_parallel;
 
 #ifdef MFEM_USE_MPI
   MPI_Comm comm_;

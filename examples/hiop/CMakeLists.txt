@@ -10,7 +10,7 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 set(HIOP_EXAMPLES_SRCS)
-#//!list(APPEND HIOP_EXAMPLES_SRCS ex9.cpp)
+list(APPEND HIOP_EXAMPLES_SRCS ex9.cpp)
 
 
 if (MFEM_USE_MPI)
