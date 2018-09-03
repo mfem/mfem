@@ -219,19 +219,10 @@ endif()
 
 # Hiop optimizer
 if (MFEM_USE_HIOP)
-  #if (MFEM_USE_MPI)
   find_package(HIOP REQUIRED)
-  #else()
-  #endif()
-
   # find_package updates HIOP_FOUND, HIOP_INCLUDE_DIRS, HIOP_LIBRARIES
-  # 
 
   add_definitions("-DMFEM_USE_HIOP")
-  # enable/disable MPI with Hiop
-  if (MFEM_USE_MPI)
-    add_definitions("-DHIOP_USE_MPI") 
-  endif()
 endif()
 
 

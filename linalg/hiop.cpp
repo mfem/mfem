@@ -18,16 +18,35 @@
 
 #include "hiopAlgFilterIPM.hpp"
 
-#pragma message "Compiling " __FILE__ "..."
-
-#ifdef MFEM_USE_MPI
-
-#endif
-
 using namespace hiop;
 
 namespace mfem
 {
+HiopNlpOptimizer::HiopNlpOptimizer() 
+  : OptimizationSolver(), optProb_(NULL) 
+{ 
+
+#ifdef MFEM_USE_MPI
+  //in case a serial driver in parallel MFEM build calls HiOp
+  comm_ = MPI_COMM_WORLD;
+  int initialized, nret = MPI_Initialized(&initialized); 
+  MFEM_ASSERT(MPI_SUCCESS==nret, "failure in calling MPI_Initialized");
+  if(!initialized) {
+    nret = MPI_Init(NULL, NULL);
+    MFEM_ASSERT(MPI_SUCCESS==nret, "failure in calling MPI_Init");
+  }
+#endif
+} 
+
+#ifdef MFEM_USE_MPI
+HiopNlpOptimizer::HiopNlpOptimizer(MPI_Comm _comm) 
+  : OptimizationSolver(_comm),
+    optProb_(NULL),
+    comm_(_comm) 
+{ 
+
+}
+#endif
 
 HiopNlpOptimizer::~HiopNlpOptimizer()
 {
@@ -75,11 +94,7 @@ void HiopNlpOptimizer::allocHiopProbSpec(const long long& numvars)
    MFEM_ASSERT(optProb_==NULL, "HiopProbSpec object already created");
 
 #ifdef MFEM_USE_MPI
-   if (is_parallel)
-   {
-      optProb_ = new HiopProblemSpec(comm_, numvars);
-   }
-   else { optProb_ = new HiopProblemSpec(numvars); }
+   optProb_ = new HiopProblemSpec(comm_, numvars);
 #else
    optProb_ = new HiopProblemSpec(numvars);
 #endif
