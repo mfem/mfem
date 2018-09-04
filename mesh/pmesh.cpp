@@ -2317,24 +2317,19 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
    if (Dim == 4)
    {
       // 1. Get table of vertex to vertex connections.
-      DSTable v_to_v(NumOfVertices);
-      GetVertexToVertexTable(v_to_v);
-
-      // 2. Get edge to element connections in arrays edge1 and edge2
-      Array<int> middle(v_to_v.NumberOfEntries());
-      middle = -1;
+      HashTable<Hashed2> v_to_v;
 
       // 3. Do the red refinement.
       for (int i = 0; i < marked_el.Size(); i++)
       {
-         RedRefinementPentatope(marked_el[i], v_to_v, middle);
+         RedRefinementPentatope(marked_el[i], v_to_v);
       }
 
       // 5. Update the boundary elements.
       for (int i = 0; i < NumOfBdrElements; i++)
-         if (boundary[i]->NeedRefinement(v_to_v, middle))
+         if (boundary[i]->NeedRefinement(v_to_v))
          {
-            RedRefinementBoundaryTet(i, v_to_v, middle);
+            RedRefinementBoundaryTet(i, v_to_v);
          }
       NumOfBdrElements = boundary.Size();
 
@@ -2343,7 +2338,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       // 5a. Update the groups after refinement.
       if (el_to_face != NULL)
       {
-         RefineGroups(v_to_v, middle);
+         RefineGroups(v_to_v);
          //         GetElementToFaceTable4D(); // Called by RefineGroups
          GenerateFaces();
 
@@ -2353,10 +2348,9 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
          GeneratePlanars();
 
       }
+      NumOfVertices = vertices.Size();
 
       // 7. Free the allocated memory.
-      middle.DeleteAll();
-
       if (el_to_edge != NULL)
       {
          NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
@@ -3345,7 +3339,7 @@ void ParMesh::RefineGroups(const HashTable<Hashed2> &v_to_v)
    int i, attr, ind, *v;
 
    int group;
-   Array<int> group_verts, group_edges, group_faces;
+   Array<int> group_verts, group_edges, group_planars, group_faces;
 
    // To update the groups after a refinement, we observe that:
    // - every (new and old) vertex, edge and face belongs to exactly one group
@@ -3354,22 +3348,32 @@ void ParMesh::RefineGroups(const HashTable<Hashed2> &v_to_v)
    // - a face can be refined multiple times producing new edges and faces
 
    Array<Segment *> sedge_stack;
-   Array<Triangle *> sface_stack;
+   Array<Triangle *> sface_stack; // in 4D, these are the planars
+   Array<Tetrahedron *> sface4d_stack;
 
    Array<int> I_group_svert, J_group_svert;
    Array<int> I_group_sedge, J_group_sedge;
+   Array<int> I_group_splan, J_group_splan;
    Array<int> I_group_sface, J_group_sface;
 
    I_group_svert.SetSize(GetNGroups()+1);
    I_group_sedge.SetSize(GetNGroups()+1);
-   if (Dim == 3)
+   if (Dim == 3 || Dim == 4)
    {
       I_group_sface.SetSize(GetNGroups()+1);
+   }
+   if (Dim == 4)
+   {
+      I_group_splan.SetSize(GetNGroups()+1);
    }
 
    I_group_svert[0] = I_group_svert[1] = 0;
    I_group_sedge[0] = I_group_sedge[1] = 0;
-   if (Dim == 3)
+   if (Dim == 4)
+   {
+      I_group_splan[0] = I_group_splan[1] = 0;
+   }
+   if (Dim == 3 || Dim == 4)
    {
       I_group_sface[0] = I_group_sface[1] = 0;
    }
@@ -3379,6 +3383,7 @@ void ParMesh::RefineGroups(const HashTable<Hashed2> &v_to_v)
       // Get the group shared objects
       group_svert.GetRow(group, group_verts);
       group_sedge.GetRow(group, group_edges);
+      if (Dim==4) { group_splan.GetRow(group, group_planars); }
       group_sface.GetRow(group, group_faces);
 
       // Check which edges have been refined
@@ -3431,94 +3436,214 @@ void ParMesh::RefineGroups(const HashTable<Hashed2> &v_to_v)
          while (sedge_stack.Size() > 0);
       }
 
-      // Check which faces have been refined
-      for (i = 0; i < group_sface.RowSize(group); i++)
+      if (Dim == 4)
       {
-         v = shared_faces[group_faces[i]]->GetVertices();
-         ind = v_to_v.FindId(v[0], v[1]);
-         if (ind == -1) { continue; }
+         // Check which planars have been refined
+         for (i = 0; i < group_splan.RowSize(group); i++)
+         {
+            v = shared_planars[group_planars[i]]->GetVertices();
+            ind = v_to_v.FindId(v[0], v[1]);
+            if (ind == -1) { continue; }
 
-         // This shared face is refined: walk the whole refinement tree
-         attr = shared_faces[group_faces[i]]->GetAttribute();
-         const int edge_attr = 1;
-         do
-         {
-            ind += NumOfVertices;
-            // Add the refinement edge to the edge stack
-            sedge_stack.Append(new Segment(v[2], ind, edge_attr));
-            // Put the right sub-triangle on top of the face stack
-            sface_stack.Append(new Triangle(v[1], v[2], ind, attr));
-            // The left sub-triangle replaces the original one
-            v[1] = v[0]; v[0] = v[2]; v[2] = ind;
-            ind = v_to_v.FindId(v[0], v[1]);
+            // This shared face is refined: walk the whole refinement tree
+            attr = shared_planars[group_planars[i]]->GetAttribute();
+            const int edge_attr = 1;
+            //we have to add 3 new shared edges
+            int midEdges[3];
+            midEdges[0] = NumOfVertices + v_to_v.FindId(v[0],v[1]);
+            midEdges[1] = NumOfVertices + v_to_v.FindId(v[0],v[2]);
+            midEdges[2] = NumOfVertices + v_to_v.FindId(v[1],v[2]);
+
+            shared_edges.Append(new Segment(midEdges[0], midEdges[1], attr));
+            group_edges.Append(sedge_ledge.Append(-1)-1);
+            shared_edges.Append(new Segment(midEdges[0], midEdges[2], attr));
+            group_edges.Append(sedge_ledge.Append(-1)-1);
+            shared_edges.Append(new Segment(midEdges[1], midEdges[2], attr));
+            group_edges.Append(sedge_ledge.Append(-1)-1);
+
+            shared_planars.Append(new Triangle(v[0], midEdges[0], midEdges[1], attr));
+            group_planars.Append(splan_lplan.Append(-1)-1);
+            shared_planars.Append(new Triangle(midEdges[0], v[1], midEdges[2], attr));
+            group_planars.Append(splan_lplan.Append(-1)-1);
+            shared_planars.Append(new Triangle(midEdges[1], midEdges[2], v[2], attr));
+            group_planars.Append(splan_lplan.Append(-1)-1);
+            int w[3]; w[0] = midEdges[0]; w[1] = midEdges[1]; w[2] = midEdges[2];
+            shared_planars[group_planars[i]]->SetVertices(w);
          }
-         while (ind != -1);
-         // Process all faces (triangles) in the face stack
-         do
+
+         // Check which faces have been refined
+         for (i = 0; i < group_sface.RowSize(group); i++)
          {
-            Triangle *st = sface_stack.Last();
-            v = st->GetVertices();
+            v = shared_faces[group_faces[i]]->GetVertices();
             ind = v_to_v.FindId(v[0], v[1]);
-            if (ind == -1)
+            if (ind == -1) { continue; }
+
+            // This shared face is refined: walk the whole refinement tree
+            attr = shared_faces[group_faces[i]]->GetAttribute();
+            int faceIndex = sface_lface[group_faces[i]];
+            bool swapped = swappedFaces[faceIndex];
+            swapped = false;
+            if (swapped) { Swap(v); }
+            //we have to add 13 new shared edges
+            const int* ei;
+            int midEdges[6];
+            for (int j=0; j<6; j++)
             {
-               // The triangle 'st' is not refined
-               sface_stack.DeleteLast();
-               // Add new shared face
-               shared_faces.Append(st);
-               group_faces.Append(sface_lface.Append(-1)-1);
+               ei = shared_faces[group_faces[i]]->GetEdgeVertices(j);
+               midEdges[j] = NumOfVertices + v_to_v.FindId(v[ei[0]],v[ei[1]]);
             }
-            else
+
+
+            shared_edges.Append(new Segment(midEdges[1], midEdges[4], attr));
+            group_edges.Append(sedge_ledge.Append(-1)-1);
+
+            shared_planars.Append(new Triangle(midEdges[0], midEdges[1], midEdges[2],
+                                               attr)); group_planars.Append(splan_lplan.Append(-1)-1);
+            shared_planars.Append(new Triangle(midEdges[0], midEdges[1], midEdges[4],
+                                               attr)); group_planars.Append(splan_lplan.Append(-1)-1);
+            shared_planars.Append(new Triangle(midEdges[0], midEdges[3], midEdges[4],
+                                               attr)); group_planars.Append(splan_lplan.Append(-1)-1);
+            shared_planars.Append(new Triangle(midEdges[1], midEdges[2], midEdges[4],
+                                               attr)); group_planars.Append(splan_lplan.Append(-1)-1);
+            shared_planars.Append(new Triangle(midEdges[1], midEdges[3], midEdges[4],
+                                               attr)); group_planars.Append(splan_lplan.Append(-1)-1);
+            shared_planars.Append(new Triangle(midEdges[1], midEdges[3], midEdges[5],
+                                               attr)); group_planars.Append(splan_lplan.Append(-1)-1);
+            shared_planars.Append(new Triangle(midEdges[1], midEdges[4], midEdges[5],
+                                               attr)); group_planars.Append(splan_lplan.Append(-1)-1);
+            shared_planars.Append(new Triangle(midEdges[2], midEdges[4], midEdges[5],
+                                               attr)); group_planars.Append(splan_lplan.Append(-1)-1);
+
+            int w[4];
+            bool mySwaped;
+            w[0] = v[0];     w[1] = midEdges[0]; w[2] = midEdges[1]; w[3] = midEdges[2];
+            mySwaped = swapped;
+            if (mySwaped) { Swap(w); } shared_faces.Append(new Tetrahedron(w, attr));
+            group_faces.Append(sface_lface.Append(-1)-1);
+            w[0] = midEdges[0]; w[1] = v[1];     w[2] = midEdges[3]; w[3] = midEdges[4];
+            mySwaped = swapped;
+            if (mySwaped) { Swap(w); } shared_faces.Append(new Tetrahedron(w, attr));
+            group_faces.Append(sface_lface.Append(-1)-1);
+            w[0] = midEdges[1]; w[1] = midEdges[3]; w[2] = v[2];     w[3] = midEdges[5];
+            mySwaped = swapped;
+            if (mySwaped) { Swap(w); } shared_faces.Append(new Tetrahedron(w, attr));
+            group_faces.Append(sface_lface.Append(-1)-1);
+            w[0] = midEdges[2]; w[1] = midEdges[4]; w[2] = midEdges[5]; w[3] = v[3];
+            mySwaped = swapped;
+            if (mySwaped) { Swap(w); } shared_faces.Append(new Tetrahedron(w, attr));
+            group_faces.Append(sface_lface.Append(-1)-1);
+
+            w[0] = midEdges[0]; w[1] = midEdges[1]; w[2] = midEdges[3]; w[3] = midEdges[4];
+            mySwaped = !swapped; mySwaped = false;
+            if (mySwaped) { Swap(w); } shared_faces.Append(new Tetrahedron(w, attr));
+            group_faces.Append(sface_lface.Append(-1)-1);
+            w[0] = midEdges[0]; w[1] = midEdges[1]; w[2] = midEdges[2]; w[3] = midEdges[4];
+            mySwaped = swapped;
+            if (mySwaped) { Swap(w); } shared_faces.Append(new Tetrahedron(w, attr));
+            group_faces.Append(sface_lface.Append(-1)-1);
+            w[0] = midEdges[1]; w[1] = midEdges[3]; w[2] = midEdges[4]; w[3] = midEdges[5];
+            mySwaped = !swapped; mySwaped = false;
+            if (mySwaped) { Swap(w); } shared_faces.Append(new Tetrahedron(w, attr));
+            group_faces.Append(sface_lface.Append(-1)-1);
+            w[0] = midEdges[1]; w[1] = midEdges[2]; w[2] = midEdges[4]; w[3] = midEdges[5];
+            mySwaped = swapped;
+            if (mySwaped) { Swap(w); } shared_faces[group_faces[i]]->SetVertices(
+               w); //sface_lface[group_faces[i]] =  -1;
+         }
+      }
+      else
+      {
+         // Check which faces have been refined
+         for (i = 0; i < group_sface.RowSize(group); i++)
+         {
+            v = shared_faces[group_faces[i]]->GetVertices();
+            ind = v_to_v.FindId(v[0], v[1]);
+            if (ind == -1) { continue; }
+
+            // This shared face is refined: walk the whole refinement tree
+            attr = shared_faces[group_faces[i]]->GetAttribute();
+            const int edge_attr = 1;
+            do
             {
-               // The triangle 'st' is refined
                ind += NumOfVertices;
                // Add the refinement edge to the edge stack
                sedge_stack.Append(new Segment(v[2], ind, edge_attr));
-               // Put the left sub-triangle on top of the face stack
-               sface_stack.Append(new Triangle(v[2], v[0], ind, attr));
-               // The right sub-triangle replaces the original one
-               v[0] = v[1]; v[1] = v[2]; v[2] = ind;
+               // Put the right sub-triangle on top of the face stack
+               sface_stack.Append(new Triangle(v[1], v[2], ind, attr));
+               // The left sub-triangle replaces the original one
+               v[1] = v[0]; v[0] = v[2]; v[2] = ind;
+               ind = v_to_v.FindId(v[0], v[1]);
             }
-         }
-         while (sface_stack.Size() > 0);
-         // Process all edges in the edge stack (same code as above)
-         do
-         {
-            Segment *se = sedge_stack.Last();
-            v = se->GetVertices();
-            ind = v_to_v.FindId(v[0], v[1]);
-            if (ind == -1)
+            while (ind != -1);
+            // Process all faces (triangles) in the face stack
+            do
             {
-               // The edge 'se' is not refined
-               sedge_stack.DeleteLast();
-               // Add new shared edge
-               shared_edges.Append(se);
-               group_edges.Append(sedge_ledge.Append(-1)-1);
+               Triangle *st = sface_stack.Last();
+               v = st->GetVertices();
+               ind = v_to_v.FindId(v[0], v[1]);
+               if (ind == -1)
+               {
+                  // The triangle 'st' is not refined
+                  sface_stack.DeleteLast();
+                  // Add new shared face
+                  shared_faces.Append(st);
+                  group_faces.Append(sface_lface.Append(-1)-1);
+               }
+               else
+               {
+                  // The triangle 'st' is refined
+                  ind += NumOfVertices;
+                  // Add the refinement edge to the edge stack
+                  sedge_stack.Append(new Segment(v[2], ind, edge_attr));
+                  // Put the left sub-triangle on top of the face stack
+                  sface_stack.Append(new Triangle(v[2], v[0], ind, attr));
+                  // The right sub-triangle replaces the original one
+                  v[0] = v[1]; v[1] = v[2]; v[2] = ind;
+               }
             }
-            else
+            while (sface_stack.Size() > 0);
+            // Process all edges in the edge stack (same code as above)
+            do
             {
-               // The edge 'se' is refined
-               ind += NumOfVertices;
-               // Add new shared vertex
-               group_verts.Append(svert_lvert.Append(ind)-1);
-               // Put the left sub-edge on top of the stack
-               sedge_stack.Append(new Segment(v[0], ind, attr));
-               // The right sub-edge replaces the original edge
-               v[0] = ind;
+               Segment *se = sedge_stack.Last();
+               v = se->GetVertices();
+               ind = v_to_v.FindId(v[0], v[1]);
+               if (ind == -1)
+               {
+                  // The edge 'se' is not refined
+                  sedge_stack.DeleteLast();
+                  // Add new shared edge
+                  shared_edges.Append(se);
+                  group_edges.Append(sedge_ledge.Append(-1)-1);
+               }
+               else
+               {
+                  // The edge 'se' is refined
+                  ind += NumOfVertices;
+                  // Add new shared vertex
+                  group_verts.Append(svert_lvert.Append(ind)-1);
+                  // Put the left sub-edge on top of the stack
+                  sedge_stack.Append(new Segment(v[0], ind, attr));
+                  // The right sub-edge replaces the original edge
+                  v[0] = ind;
+               }
             }
+            while (sedge_stack.Size() > 0);
          }
-         while (sedge_stack.Size() > 0);
       }
 
       I_group_svert[group+1] = I_group_svert[group] + group_verts.Size();
       I_group_sedge[group+1] = I_group_sedge[group] + group_edges.Size();
-      if (Dim == 3)
+      if (Dim==4) { I_group_splan[group+1] = I_group_splan[group] + group_planars.Size(); }
+      if (Dim == 3 || Dim == 4)
       {
          I_group_sface[group+1] = I_group_sface[group] + group_faces.Size();
       }
 
       J_group_svert.Append(group_verts);
       J_group_sedge.Append(group_edges);
-      if (Dim == 3)
+      if (Dim == 4) { J_group_splan.Append(group_planars); }
+      if (Dim == 3 || Dim == 4)
       {
          J_group_sface.Append(group_faces);
       }
@@ -3545,16 +3670,39 @@ void ParMesh::RefineGroups(const HashTable<Hashed2> &v_to_v)
       }
       delete faces_tbl;
    }
+   else if (Dim == 4)
+   {
+      STable4D *faces_tbl = GetElementToFaceTable4D(1);
+      for (i = 0; i < shared_faces.Size(); i++)
+      {
+         v = shared_faces[i]->GetVertices();
+         sface_lface[i] = (*faces_tbl)(v[0], v[1], v[2], v[3]);
+      }
+      delete faces_tbl;
+
+      STable3D *plan_tbl = GetElementToPlanarTable(1);
+      for (i = 0; i < shared_planars.Size(); i++)
+      {
+         v = shared_planars[i]->GetVertices();
+         splan_lplan[i] = (*plan_tbl)(v[0], v[1], v[2]);
+      }
+      delete plan_tbl;
+   }
 
    group_svert.SetIJ(I_group_svert, J_group_svert);
    group_sedge.SetIJ(I_group_sedge, J_group_sedge);
-   if (Dim == 3)
+   if (Dim==4) { group_splan.SetIJ(I_group_splan, J_group_splan); }
+   if (Dim >= 3)
    {
       group_sface.SetIJ(I_group_sface, J_group_sface);
    }
    I_group_svert.LoseData(); J_group_svert.LoseData();
    I_group_sedge.LoseData(); J_group_sedge.LoseData();
-   if (Dim == 3)
+   if (Dim == 4)
+   {
+      I_group_splan.LoseData(); J_group_splan.LoseData();
+   }
+   if (Dim >= 3)
    {
       I_group_sface.LoseData(); J_group_sface.LoseData();
    }
