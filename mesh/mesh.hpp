@@ -270,8 +270,8 @@ protected:
    /// Bisect a boundary triangle: boundary element with index @a i is bisected.
    void BdrBisection(int i, const HashTable<Hashed2> &);
 
-   void RedRefinementPentatope(int i, const DSTable & v_to_v, int *middle);
-   void RedRefinementBoundaryTet(int i, const DSTable & v_to_v, int *middle);
+   void RedRefinementPentatope(int i, HashTable<Hashed2> & v_to_v);
+   void RedRefinementBoundaryTet(int i, HashTable<Hashed2> & v_to_v);
 
    /** Uniform Refinement. Element with index i is refined uniformly. */
    void UniformRefinement(int i, const DSTable &, int *, int *, int *);
