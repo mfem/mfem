@@ -89,6 +89,7 @@ ThermalDiffusionTDO::ThermalDiffusionTDO(
    Coefficient & Q, bool td_Q)
    : TimeDependentOperator(H1_FESpace.GetVSize(), 0.0),
      init_(false),
+     nonLinear_(coef_type == 2),
      multCount_(0), solveCount_(0),
      // H1_FESpace_(&H1_FESpace),
      T_(&H1_FESpace),
@@ -98,7 +99,7 @@ ThermalDiffusionTDO::ThermalDiffusionTDO(
      ICoef_(2),
      bbTCoef_(unitBCoef_, unitBCoef_),
      chiPerpCoef_(ICoef_, bbTCoef_, chi_perp, -chi_perp),
-     chiParaCoef_(bbTCoef_, TCoef_, coef_type > 0, chi_para_min, chi_para_max),
+     chiParaCoef_(bbTCoef_, TCoef_, coef_type, chi_para_min, chi_para_max),
      chiCoef_(chiPerpCoef_, chiParaCoef_),
      dChiCoef_(bbTCoef_, TCoef_, chi_para_min, chi_para_max),
      impOp_(H1_FESpace,
@@ -171,9 +172,11 @@ ThermalDiffusionTDO::init()
    */
    // H1_FESpace_->GetEssentialTrueDofs(*bdr_attr_, ess_bdr_tdofs_);
 
+   newton_.SetPrintLevel(2);
+
    // newton_.SetOperator(impOp_);
    // newton_.SetSolver(impOp_.GetGradientSolver());
-   
+
    init_ = true;
 }
 
@@ -399,7 +402,13 @@ ThermalDiffusionTDO::ImplicitSolve(const double dt,
    dT_dt = 0.0;
    // cout << "sK size: " << sK_->Width() << ", T size: " << T.Size() << ", rhs_ size: " << rhs_->Size() << endl;
    //
-   T_ = T;
+   // T_ = T;
+   ostringstream ossT; ossT << "T_nl_" << solveCount_ << ".vec";
+   ofstream ofsT(ossT.str().c_str());
+   T.Print(ofsT);
+   ofsT.close();
+
+   T_.Distribute(T);
    /*
    sK_->Assemble();
    sK_->Mult(T, *rhs_);
@@ -421,13 +430,28 @@ ThermalDiffusionTDO::ImplicitSolve(const double dt,
    a_->RecoverFEMSolution(dTdt_, *rhs_, dT_dt);
    */
    // impOp_.SetTimeStep(dt);
+   cout << "Setting state" << endl;
    impOp_.SetState(T_, this->GetTime(), dt);
 
-   newton_.SetOperator(impOp_);
-   newton_.SetSolver(impOp_.GetGradientSolver());
+   cout << "GetGradSolver" << endl;
+   Solver & solver = impOp_.GetGradientSolver();
 
-   newton_.Mult(impOp_.GetRHS(), dT_dt);
-   
+   if (!nonLinear_)
+   {
+     cout << "Calling solver.Mult" << endl;
+     solver.Mult(impOp_.GetRHS(), dT_dt);
+     cout << "Done Calling solver.Mult" << endl;
+   }
+   else
+   {
+     cout << "SetOperator" << endl;
+     newton_.SetOperator(impOp_);
+     cout << "SetSolver" << endl;
+     newton_.SetSolver(solver);
+
+     cout << "Mult with b.Size(): " << impOp_.GetRHS().Size() << endl;
+     newton_.Mult(impOp_.GetRHS(), dT_dt);
+   }
    solveCount_++;
   cout << "Leaving ImplicitSolve" << endl;
 }
@@ -440,7 +464,8 @@ ImplicitDiffOp::ImplicitDiffOp(ParFiniteElementSpace & H1_FESpace,
 			       dChiCoef & dchi, bool tdDChi,
 			       Coefficient & heatSource, bool tdQ,
 			       bool nonlinear)
-  : first_(true),
+  : Operator(H1_FESpace.GetTrueVSize()),
+    first_(true),
     tdBdr_(tdBdr),
     tdCp_(tdCp),
     tdChi_(tdChi),
@@ -468,7 +493,10 @@ ImplicitDiffOp::ImplicitDiffOp(ParFiniteElementSpace & H1_FESpace,
     a0_(&H1_FESpace),
     dTdt_(&H1_FESpace),
     Q_(&H1_FESpace),
+    rhs_(&H1_FESpace),
+    // Q_RHS_(H1_FESpace.GetTrueVSize()),
     RHS_(H1_FESpace.GetTrueVSize()),
+    RHS0_(0),
     AInv_(NULL),
     APrecond_(NULL)
     // grad_(NULL),
@@ -489,7 +517,7 @@ ImplicitDiffOp::ImplicitDiffOp(ParFiniteElementSpace & H1_FESpace,
   Q_.AddDomainIntegrator(new DomainLFIntegrator(*QCoef_));
   if (!tdQ_) { Q_.Assemble(); }
 }
- 
+
 ImplicitDiffOp::~ImplicitDiffOp()
 {
   delete AInv_;
@@ -528,6 +556,9 @@ void ImplicitDiffOp::SetState(ParGridFunction & T, double t, double dt)
     s0chi_.Assemble();
     s0chi_.Finalize();
 
+    ofstream ofsS0("s0_const_initial.mat");
+    s0chi_.SpMat().Print(ofsS0);
+
     a0_.Assemble();
     a0_.Finalize();
   }
@@ -537,14 +568,19 @@ void ImplicitDiffOp::SetState(ParGridFunction & T, double t, double dt)
     s0chi_.Assemble();
     s0chi_.Finalize();
 
+    ofstream ofsS0("s0_lin_initial.mat");
+    s0chi_.SpMat().Print(ofsS0);
+
     a0_.Assemble();
     a0_.Finalize();
   }
   
   if ((tdQ_ && newTime_) || first_)
   {
+    cout << "Assembling Q" << endl;
      QCoef_->SetTime(t_ + dt_);
      Q_.Assemble();
+     cout << "Norm of Q: " << Q_.Norml2() << endl;
   }
 
   first_       = false;
@@ -554,6 +590,7 @@ void ImplicitDiffOp::SetState(ParGridFunction & T, double t, double dt)
 
 void ImplicitDiffOp::Mult(const Vector &dT, Vector &Q) const
 {
+  cout << "Entering ImplicitDiffOp::Mult" << endl;
   add(T0_, dt_, dT, T1_);
 
   if (tdChi_ && nonLinear_)
@@ -565,10 +602,13 @@ void ImplicitDiffOp::Mult(const Vector &dT, Vector &Q) const
 
   m0cp_.Mult(dT, Q);
   s0chi_.AddMult(T1_, Q);
+  Q -= Q_;
+  cout << "Leaving ImplicitDiffOp::Mult with Q: " << Q.Norml2() << endl;
 }
-  
+
 Operator & ImplicitDiffOp::GetGradient(const Vector &dT) const
 {
+  cout << "Entering GetGradient" << endl;
   if (tdChi_)
   {
     if (!nonLinear_)
@@ -583,58 +623,100 @@ Operator & ImplicitDiffOp::GetGradient(const Vector &dT) const
       dChiCoef_->SetTemp(T1_);
       gradTCoef_.SetGridFunction(&T1_);
     }
+    s0chi_.Assemble();
+    s0chi_.Finalize();
+
+    a0_.Update();
     a0_.Assemble();
     a0_.Finalize();
   }
 
-  dTdt_.ProjectBdrCoefficient(*bdrCoef_, ess_bdr_attr_);
-  a0_.FormLinearSystem(ess_bdr_tdofs_, dTdt_, Q_, A_, dTdt_, RHS_);
+  if (!nonLinear_)
+  {
+    ofstream ofsS0("s0.mat");
+    s0chi_.SpMat().Print(ofsS0);
 
+    // rhs_ = Q_;
+    // s0chi_.AddMult(T0_, rhs_, -1.0);
+    s0chi_.Mult(T0_, rhs_);
+
+    ofstream ofsT("T0.vec");
+    T0_.Print(ofsT);
+
+    ofstream ofsrhs("rhs_nl.vec");
+    rhs_.Print(ofsrhs);
+
+    ofstream ofsQ("Q_nl.vec");
+    Q_.Print(ofsQ);
+    
+    rhs_ -= Q_;
+    rhs_ *= -1.0;
+  }
+  
+  cout << "Project bdr" << endl;
+  dTdt_.ProjectBdrCoefficient(*bdrCoef_, ess_bdr_attr_);
+  cout << "Form Lin Sys" << endl;
+  a0_.FormLinearSystem(ess_bdr_tdofs_, dTdt_, rhs_, A_, dTdt_, RHS_);
+  A_.Print("A_nl.mat");
+  ofstream ofsB("b_nl.vec");
+  RHS_.Print(ofsB);
+  
+  cout << "Norm of RHS: " << RHS_.Norml2() << endl;
+  cout << "Leaving GetGradient" << endl;
   return A_;
 }
-  
+
 Solver & ImplicitDiffOp::GetGradientSolver() const
 {
    if (!nonLinear_)
    {
-      HyprePCG * AInv_pcg = NULL;
+      Operator & A_op = this->GetGradient(T0_); // T0_ will be ignored
+      HypreParMatrix & A_hyp = dynamic_cast<HypreParMatrix &>(A_op);
+
+      if (tdChi_)
+      {
+	 delete AInv_;     AInv_     = NULL;
+	 delete APrecond_; APrecond_ = NULL;
+      }
+
       if ( AInv_ == NULL )
       {
- 	 HyprePCG * AInv_pcg = new HyprePCG(A_);
+	 // A_hyp.Print("A.mat");
+	 
+	 HyprePCG * AInv_pcg = NULL;
+
+	 cout << "Building PCG" << endl;
+ 	 AInv_pcg = new HyprePCG(A_hyp);
          AInv_pcg->SetTol(1e-12);
          AInv_pcg->SetMaxIter(200);
          AInv_pcg->SetPrintLevel(0);
+	 if ( APrecond_ == NULL )
+	 {
+	   cout << "Building AMG" << endl;
+	   APrecond_ = new HypreBoomerAMG(A_hyp);
+	   APrecond_->SetPrintLevel(0);
+	   AInv_pcg->SetPreconditioner(*APrecond_);
+	 }
+	 AInv_ = AInv_pcg;
       }
-      else
-      {
-         AInv_->SetOperator(A_);
-      }
-      if ( APrecond_ == NULL )
-      {
-         APrecond_ = new HypreBoomerAMG(A_);
-         APrecond_->SetPrintLevel(0);
-         AInv_pcg->SetPreconditioner(*APrecond_);
-      }
-      else
-      {
-         APrecond_->SetOperator(A_);
-      }
-      AInv_ = AInv_pcg;
    }
    else
    {
-     HypreGMRES * AInv_gmres = NULL;
      if (AInv_ == NULL)
      {
-       AInv_gmres = new HypreGMRES(A_);
-       AInv_gmres->SetTol(1e-12);
+       GMRESSolver * AInv_gmres = NULL;
+
+       cout << "Building GMRES" << endl;
+       AInv_gmres = new GMRESSolver(T0_.ParFESpace()->GetComm());
+       AInv_gmres->SetRelTol(1e-12);
+       AInv_gmres->SetAbsTol(0.0);
        AInv_gmres->SetMaxIter(200);
        AInv_gmres->SetPrintLevel(0);
+       AInv_ = AInv_gmres;
      }
-     AInv_ = AInv_gmres;
    }
-  
-  return *AInv_;
+
+   return *AInv_;
 }
 
 } // namespace thermal

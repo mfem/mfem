@@ -29,11 +29,34 @@ void display_banner(ostream & os);
 
 static int prob_ = 1;
 
-double QFunc(const Vector &x)
+double QFunc(const Vector &x, double t)
 {
-   return 2.0 * M_PI * M_PI * sin(M_PI * x[0]) * sin(M_PI * x[1]);
+  if ( prob_ % 2 == 1)
+    return 2.0 * M_PI * M_PI * sin(M_PI * x[0]) * sin(M_PI * x[1]);
+  else
+  {
+    double a = 0.4;
+    double b = 0.8;
+
+    double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
+    double e = exp(-0.25 * t * M_PI * M_PI / (a * b) );
+
+    if ( r == 0.0 )
+      return 0.25 * M_PI * M_PI *
+	( (1.0 - e) * ( pow(a, -2) + pow(b, -2) ) + e / (a * b));
+    
+    return ( M_PI / r ) *
+      ( 0.25 * M_PI * pow(a * b, -4) *
+	( pow(b * b * x[0],2) + pow(a * a * x[1], 2) +
+	  (a - b) * (b * pow(b * x[0], 2) - a * pow(a*x[1],2)) * e) *
+	  cos(0.5 * M_PI * sqrt(r)) +
+	0.5 * pow(a * b, -2) * (x * x) * (1.0 - e) *
+	sin(0.5 * M_PI * sqrt(r)) / sqrt(r)
+	);
+  }
 }
 
+static double chi_perp_      = 1.0;
 static double chi_max_ratio_ = 1.0;
 static double chi_min_ratio_ = 1.0;
 
@@ -72,7 +95,7 @@ int main(int argc, char *argv[])
    if (mpi.Root()) { display_banner(cout); }
 
    // 2. Parse command-line options.
-   int n = 1;
+   int n = -1;
    int order = 1;
    int irOrder = -1;
    int el_type = Element::QUADRILATERAL;
@@ -83,6 +106,7 @@ int main(int argc, char *argv[])
    double t_final = 5.0;
    double tol = 1e-4;
    const char *basename = "Fourier";
+   const char *mesh_file = "";
    bool zero_start = true;
    bool static_cond = false;
    bool gfprint = true;
@@ -90,6 +114,8 @@ int main(int argc, char *argv[])
    bool visualization = true;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&mesh_file, "-m", "--mesh",
+                  "Mesh file to use.");
    args.AddOption(&n, "-n", "--num-elems-1d",
                   "Number of elements in x and y directions.  "
                   "Total number of elements is n^2.");
@@ -103,6 +129,8 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&irOrder, "-iro", "--int-rule-order",
                   "Integration Rule Order.");
+   args.AddOption(&chi_perp_, "-chi-perp", "--chi-perpendicular",
+                  "Chi_perp.");
    args.AddOption(&chi_max_ratio_, "-chi-max", "--chi-max-ratio",
                   "Ratio of chi_max_parallel/chi_perp.");
    args.AddOption(&chi_min_ratio_, "-chi-min", "--chi-min-ratio",
@@ -157,7 +185,9 @@ int main(int argc, char *argv[])
    // 3. Construct a (serial) mesh of the given size on all processors.  We
    //    can handle triangular and quadrilateral surface meshes with the
    //    same code.
-   Mesh *mesh = new Mesh(n, n, (Element::Type)el_type, 1);
+   Mesh *mesh = (n > 0) ?
+     new Mesh(n, n, (Element::Type)el_type, 1) :
+     new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
    // 4. This step is no longer needed
@@ -246,6 +276,7 @@ int main(int argc, char *argv[])
    ParGridFunction T1(&HGradFESpace);
    ParGridFunction T0(&HGradFESpace);
    ParGridFunction dT(&HGradFESpace);
+   ParGridFunction Qs(&HGradFESpace);
    T0 = 0.0;
    T1 = 0.0;
    dT = 1.0;
@@ -261,13 +292,15 @@ int main(int argc, char *argv[])
    // MatrixFunctionCoefficient ConductionCoef(2, ChiFunc);
    FunctionCoefficient HeatSourceCoef(QFunc);
 
+   Qs.ProjectCoefficient(HeatSourceCoef);
+   
    // 14. Initialize the Diffusion operator, the GLVis visualization and print
    //     the initial energies.
    ThermalDiffusionTDO oper(HGradFESpace,
 			    zeroCoef, ess_bdr,
-			    1.0,
-			    chi_min_ratio_,
-			    chi_max_ratio_,
+			    chi_perp_,
+			    chi_min_ratio_ * chi_perp_,
+			    chi_max_ratio_ * chi_perp_,
 			    prob_,
 			    coef_type,
 			    SpecificHeatCoef, false,
@@ -277,7 +310,7 @@ int main(int argc, char *argv[])
    // This function initializes all the fields to zero or some provided IC
    // oper.Init(F);
 
-   socketstream vis_T;
+   socketstream vis_T, vis_Q;
    char vishost[] = "localhost";
    int  visport   = 19916;
    if (visualization)
@@ -290,16 +323,22 @@ int main(int argc, char *argv[])
 
       int Wx = 0, Wy = 0; // window position
       int Ww = 350, Wh = 350; // window size
-      // int offx = Ww+10, offy = Wh+45; // window offsets
+      int offx = Ww+10;//, offy = Wh+45; // window offsets
 
       miniapps::VisualizeField(vis_T, vishost, visport,
                                T1, "Temperature", Wx, Wy, Ww, Wh);
-   }
+
+      vis_Q.precision(8);
+
+      miniapps::VisualizeField(vis_Q, vishost, visport,
+                               Qs, "Heat Soruce", Wx+offx, Wy, Ww, Wh);
+}
    // VisIt visualization
    VisItDataCollection visit_dc(basename, pmesh);
    if ( visit )
    {
       visit_dc.RegisterField("T", &T1);
+      visit_dc.RegisterField("Qs", &Qs);
 
       visit_dc.SetCycle(0);
       visit_dc.SetTime(0.0);

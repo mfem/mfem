@@ -151,7 +151,7 @@ public:
   //Solver & GetGradientSolver() const { return *solver_; }
   Solver & GetGradientSolver() const;
 
-  const Vector & GetRHS() const { return RHS_; }
+  const Vector & GetRHS() const { return (nonLinear_) ? RHS0_ : RHS_; }
   
 private:
 
@@ -192,9 +192,12 @@ private:
   mutable HypreParMatrix A_;
   mutable ParGridFunction dTdt_;
   mutable ParLinearForm Q_;
-  mutable Vector RHS_;
+  mutable ParLinearForm rhs_;
+  // mutable Vector Q_RHS_;
+  mutable  Vector RHS_;
+  Vector RHS0_; // Dummy RHS vector which hase length zero
 
-  mutable HypreSolver    * AInv_;
+  mutable Solver         * AInv_;
   mutable HypreBoomerAMG * APrecond_;
 
   // Operator * grad_;
@@ -293,7 +296,8 @@ private:
    // bool initA_;
    // bool initAInv_;
    bool newTime_;
-
+   bool nonLinear_;
+  
    mutable int multCount_;
    int solveCount_;
 
