@@ -568,15 +568,15 @@ void ImplicitDiffOp::SetState(ParGridFunction & T, double t, double dt)
   {
     chiCoef_->SetTemp(T0_);
     s0chi_.Update();
-    s0chi_.Assemble();
-    s0chi_.Finalize();
+    s0chi_.Assemble(0);
+    s0chi_.Finalize(0);
 
     ofstream ofsS0("s0_lin_initial.mat");
     s0chi_.SpMat().Print(ofsS0);
 
     a0_.Update();
-    a0_.Assemble();
-    a0_.Finalize();
+    a0_.Assemble(0);
+    a0_.Finalize(0);
   }
   
   if ((tdQ_ && newTime_) || first_)
@@ -602,8 +602,8 @@ void ImplicitDiffOp::Mult(const Vector &dT, Vector &Q) const
   {
     chiCoef_->SetTemp(T1_);
     s0chi_.Update();
-    s0chi_.Assemble();
-    s0chi_.Finalize();
+    s0chi_.Assemble(0);
+    s0chi_.Finalize(0);
   }
 
   m0cp_.Mult(dT_, Q_);
@@ -632,12 +632,12 @@ Operator & ImplicitDiffOp::GetGradient(const Vector &dT) const
       gradTCoef_.SetGridFunction(&T1_);
     }
     s0chi_.Update();
-    s0chi_.Assemble();
-    s0chi_.Finalize();
+    s0chi_.Assemble(0);
+    s0chi_.Finalize(0);
 
     a0_.Update();
-    a0_.Assemble();
-    a0_.Finalize();
+    a0_.Assemble(0);
+    a0_.Finalize(0);
   }
 
   if (!nonLinear_)
