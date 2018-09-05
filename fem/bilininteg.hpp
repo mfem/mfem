@@ -329,6 +329,12 @@ public:
                                        ElementTransformation &Trans,
                                        DenseMatrix &elmat);
 
+   /// Support for use in BilinearForm. Can be used only when appropriate.
+   virtual void AssembleElementMatrix(const FiniteElement &fe,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat)
+   { AssembleElementMatrix2(fe, fe, Trans, elmat); }
+
 protected:
 
    MixedScalarVectorIntegrator(VectorCoefficient &vq, bool _transpose = false,
@@ -1387,7 +1393,7 @@ public:
 };
 
 /** Class for integrating the bilinear form a(u,v) := (-V u, Grad v) in 2D or 3D
-    and where V is a vector coefficient, u is in H1 and v is in H1. */
+    and where V is a vector coefficient, u is in H1 or L2 and v is in H1. */
 class MixedScalarWeakDivergenceIntegrator : public MixedScalarVectorIntegrator
 {
 public:
