@@ -183,6 +183,16 @@ Vector &Vector::operator-=(const Vector &v)
    return *this;
 }
 
+// added by srw for exaconstit
+Vector &Vector::operator+=(double c)
+{
+   for (int i = 0; i < size; i++)
+   {
+      data[i] += c;
+   }
+   return *this;
+}
+
 Vector &Vector::operator+=(const Vector &v)
 {
 #ifdef MFEM_DEBUG

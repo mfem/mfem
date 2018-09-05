@@ -26,19 +26,19 @@ void QuadratureVectorFunctionCoefficient::Eval(Vector &V,
                                                ElementTransformation &T,
                                                const IntegrationPoint &ip)
 {
-   mfem_error ("QuadratureVectorFunctionCoefficient::Eval (...)\n"
-               "   is not implemented for this class.");
+   int elem_no = T.ElementNo;
+   QuadF->GetElementValues(elem_no, ip.ipID, V); 
    return;
 }
 
-void QuadratureVectorFunctionCoefficient::EvalQ(Vector &V,
-                                                ElementTransformation &T,
-                                                const int ip_num)
-{
-   int elem_no = T.ElementNo;
-   QuadF->GetElementValues(elem_no, ip_num, V);
-   return;
-}
+//void QuadratureVectorFunctionCoefficient::EvalQ(Vector &V,
+//                                                ElementTransformation &T,
+//                                                const int ip_num)
+//{
+//   int elem_no = T.ElementNo;
+//   QuadF->GetElementValues(elem_no, ip_num, V);
+//   return;
+//}
 
 
 }

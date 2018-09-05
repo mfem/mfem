@@ -44,8 +44,8 @@ public:
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
-   virtual void EvalQ(Vector &V, ElementTransformation &T,
-                      const int ip_num);
+//   virtual void EvalQ(Vector &V, ElementTransformation &T,
+//                      const int ip_num);
 
    virtual ~QuadratureVectorFunctionCoefficient() { };
 };

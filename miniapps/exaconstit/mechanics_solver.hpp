@@ -12,10 +12,12 @@
 #ifndef MECHANICS_SOLVER
 #define MECHANICS_SOLVER
 
-#include "mfem.hpp"
+#include "../../linalg/solvers.hpp"
 
 namespace mfem
 {
+
+class IterativeSolver;
 
 /// Newton's method for solving F(x)=b for a given operator F.
 /** The method GetGradient() must be implemented for the operator F.
@@ -27,10 +29,10 @@ protected:
    mutable Vector r, c;
 
 public:
-   NewtonSolver() { }
+   ExaNewtonSolver() { }
 
 #ifdef MFEM_USE_MPI
-   NewtonSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
+   ExaNewtonSolver(MPI_Comm _comm) : IterativeSolver(_comm) { }
 #endif
    virtual void SetOperator(const Operator &op);
 

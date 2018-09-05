@@ -13,11 +13,112 @@
 #include "mechanics_integrators.hpp"
 #include "BCManager.hpp"
 #include <math.h> // log 
+#include <iostream> // cerr
 
 namespace mfem
 {
 
-// TODO have to call GetQuadFunction on the QuadVectorFunctionCoefficient
+using namespace std;
+
+void computeDefGrad(const QuadratureFunction *qf, const ParFiniteElementSpace *fes, 
+                    const Vector &x0)
+{
+   const FiniteElement *fe;
+   const IntegrationRule *ir;
+   double* qf_data = qf->GetData();
+   int qf_offset = qf->GetVDim(); // offset at each integration point
+   QuadratureSpace* qspace = qf->GetSpace();
+
+   // loop over elements
+   for (int i = 0; i < fes->GetNE(); ++i)
+   {
+      // get element transformation for the ith element
+      ElementTransformation* Ttr = fes->GetElementTransformation(i);
+      fe = fes->GetFE(i);
+
+      // declare data to store shape function gradients 
+      // and element Jacobians
+      DenseMatrix Jrt, DSh, DS, PMatI, Jpt, F0, F1;
+      int dof = fe->GetDof(), dim = fe->GetDim();
+
+      if (qf_offset != (dim*dim))
+      {
+         mfem_error("computeDefGrd0 stride input arg not dim*dim");
+      }
+
+      DSh.SetSize(dof,dim);
+      DS.SetSize(dof,dim);
+      Jrt.SetSize(dim);
+      Jpt.SetSize(dim);
+      F0.SetSize(dim);
+      F1.SetSize(dim);
+
+      // get element physical coordinates
+      Array<int> vdofs;
+      Vector el_x;
+      fes->GetElementVDofs(i, vdofs);
+      x0.GetSubVector(vdofs, el_x);
+      PMatI.UseExternalData(el_x.GetData(), dof, dim);
+      
+      ir = &(qspace->GetElementIntRule(i));
+      int elem_offset = qf_offset * ir->GetNPoints();
+
+      // loop over integration points where the quadrature function is 
+      // stored
+      for (int j = 0; j < ir->GetNPoints(); ++j)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         Ttr->SetIntPoint(&ip);
+         CalcInverse(Ttr->Jacobian(), Jrt);
+         
+         fe->CalcDShape(ip, DSh);
+         Mult(DSh, Jrt, DS);
+         MultAtB(PMatI, DS, Jpt); 
+
+         // store local beginning step deformation gradient for a given 
+         // element and integration point from the quadrature function 
+         // input argument. We want to set the new updated beginning 
+         // step deformation gradient (prior to next time step) to the current
+         // end step deformation gradient associated with the converged 
+         // incremental solution. The converged _incremental_ def grad is Jpt 
+         // that we just computed above. We compute the updated beginning 
+         // step def grad as F1 = Jpt*F0; F0 = F1; We do this because we 
+         // are not storing F1.
+         int k = 0; 
+         for (int m = 0; m < dim; ++m)
+         {
+            for (int n = 0; n < dim; ++n)
+            {
+               F0(m,n) = qf_data[i * elem_offset + j * qf_offset + k];
+               ++k;
+            }
+         }
+
+         // compute F1 = Jpt*F0;
+         Mult(Jpt, F0, F1);
+
+         // set new F0 = F1
+         F0 = F1;
+  
+         // loop over element Jacobian data and populate 
+         // quadrature function with the new F0 in preparation for the next 
+         // time step. Note: offset0 should be the 
+         // number of true state variables. 
+         k = 0; 
+         for (int m = 0; m < dim; ++m)
+         {
+            for (int n = 0; n < dim; ++n)
+            {
+               qf_data[i * elem_offset + j * qf_offset + k] = 
+                  F0(m,n);
+               ++k;
+            }
+         }
+      }
+   }
+
+   return;
+}
 
 // member functions for the Abaqus Umat base class
 int ExaModel::GetStressOffset()
@@ -235,7 +336,8 @@ void ExaModel::GetElementMatGrad(const int elID, const int ipNum, double* grad,
    return;
 }
 
-void ExaModel::SetElementMatGrad(const int elID, const int ipNum, double* grad)
+void ExaModel::SetElementMatGrad(const int elID, const int ipNum, 
+                                 double* grad, int numComps)
 {
    const IntegrationRule *ir;
    double* qf_data;
@@ -292,11 +394,7 @@ void ExaModel::GetElemDefGrad0()
    qf_offset = qf->GetVDim();
    qspace    = qf->GetSpace();
 
-   // get finite element object off the element transformation 
-   // on the ExaModel base class to get the dimension 
-   // of that element.
-   FiniteElement* fe =  Ttr->GetFE();
-   int dim = fe->GetDim();
+   int dim = Ttr->GetDimension();
 
    // clear the Jacobian
    Jpt0.Clear();
@@ -326,10 +424,9 @@ void ExaModel::GetElemDefGrad0()
 
    return;
 }
-void ExaModel::SetElemDefGrad1(DenseMatrix& Jpt)
+void ExaModel::CalcElemDefGrad1(const DenseMatrix& Jpt)
 {
-   FiniteElement* fe = Ttr->GetFE();
-   int dim = fe->GetDim();
+   int dim = Ttr->GetDimension();
    
    Jpt1.Clear();
    Jpt1.SetSize(dim);
@@ -403,11 +500,10 @@ void ExaModel::UpdateStateVars(int elID, int ipNum)
    return;
 }
 
-void ExaModel::UpdateModelVars(ParFiniteElementSpace *fes, 
-                                       const Vector &x)
+void ExaModel::UpdateModelVars(const ParFiniteElementSpace *fes, 
+                               const Vector &x)
 {
-// update the beginning step deformation gradient, which is set to the current, 
-// converged endstep deformation gradient
+// update the beginning step deformation gradient
    QuadratureFunction* defGrad = defGrad0.GetQuadFunction();
    computeDefGrad(defGrad, fes, x);
    return;
@@ -443,6 +539,113 @@ void ExaModel::SymVoigtToDenseMat(const double* const A, DenseMatrix& B)
    return;
 }
 
+void ExaModel::CauchyToPK1()
+{
+   double det;
+   DenseMatrix FinvT;
+
+   // compute the determinant of the END STEP deformation gradient
+   det = Jpt1.Det();
+
+   int size = Jpt1.Size();
+
+   FinvT.SetSize(size);
+
+   // set size of local PK1 stress matrix stored on the model
+   P.SetSize(size);
+
+   // calculate the inverse transpose of the matrix
+   CalcInverseTranspose(Jpt1, FinvT);
+   
+   // get Cauchy stress
+   double sig[6];
+   GetElementStress(elemID, ipID, false, sig, 6);
+
+   // populate full DenseMatrix 
+   DenseMatrix Cauchy;
+   Cauchy.SetSize(size);
+
+   SymVoigtToDenseMat(sig, Cauchy); 
+
+   // calculate first Piola Kirchhoff stress
+   Mult(Cauchy, FinvT, P);
+   P *= det;
+
+   return;
+}
+
+void ExaModel::PK1ToCauchy(const DenseMatrix& P, double* sigma)
+{
+   double det;
+   DenseMatrix cauchy;
+   DenseMatrix Jpt1_t;
+   
+   det = Jpt1.Det(); 
+   int size = Jpt1.Size();
+   cauchy.SetSize(size);
+   Jpt1_t.SetSize(size);
+
+   Jpt1_t.Transpose(Jpt1);
+
+   Mult(P, Jpt1_t, cauchy);
+
+   cauchy *= 1.0 / det;
+
+   sigma[0] = cauchy(0,0);
+   sigma[1] = cauchy(1,1);
+   sigma[2] = cauchy(2,2);
+   sigma[3] = cauchy(1,2);
+   sigma[4] = cauchy(0,2);
+   sigma[5] = cauchy(0,1);
+   
+   return;
+}
+
+void ExaModel::ComputeVonMises(const int elemID, const int ipID)
+{
+   QuadratureFunction *vm_qf = vonMises.GetQuadFunction();
+   QuadratureSpace* vm_qspace = vm_qf->GetSpace();
+   const IntegrationRule *ir;
+
+   if (vm_qspace == NULL)
+   {
+      QuadratureFunction *qf_stress0 = stress0.GetQuadFunction();
+      QuadratureSpace* qspace = qf_stress0->GetSpace();
+      int vdim = 1; // scalar von Mises data at each IP
+      vm_qf->SetSpace(qspace, vdim); // construct object
+   }
+
+   QuadratureSpace* qspace = vm_qf->GetSpace();
+   double* vmData = vm_qf->GetData();
+   int vmOffset = vm_qf->GetVDim();
+
+   ir = &(qspace->GetElementIntRule(elemID));
+   int elemVmOffset = vmOffset * ir->GetNPoints();
+
+   double istress[6];
+   GetElementStress(elemID, ipID, true, istress, 6);
+
+   double term1 = istress[0] - istress[1];
+   term1 *= term1;
+
+   double term2 = istress[1] - istress[2];
+   term2 *= term2;
+
+   double term3 = istress[2] - istress[0];
+   term3 *= term3;
+
+   double term4 = istress[3]*istress[3] + istress[4]*istress[4] 
+                  + istress[5]*istress[5];
+   term4 *= 6.0;
+                  
+   double vm = 0.5 * sqrt(term1 + term2 + term3 + term4);
+
+   // set the von Mises quadrature function data
+   vmData[elemID * elemVmOffset + ipID * vmOffset] = vm;
+   
+   return;
+}
+
 void AbaqusUmatModel::CalcLogStrain(DenseMatrix& E)
 {
    // calculate current end step logorithmic strain (Hencky Strain) 
@@ -454,8 +657,7 @@ void AbaqusUmatModel::CalcLogStrain(DenseMatrix& E)
 
    DenseMatrix C, F;
 
-   FiniteElement* fe = Ttr->GetFE();
-   int dim = fe->GetDim();
+   int dim = Ttr->GetDimension();
 
    C.SetSize(dim); 
 
@@ -466,7 +668,7 @@ void AbaqusUmatModel::CalcLogStrain(DenseMatrix& E)
    // compute eigenvalue decomposition of C
    double lambda[dim];
    double vec[dim];
-   C.CalcEigenValues(lambda, vec);
+   C.CalcEigenvalues(lambda, vec);
 
    // compute ln(C) using spectral representation
    E = 0.0;
@@ -496,8 +698,7 @@ void AbaqusUmatModel::CalcLogStrainIncrement(DenseMatrix& dE)
 
    DenseMatrix F_hat, C_hat;
 
-   FiniteElement* fe = Ttr->GetFE();
-   int dim = fe->GetDim();
+   int dim = Ttr->GetDimension();
 
    F_hat.SetSize(dim);
    C_hat.SetSize(dim); 
@@ -509,7 +710,7 @@ void AbaqusUmatModel::CalcLogStrainIncrement(DenseMatrix& dE)
    // compute eigenvalue decomposition of C
    double lambda[dim];
    double vec[dim];
-   C_hat.CalcEigenValues(lambda, vec);
+   C_hat.CalcEigenvalues(lambda, vec);
 
    // compute ln(C) using spectral representation
    dE = 0.0;
@@ -540,7 +741,7 @@ void AbaqusUmatModel::EvalModel(const DenseMatrix &Jpt, const DenseMatrix &DS,
 
    // get the TOTAL end-step (at a given NR iteration) deformation 
    // gradient
-   SetElemDefGrad1(Jpt); 
+   CalcElemDefGrad1(Jpt); 
 
    //======================================================
    // Set UMAT input arguments 
@@ -597,8 +798,9 @@ void AbaqusUmatModel::EvalModel(const DenseMatrix &Jpt, const DenseMatrix &DS,
    // they sub-increment between tn->tn+1, where there is a Newton Raphson loop 
    // advancing the sub-increment. For now, set time[0] to 0.0 and time[1] to the 
    // actual beginning step total time.
+   double time[2];
    time[0] = 0.0;
-   time[1] = time; 
+   time[1] = t; 
 
    double stress[6]; // Cauchy stress at ip 
    double ddsddt[6]; // variation of the stress increments wrt to temperature, set to 0.0
@@ -723,11 +925,11 @@ void AbaqusUmatModel::EvalModel(const DenseMatrix &Jpt, const DenseMatrix &DS,
    dstran[5] = dLogStrain(1,2);
 
    // call fortran umat routine
-   umat(stress, statev, ddsdde, sse, spd, scd, rpl, 
-        ddsddt, drplde, drpldt, stran, dstran, time, deltaTime,
-        temp, dtemp, predef, dpred, cmname, &ndi, &nshr, &ntens,
-        &nstatv, props, &nprops, coords, drot, &pnewdt, celent,
-        dfgrd0, dfgrd1, noel, npt, layer, kspt, kstep, kinc);
+   umat(stress, statev, ddsdde, &sse, &spd, &scd, &rpl, 
+        ddsddt, drplde, &drpldt, stran, dstran, time, &deltaTime,
+        &temp, &dtemp, &predef[0], &dpred[0], &cmname, &ndi, &nshr, &ntens,
+        &nstatv, props, &nprops, coords, drot, &pnewdt, &celent,
+        dfgrd0, dfgrd1, &noel, &npt, &layer, &kspt, &kstep, &kinc);
 
    // restore the material Jacobian in a 1D array
    double mGrad[36];
@@ -769,19 +971,46 @@ void AbaqusUmatModel::EvalModel(const DenseMatrix &Jpt, const DenseMatrix &DS,
    return;
 }
 
+void AbaqusUmatModel::AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                                const double weight, DenseMatrix &A)
+{  
+   // TODO get the material gradient off the quadrature vector function coeff.
+   // Note: the Abaqus UMAT passes back 36 components in a 2D array of 
+   // the symmetric fourth order tangent stiffness (of the Cauchy stress).
+   // Figure out how to handle this in the easiest way.
+   //
+   int offset = 36;
+   double matGrad[offset];
+
+   GetElementMatGrad(elemID, ipID, matGrad, offset);
+
+   // get the TOTAL beginning step deformation gradient stored on the model
+   // as Jpt0
+   GetElemDefGrad0(); 
+
+   // get the TOTAL end-step (at a given NR iteration) deformation 
+   // gradient (stored on the model as Jpt1)
+   CalcElemDefGrad1(Jpt); 
+
+   // TODO finish implementing this routine
+   // if (model->cauchy) then do chain rule. Neohookean give the PK1 
+   // stress and the correct material tangent so no chain rule should 
+   // be needed
+
+   return;
+}
+
 void AbaqusUmatModel::CalcElemLength()
 {
    // unclear how important a characteristic element length is to 
    // a UMAT for implicit mechanics. Just compute the largest 
    // euclidean distance between the first node and any other node
-   FiniteElement* fe =  Ttr->GetFE();
-   int dof = fe->GetDof();
-   int dim = fe->GetDim();
+   int dim = Ttr->GetDimension();
 
    double len[dim]; 
    double maxLen = 0.0;
    double mag = 0.0;
-   for (int i=1; i<dof; ++i)
+   for (int i=1; i<dim; ++i)
    {
       len[0] = currElemCoords(i,0) - currElemCoords(0,0);
       len[1] = currElemCoords(i,1) - currElemCoords(0,1);
@@ -797,39 +1026,6 @@ void AbaqusUmatModel::CalcElemLength()
    return;
 }
 
-void AbaqusUmatModel::CauchyToPK1()
-{
-   double det;
-   DenseMatrix FinvT;;
-
-   // compute the determinant of the end step deformation gradient
-   det = Jpt1.Det();
-
-   int size = Jpt1.Size();
-
-   FinvT.SetSize(size);
-   P.SetSize(size);
-
-   // calculate the inverse transpose of the matrix
-   CalcInverseTranspose(Jpt1, FinvT);
-   
-   // get Cauchy stress
-   double sig[6];
-   GetElementStress(elemID, ipID, false, sig, 6);
-
-   // populate full DenseMatrix 
-   DenseMatrix Cauchy;
-   Cauchy.SetSize(size);
-
-   SymVoigtToDenseMat(sig, Cauchy); 
-
-   // calculate first Piola Kirchhoff stress
-   Mult(Cauchy, FinvT, P)
-   P *= det;
-
-   return;
-}
-
 inline void NeoHookean::EvalCoeffs() const
 {
    mu = c_mu->Eval(*Ttr, Ttr->GetIntPoint());
@@ -841,44 +1037,71 @@ inline void NeoHookean::EvalCoeffs() const
 }
 
 void NeoHookean::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
-                           const double weight);
+                           const double weight)
 {
    // note: the J passed in is associated with the incremental 
    // nodal solution, so this is the incremental deformation 
-   // gradient. We have to convert this to the full end step 
-   // deformation gradient
-
-   // get the beginning step deformation gradient. Note: even though 
-   // F0 = I in the incremental form, a UMAT expects beginning step 
-   // TOTAL deformation gradient.
-   GetElemDefGrad0(); 
-
-   // get the TOTAL end-step (at a given NR iteration) deformation 
-   // gradient
-   SetElemDefGrad1(J); 
+   // gradient. 
 
    if (have_coeffs)
    {
       EvalCoeffs();
    }
 
-   // compute PK1, old EvalP
+   // compute full end step PK1, old EvalP using the FULL end step 
+   // deformation gradient, NOT the incremental one computed from the 
+   // element transformation
+   
+   int dim = J.Width();
+
+   Z.SetSize(dim);
+   CalcAdjugateTranspose(J, Z);
+
+   double dJ = J.Det();
+   double a  = mu*pow(dJ, -2.0/dim);
+   double b  = K*(dJ/g - 1.0)/g - a*(J*J)/(dim*dJ);
+
+   DenseMatrix P_hat;
+   P_hat.SetSize(dim);
+   P_hat = 0.0;
+   P_hat.Add(a, J);
+   P_hat.Add(b, Z);
+
+   // convert the incremental PK1 stress to an incremental Cauchy stress. Note, 
+   // we only store the 6 unique components of the symmetric Cauchy stress tensor
+   double sigmaHat[6];
+   for (int i=0; i<6; ++i) sigmaHat[i] = 0.0;
+   printf("NeoHookean::EvalModel before PK1ToCauchy \n");
+   PK1ToCauchy(P_hat, sigmaHat);
+
+   // update total stress; We store the Cauchy stress, so we have to update 
+   // that, and then we want to also carry around a local full PK1 stress 
+   // that is used in the integrator, so we will have to convert back.
+
+   double sigma[6];
+   printf("NeoHookean::EvalModel before GetElementStress \n");
+   GetElementStress(elemID, ipID, true, sigma, 6);
+
+   // update stress
+   printf("NeoHookean::EvalModel before stress update \n");
+   for (int i=0; i<6; ++i)
    {
-      int dim = Jpt1.Width();
-
-      Z.SetSize(dim);
-      CalcAdjugateTranspose(Jpt1, Z);
-
-      double dJ = Jpt1.Det();
-      double a  = mu*pow(dJ, -2.0/dim);
-      double b  = K*(dJ/g - 1.0)/g - a*(Jpt1*Jpt1)/(dim*dJ);
-
-      P = 0.0;
-      P.Add(a, Jpt1);
-      P.Add(b, Z);
+      sigma[i] += sigmaHat[i];
    }
 
-   // get material Jacobian, old AssembleH
+   // set full updated stress on the quadrature function
+   printf("NeoHookean::EvalModel before SetElementStress \n");
+   SetElementStress(elemID, ipID, false, sigma, 6);
+
+   // convert back to store local PK1 stress for use in integrator. This 
+   // will pull the appropriate Cauchy stress components off the quadrature 
+   // function and compute the local P (PK1 stress) stored on the model
+   printf("NeoHookean::EvalModel before CauchyToPK1 \n");
+   CauchyToPK1();
+
+   // compute material Jacobian, old AssembleH, with respect to the 
+   // incremental nodal displacement unknowns
+   printf("NeoHookean::EvalModel before old AssembleH code \n");
    {
       int dof = DS.Height(), dim = DS.Width();
 
@@ -891,18 +1114,18 @@ void NeoHookean::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
 
       CMat = 0.0;
 
-      double dJ = Jpt1.Det();
+      double dJ = J.Det();
       double sJ = dJ/g;
       double a  = mu*pow(dJ, -2.0/dim);
-      double bc = a*(Jpt1*Jpt1)/dim;
+      double bc = a*(J*J)/dim;
       double b  = bc - K*sJ*(sJ - 1.0);
       double c  = 2.0*bc/dim + K*sJ*(2.0*sJ - 1.0);
 
-      CalcAdjugateTranspose(Jpt1, Z);
-      Z *= (1.0/dJ); // Z = Jpt1^{-t}
+      CalcAdjugateTranspose(J, Z);
+      Z *= (1.0/dJ); // Z = J^{-t}
 
-      MultABt(DS, Jpt1, C); // C = DS Jpt1^t
-      MultABt(DS, Z, G); // G = DS Jpt1^{-1}
+      MultABt(DS, J, C); // C = DS J^t
+      MultABt(DS, Z, G); // G = DS J^{-1}
 
       a *= weight;
       b *= weight;
@@ -942,38 +1165,54 @@ void NeoHookean::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
                   CMat(i+j*dof,k+l*dof) +=
                      a*(C(i,j)*G(k,l) + G(i,j)*C(k,l)) +
                      b*G(i,l)*G(k,j) + c*G(i,j)*G(k,l);
-               }
+               } // end all loops
 
-      // TODO store Cmat on the quadrature function, matGrad 
-      // on the model
+      // set the material stiffness on the model
+      double matGrad[(dof*dim)*(dof*dim)];
+      for (int i=0; i<(dof*dim); ++i)
+      {
+         for (int j=0; j<(dof*dim); ++j)
+         {
+            // row wise ordering
+            matGrad[dof * dim * i + j] = CMat(i,j);
+         }
+      }
+
+      printf("NeoHookean::EvalModel before SetElementMatGrad \n");
+//      printf("matGrad stride (dof*dim)*(dof*dim) %f\n", (dof*dim)*(dof*dim));
+      SetElementMatGrad(elemID, ipID, matGrad, (dof*dim)*(dof*dim));
+      printf("NeoHookean::EvalModel after SetElementMatGrad \n");
+
    }
+   printf("NeoHookean::EvalModel after old AssembleH code \n");
 
    return;
 }
 
-double NeoHookean::EvalW(const DenseMatrix &J) const
-{
-   // get the beginning step deformation gradient. Note: even though 
-   // F0 = I in the incremental form, a UMAT expects beginning step 
-   // TOTAL deformation gradient.
-   GetElemDefGrad0(); 
+void NeoHookean::AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                           const double weight, DenseMatrix &A)
+{  
+   int dof = A.Height(), dim = A.Width();
+   double matGrad[(dof*dim)*(dof*dim)];
 
-   // get the TOTAL end-step (at a given NR iteration) deformation 
-   // gradient
-   SetElemDefGrad1(J); 
-   
-   int dim = Jpt1.Width();
+   printf("NeoHookean::AssembleH before GetElementMatGrad \n");
+   GetElementMatGrad(elemID, ipID, matGrad, (dof*dim)*(dof*dim));
+   printf("NeoHookean::AssembleH after GetElementMatGrad \n");
 
-   if (have_coeffs)
+   // assemble the material tangent stiffness into the input/output 
+   // argument, A. Note that the 1D array of the material gradient 
+   // components stored on the model's quadrature function are stored 
+   // in a row-wise fashion
+   for (int i=0; i<(dof*dim); ++i) // loop over rows
    {
-      EvalCoeffs();
+      for (int j=0; j<(dof*dim); ++j) // loop over columns
+      {
+         A(i,j) = matGrad[dof * dim * i + j];
+//         printf("NeoHookean::AssembleH A(i,j) %d %d %f\n", i, j, A(i,j));
+      }
    }
-
-   double dJ = Jpt1.Det();
-   double sJ = dJ/g;
-   double bI1 = pow(dJ, -2.0/dim)*(Jpt1*Jpt1); // \bar{I}_1
-
-   return 0.5*(mu*(bI1 - dim) + K*(sJ - 1.0)*(sJ - 1.0));
+   
+   return;
 }
 
 // member functions for the ExaNLFIntegrator
@@ -996,10 +1235,11 @@ void ExaNLFIntegrator::AssembleElementVector(
    const Vector &elfun, Vector &elvect)
 {
    // this subroutine is modeled after HyperelasticNLFIntegretor version
+   printf("inside ExaNLFIntegrator::AssembleElementVector. \n");
 
    int dof = el.GetDof(), dim = el.GetDim(); 
 
-   // these were stored on the hyperelastic NLF integrator;
+   // these were previously stored on the hyperelastic NLF integrator;
    DenseMatrix DSh, DS;
    DenseMatrix Jrt, Jpr, Jpt; 
    DenseMatrix PMatI, PMatO;
@@ -1035,7 +1275,7 @@ void ExaNLFIntegrator::AssembleElementVector(
    BCData & bc = bcManager.CreateBCs(1);
 
    // set the time step on the model
-   dt = bc.dt;
+   model->SetModelDt(bc.dt);
 
    // loop over integration points for current element
    for (int i=0; i<ir->GetNPoints(); i++)
@@ -1047,9 +1287,7 @@ void ExaNLFIntegrator::AssembleElementVector(
       Ttr.SetIntPoint(&ip);
 
       // get integration point coordinates
-      model->ipx = ip.x;
-      model->ipy = ip.y;
-      model->ipz = ip.z;
+      model->SetIPCoords(ip.x, ip.y, ip.z);
 
       // compute Jacobian of the transformation
       CalcInverse(Ttr.Jacobian(), Jrt);
@@ -1060,8 +1298,14 @@ void ExaNLFIntegrator::AssembleElementVector(
       MultAtB(PMatI, DS, Jpt);
 
       // get the stress update, set on the model (model->P)
+      printf("inside ExaNLFIntegrator::AssembleElementVector BEFORE EvalModel. \n");
       model->EvalModel(Jpt, DS, ip.weight * Ttr.Weight());
+      printf("inside ExaNLFIntegrator::AssembleElementVector AFTER EvalModel. \n");
 
+      // multiply PK1 stress by integration point weight and 
+      // determinant of the Jacobian of the transformation. Note that EvalModel
+      // takes the weight input argument to conform to the old 
+      // AssembleH where the weight was used in the NeoHookean model
       model->P *= ip.weight * Ttr.Weight();
       AddMultABt(DS, model->P, PMatO);
    }
@@ -1075,10 +1319,18 @@ void ExaNLFIntegrator::AssembleElementGrad(
    const Vector &elfun, DenseMatrix &elmat)
 {
 
-   // TODO write this routine so that it does 
-   // not call anything to compute the material 
-   // stiffness, but rather assembles it from the 
-   // matGrad quadrature function on the model
+   printf("inside ExaNLFIntegrator::AssembleElementGrad. \n");
+  
+   // if debug is true on the model, then we are using the finite difference 
+   // approximation to the element tangent stiffness contribution
+   if (model->debug)
+   {
+      printf("inside ExaNLFIntegrator::AssembleElementGrad BEFORE FD routine. \n");
+      AssembleElementGradFD(el, Ttr, elfun, elmat);
+      printf("inside ExaNLFIntegrator::AssembleElementGrad AFTER FD routine. \n");
+      return;
+   }
+   
    int dof = el.GetDof(), dim = el.GetDim();
 
    DenseMatrix DSh, DS, Jrt, Jpt, PMatI;
@@ -1100,6 +1352,10 @@ void ExaNLFIntegrator::AssembleElementGrad(
    model->SetTransformation(Ttr);
    model->SetElementID(Ttr.ElementNo, Ttr.Attribute); 
 
+   // set the incremental nodal displacements on the model for 
+   // the current element
+   model->SetCoords(PMatI);
+
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       model->SetIpID(i);
@@ -1112,12 +1368,49 @@ void ExaNLFIntegrator::AssembleElementGrad(
       Mult(DSh, Jrt, DS);
       MultAtB(PMatI, DS, Jpt);
 
-      // call the AssembleH routine on the model to play nice with the 
-      // nonlinear model class, even though the material stiffness MAY 
-      // have been evaluated and returned by the user material subroutine 
-      // evaluated in EvalP
+      // call the assembly routine. This may perform chain rule as necessary 
+      // for a UMAT model
+      printf("inside ExaNLFIntegrator::AssembleElementGrad BEFORE AssembleH. \n");
       model->AssembleH(Jpt, DS, ip.weight * Ttr.Weight(), elmat);
+      printf("inside ExaNLFIntegrator::AssembleElementGrad AFTER AssembleH. \n");
    }
+   return;
+}
+
+void ExaNLFIntegrator::AssembleElementGradFD(
+   const FiniteElement &el,
+   ElementTransformation &Ttr,
+   const Vector &elfun, DenseMatrix &elmat)
+{
+
+   printf("inside ExaNLFIntegrator::AssembleElementGradFD. \n");
+
+   double diff_step = 1.0e-8;
+   Vector* temps;
+   Vector* temp_out_1;
+   Vector* temp_out_2;
+   int dofs;
+
+   temps = new Vector(elfun.GetData(), elfun.Size());
+   temp_out_1 = new Vector();
+   temp_out_2 = new Vector();
+   dofs = elfun.Size();
+
+   elmat.SetSize(dofs);
+
+   for (int i=0; i<dofs; ++i)
+   {
+      temps[i] += diff_step;
+      AssembleElementVector(el, Ttr, *temps, *temp_out_1);
+      temps[i] -= 2.0*diff_step;
+      AssembleElementVector(el, Ttr, *temps, *temp_out_2);
+      for (int j=0; j<dofs; ++j)
+      {
+         elmat(j,i) = (temp_out_1[j] - temp_out_2[j]) / (2.0*diff_step);
+      }
+      temps[i] = elfun[i];
+   } 
+
    return;
 }
 

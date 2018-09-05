@@ -11,10 +11,18 @@
 
 #include "mfem.hpp"
 #include "mechanics_solver.hpp"
+#include "../../linalg/linalg.hpp"
+#include "../../general/globals.hpp"
+#include <iostream>
+#include <iomanip>
+#include <algorithm>
+#include <cmath>
 
 
 namespace mfem
 {
+
+using namespace std;
 
 void ExaNewtonSolver::SetOperator(const Operator &op)
 {

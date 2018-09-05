@@ -184,6 +184,9 @@ public:
 
    Vector & operator-=(const Vector &v);
 
+   // added by srw for exaconstit
+   Vector & operator+=(double c);
+
    Vector & operator+=(const Vector &v);
 
    /// (*this) += a * Va

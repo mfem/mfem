@@ -15,7 +15,6 @@
 #include "mfem.hpp"
 #include "mechanics_coefficient.hpp"
 
-
 //#include "../config/config.hpp"
 //#include "fe.hpp"
 //#include "coefficient.hpp"
@@ -23,17 +22,28 @@
 namespace mfem
 {
 
-class ExaModel
+// free function to compute the beginning step deformation gradient to store 
+// on a quadrature function
+void computeDefGrad(const QuadratureFunction *qf, const ParFiniteElementSpace *fes, 
+                    const Vector &x0);
+
+class ExaModel 
 {
 public:
    int numProps;
    int numStateVars;
+   bool cauchy;
+   bool debug;
+   DenseMatrix currElemCoords; // local variable to store current configuration 
+                               // element coordinates 
+   DenseMatrix P; // temporary PK1 stress for NLF integrator to populate/access 
 protected:
    ElementTransformation *Ttr; /**< Reference-element to target-element
                                     transformation. */
 
+   // local variables for an ip evaluation of the constitutive model
    int elemID, ipID, elemAttribute;
-   double dt, time;
+   double dt, t;
    double ipx, ipy, ipz;
 
    //---------------------------------------------------------------------------
@@ -58,18 +68,22 @@ protected:
    // Note you can compute the end step def grad from the incremental def 
    // grad (from the solution: Jpt) and the beginning step def grad
    QuadratureVectorFunctionCoefficient defGrad0; 
+
+   // add QuadratureVectorFunctionCoefficient to store von Mises 
+   // scalar stress measure
+   QuadratureVectorFunctionCoefficient vonMises;
   
-   // add vector constant coefficient for material properties, which will be 
-   // populated based on the requirements of the user defined model. The 
-   // properties are expected to be the same at all quadrature points. That 
-   // is, the material properties are constant and not dependent on space
-   VectorConstantCoefficient matProps;
+   // add vector for material properties, which will be populated based on the 
+   // requirements of the user defined model. The properties are expected to be 
+   // the same at all quadrature points. That is, the material properties are 
+   // constant and not dependent on space
+   Vector matProps;
 
    // beginning and end (at NR iterate) step deformation gradient for current
-   // element (full deformation gradients) and PK1 stress and material tangent 
-   // stiffness matrices. All matrices are local to an integration point used 
+   // element (full deformation gradients) and material tangent.
+   // All matrices are local to an integration point used 
    // for a given element level computation
-   DenseMatrix Jpt0, Jpt1, P, CMat; // note: these local copies are for convenience 
+   DenseMatrix Jpt0, Jpt1, CMat; // note: these local copies are for convenience 
 
    //---------------------------------------------------------------------------
 
@@ -77,11 +91,11 @@ public:
    ExaModel(QuadratureFunction *q_stress0, QuadratureFunction *q_stress1,
              QuadratureFunction *q_matGrad, QuadratureFunction *q_matVars0,
              QuadratureFunction *q_matVars1, QuadratureFunction *q_defGrad0, 
-             Vector props, int nProps,
-             int nStateVars) : Ttr(NULL), 
-                 stress0(q_stress0), stress1(q_stress1), matGrad(q_matGrad), 
-                 matVars0(q_matVars0), matVars1(q_matVars1), defGrad0(q_defGrad0),
-                 matProps(&props), numProps(nProps), numStateVars(nStateVars) { }
+             Vector &props, int nProps,
+             int nStateVars, bool _cauchy) : numProps(nProps), numStateVars(nStateVars),
+                 cauchy(_cauchy), Ttr(NULL), stress0(q_stress0), stress1(q_stress1), 
+                 matGrad(q_matGrad), matVars0(q_matVars0), matVars1(q_matVars1), 
+                 defGrad0(q_defGrad0), matProps(props) { }
    virtual ~ExaModel() { }
 
    /// A reference-element to target-element transformation that can be used to
@@ -90,9 +104,20 @@ public:
        point of interest. */
    void SetTransformation(ElementTransformation &_Ttr) { Ttr = &_Ttr; }
 
-   // routine to call constitutive update
+   // routine to call constitutive update. Note that this routine takes 
+   // the weight input argument to conform to the old AssembleH where the 
+   // weight was used in the NeoHookean model. Consider refactoring this
    virtual void EvalModel(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight) = 0;
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) = 0;
+
+   // routine to update the beginning step deformation gradient. This can 
+   // be overwritten by a model class extension to update whatever else 
+   // may be required for that particular model
+   virtual void UpdateModelVars(const ParFiniteElementSpace *fes, 
+                                const Vector &x);
 
    // routine to set the element id and integration point number for 
    // the current element
@@ -103,11 +128,26 @@ public:
    // routine to set the integration point ID on the model
    void SetIpID(const int ipNum) { ipID = ipNum; }
 
+   void SetIPCoords(const int x, const int y, const int z) 
+      { ipx = x; ipy = y; ipz = z; }
+
    // set time on the base model class
-   void SetModelTime(const double t) { time = t; }
+   void SetModelTime(const double time) { t = time; }
 
    // set timestep on the base model class
    void SetModelDt(const double dtime) { dt = dtime; }
+
+   // return a pointer to beginning step stress. This is used for output visualization
+   QuadratureVectorFunctionCoefficient *GetStress0() { return &stress0; }
+
+   // return a pointer to von Mises stress quadrature vector function coefficient for visualization
+   QuadratureVectorFunctionCoefficient *GetVonMises() { return &vonMises; }
+
+   // return a pointer to the matVars0 quadrature vector function coefficient 
+   QuadratureVectorFunctionCoefficient *GetMatVars0() { return &matVars0; }
+
+   // return a pointer to the matProps vector
+   Vector *GetMatProps() { return &matProps; }
 
    // routine to get element stress at ip point. These are the six components of 
    // the symmetric Cauchy stress
@@ -148,8 +188,10 @@ public:
    // get the beginning step deformation gradient
    void GetElemDefGrad0(); 
 
-   // set the full end step deformation gradient
-   void SetElemDefGrad1(DenseMatrix& Jpt);
+   // calc the full end step deformation gradient using stored beginning step 
+   // deformation gradient and current incremental deformation gradient 
+   // (calculated from the element transformation)
+   void CalcElemDefGrad1(const DenseMatrix &Jpt);
 
    // routine to update beginning step stress with end step values
    void UpdateStress(int elID, int ipNum);
@@ -157,23 +199,25 @@ public:
    // routine to update beginning step state variables with end step values
    void UpdateStateVars(int elID, int ipNum);
  
-   // routine to update the beginning step deformation gradient. This can 
-   // be overwritten by a model class extension to update whatever else 
-   // may be required
-   virtual void UpdateModelVars(ParFiniteElementSpace *fes, 
-                                const Vector &x);
+   void SymVoigtToDenseMat(const double* const A, DenseMatrix &B);
 
-   void SymVoigtToDenseMat(const double* const A, DenseMatrix& B);
+   void SetCoords(const DenseMatrix &coords) { currElemCoords = coords; }
+
+   void CauchyToPK1();
+
+   void PK1ToCauchy(const DenseMatrix &P, double* sigma);
+
+   void ComputeVonMises(const int elemID, const int ipID);
+
 };
 
-// Abaqus Umat class. This has NOT been tested and is likely to change significantly.
+// Abaqus Umat class. This has NOT been tested
 class AbaqusUmatModel : public ExaModel
 {
 protected:
 
    // add member variables. 
-   double elemLength
-   DenseMatrix currElemCoords; // current configuration coordinates
+   double elemLength;
 
    // pointer to umat function
    void (*umat)(double[6], double[], double[6][6], 
@@ -195,21 +239,20 @@ public:
                    Vector _props, int _nProps, 
                    int _nStateVars) : ExaModel(_q_stress0, 
                       _q_stress1, _q_matGrad, _q_matVars0, _q_matVars1, _q_defGrad0, 
-                      _props, _nProps, _nStateVars) { }
+                      _props, _nProps, _nStateVars, true) { }
    virtual ~AbaqusUmatModel() { }
 
    virtual void EvalModel(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight);
 
-   void CalcLogStrain(DenseMatrix& E);
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A);
 
-   void CalcLogStrainIncrement(DenseMatrix& dE);
+   void CalcLogStrain(DenseMatrix &E);
 
-   void SetCoords(DenseMatrix& coords) { currElemCoords(coords); }
+   void CalcLogStrainIncrement(DenseMatrix &dE);
 
    void CalcElemLength();
-
-   void CauchyToPK1();
 
 };
 
@@ -226,30 +269,32 @@ protected:
 
    inline void EvalCoeffs() const;
 public:
-   NeoHookean(double _mu, double _K, double _g = 1.0, 
-              QuadratureFunction *_q_stress0, QuadratureFunction *_q_stress1,
+   NeoHookean(QuadratureFunction *_q_stress0, QuadratureFunction *_q_stress1,
               QuadratureFunction *_q_matGrad, QuadratureFunction *_q_matVars0,
               QuadratureFunction *_q_matVars1, QuadratureFunction *_q_defGrad0, 
-              Vector _props, int _nProps, 
-              int _nStateVars) : mu(_mu), K(_K), g(_g), have_coeffs(false), 
-              ExaModel(_q_stress0, 
-              _q_stress1, _q_matGrad, _q_matVars0, _q_matVars1, _q_defGrad0, 
-              _props, _nProps, _nStateVars) { c_mu = c_K = c_g = NULL }
+              Vector _props, int _nProps, int _nStateVars, double _mu, double _K, 
+              double _g = 1.0) : 
+              ExaModel(_q_stress0, _q_stress1, _q_matGrad, _q_matVars0, _q_matVars1, 
+              _q_defGrad0, _props, _nProps, _nStateVars, false), mu(_mu), K(_K), g(_g), 
+              have_coeffs(false) 
+              { c_mu = c_K = c_g = NULL; }
 
-   NeoHookean(Coefficient &_mu, Coefficient &_K, Coefficient *_g = NULL
-              QuadratureFunction *_q_stress0, QuadratureFunction *_q_stress1,
+   NeoHookean(QuadratureFunction *_q_stress0, QuadratureFunction *_q_stress1,
               QuadratureFunction *_q_matGrad, QuadratureFunction *_q_matVars0,
               QuadratureFunction *_q_matVars1, QuadratureFunction *_q_defGrad0, 
-              Vector _props, int _nProps, 
-              int _nStateVars) : mu(0.0), K(0.0), g(1.0), c_mu(&_mu), 
-              c_K(&_K), c_g(_g), have_coeffs(false), 
-              ExaModel(_q_stress0, 
-              _q_stress1, _q_matGrad, _q_matVars0, _q_matVars1, _q_defGrad0, 
-              _props, _nProps, _nStateVars) {  }
+              Vector _props, int _nProps, int _nStateVars, Coefficient &_mu, 
+              Coefficient &_K, Coefficient *_g = NULL) : 
+              ExaModel(_q_stress0, _q_stress1, _q_matGrad, _q_matVars0, _q_matVars1, 
+              _q_defGrad0, _props, _nProps, _nStateVars, false), 
+              mu(0.0), K(0.0), g(1.0), c_mu(&_mu), 
+              c_K(&_K), c_g(_g), have_coeffs(false) { }
 
    // place original EvalP and AssembleH into Eval()
    virtual void EvalModel(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight);
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A);
 
 };
 
@@ -259,7 +304,7 @@ private:
    ExaModel *model;
 
 public:
-   ExaNLFIntegrator(UserDefinedModel *m) : model(m) { }
+   ExaNLFIntegrator(ExaModel *m) : model(m) { }
 
    virtual double GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &Ttr,
@@ -272,6 +317,13 @@ public:
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &Ttr,
                                     const Vector &elfun, DenseMatrix &elmat);
+
+   // debug routine for finite difference approximation of 
+   // the element tangent stiffness contribution 
+   void AssembleElementGradFD(const FiniteElement &el,
+                              ElementTransformation &Ttr,
+                              const Vector &elfun, DenseMatrix &elmat);
+
 };
 
 }

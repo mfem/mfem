@@ -238,7 +238,8 @@ public:
 
    void ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr);
 
-   // add ProjectBdrCoefficient() taking a VectorFunctionCoefficient, srw
+   /** add ProjectBdrCoefficient() taking a VectorFunctionCoefficient and projecting 
+       onto the grid function, srw. */
    void ProjectBdrCoefficient(VectorFunctionCoefficient &vfcoeff, 
                               Array<int> &attr);
 
