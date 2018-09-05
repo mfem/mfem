@@ -493,6 +493,7 @@ ImplicitDiffOp::ImplicitDiffOp(ParFiniteElementSpace & H1_FESpace,
     a0_(&H1_FESpace),
     dTdt_(&H1_FESpace),
     Q_(&H1_FESpace),
+    Qs_(&H1_FESpace),
     rhs_(&H1_FESpace),
     // Q_RHS_(H1_FESpace.GetTrueVSize()),
     RHS_(H1_FESpace.GetTrueVSize()),
@@ -514,8 +515,8 @@ ImplicitDiffOp::ImplicitDiffOp(ParFiniteElementSpace & H1_FESpace,
     a0_.AddDomainIntegrator(new MixedScalarWeakDivergenceIntegrator(dtdChiGradTCoef_));
   }
   
-  Q_.AddDomainIntegrator(new DomainLFIntegrator(*QCoef_));
-  if (!tdQ_) { Q_.Assemble(); }
+  Qs_.AddDomainIntegrator(new DomainLFIntegrator(*QCoef_));
+  if (!tdQ_) { Qs_.Assemble(); }
 }
 
 ImplicitDiffOp::~ImplicitDiffOp()
@@ -582,8 +583,8 @@ void ImplicitDiffOp::SetState(ParGridFunction & T, double t, double dt)
   {
     cout << "Assembling Q" << endl;
      QCoef_->SetTime(t_ + dt_);
-     Q_.Assemble();
-     cout << "Norm of Q: " << Q_.Norml2() << endl;
+     Qs_.Assemble();
+     cout << "Norm of Q: " << Qs_.Norml2() << endl;
   }
 
   first_       = false;
@@ -594,7 +595,8 @@ void ImplicitDiffOp::SetState(ParGridFunction & T, double t, double dt)
 void ImplicitDiffOp::Mult(const Vector &dT, Vector &Q) const
 {
   cout << "Entering ImplicitDiffOp::Mult" << endl;
-  add(T0_, dt_, dT, T1_);
+  dT_.Distribute(dT);
+  add(T0_, dt_, dT_, T1_);
 
   if (tdChi_ && nonLinear_)
   {
@@ -604,9 +606,10 @@ void ImplicitDiffOp::Mult(const Vector &dT, Vector &Q) const
     s0chi_.Finalize();
   }
 
-  m0cp_.Mult(dT, Q);
-  s0chi_.AddMult(T1_, Q);
-  Q -= Q_;
+  m0cp_.Mult(dT_, Q_);
+  s0chi_.AddMult(T1_, Q_);
+  Q_ -= Qs_;
+  Q_.ParallelAssemble(Q);
   cout << "Leaving ImplicitDiffOp::Mult with Q: " << Q.Norml2() << endl;
 }
 
@@ -621,7 +624,8 @@ Operator & ImplicitDiffOp::GetGradient(const Vector &dT) const
     }
     else
     {
-      add(T0_, dt_, dT, T1_);
+      dT_.Distribute(dT);
+      add(T0_, dt_, dT_, T1_);
 
       chiCoef_->SetTemp(T1_);
       dChiCoef_->SetTemp(T1_);
@@ -652,21 +656,26 @@ Operator & ImplicitDiffOp::GetGradient(const Vector &dT) const
     rhs_.Print(ofsrhs);
 
     ofstream ofsQ("Q_nl.vec");
-    Q_.Print(ofsQ);
+    Qs_.Print(ofsQ);
     
-    rhs_ -= Q_;
+    rhs_ -= Qs_;
     rhs_ *= -1.0;
+
+    cout << "Project bdr" << endl;
+    dTdt_.ProjectBdrCoefficient(*bdrCoef_, ess_bdr_attr_);
+    cout << "Form Lin Sys" << endl;
+    a0_.FormLinearSystem(ess_bdr_tdofs_, dTdt_, rhs_, A_, SOL_, RHS_);
+    A_.Print("A_nl.mat");
+    ofstream ofsB("b_nl.vec");
+    RHS_.Print(ofsB);
+  
+    cout << "Norm of RHS: " << RHS_.Norml2() << endl;
+  }
+  else
+  {
+    a0_.FormSystemMatrix(ess_bdr_tdofs_, A_);
   }
   
-  cout << "Project bdr" << endl;
-  dTdt_.ProjectBdrCoefficient(*bdrCoef_, ess_bdr_attr_);
-  cout << "Form Lin Sys" << endl;
-  a0_.FormLinearSystem(ess_bdr_tdofs_, dTdt_, rhs_, A_, dTdt_, RHS_);
-  A_.Print("A_nl.mat");
-  ofstream ofsB("b_nl.vec");
-  RHS_.Print(ofsB);
-  
-  cout << "Norm of RHS: " << RHS_.Norml2() << endl;
   cout << "Leaving GetGradient" << endl;
   return A_;
 }

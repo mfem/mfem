@@ -180,6 +180,7 @@ private:
 
   mutable ParGridFunction T0_;
   mutable ParGridFunction T1_;
+  mutable ParGridFunction dT_;
 
   mutable GradientGridFunctionCoefficient gradTCoef_;
   ScalarVectorProductCoefficient dtGradTCoef_;
@@ -192,8 +193,10 @@ private:
   mutable HypreParMatrix A_;
   mutable ParGridFunction dTdt_;
   mutable ParLinearForm Q_;
+  mutable ParLinearForm Qs_;
   mutable ParLinearForm rhs_;
   // mutable Vector Q_RHS_;
+  mutable  Vector SOL_;
   mutable  Vector RHS_;
   Vector RHS0_; // Dummy RHS vector which hase length zero
 

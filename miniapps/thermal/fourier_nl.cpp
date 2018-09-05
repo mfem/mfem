@@ -273,13 +273,11 @@ int main(int argc, char *argv[])
    // int Vsize_h1 = HGradFESpace.GetVSize();
 
    // grid functions E, B, T, F, P, and w which is the Joule heating
-   ParGridFunction T1(&HGradFESpace);
-   ParGridFunction T0(&HGradFESpace);
-   ParGridFunction dT(&HGradFESpace);
-   ParGridFunction Qs(&HGradFESpace);
-   T0 = 0.0;
-   T1 = 0.0;
-   dT = 1.0;
+   ParGridFunction  T_gf(&HGradFESpace);
+   ParGridFunction dT_gf(&HGradFESpace);
+   ParGridFunction Qs_gf(&HGradFESpace);
+   T_gf  = 0.0;
+   dT_gf = 1.0;
 
    // 13. Get the boundary conditions, set up the exact solution grid functions
    //     These VectorCoefficients have an Eval function.  Note that e_exact and
@@ -292,7 +290,7 @@ int main(int argc, char *argv[])
    // MatrixFunctionCoefficient ConductionCoef(2, ChiFunc);
    FunctionCoefficient HeatSourceCoef(QFunc);
 
-   Qs.ProjectCoefficient(HeatSourceCoef);
+   Qs_gf.ProjectCoefficient(HeatSourceCoef);
    
    // 14. Initialize the Diffusion operator, the GLVis visualization and print
    //     the initial energies.
@@ -326,19 +324,19 @@ int main(int argc, char *argv[])
       int offx = Ww+10;//, offy = Wh+45; // window offsets
 
       miniapps::VisualizeField(vis_T, vishost, visport,
-                               T1, "Temperature", Wx, Wy, Ww, Wh);
+                               T_gf, "Temperature", Wx, Wy, Ww, Wh);
 
       vis_Q.precision(8);
 
       miniapps::VisualizeField(vis_Q, vishost, visport,
-                               Qs, "Heat Soruce", Wx+offx, Wy, Ww, Wh);
+                               Qs_gf, "Heat Soruce", Wx+offx, Wy, Ww, Wh);
 }
    // VisIt visualization
    VisItDataCollection visit_dc(basename, pmesh);
    if ( visit )
    {
-      visit_dc.RegisterField("T", &T1);
-      visit_dc.RegisterField("Qs", &Qs);
+      visit_dc.RegisterField("T", &T_gf);
+      visit_dc.RegisterField("Qs", &Qs_gf);
 
       visit_dc.SetCycle(0);
       visit_dc.SetTime(0.0);
@@ -352,6 +350,10 @@ int main(int argc, char *argv[])
    ode_solver->Init(oper);
    double t = 0.0;
 
+   int tsize = HGradFESpace.GetTrueVSize();
+   Vector T0(tsize), T1(tsize), dT(tsize);
+   T0 = 0.0; T1 = 0.0; dT = 0.0;
+   
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
    {
@@ -371,8 +373,11 @@ int main(int argc, char *argv[])
 
       add(1.0, T1, -1.0, T0, dT);
 
-      double maxT    = T1.ComputeMaxError(zeroCoef);
-      double maxDiff = dT.ComputeMaxError(zeroCoef);
+      T_gf.Distribute(T1);
+      dT_gf.Distribute(dT);
+	 
+      double maxT    = T_gf.ComputeMaxError(zeroCoef);
+      double maxDiff = dT_gf.ComputeMaxError(zeroCoef);
 
       if ( !last_step )
       {
@@ -410,7 +415,7 @@ int main(int argc, char *argv[])
 
          ofstream T_ofs(T_name.str().c_str());
          T_ofs.precision(8);
-         T1.Save(T_ofs);
+         T_gf.Save(T_ofs);
          T_ofs.close();
       }
 
@@ -427,7 +432,7 @@ int main(int argc, char *argv[])
             // int offx = Ww+10, offy = Wh+45; // window offsets
 
             miniapps::VisualizeField(vis_T, vishost, visport,
-                                     T1, "Temperature", Wx, Wy, Ww, Wh);
+                                     T_gf, "Temperature", Wx, Wy, Ww, Wh);
          }
 
          if (visit)
@@ -447,7 +452,7 @@ int main(int argc, char *argv[])
    double T_max = -1.0;
    MPI_Allreduce(&loc_T_max, &T_max, 1, MPI_DOUBLE, MPI_MAX,
                  MPI_COMM_WORLD);
-   double err1 = T1.ComputeL2Error(TCoef);
+   double err1 = T_gf.ComputeL2Error(TCoef);
    if (myid == 0)
    {
       cout << "L2 Error of Solution: " << err1 << endl;
