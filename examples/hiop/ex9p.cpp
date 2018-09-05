@@ -540,7 +540,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    }
    else
    {
-      optsolver = new HiopNlpOptimizer(MPI_COMM_WORLD);
+      optsolver = new HiopNlpOptimizer_Simple(MPI_COMM_WORLD);
    }
    optsolver->SetMaxIter(max_iter);
    optsolver->SetAbsTol(atol);

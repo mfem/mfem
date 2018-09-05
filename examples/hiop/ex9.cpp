@@ -432,7 +432,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
 
    OptimizationSolver* optsolver = NULL;
    if (optimizer_type == 1) { optsolver = new SLBQPOptimizer(); }
-   else                     { optsolver = new HiopNlpOptimizer(); }
+   else                     { optsolver = new HiopNlpOptimizer_Simple(); }
 
    optsolver->SetMaxIter(max_iter);
    optsolver->SetAbsTol(atol);
