@@ -53,11 +53,8 @@ HiopNlpOptimizer::~HiopNlpOptimizer()
   if(optProb_) delete optProb_;
 }
 
-void HiopNlpOptimizer::Mult(const Vector &xt, Vector &x) const
+void HiopNlpOptimizer::Mult(Vector &x) const
 {
-  //set xt in the problemSpec to compute the objective
-  optProb_->setObjectiveTarget(xt);
-
   hiop::hiopNlpDenseConstraints hiopInstance(*optProb_);
   hiopInstance.options->SetNumericValue("tolerance", 1e-7);
   hiopInstance.options->SetIntegerValue("verbosity_level", 0); //0: no output; 3: not too much
@@ -71,6 +68,26 @@ void HiopNlpOptimizer::Mult(const Vector &xt, Vector &x) const
 
   //copy the solution to x
   solver.getSolution(x.GetData());
+}
+
+void HiopNlpOptimizer_Simple::Mult(Vector &x) const
+{
+  long long int n_local, m;
+  optProb_Simple_->get_prob_sizes(n_local, m);
+
+  // Solve assuming xt = 0
+  Vector xt(n_local);
+  xt = 0.;
+  Mult(xt, x);
+}
+
+void HiopNlpOptimizer_Simple::Mult(const Vector &xt, Vector &x) const
+{
+  //set xt in the problemSpec to compute the objective
+  optProb_Simple_->setObjectiveTarget(xt);
+
+  x = 0.;
+  HiopNlpOptimizer::Mult(x);
 }
 
 void HiopNlpOptimizer::SetBounds(const Vector &_lo, const Vector &_hi)
@@ -98,6 +115,20 @@ void HiopNlpOptimizer::allocHiopProbSpec(const long long& numvars)
 #else
    optProb_ = new HiopProblemSpec(numvars);
 #endif
+};
+
+void HiopNlpOptimizer_Simple::allocHiopProbSpec(const long long& numvars)
+{
+   MFEM_ASSERT(optProb_Simple_==NULL && optProb_==NULL,
+                "HiopProbSpec object already created");
+
+#ifdef MFEM_USE_MPI
+   optProb_Simple_ = new HiopProblemSpec_Simple(comm_, numvars);
+#else
+   optProb_Simple_ = new HiopProblemSpec_Simple(numvars);
+#endif
+
+   optProb_ = optProb_Simple_;
 };
 
 
