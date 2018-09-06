@@ -42,6 +42,7 @@ public:
 #endif
   }
 
+  // TODO: Switch to 3 indents?
 #ifdef MFEM_USE_MPI
   HiopProblemSpec(const MPI_Comm& _comm, const long long& _n_local)
     : comm_(_comm), n_local_(_n_local), a_(0.), workVec_(_n_local)
@@ -50,6 +51,19 @@ public:
      MFEM_ASSERT(ierr==MPI_SUCCESS, "MPI_Allreduce failed with error" << ierr);
   }
 #endif
+
+  /** f = 1/2 x^T Q x + c^T x */
+  virtual void setObjectiveFunction(const DenseMatrix &_A, const Vector &_c)
+  {
+    setObjectiveFunction(_A);
+    setObjectiveFunction(_c);
+  }
+  virtual void setObjectiveFunction(const DenseMatrix &_A)
+  {
+    A_ = _A;
+    workVec2_.SetSize(n_local_);
+  }
+  virtual void setObjectiveFunction(const Vector &_c)  { c_ = _c; }
 
   /** problem dimensions: n number of variables, m number of constraints */
   virtual bool get_prob_sizes(long long int& n, long long int& m) {
@@ -72,12 +86,13 @@ public:
     return true;
   };
 
-  /** Objective function evaluation. Each rank returns the global obj. value. */
+  /** Objective function evaluation. Each rank returns the global obj. value.
+   *  f = 1/2 x^T * A * x + c^T * x                                           */
   virtual bool eval_f(const long long& n, const double* x, bool new_x, double& obj_value) {
     MFEM_ASSERT(n==n_, "global size input mismatch");
 
     workVec_ = x;
-    obj_value = 0.5 * (workVec_ * workVec_);
+    obj_value = 0.5 * A_.InnerProduct(workVec_, workVec_) + (c_ * workVec_);
 
 #ifdef MFEM_USE_MPI
     double loc_obj = obj_value;
@@ -88,13 +103,15 @@ public:
     return true;
   };
 
-  /** Gradient of objective (local chunk) */
+  /** Gradient of objective (local chunk), grad(f) = A*x + c */
   virtual bool eval_grad_f(const long long& n, const double* x, bool new_x, double* gradf) {
     MFEM_ASSERT(n==n_, "global size input mismatch");
 
-    // compute gradf = x
     workVec_  = x;
-    std::memcpy(gradf, workVec_.GetData(), n_local_*sizeof(double));
+    workVec2_ = workVec_;
+    A_.Mult(workVec_, workVec2_);
+    workVec2_ += c_;
+    std::memcpy(gradf, workVec2_.GetData(), n_local_*sizeof(double));
 
     return true;
   };
@@ -227,11 +244,18 @@ protected:
   long long n_; //number of variables (global)
   long long n_local_; //number of variables (local to the MPI process)
 
+  //Objective function: f = 1/2 x^T A x + c^T x
+  DenseMatrix A_;
+  Vector c_;
+
   Vector lo_,hi_; //lower and upper bounds
   Vector w_;      //linear constraint coefficients 
   double a_;      //linear constraint rhs
 
   Vector workVec_; //used as work space of size n_local_
+
+private:
+  Vector workVec2_; //used as work space of size n_local_
 
 }; //End of HiopProblemSpec class
 
@@ -278,9 +302,28 @@ public:
     return true;
   };
 
+  // Capitalization consistency
   virtual void setObjectiveTarget(const Vector &_xt) {
     xt_ = _xt;
   };
+
+protected:
+  // A is always I and c is always xt_.  Neither are used in eval_f or eval_grad_f
+  virtual void setObjectiveFunction(const DenseMatrix &_A, const Vector &_c)
+  {
+    MFEM_WARNING("setObjectiveFunction does nothing for class "
+                  "HiopProblemSpec_Simple.  Use setObjectiveTarget to set xt_.");
+  }
+  virtual void setObjectiveFunction(const Vector &_c)
+  {
+    MFEM_WARNING("setObjectiveFunction does nothing for class "
+                  "HiopProblemSpec_Simple.  Use setObjectiveTarget to set xt_.");
+  }
+  virtual void setObjectiveFunction(const DenseMatrix &_A)
+  {
+    MFEM_WARNING("setObjectiveFunction does nothing for class "
+                  "HiopProblemSpec_Simple.  Use setObjectiveTarget to set xt_.");
+  }
 
 protected:
   Vector xt_;     //target vector in the L2 objective
@@ -296,11 +339,12 @@ public:
 #endif
   virtual ~HiopNlpOptimizer();
 
-  void SetBounds(const Vector &_lo, const Vector &_hi);
-  void SetLinearConstraint(const Vector &_w, double _a);
+  virtual void SetBounds(const Vector &_lo, const Vector &_hi);
+  virtual void SetLinearConstraint(const Vector &_w, double _a);
+  virtual void SetObjectiveFunction(const DenseMatrix &_A, const Vector &_c);
+  virtual void SetObjectiveFunction(const DenseMatrix &_A);
+  virtual void SetObjectiveFunction(const Vector &_c);
 
-  // For this problem type, we let the target values play the role of the
-  // initial vector xt, from which the operator generates the optimal vector x.
   virtual void Mult(Vector &x) const;
 
   // For this problem type, xt is just used as a starting guess
@@ -322,7 +366,7 @@ protected:
 
 }; //end of HiopNlpOptimizer class
 
-// Special class for f = ||x-xt||_2
+// Special class for the case where f = 1/2 * ||x-xt||_2
 class HiopNlpOptimizer_Simple : public HiopNlpOptimizer
 {
 public:
@@ -343,6 +387,22 @@ public:
 
 protected:
   virtual void allocHiopProbSpec(const long long& numvars);
+  // A is always I and c is always xt_.  Neither are used in eval_f or eval_grad_f
+  virtual void SetObjectiveFunction(const DenseMatrix &_A, const Vector &_c)
+  {
+    MFEM_WARNING("SetObjectiveFunction does nothing for class "
+                  "HiopNlpOptimizer_Simple.  Use Mult to set xt_.");
+  }
+  virtual void SetObjectiveFunction(const Vector &_c)
+  {
+    MFEM_WARNING("SetObjectiveFunction does nothing for class "
+                  "HiopNlpOptimizer_Simple.  Use Mult to set xt_.");
+  }
+  virtual void SetObjectiveFunction(const DenseMatrix &_A)
+  {
+    MFEM_WARNING("SetObjectiveFunction does nothing for class "
+                  "HiopNlpOptimizer_Simple.  Use Mult to set xt_.");
+  }
 
 private:
   HiopProblemSpec_Simple* optProb_Simple_;

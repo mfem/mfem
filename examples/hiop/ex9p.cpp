@@ -534,13 +534,24 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    const double rtol = 1.e-12, atol = 1e-15;
 
    OptimizationSolver* optsolver = NULL;
-   if (optimizer_type == 1)
+   HiopNlpOptimizer *tmp_opt_ptr = NULL;
+   if (optimizer_type == 3)
    {
-      optsolver = new SLBQPOptimizer(MPI_COMM_WORLD);
+      tmp_opt_ptr = new HiopNlpOptimizer(MPI_COMM_WORLD);
+      DenseMatrix A;
+      A.Diag(1.0, ldofs);
+      Vector xt_neg(y_loc);
+      xt_neg.Neg();
+      tmp_opt_ptr->SetObjectiveFunction(A, xt_neg);
+      optsolver = tmp_opt_ptr;
+   }
+   else if (optimizer_type == 2)
+   {
+      optsolver = new HiopNlpOptimizer_Simple(MPI_COMM_WORLD);
    }
    else
    {
-      optsolver = new HiopNlpOptimizer_Simple(MPI_COMM_WORLD);
+      optsolver = new SLBQPOptimizer(MPI_COMM_WORLD);
    }
    optsolver->SetMaxIter(max_iter);
    optsolver->SetAbsTol(atol);
@@ -548,7 +559,8 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    optsolver->SetBounds(y_min, y_max);
    optsolver->SetLinearConstraint(M_rowsums, tot_mass);
    optsolver->SetPrintLevel(0);
-   optsolver->Mult(y_loc, y_out);
+   if (optimizer_type == 3)   { tmp_opt_ptr->Mult(y_out); }
+   else   { optsolver->Mult(y_loc, y_out); }
 
    delete optsolver;
 

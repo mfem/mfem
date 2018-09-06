@@ -78,6 +78,7 @@ void HiopNlpOptimizer_Simple::Mult(Vector &x) const
   // Solve assuming xt = 0
   Vector xt(n_local);
   xt = 0.;
+  MFEM_WARNING("Assuming xt = 0 in HiopNlpOptimizer_Simple::Mult!");
   Mult(xt, x);
 }
 
@@ -104,6 +105,25 @@ void HiopNlpOptimizer::SetLinearConstraint(const Vector &_w, double _a)
     allocHiopProbSpec(_w.Size());
 
   optProb_->setLinearConstraint(_w, _a);
+}
+
+void HiopNlpOptimizer::SetObjectiveFunction(const DenseMatrix &_A, const Vector &_c)
+{
+  if(NULL==optProb_)
+    allocHiopProbSpec(_c.Size());
+  optProb_->setObjectiveFunction(_A, _c);
+}
+void HiopNlpOptimizer::SetObjectiveFunction(const DenseMatrix &_A)
+{
+  if(NULL==optProb_)
+    allocHiopProbSpec(_A.Width());
+  optProb_->setObjectiveFunction(_A);
+}
+void HiopNlpOptimizer::SetObjectiveFunction(const Vector &_c)
+{
+  if(NULL==optProb_)
+    allocHiopProbSpec(_c.Size());
+  optProb_->setObjectiveFunction(_c);
 }
 
 void HiopNlpOptimizer::allocHiopProbSpec(const long long& numvars)
