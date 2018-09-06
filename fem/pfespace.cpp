@@ -140,8 +140,9 @@ void ParFiniteElementSpace::Construct()
    }
    else // Nonconforming()
    {
-      gcomm = new GroupCommunicator(GetGroupTopo());
-      GetGroupComm(*gcomm, 1);
+      /*gcomm = new GroupCommunicator(GetGroupTopo());
+      GetGroupComm(*gcomm, 1);*/
+      ConstructTrueDofs();
 
       // calculate number of ghost DOFs
       ngvdofs = pncmesh->GetNGhostVertices()
@@ -560,6 +561,11 @@ HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
 void ParFiniteElementSpace::DivideByGroupSize(double *vec)
 {
    GroupTopology &gt = GetGroupTopo();
+
+   for (int i = 0; i < gt.NGroups(); i++)
+   {
+      std::cout << "Group " << i << ": size " << gt.GetGroupSize(i) << std::endl;
+   }
 
    for (int i = 0; i < ldof_group.Size(); i++)
    {
