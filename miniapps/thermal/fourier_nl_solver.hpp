@@ -26,187 +26,177 @@ namespace mfem
 class UnitVectorField : public VectorCoefficient
 {
 private:
-  int prob_;
-  double a_;
-  double b_;
-  
-public:
-  UnitVectorField(int prob, double a = 0.4, double b = 0.8)
-    : VectorCoefficient(2), prob_(prob), a_(a), b_(b) {}
+   int prob_;
+   double a_;
+   double b_;
 
-  void Eval(Vector &V, ElementTransformation &T,
-	    const IntegrationPoint &ip);
+public:
+   UnitVectorField(int prob, double a = 0.4, double b = 0.8)
+      : VectorCoefficient(2), prob_(prob), a_(a), b_(b) {}
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip);
 };
-  /*  
+/*
 class ChiGridFuncCoef : public MatrixCoefficient
 {
 private:
-  double chi_min_ratio_;
-  double chi_max_ratio_;
-  int prob_;
-  const GridFunction & T_;
-  
+double chi_min_ratio_;
+double chi_max_ratio_;
+int prob_;
+const GridFunction & T_;
+
 public:
-  ChiGridFuncCoef(const GridFunction & T,
-		  double chi_min_ratio, double chi_max_ratio, int prob = 1)
-    : MatrixCoefficient(2),
-      chi_min_ratio_(chi_min_ratio),
-      chi_max_ratio_(chi_max_ratio),
-      prob_(prob),
-      T_(T) {}
+ChiGridFuncCoef(const GridFunction & T,
+   double chi_min_ratio, double chi_max_ratio, int prob = 1)
+  : MatrixCoefficient(2),
+    chi_min_ratio_(chi_min_ratio),
+    chi_max_ratio_(chi_max_ratio),
+    prob_(prob),
+    T_(T) {}
 
-  // void SetTemp() { T_ = &T; }
+// void SetTemp() { T_ = &T; }
 
-  void Eval(DenseMatrix &K, ElementTransformation &T,
-	    const IntegrationPoint &ip);
+void Eval(DenseMatrix &K, ElementTransformation &T,
+    const IntegrationPoint &ip);
 };
-  */
+*/
 class ChiParaCoef : public MatrixCoefficient
 {
 private:
-  MatrixCoefficient * bbT_;
-  GridFunctionCoefficient * T_;
-  int type_;
-  double chi_min_;
-  double chi_max_;
-  double gamma_;
-  
-public:
-  ChiParaCoef(MatrixCoefficient &bbT, GridFunctionCoefficient &T, int type,
-	      double chi_min, double chi_max)
-    : MatrixCoefficient(2), bbT_(&bbT), T_(&T), type_(type),
-      chi_min_(chi_min), chi_max_(chi_max),
-      gamma_(pow(chi_max/chi_min, 0.4) - 1.0)
-  {}
+   MatrixCoefficient * bbT_;
+   GridFunctionCoefficient * T_;
+   int type_;
+   double chi_min_;
+   double chi_max_;
+   double gamma_;
 
-  void SetTemp(GridFunction & T) { T_->SetGridFunction(&T); }
-  
-  void Eval(DenseMatrix &K, ElementTransformation &T,
-	    const IntegrationPoint &ip);
+public:
+   ChiParaCoef(MatrixCoefficient &bbT, GridFunctionCoefficient &T, int type,
+               double chi_min, double chi_max)
+      : MatrixCoefficient(2), bbT_(&bbT), T_(&T), type_(type),
+        chi_min_(chi_min), chi_max_(chi_max),
+        gamma_(pow(chi_max/chi_min, 0.4) - 1.0)
+   {}
+
+   void SetTemp(GridFunction & T) { T_->SetGridFunction(&T); }
+
+   void Eval(DenseMatrix &K, ElementTransformation &T,
+             const IntegrationPoint &ip);
 };
 
 class ChiCoef : public MatrixSumCoefficient
 {
 private:
-  ChiParaCoef * chiParaCoef_;
+   ChiParaCoef * chiParaCoef_;
 
 public:
-  ChiCoef(MatrixCoefficient & chiPerp, ChiParaCoef & chiPara)
-    : MatrixSumCoefficient(chiPerp, chiPara), chiParaCoef_(&chiPara) {}
-  
-  void SetTemp(GridFunction & T) { chiParaCoef_->SetTemp(T); }
+   ChiCoef(MatrixCoefficient & chiPerp, ChiParaCoef & chiPara)
+      : MatrixSumCoefficient(chiPerp, chiPara), chiParaCoef_(&chiPara) {}
+
+   void SetTemp(GridFunction & T) { chiParaCoef_->SetTemp(T); }
 };
-  
+
 class dChiCoef : public MatrixCoefficient
 {
 private:
-  MatrixCoefficient * bbT_;
-  GridFunctionCoefficient * T_;
-  double chi_min_;
-  double chi_max_;
-  double gamma_;
-  
+   MatrixCoefficient * bbT_;
+   GridFunctionCoefficient * T_;
+   double chi_min_;
+   double chi_max_;
+   double gamma_;
+
 public:
-  dChiCoef(MatrixCoefficient &bbT, GridFunctionCoefficient &T,
-	   double chi_min, double chi_max)
-    : MatrixCoefficient(2), bbT_(&bbT), T_(&T),
-      chi_min_(chi_min), chi_max_(chi_max),
-      gamma_(pow(chi_max/chi_min, 0.4) - 1.0)
- {}
+   dChiCoef(MatrixCoefficient &bbT, GridFunctionCoefficient &T,
+            double chi_min, double chi_max)
+      : MatrixCoefficient(2), bbT_(&bbT), T_(&T),
+        chi_min_(chi_min), chi_max_(chi_max),
+        gamma_(pow(chi_max/chi_min, 0.4) - 1.0)
+   {}
 
-  void SetTemp(GridFunction & T) { T_->SetGridFunction(&T); }
+   void SetTemp(GridFunction & T) { T_->SetGridFunction(&T); }
 
-  void Eval(DenseMatrix &K, ElementTransformation &T,
-	    const IntegrationPoint &ip);
+   void Eval(DenseMatrix &K, ElementTransformation &T,
+             const IntegrationPoint &ip);
 };
-  
+
 namespace thermal
 {
 
 class ImplicitDiffOp : public Operator
 {
 public:
-  ImplicitDiffOp(ParFiniteElementSpace & H1_FESpace,
-		 Coefficient & dTdtBdr, bool tdBdr,
-		 Array<int> & bdr_attr,
-		 Coefficient & heatCap, bool tdCp,
-		 ChiCoef & chi, bool tdChi,
-		 dChiCoef & dchi, bool tdDChi,
-		 Coefficient & heatSource, bool tdQ,
-		 bool nonlinear = false);
-  ~ImplicitDiffOp();
+   ImplicitDiffOp(ParFiniteElementSpace & H1_FESpace,
+                  Coefficient & dTdtBdr, bool tdBdr,
+                  Array<int> & bdr_attr,
+                  Coefficient & heatCap, bool tdCp,
+                  ChiCoef & chi, bool tdChi,
+                  dChiCoef & dchi, bool tdDChi,
+                  Coefficient & heatSource, bool tdQ,
+                  bool nonlinear = false);
+   ~ImplicitDiffOp();
 
-  // void SetTime(double time)
-  // { newTime_ = fabs(time - t_) > 0.0; t_ = time; }
-  // void SetTimeStep(double dt)
-  // { newTimeStep_= (fabs(1.0-dt/dt_)>1e-6); dt_ = newTimeStep_ ? dt : dt_; }
+   void SetState(ParGridFunction & T, double t, double dt);
 
-  void SetState(ParGridFunction & T, double t, double dt);
-  
-  void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const;
 
-  // Operator & GetGradient(const Vector &x) const { return *grad_; }
-  Operator & GetGradient(const Vector &x) const;
-  
-  //Solver & GetGradientSolver() const { return *solver_; }
-  Solver & GetGradientSolver() const;
+   Operator & GetGradient(const Vector &x) const;
 
-  const Vector & GetRHS() const { return (nonLinear_) ? RHS0_ : RHS_; }
-  
+   Solver & GetGradientSolver() const;
+
+   const Vector & GetRHS() const { return RHS_; }
+
 private:
 
-  bool first_;
-  bool tdBdr_;
-  bool tdCp_;
-  bool tdChi_;
-  bool tdDChi_;
-  bool tdQ_;
-  bool nonLinear_;
-  bool newTime_;
-  bool newTimeStep_;
+   bool first_;
+   bool tdBdr_;
+   bool tdCp_;
+   bool tdChi_;
+   bool tdDChi_;
+   bool tdQ_;
+   bool nonLinear_;
+   bool newTime_;
+   bool newTimeStep_;
 
-  double t_;
-  double dt_;
+   double t_;
+   double dt_;
 
-  Array<int> & ess_bdr_attr_;
-  Array<int>   ess_bdr_tdofs_;
+   Array<int> & ess_bdr_attr_;
+   Array<int>   ess_bdr_tdofs_;
 
-  Coefficient * bdrCoef_;
-  Coefficient * cpCoef_;
-  ChiCoef     * chiCoef_;
-  dChiCoef    * dChiCoef_;
-  Coefficient * QCoef_;
-  ScalarMatrixProductCoefficient dtChiCoef_;
+   Coefficient * bdrCoef_;
+   Coefficient * cpCoef_;
+   ChiCoef     * chiCoef_;
+   dChiCoef    * dChiCoef_;
+   Coefficient * QCoef_;
+   ScalarMatrixProductCoefficient dtChiCoef_;
 
-  mutable ParGridFunction T0_;
-  mutable ParGridFunction T1_;
-  mutable ParGridFunction dT_;
+   mutable ParGridFunction T0_;
+   mutable ParGridFunction T1_;
+   mutable ParGridFunction dT_;
 
-  mutable GradientGridFunctionCoefficient gradTCoef_;
-  ScalarVectorProductCoefficient dtGradTCoef_;
-  MatVecCoefficient dtdChiGradTCoef_;
-  
-  ParBilinearForm m0cp_;
-  mutable ParBilinearForm s0chi_;
-  mutable ParBilinearForm a0_;
-  
-  mutable HypreParMatrix A_;
-  mutable ParGridFunction dTdt_;
-  mutable ParLinearForm Q_;
-  mutable ParLinearForm Qs_;
-  mutable ParLinearForm rhs_;
-  // mutable Vector Q_RHS_;
-  mutable  Vector SOL_;
-  mutable  Vector RHS_;
-  Vector RHS0_; // Dummy RHS vector which hase length zero
+   mutable GradientGridFunctionCoefficient gradTCoef_;
+   ScalarVectorProductCoefficient dtGradTCoef_;
+   MatVecCoefficient dtdChiGradTCoef_;
 
-  mutable Solver         * AInv_;
-  mutable HypreBoomerAMG * APrecond_;
+   ParBilinearForm m0cp_;
+   mutable ParBilinearForm s0chi_;
+   mutable ParBilinearForm a0_;
 
-  // Operator * grad_;
-  // Solver * solver_;
+   mutable HypreParMatrix A_;
+   mutable ParGridFunction dTdt_;
+   mutable ParLinearForm Q_;
+   mutable ParLinearForm Qs_;
+   mutable ParLinearForm rhs_;
+
+   mutable  Vector SOL_;
+   mutable  Vector RHS_;
+   // Vector RHS0_; // Dummy RHS vector which hase length zero
+
+   mutable Solver         * AInv_;
+   mutable HypreBoomerAMG * APrecond_;
 };
-  
+
 /**
    The thermal diffusion equation can be written:
 
@@ -238,30 +228,19 @@ private:
 class ThermalDiffusionTDO : public TimeDependentOperator
 {
 public:
-  ThermalDiffusionTDO(ParFiniteElementSpace &H1_FES,
-		       Coefficient & dTdtBdr,
-		       Array<int> & bdr_attr,
-		       double chi_perp,
-		       double chi_para_min,
-		       double chi_para_max,
-		       int prob,
- 	 	       int coef_type,
-		       Coefficient & c, bool td_c,
-		       Coefficient & Q, bool td_Q);
+   ThermalDiffusionTDO(ParFiniteElementSpace &H1_FES,
+                       Coefficient & dTdtBdr,
+                       Array<int> & bdr_attr,
+                       double chi_perp,
+                       double chi_para_min,
+                       double chi_para_max,
+                       int prob,
+                       int coef_type,
+                       Coefficient & c, bool td_c,
+                       Coefficient & Q, bool td_Q);
 
    void SetTime(const double time);
-   /*
-    void SetHeatSource(Coefficient & Q, bool time_dep = false);
 
-    void SetConductivityCoefficient(Coefficient & k,
-             bool time_dep = false);
-
-    void SetConductivityCoefficient(MatrixCoefficient & K,
-             bool time_dep = false);
-
-    void SetSpecificHeatCoefficient(
-             bool time_dep = false);
-   */
    /** @brief Perform the action of the operator: @a q = f(@a y, t), where
        q solves the algebraic equation F(@a y, q, t) = G(@a y, t) and t is the
        current time. */
@@ -291,79 +270,26 @@ private:
 
    void init();
 
-   // void initMult() const;
-   // void initA(double dt);
-   // void initImplicitSolve();
-
    bool init_;
-   // bool initA_;
-   // bool initAInv_;
    bool newTime_;
    bool nonLinear_;
-  
+
    mutable int multCount_;
    int solveCount_;
 
-  // ParFiniteElementSpace * H1_FESpace_;
-
-  // ParBilinearForm * mC_;
-  // ParBilinearForm * sK_;
-   // ParBilinearForm * a_;
-  
-  mutable ParGridFunction T_;
-  // ParGridFunction * dTdt_gf_;
-  // ParLinearForm * Qs_;
+   mutable ParGridFunction T_;
 
    GridFunctionCoefficient TCoef_;
    UnitVectorField unitBCoef_;
    IdentityMatrixCoefficient ICoef_;
    OuterProductCoefficient bbTCoef_;
    MatrixSumCoefficient chiPerpCoef_;
-  // ScalarMatrixProductCoefficient chiPerp_;
    ChiParaCoef chiParaCoef_;
    ChiCoef     chiCoef_;
    dChiCoef    dChiCoef_;
 
-  // mutable HypreParMatrix   MC_;
-  // mutable HyprePCG       * MCInv_;
-  // mutable HypreDiagScale * MCDiag_;
-
    ImplicitDiffOp impOp_;
    NewtonSolver   newton_;
-   /*
-   HypreParMatrix    A_;
-   HypreGMRES      * AInv_;
-   HyprePCG        * AInv_;
-   HypreBoomerAMG  * APrecond_;
-   */
-  
-   // HypreParVector * T_;
-  // mutable Vector dTdt_;
-  // mutable Vector RHS_;
-  // Vector * rhs_;
-
-  // Array<int> * bdr_attr_;
-  // Array<int>   ess_bdr_tdofs_;
-
-  // Coefficient       * dTdtBdrCoef_;
-
-  // bool tdQ_;
-  // bool tdC_;
-  // bool tdK_;
-   /*
-   bool ownsQ_;
-   bool ownsC_;
-   bool ownsK_;
-   */
-   // Coefficient       * QCoef_;
-   // Coefficient       * CCoef_;
-   // Coefficient       * kCoef_;
-   // ChiGridFuncCoef   KCoef_;
-   // Coefficient       * CInvCoef_;
-   // Coefficient       * kInvCoef_;
-   // MatrixCoefficient * KInvCoef_;
-   // Coefficient       * dtkCoef_;
-   // MatrixCoefficient * dtKCoef_;
 };
 
 } // namespace thermal
