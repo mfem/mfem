@@ -31,6 +31,7 @@ public:
 
    void Set(const double *p, const int dim)
    {
+      MFEM_ASSERT(1 <= dim && dim <= 3, "invalid dim: " << dim);
       x = p[0];
       if (dim > 1)
       {
@@ -44,6 +45,7 @@ public:
 
    void Get(double *p, const int dim) const
    {
+      MFEM_ASSERT(1 <= dim && dim <= 3, "invalid dim: " << dim);
       p[0] = x;
       if (dim > 1)
       {
@@ -84,6 +86,7 @@ class IntegrationRule : public Array<IntegrationPoint>
 {
 private:
    friend class IntegrationRules;
+   int Order;
 
    /// Define n-simplex rule (triangle/tetrahedron for n=2/3) of order (2s+1)
    void GrundmannMollerSimplexRule(int s, int n = 3);
@@ -200,10 +203,12 @@ private:
    }
 
 public:
-   IntegrationRule() : Array<IntegrationPoint>() { }
+   IntegrationRule() :
+      Array<IntegrationPoint>(), Order(0) { }
 
    /// Construct an integration rule with given number of points
-   explicit IntegrationRule(int NP) : Array<IntegrationPoint>(NP)
+   explicit IntegrationRule(int NP) :
+      Array<IntegrationPoint>(NP), Order(0)
    {
       for (int i = 0; i < this->Size(); i++)
       {
@@ -217,6 +222,13 @@ public:
    /// Tensor product of three 1D integration rules
    IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
                    IntegrationRule &irz);
+
+   /// Returns the order of the integration rule
+   int GetOrder() const { return Order; }
+
+   /** @brief Sets the order of the integration rule. This is only for keeping
+       order information, it does not alter any data in the IntegrationRule. */
+   void SetOrder(const int order) { Order = order; }
 
    /// Returns the number of the points in the integration rule
    int GetNPoints() const { return Size(); }

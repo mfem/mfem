@@ -38,23 +38,37 @@ all: header config-mk
 MPI = $(MFEM_USE_MPI:NO=)
 GHV = get_hypre_version
 GHV_FLAGS = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(HYPRE_OPT))
+SMX = $(if $(MFEM_USE_PUMI:NO=),MFEM_USE_SIMMETRIX)
+SMX_PATH = $(PUMI_DIR)/include/gmi_sim.h
+SMX_FILE = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(SMX_PATH))
 
-get-hypre-version: $(SRC)$(GHV).cpp
+$(GHV): $(SRC)$(GHV).cpp
 	$(call mfem-info, Determining HYPRE version ...)
-	$(eval MFEM_HYPRE_VERSION:=$(shell \
-	   $(MFEM_CXX) ${GHV_FLAGS} $(SRC)$(GHV).cpp -o $(GHV) \
-	   > /dev/null 2>&1 && \
-	   { ./$(GHV); rm -f $(GHV) > /dev/null 2>&1; }))
-	$(if $(MFEM_HYPRE_VERSION),,$(error Unable to determine HYPRE version))
-	$(eval export MFEM_HYPRE_VERSION)
+	$(MFEM_CXX) ${GHV_FLAGS} $(SRC)$(GHV).cpp -o $(GHV)
+$(GHV).out: $(GHV)
+	./$(GHV) > $(GHV).out
+.INTERMEDIATE: $(GHV) $(GHV).out
 
-header: $(if $(MPI),get-hypre-version,)
+get-hypre-version: $(GHV).out
+	$(eval MFEM_HYPRE_VERSION:=$(shell cat $(GHV).out))
+	$(if $(MFEM_HYPRE_VERSION),$(eval export MFEM_HYPRE_VERSION)\
+	$(info HYPRE version: $(MFEM_HYPRE_VERSION)),\
+	$(error Unable to determine HYPRE version))
+
+check-smx:
+	$(call mfem-info, Checking for Simmetrix header [$(SMX_FILE)] ...)
+	$(eval MFEM_USE_SIMMETRIX:=$(if $(wildcard $(SMX_FILE)),YES,NO))
+	$(call mfem-info, MFEM_USE_SIMMETRIX = $(MFEM_USE_SIMMETRIX))
+	$(eval export MFEM_USE_SIMMETRIX)
+
+header: $(if $(MPI),get-hypre-version,) $(if $(SMX),check-smx)
 	$(call mfem-info, Writing $(CONFIG_HPP) ...)
 	@set -- && \
-	for def in $${MFEM_DEFINES} $(if $(MPI),MFEM_HYPRE_VERSION,); do \
+	for def in $${MFEM_DEFINES} $(if $(MPI),MFEM_HYPRE_VERSION) $(SMX); do \
 	   eval var=\$$$$def && \
 	   if [ "NO" != "$${var}" ]; then \
-	      set -- "$$@" -e "s|// \(#define $${def}\)|\1|" && \
+	      set -- "$$@" -e "s|// \(#define $${def} \)|\1|" && \
+	      set -- "$$@" -e "s|// \(#define $${def}\)$$|\1|" && \
 	      set -- "$$@" -e "s#@$${def}@#$${var}#g"; \
 	   fi; \
 	done && \
@@ -75,4 +89,4 @@ config-mk:
 	sed "$$@" $(SRC)config.mk.in > $(CONFIG_MK)
 
 clean:
-	rm -f $(CONFIG_HPP) $(CONFIG_MK)
+	rm -f $(CONFIG_HPP) $(CONFIG_MK) sample-runs-build.log

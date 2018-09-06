@@ -35,7 +35,7 @@ if (MFEM_USE_MPI)
 endif()
 
 # Include the source directory where mfem.hpp and mfem-performance.hpp are.
-include_directories(${PROJECT_BINARY_DIR})
+include_directories(BEFORE ${PROJECT_BINARY_DIR})
 
 # Add targets to copy rc_* files from the source directory
 foreach(RC_FILE ${PETSC_RC_FILES})
@@ -49,7 +49,7 @@ add_custom_target(copy_petsc_rc_files DEPENDS ${PETSC_RC_FILES}
 
 # Add "test_petsc" target, see below.
 add_custom_target(test_petsc
-  ${CMAKE_CTEST_COMMAND} -R petsc -C PETSC USES_TERMINAL)
+  ${CMAKE_CTEST_COMMAND} -R petsc USES_TERMINAL)
 
 # Add one executable per cpp file, adding "petsc_" as prefix. Sets
 # "copy_petsc_rc_files" as a prerequisite for the given examples. Also, sets
@@ -58,50 +58,47 @@ set(PFX petsc_)
 add_mfem_examples(PETSC_EXAMPLES_SRCS ${PFX} copy_petsc_rc_files test_petsc)
 
 # Testing.
-# We do not want these tests to be run by default, so we add them to their own
-# configuration - PETSC. To run the tests defined here use the "test_petsc"
-# target which builds the examples and runs:
-#   ctest -C PETSC -R petsc
+# The PETSc tests can be run separately using the target "test_petsc" which
+# builds the examples and runs:
+#   ctest -R petsc
 
 # Command line options for the tests.
-set(EX1P_ARGS -m ../../data/amr-quad.mesh --usepetsc --petscopts rc_ex1p)
-set(EX2P_ARGS -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex2p)
-set(EX3P_ARGS -m ../../data/klein-bottle.mesh
-    -o 2 -f 0.1 --usepetsc --petscopts rc_ex3p_bddc --nonoverlapping)
-set(EX4P_ARGS -m ../../data/klein-bottle.mesh
-    -o 2 --usepetsc --petscopts rc_ex4p_bddc --nonoverlapping)
-set(EX5_BDDC_ARGS -m ../../data/star.mesh
-    --usepetsc --petscopts rc_ex5p_bddc --nonoverlapping)
-set(EX5_FSPL_ARGS -m ../../data/beam-tet.mesh
-    --usepetsc --petscopts rc_ex5p_fieldsplit)
-set(EX5P_ARGS ${EX5_FSPL_ARGS})
-set(EX6P_ARGS -m ../../data/amr-quad.mesh --usepetsc)
-set(EX9P_ARGS -m ../../data/periodic-hexagon.mesh
-    --usepetsc --petscopts rc_ex9p_expl)
-set(EX10P_ARGS -m ../../data/beam-quad.mesh
-    -tf 30 -s 3 -rs 2 -dt 3 --usepetsc --petscopts rc_ex10p)
+set(EX1_ARGS_W       -m ../../data/amr-quad.mesh --usepetsc)
+set(EX1_ARGS_P       -m ../../data/amr-quad.mesh --usepetsc --petscopts rc_ex1p)
+set(EX2_ARGS         -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex2p)
+set(EX3_ARGS         -m ../../data/klein-bottle.mesh -o 2 -f 0.1 --usepetsc --petscopts rc_ex3p_bddc --nonoverlapping)
+set(EX4_ARGS         -m ../../data/klein-bottle.mesh -o 2 --usepetsc --petscopts rc_ex4p_bddc --nonoverlapping)
+set(EX4_HYB_ARGS     -m ../../data/klein-bottle.mesh -o 2 --usepetsc --petscopts rc_ex4p_bddc --nonoverlapping --hybridization)
+set(EX5_BDDC_LB_ARGS -m ../../data/star.mesh --usepetsc -o 0 --petscopts rc_ex5p_bddc --nonoverlapping --local-bdr)
+set(EX5_BDDC_GB_ARGS -m ../../data/star.mesh --usepetsc -o 0 --petscopts rc_ex5p_bddc --nonoverlapping)
+set(EX5_FSPL_ARGS    -m ../../data/beam-tet.mesh --usepetsc -o 0 --petscopts rc_ex5p_fieldsplit)
+set(EX6_ARGS         -m ../../data/amr-quad.mesh --usepetsc)
+set(EX6_NONOVL_ARGS  -m ../../data/amr-quad.mesh --usepetsc --nonoverlapping)
+set(EX9_E_ARGS       -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts rc_ex9p_expl -dt 0.1)
+set(EX9_ES_ARGS      -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts rc_ex9p_expl --no-step)
+set(EX9_IS_ARGS      -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts rc_ex9p_impl --implicit -tf 0.5)
+set(EX10_ARGS        -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex10p -tf 30 -s 3 -rs 2 -dt 3)
 
-# Add the tests: one test per source file.
-foreach(SRC_FILE ${PETSC_EXAMPLES_SRCS})
-  get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)
-  string(REPLACE ".cpp" "" TEST_NAME ${SRC_FILENAME})
-  string(TOUPPER ${TEST_NAME} UP_TEST_NAME)
+# Add the tests: one test per command-line-variable.
+foreach(TEST_OPTIONS_VAR
+        EX1_ARGS_W EX1_ARGS_P EX2_ARGS EX3_ARGS EX4_ARGS EX4_HYB_ARGS
+        EX5_BDDC_LB_ARGS EX5_BDDC_GB_ARGS EX5_FSPL_ARGS EX6_ARGS EX6_NONOVL_ARGS
+        EX9_E_ARGS EX9_ES_ARGS EX9_IS_ARGS EX10_ARGS)
+  string(REGEX REPLACE "^(.+)_ARGS" "\\1" TEST_NAME_UC ${TEST_OPTIONS_VAR})
+  string(REGEX REPLACE "^([^_]+)" "\\1P" TEST_NAME_UC ${TEST_NAME_UC})
+  string(TOLOWER ${TEST_NAME_UC} TEST_NAME_FULL)
+  string(REGEX REPLACE "^([^_]+).*" "\\1" TEST_NAME ${TEST_NAME_FULL})
+  set(TEST_NAME_FULL ${PFX}${TEST_NAME_FULL})
   set(TEST_NAME ${PFX}${TEST_NAME})
+  set(TEST_OPTIONS "-no-vis" ${${TEST_OPTIONS_VAR}})
+  # message(STATUS "${TEST_NAME_FULL} --> ${TEST_NAME} ${TEST_OPTIONS}")
 
-  set(THIS_TEST_OPTIONS "-no-vis")
-  list(APPEND THIS_TEST_OPTIONS ${${UP_TEST_NAME}_ARGS})
-  # message(STATUS "Test ${TEST_NAME} options: ${THIS_TEST_OPTIONS}")
-
-  if (NOT (${TEST_NAME} MATCHES ".*p$"))
-    add_test(NAME ${TEST_NAME}_ser
-      COMMAND ${TEST_NAME} ${THIS_TEST_OPTIONS}
-      CONFIGURATIONS PETSC)
-  else()
-    add_test(NAME ${TEST_NAME}_np=4
+  # All PETSC tests are parallel.
+  if (MFEM_USE_MPI)
+    add_test(NAME ${TEST_NAME_FULL}_np=4
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4
       ${MPIEXEC_PREFLAGS}
-      $<TARGET_FILE:${TEST_NAME}> ${THIS_TEST_OPTIONS}
-      ${MPIEXEC_POSTFLAGS}
-      CONFIGURATIONS PETSC)
+      $<TARGET_FILE:${TEST_NAME}> ${TEST_OPTIONS}
+      ${MPIEXEC_POSTFLAGS})
   endif()
 endforeach()

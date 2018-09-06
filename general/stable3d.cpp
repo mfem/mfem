@@ -10,7 +10,6 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 
-#include <iostream>
 #include "error.hpp"
 #include "stable3d.hpp"
 
@@ -143,7 +142,7 @@ int STable3D::Push4 (int r, int c, int f, int t)
 
    if (max < c) { max = c, i = 1; }
    if (max < f) { max = f, i = 2; }
-   if (max < t) { max = t, i = 3; }
+   if (max < t) { i = 3; }
 
    switch (i)
    {
@@ -167,7 +166,7 @@ int STable3D::operator() (int r, int c, int f, int t) const
 
    if (max < c) { max = c, i = 1; }
    if (max < f) { max = f, i = 2; }
-   if (max < t) { max = t, i = 3; }
+   if (max < t) { i = 3; }
 
    switch (i)
    {
@@ -201,6 +200,24 @@ STable3D::~STable3D ()
    }
 #endif
    delete [] Rows;
+}
+
+void STable3D::Print(std::ostream & out) const
+{
+   out << NElem << endl;
+   for (int row = 0; row < Size; row++)
+   {
+      STable3DNode *node_p = Rows[row];
+      while (node_p != NULL)
+      {
+         out << row
+             << ' ' << node_p->Column
+             << ' ' << node_p->Floor
+             << ' ' << node_p->Number
+             << endl;
+         node_p = node_p->Prev;
+      }
+   }
 }
 
 }
