@@ -31,29 +31,31 @@ static int prob_ = 1;
 
 double QFunc(const Vector &x, double t)
 {
-  if ( prob_ % 2 == 1)
-    return 2.0 * M_PI * M_PI * sin(M_PI * x[0]) * sin(M_PI * x[1]);
-  else
-  {
-    double a = 0.4;
-    double b = 0.8;
+   if ( prob_ % 2 == 1)
+   {
+      return 2.0 * M_PI * M_PI * sin(M_PI * x[0]) * sin(M_PI * x[1]);
+   }
+   else
+   {
+      double a = 0.4;
+      double b = 0.8;
 
-    double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
-    double e = exp(-0.25 * t * M_PI * M_PI / (a * b) );
+      double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
+      double e = exp(-0.25 * t * M_PI * M_PI / (a * b) );
 
-    if ( r == 0.0 )
-      return 0.25 * M_PI * M_PI *
-	( (1.0 - e) * ( pow(a, -2) + pow(b, -2) ) + e / (a * b));
-    
-    return ( M_PI / r ) *
-      ( 0.25 * M_PI * pow(a * b, -4) *
-	( pow(b * b * x[0],2) + pow(a * a * x[1], 2) +
-	  (a - b) * (b * pow(b * x[0], 2) - a * pow(a*x[1],2)) * e) *
-	  cos(0.5 * M_PI * sqrt(r)) +
-	0.5 * pow(a * b, -2) * (x * x) * (1.0 - e) *
-	sin(0.5 * M_PI * sqrt(r)) / sqrt(r)
-	);
-  }
+      if ( r == 0.0 )
+         return 0.25 * M_PI * M_PI *
+                ( (1.0 - e) * ( pow(a, -2) + pow(b, -2) ) + e / (a * b));
+
+      return ( M_PI / r ) *
+             ( 0.25 * M_PI * pow(a * b, -4) *
+               ( pow(b * b * x[0],2) + pow(a * a * x[1], 2) +
+                 (a - b) * (b * pow(b * x[0], 2) - a * pow(a*x[1],2)) * e) *
+               cos(0.5 * M_PI * sqrt(r)) +
+               0.5 * pow(a * b, -2) * (x * x) * (1.0 - e) *
+               sin(0.5 * M_PI * sqrt(r)) / sqrt(r)
+             );
+   }
 }
 
 static double chi_perp_      = 1.0;
@@ -123,7 +125,7 @@ int main(int argc, char *argv[])
                   "Specify problem type: 1 - Square, 2 - Ellipse.");
    args.AddOption(&coef_type, "-c", "--coef",
                   "Specify diffusion coefficient type: "
-		  "0 - Constant, 1 - Linearized, 2 - Non-Linear.");
+                  "0 - Constant, 1 - Linearized, 2 - Non-Linear.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -186,8 +188,8 @@ int main(int argc, char *argv[])
    //    can handle triangular and quadrilateral surface meshes with the
    //    same code.
    Mesh *mesh = (n > 0) ?
-     new Mesh(n, n, (Element::Type)el_type, 1) :
-     new Mesh(mesh_file, 1, 1);
+                new Mesh(n, n, (Element::Type)el_type, 1) :
+                new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
    // 4. This step is no longer needed
@@ -291,19 +293,19 @@ int main(int argc, char *argv[])
    FunctionCoefficient HeatSourceCoef(QFunc);
 
    Qs_gf.ProjectCoefficient(HeatSourceCoef);
-   
+
    // 14. Initialize the Diffusion operator, the GLVis visualization and print
    //     the initial energies.
    ThermalDiffusionTDO oper(HGradFESpace,
-			    zeroCoef, ess_bdr,
-			    chi_perp_,
-			    chi_min_ratio_ * chi_perp_,
-			    chi_max_ratio_ * chi_perp_,
-			    prob_,
-			    coef_type,
-			    SpecificHeatCoef, false,
-			    // ConductionCoef, false,
-			    HeatSourceCoef, false);
+                            zeroCoef, ess_bdr,
+                            chi_perp_,
+                            chi_min_ratio_ * chi_perp_,
+                            chi_max_ratio_ * chi_perp_,
+                            prob_,
+                            coef_type,
+                            SpecificHeatCoef, false,
+                            // ConductionCoef, false,
+                            HeatSourceCoef, false);
 
    // This function initializes all the fields to zero or some provided IC
    // oper.Init(F);
@@ -330,7 +332,7 @@ int main(int argc, char *argv[])
 
       miniapps::VisualizeField(vis_Q, vishost, visport,
                                Qs_gf, "Heat Soruce", Wx+offx, Wy, Ww, Wh);
-}
+   }
    // VisIt visualization
    VisItDataCollection visit_dc(basename, pmesh);
    if ( visit )
@@ -353,7 +355,7 @@ int main(int argc, char *argv[])
    int tsize = HGradFESpace.GetTrueVSize();
    Vector T0(tsize), T1(tsize), dT(tsize);
    T0 = 0.0; T1 = 0.0; dT = 0.0;
-   
+
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
    {
@@ -375,7 +377,7 @@ int main(int argc, char *argv[])
 
       T_gf.Distribute(T1);
       dT_gf.Distribute(dT);
-	 
+
       double maxT    = T_gf.ComputeMaxError(zeroCoef);
       double maxDiff = dT_gf.ComputeMaxError(zeroCoef);
 
