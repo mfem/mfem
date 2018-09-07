@@ -120,19 +120,22 @@ protected:
 
    void BuildSharedFaceElems(int nfaces, const Mesh& mesh,
                              int* partitioning,
-                             STable3D* faces_tbl,
-                             Array<int>& face_group,
-                             Array<int>& vert_global_local);
+                             const STable3D *faces_tbl,
+                             const Array<int> &face_group,
+                             const Array<int> &vert_global_local);
 
    void BuildSharedEdgeElems(int nedges, Mesh& mesh,
-                             Array<int>& vert_global_local,
-                             Table* edge_element);
+                             const Array<int> &vert_global_local,
+                             const Table *edge_element);
 
-   void BuildSharedVertMapping(int nvert, Table* vert_element,
-                               Array<int>& vert_global_local);
+   void BuildSharedVertMapping(int nvert, const Table* vert_element,
+                               const Array<int>& vert_global_local);
 
+#if 0
+   /// fills out vert_global_local
    int BuildVertGlobalLocal(Mesh& mesh, int* partitioning,
                             Array<int>& vert_global_local);
+#endif
 
    /// fills out partitioned Mesh::vertices
    int BuildLocalVertices(const Mesh& global_mesh, const int* partitioning,
@@ -277,6 +280,20 @@ public:
 
    /// Save the mesh in a parallel mesh format.
    void ParPrint(std::ostream &out) const;
+
+   void DebugPrint(std::ostream &out) const
+   {
+      out << "group_svert:\n";
+      group_svert.Print(out);
+
+      out << "group_sedge:\n";
+      group_sedge.Print(out);
+
+      out << "group_sface:\n";
+      group_sedge.Print(out);
+
+      out << std::endl;
+   }
 
    virtual int FindPoints(DenseMatrix& point_mat, Array<int>& elem_ids,
                           Array<IntegrationPoint>& ips, bool warn = true,
