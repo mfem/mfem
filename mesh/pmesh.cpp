@@ -93,15 +93,19 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
    MPI_Comm_size(MyComm, &NRanks);
    MPI_Comm_rank(MyComm, &MyRank);
 
-   ncmesh = pncmesh = NULL;
    if (mesh.Nonconforming())
    {
       ncmesh = pncmesh = new ParNCMesh(comm, *mesh.ncmesh);
+   }
+   else
+   {
+      ncmesh = pncmesh = NULL;
    }
 
    if (partitioning_)
    {
       partitioning = partitioning_;
+      // FIXME: does this work for NC meshes?
    }
    else
    {
@@ -229,6 +233,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
    // build shared_faces and sface_lface mapping
    BuildSharedFaceElems(nsfaces, mesh, partitioning, faces_tbl,
                         face_group, vert_global_local);
+   delete faces_tbl;
 
    // build shared_edges and sedge_ledge mapping
    BuildSharedEdgeElems(nsedges, mesh, vert_global_local,
@@ -272,6 +277,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       Vector lnodes;
       int element_counter = 0;
       for (int i = 0; i < mesh.GetNE(); i++)
+      {
          if (partitioning[i] == MyRank)
          {
             Nodes->FESpace()->GetElementVDofs(element_counter, lvdofs);
@@ -280,6 +286,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
             Nodes->SetSubVector(lvdofs, lnodes);
             element_counter++;
          }
+      }
    }
 
    if (partitioning)
@@ -852,9 +859,9 @@ void ParMesh::BuildVertexGroup(int ngroups, const Table& vert_element,
 
 void ParMesh::BuildSharedFaceElems(int nfaces, const Mesh& mesh,
                                    int* partitioning,
-                                   STable3D* faces_tbl,
-                                   Array<int>& face_group,
-                                   Array<int>& vert_global_local)
+                                   const STable3D* faces_tbl,
+                                   const Array<int>& face_group,
+                                   const Array<int>& vert_global_local)
 {
    shared_faces.SetSize(nfaces);
    sface_lface. SetSize(nfaces);
@@ -905,14 +912,12 @@ void ParMesh::BuildSharedFaceElems(int nfaces, const Mesh& mesh,
             sface_counter++;
          }
       }
-
-      delete faces_tbl;
    }
 }
 
 void ParMesh::BuildSharedEdgeElems(int nedges, Mesh& mesh,
-                                   Array<int>& vert_global_local,
-                                   Table* edge_element)
+                                   const Array<int>& vert_global_local,
+                                   const Table* edge_element)
 {
    // The passed in mesh is still the global mesh.  "this" mesh is the
    // local partitioned mesh.
@@ -954,8 +959,9 @@ void ParMesh::BuildSharedEdgeElems(int nedges, Mesh& mesh,
    }
 }
 
-void ParMesh::BuildSharedVertMapping(int nvert, Table* vert_element,
-                                     Array<int>& vert_global_local)
+void ParMesh::BuildSharedVertMapping(int nvert,
+                                     const mfem::Table *vert_element,
+                                     const Array<int> &vert_global_local)
 {
    // build svert_lvert
    svert_lvert.SetSize(nvert);
@@ -970,8 +976,7 @@ void ParMesh::BuildSharedVertMapping(int nvert, Table* vert_element,
    }
 }
 
-// Fills out vert_global_local
-
+#if 0
 int ParMesh::BuildVertGlobalLocal(Mesh& mesh, int* partitioning,
                                   Array<int>& vert_global_local)
 {
@@ -1004,6 +1009,7 @@ int ParMesh::BuildVertGlobalLocal(Mesh& mesh, int* partitioning,
 
    return vert_counter;
 }
+#endif
 
 int ParMesh::BuildLocalVertices(const mfem::Mesh &mesh,
                                 const int* partitioning,
@@ -2220,7 +2226,7 @@ int ParMesh::GetNSharedFaces() const
          default: return sface_lface.Size();
       }
    }
-   else
+   else // TODO: remove?
    {
       MFEM_ASSERT(Dim > 1, "");
       const NCMesh::NCList &shared = pncmesh->GetSharedList(Dim-1);
@@ -2239,7 +2245,7 @@ int ParMesh::GetSharedFace(int sface) const
          default: return sface_lface[sface];
       }
    }
-   else
+   else // TODO: remove?
    {
       MFEM_ASSERT(Dim > 1, "");
       const NCMesh::NCList &shared = pncmesh->GetSharedList(Dim-1);
