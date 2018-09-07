@@ -175,6 +175,7 @@ Geometry::Geometry()
    GeomToPerfGeomJac[SQUARE]      = new DenseMatrix(2);
    GeomToPerfGeomJac[TETRAHEDRON] = new DenseMatrix(3);
    GeomToPerfGeomJac[CUBE]        = new DenseMatrix(3);
+   GeomToPerfGeomJac[PENTATOPE]   = new DenseMatrix(4);
 
    PerfGeomToGeomJac[POINT]       = NULL;
    PerfGeomToGeomJac[SEGMENT]     = NULL;
@@ -182,6 +183,7 @@ Geometry::Geometry()
    PerfGeomToGeomJac[SQUARE]      = NULL;
    PerfGeomToGeomJac[TETRAHEDRON] = new DenseMatrix(3);
    PerfGeomToGeomJac[CUBE]        = NULL;
+   PerfGeomToGeomJac[PENTATOPE]   = new DenseMatrix(4);
 
    GeomToPerfGeomJac[SEGMENT]->Diag(1.0, 1);
    {
@@ -206,6 +208,16 @@ Geometry::Geometry()
       CalcInverse(tet_T.Jacobian(), *PerfGeomToGeomJac[TETRAHEDRON]);
    }
    GeomToPerfGeomJac[CUBE]->Diag(1.0, 3);
+   {
+      Linear4DFiniteElement PentFE;
+      IsoparametricTransformation pent_T;
+      pent_T.SetFE(&PentFE);
+      GetPerfPointMat (PENTATOPE, pent_T.GetPointMat());
+      pent_T.FinalizeTransformation();
+      pent_T.SetIntPoint(&GeomCenter[PENTATOPE]);
+      *GeomToPerfGeomJac[PENTATOPE] = pent_T.Jacobian();
+      CalcInverse(pent_T.Jacobian(), *PerfGeomToGeomJac[PENTATOPE]);
+   }
 }
 
 Geometry::~Geometry()
@@ -474,6 +486,39 @@ inline bool ProjectTriangle(double &x, double &y)
    return true;
 }
 
+inline bool ProjectTetrahedron(double &x, double &y, double &z)
+{
+   if (z < 0.0)
+   {
+      z = 0.0;
+      internal::ProjectTriangle(x, y);
+      return false;
+   }
+   if (y < 0.0)
+   {
+      y = 0.0;
+      internal::ProjectTriangle(x, z);
+      return false;
+   }
+   if (x < 0.0)
+   {
+      x = 0.0;
+      internal::ProjectTriangle(y, z);
+      return false;
+   }
+   const double l4 = 1.0-x-y-z;
+   if (l4 < 0.0)
+   {
+      const double l4_3 = l4/3;
+      x += l4_3;
+      y += l4_3;
+      internal::ProjectTriangle(x, y);
+      z = 1.0-x-y;
+      return false;
+   }
+   return true;
+}
+
 }
 
 // static method
@@ -568,35 +613,7 @@ bool Geometry::ProjectPoint(int GeomType, IntegrationPoint &ip)
 
       case TETRAHEDRON:
       {
-         if (ip.z < 0.0)
-         {
-            ip.z = 0.0;
-            internal::ProjectTriangle(ip.x, ip.y);
-            return false;
-         }
-         if (ip.y < 0.0)
-         {
-            ip.y = 0.0;
-            internal::ProjectTriangle(ip.x, ip.z);
-            return false;
-         }
-         if (ip.x < 0.0)
-         {
-            ip.x = 0.0;
-            internal::ProjectTriangle(ip.y, ip.z);
-            return false;
-         }
-         const double l4 = 1.0-ip.x-ip.y-ip.z;
-         if (l4 < 0.0)
-         {
-            const double l4_3 = l4/3;
-            ip.x += l4_3;
-            ip.y += l4_3;
-            internal::ProjectTriangle(ip.x, ip.y);
-            ip.z = 1.0-ip.x-ip.y;
-            return false;
-         }
-         return true;
+         return internal::ProjectTetrahedron(ip.x, ip.y, ip.z);
       }
 
       case CUBE:
@@ -614,6 +631,44 @@ bool Geometry::ProjectPoint(int GeomType, IntegrationPoint &ip)
          return in_x && in_y && in_z;
       }
 
+      case PENTATOPE:
+      {
+         if (ip.t < 0.0)
+         {
+            ip.t = 0.0;
+            internal::ProjectTetrahedron(ip.x,ip.y,ip.z);
+         }
+         if (ip.z < 0.0)
+         {
+            ip.z = 0.0;
+            internal::ProjectTetrahedron(ip.x, ip.y, ip.t);
+            return false;
+         }
+         if (ip.y < 0.0)
+         {
+            ip.y = 0.0;
+            internal::ProjectTetrahedron(ip.x, ip.z, ip.t);
+            return false;
+         }
+         if (ip.x < 0.0)
+         {
+            ip.x = 0.0;
+            internal::ProjectTetrahedron(ip.y, ip.z, ip.t);
+            return false;
+         }
+         const double l5 = 1.0-ip.x-ip.y-ip.z-ip.t;
+         if (l5 < 0.0)
+         {
+            const double l5_4 = l5/5;
+            ip.x += l5_4;
+            ip.y += l5_4;
+            ip.z += l5_4;
+            internal::ProjectTetrahedron(ip.x, ip.y, ip.z);
+            ip.t = 1.0-ip.x-ip.y-ip.z;
+            return false;
+         }
+         return true;
+      }
       default:
          MFEM_ABORT("Reference element type is not supported!");
    }
@@ -673,6 +728,17 @@ void Geometry::GetPerfPointMat(int GeomType, DenseMatrix &pm)
          pm(0,5) = 1.0;  pm(1,5) = 0.0;  pm(2,5) = 1.0;
          pm(0,6) = 1.0;  pm(1,6) = 1.0;  pm(2,6) = 1.0;
          pm(0,7) = 0.0;  pm(1,7) = 1.0;  pm(2,7) = 1.0;
+      }
+      break;
+
+      case Geometry::PENTATOPE:
+      {
+         pm.SetSize(4,5);
+         pm(0,0) = 0.0;  pm(1,0) = 0.0;  pm(2,0) = 0.0; pm(3,0) = 0.0;
+         pm(0,1) = 1.0;  pm(1,1) = 0.0;  pm(2,1) = 0.0; pm(3,1) = 0.0;
+         pm(0,2) = 0.5;  pm(1,2) = 0.86602540378443864676;  pm(2,2) = 0.0; pm(3,2) = 0.0;
+         pm(0,3) = 0.5;  pm(1,3) = 0.28867513459481288225;  pm(2,3) = 0.81649658092772603273; pm(3,3) = 0.0;
+         pm(0,4) = 0.5;  pm(1,4) = 0.28867513459481288225;  pm(2,4) = 0.20412414523193150819; pm(3,4) = 0.7905694150420948330;
       }
       break;
 
