@@ -1846,7 +1846,7 @@ inline void GetScalingFactor(const double &d_max, double &mult)
 
 double DenseMatrix::CalcSingularvalue(const int i) const
 {
-   MFEM_ASSERT(Height() == Width() && Height() > 0 && Height() < 4,
+   MFEM_ASSERT(Height() == Width() && Height() > 0 && Height() < 5,
                "The matrix must be square and sized 1, 2, or 3 to compute the"
                " singular values."
                << "  Height() = " << Height()
@@ -1908,7 +1908,7 @@ double DenseMatrix::CalcSingularvalue(const int i) const
       }
       return t*mult;
    }
-   else
+   else if (n == 3)
    {
       double d0, d1, d2, d3, d4, d5, d6, d7, d8;
       d0 = d[0];  d3 = d[3];  d6 = d[6];
@@ -2139,6 +2139,12 @@ double DenseMatrix::CalcSingularvalue(const int i) const
    have_aa:
 
       return sqrt(fabs(aa))*mult; // take abs before we sort?
+   }
+   else
+   {
+      Vector sv(n);
+      SingularValues(sv);
+      return sv(i);
    }
 }
 
