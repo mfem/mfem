@@ -57,8 +57,8 @@ DofsToVDofs<Ordering::byVDIM>(int ndofs, int vdim, Array<int> &dofs)
 
 FiniteElementSpace::FiniteElementSpace()
    : mesh(NULL), fec(NULL), vdim(0), ordering(Ordering::byNODES),
-     ndofs(0), nvdofs(0), nedofs(0), nfdofs(0), nbdofs(0),
-     fdofs(NULL), bdofs(NULL),
+     ndofs(0), nvdofs(0), nedofs(0), nfdofs(0), nbdofs(0), npdofs(0),
+     fdofs(NULL), bdofs(NULL), pdofs(NULL),
      elem_dof(NULL), bdrElem_dof(NULL),
      NURBSext(NULL), own_ext(false),
      cP(NULL), cR(NULL), cP_is_set(false),
