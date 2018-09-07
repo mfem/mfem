@@ -120,9 +120,12 @@ protected:
 
    /// Helper to get vertex, edge or face DOFs (entity=0,1,2 resp.).
    void GetEntityDofs(int entity, int index, Array<int> &dofs) const;
+   /// Helper to get vertex, edge, planar or face DOFs (entity=0,1,2,3 resp.).
+   void GetEntityDofs4D(int entity, int index, Array<int> &dofs) const;
 
    /// Calculate the cP and cR matrices for a nonconforming mesh.
    void BuildConformingInterpolation() const;
+   void BuildConformingInterpolation4D() const;
 
    static void AddDependencies(SparseMatrix& deps, Array<int>& master_dofs,
                                Array<int>& slave_dofs, DenseMatrix& I);
@@ -324,6 +327,8 @@ public:
    /** Returns the indexes of the degrees of freedom for i'th face
        including the dofs for the edges and the vertices of the face. */
    virtual void GetFaceDofs(int i, Array<int> &dofs) const;
+
+   virtual void GetPlanarDofs(int i, Array<int> &dofs) const;
 
    /** Returns the indexes of the degrees of freedom for i'th edge
        including the dofs for the vertices of the edge. */
