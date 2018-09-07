@@ -750,6 +750,22 @@ void ParNCMesh::NeighborProcessors(Array<int> &neighbors)
 
 //// ParMesh compatibility /////////////////////////////////////////////////////
 
+static void SharedToLocalMap(const Array<ParNCMesh::GroupId> &conf_group,
+                             Array<int> &shared_local)
+{
+   int num_shared = 0;
+   for (int i = 0; i < conf_group.Size(); i++)
+   {
+      if (conf_group[i]) { num_shared++; }
+   }
+   shared_local.SetSize(num_shared);
+
+   for (int i = 0, j = 0; i < conf_group.Size(); i++)
+   {
+      if (conf_group[i]) { shared_local[j++] = i; }
+   }
+}
+
 void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
 {
    // make sure we have entity_conf_group[x]
@@ -770,6 +786,11 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
       }
       pmesh.gtopo.Create(int_groups, 822);
    }
+
+   // create shared to local index mappings
+   SharedToLocalMap(entity_conf_group[0], pmesh.svert_lvert);
+   SharedToLocalMap(entity_conf_group[1], pmesh.sedge_ledge);
+   SharedToLocalMap(entity_conf_group[2], pmesh.sface_lface);
 
 
    // TODO
