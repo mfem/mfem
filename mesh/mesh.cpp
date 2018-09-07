@@ -4362,6 +4362,18 @@ void Mesh::GetFaceEdges(int i, Array<int> &edges, Array<int> &o) const
    }
 }
 
+void Mesh::GetFacePlanars(int i, Array<int> &planars) const
+{
+   if (Dim != 4)
+   {
+      return;
+   }
+
+//   GetFacePlanarTable(); // generate face_edge Table (if not generated) TODO
+
+   face_planar->GetRow(i, planars);
+}
+
 void Mesh::GetEdgeVertices(int i, Array<int> &vert) const
 {
    // the two vertices are sorted: vert[0] < vert[1]
@@ -5129,6 +5141,7 @@ void Mesh::GenerateFaces()
          {
          case Element::PENTATOPE:
          {
+#ifdef MFEM_DBG_PENTATOPE_OLD
             bool swapped = swappedElements[i];
             int tempv[5];
             for (int j=0; j<5; j++) { tempv[j] = v[j]; }
@@ -5167,7 +5180,46 @@ void Mesh::GenerateFaces()
                }
 
             }
+#else
+            bool swapped = swappedElements[i];
+            int tempv[5];
+            for (int j=0; j<5; j++) { tempv[j] = v[j]; }
+            if (swapped) { Swap(tempv); }
 
+            int filter[5] = {0,1,2,3,4};
+            if (swapped)
+            {
+               filter[3] = 4;
+               filter[4] = 3;
+            }
+
+            for (int j = 0; j < 5; j++)
+            {
+               bool swapFace = false;
+               if ((swapped && j % 2 == 0) || (!swapped && j % 2 == 1))
+               {
+                  swapFace = true;
+               }
+
+               if (faces[ef[filter[j]]] == NULL)
+               {
+                  swappedFaces[ef[filter[j]]] = swapFace;
+               }
+
+               const int *fv = pent_t::FaceVert[j];
+               if (swapFace)
+               {
+                  AddTetrahedralFaceElement(j, ef[filter[j]], i,
+                                            tempv[fv[1]], tempv[fv[0]], tempv[fv[2]], tempv[fv[3]]);
+               }
+               else
+               {
+                  AddTetrahedralFaceElement(j, ef[filter[j]], i,
+                                            tempv[fv[0]], tempv[fv[1]], tempv[fv[2]], tempv[fv[3]]);
+               }
+
+            }
+#endif
             break;
          }
             case Element::TESSERACT:
@@ -7178,6 +7230,9 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
       case Geometry::CUBE:
          BaseBdrGeom = Geometry::SQUARE;
          break;
+      case Geometry::PENTATOPE:
+         BaseBdrGeom = Geometry::TETRAHEDRON;
+         break;
       default:
          BaseBdrGeom = -1;
    }
@@ -7199,11 +7254,24 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
       el_to_edge = new Table;
       NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
    }
-   if (Dim > 2)
+   if (Dim == 3)
    {
       GetElementToFaceTable();
    }
+   if (Dim > 3)
+   {
+      swappedElements.SetSize(NumOfElements);
+      GetElementToFaceTable4D();
+   }
    GenerateFaces();
+
+   if (Dim == 4)
+   {
+      ReplaceBoundaryFromFaces();
+
+      GetElementToPlanarTable();
+      GeneratePlanars();
+   }
 #ifdef MFEM_DEBUG
    CheckBdrElementOrientation(false);
 #endif
@@ -7229,6 +7297,7 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
    mfem::Swap(NumOfElements, other.NumOfElements);
    mfem::Swap(NumOfBdrElements, other.NumOfBdrElements);
    mfem::Swap(NumOfEdges, other.NumOfEdges);
+   mfem::Swap(NumOfPlanars, other.NumOfPlanars);
    mfem::Swap(NumOfFaces, other.NumOfFaces);
 
    mfem::Swap(meshgen, other.meshgen);
@@ -7237,14 +7306,17 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
    mfem::Swap(vertices, other.vertices);
    mfem::Swap(boundary, other.boundary);
    mfem::Swap(faces, other.faces);
+   mfem::Swap(planars, other.planars);
    mfem::Swap(faces_info, other.faces_info);
    mfem::Swap(nc_faces_info, other.nc_faces_info);
 
    mfem::Swap(el_to_edge, other.el_to_edge);
+   mfem::Swap(el_to_planar, other.el_to_planar);
    mfem::Swap(el_to_face, other.el_to_face);
    mfem::Swap(el_to_el, other.el_to_el);
    mfem::Swap(be_to_edge, other.be_to_edge);
    mfem::Swap(bel_to_edge, other.bel_to_edge);
+   mfem::Swap(bel_to_planar, other.bel_to_planar);
    mfem::Swap(be_to_face, other.be_to_face);
    mfem::Swap(face_edge, other.face_edge);
    mfem::Swap(edge_vertex, other.edge_vertex);
@@ -7402,11 +7474,13 @@ void Mesh::EnsureNCMesh(bool triangles_nonconforming)
    if (!ncmesh)
    {
       if ((meshgen & 2) /* quads/hexes */ ||
-          (triangles_nonconforming && BaseGeom == Geometry::TRIANGLE))
+          (triangles_nonconforming && BaseGeom == Geometry::TRIANGLE) ||
+          (triangles_nonconforming && BaseGeom == Geometry::PENTATOPE))
       {
          ncmesh = new NCMesh(this);
          ncmesh->OnMeshUpdated(this);
          GenerateNCFaceInfo();
+         mfem::out << "here" << std::endl;
       }
    }
 }
