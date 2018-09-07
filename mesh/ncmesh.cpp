@@ -19,6 +19,18 @@
 namespace mfem
 {
 
+
+const DenseTensor &CoarseFineTransformations::GetPointMatrices(
+   Geometry::Type geom) const
+{
+   std::map<Geometry::Type, DenseTensor>::const_iterator pm_it;
+   pm_it = point_matrices.find(geom);
+   MFEM_VERIFY(pm_it != point_matrices.end(),
+               "cannot find point matrices for geometry type \"" << geom
+               << "\"");
+   return pm_it->second;
+}
+
 NCMesh::GeomInfo NCMesh::GI[Geometry::NumGeom];
 
 NCMesh::GeomInfo& NCMesh::gi_hex  = NCMesh::GI[Geometry::CUBE];

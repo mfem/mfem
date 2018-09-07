@@ -330,10 +330,10 @@ private:
    const Linear2DFiniteElement TriangleFE;
    const BiLinear2DFiniteElement QuadrilateralFE;
    const Linear3DFiniteElement TetrahedronFE;
-   const BiLinear3DFiniteElement WedgeFE;
    const TriLinear3DFiniteElement ParallelepipedFE;
+   const H1_WedgeElement WedgeFE;
 public:
-   LinearFECollection() { }
+   LinearFECollection() : WedgeFE(1) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
@@ -354,11 +354,11 @@ private:
    const Quad2DFiniteElement TriangleFE;
    const BiQuad2DFiniteElement QuadrilateralFE;
    const Quadratic3DFiniteElement TetrahedronFE;
-   const BiQuadratic3DFiniteElement WedgeFE;
    const LagrangeHexFiniteElement ParallelepipedFE;
+   const H1_WedgeElement WedgeFE;
 
 public:
-   QuadraticFECollection() : ParallelepipedFE(2) { }
+   QuadraticFECollection() : ParallelepipedFE(2), WedgeFE(2) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
@@ -399,11 +399,12 @@ private:
    const Cubic2DFiniteElement TriangleFE;
    const BiCubic2DFiniteElement QuadrilateralFE;
    const Cubic3DFiniteElement TetrahedronFE;
-   const BiCubic3DFiniteElement WedgeFE;
    const LagrangeHexFiniteElement ParallelepipedFE;
+   const H1_WedgeElement WedgeFE;
 
 public:
-   CubicFECollection() : ParallelepipedFE(3) { }
+   CubicFECollection()
+      : ParallelepipedFE(3), WedgeFE(3, BasisType::ClosedUniform) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
@@ -682,11 +683,11 @@ class Const3DFECollection : public FiniteElementCollection
 {
 private:
    const P0TetFiniteElement TetrahedronFE;
-   const P0PriFiniteElement WedgeFE;
    const P0HexFiniteElement ParallelepipedFE;
+   const L2_WedgeElement WedgeFE;
 
 public:
-   Const3DFECollection () { }
+   Const3DFECollection() : WedgeFE(0) { }
 
    virtual const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const;
