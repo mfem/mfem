@@ -46,6 +46,7 @@ void trans3D(const Vector&, Vector&);
 int main(int argc, char *argv[])
 {
    const char *mesh_file = "../../data/inline-quad.mesh";
+   int order = -1;
    int ny = -1, nz = -1;
    double wy = 1.0, hz = 1.0;
    bool trans = false;
@@ -55,6 +56,8 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Input mesh file to shape materials in.");
+   args.AddOption(&order, "-o", "--mesh-order",
+                  "Order (polynomial degree) of the mesh elements.");
    args.AddOption(&ny, "-ny", "--num-elem-in-y",
                   "Extrude a 1D mesh into ny elements in the y-direction.");
    args.AddOption(&wy, "-wy", "--width-in-y",
@@ -77,6 +80,17 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
+   // Determine the order to use for a transformed mesh
+   if ( order < 0 && trans )
+   {
+      int meshOrder = 1;
+      if ( mesh->GetNodalFESpace() != NULL )
+      {
+         meshOrder = mesh->GetNodalFESpace()->GetORder(0);
+      }
+      order = meshOrder;
+   }
+
    bool newMesh = false;
 
    if ( dim == 3 )
@@ -96,7 +110,7 @@ int main(int argc, char *argv[])
       dim = 2;
       if (trans)
       {
-         mesh->SetCurvature(3, false, 2, Ordering::byVDIM);
+         mesh->SetCurvature(order, false, 2, Ordering::byVDIM);
          mesh->Transform(trans2D);
       }
       newMesh = true;
@@ -112,7 +126,7 @@ int main(int argc, char *argv[])
       dim = 3;
       if (trans)
       {
-         mesh->SetCurvature(3, false, 3, Ordering::byVDIM);
+         mesh->SetCurvature(order, false, 3, Ordering::byVDIM);
          mesh->Transform(trans3D);
       }
       newMesh = true;
