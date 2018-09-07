@@ -2333,8 +2333,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
          }
       NumOfBdrElements = boundary.Size();
 
-
-
+      DeleteLazyTables();
       // 5a. Update the groups after refinement.
       if (el_to_face != NULL)
       {
