@@ -25,6 +25,10 @@ add_mfem_miniapp(shaper
   MAIN shaper.cpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(extruder
+  MAIN extruder.cpp
+  LIBRARIES mfem)
+
 add_mfem_miniapp(mesh-optimizer
   MAIN mesh-optimizer.cpp
   LIBRARIES mfem)
