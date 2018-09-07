@@ -210,7 +210,7 @@ void ParNCMesh::ElementSharesFace(int elem, int face)
    // Analogous to ElementSharesEdge.
 
    int el_rank = elements[elem].rank;
-   int f_index = faces[face].index;
+   int f_index = (Dim == 3) ? faces[face].index : faces4d[face].index;
 
    int &owner = tmp_owner[f_index];
    owner = std::min(owner, el_rank);
