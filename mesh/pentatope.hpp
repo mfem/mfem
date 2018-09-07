@@ -81,10 +81,10 @@ public:
    virtual const int *GetPlanarsVertices(int pi) const { return (geom_p::PlanarVert[pi]); }
 
    virtual int GetNFaces(int &nFaceVertices) const
-   { MFEM_ABORT("PENTATOPE:: GetNFaces not implemented"); return 0; }
+   { nFaceVertices = 4; return 5; }
 
    virtual const int *GetFaceVertices(int fi) const
-   { MFEM_ABORT("PENTATOPE::GetFaceVertices not implemented"); return NULL; }
+   { return geom_p::FaceVert[fi]; }
 
    /// Calculate point matrix corresponding to a chain of transformations.
    static void GetPointMatrix(unsigned transform, DenseMatrix &pm);
