@@ -10168,15 +10168,15 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
       }
       else if (!strncmp(name, "H1_", 3))
       {
-         fec3d = new H1_FECollection(atoi(name + 7), 2);
+         fec3d = new H1_FECollection(atoi(name + 7), 3);
       }
       else if (!strncmp(name, "L2_T", 4))
       {
-         fec3d = new L2_FECollection(atoi(name + 10), 2, atoi(name + 4));
+         fec3d = new L2_FECollection(atoi(name + 10), 3, atoi(name + 4));
       }
       else if (!strncmp(name, "L2_", 3))
       {
-         fec3d = new L2_FECollection(atoi(name + 7), 2);
+         fec3d = new L2_FECollection(atoi(name + 7), 3);
       }
       else
       {
