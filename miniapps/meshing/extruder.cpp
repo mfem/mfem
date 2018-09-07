@@ -13,11 +13,15 @@
 //   Extruder Miniapp: Extrude a low dimensional mesh into a higher dimension
 //   ------------------------------------------------------------------------
 //
-// This miniapp performs multiple levels of adaptive mesh refinement to resolve
-// the interfaces between different "materials" in the mesh, as specified by the
-// given material() function. It can be used as a simple initial mesh generator,
-// for example in the case when the interface is too complex to describe without
-// local refinement. Both conforming and non-conforming refinements are supported.
+// This miniapp creates higher dimensional meshes from lower dimensional meshes
+// by extrusion.  Simple coordinate transformations can also be applied if
+// desired.  The initial mesh can be 1D or 2D. 1D meshes can be extruded in the
+// y-direction first and then in the z-direction.  2D meshes can be triangular,
+// quadrilateral, or contain both element types.  The initial mesh can also be
+// curved although NURBS meshes are not supported.
+//
+// The resulting mesh will be displayed with GLVis (unless disabled) and also
+// written to the file "extruder.mesh".
 //
 // Compile with: make extruder
 //
@@ -28,10 +32,9 @@
 //    extruder -m ../../data/star.mesh -nz 3
 //    extruder -m ../../data/star-mixed.mesh -nz 3
 //    extruder -m ../../data/square-disc.mesh -nz 3
-//    extruder -m ../../data/square-disc.mesh -nz 3
 //    extruder -m ../../data/inline-segment.mesh -ny 8 -wy 2 -trans
 //    extruder -m ../../data/inline-segment.mesh -ny 8 -wy 2 -nz 12 -hz 3 -trans
-//    extruder -m ../../data/star.mesh -nz 3 -trans
+//    extruder -m ../../data/square-disc-p2.mesh -nz 16 -hz 2 -trans
 
 #include "mfem.hpp"
 #include <fstream>
@@ -81,25 +84,25 @@ int main(int argc, char *argv[])
    int dim = mesh->Dimension();
 
    // Determine the order to use for a transformed mesh
-   if ( order < 0 && trans )
+   int meshOrder = 1;
+   if (mesh->GetNodalFESpace() != NULL)
    {
-      int meshOrder = 1;
-      if ( mesh->GetNodalFESpace() != NULL )
-      {
-         meshOrder = mesh->GetNodalFESpace()->GetORder(0);
-      }
+      meshOrder = mesh->GetNodalFESpace()->GetOrder(0);
+   }
+   if (order < 0 && trans)
+   {
       order = meshOrder;
    }
 
    bool newMesh = false;
 
-   if ( dim == 3 )
+   if (dim == 3)
    {
       cout << "Extruding 3D meshes is not (yet) supported." << endl;
       delete mesh;
       exit(0);
    }
-   if ( dim == 1 && ny > 0 )
+   if (dim == 1 && ny > 0)
    {
       cout << "Extruding 1D mesh to a width of " << wy
            << " using " << ny << " elements." << endl;
@@ -110,12 +113,15 @@ int main(int argc, char *argv[])
       dim = 2;
       if (trans)
       {
-         mesh->SetCurvature(order, false, 2, Ordering::byVDIM);
+         if (order != meshOrder)
+         {
+            mesh->SetCurvature(order, false, 2, Ordering::byVDIM);
+         }
          mesh->Transform(trans2D);
       }
       newMesh = true;
    }
-   if ( dim == 2 && nz > 0 )
+   if (dim == 2 && nz > 0)
    {
       cout << "Extruding 2D mesh to a height of " << hz
            << " using " << nz << " elements." << endl;
@@ -126,13 +132,16 @@ int main(int argc, char *argv[])
       dim = 3;
       if (trans)
       {
-         mesh->SetCurvature(order, false, 3, Ordering::byVDIM);
+         if (order != meshOrder)
+         {
+            mesh->SetCurvature(order, false, 3, Ordering::byVDIM);
+         }
          mesh->Transform(trans3D);
       }
       newMesh = true;
    }
 
-   if ( newMesh )
+   if (newMesh)
    {
       if (visualization)
       {
