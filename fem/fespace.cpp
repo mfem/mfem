@@ -761,7 +761,7 @@ void FiniteElementSpace::BuildConformingInterpolation4D() const
    for (int entity = 1; entity <= 3; entity++)
    {
       const NCMesh::NCList &list = (entity > 2) ? mesh->ncmesh->GetFaceList()
-                                   /*        */ : /*( (entity > 1) ? mesh->ncmesh->GetPlanarList() :*/ mesh->ncmesh->GetEdgeList() /*)*/;
+                                   /*        */ : ( (entity > 1) ? mesh->ncmesh->GetPlanarList() : mesh->ncmesh->GetEdgeList() );
       if (!list.masters.size()) { continue; }
 
       IsoparametricTransformation T;
