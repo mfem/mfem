@@ -22,6 +22,8 @@
 #include <limits>
 #include <list>
 
+#include <fstream>
+
 namespace mfem
 {
 
@@ -558,17 +560,32 @@ HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
    return P_pc;
 }
 
+extern int nc;
+
 void ParFiniteElementSpace::DivideByGroupSize(double *vec)
 {
    GroupTopology &gt = GetGroupTopo();
 
-   for (int i = 0; i < gt.NGroups(); i++)
+   char fname[200];
+   sprintf(fname, "%d_ldof_group_%d.txt", nc, MyRank);
+   std::ofstream f(fname);
+
+   gt.Save(f);
+   f << std::endl;
+
+   pmesh->DebugPrint(f);
+
+   /*for (int i = 0; i < gt.NGroups(); i++)
    {
-      std::cout << "Group " << i << ": size " << gt.GetGroupSize(i) << std::endl;
-   }
+      f << "Rank " << MyRank << ", group " << i
+        << ": size " << gt.GetGroupSize(i) << std::endl;
+   }*/
 
    for (int i = 0; i < ldof_group.Size(); i++)
    {
+      f << "Rank " << MyRank << ", ldof " << i
+        << ": ldof_group " << ldof_group[i] << std::endl;
+
       if (gt.IAmMaster(ldof_group[i])) // we are the master
       {
          vec[ldof_ltdof[i]] /= gt.GetGroupSize(ldof_group[i]);
