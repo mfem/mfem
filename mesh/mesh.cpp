@@ -10148,7 +10148,7 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
    GridFunction *nodes = mesh->GetNodes();
    if (nodes)
    {
-      // duplicate the fec of the 1D mesh so that it can be deleted safely
+      // duplicate the fec of the 2D mesh so that it can be deleted safely
       // along with its nodes, fes and fec
       FiniteElementCollection *fec3d = NULL;
       FiniteElementSpace *fes3d;
