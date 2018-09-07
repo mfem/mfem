@@ -57,8 +57,6 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
-   int nz = 0;
-   double hz = 1.0;
    bool static_cond = false;
    bool visualization = 1;
 
@@ -68,10 +66,6 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&nz, "-nz", "--num-elem-in-z",
-                  "Extrude a 2D mesh into nz elements in the z-direction.");
-   args.AddOption(&hz, "-hz", "--height-in-z",
-                  "Extrude a 2D mesh to a height hz in the z-direction.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -97,19 +91,6 @@ int main(int argc, char *argv[])
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
-
-   if ( dim == 2 && nz > 0 )
-   {
-      if (myid == 0)
-      {
-         cout << "Extruding 2D mesh to a height of " << hz
-              << " using " << nz << " elements." << endl;
-      }
-      Mesh *mesh3d = Extrude2D(mesh, nz, hz);
-      delete mesh;
-      mesh = mesh3d;
-      dim = 3;
-   }
 
    // 4. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
