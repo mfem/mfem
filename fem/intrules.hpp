@@ -98,14 +98,14 @@ private:
    void GrundmannMollerSimplexRule(int s, int n = 3);
 
    void AddTriMidPoint(const int off, const double weight)
-   { IntPoint(off).Set2w(1./3., 1./3., weight); }
+   { IntPoint(off).Set(1./3., 1./3., 0.0, weight); }
 
    void AddTriPoints3(const int off, const double a, const double b,
                       const double weight)
    {
-      IntPoint(off + 0).Set2w(a, a, weight);
-      IntPoint(off + 1).Set2w(a, b, weight);
-      IntPoint(off + 2).Set2w(b, a, weight);
+      IntPoint(off + 0).Set(a, a, 0.0, weight);
+      IntPoint(off + 1).Set(a, b, 0.0, weight);
+      IntPoint(off + 2).Set(b, a, 0.0, weight);
    }
 
    void AddTriPoints3(const int off, const double a, const double weight)
@@ -117,9 +117,9 @@ private:
    void AddTriPoints3R(const int off, const double a, const double b,
                        const double c, const double weight)
    {
-      IntPoint(off + 0).Set2w(a, b, weight);
-      IntPoint(off + 1).Set2w(c, a, weight);
-      IntPoint(off + 2).Set2w(b, c, weight);
+      IntPoint(off + 0).Set(a, b, 0.0, weight);
+      IntPoint(off + 1).Set(c, a, 0.0, weight);
+      IntPoint(off + 2).Set(b, c, 0.0, weight);
    }
 
    void AddTriPoints3R(const int off, const double a, const double b,
@@ -129,12 +129,12 @@ private:
    void AddTriPoints6(const int off, const double a, const double b,
                       const double c, const double weight)
    {
-      IntPoint(off + 0).Set2w(a, b, weight);
-      IntPoint(off + 1).Set2w(b, a, weight);
-      IntPoint(off + 2).Set2w(a, c, weight);
-      IntPoint(off + 3).Set2w(c, a, weight);
-      IntPoint(off + 4).Set2w(b, c, weight);
-      IntPoint(off + 5).Set2w(c, b, weight);
+      IntPoint(off + 0).Set(a, b, 0.0, weight);
+      IntPoint(off + 1).Set(b, a, 0.0, weight);
+      IntPoint(off + 2).Set(a, c, 0.0, weight);
+      IntPoint(off + 3).Set(c, a, 0.0, weight);
+      IntPoint(off + 4).Set(b, c, 0.0, weight);
+      IntPoint(off + 5).Set(c, b, 0.0, weight);
    }
 
    void AddTriPoints6(const int off, const double a, const double b,

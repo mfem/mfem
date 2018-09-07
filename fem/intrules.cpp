@@ -45,6 +45,7 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry)
 
          ip.x = ipx.x;
          ip.y = ipy.x;
+         ip.z = 0.0;
          ip.weight = ipx.weight * ipy.weight;
       }
    }
