@@ -7,6 +7,10 @@
 using namespace std;
 using namespace mfem;
 
+namespace mfem {
+int nc = 0;
+}
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
@@ -29,6 +33,8 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&ref_levels, "-r", "--ref-levels",
                   "Number of serial refinement levels.");
+   args.AddOption(&nc, "-nc", "--nc",
+                  "Confirming (0), or NC (1).");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -51,7 +57,10 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
-   mesh->EnsureNCMesh();
+   if (nc)
+   {
+      mesh->EnsureNCMesh();
+   }
 
    // 4. Refine the serial mesh on all processors to increase the resolution.
    {
@@ -65,7 +74,7 @@ int main(int argc, char *argv[])
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      int par_ref_levels = 2;
+      int par_ref_levels = 0;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
