@@ -244,6 +244,9 @@ void ParNCMesh::BuildFaceList()
 
    tmp_owner.DeleteAll();
    tmp_shared_flag.DeleteAll();
+
+   // create simple conforming (cut-mesh) groups now
+   CreateGroups(NFaces, entity_index_rank[2], entity_conf_group[2]);
    // NOTE: entity_index_rank[2] is not deleted until CalculatePMatrixGroups
 
    CalcFaceOrientations();
@@ -290,6 +293,9 @@ void ParNCMesh::BuildEdgeList()
 
    tmp_owner.DeleteAll();
    tmp_shared_flag.DeleteAll();
+
+   // create simple conforming (cut-mesh) groups now
+   CreateGroups(NEdges, entity_index_rank[1], entity_conf_group[1]);
    // NOTE: entity_index_rank[1] is not deleted until CalculatePMatrixGroups
 }
 
@@ -304,8 +310,7 @@ void ParNCMesh::ElementSharesVertex(int elem, int vnode)
    owner = std::min(owner, el_rank);
 
    char &flag = tmp_shared_flag[v_index];
-   if (el_rank == MyRank) { flag |= 0x1; }
-   if (el_rank != MyRank) { flag |= 0x2; }
+   flag |= (el_rank == MyRank) ? 0x1 : 0x2;
 
    entity_index_rank[0].Append(Connection(v_index, el_rank));
 }
@@ -333,6 +338,9 @@ void ParNCMesh::BuildVertexList()
 
    tmp_owner.DeleteAll();
    tmp_shared_flag.DeleteAll();
+
+   // create simple conforming (cut-mesh) groups now
+   CreateGroups(NVertices, entity_index_rank[0], entity_conf_group[0]);
    // NOTE: entity_index_rank[0] is not deleted until CalculatePMatrixGroups
 }
 
@@ -465,6 +473,10 @@ void ParNCMesh::CreateGroups(int nentities, Array<Connection> &index_rank,
    while (begin < index_rank.Size())
    {
       int index = index_rank[begin].from;
+      if (index >= nentities)
+      {
+         break; // probably creating entity_conf_group (no ghosts)
+      }
       while (end < index_rank.Size() && index_rank[end].from == index)
       {
          end++;
@@ -733,6 +745,41 @@ void ParNCMesh::NeighborProcessors(Array<int> &neighbors)
       ranks.insert(elements[ghost_layer[i]].rank);
    }
    set_to_array(ranks, neighbors);
+}
+
+
+//// ParMesh compatibility /////////////////////////////////////////////////////
+
+void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
+{
+   // make sure we have entity_conf_group[x]
+   for (int ent = 0; ent < Dim; ent++)
+   {
+      GetSharedList(ent);
+      MFEM_VERIFY(entity_conf_group[ent].Size(), "internal error");
+   }
+
+   // create ParMesh groups
+   {
+      IntegerSet iset;
+      ListOfIntegerSets int_groups;
+      for (unsigned i = 0; i < groups.size(); i++)
+      {
+         iset.Recreate(groups[i].size(), groups[i].data());
+         int_groups.Insert(iset);
+      }
+      pmesh.gtopo.Create(int_groups, 822);
+   }
+
+
+   // TODO
+
+
+   // free conf_group arrays, they're not needed now (until next mesh update)
+   for (int ent = 0; ent < Dim; ent++)
+   {
+      entity_conf_group[ent].DeleteAll();
+   }
 }
 
 bool ParNCMesh::compare_ranks_indices(const Element* a, const Element* b)
