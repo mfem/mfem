@@ -44,7 +44,7 @@ groups_serial=(
 '"meshing"
    "Meshing miniapps:"
    "miniapps/meshing"
-   "mobius-strip.cpp klein-bottle.cpp mesh-optimizer.cpp"'
+   "mobius-strip.cpp klein-bottle.cpp extruder.cpp mesh-optimizer.cpp"'
 )
 # Parallel groups
 groups_parallel=(
@@ -97,7 +97,7 @@ groups_all=(
 '"meshing"
    "Meshing miniapps:"
    "miniapps/meshing"
-   "mobius-strip.cpp klein-bottle.cpp {,p}mesh-optimizer.cpp"'
+   "mobius-strip.cpp klein-bottle.cpp extruder.cpp {,p}mesh-optimizer.cpp"'
 '"electromagnetics"
    "Electromagnetics miniapps:"
    "miniapps/electromagnetics"
