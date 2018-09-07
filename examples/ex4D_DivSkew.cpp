@@ -253,8 +253,8 @@ public:
 
       //setup the H1 preconditioner for the image
       ParBilinearForm* H1VecVarf = new ParBilinearForm(H1_ImageFESpace);
-      H1VecVarf->AddDomainIntegrator(new VectorDiffusionIntegrator(*alpha_, 6));
-      H1VecVarf->AddDomainIntegrator(new VectorMassIntegrator(6, beta));
+      H1VecVarf->AddDomainIntegrator(new VectorDiffusionIntegrator(*alpha_));
+      H1VecVarf->AddDomainIntegrator(new VectorMassIntegrator(*beta));
       H1VecVarf->Assemble();
       H1VecVarf->Finalize();
       SparseMatrix &matH1Vec(H1VecVarf->SpMat());
