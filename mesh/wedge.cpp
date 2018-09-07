@@ -56,6 +56,11 @@ void Wedge::GetVertices(Array<int> &v) const
    }
 }
 
-BiLinear3DFiniteElement WedgeFE;
+int Wedge::GetNFaces(int &nFaceVertices) const
+{
+   MFEM_ABORT("this method is not valid for Wedge elements");
+   nFaceVertices = 4;
+   return 5;
+}
 
 }

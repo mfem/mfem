@@ -872,8 +872,8 @@ const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
       case Geometry::TRIANGLE:    ir_array = &TriangleIntRules; break;
       case Geometry::SQUARE:      ir_array = &SquareIntRules; break;
       case Geometry::TETRAHEDRON: ir_array = &TetrahedronIntRules; break;
-      case Geometry::PRISM:       ir_array = &PrismIntRules; break;
       case Geometry::CUBE:        ir_array = &CubeIntRules; break;
+      case Geometry::PRISM:       ir_array = &PrismIntRules; break;
       default:
          mfem_error("IntegrationRules::Get(...) : Unknown geometry type!");
          ir_array = NULL;
@@ -918,8 +918,8 @@ void IntegrationRules::Set(int GeomType, int Order, IntegrationRule &IntRule)
       case Geometry::TRIANGLE:    ir_array = &TriangleIntRules; break;
       case Geometry::SQUARE:      ir_array = &SquareIntRules; break;
       case Geometry::TETRAHEDRON: ir_array = &TetrahedronIntRules; break;
-      case Geometry::PRISM:       ir_array = &PrismIntRules; break;
       case Geometry::CUBE:        ir_array = &CubeIntRules; break;
+      case Geometry::PRISM:       ir_array = &PrismIntRules; break;
       default:
          mfem_error("IntegrationRules::Set(...) : Unknown geometry type!");
          ir_array = NULL;
@@ -981,10 +981,10 @@ IntegrationRule *IntegrationRules::GenerateIntegrationRule(int GeomType,
          return SquareIntegrationRule(Order);
       case Geometry::TETRAHEDRON:
          return TetrahedronIntegrationRule(Order);
-      case Geometry::PRISM:
-         return PrismIntegrationRule(Order);
       case Geometry::CUBE:
          return CubeIntegrationRule(Order);
+      case Geometry::PRISM:
+         return PrismIntegrationRule(Order);
       default:
          mfem_error("IntegrationRules::Set(...) : Unknown geometry type!");
          return NULL;

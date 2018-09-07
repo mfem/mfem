@@ -847,19 +847,13 @@ SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
 void FiniteElementSpace::GetLocalRefinementMatrices(DenseTensor &localP) const
 {
    Geometry::Type geom =
-      mesh->GetElementBaseGeometry(); // assuming the same geom
+      mesh->GetElementBaseGeometry(); // FIXME: assuming the same geom
    const FiniteElement *fe = fec->FiniteElementForGeometry(geom);
 
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
+   const DenseTensor &pmats = rtrans.GetPointMatrices(geom);
 
-   map<Geometry::Type, DenseTensor>::const_iterator pm_it;
-   pm_it = rtrans.point_matrices.find(geom);
-
-   MFEM_VERIFY(pm_it != rtrans.point_matrices.end(),
-               "GetLocalRefinemntMatrices() cannot find point matrices "
-               "for geometry type \"" << geom << "\"");
-
-   int nmat = pm_it->second.SizeK();
+   int nmat = pmats.SizeK();
    int ldof = fe->GetDof(); // assuming the same FE everywhere
 
    IsoparametricTransformation isotr;
@@ -869,7 +863,7 @@ void FiniteElementSpace::GetLocalRefinementMatrices(DenseTensor &localP) const
    localP.SetSize(ldof, ldof, nmat);
    for (int i = 0; i < nmat; i++)
    {
-      isotr.GetPointMat() = pm_it->second.operator()(i);
+      isotr.GetPointMat() = pmats(i);
       isotr.FinalizeTransformation();
       fe->GetLocalInterpolation(isotr, localP(i));
    }
@@ -984,21 +978,15 @@ void InvertLinearTrans(IsoparametricTransformation &trans,
 void FiniteElementSpace::GetLocalDerefinementMatrices(DenseTensor &localR) const
 {
    Geometry::Type geom =
-      mesh->GetElementBaseGeometry(); // assuming the same geom
+      mesh->GetElementBaseGeometry(); // FIXME: assuming the same geom
    const FiniteElement *fe = fec->FiniteElementForGeometry(geom);
    const IntegrationRule &nodes = fe->GetNodes();
 
    const CoarseFineTransformations &dtrans =
       mesh->ncmesh->GetDerefinementTransforms();
+   const DenseTensor &pmats = dtrans.GetPointMatrices(geom);
 
-   map<Geometry::Type, DenseTensor>::const_iterator pm_it;
-   pm_it = dtrans.point_matrices.find(geom);
-
-   MFEM_VERIFY(pm_it != dtrans.point_matrices.end(),
-               "GetLocalDerefinemntMatrices() cannot find point matrices "
-               "for geometry type \"" << geom << "\"");
-
-   int nmat = pm_it->second.SizeK();
+   int nmat = pmats.SizeK();
    int ldof = fe->GetDof();
    int dim = mesh->Dimension();
 
@@ -1017,7 +1005,7 @@ void FiniteElementSpace::GetLocalDerefinementMatrices(DenseTensor &localR) const
       DenseMatrix &lR = localR(i);
       lR = infinity(); // marks invalid rows
 
-      isotr.GetPointMat() = pm_it->second.operator()(i);
+      isotr.GetPointMat() = pmats(i);
       isotr.FinalizeTransformation();
       isotr.SetIntPoint(&nodes[0]);
       CalcInverse(isotr.Jacobian(), invdfdx);
@@ -1104,15 +1092,9 @@ void FiniteElementSpace::GetLocalRefinementMatrices(
    const FiniteElement *coarse_fe = coarse_fes.GetFE(0);
 
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
+   const DenseTensor &pmats = rtrans.GetPointMatrices(fine_geom);
 
-   map<Geometry::Type, DenseTensor>::const_iterator pm_it;
-   pm_it = rtrans.point_matrices.find(fine_geom);
-
-   MFEM_VERIFY(pm_it != rtrans.point_matrices.end(),
-               "GetLocalRefinemntMatrices() cannot find point matrices "
-               "for geometry type \"" << fine_geom << "\"");
-
-   int nmat = pm_it->second.SizeK();
+   int nmat = pmats.SizeK();
 
    IsoparametricTransformation isotr;
    isotr.SetIdentityTransformation(fine_geom);
@@ -1121,7 +1103,7 @@ void FiniteElementSpace::GetLocalRefinementMatrices(
    localP.SetSize(fine_fe->GetDof(), coarse_fe->GetDof(), nmat);
    for (int i = 0; i < nmat; i++)
    {
-      isotr.GetPointMat() = pm_it->second.operator()(i);
+      isotr.GetPointMat() = pmats(i);
       isotr.FinalizeTransformation();
       fine_fe->GetTransferMatrix(*coarse_fe, isotr, localP(i));
    }

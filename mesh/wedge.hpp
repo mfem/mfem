@@ -42,9 +42,6 @@ public:
    /// Set the vertices according to the given input.
    virtual void SetVertices(const int *ind);
 
-   /// Mark the longest edge by assuming/changing the order of the vertices.
-   virtual void MarkEdge(DenseMatrix &pmat) { }
-
    /// Returns the indices of the element's  vertices.
    virtual void GetVertices(Array<int> &v) const;
 
@@ -57,8 +54,7 @@ public:
    virtual const int *GetEdgeVertices(int ei) const
    { return geom_t::Edges[ei]; }
 
-   virtual int GetNFaces(int &nFaceVertices) const
-   { nFaceVertices = 4; return 5; }
+   virtual int GetNFaces(int &nFaceVertices) const;
 
    virtual int GetNFaceVerticess(int fi) const
    { return ( ( fi < 2 ) ? 3 : 4); }
@@ -72,7 +68,8 @@ public:
    virtual ~Wedge() { }
 };
 
-extern BiLinear3DFiniteElement WedgeFE;
+// Defined in fe.cpp to ensure construction after 'mfem::poly1d'.
+extern class H1_WedgeElement WedgeFE;
 
 }
 

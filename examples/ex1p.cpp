@@ -8,7 +8,7 @@
 //               mpirun -np 4 ex1p -m ../data/escher.mesh
 //               mpirun -np 4 ex1p -m ../data/fichera.mesh
 //               mpirun -np 4 ex1p -m ../data/fichera-mixed.mesh
-//               mpirun -np 4 ex1p -m ../data/toroid-wedge-o3-s3.mesh
+//               mpirun -np 4 ex1p -m ../data/toroid-wedge.mesh
 //               mpirun -np 4 ex1p -m ../data/square-disc-p2.vtk -o 2
 //               mpirun -np 4 ex1p -m ../data/square-disc-p3.mesh -o 3
 //               mpirun -np 4 ex1p -m ../data/square-disc-nurbs.mesh -o -1
