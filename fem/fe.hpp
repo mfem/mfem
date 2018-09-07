@@ -1021,6 +1021,7 @@ public:
    { dofs = 0.0; dofs(vertex) = 1.0; }
 };
 
+
 /// Crouzeix-Raviart finite element on triangle
 class CrouzeixRaviartFiniteElement : public NodalFiniteElement
 {
@@ -1944,6 +1945,29 @@ public:
                            DenseMatrix &dshape) const;
 };
 
+/// Class for linear FE on wedge
+class BiLinear3DFiniteElement : public H1_WedgeElement
+{
+public:
+   /// Construct a linear FE on wedge
+   BiLinear3DFiniteElement() : H1_WedgeElement(1) {}
+};
+
+/// Class for quadratic FE on wedge
+class BiQuadratic3DFiniteElement : public H1_WedgeElement
+{
+public:
+   /// Construct a quadratic FE on wedge
+   BiQuadratic3DFiniteElement() : H1_WedgeElement(2) {}
+};
+
+/// Class for cubic FE on wedge
+class BiCubic3DFiniteElement : public H1_WedgeElement
+{
+public:
+   /// Construct a cubic FE on wedge
+   BiCubic3DFiniteElement() : H1_WedgeElement(3) {}
+};
 
 class H1Pos_WedgeElement : public PositiveFiniteElement
 {
@@ -2163,6 +2187,11 @@ public:
                            DenseMatrix &dshape) const;
 };
 
+class P0WedgeFiniteElement : public L2_WedgeElement
+{
+public:
+   P0WedgeFiniteElement () : L2_WedgeElement(0) {}
+};
 
 class L2Pos_WedgeElement : public PositiveFiniteElement
 {
