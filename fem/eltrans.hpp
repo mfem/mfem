@@ -52,7 +52,8 @@ public:
    /** @brief Set a new integration point. */
    /** Sets a new point and resets the EvalState flag if the new point
        is different from the previous one. */
-   void SetIntPoint(const IntegrationPoint *ip);
+   void SetIntPoint(const IntegrationPoint *ip)
+   { IntPoint = ip; EvalState = 0; }
 
    /** @brief Return the currently set integration point. */
    /** This could lead to undefined behavior if the integration point
