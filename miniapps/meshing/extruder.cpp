@@ -19,19 +19,19 @@
 // for example in the case when the interface is too complex to describe without
 // local refinement. Both conforming and non-conforming refinements are supported.
 //
-// Compile with: make shaper
+// Compile with: make extruder
 //
-// Sample runs:  shaper
-//               shaper -m ../../data/inline-tri.mesh
-//               shaper -m ../../data/inline-hex.mesh
-//               shaper -m ../../data/inline-tet.mesh
-//               shaper -m ../../data/amr-quad.mesh
-//               shaper -m ../../data/beam-quad.mesh -a -ncl -1 -sd 4
-//               shaper -m ../../data/ball-nurbs.mesh
-//               shaper -m ../../data/mobius-strip.mesh
-//               shaper -m ../../data/square-disc-surf.mesh
-//               shaper -m ../../data/star-q3.mesh -sd 2 -ncl -1
-//               shaper -m ../../data/fichera-amr.mesh -a -ncl -1
+// Sample runs:
+//    extruder
+//    extruder -m ../../data/inline-segment.mesh -ny 8 -wy 2
+//    extruder -m ../../data/inline-segment.mesh -ny 8 -wy 2 -nz 12 -hz 3
+//    extruder -m ../../data/star.mesh -nz 3
+//    extruder -m ../../data/star-mixed.mesh -nz 3
+//    extruder -m ../../data/square-disc.mesh -nz 3
+//    extruder -m ../../data/square-disc.mesh -nz 3
+//    extruder -m ../../data/inline-segment.mesh -ny 8 -wy 2 -trans
+//    extruder -m ../../data/inline-segment.mesh -ny 8 -wy 2 -nz 12 -hz 3 -trans
+//    extruder -m ../../data/star.mesh -nz 3 -trans
 
 #include "mfem.hpp"
 #include <fstream>
@@ -40,11 +40,15 @@
 using namespace mfem;
 using namespace std;
 
+void trans2D(const Vector&, Vector&);
+void trans3D(const Vector&, Vector&);
+
 int main(int argc, char *argv[])
 {
    const char *mesh_file = "../../data/inline-quad.mesh";
    int ny = -1, nz = -1;
    double wy = 1.0, hz = 1.0;
+   bool trans = false;
    bool visualization = 1;
 
    // Parse command line
@@ -59,6 +63,9 @@ int main(int argc, char *argv[])
                   "Extrude a 2D mesh into nz elements in the z-direction.");
    args.AddOption(&hz, "-hz", "--height-in-z",
                   "Extrude a 2D mesh to a height hz in the z-direction.");
+   args.AddOption(&trans, "-trans", "--transform", "-no-trans",
+                  "--no-transform",
+                  "Enable or disable mesh transformation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -87,6 +94,11 @@ int main(int argc, char *argv[])
       delete mesh;
       mesh = mesh2d;
       dim = 2;
+      if (trans)
+      {
+         mesh->SetCurvature(3, false, 2, Ordering::byVDIM);
+         mesh->Transform(trans2D);
+      }
       newMesh = true;
    }
    if ( dim == 2 && nz > 0 )
@@ -98,6 +110,11 @@ int main(int argc, char *argv[])
       delete mesh;
       mesh = mesh3d;
       dim = 3;
+      if (trans)
+      {
+         mesh->SetCurvature(3, false, 3, Ordering::byVDIM);
+         mesh->Transform(trans3D);
+      }
       newMesh = true;
    }
 
@@ -118,6 +135,26 @@ int main(int argc, char *argv[])
       mesh_ofs.precision(8);
       mesh->Print(mesh_ofs);
    }
+   else
+   {
+      cout << "No mesh extrusion performed." << endl;
+   }
 
    delete mesh;
 }
+
+void trans2D(const Vector&x, Vector&p)
+{
+   p[0] = x[0] + 0.25 * sin(M_PI * x[1]);
+   p[1] = x[1];
+}
+
+void trans3D(const Vector&x, Vector&p)
+{
+   double r = sqrt(x[0] * x[0] + x[1] * x[1]);
+   double theta = atan2(x[1], x[0]);
+   p[0] = r * cos(theta + 0.25 * M_PI * x[2]);
+   p[1] = r * sin(theta + 0.25 * M_PI * x[2]);
+   p[2] = x[2];
+}
+
