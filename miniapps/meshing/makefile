@@ -22,7 +22,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS = mobius-strip klein-bottle toroid \
-	mesh-explorer shaper mesh-optimizer
+	mesh-explorer shaper extruder mesh-optimizer
 PAR_MINIAPPS = pmesh-optimizer
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -65,6 +65,8 @@ mesh-explorer-test-seq:
 	@true
 shaper-test-seq:
 	@true
+extruder-test-seq:
+	@true
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
@@ -76,12 +78,12 @@ clean: clean-build clean-exec
 
 clean-build:
 	rm -f *.o *~ mobius-strip klein-bottle toroid
-	rm -f mesh-explorer shaper
+	rm -f mesh-explorer shaper extruder
 	rm -f mesh-optimizer pmesh-optimizer
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
 	@rm -f mobius-strip.mesh klein-bottle.mesh mesh-explorer.mesh
 	@rm -f toroid-*.mesh
-	@rm -f partitioning.txt shaper.mesh
+	@rm -f partitioning.txt shaper.mesh extruder.mesh
 	@rm -f optimized* perturbed*
