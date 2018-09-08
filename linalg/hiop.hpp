@@ -149,8 +149,8 @@ public:
          int ierr = MPI_Allreduce(&loc_wtx, &wtx, 1, MPI_DOUBLE, MPI_SUM, comm_);
          MFEM_ASSERT(ierr==MPI_SUCCESS, "MPI_Allreduce failed with error" << ierr);
 #endif
-         //w' * x - a
-         cons[0] = wtx - a_;
+         //Constraint is w_ * x = a_, a_ is provided in get_cons_info
+         cons[0] = wtx;
       }
       return true;
    };
