@@ -67,9 +67,17 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
    // If pmesh has a ParNURBSExtension, it was copied by the Mesh copy ctor, so
    // there is no need to do anything here.
 
-   MFEM_VERIFY(pmesh.pncmesh == NULL,
-               "copy of parallel non-conforming meshes is not implemented");
-   pncmesh = NULL;
+   // Copy ParNCMesh, if present
+   if (pmesh.pncmesh)
+   {
+      pncmesh = new ParNCMesh(*pmesh.pncmesh);
+      pncmesh->OnMeshUpdated(this);
+   }
+   else
+   {
+      pncmesh = NULL;
+   }
+   ncmesh = pncmesh;
 
    // Copy the Nodes as a ParGridFunction, including the FiniteElementCollection
    // and the FiniteElementSpace (as a ParFiniteElementSpace)

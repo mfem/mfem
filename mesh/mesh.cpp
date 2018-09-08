@@ -2615,6 +2615,7 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
       faces[i] = (face) ? face->Duplicate(this) : NULL;
    }
    mesh.faces_info.Copy(faces_info);
+   mesh.nc_faces_info.Copy(nc_faces_info);
 
    // Do NOT copy the element-to-element Table, el_to_el
    el_to_el = NULL;
@@ -2644,9 +2645,16 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    }
 
    // Deep copy the NCMesh.
-   // TODO: ParNCMesh; ParMesh has a separate 'pncmesh' pointer, and 'ncmesh'
-   //       is initialized from it. Need ParNCMesh copy constructor.
-   ncmesh = mesh.ncmesh ? new NCMesh(*mesh.ncmesh) : NULL;
+#ifdef MFEM_USE_MPI
+   if (dynamic_cast<const ParMesh*>(&mesh))
+   {
+      ncmesh = NULL; // skip; will be done in ParMesh copy ctor
+   }
+   else
+#endif
+   {
+      ncmesh = mesh.ncmesh ? new NCMesh(*mesh.ncmesh) : NULL;
+   }
 
    // Duplicate the Nodes, including the FiniteElementCollection and the
    // FiniteElementSpace
