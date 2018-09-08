@@ -428,7 +428,8 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    // Perform optimization.
    Vector y_out(dofs);
    const int max_iter = 50;
-   const double rtol = 1.e-12, atol = 1e-15;
+   const double rtol = 1.e-12;
+   double atol = 1.e-7;
 
    OptimizationSolver* optsolver = NULL;
    HiopNlpOptimizer *tmp_opt_ptr = NULL;
@@ -443,7 +444,11 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
       optsolver = tmp_opt_ptr;
    }
    else if (optimizer_type == 2) { optsolver = new HiopNlpOptimizer_Simple(); }
-   else                          { optsolver = new SLBQPOptimizer(); }
+   else
+   {
+      optsolver = new SLBQPOptimizer();
+      atol = 1.e-15;
+   }
 
    optsolver->SetMaxIter(max_iter);
    optsolver->SetAbsTol(atol);
