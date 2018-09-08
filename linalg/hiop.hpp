@@ -34,7 +34,8 @@ class HiopProblemSpec : public hiop::hiopInterfaceDenseConstraints
 public:
 
    HiopProblemSpec(const long long& n_loc)
-      : n_(n_loc), n_local_(n_loc), a_(0.), workVec_(n_loc) 
+      : n_(n_loc), n_local_(n_loc), a_(0.), workVec_(n_loc),
+        use_initial_x_value(false)
   { 
 #ifdef MFEM_USE_MPI
     //in case HiOp with MPI support is called by a serial driver.
@@ -44,7 +45,8 @@ public:
 
 #ifdef MFEM_USE_MPI
    HiopProblemSpec(const MPI_Comm& _comm, const long long& _n_local)
-      : comm_(_comm), n_local_(_n_local), a_(0.), workVec_(_n_local)
+      : comm_(_comm), n_local_(_n_local), a_(0.), workVec_(_n_local),
+        use_initial_x_value(false)
    {
       int ierr = MPI_Allreduce(&n_local_, &n_, 1, MPI_LONG_LONG_INT, MPI_SUM, comm_);
       MFEM_ASSERT(ierr==MPI_SUCCESS, "MPI_Allreduce failed with error" << ierr);
@@ -63,6 +65,16 @@ public:
       workVec2_.SetSize(n_local_);
    }
    virtual void setObjectiveFunction(const Vector &_c)  { c_ = _c; }
+   virtual void setStartingPoint(const Vector &_xstart)
+   {
+      // To set use_initial_x_value to false, provide a bad _xstart
+      if (n_local_ != _xstart.Size()) use_initial_x_value = false;
+      else
+      {
+         xstart_ = _xstart;
+         use_initial_x_value = true;
+      }
+   }
 
    /** problem dimensions: n number of variables, m number of constraints */
    virtual bool get_prob_sizes(long long int& n, long long int& m) {
@@ -157,10 +169,10 @@ public:
 
    /** provide a primal starting point. This point is subject to adjustments internally in hiOP.*/
    virtual bool get_starting_point(const long long&n, double* x0) {
-      MFEM_ASSERT(n_local_ == w_.Size(), "Linear constraint vector not set ?!?");
-      memcpy(x0, w_.GetData(), n_local_*sizeof(double));
+      if (!use_initial_x_value) return false; //let hiop decide
+      MFEM_ASSERT(n_local_ == xstart_.Size(), "xstart not set properly!");
+      memcpy(x0, xstart_.GetData(), n_local_*sizeof(double));
       return true;
-      //let hiop decide: return false;
    };
 
 
@@ -251,7 +263,10 @@ protected:
    Vector w_;      //linear constraint coefficients
    double a_;      //linear constraint rhs
 
+   Vector xstart_; //Initial guess, set equal to xt
    Vector workVec_; //used as work space of size n_local_
+
+   bool use_initial_x_value; //Whether to use the initial value of x in Mult
 
 private:
    Vector workVec2_; //used as work space of size n_local_
@@ -355,6 +370,9 @@ public:
 
 protected:
    virtual void allocHiopProbSpec(const long long& numvars);
+
+public:
+   bool use_initial_x_value; //Whether to use the initial value of x in Mult
 
 protected:
    HiopProblemSpec* optProb_;
