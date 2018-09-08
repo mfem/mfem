@@ -23,7 +23,7 @@ using namespace hiop;
 namespace mfem
 {
 HiopNlpOptimizer::HiopNlpOptimizer() 
-  : OptimizationSolver(), optProb_(NULL) 
+  : OptimizationSolver(), optProb_(NULL), use_initial_x_value(false)
 { 
 
 #ifdef MFEM_USE_MPI
@@ -42,7 +42,8 @@ HiopNlpOptimizer::HiopNlpOptimizer()
 HiopNlpOptimizer::HiopNlpOptimizer(MPI_Comm _comm) 
   : OptimizationSolver(_comm),
     optProb_(NULL),
-    comm_(_comm) 
+    comm_(_comm),
+    use_initial_x_value(false)
 { 
 
 }
@@ -55,6 +56,7 @@ HiopNlpOptimizer::~HiopNlpOptimizer()
 
 void HiopNlpOptimizer::Mult(Vector &x) const
 {
+   if (use_initial_x_value) optProb_->setStartingPoint(x);
    hiop::hiopNlpDenseConstraints hiopInstance(*optProb_);
    hiopInstance.options->SetNumericValue("tolerance", 1e-7);
    //0: no output; 3: not too much
@@ -89,8 +91,6 @@ void HiopNlpOptimizer_Simple::Mult(const Vector &xt, Vector &x) const
 {
    //set xt in the problemSpec to compute the objective
    optProb_Simple_->setObjectiveTarget(xt);
-
-   x = 0.;
    HiopNlpOptimizer::Mult(x);
 }
 
