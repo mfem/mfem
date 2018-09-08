@@ -531,7 +531,8 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    // Perform optimization on the ldofs.
    Vector y_out(ldofs);
    const int max_iter = 50;
-   const double rtol = 1.e-12, atol = 1e-15;
+   const double rtol = 1.e-12;
+   double atol = 1.e-7;
 
    OptimizationSolver* optsolver = NULL;
    HiopNlpOptimizer *tmp_opt_ptr = NULL;
@@ -552,6 +553,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    else
    {
       optsolver = new SLBQPOptimizer(MPI_COMM_WORLD);
+      atol = 1.e-15;
    }
    optsolver->SetMaxIter(max_iter);
    optsolver->SetAbsTol(atol);

@@ -58,7 +58,9 @@ void HiopNlpOptimizer::Mult(Vector &x) const
 {
    if (use_initial_x_value) optProb_->setStartingPoint(x);
    hiop::hiopNlpDenseConstraints hiopInstance(*optProb_);
-   hiopInstance.options->SetNumericValue("tolerance", 1e-7);
+   //Set tolerance:
+   hiopInstance.options->SetNumericValue("tolerance", abs_tol);
+   // TODO add capability to pass in more arguments
    //0: no output; 3: not too much
    hiopInstance.options->SetIntegerValue("verbosity_level", 0);
 
