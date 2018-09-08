@@ -13,6 +13,7 @@
 #define MFEM_STABLE3D
 
 #include "mem_alloc.hpp"
+#include "../general/globals.hpp"
 
 #include <iostream>
 
@@ -53,7 +54,7 @@ public:
    int NumberOfRows() const { return Size; }
    int NumberOfElements() const { return NElem; }
 
-   void Print(std::ostream & out) const;
+   void Print(std::ostream &out = mfem::out) const;
 
    ~STable3D ();
 

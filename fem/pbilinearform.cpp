@@ -171,13 +171,17 @@ void ParBilinearForm::ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local)
 
    // TODO - assemble the Dof_TrueDof_Matrix directly in the required format?
    Ph.ConvertFrom(pfes->Dof_TrueDof_Matrix());
+   // TODO: When Ph.Type() == Operator::ANY_TYPE we want to use the Operator
+   // returned by pfes->GetProlongationMatrix(), however that Operator is a
+   // const Operator, so we cannot store it in OperatorHandle. We need a const
+   // version of class OperatorHandle, e.g. ConstOperatorHandle.
 
    A.MakePtAP(dA, Ph);
 }
 
 HypreParMatrix *ParBilinearForm::ParallelAssemble(SparseMatrix *m)
 {
-   OperatorHandle Mh(Operator::HYPRE_PARCSR);
+   OperatorHandle Mh(Operator::Hypre_ParCSR);
    ParallelAssemble(Mh, m);
    Mh.SetOperatorOwner(false);
    return Mh.As<HypreParMatrix>();
@@ -284,7 +288,7 @@ void ParBilinearForm::FormLinearSystem(
    // eliminated part of the matrix.
    FormSystemMatrix(ess_tdof_list, A);
 
-   HypreParMatrix &P = *pfes->Dof_TrueDof_Matrix();
+   const Operator &P = *pfes->GetProlongationMatrix();
    const SparseMatrix &R = *pfes->GetRestrictionMatrix();
 
    // Transform the system and perform the elimination in B, based on the
@@ -331,7 +335,7 @@ void ParBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
       {
          static_cond->SetEssentialTrueDofs(ess_tdof_list);
          static_cond->Finalize();
-         static_cond->EliminateReducedTrueDofs(0);
+         static_cond->EliminateReducedTrueDofs(Matrix::DIAG_ONE);
       }
       static_cond->GetParallelMatrix(A);
    }
@@ -365,7 +369,7 @@ void ParBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
 void ParBilinearForm::RecoverFEMSolution(
    const Vector &X, const Vector &b, Vector &x)
 {
-   HypreParMatrix &P = *pfes->Dof_TrueDof_Matrix();
+   const Operator &P = *pfes->GetProlongationMatrix();
 
    if (static_cond)
    {

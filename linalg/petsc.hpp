@@ -1,4 +1,4 @@
-// Copyright (c) 2016, Lawrence Livermore National Security, LLC. Produced at
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
 // the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
 // reserved. See file COPYRIGHT for details.
 //
@@ -62,6 +62,9 @@ public:
 
    /// Creates vector compatible with @a y
    PetscParVector(const PetscParVector &y);
+
+   /// Creates a PetscParVector from a Vector (data is not copied)
+   PetscParVector(MPI_Comm comm, const Vector &_x);
 
    /** @brief Creates vector compatible with the Operator (i.e. in the domain
        of) @a op or its adjoint. */
@@ -178,7 +181,8 @@ public:
        PETSc format @a tid. */
    /** The supported type ids are: Operator::PETSC_MATAIJ,
        Operator::PETSC_MATIS, and Operator::PETSC_MATSHELL. */
-   PetscParMatrix(const HypreParMatrix *ha, Operator::Type tid);
+   explicit PetscParMatrix(const HypreParMatrix *ha,
+                           Operator::Type tid = Operator::PETSC_MATAIJ);
 
    /** @brief Convert an mfem::Operator into a PetscParMatrix in the given PETSc
        format @a tid. */
@@ -190,8 +194,11 @@ public:
        Otherwise, it tries to convert the operator in PETSc's classes.
 
        In particular, if @a op is a BlockOperator, then a MATNEST Mat object is
-       created using @a tid as the type for the blocks. */
-   PetscParMatrix(MPI_Comm comm, const Operator *op, Operator::Type tid);
+       created using @a tid as the type for the blocks.
+       Note that if @a op is already a PetscParMatrix of the same type as
+       @a tid, the resulting PetscParMatrix will share the same Mat object */
+   PetscParMatrix(MPI_Comm comm, const Operator *op,
+                  Operator::Type tid = Operator::PETSC_MATSHELL);
 
    /// Creates block-diagonal square parallel matrix.
    /** The block-diagonal is given by @a diag which must be in CSR format
@@ -338,7 +345,10 @@ public:
    virtual ~PetscBCHandler() {}
 
    /// Returns the type of boundary conditions
-   Type Type() const { return bctype; }
+   Type GetType() const { return bctype; }
+
+   /// Sets the type of boundary conditions
+   void SetType(enum Type _type) { bctype = _type; setup = false; }
 
    /// Boundary conditions evaluation
    /** In the result vector, @a g, only values at the essential dofs need to be
@@ -406,9 +416,6 @@ protected:
 
    /// Right-hand side and solution vector
    mutable PetscParVector *B, *X;
-
-   /// Monitor context
-   PetscSolverMonitor *monitor_ctx;
 
    /// Handler for boundary conditions
    PetscBCHandler *bchandler;
