@@ -27,13 +27,47 @@ using namespace mfem::thermal;
 
 void display_banner(ostream & os);
 
-static int prob_ = 1;
+static int    prob_          = 1;
+static bool   non_linear_    = false;
+static double chi_perp_      = 1.0;
+static double chi_max_ratio_ = 1.0;
+static double chi_min_ratio_ = 1.0;
 
 double QFunc(const Vector &x, double t)
 {
    if ( prob_ % 2 == 1)
    {
-      return 2.0 * M_PI * M_PI * sin(M_PI * x[0]) * sin(M_PI * x[1]);
+      return 2.0 * chi_perp_ * M_PI * M_PI *
+             sin(M_PI * x[0]) * sin(M_PI * x[1]);
+   }
+   else
+   {
+      double a = 0.4;
+      double b = 0.8;
+
+      double r  = pow(x[0] / a, 2) + pow(x[1] / b, 2);
+      double r4 = pow(x[0] / (a * a), 2) + pow(x[1] / (b * b), 2);
+      double e  = exp(-0.25 * t * M_PI * M_PI / (a * b) );
+
+      if ( r == 0.0 )
+         return 0.25 * M_PI * M_PI *
+                ( chi_perp_ * (1.0 - e) * ( pow(a, -2) + pow(b, -2) ) +
+                  e / (a * b));
+
+      return 0.25 * M_PI * M_PI *
+             ( e / (a * b) + chi_perp_ * (r4 / r) * (1.0 - e)) *
+             cos(0.5 * M_PI * sqrt(r)) +
+             0.5 * M_PI * chi_perp_ * pow(a * b, -2) * (x * x) * (1.0 - e) *
+             sin(0.5 * M_PI * sqrt(r)) / pow(r, 1.5);
+   }
+}
+
+double TFunc(const Vector &x, double t)
+{
+   if ( prob_ % 2 == 1)
+   {
+      double e = exp(-2.0 * M_PI * M_PI * t);
+      return sin(M_PI * x[0]) * sin(M_PI * x[1]) * (1.0 - e);
    }
    else
    {
@@ -43,28 +77,8 @@ double QFunc(const Vector &x, double t)
       double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
       double e = exp(-0.25 * t * M_PI * M_PI / (a * b) );
 
-      if ( r == 0.0 )
-         return 0.25 * M_PI * M_PI *
-                ( (1.0 - e) * ( pow(a, -2) + pow(b, -2) ) + e / (a * b));
-
-      return ( M_PI / r ) *
-             ( 0.25 * M_PI * pow(a * b, -4) *
-               ( pow(b * b * x[0],2) + pow(a * a * x[1], 2) +
-                 (a - b) * (b * pow(b * x[0], 2) - a * pow(a*x[1],2)) * e) *
-               cos(0.5 * M_PI * sqrt(r)) +
-               0.5 * pow(a * b, -2) * (x * x) * (1.0 - e) *
-               sin(0.5 * M_PI * sqrt(r)) / sqrt(r)
-             );
+      return cos(0.5 * M_PI * sqrt(r)) * (1.0 - e);
    }
-}
-
-static double chi_perp_      = 1.0;
-static double chi_max_ratio_ = 1.0;
-static double chi_min_ratio_ = 1.0;
-
-double TFunc(const Vector &x)
-{
-   return sin(M_PI * x[0]) * sin(M_PI * x[1]);
 }
 /*
 void ChiFunc(const Vector &x, DenseMatrix &M)
@@ -183,6 +197,8 @@ int main(int argc, char *argv[])
    {
       irOrder = std::max(4, 2 * order - 2);
    }
+
+   non_linear_ = coef_type > 0;
 
    // 3. Construct a (serial) mesh of the given size on all processors.  We
    //    can handle triangular and quadrilateral surface meshes with the
