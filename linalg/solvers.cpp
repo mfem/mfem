@@ -1314,6 +1314,39 @@ void NewtonSolver::Mult(const Vector &b, Vector &x) const
    final_norm = norm;
 }
 
+double NewtonSolver::CheckGradient(const Vector &x, const Vector &h) const
+{
+   Vector x1(x.Size());
+   Vector b0(x.Size());
+
+   // Evaluate operator and its gradient at x
+   oper->Mult(x, b0);
+   oper->GetGradient(x).Mult(h, c);
+
+   // Evaluate operator at x+h
+   add(x, 1.0, h, x1);
+   oper->Mult(x1, r);
+
+   // Compute error in F(x) + G * h
+   r.Add(-1.0, b0);
+   r.Add(-1.0, c);
+
+   double norm1 = Norm(r);
+
+   // Evaluate operator at x+h/2
+   add(x, 0.5, h, x1);
+   oper->Mult(x1, r);
+
+   // Compute error in F(x) + G * h / 2
+   r.Add(-1.0, b0);
+   r.Add(-0.5, c);
+
+   double norm2 = Norm(r);
+
+   if (norm1 == 0.0 ) { return -1.0; }
+   return 2.0 * norm2 / norm1;
+}
+
 
 int aGMRES(const Operator &A, Vector &x, const Vector &b,
            const Operator &M, int &max_iter,

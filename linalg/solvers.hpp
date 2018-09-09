@@ -277,6 +277,16 @@ public:
    /** If `b.Size() != Height()`, then @a b is assumed to be zero. */
    virtual void Mult(const Vector &b, Vector &x) const;
 
+   /// Verify that the operator returns a valid gradient
+   /** The gradient should satisfy the definition of a Frechet Derivative
+       i.e. lim_{h->0} ||F(x+H)-F(x)-G(x)*h||/||h|| = 0.  This method
+       returns 2 * ||F(x+h/2)-F(x)-G(x)*h/2|| / ||F(x+h)-F(x)-G(x)*h||
+       which should be less then or equal to 1 for any valid gradient
+       provided h is sufficiently small.  This method returns -1 if the
+       operator appears to be linear in which case the ratio would be 0/0.
+   */
+   virtual double CheckGradient(const Vector &x, const Vector &h) const;
+
    /** @brief This method can be overloaded in derived classes to implement line
        search algorithms. */
    /** The base class implementation (NewtonSolver) simply returns 1. A return
