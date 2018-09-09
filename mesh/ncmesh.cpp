@@ -16,6 +16,8 @@
 #include <cmath>
 #include <climits> // INT_MAX
 
+#include <fstream> // MLS Debugging
+
 namespace mfem
 {
 

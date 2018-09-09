@@ -20,6 +20,8 @@
 #include <map>
 #include <climits> // INT_MIN, INT_MAX
 
+#include <fstream> // MLS Debugging
+
 namespace mfem
 {
 
@@ -2742,6 +2744,7 @@ void ParNCMesh::GetRefinedElements(int elem_id, BlockArray<int> & elem_ids)
          elem_ids.Append(elem_id);
       }
    }
+}
 
 void ParNCMesh::Trim()
 {
