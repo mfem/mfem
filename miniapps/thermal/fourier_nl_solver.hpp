@@ -273,6 +273,7 @@ private:
    bool init_;
    bool newTime_;
    bool nonLinear_;
+   bool testGradient_;
 
    mutable int multCount_;
    int solveCount_;

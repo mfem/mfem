@@ -90,6 +90,7 @@ ThermalDiffusionTDO::ThermalDiffusionTDO(
    : TimeDependentOperator(H1_FESpace.GetTrueVSize(), 0.0),
      init_(false),
      nonLinear_(coef_type == 2),
+     testGradient_(true),
      multCount_(0), solveCount_(0),
      T_(&H1_FESpace),
      TCoef_(&T_),
@@ -120,13 +121,38 @@ ThermalDiffusionTDO::~ThermalDiffusionTDO()
 void
 ThermalDiffusionTDO::init()
 {
+   cout << "Entering TDO::Init" << endl;
    if ( init_ ) { return; }
 
    newton_.SetPrintLevel(2);
-   newton_.SetRelTol(1e-12);
+   newton_.SetRelTol(1e-10);
    newton_.SetAbsTol(0.0);
 
+   if ( nonLinear_ && testGradient_ )
+   {
+      Vector x(impOp_.Height());
+      Vector dx(impOp_.Height());
+
+      T_.Distribute(x);
+      cout << "GetTime " << this->GetTime() << endl;
+      impOp_.SetState(T_, this->GetTime(), 0.1);
+
+      cout << "init 0" << endl;
+      newton_.SetOperator(impOp_);
+      cout << "init 1" << endl;
+      cout << "init 2" << endl;
+      x.Randomize(1);
+      x.Print(cout);
+      dx.Randomize(2);
+      dx *= 0.01;
+      dx.Print(cout);
+      cout << "init 3" << endl;
+      double ratio = newton_.CheckGradient(x, dx);
+      cout << "CheckGradient returns: " << ratio << endl;
+   }
+
    init_ = true;
+   cout << "Leaving TDO::Init" << endl;
 }
 
 void
@@ -395,7 +421,7 @@ Solver & ImplicitDiffOp::GetGradientSolver() const
 
          cout << "Building PCG" << endl;
          AInv_pcg = new HyprePCG(A_hyp);
-         AInv_pcg->SetTol(1e-12);
+         AInv_pcg->SetTol(1e-10);
          AInv_pcg->SetMaxIter(200);
          AInv_pcg->SetPrintLevel(0);
          if ( APrecond_ == NULL )
@@ -418,7 +444,7 @@ Solver & ImplicitDiffOp::GetGradientSolver() const
          AInv_gmres = new GMRESSolver(T0_.ParFESpace()->GetComm());
          AInv_gmres->SetRelTol(1e-12);
          AInv_gmres->SetAbsTol(0.0);
-         AInv_gmres->SetMaxIter(200);
+         AInv_gmres->SetMaxIter(20000);
          AInv_gmres->SetPrintLevel(0);
          AInv_ = AInv_gmres;
       }

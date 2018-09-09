@@ -27,11 +27,11 @@ using namespace mfem::thermal;
 
 void display_banner(ostream & os);
 
-static int    prob_          = 1;
-static bool   non_linear_    = false;
-static double chi_perp_      = 1.0;
-static double chi_max_ratio_ = 1.0;
-static double chi_min_ratio_ = 1.0;
+static int    prob_         = 1;
+static bool   non_linear_   = false;
+static double chi_perp_     = 1.0;
+static double chi_para_max_ = 1.0;
+static double chi_para_min_ = 1.0;
 
 double QFunc(const Vector &x, double t)
 {
@@ -147,10 +147,10 @@ int main(int argc, char *argv[])
                   "Integration Rule Order.");
    args.AddOption(&chi_perp_, "-chi-perp", "--chi-perpendicular",
                   "Chi_perp.");
-   args.AddOption(&chi_max_ratio_, "-chi-max", "--chi-max-ratio",
-                  "Ratio of chi_max_parallel/chi_perp.");
-   args.AddOption(&chi_min_ratio_, "-chi-min", "--chi-min-ratio",
-                  "Ratio of chi_min_parallel/chi_perp.");
+   args.AddOption(&chi_para_max_, "-chi-max", "--chi-para-max",
+                  "Maximum value of chi along field lines.");
+   args.AddOption(&chi_para_min_, "-chi-min", "--chi-para-min",
+                  "Minimum value of chi along field lines.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
    args.AddOption(&t_final, "-tf", "--final-time",
@@ -263,6 +263,7 @@ int main(int argc, char *argv[])
 
    // L2 contains discontinuous "cell-center" finite elements, type 2 is
    // "positive"
+   L2_FECollection L2FEC0(0, dim);
    L2_FECollection L2FEC(order-1, dim);
 
    // RT contains Raviart-Thomas "face-centered" vector finite elements with
@@ -272,6 +273,7 @@ int main(int argc, char *argv[])
    // H1 contains continuous "node-centered" Lagrange finite elements.
    H1_FECollection HGradFEC(order, dim);
 
+   ParFiniteElementSpace   L2FESpace0(pmesh, &L2FEC0);
    ParFiniteElementSpace    L2FESpace(pmesh, &L2FEC);
    ParFiniteElementSpace  HDivFESpace(pmesh, &HDivFEC);
    ParFiniteElementSpace  HGradFESpace(pmesh, &HGradFEC);
@@ -294,6 +296,7 @@ int main(int argc, char *argv[])
    ParGridFunction  T_gf(&HGradFESpace);
    ParGridFunction dT_gf(&HGradFESpace);
    ParGridFunction Qs_gf(&HGradFESpace);
+   ParGridFunction errorT(&L2FESpace0);
    T_gf  = 0.0;
    dT_gf = 1.0;
 
@@ -309,14 +312,15 @@ int main(int argc, char *argv[])
    FunctionCoefficient HeatSourceCoef(QFunc);
 
    Qs_gf.ProjectCoefficient(HeatSourceCoef);
+   T_gf.GridFunction::ComputeElementL2Errors(TCoef, errorT);
 
    // 14. Initialize the Diffusion operator, the GLVis visualization and print
    //     the initial energies.
    ThermalDiffusionTDO oper(HGradFESpace,
                             zeroCoef, ess_bdr,
                             chi_perp_,
-                            chi_min_ratio_ * chi_perp_,
-                            chi_max_ratio_ * chi_perp_,
+                            chi_para_min_,
+                            chi_para_max_,
                             prob_,
                             coef_type,
                             SpecificHeatCoef, false,
@@ -326,7 +330,7 @@ int main(int argc, char *argv[])
    // This function initializes all the fields to zero or some provided IC
    // oper.Init(F);
 
-   socketstream vis_T, vis_Q;
+   socketstream vis_T, vis_Q, vis_errT;
    char vishost[] = "localhost";
    int  visport   = 19916;
    if (visualization)
@@ -336,6 +340,8 @@ int main(int argc, char *argv[])
       MPI_Barrier(pmesh->GetComm());
 
       vis_T.precision(8);
+      vis_Q.precision(8);
+      vis_errT.precision(8);
 
       int Wx = 0, Wy = 0; // window position
       int Ww = 350, Wh = 350; // window size
@@ -344,10 +350,13 @@ int main(int argc, char *argv[])
       miniapps::VisualizeField(vis_T, vishost, visport,
                                T_gf, "Temperature", Wx, Wy, Ww, Wh);
 
-      vis_Q.precision(8);
-
+      Wx += offx;
       miniapps::VisualizeField(vis_Q, vishost, visport,
                                Qs_gf, "Heat Soruce", Wx+offx, Wy, Ww, Wh);
+
+      Wx += offx;
+      miniapps::VisualizeField(vis_errT, vishost, visport,
+                               errorT, "Error in T", Wx, Wy, Ww, Wh);
    }
    // VisIt visualization
    VisItDataCollection visit_dc(basename, pmesh);
@@ -355,11 +364,21 @@ int main(int argc, char *argv[])
    {
       visit_dc.RegisterField("T", &T_gf);
       visit_dc.RegisterField("Qs", &Qs_gf);
+      visit_dc.RegisterField("L2 Error T", &errorT);
 
       visit_dc.SetCycle(0);
       visit_dc.SetTime(0.0);
       visit_dc.Save();
    }
+
+   ostringstream oss_errs;
+   oss_errs << "fourier_nl_errs"
+            << "_p" << prob_ << "_c" << coef_type
+            << "_e" << (int)floor(log10(chi_para_max_/chi_perp_));
+   if (n > 0) { oss_errs << "_n" << n; }
+   oss_errs << "_o" << order << ".dat";
+   ofstream ofs_errs;
+   if (myid == 0) { ofs_errs.open(oss_errs.str().c_str()); }
 
    // 15. Perform time-integration (looping over the time iterations, ti, with a
    //     time-step dt). The object oper is the MagneticDiffusionOperator which
@@ -389,9 +408,21 @@ int main(int argc, char *argv[])
       T0 = T1;
       ode_solver->Step(T1, t, dt);
 
+      T_gf.Distribute(T1);
+
+      TCoef.SetTime(t);
+
+      T_gf.GridFunction::ComputeElementL2Errors(TCoef, errorT);
+      double l2_error_T = T_gf.ComputeL2Error(TCoef);
+
+      if ( myid == 0 )
+      {
+         ofs_errs << t << '\t' << l2_error_T << endl;
+         cout << t << '\t' << l2_error_T << endl;
+      }
+
       add(1.0, T1, -1.0, T0, dT);
 
-      T_gf.Distribute(T1);
       dT_gf.Distribute(dT);
 
       double maxT    = T_gf.ComputeMaxError(zeroCoef);
@@ -447,10 +478,14 @@ int main(int argc, char *argv[])
          {
             int Wx = 0, Wy = 0; // window position
             int Ww = 350, Wh = 350; // window size
-            // int offx = Ww+10, offy = Wh+45; // window offsets
+            int offx = Ww+10;//, offy = Wh+45; // window offsets
 
             miniapps::VisualizeField(vis_T, vishost, visport,
                                      T_gf, "Temperature", Wx, Wy, Ww, Wh);
+
+            Wx += offx;
+            miniapps::VisualizeField(vis_errT, vishost, visport,
+                                     errorT, "Error in T", Wx, Wy, Ww, Wh);
          }
 
          if (visit)
@@ -464,7 +499,9 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       vis_T.close();
+      vis_errT.close();
    }
+   if (myid == 0) { ofs_errs.close(); }
 
    double loc_T_max = T1.Normlinf();
    double T_max = -1.0;
