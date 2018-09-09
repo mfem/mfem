@@ -214,6 +214,7 @@ void STable3D::Print(std::ostream & out) const
          out << row
              << ' ' << node_p->Column
              << ' ' << node_p->Floor
+             << ' ' << node_p->Tier
              << ' ' << node_p->Number
              << endl;
          node_p = node_p->Prev;
