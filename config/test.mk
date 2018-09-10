@@ -38,7 +38,7 @@ export TIME='%es %MkB %x'; \
 set -- $$($(1) $(SHELL) -c "$(2)" 2>&1); while [ "$$#" -gt 3 ]; do shift; done
 endef
 define TIMECMD.NOTGNU
-set -- $$($(1) -l $(SHELL) -c "$(2)" 2>&1; echo $$?); \
+set -- $$($(1) -l $(SHELL) -c "{ $(2); } > /dev/null 2>&1" 2>&1; echo $$?); \
 set -- "$$1"s "$$(($$7/1024))"kB "$${60}"
 endef
 define TIMECMD.BASH
