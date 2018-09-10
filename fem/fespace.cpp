@@ -592,6 +592,8 @@ void FiniteElementSpace::BuildConformingInterpolation() const
                "This method should not be used with a ParFiniteElementSpace!");
 #endif
 
+   if (mesh->Dimension() == 4) { BuildConformingInterpolation4D(); return; }
+
    if (cP_is_set) { return; }
    cP_is_set = true;
 
@@ -786,7 +788,7 @@ void FiniteElementSpace::BuildConformingInterpolation4D() const
          for (int si = master.slaves_begin; si < master.slaves_end; si++)
          {
             const NCMesh::Slave &slave = list.slaves[si];
-            GetEntityDofs(entity, slave.index, slave_dofs);
+            GetEntityDofs4D(entity, slave.index, slave_dofs);
             if (!slave_dofs.Size()) { continue; }
 
             slave.OrientedPointMatrix(T.GetPointMat());
@@ -1687,7 +1689,7 @@ void FiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
 void FiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
 {
    int j, k, nv, ne, np, nf, nd, dim = mesh->Dimension();
-   Array<int> V, E, Eo, P;
+   Array<int> V, E, Eo, P, Po;
    const int *ind;
 
    // for 1D, 2D and 3D faces
@@ -1704,7 +1706,7 @@ void FiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
    np = (dim > 3) ? fec->DofForGeometry(Geometry::TRIANGLE) : (0);
    if (np > 0)
    {
-      mesh->GetFacePlanars(i,P);
+      mesh->GetFacePlanars(i,P, Po);
    }
    nf = (fdofs) ? (fdofs[i+1]-fdofs[i]) : (0);
    nd = V.Size() * nv + E.Size() * ne + np * P.Size() + nf;
