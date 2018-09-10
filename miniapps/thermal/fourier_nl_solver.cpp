@@ -90,7 +90,7 @@ ThermalDiffusionTDO::ThermalDiffusionTDO(
    : TimeDependentOperator(H1_FESpace.GetTrueVSize(), 0.0),
      init_(false),
      nonLinear_(coef_type == 2),
-     testGradient_(true),
+     testGradient_(false),
      multCount_(0), solveCount_(0),
      T_(&H1_FESpace),
      TCoef_(&T_),
@@ -438,6 +438,12 @@ Solver & ImplicitDiffOp::GetGradientSolver() const
    {
       if (AInv_ == NULL)
       {
+	 /*	 
+         HypreSmoother *J_hypreSmoother = new HypreSmoother;
+	 J_hypreSmoother->SetType(HypreSmoother::l1Jacobi);
+	 J_hypreSmoother->SetPositiveDiagonal(true);
+	 JPrecond_ = J_hypreSmoother;
+
          GMRESSolver * AInv_gmres = NULL;
 
          cout << "Building GMRES" << endl;
@@ -445,8 +451,25 @@ Solver & ImplicitDiffOp::GetGradientSolver() const
          AInv_gmres->SetRelTol(1e-12);
          AInv_gmres->SetAbsTol(0.0);
          AInv_gmres->SetMaxIter(20000);
-         AInv_gmres->SetPrintLevel(0);
-         AInv_ = AInv_gmres;
+         AInv_gmres->SetPrintLevel(2);
+	 AInv_gmres->SetPreconditioner(*JPrecond_);
+	 AInv_ = AInv_gmres;
+	 */
+         HypreGMRES * AInv_gmres = NULL;
+
+         cout << "Building HypreGMRES" << endl;
+         AInv_gmres = new HypreGMRES(T0_.ParFESpace()->GetComm());
+         AInv_gmres->SetTol(1e-12);
+         AInv_gmres->SetMaxIter(200);
+         AInv_gmres->SetPrintLevel(2);
+         if ( APrecond_ == NULL )
+         {
+            cout << "Building AMG" << endl;
+            APrecond_ = new HypreBoomerAMG();
+            APrecond_->SetPrintLevel(0);
+            AInv_gmres->SetPreconditioner(*APrecond_);
+         }
+	 AInv_ = AInv_gmres;
       }
    }
 
