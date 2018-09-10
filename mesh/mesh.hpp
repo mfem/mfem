@@ -56,10 +56,8 @@ protected:
    int NumOfVertices, NumOfElements, NumOfBdrElements;
    int NumOfEdges, NumOfFaces;
 
-   // element base geometries, Geometry::MIXED = -1 if not all the same
-   Geometry::Type BaseGeom, BaseBdrGeom, BaseFaceGeom;
-
    int meshgen; // see MeshGenerator()
+   int mesh_geoms; // sum of (1 << geom) for all geom of all dimensions
 
    // Counter for Mesh transformations: refinement, derefinement, rebalancing.
    // Used for checking during Update operations on objects depending on the
@@ -220,6 +218,7 @@ protected:
 #endif
 
    /// Determine the mesh generator bitmask #meshgen, see MeshGenerator().
+   /** Also, initializes #mesh_geoms. */
    void SetMeshGen();
 
    /// Return the length of the segment from node i to node j.
@@ -236,6 +235,11 @@ protected:
    void GetEdgeOrdering(DSTable &v_to_v, Array<int> &order);
    virtual void MarkTetMeshForRefinement(DSTable &v_to_v);
 
+   // Methods used to prepare and apply permutation of the mesh nodes assuming
+   // that the mesh elements may be rotated (e.g. to mark triangle or tet edges
+   // for refinement) between the two calls - PrepareNodeReorder() and
+   // DoNodeReorder(). The latter method assumes that the 'faces' have not been
+   // updated after the element rotations.
    void PrepareNodeReorder(DSTable **old_v_to_v, Table **old_elem_vert);
    void DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert);
 
@@ -266,9 +270,9 @@ protected:
    /** Uniform Refinement. Element with index i is refined uniformly. */
    void UniformRefinement(int i, const DSTable &, int *, int *, int *);
 
-   /** Averages the vertices with given indexes and saves the result in
-       vertices[result]. */
-   void AverageVertices (int * indexes, int n, int result);
+   /** @brief Averages the vertices with given @a indexes and saves the result
+       in vertices[result]. */
+   void AverageVertices(const int *indexes, int n, int result);
 
    void InitRefinementTransforms();
    int FindCoarseElement(int i);
@@ -289,6 +293,8 @@ protected:
    virtual void Mixed2DUniformRefinement();
 
    /// Refine a mixed 3D mesh.
+   /** If @a f2qf is not NULL, adds all quadrilateral faces to @a f2qf which
+       represents a "face-to-quad-face" index map. */
    virtual void Mixed3DUniformRefinement(std::map<int,int> * f2qf = NULL);
 
    /// Refine NURBS mesh.
@@ -392,8 +398,6 @@ protected:
 
    /// Begin construction of a mesh
    void InitMesh(int _Dim, int _spaceDim, int NVert, int NElem, int NBdrElem);
-
-   void InitBaseGeom();
 
    // Used in the methods FinalizeXXXMesh() and FinalizeTopology()
    void FinalizeCheck();
@@ -573,6 +577,7 @@ public:
         double sx = 1.0, double sy = 1.0, double sz = 1.0)
    {
       Make3D(nx, ny, nz, type, generate_edges, sx, sy, sz);
+      Finalize(true); // refine = true
    }
 
    /** Creates mesh for the rectangle [0,sx]x[0,sy], divided into nx*ny
@@ -583,12 +588,14 @@ public:
         double sx = 1.0, double sy = 1.0)
    {
       Make2D(nx, ny, type, generate_edges, sx, sy);
+      Finalize(true); // refine = true
    }
 
    /** Creates 1D mesh , divided into n equal intervals. */
    explicit Mesh(int n, double sx = 1.0)
    {
       Make1D(n, sx);
+      // Finalize(); // reminder: not needed
    }
 
    /** Creates mesh by reading a file in MFEM, netgen, or VTK format. If
@@ -641,6 +648,8 @@ public:
        - bit 0 - simplices are present in the mesh (triangles, tets),
        - bit 1 - tensor product elements are present in the mesh (quads, hexes),
        - bit 2 - the mesh has wedge elements.
+
+       In parallel, the result takes into account elements on all processors.
    */
    inline int MeshGenerator() { return meshgen; }
 
@@ -717,23 +726,50 @@ public:
 
    const Element *GetFace(int i) const { return faces[i]; }
 
-   Geometry::Type GetFaceBaseGeometry(int i = 0) const
+   Geometry::Type GetFaceBaseGeometry(int i) const
    {
-      return ( i >= 0 && i < GetNFaces() ) ?
-             GetFace(i)->GetGeometryType() : BaseFaceGeom;
+      return faces[i]->GetGeometryType();
    }
 
-   Geometry::Type GetElementBaseGeometry(int i = 0) const
+   Geometry::Type GetElementBaseGeometry(int i) const
    {
-      return ( i >= 0 && i < GetNE() ) ?
-             elements[i]->GetGeometryType() : BaseGeom;
+      return elements[i]->GetGeometryType();
    }
 
-   Geometry::Type GetBdrElementBaseGeometry(int i = 0) const
+   Geometry::Type GetBdrElementBaseGeometry(int i) const
    {
-      return ( i >= 0 && i < GetNBE() ) ?
-             boundary[i]->GetGeometryType() : BaseBdrGeom;
+      return boundary[i]->GetGeometryType();
    }
+
+   /** @brief Return true iff the given @a geom is encountered in the mesh.
+       Geometries of dimensions lower than Dimension() are counted as well. */
+   bool HasGeometry(Geometry::Type geom) const
+   { return mesh_geoms & (1 << geom); }
+
+   /** @brief Return the number of geometries of the given dimension present in
+       the mesh. */
+   /** For a parallel mesh only the local geometries are counted. */
+   int GetNumGeometries(int dim) const;
+
+   /// Return all element geometries of the given dimension present in the mesh.
+   /** For a parallel mesh only the local geometries are returned.
+
+       The returned geometries are sorted. */
+   void GetGeometries(int dim, Array<Geometry::Type> &el_geoms) const;
+
+   /// List of mesh geometries stored as Array<Geometry::Type>.
+   class GeometryList : public Array<Geometry::Type>
+   {
+   protected:
+      Geometry::Type geom_buf[Geometry::NumGeom];
+   public:
+      GeometryList(Mesh &mesh)
+         : Array<Geometry::Type>(geom_buf, Geometry::NumGeom)
+      { mesh.GetGeometries(mesh.Dimension(), *this); }
+      GeometryList(Mesh &mesh, int dim)
+         : Array<Geometry::Type>(geom_buf, Geometry::NumGeom)
+      { mesh.GetGeometries(dim, *this); }
+   };
 
    /// Returns the indices of the vertices of element i.
    void GetElementVertices(int i, Array<int> &v) const
@@ -1059,8 +1095,7 @@ public:
 
    /** Return fine element transformations following a mesh refinement.
        Space uses this to construct a global interpolation matrix. */
-   const CoarseFineTransformations &GetRefinementTransforms(
-      Geometry::Type geom = Geometry::INVALID);
+   const CoarseFineTransformations &GetRefinementTransforms();
 
    /// Return type of last modification of the mesh.
    Operation GetLastOperation() const { return last_operation; }
@@ -1137,6 +1172,10 @@ public:
    void GetCharacteristics(double &h_min, double &h_max,
                            double &kappa_min, double &kappa_max,
                            Vector *Vh = NULL, Vector *Vk = NULL);
+
+   static void PrintElementsByGeometry(int dim,
+                                       const Array<int> &num_elems_by_geom,
+                                       std::ostream &out);
 
    void PrintCharacteristics(Vector *Vh = NULL, Vector *Vk = NULL,
                              std::ostream &out = mfem::out);

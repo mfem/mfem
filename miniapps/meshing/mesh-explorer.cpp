@@ -122,12 +122,15 @@ int main (int argc, char *argv[])
 {
    int np = 0;
    const char *mesh_file = "../../data/beam-hex.mesh";
+   bool refine = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to visualize.");
    args.AddOption(&np, "-np", "--num-proc",
                   "Load mesh from multiple processors.");
+   args.AddOption(&refine, "-ref", "--refinement", "-no-ref", "--no-refinement",
+                  "Prepare the mesh for refinement or not.");
    args.Parse();
    if (!args.Good())
    {
@@ -149,7 +152,7 @@ int main (int argc, char *argv[])
    Mesh *mesh;
    if (np <= 0)
    {
-      mesh = new Mesh(mesh_file, 1, 1);
+      mesh = new Mesh(mesh_file, 1, refine);
    }
    else
    {
@@ -373,9 +376,12 @@ int main (int argc, char *argv[])
                }
             }
 
-            int bdr = 0;
+            char move_bdr = 'n';
+            cout << "move boundary nodes? [y/n] ---> " << flush;
+            cin >> move_bdr;
+
             // don't perturb the boundary
-            if (!bdr)
+            if (move_bdr == 'n')
             {
                Array<int> vdofs;
                for (int i = 0; i < fespace->GetNBE(); i++)
@@ -404,6 +410,8 @@ int main (int argc, char *argv[])
          max_det_J = max_kappa = max_ratio_det_J_z = -infinity();
          cout << "subdivision factor ---> " << flush;
          cin >> sd;
+         Array<int> bad_elems_by_geom(Geometry::NumGeom);
+         bad_elems_by_geom = 0;
          for (int i = 0; i < mesh->GetNE(); i++)
          {
             Geometry::Type geom = mesh->GetElementBaseGeometry(i);
@@ -436,15 +444,21 @@ int main (int argc, char *argv[])
             if (min_det_J_z <= 0.0)
             {
                nz++;
+               bad_elems_by_geom[geom]++;
             }
          }
-         cout  << "\nbad elements = " << nz
-               << "\nmin det(J)   = " << min_det_J
-               << "\nmax det(J)   = " << max_det_J
-               << "\nglobal ratio = " << max_det_J/min_det_J
-               << "\nmax el ratio = " << max_ratio_det_J_z
-               << "\nmin kappa    = " << min_kappa
-               << "\nmax kappa    = " << max_kappa << endl;
+         cout << "\nbad elements = " << nz;
+         if (nz)
+         {
+            cout << "  --  ";
+            Mesh::PrintElementsByGeometry(dim, bad_elems_by_geom, cout);
+         }
+         cout << "\nmin det(J)   = " << min_det_J
+              << "\nmax det(J)   = " << max_det_J
+              << "\nglobal ratio = " << max_det_J/min_det_J
+              << "\nmax el ratio = " << max_ratio_det_J_z
+              << "\nmin kappa    = " << min_kappa
+              << "\nmax kappa    = " << max_kappa << endl;
       }
 
       if (mk == 'f')

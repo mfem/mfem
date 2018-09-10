@@ -67,6 +67,9 @@ protected:
    /// Create from a nonconforming mesh.
    ParMesh(const ParNCMesh &pncmesh);
 
+   // Convert the local 'meshgen' to a global one.
+   void ReduceMeshGen();
+
    // Mark all tets to ensure consistency across MPI tasks; also mark the
    // shared and boundary triangle faces using the consistently marked tets.
    virtual void MarkTetMeshForRefinement(DSTable &v_to_v);

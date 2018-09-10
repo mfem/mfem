@@ -1083,39 +1083,35 @@ void GridFunction::GetElementAverages(GridFunction &avgs) const
 
 void GridFunction::ProjectGridFunction(const GridFunction &src)
 {
-
    Mesh *mesh = fes->GetMesh();
    bool sameP = false;
    DenseMatrix P;
 
-   if (!fes->GetNE())
-   {
-      return;
-   }
+   if (!mesh->GetNE()) { return; }
 
-
-   if ( mesh->GetElementBaseGeometry() != Geometry::MIXED &&
-        mesh->GetElementBaseGeometry() != Geometry::INVALID )
+   Geometry::Type geom, cached_geom = Geometry::INVALID;
+   if (mesh->GetNumGeometries(mesh->Dimension()) == 1)
    {
       // Assuming that the projection matrix is the same for all elements
       sameP = true;
       fes->GetFE(0)->Project(*src.fes->GetFE(0),
                              *mesh->GetElementTransformation(0), P);
    }
-   int vdim = fes->GetVDim();
-   if (vdim != src.fes->GetVDim())
-      mfem_error("GridFunction::ProjectGridFunction() :"
-                 " incompatible vector dimensions!");
+   const int vdim = fes->GetVDim();
+   MFEM_VERIFY(vdim != src.fes->GetVDim(), "incompatible vector dimensions!");
+
    Array<int> src_vdofs, dest_vdofs;
    Vector src_lvec, dest_lvec(vdim*P.Height());
 
    for (int i = 0; i < mesh->GetNE(); i++)
    {
-      if ( !sameP )
+      // Assuming the projection matrix P depends only on the element geometry
+      if ( !sameP && (geom = mesh->GetElementBaseGeometry(i)) != cached_geom )
       {
          fes->GetFE(i)->Project(*src.fes->GetFE(i),
                                 *mesh->GetElementTransformation(i), P);
          dest_lvec.SetSize(vdim*P.Height());
+         cached_geom = geom;
       }
 
       src.fes->GetElementVDofs(i, src_vdofs);
@@ -2504,11 +2500,11 @@ void GridFunction::SaveSTL(std::ostream &out, int TimesToRefine)
                                              bbox[2][0] = bbox[2][1] = 0.0;
    for (i = 0; i < mesh->GetNE(); i++)
    {
-      n = fes->GetFE(i)->GetGeomType();
-      RefG = GlobGeometryRefiner.Refine((Geometry::Type)n, TimesToRefine);
+      Geometry::Type geom = mesh->GetElementBaseGeometry(i);
+      RefG = GlobGeometryRefiner.Refine(geom, TimesToRefine);
       GetValues(i, RefG->RefPts, values, pointmat);
       Array<int> &RG = RefG->RefGeoms;
-      n = Geometries.NumBdr(n);
+      n = Geometries.NumBdr(geom);
       for (k = 0; k < RG.Size()/n; k++)
       {
          for (j = 0; j < n; j++)

@@ -153,7 +153,7 @@ void ParFiniteElementSpace::Construct()
       if (pmesh->Dimension() > 2)
       {
          ngfdofs = pncmesh->GetNGhostFaces()
-                   * fec->DofForGeometry(mesh->GetBdrElementBaseGeometry());
+                   * fec->DofForGeometry(pncmesh->GetGhostFaceGeometry(0));
       }
 
       // total number of ghost DOFs. Ghost DOFs start at index 'ndofs', i.e.,
@@ -176,8 +176,7 @@ void ParFiniteElementSpace::GetGroupComm(
 {
    int gr;
    int ng = pmesh->GetNGroups();
-   int nvd, ned, ntd = 0, nqd = 0, nfd = 0;
-   bool mixed = false;
+   int nvd, ned, ntd = 0, nqd = 0;
    Array<int> dofs;
 
    int group_ldof_counter;
@@ -188,24 +187,13 @@ void ParFiniteElementSpace::GetGroupComm(
 
    if (fdofs)
    {
-      mixed = mesh->GetFaceBaseGeometry(-1) == Geometry::MIXED;
-
-      if (!mixed)
-      {
-         if ( mesh->GetFaceBaseGeometry() == Geometry::TRIANGLE )
-         {
-            ntd = nfd = fec->DofForGeometry(Geometry::TRIANGLE);
-         }
-         else
-         {
-            nqd = nfd = fec->DofForGeometry(Geometry::SQUARE);
-         }
-      }
-      else
+      if (mesh->HasGeometry(Geometry::TRIANGLE))
       {
          ntd = fec->DofForGeometry(Geometry::TRIANGLE);
+      }
+      if (mesh->HasGeometry(Geometry::SQUARE))
+      {
          nqd = fec->DofForGeometry(Geometry::SQUARE);
-         nfd = std::max(ntd, nqd);
       }
    }
 
@@ -221,22 +209,8 @@ void ParFiniteElementSpace::GetGroupComm(
    {
       group_ldof_counter += nvd * pmesh->GroupNVertices(gr);
       group_ldof_counter += ned * pmesh->GroupNEdges(gr);
-      if (!mixed)
-      {
-         if (mesh->GetFaceBaseGeometry() == Geometry::TRIANGLE)
-         {
-            group_ldof_counter += ntd * pmesh->GroupNTriangles(gr);
-         }
-         else
-         {
-            group_ldof_counter += nqd * pmesh->GroupNQuadrilaterals(gr);
-         }
-      }
-      else
-      {
-         group_ldof_counter += ntd * pmesh->GroupNTriangles(gr);
-         group_ldof_counter += nqd * pmesh->GroupNQuadrilaterals(gr);
-      }
+      group_ldof_counter += ntd * pmesh->GroupNTriangles(gr);
+      group_ldof_counter += nqd * pmesh->GroupNQuadrilaterals(gr);
    }
    if (ldof_type)
    {
@@ -321,6 +295,7 @@ void ParFiniteElementSpace::GetGroupComm(
             }
          }
       }
+
       // triangles
       if (ntd > 0)
       {
@@ -1278,7 +1253,9 @@ void ParFiniteElementSpace::GetGhostEdgeDofs(const MeshId &edge_id,
 void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
                                              Array<int> &dofs) const
 {
-   MFEM_ASSERT(mesh->GetFaceBaseGeometry(0) == Geometry::SQUARE, "");
+   const int ghost_face_index = face_id.index - pncmesh->GetNFaces();
+   MFEM_ASSERT(pncmesh->GetGhostFaceGeometry(ghost_face_index)
+               == Geometry::SQUARE, "");
 
    int nv = fec->DofForGeometry(Geometry::POINT);
    int ne = fec->DofForGeometry(Geometry::SEGMENT);
@@ -1312,8 +1289,8 @@ void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
       }
    }
 
-   int first = ndofs + ngvdofs + ngedofs +
-               (face_id.index - pncmesh->GetNFaces())*nf;
+   // Assuming all ghost faces have the same number of dofs:
+   int first = ndofs + ngvdofs + ngedofs + ghost_face_index*nf;
    for (int j = 0; j < nf; j++)
    {
       dofs[offset++] = first + j;
@@ -1355,7 +1332,8 @@ void ParFiniteElementSpace::GetBareDofs(int entity, int index,
          break;
 
       default:
-         ned = fec->DofForGeometry(mesh->GetFaceBaseGeometry(0));
+         MFEM_ASSERT(!pmesh->HasGeometry(Geometry::TRIANGLE), "");
+         ned = fec->DofForGeometry(Geometry::SQUARE);
          ghost = pncmesh->GetNFaces();
          first = (index < ghost)
                  ? nvdofs + nedofs + index*ned // regular face
@@ -1395,8 +1373,9 @@ int ParFiniteElementSpace::PackDof(int entity, int index, int edof) const
                 : ndofs + ngvdofs + (index - ghost)*ned + edof; // ghost edge
 
       default:
+         MFEM_ASSERT(!pmesh->HasGeometry(Geometry::TRIANGLE), "");
          ghost = pncmesh->GetNFaces();
-         ned = fec->DofForGeometry(mesh->GetFaceBaseGeometry(0));
+         ned = fec->DofForGeometry(Geometry::SQUARE);
 
          return (index < ghost)
                 ? nvdofs + nedofs + index*ned + edof // regular face
@@ -1429,7 +1408,8 @@ void ParFiniteElementSpace::UnpackDof(int dof,
       dof -= nedofs;
       if (dof < nfdofs) // regular face
       {
-         int nf = fec->DofForGeometry(mesh->GetFaceBaseGeometry(0));
+         MFEM_ASSERT(!pmesh->HasGeometry(Geometry::TRIANGLE), "");
+         int nf = fec->DofForGeometry(Geometry::SQUARE);
          entity = 2, index = dof / nf, edof = dof % nf;
          return;
       }
@@ -1454,7 +1434,7 @@ void ParFiniteElementSpace::UnpackDof(int dof,
       dof -= ngedofs;
       if (dof < ngfdofs) // ghost face
       {
-         int nf = fec->DofForGeometry(mesh->GetFaceBaseGeometry(0));
+         int nf = fec->DofForGeometry(pncmesh->GetGhostFaceGeometry(0));
          entity = 2, index = pncmesh->GetNFaces() + dof / nf, edof = dof % nf;
          return;
       }
@@ -2459,7 +2439,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    }
 
    DenseTensor localR;
-   GetLocalDerefinementMatrices(localR);
+   GetLocalDerefinementMatrices(geom, localR);
 
    // create the diagonal part of the derefinement matrix
    SparseMatrix *diag = new SparseMatrix(ndofs*vdim, old_ndofs*vdim);
