@@ -125,7 +125,8 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       pncmesh->OnMeshUpdated(this);
 
       ncmesh = pncmesh;
-      meshgen = mesh.MeshGenerator();
+      // SetMeshGen(); // called by Mesh::InitFromNCMesh(...) above
+      meshgen = mesh.meshgen; // copy the global 'meshgen'
 
       mesh.attributes.Copy(attributes);
       mesh.bdr_attributes.Copy(bdr_attributes);
@@ -145,10 +146,6 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
    Dim = mesh.Dim;
    spaceDim = mesh.spaceDim;
-
-   BaseGeom = mesh.BaseGeom;
-   BaseBdrGeom = mesh.BaseBdrGeom;
-   BaseFaceGeom = mesh.BaseFaceGeom;
 
    ncmesh = pncmesh = NULL;
 
@@ -337,7 +334,8 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       }
    }
 
-   meshgen = mesh.MeshGenerator();
+   SetMeshGen();
+   meshgen = mesh.meshgen; // copy the global 'meshgen'
 
    mesh.attributes.Copy(attributes);
    mesh.bdr_attributes.Copy(bdr_attributes);
@@ -596,35 +594,35 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
             switch (shared_faces[sface_counter]->GetType())
             {
                case Element::TRIANGLE:
+               {
                   sface_stype[sface_counter] = stria_counter;
                   stria_lface[stria_counter] = (*faces_tbl)(v[0], v[1], v[2]);
                   stria_sface[stria_counter] = sface_counter;
 
-                  if ( BaseGeom == Geometry::TETRAHEDRON )
+                  const int lface = stria_lface[stria_counter];
+                  Tetrahedron *tet = dynamic_cast<Tetrahedron *>
+                                     (elements[faces_info[lface].Elem1No]);
+                  if (tet && tet->GetRefinementFlag())
                   {
                      // mark the shared face for refinement by reorienting
                      // it according to the refinement flag in the tetrahedron
                      // to which this shared face belongs to.
-                     int lface = stria_lface[stria_counter];
-                     Tetrahedron *tet = dynamic_cast<Tetrahedron *>
-                                        (elements[faces_info[lface].Elem1No]);
-                     if (tet)
+                     tet->GetMarkedFace(faces_info[lface].Elem1Inf/64, v);
+                     // flip the shared face in the processor that owns the
+                     // second element (in 'mesh')
                      {
-                        tet->GetMarkedFace(faces_info[lface].Elem1Inf/64, v);
-                        // flip the shared face in the processor that owns the
-                        // second element (in 'mesh')
+                        int gl_el1, gl_el2;
+                        mesh.GetFaceElements(i, &gl_el1, &gl_el2);
+                        if (MyRank == partitioning[gl_el2])
                         {
-                           int gl_el1, gl_el2;
-                           mesh.GetFaceElements(i, &gl_el1, &gl_el2);
-                           if (MyRank == partitioning[gl_el2])
-                           {
-                              std::swap(v[0], v[1]);
-                           }
+                           std::swap(v[0], v[1]);
                         }
                      }
                   }
                   stria_counter++;
                   break;
+               }
+
                case Element::QUADRILATERAL:
                   sface_stype[sface_counter] = squad_counter;
                   squad_lface[squad_counter] =
@@ -632,8 +630,9 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
                   squad_sface[squad_counter] = sface_counter;
                   squad_counter++;
                   break;
+
                default:
-                  MFEM_ABORT("Invalid 2D element type \""
+                  MFEM_ABORT("Invalid shared face element type \""
                              << shared_faces[sface_counter]->GetType() << "\"");
                   break;
             }
@@ -755,7 +754,14 @@ ParMesh::ParMesh(const ParNCMesh &pncmesh)
    , pncmesh(NULL)
 {
    Mesh::InitFromNCMesh(pncmesh);
+   ReduceMeshGen();
    have_face_nbr_data = false;
+}
+
+void ParMesh::ReduceMeshGen()
+{
+   int loc_meshgen = meshgen;
+   MPI_Allreduce(&loc_meshgen, &meshgen, 1, MPI_INT, MPI_BOR, MyComm);
 }
 
 ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
@@ -771,12 +777,14 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
    string ident;
 
    // read the serial part of the mesh
-   int gen_edges = 1;
+   const int gen_edges = 1;
 
    // Tell Loader() to read up to 'mfem_serial_mesh_end' instead of
    // 'mfem_mesh_end', as we have additional parallel mesh data to load in from
    // the stream.
    Loader(input, gen_edges, "mfem_serial_mesh_end");
+
+   ReduceMeshGen(); // determine the global 'meshgen'
 
    skip_comment_lines(input, '#');
 
@@ -954,6 +962,8 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
    // - group_svert, group_sedge, group_sface
    // - svert_lvert, sedge_ledge, sface_lface
 
+   meshgen = orig_mesh->meshgen; // copy the global 'meshgen'
+
    H1_FECollection rfec(ref_factor, Dim, ref_type);
    ParFiniteElementSpace rfes(orig_mesh, &rfec);
 
@@ -976,7 +986,8 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
       for (int fi = 0; fi < orig_nt; fi++)
       {
          const int orig_l_face = orig_mesh->stria_lface[orig_st[fi]];
-         Geometry::Type geom = orig_mesh->GetFaceBaseGeometry(orig_l_face);
+         const Geometry::Type geom =
+            orig_mesh->GetFaceBaseGeometry(orig_l_face);
          const int nvert = Geometry::NumVerts[geom];
          RefinedGeometry &RG =
             *GlobGeometryRefiner.Refine(geom, ref_factor, ref_factor);
@@ -993,7 +1004,8 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
       for (int fi = 0; fi < orig_nq; fi++)
       {
          const int orig_l_face = orig_mesh->squad_lface[orig_sq[fi]];
-         Geometry::Type geom = orig_mesh->GetFaceBaseGeometry(orig_l_face);
+         const Geometry::Type geom =
+            orig_mesh->GetFaceBaseGeometry(orig_l_face);
          const int nvert = Geometry::NumVerts[geom];
          RefinedGeometry &RG =
             *GlobGeometryRefiner.Refine(geom, ref_factor, ref_factor);
@@ -1038,7 +1050,7 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
 
       // add refined shared edges; add shared vertices from refined shared edges
       const int orig_n_edges = orig_mesh->GroupNEdges(gr);
-      Geometry::Type geom = Geometry::SEGMENT;
+      const Geometry::Type geom = Geometry::SEGMENT;
       const int nvert = Geometry::NumVerts[geom];
       RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref_factor);
       for (int e = 0; e < orig_n_edges; e++)
@@ -1070,7 +1082,8 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
       for (int f = 0; f < orig_nt; f++)
       {
          const int orig_l_face = orig_mesh->stria_lface[orig_st[f]];
-         Geometry::Type geom = orig_mesh->GetFaceBaseGeometry(orig_l_face);
+         const Geometry::Type geom =
+            orig_mesh->GetFaceBaseGeometry(orig_l_face);
          const int nvert = Geometry::NumVerts[geom];
          RefinedGeometry &RG =
             *GlobGeometryRefiner.Refine(geom, ref_factor, ref_factor);
@@ -1113,7 +1126,8 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
       for (int f = 0; f < orig_nq; f++)
       {
          const int orig_l_face = orig_mesh->squad_lface[orig_sq[f]];
-         Geometry::Type geom = orig_mesh->GetFaceBaseGeometry(orig_l_face);
+         const Geometry::Type geom =
+            orig_mesh->GetFaceBaseGeometry(orig_l_face);
          const int nvert = Geometry::NumVerts[geom];
          RefinedGeometry &RG =
             *GlobGeometryRefiner.Refine(geom, ref_factor, ref_factor);
@@ -2317,8 +2331,6 @@ void ParMesh::ReorientTetMesh()
 
    Mesh::ReorientTetMesh();
 
-   int *v;
-
    // The local edge and face numbering is changed therefore we need to
    // update sedge_ledge and sface_lface.
    {
@@ -2326,7 +2338,7 @@ void ParMesh::ReorientTetMesh()
       GetVertexToVertexTable(v_to_v);
       for (int i = 0; i < shared_edges.Size(); i++)
       {
-         v = shared_edges[i]->GetVertices();
+         const int *v = shared_edges[i]->GetVertices();
          sedge_ledge[i] = v_to_v(v[0], v[1]);
       }
    }
@@ -2342,7 +2354,7 @@ void ParMesh::ReorientTetMesh()
       for (int i = 0; i < shared_faces.Size(); i++)
          if (shared_faces[i]->GetType() == Element::TRIANGLE)
          {
-            v = shared_faces[i]->GetVertices();
+            int *v = shared_faces[i]->GetVertices();
 
             Rotate3(v[0], v[1], v[2]);
 
@@ -2898,11 +2910,7 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
    last_operation = Mesh::REFINE;
    sequence++;
 
-   if (Nodes) // update/interpolate curved mesh
-   {
-      Nodes->FESpace()->Update();
-      Nodes->Update();
-   }
+   UpdateNodes();
 }
 
 bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
@@ -2979,11 +2987,7 @@ void ParMesh::Rebalance()
    last_operation = Mesh::REBALANCE;
    sequence++;
 
-   if (Nodes) // redistribute curved mesh
-   {
-      Nodes->FESpace()->Update();
-      Nodes->Update();
-   }
+   UpdateNodes();
 }
 
 void ParMesh::RefineGroups(const DSTable &v_to_v, int *middle)
@@ -5419,6 +5423,8 @@ void ParMesh::PrintInfo(std::ostream &out)
    MPI_Reduce(&kappa_min, &gk_min, 1, MPI_DOUBLE, MPI_MIN, 0, MyComm);
    MPI_Reduce(&kappa_max, &gk_max, 1, MPI_DOUBLE, MPI_MAX, 0, MyComm);
 
+   // TODO: collect and print stats by geometry
+
    long ldata[5]; // vert, edge, face, elem, neighbors;
    long mindata[5], maxdata[5], sumdata[5];
 
@@ -5429,6 +5435,7 @@ void ParMesh::PrintInfo(std::ostream &out)
    ldata[3] = GetNE();
    ldata[4] = gtopo.GetNumNeighbors()-1;
    for (int gr = 1; gr < GetNGroups(); gr++)
+   {
       if (!gtopo.IAmMaster(gr)) // we are not the master
       {
          ldata[0] -= group_svert.RowSize(gr-1);
@@ -5436,6 +5443,7 @@ void ParMesh::PrintInfo(std::ostream &out)
          ldata[2] -= group_stria.RowSize(gr-1);
          ldata[2] -= group_squad.RowSize(gr-1);
       }
+   }
 
    MPI_Reduce(ldata, mindata, 5, MPI_LONG, MPI_MIN, 0, MyComm);
    MPI_Reduce(ldata, sumdata, 5, MPI_LONG, MPI_SUM, 0, MyComm);
@@ -5460,11 +5468,13 @@ void ParMesh::PrintInfo(std::ostream &out)
           << setw(12) << maxdata[1]
           << setw(12) << sumdata[1] << '\n';
       if (Dim == 3)
+      {
          out << " faces     "
              << setw(12) << mindata[2]
              << setw(12) << sumdata[2]/NRanks
              << setw(12) << maxdata[2]
              << setw(12) << sumdata[2] << '\n';
+      }
       out << " elements  "
           << setw(12) << mindata[3]
           << setw(12) << sumdata[3]/NRanks

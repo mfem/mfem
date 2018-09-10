@@ -40,6 +40,15 @@ Tetrahedron::Tetrahedron(int ind1, int ind2, int ind3, int ind4, int attr)
    transform = 0;
 }
 
+void Tetrahedron::Init(int ind1, int ind2, int ind3, int ind4, int attr)
+{
+   attribute  = attr;
+   indices[0] = ind1;
+   indices[1] = ind2;
+   indices[2] = ind3;
+   indices[3] = ind4;
+}
+
 void Tetrahedron::ParseRefinementFlag(int refinement_edges[2], int &type,
                                       int &flag)
 {

@@ -97,6 +97,9 @@ public:
    int GetNGhostFaces() const { return NGhostFaces; }
    int GetNGhostElements() const { return NGhostElements; }
 
+   Geometry::Type GetGhostFaceGeometry(int ghost_face_id) const
+   { return Geometry::SQUARE; }
+
    // Return a list of vertices/edges/faces shared by this processor and at
    // least one other processor. These are subsets of NCMesh::<entity>_list. */
    const NCList& GetSharedVertices() { GetVertexList(); return shared_vertices; }

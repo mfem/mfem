@@ -785,7 +785,7 @@ void Mesh::ReadInlineMesh(std::istream &input, int generate_edges)
          {
             MFEM_ABORT("unrecognized element type (read '" << eltype
                        << "') in inline mesh format.  "
-                       "Allowed: segment, tri, tet, quad, hex, pri");
+                       "Allowed: segment, tri, quad, tet, hex, wedge");
          }
       }
       else
@@ -848,10 +848,8 @@ void Mesh::ReadInlineMesh(std::istream &input, int generate_edges)
    else
    {
       MFEM_ABORT("For inline mesh, must specify an element type ="
-                 " [segment, tri, quad, tet, pri, hex]");
+                 " [segment, tri, quad, tet, hex, wedge]");
    }
-   InitBaseGeom();
-   return; // done with inline mesh construction
 }
 
 void Mesh::ReadGmshMesh(std::istream &input)
@@ -942,7 +940,7 @@ void Mesh::ReadGmshMesh(std::istream &input)
             4, // 4-node quadrangle.
             4, // 4-node tetrahedron.
             8, // 8-node hexahedron.
-            6, // 6-node wedge.
+            6, // 6-node prism.
             5, // 5-node pyramid.
             3, /* 3-node second order line (2 nodes associated with the vertices
                     and 1 with the edge). */
@@ -955,7 +953,7 @@ void Mesh::ReadGmshMesh(std::istream &input)
             27,/* 27-node second order hexahedron (8 nodes associated with the
                      vertices, 12 with the edges, 6 with the faces and 1 with
                      the volume). */
-            18,/* 18-node second order wedge (6 nodes associated with the
+            18,/* 18-node second order prism (6 nodes associated with the
                      vertices, 9 with the edges and 3 with the quadrangular
                      faces). */
             14,/* 14-node second order pyramid (5 nodes associated with the
@@ -966,7 +964,7 @@ void Mesh::ReadGmshMesh(std::istream &input)
                     vertices and 4 with the edges). */
             20,/* 20-node second order hexahedron (8 nodes associated with the
                      vertices and 12 with the edges). */
-            15,/* 15-node second order wedge (6 nodes associated with the
+            15,/* 15-node second order prism (6 nodes associated with the
                      vertices and 9 with the edges). */
             13,/* 13-node second order pyramid (5 nodes associated with the
                      vertices and 8 with the edges). */

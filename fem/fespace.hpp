@@ -136,7 +136,7 @@ protected:
    class RefinementOperator : public Operator
    {
       const FiniteElementSpace* fespace;
-      DenseTensor localP;
+      DenseTensor localP[Geometry::NumGeom];
       Table* old_elem_dof; // Owned.
 
    public:
@@ -152,15 +152,18 @@ protected:
 
    // This method makes the same assumptions as the method:
    //    void GetLocalRefinementMatrices(
-   //       const FiniteElementSpace &coarse_fes, DenseTensor &localP) const
+   //       const FiniteElementSpace &coarse_fes, Geometry::Type geom,
+   //       DenseTensor &localP) const
    // which is defined below. It also assumes that the coarse fes and this have
    // the same vector dimension, vdim.
    SparseMatrix *RefinementMatrix_main(const int coarse_ndofs,
                                        const Table &coarse_elem_dof,
-                                       const DenseTensor &localP) const;
+                                       const DenseTensor localP[]) const;
 
-   void GetLocalRefinementMatrices(DenseTensor &localP) const;
-   void GetLocalDerefinementMatrices(DenseTensor &localR) const;
+   void GetLocalRefinementMatrices(Geometry::Type geom,
+                                   DenseTensor &localP) const;
+   void GetLocalDerefinementMatrices(Geometry::Type geom,
+                                     DenseTensor &localR) const;
 
    /** Calculate explicit GridFunction interpolation matrix (after mesh
        refinement). NOTE: consider using the RefinementOperator class instead
@@ -173,10 +176,10 @@ protected:
    // This method assumes that this->mesh is a refinement of coarse_fes->mesh
    // and that the CoarseFineTransformations of this->mesh are set accordingly.
    // Another assumption is that the FEs of this use the same MapType as the FEs
-   // of coarse_fes. Finally, it assumes that this->mesh and coarse_fes->mesh
-   // are NOT mixed meshes, and that the spaces this and coarse_fes are NOT
-   // variable-order spaces.
+   // of coarse_fes. Finally, it assumes that the spaces this and coarse_fes are
+   // NOT variable-order spaces.
    void GetLocalRefinementMatrices(const FiniteElementSpace &coarse_fes,
+                                   Geometry::Type geom,
                                    DenseTensor &localP) const;
 
    /// Help function for constructors + Load().
@@ -266,8 +269,11 @@ public:
 
    const FiniteElementCollection *FEColl() const { return fec; }
 
+   /// Number of all scalar vertex dofs
    int GetNVDofs() const { return nvdofs; }
+   /// Number of all scalar edge-interior dofs
    int GetNEDofs() const { return nedofs; }
+   /// Number of all scalar face-interior dofs
    int GetNFDofs() const { return nfdofs; }
 
    /// Returns number of vertices in the mesh.
