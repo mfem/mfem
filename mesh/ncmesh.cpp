@@ -1945,7 +1945,7 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
          face = faces.Find(vertex_nodeId[fv[0]], vertex_nodeId[fv[1]],
                            vertex_nodeId[fv[2]], vertex_nodeId[fv[3]]);
       }
-      if (Dim == 4)
+      else if (Dim == 4)
       {
          MFEM_ASSERT(mesh->GetFace(i)->GetNVertices() == 4, "");
          face4d = faces4d.Find(vertex_nodeId[fv[0]], vertex_nodeId[fv[1]],

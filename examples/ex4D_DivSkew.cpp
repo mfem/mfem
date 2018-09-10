@@ -417,6 +417,7 @@ int main(int argc, char *argv[])
    bool exactH1Solver = false;
    bool spe10Coeff = false;
    bool standardCG = true;
+   bool visualization = 1;
 
    int NExpo = 8;
    int weightStart = -NExpo;
@@ -449,6 +450,9 @@ int main(int argc, char *argv[])
                   "the exponent for the starting weight (for the mass term).");
    args.AddOption(&weightEnd, "-we", "--weightEnd",
                   "the exponent for the weight at the end (for the mass term).");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.Parse();
    if (!args.Good())
    {
