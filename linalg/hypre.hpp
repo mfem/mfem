@@ -707,9 +707,15 @@ class HypreGMRES : public HypreSolver
 private:
    HYPRE_Solver gmres_solver;
 
+   HypreSolver * precond;
+
 public:
+   HypreGMRES(MPI_Comm comm);
+
    HypreGMRES(HypreParMatrix &_A);
 
+   virtual void SetOperator(const Operator &op);
+  
    void SetTol(double tol);
    void SetMaxIter(int max_iter);
    void SetKDim(int dim);

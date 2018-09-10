@@ -2287,7 +2287,21 @@ HyprePCG::~HyprePCG()
 }
 
 
-HypreGMRES::HypreGMRES(HypreParMatrix &_A) : HypreSolver(&_A)
+HypreGMRES::HypreGMRES(MPI_Comm comm) : precond(NULL)
+{
+   int k_dim    = 50;
+   int max_iter = 100;
+   double tol   = 1e-6;
+
+   iterative_mode = true;
+
+   HYPRE_ParCSRGMRESCreate(comm, &gmres_solver);
+   HYPRE_ParCSRGMRESSetKDim(gmres_solver, k_dim);
+   HYPRE_ParCSRGMRESSetMaxIter(gmres_solver, max_iter);
+   HYPRE_ParCSRGMRESSetTol(gmres_solver, tol);
+}
+
+HypreGMRES::HypreGMRES(HypreParMatrix &_A) : HypreSolver(&_A), precond(NULL)
 {
    MPI_Comm comm;
 
@@ -2303,6 +2317,22 @@ HypreGMRES::HypreGMRES(HypreParMatrix &_A) : HypreSolver(&_A)
    HYPRE_ParCSRGMRESSetKDim(gmres_solver, k_dim);
    HYPRE_ParCSRGMRESSetMaxIter(gmres_solver, max_iter);
    HYPRE_ParCSRGMRESSetTol(gmres_solver, tol);
+}
+
+void HypreGMRES::SetOperator(const Operator &op)
+{
+   const HypreParMatrix *new_A = dynamic_cast<const HypreParMatrix *>(&op);
+   MFEM_VERIFY(new_A, "new Operator must be a HypreParMatrix!");
+
+   // update base classes: Operator, Solver, HypreSolver
+   height = new_A->Height();
+   width  = new_A->Width();
+   A = const_cast<HypreParMatrix *>(new_A);
+   if (precond) { precond->SetOperator(*A); }
+   setup_called = 0;
+   delete X;
+   delete B;
+   B = X = NULL;
 }
 
 void HypreGMRES::SetTol(double tol)
@@ -2330,12 +2360,14 @@ void HypreGMRES::SetPrintLevel(int print_lvl)
    HYPRE_GMRESSetPrintLevel(gmres_solver, print_lvl);
 }
 
-void HypreGMRES::SetPreconditioner(HypreSolver &precond)
+void HypreGMRES::SetPreconditioner(HypreSolver &_precond)
 {
+   precond = &_precond;
+  
    HYPRE_ParCSRGMRESSetPrecond(gmres_solver,
-                               precond.SolveFcn(),
-                               precond.SetupFcn(),
-                               precond);
+                               _precond.SolveFcn(),
+                               _precond.SetupFcn(),
+                               _precond);
 }
 
 void HypreGMRES::Mult(const HypreParVector &b, HypreParVector &x) const
