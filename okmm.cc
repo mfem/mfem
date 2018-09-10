@@ -62,18 +62,18 @@ void free(void *ptr){
 // *****************************************************************************
 void *realloc(void *ptr, size_t size){
    if (!_realloc) _init();
-   void *nptr = _realloc(ptr, size);
-   if (!hooked) return nptr;
+   void *rptr = _realloc(ptr, size);
+   if (!hooked) return rptr;
    hooked = false;
-   if (ptr){
-      if ((*_mm)[ptr]){
-         printf("\033[33;7m%p(%ld)\033[m", nptr, size);
+   if (rptr){
+      if ((*_mm)[rptr]){
+         printf("\033[33;7m%p(%ld)\033[m", rptr, size);
       }else{
-         printf("\033[33m%p(%ld)\033[m", nptr, size);
+         printf("\033[33m%p(%ld)\033[m", rptr, size);
       }
    }
    hooked = true;
-   return nptr;
+   return rptr;
 }
 
 // *****************************************************************************
