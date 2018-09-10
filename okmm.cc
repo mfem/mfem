@@ -1,4 +1,3 @@
-//#define _GNU_SOURCE
 #include <cassert>
 #include <dlfcn.h>
 #include <stdio.h>
@@ -21,10 +20,9 @@ static void _init(void){
    _calloc = (void* (*)(size_t, size_t))dlsym(RTLD_NEXT, "calloc");
    _realloc = (void* (*)(void*, size_t))dlsym(RTLD_NEXT, "realloc");
    _memalign = (void* (*)(size_t, size_t))dlsym(RTLD_NEXT, "memalign");
-   const bool dls = _malloc and _free and _calloc and _realloc and _memalign;
    _mm = new std::unordered_map<void*,size_t>();
-   assert(_mm);
-   assert(dls);
+   const bool dls = _free and _malloc and _calloc and _realloc and _memalign;
+   assert(dls and _mm);
    hooked = true;
 }
 
