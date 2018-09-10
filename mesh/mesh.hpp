@@ -781,7 +781,9 @@ public:
        Works for both 2D (face=edge) and 3D faces. */
    void GetFaceEdges(int i, Array<int> &, Array<int> &) const;
 
-   void GetFacePlanars(int i, Array<int> &) const;
+   /** Return the indices and the orientations of all planars of face i.
+       Works for 4D faces. */
+   void GetFacePlanars(int i, Array<int> &, Array<int> &) const;
 
    /// Returns the indices of the vertices of face i.
    void GetFaceVertices(int i, Array<int> &vert) const
@@ -799,7 +801,10 @@ public:
    /// Returns the indices of the vertices of edge i.
    void GetEdgeVertices(int i, Array<int> &vert) const;
 
+   /// Returns the indices of the vertices of planar i.
    void GetPlanVertices(int i, Array<int> &vert) const;
+
+   Table *GetFacePlanarTable() const;
 
    /// Returns the face-to-edge Table (3D)
    Table *GetFaceEdgeTable() const;

@@ -4362,16 +4362,37 @@ void Mesh::GetFaceEdges(int i, Array<int> &edges, Array<int> &o) const
    }
 }
 
-void Mesh::GetFacePlanars(int i, Array<int> &planars) const
+void Mesh::GetFacePlanars(int i, Array<int> &pls, Array<int> &o) const
 {
    if (Dim != 4)
    {
       return;
    }
 
-//   GetFacePlanarTable(); // generate face_edge Table (if not generated) TODO
+   GetFacePlanarTable(); // generate face_edge Table (if not generated) TODO
 
-   face_planar->GetRow(i, planars);
+   face_planar->GetRow(i, pls);
+
+   int npv;
+   const int *v = faces[i]->GetVertices();
+   const int np = faces[i]->GetNFaces(npv);
+   o.SetSize(np);
+   for (int j = 0; j < np; j++)
+   {
+      const int *p = faces[i]->GetFaceVertices(j);
+      const int *baseV = planars[pls[j]]->GetVertices();
+      switch(planars[pls[j]]->GetType())
+      {
+      case Element::TRIANGLE:
+      {
+         int tri[3] ={ v[pls[0]], v[pls[1]], v[pls[2]] };
+         o[j] = GetTriOrientation(baseV,tri);
+         break;
+      }
+      default:
+         mfem_error("Mesh::GetFacePlanars(...): Unknown planar type!");
+      }
+   }
 }
 
 void Mesh::GetEdgeVertices(int i, Array<int> &vert) const
@@ -4386,6 +4407,46 @@ void Mesh::GetEdgeVertices(int i, Array<int> &vert) const
 void Mesh::GetPlanVertices(int i, Array<int> &vert) const
 {
    planars[i]->GetVertices(vert);
+}
+
+Table *Mesh::GetFacePlanarTable() const
+{
+   if (face_planar)
+   {
+      return face_planar;
+   }
+
+   if (Dim != 4)
+   {
+      return NULL;
+   }
+
+   int i, *v;
+
+   STable3D* trig_tbl = new STable3D(NumOfVertices);
+   for (i = 0; i < NumOfPlanars; i++)
+   {
+      v = planars[i]->GetVertices();
+      trig_tbl->Push(v[0],v[1],v[2]);
+   }
+   face_planar = new Table(NumOfFaces,6); // 6 planars at most for cube
+   for (i = 0; i < NumOfFaces; i++)
+   {
+      v = faces[i]->GetVertices();
+      switch(GetFaceElementType(i))
+      {
+         case Element::TETRAHEDRON:
+            for (int j = 0; j < 4 ; j++)
+            {
+               const int* fv = tet_t::FaceVert[j];
+               face_planar->Push(i,(*trig_tbl)(v[fv[0]],v[fv[1]],v[fv[2]]) );
+            }
+            break;
+      }
+   }
+   face_planar->Finalize();
+   delete trig_tbl;
+   return face_planar;
 }
 
 Table *Mesh::GetFaceEdgeTable() const
