@@ -36,7 +36,7 @@ private:
 	template <typename Equation>
 	using QFunc = QuadTensorFunc<Equation, Host>;
 	// typedef QuadTensorFunc<Equation, Host> QFunc;
-	const mfem::FiniteElementSpace& trial_fes, test_fes;
+	const HostFESpace& trial_fes, test_fes;
 	Tensor<2> B;//I don't like that this is not const
 	const int dim;
 	const int nbElts;
@@ -52,8 +52,7 @@ public:
 		, nbElts(eq->getNbElts())
 		, D_e()
 	{
-		const TensorBasisElement* tfe(dynamic_cast<const TensorBasisElement*>(trial_fes.GetFE(0)));
-		const Poly_1D::Basis &basis1d = tfe->GetBasis1D();
+		const Poly_1D::Basis& basis1d = trial_fes.getBasis1d();
 		const IntegrationRule& ir1d = eq->getIntRule1d();
 
 		const int dofs = B.Height();
@@ -76,7 +75,7 @@ public:
 
 	template <typename Equation>
 	void evalD(const QFunc<Equation>& qfunc, Tensor<2>& D) const {
-		for (int e = 0; e < qfunc.getTrialFESpace().GetNE(); ++e)
+		for (int e = 0; e < qfunc.getTrialFESpace().getNbElts(); ++e)
 		{
 			D_e.slice(D, e);
 			qfunc.evalD(e, D_e);
@@ -380,7 +379,7 @@ private:
 	template <typename Equation>
 	using QFunc = QuadTensorFunc<Equation, Host>;
 	// typedef QuadTensorFunc<Equation, Host> QFunc;
-	const mfem::FiniteElementSpace& trial_fes, test_fes;
+	const HostFESpace& trial_fes, test_fes;
 	Tensor<2> B, G;//I don't like that this is not const
 	const int dim;
 	const int nbElts;
@@ -397,8 +396,7 @@ public:
 		, nbElts(eq->getNbElts())
 		, D_e()
 	{
-		const TensorBasisElement* tfe(dynamic_cast<const TensorBasisElement*>(trial_fes.GetFE(0)));
-		const Poly_1D::Basis &basis1d = tfe->GetBasis1D();
+		const Poly_1D::Basis& basis1d = trial_fes.getBasis1d();
 		const IntegrationRule& ir1d = eq->getIntRule1d();
 
 		const int dofs = B.Height();
@@ -422,7 +420,7 @@ public:
 
 	template <typename Equation>
 	void evalD(const QFunc<Equation>& qfunc, Tensor<4>& D) const {
-		for (int e = 0; e < qfunc.getTrialFESpace().GetNE(); ++e)
+		for (int e = 0; e < qfunc.getTrialFESpace().getNbElts(); ++e)
 		{
 			D_e.slice(D, e);
 			qfunc.evalD(e, D_e);

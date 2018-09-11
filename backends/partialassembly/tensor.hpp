@@ -1026,17 +1026,20 @@ inline void cWiseMult(const Tensor<5, Scalar>& D,
 typedef Tensor<2, int> IntMatrix;
 
 
-template <int Dim, Location Device>
-struct TensorType;
+template <int Dim, Location Device, typename T = double>
+struct TensorType_t;
 
-template <int Dim>
-struct TensorType<Dim,Host>{
-   typedef Tensor<Dim,double> type;
+template <int Dim, Location Device, typename T = double>
+using TensorType = typename TensorType_t<Dim, Device, double>::type;
+
+template <int Dim, typename T>
+struct TensorType_t<Dim,Host,T>{
+   typedef Tensor<Dim,T> type;
 };
 
-template <int Dim>
-struct TensorType<Dim,CudaDevice>{
-   typedef double* type;
+template <int Dim, typename T>
+struct TensorType_t<Dim,CudaDevice,T>{
+   typedef T* type;
 };
 
 // template <>

@@ -26,27 +26,49 @@ namespace pa
 template <Location Device>
 struct FESpaceType;
 
+class HostFESpace
+{
+private:
+	mfem::FiniteElementSpace& fes;
+public:
+	HostFESpace() = delete;
+	HostFESpace(mfem::FiniteElementSpace& fes): fes(fes){}
+	const int getNbDofs1d() const { return fes.GetFE(0)->GetOrder() + 1;}
+	const int getNbElts() const { return fes.GetNE(); }
+	const int getDim() const { return fes.GetFE(0)->GetDim(); }
+	const Poly_1D::Basis& getBasis1d() const {
+		const TensorBasisElement* tfe(dynamic_cast<const TensorBasisElement*>(fes.GetFE(0)));
+		return tfe->GetBasis1D();
+	}
+};
+
 template <>
 struct FESpaceType<Host> {
-	typedef mfem::FiniteElementSpace& type;
+	// typedef mfem::FiniteElementSpace& type;
+	typedef HostFESpace type;
 };
 
 class CudaFESpace
 {
 private:
-	int nbElts;
+	const int nbDofs1d;
+	const int nbElts;
+	const int dim;
 public:
 	CudaFESpace(mfem::FiniteElementSpace& fes)
-		: nbElts(fes.GetNE())
+		: nbDofs1d(fes.GetFE(0)->GetOrder() + 1)
+		, nbElts(fes.GetNE())
+		, dim(fes.GetFE(0)->GetDim())
 	{ }
-
-	int GetNE() { return nbElts; }
+	const int getNbDofs1d() const { return nbDofs1d;}
+	const int getNbElts() const { return nbElts; }
+	const int getDim() const { return dim; }
 };
 
 template <>
 struct FESpaceType<CudaDevice> {
-	// typedef CudaFESpace type;
-	typedef mfem::FiniteElementSpace& type;
+	typedef CudaFESpace type;
+	// typedef mfem::FiniteElementSpace& type;
 };
 
 template <Location Device, bool IsLinear, bool IsTimeConstant>
@@ -66,7 +88,7 @@ public:
 		EvalJacobians(dim, &fes, ir_order, J1d);
 	}
 
-	const Tensor<2>& operator()(const int& e, const int& k) const {
+	const TensorType<2,Host>& operator()(const int& e, const int& k) const {
 		// static Tensor<2> J_ek(dim,dim);//workaround because 'mutable Tensor<2> locJ' does not compile
 		// return J_ek.setView(&J(0, 0, k, e));
 		return locJ.setView(&J(0, 0, k, e));
@@ -92,7 +114,7 @@ public:
 		}
 	}
 
-	const Tensor<2>& operator()(const int& e, const int& k) const {
+	const TensorType<2,Host>& operator()(const int& e, const int& k) const {
 		return locJ.setView(&J(0, 0, e));
 	}
 };
@@ -111,20 +133,9 @@ public:
 		// EvalJacobians(dim, &fes, ir_order, J1d);
 	}
 
-	__DEVICE__ const Tensor<2>& operator()(const int& e, const int& k) const {
+	__DEVICE__ const TensorType<2, CudaDevice>& operator()(const int& e, const int& k) const {
 		// return locJ.setView(&J(0,0,e));
 	}
-};
-
-//Only for CPU
-struct QuadInfo
-{
-	int dim;
-	int k;
-	int e;
-	ElementTransformation* tr;
-	IntegrationPoint ip;
-	Tensor<2>& J_ek;
 };
 
 //Might only be for CPU too
@@ -136,36 +147,31 @@ public:
 	static const Location device = Device;
 	static const PAOp OpName = Op;
 protected:
-	typedef typename TensorType<QuadDimVal<OpName>::value, Device>::type QuadTensor;
+	typedef typename TensorType_t<QuadDimVal<OpName>::value, Device>::type QuadTensor;
 private:
 	typedef typename FESpaceType<Device>::type FESpace;
-	typedef typename TensorType<2, Device>::type JTensor;
+	typedef typename TensorType_t<2, Device>::type JTensor;
 	FESpace fes;
 	const IntegrationRule& ir;//FIXME: not yet on GPU
 	const IntegrationRule& ir1d;//FIXME: not yet on GPU
 	MeshJac<Device, IsLinear, IsTimeConstant> Jac;
 public:
-	// Equation(mfem::FiniteElementSpace& fes, const IntegrationRule& ir): fes(fes), dim(fes.GetFE(0)->GetDim()), ir(ir) {}
 	Equation(mfem::FiniteElementSpace& fes, const int ir_order)
 		: fes(fes)
 		, ir(IntRules.Get(fes.GetFE(0)->GetGeomType(), ir_order))
 		, ir1d(IntRules.Get(Geometry::SEGMENT, ir_order))
 		, Jac(fes, fes.GetFE(0)->GetDim(), getNbQuads(), getNbElts(), ir_order) {}
 
-	const FESpace& getTrialFESpace() const { return fes; }
-	const FESpace& getTestFESpace() const { return fes; }
-	const int getNbDofs1d() const { return fes.GetFE(0)->GetOrder() + 1;}
-	const int getNbQuads() const { return ir.GetNPoints(); }
-	const int getNbQuads1d() const { return ir1d.GetNPoints(); }
-	const int getNbElts() const {return fes.GetNE(); }
-	const JTensor& getJac(const int e, const int k) const { return Jac(e, k); }
-	const IntegrationPoint& getIntPoint(const int k) const { return ir.IntPoint(k); }
-	const IntegrationRule& getIntRule1d() const { return ir1d; }
-	const int getDim() const { return fes.GetFE(0)->GetDim(); }
-
-	// ElementInfo getQuadInfo(int e, int k) {
-	// 	return {dim, k, e, fes.GetElementTransformation(e)};
-	// }
+	__HOST__ __DEVICE__ const FESpace& getTrialFESpace() const { return fes; }
+	__HOST__ __DEVICE__ const FESpace& getTestFESpace() const { return fes; }
+	__HOST__ __DEVICE__ const int getNbDofs1d() const { return fes.getNbDofs1d();}
+	__HOST__ __DEVICE__ const int getNbQuads() const { return ir.GetNPoints(); }
+	__HOST__ __DEVICE__ const int getNbQuads1d() const { return ir1d.GetNPoints(); }
+	__HOST__ __DEVICE__ const int getNbElts() const {return fes.getNbElts(); }
+	__HOST__ __DEVICE__ const JTensor& getJac(const int e, const int k) const { return Jac(e, k); }
+	__HOST__ __DEVICE__ const IntegrationPoint& getIntPoint(const int k) const { return ir.IntPoint(k); }
+	__HOST__ __DEVICE__ const IntegrationRule& getIntRule1d() const { return ir1d; }
+	__HOST__ __DEVICE__ const int getDim() const { return fes.getDim(); }
 };
 
 /**
@@ -181,13 +187,13 @@ class PAMassEq<Host, Empty>: public Equation<BtDB, Host>
 {
 public:
 	PAMassEq() = delete;
-	// HostMassEq(mfem::FiniteElementSpace& fes, const IntegrationRule& ir): Equation(fes, ir) {}
 	PAMassEq(mfem::FiniteElementSpace& fes, const int ir_order): Equation(fes, ir_order) {}
 
 	void evalD(QuadTensor& D_ek, const int dim, const int k , const int e, ElementTransformation* Tr, const IntegrationPoint& ip, const Tensor<2>& J_ek) const {
 		D_ek = ip.weight * det(J_ek);
 	}
 
+	template <typename QuadInfo>
 	void evalD(QuadTensor& D_ek, QuadInfo& info) const {
 		D_ek = info.ip.weight * det(info.J_ek);
 	}
@@ -203,17 +209,11 @@ private:
 public:
 	PAMassEq() = delete;
 	PAMassEq(mfem::FiniteElementSpace& fes, const int ir_order): Equation(fes, ir_order) {}
-	// PAMassEq(mfem::FiniteElementSpace& fes, const IntegrationRule& ir): Equation(fes, ir) {}
-	// __HOST__ PAMassEq(mfem::FiniteElementSpace& fes, const int ir_order, mfem::ConstCoefficient& coeff)
-	// : Equation(fes, ir_order), coeff(coeff) {}
 
-	// void evalD(QuadTensor& D_ek, const int dim, const int k , const int e, ElementTransformation* Tr, const IntegrationPoint& ip, const Tensor<2>& J_ek) const {
-	// 	D_ek = ip.weight * det(J_ek);
-	// }
-
-	// __DEVICE__ void evalD(QuadTensor& D_ek, QuadInfo& info) const {
-	// 	D_ek = info.ip.weight * det(info.J_ek) * coeff(info);
-	// }
+	template <typename QuadInfo>
+	__DEVICE__ void evalD(QuadTensor& D_ek, QuadInfo& info) const {
+		*D_ek = 1.0;//info.ip.weight * det(info.J_ek) * coeff(info);
+	}
 };
 #endif
 
@@ -225,7 +225,6 @@ private:
 	CoeffStruct& coeff;
 public:
 	PAMassEq() = delete;
-	// HostMassEq(mfem::FiniteElementSpace& fes, const IntegrationRule& ir): Equation(fes, ir) {}
 	PAMassEq(mfem::FiniteElementSpace& fes, const int ir_order, CoeffStruct& coeff)
 		: Equation(fes, ir_order)
 		, coeff(coeff)
@@ -235,6 +234,7 @@ public:
 		D_ek = ip.weight * det(J_ek) * coeff(dim, k, e, Tr, ip, J_ek);
 	}
 
+	template <typename QuadInfo>
 	void evalD(QuadTensor& D_ek, QuadInfo& info) const {
 		D_ek = info.ip.weight * det(info.J_ek) * coeff(info);
 	}
@@ -260,9 +260,10 @@ public:
 	// 	D_ek = ip.weight * det(J_ek);
 	// }
 
-	// __DEVICE__ void evalD(QuadTensor& D_ek, QuadInfo& info) const {
-	// 	D_ek = info.ip.weight * det(info.J_ek) * coeff(info);
-	// }
+	template <typename QuadInfo>
+	__DEVICE__ void evalD(QuadTensor& D_ek, QuadInfo& info) const {
+		*D_ek = 1.0;//info.ip.weight * det(info.J_ek) * coeff(info);
+	}
 };
 #endif
 
@@ -306,6 +307,7 @@ public:
 		}
 	}
 
+	template <typename QuadInfo>
 	void evalD(QuadTensor& D_ek, QuadInfo& info) const {
 		//TODO add assert on size of D_ek (dim,dim)
 		const int dim = this->getDim();
@@ -393,6 +395,7 @@ public:
 		}
 	}
 
+	template <typename QuadInfo>
 	void evalD(QuadTensor& D_ek, QuadInfo& info) const {
 		//TODO add assert on size of D_ek (dim,dim)
 		const int dim = this->getDim();
@@ -441,6 +444,10 @@ public:
 	// __DEVICE__ void evalD(QuadTensor& D_ek, QuadInfo& info) const {
 	// 	D_ek = info.ip.weight * det(info.J_ek) * coeff(info);
 	// }
+	template <typename QuadInfo>
+	__DEVICE__ void evalD(QuadTensor& D_ek, QuadInfo& info) const {
+		*D_ek = 1.0;//info.ip.weight * det(info.J_ek) * coeff(info);
+	}
 };
 #endif
 

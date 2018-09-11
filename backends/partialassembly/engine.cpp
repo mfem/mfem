@@ -15,6 +15,9 @@
 #include "backend.hpp"
 #include "bilinearform.hpp"
 #include "../../general/array.hpp"
+#ifdef __NVCC__
+#include "cuda.h"
+#endif
 
 namespace mfem
 {
@@ -89,7 +92,7 @@ DVector PAEngine<Device>::MakeVector(PLayout &layout, int type_id) const
    switch (type_id)
    {
    case ScalarId<double>::value:
-      return DVector(new VectorType<Device,double>(*lt));
+      return DVector(new VectorType<Device, double>(*lt));
    // case ScalarId<std::complex<double>>::value:
    //    return DVector(new VectorType<Device,std::complex<double>>(*lt));
    // case ScalarId<int>::value:
@@ -141,21 +144,23 @@ template class PAEngine<CudaDevice>;
 
 mfem::Engine* createEngine(const std::string& engine_spec){
    Engine* engine = NULL;
-   if (engine_spec=="Host")
+   if (engine_spec == "Host")
    {
       engine = new PAEngine<Host>;
    }
-   #ifdef __NVCC__
-   else if (engine_spec=="CudaDevice")
+#ifdef __NVCC__
+   else if (engine_spec == "CudaDevice")
    {
+      // cuInit(0);
+      cudaSetDevice(0);
       engine = new PAEngine<CudaDevice>;
    }
-   #endif
-   if(!engine)
+#endif
+   if (!engine)
    {
-      if(engine_spec=="CudaDevice"){
+      if (engine_spec == "CudaDevice") {
          mfem_error("Couldn't find the requested CudaDevice Engine. Did you compile with NVCC?");
-      }else{
+      } else {
          mfem_error("Couldn't find the requested Engine.");
       }
    }

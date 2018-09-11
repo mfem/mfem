@@ -223,7 +223,7 @@ template <typename T>
 __inline__ __device__ T warpReduceSum(T val) {
    const int warpSize = 32;
    for (int offset = warpSize / 2; offset > 0; offset /= 2)
-      val += __shfl_down(val, offset);
+      val += __shfl_down(val, offset);//TODO replace with __shfl_down_sync
    return val;
 }
 

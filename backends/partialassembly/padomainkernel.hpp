@@ -33,13 +33,26 @@ namespace pa
 *  A class to represent a quadrature point function for domain integrals (i.e. qFunction in libCEED)
 */
 template <typename Equation, Location Device>
-class QuadTensorFunc
+class QuadTensorFunc;
+
+struct HostQuadInfo
+{
+	const int dim;
+	const int k;
+	const int e;
+	// const ElementTransformation* Tr;
+	const IntegrationPoint& ip;
+	const TensorType<2, Host>& J_ek;
+};
+
+template <typename Equation>
+class QuadTensorFunc<Equation, Host>
 {
 private:
-	typedef typename FESpaceType<Device>::type FESpace;
-	typedef typename TensorType<EltDim<Equation>::value, Device>::type Tensor; //Defines the Host/Device Tensor type for quadrature data
-	typedef typename TensorType<QuadDim<Equation>::value, Device>::type QuadTensor;
-	typedef typename TensorType<2, Device>::type JTensor;
+	typedef typename FESpaceType<Host>::type FESpace;
+	typedef typename TensorType_t<EltDim<Equation>::value, Host>::type Tensor; //Defines the Host/Device Tensor type for quadrature data
+	typedef typename TensorType_t<QuadDim<Equation>::value, Host>::type QuadTensor;
+	typedef typename TensorType_t<2, Host>::type JTensor;
 	Equation* eq;//Maybe Equation needs to be moved on GPU Device<Equation,Vector>& eq? otherwise Vector could be deduced
 	mutable QuadTensor D_ek;
 public:
@@ -52,25 +65,60 @@ public:
 	const FESpace& getTrialFESpace() const { return eq->getTrialFESpace(); }
 	const FESpace& getTestFESpace() const { return eq->getTestFESpace(); }
 
-	//This will not work on GPU
-	__HOST__ void evalD(const int e, Tensor& D_e) const {
-		ElementTransformation *Tr = eq->getTrialFESpace().GetElementTransformation(e);
+	void evalD(const int e, Tensor& D_e) const {
+		// ElementTransformation *Tr = eq->getTrialFESpace().GetElementTransformation(e);
 		for (int k = 0; k < eq->getNbQuads(); ++k)
 		{
 			D_ek.slice(D_e, k);
 			const JTensor& J_ek = eq->getJac(e, k);
 			const IntegrationPoint &ip = eq->getIntPoint(k);
-			Tr->SetIntPoint(&ip);
-			eq->evalD(D_ek, eq->getDim(), k, e, Tr, ip, J_ek);
+			// Tr->SetIntPoint(&ip);//Should disappear
+			// eq->evalD(D_ek, eq->getDim(), k, e, Tr, ip, J_ek);
+			HostQuadInfo info = {eq->getDim(), k, e, ip, J_ek};
+			eq->evalD(D_ek, info);
 		}
 	}
-
-	#ifdef __NVCC__
-	__DEVICE__ void evalD(const int e, Tensor& D_e){
-		//TODO
-	}
-	#endif
 };
+
+#ifdef __NVCC__
+struct CudaQuadInfo
+{
+	
+};
+
+template <typename Equation>
+class QuadTensorFunc<Equation, CudaDevice>
+{
+private:
+	typedef typename FESpaceType<CudaDevice>::type FESpace;
+	typedef typename TensorType_t<EltDim<Equation>::value, CudaDevice>::type Tensor; //Defines the Host/Device Tensor type for quadrature data
+	typedef typename TensorType_t<QuadDim<Equation>::value, CudaDevice>::type QuadTensor;
+	typedef typename TensorType_t<2, CudaDevice>::type JTensor;
+	Equation* eq;//Maybe Equation needs to be moved on GPU Device<Equation,Vector>& eq? otherwise Vector could be deduced
+	mutable QuadTensor D_ek;
+public:
+	QuadTensorFunc() = delete;
+	~QuadTensorFunc(){
+		delete eq;//Not sure about this
+	}
+	__HOST__ __DEVICE__ QuadTensorFunc(Equation* eq): eq(eq), D_ek() {  }
+
+	__HOST__ __DEVICE__ const FESpace& getTrialFESpace() const { return eq->getTrialFESpace(); }
+	__HOST__ __DEVICE__ const FESpace& getTestFESpace() const { return eq->getTestFESpace(); }
+
+	__DEVICE__ void evalD(const int e, Tensor& D_e) const{
+		//TODO
+		int k = threadIdx.x;//we could go hemi style for generic programming
+		// D_ek.slice(D_e, k);
+		D_ek = D_e + k;
+		// const JTensor& J_ek = eq->getJac(e, k);
+		// const IntegrationPoint &ip = eq->getIntPoint(k);
+		// eq->evalD(D_ek, eq->getDim(), k, e, Tr, ip, J_ek);
+		CudaQuadInfo info;
+		eq->evalD(D_ek, info);
+	}
+};
+#endif
 
 template <typename Equation, Location Device>
 struct DomainKernel;
@@ -95,8 +143,8 @@ class PADomainIntegrator: public PAIntegrator<Device>
 {
 private:
 	typedef VectorType<Device,double> Vector;
-	typedef typename TensorType<TensorDim<Equation>::value, Device>::type Tensor;
-	typedef typename TensorType<EltDim<Equation>::value, Device>::type EltTensor;
+	typedef typename TensorType_t<TensorDim<Equation>::value, Device>::type Tensor;
+	typedef typename TensorType_t<EltDim<Equation>::value, Device>::type EltTensor;
 	typedef QuadTensorFunc<Equation, Device> QFunc;
 	typedef typename DomainKernel<Equation, Device>::type Kernel;
 	Kernel kernel;
@@ -108,21 +156,7 @@ public:
 
 	void evalD(Tensor& D) const {
 		kernel.evalD(qfunc, D);
-	}	
-
-	// __HOST__ void evalD(Tensor& D) const {
-	// 	for (int e = 0; e < qfunc.getTrialFESpace().GetNE(); ++e)
-	// 	{
-	// 		D_e.slice(D, e);
-	// 		qfunc.evalD(e, D_e);
-	// 	}
-	// }
-
-	// #ifdef __NVCC
-	// __DEVICE__ void evalD(Tensor& D) const {
-	// 	//TODO
-	// }
-	// #endif
+	}
 
 	virtual void Mult(const Vector& x, Vector& y) const {
 		kernel.Mult(qfunc, x, y);
@@ -159,7 +193,7 @@ class PADomainKernel: public PAIntegrator<Device>
 {
 private:
 	typedef VectorType<Device,double> Vector;
-	typedef typename TensorType<TensorDim<Equation>::value, Device>::type Tensor;
+	typedef typename TensorType_t<TensorDim<Equation>::value, Device>::type Tensor;
 	typedef typename DomainKernel<Equation, Device>::type Kernel;
 	typedef typename FESpaceType<Device>::type FESpace;
 	Kernel kernel;
@@ -168,7 +202,7 @@ private:
 public:
 	PADomainKernel() = delete;
 	//This should work on GPU __HOST__ __DEVICE__
-	__HOST__ __DEVICE__ PADomainKernel(Equation* eq): kernel(eq), D() {
+	PADomainKernel(Equation* eq): kernel(eq), D() {
 		const int dim = eq->getDim();
 		const int nbQuads = eq->getNbQuads();
 		const int nbElts = eq->getNbElts();
