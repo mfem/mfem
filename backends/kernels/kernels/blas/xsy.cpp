@@ -15,7 +15,8 @@
 // testbed platforms, in support of the nation's exascale computing imperative.
 #include "../kernels.hpp"
 
-#ifndef __LAMBDA__
+#ifdef __NVCC__
+// *****************************************************************************
 extern "C" kernel
 void vector_xsy0(const int N,
                  double* __restrict v0,
@@ -27,13 +28,14 @@ void vector_xsy0(const int N,
 }
 #endif
 
+// *****************************************************************************
 void vector_xsy(const int N,
                 double* __restrict v0,
                 const double* __restrict v1,
                 const double* __restrict v2)
 {
    push();
-#ifndef __LAMBDA__
+#ifdef __NVCC__
    cuKer(vector_xsy,N,v0,v1,v2);
 #else
    forall(i,N, {v0[i] = v1[i]-v2[i];});

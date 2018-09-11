@@ -50,12 +50,12 @@ kConstrainedOperator::kConstrainedOperator(mfem::Operator *_A,
 
 // *****************************************************************************
 void kConstrainedOperator::EliminateRHS(const kernels::Vector &x,
-                                              kernels::Vector &b) const
+                                        kernels::Vector &b) const
 {
    push();
-   
+
    kw.Fill<double>(0.0);
-   
+
    if (constraintIndices)
    {
       const kernels::Array constraints_list =
@@ -63,10 +63,10 @@ void kConstrainedOperator::EliminateRHS(const kernels::Vector &x,
       vector_map_dofs(constraintIndices, kw.GetData(), x.GetData(),
                       (const int*) constraints_list.KernelsMem().ptr());
    }
-   
+
    A->Mult(mfem_w, mfem_z);
    b.Axpby<double>(1.0, b, -1.0, kz);
-   
+
    if (constraintIndices)
    {
       const kernels::Array constraints_list =
@@ -79,7 +79,7 @@ void kConstrainedOperator::EliminateRHS(const kernels::Vector &x,
 
 // *****************************************************************************
 void kConstrainedOperator::Mult_(const kernels::Vector &x,
-                                       kernels::Vector &y) const
+                                 kernels::Vector &y) const
 {
    push();
 
@@ -92,11 +92,10 @@ void kConstrainedOperator::Mult_(const kernels::Vector &x,
       return;
    }
 
-   assert(false);
-   // ex1pd comes here
    const kernels::Array &constraints_list =
       constraintList.Get_PArray()->As<const kernels::Array>();
    
+   dbg("Assign");
    kz.Assign<double>(x); // z = x
 
    vector_clear_dofs(constraintIndices,

@@ -17,11 +17,7 @@
 #define MFEM_KERNELS_KERNELS_KERNELS
 
 // *****************************************************************************
-#ifdef __NVCC__
 #define __TEMPLATES__
-#else
-#define __LAMBDA__
-#endif
 
 // *****************************************************************************
 #include <math.h>

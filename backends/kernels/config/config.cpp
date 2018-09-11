@@ -116,7 +116,7 @@ void config::Setup(const int _mpi_rank,
    {
       printf("\033[32m[Setup] \033[1mTux\033[m\n");
    }
-   
+
    // On Tux machines, use the MPIX_Query_cuda_support
    // Otherwise, assume there is a support
    //aware = tux?(MPIX_Query_cuda_support()==1)?true:false:true;
@@ -137,16 +137,20 @@ void config::Setup(const int _mpi_rank,
    // Can be changed wuth CUDA_VISIBLE_DEVICES
    cuCheck(cudaGetDeviceCount(&gpu_count));
 #endif
-   
+
    cuda=_cuda;
    if (Root())
    {
       if (Cuda())
+      {
          printf("\033[32m[Setup] \033[1mCUDA Kernels\033[m\n");
+      }
       else
+      {
          printf("\033[32m[Setup] \033[31;1mCPU Kernels\033[m\n");
+      }
    }
-   
+
    dcg=_dcg; // CG on device
    uvm=_uvm;
    aware=_aware;
@@ -179,7 +183,7 @@ void config::Setup(const int _mpi_rank,
    {
       printf("\033[32m[Setup] \033[31;1mEnforced Kernel Synchronization!\033[m\n");
    }
-   
+
    // Check if MPI is CUDA aware
    if (Root())
       printf("\033[32m[Setup] MPI %s CUDA aware\033[m\n",

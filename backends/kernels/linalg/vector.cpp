@@ -22,8 +22,8 @@ namespace kernels
 
 // *****************************************************************************
 Vector::Vector(Layout &lt) : mfem::PArray(lt),
-                             kernels::Array(lt, sizeof(double)),
-                             mfem::PVector(lt)
+   kernels::Array(lt, sizeof(double)),
+   mfem::PVector(lt)
 {
    dbg("new kernels::Vector");
 }
@@ -154,12 +154,14 @@ void Vector::DoAxpby(const void *a, const mfem::PVector &x,
 }
 
 // *****************************************************************************
-double *Vector::GetData(){
+double *Vector::GetData()
+{
    return (double*) KernelsMem().ptr();
 }
 
 // *****************************************************************************
-double *Vector::GetData() const {
+double *Vector::GetData() const
+{
    return (double*) KernelsMem().ptr();
 }
 
@@ -178,19 +180,21 @@ void Vector::SetSubVector(const mfem::Array<int> &ess_tdofs,
                           const int N)
 {
    push();
-   const kernels::Array &k_ess_tdofs = ess_tdofs.Get_PArray()->As<kernels::Array>();
+   const kernels::Array &k_ess_tdofs =
+      ess_tdofs.Get_PArray()->As<kernels::Array>();
    vector_set_subvector_const(N, value, data,
                               (int*) k_ess_tdofs.KernelsMem().ptr());
    pop();
 }
-   
+
 // *****************************************************************************
 void Vector::MapSubVector(const mfem::Array<int> &ess_tdofs,
                           const kernels::Vector &v,
                           const int N)
 {
    push();
-   const kernels::Array &k_ess_tdofs = ess_tdofs.Get_PArray()->As<kernels::Array>();
+   const kernels::Array &k_ess_tdofs =
+      ess_tdofs.Get_PArray()->As<kernels::Array>();
    vector_map_dofs(N, data, v.data,
                    (int*) k_ess_tdofs.KernelsMem().ptr());
    pop();
@@ -207,7 +211,7 @@ mfem::Vector Vector::Wrap()
 const mfem::Vector Vector::Wrap() const
 {
    dbg("const Wrap");
-   return mfem::Vector(*const_cast<kernels::Vector*>(this));   
+   return mfem::Vector(*const_cast<kernels::Vector*>(this));
 }
 
 // *****************************************************************************

@@ -16,25 +16,18 @@
 #include "../kernels.hpp"
 
 // *****************************************************************************
-#ifdef __TEMPLATES__
 template<const int NUM_DOFS_1D,
          const int NUM_QUAD_1D> kernel
-#endif
-void rMassMultAdd2D(
-#ifndef __TEMPLATES__
-                    const int NUM_DOFS_1D,
-                    const int NUM_QUAD_1D,
-#endif                   
-                    const int numElements,
-                    const double* __restrict__ dofToQuad,
-                    const double* __restrict__ dofToQuadD,
-                    const double* __restrict__ quadToDof,
-                    const double* __restrict__ quadToDofD,
-                    const double* __restrict__ oper,
-                    const double* __restrict__ solIn,
-                    double* __restrict__ solOut)
+void rMassMultAdd2D(const int numElements,
+                    const double* __restrict dofToQuad,
+                    const double* __restrict dofToQuadD,
+                    const double* __restrict quadToDof,
+                    const double* __restrict quadToDofD,
+                    const double* __restrict oper,
+                    const double* __restrict solIn,
+                    double* __restrict solOut)
 {
-#ifndef __LAMBDA__
+#ifdef __NVCC__
    const int e = blockDim.x * blockIdx.x + threadIdx.x;
    if (e < numElements)
 #else
@@ -105,31 +98,24 @@ void rMassMultAdd2D(
          }
       }
    }
-#ifdef __LAMBDA__
+#ifndef __NVCC__
            );
 #endif
 }
 
 // *****************************************************************************
-#ifdef __TEMPLATES__
 template<const int NUM_DOFS_1D,
          const int NUM_QUAD_1D> kernel
-#endif
-void rMassMultAdd3D(
-#ifndef __TEMPLATES__
-                    const int NUM_DOFS_1D,
-                    const int NUM_QUAD_1D,
-#endif
-                    const int numElements,
-                    const double* __restrict__ dofToQuad,
-                    const double* __restrict__ dofToQuadD,
-                    const double* __restrict__ quadToDof,
-                    const double* __restrict__ quadToDofD,
-                    const double* __restrict__ oper,
-                    const double* __restrict__ solIn,
-                    double* __restrict__ solOut)
+void rMassMultAdd3D(const int numElements,
+                    const double* __restrict dofToQuad,
+                    const double* __restrict dofToQuadD,
+                    const double* __restrict quadToDof,
+                    const double* __restrict quadToDofD,
+                    const double* __restrict oper,
+                    const double* __restrict solIn,
+                    double* __restrict solOut)
 {
-#ifndef __LAMBDA__
+#ifdef __NVCC__
    const int e = blockDim.x * blockIdx.x + threadIdx.x;
    if (e < numElements)
 #else
@@ -250,7 +236,7 @@ void rMassMultAdd3D(
          }
       }
    }
-#ifdef __LAMBDA__
+#ifndef __NVCC__
            );
 #endif
 }
@@ -279,11 +265,10 @@ void rMassMultAdd(const int DIM,
                   double* y)
 {
    dbg("\033[7mrMassMultAdd");
-#ifndef __LAMBDA__
+#ifdef __NVCC__
    const int blck = 256;
    const int grid = (numElements+blck-1)/blck;
 #endif
-#ifdef __TEMPLATES__
   assert(LOG2(DIM)<=4);
   assert((NUM_QUAD_1D&1)==0);
   assert(LOG2(NUM_DOFS_1D-1)<=8);
@@ -334,7 +319,7 @@ void rMassMultAdd(const int DIM,
   assert(call[id]);
   call0(rMassMultAdd,id,grid,blck,
         numElements,dofToQuad,dofToQuadD,quadToDof,quadToDofD,op,x,y);
-#else
+/*#else
   if (DIM==1) assert(false);
   if (DIM==2)
     call0(rMassMultAdd2D,id,grid,blck,
@@ -344,6 +329,6 @@ void rMassMultAdd(const int DIM,
     call0(rMassMultAdd3D,id,grid,blck,
           NUM_DOFS_1D,NUM_QUAD_1D,
           numElements,dofToQuad,dofToQuadD,quadToDof,quadToDofD,op,x,y);
-#endif
+          #endif*/
   pop();
 }

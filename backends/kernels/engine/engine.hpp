@@ -65,12 +65,13 @@ public:
 
    virtual DArray MakeArray(PLayout&, std::size_t) const;
 
-   virtual DVector MakeVector(PLayout&, int type_id = ScalarId<double>::value) const;
-   
+   virtual DVector MakeVector(PLayout&,
+                              int type_id = ScalarId<double>::value) const;
+
 #ifdef MFEM_USE_MPI
    virtual DFiniteElementSpace MakeFESpace(mfem::ParFiniteElementSpace &) const;
 #endif
-   
+
    virtual DFiniteElementSpace MakeFESpace(mfem::FiniteElementSpace&) const;
 
    virtual DBilinearForm MakeBilinearForm(mfem::BilinearForm&) const;

@@ -16,20 +16,11 @@
 #include "../kernels.hpp"
 
 // *****************************************************************************
-#ifdef __TEMPLATES__
 template<const int NUM_DIM,
          const int NUM_QUAD,
          const int NUM_QUAD_1D,
          const int NUM_DOFS_1D> kernel
-#endif
-void rUpdateQuadratureData2D(
-#ifndef __TEMPLATES__
-                             const int NUM_DIM,
-                             const int NUM_QUAD,
-                             const int NUM_QUAD_1D,
-                             const int NUM_DOFS_1D,
-#endif
-                             const double GAMMA,
+void rUpdateQuadratureData2D(const double GAMMA,
                              const double H0,
                              const double CFL,
                              const bool USE_VISCOSITY,
@@ -47,7 +38,7 @@ void rUpdateQuadratureData2D(
                              double* restrict stressJinvT,
                              double* restrict dtEst) {
   const int NUM_QUAD_2D = NUM_QUAD_1D*NUM_QUAD_1D;
-#ifndef __LAMBDA__
+#ifdef __NVCC__
   const int el = blockDim.x * blockIdx.x + threadIdx.x;
   if (el < numElements)
 #else
@@ -186,26 +177,17 @@ void rUpdateQuadratureData2D(
       stressJinvT[ijklNM(1,1,q,el,NUM_DIM,NUM_QUAD)] = q_Jw*((S01*invJ_10)+(S11*invJ_11));
     }
   }
-#ifdef __LAMBDA__
+#ifndef __NVCC__
          );
 #endif
 }
 
 // *****************************************************************************
-#ifdef __TEMPLATES__
 template<const int NUM_DIM,
          const int NUM_QUAD,
          const int NUM_QUAD_1D,
          const int NUM_DOFS_1D> kernel
-#endif
-void rUpdateQuadratureData3D(
-#ifndef __TEMPLATES__
-                             const int NUM_DIM,
-                             const int NUM_QUAD,
-                             const int NUM_QUAD_1D,
-                             const int NUM_DOFS_1D,
-#endif
-                             const double GAMMA,
+void rUpdateQuadratureData3D(const double GAMMA,
                              const double H0,
                              const double CFL,
                              const bool USE_VISCOSITY,                                    
@@ -224,7 +206,7 @@ void rUpdateQuadratureData3D(
                              double* restrict dtEst) {
   const int NUM_QUAD_2D = NUM_QUAD_1D*NUM_QUAD_1D;
   const int NUM_QUAD_3D = NUM_QUAD_1D*NUM_QUAD_1D*NUM_QUAD_1D;
-#ifndef __LAMBDA__
+#ifdef __NVCC__
   const int el = blockDim.x * blockIdx.x + threadIdx.x;
   if (el < numElements)
 #else
@@ -509,7 +491,7 @@ void rUpdateQuadratureData3D(
       stressJinvT[ijklNM(2,2,q,el,NUM_DIM,NUM_QUAD)] = q_Jw*((S02*invJ_20)+(S12*invJ_21)+(S22*invJ_22));
     }
   }
-#ifdef __LAMBDA__
+#ifndef __NVCC__
            );
 #endif
 }
@@ -556,11 +538,10 @@ void rUpdateQuadratureData(const double GAMMA,
                            double* restrict stressJinvT,
                            double* restrict dtEst){
   push(Lime);
-#ifndef __LAMBDA__
+#ifdef __NVCC__
   const int blck = CUDA_BLOCK_SIZE;
   const int grid = (nzones+blck-1)/blck;
 #endif
-#ifdef __TEMPLATES__
   assert(LOG2(NUM_DIM)<=4);
   assert(LOG2(NUM_DOFS_1D-2)<=4);
   assert(NUM_QUAD_1D==2*(NUM_DOFS_1D-1));
@@ -612,22 +593,5 @@ void rUpdateQuadratureData(const double GAMMA,
         nzones,dofToQuad,dofToQuadD,quadWeights,
         v,e,rho0DetJ0w,invJ0,J,invJ,detJ,
         stressJinvT,dtEst);
-#else
-  if (NUM_DIM==1) assert(false);
-  if (NUM_DIM==2)
-    call0(rUpdateQuadratureData2D,id,grid,blck,
-          NUM_DIM,NUM_QUAD,NUM_QUAD_1D,NUM_DOFS_1D,
-          GAMMA,H0,CFL,USE_VISCOSITY,
-          nzones,dofToQuad,dofToQuadD,quadWeights,
-          v,e,rho0DetJ0w,invJ0,J,invJ,detJ,
-          stressJinvT,dtEst);
-  if (NUM_DIM==3)
-    call0(rUpdateQuadratureData3D,id,grid,blck,
-          NUM_DIM,NUM_QUAD,NUM_QUAD_1D,NUM_DOFS_1D,
-          GAMMA,H0,CFL,USE_VISCOSITY,
-          nzones,dofToQuad,dofToQuadD,quadWeights,
-          v,e,rho0DetJ0w,invJ0,J,invJ,detJ,
-          stressJinvT,dtEst);
-#endif
   pop();
 }

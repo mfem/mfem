@@ -65,7 +65,8 @@ void KernelsMassIntegrator::Setup()
 }
 
 // *****************************************************************************
-void KernelsMassIntegrator::Assemble() {
+void KernelsMassIntegrator::Assemble()
+{
    push();
    pop();
 }

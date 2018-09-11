@@ -23,7 +23,7 @@ namespace kernels
 //---[ Parameter ]------------
 KernelsParameter::~KernelsParameter() {}
 
-   void KernelsParameter::Setup(KernelsIntegrator &integ) {push();pop();}
+void KernelsParameter::Setup(KernelsIntegrator &integ) {push(); pop();}
 
 //====================================
 

@@ -43,7 +43,7 @@ public:
    void MapSubVector(const mfem::Array<int> &, const kernels::Vector&, const int);
 
    mfem::Vector Wrap();
-   
+
    double *GetData();
    double *GetData() const;
 

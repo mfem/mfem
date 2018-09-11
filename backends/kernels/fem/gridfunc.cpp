@@ -25,14 +25,14 @@ KernelsGridFunction::KernelsGridFunction(kFiniteElementSpace &f)
      Array(f.KernelsVLayout(), sizeof(double)),
      Vector(f.KernelsVLayout()),
      fes(f),
-     sequence(0) {push();pop();}
+     sequence(0) {push(); pop();}
 
 KernelsGridFunction::KernelsGridFunction(const KernelsGridFunction &v)
    : PArray(v),
      Array(v),
      Vector(v),
      fes(v.fes),
-     sequence(v.sequence) {push();pop();}
+     sequence(v.sequence) {push(); pop();}
 
 KernelsGridFunction& KernelsGridFunction::operator = (double value)
 {

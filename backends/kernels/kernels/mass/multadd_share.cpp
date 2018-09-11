@@ -16,29 +16,22 @@
 #include "../kernels.hpp"
 
 // *****************************************************************************
-#ifdef __TEMPLATES__
 template<const int NUM_DOFS_1D,
          const int NUM_QUAD_1D> kernel
-#endif
-void rMassMultAdd2S(
-#ifndef __TEMPLATES__
-   const int NUM_DOFS_1D,
-   const int NUM_QUAD_1D,
-#endif
-   const int numElements,
-   const double* __restrict__ dofToQuad,
-   const double* __restrict__ dofToQuadD,
-   const double* __restrict__ quadToDof,
-   const double* __restrict__ quadToDofD,
-   const double* __restrict__ oper,
-   const double* __restrict__ solIn,
-   double* solOut)
+void rMassMultAdd2S(const int numElements,
+                    const double* __restrict__ dofToQuad,
+                    const double* __restrict__ dofToQuadD,
+                    const double* __restrict__ quadToDof,
+                    const double* __restrict__ quadToDofD,
+                    const double* __restrict__ oper,
+                    const double* __restrict__ solIn,
+                    double* solOut)
 {
    const int NUM_QUAD_2D = NUM_QUAD_1D*NUM_QUAD_1D;
    const int NUM_QUAD_DOFS_1D = (NUM_QUAD_1D * NUM_DOFS_1D);
    const int NUM_MAX_1D = (NUM_QUAD_1D<NUM_DOFS_1D)?NUM_DOFS_1D:NUM_QUAD_1D;
    // Iterate over elements
-#ifdef __LAMBDA__
+#ifndef __NVCC__
    forallS(eOff,numElements,M2_ELEMENT_BATCH,
 #else
    const int idx = blockIdx.x;
@@ -56,7 +49,7 @@ void rMassMultAdd2S(
 
               double r_x[NUM_MAX_1D];
 
-#ifdef __LAMBDA__
+#ifndef __NVCC__
               for (int x = 0; x < NUM_MAX_1D; ++x/*;inner*/)
 #else
               const int x = threadIdx.x;
@@ -74,7 +67,7 @@ void rMassMultAdd2S(
    if (e < numElements)
       {
          sync;
-#ifdef __LAMBDA__
+#ifndef __NVCC__
          for (int dx = 0; dx < NUM_MAX_1D; ++dx)
          {
 #else
@@ -104,7 +97,7 @@ void rMassMultAdd2S(
             }
          }
          sync;
-#ifdef __LAMBDA__
+#ifndef __NVCC__
          for (int qy = 0; qy < NUM_MAX_1D; ++qy)
          {
 #else
@@ -125,7 +118,7 @@ void rMassMultAdd2S(
             }
          }
          sync;
-#ifdef __LAMBDA__
+#ifndef __NVCC__
          for (int qx = 0; qx < NUM_MAX_1D; ++qx)
          {
 #else
@@ -154,7 +147,7 @@ void rMassMultAdd2S(
             }
          }
          sync;
-#ifdef __LAMBDA__
+#ifndef __NVCC__
          for (int dx = 0; dx < NUM_MAX_1D; ++dx)
          {
 #else
@@ -177,7 +170,7 @@ void rMassMultAdd2S(
       }
    }
            }
-#ifdef __LAMBDA__
+#ifndef __NVCC__
           );
 #endif
 }
@@ -206,56 +199,55 @@ void rMassMultAddS(const int DIM,
                    double* __restrict__ y)
 {
    push(Green);
-#ifndef __LAMBDA__
+#ifdef __NVCC__
    const int NUM_MAX_1D = (NUM_QUAD_1D<NUM_DOFS_1D)?NUM_DOFS_1D:NUM_QUAD_1D;
    const int grid = ((numElements+M2_ELEMENT_BATCH-1)/M2_ELEMENT_BATCH);
    const int blck = NUM_MAX_1D;
 #endif
-#ifdef __TEMPLATES__
    assert(LOG2(DIM)<=4);
    assert((NUM_QUAD_1D&1)==0);
    assert(LOG2(NUM_DOFS_1D-1)<=8);
    assert(LOG2(NUM_QUAD_1D>>1)<=8);
    const unsigned int id = (DIM<<16)|((NUM_DOFS_1D-1)<<8)|(NUM_QUAD_1D>>1);
    static std::unordered_map<unsigned int, fMassMultAdd> call =
-   {
-      // 2D
-      {0x20001,&rMassMultAdd2S<1,2>},    {0x20101,&rMassMultAdd2S<2,2>},
-      {0x20102,&rMassMultAdd2S<2,4>},    {0x20202,&rMassMultAdd2S<3,4>},
-      {0x20203,&rMassMultAdd2S<3,6>},    {0x20303,&rMassMultAdd2S<4,6>},
-      {0x20304,&rMassMultAdd2S<4,8>},    {0x20404,&rMassMultAdd2S<5,8>},
-      {0x20405,&rMassMultAdd2S<5,10>},   {0x20505,&rMassMultAdd2S<6,10>},
-      {0x20506,&rMassMultAdd2S<6,12>},   {0x20606,&rMassMultAdd2S<7,12>},
-      {0x20607,&rMassMultAdd2S<7,14>},   {0x20707,&rMassMultAdd2S<8,14>},
-      {0x20708,&rMassMultAdd2S<8,16>},   {0x20808,&rMassMultAdd2S<9,16>},
-      {0x20809,&rMassMultAdd2S<9,18>},   {0x20909,&rMassMultAdd2S<10,18>},
-      {0x2090A,&rMassMultAdd2S<10,20>},  {0x20A0A,&rMassMultAdd2S<11,20>},
-      {0x20A0B,&rMassMultAdd2S<11,22>},  {0x20B0B,&rMassMultAdd2S<12,22>},
-      {0x20B0C,&rMassMultAdd2S<12,24>},  {0x20C0C,&rMassMultAdd2S<13,24>},
-      {0x20C0D,&rMassMultAdd2S<13,26>},  {0x20D0D,&rMassMultAdd2S<14,26>},
-      {0x20D0E,&rMassMultAdd2S<14,28>},  {0x20E0E,&rMassMultAdd2S<15,28>},
-      {0x20E0F,&rMassMultAdd2S<15,30>},  {0x20F0F,&rMassMultAdd2S<16,30>},
-      {0x20F10,&rMassMultAdd2S<16,32>},  {0x21010,&rMassMultAdd2S<17,32>},
-      // 3D
-      /*
-          {0x30001,&rMassMultAdd3S<1,2>},    {0x30101,&rMassMultAdd3S<2,2>},
-          {0x30102,&rMassMultAdd3S<2,4>},    {0x30202,&rMassMultAdd3S<3,4>},
-          {0x30203,&rMassMultAdd3S<3,6>},    {0x30303,&rMassMultAdd3S<4,6>},
-          {0x30304,&rMassMultAdd3S<4,8>},    {0x30404,&rMassMultAdd3S<5,8>},
-          {0x30405,&rMassMultAdd3S<5,10>},   {0x30505,&rMassMultAdd3S<6,10>},
-          {0x30506,&rMassMultAdd3S<6,12>},   {0x30606,&rMassMultAdd3S<7,12>},
-          {0x30607,&rMassMultAdd3S<7,14>},   {0x30707,&rMassMultAdd3S<8,14>},
-          {0x30708,&rMassMultAdd3S<8,16>},   {0x30808,&rMassMultAdd3S<9,16>},
-          {0x30809,&rMassMultAdd3S<9,18>},   {0x30909,&rMassMultAdd3S<10,18>},
-          {0x3090A,&rMassMultAdd3S<10,20>},  {0x30A0A,&rMassMultAdd3S<11,20>},
-          {0x30A0B,&rMassMultAdd3S<11,22>},  {0x30B0B,&rMassMultAdd3S<12,22>},
-          {0x30B0C,&rMassMultAdd3S<12,24>},  {0x30C0C,&rMassMultAdd3S<13,24>},
-          {0x30C0D,&rMassMultAdd3S<13,26>},  {0x30D0D,&rMassMultAdd3S<14,26>},
-          {0x30D0E,&rMassMultAdd3S<14,28>},  {0x30E0E,&rMassMultAdd3S<15,28>},
-          {0x30E0F,&rMassMultAdd3S<15,30>},  {0x30F0F,&rMassMultAdd3S<16,30>},
-          {0x30F10,&rMassMultAdd3S<16,32>},  {0x31010,&rMassMultAdd3S<17,32>},
-      */
-   };
+      {
+         // 2D
+         {0x20001,&rMassMultAdd2S<1,2>},    {0x20101,&rMassMultAdd2S<2,2>},
+         {0x20102,&rMassMultAdd2S<2,4>},    {0x20202,&rMassMultAdd2S<3,4>},
+         {0x20203,&rMassMultAdd2S<3,6>},    {0x20303,&rMassMultAdd2S<4,6>},
+         {0x20304,&rMassMultAdd2S<4,8>},    {0x20404,&rMassMultAdd2S<5,8>},
+         {0x20405,&rMassMultAdd2S<5,10>},   {0x20505,&rMassMultAdd2S<6,10>},
+         {0x20506,&rMassMultAdd2S<6,12>},   {0x20606,&rMassMultAdd2S<7,12>},
+         {0x20607,&rMassMultAdd2S<7,14>},   {0x20707,&rMassMultAdd2S<8,14>},
+         {0x20708,&rMassMultAdd2S<8,16>},   {0x20808,&rMassMultAdd2S<9,16>},
+         {0x20809,&rMassMultAdd2S<9,18>},   {0x20909,&rMassMultAdd2S<10,18>},
+         {0x2090A,&rMassMultAdd2S<10,20>},  {0x20A0A,&rMassMultAdd2S<11,20>},
+         {0x20A0B,&rMassMultAdd2S<11,22>},  {0x20B0B,&rMassMultAdd2S<12,22>},
+         {0x20B0C,&rMassMultAdd2S<12,24>},  {0x20C0C,&rMassMultAdd2S<13,24>},
+         {0x20C0D,&rMassMultAdd2S<13,26>},  {0x20D0D,&rMassMultAdd2S<14,26>},
+         {0x20D0E,&rMassMultAdd2S<14,28>},  {0x20E0E,&rMassMultAdd2S<15,28>},
+         {0x20E0F,&rMassMultAdd2S<15,30>},  {0x20F0F,&rMassMultAdd2S<16,30>},
+         {0x20F10,&rMassMultAdd2S<16,32>},  {0x21010,&rMassMultAdd2S<17,32>},
+         // 3D
+         /*
+           {0x30001,&rMassMultAdd3S<1,2>},    {0x30101,&rMassMultAdd3S<2,2>},
+           {0x30102,&rMassMultAdd3S<2,4>},    {0x30202,&rMassMultAdd3S<3,4>},
+           {0x30203,&rMassMultAdd3S<3,6>},    {0x30303,&rMassMultAdd3S<4,6>},
+           {0x30304,&rMassMultAdd3S<4,8>},    {0x30404,&rMassMultAdd3S<5,8>},
+           {0x30405,&rMassMultAdd3S<5,10>},   {0x30505,&rMassMultAdd3S<6,10>},
+           {0x30506,&rMassMultAdd3S<6,12>},   {0x30606,&rMassMultAdd3S<7,12>},
+           {0x30607,&rMassMultAdd3S<7,14>},   {0x30707,&rMassMultAdd3S<8,14>},
+           {0x30708,&rMassMultAdd3S<8,16>},   {0x30808,&rMassMultAdd3S<9,16>},
+           {0x30809,&rMassMultAdd3S<9,18>},   {0x30909,&rMassMultAdd3S<10,18>},
+           {0x3090A,&rMassMultAdd3S<10,20>},  {0x30A0A,&rMassMultAdd3S<11,20>},
+           {0x30A0B,&rMassMultAdd3S<11,22>},  {0x30B0B,&rMassMultAdd3S<12,22>},
+           {0x30B0C,&rMassMultAdd3S<12,24>},  {0x30C0C,&rMassMultAdd3S<13,24>},
+           {0x30C0D,&rMassMultAdd3S<13,26>},  {0x30D0D,&rMassMultAdd3S<14,26>},
+           {0x30D0E,&rMassMultAdd3S<14,28>},  {0x30E0E,&rMassMultAdd3S<15,28>},
+           {0x30E0F,&rMassMultAdd3S<15,30>},  {0x30F0F,&rMassMultAdd3S<16,30>},
+           {0x30F10,&rMassMultAdd3S<16,32>},  {0x31010,&rMassMultAdd3S<17,32>},
+         */
+      };
    if (!call[id])
    {
       printf("\n[rMassMultAddS] id \033[33m0x%X\033[m ",id);
@@ -264,13 +256,5 @@ void rMassMultAddS(const int DIM,
    assert(call[id]);
    call0(rMassMultAdd2S,id,grid,blck,
          numElements,dofToQuad,dofToQuadD,quadToDof,quadToDofD,op,x,y);
-#else
-   if (DIM==1) { assert(false); }
-   if (DIM==2)
-      call0(rMassMultAdd2S,id,grid,blck,
-            NUM_DOFS_1D,NUM_QUAD_1D,
-            numElements,dofToQuad,dofToQuadD,quadToDof,quadToDofD,op,x,y);
-   if (DIM==3) { assert(false); }
-#endif
    pop();
 }

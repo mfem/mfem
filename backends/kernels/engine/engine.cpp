@@ -28,25 +28,27 @@ void Engine::Init(const std::string &engine_spec)
    workers_weights[0] = 1.0;
    workers_mem_res[0] = 0;
    dev = new device();
-   
+
    bool cuda = false;
    const bool uvm = false;
-   
-   if (engine_spec.find("cpu")!=std::string::npos){
+
+   if (engine_spec.find("cpu")!=std::string::npos)
+   {
       dbg("CPU engine");
       cuda = false;
    }
-   if (engine_spec.find("gpu")!=std::string::npos){
+   if (engine_spec.find("gpu")!=std::string::npos)
+   {
       dbg("GPU engine");
       cuda = true;
    }
-   
+
    kernels::config::Get().Setup(world_rank,
                                 world_size,
                                 cuda,
                                 false, // CG on device
                                 uvm,
-                                true, // MPI CUDA aware
+                                false, // MPI CUDA aware
                                 false, // share
                                 false, // occa
                                 false, // hcpo
@@ -76,7 +78,7 @@ Engine::Engine(MPI_Comm _comm,
    Init(engine_spec);
    pop();
 }
-   
+
 Engine::Engine(const MPI_Session *_mpi,
                const std::string &engine_spec)
    : mfem::Engine(NULL, 1, 1),

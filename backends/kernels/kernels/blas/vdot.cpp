@@ -59,13 +59,9 @@ double vector_dot(const int N,
       return result;
    }
 #endif
-   //ReduceDecl(Sum,dot,0.0);
-   //ReduceForall(i,N,dot += vec1[i]*vec2[i];);
    double dot=0.0;
-   //dbg("[dot] N=%d",N);
    for (int i=0; i<N; i+=1)
    {
-      //printf("\n\t\033[36m[dot] %d %f %f",i,vec1[i],vec2[i]);
       dot += vec1[i]*vec2[i];
    }
    pop();

@@ -15,7 +15,7 @@
 // testbed platforms, in support of the nation's exascale computing imperative.
 #include "../kernels.hpp"
 
-#ifndef __LAMBDA__
+#ifdef __NVCC__
 extern "C" kernel
 void vector_neg0(const int N,
                  double* __restrict vec)
@@ -25,11 +25,12 @@ void vector_neg0(const int N,
 }
 #endif
 
+// *****************************************************************************
 void vector_neg(const int N,
                 double* __restrict vec)
 {
    push();
-#ifndef __LAMBDA__
+#ifdef __NVCC__
    cuKer(vector_neg,N,vec);
 #else
    forall(i,N,vec[i] *= -1.0;);

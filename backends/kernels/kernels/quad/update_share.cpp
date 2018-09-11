@@ -16,20 +16,11 @@
 #include "../kernels.hpp"
 
 // *****************************************************************************
-#ifdef __TEMPLATES__
 template<const int NUM_DIM,
          const int NUM_QUAD,
          const int NUM_QUAD_1D,
          const int NUM_DOFS_1D> kernel
-#endif
-void rUpdateQuadratureData2S(
-#ifndef __TEMPLATES__
-                             const int NUM_DIM,
-                             const int NUM_QUAD,
-                             const int NUM_QUAD_1D,
-                             const int NUM_DOFS_1D,
-#endif
-                             const double GAMMA,
+void rUpdateQuadratureData2S(const double GAMMA,
                              const double H0,
                              const double CFL,
                              const bool USE_VISCOSITY,
@@ -49,7 +40,7 @@ void rUpdateQuadratureData2S(
   const int NUM_QUAD_2D = NUM_QUAD_1D*NUM_QUAD_1D;
   const int NUM_QUAD_DOFS_1D = (NUM_QUAD_1D * NUM_DOFS_1D);
   const int NUM_MAX_1D = (NUM_QUAD_1D<NUM_DOFS_1D)?NUM_DOFS_1D:NUM_QUAD_1D;
-#ifdef __LAMBDA__
+#ifndef __NVCC__
   forall(el,numElements,
 #else
   const int idx = blockIdx.x;
@@ -67,7 +58,7 @@ void rUpdateQuadratureData2S(
 
     double r_v[NUM_DIM * NUM_DOFS_1D];//@dim(NUM_DIM, NUM_DOFS_1D);
 
-#ifdef __LAMBDA__
+#ifndef __NVCC__
     for (int x = 0; x < NUM_MAX_1D; ++x) {
 #else
     {  const int x = threadIdx.x;
@@ -79,7 +70,7 @@ void rUpdateQuadratureData2S(
     }
 
     sync;
-#ifdef __LAMBDA__    
+#ifndef __NVCC__    
     for (int dx = 0; dx < NUM_MAX_1D; ++dx) {
 #else
     {  const int dx = threadIdx.x;
@@ -118,7 +109,7 @@ void rUpdateQuadratureData2S(
     }
 
     sync;
-#ifdef __LAMBDA__
+#ifndef __NVCC__
     for (int qy = 0; qy < NUM_MAX_1D; ++qy) {
 #else
     {  const int qy = threadIdx.x;
@@ -146,7 +137,7 @@ void rUpdateQuadratureData2S(
     }
 
     sync;
-#ifdef __LAMBDA__
+#ifndef __NVCC__
     for (int qBlock = 0; qBlock < NUM_MAX_1D; ++qBlock) {
 #else
     {  const int qBlock = threadIdx.x;
@@ -259,7 +250,7 @@ void rUpdateQuadratureData2S(
       }
     }
   }
-#ifdef __LAMBDA__
+#ifndef __NVCC__
          );
 #endif
 }
@@ -305,11 +296,10 @@ void rUpdateQuadratureDataS(const double GAMMA,
                             double* restrict stressJinvT,
                             double* restrict dtEst){
   push(Green);
-#ifndef __LAMBDA__
+#ifdef __NVCC__
   const int grid = nzones;
   const int blck = (NUM_QUAD_1D<NUM_DOFS_1D)?NUM_DOFS_1D:NUM_QUAD_1D;
 #endif
-#ifdef __TEMPLATES__
   assert(LOG2(NUM_DIM)<=4);
   assert(LOG2(NUM_DOFS_1D-2)<=4);
   assert(NUM_QUAD_1D==2*(NUM_DOFS_1D-1));
@@ -362,15 +352,5 @@ void rUpdateQuadratureDataS(const double GAMMA,
         nzones,dofToQuad,dofToQuadD,quadWeights,
         v,e,rho0DetJ0w,invJ0,J,invJ,detJ,
         stressJinvT,dtEst);
-#else
-  if (NUM_DIM==2)
-    call0(rUpdateQuadratureData2S,id,grid,blck,
-          NUM_DIM,NUM_QUAD,NUM_QUAD_1D,NUM_DOFS_1D,
-          GAMMA,H0,CFL,USE_VISCOSITY,
-          nzones,dofToQuad,dofToQuadD,quadWeights,
-          v,e,rho0DetJ0w,invJ0,J,invJ,detJ,
-          stressJinvT,dtEst);
-  else assert(false);
-#endif
   pop();
 }

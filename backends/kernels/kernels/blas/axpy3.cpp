@@ -15,7 +15,7 @@
 // testbed platforms, in support of the nation's exascale computing imperative.
 #include "../kernels.hpp"
 
-#ifndef __LAMBDA__
+#ifdef __NVCC__
 extern "C" kernel
 void vector_axpby3_gpu0(const int N,
                         const double alpha,
@@ -29,7 +29,9 @@ void vector_axpby3_gpu0(const int N,
 }
 #endif
 
-//*v0 = alpha * (*this) + beta * v1
+// *****************************************************************************
+// * v0 = alpha * (*this) + beta * v1
+// *****************************************************************************
 void vector_axpby3(const int N,
                    const double alpha,
                    const double beta,
@@ -38,7 +40,7 @@ void vector_axpby3(const int N,
                    const double* __restrict v2)
 {
    push();
-#ifndef __LAMBDA__
+#ifdef __NVCC__
    cuKer(vector_axpby3_gpu,N,alpha,beta,v0,v1,v2);
 #else
    forall(i,N,v0[i] = alpha * v1[i] + beta * v2[i];);

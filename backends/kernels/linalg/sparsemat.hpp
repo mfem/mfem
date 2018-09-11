@@ -69,7 +69,7 @@ public:
 KernelsSparseMatrix* CreateMappedSparseMatrix(
    Layout &in_layout, Layout &out_layout,
    const mfem::SparseMatrix &m);
-   
+
 } // namespace mfem::kernels
 
 } // namespace mfem

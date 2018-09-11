@@ -32,7 +32,6 @@
 
 // __NVCC__ ********************************************************************
 #ifdef __NVCC__
-//#warning __NVCC__
 #include <cuda.h>
 #include <helper_cuda.h>
 #include <helper_functions.h>

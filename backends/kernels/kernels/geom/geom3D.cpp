@@ -16,22 +16,15 @@
 #include "../kernels.hpp"
 
 // *****************************************************************************
-#ifdef __TEMPLATES__
 template<const int NUM_DOFS,
          const int NUM_QUAD> kernel
-#endif
-void rIniGeom3D(
-#ifndef __TEMPLATES__
-                const int NUM_DOFS,
-                const int NUM_QUAD,
-#endif
-                const int numElements,
-                const double* __restrict__ dofToQuadD,
-                const double* __restrict__ nodes,
-                double* __restrict__ J,
-                double* __restrict__ invJ,
-                double* __restrict__ detJ){
-#ifndef __LAMBDA__
+void rIniGeom3D(const int numElements,
+                const double* __restrict dofToQuadD,
+                const double* __restrict nodes,
+                double* __restrict J,
+                double* __restrict invJ,
+                double* __restrict detJ){
+#ifdef __NVCC__
    const int e = blockDim.x * blockIdx.x + threadIdx.x;
    if (e < numElements)
 #else
@@ -93,13 +86,11 @@ void rIniGeom3D(
          detJ[ijN(q, e,NUM_QUAD)] = r_detJ;
       }
    }
-#ifdef __LAMBDA__
+#ifndef __NVCC__
            );
 #endif
 }
 
-// instantiation
-#ifdef __TEMPLATES__
 template kernel void rIniGeom3D<8,8>(int, double const*, double const*, double*, double*, double*);
 template kernel void rIniGeom3D<27,64>(int, double const*, double const*, double*, double*, double*);
 template kernel void rIniGeom3D<64,216>(int, double const*, double const*, double*, double*, double*);
@@ -116,4 +107,3 @@ template kernel void rIniGeom3D<2744,17576>(int, double const*, double const*, d
 template kernel void rIniGeom3D<3375,21952>(int, double const*, double const*, double*, double*, double*);
 template kernel void rIniGeom3D<4096,27000>(int, double const*, double const*, double*, double*, double*);
 template kernel void rIniGeom3D<4913,32768>(int, double const*, double const*, double*, double*, double*);
-#endif

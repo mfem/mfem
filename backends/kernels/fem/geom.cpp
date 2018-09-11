@@ -78,7 +78,8 @@ kGeometry* kGeometry::Get(kFiniteElementSpace& fes,
    Mesh& mesh = *(fes.GetFESpace()->GetMesh());
    const bool geom_to_allocate =
       (!geom) || config::Get().GeomNeedsUpdate(mesh.GetSequence());
-   if (geom_to_allocate) {
+   if (geom_to_allocate)
+   {
       dbg("geom_to_allocate: new kGeometry");
       geom = new kGeometry();
    }
@@ -92,8 +93,9 @@ kGeometry* kGeometry::Get(kFiniteElementSpace& fes,
    const int numQuad  = ir.GetNPoints();
    const bool orderedByNODES = (fespace.GetOrdering() == Ordering::byNODES);
    dbg("orderedByNODES: %s", orderedByNODES?"true":"false");
-   
-   if (orderedByNODES) {
+
+   if (orderedByNODES)
+   {
       dbg("orderedByNODES, ReorderByVDim");
       ReorderByVDim(nodes);
    }
@@ -132,13 +134,14 @@ kGeometry* kGeometry::Get(kFiniteElementSpace& fes,
       geom->eMap = eMap;
       pop();
    }
-   
+
    // Reorder the original gf back
-   if (orderedByNODES) {
+   if (orderedByNODES)
+   {
       dbg("Reorder the original gf back");
       ReorderByNodes(nodes);
    }
-   
+
    if (geom_to_allocate)
    {
       dbg("geom_to_allocate: J, invJ & detJ");
@@ -150,7 +153,8 @@ kGeometry* kGeometry::Get(kFiniteElementSpace& fes,
    const kDofQuadMaps* maps = kDofQuadMaps::GetSimplexMaps(fe, ir);
    assert(maps);
    {
-      dbg("dims=%d, numDofs=%d, numQuad=%d, elements=%d",dims,numDofs,numQuad,elements);
+      dbg("dims=%d, numDofs=%d, numQuad=%d, elements=%d",dims,numDofs,numQuad,
+          elements);
       push(rIniGeom,SteelBlue);
       rIniGeom(dims,numDofs,numQuad,elements,
                maps->dofToQuadD,

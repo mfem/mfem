@@ -34,7 +34,8 @@ template<class T> struct kmalloc: public kmemcpy
    inline void* operator new (size_t n, bool lock_page = false)
    {
       dbp("+]\033[m");
-      if (!config::Get().Cuda()) {
+      if (!config::Get().Cuda())
+      {
          return ::new T[n];
       }
 #ifdef __NVCC__
@@ -44,16 +45,18 @@ template<class T> struct kmalloc: public kmemcpy
       {
          //dbg("\033[31;1m>cuMemAlloc");
          if (lock_page) { checkCudaErrors(cuMemHostAlloc(&ptr, n*sizeof(T),CU_MEMHOSTALLOC_PORTABLE)); }
-         else {
+         else
+         {
             //assert(n>0); // DevExtension<>::SetEngine does a 'InitLayout(*e.MakeLayout(0));'
-            if (n==0) n=1;
+            if (n==0) { n=1; }
             checkCudaErrors(cuMemAlloc((CUdeviceptr*)&ptr, n*sizeof(T)));
          }
       }
       else
       {
          //dbg("\033[31;1m>cuMemAllocManaged");
-         checkCudaErrors(cuMemAllocManaged((CUdeviceptr*)&ptr, n*sizeof(T),CU_MEM_ATTACH_GLOBAL));
+         checkCudaErrors(cuMemAllocManaged((CUdeviceptr*)&ptr, n*sizeof(T),
+                                           CU_MEM_ATTACH_GLOBAL));
       }
       pop();
       return ptr;

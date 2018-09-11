@@ -24,7 +24,7 @@ void rIniGeom1D(const int NUM_DOFS,
                 double* __restrict__ J,
                 double* __restrict__ invJ,
                 double* __restrict__ detJ){
-#ifndef __LAMBDA__
+#ifdef __NVCC__
    const int e = blockDim.x * blockIdx.x + threadIdx.x;
    if (e < numElements)
 #else
@@ -52,7 +52,7 @@ void rIniGeom1D(const int NUM_DOFS,
          detJ[ijN(q, e,NUM_QUAD)] = J11;
       }
    }
-#ifdef __LAMBDA__
+#ifndef __NVCC__
            );
 #endif
 }

@@ -29,20 +29,22 @@ device::~device() {}
 // *****************************************************************************
 bool device::hasSeparateMemorySpace()
 {
-  if (mfem::kernels::config::Get().Cuda())
-     return true;
-  return false;
+   if (mfem::kernels::config::Get().Cuda())
+   {
+      return true;
+   }
+   return false;
 }
 
 // *****************************************************************************
 memory device::malloc(const std::size_t bytes,
                       const void *src)
 {
-  push();
-  assert(src==NULL);
-  dbg("bytes=%d",bytes);
-  pop();
-  return memory(bytes,src);
+   push();
+   assert(src==NULL);
+   dbg("bytes=%d",bytes);
+   pop();
+   return memory(bytes,src);
 }
 
 } // namespace mfem::kernels

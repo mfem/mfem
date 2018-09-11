@@ -30,7 +30,7 @@ public:
    char *data;
 public:
    memory(const std::size_t =0, const void* =NULL);
-   
+
    size_t size() const;
 
    kernels::device getDevice();

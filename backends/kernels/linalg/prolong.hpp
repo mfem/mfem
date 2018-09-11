@@ -28,7 +28,7 @@ protected:
    const kernels::kConformingProlongationOperator *pmat;
 public:
    ProlongationOperator(const kernels::kConformingProlongationOperator*);
-   
+
    virtual void Mult_(const kernels::Vector &x, kernels::Vector &y) const;
    virtual void MultTranspose_(const kernels::Vector &x, kernels::Vector &y) const;
 

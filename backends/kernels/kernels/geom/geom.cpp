@@ -16,31 +16,21 @@
 #include "../kernels.hpp"
 
 // *****************************************************************************
-#ifdef __TEMPLATES__
 template<const int NUM_DOFS,
          const int NUM_QUAD> kernel
-#endif
-void rIniGeom2D(
-#ifndef __TEMPLATES__
-                const int,const int,
-#endif
-                const int,const double*,const double*,
+void rIniGeom2D(const int,
+                const double*,const double*,
                 double*,double*,double*);
 
 // *****************************************************************************
-#ifdef __TEMPLATES__
 template<const int NUM_DOFS,
          const int NUM_QUAD> kernel
-#endif
-void rIniGeom3D(
-#ifndef __TEMPLATES__
-                const int,const int,
-#endif
-                const int,const double*,const double*,
+void rIniGeom3D(const int,
+                const double*,const double*,
                 double*,double*,double*);
 
 // *****************************************************************************
-typedef void (*fIniGeom)(const int, const double*, const double*,
+typedef void (*fIniGeom)(const int,const double*,const double*,
                          double*, double*, double*);
 
 // *****************************************************************************
@@ -54,19 +44,15 @@ void rIniGeom(const int DIM,
               double* invJ,
               double* detJ){
    push();
-#ifndef __LAMBDA__
+#ifdef __NVCC__
    const int blck = CUDA_BLOCK_SIZE;
    const int grid = (numElements+blck-1)/blck;
 #endif
-#ifdef __TEMPLATES__
-   dbg("__TEMPLATES__");
    const unsigned int dofs1D = IROOT(DIM,NUM_DOFS);
    const unsigned int quad1D = IROOT(DIM,NUM_QUAD);
    const unsigned int id = (DIM<<4)|(dofs1D-2);
    assert(LOG2(DIM)<=4);
    assert(LOG2(dofs1D-2)<=4);
-   if (quad1D!=2*(dofs1D-1))
-      return exit(printf("\033[31;1m[rIniGeom] order ERROR: -ok=p -ot=p-1, p in [1,16] (%d,%d)\033[m\n",quad1D,dofs1D));
    assert(quad1D==2*(dofs1D-1));
    static std::unordered_map<unsigned int, fIniGeom> call = {
       // 2D
@@ -109,16 +95,7 @@ void rIniGeom(const int DIM,
       fflush(stdout);
    }
    assert(call[id]);
-   call0(rIniGeom2D,id,grid,blck,
-         numElements,dofToQuadD,nodes,J,invJ,detJ);
-#else
-   if (DIM==2)
-      call0(rIniGeom2D,id,grid,blck,NUM_DOFS,NUM_QUAD,
-            numElements,dofToQuadD,nodes,J,invJ,detJ);
-   if (DIM==3)
-      call0(rIniGeom3D,id,grid,blck,NUM_DOFS,NUM_QUAD,
-            numElements,dofToQuadD,nodes,J,invJ,detJ);
-   assert(DIM==2 || DIM==3);
-#endif
+   call0(dummy,id,grid,blck,
+        numElements,dofToQuadD,nodes,J,invJ,detJ);
    pop();
 }

@@ -16,23 +16,15 @@
 #include "../kernels.hpp"
 
 // *****************************************************************************
-#ifdef __TEMPLATES__
 template<const int NUM_VDIM,
          const int NUM_DOFS_1D,
          const int NUM_QUAD_1D> kernel
-#endif
-void rGridFuncToQuad1D(
-#ifndef __TEMPLATES__
-                       const int NUM_VDIM,
-                       const int NUM_DOFS_1D,
-                       const int NUM_QUAD_1D,
-#endif
-                       const int numElements,
+void rGridFuncToQuad1D(const int numElements,
                        const double* restrict dofToQuad,
                        const int* restrict l2gMap,
                        const double* restrict gf,
                        double* restrict out) {
-#ifdef __LAMBDA__
+#ifndef __NVCC__
   forall(e,numElements,
 #else
   const int e = blockDim.x * blockIdx.x + threadIdx.x;
@@ -60,29 +52,21 @@ void rGridFuncToQuad1D(
       }
     }
   }
-#ifdef __LAMBDA__
+#ifndef __NVCC__
          );
 #endif
 }
 
 // *****************************************************************************
-#ifdef __TEMPLATES__
 template<const int NUM_VDIM,
          const int NUM_DOFS_1D,
          const int NUM_QUAD_1D> kernel
-#endif
-void rGridFuncToQuad2D(
-#ifndef __TEMPLATES__
-                       const int NUM_VDIM,
-                       const int NUM_DOFS_1D,
-                       const int NUM_QUAD_1D,
-#endif
-                       const int numElements,
+void rGridFuncToQuad2D(const int numElements,
                        const double* restrict dofToQuad,
                        const int* restrict l2gMap,
                        const double* restrict gf,
                        double* restrict out) {
-#ifdef __LAMBDA__
+#ifndef __NVCC__
   forall(e,numElements,
 #else
   const int e = blockDim.x * blockIdx.x + threadIdx.x;
@@ -130,29 +114,21 @@ void rGridFuncToQuad2D(
       }
     }
   }
-#ifdef __LAMBDA__
+#ifndef __NVCC__
            );
 #endif
 }
 
 // *****************************************************************************
-#ifdef __TEMPLATES__
 template<const int NUM_VDIM,
          const int NUM_DOFS_1D,
          const int NUM_QUAD_1D> kernel
-#endif
-void rGridFuncToQuad3D(
-#ifndef __TEMPLATES__
-                       const int NUM_VDIM,
-                       const int NUM_DOFS_1D,
-                       const int NUM_QUAD_1D,
-#endif
-                       const int numElements,
+void rGridFuncToQuad3D(const int numElements,
                        const double* restrict dofToQuad,
                        const int* restrict l2gMap,
                        const double* restrict gf,
                        double* restrict out) {
-#ifndef __LAMBDA__
+#ifdef __NVCC__
   const int e = blockDim.x * blockIdx.x + threadIdx.x;
   if (e < numElements)
 #else
@@ -225,7 +201,7 @@ void rGridFuncToQuad3D(
       }
     }
   }
-#ifdef __LAMBDA__
+#ifndef __NVCC__
            );
 #endif
 }
@@ -248,11 +224,10 @@ void rGridFuncToQuad(const int DIM,
                      const double* gf,
                      double* __restrict out) {
   push(Lime);
-#ifndef __LAMBDA__
+#ifdef __NVCC__
   const int blck = CUDA_BLOCK_SIZE;
   const int grid = (numElements+blck-1)/blck;
 #endif
-#ifdef __TEMPLATES__
   const unsigned int id = (DIM<<8)|(NUM_VDIM<<4)|(NUM_DOFS_1D-1);
   assert(LOG2(DIM)<=4);
   assert(LOG2(NUM_VDIM)<=4);
@@ -304,19 +279,5 @@ void rGridFuncToQuad(const int DIM,
   assert(call[id]);
   call0(rGridFuncToQuad,id,grid,blck,
         numElements,dofToQuad,l2gMap,gf,out);
-#else
-  if (DIM==1)
-    call0(rGridFuncToQuad1D,id,grid,blck,
-          NUM_VDIM,NUM_DOFS_1D,NUM_QUAD_1D,
-          numElements,dofToQuad,l2gMap,gf,out);
-  if (DIM==2)
-    call0(rGridFuncToQuad2D,id,grid,blck,
-          NUM_VDIM,NUM_DOFS_1D,NUM_QUAD_1D,
-          numElements,dofToQuad,l2gMap,gf,out);
-  if (DIM==3)
-    call0(rGridFuncToQuad3D,id,grid,blck,
-          NUM_VDIM,NUM_DOFS_1D,NUM_QUAD_1D,
-          numElements,dofToQuad,l2gMap,gf,out);
-#endif
   pop();
 }

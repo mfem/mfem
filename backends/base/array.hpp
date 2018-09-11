@@ -207,12 +207,13 @@ public:
    /** Both arrays must have the same dynamic type, layout, and entry type. */
    template <typename T>
    void Assign(const PArray &src) { if (Size()) { DoAssign(src, sizeof(T)); } }
-   
+
    /// TODO
    template <typename T>
    void MakeRefOffset(const PArray &src,
                       const std::size_t offset,
-                      const std::size_t size) {
+                      const std::size_t size)
+   {
       DoMakeRefOffset(src, offset, size, sizeof(T));
    }
 

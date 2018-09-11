@@ -53,7 +53,6 @@ const int CUDA_BLOCK_SIZE = 256;
 // *****************************************************************************
 #else // KERNELS on GPU, CUDA Kernel launches  *********************************
 #ifdef __NVCC__
-#ifndef __LAMBDA__
 //#warning GPU KERNELS, WITH NVCC direct launch
 #define kernel __global__
 #define share __shared__
@@ -74,40 +73,6 @@ const int CUDA_BLOCK_SIZE = 256;
 #define call0(name,id,grid,blck,...) call[id]<<<grid,blck>>>(__VA_ARGS__)
 #define ReduceDecl(type,var,ini) double var=ini;
 #define ReduceForall(i,max,body) 
-
-
-// *****************************************************************************
-#else // KERNELS on GPU, LAMBDA launches  **************************************
-//#warning GPU KERNELS, WITH NVCC and LAMBDAs
-#define kernel
-#define sync
-#define share
-template <typename FORALL_BODY>
-__global__ void gpu(const int length,
-                    const int step,
-                    FORALL_BODY body) {
-  const int idx = blockDim.x*blockIdx.x + threadIdx.x;
-  const int ids = idx * step;
-  if (ids < length) {body(idx);}
-}
-template <typename FORALL_BODY>
-void cuda_forallT(const int end,
-                  const int step,
-                  FORALL_BODY &&body) {
-  const size_t blockSize = 256;
-  const size_t gridSize = (end+blockSize-1)/blockSize;
-  //printf("\033[32;1m[cuda_forallT] grid:%d, block:%d\033[m\n",gridSize,blockSize);
-  gpu<<<gridSize, blockSize>>>(end,step,body);
-}
-#define forall(i,max,body) cuda_forallT(max,1, [=] __device__ (int i) {body}); 
-#define forallS(i,max,step,body) cuda_forallT(max,step, [=] __device__ (int i) {body}); 
-#define cuKer(name,end,...) name ## 0(end,__VA_ARGS__)
-#define cuKerGBS(name,grid,block,end,...) name ## 0(end,__VA_ARGS__)
-#define call0(name,id,grid,blck,...) call[id](__VA_ARGS__)
-#define ReduceDecl(type,var,ini) double var=ini;
-#define ReduceForall(i,max,body) 
-#endif // __LAMBDA__
-
 
 // *****************************************************************************
 #else // KERNELS on CPU ********************************************************
@@ -135,11 +100,7 @@ public:
 #define forall(i,max,body) for(int i=0;i<max;i++){body}
 #define forallS(i,max,step,body) for(int i=0;i<max;i+=step){body}
 #define ReduceForall(i,max,body) forall(i,max,body)
-#ifdef __TEMPLATES__
 #define call0(name,id,grid,blck,...) call[id](__VA_ARGS__)
-#else
-#define call0(name,id,grid,blck,...) name(__VA_ARGS__)
-#endif
 #define cuKer(name,...) name ## 0(__VA_ARGS__)
 #define cuKerGBS(name,grid,block,end,...) name ## 0(end,__VA_ARGS__)
 #endif //__NVCC__

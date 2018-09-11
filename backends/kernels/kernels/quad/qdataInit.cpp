@@ -17,19 +17,13 @@
 
 
 // *****************************************************************************
-#ifdef __TEMPLATES__
 template<const int NUM_QUAD> kernel
-#endif
-void rInitQuadData(
-#ifndef __TEMPLATES__
-                   const int NUM_QUAD,
-#endif
-                   const int nzones,
+void rInitQuadData(const int nzones,
                    const double* restrict rho0,
                    const double* restrict detJ,
                    const double* restrict quadWeights,
                    double* restrict rho0DetJ0w) {
-#ifndef __LAMBDA__
+#ifdef __NVCC__
   const int el = blockDim.x * blockIdx.x + threadIdx.x;
   if (el < nzones)
 #else
@@ -41,7 +35,7 @@ void rInitQuadData(
         rho0[ijN(q,el,NUM_QUAD)]*detJ[ijN(q,el,NUM_QUAD)]*quadWeights[q];
     }
   }
-#ifdef __LAMBDA__
+#ifndef __NVCC__
           );
 #endif
 }
@@ -53,11 +47,10 @@ void rInitQuadratureData(const int NUM_QUAD,
                          const double* restrict quadWeights,
                          double* restrict rho0DetJ0w) {
   push(Lime);
-#ifndef __LAMBDA__
+#ifdef __NVCC__
   const int blck = CUDA_BLOCK_SIZE;
   const int grid = (numElements+blck-1)/blck;
 #endif
-#ifdef __TEMPLATES__
   const unsigned int id = NUM_QUAD;
   static std::unordered_map<unsigned int, fInitQuadratureData> call = {
     {2,&rInitQuadData<2>},
@@ -104,10 +97,5 @@ void rInitQuadratureData(const int NUM_QUAD,
   assert(call[id]);
   call0(rInitQuadData,id,grid,blck,
         numElements,rho0,detJ,quadWeights,rho0DetJ0w);
-#else // __TEMPLATES__
-  call0(rInitQuadData,id,grid,blck,
-        NUM_QUAD,
-        numElements,rho0,detJ,quadWeights,rho0DetJ0w);
-#endif
   pop();
 }

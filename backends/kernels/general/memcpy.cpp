@@ -44,12 +44,14 @@ void* kmemcpy::rHtoD(void *dest, const void *src, std::size_t bytes,
 {
    //push();
    dbg(">\033[m");
-   if (bytes==0){
+   if (bytes==0)
+   {
       //pop();
       return dest;
    }
    assert(src); assert(dest);
-   if (!config::Get().Cuda()) {
+   if (!config::Get().Cuda())
+   {
       return std::memcpy(dest,src,bytes);
    }
 #ifdef __NVCC__

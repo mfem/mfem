@@ -23,10 +23,11 @@ namespace kernels
 // **************************************************************************
 memory::memory(const std::size_t _bytes, const void *src):
    bytes(_bytes),
-   data((char*)mfem::kernels::kmalloc<char>::operator new(bytes))
+   data((char*)mfem::kernels::kmalloc<char>::operator new (bytes))
 {
    push();
-   if (src){
+   if (src)
+   {
       data=(char*)src;
    }
    pop();
@@ -45,7 +46,8 @@ size_t memory::size() const
 }
 
 // *****************************************************************************
-void memory::copyFrom(memory &src, size_t b) const {
+void memory::copyFrom(memory &src, size_t b) const
+{
    push();
    //memcpy(data,src,b);
    mfem::kernels::kmemcpy::rHtoD(data,src,b);
@@ -60,13 +62,15 @@ void memory::copyFrom(memory &src)
 }
 
 // *****************************************************************************
-void memory::copyFrom(const void *src, size_t b) const {
+void memory::copyFrom(const void *src, size_t b) const
+{
    push();
    //memcpy(data,src,b);
    mfem::kernels::kmemcpy::rHtoD(data,src,b);
    pop();
 }
-void memory::copyFrom(const void *src){
+void memory::copyFrom(const void *src)
+{
    push();
    //memcpy(data,src,bytes);
    assert(data);
@@ -76,12 +80,13 @@ void memory::copyFrom(const void *src){
 }
 
 // *****************************************************************************
-void memory::copyTo(void *dest, size_t b) const {
+void memory::copyTo(void *dest, size_t b) const
+{
    push();
    //memcpy(dest,data,b);
    mfem::kernels::kmemcpy::rDtoH(dest,data,b);
    pop();
- }
+}
 void memory::copyTo(void *dest)
 {
    push();

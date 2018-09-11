@@ -22,13 +22,14 @@ namespace kernels
 
 
 // **************************************************************************
-ProlongationOperator::ProlongationOperator(const kernels::kConformingProlongationOperator *P) :
+ProlongationOperator::ProlongationOperator(const
+                                           kernels::kConformingProlongationOperator *P) :
    Operator(P->InLayout_(), P->OutLayout_()),
    pmat(P)
 {
-   dbg("\n\033[7m P->InLayout_().Size()=%d, P->OutLayout_()=%d\033[m",
-          P->InLayout()->Size(), P->OutLayout()->Size());
-   dbg("\n\033[7m Height()=%d, Width()=%d\033[m",Height(),Width());
+   dbg("\033[7m P->InLayout_().Size()=%d, P->OutLayout_()=%d\033[m",
+       P->InLayout()->Size(), P->OutLayout()->Size());
+   dbg("\033[7m Height()=%d, Width()=%d\033[m",Height(),Width());
    push();
    pop();
 }
@@ -36,124 +37,67 @@ ProlongationOperator::ProlongationOperator(const kernels::kConformingProlongatio
 
 // **************************************************************************
 void ProlongationOperator::Mult_(const kernels::Vector &x,
-                                       kernels::Vector &y) const
+                                 kernels::Vector &y) const
 {
    push();
-   if (kernels::config::Get().IAmAlone()){
+   if (kernels::config::Get().IAmAlone())
+   {
       const int N = y.Size();
       vector_op_set(N, x.GetData(), y.GetData());
       pop();
       return;
    }
 
-   if (!kernels::config::Get().DoHostConformingProlongationOperator()){
+   if (!kernels::config::Get().DoHostConformingProlongationOperator())
+   {
       dbg("\n\033[35m[DEVICE::Mult]\033[m");
+      dbg("\n\033[35m[DEVICE::Mult] x.Size()=%d & y.Size()=%d\033[m",x.Size(),
+          y.Size());
       pmat->d_Mult(x, y);
       pop();
       return;
-   }else{
-      dbg("\n\033[35m[HOST::Mult]\033[m");
    }
-   assert(false);
-   //x.Pull();
-   //y.Pull(false);
-   //pmat->Mult(x, y);
-   //y.Push();
+   else
+   {
+      dbg("\n\033[35m[HOST::Mult]\033[m");
+      mfem::Vector my(y);
+      pmat->Mult(x.Wrap(), my);
+   }
    pop();
 }
 
 
 // **************************************************************************
 void ProlongationOperator::MultTranspose_(const kernels::Vector &x,
-                                                kernels::Vector &y) const
+                                          kernels::Vector &y) const
 {
    push();
-   if (kernels::config::Get().IAmAlone()){
+   if (kernels::config::Get().IAmAlone())
+   {
       const int N = y.Size();
       vector_op_set(N, x.GetData(), y.GetData());
       pop();
       return;
    }
-   
-   if (!kernels::config::Get().DoHostConformingProlongationOperator()){
+
+   if (!kernels::config::Get().DoHostConformingProlongationOperator())
+   {
       dbg("\n\033[35m[DEVICE::MultTranspose]\033[m");
+      dbg("\n\033[35m[DEVICE::MultTranspose] x.Size()=%d & y.Size()=%d\033[m",
+          x.Size(),y.Size());
       pmat->d_MultTranspose(x, y);
       pop();
       return;
-   }else{
+   }
+   else
+   {
       dbg("\n\033[35m[HOST::MultTranspose]\033[m");
-   }
-   assert(false);
-   //x.Pull();
-   //y.Pull(false);
-   //pmat->MultTranspose(x, y);
-   //y.Push();
-   pop();
-}
-
-// *****************************************************************************
-/*void ProlongationOperator::Mult(const mfem::Vector &x,
-                                      mfem::Vector &y) const
-{
-   push();
-   if (kernels::config::Get().IAmAlone()){
-      const int N = x.Size();
-      const kernels::Vector &kx = x.Get_PVector()->As<const kernels::Vector>();
-      kernels::Vector &ky = y.Get_PVector()->As<kernels::Vector>();
-      vector_op_set(N, 
-                    (const double*)kx.KernelsMem().ptr(),
-                    (double*)ky.KernelsMem().ptr());
-      pop();
-      return;
-   }else{
-      assert(false);
-   }
-   
-   if (pmat)   {
-      // FIXME: create an OCCA version of 'pmat'
-      x.Pull();
-      y.Pull(false);
-      pmat->Mult(x, y);
-      y.Push();
-   }
-   else
-   {
-      multOp.Mult(x, y);
+      mfem::Vector my(y);
+      pmat->MultTranspose(x.Wrap(), my);
    }
    pop();
 }
 
-// *****************************************************************************
-void ProlongationOperator::MultTranspose(const mfem::Vector &x,
-                                               mfem::Vector &y) const
-{
-   push();
-   if (kernels::config::Get().IAmAlone()){
-      const int N = x.Size();
-      const kernels::Vector &kx = x.Get_PVector()->As<const kernels::Vector>();
-      const kernels::Vector &ky = y.Get_PVector()->As<const kernels::Vector>();
-      vector_op_set(N,
-                    (const double*)kx.KernelsMem().ptr(),
-                    (double*)ky.KernelsMem().ptr());
-      pop();
-      return;
-   }
-   assert(false);
-   if (pmat)
-   {
-      // FIXME: create an OCCA version of 'pmat'
-      x.Pull();
-      y.Pull(false);
-      pmat->MultTranspose(x, y);
-      y.Push();
-   }
-   else
-   {
-      multTransposeOp.Mult(x, y);
-   }
-   pop();
-}
-*/
 } // namespace mfem::kernels
 
 } // namespace mfem
