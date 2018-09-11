@@ -48,17 +48,18 @@ kvector::kvector(const size_t sz):
    size(sz),
    data(alloc(sz)),
    own(true) {assert(false);}
-   
+
 kvector::kvector(const size_t sz,double value):
    size(sz),data(alloc(sz)),own(true)
-{assert(false);
+{
+   assert(false);
    push(SkyBlue);
    *this=value;
    pop();
 }
 
 kvector::kvector(const kvector& v):
-   size(0),data(NULL),own(true) { assert(false);SetSize(v.Size(), v); }
+   size(0),data(NULL),own(true) { assert(false); SetSize(v.Size(), v); }
 
 kvector::kvector(const kvector *v):size(v->size),
    data(v->data),
@@ -113,7 +114,7 @@ void kvector::Print(std::ostream& out, int width) const
 
 // ***************************************************************************
 kvector* kvector::GetRange(const size_t offset,
-                                       const size_t entries) const
+                           const size_t entries) const
 {
    static kvector ref;
    ref.size = entries;
@@ -200,8 +201,8 @@ void kvector::Neg()
 
 // *****************************************************************************
 void kvector::SetSubVector(const kernels::array<int> &ess_tdofs,
-                                 const double value,
-                                 const int N)
+                           const double value,
+                           const int N)
 {
    vector_set_subvector_const(N, value, data, ess_tdofs.ptr());
 }

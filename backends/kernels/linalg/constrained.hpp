@@ -25,20 +25,16 @@ namespace kernels
 class kConstrainedOperator : public Operator
 {
 protected:
-   kernels::device device;
+   const kernels::Engine &engine;
    mfem::Operator *A;              //< The unconstrained Operator.
    bool own_A;                     //< Ownership flag for A.
-   kernels::memory constraintList; //< List of constrained indices/dofs.
+   mfem::Array<int> constraintList; //< List of constrained indices/dofs.
    int constraintIndices;
-   mutable kernels::Vector z, w;      //< Auxiliary vectors.
+   mutable kernels::Vector kz, kw;      //< Auxiliary vectors.
    mutable mfem::Vector mfem_y, mfem_z, mfem_w; // Wrap z, w
 public:
    kConstrainedOperator(mfem::Operator*, const mfem::Array<int>&, bool = false);
 
-   void Setup(kernels::device device_,
-              mfem::Operator *A_,
-              const mfem::Array<int> &constraintList_,
-              bool own_A_ = false);
 
    /** @brief Eliminate "essential boundary condition" values specified in @a x
        from the given right-hand side @a b.

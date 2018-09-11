@@ -19,6 +19,7 @@
 // **** BLAS1 ******************************************************************
 void vector_neg(const int, double*);
 void vector_op_eq(const int, const double, double*);
+void vector_op_set(const int, const double*, double*);
 void vector_xpay(const int, const double, double*, const double*,const double*);
 void vector_xsy(const int, double*, const double*, const double*);
 void vector_axpy(const int, const double, double*, const double*);

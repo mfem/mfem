@@ -15,7 +15,7 @@
 // testbed platforms, in support of the nation's exascale computing imperative.
 #include "../kernels.hpp"
 
-#ifndef __LAMBDA__
+#ifdef __NVCC__
 extern "C" kernel
 void vector_axpby0(const int N,
                    const double alpha,
@@ -27,7 +27,10 @@ void vector_axpby0(const int N,
    if (i < N) { v0[i] = alpha * v0[i] + beta * v1[i]; }
 }
 #endif
-//*v0 = alpha * (*this) + beta * v1
+
+// *****************************************************************************
+// * v0 = alpha * (*this) + beta * v1
+// *****************************************************************************
 void vector_axpby(const int N,
                   const double alpha,
                   const double beta,
@@ -35,8 +38,8 @@ void vector_axpby(const int N,
                   const double* __restrict v1)
 {
    push();
-#ifndef __LAMBDA__
-   cuKer(vector_axpy,N,alpha,beta,v0,v1);
+#ifdef __NVCC__
+   cuKer(vector_axpby,N,alpha,beta,v0,v1);
 #else
    forall(i,N,v0[i] = alpha * v0[i] + beta * v1[i];);
 #endif

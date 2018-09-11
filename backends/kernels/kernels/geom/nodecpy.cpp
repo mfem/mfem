@@ -16,8 +16,8 @@
 #include "../kernels.hpp"
 
 // *****************************************************************************
-#ifdef __TEMPLATES__
-kernel
+#ifdef __NVCC__
+extern "C" kernel
 #endif
 void rNodeCopyByVDim0(const int elements,
                       const int numDofs,
@@ -27,7 +27,7 @@ void rNodeCopyByVDim0(const int elements,
                       const double* Sx,
                       double* nodes)
 {
-#ifndef __LAMBDA__
+#ifdef __NVCC__
    const int e = blockDim.x * blockIdx.x + threadIdx.x;
    if (e < elements)
 #else
@@ -47,7 +47,7 @@ void rNodeCopyByVDim0(const int elements,
          }
       }
    }
-#ifdef __LAMBDA__
+#ifndef __NVCC__
    );
    pop();
 #endif
@@ -62,7 +62,7 @@ void rNodeCopyByVDim(const int elements,
                      const double* Sx,
                      double* nodes)
 {
-#ifndef __LAMBDA__
+#ifdef __NVCC__
    cuKer(rNodeCopyByVDim,elements,numDofs,ndofs,dims,eMap,Sx,nodes);
 #else
    rNodeCopyByVDim0(elements,numDofs,ndofs,dims,eMap,Sx,nodes);

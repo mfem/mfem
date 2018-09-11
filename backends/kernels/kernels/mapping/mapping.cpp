@@ -16,7 +16,7 @@
 #include "../kernels.hpp"
 
 // *****************************************************************************
-#ifndef __LAMBDA__
+#ifdef __NVCC__
 extern "C" kernel
 void rSetSubVector0(const int N,
                     const int* indices,
@@ -33,7 +33,7 @@ void rSetSubVector(const int N,
                    double* out)
 {
    push();
-#ifndef __LAMBDA__
+#ifdef __NVCC__
    cuKer(rSetSubVector,N,indices,in,out);
 #else
    forall(i,N,out[indices[i]] = in[i];);
@@ -42,7 +42,7 @@ void rSetSubVector(const int N,
 }
 
 // *****************************************************************************
-#ifndef __LAMBDA__
+#ifdef __NVCC__
 extern "C" kernel
 void rMapSubVector0(const int N,
                     const int* indices,
@@ -64,7 +64,7 @@ void rMapSubVector(const int N,
                    double* out)
 {
    push();
-#ifndef __LAMBDA__
+#ifdef __NVCC__
    cuKer(rMapSubVector,N,indices,in,out);
 #else
    forall(i,N,
@@ -78,7 +78,7 @@ void rMapSubVector(const int N,
 }
 
 // *****************************************************************************
-#ifndef __LAMBDA__
+#ifdef __NVCC__
 extern "C" kernel
 void rExtractSubVector0(const int N,
                         const int* indices,
@@ -95,7 +95,7 @@ void rExtractSubVector(const int N,
                        double* out)
 {
    push();
-#ifndef __LAMBDA__
+#ifdef __NVCC__
    cuKer(rExtractSubVector,N,indices,in,out);
 #else
    forall(i,N,out[i] = in[indices[i]];);

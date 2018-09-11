@@ -41,7 +41,7 @@ public:
    virtual ~kFiniteElementSpace();
 
    /// TODO: doxygen
-   const Engine &KernelsEngine() const
+   const kernels::Engine &KernelsEngine() const
    { return *static_cast<const Engine *>(engine.Get()); }
 
    /// TODO: doxygen
@@ -104,11 +104,11 @@ public:
 
    const mfem::Operator* GetRestrictionOperator() const { return restrictionOp; }
    const mfem::Operator* GetProlongationOperator() const { return prolongationOp; }
-   
+
    virtual const mfem::Operator *GetInterpolationOperator(
       const mfem::QuadratureSpace &qspace) const
    { return NULL; /* FIXME */ }
-   
+
    virtual const mfem::Operator *GetGradientOperator(
       const mfem::QuadratureSpace &qspace) const
    { return NULL; /* FIXME */ }

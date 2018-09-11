@@ -24,7 +24,7 @@ namespace kernels
 bool BilinearForm::Assemble()
 {
    push();
-   if (kbform == NULL) InitKBilinearForm();
+   if (kbform == NULL) { InitKBilinearForm(); }
    kbform->Assemble();
    pop();
    return true; // --> host assembly is not needed
@@ -104,7 +104,7 @@ void BilinearForm::InitKBilinearForm()
       }
       else if (integ_name == "diffusion")
       {
-        //assert(false);
+         //assert(false);
          integ = new KernelsDiffusionIntegrator(coeff);
       }
       else

@@ -74,7 +74,7 @@ kFiniteElementSpace& kBilinearForm::GetTestKernelsFESpace() const
 {
    push();
    assert(kTestFes);
-   pop();   
+   pop();
    return *kTestFes;
 }
 
@@ -145,7 +145,7 @@ void kBilinearForm::AddBoundaryIntegrator(KernelsIntegrator *integrator)
 
 // Adds new interior Face Integrator.
 void kBilinearForm::AddInteriorFaceIntegrator(KernelsIntegrator
-                                                    *integrator)
+                                              *integrator)
 {
    push();
    AddIntegrator(integrator, InteriorFaceIntegrator);
@@ -154,7 +154,7 @@ void kBilinearForm::AddInteriorFaceIntegrator(KernelsIntegrator
 
 // Adds new boundary Face Integrator.
 void kBilinearForm::AddBoundaryFaceIntegrator(KernelsIntegrator
-                                                    *integrator)
+                                              *integrator)
 {
    push();
    AddIntegrator(integrator, BoundaryFaceIntegrator);
@@ -163,7 +163,7 @@ void kBilinearForm::AddBoundaryFaceIntegrator(KernelsIntegrator
 
 // Adds Integrator based on KernelsIntegratorType
 void kBilinearForm::AddIntegrator(KernelsIntegrator *integrator,
-                                        const KernelsIntegratorType itype)
+                                  const KernelsIntegratorType itype)
 {
    push();
    if (integrator == NULL)
@@ -221,11 +221,11 @@ void kBilinearForm::Assemble()
 
 // *****************************************************************************
 void kBilinearForm::FormLinearSystem(const mfem::Array<int>
-                                           &constraintList,
-                                           mfem::Vector &x, mfem::Vector &b,
-                                           mfem::Operator *&Aout,
-                                           mfem::Vector &X, mfem::Vector &B,
-                                           int copy_interior)
+                                     &constraintList,
+                                     mfem::Vector &x, mfem::Vector &b,
+                                     mfem::Operator *&Aout,
+                                     mfem::Vector &X, mfem::Vector &B,
+                                     int copy_interior)
 {
    push();
    assert(false);
@@ -238,35 +238,47 @@ void kBilinearForm::FormLinearSystem(const mfem::Array<int>
 
 // *****************************************************************************
 void kBilinearForm::FormOperator(const mfem::Array<int> &constraintList,
-                                       mfem::Operator *&Aout)
+                                 mfem::Operator *&Aout)
 {
    push();
    const mfem::Operator *trialP = GetTrialProlongation();
    const mfem::Operator *testP  = GetTestProlongation();
    mfem::Operator *rap = this;
-   if (trialP) { rap = new RAPOperator(*testP, *this, *trialP); }
+   if (trialP)
+   {
+      dbg("\033[7mnew RAPOperator");
+      rap = new RAPOperator(*testP, *this, *trialP);
+   }
+   dbg("\033[7mnew kConstrainedOperator");
+   dbg("\033[7mrap->Height()=%d",rap->Height());
+   dbg("\033[7mrap->Width()=%d",rap->Width());
    Aout = new kConstrainedOperator(rap, constraintList, rap != this);
+   dbg("\033[7mdone");
+   //assert(false);
    pop();
 }
 
 // *****************************************************************************
 void kBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
-                                  mfem::Vector &x, mfem::Vector &b,
-                                  mfem::Operator *A,
-                                  mfem::Vector &X, mfem::Vector &B,
-                                  int copy_interior)
+                            mfem::Vector &x, mfem::Vector &b,
+                            mfem::Operator *A,
+                            mfem::Vector &X, mfem::Vector &B,
+                            int copy_interior)
 {
    push(); //assert(false);// ex1pd comes here, Laghos dont
-   
+
    const mfem::Operator *P = GetTrialProlongation();
    const mfem::Operator *R = GetTrialRestriction();
-   if (P) {
+   if (P)
+   {
       // Variational restriction with P
       B.Resize(P->InLayout());
       P->MultTranspose(b, B);
       X.Resize(R->OutLayout());
       R->Mult(x, X);
-   } else {
+   }
+   else
+   {
       // rap, X and B point to the same data as this, x and b
       assert(false);
       X.MakeRef(x);
@@ -275,7 +287,7 @@ void kBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
 
    if (!copy_interior && constraintList.Size() > 0)
    {
-     //assert(false);
+      //assert(false);
       const Array &constrList = constraintList.Get_PArray()->As<Array>();
       Vector subvec(constrList.KernelsLayout());
       vector_get_subvector(constraintList.Size(),
@@ -311,7 +323,8 @@ void kBilinearForm::Mult_(const kernels::Vector &x,
    kTrialFes->GlobalToLocal(x, localX);
    localY.Fill<double>(0.0);
    const int integratorCount = (int) integrators.size();
-   for (int i = 0; i < integratorCount; ++i) {
+   for (int i = 0; i < integratorCount; ++i)
+   {
       integrators[i]->MultAdd(localX, localY);
    }
    kTestFes->LocalToGlobal(localY, y);
@@ -326,7 +339,8 @@ void kBilinearForm::MultTranspose_(const kernels::Vector &x,
    kTestFes->GlobalToLocal(x, localX);
    localY.Fill<double>(0.0);
    const int integratorCount = (int) integrators.size();
-   for (int i = 0; i < integratorCount; ++i){
+   for (int i = 0; i < integratorCount; ++i)
+   {
       integrators[i]->MultTransposeAdd(localX, localY);
    }
    kTrialFes->LocalToGlobal(localY, y);
@@ -335,12 +349,13 @@ void kBilinearForm::MultTranspose_(const kernels::Vector &x,
 
 // *****************************************************************************
 void kBilinearForm::KernelsRecoverFEMSolution(const mfem::Vector &X,
-                                                    const mfem::Vector &b,
-                                                    mfem::Vector &x)
+                                              const mfem::Vector &b,
+                                              mfem::Vector &x)
 {
    push();
    const mfem::Operator *P = this->GetTrialProlongation();
-   if (P) {
+   if (P)
+   {
       // Apply conforming prolongation
       x.Resize(P->OutLayout());
       P->Mult(X, x);

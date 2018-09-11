@@ -44,6 +44,9 @@ public:
 
    mfem::Vector Wrap();
 
+   double *GetData();
+   double *GetData() const;
+
    const mfem::Vector Wrap() const;
 
 #if defined(MFEM_USE_MPI)

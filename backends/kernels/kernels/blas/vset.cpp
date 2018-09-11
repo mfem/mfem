@@ -16,37 +16,26 @@
 #include "../kernels.hpp"
 
 #ifdef __NVCC__
-extern "C" kernel
-void vector_get_subvector0(const int N,
-                           double* __restrict v0,
-                           const double* __restrict v1,
-                           const int* __restrict v2)
+// *****************************************************************************
+extern "C" kernel void vector_op_set0(const int N,
+                                      const double* __restrict x,
+                                      double* __restrict y)
 {
    const int i = blockDim.x * blockIdx.x + threadIdx.x;
-   if (i < N)
-   {
-      const int dof_i = v2[i];
-      v0[i] = dof_i >= 0 ? v1[dof_i] : -v1[-dof_i-1];
-   }
+   if (i < N) { y[i] = x[i]; }
 }
 #endif
 
 // *****************************************************************************
-void vector_get_subvector(const int N,
-                          double* __restrict v0,
-                          const double* __restrict v1,
-                          const int* __restrict v2)
+void vector_op_set(const int N,
+                   const double* __restrict x,
+                   double* __restrict y)
 {
    push();
 #ifdef __NVCC__
-   cuKer(vector_get_subvector,N,v0,v1,v2);
+   cuKer(vector_op_set,N,x,y);
 #else
-   forall(i,N,
-   {
-      const int dof_i = v2[i];
-      v0[i] = dof_i >= 0 ? v1[dof_i] : -v1[-dof_i-1];
-   });
+   forall(i,N, y[i] = x[i];);
 #endif
    pop();
 }
-

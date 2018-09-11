@@ -28,7 +28,6 @@ public:
    kernels::array<int> offsets, indices;
    kernels::array<double> weights;
    kernels::array<int> reorderIndices, mappedIndices;
-   //kernels::kernel mapKernel, multKernel;
 
    /// Construct an empty KernelsSparseMatrix.
    KernelsSparseMatrix(const Operator &orig)
@@ -66,11 +65,11 @@ public:
    virtual void Mult_(const Vector &x, Vector &y) const;
 };
 
-
 /// TODO: doxygen
 KernelsSparseMatrix* CreateMappedSparseMatrix(
    Layout &in_layout, Layout &out_layout,
    const mfem::SparseMatrix &m);
+
 } // namespace mfem::kernels
 
 } // namespace mfem

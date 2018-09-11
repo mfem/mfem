@@ -24,24 +24,24 @@ void rMassAssemble2S0(const int numElements,
                       const double* J,
                       double* __restrict oper)
 {
-#ifdef __LAMBDA__
+#ifndef __NVCC__
    forallS(eOff,numElements,A2_ELEMENT_BATCH,
 #else
    const int idx = blockIdx.x;
    const int eOff = idx * A2_ELEMENT_BATCH;
    if (eOff < numElements)
 #endif
-           {
-#ifdef __LAMBDA__
-              for (int e = eOff; e < (eOff + A2_ELEMENT_BATCH); ++e)
-{
-#else
    {
-      const int e = threadIdx.x;
+#ifndef __NVCC__
+      for (int e = eOff; e < (eOff + A2_ELEMENT_BATCH); ++e)
+      {
+#else
+         {
+            const int e = threadIdx.x;
 #endif
    if (e < numElements)
       {
-#ifdef __LAMBDA__
+#ifndef __NVCC__
          for (int qOff = 0; qOff < A2_QUAD_BATCH; ++qOff)
          {
 #else
@@ -62,7 +62,7 @@ void rMassAssemble2S0(const int numElements,
       }
    }
            }
-#ifdef __LAMBDA__
+#ifndef __NVCC__
           );
 #endif
 }
@@ -74,7 +74,7 @@ static void rMassAssemble2S(const int NUM_QUAD_2D,
                             const double* J,
                             double* __restrict oper)
 {
-#ifndef __LAMBDA__
+#ifdef __NVCC__
    const int gX = ((numElements+A2_ELEMENT_BATCH-1)/A2_ELEMENT_BATCH);
    const int tX = A2_ELEMENT_BATCH;
    const int tY = A2_QUAD_BATCH;

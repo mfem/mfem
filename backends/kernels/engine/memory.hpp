@@ -51,7 +51,7 @@ public:
    inline operator const double* () const { return (const double*)data; }
 
    memory slice(const size_t offset,
-                const size_t bytes = -1) const;
+                const int bytes = -1) const;
 
    inline char* operator[](const size_t i)
    {

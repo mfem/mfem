@@ -33,21 +33,32 @@ template<class T> struct kmalloc: public kmemcpy
    // *************************************************************************
    inline void* operator new (size_t n, bool lock_page = false)
    {
-      //dbp("+]\033[m");
-      if (!config::Get().Cuda()) { return ::new T[n]; }
-#ifdef __NVCC__
-      void *ptr;
-      //push(new,Purple);
-      if (!rconfig::Get().Uvm())
+      dbp("+]\033[m");
+      if (!config::Get().Cuda())
       {
-         if (lock_page) { cuMemHostAlloc(&ptr, n*sizeof(T), CU_MEMHOSTALLOC_PORTABLE); }
-         else { cuMemAlloc((CUdeviceptr*)&ptr, n*sizeof(T)); }
+         return ::new T[n];
+      }
+#ifdef __NVCC__
+      void *ptr = NULL;
+      push(new,Purple);
+      if (!config::Get().Uvm())
+      {
+         //dbg("\033[31;1m>cuMemAlloc");
+         if (lock_page) { checkCudaErrors(cuMemHostAlloc(&ptr, n*sizeof(T),CU_MEMHOSTALLOC_PORTABLE)); }
+         else
+         {
+            //assert(n>0); // DevExtension<>::SetEngine does a 'InitLayout(*e.MakeLayout(0));'
+            if (n==0) { n=1; }
+            checkCudaErrors(cuMemAlloc((CUdeviceptr*)&ptr, n*sizeof(T)));
+         }
       }
       else
       {
-         cuMemAllocManaged((CUdeviceptr*)&ptr, n*sizeof(T),CU_MEM_ATTACH_GLOBAL);
+         //dbg("\033[31;1m>cuMemAllocManaged");
+         checkCudaErrors(cuMemAllocManaged((CUdeviceptr*)&ptr, n*sizeof(T),
+                                           CU_MEM_ATTACH_GLOBAL));
       }
-      //pop();
+      pop();
       return ptr;
 #else
       // We come here when the user requests a manager,
@@ -60,7 +71,7 @@ template<class T> struct kmalloc: public kmemcpy
    // ***************************************************************************
    inline void operator delete (void *ptr)
    {
-      //dbp("-]\033[m");
+      dbp("-]\033[m");
       if (!config::Get().Cuda())
       {
          if (ptr)
@@ -71,9 +82,9 @@ template<class T> struct kmalloc: public kmemcpy
 #ifdef __NVCC__
       else
       {
-         //push(delete,Fuchsia);
+         push(delete,Fuchsia);
          cuMemFree((CUdeviceptr)ptr); // or cuMemFreeHost if page_locked was used
-         //pop();
+         pop();
       }
 #endif // __NVCC__
       ptr = nullptr;

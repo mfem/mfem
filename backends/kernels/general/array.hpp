@@ -24,9 +24,9 @@ namespace kernels
 class Array : public virtual mfem::PArray
 {
 protected:
-   
+
    mutable kernels::memory data, slice;
-   
+
    // Virtual interface ********************************************************
    virtual PArray *DoClone(bool copy_data, void **buffer,
                            std::size_t item_size) const;
@@ -42,7 +42,13 @@ protected:
 
    virtual void DoAssign(const PArray &src, std::size_t item_size);
 
+   virtual void DoMakeRefOffset(const PArray &src,
+                                const std::size_t offset,
+                                const std::size_t size,
+                                const std::size_t item_size);
+
    // Auxiliary methods ********************************************************
+
    inline void *GetBuffer() const;
 
    int ResizeData(const Layout *lt, std::size_t item_size);

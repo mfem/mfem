@@ -16,15 +16,15 @@
 #include "../kernels.hpp"
 
 // *****************************************************************************
-void rIniGeom3D(const int NUM_DOFS,
-                const int NUM_QUAD,
-                const int numElements,
-                const double* __restrict__ dofToQuadD,
-                const double* __restrict__ nodes,
-                double* __restrict__ J,
-                double* __restrict__ invJ,
-                double* __restrict__ detJ){
-#ifndef __LAMBDA__
+template<const int NUM_DOFS,
+         const int NUM_QUAD> kernel
+void rIniGeom3D(const int numElements,
+                const double* __restrict dofToQuadD,
+                const double* __restrict nodes,
+                double* __restrict J,
+                double* __restrict invJ,
+                double* __restrict detJ){
+#ifdef __NVCC__
    const int e = blockDim.x * blockIdx.x + threadIdx.x;
    if (e < numElements)
 #else
@@ -86,7 +86,24 @@ void rIniGeom3D(const int NUM_DOFS,
          detJ[ijN(q, e,NUM_QUAD)] = r_detJ;
       }
    }
-#ifdef __LAMBDA__
+#ifndef __NVCC__
            );
 #endif
 }
+
+template kernel void rIniGeom3D<8,8>(int, double const*, double const*, double*, double*, double*);
+template kernel void rIniGeom3D<27,64>(int, double const*, double const*, double*, double*, double*);
+template kernel void rIniGeom3D<64,216>(int, double const*, double const*, double*, double*, double*);
+template kernel void rIniGeom3D<125,512>(int, double const*, double const*, double*, double*, double*);
+template kernel void rIniGeom3D<216,1000>(int, double const*, double const*, double*, double*, double*);
+template kernel void rIniGeom3D<343,1728>(int, double const*, double const*, double*, double*, double*);
+template kernel void rIniGeom3D<512,2744>(int, double const*, double const*, double*, double*, double*);
+template kernel void rIniGeom3D<729,4096>(int, double const*, double const*, double*, double*, double*);
+template kernel void rIniGeom3D<1000,5832>(int, double const*, double const*, double*, double*, double*);
+template kernel void rIniGeom3D<1331,8000>(int, double const*, double const*, double*, double*, double*);
+template kernel void rIniGeom3D<1728,10648>(int, double const*, double const*, double*, double*, double*);
+template kernel void rIniGeom3D<2197,13824>(int, double const*, double const*, double*, double*, double*);
+template kernel void rIniGeom3D<2744,17576>(int, double const*, double const*, double*, double*, double*);
+template kernel void rIniGeom3D<3375,21952>(int, double const*, double const*, double*, double*, double*);
+template kernel void rIniGeom3D<4096,27000>(int, double const*, double const*, double*, double*, double*);
+template kernel void rIniGeom3D<4913,32768>(int, double const*, double const*, double*, double*, double*);

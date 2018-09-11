@@ -22,16 +22,15 @@ namespace kernels
 {
 
 // *****************************************************************************
-class RestrictionOperator : public Operator
+class RestrictionOperator : public kernels::Operator
 {
 protected:
    int entries;
-   kernels::array<int> trueIndices;
+   const kernels::array<int> *trueIndices;
 public:
-   RestrictionOperator(Layout &in_layout, Layout &out_layout,
-                       kernels::array<int> indices);
-   virtual void Mult_(const Vector &x, Vector &y) const;
-   virtual void MultTranspose_(const Vector &x, Vector &y) const;
+   RestrictionOperator(Layout&, Layout&, const kernels::array<int>*);
+   virtual void Mult_(const kernels::Vector&, kernels::Vector&) const;
+   virtual void MultTranspose_(const kernels::Vector&, kernels::Vector&) const;
 };
 
 } // namespace mfem::kernels

@@ -137,7 +137,20 @@ void config::Setup(const int _mpi_rank,
    // Can be changed wuth CUDA_VISIBLE_DEVICES
    cuCheck(cudaGetDeviceCount(&gpu_count));
 #endif
+
    cuda=_cuda;
+   if (Root())
+   {
+      if (Cuda())
+      {
+         printf("\033[32m[Setup] \033[1mCUDA Kernels\033[m\n");
+      }
+      else
+      {
+         printf("\033[32m[Setup] \033[31;1mCPU Kernels\033[m\n");
+      }
+   }
+
    dcg=_dcg; // CG on device
    uvm=_uvm;
    aware=_aware;

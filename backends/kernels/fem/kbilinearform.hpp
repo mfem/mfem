@@ -35,7 +35,8 @@ class KernelsIntegrator;
 // * Class for bilinear form - "Matrix" with associated FE space and
 // * BLFIntegrators.
 // *****************************************************************************
-class kBilinearForm : public Operator{
+class kBilinearForm : public Operator
+{
    friend class KernelsIntegrator;
 protected:
    typedef std::vector<KernelsIntegrator*> IntegratorVector;
@@ -61,7 +62,7 @@ public:
    // Useful mesh Information
    int BaseGeom() const { return mesh->GetElementBaseGeometry(); }
    int GetDim() const { return mesh->Dimension(); }
-   int64_t GetNE() const{ return mesh->GetNE(); }
+   int64_t GetNE() const { return mesh->GetNE(); }
    mfem::Mesh& GetMesh() const { return *mesh; }
 
    kFiniteElementSpace& GetTrialKernelsFESpace() const;

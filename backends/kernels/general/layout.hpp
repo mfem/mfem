@@ -24,7 +24,7 @@ namespace kernels
 class Layout : public mfem::PLayout
 {
 protected:
-   
+
 public:
    Layout(const Engine &e, std::size_t s = 0) : PLayout(e, s) { }
 

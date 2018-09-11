@@ -16,18 +16,10 @@
 #include "../kernels.hpp"
 
 // *****************************************************************************
-#ifdef __TEMPLATES__
 template<const int NUM_VDIM,
          const int NUM_DOFS_1D,
          const int NUM_QUAD_1D> kernel
-#endif
-void rGridFuncToQuad2S(
-#ifndef __TEMPLATES__
-                       const int NUM_VDIM,
-                       const int NUM_DOFS_1D,
-                       const int NUM_QUAD_1D,
-#endif
-                       const int numElements,
+void rGridFuncToQuad2S(const int numElements,
                        const double* restrict dofToQuad,
                        const int* restrict l2gMap,
                        const double * restrict gf,
@@ -35,7 +27,7 @@ void rGridFuncToQuad2S(
   const int NUM_QUAD_DOFS_1D = (NUM_QUAD_1D * NUM_DOFS_1D);
   const int NUM_MAX_1D = (NUM_QUAD_1D<NUM_DOFS_1D)?NUM_DOFS_1D:NUM_QUAD_1D;
   // Iterate over elements
-#ifdef __LAMBDA__
+#ifndef __NVCC__
   forallS(eOff,numElements,M2_ELEMENT_BATCH,
 #else
   const int idx = blockIdx.x;
@@ -58,7 +50,7 @@ void rGridFuncToQuad2S(
     for (int e = eOff; e < (eOff + M2_ELEMENT_BATCH); ++e) {
       if (e < numElements) {
         sync;
-#ifdef __LAMBDA__
+#ifndef __NVCC__
         for (int dx = 0; dx < NUM_MAX_1D; ++dx) {
 #else
         { const int dx = threadIdx.x;
@@ -78,7 +70,7 @@ void rGridFuncToQuad2S(
           }
         }
         sync;
-#ifdef __LAMBDA__
+#ifndef __NVCC__
         for (int qy = 0; qy < NUM_MAX_1D; ++qy) {
 #else
         { const int qy = threadIdx.x;
@@ -96,7 +88,7 @@ void rGridFuncToQuad2S(
       }
     }
   }
-#ifdef __LAMBDA__
+#ifdef __NVCC__
          );
 #endif
 }
@@ -117,11 +109,10 @@ void rGridFuncToQuadS(const int DIM,
                      const double* gf,
                      double* __restrict out) {
   push(Green);
-#ifndef __LAMBDA__
+#ifdef __NVCC__
   const int grid = ((numElements+M2_ELEMENT_BATCH-1)/M2_ELEMENT_BATCH);
   const int blck = (NUM_QUAD_1D<NUM_DOFS_1D)?NUM_DOFS_1D:NUM_QUAD_1D;
 #endif
-#ifdef __TEMPLATES__
   const unsigned int id = (DIM<<8)|(NUM_VDIM<<4)|(NUM_DOFS_1D-1);
   assert(LOG2(DIM)<=4);
   assert(LOG2(NUM_VDIM)<=4);
@@ -173,13 +164,5 @@ void rGridFuncToQuadS(const int DIM,
   assert(call[id]);
   call0(rGridFuncToQuadS,id,grid,blck,
         numElements,dofToQuad,l2gMap,gf,out);
-#else
-  if (DIM==1) assert(false);
-  if (DIM==2)
-    call0(rGridFuncToQuad2S,id,grid,blck,
-          NUM_VDIM,NUM_DOFS_1D,NUM_QUAD_1D,
-          numElements,dofToQuad,l2gMap,gf,out);
-  if (DIM==3) assert(false);
-#endif
   pop();
 }

@@ -22,8 +22,8 @@ namespace kernels
 
 // *****************************************************************************
 Vector::Vector(Layout &lt) : mfem::PArray(lt),
-                             kernels::Array(lt, sizeof(double)),
-                             mfem::PVector(lt)
+   kernels::Array(lt, sizeof(double)),
+   mfem::PVector(lt)
 {
    dbg("new kernels::Vector");
 }
@@ -57,17 +57,17 @@ void Vector::DoDotProduct(const mfem::PVector &x,
    // called only when Size() != 0
    MFEM_ASSERT(result_type_id == ScalarId<double>::value, "");
    double *res = (double *)result;
-   MFEM_ASSERT(dynamic_cast<const Vector *>(&x) != NULL,
-               "\033[31minvalid Vector type\033[m");
-   const Vector *xp = static_cast<const Vector *>(&x);
-   MFEM_ASSERT(this->Size() == xp->Size(), "");
-   *res = kernels::linalg::dot(this->slice, xp->slice);
+   const kernels::Vector &xp = x.As<kernels::Vector>();
+   MFEM_ASSERT(this->Size() == xp.Size(), "");
+   *res = kernels::linalg::dot(this->slice, xp.slice);
 #ifdef MFEM_USE_MPI
    double local_dot = *res;
    if (IsParallel())
    {
-      MPI_Allreduce(&local_dot, res, 1, MPI_DOUBLE, MPI_SUM,
-                    KernelsLayout().KernelsEngine().GetComm());
+      dbg("IsParallel, MPI_Allreduce");
+      //const MPI_Comm comm = fes.GetParMesh()->GetComm();
+      MPI_Allreduce(&local_dot, res, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      dbg("MPI_Allreduce done");
    }
    pop();
 #endif
@@ -92,7 +92,6 @@ void Vector::DoAxpby(const void *a, const mfem::PVector &x,
    const Vector *yp = static_cast<const Vector *>(&y);
    MFEM_ASSERT(da == 0.0 || this->Size() == xp->Size(), "");
    MFEM_ASSERT(db == 0.0 || this->Size() == yp->Size(), "");
-
    if (da == 0.0)
    {
       if (db == 0.0)
@@ -105,15 +104,11 @@ void Vector::DoAxpby(const void *a, const mfem::PVector &x,
          {
             // *this *= db
             assert(false);
-            //kernels::linalg::operator_mult_eq(slice, db);
          }
          else
          {
             // *this = db * y
-            assert(false);/*
-            kernels::kernel kernel = axpby1_builder.build(slice.getDevice(),
-                                                         okl_defines);
-                                                         kernel((int)Size(), db, slice, yp->slice);*/
+            assert(false);
          }
       }
    }
@@ -124,17 +119,12 @@ void Vector::DoAxpby(const void *a, const mfem::PVector &x,
          if (this->slice == xp->slice)
          {
             // *this *= da
-            //kernels::linalg::operator_mult_eq(slice, da);
             vector_vec_mul((int)Size(), slice, da);
          }
          else
          {
             // *this = da * x
             assert(false);
-            /*
-            ::kernels::kernel kernel = axpby1_builder.build(slice.getDevice(),
-                                                         okl_defines);
-                                                         kernel((int)Size(), da, slice, xp->slice);*/
          }
       }
       else
@@ -164,6 +154,18 @@ void Vector::DoAxpby(const void *a, const mfem::PVector &x,
 }
 
 // *****************************************************************************
+double *Vector::GetData()
+{
+   return (double*) KernelsMem().ptr();
+}
+
+// *****************************************************************************
+double *Vector::GetData() const
+{
+   return (double*) KernelsMem().ptr();
+}
+
+// *****************************************************************************
 void Vector::Print()
 {
    for (size_t i=0; i<Size(); i+=1)
@@ -178,17 +180,23 @@ void Vector::SetSubVector(const mfem::Array<int> &ess_tdofs,
                           const int N)
 {
    push();
-   vector_set_subvector_const(N, value, data, ess_tdofs.GetData());
+   const kernels::Array &k_ess_tdofs =
+      ess_tdofs.Get_PArray()->As<kernels::Array>();
+   vector_set_subvector_const(N, value, data,
+                              (int*) k_ess_tdofs.KernelsMem().ptr());
    pop();
 }
-   
+
 // *****************************************************************************
 void Vector::MapSubVector(const mfem::Array<int> &ess_tdofs,
                           const kernels::Vector &v,
                           const int N)
 {
    push();
-   vector_map_dofs(N, data, v.data, ess_tdofs.GetData());
+   const kernels::Array &k_ess_tdofs =
+      ess_tdofs.Get_PArray()->As<kernels::Array>();
+   vector_map_dofs(N, data, v.data,
+                   (int*) k_ess_tdofs.KernelsMem().ptr());
    pop();
 }
 
@@ -202,8 +210,8 @@ mfem::Vector Vector::Wrap()
 // *****************************************************************************
 const mfem::Vector Vector::Wrap() const
 {
-   dbg("Wrap");
-   return mfem::Vector(*const_cast<Vector*>(this));
+   dbg("const Wrap");
+   return mfem::Vector(*const_cast<kernels::Vector*>(this));
 }
 
 // *****************************************************************************
@@ -211,7 +219,8 @@ const mfem::Vector Vector::Wrap() const
 bool Vector::IsParallel() const
 {
    dbg("IsParallel");
-   return (KernelsLayout().KernelsEngine().GetComm() != MPI_COMM_NULL);
+   return kernels::config::Get().IAmAlone()?false:true;
+   //return (KernelsLayout().KernelsEngine().GetComm() != MPI_COMM_NULL);
 }
 #endif
 

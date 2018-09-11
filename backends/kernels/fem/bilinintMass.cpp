@@ -23,8 +23,8 @@ namespace kernels
 // *****************************************************************************
 KernelsMassIntegrator::KernelsMassIntegrator(const mfem::Engine &ng) :
    KernelsIntegrator(ng.As<kernels::Engine>()),
-   coeff(ng.As<kernels::Engine>(),1.0),
-   assembledOperator(*(new Layout(ng.As<kernels::Engine>(), 0)))
+   engine(ng),
+   coeff(ng.As<kernels::Engine>(),1.0)
 {
    push();
    pop();
@@ -33,8 +33,8 @@ KernelsMassIntegrator::KernelsMassIntegrator(const mfem::Engine &ng) :
 // *****************************************************************************
 KernelsMassIntegrator::KernelsMassIntegrator(const KernelsCoefficient &coeff_) :
    KernelsIntegrator(coeff_.KernelsEngine()),
-   coeff(coeff_),
-   assembledOperator(*(new Layout(coeff_.KernelsEngine(), 0)))
+   engine(coeff_.KernelsEngine()),
+   coeff(coeff_)
 {
    push();
    coeff.SetName("COEFF");
@@ -65,7 +65,8 @@ void KernelsMassIntegrator::Setup()
 }
 
 // *****************************************************************************
-void KernelsMassIntegrator::Assemble() {
+void KernelsMassIntegrator::Assemble()
+{
    push();
    pop();
 }
@@ -75,17 +76,20 @@ void KernelsMassIntegrator::SetOperator(mfem::Vector &v)
 {
    push();
    op = v;
-   assembledOperator.PushData(v.GetData());
+   op.Resize(engine.MakeLayout(v.Size()));
+   op.PushData(v.GetData());
    pop();
 }
 
 // *****************************************************************************
-void KernelsMassIntegrator::MultAdd(Vector &x, Vector &y)
+void KernelsMassIntegrator::MultAdd(kernels::Vector &x,
+                                    kernels::Vector &y)
 {
    push();
    const int dim = mesh->Dimension();
    const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
    const int dofs1D = trialFESpace->GetFE(0)->GetOrder() + 1;
+   kernels::Vector kop = op.Get_PVector()->As<kernels::Vector>();
    rMassMultAdd(dim,
                 dofs1D,
                 quad1D,
@@ -94,7 +98,7 @@ void KernelsMassIntegrator::MultAdd(Vector &x, Vector &y)
                 maps->dofToQuadD,
                 maps->quadToDof,
                 maps->quadToDofD,
-                op.GetData(),
+                (const double*)kop.KernelsMem().ptr(),
                 (const double*)x.KernelsMem().ptr(),
                 (double*)y.KernelsMem().ptr());
    pop();

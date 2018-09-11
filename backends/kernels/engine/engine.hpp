@@ -25,6 +25,13 @@ class Engine : public mfem::Engine
 {
 protected:
    kernels::device *dev=NULL;
+#ifdef MFEM_USE_MPI
+   const MPI_Comm comm = MPI_COMM_NULL;
+   const MPI_Session *mpi;
+   const int world_rank = 0;
+   const int world_size = 1;
+
+#endif
 
    void Init(const std::string &engine_spec);
 
@@ -32,7 +39,8 @@ public:
    Engine(const std::string &engine_spec);
 
 #ifdef MFEM_USE_MPI
-   Engine(MPI_Comm comm, const std::string &engine_spec);
+   Engine(MPI_Comm, const std::string&);
+   Engine(const MPI_Session*, const std::string&);
 #endif
 
    virtual ~Engine() { }
@@ -57,12 +65,13 @@ public:
 
    virtual DArray MakeArray(PLayout&, std::size_t) const;
 
-   virtual DVector MakeVector(PLayout&, int type_id = ScalarId<double>::value) const;
-   
+   virtual DVector MakeVector(PLayout&,
+                              int type_id = ScalarId<double>::value) const;
+
 #ifdef MFEM_USE_MPI
    virtual DFiniteElementSpace MakeFESpace(mfem::ParFiniteElementSpace &) const;
 #endif
-   
+
    virtual DFiniteElementSpace MakeFESpace(mfem::FiniteElementSpace&) const;
 
    virtual DBilinearForm MakeBilinearForm(mfem::BilinearForm&) const;

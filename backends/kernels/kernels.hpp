@@ -12,7 +12,7 @@
 #define MFEM_BACKENDS_KERNELS_HPP
 
 // *****************************************************************************
-#define __LAMBDA__
+#define __TEMPLATES__
 
 // stdincs *********************************************************************
 #include <math.h>
@@ -28,6 +28,15 @@
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
 #include <mpi-ext.h>
+#endif
+
+// __NVCC__ ********************************************************************
+#ifdef __NVCC__
+#include <cuda.h>
+#include <helper_cuda.h>
+#include <helper_functions.h>
+#define cuCheck checkCudaErrors
+#include "cuda_runtime_api.h"
 #endif
 
 // MFEM ************************************************************************
@@ -79,13 +88,11 @@
 #include "linalg/operator.hpp"
 #include "linalg/constrained.hpp"
 #include "linalg/sparsemat.hpp"
+#include "linalg/conform.hpp"
 #include "linalg/restrict.hpp"
 #include "linalg/prolong.hpp"
 
 // fem *************************************************************************
-#include "fem/conform.hpp"
-//#include "fem/prolong.hpp"
-//#include "fem/restrict.hpp"
 #include "fem/fespace.hpp"
 #include "fem/gridfunc.hpp"
 #include "fem/kbilinearform.hpp"

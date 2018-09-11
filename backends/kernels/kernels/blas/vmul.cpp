@@ -16,7 +16,7 @@
 #include "../kernels.hpp"
 
 // *****************************************************************************
-#ifndef __LAMBDA__
+#ifdef __NVCC__
 extern "C" kernel
 void vector_vec_mul0(const int N,
                      double* __restrict v0,
@@ -27,12 +27,13 @@ void vector_vec_mul0(const int N,
 }
 #endif
 
+// *****************************************************************************
 void vector_vec_mul(const int N,
                     double* __restrict v0,
                     const double d)
 {
    push();
-#ifndef __LAMBDA__
+#ifdef __NVCC__
    cuKer(vector_vec_mul,N,v0,d);
 #else
    forall(i,N,v0[i]*=d;);

@@ -48,7 +48,7 @@ public:
    virtual void Mult(const mfem::Vector &x, mfem::Vector &y) const
    {
       push();
-      Mult_(x.Get_PVector()->As<kernels::Vector>(),
+      Mult_(x.Get_PVector()->As<const kernels::Vector>(),
             y.Get_PVector()->As<kernels::Vector>());
       pop();
    }
@@ -57,7 +57,7 @@ public:
    virtual void MultTranspose(const mfem::Vector &x, mfem::Vector &y) const
    {
       push();
-      MultTranspose_(x.Get_PVector()->As<kernels::Vector>(),
+      MultTranspose_(x.Get_PVector()->As<const kernels::Vector>(),
                      y.Get_PVector()->As<kernels::Vector>());
       pop();
    }

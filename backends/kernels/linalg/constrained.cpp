@@ -21,96 +21,93 @@ namespace kernels
 {
 
 // *****************************************************************************
-kConstrainedOperator::kConstrainedOperator(mfem::Operator *A_,
-                                           const mfem::Array<int> &constraintList_,
-                                           bool own_A_)
-
-   : Operator(A_->InLayout()->As<Layout>()),
-     z(OutLayout_()),
-     w(OutLayout_()),
-     mfem_z((z.DontDelete(), z)),
-     mfem_w((w.DontDelete(), w))
+kConstrainedOperator::kConstrainedOperator(mfem::Operator *_A,
+                                           const mfem::Array<int> &_constraintList,
+                                           bool _own_A)
+   : Operator(_A->InLayout()->As<kernels::Layout>()),
+     engine(OutLayout_().KernelsEngine()),
+     A(_A),
+     own_A(_own_A),
+     constraintList(_constraintList),
+     constraintIndices(_constraintList.Size()),
+     kz(OutLayout_()),
+     kw(OutLayout_()),
+     mfem_z((kz.DontDelete(), kz)),
+     mfem_w((kw.DontDelete(), kw))
 {
    push();
-   assert(A_->InLayout());
-   Setup(OutLayout_().KernelsEngine().GetDevice(), A_, constraintList_, own_A_);
+   if (constraintIndices>0)
+   {
+      constraintList.Resize(engine.MakeLayout(constraintIndices));
+      constraintList=_constraintList;
+      constraintList.Push();
+      assert(constraintList.Get_PArray());
+   }
+   dbg("done");
    pop();
 }
 
-// *****************************************************************************
-void kConstrainedOperator::Setup(kernels::device device_,
-                                 mfem::Operator *A_,
-                                 const mfem::Array<int> &constraintList_,
-                                 bool own_A_)
-{
-   push();
-   device = device_;
-   A = A_;
-   own_A = own_A_;
-   constraintIndices = constraintList_.Size();
-   if (constraintIndices)
-   {
-     assert(constraintList_.Get_PArray());
-     constraintList = constraintList_.Get_PArray()->As<Array>().KernelsMem();
-   }
-   pop();
-}
 
 // *****************************************************************************
-void kConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
+void kConstrainedOperator::EliminateRHS(const kernels::Vector &x,
+                                        kernels::Vector &b) const
 {
-   push();//assert(false); // ex1pd comes here, Laghos does not
-   
-   w.Fill<double>(0.0);
+   push();
+
+   kw.Fill<double>(0.0);
+
    if (constraintIndices)
    {
-      //assert(false); // ex1pd comes here
-      vector_map_dofs(constraintIndices,
-                      (double*)w.KernelsMem().ptr(),
-                      (double*)x.KernelsMem().ptr(),
-                      (int*)constraintList.ptr());
+      const kernels::Array constraints_list =
+         constraintList.Get_PArray()->As<const kernels::Array>();
+      vector_map_dofs(constraintIndices, kw.GetData(), x.GetData(),
+                      (const int*) constraints_list.KernelsMem().ptr());
    }
+
    A->Mult(mfem_w, mfem_z);
-   b.Axpby<double>(1.0, b, -1.0, z);
+   b.Axpby<double>(1.0, b, -1.0, kz);
+
    if (constraintIndices)
    {
-      //assert(false); // ex1pd comes here
-      vector_map_dofs(constraintIndices,
-                      (double*)b.KernelsMem().ptr(),
-                      (double*)x.KernelsMem().ptr(),
-                      (int*)constraintList.ptr());
+      const kernels::Array constraints_list =
+         constraintList.Get_PArray()->As<const kernels::Array>();
+      vector_map_dofs(constraintIndices, b.GetData(), x.GetData(),
+                      (const int*) constraints_list.KernelsMem().ptr());
    }
-
    pop();
 }
 
 // *****************************************************************************
 void kConstrainedOperator::Mult_(const kernels::Vector &x,
-                                       kernels::Vector &y) const
+                                 kernels::Vector &y) const
 {
    push();
-   mfem::Vector mfem_y(y);
+
    if (constraintIndices == 0)
    {
-      push();
-      A->Mult(x.Wrap(), mfem_y);
-      pop();
+      dbg("constraintIndices==0");
+      mfem::Vector my(y);
+      A->Mult(x.Wrap(), my);
+      dbg("\033[7;1mdone");
       return;
    }
-   //assert(false); // ex1pd comes here
-   z.Assign<double>(x); // z = x
+
+   const kernels::Array &constraints_list =
+      constraintList.Get_PArray()->As<const kernels::Array>();
+   
+   dbg("Assign");
+   kz.Assign<double>(x); // z = x
 
    vector_clear_dofs(constraintIndices,
-                     (double*)z.KernelsMem().ptr(),
-                     (int*)constraintList.ptr());
+                     (double*)kz.KernelsMem().ptr(),
+                     (const int*) constraints_list.KernelsMem().ptr());
 
    A->Mult(mfem_z, mfem_y);
 
    vector_map_dofs(constraintIndices,
                    (double*)y.KernelsMem().ptr(),
-                   (double*)x.KernelsMem().ptr(),
-                   (int*)constraintList.ptr());
-   pop();
+                   (const double*)x.KernelsMem().ptr(),
+                   (const int*) constraints_list.KernelsMem().ptr());
 }
 
 // *****************************************************************************

@@ -21,30 +21,30 @@ namespace kernels
 {
 
 // *****************************************************************************
-device::device() {
-  push();
-  pop();
-}
+device::device() {}
 
 // *****************************************************************************
 device::~device() {}
 
-// ***************************************************************************
+// *****************************************************************************
 bool device::hasSeparateMemorySpace()
 {
-  push();
-  pop();
-  return false;
+   if (mfem::kernels::config::Get().Cuda())
+   {
+      return true;
+   }
+   return false;
 }
 
-// ***************************************************************************
+// *****************************************************************************
 memory device::malloc(const std::size_t bytes,
                       const void *src)
 {
-  push();
-  assert(src==NULL);
-  pop();
-  return memory(bytes,src);
+   push();
+   assert(src==NULL);
+   dbg("bytes=%d",bytes);
+   pop();
+   return memory(bytes,src);
 }
 
 } // namespace mfem::kernels

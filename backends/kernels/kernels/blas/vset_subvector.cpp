@@ -15,7 +15,8 @@
 // testbed platforms, in support of the nation's exascale computing imperative.
 #include "../kernels.hpp"
 
-#ifndef __LAMBDA__
+#ifdef __NVCC__
+// *****************************************************************************
 extern "C" kernel
 void vector_set_subvector0(const int N,
                            double* __restrict v0,
@@ -34,13 +35,14 @@ void vector_set_subvector0(const int N,
 }
 #endif
 
+// *****************************************************************************
 void vector_set_subvector(const int N,
                           double* __restrict v0,
                           const double* __restrict v1,
                           const int* __restrict v2)
 {
    push();
-#ifndef __LAMBDA__
+#ifdef __NVCC__
    cuKer(vector_set_subvector,N,v0,v1,v2);
 #else
    forall(i,N,

@@ -499,6 +499,9 @@ public:
    inline void MakeRef(DevExtension &master);
 
    /// TODO: doxygen
+   inline void MakeRefOffset(DevExtension &master, std::size_t offset);
+
+   /// TODO: doxygen
    inline void MakeConstRef(
       const DevExtension<non_const_array_t,dev_ext_t> &master);
 
@@ -764,7 +767,7 @@ public:
    T Sum();
 
    /// Copy data from a pointer. Size() elements are copied.
-   void Assign(const T *src) { base_class::operator=(src); }
+   void Assign(const T *src) {base_class::operator=(src); }
 
    // STL-like begin/end
    inline T* begin() const { return (T*) data; }
@@ -1099,6 +1102,38 @@ inline void DevExtension<array_t,dev_ext_t>::MakeRef(DevExtension &master)
    {
       this->Free();
       this->InitAll(master.GetData(), master.Size(), -master.Capacity());
+   }
+}
+
+template <typename array_t, typename dev_ext_t> inline
+void DevExtension<array_t,dev_ext_t>::MakeRefOffset(DevExtension &src,
+                                                    std::size_t offset)
+{
+   const std::size_t size = this->Size();
+#ifdef MFEM_USE_BACKENDS
+   dev_ext.Reset();
+   if (src.dev_ext)
+   {
+      const Engine &engine = src.dev_ext->GetLayout().GetEngine();
+      if (src.OwnsData())
+      {
+         dev_ext = engine.MakeLayout(0)->template Make<dev_ext_t,entry_type>();
+         dev_ext->template MakeRefOffset<entry_type>(*src.dev_ext,offset,size);
+      }
+      else
+      {
+         dev_ext = engine.MakeLayout(0)->template Make<dev_ext_t,entry_type>();
+         dev_ext->template MakeRefOffset<entry_type>(*src.dev_ext,offset,size);
+         entry_type *data_ = dev_ext->template PullData<entry_type>(NULL);
+         // data_ is NULL if dev_ext's data isn't on host
+         this->InitDataAndSize(data_, dev_ext->Size(), data_ == NULL);
+      }
+   }
+   else
+#endif
+   {
+      this->Free();
+      this->InitAll(src.GetData()+offset, size, -size);
    }
 }
 

@@ -53,7 +53,7 @@ public:
 
    virtual void RecoverFEMSolution(const mfem::Vector &X, const mfem::Vector &b,
                                    mfem::Vector &x);
-   
+
 protected:
    // Called from Assemble() if kbform is NULL to initialize kbform.
    void InitKBilinearForm();

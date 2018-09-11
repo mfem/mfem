@@ -15,7 +15,7 @@
 // testbed platforms, in support of the nation's exascale computing imperative.
 #include "../kernels.hpp"
 
-#ifndef __LAMBDA__
+#ifdef __NVCC__
 extern "C" kernel
 void vector_clear_dofs0(const int N,
                         double* __restrict v0,
@@ -31,7 +31,7 @@ void vector_clear_dofs(const int N,
                        const int* __restrict v1)
 {
    push();
-#ifndef __LAMBDA__
+#ifdef __NVCC__
    cuKer(vector_clear_dofs,N,v0,v1);
 #else
    forall(i,N,v0[v1[i]] = 0.0;);

@@ -24,7 +24,7 @@ void rDiffusionAssemble2D0(const int numElements,
                            const double* J,
                            double* __restrict oper)
 {
-#ifndef __LAMBDA__
+#ifdef __NVCC__
    const int e = blockDim.x * blockIdx.x + threadIdx.x;
    if (e < numElements)
 #else
@@ -46,7 +46,7 @@ void rDiffusionAssemble2D0(const int numElements,
          (J11*J11 + J12*J12); // (2,2)
       }
    }
-#ifdef __LAMBDA__
+#ifndef __NVCC__
    );
 #endif
 }
@@ -73,9 +73,13 @@ void rDiffusionAssemble(const int dim,
                         double* __restrict oper)
 {
    push();
-   //assert(false);
    if (dim==1) { assert(false); }
-   if (dim==2) { rDiffusionAssemble2D(numElements,NUM_QUAD_1D*NUM_QUAD_1D,COEFF,quadWeights,J,oper); }
+   if (dim==2) { rDiffusionAssemble2D(numElements,
+                                      NUM_QUAD_1D*NUM_QUAD_1D,
+                                      COEFF,
+                                      quadWeights,
+                                      J,
+                                      oper); }
    if (dim==3) { assert(false); }
    pop();
 }

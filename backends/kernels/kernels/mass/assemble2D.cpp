@@ -24,7 +24,7 @@ void rMassAssemble2D0(const int numElements,
                       const double* __restrict J,
                       double* __restrict oper)
 {
-#ifndef __LAMBDA__
+#ifdef __NVCC__
    const int e = blockDim.x * blockIdx.x + threadIdx.x;
    if (e < numElements)
 #else
@@ -41,7 +41,7 @@ void rMassAssemble2D0(const int numElements,
          oper[ijN(q,e,NUM_QUAD_2D)] = quadWeights[q] * COEFF * detJ;
       }
    }
-#ifdef __LAMBDA__
+#ifndef __NVCC__
    );
 #endif
 }

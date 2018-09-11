@@ -40,8 +40,8 @@ kGeometry::~kGeometry()
 // * kGeometry Get: use this one to fetch nodes from vector Sx
 // *****************************************************************************
 kGeometry* kGeometry::Get(kFiniteElementSpace& fes,
-                                      const IntegrationRule& ir,
-                                      const kvector& Sx)
+                          const IntegrationRule& ir,
+                          const kvector& Sx)
 {
    push();
    const Mesh *mesh = fes.GetFESpace()->GetMesh();
@@ -53,7 +53,7 @@ kGeometry* kGeometry::Get(kFiniteElementSpace& fes,
    const int numQuad  = ir.GetNPoints();
    const int elements = fespace->GetNE();
    const int ndofs    = fespace->GetNDofs();
-   const KernelsDofQuadMaps* maps = KernelsDofQuadMaps::GetSimplexMaps(*fe, ir);
+   const kDofQuadMaps* maps = kDofQuadMaps::GetSimplexMaps(*fe, ir);
    push();
    rNodeCopyByVDim(elements,numDofs,ndofs,dims,geom->eMap,Sx,geom->meshNodes);
    pop();
@@ -72,13 +72,17 @@ kGeometry* kGeometry::Get(kFiniteElementSpace& fes,
 
 // *****************************************************************************
 kGeometry* kGeometry::Get(kFiniteElementSpace& fes,
-                                      const IntegrationRule& ir)
+                          const IntegrationRule& ir)
 {
    push();
    Mesh& mesh = *(fes.GetFESpace()->GetMesh());
    const bool geom_to_allocate =
       (!geom) || config::Get().GeomNeedsUpdate(mesh.GetSequence());
-   if (geom_to_allocate) { geom=new kGeometry(); }
+   if (geom_to_allocate)
+   {
+      dbg("geom_to_allocate: new kGeometry");
+      geom = new kGeometry();
+   }
    if (!mesh.GetNodes()) { mesh.SetCurvature(1, false, -1, Ordering::byVDIM); }
    GridFunction& nodes = *(mesh.GetNodes());
    const mfem::FiniteElementSpace& fespace = *(nodes.FESpace());
@@ -88,8 +92,13 @@ kGeometry* kGeometry::Get(kFiniteElementSpace& fes,
    const int numDofs  = fe.GetDof();
    const int numQuad  = ir.GetNPoints();
    const bool orderedByNODES = (fespace.GetOrdering() == Ordering::byNODES);
+   dbg("orderedByNODES: %s", orderedByNODES?"true":"false");
 
-   if (orderedByNODES) { ReorderByVDim(nodes); }
+   if (orderedByNODES)
+   {
+      dbg("orderedByNODES, ReorderByVDim");
+      ReorderByVDim(nodes);
+   }
    const int asize = dims*numDofs*elements;
    mfem::Array<double> meshNodes(asize);
    const Table& e2dTable = fespace.GetElementToDofTable();
@@ -125,17 +134,27 @@ kGeometry* kGeometry::Get(kFiniteElementSpace& fes,
       geom->eMap = eMap;
       pop();
    }
+
    // Reorder the original gf back
-   if (orderedByNODES) { ReorderByNodes(nodes); }
+   if (orderedByNODES)
+   {
+      dbg("Reorder the original gf back");
+      ReorderByNodes(nodes);
+   }
+
    if (geom_to_allocate)
    {
+      dbg("geom_to_allocate: J, invJ & detJ");
       geom->J.allocate(dims, dims, numQuad, elements);
       geom->invJ.allocate(dims, dims, numQuad, elements);
       geom->detJ.allocate(numQuad, elements);
    }
 
-   const KernelsDofQuadMaps* maps = KernelsDofQuadMaps::GetSimplexMaps(fe, ir);
+   const kDofQuadMaps* maps = kDofQuadMaps::GetSimplexMaps(fe, ir);
+   assert(maps);
    {
+      dbg("dims=%d, numDofs=%d, numQuad=%d, elements=%d",dims,numDofs,numQuad,
+          elements);
       push(rIniGeom,SteelBlue);
       rIniGeom(dims,numDofs,numQuad,elements,
                maps->dofToQuadD,

@@ -23,7 +23,7 @@ namespace kernels
 //---[ Parameter ]------------
 KernelsParameter::~KernelsParameter() {}
 
-void KernelsParameter::Setup(KernelsIntegrator &integ) {}
+void KernelsParameter::Setup(KernelsIntegrator &integ) {push(); pop();}
 
 //====================================
 
@@ -107,7 +107,8 @@ KernelsParameter* KernelsGridFunctionParameter::Clone()
 
 void KernelsGridFunctionParameter::Setup(KernelsIntegrator &integ)
 {
-
+   push();
+   pop();
 }
 //====================================
 
@@ -118,6 +119,8 @@ KernelsCoefficient::KernelsCoefficient(const double value) :
    integ(NULL),
    name("COEFF")
 {
+   push();
+   pop();
 }
 //---[ Coefficient ]------------------
 KernelsCoefficient::KernelsCoefficient(const Engine &e, const double value) :
@@ -125,6 +128,8 @@ KernelsCoefficient::KernelsCoefficient(const Engine &e, const double value) :
    integ(NULL),
    name("COEFF")
 {
+   push();
+   pop();
 }
 
 KernelsCoefficient::KernelsCoefficient(const Engine &e,
@@ -133,6 +138,8 @@ KernelsCoefficient::KernelsCoefficient(const Engine &e,
    integ(NULL),
    name("COEFF")
 {
+   push();
+   pop();
 }
 
 KernelsCoefficient::KernelsCoefficient(const Engine &e, const char *source) :
@@ -140,6 +147,8 @@ KernelsCoefficient::KernelsCoefficient(const Engine &e, const char *source) :
    integ(NULL),
    name("COEFF")
 {
+   push();
+   pop();
 }
 
 KernelsCoefficient::KernelsCoefficient(const KernelsCoefficient &coeff) :
@@ -147,12 +156,13 @@ KernelsCoefficient::KernelsCoefficient(const KernelsCoefficient &coeff) :
    integ(NULL),
    name(coeff.name)
 {
-
+   push();
    const int paramCount = (int) coeff.params.size();
    for (int i = 0; i < paramCount; ++i)
    {
       params.push_back(coeff.params[i]->Clone());
    }
+   pop();
 }
 
 KernelsCoefficient::~KernelsCoefficient()
@@ -172,12 +182,16 @@ KernelsCoefficient& KernelsCoefficient::SetName(const std::string &name_)
 
 void KernelsCoefficient::Setup(KernelsIntegrator &integ_)
 {
+   push();
    integ = &integ_;
+   pop();
 }
 
 KernelsCoefficient& KernelsCoefficient::Add(KernelsParameter *param)
 {
+   push();
    params.push_back(param);
+   pop();
    return *this;
 }
 

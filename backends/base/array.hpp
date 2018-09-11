@@ -86,6 +86,12 @@ protected:
    /** Both arrays must have the same dynamic type, layout, and item_size. */
    virtual void DoAssign(const PArray &src, std::size_t item_size) = 0;
 
+   /// TODO
+   virtual void DoMakeRefOffset(const PArray &src,
+                                const std::size_t offset,
+                                const std::size_t size,
+                                const std::size_t item_size) = 0;
+
    ///@}
    // End: Virtual interface
 
@@ -201,6 +207,15 @@ public:
    /** Both arrays must have the same dynamic type, layout, and entry type. */
    template <typename T>
    void Assign(const PArray &src) { if (Size()) { DoAssign(src, sizeof(T)); } }
+
+   /// TODO
+   template <typename T>
+   void MakeRefOffset(const PArray &src,
+                      const std::size_t offset,
+                      const std::size_t size)
+   {
+      DoMakeRefOffset(src, offset, size, sizeof(T));
+   }
 
    ///@}
    // End: Virtual interface

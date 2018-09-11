@@ -15,7 +15,7 @@
 // testbed platforms, in support of the nation's exascale computing imperative.
 #include "../kernels.hpp"
 
-#ifndef __LAMBDA__
+#ifdef __NVCC__
 // *****************************************************************************
 extern "C" kernel void vector_op_eq0(const int N,
                                      const double c0,
@@ -32,7 +32,7 @@ void vector_op_eq(const int N,
                   double* __restrict v0)
 {
    push();
-#ifndef __LAMBDA__
+#ifdef __NVCC__
    cuKer(vector_op_eq,N,c0,v0);
 #else
    forall(i,N,v0[i] = c0;);

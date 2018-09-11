@@ -23,6 +23,7 @@ namespace kernels
 void Layout::Resize(std::size_t new_size)
 {
    push();
+   dbg("size=%d, new_size=%d",size,new_size);
    size = new_size;
    pop();
 }
@@ -31,6 +32,7 @@ void Layout::Resize(std::size_t new_size)
 void Layout::Resize(const mfem::Array<std::size_t> &offsets)
 {
    push();
+   dbg("Array");
    MFEM_ASSERT(offsets.Size() == 2,
                "multiple workers are not supported yet");
    assert(offsets.Size() == 2);
