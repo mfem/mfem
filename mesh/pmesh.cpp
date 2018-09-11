@@ -1589,6 +1589,7 @@ void ParMesh::ExchangeFaceNbrData()
 
    Table *gr_sface;
    int   *s2l_face;
+   bool   del_tables = false;
    if (Dim == 1)
    {
       gr_sface = &group_svert;
@@ -1601,19 +1602,66 @@ void ParMesh::ExchangeFaceNbrData()
    }
    else
    {
-      gr_sface = &group_stria;
-      s2l_face = stria_lface;
+      if (stria_sface.Size() == sface_stype.Size())
+      {
+         // All shared faces are Triangular
+         gr_sface = &group_stria;
+         s2l_face = stria_lface;
+      }
+      else if (squad_sface.Size() == sface_stype.Size())
+      {
+         // All shared faced are Quadrilateral
+         gr_sface = &group_squad;
+         s2l_face = squad_lface;
+      }
+      else
+      {
+         // Shared faces contain a mixture of triangles and quads
+         gr_sface = new Table();
+         s2l_face = new int[sface_stype.Size()];
+         del_tables = true;
+
+         for (int sface=0; sface<sface_stype.Size(); sface++)
+         {
+            Element::Type el_type = shared_faces[sface]->GetType();
+            int stype = sface_stype[sface];
+            s2l_face[sface] = ( el_type == Element::TRIANGLE ) ?
+                              stria_lface[stype] : squad_lface[stype];
+         }
+         gr_sface->MakeI(group_stria.Size());
+         for (int gr=0; gr<group_stria.Size(); gr++)
+         {
+            gr_sface->AddColumnsInRow(gr,
+                                      group_stria.RowSize(gr) +
+                                      group_squad.RowSize(gr));
+         }
+         gr_sface->MakeJ();
+         for (int gr=0; gr<group_stria.Size(); gr++)
+         {
+            for (int c=0; c<group_stria.RowSize(gr); c++)
+            {
+               gr_sface->AddConnection(gr,
+                                       stria_sface[group_stria.GetRow(gr)[c]]);
+            }
+            for (int c=0; c<group_squad.RowSize(gr); c++)
+            {
+               gr_sface->AddConnection(gr,
+                                       squad_sface[group_squad.GetRow(gr)[c]]);
+            }
+         }
+         gr_sface->ShiftUpI();
+      }
    }
 
    ExchangeFaceNbrData(gr_sface, s2l_face);
 
-   if ( gr_sface == &group_stria )
+   if (del_tables)
    {
-      gr_sface = &group_squad;
-      s2l_face = squad_lface;
-
-      ExchangeFaceNbrData(gr_sface, s2l_face);
+      delete gr_sface;
+      delete [] s2l_face;
    }
+
+   if ( have_face_nbr_data ) { return; }
 
    have_face_nbr_data = true;
 
@@ -2001,6 +2049,8 @@ void ParMesh::ExchangeFaceNbrNodes()
       }
 
       int num_face_nbrs = GetNFaceNeighbors();
+
+      if (!num_face_nbrs) { return; }
 
       MPI_Request *requests = new MPI_Request[2*num_face_nbrs];
       MPI_Request *send_requests = requests;
