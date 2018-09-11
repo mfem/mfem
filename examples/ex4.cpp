@@ -94,8 +94,8 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 25,000
    //    elements.
    {
-      int ref_levels =
-         (int)floor(log(25000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels = 2;
+         //(int)floor(log(25000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -136,17 +136,33 @@ int main(int argc, char *argv[])
    //    when eliminating the non-homogeneous boundary condition to modify the
    //    r.h.s. vector b.
    GridFunction x(fespace);
+   GridFunction xp(fespace);
    VectorFunctionCoefficient F(sdim, F_exact);
-   x.ProjectCoefficient(F);
+   xp.ProjectCoefficient(F);
+   VectorGridFunctionCoefficient Xp(&xp);
+//   xp.Print();
+   
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << *mesh << xp
+               << "window_title 'Projected'\n" << flush;
+   }
 
    // 8. Set up the bilinear form corresponding to the H(div) diffusion operator
    //    grad alpha div + beta I, by adding the div-div and the mass domain
    //    integrators.
-   Coefficient *alpha = new ConstantCoefficient(1.0);
-   Coefficient *beta  = new ConstantCoefficient(1.0);
+   Coefficient *alpha = new ConstantCoefficient(0.0);
+   Coefficient *beta  = new ConstantCoefficient(0.0);
    BilinearForm *a = new BilinearForm(fespace);
-   a->AddDomainIntegrator(new DivDivIntegrator(*alpha));
-   a->AddDomainIntegrator(new VectorFEMassIntegrator(*beta));
+//   a->AddDomainIntegrator(new DivDivIntegrator(*alpha));
+//   a->AddDomainIntegrator(new VectorFEMassIntegrator(*beta));
+   a->AddDomainIntegrator(new VectorFEDiffusionIntegrator);
+   a->AddBdrFaceIntegrator(new VectorFEDGDiffusionIntegrator(-1., 10000.));
+   a->AddInteriorFaceIntegrator(new VectorFEDGDiffusionIntegrator(-1., 10000.));
 
    // 9. Assemble the bilinear form and the corresponding linear system,
    //    applying any necessary transformations such as: eliminating boundary
@@ -166,31 +182,43 @@ int main(int argc, char *argv[])
                              ess_tdof_list);
    }
    a->Assemble();
+   a->Finalize();
 
-   SparseMatrix A;
-   Vector B, X;
-   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+   SparseMatrix A = a->SpMat();
+//   b->Print();
+//   printf("lala\n");
+   Vector B(*b), X(*b);
+//   B.Print();
+//   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+   
+   Vector A_times_x = xp;
+   A.Mult(xp, A_times_x);
+   A_times_x.Add(-1.0, *b);
+   cout << "norm of Ax-b: " << A_times_x.Norml2() << endl << flush;
 
-   cout << "Size of linear system: " << A.Height() << endl;
+//   cout << "Size of linear system: " << A.Height() << endl;
 
 #ifndef MFEM_USE_SUITESPARSE
    // 10. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //     solve the system A X = B with PCG.
    GSSmoother M(A);
-   PCG(A, M, B, X, 1, 10000, 1e-20, 0.0);
+   int maxit = 1000;
+   PCG(A, M, B, X, 1, maxit, 1e-20, 0.0);
 #else
    // 10. If compiled with SuiteSparse support, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;
    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
    umf_solver.SetOperator(A);
-   umf_solver.Mult(B, X);
+   umf_solver.Mult(B, x);
 #endif
 
    // 11. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
 
    // 12. Compute and print the L^2 norm of the error.
-   cout << "\n|| F_h - F ||_{L^2} = " << x.ComputeL2Error(F) << '\n' << endl;
+   cout << "\n|| F_h - F ||_{L^2} = " << x.ComputeL2Error(F) << endl;
+   cout << "\n|| F_p - F ||_{L^2} = " << xp.ComputeL2Error(F) << endl;
+   cout << "\n|| F_h - F_p ||_{L^2} = " << x.ComputeL2Error(Xp) << endl;
 
    // 13. Save the refined mesh and the solution. This output can be viewed
    //     later using GLVis: "glvis -m refined.mesh -g sol.gf".
@@ -210,7 +238,8 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "solution\n" << *mesh << x << flush;
+      sol_sock << "solution\n" << *mesh << x 
+               << "window_title 'Approximate'\n" << flush;
    }
 
    // 15. Free the used memory.
@@ -237,8 +266,8 @@ void F_exact(const Vector &p, Vector &F)
    double y = p(1);
    // double z = (dim == 3) ? p(2) : 0.0;
 
-   F(0) = cos(kappa*x)*sin(kappa*y);
-   F(1) = cos(kappa*y)*sin(kappa*x);
+   F(0) = x*y*(x+y-1.);//-2. * x * (-1. + x + 2. * y);//cos(kappa*x)*sin(kappa*y);
+   F(1) = 0.;//-2. * (-1. + y) * (-1. + x + 2. * y);//cos(kappa*y)*sin(kappa*x);
    if (dim == 3)
    {
       F(2) = 0.0;
@@ -256,8 +285,8 @@ void f_exact(const Vector &p, Vector &f)
 
    double temp = 1 + 2*kappa*kappa;
 
-   f(0) = temp*cos(kappa*x)*sin(kappa*y);
-   f(1) = temp*cos(kappa*y)*sin(kappa*x);
+   f(0) = - 2.*x - 2.*y;//1.;//temp*cos(kappa*x)*sin(kappa*y);
+   f(1) = 0.;//temp*cos(kappa*y)*sin(kappa*x);
    if (dim == 3)
    {
       f(2) = 0;

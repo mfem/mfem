@@ -4273,6 +4273,12 @@ void DenseMatrixInverse::Mult(const DenseMatrix &B, DenseMatrix &X) const
    lu.Solve(width, X.Width(), X.Data());
 }
 
+void DenseMatrixInverse::Mult(const DenseTensor &B, DenseTensor &X) const
+{
+   X = B;
+   lu.Solve(width, X.SizeJ()*X.SizeK(), X.Data());
+}
+
 void DenseMatrixInverse::TestInversion()
 {
    DenseMatrix C(width);
@@ -4484,6 +4490,21 @@ DenseTensor &DenseTensor::operator=(double c)
    {
       tdata[i] = c;
    }
+   return *this;
+}
+
+DenseTensor &DenseTensor::operator=(const DenseTensor &t)
+{
+   SetSize(t.SizeI(), t.SizeJ(), t.SizeK());
+
+   const int hwd = t.SizeI()*t.SizeJ()*t.SizeK();
+   tdata = new double[hwd];
+   std::memcpy(tdata, t.tdata, sizeof(double) * hwd);
+//   for (int i = 0; i < hwd; i++)
+//   {
+//      tdata[i] = t.tdata[i];
+//   }
+
    return *this;
 }
 

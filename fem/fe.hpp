@@ -271,6 +271,9 @@ public:
 
    // virtual functions for finite elements on vector spaces
 
+   virtual void CalcJShape(const IntegrationPoint &ip,
+                           DenseTensor &jshape) const;
+
    /** @brief Evaluate the values of all shape functions of a *vector* finite
        element in reference space at the given point @a ip. */
    /** Each row of the result DenseMatrix @a shape contains the components of
@@ -1066,6 +1069,9 @@ public:
 
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
+                             
+   virtual void CalcJShape(const IntegrationPoint &ip,
+                           DenseTensor &jshape) const;
 
    virtual void GetLocalInterpolation (ElementTransformation &Trans,
                                        DenseMatrix &I) const;
@@ -1120,6 +1126,9 @@ public:
 
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
+                             
+   virtual void CalcJShape(const IntegrationPoint &ip,
+                           DenseTensor &jshape) const;
 
    virtual void GetLocalInterpolation (ElementTransformation &Trans,
                                        DenseMatrix &I) const;
@@ -1173,6 +1182,9 @@ public:
 
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
+                             
+   virtual void CalcJShape(const IntegrationPoint &ip,
+                           DenseTensor &jshape) const;
 };
 
 class RT2QuadFiniteElement : public VectorFiniteElement
@@ -2204,6 +2216,7 @@ class RT_TriangleElement : public VectorFiniteElement
    mutable Vector shape_x, shape_y, shape_l;
    mutable Vector dshape_x, dshape_y, dshape_l;
    mutable DenseMatrix u;
+   mutable DenseTensor ju;
    mutable Vector divu;
 #endif
    Array<int> dof2nk;
@@ -2218,6 +2231,10 @@ public:
    { CalcVShape_RT(Trans, shape); }
    virtual void CalcDivShape(const IntegrationPoint &ip,
                              Vector &divshape) const;
+                             
+   virtual void CalcJShape(const IntegrationPoint &ip,
+                           DenseTensor &jshape) const;
+                           
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
                                       DenseMatrix &I) const
    { LocalInterpolation_RT(*this, nk, dof2nk, Trans, I); }

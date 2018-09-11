@@ -1978,6 +1978,50 @@ public:
                                       DenseMatrix &elmat);
 };
 
+/// \int_{K} Q \grad u : \grad v for RT elements
+class VectorFEDiffusionIntegrator: public BilinearFormIntegrator
+{
+private:
+   Coefficient *Q;
+
+#ifndef MFEM_THREAD_SAFE
+   DenseTensor jshape;
+#endif
+
+public:
+   VectorFEDiffusionIntegrator() { Q = NULL; }
+   VectorFEDiffusionIntegrator(Coefficient &q) : Q(&q) { }
+
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat);
+};
+
+/// DG Diffusion integrator for RT elements
+class VectorFEDGDiffusionIntegrator: public BilinearFormIntegrator
+{
+private:
+   Coefficient *Q;
+   double sigma, kappa;
+
+#ifndef MFEM_THREAD_SAFE
+   Vector nor, ni, nh;
+   DenseMatrix shape1, shape2, jmat, adjJ;
+   DenseTensor jshape1, jshape2, shape1on, shape2on;
+#endif
+
+public:
+   VectorFEDGDiffusionIntegrator(const double s, const double k)
+	   : Q(NULL), sigma(s), kappa(k) { }
+   VectorFEDGDiffusionIntegrator(Coefficient &q, const double s, const double k)
+	   : Q(&q), sigma(s), kappa(k) { }
+
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+		                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+};
+
 /** Integrator for
       (Q grad u, grad v) = sum_i (Q grad u_i, grad v_i) e_i e_i^T
     for FE spaces defined by 'dim' copies of a scalar FE space. Where e_i

@@ -63,12 +63,8 @@ protected:
 
    /// Return a number(0-1) identifying how the given edge has been split
    int GetEdgeSplittings(Element *edge, const DSTable &v_to_v, int *middle);
-   /// Append codes identifying how the given face has been split to @a codes
-   void GetFaceSplittings(Element *face, const HashTable<Hashed2> &v_to_v,
-                          Array<unsigned> &codes);
-
-   bool DecodeFaceSplittings(HashTable<Hashed2> &v_to_v, const int *v,
-                             const Array<unsigned> &codes, int &pos);
+   /// Return a number(0-4) identifying how the given face has been split
+   int GetFaceSplittings(Element *face, const DSTable &v_to_v, int *middle);
 
    void GetFaceNbrElementTransformation(
       int i, IsoparametricTransformation *ElTr);
@@ -189,10 +185,8 @@ public:
    /// Utility function: sum integers from all processors (Allreduce).
    virtual long ReduceInt(int value) const;
 
-   /// Update the groups after triangle refinement
+   /// Update the groups after tet refinement
    void RefineGroups(const DSTable &v_to_v, int *middle);
-   /// Update the groups after tetrahedron refinement
-   void RefineGroups(const HashTable<Hashed2> &v_to_v);
 
    /// Load balance the mesh. NC meshes only.
    void Rebalance();

@@ -58,6 +58,13 @@ void FiniteElement::CalcDivShape (
                "   is not implemented for this class!");
 }
 
+void FiniteElement::CalcJShape (
+   const IntegrationPoint &ip, DenseTensor &jshape) const
+{
+   mfem_error ("FiniteElement::CalcJShape (ip, ...)\n"
+   	       "   is not implemented for this class!");
+}
+
 void FiniteElement::CalcPhysDivShape(
    ElementTransformation &Trans, Vector &div_shape) const
 {
@@ -2665,6 +2672,21 @@ void RT0TriangleFiniteElement::CalcDivShape(const IntegrationPoint &ip,
    divshape(2) = 2.;
 }
 
+void RT0TriangleFiniteElement::CalcJShape(const IntegrationPoint &ip,
+                                          DenseTensor &jshape) const
+{
+   double x = ip.x, y = ip.y;
+
+   jshape(0,0,0) = 1.; jshape(0,0,1) = 0.;
+   jshape(0,1,0) = 0.; jshape(0,1,1) = 1.;
+
+   jshape(1,0,0) = 1.; jshape(1,0,1) = 0.;
+   jshape(1,1,0) = 0.; jshape(1,1,1) = 1.;
+
+   jshape(2,0,0) = 1.; jshape(2,0,1) = 0.;
+   jshape(2,1,0) = 0.; jshape(2,1,1) = 1.;
+}
+
 const double RT0TriangleFiniteElement::nk[3][2] =
 { {0, -1}, {1, 1}, {-1, 0} };
 
@@ -2884,22 +2906,22 @@ void RT1TriangleFiniteElement::CalcVShape(const IntegrationPoint &ip,
 {
    double x = ip.x, y = ip.y;
 
-   shape(0,0) = -2 * x * (-1 + x + 2 * y);
-   shape(0,1) = -2 * (-1 + y) * (-1 + x + 2 * y);
-   shape(1,0) =  2 * x * (x - y);
-   shape(1,1) =  2 * (x - y) * (-1 + y);
-   shape(2,0) =  2 * x * (-1 + 2 * x + y);
-   shape(2,1) =  2 * y * (-1 + 2 * x + y);
-   shape(3,0) =  2 * x * (-1 + x + 2 * y);
-   shape(3,1) =  2 * y * (-1 + x + 2 * y);
-   shape(4,0) = -2 * (-1 + x) * (x - y);
-   shape(4,1) =  2 * y * (-x + y);
-   shape(5,0) = -2 * (-1 + x) * (-1 + 2 * x + y);
-   shape(5,1) = -2 * y * (-1 + 2 * x + y);
-   shape(6,0) = -3 * x * (-2 + 2 * x + y);
-   shape(6,1) = -3 * y * (-1 + 2 * x + y);
-   shape(7,0) = -3 * x * (-1 + x + 2 * y);
-   shape(7,1) = -3 * y * (-2 + x + 2 * y);
+   shape(0,0) = -2. * x * (-1. + x + 2. * y);
+   shape(0,1) = -2. * (-1. + y) * (-1. + x + 2. * y);
+   shape(1,0) =  2. * x * (x - y);
+   shape(1,1) =  2. * (x - y) * (-1. + y);
+   shape(2,0) =  2. * x * (-1. + 2. * x + y);
+   shape(2,1) =  2. * y * (-1. + 2. * x + y);
+   shape(3,0) =  2. * x * (-1. + x + 2. * y);
+   shape(3,1) =  2. * y * (-1. + x + 2. * y);
+   shape(4,0) = -2. * (-1. + x) * (x - y);
+   shape(4,1) =  2. * y * (-x + y);
+   shape(5,0) = -2. * (-1. + x) * (-1. + 2. * x + y);
+   shape(5,1) = -2. * y * (-1. + 2. * x + y);
+   shape(6,0) = -3. * x * (-2. + 2. * x + y);
+   shape(6,1) = -3. * y * (-1. + 2. * x + y);
+   shape(7,0) = -3. * x * (-1. + x + 2. * y);
+   shape(7,1) = -3. * y * (-2. + x + 2. * y);
 }
 
 void RT1TriangleFiniteElement::CalcDivShape(const IntegrationPoint &ip,
@@ -2907,14 +2929,44 @@ void RT1TriangleFiniteElement::CalcDivShape(const IntegrationPoint &ip,
 {
    double x = ip.x, y = ip.y;
 
-   divshape(0) = -2 * (-4 + 3 * x + 6 * y);
-   divshape(1) =  2 + 6 * x - 6 * y;
-   divshape(2) = -4 + 12 * x + 6 * y;
-   divshape(3) = -4 + 6 * x + 12 * y;
-   divshape(4) =  2 - 6 * x + 6 * y;
-   divshape(5) = -2 * (-4 + 6 * x + 3 * y);
-   divshape(6) = -9 * (-1 + 2 * x + y);
-   divshape(7) = -9 * (-1 + x + 2 * y);
+   divshape(0) = -2. * (-4. + 3. * x + 6. * y);
+   divshape(1) =  2. + 6. * x - 6. * y;
+   divshape(2) = -4. + 12. * x + 6. * y;
+   divshape(3) = -4. + 6. * x + 12. * y;
+   divshape(4) =  2. - 6. * x + 6. * y;
+   divshape(5) = -2. * (-4. + 6. * x + 3. * y);
+   divshape(6) = -9. * (-1. + 2. * x + y);
+   divshape(7) = -9. * (-1. + x + 2. * y);
+}
+
+void RT1TriangleFiniteElement::CalcJShape(const IntegrationPoint &ip,
+                                          DenseTensor &jshape) const
+{
+   double x = ip.x, y = ip.y;
+
+   jshape(0,0,0) = 2. - 4.*y - 4.*x; jshape(0,0,1) = -4.*x;
+   jshape(0,1,0) = 2. - 2.*y; jshape(0,1,1) = 6. - 8.*y - 2.*x;
+
+   jshape(1,0,0) = 4.*x - 2.*y; jshape(1,0,1) = -2.*x;
+   jshape(1,1,0) = 2.*y - 2.; jshape(1,1,1) = 2.*x - 4.*y + 2.;
+
+   jshape(2,0,0) = 8.*x + 2.*y - 2.; jshape(2,0,1) = 2.*x;
+   jshape(2,1,0) = 4.*y; jshape(2,1,1) = 4.*x + 4.*y - 2.;
+
+   jshape(3,0,0) = 4.*x + 4.*y - 2.; jshape(3,0,1) = 4.*x;
+   jshape(3,1,0) = 2.*y; jshape(3,1,1) = 2.*x + 8.*y - 2.;
+
+   jshape(4,0,0) = 2.*y - 4.*x + 2.; jshape(4,0,1) = 2.*x - 2.;
+   jshape(4,1,0) = -2.*y; jshape(4,1,1) = 4.*y - 2.*x;
+
+   jshape(5,0,0) = 6. - 2.*y - 8.*x; jshape(5,0,1) = 2. - 2.*x;
+   jshape(5,1,0) = -4.*y; jshape(5,1,1) = 2. - 4.*y - 4.*x;
+
+   jshape(6,0,0) = 6. - 3.*y - 12.*x; jshape(6,0,1) = -3.*x;
+   jshape(6,1,0) = -6.*y; jshape(6,1,1) = 3. - 6.*y - 6.*y;
+
+   jshape(7,0,0) = 3. - 6.*y - 6.*x; jshape(7,0,1) = -6.*x;
+   jshape(7,1,0) = -3.*y; jshape(7,1,1) = 6. - 12.*y - 3.*x;
 }
 
 const double RT1TriangleFiniteElement::nk[8][2] =
@@ -3318,6 +3370,41 @@ void RT2TriangleFiniteElement::CalcDivShape(const IntegrationPoint &ip,
       }
       divshape(i) = div;
    }
+}
+
+void RT2TriangleFiniteElement::CalcJShape(const IntegrationPoint &ip,
+                                          DenseTensor &jshape) const
+{
+   double x = ip.x, y = ip.y;
+
+   double Bxx[15] = {0., 0., 1., 0., 0., 0., 2.*x, 0., y, 0., 0., 0., 3.*x*x,
+                     2.*x*y, y*y
+                    };
+           
+   double Bxy[15] = {0., 0., 0., 0., 1., 0., 0., 0., x, 0., 2.*y, 0., 0., x*x, 
+                     2.*x*y
+                    };
+                   
+   double Byx[15] = {0., 0., 0., 1., 0., 0., 0., 2.*x, 0., y, 0., 0., 2.*x*y,
+                     y*y, 0.
+                    };
+                   
+   double Byy[15] = {0., 0., 0., 0., 0., 1., 0., 0., 0., x, 0., 2.*y, x*x,
+                     2.*x*y, 3.*y*y
+                    };
+
+   for (int i = 0; i < 15; i++)
+   {
+      double cxx = 0.0, cxy = 0.0, cyx = 0.0, cyy = 0.0;
+      for (int j = 0; j < 15; j++)
+      {
+         cxx += M[i][j] * Bxx[j]; cxy += M[i][j] * Bxy[j];
+         cyx += M[i][j] * Byx[j]; cyy += M[i][j] * Byy[j];
+      }
+      jshape(i,0,0) = cxx; jshape(i,0,1) = cxy;
+      jshape(i,1,0) = cyx; jshape(i,1,1) = cyy;
+   }
+
 }
 
 const double RT2QuadFiniteElement::pt[4] = {0.,1./3.,2./3.,1.};
@@ -9826,6 +9913,51 @@ void RT_TriangleElement::CalcDivShape(const IntegrationPoint &ip,
    Ti.Mult(divu, divshape);
 }
 
+void RT_TriangleElement::CalcJShape(const IntegrationPoint &ip,
+                                          DenseTensor &jshape) const
+{
+   const int p = Order - 1;
+
+   Vector shape_x(p + 1),  shape_y(p + 1),  shape_l(p + 1);
+   Vector dshape_x(p + 1), dshape_y(p + 1), dshape_l(p + 1);
+   DenseTensor ju(Dof, Dim, Dim);
+
+   poly1d.CalcBasis(p, ip.x, shape_x, dshape_x);
+   poly1d.CalcBasis(p, ip.y, shape_y, dshape_y);
+   poly1d.CalcBasis(p, 1. - ip.x - ip.y, shape_l, dshape_l);
+
+   int o = 0;
+   for (int j = 0; j <= p; j++)
+      for (int i = 0; i + j <= p; i++)
+      {
+         int k = p - i - j;
+         //double s = shape_x(i)*shape_y(j)*shape_l(p-i-j);
+         ju(o,0,0) = shape_y(j)*(dshape_x(i)*shape_l(k)-shape_x(i)*dshape_l(k));
+         ju(o,0,1) = shape_x(i)*(dshape_y(j)*shape_l(k)-shape_y(j)*dshape_l(k));
+         ju(o,1,0) = 0.;
+         ju(o,1,1) = 0.;
+         o++;
+         ju(o,0,0) = 0.;
+         ju(o,0,1) = 0.;
+         ju(o,1,0) = shape_y(j)*(dshape_x(i)*shape_l(k)-shape_x(i)*dshape_l(k));
+         ju(o,1,1) = shape_x(i)*(dshape_y(j)*shape_l(k)-shape_y(j)*dshape_l(k));
+         o++;
+      }
+   for (int i = 0; i <= p; i++)
+   {
+      int j = p - i;
+      double s = shape_x(i)*shape_y(j);
+      double sx = dshape_x(i)*shape_y(j);
+      double sy = shape_x(i)*dshape_y(j);
+      ju(o,0,0) = s + (ip.x - c)*sx;
+      ju(o,0,1) = (ip.x - c)*sy;
+      ju(o,1,0) = (ip.y - c)*sx;
+      ju(o,1,1) = s + (ip.y - c)*sy;
+      o++;
+   }
+
+   Ti.Mult(ju, jshape);
+}
 
 const double RT_TetrahedronElement::nk[12] =
 { 1,1,1,  -1,0,0,  0,-1,0,  0,0,-1 };

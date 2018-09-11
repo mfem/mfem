@@ -2055,6 +2055,345 @@ void DivDivIntegrator::AssembleElementMatrix(
    }
 }
 
+void VectorFEDiffusionIntegrator::AssembleElementMatrix(
+   const FiniteElement &el,
+   ElementTransformation &Trans,
+   DenseMatrix &elmat)
+{
+   int dim = el.GetDim();
+   int dof = el.GetDof();
+   double c;
+
+   jshape.SetSize(dof,dim,dim);
+   elmat.SetSize(dof);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+       int order = 2 * el.GetOrder() - 2;
+       ir = &IntRules.Get(el.GetGeomType(), order);
+   }
+
+   elmat = 0.0;
+
+   for (int i = 0; i < ir -> GetNPoints(); i++)
+   {
+       const IntegrationPoint &ip = ir->IntPoint(i);
+
+       el.CalcJShape(ip, jshape);
+
+       Trans.SetIntPoint(&ip);
+       c = ip.weight / Trans.Weight(); // ip.weight * Trans.Weight() ?
+
+       if (Q)
+       {
+          c *= Q -> Eval(Trans, ip);
+       }
+
+       for (int row = 0; row < dof; row++)
+       {
+          for (int col = 0; col < dof; col++)
+          {
+              elmat(row,col) += c*(jshape(row,0,0)*jshape(col,0,0) +
+                                   jshape(row,0,1)*jshape(col,0,1) +
+                                   jshape(row,1,0)*jshape(col,1,0) +
+                                   jshape(row,1,1)*jshape(col,1,1) );
+          }
+       }
+   }
+}
+
+
+void VectorFEDGDiffusionIntegrator::AssembleFaceMatrix(
+   const FiniteElement &el1,
+   const FiniteElement &el2,
+   FaceElementTransformations &Trans,
+   DenseMatrix &elmat)
+{
+   int dim,ndof1, ndof2, ndofs;
+   bool kappa_is_nonzero = (kappa !=0.);
+   double w, wq = 0.0;
+
+   dim = el1.GetDim();
+   ndof1 = el1.GetDof();
+
+   if (dim != 2)
+   {
+       mfem_error("This integrator is only for 2 dimensional RT Triangle elements");
+   }
+
+   nor.SetSize(dim);
+   ni.SetSize(dim);
+   adjJ.SetSize(dim);
+
+   shape1.SetSize(ndof1, dim);
+   shape1on.SetSize(ndof1, dim, dim);
+   jshape1.SetSize(ndof1, dim, dim);
+
+   if (Trans.Elem2No >=0)
+   {
+       ndof2 = el2.GetDof();
+       shape2.SetSize(ndof2, dim);
+       shape2on.SetSize(ndof2, dim, dim);
+       jshape2.SetSize(ndof2, dim, dim);
+   }
+   else
+   {
+      ndof2 = 0;
+   }
+
+   ndofs = ndof1 + ndof2;
+   elmat.SetSize(ndofs);
+   elmat = 0.0;
+
+   if (kappa_is_nonzero)
+   {
+      jmat.SetSize(ndofs);
+      jmat = 0.;
+   }
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int order;
+      if (ndof2)
+      {
+         order = 2*max(el1.GetOrder(), el2.GetOrder());
+      }
+      else
+      {
+         order = 2*el1.GetOrder();
+      }
+      ir = &IntRules.Get(Trans.FaceGeom, order);
+   }
+
+   for (int p = 0; p < ir -> GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+      IntegrationPoint eip1, eip2;
+
+      Trans.Loc1.Transform(ip, eip1);
+      Trans.Face->SetIntPoint(&ip);
+
+      CalcOrtho(Trans.Face->Jacobian(), nor);
+
+      el1.CalcVShape(eip1, shape1);
+      el1.CalcJShape(eip1, jshape1);
+      Trans.Elem1->SetIntPoint(&eip1);
+      w = ip.weight/Trans.Elem1->Weight();
+
+      if (ndof2)
+      { 
+         w /= 2.;
+      }
+
+      if (Q)
+      { 
+         w *= Q->Eval(*Trans.Elem1, eip1);
+      }
+      ni.Set(w, nor);
+      nh = ni; // Just to initialize
+
+      CalcAdjugate(Trans.Elem1->Jacobian(), adjJ);
+      adjJ.Mult(ni, nh);
+      
+      if (kappa_is_nonzero)
+      {
+         wq = ni*nor;
+      }
+      
+      for (int row = 0; row < ndof1; row++)
+      { 
+         shape1on(row,0,0) = shape1(row,0)*nh(0); shape1on(row,0,1) = shape1(row,0)*nh(1);
+         shape1on(row,1,0) = shape1(row,1)*nh(0); shape1on(row,1,1) = shape1(row,1)*nh(1);
+      }
+
+      for (int i = 0; i < ndof1; i++)
+      { 
+         for (int j = 0; j < ndof1; j++)
+         {
+            elmat(i,j) = ( shape1on(i,0,0)*jshape1(j,0,0) +
+                           shape1on(i,0,1)*jshape1(j,0,1) +
+                           shape1on(i,1,0)*jshape1(j,1,0) +
+                           shape1on(i,1,1)*jshape1(j,1,1) );
+         }
+      }
+
+      if (ndof2)
+      { 
+         Trans.Loc2.Transform(ip, eip2);
+         el2.CalcVShape(eip2, shape2);
+         el2.CalcJShape(eip2, jshape2);
+         Trans.Elem2->SetIntPoint(&eip2);
+         w = ip.weight/Trans.Elem2->Weight()/2.; 
+
+         if (Q)
+         {
+            w *= Q->Eval(*Trans.Elem2, eip2);
+         }
+         ni.Set(w, nor);
+
+         CalcAdjugate(Trans.Elem2->Jacobian(), adjJ);
+         adjJ.Mult(ni, nh);
+         
+         if (kappa_is_nonzero)
+         {
+            wq += ni*nor;
+         }
+         
+         for (int row = 0; row < ndof1; row++)
+         {
+            shape2on(row,0,0) = shape2(row,0)*nh(0); shape2on(row,0,1) = shape2(row,0)*nh(1);
+            shape2on(row,1,0) = shape2(row,1)*nh(0); shape2on(row,1,1) = shape2(row,1)*nh(1);
+         }
+         // To adjust for the normal direction
+         // Add this one (+=) ?
+         for (int i = 0; i < ndof1; i++)
+            for (int j = 0; j < ndof2; j++)
+            {
+               elmat(i, ndof1 + j) += ( shape1on(i,0,0)*jshape2(j,0,0) +
+                                        shape1on(i,0,1)*jshape2(j,0,1) +
+                                        shape1on(i,1,0)*jshape2(j,1,0) +
+                                        shape1on(i,1,1)*jshape2(j,1,1) ); 
+            }
+         // Subtract these two (-=) ?
+         for (int i = 0; i < ndof2; i++)
+            for (int j = 0; j < ndof1; j++)
+            {
+               elmat(ndof1 + i, j) -= ( shape2on(i,0,0)*jshape1(j,0,0) +
+                                        shape2on(i,0,1)*jshape1(j,0,1) +
+                                        shape2on(i,1,0)*jshape1(j,1,0) +
+                                        shape2on(i,1,1)*jshape1(j,1,1) ); 
+            }
+
+         for (int i = 0; i < ndof2; i++)
+            for (int j = 0; j < ndof2; j++)
+            {
+               elmat(ndof1 + i, ndof1 + j) -= ( shape2on(i,0,0)*jshape2(j,0,0) +
+                                                shape2on(i,0,1)*jshape2(j,0,1) +
+                                                shape2on(i,1,0)*jshape2(j,1,0) +
+                                                shape2on(i,1,1)*jshape2(j,1,1) ); 
+            }
+      }
+      
+      if (kappa_is_nonzero)
+      {
+ //////////////////////////////////////////     
+ //////////////////////////////     
+////////////////////////////////////////////////      
+      w = ip.weight/Trans.Elem1->Weight();
+
+      if (ndof2)
+      { 
+         w /= 2.;
+      }
+      
+      nh = nor; // Just to initialize
+
+      CalcAdjugate(Trans.Elem1->Jacobian(), adjJ);
+      adjJ.Mult(nor, nh);
+      
+      for (int row = 0; row < ndof1; row++)
+      { 
+         shape1on(row,0,0) = shape1(row,0)*nh(0); shape1on(row,0,1) = shape1(row,0)*nh(1);
+         shape1on(row,1,0) = shape1(row,1)*nh(0); shape1on(row,1,1) = shape1(row,1)*nh(1);
+      }
+///////////////////////////////////////////      
+ ///////////////////////////////////////////     
+//////////////////////////////////////////      
+      
+      
+         // only assemble the lower triangular part of jmat
+         wq = w*kappa;
+         for (int i = 0; i < ndof1; i++)
+         {
+            for (int j = 0; j <= i; j++)
+            {
+               jmat(i,j) += wq * ( shape1on(i,0,0) * shape1on(j,0,0) +
+                                   shape1on(i,0,1) * shape1on(j,0,1) +
+                                   shape1on(i,1,0) * shape1on(j,1,0) +
+                                   shape1on(i,1,1) * shape1on(j,1,1) );
+//                 jmat(i,j) += wq * ( shape1(i,0) * shape1(j,0) +
+//                                     shape1(i,1) * shape1(j,1) );
+            }
+         }
+         if (ndof2)
+         {
+         
+////////////////////////////         
+////////////////////////////
+////////////////////////////
+         
+         w = ip.weight/Trans.Elem2->Weight()/2.; 
+
+         CalcAdjugate(Trans.Elem2->Jacobian(), adjJ);
+         adjJ.Mult(nor, nh);
+         
+         for (int row = 0; row < ndof1; row++)
+         {
+            shape2on(row,0,0) = shape2(row,0)*nh(0); shape2on(row,0,1) = shape2(row,0)*nh(1);
+            shape2on(row,1,0) = shape2(row,1)*nh(0); shape2on(row,1,1) = shape2(row,1)*nh(1);
+         }
+///////////////////////////
+///////////////////////////
+///////////////////////////
+         
+         
+            for (int i = 0; i < ndof2; i++)
+            {
+               for (int j = 0; j < ndof1; j++)
+               {
+                  jmat(ndof1+i, j) -= wq * ( shape2on(i,0,0) * shape1on(j,0,0) +
+                                             shape2on(i,0,1) * shape1on(j,0,1) +
+                                             shape2on(i,1,0) * shape1on(j,1,0) +
+                                             shape2on(i,1,1) * shape1on(j,1,1) );
+//                 jmat(ndof1+i,j) -= wq * ( shape2(i,0) * shape1(j,0) +
+//                                           shape2(i,1) * shape1(j,1) );
+               }
+               for (int j = 0; j <= i; j++)
+               {
+                  jmat(ndof1+i, ndof1+j) += wq * ( shape2on(i,0,0) * shape2on(j,0,0) +
+                                                   shape2on(i,0,1) * shape2on(j,0,1) +
+                                                   shape2on(i,1,0) * shape2on(j,1,0) +
+                                                   shape2on(i,1,1) * shape2on(j,1,1) );
+//                 jmat(ndof1+i,ndof1+j) += wq * ( shape2(i,0) * shape2(j,0) +
+//                                                 shape2(i,1) * shape2(j,1) );
+               }
+            }
+         }
+      } 
+      
+      if (kappa_is_nonzero)
+      {
+         for (int i = 0; i < ndofs; i++)
+         {
+            for (int j = 0; j < i; j++)
+            {
+               double aij = elmat(i,j), aji = elmat(j,i), mij = jmat(i,j);
+               elmat(i,j) = sigma*aji - aij + mij;
+               elmat(j,i) = sigma*aij - aji + mij;
+            }
+            elmat(i,i) = (sigma - 1.)*elmat(i,i) + jmat(i,i);
+         }
+      }
+      else
+      {
+         for (int i = 0; i < ndofs; i++)
+         {
+            for (int j = 0; j < i; j++)
+            {
+               double aij = elmat(i,j), aji = elmat(j,i);
+               elmat(i,j) = sigma*aji - aij;
+               elmat(j,i) = sigma*aij - aji;
+            }
+            elmat(i,i) *= (sigma - 1.);
+         }
+      }
+//      elmat.Threshold(1.e-16);
+//      elmat.Print();
+   }
+
+}
 
 void VectorDiffusionIntegrator::AssembleElementMatrix(
    const FiniteElement &el,
