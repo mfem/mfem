@@ -53,7 +53,7 @@ public:
    }
 #endif
 
-   /** f = 1/2 x^T Q x + c^T x */
+   /** f = 1/2 x^T A x + c^T x */
    virtual void setObjectiveFunction(const DenseMatrix &_A, const Vector &_c)
    {
       setObjectiveFunction(_A);
