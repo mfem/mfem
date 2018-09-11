@@ -33,9 +33,11 @@ void Engine::Init(const std::string &engine_spec)
    const bool uvm = false;
    
    if (engine_spec.find("cpu")!=std::string::npos){
+      dbg("CPU engine");
       cuda = false;
    }
    if (engine_spec.find("gpu")!=std::string::npos){
+      dbg("GPU engine");
       cuda = true;
    }
    
@@ -44,8 +46,7 @@ void Engine::Init(const std::string &engine_spec)
                                 cuda,
                                 false, // CG on device
                                 uvm,
-#warning CUDA aware @ true
-                                true, // aware
+                                true, // MPI CUDA aware
                                 false, // share
                                 false, // occa
                                 false, // hcpo

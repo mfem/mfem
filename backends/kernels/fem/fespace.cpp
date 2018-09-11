@@ -86,11 +86,10 @@ kFiniteElementSpace(const Engine& e,
 
    dbg("offsets, indices copy");
    offsets = h_offsets;
-   indices = h_indices;
-   map = h_map;
+   indices = h_indices;   map = h_map;
 
    if (kernels::config::Get().IAmAlone()){
-      dbg("\033[7m!P, Switching to IdentityOperator!");
+      dbg("\033[7mIAmAlone: Switching to IdentityOperator!");
       restrictionOp = new IdentityOperator(KernelsTrueVLayout());
       prolongationOp = new IdentityOperator(KernelsTrueVLayout());
       pop();
@@ -132,8 +131,8 @@ kFiniteElementSpace(const Engine& e,
    *reorderIndices = h_reorderIndices;
 
    dbg("\033[7mRestrictionOperator");
-   assert(R->InLayout().As<Layout>()->Size()==R->Width());
-   assert(R->OutLayout().As<Layout>()->Size()==R->Height());
+   assert(R->InLayout().As<Layout>()->Size()==(std::size_t)R->Width());
+   assert(R->OutLayout().As<Layout>()->Size()==(std::size_t)R->Height());
    restrictionOp = new kernels::RestrictionOperator(*R->InLayout().As<Layout>(),
                                                     *R->OutLayout().As<Layout>(),
                                                     reorderIndices);

@@ -134,7 +134,7 @@ void Array::DoPushData(const void *src_buffer, std::size_t item_size)
 void Array::DoAssign(const PArray &src, std::size_t item_size)
 {
    push();
-   const Array *source = dynamic_cast<const Array *>(&src);
+   const kernels::Array *source = dynamic_cast<const kernels::Array*>(&src);
    MFEM_ASSERT(source != NULL, "invalid source Array type");
    MFEM_ASSERT(Size() == source->Size(), "");
    slice.copyFrom(source->slice);
@@ -147,6 +147,7 @@ void Array::DoMakeRefOffset(const PArray &src,
                             const std::size_t size,
                             const std::size_t item_size){
    push();
+   layout->Resize(size);
    const kernels::Array &ksrc = src.As<const kernels::Array>();
    const std::size_t bytes_size = size * item_size;
    const std::size_t bytes_offset = offset * item_size;

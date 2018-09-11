@@ -104,7 +104,6 @@ memory memory::slice(const size_t offset,
    assert(bytes>0);
    memory m = memory(bytes,NULL);
    dbg("\n\033[31;1;7m[memory::slice] rDtoD!");
-   //::memcpy(m.data,data+offset,bytes);
    mfem::kernels::kmemcpy::rDtoD(m.data,data+offset,bytes);
    pop();
    return m;

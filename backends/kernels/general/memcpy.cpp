@@ -50,7 +50,6 @@ void* kmemcpy::rHtoD(void *dest, const void *src, std::size_t bytes,
    }
    assert(src); assert(dest);
    if (!config::Get().Cuda()) {
-      //pop();
       return std::memcpy(dest,src,bytes);
    }
 #ifdef __NVCC__

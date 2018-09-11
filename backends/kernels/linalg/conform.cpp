@@ -32,7 +32,7 @@ kConformingProlongationOperator::kConformingProlongationOperator
                                kMaxTh(0){
    push();
    mfem::Array<int> ldofs;
-   assert(pfes.GetTrueVSize()==pfes.GetTrueVLayout()->Size());   
+   assert((std::size_t)pfes.GetTrueVSize()==pfes.GetTrueVLayout()->Size());   
    dbg("\033[32;7m GetVSize()=%d, GetTrueVSize()=%d",pfes.GetVSize(), pfes.GetTrueVSize());
    dbg("\033[32;7m GetVLayout()=%d, GetTrueVLayout()=%d",pfes.GetVLayout()->Size(), pfes.GetTrueVLayout()->Size());
    dbg("\033[32;7m Height()=%d, Width()=%d",Height(),Width());
@@ -55,12 +55,12 @@ kConformingProlongationOperator::kConformingProlongationOperator
     }
     external_ldofs.Sort();
 #ifdef __NVCC__
-    const int HmW = absHmW;
+    const std::size_t HmW = absHmW;
     if (HmW>0){
        d_external_ldofs = external_ldofs;
     }
 #endif
-    assert(external_ldofs.Size() == absHmW);
+    assert((std::size_t)external_ldofs.Size() == absHmW);
     // *************************************************************************
     const int m = external_ldofs.Size();
     //printf("\n[kConformingProlongationOperator] m=%d\n",m);fflush(stdout);
@@ -126,8 +126,8 @@ kConformingProlongationOperator::kConformingProlongationOperator
 void kConformingProlongationOperator::d_Mult(const kernels::Vector &x,
                                                    kernels::Vector &y) const{
     push(Coral);
-    MFEM_ASSERT(x.Size() == Width(), "x.Size()=" << x.Size()<<", Width()="<<Width());
-    MFEM_ASSERT(y.Size() == Height(), "");
+    MFEM_ASSERT(x.Size() == (std::size_t)Width(), "x.Size()=" << x.Size()<<", Width()="<<Width());
+    MFEM_ASSERT(y.Size() == (std::size_t)Height(), "");
     const double *d_xdata = x.GetData();
     const int in_layout = 2; // 2 - input is ltdofs array
     

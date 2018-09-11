@@ -22,8 +22,8 @@ namespace kernels
 
 // *****************************************************************************
 KernelsMassIntegrator::KernelsMassIntegrator(const mfem::Engine &ng) :
-   engine(ng),
    KernelsIntegrator(ng.As<kernels::Engine>()),
+   engine(ng),
    coeff(ng.As<kernels::Engine>(),1.0)
 {
    push();
@@ -32,8 +32,8 @@ KernelsMassIntegrator::KernelsMassIntegrator(const mfem::Engine &ng) :
 
 // *****************************************************************************
 KernelsMassIntegrator::KernelsMassIntegrator(const KernelsCoefficient &coeff_) :
-   engine(coeff_.KernelsEngine()),
    KernelsIntegrator(coeff_.KernelsEngine()),
+   engine(coeff_.KernelsEngine()),
    coeff(coeff_)
 {
    push();
