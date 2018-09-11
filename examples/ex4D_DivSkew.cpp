@@ -417,7 +417,6 @@ int main(int argc, char *argv[])
    bool exactH1Solver = false;
    bool spe10Coeff = false;
    bool standardCG = true;
-   bool visualization = 1;
 
    int NExpo = 8;
    int weightStart = -NExpo;
