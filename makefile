@@ -1,9 +1,9 @@
-CXXLAGS = -shared -fPIC -Wall -Wno-deprecated-declarations
+CFLAGS = -shared -fPIC -Wall -fno-exceptions
 
 all: okmm.so
 
 %.so: %.cc
-	$(CXX) $(CXXLAGS) -o $@ $< -ldl
+	$(CC) $(CFLAGS) -o $@ $< -ldl
 
 cln:
 	\rm -f *.so
