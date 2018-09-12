@@ -1,10 +1,7 @@
 #include <dlfcn.h>
-#include <stdio.h>
-#include <stdlib.h>
 
-#include <cassert>
+//#include <cassert>
 #include <unordered_map>
-
 
 // *****************************************************************************
 typedef void *malloc_t(size_t size);
@@ -15,9 +12,10 @@ typedef void *memalign_t(size_t alignment, size_t size);
 
 // *****************************************************************************
 static bool hooked = false;
+static bool dlsymd = false;
 static free_t *_free = NULL;
 static malloc_t *_malloc = NULL;
-//static calloc_t *_calloc = NULL;
+static calloc_t *_calloc = NULL;
 static realloc_t *_realloc = NULL;
 static memalign_t *_memalign = NULL;
 static std::unordered_map<void*,size_t> *_mm = NULL;
@@ -25,19 +23,30 @@ static std::unordered_map<void*,size_t> *_mm = NULL;
 // *****************************************************************************
 static void _init(void){
    _free = (free_t*) dlsym(RTLD_NEXT, "free");
-   //_calloc = (calloc_t*)dlsym(RTLD_NEXT, "calloc");
+   _calloc = (calloc_t*)dlsym(RTLD_NEXT, "calloc");
    _malloc = (malloc_t*) dlsym(RTLD_NEXT, "malloc");
    _realloc = (realloc_t*) dlsym(RTLD_NEXT, "realloc");
    _memalign = (memalign_t*) dlsym(RTLD_NEXT, "memalign");
    _mm = new std::unordered_map<void*,size_t>();
-   const bool dls = _free and _malloc /*and _calloc*/ and _realloc and _memalign;
+   const bool dls = _free and _malloc and _calloc and _realloc and _memalign;
    assert(dls and _mm);
    hooked = true;
+   dlsymd = true;
 }
 
 // *****************************************************************************
-/*void *calloc(size_t nmemb, size_t size){
-   if (!_calloc) _init();
+#define MAX_MEM 4096
+size_t m = 0;
+char mem[4096];
+void *calloc(size_t nmemb, size_t size){
+   if (!dlsymd) {
+      const size_t bytes = nmemb*size;
+      void *ptr = &mem[m];
+      m+=bytes;
+      if (m>=MAX_MEM) exit(1);
+      for(size_t k=0;k<bytes;k+=1) *(((char*)ptr)+k) = 0;
+      return ptr;
+   }
    if (!hooked) return _calloc(nmemb, size);
    hooked = false;
    void *ptr = _calloc(nmemb, size);
@@ -50,7 +59,7 @@ static void _init(void){
    }
    hooked = true;
    return ptr;
-   }*/
+}
 
 // *****************************************************************************
 void *malloc(size_t size){
