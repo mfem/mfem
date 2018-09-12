@@ -282,6 +282,15 @@ void Mesh::PrintCharacteristics(Vector *Vh, Vector *Vk, std::ostream &out)
            << endl;
    }
    out << '\n' << std::flush;
+
+/*
+   for (int f = 0; f < NumOfFaces; ++f)
+   {
+      out << "\t" << faces_info[f].Elem1No << "\t" << faces_info[f].Elem2No << "\t" << (be_to_face.Find(f) < 0 ? -1 : GetBdrAttribute(be_to_face.Find(f)) )
+            << "\t:\t" << faces[f]->GetVertices()[0] << "," << faces[f]->GetVertices()[1] << ","
+            << faces[f]->GetVertices()[2] << "," << faces[f]->GetVertices()[3] << "," << std::endl;
+   }
+*/
 }
 
 FiniteElement *Mesh::GetTransformationFEforElementType(int ElemType)
@@ -3142,13 +3151,13 @@ void Mesh::Loader(std::istream &input, int generate_edges,
             int *v = elements[j]->GetVertices();
             Sort5(v[0], v[1], v[2], v[3], v[4]);
 
-            GetElementJacobian(j, J);
-            if (J.Det() < 0.0)
-            {
-               swappedElements[j] = true;
-               Swap(v);
-            }
-            else
+//            GetElementJacobian(j, J);
+//            if (J.Det() < 0.0)
+//            {
+//               swappedElements[j] = true;
+//               Swap(v);
+//            }
+//            else
             {
                swappedElements[j] = false;
             }
@@ -5265,10 +5274,10 @@ void Mesh::GenerateFaces()
             for (int j = 0; j < 5; j++)
             {
                bool swapFace = false;
-               if ((swapped && j % 2 == 0) || (!swapped && j % 2 == 1))
+/*               if ((swapped && j % 2 == 0) || (!swapped && j % 2 == 1))
                {
                   swapFace = true;
-               }
+               }*/
 
                if (faces[ef[filter[j]]] == NULL)
                {
@@ -7936,7 +7945,7 @@ void Mesh::RedRefinementPentatope(int i, HashTable<Hashed2> & v_to_v)
    swappedElements.Append(mySwaped);
 
    w[0] = v_new[0]; w[1] = v_new[1]; w[2] = v_new[4]; w[3] = v_new[5];
-   w[4] = v_new[6]; mySwaped = !swapped;
+   w[4] = v_new[6]; /*mySwaped = !swapped;*/ mySwaped = swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[0]; w[1] = v_new[1]; w[2] = v_new[2]; w[3] = v_new[5];
@@ -7944,12 +7953,12 @@ void Mesh::RedRefinementPentatope(int i, HashTable<Hashed2> & v_to_v)
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[0]; w[1] = v_new[1]; w[2] = v_new[2]; w[3] = v_new[3];
-   w[4] = v_new[6]; mySwaped = !swapped;
+   w[4] = v_new[6]; /*mySwaped = !swapped;*/ mySwaped = swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
 
    w[0] = v_new[1]; w[1] = v_new[4]; w[2] = v_new[5]; w[3] = v_new[7];
-   w[4] = v_new[8]; mySwaped = !swapped;
+   w[4] = v_new[8]; /*mySwaped = !swapped;*/ mySwaped = swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[1]; w[1] = v_new[4]; w[2] = v_new[5]; w[3] = v_new[6];
@@ -7961,7 +7970,7 @@ void Mesh::RedRefinementPentatope(int i, HashTable<Hashed2> & v_to_v)
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[1]; w[1] = v_new[2]; w[2] = v_new[5]; w[3] = v_new[6];
-   w[4] = v_new[8]; mySwaped = !swapped;
+   w[4] = v_new[8]; /*mySwaped = !swapped;*/ mySwaped = swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[1]; w[1] = v_new[2]; w[2] = v_new[3]; w[3] = v_new[6];
@@ -7970,7 +7979,7 @@ void Mesh::RedRefinementPentatope(int i, HashTable<Hashed2> & v_to_v)
    swappedElements.Append(mySwaped);
 
    w[0] = v_new[2]; w[1] = v_new[5]; w[2] = v_new[7]; w[3] = v_new[8];
-   w[4] = v_new[9]; mySwaped = !swapped;
+   w[4] = v_new[9]; /*mySwaped = !swapped;*/ mySwaped = swapped;
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[2]; w[1] = v_new[5]; w[2] = v_new[6]; w[3] = v_new[8];
@@ -7978,7 +7987,7 @@ void Mesh::RedRefinementPentatope(int i, HashTable<Hashed2> & v_to_v)
    if (mySwaped) { Swap(w); } elements.Append(new Pentatope(w, attr)); elements.Last()->ResetTransform(o++);
    swappedElements.Append(mySwaped);
    w[0] = v_new[2]; w[1] = v_new[3]; w[2] = v_new[6]; w[3] = v_new[8];
-   w[4] = v_new[9]; mySwaped = !swapped;
+   w[4] = v_new[9]; /*mySwaped = !swapped;*/ mySwaped = swapped;
    if (mySwaped) { Swap(w); } elements[i]->SetVertices(w); elements[i]->ResetTransform(o);
    swappedElements[i] = mySwaped;
 
@@ -8064,13 +8073,13 @@ void Mesh::RedRefinementBoundaryTet(int i, HashTable<Hashed2> & v_to_v)
       new Tetrahedron(w, attr));
 
    w[0] = v_new[0]; w[1] = v_new[1]; w[2] = v_new[3]; w[3] = v_new[4];
-   mySwaped = !swapped;/*if(mySwaped) Swap(w); */ if (mySwaped) { Swap(w); } boundary.Append(
+   mySwaped = swapped; /*mySwaped = !swapped;*//*if(mySwaped) Swap(w); */ if (mySwaped) { Swap(w); } boundary.Append(
       new Tetrahedron(w, attr));
    w[0] = v_new[0]; w[1] = v_new[1]; w[2] = v_new[2]; w[3] = v_new[4];
    mySwaped = swapped; /*if(mySwaped) Swap(w); */ if (mySwaped) { Swap(w); } boundary.Append(
       new Tetrahedron(w, attr));
    w[0] = v_new[1]; w[1] = v_new[3]; w[2] = v_new[4]; w[3] = v_new[5];
-   mySwaped = !swapped;/*if(mySwaped) Swap(w); */ if (mySwaped) { Swap(w); } boundary.Append(
+   mySwaped = swapped; /*mySwaped = !swapped;*//*if(mySwaped) Swap(w); */ if (mySwaped) { Swap(w); } boundary.Append(
       new Tetrahedron(w, attr));
    w[0] = v_new[1]; w[1] = v_new[2]; w[2] = v_new[4]; w[3] = v_new[5];
    mySwaped = swapped; /*if(mySwaped) Swap(w); */ if (mySwaped) { Swap(w); } boundary[i]->SetVertices(

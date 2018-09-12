@@ -195,7 +195,7 @@ public:
    /// Return the current list of conforming and nonconforming faces.
    const NCList& GetPlanarList()
    {
-      if (planar_list.Empty()) { BuildFaceList(); }
+      if (planar_list.Empty()) { BuildPlanarList(); }
       return planar_list;
    }
 
@@ -306,10 +306,12 @@ public:
 
    /// Return total number of bytes allocated.
    long MemoryUsage() const;
+   long MemoryUsage4D() const;
 
    int PrintMemoryDetail() const;
 
    void PrintStats(std::ostream &out = mfem::out) const;
+   void PrintStats4D(std::ostream &out = mfem::out) const;
 
 
 protected: // interface for Mesh to be able to construct itself from NCMesh
@@ -341,7 +343,7 @@ protected: // implementation
        parent element "signs off" its nodes by decrementing the ref counts. */
    struct Node : public Hashed2
    {
-      char vert_refc, edge_refc;
+      short vert_refc, edge_refc; // changed from char to short because in 4D, a vertex might be in more than 127 elements
       int vert_index, edge_index;
 
       Node() : vert_refc(0), edge_refc(0), vert_index(-1), edge_index(-1) {}
@@ -452,6 +454,7 @@ protected: // implementation
    typedef HashTable<Face>::iterator face_iterator;
    typedef HashTable<Node>::const_iterator node_const_iterator;
    typedef HashTable<Face>::const_iterator face_const_iterator;
+   typedef HashTable<Face4D>::const_iterator face4d_const_iterator;
    typedef BlockArray<Element>::iterator elem_iterator;
 
 
@@ -592,6 +595,8 @@ protected: // implementation
 
    void TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
                      int level);
+   void TraversePlanar(int vn0, int vn1, int vn2, const PointMatrix& pm,
+                       int level);
 
    virtual void BuildFaceList();
    virtual void BuildPlanarList();
@@ -753,7 +758,7 @@ protected: // implementation
    struct TmpVertex
    {
       bool valid, visited;
-      double pos[3];
+      double pos[4];
       TmpVertex() : valid(false), visited(false) {}
    };
 

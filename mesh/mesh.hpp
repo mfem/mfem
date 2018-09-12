@@ -748,6 +748,8 @@ public:
 
    const Element *GetFace(int i) const { return faces[i]; }
 
+   const Element *GetPlanar(int i) const { return planars[i]; }
+
    int GetFaceBaseGeometry(int i) const;
 
    int GetPlanarBaseGeometry(int i) const;
