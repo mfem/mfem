@@ -4,8 +4,8 @@
 //
 // Sample runs:
 //
-//    ex9 -m ../../data/periodic-segment.mesh -rs 3 -p 0 -o 2 -dt 0.002 -opt 1
-//    ex9 -m ../../data/periodic-segment.mesh -rs 3 -p 0 -o 2 -dt 0.002 -opt 2
+//    ex9 -m ../../data/periodic-segment.mesh -r 3 -p 0 -o 2 -dt 0.002 -opt 1
+//    ex9 -m ../../data/periodic-segment.mesh -r 3 -p 0 -o 2 -dt 0.002 -opt 2
 //
 //    ex9 -m ../data/periodic-segment.mesh -p 0 -r 2 -dt 0.005
 //    ex9 -m ../data/periodic-square.mesh -p 0 -r 2 -dt 0.01 -tf 10

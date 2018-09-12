@@ -283,9 +283,6 @@ PUMI_LIB = -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf -lpcu -lgmi -lparma\
 # HIOP
 HIOP_DIR = @MFEM_DIR@/../hiop/install
 HIOP_OPT = -I$(HIOP_DIR)/include
-ifeq ($(MFEM_USE_MPI),YES)
-   HIOP_OPT += -DHIOP_USE_MPI
-endif
 HIOP_LIB = -L$(HIOP_DIR)/lib -lhiop
 
 # If YES, enable some informational messages
