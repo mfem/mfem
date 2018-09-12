@@ -23,7 +23,7 @@ using namespace hiop;
 namespace mfem
 {
 HiopNlpOptimizer::HiopNlpOptimizer() 
-  : OptimizationSolver(), optProb_(NULL) 
+  : OptimizationSolver(), optProb_(NULL), use_initial_x_value(false)
 { 
 
 #ifdef MFEM_USE_MPI
@@ -42,7 +42,8 @@ HiopNlpOptimizer::HiopNlpOptimizer()
 HiopNlpOptimizer::HiopNlpOptimizer(MPI_Comm _comm) 
   : OptimizationSolver(_comm),
     optProb_(NULL),
-    comm_(_comm) 
+    comm_(_comm),
+    use_initial_x_value(false)
 { 
 
 }
@@ -50,43 +51,86 @@ HiopNlpOptimizer::HiopNlpOptimizer(MPI_Comm _comm)
 
 HiopNlpOptimizer::~HiopNlpOptimizer()
 {
-  if(optProb_) delete optProb_;
+   if (optProb_) delete optProb_;
 }
 
-void HiopNlpOptimizer::Mult(const Vector &xt, Vector &x) const
+void HiopNlpOptimizer::Mult(Vector &x) const
 {
-  //set xt in the problemSpec to compute the objective
-  optProb_->setObjectiveTarget(xt);
+   if (use_initial_x_value) optProb_->setStartingPoint(x);
+   hiop::hiopNlpDenseConstraints hiopInstance(*optProb_);
 
-  hiop::hiopNlpDenseConstraints hiopInstance(*optProb_);
-  hiopInstance.options->SetNumericValue("tolerance", 1e-7);
-  hiopInstance.options->SetIntegerValue("verbosity_level", 0); //0: no output; 3: not too much
+   //Set tolerance:
+   hiopInstance.options->SetNumericValue("tolerance", abs_tol);
+   //0: no output; 3: not too much
+   hiopInstance.options->SetIntegerValue("verbosity_level", print_level);
+   // TODO add capability to pass in some of these arguments
 
-  //use the IPM solver
-  hiop::hiopAlgFilterIPM solver(&hiopInstance);
-  hiop::hiopSolveStatus status = solver.run();
-  double objective = solver.getObjective();
+   //use the IPM solver
+   hiop::hiopAlgFilterIPM solver(&hiopInstance);
+   hiop::hiopSolveStatus status = solver.run();
+   double objective = solver.getObjective();
 
-  MFEM_ASSERT(solver.getSolveStatus()==hiop::Solve_Success, "optimizer returned with a non-success status: " << solver.getSolveStatus());
+   MFEM_ASSERT(solver.getSolveStatus()==hiop::Solve_Success,
+               "optimizer returned with a non-success status: "
+                  << solver.getSolveStatus());
 
-  //copy the solution to x
-  solver.getSolution(x.GetData());
+   //copy the solution to x
+   solver.getSolution(x.GetData());
+}
+
+void HiopNlpOptimizer_Simple::Mult(Vector &x) const
+{
+   long long int n_local, m;
+   optProb_Simple_->get_prob_sizes(n_local, m);
+
+   // Solve assuming xt = 0
+   Vector xt(n_local);
+   xt = 0.;
+   MFEM_WARNING("Assuming xt = 0 in HiopNlpOptimizer_Simple::Mult!");
+   Mult(xt, x);
+}
+
+void HiopNlpOptimizer_Simple::Mult(const Vector &xt, Vector &x) const
+{
+   //set xt in the problemSpec to compute the objective
+   optProb_Simple_->setObjectiveTarget(xt);
+   HiopNlpOptimizer::Mult(x);
 }
 
 void HiopNlpOptimizer::SetBounds(const Vector &_lo, const Vector &_hi)
 {
-  if(NULL==optProb_) 
-    allocHiopProbSpec(_lo.Size());
+   if (NULL==optProb_)
+      allocHiopProbSpec(_lo.Size());
 
-  optProb_->setBounds(_lo, _hi);
+   optProb_->setBounds(_lo, _hi);
 }
 
 void HiopNlpOptimizer::SetLinearConstraint(const Vector &_w, double _a)
 {
-  if(NULL==optProb_) 
-    allocHiopProbSpec(_w.Size());
+   if (NULL==optProb_)
+      allocHiopProbSpec(_w.Size());
 
-  optProb_->setLinearConstraint(_w, _a);
+   optProb_->setLinearConstraint(_w, _a);
+}
+
+void HiopNlpOptimizer::SetObjectiveFunction(const DenseMatrix &_A,
+                                            const Vector &_c)
+{
+   if (NULL==optProb_)
+      allocHiopProbSpec(_c.Size());
+   optProb_->setObjectiveFunction(_A, _c);
+}
+void HiopNlpOptimizer::SetObjectiveFunction(const DenseMatrix &_A)
+{
+   if (NULL==optProb_)
+      allocHiopProbSpec(_A.Width());
+   optProb_->setObjectiveFunction(_A);
+}
+void HiopNlpOptimizer::SetObjectiveFunction(const Vector &_c)
+{
+   if (NULL==optProb_)
+      allocHiopProbSpec(_c.Size());
+   optProb_->setObjectiveFunction(_c);
 }
 
 void HiopNlpOptimizer::allocHiopProbSpec(const long long& numvars)
@@ -98,6 +142,20 @@ void HiopNlpOptimizer::allocHiopProbSpec(const long long& numvars)
 #else
    optProb_ = new HiopProblemSpec(numvars);
 #endif
+};
+
+void HiopNlpOptimizer_Simple::allocHiopProbSpec(const long long& numvars)
+{
+   MFEM_ASSERT(optProb_Simple_==NULL && optProb_==NULL,
+                "HiopProbSpec object already created");
+
+#ifdef MFEM_USE_MPI
+   optProb_Simple_ = new HiopProblemSpec_Simple(comm_, numvars);
+#else
+   optProb_Simple_ = new HiopProblemSpec_Simple(numvars);
+#endif
+
+   optProb_ = optProb_Simple_;
 };
 
 
