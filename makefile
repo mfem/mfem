@@ -1,9 +1,9 @@
-CFLAGS = -shared -fPIC -Wall -fno-exceptions
+CXXFLAGS = -shared -fPIC -Wall 
 
 all: okmm.so
 
 %.so: %.cc
-	$(CC) $(CFLAGS) -o $@ $< -ldl
+	$(CXX) $(CXXFLAGS) -o $@ $< -ldl
 
 cln:
 	\rm -f *.so
