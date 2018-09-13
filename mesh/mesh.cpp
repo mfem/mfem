@@ -7248,21 +7248,17 @@ void Mesh::UniformRefinement()
    {
       // FIXME: always use the general 2D/3D uniform refinement methods
 #if 1
-      Mesh::GeometryList elem_geoms(*this);
-      if (elem_geoms.Size() != 1)
+      switch (10*meshgen + Dim)
       {
-         switch (Dim)
-         {
-            case 2: Mixed2DUniformRefinement(); return;
-            case 3: Mixed3DUniformRefinement(); return;
-            default: MFEM_ABORT("internal error"); return;
-         }
-      }
-      switch (elem_geoms[0])
-      {
-         case Geometry::SQUARE: QuadUniformRefinement();  break;
-         case Geometry::CUBE:   HexUniformRefinement();   break;
-         case Geometry::PRISM:  WedgeUniformRefinement(); break;
+         case 22: QuadUniformRefinement();  break;
+         case 32: Mixed2DUniformRefinement(); break;
+         case 23: HexUniformRefinement();   break;
+         case 43: WedgeUniformRefinement(); break;
+         case 33: // tets + hexes
+         case 53: // tets + wedges
+         case 63: // hexes + wedges
+         case 73: // tets + hexes + weges
+            Mixed3DUniformRefinement(); break;
          default: MFEM_ABORT("internal error"); break;
       }
 #else
