@@ -24,9 +24,9 @@ class ElementTransformation
 {
 protected:
    const IntegrationPoint *IntPoint;
-   DenseMatrix dFdx, adjJ, invJ;
-   double Wght;
-   int EvalState;
+   mutable DenseMatrix dFdx, adjJ, invJ;
+   mutable double Wght;
+   mutable int EvalState;
    enum StateMasks
    {
       JACOBIAN_MASK = 1,
@@ -38,11 +38,11 @@ protected:
 
    // Evaluate the Jacobian of the transformation at the IntPoint and store it
    // in dFdx.
-   virtual const DenseMatrix &EvalJacobian() = 0;
+   virtual const DenseMatrix &EvalJacobian() const = 0;
 
-   double EvalWeight();
-   const DenseMatrix &EvalAdjugateJ();
-   const DenseMatrix &EvalInverseJ();
+   double EvalWeight() const;
+   const DenseMatrix &EvalAdjugateJ() const;
+   const DenseMatrix &EvalInverseJ() const;
 
 public:
    int Attribute, ElementNo;
@@ -65,33 +65,35 @@ public:
    /// Check if the integration point has been set
    bool IntPointSet() const { return IntPoint != NULL; }
 
-   virtual void Transform(const IntegrationPoint &, Vector &) = 0;
-   virtual void Transform(const IntegrationRule &, DenseMatrix &) = 0;
+   virtual void Transform(const IntegrationPoint &, Vector &) const = 0;
+   virtual void Transform(const IntegrationRule &, DenseMatrix &) const = 0;
 
    /// Transform columns of 'matrix', store result in 'result'.
-   virtual void Transform(const DenseMatrix &matrix, DenseMatrix &result) = 0;
+   virtual void Transform(const DenseMatrix &matrix,
+                          DenseMatrix &result) const = 0;
 
    /** @brief Return the Jacobian matrix of the transformation at the currently
        set IntegrationPoint, using the method SetIntPoint(). */
    /** The dimensions of the Jacobian matrix are physical-space-dim by
        reference-space-dim. The first column contains the x derivatives of the
        transformation, the second -- the y derivatives, etc. */
-   const DenseMatrix &Jacobian()
+   const DenseMatrix &Jacobian() const
    { return (EvalState & JACOBIAN_MASK) ? dFdx : EvalJacobian(); }
 
-   double Weight() { return (EvalState & WEIGHT_MASK) ? Wght : EvalWeight(); }
+   double Weight() const
+   { return (EvalState & WEIGHT_MASK) ? Wght : EvalWeight(); }
 
-   const DenseMatrix &AdjugateJacobian()
+   const DenseMatrix &AdjugateJacobian() const
    { return (EvalState & ADJUGATE_MASK) ? adjJ : EvalAdjugateJ(); }
 
-   const DenseMatrix &InverseJacobian()
+   const DenseMatrix &InverseJacobian() const
    { return (EvalState & INVERSE_MASK) ? invJ : EvalInverseJ(); }
 
-   virtual int Order() = 0;
-   virtual int OrderJ() = 0;
-   virtual int OrderW() = 0;
+   virtual int Order() const = 0;
+   virtual int OrderJ() const = 0;
+   virtual int OrderW() const = 0;
    /// Order of adj(J)^t.grad(fi)
-   virtual int OrderGrad(const FiniteElement *fe) = 0;
+   virtual int OrderGrad(const FiniteElement *fe) const = 0;
 
    /// Return the Geometry::Type of the reference element.
    int GetGeometryType() const { return geom; }
@@ -177,9 +179,9 @@ protected:
    double ip_tol; // tolerance for checking if a point is inside the ref. elem.
    int print_level;
 
-   void NewtonPrint(int mode, double val);
+   void NewtonPrint(int mode, double val) const;
    void NewtonPrintPoint(const char *prefix, const Vector &pt,
-                         const char *suffix);
+                         const char *suffix) const;
    int NewtonSolve(const Vector &pt, IntegrationPoint &ip);
 
 public:
@@ -278,7 +280,7 @@ public:
        @return The index of the IntegrationPoint in @a ir whose mapped point is
                closest to @a pt.
        @see FindClosestRefPoint(). */
-   int FindClosestPhysPoint(const Vector& pt, const IntegrationRule &ir);
+   int FindClosestPhysPoint(const Vector& pt, const IntegrationRule &ir) const;
 
    /** @brief Find the IntegrationPoint mapped closest to @a pt, using a norm
        that approximates the (unknown) distance in reference coordinates. */
@@ -296,15 +298,15 @@ public:
 class IsoparametricTransformation : public ElementTransformation
 {
 private:
-   DenseMatrix dshape;
-   Vector shape;
+   mutable DenseMatrix dshape;
+   mutable Vector shape;
 
    const FiniteElement *FElem;
    DenseMatrix PointMat; // dim x dof
 
    // Evaluate the Jacobian of the transformation at the IntPoint and store it
    // in dFdx.
-   virtual const DenseMatrix &EvalJacobian();
+   virtual const DenseMatrix &EvalJacobian() const;
 
 public:
    void SetFE(const FiniteElement *FE) { FElem = FE; geom = FE->GetGeomType(); }
@@ -326,14 +328,14 @@ public:
 
    void SetIdentityTransformation(int GeomType);
 
-   virtual void Transform(const IntegrationPoint &, Vector &);
-   virtual void Transform(const IntegrationRule &, DenseMatrix &);
-   virtual void Transform(const DenseMatrix &matrix, DenseMatrix &result);
+   virtual void Transform(const IntegrationPoint &, Vector &) const;
+   virtual void Transform(const IntegrationRule &, DenseMatrix &) const;
+   virtual void Transform(const DenseMatrix &matrix, DenseMatrix &result) const;
 
-   virtual int Order() { return FElem->GetOrder(); }
-   virtual int OrderJ();
-   virtual int OrderW();
-   virtual int OrderGrad(const FiniteElement *fe);
+   virtual int Order() const { return FElem->GetOrder(); }
+   virtual int OrderJ() const;
+   virtual int OrderW() const;
+   virtual int OrderGrad(const FiniteElement *fe) const;
 
    virtual int TransformBack(const Vector & v, IntegrationPoint & ip)
    {
