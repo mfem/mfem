@@ -1289,7 +1289,7 @@ void GridFunction::AccumulateAndCountZones(VectorCoefficient &vcoeff,
 }
 
 void GridFunction::AccumulateAndCountBdrValues(
-      Coefficient *coeff[], Array<int> &attr, Array<int> &values_counter)
+   Coefficient *coeff[], Array<int> &attr, Array<int> &values_counter)
 {
    int i, j, fdof, d, ind, vdim;
    double val;
@@ -1341,11 +1341,10 @@ void GridFunction::AccumulateAndCountBdrValues(
    // to set the values of all dofs on which the dofs set above depend.
    // Dependency is defined from the matrix A = cP.cR: dof i depends on dof j
    // iff A_ij != 0. It is sufficient to resolve just the first level of
-   // dependency since A is a projection matrix: A^n = A due to cR.cP = I.
-   // Cases like this arise in 3D when boundary edges are constrained by (depend
-   // on) internal faces/elements.
-   // We use the virtual method GetBoundaryClosure from NCMesh to resolve the
-   // dependencies.
+   // dependency, since A is a projection matrix: A^n = A due to cR.cP = I.
+   // Cases like these arise in 3D when boundary edges are constrained by
+   // (depend on) internal faces/elements. We use the virtual method
+   // GetBoundaryClosure from NCMesh to resolve the dependencies.
 
    if (fes->Nonconforming() && fes->GetMesh()->Dimension() == 3)
    {
