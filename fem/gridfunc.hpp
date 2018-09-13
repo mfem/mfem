@@ -42,7 +42,8 @@ protected:
 
    void SaveSTLTri(std::ostream &out, double p1[], double p2[], double p3[]);
 
-   void GetVectorGradientHat(ElementTransformation &T, DenseMatrix &gh) const;
+   void GetVectorGradientHat(const ElementTransformation &T,
+                             DenseMatrix &gh) const;
 
    // Project the delta coefficient without scaling and return the (local)
    // integral of the projection.
@@ -167,16 +168,17 @@ public:
 
    void GetDerivative(int comp, int der_comp, GridFunction &der);
 
-   double GetDivergence(ElementTransformation &tr) const;
+   double GetDivergence(const ElementTransformation &tr) const;
 
-   void GetCurl(ElementTransformation &tr, Vector &curl) const;
+   void GetCurl(const ElementTransformation &tr, Vector &curl) const;
 
-   void GetGradient(ElementTransformation &tr, Vector &grad) const;
+   void GetGradient(const ElementTransformation &tr, Vector &grad) const;
 
    void GetGradients(const int elem, const IntegrationRule &ir,
                      DenseMatrix &grad) const;
 
-   void GetVectorGradient(ElementTransformation &tr, DenseMatrix &grad) const;
+   void GetVectorGradient(const ElementTransformation &tr,
+                          DenseMatrix &grad) const;
 
    /** Compute \f$ (\int_{\Omega} (*this) \psi_i)/(\int_{\Omega} \psi_i) \f$,
        where \f$ \psi_i \f$ are the basis functions for the FE space of avgs.
@@ -555,7 +557,7 @@ private:
 public:
    ExtrudeCoefficient(Mesh *m, Coefficient &s, int _n)
       : n(_n), mesh_in(m), sol_in(s) { }
-   virtual double Eval(ElementTransformation &T);
+   virtual double Eval(const ElementTransformation &T) const;
    virtual ~ExtrudeCoefficient() { }
 };
 

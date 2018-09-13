@@ -8667,7 +8667,8 @@ NodeExtrudeCoefficient::NodeExtrudeCoefficient(const int dim, const int _n,
 {
 }
 
-void NodeExtrudeCoefficient::Eval(Vector &V, ElementTransformation &T)
+void NodeExtrudeCoefficient::Eval(Vector &V,
+                                  const ElementTransformation &T) const
 {
    V.SetSize(vdim);
 

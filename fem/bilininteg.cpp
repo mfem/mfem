@@ -3063,7 +3063,7 @@ ScalarProductInterpolator::AssembleElementMatrix2(const FiniteElement &dom_fe,
          : VectorCoefficient(fe_.GetDof()), Q(q), fe(fe_) { }
 
       using VectorCoefficient::Eval;
-      virtual void Eval(Vector &V, ElementTransformation &T)
+      virtual void Eval(Vector &V, const ElementTransformation &T) const
       {
          V.SetSize(vdim);
          fe.CalcPhysShape(T, V);
@@ -3097,7 +3097,7 @@ ScalarVectorProductInterpolator::AssembleElementMatrix2(
       VShapeCoefficient(Coefficient &q, const FiniteElement &fe_, int sdim)
          : MatrixCoefficient(fe_.GetDof(), sdim), Q(q), fe(fe_) { }
 
-      virtual void Eval(DenseMatrix &M, ElementTransformation &T)
+      virtual void Eval(DenseMatrix &M, const ElementTransformation &T) const
       {
          M.SetSize(height, width);
          fe.CalcPhysVShape(T, M);
@@ -3127,13 +3127,13 @@ VectorScalarProductInterpolator::AssembleElementMatrix2(
    {
       VectorCoefficient &VQ;
       const FiniteElement &fe;
-      Vector vc, shape;
+      mutable Vector vc, shape;
 
       VecShapeCoefficient(VectorCoefficient &vq, const FiniteElement &fe_)
          : MatrixCoefficient(fe_.GetDof(), vq.GetVDim()), VQ(vq), fe(fe_),
            vc(width), shape(height) { }
 
-      virtual void Eval(DenseMatrix &M, ElementTransformation &T)
+      virtual void Eval(DenseMatrix &M, const ElementTransformation &T) const
       {
          M.SetSize(height, width);
          VQ.Eval(vc, T);
@@ -3164,8 +3164,8 @@ VectorCrossProductInterpolator::AssembleElementMatrix2(
    {
       VectorCoefficient &VQ;
       const FiniteElement &fe;
-      DenseMatrix vshape;
-      Vector vc;
+      mutable DenseMatrix vshape;
+      mutable Vector vc;
 
       VCrossVShapeCoefficient(VectorCoefficient &vq, const FiniteElement &fe_)
          : MatrixCoefficient(fe_.GetDof(), vq.GetVDim()), VQ(vq), fe(fe_),
@@ -3174,7 +3174,7 @@ VectorCrossProductInterpolator::AssembleElementMatrix2(
          MFEM_ASSERT(width == 3, "");
       }
 
-      virtual void Eval(DenseMatrix &M, ElementTransformation &T)
+      virtual void Eval(DenseMatrix &M, const ElementTransformation &T) const
       {
          M.SetSize(height, width);
          VQ.Eval(vc, T);
@@ -3217,15 +3217,15 @@ VectorInnerProductInterpolator::AssembleElementMatrix2(
    {
       VectorCoefficient &VQ;
       const FiniteElement &fe;
-      DenseMatrix vshape;
-      Vector vc;
+      mutable DenseMatrix vshape;
+      mutable Vector vc;
 
       VDotVShapeCoefficient(VectorCoefficient &vq, const FiniteElement &fe_)
          : VectorCoefficient(fe_.GetDof()), VQ(vq), fe(fe_),
            vshape(vdim, vq.GetVDim()), vc(vq.GetVDim()) { }
 
       using VectorCoefficient::Eval;
-      virtual void Eval(Vector &V, ElementTransformation &T)
+      virtual void Eval(Vector &V, const ElementTransformation &T) const
       {
          V.SetSize(vdim);
          VQ.Eval(vc, T);

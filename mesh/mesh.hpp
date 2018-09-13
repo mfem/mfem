@@ -1152,12 +1152,12 @@ class NodeExtrudeCoefficient : public VectorCoefficient
 private:
    int n, layer;
    double p[2], s;
-   Vector tip;
+   mutable Vector tip;
 public:
    NodeExtrudeCoefficient(const int dim, const int _n, const double _s);
    void SetLayer(const int l) { layer = l; }
    using VectorCoefficient::Eval;
-   virtual void Eval(Vector &V, ElementTransformation &T);
+   virtual void Eval(Vector &V, const ElementTransformation &T) const;
    virtual ~NodeExtrudeCoefficient() { }
 };
 
