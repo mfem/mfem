@@ -254,6 +254,15 @@ public:
       Array<int> values_counter;
       AccumulateAndCountBdrValues(coeff, attr, values_counter);
       ComputeMeans(ARITHMETIC, values_counter);
+#ifdef MFEM_DEBUG
+      Array<int> ess_vdofs_marker;
+      fes->GetEssentialVDofs(attr, ess_vdofs_marker);
+      for (int i = 0; i < values_counter.Size(); i++)
+      {
+         MFEM_ASSERT(bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
+                     "internal error");
+      }
+#endif
    }
 
    /** Project the normal component of the given VectorCoefficient on
