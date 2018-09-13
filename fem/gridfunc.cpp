@@ -1303,35 +1303,34 @@ void GridFunction::AccumulateAndCountBdrValues(
    vdim = fes->GetVDim();
    for (i = 0; i < fes->GetNBE(); i++)
    {
-      if (attr[fes->GetBdrAttribute(i) - 1])
+      if (attr[fes->GetBdrAttribute(i) - 1] == 0) { continue; }
+
+      fe = fes->GetBE(i);
+      fdof = fe->GetDof();
+      transf = fes->GetBdrElementTransformation(i);
+      const IntegrationRule &ir = fe->GetNodes();
+      fes->GetBdrElementVDofs(i, vdofs);
+
+      for (j = 0; j < fdof; j++)
       {
-         fe = fes->GetBE(i);
-         fdof = fe->GetDof();
-         transf = fes->GetBdrElementTransformation(i);
-         const IntegrationRule &ir = fe->GetNodes();
-         fes->GetBdrElementVDofs(i, vdofs);
-
-         for (j = 0; j < fdof; j++)
+         const IntegrationPoint &ip = ir.IntPoint(j);
+         transf->SetIntPoint(&ip);
+         for (d = 0; d < vdim; d++)
          {
-            const IntegrationPoint &ip = ir.IntPoint(j);
-            transf->SetIntPoint(&ip);
-            for (d = 0; d < vdim; d++)
-            {
-               if (!coeff[d]) { continue; }
+            if (!coeff[d]) { continue; }
 
-               val = coeff[d]->Eval(*transf, ip);
-               if ( (ind = vdofs[fdof*d+j]) < 0 )
-               {
-                  val = -val, ind = -1-ind;
-               }
-               if (values_counter.Size() == 0 || ++values_counter[ind] == 1)
-               {
-                  (*this)(ind) = val;
-               }
-               else
-               {
-                  (*this)(ind) += val;
-               }
+            val = coeff[d]->Eval(*transf, ip);
+            if ( (ind = vdofs[fdof*d+j]) < 0 )
+            {
+               val = -val, ind = -1-ind;
+            }
+            if (++values_counter[ind] == 1)
+            {
+               (*this)(ind) = val;
+            }
+            else
+            {
+               (*this)(ind) += val;
             }
          }
       }
@@ -1372,7 +1371,7 @@ void GridFunction::AccumulateAndCountBdrValues(
             for (int k = 0; k < vals.Size(); k++)
             {
                ind = vdofs[d*vals.Size()+k];
-               if (values_counter.Size() == 0 || ++values_counter[ind] == 1)
+               if (++values_counter[ind] == 1)
                {
                   (*this)(ind) = vals(k);
                }
@@ -1380,7 +1379,6 @@ void GridFunction::AccumulateAndCountBdrValues(
                {
                   (*this)(ind) += vals(k);
                }
-               values_counter[ind]++;
             }
          }
       }
