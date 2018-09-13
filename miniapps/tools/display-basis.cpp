@@ -78,12 +78,12 @@ public:
    Deformation(int dim, DefType dType, const DeformationData & data)
       : VectorCoefficient(dim), dim_(dim), dType_(dType), data_(data) {}
 
-   void Eval(Vector &v, ElementTransformation &T);
+   void Eval(Vector &v, const ElementTransformation &T) const;
 
 private:
-   void Def1D(const Vector & u, Vector & v);
-   void Def2D(const Vector & u, Vector & v);
-   void Def3D(const Vector & u, Vector & v);
+   void Def1D(const Vector & u, Vector & v) const;
+   void Def2D(const Vector & u, Vector & v) const;
+   void Def3D(const Vector & u, Vector & v) const;
 
    int     dim_;
    DefType dType_;
@@ -624,7 +624,7 @@ mapTypeStr(int mType)
 }
 
 void
-Deformation::Eval(Vector &v, ElementTransformation &T)
+Deformation::Eval(Vector &v, const ElementTransformation &T) const
 {
    Vector u(dim_);
 
@@ -647,7 +647,7 @@ Deformation::Eval(Vector &v, ElementTransformation &T)
 }
 
 void
-Deformation::Def1D(const Vector & u, Vector & v)
+Deformation::Def1D(const Vector & u, Vector & v) const
 {
    v = u;
    if ( dType_ == UNIFORM )
@@ -657,7 +657,7 @@ Deformation::Def1D(const Vector & u, Vector & v)
 }
 
 void
-Deformation::Def2D(const Vector & u, Vector & v)
+Deformation::Def2D(const Vector & u, Vector & v) const
 {
    switch (dType_)
    {
@@ -680,7 +680,7 @@ Deformation::Def2D(const Vector & u, Vector & v)
 }
 
 void
-Deformation::Def3D(const Vector & u, Vector & v)
+Deformation::Def3D(const Vector & u, Vector & v) const
 {
    switch (dType_)
    {
