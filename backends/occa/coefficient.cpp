@@ -119,17 +119,18 @@ void OccaVectorParameter::Setup(OccaIntegrator &integ,
 
 //---[ GridFunction Parameter ]-------
 OccaGridFunctionParameter::OccaGridFunctionParameter(const std::string &name_,
-                                                     OccaGridFunction &gf_,
+                                                     const Engine &e,
+                                                     mfem::GridFunction &gf_,
                                                      const bool useRestrict_)
    : name(name_),
      gf(gf_),
-     gfQuad(*(new Layout(gf_.OccaLayout().OccaEngine(), 0))),
+     gfQuad(e),
      useRestrict(useRestrict_) {}
 
 OccaParameter* OccaGridFunctionParameter::Clone()
 {
    OccaGridFunctionParameter *param =
-      new OccaGridFunctionParameter(name, gf, useRestrict);
+      new OccaGridFunctionParameter(name, gfQuad.OccaEngine(), gf, useRestrict);
    param->gfQuad.MakeRef(gfQuad);
    return param;
 }
@@ -141,15 +142,16 @@ void OccaGridFunctionParameter::Setup(OccaIntegrator &integ,
    std::string &args = (props["defines/COEFF_ARGS"]
                         .asString()
                         .string());
-   args += "const double *";
    if (useRestrict)
    {
-      args += " restrict ";
+      args += "@restrict ";
    }
+   args += "const double *";
    args += name;
    args += " @dim(NUM_QUAD, numElements),\n";
 
-   gf.ToQuad(integ.GetIntegrationRule(), gfQuad);
+   FiniteElementSpace &f = gf.FESpace()->Get_PFESpace()->As<FiniteElementSpace>();
+   ToQuad(integ.GetIntegrationRule(), f, gf.Get_PVector()->As<Vector>(), gfQuad);
 }
 
 ::occa::kernelArg OccaGridFunctionParameter::KernelArgs()
@@ -166,6 +168,16 @@ OccaCoefficient::OccaCoefficient(const Engine &e, const double value) :
    name("COEFF")
 {
    coeffValue = value;
+}
+
+OccaCoefficient::OccaCoefficient(const Engine &e, mfem::GridFunction &gf,
+                                 const bool useRestrict) :
+   engine(&e),
+   integ(NULL),
+   name("COEFF")
+{
+   coeffValue = "(u(q, e))";
+   AddGridFunction("u", gf, useRestrict);
 }
 
 OccaCoefficient::OccaCoefficient(const Engine &e, const std::string &source) :
@@ -261,10 +273,13 @@ OccaCoefficient& OccaCoefficient::AddVector(const std::string &name_,
 }
 
 OccaCoefficient& OccaCoefficient::AddGridFunction(const std::string &name_,
-                                                  OccaGridFunction &gf,
+                                                  mfem::GridFunction &gf,
                                                   const bool useRestrict)
 {
-   return Add(new OccaGridFunctionParameter(name_, gf, useRestrict));
+   MFEM_ASSERT(engine->CheckVector(gf.Get_PVector()) &&
+               engine->CheckFESpace(gf.FESpace()->Get_PFESpace()),
+               "invalid device GridFunction");
+   return Add(new OccaGridFunctionParameter(name_, *engine, gf, useRestrict));
 }
 
 bool OccaCoefficient::IsConstant()
@@ -302,10 +317,9 @@ Vector OccaCoefficient::Eval()
 void OccaCoefficient::Eval(Vector &quadCoeff)
 {
    const std::string &okl_path = OccaEngine().GetOklPath();
-   const std::string &okl_defines = OccaEngine().GetOklDefines();
    static ::occa::kernelBuilder builder =
       ::occa::kernelBuilder::fromFile(okl_path + "coefficient.okl",
-                                      "CoefficientEval", okl_defines);
+                                      "CoefficientEval");
 
    if (integ == NULL)
    {
@@ -320,7 +334,6 @@ void OccaCoefficient::Eval(Vector &quadCoeff)
       kernelProps["defines/COEFF"]      = name;
       kernelProps["defines/COEFF_ARGS"] = name + "_ARGS";
    }
-   kernelProps += okl_defines;
 
    ::occa::kernel evalKernel = builder.build(GetDevice(), kernelProps);
    evalKernel(elements, *this, quadCoeff.OccaMem());

@@ -17,17 +17,20 @@ int main(int argc, char *argv[])
    const char *spec = "cpu";
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
+   int ref_levels = -1;
    bool static_cond = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&spec, "-s", "--spec",
-                  "Compute resurce specification.");
+                  "Compute resource specification.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&ref_levels, "-r", "--refine-levels",
+                  "Number of uniform refinements to apply to the mesh.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -41,6 +44,7 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
+#ifdef MFEM_USE_BACKENDS
    /// Engine *engine = EngineDepot.Select(spec);
    // string occa_spec("mode: 'Serial'");
    // string occa_spec("mode: 'CUDA', deviceID: 0");
@@ -50,24 +54,21 @@ int main(int argc, char *argv[])
 
    // SharedPtr<Engine> engine(new mfem::occa::Engine(occa_spec));
    // SharedPtr<Engine> engine(new mfem::pa::Engine("hello world"));
-   // CUdevice cuDevice;
-   // CUcontext context;
-   // cuInit(0);
-   // cuDeviceGet(&cuDevice, 0);
-   // cuCtxCreate(&context, 0, cuDevice);
    #ifndef __NVCC__
    SharedPtr<Engine> engine(mfem::pa::createEngine("Host"));
    #else
    SharedPtr<Engine> engine(mfem::pa::createEngine("CudaDevice"));
    #endif
+#endif
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
+#ifdef MFEM_USE_BACKENDS
    mesh->SetEngine(*engine);
-   mesh->SetCurvature(1);
-
+   mesh->SetCurvature(1);//FIXME!!!
+#endif
    int dim = mesh->Dimension();
 
    // 3. Refine the mesh to increase the resolution. In this example we do
@@ -75,8 +76,8 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels =
-         (int)floor(log(50000. / mesh->GetNE()) / log(2.) / dim);
+      ref_levels = ref_levels >= 0 ? ref_levels :
+         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();

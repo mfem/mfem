@@ -41,18 +41,23 @@ protected:
    // int *workers_mem_res;
 
    static bool fileOpenerRegistered;
-   ::occa::device *device; // An array of OCCA devices
-   std::string okl_path, okl_defines;
+   /// An array of OCCA devices. Currently only a single device is supported.
+   ::occa::device *device;
+   std::string okl_path;
+   bool force_cuda_aware_mpi;
 
    void Init(const std::string &engine_spec);
 
 public:
+   /// TODO: doxygen
    Engine(const std::string &engine_spec);
 
 #ifdef MFEM_USE_MPI
+   /// TODO: doxygen
    Engine(MPI_Comm comm, const std::string &engine_spec);
 #endif
 
+   /// TODO: doxygen
    virtual ~Engine() { delete [] device; }
 
    /**
@@ -60,13 +65,41 @@ public:
     */
    ///@{
 
+   /// Get the associated OCCA device.
    ::occa::device GetDevice(int idx = 0) const { return device[idx]; }
 
    /// TODO: doxygen
    const std::string &GetOklPath() const { return okl_path; }
 
+   /// OCCA device memory allocation.
+   ::occa::memory Alloc(std::size_t bytes) const
+   { return GetDevice().malloc(bytes); }
+
+   /// Two mfem::occa::Engine%s are equal if they use the same OCCA device.
+   bool operator==(const Engine &other) const
+   { return GetDevice() == other.GetDevice(); }
+
    /// TODO: doxygen
-   const std::string &GetOklDefines() const { return okl_defines; }
+   bool CheckEngine(const mfem::Engine *e) const;
+
+   /// TODO: doxygen
+   bool CheckLayout(const PLayout *layout) const;
+
+   /// TODO: doxygen
+   bool CheckArray(const PArray *array) const;
+
+   /// TODO: doxygen
+   bool CheckVector(const PVector *vector) const;
+
+   /// TODO: doxygen
+   bool CheckFESpace(const PFiniteElementSpace *fes) const;
+
+#ifdef MFEM_USE_MPI
+   void SetForceCudaAwareMPI(bool force = true)
+   { force_cuda_aware_mpi = force; }
+
+   bool GetForceCudaAwareMPI() const { return force_cuda_aware_mpi; }
+#endif
 
    ///@}
    // End: OCCA specific interface

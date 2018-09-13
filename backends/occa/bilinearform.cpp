@@ -65,11 +65,9 @@ void OccaBilinearForm::Init(const Engine &e,
    if (GetDevice().mode() == "OpenMP")
    {
       const std::string &okl_path = OccaEngine().GetOklPath();
-      const std::string &okl_defines = OccaEngine().GetOklDefines();
       ::occa::kernel initLocalKernel =
          GetDevice().buildKernel(okl_path + "utils.okl",
-                                 "InitLocalVector",
-                                 okl_defines);
+                                 "InitLocalVector");
 
       const std::size_t sd = sizeof(double);
       const uint64_t trialEntries = sd * (elements * trialLocalDofs);
@@ -273,8 +271,6 @@ void OccaBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
                                mfem::Vector &X, mfem::Vector &B,
                                int copy_interior)
 {
-   const std::string okl_defines = OccaEngine().GetOklDefines();
-
    // FIXME: move these kernels to the Backend?
    static ::occa::kernelBuilder get_subvector_builder =
       ::occa::linalg::customLinearMethod(
@@ -288,7 +284,7 @@ void OccaBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
          "  VTYPE1: 'double',"
          "  VTYPE2: 'int',"
          "  TILESIZE: 128,"
-         "}" + okl_defines);
+         "}");
 
    static ::occa::kernelBuilder set_subvector_builder =
       ::occa::linalg::customLinearMethod(
@@ -302,7 +298,7 @@ void OccaBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
          "  VTYPE1: 'double',"
          "  VTYPE2: 'int',"
          "  TILESIZE: 128,"
-         "}" + okl_defines);
+         "}");
 
    const mfem::Operator *P = GetTrialProlongation();
    const mfem::Operator *R = GetTrialRestriction();
@@ -345,6 +341,7 @@ void OccaBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
                            constrList.OccaMem());
    }
 
+   // FIXME: add case for HypreParMatrix here
    OccaConstrainedOperator *cA = dynamic_cast<OccaConstrainedOperator*>(A);
    if (cA)
    {
@@ -361,7 +358,7 @@ void OccaBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
 void OccaBilinearForm::Mult_(const Vector &x, Vector &y) const
 {
    otrialFESpace->GlobalToLocal(x, localX);
-   localY.Fill<double>(0.0);
+   localY.OccaFill<double>(0.0);
 
    const int integratorCount = (int) integrators.size();
    for (int i = 0; i < integratorCount; ++i)
@@ -376,7 +373,7 @@ void OccaBilinearForm::Mult_(const Vector &x, Vector &y) const
 void OccaBilinearForm::MultTranspose_(const Vector &x, Vector &y) const
 {
    otestFESpace->GlobalToLocal(x, localX);
-   localY.Fill<double>(0.0);
+   localY.OccaFill<double>(0.0);
 
    const int integratorCount = (int) integrators.size();
    for (int i = 0; i < integratorCount; ++i)
@@ -432,25 +429,52 @@ void BilinearForm::InitOccaBilinearForm()
       Coefficient *scal_coeff = dbfi[i]->GetScalarCoefficient();
       ConstantCoefficient *const_coeff =
          dynamic_cast<ConstantCoefficient*>(scal_coeff);
+      GridFunctionCoefficient *gridfunc_coeff =
+         dynamic_cast<GridFunctionCoefficient*>(scal_coeff);
       // TODO: other types of coefficients ...
-      double val = const_coeff ? const_coeff->constant : 1.0;
-      OccaCoefficient ocoeff(obform->OccaEngine(), val);
+
+      OccaCoefficient *ocoeff = NULL;
+      if (const_coeff)
+      {
+         ocoeff = new OccaCoefficient(obform->OccaEngine(),
+                                      const_coeff->constant);
+      }
+      else if (gridfunc_coeff)
+      {
+         ocoeff = new OccaCoefficient(obform->OccaEngine(),
+                                      *gridfunc_coeff->GetGridFunction(), true);
+      }
+      else if (!scal_coeff)
+      {
+         ocoeff = new OccaCoefficient(obform->OccaEngine(), 1.0);
+      }
+      else
+      {
+         MFEM_ABORT("Coefficient type not supported");
+      }
 
       OccaIntegrator *ointeg = NULL;
-
       if (integ_name == "(undefined)")
       {
          MFEM_ABORT("BilinearFormIntegrator does not define Name()");
       }
+      else if (integ_name == "mass")
+      {
+         ointeg = new OccaMassIntegrator(*ocoeff);
+      }
       else if (integ_name == "diffusion")
       {
-         ointeg = new OccaDiffusionIntegrator(ocoeff);
+         ointeg = new OccaDiffusionIntegrator(*ocoeff);
       }
       else
       {
          MFEM_ABORT("BilinearFormIntegrator [Name() = " << integ_name
                     << "] is not supported");
       }
+
+      // NOTE: The integrators copy ocoeff, so it can be deleted here so there
+      //       is no memory leak.
+      delete ocoeff;
 
       const mfem::IntegrationRule *ir = dbfi[i]->GetIntRule();
       if (ir) { ointeg->SetIntegrationRule(*ir); }

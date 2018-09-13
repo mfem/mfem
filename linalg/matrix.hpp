@@ -37,10 +37,24 @@ public:
    };
 
    /// Creates a square matrix of size s.
-   explicit Matrix(int s) : Operator(s) { }
+   explicit Matrix(int s)
+      : Operator(s)
+   {
+#ifdef MFEM_USE_BACKENDS
+      in_layout.Reset(new PLayout(width));
+      out_layout.Reset(new PLayout(height));
+#endif
+   }
 
    /// Creates a matrix of the given height and width.
-   explicit Matrix(int h, int w) : Operator(h, w) { }
+   explicit Matrix(int h, int w)
+      : Operator(h, w)
+   {
+#ifdef MFEM_USE_BACKENDS
+      in_layout.Reset(new PLayout(width));
+      out_layout.Reset(new PLayout(height));
+#endif
+   }
 
    /// Returns reference to a_{ij}.
    virtual double &Elem(int i, int j) = 0;

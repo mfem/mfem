@@ -20,94 +20,51 @@ namespace mfem
 namespace occa
 {
 
-void CreateRPOperators(Layout &v_layout, Layout &t_layout,
-                       const mfem::SparseMatrix *R, const mfem::Operator *P,
-                       mfem::Operator *&OccaR, mfem::Operator *&OccaP)
-{
-   if (!P)
-   {
-      OccaR = new IdentityOperator(t_layout);
-      OccaP = new IdentityOperator(t_layout);
-      return;
-   }
-
-   const mfem::SparseMatrix *pmat = dynamic_cast<const mfem::SparseMatrix*>(P);
-   ::occa::device device = v_layout.OccaEngine().GetDevice();
-
-   if (R)
-   {
-      OccaSparseMatrix *occaR =
-         CreateMappedSparseMatrix(v_layout, t_layout, *R);
-      ::occa::array<int> reorderIndices = occaR->reorderIndices;
-      delete occaR;
-
-      OccaR = new RestrictionOperator(v_layout, t_layout, reorderIndices);
-   }
-
-   if (pmat)
-   {
-      const mfem::SparseMatrix *pmatT = Transpose(*pmat);
-
-      OccaSparseMatrix *occaP  =
-         CreateMappedSparseMatrix(t_layout, v_layout, *pmat);
-      OccaSparseMatrix *occaPT =
-         CreateMappedSparseMatrix(v_layout, t_layout, *pmatT);
-
-      OccaP = new ProlongationOperator(*occaP, *occaPT);
-   }
-   else
-   {
-      OccaP = new ProlongationOperator(t_layout, v_layout, P);
-   }
-}
-
 RestrictionOperator::RestrictionOperator(Layout &in_layout, Layout &out_layout,
-                                         ::occa::array<int> indices) :
-   Operator(in_layout, out_layout)
+                                         ::occa::array<int> indices)
+   : Operator(in_layout, out_layout)
 {
-
-   entries     = indices.size() / 2;
    trueIndices = indices;
 
-   // FIXME: paths ...
    ::occa::device device = in_layout.OccaEngine().GetDevice();
    const std::string &okl_path = in_layout.OccaEngine().GetOklPath();
-   const std::string &okl_defines = in_layout.OccaEngine().GetOklDefines();
    multOp = device.buildKernel(okl_path + "mappings.okl",
                                "ExtractSubVector",
-                               "defines: { TILESIZE: 256 }" + okl_defines);
+                               "defines: { TILESIZE: 256 }");
 
    multTransposeOp = device.buildKernel(okl_path + "mappings.okl",
                                         "SetSubVector",
-                                        "defines: { TILESIZE: 256 }" +
-                                        okl_defines);
+                                        "defines: { TILESIZE: 256 }");
 }
 
 void RestrictionOperator::Mult_(const Vector &x, Vector &y) const
 {
-   multOp(entries, trueIndices, x.OccaMem(), y.OccaMem());
+   // y[i] = x[trueIndices[i]]
+   multOp(height, trueIndices, x.OccaMem(), y.OccaMem());
 }
 
 void RestrictionOperator::MultTranspose_(const Vector &x, Vector &y) const
 {
-   y.Fill<double>(0.0);
-   multTransposeOp(entries, trueIndices, x.OccaMem(), y.OccaMem());
+   y.OccaFill<double>(0.0);
+   // y[trueIndices[i]] = x[i]
+   multTransposeOp(height, trueIndices, x.OccaMem(), y.OccaMem());
 }
 
 ProlongationOperator::ProlongationOperator(OccaSparseMatrix &multOp_,
-                                           OccaSparseMatrix &multTransposeOp_) :
-   Operator(multOp_),
-   pmat(NULL),
-   multOp(multOp_),
-   multTransposeOp(multTransposeOp_) {}
+                                           OccaSparseMatrix &multTransposeOp_)
+   : Operator(multOp_),
+     pmat(NULL),
+     multOp(multOp_),
+     multTransposeOp(multTransposeOp_)
+{ }
 
 ProlongationOperator::ProlongationOperator(Layout &in_layout,
                                            Layout &out_layout,
-                                           const mfem::Operator *pmat_) :
-   Operator(in_layout, out_layout),
-   pmat(pmat_),
-   multOp(*this),
-   multTransposeOp(*this)
+                                           const mfem::Operator *pmat_)
+   : Operator(in_layout, out_layout),
+     pmat(pmat_),
+     multOp(*this),
+     multTransposeOp(*this)
 { }
 
 void ProlongationOperator::Mult_(const Vector &x, Vector &y) const

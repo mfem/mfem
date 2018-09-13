@@ -45,17 +45,16 @@ void Vector::DoDotProduct(const PVector &x, void *result,
 
    MFEM_ASSERT(result_type_id == ScalarId<double>::value, "");
    double *res = (double *)result;
-   MFEM_ASSERT(dynamic_cast<const Vector *>(&x) != NULL, "invalid Vector type");
-   const Vector *xp = static_cast<const Vector *>(&x);
-   MFEM_ASSERT(this->Size() == xp->Size(), "");
-   *res = ::occa::linalg::dot<double, double, double>(this->slice, xp->slice);
+   const Vector &xp = x.As<Vector>();
+   MFEM_ASSERT(this->Size() == xp.Size(), "");
+   *res = ::occa::linalg::dot<double, double, double>(this->slice, xp.slice);
 
 #ifdef MFEM_USE_MPI
    double local_dot = *res;
    if (IsParallel())
    {
       MPI_Allreduce(&local_dot, res, 1, MPI_DOUBLE, MPI_SUM,
-                    OccaLayout().OccaEngine().GetComm());
+                    OccaEngine().GetComm());
    }
 #endif
 }
@@ -64,8 +63,6 @@ void Vector::DoAxpby(const void *a, const PVector &x,
                      const void *b, const PVector &y,
                      int ab_type_id)
 {
-   const std::string &okl_defines = OccaLayout().OccaEngine().GetOklDefines();
-
    //
    // TODO: move all kernel builders to class mfem::occa::Backend
    //
@@ -124,7 +121,7 @@ void Vector::DoAxpby(const void *a, const PVector &x,
    {
       if (db == 0.0)
       {
-         OccaFill(&da);
+         OccaFill(da);
       }
       else
       {
@@ -136,8 +133,7 @@ void Vector::DoAxpby(const void *a, const PVector &x,
          else
          {
             // *this = db * y
-            ::occa::kernel kernel = axpby1_builder.build(slice.getDevice(),
-                                                         okl_defines);
+            ::occa::kernel kernel = axpby1_builder.build(slice.getDevice());
             kernel((int)Size(), db, slice, yp->slice);
          }
       }
@@ -154,8 +150,7 @@ void Vector::DoAxpby(const void *a, const PVector &x,
          else
          {
             // *this = da * x
-            ::occa::kernel kernel = axpby1_builder.build(slice.getDevice(),
-                                                         okl_defines);
+            ::occa::kernel kernel = axpby1_builder.build(slice.getDevice());
             kernel((int)Size(), da, slice, xp->slice);
          }
       }
@@ -165,22 +160,19 @@ void Vector::DoAxpby(const void *a, const PVector &x,
          if (this->slice == xp->slice)
          {
             // *this = da * (*this) + db * y
-            ::occa::kernel kernel = axpby2_builder.build(slice.getDevice(),
-                                                         okl_defines);
+            ::occa::kernel kernel = axpby2_builder.build(slice.getDevice());
             kernel((int)Size(), da, db, slice, yp->slice);
          }
          else if (this->slice == yp->slice)
          {
             // *this = da * x + db * (*this)
-            ::occa::kernel kernel = axpby2_builder.build(slice.getDevice(),
-                                                         okl_defines);
+            ::occa::kernel kernel = axpby2_builder.build(slice.getDevice());
             kernel((int)Size(), db, da, slice, xp->slice);
          }
          else
          {
             // *this = da * x + db * y
-            ::occa::kernel kernel = axpby3_builder.build(slice.getDevice(),
-                                                         okl_defines);
+            ::occa::kernel kernel = axpby3_builder.build(slice.getDevice());
             kernel((int)Size(), da, db, slice, xp->slice, yp->slice);
          }
       }

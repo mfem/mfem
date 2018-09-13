@@ -79,6 +79,15 @@ public:
       const IntegrationRule &ir1d = IntRules.Get(Geometry::SEGMENT, order);
       return ir1d.GetNPoints();
    }
+
+
+   virtual const mfem::Operator *GetProlongationOperator() const {return NULL;}
+
+   virtual const mfem::Operator *GetRestrictionOperator() const {return NULL;}
+
+   virtual const mfem::Operator *GetInterpolationOperator(const mfem::QuadratureSpace &qspace) const {return NULL;}
+
+   virtual const mfem::Operator *GetGradientOperator(const mfem::QuadratureSpace &qspace) const {return NULL;}
 };
 
 template <Location Device>

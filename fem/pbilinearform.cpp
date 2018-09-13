@@ -337,41 +337,51 @@ void ParBilinearForm::FormLinearSystem(
 void ParBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
                                        OperatorHandle &A)
 {
-   // Finish the matrix assembly and perform BC elimination, storing the
-   // eliminated part of the matrix.
-   if (static_cond)
+#ifdef MFEM_USE_BACKENDS
+   if (dev_ext)
    {
-      if (!static_cond->HasEliminatedBC())
-      {
-         static_cond->SetEssentialTrueDofs(ess_tdof_list);
-         static_cond->Finalize();
-         static_cond->EliminateReducedTrueDofs(Matrix::DIAG_ONE);
-      }
-      static_cond->GetParallelMatrix(A);
+      MFEM_VERIFY(!static_cond && !hybridization, "");
+      dev_ext->FormSystemMatrix(ess_tdof_list, A);
    }
    else
+#endif
    {
-      if (mat)
+      // Finish the matrix assembly and perform BC elimination, storing the
+      // eliminated part of the matrix.
+      if (static_cond)
       {
-         const int remove_zeros = 0;
-         Finalize(remove_zeros);
-         MFEM_VERIFY(p_mat.Ptr() == NULL && p_mat_e.Ptr() == NULL,
-                     "The ParBilinearForm must be updated with Update() before "
-                     "re-assembling the ParBilinearForm.");
-         ParallelAssemble(p_mat, mat);
-         delete mat;
-         mat = NULL;
-         delete mat_e;
-         mat_e = NULL;
-         p_mat_e.EliminateRowsCols(p_mat, ess_tdof_list);
-      }
-      if (hybridization)
-      {
-         hybridization->GetParallelMatrix(A);
+         if (!static_cond->HasEliminatedBC())
+         {
+            static_cond->SetEssentialTrueDofs(ess_tdof_list);
+            static_cond->Finalize();
+            static_cond->EliminateReducedTrueDofs(Matrix::DIAG_ONE);
+         }
+         static_cond->GetParallelMatrix(A);
       }
       else
       {
-         A = p_mat;
+         if (mat)
+         {
+            const int remove_zeros = 0;
+            Finalize(remove_zeros);
+            MFEM_VERIFY(p_mat.Ptr() == NULL && p_mat_e.Ptr() == NULL,
+                        "The ParBilinearForm must be updated with Update() before "
+                        "re-assembling the ParBilinearForm.");
+            ParallelAssemble(p_mat, mat);
+            delete mat;
+            mat = NULL;
+            delete mat_e;
+            mat_e = NULL;
+            p_mat_e.EliminateRowsCols(p_mat, ess_tdof_list);
+         }
+         if (hybridization)
+         {
+            hybridization->GetParallelMatrix(A);
+         }
+         else
+         {
+            A = p_mat;
+         }
       }
    }
 }

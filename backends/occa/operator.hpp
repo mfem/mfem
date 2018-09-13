@@ -37,11 +37,9 @@ public:
    Operator(Layout &in_layout, Layout &out_layout)
       : mfem::Operator(in_layout, out_layout) { }
 
-   Layout &InLayout_() const
-   { return *static_cast<Layout*>(in_layout.Get()); }
+   Layout &InLayout_() const { return in_layout->As<Layout>(); }
 
-   Layout &OutLayout_() const
-   { return *static_cast<Layout*>(out_layout.Get()); }
+   Layout &OutLayout_() const { return out_layout->As<Layout>(); }
 
    virtual void Mult_(const Vector &x, Vector &y) const = 0;
 

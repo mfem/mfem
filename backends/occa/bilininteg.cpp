@@ -107,11 +107,10 @@ OccaGeometry OccaGeometry::Get(::occa::device device,
    props["defines/STORE_JACOBIAN_DET"] = (flags & JacobianDet);
 
    const std::string &okl_path = ofespace.OccaEngine().GetOklPath();
-   const std::string &okl_defines = ofespace.OccaEngine().GetOklDefines();
    ::occa::kernel init = device.buildKernel(okl_path + "geometry.okl",
                                             stringWithDim("InitGeometryInfo",
                                                           fe.GetDim()),
-                                            props + okl_defines);
+                                            props);
    init(elements,
         maps.dofToQuadD,
         geom.meshNodes,
@@ -730,10 +729,9 @@ OccaGeometry OccaIntegrator::GetGeometry(const int flags)
 {
    const std::string filename = GetName() + ".okl";
    const std::string &okl_path = OccaEngine().GetOklPath();
-   const std::string &okl_defines = OccaEngine().GetOklDefines();
    return GetDevice().buildKernel(okl_path + filename,
                                   kernelName,
-                                  props + okl_defines);
+                                  props);
 }
 //====================================
 
@@ -786,8 +784,8 @@ void OccaDiffusionIntegrator::Assemble()
 
    OccaGeometry geom = GetGeometry(OccaGeometry::Jacobian);
 
-   assembledOperator.Resize<double>(symmDims * quadraturePoints * elements,
-                                    NULL);
+   assembledOperator.OccaResize(symmDims * quadraturePoints * elements,
+                                sizeof(double));
 
    assembleKernel((int) mesh->GetNE(),
                   maps.quadWeights,

@@ -61,7 +61,7 @@ FiniteElementSpace::FiniteElementSpace()
      fdofs(NULL), bdofs(NULL),
      elem_dof(NULL), bdrElem_dof(NULL),
      NURBSext(NULL), own_ext(false),
-     cP(NULL), cR(NULL), cP_is_set(false),
+     cP(NULL), cR(NULL),
      Th(Operator::ANY_TYPE),
      sequence(0)
 { }
@@ -586,10 +586,11 @@ void FiniteElementSpace::BuildConformingInterpolation() const
 #ifdef MFEM_USE_MPI
    MFEM_VERIFY(dynamic_cast<const ParFiniteElementSpace*>(this) == NULL,
                "This method should not be used with a ParFiniteElementSpace!");
+   MFEM_VERIFY(Nonconforming() &&
+               dynamic_cast<const ParMesh*>(mesh) == NULL,
+               "This method should be used only with serial non-conforming"
+               " meshes!");
 #endif
-
-   if (cP_is_set) { return; }
-   cP_is_set = true;
 
    // For each slave DOF, the dependency matrix will contain a row that
    // expresses the slave DOF as a linear combination of its immediate master
@@ -657,7 +658,11 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    }
 
 #ifdef MFEM_USE_BACKENDS
-   if (mesh->HasEngine())
+   if (t_layout != v_layout)
+   {
+      t_layout->Resize(n_true_dofs*vdim);
+   }
+   else if (mesh->HasEngine())
    {
       t_layout = mesh->GetEngine().MakeLayout(n_true_dofs*vdim);
    }
@@ -1103,6 +1108,18 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
    sequence = mesh->GetSequence();
    Th.SetType(Operator::ANY_TYPE);
 
+#ifdef MFEM_USE_BACKENDS
+   if (mesh->HasEngine())
+   {
+      v_layout = mesh->GetEngine().MakeLayout(0);
+   }
+   else
+   {
+      v_layout.Reset(new PLayout(0));
+   }
+   t_layout = v_layout;
+#endif
+
    const NURBSFECollection *nurbs_fec =
       dynamic_cast<const NURBSFECollection *>(fec);
    if (nurbs_fec)
@@ -1125,7 +1142,6 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
       }
       UpdateNURBS();
       cP = cR = NULL;
-      cP_is_set = true;
    }
    else
    {
@@ -1133,21 +1149,21 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
       own_ext = 0;
       Construct();
    }
-   BuildElementToDofTable();
+   BuildElementToDofTable(); // calls virtual method: GetElementDofs()
 
 #ifdef MFEM_USE_BACKENDS
    if (mesh->HasEngine())
    {
-      v_layout = mesh->GetEngine().MakeLayout(GetVSize());
-      if (cP_is_set) { t_layout = v_layout; }
-      // Ensure GetVLayout() and GetTrueVLayout() will work correctly before
-      // calling MakeFESpace().
-      dev_ext = mesh->GetEngine().MakeFESpace(*this);
-   }
-   else
-   {
-      v_layout.Reset(new PLayout(GetVSize()));
-      if (cP_is_set) { t_layout = v_layout; }
+      // If constructing a parallel space, we postpone the construction of the
+      // dev_ext until we have t_layout constructed.
+      // TODO: currently, if we are constructing a serial space on a parallel
+      //       mesh then dev_ext will remain NULL.
+#ifdef MFEM_USE_MPI
+      if (dynamic_cast<ParMesh*>(mesh) == NULL)
+#endif
+      {
+         dev_ext = mesh->GetEngine().MakeFESpace(*this);
+      }
    }
 #endif
 }
@@ -1178,7 +1194,10 @@ void FiniteElementSpace::UpdateNURBS()
    elem_dof = NURBSext->GetElementDofTable();
    bdrElem_dof = NURBSext->GetBdrElementDofTable();
 
-   // TODO: update v_layout, t_layout
+#ifdef MFEM_USE_BACKENDS
+   v_layout->Resize(GetVSize());
+   // t_layout is the same as v_layout (in serial)
+#endif
 }
 
 void FiniteElementSpace::Construct()
@@ -1209,7 +1228,6 @@ void FiniteElementSpace::Construct()
    fdofs = NULL;
    cP = NULL;
    cR = NULL;
-   cP_is_set = Conforming();
    // Th is initialized/destroyed before this method is called.
 
    if (mesh->Dimension() == 3 && mesh->GetNE())
@@ -1246,6 +1264,24 @@ void FiniteElementSpace::Construct()
    }
 
    ndofs = nvdofs + nedofs + nfdofs + nbdofs;
+
+#ifdef MFEM_USE_BACKENDS
+   v_layout->Resize(GetVSize());
+   // t_layout is the same as v_layout, or it is set/updated in
+   // BuildConformingInterpolation(), or in ParConstruct().
+#endif
+
+   if (Nonconforming())
+   {
+#ifdef MFEM_USE_MPI
+      if (dynamic_cast<ParMesh*>(mesh) == NULL)
+#endif
+      {
+         BuildConformingInterpolation();
+      }
+      // If creating/updating a serial space on a parallel mesh then the
+      // conforming interpolation, cP, will remain NULL!
+   }
 
    // Do not build elem_dof Table here: in parallel it has to be constructed
    // later.
@@ -1775,6 +1811,10 @@ void FiniteElementSpace::Update(bool want_transform)
    Construct();
    BuildElementToDofTable();
 
+#ifdef MFEM_USE_BACKENDS
+   // TODO: update dev_ext ...
+#endif
+
    if (want_transform)
    {
       // calculate appropriate GridFunction transformation
@@ -1799,7 +1839,7 @@ void FiniteElementSpace::Update(bool want_transform)
 
          case Mesh::DEREFINE:
          {
-            BuildConformingInterpolation();
+            // BuildConformingInterpolation(); // called by Construct() now
             Th.Reset(DerefinementMatrix(old_ndofs, old_elem_dof));
             if (cP && cR)
             {

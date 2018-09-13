@@ -69,10 +69,16 @@ public:
    std::size_t Size() const { return size; }
 
    /// TODO
+   /** Useful in backends for down-casting to a backend-specific layout type.
+
+       When MFEM_DEBUG=YES, performs a type check using dynamic_cast. */
    template <typename derived_t>
    derived_t &As() { return *util::As<derived_t>(this); }
 
    /// TODO
+   /** Useful in backends for down-casting to a backend-specific layout type.
+
+       When MFEM_DEBUG=YES, performs a type check using dynamic_cast. */
    template <typename derived_t>
    const derived_t &As() const { return *util::As<const derived_t>(this); }
 

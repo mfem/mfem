@@ -109,6 +109,9 @@ public:
    /// Load the data from a stream.
    void Load(std::istream &in);
 
+   /// Copy
+   void Copy(GroupTopology & copy) const;
+
    virtual ~GroupTopology() {}
 };
 
@@ -175,6 +178,12 @@ public:
 
    /// Get a const reference to the associated GroupTopology object
    const GroupTopology &GetGroupTopology() const { return gtopo; }
+
+   // TODO: doxygen
+   void GetNeighborLTDofTable(Table &nbr_ltdof) const;
+
+   // TODO: doxygen
+   void GetNeighborLDofTable(Table &nbr_ldof) const;
 
    /** @brief Data structure on which we define reduce operations.
 

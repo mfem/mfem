@@ -59,133 +59,24 @@ std::map<std::string, ::occa::kernel> gridFunctionKernels;
    return kernel;
 }
 
-// OccaGridFunction::OccaGridFunction() :
-//    Vector(),
-//    ofespace(NULL),
-//    sequence(0) {}
-
-OccaGridFunction::OccaGridFunction(FiniteElementSpace *ofespace_)
-   : PArray(ofespace_->OccaVLayout()),
-     Array(ofespace_->OccaVLayout(), sizeof(double)),
-     Vector(ofespace_->OccaVLayout()),
-     ofespace(ofespace_),
-     sequence(0) {}
-
-// OccaGridFunction::OccaGridFunction(OccaFiniteElementSpace *ofespace_,
-//                                    OccaVectorRef ref) :
-//    OccaVector(ref),
-//    ofespace(ofespace_),
-//    sequence(0) {}
-
-OccaGridFunction::OccaGridFunction(const OccaGridFunction &v)
-   : PArray(v),
-     Array(v),
-     Vector(v),
-     ofespace(v.ofespace),
-     sequence(v.sequence) {}
-
-OccaGridFunction& OccaGridFunction::operator = (double value)
+void ToQuad(const IntegrationRule &ir, FiniteElementSpace &fespace, Vector &gf,
+            Vector &quadValues)
 {
-   Fill(value);
-   return *this;
-}
-
-OccaGridFunction& OccaGridFunction::operator = (const Vector &v)
-{
-   Assign<double>(v);
-   return *this;
-}
-
-// OccaGridFunction& OccaGridFunction::operator = (const OccaVectorRef &v)
-// {
-//    OccaVector::operator = (v);
-//    return *this;
-// }
-
-OccaGridFunction& OccaGridFunction::operator = (const OccaGridFunction &v)
-{
-   Assign<double>(v);
-   return *this;
-}
-
-// void OccaGridFunction::SetGridFunction(mfem::GridFunction &gf)
-// {
-//    Vector v = *this;
-//    gf.MakeRef(ofespace->GetFESpace(), v, 0);
-//    // Make gf the owner of the data
-//    v.Swap(gf);
-// }
-
-void OccaGridFunction::GetTrueDofs(Vector &v)
-{
-   const mfem::Operator *R = ofespace->GetRestrictionOperator();
-   if (!R)
-   {
-      v.MakeRef(*this);
-   }
-   else
-   {
-      v.Resize<double>(R->OutLayout(), NULL);
-      mfem::Vector mfem_v(v);
-      R->Mult(this->Wrap(), mfem_v);
-   }
-}
-
-void OccaGridFunction::SetFromTrueDofs(Vector &v)
-{
-   const mfem::Operator *P = ofespace->GetProlongationOperator();
-   if (!P)
-   {
-      MakeRef(v);
-   }
-   else
-   {
-      Resize<double>(P->OutLayout(), NULL);
-      mfem::Vector mfem_this(*this);
-      P->Mult(v.Wrap(), mfem_this);
-   }
-}
-
-mfem::FiniteElementSpace* OccaGridFunction::GetFESpace()
-{
-   return ofespace->GetFESpace();
-}
-
-const mfem::FiniteElementSpace* OccaGridFunction::GetFESpace() const
-{
-   return ofespace->GetFESpace();
-}
-
-void OccaGridFunction::ToQuad(const IntegrationRule &ir, Vector &quadValues)
-{
-   const Engine &engine = OccaLayout().OccaEngine();
+   const Engine &engine = fespace.OccaEngine();
    ::occa::device device = engine.GetDevice();
 
-   OccaDofQuadMaps &maps = OccaDofQuadMaps::Get(device, *ofespace, ir);
+   OccaDofQuadMaps &maps = OccaDofQuadMaps::Get(device, fespace, ir);
 
-   const int elements = ofespace->GetNE();
+   const int elements = fespace.GetNE();
    const int numQuad  = ir.GetNPoints();
-   quadValues.Resize<double>(*(new Layout(engine, numQuad * elements)), NULL);
+   quadValues.OccaResize(numQuad * elements, sizeof(double));
 
-   ::occa::kernel g2qKernel = GetGridFunctionKernel(device, *ofespace, ir);
+   ::occa::kernel g2qKernel = GetGridFunctionKernel(device, fespace, ir);
    g2qKernel(elements,
              maps.dofToQuad,
-             ofespace->GetLocalToGlobalMap(),
-             this->OccaMem(),
+             fespace.GetLocalToGlobalMap(),
+             gf.OccaMem(),
              quadValues.OccaMem());
-}
-
-void OccaGridFunction::Distribute(const Vector &v)
-{
-   if (ofespace->isDistributed())
-   {
-      mfem::Vector mfem_this(*this);
-      ofespace->GetProlongationOperator()->Mult(v.Wrap(), mfem_this);
-   }
-   else
-   {
-      *this = v;
-   }
 }
 
 } // namespace mfem::occa
