@@ -549,7 +549,7 @@ void VectorFiniteElement::SetDerivMembers()
 }
 
 void VectorFiniteElement::CalcVShape_RT (
-   ElementTransformation &Trans, DenseMatrix &shape) const
+   const ElementTransformation &Trans, DenseMatrix &shape) const
 {
    MFEM_ASSERT(Trans.IntPointSet(), "Integration point not set.");
    MFEM_ASSERT(MapType == H_DIV, "");
@@ -562,7 +562,7 @@ void VectorFiniteElement::CalcVShape_RT (
 }
 
 void VectorFiniteElement::CalcVShape_ND (
-   ElementTransformation &Trans, DenseMatrix &shape) const
+   const ElementTransformation &Trans, DenseMatrix &shape) const
 {
    MFEM_ASSERT(Trans.IntPointSet(), "Integration point not set.");
    MFEM_ASSERT(MapType == H_CURL, "");
