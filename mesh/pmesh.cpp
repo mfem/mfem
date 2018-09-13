@@ -1865,7 +1865,7 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
 
       for (int el = 0; el < num_elems; el++)
       {
-         const int nv = elements[el]->GetNVertices();
+         const int nv = elements[elems[el]]->GetNVertices();
          elemdata += 2; // skip the attribute and the geometry type
          for (int j = 0; j < nv; j++)
          {
