@@ -235,6 +235,9 @@ protected:
    void AccumulateAndCountZones(VectorCoefficient &vcoeff, AvgType type,
                                 Array<int> &zones_per_vdof);
 
+   void AccumulateAndCountBdrValues(Coefficient *coeff[], Array<int> &attr,
+                                    Array<int> &values_counter);
+
    // Complete the computation of averages; called e.g. after
    // AccumulateAndCountZones().
    void ComputeMeans(AvgType type, Array<int> &zones_per_vdof);
@@ -246,7 +249,12 @@ public:
       ProjectBdrCoefficient(&coeff_p, attr);
    }
 
-   void ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr);
+   virtual void ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
+   {
+      Array<int> values_counter;
+      AccumulateAndCountBdrValues(coeff, attr, values_counter);
+      ComputeMeans(ARITHMETIC, values_counter);
+   }
 
    /** Project the normal component of the given VectorCoefficient on
        the boundary. Only boundary attributes that are marked in

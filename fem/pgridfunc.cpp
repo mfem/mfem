@@ -395,6 +395,29 @@ void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &vcoeff,
    ComputeMeans(type, zones_per_vdof);
 }
 
+void ParGridFunction::ProjectBdrCoefficient(
+   Coefficient *coeff[], Array<int> &attr)
+{
+   Array<int> values_counter;
+   AccumulateAndCountBdrValues(coeff, attr, values_counter);
+   Vector values(Size());
+   for (int i = 0; i < values.Size(); i++)
+   {
+      values(i) = values_counter[i] ? (*this)(i) : 0.0;
+   }
+   // Count the values globally.
+   GroupCommunicator &gcomm = pfes->GroupComm();
+   gcomm.Reduce<int>(values_counter, GroupCommunicator::Sum);
+   // Accumulate the values globally.
+   gcomm.Reduce<double>(values, GroupCommunicator::Sum);
+
+   for (int i = 0; i < values.Size(); i++)
+   {
+      if (values_counter[i]) { (*this)(i) = values(i); }
+   }
+   ComputeMeans(ARITHMETIC, values_counter);
+}
+
 void ParGridFunction::Save(std::ostream &out) const
 {
    for (int i = 0; i < size; i++)
