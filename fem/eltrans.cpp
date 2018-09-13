@@ -82,7 +82,7 @@ int InverseElementTransformation::FindClosestPhysPoint(
 }
 
 int InverseElementTransformation::FindClosestRefPoint(
-   const Vector& pt, const IntegrationRule &ir)
+   const Vector& pt, const IntegrationRule &ir) const
 {
    MFEM_VERIFY(T != NULL, "invalid ElementTransformation");
    MFEM_VERIFY(pt.Size() == T->GetSpaceDim(), "invalid point");
@@ -100,8 +100,9 @@ int InverseElementTransformation::FindClosestRefPoint(
       const IntegrationPoint &ip = ir.IntPoint(i);
       T->Transform(ip, dp);
       dp -= pt;
-      T->SetIntPoint(&ip);
+      SetIntPoint(&ip);
       T->InverseJacobian().Mult(dp, dr);
+      ResetIntPoint();
       double dist = dr.Norml2();
       // double dist = dr.Normlinf();
       if (dist < minDist)
@@ -157,7 +158,7 @@ void InverseElementTransformation::NewtonPrintPoint(const char *prefix,
 }
 
 int InverseElementTransformation::NewtonSolve(const Vector &pt,
-                                              IntegrationPoint &ip)
+                                              IntegrationPoint &ip) const
 {
    MFEM_ASSERT(pt.Size() == T->GetSpaceDim(), "invalid point");
 
@@ -263,8 +264,9 @@ int InverseElementTransformation::NewtonSolve(const Vector &pt,
       if (it == max_iter) { break; }
 
       // Perform a Newton step:
-      T->SetIntPoint(&xip);
+      SetIntPoint(&xip);
       T->InverseJacobian().Mult(y, dx);
+      ResetIntPoint();
       x += dx;
       it++;
       if (solver_type != Newton)
@@ -321,7 +323,7 @@ int InverseElementTransformation::NewtonSolve(const Vector &pt,
 }
 
 int InverseElementTransformation::Transform(const Vector &pt,
-                                            IntegrationPoint &ip)
+                                            IntegrationPoint &ip) const
 {
    MFEM_VERIFY(T != NULL, "invalid ElementTransformation");
 

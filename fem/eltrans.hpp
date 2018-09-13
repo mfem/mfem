@@ -112,7 +112,7 @@ public:
        point in physical space. If the inversion fails a non-zero value is
        returned. This method is not 100 percent reliable for non-linear
        transformations. */
-   virtual int TransformBack(const Vector &pt, IntegrationPoint &ip) = 0;
+   virtual int TransformBack(const Vector &pt, IntegrationPoint &ip) const = 0;
 
    virtual ~ElementTransformation() { }
 };
@@ -165,10 +165,10 @@ public:
 
 protected:
    // Pointer to the forward transformation. Not owned.
-   ElementTransformation *T;
+   const ElementTransformation *T;
 
    // Parameters of the inversion algorithms:
-   const IntegrationPoint *ip0;
+   mutable const IntegrationPoint *ip0;
    int init_guess_type; // algorithm to use
    int qpts_type; // Quadrature1D type for the initial guess type
    int rel_qpts_order; // num_1D_qpts = max(trans_order+rel_qpts_order,0)+1
@@ -182,7 +182,17 @@ protected:
    void NewtonPrint(int mode, double val) const;
    void NewtonPrintPoint(const char *prefix, const Vector &pt,
                          const char *suffix) const;
-   int NewtonSolve(const Vector &pt, IntegrationPoint &ip);
+   int NewtonSolve(const Vector &pt, IntegrationPoint &ip) const;
+
+   // Methods and data member to maintain constness of the ElementTransformation
+   mutable const IntegrationPoint *T_ip;
+   inline void SetIntPoint(const IntegrationPoint *ip) const
+   {
+      T_ip = (T->IntPointSet()) ? &T->GetIntPoint() : NULL;
+      const_cast<ElementTransformation*>(T)->SetIntPoint(ip);
+   }
+   inline void ResetIntPoint() const
+   { if (T_ip) { const_cast<ElementTransformation*>(T)->SetIntPoint(T_ip); } }
 
 public:
    /// Construct the InverseElementTransformation with default parameters.
@@ -209,7 +219,7 @@ public:
        the Transform() method returns #Inside then the point lies inside the
        element up to one of the specified physical- or reference-space
        tolerances. */
-   InverseElementTransformation(ElementTransformation *Trans = NULL)
+   InverseElementTransformation(const ElementTransformation *Trans = NULL)
       : T(Trans),
         ip0(NULL),
         init_guess_type(Center),
@@ -220,7 +230,8 @@ public:
         ref_tol(1e-15),
         phys_rtol(1e-15),
         ip_tol(1e-8),
-        print_level(-1)
+        print_level(-1),
+        T_ip(NULL)
    { }
 
    virtual ~InverseElementTransformation() { }
@@ -285,13 +296,13 @@ public:
    /** @brief Find the IntegrationPoint mapped closest to @a pt, using a norm
        that approximates the (unknown) distance in reference coordinates. */
    /** @see FindClosestPhysPoint(). */
-   int FindClosestRefPoint(const Vector& pt, const IntegrationRule &ir);
+   int FindClosestRefPoint(const Vector& pt, const IntegrationRule &ir) const;
 
    /** @brief Given a point, @a pt, in physical space, find its reference
        coordinates, @a ip.
 
        @returns A value of type #TransformResult. */
-   virtual int Transform(const Vector &pt, IntegrationPoint &ip);
+   virtual int Transform(const Vector &pt, IntegrationPoint &ip) const;
 };
 
 
@@ -337,7 +348,7 @@ public:
    virtual int OrderW() const;
    virtual int OrderGrad(const FiniteElement *fe) const;
 
-   virtual int TransformBack(const Vector & v, IntegrationPoint & ip)
+   virtual int TransformBack(const Vector & v, IntegrationPoint & ip) const
    {
       InverseElementTransformation inv_tr(this);
       return inv_tr.Transform(v, ip);
