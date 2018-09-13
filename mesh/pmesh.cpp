@@ -4033,7 +4033,7 @@ void ParMesh::Mixed3DUniformRefinement(map<int,int> * )
    GetVertexToVertexTable(v_to_v);
    STable3D *faces_tbl = GetFacesTable();
 
-   // call Mesh::WedgeUniformRefinement so that it won't update the nodes
+   // call Mesh::Mixed3DUniformRefinement so that it won't update the nodes
    map<int,int> f2qf;
    {
       GridFunction *nodes = Nodes;
