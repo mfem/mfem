@@ -438,23 +438,23 @@ Solver & ImplicitDiffOp::GetGradientSolver() const
    {
       if (AInv_ == NULL)
       {
-	 /*	 
-         HypreSmoother *J_hypreSmoother = new HypreSmoother;
-	 J_hypreSmoother->SetType(HypreSmoother::l1Jacobi);
-	 J_hypreSmoother->SetPositiveDiagonal(true);
-	 JPrecond_ = J_hypreSmoother;
+         /*
+              HypreSmoother *J_hypreSmoother = new HypreSmoother;
+         J_hypreSmoother->SetType(HypreSmoother::l1Jacobi);
+         J_hypreSmoother->SetPositiveDiagonal(true);
+         JPrecond_ = J_hypreSmoother;
 
-         GMRESSolver * AInv_gmres = NULL;
+              GMRESSolver * AInv_gmres = NULL;
 
-         cout << "Building GMRES" << endl;
-         AInv_gmres = new GMRESSolver(T0_.ParFESpace()->GetComm());
-         AInv_gmres->SetRelTol(1e-12);
-         AInv_gmres->SetAbsTol(0.0);
-         AInv_gmres->SetMaxIter(20000);
-         AInv_gmres->SetPrintLevel(2);
-	 AInv_gmres->SetPreconditioner(*JPrecond_);
-	 AInv_ = AInv_gmres;
-	 */
+              cout << "Building GMRES" << endl;
+              AInv_gmres = new GMRESSolver(T0_.ParFESpace()->GetComm());
+              AInv_gmres->SetRelTol(1e-12);
+              AInv_gmres->SetAbsTol(0.0);
+              AInv_gmres->SetMaxIter(20000);
+              AInv_gmres->SetPrintLevel(2);
+         AInv_gmres->SetPreconditioner(*JPrecond_);
+         AInv_ = AInv_gmres;
+         */
          HypreGMRES * AInv_gmres = NULL;
 
          cout << "Building HypreGMRES" << endl;
@@ -469,7 +469,7 @@ Solver & ImplicitDiffOp::GetGradientSolver() const
             APrecond_->SetPrintLevel(0);
             AInv_gmres->SetPreconditioner(*APrecond_);
          }
-	 AInv_ = AInv_gmres;
+         AInv_ = AInv_gmres;
       }
    }
 
