@@ -45,10 +45,6 @@ groups_serial=(
    "Meshing miniapps:"
    "miniapps/meshing"
    "mobius-strip.cpp klein-bottle.cpp mesh-optimizer.cpp"'
-'"convergence"
-   "Convergence tests:"
-   "tests/convergence"
-   "diffusion.cpp"'
 )
 # Parallel groups
 groups_parallel=(
