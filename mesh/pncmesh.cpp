@@ -751,8 +751,8 @@ void ParNCMesh::NeighborProcessors(Array<int> &neighbors)
 //// ParMesh compatibility /////////////////////////////////////////////////////
 
 static void MakeSharedTable(int ngroups,
-                           const Array<ParNCMesh::GroupId> &conf_group,
-                           Array<int> &shared_local, Table &group_shared)
+                            const Array<ParNCMesh::GroupId> &conf_group,
+                            Array<int> &shared_local, Table &group_shared)
 {
    int num_shared = 0;
    group_shared.MakeI(ngroups-1);
@@ -773,8 +773,9 @@ static void MakeSharedTable(int ngroups,
    {
       if (conf_group[i])
       {
-         shared_local[j++] = i;
-         group_shared.AddConnection(conf_group[i]-1, i);
+         shared_local[j] = i;
+         group_shared.AddConnection(conf_group[i]-1, j);
+         j++;
       }
    }
    group_shared.ShiftUpI();
@@ -790,20 +791,34 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
       MFEM_VERIFY(entity_conf_group[ent].Size(), "internal error");
    }
 
-   // create ParMesh groups
+   // create ParMesh groups, and the map (ncmesh_group -> pmesh_group)
+   std::map<int, int> group_map;
    {
       IntegerSet iset;
       ListOfIntegerSets int_groups;
       for (unsigned i = 0; i < groups.size(); i++)
       {
-         iset.Recreate(groups[i].size(), groups[i].data());
-         int_groups.Insert(iset);
+         if (groups[i].size() > 1 || !i) // skip singleton groups
+         {
+            iset.Recreate(groups[i].size(), groups[i].data());
+            group_map[i] = int_groups.Insert(iset);
+         }
       }
       pmesh.gtopo.Create(int_groups, 822);
    }
 
+   // renumber groups in entity_conf_group[] (due to missing singletons)
+   for (int ent = 0; ent < 3; ent++)
+   {
+      for (int i = 0; i < entity_conf_group[ent].Size(); i++)
+      {
+         GroupId &ecg = entity_conf_group[ent][i];
+         ecg = group_map[ecg];
+      }
+   }
+
    // create shared to local index mappings
-   int ng = groups.size();
+   int ng = pmesh.gtopo.NGroups();
    MakeSharedTable(ng, entity_conf_group[0], pmesh.svert_lvert, pmesh.group_svert);
    MakeSharedTable(ng, entity_conf_group[1], pmesh.sedge_ledge, pmesh.group_sedge);
    MakeSharedTable(ng, entity_conf_group[2], pmesh.sface_lface, pmesh.group_sface);
