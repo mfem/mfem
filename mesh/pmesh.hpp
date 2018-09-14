@@ -128,12 +128,6 @@ protected:
    void BuildSharedVertMapping(int nvert, const Table* vert_element,
                                const Array<int>& vert_global_local);
 
-#if 0
-   /// fills out vert_global_local
-   int BuildVertGlobalLocal(Mesh& mesh, int* partitioning,
-                            Array<int>& vert_global_local);
-#endif
-
    /// fills out partitioned Mesh::vertices
    int BuildLocalVertices(const Mesh& global_mesh, const int* partitioning,
                           Array<int>& vert_global_local);
