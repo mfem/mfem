@@ -2328,7 +2328,11 @@ void HypreGMRES::SetOperator(const Operator &op)
    height = new_A->Height();
    width  = new_A->Width();
    A = const_cast<HypreParMatrix *>(new_A);
-   if (precond) { precond->SetOperator(*A); }
+   if (precond)
+   {
+      precond->SetOperator(*A);
+      this->SetPreconditioner(*precond);
+   }
    setup_called = 0;
    delete X;
    delete B;
