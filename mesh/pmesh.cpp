@@ -124,23 +124,25 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       }
    }
 
+   // TODO move to conforming branch
    Table *edge_element = NULL;
    STable3D *faces_tbl = NULL;
 
-   Array<int> vert_global_local(mesh.GetNV());
    Array<bool> activeBdrElem;
 
    if (mesh.Nonconforming())
    {
       pncmesh->Prune();
-      faces_tbl = Mesh::InitFromNCMesh(*pncmesh);
+
+      faces_tbl = Mesh::InitFromNCMesh(*pncmesh);  // TODO faces_tbl
       pncmesh->OnMeshUpdated(this);
+      pncmesh->GetConformingSharedStructures(*this);
 
       // In the NC case we already have local numbering for the
       // element vertices, which has come from InitFromNCMesh.
       // So derive vert_global_local from it.
 
-      vert_global_local = -1;
+      /*vert_global_local = -1;
       int le = 0;
       for (int i = 0; i < mesh.GetNE(); i++)
       {
@@ -154,11 +156,11 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
                vert_global_local[vert_global[j]] = vert_local[j];
             }
          }
-      }
+      }*/
 
       GenerateNCFaceInfo();
    }
-   else
+   else // mesh.Conforming()
    {
       Dim = mesh.Dim;
       spaceDim = mesh.spaceDim;
@@ -166,8 +168,8 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       BaseGeom = mesh.BaseGeom;
       BaseBdrGeom = mesh.BaseBdrGeom;
 
-      // fills out Mesh::vertices from partition of global mesh and
-      // generates vert_global_local.
+      // fills out Mesh::vertices from partition of global mesh
+      Array<int> vert_global_local(mesh.GetNV());
       NumOfVertices = BuildLocalVertices(mesh, partitioning,
                                          vert_global_local);
 
@@ -194,55 +196,54 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       }
 
       GenerateFaces();
+
+      // Build groups.  At this point there is no difference between the
+      // conforming and NC cases.
+
+      ListOfIntegerSets  groups;
+      {
+         // the first group is the local one
+         IntegerSet         group;
+         group.Recreate(1, &MyRank);
+         groups.Insert(group);
+      }
+
+      MFEM_ASSERT(mesh.GetNFaces() == 0 || Dim >= 3, "");
+
+      Array<int> face_group(mesh.GetNFaces());
+      Table *vert_element = mesh.GetVertexToElementTable(); // we must delete this
+
+      int nsfaces = FindSharedFaces(mesh, partitioning, face_group, groups);
+      int nsedges = FindSharedEdges(mesh, partitioning, edge_element, groups);
+      int nsvert = FindSharedVertices(mesh, partitioning, vert_element, groups);
+
+      // build the group communication topology
+      gtopo.Create(groups, 822);
+
+      // fill out group_sface, group_sedge, group_svert
+      int ngroups = groups.Size()-1;
+      BuildFaceGroup(ngroups, face_group, group_sface);
+      BuildEdgeGroup(ngroups, *edge_element, group_sedge);
+      BuildVertexGroup(ngroups, *vert_element, group_svert);
+
+      // build shared_faces and sface_lface mapping
+      BuildSharedFaceElems(nsfaces, mesh, partitioning, faces_tbl,
+                           face_group, vert_global_local);
+      delete faces_tbl;
+
+      // build shared_edges and sedge_ledge mapping
+      BuildSharedEdgeElems(nsedges, mesh, vert_global_local, edge_element);
+      delete edge_element;
+
+      // build svert_lvert mapping
+      BuildSharedVertMapping(nsvert, vert_element, vert_global_local);
+      delete vert_element;
    }
 
    meshgen = mesh.MeshGenerator();
 
    mesh.attributes.Copy(attributes);
    mesh.bdr_attributes.Copy(bdr_attributes);
-
-   // Build groups.  At this point there is no difference between the
-   // conforming and NC cases.
-
-   ListOfIntegerSets  groups;
-   {
-      // the first group is the local one
-      IntegerSet         group;
-      group.Recreate(1, &MyRank);
-      groups.Insert(group);
-   }
-
-   MFEM_ASSERT(mesh.GetNFaces() == 0 || Dim >= 3, "");
-
-   Array<int> face_group(mesh.GetNFaces());
-   Table *vert_element = mesh.GetVertexToElementTable(); // we must delete this
-
-   int nsfaces = FindSharedFaces(mesh, partitioning, face_group, groups);
-   int nsedges = FindSharedEdges(mesh, partitioning, edge_element, groups);
-   int nsvert = FindSharedVertices(mesh, partitioning, vert_element, groups);
-
-   // build the group communication topology
-   gtopo.Create(groups, 822);
-
-   // fill out group_sface, group_sedge, group_svert
-   int ngroups = groups.Size()-1;
-   BuildFaceGroup(ngroups, face_group, group_sface);
-   BuildEdgeGroup(ngroups, *edge_element, group_sedge);
-   BuildVertexGroup(ngroups, *vert_element, group_svert);
-
-   // build shared_faces and sface_lface mapping
-   BuildSharedFaceElems(nsfaces, mesh, partitioning, faces_tbl,
-                        face_group, vert_global_local);
-   delete faces_tbl;
-
-   // build shared_edges and sedge_ledge mapping
-   BuildSharedEdgeElems(nsedges, mesh, vert_global_local,
-                        edge_element);
-   delete edge_element;
-
-   // build svert_lvert mapping
-   BuildSharedVertMapping(nsvert, vert_element, vert_global_local);
-   delete vert_element;
 
 
    if (mesh.NURBSext)
@@ -297,7 +298,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
    have_face_nbr_data = false;
 }
 
-// protected method
+// protected method, used by NonconformingRefinement and Rebalance
 ParMesh::ParMesh(const ParNCMesh &pncmesh)
    : MyComm(pncmesh.MyComm)
    , NRanks(pncmesh.NRanks)
@@ -2840,6 +2841,8 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
 
    delete pmesh2; // NOTE: old face neighbors destroyed here
 
+   pncmesh->GetConformingSharedStructures(*this);
+
    GenerateNCFaceInfo();
 
    last_operation = Mesh::REFINE;
@@ -2920,6 +2923,8 @@ void ParMesh::Rebalance()
 
    Swap(*pmesh2, false);
    delete pmesh2;
+
+   pncmesh->GetConformingSharedStructures(*this);
 
    GenerateNCFaceInfo();
 
