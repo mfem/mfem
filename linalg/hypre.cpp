@@ -2156,7 +2156,14 @@ HypreSolver::~HypreSolver()
 }
 
 
-HyprePCG::HyprePCG(HypreParMatrix &_A) : HypreSolver(&_A)
+HyprePCG::HyprePCG(MPI_Comm comm) : precond(NULL)
+{
+   iterative_mode = true;
+
+   HYPRE_ParCSRPCGCreate(comm, &pcg_solver);
+}
+
+HyprePCG::HyprePCG(HypreParMatrix &_A) : HypreSolver(&_A), precond(NULL)
 {
    MPI_Comm comm;
 
@@ -2165,6 +2172,26 @@ HyprePCG::HyprePCG(HypreParMatrix &_A) : HypreSolver(&_A)
    HYPRE_ParCSRMatrixGetComm(*A, &comm);
 
    HYPRE_ParCSRPCGCreate(comm, &pcg_solver);
+}
+
+void HyprePCG::SetOperator(const Operator &op)
+{
+   const HypreParMatrix *new_A = dynamic_cast<const HypreParMatrix *>(&op);
+   MFEM_VERIFY(new_A, "new Operator must be a HypreParMatrix!");
+
+   // update base classes: Operator, Solver, HypreSolver
+   height = new_A->Height();
+   width  = new_A->Width();
+   A = const_cast<HypreParMatrix *>(new_A);
+   if (precond)
+   {
+      precond->SetOperator(*A);
+      this->SetPreconditioner(*precond);
+   }
+   setup_called = 0;
+   delete X;
+   delete B;
+   B = X = NULL;
 }
 
 void HyprePCG::SetTol(double tol)
@@ -2187,12 +2214,14 @@ void HyprePCG::SetPrintLevel(int print_lvl)
    HYPRE_ParCSRPCGSetPrintLevel(pcg_solver, print_lvl);
 }
 
-void HyprePCG::SetPreconditioner(HypreSolver &precond)
+void HyprePCG::SetPreconditioner(HypreSolver &_precond)
 {
+   precond = &_precond;
+
    HYPRE_ParCSRPCGSetPrecond(pcg_solver,
-                             precond.SolveFcn(),
-                             precond.SetupFcn(),
-                             precond);
+                             _precond.SolveFcn(),
+                             _precond.SetupFcn(),
+                             _precond);
 }
 
 void HyprePCG::SetResidualConvergenceOptions(int res_frequency, double rtol)
@@ -2367,7 +2396,7 @@ void HypreGMRES::SetPrintLevel(int print_lvl)
 void HypreGMRES::SetPreconditioner(HypreSolver &_precond)
 {
    precond = &_precond;
-  
+
    HYPRE_ParCSRGMRESSetPrecond(gmres_solver,
                                _precond.SolveFcn(),
                                _precond.SetupFcn(),
@@ -2448,10 +2477,40 @@ HypreGMRES::~HypreGMRES()
 }
 
 
+void HypreDiagScale::SetOperator(const Operator &op)
+{
+   const HypreParMatrix *new_A = dynamic_cast<const HypreParMatrix *>(&op);
+   MFEM_VERIFY(new_A, "new Operator must be a HypreParMatrix!");
+
+   // update base classes: Operator, Solver, HypreSolver
+   height = new_A->Height();
+   width  = new_A->Width();
+   A = const_cast<HypreParMatrix *>(new_A);
+   setup_called = 0;
+   delete X;
+   delete B;
+   B = X = NULL;
+}
+
+
+HypreParaSails::HypreParaSails(MPI_Comm comm)
+{
+   HYPRE_ParaSailsCreate(comm, &sai_precond);
+   SetDefaultOptions();
+}
+
 HypreParaSails::HypreParaSails(HypreParMatrix &A) : HypreSolver(&A)
 {
    MPI_Comm comm;
 
+   HYPRE_ParCSRMatrixGetComm(A, &comm);
+
+   HYPRE_ParaSailsCreate(comm, &sai_precond);
+   SetDefaultOptions();
+}
+
+void HypreParaSails::SetDefaultOptions()
+{
    int    sai_max_levels = 1;
    double sai_threshold  = 0.1;
    double sai_filter     = 0.1;
@@ -2460,15 +2519,64 @@ HypreParaSails::HypreParaSails(HypreParMatrix &A) : HypreSolver(&A)
    int    sai_reuse      = 0;
    int    sai_logging    = 1;
 
-   HYPRE_ParCSRMatrixGetComm(A, &comm);
-
-   HYPRE_ParaSailsCreate(comm, &sai_precond);
    HYPRE_ParaSailsSetParams(sai_precond, sai_threshold, sai_max_levels);
    HYPRE_ParaSailsSetFilter(sai_precond, sai_filter);
    HYPRE_ParaSailsSetSym(sai_precond, sai_sym);
    HYPRE_ParaSailsSetLoadbal(sai_precond, sai_loadbal);
    HYPRE_ParaSailsSetReuse(sai_precond, sai_reuse);
    HYPRE_ParaSailsSetLogging(sai_precond, sai_logging);
+}
+
+void HypreParaSails::ResetSAIPrecond(MPI_Comm comm)
+{
+   HYPRE_Int  sai_max_levels;
+   HYPRE_Real sai_threshold;
+   HYPRE_Real sai_filter;
+   HYPRE_Int  sai_sym;
+   HYPRE_Real sai_loadbal;
+   HYPRE_Int  sai_reuse;
+   HYPRE_Int  sai_logging;
+
+   // hypre_ParAMGData *amg_data = (hypre_ParAMGData *)sai_precond;
+   HYPRE_ParaSailsGetNlevels(sai_precond, &sai_max_levels);
+   HYPRE_ParaSailsGetThresh(sai_precond, &sai_threshold);
+   HYPRE_ParaSailsGetFilter(sai_precond, &sai_filter);
+   HYPRE_ParaSailsGetSym(sai_precond, &sai_sym);
+   HYPRE_ParaSailsGetLoadbal(sai_precond, &sai_loadbal);
+   HYPRE_ParaSailsGetReuse(sai_precond, &sai_reuse);
+   HYPRE_ParaSailsGetLogging(sai_precond, &sai_logging);
+
+   HYPRE_ParaSailsDestroy(sai_precond);
+   HYPRE_ParaSailsCreate(comm, &sai_precond);
+
+   HYPRE_ParaSailsSetParams(sai_precond, sai_threshold, sai_max_levels);
+   HYPRE_ParaSailsSetFilter(sai_precond, sai_filter);
+   HYPRE_ParaSailsSetSym(sai_precond, sai_sym);
+   HYPRE_ParaSailsSetLoadbal(sai_precond, sai_loadbal);
+   HYPRE_ParaSailsSetReuse(sai_precond, sai_reuse);
+   HYPRE_ParaSailsSetLogging(sai_precond, sai_logging);
+}
+
+void HypreParaSails::SetOperator(const Operator &op)
+{
+   const HypreParMatrix *new_A = dynamic_cast<const HypreParMatrix *>(&op);
+   MFEM_VERIFY(new_A, "new Operator must be a HypreParMatrix!");
+
+   if (A)
+   {
+      MPI_Comm comm;
+      HYPRE_ParCSRMatrixGetComm(*A, &comm);
+      ResetSAIPrecond(comm);
+   }
+
+   // update base classes: Operator, Solver, HypreSolver
+   height = new_A->Height();
+   width  = new_A->Width();
+   A = const_cast<HypreParMatrix *>(new_A);
+   setup_called = 0;
+   delete X;
+   delete B;
+   B = X = NULL;
 }
 
 void HypreParaSails::SetSymmetry(int sym)
