@@ -124,39 +124,15 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       }
    }
 
-   // TODO move to conforming branch
-   Table *edge_element = NULL;
-   STable3D *faces_tbl = NULL;
-
    Array<bool> activeBdrElem;
 
    if (mesh.Nonconforming())
    {
       pncmesh->Prune();
 
-      faces_tbl = Mesh::InitFromNCMesh(*pncmesh);  // TODO faces_tbl
+      Mesh::InitFromNCMesh(*pncmesh);
       pncmesh->OnMeshUpdated(this);
       pncmesh->GetConformingSharedStructures(*this);
-
-      // In the NC case we already have local numbering for the
-      // element vertices, which has come from InitFromNCMesh.
-      // So derive vert_global_local from it.
-
-      /*vert_global_local = -1;
-      int le = 0;
-      for (int i = 0; i < mesh.GetNE(); i++)
-      {
-         if (partitioning[i] == MyRank)
-         {
-            Array<int> vert_global, vert_local;
-            mesh.GetElementVertices(i, vert_global);
-            elements[le++]->GetVertices(vert_local);
-            for (int j = 0; j < vert_local.Size(); j++)
-            {
-               vert_global_local[vert_global[j]] = vert_local[j];
-            }
-         }
-      }*/
 
       GenerateNCFaceInfo();
    }
@@ -178,6 +154,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
                                          vert_global_local);
 
       // fills out Mesh::boundary
+      Table *edge_element = NULL;
       NumOfBdrElements = BuildLocalBoundary(mesh, partitioning,
                                             vert_global_local,
                                             activeBdrElem, edge_element);
@@ -190,6 +167,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
          NumOfEdges = Mesh::GetElementToEdgeTable(*el_to_edge, be_to_edge);
       }
 
+      STable3D *faces_tbl = NULL;
       if (Dim == 3)
       {
          faces_tbl = GetElementToFaceTable(1);
@@ -197,13 +175,10 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
       GenerateFaces();
 
-      // Build groups.  At this point there is no difference between the
-      // conforming and NC cases.
-
       ListOfIntegerSets  groups;
       {
          // the first group is the local one
-         IntegerSet         group;
+         IntegerSet group;
          group.Recreate(1, &MyRank);
          groups.Insert(group);
       }
@@ -945,8 +920,6 @@ void ParMesh::BuildSharedEdgeElems(int nedges, Mesh& mesh,
             sedge_ledge[sedge_counter] = v_to_v(vert_global_local[vert[0]],
                                                 vert_global_local[vert[1]]);
 
-
-
             if (sedge_ledge[sedge_counter] < 0)
             {
                cerr << "\n\n\n" << MyRank << ": ParMesh::ParMesh: "
@@ -976,41 +949,6 @@ void ParMesh::BuildSharedVertMapping(int nvert,
       }
    }
 }
-
-#if 0
-int ParMesh::BuildVertGlobalLocal(Mesh& mesh, int* partitioning,
-                                  Array<int>& vert_global_local)
-{
-   vert_global_local = -1;
-
-   int vert_counter = 0;
-   for (int i = 0; i < mesh.GetNE(); i++)
-   {
-      if (partitioning[i] == MyRank)
-      {
-         Array<int> vert;
-         mesh.GetElementVertices(i, vert);
-         for (int j = 0; j < vert.Size(); j++)
-            if (vert_global_local[vert[j]] < 0)
-            {
-               vert_global_local[vert[j]] = vert_counter++;
-            }
-      }
-   }
-
-   // re-enumerate the local vertices to preserve the global ordering
-   vert_counter = 0;
-   for (int i = 0; i < vert_global_local.Size(); i++)
-   {
-      if (vert_global_local[i] >= 0)
-      {
-         vert_global_local[i] = vert_counter++;
-      }
-   }
-
-   return vert_counter;
-}
-#endif
 
 int ParMesh::BuildLocalVertices(const mfem::Mesh &mesh,
                                 const int* partitioning,

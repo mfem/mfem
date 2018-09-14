@@ -142,8 +142,6 @@ void ParFiniteElementSpace::Construct()
    }
    else // Nonconforming()
    {
-      /*gcomm = new GroupCommunicator(GetGroupTopo());
-      GetGroupComm(*gcomm, 1);*/
       ConstructTrueDofs();
 
       // calculate number of ghost DOFs

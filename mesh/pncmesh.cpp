@@ -823,7 +823,23 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
    MakeSharedTable(ng, entity_conf_group[1], pmesh.sedge_ledge, pmesh.group_sedge);
    MakeSharedTable(ng, entity_conf_group[2], pmesh.sface_lface, pmesh.group_sface);
 
-   // TODO: create shared_edges, shared_faces
+   // create shared_edges
+   pmesh.shared_edges.SetSize(pmesh.sedge_ledge.Size());
+   for (int i = 0; i < pmesh.shared_edges.Size(); i++)
+   {
+      int v[2];
+      GetEdgeVertices(edge_list.LookUp(pmesh.sedge_ledge[i]), v);
+      pmesh.shared_edges[i] = new Segment(v, 1);
+   }
+
+   // create shared_faces
+   pmesh.shared_faces.SetSize(pmesh.sface_lface.Size());
+   for (int i = 0; i < pmesh.shared_faces.Size(); i++)
+   {
+      int v[4], e[4], eo[4];
+      GetFaceVerticesEdges(face_list.LookUp(pmesh.sface_lface[i]), v, e, eo);
+      pmesh.shared_faces = new Quadrilateral(v, 1);
+   }
 
    // free conf_group arrays, they're not needed now (until next mesh update)
    for (int ent = 0; ent < Dim; ent++)
