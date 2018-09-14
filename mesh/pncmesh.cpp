@@ -750,21 +750,36 @@ void ParNCMesh::NeighborProcessors(Array<int> &neighbors)
 
 //// ParMesh compatibility /////////////////////////////////////////////////////
 
-static void SharedToLocalMap(const Array<ParNCMesh::GroupId> &conf_group,
-                             Array<int> &shared_local)
+static void MakeSharedTable(int ngroups,
+                           const Array<ParNCMesh::GroupId> &conf_group,
+                           Array<int> &shared_local, Table &group_shared)
 {
    int num_shared = 0;
+   group_shared.MakeI(ngroups-1);
+
    for (int i = 0; i < conf_group.Size(); i++)
    {
-      if (conf_group[i]) { num_shared++; }
+      if (conf_group[i])
+      {
+         num_shared++;
+         group_shared.AddAColumnInRow(conf_group[i]-1);
+      }
    }
+
    shared_local.SetSize(num_shared);
+   group_shared.MakeJ();
 
    for (int i = 0, j = 0; i < conf_group.Size(); i++)
    {
-      if (conf_group[i]) { shared_local[j++] = i; }
+      if (conf_group[i])
+      {
+         shared_local[j++] = i;
+         group_shared.AddConnection(conf_group[i]-1, i);
+      }
    }
+   group_shared.ShiftUpI();
 }
+
 
 void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
 {
@@ -788,13 +803,12 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
    }
 
    // create shared to local index mappings
-   SharedToLocalMap(entity_conf_group[0], pmesh.svert_lvert);
-   SharedToLocalMap(entity_conf_group[1], pmesh.sedge_ledge);
-   SharedToLocalMap(entity_conf_group[2], pmesh.sface_lface);
+   int ng = groups.size();
+   MakeSharedTable(ng, entity_conf_group[0], pmesh.svert_lvert, pmesh.group_svert);
+   MakeSharedTable(ng, entity_conf_group[1], pmesh.sedge_ledge, pmesh.group_sedge);
+   MakeSharedTable(ng, entity_conf_group[2], pmesh.sface_lface, pmesh.group_sface);
 
-
-   // TODO
-
+   // TODO: create shared_edges, shared_faces
 
    // free conf_group arrays, they're not needed now (until next mesh update)
    for (int ent = 0; ent < Dim; ent++)
