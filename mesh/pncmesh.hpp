@@ -226,7 +226,7 @@ protected: // interface for ParMesh
 
    /** For compatibility with conforming code in ParMesh and ParFESpace.
        Initializes shared structures in ParMesh: gtopo, shared_*, group_s*, s*_l*.
-       The ParMesh then acts as a parallel mesh cut along NC interfaces. */
+       The ParMesh then acts as a parallel mesh cut along the NC interfaces. */
    void GetConformingSharedStructures(class ParMesh &pmesh);
 
    /** Populate face neighbor members of ParMesh from the ghost layer, without
