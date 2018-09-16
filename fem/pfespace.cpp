@@ -485,7 +485,7 @@ void ParFiniteElementSpace::GetSharedTriangleDofs(
    else
    {
       Array<int> rdofs;
-      fec->SubDofOrder(pmesh->GetFaceBaseGeometry(l_face), 2, ori, dofs);
+      fec->SubDofOrder(Geometry::TRIANGLE, 2, ori, dofs);
       GetFaceDofs(l_face, rdofs);
       for (int i = 0; i < dofs.Size(); i++)
       {
@@ -509,7 +509,7 @@ void ParFiniteElementSpace::GetSharedQuadrilateralDofs(
    else
    {
       Array<int> rdofs;
-      fec->SubDofOrder(pmesh->GetFaceBaseGeometry(l_face), 2, ori, dofs);
+      fec->SubDofOrder(Geometry::SQUARE, 2, ori, dofs);
       GetFaceDofs(l_face, rdofs);
       for (int i = 0; i < dofs.Size(); i++)
       {

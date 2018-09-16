@@ -41,8 +41,33 @@ protected:
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
+   struct Vert3
+   {
+      int v[3];
+      Vert3() { }
+      Vert3(int v0, int v1, int v2) { v[0] = v0; v[1] = v1; v[2] = v2; }
+      void Set(int v0, int v1, int v2) { v[0] = v0; v[1] = v1; v[2] = v2; }
+      void Set(const int *w) { v[0] = w[0]; v[1] = w[1]; v[2] = w[2]; }
+   };
+
+   struct Vert4
+   {
+      int v[4];
+      Vert4() { }
+      Vert4(int v0, int v1, int v2, int v3)
+      { v[0] = v0; v[1] = v1; v[2] = v2; v[3] = v3; }
+      void Set(int v0, int v1, int v2, int v3)
+      { v[0] = v0; v[1] = v1; v[2] = v2; v[3] = v3; }
+      void Set(const int *w)
+      { v[0] = w[0]; v[1] = w[1]; v[2] = w[2]; v[3] = w[3]; }
+   };
+
    Array<Element *> shared_edges;
-   Array<Element *> shared_faces;
+   // shared face id 'i' is:
+   //   * triangle id 'i',                  if i < shared_trias.Size()
+   //   * quad id 'i-shared_trias.Size()',  otherwise
+   Array<Vert3> shared_trias;
+   Array<Vert4> shared_quads;
 
    /// Shared objects in each group.
    Table group_svert;
@@ -53,16 +78,8 @@ protected:
    /// Shared to local index mapping.
    Array<int> svert_lvert;
    Array<int> sedge_ledge;
-   Array<int> stria_lface;
-   Array<int> squad_lface;
-   Array<int> stria_sface;
-   Array<int> squad_sface;
-
-   // Inverse mapping from shared face index to shared triangle or
-   // shared quadrilateral index.  To determine which type of index is
-   // returned the user must rely on the element type returned by
-   // objects stored in the shared_faces array.
-   Array<int> sface_stype;
+   // sface ids: all triangles first, then all quads
+   Array<int> sface_lface;
 
    /// Create from a nonconforming mesh.
    ParMesh(const ParNCMesh &pncmesh);
@@ -77,7 +94,7 @@ protected:
    /// Return a number(0-1) identifying how the given edge has been split
    int GetEdgeSplittings(Element *edge, const DSTable &v_to_v, int *middle);
    /// Append codes identifying how the given face has been split to @a codes
-   void GetFaceSplittings(Element *face, const HashTable<Hashed2> &v_to_v,
+   void GetFaceSplittings(const int *fv, const HashTable<Hashed2> &v_to_v,
                           Array<unsigned> &codes);
 
    bool DecodeFaceSplittings(HashTable<Hashed2> &v_to_v, const int *v,
@@ -89,6 +106,20 @@ protected:
    ElementTransformation* GetGhostFaceTransformation(
       FaceElementTransformations* FETr, Element::Type face_type,
       Geometry::Type face_geom);
+
+   /// Update the groups after triangle refinement
+   void RefineGroups(const DSTable &v_to_v, int *middle);
+
+   /// Update the groups after tetrahedron refinement
+   void RefineGroups(const HashTable<Hashed2> &v_to_v);
+
+   void UniformRefineGroups2D(int old_nv);
+
+   // f2qf can be NULL if all faces are quads or there are no quad faces
+   void UniformRefineGroups3D(int old_nv, int old_nedges,
+                              const DSTable &old_v_to_v,
+                              const STable3D &old_faces,
+                              std::map<int,int> *f2qf);
 
    /// Refine quadrilateral mesh.
    virtual void QuadUniformRefinement();
@@ -214,11 +245,6 @@ public:
 
    /// Utility function: sum integers from all processors (Allreduce).
    virtual long ReduceInt(int value) const;
-
-   /// Update the groups after triangle refinement
-   void RefineGroups(const DSTable &v_to_v, int *middle);
-   /// Update the groups after tetrahedron refinement
-   void RefineGroups(const HashTable<Hashed2> &v_to_v);
 
    /// Load balance the mesh. NC meshes only.
    void Rebalance();
