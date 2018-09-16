@@ -302,83 +302,72 @@ def gVis(_glvis,_meshFile):
 eleMatQuadHolder=eleMatQuad(numEdges) #Construct quad element matrix for region outside the circular sector
 
 #Combining eleMatTriHolder and eleMatQuadHolder
-q1EleMat=sp.zeros([eleMatTriHolder.shape[0]+eleMatQuadHolder.shape[0],6])
+linEleMat=sp.zeros([eleMatTriHolder.shape[0]+eleMatQuadHolder.shape[0],6])
 counter=0
 for n in range(eleMatTriHolder.shape[0]):
-    q1EleMat[n,[0,1,2,3,4]]=eleMatTriHolder[n,:]
+    linEleMat[n,[0,1,2,3,4]]=eleMatTriHolder[n,:]
     counter+=1
 for n in range(eleMatQuadHolder.shape[0]):
-    q1EleMat[counter+n,:]=eleMatQuadHolder[n,:]
+    linEleMat[counter+n,:]=eleMatQuadHolder[n,:]
 
-q1EleMat=q1EleMat.astype(int)
-q1BoundMat=boundMatTot(numEdges)[0] #Construct the boundary
+linEleMat=linEleMat.astype(int)
+linBoundMat=boundMatTot(numEdges)[0] #Construct the boundary
 vertMatCircHolder = vertMatCirc(numEdges) #Construct vertex matrix for triang region
 vertMatQuadHolder = vertMatQuad(numEdges) #Construct vertex matrix for the quad region
 
 
 #Combining the two vertex matrices in Quadrant I (q1)
-q1VertMat=sp.zeros([vertMatCircHolder.shape[0]+vertMatQuadHolder.shape[0],2])
+linVertMat=sp.zeros([vertMatCircHolder.shape[0]+vertMatQuadHolder.shape[0],2])
 counter=0
 for n in range(vertMatCircHolder.shape[0]):
-    q1VertMat[n,:]=vertMatCircHolder[n,:]
+    linVertMat[n,:]=vertMatCircHolder[n,:]
     counter+=1
 for n in range(vertMatQuadHolder.shape[0]):
-    q1VertMat[counter+n,:]=vertMatQuadHolder[n,:]
+    linVertMat[counter+n,:]=vertMatQuadHolder[n,:]
 
-#Outputting to First Order (Linear) mesh to a .mesh file
+#Outputting P1/Q1 mesh to a .mesh file
 g=open(outputName+'Lin.mesh','w')
 g.write('MFEM mesh v1.0\n'+'\n')
 g.write('dimension\n'+'2\n'+'\n')
-g.write('elements\n'+'{}\n'.format(q1EleMat.shape[0]))
-for n in range(q1EleMat.shape[0]):
-    if q1EleMat[n,1]==2:
-        g.write('{} {} {} {} {}\n'.format(q1EleMat[n,0],q1EleMat[n,1],q1EleMat[n,2],q1EleMat[n,3],q1EleMat[n,4]))
+g.write('elements\n'+'{}\n'.format(linEleMat.shape[0]))
+for n in range(linEleMat.shape[0]):
+    if linEleMat[n,1]==2:
+        g.write('{} {} {} {} {}\n'.format(linEleMat[n,0],linEleMat[n,1],linEleMat[n,2],linEleMat[n,3],linEleMat[n,4]))
     else:
-        g.write('{} {} {} {} {} {}\n'.format(q1EleMat[n,0],q1EleMat[n,1],q1EleMat[n,2],q1EleMat[n,3],q1EleMat[n,4],q1EleMat[n,5]))
-g.write('\n'+'boundary\n'+'{}\n'.format(q1BoundMat.shape[0]))
-for n in range(q1BoundMat.shape[0]):
-    g.write('{} {} {} {}\n'.format(q1BoundMat[n,0],q1BoundMat[n,1],q1BoundMat[n,2],q1BoundMat[n,3]))
-g.write('\n'+'vertices\n'+'{}\n'.format(q1VertMat.shape[0])+'2\n')
-for n in range(q1VertMat.shape[0]):
-    g.write('{} {}\n'.format(q1VertMat[n,0],q1VertMat[n,1]))
+        g.write('{} {} {} {} {} {}\n'.format(linEleMat[n,0],linEleMat[n,1],linEleMat[n,2],linEleMat[n,3],linEleMat[n,4],linEleMat[n,5]))
+g.write('\n'+'boundary\n'+'{}\n'.format(linBoundMat.shape[0]))
+for n in range(linBoundMat.shape[0]):
+    g.write('{} {} {} {}\n'.format(linBoundMat[n,0],linBoundMat[n,1],linBoundMat[n,2],linBoundMat[n,3]))
+g.write('\n'+'vertices\n'+'{}\n'.format(linVertMat.shape[0])+'2\n')
+for n in range(linVertMat.shape[0]):
+    g.write('{} {}\n'.format(linVertMat[n,0],linVertMat[n,1]))
 g.close()
 
 gVis(glvis,outputName+'Lin.mesh')
 
-
-#PREP WORK FOR QUAD ELEMENT GENERATION
-
-#Creating geometric quadratice elements
-# q1EleMat=sp.array([[ 1,  2,  0,  1,  2,  0],
-#                      [ 1,  2,  1,  4,  2,  0],
-#                      [ 1,  2,  1,  3,  4,  0],
-#                      [ 1,  2,  4,  5,  2,  0],
-#                      [ 2,  3,  3,  6,  7,  4],
-#                      [ 2,  3,  8,  5,  4,  7],
-#                      [ 2,  3,  6,  9, 10,  7],
-#                      [ 2,  3,  11,  8, 7, 10]])
+#Quadratic (P2/Q2) Element Generation
 
 #1.)Create Edge list from previously generated linear elements
 edgeMat=sp.zeros([3*eleMatTriHolder.shape[0]+4*eleMatQuadHolder.shape[0],2])
-q1EleMat=orient(q1EleMat) #Orient elements
+linEleMat=orient(linEleMat)#Make sure that element orientation is in agreement with MFEM requirements
 
 counter=0
-for n in range(q1EleMat.shape[0]):
-    if q1EleMat[n,1]==2:
-        edgeMat[counter,:]=[q1EleMat[n,2],q1EleMat[n,3]]
+for n in range(linEleMat.shape[0]):
+    if linEleMat[n,1]==2:
+        edgeMat[counter,:]=[linEleMat[n,2],linEleMat[n,3]]
         counter+=1
-        edgeMat[counter,:]=[q1EleMat[n,3],q1EleMat[n,4]]
+        edgeMat[counter,:]=[linEleMat[n,3],linEleMat[n,4]]
         counter+=1
-        edgeMat[counter,:]=[q1EleMat[n,4],q1EleMat[n,2]]
+        edgeMat[counter,:]=[linEleMat[n,4],linEleMat[n,2]]
         counter+=1
     else:
-        edgeMat[counter,:]=[q1EleMat[n,2],q1EleMat[n,3]]
+        edgeMat[counter,:]=[linEleMat[n,2],linEleMat[n,3]]
         counter+=1
-        edgeMat[counter,:]=[q1EleMat[n,3],q1EleMat[n,4]]
+        edgeMat[counter,:]=[linEleMat[n,3],linEleMat[n,4]]
         counter+=1
-        edgeMat[counter,:]=[q1EleMat[n,4],q1EleMat[n,5]]
+        edgeMat[counter,:]=[linEleMat[n,4],linEleMat[n,5]]
         counter+=1
-        edgeMat[counter,:]=[q1EleMat[n,5],q1EleMat[n,2]]
+        edgeMat[counter,:]=[linEleMat[n,5],linEleMat[n,2]]
         counter+=1
 
 #Remove duplicates
@@ -401,26 +390,25 @@ removeIndices=sp.unique(removeIndices).astype(int)
 edgeMat=sp.delete(edgeMat,removeIndices,0)
 edgeMat=edgeMat.astype(int)
 
-edgeDofMat=sp.zeros([edgeMat.shape[0],2])
-
-q1VertMatRound=sp.round_(q1VertMat,5)
+edgeDofMat=sp.zeros([edgeMat.shape[0],2])#These will be the new DoFs that appear after the Element Vertices within the .mesh file
+linVertMatRound=sp.round_(linVertMat,5)
 
 counter=0
 for n in edgeMat:
-    if q1VertMatRound[n[0],1] == q1VertMatRound[n[1],1]:
-        xmid=(q1VertMatRound[n[0],0]+q1VertMatRound[n[1],0])/2.0
-        ymid=q1VertMatRound[n[0],1]
+    if linVertMatRound[n[0],1] == linVertMatRound[n[1],1]:
+        xmid=(linVertMatRound[n[0],0]+linVertMatRound[n[1],0])/2.0
+        ymid=linVertMatRound[n[0],1]
         edgeDofMat[counter,:]=[xmid,ymid]
-    elif q1VertMatRound[n[0],0] == q1VertMatRound[n[1],0]:
-        xmid=q1VertMatRound[n[0],0]
-        ymid=(q1VertMatRound[n[0],1]+q1VertMatRound[n[1],1])/2.0
+    elif linVertMatRound[n[0],0] == linVertMatRound[n[1],0]:
+        xmid=linVertMatRound[n[0],0]
+        ymid=(linVertMatRound[n[0],1]+linVertMatRound[n[1],1])/2.0
         edgeDofMat[counter,:]=[xmid,ymid]
     else:
-        r0=sp.sqrt(q1VertMatRound[n[0],0]**2+q1VertMatRound[n[0],1]**2)
-        r1=sp.sqrt(q1VertMatRound[n[1],0]**2+q1VertMatRound[n[1],1]**2)
+        r0=sp.sqrt(linVertMatRound[n[0],0]**2+linVertMatRound[n[0],1]**2)
+        r1=sp.sqrt(linVertMatRound[n[1],0]**2+linVertMatRound[n[1],1]**2)
         rmid = (r0+r1)/2.0 #should not be needed
-        xmidOld=(q1VertMatRound[n[0],0]+q1VertMatRound[n[1],0])/2.0
-        ymidOld=(q1VertMatRound[n[0],1]+q1VertMatRound[n[1],1])/2.0
+        xmidOld=(linVertMatRound[n[0],0]+linVertMatRound[n[1],0])/2.0
+        ymidOld=(linVertMatRound[n[0],1]+linVertMatRound[n[1],1])/2.0
         midtheta=sp.arctan(ymidOld/xmidOld)
         xmid=rmid*sp.cos(midtheta)
         ymid=rmid*sp.sin(midtheta)
@@ -428,12 +416,12 @@ for n in edgeMat:
     counter+=1
 edgeDofMat = sp.round_(edgeDofMat,5)
 
-#2.)Create correct dof locations
-#Determine midpoints of all quads:
+#2.)Create DoF locations
+#Determine midpoints of all Q1 elements:
 quadCentroidLoc=sp.zeros([eleMatQuadHolder.shape[0],2])
 for n in range(eleMatQuadHolder.shape[0]):
-    quadCentroidLoc[n,0]=(q1VertMatRound[eleMatQuadHolder[n,2],0]+q1VertMatRound[eleMatQuadHolder[n,3],0]+q1VertMatRound[eleMatQuadHolder[n,4],0]+q1VertMatRound[eleMatQuadHolder[n,5],0])/4.0
-    quadCentroidLoc[n,1]=(q1VertMatRound[eleMatQuadHolder[n,2],1]+q1VertMatRound[eleMatQuadHolder[n,3],1]+q1VertMatRound[eleMatQuadHolder[n,4],1]+q1VertMatRound[eleMatQuadHolder[n,5],1])/4.0
+    quadCentroidLoc[n,0]=(linVertMatRound[eleMatQuadHolder[n,2],0]+linVertMatRound[eleMatQuadHolder[n,3],0]+linVertMatRound[eleMatQuadHolder[n,4],0]+linVertMatRound[eleMatQuadHolder[n,5],0])/4.0
+    quadCentroidLoc[n,1]=(linVertMatRound[eleMatQuadHolder[n,2],1]+linVertMatRound[eleMatQuadHolder[n,3],1]+linVertMatRound[eleMatQuadHolder[n,4],1]+linVertMatRound[eleMatQuadHolder[n,5],1])/4.0
 
 quadCentroidLoc = sp.round_(quadCentroidLoc,5)
 
@@ -441,19 +429,19 @@ quadCentroidLoc = sp.round_(quadCentroidLoc,5)
 g=open(outputName+'Quad.mesh','w')
 g.write('MFEM mesh v1.0\n'+'\n')
 g.write('dimension\n'+'2\n'+'\n')
-g.write('elements\n'+'{}\n'.format(q1EleMat.shape[0]))
-for n in range(q1EleMat.shape[0]):
-    if q1EleMat[n,1]==2:
-        g.write('{} {} {} {} {}\n'.format(q1EleMat[n,0],q1EleMat[n,1],q1EleMat[n,2],q1EleMat[n,3],q1EleMat[n,4]))
+g.write('elements\n'+'{}\n'.format(linEleMat.shape[0]))
+for n in range(linEleMat.shape[0]):
+    if linEleMat[n,1]==2:
+        g.write('{} {} {} {} {}\n'.format(linEleMat[n,0],linEleMat[n,1],linEleMat[n,2],linEleMat[n,3],linEleMat[n,4]))
     else:
-        g.write('{} {} {} {} {} {}\n'.format(q1EleMat[n,0],q1EleMat[n,1],q1EleMat[n,2],q1EleMat[n,3],q1EleMat[n,4],q1EleMat[n,5]))
-g.write('\n'+'boundary\n'+'{}\n'.format(q1BoundMat.shape[0]))
-for n in range(q1BoundMat.shape[0]):
-    g.write('{} {} {} {}\n'.format(q1BoundMat[n,0],q1BoundMat[n,1],q1BoundMat[n,2],q1BoundMat[n,3]))
-g.write('\n'+'vertices\n'+'{}\n'.format(q1VertMat.shape[0]))
+        g.write('{} {} {} {} {} {}\n'.format(linEleMat[n,0],linEleMat[n,1],linEleMat[n,2],linEleMat[n,3],linEleMat[n,4],linEleMat[n,5]))
+g.write('\n'+'boundary\n'+'{}\n'.format(linBoundMat.shape[0]))
+for n in range(linBoundMat.shape[0]):
+    g.write('{} {} {} {}\n'.format(linBoundMat[n,0],linBoundMat[n,1],linBoundMat[n,2],linBoundMat[n,3]))
+g.write('\n'+'vertices\n'+'{}\n'.format(linVertMat.shape[0]))
 g.write('\n'+'nodes'+'\n'+'FiniteElementSpace'+'\n'+'FiniteElementCollection: H1_2D_P2'+'\n'+'VDim: 2'+'\n'+'Ordering: 1' +'\n\n')
-for n in range(q1VertMatRound.shape[0]):
-    g.write('{} {}\n'.format(q1VertMatRound[n,0],q1VertMatRound[n,1]))
+for n in range(linVertMatRound.shape[0]):
+    g.write('{} {}\n'.format(linVertMatRound[n,0],linVertMatRound[n,1]))
 for n in range(edgeDofMat.shape[0]):
     g.write('{} {}\n'.format(edgeDofMat[n,0],edgeDofMat[n,1]))
 for n in range(quadCentroidLoc.shape[0]):
@@ -462,14 +450,124 @@ g.close()
 
 gVis(glvis,outputName+'Quad.mesh')
 
+
+#Cubeic (P3/Q3) Element Generation
+
+cubeDofMat=sp.zeros([2*edgeMat.shape[0],2])#These will be the new DoFs that appear after the Element Vertices within the .mesh file
+
+counter=0
+for n in edgeMat:
+    if linVertMatRound[n[0],1] == linVertMatRound[n[1],1]:
+        xmid=(linVertMatRound[n[0],0]+linVertMatRound[n[1],0])/2.0
+        ymid=linVertMatRound[n[0],1]
+        xmid1=(linVertMatRound[n[0],0]+xmid)/2.0
+        ymid1=linVertMatRound[n[0],1]
+        xmid2=(linVertMatRound[n[1],0]+xmid)/2.0
+        ymid2=linVertMatRound[n[0],1]
+        cubeDofMat[counter,:]=[xmid1,ymid1]
+        counter+=1
+        cubeDofMat[counter,:]=[xmid2,ymid2]
+        counter+=1
+    elif linVertMatRound[n[0],0] == linVertMatRound[n[1],0]:
+        xmid=linVertMatRound[n[0],0]
+        ymid=(linVertMatRound[n[0],1]+linVertMatRound[n[1],1])/2.0
+        xmid1=linVertMatRound[n[0],0]
+        ymid1=(linVertMatRound[n[0],1]+ymid)/2.0
+        xmid2=linVertMatRound[n[0],0]
+        ymid2=(linVertMatRound[n[1],1]+ymid)/2.0
+        cubeDofMat[counter,:]=[xmid1,ymid1]
+        counter+=1
+        cubeDofMat[counter,:]=[xmid2,ymid2]
+        counter+=1
+    else:
+        r0=sp.sqrt(linVertMatRound[n[0],0]**2+linVertMatRound[n[0],1]**2)
+        r1=sp.sqrt(linVertMatRound[n[1],0]**2+linVertMatRound[n[1],1]**2)
+        rmid = (r0+r1)/2.0 #should not be needed
+        xmidOld=(linVertMatRound[n[0],0]+linVertMatRound[n[1],0])/2.0
+        ymidOld=(linVertMatRound[n[0],1]+linVertMatRound[n[1],1])/2.0
+        midtheta=sp.arctan(ymidOld/xmidOld)
+        xmid=rmid*sp.cos(midtheta)
+        ymid=rmid*sp.sin(midtheta)
+        xmid1=(linVertMatRound[n[0],0]+xmid)/2.0
+        ymid1=(linVertMatRound[n[0],1]+ymid)/2.0
+        xmid2=(linVertMatRound[n[1],0]+xmid)/2.0
+        ymid2=(linVertMatRound[n[1],1]+ymid)/2.0
+        cubeDofMat[counter,:]=[xmid1,ymid1]
+        counter+=1
+        cubeDofMat[counter,:]=[xmid2,ymid2]
+        counter+=1
+    #counter+=1
+cubeDofMat = sp.round_(cubeDofMat,5)
+
+#Place DoFs inside of P and Q Elements:
+quadCentroidLoc=sp.zeros([4*eleMatQuadHolder.shape[0],2])
+print(eleMatQuadHolder.shape[0])
+counter=0
+for n in range(eleMatQuadHolder.shape[0]):
+    xmid=(linVertMatRound[eleMatQuadHolder[n,2],0]+linVertMatRound[eleMatQuadHolder[n,3],0]+linVertMatRound[eleMatQuadHolder[n,4],0]+linVertMatRound[eleMatQuadHolder[n,5],0])/4.0
+    ymid=(linVertMatRound[eleMatQuadHolder[n,2],1]+linVertMatRound[eleMatQuadHolder[n,3],1]+linVertMatRound[eleMatQuadHolder[n,4],1]+linVertMatRound[eleMatQuadHolder[n,5],1])/4.0
+    xmid1=(xmid+linVertMatRound[eleMatQuadHolder[n,2],0])/2.0
+    ymid1=(ymid+linVertMatRound[eleMatQuadHolder[n,2],1])/2.0
+    quadCentroidLoc[counter,:]=[xmid1,ymid1]
+    counter+=1
+    xmid2=(xmid+linVertMatRound[eleMatQuadHolder[n,3],0])/2.0
+    ymid2=(ymid+linVertMatRound[eleMatQuadHolder[n,3],1])/2.0
+    quadCentroidLoc[counter,:]=[xmid2,ymid2]
+    counter+=1
+    xmid3=(xmid+linVertMatRound[eleMatQuadHolder[n,4],0])/2.0
+    ymid3=(ymid+linVertMatRound[eleMatQuadHolder[n,4],1])/2.0
+    quadCentroidLoc[counter,:]=[xmid3,ymid3]
+    counter+=1
+    xmid4=(xmid+linVertMatRound[eleMatQuadHolder[n,5],0])/2.0
+    ymid4=(ymid+linVertMatRound[eleMatQuadHolder[n,5],1])/2.0
+    quadCentroidLoc[counter,:]=[xmid4,ymid4]
+    counter+=1
+    
+quadCentroidLoc = sp.round_(quadCentroidLoc,5)
+
+triCentroidLoc=sp.zeros([eleMatTriHolder.shape[0],2])
+print(eleMatTriHolder.shape[0])
+for n in range(eleMatTriHolder.shape[0]):
+    triCentroidLoc[n,0]=(linVertMatRound[eleMatTriHolder[n,2],0]+linVertMatRound[eleMatTriHolder[n,3],0]+linVertMatRound[eleMatTriHolder[n,4],0])/3.0
+    triCentroidLoc[n,1]=(linVertMatRound[eleMatTriHolder[n,2],1]+linVertMatRound[eleMatTriHolder[n,3],1]+linVertMatRound[eleMatTriHolder[n,4],1])/3.0
+
+truCentroidLoc=sp.round_(triCentroidLoc,5)
+    
+#3.)Populate nodes section
+g=open(outputName+'Cub.mesh','w')
+g.write('MFEM mesh v1.0\n'+'\n')
+g.write('dimension\n'+'2\n'+'\n')
+g.write('elements\n'+'{}\n'.format(linEleMat.shape[0]))
+for n in range(linEleMat.shape[0]):
+    if linEleMat[n,1]==2:
+        g.write('{} {} {} {} {}\n'.format(linEleMat[n,0],linEleMat[n,1],linEleMat[n,2],linEleMat[n,3],linEleMat[n,4]))
+    else:
+        g.write('{} {} {} {} {} {}\n'.format(linEleMat[n,0],linEleMat[n,1],linEleMat[n,2],linEleMat[n,3],linEleMat[n,4],linEleMat[n,5]))
+g.write('\n'+'boundary\n'+'{}\n'.format(linBoundMat.shape[0]))
+for n in range(linBoundMat.shape[0]):
+    g.write('{} {} {} {}\n'.format(linBoundMat[n,0],linBoundMat[n,1],linBoundMat[n,2],linBoundMat[n,3]))
+g.write('\n'+'vertices\n'+'{}\n'.format(linVertMat.shape[0]))
+g.write('\n'+'nodes'+'\n'+'FiniteElementSpace'+'\n'+'FiniteElementCollection: H1_2D_P3'+'\n'+'VDim: 2'+'\n'+'Ordering: 1' +'\n\n')
+for n in range(linVertMatRound.shape[0]):
+    g.write('{} {}\n'.format(linVertMatRound[n,0],linVertMatRound[n,1]))
+for n in range(cubeDofMat.shape[0]):
+    g.write('{} {}\n'.format(cubeDofMat[n,0],cubeDofMat[n,1]))
+for n in range(triCentroidLoc.shape[0]):
+    g.write('{} {}\n'.format(triCentroidLoc[n,0],triCentroidLoc[n,1]))
+for n in range(quadCentroidLoc.shape[0]):
+    g.write('{} {}\n'.format(quadCentroidLoc[n,0],quadCentroidLoc[n,1]))
+g.close()
+
+gVis(glvis,outputName+'Cub.mesh')
+
 #'Reflecting' topology about one of its edges and append it to itself
-upperPlaneEleMat = sp.zeros([2*q1EleMat.shape[0],6])
-for n in range(q1EleMat.shape[0]):
-    upperPlaneEleMat[n,:]=q1EleMat[n,:]
+upperPlaneEleMat = sp.zeros([2*linEleMat.shape[0],6])
+for n in range(linEleMat.shape[0]):
+    upperPlaneEleMat[n,:]=linEleMat[n,:]
     
 #Create ele_mat_holder.shape[0]x2 matrix for mapping
 refEdge=boundMatTot(numEdges)[1]
-q1NumNodes=q1VertMat.shape[0]
+q1NumNodes=linVertMat.shape[0]
 
 mapping = sp.zeros([q1NumNodes])
 counter=0
@@ -484,13 +582,13 @@ mapping=mapping.astype(int)
 #Implement mapping
 
 counter=0
-for n in range(q1EleMat.shape[0],2*q1EleMat.shape[0]):
-    upperPlaneEleMat[n,0]=q1EleMat[counter,0]
-    upperPlaneEleMat[n,1]=q1EleMat[counter,1]
-    upperPlaneEleMat[n,2]=mapping[q1EleMat[counter,2]]
-    upperPlaneEleMat[n,3]=mapping[q1EleMat[counter,3]]
-    upperPlaneEleMat[n,4]=mapping[q1EleMat[counter,4]]
-    upperPlaneEleMat[n,5]=mapping[q1EleMat[counter,5]]
+for n in range(linEleMat.shape[0],2*linEleMat.shape[0]):
+    upperPlaneEleMat[n,0]=linEleMat[counter,0]
+    upperPlaneEleMat[n,1]=linEleMat[counter,1]
+    upperPlaneEleMat[n,2]=mapping[linEleMat[counter,2]]
+    upperPlaneEleMat[n,3]=mapping[linEleMat[counter,3]]
+    upperPlaneEleMat[n,4]=mapping[linEleMat[counter,4]]
+    upperPlaneEleMat[n,5]=mapping[linEleMat[counter,5]]
     counter+=1
     
 upperPlaneEleMat = upperPlaneEleMat.astype(int)
@@ -515,12 +613,12 @@ upperPlaneBoundMat=upperPlaneBoundMat.astype(int)
 #Reflecting vertex matrix about the y-axis and appending it to itself
 upperPlaneNumNodes=q1NumNodes+(q1NumNodes-refEdge.shape[0])
 upperPlaneVertMat = sp.zeros([upperPlaneNumNodes,2])
-for n in range(q1VertMat.shape[0]):
-    upperPlaneVertMat[n,:]=q1VertMat[n,:]
+for n in range(linVertMat.shape[0]):
+    upperPlaneVertMat[n,:]=linVertMat[n,:]
 counter=0
-for n in range(q1VertMat.shape[0],upperPlaneNumNodes):
-        upperPlaneVertMat[n,0]=-1.0*q1VertMat[sp.where(mapping==n)[0][0],0]
-        upperPlaneVertMat[n,1]=q1VertMat[sp.where(mapping==n)[0][0],1]
+for n in range(linVertMat.shape[0],upperPlaneNumNodes):
+        upperPlaneVertMat[n,0]=-1.0*linVertMat[sp.where(mapping==n)[0][0],0]
+        upperPlaneVertMat[n,1]=linVertMat[sp.where(mapping==n)[0][0],1]
         counter+=1
 
 upperPlaneEleMat=orient(upperPlaneEleMat)
