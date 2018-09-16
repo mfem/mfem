@@ -333,6 +333,9 @@ int ParMesh::BuildLocalElements(const Mesh& mesh, const int* partitioning,
 
    elements.SetSize(nelems);
 
+   // Determine elements, enumerating the local elements to preserve the global
+   // order. This is used, e.g. by the ParGridFunction ctor that takes a global
+   // GridFunction as input parameter.
    int element_counter = 0;
    for (int i = 0; i < mesh.GetNE(); i++)
    {
@@ -765,8 +768,8 @@ void ParMesh::BuildSharedEdgeElems(int nedges, Mesh& mesh,
 
             if (sedge_ledge[sedge_counter] < 0)
             {
-               cerr << "\n\n\n" << MyRank << ": ParMesh::ParMesh: "
-                    << "ERROR in v_to_v\n\n" << endl;
+               mfem::err << "\n\n\n" << MyRank << ": ParMesh::ParMesh: "
+                         << "ERROR in v_to_v\n\n" << endl;
                mfem_error();
             }
 
@@ -2169,7 +2172,7 @@ int ParMesh::GetNSharedFaces() const
          default: return sface_lface.Size();
       }
    }
-   else // TODO: remove?
+   else
    {
       MFEM_ASSERT(Dim > 1, "");
       const NCMesh::NCList &shared = pncmesh->GetSharedList(Dim-1);
@@ -2188,7 +2191,7 @@ int ParMesh::GetSharedFace(int sface) const
          default: return sface_lface[sface];
       }
    }
-   else // TODO: remove?
+   else
    {
       MFEM_ASSERT(Dim > 1, "");
       const NCMesh::NCList &shared = pncmesh->GetSharedList(Dim-1);
