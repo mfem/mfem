@@ -22,8 +22,6 @@
 #include <limits>
 #include <list>
 
-#include <fstream>
-
 namespace mfem
 {
 
