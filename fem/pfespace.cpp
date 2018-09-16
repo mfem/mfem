@@ -584,7 +584,7 @@ GroupCommunicator *ParFiniteElementSpace::ScalarGroupComm()
 
 void ParFiniteElementSpace::Synchronize(Array<int> &ldof_marker) const
 {
-   if (Nonconforming())
+   if (Nonconforming()) // TODO: maybe this is working now?
    {
       MFEM_ABORT("Not implemented for NC mesh.");
    }
