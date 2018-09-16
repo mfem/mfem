@@ -1,6 +1,6 @@
 #Title:circInSquare.py
 #Author:T. M. McManus
-#Date:9-8-18
+#Date:9-16-18
 #Purpose: Fill a circular sector with triangles and a bounding region,
 #defined by 3 nodes, with quads.  Then reflect/preserve QuadI twice to
 #create a complete disc bounded in a square.
@@ -343,7 +343,8 @@ for n in range(linVertMat.shape[0]):
     g.write('{} {}\n'.format(linVertMat[n,0],linVertMat[n,1]))
 g.close()
 
-gVis(glvis,outputName+'Lin.mesh')
+if(visMesh==True):
+    gVis(glvis,outputName+'Lin.mesh')
 
 #Quadratic (P2/Q2) Element Generation
 
@@ -416,7 +417,6 @@ for n in edgeMat:
     counter+=1
 edgeDofMat = sp.round_(edgeDofMat,5)
 
-#2.)Create DoF locations
 #Determine midpoints of all Q1 elements:
 quadCentroidLoc=sp.zeros([eleMatQuadHolder.shape[0],2])
 for n in range(eleMatQuadHolder.shape[0]):
@@ -448,15 +448,17 @@ for n in range(quadCentroidLoc.shape[0]):
     g.write('{} {}\n'.format(quadCentroidLoc[n,0],quadCentroidLoc[n,1]))
 g.close()
 
-gVis(glvis,outputName+'Quad.mesh')
+if(visMesh==True):
+    gVis(glvis,outputName+'Quad.mesh')
 
 
-#Cubeic (P3/Q3) Element Generation
+#Cubic (P3/Q3) Element Generation
 
 cubeDofMat=sp.zeros([2*edgeMat.shape[0],2])#These will be the new DoFs that appear after the Element Vertices within the .mesh file
 
 counter=0
-for n in edgeMat:
+for n in edgeMat: #Here DoF ordering matters.  It goes from low-to-high with respect to nodal numbering
+
     if linVertMatRound[n[0],1] == linVertMatRound[n[1],1]:
         xmid=(linVertMatRound[n[0],0]+linVertMatRound[n[1],0])/2.0
         ymid=linVertMatRound[n[0],1]
@@ -464,10 +466,17 @@ for n in edgeMat:
         ymid1=linVertMatRound[n[0],1]
         xmid2=(linVertMatRound[n[1],0]+xmid)/2.0
         ymid2=linVertMatRound[n[0],1]
-        cubeDofMat[counter,:]=[xmid1,ymid1]
-        counter+=1
-        cubeDofMat[counter,:]=[xmid2,ymid2]
-        counter+=1
+        if n[0] > n[1]:
+            cubeDofMat[counter,:]=[xmid2,ymid2]
+            counter+=1
+            cubeDofMat[counter,:]=[xmid1,ymid1]
+            counter+=1
+        else:
+            cubeDofMat[counter,:]=[xmid1,ymid1]
+            counter+=1
+            cubeDofMat[counter,:]=[xmid2,ymid2]
+            counter+=1
+            
     elif linVertMatRound[n[0],0] == linVertMatRound[n[1],0]:
         xmid=linVertMatRound[n[0],0]
         ymid=(linVertMatRound[n[0],1]+linVertMatRound[n[1],1])/2.0
@@ -475,10 +484,16 @@ for n in edgeMat:
         ymid1=(linVertMatRound[n[0],1]+ymid)/2.0
         xmid2=linVertMatRound[n[0],0]
         ymid2=(linVertMatRound[n[1],1]+ymid)/2.0
-        cubeDofMat[counter,:]=[xmid1,ymid1]
-        counter+=1
-        cubeDofMat[counter,:]=[xmid2,ymid2]
-        counter+=1
+        if n[0] > n[1]:
+            cubeDofMat[counter,:]=[xmid2,ymid2]
+            counter+=1
+            cubeDofMat[counter,:]=[xmid1,ymid1]
+            counter+=1
+        else:
+            cubeDofMat[counter,:]=[xmid1,ymid1]
+            counter+=1
+            cubeDofMat[counter,:]=[xmid2,ymid2]
+            counter+=1
     else:
         r0=sp.sqrt(linVertMatRound[n[0],0]**2+linVertMatRound[n[0],1]**2)
         r1=sp.sqrt(linVertMatRound[n[1],0]**2+linVertMatRound[n[1],1]**2)
@@ -492,20 +507,27 @@ for n in edgeMat:
         ymid1=(linVertMatRound[n[0],1]+ymid)/2.0
         xmid2=(linVertMatRound[n[1],0]+xmid)/2.0
         ymid2=(linVertMatRound[n[1],1]+ymid)/2.0
-        cubeDofMat[counter,:]=[xmid1,ymid1]
-        counter+=1
-        cubeDofMat[counter,:]=[xmid2,ymid2]
-        counter+=1
-    #counter+=1
+        if n[0] > n[1]:
+            cubeDofMat[counter,:]=[xmid2,ymid2]
+            counter+=1
+            cubeDofMat[counter,:]=[xmid1,ymid1]
+            counter+=1
+        else:
+            cubeDofMat[counter,:]=[xmid1,ymid1]
+            counter+=1
+            cubeDofMat[counter,:]=[xmid2,ymid2]
+            counter+=1
+            
 cubeDofMat = sp.round_(cubeDofMat,5)
-
 #Place DoFs inside of P and Q Elements:
 quadCentroidLoc=sp.zeros([4*eleMatQuadHolder.shape[0],2])
-print(eleMatQuadHolder.shape[0])
+
 counter=0
-for n in range(eleMatQuadHolder.shape[0]):
+for n in range(eleMatQuadHolder.shape[0]):#Ordering now matters for DoF in the interior
     xmid=(linVertMatRound[eleMatQuadHolder[n,2],0]+linVertMatRound[eleMatQuadHolder[n,3],0]+linVertMatRound[eleMatQuadHolder[n,4],0]+linVertMatRound[eleMatQuadHolder[n,5],0])/4.0
     ymid=(linVertMatRound[eleMatQuadHolder[n,2],1]+linVertMatRound[eleMatQuadHolder[n,3],1]+linVertMatRound[eleMatQuadHolder[n,4],1]+linVertMatRound[eleMatQuadHolder[n,5],1])/4.0
+
+    #Local edge ordering
     xmid1=(xmid+linVertMatRound[eleMatQuadHolder[n,2],0])/2.0
     ymid1=(ymid+linVertMatRound[eleMatQuadHolder[n,2],1])/2.0
     quadCentroidLoc[counter,:]=[xmid1,ymid1]
@@ -526,7 +548,7 @@ for n in range(eleMatQuadHolder.shape[0]):
 quadCentroidLoc = sp.round_(quadCentroidLoc,5)
 
 triCentroidLoc=sp.zeros([eleMatTriHolder.shape[0],2])
-print(eleMatTriHolder.shape[0])
+
 for n in range(eleMatTriHolder.shape[0]):
     triCentroidLoc[n,0]=(linVertMatRound[eleMatTriHolder[n,2],0]+linVertMatRound[eleMatTriHolder[n,3],0]+linVertMatRound[eleMatTriHolder[n,4],0])/3.0
     triCentroidLoc[n,1]=(linVertMatRound[eleMatTriHolder[n,2],1]+linVertMatRound[eleMatTriHolder[n,3],1]+linVertMatRound[eleMatTriHolder[n,4],1])/3.0
@@ -558,7 +580,8 @@ for n in range(quadCentroidLoc.shape[0]):
     g.write('{} {}\n'.format(quadCentroidLoc[n,0],quadCentroidLoc[n,1]))
 g.close()
 
-gVis(glvis,outputName+'Cub.mesh')
+if(visMesh==True):
+    gVis(glvis,outputName+'Cub.mesh')
 
 #'Reflecting' topology about one of its edges and append it to itself
 upperPlaneEleMat = sp.zeros([2*linEleMat.shape[0],6])
@@ -639,7 +662,8 @@ for n in range(upperPlaneVertMat.shape[0]):
     g.write('{} {}\n'.format(upperPlaneVertMat[n,0],upperPlaneVertMat[n,1]))
 g.close()
 
-gVis(glvis,outputName+'UpperPlaneLin.mesh')
+if(visMesh==True):
+    gVis(glvis,outputName+'UpperPlaneLin.mesh')
 
 #'Reflecting' topology about one of its edges and append it to itself
 wholePlaneEleMat = sp.zeros([2*upperPlaneEleMat.shape[0],6])
@@ -742,7 +766,8 @@ for n in range(wholePlaneVertMat.shape[0]):
     g.write('{} {}\n'.format(wholePlaneVertMat[n,0],wholePlaneVertMat[n,1]))
 g.close()
 
-gVis(glvis,outputName+'WholePlaneLin.mesh')
+if(visMesh==True):
+    gVis(glvis,outputName+'WholePlaneLin.mesh')
 
 #1.)Create Edge list from elements
 wholePlaneEleMat=orient(wholePlaneEleMat)
@@ -853,4 +878,5 @@ for n in range(quadCentroidLoc.shape[0]):
     g.write('{} {}\n'.format(quadCentroidLoc[n,0],quadCentroidLoc[n,1]))
 g.close()
 
-gVis(glvis,outputName+'WholePlaneQuad.mesh')
+if(visMesh==True):
+    gVis(glvis,outputName+'WholePlaneQuad.mesh')
