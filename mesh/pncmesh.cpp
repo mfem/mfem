@@ -791,8 +791,9 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
    }
 
    // create ParMesh groups, and the map (ncmesh_group -> pmesh_group)
-   std::map<int, int> group_map;
+   Array<int> group_map(groups.size());
    {
+      group_map = 0;
       IntegerSet iset;
       ListOfIntegerSets int_groups;
       for (unsigned i = 0; i < groups.size(); i++)
@@ -816,7 +817,7 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
       }
    }
 
-   // create shared to local index mappings
+   // create shared to local index mappings and group tables
    int ng = pmesh.gtopo.NGroups();
    MakeSharedTable(ng, entity_conf_group[0], pmesh.svert_lvert, pmesh.group_svert);
    MakeSharedTable(ng, entity_conf_group[1], pmesh.sedge_ledge, pmesh.group_sedge);
