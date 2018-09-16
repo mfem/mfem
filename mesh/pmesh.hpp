@@ -95,12 +95,26 @@ protected:
 
    bool WantSkipSharedMaster(const NCMesh::Master &master) const;
 
+   /// fills out partitioned Mesh::vertices
+   int BuildLocalVertices(const Mesh& global_mesh, const int *partitioning,
+                          Array<int> &vert_global_local);
+
+   /// fills out partitioned Mesh::elements
+   int BuildLocalElements(const Mesh& global_mesh, const int *partitioning,
+                          const Array<int> &vert_global_local);
+
+   /// fills out partitioned Mesh::boundary
+   int BuildLocalBoundary(const Mesh& global_mesh, const int *partitioning,
+                          const Array<int> &vert_global_local,
+                          Array<bool>& activeBdrElem,
+                          Table* &edge_element);
+
    int FindSharedFaces(const Mesh &mesh, const int* partition,
                        Array<int>& face_group,
                        ListOfIntegerSets& groups);
 
    int FindSharedEdges(const Mesh &mesh, const int* partition,
-                       Table*& edge_element, ListOfIntegerSets& groups);
+                       Table* &edge_element, ListOfIntegerSets& groups);
 
    int FindSharedVertices(const Mesh &mesh, const int *partition,
                           Table* vertex_element,
@@ -115,32 +129,18 @@ protected:
    void BuildVertexGroup(int ngroups, const Table& vert_element,
                          Table& group_svert);
 
-   void BuildSharedFaceElems(int nfaces, const Mesh& mesh,
-                             int* partitioning,
+   void BuildSharedFaceElems(int nfaces, const Mesh &mesh,
+                             int *partitioning,
                              const STable3D *faces_tbl,
                              const Array<int> &face_group,
                              const Array<int> &vert_global_local);
 
-   void BuildSharedEdgeElems(int nedges, Mesh& mesh,
+   void BuildSharedEdgeElems(int nedges, Mesh &mesh,
                              const Array<int> &vert_global_local,
                              const Table *edge_element);
 
    void BuildSharedVertMapping(int nvert, const Table* vert_element,
-                               const Array<int>& vert_global_local);
-
-   /// fills out partitioned Mesh::vertices
-   int BuildLocalVertices(const Mesh& global_mesh, const int* partitioning,
-                          Array<int>& vert_global_local);
-
-   /// fills out partitioned Mesh::elements
-   int BuildLocalElements(const Mesh& global_mesh, const int* partitioning,
-                          const Array<int>& vert_global_local);
-
-   /// fills out partitioned Mesh::boundary
-   int BuildLocalBoundary(const Mesh& global_mesh, const int* partitioning,
-                          const Array<int>& vert_global_local,
-                          Array<bool>& activeBdrElem,
-                          Table*& edge_element);
+                               const Array<int> &vert_global_local);
 
 
 public:
