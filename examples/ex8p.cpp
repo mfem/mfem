@@ -125,9 +125,13 @@ int main(int argc, char *argv[])
       test_order++;
    }
    if (test_order < trial_order)
+   {
       if (myid == 0)
+      {
          cerr << "Warning, test space not enriched enough to handle primal"
               << " trial space\n";
+      }
+   }
 
    FiniteElementCollection *x0_fec, *xhat_fec, *test_fec;
 
