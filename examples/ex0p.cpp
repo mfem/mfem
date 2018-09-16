@@ -7,7 +7,8 @@
 using namespace std;
 using namespace mfem;
 
-namespace mfem {
+namespace mfem
+{
 int nc = 0;
 }
 

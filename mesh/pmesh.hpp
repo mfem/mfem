@@ -272,20 +272,6 @@ public:
    /// Save the mesh in a parallel mesh format.
    void ParPrint(std::ostream &out) const;
 
-   void DebugPrint(std::ostream &out) const
-   {
-      out << "group_svert:\n";
-      group_svert.Print(out);
-
-      out << "group_sedge:\n";
-      group_sedge.Print(out);
-
-      out << "group_sface:\n";
-      group_sedge.Print(out);
-
-      out << std::endl;
-   }
-
    virtual int FindPoints(DenseMatrix& point_mat, Array<int>& elem_ids,
                           Array<IntegrationPoint>& ips, bool warn = true,
                           InverseElementTransformation *inv_trans = NULL);
