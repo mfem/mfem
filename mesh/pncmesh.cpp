@@ -781,7 +781,6 @@ static void MakeSharedTable(int ngroups,
    group_shared.ShiftUpI();
 }
 
-
 void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
 {
    // make sure we have entity_conf_group[x]

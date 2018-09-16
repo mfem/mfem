@@ -88,7 +88,8 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
                  int part_method)
    : gtopo(comm)
 {
-   int *partitioning;
+   int *partitioning = NULL;
+   Array<bool> activeBdrElem;
 
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
@@ -96,39 +97,20 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
    if (mesh.Nonconforming())
    {
+      if (partitioning_ && MyRank == 0)
+      {
+         MFEM_WARNING("Prescribed partitioning is not supported for NC meshes.");
+      }
+
       ncmesh = pncmesh = new ParNCMesh(comm, *mesh.ncmesh);
-   }
-   else
-   {
-      ncmesh = pncmesh = NULL;
-   }
 
-   if (partitioning_)
-   {
-      partitioning = partitioning_;
-      // FIXME: does this work for NC meshes?
-   }
-   else
-   {
-      if (mesh.Nonconforming())
+      // save the element partitioning before Prune()
+      partitioning = new int[mesh.GetNE()];
+      for (int i = 0; i < mesh.GetNE(); i++)
       {
-         // save the element partitioning before Prune()
-         partitioning = new int[mesh.GetNE()];
-         for (int i = 0; i < mesh.GetNE(); i++)
-         {
-            partitioning[i] = pncmesh->InitialPartition(i);
-         }
+         partitioning[i] = pncmesh->InitialPartition(i);
       }
-      else
-      {
-         partitioning = mesh.GeneratePartitioning(NRanks, part_method);
-      }
-   }
 
-   Array<bool> activeBdrElem;
-
-   if (mesh.Nonconforming())
-   {
       pncmesh->Prune();
 
       Mesh::InitFromNCMesh(*pncmesh);
@@ -145,16 +127,24 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       BaseGeom = mesh.BaseGeom;
       BaseBdrGeom = mesh.BaseBdrGeom;
 
-      // fills out Mesh::vertices from partition of global mesh
+      ncmesh = pncmesh = NULL;
+
+      if (partitioning_)
+      {
+         partitioning = partitioning_;
+      }
+      else
+      {
+         partitioning = mesh.GeneratePartitioning(NRanks, part_method);
+      }
+
       Array<int> vert_global_local(mesh.GetNV());
       NumOfVertices = BuildLocalVertices(mesh, partitioning,
                                          vert_global_local);
 
-      // fills out Mesh::elements
       NumOfElements = BuildLocalElements(mesh, partitioning,
                                          vert_global_local);
 
-      // fills out Mesh::boundary
       Table *edge_element = NULL;
       NumOfBdrElements = BuildLocalBoundary(mesh, partitioning,
                                             vert_global_local,
@@ -266,7 +256,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       }
    }
 
-   if (partitioning)
+   if (partitioning != partitioning_)
    {
       delete [] partitioning;
    }
