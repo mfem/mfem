@@ -838,7 +838,7 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
    {
       int v[4], e[4], eo[4];
       GetFaceVerticesEdges(face_list.LookUp(pmesh.sface_lface[i]), v, e, eo);
-      pmesh.shared_faces = new Quadrilateral(v, 1);
+      pmesh.shared_faces[i] = new Quadrilateral(v, 1);
    }
 
    // free conf_group arrays, they're not needed now (until next mesh update)

@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
    args.AddOption(&ref_levels, "-r", "--ref-levels",
                   "Number of serial refinement levels.");
    args.AddOption(&nc, "-nc", "--nc",
-                  "Confirming (0), or NC (1).");
+                  "Conforming (0), or NC (1).");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
