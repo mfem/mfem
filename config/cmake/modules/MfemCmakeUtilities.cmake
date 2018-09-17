@@ -229,8 +229,8 @@ endfunction(mfem_find_component)
 function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
          Lib IncDoc LibDoc)
 
-  #If we have the TPL_ versions of _INCLUDE_DIRS and _LIBRARIES then set the 
-  #standard ${Prefix} versions
+  # If we have the TPL_ versions of _INCLUDE_DIRS and _LIBRARIES then set the
+  # standard ${Prefix} versions
   if (TPL_${Prefix}_INCLUDE_DIRS)
     set(${Prefix}_INCLUDE_DIRS ${TPL_${Prefix}_INCLUDE_DIRS} CACHE STRING "TPL_${Prefix}_INCLUDE_DIRS was found." FORCE)
   endif()
