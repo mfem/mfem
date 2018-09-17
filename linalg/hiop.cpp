@@ -138,11 +138,11 @@ void HiopNlpOptimizer::allocHiopProbSpec(const long long& numvars)
    MFEM_ASSERT(optProb_==NULL, "HiopProbSpec object already created");
 
 #ifdef MFEM_USE_MPI
-   optProb_ = new HiopProblemSpec(comm_, numvars);
+   optProb_ = new HiopProblemSpec(*opt_prob, comm_, numvars);
 #else
    optProb_ = new HiopProblemSpec(numvars);
 #endif
-};
+}
 
 void HiopNlpOptimizer_Simple::allocHiopProbSpec(const long long& numvars)
 {
@@ -150,13 +150,13 @@ void HiopNlpOptimizer_Simple::allocHiopProbSpec(const long long& numvars)
                 "HiopProbSpec object already created");
 
 #ifdef MFEM_USE_MPI
-   optProb_Simple_ = new HiopProblemSpec_Simple(comm_, numvars);
+   optProb_Simple_ = new HiopProblemSpec_Simple(*opt_prob, comm_, numvars);
 #else
    optProb_Simple_ = new HiopProblemSpec_Simple(numvars);
 #endif
 
    optProb_ = optProb_Simple_;
-};
+}
 
 
 } // mfem namespace
