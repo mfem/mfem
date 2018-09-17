@@ -30,12 +30,14 @@ namespace mfem
 
 class HiopProblemSpec : public hiop::hiopInterfaceDenseConstraints
 {
+private:
+   OptimizationProblem &opt_prob;
+   Vector workVec2_; //used as work space of size n_local_
 
 public:
-
-   HiopProblemSpec(const long long& n_loc)
-      : n_(n_loc), n_local_(n_loc), a_(0.), workVec_(n_loc),
-        use_initial_x_value(false)
+   HiopProblemSpec(OptimizationProblem &problem, const long long& n_loc)
+      : opt_prob(problem), n_(n_loc), n_local_(n_loc), a_(0.),
+        workVec_(n_loc), use_initial_x_value(false)
   { 
 #ifdef MFEM_USE_MPI
     //in case HiOp with MPI support is called by a serial driver.
@@ -44,9 +46,10 @@ public:
   }
 
 #ifdef MFEM_USE_MPI
-   HiopProblemSpec(const MPI_Comm& _comm, const long long& _n_local)
-      : comm_(_comm), n_local_(_n_local), a_(0.), workVec_(_n_local),
-        use_initial_x_value(false)
+   HiopProblemSpec(OptimizationProblem &problem, const MPI_Comm& _comm,
+                   const long long& _n_local)
+      : opt_prob(problem), comm_(_comm), n_local_(_n_local), a_(0.),
+        workVec_(_n_local), use_initial_x_value(false)
    {
       int ierr = MPI_Allreduce(&n_local_, &n_, 1, MPI_LONG_LONG_INT, MPI_SUM, comm_);
       MFEM_ASSERT(ierr==MPI_SUCCESS, "MPI_Allreduce failed with error" << ierr);
@@ -65,6 +68,7 @@ public:
       workVec2_.SetSize(n_local_);
    }
    virtual void setObjectiveFunction(const Vector &_c)  { c_ = _c; }
+
    virtual void setStartingPoint(const Vector &_xstart)
    {
       // To set use_initial_x_value to false, provide a bad _xstart
@@ -77,29 +81,37 @@ public:
    }
 
    /** problem dimensions: n number of variables, m number of constraints */
-   virtual bool get_prob_sizes(long long int& n, long long int& m) {
+   virtual bool get_prob_sizes(long long int& n, long long int& m)
+   {
       n = n_;
       m = 1;
       return true;
-   };
+   }
 
-   virtual bool get_vars_info(const long long& n, double *xlow, double* xupp, NonlinearityType* type) {
+   virtual bool get_vars_info(const long long& n, double *xlow, double* xupp,
+                              NonlinearityType* type)
+   {
       MFEM_ASSERT(n==n_, "global size input mismatch");
       std::memcpy(xlow, lo_.GetData(), n_local_*sizeof(double));
       std::memcpy(xupp, hi_.GetData(), n_local_*sizeof(double));
       return true;
-   };
+   }
+
    /** bounds on the constraints
    *  (clow<=-1e20 means no lower bound, cupp>=1e20 means no upper bound) */
-   virtual bool get_cons_info(const long long& m, double* clow, double* cupp, NonlinearityType* type) {
+   virtual bool get_cons_info(const long long& m, double* clow, double* cupp,
+                              NonlinearityType* type)
+   {
       MFEM_ASSERT(m==1, "only one constraint should be present");
       *clow = *cupp = a_;
       return true;
-   };
+   }
 
    /** Objective function evaluation. Each rank returns the global obj. value.
    *  f = 1/2 x^T * A * x + c^T * x                                           */
-   virtual bool eval_f(const long long& n, const double* x, bool new_x, double& obj_value) {
+   virtual bool eval_f(const long long& n, const double* x, bool new_x,
+                       double& obj_value)
+   {
       MFEM_ASSERT(n==n_, "global size input mismatch");
 
       workVec_ = x;
@@ -112,10 +124,12 @@ public:
 #endif
 
       return true;
-   };
+   }
 
    /** Gradient of objective (local chunk), grad(f) = A*x + c */
-   virtual bool eval_grad_f(const long long& n, const double* x, bool new_x, double* gradf) {
+   virtual bool eval_grad_f(const long long& n, const double* x, bool new_x,
+                            double* gradf)
+   {
       MFEM_ASSERT(n==n_, "global size input mismatch");
 
       workVec_  = x;
@@ -125,7 +139,7 @@ public:
       std::memcpy(gradf, workVec2_.GetData(), n_local_*sizeof(double));
 
       return true;
-   };
+   }
 
    /** Evaluates a subset of the constraints cons(x) (where clow<=cons(x)<=cupp). The subset is of size
     *  'num_cons' and is described by indexes in the 'idx_cons' array. The methods may be called
@@ -146,7 +160,8 @@ public:
    virtual bool eval_cons(const long long& n, const long long& m,
 			   const long long& num_cons, const long long* idx_cons,
 			   const double* x, bool new_x,
-			   double* cons) {
+            double* cons)
+   {
       MFEM_ASSERT(n==n_, "global size input mismatch");
       MFEM_ASSERT(m==1, "only one constraint should be present");
       MFEM_ASSERT(num_cons<=m, "num_cons should be at most m=" << m);
@@ -165,15 +180,16 @@ public:
          cons[0] = wtx;
       }
       return true;
-   };
+   }
 
    /** provide a primal starting point. This point is subject to adjustments internally in hiOP.*/
-   virtual bool get_starting_point(const long long&n, double* x0) {
+   virtual bool get_starting_point(const long long&n, double* x0)
+   {
       if (!use_initial_x_value) return false; //let hiop decide
       MFEM_ASSERT(n_local_ == xstart_.Size(), "xstart not set properly!");
       memcpy(x0, xstart_.GetData(), n_local_*sizeof(double));
       return true;
-   };
+   }
 
 
    /** Evaluates the Jacobian of the subset of constraints indicated by idx_cons and of size num_cons.
@@ -187,7 +203,8 @@ public:
    virtual bool eval_Jac_cons(const long long& n, const long long& m,
 			   const long long& num_cons, const long long* idx_cons,
 			   const double* x, bool new_x,
-			   double** Jac) {
+            double** Jac)
+   {
       MFEM_ASSERT(n==n_, "global size input mismatch");
       MFEM_ASSERT(m==1, "only one constraint should be present");
       MFEM_ASSERT(num_cons<=m, "num_cons should be at most m=" << m);
@@ -197,14 +214,15 @@ public:
          std::memcpy(Jac[0], w_.GetData(), n_local_*sizeof(double));
       }
       return true;
-   };
+   }
 
    /**  column partitioning specification for distributed memory vectors
     *  Process P owns cols[P], cols[P]+1, ..., cols[P+1]-1, P={0,1,...,NumRanks}.
     *  Example: for a vector x of 6 elements on 3 ranks, the col partitioning is cols=[0,2,4,6].
     *  The caller manages memory associated with 'cols', array of size NumRanks+1
     */
-   virtual bool get_vecdistrib_info(long long global_n, long long* cols) {
+   virtual bool get_vecdistrib_info(long long global_n, long long* cols)
+   {
 #ifdef MFEM_USE_MPI
       int nranks;
       int ierr = MPI_Comm_size(comm_, &nranks);
@@ -226,7 +244,7 @@ public:
 #else
       return false; //hiop runs in non-distributed mode 
 #endif    
-   };
+   }
 
 #ifdef MFEM_USE_MPI
    virtual bool get_MPI_comm(MPI_Comm& comm_out) 
@@ -237,14 +255,17 @@ public:
 #endif
 
   /** Seter/geter methods below; not inherited from the HiOp interface class */
-   virtual void setBounds(const Vector &_lo, const Vector &_hi) {
+   virtual void setBounds(const Vector &_lo, const Vector &_hi)
+   {
       lo_ = _lo;
       hi_ = _hi;
-   };
-   virtual void setLinearConstraint(const Vector &_w, const double& _a) {
+   }
+
+   virtual void setLinearConstraint(const Vector &_w, const double& _a)
+   {
       w_ = _w;
       a_ = _a;
-   };
+   }
 
 protected:
 #ifdef MFEM_USE_MPI
@@ -268,9 +289,6 @@ protected:
 
    bool use_initial_x_value; //Whether to use the initial value of x in Mult
 
-private:
-   Vector workVec2_; //used as work space of size n_local_
-
 }; //End of HiopProblemSpec class
 
 // Special class for HiopProblemSpec where f = ||x-xt||_2
@@ -279,16 +297,19 @@ class HiopProblemSpec_Simple : public HiopProblemSpec
 
 public:
 
-   HiopProblemSpec_Simple(const long long& n_loc)
-      : HiopProblemSpec(n_loc) {}
+   HiopProblemSpec_Simple(OptimizationProblem &problem, const long long& n_loc)
+      : HiopProblemSpec(problem, n_loc) {}
 
 #ifdef MFEM_USE_MPI
-   HiopProblemSpec_Simple(const MPI_Comm& _comm, const long long& _n_local)
-      : HiopProblemSpec(_comm, _n_local) {}
+   HiopProblemSpec_Simple(OptimizationProblem &problem, const MPI_Comm& _comm,
+                          const long long& _n_local)
+      : HiopProblemSpec(problem, _comm, _n_local) {}
 #endif
 
    /** Objective function evaluation. Each rank returns the global obj. value. */
-   virtual bool eval_f(const long long& n, const double* x, bool new_x, double& obj_value) {
+   virtual bool eval_f(const long long& n, const double* x, bool new_x,
+                       double& obj_value)
+   {
       MFEM_ASSERT(n==n_, "global size input mismatch");
 
       workVec_ = x;
@@ -302,7 +323,7 @@ public:
 #endif
 
       return true;
-   };
+   }
 
    /** Gradient of objective (local chunk) */
    virtual bool eval_grad_f(const long long& n, const double* x, bool new_x, double* gradf) {
@@ -346,7 +367,19 @@ protected:
 
 class HiopNlpOptimizer : public OptimizationSolver
 {
+protected:
+   OptimizationProblem *opt_prob; // TODO remove this, used just to compile.
+   HiopProblemSpec* optProb_;
+
+#ifdef MFEM_USE_MPI
+   MPI_Comm comm_;
+#endif
+
+   virtual void allocHiopProbSpec(const long long& numvars);
+
 public:
+   bool use_initial_x_value; //Whether to use the initial value of x in Mult
+
    HiopNlpOptimizer(); 
 #ifdef MFEM_USE_MPI
    HiopNlpOptimizer(MPI_Comm _comm);
@@ -359,29 +392,18 @@ public:
    virtual void SetObjectiveFunction(const DenseMatrix &_A);
    virtual void SetObjectiveFunction(const Vector &_c);
 
+   void SetOptimizationProblem(OptimizationProblem &problem);
+
    virtual void Mult(Vector &x) const;
 
    // For this problem type, xt is just used as a starting guess
    //   (if applicable) to x
-   virtual void Mult(const Vector &xt, Vector &x) const{
+   virtual void Mult(const Vector &xt, Vector &x) const
+   {
       x = xt;
       Mult(x);
    }
-
-protected:
-   virtual void allocHiopProbSpec(const long long& numvars);
-
-public:
-   bool use_initial_x_value; //Whether to use the initial value of x in Mult
-
-protected:
-   HiopProblemSpec* optProb_;
-
-#ifdef MFEM_USE_MPI
-   MPI_Comm comm_;
-#endif
-
-}; //end of HiopNlpOptimizer class
+};
 
 // Special class for the case where f = 1/2 * ||x-xt||_2
 class HiopNlpOptimizer_Simple : public HiopNlpOptimizer

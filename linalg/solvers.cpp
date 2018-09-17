@@ -1466,6 +1466,15 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
    return 1;
 }
 
+OptimizationProblem::OptimizationProblem(const Operator &F_,
+                                         const Operator *C_,
+                                         const Operator *D_)
+   : F(F_), C(C_), D(D_)
+{
+   if (C) { MFEM_ASSERT(C->Width() == F.Width(), "Wrong width of C."); }
+   if (D) { MFEM_ASSERT(D->Width() == F.Width(), "Wrong width of D."); }
+}
+
 
 void SLBQPOptimizer::SetBounds(const Vector &_lo, const Vector &_hi)
 {

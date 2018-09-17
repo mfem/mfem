@@ -323,6 +323,35 @@ public:
    }
 };
 
+/** Abstract specification of the following optimization problem:
+ *
+ *    Minimize F(x), subject to
+ *    C(x) = c_e,
+ *    d_lo <= D(x) <= d_hi,
+ *    x_lo <= x <= x_hi.
+ *
+ *  The operators F, C, D must take input of the same size (same width).
+ *  Gradients of F, C, D might be needed, see class OptimizationSolver.
+ *  F always returns a scalar value (height = 1).
+ *  C and D can have arbitrary heights.
+ *  C and D can be NULL, meaning that their constraints are not used.
+ */
+class OptimizationProblem
+{
+protected:
+   const Operator &F, *C, *D;
+
+public:
+   OptimizationProblem(const Operator &F_, const Operator *C_,
+                       const Operator *D_);
+
+   virtual void SetEqualityConstraint(const Vector &c_e) = 0;
+   virtual void SetInequalityConstraint(const Vector &d_lo,
+                                        const Vector &d_hi) = 0;
+   virtual void SetLinearInequalityConstraint(const Vector &x_lo,
+                                              const Vector &x_hi) = 0;
+};
+
 /** SLBQP optimizer: (S)ingle (L)inearly Constrained with (B)ounds (Q)uadratic (P)rogram
 */
 class SLBQPOptimizer : public OptimizationSolver
