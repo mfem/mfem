@@ -24,9 +24,9 @@ class ElementTransformation
 {
 protected:
    const IntegrationPoint *IntPoint;
-   DenseMatrix dFdx, adjJ, invJ;
-   double Wght;
-   int EvalState;
+   mutable DenseMatrix dFdx, adjJ, invJ;
+   mutable double Wght;
+   mutable int EvalState;
    enum StateMasks
    {
       JACOBIAN_MASK = 1,
@@ -38,11 +38,11 @@ protected:
 
    // Evaluate the Jacobian of the transformation at the IntPoint and store it
    // in dFdx.
-   virtual const DenseMatrix &EvalJacobian() = 0;
+   virtual const DenseMatrix &EvalJacobian() const = 0;
 
-   double EvalWeight();
-   const DenseMatrix &EvalAdjugateJ();
-   const DenseMatrix &EvalInverseJ();
+   double EvalWeight() const;
+   const DenseMatrix &EvalAdjugateJ() const;
+   const DenseMatrix &EvalInverseJ() const;
 
 public:
    int Attribute, ElementNo;
@@ -65,33 +65,35 @@ public:
    /// Check if the integration point has been set
    bool IntPointSet() const { return IntPoint != NULL; }
 
-   virtual void Transform(const IntegrationPoint &, Vector &) = 0;
-   virtual void Transform(const IntegrationRule &, DenseMatrix &) = 0;
+   virtual void Transform(const IntegrationPoint &, Vector &) const = 0;
+   virtual void Transform(const IntegrationRule &, DenseMatrix &) const = 0;
 
    /// Transform columns of 'matrix', store result in 'result'.
-   virtual void Transform(const DenseMatrix &matrix, DenseMatrix &result) = 0;
+   virtual void Transform(const DenseMatrix &matrix,
+                          DenseMatrix &result) const = 0;
 
    /** @brief Return the Jacobian matrix of the transformation at the currently
        set IntegrationPoint, using the method SetIntPoint(). */
    /** The dimensions of the Jacobian matrix are physical-space-dim by
        reference-space-dim. The first column contains the x derivatives of the
        transformation, the second -- the y derivatives, etc. */
-   const DenseMatrix &Jacobian()
+   const DenseMatrix &Jacobian() const
    { return (EvalState & JACOBIAN_MASK) ? dFdx : EvalJacobian(); }
 
-   double Weight() { return (EvalState & WEIGHT_MASK) ? Wght : EvalWeight(); }
+   double Weight() const
+   { return (EvalState & WEIGHT_MASK) ? Wght : EvalWeight(); }
 
-   const DenseMatrix &AdjugateJacobian()
+   const DenseMatrix &AdjugateJacobian() const
    { return (EvalState & ADJUGATE_MASK) ? adjJ : EvalAdjugateJ(); }
 
-   const DenseMatrix &InverseJacobian()
+   const DenseMatrix &InverseJacobian() const
    { return (EvalState & INVERSE_MASK) ? invJ : EvalInverseJ(); }
 
-   virtual int Order() = 0;
-   virtual int OrderJ() = 0;
-   virtual int OrderW() = 0;
+   virtual int Order() const = 0;
+   virtual int OrderJ() const = 0;
+   virtual int OrderW() const = 0;
    /// Order of adj(J)^t.grad(fi)
-   virtual int OrderGrad(const FiniteElement *fe) = 0;
+   virtual int OrderGrad(const FiniteElement *fe) const = 0;
 
    /// Return the Geometry::Type of the reference element.
    int GetGeometryType() const { return geom; }
@@ -110,7 +112,7 @@ public:
        point in physical space. If the inversion fails a non-zero value is
        returned. This method is not 100 percent reliable for non-linear
        transformations. */
-   virtual int TransformBack(const Vector &pt, IntegrationPoint &ip) = 0;
+   virtual int TransformBack(const Vector &pt, IntegrationPoint &ip) const = 0;
 
    virtual ~ElementTransformation() { }
 };
@@ -163,10 +165,10 @@ public:
 
 protected:
    // Pointer to the forward transformation. Not owned.
-   ElementTransformation *T;
+   const ElementTransformation *T;
 
    // Parameters of the inversion algorithms:
-   const IntegrationPoint *ip0;
+   mutable const IntegrationPoint *ip0;
    int init_guess_type; // algorithm to use
    int qpts_type; // Quadrature1D type for the initial guess type
    int rel_qpts_order; // num_1D_qpts = max(trans_order+rel_qpts_order,0)+1
@@ -177,10 +179,20 @@ protected:
    double ip_tol; // tolerance for checking if a point is inside the ref. elem.
    int print_level;
 
-   void NewtonPrint(int mode, double val);
+   void NewtonPrint(int mode, double val) const;
    void NewtonPrintPoint(const char *prefix, const Vector &pt,
-                         const char *suffix);
-   int NewtonSolve(const Vector &pt, IntegrationPoint &ip);
+                         const char *suffix) const;
+   int NewtonSolve(const Vector &pt, IntegrationPoint &ip) const;
+
+   // Methods and data member to maintain constness of the ElementTransformation
+   mutable const IntegrationPoint *T_ip;
+   inline void SetIntPoint(const IntegrationPoint *ip) const
+   {
+      T_ip = (T->IntPointSet()) ? &T->GetIntPoint() : NULL;
+      const_cast<ElementTransformation*>(T)->SetIntPoint(ip);
+   }
+   inline void ResetIntPoint() const
+   { if (T_ip) { const_cast<ElementTransformation*>(T)->SetIntPoint(T_ip); } }
 
 public:
    /// Construct the InverseElementTransformation with default parameters.
@@ -207,7 +219,7 @@ public:
        the Transform() method returns #Inside then the point lies inside the
        element up to one of the specified physical- or reference-space
        tolerances. */
-   InverseElementTransformation(ElementTransformation *Trans = NULL)
+   InverseElementTransformation(const ElementTransformation *Trans = NULL)
       : T(Trans),
         ip0(NULL),
         init_guess_type(Center),
@@ -218,7 +230,8 @@ public:
         ref_tol(1e-15),
         phys_rtol(1e-15),
         ip_tol(1e-8),
-        print_level(-1)
+        print_level(-1),
+        T_ip(NULL)
    { }
 
    virtual ~InverseElementTransformation() { }
@@ -278,33 +291,33 @@ public:
        @return The index of the IntegrationPoint in @a ir whose mapped point is
                closest to @a pt.
        @see FindClosestRefPoint(). */
-   int FindClosestPhysPoint(const Vector& pt, const IntegrationRule &ir);
+   int FindClosestPhysPoint(const Vector& pt, const IntegrationRule &ir) const;
 
    /** @brief Find the IntegrationPoint mapped closest to @a pt, using a norm
        that approximates the (unknown) distance in reference coordinates. */
    /** @see FindClosestPhysPoint(). */
-   int FindClosestRefPoint(const Vector& pt, const IntegrationRule &ir);
+   int FindClosestRefPoint(const Vector& pt, const IntegrationRule &ir) const;
 
    /** @brief Given a point, @a pt, in physical space, find its reference
        coordinates, @a ip.
 
        @returns A value of type #TransformResult. */
-   virtual int Transform(const Vector &pt, IntegrationPoint &ip);
+   virtual int Transform(const Vector &pt, IntegrationPoint &ip) const;
 };
 
 
 class IsoparametricTransformation : public ElementTransformation
 {
 private:
-   DenseMatrix dshape;
-   Vector shape;
+   mutable DenseMatrix dshape;
+   mutable Vector shape;
 
    const FiniteElement *FElem;
    DenseMatrix PointMat; // dim x dof
 
    // Evaluate the Jacobian of the transformation at the IntPoint and store it
    // in dFdx.
-   virtual const DenseMatrix &EvalJacobian();
+   virtual const DenseMatrix &EvalJacobian() const;
 
 public:
    void SetFE(const FiniteElement *FE) { FElem = FE; geom = FE->GetGeomType(); }
@@ -326,16 +339,16 @@ public:
 
    void SetIdentityTransformation(int GeomType);
 
-   virtual void Transform(const IntegrationPoint &, Vector &);
-   virtual void Transform(const IntegrationRule &, DenseMatrix &);
-   virtual void Transform(const DenseMatrix &matrix, DenseMatrix &result);
+   virtual void Transform(const IntegrationPoint &, Vector &) const;
+   virtual void Transform(const IntegrationRule &, DenseMatrix &) const;
+   virtual void Transform(const DenseMatrix &matrix, DenseMatrix &result) const;
 
-   virtual int Order() { return FElem->GetOrder(); }
-   virtual int OrderJ();
-   virtual int OrderW();
-   virtual int OrderGrad(const FiniteElement *fe);
+   virtual int Order() const { return FElem->GetOrder(); }
+   virtual int OrderJ() const;
+   virtual int OrderW() const;
+   virtual int OrderGrad(const FiniteElement *fe) const;
 
-   virtual int TransformBack(const Vector & v, IntegrationPoint & ip)
+   virtual int TransformBack(const Vector & v, IntegrationPoint & ip) const
    {
       InverseElementTransformation inv_tr(this);
       return inv_tr.Transform(v, ip);

@@ -45,7 +45,7 @@ void FiniteElement::CalcVShape (
 }
 
 void FiniteElement::CalcVShape (
-   ElementTransformation &Trans, DenseMatrix &shape) const
+   const ElementTransformation &Trans, DenseMatrix &shape) const
 {
    mfem_error ("FiniteElement::CalcVShape (trans, ...)\n"
                "   is not implemented for this class!");
@@ -59,7 +59,7 @@ void FiniteElement::CalcDivShape (
 }
 
 void FiniteElement::CalcPhysDivShape(
-   ElementTransformation &Trans, Vector &div_shape) const
+   const ElementTransformation &Trans, Vector &div_shape) const
 {
    MFEM_ASSERT(Trans.IntPointSet(), "Integration point not set.");
    CalcDivShape(Trans.GetIntPoint(), div_shape);
@@ -73,7 +73,7 @@ void FiniteElement::CalcCurlShape(const IntegrationPoint &ip,
                "   is not implemented for this class!");
 }
 
-void FiniteElement::CalcPhysCurlShape(ElementTransformation &Trans,
+void FiniteElement::CalcPhysCurlShape(const ElementTransformation &Trans,
                                       DenseMatrix &curl_shape) const
 {
    MFEM_ASSERT(Trans.IntPointSet(), "Integration point not set.");
@@ -178,7 +178,7 @@ void FiniteElement::ProjectDiv(
               "this element!");
 }
 
-void FiniteElement::CalcPhysShape(ElementTransformation &Trans,
+void FiniteElement::CalcPhysShape(const ElementTransformation &Trans,
                                   Vector &shape) const
 {
    MFEM_ASSERT(Trans.IntPointSet(), "Integration point not set.");
@@ -189,7 +189,7 @@ void FiniteElement::CalcPhysShape(ElementTransformation &Trans,
    }
 }
 
-void FiniteElement::CalcPhysDShape(ElementTransformation &Trans,
+void FiniteElement::CalcPhysDShape(const ElementTransformation &Trans,
                                    DenseMatrix &dshape) const
 {
    MFEM_ASSERT(Trans.IntPointSet(), "Integration point not set.");
@@ -549,7 +549,7 @@ void VectorFiniteElement::SetDerivMembers()
 }
 
 void VectorFiniteElement::CalcVShape_RT (
-   ElementTransformation &Trans, DenseMatrix &shape) const
+   const ElementTransformation &Trans, DenseMatrix &shape) const
 {
    MFEM_ASSERT(Trans.IntPointSet(), "Integration point not set.");
    MFEM_ASSERT(MapType == H_DIV, "");
@@ -562,7 +562,7 @@ void VectorFiniteElement::CalcVShape_RT (
 }
 
 void VectorFiniteElement::CalcVShape_ND (
-   ElementTransformation &Trans, DenseMatrix &shape) const
+   const ElementTransformation &Trans, DenseMatrix &shape) const
 {
    MFEM_ASSERT(Trans.IntPointSet(), "Integration point not set.");
    MFEM_ASSERT(MapType == H_CURL, "");

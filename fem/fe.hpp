@@ -249,7 +249,7 @@ public:
    /** @brief Evaluate the values of all shape functions of a scalar finite
        element in physical space at the point described by @a Trans. */
    /** The size (#Dof) of the result Vector @a shape must be set in advance. */
-   void CalcPhysShape(ElementTransformation &Trans, Vector &shape) const;
+   void CalcPhysShape(const ElementTransformation &Trans, Vector &shape) const;
 
    /** @brief Evaluate the gradients of all shape functions of a scalar finite
        element in reference space at the given point @a ip. */
@@ -265,7 +265,8 @@ public:
        one shape function. The size (#Dof x SDim) of @a dshape must be set in
        advance, where SDim >= #Dim is the physical space dimension as described
        by @a Trans. */
-   void CalcPhysDShape(ElementTransformation &Trans, DenseMatrix &dshape) const;
+   void CalcPhysDShape(const ElementTransformation &Trans,
+                       DenseMatrix &dshape) const;
 
    const IntegrationRule & GetNodes() const { return Nodes; }
 
@@ -285,11 +286,12 @@ public:
        one vector shape function. The size (#Dof x SDim) of @a shape must be set
        in advance, where SDim >= #Dim is the physical space dimension as
        described by @a Trans. */
-   virtual void CalcVShape(ElementTransformation &Trans,
+   virtual void CalcVShape(const ElementTransformation &Trans,
                            DenseMatrix &shape) const;
 
    /// Equivalent to the CalcVShape() method with the same arguments.
-   void CalcPhysVShape(ElementTransformation &Trans, DenseMatrix &shape) const
+   void CalcPhysVShape(const ElementTransformation &Trans,
+                       DenseMatrix &shape) const
    { CalcVShape(Trans, shape); }
 
    /** @brief Evaluate the divergence of all shape functions of a *vector*
@@ -303,7 +305,8 @@ public:
        finite element in physical space at the point described by @a Trans. */
    /** The size (#Dof) of the result Vector @a divshape must be set in advance.
     */
-   void CalcPhysDivShape(ElementTransformation &Trans, Vector &divshape) const;
+   void CalcPhysDivShape(const ElementTransformation &Trans,
+                         Vector &divshape) const;
 
    /** @brief Evaluate the curl of all shape functions of a *vector* finite
        element in reference space at the given point @a ip. */
@@ -320,7 +323,7 @@ public:
        of the curl of one vector shape function. The size (#Dof x CDim) of
        @a curl_shape must be set in advance, where CDim = 3 for #Dim = 3 and
        CDim = 1 for #Dim = 2. */
-   void CalcPhysCurlShape(ElementTransformation &Trans,
+   void CalcPhysCurlShape(const ElementTransformation &Trans,
                           DenseMatrix &curl_shape) const;
 
    virtual void GetFaceDofs(int face, int **dofs, int *ndofs) const;
@@ -566,10 +569,10 @@ protected:
 #endif
    void SetDerivMembers();
 
-   void CalcVShape_RT(ElementTransformation &Trans,
+   void CalcVShape_RT(const ElementTransformation &Trans,
                       DenseMatrix &shape) const;
 
-   void CalcVShape_ND(ElementTransformation &Trans,
+   void CalcVShape_ND(const ElementTransformation &Trans,
                       DenseMatrix &shape) const;
 
    void Project_RT(const double *nk, const Array<int> &d2n,
@@ -1060,7 +1063,7 @@ public:
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
 
-   virtual void CalcVShape(ElementTransformation &Trans,
+   virtual void CalcVShape(const ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_RT(Trans, shape); }
 
@@ -1087,7 +1090,7 @@ public:
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
 
-   virtual void CalcVShape(ElementTransformation &Trans,
+   virtual void CalcVShape(const ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_RT(Trans, shape); }
 
@@ -1114,7 +1117,7 @@ public:
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
 
-   virtual void CalcVShape(ElementTransformation &Trans,
+   virtual void CalcVShape(const ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_RT(Trans, shape); }
 
@@ -1141,7 +1144,7 @@ public:
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
 
-   virtual void CalcVShape(ElementTransformation &Trans,
+   virtual void CalcVShape(const ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_RT(Trans, shape); }
 
@@ -1167,7 +1170,7 @@ public:
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
 
-   virtual void CalcVShape(ElementTransformation &Trans,
+   virtual void CalcVShape(const ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_RT(Trans, shape); }
 
@@ -1188,7 +1191,7 @@ public:
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
 
-   virtual void CalcVShape(ElementTransformation &Trans,
+   virtual void CalcVShape(const ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_RT(Trans, shape); }
 
@@ -1393,7 +1396,7 @@ public:
    Nedelec1HexFiniteElement();
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
-   virtual void CalcVShape(ElementTransformation &Trans,
+   virtual void CalcVShape(const ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_ND(Trans, shape); }
    virtual void CalcCurlShape(const IntegrationPoint &ip,
@@ -1415,7 +1418,7 @@ public:
    Nedelec1TetFiniteElement();
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
-   virtual void CalcVShape(ElementTransformation &Trans,
+   virtual void CalcVShape(const ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_ND(Trans, shape); }
    virtual void CalcCurlShape(const IntegrationPoint &ip,
@@ -1439,7 +1442,7 @@ public:
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
 
-   virtual void CalcVShape(ElementTransformation &Trans,
+   virtual void CalcVShape(const ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_RT(Trans, shape); }
 
@@ -1467,7 +1470,7 @@ public:
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
 
-   virtual void CalcVShape(ElementTransformation &Trans,
+   virtual void CalcVShape(const ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_RT(Trans, shape); }
 
@@ -1495,7 +1498,7 @@ public:
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
 
-   virtual void CalcVShape(ElementTransformation &Trans,
+   virtual void CalcVShape(const ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_RT(Trans, shape); }
 
@@ -2114,7 +2117,7 @@ public:
                            const int ob_type = BasisType::GaussLegendre);
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
-   virtual void CalcVShape(ElementTransformation &Trans,
+   virtual void CalcVShape(const ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_RT(Trans, shape); }
    virtual void CalcDivShape(const IntegrationPoint &ip,
@@ -2167,7 +2170,7 @@ public:
 
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
-   virtual void CalcVShape(ElementTransformation &Trans,
+   virtual void CalcVShape(const ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_RT(Trans, shape); }
    virtual void CalcDivShape(const IntegrationPoint &ip,
@@ -2213,7 +2216,7 @@ public:
    RT_TriangleElement(const int p);
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
-   virtual void CalcVShape(ElementTransformation &Trans,
+   virtual void CalcVShape(const ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_RT(Trans, shape); }
    virtual void CalcDivShape(const IntegrationPoint &ip,
@@ -2265,7 +2268,7 @@ public:
    RT_TetrahedronElement(const int p);
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
-   virtual void CalcVShape(ElementTransformation &Trans,
+   virtual void CalcVShape(const ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_RT(Trans, shape); }
    virtual void CalcDivShape(const IntegrationPoint &ip,
@@ -2313,7 +2316,7 @@ public:
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
 
-   virtual void CalcVShape(ElementTransformation &Trans,
+   virtual void CalcVShape(const ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_ND(Trans, shape); }
 
@@ -2373,7 +2376,7 @@ public:
                            const int ob_type = BasisType::GaussLegendre);
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
-   virtual void CalcVShape(ElementTransformation &Trans,
+   virtual void CalcVShape(const ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_ND(Trans, shape); }
    virtual void CalcCurlShape(const IntegrationPoint &ip,
@@ -2419,7 +2422,7 @@ public:
    ND_TetrahedronElement(const int p);
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
-   virtual void CalcVShape(ElementTransformation &Trans,
+   virtual void CalcVShape(const ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_ND(Trans, shape); }
    virtual void CalcCurlShape(const IntegrationPoint &ip,
@@ -2470,7 +2473,7 @@ public:
    ND_TriangleElement(const int p);
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
-   virtual void CalcVShape(ElementTransformation &Trans,
+   virtual void CalcVShape(const ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_ND(Trans, shape); }
    virtual void CalcCurlShape(const IntegrationPoint &ip,
@@ -2513,7 +2516,7 @@ public:
    { obasis1d.Eval(ip.x, shape); }
    virtual void CalcVShape(const IntegrationPoint &ip,
                            DenseMatrix &shape) const;
-   virtual void CalcVShape(ElementTransformation &Trans,
+   virtual void CalcVShape(const ElementTransformation &Trans,
                            DenseMatrix &shape) const
    { CalcVShape_ND(Trans, shape); }
    // virtual void CalcCurlShape(const IntegrationPoint &ip,

@@ -886,7 +886,7 @@ void GridFunction::GetDerivative(int comp, int der_comp, GridFunction &der)
 
 
 void GridFunction::GetVectorGradientHat(
-   ElementTransformation &T, DenseMatrix &gh) const
+   const ElementTransformation &T, DenseMatrix &gh) const
 {
    MFEM_ASSERT(T.IntPointSet(), "Integration point not set.");
    int elNo = T.ElementNo;
@@ -905,7 +905,7 @@ void GridFunction::GetVectorGradientHat(
    MultAtB(loc_data_mat, dshape, gh);
 }
 
-double GridFunction::GetDivergence(ElementTransformation &tr) const
+double GridFunction::GetDivergence(const ElementTransformation &tr) const
 {
    double div_v;
    int elNo = tr.ElementNo;
@@ -942,7 +942,7 @@ double GridFunction::GetDivergence(ElementTransformation &tr) const
    return div_v;
 }
 
-void GridFunction::GetCurl(ElementTransformation &tr, Vector &curl) const
+void GridFunction::GetCurl(const ElementTransformation &tr, Vector &curl) const
 {
    int elNo = tr.ElementNo;
    const FiniteElement *FElem = fes->GetFE(elNo);
@@ -996,7 +996,8 @@ void GridFunction::GetCurl(ElementTransformation &tr, Vector &curl) const
    }
 }
 
-void GridFunction::GetGradient(ElementTransformation &tr, Vector &grad) const
+void GridFunction::GetGradient(const ElementTransformation &tr,
+                               Vector &grad) const
 {
    int elNo = tr.ElementNo;
    const FiniteElement *fe = fes->GetFE(elNo);
@@ -1042,7 +1043,7 @@ void GridFunction::GetGradients(const int elem, const IntegrationRule &ir,
 }
 
 void GridFunction::GetVectorGradient(
-   ElementTransformation &tr, DenseMatrix &grad) const
+   const ElementTransformation &tr, DenseMatrix &grad) const
 {
    MFEM_ASSERT(fes->GetFE(tr.ElementNo)->GetMapType() == FiniteElement::VALUE,
                "invalid FE map type");
@@ -2765,7 +2766,7 @@ double ComputeElementLpDistance(double p, int i,
 }
 
 
-double ExtrudeCoefficient::Eval(ElementTransformation &T)
+double ExtrudeCoefficient::Eval(const ElementTransformation &T) const
 {
    MFEM_ASSERT(T.IntPointSet(), "Integration point not set.");
    ElementTransformation *T_in =

@@ -23,7 +23,7 @@ ElementTransformation::ElementTransformation()
      ElementNo(-1)
 { }
 
-double ElementTransformation::EvalWeight()
+double ElementTransformation::EvalWeight() const
 {
    MFEM_ASSERT((EvalState & WEIGHT_MASK) == 0, "");
    Jacobian();
@@ -31,7 +31,7 @@ double ElementTransformation::EvalWeight()
    return (Wght = (dFdx.Width() == 0) ? 1.0 : dFdx.Weight());
 }
 
-const DenseMatrix &ElementTransformation::EvalAdjugateJ()
+const DenseMatrix &ElementTransformation::EvalAdjugateJ() const
 {
    MFEM_ASSERT((EvalState & ADJUGATE_MASK) == 0, "");
    Jacobian();
@@ -41,7 +41,7 @@ const DenseMatrix &ElementTransformation::EvalAdjugateJ()
    return adjJ;
 }
 
-const DenseMatrix &ElementTransformation::EvalInverseJ()
+const DenseMatrix &ElementTransformation::EvalInverseJ() const
 {
    // TODO: compute as invJ = / adjJ/Weight,    if J is square,
    //                         \ adjJ/Weight^2,  otherwise.
@@ -55,7 +55,7 @@ const DenseMatrix &ElementTransformation::EvalInverseJ()
 
 
 int InverseElementTransformation::FindClosestPhysPoint(
-   const Vector& pt, const IntegrationRule &ir)
+   const Vector& pt, const IntegrationRule &ir) const
 {
    MFEM_VERIFY(T != NULL, "invalid ElementTransformation");
    MFEM_VERIFY(pt.Size() == T->GetSpaceDim(), "invalid point");
@@ -82,7 +82,7 @@ int InverseElementTransformation::FindClosestPhysPoint(
 }
 
 int InverseElementTransformation::FindClosestRefPoint(
-   const Vector& pt, const IntegrationRule &ir)
+   const Vector& pt, const IntegrationRule &ir) const
 {
    MFEM_VERIFY(T != NULL, "invalid ElementTransformation");
    MFEM_VERIFY(pt.Size() == T->GetSpaceDim(), "invalid point");
@@ -100,8 +100,9 @@ int InverseElementTransformation::FindClosestRefPoint(
       const IntegrationPoint &ip = ir.IntPoint(i);
       T->Transform(ip, dp);
       dp -= pt;
-      T->SetIntPoint(&ip);
+      SetIntPoint(&ip);
       T->InverseJacobian().Mult(dp, dr);
+      ResetIntPoint();
       double dist = dr.Norml2();
       // double dist = dr.Normlinf();
       if (dist < minDist)
@@ -113,7 +114,7 @@ int InverseElementTransformation::FindClosestRefPoint(
    return minIndex;
 }
 
-void InverseElementTransformation::NewtonPrint(int mode, double val)
+void InverseElementTransformation::NewtonPrint(int mode, double val) const
 {
    std::ostream &out = mfem::out;
 
@@ -144,7 +145,7 @@ void InverseElementTransformation::NewtonPrint(int mode, double val)
 
 void InverseElementTransformation::NewtonPrintPoint(const char *prefix,
                                                     const Vector &pt,
-                                                    const char *suffix)
+                                                    const char *suffix) const
 {
    std::ostream &out = mfem::out;
 
@@ -157,7 +158,7 @@ void InverseElementTransformation::NewtonPrintPoint(const char *prefix,
 }
 
 int InverseElementTransformation::NewtonSolve(const Vector &pt,
-                                              IntegrationPoint &ip)
+                                              IntegrationPoint &ip) const
 {
    MFEM_ASSERT(pt.Size() == T->GetSpaceDim(), "invalid point");
 
@@ -263,8 +264,9 @@ int InverseElementTransformation::NewtonSolve(const Vector &pt,
       if (it == max_iter) { break; }
 
       // Perform a Newton step:
-      T->SetIntPoint(&xip);
+      SetIntPoint(&xip);
       T->InverseJacobian().Mult(y, dx);
+      ResetIntPoint();
       x += dx;
       it++;
       if (solver_type != Newton)
@@ -321,7 +323,7 @@ int InverseElementTransformation::NewtonSolve(const Vector &pt,
 }
 
 int InverseElementTransformation::Transform(const Vector &pt,
-                                            IntegrationPoint &ip)
+                                            IntegrationPoint &ip) const
 {
    MFEM_VERIFY(T != NULL, "invalid ElementTransformation");
 
@@ -392,7 +394,7 @@ void IsoparametricTransformation::SetIdentityTransformation(int GeomType)
    space_dim = dim;
 }
 
-const DenseMatrix &IsoparametricTransformation::EvalJacobian()
+const DenseMatrix &IsoparametricTransformation::EvalJacobian() const
 {
    MFEM_ASSERT(space_dim == PointMat.Height(),
                "the IsoparametricTransformation has not been finalized;"
@@ -411,7 +413,7 @@ const DenseMatrix &IsoparametricTransformation::EvalJacobian()
    return dFdx;
 }
 
-int IsoparametricTransformation::OrderJ()
+int IsoparametricTransformation::OrderJ() const
 {
    switch (FElem->Space())
    {
@@ -425,7 +427,7 @@ int IsoparametricTransformation::OrderJ()
    return 0;
 }
 
-int IsoparametricTransformation::OrderW()
+int IsoparametricTransformation::OrderW() const
 {
    switch (FElem->Space())
    {
@@ -439,7 +441,7 @@ int IsoparametricTransformation::OrderW()
    return 0;
 }
 
-int IsoparametricTransformation::OrderGrad(const FiniteElement *fe)
+int IsoparametricTransformation::OrderGrad(const FiniteElement *fe) const
 {
    if (FElem->Space() == fe->Space())
    {
@@ -459,7 +461,7 @@ int IsoparametricTransformation::OrderGrad(const FiniteElement *fe)
 }
 
 void IsoparametricTransformation::Transform (const IntegrationPoint &ip,
-                                             Vector &trans)
+                                             Vector &trans) const
 {
    shape.SetSize(FElem->GetDof());
    trans.SetSize(PointMat.Height());
@@ -469,7 +471,7 @@ void IsoparametricTransformation::Transform (const IntegrationPoint &ip,
 }
 
 void IsoparametricTransformation::Transform (const IntegrationRule &ir,
-                                             DenseMatrix &tr)
+                                             DenseMatrix &tr) const
 {
    int dof, n, dim, i, j, k;
 
@@ -495,7 +497,7 @@ void IsoparametricTransformation::Transform (const IntegrationRule &ir,
 }
 
 void IsoparametricTransformation::Transform (const DenseMatrix &matrix,
-                                             DenseMatrix &result)
+                                             DenseMatrix &result) const
 {
    MFEM_ASSERT(matrix.Height() == GetDimension(), "invalid input");
    result.SetSize(PointMat.Height(), matrix.Width());

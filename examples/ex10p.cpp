@@ -140,12 +140,12 @@ class ElasticEnergyCoefficient : public Coefficient
 private:
    HyperelasticModel     &model;
    const ParGridFunction &x;
-   DenseMatrix            J;
+   mutable DenseMatrix    J;
 
 public:
    ElasticEnergyCoefficient(HyperelasticModel &m, const ParGridFunction &x_)
       : model(m), x(x_) { }
-   virtual double Eval(ElementTransformation &T);
+   virtual double Eval(const ElementTransformation &T) const;
    virtual ~ElasticEnergyCoefficient() { }
 };
 
@@ -648,9 +648,8 @@ HyperelasticOperator::~HyperelasticOperator()
 }
 
 
-double ElasticEnergyCoefficient::Eval(ElementTransformation &T)
+double ElasticEnergyCoefficient::Eval(const ElementTransformation &T) const
 {
-   model.SetTransformation(T);
    x.GetVectorGradient(T, J);
    // return model.EvalW(J);  // in reference configuration
    return model.EvalW(J)/J.Det(); // in deformed configuration

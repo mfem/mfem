@@ -37,7 +37,7 @@ public:
    Coefficient() { time = 0.; }
 
    void SetTime(double t) { time = t; }
-   double GetTime() { return time; }
+   double GetTime() const { return time; }
 
 #ifdef MFEM_DEPRECATED
    /// DEPRECATED - please use Eval(ElementTransformation &T) instead
@@ -55,9 +55,9 @@ public:
    }
 #endif
 
-   virtual double Eval(ElementTransformation &T) = 0;
+   virtual double Eval(const ElementTransformation &T) const = 0;
 
-   double Eval(ElementTransformation &T, double t)
+   double Eval(const ElementTransformation &T, double t)
    {
       SetTime(t);
       return Eval(T);
@@ -77,7 +77,7 @@ public:
    explicit ConstantCoefficient(double c = 1.0) { constant=c; }
 
    /// Evaluate the coefficient
-   virtual double Eval(ElementTransformation &T)
+   virtual double Eval(const ElementTransformation &T) const
    { return (constant); }
 };
 
@@ -111,7 +111,7 @@ public:
    int GetNConst() { return constants.Size(); }
 
    /// Evaluate the coefficient function
-   virtual double Eval(ElementTransformation &T);
+   virtual double Eval(const ElementTransformation &T) const;
 };
 
 /// class for C-function coefficient
@@ -155,7 +155,7 @@ public:
    }
 
    /// Evaluate coefficient
-   virtual double Eval(ElementTransformation &T);
+   virtual double Eval(const ElementTransformation &T) const;
 };
 
 class GridFunction;
@@ -176,7 +176,7 @@ public:
    void SetGridFunction(GridFunction *gf) { GridF = gf; }
    GridFunction * GetGridFunction() const { return GridF; }
 
-   virtual double Eval(ElementTransformation &T);
+   virtual double Eval(const ElementTransformation &T) const;
 };
 
 class TransformedCoefficient : public Coefficient
@@ -194,7 +194,7 @@ public:
                            double (*F)(double,double))
       : Q1(q1), Q2(q2), Transform2(F) { Transform1 = 0; }
 
-   virtual double Eval(ElementTransformation &T);
+   virtual double Eval(const ElementTransformation &T) const;
 };
 
 /// Delta function coefficient
@@ -242,20 +242,20 @@ public:
        projecting the DeltaCoefficient onto a GridFunction, so that the weighted
        integral of the projection is exactly equal to the Scale(). */
    void SetWeight(Coefficient *w) { weight = w; }
-   const double *Center() { return center; }
+   const double *Center() const { return center; }
    /** @brief Return the scale set by SetScale() multiplied by the
        time-dependent function specified by SetFunction(), if set. */
-   double Scale() { return tdf ? (*tdf)(GetTime())*scale : scale; }
+   double Scale() const { return tdf ? (*tdf)(GetTime())*scale : scale; }
    /// See SetTol() for description of the tolerance parameter.
-   double Tol() { return tol; }
+   double Tol() const { return tol; }
    /// See SetWeight() for description of the weight Coefficient.
    Coefficient *Weight() { return weight; }
-   void GetDeltaCenter(Vector& center);
+   void GetDeltaCenter(Vector& center) const;
    /// Return the Scale() multiplied by the weight Coefficient, if any.
-   double EvalDelta(ElementTransformation &T);
+   double EvalDelta(const ElementTransformation &T) const;
    /** @brief A DeltaFunction cannot be evaluated. Calling this method will
        cause an MFEM error, terminating the application. */
-   virtual double Eval(ElementTransformation &T)
+   virtual double Eval(const ElementTransformation &T) const
    { mfem_error("DeltaCoefficient::Eval"); return 0.; }
    virtual ~DeltaCoefficient() { delete weight; }
 };
@@ -271,7 +271,7 @@ public:
    RestrictedCoefficient(Coefficient &_c, Array<int> &attr)
    { c = &_c; attr.Copy(active_attr); }
 
-   virtual double Eval(ElementTransformation &T)
+   virtual double Eval(const ElementTransformation &T) const
    { return active_attr[T.Attribute-1] ? c->Eval(T, GetTime()) : 0.0; }
 };
 
@@ -285,10 +285,10 @@ public:
    VectorCoefficient(int vd) { vdim = vd; time = 0.; }
 
    void SetTime(double t) { time = t; }
-   double GetTime() { return time; }
+   double GetTime() const { return time; }
 
    /// Returns dimension of the vector.
-   int GetVDim() { return vdim; }
+   int GetVDim() const { return vdim; }
 
 #ifdef MFEM_DEPRECATED
    /// DEPRECATED - please use Eval(Vector &V, ElementTransformation &T) instead
@@ -297,12 +297,12 @@ public:
    { Eval(V, T); }
 #endif
 
-   virtual void Eval(Vector &V, ElementTransformation &T) = 0;
+   virtual void Eval(Vector &V, const ElementTransformation &T) const = 0;
 
    // General implementation using the Eval method for one IntegrationPoint.
    // Can be overloaded for more efficient implementation.
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationRule &ir);
+                     const IntegrationRule &ir) const;
 
    virtual ~VectorCoefficient() { }
 };
@@ -315,7 +315,8 @@ public:
    VectorConstantCoefficient(const Vector &v)
       : VectorCoefficient(v.Size()), vec(v) { }
    using VectorCoefficient::Eval;
-   virtual void Eval(Vector &V, ElementTransformation &T) { V = vec; }
+   virtual void Eval(Vector &V, const ElementTransformation &T) const
+   { V = vec; }
 };
 
 class VectorFunctionCoefficient : public VectorCoefficient
@@ -346,7 +347,7 @@ public:
    }
 
    using VectorCoefficient::Eval;
-   virtual void Eval(Vector &V, ElementTransformation &T);
+   virtual void Eval(Vector &V, const ElementTransformation &T) const;
 
    virtual ~VectorFunctionCoefficient() { }
 };
@@ -370,11 +371,11 @@ public:
    void Set(int i, Coefficient *c) { delete Coeff[i]; Coeff[i] = c; }
 
    /// Evaluates i'th component of the vector.
-   double Eval(int i, ElementTransformation &T)
+   double Eval(int i, const ElementTransformation &T) const
    { return Coeff[i] ? Coeff[i]->Eval(T, GetTime()) : 0.0; }
 
    using VectorCoefficient::Eval;
-   virtual void Eval(Vector &V, ElementTransformation &T);
+   virtual void Eval(Vector &V, const ElementTransformation &T) const;
 
    /// Destroys vector coefficient.
    virtual ~VectorArrayCoefficient();
@@ -392,10 +393,10 @@ public:
    void SetGridFunction(GridFunction *gf) { GridFunc = gf; }
    GridFunction * GetGridFunction() const { return GridFunc; }
 
-   virtual void Eval(Vector &V, ElementTransformation &T);
+   virtual void Eval(Vector &V, const ElementTransformation &T) const;
 
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationRule &ir);
+                     const IntegrationRule &ir) const;
 
    virtual ~VectorGridFunctionCoefficient() { }
 };
@@ -420,6 +421,8 @@ public:
                           double s)
       : VectorCoefficient(_dir.Size()), dir(_dir), d(x,y,z,s) { }
 
+   void SetTime(double t) { time = t; d.SetTime(t); }
+
    /// Replace the associated DeltaCoeficient with a new DeltaCoeficient.
    /** The new DeltaCoeficient cannot have a specified weight Coefficient, i.e.
        DeltaCoeficient::Weight() should return NULL. */
@@ -428,15 +431,15 @@ public:
    DeltaCoefficient& GetDeltaCoefficient() { return d; }
    void SetDirection(const Vector& _d);
 
-   void GetDeltaCenter(Vector& center) { d.GetDeltaCenter(center); }
+   void GetDeltaCenter(Vector& center) const { d.GetDeltaCenter(center); }
    /** @brief Return the specified direction vector multiplied by the value
        returned by DeltaCoefficient::EvalDelta() of the associated scalar
        DeltaCoefficient. */
-   void EvalDelta(Vector &V, ElementTransformation &T);
+   void EvalDelta(Vector &V, const ElementTransformation &T) const;
    using VectorCoefficient::Eval;
    /** @brief A VectorDeltaFunction cannot be evaluated. Calling this method
        will cause an MFEM error, terminating the application. */
-   virtual void Eval(Vector &V, ElementTransformation &T)
+   virtual void Eval(Vector &V, const ElementTransformation &T) const
    { mfem_error("VectorDeltaCoefficient::Eval"); }
    virtual ~VectorDeltaCoefficient() { }
 };
@@ -453,10 +456,10 @@ public:
       : VectorCoefficient(vc.GetVDim())
    { c = &vc; attr.Copy(active_attr); }
 
-   virtual void Eval(Vector &V, ElementTransformation &T);
+   virtual void Eval(Vector &V, const ElementTransformation &T) const;
 
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
-                     const IntegrationRule &ir);
+                     const IntegrationRule &ir) const;
 };
 
 
@@ -472,7 +475,7 @@ public:
    MatrixCoefficient(int h, int w) : height(h), width(w), time(0.) { }
 
    void SetTime(double t) { time = t; }
-   double GetTime() { return time; }
+   double GetTime() const { return time; }
 
    int GetHeight() const { return height; }
    int GetWidth() const { return width; }
@@ -486,7 +489,7 @@ public:
    { Eval(K, T); }
 #endif
 
-   virtual void Eval(DenseMatrix &K, ElementTransformation &T) = 0;
+   virtual void Eval(DenseMatrix &K, const ElementTransformation &T) const = 0;
 
    virtual ~MatrixCoefficient() { }
 };
@@ -499,7 +502,7 @@ public:
    MatrixConstantCoefficient(const DenseMatrix &m)
       : MatrixCoefficient(m.Height(), m.Width()), mat(m) { }
    using MatrixCoefficient::Eval;
-   virtual void Eval(DenseMatrix &M, ElementTransformation &T)
+   virtual void Eval(DenseMatrix &M, const ElementTransformation &T) const
    { M = mat; }
 };
 
@@ -542,7 +545,7 @@ public:
       mat.SetSize(0);
    }
 
-   virtual void Eval(DenseMatrix &K, ElementTransformation &T);
+   virtual void Eval(DenseMatrix &K, const ElementTransformation &T) const;
 
    virtual ~MatrixFunctionCoefficient() { }
 };
@@ -561,10 +564,10 @@ public:
    void Set(int i, int j, Coefficient * c)
    { delete Coeff[i*width+j]; Coeff[i*width+j] = c; }
 
-   double Eval(int i, int j, ElementTransformation &T)
+   double Eval(int i, int j, const ElementTransformation &T) const
    { return Coeff[i*width+j] ? Coeff[i*width+j] -> Eval(T, GetTime()) : 0.0; }
 
-   virtual void Eval(DenseMatrix &K, ElementTransformation &T);
+   virtual void Eval(DenseMatrix &K, const ElementTransformation &T) const;
 
    virtual ~MatrixArrayCoefficient();
 };
@@ -581,7 +584,7 @@ public:
       : MatrixCoefficient(mc.GetHeight(), mc.GetWidth())
    { c = &mc; attr.Copy(active_attr); }
 
-   virtual void Eval(DenseMatrix &K, ElementTransformation &T);
+   virtual void Eval(DenseMatrix &K, const ElementTransformation &T) const;
 };
 
 /** Compute the Lp norm of a function f.
