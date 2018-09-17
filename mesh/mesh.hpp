@@ -191,6 +191,7 @@ protected:
    void DeleteTables() { DestroyTables(); InitTables(); }
    void DestroyPointers(); // Delete data specifically allocated by class Mesh.
    void Destroy();         // Delete all owned data.
+   void DeleteLazyTables();
 
    Element *ReadElementWithoutAttr(std::istream &);
    static void PrintElementWithoutAttr(const Element *, std::ostream &);
@@ -224,6 +225,8 @@ protected:
        reference element at the center of the element. */
    void GetElementJacobian(int i, DenseMatrix &J);
 
+   void GetElementCenter(int i, Vector &c);
+
    void MarkForRefinement();
    void MarkTriMeshForRefinement();
    void GetEdgeOrdering(DSTable &v_to_v, Array<int> &order);
@@ -247,11 +250,14 @@ protected:
                         int *edge1, int *edge2, int *middle)
    { Bisection(i, v_to_v, edge1, edge2, middle); }
 
-   /** Bisection. Element with index i is bisected. */
+   /// Bisect a triangle: element with index @a i is bisected.
    void Bisection(int i, const DSTable &, int *, int *, int *);
 
-   /** Bisection. Boundary element with index i is bisected. */
-   void Bisection(int i, const DSTable &, int *);
+   /// Bisect a tetrahedron: element with index @a i is bisected.
+   void Bisection(int i, HashTable<Hashed2> &);
+
+   /// Bisect a boundary triangle: boundary element with index @a i is bisected.
+   void BdrBisection(int i, const HashTable<Hashed2> &);
 
    /** Uniform Refinement. Element with index i is refined uniformly. */
    void UniformRefinement(int i, const DSTable &, int *, int *, int *);

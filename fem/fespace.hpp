@@ -103,8 +103,7 @@ protected:
    mutable bool cP_is_set;
 
    /// Transformation to apply to GridFunctions after space Update().
-   Operator *T;
-   bool own_T;
+   OperatorHandle Th;
 
    long sequence; // should match Mesh::GetSequence
 
@@ -114,6 +113,10 @@ protected:
    void Destroy();
 
    void BuildElementToDofTable() const;
+
+   /// Helper to remove encoded sign from a DOF
+   static inline int DecodeDof(int dof, double& sign)
+   { return (dof >= 0) ? (sign = 1, dof) : (sign = -1, (-1 - dof)); }
 
    /// Helper to get vertex, edge or face DOFs (entity=0,1,2 resp.).
    void GetEntityDofs(int entity, int index, Array<int> &dofs) const;
@@ -129,16 +132,54 @@ protected:
 
    void MakeVDimMatrix(SparseMatrix &mat) const;
 
-   /// Calculate GridFunction interpolation matrix after mesh refinement.
-   SparseMatrix* RefinementMatrix(int old_ndofs, const Table* old_elem_dof);
+   /// GridFunction interpolation operator applicable after mesh refinement.
+   class RefinementOperator : public Operator
+   {
+      const FiniteElementSpace* fespace;
+      DenseTensor localP;
+      Table* old_elem_dof; // Owned.
 
-   void GetLocalDerefinementMatrices(int geom, const CoarseFineTransformations &dt,
-                                     DenseTensor &localR);
+   public:
+      /** Construct the operator based on the elem_dof table of the original
+          (coarse) space. The class takes ownership of the table. */
+      RefinementOperator(const FiniteElementSpace* fespace,
+                         Table *old_elem_dof/*takes ownership*/, int old_ndofs);
+      RefinementOperator(const FiniteElementSpace *fespace,
+                         const FiniteElementSpace *coarse_fes);
+      virtual void Mult(const Vector &x, Vector &y) const;
+      virtual ~RefinementOperator();
+   };
+
+   // This method makes the same assumptions as the method:
+   //    void GetLocalRefinementMatrices(
+   //       const FiniteElementSpace &coarse_fes, DenseTensor &localP) const
+   // which is defined below. It also assumes that the coarse fes and this have
+   // the same vector dimension, vdim.
+   SparseMatrix *RefinementMatrix_main(const int coarse_ndofs,
+                                       const Table &coarse_elem_dof,
+                                       const DenseTensor &localP) const;
+
+   void GetLocalRefinementMatrices(DenseTensor &localP) const;
+   void GetLocalDerefinementMatrices(DenseTensor &localR) const;
+
+   /** Calculate explicit GridFunction interpolation matrix (after mesh
+       refinement). NOTE: consider using the RefinementOperator class instead
+       of the fully assembled matrix, which can take a lot of memory. */
+   SparseMatrix* RefinementMatrix(int old_ndofs, const Table* old_elem_dof);
 
    /// Calculate GridFunction restriction matrix after mesh derefinement.
    SparseMatrix* DerefinementMatrix(int old_ndofs, const Table* old_elem_dof);
 
-   /// Help function for constructors.
+   // This method assumes that this->mesh is a refinement of coarse_fes->mesh
+   // and that the CoarseFineTransformations of this->mesh are set accordingly.
+   // Another assumption is that the FEs of this use the same MapType as the FEs
+   // of coarse_fes. Finally, it assumes that this->mesh and coarse_fes->mesh
+   // are NOT mixed meshes, and that the spaces this and coarse_fes are NOT
+   // variable-order spaces.
+   void GetLocalRefinementMatrices(const FiniteElementSpace &coarse_fes,
+                                   DenseTensor &localP) const;
+
+   /// Help function for constructors + Load().
    void Constructor(Mesh *mesh, NURBSExtension *ext,
                     const FiniteElementCollection *fec,
                     int vdim = 1, int ordering = Ordering::byNODES);
@@ -150,7 +191,7 @@ public:
 
    /** @brief Copy constructor: deep copy all data from @a orig except the Mesh,
        the FiniteElementCollection, ans some derived data. */
-   /** If the @a mesh or @a fec poiters are NULL (default), then the new
+   /** If the @a mesh or @a fec pointers are NULL (default), then the new
        FiniteElementSpace will reuse the respective pointers from @a orig. If
        any of these pointers is not NULL, the given pointer will be used instead
        of the one used by @a orig.
@@ -192,9 +233,9 @@ public:
    const SparseMatrix *GetConformingProlongation() const;
    const SparseMatrix *GetConformingRestriction() const;
 
-   virtual const Operator *GetProlongationMatrix()
+   virtual const Operator *GetProlongationMatrix() const
    { return GetConformingProlongation(); }
-   virtual const SparseMatrix *GetRestrictionMatrix()
+   virtual const SparseMatrix *GetRestrictionMatrix() const
    { return GetConformingRestriction(); }
 
    /// Returns vector dimension.
@@ -428,21 +469,66 @@ public:
        is defined on the same mesh. */
    SparseMatrix *H2L_GlobalRestrictionMatrix(FiniteElementSpace *lfes);
 
+   /** @brief Construct and return an Operator that can be used to transfer
+       GridFunction data from @a coarse_fes, defined on a coarse mesh, to @a
+       this FE space, defined on a refined mesh. */
+   /** It is assumed that the mesh of this FE space is a refinement of the mesh
+       of @a coarse_fes and the CoarseFineTransformations returned by the method
+       Mesh::GetRefinementTransforms() of the refined mesh are set accordingly.
+       The Operator::Type of @a T can be set to request an Operator of the set
+       type. Currently, only Operator::MFEM_SPARSEMAT and Operator::ANY_TYPE
+       (matrix-free) are supported. When Operator::ANY_TYPE is requested, the
+       choice of the particular Operator sub-class is left to the method.  This
+       method also works in parallel because the transfer operator is local to
+       the MPI task when the input is a synchronized ParGridFunction. */
+   void GetTransferOperator(const FiniteElementSpace &coarse_fes,
+                            OperatorHandle &T) const;
+
+   /** @brief Construct and return an Operator that can be used to transfer
+       true-dof data from @a coarse_fes, defined on a coarse mesh, to @a this FE
+       space, defined on a refined mesh.
+
+       This method calls GetTransferOperator() and multiplies the result by the
+       prolongation operator of @a coarse_fes on the right, and by the
+       restriction operator of this FE space on the left.
+
+       The Operator::Type of @a T can be set to request an Operator of the set
+       type. In serial, the supported types are: Operator::MFEM_SPARSEMAT and
+       Operator::ANY_TYPE (matrix-free). In parallel, the supported types are:
+       Operator::Hypre_ParCSR and Operator::ANY_TYPE. Any other type is treated
+       as Operator::ANY_TYPE: the operator representation choice is made by this
+       method. */
+   virtual void GetTrueTransferOperator(const FiniteElementSpace &coarse_fes,
+                                        OperatorHandle &T) const;
+
    /** Reflect changes in the mesh: update number of DOFs, etc. Also, calculate
-       GridFunction transformation matrix (unless want_transform is false).
+       GridFunction transformation operator (unless want_transform is false).
        Safe to call multiple times, does nothing if space already up to date. */
    virtual void Update(bool want_transform = true);
 
-   /// Get the GridFunction update matrix.
-   const Operator* GetUpdateOperator() { Update(); return T; }
+   /// Get the GridFunction update operator.
+   const Operator* GetUpdateOperator() { Update(); return Th.Ptr(); }
+
+   /// Return the update operator in the given OperatorHandle, @a T.
+   void GetUpdateOperator(OperatorHandle &T) { T = Th; }
 
    /** @brief Set the ownership of the update operator: if set to false, the
        Operator returned by GetUpdateOperator() must be deleted outside the
        FiniteElementSpace. */
-   void SetUpdateOperatorOwner(bool own) { own_T = own; }
+   /** The update operator ownership is automatically reset to true when a new
+       update operator is created by the Update() method. */
+   void SetUpdateOperatorOwner(bool own) { Th.SetOperatorOwner(own); }
 
-   /// Free GridFunction transformation matrix (if any), to save memory.
-   virtual void UpdatesFinished() { if (own_T) { delete T; } T = NULL; }
+   /// Specify the Operator::Type to be used by the update operators.
+   /** The default type is Operator::ANY_TYPE which leaves the choice to this
+       class. The other currently supported option is Operator::MFEM_SPARSEMAT
+       which is only guaranteed to be honored for a refinement update operator.
+       Any other type will be treated as Operator::ANY_TYPE.
+       @note This operation destroys the current update operator (if owned). */
+   void SetUpdateOperatorType(Operator::Type tid) { Th.SetType(tid); }
+
+   /// Free the GridFunction update operator (if any), to save memory.
+   virtual void UpdatesFinished() { Th.Clear(); }
 
    /// Return update counter (see Mesh::sequence)
    long GetSequence() const { return sequence; }
@@ -488,10 +574,10 @@ public:
    virtual ~QuadratureSpace() { delete [] element_offsets; }
 
    /// Return the total number of quadrature points.
-   int GetSize() { return size; }
+   int GetSize() const { return size; }
 
    /// Get the IntegrationRule associated with mesh element @a idx.
-   const IntegrationRule &GetElementIntRule(int idx)
+   const IntegrationRule &GetElementIntRule(int idx) const
    { return *int_rule[mesh->GetElementBaseGeometry(idx)]; }
 
    /// Write the QuadratureSpace to the stream @a out.

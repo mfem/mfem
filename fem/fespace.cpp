@@ -62,7 +62,7 @@ FiniteElementSpace::FiniteElementSpace()
      elem_dof(NULL), bdrElem_dof(NULL),
      NURBSext(NULL), own_ext(false),
      cP(NULL), cR(NULL), cP_is_set(false),
-     T(NULL), own_T(false),
+     Th(Operator::ANY_TYPE),
      sequence(0)
 { }
 
@@ -757,6 +757,7 @@ void FiniteElementSpace::MakeVDimMatrix(SparseMatrix &mat) const
    delete vmat;
 }
 
+
 const SparseMatrix* FiniteElementSpace::GetConformingProlongation() const
 {
    if (Conforming()) { return NULL; }
@@ -777,53 +778,39 @@ int FiniteElementSpace::GetNConformingDofs() const
    return P ? (P->Width() / vdim) : ndofs;
 }
 
-SparseMatrix* FiniteElementSpace::RefinementMatrix(int old_ndofs,
-                                                   const Table* old_elem_dof)
+SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
+   const int coarse_ndofs, const Table &coarse_elem_dof,
+   const DenseTensor &localP) const
 {
    MFEM_VERIFY(mesh->GetLastOperation() == Mesh::REFINE, "");
-   MFEM_VERIFY(ndofs >= old_ndofs, "Previous space is not coarser.");
 
-   Array<int> dofs, old_dofs, old_vdofs;
+   Array<int> dofs, coarse_dofs, coarse_vdofs;
    Vector row;
 
-   const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
-
-   int geom = mesh->GetElementBaseGeometry(); // assuming the same geom
-   const FiniteElement *fe = fec->FiniteElementForGeometry(geom);
-
-   IsoparametricTransformation isotr;
-   isotr.SetIdentityTransformation(geom);
-
-   int nmat = rtrans.point_matrices.SizeK();
-   int ldof = fe->GetDof(); // assuming the same FE everywhere
-
-   // calculate local interpolation matrices for all refinement types
-   DenseTensor localP(ldof, ldof, nmat);
-   for (int i = 0; i < nmat; i++)
-   {
-      isotr.GetPointMat() = rtrans.point_matrices(i);
-      isotr.FinalizeTransformation();
-      fe->GetLocalInterpolation(isotr, localP(i));
-   }
-
-   SparseMatrix *P = new SparseMatrix(ndofs*vdim, old_ndofs*vdim, ldof);
+   const int coarse_ldof = localP.SizeJ();
+   const int fine_ldof = localP.SizeI();
+   SparseMatrix *P = new SparseMatrix(GetVSize(), coarse_ndofs*vdim,
+                                      coarse_ldof);
 
    Array<int> mark(P->Height());
    mark = 0;
+
+   const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
+
    for (int k = 0; k < mesh->GetNE(); k++)
    {
       const Embedding &emb = rtrans.embeddings[k];
-      DenseMatrix &lP = localP(emb.matrix);
+      const DenseMatrix &lP = localP(emb.matrix);
 
       elem_dof->GetRow(k, dofs);
-      old_elem_dof->GetRow(emb.parent, old_dofs);
+      coarse_elem_dof.GetRow(emb.parent, coarse_dofs);
 
       for (int vd = 0; vd < vdim; vd++)
       {
-         old_dofs.Copy(old_vdofs);
-         DofsToVDofs(vd, old_vdofs, old_ndofs);
+         coarse_dofs.Copy(coarse_vdofs);
+         DofsToVDofs(vd, coarse_vdofs, coarse_ndofs);
 
-         for (int i = 0; i < ldof; i++)
+         for (int i = 0; i < fine_ldof; i++)
          {
             int r = DofToVDof(dofs[i], vd);
             int m = (r >= 0) ? r : (-1 - r);
@@ -831,7 +818,7 @@ SparseMatrix* FiniteElementSpace::RefinementMatrix(int old_ndofs,
             if (!mark[m])
             {
                lP.GetRow(i, row);
-               P->SetRow(r, old_vdofs, row); // TODO: profiler says this is slow!
+               P->SetRow(r, coarse_vdofs, row);
                mark[m] = 1;
             }
          }
@@ -840,6 +827,118 @@ SparseMatrix* FiniteElementSpace::RefinementMatrix(int old_ndofs,
 
    MFEM_ASSERT(mark.Sum() == P->Height(), "Not all rows of P set.");
    return P;
+}
+
+void FiniteElementSpace::GetLocalRefinementMatrices(DenseTensor &localP) const
+{
+   int geom = mesh->GetElementBaseGeometry(); // assuming the same geom
+   const FiniteElement *fe = fec->FiniteElementForGeometry(geom);
+
+   const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
+
+   int nmat = rtrans.point_matrices.SizeK();
+   int ldof = fe->GetDof(); // assuming the same FE everywhere
+
+   IsoparametricTransformation isotr;
+   isotr.SetIdentityTransformation(geom);
+
+   // calculate local interpolation matrices for all refinement types
+   localP.SetSize(ldof, ldof, nmat);
+   for (int i = 0; i < nmat; i++)
+   {
+      isotr.GetPointMat() = rtrans.point_matrices(i);
+      isotr.FinalizeTransformation();
+      fe->GetLocalInterpolation(isotr, localP(i));
+   }
+}
+
+SparseMatrix* FiniteElementSpace::RefinementMatrix(int old_ndofs,
+                                                   const Table* old_elem_dof)
+{
+   MFEM_VERIFY(ndofs >= old_ndofs, "Previous space is not coarser.");
+
+   DenseTensor localP;
+   GetLocalRefinementMatrices(localP);
+
+   return RefinementMatrix_main(old_ndofs, *old_elem_dof, localP);
+}
+
+FiniteElementSpace::RefinementOperator::RefinementOperator
+(const FiniteElementSpace* fespace, Table* old_elem_dof, int old_ndofs)
+   : fespace(fespace)
+   , old_elem_dof(old_elem_dof)
+{
+   MFEM_VERIFY(fespace->GetNDofs() >= old_ndofs,
+               "Previous space is not coarser.");
+
+   width = old_ndofs * fespace->GetVDim();
+   height = fespace->GetVSize();
+
+   fespace->GetLocalRefinementMatrices(localP);
+}
+
+FiniteElementSpace::RefinementOperator::RefinementOperator(
+   const FiniteElementSpace *fespace, const FiniteElementSpace *coarse_fes)
+   : Operator(fespace->GetVSize(), coarse_fes->GetVSize()),
+     fespace(fespace), old_elem_dof(NULL)
+{
+   fespace->GetLocalRefinementMatrices(*coarse_fes, localP);
+   // Make a copy of the coarse elem_dof Table.
+   old_elem_dof = new Table(coarse_fes->GetElementToDofTable());
+}
+
+FiniteElementSpace::RefinementOperator::~RefinementOperator()
+{
+   delete old_elem_dof;
+}
+
+void FiniteElementSpace::RefinementOperator
+::Mult(const Vector &x, Vector &y) const
+{
+   Mesh* mesh = fespace->GetMesh();
+   const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
+
+   Array<int> dofs, old_dofs, old_vdofs;
+
+   Array<char> processed(fespace->GetVSize());
+   processed = 0;
+
+   int vdim = fespace->GetVDim();
+   int old_ndofs = width / vdim;
+
+   for (int k = 0; k < mesh->GetNE(); k++)
+   {
+      const Embedding &emb = rtrans.embeddings[k];
+      const DenseMatrix &lP = localP(emb.matrix);
+
+      fespace->GetElementDofs(k, dofs);
+      old_elem_dof->GetRow(emb.parent, old_dofs);
+
+      for (int vd = 0; vd < vdim; vd++)
+      {
+         old_dofs.Copy(old_vdofs);
+         fespace->DofsToVDofs(vd, old_vdofs, old_ndofs);
+
+         for (int i = 0; i < dofs.Size(); i++)
+         {
+            double rsign, osign;
+            int r = fespace->DofToVDof(dofs[i], vd);
+            r = DecodeDof(r, rsign);
+
+            if (!processed[r])
+            {
+               double value = 0.0;
+               for (int j = 0; j < old_vdofs.Size(); j++)
+               {
+                  int o = DecodeDof(old_vdofs[j], osign);
+                  value += x[o] * lP(i, j) * osign;
+               }
+               y[r] = value * rsign;
+               processed[r] = 1;
+            }
+         }
+      }
+   }
 }
 
 void InvertLinearTrans(IsoparametricTransformation &trans,
@@ -859,19 +958,22 @@ void InvertLinearTrans(IsoparametricTransformation &trans,
    invdfdx.Mult(v, x);
 }
 
-void FiniteElementSpace::GetLocalDerefinementMatrices(
-   int geom, const CoarseFineTransformations &dt, DenseTensor &localR)
+void FiniteElementSpace::GetLocalDerefinementMatrices(DenseTensor &localR) const
 {
+   int geom = mesh->GetElementBaseGeometry(); // assuming the same geom
    const FiniteElement *fe = fec->FiniteElementForGeometry(geom);
    const IntegrationRule &nodes = fe->GetNodes();
+
+   const CoarseFineTransformations &dtrans =
+      mesh->ncmesh->GetDerefinementTransforms();
+
+   int nmat = dtrans.point_matrices.SizeK();
+   int ldof = fe->GetDof();
+   int dim = mesh->Dimension();
 
    LinearFECollection linfec;
    IsoparametricTransformation isotr;
    isotr.SetFE(linfec.FiniteElementForGeometry(geom));
-
-   int nmat = dt.point_matrices.SizeK();
-   int ldof = fe->GetDof();
-   int dim = mesh->Dimension();
 
    DenseMatrix invdfdx(dim);
    IntegrationPoint ipt;
@@ -884,7 +986,7 @@ void FiniteElementSpace::GetLocalDerefinementMatrices(
       DenseMatrix &lR = localR(i);
       lR = infinity(); // marks invalid rows
 
-      isotr.GetPointMat() = dt.point_matrices(i);
+      isotr.GetPointMat() = dtrans.point_matrices(i);
       isotr.FinalizeTransformation();
       isotr.SetIntPoint(&nodes[0]);
       CalcInverse(isotr.Jacobian(), invdfdx);
@@ -916,19 +1018,17 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
    Array<int> dofs, old_dofs, old_vdofs;
    Vector row;
 
+   DenseTensor localR;
+   GetLocalDerefinementMatrices(localR);
+
+   SparseMatrix *R = new SparseMatrix(ndofs*vdim, old_ndofs*vdim,
+                                      localR.SizeI());
+   Array<int> mark(R->Height());
+   mark = 0;
+
    const CoarseFineTransformations &dtrans =
       mesh->ncmesh->GetDerefinementTransforms();
 
-   int geom = mesh->ncmesh->GetElementGeometry();
-   int ldof = fec->FiniteElementForGeometry(geom)->GetDof();
-
-   DenseTensor localR;
-   GetLocalDerefinementMatrices(geom, dtrans, localR);
-
-   SparseMatrix *R = new SparseMatrix(ndofs*vdim, old_ndofs*vdim, ldof);
-
-   Array<int> mark(R->Height());
-   mark = 0;
    for (int k = 0; k < dtrans.embeddings.Size(); k++)
    {
       const Embedding &emb = dtrans.embeddings[k];
@@ -963,6 +1063,32 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
    return R;
 }
 
+void FiniteElementSpace::GetLocalRefinementMatrices(
+   const FiniteElementSpace &coarse_fes, DenseTensor &localP) const
+{
+   // Assumptions: see the declaration of the method.
+
+   int fine_geom = mesh->GetElementBaseGeometry(0);
+   const FiniteElement *fine_fe = fec->FiniteElementForGeometry(fine_geom);
+   const FiniteElement *coarse_fe = coarse_fes.GetFE(0);
+
+   const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
+
+   int nmat = rtrans.point_matrices.SizeK();
+
+   IsoparametricTransformation isotr;
+   isotr.SetIdentityTransformation(fine_geom);
+
+   // Calculate the local interpolation matrices for all refinement types
+   localP.SetSize(fine_fe->GetDof(), coarse_fe->GetDof(), nmat);
+   for (int i = 0; i < nmat; i++)
+   {
+      isotr.GetPointMat() = rtrans.point_matrices(i);
+      isotr.FinalizeTransformation();
+      fine_fe->GetTransferMatrix(*coarse_fe, isotr, localP(i));
+   }
+}
+
 void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
                                      const FiniteElementCollection *fec,
                                      int vdim, int ordering)
@@ -974,6 +1100,7 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
 
    elem_dof = NULL;
    sequence = mesh->GetSequence();
+   Th.SetType(Operator::ANY_TYPE);
 
    const NURBSFECollection *nurbs_fec =
       dynamic_cast<const NURBSFECollection *>(fec);
@@ -998,8 +1125,6 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
       UpdateNURBS();
       cP = cR = NULL;
       cP_is_set = false;
-      T = NULL;
-      own_T = true;
    }
    else
    {
@@ -1064,8 +1189,7 @@ void FiniteElementSpace::Construct()
    cP = NULL;
    cR = NULL;
    cP_is_set = false;
-   T = NULL;
-   own_T = true;
+   // Th is initialized/destroyed before this method is called.
 
    if (mesh->Dimension() == 3 && mesh->GetNE())
    {
@@ -1513,7 +1637,7 @@ void FiniteElementSpace::Destroy()
 {
    delete cR;
    delete cP;
-   if (own_T) { delete T; }
+   Th.Clear();
 
    dof_elem_array.DeleteAll();
    dof_ldof_array.DeleteAll();
@@ -1529,6 +1653,66 @@ void FiniteElementSpace::Destroy()
 
       delete [] bdofs;
       delete [] fdofs;
+   }
+}
+
+void FiniteElementSpace::GetTransferOperator(
+   const FiniteElementSpace &coarse_fes, OperatorHandle &T) const
+{
+   // Assumptions: see the declaration of the method.
+
+   if (T.Type() == Operator::MFEM_SPARSEMAT)
+   {
+      DenseTensor localP;
+      GetLocalRefinementMatrices(coarse_fes, localP);
+      T.Reset(RefinementMatrix_main(coarse_fes.GetNDofs(),
+                                    coarse_fes.GetElementToDofTable(),
+                                    localP));
+   }
+   else
+   {
+      T.Reset(new RefinementOperator(this, &coarse_fes));
+   }
+}
+
+void FiniteElementSpace::GetTrueTransferOperator(
+   const FiniteElementSpace &coarse_fes, OperatorHandle &T) const
+{
+   const SparseMatrix *coarse_P = coarse_fes.GetConformingProlongation();
+
+   Operator::Type req_type = T.Type();
+   GetTransferOperator(coarse_fes, T);
+
+   if (req_type == Operator::MFEM_SPARSEMAT)
+   {
+      if (GetConformingRestriction())
+      {
+         T.Reset(mfem::Mult(*cR, *T.As<SparseMatrix>()));
+      }
+      if (coarse_P)
+      {
+         T.Reset(mfem::Mult(*T.As<SparseMatrix>(), *coarse_P));
+      }
+   }
+   else
+   {
+      const int RP_case = bool(GetConformingRestriction()) + 2*bool(coarse_P);
+      if (RP_case == 0) { return; }
+      const bool owner = T.OwnsOperator();
+      T.SetOperatorOwner(false);
+      switch (RP_case)
+      {
+         case 1:
+            T.Reset(new ProductOperator(cR, T.Ptr(), false, owner));
+            break;
+         case 2:
+            T.Reset(new ProductOperator(T.Ptr(), coarse_P, owner, false));
+            break;
+         case 3:
+            T.Reset(new TripleProductOperator(
+                       cR, T.Ptr(), coarse_P, false, owner, false));
+            break;
+      }
    }
 }
 
@@ -1551,7 +1735,7 @@ void FiniteElementSpace::Update(bool want_transform)
       return;
    }
 
-   Table* old_elem_dof= NULL;
+   Table* old_elem_dof = NULL;
    int old_ndofs;
 
    // save old DOF table
@@ -1562,8 +1746,8 @@ void FiniteElementSpace::Update(bool want_transform)
       old_ndofs = ndofs;
    }
 
-   Destroy();
-   Construct(); // sets T to NULL, own_T to true
+   Destroy(); // calls Th.Clear()
+   Construct();
    BuildElementToDofTable();
 
    if (want_transform)
@@ -1573,27 +1757,40 @@ void FiniteElementSpace::Update(bool want_transform)
       {
          case Mesh::REFINE:
          {
-            T = RefinementMatrix(old_ndofs, old_elem_dof);
+            if (Th.Type() != Operator::MFEM_SPARSEMAT)
+            {
+               Th.Reset(new RefinementOperator(this, old_elem_dof, old_ndofs));
+               // The RefinementOperator takes ownership of 'old_elem_dof', so
+               // we no longer own it:
+               old_elem_dof = NULL;
+            }
+            else
+            {
+               // calculate fully assembled matrix
+               Th.Reset(RefinementMatrix(old_ndofs, old_elem_dof));
+            }
             break;
          }
 
          case Mesh::DEREFINE:
          {
             BuildConformingInterpolation();
-            T = DerefinementMatrix(old_ndofs, old_elem_dof);
+            Th.Reset(DerefinementMatrix(old_ndofs, old_elem_dof));
             if (cP && cR)
             {
-               T = new TripleProductOperator(cP, cR, T, false, false, true);
+               Th.SetOperatorOwner(false);
+               Th.Reset(new TripleProductOperator(cP, cR, Th.Ptr(),
+                                                  false, false, true));
             }
             break;
          }
 
          default:
-            break; // T stays NULL
+            break;
       }
-   }
 
-   delete old_elem_dof;
+      delete old_elem_dof;
+   }
 }
 
 void FiniteElementSpace::Save(std::ostream &out) const

@@ -33,6 +33,7 @@ Operator::Type OperatorHandle::CheckType(Operator::Type tid)
 {
    switch (tid)
    {
+      case Operator::ANY_TYPE: break;
       case Operator::MFEM_SPARSEMAT: break;
       case Operator::Hypre_ParCSR:
 #ifdef MFEM_USE_MPI
@@ -64,6 +65,12 @@ void OperatorHandle::MakeSquareBlockDiag(MPI_Comm comm, HYPRE_Int glob_size,
 
    switch (type_id)
    {
+      case Operator::ANY_TYPE: // --> MFEM_SPARSEMAT
+      case Operator::MFEM_SPARSEMAT:
+         // As a parallel Operator, the SparseMatrix simply represents the local
+         // Operator, without the need of any communication.
+         pSet(diag, false);
+         return;
       case Operator::Hypre_ParCSR:
          oper = new HypreParMatrix(comm, glob_size, row_starts, diag);
          break;
@@ -88,6 +95,12 @@ MakeRectangularBlockDiag(MPI_Comm comm, HYPRE_Int glob_num_rows,
 
    switch (type_id)
    {
+      case Operator::ANY_TYPE: // --> MFEM_SPARSEMAT
+      case Operator::MFEM_SPARSEMAT:
+         // As a parallel Operator, the SparseMatrix simply represents the local
+         // Operator, without the need of any communication.
+         pSet(diag, false);
+         return;
       case Operator::Hypre_ParCSR:
          oper = new HypreParMatrix(comm, glob_num_rows, glob_num_cols,
                                    row_starts, col_starts, diag);
@@ -108,10 +121,16 @@ MakeRectangularBlockDiag(MPI_Comm comm, HYPRE_Int glob_num_rows,
 
 void OperatorHandle::MakePtAP(OperatorHandle &A, OperatorHandle &P)
 {
-   MFEM_VERIFY(A.Type() == P.Type(), "type mismatch in A and P");
+   if (A.Type() != Operator::ANY_TYPE)
+   {
+      MFEM_VERIFY(A.Type() == P.Type(), "type mismatch in A and P");
+   }
    Clear();
    switch (A.Type())
    {
+      case Operator::ANY_TYPE:
+         pSet(new RAPOperator(*P.Ptr(), *A.Ptr(), *P.Ptr()));
+         break;
       case Operator::MFEM_SPARSEMAT:
       {
          SparseMatrix *R  = mfem::Transpose(*P.As<SparseMatrix>());
@@ -134,18 +153,24 @@ void OperatorHandle::MakePtAP(OperatorHandle &A, OperatorHandle &P)
       }
 #endif
 #endif
-      default: MFEM_ABORT(not_supported_msg << type_id);
+      default: MFEM_ABORT(not_supported_msg << A.Type());
    }
 }
 
 void OperatorHandle::MakeRAP(OperatorHandle &Rt, OperatorHandle &A,
                              OperatorHandle &P)
 {
-   MFEM_VERIFY(A.Type() == Rt.Type(), "type mismatch in A and Rt");
-   MFEM_VERIFY(A.Type() == P.Type(), "type mismatch in A and P");
+   if (A.Type() != Operator::ANY_TYPE)
+   {
+      MFEM_VERIFY(A.Type() == Rt.Type(), "type mismatch in A and Rt");
+      MFEM_VERIFY(A.Type() == P.Type(), "type mismatch in A and P");
+   }
    Clear();
    switch (A.Type())
    {
+      case Operator::ANY_TYPE:
+         pSet(new RAPOperator(*Rt.Ptr(), *A.Ptr(), *P.Ptr()));
+         break;
       case Operator::MFEM_SPARSEMAT:
       {
          pSet(mfem::RAP(*Rt.As<SparseMatrix>(), *A.As<SparseMatrix>(),
@@ -167,14 +192,14 @@ void OperatorHandle::MakeRAP(OperatorHandle &Rt, OperatorHandle &A,
       }
 #endif
 #endif
-      default: MFEM_ABORT(not_supported_msg << type_id);
+      default: MFEM_ABORT(not_supported_msg << A.Type());
    }
 }
 
 void OperatorHandle::ConvertFrom(OperatorHandle &A)
 {
    if (own_oper) { delete oper; }
-   if (Type() == A.Type())
+   if (Type() == A.Type() || Type() == Operator::ANY_TYPE)
    {
       oper = A.Ptr();
       own_oper = false;
@@ -183,8 +208,21 @@ void OperatorHandle::ConvertFrom(OperatorHandle &A)
    oper = NULL;
    switch (Type()) // target type id
    {
+      case Operator::MFEM_SPARSEMAT:
+      {
+         oper = A.Is<SparseMatrix>();
+         break;
+      }
+      case Operator::Hypre_ParCSR:
+      {
+#ifdef MFEM_USE_MPI
+         oper = A.Is<HypreParMatrix>();
+#endif
+         break;
+      }
       case Operator::PETSC_MATAIJ:
       case Operator::PETSC_MATIS:
+      {
          switch (A.Type()) // source type id
          {
             case Operator::Hypre_ParCSR:
@@ -194,7 +232,15 @@ void OperatorHandle::ConvertFrom(OperatorHandle &A)
                break;
             default: break;
          }
+#ifdef MFEM_USE_PETSC
+         if (!oper)
+         {
+            PetscParMatrix *pA = A.Is<PetscParMatrix>();
+            if (pA->GetType() == Type()) { oper = pA; }
+         }
+#endif
          break;
+      }
       default: break;
    }
    MFEM_VERIFY(oper != NULL, "conversion from type id = " << A.Type()
@@ -208,6 +254,15 @@ void OperatorHandle::EliminateRowsCols(OperatorHandle &A,
    Clear();
    switch (A.Type())
    {
+      case Operator::ANY_TYPE:
+      {
+         bool own_A = A.OwnsOperator();
+         A.SetOperatorOwner(false);
+         A.Reset(new ConstrainedOperator(A.Ptr(), ess_dof_list, own_A));
+         // Keep this object empty - this will be OK if this object is only
+         // used as the A_e parameter in a call to A.EliminateBC().
+         break;
+      }
       case Operator::MFEM_SPARSEMAT:
       {
          const Matrix::DiagonalPolicy preserve_diag = Matrix::DIAG_KEEP;
@@ -250,6 +305,13 @@ void OperatorHandle::EliminateBC(const OperatorHandle &A_e,
 {
    switch (Type())
    {
+      case Operator::ANY_TYPE:
+      {
+         ConstrainedOperator *A = Is<ConstrainedOperator>();
+         MFEM_VERIFY(A != NULL, "EliminateRowsCols() is not called");
+         A->EliminateRHS(X, B);
+         break;
+      }
       case Operator::MFEM_SPARSEMAT:
       {
          A_e.As<SparseMatrix>()->AddMult(X, B, -1.);

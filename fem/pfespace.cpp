@@ -54,7 +54,7 @@ ParFiniteElementSpace::ParFiniteElementSpace(
    // NURBSExtension of 'global_fes' and inside the ParNURBSExtension of 'pm'.
 
    // TODO: when general variable-order support is added, copy the local portion
-   // of the variable-oder data from 'global_fes' to 'this'.
+   // of the variable-order data from 'global_fes' to 'this'.
 }
 
 ParFiniteElementSpace::ParFiniteElementSpace(
@@ -117,7 +117,7 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
       UpdateNURBS();
    }
 
-   Construct();
+   Construct(); // parallel version of Construct().
 
    // Apply the ldof_signs to the elem_dof Table
    if (Conforming() && !NURBSext)
@@ -633,7 +633,7 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
    GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, component);
    GetRestrictionMatrix()->BooleanMult(ess_dofs, true_ess_dofs);
 #ifdef MFEM_DEBUG
-   // Verify that in boolean arthmetic: P^T ess_dofs = R ess_dofs.
+   // Verify that in boolean arithmetic: P^T ess_dofs = R ess_dofs.
    Array<int> true_ess_dofs2(true_ess_dofs.Size());
    HypreParMatrix *Pt = Dof_TrueDof_Matrix()->Transpose();
    Pt->BooleanMult(1, ess_dofs, 0, true_ess_dofs2);
@@ -739,7 +739,7 @@ HYPRE_Int ParFiniteElementSpace::GetMyTDofOffset() const
    return HYPRE_AssumedPartitionCheck()? tdof_offsets[0] : tdof_offsets[MyRank];
 }
 
-const Operator *ParFiniteElementSpace::GetProlongationMatrix()
+const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
 {
    if (Conforming())
    {
@@ -1229,7 +1229,7 @@ void ParFiniteElementSpace::GetGhostDofs(int entity, const MeshId &id,
    }
 }
 
-void ParFiniteElementSpace::GetBareDofs(int entity, const MeshId &id,
+void ParFiniteElementSpace::GetBareDofs(int entity, int index,
                                         Array<int> &dofs) const
 {
    int ned, ghost, first;
@@ -1238,25 +1238,25 @@ void ParFiniteElementSpace::GetBareDofs(int entity, const MeshId &id,
       case 0:
          ned = fec->DofForGeometry(Geometry::POINT);
          ghost = pncmesh->GetNVertices();
-         first = (id.index < ghost)
-                 ? id.index*ned // regular vertex
-                 : ndofs + (id.index - ghost)*ned; // ghost vertex
+         first = (index < ghost)
+                 ? index*ned // regular vertex
+                 : ndofs + (index - ghost)*ned; // ghost vertex
          break;
 
       case 1:
          ned = fec->DofForGeometry(Geometry::SEGMENT);
          ghost = pncmesh->GetNEdges();
-         first = (id.index < ghost)
-                 ? nvdofs + id.index*ned // regular edge
-                 : ndofs + ngvdofs + (id.index - ghost)*ned; // ghost edge
+         first = (index < ghost)
+                 ? nvdofs + index*ned // regular edge
+                 : ndofs + ngvdofs + (index - ghost)*ned; // ghost edge
          break;
 
       default:
          ned = fec->DofForGeometry(mesh->GetFaceBaseGeometry(0));
          ghost = pncmesh->GetNFaces();
-         first = (id.index < ghost)
-                 ? nvdofs + nedofs + id.index*ned // regular face
-                 : ndofs + ngvdofs + ngedofs + (id.index - ghost)*ned; // ghost
+         first = (index < ghost)
+                 ? nvdofs + nedofs + index*ned // regular face
+                 : ndofs + ngvdofs + ngedofs + (index - ghost)*ned; // ghost
          break;
    }
 
@@ -1674,7 +1674,7 @@ void ParFiniteElementSpace::ForwardRow(const PMatrixRow &row, int dof,
 
 #ifdef MFEM_DEBUG_PMATRIX
 void ParFiniteElementSpace
-::DebugDumpDOFs(std::ofstream &os,
+::DebugDumpDOFs(std::ostream &os,
                 const SparseMatrix &deps,
                 const Array<GroupId> &dof_group,
                 const Array<GroupId> &dof_owner,
@@ -1800,9 +1800,6 @@ int ParFiniteElementSpace
          }
       }
 
-      // make sure all master DOFs are transmitted to participating slave ranks
-      pncmesh->AugmentMasterGroups();
-
       deps.Finalize();
    }
 
@@ -1820,7 +1817,7 @@ int ParFiniteElementSpace
       // initialize dof_group[], dof_owner[]
       for (int entity = 0; entity <= 2; entity++)
       {
-         const NCMesh::NCList &list = pncmesh->GetSharedList(entity);
+         const NCMesh::NCList &list = pncmesh->GetNCList(entity);
 
          std::size_t lsize[3] =
          { list.conforming.size(), list.masters.size(), list.slaves.size() };
@@ -1834,13 +1831,16 @@ int ParFiniteElementSpace
                   (l == 1) ? (const MeshId&) list.masters[i]
                   /*    */ : (const MeshId&) list.slaves[i];
 
-               GetBareDofs(entity, id, dofs);
+               GroupId owner = pncmesh->GetEntityOwnerId(entity, id.index);
+               GroupId group = pncmesh->GetEntityGroupId(entity, id.index);
+
+               GetBareDofs(entity, id.index, dofs);
 
                for (int j = 0; j < dofs.Size(); j++)
                {
                   int dof = dofs[j];
-                  dof_owner[dof] = pncmesh->GetOwnerId(entity, id.index);
-                  dof_group[dof] = pncmesh->GetGroupId(entity, id.index);
+                  dof_owner[dof] = owner;
+                  dof_group[dof] = group;
                }
             }
          }
@@ -2355,7 +2355,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    }
 
    DenseTensor localR;
-   GetLocalDerefinementMatrices(geom, dtrans, localR);
+   GetLocalDerefinementMatrices(localR);
 
    // create the diagonal part of the derefinement matrix
    SparseMatrix *diag = new SparseMatrix(ndofs*vdim, old_ndofs*vdim);
@@ -2538,6 +2538,33 @@ void ParFiniteElementSpace::Destroy()
    send_face_nbr_ldof.Clear();
 }
 
+void ParFiniteElementSpace::GetTrueTransferOperator(
+   const FiniteElementSpace &coarse_fes, OperatorHandle &T) const
+{
+   OperatorHandle Tgf(T.Type() == Operator::Hypre_ParCSR ?
+                      Operator::MFEM_SPARSEMAT : Operator::ANY_TYPE);
+   GetTransferOperator(coarse_fes, Tgf);
+   Dof_TrueDof_Matrix(); // Make sure R is built - we need R in all cases.
+   if (T.Type() == Operator::Hypre_ParCSR)
+   {
+      const ParFiniteElementSpace *c_pfes =
+         dynamic_cast<const ParFiniteElementSpace *>(&coarse_fes);
+      MFEM_ASSERT(c_pfes != NULL, "coarse_fes must be a parallel space");
+      SparseMatrix *RA = mfem::Mult(*R, *Tgf.As<SparseMatrix>());
+      Tgf.Clear();
+      T.Reset(c_pfes->Dof_TrueDof_Matrix()->
+              LeftDiagMult(*RA, GetTrueDofOffsets()));
+      delete RA;
+   }
+   else
+   {
+      T.Reset(new TripleProductOperator(R, Tgf.Ptr(),
+                                        coarse_fes.GetProlongationMatrix(),
+                                        false, Tgf.OwnsOperator(), false));
+      Tgf.SetOperatorOwner(false);
+   }
+}
+
 void ParFiniteElementSpace::Update(bool want_transform)
 {
    if (mesh->GetSequence() == sequence)
@@ -2570,9 +2597,9 @@ void ParFiniteElementSpace::Update(bool want_transform)
    }
 
    Destroy();
-   FiniteElementSpace::Destroy();
+   FiniteElementSpace::Destroy(); // calls Th.Clear()
 
-   FiniteElementSpace::Construct(); // sets T to NULL, own_T to true
+   FiniteElementSpace::Construct();
    Construct();
 
    BuildElementToDofTable();
@@ -2584,50 +2611,62 @@ void ParFiniteElementSpace::Update(bool want_transform)
       {
          case Mesh::REFINE:
          {
-            T = RefinementMatrix(old_ndofs, old_elem_dof);
+            if (Th.Type() != Operator::MFEM_SPARSEMAT)
+            {
+               Th.Reset(new RefinementOperator(this, old_elem_dof, old_ndofs));
+               // The RefinementOperator takes ownership of 'old_elem_dofs', so
+               // we no longer own it:
+               old_elem_dof = NULL;
+            }
+            else
+            {
+               // calculate fully assembled matrix
+               Th.Reset(RefinementMatrix(old_ndofs, old_elem_dof));
+            }
             break;
          }
 
          case Mesh::DEREFINE:
          {
-            T = ParallelDerefinementMatrix(old_ndofs, old_elem_dof);
+            Th.Reset(ParallelDerefinementMatrix(old_ndofs, old_elem_dof));
             if (Nonconforming())
             {
-               T = new TripleProductOperator(P, R, T, false, false, true);
+               Th.SetOperatorOwner(false);
+               Th.Reset(new TripleProductOperator(P, R, Th.Ptr(),
+                                                  false, false, true));
             }
             break;
          }
 
          case Mesh::REBALANCE:
          {
-            T = RebalanceMatrix(old_ndofs, old_elem_dof);
+            Th.Reset(RebalanceMatrix(old_ndofs, old_elem_dof));
             break;
          }
 
          default:
-            break; // T stays NULL
+            break;
       }
+
       delete old_elem_dof;
    }
 }
 
 
 ConformingProlongationOperator::ConformingProlongationOperator(
-   ParFiniteElementSpace &pfes)
+   const ParFiniteElementSpace &pfes)
    : Operator(pfes.GetVSize(), pfes.GetTrueVSize()),
      external_ldofs(),
      gc(pfes.GroupComm())
 {
    MFEM_VERIFY(pfes.Conforming(), "");
-   Array<int> ldofs;
-   Table &group_ldof = gc.GroupLDofTable();
+   const Table &group_ldof = gc.GroupLDofTable();
    external_ldofs.Reserve(Height()-Width());
    for (int gr = 1; gr < group_ldof.Size(); gr++)
    {
       if (!gc.GetGroupTopology().IAmMaster(gr))
       {
-         ldofs.MakeRef(group_ldof.GetRow(gr), group_ldof.RowSize(gr));
-         external_ldofs.Append(ldofs);
+         external_ldofs.Append(group_ldof.GetRow(gr), group_ldof.RowSize(gr));
       }
    }
    external_ldofs.Sort();

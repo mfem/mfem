@@ -112,6 +112,15 @@ examples/petsc/deformed.*
 examples/petsc/velocity.*
 examples/petsc/elastic_energy.*
 
+examples/pumi/ex1
+examples/pumi/ex[126]p
+
+examples/pumi/refined.mesh
+examples/pumi/sol.gf
+examples/pumi/mesh.*
+examples/pumi/sol.*
+examples/pumi/displaced.mesh
+
 miniapps/electromagnetics/volta
 miniapps/electromagnetics/tesla
 miniapps/electromagnetics/maxwell
@@ -145,6 +154,8 @@ miniapps/performance/mesh.*
 miniapps/performance/sol.*
 
 miniapps/tools/display-basis
+miniapps/tools/load-dc
+miniapps/tools/convert-dc
 
 miniapps/nurbs/ex1
 miniapps/nurbs/ex1p

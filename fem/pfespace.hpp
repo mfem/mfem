@@ -71,7 +71,7 @@ private:
    /// The matrix P (interpolation from true dof to dof). Owned.
    mutable HypreParMatrix *P;
    /// Optimized action-only prolongation operator for conforming meshes. Owned.
-   class ConformingProlongationOperator *Pconf;
+   mutable class ConformingProlongationOperator *Pconf;
 
    /// The (block-diagonal) matrix R (restriction of dof to true dof). Owned.
    mutable SparseMatrix *R;
@@ -114,8 +114,7 @@ private:
 
    void GetGhostDofs(int entity, const MeshId &id, Array<int> &dofs) const;
    // Return the dofs associated with the interior of the given mesh entity.
-   // The MeshId may be the id of a regular or a ghost mesh entity.
-   void GetBareDofs(int entity, const MeshId &id, Array<int> &dofs) const;
+   void GetBareDofs(int entity, int index, Array<int> &dofs) const;
 
    int  PackDof(int entity, int index, int edof) const;
    void UnpackDof(int dof, int &entity, int &index, int &edof) const;
@@ -128,7 +127,7 @@ private:
                    std::map<int, class NeighborRowMessage> &send_msg) const;
 
 #ifdef MFEM_DEBUG_PMATRIX
-   void DebugDumpDOFs(std::ofstream &os,
+   void DebugDumpDOFs(std::ostream &os,
                       const SparseMatrix &deps,
                       const Array<GroupId> &dof_group,
                       const Array<GroupId> &dof_owner,
@@ -283,6 +282,9 @@ public:
    /// Return a reference to the internal GroupCommunicator (on VDofs)
    GroupCommunicator &GroupComm() { return *gcomm; }
 
+   /// Return a const reference to the internal GroupCommunicator (on VDofs)
+   const GroupCommunicator &GroupComm() const { return *gcomm; }
+
    /// Return a new GroupCommunicator on Dofs
    GroupCommunicator *ScalarGroupComm();
 
@@ -326,9 +328,9 @@ public:
    HYPRE_Int GetMyDofOffset() const;
    HYPRE_Int GetMyTDofOffset() const;
 
-   virtual const Operator *GetProlongationMatrix();
+   virtual const Operator *GetProlongationMatrix() const;
    /// Get the R matrix which restricts a local dof vector to true dof vector.
-   virtual const SparseMatrix *GetRestrictionMatrix()
+   virtual const SparseMatrix *GetRestrictionMatrix() const
    { Dof_TrueDof_Matrix(); return R; }
 
    // Face-neighbor functions
@@ -346,6 +348,12 @@ public:
 
    bool Conforming() const { return pmesh->pncmesh == NULL; }
    bool Nonconforming() const { return pmesh->pncmesh != NULL; }
+
+   // Transfer parallel true-dof data from coarse_fes, defined on a coarse mesh,
+   // to this FE space, defined on a refined mesh. See full documentation in the
+   // base class, FiniteElementSpace::GetTrueTransferOperator.
+   virtual void GetTrueTransferOperator(const FiniteElementSpace &coarse_fes,
+                                        OperatorHandle &T) const;
 
    /** Reflect changes in the mesh. Calculate one of the refinement/derefinement
        /rebalance matrices, unless want_transform is false. */
@@ -370,10 +378,10 @@ class ConformingProlongationOperator : public Operator
 {
 protected:
    Array<int> external_ldofs;
-   GroupCommunicator &gc;
+   const GroupCommunicator &gc;
 
 public:
-   ConformingProlongationOperator(ParFiniteElementSpace &pfes);
+   ConformingProlongationOperator(const ParFiniteElementSpace &pfes);
 
    virtual void Mult(const Vector &x, Vector &y) const;
 

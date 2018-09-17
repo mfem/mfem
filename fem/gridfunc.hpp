@@ -192,9 +192,10 @@ public:
    void ImposeBounds(int i, const Vector &weights,
                      double _min = 0.0, double _max = infinity());
 
-   /** Project the given 'src' GridFunction to 'this' GridFunction, both of
-       which must be on the same mesh. The current implementation assumes that
-       all element use the same projection matrix. */
+   /** @brief Project the @a src GridFunction to @a this GridFunction, both of
+       which must be on the same mesh. */
+   /** The current implementation assumes that all elements use the same
+       projection matrix. */
    void ProjectGridFunction(const GridFunction &src);
 
    virtual void ProjectCoefficient(Coefficient &coeff);
@@ -218,11 +219,20 @@ public:
    /** @brief Projects a discontinuous coefficient so that the values in shared
        vdofs are computed by taking an average of the possible values. */
    virtual void ProjectDiscCoefficient(Coefficient &coeff, AvgType type);
+   /** @brief Projects a discontinuous _vector_ coefficient so that the values
+       in shared vdofs are computed by taking an average of the possible values.
+   */
+   virtual void ProjectDiscCoefficient(VectorCoefficient &coeff, AvgType type);
 
 protected:
    /** @brief Accumulates (depending on @a type) the values of @a coeff at all
        shared vdofs and counts in how many zones each vdof appears. */
    void AccumulateAndCountZones(Coefficient &coeff, AvgType type,
+                                Array<int> &zones_per_vdof);
+
+   /** @brief Accumulates (depending on @a type) the values of @a vcoeff at all
+       shared vdofs and counts in how many zones each vdof appears. */
+   void AccumulateAndCountZones(VectorCoefficient &vcoeff, AvgType type,
                                 Array<int> &zones_per_vdof);
 
    // Complete the computation of averages; called e.g. after
@@ -474,8 +484,21 @@ public:
    /// Set the QuadratureSpace ownership flag.
    void SetOwnsSpace(bool own) { own_qspace = own; }
 
+   /// Redefine '=' for QuadratureFunction = constant.
+   QuadratureFunction &operator=(double value);
+
+   /// Copy the data from @a v.
+   /** The size of @a v must be equal to the size of the QuadratureSpace
+       @a qspace. */
+   QuadratureFunction &operator=(const Vector &v);
+
+   /// Copy the data from @a v.
+   /** The QuadratureFunctions @a v and @a *this must have QuadratureSpaces with
+       the same size. */
+   QuadratureFunction &operator=(const QuadratureFunction &v);
+
    /// Get the IntegrationRule associated with mesh element @a idx.
-   const IntegrationRule &GetElementIntRule(int idx)
+   const IntegrationRule &GetElementIntRule(int idx) const
    { return qspace->GetElementIntRule(idx); }
 
    /// Return all values associated with mesh element @a idx in a Vector.
@@ -487,6 +510,22 @@ public:
     */
    inline void GetElementValues(int idx, Vector &values);
 
+   /// Return all values associated with mesh element @a idx in a Vector.
+   /** The result is stored in the Vector @a values as a copy of the
+       global values.
+
+       Inside the Vector @a values, the index `i+vdim*j` corresponds to the
+       `i`-th vector component at the `j`-th quadrature point.
+    */
+   inline void GetElementValues(int idx, Vector &values) const;
+    
+    /// Return the quadrature function values at an integration point
+    /** The result is stored in the Vector @a values as a reference to the
+     global values.
+     
+     */
+    inline void GetElementValues(int idx, const int ip_num, Vector &values);
+
    /// Return all values associated with mesh element @a idx in a DenseMatrix.
    /** The result is stored in the DenseMatrix @a values as a reference to the
        global values.
@@ -496,12 +535,14 @@ public:
     */
    inline void GetElementValues(int idx, DenseMatrix &values);
 
-   /// Return the quadrature function values at an integration point 
-   /** The result is stored in the Vector @a values as a reference to the 
+   /// Return all values associated with mesh element @a idx in a const DenseMatrix.
+   /** The result is stored in the DenseMatrix @a values as a copy of the
        global values.
 
-   */
-   void GetElementValues(int idx, const int ip_num, Vector &values);
+       Inside the DenseMatrix @a values, the `(i,j)` entry corresponds to the
+       `i`-th vector component at the `j`-th quadrature point.
+    */
+   inline void GetElementValues(int idx, DenseMatrix &values) const;
 
    /// Write the QuadratureFunction to the stream @a out.
    void Save(std::ostream &out) const;
@@ -575,11 +616,57 @@ inline void QuadratureFunction::GetElementValues(int idx, Vector &values)
    values.NewDataAndSize(data + vdim*s_offset, vdim*sl_size);
 }
 
+inline void QuadratureFunction::GetElementValues(int idx, Vector &values) const
+{
+   const int s_offset = qspace->element_offsets[idx];
+   const int sl_size = qspace->element_offsets[idx+1] - s_offset;
+   values.SetSize(vdim*sl_size);
+   double *q = data + vdim*s_offset;
+   for (int i = 0; i<values.Size(); i++)
+   {
+      values(i) = *(q++);
+   }
+}
+    
+inline void QuadratureFunction::GetElementValues(int idx, int ip_num,
+                                                 Vector &values)
+{
+        // get the element values and store them in elem_vec
+        Vector elem_vec;
+        GetElementValues(idx, elem_vec);
+        
+        // get the vector dimension of the quadrature function.
+        // This is the size of data stored at each integration point
+        int vDim = GetVDim();
+        
+        // set the size of the integration point data vector @a values
+        values.SetSize(vDim);
+        
+        // set the data in values, which is a subset of the full
+        // element data stored in elem_vec. This is a routine
+        // written by SRW on the vector class
+        values.SetVector(elem_vec, 0, vDim, ip_num*vDim);
+}
+
 inline void QuadratureFunction::GetElementValues(int idx, DenseMatrix &values)
 {
    const int s_offset = qspace->element_offsets[idx];
    const int sl_size = qspace->element_offsets[idx+1] - s_offset;
    values.Reset(data + vdim*s_offset, vdim, sl_size);
+}
+
+inline void QuadratureFunction::GetElementValues(int idx,
+                                                 DenseMatrix &values) const
+{
+   const int s_offset = qspace->element_offsets[idx];
+   const int sl_size = qspace->element_offsets[idx+1] - s_offset;
+   values.SetSize(vdim, sl_size);
+   double *q = data + vdim*s_offset;
+   for (int j = 0; j<sl_size; j++)
+      for (int i = 0; i<vdim; i++)
+      {
+         values(i,j) = *(q++);
+      }
 }
 
 } // namespace mfem

@@ -1236,6 +1236,58 @@ void GridFunction::AccumulateAndCountZones(Coefficient &coeff,
    }
 }
 
+void GridFunction::AccumulateAndCountZones(VectorCoefficient &vcoeff,
+                                           AvgType type,
+                                           Array<int> &zones_per_vdof)
+{
+   zones_per_vdof.SetSize(fes->GetVSize());
+   zones_per_vdof = 0;
+
+   // Local interpolation
+   Array<int> vdofs;
+   Vector vals;
+   *this = 0.0;
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fes->GetElementVDofs(i, vdofs);
+      // Local interpolation of coeff.
+      vals.SetSize(vdofs.Size());
+      fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
+
+      // Accumulate values in all dofs, count the zones.
+      for (int j = 0; j < vdofs.Size(); j++)
+      {
+         int ldof;
+         int isign;
+         if (vdofs[j] < 0 )
+         {
+            ldof = -1-vdofs[j];
+            isign = -1;
+         }
+         else
+         {
+            ldof = vdofs[j];
+            isign = 1;
+         }
+
+         if (type == HARMONIC)
+         {
+            MFEM_VERIFY(vals[j] != 0.0,
+                        "Coefficient has zeros, harmonic avg is undefined!");
+            (*this)(ldof) += isign / vals[j];
+         }
+         else if (type == ARITHMETIC)
+         {
+            (*this)(ldof) += isign*vals[j];
+
+         }
+         else { MFEM_ABORT("Not implemented"); }
+
+         zones_per_vdof[ldof]++;
+      }
+   }
+}
+
 void GridFunction::ComputeMeans(AvgType type, Array<int> &zones_per_vdof)
 {
    switch (type)
@@ -1440,6 +1492,8 @@ void GridFunction::ProjectCoefficient(Coefficient *coeff[])
          transf->SetIntPoint(&ip);
          for (d = 0; d < vdim; d++)
          {
+            if (!coeff[d]) { continue; }
+
             val = coeff[d]->Eval(*transf, ip);
             if ( (ind = vdofs[fdof*d+j]) < 0 )
             {
@@ -1499,6 +1553,15 @@ void GridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
    ComputeMeans(type, zones_per_vdof);
 }
 
+void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff,
+                                          AvgType type)
+{
+   Array<int> zones_per_vdof;
+   AccumulateAndCountZones(coeff, type, zones_per_vdof);
+
+   ComputeMeans(type, zones_per_vdof);
+}
+
 void GridFunction::ProjectBdrCoefficient(
    Coefficient *coeff[], Array<int> &attr)
 {
@@ -1525,6 +1588,8 @@ void GridFunction::ProjectBdrCoefficient(
             transf->SetIntPoint(&ip);
             for (d = 0; d < vdim; d++)
             {
+               if (!coeff[d]) { continue; }
+
                val = coeff[d]->Eval(*transf, ip);
                if ( (ind = vdofs[fdof*d+j]) < 0 )
                {
@@ -1566,6 +1631,8 @@ void GridFunction::ProjectBdrCoefficient(
          vals.SetSize(fe->GetDof());
          for (d = 0; d < vdim; d++)
          {
+            if (!coeff[d]) { continue; }
+
             fe->Project(*coeff[d], *transf, vals);
             for (int k = 0; k < vals.Size(); k++)
             {
@@ -2562,25 +2629,23 @@ QuadratureFunction::QuadratureFunction(Mesh *mesh, std::istream &in)
    Load(in, vdim*qspace->GetSize());
 }
 
-void QuadratureFunction::GetElementValues(int idx, int ip_num, 
-                                          Vector &values)
+QuadratureFunction & QuadratureFunction::operator=(double value)
 {
-   // get the element values and store them in elem_vec
-   Vector elem_vec;
-   GetElementValues(idx, elem_vec);
+   Vector::operator=(value);
+   return *this;
+}
 
-   // get the vector dimension of the quadrature function.
-   // This is the size of data stored at each integration point
-   int vDim = GetVDim();
+QuadratureFunction & QuadratureFunction::operator=(const Vector &v)
+{
+   MFEM_ASSERT(qspace && v.Size() == qspace->GetSize(), "");
+   Vector::operator=(v);
+   return *this;
+}
 
-   // set the size of the integration point data vector @a values
-   values.SetSize(vDim);
-
-   // set the data in values, which is a subset of the full 
-   // element data stored in elem_vec. This is a routine 
-   // written by SRW on the vector class
-   values.SetVector(elem_vec, 0, vDim, ip_num*vDim);
-} 
+QuadratureFunction & QuadratureFunction::operator=(const QuadratureFunction &v)
+{
+   return this->operator=((const Vector &)v);
+}
 
 void QuadratureFunction::Save(std::ostream &out) const
 {

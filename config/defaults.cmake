@@ -21,6 +21,7 @@ endif()
 # MFEM options. Set to mimic the default "defaults.mk" file.
 option(MFEM_USE_MPI "Enable MPI parallel build" OFF)
 option(MFEM_USE_METIS "Enable METIS usage" ${MFEM_USE_MPI})
+option(MFEM_USE_EXCEPTIONS "Enable the use of exceptions" OFF)
 option(MFEM_USE_GZSTREAM "Enable gzstream for compressed data streams." OFF)
 option(MFEM_USE_LIBUNWIND "Enable backtrace for errors." OFF)
 option(MFEM_USE_LAPACK "Enable LAPACK usage" OFF)
@@ -38,6 +39,8 @@ option(MFEM_USE_NETCDF "Enable NETCDF usage" OFF)
 option(MFEM_USE_PETSC "Enable PETSc support." OFF)
 option(MFEM_USE_MPFR "Enable MPFR usage." OFF)
 option(MFEM_USE_SIDRE "Enable Axom/Sidre usage" OFF)
+option(MFEM_USE_CONDUIT "Enable Conduit usage" OFF)
+option(MFEM_USE_PUMI "Enable PUMI" OFF)
 
 # Allow a user to disable testing, examples, and/or miniapps at CONFIGURE TIME
 # if they don't want/need them (e.g. if MFEM is "just a dependency" and all they
@@ -137,13 +140,14 @@ set(MPFR_DIR "" CACHE PATH "Path to the MPFR library.")
 
 set(CONDUIT_DIR "${MFEM_DIR}/../conduit" CACHE PATH
     "Path to the Conduit library.")
-set(Conduit_REQUIRED_PACKAGES "HDF5" CACHE STRING
-    "Additional packages required by Conduit.")
 
 set(AXOM_DIR "${MFEM_DIR}/../axom" CACHE PATH "Path to the Axom library.")
 # May need to add "Boost" as requirement.
 set(Axom_REQUIRED_PACKAGES "Conduit/relay" CACHE STRING
     "Additional packages required by Axom.")
+
+set(PUMI_DIR "${MFEM_DIR}/../pumi-2.1.0" CACHE STRING
+    "Directory where PUMI is installed")
 
 set(BLAS_INCLUDE_DIRS "" CACHE STRING "Path to BLAS headers.")
 set(BLAS_LIBRARIES "" CACHE STRING "The BLAS library.")
