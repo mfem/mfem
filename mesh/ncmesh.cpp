@@ -297,7 +297,8 @@ void NCMesh::RefElement(int elem)
       if (Dim < 4)
          faces.GetId(node[fv[0]], node[fv[1]], node[fv[2]], node[fv[3]]);
       else
-         faces4d.GetId(node[fv[0]], node[fv[1]], node[fv[2]], node[fv[3]], std::numeric_limits<int>::max());
+         faces4d.GetId(node[fv[0]], node[fv[1]], node[fv[2]], node[fv[3]],
+                       std::numeric_limits<int>::max());
 
       // NOTE: face->RegisterElement called separately to avoid having
       // to store 3 element indices  temporarily in the face when refining.
@@ -1936,6 +1937,105 @@ void NCMesh::GetMeshComponents(Array<mfem::Vertex>& mvertices,
    }
 }
 
+void NCMesh::GetMeshComponents(Array<mfem::Vertex>& mvertices,
+                               Array<mfem::Element*>& melements,
+                               Array<mfem::Element*>& mboundary,
+                               MemAlloc<Tetrahedron, 1024> &TetMemory) const
+{
+   mvertices.SetSize(vertex_nodeId.Size());
+   if (top_vertex_pos.Size())
+   {
+      // calculate vertex positions from stored top-level vertex coordinates
+      tmp_vertex = new TmpVertex[nodes.NumIds()];
+      for (int i = 0; i < mvertices.Size(); i++)
+      {
+         mvertices[i].SetCoords(spaceDim, CalcVertexPos(vertex_nodeId[i]));
+      }
+      delete [] tmp_vertex;
+   }
+   // NOTE: if the mesh is curved (top_vertex_pos is empty), mvertices are left
+   // uninitialized here; they will be initialized later by the Mesh from Nodes
+   // - here we just make sure mvertices has the correct size.
+
+   melements.SetSize(leaf_elements.Size() - GetNumGhostElements());
+   melements.SetSize(0);
+
+   mboundary.SetSize(0);
+
+   // create an mfem::Element for each leaf Element
+   for (int i = 0; i < leaf_elements.Size(); i++)
+   {
+      const Element &nc_elem = elements[leaf_elements[i]];
+      if (IsGhost(nc_elem)) { continue; } // ParNCMesh
+
+      const int* node = nc_elem.node;
+      GeomInfo& gi = GI[(int) nc_elem.geom];
+
+      mfem::Element* elem = NewMeshElement(nc_elem.geom);
+      melements.Append(elem);
+
+      elem->SetAttribute(nc_elem.attribute);
+      for (int j = 0; j < gi.nv; j++)
+      {
+         elem->GetVertices()[j] = nodes[node[j]].vert_index;
+      }
+
+      // create boundary elements
+      if (Dim <= 3)
+      {
+         for (int k = 0; k < gi.nf; k++)
+         {
+            const int* fv = gi.faces[k];
+            const Face* face = faces.Find(node[fv[0]], node[fv[1]],
+                                          node[fv[2]], node[fv[3]]);
+            if (face->Boundary())
+            {
+               if (nc_elem.geom == Geometry::CUBE)
+               {
+                  Quadrilateral* quad = new Quadrilateral;
+                  quad->SetAttribute(face->attribute);
+                  for (int j = 0; j < 4; j++)
+                  {
+                     quad->GetVertices()[j] = nodes[node[fv[j]]].vert_index;
+                  }
+                  mboundary.Append(quad);
+               }
+               else
+               {
+                  Segment* segment = new Segment;
+                  segment->SetAttribute(face->attribute);
+                  for (int j = 0; j < 2; j++)
+                  {
+                     segment->GetVertices()[j] = nodes[node[fv[2*j]]].vert_index;
+                  }
+                  mboundary.Append(segment);
+               }
+            }
+         }
+      }
+      else
+      {
+         for (int k = 0; k < gi.nf; k++)
+         {
+            const int* fv = gi.faces[k];
+            const Face4D* face = faces4d.Find(node[fv[0]], node[fv[1]],
+                                            node[fv[2]], node[fv[3]],
+                                            std::numeric_limits<int>::max());
+            if (face->Boundary())
+            {
+               Tetrahedron *tet = TetMemory.Alloc();
+               tet->SetAttribute(face->attribute);
+               for (int j = 0; j < 4; j++)
+               {
+                  tet->GetVertices()[j] = nodes[node[fv[j]]].vert_index;
+               }
+               mboundary.Append(tet);
+            }
+         }
+      }
+   }
+}
+
 void NCMesh::OnMeshUpdated(Mesh *mesh)
 {
    Table *edge_vertex = mesh->GetEdgeVertexTable();
@@ -2214,7 +2314,7 @@ void NCMesh::TraverseFace(int vn0, int vn1, int vn2, int vn3,
          }
       }
 
-      // we need to recurse deeper
+      // we need to recurse deeper TODO
       int mid[6];
       mid[0] = nodes.FindId(vn0,vn1); mid[1] = nodes.FindId(vn0,vn2);
       mid[2] = nodes.FindId(vn0,vn3); mid[3] = nodes.FindId(vn1,vn2);
@@ -2229,26 +2329,26 @@ void NCMesh::TraverseFace(int vn0, int vn1, int vn2, int vn3,
                       PointMatrix(pm(0),mid0,mid1,mid2), level+1);
       if (mid[0] != -1 && mid[3] != -1 && mid[4] != -1)
          TraverseFace(mid[0],vn1,mid[3],mid[4],
-                   PointMatrix(pm(0),mid0,mid1,mid2), level+1);
+                      PointMatrix(mid0,pm(1),mid3,mid4), level+1);
       if (mid[1] != -1 && mid[3] != -1 && mid[5] != -1)
          TraverseFace(mid[1],mid[3],vn2,mid[5],
-                   PointMatrix(pm(0),mid0,mid1,mid2), level+1);
+                      PointMatrix(mid1,mid3,pm(2),mid5), level+1);
       if (mid[2] != -1 && mid[4] != -1 && mid[5] != -1)
          TraverseFace(mid[2],mid[4],mid[5],vn3,
-                   PointMatrix(pm(0),mid0,mid1,mid2), level+1);
+                      PointMatrix(mid2,mid4,mid5,pm(3)), level+1);
       // interior tetrahedrons
       if (mid[0] != -1 && mid[1] != -1 && mid[3] != -1 && mid[4] != -1)
          TraverseFace(mid[0],mid[1],mid[3],mid[4],
-                   PointMatrix(pm(0),mid0,mid1,mid2), level+1);
+                      PointMatrix(mid0,mid1,mid3,mid4), level+1);
       if (mid[0] != -1 && mid[1] != -1 && mid[2] != -1 && mid[4] != -1)
          TraverseFace(mid[0],mid[1],mid[2],mid[4],
-                   PointMatrix(pm(0),mid0,mid1,mid2), level+1);
+                      PointMatrix(mid0,mid1,mid2,mid4), level+1);
       if (mid[1] != -1 && mid[3] != -1 && mid[4] != -1 && mid[5] != -1)
          TraverseFace(mid[1],mid[3],mid[4],mid[5],
-                   PointMatrix(pm(0),mid0,mid1,mid2), level+1);
+                      PointMatrix(mid1,mid3,mid4,mid5), level+1);
       if (mid[1] != -1 && mid[2] != -1 && mid[4] != -1 && mid[5] != -1)
          TraverseFace(mid[1],mid[2],mid[4],mid[5],
-                   PointMatrix(pm(0),mid0,mid1,mid2), level+1);
+                      PointMatrix(mid1,mid2,mid4,mid5), level+1);
 
    }
 }
@@ -2353,7 +2453,7 @@ void NCMesh::BuildFaceList()
             }
             else
             {
-               PointMatrix pm(Point(0,0), Point(1,0), Point(1,1), Point(0,1));
+               PointMatrix pm(Point(0,0,0), Point(1,0,0), Point(0,1,0), Point(0,0,1));
 
                // this is either a master face or a slave face, but we can't
                // tell until we traverse the face refinement 'tree'...
@@ -3761,13 +3861,70 @@ void NCMesh::FindFaceNodes(int face, int node[4])
    }
 }
 
+void NCMesh::FindFaceNodes4D(int face, int node[4])
+{
+   // Obtain face nodes from one of its elements (note that face->p1, p2, p3
+   // cannot be used directly since they are not in order and p4 is missing).
+
+   Face4D &fa = faces4d[face];
+
+   int elem = fa.elem[0];
+   if (elem < 0) { elem = fa.elem[1]; }
+   MFEM_ASSERT(elem >= 0, "Face has no elements?");
+
+   Element &el = elements[elem];
+   int f = find_pent_face(find_node(el, fa.p1),
+                          find_node(el, fa.p2),
+                          find_node(el, fa.p3),
+                          find_node(el, fa.p4));
+
+   const int* fv = GI[Geometry::PENTATOPE].faces[f];
+   for (int i = 0; i < 4; i++)
+   {
+      node[i] = el.node[fv[i]];
+   }
+}
+
 void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
                                 Array<int> &bdr_vertices, Array<int> &bdr_edges)
 {
    bdr_vertices.SetSize(0);
    bdr_edges.SetSize(0);
 
-   if (Dim == 3)
+   if (Dim == 4)
+   {
+      GetFaceList(); // make sure 'boundary_faces' is up to date
+
+      for (int i = 0; i < boundary_faces.Size(); i++)
+      {
+         int face = boundary_faces[i];
+         if (bdr_attr_is_ess[faces4d[face].attribute - 1])
+         {
+            int node[4];
+            FindFaceNodes4D(face, node);
+
+            for (int j = 0; j < 4; j++)
+            {
+               bdr_vertices.Append(nodes[node[j]].vert_index);
+
+               for (int k = j+1; k < 4; k++)
+               {
+                  int enode = nodes.FindId(node[j], node[k]);
+                  MFEM_ASSERT(enode >= 0 && nodes[enode].HasEdge(), "Edge not found.");
+                  bdr_edges.Append(nodes[enode].edge_index);
+
+                  while ((enode = GetEdgeMaster(enode)) >= 0)
+                  {
+                     // append master edges that may not be accessible from any
+                     // boundary element, this happens in 3D in re-entrant corners
+                     bdr_edges.Append(nodes[enode].edge_index);
+                  }
+               }
+            }
+         }
+      }
+   }
+   else if (Dim == 3)
    {
       GetFaceList(); // make sure 'boundary_faces' is up to date
 
@@ -3860,7 +4017,7 @@ static int max8(int a, int b, int c, int d, int e, int f, int g, int h)
                    std::max(std::max(e, f), std::max(g, h)));
 }
 
-void NCMesh::CountSplits(int elem, int splits[3]) const
+void NCMesh::CountSplits(int elem, int splits[4]) const
 {
    const Element &el = elements[elem];
    const int* node = el.node;
@@ -3902,6 +4059,15 @@ void NCMesh::CountSplits(int elem, int splits[3]) const
       splits[0] = std::max(elevel[0], std::max(elevel[1], elevel[2]));
       splits[1] = splits[0];
    }
+   else if (el.geom == Geometry::PENTATOPE)
+   {
+      splits[0] = -1;
+      for (int i = 0; i < gi.ne; i++)
+         splits[0] = std::max(splits[0], elevel[i]);
+      splits[1] = splits[0];
+      splits[2] = splits[0];
+      splits[3] = splits[0];
+   }
    else
    {
       MFEM_ABORT("Unsupported element geometry.");
@@ -3914,7 +4080,7 @@ void NCMesh::GetLimitRefinements(Array<Refinement> &refinements, int max_level)
    {
       if (IsGhost(elements[leaf_elements[i]])) { break; }
 
-      int splits[3];
+      int splits[4];
       CountSplits(leaf_elements[i], splits);
 
       char ref_type = 0;

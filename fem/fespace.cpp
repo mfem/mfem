@@ -782,7 +782,7 @@ void FiniteElementSpace::BuildConformingInterpolation4D() const
       for (unsigned mi = 0; mi < list.masters.size(); mi++)
       {
          const NCMesh::Master &master = list.masters[mi];
-         GetEntityDofs(entity, master.index, master_dofs);
+         GetEntityDofs4D(entity, master.index, master_dofs);
          if (!master_dofs.Size()) { continue; }
 
          for (int si = master.slaves_begin; si < master.slaves_end; si++)

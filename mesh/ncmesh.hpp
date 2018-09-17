@@ -323,6 +323,11 @@ protected: // interface for Mesh to be able to construct itself from NCMesh
                           Array<mfem::Element*>& melements,
                           Array<mfem::Element*>& mboundary) const;
 
+   void GetMeshComponents(Array<mfem::Vertex>& mvertices,
+                          Array<mfem::Element*>& melements,
+                          Array<mfem::Element*>& mboundary,
+                          MemAlloc<Tetrahedron, 1024> &TetMem) const;
+
    /** Get edge and face numbering from 'mesh' (i.e., set all Edge::index and
        Face::index) after a new mesh was created from us. */
    virtual void OnMeshUpdated(Mesh *mesh);
@@ -772,12 +777,13 @@ protected: // implementation
    int GetEdgeMaster(int node) const;
 
    void FindFaceNodes(int face, int node[4]);
+   void FindFaceNodes4D(int face, int node[4]);
 
    int  EdgeSplitLevel(int vn1, int vn2) const;
    void FaceSplitLevel(int vn1, int vn2, int vn3, int vn4,
                        int& h_level, int& v_level) const;
 
-   void CountSplits(int elem, int splits[3]) const;
+   void CountSplits(int elem, int splits[4]) const;
    void GetLimitRefinements(Array<Refinement> &refinements, int max_level);
 
    int PrintElements(std::ostream &out, int elem, int &coarse_id) const;

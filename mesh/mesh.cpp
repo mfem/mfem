@@ -7317,8 +7317,11 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
 
    DeleteTables();
 
+#ifdef MFEM_USE_MEMALLOC
+   ncmesh.GetMeshComponents(vertices, elements, boundary, TetMemory);
+#else
    ncmesh.GetMeshComponents(vertices, elements, boundary);
-
+#endif
    NumOfVertices = vertices.Size();
    NumOfElements = elements.Size();
    NumOfBdrElements = boundary.Size();
@@ -7339,6 +7342,7 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
    if (Dim > 3)
    {
       swappedElements.SetSize(NumOfElements);
+      swappedElements = false;
       GetElementToFaceTable4D();
    }
    GenerateFaces();
