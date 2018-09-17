@@ -306,9 +306,9 @@ public:
                                  Coefficient *weight = NULL,
                                  const IntegrationRule *irs[] = NULL) const;
 
-   /** Compute the Lp error in each element of the mesh and store the
-       results in a GridFunction, error.  The result should be an L2
-       GridFunction of order zero using map type VALUE. */
+   /** Compute the Lp error in each element of the mesh and store the results in
+       the GridFunction @a error. The result should be an L2 GridFunction of
+       order zero using map type VALUE. */
    virtual void ComputeElementLpErrors(const double p, Coefficient &exsol,
                                        GridFunction &error,
                                        Coefficient *weight = NULL,
@@ -341,9 +341,9 @@ public:
                                  VectorCoefficient *v_weight = NULL,
                                  const IntegrationRule *irs[] = NULL) const;
 
-   /** Compute the Lp error in each element of the mesh and store the
-       results in a GridFunction, error.  The result should be an L2
-       GridFunction of order zero using map type VALUE. */
+   /** Compute the Lp error in each element of the mesh and store the results in
+       the GridFunction @ error. The result should be an L2 GridFunction of
+       order zero using map type VALUE. */
    virtual void ComputeElementLpErrors(const double p, VectorCoefficient &exsol,
                                        GridFunction &error,
                                        Coefficient *weight = NULL,
