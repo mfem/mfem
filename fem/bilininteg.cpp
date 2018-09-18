@@ -2329,10 +2329,9 @@ void ElasticityIntegrator::ComputeElementFlux(
          stress(2,0) = s13; stress(2,1) = s23; stress(2,2) = s33;
       }
 
-      // the stress values at each integration point in the column
-      // selected by flux_col_ are stored in a vector
-      // in principle, flux_col_ could be selected by the user to give
-      // slightly different error estimatros
+      // The stress values at each integration point in the column selected by
+      // flux_col_ are stored in a vector.  In principle, flux_col_ could be
+      // selected by the user to give slightly different error estimators.
       const int flux_col_ = 0;
       for (int si = 0; si < spaceDim; si++)
       {
