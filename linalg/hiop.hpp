@@ -31,12 +31,11 @@ namespace mfem
 class HiopProblemSpec : public hiop::hiopInterfaceDenseConstraints
 {
 private:
-   OptimizationProblem &opt_prob;
    Vector workVec2_; //used as work space of size n_local_
 
 public:
-   HiopProblemSpec(OptimizationProblem &problem, const long long& n_loc)
-      : opt_prob(problem), n_(n_loc), n_local_(n_loc), a_(0.),
+   HiopProblemSpec(const long long& n_loc)
+      : n_(n_loc), n_local_(n_loc), a_(0.),
         workVec_(n_loc), use_initial_x_value(false)
   { 
 #ifdef MFEM_USE_MPI
@@ -46,9 +45,9 @@ public:
   }
 
 #ifdef MFEM_USE_MPI
-   HiopProblemSpec(OptimizationProblem &problem, const MPI_Comm& _comm,
+   HiopProblemSpec(const MPI_Comm& _comm,
                    const long long& _n_local)
-      : opt_prob(problem), comm_(_comm), n_local_(_n_local), a_(0.),
+      : comm_(_comm), n_local_(_n_local), a_(0.),
         workVec_(_n_local), use_initial_x_value(false)
    {
       int ierr = MPI_Allreduce(&n_local_, &n_, 1, MPI_LONG_LONG_INT, MPI_SUM, comm_);
@@ -156,6 +155,9 @@ public:
     *   - cons: array of size num_cons containing the value of the  constraints indicated by idx_cons
     *
     *  When MPI enabled, every rank populates 'cons' since the constraints are not distributed.
+    *
+    *  idx_cons[0] = C(x)
+    *  idx_cons[1] = D(x)
     */
    virtual bool eval_cons(const long long& n, const long long& m,
 			   const long long& num_cons, const long long* idx_cons,
@@ -297,13 +299,13 @@ class HiopProblemSpec_Simple : public HiopProblemSpec
 
 public:
 
-   HiopProblemSpec_Simple(OptimizationProblem &problem, const long long& n_loc)
-      : HiopProblemSpec(problem, n_loc) {}
+   HiopProblemSpec_Simple(const long long& n_loc)
+      : HiopProblemSpec(n_loc) {}
 
 #ifdef MFEM_USE_MPI
-   HiopProblemSpec_Simple(OptimizationProblem &problem, const MPI_Comm& _comm,
+   HiopProblemSpec_Simple(const MPI_Comm& _comm,
                           const long long& _n_local)
-      : HiopProblemSpec(problem, _comm, _n_local) {}
+      : HiopProblemSpec(_comm, _n_local) {}
 #endif
 
    /** Objective function evaluation. Each rank returns the global obj. value. */
