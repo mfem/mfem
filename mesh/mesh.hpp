@@ -497,7 +497,7 @@ public:
    void AddHex(const int *vi, int attr = 1);
    void AddHexAsTets(const int *vi, int attr = 1);
    void AddHexAsWedges(const int *vi, int attr = 1);
-   // 'elem' should be allocated using the NewElement method
+   /// The parameter @a elem should be allocated using the NewElement() method
    void AddElement(Element *elem)     { elements[NumOfElements++] = elem; }
    void AddBdrElement(Element *elem)  { boundary[NumOfBdrElements++] = elem; }
    void AddBdrSegment(const int *vi, int attr = 1);

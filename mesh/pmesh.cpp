@@ -807,15 +807,11 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
    if (Dim >= 3)
    {
       skip_comment_lines(input, '#');
-      int num_stria;
-      int num_squad;
-      input >> ident >> num_stria; // total_shared_triangles
-      input >> ident >> num_squad; // total_shared_quadrilaterals
-      shared_trias.SetSize(num_stria);
-      shared_quads.SetSize(num_squad);
-      sface_lface.SetSize(num_stria + num_squad);
-      group_stria.SetDims(GetNGroups()-1, num_stria);
-      group_squad.SetDims(GetNGroups()-1, num_squad);
+      int num_sface;
+      input >> ident >> num_sface; // total_shared_faces
+      sface_lface.SetSize(num_sface);
+      group_stria.MakeI(GetNGroups()-1);
+      group_squad.MakeI(GetNGroups()-1);
       faces_tbl = GetFacesTable();
    }
    else
@@ -828,10 +824,11 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
    // group_sedge, shared_edges, group_{stria,squad}, shared_{trias,quads}
    //
    // derive the contents of sedge_ledge, sface_lface
-   int svert_counter = 0, sedge_counter = 0,
-       stria_counter = 0, squad_counter = 0;
+   int svert_counter = 0, sedge_counter = 0;
    for (int gr = 1; gr < GetNGroups(); gr++)
    {
+      skip_comment_lines(input, '#');
+#if 0
       int g;
       input >> ident >> g; // group
       if (g != gr)
@@ -840,6 +837,7 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
                    << ", read group " << g << endl;
          mfem_error();
       }
+#endif
 
       {
          int nv;
@@ -872,37 +870,61 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
       }
       if (Dim >= 3)
       {
-         int nf;
-         input >> ident >> nf; // shared_triangles (in this group)
-         nf += stria_counter;
-         MFEM_VERIFY(nf <= group_stria.Size_of_connections(),
-                     "incorrect number of total_shared_triangles");
-         group_stria.GetI()[gr] = nf;
-         for ( ; stria_counter < nf; stria_counter++)
+         int nf, tstart = shared_trias.Size(), qstart = shared_quads.Size();
+         input >> ident >> nf; // shared_faces (in this group)
+         for (int i = 0; i < nf; i++)
          {
-            group_stria.GetJ()[stria_counter] = stria_counter;
-            int *v = shared_trias[stria_counter].v;
-            input >> v[0]; // geometry
-            MFEM_ASSERT(v[0] == Geometry::TRIANGLE, "invalid input");
-            for (int i = 0; i < 3; i++) { input >> v[i]; }
-            sface_lface[stria_counter] = (*faces_tbl)(v[0], v[1], v[2]);
+            int geom, *v;
+            input >> geom;
+            switch (geom)
+            {
+               case Geometry::TRIANGLE:
+                  shared_trias.SetSize(shared_trias.Size()+1);
+                  v = shared_trias.Last().v;
+                  for (int i = 0; i < 3; i++) { input >> v[i]; }
+                  break;
+               case Geometry::SQUARE:
+                  shared_quads.SetSize(shared_quads.Size()+1);
+                  v = shared_quads.Last().v;
+                  for (int i = 0; i < 4; i++) { input >> v[i]; }
+                  break;
+               default:
+                  MFEM_ABORT("invalid shared face geometry: " << geom);
+            }
          }
-
-         input >> ident >> nf; // shared_quadrilaterals (in this group)
-         nf += squad_counter;
-         MFEM_VERIFY(nf <= group_squad.Size_of_connections(),
-                     "incorrect number of total_shared_quadrilaterals");
-         group_squad.GetI()[gr] = nf;
-         for ( ; squad_counter < nf; squad_counter++)
-         {
-            group_squad.GetJ()[squad_counter] = squad_counter;
-            int *v = shared_quads[squad_counter].v;
-            input >> v[0]; // geometry
-            MFEM_ASSERT(v[0] == Geometry::SQUARE, "invalid input");
-            for (int i = 0; i < 4; i++) { input >> v[i]; }
-            sface_lface[shared_trias.Size()+squad_counter] =
-               (*faces_tbl)(v[0], v[1], v[2], v[3]);
-         }
+         group_stria.AddColumnsInRow(gr-1, shared_trias.Size()-tstart);
+         group_squad.AddColumnsInRow(gr-1, shared_quads.Size()-qstart);
+      }
+   }
+   if (Dim >= 3)
+   {
+      MFEM_VERIFY(shared_trias.Size() + shared_quads.Size()
+                  == sface_lface.Size(),
+                  "incorrect number of total_shared_faces");
+      // Define the J arrays of group_stria and group_squad -- they just contain
+      // consecutive numbers starting from 0 up to shared_trias.Size()-1 and
+      // shared_quads.Size()-1, respectively.
+      group_stria.MakeJ();
+      for (int i = 0; i < shared_trias.Size(); i++)
+      {
+         group_stria.GetJ()[i] = i;
+      }
+      group_squad.MakeJ();
+      for (int i = 0; i < shared_quads.Size(); i++)
+      {
+         group_squad.GetJ()[i] = i;
+      }
+      // Define sface_lface
+      for (int i = 0; i < shared_trias.Size(); i++)
+      {
+         const int *v = shared_trias[i].v;
+         sface_lface[i] = (*faces_tbl)(v[0], v[1], v[2]);
+      }
+      for (int i = 0; i < shared_quads.Size(); i++)
+      {
+         const int *v = shared_quads[i].v;
+         sface_lface[shared_trias.Size()+i] =
+            (*faces_tbl)(v[0], v[1], v[2], v[3]);
       }
    }
    delete faces_tbl;
@@ -910,6 +932,11 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
 
    const bool fix_orientation = false;
    Finalize(refine, fix_orientation);
+
+   // FIXME: if 'refine' is true some elements may be rotated, invalidating
+   //        some parallel data, e.g. sface_lface. Also, it may be necessary to
+   //        rotate shared triangles (for bisection refinement) if the adjacent
+   //        tetrahedron was rotated.
 
    // If the mesh has Nodes, convert them from GridFunction to ParGridFunction?
 
@@ -4921,15 +4948,14 @@ void ParMesh::ParPrint(ostream &out) const
    }
    if (Dim >= 3)
    {
-      out << "total_shared_triangles " << shared_trias.Size() << '\n';
-      out << "total_shared_quadrilaterals " << shared_quads.Size() << '\n';
+      out << "total_shared_faces " << sface_lface.Size() << '\n';
    }
    for (int gr = 1; gr < GetNGroups(); gr++)
    {
       {
          const int  nv = group_svert.RowSize(gr-1);
          const int *sv = group_svert.GetRow(gr-1);
-         out << "\n#group " << gr << "\nshared_vertices " << nv << '\n';
+         out << "\n# group " << gr << "\nshared_vertices " << nv << '\n';
          for (int i = 0; i < nv; i++)
          {
             out << svert_lvert[sv[i]] << '\n';
@@ -4952,7 +4978,7 @@ void ParMesh::ParPrint(ostream &out) const
          const int *st = group_stria.GetRow(gr-1);
          const int  nq = group_squad.RowSize(gr-1);
          const int *sq = group_squad.GetRow(gr-1);
-         out << "\nshared_triangles " << nt << '\n';
+         out << "\nshared_faces " << nt+nq << '\n';
          for (int i = 0; i < nt; i++)
          {
             out << Geometry::TRIANGLE;
@@ -4960,7 +4986,6 @@ void ParMesh::ParPrint(ostream &out) const
             for (int j = 0; j < 3; j++) { out << ' ' << v[j]; }
             out << '\n';
          }
-         out << "\nshared_quadrilaterials " << nq << '\n';
          for (int i = 0; i < nq; i++)
          {
             out << Geometry::SQUARE;
