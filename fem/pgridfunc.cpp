@@ -438,6 +438,49 @@ void ParGridFunction::ProjectBdrCoefficient(
 #endif
 }
 
+void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
+                                                   Array<int> &bdr_attr)
+{
+   Array<int> values_counter;
+   AccumulateAndCountBdrTangentValues(vcoeff, bdr_attr, values_counter);
+   if (pfes->Conforming())
+   {
+      Vector values(Size());
+      for (int i = 0; i < values.Size(); i++)
+      {
+         values(i) = values_counter[i] ? (*this)(i) : 0.0;
+      }
+      // Count the values globally.
+      GroupCommunicator &gcomm = pfes->GroupComm();
+      gcomm.Reduce<int>(values_counter, GroupCommunicator::Sum);
+      // Accumulate the values globally.
+      gcomm.Reduce<double>(values, GroupCommunicator::Sum);
+      // Only the values in the master are guaranteed to be correct!
+      for (int i = 0; i < values.Size(); i++)
+      {
+         if (values_counter[i])
+         {
+            (*this)(i) = values(i)/values_counter[i];
+         }
+      }
+   }
+   else
+   {
+      // FIXME: same as the conforming case after 'cut-mesh-groups-dev-*' is
+      //        merged?
+   }
+#ifdef MFEM_DEBUG
+   Array<int> ess_vdofs_marker;
+   pfes->GetEssentialVDofs(bdr_attr, ess_vdofs_marker);
+   for (int i = 0; i < values_counter.Size(); i++)
+   {
+      MFEM_ASSERT(pfes->GetLocalTDofNumber(i) == -1 ||
+                  bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
+                  "internal error");
+   }
+#endif
+}
+
 void ParGridFunction::Save(std::ostream &out) const
 {
    for (int i = 0; i < size; i++)
