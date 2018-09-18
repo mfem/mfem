@@ -534,6 +534,8 @@ void VisItDataCollection::LoadVisItRootFile(const std::string& root_name)
 
 void VisItDataCollection::LoadMesh()
 {
+   // GetMeshFileName() uses 'serial', so we need to set it in advance.
+   serial = (format == SERIAL_FORMAT);
    std::string mesh_fname = GetMeshFileName();
    named_ifgzstream file(mesh_fname.c_str());
    // TODO: in parallel, check for errors on all processors

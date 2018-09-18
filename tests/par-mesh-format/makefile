@@ -12,7 +12,7 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/tests/convergence/,)
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/tests/par-mesh-format/,)
 CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
    $(wildcard $(MFEM_BUILD_DIR)/share/mfem/config.mk))
 
@@ -20,7 +20,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_TESTS =
-PAR_TESTS = diffusion
+PAR_TESTS = ex1p
 ifeq ($(MFEM_USE_MPI),NO)
    TESTS = $(SEQ_TESTS)
 else
@@ -51,4 +51,4 @@ clean-build:
 	$(RM) -r *.dSYM
 
 clean-exec:
-	@true
+	@$(RM) -r ex1p-dc*
