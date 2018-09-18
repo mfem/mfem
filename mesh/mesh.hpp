@@ -292,9 +292,9 @@ protected:
    virtual bool NonconformingDerefinement(Array<double> &elem_error,
                                           double threshold, int nc_limit = 0,
                                           int op = 1);
-
-   /// Derefine elements once a list of derefinements is known.
-   void DerefineMesh(const Array<int> &derefinements);
+   /// Derefinement helper.
+   double AggregateError(const Array<double> &elem_error,
+                         const int *fine, int nfine, int op);
 
    /// Read NURBS patch/macro-element mesh
    void LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot);

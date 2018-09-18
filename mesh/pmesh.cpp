@@ -787,7 +787,7 @@ void ParMesh::BuildSharedVertMapping(int nvert,
 }
 
 
-// protected method, used by NonconformingRefinement and Rebalance
+// protected method, used by Nonconforming(De)Refinement and Rebalance
 ParMesh::ParMesh(const ParNCMesh &pncmesh)
    : MyComm(pncmesh.MyComm)
    , NRanks(pncmesh.NRanks)
@@ -2793,6 +2793,10 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
 bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
                                         double threshold, int nc_limit, int op)
 {
+   MFEM_VERIFY(pncmesh, "Only supported for non-conforming meshes.");
+   MFEM_VERIFY(!NURBSext, "Derefinement of NURBS meshes is not supported. "
+               "Project the NURBS to Nodes first.");
+
    const Table &dt = pncmesh->GetDerefinementTable();
 
    pncmesh->SynchronizeDerefinementData(elem_error, dt);
@@ -2808,34 +2812,37 @@ bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
    {
       if (nc_limit > 0 && !level_ok[i]) { continue; }
 
-      const int* fine = dt.GetRow(i);
-      int size = dt.RowSize(i);
-
-      double error = 0.0;
-      for (int j = 0; j < size; j++)
-      {
-         MFEM_VERIFY(fine[j] < elem_error.Size(), "");
-
-         double err_fine = elem_error[fine[j]];
-         switch (op)
-         {
-            case 0: error = std::min(error, err_fine); break;
-            case 1: error += err_fine; break;
-            case 2: error = std::max(error, err_fine); break;
-         }
-      }
+      double error =
+         AggregateError(elem_error, dt.GetRow(i), dt.RowSize(i), op);
 
       if (error < threshold) { derefs.Append(i); }
    }
 
    long glob_size = ReduceInt(derefs.Size());
-   if (glob_size)
+   if (!glob_size) { return false; }
+
+   pncmesh->Derefine(derefs);
+
+   ParMesh* mesh2 = new ParMesh(*pncmesh);
+   pncmesh->OnMeshUpdated(mesh2);
+
+   Swap(*mesh2, false);
+   delete mesh2;
+
+   pncmesh->GetConformingSharedStructures(*this);
+
+   GenerateNCFaceInfo();
+
+   last_operation = Mesh::DEREFINE;
+   sequence++;
+
+   if (Nodes) // update/interpolate mesh curvature
    {
-      DerefineMesh(derefs);
-      return true;
+      Nodes->FESpace()->Update();
+      Nodes->Update();
    }
 
-   return false;
+   return true;
 }
 
 void ParMesh::Rebalance()

@@ -6058,13 +6058,54 @@ void Mesh::NonconformingRefinement(const Array<Refinement> &refinements,
    }
 }
 
-void Mesh::DerefineMesh(const Array<int> &derefinements)
+double Mesh::AggregateError(const Array<double> &elem_error,
+                          const int *fine, int nfine, int op)
 {
-   MFEM_VERIFY(ncmesh, "only supported for non-conforming meshes.");
+   double error = 0.0;
+   for (int i = 0; i < nfine; i++)
+   {
+      MFEM_VERIFY(fine[i] < elem_error.Size(), "");
+
+      double err_fine = elem_error[fine[i]];
+      switch (op)
+      {
+         case 0: error = std::min(error, err_fine); break;
+         case 1: error += err_fine; break;
+         case 2: error = std::max(error, err_fine); break;
+      }
+   }
+   return error;
+}
+
+bool Mesh::NonconformingDerefinement(Array<double> &elem_error,
+                                     double threshold, int nc_limit, int op)
+{
+   MFEM_VERIFY(ncmesh, "Only supported for non-conforming meshes.");
    MFEM_VERIFY(!NURBSext, "Derefinement of NURBS meshes is not supported. "
                "Project the NURBS to Nodes first.");
 
-   ncmesh->Derefine(derefinements);
+   const Table &dt = ncmesh->GetDerefinementTable();
+
+   Array<int> level_ok;
+   if (nc_limit > 0)
+   {
+      ncmesh->CheckDerefinementNCLevel(dt, level_ok, nc_limit);
+   }
+
+   Array<int> derefs;
+   for (int i = 0; i < dt.Size(); i++)
+   {
+      if (nc_limit > 0 && !level_ok[i]) { continue; }
+
+      double error =
+         AggregateError(elem_error, dt.GetRow(i), dt.RowSize(i), op);
+
+      if (error < threshold) { derefs.Append(i); }
+   }
+
+   if (!derefs.Size()) { return false; }
+
+   ncmesh->Derefine(derefs);
 
    Mesh* mesh2 = new Mesh(*ncmesh);
    ncmesh->OnMeshUpdated(mesh2);
@@ -6082,51 +6123,8 @@ void Mesh::DerefineMesh(const Array<int> &derefinements)
       Nodes->FESpace()->Update();
       Nodes->Update();
    }
-}
 
-bool Mesh::NonconformingDerefinement(Array<double> &elem_error,
-                                     double threshold, int nc_limit, int op)
-{
-   const Table &dt = ncmesh->GetDerefinementTable();
-
-   Array<int> level_ok;
-   if (nc_limit > 0)
-   {
-      ncmesh->CheckDerefinementNCLevel(dt, level_ok, nc_limit);
-   }
-
-   Array<int> derefs;
-   for (int i = 0; i < dt.Size(); i++)
-   {
-      if (nc_limit > 0 && !level_ok[i]) { continue; }
-
-      const int* fine = dt.GetRow(i);
-      int size = dt.RowSize(i);
-
-      double error = 0.0;
-      for (int j = 0; j < size; j++)
-      {
-         MFEM_VERIFY(fine[j] < elem_error.Size(), "");
-
-         double err_fine = elem_error[fine[j]];
-         switch (op)
-         {
-            case 0: error = std::min(error, err_fine); break;
-            case 1: error += err_fine; break;
-            case 2: error = std::max(error, err_fine); break;
-         }
-      }
-
-      if (error < threshold) { derefs.Append(i); }
-   }
-
-   if (derefs.Size())
-   {
-      DerefineMesh(derefs);
-      return true;
-   }
-
-   return false;
+   return true;
 }
 
 bool Mesh::DerefineByError(Array<double> &elem_error, double threshold,
