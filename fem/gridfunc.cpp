@@ -1385,6 +1385,74 @@ void GridFunction::AccumulateAndCountBdrValues(
    }
 }
 
+static void accumulate_dofs(const Array<int> &dofs, const Vector &vals,
+                            Vector &gf, Array<int> &values_counter)
+{
+   for (int i = 0; i < dofs.Size(); i++)
+   {
+      int k = dofs[i];
+      double val = vals(i);
+      if (k < 0) { k = -1 - k; val = -val; }
+      if (++values_counter[k] == 1)
+      {
+         gf(k) = val;
+      }
+      else
+      {
+         gf(k) += val;
+      }
+   }
+}
+
+void GridFunction::AccumulateAndCountBdrTangentValues(
+   VectorCoefficient &vcoeff, Array<int> &bdr_attr,
+   Array<int> &values_counter)
+{
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   Array<int> dofs;
+   Vector lvec;
+
+   values_counter.SetSize(Size());
+   values_counter = 0;
+
+   for (int i = 0; i < fes->GetNBE(); i++)
+   {
+      if (bdr_attr[fes->GetBdrAttribute(i)-1] == 0)
+      {
+         continue;
+      }
+      fe = fes->GetBE(i);
+      T = fes->GetBdrElementTransformation(i);
+      fes->GetBdrElementDofs(i, dofs);
+      lvec.SetSize(fe->GetDof());
+      fe->Project(vcoeff, *T, lvec);
+      accumulate_dofs(dofs, lvec, *this, values_counter);
+   }
+
+   if (fes->Nonconforming() && fes->GetMesh()->Dimension() == 3)
+   {
+      Mesh *mesh = fes->GetMesh();
+      NCMesh *ncmesh = mesh->ncmesh;
+      Array<int> bdr_edges, bdr_vertices;
+      ncmesh->GetBoundaryClosure(bdr_attr, bdr_vertices, bdr_edges);
+
+      for (int i = 0; i < bdr_edges.Size(); i++)
+      {
+         int edge = bdr_edges[i];
+         fes->GetEdgeDofs(edge, dofs);
+         if (dofs.Size() == 0) { continue; }
+
+         T = mesh->GetEdgeTransformation(edge);
+         T->Attribute = -1; // FIXME: set the boundary attribute
+         fe = fes->GetEdgeElement(edge);
+         lvec.SetSize(fe->GetDof());
+         fe->Project(vcoeff, *T, lvec);
+         accumulate_dofs(dofs, lvec, *this, values_counter);
+      }
+   }
+}
+
 void GridFunction::ComputeMeans(AvgType type, Array<int> &zones_per_vdof)
 {
    switch (type)
@@ -1661,6 +1729,22 @@ void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff,
    ComputeMeans(type, zones_per_vdof);
 }
 
+void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
+{
+   Array<int> values_counter;
+   AccumulateAndCountBdrValues(coeff, attr, values_counter);
+   ComputeMeans(ARITHMETIC, values_counter);
+#ifdef MFEM_DEBUG
+   Array<int> ess_vdofs_marker;
+   fes->GetEssentialVDofs(attr, ess_vdofs_marker);
+   for (int i = 0; i < values_counter.Size(); i++)
+   {
+      MFEM_ASSERT(bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
+                  "internal error");
+   }
+#endif
+}
+
 void GridFunction::ProjectBdrCoefficientNormal(
    VectorCoefficient &vcoeff, Array<int> &bdr_attr)
 {
@@ -1735,46 +1819,18 @@ void GridFunction::ProjectBdrCoefficientNormal(
 void GridFunction::ProjectBdrCoefficientTangent(
    VectorCoefficient &vcoeff, Array<int> &bdr_attr)
 {
-   const FiniteElement *fe;
-   ElementTransformation *T;
-   Array<int> dofs;
-   Vector lvec;
-
-   for (int i = 0; i < fes->GetNBE(); i++)
+   Array<int> values_counter;
+   AccumulateAndCountBdrTangentValues(vcoeff, bdr_attr, values_counter);
+   ComputeMeans(ARITHMETIC, values_counter);
+#ifdef MFEM_DEBUG
+   Array<int> ess_vdofs_marker;
+   fes->GetEssentialVDofs(bdr_attr, ess_vdofs_marker);
+   for (int i = 0; i < values_counter.Size(); i++)
    {
-      if (bdr_attr[fes->GetBdrAttribute(i)-1] == 0)
-      {
-         continue;
-      }
-      fe = fes->GetBE(i);
-      T = fes->GetBdrElementTransformation(i);
-      fes->GetBdrElementDofs(i, dofs);
-      lvec.SetSize(fe->GetDof());
-      fe->Project(vcoeff, *T, lvec);
-      SetSubVector(dofs, lvec);
+      MFEM_ASSERT(bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
+                  "internal error");
    }
-
-   if (fes->Nonconforming() && fes->GetMesh()->Dimension() == 3)
-   {
-      Mesh *mesh = fes->GetMesh();
-      NCMesh *ncmesh = mesh->ncmesh;
-      Array<int> bdr_edges, bdr_vertices;
-      ncmesh->GetBoundaryClosure(bdr_attr, bdr_vertices, bdr_edges);
-
-      for (int i = 0; i < bdr_edges.Size(); i++)
-      {
-         int edge = bdr_edges[i];
-         fes->GetEdgeDofs(edge, dofs);
-         if (dofs.Size() == 0) { continue; }
-
-         T = mesh->GetEdgeTransformation(edge);
-         T->Attribute = -1; // FIXME: set the boundary attribute
-         fe = fes->GetEdgeElement(edge);
-         lvec.SetSize(fe->GetDof());
-         fe->Project(vcoeff, *T, lvec);
-         SetSubVector(dofs, lvec);
-      }
-   }
+#endif
 }
 
 double GridFunction::ComputeL2Error(
