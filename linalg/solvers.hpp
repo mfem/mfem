@@ -294,36 +294,8 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
            int m_max, int m_min, int m_step, double cf,
            double &tol, double &atol, int printit);
 
-/** Abstract solver class for optimization solvers used to solve
- * minimize 1/2 ||x - x_t||^2, subject to:
- *   lo_i <= x_i <= hi_i
- *   sum_i w_i x_i = a
- */
-class OptimizationSolver : public IterativeSolver
-{
-public:
-  OptimizationSolver(): IterativeSolver() {}
-#ifdef MFEM_USE_MPI
-   OptimizationSolver(MPI_Comm _comm) : IterativeSolver(_comm) {}
-#endif
-  virtual ~OptimizationSolver() {}
 
-   virtual void SetBounds(const Vector &_lo, const Vector &_hi) = 0;
-   virtual void SetLinearConstraint(const Vector &_w, double _a) = 0;
-   virtual void Mult(const Vector &xt, Vector &x) const = 0;
-
-   // These are not currently meaningful for this solver and will error out.
-   virtual void SetPreconditioner(Solver &pr) {
-      mfem_error("OptimizationSolver::SetPreconditioner() : "
-                 "not meaningful for this solver");
-   }
-   virtual void SetOperator(const Operator &op) {
-      mfem_error("OptimizationSolver::SetOperator() : "
-                 "not meaningful for this solver");
-   }
-};
-
-/** Defines operators and constraints of the following optimization problem:
+/** Defines operators and constraints for the following optimization problem:
  *
  *    Minimize F(x), subject to
  *    C(x) = c_e,
@@ -338,13 +310,11 @@ public:
  */
 class OptimizationProblem
 {
-protected:
+public:
    const Operator &F, *C, *D;
-
    // Not owned, some can remain unused (NULL).
    const Vector *c_e, *d_lo, *d_hi, *x_lo, *x_hi;
 
-public:
    OptimizationProblem(const Operator &F_, const Operator *C_,
                        const Operator *D_);
 
@@ -353,7 +323,39 @@ public:
    void SetLinearInequalityConstraint(const Vector &xl, const Vector &xh);
 };
 
+/** Abstract solver for OptimizationProblems.
+ */
+class OptimizationSolver : public IterativeSolver
+{
+protected:
+   const OptimizationProblem *problem;
+
+public:
+   OptimizationSolver(): IterativeSolver(), problem(NULL) { }
+#ifdef MFEM_USE_MPI
+   OptimizationSolver(MPI_Comm _comm): IterativeSolver(_comm), problem(NULL) { }
+#endif
+   virtual ~OptimizationSolver() { }
+
+   /** This function as virtual as solvers might need to perform some initial
+    *  actions (e.g. validation) with the OptimizationProblem. */
+   virtual void SetOptimizationProblem(const OptimizationProblem &prob)
+   { problem = &prob; }
+
+   virtual void SetBounds(const Vector &_lo, const Vector &_hi) = 0;
+   virtual void SetLinearConstraint(const Vector &_w, double _a) = 0;
+   virtual void Mult(const Vector &xt, Vector &x) const = 0;
+
+   virtual void SetPreconditioner(Solver &pr)
+   { MFEM_ABORT("Not meaningful for this solver."); }
+   virtual void SetOperator(const Operator &op)
+   { MFEM_ABORT("Not meaningful for this solver."); }
+};
+
 /** SLBQP optimizer: (S)ingle (L)inearly Constrained with (B)ounds (Q)uadratic (P)rogram
+ *    Minimize || x-x_t ||, subject to
+ *    sum w_i x_i = a,
+ *    x_lo <= x <= x_hi.
 */
 class SLBQPOptimizer : public OptimizationSolver
 {
@@ -365,19 +367,28 @@ protected:
    inline double solve(double l, const Vector &xt, Vector &x, int &nclip) const
    {
       add(xt, l, w, x);
-      x.median(lo,hi);
+      if (problem == NULL) { x.median(lo,hi); }
+      else                 { x.median(*problem->x_lo, *problem->x_hi); }
       nclip++;
-      return Dot(w,x)-a;
+      if (problem == NULL) { return Dot(w, x) - a; }
+      else
+      {
+         Vector c(1);
+         problem->C->Mult(x, c);
+         return c(0) - (*problem->c_e)(0);
+      }
    }
 
    inline void print_iteration(int it, double r, double l) const;
 
 public:
-   SLBQPOptimizer() {}
+   SLBQPOptimizer() { }
 
 #ifdef MFEM_USE_MPI
-   SLBQPOptimizer(MPI_Comm _comm) : OptimizationSolver(_comm) {}
+   SLBQPOptimizer(MPI_Comm _comm) : OptimizationSolver(_comm) { }
 #endif
+
+   virtual void SetOptimizationProblem(const OptimizationProblem &prob);
 
    void SetBounds(const Vector &_lo, const Vector &_hi);
    void SetLinearConstraint(const Vector &_w, double _a);
@@ -385,10 +396,6 @@ public:
    // For this problem type, we let the target values play the role of the
    // initial vector xt, from which the operator generates the optimal vector x.
    virtual void Mult(const Vector &xt, Vector &x) const;
-
-   /// These are not currently meaningful for this solver and will error out.
-   //virtual void SetPreconditioner(Solver &pr);
-   //virtual void SetOperator(const Operator &op);
 };
 
 

@@ -1503,6 +1503,16 @@ void OptimizationProblem::SetLinearInequalityConstraint(const Vector &xl,
    x_lo = &xl; x_hi = &xh;
 }
 
+void SLBQPOptimizer::SetOptimizationProblem(const OptimizationProblem &prob)
+{
+   MFEM_WARNING("Objective functional is ignored as SLBQP always minimizes"
+                "the l2 norm of (x - x_target).");
+   MFEM_ASSERT(prob.C, "Linear constraint is not set.");
+   MFEM_ASSERT(prob.C->Height() == 1, "Solver expects scalar constraint.");
+
+   problem = &prob;
+}
+
 void SLBQPOptimizer::SetBounds(const Vector &_lo, const Vector &_hi)
 {
    lo.SetDataAndSize(_lo.GetData(), _lo.Size());
@@ -1514,18 +1524,6 @@ void SLBQPOptimizer::SetLinearConstraint(const Vector &_w, double _a)
    w.SetDataAndSize(_w.GetData(), _w.Size());
    a = _a;
 }
-
-// void SLBQPOptimizer::SetPreconditioner(Solver &pr)
-// {
-//    mfem_error("SLBQPOptimizer::SetPreconditioner() : "
-//               "not meaningful for this solver");
-// }
-
-// void SLBQPOptimizer::SetOperator(const Operator &op)
-// {
-//    mfem_error("SLBQPOptimizer::SetOperator() : "
-//               "not meaningful for this solver");
-// }
 
 inline void SLBQPOptimizer::print_iteration(int it, double r, double l) const
 {
