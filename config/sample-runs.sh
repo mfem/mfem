@@ -79,6 +79,10 @@ groups_parallel=(
    "Convergence tests:"
    "tests/convergence"
    "diffusion.cpp"'
+'"par-mesh-format"
+   "Parallel mesh tests:"
+   "tests/par-mesh-format"
+   "ex1p.cpp"'
 )
 # All groups serial + parallel runs mixed in the same group:
 groups_all=(
@@ -111,6 +115,10 @@ groups_all=(
    "Convergence tests:"
    "tests/convergence"
    "diffusion.cpp"'
+'"par-mesh-format"
+   "Parallel mesh tests:"
+   "tests/par-mesh-format"
+   "ex1p.cpp"'
 )
 make_all="all"
 base_timeformat=$'real: %3Rs  user: %3Us  sys: %3Ss  %%cpu: %P'
