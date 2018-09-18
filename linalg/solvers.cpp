@@ -1469,12 +1469,39 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
 OptimizationProblem::OptimizationProblem(const Operator &F_,
                                          const Operator *C_,
                                          const Operator *D_)
-   : F(F_), C(C_), D(D_)
+   : F(F_), C(C_), D(D_),
+     c_e(NULL), d_lo(NULL), d_hi(NULL), x_lo(NULL), x_hi(NULL)
 {
    if (C) { MFEM_ASSERT(C->Width() == F.Width(), "Wrong width of C."); }
    if (D) { MFEM_ASSERT(D->Width() == F.Width(), "Wrong width of D."); }
 }
 
+void OptimizationProblem::SetEqualityConstraint(const Vector &c)
+{
+   MFEM_ASSERT(C, "The C operator is unspecified -- can't set constraints.");
+   MFEM_ASSERT(c.Size() == C->Height(), "Wrong size of the constraint.");
+
+   c_e = &c;
+}
+
+void OptimizationProblem::SetInequalityConstraint(const Vector &dl,
+                                                  const Vector &dh)
+{
+   MFEM_ASSERT(D, "The D operator is unspecified -- can't set constraints.");
+   MFEM_ASSERT(dl.Size() == D->Height() && dh.Size() == D->Height(),
+               "Wrong size of the constraint.");
+
+   d_lo = &dl; d_hi = &dh;
+}
+
+void OptimizationProblem::SetLinearInequalityConstraint(const Vector &xl,
+                                                        const Vector &xh)
+{
+   MFEM_ASSERT(xl.Size() == F.Width() && xh.Size() == F.Width(),
+               "Wrong size of the constraint.");
+
+   x_lo = &xl; x_hi = &xh;
+}
 
 void SLBQPOptimizer::SetBounds(const Vector &_lo, const Vector &_hi)
 {
