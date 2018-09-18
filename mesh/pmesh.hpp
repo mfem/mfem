@@ -95,15 +95,15 @@ protected:
 
    bool WantSkipSharedMaster(const NCMesh::Master &master) const;
 
-   /// fills out partitioned Mesh::vertices
+   /// Fills out partitioned Mesh::vertices
    int BuildLocalVertices(const Mesh& global_mesh, const int *partitioning,
                           Array<int> &vert_global_local);
 
-   /// fills out partitioned Mesh::elements
+   /// Fills out partitioned Mesh::elements
    int BuildLocalElements(const Mesh& global_mesh, const int *partitioning,
                           const Array<int> &vert_global_local);
 
-   /// fills out partitioned Mesh::boundary
+   /// Fills out partitioned Mesh::boundary
    int BuildLocalBoundary(const Mesh& global_mesh, const int *partitioning,
                           const Array<int> &vert_global_local,
                           Array<bool>& activeBdrElem,
