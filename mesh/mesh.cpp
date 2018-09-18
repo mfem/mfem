@@ -772,13 +772,13 @@ FaceElementTransformations *Mesh::GetBdrFaceTransformations(int BdrElemNo)
    return tr;
 }
 
-void Mesh::GetFaceElements(int Face, int *Elem1, int *Elem2)
+void Mesh::GetFaceElements(int Face, int *Elem1, int *Elem2) const
 {
    *Elem1 = faces_info[Face].Elem1No;
    *Elem2 = faces_info[Face].Elem2No;
 }
 
-void Mesh::GetFaceInfos(int Face, int *Inf1, int *Inf2)
+void Mesh::GetFaceInfos(int Face, int *Inf1, int *Inf2) const
 {
    *Inf1 = faces_info[Face].Elem1Inf;
    *Inf2 = faces_info[Face].Elem2Inf;
@@ -6170,7 +6170,7 @@ bool Mesh::DerefineByError(const Vector &elem_error, double threshold,
 }
 
 
-void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
+STable3D* Mesh::InitFromNCMesh(const NCMesh &ncmesh)
 {
    Dim = ncmesh.Dimension();
    spaceDim = ncmesh.SpaceDimension();
@@ -6207,14 +6207,18 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
       el_to_edge = new Table;
       NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
    }
+
+   STable3D *faces_tbl = NULL;
    if (Dim > 2)
    {
-      GetElementToFaceTable();
+      faces_tbl = GetElementToFaceTable(1);
    }
    GenerateFaces();
 #ifdef MFEM_DEBUG
    CheckBdrElementOrientation(false);
 #endif
+
+   return faces_tbl;
 
    // NOTE: ncmesh->OnMeshUpdated() and GenerateNCFaceInfo() should be called
    // outside after this method.
