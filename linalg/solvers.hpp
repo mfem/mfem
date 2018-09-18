@@ -323,7 +323,7 @@ public:
    }
 };
 
-/** Abstract specification of the following optimization problem:
+/** Defines operators and constraints of the following optimization problem:
  *
  *    Minimize F(x), subject to
  *    C(x) = c_e,
@@ -341,15 +341,16 @@ class OptimizationProblem
 protected:
    const Operator &F, *C, *D;
 
+   // Not owned, some can remain unused (NULL).
+   const Vector *c_e, *d_lo, *d_hi, *x_lo, *x_hi;
+
 public:
    OptimizationProblem(const Operator &F_, const Operator *C_,
                        const Operator *D_);
 
-   virtual void SetEqualityConstraint(const Vector &c_e) = 0;
-   virtual void SetInequalityConstraint(const Vector &d_lo,
-                                        const Vector &d_hi) = 0;
-   virtual void SetLinearInequalityConstraint(const Vector &x_lo,
-                                              const Vector &x_hi) = 0;
+   void SetEqualityConstraint(const Vector &c);
+   void SetInequalityConstraint(const Vector &dl, const Vector &dh);
+   void SetLinearInequalityConstraint(const Vector &xl, const Vector &xh);
 };
 
 /** SLBQP optimizer: (S)ingle (L)inearly Constrained with (B)ounds (Q)uadratic (P)rogram
