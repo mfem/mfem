@@ -46,6 +46,16 @@ ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh)
    // branches that only contain someone else's leaves (see Prune())
 }
 
+ParNCMesh::ParNCMesh(const ParNCMesh &other)
+// copy primary data only
+   : NCMesh(other)
+   , MyComm(other.MyComm)
+   , NRanks(other.NRanks)
+   , MyRank(other.MyRank)
+{
+   Update(); // mark all secondary stuff for recalculation
+}
+
 ParNCMesh::~ParNCMesh()
 {
    ClearAuxPM();
