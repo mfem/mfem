@@ -561,8 +561,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    optsolver->SetBounds(y_min, y_max);
    optsolver->SetLinearConstraint(M_rowsums, tot_mass);
    optsolver->SetPrintLevel(0);
-   if (optimizer_type == 3)   { tmp_opt_ptr->Mult(y_out); }
-   else   { optsolver->Mult(y_loc, y_out); }
+   optsolver->Mult(y_loc, y_out);
 
    delete optsolver;
 

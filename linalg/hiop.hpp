@@ -28,14 +28,19 @@
 namespace mfem
 {
 
-class HiopProblemSpec : public hiop::hiopInterfaceDenseConstraints
+/**  Adapts the OptimizationProblem class to HIOP's interface.
+ */
+class HiopOptimizationProblem : public hiop::hiopInterfaceDenseConstraints
 {
 private:
    Vector workVec2_; //used as work space of size n_local_
 
+protected:
+   OptimizationProblem &problem; // TODO make it private after removing _simple.
+
 public:
-   HiopProblemSpec(const long long& n_loc)
-      : n_(n_loc), n_local_(n_loc), a_(0.),
+   HiopOptimizationProblem(OptimizationProblem &prob, const long long& n_loc)
+      : problem(prob), n_(n_loc), n_local_(n_loc), a_(0.),
         workVec_(n_loc), use_initial_x_value(false)
   { 
 #ifdef MFEM_USE_MPI
@@ -45,9 +50,9 @@ public:
   }
 
 #ifdef MFEM_USE_MPI
-   HiopProblemSpec(const MPI_Comm& _comm,
-                   const long long& _n_local)
-      : comm_(_comm), n_local_(_n_local), a_(0.),
+   HiopOptimizationProblem(const MPI_Comm& _comm, OptimizationProblem &prob,
+                           const long long& _n_local)
+      : comm_(_comm), problem(prob), n_local_(_n_local), a_(0.),
         workVec_(_n_local), use_initial_x_value(false)
    {
       int ierr = MPI_Allreduce(&n_local_, &n_, 1, MPI_LONG_LONG_INT, MPI_SUM, comm_);
@@ -294,18 +299,18 @@ protected:
 }; //End of HiopProblemSpec class
 
 // Special class for HiopProblemSpec where f = ||x-xt||_2
-class HiopProblemSpec_Simple : public HiopProblemSpec
+class HiopProblemSpec_Simple : public HiopOptimizationProblem
 {
 
 public:
 
-   HiopProblemSpec_Simple(const long long& n_loc)
-      : HiopProblemSpec(n_loc) {}
+   HiopProblemSpec_Simple(OptimizationProblem &prob, const long long& n_loc)
+      : HiopOptimizationProblem(prob, n_loc) { }
 
 #ifdef MFEM_USE_MPI
-   HiopProblemSpec_Simple(const MPI_Comm& _comm,
+   HiopProblemSpec_Simple(const MPI_Comm& _comm, OptimizationProblem &prob,
                           const long long& _n_local)
-      : HiopProblemSpec(_comm, _n_local) {}
+      : HiopOptimizationProblem(_comm, prob, _n_local) { }
 #endif
 
    /** Objective function evaluation. Each rank returns the global obj. value. */
@@ -328,7 +333,9 @@ public:
    }
 
    /** Gradient of objective (local chunk) */
-   virtual bool eval_grad_f(const long long& n, const double* x, bool new_x, double* gradf) {
+   virtual bool eval_grad_f(const long long& n, const double* x,
+                            bool new_x, double* gradf)
+   {
       MFEM_ASSERT(n==n_, "global size input mismatch");
 
       // compute gradf = x-xt
@@ -337,12 +344,13 @@ public:
       std::memcpy(gradf, workVec_.GetData(), n_local_*sizeof(double));
 
       return true;
-   };
+   }
 
    // Capitalization consistency
-   virtual void setObjectiveTarget(const Vector &_xt) {
+   virtual void setObjectiveTarget(const Vector &_xt)
+   {
       xt_ = _xt;
-   };
+   }
 
 protected:
    // A is always I and c is always xt_.  Neither are used in eval_f or eval_grad_f
@@ -367,11 +375,12 @@ protected:
 
 }; //End of HiopProblemSpec_Simple class
 
+/** Adapts the HIOP functionality to the MFEM OptimizationSolver interface.
+ */
 class HiopNlpOptimizer : public OptimizationSolver
 {
 protected:
-   OptimizationProblem *opt_prob; // TODO remove this, used just to compile.
-   HiopProblemSpec* optProb_;
+   HiopOptimizationProblem* optProb_;
 
 #ifdef MFEM_USE_MPI
    MPI_Comm comm_;
@@ -380,8 +389,6 @@ protected:
    virtual void allocHiopProbSpec(const long long& numvars);
 
 public:
-   bool use_initial_x_value; //Whether to use the initial value of x in Mult
-
    HiopNlpOptimizer(); 
 #ifdef MFEM_USE_MPI
    HiopNlpOptimizer(MPI_Comm _comm);
@@ -394,17 +401,10 @@ public:
    virtual void SetObjectiveFunction(const DenseMatrix &_A);
    virtual void SetObjectiveFunction(const Vector &_c);
 
-   void SetOptimizationProblem(OptimizationProblem &problem);
+   virtual void SetOptimizationProblem(OptimizationProblem &prob);
 
-   virtual void Mult(Vector &x) const;
-
-   // For this problem type, xt is just used as a starting guess
-   //   (if applicable) to x
-   virtual void Mult(const Vector &xt, Vector &x) const
-   {
-      x = xt;
-      Mult(x);
-   }
+   /** When iterative_mode is true, xt plays the role of an initial guess. */
+   virtual void Mult(const Vector &xt, Vector &x) const;
 };
 
 // Special class for the case where f = 1/2 * ||x-xt||_2
@@ -418,9 +418,6 @@ public:
    HiopNlpOptimizer_Simple(MPI_Comm _comm) : HiopNlpOptimizer(_comm),
                                              optProb_Simple_(NULL) { }
 #endif
-
-   // Assumes xt = 0
-   virtual void Mult(Vector &x) const;
 
    // For this problem type, we let the target values play the role of the
    // initial vector xt, from which the operator generates the optimal vector x.

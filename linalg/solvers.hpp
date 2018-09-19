@@ -304,7 +304,7 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
  *
  *  The operators F, C, D must take input of the same size (same width).
  *  Gradients of F, C, D might be needed, see class OptimizationSolver.
- *  F always returns a scalar value (height = 1).
+ *  F always returns a scalar value (F.Height() = 1).
  *  C and D can have arbitrary heights.
  *  C and D can be NULL, meaning that their constraints are not used.
  */
@@ -328,7 +328,7 @@ public:
 class OptimizationSolver : public IterativeSolver
 {
 protected:
-   const OptimizationProblem *problem;
+   OptimizationProblem *problem;
 
 public:
    OptimizationSolver(): IterativeSolver(), problem(NULL) { }
@@ -339,7 +339,7 @@ public:
 
    /** This function as virtual as solvers might need to perform some initial
     *  actions (e.g. validation) with the OptimizationProblem. */
-   virtual void SetOptimizationProblem(const OptimizationProblem &prob)
+   virtual void SetOptimizationProblem(OptimizationProblem &prob)
    { problem = &prob; }
 
    virtual void SetBounds(const Vector &_lo, const Vector &_hi) = 0;
@@ -352,11 +352,13 @@ public:
    { MFEM_ABORT("Not meaningful for this solver."); }
 };
 
-/** SLBQP optimizer: (S)ingle (L)inearly Constrained with (B)ounds (Q)uadratic (P)rogram
+/** SLBQP optimizer:
+ *  (S)ingle (L)inearly Constrained with (B)ounds (Q)uadratic (P)rogram
+ *
  *    Minimize || x-x_t ||, subject to
  *    sum w_i x_i = a,
  *    x_lo <= x <= x_hi.
-*/
+ */
 class SLBQPOptimizer : public OptimizationSolver
 {
 protected:
@@ -388,13 +390,16 @@ public:
    SLBQPOptimizer(MPI_Comm _comm) : OptimizationSolver(_comm) { }
 #endif
 
+   /** Setting an OptimizationProblem will overwrite the Vectors given by
+    *  SetBounds and SetLinearConstraint. The objective function remains
+    *  unchanged. */
    virtual void SetOptimizationProblem(const OptimizationProblem &prob);
 
    void SetBounds(const Vector &_lo, const Vector &_hi);
    void SetLinearConstraint(const Vector &_w, double _a);
 
-   // For this problem type, we let the target values play the role of the
-   // initial vector xt, from which the operator generates the optimal vector x.
+   /** We let the target values play the role of the initial vector xt, from
+    *  which the operator generates the optimal vector x. */
    virtual void Mult(const Vector &xt, Vector &x) const;
 };
 
