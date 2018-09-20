@@ -425,6 +425,7 @@ void ParGridFunction::ProjectBdrCoefficient(
    {
       // FIXME: same as the conforming case after 'cut-mesh-groups-dev-*' is
       //        merged?
+      ComputeMeans(ARITHMETIC, values_counter);
    }
 #ifdef MFEM_DEBUG
    Array<int> ess_vdofs_marker;
@@ -468,6 +469,7 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
    {
       // FIXME: same as the conforming case after 'cut-mesh-groups-dev-*' is
       //        merged?
+      ComputeMeans(ARITHMETIC, values_counter);
    }
 #ifdef MFEM_DEBUG
    Array<int> ess_vdofs_marker;
