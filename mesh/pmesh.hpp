@@ -119,22 +119,13 @@ protected:
    void UniformRefineGroups3D(int old_nv, int old_nedges,
                               const DSTable &old_v_to_v,
                               const STable3D &old_faces,
-                              std::map<int,int> *f2qf);
+                              Array<int> *f2qf);
 
-   /// Refine quadrilateral mesh.
-   virtual void QuadUniformRefinement();
+   /// Refine a mixed 2D mesh uniformly.
+   virtual void UniformRefinement2D();
 
-   /// Refine a hexahedral mesh.
-   virtual void HexUniformRefinement();
-
-   /// Refine a wedge mesh.
-   virtual void WedgeUniformRefinement(std::map<int,int> * f2qf = NULL);
-
-   /// Refine a mixed 2D mesh.
-   virtual void Mixed2DUniformRefinement();
-
-   /// Refine a mixed 3D mesh.
-   virtual void Mixed3DUniformRefinement(std::map<int,int> * f2qf = NULL);
+   /// Refine a mixed 3D mesh uniformly.
+   virtual void UniformRefinement3D(Array<int> *f2qf = NULL);
 
    virtual void NURBSUniformRefinement();
 

@@ -5754,482 +5754,7 @@ void Mesh::UpdateNodes()
    }
 }
 
-void Mesh::QuadUniformRefinement()
-{
-   DeleteLazyTables();
-   int i, j, *v, vv[2], attr;
-   const int *e;
-
-   if (el_to_edge == NULL)
-   {
-      el_to_edge = new Table;
-      NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
-   }
-
-   int oedge = NumOfVertices;
-   int oelem = oedge + NumOfEdges;
-
-   vertices.SetSize(oelem + NumOfElements);
-
-   for (i = 0; i < NumOfElements; i++)
-   {
-      v = elements[i]->GetVertices();
-
-      AverageVertices(v, 4, oelem+i);
-
-      e = el_to_edge->GetRow(i);
-
-      vv[0] = v[0], vv[1] = v[1]; AverageVertices(vv, 2, oedge+e[0]);
-      vv[0] = v[1], vv[1] = v[2]; AverageVertices(vv, 2, oedge+e[1]);
-      vv[0] = v[2], vv[1] = v[3]; AverageVertices(vv, 2, oedge+e[2]);
-      vv[0] = v[3], vv[1] = v[0]; AverageVertices(vv, 2, oedge+e[3]);
-   }
-
-   elements.SetSize(4 * NumOfElements);
-   for (i = 0; i < NumOfElements; i++)
-   {
-      attr = elements[i]->GetAttribute();
-      v = elements[i]->GetVertices();
-      e = el_to_edge->GetRow(i);
-      j = NumOfElements + 3 * i;
-
-      elements[j+0] = new Quadrilateral(oedge+e[0], v[1], oedge+e[1],
-                                        oelem+i, attr);
-      elements[j+1] = new Quadrilateral(oelem+i, oedge+e[1], v[2],
-                                        oedge+e[2], attr);
-      elements[j+2] = new Quadrilateral(oedge+e[3], oelem+i, oedge+e[2],
-                                        v[3], attr);
-
-      v[1] = oedge+e[0];
-      v[2] = oelem+i;
-      v[3] = oedge+e[3];
-   }
-
-   boundary.SetSize(2 * NumOfBdrElements);
-   for (i = 0; i < NumOfBdrElements; i++)
-   {
-      attr = boundary[i]->GetAttribute();
-      v = boundary[i]->GetVertices();
-      j = NumOfBdrElements + i;
-
-      boundary[j] = new Segment(oedge+be_to_edge[i], v[1], attr);
-
-      v[1] = oedge+be_to_edge[i];
-   }
-
-   static double quad_children[2*4*4] =
-   {
-      0.0,0.0, 0.5,0.0, 0.5,0.5, 0.0,0.5, // lower-left
-      0.5,0.0, 1.0,0.0, 1.0,0.5, 0.5,0.5, // lower-right
-      0.5,0.5, 1.0,0.5, 1.0,1.0, 0.5,1.0, // upper-right
-      0.0,0.5, 0.5,0.5, 0.5,1.0, 0.0,1.0  // upper-left
-   };
-
-   CoarseFineTr.point_matrices[Geometry::SQUARE].UseExternalData(quad_children,
-                                                                 2, 4, 4);
-   CoarseFineTr.embeddings.SetSize(elements.Size());
-
-   for (i = 0; i < elements.Size(); i++)
-   {
-      Embedding &emb = CoarseFineTr.embeddings[i];
-      emb.parent = (i < NumOfElements) ? i : (i - NumOfElements) / 3;
-      emb.matrix = (i < NumOfElements) ? 0 : (i - NumOfElements) % 3 + 1;
-   }
-
-   NumOfVertices    = oelem + NumOfElements;
-   NumOfElements    = 4 * NumOfElements;
-   NumOfBdrElements = 2 * NumOfBdrElements;
-   NumOfFaces       = 0;
-
-   if (el_to_edge != NULL)
-   {
-      NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
-      GenerateFaces();
-   }
-
-   last_operation = Mesh::REFINE;
-   sequence++;
-
-   UpdateNodes();
-
-#ifdef MFEM_DEBUG
-   CheckElementOrientation(false);
-   CheckBdrElementOrientation(false);
-#endif
-}
-
-void Mesh::HexUniformRefinement()
-{
-   DeleteLazyTables();
-   int i;
-   int * v;
-   const int *e, *f;
-   int vv[4];
-
-   if (el_to_edge == NULL)
-   {
-      el_to_edge = new Table;
-      NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
-   }
-   if (el_to_face == NULL)
-   {
-      GetElementToFaceTable();
-   }
-
-   int oedge = NumOfVertices;
-   int oface = oedge + NumOfEdges;
-   int oelem = oface + NumOfFaces;
-
-   vertices.SetSize(oelem + NumOfElements);
-   for (i = 0; i < NumOfElements; i++)
-   {
-      MFEM_ASSERT(elements[i]->GetType() == Element::HEXAHEDRON,
-                  "Element is not a hex!");
-      v = elements[i]->GetVertices();
-
-      AverageVertices(v, 8, oelem+i);
-
-      f = el_to_face->GetRow(i);
-
-      for (int j = 0; j < 6; j++)
-      {
-         for (int k = 0; k < 4; k++)
-         {
-            vv[k] = v[hex_t::FaceVert[j][k]];
-         }
-         AverageVertices(vv, 4, oface+f[j]);
-      }
-
-      e = el_to_edge->GetRow(i);
-
-      for (int j = 0; j < 12; j++)
-      {
-         for (int k = 0; k < 2; k++)
-         {
-            vv[k] = v[hex_t::Edges[j][k]];
-         }
-         AverageVertices(vv, 2, oedge+e[j]);
-      }
-   }
-
-   int attr, j;
-   elements.SetSize(8 * NumOfElements);
-   for (i = 0; i < NumOfElements; i++)
-   {
-      attr = elements[i]->GetAttribute();
-      v = elements[i]->GetVertices();
-      e = el_to_edge->GetRow(i);
-      f = el_to_face->GetRow(i);
-      j = NumOfElements + 7 * i;
-
-      elements[j+0] = new Hexahedron(oedge+e[0], v[1], oedge+e[1], oface+f[0],
-                                     oface+f[1], oedge+e[9], oface+f[2],
-                                     oelem+i, attr);
-      elements[j+1] = new Hexahedron(oface+f[0], oedge+e[1], v[2], oedge+e[2],
-                                     oelem+i, oface+f[2], oedge+e[10],
-                                     oface+f[3], attr);
-      elements[j+2] = new Hexahedron(oedge+e[3], oface+f[0], oedge+e[2], v[3],
-                                     oface+f[4], oelem+i, oface+f[3],
-                                     oedge+e[11], attr);
-      elements[j+3] = new Hexahedron(oedge+e[8], oface+f[1], oelem+i,
-                                     oface+f[4], v[4], oedge+e[4], oface+f[5],
-                                     oedge+e[7], attr);
-      elements[j+4] = new Hexahedron(oface+f[1], oedge+e[9], oface+f[2],
-                                     oelem+i, oedge+e[4], v[5], oedge+e[5],
-                                     oface+f[5], attr);
-      elements[j+5] = new Hexahedron(oelem+i, oface+f[2], oedge+e[10],
-                                     oface+f[3], oface+f[5], oedge+e[5], v[6],
-                                     oedge+e[6], attr);
-      elements[j+6] = new Hexahedron(oface+f[4], oelem+i, oface+f[3],
-                                     oedge+e[11], oedge+e[7], oface+f[5],
-                                     oedge+e[6], v[7], attr);
-
-      v[1] = oedge+e[0];
-      v[2] = oface+f[0];
-      v[3] = oedge+e[3];
-      v[4] = oedge+e[8];
-      v[5] = oface+f[1];
-      v[6] = oelem+i;
-      v[7] = oface+f[4];
-   }
-
-   boundary.SetSize(4 * NumOfBdrElements);
-   for (i = 0; i < NumOfBdrElements; i++)
-   {
-      MFEM_ASSERT(boundary[i]->GetType() == Element::QUADRILATERAL,
-                  "boundary Element is not a quad!");
-      attr = boundary[i]->GetAttribute();
-      v = boundary[i]->GetVertices();
-      e = bel_to_edge->GetRow(i);
-      f = & be_to_face[i];
-      j = NumOfBdrElements + 3 * i;
-
-      boundary[j+0] = new Quadrilateral(oedge+e[0], v[1], oedge+e[1],
-                                        oface+f[0], attr);
-      boundary[j+1] = new Quadrilateral(oface+f[0], oedge+e[1], v[2],
-                                        oedge+e[2], attr);
-      boundary[j+2] = new Quadrilateral(oedge+e[3], oface+f[0], oedge+e[2],
-                                        v[3], attr);
-
-      v[1] = oedge+e[0];
-      v[2] = oface+f[0];
-      v[3] = oedge+e[3];
-   }
-
-   static const double A = 0.0, B = 0.5, C = 1.0;
-   static double hex_children[3*8*8] =
-   {
-      A,A,A, B,A,A, B,B,A, A,B,A, A,A,B, B,A,B, B,B,B, A,B,B,
-      B,A,A, C,A,A, C,B,A, B,B,A, B,A,B, C,A,B, C,B,B, B,B,B,
-      B,B,A, C,B,A, C,C,A, B,C,A, B,B,B, C,B,B, C,C,B, B,C,B,
-      A,B,A, B,B,A, B,C,A, A,C,A, A,B,B, B,B,B, B,C,B, A,C,B,
-      A,A,B, B,A,B, B,B,B, A,B,B, A,A,C, B,A,C, B,B,C, A,B,C,
-      B,A,B, C,A,B, C,B,B, B,B,B, B,A,C, C,A,C, C,B,C, B,B,C,
-      B,B,B, C,B,B, C,C,B, B,C,B, B,B,C, C,B,C, C,C,C, B,C,C,
-      A,B,B, B,B,B, B,C,B, A,C,B, A,B,C, B,B,C, B,C,C, A,C,C
-   };
-
-   CoarseFineTr.point_matrices[Geometry::CUBE].UseExternalData(hex_children,
-                                                               3, 8, 8);
-   CoarseFineTr.embeddings.SetSize(elements.Size());
-
-   for (i = 0; i < elements.Size(); i++)
-   {
-      Embedding &emb = CoarseFineTr.embeddings[i];
-      emb.parent = (i < NumOfElements) ? i : (i - NumOfElements) / 7;
-      emb.matrix = (i < NumOfElements) ? 0 : (i - NumOfElements) % 7 + 1;
-   }
-
-   NumOfVertices    = oelem + NumOfElements;
-   NumOfElements    = 8 * NumOfElements;
-   NumOfBdrElements = 4 * NumOfBdrElements;
-
-   if (el_to_face != NULL)
-   {
-      GetElementToFaceTable();
-      GenerateFaces();
-   }
-
-#ifdef MFEM_DEBUG
-   CheckBdrElementOrientation(false);
-#endif
-
-   if (el_to_edge != NULL)
-   {
-      NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
-   }
-
-   last_operation = Mesh::REFINE;
-   sequence++;
-
-   UpdateNodes();
-}
-
-void Mesh::WedgeUniformRefinement(map<int,int> * f2qf_ptr)
-{
-   int i;
-   int * v;
-   const int *e, *f;
-   int vv[4];
-
-   DeleteLazyTables();
-
-   if (el_to_edge == NULL)
-   {
-      el_to_edge = new Table;
-      NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
-   }
-   if (el_to_face == NULL)
-   {
-      GetElementToFaceTable();
-   }
-
-   int NumOfTriFaces  = 0;
-   int NumOfQuadFaces = 0;
-   map<int,int> f2qf_loc;
-   if (f2qf_ptr == NULL)
-   {
-      f2qf_ptr = &f2qf_loc;
-   }
-   for (i = 0; i<faces.Size(); i++)
-   {
-      if (faces[i]->GetType() == Element::TRIANGLE)
-      {
-         NumOfTriFaces++;
-      }
-      else
-      {
-         (*f2qf_ptr)[i] = NumOfQuadFaces;
-         NumOfQuadFaces++;
-      }
-   }
-   MFEM_VERIFY(NumOfFaces == NumOfTriFaces + NumOfQuadFaces,
-               "Wedge face counts don't match!");
-
-   int oedge = NumOfVertices;
-   int oface = oedge + NumOfEdges;
-
-   vertices.SetSize(oface + NumOfQuadFaces);
-   for (i = 0; i < NumOfElements; i++)
-   {
-      MFEM_ASSERT(elements[i]->GetType() == Element::WEDGE,
-                  "Element is not a wedge!");
-      v = elements[i]->GetVertices();
-
-      f = el_to_face->GetRow(i);
-
-      for (int j = 2; j < 5; j++)
-      {
-         for (int k = 0; k < 4; k++)
-         {
-            vv[k] = v[pri_t::FaceVert[j][k]];
-         }
-         AverageVertices(vv, 4, oface+(*f2qf_ptr)[f[j]]);
-      }
-
-      e = el_to_edge->GetRow(i);
-
-      for (int j = 0; j < 9; j++)
-      {
-         for (int k = 0; k < 2; k++)
-         {
-            vv[k] = v[pri_t::Edges[j][k]];
-         }
-         AverageVertices(vv, 2, oedge+e[j]);
-      }
-   }
-
-   int attr, j;
-   elements.SetSize(8 * NumOfElements);
-   for (i = 0; i < NumOfElements; i++)
-   {
-      attr = elements[i]->GetAttribute();
-      v = elements[i]->GetVertices();
-      e = el_to_edge->GetRow(i);
-      f = el_to_face->GetRow(i);
-      j = NumOfElements + 7 * i;
-
-      int qf2 = (*f2qf_ptr)[f[2]];
-      int qf3 = (*f2qf_ptr)[f[3]];
-      int qf4 = (*f2qf_ptr)[f[4]];
-
-      elements[j+0] = new Wedge(oedge+e[1], oedge+e[2], oedge+e[0],
-                                oface+qf3, oface+qf4, oface+qf2,
-                                attr);
-      elements[j+1] = new Wedge(oedge+e[0], v[1], oedge+e[1],
-                                oface+qf2, oedge+e[7], oface+qf3,
-                                attr);
-      elements[j+2] = new Wedge(oedge+e[2], oedge+e[1], v[2],
-                                oface+qf4, oface+qf3, oedge+e[8],
-                                attr);
-      elements[j+3] = new Wedge(oedge+e[6], oface+qf2, oface+qf4,
-                                v[3], oedge+e[3], oedge+e[5],
-                                attr);
-      elements[j+4] = new Wedge(oface+qf3, oface+qf4, oface+qf2,
-                                oedge+e[4], oedge+e[5], oedge+e[3],
-                                attr);
-      elements[j+5] = new Wedge(oface+qf2, oedge+e[7], oface+qf3,
-                                oedge+e[3], v[4], oedge+e[4],
-                                attr);
-      elements[j+6] = new Wedge(oface+qf4, oface+qf3, oedge+e[8],
-                                oedge+e[5], oedge+e[4], v[5],
-                                attr);
-
-      v[1] = oedge+e[0];
-      v[2] = oedge+e[2];
-      v[3] = oedge+e[6];
-      v[4] = oface+qf2;
-      v[5] = oface+qf4;
-   }
-
-   boundary.SetSize(4 * NumOfBdrElements);
-   for (i = 0; i < NumOfBdrElements; i++)
-   {
-      attr = boundary[i]->GetAttribute();
-      v = boundary[i]->GetVertices();
-      e = bel_to_edge->GetRow(i);
-      f = &be_to_face[i];
-      j = NumOfBdrElements + 3 * i;
-
-      if (boundary[i]->GetType() == Element::TRIANGLE)
-      {
-         boundary[j+0] = new Triangle(oedge+e[1], oedge+e[2], oedge+e[0], attr);
-         boundary[j+1] = new Triangle(oedge+e[0], v[1], oedge+e[1], attr);
-         boundary[j+2] = new Triangle(oedge+e[2], oedge+e[1], v[2], attr);
-
-         v[1] = oedge+e[0];
-         v[2] = oedge+e[2];
-      }
-      else if (boundary[i]->GetType() == Element::QUADRILATERAL)
-      {
-         int qf = (*f2qf_ptr)[f[0]];
-         boundary[j+0] = new Quadrilateral(oedge+e[0], v[1], oedge+e[1],
-                                           oface+qf, attr);
-         boundary[j+1] = new Quadrilateral(oface+qf, oedge+e[1], v[2],
-                                           oedge+e[2], attr);
-         boundary[j+2] = new Quadrilateral(oedge+e[3], oface+qf,
-                                           oedge+e[2], v[3], attr);
-
-         v[1] = oedge+e[0];
-         v[2] = oface+qf;
-         v[3] = oedge+e[3];
-      }
-      else
-      {
-         MFEM_ABORT("boundary Element is not a triangle or a quad!");
-      }
-   }
-
-   static const double A = 0.0, B = 0.5, C = 1.0;
-   static double pri_children[3*6*8] =
-   {
-      A,A,A, B,A,A, A,B,A, A,A,B, B,A,B, A,B,B,
-      B,B,A, A,B,A, B,A,A, B,B,B, A,B,B, B,A,B,
-      B,A,A, C,A,A, B,B,A, B,A,B, C,A,B, B,B,B,
-      A,B,A, B,B,A, A,C,A, A,B,B, B,B,B, A,C,B,
-      A,A,B, B,A,B, A,B,B, A,A,C, B,A,C, A,B,C,
-      B,B,B, A,B,B, B,A,B, B,B,C, A,B,C, B,A,C,
-      B,A,B, C,A,B, B,B,B, B,A,C, C,A,C, B,B,C,
-      A,B,B, B,B,B, A,C,B, A,B,C, B,B,C, A,C,C
-   };
-
-   CoarseFineTr.point_matrices[Geometry::PRISM].UseExternalData(pri_children,
-                                                                3, 6, 8);
-   CoarseFineTr.embeddings.SetSize(elements.Size());
-
-   for (i = 0; i < elements.Size(); i++)
-   {
-      Embedding &emb = CoarseFineTr.embeddings[i];
-      emb.parent = (i < NumOfElements) ? i : (i - NumOfElements) / 7;
-      emb.matrix = (i < NumOfElements) ? 0 : (i - NumOfElements) % 7 + 1;
-   }
-
-   NumOfVertices    = vertices.Size();
-   NumOfElements    = 8 * NumOfElements;
-   NumOfBdrElements = 4 * NumOfBdrElements;
-
-   if (el_to_face != NULL)
-   {
-      GetElementToFaceTable();
-      GenerateFaces();
-   }
-
-#ifdef MFEM_DEBUG
-   CheckBdrElementOrientation(false);
-#endif
-
-   if (el_to_edge != NULL)
-   {
-      NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
-   }
-
-   last_operation = Mesh::REFINE;
-   sequence++;
-
-   UpdateNodes();
-}
-
-void Mesh::Mixed2DUniformRefinement()
+void Mesh::UniformRefinement2D()
 {
    DeleteLazyTables();
 
@@ -6373,7 +5898,7 @@ void Mesh::Mixed2DUniformRefinement()
 #endif
 }
 
-void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr)
+void Mesh::UniformRefinement3D(Array<int> *f2qf_ptr)
 {
    DeleteLazyTables();
 
@@ -6388,16 +5913,28 @@ void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr)
       GetElementToFaceTable();
    }
 
-   map<int,int> f2qf_loc;
-   map<int,int> &f2qf = f2qf_ptr ? *f2qf_ptr : f2qf_loc;
+   Array<int> f2qf_loc;
+   Array<int> &f2qf = f2qf_ptr ? *f2qf_ptr : f2qf_loc;
+   f2qf.SetSize(0);
 
    int NumOfQuadFaces = 0;
-   for (int i = 0; i < faces.Size(); i++)
+   if (HasGeometry(Geometry::SQUARE))
    {
-      if (faces[i]->GetType() == Element::QUADRILATERAL)
+      if (HasGeometry(Geometry::TRIANGLE))
       {
-         f2qf[i] = NumOfQuadFaces;
-         NumOfQuadFaces++;
+         f2qf.SetSize(faces.Size());
+         for (int i = 0; i < faces.Size(); i++)
+         {
+            if (faces[i]->GetType() == Element::QUADRILATERAL)
+            {
+               f2qf[i] = NumOfQuadFaces;
+               NumOfQuadFaces++;
+            }
+         }
+      }
+      else
+      {
+         NumOfQuadFaces = faces.Size();
       }
    }
 
@@ -6490,7 +6027,7 @@ void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr)
                {
                   vv[k] = v[pri_t::FaceVert[fi][k]];
                }
-               AverageVertices(vv, 4, oface+f2qf[f[fi]]);
+               AverageVertices(vv, 4, oface + f2qf[f[fi]]);
             }
 
             for (int ei = 0; ei < 9; ei++)
@@ -6542,6 +6079,18 @@ void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr)
             const int he = hex_counter;
             hex_counter++;
 
+            const int *qf;
+            int qf_data[6];
+            if (f2qf.Size() == 0)
+            {
+               qf = f;
+            }
+            else
+            {
+               for (int k = 0; k < 6; k++) { qf_data[k] = f2qf[f[k]]; }
+               qf = qf_data;
+            }
+
             AverageVertices(v, 8, oelem+he);
 
             for (int fi = 0; fi < 6; fi++)
@@ -6550,7 +6099,7 @@ void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr)
                {
                   vv[k] = v[hex_t::FaceVert[fi][k]];
                }
-               AverageVertices(vv, 4, oface+f2qf[f[fi]]);
+               AverageVertices(vv, 4, oface + qf[fi]);
             }
 
             for (int ei = 0; ei < 12; ei++)
@@ -6562,42 +6111,35 @@ void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr)
                AverageVertices(vv, 2, oedge+e[ei]);
             }
 
-            const int qf0 = f2qf[f[0]];
-            const int qf1 = f2qf[f[1]];
-            const int qf2 = f2qf[f[2]];
-            const int qf3 = f2qf[f[3]];
-            const int qf4 = f2qf[f[4]];
-            const int qf5 = f2qf[f[5]];
-
             elements[j+0] = new Hexahedron(oedge+e[0], v[1], oedge+e[1],
-                                           oface+qf0, oface+qf1, oedge+e[9],
-                                           oface+qf2, oelem+he, attr);
-            elements[j+1] = new Hexahedron(oface+qf0, oedge+e[1], v[2],
-                                           oedge+e[2], oelem+he, oface+qf2,
-                                           oedge+e[10], oface+qf3, attr);
-            elements[j+2] = new Hexahedron(oedge+e[3], oface+qf0, oedge+e[2],
-                                           v[3], oface+qf4, oelem+he, oface+qf3,
-                                           oedge+e[11], attr);
-            elements[j+3] = new Hexahedron(oedge+e[8], oface+qf1, oelem+he,
-                                           oface+qf4, v[4], oedge+e[4],
-                                           oface+qf5, oedge+e[7], attr);
-            elements[j+4] = new Hexahedron(oface+qf1, oedge+e[9], oface+qf2,
+                                           oface+qf[0], oface+qf[1], oedge+e[9],
+                                           oface+qf[2], oelem+he, attr);
+            elements[j+1] = new Hexahedron(oface+qf[0], oedge+e[1], v[2],
+                                           oedge+e[2], oelem+he, oface+qf[2],
+                                           oedge+e[10], oface+qf[3], attr);
+            elements[j+2] = new Hexahedron(oedge+e[3], oface+qf[0], oedge+e[2],
+                                           v[3], oface+qf[4], oelem+he,
+                                           oface+qf[3], oedge+e[11], attr);
+            elements[j+3] = new Hexahedron(oedge+e[8], oface+qf[1], oelem+he,
+                                           oface+qf[4], v[4], oedge+e[4],
+                                           oface+qf[5], oedge+e[7], attr);
+            elements[j+4] = new Hexahedron(oface+qf[1], oedge+e[9], oface+qf[2],
                                            oelem+he, oedge+e[4], v[5],
-                                           oedge+e[5], oface+qf5, attr);
-            elements[j+5] = new Hexahedron(oelem+he, oface+qf2, oedge+e[10],
-                                           oface+qf3, oface+qf5, oedge+e[5],
+                                           oedge+e[5], oface+qf[5], attr);
+            elements[j+5] = new Hexahedron(oelem+he, oface+qf[2], oedge+e[10],
+                                           oface+qf[3], oface+qf[5], oedge+e[5],
                                            v[6], oedge+e[6], attr);
-            elements[j+6] = new Hexahedron(oface+qf4, oelem+he, oface+qf3,
-                                           oedge+e[11], oedge+e[7], oface+qf5,
+            elements[j+6] = new Hexahedron(oface+qf[4], oelem+he, oface+qf[3],
+                                           oedge+e[11], oedge+e[7], oface+qf[5],
                                            oedge+e[6], v[7], attr);
 
             v[1] = oedge+e[0];
-            v[2] = oface+qf0;
+            v[2] = oface+qf[0];
             v[3] = oedge+e[3];
             v[4] = oedge+e[8];
-            v[5] = oface+qf1;
+            v[5] = oface+qf[1];
             v[6] = oelem+he;
-            v[7] = oface+qf4;
+            v[7] = oface+qf[4];
          }
          break;
 
@@ -6627,7 +6169,8 @@ void Mesh::Mixed3DUniformRefinement(map<int,int> * f2qf_ptr)
       }
       else if (bdr_el_type == Element::QUADRILATERAL)
       {
-         const int qf = f2qf[be_to_face[i]];
+         const int qf =
+            (f2qf.Size() == 0) ? be_to_face[i] : f2qf[be_to_face[i]];
 
          boundary[j+0] = new Quadrilateral(oedge+e[0], v[1], oedge+e[1],
                                            oface+qf, attr);
@@ -7246,29 +6789,12 @@ void Mesh::UniformRefinement()
    }
    else
    {
-      // FIXME: always use the general 2D/3D uniform refinement methods
-#if 1
-      switch (10*meshgen + Dim)
-      {
-         case 22: QuadUniformRefinement();  break;
-         case 32: Mixed2DUniformRefinement(); break;
-         case 23: HexUniformRefinement();   break;
-         case 43: WedgeUniformRefinement(); break;
-         case 33: // tets + hexes
-         case 53: // tets + wedges
-         case 63: // hexes + wedges
-         case 73: // tets + hexes + weges
-            Mixed3DUniformRefinement(); break;
-         default: MFEM_ABORT("internal error"); break;
-      }
-#else
       switch (Dim)
       {
-         case 2: Mixed2DUniformRefinement(); break;
-         case 3: Mixed3DUniformRefinement(); break;
+         case 2: UniformRefinement2D(); break;
+         case 3: UniformRefinement3D(); break;
          default: MFEM_ABORT("internal error");
       }
-#endif
    }
 }
 

@@ -280,22 +280,14 @@ protected:
    /// Update the nodes of a curved mesh after refinement
    void UpdateNodes();
 
-   /// Refine quadrilateral mesh.
-   virtual void QuadUniformRefinement();
+   /// Refine a mixed 2D mesh uniformly.
+   virtual void UniformRefinement2D();
 
-   /// Refine hexahedral mesh.
-   virtual void HexUniformRefinement();
-
-   /// Refine wedge mesh.
-   virtual void WedgeUniformRefinement(std::map<int,int> * f2qf = NULL);
-
-   /// Refine a mixed 2D mesh.
-   virtual void Mixed2DUniformRefinement();
-
-   /// Refine a mixed 3D mesh.
+   /// Refine a mixed 3D mesh uniformly.
    /** If @a f2qf is not NULL, adds all quadrilateral faces to @a f2qf which
-       represents a "face-to-quad-face" index map. */
-   virtual void Mixed3DUniformRefinement(std::map<int,int> * f2qf = NULL);
+       represents a "face-to-quad-face" index map. When all faces are quads, the
+       array @a f2qf is kept empty since it is not needed. */
+   virtual void UniformRefinement3D(Array<int> *f2qf = NULL);
 
    /// Refine NURBS mesh.
    virtual void NURBSUniformRefinement();
