@@ -416,7 +416,7 @@ public:
        essential boundary conditions. */
    virtual void GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
                                   Array<int> &ess_vdofs,
-                                  Array<int> component) const;
+                                  Array2D<int> component) const;
 
    /** Get a list of essential true dofs, ess_tdof_list, corresponding to the
        boundary attributes marked in the array bdr_attr_is_ess.
@@ -431,7 +431,7 @@ public:
        in the input component array, srw */
    virtual void GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
                                      Array<int> &ess_tdof_list,
-                                     Array<int> component);
+                                     Array2D<int> component);
 
    /// Convert a Boolean marker array to a list containing all marked indices.
    static void MarkerToList(const Array<int> &marker, Array<int> &list);

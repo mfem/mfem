@@ -622,6 +622,18 @@ void ParFiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
       Synchronize(ess_dofs);
    }
 }
+    
+void ParFiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
+                                              Array<int> &ess_dofs,
+                                              Array2D<int> componentID) const
+{
+    FiniteElementSpace::GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, componentID);
+    
+    if (Conforming())
+    {
+        Synchronize(ess_dofs);
+    }
+}
 
 void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
                                                  &bdr_attr_is_ess,
@@ -646,6 +658,17 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
    MFEM_VERIFY(counter == 0, "internal MFEM error: counter = " << counter);
 #endif
    MarkerToList(true_ess_dofs, ess_tdof_list);
+}
+    
+void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
+                                                 Array<int> &ess_tdof_list,
+                                                 Array2D<int> componentID)
+{
+    Array<int> ess_dofs, true_ess_dofs;
+    
+    GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, componentID);
+    GetRestrictionMatrix()->BooleanMult(ess_dofs, true_ess_dofs);
+    MarkerToList(true_ess_dofs, ess_tdof_list);
 }
 
 int ParFiniteElementSpace::GetLocalTDofNumber(int ldof) const

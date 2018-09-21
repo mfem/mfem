@@ -32,17 +32,27 @@ static void mark_dofs(const Array<int> &dofs, Array<int> &mark_array)
 void NonlinearForm::SetEssentialBCPartial(const Array<int> &bdr_attr_is_ess,
                                           Vector *rhs)
 {
-   Array<int> component;
-   component.SetSize(bdr_attr_is_ess.Size());
-   component = 0; 
+   Array2D<int> component;
+   Array<int> cmp_row;
+   int id = -1;
+   //The size here is set explicitly
+   component.SetSize(bdr_attr_is_ess.Size(), 3);
+   cmp_row.SetSize(3);
+   
+   component = 0;
+   cmp_row = 0;
 
    for (int i=0; i<bdr_attr_is_ess.Size(); ++i) {
       if (bdr_attr_is_ess[i])
       {
+         id = fes->GetBdrAttribute(i) - 1;
          BCManager & bcManager = BCManager::getInstance();
          BCData & bc = bcManager.GetBCInstance(i+1); // this requires contiguous attribute ids
-
-         component[i] = bc.compID; 
+         BCData::getComponents(bc.compID, cmp_row);
+         
+         component(id, 0) = cmp_row[0];
+         component(id, 1) = cmp_row[1];
+         component(id, 2) = cmp_row[2];
 
       }
    }
@@ -116,95 +126,104 @@ void GridFunction::ProjectBdrCoefficient(VectorFunctionRestrictedCoefficient &vf
 
 }
 
-void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
-                                                 Array<int> &ess_tdof_list,
-                                                 Array<int> componentID)
-{
-   Array<int> ess_dofs, true_ess_dofs;
+//void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
+//                                                 Array<int> &ess_tdof_list,
+//                                                 Array2D<int> componentID)
+//{
+//   Array<int> ess_dofs, true_ess_dofs;
+//
+//   GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, componentID);
+//   GetRestrictionMatrix()->BooleanMult(ess_dofs, true_ess_dofs);
+//   MarkerToList(true_ess_dofs, ess_tdof_list);
+//}
 
-   GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, componentID);
-   GetRestrictionMatrix()->BooleanMult(ess_dofs, true_ess_dofs);
-   MarkerToList(true_ess_dofs, ess_tdof_list);
-}
+//void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
+//                                              Array<int> &ess_tdof_list,
+//                                              Array2D<int> componentID)
+//{
+//   Array<int> ess_vdofs, ess_tdofs;
+//   GetEssentialVDofs(bdr_attr_is_ess, ess_vdofs, componentID);
+//   const SparseMatrix *R = GetConformingRestriction();
+//   if (!R)
+//   {
+//      ess_tdofs.MakeRef(ess_vdofs);
+//   }
+//   else
+//   {
+//      R->BooleanMult(ess_vdofs, ess_tdofs);
+//   }
+//   MarkerToList(ess_tdofs, ess_tdof_list);
+//}
 
-void FiniteElementSpace::GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
-                                              Array<int> &ess_tdof_list,
-                                              Array<int> componentID)
-{
-   Array<int> ess_vdofs, ess_tdofs;
-   GetEssentialVDofs(bdr_attr_is_ess, ess_vdofs, componentID);
-   const SparseMatrix *R = GetConformingRestriction();
-   if (!R)
-   {
-      ess_tdofs.MakeRef(ess_vdofs);
-   }
-   else
-   {
-      R->BooleanMult(ess_vdofs, ess_tdofs);
-   }
-   MarkerToList(ess_tdofs, ess_tdof_list);
-}
+//void ParFiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
+//                                              Array<int> &ess_dofs,
+//                                              Array2D<int> componentID) const
+//{
+//   FiniteElementSpace::GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, componentID);
+//
+//   if (Conforming())
+//   {
+//      Synchronize(ess_dofs);
+//   }
+//}
 
-void ParFiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
-                                              Array<int> &ess_dofs,
-                                              Array<int> componentID) const
-{
-   FiniteElementSpace::GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, componentID);
-
-   if (Conforming())
-   {
-      Synchronize(ess_dofs);
-   }
-}
-
-void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
-                                           Array<int> &ess_vdofs,
-                                           Array<int> componentID) const
-{
-   // Note this doesn't treat mesh->ncmesh like the GetEssentialVDofs in 
-   // fem/fespace.cpp
-   Array<int> vdofs, dofs, ess_comp;
-
-   ess_vdofs.SetSize(GetVSize());
-//   printf("ess_vdofs.size %d \n", GetVSize());
-   ess_vdofs = 0;
-
-   ess_comp.SetSize(3);
-   ess_comp = 0;
-
-   for (int i = 0; i < GetNBE(); i++)
-   {
-      int id = GetBdrAttribute(i)-1;
-      if (bdr_attr_is_ess[id])
-      {
-//         printf("GetEssentialVDofs componentID %d \n", componentID[id]);
-         if (componentID[id] < 0) // same as srw component id system
-         {
-            // Mark all components.
-            GetBdrElementVDofs(i, vdofs);
-            mark_dofs(vdofs, ess_vdofs);
-         }
-         else // changed based on srw component id system
-         {
-            GetBdrElementDofs(i, dofs);
-            BCData::getComponents(componentID[id], ess_comp);
-            for (int d = 0; d < dofs.Size(); d++)
-            { 
-               // loop over actively constrained components
-               for (int k = 0; k < ess_comp.Size(); ++k) 
-               {
-                  if (ess_comp[k] != -1) { // -1 means inactive component
-                                           // valid components are x = 0, y = 1, z = 2
-                     dofs[d] = DofToVDof(dofs[d], ess_comp[k]); 
-//                     printf("GetEssentialVDofs: %d %d %d %d \n", (id+1), k, ess_comp[k], dofs[d]);
-                  }
-               }
-            } 
-//            printf("GetEssentialVDofs, size of dofs, ess_vdofs: %d %d \n", dofs.Size(), ess_vdofs.Size());
-            mark_dofs(dofs, ess_vdofs); // do this only once?
-         }
-      }
-   }
-}
+//void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
+//                                           Array<int> &ess_vdofs,
+//                                           Array2D<int> componentID) const
+//{
+//   // Note this doesn't treat mesh->ncmesh like the GetEssentialVDofs in
+//   // fem/fespace.cpp
+//   Array<int> vdofs, dofs, ess_comp;
+//
+//   bool cmpID_rows = FALSE;
+//
+//   ess_vdofs.SetSize(GetVSize());
+////   printf("ess_vdofs.size %d \n", GetVSize());
+//   ess_vdofs = 0;
+//
+//   ess_comp.SetSize(3);
+//   ess_comp = 0;
+//
+//   for (int i = 0; i < GetNBE(); i++)
+//   {
+//      int id = GetBdrAttribute(i)-1;
+//      if (bdr_attr_is_ess[id])
+//      {
+//        cmpID_rows = TRUE;
+//        //Checking to see if all the values in the row are greater than -1 if so then
+//        //all components on a boundary are said to be marked.
+//        for(int j = 0; j < componentID.NumCols(); ++j)
+//        {
+//            cmpID_rows = cmpID_rows && ( componentID(id, j) > -1);
+//        }
+////         printf("GetEssentialVDofs componentID %d \n", componentID[id]);
+//         if (cmpID_rows) // same as srw component id system
+//         {
+//            // Mark all components.
+//            GetBdrElementVDofs(i, vdofs);
+//            mark_dofs(vdofs, ess_vdofs);
+//         }
+//         else // changed based on srw component id system
+//         {
+//            GetBdrElementDofs(i, dofs);
+////            BCData::getComponents(componentID[id], ess_comp);
+//            for (int d = 0; d < dofs.Size(); d++)
+//            {
+//               // loop over actively constrained components
+//               for (int k = 0; k < componentID.NumCols(); ++k)
+//               {
+//                  if (componentID(id, k) != -1) { // -1 means inactive component
+//                                           // valid components are x = 0, y = 1, z = 2
+//                     dofs[d] = DofToVDof(dofs[d], componentID(id, k));
+////                     printf("GetEssentialVDofs: %d %d %d %d \n", (id+1), k, ess_comp[k], dofs[d]);
+//                  }
+//               }
+//            }
+////            printf("GetEssentialVDofs, size of dofs, ess_vdofs: %d %d \n", dofs.Size(), ess_vdofs.Size());
+//            mark_dofs(dofs, ess_vdofs); // do this only once?
+//         }
+//      }
+//   }
+//}
 
 }
