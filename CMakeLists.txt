@@ -590,9 +590,10 @@ if(MFEM_USE_PUMI)
     string(FIND "${pumilib}" ".a" staticlib)
     string(FIND "${pumilib}" ".so" sharedlib)
     find_library(lib ${libname} PATHS ${PUMI_DIR}/lib NO_DEFUALT_PATH)
-    if( NOT "${lib}" MATCHES "lib-NOTFOUND" OR
-        NOT "${staticlib}" MATCHES "-1" OR
-        NOT "${sharedlib}" MATCHES "-1" )
+    if( NOT "${sharedlib}" MATCHES "-1" OR
+        NOT "${staticlib}" MATCHES "-1"   )
+      set(MFEM_LIBS "${pumilib} ${MFEM_LIBS}")
+    elseif( NOT "${lib}" MATCHES "lib-NOTFOUND")
       set(MFEM_LIBS "${lib} ${MFEM_LIBS}")
     elseif( "${lib}" MATCHES "lib-NOTFOUND" AND
         NOT "${libname}" MATCHES "can" AND
