@@ -3312,7 +3312,7 @@ void ParMesh::UniformRefineGroups2D(int old_nv)
 void ParMesh::UniformRefineGroups3D(int old_nv, int old_nedges,
                                     const DSTable &old_v_to_v,
                                     const STable3D &old_faces,
-                                    std::map<int,int> *f2qf)
+                                    Array<int> *f2qf)
 {
    // f2qf can be NULL if all faces are quads or there are no quad faces
 
@@ -3481,17 +3481,17 @@ void ParMesh::UniformRefineGroups3D(int old_nv, int old_nedges,
    group_squad.SetIJ(I_group_squad, J_group_squad);
 }
 
-void ParMesh::QuadUniformRefinement()
+void ParMesh::UniformRefinement2D()
 {
    DeleteFaceNbrData();
 
    const int old_nv = NumOfVertices;
 
-   // call Mesh::QuadUniformRefinement so that it won't update the nodes
+   // call Mesh::UniformRefinement2D so that it won't update the nodes
    {
       GridFunction *nodes = Nodes;
       Nodes = NULL;
-      Mesh::QuadUniformRefinement();
+      Mesh::UniformRefinement2D();
       Nodes = nodes;
    }
 
@@ -3501,7 +3501,7 @@ void ParMesh::QuadUniformRefinement()
    UpdateNodes();
 }
 
-void ParMesh::HexUniformRefinement()
+void ParMesh::UniformRefinement3D(Array<int> *)
 {
    DeleteFaceNbrData();
 
@@ -3512,88 +3512,18 @@ void ParMesh::HexUniformRefinement()
    GetVertexToVertexTable(v_to_v);
    STable3D *faces_tbl = GetFacesTable();
 
-   // call Mesh::HexUniformRefinement so that it won't update the nodes
+   // call Mesh::UniformRefinement3D so that it won't update the nodes
+   Array<int> f2qf;
    {
       GridFunction *nodes = Nodes;
       Nodes = NULL;
-      Mesh::HexUniformRefinement();
+      Mesh::UniformRefinement3D(&f2qf);
       Nodes = nodes;
    }
 
    // update the groups
-   UniformRefineGroups3D(old_nv, old_nedges, v_to_v, *faces_tbl, NULL);
-
-   UpdateNodes();
-}
-
-void ParMesh::WedgeUniformRefinement(map<int,int> * )
-{
-   DeleteFaceNbrData();
-
-   const int old_nv = NumOfVertices;
-   const int old_nedges = NumOfEdges;
-
-   DSTable v_to_v(NumOfVertices);
-   GetVertexToVertexTable(v_to_v);
-   STable3D *faces_tbl = GetFacesTable();
-
-   // call Mesh::WedgeUniformRefinement so that it won't update the nodes
-   map<int,int> f2qf;
-   {
-      GridFunction *nodes = Nodes;
-      Nodes = NULL;
-      Mesh::WedgeUniformRefinement(&f2qf);
-      Nodes = nodes;
-   }
-
-   // update the groups
-   UniformRefineGroups3D(old_nv, old_nedges, v_to_v, *faces_tbl, &f2qf);
-
-   UpdateNodes();
-}
-
-void ParMesh::Mixed2DUniformRefinement()
-{
-   DeleteFaceNbrData();
-
-   const int old_nv = NumOfVertices;
-
-   // call Mesh::Mixed2DUniformRefinement so that it won't update the nodes
-   {
-      GridFunction *nodes = Nodes;
-      Nodes = NULL;
-      Mesh::Mixed2DUniformRefinement();
-      Nodes = nodes;
-   }
-
-   // update the groups
-   UniformRefineGroups2D(old_nv);
-
-   UpdateNodes();
-}
-
-void ParMesh::Mixed3DUniformRefinement(map<int,int> * )
-{
-   DeleteFaceNbrData();
-
-   const int old_nv = NumOfVertices;
-   const int old_nedges = NumOfEdges;
-
-   DSTable v_to_v(NumOfVertices);
-   GetVertexToVertexTable(v_to_v);
-   STable3D *faces_tbl = GetFacesTable();
-
-   // call Mesh::Mixed3DUniformRefinement so that it won't update the nodes
-   map<int,int> f2qf;
-   {
-      GridFunction *nodes = Nodes;
-      Nodes = NULL;
-      Mesh::Mixed3DUniformRefinement(&f2qf);
-      Nodes = nodes;
-   }
-
-   // update the groups
-   UniformRefineGroups3D(old_nv, old_nedges, v_to_v, *faces_tbl, &f2qf);
+   UniformRefineGroups3D(old_nv, old_nedges, v_to_v, *faces_tbl,
+                         f2qf.Size() ? &f2qf : NULL);
 
    UpdateNodes();
 }
