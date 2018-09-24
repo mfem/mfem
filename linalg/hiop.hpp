@@ -36,12 +36,16 @@ private:
    Vector workVec2_; //used as work space of size n_local_
 
 protected:
+   // Problem info.
+   // Local and global number of variables and constraints.
+   long long n_loc, n_glob, m_loc, m_glob;
    OptimizationProblem &problem; // TODO make it private after removing _simple.
 
 public:
-   HiopOptimizationProblem(OptimizationProblem &prob, const long long& n_loc)
-      : problem(prob), n_(n_loc), n_local_(n_loc), a_(0.),
-        workVec_(n_loc), use_initial_x_value(false)
+   HiopOptimizationProblem(OptimizationProblem &prob)
+      : problem(prob),
+        n_loc(prob.input_size), n_glob(n_loc),
+        m_loc(prob.GetNumConstraints()), m_glob(m_loc), a_(0.), workVec_(n_loc)
   { 
 #ifdef MFEM_USE_MPI
     //in case HiOp with MPI support is called by a serial driver.
@@ -50,13 +54,12 @@ public:
   }
 
 #ifdef MFEM_USE_MPI
-   HiopOptimizationProblem(const MPI_Comm& _comm, OptimizationProblem &prob,
-                           const long long& _n_local)
-      : comm_(_comm), problem(prob), n_local_(_n_local), a_(0.),
-        workVec_(_n_local), use_initial_x_value(false)
+   HiopOptimizationProblem(const MPI_Comm& _comm, OptimizationProblem &prob)
+      : comm_(_comm), problem(prob), n_loc(prob.input_size), n_glob(0),
+        m_loc(prob.GetNumConstraints()), m_glob(0), a_(0.), workVec_(n_loc)
    {
-      int ierr = MPI_Allreduce(&n_local_, &n_, 1, MPI_LONG_LONG_INT, MPI_SUM, comm_);
-      MFEM_ASSERT(ierr==MPI_SUCCESS, "MPI_Allreduce failed with error" << ierr);
+      MPI_Allreduce(&n_loc, &n_glob, 1, MPI_LONG_LONG_INT, MPI_SUM, comm_);
+      MPI_Allreduce(&m_loc, &m_glob, 1, MPI_LONG_LONG_INT, MPI_SUM, comm_);
    }
 #endif
 
@@ -69,81 +72,35 @@ public:
    virtual void setObjectiveFunction(const DenseMatrix &_A)
    {
       A_ = _A;
-      workVec2_.SetSize(n_local_);
+      workVec2_.SetSize(n_loc);
    }
    virtual void setObjectiveFunction(const Vector &_c)  { c_ = _c; }
 
    virtual void setStartingPoint(const Vector &_xstart)
    {
-      // To set use_initial_x_value to false, provide a bad _xstart
-      if (n_local_ != _xstart.Size()) use_initial_x_value = false;
-      else
-      {
-         xstart_ = _xstart;
-         use_initial_x_value = true;
-      }
+      xstart_ = _xstart;
    }
 
-   /** problem dimensions: n number of variables, m number of constraints */
-   virtual bool get_prob_sizes(long long int& n, long long int& m)
-   {
-      n = n_;
-      m = 1;
-      return true;
-   }
+   /** Extraction of problem dimensions:
+    *  n is the number of variables, m is the number of constraints. */
+   virtual bool get_prob_sizes(long long int& n, long long int& m);
 
    virtual bool get_vars_info(const long long& n, double *xlow, double* xupp,
-                              NonlinearityType* type)
-   {
-      MFEM_ASSERT(n==n_, "global size input mismatch");
-      std::memcpy(xlow, lo_.GetData(), n_local_*sizeof(double));
-      std::memcpy(xupp, hi_.GetData(), n_local_*sizeof(double));
-      return true;
-   }
+                              NonlinearityType* type);
 
    /** bounds on the constraints
-   *  (clow<=-1e20 means no lower bound, cupp>=1e20 means no upper bound) */
+    *  (clow<=-1e20 means no lower bound, cupp>=1e20 means no upper bound) */
    virtual bool get_cons_info(const long long& m, double* clow, double* cupp,
-                              NonlinearityType* type)
-   {
-      MFEM_ASSERT(m==1, "only one constraint should be present");
-      *clow = *cupp = a_;
-      return true;
-   }
+                              NonlinearityType* type);
 
-   /** Objective function evaluation. Each rank returns the global obj. value.
-   *  f = 1/2 x^T * A * x + c^T * x                                           */
+   /** Objective function evaluation.
+    *  Each rank returns the global objective value. */
    virtual bool eval_f(const long long& n, const double* x, bool new_x,
-                       double& obj_value)
-   {
-      MFEM_ASSERT(n==n_, "global size input mismatch");
+                       double& obj_value);
 
-      workVec_ = x;
-      obj_value = 0.5 * A_.InnerProduct(workVec_, workVec_) + (c_ * workVec_);
-
-#ifdef MFEM_USE_MPI
-      double loc_obj = obj_value;
-      int ierr = MPI_Allreduce(&loc_obj, &obj_value, 1, MPI_DOUBLE, MPI_SUM, comm_);
-      MFEM_ASSERT(ierr==MPI_SUCCESS, "MPI_Allreduce failed with error" << ierr);
-#endif
-
-      return true;
-   }
-
-   /** Gradient of objective (local chunk), grad(f) = A*x + c */
+   /** Gradient of the objective function (local chunk). */
    virtual bool eval_grad_f(const long long& n, const double* x, bool new_x,
-                            double* gradf)
-   {
-      MFEM_ASSERT(n==n_, "global size input mismatch");
-
-      workVec_  = x;
-      workVec2_ = workVec_;
-      A_.Mult(workVec_, workVec2_);
-      workVec2_ += c_;
-      std::memcpy(gradf, workVec2_.GetData(), n_local_*sizeof(double));
-
-      return true;
-   }
+                            double* gradf);
 
    /** Evaluates a subset of the constraints cons(x) (where clow<=cons(x)<=cupp). The subset is of size
     *  'num_cons' and is described by indexes in the 'idx_cons' array. The methods may be called
@@ -169,7 +126,7 @@ public:
 			   const double* x, bool new_x,
             double* cons)
    {
-      MFEM_ASSERT(n==n_, "global size input mismatch");
+      MFEM_ASSERT(n==n_glob, "global size input mismatch");
       MFEM_ASSERT(m==1, "only one constraint should be present");
       MFEM_ASSERT(num_cons<=m, "num_cons should be at most m=" << m);
       if (num_cons>0) {
@@ -190,11 +147,10 @@ public:
    }
 
    /** provide a primal starting point. This point is subject to adjustments internally in hiOP.*/
-   virtual bool get_starting_point(const long long&n, double* x0)
+   virtual bool get_starting_point(const long long &n, double *x0)
    {
-      if (!use_initial_x_value) return false; //let hiop decide
-      MFEM_ASSERT(n_local_ == xstart_.Size(), "xstart not set properly!");
-      memcpy(x0, xstart_.GetData(), n_local_*sizeof(double));
+      MFEM_ASSERT(n_loc == xstart_.Size(), "xstart not set properly!");
+      memcpy(x0, xstart_.GetData(), n_loc*sizeof(double));
       return true;
    }
 
@@ -212,13 +168,13 @@ public:
 			   const double* x, bool new_x,
             double** Jac)
    {
-      MFEM_ASSERT(n==n_, "global size input mismatch");
+      MFEM_ASSERT(n==n_glob, "global size input mismatch");
       MFEM_ASSERT(m==1, "only one constraint should be present");
       MFEM_ASSERT(num_cons<=m, "num_cons should be at most m=" << m);
       if (num_cons>0) {
          MFEM_ASSERT(idx_cons[0]==0, "index of the constraint should be 0");
 
-         std::memcpy(Jac[0], w_.GetData(), n_local_*sizeof(double));
+         std::memcpy(Jac[0], w_.GetData(), n_loc*sizeof(double));
       }
       return true;
    }
@@ -236,7 +192,7 @@ public:
       MFEM_ASSERT(ierr==MPI_SUCCESS, "MPI_Comm_size failed with error" << ierr);
 
       long long* sizes = new long long[nranks];
-      ierr = MPI_Allgather(&n_local_, 1, MPI_LONG_LONG_INT, sizes, 1, MPI_LONG_LONG_INT, comm_);
+      ierr = MPI_Allgather(&n_loc, 1, MPI_LONG_LONG_INT, sizes, 1, MPI_LONG_LONG_INT, comm_);
       MFEM_ASSERT(MPI_SUCCESS==ierr,
 		"Error in MPI_Allgather of number of decision variables." << ierr);
 
@@ -261,13 +217,6 @@ public:
    }
 #endif
 
-  /** Seter/geter methods below; not inherited from the HiOp interface class */
-   virtual void setBounds(const Vector &_lo, const Vector &_hi)
-   {
-      lo_ = _lo;
-      hi_ = _hi;
-   }
-
    virtual void setLinearConstraint(const Vector &_w, const double& _a)
    {
       w_ = _w;
@@ -279,23 +228,15 @@ protected:
    MPI_Comm comm_;
 #endif
 
-   //members that store problem info
-   long long n_; //number of variables (global)
-   long long n_local_; //number of variables (local to the MPI process)
-
    //Objective function: f = 1/2 x^T A x + c^T x
    DenseMatrix A_;
    Vector c_;
 
-   Vector lo_,hi_; //lower and upper bounds
    Vector w_;      //linear constraint coefficients
    double a_;      //linear constraint rhs
 
    Vector xstart_; //Initial guess, set equal to xt
    Vector workVec_; //used as work space of size n_local_
-
-   bool use_initial_x_value; //Whether to use the initial value of x in Mult
-
 }; //End of HiopProblemSpec class
 
 // Special class for HiopProblemSpec where f = ||x-xt||_2
@@ -304,20 +245,19 @@ class HiopProblemSpec_Simple : public HiopOptimizationProblem
 
 public:
 
-   HiopProblemSpec_Simple(OptimizationProblem &prob, const long long& n_loc)
-      : HiopOptimizationProblem(prob, n_loc) { }
+   HiopProblemSpec_Simple(OptimizationProblem &prob)
+      : HiopOptimizationProblem(prob) { }
 
 #ifdef MFEM_USE_MPI
-   HiopProblemSpec_Simple(const MPI_Comm& _comm, OptimizationProblem &prob,
-                          const long long& _n_local)
-      : HiopOptimizationProblem(_comm, prob, _n_local) { }
+   HiopProblemSpec_Simple(const MPI_Comm& _comm, OptimizationProblem &prob)
+      : HiopOptimizationProblem(_comm, prob) { }
 #endif
 
    /** Objective function evaluation. Each rank returns the global obj. value. */
    virtual bool eval_f(const long long& n, const double* x, bool new_x,
                        double& obj_value)
    {
-      MFEM_ASSERT(n==n_, "global size input mismatch");
+      MFEM_ASSERT(n==n_glob, "global size input mismatch");
 
       workVec_ = x;
       workVec_.Add(-1.0, xt_);
@@ -336,12 +276,12 @@ public:
    virtual bool eval_grad_f(const long long& n, const double* x,
                             bool new_x, double* gradf)
    {
-      MFEM_ASSERT(n==n_, "global size input mismatch");
+      MFEM_ASSERT(n==n_glob, "global size input mismatch");
 
       // compute gradf = x-xt
       workVec_  = x;
       workVec_ -= xt_;
-      std::memcpy(gradf, workVec_.GetData(), n_local_*sizeof(double));
+      std::memcpy(gradf, workVec_.GetData(), n_loc*sizeof(double));
 
       return true;
    }
@@ -374,6 +314,7 @@ protected:
    Vector xt_;     //target vector in the L2 objective
 
 }; //End of HiopProblemSpec_Simple class
+
 
 /** Adapts the HIOP functionality to the MFEM OptimizationSolver interface.
  */

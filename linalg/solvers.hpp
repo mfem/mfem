@@ -297,30 +297,36 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
 
 /** Defines operators and constraints for the following optimization problem:
  *
- *    Minimize F(x), subject to
+ *    Minimize the objective function F(x), subject to
  *    C(x) = c_e,
  *    d_lo <= D(x) <= d_hi,
  *    x_lo <= x <= x_hi.
  *
  *  The operators F, C, D must take input of the same size (same width).
  *  Gradients of F, C, D might be needed, see class OptimizationSolver.
- *  F always returns a scalar value (F.Height() = 1).
+ *  F always returns a scalar value, see CalcObjective(), CalcObjectiveGrad().
  *  C and D can have arbitrary heights.
  *  C and D can be NULL, meaning that their constraints are not used.
  */
 class OptimizationProblem
 {
 public:
-   const Operator &F, *C, *D;
+   const int input_size;
+   const Operator *C, *D;
    // Not owned, some can remain unused (NULL).
    const Vector *c_e, *d_lo, *d_hi, *x_lo, *x_hi;
 
-   OptimizationProblem(const Operator &F_, const Operator *C_,
-                       const Operator *D_);
+   OptimizationProblem(int insize, const Operator *C_, const Operator *D_);
+
+   virtual double CalcObjective(const Vector &x) const = 0;
+   virtual void CalcObjectiveGrad(const Vector &x, Vector &grad) const
+   { MFEM_ABORT("The objective gradient is not implemented."); }
 
    void SetEqualityConstraint(const Vector &c);
    void SetInequalityConstraint(const Vector &dl, const Vector &dh);
-   void SetLinearInequalityConstraint(const Vector &xl, const Vector &xh);
+   void SetSolutionBounds(const Vector &xl, const Vector &xh);
+
+   int GetNumConstraints() const;
 };
 
 /** Abstract solver for OptimizationProblems.
@@ -376,6 +382,7 @@ protected:
       else
       {
          Vector c(1);
+         // Includes parallel communication.
          problem->C->Mult(x, c);
          return c(0) - (*problem->c_e)(0);
       }
@@ -393,7 +400,7 @@ public:
    /** Setting an OptimizationProblem will overwrite the Vectors given by
     *  SetBounds and SetLinearConstraint. The objective function remains
     *  unchanged. */
-   virtual void SetOptimizationProblem(const OptimizationProblem &prob);
+   virtual void SetOptimizationProblem(OptimizationProblem &prob);
 
    void SetBounds(const Vector &_lo, const Vector &_hi);
    void SetLinearConstraint(const Vector &_w, double _a);

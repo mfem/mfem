@@ -509,11 +509,9 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
       y_max(i) = (y_max(i) - x_gf(i) ) / dt;
    }
 
-   Vector dy(y_min.Size());
-   dy = 1e-6;
-
-   y_min -= dy;
-   y_max += dy;
+   // TODO still an issue without this.
+   y_min -= 1e-6;
+   y_max -= (-1e-6);
 
    // Compute the high-order solution y = M^{-1} (K x + b) on the tdofs.
    K.Mult(x, z);
