@@ -1418,7 +1418,7 @@ void FiniteElementSpace::Construct()
       }
    }
 
-   ndofs = nvdofs + nedofs + nfdofs + nbdofs;
+   ndofs = nvdofs + nedofs + npdofs + nfdofs + nbdofs;
 
    // Do not build elem_dof Table here: in parallel it has to be constructed
    // later.
@@ -1776,7 +1776,7 @@ void FiniteElementSpace::GetPlanarDofs(int i, Array<int> &dofs) const
    }
    if (ne > 0)
    {
-      mesh->GetFaceEdges(i, E, Eo);
+      mesh->GetPlanarEdges(i, E, Eo); // TODO check for higher order
    }
    np = (pdofs) ? (pdofs[i+1]-pdofs[i]) : (0);
    nd = V.Size() * nv + E.Size() * ne + np;

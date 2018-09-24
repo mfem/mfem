@@ -873,7 +873,7 @@ void Mesh::InitTables()
 {
    el_to_edge =
       el_to_face = el_to_el = bel_to_edge = face_edge = edge_vertex = el_to_planar =
-                                                                         bel_to_planar = NULL;
+      planar_edge = face_planar =  bel_to_planar = NULL;
 }
 
 void Mesh::SetEmpty()
@@ -903,6 +903,8 @@ void Mesh::DestroyTables()
    {
       delete el_to_planar;
       delete bel_to_planar;
+      delete planar_edge;
+      delete face_planar;
    }
 
    delete face_edge;
@@ -978,6 +980,9 @@ void Mesh::DeleteLazyTables()
    delete el_to_el;     el_to_el = NULL;
    delete face_edge;    face_edge = NULL;
    delete edge_vertex;  edge_vertex = NULL;
+   if (Dim == 4)
+   { delete planar_edge; planar_edge = NULL;
+     delete face_planar; face_planar = NULL;}
 }
 
 void Mesh::SetAttributes()
@@ -2800,6 +2805,8 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
 
    // Do NOT copy the face-to-edge Table, face_edge
    face_edge = NULL;
+   face_planar = NULL;
+   planar_edge = NULL;
 
    // Copy the edge-to-vertex Table, edge_vertex
    edge_vertex = (mesh.edge_vertex) ? new Table(*mesh.edge_vertex) : NULL;
@@ -4348,7 +4355,6 @@ void Mesh::GetBdrElementPlanars(int i, Array<int> &pls, Array<int> &cor) const
    }
 }
 
-
 void Mesh::GetFaceEdges(int i, Array<int> &edges, Array<int> &o) const
 {
    if (Dim == 2)
@@ -4379,6 +4385,27 @@ void Mesh::GetFaceEdges(int i, Array<int> &edges, Array<int> &o) const
    }
 }
 
+void Mesh::GetPlanarEdges(int i, Array<int> &edges, Array<int> &o) const
+{
+   if (Dim != 4)
+   {
+      return;
+   }
+
+   GetPlanarEdgeTable(); // generate face_edge Table (if not generated)
+
+   planar_edge->GetRow(i, edges);
+
+   const int *v = planars[i]->GetVertices();
+   const int ne = planars[i]->GetNEdges();
+   o.SetSize(ne);
+   for (int j = 0; j < ne; j++)
+   {
+      const int *e = planars[i]->GetEdgeVertices(j);
+      o[j] = (v[e[0]] < v[e[1]]) ? (1) : (-1);
+   }
+}
+
 void Mesh::GetFacePlanars(int i, Array<int> &pls, Array<int> &o) const
 {
    if (Dim != 4)
@@ -4402,7 +4429,7 @@ void Mesh::GetFacePlanars(int i, Array<int> &pls, Array<int> &o) const
       {
       case Element::TRIANGLE:
       {
-         int tri[3] ={ v[pls[0]], v[pls[1]], v[pls[2]] };
+         int tri[3] ={ v[p[0]], v[p[1]], v[p[2]] }; // TODO check for correctness!
          o[j] = GetTriOrientation(baseV,tri);
          break;
       }
@@ -4464,6 +4491,34 @@ Table *Mesh::GetFacePlanarTable() const
    face_planar->Finalize();
    delete trig_tbl;
    return face_planar;
+}
+
+Table *Mesh::GetPlanarEdgeTable() const
+{
+   if (planar_edge)
+   {
+      return planar_edge;
+   }
+
+   if (Dim != 4)
+   {
+      return NULL;
+   }
+
+#ifdef MFEM_DEBUG
+   if (faces.Size() != NumOfFaces)
+   {
+      mfem_error("Mesh::GetFaceEdgeTable : faces were not generated!");
+   }
+#endif
+
+   DSTable v_to_v(NumOfVertices);
+   GetVertexToVertexTable(v_to_v);
+
+   planar_edge = new Table;
+   GetElementArrayEdgeTable(planars, v_to_v, *planar_edge);
+
+   return (planar_edge);
 }
 
 Table *Mesh::GetFaceEdgeTable() const
@@ -5260,6 +5315,7 @@ void Mesh::GenerateFaces()
             }
 #else
             bool swapped = swappedElements[i];
+            swapped = false;
             int tempv[5];
             for (int j=0; j<5; j++) { tempv[j] = v[j]; }
             if (swapped) { Swap(tempv); }
@@ -5274,10 +5330,10 @@ void Mesh::GenerateFaces()
             for (int j = 0; j < 5; j++)
             {
                bool swapFace = false;
-/*               if ((swapped && j % 2 == 0) || (!swapped && j % 2 == 1))
+               if ((swapped && j % 2 == 0) || (!swapped && j % 2 == 1))
                {
                   swapFace = true;
-               }*/
+               }
 
                if (faces[ef[filter[j]]] == NULL)
                {
@@ -5285,12 +5341,12 @@ void Mesh::GenerateFaces()
                }
 
                const int *fv = pent_t::FaceVert[j];
-               if (swapFace)
-               {
-                  AddTetrahedralFaceElement(j, ef[filter[j]], i,
-                                            tempv[fv[1]], tempv[fv[0]], tempv[fv[2]], tempv[fv[3]]);
-               }
-               else
+//               if (swapFace)
+//               {
+//                  AddTetrahedralFaceElement(j, ef[filter[j]], i,
+//                                            tempv[fv[1]], tempv[fv[0]], tempv[fv[2]], tempv[fv[3]]);
+//               }
+//               else
                {
                   AddTetrahedralFaceElement(j, ef[filter[j]], i,
                                             tempv[fv[0]], tempv[fv[1]], tempv[fv[2]], tempv[fv[3]]);
@@ -7402,6 +7458,7 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
    mfem::Swap(be_to_face, other.be_to_face);
    mfem::Swap(face_edge, other.face_edge);
    mfem::Swap(edge_vertex, other.edge_vertex);
+   mfem::Swap(planar_edge, other.planar_edge);
 
    mfem::Swap(attributes, other.attributes);
    mfem::Swap(bdr_attributes, other.bdr_attributes);
@@ -8034,13 +8091,14 @@ void Mesh::RedRefinementBoundaryTet(int i, HashTable<Hashed2> & v_to_v)
    //
    //    cout << n[0] << " " << n[1] << " " << n[2] << " " << n[3] << endl;
 
-
+   // local face index
+   int lf = faces_info[be_to_face[i]].Elem1Inf / 64;
 
    bool swapped = swappedFaces[be_to_face[i]];
    int *v = boundary[i]->GetVertices();
    if (swapped) { Swap(v); }
 
-   // cout << swapped << endl << " my computed " << endl;
+//    cout << swapped << endl << " my computed " << endl;
 
    for (int j = 0; j < 6; j++)
    {
@@ -8060,33 +8118,46 @@ void Mesh::RedRefinementBoundaryTet(int i, HashTable<Hashed2> & v_to_v)
    }
 
    int attr = boundary[i]->GetAttribute();
-
+   Array<bool> sw(8);
+   sw = swapped;
+   switch(lf)
+   {
+   case 1:
+      sw[5] = sw[6] = !swapped;
+      break;
+   case 2:
+      sw[4] = sw[5] = sw[6] = sw[7] = !swapped;
+      break;
+   case 3:
+      sw[4] = sw[7] = !swapped;
+      break;
+   }
 
    bool mySwaped;
    w[0] = v[0];     w[1] = v_new[0]; w[2] = v_new[1]; w[3] = v_new[2];
-   mySwaped = swapped; /*cout << mySwaped << endl;*/ if (mySwaped) { Swap(w); } boundary.Append(
+   mySwaped = sw[0]; /*cout << mySwaped << endl;*/ if (mySwaped) { Swap(w); } boundary.Append(
       new Tetrahedron(w, attr));
    w[0] = v_new[0]; w[1] = v[1];     w[2] = v_new[3]; w[3] = v_new[4];
-   mySwaped = swapped; /*if(mySwaped) Swap(w); */ if (mySwaped) { Swap(w); } boundary.Append(
+   mySwaped = sw[1]; /*if(mySwaped) Swap(w); */ if (mySwaped) { Swap(w); } boundary.Append(
       new Tetrahedron(w, attr));
    w[0] = v_new[1]; w[1] = v_new[3]; w[2] = v[2];     w[3] = v_new[5];
-   mySwaped = swapped; /*if(mySwaped) Swap(w); */ if (mySwaped) { Swap(w); } boundary.Append(
+   mySwaped = sw[2]; /*if(mySwaped) Swap(w); */ if (mySwaped) { Swap(w); } boundary.Append(
       new Tetrahedron(w, attr));
    w[0] = v_new[2]; w[1] = v_new[4]; w[2] = v_new[5]; w[3] = v[3];
-   mySwaped = swapped; /*if(mySwaped) Swap(w); */if (mySwaped) { Swap(w); }  boundary.Append(
+   mySwaped = sw[3]; /*if(mySwaped) Swap(w); */if (mySwaped) { Swap(w); }  boundary.Append(
       new Tetrahedron(w, attr));
 
    w[0] = v_new[0]; w[1] = v_new[1]; w[2] = v_new[3]; w[3] = v_new[4];
-   mySwaped = swapped; /*mySwaped = !swapped;*//*if(mySwaped) Swap(w); */ if (mySwaped) { Swap(w); } boundary.Append(
+   mySwaped = sw[4]; /*if(mySwaped) Swap(w); */ if (mySwaped) { Swap(w); } boundary.Append(
       new Tetrahedron(w, attr));
    w[0] = v_new[0]; w[1] = v_new[1]; w[2] = v_new[2]; w[3] = v_new[4];
-   mySwaped = swapped; /*if(mySwaped) Swap(w); */ if (mySwaped) { Swap(w); } boundary.Append(
+   mySwaped = sw[5]; /*if(mySwaped) Swap(w); */ if (mySwaped) { Swap(w); } boundary.Append(
       new Tetrahedron(w, attr));
    w[0] = v_new[1]; w[1] = v_new[3]; w[2] = v_new[4]; w[3] = v_new[5];
-   mySwaped = swapped; /*mySwaped = !swapped;*//*if(mySwaped) Swap(w); */ if (mySwaped) { Swap(w); } boundary.Append(
+   mySwaped = sw[6];/*if(mySwaped) Swap(w); */ if (mySwaped) { Swap(w); } boundary.Append(
       new Tetrahedron(w, attr));
    w[0] = v_new[1]; w[1] = v_new[2]; w[2] = v_new[4]; w[3] = v_new[5];
-   mySwaped = swapped; /*if(mySwaped) Swap(w); */ if (mySwaped) { Swap(w); } boundary[i]->SetVertices(
+   mySwaped = sw[7]; /*if(mySwaped) Swap(w); */ if (mySwaped) { Swap(w); } boundary[i]->SetVertices(
       w);
 
    // cout << endl;

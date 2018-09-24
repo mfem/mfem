@@ -144,6 +144,7 @@ protected:
    Array<int> be_to_face;
    mutable Table *face_edge;
    mutable Table *face_planar; // for 4D
+   mutable Table *planar_edge; // for 4D
    mutable Table *edge_vertex;
 
    IsoparametricTransformation Transformation, Transformation2;
@@ -783,6 +784,10 @@ public:
        Works for both 2D (face=edge) and 3D faces. */
    void GetFaceEdges(int i, Array<int> &, Array<int> &) const;
 
+   /** Return the indices and the orientations of all edges of planar i.
+       Works only in 4D. */
+   void GetPlanarEdges(int i, Array<int> &, Array<int> &) const;
+
    /** Return the indices and the orientations of all planars of face i.
        Works for 4D faces. */
    void GetFacePlanars(int i, Array<int> &, Array<int> &) const;
@@ -807,6 +812,9 @@ public:
    void GetPlanVertices(int i, Array<int> &vert) const;
 
    Table *GetFacePlanarTable() const;
+
+   /// Returns the planar-to-edge Table (4D)
+   Table *GetPlanarEdgeTable() const;
 
    /// Returns the face-to-edge Table (3D)
    Table *GetFaceEdgeTable() const;

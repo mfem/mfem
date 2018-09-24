@@ -103,7 +103,7 @@ public:
    { nFaceVertices = 3; return 4; }
 
    virtual const int *GetFaceVertices(int fi) const
-   { MFEM_ABORT("not implemented"); return NULL; }
+   { return geom_t::FaceVert[fi]; }
 
    virtual Element *Duplicate(Mesh *m) const;
 
