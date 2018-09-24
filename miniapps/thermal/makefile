@@ -23,7 +23,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 SEQ_MINIAPPS =
 PAR_MINIAPPS = fourier fourier_nl fourier_flux fourier_nl_flux \
-	fourier_refine fourier_flux_refine
+	fourier_refine fourier_flux_refine ex1p_nl
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -57,6 +57,9 @@ curve_mesh: curve_mesh.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_O) $(MFEM_LIBS)
 
 ncd2mesh: ncd2mesh.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_O) $(MFEM_LIBS)
+
+ex1p_nl: ex1p_nl.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_O) $(MFEM_LIBS)
 
 # Rules for compiling miniapp dependencies
