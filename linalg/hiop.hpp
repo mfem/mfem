@@ -38,14 +38,20 @@ private:
 protected:
    // Problem info.
    // Local and global number of variables and constraints.
-   long long n_loc, n_glob, m_loc, m_glob;
+   long long n_loc, n_glob, m_glob;
    OptimizationProblem &problem; // TODO make it private after removing _simple.
+
+   Vector cons_values;
+   bool cons_vals_are_current;
+   void ComputeConstraintValues(const Vector x);
 
 public:
    HiopOptimizationProblem(OptimizationProblem &prob)
       : problem(prob),
         n_loc(prob.input_size), n_glob(n_loc),
-        m_loc(prob.GetNumConstraints()), m_glob(m_loc), a_(0.), workVec_(n_loc)
+        m_glob(prob.GetNumConstraints()),
+        cons_values(m_glob), cons_vals_are_current(false),
+        a_(0.), workVec_(n_loc)
   { 
 #ifdef MFEM_USE_MPI
     //in case HiOp with MPI support is called by a serial driver.
@@ -56,10 +62,11 @@ public:
 #ifdef MFEM_USE_MPI
    HiopOptimizationProblem(const MPI_Comm& _comm, OptimizationProblem &prob)
       : comm_(_comm), problem(prob), n_loc(prob.input_size), n_glob(0),
-        m_loc(prob.GetNumConstraints()), m_glob(0), a_(0.), workVec_(n_loc)
+        m_glob(prob.GetNumConstraints()),
+        cons_values(m_glob), cons_vals_are_current(false),
+        a_(0.), workVec_(n_loc)
    {
       MPI_Allreduce(&n_loc, &n_glob, 1, MPI_LONG_LONG_INT, MPI_SUM, comm_);
-      MPI_Allreduce(&m_loc, &m_glob, 1, MPI_LONG_LONG_INT, MPI_SUM, comm_);
    }
 #endif
 
@@ -102,49 +109,34 @@ public:
    virtual bool eval_grad_f(const long long& n, const double* x, bool new_x,
                             double* gradf);
 
-   /** Evaluates a subset of the constraints cons(x) (where clow<=cons(x)<=cupp). The subset is of size
-    *  'num_cons' and is described by indexes in the 'idx_cons' array. The methods may be called
-    *  multiple times, each time for a subset of the constraints, for example, for the
-    *  subset containing the equalities and for the subset containing the inequalities. However, each
-    *  constraint will be inquired EXACTLY once. This is done for performance considerations, to avoid
-    *  temporary holders and memory copying.
+   /** Evaluates a subset of the constraints cons(x). The subset is of size
+    *  num_cons and is described by indexes in the idx_cons array,
+    *  i.e. D(x)[idx_cons[i]] = cons[i] where i = 0 .. num_cons < m.
+    *  The methods may be called multiple times, each time for a subset of the
+    *  constraints, for example, for the subset containing the equalities and
+    *  for the subset containing the inequalities. However, each constraint will
+    *  be inquired EXACTLY once. This is done for performance considerations,
+    *  to avoid temporary holders and memory copying.
     *
     *  Parameters:
     *   - n, m: the global number of variables and constraints
-    *   - num_cons, idx_cons (array of size num_cons): the number and indexes of constraints to be evaluated
+    *   - num_cons, idx_cons (array of size num_cons): the number and indexes of
+    *     constraints to be evaluated
     *   - x: the point where the constraints are to be evaluated
-    *   - new_x: whether x has been changed from the previous call to f, grad_f, or Jac
-    *   - cons: array of size num_cons containing the value of the  constraints indicated by idx_cons
+    *   - new_x: whether x has been changed from the previous call to f, grad_f,
+    *     or Jac
+    *   - cons: array of size num_cons containing the value of the  constraints
+    *     indicated by idx_cons
     *
-    *  When MPI enabled, every rank populates 'cons' since the constraints are not distributed.
+    *  When MPI enabled, every rank populates 'cons' since the constraints are
+    *  not distributed.
     *
     *  idx_cons[0] = C(x)
     *  idx_cons[1] = D(x)
     */
    virtual bool eval_cons(const long long& n, const long long& m,
-			   const long long& num_cons, const long long* idx_cons,
-			   const double* x, bool new_x,
-            double* cons)
-   {
-      MFEM_ASSERT(n==n_glob, "global size input mismatch");
-      MFEM_ASSERT(m==1, "only one constraint should be present");
-      MFEM_ASSERT(num_cons<=m, "num_cons should be at most m=" << m);
-      if (num_cons>0) {
-         MFEM_ASSERT(idx_cons[0]==0, "index of the constraint should be 0");
-
-         workVec_ = x;
-         double wtx = w_ * workVec_;
-
-#ifdef MFEM_USE_MPI
-         double loc_wtx = wtx;
-         int ierr = MPI_Allreduce(&loc_wtx, &wtx, 1, MPI_DOUBLE, MPI_SUM, comm_);
-         MFEM_ASSERT(ierr==MPI_SUCCESS, "MPI_Allreduce failed with error" << ierr);
-#endif
-         //Constraint is w_ * x = a_, a_ is provided in get_cons_info
-         cons[0] = wtx;
-      }
-      return true;
-   }
+                          const long long& num_cons, const long long* idx_cons,
+                          const double* x, bool new_x, double* cons);
 
    /** provide a primal starting point. This point is subject to adjustments internally in hiOP.*/
    virtual bool get_starting_point(const long long &n, double *x0)

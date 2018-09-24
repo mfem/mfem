@@ -90,6 +90,51 @@ bool HiopOptimizationProblem::eval_grad_f(const long long &n, const double *x,
    return true;
 }
 
+bool HiopOptimizationProblem::eval_cons(const long long& n, const long long& m,
+                                        const long long& num_cons,
+                                        const long long* idx_cons,
+                                        const double* x, bool new_x,
+                                        double* cons)
+{
+   MFEM_ASSERT(n == n_glob, "Global input mismatch.");
+   MFEM_ASSERT(m == m_glob, "Constraint size mismatch.");
+   MFEM_ASSERT(num_cons <= m, "num_cons should be at most m = " << m);
+
+   if (num_cons == 0) { return true; }
+
+   if (new_x) { cons_vals_are_current = false; }
+   Vector x_vec(n_loc);
+   x_vec = x;
+   ComputeConstraintValues(x_vec);
+
+   for (int c = 0; c < num_cons; c++)
+   {
+      MFEM_ASSERT(idx_cons[c] < m_glob, "Constraint index is out of bounds.");
+      cons[c] = cons_values(idx_cons[c]);
+   }
+
+   return true;
+}
+
+void HiopOptimizationProblem::ComputeConstraintValues(const Vector x)
+{
+   if (cons_vals_are_current) { return; }
+
+   const int cheight = problem.C->Height(), dheight = problem.D->Height();
+   Vector cons_C(cons_values.GetData(), cheight),
+          cons_D(cons_values.GetData() + cheight, dheight);
+   problem.C->Mult(x, cons_C);
+   problem.D->Mult(x, cons_D);
+
+#ifdef MFEM_USE_MPI
+   Vector loc_cons(cons_values);
+   MPI_Allreduce(loc_cons.GetData(), cons_values.GetData(), m_glob,
+                 MPI_DOUBLE, MPI_SUM, comm_);
+#endif
+
+   cons_vals_are_current = true;
+}
+
 HiopNlpOptimizer::HiopNlpOptimizer() : OptimizationSolver(), optProb_(NULL)
 { 
 #ifdef MFEM_USE_MPI
