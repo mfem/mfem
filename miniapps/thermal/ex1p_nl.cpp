@@ -94,9 +94,9 @@ private:
 public:
   ChiParaCoef(MatrixCoefficient &bbT, GridFunctionCoefficient &T,
 	      double nl_exp, double chi_min, double chi_max)
-     : MatrixCoefficient(2), bbT_(&bbT), T_(&T), nl_exp_(nl_exp),
-        chi_min_(chi_min), chi_max_(chi_max),
-       gamma_(pow(chi_min/chi_max, nl_exp_))
+    : MatrixCoefficient(2), bbT_(&bbT), T_(&T), nl_exp_(nl_exp),
+      chi_min_(chi_min), chi_max_(chi_max),
+      gamma_(pow(chi_min/chi_max, nl_exp_))
    {}
 
    void SetTemp(GridFunction & T) { T_->SetGridFunction(&T); }
@@ -166,14 +166,12 @@ public:
    ImplicitDiffOp(ParFiniteElementSpace & H1_FESpace,
                   Coefficient & TBdr,
                   Array<int> & bdr_attr,
-                  Coefficient & heatCap,
                   ChiCoef & chi,
                   dChiCoef & dchi,
-                  Coefficient & heatSource,
-                  bool nonlinear = false);
+                  Coefficient & heatSource);
    ~ImplicitDiffOp();
 
-   void SetState(ParGridFunction & T);
+  // void SetState(ParGridFunction & T);
 
    void Mult(const Vector &x, Vector &y) const;
 
@@ -186,32 +184,31 @@ public:
 private:
 
    bool first_;
-   bool nonLinear_;
+   // bool nonLinear_;
 
    Array<int> & ess_bdr_attr_;
    Array<int>   ess_bdr_tdofs_;
 
    Coefficient * bdrCoef_;
-   Coefficient * cpCoef_;
    ChiCoef     * chiCoef_;
    dChiCoef    * dChiCoef_;
    Coefficient * QCoef_;
-   ScalarMatrixProductCoefficient dtChiCoef_;
+  // ScalarMatrixProductCoefficient dtChiCoef_;
 
-   mutable ParGridFunction T0_;
-   mutable ParGridFunction T1_;
-   mutable ParGridFunction dT_;
+   mutable ParGridFunction T_;
+   // mutable ParGridFunction T1_;
+   // mutable ParGridFunction dT_;
 
    mutable GradientGridFunctionCoefficient gradTCoef_;
-   ScalarVectorProductCoefficient dtGradTCoef_;
-   MatVecCoefficient dtdChiGradTCoef_;
+  // ScalarVectorProductCoefficient dtGradTCoef_;
+  // MatVecCoefficient dtdChiGradTCoef_;
+   MatVecCoefficient dChiGradTCoef_;
 
-   ParBilinearForm m0cp_;
    mutable ParBilinearForm s0chi_;
    mutable ParBilinearForm a0_;
 
    mutable HypreParMatrix A_;
-   mutable ParGridFunction dTdt_;
+  // mutable ParGridFunction dTdt_;
    mutable ParLinearForm Q_;
    mutable ParLinearForm Qs_;
    mutable ParLinearForm rhs_;
@@ -380,9 +377,10 @@ int main(int argc, char *argv[])
    ChiCoef chiCoef(chiPerp, chiPara);   
    dChiCoef dchiCoef(vvTCoef, uGFCoef, nl_exp_, chi_min_para_, chi_max_para_);
 
-   ImplicitDiffOp ido(*fespace, zeroCoef, ess_bdr, oneCoef,
-		      chiCoef, dchiCoef, QCoef, chi_min_para_ != chi_max_para_);
-   
+   ImplicitDiffOp ido(*fespace, zeroCoef, ess_bdr,
+		      chiCoef, dchiCoef, QCoef);
+
+   /*
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new DiffusionIntegrator(chiCoef));
 
@@ -415,7 +413,21 @@ int main(int argc, char *argv[])
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(u_dof, *Q, u);
+   */
+   // ido.SetState(u);
+   Solver & solver = ido.GetGradientSolver();
+   NewtonSolver newton(MPI_COMM_WORLD);
+   newton.SetPrintLevel(2);
+   newton.SetRelTol(1e-10);
+   newton.SetAbsTol(0.0);
 
+   newton.SetOperator(ido);
+   newton.SetSolver(solver);
+
+   Vector uVec(fespace->GetTrueVSize()); uVec = 0.0;
+   newton.Mult(ido.GetRHS(), uVec);
+   u.Distribute(uVec);
+   
    u.GridFunction::ComputeElementL2Errors(uCoef, u_error);
 
    double err = u.ComputeL2Error(uCoef);
@@ -472,9 +484,9 @@ int main(int argc, char *argv[])
    }
 
    // 16. Free the used memory.
-   delete pcg;
-   delete amg;
-   delete a;
+   // delete pcg;
+   // delete amg;
+   // delete a;
    delete Q;
    delete fespace;
    if (order > 0) { delete fec; }
@@ -488,31 +500,24 @@ int main(int argc, char *argv[])
 ImplicitDiffOp::ImplicitDiffOp(ParFiniteElementSpace & H1_FESpace,
                                Coefficient & TBdr,
                                Array<int> & bdr_attr,
-                               Coefficient & heatCap,
                                ChiCoef & chi,
                                dChiCoef & dchi,
-                               Coefficient & heatSource,
-                               bool nonlinear)
+                               Coefficient & heatSource)
    : Operator(H1_FESpace.GetTrueVSize()),
      first_(true),
-     nonLinear_(nonlinear),
      ess_bdr_attr_(bdr_attr),
      bdrCoef_(&TBdr),
-     cpCoef_(&heatCap),
      chiCoef_(&chi),
      dChiCoef_(&dchi),
      QCoef_(&heatSource),
-     dtChiCoef_(1.0, *chiCoef_),
-     T0_(&H1_FESpace),
-     T1_(&H1_FESpace),
-     dT_(&H1_FESpace),
-     gradTCoef_(&T0_),
-     dtGradTCoef_(-1.0, gradTCoef_),
-     dtdChiGradTCoef_(*dChiCoef_, dtGradTCoef_),
-     m0cp_(&H1_FESpace),
+     // dtChiCoef_(1.0, *chiCoef_),
+     T_(&H1_FESpace),
+     gradTCoef_(&T_),
+     // dtGradTCoef_(-1.0, gradTCoef_),
+     dChiGradTCoef_(*dChiCoef_, gradTCoef_),
      s0chi_(&H1_FESpace),
      a0_(&H1_FESpace),
-     dTdt_(&H1_FESpace),
+     // dTdt_(&H1_FESpace),
      Q_(&H1_FESpace),
      Qs_(&H1_FESpace),
      rhs_(&H1_FESpace),
@@ -523,19 +528,15 @@ ImplicitDiffOp::ImplicitDiffOp(ParFiniteElementSpace & H1_FESpace,
 {
    H1_FESpace.GetEssentialTrueDofs(ess_bdr_attr_, ess_bdr_tdofs_);
 
-   m0cp_.AddDomainIntegrator(new MassIntegrator(*cpCoef_));
    s0chi_.AddDomainIntegrator(new DiffusionIntegrator(*chiCoef_));
 
-   a0_.AddDomainIntegrator(new MassIntegrator(*cpCoef_));
-   a0_.AddDomainIntegrator(new DiffusionIntegrator(dtChiCoef_));
-   if (nonLinear_)
-   {
-      a0_.AddDomainIntegrator(new MixedScalarWeakDivergenceIntegrator(
-                                 dtdChiGradTCoef_));
-   }
+   a0_.AddDomainIntegrator(new DiffusionIntegrator(*chiCoef_));
+   a0_.AddDomainIntegrator(new MixedScalarWeakDivergenceIntegrator(
+       dChiGradTCoef_));
 
    Qs_.AddDomainIntegrator(new DomainLFIntegrator(*QCoef_));
-   if (!tdQ_) { Qs_.Assemble(); }
+   Qs_.Assemble();
+   Qs_.ParallelAssemble(RHS_);
 }
 
 ImplicitDiffOp::~ImplicitDiffOp()
@@ -543,36 +544,12 @@ ImplicitDiffOp::~ImplicitDiffOp()
    delete AInv_;
    delete APrecond_;
 }
-
+/*
 void ImplicitDiffOp::SetState(ParGridFunction & T)
 {
-   T0_ = T;
+   T_ = T;
 
-   newTime_ = fabs(t - t_) > 0.0;
-   newTimeStep_= (fabs(1.0-dt/dt_)>1e-6);
-
-   t_  = newTime_     ?  t :  t_;
-   dt_ = newTimeStep_ ? dt : dt_;
-
-   if (tdBdr_ && (newTime_ || newTimeStep_))
-   {
-      bdrCoef_->SetTime(t_ + dt_);
-   }
-
-   if (newTimeStep_ || first_)
-   {
-      dtChiCoef_.SetAConst(dt_);
-      dtGradTCoef_.SetAConst(-dt_);
-   }
-
-   if ((tdCp_ && newTime_) || first_)
-   {
-      m0cp_.Update();
-      m0cp_.Assemble();
-      m0cp_.Finalize();
-   }
-
-   if (!tdChi_ && first_)
+   if (first_)
    {
       s0chi_.Assemble();
       s0chi_.Finalize();
@@ -582,26 +559,8 @@ void ImplicitDiffOp::SetState(ParGridFunction & T)
 
       a0_.Assemble();
       a0_.Finalize();
-   }
-   else if (tdChi_ && newTime_ && !nonLinear_)
-   {
-      chiCoef_->SetTemp(T0_);
-      s0chi_.Update();
-      s0chi_.Assemble(0);
-      s0chi_.Finalize(0);
 
-      ofstream ofsS0("s0_lin_initial.mat");
-      s0chi_.SpMat().Print(ofsS0);
-
-      a0_.Update();
-      a0_.Assemble(0);
-      a0_.Finalize(0);
-   }
-
-   if ((tdQ_ && newTime_) || first_)
-   {
       cout << "Assembling Q" << endl;
-      QCoef_->SetTime(t_ + dt_);
       Qs_.Assemble();
       Qs_.ParallelAssemble(RHS_);
       cout << "Norm of Q: " << Qs_.Norml2() << endl;
@@ -609,115 +568,54 @@ void ImplicitDiffOp::SetState(ParGridFunction & T)
 
    first_       = false;
 }
-
-void ImplicitDiffOp::Mult(const Vector &dT, Vector &Q) const
+*/
+void ImplicitDiffOp::Mult(const Vector &T, Vector &Q) const
 {
-   dT_.Distribute(dT);
+   T_.Distribute(T);
 
-   add(T0_, dt_, dT_, T1_);
+   // add(T0_, dt_, dT_, T1_);
 
-   if (tdChi_ && nonLinear_)
-   {
-      chiCoef_->SetTemp(T1_);
-      s0chi_.Update();
-      s0chi_.Assemble(0);
-      s0chi_.Finalize(0);
-   }
-   else
-   {
-      cout << "Well this is a surprise..." << endl;
-   }
-   m0cp_.Mult(dT_, Q_);
-   s0chi_.AddMult(T1_, Q_);
+   chiCoef_->SetTemp(T_);
+   s0chi_.Update();
+   s0chi_.Assemble(0);
+   s0chi_.Finalize(0);
+
+   s0chi_.AddMult(T_, Q_);
 
    Q_.ParallelAssemble(Q);
    Q.SetSubVector(ess_bdr_tdofs_, 0.0);
 }
 
-Operator & ImplicitDiffOp::GetGradient(const Vector &dT) const
+Operator & ImplicitDiffOp::GetGradient(const Vector &T) const
 {
-   if (tdChi_)
-   {
-      if (!nonLinear_)
-      {
-         chiCoef_->SetTemp(T0_);
-      }
-      else
-      {
-         dT_.Distribute(dT);
-         add(T0_, dt_, dT_, T1_);
+  T_.Distribute(T);
 
-         chiCoef_->SetTemp(T1_);
-         dChiCoef_->SetTemp(T1_);
-         gradTCoef_.SetGridFunction(&T1_);
-      }
-      s0chi_.Update();
-      s0chi_.Assemble(0);
-      s0chi_.Finalize(0);
+  chiCoef_->SetTemp(T_);
+  dChiCoef_->SetTemp(T_);
+  gradTCoef_.SetGridFunction(&T_);
+  
+  s0chi_.Update();
+  s0chi_.Assemble(0);
+  s0chi_.Finalize(0);
 
-      a0_.Update();
-      a0_.Assemble(0);
-      a0_.Finalize(0);
-   }
+  a0_.Update();
+  a0_.Assemble(0);
+  a0_.Finalize(0);
 
-   if (!nonLinear_)
-   {
-      s0chi_.Mult(T0_, rhs_);
+  rhs_ = Qs_;
 
-      rhs_ -= Qs_;
-      rhs_ *= -1.0;
-   }
-   else
-   {
-      rhs_ = Qs_;
-   }
+   T_.ProjectBdrCoefficient(*bdrCoef_, ess_bdr_attr_);
 
-   dTdt_.ProjectBdrCoefficient(*bdrCoef_, ess_bdr_attr_);
-
-   a0_.FormLinearSystem(ess_bdr_tdofs_, dTdt_, rhs_, A_, SOL_, RHS_);
+   a0_.FormLinearSystem(ess_bdr_tdofs_, T_, rhs_, A_, SOL_, RHS_);
 
    return A_;
 }
 
 Solver & ImplicitDiffOp::GetGradientSolver() const
 {
-   if (!nonLinear_)
-   {
-      Operator & A_op = this->GetGradient(T0_); // T0_ will be ignored
-      HypreParMatrix & A_hyp = dynamic_cast<HypreParMatrix &>(A_op);
-
-      if (tdChi_)
-      {
-         delete AInv_;     AInv_     = NULL;
-         delete APrecond_; APrecond_ = NULL;
-      }
-
-      if ( AInv_ == NULL )
-      {
-         // A_hyp.Print("A.mat");
-
-         HyprePCG * AInv_pcg = NULL;
-
-         cout << "Building PCG" << endl;
-         AInv_pcg = new HyprePCG(A_hyp);
-         AInv_pcg->SetTol(1e-10);
-         AInv_pcg->SetMaxIter(200);
-         AInv_pcg->SetPrintLevel(0);
-         if ( APrecond_ == NULL )
-         {
-            cout << "Building AMG" << endl;
-            APrecond_ = new HypreBoomerAMG(A_hyp);
-            APrecond_->SetPrintLevel(0);
-            AInv_pcg->SetPreconditioner(*APrecond_);
-         }
-         AInv_ = AInv_pcg;
-      }
-   }
-   else
-   {
-      if (AInv_ == NULL)
-      {
-         /*
+  if (AInv_ == NULL)
+  {
+    /*
               HypreSmoother *J_hypreSmoother = new HypreSmoother;
          J_hypreSmoother->SetType(HypreSmoother::l1Jacobi);
          J_hypreSmoother->SetPositiveDiagonal(true);
@@ -733,24 +631,23 @@ Solver & ImplicitDiffOp::GetGradientSolver() const
               AInv_gmres->SetPrintLevel(2);
          AInv_gmres->SetPreconditioner(*JPrecond_);
          AInv_ = AInv_gmres;
-         */
-         HypreGMRES * AInv_gmres = NULL;
+    */
+    HypreGMRES * AInv_gmres = NULL;
 
-         cout << "Building HypreGMRES" << endl;
-         AInv_gmres = new HypreGMRES(T0_.ParFESpace()->GetComm());
-         AInv_gmres->SetTol(1e-12);
-         AInv_gmres->SetMaxIter(200);
-         AInv_gmres->SetPrintLevel(2);
-         if ( APrecond_ == NULL )
-         {
-            cout << "Building AMG" << endl;
-            APrecond_ = new HypreBoomerAMG();
-            APrecond_->SetPrintLevel(0);
-            AInv_gmres->SetPreconditioner(*APrecond_);
-         }
-         AInv_ = AInv_gmres;
-      }
-   }
+    cout << "Building HypreGMRES" << endl;
+    AInv_gmres = new HypreGMRES(T_.ParFESpace()->GetComm());
+    AInv_gmres->SetTol(1e-12);
+    AInv_gmres->SetMaxIter(200);
+    AInv_gmres->SetPrintLevel(2);
+    if ( APrecond_ == NULL )
+    {
+      cout << "Building AMG" << endl;
+      APrecond_ = new HypreBoomerAMG();
+      APrecond_->SetPrintLevel(0);
+      AInv_gmres->SetPreconditioner(*APrecond_);
+    }
+    AInv_ = AInv_gmres;
+  }
 
    return *AInv_;
 }
