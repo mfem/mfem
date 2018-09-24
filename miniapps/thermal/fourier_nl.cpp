@@ -27,18 +27,46 @@ using namespace mfem::thermal;
 
 void display_banner(ostream & os);
 
-static int    prob_         = 1;
-static bool   non_linear_   = false;
-static double chi_perp_     = 1.0;
-static double chi_para_max_ = 1.0;
-static double chi_para_min_ = 1.0;
+static int    prob_          = 1;
+static int    unit_vec_type_ = 1;
+static bool   non_linear_    = false;
+static double theta_         = 0.0;
+static double chi_perp_      = 1.0;
+static double chi_para_max_  = 1.0;
+static double chi_para_min_  = 1.0;
+
+double TFunc(const Vector &x, double t)
+{
+   if ( prob_ % 2 == 1)
+   {
+      double e = exp(-2.0 * M_PI * M_PI * t);
+      return sin(M_PI * x[0]) * sin(M_PI * x[1]) * (1.0 - e);
+   }
+   else
+   {
+      double a = 0.4;
+      double b = 0.8;
+
+      double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
+      double e = exp(-0.25 * t * M_PI * M_PI / (a * b) );
+
+      return cos(0.5 * M_PI * sqrt(r)) * (1.0 - e);
+   }
+}
 
 double QFunc(const Vector &x, double t)
 {
    if ( prob_ % 2 == 1)
    {
-      return 2.0 * chi_perp_ * M_PI * M_PI *
-             sin(M_PI * x[0]) * sin(M_PI * x[1]);
+      if (unit_vec_type_ == 1)
+         return 2.0 * chi_perp_ * M_PI * M_PI *
+	   sin(M_PI * x[0]) * sin(M_PI * x[1]);
+      else
+      {
+ 	 double T = TFunc(x, t);
+	 return 2.0 * chi_perp_ * M_PI * M_PI *
+	   sin(M_PI * x[0]) * sin(M_PI * x[1]);	
+      }
    }
    else
    {
@@ -62,24 +90,6 @@ double QFunc(const Vector &x, double t)
    }
 }
 
-double TFunc(const Vector &x, double t)
-{
-   if ( prob_ % 2 == 1)
-   {
-      double e = exp(-2.0 * M_PI * M_PI * t);
-      return sin(M_PI * x[0]) * sin(M_PI * x[1]) * (1.0 - e);
-   }
-   else
-   {
-      double a = 0.4;
-      double b = 0.8;
-
-      double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
-      double e = exp(-0.25 * t * M_PI * M_PI / (a * b) );
-
-      return cos(0.5 * M_PI * sqrt(r)) * (1.0 - e);
-   }
-}
 /*
 void ChiFunc(const Vector &x, DenseMatrix &M)
 {
@@ -137,6 +147,10 @@ int main(int argc, char *argv[])
                   "Total number of elements is n^2.");
    args.AddOption(&prob_, "-p", "--problem",
                   "Specify problem type: 1 - Square, 2 - Ellipse.");
+   args.AddOption(&unit_vec_type_, "-u", "--unit-vec-type",
+                  "Specify B field unit vector type: \n"
+		  "   1 - Square, 2 - Ellipse,\n"
+		  "   3 - Constant (angle theta).");
    args.AddOption(&coef_type, "-c", "--coef",
                   "Specify diffusion coefficient type: "
                   "0 - Constant, 1 - Linearized, 2 - Non-Linear.");
