@@ -23,6 +23,73 @@ using namespace hiop;
 namespace mfem
 {
 
+bool HiopOptimizationProblem::get_prob_sizes(long long &n, long long &m)
+{
+   n = n_glob;
+
+   const int m_loc = problem.GetNumConstraints();
+   MPI_Allreduce(&m_loc, &m, 1, MPI_LONG_LONG_INT, MPI_SUM, comm_);
+
+   return true;
+}
+
+bool HiopOptimizationProblem::get_vars_info(const long long &n,
+                                            double *xlow, double *xupp,
+                                            NonlinearityType *type)
+{
+   MFEM_ASSERT(n == n_glob, "Global input mismatch.");
+
+   std::memcpy(xlow, problem.x_lo->GetData(), n_loc * sizeof(double));
+   std::memcpy(xupp, problem.x_hi->GetData(), n_loc * sizeof(double));
+
+   return true;
+}
+
+bool HiopOptimizationProblem::get_cons_info(const long long &m,
+                                            double *clow, double *cupp,
+                                            NonlinearityType *type)
+{
+   MFEM_ASSERT(m == m_glob, "Global constraint size mismatch.");
+
+   const int csize = problem.c_e->Size();
+   std::memcpy(clow, problem.c_e->GetData(), csize * sizeof(double));
+   std::memcpy(cupp, problem.c_e->GetData(), csize * sizeof(double));
+   const int dsize = problem.d_lo->Size();
+   std::memcpy(clow + csize, problem.d_lo->GetData(), dsize * sizeof(double));
+   std::memcpy(cupp + csize, problem.d_hi->GetData(), dsize * sizeof(double));
+
+   return true;
+}
+
+bool HiopOptimizationProblem::eval_f(const long long &n, const double *x,
+                                     bool new_x, double &obj_value)
+{
+   MFEM_ASSERT(n == n_glob, "Global input mismatch.");
+
+   Vector x_vec(n_loc);
+   x_vec = x;
+   obj_value = problem.CalcObjective(x_vec);
+
+#ifdef MFEM_USE_MPI
+   const double loc_obj = obj_value;
+   MPI_Allreduce(&loc_obj, &obj_value, 1, MPI_DOUBLE, MPI_SUM, comm_);
+#endif
+
+   return true;
+}
+
+bool HiopOptimizationProblem::eval_grad_f(const long long &n, const double *x,
+                                          bool new_x, double *gradf)
+{
+   MFEM_ASSERT(n == n_glob, "Global input mismatch.");
+
+   Vector x_vec(n_loc), gradf_vec(gradf, n_loc);
+   x_vec = x;
+   problem.CalcObjectiveGrad(x_vec, gradf_vec);
+
+   return true;
+}
+
 HiopNlpOptimizer::HiopNlpOptimizer() : OptimizationSolver(), optProb_(NULL)
 { 
 #ifdef MFEM_USE_MPI
@@ -56,9 +123,9 @@ void HiopNlpOptimizer::SetOptimizationProblem(OptimizationProblem &prob)
    if (optProb_) { delete optProb_; }
 
 #ifdef MFEM_USE_MPI
-   optProb_ = new HiopOptimizationProblem(comm_, prob, prob.F.Width());
+   optProb_ = new HiopOptimizationProblem(comm_, prob);
 #else
-   optProb_ = new HiopOptimizationProblem(prob, prob.F.Width());
+   optProb_ = new HiopOptimizationProblem(prob);
 #endif
 }
 
@@ -70,7 +137,8 @@ void HiopNlpOptimizer::Mult(const Vector &xt, Vector &x) const
 
    // Set tolerance:
    hiopInstance.options->SetNumericValue("tolerance", abs_tol);
-   // hiopInstance.options->SetStringValue("fixed_var", "relax");
+   // TODO move this somehow before the constructor of hiopInstance.
+   hiopInstance.options->SetStringValue("fixed_var", "relax");
    // 0: no output; 3: not too much
    hiopInstance.options->SetIntegerValue("verbosity_level", print_level);
 
@@ -104,7 +172,7 @@ void HiopNlpOptimizer::SetBounds(const Vector &_lo, const Vector &_hi)
    if (NULL==optProb_)
       allocHiopProbSpec(_lo.Size());
 
-   optProb_->setBounds(_lo, _hi);
+   //optProb_->setBounds(_lo, _hi);
 }
 
 void HiopNlpOptimizer::SetLinearConstraint(const Vector &_w, double _a)
@@ -140,9 +208,9 @@ void HiopNlpOptimizer::allocHiopProbSpec(const long long& numvars)
    MFEM_ASSERT(optProb_==NULL, "HiopProbSpec object already created");
 
 #ifdef MFEM_USE_MPI
-   optProb_ = new HiopOptimizationProblem(comm_, *problem, numvars);
+   optProb_ = new HiopOptimizationProblem(comm_, *problem);
 #else
-   optProb_ = new HiopOptimizationProblem(*problem, numvars);
+   optProb_ = new HiopOptimizationProblem(*problem);
 #endif
 }
 
@@ -152,9 +220,9 @@ void HiopNlpOptimizer_Simple::allocHiopProbSpec(const long long& numvars)
                 "HiopProbSpec object already created");
 
 #ifdef MFEM_USE_MPI
-   optProb_Simple_ = new HiopProblemSpec_Simple(comm_, *problem, numvars);
+   optProb_Simple_ = new HiopProblemSpec_Simple(comm_, *problem);
 #else
-   optProb_Simple_ = new HiopProblemSpec_Simple(*problem, numvars);
+   optProb_Simple_ = new HiopProblemSpec_Simple(*problem);
 #endif
 
    optProb_ = optProb_Simple_;

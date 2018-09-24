@@ -1466,14 +1466,14 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
    return 1;
 }
 
-OptimizationProblem::OptimizationProblem(const Operator &F_,
+OptimizationProblem::OptimizationProblem(const int insize,
                                          const Operator *C_,
                                          const Operator *D_)
-   : F(F_), C(C_), D(D_),
+   : input_size(insize), C(C_), D(D_),
      c_e(NULL), d_lo(NULL), d_hi(NULL), x_lo(NULL), x_hi(NULL)
 {
-   if (C) { MFEM_ASSERT(C->Width() == F.Width(), "Wrong width of C."); }
-   if (D) { MFEM_ASSERT(D->Width() == F.Width(), "Wrong width of D."); }
+   if (C) { MFEM_ASSERT(C->Width() == input_size, "Wrong width of C."); }
+   if (D) { MFEM_ASSERT(D->Width() == input_size, "Wrong width of D."); }
 }
 
 void OptimizationProblem::SetEqualityConstraint(const Vector &c)
@@ -1494,16 +1494,23 @@ void OptimizationProblem::SetInequalityConstraint(const Vector &dl,
    d_lo = &dl; d_hi = &dh;
 }
 
-void OptimizationProblem::SetLinearInequalityConstraint(const Vector &xl,
-                                                        const Vector &xh)
+void OptimizationProblem::SetSolutionBounds(const Vector &xl, const Vector &xh)
 {
-   MFEM_ASSERT(xl.Size() == F.Width() && xh.Size() == F.Width(),
+   MFEM_ASSERT(xl.Size() == input_size && xh.Size() == input_size,
                "Wrong size of the constraint.");
 
    x_lo = &xl; x_hi = &xh;
 }
 
-void SLBQPOptimizer::SetOptimizationProblem(const OptimizationProblem &prob)
+int OptimizationProblem::GetNumConstraints() const
+{
+   int m = 0;
+   if (C) { m += C->Height(); }
+   if (D) { m += D->Height(); }
+   return m;
+}
+
+void SLBQPOptimizer::SetOptimizationProblem(OptimizationProblem &prob)
 {
    MFEM_WARNING("Objective functional is ignored as SLBQP always minimizes"
                 "the l2 norm of (x - x_target).");
