@@ -27,6 +27,7 @@ stkBackTraceData::stkBackTraceData(backtrace_state* s):
   m_filename(nullptr),
   m_lineno(0),
   m_address(0x0),
+  m_rip(false),
   m_hit(false),
   m_depth(0){}
 

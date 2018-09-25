@@ -30,6 +30,8 @@ public:
    void update(const char*, uintptr_t, const char* =NULL, const int=0);
    int continue_tracing(){ return m_hit?1:0; }
 public:
+   void rip(const bool rip){ m_rip = rip; }
+   bool rip()const{ return m_rip; }
    int depth(){ return m_depth; }
    uintptr_t address(){ return m_address; }
    const char* function(){ return m_function; }
@@ -42,6 +44,7 @@ private:
    const char *m_filename;
    int m_lineno;
    uintptr_t m_address;
+   bool m_rip;
    bool m_hit;
    int m_depth;
 };

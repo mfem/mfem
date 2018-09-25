@@ -20,8 +20,8 @@
    
 class stk{
 public:
-   stk();
-   stk(const char*);
+   stk(const bool =false);
+   stk(const char*,const bool =false);
    ~stk();
    template<class T>
    stk& operator<<(const T& t){
@@ -29,6 +29,7 @@ public:
       return *this;
    }
 private:
+   const bool rip;
    std::stringstream stream;
    const char *options;
 };

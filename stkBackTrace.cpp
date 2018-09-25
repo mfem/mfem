@@ -78,7 +78,8 @@ static int full_callback(void *data,
    //if (getenv("ALL")) printf("\t\033[33m[full_callback] '%s'\033[m\n",demangled);
    if (strncmp("std::",demangled,5)==0) return filter(demangled);
    //if (strncmp("void",demangled,4)==0) return filter(demangled);
-   if (getenv("ALL")) printf("\033[33m%s:%d \033[1m%s\033[m\n",filename,lineno,demangled);
+   if (ctx->rip() or getenv("ALL"))
+      printf("\033[33m%s:%d \033[1m%s\033[m\n",filename,lineno,demangled);
    ctx->update(demangled,pc,filename,lineno);
    return 0;
 }
@@ -106,10 +107,11 @@ void stkBackTrace::ini(const char* argv0){
 }
 
 // *****************************************************************************
-int stkBackTrace::stk(){
+int stkBackTrace::stk(const bool _rip){
    if (state==NULL || data==NULL) return -1;
    data->flush();
    // skip 2 frames to be on last function call
+   data->rip(_rip);
    backtrace_simple(state,2,simple_callback,err_callback,data);
    return 0;
 }

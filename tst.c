@@ -2,7 +2,7 @@
 
 //extern void backTraceIni(char*);
 
-int f3(void){stk();stk()<<1;return 0;}
+int f3(void){stk(true);return 0;}
 
 int f2(void){stk();return f3();}
 

@@ -24,15 +24,16 @@ class stkBackTraceData;
 // ***************************************************************************
 class stkBackTrace {
 private:
-   backtrace_state *state;
-   stkBackTraceData *data;
+   backtrace_state *state = NULL;
+   stkBackTraceData *data = NULL;
 public:
    stkBackTrace();
    ~stkBackTrace();
 public:
    void ini(const char*);
-   int stk();
+   int stk(const bool =false);
 public:
+   bool rip = false;
    int depth();
    uintptr_t address();
    const char* function();

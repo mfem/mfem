@@ -35,11 +35,11 @@ void stkIni(char* argv0){
 // ***************************************************************************
 // * stk 
 // ***************************************************************************
-stk::stk():options(""){}
-stk::stk(const char* opt):options(opt){}
+stk::stk(const bool _rip):rip(_rip),options(""){}
+stk::stk(const char* opt,const bool _rip):rip(_rip),options(opt){}
 stk::~stk(){
   
-  static std::unordered_map<std::string, bool> wanted ={
+   static std::unordered_map<std::string, bool> wanted;/* ={
     {"kernelArg_t", true},
     {"ptrRange_t", true},
     {"kernelArg", true},
@@ -66,7 +66,7 @@ stk::~stk(){
     {"host",true},
     {"stopManaging",true},
     {"syncMemToDevice",true}
-  };
+    };*/
     
   static std::unordered_map<std::string, int> known_colors;
  
@@ -80,7 +80,7 @@ stk::~stk(){
   const std::string tab_char = org_mode?"*":"  ";
   
   // now backtracing if initialized
-  if (bt.stk()!=0) return;
+  if (bt.stk(rip)!=0) return;
   
   const int depth = bt.depth();
   assert(depth>0);
