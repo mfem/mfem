@@ -11,6 +11,7 @@
 
 // Implementation of data type vector
 
+#include "../general/dbg.hpp"
 #include "vector.hpp"
 
 #if defined(MFEM_USE_SUNDIALS) && defined(MFEM_USE_MPI)
@@ -30,6 +31,7 @@ namespace mfem
 
 Vector::Vector(const Vector &v)
 {
+   dbg();
    int s = v.Size();
 
    if (s > 0)
