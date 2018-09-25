@@ -1,3 +1,4 @@
+#include "/home/camier1/home/stk/stk.hpp"
 #include <dlfcn.h>
 #include <cassert>
 #include <unordered_map>
@@ -11,6 +12,7 @@ typedef void *memalign_t(size_t, size_t);
 typedef std::unordered_map<void*,size_t> mm_t;
 
 // *****************************************************************************
+static bool dbg = false;
 static bool hooked = false;
 static bool dlsymd = false;
 
@@ -24,6 +26,7 @@ static memalign_t *_memalign = NULL;
 
 // *****************************************************************************
 static void _init(void){
+   if (getenv("MM")) dbg = true;
    _free = (free_t*) dlsym(RTLD_NEXT, "free");
    _calloc = (calloc_t*) dlsym(RTLD_NEXT, "calloc");
    _malloc = (malloc_t*) dlsym(RTLD_NEXT, "malloc");
@@ -41,11 +44,13 @@ void *malloc(size_t size){ // Red
    hooked = false;
    void *ptr = _malloc(size);
    assert(ptr);
-   if ((*_mm)[ptr]) {
-      printf("\033[31m%p(%ld)\033[m", ptr, size);
-   }else{
-      printf("\033[31;7m%p(%ld)\033[m", ptr, size);
-      (*_mm)[ptr] = size;
+   if (dbg){
+      if ((*_mm)[ptr]) {
+         printf("\033[31;1m%p(%ld)\033[m", ptr, size);
+      }else{
+         printf("\033[31m%p(%ld)\033[m", ptr, size);
+         (*_mm)[ptr] = size;
+      }
    }
    hooked = true;
    return ptr;
@@ -56,11 +61,11 @@ void free(void *ptr){ // Green
    if (!_free) _init();
    if (!hooked) return _free(ptr);
    hooked = false;
-   if (ptr){
+   if (dbg and ptr){
       if ((*_mm)[ptr]){
-         printf("\033[32m%p\033[m", ptr);
+         printf("\033[32;1m%p\033[m", ptr);
       }else{
-         printf("\033[32;7m%p\033[m", ptr);
+         printf("\033[32m%p\033[m", ptr);
       }
    }
    _free(ptr);
@@ -83,11 +88,11 @@ void *calloc(size_t nmemb, size_t size){ // Yellow
    if (!hooked) return _calloc(nmemb, size);
    hooked = false;
    void *ptr = _calloc(nmemb, size);
-   if (ptr){
+   if (dbg and ptr){
       if ((*_mm)[ptr]){
-         printf("\033[33m%p(%ld)\033[m", ptr, size);
+         printf("\033[33;1m%p(%ld)\033[m", ptr, size);
       }else{
-         printf("\033[33;7m%p(%ld)\033[m", ptr, size);
+         printf("\033[33m%p(%ld)\033[m", ptr, size);
       }
    }
    hooked = true;
@@ -101,11 +106,11 @@ void *realloc(void *ptr, size_t size){ // Blue
    hooked = false;
    void *nptr = _realloc(ptr, size);
    assert(nptr);
-   if (ptr){
+   if (dbg and ptr){
       if ((*_mm)[ptr]){
-         printf("\033[34m%p(%ld)\033[m", nptr, size);
+         printf("\033[34m;7%p(%ld)\033[m", nptr, size);
       }else{
-         printf("\033[34;7m%p(%ld)\033[m", nptr, size);
+         printf("\033[34m%p(%ld)\033[m", nptr, size);
       }
    }
    hooked = true;
@@ -119,11 +124,11 @@ void *memalign(size_t alignment, size_t size){ // Magenta
    hooked = false;
    void *ptr = _memalign(alignment, size);
    assert(ptr);
-   if (ptr){
+   if (dbg and ptr){
       if ((*_mm)[ptr]){
-         printf("\033[35m%p(%ld)\033[m", ptr, size);
+         printf("\033[35m;7%p(%ld)\033[m", ptr, size);
       }else{
-         printf("\033[35;7m%p(%ld)\033[m", ptr, size);
+         printf("\033[35m%p(%ld)\033[m", ptr, size);
       }
    }
    hooked = true;
