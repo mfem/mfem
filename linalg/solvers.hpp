@@ -281,7 +281,7 @@ public:
    /** The gradient should satisfy the definition of a Frechet Derivative
        i.e. lim_{h->0} ||F(x+H)-F(x)-G(x)*h||/||h|| = 0.  This method
        returns 2 * ||F(x+h/2)-F(x)-G(x)*h/2|| / ||F(x+h)-F(x)-G(x)*h||
-       which should be less then or equal to 1 for any valid gradient
+       which should be less than or equal to 1 for any valid gradient
        provided h is sufficiently small.  This method returns -1 if the
        operator appears to be linear in which case the ratio would be 0/0.
    */
