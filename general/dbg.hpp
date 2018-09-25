@@ -12,12 +12,6 @@
 #ifndef MFEM_DBG_HPP
 #define MFEM_DBG_HPP
 
-#include <cmath>
-#include <cassert>
-#include <iostream>
-#include <stdarg.h>
-#include <cstring>
-
 // *****************************************************************************
 static const char *strrnchr(const char *s, const unsigned char c, int n){
    size_t len = strlen(s);

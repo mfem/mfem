@@ -14,7 +14,8 @@
 
 // Data type vector
 
-#include "../general/memmng.hpp"
+#include "../general/okina.hpp"
+
 #include "../general/array.hpp"
 #include "../general/globals.hpp"
 #ifdef MFEM_USE_SUNDIALS
@@ -319,7 +320,7 @@ inline Vector::Vector (int s)
    {
       allocsize = size = s;
       //data = new double[s];
-      data = mm<double>::malloc(s);
+      data = mm::malloc<double>(s);
    }
    else
    {

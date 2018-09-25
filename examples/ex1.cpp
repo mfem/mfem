@@ -36,41 +36,20 @@
 //               optional connection to the GLVis tool for visualization.
 
 #include "mfem.hpp"
+#include "general/okina.hpp"
 #include <cassert>
 #include <fstream>
 #include <iostream>
 
-#include "/home/camier1/home/stk/stk.hpp"
-
 using namespace std;
 using namespace mfem;
 
-
-#include <signal.h>
-
-// *****************************************************************************
-void handler(int nSignum, siginfo_t* si, void* vcontext) {
-  std::cout << "\n\033[31;1mSegmentation fault\033[m" << std::endl;
-  
-  ucontext_t* context = (ucontext_t*)vcontext;
-  context->uc_mcontext.gregs[REG_RIP]++;
-  stk(true);
-  exit(1);
-}
-
-// *****************************************************************************
-void iniHandler(){
-   struct sigaction action;
-   memset(&action, 0, sizeof(struct sigaction));
-   action.sa_flags = SA_SIGINFO;
-   action.sa_sigaction = handler;
-   sigaction(SIGSEGV, &action, NULL);
-}
+#include "/home/camier1/home/stk/stk.hpp"
 
 // *****************************************************************************
 int main(int argc, char *argv[])
 {
-   iniHandler();
+   mm::iniHandler();
    
    dbg("main => stkIni");
    stkIni(argv[0]);
