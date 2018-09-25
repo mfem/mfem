@@ -6143,6 +6143,10 @@ void Mesh::DerefineMesh(const Array<int> &derefinements)
    Mesh* mesh2 = new Mesh(*ncmesh);
    ncmesh->OnMeshUpdated(mesh2);
 
+   // In parallel, preserve the global attribute lists.
+   attributes.Copy(mesh2->attributes);
+   bdr_attributes.Copy(mesh2->bdr_attributes);
+
    Swap(*mesh2, false);
    delete mesh2;
 
