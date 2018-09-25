@@ -36,15 +36,50 @@
 //               optional connection to the GLVis tool for visualization.
 
 #include "mfem.hpp"
+#include <cassert>
 #include <fstream>
 #include <iostream>
+
+#include "/home/camier1/home/stk/stk.hpp"
 
 using namespace std;
 using namespace mfem;
 
+
+#include <signal.h>
+
+// *****************************************************************************
+void handler(int nSignum, siginfo_t* si, void* vcontext) {
+  std::cout << "\n\033[31;1mSegmentation fault\033[m" << std::endl;
+  
+  ucontext_t* context = (ucontext_t*)vcontext;
+  context->uc_mcontext.gregs[REG_RIP]++;
+  stk(true);
+  exit(1);
+}
+
+// *****************************************************************************
+void iniHandler(){
+   struct sigaction action;
+   memset(&action, 0, sizeof(struct sigaction));
+   action.sa_flags = SA_SIGINFO;
+   action.sa_sigaction = handler;
+   sigaction(SIGSEGV, &action, NULL);
+}
+
+// *****************************************************************************
 int main(int argc, char *argv[])
 {
-   // 1. Parse command-line options.
+   iniHandler();
+   
+   dbg("main => stkIni");
+   stkIni(argv[0]);
+   
+   dbg("main => cfg::Get().Init");
+   cfg::Get().Init(argc,argv);
+   cfg::Get().Cuda(true);
+   
+   dbg("1. Parse command-line options.");
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool static_cond = false;
@@ -72,6 +107,7 @@ int main(int argc, char *argv[])
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
+   dbg("Read the mesh");
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
@@ -91,6 +127,7 @@ int main(int argc, char *argv[])
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
+   dbg("Define a finite element space on the mesh");
    FiniteElementCollection *fec;
    if (order > 0)
    {
@@ -109,6 +146,7 @@ int main(int argc, char *argv[])
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
 
+   dbg("Determine the list of true essential boundary dofs");
    // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
    //    the boundary attributes from the mesh as essential (Dirichlet) and
@@ -121,12 +159,20 @@ int main(int argc, char *argv[])
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
+   dbg("Set up the linear form b(.)");
    // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
+   assert(fespace);
+   dbg("f->GetVSize()=%d",fespace->GetVSize());
+   dbg("sizeof(LinearForm)=%d",sizeof(LinearForm));
    LinearForm *b = new LinearForm(fespace);
+   //assert(false);
+   dbg("one");
    ConstantCoefficient one(1.0);
+   dbg("b->AddDomainIntegrator");
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
+   dbg("b->Assemble");
    b->Assemble();
 
    // 7. Define the solution vector x as a finite element grid function

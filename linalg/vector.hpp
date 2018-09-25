@@ -14,11 +14,13 @@
 
 // Data type vector
 
+#include "../general/memmng.hpp"
 #include "../general/array.hpp"
 #include "../general/globals.hpp"
 #ifdef MFEM_USE_SUNDIALS
 #include <nvector/nvector_serial.h>
 #endif
+#include <cassert>
 #include <cmath>
 #include <iostream>
 #include <limits>
@@ -316,7 +318,8 @@ inline Vector::Vector (int s)
    if (s > 0)
    {
       allocsize = size = s;
-      data = new double[s];
+      //data = new double[s];
+      data = mm<double>::malloc(s);
    }
    else
    {
