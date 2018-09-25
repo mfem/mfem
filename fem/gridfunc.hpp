@@ -235,18 +235,33 @@ protected:
    void AccumulateAndCountZones(VectorCoefficient &vcoeff, AvgType type,
                                 Array<int> &zones_per_vdof);
 
+   void AccumulateAndCountBdrValues(Coefficient *coeff[], Array<int> &attr,
+                                    Array<int> &values_counter);
+
+   void AccumulateAndCountBdrTangentValues(VectorCoefficient &vcoeff,
+                                           Array<int> &bdr_attr,
+                                           Array<int> &values_counter);
+
    // Complete the computation of averages; called e.g. after
    // AccumulateAndCountZones().
    void ComputeMeans(AvgType type, Array<int> &zones_per_vdof);
 
 public:
+   /** @brief Project a Coefficient on the GridFunction, modifying only DOFs on
+       the boundary associated with the boundary attributed marked in the
+       @a attr array. */
    void ProjectBdrCoefficient(Coefficient &coeff, Array<int> &attr)
    {
       Coefficient *coeff_p = &coeff;
       ProjectBdrCoefficient(&coeff_p, attr);
    }
 
-   void ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr);
+   /** @brief Project a set of Coefficient%s on the components of the
+       GridFunction, modifying only DOFs on the boundary associated with the
+       boundary attributed marked in the @a attr array. */
+   /** If a Coefficient pointer in the array @a coeff is NULL, that component
+       will not be touched. */
+   virtual void ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr);
 
    /** Project the normal component of the given VectorCoefficient on
        the boundary. Only boundary attributes that are marked in
@@ -254,11 +269,11 @@ public:
    void ProjectBdrCoefficientNormal(VectorCoefficient &vcoeff,
                                     Array<int> &bdr_attr);
 
-   /** Project the tangential components of the given VectorCoefficient on
-       the boundary. Only boundary attributes that are marked in
-       'bdr_attr' are projected. Assumes ND-type VectorFE GridFunction. */
-   void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
-                                     Array<int> &bdr_attr);
+   /** @brief Project the tangential components of the given VectorCoefficient
+       on the boundary. Only boundary attributes that are marked in @a bdr_attr
+       are projected. Assumes ND-type VectorFE GridFunction. */
+   virtual void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
+                                             Array<int> &bdr_attr);
 
    virtual double ComputeL2Error(Coefficient &exsol,
                                  const IntegrationRule *irs[] = NULL) const
