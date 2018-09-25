@@ -67,9 +67,17 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
    // If pmesh has a ParNURBSExtension, it was copied by the Mesh copy ctor, so
    // there is no need to do anything here.
 
-   MFEM_VERIFY(pmesh.pncmesh == NULL,
-               "copy of parallel non-conforming meshes is not implemented");
-   pncmesh = NULL;
+   // Copy ParNCMesh, if present
+   if (pmesh.pncmesh)
+   {
+      pncmesh = new ParNCMesh(*pmesh.pncmesh);
+      pncmesh->OnMeshUpdated(this);
+   }
+   else
+   {
+      pncmesh = NULL;
+   }
+   ncmesh = pncmesh;
 
    // Copy the Nodes as a ParGridFunction, including the FiniteElementCollection
    // and the FiniteElementSpace (as a ParFiniteElementSpace)
@@ -1581,6 +1589,7 @@ void ParMesh::ExchangeFaceNbrData()
 
    Table *gr_sface;
    int   *s2l_face;
+   bool   del_tables = false;
    if (Dim == 1)
    {
       gr_sface = &group_svert;
@@ -1593,19 +1602,66 @@ void ParMesh::ExchangeFaceNbrData()
    }
    else
    {
-      gr_sface = &group_stria;
-      s2l_face = stria_lface;
+      if (stria_sface.Size() == sface_stype.Size())
+      {
+         // All shared faces are Triangular
+         gr_sface = &group_stria;
+         s2l_face = stria_lface;
+      }
+      else if (squad_sface.Size() == sface_stype.Size())
+      {
+         // All shared faced are Quadrilateral
+         gr_sface = &group_squad;
+         s2l_face = squad_lface;
+      }
+      else
+      {
+         // Shared faces contain a mixture of triangles and quads
+         gr_sface = new Table();
+         s2l_face = new int[sface_stype.Size()];
+         del_tables = true;
+
+         for (int sface=0; sface<sface_stype.Size(); sface++)
+         {
+            Element::Type el_type = shared_faces[sface]->GetType();
+            int stype = sface_stype[sface];
+            s2l_face[sface] = ( el_type == Element::TRIANGLE ) ?
+                              stria_lface[stype] : squad_lface[stype];
+         }
+         gr_sface->MakeI(group_stria.Size());
+         for (int gr=0; gr<group_stria.Size(); gr++)
+         {
+            gr_sface->AddColumnsInRow(gr,
+                                      group_stria.RowSize(gr) +
+                                      group_squad.RowSize(gr));
+         }
+         gr_sface->MakeJ();
+         for (int gr=0; gr<group_stria.Size(); gr++)
+         {
+            for (int c=0; c<group_stria.RowSize(gr); c++)
+            {
+               gr_sface->AddConnection(gr,
+                                       stria_sface[group_stria.GetRow(gr)[c]]);
+            }
+            for (int c=0; c<group_squad.RowSize(gr); c++)
+            {
+               gr_sface->AddConnection(gr,
+                                       squad_sface[group_squad.GetRow(gr)[c]]);
+            }
+         }
+         gr_sface->ShiftUpI();
+      }
    }
 
    ExchangeFaceNbrData(gr_sface, s2l_face);
 
-   if ( gr_sface == &group_stria )
+   if (del_tables)
    {
-      gr_sface = &group_squad;
-      s2l_face = squad_lface;
-
-      ExchangeFaceNbrData(gr_sface, s2l_face);
+      delete gr_sface;
+      delete [] s2l_face;
    }
+
+   if ( have_face_nbr_data ) { return; }
 
    have_face_nbr_data = true;
 
@@ -1795,7 +1851,7 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
 
       for (int el = 0; el < num_elems; el++)
       {
-         const int nv = elements[el]->GetNVertices();
+         const int nv = elements[elems[el]]->GetNVertices();
          elemdata += 2; // skip the attribute and the geometry type
          for (int j = 0; j < nv; j++)
          {
@@ -1993,6 +2049,8 @@ void ParMesh::ExchangeFaceNbrNodes()
       }
 
       int num_face_nbrs = GetNFaceNeighbors();
+
+      if (!num_face_nbrs) { return; }
 
       MPI_Request *requests = new MPI_Request[2*num_face_nbrs];
       MPI_Request *send_requests = requests;
@@ -3975,7 +4033,7 @@ void ParMesh::Mixed3DUniformRefinement(map<int,int> * )
    GetVertexToVertexTable(v_to_v);
    STable3D *faces_tbl = GetFacesTable();
 
-   // call Mesh::WedgeUniformRefinement so that it won't update the nodes
+   // call Mesh::Mixed3DUniformRefinement so that it won't update the nodes
    map<int,int> f2qf;
    {
       GridFunction *nodes = Nodes;

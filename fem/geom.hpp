@@ -25,8 +25,9 @@ namespace mfem
     Geometry::TRIANGLE - triangle with vertices (0,0), (1,0), (0,1)
     Geometry::SQUARE   - the unit square (0,1)x(0,1)
     Geometry::TETRAHEDRON - w/ vert. (0,0,0),(1,0,0),(0,1,0),(0,0,1)
+    Geometry::CUBE - the unit cube
     Geometry::PRISM - w/ vert. (0,0,0),(1,0,0),(0,1,0),(0,0,1),(1,0,1),(0,1,1)
-    Geometry::CUBE - the unit cube                                    */
+*/
 class Geometry
 {
 public:
@@ -129,7 +130,7 @@ template <> struct Geometry::Constants<Geometry::TRIANGLE>
    static const int NumVert = 3;
    static const int NumEdges = 3;
    static const int Edges[NumEdges][2];
-   // Lower-triangular part of the local vertex-to-vertex graph.
+   // Upper-triangular part of the local vertex-to-vertex graph.
    struct VertToVert
    {
       static const int I[NumVert];
@@ -155,7 +156,7 @@ template <> struct Geometry::Constants<Geometry::SQUARE>
    static const int NumVert = 4;
    static const int NumEdges = 4;
    static const int Edges[NumEdges][2];
-   // Lower-triangular part of the local vertex-to-vertex graph.
+   // Upper-triangular part of the local vertex-to-vertex graph.
    struct VertToVert
    {
       static const int I[NumVert];
@@ -179,25 +180,7 @@ template <> struct Geometry::Constants<Geometry::TETRAHEDRON>
    static const int FaceTypes[NumFaces];
    static const int MaxFaceVert = 3;
    static const int FaceVert[NumFaces][MaxFaceVert];
-   // Lower-triangular part of the local vertex-to-vertex graph.
-   struct VertToVert
-   {
-      static const int I[NumVert];
-      static const int J[NumEdges][2]; // {end,edge_idx}
-   };
-};
-
-template <> struct Geometry::Constants<Geometry::PRISM>
-{
-   static const int Dimension = 3;
-   static const int NumVert = 6;
-   static const int NumEdges = 9;
-   static const int Edges[NumEdges][2];
-   static const int NumFaces = 5;
-   static const int FaceTypes[NumFaces];
-   static const int MaxFaceVert = 4;
-   static const int FaceVert[NumFaces][MaxFaceVert];
-   // Lower-triangular part of the local vertex-to-vertex graph.
+   // Upper-triangular part of the local vertex-to-vertex graph.
    struct VertToVert
    {
       static const int I[NumVert];
@@ -215,7 +198,7 @@ template <> struct Geometry::Constants<Geometry::CUBE>
    static const int FaceTypes[NumFaces];
    static const int MaxFaceVert = 4;
    static const int FaceVert[NumFaces][MaxFaceVert];
-   // Lower-triangular part of the local vertex-to-vertex graph.
+   // Upper-triangular part of the local vertex-to-vertex graph.
    struct VertToVert
    {
       static const int I[NumVert];
@@ -223,7 +206,27 @@ template <> struct Geometry::Constants<Geometry::CUBE>
    };
 };
 
+template <> struct Geometry::Constants<Geometry::PRISM>
+{
+   static const int Dimension = 3;
+   static const int NumVert = 6;
+   static const int NumEdges = 9;
+   static const int Edges[NumEdges][2];
+   static const int NumFaces = 5;
+   static const int FaceTypes[NumFaces];
+   static const int MaxFaceVert = 4;
+   static const int FaceVert[NumFaces][MaxFaceVert];
+   // Upper-triangular part of the local vertex-to-vertex graph.
+   struct VertToVert
+   {
+      static const int I[NumVert];
+      static const int J[NumEdges][2]; // {end,edge_idx}
+   };
+};
+
+// Defined in fe.cpp to ensure construction after 'mfem::WedgeFE'.
 extern Geometry Geometries;
+
 
 class RefinedGeometry
 {
