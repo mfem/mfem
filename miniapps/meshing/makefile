@@ -42,6 +42,15 @@ endif
 
 all: $(MINIAPPS)
 
+# Rules to copy the *.mesh files - needed for running the sample runs when
+# building out-of-source:
+ifneq ($(SRC),)
+MESH_FILES = blade.mesh icf.mesh
+$(MESH_FILES): %: $(SRC)%
+	ln -sf $(<) .
+mesh-optimizer pmesh-optimizer: | $(MESH_FILES)
+endif
+
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 
@@ -52,10 +61,9 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 %-test-seq: %
 	@$(call mfem-test-file,$<,, Meshing miniapp,$(<).mesh)
 mesh-optimizer-test-seq: mesh-optimizer
-	@$(call mfem-test,$<,, Meshing miniapp,-m $(SRC)icf.mesh)
+	@$(call mfem-test,$<,, Meshing miniapp)
 pmesh-optimizer-test-par: pmesh-optimizer
-	@$(call mfem-test,$<, $(RUN_MPI), Parallel meshing miniapp,\
-	-m $(SRC)icf.mesh)
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel meshing miniapp)
 
 # Testing: Specific execution options
 mesh-explorer-test-seq:
