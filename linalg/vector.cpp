@@ -11,7 +11,7 @@
 
 // Implementation of data type vector
 
-#include "../general/dbg.hpp"
+#include "../general/okina.hpp"
 #include "vector.hpp"
 
 #if defined(MFEM_USE_SUNDIALS) && defined(MFEM_USE_MPI)

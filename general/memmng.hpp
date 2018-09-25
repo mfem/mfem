@@ -12,37 +12,12 @@
 #ifndef MFEM_MEMMNG_HPP
 #define MFEM_MEMMNG_HPP
 
-#ifdef __NVCC__
-#include <cuda.h>
-#include <helper_cuda.h>
-#include <helper_functions.h>
-#endif
-
-#include "config.hpp"
-#include "memcpy.hpp"
-
-// *****************************************************************************
-/*
-void* operator new(std::size_t size, const std::nothrow_t&) noexcept{}
-void operator delete(void* ptr) noexcept{}
-void operator delete(void* ptr, std::size_t size) noexcept{}
-void operator delete(void* ptr, const std::nothrow_t&) noexcept{}
-void* operator new[](std::size_t size){}
-void* operator new[](std::size_t size, const std::nothrow_t&) noexcept{}
-void operator delete[](void* ptr) noexcept{}
-void operator delete[](void* ptr, std::size_t size) noexcept{}
-void operator delete[](void* ptr, const std::nothrow_t&) noexcept{}
-void* operator new (std::size_t size, void* ptr) noexcept{}
-void* operator new[](std::size_t size, void* ptr) noexcept{}
-void operator delete (void* ptr, void*) noexcept{}
-void operator delete[](void* ptr, void*) noexcept{}
-*/
-
 // *****************************************************************************
 // * Memory manager
 // ***************************************************************************
-template<class T> struct mm {
+struct mm {
    // **************************************************************************
+   template<class T>
    static inline T* malloc(size_t n, const size_t size_of_T = sizeof(T)) {
       T *ptr = nullptr;
       if (!cfg::Get().Cuda()) return ptr = ::new T[n];
@@ -55,7 +30,8 @@ template<class T> struct mm {
    }
    
    // **************************************************************************
-   static inline void operator delete(void *ptr) {
+   template<class T>
+   static inline void free(void *ptr) {
       if (!cfg::Get().Cuda()) {
          if (ptr)
             ::delete[] static_cast<T*>(ptr);
@@ -68,6 +44,25 @@ template<class T> struct mm {
 #endif // __NVCC__
       ptr = nullptr;
    }
-};
 
+   // *****************************************************************************
+   static void handler(int nSignum, siginfo_t* si, void* vcontext) {
+      std::cout << "\n\033[31;1mSegmentation fault\033[m" << std::endl;
+  
+      ucontext_t* context = (ucontext_t*)vcontext;
+      context->uc_mcontext.gregs[REG_RIP]++;
+      stk(true);
+      exit(1);
+   }
+
+   // *****************************************************************************
+   static void iniHandler(){
+      struct sigaction action;
+      memset(&action, 0, sizeof(struct sigaction));
+      action.sa_flags = SA_SIGINFO;
+      action.sa_sigaction = handler;
+      sigaction(SIGSEGV, &action, NULL);
+   }
+   
+};
 #endif // MFEM_MEMMNG_HPP
