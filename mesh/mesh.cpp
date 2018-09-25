@@ -277,8 +277,8 @@ FiniteElement *Mesh::GetTransformationFEforElementType(Element::Type ElemType)
       case Element::TRIANGLE :       return &TriangleFE;
       case Element::QUADRILATERAL :  return &QuadrilateralFE;
       case Element::TETRAHEDRON :    return &TetrahedronFE;
-      case Element::WEDGE :          return &WedgeFE;
       case Element::HEXAHEDRON :     return &HexahedronFE;
+      case Element::WEDGE :          return &WedgeFE;
       default:
          MFEM_ABORT("Unknown element type \"" << ElemType << "\"");
          break;
@@ -1892,13 +1892,6 @@ void Mesh::FinalizeWedgeMesh(int generate_edges, int refine,
       GenerateBoundaryElements();
    }
 
-   if (refine)
-   {
-      DSTable v_to_v(NumOfVertices);
-      GetVertexToVertexTable(v_to_v);
-      MarkTetMeshForRefinement(v_to_v);
-   }
-
    GetElementToFaceTable();
    GenerateFaces();
 
@@ -2002,7 +1995,7 @@ void Mesh::FinalizeMixedMesh(int generate_edges, int refine,
    BaseBdrGeom = Geometry::MIXED;
    BaseFaceGeom = Geometry::MIXED;
 
-   meshgen = 4;
+   SetMeshGen();
 }
 
 void Mesh::FinalizeTopology()
@@ -2027,23 +2020,16 @@ void Mesh::FinalizeTopology()
    // set the mesh type ('meshgen')
    SetMeshGen();
 
-   if (NumOfBdrElements == 0 && Dim > 2)
-   {
-      // in 3D, generate boundary elements before we 'MarkForRefinement'
-      GetElementToFaceTable();
-      GenerateFaces();
-      GenerateBoundaryElements();
-   }
-   else if (Dim == 1)
-   {
-      GenerateFaces();
-   }
-
    // generate the faces
    if (Dim > 2)
    {
       GetElementToFaceTable();
       GenerateFaces();
+      if (NumOfBdrElements == 0)
+      {
+         GenerateBoundaryElements();
+         GetElementToFaceTable(); // update be_to_face
+      }
    }
    else
    {
@@ -2068,6 +2054,11 @@ void Mesh::FinalizeTopology()
    else
    {
       NumOfEdges = 0;
+   }
+
+   if (Dim == 1)
+   {
+      GenerateFaces();
    }
 
    if (ncmesh)
@@ -2624,6 +2615,7 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
       faces[i] = (face) ? face->Duplicate(this) : NULL;
    }
    mesh.faces_info.Copy(faces_info);
+   mesh.nc_faces_info.Copy(nc_faces_info);
 
    // Do NOT copy the element-to-element Table, el_to_el
    el_to_el = NULL;
@@ -2653,9 +2645,16 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    }
 
    // Deep copy the NCMesh.
-   // TODO: ParNCMesh; ParMesh has a separate 'pncmesh' pointer, and 'ncmesh'
-   //       is initialized from it. Need ParNCMesh copy constructor.
-   ncmesh = mesh.ncmesh ? new NCMesh(*mesh.ncmesh) : NULL;
+#ifdef MFEM_USE_MPI
+   if (dynamic_cast<const ParMesh*>(&mesh))
+   {
+      ncmesh = NULL; // skip; will be done in ParMesh copy ctor
+   }
+   else
+#endif
+   {
+      ncmesh = mesh.ncmesh ? new NCMesh(*mesh.ncmesh) : NULL;
+   }
 
    // Duplicate the Nodes, including the FiniteElementCollection and the
    // FiniteElementSpace
@@ -2778,14 +2777,16 @@ Element *Mesh::NewElement(int geom)
       case Geometry::SEGMENT:   return (new Segment);
       case Geometry::TRIANGLE:  return (new Triangle);
       case Geometry::SQUARE:    return (new Quadrilateral);
-      case Geometry::PRISM:     return (new Wedge);
-      case Geometry::CUBE:      return (new Hexahedron);
       case Geometry::TETRAHEDRON:
 #ifdef MFEM_USE_MEMALLOC
          return TetMemory.Alloc();
 #else
          return (new Tetrahedron);
 #endif
+      case Geometry::CUBE:      return (new Hexahedron);
+      case Geometry::PRISM:     return (new Wedge);
+      default:
+         MFEM_ABORT("invalid Geometry::Type, geom = " << geom);
    }
 
    return NULL;
@@ -2842,10 +2843,9 @@ void Mesh::PrintElement(const Element *el, std::ostream &out)
 void Mesh::SetMeshGen()
 {
    meshgen = 0;
-   Element::Type type = Element::INVALID;
    for (int i = 0; i < NumOfElements; i++)
    {
-      type = GetElement(i)->GetType();
+      Element::Type type = GetElement(i)->GetType();
       switch (type)
       {
          case Element::POINT:
@@ -2861,8 +2861,7 @@ void Mesh::SetMeshGen()
          case Element::WEDGE:
             meshgen |= 4; break;
          default:
-            MFEM_VERIFY(false, "MixedMesh::SetMeshGen "
-                        "invalid element type " << type);
+            MFEM_ABORT("invalid element type: " << type);
             break;
       }
    }
@@ -2872,6 +2871,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
                   std::string parse_tag)
 {
    int curved = 0, read_gf = 1;
+   bool finalize_topo = true;
 
    if (!input)
    {
@@ -2924,7 +2924,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    else if (mesh_type == "# vtk DataFile Version 3.0" ||
             mesh_type == "# vtk DataFile Version 2.0") // VTK
    {
-      ReadVTKMesh(input, curved, read_gf);
+      ReadVTKMesh(input, curved, read_gf, finalize_topo);
    }
    else if (mesh_type == "MFEM NURBS mesh v1.0")
    {
@@ -2988,7 +2988,10 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    // - assume that generate_edges is true
    // - assume that refine is false
    // - does not check the orientation of regular and boundary elements
-   FinalizeTopology();
+   if (finalize_topo)
+   {
+      FinalizeTopology();
+   }
 
    if (curved && read_gf)
    {
@@ -3301,7 +3304,8 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
    last_operation = Mesh::REFINE;
 
    // Setup the data for the coarse-fine refinement transformations
-   MFEM_VERIFY(BaseGeom != -1, "meshes with mixed elements are not supported");
+   MFEM_VERIFY(BaseGeom != Geometry::INVALID && BaseGeom != Geometry::MIXED,
+               "meshes with mixed elements are not supported");
    CoarseFineTr.point_matrices[BaseGeom].SetSize(Dim, max_nv, r_elem_factor);
    CoarseFineTr.embeddings.SetSize(GetNE());
    if (orig_mesh->GetNE() > 0)
@@ -7176,6 +7180,10 @@ void Mesh::DerefineMesh(const Array<int> &derefinements)
    Mesh* mesh2 = new Mesh(*ncmesh);
    ncmesh->OnMeshUpdated(mesh2);
 
+   // In parallel, preserve the global attribute lists.
+   attributes.Copy(mesh2->attributes);
+   bdr_attributes.Copy(mesh2->bdr_attributes);
+
    Swap(*mesh2, false);
    delete mesh2;
 
@@ -7405,6 +7413,25 @@ void Mesh::UniformRefinement()
    {
       NURBSUniformRefinement();
    }
+   else if (meshgen == 1 || ncmesh)
+   {
+      Array<int> elem_to_refine(GetNE());
+      for (int i = 0; i < elem_to_refine.Size(); i++)
+      {
+         elem_to_refine[i] = i;
+      }
+
+      if (Conforming())
+      {
+         // In parallel we should set the default 2nd argument to -3 to indicate
+         // uniform refinement.
+         LocalRefinement(elem_to_refine);
+      }
+      else
+      {
+         GeneralRefinement(elem_to_refine, 1);
+      }
+   }
    else
    {
       switch (BaseGeom)
@@ -7429,60 +7456,10 @@ void Mesh::UniformRefinement()
             }
             break;
          default:
-         {
-            Array<int> elem_to_refine(GetNE());
-            for (int i = 0; i < elem_to_refine.Size(); i++)
-            {
-               elem_to_refine[i] = i;
-            }
-
-            if (Conforming())
-            {
-               // In parallel we should set the default 2nd argument to -3
-               // to indicate uniform refinement.
-               LocalRefinement(elem_to_refine);
-            }
-            else
-            {
-               GeneralRefinement(elem_to_refine, 1);
-            }
-         }
-         break;
+            MFEM_ABORT("internal error");
+            break;
       }
    }
-   /*
-   else if (meshgen == 1 || ncmesh)
-   {
-      Array<int> elem_to_refine(GetNE());
-      for (int i = 0; i < elem_to_refine.Size(); i++)
-      {
-         elem_to_refine[i] = i;
-      }
-
-      if (Conforming())
-      {
-         // In parallel we should set the default 2nd argument to -3 to indicate
-         // uniform refinement.
-         LocalRefinement(elem_to_refine);
-      }
-      else
-      {
-         GeneralRefinement(elem_to_refine, 1);
-      }
-   }
-   else if (Dim == 2)
-   {
-      QuadUniformRefinement();
-   }
-   else if (Dim == 3)
-   {
-      HexUniformRefinement();
-   }
-   else
-   {
-      mfem_error("Mesh::UniformRefinement()");
-   }
-   */
 }
 
 void Mesh::GeneralRefinement(const Array<Refinement> &refinements,
@@ -8509,8 +8486,8 @@ void Mesh::PrintVTK(std::ostream &out)
             case Geometry::TRIANGLE:     vtk_cell_type = 5;   break;
             case Geometry::SQUARE:       vtk_cell_type = 9;   break;
             case Geometry::TETRAHEDRON:  vtk_cell_type = 10;  break;
-            case Geometry::PRISM:        vtk_cell_type = 13;  break;
             case Geometry::CUBE:         vtk_cell_type = 12;  break;
+            case Geometry::PRISM:        vtk_cell_type = 13;  break;
             default: break;
          }
       }
@@ -8522,8 +8499,8 @@ void Mesh::PrintVTK(std::ostream &out)
             case Geometry::TRIANGLE:     vtk_cell_type = 22;  break;
             case Geometry::SQUARE:       vtk_cell_type = 28;  break;
             case Geometry::TETRAHEDRON:  vtk_cell_type = 24;  break;
-            case Geometry::PRISM:        vtk_cell_type = 32;  break;
             case Geometry::CUBE:         vtk_cell_type = 29;  break;
+            case Geometry::PRISM:        vtk_cell_type = 32;  break;
             default: break;
          }
       }
@@ -8646,8 +8623,8 @@ void Mesh::PrintVTK(std::ostream &out, int ref, int field_data)
          case Geometry::TRIANGLE:     vtk_cell_type = 5;   break;
          case Geometry::SQUARE:       vtk_cell_type = 9;   break;
          case Geometry::TETRAHEDRON:  vtk_cell_type = 10;  break;
-         case Geometry::PRISM:        vtk_cell_type = 13;  break;
          case Geometry::CUBE:         vtk_cell_type = 12;  break;
+         case Geometry::PRISM:        vtk_cell_type = 13;  break;
          default:
             MFEM_ABORT("Unrecognized VTK element type \"" << geom << "\"");
             break;
@@ -10183,7 +10160,7 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
    GridFunction *nodes = mesh->GetNodes();
    if (nodes)
    {
-      // duplicate the fec of the 1D mesh so that it can be deleted safely
+      // duplicate the fec of the 2D mesh so that it can be deleted safely
       // along with its nodes, fes and fec
       FiniteElementCollection *fec3d = NULL;
       FiniteElementSpace *fes3d;
@@ -10203,15 +10180,15 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
       }
       else if (!strncmp(name, "H1_", 3))
       {
-         fec3d = new H1_FECollection(atoi(name + 7), 2);
+         fec3d = new H1_FECollection(atoi(name + 7), 3);
       }
       else if (!strncmp(name, "L2_T", 4))
       {
-         fec3d = new L2_FECollection(atoi(name + 10), 2, atoi(name + 4));
+         fec3d = new L2_FECollection(atoi(name + 10), 3, atoi(name + 4));
       }
       else if (!strncmp(name, "L2_", 3))
       {
-         fec3d = new L2_FECollection(atoi(name + 7), 2);
+         fec3d = new L2_FECollection(atoi(name + 7), 3);
       }
       else
       {

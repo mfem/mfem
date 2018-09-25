@@ -193,6 +193,4 @@ void Triangle::GetVertices(Array<int> &v) const
    }
 }
 
-Linear2DFiniteElement TriangleFE;
-
 } // namespace mfem

@@ -333,6 +333,4 @@ Element *Tetrahedron::Duplicate(Mesh *m) const
    return tet;
 }
 
-Linear3DFiniteElement TetrahedronFE;
-
 }
