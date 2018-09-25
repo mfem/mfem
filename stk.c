@@ -13,33 +13,19 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
-#ifndef LIB_CEED_BACKTRACE_DATA_DBG
-#define LIB_CEED_BACKTRACE_DATA_DBG
+#include "stk.h"
+#include <stdio.h>
+#include <stdarg.h>
 
-struct backtrace_state;
+#define _STK_MODE_ false
 
-// *****************************************************************************
-// * Backtrace library
-// *****************************************************************************
-class dbgBackTraceData {
-public:
-  dbgBackTraceData(backtrace_state*);
-  ~dbgBackTraceData();
-public:
-  void flush();
-  void update(const char*, uintptr_t);
-  int continue_tracing(){ return m_hit?1:0; }
-public:
-  int depth(){ return m_depth; }
-  uintptr_t address(){ return m_address; }
-  const char* function(){ return m_function; }
-  backtrace_state* state(){ return m_state; }
-private:
-  backtrace_state* m_state;
-  const char *m_function;
-  uintptr_t m_address;
-  bool m_hit;
-  int m_depth;
-};
-
-#endif // LIB_CEED_BACKTRACE_DATA_DBG
+void _stk(const char *format,...){
+  if (!_STK_MODE_) return;
+  va_list args;
+  va_start(args, format);
+  fflush(stdout);
+  fprintf(stdout,"\033[32;1m");
+  vfprintf(stdout,format,args);
+  fprintf(stdout,"\033[m\n");
+  va_end(args);
+}

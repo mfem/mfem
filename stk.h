@@ -13,19 +13,9 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
-#include "dbg.h"
-#include <stdio.h>
-#include <stdarg.h>
+#ifndef LIB_STK_VARIADIC
+#define LIB_STK_VARIADIC
 
-#define _DBG_MODE_ false
+void _stk(const char*,...);
 
-void _dbg(const char *format,...){
-  if (!_DBG_MODE_) return;
-  va_list args;
-  va_start(args, format);
-  fflush(stdout);
-  fprintf(stdout,"\033[32;1m");
-  vfprintf(stdout,format,args);
-  fprintf(stdout,"\033[m\n");
-  va_end(args);
-}
+#endif // LIB_STK_VARIADIC

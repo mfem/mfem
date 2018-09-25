@@ -16,26 +16,28 @@
 #include <iostream>
 #include <string.h>
 
-#include "dbgBackTraceData.hpp"
+#include "stkBackTraceData.hpp"
 
 // *****************************************************************************
 // * Backtrace library
 // *****************************************************************************
-dbgBackTraceData::dbgBackTraceData(backtrace_state* s):
+stkBackTraceData::stkBackTraceData(backtrace_state* s):
   m_state(s),
   m_function(nullptr),
+  m_filename(nullptr),
+  m_lineno(0),
   m_address(0x0),
   m_hit(false),
   m_depth(0){}
 
 // *****************************************************************************
-dbgBackTraceData::~dbgBackTraceData(){
+stkBackTraceData::~stkBackTraceData(){
   if (m_function)
     free((void*)m_function);
 }
 
 // *****************************************************************************
-void dbgBackTraceData::flush(){
+void stkBackTraceData::flush(){
   if (m_function) free((void*)m_function);
   m_function=nullptr;
   m_address=0;
@@ -44,10 +46,14 @@ void dbgBackTraceData::flush(){
 }
 
 // *****************************************************************************
-void dbgBackTraceData::update(const char* f, uintptr_t adrs) {
+void stkBackTraceData::update(const char* f, uintptr_t adrs,
+                              const char* filename,
+                              const int lineno) {
   m_hit = !strncmp(f,"main",4);
   m_depth+=1;
   if (m_function!=nullptr) return;
   m_function=strdup(f);
+  m_filename=filename?strdup(filename):NULL;
   m_address=adrs;
+  m_lineno=lineno;
 }

@@ -1,17 +1,17 @@
-#include "dbg.hpp"
+#include "stk.hpp"
 
-extern void backTraceIni(char*);
+//extern void backTraceIni(char*);
 
-int f3(void){dbg();return 0;}
+int f3(void){stk();stk()<<1;return 0;}
 
-int f2(void){dbg();return f3();}
+int f2(void){stk();return f3();}
 
-int f1(void){dbg();return f2();}
+int f1(void){stk();return f2();}
 
-int f0(void){dbg();return f1();}
+int f0(void){stk();return f1();}
 
 int main(int argc, char *argv[]){
-  dbgIni(argv[0]);
-  dbg();
+  stkIni(argv[0]);
+  stk();
   return f0();
 }

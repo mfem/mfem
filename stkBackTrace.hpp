@@ -13,9 +13,31 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
-#ifndef LIB_CEED_DBG_VARIADIC
-#define LIB_CEED_DBG_VARIADIC
+#ifndef LIB_STK_BACKTRACE
+#define LIB_STK_BACKTRACE
 
-void _dbg(const char*,...);
+struct backtrace_state;
+class stkBackTraceData;
 
-#endif // LIB_CEED_DBG_VARIADIC
+// ***************************************************************************
+// * stkBackTrace
+// ***************************************************************************
+class stkBackTrace {
+private:
+   backtrace_state *state;
+   stkBackTraceData *data;
+public:
+   stkBackTrace();
+   ~stkBackTrace();
+public:
+   void ini(const char*);
+   int stk();
+public:
+   int depth();
+   uintptr_t address();
+   const char* function();
+   const char* filename();
+   const int lineno();
+};
+
+#endif // LIB_STK_BACKTRACE

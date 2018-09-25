@@ -1,5 +1,5 @@
 #### Target ####
-tgt := dbg
+tgt := stk
 
 ##### Paths ####
 pwd = $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
@@ -8,16 +8,16 @@ obj = $(pwd)/obj
 #### Object files ####
 OBJ = $(obj)/$(tgt).o
 OBJ += $(obj)/$(tgt).co
-OBJ += $(obj)/dbgBackTrace.o
-OBJ += $(obj)/dbgBackTraceData.o
+OBJ += $(obj)/stkBackTrace.o
+OBJ += $(obj)/stkBackTraceData.o
 
 
 #### Compilation variables ####
 CXX = g++
 CPU = $(shell echo $(shell getconf _NPROCESSORS_ONLN)*2|bc -l)
-INC = -I.
-FLG = -fPIC -Wall -g $(INC)
-LIB = $(HOME)/lib/libbacktrace.so
+INC = -I/home/camier1/include
+FLG = -std=c++11 -fPIC -Wall -g $(INC)
+LIB = -Wl,-rpath -Wl,/home/camier1/lib -Wl,-rpath -Wl,$(pwd)
 
 #### Linking variables ####
 AR      = ar
@@ -43,13 +43,14 @@ all: | $(shell mkdir -p $(obj));$(rule)
 
 #### Main target ####
 lib$(tgt).so: $(OBJ);$(rule)
-	$(CXX) -shared -Wl,-soname,libdbg.so -o $@ $(OBJ) $(LIB)
+	$(CXX) -shared -Wl,-soname,libstk.so -o $@ $(OBJ) $(LIB)
 #	$(AR) $(ARFLAGS) $@ $(OBJ) $(LIB)
 #	$(RANLIB) $@
 
 #### tst ####
 tst:tst.c lib$(tgt).so makefile
-	$(CXX) -fno-inline-functions $(FLG) -o $@ $< -l$(tgt)
+	$(CXX) -fno-inline-functions $(FLG) -o $@ $< -L. -l$(tgt) \
+	-Wl,-rpath /home/camier1/home/stk -Wl,-rpath $(HOME)/lib -L$(HOME)/lib -lbacktrace
 
 #### ./*.cpp #####
 $(obj)/%.o: $(pwd)/%.cpp $(pwd)/%.hpp;$(rule)

@@ -19,25 +19,25 @@
 #include <iostream>
 #include <unordered_map>
 
-#include "dbg.h"
-#include "dbg.hpp"
-#include "dbgBackTrace.hpp"
-
+#include "stk.h"
+#include "stk.hpp"
+#include "stkBackTrace.hpp"
 
 // *****************************************************************************
 // * 
 // *****************************************************************************
-static dbgBackTrace bt;
-void dbgIni(char* argv0){
-  _dbg("[dbgIni] argv0=%s",argv0);
+static stkBackTrace bt;
+void stkIni(char* argv0){
+  _stk("[stkIni] argv0=%s",argv0);
   bt.ini(argv0);
 }
 
 // ***************************************************************************
-// * dbg 
+// * stk 
 // ***************************************************************************
-dbg::dbg(){}
-dbg::~dbg(){
+stk::stk():options(""){}
+stk::stk(const char* opt):options(opt){}
+stk::~stk(){
   
   static std::unordered_map<std::string, bool> wanted ={
     {"kernelArg_t", true},
@@ -72,21 +72,23 @@ dbg::~dbg(){
  
   static std::unordered_map<uintptr_t,std::string> known_address;
 
-  // If no DBG varibale environment is set, just return
-  if (!getenv("DBG")) return;
+  // If no STK varibale environment is set, just return
+  if (!getenv("STK")) return;
 
   // If we are in ORG_MODE, set tab_char to '*'
   const bool org_mode = getenv("ORG_MODE")!=NULL;
   const std::string tab_char = org_mode?"*":"  ";
   
   // now backtracing if initialized
-  if (bt.dbg()!=0) return;
+  if (bt.stk()!=0) return;
   
   const int depth = bt.depth();
   assert(depth>0);
   const int frames = depth-(org_mode?-1:1);
   const uintptr_t address = bt.address();
   const char *backtraced_function = bt.function();
+  const char *filename = bt.filename();
+  const int lineno = bt.lineno();
   const std::string demangled_function(backtraced_function);
    
   if (known_address.find(address)==known_address.end()){
@@ -98,9 +100,10 @@ dbg::~dbg(){
   }
 
   const std::string display_function = known_address[address];
-  const std::string root = known_address[address];
 
-  /*
+
+  //const std::string root = known_address[address];
+  
   //std::cout << "offunction: '"<<offunction<<"'\n";
   const int first_3A = display_function.find_first_of(':');
   //std::cout << "first_3A="<<first_3A<<"\n";
@@ -112,9 +115,9 @@ dbg::~dbg(){
   const int first_3AC = ((first_3A^first_3C)<0)?
     std::max(first_3A,first_3C):std::min(first_3A,first_3C);
   // If first_3A==first_3C==-1, just take our offunction name  
-  std::string root = (first_3A!=first_3C)?display_function.substr(0,first_3AC):display_function;
+  const std::string root = (first_3A!=first_3C)?display_function.substr(0,first_3AC):display_function;
   //std::cout << "root: '"<<root<<"'\n";
-  */
+  
       
   // Look if this root is wanted or has to be filtered
   if (wanted.find(root)!=wanted.end()){
@@ -124,20 +127,23 @@ dbg::~dbg(){
     }
   }
         
-  if (known_colors.find(root)==known_colors.end())
-    known_colors[root] = known_colors.size()%256;
-  const int color = known_colors[root];
+  if (known_colors.find(display_function)==known_colors.end())
+    known_colors[display_function] = known_colors.size()%(256-46)+46;
+  const int color = known_colors[display_function];
 
   // Generating tabs
   for(int k=0;k<frames;++k) std::cout<<tab_char;
   
   // Outputing 
-  if (!org_mode) std::cout << "\033[38;5;"<<color<<";1m"; // bold
+  if (!org_mode)
+    std::cout << "\033[" << options
+              << ";38;5;"<< color
+              << ";1m"; // bold
   else std::cout << " ";
-  std::cout << "["<<display_function<<"] ";
+  std::cout << "["<<filename<<":"<<lineno<<":"<<display_function<<"]\033[m ";
   // reset + normal color if !empty
   if (!org_mode)
-    std::cout << "\033[m\033[38;5;"<<color<<"m";
+    std::cout << "\033[38;5;"<<color<<"m";
   std::cout << stream.str();
   if (!org_mode) std::cout << "[m";
   std::cout << "\n";

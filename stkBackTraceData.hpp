@@ -13,24 +13,37 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
-#ifndef LIB_CEED_DBG
-#define LIB_CEED_DBG
+#ifndef LIB_STK_BACKTRACE_DATA
+#define LIB_STK_BACKTRACE_DATA
 
-#include <sstream>
+struct backtrace_state;
 
-class dbg{
+// *****************************************************************************
+// * Backtrace library
+// *****************************************************************************
+class stkBackTraceData {
 public:
-  dbg();
-   ~dbg();
-   template<class T>
-   dbg& operator<<(const T& t){
-      stream << t;
-      return *this;
-   }
+   stkBackTraceData(backtrace_state*);
+   ~stkBackTraceData();
+public:
+   void flush();
+   void update(const char*, uintptr_t, const char* =NULL, const int=0);
+   int continue_tracing(){ return m_hit?1:0; }
+public:
+   int depth(){ return m_depth; }
+   uintptr_t address(){ return m_address; }
+   const char* function(){ return m_function; }
+   const char* filename(){ return m_filename; }
+   const int lineno(){ return m_lineno; }
+   backtrace_state* state(){ return m_state; }
 private:
-  std::stringstream stream;
+   backtrace_state* m_state;
+   const char *m_function;
+   const char *m_filename;
+   int m_lineno;
+   uintptr_t m_address;
+   bool m_hit;
+   int m_depth;
 };
 
-void dbgIni(char*);
-
-#endif // LIB_CEED_DBG
+#endif // LIB_STK_BACKTRACE_DATA
