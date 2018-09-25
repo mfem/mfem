@@ -2237,6 +2237,69 @@ double GridFunction::ComputeLpError(const double p, Coefficient &exsol,
    return error;
 }
 
+void GridFunction::ComputeElementLpErrors(const double p, Coefficient &exsol,
+                                          GridFunction &error,
+                                          Coefficient *weight,
+                                          const IntegrationRule *irs[]) const
+{
+   error = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   Vector vals;
+
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fe = fes->GetFE(i);
+      const IntegrationRule *ir;
+      if (irs)
+      {
+         ir = irs[fe->GetGeomType()];
+      }
+      else
+      {
+         int intorder = 2*fe->GetOrder() + 1; // <----------
+         ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+      }
+      GetValues(i, *ir, vals);
+      T = fes->GetElementTransformation(i);
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+         double err = fabs(vals(j) - exsol.Eval(*T, ip));
+         if (p < infinity())
+         {
+            err = pow(err, p);
+            if (weight)
+            {
+               err *= weight->Eval(*T, ip);
+            }
+            error[i] += ip.weight * T->Weight() * err;
+         }
+         else
+         {
+            if (weight)
+            {
+               err *= weight->Eval(*T, ip);
+            }
+            error[i] = std::max(error[i], err);
+         }
+      }
+      if (p < infinity())
+      {
+         // negative quadrature weights may cause the error to be negative
+         if (error[i] < 0.)
+         {
+            error[i] = -pow(-error[i], 1./p);
+         }
+         else
+         {
+            error[i] = pow(error[i], 1./p);
+         }
+      }
+   }
+}
+
 double GridFunction::ComputeLpError(const double p, VectorCoefficient &exsol,
                                     Coefficient *weight,
                                     VectorCoefficient *v_weight,
@@ -2326,6 +2389,96 @@ double GridFunction::ComputeLpError(const double p, VectorCoefficient &exsol,
    }
 
    return error;
+}
+
+void GridFunction::ComputeElementLpErrors(const double p,
+                                          VectorCoefficient &exsol,
+                                          GridFunction &error,
+                                          Coefficient *weight,
+                                          VectorCoefficient *v_weight,
+                                          const IntegrationRule *irs[]) const
+{
+   error = 0.0;
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   DenseMatrix vals, exact_vals;
+   Vector loc_errs;
+
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fe = fes->GetFE(i);
+      const IntegrationRule *ir;
+      if (irs)
+      {
+         ir = irs[fe->GetGeomType()];
+      }
+      else
+      {
+         int intorder = 2*fe->GetOrder() + 1; // <----------
+         ir = &(IntRules.Get(fe->GetGeomType(), intorder));
+      }
+      T = fes->GetElementTransformation(i);
+      GetVectorValues(*T, *ir, vals);
+      exsol.Eval(exact_vals, *T, *ir);
+      vals -= exact_vals;
+      loc_errs.SetSize(vals.Width());
+      if (!v_weight)
+      {
+         // compute the lengths of the errors at the integration points
+         // thus the vector norm is rotationally invariant
+         vals.Norm2(loc_errs);
+      }
+      else
+      {
+         v_weight->Eval(exact_vals, *T, *ir);
+         // column-wise dot product of the vector error (in vals) and the
+         // vector weight (in exact_vals)
+         for (int j = 0; j < vals.Width(); j++)
+         {
+            double err = 0.0;
+            for (int d = 0; d < vals.Height(); d++)
+            {
+               err += vals(d,j)*exact_vals(d,j);
+            }
+            loc_errs(j) = fabs(err);
+         }
+      }
+      for (int j = 0; j < ir->GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         T->SetIntPoint(&ip);
+         double err = loc_errs(j);
+         if (p < infinity())
+         {
+            err = pow(err, p);
+            if (weight)
+            {
+               err *= weight->Eval(*T, ip);
+            }
+            error[i] += ip.weight * T->Weight() * err;
+         }
+         else
+         {
+            if (weight)
+            {
+               err *= weight->Eval(*T, ip);
+            }
+            error[i] = std::max(error[i], err);
+         }
+      }
+      if (p < infinity())
+      {
+         // negative quadrature weights may cause the error to be negative
+         if (error[i] < 0.)
+         {
+            error[i] = -pow(-error[i], 1./p);
+         }
+         else
+         {
+            error[i] = pow(error[i], 1./p);
+         }
+      }
+   }
 }
 
 GridFunction & GridFunction::operator=(double value)

@@ -306,6 +306,33 @@ public:
                                  Coefficient *weight = NULL,
                                  const IntegrationRule *irs[] = NULL) const;
 
+   /** Compute the Lp error in each element of the mesh and store the results in
+       the GridFunction @a error. The result should be an L2 GridFunction of
+       order zero using map type VALUE. */
+   virtual void ComputeElementLpErrors(const double p, Coefficient &exsol,
+                                       GridFunction &error,
+                                       Coefficient *weight = NULL,
+                                       const IntegrationRule *irs[] = NULL
+                                      ) const;
+
+   virtual void ComputeElementL1Errors(Coefficient &exsol,
+                                       GridFunction &error,
+                                       const IntegrationRule *irs[] = NULL
+                                      ) const
+   { ComputeElementLpErrors(1.0, exsol, error, NULL, irs); }
+
+   virtual void ComputeElementL2Errors(Coefficient &exsol,
+                                       GridFunction &error,
+                                       const IntegrationRule *irs[] = NULL
+                                      ) const
+   { ComputeElementLpErrors(2.0, exsol, error, NULL, irs); }
+
+   virtual void ComputeElementMaxErrors(Coefficient &exsol,
+                                        GridFunction &error,
+                                        const IntegrationRule *irs[] = NULL
+                                       ) const
+   { ComputeElementLpErrors(infinity(), exsol, error, NULL, irs); }
+
    /** When given a vector weight, compute the pointwise (scalar) error as the
        dot product of the vector error with the vector weight. Otherwise, the
        scalar error is the l_2 norm of the vector error. */
@@ -313,6 +340,34 @@ public:
                                  Coefficient *weight = NULL,
                                  VectorCoefficient *v_weight = NULL,
                                  const IntegrationRule *irs[] = NULL) const;
+
+   /** Compute the Lp error in each element of the mesh and store the results in
+       the GridFunction @ error. The result should be an L2 GridFunction of
+       order zero using map type VALUE. */
+   virtual void ComputeElementLpErrors(const double p, VectorCoefficient &exsol,
+                                       GridFunction &error,
+                                       Coefficient *weight = NULL,
+                                       VectorCoefficient *v_weight = NULL,
+                                       const IntegrationRule *irs[] = NULL
+                                      ) const;
+
+   virtual void ComputeElementL1Errors(VectorCoefficient &exsol,
+                                       GridFunction &error,
+                                       const IntegrationRule *irs[] = NULL
+                                      ) const
+   { ComputeElementLpErrors(1.0, exsol, error, NULL, NULL, irs); }
+
+   virtual void ComputeElementL2Errors(VectorCoefficient &exsol,
+                                       GridFunction &error,
+                                       const IntegrationRule *irs[] = NULL
+                                      ) const
+   { ComputeElementLpErrors(2.0, exsol, error, NULL, NULL, irs); }
+
+   virtual void ComputeElementMaxErrors(VectorCoefficient &exsol,
+                                        GridFunction &error,
+                                        const IntegrationRule *irs[] = NULL
+                                       ) const
+   { ComputeElementLpErrors(infinity(), exsol, error, NULL, NULL, irs); }
 
    virtual void ComputeFlux(BilinearFormIntegrator &blfi,
                             GridFunction &flux,
