@@ -50,15 +50,19 @@ void LinearForm::AddBdrFaceIntegrator(LinearFormIntegrator *lfi,
 
 void LinearForm::Assemble()
 {
+   dbg();
    Array<int> vdofs;
    ElementTransformation *eltrans;
    Vector elemvect;
 
    int i;
 
+   dbg("operator=");
    Vector::operator=(0.0);
+   dbg("ok");
 
-   if (dlfi.Size())
+   if (dlfi.Size()){
+      dbg("dlfi.Size()");
       for (i = 0; i < fes -> GetNE(); i++)
       {
          fes -> GetElementVDofs (i, vdofs);
@@ -69,10 +73,13 @@ void LinearForm::Assemble()
             AddElementVector (vdofs, elemvect);
          }
       }
+   }
 
+   dbg("AssembleDelta");
    AssembleDelta();
 
-   if (blfi.Size())
+   if (blfi.Size()){
+      dbg("blfi.Size()");
       for (i = 0; i < fes -> GetNBE(); i++)
       {
          fes -> GetBdrElementVDofs (i, vdofs);
@@ -83,6 +90,7 @@ void LinearForm::Assemble()
             AddElementVector (vdofs, elemvect);
          }
       }
+   }
 
    if (flfi.Size())
    {
@@ -131,6 +139,7 @@ void LinearForm::Assemble()
          }
       }
    }
+   dbg("done");
 }
 
 void LinearForm::Update(FiniteElementSpace *f, Vector &v, int v_offset)

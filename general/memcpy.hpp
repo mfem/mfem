@@ -17,7 +17,7 @@
 // ***************************************************************************
 struct memcpy{
   static void* H2H(void *dest, const void *src, std::size_t bytes, const bool async=false) {
-    dbg(">\033[m");
+    dbg();
     if (bytes==0) return dest;
     assert(src); assert(dest);
     std::memcpy(dest,src,bytes);
@@ -26,7 +26,7 @@ struct memcpy{
 
   // *************************************************************************
   static void* H2D(void *dest, const void *src, std::size_t bytes, const bool async=false) {
-    dbg(">\033[m");
+    dbg();
     if (bytes==0) return dest;
     assert(src); assert(dest);
     if (!cfg::Get().Cuda()) return std::memcpy(dest,src,bytes);
@@ -40,7 +40,7 @@ struct memcpy{
 
   // ***************************************************************************
    static void* D2H(void *dest, const void *src, std::size_t bytes, const bool async=false) {
-    dbg("<\033[m");
+    dbg();
     if (bytes==0) return dest;
     assert(src); assert(dest);
     if (!cfg::Get().Cuda()) return std::memcpy(dest,src,bytes);
@@ -54,7 +54,7 @@ struct memcpy{
   
   // ***************************************************************************
   static void* D2D(void *dest, const void *src, std::size_t bytes, const bool async=false) {
-    dbg("<\033[m");
+    dbg();
     if (bytes==0) return dest;
     assert(src); assert(dest);
     if (!cfg::Get().Cuda()) return std::memcpy(dest,src,bytes);

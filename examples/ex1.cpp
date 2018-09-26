@@ -45,6 +45,17 @@ using namespace std;
 using namespace mfem;
 
 #include "/home/camier1/home/stk/stk.hpp"
+// *****************************************************************************
+/*class StartUp{
+public:
+   StartUp() {
+      mm::iniHandler();
+      dbg("StartUp => cfg::Get().Init");
+      cfg::Get().Init();
+      cfg::Get().Cuda(true);
+   }
+};
+StartUp startup; */
 
 // *****************************************************************************
 int main(int argc, char *argv[])
@@ -53,11 +64,7 @@ int main(int argc, char *argv[])
    
    dbg("main => stkIni");
    stkIni(argv[0]);
-   
-   dbg("main => cfg::Get().Init");
-   cfg::Get().Init(argc,argv);
-   cfg::Get().Cuda(true);
-   
+      
    dbg("1. Parse command-line options.");
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
@@ -94,6 +101,7 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
+   /*
    {
       int ref_levels =
          (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
@@ -102,11 +110,13 @@ int main(int argc, char *argv[])
          mesh->UniformRefinement();
       }
    }
-
+   */
+   
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
    dbg("Define a finite element space on the mesh");
+   dbg("fec");
    FiniteElementCollection *fec;
    if (order > 0)
    {
@@ -121,6 +131,12 @@ int main(int argc, char *argv[])
    {
       fec = new H1_FECollection(order = 1, dim);
    }
+
+   //dbg("main => cfg::Get().Init");
+   //cfg::Get().Init(argc,argv);
+   //cfg::Get().Cuda(true);
+
+   dbg("fes");
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
@@ -138,6 +154,10 @@ int main(int argc, char *argv[])
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
+   //dbg("main => cfg::Get().Init");
+   //cfg::Get().Init(argc,argv);
+   //cfg::Get().Cuda(true);
+
    dbg("Set up the linear form b(.)");
    // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
@@ -154,6 +174,9 @@ int main(int argc, char *argv[])
    dbg("b->Assemble");
    b->Assemble();
 
+   dbg("main => cfg::Get().Init");
+   cfg::Get().Init(argc,argv);
+   cfg::Get().Cuda(true);
    // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.

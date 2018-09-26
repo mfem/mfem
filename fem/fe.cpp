@@ -6214,8 +6214,11 @@ Poly_1D::Basis::Basis(const int p, const double *nodes, EvalType etype)
       {
          x.SetSize(p + 1);
          w.SetSize(p + 1);
+         dbg("x = nodes");
          x = nodes;
+         dbg("w = 1.0");
          w = 1.0;
+         dbg("for");         
          for (int i = 0; i <= p; i++)
          {
             for (int j = 0; j < i; j++)

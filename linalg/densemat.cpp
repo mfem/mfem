@@ -76,9 +76,11 @@ DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
    if (hw > 0)
    {
       MFEM_ASSERT(m.data, "invalid source matrix");
-      data = new double[hw];
+      //data = new double[hw];
+      data = mm::malloc<double>(hw);
       capacity = hw;
-      std::memcpy(data, m.data, sizeof(double)*hw);
+      memcpy::D2D(data, m.data, sizeof(double)*hw);
+      //std::memcpy(data, m.data, sizeof(double)*hw);
    }
    else
    {
@@ -87,13 +89,24 @@ DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
    }
 }
 
+   // **************************************************************************
+   static void DenseMatrixSet(const double d,
+                              const size_t size,
+                              double *data){
+      forall(i,size,data[i] = d;);
+   }
+
 DenseMatrix::DenseMatrix(int s) : Matrix(s)
 {
    MFEM_ASSERT(s >= 0, "invalid DenseMatrix size: " << s);
    capacity = s*s;
    if (capacity > 0)
    {
-      data = new double[capacity](); // init with zeroes
+      data = mm::malloc<double>(capacity);
+      auto *d=GetData();
+      DenseMatrixSet(0.0,capacity,data);
+      //forall(i,capacity,d[i]=0.0;);
+      //data = new double[capacity](); // init with zeroes
    }
    else
    {
@@ -108,13 +121,29 @@ DenseMatrix::DenseMatrix(int m, int n) : Matrix(m, n)
    capacity = m*n;
    if (capacity > 0)
    {
-      data = new double[capacity](); // init with zeroes
+      data = mm::malloc<double>(capacity);
+      DenseMatrixSet(0.0,capacity,data);
+      dbg("done");
+      //forall(i,capacity,data[i]=0.0;);
+      //data = new double[capacity](); // init with zeroes
    }
    else
    {
       data = NULL;
    }
 }
+   
+   // **************************************************************************
+   static void DenseMatrixTranspose(const size_t height,
+                                    const size_t width,
+                                    double *data,
+                                    const double *mdata){
+      forall(i,height,{
+            for (int j = 0; j < width; j++){
+               data[i+j*height] = mdata[j+i*height];
+            }
+         });
+   }
 
 DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
    : Matrix(mat.width, mat.height)
@@ -122,13 +151,21 @@ DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
    capacity = height*width;
    if (capacity > 0)
    {
-      data = new double[capacity];
-
-      for (int i = 0; i < height; i++)
+      data = mm::malloc<double>(capacity);
+      //data = new double[capacity];
+      const double *md = mat.Data();
+      DenseMatrixTranspose(height,width,data,mat.Data());
+      /*forall(i,height,{
+            for (int j = 0; j < width; j++){
+               data[i+j*height] = md[j+i*height];
+            }
+            });*/
+      /*for (int i = 0; i < height; i++){
          for (int j = 0; j < width; j++)
          {
             (*this)(i,j) = mat(j,i);
          }
+         }*/
    }
    else
    {
@@ -136,8 +173,16 @@ DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
    }
 }
 
+   // **************************************************************************
+   static void DenseMatrixSet(const size_t N,
+                              const double value,
+                              double *data){
+      forall(i,N,data[i]=value;);
+   }
+
 void DenseMatrix::SetSize(int h, int w)
 {
+   dbg();
    MFEM_ASSERT(h >= 0 && w >= 0,
                "invalid DenseMatrix size: " << h << " x " << w);
    if (Height() == h && Width() == w)
@@ -151,10 +196,14 @@ void DenseMatrix::SetSize(int h, int w)
    {
       if (capacity > 0)
       {
-         delete [] data;
+         mm::free<double>(data);
+         //delete [] data;
       }
       capacity = hw;
-      data = new double[hw](); // init with zeroes
+      data = mm::malloc<double>(capacity);
+      DenseMatrixSet(capacity, 0.0, data);
+      //forall_this(i,capacity,data[i]=0.0;);
+      //data = new double[hw](); // init with zeroes
    }
 }
 
@@ -565,10 +614,11 @@ void DenseMatrix::Add(const double c, const DenseMatrix &A)
 DenseMatrix &DenseMatrix::operator=(double c)
 {
    int s = Height()*Width();
-   for (int i = 0; i < s; i++)
+   DenseMatrixSet(s,c,data);
+/*   for (int i = 0; i < s; i++)
    {
       data[i] = c;
-   }
+      }*/
    return *this;
 }
 
@@ -3004,7 +3054,8 @@ DenseMatrix::~DenseMatrix()
 {
    if (capacity > 0)
    {
-      delete [] data;
+      //delete [] data;
+      mm::free<double>(data);
    }
 }
 
