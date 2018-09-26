@@ -38,8 +38,11 @@ Vector::Vector(const Vector &v)
    {
       MFEM_ASSERT(v.data, "invalid source vector");
       allocsize = size = s;
-      data = new double[s];
-      std::memcpy(data, v.data, sizeof(double)*s);
+      
+      data = mm::malloc<double>(s);
+      memcpy::D2D(data, v.data, sizeof(double)*s);
+      //data = new double[s];
+      //std::memcpy(data, v.data, sizeof(double)*s);
    }
    else
    {
@@ -127,27 +130,41 @@ Vector &Vector::operator=(const double *v)
 
 Vector &Vector::operator=(const Vector &v)
 {
+   dbg();
    SetSize(v.Size());
    return operator=(v.data);
 }
 
+   // **************************************************************************
+   static void VectorSet(const size_t N,
+                         const double value,
+                         double *data){
+      forall(i,N,data[i]=value;);
+   }
+   
 Vector &Vector::operator=(double value)
 {
-   int i, s = size;
+   dbg("size=%d",size);
+   VectorSet(size,value,data);
+   //forall_this(i, size, data[i] = value;);
+   dbg("done\n");
+   /*int i, s = size;
    double *p = data, v = value;
    for (i = 0; i < s; i++)
    {
       *(p++) = v;
-   }
+      }*/
    return *this;
 }
 
 Vector &Vector::operator*=(double c)
 {
-   for (int i = 0; i < size; i++)
+   dbg();
+   forall(i, size, data[i] *= c;);
+   /*for (int i = 0; i < size; i++)
    {
       data[i] *= c;
-   }
+      }*/
    return *this;
 }
 

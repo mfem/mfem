@@ -36,6 +36,20 @@ public:
       return cfg_singleton;
    }
    // **************************************************************************
+   void Init(){
+#ifdef __NVCC__
+      gpu_count=0;    
+      checkCudaErrors(cudaGetDeviceCount(&gpu_count));
+      assert(gpu_count>0);   
+      cuInit(0);
+      dev = 0;
+      cuDeviceGet(&cuDevice,dev); 
+      cuCtxCreate(&cuContext, CU_CTX_SCHED_AUTO, cuDevice);
+      hStream=new CUstream;
+      cuStreamCreate(hStream, CU_STREAM_DEFAULT);
+#endif
+   }
+   // **************************************************************************
    void Init(int argc, char *argv[]){
 #ifdef __NVCC__
       gpu_count=0;    

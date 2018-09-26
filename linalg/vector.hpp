@@ -110,7 +110,10 @@ public:
        @sa SetDataAndSize(). */
    void NewDataAndSize(double *d, int s)
    {
-      if (allocsize > 0) { delete [] data; }
+      if (allocsize > 0) { 
+         mm::free<double>(data);
+         //delete [] data;
+      }
       SetDataAndSize(d, s);
    }
 
@@ -342,17 +345,20 @@ inline void Vector::SetSize(int s)
    }
    if (allocsize > 0)
    {
-      delete [] data;
+      //delete [] data;
+      mm::free<double>(data);
    }
    allocsize = size = s;
-   data = new double[s];
+   data = mm::malloc<double>(s);
+   //data = new double[s];
 }
 
 inline void Vector::Destroy()
 {
    if (allocsize > 0)
    {
-      delete [] data;
+      //delete [] data;
+      mm::free<double>(data);
    }
    allocsize = size = 0;
    data = NULL;
@@ -391,7 +397,8 @@ inline Vector::~Vector()
 {
    if (allocsize > 0)
    {
-      delete [] data;
+      //delete [] data;
+      mm::free<double>(data);
    }
 }
 

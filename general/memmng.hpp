@@ -19,11 +19,12 @@ struct mm {
    // **************************************************************************
    template<class T>
    static inline T* malloc(size_t n, const size_t size_of_T = sizeof(T)) {
+      stk(true);
       T *ptr = nullptr;
       if (!cfg::Get().Cuda()) return ptr = ::new T[n];
 #ifdef __NVCC__
       const size_t bytes = n*size_of_T;
-      dbg("\033[31;7mnew NVCC (%ldo)",bytes);
+      dbg("\033[31;1mnew NVCC (%ldo)",bytes);
       cuMemAlloc((CUdeviceptr*)&ptr,bytes);
 #endif // __NVCC__
       return ptr;
@@ -38,7 +39,7 @@ struct mm {
       }
 #ifdef __NVCC__
       else {
-         dbg("\033[31;7mdelete NVCC");
+         dbg("\033[31;1mdelete NVCC");
          cuMemFree((CUdeviceptr)ptr);
       }
 #endif // __NVCC__
@@ -47,12 +48,14 @@ struct mm {
 
    // *****************************************************************************
    static void handler(int nSignum, siginfo_t* si, void* vcontext) {
-      std::cout << "\n\033[31;1mSegmentation fault\033[m" << std::endl;
-  
+      fflush(0);
+      printf("\n\033[31;7;1mSegmentation fault\033[m\n");
       ucontext_t* context = (ucontext_t*)vcontext;
       context->uc_mcontext.gregs[REG_RIP]++;
       stk(true);
-      exit(1);
+      fflush(0);
+      //exit(1);
+      throw SIGSEGV;
    }
 
    // *****************************************************************************
