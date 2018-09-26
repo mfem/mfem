@@ -286,16 +286,6 @@ void HiopNlpOptimizer::Mult(const Vector &xt, Vector &x) const
    solver.getSolution(x.GetData());
 }
 
-void HiopNlpOptimizer_Simple::Mult(const Vector &xt, Vector &x) const
-{
-   long long int n_local, m;
-   optProb_Simple_->get_prob_sizes(n_local, m);
-
-   //set xt in the problemSpec to compute the objective
-   optProb_Simple_->setObjectiveTarget(xt);
-   HiopNlpOptimizer::Mult(xt, x);
-}
-
 void HiopNlpOptimizer::SetBounds(const Vector &_lo, const Vector &_hi)
 {
    if (NULL==optProb_)
@@ -342,21 +332,6 @@ void HiopNlpOptimizer::allocHiopProbSpec(const long long& numvars)
    optProb_ = new HiopOptimizationProblem(*problem);
 #endif
 }
-
-void HiopNlpOptimizer_Simple::allocHiopProbSpec(const long long& numvars)
-{
-   MFEM_ASSERT(optProb_Simple_==NULL && optProb_==NULL,
-                "HiopProbSpec object already created");
-
-#ifdef MFEM_USE_MPI
-   optProb_Simple_ = new HiopProblemSpec_Simple(comm_, *problem);
-#else
-   optProb_Simple_ = new HiopProblemSpec_Simple(*problem);
-#endif
-
-   optProb_ = optProb_Simple_;
-}
-
 
 } // mfem namespace
 #endif // MFEM_USE_HIOP

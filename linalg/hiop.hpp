@@ -33,8 +33,6 @@ namespace mfem
 class HiopOptimizationProblem : public hiop::hiopInterfaceDenseConstraints
 {
 private:
-   Vector workVec2_; //used as work space of size n_local_
-
    // Initial guess.
    const Vector *x_start;
 
@@ -56,7 +54,7 @@ public:
         n_loc(prob.input_size), n_glob(n_loc),
         m_total(prob.GetNumConstraints()),
         constr_vals(m_total), constr_grads(), constr_info_is_current(false),
-        a_(0.), workVec_(n_loc)
+        a_(0.)
   { 
 #ifdef MFEM_USE_MPI
     //in case HiOp with MPI support is called by a serial driver.
@@ -71,7 +69,7 @@ public:
         n_loc(prob.input_size), n_glob(0),
         m_total(prob.GetNumConstraints()),
         constr_vals(m_total), constr_info_is_current(false),
-        a_(0.), workVec_(n_loc)
+        a_(0.)
    {
       MPI_Allreduce(&n_loc, &n_glob, 1, MPI_LONG_LONG_INT, MPI_SUM, comm_);
    }
@@ -86,7 +84,6 @@ public:
    virtual void setObjectiveFunction(const DenseMatrix &_A)
    {
       A_ = _A;
-      workVec2_.SetSize(n_loc);
    }
    virtual void setObjectiveFunction(const Vector &_c)  { c_ = _c; }
 
@@ -198,7 +195,6 @@ public:
 
    virtual void setLinearConstraint(const Vector &_w, const double& _a)
    {
-      w_ = _w;
       a_ = _a;
    }
 
@@ -211,88 +207,8 @@ protected:
    DenseMatrix A_;
    Vector c_;
 
-   Vector w_;      //linear constraint coefficients
    double a_;      //linear constraint rhs
-
-   Vector workVec_; //used as work space of size n_local_
-}; //End of HiopProblemSpec class
-
-// Special class for HiopProblemSpec where f = ||x-xt||_2
-class HiopProblemSpec_Simple : public HiopOptimizationProblem
-{
-
-public:
-
-   HiopProblemSpec_Simple(OptimizationProblem &prob)
-      : HiopOptimizationProblem(prob) { }
-
-#ifdef MFEM_USE_MPI
-   HiopProblemSpec_Simple(const MPI_Comm& _comm, OptimizationProblem &prob)
-      : HiopOptimizationProblem(_comm, prob) { }
-#endif
-
-   /** Objective function evaluation. Each rank returns the global obj. value. */
-   virtual bool eval_f(const long long& n, const double* x, bool new_x,
-                       double& obj_value)
-   {
-      MFEM_ASSERT(n==n_glob, "global size input mismatch");
-
-      workVec_ = x;
-      workVec_.Add(-1.0, xt_);
-      obj_value = 0.5 * (workVec_ * workVec_);
-
-#ifdef MFEM_USE_MPI
-      double loc_obj = obj_value;
-      int ierr = MPI_Allreduce(&loc_obj, &obj_value, 1, MPI_DOUBLE, MPI_SUM, comm_);
-      MFEM_ASSERT(ierr==MPI_SUCCESS, "MPI_Allreduce failed with error" << ierr);
-#endif
-
-      return true;
-   }
-
-   /** Gradient of objective (local chunk) */
-   virtual bool eval_grad_f(const long long& n, const double* x,
-                            bool new_x, double* gradf)
-   {
-      MFEM_ASSERT(n==n_glob, "global size input mismatch");
-
-      // compute gradf = x-xt
-      workVec_  = x;
-      workVec_ -= xt_;
-      std::memcpy(gradf, workVec_.GetData(), n_loc*sizeof(double));
-
-      return true;
-   }
-
-   // Capitalization consistency
-   virtual void setObjectiveTarget(const Vector &_xt)
-   {
-      xt_ = _xt;
-   }
-
-protected:
-   // A is always I and c is always xt_.  Neither are used in eval_f or eval_grad_f
-   virtual void setObjectiveFunction(const DenseMatrix &_A, const Vector &_c)
-   {
-      MFEM_WARNING("setObjectiveFunction does nothing for class "
-                  "HiopProblemSpec_Simple.  Use setObjectiveTarget to set xt_.");
-   }
-   virtual void setObjectiveFunction(const Vector &_c)
-   {
-      MFEM_WARNING("setObjectiveFunction does nothing for class "
-                  "HiopProblemSpec_Simple.  Use setObjectiveTarget to set xt_.");
-   }
-   virtual void setObjectiveFunction(const DenseMatrix &_A)
-   {
-      MFEM_WARNING("setObjectiveFunction does nothing for class "
-                  "HiopProblemSpec_Simple.  Use setObjectiveTarget to set xt_.");
-   }
-
-protected:
-   Vector xt_;     //target vector in the L2 objective
-
-}; //End of HiopProblemSpec_Simple class
-
+};
 
 /** Adapts the HIOP functionality to the MFEM OptimizationSolver interface.
  */
@@ -325,47 +241,6 @@ public:
    /** When iterative_mode is true, xt plays the role of an initial guess. */
    virtual void Mult(const Vector &xt, Vector &x) const;
 };
-
-// Special class for the case where f = 1/2 * ||x-xt||_2
-class HiopNlpOptimizer_Simple : public HiopNlpOptimizer
-{
-public:
-   HiopNlpOptimizer_Simple() : HiopNlpOptimizer(),
-                               optProb_Simple_(NULL) { }
-
-#ifdef MFEM_USE_MPI
-   HiopNlpOptimizer_Simple(MPI_Comm _comm) : HiopNlpOptimizer(_comm),
-                                             optProb_Simple_(NULL) { }
-#endif
-
-   // For this problem type, we let the target values play the role of the
-   // initial vector xt, from which the operator generates the optimal vector x.
-   virtual void Mult(const Vector &xt, Vector &x) const;
-
-protected:
-   virtual void allocHiopProbSpec(const long long& numvars);
-   // A is always I and c is always xt_.  Neither are used in eval_f or eval_grad_f
-   virtual void SetObjectiveFunction(const DenseMatrix &_A, const Vector &_c)
-   {
-      MFEM_WARNING("SetObjectiveFunction does nothing for class "
-                   "HiopNlpOptimizer_Simple.  Use Mult to set xt_.");
-   }
-   virtual void SetObjectiveFunction(const Vector &_c)
-   {
-      MFEM_WARNING("SetObjectiveFunction does nothing for class "
-                   "HiopNlpOptimizer_Simple.  Use Mult to set xt_.");
-   }
-   virtual void SetObjectiveFunction(const DenseMatrix &_A)
-   {
-      MFEM_WARNING("SetObjectiveFunction does nothing for class "
-                   "HiopNlpOptimizer_Simple.  Use Mult to set xt_.");
-   }
-
-private:
-   HiopProblemSpec_Simple* optProb_Simple_;
-
-}; //end of HiopNlpOptimizer class
-
 
 } // mfem namespace
 
