@@ -304,6 +304,7 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
  *
  *  The operators F, C, D must take input of the same size (same width).
  *  Gradients of F, C, D might be needed, depending on the OptimizationSolver.
+ *  When used with Hiop, gradients of C and D must be DenseMatrices.
  *  F always returns a scalar value, see CalcObjective(), CalcObjectiveGrad().
  *  C and D can have arbitrary heights.
  *  C and D can be NULL, meaning that their constraints are not used.
