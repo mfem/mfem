@@ -33,6 +33,16 @@ bool HiopOptimizationProblem::get_prob_sizes(long long &n, long long &m)
    return true;
 }
 
+bool HiopOptimizationProblem::get_starting_point(const long long &n, double *x0)
+{
+   MFEM_ASSERT(x_start != NULL && n_loc == x_start->Size(),
+               "Starting point is not set properly.");
+
+   memcpy(x0, x_start->GetData(), n_loc * sizeof(double));
+
+   return true;
+}
+
 bool HiopOptimizationProblem::get_vars_info(const long long &n,
                                             double *xlow, double *xupp,
                                             NonlinearityType *type)

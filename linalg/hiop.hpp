@@ -35,6 +35,9 @@ class HiopOptimizationProblem : public hiop::hiopInterfaceDenseConstraints
 private:
    Vector workVec2_; //used as work space of size n_local_
 
+   // Initial guess.
+   const Vector *x_start;
+
 protected:
    // Problem info.
    // Local and global number of variables and constraints.
@@ -47,7 +50,8 @@ protected:
 
 public:
    HiopOptimizationProblem(OptimizationProblem &prob)
-      : problem(prob),
+      : x_start(NULL),
+        problem(prob),
         n_loc(prob.input_size), n_glob(n_loc),
         m_glob(prob.GetNumConstraints()),
         cons_values(m_glob), cons_vals_are_current(false),
@@ -61,7 +65,9 @@ public:
 
 #ifdef MFEM_USE_MPI
    HiopOptimizationProblem(const MPI_Comm& _comm, OptimizationProblem &prob)
-      : comm_(_comm), problem(prob), n_loc(prob.input_size), n_glob(0),
+      : x_start(NULL), comm_(_comm),
+        problem(prob),
+        n_loc(prob.input_size), n_glob(0),
         m_glob(prob.GetNumConstraints()),
         cons_values(m_glob), cons_vals_are_current(false),
         a_(0.), workVec_(n_loc)
@@ -83,14 +89,15 @@ public:
    }
    virtual void setObjectiveFunction(const Vector &_c)  { c_ = _c; }
 
-   virtual void setStartingPoint(const Vector &_xstart)
-   {
-      xstart_ = _xstart;
-   }
+   void setStartingPoint(const Vector &x0) { x_start = &x0; }
 
    /** Extraction of problem dimensions:
     *  n is the number of variables, m is the number of constraints. */
    virtual bool get_prob_sizes(long long int& n, long long int& m);
+
+   /** Provide an primal starting point. This point is subject to adjustments
+    *  internally in hiOP. */
+   virtual bool get_starting_point(const long long &n, double *x0);
 
    virtual bool get_vars_info(const long long& n, double *xlow, double* xupp,
                               NonlinearityType* type);
@@ -137,15 +144,6 @@ public:
    virtual bool eval_cons(const long long& n, const long long& m,
                           const long long& num_cons, const long long* idx_cons,
                           const double* x, bool new_x, double* cons);
-
-   /** provide a primal starting point. This point is subject to adjustments internally in hiOP.*/
-   virtual bool get_starting_point(const long long &n, double *x0)
-   {
-      MFEM_ASSERT(n_loc == xstart_.Size(), "xstart not set properly!");
-      memcpy(x0, xstart_.GetData(), n_loc*sizeof(double));
-      return true;
-   }
-
 
    /** Evaluates the Jacobian of the subset of constraints indicated by idx_cons and of size num_cons.
     *  Example: Assuming idx_cons[k]=i, which means that the gradient of the (i+1)th constraint is
@@ -227,7 +225,6 @@ protected:
    Vector w_;      //linear constraint coefficients
    double a_;      //linear constraint rhs
 
-   Vector xstart_; //Initial guess, set equal to xt
    Vector workVec_; //used as work space of size n_local_
 }; //End of HiopProblemSpec class
 
