@@ -59,7 +59,7 @@ bool HiopOptimizationProblem::get_cons_info(const long long &m,
                                             double *clow, double *cupp,
                                             NonlinearityType *type)
 {
-   MFEM_ASSERT(m == m_glob, "Global constraint size mismatch.");
+   MFEM_ASSERT(m == m_total, "Global constraint size mismatch.");
 
    const int csize = problem.c_e->Size();
    std::memcpy(clow, problem.c_e->GetData(), csize * sizeof(double));
@@ -100,49 +100,123 @@ bool HiopOptimizationProblem::eval_grad_f(const long long &n, const double *x,
    return true;
 }
 
-bool HiopOptimizationProblem::eval_cons(const long long& n, const long long& m,
-                                        const long long& num_cons,
-                                        const long long* idx_cons,
-                                        const double* x, bool new_x,
-                                        double* cons)
+bool HiopOptimizationProblem::eval_cons(const long long &n, const long long &m,
+                                        const long long &num_cons,
+                                        const long long *idx_cons,
+                                        const double *x, bool new_x,
+                                        double *cons)
 {
    MFEM_ASSERT(n == n_glob, "Global input mismatch.");
-   MFEM_ASSERT(m == m_glob, "Constraint size mismatch.");
+   MFEM_ASSERT(m == m_total, "Constraint size mismatch.");
    MFEM_ASSERT(num_cons <= m, "num_cons should be at most m = " << m);
 
    if (num_cons == 0) { return true; }
 
-   if (new_x) { cons_vals_are_current = false; }
+   if (new_x) { constr_info_is_current = false; }
    Vector x_vec(n_loc);
    x_vec = x;
-   ComputeConstraintValues(x_vec);
+   UpdateConstrValsGrads(x_vec);
 
    for (int c = 0; c < num_cons; c++)
    {
-      MFEM_ASSERT(idx_cons[c] < m_glob, "Constraint index is out of bounds.");
-      cons[c] = cons_values(idx_cons[c]);
+      MFEM_ASSERT(idx_cons[c] < m_total, "Constraint index is out of bounds.");
+      cons[c] = constr_vals(idx_cons[c]);
    }
 
    return true;
 }
 
-void HiopOptimizationProblem::ComputeConstraintValues(const Vector x)
+bool HiopOptimizationProblem::eval_Jac_cons(const long long &n,
+                                            const long long &m,
+                                            const long long &num_cons,
+                                            const long long *idx_cons,
+                                            const double *x, bool new_x,
+                                            double **Jac)
 {
-   if (cons_vals_are_current) { return; }
+   MFEM_ASSERT(n == n_glob, "Global input mismatch.");
+   MFEM_ASSERT(m == m_total, "Constraint size mismatch.");
+   MFEM_ASSERT(num_cons <= m, "num_cons should be at most m = " << m);
 
-   const int cheight = problem.C->Height(), dheight = problem.D->Height();
-   Vector cons_C(cons_values.GetData(), cheight),
-          cons_D(cons_values.GetData() + cheight, dheight);
-   problem.C->Mult(x, cons_C);
-   problem.D->Mult(x, cons_D);
+   if (num_cons == 0) { return true; }
+
+   if (new_x) { constr_info_is_current = false; }
+   Vector x_vec(n_loc);
+   x_vec = x;
+   UpdateConstrValsGrads(x_vec);
+
+   for (int c = 0; c < num_cons; c++)
+   {
+      MFEM_ASSERT(idx_cons[c] < m_total, "Constraint index is out of bounds.");
+      for (int j = 0; j < n_loc; j++)
+      {
+         Jac[c][j] = constr_grads(idx_cons[c], j);
+      }
+   }
+
+   return true;
+}
+
+void HiopOptimizationProblem::UpdateConstrValsGrads(const Vector x)
+{
+   if (constr_info_is_current) { return; }
+
+   if (problem.C)
+   {
+      const int cheight = problem.C->Height();
+
+      // Values of C.
+      Vector vals_C(constr_vals.GetData(), cheight);
+      problem.C->Mult(x, vals_C);
+
+      // Gradients C.
+      const Operator &oper_C = problem.C->GetGradient(x);
+      const DenseMatrix *grad_C = dynamic_cast<const DenseMatrix *>(&oper_C);
+      MFEM_VERIFY(grad_C, "Hiop expects DenseMatrices as operator gradients.");
+      MFEM_ASSERT(grad_C->Height() == cheight && grad_C->Width() == n_loc,
+                  "Incorrect dimensions of the C constraint gradient.");
+      for (int i = 0; i < cheight; i++)
+      {
+         for (int j = 0; j < n_loc; j++)
+         {
+            constr_grads(i, j) = (*grad_C)(i, j);
+         }
+      }
+   }
+
+   if (problem.D)
+   {
+      const int dheight = problem.D->Height(),
+                cheight = (problem.C) ? problem.C->Height() : 0;
+
+      // Values of D.
+      Vector vals_D(constr_vals.GetData() + cheight, dheight);
+      problem.D->Mult(x, vals_D);
+
+      // Gradients of D.
+      const Operator &oper_D = problem.D->GetGradient(x);
+      const DenseMatrix *grad_D = dynamic_cast<const DenseMatrix *>(&oper_D);
+      MFEM_VERIFY(grad_D, "Hiop expects DenseMatrices as operator gradients.");
+      MFEM_ASSERT(grad_D->Height() == dheight && grad_C->Width() == n_loc,
+                  "Incorrect dimensions of the C constraint gradient.");
+      for (int i = 0; i < dheight; i++)
+      {
+         for (int j = 0; j < n_loc; j++)
+         {
+            constr_grads(i + cheight, j) = (*grad_D)(i, j);
+         }
+      }
+   }
 
 #ifdef MFEM_USE_MPI
-   Vector loc_cons(cons_values);
-   MPI_Allreduce(loc_cons.GetData(), cons_values.GetData(), m_glob,
+   Vector loc_vals(constr_vals);
+   MPI_Allreduce(loc_vals.GetData(), constr_vals.GetData(), m_total,
+                 MPI_DOUBLE, MPI_SUM, comm_);
+   DenseMatrix loc_grads(constr_grads);
+   MPI_Allreduce(loc_grads.GetData(), constr_grads.GetData(), m_total * n_loc,
                  MPI_DOUBLE, MPI_SUM, comm_);
 #endif
 
-   cons_vals_are_current = true;
+   constr_info_is_current = true;
 }
 
 HiopNlpOptimizer::HiopNlpOptimizer() : OptimizationSolver(), optProb_(NULL)

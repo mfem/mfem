@@ -41,20 +41,21 @@ private:
 protected:
    // Problem info.
    // Local and global number of variables and constraints.
-   long long n_loc, n_glob, m_glob;
+   long long n_loc, n_glob, m_total;
    OptimizationProblem &problem; // TODO make it private after removing _simple.
 
-   Vector cons_values;
-   bool cons_vals_are_current;
-   void ComputeConstraintValues(const Vector x);
+   Vector constr_vals;
+   DenseMatrix constr_grads;
+   bool constr_info_is_current;
+   void UpdateConstrValsGrads(const Vector x);
 
 public:
    HiopOptimizationProblem(OptimizationProblem &prob)
       : x_start(NULL),
         problem(prob),
         n_loc(prob.input_size), n_glob(n_loc),
-        m_glob(prob.GetNumConstraints()),
-        cons_values(m_glob), cons_vals_are_current(false),
+        m_total(prob.GetNumConstraints()),
+        constr_vals(m_total), constr_grads(), constr_info_is_current(false),
         a_(0.), workVec_(n_loc)
   { 
 #ifdef MFEM_USE_MPI
@@ -68,8 +69,8 @@ public:
       : x_start(NULL), comm_(_comm),
         problem(prob),
         n_loc(prob.input_size), n_glob(0),
-        m_glob(prob.GetNumConstraints()),
-        cons_values(m_glob), cons_vals_are_current(false),
+        m_total(prob.GetNumConstraints()),
+        constr_vals(m_total), constr_info_is_current(false),
         a_(0.), workVec_(n_loc)
    {
       MPI_Allreduce(&n_loc, &n_glob, 1, MPI_LONG_LONG_INT, MPI_SUM, comm_);
@@ -113,12 +114,12 @@ public:
                        double& obj_value);
 
    /** Gradient of the objective function (local chunk). */
-   virtual bool eval_grad_f(const long long& n, const double* x, bool new_x,
-                            double* gradf);
+   virtual bool eval_grad_f(const long long &n, const double *x, bool new_x,
+                            double *gradf);
 
    /** Evaluates a subset of the constraints cons(x). The subset is of size
     *  num_cons and is described by indexes in the idx_cons array,
-    *  i.e. D(x)[idx_cons[i]] = cons[i] where i = 0 .. num_cons < m.
+    *  i.e. cons[c] = C(x)[idx_cons[c]] where c = 0 .. num_cons-1.
     *  The methods may be called multiple times, each time for a subset of the
     *  constraints, for example, for the subset containing the equalities and
     *  for the subset containing the inequalities. However, each constraint will
@@ -135,39 +136,27 @@ public:
     *   - cons: array of size num_cons containing the value of the  constraints
     *     indicated by idx_cons
     *
-    *  When MPI enabled, every rank populates 'cons' since the constraints are
+    *  When MPI enabled, every rank populates cons, since the constraints are
     *  not distributed.
-    *
-    *  idx_cons[0] = C(x)
-    *  idx_cons[1] = D(x)
     */
-   virtual bool eval_cons(const long long& n, const long long& m,
-                          const long long& num_cons, const long long* idx_cons,
-                          const double* x, bool new_x, double* cons);
+   virtual bool eval_cons(const long long &n, const long long &m,
+                          const long long &num_cons, const long long *idx_cons,
+                          const double *x, bool new_x, double *cons);
 
-   /** Evaluates the Jacobian of the subset of constraints indicated by idx_cons and of size num_cons.
-    *  Example: Assuming idx_cons[k]=i, which means that the gradient of the (i+1)th constraint is
-    *  to be evaluated, one needs to do Jac[k][0]=d/dx_0 con_i(x), Jac[k][1]=d/dx_1 con_i(x), ...
-    *  When MPI enabled, each rank computes only the local columns of the Jacobian, that is the partials
-    *  with respect to local variables.
+   /** Evaluates the Jacobian of the subset of constraints indicated by
+    *  idx_cons. The idx_cons is assumed to be of size num_cons.
+    *  Example: if cons[c] = C(x)[idx_cons[c]] where c = 0 .. num_cons-1., then
+    *  one needs to do Jac[c][j] = d cons[c] / dx_j, j = 1 .. n_loc.
     *
-    *  Parameters: see eval_cons
+    *  Parameters: see eval_cons().
+    *
+    *  When MPI enabled, each rank computes only the local columns of the
+    *  Jacobian, that is the partials with respect to local variables.
     */
-   virtual bool eval_Jac_cons(const long long& n, const long long& m,
-			   const long long& num_cons, const long long* idx_cons,
-			   const double* x, bool new_x,
-            double** Jac)
-   {
-      MFEM_ASSERT(n==n_glob, "global size input mismatch");
-      MFEM_ASSERT(m==1, "only one constraint should be present");
-      MFEM_ASSERT(num_cons<=m, "num_cons should be at most m=" << m);
-      if (num_cons>0) {
-         MFEM_ASSERT(idx_cons[0]==0, "index of the constraint should be 0");
-
-         std::memcpy(Jac[0], w_.GetData(), n_loc*sizeof(double));
-      }
-      return true;
-   }
+   virtual bool eval_Jac_cons(const long long &n, const long long &m,
+                              const long long &num_cons,
+                              const long long *idx_cons,
+                              const double *x, bool new_x, double **Jac);
 
    /**  column partitioning specification for distributed memory vectors
     *  Process P owns cols[P], cols[P]+1, ..., cols[P+1]-1, P={0,1,...,NumRanks}.

@@ -303,7 +303,7 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
  *    x_lo <= x <= x_hi.
  *
  *  The operators F, C, D must take input of the same size (same width).
- *  Gradients of F, C, D might be needed, see class OptimizationSolver.
+ *  Gradients of F, C, D might be needed, depending on the OptimizationSolver.
  *  F always returns a scalar value, see CalcObjective(), CalcObjectiveGrad().
  *  C and D can have arbitrary heights.
  *  C and D can be NULL, meaning that their constraints are not used.
