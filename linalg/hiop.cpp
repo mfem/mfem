@@ -25,7 +25,7 @@ namespace mfem
 
 bool HiopOptimizationProblem::get_prob_sizes(long long &n, long long &m)
 {
-   n = n_glob;
+   n = ntdofs_glob;
 
    const int m_loc = problem.GetNumConstraints();
    MPI_Allreduce(&m_loc, &m, 1, MPI_LONG_LONG_INT, MPI_SUM, comm_);
@@ -35,10 +35,10 @@ bool HiopOptimizationProblem::get_prob_sizes(long long &n, long long &m)
 
 bool HiopOptimizationProblem::get_starting_point(const long long &n, double *x0)
 {
-   MFEM_ASSERT(x_start != NULL && n_loc == x_start->Size(),
+   MFEM_ASSERT(x_start != NULL && ntdofs_loc == x_start->Size(),
                "Starting point is not set properly.");
 
-   memcpy(x0, x_start->GetData(), n_loc * sizeof(double));
+   memcpy(x0, x_start->GetData(), ntdofs_loc * sizeof(double));
 
    return true;
 }
@@ -47,10 +47,10 @@ bool HiopOptimizationProblem::get_vars_info(const long long &n,
                                             double *xlow, double *xupp,
                                             NonlinearityType *type)
 {
-   MFEM_ASSERT(n == n_glob, "Global input mismatch.");
+   MFEM_ASSERT(n == ntdofs_glob, "Global input mismatch.");
 
-   std::memcpy(xlow, problem.x_lo->GetData(), n_loc * sizeof(double));
-   std::memcpy(xupp, problem.x_hi->GetData(), n_loc * sizeof(double));
+   std::memcpy(xlow, problem.x_lo->GetData(), ntdofs_loc * sizeof(double));
+   std::memcpy(xupp, problem.x_hi->GetData(), ntdofs_loc * sizeof(double));
 
    return true;
 }
@@ -74,9 +74,9 @@ bool HiopOptimizationProblem::get_cons_info(const long long &m,
 bool HiopOptimizationProblem::eval_f(const long long &n, const double *x,
                                      bool new_x, double &obj_value)
 {
-   MFEM_ASSERT(n == n_glob, "Global input mismatch.");
+   MFEM_ASSERT(n == ntdofs_glob, "Global input mismatch.");
 
-   Vector x_vec(n_loc);
+   Vector x_vec(ntdofs_loc);
    x_vec = x;
    obj_value = problem.CalcObjective(x_vec);
 
@@ -91,9 +91,9 @@ bool HiopOptimizationProblem::eval_f(const long long &n, const double *x,
 bool HiopOptimizationProblem::eval_grad_f(const long long &n, const double *x,
                                           bool new_x, double *gradf)
 {
-   MFEM_ASSERT(n == n_glob, "Global input mismatch.");
+   MFEM_ASSERT(n == ntdofs_glob, "Global input mismatch.");
 
-   Vector x_vec(n_loc), gradf_vec(gradf, n_loc);
+   Vector x_vec(ntdofs_loc), gradf_vec(gradf, ntdofs_loc);
    x_vec = x;
    problem.CalcObjectiveGrad(x_vec, gradf_vec);
 
@@ -106,14 +106,14 @@ bool HiopOptimizationProblem::eval_cons(const long long &n, const long long &m,
                                         const double *x, bool new_x,
                                         double *cons)
 {
-   MFEM_ASSERT(n == n_glob, "Global input mismatch.");
+   MFEM_ASSERT(n == ntdofs_glob, "Global input mismatch.");
    MFEM_ASSERT(m == m_total, "Constraint size mismatch.");
    MFEM_ASSERT(num_cons <= m, "num_cons should be at most m = " << m);
 
    if (num_cons == 0) { return true; }
 
    if (new_x) { constr_info_is_current = false; }
-   Vector x_vec(n_loc);
+   Vector x_vec(ntdofs_loc);
    x_vec = x;
    UpdateConstrValsGrads(x_vec);
 
@@ -133,27 +133,51 @@ bool HiopOptimizationProblem::eval_Jac_cons(const long long &n,
                                             const double *x, bool new_x,
                                             double **Jac)
 {
-   MFEM_ASSERT(n == n_glob, "Global input mismatch.");
+   MFEM_ASSERT(n == ntdofs_glob, "Global input mismatch.");
    MFEM_ASSERT(m == m_total, "Constraint size mismatch.");
    MFEM_ASSERT(num_cons <= m, "num_cons should be at most m = " << m);
 
    if (num_cons == 0) { return true; }
 
    if (new_x) { constr_info_is_current = false; }
-   Vector x_vec(n_loc);
+   Vector x_vec(ntdofs_loc);
    x_vec = x;
    UpdateConstrValsGrads(x_vec);
 
    for (int c = 0; c < num_cons; c++)
    {
       MFEM_ASSERT(idx_cons[c] < m_total, "Constraint index is out of bounds.");
-      for (int j = 0; j < n_loc; j++)
+      for (int j = 0; j < ntdofs_loc; j++)
       {
          Jac[c][j] = constr_grads(idx_cons[c], j);
       }
    }
 
    return true;
+}
+
+bool HiopOptimizationProblem::get_vecdistrib_info(long long global_n,
+                                                  long long *cols)
+{
+#ifdef MFEM_USE_MPI
+   int nranks;
+   MPI_Comm_size(comm_, &nranks);
+
+   long long *sizes = new long long[nranks];
+   MPI_Allgather(&ntdofs_loc, 1, MPI_LONG_LONG_INT, sizes, 1,
+                 MPI_LONG_LONG_INT, comm_);
+   cols[0] = 0;
+   for (int r = 1; r <= nranks; r++)
+   {
+      cols[r] = sizes[r-1] + cols[r-1];
+   }
+
+   delete [] sizes;
+   return true;
+#else
+   // Returning false means that Hiop runs in non-distributed mode.
+   return false;
+#endif
 }
 
 void HiopOptimizationProblem::UpdateConstrValsGrads(const Vector x)
@@ -172,11 +196,11 @@ void HiopOptimizationProblem::UpdateConstrValsGrads(const Vector x)
       const Operator &oper_C = problem.C->GetGradient(x);
       const DenseMatrix *grad_C = dynamic_cast<const DenseMatrix *>(&oper_C);
       MFEM_VERIFY(grad_C, "Hiop expects DenseMatrices as operator gradients.");
-      MFEM_ASSERT(grad_C->Height() == cheight && grad_C->Width() == n_loc,
+      MFEM_ASSERT(grad_C->Height() == cheight && grad_C->Width() == ntdofs_loc,
                   "Incorrect dimensions of the C constraint gradient.");
       for (int i = 0; i < cheight; i++)
       {
-         for (int j = 0; j < n_loc; j++)
+         for (int j = 0; j < ntdofs_loc; j++)
          {
             constr_grads(i, j) = (*grad_C)(i, j);
          }
@@ -196,11 +220,11 @@ void HiopOptimizationProblem::UpdateConstrValsGrads(const Vector x)
       const Operator &oper_D = problem.D->GetGradient(x);
       const DenseMatrix *grad_D = dynamic_cast<const DenseMatrix *>(&oper_D);
       MFEM_VERIFY(grad_D, "Hiop expects DenseMatrices as operator gradients.");
-      MFEM_ASSERT(grad_D->Height() == dheight && grad_C->Width() == n_loc,
+      MFEM_ASSERT(grad_D->Height() == dheight && grad_C->Width() == ntdofs_loc,
                   "Incorrect dimensions of the C constraint gradient.");
       for (int i = 0; i < dheight; i++)
       {
-         for (int j = 0; j < n_loc; j++)
+         for (int j = 0; j < ntdofs_loc; j++)
          {
             constr_grads(i + cheight, j) = (*grad_D)(i, j);
          }
@@ -211,9 +235,9 @@ void HiopOptimizationProblem::UpdateConstrValsGrads(const Vector x)
    Vector loc_vals(constr_vals);
    MPI_Allreduce(loc_vals.GetData(), constr_vals.GetData(), m_total,
                  MPI_DOUBLE, MPI_SUM, comm_);
-   DenseMatrix loc_grads(constr_grads);
-   MPI_Allreduce(loc_grads.GetData(), constr_grads.GetData(), m_total * n_loc,
-                 MPI_DOUBLE, MPI_SUM, comm_);
+   // The gradients don't need parallel communication as here we're working on
+   // the true dofs. If needed (e.g. for CG spaces), communication should be
+   // handled by the operators' GetGradient() methods.
 #endif
 
    constr_info_is_current = true;
@@ -292,34 +316,6 @@ void HiopNlpOptimizer::SetBounds(const Vector &_lo, const Vector &_hi)
       allocHiopProbSpec(_lo.Size());
 
    //optProb_->setBounds(_lo, _hi);
-}
-
-void HiopNlpOptimizer::SetLinearConstraint(const Vector &_w, double _a)
-{
-   if (NULL==optProb_)
-      allocHiopProbSpec(_w.Size());
-
-   optProb_->setLinearConstraint(_w, _a);
-}
-
-void HiopNlpOptimizer::SetObjectiveFunction(const DenseMatrix &_A,
-                                            const Vector &_c)
-{
-   if (NULL==optProb_)
-      allocHiopProbSpec(_c.Size());
-   optProb_->setObjectiveFunction(_A, _c);
-}
-void HiopNlpOptimizer::SetObjectiveFunction(const DenseMatrix &_A)
-{
-   if (NULL==optProb_)
-      allocHiopProbSpec(_A.Width());
-   optProb_->setObjectiveFunction(_A);
-}
-void HiopNlpOptimizer::SetObjectiveFunction(const Vector &_c)
-{
-   if (NULL==optProb_)
-      allocHiopProbSpec(_c.Size());
-   optProb_->setObjectiveFunction(_c);
 }
 
 void HiopNlpOptimizer::allocHiopProbSpec(const long long& numvars)

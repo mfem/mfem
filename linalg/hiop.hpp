@@ -1,4 +1,4 @@
-// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+﻿// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
 // the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
 // reserved. See file COPYRIGHT for details.
 //
@@ -28,19 +28,23 @@
 namespace mfem
 {
 
-/**  Adapts the OptimizationProblem class to HIOP's interface.
- */
+/// Adapts the OptimizationProblem class to HiOp's interface.
 class HiopOptimizationProblem : public hiop::hiopInterfaceDenseConstraints
 {
 private:
+
+#ifdef MFEM_USE_MPI
+   MPI_Comm comm_;
+#endif
+
+   // Problem info.
+   OptimizationProblem &problem;
+
+   // Local and global number of variables and constraints.
+   long long ntdofs_loc, ntdofs_glob, m_total;
+
    // Initial guess.
    const Vector *x_start;
-
-protected:
-   // Problem info.
-   // Local and global number of variables and constraints.
-   long long n_loc, n_glob, m_total;
-   OptimizationProblem &problem; // TODO make it private after removing _simple.
 
    Vector constr_vals;
    DenseMatrix constr_grads;
@@ -51,41 +55,28 @@ public:
    HiopOptimizationProblem(OptimizationProblem &prob)
       : x_start(NULL),
         problem(prob),
-        n_loc(prob.input_size), n_glob(n_loc),
+        ntdofs_loc(prob.input_size), ntdofs_glob(ntdofs_loc),
         m_total(prob.GetNumConstraints()),
-        constr_vals(m_total), constr_grads(), constr_info_is_current(false),
-        a_(0.)
+        constr_vals(m_total), constr_grads(), constr_info_is_current(false)
   { 
 #ifdef MFEM_USE_MPI
-    //in case HiOp with MPI support is called by a serial driver.
+    // Used when HiOp with MPI support is called by a serial driver.
     comm_ = MPI_COMM_WORLD;
 #endif
   }
 
 #ifdef MFEM_USE_MPI
    HiopOptimizationProblem(const MPI_Comm& _comm, OptimizationProblem &prob)
-      : x_start(NULL), comm_(_comm),
+      : comm_(_comm), x_start(NULL),
         problem(prob),
-        n_loc(prob.input_size), n_glob(0),
+        ntdofs_loc(prob.input_size), ntdofs_glob(0),
         m_total(prob.GetNumConstraints()),
-        constr_vals(m_total), constr_info_is_current(false),
-        a_(0.)
+        constr_vals(m_total), constr_info_is_current(false)
    {
-      MPI_Allreduce(&n_loc, &n_glob, 1, MPI_LONG_LONG_INT, MPI_SUM, comm_);
+      MPI_Allreduce(&ntdofs_loc, &ntdofs_glob, 1, MPI_LONG_LONG_INT,
+                    MPI_SUM, comm_);
    }
 #endif
-
-   /** f = 1/2 x^T A x + c^T x */
-   virtual void setObjectiveFunction(const DenseMatrix &_A, const Vector &_c)
-   {
-      setObjectiveFunction(_A);
-      setObjectiveFunction(_c);
-   }
-   virtual void setObjectiveFunction(const DenseMatrix &_A)
-   {
-      A_ = _A;
-   }
-   virtual void setObjectiveFunction(const Vector &_c)  { c_ = _c; }
 
    void setStartingPoint(const Vector &x0) { x_start = &x0; }
 
@@ -94,7 +85,7 @@ public:
    virtual bool get_prob_sizes(long long int& n, long long int& m);
 
    /** Provide an primal starting point. This point is subject to adjustments
-    *  internally in hiOP. */
+    *  internally in HiOp. */
    virtual bool get_starting_point(const long long &n, double *x0);
 
    virtual bool get_vars_info(const long long& n, double *xlow, double* xupp,
@@ -142,7 +133,7 @@ public:
 
    /** Evaluates the Jacobian of the subset of constraints indicated by
     *  idx_cons. The idx_cons is assumed to be of size num_cons.
-    *  Example: if cons[c] = C(x)[idx_cons[c]] where c = 0 .. num_cons-1., then
+    *  Example: if cons[c] = C(x)[idx_cons[c]] where c = 0 .. num_cons-1, then
     *  one needs to do Jac[c][j] = d cons[c] / dx_j, j = 1 .. n_loc.
     *
     *  Parameters: see eval_cons().
@@ -155,63 +146,24 @@ public:
                               const long long *idx_cons,
                               const double *x, bool new_x, double **Jac);
 
-   /**  column partitioning specification for distributed memory vectors
-    *  Process P owns cols[P], cols[P]+1, ..., cols[P+1]-1, P={0,1,...,NumRanks}.
-    *  Example: for a vector x of 6 elements on 3 ranks, the col partitioning is cols=[0,2,4,6].
-    *  The caller manages memory associated with 'cols', array of size NumRanks+1
+   /** Specifies column partitioning for distributed memory vectors.
+    *  Process p owns vector entries with indices cols[p] to cols[p+1]-1,
+    *  where p = 0 .. nranks-1. The cols array is of size nranks + 1.
+    *  Example: for a vector x of 6 entries (globally) on 3 ranks, the uniform
+    *  column partitioning is cols=[0,2,4,6].
     */
-   virtual bool get_vecdistrib_info(long long global_n, long long* cols)
+   virtual bool get_vecdistrib_info(long long global_n, long long *cols);
+
+#ifdef MFEM_USE_MPI
+   virtual bool get_MPI_comm(MPI_Comm &comm_out)
    {
-#ifdef MFEM_USE_MPI
-      int nranks;
-      int ierr = MPI_Comm_size(comm_, &nranks);
-      MFEM_ASSERT(ierr==MPI_SUCCESS, "MPI_Comm_size failed with error" << ierr);
-
-      long long* sizes = new long long[nranks];
-      ierr = MPI_Allgather(&n_loc, 1, MPI_LONG_LONG_INT, sizes, 1, MPI_LONG_LONG_INT, comm_);
-      MFEM_ASSERT(MPI_SUCCESS==ierr,
-		"Error in MPI_Allgather of number of decision variables." << ierr);
-
-      //compute global indeces
-      cols[0]=0;
-      for (int r=1; r<=nranks; r++) {
-         cols[r] = sizes[r-1] + cols[r-1];
-      }
-
-      delete[] sizes;
-      return true;
-#else
-      return false; //hiop runs in non-distributed mode 
-#endif    
-   }
-
-#ifdef MFEM_USE_MPI
-   virtual bool get_MPI_comm(MPI_Comm& comm_out) 
-   { 
-      comm_out=comm_; 
+      comm_out = comm_;
       return true;
    }
 #endif
-
-   virtual void setLinearConstraint(const Vector &_w, const double& _a)
-   {
-      a_ = _a;
-   }
-
-protected:
-#ifdef MFEM_USE_MPI
-   MPI_Comm comm_;
-#endif
-
-   //Objective function: f = 1/2 x^T A x + c^T x
-   DenseMatrix A_;
-   Vector c_;
-
-   double a_;      //linear constraint rhs
 };
 
-/** Adapts the HIOP functionality to the MFEM OptimizationSolver interface.
- */
+/// Adapts the HiOp functionality to the MFEM OptimizationSolver interface.
 class HiopNlpOptimizer : public OptimizationSolver
 {
 protected:
@@ -221,24 +173,20 @@ protected:
    MPI_Comm comm_;
 #endif
 
-   virtual void allocHiopProbSpec(const long long& numvars);
+   virtual void allocHiopProbSpec(const long long &numvars);
 
 public:
-   HiopNlpOptimizer(); 
+   HiopNlpOptimizer();
 #ifdef MFEM_USE_MPI
    HiopNlpOptimizer(MPI_Comm _comm);
 #endif
    virtual ~HiopNlpOptimizer();
 
    virtual void SetBounds(const Vector &_lo, const Vector &_hi);
-   virtual void SetLinearConstraint(const Vector &_w, double _a);
-   virtual void SetObjectiveFunction(const DenseMatrix &_A, const Vector &_c);
-   virtual void SetObjectiveFunction(const DenseMatrix &_A);
-   virtual void SetObjectiveFunction(const Vector &_c);
 
    virtual void SetOptimizationProblem(OptimizationProblem &prob);
 
-   /** When iterative_mode is true, xt plays the role of an initial guess. */
+   /// When iterative_mode is true, xt plays the role of an initial guess.
    virtual void Mult(const Vector &xt, Vector &x) const;
 };
 

@@ -308,15 +308,19 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
  *  F always returns a scalar value, see CalcObjective(), CalcObjectiveGrad().
  *  C and D can have arbitrary heights.
  *  C and D can be NULL, meaning that their constraints are not used.
+ *
+ *  When used in parallel, all Vectors are assumed to be true dof vectors, and
+ *  the operators are expected to be defined for tdof vectors.
  */
 class OptimizationProblem
 {
 public:
    const int input_size;
    const Operator *C, *D;
-   // Not owned, some can remain unused (NULL).
+   /// Not owned, some can remain unused (NULL).
    const Vector *c_e, *d_lo, *d_hi, *x_lo, *x_hi;
 
+   /// In parallel, insize is the number of the local true dofs.
    OptimizationProblem(int insize, const Operator *C_, const Operator *D_);
 
    virtual double CalcObjective(const Vector &x) const = 0;
