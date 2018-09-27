@@ -359,10 +359,13 @@ function timed_run()
 # This function is used to execute the sample runs
 function go()
 {
-   eval local cmd=($1)
+   # Strip leading and trailing spaces from $1 and store the result in cmd_line
+   local cmd_line="${1##+( )}"
+   cmd_line="${cmd_line%%+( )}"
+   eval local cmd=(${cmd_line})
    local res=""
    echo $sep
-   echo "<${group}>" "$1"
+   echo "<${group}>" "${cmd_line}"
    echo $sep
    if [ "${timing}" == "yes" ]; then
       timed_run "${cmd[@]}"
@@ -374,15 +377,15 @@ function go()
    else
       res="${red}FAILED${none}"
    fi
-   printf "[${res}] <${group}> $1\n"
+   printf "[${res}] <${group}> ${cmd_line}\n"
    if [ "${timing}" == "yes" ]; then
       printf "Run time: %s\n" "${timer}"
       timer=(${timer})
       timer="${timer[1]}"
-      printf -v line "[$res](%8s) $1" "$timer"
+      printf -v line "[$res](%8s) ${cmd_line}" "$timer"
       summary=("${summary[@]}" "$line")
    else
-      summary=("${summary[@]}" "[${res}] $1")
+      summary=("${summary[@]}" "[${res}] ${cmd_line}")
    fi
    echo $sep
 }
