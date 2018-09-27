@@ -545,6 +545,11 @@ double DenseMatrix::Weight() const
       double F = d[0] * d[3] + d[1] * d[4] + d[2] * d[5];
       return sqrt(E * G - F * F);
    }
+   else if ((Height() == 4) && (Width() == 1))
+   {
+      return sqrt(data[0] * data[0] + data[1] * data[1] + data[2] * data[2]
+               + data[3] * data[3]);
+   }
    else if ((Height() == 4) && (Width() == 3))
    {
 	   const double *d = data;
@@ -3248,7 +3253,7 @@ void CalcAdjugateTranspose(const DenseMatrix &a, DenseMatrix &adjat)
 {
 #ifdef MFEM_DEBUG
    if (a.Height() != a.Width() || adjat.Height() != adjat.Width() ||
-       a.Width() != adjat.Width() || a.Width() < 1 || a.Width() > 3)
+       a.Width() != adjat.Width() || a.Width() < 1 || a.Width() > 4)
    {
       mfem_error("CalcAdjugateTranspose(...)");
    }

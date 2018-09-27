@@ -2101,6 +2101,18 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
          OtherDofOrd[j] = j; // for Or == 0
       }
    }
+   else if (dim == 4)
+   {
+      if (btype == 0 || btype == 1)
+      {
+         L2_Elements[Geometry::PENTATOPE] = new L2_PentatopeElement(p, btype);
+      }
+      else
+      {
+         L2_Elements[Geometry::PENTATOPE] = NULL; //new L2Pos_PentatopeElement(p);
+      }
+      Tr_Elements[Geometry::TETRAHEDRON] = new L2_TetrahedronElement(p, 0);
+   }
    else
    {
       mfem::err << "L2_FECollection::L2_FECollection : dim = "
@@ -2419,7 +2431,7 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
                                  const int cb_type, const int ob_type)
 {
    MFEM_VERIFY(p >= 1, "ND_FECollection requires order >= 1.");
-   MFEM_VERIFY(dim >= 1 && dim <= 3, "ND_FECollection requires 1 <= dim <= 3.");
+   MFEM_VERIFY(dim >= 1 && dim <= 4, "ND_FECollection requires 1 <= dim <= 4.");
 
    const int pm1 = p - 1, pm2 = p - 2;
 
