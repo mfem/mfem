@@ -61,6 +61,7 @@ public:
    void del(const void*);
    void Cuda();
    void* Adrs(const void*);
+   void Rsync(const void*);
 
    // **************************************************************************
    template<class T>

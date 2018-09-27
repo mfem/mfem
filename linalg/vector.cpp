@@ -53,7 +53,7 @@ Vector::Vector(const Vector &v)
 }
 
 void Vector::Load(std::istream **in, int np, int *dim)
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
    int i, j, s;
 
    s = 0;
@@ -73,7 +73,7 @@ void Vector::Load(std::istream **in, int np, int *dim)
 }
 
 void Vector::Load(std::istream &in, int Size)
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
    SetSize(Size);
 
    for (int i = 0; i < size; i++)
@@ -83,12 +83,12 @@ void Vector::Load(std::istream &in, int Size)
 }
 
 double &Vector::Elem(int i)
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
    return operator()(i);
 }
 
 const double &Vector::Elem(int i) const
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
    return operator()(i);
 }
 
@@ -114,13 +114,13 @@ double Vector::operator*(const double *v) const
 double Vector::operator*(const Vector &v) const
 {
    dbg();
-   Print();
+   //Print();
    //0.271243 0 0 0 0 0 0 0
    //0 0 0 0.192719 0 0 0.180367 0
    //0 0.183803 0 0 0.1824 0 0 0.169491
    //0 0 0.119103 0.12177 0.122258 0.124602 0.12186
 
-   v.Print();
+   //v.Print();
    //0.297205 0 0 0 0 0 0 0
    //0 0 0 0.237765 0 0 0.237764 0
    //0 0.237764 0 0 0.237763 0 0 0.237764
@@ -137,7 +137,7 @@ double Vector::operator*(const Vector &v) const
 }
 
 Vector &Vector::operator=(const double *v)
-{//assert(not cfg::Get().Cuda());
+{//OKINA_ASSERT_CPU;
    if (data != v)
    {
       MFEM_ASSERT(data + size <= v || v + size <= data, "Vectors overlap!");
@@ -148,8 +148,7 @@ Vector &Vector::operator=(const double *v)
 }
 
 Vector &Vector::operator=(const Vector &v)
-{//assert(not cfg::Get().Cuda());
-   dbg();
+{//OKINA_ASSERT_CPU;
    SetSize(v.Size());
    return operator=(v.data);
 }
@@ -157,6 +156,7 @@ Vector &Vector::operator=(const Vector &v)
 Vector &Vector::operator=(double value)
 {
    kVectorSet(size, value, data);
+   //dbg("\033[7mPrint:\n"); Print();
    return *this;
 }
 
@@ -167,7 +167,7 @@ Vector &Vector::operator*=(double c)
 }
 
 Vector &Vector::operator/=(double c)
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
    double m = 1.0/c;
    for (int i = 0; i < size; i++)
    {
@@ -177,7 +177,7 @@ Vector &Vector::operator/=(double c)
 }
 
 Vector &Vector::operator-=(double c)
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
    for (int i = 0; i < size; i++)
    {
       data[i] -= c;
@@ -186,7 +186,7 @@ Vector &Vector::operator-=(double c)
 }
 
 Vector &Vector::operator-=(const Vector &v)
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
 #ifdef MFEM_DEBUG
    if (size != v.size)
    {
@@ -201,7 +201,7 @@ Vector &Vector::operator-=(const Vector &v)
 }
 
 Vector &Vector::operator+=(const Vector &v)
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
 #ifdef MFEM_DEBUG
    if (size != v.size)
    {
@@ -216,7 +216,7 @@ Vector &Vector::operator+=(const Vector &v)
 }
 
 Vector &Vector::Add(const double a, const Vector &Va)
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
 #ifdef MFEM_DEBUG
    if (size != Va.size)
    {
@@ -234,7 +234,7 @@ Vector &Vector::Add(const double a, const Vector &Va)
 }
 
 Vector &Vector::Set(const double a, const Vector &Va)
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
 #ifdef MFEM_DEBUG
    if (size != Va.size)
    {
@@ -249,7 +249,7 @@ Vector &Vector::Set(const double a, const Vector &Va)
 }
 
 void Vector::SetVector(const Vector &v, int offset)
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
    int vs = v.Size();
    double *vp = v.data, *p = data + offset;
 
@@ -267,7 +267,7 @@ void Vector::SetVector(const Vector &v, int offset)
 }
 
 void Vector::Neg()
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
    for (int i = 0; i < size; i++)
    {
       data[i] = -data[i];
@@ -275,7 +275,7 @@ void Vector::Neg()
 }
 
 void add(const Vector &v1, const Vector &v2, Vector &v)
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
 #ifdef MFEM_DEBUG
    if (v.size != v1.size || v.size != v2.size)
    {
@@ -325,7 +325,7 @@ void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
 }
 
 void add(const double a, const Vector &x, const Vector &y, Vector &z)
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
 #ifdef MFEM_DEBUG
    if (x.size != y.size || x.size != z.size)
       mfem_error ("add(const double a, const Vector &x, const Vector &y,"
@@ -358,7 +358,7 @@ void add(const double a, const Vector &x, const Vector &y, Vector &z)
 
 void add(const double a, const Vector &x,
          const double b, const Vector &y, Vector &z)
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
 #ifdef MFEM_DEBUG
    if (x.size != y.size || x.size != z.size)
       mfem_error("add(const double a, const Vector &x,\n"
@@ -402,7 +402,7 @@ void add(const double a, const Vector &x,
 }
 
 void subtract(const Vector &x, const Vector &y, Vector &z)
-{//assert(not cfg::Get().Cuda());
+{//OKINA_ASSERT_CPU;
 #ifdef MFEM_DEBUG
    if (x.size != y.size || x.size != z.size)
    {
@@ -425,7 +425,7 @@ void subtract(const Vector &x, const Vector &y, Vector &z)
 }
 
 void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
 #ifdef MFEM_DEBUG
    if (x.size != y.size || x.size != z.size)
       mfem_error("subtract(const double a, const Vector &x,"
@@ -458,7 +458,7 @@ void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
 }
 
 void Vector::median(const Vector &lo, const Vector &hi)
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
    double *v = data;
 
    for (int i = 0; i < size; i++)
@@ -475,7 +475,8 @@ void Vector::median(const Vector &lo, const Vector &hi)
 }
 
 void Vector::GetSubVector(const Array<int> &dofs, Vector &elemvect) const
-{assert(not cfg::Get().Cuda());
+{
+   OKINA_ASSERT_GPU;
    int i, j, n = dofs.Size();
 
    elemvect.SetSize (n);
@@ -494,7 +495,7 @@ void Vector::GetSubVector(const Array<int> &dofs, Vector &elemvect) const
 }
 
 void Vector::GetSubVector(const Array<int> &dofs, double *elem_data) const
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
    int i, j, n = dofs.Size();
 
    for (i = 0; i < n; i++)
@@ -511,7 +512,7 @@ void Vector::GetSubVector(const Array<int> &dofs, double *elem_data) const
 }
 
 void Vector::SetSubVector(const Array<int> &dofs, const double value)
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
    const int n = dofs.Size();
 
    for (int i = 0; i < n; i++)
@@ -529,7 +530,8 @@ void Vector::SetSubVector(const Array<int> &dofs, const double value)
 }
 
 void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
-{assert(not cfg::Get().Cuda());
+{
+   OKINA_ASSERT_GPU;
    int i, j, n = dofs.Size();
 
    for (i = 0; i < n; i++)
@@ -546,7 +548,7 @@ void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
 }
 
 void Vector::SetSubVector(const Array<int> &dofs, double *elem_data)
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
    int i, j, n = dofs.Size();
 
    for (i = 0; i < n; i++)
@@ -563,7 +565,8 @@ void Vector::SetSubVector(const Array<int> &dofs, double *elem_data)
 }
 
 void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
-{assert(not cfg::Get().Cuda());
+{
+   OKINA_ASSERT_GPU;
    MFEM_ASSERT(dofs.Size() == elemvect.Size(), "");
    int i, j, n = dofs.Size();
 
@@ -581,7 +584,7 @@ void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
 }
 
 void Vector::AddElementVector(const Array<int> &dofs, double *elem_data)
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
    int i, j, n = dofs.Size();
 
    for (i = 0; i < n; i++)
@@ -599,7 +602,7 @@ void Vector::AddElementVector(const Array<int> &dofs, double *elem_data)
 
 void Vector::AddElementVector(const Array<int> &dofs, const double a,
                               const Vector &elemvect)
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
    int i, j, n = dofs.Size();
 
    for (i = 0; i < n; i++)
@@ -614,7 +617,8 @@ void Vector::AddElementVector(const Array<int> &dofs, const double a,
 }
 
 void Vector::SetSubVectorComplement(const Array<int> &dofs, const double val)
-{assert(not cfg::Get().Cuda());
+{
+   OKINA_ASSERT_GPU;
    Vector dofs_vals;
    GetSubVector(dofs, dofs_vals);
    operator=(val);
@@ -624,7 +628,7 @@ void Vector::SetSubVectorComplement(const Array<int> &dofs, const double val)
 void Vector::Print(std::ostream &out, int width) const
 {
    if (!size) { return; }
-
+   mm::Get().Rsync(data);
    for (int i = 0; 1; )
    {
       out << data[i];
@@ -664,7 +668,7 @@ void Vector::Print_HYPRE(std::ostream &out) const
 }
 
 void Vector::Randomize(int seed)
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
    // static unsigned int seed = time(0);
    const double max = (double)(RAND_MAX) + 1.;
 
@@ -683,7 +687,7 @@ void Vector::Randomize(int seed)
 }
 
 double Vector::Norml2() const
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
    // Scale entries of Vector on the fly, using algorithms from
    // std::hypot() and LAPACK's drm2. This scaling ensures that the
    // argument of each call to std::pow is <= 1 to avoid overflow.
@@ -720,7 +724,7 @@ double Vector::Norml2() const
 }
 
 double Vector::Normlinf() const
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
    double max = 0.0;
    for (int i = 0; i < size; i++)
    {
@@ -730,7 +734,7 @@ double Vector::Normlinf() const
 }
 
 double Vector::Norml1() const
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
    double sum = 0.0;
    for (int i = 0; i < size; i++)
    {
@@ -740,7 +744,7 @@ double Vector::Norml1() const
 }
 
 double Vector::Normlp(double p) const
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
    MFEM_ASSERT(p > 0.0, "Vector::Normlp");
    if (p == 1.0)
    {
@@ -789,7 +793,7 @@ double Vector::Normlp(double p) const
 }
 
 double Vector::Max() const
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
    double max = data[0];
 
    for (int i = 1; i < size; i++)
@@ -802,7 +806,7 @@ double Vector::Max() const
 }
 
 double Vector::Min() const
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
    double min = data[0];
 
    for (int i = 1; i < size; i++)
@@ -815,7 +819,7 @@ double Vector::Min() const
 }
 
 double Vector::Sum() const
-{assert(not cfg::Get().Cuda());
+{OKINA_ASSERT_CPU;
    double sum = 0.0;
 
    for (int i = 0; i < size; i++)

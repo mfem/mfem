@@ -13,6 +13,7 @@
 #define MFEM_VECTOR_KERNELS
 
 MFEM_NAMESPACE
+
 void kVectorAlphaAdd(double *vp, const double* v1p,
                      const double alpha, const double *v2p, const size_t N);
 

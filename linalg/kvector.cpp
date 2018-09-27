@@ -14,10 +14,14 @@ using namespace std;
 
 // *****************************************************************************
 #ifdef __NVCC__
+
+#include <cub/cub.cuh>
+
+// *****************************************************************************
 __inline__ __device__ double4 operator*(double4 a, double4 b) {
    return make_double4(a.x*b.x, a.y*b.y, a.z*b.z, a.w*b.w);
 }
-#include <cub/cub.cuh>
+
 // *****************************************************************************
 static double cub_vector_dot(const int N,
                              const double* __restrict vec1,
@@ -50,15 +54,12 @@ static double cub_vector_dot(const int N,
    dbg("[cub_vector_dot] return");
    return *h_dot;
 }
+
+// *****************************************************************************
 #endif // __NVCC__
 
 // *****************************************************************************
 MFEM_NAMESPACE
-
-// *****************************************************************************
-#define GET_CUDA const bool cuda = cfg::Get().Cuda();
-#define GET_ADRS(v) double *d_##v = (double*) (cuda?mm::Get().Adrs(v):v);
-#define GET_CONST_ADRS(v) const double *d_##v = (const double*) (cuda?mm::Get().Adrs(v):v);
 
 // *****************************************************************************
 void kVectorSubtract(double *zp, const double *xp, const double *yp,

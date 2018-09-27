@@ -355,7 +355,8 @@ $(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER)
 # library may fail. In such cases, one may set EXT_LIBS on the command line.
 EXT_LIBS = $(MFEM_EXT_LIBS)
 $(BLD)libmfem.$(SO_VER): $(OBJECT_FILES)
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(BUILD_SOFLAGS) $(OBJECT_FILES) \
+#	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(BUILD_SOFLAGS) $(OBJECT_FILES)
+	g++ $(BUILD_SOFLAGS) $(OBJECT_FILES) \
 	   $(EXT_LIBS) -o $(@)
 
 serial debug:    M_MPI=NO

@@ -82,7 +82,7 @@ protected:
 
 public:
    /// Create an empty SparseMatrix.
-   SparseMatrix() { SetEmpty(); }
+   SparseMatrix() { /*OKINA_ASSERT_CPU;*/ SetEmpty(); }
 
    /** @brief Create a sparse matrix with flexible sparsity structure using a
        row-wise linked list (LIL) format. */
@@ -129,7 +129,7 @@ public:
    int Size() const { return Height(); }
 
    /// Clear the contents of the SparseMatrix.
-   void Clear() { Destroy(); SetEmpty(); }
+   void Clear() { /*OKINA_ASSERT_CPU;*/ Destroy(); SetEmpty(); }
 
    /// Check if the SparseMatrix is empty.
    bool Empty() const { return (A == NULL) && (Rows == NULL); }
@@ -521,9 +521,11 @@ inline void SparseMatrix::SetColPtr(const int row) const
 {
    if (Rows)
    {
+      //OKINA_ASSERT_CPU;
       if (ColPtrNode == NULL)
       {
-         ColPtrNode = new RowNode *[width];
+         //ColPtrNode = new RowNode *[width];
+         ColPtrNode = mm::malloc<RowNode*>(width);
          for (int i = 0; i < width; i++)
          {
             ColPtrNode[i] = NULL;
@@ -536,6 +538,7 @@ inline void SparseMatrix::SetColPtr(const int row) const
    }
    else
    {
+      OKINA_ASSERT_CPU;
       if (ColPtrJ == NULL)
       {
          ColPtrJ = new int[width];
@@ -550,10 +553,12 @@ inline void SparseMatrix::SetColPtr(const int row) const
       }
    }
    current_row = row;
+   //OKINA_ASSERT_CPU;
 }
 
 inline void SparseMatrix::ClearColPtr() const
 {
+   //OKINA_ASSERT_CPU;
    if (Rows)
       for (RowNode *node_p = Rows[current_row]; node_p != NULL;
            node_p = node_p->Prev)
@@ -575,6 +580,7 @@ inline double &SparseMatrix::SearchRow(const int col)
       if (node_p == NULL)
       {
 #ifdef MFEM_USE_MEMALLOC
+         OKINA_ASSERT_CPU;
          node_p = NodesMem->Alloc();
 #else
          node_p = new RowNode;
@@ -588,6 +594,7 @@ inline double &SparseMatrix::SearchRow(const int col)
    }
    else
    {
+      OKINA_ASSERT_CPU;
       const int j = ColPtrJ[col];
       MFEM_VERIFY(j != -1, "Entry for column " << col << " is not allocated.");
       return A[j];
