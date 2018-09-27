@@ -12,27 +12,89 @@
 #ifndef MFEM_MEMMNG_HPP
 #define MFEM_MEMMNG_HPP
 
+#include <unordered_map>
+
+// *****************************************************************************
+MFEM_NAMESPACE
+
+// *****************************************************************************
+typedef struct mm2dev{
+   bool host = true;
+   size_t bytes = 0;
+   const void *h_adrs = NULL;
+   const void *d_adrs = NULL;
+/*   mm2dev():
+      host(true),
+      size(0),
+      h_adrs((void*)0x12345678ul),
+      d_adrs(NULL){ }
+   mm2dev(const mm2dev &m){
+      host = m.host;
+      size = m.size;
+      h_adrs = m.h_adrs;
+      d_adrs = m.d_adrs;
+      }*/
+} mm2dev_t;
+
+// *****************************************************************************
+typedef std::unordered_map<const void*,mm2dev_t> mm_t;
+
 // *****************************************************************************
 // * Memory manager
 // ***************************************************************************
-struct mm {
+class mm {
+protected:
+   mm_t *mng = NULL;
+private:
+   mm(){}
+   mm(mm const&);
+   void operator=(mm const&);
+public:
+   static mm& Get(){
+      static mm mm_singleton;
+      return mm_singleton;
+   }
+   
+   // **************************************************************************
+   void init();
+   void* add(const void*, const size_t, const size_t);
+   void del(const void*);
+   void Cuda();
+   void* Adrs(const void*);
+
    // **************************************************************************
    template<class T>
-   static inline T* malloc(size_t n, const size_t size_of_T = sizeof(T)) {
+   static inline T* malloc(size_t size, const size_t size_of_T = sizeof(T)) {
+      dbg();
       stk(true);
+      if (!mm::Get().mng) mm::Get().init();
+      
       T *ptr = nullptr;
-      if (!cfg::Get().Cuda()) return ptr = ::new T[n];
+      /*
+      if (!cfg::Get().Cuda()) ptr = ::new T[size];
 #ifdef __NVCC__
-      const size_t bytes = n*size_of_T;
-      dbg("\033[31;1mnew NVCC (%ldo)",bytes);
-      cuMemAlloc((CUdeviceptr*)&ptr,bytes);
+      else{
+         const size_t bytes = size*size_of_T;
+         dbg("\033[31;1mnew NVCC (%ldo)",bytes);
+         cuMemAlloc((CUdeviceptr*)&ptr,bytes);
+      }
 #endif // __NVCC__
+      */
+      // alloc on host first
+      ptr = ::new T[size];
+      // add to the pool of adrs
+      mm::Get().add((void*)ptr,size,size_of_T);
       return ptr;
    }
    
    // **************************************************************************
    template<class T>
    static inline void free(void *ptr) {
+      if (ptr){
+         mm::Get().del(ptr);
+         ::delete[] static_cast<T*>(ptr);
+      }
+      /*
       if (!cfg::Get().Cuda()) {
          if (ptr)
             ::delete[] static_cast<T*>(ptr);
@@ -42,30 +104,18 @@ struct mm {
          dbg("\033[31;1mdelete NVCC");
          cuMemFree((CUdeviceptr)ptr);
       }
-#endif // __NVCC__
+      #endif // __NVCC__*/
       ptr = nullptr;
    }
 
    // *****************************************************************************
-   static void handler(int nSignum, siginfo_t* si, void* vcontext) {
-      fflush(0);
-      printf("\n\033[31;7;1mSegmentation fault\033[m\n");
-      ucontext_t* context = (ucontext_t*)vcontext;
-      context->uc_mcontext.gregs[REG_RIP]++;
-      stk(true);
-      fflush(0);
-      //exit(1);
-      throw SIGSEGV;
-   }
+   static void handler(int nSignum, siginfo_t* si, void* vcontext);
 
    // *****************************************************************************
-   static void iniHandler(){
-      struct sigaction action;
-      memset(&action, 0, sizeof(struct sigaction));
-      action.sa_flags = SA_SIGINFO;
-      action.sa_sigaction = handler;
-      sigaction(SIGSEGV, &action, NULL);
-   }
-   
+   static void iniHandler();
 };
+
+// *****************************************************************************
+MFEM_NAMESPACE_END
+
 #endif // MFEM_MEMMNG_HPP

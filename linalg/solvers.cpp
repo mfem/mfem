@@ -296,27 +296,42 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 {
    int i;
    double r0, den, nom, nom0, betanom, alpha, beta;
-
+   dbg();
    if (iterative_mode)
    {
+      dbg("iterative_mode");
+      dbg("x:\n"); x.Print();
+      dbg("oper->Mult(x, r);");
       oper->Mult(x, r);
+      dbg("r:\n"); r.Print();
+      dbg("r = b - A x;");
       subtract(b, r, r); // r = b - A x
+      dbg("r:\n"); r.Print();
+      //0.297205 0 0 0 0 0 0 0
+      //0 0 0 0.237765 0 0 0.237764 0
+      //0 0.237764 0 0 0.237763 0 0 0.237764
+      //0 0 0.237765 0.237764 0.237763 0.237764 0.237765
+      assert(false);
    }
    else
    {
+      dbg("else");
       r = b;
       x = 0.0;
    }
 
    if (prec)
    {
+      dbg("prec");
       prec->Mult(r, z); // z = B r
       d = z;
    }
    else
    {
+      dbg("else");
       d = r;
    }
+   dbg("Dot");
    nom0 = nom = Dot(d, r);
    MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
 
@@ -326,6 +341,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
                 << nom << (print_level == 3 ? " ...\n" : "\n");
    }
 
+   dbg("r0 max");
    r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
    if (nom <= r0)
    {
@@ -335,7 +351,9 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       return;
    }
 
+   dbg("oper->Mult(d, z)");
    oper->Mult(d, z);  // z = A d
+   //assert(false);
    den = Dot(z, d);
    MFEM_ASSERT(IsFinite(den), "den = " << den);
 
