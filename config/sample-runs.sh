@@ -360,8 +360,10 @@ function timed_run()
 function go()
 {
    # Strip leading and trailing spaces from $1 and store the result in cmd_line
+   shopt -s extglob
    local cmd_line="${1##+( )}"
    cmd_line="${cmd_line%%+( )}"
+   shopt -u extglob
    eval local cmd=(${cmd_line})
    local res=""
    echo $sep
