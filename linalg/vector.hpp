@@ -148,7 +148,7 @@ public:
 
    /// Changes the ownership of the data; after the call the Vector is empty
    inline void StealData(double **p)
-   { *p = data; data = 0; size = allocsize = 0; }
+   { assert(not cfg::Get().Cuda());*p = data; data = 0; size = allocsize = 0; }
 
    /// Changes the ownership of the data; after the call the Vector is empty
    inline double *StealData() { double *p; StealData(&p); return p; }
@@ -381,7 +381,7 @@ inline const double & Vector::operator() (int i) const
 }
 
 inline void Vector::Swap(Vector &other)
-{
+{assert(not cfg::Get().Cuda());
    mfem::Swap(size, other.size);
    mfem::Swap(allocsize, other.allocsize);
    mfem::Swap(data, other.data);
@@ -403,7 +403,7 @@ inline Vector::~Vector()
 }
 
 inline double DistanceSquared(const double *x, const double *y, const int n)
-{
+{assert(not cfg::Get().Cuda());
    double d = 0.0;
 
    for (int i = 0; i < n; i++)
@@ -415,17 +415,17 @@ inline double DistanceSquared(const double *x, const double *y, const int n)
 }
 
 inline double Distance(const double *x, const double *y, const int n)
-{
+{assert(not cfg::Get().Cuda());
    return std::sqrt(DistanceSquared(x, y, n));
 }
 
 inline double Vector::DistanceSquaredTo(const double *p) const
-{
+{assert(not cfg::Get().Cuda());
    return DistanceSquared(data, p, size);
 }
 
 inline double Vector::DistanceTo(const double *p) const
-{
+{assert(not cfg::Get().Cuda());
    return Distance(data, p, size);
 }
 
@@ -434,7 +434,7 @@ inline double Vector::DistanceTo(const double *p) const
     producing different results on each MPI rank.
 */
 inline double InnerProduct(const Vector &x, const Vector &y)
-{
+{assert(not cfg::Get().Cuda());
    return x * y;
 }
 
@@ -444,7 +444,7 @@ inline double InnerProduct(const Vector &x, const Vector &y)
     producing identical results on each MPI rank.
 */
 inline double InnerProduct(MPI_Comm comm, const Vector &x, const Vector &y)
-{
+{assert(not cfg::Get().Cuda());
    double loc_prod = x * y;
    double glb_prod;
    MPI_Allreduce(&loc_prod, &glb_prod, 1, MPI_DOUBLE, MPI_SUM, comm);

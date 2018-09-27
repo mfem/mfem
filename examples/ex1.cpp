@@ -59,9 +59,7 @@ StartUp startup; */
 
 // *****************************************************************************
 int main(int argc, char *argv[])
-{
-   mm::iniHandler();
-   
+{   
    dbg("main => stkIni");
    stkIni(argv[0]);
       
@@ -111,7 +109,6 @@ int main(int argc, char *argv[])
       }
    }
    */
-   
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
@@ -132,10 +129,6 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(order = 1, dim);
    }
 
-   //dbg("main => cfg::Get().Init");
-   //cfg::Get().Init(argc,argv);
-   //cfg::Get().Cuda(true);
-
    dbg("fes");
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of finite element unknowns: "
@@ -154,10 +147,6 @@ int main(int argc, char *argv[])
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   //dbg("main => cfg::Get().Init");
-   //cfg::Get().Init(argc,argv);
-   //cfg::Get().Cuda(true);
-
    dbg("Set up the linear form b(.)");
    // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
@@ -173,10 +162,7 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    dbg("b->Assemble");
    b->Assemble();
-
-   dbg("main => cfg::Get().Init");
-   cfg::Get().Init(argc,argv);
-   cfg::Get().Cuda(true);
+   
    // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
@@ -201,6 +187,13 @@ int main(int argc, char *argv[])
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    cout << "Size of linear system: " << A.Height() << endl;
+   
+   // Switch to CUDA!
+   const bool CUDA = true;
+   if (CUDA){
+      cfg::Get().Cuda(true);
+      mm::Get().Cuda();
+   }
 
 #ifndef MFEM_USE_SUITESPARSE
    // 10. Define a simple symmetric Gauss-Seidel preconditioner and use it to
@@ -214,7 +207,8 @@ int main(int argc, char *argv[])
    umf_solver.SetOperator(A);
    umf_solver.Mult(B, X);
 #endif
-
+   //assert(false);
+   
    // 11. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
 

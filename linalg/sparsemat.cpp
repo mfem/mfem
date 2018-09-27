@@ -85,7 +85,7 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n,
 #endif
 
    if ( A == NULL )
-   {
+   {assert(not cfg::Get().Cuda());
       ownData = true;
       int nnz = I[height];
       A = new double[ nnz ];
@@ -108,6 +108,7 @@ SparseMatrix::SparseMatrix(int nrows, int ncols, int rowsize)
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
 #endif
+   assert(not cfg::Get().Cuda());
    I = new int[nrows + 1];
    J = new int[nrows * rowsize];
    A = new double[nrows * rowsize];
@@ -120,7 +121,7 @@ SparseMatrix::SparseMatrix(int nrows, int ncols, int rowsize)
 
 SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
    : AbstractSparseMatrix(mat.Height(), mat.Width())
-{
+{assert(not cfg::Get().Cuda());
    if (mat.Finalized())
    {
       const int nnz = mat.I[height];
@@ -192,7 +193,7 @@ SparseMatrix::SparseMatrix(const Vector &v)
    , ownGraph(true)
    , ownData(true)
    , isSorted(true)
-{
+{assert(not cfg::Get().Cuda());
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
 #endif
@@ -484,7 +485,7 @@ const double &SparseMatrix::operator()(int i, int j) const
 }
 
 void SparseMatrix::GetDiag(Vector & d) const
-{
+{assert(not cfg::Get().Cuda());
    MFEM_VERIFY(height == width,
                "Matrix must be square, not height = " << height << ", width = " << width);
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
@@ -513,7 +514,7 @@ void SparseMatrix::GetDiag(Vector & d) const
 
 /// Produces a DenseMatrix from a SparseMatrix
 DenseMatrix *SparseMatrix::ToDenseMatrix() const
-{
+{assert(not cfg::Get().Cuda());
    int num_rows = this->Height();
    int num_cols = this->Width();
 
@@ -526,7 +527,7 @@ DenseMatrix *SparseMatrix::ToDenseMatrix() const
 
 /// Produces a DenseMatrix from a SparseMatrix
 void SparseMatrix::ToDenseMatrix(DenseMatrix & B) const
-{
+{assert(not cfg::Get().Cuda());
    B.SetSize(height, width);
    B = 0.0;
 
@@ -549,7 +550,7 @@ void SparseMatrix::Mult(const Vector &x, Vector &y) const
 }
 
 void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
-{
+{assert(not cfg::Get().Cuda());
    MFEM_ASSERT(width == x.Size(),
                "Input vector size (" << x.Size() << ") must match matrix width (" << width
                << ")");
@@ -627,7 +628,7 @@ void SparseMatrix::MultTranspose(const Vector &x, Vector &y) const
 
 void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
                                     const double a) const
-{
+{assert(not cfg::Get().Cuda());
    MFEM_ASSERT(height == x.Size(),
                "Input vector size (" << x.Size() << ") must match matrix height (" << height
                << ")");
@@ -666,7 +667,7 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
 
 void SparseMatrix::PartMult(
    const Array<int> &rows, const Vector &x, Vector &y) const
-{
+{assert(not cfg::Get().Cuda());
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    for (int i = 0; i < rows.Size(); i++)
@@ -684,7 +685,7 @@ void SparseMatrix::PartMult(
 
 void SparseMatrix::PartAddMult(
    const Array<int> &rows, const Vector &x, Vector &y, const double a) const
-{
+{assert(not cfg::Get().Cuda());
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    for (int i = 0; i < rows.Size(); i++)
@@ -701,7 +702,7 @@ void SparseMatrix::PartAddMult(
 }
 
 void SparseMatrix::BooleanMult(const Array<int> &x, Array<int> &y) const
-{
+{assert(not cfg::Get().Cuda());
    MFEM_ASSERT(Finalized(), "Matrix must be finalized.");
    MFEM_ASSERT(x.Size() == Width(), "Input vector size (" << x.Size()
                << ") must match matrix width (" << Width() << ")");
@@ -725,7 +726,7 @@ void SparseMatrix::BooleanMult(const Array<int> &x, Array<int> &y) const
 
 void SparseMatrix::BooleanMultTranspose(const Array<int> &x,
                                         Array<int> &y) const
-{
+{assert(not cfg::Get().Cuda());
    MFEM_ASSERT(Finalized(), "Matrix must be finalized.");
    MFEM_ASSERT(x.Size() == Height(), "Input vector size (" << x.Size()
                << ") must match matrix height (" << Height() << ")");
@@ -747,7 +748,7 @@ void SparseMatrix::BooleanMultTranspose(const Array<int> &x,
 }
 
 double SparseMatrix::InnerProduct(const Vector &x, const Vector &y) const
-{
+{assert(not cfg::Get().Cuda());
    MFEM_ASSERT(x.Size() == Width(), "x.Size() = " << x.Size()
                << " must be equal to Width() = " << Width());
    MFEM_ASSERT(y.Size() == Height(), "y.Size() = " << y.Size()
@@ -773,7 +774,7 @@ double SparseMatrix::InnerProduct(const Vector &x, const Vector &y) const
 }
 
 void SparseMatrix::GetRowSums(Vector &x) const
-{
+{assert(not cfg::Get().Cuda());
    for (int i = 0; i < height; i++)
    {
       double a = 0.0;
@@ -792,7 +793,7 @@ void SparseMatrix::GetRowSums(Vector &x) const
 }
 
 double SparseMatrix::GetRowNorml1(int irow) const
-{
+{assert(not cfg::Get().Cuda());
    MFEM_VERIFY(irow < height,
                "row " << irow << " not in matrix with height " << height);
 
@@ -812,7 +813,7 @@ double SparseMatrix::GetRowNorml1(int irow) const
 }
 
 void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
-{
+{assert(not cfg::Get().Cuda());
    int i, j, nr, nz;
    RowNode *aux;
 
@@ -893,7 +894,7 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
 }
 
 void SparseMatrix::GetBlocks(Array2D<SparseMatrix *> &blocks) const
-{
+{assert(not cfg::Get().Cuda());
    int br = blocks.NumRows(), bc = blocks.NumCols();
    int nr = (height + br - 1)/br, nc = (width + bc - 1)/bc;
 

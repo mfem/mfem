@@ -25,6 +25,7 @@ void gpu_kernel(const size_t N, BODY statements) {
 // *****************************************************************************
 template <typename DBODY, typename HBODY>
 void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body){
+   stk(true);
 #ifdef __NVCC__
    const bool gpu = cfg::Get().Cuda();
    if (gpu){
