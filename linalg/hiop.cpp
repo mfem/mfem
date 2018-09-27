@@ -243,7 +243,7 @@ void HiopOptimizationProblem::UpdateConstrValsGrads(const Vector x)
    constr_info_is_current = true;
 }
 
-HiopNlpOptimizer::HiopNlpOptimizer() : OptimizationSolver(), optProb_(NULL)
+HiopNlpOptimizer::HiopNlpOptimizer() : OptimizationSolver(), hiop_problem(NULL)
 { 
 #ifdef MFEM_USE_MPI
   //in case a serial driver in parallel MFEM build calls HiOp
@@ -260,33 +260,33 @@ HiopNlpOptimizer::HiopNlpOptimizer() : OptimizationSolver(), optProb_(NULL)
 #ifdef MFEM_USE_MPI
 HiopNlpOptimizer::HiopNlpOptimizer(MPI_Comm _comm) 
   : OptimizationSolver(_comm),
-    optProb_(NULL),
+    hiop_problem(NULL),
     comm_(_comm) { }
 #endif
 
 HiopNlpOptimizer::~HiopNlpOptimizer()
 {
-   delete optProb_;
+   delete hiop_problem;
 }
 
 void HiopNlpOptimizer::SetOptimizationProblem(OptimizationProblem &prob)
 {
    problem = &prob;
 
-   if (optProb_) { delete optProb_; }
+   if (hiop_problem) { delete hiop_problem; }
 
 #ifdef MFEM_USE_MPI
-   optProb_ = new HiopOptimizationProblem(comm_, prob);
+   hiop_problem = new HiopOptimizationProblem(comm_, *problem);
 #else
-   optProb_ = new HiopOptimizationProblem(prob);
+   hiop_problem = new HiopOptimizationProblem(*problem);
 #endif
 }
 
 void HiopNlpOptimizer::Mult(const Vector &xt, Vector &x) const
 {
-   if (iterative_mode) { optProb_->setStartingPoint(xt); }
+   if (iterative_mode) { hiop_problem->setStartingPoint(xt); }
 
-   hiop::hiopNlpDenseConstraints hiopInstance(*optProb_);
+   hiop::hiopNlpDenseConstraints hiopInstance(*hiop_problem);
 
    // Set tolerance:
    hiopInstance.options->SetNumericValue("tolerance", abs_tol);
@@ -300,6 +300,9 @@ void HiopNlpOptimizer::Mult(const Vector &xt, Vector &x) const
    const hiop::hiopSolveStatus status = solver.run();
    final_norm = solver.getObjective();
 
+   // TODO extract the final iter_num from HiOp.
+   final_iter = 1;
+
    if (status != hiop::Solve_Success)
    {
       converged = false;
@@ -308,25 +311,6 @@ void HiopNlpOptimizer::Mult(const Vector &xt, Vector &x) const
 
    // Copy the final solution in x.
    solver.getSolution(x.GetData());
-}
-
-void HiopNlpOptimizer::SetBounds(const Vector &_lo, const Vector &_hi)
-{
-   if (NULL==optProb_)
-      allocHiopProbSpec(_lo.Size());
-
-   //optProb_->setBounds(_lo, _hi);
-}
-
-void HiopNlpOptimizer::allocHiopProbSpec(const long long& numvars)
-{
-   MFEM_ASSERT(optProb_==NULL, "HiopProbSpec object already created");
-
-#ifdef MFEM_USE_MPI
-   optProb_ = new HiopOptimizationProblem(comm_, *problem);
-#else
-   optProb_ = new HiopOptimizationProblem(*problem);
-#endif
 }
 
 } // mfem namespace
