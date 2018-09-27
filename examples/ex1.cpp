@@ -99,7 +99,7 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
-   /*
+   
    {
       int ref_levels =
          (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
@@ -108,7 +108,7 @@ int main(int argc, char *argv[])
          mesh->UniformRefinement();
       }
    }
-   */
+   
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
@@ -189,11 +189,18 @@ int main(int argc, char *argv[])
    cout << "Size of linear system: " << A.Height() << endl;
    
    // Switch to CUDA!
+   //const bool CUDA = true; //Iteration :   4  (B r, r) = 8.03978e-16
    const bool CUDA = true;
    if (CUDA){
       cfg::Get().Cuda(true);
       mm::Get().Cuda();
-   }
+   }   
+   //Iteration : 120  (B r, r) = 9.19414e-19
+   //Iteration : 121  (B r, r) = 7.07226e-19
+   //Iteration : 122  (B r, r) = 4.11399e-19
+   //Iteration : 123  (B r, r) = 2.07958e-19
+   //Iteration : 124  (B r, r) = 1.24578e-19
+
 
 #ifndef MFEM_USE_SUITESPARSE
    // 10. Define a simple symmetric Gauss-Seidel preconditioner and use it to
@@ -208,9 +215,15 @@ int main(int argc, char *argv[])
    umf_solver.Mult(B, X);
 #endif
    //assert(false);
-   
+
    // 11. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
+   //x.Print();
+   //0.055716 0 0 0 0 0 0 0
+   //0 0 0 0.0224253 0 0 0.0311821 0
+   //0 0.0252052 0 0 0.0211772 0 0 0.0190804
+   //0 0 0.0198174 0.0158547 0.0128289 0.0109478 0.0101738
+
 
    // 12. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
