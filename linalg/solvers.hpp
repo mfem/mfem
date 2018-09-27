@@ -353,8 +353,6 @@ public:
    virtual void SetOptimizationProblem(OptimizationProblem &prob)
    { problem = &prob; }
 
-   virtual void SetBounds(const Vector &_lo, const Vector &_hi) = 0;
-   virtual void SetLinearConstraint(const Vector &_w, double _a) = 0;
    virtual void Mult(const Vector &xt, Vector &x) const = 0;
 
    virtual void SetPreconditioner(Solver &pr)

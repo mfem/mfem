@@ -167,13 +167,11 @@ public:
 class HiopNlpOptimizer : public OptimizationSolver
 {
 protected:
-   HiopOptimizationProblem* optProb_;
+   HiopOptimizationProblem *hiop_problem;
 
 #ifdef MFEM_USE_MPI
    MPI_Comm comm_;
 #endif
-
-   virtual void allocHiopProbSpec(const long long &numvars);
 
 public:
    HiopNlpOptimizer();
@@ -181,8 +179,6 @@ public:
    HiopNlpOptimizer(MPI_Comm _comm);
 #endif
    virtual ~HiopNlpOptimizer();
-
-   virtual void SetBounds(const Vector &_lo, const Vector &_hi);
 
    virtual void SetOptimizationProblem(OptimizationProblem &prob);
 
