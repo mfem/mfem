@@ -588,14 +588,17 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
                   // mark the shared face for refinement by reorienting
                   // it according to the refinement flag in the tetrahedron
                   // to which this shared face belongs to.
-                  tet->GetMarkedFace(faces_info[lface].Elem1Inf/64, v);
-                  // flip the shared face in the processor that owns the
-                  // second element (in 'mesh')
-                  int gl_el1, gl_el2;
-                  mesh.GetFaceElements(i, &gl_el1, &gl_el2);
-                  if (MyRank == partitioning[gl_el2])
+                  if (tet->GetRefinementFlag())
                   {
-                     std::swap(v[0], v[1]);
+                     tet->GetMarkedFace(faces_info[lface].Elem1Inf/64, v);
+                     // flip the shared face in the processor that owns the
+                     // second element (in 'mesh')
+                     int gl_el1, gl_el2;
+                     mesh.GetFaceElements(i, &gl_el1, &gl_el2);
+                     if (MyRank == partitioning[gl_el2])
+                     {
+                        std::swap(v[0], v[1]);
+                     }
                   }
                }
                stria_counter++;
@@ -746,6 +749,43 @@ void ParMesh::ReduceMeshGen()
    MPI_Allreduce(&loc_meshgen, &meshgen, 1, MPI_INT, MPI_BOR, MyComm);
 }
 
+void ParMesh::FinalizeParTopo()
+{
+   // Determine sedge_ledge
+   sedge_ledge.SetSize(shared_edges.Size());
+   if (shared_edges.Size())
+   {
+      DSTable v_to_v(NumOfVertices);
+      GetVertexToVertexTable(v_to_v);
+      for (int se = 0; se < shared_edges.Size(); se++)
+      {
+         const int *v = shared_edges[se]->GetVertices();
+         const int l_edge = v_to_v(v[0], v[1]);
+         MFEM_ASSERT(l_edge >= 0, "invalid shared edge");
+         sedge_ledge[se] = l_edge;
+      }
+   }
+
+   // Determine sface_lface
+   const int nst = shared_trias.Size();
+   sface_lface.SetSize(nst + shared_quads.Size());
+   if (sface_lface.Size())
+   {
+      STable3D *faces_tbl = GetFacesTable();
+      for (int st = 0; st < nst; st++)
+      {
+         const int *v = shared_trias[st].v;
+         sface_lface[st] = (*faces_tbl)(v[0], v[1], v[2]);
+      }
+      for (int sq = 0; sq < shared_quads.Size(); sq++)
+      {
+         const int *v = shared_quads[sq].v;
+         sface_lface[nst+sq] = (*faces_tbl)(v[0], v[1], v[2], v[3]);
+      }
+      delete faces_tbl;
+   }
+}
+
 ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
    : gtopo(comm)
 {
@@ -778,8 +818,6 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
 
    skip_comment_lines(input, '#');
 
-   DSTable *v_to_v = NULL;
-   STable3D *faces_tbl = NULL;
    // read and set the sizes of svert_lvert, group_svert
    {
       int num_sverts;
@@ -796,8 +834,6 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
       sedge_ledge.SetSize(num_sedges);
       shared_edges.SetSize(num_sedges);
       group_sedge.SetDims(GetNGroups()-1, num_sedges);
-      v_to_v = new DSTable(NumOfVertices);
-      GetVertexToVertexTable(*v_to_v);
    }
    else
    {
@@ -812,7 +848,6 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
       sface_lface.SetSize(num_sface);
       group_stria.MakeI(GetNGroups()-1);
       group_squad.MakeI(GetNGroups()-1);
-      faces_tbl = GetFacesTable();
    }
    else
    {
@@ -822,8 +857,6 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
 
    // read, group by group, the contents of group_svert, svert_lvert,
    // group_sedge, shared_edges, group_{stria,squad}, shared_{trias,quads}
-   //
-   // derive the contents of sedge_ledge, sface_lface
    int svert_counter = 0, sedge_counter = 0;
    for (int gr = 1; gr < GetNGroups(); gr++)
    {
@@ -865,7 +898,6 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
             group_sedge.GetJ()[sedge_counter] = sedge_counter;
             input >> v[0] >> v[1];
             shared_edges[sedge_counter] = new Segment(v[0], v[1], 1);
-            sedge_ledge[sedge_counter] = (*v_to_v)(v[0], v[1]);
          }
       }
       if (Dim >= 3)
@@ -914,29 +946,10 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
       {
          group_squad.GetJ()[i] = i;
       }
-      // Define sface_lface
-      for (int i = 0; i < shared_trias.Size(); i++)
-      {
-         const int *v = shared_trias[i].v;
-         sface_lface[i] = (*faces_tbl)(v[0], v[1], v[2]);
-      }
-      for (int i = 0; i < shared_quads.Size(); i++)
-      {
-         const int *v = shared_quads[i].v;
-         sface_lface[shared_trias.Size()+i] =
-            (*faces_tbl)(v[0], v[1], v[2], v[3]);
-      }
    }
-   delete faces_tbl;
-   delete v_to_v;
 
    const bool fix_orientation = false;
    Finalize(refine, fix_orientation);
-
-   // FIXME: if 'refine' is true some elements may be rotated, invalidating
-   //        some parallel data, e.g. sface_lface. Also, it may be necessary to
-   //        rotate shared triangles (for bisection refinement) if the adjacent
-   //        tetrahedron was rotated.
 
    // If the mesh has Nodes, convert them from GridFunction to ParGridFunction?
 
@@ -1163,37 +1176,21 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
    group_stria.ShiftUpI();
    group_squad.ShiftUpI();
 
-   // determine sedge_ledge
-   if (shared_edges.Size() > 0)
-   {
-      DSTable v_to_v(NumOfVertices);
-      GetVertexToVertexTable(v_to_v);
-      for (int se = 0; se < shared_edges.Size(); se++)
-      {
-         const int *v = shared_edges[se]->GetVertices();
-         const int l_edge = v_to_v(v[0], v[1]);
-         MFEM_ASSERT(l_edge >= 0, "invalid shared edge");
-         sedge_ledge[se] = l_edge;
-      }
-   }
+   FinalizeParTopo();
+}
 
-   // determine sface_lface
-   if (sface_lface.Size() > 0)
-   {
-      STable3D *faces_tbl = GetFacesTable();
-      const int nst = shared_trias.Size();
-      for (int st = 0; st < nst; st++)
-      {
-         const int *v = shared_trias[st].v;
-         sface_lface[st] = (*faces_tbl)(v[0], v[1], v[2]);
-      }
-      for (int sq = 0; sq < shared_quads.Size(); sq++)
-      {
-         const int *v = shared_quads[sq].v;
-         sface_lface[nst+sq] = (*faces_tbl)(v[0], v[1], v[2], v[3]);
-      }
-      delete faces_tbl;
-   }
+void ParMesh::Finalize(bool refine, bool fix_orientation)
+{
+   const int meshgen_save = meshgen; // Mesh::Finalize() may call SetMeshGen()
+
+   Mesh::Finalize(refine, fix_orientation);
+
+   meshgen = meshgen_save;
+   // Note: if Mesh::Finalize() calls MarkTetMeshForRefinement() then the
+   //       shared_trias have been rotated as necessary.
+
+   // Setup secondary parallel mesh data: sedge_ledge, sface_lface
+   FinalizeParTopo();
 }
 
 void ParMesh::GroupEdge(int group, int i, int &edge, int &o)
@@ -1253,7 +1250,10 @@ void ParMesh::MarkTetMeshForRefinement(DSTable &v_to_v)
    Array<Pair<int,int> > sedge_ord_map(shared_edges.Size());
    for (int k = 0; k < shared_edges.Size(); k++)
    {
-      sedge_ord[k] = order[sedge_ledge[group_sedge.GetJ()[k]]];
+      // sedge_ledge may be undefined -- use shared_edges and v_to_v instead
+      const int sedge = group_sedge.GetJ()[k];
+      const int *v = shared_edges[sedge]->GetVertices();
+      sedge_ord[k] = order[v_to_v(v[0], v[1])];
    }
 
    sedge_comm.Bcast<int>(sedge_ord, 1);
@@ -1271,14 +1271,16 @@ void ParMesh::MarkTetMeshForRefinement(DSTable &v_to_v)
       SortPairs<int, int>(sedge_ord_map, n);
       for (int j = 0; j < n; j++)
       {
-         int sedge_from = group_sedge.GetJ()[k+j];
-         sedge_ord[k+j] = order[sedge_ledge[sedge_from]];
+         const int sedge_from = group_sedge.GetJ()[k+j];
+         const int *v = shared_edges[sedge_from]->GetVertices();
+         sedge_ord[k+j] = order[v_to_v(v[0], v[1])];
       }
       std::sort(&sedge_ord[k], &sedge_ord[k] + n);
       for (int j = 0; j < n; j++)
       {
-         int sedge_to = group_sedge.GetJ()[k+sedge_ord_map[j].two];
-         order[sedge_ledge[sedge_to]] = sedge_ord[k+j];
+         const int sedge_to = group_sedge.GetJ()[k+sedge_ord_map[j].two];
+         const int *v = shared_edges[sedge_to]->GetVertices();
+         order[v_to_v(v[0], v[1])] = sedge_ord[k+j];
       }
       k += n;
    }
@@ -2307,36 +2309,64 @@ void ParMesh::ReorientTetMesh()
 
    Mesh::ReorientTetMesh();
 
-   // The local edge and face numbering is changed therefore we need to
-   // update sedge_ledge and sface_lface.
+   const bool check_consistency = true;
+   if (check_consistency)
    {
-      DSTable v_to_v(NumOfVertices);
-      GetVertexToVertexTable(v_to_v);
-      for (int i = 0; i < shared_edges.Size(); i++)
+      // create a GroupCommunicator on the shared triangles
+      GroupCommunicator stria_comm(gtopo);
       {
-         const int *v = shared_edges[i]->GetVertices();
-         sedge_ledge[i] = v_to_v(v[0], v[1]);
+         // initialize stria_comm
+         Table &gr_stria = stria_comm.GroupLDofTable();
+         // gr_stria differs from group_stria - the latter does not store gr. 0
+         gr_stria.SetDims(GetNGroups(), shared_trias.Size());
+         gr_stria.GetI()[0] = 0;
+         for (int gr = 1; gr <= GetNGroups(); gr++)
+         {
+            gr_stria.GetI()[gr] = group_stria.GetI()[gr-1];
+         }
+         for (int k = 0; k < shared_trias.Size(); k++)
+         {
+            gr_stria.GetJ()[k] = group_stria.GetJ()[k];
+         }
+         stria_comm.Finalize();
+      }
+      Array<int> stria_flag(shared_trias.Size());
+      for (int i = 0; i < stria_flag.Size(); i++)
+      {
+         const int *v = shared_trias[i].v;
+         if (v[0] < v[1])
+         {
+            stria_flag[i] = (v[0] < v[2]) ? 0 : 2;
+         }
+         else // v[1] < v[0]
+         {
+            stria_flag[i] = (v[1] < v[2]) ? 1 : 2;
+         }
+      }
+      Array<int> stria_master_flag(stria_flag);
+      stria_comm.Bcast(stria_master_flag);
+      for (int i = 0; i < stria_flag.Size(); i++)
+      {
+         MFEM_VERIFY(stria_flag[i] == stria_master_flag[i],
+                     "inconsistent vertex ordering found");
       }
    }
 
-   // Rotate shared faces and update sface_lface.
+   // Rotate shared triangle faces.
    // Note that no communication is needed to ensure that the shared
    // faces are rotated in the same way in both processors. This is
    // automatic due to various things, e.g. the global to local vertex
    // mapping preserves the global order; also the way new vertices
    // are introduced during refinement is essential.
+   for (int i = 0; i < shared_trias.Size(); i++)
    {
-      STable3D *faces_tbl = GetFacesTable();
-      for (int i = 0; i < shared_trias.Size(); i++)
-      {
-         int *v = shared_trias[i].v;
-
-         Rotate3(v[0], v[1], v[2]);
-
-         sface_lface[i] = (*faces_tbl)(v[0], v[1], v[2]);
-      }
-      delete faces_tbl;
+      int *v = shared_trias[i].v;
+      Rotate3(v[0], v[1], v[2]);
    }
+
+   // The local edge and face numbering is changed therefore we need to
+   // update sedge_ledge and sface_lface.
+   FinalizeParTopo();
 }
 
 void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
@@ -2544,14 +2574,17 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 
       DeleteLazyTables();
 
+      const int old_nv = NumOfVertices;
+      NumOfVertices = vertices.Size();
+
+      RefineGroups(old_nv, v_to_v);
+
       // 5. Update the groups after refinement.
       if (el_to_face != NULL)
       {
-         RefineGroups(v_to_v);
-         // GetElementToFaceTable(); // Called by RefineGroups
+         GetElementToFaceTable();
          GenerateFaces();
       }
-      NumOfVertices = vertices.Size();
 
       // 6. Update element-to-edge relations.
       if (el_to_edge != NULL)
@@ -3032,22 +3065,13 @@ void ParMesh::RefineGroups(const DSTable &v_to_v, int *middle)
       }
    }
 
-   // Fix the local numbers of shared edges and faces
-   {
-      DSTable new_v_to_v(NumOfVertices);
-      GetVertexToVertexTable(new_v_to_v);
-      for (int i = 0; i < shared_edges.Size(); i++)
-      {
-         const int *v = shared_edges[i]->GetVertices();
-         sedge_ledge[i] = new_v_to_v(v[0], v[1]);
-      }
-   }
+   FinalizeParTopo();
 
    group_svert.SetIJ(I_group_svert, J_group_svert);
    group_sedge.SetIJ(I_group_sedge, J_group_sedge);
 }
 
-void ParMesh::RefineGroups(const HashTable<Hashed2> &v_to_v)
+void ParMesh::RefineGroups(int old_nv, const HashTable<Hashed2> &v_to_v)
 {
    // Refine groups after LocalRefinement in 3D (tetrahedral meshes)
 
@@ -3094,7 +3118,7 @@ void ParMesh::RefineGroups(const HashTable<Hashed2> &v_to_v)
          const int attr = shared_edges[group_edges[i]]->GetAttribute();
          do
          {
-            ind += NumOfVertices;
+            ind += old_nv;
             // Add new shared vertex
             group_verts.Append(svert_lvert.Append(ind)-1);
             // Put the right sub-edge on top of the stack
@@ -3121,7 +3145,7 @@ void ParMesh::RefineGroups(const HashTable<Hashed2> &v_to_v)
             else
             {
                // The edge 'se' is refined
-               ind += NumOfVertices;
+               ind += old_nv;
                // Add new shared vertex
                group_verts.Append(svert_lvert.Append(ind)-1);
                // Put the left sub-edge on top of the stack
@@ -3144,7 +3168,7 @@ void ParMesh::RefineGroups(const HashTable<Hashed2> &v_to_v)
          const int edge_attr = 1;
          do
          {
-            ind += NumOfVertices;
+            ind += old_nv;
             // Add the refinement edge to the edge stack
             sedge_stack.Append(new Segment(v[2], ind, edge_attr));
             // Put the right sub-triangle on top of the face stack
@@ -3171,7 +3195,7 @@ void ParMesh::RefineGroups(const HashTable<Hashed2> &v_to_v)
             else
             {
                // The triangle 'st' is refined
-               ind += NumOfVertices;
+               ind += old_nv;
                // Add the refinement edge to the edge stack
                sedge_stack.Append(new Segment(v[2], ind, edge_attr));
                // Put the left sub-triangle on top of the face stack
@@ -3200,7 +3224,7 @@ void ParMesh::RefineGroups(const HashTable<Hashed2> &v_to_v)
             else
             {
                // The edge 'se' is refined
-               ind += NumOfVertices;
+               ind += old_nv;
                // Add new shared vertex
                group_verts.Append(svert_lvert.Append(ind)-1);
                // Put the left sub-edge on top of the stack
@@ -3221,27 +3245,7 @@ void ParMesh::RefineGroups(const HashTable<Hashed2> &v_to_v)
       J_group_stria.Append(group_trias);
    }
 
-   // Fix the local numbers of shared edges and faces: sedge_ledge, sface_lface
-   {
-      NumOfVertices = vertices.Size();
-      DSTable new_v_to_v(NumOfVertices);
-      GetVertexToVertexTable(new_v_to_v);
-      for (int i = 0; i < shared_edges.Size(); i++)
-      {
-         const int *v = shared_edges[i]->GetVertices();
-         sedge_ledge[i] = new_v_to_v(v[0], v[1]);
-      }
-   }
-   {
-      STable3D *faces_tbl = GetElementToFaceTable(1);
-      for (int i = 0; i < shared_trias.Size(); i++)
-      {
-         const int *v = shared_trias[i].v;
-         sface_lface[i] = (*faces_tbl)(v[0], v[1], v[2]);
-      }
-      // There are no quad shared faces
-      delete faces_tbl;
-   }
+   FinalizeParTopo();
 
    group_svert.SetIJ(I_group_svert, J_group_svert);
    group_sedge.SetIJ(I_group_sedge, J_group_sedge);
@@ -3296,14 +3300,7 @@ void ParMesh::UniformRefineGroups2D(int old_nv)
       sedges.CopyTo(J_group_sedge + I_group_sedge[group]);
    }
 
-   // Fix the local numbers of shared edges
-   DSTable v_to_v(NumOfVertices);
-   GetVertexToVertexTable(v_to_v);
-   for (int i = 0; i < shared_edges.Size(); i++)
-   {
-      const int *v = shared_edges[i]->GetVertices();
-      sedge_ledge[i] = v_to_v(v[0], v[1]);
-   }
+   FinalizeParTopo();
 
    group_svert.SetIJ(I_group_svert, J_group_svert);
    group_sedge.SetIJ(I_group_sedge, J_group_sedge);
@@ -3450,30 +3447,7 @@ void ParMesh::UniformRefineGroups3D(int old_nv, int old_nedges,
       group_quads.CopyTo(J_group_squad + I_group_squad[group]);
    }
 
-   sface_lface.SetSize(shared_trias.Size()+shared_quads.Size());
-
-   // Fix the local numbers of shared edges and faces
-   DSTable new_v_to_v(NumOfVertices);
-   GetVertexToVertexTable(new_v_to_v);
-   for (int i = 0; i < shared_edges.Size(); i++)
-   {
-      const int *v = shared_edges[i]->GetVertices();
-      sedge_ledge[i] = new_v_to_v(v[0], v[1]);
-   }
-
-   STable3D *faces_tbl = GetFacesTable();
-   const int nst = shared_trias.Size();
-   for (int i = 0; i < nst; i++)
-   {
-      const int *v = shared_trias[i].v;
-      sface_lface[i] = (*faces_tbl)(v[0], v[1], v[2]);
-   }
-   for (int i = 0; i < shared_quads.Size(); i++)
-   {
-      const int *v = shared_quads[i].v;
-      sface_lface[nst+i] = (*faces_tbl)(v[0], v[1], v[2], v[3]);
-   }
-   delete faces_tbl;
+   FinalizeParTopo();
 
    group_svert.SetIJ(I_group_svert, J_group_svert);
    group_sedge.SetIJ(I_group_sedge, J_group_sedge);
@@ -3501,7 +3475,7 @@ void ParMesh::UniformRefinement2D()
    UpdateNodes();
 }
 
-void ParMesh::UniformRefinement3D(Array<int> *)
+void ParMesh::UniformRefinement3D()
 {
    DeleteFaceNbrData();
 
@@ -3512,12 +3486,15 @@ void ParMesh::UniformRefinement3D(Array<int> *)
    GetVertexToVertexTable(v_to_v);
    STable3D *faces_tbl = GetFacesTable();
 
-   // call Mesh::UniformRefinement3D so that it won't update the nodes
+   // call Mesh::UniformRefinement3D_base so that it won't update the nodes
    Array<int> f2qf;
    {
       GridFunction *nodes = Nodes;
       Nodes = NULL;
-      Mesh::UniformRefinement3D(&f2qf);
+      UniformRefinement3D_base(&f2qf, &v_to_v);
+      // Note: for meshes that have triangular faces, v_to_v is modified by the
+      //       above call to return different edge indices - this is used when
+      //       updating the groups. This is needed by ReorientTetMesh().
       Nodes = nodes;
    }
 
@@ -4750,8 +4727,9 @@ void ParMesh::PrintInfo(std::ostream &out)
    for (i = 0; i < NumOfElements; i++)
    {
       GetElementJacobian(i, J);
-      h = pow(fabs(J.Det()), 1.0/double(Dim));
-      kappa = J.CalcSingularvalue(0) / J.CalcSingularvalue(Dim-1);
+      h = pow(fabs(J.Weight()), 1.0/double(Dim));
+      kappa = (Dim == spaceDim) ?
+              J.CalcSingularvalue(0) / J.CalcSingularvalue(Dim-1) : -1.0;
       if (i == 0)
       {
          h_min = h_max = h;

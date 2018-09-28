@@ -270,8 +270,8 @@ void Tetrahedron::MarkEdge(const DSTable &v_to_v, const int *length)
 
    if (j)
    {
-      j = indices[0]; indices[0] = indices[1]; indices[1] = j;
-      j = indices[2]; indices[2] = indices[3]; indices[3] = j;
+      mfem::Swap(indices[0], indices[1]);
+      mfem::Swap(indices[2], indices[3]);
    }
 
    CreateRefinementFlag(ind, type);

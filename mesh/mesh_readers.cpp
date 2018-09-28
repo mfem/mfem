@@ -1451,7 +1451,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 
    CubitElementType cubit_element_type = ELEMENT_TRI3; // suppress a warning
    CubitFaceType cubit_face_type;
-   int num_element_linear_nodes;
+   int num_element_linear_nodes = 0; // initialize to suppress a warning
 
    if (num_dim == 2)
    {

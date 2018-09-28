@@ -2129,6 +2129,18 @@ void Mesh::Finalize(bool refine, bool fix_orientation)
 
    // check and fix boundary element orientation
    CheckBdrElementOrientation();
+
+#ifdef MFEM_DEBUG
+   if (Dim >= 2)
+   {
+      const int num_faces = GetNumFaces();
+      for (int i = 0; i < num_faces; i++)
+      {
+         MFEM_VERIFY(faces_info[i].Elem2No < 0 ||
+                     faces_info[i].Elem2Inf%2 != 0, "invalid mesh topology");
+      }
+   }
+#endif
 }
 
 void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
@@ -4471,12 +4483,13 @@ void Mesh::AddSegmentFaceElement(int lf, int gf, int el, int v0, int v1)
       }
       else if ( v[0] == v0 && v[1] == v1 )
       {
+         // Temporarily allow even edge orientations: see the remark in
+         // AddTriangleFaceElement().
          faces_info[gf].Elem2Inf = 64 * lf;
       }
       else
       {
-         MFEM_ASSERT((v[1] == v0 && v[0] == v1)||
-                     (v[0] == v0 && v[1] == v1), "");
+         MFEM_ABORT("internal error");
       }
    }
 }
@@ -4496,7 +4509,10 @@ void Mesh::AddTriangleFaceElement(int lf, int gf, int el,
    {
       int orientation, vv[3] = { v0, v1, v2 };
       orientation = GetTriOrientation(faces[gf]->GetVertices(), vv);
-      MFEM_ASSERT(orientation % 2 != 0, "");
+      // In a valid mesh, we should have (orientation % 2 != 0), however, if
+      // one of the adjacent elements has wrong orientation, both face
+      // orientations can be even, until the element orientations are fixed.
+      // MFEM_ASSERT(orientation % 2 != 0, "");
       faces_info[gf].Elem2No  = el;
       faces_info[gf].Elem2Inf = 64 * lf + orientation;
    }
@@ -4517,7 +4533,9 @@ void Mesh::AddQuadFaceElement(int lf, int gf, int el,
    {
       int vv[4] = { v0, v1, v2, v3 };
       int oo = GetQuadOrientation(faces[gf]->GetVertices(), vv);
-      MFEM_ASSERT(oo % 2 != 0, "");
+      // Temporarily allow even face orientations: see the remark in
+      // AddTriangleFaceElement().
+      // MFEM_ASSERT(oo % 2 != 0, "");
       faces_info[gf].Elem2No  = el;
       faces_info[gf].Elem2Inf = 64 * lf + oo;
    }
@@ -5898,7 +5916,12 @@ void Mesh::UniformRefinement2D()
 #endif
 }
 
-void Mesh::UniformRefinement3D(Array<int> *f2qf_ptr)
+static inline double sqr(const double &x)
+{
+   return x*x;
+}
+
+void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
 {
    DeleteLazyTables();
 
@@ -5939,11 +5962,61 @@ void Mesh::UniformRefinement3D(Array<int> *f2qf_ptr)
    }
 
    int hex_counter = 0;
-   for (int i = 0; i < elements.Size(); i++)
+   if (HasGeometry(Geometry::CUBE))
    {
-      if (elements[i]->GetType() == Element::HEXAHEDRON)
+      for (int i = 0; i < elements.Size(); i++)
       {
-         hex_counter++;
+         if (elements[i]->GetType() == Element::HEXAHEDRON)
+         {
+            hex_counter++;
+         }
+      }
+   }
+
+   // Map from edge-index to vertex-index, needed for ReorientTetMesh() for
+   // parallel meshes.
+   Array<int> e2v;
+   if (HasGeometry(Geometry::TETRAHEDRON))
+   {
+      e2v.SetSize(NumOfEdges);
+
+      DSTable *v_to_v_ptr = v_to_v_p;
+      if (!v_to_v_p)
+      {
+         v_to_v_ptr = new DSTable(NumOfVertices);
+         GetVertexToVertexTable(*v_to_v_ptr);
+      }
+
+      Array<Pair<int,int> > J_v2v(NumOfEdges); // (second vertex id, edge id)
+      J_v2v.SetSize(0);
+      for (int i = 0; i < NumOfVertices; i++)
+      {
+         Pair<int,int> *row_start = J_v2v.end();
+         for (DSTable::RowIterator it(*v_to_v_ptr, i); !it; ++it)
+         {
+            J_v2v.Append(Pair<int,int>(it.Column(), it.Index()));
+         }
+         std::sort(row_start, J_v2v.end());
+      }
+
+      for (int i = 0; i < J_v2v.Size(); i++)
+      {
+         e2v[J_v2v[i].two] = i;
+      }
+
+      if (!v_to_v_p)
+      {
+         delete v_to_v_ptr;
+      }
+      else
+      {
+         for (int i = 0; i < NumOfVertices; i++)
+         {
+            for (DSTable::RowIterator it(*v_to_v_ptr, i); !it; ++it)
+            {
+               it.SetIndex(e2v[it.Index()]);
+            }
+         }
       }
    }
 
@@ -5955,6 +6028,7 @@ void Mesh::UniformRefinement3D(Array<int> *f2qf_ptr)
 
    vertices.SetSize(oelem + hex_counter);
    elements.SetSize(8 * NumOfElements);
+   CoarseFineTr.embeddings.SetSize(elements.Size());
    hex_counter = 0;
    for (int i = 0; i < NumOfElements; i++)
    {
@@ -5963,7 +6037,14 @@ void Mesh::UniformRefinement3D(Array<int> *f2qf_ptr)
       int *v = elements[i]->GetVertices();
       const int *e = el_to_edge->GetRow(i);
       const int j = NumOfElements + 7 * i;
-      int vv[4];
+      int vv[4], ev[12];
+
+      if (e2v.Size())
+      {
+         const int ne = el_to_edge->RowSize(i);
+         for (int k = 0; k < ne; k++) { ev[k] = e2v[e[k]]; }
+         e = ev;
+      }
 
       switch (el_type)
       {
@@ -5978,6 +6059,128 @@ void Mesh::UniformRefinement3D(Array<int> *f2qf_ptr)
                AverageVertices(vv, 2, oedge+e[ei]);
             }
 
+            // Algorithm for choosing refinement type:
+            // 0: smallest octahedron diagonal
+            // 1: best aspect ratio
+            const int rt_algo = 1;
+            // Refinement type:
+            // 0: (v0,v1)-(v2,v3), 1: (v0,v2)-(v1,v3), 2: (v0,v3)-(v1,v2)
+            // 0:      e0-e5,      1:      e1-e4,      2:      e2-e3
+            int rt;
+            ElementTransformation *T = GetElementTransformation(i);
+            T->SetIntPoint(&Geometries.GetCenter(Geometry::TETRAHEDRON));
+            const DenseMatrix &J = T->Jacobian();
+            if (rt_algo == 0)
+            {
+               // smallest octahedron diagonal
+               double len_sqr, min_len;
+
+               min_len = sqr(J(0,0)-J(0,1)-J(0,2)) +
+                         sqr(J(1,0)-J(1,1)-J(1,2)) +
+                         sqr(J(2,0)-J(2,1)-J(2,2));
+               rt = 0;
+
+               len_sqr = sqr(J(0,1)-J(0,0)-J(0,2)) +
+                         sqr(J(1,1)-J(1,0)-J(1,2)) +
+                         sqr(J(2,1)-J(2,0)-J(2,2));
+               if (len_sqr < min_len) { min_len = len_sqr; rt = 1; }
+
+               len_sqr = sqr(J(0,2)-J(0,0)-J(0,1)) +
+                         sqr(J(1,2)-J(1,0)-J(1,1)) +
+                         sqr(J(2,2)-J(2,0)-J(2,1));
+               if (len_sqr < min_len) { rt = 2; }
+            }
+            else
+            {
+               // best aspect ratio
+               double Em_data[18], Js_data[9], Jp_data[9];
+               DenseMatrix Em(Em_data, 3, 6);
+               DenseMatrix Js(Js_data, 3, 3), Jp(Jp_data, 3, 3);
+               double ar1, ar2, kappa, kappa_min;
+
+               for (int s = 0; s < 3; s++)
+               {
+                  for (int t = 0; t < 3; t++)
+                  {
+                     Em(t,s) = 0.5*J(t,s);
+                  }
+               }
+               for (int t = 0; t < 3; t++)
+               {
+                  Em(t,3) = 0.5*(J(t,0)+J(t,1));
+                  Em(t,4) = 0.5*(J(t,0)+J(t,2));
+                  Em(t,5) = 0.5*(J(t,1)+J(t,2));
+               }
+
+               // rt = 0; Em: {0,5,1,2}, {0,5,2,4}
+               for (int t = 0; t < 3; t++)
+               {
+                  Js(t,0) = Em(t,5)-Em(t,0);
+                  Js(t,1) = Em(t,1)-Em(t,0);
+                  Js(t,2) = Em(t,2)-Em(t,0);
+               }
+               Geometries.JacToPerfJac(Geometry::TETRAHEDRON, Js, Jp);
+               ar1 = Jp.CalcSingularvalue(0)/Jp.CalcSingularvalue(2);
+               for (int t = 0; t < 3; t++)
+               {
+                  Js(t,0) = Em(t,5)-Em(t,0);
+                  Js(t,1) = Em(t,2)-Em(t,0);
+                  Js(t,2) = Em(t,4)-Em(t,0);
+               }
+               Geometries.JacToPerfJac(Geometry::TETRAHEDRON, Js, Jp);
+               ar2 = Jp.CalcSingularvalue(0)/Jp.CalcSingularvalue(2);
+               kappa_min = std::max(ar1, ar2);
+               rt = 0;
+
+               // rt = 1; Em: {1,0,4,2}, {1,2,4,5}
+               for (int t = 0; t < 3; t++)
+               {
+                  Js(t,0) = Em(t,0)-Em(t,1);
+                  Js(t,1) = Em(t,4)-Em(t,1);
+                  Js(t,2) = Em(t,2)-Em(t,1);
+               }
+               Geometries.JacToPerfJac(Geometry::TETRAHEDRON, Js, Jp);
+               ar1 = Jp.CalcSingularvalue(0)/Jp.CalcSingularvalue(2);
+               for (int t = 0; t < 3; t++)
+               {
+                  Js(t,0) = Em(t,2)-Em(t,1);
+                  Js(t,1) = Em(t,4)-Em(t,1);
+                  Js(t,2) = Em(t,5)-Em(t,1);
+               }
+               Geometries.JacToPerfJac(Geometry::TETRAHEDRON, Js, Jp);
+               ar2 = Jp.CalcSingularvalue(0)/Jp.CalcSingularvalue(2);
+               kappa = std::max(ar1, ar2);
+               if (kappa < kappa_min) { kappa_min = kappa; rt = 1; }
+
+               // rt = 2; Em: {2,0,1,3}, {2,1,5,3}
+               for (int t = 0; t < 3; t++)
+               {
+                  Js(t,0) = Em(t,0)-Em(t,2);
+                  Js(t,1) = Em(t,1)-Em(t,2);
+                  Js(t,2) = Em(t,3)-Em(t,2);
+               }
+               Geometries.JacToPerfJac(Geometry::TETRAHEDRON, Js, Jp);
+               ar1 = Jp.CalcSingularvalue(0)/Jp.CalcSingularvalue(2);
+               for (int t = 0; t < 3; t++)
+               {
+                  Js(t,0) = Em(t,1)-Em(t,2);
+                  Js(t,1) = Em(t,5)-Em(t,2);
+                  Js(t,2) = Em(t,3)-Em(t,2);
+               }
+               Geometries.JacToPerfJac(Geometry::TETRAHEDRON, Js, Jp);
+               ar2 = Jp.CalcSingularvalue(0)/Jp.CalcSingularvalue(2);
+               kappa = std::max(ar1, ar2);
+               if (kappa < kappa_min) { rt = 2; }
+            }
+
+            static const int mv_all[3][4][4] =
+            {
+               { {0,5,1,2}, {0,5,2,4}, {0,5,4,3}, {0,5,3,1} }, // rt = 0
+               { {1,0,4,2}, {1,2,4,5}, {1,5,4,3}, {1,3,4,0} }, // rt = 1
+               { {2,0,1,3}, {2,1,5,3}, {2,5,4,3}, {2,4,0,3} }  // rt = 2
+            };
+            const int (&mv)[4][4] = mv_all[rt];
+
 #ifndef MFEM_USE_MEMALLOC
             elements[j+0] = new Tetrahedron(oedge+e[0], v[1],
                                             oedge+e[3], oedge+e[4], attr);
@@ -5985,14 +6188,12 @@ void Mesh::UniformRefinement3D(Array<int> *f2qf_ptr)
                                             v[2], oedge+e[5], attr);
             elements[j+2] = new Tetrahedron(oedge+e[2], oedge+e[4],
                                             oedge+e[5], v[3], attr);
-            elements[j+3] = new Tetrahedron(oedge+e[2], oedge+e[0],
-                                            oedge+e[1], oedge+e[3], attr);
-            elements[j+4] = new Tetrahedron(oedge+e[2], oedge+e[1],
-                                            oedge+e[5], oedge+e[3], attr);
-            elements[j+5] = new Tetrahedron(oedge+e[2], oedge+e[5],
-                                            oedge+e[4], oedge+e[3], attr);
-            elements[j+6] = new Tetrahedron(oedge+e[2], oedge+e[4],
-                                            oedge+e[0], oedge+e[3], attr);
+            for (int k = 0; k < 4; k++)
+            {
+               elements[j+k+3] =
+                  new Tetrahedron(oedge+e[mv[k][0]], oedge+e[mv[k][1]],
+                                  oedge+e[mv[k][2]], oedge+e[mv[k][3]], attr);
+            }
 #else
             Tetrahedron *tet;
             elements[j+0] = tet = TetMemory.Alloc();
@@ -6001,19 +6202,31 @@ void Mesh::UniformRefinement3D(Array<int> *f2qf_ptr)
             tet->Init(oedge+e[1], oedge+e[3], v[2], oedge+e[5], attr);
             elements[j+2] = tet = TetMemory.Alloc();
             tet->Init(oedge+e[2], oedge+e[4], oedge+e[5], v[3], attr);
-            elements[j+3] = tet = TetMemory.Alloc();
-            tet->Init(oedge+e[2], oedge+e[0], oedge+e[1], oedge+e[3], attr);
-            elements[j+4] = tet = TetMemory.Alloc();
-            tet->Init(oedge+e[2], oedge+e[1], oedge+e[5], oedge+e[3], attr);
-            elements[j+5] = tet = TetMemory.Alloc();
-            tet->Init(oedge+e[2], oedge+e[5], oedge+e[4], oedge+e[3], attr);
-            elements[j+6] = tet = TetMemory.Alloc();
-            tet->Init(oedge+e[2], oedge+e[4], oedge+e[0], oedge+e[3], attr);
+            for (int k = 0; k < 4; k++)
+            {
+               elements[j+k+3] = tet = TetMemory.Alloc();
+               tet->Init(oedge+e[mv[k][0]], oedge+e[mv[k][1]],
+                         oedge+e[mv[k][2]], oedge+e[mv[k][3]], attr);
+            }
 #endif
 
             v[1] = oedge+e[0];
             v[2] = oedge+e[1];
             v[3] = oedge+e[2];
+            ((Tetrahedron*)elements[i])->SetRefinementFlag(0);
+
+            CoarseFineTr.embeddings[i].parent = i;
+            CoarseFineTr.embeddings[i].matrix = 0;
+            for (int k = 0; k < 3; k++)
+            {
+               CoarseFineTr.embeddings[j+k].parent = i;
+               CoarseFineTr.embeddings[j+k].matrix = k+1;
+            }
+            for (int k = 0; k < 4; k++)
+            {
+               CoarseFineTr.embeddings[j+k+3].parent = i;
+               CoarseFineTr.embeddings[j+k+3].matrix = 4*(rt+1)+k;
+            }
          }
          break;
 
@@ -6157,6 +6370,14 @@ void Mesh::UniformRefinement3D(Array<int> *f2qf_ptr)
       int *v = boundary[i]->GetVertices();
       const int *e = bel_to_edge->GetRow(i);
       const int j = NumOfBdrElements + 3 * i;
+      int ev[4];
+
+      if (e2v.Size())
+      {
+         const int ne = bel_to_edge->RowSize(i);
+         for (int k = 0; k < ne; k++) { ev[k] = e2v[e[k]]; }
+         e = ev;
+      }
 
       if (bdr_el_type == Element::TRIANGLE)
       {
@@ -6190,12 +6411,26 @@ void Mesh::UniformRefinement3D(Array<int> *f2qf_ptr)
    }
 
    static const double A = 0.0, B = 0.5, C = 1.0;
-   static double tet_children[3*4*8] =
+   static double tet_children[3*4*16] =
    {
       A,A,A, B,A,A, A,B,A, A,A,B,
       B,A,A, C,A,A, B,B,A, B,A,B,
       A,B,A, B,B,A, A,C,A, A,B,B,
       A,A,B, B,A,B, A,B,B, A,A,C,
+      // edge coordinates:
+      //    0 -> B,A,A  1 -> A,B,A  2 -> A,A,B
+      //    3 -> B,B,A  4 -> B,A,B  5 -> A,B,B
+      // rt = 0: {0,5,1,2}, {0,5,2,4}, {0,5,4,3}, {0,5,3,1}
+      B,A,A, A,B,B, A,B,A, A,A,B,
+      B,A,A, A,B,B, A,A,B, B,A,B,
+      B,A,A, A,B,B, B,A,B, B,B,A,
+      B,A,A, A,B,B, B,B,A, A,B,A,
+      // rt = 1: {1,0,4,2}, {1,2,4,5}, {1,5,4,3}, {1,3,4,0}
+      A,B,A, B,A,A, B,A,B, A,A,B,
+      A,B,A, A,A,B, B,A,B, A,B,B,
+      A,B,A, A,B,B, B,A,B, B,B,A,
+      A,B,A, B,B,A, B,A,B, B,A,A,
+      // rt = 2: {2,0,1,3}, {2,1,5,3}, {2,5,4,3}, {2,4,0,3}
       A,A,B, B,A,A, A,B,A, B,B,A,
       A,A,B, A,B,A, A,B,B, B,B,A,
       A,A,B, A,B,B, B,A,B, B,B,A,
@@ -6225,16 +6460,16 @@ void Mesh::UniformRefinement3D(Array<int> *f2qf_ptr)
    };
 
    CoarseFineTr.point_matrices[Geometry::TETRAHEDRON].
-   UseExternalData(tet_children, 3, 4, 8);
+   UseExternalData(tet_children, 3, 4, 16);
    CoarseFineTr.point_matrices[Geometry::PRISM].
    UseExternalData(pri_children, 3, 6, 8);
    CoarseFineTr.point_matrices[Geometry::CUBE].
    UseExternalData(hex_children, 3, 8, 8);
 
-   CoarseFineTr.embeddings.SetSize(elements.Size());
-
    for (int i = 0; i < elements.Size(); i++)
    {
+      // Tetrahedron elements are handled above:
+      if (elements[i]->GetType() == Element::TETRAHEDRON) { continue; }
       Embedding &emb = CoarseFineTr.embeddings[i];
       emb.parent = (i < NumOfElements) ? i : (i - NumOfElements) / 7;
       emb.matrix = (i < NumOfElements) ? 0 : (i - NumOfElements) % 7 + 1;
@@ -6395,6 +6630,11 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
       // 1. Hash table of vertex to vertex connections corresponding to refined
       //    edges.
       HashTable<Hashed2> v_to_v;
+
+      MFEM_VERIFY(GetNE() == 0 ||
+                  ((Tetrahedron*)elements[0])->GetRefinementFlag() != 0,
+                  "tetrahedral mesh is not marked for refinement:"
+                  " call Finalize(true)");
 
       // 2. Do the red refinement.
       int ii;
@@ -6762,11 +7002,15 @@ void Mesh::GetElementData(const Array<Element*> &elem_array, int geom,
    }
 }
 
-void Mesh::UniformRefinement()
+void Mesh::UniformRefinement(int ref_algo)
 {
    if (NURBSext)
    {
       NURBSUniformRefinement();
+   }
+   else if (ref_algo == 0 && Dim == 3 && meshgen == 1)
+   {
+      UniformRefinement3D();
    }
    else if (meshgen == 1 || ncmesh)
    {
@@ -7579,7 +7823,7 @@ void Mesh::Printer(std::ostream &out, std::string section_delimiter) const
        "# SQUARE      = 3\n"
        "# TETRAHEDRON = 4\n"
        "# CUBE        = 5\n"
-       "# PRISM       = 6\n" // FIXME: only with format v1.0.1
+       "# PRISM       = 6\n"
        "#\n";
 
    out << "\ndimension\n" << Dim
@@ -8113,7 +8357,7 @@ void Mesh::PrintWithPartitioning(int *partitioning, std::ostream &out,
        "# SQUARE      = 3\n"
        "# TETRAHEDRON = 4\n"
        "# CUBE        = 5\n"
-       "# PRISM       = 6\n" // FIXME: only with format v1.0.1
+       "# PRISM       = 6\n"
        "#\n";
 
    out << "\ndimension\n" << Dim
@@ -8608,7 +8852,7 @@ void Mesh::PrintSurfaces(const Table & Aface_face, std::ostream &out) const
        "# SQUARE      = 3\n"
        "# TETRAHEDRON = 4\n"
        "# CUBE        = 5\n"
-       "# PRISM       = 6\n" // FIXME: only with format v1.0.1
+       "# PRISM       = 6\n"
        "#\n";
 
    out << "\ndimension\n" << Dim

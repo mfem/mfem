@@ -237,6 +237,7 @@ int main (int argc, char *argv[])
          cout <<
               "Choose type of refinement:\n"
               "s) standard refinement with Mesh::UniformRefinement()\n"
+              "b) Mesh::UniformRefinement() (bisection for tet meshes)\n"
               "u) uniform refinement with a factor\n"
               "g) non-uniform refinement (Gauss-Lobatto) with a factor\n"
               "l) refine locally using the region() function\n"
@@ -247,6 +248,11 @@ int main (int argc, char *argv[])
          {
             case 's':
                mesh->UniformRefinement();
+               // Make sure tet-only meshes are marked for local refinement.
+               mesh->Finalize(true);
+               break;
+            case 'b':
+               mesh->UniformRefinement(1); // ref_algo = 1
                break;
             case 'u':
             case 'g':

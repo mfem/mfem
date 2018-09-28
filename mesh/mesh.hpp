@@ -283,11 +283,14 @@ protected:
    /// Refine a mixed 2D mesh uniformly.
    virtual void UniformRefinement2D();
 
+   /* If @a f2qf is not NULL, adds all quadrilateral faces to @a f2qf which
+      represents a "face-to-quad-face" index map. When all faces are quads, the
+      array @a f2qf is kept empty since it is not needed. */
+   void UniformRefinement3D_base(Array<int> *f2qf = NULL,
+                                 DSTable *v_to_v_p = NULL);
+
    /// Refine a mixed 3D mesh uniformly.
-   /** If @a f2qf is not NULL, adds all quadrilateral faces to @a f2qf which
-       represents a "face-to-quad-face" index map. When all faces are quads, the
-       array @a f2qf is kept empty since it is not needed. */
-   virtual void UniformRefinement3D(Array<int> *f2qf = NULL);
+   virtual void UniformRefinement3D() { UniformRefinement3D_base(); }
 
    /// Refine NURBS mesh.
    virtual void NURBSUniformRefinement();
@@ -544,7 +547,7 @@ public:
 
        Before calling this method, call FinalizeTopology() and ensure that the
        Mesh vertices or nodes are set. */
-   void Finalize(bool refine = false, bool fix_orientation = false);
+   virtual void Finalize(bool refine = false, bool fix_orientation = false);
 
    void SetAttributes();
 
@@ -1021,8 +1024,18 @@ public:
    void SetCurvature(int order, bool discont = false, int space_dim = -1,
                      int ordering = 1);
 
-   /** Refine all mesh elements. */
-   void UniformRefinement();
+   /// Refine all mesh elements.
+   /** @param[in] ref_algo  Refinement algorithm. Currently used only for pure
+                            tetrahedral meshes. If set to zero (default), a tet
+                            mesh will be refined using algorithm A, that
+                            produces elements with better quality compared to
+                            algorithm B used when the parameter is non-zero.
+       For tetrahedral meshes, after using algorithm A, the mesh cannot be
+       refined locally using methods like GeneralRefinement() unless it is
+       re-finalized using Finalize() with the parameter @a refine set to true.
+       Note that calling Finalize() in this way will generally invalidate any
+       FiniteElementSpace%s and GridFuncion%s defined on the mesh. */
+   void UniformRefinement(int ref_algo = 0);
 
    /** Refine selected mesh elements. Refinement type can be specified for each
        element. The function can do conforming refinement of triangles and
