@@ -303,11 +303,9 @@ void ParFiniteElementSpace::GetGroupComm(
          {
             pmesh->GroupTriangle(gr, j, k, o);
 
-            Geometry::Type face_geom = mesh->GetFaceBaseGeometry(k);
-
             dofs.SetSize(ntd);
             m = nvdofs+nedofs+fdofs[k];
-            ind = fec->DofOrderForOrientation(face_geom, o);
+            ind = fec->DofOrderForOrientation(Geometry::TRIANGLE, o);
             for (l = 0; l < ntd; l++)
             {
                if (ind[l] < 0)
@@ -343,11 +341,9 @@ void ParFiniteElementSpace::GetGroupComm(
          {
             pmesh->GroupQuadrilateral(gr, j, k, o);
 
-            Geometry::Type face_geom = mesh->GetFaceBaseGeometry(k);
-
             dofs.SetSize(nqd);
             m = nvdofs+nedofs+fdofs[k];
-            ind = fec->DofOrderForOrientation(face_geom, o);
+            ind = fec->DofOrderForOrientation(Geometry::SQUARE, o);
             for (l = 0; l < nqd; l++)
             {
                if (ind[l] < 0)

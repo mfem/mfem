@@ -87,6 +87,9 @@ protected:
    // Convert the local 'meshgen' to a global one.
    void ReduceMeshGen();
 
+   // Determine sedge_ledge and sface_lface.
+   void FinalizeParTopo();
+
    // Mark all tets to ensure consistency across MPI tasks; also mark the
    // shared and boundary triangle faces using the consistently marked tets.
    virtual void MarkTetMeshForRefinement(DSTable &v_to_v);
@@ -111,7 +114,7 @@ protected:
    void RefineGroups(const DSTable &v_to_v, int *middle);
 
    /// Update the groups after tetrahedron refinement
-   void RefineGroups(const HashTable<Hashed2> &v_to_v);
+   void RefineGroups(int old_nv, const HashTable<Hashed2> &v_to_v);
 
    void UniformRefineGroups2D(int old_nv);
 
@@ -125,7 +128,7 @@ protected:
    virtual void UniformRefinement2D();
 
    /// Refine a mixed 3D mesh uniformly.
-   virtual void UniformRefinement3D(Array<int> *f2qf = NULL);
+   virtual void UniformRefinement3D();
 
    virtual void NURBSUniformRefinement();
 
@@ -169,6 +172,8 @@ public:
 
        @note The constructed ParMesh is linear, i.e. it does not have nodes. */
    ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type);
+
+   virtual void Finalize(bool refine = false, bool fix_orientation = false);
 
    MPI_Comm GetComm() const { return MyComm; }
    int GetNRanks() const { return NRanks; }
