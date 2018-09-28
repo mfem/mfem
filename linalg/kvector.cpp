@@ -47,11 +47,8 @@ static double cub_vector_dot(const int N,
       //d_storage = mm<char>::operator new(storage_bytes);
       cuMemAlloc((CUdeviceptr*)&d_storage, storage_bytes*sizeof(double));
    }
-   dbg("[cub_vector_dot] Dot");
    cub::DeviceReduce::Dot(d_storage, storage_bytes, vec1, vec2, d_dot, N);
-   dbg("[cub_vector_dot] D2H");
    memcpy::D2H(h_dot,d_dot,sizeof(double));
-   dbg("[cub_vector_dot] return");
    return *h_dot;
 }
 
