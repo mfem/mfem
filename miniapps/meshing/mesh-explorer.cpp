@@ -222,6 +222,7 @@ int main (int argc, char *argv[])
            "f) Find physical point in reference space\n"
            "p) Generate a partitioning\n"
            "S) Save\n"
+           "V) Save in VTK format (only linear and quadratic meshes)\n"
            "--> " << flush;
       char mk;
       cin >> mk;
@@ -773,6 +774,15 @@ int main (int argc, char *argv[])
          omesh.precision(14);
          mesh->Print(omesh);
          cout << "New mesh file: " << mesh_file << endl;
+      }
+
+      if (mk == 'V')
+      {
+         const char mesh_file[] = "mesh-explorer.vtk";
+         ofstream omesh(mesh_file);
+         omesh.precision(14);
+         mesh->PrintVTK(omesh);
+         cout << "New VTK mesh file: " << mesh_file << endl;
       }
    }
 
