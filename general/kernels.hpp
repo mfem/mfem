@@ -15,10 +15,10 @@
 // *****************************************************************************
 #ifdef __NVCC__
 template <typename BODY> __global__
-void gpu_kernel(const size_t N, BODY statements) {
+void gpu_kernel(const size_t N, BODY d_body) {
   const size_t k = blockDim.x*blockIdx.x + threadIdx.x;
   if (k >= N) return;
-  statements(k);
+  d_body(k);
 }
 #endif // __NVCC__
 
@@ -29,7 +29,7 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body){
 #ifdef __NVCC__
    const bool gpu = cfg::Get().Cuda();
    if (gpu){
-      dbg("\nGPU");
+      //dbg("\nGPU");
       const size_t blockSize = 256;
       const size_t gridSize = (N+blockSize-1)/blockSize;
       gpu_kernel<<<gridSize, blockSize>>>(N,d_body);
@@ -37,8 +37,8 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body){
       return;
    }
 #endif // __NVCC__
-   dbg("\nCPU");
-   for(size_t k=0; k<N; k+=1){ h_body(k);}
+   //dbg("\nCPU");
+   for(size_t k=0; k<N; k+=1){ h_body(k); }
 }
 
 // *****************************************************************************
