@@ -17,6 +17,7 @@
 #include "../general/table.hpp"
 #include "../linalg/densemat.hpp"
 #include "../fem/geom.hpp"
+#include "../general/hash.hpp"
 
 namespace mfem
 {
@@ -80,7 +81,7 @@ public:
    virtual void MarkEdge(const DSTable &v_to_v, const int *length) {}
 
    /// Return 1 if the element needs refinement in order to get conforming mesh.
-   virtual int NeedRefinement(DSTable &v_to_v, int *middle) const { return 0; }
+   virtual int NeedRefinement(HashTable<Hashed2> &v_to_v) const { return 0; }
 
    /// Set current coarse-fine transformation number.
    virtual void ResetTransform(int tr) {}
