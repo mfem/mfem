@@ -271,7 +271,7 @@ protected:
    void UniformRefinement(int i, const DSTable &, int *, int *, int *);
 
    /** @brief Averages the vertices with given @a indexes and saves the result
-       in vertices[result]. */
+       in #vertices[result]. */
    void AverageVertices(const int *indexes, int n, int result);
 
    void InitRefinementTransforms();
@@ -516,9 +516,9 @@ public:
    /// Finalize the construction of a hexahedral Mesh.
    void FinalizeHexMesh(int generate_edges = 0, int refine = 0,
                         bool fix_orientation = true);
-   /// Finalize the construction of a mixed Mesh.
-   void FinalizeMixedMesh(int generate_edges = 0, int refine = 0,
-                          bool fix_orientation = true);
+   /// Finalize the construction of any type of Mesh.
+   /** This method calls FinalizeTopology() and Finalize(). */
+   void FinalizeMesh(int refine = 0, bool fix_orientation = true);
 
    ///@}
 
@@ -758,9 +758,12 @@ public:
    protected:
       Geometry::Type geom_buf[Geometry::NumGeom];
    public:
+      /// Construct a GeometryList of all element geometries in @a mesh.
       GeometryList(Mesh &mesh)
          : Array<Geometry::Type>(geom_buf, Geometry::NumGeom)
       { mesh.GetGeometries(mesh.Dimension(), *this); }
+      /** @brief Construct a GeometryList of all geometries of dimension @a dim
+          in @a mesh. */
       GeometryList(Mesh &mesh, int dim)
          : Array<Geometry::Type>(geom_buf, Geometry::NumGeom)
       { mesh.GetGeometries(dim, *this); }
@@ -1131,8 +1134,8 @@ public:
 
    void GetElementColoring(Array<int> &colors, int el0 = 0);
 
-   /** Prints the mesh with bdr elements given by the boundary of
-       the subdomains, so that the boundary of subdomain i has bdr
+   /** @brief Prints the mesh with boundary elements given by the boundary of
+       the subdomains, so that the boundary of subdomain i has boundary
        attribute i+1. */
    /// \see mfem::ogzstream() for on-the-fly compression of ascii outputs
    void PrintWithPartitioning (int *partitioning,
@@ -1162,7 +1165,7 @@ public:
        have two adjacent faces in 3D, or edges in 2D. */
    void RemoveInternalBoundaries();
 
-   /** Get the size of the i-th element relative to the perfect
+   /** @brief Get the size of the i-th element relative to the perfect
        reference element. */
    double GetElementSize(int i, int type = 0);
 
@@ -1170,21 +1173,31 @@ public:
 
    double GetElementVolume(int i);
 
-   /// Returns the minimum and maximum corners of the mesh bounding box. For
-   /// high-order meshes, the geometry is refined first "ref" times.
+   /// Returns the minimum and maximum corners of the mesh bounding box.
+   /** For high-order meshes, the geometry is first refined @a ref times. */
    void GetBoundingBox(Vector &min, Vector &max, int ref = 2);
 
    void GetCharacteristics(double &h_min, double &h_max,
                            double &kappa_min, double &kappa_max,
                            Vector *Vh = NULL, Vector *Vk = NULL);
 
+   /// Auxiliary method used by PrintCharacteristics().
+   /** It is also used in the `mesh-explorer` miniapp. */
    static void PrintElementsByGeometry(int dim,
                                        const Array<int> &num_elems_by_geom,
                                        std::ostream &out);
 
+   /** @brief Compute and print mesh charateristics such as number of vertices,
+       number of elements, number of boundary elements, minimal and maximal
+       element sizes, minimal and maximal element aspect ratios, etc. */
+   /** If @a Vh or @a Vk are not NULL, return the element sizes and aspect
+       ratios for all elements in the given Vecror%s. */
    void PrintCharacteristics(Vector *Vh = NULL, Vector *Vk = NULL,
                              std::ostream &out = mfem::out);
 
+   /** @brief In serial, this method calls PrintCharacteristics(). In parallel,
+       additional information about the parallel decomposition is also printed.
+   */
    virtual void PrintInfo(std::ostream &out = mfem::out)
    {
       PrintCharacteristics(NULL, NULL, out);

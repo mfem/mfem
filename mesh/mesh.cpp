@@ -1955,46 +1955,11 @@ void Mesh::FinalizeHexMesh(int generate_edges, int refine, bool fix_orientation)
    SetMeshGen();
 }
 
-void Mesh::FinalizeMixedMesh(int generate_edges, int refine,
-                             bool fix_orientation)
+void Mesh::FinalizeMesh(int refine, bool fix_orientation)
 {
-   FinalizeCheck();
-   CheckElementOrientation(fix_orientation);
+   FinalizeTopology();
 
-   if (NumOfBdrElements == 0)
-   {
-      GetElementToFaceTable();
-      GenerateFaces();
-      GenerateBoundaryElements();
-   }
-
-   if (refine)
-   {
-      DSTable v_to_v(NumOfVertices);
-      GetVertexToVertexTable(v_to_v);
-      MarkTetMeshForRefinement(v_to_v);
-   }
-
-   GetElementToFaceTable();
-   GenerateFaces();
-
-   CheckBdrElementOrientation();
-
-   if (generate_edges == 1)
-   {
-      el_to_edge = new Table;
-      NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
-   }
-   else
-   {
-      el_to_edge = NULL;  // Not really necessary -- InitTables was called
-      bel_to_edge = NULL;
-      NumOfEdges = 0;
-   }
-
-   SetAttributes();
-
-   SetMeshGen();
+   Finalize(refine, fix_orientation);
 }
 
 void Mesh::FinalizeTopology()
@@ -9734,7 +9699,7 @@ Mesh *Extrude2D(Mesh *mesh, const int nz, const double sz)
 
    if ( hexMesh && wdgMesh )
    {
-      mesh3d->FinalizeMixedMesh(1, 0, false);
+      mesh3d->FinalizeMesh(0, false);
    }
    else if ( hexMesh )
    {
