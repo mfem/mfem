@@ -124,6 +124,8 @@ protected:
                               const STable3D &old_faces,
                               Array<int> *f2qf);
 
+   void ExchangeFaceNbrData(Table *gr_sface, int *s2l_face);
+
    /// Refine a mixed 2D mesh uniformly.
    virtual void UniformRefinement2D();
 
@@ -213,7 +215,6 @@ public:
                         Array<HYPRE_Int> *offsets[]) const;
 
    void ExchangeFaceNbrData();
-   void ExchangeFaceNbrData(Table *gr_sface, int *s2l_face);
    void ExchangeFaceNbrNodes();
 
    int GetNFaceNeighbors() const { return face_nbr_group.Size(); }
