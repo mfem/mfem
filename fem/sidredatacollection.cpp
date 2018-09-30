@@ -91,6 +91,7 @@ SidreDataCollection::SidreDataCollection(const std::string& collection_name,
 
 SidreDataCollection::~SidreDataCollection()
 {
+   attr_map.DeleteData(true);
    if (m_owns_datastore)
    {
       delete m_datastore_ptr;
@@ -1126,7 +1127,7 @@ void SidreDataCollection::RegisterAttributeField(const std::string& attr_name,
       m_bp_grp->getGroup("fields")->getGroup(attr_name)->getView("values");
    Array<int>* attr = new Array<int>(a->getData<int*>(), a->getNumElements());
 
-   attr_map.Register(attr_name, attr, own_data);
+   attr_map.Register(attr_name, attr, true);
 }
 
 void SidreDataCollection::RegisterAttributeFieldInBPIndex(
@@ -1155,7 +1156,7 @@ void SidreDataCollection::RegisterAttributeFieldInBPIndex(
 
 void SidreDataCollection::DeregisterAttributeField(const std::string& attr_name)
 {
-   attr_map.Deregister(name, own_data);
+   attr_map.Deregister(name, true);
 
    sidre::Group * attr_grp = m_bp_grp->getGroup("fields");
    MFEM_VERIFY(attr_grp->hasGroup(attr_name),
