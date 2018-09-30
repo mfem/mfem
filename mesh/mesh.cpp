@@ -2096,7 +2096,9 @@ void Mesh::Finalize(bool refine, bool fix_orientation)
    CheckBdrElementOrientation();
 
 #ifdef MFEM_DEBUG
-   if (Dim >= 2)
+   // For non-orientable surfaces/manifolds, the check below will fail, so we
+   // only perform it when Dim == spaceDim.
+   if (Dim >= 2 && Dim == spaceDim)
    {
       const int num_faces = GetNumFaces();
       for (int i = 0; i < num_faces; i++)
@@ -4450,6 +4452,8 @@ void Mesh::AddSegmentFaceElement(int lf, int gf, int el, int v0, int v1)
       {
          // Temporarily allow even edge orientations: see the remark in
          // AddTriangleFaceElement().
+         // Also, in a non-orientable surface mesh, the orientation will be even
+         // for edges that connect elements with opposite orientations.
          faces_info[gf].Elem2Inf = 64 * lf;
       }
       else
