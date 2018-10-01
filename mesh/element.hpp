@@ -96,8 +96,6 @@ public:
    /// Return current coarse-fine transformation.
    virtual unsigned GetTransform() const { return 0; }
 
-   virtual int GetRefinementFlag() { return 0; }
-
    virtual Element *Duplicate(Mesh *m) const = 0;
 
    /// Destroys element.

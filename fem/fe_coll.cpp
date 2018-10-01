@@ -567,8 +567,8 @@ int LinearFECollection::DofForGeometry(Geometry::Type GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * LinearFECollection::DofOrderForOrientation(Geometry::Type GeomType,
-                                                 int Or) const
+const int *LinearFECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                      int Or) const
 {
    return NULL;
 }
@@ -609,8 +609,8 @@ int QuadraticFECollection::DofForGeometry(Geometry::Type GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * QuadraticFECollection::DofOrderForOrientation(Geometry::Type GeomType,
-                                                    int Or) const
+const int *QuadraticFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
 {
    static int indexes[] = { 0 };
 
@@ -645,9 +645,8 @@ int QuadraticPosFECollection::DofForGeometry(Geometry::Type GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * QuadraticPosFECollection::DofOrderForOrientation(Geometry::Type GeomType,
-                                                       int Or)
-const
+const int *QuadraticPosFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
 {
    static int indexes[] = { 0 };
 
@@ -690,8 +689,8 @@ int CubicFECollection::DofForGeometry(Geometry::Type GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * CubicFECollection::DofOrderForOrientation(Geometry::Type GeomType,
-                                                int Or) const
+const int *CubicFECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                     int Or) const
 {
    if (GeomType == Geometry::SEGMENT)
    {
@@ -753,9 +752,8 @@ int CrouzeixRaviartFECollection::DofForGeometry(Geometry::Type GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * CrouzeixRaviartFECollection::DofOrderForOrientation(
-   Geometry::Type GeomType, int Or)
-const
+const int *CrouzeixRaviartFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
 {
    static int indexes[] = { 0 };
 
@@ -791,9 +789,8 @@ int RT0_2DFECollection::DofForGeometry(Geometry::Type GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * RT0_2DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
-                                                 int Or)
-const
+const int * RT0_2DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                       int Or) const
 {
    static int ind_pos[] = { 0 };
    static int ind_neg[] = { -1 };
@@ -834,9 +831,8 @@ int RT1_2DFECollection::DofForGeometry(Geometry::Type GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * RT1_2DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
-                                                 int Or)
-const
+const int *RT1_2DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                      int Or) const
 {
    static int ind_pos[] = {  0,  1 };
    static int ind_neg[] = { -2, -1 };
@@ -876,9 +872,8 @@ int RT2_2DFECollection::DofForGeometry(Geometry::Type GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * RT2_2DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
-                                                 int Or)
-const
+const int *RT2_2DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                      int Or) const
 {
    static int ind_pos[] = { 0, 1, 2 };
    static int ind_neg[] = { -3, -2, -1 };
@@ -918,9 +913,8 @@ int Const2DFECollection::DofForGeometry(Geometry::Type GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * Const2DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
-                                                  int Or)
-const
+const int *Const2DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                       int Or) const
 {
    return NULL;
 }
@@ -954,9 +948,8 @@ int LinearDiscont2DFECollection::DofForGeometry(Geometry::Type GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * LinearDiscont2DFECollection::DofOrderForOrientation(
-   Geometry::Type GeomType, int Or)
-const
+const int * LinearDiscont2DFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
 {
    return NULL;
 }
@@ -993,7 +986,7 @@ const
    return 0; // Make some compilers happy
 }
 
-int * GaussLinearDiscont2DFECollection::DofOrderForOrientation(
+const int *GaussLinearDiscont2DFECollection::DofOrderForOrientation(
    Geometry::Type GeomType, int Or) const
 {
    return NULL;
@@ -1023,7 +1016,7 @@ int P1OnQuadFECollection::DofForGeometry(Geometry::Type GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * P1OnQuadFECollection::DofOrderForOrientation(
+const int *P1OnQuadFECollection::DofOrderForOrientation(
    Geometry::Type GeomType, int Or) const
 {
    return NULL;
@@ -1059,7 +1052,7 @@ const
    return 0; // Make some compilers happy
 }
 
-int * QuadraticDiscont2DFECollection::DofOrderForOrientation(
+const int *QuadraticDiscont2DFECollection::DofOrderForOrientation(
    Geometry::Type GeomType, int Or) const
 {
    return NULL;
@@ -1126,7 +1119,7 @@ int GaussQuadraticDiscont2DFECollection::DofForGeometry(
    return 0; // Make some compilers happy
 }
 
-int * GaussQuadraticDiscont2DFECollection::DofOrderForOrientation(
+const int *GaussQuadraticDiscont2DFECollection::DofOrderForOrientation(
    Geometry::Type GeomType, int Or) const
 {
    return NULL;
@@ -1161,9 +1154,8 @@ int CubicDiscont2DFECollection::DofForGeometry(Geometry::Type GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * CubicDiscont2DFECollection::DofOrderForOrientation(
-   Geometry::Type GeomType, int Or)
-const
+const int *CubicDiscont2DFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
 {
    return NULL;
 }
@@ -1201,9 +1193,8 @@ int LinearNonConf3DFECollection::DofForGeometry(Geometry::Type GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * LinearNonConf3DFECollection::DofOrderForOrientation(
-   Geometry::Type GeomType, int Or)
-const
+const int *LinearNonConf3DFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
 {
    static int indexes[] = { 0 };
 
@@ -1242,9 +1233,8 @@ int Const3DFECollection::DofForGeometry(Geometry::Type GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * Const3DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
-                                                  int Or)
-const
+const int *Const3DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                       int Or) const
 {
    return NULL;
 }
@@ -1280,9 +1270,8 @@ int LinearDiscont3DFECollection::DofForGeometry(Geometry::Type GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * LinearDiscont3DFECollection::DofOrderForOrientation(
-   Geometry::Type GeomType, int Or)
-const
+const int *LinearDiscont3DFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
 {
    return NULL;
 }
@@ -1319,7 +1308,7 @@ const
    return 0; // Make some compilers happy
 }
 
-int * QuadraticDiscont3DFECollection::DofOrderForOrientation(
+const int *QuadraticDiscont3DFECollection::DofOrderForOrientation(
    Geometry::Type GeomType, int Or) const
 {
    return NULL;
@@ -1359,8 +1348,8 @@ int RefinedLinearFECollection::DofForGeometry(Geometry::Type GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * RefinedLinearFECollection::DofOrderForOrientation(Geometry::Type GeomType,
-                                                        int Or) const
+const int *RefinedLinearFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
 {
    static int indexes[] = { 0 };
 
@@ -1397,9 +1386,8 @@ int ND1_3DFECollection::DofForGeometry(Geometry::Type GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * ND1_3DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
-                                                 int Or)
-const
+const int *ND1_3DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                      int Or) const
 {
    static int ind_pos[] = { 0 };
    static int ind_neg[] = { -1 };
@@ -1443,9 +1431,8 @@ int RT0_3DFECollection::DofForGeometry(Geometry::Type GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * RT0_3DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
-                                                 int Or)
-const
+const int *RT0_3DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                      int Or) const
 {
    static int ind_pos[] = { 0 };
    static int ind_neg[] = { -1 };
@@ -1490,9 +1477,8 @@ int RT1_3DFECollection::DofForGeometry(Geometry::Type GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * RT1_3DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
-                                                 int Or)
-const
+const int *RT1_3DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                      int Or) const
 {
    if (GeomType == Geometry::SQUARE)
    {
@@ -1669,8 +1655,8 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
    }
 }
 
-int *H1_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const
+const int *H1_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                   int Or) const
 {
    if (GeomType == Geometry::SEGMENT)
    {
@@ -1910,8 +1896,8 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
    }
 }
 
-int *L2_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const
+const int *L2_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                   int Or) const
 {
    switch (GeomType)
    {
@@ -2132,8 +2118,8 @@ void RT_FECollection::InitFaces(const int p, const int dim, const int map_type,
    }
 }
 
-int *RT_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const
+const int *RT_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                   int Or) const
 {
    if (GeomType == Geometry::SEGMENT)
    {
@@ -2377,8 +2363,8 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
    }
 }
 
-int *ND_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
-                                             int Or) const
+const int *ND_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                   int Or) const
 {
    if (GeomType == Geometry::SEGMENT)
    {
@@ -2388,8 +2374,7 @@ int *ND_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
    {
       if (Or != 0 && Or != 5)
       {
-         MFEM_ABORT("ND_FECollection::DofOrderForOrientation: "
-                    "triangle face orientation " << Or << " is not supported! "
+         MFEM_ABORT("triangle face orientation " << Or << " is not supported! "
                     "Use Mesh::ReorientTetMesh to fix it.");
       }
       return TriDofOrd[Or%6];
@@ -2544,8 +2529,8 @@ int NURBSFECollection::DofForGeometry(Geometry::Type GeomType) const
    return 0; // Make some compilers happy
 }
 
-int *NURBSFECollection::DofOrderForOrientation(Geometry::Type GeomType,
-                                               int Or) const
+const int *NURBSFECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                     int Or) const
 {
    mfem_error("NURBSFECollection::DofOrderForOrientation");
    return NULL;

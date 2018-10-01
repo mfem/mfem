@@ -170,6 +170,9 @@ function help_message()
       -v          Enable valgrind
       -o <dir>    [${output_dir:-"<empty>: output goes to stdout"}]
                   If not empty, save output to files inside <dir>
+      -d <dir>    [${mfem_build_dir}]
+                  If <dir> is different from <mfem_dir> then use an
+                  out-of-source build in <dir>
       -j <np>     [${make_j}] Specify the number of jobs to use for building
       -c|-color   Always use colors for the status messages: OK, FAILED, etc
       -b|-built   Do NOT rebuild the library and the executables
@@ -196,8 +199,8 @@ function help_message()
          Their values can also set using the respective uppercase environment
          variable
       mfem_build_dir [${mfem_build_dir}]
-         Set this variable to something different from <mfem_dir> to use an
-         out-of-source build
+         Same as '-d': set this variable to something different from <mfem_dir>
+         to use an out-of-source build
 
    For other valid variables, see the script source.
 
@@ -265,6 +268,10 @@ case "$1" in
    -o)
       shift
       output_dir="$1"
+      ;;
+   -d)
+      shift
+      mfem_build_dir="$1"
       ;;
    -j)
       shift

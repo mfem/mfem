@@ -749,6 +749,8 @@ void Geometry::JacToPerfJac(int GeomType, const DenseMatrix &J,
 
 const int Geometry::NumBdrArray[NumGeom] = { 0, 2, 3, 4, 4, 6, 5 };
 const int Geometry::Dimension[NumGeom] = { 0, 1, 2, 2, 3, 3, 3 };
+const int Geometry::DimStart[MaxDim+2] =
+{ POINT, SEGMENT, TRIANGLE, TETRAHEDRON, NUM_GEOMETRIES };
 const int Geometry::NumVerts[NumGeom] = { 1, 2, 3, 4, 4, 8, 6 };
 const int Geometry::NumEdges[NumGeom] = { 0, 1, 3, 4, 6, 12, 9 };
 const int Geometry::NumFaces[NumGeom] = { 0, 0, 1, 1, 4, 6, 5 };

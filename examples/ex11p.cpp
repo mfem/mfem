@@ -22,7 +22,7 @@
 //               mpirun -np 4 ex11p -m ../data/inline-tri.mesh
 //               mpirun -np 4 ex11p -m ../data/inline-hex.mesh
 //               mpirun -np 4 ex11p -m ../data/inline-tet.mesh
-//               mpirun -np 4 ex11p -m ../data/inline-wedge.mesh
+//               mpirun -np 4 ex11p -m ../data/inline-wedge.mesh -s 83
 //               mpirun -np 4 ex11p -m ../data/amr-quad.mesh
 //               mpirun -np 4 ex11p -m ../data/amr-hex.mesh
 //               mpirun -np 4 ex11p -m ../data/mobius-strip.mesh -n 8
