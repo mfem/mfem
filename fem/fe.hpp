@@ -543,6 +543,9 @@ public:
    virtual void Project(Coefficient &coeff,
                         ElementTransformation &Trans, Vector &dofs) const;
 
+   virtual void Project (VectorCoefficient &vc,
+                         ElementTransformation &Trans, Vector &dofs) const;
+
    virtual void Project(const FiniteElement &fe, ElementTransformation &Trans,
                         DenseMatrix &I) const;
 };

@@ -467,6 +467,24 @@ void PositiveFiniteElement::Project(
 }
 
 void PositiveFiniteElement::Project(
+   VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
+{
+   MFEM_ASSERT(dofs.Size() == vc.GetVDim()*Dof, "");
+   Vector x(vc.GetVDim());
+
+   for (int i = 0; i < Dof; i++)
+   {
+      const IntegrationPoint &ip = Nodes.IntPoint(i);
+      Trans.SetIntPoint(&ip);
+      vc.Eval (x, Trans, ip);
+      for (int j = 0; j < x.Size(); j++)
+      {
+         dofs(Dof*j+i) = x(j);
+      }
+   }
+}
+
+void PositiveFiniteElement::Project(
    const FiniteElement &fe, ElementTransformation &Trans, DenseMatrix &I) const
 {
    const NodalFiniteElement *nfe =
