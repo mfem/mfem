@@ -318,6 +318,8 @@ void BilinearForm::Assemble (int skip_zeros)
    if (mat == NULL)
    {
       AllocMat();
+      dbg("[BilinearForm::Assemble] AllocMat:\n");
+      mat->Print();
    }
 
 #ifdef MFEM_USE_OPENMP
@@ -336,15 +338,21 @@ void BilinearForm::Assemble (int skip_zeros)
          fes->GetElementVDofs(i, vdofs);
          if (element_matrices)
          {
+            assert(false);
             elmat_p = &(*element_matrices)(i);
          }
          else
          {
+            //assert(false);
             const FiniteElement &fe = *fes->GetFE(i);
             eltrans = fes->GetElementTransformation(i);
             dbfi[0]->AssembleElementMatrix(fe, *eltrans, elmat);
+            dbg("[BilinearForm::Assemble] elmat[%d]:\033[m\n",i);
+            elmat.Print();
+            //assert(false);
             for (int k = 1; k < dbfi.Size(); k++)
             {
+               assert(false);
                dbfi[k]->AssembleElementMatrix(fe, *eltrans, elemmat);
                elmat += elemmat;
             }
@@ -352,18 +360,25 @@ void BilinearForm::Assemble (int skip_zeros)
          }
          if (static_cond)
          {
+            assert(false);
             static_cond->AssembleMatrix(i, *elmat_p);
          }
          else
          {
+            //assert(false);
             mat->AddSubMatrix(vdofs, vdofs, *elmat_p, skip_zeros);
+            mat->Print();
+            //assert(false);
             if (hybridization)
             {
+               assert(false);
                hybridization->AssembleMatrix(i, *elmat_p);
             }
          }
       }
    }
+   dbg("[BilinearForm::Assemble] dbfi:\033[m\n");
+   mat->Print();assert(false);
 
    if (bbfi.Size())
    {
@@ -503,6 +518,8 @@ void BilinearForm::Assemble (int skip_zeros)
       FreeElementMatrices();
    }
 #endif
+   dbg("Assemble, mat->Print():\n");
+   mat->Print();
 }
 
 void BilinearForm::ConformingAssemble()
@@ -547,7 +564,9 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
 {
    const SparseMatrix *P = fes->GetConformingProlongation();
 
+   dbg("pre-FormLinearSystem, A=");A.Print();
    FormSystemMatrix(ess_tdof_list, A);
+   dbg("post-FormLinearSystem, A=");A.Print();
 
    // Transform the system and perform the elimination in B, based on the
    // essential BC values from x. Restrict the BC part of x in X, and set the
@@ -639,6 +658,8 @@ void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
       else
       {
          A.MakeRef(*mat);
+         printf("\033[33;1m[BilinearForm::FormSystemMatrix]\n\033[m");
+         A.Print();//assert(false);
       }
    }
 }
@@ -646,9 +667,6 @@ void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
 void BilinearForm::RecoverFEMSolution(const Vector &X,
                                       const Vector &b, Vector &x)
 {
-   //mm::Get().Rsync(X.GetData());
-   //mm::Get().Rsync(b.GetData());
-
    const SparseMatrix *P = fes->GetConformingProlongation();
    if (!P) // conforming space
    {

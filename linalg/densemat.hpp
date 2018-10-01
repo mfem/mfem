@@ -775,11 +775,6 @@ public:
 
 inline double &DenseMatrix::operator()(int i, int j)
 {
-   assert(data);
-   assert(i >= 0);
-   assert(i < height);
-   assert(j >= 0);
-   assert(j < width);
    MFEM_ASSERT(data && i >= 0 && i < height && j >= 0 && j < width, "");
    return data[i+j*height];
 }

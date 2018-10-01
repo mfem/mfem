@@ -28,6 +28,7 @@ void DenseMatrixTranspose(const size_t height,
                           const size_t width,
                           double *data,
                           const double *mdata){
+   assert(false); // Parallel transpose
    forall(i,height,{
          for (int j = 0; j < width; j++){
             data[i+j*height] = mdata[j+i*height];
