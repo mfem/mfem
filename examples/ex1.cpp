@@ -45,17 +45,6 @@ using namespace std;
 using namespace mfem;
 
 #include "/home/camier1/home/stk/stk.hpp"
-// *****************************************************************************
-/*class StartUp{
-public:
-   StartUp() {
-      mm::iniHandler();
-      dbg("StartUp => cfg::Get().Init");
-      cfg::Get().Init();
-      cfg::Get().Cuda(true);
-   }
-};
-StartUp startup; */
 
 // *****************************************************************************
 int main(int argc, char *argv[])
@@ -91,7 +80,6 @@ int main(int argc, char *argv[])
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
-   dbg("Read the mesh");
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
@@ -112,8 +100,6 @@ int main(int argc, char *argv[])
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
-   dbg("Define a finite element space on the mesh");
-   dbg("fec");
    FiniteElementCollection *fec;
    if (order > 0)
    {
@@ -128,13 +114,10 @@ int main(int argc, char *argv[])
    {
       fec = new H1_FECollection(order = 1, dim);
    }
-
-   dbg("fes");
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
 
-   dbg("Determine the list of true essential boundary dofs");
    // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
    //    the boundary attributes from the mesh as essential (Dirichlet) and
@@ -147,22 +130,14 @@ int main(int argc, char *argv[])
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   dbg("Set up the linear form b(.)");
    // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
-   assert(fespace);
-   dbg("f->GetVSize()=%d",fespace->GetVSize());
-   dbg("sizeof(LinearForm)=%d",sizeof(LinearForm));
    LinearForm *b = new LinearForm(fespace);
-   //assert(false);
-   dbg("one");
    ConstantCoefficient one(1.0);
-   dbg("b->AddDomainIntegrator");
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
-   dbg("b->Assemble");
    b->Assemble();
-   
+
    // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
@@ -174,39 +149,34 @@ int main(int argc, char *argv[])
    //    domain integrator.
    BilinearForm *a = new BilinearForm(fespace);
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
-
+   
    // 9. Assemble the bilinear form and the corresponding linear system,
    //    applying any necessary transformations such as: eliminating boundary
    //    conditions, applying conforming constraints for non-conforming AMR,
    //    static condensation, etc.
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
-
+   
    SparseMatrix A;
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-
+   
    cout << "Size of linear system: " << A.Height() << endl;
    
    // Switch to CUDA!
-   //const bool CUDA = true; //Iteration :   4  (B r, r) = 8.03978e-16
-   const bool CUDA = true;
+   const bool CUDA = false;
    if (CUDA){
       cfg::Get().Cuda(true);
       mm::Get().Cuda();
-   }   
-   //Iteration : 120  (B r, r) = 9.19414e-19
-   //Iteration : 121  (B r, r) = 7.07226e-19
-   //Iteration : 122  (B r, r) = 4.11399e-19
-   //Iteration : 123  (B r, r) = 2.07958e-19
-   //Iteration : 124  (B r, r) = 1.24578e-19
-
+   }
 
 #ifndef MFEM_USE_SUITESPARSE
    // 10. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //     solve the system A X = B with PCG.
-   GSSmoother M(A);
-   PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
+   //GSSmoother M(A);
+   //PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
+   A.Print();
+   CG(A, B, X, 3, 1000, 1e-12, 0.0);
 #else
    // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;
@@ -214,16 +184,9 @@ int main(int argc, char *argv[])
    umf_solver.SetOperator(A);
    umf_solver.Mult(B, X);
 #endif
-   //assert(false);
 
    // 11. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
-   //x.Print();
-   //0.055716 0 0 0 0 0 0 0
-   //0 0 0 0.0224253 0 0 0.0311821 0
-   //0 0.0252052 0 0 0.0211772 0 0 0.0190804
-   //0 0 0.0198174 0.0158547 0.0128289 0.0109478 0.0101738
-
 
    // 12. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".

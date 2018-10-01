@@ -97,32 +97,32 @@ GridFunction::GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces)
       {
          for (int d = 0; d < vdim; d++)
          {
-            ::memcpy(g_data+vi, l_data, l_nvdofs*sizeof(double));
+            memcpy(g_data+vi, l_data, l_nvdofs*sizeof(double));
             l_data += l_nvdofs;
             g_data += g_nvdofs;
-            ::memcpy(g_data+ei, l_data, l_nedofs*sizeof(double));
+            memcpy(g_data+ei, l_data, l_nedofs*sizeof(double));
             l_data += l_nedofs;
             g_data += g_nedofs;
-            ::memcpy(g_data+fi, l_data, l_nfdofs*sizeof(double));
+            memcpy(g_data+fi, l_data, l_nfdofs*sizeof(double));
             l_data += l_nfdofs;
             g_data += g_nfdofs;
-            ::memcpy(g_data+di, l_data, l_nddofs*sizeof(double));
+            memcpy(g_data+di, l_data, l_nddofs*sizeof(double));
             l_data += l_nddofs;
             g_data += g_nddofs;
          }
       }
       else
       {
-         ::memcpy(g_data+vdim*vi, l_data, vdim*l_nvdofs*sizeof(double));
+         memcpy(g_data+vdim*vi, l_data, vdim*l_nvdofs*sizeof(double));
          l_data += vdim*l_nvdofs;
          g_data += vdim*g_nvdofs;
-         ::memcpy(g_data+vdim*ei, l_data, vdim*l_nedofs*sizeof(double));
+         memcpy(g_data+vdim*ei, l_data, vdim*l_nedofs*sizeof(double));
          l_data += vdim*l_nedofs;
          g_data += vdim*g_nedofs;
-         ::memcpy(g_data+vdim*fi, l_data, vdim*l_nfdofs*sizeof(double));
+         memcpy(g_data+vdim*fi, l_data, vdim*l_nfdofs*sizeof(double));
          l_data += vdim*l_nfdofs;
          g_data += vdim*g_nfdofs;
-         ::memcpy(g_data+vdim*di, l_data, vdim*l_nddofs*sizeof(double));
+         memcpy(g_data+vdim*di, l_data, vdim*l_nddofs*sizeof(double));
          l_data += vdim*l_nddofs;
          g_data += vdim*g_nddofs;
       }

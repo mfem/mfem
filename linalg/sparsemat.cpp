@@ -28,7 +28,7 @@ namespace mfem
 {
 
 using namespace std;
-   
+
 SparseMatrix::SparseMatrix(int nrows, int ncols)
    : AbstractSparseMatrix(nrows, (ncols >= 0) ? ncols : nrows),
      I(NULL),
@@ -43,8 +43,7 @@ SparseMatrix::SparseMatrix(int nrows, int ncols)
      ownData(true),
      isSorted(false)
 {
-   dbg("nrows=%d",nrows);
-   //OKINA_ASSERT_CPU;
+   OKINA_ASSERT_GPU;
    for (int i = 0; i < nrows; i++)
    {
       Rows[i] = NULL;
@@ -118,7 +117,6 @@ SparseMatrix::SparseMatrix(int nrows, int ncols, int rowsize)
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
 #endif
-   
    OKINA_ASSERT_CPU;
    I = new int[nrows + 1];
    J = new int[nrows * rowsize];
@@ -239,7 +237,9 @@ SparseMatrix& SparseMatrix::operator=(const SparseMatrix &rhs)
 
 void SparseMatrix::MakeRef(const SparseMatrix &master)
 {
-   //OKINA_ASSERT_CPU;
+   //stk(true);assert(false);
+   master.Print();
+   OKINA_ASSERT_GPU;
    MFEM_ASSERT(master.Finalized(), "'master' must be finalized");
    Clear();
    height = master.Height();
@@ -568,10 +568,10 @@ void SparseMatrix::ToDenseMatrix(DenseMatrix & B) const
 
 void SparseMatrix::Mult(const Vector &x, Vector &y) const
 {
-   //dbg("\033[7mpre-y:\n"); y.Print();
    y = 0.0;
    //dbg("\033[7my:\n"); y.Print();
    AddMult(x, y);
+   dbg("\033[7my:\n"); y.Print();
 }
 
 void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
@@ -591,6 +591,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
    {
    OKINA_ASSERT_CPU;
       //  The matrix is not finalized, but multiplication is still possible
+   assert(false);
       for (i = 0; i < height; i++)
       {
          RowNode *row = Rows[i];
@@ -1676,7 +1677,7 @@ void SparseMatrix::EliminateRowColDiag(int rc, double value)
 void SparseMatrix::EliminateRowCol(int rc, SparseMatrix &Ae,
                                    DiagonalPolicy dpolicy)
 {
-   //OKINA_ASSERT_CPU;
+   OKINA_ASSERT_GPU;
    int col;
 
    if (Rows)
@@ -1850,6 +1851,8 @@ void SparseMatrix::Gauss_Seidel_forw(const Vector &x, Vector &y) const
       //OKINA_ASSERT_CPU;
       //int j, end, d, *Ip = I, *Jp = J;
       //double *Ap = A;
+      //tmp.SetSize(y.Size());
+      //tmp = 0.0;
       kGauss_Seidel_forw(s,I,J,A,xp,yp);
       /*
       j = Ip[0];
@@ -1886,7 +1889,6 @@ void SparseMatrix::Gauss_Seidel_forw(const Vector &x, Vector &y) const
 
 void SparseMatrix::Gauss_Seidel_back(const Vector &x, Vector &y) const
 {
-   
    int i, c;
    double sum, *yp = y.GetData();
    const double *xp = x.GetData();
@@ -2115,6 +2117,7 @@ void SparseMatrix::Jacobi3(const Vector &b, const Vector &x0, Vector &x1,
 void SparseMatrix::AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
                                 const DenseMatrix &subm, int skip_zeros)
 {
+   stk(true);
    //OKINA_ASSERT_CPU;
    int i, j, gi, gj, s, t;
    double a;
@@ -2174,6 +2177,7 @@ void SparseMatrix::Set(const int i, const int j, const double A)
 
 void SparseMatrix::Add(const int i, const int j, const double A)
 {
+   OKINA_ASSERT_GPU;
    int gi, gj, s, t;
    double a = A;
 

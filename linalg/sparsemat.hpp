@@ -79,7 +79,6 @@ protected:
 
    void Destroy();   // Delete all owned data
    void SetEmpty();  // Init all entries with empty values
-
 public:
    /// Create an empty SparseMatrix.
    SparseMatrix() { /*OKINA_ASSERT_CPU;*/ SetEmpty(); }

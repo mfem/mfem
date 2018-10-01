@@ -90,7 +90,6 @@ DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
    }
 }
 
-
 DenseMatrix::DenseMatrix(int s) : Matrix(s)
 {
    MFEM_ASSERT(s >= 0, "invalid DenseMatrix size: " << s);
@@ -98,9 +97,7 @@ DenseMatrix::DenseMatrix(int s) : Matrix(s)
    if (capacity > 0)
    {
       data = mm::malloc<double>(capacity);
-      auto *d=GetData();
       DenseMatrixSet(0.0,capacity,data);
-      //forall(i,capacity,d[i]=0.0;);
       //data = new double[capacity](); // init with zeroes
    }
    else
@@ -118,8 +115,6 @@ DenseMatrix::DenseMatrix(int m, int n) : Matrix(m, n)
    {
       data = mm::malloc<double>(capacity);
       DenseMatrixSet(0.0,capacity,data);
-      dbg("done");
-      //forall(i,capacity,data[i]=0.0;);
       //data = new double[capacity](); // init with zeroes
    }
    else
@@ -164,7 +159,6 @@ void DenseMatrix::SetSize(int h, int w)
    {
       return;
    }
-   dbg();
    height = h;
    width = w;
    const int hw = h*w;
@@ -592,10 +586,6 @@ DenseMatrix &DenseMatrix::operator=(double c)
 {
    int s = Height()*Width();
    DenseMatrixSet(s,c,data);
-/*   for (int i = 0; i < s; i++)
-   {
-      data[i] = c;
-      }*/
    return *this;
 }
 
