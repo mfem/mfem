@@ -2101,6 +2101,34 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
          OtherDofOrd[j] = j; // for Or == 0
       }
    }
+   else if (dim == 4)
+   {
+      if (b_type == BasisType::Positive)
+      {
+         mfem::err << "L2_FECollection::L2_FECollection : BasisType::Positive not implemented" << endl;
+         mfem_error();
+      }
+      else
+      {
+         L2_Elements[Geometry::PENTATOPE] =
+            new L2_PentatopeElement(p, btype);
+         L2_Elements[Geometry::TESSERACT] = new L2_HexahedronElement(p, btype);
+      }
+      L2_Elements[Geometry::PENTATOPE]->SetMapType(map_type);
+      L2_Elements[Geometry::TESSERACT]->SetMapType(map_type);
+      // All trace element use the default Gauss-Legendre nodal points
+      Tr_Elements[Geometry::TETRAHEDRON] = new L2_TetrahedronElement(p);
+      Tr_Elements[Geometry::CUBE] = new L2_HexahedronElement(p);
+
+      const int PentDof = L2_Elements[Geometry::PENTATOPE]->GetDof();
+      const int TessDof = L2_Elements[Geometry::TESSERACT]->GetDof();
+      const int MaxDof = std::max(PentDof, TessDof);
+      OtherDofOrd = new int[MaxDof];
+      for (int j = 0; j < MaxDof; j++)
+      {
+         OtherDofOrd[j] = j; // for Or == 0
+      }
+   }
    else
    {
       mfem::err << "L2_FECollection::L2_FECollection : dim = "

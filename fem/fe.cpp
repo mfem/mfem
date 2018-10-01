@@ -3331,7 +3331,7 @@ void Linear4DFiniteElement::CalcHessian(const IntegrationPoint &ip,
 void Linear4DFiniteElement::GetFaceDofs (int face, int **dofs, int *ndofs)
 const
 {
-   static int face_dofs[5][4] = {{0, 1, 2, 3}, {0, 1, 2, 4}, {0, 1, 3, 4}, {0, 2, 3, 4}, {1, 2, 3, 4}};
+   static int face_dofs[5][4] = {{0, 1, 2, 3}, {1, 0, 2, 4}, {0, 1, 3, 4}, {2, 0, 3, 4}, {1, 2, 3, 4}};
 
    *ndofs = 4;
    *dofs  = face_dofs[face];

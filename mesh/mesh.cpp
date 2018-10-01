@@ -7459,6 +7459,7 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
    mfem::Swap(face_edge, other.face_edge);
    mfem::Swap(edge_vertex, other.edge_vertex);
    mfem::Swap(planar_edge, other.planar_edge);
+   mfem::Swap(face_planar, other.face_planar);
 
    mfem::Swap(attributes, other.attributes);
    mfem::Swap(bdr_attributes, other.bdr_attributes);
@@ -7619,7 +7620,6 @@ void Mesh::EnsureNCMesh(bool triangles_nonconforming)
          ncmesh = new NCMesh(this);
          ncmesh->OnMeshUpdated(this);
          GenerateNCFaceInfo();
-         mfem::out << "here" << std::endl;
       }
    }
 }
