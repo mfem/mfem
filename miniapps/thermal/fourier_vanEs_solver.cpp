@@ -109,6 +109,7 @@ ThermalDiffusionTDO::ThermalDiffusionTDO(
    Coefficient & Q, bool td_Q)
    : TimeDependentOperator(H1_FESpace.GetTrueVSize(), 0.0),
      init_(false),
+     nonLinear_(coef_type == 2),
      testGradient_(false),
      multCount_(0), solveCount_(0),
      T_(&H1_FESpace),
