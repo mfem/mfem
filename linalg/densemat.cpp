@@ -132,6 +132,7 @@ DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
       data = mm::malloc<double>(capacity);
       //data = new double[capacity];
       const double *md = mat.Data();
+      assert(false);
       DenseMatrixTranspose(height,width,data,mat.Data());
       /*forall(i,height,{
             for (int j = 0; j < width; j++){
@@ -215,7 +216,7 @@ void DenseMatrix::Mult(const double *x, double *y) const
 }
 
 void DenseMatrix::Mult(const Vector &x, Vector &y) const
-{
+{OKINA_ASSERT_CPU;
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
                "incompatible dimensions");
 
@@ -253,7 +254,7 @@ void DenseMatrix::MultTranspose(const double *x, double *y) const
 }
 
 void DenseMatrix::MultTranspose(const Vector &x, Vector &y) const
-{
+{OKINA_ASSERT_CPU;
    MFEM_ASSERT(height == x.Size() && width == y.Size(),
                "incompatible dimensions");
 
@@ -474,7 +475,7 @@ double DenseMatrix::Trace() const
 }
 
 MatrixInverse *DenseMatrix::Inverse() const
-{
+{OKINA_ASSERT_CPU;
    return new DenseMatrixInverse(*this);
 }
 
@@ -584,8 +585,9 @@ void DenseMatrix::Add(const double c, const DenseMatrix &A)
 
 DenseMatrix &DenseMatrix::operator=(double c)
 {
+   OKINA_ASSERT_GPU;
    int s = Height()*Width();
-   DenseMatrixSet(s,c,data);
+   DenseMatrixSet(c,s,data);
    return *this;
 }
 
@@ -1092,7 +1094,7 @@ void dsyev_Eigensystem(DenseMatrix &a, Vector &ev, DenseMatrix *evect)
 }
 
 void DenseMatrix::Eigensystem(Vector &ev, DenseMatrix *evect)
-{
+{OKINA_ASSERT_CPU;
 #ifdef MFEM_USE_LAPACK
 
    // dsyevr_Eigensystem(*this, ev, evect);
@@ -1108,7 +1110,7 @@ void DenseMatrix::Eigensystem(Vector &ev, DenseMatrix *evect)
 
 void dsygv_Eigensystem(DenseMatrix &a, DenseMatrix &b, Vector &ev,
                        DenseMatrix *evect)
-{
+{OKINA_ASSERT_CPU;
 #ifdef MFEM_USE_LAPACK
    int   N      = a.Width();
    int   ITYPE  = 1;
@@ -2459,7 +2461,8 @@ void DenseMatrix::GetRowSums(Vector &l) const
 }
 
 void DenseMatrix::Diag(double c, int n)
-{OKINA_ASSERT_GPU;
+{
+   OKINA_ASSERT_GPU;
    SetSize(n);
 
    int i, N = n*n;

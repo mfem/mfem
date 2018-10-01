@@ -114,7 +114,7 @@ double Vector::operator*(const double *v) const
 double Vector::operator*(const Vector &v) const
 {
    dbg();
-   Print();
+   //Print();
    //0.271243 0 0 0 0 0 0 0
    //0 0 0 0.192719 0 0 0.180367 0
    //0 0.183803 0 0 0.1824 0 0 0.169491
