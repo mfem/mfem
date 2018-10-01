@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
-   /*
+   
    {
       int ref_levels =
          (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
          mesh->UniformRefinement();
       }
    }
-   */
+   
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
@@ -175,7 +175,6 @@ int main(int argc, char *argv[])
    //     solve the system A X = B with PCG.
    //GSSmoother M(A);
    //PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
-   A.Print();
    CG(A, B, X, 3, 1000, 1e-12, 0.0);
 #else
    // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.

@@ -142,7 +142,7 @@ void kAddMult(const size_t height,
             double d = 0.0;
             const int end = d_I[i+1];
             for (int j=d_I[i]; j < end; j+=1){
-               printf("\n\t%d:%d %f:%f",i,j,d_A[j],d_x[d_J[j]]);
+               //printf("\n\t%d:%d %f:%f",i,j,d_A[j],d_x[d_J[j]]);
                d += d_A[j] * d_x[d_J[j]];
             }
             d_y[i] += d;

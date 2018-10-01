@@ -237,8 +237,6 @@ SparseMatrix& SparseMatrix::operator=(const SparseMatrix &rhs)
 
 void SparseMatrix::MakeRef(const SparseMatrix &master)
 {
-   //stk(true);assert(false);
-   master.Print();
    OKINA_ASSERT_GPU;
    MFEM_ASSERT(master.Finalized(), "'master' must be finalized");
    Clear();
@@ -569,9 +567,8 @@ void SparseMatrix::ToDenseMatrix(DenseMatrix & B) const
 void SparseMatrix::Mult(const Vector &x, Vector &y) const
 {
    y = 0.0;
-   //dbg("\033[7my:\n"); y.Print();
    AddMult(x, y);
-   dbg("\033[7my:\n"); y.Print();
+   //dbg("\033[7my:\n"); y.Print();
 }
 
 void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
