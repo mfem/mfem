@@ -4821,6 +4821,7 @@ int Mesh::GetBdrElementEdgeIndex(int i) const
       case 1: return boundary[i]->GetVertices()[0];
       case 2: return be_to_edge[i];
       case 3: return be_to_face[i];
+      case 4: return be_to_face[i];
       default: mfem_error("Mesh::GetBdrElementEdgeIndex: invalid dimension!");
    }
    return -1;
