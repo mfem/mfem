@@ -12,8 +12,10 @@
 //               ex1 -m ../data/square-disc-p2.vtk -o 2
 //               ex1 -m ../data/square-disc-p3.mesh -o 3
 //               ex1 -m ../data/square-disc-nurbs.mesh -o -1
+//               ex1 -m ../data/star-mixed-p2.mesh -o 2
 //               ex1 -m ../data/disc-nurbs.mesh -o -1
 //               ex1 -m ../data/pipe-nurbs.mesh -o -1
+//               ex1 -m ../data/fichera-mixed-p2.mesh -o 2
 //               ex1 -m ../data/star-surf.mesh
 //               ex1 -m ../data/square-disc-surf.mesh
 //               ex1 -m ../data/inline-segment.mesh

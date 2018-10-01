@@ -45,21 +45,13 @@ ParMesh::ParMesh(const ParMesh &pmesh, bool copy_nodes)
       shared_edges[i] = pmesh.shared_edges[i]->Duplicate(this);
    }
 
-   // Duplicate the shared_faces
-   shared_faces.SetSize(pmesh.shared_faces.Size());
-   for (int i = 0; i < shared_faces.Size(); i++)
-   {
-      shared_faces[i] = pmesh.shared_faces[i]->Duplicate(this);
-   }
+   shared_trias = pmesh.shared_trias;
+   shared_quads = pmesh.shared_quads;
 
    // Copy the shared-to-local index Arrays
    pmesh.svert_lvert.Copy(svert_lvert);
    pmesh.sedge_ledge.Copy(sedge_ledge);
-   pmesh.stria_lface.Copy(stria_lface);
-   pmesh.squad_lface.Copy(squad_lface);
-   pmesh.stria_sface.Copy(stria_sface);
-   pmesh.squad_sface.Copy(squad_sface);
-   pmesh.sface_stype.Copy(sface_stype);
+   sface_lface = pmesh.sface_lface;
 
    // Do not copy face-neighbor data (can be generated if needed)
    have_face_nbr_data = false;
@@ -125,7 +117,8 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       pncmesh->OnMeshUpdated(this);
 
       ncmesh = pncmesh;
-      meshgen = mesh.MeshGenerator();
+      // SetMeshGen(); // called by Mesh::InitFromNCMesh(...) above
+      meshgen = mesh.meshgen; // copy the global 'meshgen'
 
       mesh.attributes.Copy(attributes);
       mesh.bdr_attributes.Copy(bdr_attributes);
@@ -145,10 +138,6 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
    Dim = mesh.Dim;
    spaceDim = mesh.spaceDim;
-
-   BaseGeom = mesh.BaseGeom;
-   BaseBdrGeom = mesh.BaseBdrGeom;
-   BaseFaceGeom = mesh.BaseFaceGeom;
 
    ncmesh = pncmesh = NULL;
 
@@ -337,7 +326,8 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       }
    }
 
-   meshgen = mesh.MeshGenerator();
+   SetMeshGen();
+   meshgen = mesh.meshgen; // copy the global 'meshgen'
 
    mesh.attributes.Copy(attributes);
    mesh.bdr_attributes.Copy(bdr_attributes);
@@ -382,7 +372,6 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
    }
 #endif
    // determine shared faces
-   int sface_counter = 0;
    Array<int> face_group(mesh.GetNFaces());
    for (i = 0; i < face_group.Size(); i++)
    {
@@ -398,7 +387,6 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
          {
             group.Recreate(2, el);
             face_group[i] = groups.Insert(group) - 1;
-            sface_counter++;
          }
       }
    }
@@ -499,9 +487,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
    group_stria.MakeJ();
    group_squad.MakeJ();
 
-   sface_counter = 0;
-   int stria_counter = 0;
-   int squad_counter = 0;
+   int stria_counter = 0, squad_counter = 0;
    for (i = 0; i < face_group.Size(); i++)
    {
       if (face_group[i] >= 0)
@@ -514,7 +500,6 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
          {
             group_squad.AddConnection(face_group[i], squad_counter++);
          }
-         sface_counter++;
       }
    }
 
@@ -569,75 +554,74 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
    group_svert.ShiftUpI();
 
-   // build shared_faces and sface_lface
-   shared_faces.SetSize(sface_counter);
-   sface_stype. SetSize(sface_counter);
-   stria_lface. SetSize(stria_counter);
-   squad_lface. SetSize(squad_counter);
-   stria_sface. SetSize(stria_counter);
-   squad_sface. SetSize(squad_counter);
+   // build shared_trias, shared_quads, and sface_lface
+   shared_trias.SetSize(stria_counter);
+   shared_quads.SetSize(squad_counter);
+   sface_lface. SetSize(stria_counter + squad_counter);
 
    if (Dim == 3)
    {
-      sface_counter = 0;
       stria_counter = 0;
       squad_counter = 0;
       for (i = 0; i < face_group.Size(); i++)
       {
-         if (face_group[i] >= 0)
-         {
-            shared_faces[sface_counter] = mesh.GetFace(i)->Duplicate(this);
-            int *v = shared_faces[sface_counter]->GetVertices();
-            int nv = shared_faces[sface_counter]->GetNVertices();
-            for (j = 0; j < nv; j++)
-            {
-               v[j] = vert_global_local[v[j]];
-            }
-            switch (shared_faces[sface_counter]->GetType())
-            {
-               case Element::TRIANGLE:
-                  sface_stype[sface_counter] = stria_counter;
-                  stria_lface[stria_counter] = (*faces_tbl)(v[0], v[1], v[2]);
-                  stria_sface[stria_counter] = sface_counter;
+         if (face_group[i] < 0) { continue; }
 
-                  if ( BaseGeom == Geometry::TETRAHEDRON )
+         const Element *face = mesh.GetFace(i);
+         const int *fv = face->GetVertices();
+         switch (face->GetType())
+         {
+            case Element::TRIANGLE:
+            {
+               shared_trias[stria_counter].Set(fv);
+               int *v = shared_trias[stria_counter].v;
+               for (int j = 0; j < 3; j++)
+               {
+                  v[j] = vert_global_local[v[j]];
+               }
+               const int lface = (*faces_tbl)(v[0], v[1], v[2]);
+               sface_lface[stria_counter] = lface;
+               if (meshgen == 1) // Tet-only mesh
+               {
+                  Tetrahedron *tet = dynamic_cast<Tetrahedron *>
+                                     (elements[faces_info[lface].Elem1No]);
+                  // mark the shared face for refinement by reorienting
+                  // it according to the refinement flag in the tetrahedron
+                  // to which this shared face belongs to.
+                  if (tet->GetRefinementFlag())
                   {
-                     // mark the shared face for refinement by reorienting
-                     // it according to the refinement flag in the tetrahedron
-                     // to which this shared face belongs to.
-                     int lface = stria_lface[stria_counter];
-                     Tetrahedron *tet = dynamic_cast<Tetrahedron *>
-                                        (elements[faces_info[lface].Elem1No]);
-                     if (tet)
+                     tet->GetMarkedFace(faces_info[lface].Elem1Inf/64, v);
+                     // flip the shared face in the processor that owns the
+                     // second element (in 'mesh')
+                     int gl_el1, gl_el2;
+                     mesh.GetFaceElements(i, &gl_el1, &gl_el2);
+                     if (MyRank == partitioning[gl_el2])
                      {
-                        tet->GetMarkedFace(faces_info[lface].Elem1Inf/64, v);
-                        // flip the shared face in the processor that owns the
-                        // second element (in 'mesh')
-                        {
-                           int gl_el1, gl_el2;
-                           mesh.GetFaceElements(i, &gl_el1, &gl_el2);
-                           if (MyRank == partitioning[gl_el2])
-                           {
-                              std::swap(v[0], v[1]);
-                           }
-                        }
+                        std::swap(v[0], v[1]);
                      }
                   }
-                  stria_counter++;
-                  break;
-               case Element::QUADRILATERAL:
-                  sface_stype[sface_counter] = squad_counter;
-                  squad_lface[squad_counter] =
-                     (*faces_tbl)(v[0], v[1], v[2], v[3]);
-                  squad_sface[squad_counter] = sface_counter;
-                  squad_counter++;
-                  break;
-               default:
-                  MFEM_ABORT("Invalid 2D element type \""
-                             << shared_faces[sface_counter]->GetType() << "\"");
-                  break;
+               }
+               stria_counter++;
+               break;
             }
-            sface_counter++;
+
+            case Element::QUADRILATERAL:
+            {
+               shared_quads[squad_counter].Set(fv);
+               int *v = shared_quads[squad_counter].v;
+               for (int j = 0; j < 4; j++)
+               {
+                  v[j] = vert_global_local[v[j]];
+               }
+               sface_lface[shared_trias.Size()+squad_counter] =
+                  (*faces_tbl)(v[0], v[1], v[2], v[3]);
+               squad_counter++;
+               break;
+            }
+
+            default:
+               MFEM_ABORT("unknown face type: " << face->GetType());
+               break;
          }
       }
 
@@ -755,7 +739,51 @@ ParMesh::ParMesh(const ParNCMesh &pncmesh)
    , pncmesh(NULL)
 {
    Mesh::InitFromNCMesh(pncmesh);
+   ReduceMeshGen();
    have_face_nbr_data = false;
+}
+
+void ParMesh::ReduceMeshGen()
+{
+   int loc_meshgen = meshgen;
+   MPI_Allreduce(&loc_meshgen, &meshgen, 1, MPI_INT, MPI_BOR, MyComm);
+}
+
+void ParMesh::FinalizeParTopo()
+{
+   // Determine sedge_ledge
+   sedge_ledge.SetSize(shared_edges.Size());
+   if (shared_edges.Size())
+   {
+      DSTable v_to_v(NumOfVertices);
+      GetVertexToVertexTable(v_to_v);
+      for (int se = 0; se < shared_edges.Size(); se++)
+      {
+         const int *v = shared_edges[se]->GetVertices();
+         const int l_edge = v_to_v(v[0], v[1]);
+         MFEM_ASSERT(l_edge >= 0, "invalid shared edge");
+         sedge_ledge[se] = l_edge;
+      }
+   }
+
+   // Determine sface_lface
+   const int nst = shared_trias.Size();
+   sface_lface.SetSize(nst + shared_quads.Size());
+   if (sface_lface.Size())
+   {
+      STable3D *faces_tbl = GetFacesTable();
+      for (int st = 0; st < nst; st++)
+      {
+         const int *v = shared_trias[st].v;
+         sface_lface[st] = (*faces_tbl)(v[0], v[1], v[2]);
+      }
+      for (int sq = 0; sq < shared_quads.Size(); sq++)
+      {
+         const int *v = shared_quads[sq].v;
+         sface_lface[nst+sq] = (*faces_tbl)(v[0], v[1], v[2], v[3]);
+      }
+      delete faces_tbl;
+   }
 }
 
 ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
@@ -771,12 +799,14 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
    string ident;
 
    // read the serial part of the mesh
-   int gen_edges = 1;
+   const int gen_edges = 1;
 
    // Tell Loader() to read up to 'mfem_serial_mesh_end' instead of
    // 'mfem_mesh_end', as we have additional parallel mesh data to load in from
    // the stream.
    Loader(input, gen_edges, "mfem_serial_mesh_end");
+
+   ReduceMeshGen(); // determine the global 'meshgen'
 
    skip_comment_lines(input, '#');
 
@@ -788,8 +818,6 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
 
    skip_comment_lines(input, '#');
 
-   DSTable *v_to_v = NULL;
-   STable3D *faces_tbl = NULL;
    // read and set the sizes of svert_lvert, group_svert
    {
       int num_sverts;
@@ -806,43 +834,34 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
       sedge_ledge.SetSize(num_sedges);
       shared_edges.SetSize(num_sedges);
       group_sedge.SetDims(GetNGroups()-1, num_sedges);
-      v_to_v = new DSTable(NumOfVertices);
-      GetVertexToVertexTable(*v_to_v);
    }
    else
    {
       group_sedge.SetSize(GetNGroups()-1, 0);   // create empty group_sedge
    }
-   // read and set the sizes of sface_lface, group_sface
+   // read and set the sizes of sface_lface, group_{stria,squad}
    if (Dim >= 3)
    {
       skip_comment_lines(input, '#');
-      int num_sfaces;
-      int num_stria;
-      int num_squad;
-      input >> ident >> num_stria; // total_shared_triangles
-      input >> ident >> num_squad; // total_shared_quadrilaterals
-      num_sfaces = num_stria + num_squad;
-      sface_stype.SetSize(num_sfaces);
-      shared_faces.SetSize(num_sfaces);
-      group_stria.SetDims(GetNGroups()-1, num_stria);
-      group_squad.SetDims(GetNGroups()-1, num_squad);
-      faces_tbl = GetFacesTable();
+      int num_sface;
+      input >> ident >> num_sface; // total_shared_faces
+      sface_lface.SetSize(num_sface);
+      group_stria.MakeI(GetNGroups()-1);
+      group_squad.MakeI(GetNGroups()-1);
    }
    else
    {
-      group_stria.SetSize(GetNGroups()-1, 0);   // create empty group_sface
-      group_squad.SetSize(GetNGroups()-1, 0);   // create empty group_sface
+      group_stria.SetSize(GetNGroups()-1, 0);   // create empty group_stria
+      group_squad.SetSize(GetNGroups()-1, 0);   // create empty group_squad
    }
 
    // read, group by group, the contents of group_svert, svert_lvert,
-   // group_sedge, shared_edges, group_sface, shared_faces
-   //
-   // derive the contents of sedge_ledge, sface_lface
-   int svert_counter = 0, sedge_counter = 0, sface_counter = 0,
-       stria_counter = 0, squad_counter = 0;
+   // group_sedge, shared_edges, group_{stria,squad}, shared_{trias,quads}
+   int svert_counter = 0, sedge_counter = 0;
    for (int gr = 1; gr < GetNGroups(); gr++)
    {
+      skip_comment_lines(input, '#');
+#if 0
       int g;
       input >> ident >> g; // group
       if (g != gr)
@@ -851,6 +870,7 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
                    << ", read group " << g << endl;
          mfem_error();
       }
+#endif
 
       {
          int nv;
@@ -878,57 +898,55 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
             group_sedge.GetJ()[sedge_counter] = sedge_counter;
             input >> v[0] >> v[1];
             shared_edges[sedge_counter] = new Segment(v[0], v[1], 1);
-            sedge_ledge[sedge_counter] = (*v_to_v)(v[0], v[1]);
          }
       }
       if (Dim >= 3)
       {
-         int nf;
-         input >> ident >> nf; // shared_triangles (in this group)
-         nf += stria_counter;
-         MFEM_VERIFY(nf <= group_stria.Size_of_connections(),
-                     "incorrect number of total_shared_triangles");
-         group_stria.GetI()[gr] = nf;
-         for ( ; stria_counter < nf; stria_counter++)
+         int nf, tstart = shared_trias.Size(), qstart = shared_quads.Size();
+         input >> ident >> nf; // shared_faces (in this group)
+         for (int i = 0; i < nf; i++)
          {
-            group_stria.GetJ()[stria_counter] = stria_counter;
-            Element *sface = ReadElementWithoutAttr(input);
-            shared_faces[sface_counter] = sface;
-            const int *v = sface->GetVertices();
-            MFEM_VERIFY(sface->GetType() == Element::TRIANGLE,
-                        "Expecting to read a Triangle "
-                        "but found an element of type \""
-                        << sface->GetType() << "\"");
-            stria_lface[stria_counter] = (*faces_tbl)(v[0], v[1], v[2]);
-            stria_sface[stria_counter] = sface_counter;
-            sface_stype[sface_counter] = stria_counter;
-            sface_counter++;
+            int geom, *v;
+            input >> geom;
+            switch (geom)
+            {
+               case Geometry::TRIANGLE:
+                  shared_trias.SetSize(shared_trias.Size()+1);
+                  v = shared_trias.Last().v;
+                  for (int i = 0; i < 3; i++) { input >> v[i]; }
+                  break;
+               case Geometry::SQUARE:
+                  shared_quads.SetSize(shared_quads.Size()+1);
+                  v = shared_quads.Last().v;
+                  for (int i = 0; i < 4; i++) { input >> v[i]; }
+                  break;
+               default:
+                  MFEM_ABORT("invalid shared face geometry: " << geom);
+            }
          }
-
-         input >> ident >> nf; // shared_quadrilaterals (in this group)
-         nf += squad_counter;
-         MFEM_VERIFY(nf <= group_squad.Size_of_connections(),
-                     "incorrect number of total_shared_quadrilaterals");
-         group_squad.GetI()[gr] = nf;
-         for ( ; squad_counter < nf; squad_counter++)
-         {
-            group_squad.GetJ()[squad_counter] = squad_counter;
-            Element *sface = ReadElementWithoutAttr(input);
-            shared_faces[sface_counter] = sface;
-            const int *v = sface->GetVertices();
-            MFEM_VERIFY(sface->GetType() == Element::QUADRILATERAL,
-                        "Expecting to read a Quadrilateral "
-                        "but found an element of type \""
-                        << sface->GetType() << "\"");
-            squad_lface[squad_counter] = (*faces_tbl)(v[0], v[1], v[2], v[3]);
-            squad_sface[squad_counter] = sface_counter;
-            sface_stype[sface_counter] = squad_counter;
-            sface_counter++;
-         }
+         group_stria.AddColumnsInRow(gr-1, shared_trias.Size()-tstart);
+         group_squad.AddColumnsInRow(gr-1, shared_quads.Size()-qstart);
       }
    }
-   delete faces_tbl;
-   delete v_to_v;
+   if (Dim >= 3)
+   {
+      MFEM_VERIFY(shared_trias.Size() + shared_quads.Size()
+                  == sface_lface.Size(),
+                  "incorrect number of total_shared_faces");
+      // Define the J arrays of group_stria and group_squad -- they just contain
+      // consecutive numbers starting from 0 up to shared_trias.Size()-1 and
+      // shared_quads.Size()-1, respectively.
+      group_stria.MakeJ();
+      for (int i = 0; i < shared_trias.Size(); i++)
+      {
+         group_stria.GetJ()[i] = i;
+      }
+      group_squad.MakeJ();
+      for (int i = 0; i < shared_quads.Size(); i++)
+      {
+         group_squad.GetJ()[i] = i;
+      }
+   }
 
    const bool fix_orientation = false;
    Finalize(refine, fix_orientation);
@@ -950,9 +968,11 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
      pncmesh(NULL)
 {
    // Need to initialize:
-   // - shared_edges, shared_faces
-   // - group_svert, group_sedge, group_sface
+   // - shared_edges, shared_{trias,quads}
+   // - group_svert, group_sedge, group_{stria,squad}
    // - svert_lvert, sedge_ledge, sface_lface
+
+   meshgen = orig_mesh->meshgen; // copy the global 'meshgen'
 
    H1_FECollection rfec(ref_factor, Dim, ref_type);
    ParFiniteElementSpace rfes(orig_mesh, &rfec);
@@ -971,39 +991,37 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
       group_svert.AddColumnsInRow(gr-1, (ref_factor-1)*orig_ne);
       group_sedge.AddColumnsInRow(gr-1, ref_factor*orig_ne);
       // orig face -> (?) vertices, (?) edges, and (?) faces
-      const int  orig_nt = orig_mesh->GroupNTriangles(gr);
-      const int *orig_st = orig_mesh->group_stria.GetRow(gr-1);
-      for (int fi = 0; fi < orig_nt; fi++)
+      const int orig_nt = orig_mesh->GroupNTriangles(gr);
+      if (orig_nt > 0)
       {
-         const int orig_l_face = orig_mesh->stria_lface[orig_st[fi]];
-         Geometry::Type geom = orig_mesh->GetFaceBaseGeometry(orig_l_face);
+         const Geometry::Type geom = Geometry::TRIANGLE;
          const int nvert = Geometry::NumVerts[geom];
          RefinedGeometry &RG =
             *GlobGeometryRefiner.Refine(geom, ref_factor, ref_factor);
 
          // count internal vertices
-         group_svert.AddColumnsInRow(gr-1, rfec.DofForGeometry(geom));
+         group_svert.AddColumnsInRow(gr-1, orig_nt*rfec.DofForGeometry(geom));
          // count internal edges
-         group_sedge.AddColumnsInRow(gr-1, RG.RefEdges.Size()/2-RG.NumBdrEdges);
+         group_sedge.AddColumnsInRow(gr-1, orig_nt*(RG.RefEdges.Size()/2-
+                                                    RG.NumBdrEdges));
          // count refined faces
-         group_stria.AddColumnsInRow(gr-1, RG.RefGeoms.Size()/nvert);
+         group_stria.AddColumnsInRow(gr-1, orig_nt*(RG.RefGeoms.Size()/nvert));
       }
-      const int  orig_nq = orig_mesh->GroupNQuadrilaterals(gr);
-      const int *orig_sq = orig_mesh->group_squad.GetRow(gr-1);
-      for (int fi = 0; fi < orig_nq; fi++)
+      const int orig_nq = orig_mesh->GroupNQuadrilaterals(gr);
+      if (orig_nq > 0)
       {
-         const int orig_l_face = orig_mesh->squad_lface[orig_sq[fi]];
-         Geometry::Type geom = orig_mesh->GetFaceBaseGeometry(orig_l_face);
+         const Geometry::Type geom = Geometry::SQUARE;
          const int nvert = Geometry::NumVerts[geom];
          RefinedGeometry &RG =
             *GlobGeometryRefiner.Refine(geom, ref_factor, ref_factor);
 
          // count internal vertices
-         group_svert.AddColumnsInRow(gr-1, rfec.DofForGeometry(geom));
+         group_svert.AddColumnsInRow(gr-1, orig_nq*rfec.DofForGeometry(geom));
          // count internal edges
-         group_sedge.AddColumnsInRow(gr-1, RG.RefEdges.Size()/2-RG.NumBdrEdges);
+         group_sedge.AddColumnsInRow(gr-1, orig_nq*(RG.RefEdges.Size()/2-
+                                                    RG.NumBdrEdges));
          // count refined faces
-         group_squad.AddColumnsInRow(gr-1, RG.RefGeoms.Size()/nvert);
+         group_squad.AddColumnsInRow(gr-1, orig_nq*(RG.RefGeoms.Size()/nvert));
       }
    }
 
@@ -1016,14 +1034,9 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
 
    group_stria.MakeJ();
    group_squad.MakeJ();
-   shared_faces.Reserve(group_stria.Size_of_connections() +
-                        group_squad.Size_of_connections());
-   stria_lface.SetSize(group_stria.Size_of_connections());
-   squad_lface.SetSize(group_squad.Size_of_connections());
-   stria_sface.SetSize(group_stria.Size_of_connections());
-   squad_sface.SetSize(group_squad.Size_of_connections());
-   sface_stype.SetSize(group_stria.Size_of_connections() +
-                       group_squad.Size_of_connections());
+   shared_trias.Reserve(group_stria.Size_of_connections());
+   shared_quads.Reserve(group_squad.Size_of_connections());
+   sface_lface.SetSize(shared_trias.Size() + shared_quads.Size());
 
    Array<int> rdofs;
    for (int gr = 1; gr < GetNGroups(); gr++)
@@ -1038,117 +1051,123 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
 
       // add refined shared edges; add shared vertices from refined shared edges
       const int orig_n_edges = orig_mesh->GroupNEdges(gr);
-      Geometry::Type geom = Geometry::SEGMENT;
-      const int nvert = Geometry::NumVerts[geom];
-      RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref_factor);
-      for (int e = 0; e < orig_n_edges; e++)
+      if (orig_n_edges > 0)
       {
-         rfes.GetSharedEdgeDofs(gr, e, rdofs);
-         MFEM_ASSERT(rdofs.Size() == RG.RefPts.Size(), "");
-         // add the internal edge 'rdofs' as shared vertices
-         for (int j = 2; j < rdofs.Size(); j++)
-         {
-            group_svert.AddConnection(gr-1, svert_lvert.Append(rdofs[j])-1);
-         }
+         const Geometry::Type geom = Geometry::SEGMENT;
+         const int nvert = Geometry::NumVerts[geom];
+         RefinedGeometry &RG = *GlobGeometryRefiner.Refine(geom, ref_factor);
          const int *c2h_map = rfec.GetDofMap(geom);
-         for (int j = 0; j < RG.RefGeoms.Size(); j += nvert)
+
+         for (int e = 0; e < orig_n_edges; e++)
          {
-            Element *elem = NewElement(geom);
-            int *v = elem->GetVertices();
-            for (int k = 0; k < nvert; k++)
+            rfes.GetSharedEdgeDofs(gr, e, rdofs);
+            MFEM_ASSERT(rdofs.Size() == RG.RefPts.Size(), "");
+            // add the internal edge 'rdofs' as shared vertices
+            for (int j = 2; j < rdofs.Size(); j++)
             {
-               int cid = RG.RefGeoms[j+k]; // local Cartesian index
-               v[k] = rdofs[c2h_map[cid]];
+               group_svert.AddConnection(gr-1, svert_lvert.Append(rdofs[j])-1);
             }
-            group_sedge.AddConnection(gr-1, shared_edges.Append(elem)-1);
+            for (int j = 0; j < RG.RefGeoms.Size(); j += nvert)
+            {
+               Element *elem = NewElement(geom);
+               int *v = elem->GetVertices();
+               for (int k = 0; k < nvert; k++)
+               {
+                  int cid = RG.RefGeoms[j+k]; // local Cartesian index
+                  v[k] = rdofs[c2h_map[cid]];
+               }
+               group_sedge.AddConnection(gr-1, shared_edges.Append(elem)-1);
+            }
          }
       }
       // add refined shared faces; add shared edges and shared vertices from
       // refined shared faces
-      const int  orig_nt = orig_mesh->group_stria.RowSize(gr-1);
-      const int *orig_st = orig_mesh->group_squad.GetRow(gr-1);
-      for (int f = 0; f < orig_nt; f++)
+      const int orig_nt = orig_mesh->GroupNTriangles(gr);
+      if (orig_nt > 0)
       {
-         const int orig_l_face = orig_mesh->stria_lface[orig_st[f]];
-         Geometry::Type geom = orig_mesh->GetFaceBaseGeometry(orig_l_face);
+         const Geometry::Type geom = Geometry::TRIANGLE;
          const int nvert = Geometry::NumVerts[geom];
          RefinedGeometry &RG =
             *GlobGeometryRefiner.Refine(geom, ref_factor, ref_factor);
-
-         rfes.GetSharedTriangleDofs(gr, f, rdofs);
-         MFEM_ASSERT(rdofs.Size() == RG.RefPts.Size(), "");
-         // add the internal face 'rdofs' as shared vertices
          const int num_int_verts = rfec.DofForGeometry(geom);
-         for (int j = rdofs.Size()-num_int_verts; j < rdofs.Size(); j++)
-         {
-            group_svert.AddConnection(gr-1, svert_lvert.Append(rdofs[j])-1);
-         }
          const int *c2h_map = rfec.GetDofMap(geom);
-         // add the internal (for the shared face) edges as shared edges
-         for (int j = 2*RG.NumBdrEdges; j < RG.RefEdges.Size(); j += 2)
+
+         for (int f = 0; f < orig_nt; f++)
          {
-            Element *elem = NewElement(Geometry::SEGMENT);
-            int *v = elem->GetVertices();
-            for (int k = 0; k < 2; k++)
+            rfes.GetSharedTriangleDofs(gr, f, rdofs);
+            MFEM_ASSERT(rdofs.Size() == RG.RefPts.Size(), "");
+            // add the internal face 'rdofs' as shared vertices
+            for (int j = rdofs.Size()-num_int_verts; j < rdofs.Size(); j++)
             {
-               v[k] = rdofs[c2h_map[RG.RefEdges[j+k]]];
+               group_svert.AddConnection(gr-1, svert_lvert.Append(rdofs[j])-1);
             }
-            group_sedge.AddConnection(gr-1, shared_edges.Append(elem)-1);
-         }
-         // add refined shared faces
-         for (int j = 0; j < RG.RefGeoms.Size(); j += nvert)
-         {
-            Element *elem = NewElement(geom);
-            int *v = elem->GetVertices();
-            for (int k = 0; k < nvert; k++)
+            // add the internal (for the shared face) edges as shared edges
+            for (int j = 2*RG.NumBdrEdges; j < RG.RefEdges.Size(); j += 2)
             {
-               int cid = RG.RefGeoms[j+k]; // local Cartesian index
-               v[k] = rdofs[c2h_map[cid]];
+               Element *elem = NewElement(Geometry::SEGMENT);
+               int *v = elem->GetVertices();
+               for (int k = 0; k < 2; k++)
+               {
+                  v[k] = rdofs[c2h_map[RG.RefEdges[j+k]]];
+               }
+               group_sedge.AddConnection(gr-1, shared_edges.Append(elem)-1);
             }
-            group_stria.AddConnection(gr-1, shared_faces.Append(elem)-1);
+            // add refined shared faces
+            for (int j = 0; j < RG.RefGeoms.Size(); j += nvert)
+            {
+               shared_trias.SetSize(shared_trias.Size()+1);
+               int *v = shared_trias.Last().v;
+               for (int k = 0; k < nvert; k++)
+               {
+                  int cid = RG.RefGeoms[j+k]; // local Cartesian index
+                  v[k] = rdofs[c2h_map[cid]];
+               }
+               group_stria.AddConnection(gr-1, shared_trias.Size()-1);
+            }
          }
       }
-      const int  orig_nq = orig_mesh->group_squad.RowSize(gr-1);
-      const int *orig_sq = orig_mesh->group_squad.GetRow(gr-1);
-      for (int f = 0; f < orig_nq; f++)
+      const int orig_nq = orig_mesh->GroupNQuadrilaterals(gr);
+      if (orig_nq > 0)
       {
-         const int orig_l_face = orig_mesh->squad_lface[orig_sq[f]];
-         Geometry::Type geom = orig_mesh->GetFaceBaseGeometry(orig_l_face);
+         const Geometry::Type geom = Geometry::SQUARE;
          const int nvert = Geometry::NumVerts[geom];
          RefinedGeometry &RG =
             *GlobGeometryRefiner.Refine(geom, ref_factor, ref_factor);
-
-         rfes.GetSharedQuadrilateralDofs(gr, f, rdofs);
-         MFEM_ASSERT(rdofs.Size() == RG.RefPts.Size(), "");
-         // add the internal face 'rdofs' as shared vertices
          const int num_int_verts = rfec.DofForGeometry(geom);
-         for (int j = rdofs.Size()-num_int_verts; j < rdofs.Size(); j++)
-         {
-            group_svert.AddConnection(gr-1, svert_lvert.Append(rdofs[j])-1);
-         }
          const int *c2h_map = rfec.GetDofMap(geom);
-         // add the internal (for the shared face) edges as shared edges
-         for (int j = 2*RG.NumBdrEdges; j < RG.RefEdges.Size(); j += 2)
+
+         for (int f = 0; f < orig_nq; f++)
          {
-            Element *elem = NewElement(Geometry::SEGMENT);
-            int *v = elem->GetVertices();
-            for (int k = 0; k < 2; k++)
+            rfes.GetSharedQuadrilateralDofs(gr, f, rdofs);
+            MFEM_ASSERT(rdofs.Size() == RG.RefPts.Size(), "");
+            // add the internal face 'rdofs' as shared vertices
+            for (int j = rdofs.Size()-num_int_verts; j < rdofs.Size(); j++)
             {
-               v[k] = rdofs[c2h_map[RG.RefEdges[j+k]]];
+               group_svert.AddConnection(gr-1, svert_lvert.Append(rdofs[j])-1);
             }
-            group_sedge.AddConnection(gr-1, shared_edges.Append(elem)-1);
-         }
-         // add refined shared faces
-         for (int j = 0; j < RG.RefGeoms.Size(); j += nvert)
-         {
-            Element *elem = NewElement(geom);
-            int *v = elem->GetVertices();
-            for (int k = 0; k < nvert; k++)
+            // add the internal (for the shared face) edges as shared edges
+            for (int j = 2*RG.NumBdrEdges; j < RG.RefEdges.Size(); j += 2)
             {
-               int cid = RG.RefGeoms[j+k]; // local Cartesian index
-               v[k] = rdofs[c2h_map[cid]];
+               Element *elem = NewElement(Geometry::SEGMENT);
+               int *v = elem->GetVertices();
+               for (int k = 0; k < 2; k++)
+               {
+                  v[k] = rdofs[c2h_map[RG.RefEdges[j+k]]];
+               }
+               group_sedge.AddConnection(gr-1, shared_edges.Append(elem)-1);
             }
-            group_squad.AddConnection(gr-1, shared_faces.Append(elem)-1);
+            // add refined shared faces
+            for (int j = 0; j < RG.RefGeoms.Size(); j += nvert)
+            {
+               shared_quads.SetSize(shared_quads.Size()+1);
+               int *v = shared_quads.Last().v;
+               for (int k = 0; k < nvert; k++)
+               {
+                  int cid = RG.RefGeoms[j+k]; // local Cartesian index
+                  v[k] = rdofs[c2h_map[cid]];
+               }
+               group_squad.AddConnection(gr-1, shared_quads.Size()-1);
+            }
          }
       }
    }
@@ -1157,54 +1176,21 @@ ParMesh::ParMesh(ParMesh *orig_mesh, int ref_factor, int ref_type)
    group_stria.ShiftUpI();
    group_squad.ShiftUpI();
 
-   // determine sedge_ledge
-   if (shared_edges.Size() > 0)
-   {
-      DSTable v_to_v(NumOfVertices);
-      GetVertexToVertexTable(v_to_v);
-      for (int se = 0; se < shared_edges.Size(); se++)
-      {
-         const int *v = shared_edges[se]->GetVertices();
-         const int l_edge = v_to_v(v[0], v[1]);
-         MFEM_ASSERT(l_edge >= 0, "invalid shared edge");
-         sedge_ledge[se] = l_edge;
-      }
-   }
+   FinalizeParTopo();
+}
 
-   // determine sface_lface
-   if (shared_faces.Size() > 0)
-   {
-      STable3D *faces_tbl = GetFacesTable();
-      int st = 0;
-      int sq = 0;
-      for (int sf = 0; sf < shared_faces.Size(); sf++)
-      {
-         int l_face;
-         const int *v = shared_faces[sf]->GetVertices();
-         switch (shared_faces[sf]->GetGeometryType())
-         {
-            case Geometry::TRIANGLE:
-               l_face = (*faces_tbl)(v[0], v[1], v[2]);
-               stria_lface[st] = l_face;
-               stria_sface[st] = sf;
-               sface_stype[sf] = st;
-               st++;
-               break;
-            case Geometry::SQUARE:
-               l_face = (*faces_tbl)(v[0], v[1], v[2], v[3]);
-               squad_lface[sq] = l_face;
-               squad_sface[sq] = sf;
-               sface_stype[sf] = sq;
-               sq++;
-               break;
-            default:
-               MFEM_ABORT("invalid face geometry");
-               l_face = -1;
-         }
-         MFEM_ASSERT(l_face >= 0, "invalid shared face");
-      }
-      delete faces_tbl;
-   }
+void ParMesh::Finalize(bool refine, bool fix_orientation)
+{
+   const int meshgen_save = meshgen; // Mesh::Finalize() may call SetMeshGen()
+
+   Mesh::Finalize(refine, fix_orientation);
+
+   meshgen = meshgen_save;
+   // Note: if Mesh::Finalize() calls MarkTetMeshForRefinement() then the
+   //       shared_trias have been rotated as necessary.
+
+   // Setup secondary parallel mesh data: sedge_ledge, sface_lface
+   FinalizeParTopo();
 }
 
 void ParMesh::GroupEdge(int group, int i, int &edge, int &o)
@@ -1218,27 +1204,23 @@ void ParMesh::GroupEdge(int group, int i, int &edge, int &o)
 void ParMesh::GroupTriangle(int group, int i, int &face, int &o)
 {
    int stria = group_stria.GetRow(group-1)[i];
-   int sface = stria_sface[stria];
-   face = stria_lface[stria];
+   face = sface_lface[stria];
    // face gives the base orientation
-   MFEM_VERIFY(faces[face]->GetType() == Element::TRIANGLE,
+   MFEM_ASSERT(faces[face]->GetType() == Element::TRIANGLE,
                "Expecting a triangular face.");
 
-   o = GetTriOrientation(faces[face]->GetVertices(),
-                         shared_faces[sface]->GetVertices());
+   o = GetTriOrientation(faces[face]->GetVertices(), shared_trias[stria].v);
 }
 
 void ParMesh::GroupQuadrilateral(int group, int i, int &face, int &o)
 {
    int squad = group_squad.GetRow(group-1)[i];
-   int sface = squad_sface[squad];
-   face = squad_lface[squad];
+   face = sface_lface[shared_trias.Size()+squad];
    // face gives the base orientation
-   MFEM_VERIFY(faces[face]->GetType() == Element::QUADRILATERAL,
+   MFEM_ASSERT(faces[face]->GetType() == Element::QUADRILATERAL,
                "Expecting a quadrilateral face.");
 
-   o = GetQuadOrientation(faces[face]->GetVertices(),
-                          shared_faces[sface]->GetVertices());
+   o = GetQuadOrientation(faces[face]->GetVertices(), shared_quads[squad].v);
 }
 
 void ParMesh::MarkTetMeshForRefinement(DSTable &v_to_v)
@@ -1268,7 +1250,10 @@ void ParMesh::MarkTetMeshForRefinement(DSTable &v_to_v)
    Array<Pair<int,int> > sedge_ord_map(shared_edges.Size());
    for (int k = 0; k < shared_edges.Size(); k++)
    {
-      sedge_ord[k] = order[sedge_ledge[group_sedge.GetJ()[k]]];
+      // sedge_ledge may be undefined -- use shared_edges and v_to_v instead
+      const int sedge = group_sedge.GetJ()[k];
+      const int *v = shared_edges[sedge]->GetVertices();
+      sedge_ord[k] = order[v_to_v(v[0], v[1])];
    }
 
    sedge_comm.Bcast<int>(sedge_ord, 1);
@@ -1286,14 +1271,16 @@ void ParMesh::MarkTetMeshForRefinement(DSTable &v_to_v)
       SortPairs<int, int>(sedge_ord_map, n);
       for (int j = 0; j < n; j++)
       {
-         int sedge_from = group_sedge.GetJ()[k+j];
-         sedge_ord[k+j] = order[sedge_ledge[sedge_from]];
+         const int sedge_from = group_sedge.GetJ()[k+j];
+         const int *v = shared_edges[sedge_from]->GetVertices();
+         sedge_ord[k+j] = order[v_to_v(v[0], v[1])];
       }
       std::sort(&sedge_ord[k], &sedge_ord[k] + n);
       for (int j = 0; j < n; j++)
       {
-         int sedge_to = group_sedge.GetJ()[k+sedge_ord_map[j].two];
-         order[sedge_ledge[sedge_to]] = sedge_ord[k+j];
+         const int sedge_to = group_sedge.GetJ()[k+sedge_ord_map[j].two];
+         const int *v = shared_edges[sedge_to]->GetVertices();
+         order[v_to_v(v[0], v[1])] = sedge_ord[k+j];
       }
       k += n;
    }
@@ -1354,12 +1341,9 @@ void ParMesh::MarkTetMeshForRefinement(DSTable &v_to_v)
       }
    }
 
-   for (int i = 0; i < shared_faces.Size(); i++)
+   for (int i = 0; i < shared_trias.Size(); i++)
    {
-      if (shared_faces[i]->GetType() == Element::TRIANGLE)
-      {
-         shared_faces[i]->MarkEdge(v_to_v, order);
-      }
+      Triangle::MarkEdge(shared_trias[i].v, v_to_v, order);
    }
 }
 
@@ -1382,15 +1366,14 @@ int ParMesh::GetEdgeSplittings(Element *edge, const DSTable &v_to_v,
    }
 }
 
-void ParMesh::GetFaceSplittings(Element *face, const HashTable<Hashed2> &v_to_v,
+void ParMesh::GetFaceSplittings(const int *fv, const HashTable<Hashed2> &v_to_v,
                                 Array<unsigned> &codes)
 {
-   const int *v = face->GetVertices();
    typedef Triple<int,int,int> face_t;
    Array<face_t> face_stack;
 
    unsigned code = 0;
-   face_stack.Append(face_t(v[0], v[1], v[2]));
+   face_stack.Append(face_t(fv[0], fv[1], fv[2]));
    for (unsigned bit = 0; face_stack.Size() > 0; bit++)
    {
       if (bit == 8*sizeof(unsigned))
@@ -1602,32 +1585,24 @@ void ParMesh::ExchangeFaceNbrData()
    }
    else
    {
-      if (stria_sface.Size() == sface_stype.Size())
+      s2l_face = sface_lface;
+      if (shared_trias.Size() == sface_lface.Size())
       {
          // All shared faces are Triangular
          gr_sface = &group_stria;
-         s2l_face = stria_lface;
       }
-      else if (squad_sface.Size() == sface_stype.Size())
+      else if (shared_quads.Size() == sface_lface.Size())
       {
          // All shared faced are Quadrilateral
          gr_sface = &group_squad;
-         s2l_face = squad_lface;
       }
       else
       {
          // Shared faces contain a mixture of triangles and quads
-         gr_sface = new Table();
-         s2l_face = new int[sface_stype.Size()];
+         gr_sface = new Table;
          del_tables = true;
 
-         for (int sface=0; sface<sface_stype.Size(); sface++)
-         {
-            Element::Type el_type = shared_faces[sface]->GetType();
-            int stype = sface_stype[sface];
-            s2l_face[sface] = ( el_type == Element::TRIANGLE ) ?
-                              stria_lface[stype] : squad_lface[stype];
-         }
+         // Merge the Tables group_stria and group_squad
          gr_sface->MakeI(group_stria.Size());
          for (int gr=0; gr<group_stria.Size(); gr++)
          {
@@ -1636,17 +1611,16 @@ void ParMesh::ExchangeFaceNbrData()
                                       group_squad.RowSize(gr));
          }
          gr_sface->MakeJ();
+         const int nst = shared_trias.Size();
          for (int gr=0; gr<group_stria.Size(); gr++)
          {
-            for (int c=0; c<group_stria.RowSize(gr); c++)
-            {
-               gr_sface->AddConnection(gr,
-                                       stria_sface[group_stria.GetRow(gr)[c]]);
-            }
+            gr_sface->AddConnections(gr,
+                                     group_stria.GetRow(gr),
+                                     group_stria.RowSize(gr));
             for (int c=0; c<group_squad.RowSize(gr); c++)
             {
                gr_sface->AddConnection(gr,
-                                       squad_sface[group_squad.GetRow(gr)[c]]);
+                                       nst + group_squad.GetRow(gr)[c]);
             }
          }
          gr_sface->ShiftUpI();
@@ -1655,11 +1629,7 @@ void ParMesh::ExchangeFaceNbrData()
 
    ExchangeFaceNbrData(gr_sface, s2l_face);
 
-   if (del_tables)
-   {
-      delete gr_sface;
-      delete [] s2l_face;
-   }
+   if (del_tables) { delete gr_sface; }
 
    if ( have_face_nbr_data ) { return; }
 
@@ -1672,10 +1642,12 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
 {
    int num_face_nbrs = 0;
    for (int g = 1; g < GetNGroups(); g++)
+   {
       if (gr_sface->RowSize(g-1) > 0)
       {
          num_face_nbrs++;
       }
+   }
 
    face_nbr_group.SetSize(num_face_nbrs);
 
@@ -1690,19 +1662,18 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
       Array<Pair<int, int> > rank_group(num_face_nbrs);
 
       for (int g = 1, counter = 0; g < GetNGroups(); g++)
+      {
          if (gr_sface->RowSize(g-1) > 0)
          {
-#ifdef MFEM_DEBUG
-            if (gtopo.GetGroupSize(g) != 2)
-               mfem_error("ParMesh::ExchangeFaceNbrData() : "
-                          "group size is not 2!");
-#endif
+            MFEM_ASSERT(gtopo.GetGroupSize(g) == 2, "group size is not 2!");
+
             const int *nbs = gtopo.GetGroup(g);
             int lproc = (nbs[0]) ? nbs[0] : nbs[1];
             rank_group[counter].one = gtopo.GetNeighborRank(lproc);
             rank_group[counter].two = g;
             counter++;
          }
+      }
 
       SortPairs<int, int>(rank_group, rank_group.Size());
 
@@ -1778,6 +1749,7 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
    send_face_nbr_facedata.MakeJ();
    el_marker = -1;
    vertex_marker = -1;
+   const int nst = shared_trias.Size();
    for (int fn = 0; fn < num_face_nbrs; fn++)
    {
       int nbr_group = face_nbr_group[fn];
@@ -1785,7 +1757,8 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
       int *sface = gr_sface->GetRow(nbr_group-1);
       for (int i = 0; i < num_sfaces; i++)
       {
-         int lface = s2l_face[sface[i]];
+         const int sf = sface[i];
+         int lface = s2l_face[sf];
          int el = faces_info[lface].Elem1No;
          if (el_marker[el] != fn)
          {
@@ -1812,16 +1785,14 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
          //   in 1D and 2D keep the orientation equal to 0
          if (Dim == 3)
          {
-            Element *lf = faces[lface];
-            const int *sf_v = shared_faces[sface[i]]->GetVertices();
-
-            if  (lf->GetGeometryType() == Geometry::TRIANGLE)
+            const int *lf_v = faces[lface]->GetVertices();
+            if (sf < nst) // triangle shared face
             {
-               info += GetTriOrientation(sf_v, lf->GetVertices());
+               info += GetTriOrientation(shared_trias[sf].v, lf_v);
             }
-            else
+            else // quad shared face
             {
-               info += GetQuadOrientation(sf_v, lf->GetVertices());
+               info += GetQuadOrientation(shared_quads[sf-nst].v, lf_v);
             }
          }
          send_face_nbr_facedata.AddConnection(fn, info);
@@ -1979,7 +1950,8 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
 
       for (int i = 0; i < num_sfaces; i++)
       {
-         int lface = s2l_face[sface[i]];
+         const int sf = sface[i];
+         int lface = s2l_face[sf];
          FaceInfo &face_info = faces_info[lface];
          face_info.Elem2No = -1 - (facedata[2*i] + elem_off);
          int info = facedata[2*i+1];
@@ -1991,30 +1963,31 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
          else
          {
             int nbr_ori = info%64, nbr_v[4];
-            Element *lf = faces[lface];
-            const int *sf_v = shared_faces[sface[i]]->GetVertices();
+            const int *lf_v = faces[lface]->GetVertices();
 
-            if  (lf->GetGeometryType() == Geometry::TRIANGLE)
+            if (sf < nst) // triangle shared face
             {
                // apply the nbr_ori to sf_v to get nbr_v
                const int *perm = tri_t::Orient[nbr_ori];
+               const int *sf_v = shared_trias[sf].v;
                for (int j = 0; j < 3; j++)
                {
                   nbr_v[perm[j]] = sf_v[j];
                }
                // get the orientation of nbr_v w.r.t. the local face
-               nbr_ori = GetTriOrientation(lf->GetVertices(), nbr_v);
+               nbr_ori = GetTriOrientation(lf_v, nbr_v);
             }
-            else
+            else // quad shared face
             {
                // apply the nbr_ori to sf_v to get nbr_v
                const int *perm = quad_t::Orient[nbr_ori];
+               const int *sf_v = shared_quads[sf-nst].v;
                for (int j = 0; j < 4; j++)
                {
                   nbr_v[perm[j]] = sf_v[j];
                }
                // get the orientation of nbr_v w.r.t. the local face
-               nbr_ori = GetQuadOrientation(lf->GetVertices(), nbr_v);
+               nbr_ori = GetQuadOrientation(lf_v, nbr_v);
             }
 
             info = 64*(info/64) + nbr_ori;
@@ -2124,7 +2097,7 @@ Table *ParMesh::GetFaceToAllElementTable() const
    }
    else
    {
-      s2l_face = &stria_lface;
+      s2l_face = &sface_lface;
    }
 
    Table *face_elem = new Table;
@@ -2146,15 +2119,6 @@ Table *ParMesh::GetFaceToAllElementTable() const
    {
       face_elem->AddAColumnInRow((*s2l_face)[i]);
    }
-   if ( s2l_face == &stria_lface )
-   {
-      s2l_face = &squad_lface;
-      for (int i = 0; i < s2l_face->Size(); i++)
-      {
-         face_elem->AddAColumnInRow((*s2l_face)[i]);
-      }
-      s2l_face = &stria_lface;
-   }
 
    face_elem->MakeJ();
 
@@ -2171,16 +2135,6 @@ Table *ParMesh::GetFaceToAllElementTable() const
       int lface = (*s2l_face)[i];
       int nbr_elem_idx = -1 - faces_info[lface].Elem2No;
       face_elem->AddConnection(lface, NumOfElements + nbr_elem_idx);
-   }
-   if ( s2l_face == &stria_lface )
-   {
-      s2l_face = &squad_lface;
-      for (int i = 0; i < s2l_face->Size(); i++)
-      {
-         int lface = (*s2l_face)[i];
-         int nbr_elem_idx = -1 - faces_info[lface].Elem2No;
-         face_elem->AddConnection(lface, NumOfElements + nbr_elem_idx);
-      }
    }
 
    face_elem->ShiftUpI();
@@ -2313,7 +2267,7 @@ int ParMesh::GetNSharedFaces() const
       {
          case 1:  return svert_lvert.Size();
          case 2:  return sedge_ledge.Size();
-         default: return sface_stype.Size();
+         default: return sface_lface.Size();
       }
    }
    else
@@ -2332,19 +2286,7 @@ int ParMesh::GetSharedFace(int sface) const
       {
          case 1:  return svert_lvert[sface];
          case 2:  return sedge_ledge[sface];
-         default:
-         {
-            Element::Type el_type = shared_faces[sface]->GetType();
-            int stype = sface_stype[sface];
-            if ( el_type == Element::TRIANGLE )
-            {
-               return stria_lface[stype];
-            }
-            else
-            {
-               return squad_lface[stype];
-            }
-         }
+         default: return sface_lface[sface];
       }
    }
    else
@@ -2367,39 +2309,64 @@ void ParMesh::ReorientTetMesh()
 
    Mesh::ReorientTetMesh();
 
-   int *v;
-
-   // The local edge and face numbering is changed therefore we need to
-   // update sedge_ledge and sface_lface.
+   const bool check_consistency = true;
+   if (check_consistency)
    {
-      DSTable v_to_v(NumOfVertices);
-      GetVertexToVertexTable(v_to_v);
-      for (int i = 0; i < shared_edges.Size(); i++)
+      // create a GroupCommunicator on the shared triangles
+      GroupCommunicator stria_comm(gtopo);
       {
-         v = shared_edges[i]->GetVertices();
-         sedge_ledge[i] = v_to_v(v[0], v[1]);
+         // initialize stria_comm
+         Table &gr_stria = stria_comm.GroupLDofTable();
+         // gr_stria differs from group_stria - the latter does not store gr. 0
+         gr_stria.SetDims(GetNGroups(), shared_trias.Size());
+         gr_stria.GetI()[0] = 0;
+         for (int gr = 1; gr <= GetNGroups(); gr++)
+         {
+            gr_stria.GetI()[gr] = group_stria.GetI()[gr-1];
+         }
+         for (int k = 0; k < shared_trias.Size(); k++)
+         {
+            gr_stria.GetJ()[k] = group_stria.GetJ()[k];
+         }
+         stria_comm.Finalize();
+      }
+      Array<int> stria_flag(shared_trias.Size());
+      for (int i = 0; i < stria_flag.Size(); i++)
+      {
+         const int *v = shared_trias[i].v;
+         if (v[0] < v[1])
+         {
+            stria_flag[i] = (v[0] < v[2]) ? 0 : 2;
+         }
+         else // v[1] < v[0]
+         {
+            stria_flag[i] = (v[1] < v[2]) ? 1 : 2;
+         }
+      }
+      Array<int> stria_master_flag(stria_flag);
+      stria_comm.Bcast(stria_master_flag);
+      for (int i = 0; i < stria_flag.Size(); i++)
+      {
+         MFEM_VERIFY(stria_flag[i] == stria_master_flag[i],
+                     "inconsistent vertex ordering found");
       }
    }
 
-   // Rotate shared faces and update sface_lface.
+   // Rotate shared triangle faces.
    // Note that no communication is needed to ensure that the shared
    // faces are rotated in the same way in both processors. This is
    // automatic due to various things, e.g. the global to local vertex
    // mapping preserves the global order; also the way new vertices
    // are introduced during refinement is essential.
+   for (int i = 0; i < shared_trias.Size(); i++)
    {
-      STable3D *faces_tbl = GetFacesTable();
-      for (int i = 0; i < shared_faces.Size(); i++)
-         if (shared_faces[i]->GetType() == Element::TRIANGLE)
-         {
-            v = shared_faces[i]->GetVertices();
-
-            Rotate3(v[0], v[1], v[2]);
-
-            stria_lface[i] = (*faces_tbl)(v[0], v[1], v[2]);
-         }
-      delete faces_tbl;
+      int *v = shared_trias[i].v;
+      Rotate3(v[0], v[1], v[2]);
    }
+
+   // The local edge and face numbering is changed therefore we need to
+   // update sedge_ledge and sface_lface.
+   FinalizeParTopo();
 }
 
 void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
@@ -2526,7 +2493,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
                face_splittings[i].SetSize(0);
                for (int j = 0; j < faces_in_group; j++)
                {
-                  GetFaceSplittings(shared_faces[group_faces[j]], v_to_v,
+                  GetFaceSplittings(shared_trias[group_faces[j]].v, v_to_v,
                                     face_splittings[i]);
                }
                const int *nbs = gtopo.GetGroup(i+1);
@@ -2554,7 +2521,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 
                for (int j = 0, pos = 0; j < faces_in_group; j++)
                {
-                  const int *v = shared_faces[group_faces[j]]->GetVertices();
+                  const int *v = shared_trias[group_faces[j]].v;
                   need_refinement |= DecodeFaceSplittings(v_to_v, v, iBuf, pos);
                }
             }
@@ -2607,14 +2574,17 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 
       DeleteLazyTables();
 
+      const int old_nv = NumOfVertices;
+      NumOfVertices = vertices.Size();
+
+      RefineGroups(old_nv, v_to_v);
+
       // 5. Update the groups after refinement.
       if (el_to_face != NULL)
       {
-         RefineGroups(v_to_v);
-         // GetElementToFaceTable(); // Called by RefineGroups
+         GetElementToFaceTable();
          GenerateFaces();
       }
-      NumOfVertices = vertices.Size();
 
       // 6. Update element-to-edge relations.
       if (el_to_edge != NULL)
@@ -2948,11 +2918,7 @@ void ParMesh::NonconformingRefinement(const Array<Refinement> &refinements,
    last_operation = Mesh::REFINE;
    sequence++;
 
-   if (Nodes) // update/interpolate curved mesh
-   {
-      Nodes->FESpace()->Update();
-      Nodes->Update();
-   }
+   UpdateNodes();
 }
 
 bool ParMesh::NonconformingDerefinement(Array<double> &elem_error,
@@ -3029,19 +2995,16 @@ void ParMesh::Rebalance()
    last_operation = Mesh::REBALANCE;
    sequence++;
 
-   if (Nodes) // redistribute curved mesh
-   {
-      Nodes->FESpace()->Update();
-      Nodes->Update();
-   }
+   UpdateNodes();
 }
 
 void ParMesh::RefineGroups(const DSTable &v_to_v, int *middle)
 {
-   int i, attr, newv[3], ind, f_ind, *v;
+   // Refine groups after LocalRefinement in 2D (triangle meshes)
 
-   int group;
-   Array<int> group_verts, group_edges, group_trias;
+   MFEM_ASSERT(Dim == 2 && meshgen == 1, "internal error");
+
+   Array<int> group_verts, group_edges;
 
    // To update the groups after a refinement, we observe that:
    // - every (new and old) vertex, edge and face belongs to exactly one group
@@ -3051,185 +3014,69 @@ void ParMesh::RefineGroups(const DSTable &v_to_v, int *middle)
 
    int *I_group_svert, *J_group_svert;
    int *I_group_sedge, *J_group_sedge;
-   int *I_group_stria, *J_group_stria;
 
    I_group_svert = new int[GetNGroups()+1];
    I_group_sedge = new int[GetNGroups()+1];
-   if (Dim == 3)
-   {
-      I_group_stria = new int[GetNGroups()+1];
-   }
-   else
-   {
-      I_group_stria = NULL;
-   }
 
    I_group_svert[0] = I_group_svert[1] = 0;
    I_group_sedge[0] = I_group_sedge[1] = 0;
-   if (Dim == 3)
-   {
-      I_group_stria[0] = I_group_stria[1] = 0;
-   }
 
    // overestimate the size of the J arrays
-   if (Dim == 3)
-   {
-      J_group_svert = new int[group_svert.Size_of_connections()
-                              + group_sedge.Size_of_connections()];
-      J_group_sedge = new int[2*group_sedge.Size_of_connections()
-                              + 3*group_stria.Size_of_connections()];
-      J_group_stria = new int[4*group_stria.Size_of_connections()];
-   }
-   else if (Dim == 2)
-   {
-      J_group_svert = new int[group_svert.Size_of_connections()
-                              + group_sedge.Size_of_connections()];
-      J_group_sedge = new int[2*group_sedge.Size_of_connections()];
-      J_group_stria = NULL;
-   }
-   else
-   {
-      J_group_svert = J_group_sedge = J_group_stria = NULL;
-   }
+   J_group_svert = new int[group_svert.Size_of_connections()
+                           + group_sedge.Size_of_connections()];
+   J_group_sedge = new int[2*group_sedge.Size_of_connections()];
 
-   for (group = 0; group < GetNGroups()-1; group++)
+   for (int group = 0; group < GetNGroups()-1; group++)
    {
       // Get the group shared objects
       group_svert.GetRow(group, group_verts);
       group_sedge.GetRow(group, group_edges);
-      group_stria.GetRow(group, group_trias);
 
       // Check which edges have been refined
-      for (i = 0; i < group_sedge.RowSize(group); i++)
+      for (int i = 0; i < group_sedge.RowSize(group); i++)
       {
-         v = shared_edges[group_edges[i]]->GetVertices();
-         ind = middle[v_to_v(v[0], v[1])];
+         int *v = shared_edges[group_edges[i]]->GetVertices();
+         const int ind = middle[v_to_v(v[0], v[1])];
          if (ind != -1)
          {
             // add a vertex
             group_verts.Append(svert_lvert.Append(ind)-1);
             // update the edges
-            attr = shared_edges[group_edges[i]]->GetAttribute();
+            const int attr = shared_edges[group_edges[i]]->GetAttribute();
             shared_edges.Append(new Segment(v[1], ind, attr));
             group_edges.Append(sedge_ledge.Append(-1)-1);
             v[1] = ind;
          }
       }
 
-      // Check which faces have been refined
-      for (i = 0; i < group_stria.RowSize(group); i++)
-      {
-         v = shared_faces[group_trias[i]]->GetVertices();
-         ind = middle[v_to_v(v[0], v[1])];
-         if (ind != -1)
-         {
-            attr = shared_faces[group_trias[i]]->GetAttribute();
-            // add the refinement edge
-            shared_edges.Append(new Segment(v[2], ind, attr));
-            group_edges.Append(sedge_ledge.Append(-1)-1);
-            // add a face
-            f_ind = group_trias.Size();
-            shared_faces.Append(new Triangle(v[1], v[2], ind, attr));
-            group_trias.Append(stria_lface.Append(-1)-1);
-            newv[0] = v[2]; newv[1] = v[0]; newv[2] = ind;
-            shared_faces[group_trias[i]]->SetVertices(newv);
-
-            // check if the left face has also been refined
-            // v = shared_faces[group_faces[i]]->GetVertices();
-            ind = middle[v_to_v(v[0], v[1])];
-            if (ind != -1)
-            {
-               // add the refinement edge
-               shared_edges.Append(new Segment(v[2], ind, attr));
-               group_edges.Append(sedge_ledge.Append(-1)-1);
-               // add a face
-               shared_faces.Append(new Triangle(v[1], v[2], ind, attr));
-               group_trias.Append(stria_lface.Append(-1)-1);
-               newv[0] = v[2]; newv[1] = v[0]; newv[2] = ind;
-               shared_faces[group_trias[i]]->SetVertices(newv);
-            }
-
-            // check if the right face has also been refined
-            v = shared_faces[group_trias[f_ind]]->GetVertices();
-            ind = middle[v_to_v(v[0], v[1])];
-            if (ind != -1)
-            {
-               // add the refinement edge
-               shared_edges.Append(new Segment(v[2], ind, attr));
-               group_edges.Append(sedge_ledge.Append(-1)-1);
-               // add a face
-               shared_faces.Append(new Triangle(v[1], v[2], ind, attr));
-               group_trias.Append(stria_lface.Append(-1)-1);
-               newv[0] = v[2]; newv[1] = v[0]; newv[2] = ind;
-               shared_faces[group_trias[f_ind]]->SetVertices(newv);
-            }
-         }
-      }
-
       I_group_svert[group+1] = I_group_svert[group] + group_verts.Size();
       I_group_sedge[group+1] = I_group_sedge[group] + group_edges.Size();
-      if (Dim == 3)
-      {
-         I_group_stria[group+1] = I_group_stria[group] + group_trias.Size();
-      }
 
       int *J;
       J = J_group_svert+I_group_svert[group];
-      for (i = 0; i < group_verts.Size(); i++)
+      for (int i = 0; i < group_verts.Size(); i++)
       {
          J[i] = group_verts[i];
       }
       J = J_group_sedge+I_group_sedge[group];
-      for (i = 0; i < group_edges.Size(); i++)
+      for (int i = 0; i < group_edges.Size(); i++)
       {
          J[i] = group_edges[i];
       }
-      if (Dim == 3)
-      {
-         J = J_group_stria+I_group_stria[group];
-         for (i = 0; i < group_trias.Size(); i++)
-         {
-            J[i] = group_trias[i];
-         }
-      }
    }
 
-   // Fix the local numbers of shared edges and faces
-   {
-      DSTable new_v_to_v(NumOfVertices);
-      GetVertexToVertexTable(new_v_to_v);
-      for (i = 0; i < shared_edges.Size(); i++)
-      {
-         v = shared_edges[i]->GetVertices();
-         sedge_ledge[i] = new_v_to_v(v[0], v[1]);
-      }
-   }
-   if (Dim == 3)
-   {
-      STable3D *faces_tbl = GetElementToFaceTable(1);
-      sface_stype.SetSize(shared_faces.Size());
-      for (i = 0; i < shared_faces.Size(); i++)
-      {
-         v = shared_faces[i]->GetVertices();
-         stria_lface[i] = (*faces_tbl)(v[0], v[1], v[2]);
-         sface_stype[i] = i;
-      }
-      delete faces_tbl;
-   }
+   FinalizeParTopo();
 
    group_svert.SetIJ(I_group_svert, J_group_svert);
    group_sedge.SetIJ(I_group_sedge, J_group_sedge);
-   if (Dim == 3)
-   {
-      group_stria.SetIJ(I_group_stria, J_group_stria);
-   }
 }
 
-void ParMesh::RefineGroups(const HashTable<Hashed2> &v_to_v)
+void ParMesh::RefineGroups(int old_nv, const HashTable<Hashed2> &v_to_v)
 {
-   int i, attr, ind, *v;
+   // Refine groups after LocalRefinement in 3D (tetrahedral meshes)
 
-   int group;
+   MFEM_ASSERT(Dim == 3 && meshgen == 1, "internal error");
+
    Array<int> group_verts, group_edges, group_trias;
 
    // To update the groups after a refinement, we observe that:
@@ -3239,27 +3086,21 @@ void ParMesh::RefineGroups(const HashTable<Hashed2> &v_to_v)
    // - a face can be refined multiple times producing new edges and faces
 
    Array<Segment *> sedge_stack;
-   Array<Triangle *> sface_stack;
+   Array<Vert3> sface_stack;
 
    Array<int> I_group_svert, J_group_svert;
    Array<int> I_group_sedge, J_group_sedge;
-   Array<int> I_group_sface, J_group_sface;
+   Array<int> I_group_stria, J_group_stria;
 
-   I_group_svert.SetSize(GetNGroups()+1);
-   I_group_sedge.SetSize(GetNGroups()+1);
-   if (Dim == 3)
-   {
-      I_group_sface.SetSize(GetNGroups()+1);
-   }
+   I_group_svert.SetSize(GetNGroups());
+   I_group_sedge.SetSize(GetNGroups());
+   I_group_stria.SetSize(GetNGroups());
 
-   I_group_svert[0] = I_group_svert[1] = 0;
-   I_group_sedge[0] = I_group_sedge[1] = 0;
-   if (Dim == 3)
-   {
-      I_group_sface[0] = I_group_sface[1] = 0;
-   }
+   I_group_svert[0] = 0;
+   I_group_sedge[0] = 0;
+   I_group_stria[0] = 0;
 
-   for (group = 0; group < GetNGroups()-1; group++)
+   for (int group = 0; group < GetNGroups()-1; group++)
    {
       // Get the group shared objects
       group_svert.GetRow(group, group_verts);
@@ -3267,17 +3108,17 @@ void ParMesh::RefineGroups(const HashTable<Hashed2> &v_to_v)
       group_stria.GetRow(group, group_trias);
 
       // Check which edges have been refined
-      for (i = 0; i < group_sedge.RowSize(group); i++)
+      for (int i = 0; i < group_sedge.RowSize(group); i++)
       {
-         v = shared_edges[group_edges[i]]->GetVertices();
-         ind = v_to_v.FindId(v[0], v[1]);
+         int *v = shared_edges[group_edges[i]]->GetVertices();
+         int ind = v_to_v.FindId(v[0], v[1]);
          if (ind == -1) { continue; }
 
          // This shared edge is refined: walk the whole refinement tree
-         attr = shared_edges[group_edges[i]]->GetAttribute();
+         const int attr = shared_edges[group_edges[i]]->GetAttribute();
          do
          {
-            ind += NumOfVertices;
+            ind += old_nv;
             // Add new shared vertex
             group_verts.Append(svert_lvert.Append(ind)-1);
             // Put the right sub-edge on top of the stack
@@ -3304,7 +3145,7 @@ void ParMesh::RefineGroups(const HashTable<Hashed2> &v_to_v)
             else
             {
                // The edge 'se' is refined
-               ind += NumOfVertices;
+               ind += old_nv;
                // Add new shared vertex
                group_verts.Append(svert_lvert.Append(ind)-1);
                // Put the left sub-edge on top of the stack
@@ -3317,22 +3158,21 @@ void ParMesh::RefineGroups(const HashTable<Hashed2> &v_to_v)
       }
 
       // Check which triangles have been refined
-      for (i = 0; i < group_stria.RowSize(group); i++)
+      for (int i = 0; i < group_stria.RowSize(group); i++)
       {
-         v = shared_faces[stria_sface[group_trias[i]]]->GetVertices();
-         ind = v_to_v.FindId(v[0], v[1]);
+         int *v = shared_trias[group_trias[i]].v;
+         int ind = v_to_v.FindId(v[0], v[1]);
          if (ind == -1) { continue; }
 
          // This shared face is refined: walk the whole refinement tree
-         attr = shared_faces[stria_sface[group_trias[i]]]->GetAttribute();
          const int edge_attr = 1;
          do
          {
-            ind += NumOfVertices;
+            ind += old_nv;
             // Add the refinement edge to the edge stack
             sedge_stack.Append(new Segment(v[2], ind, edge_attr));
             // Put the right sub-triangle on top of the face stack
-            sface_stack.Append(new Triangle(v[1], v[2], ind, attr));
+            sface_stack.Append(Vert3(v[1], v[2], ind));
             // The left sub-triangle replaces the original one
             v[1] = v[0]; v[0] = v[2]; v[2] = ind;
             ind = v_to_v.FindId(v[0], v[1]);
@@ -3341,25 +3181,27 @@ void ParMesh::RefineGroups(const HashTable<Hashed2> &v_to_v)
          // Process all faces (triangles) in the face stack
          do
          {
-            Triangle *st = sface_stack.Last();
-            v = st->GetVertices();
+            Vert3 &st = sface_stack.Last();
+            v = st.v;
             ind = v_to_v.FindId(v[0], v[1]);
             if (ind == -1)
             {
                // The triangle 'st' is not refined
-               sface_stack.DeleteLast();
                // Add new shared face
-               shared_faces.Append(st);
-               group_trias.Append(stria_lface.Append(-1)-1);
+               shared_trias.Append(st);
+               group_trias.Append(sface_lface.Append(-1)-1);
+               sface_stack.DeleteLast();
             }
             else
             {
                // The triangle 'st' is refined
-               ind += NumOfVertices;
+               ind += old_nv;
                // Add the refinement edge to the edge stack
                sedge_stack.Append(new Segment(v[2], ind, edge_attr));
                // Put the left sub-triangle on top of the face stack
-               sface_stack.Append(new Triangle(v[2], v[0], ind, attr));
+               sface_stack.Append(Vert3(v[2], v[0], ind));
+               // Note that the above Append() may invalidate 'v'
+               v = sface_stack[sface_stack.Size()-2].v;
                // The right sub-triangle replaces the original one
                v[0] = v[1]; v[1] = v[2]; v[2] = ind;
             }
@@ -3382,11 +3224,11 @@ void ParMesh::RefineGroups(const HashTable<Hashed2> &v_to_v)
             else
             {
                // The edge 'se' is refined
-               ind += NumOfVertices;
+               ind += old_nv;
                // Add new shared vertex
                group_verts.Append(svert_lvert.Append(ind)-1);
                // Put the left sub-edge on top of the stack
-               sedge_stack.Append(new Segment(v[0], ind, attr));
+               sedge_stack.Append(new Segment(v[0], ind, edge_attr));
                // The right sub-edge replaces the original edge
                v[0] = ind;
             }
@@ -3396,853 +3238,269 @@ void ParMesh::RefineGroups(const HashTable<Hashed2> &v_to_v)
 
       I_group_svert[group+1] = I_group_svert[group] + group_verts.Size();
       I_group_sedge[group+1] = I_group_sedge[group] + group_edges.Size();
-      if (Dim == 3)
-      {
-         I_group_sface[group+1] = I_group_sface[group] + group_trias.Size();
-      }
+      I_group_stria[group+1] = I_group_stria[group] + group_trias.Size();
 
       J_group_svert.Append(group_verts);
       J_group_sedge.Append(group_edges);
-      if (Dim == 3)
-      {
-         J_group_sface.Append(group_trias);
-      }
+      J_group_stria.Append(group_trias);
    }
 
-   // Fix the local numbers of shared edges and faces: sedge_ledge, sface_lface
-   {
-      NumOfVertices = vertices.Size();
-      DSTable new_v_to_v(NumOfVertices);
-      GetVertexToVertexTable(new_v_to_v);
-      for (i = 0; i < shared_edges.Size(); i++)
-      {
-         v = shared_edges[i]->GetVertices();
-         sedge_ledge[i] = new_v_to_v(v[0], v[1]);
-      }
-   }
-   if (Dim == 3)
-   {
-      STable3D *faces_tbl = GetElementToFaceTable(1);
-      stria_sface.SetSize(stria_lface.Size());
-      sface_stype.SetSize(shared_faces.Size());
-      for (i = 0; i < shared_faces.Size(); i++)
-      {
-         v = shared_faces[i]->GetVertices();
-         stria_lface[i] = (*faces_tbl)(v[0], v[1], v[2]);
-         stria_sface[i] = i;
-         sface_stype[i] = i;
-      }
-      delete faces_tbl;
-   }
+   FinalizeParTopo();
 
    group_svert.SetIJ(I_group_svert, J_group_svert);
    group_sedge.SetIJ(I_group_sedge, J_group_sedge);
-   if (Dim == 3)
-   {
-      group_stria.SetIJ(I_group_sface, J_group_sface);
-   }
+   group_stria.SetIJ(I_group_stria, J_group_stria);
    I_group_svert.LoseData(); J_group_svert.LoseData();
    I_group_sedge.LoseData(); J_group_sedge.LoseData();
-   if (Dim == 3)
-   {
-      I_group_sface.LoseData(); J_group_sface.LoseData();
-   }
+   I_group_stria.LoseData(); J_group_stria.LoseData();
 }
 
-void ParMesh::QuadUniformRefinement()
+void ParMesh::UniformRefineGroups2D(int old_nv)
+{
+   Array<int> sverts, sedges;
+
+   int *I_group_svert, *J_group_svert;
+   int *I_group_sedge, *J_group_sedge;
+
+   I_group_svert = new int[GetNGroups()];
+   I_group_sedge = new int[GetNGroups()];
+
+   I_group_svert[0] = 0;
+   I_group_sedge[0] = 0;
+
+   // compute the size of the J arrays
+   J_group_svert = new int[group_svert.Size_of_connections()
+                           + group_sedge.Size_of_connections()];
+   J_group_sedge = new int[2*group_sedge.Size_of_connections()];
+
+   for (int group = 0; group < GetNGroups()-1; group++)
+   {
+      // Get the group shared objects
+      group_svert.GetRow(group, sverts);
+      group_sedge.GetRow(group, sedges);
+
+      // Process all the edges
+      for (int i = 0; i < group_sedge.RowSize(group); i++)
+      {
+         int *v = shared_edges[sedges[i]]->GetVertices();
+         const int ind = old_nv + sedge_ledge[sedges[i]];
+         // add a vertex
+         sverts.Append(svert_lvert.Append(ind)-1);
+         // update the edges
+         const int attr = shared_edges[sedges[i]]->GetAttribute();
+         shared_edges.Append(new Segment(v[1], ind, attr));
+         sedges.Append(sedge_ledge.Append(-1)-1);
+         v[1] = ind;
+      }
+
+      I_group_svert[group+1] = I_group_svert[group] + sverts.Size();
+      I_group_sedge[group+1] = I_group_sedge[group] + sedges.Size();
+
+      sverts.CopyTo(J_group_svert + I_group_svert[group]);
+      sedges.CopyTo(J_group_sedge + I_group_sedge[group]);
+   }
+
+   FinalizeParTopo();
+
+   group_svert.SetIJ(I_group_svert, J_group_svert);
+   group_sedge.SetIJ(I_group_sedge, J_group_sedge);
+}
+
+void ParMesh::UniformRefineGroups3D(int old_nv, int old_nedges,
+                                    const DSTable &old_v_to_v,
+                                    const STable3D &old_faces,
+                                    Array<int> *f2qf)
+{
+   // f2qf can be NULL if all faces are quads or there are no quad faces
+
+   Array<int> group_verts, group_edges, group_trias, group_quads;
+
+   int *I_group_svert, *J_group_svert;
+   int *I_group_sedge, *J_group_sedge;
+   int *I_group_stria, *J_group_stria;
+   int *I_group_squad, *J_group_squad;
+
+   I_group_svert = new int[GetNGroups()];
+   I_group_sedge = new int[GetNGroups()];
+   I_group_stria = new int[GetNGroups()];
+   I_group_squad = new int[GetNGroups()];
+
+   I_group_svert[0] = 0;
+   I_group_sedge[0] = 0;
+   I_group_stria[0] = 0;
+   I_group_squad[0] = 0;
+
+   // compute the size of the J arrays
+   J_group_svert = new int[group_svert.Size_of_connections()
+                           + group_sedge.Size_of_connections()
+                           + group_squad.Size_of_connections()];
+   J_group_sedge = new int[2*group_sedge.Size_of_connections()
+                           + 3*group_stria.Size_of_connections()
+                           + 4*group_squad.Size_of_connections()];
+   J_group_stria = new int[4*group_stria.Size_of_connections()];
+   J_group_squad = new int[4*group_squad.Size_of_connections()];
+
+   const int oface = old_nv + old_nedges;
+
+   for (int group = 0; group < GetNGroups()-1; group++)
+   {
+      // Get the group shared objects
+      group_svert.GetRow(group, group_verts);
+      group_sedge.GetRow(group, group_edges);
+      group_stria.GetRow(group, group_trias);
+      group_squad.GetRow(group, group_quads);
+
+      // Process the edges that have been refined
+      for (int i = 0; i < group_sedge.RowSize(group); i++)
+      {
+         int *v = shared_edges[group_edges[i]]->GetVertices();
+         const int ind = old_nv + old_v_to_v(v[0], v[1]);
+         // add a vertex
+         group_verts.Append(svert_lvert.Append(ind)-1);
+         // update the edges
+         const int attr = shared_edges[group_edges[i]]->GetAttribute();
+         shared_edges.Append(new Segment(v[1], ind, attr));
+         group_edges.Append(sedge_ledge.Append(-1)-1);
+         v[1] = ind; // v[0] remains the same
+      }
+
+      // Process the triangles that have been refined
+      for (int i = 0; i < group_stria.RowSize(group); i++)
+      {
+         int m[3];
+         const int stria = group_trias[i];
+         int *v = shared_trias[stria].v;
+         // add the refinement edges
+         m[0] = old_nv + old_v_to_v(v[0], v[1]);
+         m[1] = old_nv + old_v_to_v(v[1], v[2]);
+         m[2] = old_nv + old_v_to_v(v[2], v[0]);
+         const int edge_attr = 1;
+         shared_edges.Append(new Segment(m[0], m[1], edge_attr));
+         group_edges.Append(sedge_ledge.Append(-1)-1);
+         shared_edges.Append(new Segment(m[1], m[2], edge_attr));
+         group_edges.Append(sedge_ledge.Append(-1)-1);
+         shared_edges.Append(new Segment(m[0], m[2], edge_attr));
+         group_edges.Append(sedge_ledge.Append(-1)-1);
+         // update faces
+         const int nst = shared_trias.Size();
+         shared_trias.SetSize(nst+3);
+         // The above SetSize() may invalidate 'v'
+         v = shared_trias[stria].v;
+         shared_trias[nst+0].Set(m[1],m[2],m[0]);
+         shared_trias[nst+1].Set(m[0],v[1],m[1]);
+         shared_trias[nst+2].Set(m[2],m[1],v[2]);
+         v[1] = m[0]; v[2] = m[2]; // v[0] remains the same
+         group_trias.Append(nst+0);
+         group_trias.Append(nst+1);
+         group_trias.Append(nst+2);
+         // sface_lface is set later
+      }
+
+      // Process the quads that have been refined
+      for (int i = 0; i < group_squad.RowSize(group); i++)
+      {
+         int m[5];
+         const int squad = group_quads[i];
+         int *v = shared_quads[squad].v;
+         const int olf = old_faces(v[0], v[1], v[2], v[3]);
+         // f2qf can be NULL if all faces are quads
+         m[0] = oface + (f2qf ? (*f2qf)[olf] : olf);
+         // add a vertex
+         group_verts.Append(svert_lvert.Append(m[0])-1);
+         // add the refinement edges
+         m[1] = old_nv + old_v_to_v(v[0], v[1]);
+         m[2] = old_nv + old_v_to_v(v[1], v[2]);
+         m[3] = old_nv + old_v_to_v(v[2], v[3]);
+         m[4] = old_nv + old_v_to_v(v[3], v[0]);
+         const int edge_attr = 1;
+         shared_edges.Append(new Segment(m[1], m[0], edge_attr));
+         group_edges.Append(sedge_ledge.Append(-1)-1);
+         shared_edges.Append(new Segment(m[2], m[0], edge_attr));
+         group_edges.Append(sedge_ledge.Append(-1)-1);
+         shared_edges.Append(new Segment(m[3], m[0], edge_attr));
+         group_edges.Append(sedge_ledge.Append(-1)-1);
+         shared_edges.Append(new Segment(m[4], m[0], edge_attr));
+         group_edges.Append(sedge_ledge.Append(-1)-1);
+         // update faces
+         const int nsq = shared_quads.Size();
+         shared_quads.SetSize(nsq+3);
+         // The above SetSize() may invalidate 'v'
+         v = shared_quads[squad].v;
+         shared_quads[nsq+0].Set(m[1],v[1],m[2],m[0]);
+         shared_quads[nsq+1].Set(m[0],m[2],v[2],m[3]);
+         shared_quads[nsq+2].Set(m[4],m[0],m[3],v[3]);
+         v[1] = m[1]; v[2] = m[0]; v[3] = m[4]; // v[0] remains the same
+         group_quads.Append(nsq+0);
+         group_quads.Append(nsq+1);
+         group_quads.Append(nsq+2);
+         // sface_lface is set later
+      }
+
+      I_group_svert[group+1] = I_group_svert[group] + group_verts.Size();
+      I_group_sedge[group+1] = I_group_sedge[group] + group_edges.Size();
+      I_group_stria[group+1] = I_group_stria[group] + group_trias.Size();
+      I_group_squad[group+1] = I_group_squad[group] + group_quads.Size();
+
+      group_verts.CopyTo(J_group_svert + I_group_svert[group]);
+      group_edges.CopyTo(J_group_sedge + I_group_sedge[group]);
+      group_trias.CopyTo(J_group_stria + I_group_stria[group]);
+      group_quads.CopyTo(J_group_squad + I_group_squad[group]);
+   }
+
+   FinalizeParTopo();
+
+   group_svert.SetIJ(I_group_svert, J_group_svert);
+   group_sedge.SetIJ(I_group_sedge, J_group_sedge);
+   group_stria.SetIJ(I_group_stria, J_group_stria);
+   group_squad.SetIJ(I_group_squad, J_group_squad);
+}
+
+void ParMesh::UniformRefinement2D()
 {
    DeleteFaceNbrData();
 
-   int oedge = NumOfVertices;
+   const int old_nv = NumOfVertices;
 
-   // call Mesh::QuadUniformRefinement so that it won't update the nodes
+   // call Mesh::UniformRefinement2D so that it won't update the nodes
    {
       GridFunction *nodes = Nodes;
       Nodes = NULL;
-      Mesh::QuadUniformRefinement();
+      Mesh::UniformRefinement2D();
       Nodes = nodes;
    }
 
    // update the groups
-   {
-      int i, attr, ind, *v;
-
-      int group;
-      Array<int> sverts, sedges;
-
-      int *I_group_svert, *J_group_svert;
-      int *I_group_sedge, *J_group_sedge;
-
-      I_group_svert = new int[GetNGroups()+1];
-      I_group_sedge = new int[GetNGroups()+1];
-
-      I_group_svert[0] = I_group_svert[1] = 0;
-      I_group_sedge[0] = I_group_sedge[1] = 0;
-
-      // compute the size of the J arrays
-      J_group_svert = new int[group_svert.Size_of_connections()
-                              + group_sedge.Size_of_connections()];
-      J_group_sedge = new int[2*group_sedge.Size_of_connections()];
-
-      for (group = 0; group < GetNGroups()-1; group++)
-      {
-         // Get the group shared objects
-         group_svert.GetRow(group, sverts);
-         group_sedge.GetRow(group, sedges);
-
-         // Process all the edges
-         for (i = 0; i < group_sedge.RowSize(group); i++)
-         {
-            v = shared_edges[sedges[i]]->GetVertices();
-            ind = oedge + sedge_ledge[sedges[i]];
-            // add a vertex
-            sverts.Append(svert_lvert.Append(ind)-1);
-            // update the edges
-            attr = shared_edges[sedges[i]]->GetAttribute();
-            shared_edges.Append(new Segment(v[1], ind, attr));
-            sedges.Append(sedge_ledge.Append(-1)-1);
-            v[1] = ind;
-         }
-
-         I_group_svert[group+1] = I_group_svert[group] + sverts.Size();
-         I_group_sedge[group+1] = I_group_sedge[group] + sedges.Size();
-
-         int *J;
-         J = J_group_svert+I_group_svert[group];
-         for (i = 0; i < sverts.Size(); i++)
-         {
-            J[i] = sverts[i];
-         }
-         J = J_group_sedge+I_group_sedge[group];
-         for (i = 0; i < sedges.Size(); i++)
-         {
-            J[i] = sedges[i];
-         }
-      }
-
-      // Fix the local numbers of shared edges
-      DSTable v_to_v(NumOfVertices);
-      GetVertexToVertexTable(v_to_v);
-      for (i = 0; i < shared_edges.Size(); i++)
-      {
-         v = shared_edges[i]->GetVertices();
-         sedge_ledge[i] = v_to_v(v[0], v[1]);
-      }
-
-      group_svert.SetIJ(I_group_svert, J_group_svert);
-      group_sedge.SetIJ(I_group_sedge, J_group_sedge);
-   }
+   UniformRefineGroups2D(old_nv);
 
    UpdateNodes();
 }
 
-void ParMesh::HexUniformRefinement()
+void ParMesh::UniformRefinement3D()
 {
    DeleteFaceNbrData();
 
-   int oedge = NumOfVertices;
-   int oface = oedge + NumOfEdges;
+   const int old_nv = NumOfVertices;
+   const int old_nedges = NumOfEdges;
 
    DSTable v_to_v(NumOfVertices);
    GetVertexToVertexTable(v_to_v);
    STable3D *faces_tbl = GetFacesTable();
 
-   // call Mesh::HexUniformRefinement so that it won't update the nodes
+   // call Mesh::UniformRefinement3D_base so that it won't update the nodes
+   Array<int> f2qf;
    {
       GridFunction *nodes = Nodes;
       Nodes = NULL;
-      Mesh::HexUniformRefinement();
+      UniformRefinement3D_base(&f2qf, &v_to_v);
+      // Note: for meshes that have triangular faces, v_to_v is modified by the
+      //       above call to return different edge indices - this is used when
+      //       updating the groups. This is needed by ReorientTetMesh().
       Nodes = nodes;
    }
 
    // update the groups
-   {
-      int i, attr, newv[4], ind, m[5];
-      Array<int> v;
-
-      int group;
-      Array<int> group_verts, group_edges, group_faces;
-
-      int *I_group_svert, *J_group_svert;
-      int *I_group_sedge, *J_group_sedge;
-      int *I_group_sface, *J_group_sface;
-
-#if 0
-      I_group_svert = new int[GetNGroups()+1];
-      I_group_sedge = new int[GetNGroups()+1];
-      I_group_sface = new int[GetNGroups()+1];
-
-      I_group_svert[0] = I_group_svert[1] = 0;
-      I_group_sedge[0] = I_group_sedge[1] = 0;
-      I_group_sface[0] = I_group_sface[1] = 0;
-#else
-      I_group_svert = new int[GetNGroups()];
-      I_group_sedge = new int[GetNGroups()];
-      I_group_sface = new int[GetNGroups()];
-
-      I_group_svert[0] = 0;
-      I_group_sedge[0] = 0;
-      I_group_sface[0] = 0;
-#endif
-
-      // compute the size of the J arrays
-      J_group_svert = new int[group_svert.Size_of_connections()
-                              + group_sedge.Size_of_connections()
-                              + group_squad.Size_of_connections()];
-      J_group_sedge = new int[2*group_sedge.Size_of_connections()
-                              + 4*group_squad.Size_of_connections()];
-      J_group_sface = new int[4*group_squad.Size_of_connections()];
-
-      for (group = 0; group < GetNGroups()-1; group++)
-      {
-         // Get the group shared objects
-         group_svert.GetRow(group, group_verts);
-         group_sedge.GetRow(group, group_edges);
-         group_squad.GetRow(group, group_faces);
-
-         // Process the edges that have been refined
-         for (i = 0; i < group_sedge.RowSize(group); i++)
-         {
-            shared_edges[group_edges[i]]->GetVertices(v);
-            ind = oedge + v_to_v(v[0], v[1]);
-            // add a vertex
-            group_verts.Append(svert_lvert.Append(ind)-1);
-            // update the edges
-            attr = shared_edges[group_edges[i]]->GetAttribute();
-            shared_edges.Append(new Segment(v[1], ind, attr));
-            group_edges.Append(sedge_ledge.Append(-1)-1);
-            newv[0] = v[0]; newv[1] = ind;
-            shared_edges[group_edges[i]]->SetVertices(newv);
-         }
-
-         // Process the faces that have been refined
-         for (i = 0; i < group_squad.RowSize(group); i++)
-         {
-            int squad = group_faces[i];
-            int sface = squad_sface[squad];
-            shared_faces[sface]->GetVertices(v);
-            m[0] = oface+(*faces_tbl)(v[0], v[1], v[2], v[3]);
-            // add a vertex
-            group_verts.Append(svert_lvert.Append(m[0])-1);
-            // add the refinement edges
-            attr = shared_faces[sface]->GetAttribute();
-            m[1] = oedge + v_to_v(v[0], v[1]);
-            m[2] = oedge + v_to_v(v[1], v[2]);
-            m[3] = oedge + v_to_v(v[2], v[3]);
-            m[4] = oedge + v_to_v(v[3], v[0]);
-            shared_edges.Append(new Segment(m[1], m[0], attr));
-            group_edges.Append(sedge_ledge.Append(-1)-1);
-            shared_edges.Append(new Segment(m[2], m[0], attr));
-            group_edges.Append(sedge_ledge.Append(-1)-1);
-            shared_edges.Append(new Segment(m[3], m[0], attr));
-            group_edges.Append(sedge_ledge.Append(-1)-1);
-            shared_edges.Append(new Segment(m[4], m[0], attr));
-            group_edges.Append(sedge_ledge.Append(-1)-1);
-            // update faces
-            newv[0] = v[0]; newv[1] = m[1]; newv[2] = m[0]; newv[3] = m[4];
-            shared_faces[sface]->SetVertices(newv);
-            shared_faces.Append(new Quadrilateral(m[1],v[1],m[2],m[0],attr));
-            group_faces.Append(squad_lface.Append(-1)-1);
-            shared_faces.Append(new Quadrilateral(m[0],m[2],v[2],m[3],attr));
-            group_faces.Append(squad_lface.Append(-1)-1);
-            shared_faces.Append(new Quadrilateral(m[4],m[0],m[3],v[3],attr));
-            group_faces.Append(squad_lface.Append(-1)-1);
-         }
-
-         I_group_svert[group+1] = I_group_svert[group] + group_verts.Size();
-         I_group_sedge[group+1] = I_group_sedge[group] + group_edges.Size();
-         I_group_sface[group+1] = I_group_sface[group] + group_faces.Size();
-
-         int *J;
-         J = J_group_svert+I_group_svert[group];
-         for (i = 0; i < group_verts.Size(); i++)
-         {
-            J[i] = group_verts[i];
-         }
-         J = J_group_sedge+I_group_sedge[group];
-         for (i = 0; i < group_edges.Size(); i++)
-         {
-            J[i] = group_edges[i];
-         }
-         J = J_group_sface+I_group_sface[group];
-         for (i = 0; i < group_faces.Size(); i++)
-         {
-            J[i] = group_faces[i];
-         }
-      }
-
-      // Fix the local numbers of shared edges and faces
-      DSTable new_v_to_v(NumOfVertices);
-      GetVertexToVertexTable(new_v_to_v);
-      for (i = 0; i < shared_edges.Size(); i++)
-      {
-         shared_edges[i]->GetVertices(v);
-         sedge_ledge[i] = new_v_to_v(v[0], v[1]);
-      }
-
-      delete faces_tbl;
-      faces_tbl = GetFacesTable();
-      sface_stype.SetSize(shared_faces.Size());
-      squad_sface.SetSize(squad_lface.Size());
-      for (i = 0; i < shared_faces.Size(); i++)
-      {
-         shared_faces[i]->GetVertices(v);
-         squad_lface[i] = (*faces_tbl)(v[0], v[1], v[2], v[3]);
-         squad_sface[i] = i;
-         sface_stype[i] = i;
-      }
-      delete faces_tbl;
-
-      group_svert.SetIJ(I_group_svert, J_group_svert);
-      group_sedge.SetIJ(I_group_sedge, J_group_sedge);
-      group_squad.SetIJ(I_group_sface, J_group_sface);
-   }
-
-   UpdateNodes();
-}
-
-void ParMesh::WedgeUniformRefinement(map<int,int> * )
-{
-   DeleteFaceNbrData();
-
-   int oedge = NumOfVertices;
-   int oface = oedge + NumOfEdges;
-
-   DSTable v_to_v(NumOfVertices);
-   GetVertexToVertexTable(v_to_v);
-   STable3D *faces_tbl = GetFacesTable();
-
-   // call Mesh::WedgeUniformRefinement so that it won't update the nodes
-   map<int,int> f2qf;
-   {
-      GridFunction *nodes = Nodes;
-      Nodes = NULL;
-      Mesh::WedgeUniformRefinement(&f2qf);
-      Nodes = nodes;
-   }
-
-   // update the groups
-   {
-      int i, attr, newv[4], ind, m[5];
-      Array<int> v;
-
-      int group;
-      Array<int> group_verts, group_edges, group_trias, group_quads;
-
-      int *I_group_svert, *J_group_svert;
-      int *I_group_sedge, *J_group_sedge;
-      int *I_group_stria, *J_group_stria;
-      int *I_group_squad, *J_group_squad;
-
-#if 0
-      I_group_svert = new int[GetNGroups()+1];
-      I_group_sedge = new int[GetNGroups()+1];
-      I_group_stria = new int[GetNGroups()+1];
-      I_group_squad = new int[GetNGroups()+1];
-
-      I_group_svert[0] = I_group_svert[1] = 0;
-      I_group_sedge[0] = I_group_sedge[1] = 0;
-      I_group_stria[0] = I_group_stria[1] = 0;
-      I_group_squad[0] = I_group_squad[1] = 0;
-#else
-      I_group_svert = new int[GetNGroups()];
-      I_group_sedge = new int[GetNGroups()];
-      I_group_stria = new int[GetNGroups()];
-      I_group_squad = new int[GetNGroups()];
-
-      I_group_svert[0] = 0;
-      I_group_sedge[0] = 0;
-      I_group_stria[0] = 0;
-      I_group_squad[0] = 0;
-#endif
-
-      // compute the size of the J arrays
-      J_group_svert = new int[group_svert.Size_of_connections()
-                              + group_sedge.Size_of_connections()
-                              + group_squad.Size_of_connections()];
-      J_group_sedge = new int[2*group_sedge.Size_of_connections()
-                              + 3*group_stria.Size_of_connections()
-                              + 4*group_squad.Size_of_connections()];
-      J_group_stria = new int[4*group_stria.Size_of_connections()];
-      J_group_squad = new int[4*group_squad.Size_of_connections()];
-
-      for (group = 0; group < GetNGroups()-1; group++)
-      {
-         // Get the group shared objects
-         group_svert.GetRow(group, group_verts);
-         group_sedge.GetRow(group, group_edges);
-         group_stria.GetRow(group, group_trias);
-         group_squad.GetRow(group, group_quads);
-
-         // Process the edges that have been refined
-         for (i = 0; i < group_sedge.RowSize(group); i++)
-         {
-            shared_edges[group_edges[i]]->GetVertices(v);
-            ind = oedge + v_to_v(v[0], v[1]);
-            // add a vertex
-            group_verts.Append(svert_lvert.Append(ind)-1);
-            // update the edges
-            attr = shared_edges[group_edges[i]]->GetAttribute();
-            shared_edges.Append(new Segment(v[1], ind, attr));
-            group_edges.Append(sedge_ledge.Append(-1)-1);
-            newv[0] = v[0]; newv[1] = ind;
-            shared_edges[group_edges[i]]->SetVertices(newv);
-         }
-
-         // Process the triangles that have been refined
-         for (i = 0; i < group_stria.RowSize(group); i++)
-         {
-            int stria = group_trias[i];
-            int sface = stria_sface[stria];
-            shared_faces[sface]->GetVertices(v);
-            attr = shared_faces[sface]->GetAttribute();
-
-            // add the refinement edges
-            m[0] = oedge + v_to_v(v[0], v[1]);
-            m[1] = oedge + v_to_v(v[1], v[2]);
-            m[2] = oedge + v_to_v(v[2], v[0]);
-            shared_edges.Append(new Segment(m[0], m[1], attr));
-            group_edges.Append(sedge_ledge.Append(-1)-1);
-            shared_edges.Append(new Segment(m[1], m[2], attr));
-            group_edges.Append(sedge_ledge.Append(-1)-1);
-            shared_edges.Append(new Segment(m[0], m[2], attr));
-            group_edges.Append(sedge_ledge.Append(-1)-1);
-            // update faces
-            newv[0] = v[0]; newv[1] = m[0]; newv[2] = m[2];
-            shared_faces[sface]->SetVertices(newv);
-            shared_faces.Append(new Triangle(m[1],m[2],m[0],attr));
-            group_trias.Append(stria_lface.Append(-1)-1);
-            shared_faces.Append(new Triangle(m[0],v[1],m[1],attr));
-            group_trias.Append(stria_lface.Append(-1)-1);
-            shared_faces.Append(new Triangle(m[2],m[1],v[2],attr));
-            group_trias.Append(stria_lface.Append(-1)-1);
-         }
-
-         // Process the quads that have been refined
-         for (i = 0; i < group_squad.RowSize(group); i++)
-         {
-            int squad = group_quads[i];
-            int sface = squad_sface[squad];
-            shared_faces[sface]->GetVertices(v);
-            attr = shared_faces[sface]->GetAttribute();
-
-            m[0] = oface+f2qf[(*faces_tbl)(v[0], v[1], v[2], v[3])];
-
-            // add a vertex
-            group_verts.Append(svert_lvert.Append(m[0])-1);
-            // add the refinement edges
-            m[1] = oedge + v_to_v(v[0], v[1]);
-            m[2] = oedge + v_to_v(v[1], v[2]);
-            m[3] = oedge + v_to_v(v[2], v[3]);
-            m[4] = oedge + v_to_v(v[3], v[0]);
-            shared_edges.Append(new Segment(m[1], m[0], attr));
-            group_edges.Append(sedge_ledge.Append(-1)-1);
-            shared_edges.Append(new Segment(m[2], m[0], attr));
-            group_edges.Append(sedge_ledge.Append(-1)-1);
-            shared_edges.Append(new Segment(m[3], m[0], attr));
-            group_edges.Append(sedge_ledge.Append(-1)-1);
-            shared_edges.Append(new Segment(m[4], m[0], attr));
-            group_edges.Append(sedge_ledge.Append(-1)-1);
-            // update faces
-            newv[0] = v[0]; newv[1] = m[1]; newv[2] = m[0]; newv[3] = m[4];
-            shared_faces[sface]->SetVertices(newv);
-            shared_faces.Append(new Quadrilateral(m[1],v[1],m[2],m[0],attr));
-            group_quads.Append(squad_lface.Append(-1)-1);
-            shared_faces.Append(new Quadrilateral(m[0],m[2],v[2],m[3],attr));
-            group_quads.Append(squad_lface.Append(-1)-1);
-            shared_faces.Append(new Quadrilateral(m[4],m[0],m[3],v[3],attr));
-            group_quads.Append(squad_lface.Append(-1)-1);
-         }
-
-         I_group_svert[group+1] = I_group_svert[group] + group_verts.Size();
-         I_group_sedge[group+1] = I_group_sedge[group] + group_edges.Size();
-         I_group_stria[group+1] = I_group_stria[group] + group_trias.Size();
-         I_group_squad[group+1] = I_group_squad[group] + group_quads.Size();
-
-         int *J;
-         J = J_group_svert+I_group_svert[group];
-         for (i = 0; i < group_verts.Size(); i++)
-         {
-            J[i] = group_verts[i];
-         }
-         J = J_group_sedge+I_group_sedge[group];
-         for (i = 0; i < group_edges.Size(); i++)
-         {
-            J[i] = group_edges[i];
-         }
-         J = J_group_stria+I_group_stria[group];
-         for (i = 0; i < group_trias.Size(); i++)
-         {
-            J[i] = group_trias[i];
-         }
-         J = J_group_squad+I_group_squad[group];
-         for (i = 0; i < group_quads.Size(); i++)
-         {
-            J[i] = group_quads[i];
-         }
-      }
-
-      // Fix the local numbers of shared edges and faces
-      DSTable new_v_to_v(NumOfVertices);
-      GetVertexToVertexTable(new_v_to_v);
-      for (i = 0; i < shared_edges.Size(); i++)
-      {
-         shared_edges[i]->GetVertices(v);
-         sedge_ledge[i] = new_v_to_v(v[0], v[1]);
-      }
-
-      delete faces_tbl;
-      faces_tbl = GetFacesTable();
-      int stria_counter = 0;
-      int squad_counter = 0;
-      stria_sface.SetSize(stria_lface.Size());
-      squad_sface.SetSize(squad_lface.Size());
-      sface_stype.SetSize(shared_faces.Size());
-      for (i = 0; i < shared_faces.Size(); i++)
-      {
-         shared_faces[i]->GetVertices(v);
-         if (shared_faces[i]->GetType() == Element::TRIANGLE)
-         {
-            stria_lface[stria_counter] = (*faces_tbl)(v[0], v[1], v[2]);
-            stria_sface[stria_counter] = i;
-            sface_stype[i] = stria_counter;
-            stria_counter++;
-         }
-         else
-         {
-            squad_lface[squad_counter] = (*faces_tbl)(v[0], v[1], v[2], v[3]);
-            squad_sface[squad_counter] = i;
-            sface_stype[i] = squad_counter;
-            squad_counter++;
-         }
-      }
-      delete faces_tbl;
-
-      group_svert.SetIJ(I_group_svert, J_group_svert);
-      group_sedge.SetIJ(I_group_sedge, J_group_sedge);
-      group_stria.SetIJ(I_group_stria, J_group_stria);
-      group_squad.SetIJ(I_group_squad, J_group_squad);
-   }
-
-   UpdateNodes();
-}
-
-void ParMesh::Mixed2DUniformRefinement()
-{
-   DeleteFaceNbrData();
-
-   int oedge = NumOfVertices;
-
-   // call Mesh::Mixed2DUniformRefinement so that it won't update the nodes
-   {
-      GridFunction *nodes = Nodes;
-      Nodes = NULL;
-      Mesh::Mixed2DUniformRefinement();
-      Nodes = nodes;
-   }
-
-   // update the groups
-   {
-      int i, attr, ind, *v;
-
-      int group;
-      Array<int> sverts, sedges;
-
-      int *I_group_svert, *J_group_svert;
-      int *I_group_sedge, *J_group_sedge;
-
-#if 0
-      I_group_svert = new int[GetNGroups()+1];
-      I_group_sedge = new int[GetNGroups()+1];
-
-      I_group_svert[0] = I_group_svert[1] = 0;
-      I_group_sedge[0] = I_group_sedge[1] = 0;
-#else
-      I_group_svert = new int[GetNGroups()];
-      I_group_sedge = new int[GetNGroups()];
-
-      I_group_svert[0] = 0;
-      I_group_sedge[0] = 0;
-#endif
-
-      // compute the size of the J arrays
-      J_group_svert = new int[group_svert.Size_of_connections()
-                              + group_sedge.Size_of_connections()];
-      J_group_sedge = new int[2*group_sedge.Size_of_connections()];
-
-      for (group = 0; group < GetNGroups()-1; group++)
-      {
-         // Get the group shared objects
-         group_svert.GetRow(group, sverts);
-         group_sedge.GetRow(group, sedges);
-
-         // Process the edges that have been refined
-         for (i = 0; i < group_sedge.RowSize(group); i++)
-         {
-            v = shared_edges[sedges[i]]->GetVertices();
-            ind = oedge + sedge_ledge[sedges[i]];
-            // add a vertex
-            sverts.Append(svert_lvert.Append(ind)-1);
-            // update the edges
-            attr = shared_edges[sedges[i]]->GetAttribute();
-            shared_edges.Append(new Segment(v[1], ind, attr));
-            sedges.Append(sedge_ledge.Append(-1)-1);
-            v[1] = ind;
-         }
-
-         I_group_svert[group+1] = I_group_svert[group] + sverts.Size();
-         I_group_sedge[group+1] = I_group_sedge[group] + sedges.Size();
-
-         int *J;
-         J = J_group_svert+I_group_svert[group];
-         for (i = 0; i < sverts.Size(); i++)
-         {
-            J[i] = sverts[i];
-         }
-         J = J_group_sedge+I_group_sedge[group];
-         for (i = 0; i < sedges.Size(); i++)
-         {
-            J[i] = sedges[i];
-         }
-      }
-
-      // Fix the local numbers of shared edges
-      DSTable v_to_v(NumOfVertices);
-      GetVertexToVertexTable(v_to_v);
-      for (i = 0; i < shared_edges.Size(); i++)
-      {
-         v = shared_edges[i]->GetVertices();
-         sedge_ledge[i] = v_to_v(v[0], v[1]);
-      }
-
-      group_svert.SetIJ(I_group_svert, J_group_svert);
-      group_sedge.SetIJ(I_group_sedge, J_group_sedge);
-   }
-
-   UpdateNodes();
-}
-
-void ParMesh::Mixed3DUniformRefinement(map<int,int> * )
-{
-   DeleteFaceNbrData();
-
-   int oedge = NumOfVertices;
-   int oface = oedge + NumOfEdges;
-
-   DSTable v_to_v(NumOfVertices);
-   GetVertexToVertexTable(v_to_v);
-   STable3D *faces_tbl = GetFacesTable();
-
-   // call Mesh::Mixed3DUniformRefinement so that it won't update the nodes
-   map<int,int> f2qf;
-   {
-      GridFunction *nodes = Nodes;
-      Nodes = NULL;
-      Mesh::Mixed3DUniformRefinement(&f2qf);
-      Nodes = nodes;
-   }
-
-   // update the groups
-   {
-      int i, attr, newv[4], ind, m[5];
-      Array<int> v;
-
-      int group;
-      Array<int> group_verts, group_edges, group_trias, group_quads;
-
-      int *I_group_svert, *J_group_svert;
-      int *I_group_sedge, *J_group_sedge;
-      int *I_group_stria, *J_group_stria;
-      int *I_group_squad, *J_group_squad;
-
-#if 0
-      I_group_svert = new int[GetNGroups()+1];
-      I_group_sedge = new int[GetNGroups()+1];
-      I_group_stria = new int[GetNGroups()+1];
-      I_group_squad = new int[GetNGroups()+1];
-
-      I_group_svert[0] = I_group_svert[1] = 0;
-      I_group_sedge[0] = I_group_sedge[1] = 0;
-      I_group_stria[0] = I_group_stria[1] = 0;
-      I_group_squad[0] = I_group_squad[1] = 0;
-#else
-      I_group_svert = new int[GetNGroups()];
-      I_group_sedge = new int[GetNGroups()];
-      I_group_stria = new int[GetNGroups()];
-      I_group_squad = new int[GetNGroups()];
-
-      I_group_svert[0] = 0;
-      I_group_sedge[0] = 0;
-      I_group_stria[0] = 0;
-      I_group_squad[0] = 0;
-#endif
-
-      // compute the size of the J arrays
-      J_group_svert = new int[group_svert.Size_of_connections()
-                              + group_sedge.Size_of_connections()
-                              + group_squad.Size_of_connections()];
-      J_group_sedge = new int[2*group_sedge.Size_of_connections()
-                              + 3*group_stria.Size_of_connections()
-                              + 4*group_squad.Size_of_connections()];
-      J_group_stria = new int[4*group_stria.Size_of_connections()];
-      J_group_squad = new int[4*group_squad.Size_of_connections()];
-
-      for (group = 0; group < GetNGroups()-1; group++)
-      {
-         // Get the group shared objects
-         group_svert.GetRow(group, group_verts);
-         group_sedge.GetRow(group, group_edges);
-         group_stria.GetRow(group, group_trias);
-         group_squad.GetRow(group, group_quads);
-
-         // Process the edges that have been refined
-         for (i = 0; i < group_sedge.RowSize(group); i++)
-         {
-            shared_edges[group_edges[i]]->GetVertices(v);
-            ind = oedge + v_to_v(v[0], v[1]);
-            // add a vertex
-            group_verts.Append(svert_lvert.Append(ind)-1);
-            // update the edges
-            attr = shared_edges[group_edges[i]]->GetAttribute();
-            shared_edges.Append(new Segment(v[1], ind, attr));
-            group_edges.Append(sedge_ledge.Append(-1)-1);
-            newv[0] = v[0]; newv[1] = ind;
-            shared_edges[group_edges[i]]->SetVertices(newv);
-         }
-
-         // Process the triangles that have been refined
-         for (i = 0; i < group_stria.RowSize(group); i++)
-         {
-            int stria = group_trias[i];
-            int sface = stria_sface[stria];
-            shared_faces[sface]->GetVertices(v);
-            attr = shared_faces[sface]->GetAttribute();
-
-            // add the refinement edges
-            m[0] = oedge + v_to_v(v[0], v[1]);
-            m[1] = oedge + v_to_v(v[1], v[2]);
-            m[2] = oedge + v_to_v(v[2], v[0]);
-            shared_edges.Append(new Segment(m[0], m[1], attr));
-            group_edges.Append(sedge_ledge.Append(-1)-1);
-            shared_edges.Append(new Segment(m[1], m[2], attr));
-            group_edges.Append(sedge_ledge.Append(-1)-1);
-            shared_edges.Append(new Segment(m[0], m[2], attr));
-            group_edges.Append(sedge_ledge.Append(-1)-1);
-            // update faces
-            newv[0] = v[0]; newv[1] = m[0]; newv[2] = m[2];
-            shared_faces[sface]->SetVertices(newv);
-            shared_faces.Append(new Triangle(m[1],m[2],m[0],attr));
-            group_trias.Append(stria_lface.Append(-1)-1);
-            shared_faces.Append(new Triangle(m[0],v[1],m[1],attr));
-            group_trias.Append(stria_lface.Append(-1)-1);
-            shared_faces.Append(new Triangle(m[2],m[1],v[2],attr));
-            group_trias.Append(stria_lface.Append(-1)-1);
-         }
-         // Process the quads that have been refined
-         for (i = 0; i < group_squad.RowSize(group); i++)
-         {
-            int squad = group_quads[i];
-            int sface = squad_sface[squad];
-            shared_faces[sface]->GetVertices(v);
-            attr = shared_faces[sface]->GetAttribute();
-
-            m[0] = oface+f2qf[(*faces_tbl)(v[0], v[1], v[2], v[3])];
-
-            // add a vertex
-            group_verts.Append(svert_lvert.Append(m[0])-1);
-            // add the refinement edges
-            m[1] = oedge + v_to_v(v[0], v[1]);
-            m[2] = oedge + v_to_v(v[1], v[2]);
-            m[3] = oedge + v_to_v(v[2], v[3]);
-            m[4] = oedge + v_to_v(v[3], v[0]);
-            shared_edges.Append(new Segment(m[1], m[0], attr));
-            group_edges.Append(sedge_ledge.Append(-1)-1);
-            shared_edges.Append(new Segment(m[2], m[0], attr));
-            group_edges.Append(sedge_ledge.Append(-1)-1);
-            shared_edges.Append(new Segment(m[3], m[0], attr));
-            group_edges.Append(sedge_ledge.Append(-1)-1);
-            shared_edges.Append(new Segment(m[4], m[0], attr));
-            group_edges.Append(sedge_ledge.Append(-1)-1);
-            // update faces
-            newv[0] = v[0]; newv[1] = m[1]; newv[2] = m[0]; newv[3] = m[4];
-            shared_faces[sface]->SetVertices(newv);
-            shared_faces.Append(new Quadrilateral(m[1],v[1],m[2],m[0],attr));
-            group_quads.Append(squad_lface.Append(-1)-1);
-            shared_faces.Append(new Quadrilateral(m[0],m[2],v[2],m[3],attr));
-            group_quads.Append(squad_lface.Append(-1)-1);
-            shared_faces.Append(new Quadrilateral(m[4],m[0],m[3],v[3],attr));
-            group_quads.Append(squad_lface.Append(-1)-1);
-         }
-
-         I_group_svert[group+1] = I_group_svert[group] + group_verts.Size();
-         I_group_sedge[group+1] = I_group_sedge[group] + group_edges.Size();
-         I_group_stria[group+1] = I_group_stria[group] + group_trias.Size();
-         I_group_squad[group+1] = I_group_squad[group] + group_quads.Size();
-
-         int *J;
-         J = J_group_svert+I_group_svert[group];
-         for (i = 0; i < group_verts.Size(); i++)
-         {
-            J[i] = group_verts[i];
-         }
-         J = J_group_sedge+I_group_sedge[group];
-         for (i = 0; i < group_edges.Size(); i++)
-         {
-            J[i] = group_edges[i];
-         }
-         J = J_group_stria+I_group_stria[group];
-         for (i = 0; i < group_trias.Size(); i++)
-         {
-            J[i] = group_trias[i];
-         }
-         J = J_group_squad+I_group_squad[group];
-         for (i = 0; i < group_quads.Size(); i++)
-         {
-            J[i] = group_quads[i];
-         }
-      }
-
-      // Fix the local numbers of shared edges and faces
-      DSTable new_v_to_v(NumOfVertices);
-      GetVertexToVertexTable(new_v_to_v);
-      for (i = 0; i < shared_edges.Size(); i++)
-      {
-         shared_edges[i]->GetVertices(v);
-         sedge_ledge[i] = new_v_to_v(v[0], v[1]);
-      }
-
-      delete faces_tbl;
-      faces_tbl = GetFacesTable();
-      int stria_counter = 0;
-      int squad_counter = 0;
-      stria_sface.SetSize(stria_lface.Size());
-      squad_sface.SetSize(squad_lface.Size());
-      sface_stype.SetSize(shared_faces.Size());
-      for (i = 0; i < shared_faces.Size(); i++)
-      {
-         shared_faces[i]->GetVertices(v);
-         if ( shared_faces[i]->GetType() == Element::TRIANGLE )
-         {
-            stria_lface[stria_counter] = (*faces_tbl)(v[0], v[1], v[2]);
-            stria_sface[stria_counter] = i;
-            sface_stype[i] = stria_counter;
-            stria_counter++;
-         }
-         else
-         {
-            squad_lface[squad_counter] = (*faces_tbl)(v[0], v[1], v[2], v[3]);
-            squad_sface[squad_counter] = i;
-            sface_stype[i] = squad_counter;
-            squad_counter++;
-         }
-      }
-      delete faces_tbl;
-
-      group_svert.SetIJ(I_group_svert, J_group_svert);
-      group_sedge.SetIJ(I_group_sedge, J_group_sedge);
-      group_stria.SetIJ(I_group_stria, J_group_stria);
-      group_squad.SetIJ(I_group_squad, J_group_squad);
-   }
+   UniformRefineGroups3D(old_nv, old_nedges, v_to_v, *faces_tbl,
+                         f2qf.Size() ? &f2qf : NULL);
 
    UpdateNodes();
 }
@@ -4290,7 +3548,7 @@ void ParMesh::PrintXG(std::ostream &out) const
       }
 
       // print the boundary + shared faces information
-      out << NumOfBdrElements + shared_faces.Size() << '\n';
+      out << NumOfBdrElements + sface_lface.Size() << '\n';
       // boundary
       for (i = 0; i < NumOfBdrElements; i++)
       {
@@ -4304,17 +3562,19 @@ void ParMesh::PrintXG(std::ostream &out) const
          out << '\n';
       }
       // shared faces
-      for (i = 0; i < shared_faces.Size(); i++)
+      const int sf_attr =
+         MyRank + 1 + (bdr_attributes.Size() > 0 ? bdr_attributes.Max() : 0);
+      for (i = 0; i < shared_trias.Size(); i++)
       {
-         nv = shared_faces[i]->GetNVertices();
-         ind = shared_faces[i]->GetVertices();
-         out << shared_faces[i]->GetAttribute();
-         for (j = 0; j < nv; j++)
+         ind = shared_trias[i].v;
+         out << sf_attr;
+         for (j = 0; j < 3; j++)
          {
-            out << " " << ind[j]+1;
+            out << ' ' << ind[j]+1;
          }
          out << '\n';
       }
+      // There are no quad shared faces
    }
 
    if (Dim == 3 && meshgen == 2)
@@ -4325,15 +3585,17 @@ void ParMesh::PrintXG(std::ostream &out) const
       out << "TrueGrid\n"
           << "1 " << NumOfVertices << " " << NumOfElements << " 0 0 0 0 0 0 0\n"
           << "0 0 0 1 0 0 0 0 0 0 0\n"
-          << "0 0 " << NumOfBdrElements+shared_faces.Size()
+          << "0 0 " << NumOfBdrElements+sface_lface.Size()
           << " 0 0 0 0 0 0 0 0 0 0 0 0 0\n"
           << "0.0 0.0 0.0 0 0 0.0 0.0 0 0.0\n"
           << "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n";
 
       // print the vertices
       for (i = 0; i < NumOfVertices; i++)
+      {
          out << i+1 << " 0.0 " << vertices[i](0) << " " << vertices[i](1)
              << " " << vertices[i](2) << " 0.0\n";
+      }
 
       // print the elements
       for (i = 0; i < NumOfElements; i++)
@@ -4362,14 +3624,16 @@ void ParMesh::PrintXG(std::ostream &out) const
       }
 
       // print the shared faces information
-      for (i = 0; i < shared_faces.Size(); i++)
+      const int sf_attr =
+         MyRank + 1 + (bdr_attributes.Size() > 0 ? bdr_attributes.Max() : 0);
+      // There are no shared triangle faces
+      for (i = 0; i < shared_quads.Size(); i++)
       {
-         nv = shared_faces[i]->GetNVertices();
-         ind = shared_faces[i]->GetVertices();
-         out << shared_faces[i]->GetAttribute();
-         for (j = 0; j < nv; j++)
+         ind = shared_quads[i].v;
+         out << sf_attr;
+         for (j = 0; j < 4; j++)
          {
-            out << " " << ind[j]+1;
+            out << ' ' << ind[j]+1;
          }
          out << " 1.0 1.0 1.0 1.0\n";
       }
@@ -4479,7 +3743,7 @@ void ParMesh::Print(std::ostream &out) const
    if (!pncmesh)
    {
       s2l_face = ((Dim == 1) ? &svert_lvert :
-                  ((Dim == 2) ? &sedge_ledge : &stria_lface));
+                  ((Dim == 2) ? &sedge_ledge : &sface_lface));
    }
    else
    {
@@ -4534,10 +3798,6 @@ void ParMesh::Print(std::ostream &out) const
    if (print_shared && Dim > 1)
    {
       num_bdr_elems += s2l_face->Size();
-      if ( s2l_face == &stria_lface)
-      {
-         num_bdr_elems += squad_lface.Size();
-      }
    }
    out << "\nboundary\n" << num_bdr_elems << '\n';
    for (i = 0; i < NumOfBdrElements; i++)
@@ -4560,16 +3820,6 @@ void ParMesh::Print(std::ostream &out) const
          // Modify the attributes of the faces (not used otherwise?)
          faces[(*s2l_face)[i]]->SetAttribute(shared_bdr_attr);
          PrintElement(faces[(*s2l_face)[i]], out);
-      }
-      if ( s2l_face == &stria_lface )
-      {
-         s2l_face = &squad_lface;
-         for (i = 0; i < s2l_face->Size(); i++)
-         {
-            // Modify the attributes of the faces (not used otherwise?)
-            faces[(*s2l_face)[i]]->SetAttribute(shared_bdr_attr);
-            PrintElement(faces[(*s2l_face)[i]], out);
-         }
       }
    }
    out << "\nvertices\n" << NumOfVertices << '\n';
@@ -4702,12 +3952,14 @@ void ParMesh::PrintAsOne(std::ostream &out)
    ne = NumOfBdrElements;
    if (!pncmesh)
    {
-      ne += ((Dim == 2) ? shared_edges : shared_faces).Size();
+      ne += GetNSharedFaces();
    }
    else if (Dim > 1)
    {
       const NCMesh::NCList &list = pncmesh->GetSharedList(Dim - 1);
       ne += list.conforming.size() + list.masters.size() + list.slaves.size();
+      // In addition to the number returned by GetNSharedFaces(), include the
+      // the master shared faces as well.
    }
    ints.Reserve(ne * (1 + 2*(Dim-1))); // just an upper bound
    ints.SetSize(0);
@@ -4721,10 +3973,31 @@ void ParMesh::PrintAsOne(std::ostream &out)
    }
    if (!pncmesh)
    {
-      Array<Element*> &shared = (Dim == 2) ? shared_edges : shared_faces;
-      for (i = 0; i < shared.Size(); i++)
+      switch (Dim)
       {
-         dump_element(shared[i], ints); ne++;
+         case 2:
+            for (i = 0; i < shared_edges.Size(); i++)
+            {
+               dump_element(shared_edges[i], ints); ne++;
+            }
+            break;
+
+         case 3:
+            for (i = 0; i < shared_trias.Size(); i++)
+            {
+               ints.Append(Geometry::TRIANGLE);
+               ints.Append(shared_trias[i].v, 3);
+               ne++;
+            }
+            for (i = 0; i < shared_quads.Size(); i++)
+            {
+               ints.Append(Geometry::SQUARE);
+               ints.Append(shared_quads[i].v, 4);
+               ne++;
+            }
+
+         default:
+            MFEM_ABORT("invalid dimension: " << Dim);
       }
    }
    else if (Dim > 1)
@@ -4956,7 +4229,7 @@ void ParMesh::PrintAsOneXG(std::ostream &out)
             k += nv;
          }
          // print the boundary + shared faces information
-         nv = NumOfBdrElements + shared_faces.Size();
+         nv = NumOfBdrElements + sface_lface.Size();
          MPI_Reduce(&nv, &ne, 1, MPI_INT, MPI_SUM, 0, MyComm);
          out << ne << '\n';
          // boundary
@@ -4972,17 +4245,19 @@ void ParMesh::PrintAsOneXG(std::ostream &out)
             out << '\n';
          }
          // shared faces
-         for (i = 0; i < shared_faces.Size(); i++)
+         const int sf_attr =
+            MyRank + 1 + (bdr_attributes.Size() > 0 ? bdr_attributes.Max() : 0);
+         for (i = 0; i < shared_trias.Size(); i++)
          {
-            nv = shared_faces[i]->GetNVertices();
-            ind = shared_faces[i]->GetVertices();
-            out << 1;
-            for (j = 0; j < nv; j++)
+            ind = shared_trias[i].v;
+            out << sf_attr;
+            for (j = 0; j < 3; j++)
             {
-               out << " " << ind[j]+1;
+               out << ' ' << ind[j]+1;
             }
             out << '\n';
          }
+         // There are no quad shared faces
          k = NumOfVertices;
          for (p = 1; p < NRanks; p++)
          {
@@ -4995,7 +4270,7 @@ void ParMesh::PrintAsOneXG(std::ostream &out)
                out << p+1;
                for (j = 0; j < 3; j++)
                {
-                  out << " " << k+ints[i*3+j]+1;
+                  out << ' ' << k+ints[i*3+j]+1;
                }
                out << '\n';
             }
@@ -5031,10 +4306,10 @@ void ParMesh::PrintAsOneXG(std::ostream &out)
          }
          MPI_Send(&ints[0], 4*NumOfElements, MPI_INT, 0, 447, MyComm);
          // boundary + shared faces
-         nv = NumOfBdrElements + shared_faces.Size();
+         nv = NumOfBdrElements + sface_lface.Size();
          MPI_Reduce(&nv, &ne, 1, MPI_INT, MPI_SUM, 0, MyComm);
          MPI_Send(&NumOfVertices, 1, MPI_INT, 0, 444, MyComm);
-         ne = NumOfBdrElements + shared_faces.Size();
+         ne = NumOfBdrElements + sface_lface.Size();
          MPI_Send(&ne, 1, MPI_INT, 0, 446, MyComm);
          ints.SetSize(3*ne);
          for (i = 0; i < NumOfBdrElements; i++)
@@ -5047,7 +4322,7 @@ void ParMesh::PrintAsOneXG(std::ostream &out)
          }
          for ( ; i < ne; i++)
          {
-            v = shared_faces[i-NumOfBdrElements]->GetVertices();
+            v = shared_trias[i-NumOfBdrElements].v; // tet mesh
             for (j = 0; j < 3; j++)
             {
                ints[3*i+j] = v[j];
@@ -5071,7 +4346,7 @@ void ParMesh::PrintAsOneXG(std::ostream &out)
       {
          MPI_Reduce(&NumOfVertices, &TG_nv, 1, MPI_INT, MPI_SUM, 0, MyComm);
          MPI_Reduce(&NumOfElements, &TG_ne, 1, MPI_INT, MPI_SUM, 0, MyComm);
-         nv = NumOfBdrElements + shared_faces.Size();
+         nv = NumOfBdrElements + sface_lface.Size();
          MPI_Reduce(&nv, &TG_nbe, 1, MPI_INT, MPI_SUM, 0, MyComm);
 
          out << "TrueGrid\n"
@@ -5084,16 +4359,20 @@ void ParMesh::PrintAsOneXG(std::ostream &out)
          // print the vertices
          nv = TG_nv;
          for (i = 0; i < NumOfVertices; i++)
+         {
             out << i+1 << " 0.0 " << vertices[i](0) << " " << vertices[i](1)
                 << " " << vertices[i](2) << " 0.0\n";
+         }
          for (p = 1; p < NRanks; p++)
          {
             MPI_Recv(&nv, 1, MPI_INT, p, 444, MyComm, &status);
             vert.SetSize(Dim*nv);
             MPI_Recv(&vert[0], Dim*nv, MPI_DOUBLE, p, 445, MyComm, &status);
             for (i = 0; i < nv; i++)
+            {
                out << i+1 << " 0.0 " << vert[Dim*i] << " " << vert[Dim*i+1]
                    << " " << vert[Dim*i+2] << " 0.0\n";
+            }
          }
 
          // print the elements
@@ -5143,14 +4422,16 @@ void ParMesh::PrintAsOneXG(std::ostream &out)
             out << " 1.0 1.0 1.0 1.0\n";
          }
          // shared faces
-         for (i = 0; i < shared_faces.Size(); i++)
+         const int sf_attr =
+            MyRank + 1 + (bdr_attributes.Size() > 0 ? bdr_attributes.Max() : 0);
+         // There are no shared triangle faces
+         for (i = 0; i < shared_quads.Size(); i++)
          {
-            nv = shared_faces[i]->GetNVertices();
-            ind = shared_faces[i]->GetVertices();
-            out << 1;
-            for (j = 0; j < nv; j++)
+            ind = shared_quads[i].v;
+            out << sf_attr;
+            for (j = 0; j < 4; j++)
             {
-               out << " " << ind[j]+1;
+               out << ' ' << ind[j]+1;
             }
             out << " 1.0 1.0 1.0 1.0\n";
          }
@@ -5177,7 +4458,7 @@ void ParMesh::PrintAsOneXG(std::ostream &out)
       {
          MPI_Reduce(&NumOfVertices, &TG_nv, 1, MPI_INT, MPI_SUM, 0, MyComm);
          MPI_Reduce(&NumOfElements, &TG_ne, 1, MPI_INT, MPI_SUM, 0, MyComm);
-         nv = NumOfBdrElements + shared_faces.Size();
+         nv = NumOfBdrElements + sface_lface.Size();
          MPI_Reduce(&nv, &TG_nbe, 1, MPI_INT, MPI_SUM, 0, MyComm);
 
          MPI_Send(&NumOfVertices, 1, MPI_INT, 0, 444, MyComm);
@@ -5203,7 +4484,7 @@ void ParMesh::PrintAsOneXG(std::ostream &out)
          MPI_Send(&ints[0], 8*NumOfElements, MPI_INT, 0, 447, MyComm);
          // boundary + shared faces
          MPI_Send(&NumOfVertices, 1, MPI_INT, 0, 444, MyComm);
-         ne = NumOfBdrElements + shared_faces.Size();
+         ne = NumOfBdrElements + sface_lface.Size();
          MPI_Send(&ne, 1, MPI_INT, 0, 446, MyComm);
          ints.SetSize(4*ne);
          for (i = 0; i < NumOfBdrElements; i++)
@@ -5216,7 +4497,7 @@ void ParMesh::PrintAsOneXG(std::ostream &out)
          }
          for ( ; i < ne; i++)
          {
-            v = shared_faces[i-NumOfBdrElements]->GetVertices();
+            v = shared_quads[i-NumOfBdrElements].v; // hex mesh
             for (j = 0; j < 4; j++)
             {
                ints[4*i+j] = v[j];
@@ -5233,7 +4514,6 @@ void ParMesh::PrintAsOneXG(std::ostream &out)
       MPI_Status status;
       Array<double> vert;
       Array<int> ints;
-
 
       if (MyRank == 0)
       {
@@ -5447,8 +4727,9 @@ void ParMesh::PrintInfo(std::ostream &out)
    for (i = 0; i < NumOfElements; i++)
    {
       GetElementJacobian(i, J);
-      h = pow(fabs(J.Det()), 1.0/double(Dim));
-      kappa = J.CalcSingularvalue(0) / J.CalcSingularvalue(Dim-1);
+      h = pow(fabs(J.Weight()), 1.0/double(Dim));
+      kappa = (Dim == spaceDim) ?
+              J.CalcSingularvalue(0) / J.CalcSingularvalue(Dim-1) : -1.0;
       if (i == 0)
       {
          h_min = h_max = h;
@@ -5469,6 +4750,8 @@ void ParMesh::PrintInfo(std::ostream &out)
    MPI_Reduce(&kappa_min, &gk_min, 1, MPI_DOUBLE, MPI_MIN, 0, MyComm);
    MPI_Reduce(&kappa_max, &gk_max, 1, MPI_DOUBLE, MPI_MAX, 0, MyComm);
 
+   // TODO: collect and print stats by geometry
+
    long ldata[5]; // vert, edge, face, elem, neighbors;
    long mindata[5], maxdata[5], sumdata[5];
 
@@ -5479,6 +4762,7 @@ void ParMesh::PrintInfo(std::ostream &out)
    ldata[3] = GetNE();
    ldata[4] = gtopo.GetNumNeighbors()-1;
    for (int gr = 1; gr < GetNGroups(); gr++)
+   {
       if (!gtopo.IAmMaster(gr)) // we are not the master
       {
          ldata[0] -= group_svert.RowSize(gr-1);
@@ -5486,6 +4770,7 @@ void ParMesh::PrintInfo(std::ostream &out)
          ldata[2] -= group_stria.RowSize(gr-1);
          ldata[2] -= group_squad.RowSize(gr-1);
       }
+   }
 
    MPI_Reduce(ldata, mindata, 5, MPI_LONG, MPI_MIN, 0, MyComm);
    MPI_Reduce(ldata, sumdata, 5, MPI_LONG, MPI_SUM, 0, MyComm);
@@ -5510,11 +4795,13 @@ void ParMesh::PrintInfo(std::ostream &out)
           << setw(12) << maxdata[1]
           << setw(12) << sumdata[1] << '\n';
       if (Dim == 3)
+      {
          out << " faces     "
              << setw(12) << mindata[2]
              << setw(12) << sumdata[2]/NRanks
              << setw(12) << maxdata[2]
              << setw(12) << sumdata[2] << '\n';
+      }
       out << " elements  "
           << setw(12) << mindata[3]
           << setw(12) << sumdata[3]/NRanks
@@ -5569,15 +4856,14 @@ void ParMesh::ParPrint(ostream &out) const
    }
    if (Dim >= 3)
    {
-      out << "total_shared_triangles " << stria_lface.Size() << '\n';
-      out << "total_shared_quadrilaterals " << squad_lface.Size() << '\n';
+      out << "total_shared_faces " << sface_lface.Size() << '\n';
    }
    for (int gr = 1; gr < GetNGroups(); gr++)
    {
       {
          const int  nv = group_svert.RowSize(gr-1);
          const int *sv = group_svert.GetRow(gr-1);
-         out << "\n#group " << gr << "\nshared_vertices " << nv << '\n';
+         out << "\n# group " << gr << "\nshared_vertices " << nv << '\n';
          for (int i = 0; i < nv; i++)
          {
             out << svert_lvert[sv[i]] << '\n';
@@ -5600,15 +4886,20 @@ void ParMesh::ParPrint(ostream &out) const
          const int *st = group_stria.GetRow(gr-1);
          const int  nq = group_squad.RowSize(gr-1);
          const int *sq = group_squad.GetRow(gr-1);
-         out << "\nshared_triangles " << nt << '\n';
+         out << "\nshared_faces " << nt+nq << '\n';
          for (int i = 0; i < nt; i++)
          {
-            PrintElementWithoutAttr(shared_faces[stria_sface[st[i]]], out);
+            out << Geometry::TRIANGLE;
+            const int *v = shared_trias[st[i]].v;
+            for (int j = 0; j < 3; j++) { out << ' ' << v[j]; }
+            out << '\n';
          }
-         out << "\nshared_quadrilaterials " << nq << '\n';
          for (int i = 0; i < nq; i++)
          {
-            PrintElementWithoutAttr(shared_faces[squad_sface[sq[i]]], out);
+            out << Geometry::SQUARE;
+            const int *v = shared_quads[sq[i]].v;
+            for (int j = 0; j < 4; j++) { out << ' ' << v[j]; }
+            out << '\n';
          }
       }
    }
@@ -5664,10 +4955,6 @@ ParMesh::~ParMesh()
 
    DeleteFaceNbrData();
 
-   for (int i = 0; i < shared_faces.Size(); i++)
-   {
-      FreeElement(shared_faces[i]);
-   }
    for (int i = 0; i < shared_edges.Size(); i++)
    {
       FreeElement(shared_edges[i]);

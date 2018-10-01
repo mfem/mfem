@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
 {
    const char *mesh_file = "../../data/inline-quad.mesh";
    int order = -1;
-   int ny = -1, nz = -1;
+   int ny = -1, nz = -1; // < 0: autoselect based on the initial mesh dimension
    double wy = 1.0, hz = 1.0;
    bool trans = false;
    bool visualization = 1;
@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
    // Parse command line
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
-                  "Input mesh file to shape materials in.");
+                  "Input mesh to extrude.");
    args.AddOption(&order, "-o", "--mesh-order",
                   "Order (polynomial degree) of the mesh elements.");
    args.AddOption(&ny, "-ny", "--num-elem-in-y",
@@ -71,7 +71,7 @@ int main(int argc, char *argv[])
                   "Extrude a 2D mesh to a height hz in the z-direction.");
    args.AddOption(&trans, "-trans", "--transform", "-no-trans",
                   "--no-transform",
-                  "Enable or disable mesh transformation.");
+                  "Enable or disable mesh transformation after extrusion.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -79,9 +79,27 @@ int main(int argc, char *argv[])
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    args.PrintOptions(cout);
 
-   // Read initial mesh, get dimensions and bounding box
+   // Read the initial mesh
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
+
+   // Autoselect ny and nz if not set on the command line or set to < 0 values
+   switch (dim)
+   {
+      case 1:
+         ny = (ny < 0) ? 1 : ny;
+         nz = (nz < 0) ? 0 : nz;
+         break;
+      case 2:
+         // ny is not used
+         nz = (nz < 0) ? 1 : nz;
+         break;
+      default:
+         cout << "Extruding " << dim << "D meshes is not (yet) supported."
+              << endl;
+         delete mesh;
+         return 1;
+   }
 
    // Determine the order to use for a transformed mesh
    int meshOrder = 1;
@@ -96,12 +114,6 @@ int main(int argc, char *argv[])
 
    bool newMesh = false;
 
-   if (dim == 3)
-   {
-      cout << "Extruding 3D meshes is not (yet) supported." << endl;
-      delete mesh;
-      exit(0);
-   }
    if (dim == 1 && ny > 0)
    {
       cout << "Extruding 1D mesh to a width of " << wy
