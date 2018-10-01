@@ -22,7 +22,8 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS =
-PAR_MINIAPPS = fourier fourier_nl fourier_flux fourier_nl_flux \
+PAR_MINIAPPS = fourier fourier_nl fourier_vanEs fourier_hybrid \
+	fourier_flux fourier_nl_flux \
 	fourier_refine fourier_flux_refine ex1p_nl
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
