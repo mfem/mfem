@@ -3784,6 +3784,12 @@ int Mesh::CheckBdrElementOrientation(bool fix_it)
 
    if (Dim == 2)
    {
+      if (el_to_edge == NULL) // edges were not generated
+      {
+         el_to_edge = new Table;
+         NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
+         GenerateFaces(); // 'Faces' in 2D refers to the edges
+      }
       for (int i = 0; i < NumOfBdrElements; i++)
       {
          if (faces_info[be_to_edge[i]].Elem2No < 0) // boundary face
