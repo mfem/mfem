@@ -34,7 +34,6 @@ SparseMatrix::SparseMatrix(int nrows, int ncols)
      I(NULL),
      J(NULL),
      A(NULL),
-     //Rows(new RowNode *[nrows]),
      Rows(mm::malloc<RowNode*>(nrows)),
      current_row(-1),
      ColPtrJ(NULL),
@@ -93,7 +92,7 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n,
 
    if ( A == NULL )
    {
-   OKINA_ASSERT_CPU;
+      OKINA_ASSERT_CPU;
       ownData = true;
       int nnz = I[height];
       A = new double[ nnz ];
@@ -358,11 +357,13 @@ void SparseMatrix::SetWidth(int newWidth)
       // We need to reset ColPtr, since now we may have additional columns.
       if (Rows != NULL)
       {
+         OKINA_ASSERT_CPU;
          delete [] ColPtrNode;
          ColPtrNode = static_cast<RowNode **>(NULL);
       }
       else
       {
+         OKINA_ASSERT_CPU;
          delete [] ColPtrJ;
          ColPtrJ = static_cast<int *>(NULL);
       }
@@ -613,19 +614,6 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 #ifndef MFEM_USE_OPENMP
       dbg("height=%d",height);
       kAddMult(height,Ip,Jp,Ap,xp,yp);
-      /*
-      for (i = j = 0; i < height; i++)
-      {
-         double d = 0.0;
-         for (end = Ip[i+1]; j < end; j++)
-         {
-            d += Ap[j] * xp[Jp[j]];
-         }
-         yp[i] += d;
-         }*/
-      //dbg("y:\n"); y.Print();
-
-      //OKINA_ASSERT_CPU;
 #else
       #pragma omp parallel for private(j,end)
       for (i = 0; i < height; i++)
@@ -856,7 +844,8 @@ double SparseMatrix::GetRowNorml1(int irow) const
 
 void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
 {
-   //OKINA_ASSERT_CPU;
+   dbg();
+   OKINA_ASSERT_GPU;
    int i, j, nr, nz;
    RowNode *aux;
 
@@ -865,10 +854,9 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
       return;
    }
 
-   delete [] ColPtrNode;
+   mm::free<double>(ColPtrNode);
    ColPtrNode = NULL;
 
-   //I = new int[height+1];
    I = mm::malloc<int>(height+1);
    I[0] = 0;
    for (i = 1; i <= height; i++)
@@ -884,8 +872,8 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
    }
 
    nz = I[height];
-   J = mm::malloc<int>(nz);//new int[nz];
-   A = mm::malloc<double>(nz);//new double[nz];
+   J = mm::malloc<int>(nz);
+   A = mm::malloc<double>(nz);
    // Assume we're sorted until we find out otherwise
    isSorted = true;
    for (j = i = 0; i < height; i++)
@@ -918,6 +906,7 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
    }
 
 #ifdef MFEM_USE_MEMALLOC
+   OKINA_ASSERT_CPU;
    delete NodesMem;
    NodesMem = NULL;
 #else
@@ -929,11 +918,12 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
          aux = node_p;
          node_p = node_p->Prev;
          delete aux;
+         //mm::free<double>(aux);
       }
    }
 #endif
 
-   delete [] Rows;
+   mm::free<double>(Rows);
    Rows = NULL;
 }
 
@@ -1806,81 +1796,19 @@ void SparseMatrix::EliminateZeroRows(const double threshold)
 
 void SparseMatrix::Gauss_Seidel_forw(const Vector &x, Vector &y) const
 {
-   int /*c, i,*/ s = height;
-   double /*sum,*/ *yp = y.GetData();
+   int s = height;
+   double *yp = y.GetData();
    const double *xp = x.GetData();
 
    if (A == NULL)
    {
       OKINA_ASSERT_CPU;
-      RowNode /**diag_p, *n_p,*/ **R = Rows;
-      kGauss_Seidel_forw_A_NULL(s,R,xp,yp);/*
-      for (i = 0; i < s; i++)
-      {
-         sum = 0.0;
-         diag_p = NULL;
-         for (n_p = R[i]; n_p != NULL; n_p = n_p->Prev)
-            if ((c = n_p->Column) == i)
-            {
-               diag_p = n_p;
-            }
-            else
-            {
-               sum += n_p->Value * yp[c];
-            }
-
-         if (diag_p != NULL && diag_p->Value != 0.0)
-         {
-            yp[i] = (xp[i] - sum) / diag_p->Value;
-         }
-         else if (xp[i] == sum)
-         {
-            yp[i] = sum;
-         }
-         else
-         {
-            mfem_error("SparseMatrix::Gauss_Seidel_forw()");
-         }
-         }*/
+      RowNode **R = Rows;
+      kGauss_Seidel_forw_A_NULL(s,R,xp,yp);
    }
    else
    {
-      //OKINA_ASSERT_CPU;
-      //int j, end, d, *Ip = I, *Jp = J;
-      //double *Ap = A;
-      //tmp.SetSize(y.Size());
-      //tmp = 0.0;
       kGauss_Seidel_forw(s,I,J,A,xp,yp);
-      /*
-      j = Ip[0];
-      for (i = 0; i < s; i++)
-      {
-         end = Ip[i+1];
-         sum = 0.0;
-         d = -1;
-         for ( ; j < end; j++)
-            if ((c = Jp[j]) == i)
-            {
-               d = j;
-            }
-            else
-            {
-               sum += Ap[j] * yp[c];
-            }
-
-         if (d >= 0 && Ap[d] != 0.0)
-         {
-            yp[i] = (xp[i] - sum) / Ap[d];
-         }
-         else if (xp[i] == sum)
-         {
-            yp[i] = sum;
-         }
-         else
-         {
-            mfem_error("SparseMatrix::Gauss_Seidel_forw(...) #2");
-         }
-         }*/
    }
 }
 
@@ -1925,40 +1853,7 @@ void SparseMatrix::Gauss_Seidel_back(const Vector &x, Vector &y) const
    }
    else
    {
-      //OKINA_ASSERT_CPU;
-      kGauss_Seidel_back(height,I,J,A,xp,yp);/*
-      int j, beg, d, *Ip = I, *Jp = J;
-      double *Ap = A;
-
-      j = Ip[height]-1;
-      for (i = height-1; i >= 0; i--)
-      {
-         beg = Ip[i];
-         sum = 0.;
-         d = -1;
-         for ( ; j >= beg; j--)
-            if ((c = Jp[j]) == i)
-            {
-               d = j;
-            }
-            else
-            {
-               sum += Ap[j] * yp[c];
-            }
-
-         if (d >= 0 && Ap[d] != 0.0)
-         {
-            yp[i] = (xp[i] - sum) / Ap[d];
-         }
-         else if (xp[i] == sum)
-         {
-            yp[i] = sum;
-         }
-         else
-         {
-            mfem_error("SparseMatrix::Gauss_Seidel_back(...) #2");
-         }
-         }*/
+      kGauss_Seidel_back(height,I,J,A,xp,yp);
    }
 }
 
@@ -2114,8 +2009,6 @@ void SparseMatrix::Jacobi3(const Vector &b, const Vector &x0, Vector &x1,
 void SparseMatrix::AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
                                 const DenseMatrix &subm, int skip_zeros)
 {
-   stk(true);
-   //OKINA_ASSERT_CPU;
    int i, j, gi, gj, s, t;
    double a;
 
@@ -2802,17 +2695,18 @@ void SparseMatrix::PrintInfo(std::ostream &out) const
 
 void SparseMatrix::Destroy()
 {
+   //OKINA_ASSERT_GPU;
    if (I != NULL && ownGraph)
    {
-      delete [] I;
+      mm::free<int>(I);
    }
    if (J != NULL && ownGraph)
    {
-      delete [] J;
+      mm::free<int>(J);
    }
    if (A != NULL && ownData)
    {
-      delete [] A;
+      mm::free<double>(A);
    }
 
    if (Rows != NULL)
@@ -2825,22 +2719,23 @@ void SparseMatrix::Destroy()
          {
             aux = node_p;
             node_p = node_p->Prev;
-            delete aux;
+            mm::free<RowNode>(aux);
          }
       }
 #endif
-      delete [] Rows;
+      mm::free<RowNode*>(Rows);
    }
 
    if (ColPtrJ != NULL)
    {
-      delete [] ColPtrJ;
+      mm::free<int>(ColPtrJ);
    }
    if (ColPtrNode != NULL)
    {
-      delete [] ColPtrNode;
+      mm::free<RowNode*>(ColPtrNode);
    }
 #ifdef MFEM_USE_MEMALLOC
+   OKINA_ASSERT_CPU;
    if (NodesMem != NULL)
    {
       delete NodesMem;

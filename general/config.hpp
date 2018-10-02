@@ -9,13 +9,13 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_CFG_HPP
-#define MFEM_CFG_HPP
+#ifndef MFEM_CONFIG_HPP
+#define MFEM_CONFIG_HPP
 
 // *****************************************************************************
 // * Config
 // *****************************************************************************
-class cfg{
+class config{
 private:
    bool cuda = false;
    bool uvm = false;
@@ -27,13 +27,13 @@ private:
    CUstream *hStream;
 #endif
 private:
-   cfg(){}
-   cfg(cfg const&);
-   void operator=(cfg const&);
+   config(){}
+   config(config const&);
+   void operator=(config const&);
 public:
-   static cfg& Get(){
-      static cfg cfg_singleton;
-      return cfg_singleton;
+   static config& Get(){
+      static config singleton;
+      return singleton;
    }
    // **************************************************************************
    void Init(){
@@ -67,6 +67,8 @@ public:
    inline bool Cuda(const bool flag=false) {
       if (flag) {
          dbg("\033[32;7mSetting CUDA mode!");
+         // Still move data to GPU, could be 'discretized'
+         mfem::mm::Get().Cuda();
          cuda = true;
       }
       return cuda;
@@ -84,4 +86,4 @@ public:
 #endif
 };
 
-#endif // MFEM_CFG_HPP
+#endif // MFEM_CONFIG_HPP

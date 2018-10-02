@@ -15,9 +15,8 @@ using namespace std;
 // *****************************************************************************
 #ifdef __NVCC__
 
-#include <cub/cub.cuh>
-
 // *****************************************************************************
+#include <cub/cub.cuh>
 __inline__ __device__ double4 operator*(double4 a, double4 b) {
    return make_double4(a.x*b.x, a.y*b.y, a.z*b.z, a.w*b.w);
 }
@@ -30,13 +29,11 @@ static double cub_vector_dot(const int N,
    static double *h_dot = NULL;
    if (!h_dot){
       void *ptr;
-      //h_dot = (double*)mm<double>::operator new(1,true);
       cuMemHostAlloc(&ptr, sizeof(double), CU_MEMHOSTALLOC_PORTABLE);
       h_dot=(double*)ptr;
    }
    static double *d_dot = NULL;
    if (!d_dot) {
-      //d_dot=(double*)mm<double>::operator new(1);
       cuMemAlloc((CUdeviceptr*)&d_dot, sizeof(double));
    }
    static void *d_storage = NULL;
@@ -44,15 +41,12 @@ static double cub_vector_dot(const int N,
    if (!d_storage){
       dbg("[cub_vector_dot] !d_storage");
       cub::DeviceReduce::Dot(d_storage, storage_bytes, vec1, vec2, d_dot, N);
-      //d_storage = mm<char>::operator new(storage_bytes);
       cuMemAlloc((CUdeviceptr*)&d_storage, storage_bytes*sizeof(double));
    }
    cub::DeviceReduce::Dot(d_storage, storage_bytes, vec1, vec2, d_dot, N);
    memcpy::D2H(h_dot,d_dot,sizeof(double));
    return *h_dot;
 }
-
-// *****************************************************************************
 #endif // __NVCC__
 
 // *****************************************************************************
@@ -116,8 +110,6 @@ double kVectorDot(const size_t N, const double *x, const double *y){
       for(size_t i=0;i<N;i+=1)
          dot += d_x[i] * d_y[i];
    }
-   dbg("dot=%e",dot);
-   // dot=4.416289e-01
    return dot;
 }
 

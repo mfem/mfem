@@ -15,12 +15,13 @@ using namespace std;
 // *****************************************************************************
 MFEM_NAMESPACE
 
-
 // **************************************************************************
 void DenseMatrixSet(const double d,
                     const size_t size,
                     double *data){
-   forall(i, size, data[i] = d;);
+   GET_CUDA;
+   GET_ADRS(data);
+   forall(i, size, d_data[i] = d;);
 }
 
 // **************************************************************************
@@ -28,9 +29,12 @@ void DenseMatrixTranspose(const size_t height,
                           const size_t width,
                           double *data,
                           const double *mdata){
+   GET_CUDA;
+   GET_CONST_ADRS(mdata);
+   GET_ADRS(data);
    forall(i,height,{
-         for (int j = 0; j < width; j++){
-            data[i+j*height] = mdata[j+i*height];
+         for (size_t j=0; j<width; j+=1){
+            d_data[i+j*height] = d_mdata[j+i*height];
          }
       });
 }

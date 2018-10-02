@@ -79,9 +79,10 @@ protected:
 
    void Destroy();   // Delete all owned data
    void SetEmpty();  // Init all entries with empty values
+
 public:
    /// Create an empty SparseMatrix.
-   SparseMatrix() { /*OKINA_ASSERT_CPU;*/ SetEmpty(); }
+   SparseMatrix() { SetEmpty(); }
 
    /** @brief Create a sparse matrix with flexible sparsity structure using a
        row-wise linked list (LIL) format. */
@@ -128,7 +129,7 @@ public:
    int Size() const { return Height(); }
 
    /// Clear the contents of the SparseMatrix.
-   void Clear() { /*OKINA_ASSERT_CPU;*/ Destroy(); SetEmpty(); }
+   void Clear() { Destroy(); SetEmpty(); }
 
    /// Check if the SparseMatrix is empty.
    bool Empty() const { return (A == NULL) && (Rows == NULL); }
@@ -520,10 +521,8 @@ inline void SparseMatrix::SetColPtr(const int row) const
 {
    if (Rows)
    {
-      //OKINA_ASSERT_CPU;
       if (ColPtrNode == NULL)
       {
-         //ColPtrNode = new RowNode *[width];
          ColPtrNode = mm::malloc<RowNode*>(width);
          for (int i = 0; i < width; i++)
          {
@@ -552,12 +551,10 @@ inline void SparseMatrix::SetColPtr(const int row) const
       }
    }
    current_row = row;
-   //OKINA_ASSERT_CPU;
 }
 
 inline void SparseMatrix::ClearColPtr() const
 {
-   //OKINA_ASSERT_CPU;
    if (Rows)
       for (RowNode *node_p = Rows[current_row]; node_p != NULL;
            node_p = node_p->Prev)
@@ -627,7 +624,7 @@ inline double &SparseMatrix::SearchRow(const int row, const int col)
 #ifdef MFEM_USE_MEMALLOC
             node_p = NodesMem->Alloc();
 #else
-            node_p = new RowNode;
+            node_p = mm::malloc<RowNode>(1);
 #endif
             node_p->Prev = Rows[row];
             node_p->Column = col;

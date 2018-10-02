@@ -15,39 +15,31 @@
 // *****************************************************************************
 #ifdef __NVCC__
 template <typename BODY> __global__
-void gpu_kernel(const size_t N, BODY d_body) {
+void kernel(const size_t N, BODY body) {
   const size_t k = blockDim.x*blockIdx.x + threadIdx.x;
   if (k >= N) return;
-  d_body(k);
+  body(k);
 }
 #endif // __NVCC__
 
 // *****************************************************************************
 template <typename DBODY, typename HBODY>
 void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body){
-   stk(true);
 #ifdef __NVCC__
-   const bool gpu = cfg::Get().Cuda();
+   const bool gpu = config::Get().Cuda();
    if (gpu){
-      //dbg("\nGPU");
       const size_t blockSize = 256;
       const size_t gridSize = (N+blockSize-1)/blockSize;
-      gpu_kernel<<<gridSize, blockSize>>>(N,d_body);
-      cudaDeviceSynchronize();
+      kernel<<<gridSize, blockSize>>>(N,d_body);
       return;
    }
 #endif // __NVCC__
-   //dbg("\nCPU");
    for(size_t k=0; k<N; k+=1){ h_body(k); }
 }
 
 // *****************************************************************************
 // * FORALL split
 // *****************************************************************************
-#define forall_this(i,end,body) wrap(end,                                    \
-                                [=,*this] __device__ (size_t i){body},  \
-                                [=] (size_t i){body})
-
 #define forall(i,end,body) wrap(end,                                    \
                                 [=] __device__ (size_t i){body},        \
                                 [=] (size_t i){body})

@@ -36,26 +36,19 @@
 //               optional connection to the GLVis tool for visualization.
 
 #include "mfem.hpp"
-#include "general/okina.hpp"
-#include <cassert>
 #include <fstream>
 #include <iostream>
 
 using namespace std;
 using namespace mfem;
 
-#include "/home/camier1/home/stk/stk.hpp"
-
-// *****************************************************************************
 int main(int argc, char *argv[])
-{   
-   dbg("main => stkIni");
-   stkIni(argv[0]);
-      
-   dbg("1. Parse command-line options.");
+{
+   // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool static_cond = false;
+   bool gpu = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -66,6 +59,8 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
+   args.AddOption(&gpu, "-g", "--gpu", "-no-g",
+                  "--no-gpu", "Enable GPU.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -87,7 +82,6 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
-   
    {
       int ref_levels =
          (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
@@ -96,7 +90,7 @@ int main(int argc, char *argv[])
          mesh->UniformRefinement();
       }
    }
-   
+
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
@@ -149,26 +143,21 @@ int main(int argc, char *argv[])
    //    domain integrator.
    BilinearForm *a = new BilinearForm(fespace);
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
-   
+
    // 9. Assemble the bilinear form and the corresponding linear system,
    //    applying any necessary transformations such as: eliminating boundary
    //    conditions, applying conforming constraints for non-conforming AMR,
    //    static condensation, etc.
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
-   
+
    SparseMatrix A;
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-   
+
    cout << "Size of linear system: " << A.Height() << endl;
-   
-   // Switch to CUDA!
-   const bool CUDA = false;
-   if (CUDA){
-      cfg::Get().Cuda(true);
-      mm::Get().Cuda();
-   }
+
+   config::Get().Cuda(gpu);
 
 #ifndef MFEM_USE_SUITESPARSE
    // 10. Define a simple symmetric Gauss-Seidel preconditioner and use it to

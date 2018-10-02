@@ -24,7 +24,7 @@ void mm::init(void){
    // Initialize our SIGSEGV handler
    mm::iniHandler();
    // Initialize the CUDA device to be ready to allocate memory there
-   cfg::Get().Init();
+   config::Get().Init();
 }
 
 // *****************************************************************************
@@ -32,46 +32,45 @@ void* mm::add(const void *h_adrs, const size_t size, const size_t size_of_T){
    const size_t bytes = size*size_of_T;
    const auto search = mng->find(h_adrs);
    const bool present = search != mng->end();
-   void *rtn = NULL;
-   if (present) {
+   
+   if (present) { // should not happen
       //printf(" \033[31;7m%p(%ldo)\033[m", h_adrs, bytes);fflush(0);
-#warning why & where this could happen ?!
-      //assert(false); // should not happen
-   }else{
-      //printf(" \033[31m%p(%ldo)\033[m", h_adrs, bytes);fflush(0);
-      mm2dev_t &mm2dev = mng->operator[](h_adrs);
-      mm2dev.host = true;
-      mm2dev.bytes = bytes;
-      mm2dev.h_adrs = h_adrs;
-      mm2dev.d_adrs = NULL;
-      
-      // if cfg::Get().Cuda() is set, alloc also there
-      if (cfg::Get().Cuda()){
-         CUdeviceptr ptr;
-         const size_t bytes = mm2dev.bytes;
-         //printf(" \033[32;1m%ldo\033[m",bytes);
-         checkCudaErrors(cuMemAlloc(&ptr,bytes));
-         mm2dev.d_adrs = (void*)ptr;
-         // and say we are there
-         mm2dev.host = false;
-      }
-      rtn = (void*) (mm2dev.host ? mm2dev.h_adrs : mm2dev.d_adrs);
+      assert(false);
    }
-   return rtn; 
+
+   //printf(" \033[31m%p(%ldo)\033[m", h_adrs, bytes);fflush(0);
+   mm2dev_t &mm2dev = mng->operator[](h_adrs);
+   mm2dev.host = true;
+   mm2dev.bytes = bytes;
+   mm2dev.h_adrs = h_adrs;
+   mm2dev.d_adrs = NULL;
+   
+   // if config::Get().Cuda() is set, alloc also there
+   if (config::Get().Cuda()){
+      CUdeviceptr ptr;
+      const size_t bytes = mm2dev.bytes;
+      //printf(" \033[32;1m%ldo\033[m",bytes);
+      checkCudaErrors(cuMemAlloc(&ptr,bytes));
+      mm2dev.d_adrs = (void*)ptr;
+      // and say we are there
+      mm2dev.host = false;
+   }
+   return (void*) (mm2dev.host ? mm2dev.h_adrs : mm2dev.d_adrs);
 }
 
 // *****************************************************************************
 void mm::del(const void *adrs){
    const auto search = mng->find(adrs);
    const bool present = search != mng->end();
-   if (present){
-      //printf(" \033[32;7m%p\033[m", adrs);
-      // Remove element from the map
-      mng->erase(adrs);
-   }else{
-      //printf(" \033[32m%p\033[m", adrs);
+   
+   if (!present){ // should not happen
+      //printf("\n\033[32m[mm::del] %p\033[m", adrs);
       assert(false); // should not happen
-   }   
+   }
+   
+   //printf("\n\033[32;7m[mm::del] %p\033[m", adrs);
+   // Remove element from the map
+   mng->erase(adrs);
 }
 
 // *****************************************************************************
@@ -115,33 +114,24 @@ void mm::Rsync(const void *adrs){
    const bool present = search != mng->end();
    assert(present);
    const mm2dev_t &mm2dev = mng->operator[](adrs);
-   if (!mm2dev.host){
-      // Must be on the device!
-      const size_t bytes = mm2dev.bytes;
-      //printf("\033[32;1m[Rsync] %ldo\033[m\n",bytes);
-      //printf("\033[32;1m[Rsync] h_adrs=%p\033[m\n",mm2dev.h_adrs);
-      //printf("\033[32;1m[Rsync] d_adrs=%p\033[m\n",mm2dev.d_adrs);
-      checkCudaErrors(cuMemcpyDtoH((void*)mm2dev.h_adrs,
-                                   (CUdeviceptr)mm2dev.d_adrs,
-                                   bytes));
-   }
+   if (mm2dev.host) return;
+   const size_t bytes = mm2dev.bytes;
+   checkCudaErrors(cuMemcpyDtoH((void*)mm2dev.h_adrs,
+                                (CUdeviceptr)mm2dev.d_adrs,
+                                bytes));
 }
 
 // *****************************************************************************
-// static
 void mm::handler(int nSignum, siginfo_t* si, void* vcontext) {
    fflush(0);
    printf("\n\033[31;7;1mSegmentation fault\033[m\n");
    ucontext_t* context = (ucontext_t*)vcontext;
    context->uc_mcontext.gregs[REG_RIP]++;
-   stk(true);
    fflush(0);
-   exit(1);
-   //throw SIGSEGV;
+   exit(!0);
 }
 
 // *****************************************************************************
-// static
 void mm::iniHandler(){
    dbg();
    struct sigaction action;
@@ -151,6 +141,5 @@ void mm::iniHandler(){
    sigaction(SIGSEGV, &action, NULL);
 }
    
-
 // *****************************************************************************
 MFEM_NAMESPACE_END

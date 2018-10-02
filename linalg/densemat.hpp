@@ -70,26 +70,16 @@ public:
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will
        not delete the new array @a d. This method will delete the current data
        array, if owned. */
-   void Reset(double *d, int h, int w){
-      if (OwnsData()) { 
-         mm::free<double>(data);
-         //delete [] data;
-      }
-      UseExternalData(d, h, w);
-   }
+   void Reset(double *d, int h, int w)
+   { if (OwnsData()) { mm::free<double>(data); } UseExternalData(d, h, w); }
 
    /** Clear the data array and the dimensions of the DenseMatrix. This method
        should not be used with DenseMatrix that owns its current data array. */
    void ClearExternalData() { data = NULL; height = width = 0; capacity = 0; }
 
    /// Delete the matrix data array (if owned) and reset the matrix state.
-   void Clear() {
-      if (OwnsData()) { 
-         mm::free<double>(data);
-         //delete [] data;
-      }
-      ClearExternalData();
-   }
+   void Clear()
+   { if (OwnsData()) { mm::free<double>(data); } ClearExternalData(); }
 
    /// For backward compatibility define Size to be synonym of Width()
    int Size() const { return Width(); }
@@ -684,7 +674,6 @@ public:
       : Mk(NULL, i, j)
    {
       nk = k;
-      //tdata = new double[i*j*k];
       tdata = mm::malloc<double>(i*j*k);
       own_data = true;
    }
@@ -696,10 +685,8 @@ public:
       const int size = Mk.Height()*Mk.Width()*nk;
       if (size > 0)
       {
-         //tdata = new double[size];
          tdata = mm::malloc<double>(size);
          memcpy::D2D(tdata, other.tdata, sizeof(double) * size);
-         //std::memcpy(tdata, other.tdata, sizeof(double) * size);
       }
       else
       {
@@ -713,23 +700,16 @@ public:
 
    void SetSize(int i, int j, int k)
    {
-      if (own_data) {
-         mm::free<double>(tdata);
-         //delete [] tdata;
-      }
+      if (own_data) { mm::free<double>(tdata); }
       Mk.UseExternalData(NULL, i, j);
       nk = k;
-      //tdata = new double[i*j*k];
       tdata = mm::malloc<double>(i*j*k);
       own_data = true;
    }
 
    void UseExternalData(double *ext_data, int i, int j, int k)
    {
-      if (own_data) { 
-         mm::free<double>(tdata);
-         //delete [] tdata;
-      }
+      if (own_data) { mm::free<double>(tdata); }
       Mk.UseExternalData(NULL, i, j);
       nk = k;
       tdata = ext_data;
@@ -763,10 +743,7 @@ public:
 
    ~DenseTensor()
    {
-      if (own_data) {  
-      mm::free<double>(tdata);
-      //delete [] tdata;
-      }
+      if (own_data) { mm::free<double>(tdata); }
    }
 };
 
