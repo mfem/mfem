@@ -23,17 +23,6 @@ typedef struct mm2dev{
    size_t bytes = 0;
    const void *h_adrs = NULL;
    const void *d_adrs = NULL;
-/*   mm2dev():
-      host(true),
-      size(0),
-      h_adrs((void*)0x12345678ul),
-      d_adrs(NULL){ }
-   mm2dev(const mm2dev &m){
-      host = m.host;
-      size = m.size;
-      h_adrs = m.h_adrs;
-      d_adrs = m.d_adrs;
-      }*/
 } mm2dev_t;
 
 // *****************************************************************************
@@ -67,23 +56,10 @@ public:
    template<class T>
    static inline T* malloc(size_t size, const size_t size_of_T = sizeof(T)) {
       dbg();
-      stk(true);
       if (!mm::Get().mng) mm::Get().init();
-      
-      T *ptr = nullptr;
-      /*
-      if (!cfg::Get().Cuda()) ptr = ::new T[size];
-#ifdef __NVCC__
-      else{
-         const size_t bytes = size*size_of_T;
-         dbg("\033[31;1mnew NVCC (%ldo)",bytes);
-         cuMemAlloc((CUdeviceptr*)&ptr,bytes);
-      }
-#endif // __NVCC__
-      */
       // alloc on host first
-      ptr = ::new T[size];
-      // add to the pool of adrs
+      T *ptr = ::new T[size];
+      // add to the pool of registered adresses
       mm::Get().add((void*)ptr,size,size_of_T);
       return ptr;
    }
@@ -91,21 +67,9 @@ public:
    // **************************************************************************
    template<class T>
    static inline void free(void *ptr) {
-      if (ptr){
-         mm::Get().del(ptr);
-         ::delete[] static_cast<T*>(ptr);
-      }
-      /*
-      if (!cfg::Get().Cuda()) {
-         if (ptr)
-            ::delete[] static_cast<T*>(ptr);
-      }
-#ifdef __NVCC__
-      else {
-         dbg("\033[31;1mdelete NVCC");
-         cuMemFree((CUdeviceptr)ptr);
-      }
-      #endif // __NVCC__*/
+      if (!ptr) return;
+      mm::Get().del(ptr);
+      ::delete[] static_cast<T*>(ptr);
       ptr = nullptr;
    }
 

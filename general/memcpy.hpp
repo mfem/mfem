@@ -29,9 +29,9 @@ struct memcpy{
     dbg();
     if (bytes==0) return dest;
     assert(src); assert(dest);
-    if (!cfg::Get().Cuda()) return std::memcpy(dest,src,bytes);
+    if (!config::Get().Cuda()) return std::memcpy(dest,src,bytes);
 #ifdef __NVCC__
-    if (!cfg::Get().Uvm())
+    if (!config::Get().Uvm())
       checkCudaErrors(cuMemcpyHtoD((CUdeviceptr)dest,src,bytes));
     else checkCudaErrors(cuMemcpy((CUdeviceptr)dest,(CUdeviceptr)src,bytes));
 #endif
@@ -43,9 +43,9 @@ struct memcpy{
     dbg();
     if (bytes==0) return dest;
     assert(src); assert(dest);
-    if (!cfg::Get().Cuda()) return std::memcpy(dest,src,bytes);
+    if (!config::Get().Cuda()) return std::memcpy(dest,src,bytes);
 #ifdef __NVCC__
-    if (!cfg::Get().Uvm())
+    if (!config::Get().Uvm())
       checkCudaErrors(cuMemcpyDtoH(dest,(CUdeviceptr)src,bytes));
     else checkCudaErrors(cuMemcpy((CUdeviceptr)dest,(CUdeviceptr)src,bytes));
 #endif
@@ -57,13 +57,13 @@ struct memcpy{
     dbg();
     if (bytes==0) return dest;
     assert(src); assert(dest);
-    if (!cfg::Get().Cuda()) return std::memcpy(dest,src,bytes);
+    if (!config::Get().Cuda()) return std::memcpy(dest,src,bytes);
 #ifdef __NVCC__
-    if (!cfg::Get().Uvm()){
+    if (!config::Get().Uvm()){
       if (!async)
         checkCudaErrors(cuMemcpyDtoD((CUdeviceptr)dest,(CUdeviceptr)src,bytes));
       else{
-        const CUstream s = *cfg::Get().Stream();
+        const CUstream s = *config::Get().Stream();
         checkCudaErrors(cuMemcpyDtoDAsync((CUdeviceptr)dest,(CUdeviceptr)src,bytes,s));
       }
     } else checkCudaErrors(cuMemcpy((CUdeviceptr)dest,(CUdeviceptr)src,bytes));

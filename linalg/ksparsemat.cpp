@@ -15,6 +15,7 @@ using namespace std;
 // *****************************************************************************
 MFEM_NAMESPACE
 
+// *****************************************************************************
 class RowNode{
 public:
    double Value;
@@ -60,14 +61,12 @@ void kGauss_Seidel_forw(const size_t height,
                         const int *Ip, const int *Jp, const double *Ap,
                         const double *xp,
                         double *yp){
-   dbg();
    GET_CUDA;
    GET_CONST_ADRS_T(Ip,int);
    GET_CONST_ADRS_T(Jp,int);
    GET_CONST_ADRS(Ap);
    GET_CONST_ADRS(xp);
    GET_ADRS(yp);
-      
    forall(k,1,{
          for(int i=0;i<height;i+=1){
             int d = -1;            
@@ -137,27 +136,14 @@ void kAddMult(const size_t height,
    GET_CONST_ADRS(A);
    GET_CONST_ADRS(x);
    GET_ADRS(y);
-   forall(k,1, {
-         for(int i=0;i<height;i+=1){
-            double d = 0.0;
-            const int end = d_I[i+1];
-            for (int j=d_I[i]; j < end; j+=1){
-               //printf("\n\t%d:%d %f:%f",i,j,d_A[j],d_x[d_J[j]]);
-               d += d_A[j] * d_x[d_J[j]];
-            }
-            d_y[i] += d;
-         }
-      });
-   /*
-   forall(i, height, {
+   forall(i,height,{
          double d = 0.0;
-         const int end = d_I[i+1];
-         const int ini = i==0? 0 :
-         for (int j=d_I[i]; j < end; j+=1)
+         const size_t end = d_I[i+1];
+         for (size_t j=d_I[i]; j < end; j+=1){
             d += d_A[j] * d_x[d_J[j]];
+         }
          d_y[i] += d;
-      });
-   */
+      });   
 }
 
 // *****************************************************************************

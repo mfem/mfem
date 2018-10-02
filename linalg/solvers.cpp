@@ -296,60 +296,29 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 {
    int i;
    double r0, den, nom, nom0, betanom, alpha, beta;
-   dbg();
+
    if (iterative_mode)
    {
-      dbg("iterative_mode");
-      //dbg("x:\n"); x.Print();
-      dbg("oper->Mult(x, r);");
       oper->Mult(x, r);
-      //dbg("r:\n"); r.Print();
-      dbg("r = b - A x;");
       subtract(b, r, r); // r = b - A x
-      //dbg("r:\n"); r.Print();
-      //0.297205 0 0 0 0 0 0 0
-      //0 0 0 0.237765 0 0 0.237764 0
-      //0 0.237764 0 0 0.237763 0 0 0.237764
-      //0 0 0.237765 0.237764 0.237763 0.237764 0.237765
-      //assert(false);
    }
    else
    {
-      dbg("else");
       r = b;
       x = 0.0;
    }
 
    if (prec)
    {
-      dbg("prec");
       prec->Mult(r, z); // z = B r
-      //dbg("z:\n"); z.Print();
-      //0.0536135 0 0 0 0 0 0 0
-      //0 0 0 0.0204726 0 0 0.0292828 0
-      //0 0.0229677 0 0 0.0188328 0 0 0.0162032
-      //0 0 0.0181677 0.0141162 0.0111785 0.00945661 0.00853455
-
       d = z;
-
-      //dbg("d:\n"); d.Print();
-      //0.0536135 0 0 0 0 0 0 0
-      //0 0 0 0.0204726 0 0 0.0292828 0
-      //0 0.0229677 0 0 0.0188328 0 0 0.0162032
-      //0 0 0.0181677 0.0141162 0.0111785 0.00945661 0.00853455
-      //assert(false);
    }
    else
    {
-      dbg("else");
       d = r;
    }
-   //dbg("d:\n"); d.Print();
-   dbg("Dot");
    nom0 = nom = Dot(d, r);
-   dbg("nom=%f",nom); // 5.616691e-02
    MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
-   //assert(false);
 
    if (print_level == 1 || print_level == 3)
    {
@@ -358,7 +327,6 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    }
 
    r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
-   dbg("r0 max = %e",r0);
    if (nom <= r0)
    {
       converged = 1;
@@ -367,23 +335,8 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       return;
    }
 
-   dbg("oper->Mult(d, z)");
-   //dbg("d:\n"); d.Print();
-   //0.0536135 0 0 0 0 0 0 0
-   //0 0 0 0.0204726 0 0 0.0292828 0
-   //0 0.0229677 0 0 0.0188328 0 0 0.0162032
-   //0 0 0.0181677 0.0141162 0.0111785 0.00945661 0.00853455
-
    oper->Mult(d, z);  // z = A d
-   //dbg("z:\n"); z.Print();
-   //0.297205 0 0 0 0 0 0 0
-   //0 0 0 0.220079 0 0 0.225813 0
-   //0 0.216088 0 0 0.20879 0 0 0.186405
-   //0 0 0.216501 0.206055 0.200545 0.200476 0.184921
-
    den = Dot(z, d);
-   dbg("den=%f",den); // 5.152561e-02
-   //assert(false);
    MFEM_ASSERT(IsFinite(den), "den = " << den);
 
    if (print_level >= 0 && den < 0.0)
