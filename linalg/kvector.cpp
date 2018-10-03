@@ -55,7 +55,6 @@ MFEM_NAMESPACE
 // *****************************************************************************
 void kVectorSubtract(double *zp, const double *xp, const double *yp,
                      const size_t N){
-   GET_CUDA;
    GET_ADRS(zp);
    GET_CONST_ADRS(xp);
    GET_CONST_ADRS(yp);
@@ -65,7 +64,6 @@ void kVectorSubtract(double *zp, const double *xp, const double *yp,
 // *****************************************************************************
 void kVectorAlphaAdd(double *vp, const double* v1p,
                      const double alpha, const double *v2p, const size_t N){
-   GET_CUDA;
    GET_ADRS(vp);
    GET_CONST_ADRS(v1p);
    GET_CONST_ADRS(v2p);
@@ -74,7 +72,6 @@ void kVectorAlphaAdd(double *vp, const double* v1p,
 
 // *****************************************************************************
 void kVectorAssign(const size_t N, const double* v, double *data){
-   GET_CUDA;
    GET_ADRS(data);
    GET_CONST_ADRS(v);
    forall(i, N, d_data[i] = d_v[i];);
@@ -84,7 +81,6 @@ void kVectorAssign(const size_t N, const double* v, double *data){
 void kVectorSet(const size_t N,
                 const double value,
                 double *data){
-   GET_CUDA;
    GET_ADRS(data);
    forall(i, N, d_data[i] = value;);
 }
@@ -93,14 +89,12 @@ void kVectorSet(const size_t N,
 void kVectorMultOp(const size_t N,
                    const double value,
                    double *data){
-   GET_CUDA;
    GET_ADRS(data);
    forall(i, N, d_data[i] *= value;);
 }
 
 // *****************************************************************************
 double kVectorDot(const size_t N, const double *x, const double *y){
-   dbg();
    GET_CUDA;
    GET_CONST_ADRS(x);
    GET_CONST_ADRS(y);
@@ -113,8 +107,6 @@ double kVectorDot(const size_t N, const double *x, const double *y){
 
 // *****************************************************************************
 void kVectorDotOpPlusEQ(const size_t size, const double *v, double *data){
-   dbg();
-   GET_CUDA;
    GET_CONST_ADRS(v);
    GET_ADRS(data);
    forall(i, size, d_data[i] += d_v[i];);
@@ -123,8 +115,6 @@ void kVectorDotOpPlusEQ(const size_t size, const double *v, double *data){
 // *****************************************************************************
 void kSetSubVector(const size_t n, const int *dofs, const double *elemvect,
                    double *data){
-   dbg();
-   GET_CUDA;
    GET_CONST_ADRS_T(dofs,int);
    GET_CONST_ADRS(elemvect);
    GET_ADRS(data);

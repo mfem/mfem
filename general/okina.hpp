@@ -41,10 +41,14 @@
 
 // *****************************************************************************
 #define GET_CUDA const bool cuda = config::Get().Cuda();
-#define GET_ADRS(v) double *d_##v = (double*) (cuda?mm::Get().Adrs(v):v);
-#define GET_CONST_ADRS(v) const double *d_##v = (const double*) (cuda?mm::Get().Adrs(v):v);
-#define GET_ADRS_T(v,T) T *d_##v = (T*) (cuda?mm::Get().Adrs(v):v);
-#define GET_CONST_ADRS_T(v,T) const T *d_##v = (const T*) (cuda?mm::Get().Adrs(v):v);
+//#define GET_ADRS(v) double *d_##v = (double*) (cuda?mm::Get().Adrs(v):v);
+//#define GET_CONST_ADRS(v) const double *d_##v = (const double*) (cuda?mm::Get().Adrs(v):v);
+//#define GET_ADRS_T(v,T) T *d_##v = (T*) (cuda?mm::Get().Adrs(v):v);
+//#define GET_CONST_ADRS_T(v,T) const T *d_##v = (const T*) (cuda?mm::Get().Adrs(v):v);
+#define GET_ADRS(v) double *d_##v = (double*) mm::Get().Adrs(v)
+#define GET_ADRS_T(v,T) T *d_##v = (T*) mm::Get().Adrs(v)
+#define GET_CONST_ADRS(v) const double *d_##v = (const double*) mm::Get().Adrs(v)
+#define GET_CONST_ADRS_T(v,T) const T *d_##v = (const T*) mm::Get().Adrs(v)
 
 // *****************************************************************************
 #define OKINA_ASSERT_CPU {dbg();assert(__FILE__ and __LINE__ and false);}

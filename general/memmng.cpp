@@ -79,7 +79,10 @@ void mm::del(const void *adrs){
 }
 
 // *****************************************************************************
+// * HOST => GPU monolithic transfer
+// *****************************************************************************
 void mm::Cuda(){
+   assert(false);
    for(auto it = mng->begin(); it != mng->end(); ++it){
       const void *adrs = it->first;
       mm2dev_t &mm2dev = it->second;
@@ -115,13 +118,51 @@ bool mm::Known(const void *adrs){
 
 // *****************************************************************************
 void* mm::Adrs(const void *adrs){
+   dbg();
+   const bool cuda = config::Get().Cuda();
    const auto search = mng->find(adrs);
    const bool present = search != mng->end();
+
+   // Should look where that comes from
+   if (not present) return (void*)adrs;
+   
    assert(present);
-   const mm2dev_t &mm2dev = mng->operator[](adrs);
-   if (mm2dev.host)
+   /*const*/ mm2dev_t &mm2dev = mng->operator[](adrs);
+   const size_t bytes = mm2dev.bytes;
+   // If we are asking a known host address, just return it
+   if (mm2dev.host and not cuda){
+      dbg("Returning host adrs %p", mm2dev.h_adrs);
       return (void*)mm2dev.h_adrs;
-   assert(mm2dev.d_adrs);
+   }
+   // Otherwise push it to the device if it hasn't been seen
+   //assert(mm2dev.d_adrs);
+   if (!mm2dev.d_adrs){
+      dbg("\033[32;1mPushing new address to the GPU!");
+      // allocate on the device
+      CUdeviceptr ptr = (CUdeviceptr) NULL;
+      if (bytes>0){
+         dbg(" \033[32;1m%ldo\033[m",bytes);
+         checkCudaErrors(cuMemAlloc(&ptr,bytes));
+      }
+      mm2dev.d_adrs = (void*)ptr;
+      //memcpy::H2D((void*)ptr,mm2dev.h_adrs,bytes);
+      const CUstream s = *config::Get().Stream();
+      checkCudaErrors(cuMemcpyHtoDAsync(ptr,mm2dev.h_adrs,bytes,s));
+      // Now we are on the GPU
+      mm2dev.host = false;
+   }
+   
+   if (not cuda){
+      dbg("return \033[31;1mGPU\033[m h_adrs %p",mm2dev.h_adrs);
+      dbg("return \033[31;1mGPU\033[m d_adrs %p",mm2dev.d_adrs);
+      checkCudaErrors(cuMemcpyDtoH((void*)mm2dev.h_adrs,(CUdeviceptr)mm2dev.d_adrs,bytes));
+      //const CUstream s = *config::Get().Stream();
+      //checkCudaErrors(cuMemcpyDtoHAsync((void*)mm2dev.h_adrs, (CUdeviceptr)mm2dev.d_adrs, bytes, s));
+      mm2dev.host = true;
+      return (void*)mm2dev.h_adrs;
+   }
+   
+   dbg("return \033[32;1mGPU\033[m address %p",mm2dev.d_adrs);
    return (void*)mm2dev.d_adrs;
 }
 

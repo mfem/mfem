@@ -64,14 +64,12 @@ public:
 #endif
    }
    // **************************************************************************
-   inline bool Cuda(const bool flag=false) {
-      if (flag) {
-         dbg("\033[32;7mSetting CUDA mode!");
-         // Still move data to GPU, could be 'discretized'
-         mfem::mm::Get().Cuda();
-         cuda = true;
-      }
-      return cuda;
+   inline bool Cuda() { return cuda; }
+   
+   // **************************************************************************
+   inline void Cuda(const bool cu) {
+      dbg("\033[%d;7mCUDA",cu?32:31);
+      cuda = cu;
    }
    // **************************************************************************
    inline bool Uvm(const bool flag=false) {

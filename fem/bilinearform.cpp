@@ -646,9 +646,9 @@ void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
 void BilinearForm::RecoverFEMSolution(const Vector &X,
                                       const Vector &b, Vector &x)
 {
-   mm::Get().Rsync(X.GetData());
-   mm::Get().Rsync(b.GetData());
-   mm::Get().Rsync(x.GetData());
+   //mm::Get().Rsync(X.GetData());
+   //mm::Get().Rsync(b.GetData());
+   //mm::Get().Rsync(x.GetData());
    const SparseMatrix *P = fes->GetConformingProlongation();
    if (!P) // conforming space
    {
