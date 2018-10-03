@@ -26,8 +26,6 @@
 #include <stdarg.h>
 #include <signal.h>
 
-#include "/home/camier1/home/stk/stk.hpp"
-
 // *****************************************************************************
 #define MFEM_NAMESPACE namespace mfem {
 #define MFEM_NAMESPACE_END }
@@ -36,15 +34,10 @@
 #include "dbg.hpp"
 #include "memmng.hpp"
 #include "config.hpp"
-#include "memcpy.hpp"
 #include "kernels.hpp"
 
 // *****************************************************************************
 #define GET_CUDA const bool cuda = config::Get().Cuda();
-//#define GET_ADRS(v) double *d_##v = (double*) (cuda?mm::Get().Adrs(v):v);
-//#define GET_CONST_ADRS(v) const double *d_##v = (const double*) (cuda?mm::Get().Adrs(v):v);
-//#define GET_ADRS_T(v,T) T *d_##v = (T*) (cuda?mm::Get().Adrs(v):v);
-//#define GET_CONST_ADRS_T(v,T) const T *d_##v = (const T*) (cuda?mm::Get().Adrs(v):v);
 #define GET_ADRS(v) double *d_##v = (double*) mm::Get().Adrs(v)
 #define GET_ADRS_T(v,T) T *d_##v = (T*) mm::Get().Adrs(v)
 #define GET_CONST_ADRS(v) const double *d_##v = (const double*) mm::Get().Adrs(v)
