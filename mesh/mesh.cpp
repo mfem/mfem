@@ -220,7 +220,7 @@ void Mesh::PrintElementsByGeometry(int dim,
         g < Geometry::DimStart[dim+1]; g++)
    {
       if (!num_elems_by_geom[g]) { continue; }
-      if (!first) { cout << " + "; }
+      if (!first) { out << " + "; }
       else { first = 0; }
       out << num_elems_by_geom[g] << ' ' << Geometry::Name[g] << "(s)";
    }
