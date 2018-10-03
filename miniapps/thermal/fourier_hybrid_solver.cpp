@@ -47,6 +47,16 @@ void ChiParaCoef::Eval(DenseMatrix &K, ElementTransformation &T,
    K *= chi_para_;
 }
 
+void dChiParaCoef::Eval(DenseMatrix &K, ElementTransformation &T,
+			const IntegrationPoint &ip)
+{
+   double temp = T_->Eval(T, ip);
+   double para_factor = 2.5 * chi_para_ * pow(temp,  1.5);
+
+   bbT_->Eval(K, T, ip);
+   K *= para_factor;
+}
+
 void dChiCoef::Eval(DenseMatrix &K, ElementTransformation &T,
                     const IntegrationPoint &ip)
 {
@@ -60,11 +70,41 @@ void dChiCoef::Eval(DenseMatrix &K, ElementTransformation &T,
    K(1,1) -= perp_factor;
 }
 
+void ChiInvPerpCoef::Eval(DenseMatrix &K, ElementTransformation &T,
+			  const IntegrationPoint &ip)
+{
+   bbT_->Eval(K, T, ip);
+   K *= -1.0;
+   K(0,0) += 1.0;
+   K(1,1) += 1.0;
+   
+   if (nonlin_)
+   {
+     K *= sqrt(T_->Eval(T, ip));
+   }
+   K *= 1.0 / chi_perp_;
+}
+
+void ChiInvParaCoef::Eval(DenseMatrix &K, ElementTransformation &T,
+			  const IntegrationPoint &ip)
+{
+   bbT_->Eval(K, T, ip);
+
+   if (nonlin_)
+   {
+      K *= pow(T_->Eval(T, ip), -2.5);
+   }
+   K *= 1.0 / chi_para_;
+}
+
 namespace thermal
 {
 
 HybridThermalDiffusionTDO::HybridThermalDiffusionTDO(
    ParFiniteElementSpace &H1_FESpace,
+   ParFiniteElementSpace &HDiv_FESpace,
+   ParFiniteElementSpace &L2_FESpace,
+   VectorCoefficient & dqdtBdr,
    Coefficient & dTdtBdr,
    Array<int> & bdr_attr,
    double chi_perp,
@@ -74,26 +114,49 @@ HybridThermalDiffusionTDO::HybridThermalDiffusionTDO(
    VectorCoefficient & UnitB,
    Coefficient & c, bool td_c,
    Coefficient & Q, bool td_Q)
-   : TimeDependentOperator(H1_FESpace.GetTrueVSize(), 0.0),
+   : TimeDependentOperator(H1_FESpace.GetTrueVSize() +
+			   HDiv_FESpace.GetTrueVSize(), 0.0),
      init_(false),
      nonLinear_(coef_type == 2),
      testGradient_(false),
+     dim_(H1_FESpace.GetParMesh()->Dimension()),
+     tsize_(H1_FESpace.GetTrueVSize()),
+     qsize_(HDiv_FESpace.GetTrueVSize()),
      multCount_(0), solveCount_(0),
      T_(&H1_FESpace),
+     q_(&HDiv_FESpace),
+     Q_perp_(&L2_FESpace),
      TCoef_(&T_),
      unitBCoef_(&UnitB),
      bbTCoef_(*unitBCoef_, *unitBCoef_),
      chiPerpCoef_(bbTCoef_, TCoef_, chi_perp, coef_type != 0),
      chiParaCoef_(bbTCoef_, TCoef_, chi_para, coef_type != 0),
      chiCoef_(chiPerpCoef_, chiParaCoef_),
-     dChiCoef_(bbTCoef_, TCoef_, chi_perp, chi_para),
+     // dChiCoef_(bbTCoef_, TCoef_, chi_perp, chi_para),
+     dChiParaCoef_(bbTCoef_, TCoef_, chi_para),
+     chiInvPerpCoef_(bbTCoef_, TCoef_, chi_perp, coef_type != 0),
+     chiInvParaCoef_(bbTCoef_, TCoef_, chi_para, coef_type != 0),
+     chiInvCoef_(chiInvPerpCoef_, chiInvParaCoef_),
+     HDiv_FESpace_(&HDiv_FESpace),
+     L2_FESpace_(&L2_FESpace),
+     mK_(NULL), sC_(NULL), dC_(NULL), a_(NULL), Div_(NULL),
+     dqdt_gf_(NULL), Qs_(NULL),
+     MKInv_(NULL), MKDiag_(NULL),
+     AInv_(NULL), APrecond_(NULL),
+     dqdt_(&HDiv_FESpace),
+     // rhs_(NULL),
+     bdr_attr_(&bdr_attr), ess_bdr_tdofs_(0), dqdtBdrCoef_(&dqdtBdr),
+     tdQ_(td_Q), tdC_(td_c),
+     QCoef_(&Q), CCoef_(&c),
+     CInvCoef_(new InverseCoefficient(c)),
+     dtCInvCoef_(NULL),
      impOp_(H1_FESpace,
             dTdtBdr, false,
             bdr_attr,
-            c, false,
-            chiCoef_, coef_type > 0,
-	    dChiCoef_, coef_type > 0,
-            Q,    false,
+            c, td_c,
+            chiParaCoef_, coef_type > 0,
+	    dChiParaCoef_, coef_type > 0,
+            Q, td_Q || true,
             coef_type == 2),
      newton_(H1_FESpace.GetComm())
 {
@@ -102,6 +165,19 @@ HybridThermalDiffusionTDO::HybridThermalDiffusionTDO(
 
 HybridThermalDiffusionTDO::~HybridThermalDiffusionTDO()
 {
+   delete CInvCoef_;
+   delete dtCInvCoef_;
+   delete Div_;
+   delete dC_;
+   delete a_;
+   delete mK_;
+   delete sC_;
+   delete dqdt_gf_;
+   delete Qs_;
+   delete MKInv_;
+   delete MKDiag_;
+   delete AInv_;
+   delete APrecond_;
 }
 
 void
@@ -109,6 +185,46 @@ HybridThermalDiffusionTDO::init()
 {
    cout << "Entering TDO::Init" << endl;
    if ( init_ ) { return; }
+
+   if ( mK_ == NULL )
+   {
+      mK_ = new ParBilinearForm(HDiv_FESpace_);
+      mK_->AddDomainIntegrator(new VectorFEMassIntegrator(chiInvCoef_));
+      mK_->Assemble();
+   }
+
+   if ( sC_ == NULL )
+   {
+      sC_ = new ParBilinearForm(HDiv_FESpace_);
+      sC_->AddDomainIntegrator(new DivDivIntegrator(*CInvCoef_));
+      sC_->Assemble();
+   }
+   if ( dC_ == NULL )
+   {
+      dC_ = new ParMixedBilinearForm(L2_FESpace_, HDiv_FESpace_);
+      dC_->AddDomainIntegrator(
+         new MixedScalarWeakGradientIntegrator(*CInvCoef_));
+      dC_->Assemble();
+   }
+   if ( dqdt_gf_ == NULL )
+   {
+      dqdt_gf_ = new ParGridFunction(HDiv_FESpace_);
+   }
+   if ( Qs_ == NULL && QCoef_ != NULL )
+   {
+      Qs_ = new ParGridFunction(L2_FESpace_);
+      Qs_->ProjectCoefficient(*QCoef_);
+   }
+
+   Div_ = new ParDiscreteDivOperator(HDiv_FESpace_, L2_FESpace_);
+   Div_->Assemble();
+   Div_->Finalize();
+
+   rhs_.SetSize(HDiv_FESpace_->GetVSize());
+   dQs_.SetSize(HDiv_FESpace_->GetVSize());
+   tmp_.SetSize(L2_FESpace_->GetVSize());
+
+   HDiv_FESpace_->GetEssentialTrueDofs(*bdr_attr_, ess_bdr_tdofs_);
 
    newton_.SetPrintLevel(2);
    newton_.SetRelTol(1e-10);
@@ -120,8 +236,9 @@ HybridThermalDiffusionTDO::init()
       Vector dx(impOp_.Height());
 
       T_.Distribute(x);
+      Q_perp_ = 0.0;
       cout << "GetTime " << this->GetTime() << endl;
-      impOp_.SetState(T_, this->GetTime(), 0.1);
+      impOp_.SetState(T_, Q_perp_, this->GetTime(), 0.1);
 
       cout << "init 0" << endl;
       newton_.SetOperator(impOp_);
@@ -146,6 +263,30 @@ HybridThermalDiffusionTDO::SetTime(const double time)
 {
    this->TimeDependentOperator::SetTime(time);
 
+   dqdtBdrCoef_->SetTime(t);
+
+   if ( tdQ_ )
+   {
+      QCoef_->SetTime(t);
+      Qs_->ProjectCoefficient(*QCoef_);
+   }
+
+   if ( tdC_ )
+   {
+      // CCoef_->SetTime(t);
+      // CInvCoef_->SetTime(t);
+      dtCInvCoef_->SetTime(t);
+      sC_->Assemble();
+   }
+
+   chiInvCoef_.SetTime(t);
+   mK_->Assemble();
+
+   if ( tdC_ && a_ != NULL )
+   {
+      a_->Assemble();
+   }
+
    newTime_ = true;
 }
 
@@ -156,14 +297,112 @@ HybridThermalDiffusionTDO::Mult(const Vector &T, Vector &dT_dt) const
 }
 
 void
-HybridThermalDiffusionTDO::ImplicitSolve(const double dt,
-					 const Vector &T, Vector &dT_dt)
+HybridThermalDiffusionTDO::initA(double dt)
 {
-   dT_dt = 0.0;
+   cout << "Entering initA" << endl;
+   if ( CInvCoef_ != NULL )
+   {
+      dtCInvCoef_ = new ScaledCoefficient(dt, *CInvCoef_);
+   }
+   if ( a_ == NULL)
+   {
+      a_ = new ParBilinearForm(HDiv_FESpace_);
+      a_->AddDomainIntegrator(new VectorFEMassIntegrator(chiInvCoef_));
+      a_->AddDomainIntegrator(new DivDivIntegrator(*dtCInvCoef_));
+      a_->Assemble();
+   }
+   else
+   {
+      a_->Update();
+      a_->Assemble();
+   }
+   cout << "Leaving initA" << endl;
+}
+
+void
+HybridThermalDiffusionTDO::initImplicitSolve()
+{
+  cout << "Entering initImplicitSolve" << endl;
+   if ( tdC_ || AInv_ == NULL || APrecond_ == NULL )
+   {
+      delete AInv_;
+      AInv_ = new HyprePCG(A_);
+      AInv_->SetTol(1e-12);
+      AInv_->SetMaxIter(200);
+      AInv_->SetPrintLevel(0);
+
+      delete APrecond_;
+      APrecond_ = (dim_==2) ?
+                  (HypreSolver*)(new HypreAMS(A_, HDiv_FESpace_)):
+                  (HypreSolver*)(new HypreADS(A_, HDiv_FESpace_));
+
+      if ( dim_ == 2 )
+      {
+         dynamic_cast<HypreAMS*>(APrecond_)->SetPrintLevel(0);
+      }
+      else
+      {
+         dynamic_cast<HypreADS*>(APrecond_)->SetPrintLevel(0);
+      }
+      AInv_->SetPreconditioner(*APrecond_);
+   }
+   cout << "Leaving initImplicitSolve" << endl;
+}
+
+void
+HybridThermalDiffusionTDO::ImplicitSolve(const double dt,
+					 const Vector &X, Vector &dX_dt)
+{
+   cout << "Entering ImplicitSolve" << endl;
+   Vector T(X.GetData(), tsize_);
+   Vector q(&(X.GetData())[tsize_], qsize_);
+   Vector dT_dt(dX_dt.GetData(), tsize_);
+   Vector dq_dt(&(dX_dt.GetData())[tsize_], qsize_);
+   cout << 1 << endl;   
+   dX_dt = 0.0;
+   cout << 2 << endl;   
 
    T_.Distribute(T);
 
-   impOp_.SetState(T_, this->GetTime(), dt);
+   {
+     // q_.MakeRef(const_cast<ParFiniteElementSpace*>(HDiv_FESpace_),
+     //		const_cast<Vector&>(y), 0);
+     // u_.MakeRef(const_cast<ParFiniteElementSpace*>(L2_FESpace_),
+     //		const_cast<Vector&>(y), HDiv_FESpace_->GetVSize());
+     q_.Distribute(q);
+     // dqdt_.MakeRef(HDiv_FESpace_, dy_dt, 0);
+     // dudt_.MakeRef(L2_FESpace_, dy_dt, HDiv_FESpace_->GetVSize());
+
+     // cout << "sC size: " << sC_->Width() << ", q_ size: " << q_.Size() << ", rhs_ size: " << rhs_.Size() << endl;
+   cout << 3 << endl;   
+     sC_->Mult(q_, rhs_);
+     dC_->Mult(*Qs_, dQs_);
+     rhs_ += dQs_;
+     rhs_ *= -1.0;
+   cout << 4 << endl;   
+     // dqdt_gf_->ProjectBdrCoefficientNormal(*dqdtBdrCoef_, *bdr_attr_);
+   dqdt_.ProjectBdrCoefficientNormal(*dqdtBdrCoef_, *bdr_attr_);
+   cout << 5 << endl;   
+     this->initA(dt);
+
+     // a_->FormLinearSystem(ess_bdr_tdofs_, *dqdt_gf_, rhs_, A_, X_, RHS_);
+     a_->FormLinearSystem(ess_bdr_tdofs_, dqdt_, rhs_, A_, X_, RHS_);
+
+     this->initImplicitSolve();
+     
+     AInv_->Mult(RHS_, X_);
+
+     a_->RecoverFEMSolution(X_, rhs_, dqdt_);
+
+     // Div_->Mult(q_, dudt_);
+     // Div_->Mult(dqdt_, tmp_);
+     // tmp_  *= dt;
+     // dudt_ += tmp_;
+     // dudt_ *= -1.0;
+     // dudt_ += *Qs_;
+   }
+   
+   impOp_.SetState(T_, Q_perp_, this->GetTime(), dt);
 
    Solver & solver = impOp_.GetGradientSolver();
 
@@ -185,8 +424,8 @@ ImplicitDiffOp::ImplicitDiffOp(ParFiniteElementSpace & H1_FESpace,
                                Coefficient & dTdtBdr, bool tdBdr,
                                Array<int> & bdr_attr,
                                Coefficient & heatCap, bool tdCp,
-                               ChiCoef & chi, bool tdChi,
-			       dChiCoef & dchi, bool tdDChi,
+                               ChiParaCoef & chi, bool tdChi,
+			       dChiParaCoef & dchi, bool tdDChi,
                                Coefficient & heatSource, bool tdQ,
                                bool nonlinear)
    : Operator(H1_FESpace.GetTrueVSize()),
@@ -206,7 +445,8 @@ ImplicitDiffOp::ImplicitDiffOp(ParFiniteElementSpace & H1_FESpace,
      cpCoef_(&heatCap),
      chiCoef_(&chi),
      dChiCoef_(&dchi),
-     QCoef_(&heatSource),
+     QPerpCoef_(NULL),
+     QCoef_(heatSource, QPerpCoef_),
      dtChiCoef_(1.0, *chiCoef_),
      T0_(&H1_FESpace),
      T1_(&H1_FESpace),
@@ -226,6 +466,7 @@ ImplicitDiffOp::ImplicitDiffOp(ParFiniteElementSpace & H1_FESpace,
      AInv_(NULL),
      APrecond_(NULL)
 {
+   cout << "Entering ImplicitDiffOp c'tor" << endl;
    H1_FESpace.GetEssentialTrueDofs(ess_bdr_attr_, ess_bdr_tdofs_);
 
    m0cp_.AddDomainIntegrator(new MassIntegrator(*cpCoef_));
@@ -239,8 +480,11 @@ ImplicitDiffOp::ImplicitDiffOp(ParFiniteElementSpace & H1_FESpace,
                                  dtdChiGradTCoef_));
    }
 
-   Qs_.AddDomainIntegrator(new DomainLFIntegrator(*QCoef_));
+   cout << "Qs 0" << endl;
+   Qs_.AddDomainIntegrator(new DomainLFIntegrator(QCoef_));
+   cout << "Qs 1 " << tdQ_ << endl;
    if (!tdQ_) { Qs_.Assemble(); }
+   cout << "Leaving ImplicitDiffOp c'tor" << endl;
 }
 
 ImplicitDiffOp::~ImplicitDiffOp()
@@ -249,7 +493,8 @@ ImplicitDiffOp::~ImplicitDiffOp()
    delete APrecond_;
 }
 
-void ImplicitDiffOp::SetState(ParGridFunction & T, double t, double dt)
+  void ImplicitDiffOp::SetState(ParGridFunction & T, ParGridFunction & Q_perp,
+				double t, double dt)
 {
    T0_ = T;
 
@@ -306,7 +551,8 @@ void ImplicitDiffOp::SetState(ParGridFunction & T, double t, double dt)
    if ((tdQ_ && newTime_) || first_)
    {
       cout << "Assembling Q" << endl;
-      QCoef_->SetTime(t_ + dt_);
+      QCoef_.SetQPerp(Q_perp);
+      QCoef_.SetTime(t_ + dt_);
       Qs_.Assemble();
       Qs_.ParallelAssemble(RHS_);
       cout << "Norm of Q: " << Qs_.Norml2() << endl;

@@ -80,6 +80,26 @@ public:
    { chiPerpCoef_->SetTemp(T); chiParaCoef_->SetTemp(T); }
 };
 
+class dChiParaCoef : public MatrixCoefficient
+{
+private:
+   MatrixCoefficient * bbT_;
+   GridFunctionCoefficient * T_;
+   double chi_para_;
+
+public:
+   dChiParaCoef(MatrixCoefficient &bbT, GridFunctionCoefficient &T,
+		double chi_para)
+      : MatrixCoefficient(2), bbT_(&bbT), T_(&T),
+        chi_para_(chi_para)
+   {}
+
+   void SetTemp(GridFunction & T) { T_->SetGridFunction(&T); }
+
+   void Eval(DenseMatrix &K, ElementTransformation &T,
+             const IntegrationPoint &ip);
+};
+
 class dChiCoef : public MatrixCoefficient
 {
 private:
@@ -101,6 +121,80 @@ public:
              const IntegrationPoint &ip);
 };
 
+class ChiInvParaCoef : public MatrixCoefficient
+{
+private:
+   MatrixCoefficient * bbT_;
+   GridFunctionCoefficient * T_;
+   double chi_para_;
+   bool nonlin_;
+
+public:
+   ChiInvParaCoef(MatrixCoefficient &bbT, GridFunctionCoefficient &T,
+		  double chi_para, bool nonlin = false)
+      : MatrixCoefficient(2), bbT_(&bbT), T_(&T),
+        chi_para_(chi_para), nonlin_(nonlin)
+   {}
+
+   void SetTemp(GridFunction & T) { T_->SetGridFunction(&T); }
+
+   void Eval(DenseMatrix &K, ElementTransformation &T,
+             const IntegrationPoint &ip);
+};
+
+class ChiInvPerpCoef : public MatrixCoefficient
+{
+private:
+   MatrixCoefficient * bbT_;
+   GridFunctionCoefficient * T_;
+   double chi_perp_;
+   bool nonlin_;
+  
+public:
+   ChiInvPerpCoef(MatrixCoefficient &bbT, GridFunctionCoefficient &T,
+		  double chi_perp, bool nonlin = false)
+     : MatrixCoefficient(2), bbT_(&bbT), T_(&T),
+        chi_perp_(chi_perp), nonlin_(nonlin)
+   {}
+
+   void SetTemp(GridFunction & T) { T_->SetGridFunction(&T); }
+
+   void Eval(DenseMatrix &K, ElementTransformation &T,
+             const IntegrationPoint &ip);
+};
+
+class ChiInvCoef : public MatrixSumCoefficient
+{
+private:
+   ChiInvPerpCoef * chiInvPerpCoef_;
+   ChiInvParaCoef * chiInvParaCoef_;
+
+public:
+   ChiInvCoef(ChiInvPerpCoef & chiInvPerp, ChiInvParaCoef & chiInvPara)
+      : MatrixSumCoefficient(chiInvPerp, chiInvPara),
+	chiInvPerpCoef_(&chiInvPerp), chiInvParaCoef_(&chiInvPara) {}
+
+   void SetTemp(GridFunction & T)
+   { chiInvPerpCoef_->SetTemp(T); chiInvParaCoef_->SetTemp(T); }
+};
+
+class QParaCoef : public Coefficient
+{
+private:
+   Coefficient * Q_;
+   GridFunctionCoefficient * Q_perp_;
+  
+public:
+  QParaCoef(Coefficient & Q, GridFunctionCoefficient &Q_perp)
+    : Q_(&Q), Q_perp_(&Q_perp)
+   {}
+
+   void SetQPerp(GridFunction & Q) { Q_perp_->SetGridFunction(&Q); }
+
+   double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   { return Q_->Eval(T, ip) - Q_perp_->Eval(T, ip); }
+};
+
 namespace thermal
 {
 
@@ -111,13 +205,14 @@ public:
                   Coefficient & dTdtBdr, bool tdBdr,
                   Array<int> & bdr_attr,
                   Coefficient & heatCap, bool tdCp,
-                  ChiCoef & chi, bool tdChi,
-		  dChiCoef & dchi, bool tdDChi,
+                  ChiParaCoef & chi, bool tdChi,
+		  dChiParaCoef & dchi, bool tdDChi,
                   Coefficient & heatSource, bool tdQ,
                   bool nonlinear = false);
    ~ImplicitDiffOp();
 
-   void SetState(ParGridFunction & T, double t, double dt);
+   void SetState(ParGridFunction & T, ParGridFunction & Q_perp,
+		 double t, double dt);
 
    void Mult(const Vector &x, Vector &y) const;
 
@@ -147,9 +242,11 @@ private:
 
    Coefficient * bdrCoef_;
    Coefficient * cpCoef_;
-   ChiCoef     * chiCoef_;
-   dChiCoef    * dChiCoef_;
-   Coefficient * QCoef_;
+   ChiParaCoef     * chiCoef_;
+   dChiParaCoef    * dChiCoef_;
+   // Coefficient * QCoef_;
+   GridFunctionCoefficient QPerpCoef_;
+   QParaCoef QCoef_;
    ScalarMatrixProductCoefficient dtChiCoef_;
 
    mutable ParGridFunction T0_;
@@ -210,6 +307,9 @@ class HybridThermalDiffusionTDO : public TimeDependentOperator
 {
 public:
    HybridThermalDiffusionTDO(ParFiniteElementSpace &H1_FES,
+			     ParFiniteElementSpace &HDiv_FES,
+			     ParFiniteElementSpace &L2_FES,
+			     VectorCoefficient & dqdtBdr,
 			     Coefficient & dTdtBdr,
 			     Array<int> & bdr_attr,
 			     double chi_perp,
@@ -250,24 +350,86 @@ public:
 private:
 
    void init();
+   void initA(double dt);
+   void initImplicitSolve();
 
    bool init_;
    bool newTime_;
    bool nonLinear_;
    bool testGradient_;
 
+   int dim_;
+   int tsize_;
+   int qsize_;
    mutable int multCount_;
    int solveCount_;
 
    mutable ParGridFunction T_;
+  // mutable ParGridFunction q_;
+   mutable ParGridFunction Q_perp_;
 
    GridFunctionCoefficient TCoef_;
    VectorCoefficient * unitBCoef_;
    OuterProductCoefficient bbTCoef_;
-   ChiPerpCoef chiPerpCoef_;
-   ChiParaCoef chiParaCoef_;
-   ChiCoef     chiCoef_;
-   dChiCoef    dChiCoef_;
+   ChiPerpCoef  chiPerpCoef_;
+   ChiParaCoef  chiParaCoef_;
+   ChiCoef      chiCoef_;
+   // dChiCoef     dChiCoef_;
+   dChiParaCoef dChiParaCoef_;
+
+   ChiInvPerpCoef  chiInvPerpCoef_;
+   ChiInvParaCoef  chiInvParaCoef_;
+   ChiInvCoef      chiInvCoef_;
+
+   ParFiniteElementSpace * HDiv_FESpace_;
+   ParFiniteElementSpace * L2_FESpace_;
+
+   ParBilinearForm * mK_;
+   ParBilinearForm * sC_;
+   ParMixedBilinearForm * dC_;
+   ParBilinearForm * a_;
+
+   ParDiscreteLinearOperator * Div_;
+
+   ParGridFunction * dqdt_gf_;
+   ParGridFunction * Qs_;
+
+   mutable HypreParMatrix   MK_;
+   mutable HyprePCG       * MKInv_;
+   mutable HypreDiagScale * MKDiag_;
+
+   HypreParMatrix    A_;
+   HyprePCG        * AInv_;
+   HypreSolver     * APrecond_;
+
+   // HypreParVector * T_;
+   mutable ParGridFunction q_;
+  // mutable ParGridFunction u_;
+   mutable ParGridFunction dqdt_;
+  // mutable ParGridFunction dudt_;
+   mutable Vector X_;
+   mutable Vector RHS_;
+   mutable Vector rhs_;
+   mutable Vector dQs_;
+   mutable Vector tmp_;
+
+   Array<int> * bdr_attr_;
+   Array<int>   ess_bdr_tdofs_;
+
+   VectorCoefficient * dqdtBdrCoef_;
+
+   bool tdQ_;
+   bool tdC_;
+   bool tdK_;
+
+   Coefficient       * QCoef_;
+   Coefficient       * CCoef_;
+  // Coefficient       * kCoef_;
+  // MatrixCoefficient * KCoef_;
+   Coefficient       * CInvCoef_;
+  // Coefficient       * kInvCoef_;
+  // MatrixCoefficient * KInvCoef_;
+   Coefficient       * dtCInvCoef_;
 
    ImplicitDiffOp impOp_;
    NewtonSolver   newton_;

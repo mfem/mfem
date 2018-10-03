@@ -338,11 +338,13 @@ int main(int argc, char *argv[])
    // HYPRE_Int glob_size_rt = HDivFESpace.GlobalTrueVSize();
    HYPRE_Int glob_size_h1 = HGradFESpace.GlobalTrueVSize();
    HYPRE_Int glob_size_rt = HDivFESpace.GlobalTrueVSize();
+   HYPRE_Int glob_size_l2 = L2FESpace.GlobalTrueVSize();
 
    if (mpi.Root())
    {
-      cout << "Number of Temperature unknowns:  " << glob_size_h1 << endl;
-      cout << "Number of Heat Flux unknowns:    " << glob_size_rt << endl;
+      cout << "Number of Temperature unknowns:     " << glob_size_h1 << endl;
+      cout << "Number of Heat Flux unknowns:       " << glob_size_rt << endl;
+      cout << "Number of Thermal Energy unknowns:  " << glob_size_l2 << endl;
    }
 
    // int Vsize_l2 = L2FESpace.GetVSize();
@@ -365,7 +367,9 @@ int main(int argc, char *argv[])
    //     point as input and returning a 3-vector field
    FunctionCoefficient TCoef(TFunc);
 
+   Vector zeroVec(2); zeroVec = 0.0;
    ConstantCoefficient zeroCoef(0.0);
+   VectorConstantCoefficient zeroVecCoef(zeroVec);
    ConstantCoefficient SpecificHeatCoef(1.0);
    // MatrixFunctionCoefficient ConductionCoef(2, ChiFunc);
    FunctionCoefficient HeatSourceCoef(QFunc);
@@ -378,7 +382,11 @@ int main(int argc, char *argv[])
 
    // 14. Initialize the Diffusion operator, the GLVis visualization and print
    //     the initial energies.
+   cout << "Building TDO" << endl;
    HybridThermalDiffusionTDO oper(HGradFESpace,
+				  HDivFESpace,
+				  L2FESpace,
+				  zeroVecCoef,
 				  zeroCoef, ess_bdr,
 				  chi_perp_,
 				  chi_para_,
@@ -415,7 +423,7 @@ int main(int argc, char *argv[])
 
       Wx += offx;
       miniapps::VisualizeField(vis_q, vishost, visport,
-                               Qs_gf, "Heat Flux", Wx, Wy, Ww, Wh);
+                               q_gf, "Heat Flux", Wx, Wy, Ww, Wh);
 
       Wx -= offx; Wy += offy;
       miniapps::VisualizeField(vis_Q, vishost, visport,
@@ -456,8 +464,9 @@ int main(int argc, char *argv[])
    double t = 0.0;
 
    int tsize = HGradFESpace.GetTrueVSize();
-   Vector T0(tsize), T1(tsize), dT(tsize);
-   T0 = 0.0; T1 = 0.0; dT = 0.0;
+   int qsize = HDivFESpace.GetTrueVSize();
+   Vector X0(tsize+qsize), X1(tsize+qsize), dX(tsize+qsize);
+   X0 = 0.0; X1 = 0.0; dX = 0.0;
 
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
@@ -473,10 +482,13 @@ int main(int argc, char *argv[])
 
       // F is the vector of dofs, t is the current time, and dt is the time step
       // to advance.
-      T0 = T1;
-      ode_solver->Step(T1, t, dt);
+      X0 = X1;
+      ode_solver->Step(X1, t, dt);
 
+      Vector T1(X1.GetData(), tsize);
+      Vector q1(&(X1.GetData())[tsize], qsize);
       T_gf.Distribute(T1);
+      q_gf.Distribute(q1);
 
       TCoef.SetTime(t);
 
@@ -489,8 +501,9 @@ int main(int argc, char *argv[])
          cout << t << '\t' << l2_error_T << endl;
       }
 
-      add(1.0, T1, -1.0, T0, dT);
+      add(1.0, X1, -1.0, X0, dX);
 
+      Vector dT(dX.GetData(), tsize);
       dT_gf.Distribute(dT);
 
       double maxT    = T_gf.ComputeMaxError(zeroCoef);
@@ -519,9 +532,11 @@ int main(int argc, char *argv[])
       */
       if (gfprint)
       {
-         ostringstream T_name, mesh_name;
+ 	 ostringstream T_name, q_name, mesh_name;
          T_name << basename << "_" << setfill('0') << setw(6) << t << "_"
                 << "T." << setfill('0') << setw(6) << myid;
+         q_name << basename << "_" << setfill('0') << setw(6) << t << "_"
+                << "q." << setfill('0') << setw(6) << myid;
          mesh_name << basename << "_" << setfill('0') << setw(6) << t << "_"
                    << "mesh." << setfill('0') << setw(6) << myid;
 
@@ -534,6 +549,11 @@ int main(int argc, char *argv[])
          T_ofs.precision(8);
          T_gf.Save(T_ofs);
          T_ofs.close();
+
+         ofstream q_ofs(q_name.str().c_str());
+         q_ofs.precision(8);
+         q_gf.Save(q_ofs);
+         q_ofs.close();
       }
 
       if (last_step || (ti % vis_steps) == 0)
@@ -552,6 +572,10 @@ int main(int argc, char *argv[])
                                      T_gf, "Temperature", Wx, Wy, Ww, Wh);
 
             Wx += offx;
+            miniapps::VisualizeField(vis_q, vishost, visport,
+                                     q_gf, "Heat Flux", Wx, Wy, Ww, Wh);
+
+            Wx += offx;
             miniapps::VisualizeField(vis_errT, vishost, visport,
                                      errorT, "Error in T", Wx, Wy, Ww, Wh);
          }
@@ -567,19 +591,25 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       vis_T.close();
+      vis_q.close();
       vis_errT.close();
    }
    if (myid == 0) { ofs_errs.close(); }
 
+   /*
    double loc_T_max = T1.Normlinf();
    double T_max = -1.0;
    MPI_Allreduce(&loc_T_max, &T_max, 1, MPI_DOUBLE, MPI_MAX,
                  MPI_COMM_WORLD);
+   */
    double err1 = T_gf.ComputeL2Error(TCoef);
+   double T_max = T_gf.ComputeMaxError(zeroCoef);
    if (myid == 0)
    {
-      cout << "L2 Error of Solution: " << err1 << endl;
       cout << "Maximum Temperature: " << T_max << endl;
+      cout << "L2 Error of Solution: " << err1
+	   << ", (relative to maximum temperature " << err1 / T_max << ")"
+	   << endl;
       cout << "| chi_eff - 1 | = " << fabs(1.0/T_max - 1) << endl;
    }
 
