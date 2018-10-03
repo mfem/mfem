@@ -17,7 +17,20 @@ MFEM_NAMESPACE
 void DenseMatrixSet(const double, const size_t, double*);
 
 void DenseMatrixTranspose(const size_t, const size_t, double*, const double*);
-   
+
+void kMultAAt(const size_t height, const size_t width,
+              const double *a, double *aat);
+
+void kGradToDiv(const size_t n, const double *data, double *ddata);
+
+void kAddMult_a_VVt(const size_t n, const double a, const double *v,
+                    const size_t height,double *VVt);
+
+void kMult0(const size_t height, double *y);
+
+void kMult(const size_t height, const size_t width,
+           const double *data, const double *x, double *y);
+
 MFEM_NAMESPACE_END
 
 #endif // MFEM_DENSEMAT_KERNELS

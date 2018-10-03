@@ -50,6 +50,7 @@ public:
    void del(const void*);
    void Cuda();
    void* Adrs(const void*);
+   bool Known(const void*);
    void Rsync(const void*);
 
    // **************************************************************************

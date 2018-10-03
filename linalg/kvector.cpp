@@ -100,17 +100,43 @@ void kVectorMultOp(const size_t N,
 
 // *****************************************************************************
 double kVectorDot(const size_t N, const double *x, const double *y){
+   dbg();
    GET_CUDA;
    GET_CONST_ADRS(x);
    GET_CONST_ADRS(y);
+   if (cuda) return cub_vector_dot(N,d_x,d_y);
    double dot = 0.0;
-   if (cuda){
-      dot=cub_vector_dot(N,d_x,d_y);
-   }else{
-      for(size_t i=0;i<N;i+=1)
-         dot += d_x[i] * d_y[i];
-   }
+   for(size_t i=0;i<N;i+=1)
+      dot += d_x[i] * d_y[i];
    return dot;
+}
+
+// *****************************************************************************
+void kVectorDotOpPlusEQ(const size_t size, const double *v, double *data){
+   dbg();
+   GET_CUDA;
+   GET_CONST_ADRS(v);
+   GET_ADRS(data);
+   forall(i, size, d_data[i] += d_v[i];);
+}
+
+// *****************************************************************************
+void kSetSubVector(const size_t n, const int *dofs, const double *elemvect,
+                   double *data){
+   dbg();
+   GET_CUDA;
+   GET_CONST_ADRS_T(dofs,int);
+   GET_CONST_ADRS(elemvect);
+   GET_ADRS(data);
+#warning make sure we can work on this outer loop
+   forall(i, n,{
+         const int j = d_dofs[i];
+         if (j >= 0) {
+            d_data[j] = d_elemvect[i];
+         }else{
+            d_data[-1-j] = -d_elemvect[i];
+         }
+      });
 }
 
 // *****************************************************************************

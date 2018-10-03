@@ -59,8 +59,7 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
-   args.AddOption(&gpu, "-g", "--gpu", "-no-g",
-                  "--no-gpu", "Enable GPU.");
+   args.AddOption(&gpu, "-g", "--gpu", "-no-g", "--no-gpu", "Enable GPU.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");

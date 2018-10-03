@@ -13,6 +13,7 @@
 // Abstract array data type
 
 #include "array.hpp"
+#include "../general/okina.hpp"
 #include <fstream>
 
 namespace mfem
@@ -22,7 +23,8 @@ BaseArray::BaseArray(int asize, int ainc, int elementsize)
 {
    if (asize > 0)
    {
-      data = new char[asize * elementsize];
+      //data = new char[asize * elementsize];
+      data = mfem::mm::malloc<char>(asize * elementsize);
       size = allocsize = asize;
    }
    else
@@ -37,7 +39,8 @@ BaseArray::~BaseArray()
 {
    if (allocsize > 0)
    {
-      delete [] (char*)data;
+      //delete [] (char*)data;
+      mm::free<char>(data);
    }
 }
 
@@ -47,14 +50,16 @@ void BaseArray::GrowSize(int minsize, int elementsize)
    int nsize = (inc > 0) ? abs(allocsize) + inc : 2 * abs(allocsize);
    if (nsize < minsize) { nsize = minsize; }
 
-   p = new char[nsize * elementsize];
+   //p = new char[nsize * elementsize];
+   p = mm::malloc<char>(nsize * elementsize);
    if (size > 0)
    {
       memcpy(p, data, size * elementsize);
    }
    if (allocsize > 0)
    {
-      delete [] (char*)data;
+      //delete [] (char*)data;
+      mm::free<char>(data);
    }
    data = p;
    allocsize = nsize;

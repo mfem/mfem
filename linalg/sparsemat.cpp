@@ -917,8 +917,8 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
       {
          aux = node_p;
          node_p = node_p->Prev;
-         delete aux;
-         //mm::free<double>(aux);
+         //delete aux;
+         mm::free<RowNode>(aux);
       }
    }
 #endif

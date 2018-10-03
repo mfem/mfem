@@ -39,16 +39,19 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include "/home/camier1/home/stk/stk.hpp"
 
 using namespace std;
 using namespace mfem;
 
 int main(int argc, char *argv[])
 {
+   stkIni(argv[0]);
    // 1. Parse command-line options.
    const char *mesh_file = "../data/beam-tri.mesh";
    int order = 1;
    bool static_cond = false;
+   bool gpu = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -58,6 +61,7 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
+   args.AddOption(&gpu, "-g", "--gpu", "-no-g", "--no-gpu", "Enable GPU.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -192,6 +196,10 @@ int main(int argc, char *argv[])
 
    cout << "Size of linear system: " << A.Height() << endl;
 
+#warning SetNodalFESpace before switching to CUDA
+   mesh->SetNodalFESpace(fespace);
+   config::Get().Cuda(gpu);
+   
 #ifndef MFEM_USE_SUITESPARSE
    // 11. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //     solve the system Ax=b with PCG.
@@ -225,8 +233,16 @@ int main(int argc, char *argv[])
    //     viewed later using GLVis: "glvis -m displaced.mesh -g sol.gf".
    {
       GridFunction *nodes = mesh->GetNodes();
+      //mm::Get().Rsync(nodes->GetData());
+      //nodes->Print();
       *nodes += x;
+      //mm::Get().Rsync(nodes->GetData());
+      //nodes->Print();
+      
       x *= -1;
+
+      mm::Get().Rsync(x.GetData());
+      mm::Get().Rsync(nodes->GetData());
       ofstream mesh_ofs("displaced.mesh");
       mesh_ofs.precision(8);
       mesh->Print(mesh_ofs);

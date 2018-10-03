@@ -47,6 +47,35 @@ Vector::Vector(const Vector &v)
       data = NULL;
    }
 }
+   
+Vector::Vector(double *_data, int _size) {
+   if (mm::Get().Known(_data)){
+      data = _data;
+      size = _size;
+      allocsize = -size;
+   }else{
+      //stk(true);assert(false);
+      //dbg("_size=%d",_size);
+      //dbg("_data=%p",_data);
+      //data = mm::malloc<double>(_size);
+      //memcpy::H2D(data, _data, sizeof(double)*_size);
+      data = _data;
+      size = _size;
+      allocsize = -size;
+   }
+}
+   
+void Vector::SetData(double *d) {
+   assert(mm::Get().Known(d));
+   data = d;
+}
+   
+void Vector::SetDataAndSize(double *d, int s){
+   assert(mm::Get().Known(d));
+   data = d;
+   size = s;
+   allocsize = -s;
+}
 
 void Vector::Load(std::istream **in, int np, int *dim)
 {
@@ -178,17 +207,18 @@ Vector &Vector::operator-=(const Vector &v)
 
 Vector &Vector::operator+=(const Vector &v)
 {
-   OKINA_ASSERT_CPU;
+   //OKINA_ASSERT_GPU;
 #ifdef MFEM_DEBUG
    if (size != v.size)
    {
       mfem_error("Vector::operator+=(const Vector &)");
    }
 #endif
+   kVectorDotOpPlusEQ(size,v.GetData(),data);/*
    for (int i = 0; i < size; i++)
    {
       data[i] += v(i);
-   }
+      }*/
    return *this;
 }
 
@@ -511,20 +541,7 @@ void Vector::SetSubVector(const Array<int> &dofs, const double value)
 
 void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
 {
-   OKINA_ASSERT_GPU;
-   int i, j, n = dofs.Size();
-
-   for (i = 0; i < n; i++)
-   {
-      if ((j=dofs[i]) >= 0)
-      {
-         data[j] = elemvect(i);
-      }
-      else
-      {
-         data[-1-j] = -elemvect(i);
-      }
-   }
+   kSetSubVector(dofs.Size(), dofs.GetData(), elemvect.GetData(), data);
 }
 
 void Vector::SetSubVector(const Array<int> &dofs, double *elem_data)

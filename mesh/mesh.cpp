@@ -3339,26 +3339,34 @@ void XYZ_VectorFunction(const Vector &p, Vector &v)
 
 void Mesh::GetNodes(GridFunction &nodes) const
 {
+   dbg();
    if (Nodes == NULL || Nodes->FESpace() != nodes.FESpace())
    {
+      //dbg("new");
       const int newSpaceDim = nodes.FESpace()->GetVDim();
+      //dbg("newSpaceDim=%d", newSpaceDim);
       VectorFunctionCoefficient xyz(newSpaceDim, XYZ_VectorFunction);
       nodes.ProjectCoefficient(xyz);
+      //nodes.Print();
+      //assert(false);
    }
    else
    {
+      //dbg("assign");
       nodes = *Nodes;
    }
 }
 
 void Mesh::SetNodalFESpace(FiniteElementSpace *nfes)
 {
+   dbg();
    GridFunction *nodes = new GridFunction(nfes);
    SetNodalGridFunction(nodes, true);
 }
 
 void Mesh::SetNodalGridFunction(GridFunction *nodes, bool make_owner)
 {
+   dbg();
    GetNodes(*nodes);
    NewNodes(*nodes, make_owner);
 }

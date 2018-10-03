@@ -648,6 +648,7 @@ void BilinearForm::RecoverFEMSolution(const Vector &X,
 {
    mm::Get().Rsync(X.GetData());
    mm::Get().Rsync(b.GetData());
+   mm::Get().Rsync(x.GetData());
    const SparseMatrix *P = fes->GetConformingProlongation();
    if (!P) // conforming space
    {
