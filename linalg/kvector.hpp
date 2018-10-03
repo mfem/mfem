@@ -27,6 +27,10 @@ void kVectorSubtract(double *zp, const double *xp, const double *yp, const size_
 
 double kVectorDot(const size_t N, const double *x, const double *y);
 
+void kVectorDotOpPlusEQ(const size_t size, const double *v, double *data);
+
+void kSetSubVector(const size_t, const int*, const double*, double*);
+
 MFEM_NAMESPACE_END
 
 #endif // MFEM_VECTOR_KERNELS

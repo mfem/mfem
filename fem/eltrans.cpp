@@ -463,8 +463,10 @@ void IsoparametricTransformation::Transform (const IntegrationPoint &ip,
 {
    shape.SetSize(FElem->GetDof());
    trans.SetSize(PointMat.Height());
-
-   FElem -> CalcShape(ip, shape);
+//#warning Transform
+   //dbg();
+   //printf("\n\t\033[m[Transform] %f %f %f %f",ip.x,ip.y,ip.z,ip.weight);
+   FElem -> CalcShape(ip, shape);//shape.Print();
    PointMat.Mult(shape, trans);
 }
 

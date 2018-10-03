@@ -29,12 +29,14 @@ void mm::init(void){
 
 // *****************************************************************************
 void* mm::add(const void *h_adrs, const size_t size, const size_t size_of_T){
+   stk(true);
    const size_t bytes = size*size_of_T;
    const auto search = mng->find(h_adrs);
    const bool present = search != mng->end();
    
    if (present) { // should not happen
-      //printf(" \033[31;7m%p(%ldo)\033[m", h_adrs, bytes);fflush(0);
+      printf("\n\033[31;7m[mm::add] Trying to add already present %p(%ldo)\033[m", h_adrs, bytes);
+      fflush(0);
       assert(false);
    }
 
@@ -47,10 +49,13 @@ void* mm::add(const void *h_adrs, const size_t size, const size_t size_of_T){
    
    // if config::Get().Cuda() is set, alloc also there
    if (config::Get().Cuda()){
-      CUdeviceptr ptr;
+      CUdeviceptr ptr = (CUdeviceptr)NULL;
       const size_t bytes = mm2dev.bytes;
-      //printf(" \033[32;1m%ldo\033[m",bytes);
-      checkCudaErrors(cuMemAlloc(&ptr,bytes));
+      if (bytes>0){
+         //printf(" \033[32;1m%ldo\033[m",bytes);
+         checkCudaErrors(cuMemAlloc(&ptr,bytes));
+      }
+         
       mm2dev.d_adrs = (void*)ptr;
       // and say we are there
       mm2dev.host = false;
@@ -64,7 +69,7 @@ void mm::del(const void *adrs){
    const bool present = search != mng->end();
    
    if (!present){ // should not happen
-      //printf("\n\033[32m[mm::del] %p\033[m", adrs);
+      printf("\n\033[32m[mm::del] %p\033[m", adrs);
       assert(false); // should not happen
    }
    
@@ -82,18 +87,30 @@ void mm::Cuda(){
       assert(adrs == mm2dev.h_adrs);
       
       // Now allocate on the device
-      CUdeviceptr ptr;
+      CUdeviceptr ptr = (CUdeviceptr) NULL;
       const size_t bytes = mm2dev.bytes;
-      //printf(" \033[32;1m%ldo\033[m",bytes);
-      checkCudaErrors(cuMemAlloc(&ptr,bytes));
+      if (bytes>0){
+         //printf(" \033[32;1m%ldo\033[m",bytes);
+         checkCudaErrors(cuMemAlloc(&ptr,bytes));
+      }
       mm2dev.d_adrs = (void*)ptr;
       
       //dbg("\033[32;1m =>");
       //memcpy::H2D(ptr,mm2dev.h_adrs,bytes);
-      checkCudaErrors(cuMemcpyHtoD(ptr,mm2dev.h_adrs,bytes));
+      //checkCudaErrors(cuMemcpyHtoD(ptr,mm2dev.h_adrs,bytes));
+      
+      const CUstream s = *config::Get().Stream();
+      checkCudaErrors(cuMemcpyHtoDAsync(ptr,mm2dev.h_adrs,bytes,s));
       // Now we are on the GPU
       mm2dev.host = false;
    }
+}
+
+// *****************************************************************************
+bool mm::Known(const void *adrs){
+   const auto search = mng->find(adrs);
+   const bool present = search != mng->end();
+   return present;
 }
 
 // *****************************************************************************

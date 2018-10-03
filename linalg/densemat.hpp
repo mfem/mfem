@@ -56,15 +56,13 @@ public:
    /** Construct a DenseMatrix using existing data array. The DenseMatrix does
        not assume ownership of the data array, i.e. it will not delete the
        array. */
-   DenseMatrix(double *d, int h, int w) : Matrix(h, w)
-   { data = d; capacity = -h*w; }
+   DenseMatrix(double *d, int h, int w);
 
    /// Change the data array and the size of the DenseMatrix.
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will
        not delete the data array @a d. This method should not be used with
        DenseMatrix that owns its current data array. */
-   void UseExternalData(double *d, int h, int w)
-   { data = d; height = h; width = w; capacity = -h*w; }
+   void UseExternalData(double *d, int h, int w);
 
    /// Change the data array and the size of the DenseMatrix.
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will

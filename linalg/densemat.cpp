@@ -134,6 +134,33 @@ DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
       data = NULL;
    }
 }
+   
+DenseMatrix::DenseMatrix(double *d, int h, int w)
+   : Matrix(h, w) {
+   if (mm::Get().Known(d)){
+      data = d;
+      capacity = -h*w;
+   }else{
+      //data = mm::malloc<double>(h*w);
+      data = d;
+      capacity = -h*w;
+   }
+}
+   
+void DenseMatrix::UseExternalData(double *d, int h, int w){
+   if (mm::Get().Known(d)){
+      data = d;
+      height = h;
+      width = w;
+      capacity = -h*w;
+   }else{
+      //data = mm::malloc<double>(h*w);
+      data = d;
+      height = h;
+      width = w;
+      capacity = -h*w;
+   }
+}
 
 void DenseMatrix::SetSize(int h, int w)
 {
@@ -170,39 +197,18 @@ const double &DenseMatrix::Elem(int i, int j) const
 
 void DenseMatrix::Mult(const double *x, double *y) const
 {
-   OKINA_ASSERT_CPU;
    if (width == 0)
    {
-      for (int row = 0; row < height; row++)
-      {
-         y[row] = 0.0;
-      }
+      kMult0(height,y);
       return;
    }
-   double *d_col = data;
-   double x_col = x[0];
-   for (int row = 0; row < height; row++)
-   {
-      y[row] = x_col*d_col[row];
-   }
-   d_col += height;
-   for (int col = 1; col < width; col++)
-   {
-      x_col = x[col];
-      for (int row = 0; row < height; row++)
-      {
-         y[row] += x_col*d_col[row];
-      }
-      d_col += height;
-   }
+   kMult(height, width, data, x, y);
 }
 
 void DenseMatrix::Mult(const Vector &x, Vector &y) const
 {
-   OKINA_ASSERT_CPU;
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
                "incompatible dimensions");
-
    Mult((const double *)x, (double *)y);
 }
 
@@ -2643,7 +2649,7 @@ void DenseMatrix::GradToCurl(DenseMatrix &curl)
 
 void DenseMatrix::GradToDiv(Vector &div)
 {
-   OKINA_ASSERT_CPU;
+   OKINA_ASSERT_GPU;
 
 #ifdef MFEM_DEBUG
    if (Width()*Height() != div.Size())
@@ -2656,11 +2662,12 @@ void DenseMatrix::GradToDiv(Vector &div)
 
    int n = height * width;
    double *ddata = div.GetData();
-
+   kGradToDiv(n,GetData(),ddata);
+   /*
    for (int i = 0; i < n; i++)
    {
       ddata[i] = data[i];
-   }
+      }*/
 }
 
 void DenseMatrix::CopyRows(const DenseMatrix &A, int row1, int row2)
@@ -3446,17 +3453,8 @@ void CalcOrtho(const DenseMatrix &J, Vector &n)
 
 void MultAAt(const DenseMatrix &a, DenseMatrix &aat)
 {
-   OKINA_ASSERT_CPU;
-   for (int i = 0; i < a.Height(); i++)
-      for (int j = 0; j <= i; j++)
-      {
-         double temp = 0.;
-         for (int k = 0; k < a.Width(); k++)
-         {
-            temp += a(i,k) * a(j,k);
-         }
-         aat(j,i) = aat(i,j) = temp;
-      }
+   OKINA_ASSERT_GPU;
+   kMultAAt(a.Height(),a.Width(),a.GetData(),aat.GetData());
 }
 
 void AddMultADAt(const DenseMatrix &A, const Vector &D, DenseMatrix &ADAt)
@@ -3989,7 +3987,7 @@ void AddMult_a_VWt(const double a, const Vector &v, const Vector &w,
 
 void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt)
 {
-   OKINA_ASSERT_CPU;
+   OKINA_ASSERT_GPU;
    int n = v.Size();
 
 #ifdef MFEM_DEBUG
@@ -3998,7 +3996,8 @@ void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt)
       mfem_error("AddMult_a_VVt(...)");
    }
 #endif
-
+   kAddMult_a_VVt(n,a,v.GetData(),VVt.Height(),VVt.GetData());
+   /*
    for (int i = 0; i < n; i++)
    {
       double avi = a * v(i);
@@ -4009,7 +4008,7 @@ void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt)
          VVt(j, i) += avivj;
       }
       VVt(i, i) += avi * v(i);
-   }
+      }*/
 }
 
 
