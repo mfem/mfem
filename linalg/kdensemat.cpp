@@ -19,7 +19,6 @@ MFEM_NAMESPACE
 void DenseMatrixSet(const double d,
                     const size_t size,
                     double *data){
-   GET_CUDA;
    GET_ADRS(data);
    forall(i, size, d_data[i] = d;);
 }
@@ -29,9 +28,8 @@ void DenseMatrixTranspose(const size_t height,
                           const size_t width,
                           double *data,
                           const double *mdata){
-   GET_CUDA;
-   GET_CONST_ADRS(mdata);
    GET_ADRS(data);
+   GET_CONST_ADRS(mdata);
    forall(i,height,{
          for (size_t j=0; j<width; j+=1){
             d_data[i+j*height] = d_mdata[j+i*height];
@@ -42,8 +40,6 @@ void DenseMatrixTranspose(const size_t height,
 // *****************************************************************************
 void kMultAAt(const size_t height, const size_t width,
               const double *a, double *aat){
-   dbg();
-   GET_CUDA;
    GET_CONST_ADRS(a);
    GET_ADRS(aat);
    forall(i, height,{
@@ -59,8 +55,6 @@ void kMultAAt(const size_t height, const size_t width,
 
 // *****************************************************************************
 void kGradToDiv(const size_t n, const double *data, double *ddata){
-   dbg();
-   GET_CUDA;
    GET_CONST_ADRS(data);
    GET_ADRS(ddata);
    forall(i, n, d_ddata[i] = d_data[i];);
@@ -69,8 +63,6 @@ void kGradToDiv(const size_t n, const double *data, double *ddata){
 // *****************************************************************************
 void kAddMult_a_VVt(const size_t n, const double a, const double *v,
                     const size_t height, double *VVt){
-   dbg();
-   GET_CUDA;
    GET_CONST_ADRS(v);
    GET_ADRS(VVt);
    forall(i, n, {
@@ -87,8 +79,6 @@ void kAddMult_a_VVt(const size_t n, const double a, const double *v,
 
 // *****************************************************************************
 void kMult0(const size_t height, double *y){
-   dbg();
-   GET_CUDA;
    GET_ADRS(y);
    forall(row, height, d_y[row] = 0.0;);
 }
@@ -96,8 +86,6 @@ void kMult0(const size_t height, double *y){
 // *****************************************************************************
 void kMult(const size_t height, const size_t width,
            const double *data, const double *x, double *y){
-   dbg();
-   GET_CUDA;
    GET_CONST_ADRS(data);
    GET_CONST_ADRS(x);
    GET_ADRS(y);

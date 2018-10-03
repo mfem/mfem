@@ -196,8 +196,6 @@ int main(int argc, char *argv[])
 
    cout << "Size of linear system: " << A.Height() << endl;
 
-#warning SetNodalFESpace before switching to CUDA
-   mesh->SetNodalFESpace(fespace);
    config::Get().Cuda(gpu);
    
 #ifndef MFEM_USE_SUITESPARSE
@@ -216,6 +214,7 @@ int main(int argc, char *argv[])
    // 12. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
 
+   config::Get().Cuda(false);
    // 13. For non-NURBS meshes, make the mesh curved based on the finite element
    //     space. This means that we define the mesh elements through a fespace
    //     based transformation of the reference element. This allows us to save
@@ -233,16 +232,8 @@ int main(int argc, char *argv[])
    //     viewed later using GLVis: "glvis -m displaced.mesh -g sol.gf".
    {
       GridFunction *nodes = mesh->GetNodes();
-      //mm::Get().Rsync(nodes->GetData());
-      //nodes->Print();
       *nodes += x;
-      //mm::Get().Rsync(nodes->GetData());
-      //nodes->Print();
-      
       x *= -1;
-
-      mm::Get().Rsync(x.GetData());
-      mm::Get().Rsync(nodes->GetData());
       ofstream mesh_ofs("displaced.mesh");
       mesh_ofs.precision(8);
       mesh->Print(mesh_ofs);

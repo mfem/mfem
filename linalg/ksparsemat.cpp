@@ -28,7 +28,6 @@ void kGauss_Seidel_forw_A_NULL(const size_t s,
                                RowNode **R,
                                const double *xp,
                                double *yp){
-   GET_CUDA;
    GET_ADRS_T(R,RowNode*);
    GET_CONST_ADRS(xp);
    GET_ADRS(yp);
@@ -61,7 +60,6 @@ void kGauss_Seidel_forw(const size_t height,
                         const int *Ip, const int *Jp, const double *Ap,
                         const double *xp,
                         double *yp){
-   GET_CUDA;
    GET_CONST_ADRS_T(Ip,int);
    GET_CONST_ADRS_T(Jp,int);
    GET_CONST_ADRS(Ap);
@@ -95,8 +93,6 @@ void kGauss_Seidel_back(const size_t height,
                         const int *Ip, const int *Jp, const double *Ap,
                         const double *xp,
                         double *yp){
-
-   GET_CUDA;
    GET_CONST_ADRS_T(Ip,int);
    GET_CONST_ADRS_T(Jp,int);
    GET_CONST_ADRS(Ap);
@@ -130,7 +126,6 @@ void kGauss_Seidel_back(const size_t height,
 void kAddMult(const size_t height,
               const int *I, const int *J, const double *A,
               const double *x, double *y){
-   GET_CUDA;
    GET_CONST_ADRS_T(I,int);
    GET_CONST_ADRS_T(J,int);
    GET_CONST_ADRS(A);
