@@ -54,7 +54,7 @@ void BaseArray::GrowSize(int minsize, int elementsize)
    p = mm::malloc<char>(nsize * elementsize);
    if (size > 0)
    {
-      memcpy(p, data, size * elementsize);
+      ::memcpy(p, data, size * elementsize);
    }
    if (allocsize > 0)
    {

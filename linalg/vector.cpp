@@ -39,7 +39,7 @@ Vector::Vector(const Vector &v)
       MFEM_ASSERT(v.data, "invalid source vector");
       allocsize = size = s;
       data = mm::malloc<double>(s);
-      memcpy::D2D(data, v.data, sizeof(double)*s);
+      mm::D2D(data, v.data, sizeof(double)*s);
    }
    else
    {
@@ -58,7 +58,7 @@ Vector::Vector(double *_data, int _size) {
       //dbg("_size=%d",_size);
       //dbg("_data=%p",_data);
       //data = mm::malloc<double>(_size);
-      //memcpy::H2D(data, _data, sizeof(double)*_size);
+      //mm::H2D(data, _data, sizeof(double)*_size);
       data = _data;
       size = _size;
       allocsize = -size;

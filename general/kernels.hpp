@@ -13,6 +13,9 @@
 #define MFEM_KERNELS_HPP
 
 // *****************************************************************************
+MFEM_NAMESPACE
+
+// *****************************************************************************
 #ifdef __NVCC__
 template <typename BODY> __global__
 void kernel(const size_t N, BODY body) {
@@ -43,5 +46,8 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body){
 #define forall(i,end,body) wrap(end,                                    \
                                 [=] __device__ (size_t i){body},        \
                                 [=] (size_t i){body})
+
+// *****************************************************************************
+MFEM_NAMESPACE_END
 
 #endif // MFEM_KERNELS_HPP

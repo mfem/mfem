@@ -29,8 +29,8 @@ typedef struct mm2dev{
 typedef std::unordered_map<const void*,mm2dev_t> mm_t;
 
 // *****************************************************************************
-// * Memory manager
-// ***************************************************************************
+// * Memory manager singleton
+// *****************************************************************************
 class mm {
 protected:
    mm_t *mng = NULL;
@@ -43,21 +43,19 @@ public:
       static mm mm_singleton;
       return mm_singleton;
    }
-   
    // **************************************************************************
-   void init();
+private:
+   void Setup();
    void* add(const void*, const size_t, const size_t);
    void del(const void*);
    void Cuda();
-   void* Adrs(const void*);
-   bool Known(const void*);
-   void Rsync(const void*);
-
+   
    // **************************************************************************
+public:
    template<class T>
    static inline T* malloc(size_t size, const size_t size_of_T = sizeof(T)) {
       dbg();
-      if (!mm::Get().mng) mm::Get().init();
+      if (!mm::Get().mng) mm::Get().Setup();
       // alloc on host first
       T *ptr = ::new T[size];
       // add to the pool of registered adresses
@@ -73,11 +71,33 @@ public:
       ::delete[] static_cast<T*>(ptr);
       ptr = nullptr;
    }
+   
+   // **************************************************************************
+   void* Adrs(const void*);
 
-   // *****************************************************************************
-   static void handler(int nSignum, siginfo_t* si, void* vcontext);
+   // **************************************************************************
+   bool Known(const void*);
 
-   // *****************************************************************************
+   // **************************************************************************
+   void Rsync(const void*);
+
+   // **************************************************************************
+public:
+   // **************************************************************************
+   static void* H2H(void*, const void*, size_t, const bool =false);
+
+   // **************************************************************************
+   static void* H2D(void*, const void*, size_t, const bool =false);
+
+  // ***************************************************************************
+   static void* D2H(void*, const void*, size_t, const bool =false);
+  
+   // **************************************************************************
+   static void* D2D(void*, const void*, size_t, const bool =false);
+   
+   // **************************************************************************
+private:
+   static void handler(int, siginfo_t*, void*);
    static void iniHandler();
 };
 

@@ -14,22 +14,23 @@
 // *****************************************************************************
 MFEM_NAMESPACE
 
-
 // *****************************************************************************
-void mm::init(void){
+void mm::Setup(void){
    dbg();
    assert(!mng);
    // Create our mapping host => (size, h_adrs, d_adrs)
    mng = new mm_t();
    // Initialize our SIGSEGV handler
    mm::iniHandler();
-   // Initialize the CUDA device to be ready to allocate memory there
-   config::Get().Init();
+   // Initialize the CUDA device to be ready to allocate memory
+   config::Get().Setup();
 }
 
 // *****************************************************************************
+// * Add a host address, if we are in CUDA mode, allocate there too
+// * Returns the 'instant' one
+// *****************************************************************************
 void* mm::add(const void *h_adrs, const size_t size, const size_t size_of_T){
-   stk(true);
    const size_t bytes = size*size_of_T;
    const auto search = mng->find(h_adrs);
    const bool present = search != mng->end();
@@ -47,15 +48,13 @@ void* mm::add(const void *h_adrs, const size_t size, const size_t size_of_T){
    mm2dev.h_adrs = h_adrs;
    mm2dev.d_adrs = NULL;
    
-   // if config::Get().Cuda() is set, alloc also there
-   if (config::Get().Cuda()){
+   if (config::Get().Cuda()){ // alloc also there
       CUdeviceptr ptr = (CUdeviceptr)NULL;
       const size_t bytes = mm2dev.bytes;
       if (bytes>0){
          //printf(" \033[32;1m%ldo\033[m",bytes);
          checkCudaErrors(cuMemAlloc(&ptr,bytes));
       }
-         
       mm2dev.d_adrs = (void*)ptr;
       // and say we are there
       mm2dev.host = false;
@@ -64,49 +63,18 @@ void* mm::add(const void *h_adrs, const size_t size, const size_t size_of_T){
 }
 
 // *****************************************************************************
+// * Remove the address from the map
+// *****************************************************************************
 void mm::del(const void *adrs){
    const auto search = mng->find(adrs);
    const bool present = search != mng->end();
-   
    if (!present){ // should not happen
       printf("\n\033[32m[mm::del] %p\033[m", adrs);
       assert(false); // should not happen
    }
-   
    //printf("\n\033[32;7m[mm::del] %p\033[m", adrs);
    // Remove element from the map
    mng->erase(adrs);
-}
-
-// *****************************************************************************
-// * HOST => GPU monolithic transfer
-// *****************************************************************************
-void mm::Cuda(){
-   assert(false);
-   for(auto it = mng->begin(); it != mng->end(); ++it){
-      const void *adrs = it->first;
-      mm2dev_t &mm2dev = it->second;
-      //dbg("\033[32;1madrs=%p",adrs);
-      assert(adrs == mm2dev.h_adrs);
-      
-      // Now allocate on the device
-      CUdeviceptr ptr = (CUdeviceptr) NULL;
-      const size_t bytes = mm2dev.bytes;
-      if (bytes>0){
-         //printf(" \033[32;1m%ldo\033[m",bytes);
-         checkCudaErrors(cuMemAlloc(&ptr,bytes));
-      }
-      mm2dev.d_adrs = (void*)ptr;
-      
-      //dbg("\033[32;1m =>");
-      //memcpy::H2D(ptr,mm2dev.h_adrs,bytes);
-      //checkCudaErrors(cuMemcpyHtoD(ptr,mm2dev.h_adrs,bytes));
-      
-      const CUstream s = *config::Get().Stream();
-      checkCudaErrors(cuMemcpyHtoDAsync(ptr,mm2dev.h_adrs,bytes,s));
-      // Now we are on the GPU
-      mm2dev.host = false;
-   }
 }
 
 // *****************************************************************************
@@ -116,6 +84,8 @@ bool mm::Known(const void *adrs){
    return present;
 }
 
+// *****************************************************************************
+// * 
 // *****************************************************************************
 void* mm::Adrs(const void *adrs){
    dbg();
@@ -145,7 +115,6 @@ void* mm::Adrs(const void *adrs){
          checkCudaErrors(cuMemAlloc(&ptr,bytes));
       }
       mm2dev.d_adrs = (void*)ptr;
-      //memcpy::H2D((void*)ptr,mm2dev.h_adrs,bytes);
       const CUstream s = *config::Get().Stream();
       checkCudaErrors(cuMemcpyHtoDAsync(ptr,mm2dev.h_adrs,bytes,s));
       // Now we are on the GPU
@@ -156,8 +125,6 @@ void* mm::Adrs(const void *adrs){
       dbg("return \033[31;1mGPU\033[m h_adrs %p",mm2dev.h_adrs);
       dbg("return \033[31;1mGPU\033[m d_adrs %p",mm2dev.d_adrs);
       checkCudaErrors(cuMemcpyDtoH((void*)mm2dev.h_adrs,(CUdeviceptr)mm2dev.d_adrs,bytes));
-      //const CUstream s = *config::Get().Stream();
-      //checkCudaErrors(cuMemcpyDtoHAsync((void*)mm2dev.h_adrs, (CUdeviceptr)mm2dev.d_adrs, bytes, s));
       mm2dev.host = true;
       return (void*)mm2dev.h_adrs;
    }
@@ -179,6 +146,62 @@ void mm::Rsync(const void *adrs){
                                 bytes));
 }
 
+// **************************************************************************
+void* mm::H2H(void *dest, const void *src, size_t bytes, const bool async) {
+   dbg();
+   if (bytes==0) return dest;
+   assert(src); assert(dest);
+   std::memcpy(dest,src,bytes);
+   return dest;
+}
+
+// *************************************************************************
+void* mm::H2D(void *dest, const void *src, size_t bytes, const bool async) {
+   dbg();
+   if (bytes==0) return dest;
+   assert(src); assert(dest);
+   if (!config::Get().Cuda()) return memcpy(dest,src,bytes);
+#ifdef __NVCC__
+   if (!config::Get().Uvm())
+      checkCudaErrors(cuMemcpyHtoD((CUdeviceptr)dest,src,bytes));
+   else checkCudaErrors(cuMemcpy((CUdeviceptr)dest,(CUdeviceptr)src,bytes));
+#endif
+   return dest;
+}
+
+// ***************************************************************************
+void* mm::D2H(void *dest, const void *src, size_t bytes, const bool async) {
+   dbg();
+   if (bytes==0) return dest;
+   assert(src); assert(dest);
+   if (!config::Get().Cuda()) return memcpy(dest,src,bytes);
+#ifdef __NVCC__
+   if (!config::Get().Uvm())
+      checkCudaErrors(cuMemcpyDtoH(dest,(CUdeviceptr)src,bytes));
+   else checkCudaErrors(cuMemcpy((CUdeviceptr)dest,(CUdeviceptr)src,bytes));
+#endif
+   return dest;
+  }
+  
+// ***************************************************************************
+void* mm::D2D(void *dest, const void *src, size_t bytes, const bool async) {
+   dbg();
+   if (bytes==0) return dest;
+   assert(src); assert(dest);
+   if (!config::Get().Cuda()) return memcpy(dest,src,bytes);
+#ifdef __NVCC__
+   if (!config::Get().Uvm()){
+      if (!async)
+         checkCudaErrors(cuMemcpyDtoD((CUdeviceptr)dest,(CUdeviceptr)src,bytes));
+      else{
+         const CUstream s = *config::Get().Stream();
+         checkCudaErrors(cuMemcpyDtoDAsync((CUdeviceptr)dest,(CUdeviceptr)src,bytes,s));
+      }
+   } else checkCudaErrors(cuMemcpy((CUdeviceptr)dest,(CUdeviceptr)src,bytes));
+#endif
+   return dest;
+}
+
 // *****************************************************************************
 void mm::handler(int nSignum, siginfo_t* si, void* vcontext) {
    fflush(0);
@@ -198,6 +221,6 @@ void mm::iniHandler(){
    action.sa_sigaction = handler;
    sigaction(SIGSEGV, &action, NULL);
 }
-   
+
 // *****************************************************************************
 MFEM_NAMESPACE_END

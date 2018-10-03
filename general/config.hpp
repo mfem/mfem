@@ -13,19 +13,26 @@
 #define MFEM_CONFIG_HPP
 
 // *****************************************************************************
+MFEM_NAMESPACE
+
+#ifndef __NVCC__
+typedef int CUdevice;
+typedef int CUcontext;
+typedef int CUstream;
+#endif // __NVCC__
+
+// *****************************************************************************
 // * Config
 // *****************************************************************************
 class config{
 private:
    bool cuda = false;
    bool uvm = false;
-#ifdef __NVCC__
    int dev;
    int gpu_count;
    CUdevice cuDevice;
    CUcontext cuContext;
    CUstream *hStream;
-#endif
 private:
    config(){}
    config(config const&);
@@ -36,52 +43,27 @@ public:
       return singleton;
    }
    // **************************************************************************
-   void Init(){
-#ifdef __NVCC__
-      gpu_count=0;    
-      checkCudaErrors(cudaGetDeviceCount(&gpu_count));
-      assert(gpu_count>0);   
-      cuInit(0);
-      dev = 0;
-      cuDeviceGet(&cuDevice,dev); 
-      cuCtxCreate(&cuContext, CU_CTX_SCHED_AUTO, cuDevice);
-      hStream=new CUstream;
-      cuStreamCreate(hStream, CU_STREAM_DEFAULT);
-#endif
-   }
-   // **************************************************************************
-   void Init(int argc, char *argv[]){
-#ifdef __NVCC__
-      gpu_count=0;    
-      checkCudaErrors(cudaGetDeviceCount(&gpu_count));
-      assert(gpu_count>0);   
-      cuInit(0);
-      dev = findCudaDevice(argc, (const char **)argv);
-      cuDeviceGet(&cuDevice,dev); 
-      cuCtxCreate(&cuContext, CU_CTX_SCHED_AUTO, cuDevice);
-      hStream=new CUstream;
-      cuStreamCreate(hStream, CU_STREAM_DEFAULT);
-#endif
-   }
+private:
+   void cuDeviceSetup(const int dev =0);
+
+public:
    // **************************************************************************
    inline bool Cuda() { return cuda; }
+
+   // **************************************************************************
+   inline void Cuda(const bool flag) { cuda = flag; }
+
+   // **************************************************************************
+   inline bool Uvm() { return uvm; }
+
+   // **************************************************************************
+   void Setup();
    
    // **************************************************************************
-   inline void Cuda(const bool cu) {
-      dbg("\033[%d;7mCUDA",cu?32:31);
-      cuda = cu;
-   }
-   // **************************************************************************
-   inline bool Uvm(const bool flag=false) {
-      if (flag) {
-         dbg("\033[32;7mSetting UVM mode!");
-         uvm = true;
-      }
-      return uvm;
-   }
-#ifdef __NVCC__
    inline CUstream *Stream() { return hStream; }
-#endif
 };
+
+// *****************************************************************************
+MFEM_NAMESPACE_END
 
 #endif // MFEM_CONFIG_HPP

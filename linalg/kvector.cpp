@@ -44,7 +44,7 @@ static double cub_vector_dot(const int N,
       cuMemAlloc((CUdeviceptr*)&d_storage, storage_bytes*sizeof(double));
    }
    cub::DeviceReduce::Dot(d_storage, storage_bytes, vec1, vec2, d_dot, N);
-   memcpy::D2H(h_dot,d_dot,sizeof(double));
+   mfem::mm::D2H(h_dot,d_dot,sizeof(double));
    return *h_dot;
 }
 #endif // __NVCC__
