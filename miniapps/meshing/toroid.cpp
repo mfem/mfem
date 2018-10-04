@@ -147,8 +147,8 @@ int main(int argc, char *argv[])
    if (order_ > 1)
    {
       mesh->SetCurvature(order_, true, 3, Ordering::byVDIM);
-      mesh->Transform(trans);
    }
+   mesh->Transform(trans);
 
    // Stitch the ends of the stack together
    {
