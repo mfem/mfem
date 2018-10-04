@@ -42,11 +42,7 @@ SparseMatrix::SparseMatrix(int nrows, int ncols)
      ownData(true),
      isSorted(false)
 {
-   OKINA_ASSERT_GPU;
-   for (int i = 0; i < nrows; i++)
-   {
-      Rows[i] = NULL;
-   }
+   kSparseMatrix(nrows,Rows);
 
 #ifdef MFEM_USE_MEMALLOC
    OKINA_ASSERT_CPU;

@@ -24,6 +24,12 @@ public:
 };
 
 // *****************************************************************************
+void kSparseMatrix(const int nrows, RowNode** Rows){
+   GET_ADRS(Rows);
+   forall(i, nrows, d_Rows[i] = NULL;);
+}
+
+// *****************************************************************************
 void kGauss_Seidel_forw_A_NULL(const size_t s,
                                RowNode **R,
                                const double *xp,

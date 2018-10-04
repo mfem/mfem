@@ -39,11 +39,13 @@
 #include <fstream>
 #include <iostream>
 
+#include "/home/camier1/home/stk/stk.hpp"
 using namespace std;
 using namespace mfem;
 
 int main(int argc, char *argv[])
 {
+   stkIni(argv[0]);
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
@@ -82,15 +84,17 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
+      /*
       int ref_levels =
          (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
+      */
    }
 
-   // 4. Define a finite element space on the mesh. Here we use continuous
+   dbg("4. Define a finite element space on the mesh.");// Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
    FiniteElementCollection *fec;
@@ -111,7 +115,7 @@ int main(int argc, char *argv[])
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
 
-   // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
+   dbg("5. Determine the list of true (i.e. conforming) essential boundary dofs.");
    //    In this example, the boundary conditions are defined by marking all
    //    the boundary attributes from the mesh as essential (Dirichlet) and
    //    converting them to a list of true dofs.
@@ -123,7 +127,7 @@ int main(int argc, char *argv[])
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   // 6. Set up the linear form b(.) which corresponds to the right-hand side of
+   dbg("6. Set up the linear form b(.)");// which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
    LinearForm *b = new LinearForm(fespace);
@@ -131,19 +135,23 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
-   // 7. Define the solution vector x as a finite element grid function
+   dbg("\033[32;7mSwitching to GPU!");
+   config::Get().Cuda(gpu);
+
+   dbg("7. Define the solution vector x");// as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
    GridFunction x(fespace);
    x = 0.0;
 
-   // 8. Set up the bilinear form a(.,.) on the finite element space
+   dbg("8. Set up the bilinear form a(.,.)");// on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
    BilinearForm *a = new BilinearForm(fespace);
+   dbg("Add DiffusionIntegrator");
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
 
-   // 9. Assemble the bilinear form and the corresponding linear system,
+   dbg("9. Assemble the bilinear form");// and the corresponding linear system,
    //    applying any necessary transformations such as: eliminating boundary
    //    conditions, applying conforming constraints for non-conforming AMR,
    //    static condensation, etc.
@@ -156,11 +164,11 @@ int main(int argc, char *argv[])
 
    cout << "Size of linear system: " << A.Height() << endl;
 
-   config::Get().Cuda(gpu);
+   //config::Get().Cuda(gpu);
 
 #ifndef MFEM_USE_SUITESPARSE
-   // 10. Define a simple symmetric Gauss-Seidel preconditioner and use it to
-   //     solve the system A X = B with PCG.
+   //dbg("10. Define a simple symmetric Gauss-Seidel preconditioner");// and use it to
+   dbg("10. Solve the system A X = B with PCG.");
    //GSSmoother M(A);
    //PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
    CG(A, B, X, 3, 1000, 1e-12, 0.0);

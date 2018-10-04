@@ -12,6 +12,8 @@
 // Implementation of class BilinearForm
 
 #include "fem.hpp"
+#include "kBilinIntegDiffusion.hpp"
+
 #include <cmath>
 
 namespace mfem
@@ -309,6 +311,25 @@ void BilinearForm::AssembleBdrElementMatrix(
 
 void BilinearForm::Assemble (int skip_zeros)
 {
+   dbg();
+   GET_CUDA;
+   if (cuda){
+      dbg("CUDA mode");
+      assert(dbfi.Size()==1);
+      const IntegrationRule *ir0 = dbfi[0]->GetIntRule();
+      const FiniteElement &fe = *fes->GetFE(0);
+      const int order = ir0?ir0->GetOrder():2*fe.GetOrder() - 2;
+      const IntegrationRule *ir = &IntRules.Get(fe.GetGeomType(), order);
+      assert(ir);
+      static KDiffusionIntegrator *diffusion = NULL;
+      if (!diffusion){
+         dbg("new KDiffusionIntegrator");
+         diffusion = new KDiffusionIntegrator(fes,ir);
+      }
+      dbg("diffusion->Assemble()");
+      diffusion->Assemble();
+   }
+   
    ElementTransformation *eltrans;
    Mesh *mesh = fes -> GetMesh();
    DenseMatrix elmat, *elmat_p;
@@ -696,6 +717,7 @@ void BilinearForm::RecoverFEMSolution(const Vector &X,
 
 void BilinearForm::ComputeElementMatrices()
 {
+   dbg();
    if (element_matrices || dbfi.Size() == 0 || fes->GetNE() == 0)
    {
       return;
@@ -728,7 +750,7 @@ void BilinearForm::ComputeElementMatrices()
       dbfi[0]->AssembleElementMatrix(fe, eltrans, elmat);
       for (int k = 1; k < dbfi.Size(); k++)
       {
-         // note: some integrators may not be thread-safe
+        // note: some integrators may not be thread-safe
          dbfi[k]->AssembleElementMatrix(fe, eltrans, tmp);
          elmat += tmp;
       }

@@ -486,6 +486,7 @@ MatrixInverse *DenseMatrix::Inverse() const
 
 double DenseMatrix::Det() const
 {
+   stk(true);
    OKINA_ASSERT_GPU;
    MFEM_ASSERT(Height() == Width() && Height() > 0,
                "The matrix must be square and "
@@ -544,7 +545,6 @@ double DenseMatrix::Det() const
 
 double DenseMatrix::Weight() const
 {
-   OKINA_ASSERT_GPU;
    if (Height() == Width())
    {
       // return fabs(Det());
@@ -552,14 +552,17 @@ double DenseMatrix::Weight() const
    }
    else if ((Height() == 2) && (Width() == 1))
    {
+      OKINA_ASSERT_GPU;
       return sqrt(data[0] * data[0] + data[1] * data[1]);
    }
    else if ((Height() == 3) && (Width() == 1))
    {
+      OKINA_ASSERT_GPU;
       return sqrt(data[0] * data[0] + data[1] * data[1] + data[2] * data[2]);
    }
    else if ((Height() == 3) && (Width() == 2))
    {
+      OKINA_ASSERT_GPU;
       const double *d = data;
       double E = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
       double G = d[3] * d[3] + d[4] * d[4] + d[5] * d[5];
@@ -3122,7 +3125,7 @@ void Add(double alpha, const DenseMatrix &A,
 
 void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
 {
-   OKINA_ASSERT_GPU;
+   //OKINA_ASSERT_GPU;
    MFEM_ASSERT(a.Height() == b.Height() && a.Width() == c.Width() &&
                b.Width() == c.Height(), "incompatible dimensions");
 
@@ -3140,20 +3143,7 @@ void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
    double *ad = a.Data();
    const double *bd = b.Data();
    const double *cd = c.Data();
-   for (int i = 0; i < ah*aw; i++)
-   {
-      ad[i] = 0.0;
-   }
-   for (int j = 0; j < aw; j++)
-   {
-      for (int k = 0; k < bw; k++)
-      {
-         for (int i = 0; i < ah; i++)
-         {
-            ad[i+j*ah] += bd[i+k*ah] * cd[k+j*bw];
-         }
-      }
-   }
+   kMult(ah,aw,bw,bd,cd,ad);
 #endif
 }
 
