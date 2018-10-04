@@ -88,8 +88,8 @@ private:
    // Auxiliary method used in constructors
    void ParInit(ParMesh *pm);
 
-   void Construct();
-   void Destroy();
+   void ParConstruct();
+   void ParDestroy();
 
    // ldof_type = 0 : DOFs communicator, otherwise VDOFs communicator
    void GetGroupComm(GroupCommunicator &gcomm, int ldof_type,
@@ -114,8 +114,7 @@ private:
 
    void GetGhostDofs(int entity, const MeshId &id, Array<int> &dofs) const;
    // Return the dofs associated with the interior of the given mesh entity.
-   // The MeshId may be the id of a regular or a ghost mesh entity.
-   void GetBareDofs(int entity, const MeshId &id, Array<int> &dofs) const;
+   void GetBareDofs(int entity, int index, Array<int> &dofs) const;
 
    int  PackDof(int entity, int index, int edof) const;
    void UnpackDof(int dof, int &entity, int &index, int &edof) const;
@@ -128,7 +127,7 @@ private:
                    std::map<int, class NeighborRowMessage> &send_msg) const;
 
 #ifdef MFEM_DEBUG_PMATRIX
-   void DebugDumpDOFs(std::ofstream &os,
+   void DebugDumpDOFs(std::ostream &os,
                       const SparseMatrix &deps,
                       const Array<GroupId> &dof_group,
                       const Array<GroupId> &dof_owner,
@@ -335,8 +334,8 @@ public:
    void LoseDofOffsets() { dof_offsets.LoseData(); }
    void LoseTrueDofOffsets() { tdof_offsets.LoseData(); }
 
-   bool Conforming() const { return pmesh->pncmesh == NULL; }
-   bool Nonconforming() const { return pmesh->pncmesh != NULL; }
+   bool Conforming() const { return pncmesh == NULL; }
+   bool Nonconforming() const { return pncmesh != NULL; }
 
    // Transfer parallel true-dof data from coarse_fes, defined on a coarse mesh,
    // to this FE space, defined on a refined mesh. See full documentation in the
@@ -355,7 +354,7 @@ public:
       old_dof_offsets.DeleteAll();
    }
 
-   virtual ~ParFiniteElementSpace() { Destroy(); }
+   virtual ~ParFiniteElementSpace() { ParDestroy(); }
 
    // Obsolete, kept for backward compatibility
    int TrueVSize() const { return ltdof_size; }

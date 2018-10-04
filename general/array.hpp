@@ -518,6 +518,8 @@ public:
        data representation in host memory, only a pointer value is copied. */
    inline void Pull(bool copy_data = true) const;
 
+   inline void Pull(DevExtension &dst, bool copy_data = true);
+
    /** @brief If the Array has an associated DArray, copy the contents of the
        #data array to the DArray. Otherwise, do nothing. */
    /** If the DArray uses contiguous data representation in host memory, the
@@ -1177,6 +1179,33 @@ inline void DevExtension<array_t,dev_ext_t>::Pull(bool copy_data) const
       }
    }
 #endif
+}
+
+template <typename array_t, typename dev_ext_t>
+inline void DevExtension<array_t,dev_ext_t>::Pull(DevExtension &dst,
+                                                  bool copy_data)
+{
+   AssertDGood();
+#ifdef MFEM_USE_BACKENDS
+   if (dev_ext)
+   {
+      if (allocsize > 0)
+      {
+         dst.SetSizeNoCopy(size);
+         if (copy_data) { dev_ext->PullData(dst.data); }
+      }
+      else
+      {
+         dst.dev_ext.Reset();
+         dst.Free();
+         dst.InitAll(data, size, allocsize);
+      }
+   }
+   else
+#endif
+   {
+      dst.MakeRef(*this);
+   }
 }
 
 template <typename array_t, typename dev_ext_t>

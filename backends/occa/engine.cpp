@@ -42,7 +42,6 @@ void Engine::Init(const std::string &engine_spec)
    device[0].setup(props);
 
    okl_path = "mfem-occa://";
-   // okl_defines = "...";
    if (!fileOpenerRegistered)
    {
       // The directories from "MFEM_OCCA_OKL_PATH", if any, have the highest
@@ -57,6 +56,9 @@ void Engine::Init(const std::string &engine_spec)
       ::occa::io::fileOpener::add(fo);
       fileOpenerRegistered = true;
    }
+   // std::cout << "OCCA device properties:\n" << device[0].properties();
+
+   force_cuda_aware_mpi = false;
 }
 
 Engine::Engine(const std::string &engine_spec)
@@ -74,6 +76,36 @@ Engine::Engine(MPI_Comm _comm, const std::string &engine_spec)
 }
 #endif
 
+bool Engine::CheckEngine(const mfem::Engine *engine) const
+{
+   return (engine != NULL && util::Is<const Engine>(engine) != NULL &&
+           *util::As<const Engine>(engine) == *this);
+}
+
+bool Engine::CheckLayout(const PLayout *layout) const
+{
+   return (layout != NULL && util::Is<const Layout>(layout) != NULL &&
+           layout->As<Layout>().OccaEngine() == *this);
+}
+
+bool Engine::CheckArray(const PArray *array) const
+{
+   return (array != NULL && util::Is<const Array>(array) != NULL &&
+           array->As<Array>().OccaEngine() == *this);
+}
+
+bool Engine::CheckVector(const PVector *vector) const
+{
+   return (vector != NULL && util::Is<const Vector>(vector) != NULL &&
+           vector->As<Vector>().OccaEngine() == *this);
+}
+
+bool Engine::CheckFESpace(const PFiniteElementSpace *fes) const
+{
+   return (fes != NULL && util::Is<const FiniteElementSpace>(fes) != NULL &&
+           fes->As<FiniteElementSpace>().OccaEngine() == *this);
+}
+
 DLayout Engine::MakeLayout(std::size_t size) const
 {
    return DLayout(new Layout(*this, size));
@@ -88,19 +120,14 @@ DLayout Engine::MakeLayout(const mfem::Array<std::size_t> &offsets) const
 
 DArray Engine::MakeArray(PLayout &layout, std::size_t item_size) const
 {
-   MFEM_ASSERT(dynamic_cast<Layout *>(&layout) != NULL,
-               "invalid input layout");
-   Layout *lt = static_cast<Layout *>(&layout);
-   return DArray(new Array(*lt, item_size));
+   return DArray(new Array(layout.As<Layout>(), item_size));
 }
 
 DVector Engine::MakeVector(PLayout &layout, int type_id) const
 {
-   MFEM_ASSERT(type_id == ScalarId<double>::value, "invalid type_id");
-   MFEM_ASSERT(dynamic_cast<Layout *>(&layout) != NULL,
-               "invalid input layout");
-   Layout *lt = static_cast<Layout *>(&layout);
-   return DVector(new Vector(*lt));
+   MFEM_ASSERT(type_id == ScalarId<double>::value, "type_id " << type_id
+               << " is not supported");
+   return DVector(new Vector(layout.As<Layout>()));
 }
 
 DFiniteElementSpace Engine::MakeFESpace(mfem::FiniteElementSpace &fespace) const

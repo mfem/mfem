@@ -73,15 +73,21 @@ void OccaConstrainedOperator::Setup(::occa::device device_,
    own_A = own_A_;
 
    constraintIndices = constraintList_.Size();
-   constraintList = constraintList_.Get_PArray()->As<Array>().OccaMem();
+   if (constraintList_.Size() > 0)
+   {
+      constraintList = constraintList_.Get_PArray()->As<Array>().OccaMem();
+   }
+   else
+   {
+      // constraintList is not used
+   }
 }
 
 void OccaConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
-   const std::string &okl_defines = InLayout_().OccaEngine().GetOklDefines();
-   ::occa::kernel mapDofs = mapDofBuilder.build(device, okl_defines);
+   ::occa::kernel mapDofs = mapDofBuilder.build(device);
 
-   w.Fill<double>(0.0);
+   w.OccaFill(0.0);
 
    if (constraintIndices)
    {
@@ -107,11 +113,12 @@ void OccaConstrainedOperator::Mult_(const Vector &x, Vector &y) const
       return;
    }
 
-   const std::string &okl_defines = InLayout_().OccaEngine().GetOklDefines();
-   ::occa::kernel mapDofs   = mapDofBuilder.build(device, okl_defines);
-   ::occa::kernel clearDofs = clearDofBuilder.build(device, okl_defines);
+   ::occa::kernel mapDofs   = mapDofBuilder.build(device);
+   ::occa::kernel clearDofs = clearDofBuilder.build(device);
 
-   z.Assign<double>(x); // z = x
+   // z.OccaAssign(x); // z = x
+   // Is Axpy faster than DtoD copy on Volta?
+   z.Axpby(1.0, x, 0.0, x);
 
    clearDofs(constraintIndices, z.OccaMem(), constraintList);
 

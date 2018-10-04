@@ -65,29 +65,10 @@ protected:
 
 public:
    /// TODO: doxygen
-   Engine(Backend *b, int n_mem, int n_workers)
-      : backend(b),
-#ifdef MFEM_USE_MPI
-        comm(MPI_COMM_NULL),
-#endif
-        num_mem_res(n_mem),
-        num_workers(n_workers),
-        memory_resources(new MemoryResource*[num_mem_res]()),
-        workers_weights(new double[num_workers]()),
-        workers_mem_res(new int[num_workers]())
-   { /* Note: all arrays are value-initialized with zeros. */ }
+   Engine(Backend *b, int n_mem, int n_workers);
 
    /// TODO: doxygen
-   virtual ~Engine()
-   {
-      delete [] workers_mem_res;
-      delete [] workers_weights;
-      for (int i = 0; i < num_mem_res; i++)
-      {
-         delete memory_resources[i];
-      }
-      delete [] memory_resources;
-   }
+   virtual ~Engine();
 
 
    /**
@@ -120,11 +101,11 @@ public:
 
    /// TODO
    template <typename derived_t>
-   derived_t &As() { *util::As<derived_t>(this); }
+   derived_t &As() { return *util::As<derived_t>(this); }
 
    /// TODO
    template <typename derived_t>
-   const derived_t &As() const { *util::As<const derived_t>(this); }
+   const derived_t &As() const { return *util::As<const derived_t>(this); }
 
 
    // TODO: Error handling ... handle errors at the Engine level, at the class
@@ -139,10 +120,10 @@ public:
    // TODO: Asynchronous execution in this class ...
 
    /// Allocate and return a new layout for the given @a size.
-   /** The layout decomposition is determined automatically by the Engine using
-       a deterministic algorithm: calls to this method with the same @a size
-       will produce the same result, as long as the Engine remains unmodified
-       between the calls.
+   /** The layout decomposition (in the case of multiple workers) is determined
+       automatically by the Engine using a deterministic algorithm: calls to
+       this method with the same @a size will produce the same result, as long
+       as the Engine remains unmodified between the calls.
 
        The returned object is allocated with operator new and must be
        deallocated by the caller.
@@ -180,7 +161,7 @@ public:
                               int type_id = ScalarId<double>::value) const = 0;
 
    /// TODO: doxygen
-   virtual DFiniteElementSpace MakeFESpace(FiniteElementSpace &fes) const;
+   virtual DFiniteElementSpace MakeFESpace(FiniteElementSpace &fes) const = 0;
 
    /// TODO: doxygen
    virtual DBilinearForm MakeBilinearForm(BilinearForm &bf) const = 0;
