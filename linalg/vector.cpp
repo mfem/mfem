@@ -326,7 +326,7 @@ void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
       double *vp = v.data;
       int s = v.size;
 #ifdef MFEM_USE_OPENMP
-      #pragma omp parallel for
+//#pragma omp parallel for
 #endif
       kVectorAlphaAdd(vp,v1p,alpha,v2p,s);
    }
@@ -425,7 +425,7 @@ void subtract(const Vector &x, const Vector &y, Vector &z)
    int            s = x.size;
 
 #ifdef MFEM_USE_OPENMP
-   #pragma omp parallel for
+//#pragma omp parallel for
 #endif
    kVectorSubtract(zp,xp,yp,s);
 }

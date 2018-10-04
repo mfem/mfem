@@ -118,7 +118,7 @@ void kSetSubVector(const size_t n, const int *dofs, const double *elemvect,
    GET_CONST_ADRS_T(dofs,int);
    GET_CONST_ADRS(elemvect);
    GET_ADRS(data);
-#warning make sure we can work on this outer loop
+//#warning make sure we can work on this outer loop
    forall(i, n,{
          const int j = d_dofs[i];
          if (j >= 0) {

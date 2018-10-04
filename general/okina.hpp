@@ -26,6 +26,8 @@
 #include <stdarg.h>
 #include <signal.h>
 
+#include "/home/camier1/home/stk/stk.hpp"
+
 // *****************************************************************************
 #define MFEM_NAMESPACE namespace mfem {
 #define MFEM_NAMESPACE_END }

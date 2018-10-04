@@ -15,6 +15,43 @@ using namespace std;
 // *****************************************************************************
 MFEM_NAMESPACE
 
+// *****************************************************************************
+void kDet1(const double *data, double *det){
+   //GET_CONST_ADRS(data);
+   //GET_ADRS(det);
+   forall(i,1, */*d_*/det = /*d_*/data[0];);
+}
+void kDet2(const double *data, double *det);
+void kDet3(const double *data, double *det);
+void kDet4(const double *data, double *det);
+
+// *****************************************************************************
+void kMult(const int ah, const int aw, const int bw,
+           const double *bd, const double *cd, double *ad){
+   
+   for (int i = 0; i < ah*aw; i++)
+   {
+      ad[i] = 0.0;
+   }
+   for (int j = 0; j < aw; j++)
+   {
+      for (int k = 0; k < bw; k++)
+      {
+         for (int i = 0; i < ah; i++)
+         {
+            ad[i+j*ah] += bd[i+k*ah] * cd[k+j*bw];
+         }
+      }
+   }
+}
+/*
+   forall(i, height,{
+         double sum = 0.0;
+         for(int j=0; j<width; j+=1){
+            sum += d_x[j]*d_data[i+j*height];
+         }
+         d_y[i] = sum;
+         });*/
 // **************************************************************************
 void DenseMatrixSet(const double d,
                     const size_t size,

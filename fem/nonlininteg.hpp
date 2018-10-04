@@ -35,6 +35,7 @@ public:
    /** @brief Prescribe a fixed IntegrationRule to use (when @a ir != NULL) or
        let the integrator choose (when @a ir == NULL). */
    void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
+   const IntegrationRule *GetIntRule() { return IntRule; }
 
    /// Prescribe a fixed IntegrationRule to use.
    void SetIntegrationRule(const IntegrationRule &irule) { IntRule = &irule; }

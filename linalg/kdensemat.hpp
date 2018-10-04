@@ -14,6 +14,14 @@
 
 MFEM_NAMESPACE
 
+void kDet1(const double *data, double *det);
+void kDet2(const double *data, double *det);
+void kDet3(const double *data, double *det);
+void kDet4(const double *data, double *det);
+
+void kMult(const int ah, const int aw, const int bw,
+           const double *b, const double *c, double *a);
+
 void DenseMatrixSet(const double, const size_t, double*);
 
 void DenseMatrixTranspose(const size_t, const size_t, double*, const double*);

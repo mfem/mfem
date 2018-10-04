@@ -15,6 +15,9 @@
 MFEM_NAMESPACE
 
 // *****************************************************************************
+void kSparseMatrix(const int nrows, RowNode** Rows);
+
+// *****************************************************************************
 void kAddMult(const size_t height,
               const int *I, const int *J, const double *A,
               const double *x, double *y);

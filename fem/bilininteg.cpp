@@ -365,6 +365,7 @@ void DiffusionIntegrator::AssembleElementMatrix
 ( const FiniteElement &el, ElementTransformation &Trans,
   DenseMatrix &elmat )
 {
+   dbg();
    int nd = el.GetDof();
    int dim = el.GetDim();
    int spaceDim = Trans.GetSpaceDim();
@@ -386,27 +387,34 @@ void DiffusionIntegrator::AssembleElementMatrix
       int order;
       if (el.Space() == FunctionSpace::Pk)
       {
+         dbg("Pk");
          order = 2*el.GetOrder() - 2;
       }
       else
          // order = 2*el.GetOrder() - 2;  // <-- this seems to work fine too
       {
          order = 2*el.GetOrder() + dim - 1;
+         dbg("Pk else, order=%d",order);
       }
 
       if (el.Space() == FunctionSpace::rQk)
       {
+         dbg("rQk");
          ir = &RefinedIntRules.Get(el.GetGeomType(), order);
       }
       else
       {
+         dbg("rQk else");
          ir = &IntRules.Get(el.GetGeomType(), order);
       }
    }
-
+   //assert(false);
+   dbg("elmat = 0.0");
    elmat = 0.0;
+   dbg("for loop:%d",ir->GetNPoints());
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
+      dbg("%d",i);
       const IntegrationPoint &ip = ir->IntPoint(i);
       el.CalcDShape(ip, dshape);
 
