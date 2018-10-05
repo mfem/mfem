@@ -80,14 +80,42 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels = 3;
+         //(int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
    }
 
+#if 1
+   Array<int> ordering;
+   //mesh->GetGeckoElementReordering(ordering, 1, 2);
+   mesh->GetMetisElementReordering(ordering);
+   mesh->ReorderElements(ordering);
+
+   FiniteElementCollection *fec;
+   fec = new L2_FECollection(0, dim);
+
+   FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
+
+   GridFunction x(fespace);
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      x(i) = i;
+   }
+
+   {
+      mesh->EnsureNCMesh();
+      std::ofstream f("ordering.m");
+      f << "A = [\n";
+      mesh->ncmesh->DebugLeafOrder(f);
+      f << "];\n";
+   }
+
+   int *a = NULL, *b = NULL;
+
+#else
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
@@ -178,6 +206,7 @@ int main(int argc, char *argv[])
    ofstream sol_ofs("sol.gf");
    sol_ofs.precision(8);
    x.Save(sol_ofs);
+#endif
 
    // 13. Send the solution by socket to a GLVis server.
    if (visualization)
