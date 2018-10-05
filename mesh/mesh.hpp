@@ -529,7 +529,13 @@ public:
        Gecko library to find an element ordering that will increase memory
        coherency by putting elements that are in physical proximity closer in
        memory. */
-   void GetGeckoElementReordering(Array<int> &ordering);
+   void GetGeckoElementReordering(Array<int> &ordering,
+                                  int iterations = 1, int window = 2,
+                                  int period = 1, int seed = 0);
+#endif
+#ifdef MFEM_USE_METIS
+   /** */
+   void GetMetisElementReordering(Array<int> &ordering);
 #endif
 
    /** Rebuilds the mesh with a different order of elements.  The ordering

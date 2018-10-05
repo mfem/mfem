@@ -41,6 +41,8 @@ extern "C" {
                             int*, int*, int*, int*, int*, idxtype*);
    void METIS_PartGraphVKway(int*, idxtype*, idxtype*, idxtype*, idxtype*,
                              int*, int*, int*, int*, int*, idxtype*);
+   void METIS_NodeND(int *n, idxtype *xadj, idxtype *adjncy, int* numflag,
+                     int *options, idxtype *perm, idxtype *iperm);
 }
 #endif
 
@@ -1185,17 +1187,19 @@ void Mesh::FinalizeQuadMesh(int generate_edges, int refine,
 
 
 #ifdef MFEM_USE_GECKO
-void Mesh::GetGeckoElementReordering(Array<int> &ordering)
+void Mesh::GetGeckoElementReordering(Array<int> &ordering,
+                                     int iterations, int window,
+                                     int period, int seed)
 {
    Gecko::Graph graph;
 
-   // We will put some accesors in for these later
    Gecko::Functional *functional =
       new Gecko::FunctionalGeometric(); // ordering functional
-   unsigned int iterations = 1;         // number of V cycles
+
+   /*unsigned int iterations = 1;         // number of V cycles
    unsigned int window = 2;             // initial window size
    unsigned int period = 1;             // iterations between window increment
-   unsigned int seed = 0;               // random number seed
+   unsigned int seed = 0;               // random number seed*/
 
    // Run through all the elements and insert the nodes in the graph for them
    for (int elemid = 0; elemid < GetNE(); ++elemid)
@@ -1229,6 +1233,31 @@ void Mesh::GetGeckoElementReordering(Array<int> &ordering)
 }
 #endif
 
+#ifdef MFEM_USE_METIS
+void Mesh::GetMetisElementReordering(Array<int> &ordering)
+{
+   ElementToElementTable();
+
+   int ne = el_to_el->Size();
+   int numflag = 0;
+
+   int options[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+
+   int* I = el_to_el->GetI();
+   int* J = el_to_el->GetJ();
+
+   for (int i = 0; i < ne; i++)
+   {
+      std::sort(J + I[i], J + I[i+1]);
+   }
+
+   Array<int> perm(ne), iperm(ne);
+   METIS_NodeND(&ne, (idxtype*) el_to_el->GetI(), (idxtype*) el_to_el->GetJ(),
+                &numflag, options, perm.GetData(), iperm.GetData());
+
+   iperm.Copy(ordering);
+}
+#endif
 
 void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
 {

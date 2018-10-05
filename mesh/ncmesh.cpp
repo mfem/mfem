@@ -3641,6 +3641,31 @@ void NCMesh::PrintStats(std::ostream &out) const
 }
 
 #ifdef MFEM_DEBUG
+void NCMesh::DebugLeafOrder(std::ostream &out) const
+{
+   tmp_vertex = new TmpVertex[nodes.NumIds()];
+   for (int i = 0; i < leaf_elements.Size(); i++)
+   {
+      const Element* elem = &elements[leaf_elements[i]];
+      for (int j = 0; j < Dim; j++)
+      {
+         double sum = 0.0;
+         int count = 0;
+         for (int k = 0; k < 8; k++)
+         {
+            if (elem->node[k] >= 0)
+            {
+               sum += CalcVertexPos(elem->node[k])[j];
+               count++;
+            }
+         }
+         out << sum / count << " ";
+      }
+      out << "\n";
+   }
+   delete [] tmp_vertex;
+}
+
 void NCMesh::DebugDump(std::ostream &out) const
 {
    // dump nodes

@@ -730,6 +730,7 @@ protected: // implementation
 
 #ifdef MFEM_DEBUG
 public:
+   void DebugLeafOrder(std::ostream &out) const;
    void DebugDump(std::ostream &out) const;
 #endif
 
