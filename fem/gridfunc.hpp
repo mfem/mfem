@@ -570,8 +570,10 @@ inline void QuadratureFunction::SetSpace(QuadratureSpace *qspace_,
 
 inline void QuadratureFunction::GetElementValues(int idx, Vector &values)
 {
+   // element offset is the number of quadrature points for that element
    const int s_offset = qspace->element_offsets[idx];
    const int sl_size = qspace->element_offsets[idx+1] - s_offset;
+   printf("idx, vdim, s_offset %d, %d, %d \n", idx, vdim, s_offset);
    values.NewDataAndSize(data + vdim*s_offset, vdim*sl_size);
 }
 

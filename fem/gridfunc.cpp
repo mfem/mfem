@@ -2574,12 +2574,13 @@ void QuadratureFunction::GetElementValues(int idx, int ip_num,
    int vDim = GetVDim();
 
    // set the size of the integration point data vector @a values
-   values.SetSize(vDim);
+//   values.SetSize(vDim);
+   values.NewDataAndSize(elem_vec + ip_num*vDim, vDim);
 
    // set the data in values, which is a subset of the full 
    // element data stored in elem_vec. This is a routine 
    // written by SRW on the vector class
-   values.SetVector(elem_vec, 0, vDim, ip_num*vDim);
+//   values.SetVector(elem_vec, 0, vDim, ip_num*vDim);
 } 
 
 void QuadratureFunction::Save(std::ostream &out) const

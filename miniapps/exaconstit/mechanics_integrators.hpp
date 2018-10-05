@@ -91,11 +91,17 @@ public:
    ExaModel(QuadratureFunction *q_stress0, QuadratureFunction *q_stress1,
              QuadratureFunction *q_matGrad, QuadratureFunction *q_matVars0,
              QuadratureFunction *q_matVars1, QuadratureFunction *q_defGrad0, 
-             Vector &props, int nProps,
-             int nStateVars, bool _cauchy) : numProps(nProps), numStateVars(nStateVars),
-                 cauchy(_cauchy), Ttr(NULL), stress0(q_stress0), stress1(q_stress1), 
-                 matGrad(q_matGrad), matVars0(q_matVars0), matVars1(q_matVars1), 
-                 defGrad0(q_defGrad0), matProps(props) { }
+             Vector &props, int nProps, int nStateVars, bool _cauchy) : 
+               numProps(nProps), numStateVars(nStateVars),
+               cauchy(_cauchy), Ttr(NULL), 
+               stress0(q_stress0),
+               stress1(q_stress1), 
+               matGrad(q_matGrad), 
+               matVars0(q_matVars0), 
+               matVars1(q_matVars1), 
+               defGrad0(q_defGrad0), 
+               matProps(props) { }
+
    virtual ~ExaModel() { }
 
    /// A reference-element to target-element transformation that can be used to
@@ -205,7 +211,7 @@ public:
 
    void CauchyToPK1();
 
-   void PK1ToCauchy(const DenseMatrix &P, double* sigma);
+   void PK1ToCauchy(const DenseMatrix &P, const DenseMatrix& J, double* sigma);
 
    void ComputeVonMises(const int elemID, const int ipID);
 
@@ -290,10 +296,10 @@ public:
               c_K(&_K), c_g(_g), have_coeffs(false) { }
 
    // place original EvalP and AssembleH into Eval()
-   virtual void EvalModel(const DenseMatrix &Jpt, const DenseMatrix &DS,
+   virtual void EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
                           const double weight);
 
-   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+   virtual void AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A);
 
 };

@@ -25,7 +25,7 @@ class QuadratureFunction;
 /// Quadrature function coefficient
 class QuadratureVectorFunctionCoefficient : public VectorCoefficient
 {
-private:
+public:
    QuadratureFunction *QuadF;
 
 public:
