@@ -611,8 +611,10 @@ inline void QuadratureFunction::SetSpace(QuadratureSpace *qspace_,
 
 inline void QuadratureFunction::GetElementValues(int idx, Vector &values)
 {
+   // element offset is the number of quadrature points for that element
    const int s_offset = qspace->element_offsets[idx];
    const int sl_size = qspace->element_offsets[idx+1] - s_offset;
+   printf("idx, vdim, s_offset %d, %d, %d \n", idx, vdim, s_offset);
    values.NewDataAndSize(data + vdim*s_offset, vdim*sl_size);
 }
 
@@ -631,21 +633,22 @@ inline void QuadratureFunction::GetElementValues(int idx, Vector &values) const
 inline void QuadratureFunction::GetElementValues(int idx, int ip_num,
                                                  Vector &values)
 {
-        // get the element values and store them in elem_vec
-        Vector elem_vec;
-        GetElementValues(idx, elem_vec);
-        
-        // get the vector dimension of the quadrature function.
-        // This is the size of data stored at each integration point
-        int vDim = GetVDim();
-        
-        // set the size of the integration point data vector @a values
-        values.SetSize(vDim);
-        
-        // set the data in values, which is a subset of the full
-        // element data stored in elem_vec. This is a routine
-        // written by SRW on the vector class
-        values.SetVector(elem_vec, 0, vDim, ip_num*vDim);
+    // get the element values and store them in elem_vec
+    Vector elem_vec;
+    GetElementValues(idx, elem_vec);
+    
+    // get the vector dimension of the quadrature function.
+    // This is the size of data stored at each integration point
+    int vDim = GetVDim();
+    
+    // set the size of the integration point data vector @a values
+    //   values.SetSize(vDim);
+    values.NewDataAndSize(elem_vec + ip_num*vDim, vDim);
+    
+    // set the data in values, which is a subset of the full
+    // element data stored in elem_vec. This is a routine
+    // written by SRW on the vector class
+    //   values.SetVector(elem_vec, 0, vDim, ip_num*vDim);
 }
 
 inline void QuadratureFunction::GetElementValues(int idx, DenseMatrix &values)

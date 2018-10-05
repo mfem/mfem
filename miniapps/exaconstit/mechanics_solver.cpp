@@ -90,6 +90,13 @@ void ExaNewtonSolver::Mult(const Vector &b, Vector &x) const
       prec->SetOperator(oper->GetGradient(x));
 
       prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
+                         // ExaConstit may use GMRES here
+
+      // debug print
+//      for (int i=0; i<c.Size(); ++i)
+//      {
+//         printf("csolver c: %f \n", c[i]);
+//      } 
 
       const double c_scale = ComputeScalingFactor(x, b);
       if (c_scale == 0.0)
@@ -97,13 +104,27 @@ void ExaNewtonSolver::Mult(const Vector &b, Vector &x) const
          converged = 0;
          break;
       }
-      add(x, -c_scale, c, x);
+      add(x, -c_scale, c, x); // full update to the current config
+                              // ExaConstit (srw)
+
+//      debug print
+//      for (int i=0; i<x.Size(); ++i)
+//      {
+//        printf("mechanics_solver x: %f \n", x(i));
+//      }
 
       oper->Mult(x, r);
       if (have_b)
       {
          r -= b;
       }
+
+      // debug print
+//      for (int i=0; i<r.Size(); ++i)
+//      {
+//         printf("rsolver r: %f \n", r[i]);
+//      } 
+
       norm = Norm(r);
    }
 

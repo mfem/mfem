@@ -30,6 +30,7 @@ void BCData::setDirBCs(const Vector& x, double t, Vector& y)
    y[1] = fac * essDisp[1] * scale[1] * dt;
    y[2] = fac * essDisp[2] * scale[2] * dt; 
 //   printf("BCData dt: %f \n", dt);
+//     printf("BCData y(0,1,2) %f %f %f \n", y[0], y[1], y[2]);
 //   printf("BCData essDisp: %f %f %f \n", essDisp[0], essDisp[1], essDisp[2]);
 }
 
