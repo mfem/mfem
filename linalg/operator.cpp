@@ -155,6 +155,7 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
                                          bool _own_A)
    : Operator(A->Height(), A->Width()), A(A), own_A(_own_A)
 {
+   assert(A);
    constraint_list.MakeRef(list);
    z.SetSize(height);
    w.SetSize(height);
@@ -162,15 +163,15 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
 
 void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
+   assert(A);
    w = 0.0;
-
    for (int i = 0; i < constraint_list.Size(); i++)
    {
       w(constraint_list[i]) = x(constraint_list[i]);
    }
-
    A->Mult(w, z);
 
+   assert(false);
    b -= z;
 
    for (int i = 0; i < constraint_list.Size(); i++)

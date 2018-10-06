@@ -54,6 +54,7 @@ Vector::Vector(double *_data, int _size) {
       size = _size;
       allocsize = -size;
    }else{
+#warning look at here
       //stk(true);assert(false);
       //dbg("_size=%d",_size);
       //dbg("_data=%p",_data);
@@ -207,18 +208,13 @@ Vector &Vector::operator-=(const Vector &v)
 
 Vector &Vector::operator+=(const Vector &v)
 {
-   //OKINA_ASSERT_GPU;
 #ifdef MFEM_DEBUG
    if (size != v.size)
    {
       mfem_error("Vector::operator+=(const Vector &)");
    }
 #endif
-   kVectorDotOpPlusEQ(size,v.GetData(),data);/*
-   for (int i = 0; i < size; i++)
-   {
-      data[i] += v(i);
-      }*/
+   kVectorDotOpPlusEQ(size,v.GetData(),data);
    return *this;
 }
 

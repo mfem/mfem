@@ -163,9 +163,13 @@ void rDiffusionMultAdd(const int DIM,
 #endif
    const unsigned int id = (DIM<<16)|((NUM_DOFS_1D-1)<<8)|(NUM_QUAD_1D>>1);
    static std::unordered_map<unsigned int, fDiffusionMultAdd> call = {
-    {0x20001,&rDiffusionMultAdd2D<1,2>},    {0x20101,&rDiffusionMultAdd2D<2,2>},
-    {0x20102,&rDiffusionMultAdd2D<2,4>},    {0x20202,&rDiffusionMultAdd2D<3,4>},
-    {0x20203,&rDiffusionMultAdd2D<3,6>},    {0x20303,&rDiffusionMultAdd2D<4,6>},
+    {0x20001,&rDiffusionMultAdd2D<1,2>},
+    {0x20100,&rDiffusionMultAdd2D<2,1>},
+    {0x20101,&rDiffusionMultAdd2D<2,2>},
+    {0x20102,&rDiffusionMultAdd2D<2,4>},
+    {0x20202,&rDiffusionMultAdd2D<3,4>},
+    {0x20203,&rDiffusionMultAdd2D<3,6>},
+    {0x20303,&rDiffusionMultAdd2D<4,6>},
     //{0x30001,&rDiffusionMultAdd3D<1,2>},    {0x30101,&rDiffusionMultAdd3D<2,2>},
     //{0x30102,&rDiffusionMultAdd3D<2,4>},    {0x30202,&rDiffusionMultAdd3D<3,4>},
    };

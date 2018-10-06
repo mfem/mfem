@@ -14,6 +14,7 @@
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
 #include "kernels.hpp"
+#include "../../general/dbg.hpp"
 
 // *****************************************************************************
 template<const int NUM_DOFS,
@@ -50,9 +51,11 @@ void rIniGeom(const int DIM,
    const unsigned int dofs1D = IROOT(DIM,NUM_DOFS);
    const unsigned int quad1D = IROOT(DIM,NUM_QUAD);
    const unsigned int id = (DIM<<4)|(dofs1D-2);
+   //dbg("quad1D=%d",quad1D);
+   //dbg("dofs1D=%d",dofs1D);
    assert(LOG2(DIM)<=4);
    assert(LOG2(dofs1D-2)<=4);
-   assert(quad1D==2*(dofs1D-1));
+   //assert(quad1D==2*(dofs1D-1));
    static std::unordered_map<unsigned int, fIniGeom> call = {
       // 2D
       {0x20,&rIniGeom2D<2*2,(2*2-2)*(2*2-2)>},

@@ -16,42 +16,82 @@ using namespace std;
 MFEM_NAMESPACE
 
 // *****************************************************************************
-void kDet1(const double *data, double *det){
-   //GET_CONST_ADRS(data);
-   //GET_ADRS(det);
-   forall(i,1, */*d_*/det = /*d_*/data[0];);
-}
-void kDet2(const double *data, double *det);
-void kDet3(const double *data, double *det);
-void kDet4(const double *data, double *det);
+void kFactor(const int m, int *ipiv, double *data){
+   GET_ADRS_T(ipiv,int);
+   GET_ADRS(data);
+   forall(k,1,{
+         for (int i = 0; i < m; i++) {
+            // pivoting
+            {
+               int piv = i;
+               double a = fabs(d_data[piv+i*m]);
+               for (int j = i+1; j < m; j++)
+               {
+                  const double b = fabs(d_data[j+i*m]);
+                  if (b > a)
+                  {
+                     a = b;
+                     piv = j;
+                  }
+               }
+               d_ipiv[i] = piv;
+               if (piv != i)
+               {
+                  // swap rows i and piv in both L and U parts
+                  for (int j = 0; j < m; j++)
+                  {
+                     //Swap<double>(d_data[i+j*m], d_data[piv+j*m]);
+                     const double a = d_data[i+j*m];
+                     const double b = d_data[piv+j*m];
+                     d_data[i+j*m] = b;
+                     d_data[piv+j*m] = a;
+                  }
+               }
+            }
+            const double diim = d_data[i+i*m];
+            printf("\n\t\033[32;7mdiim=%f\033[m",diim);
+            assert(diim != 0.0);
+            const double a_ii_inv = 1.0/d_data[i+i*m];
+            for (int j = i+1; j < m; j++)
+            {
+               d_data[j+i*m] *= a_ii_inv;
+            }
+            for (int k = i+1; k < m; k++)
+            {
+               const double a_ik = d_data[i+k*m];
+               for (int j = i+1; j < m; j++)
+               {
+                  d_data[j+k*m] -= a_ik * d_data[j+i*m];
+               }
+            }
+         }
+      });
+}        
 
 // *****************************************************************************
 void kMult(const int ah, const int aw, const int bw,
            const double *bd, const double *cd, double *ad){
-   
-   for (int i = 0; i < ah*aw; i++)
-   {
-      ad[i] = 0.0;
-   }
-   for (int j = 0; j < aw; j++)
-   {
-      for (int k = 0; k < bw; k++)
-      {
-         for (int i = 0; i < ah; i++)
+   GET_CONST_ADRS(bd);
+   GET_CONST_ADRS(cd);
+   GET_ADRS(ad);
+   forall(k,1,{
+         for (int i = 0; i < ah*aw; i++)
          {
-            ad[i+j*ah] += bd[i+k*ah] * cd[k+j*bw];
+            d_ad[i] = 0.0;
          }
-      }
-   }
+         for (int j = 0; j < aw; j++)
+         {
+            for (int k = 0; k < bw; k++)
+            {
+               for (int i = 0; i < ah; i++)
+               {
+                  d_ad[i+j*ah] += d_bd[i+k*ah] * d_cd[k+j*bw];
+               }
+            }
+         }
+      });
 }
-/*
-   forall(i, height,{
-         double sum = 0.0;
-         for(int j=0; j<width; j+=1){
-            sum += d_x[j]*d_data[i+j*height];
-         }
-         d_y[i] = sum;
-         });*/
+
 // **************************************************************************
 void DenseMatrixSet(const double d,
                     const size_t size,

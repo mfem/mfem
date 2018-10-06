@@ -54,7 +54,6 @@ private:
 public:
    template<class T>
    static inline T* malloc(size_t size, const size_t size_of_T = sizeof(T)) {
-      dbg();
       if (!mm::Get().mng) mm::Get().Setup();
       // alloc on host first
       T *ptr = ::new T[size];

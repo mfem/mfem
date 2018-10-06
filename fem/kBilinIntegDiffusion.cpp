@@ -46,7 +46,7 @@ void KDiffusionIntegrator::Assemble(){
    kGeometry *geo = kGeometry::Get(*fes, *ir);
    maps = kDofQuadMaps::Get(*fes, *fes, *ir);
    assert(geo);
-   assert(false);
+   //assert(false);
 
    rDiffusionAssemble(dim,
                       quad1D,
@@ -55,8 +55,26 @@ void KDiffusionIntegrator::Assemble(){
                       geo->J,
                       1.0,//COEFF
                       vec);
-   assert(false);
+   //assert(false);
 }
 
+// *****************************************************************************
+void KDiffusionIntegrator::MultAdd(Vector &x, Vector &y)
+{
+   const int dim = fes->GetMesh()->Dimension();
+   const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
+   const int dofs1D = fes->GetFE(0)->GetOrder() + 1;
+   rDiffusionMultAdd(dim,
+                     dofs1D,
+                     quad1D,
+                     fes->GetMesh()->GetNE(),
+                     maps->dofToQuad,
+                     maps->dofToQuadD,
+                     maps->quadToDof,
+                     maps->quadToDofD,
+                     vec,
+                     x,
+                     y);
+}
 // *****************************************************************************
 MFEM_NAMESPACE_END

@@ -31,6 +31,7 @@ void mm::Setup(void){
 // * Returns the 'instant' one
 // *****************************************************************************
 void* mm::add(const void *h_adrs, const size_t size, const size_t size_of_T){
+   dbg();
    const size_t bytes = size*size_of_T;
    const auto search = mng->find(h_adrs);
    const bool present = search != mng->end();
@@ -52,8 +53,10 @@ void* mm::add(const void *h_adrs, const size_t size, const size_t size_of_T){
       CUdeviceptr ptr = (CUdeviceptr)NULL;
       const size_t bytes = mm2dev.bytes;
       if (bytes>0){
-         //printf(" \033[32;1m%ldo\033[m",bytes);
+         printf(" \033[32;1m%ldo\033[m",bytes);
          checkCudaErrors(cuMemAlloc(&ptr,bytes));
+      }else{
+         printf(" \033[31;1m%ldo\033[m",bytes);
       }
       mm2dev.d_adrs = (void*)ptr;
       // and say we are there
