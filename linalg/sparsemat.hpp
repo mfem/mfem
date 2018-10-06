@@ -521,6 +521,7 @@ inline void SparseMatrix::SetColPtr(const int row) const
 {
    if (Rows)
    {
+      OKINA_ASSERT_GPU;
       if (ColPtrNode == NULL)
       {
          ColPtrNode = mm::malloc<RowNode*>(width);
@@ -556,21 +557,24 @@ inline void SparseMatrix::SetColPtr(const int row) const
 
 inline void SparseMatrix::ClearColPtr() const
 {
-   if (Rows)
+   OKINA_ASSERT_GPU;
+   if (Rows){
       for (RowNode *node_p = Rows[current_row]; node_p != NULL;
            node_p = node_p->Prev)
       {
          ColPtrNode[node_p->Column] = NULL;
       }
-   else
+   }else{
       for (int j = I[current_row], end = I[current_row+1]; j < end; j++)
       {
          ColPtrJ[J[j]] = -1;
       }
+   }
 }
 
 inline double &SparseMatrix::SearchRow(const int col)
 {
+   OKINA_ASSERT_GPU;
    if (Rows)
    {
       RowNode *node_p = ColPtrNode[col];

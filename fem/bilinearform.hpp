@@ -20,13 +20,74 @@
 #include "bilininteg.hpp"
 #include "staticcond.hpp"
 #include "hybridization.hpp"
+#include "kfespace.hpp"
+#include "kBilinIntegDiffusion.hpp"
 
 namespace mfem
 {
 
+// *****************************************************************************
+// * AbstractBilinearForm
+// *****************************************************************************
+class AbstractBilinearForm : public Operator{
+public:
+   const FiniteElementSpace *fes;
+public:
+   AbstractBilinearForm(FiniteElementSpace *f) : Operator(f?f->GetVSize():0), fes(f) { }
+   virtual ~AbstractBilinearForm() { }
+   virtual void AddDomainIntegrator(AbstractBilinearFormIntegrator*) = 0;
+   virtual void Assemble(int skip_zeros = 1) = 0;
+   virtual void FormOperator(const Array<int> &ess_tdof_list,
+                             Operator &A) = 0;
+   virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
+                                 Vector &x, Vector &b,
+                                 Operator &A, Vector &X, Vector &B,
+                                 int copy_interior=0) = 0;
+   virtual void RecoverFEMSolution(const Vector &X, const Vector &b,
+                                   Vector &x) = 0;
+   virtual void EnableStaticCondensation() =0;
+};
+
+// ***************************************************************************
+// * PA BilinearForm
+// ***************************************************************************
+class PABilinearForm : public AbstractBilinearForm {
+protected:
+   const Mesh *mesh;
+   const FiniteElementSpace *trialFes;
+   const FiniteElementSpace *testFes;
+   Array<BilinearPAFormIntegrator*> integrators;
+   mutable Vector localX, localY;
+   kFiniteElementSpace *kfes;
+   KDiffusionIntegrator *diffusion;
+public:
+   PABilinearForm(FiniteElementSpace*);
+   ~PABilinearForm();
+   // *************************************************************************
+   virtual void EnableStaticCondensation();
+   virtual void AddDomainIntegrator(AbstractBilinearFormIntegrator*);
+   void AddBoundaryIntegrator(AbstractBilinearFormIntegrator*);
+   void AddInteriorFaceIntegrator(AbstractBilinearFormIntegrator*);
+   void AddBoundaryFaceIntegrator(AbstractBilinearFormIntegrator*);
+   // *************************************************************************
+   virtual void Assemble(int skip_zeros = 1);
+   virtual void FormOperator(const Array<int> &ess_tdof_list, Operator &A);
+   virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
+                                 Vector &x, Vector &b,
+                                 Operator &A, Vector &X, Vector &B,
+                                 int copy_interior = 0);
+   virtual void RecoverFEMSolution(const Vector &X, const Vector &b,
+                                   Vector &x);
+   virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void MultTranspose(const Vector &x, Vector &y) const;
+};
+
+// *****************************************************************************
+// * FA BilinearForm
 /** Class for bilinear form - "Matrix" with associated FE space and
     BLFIntegrators. */
-class BilinearForm : public Matrix
+// *****************************************************************************
+class FABilinearForm : public AbstractBilinearForm
 {
 protected:
    /// Sparse matrix to be associated with the form.
@@ -39,7 +100,7 @@ protected:
    FiniteElementSpace *fes;
 
    /// Indicates the Mesh::sequence corresponding to the current state of the
-   /// BilinearForm.
+   /// FABilinearForm.
    long sequence;
 
    int extern_bfs;
@@ -71,7 +132,7 @@ protected:
     * to the diagonal matrix entries and corresponding RHS
     * values upon elimination of the constrained DoFs.
     */
-   DiagonalPolicy diag_policy;
+   Matrix::DiagonalPolicy diag_policy;
 
    int precompute_sparsity;
    // Allocate appropriate SparseMatrix and assign it to mat
@@ -80,29 +141,29 @@ protected:
    void ConformingAssemble();
 
    // may be used in the construction of derived classes
-   BilinearForm() : Matrix (0)
+   FABilinearForm() : AbstractBilinearForm (NULL)
    {
       fes = NULL; sequence = -1;
       mat = mat_e = NULL; extern_bfs = 0; element_matrices = NULL;
       static_cond = NULL; hybridization = NULL;
       precompute_sparsity = 0;
-      diag_policy = DIAG_KEEP;
+      diag_policy = Matrix::DIAG_KEEP;
    }
 
 public:
    /// Creates bilinear form associated with FE space @a *f.
-   BilinearForm(FiniteElementSpace *f);
+   FABilinearForm(FiniteElementSpace *f);
 
-   BilinearForm(FiniteElementSpace *f, BilinearForm *bf, int ps = 0);
+   FABilinearForm(FiniteElementSpace *f, FABilinearForm *bf, int ps = 0);
 
-   /// Get the size of the BilinearForm as a square matrix.
+   /// Get the size of the FABilinearForm as a square matrix.
    int Size() const { return height; }
 
    /** Enable the use of static condensation. For details see the description
        for class StaticCondensation in fem/staticcond.hpp This method should be
        called before assembly. If the number of unknowns after static
        condensation is not reduced, it is not enabled. */
-   void EnableStaticCondensation();
+   virtual void EnableStaticCondensation();
 
    /** Check if static condensation was actually enabled by a previous call to
        EnableStaticCondensation(). */
@@ -166,7 +227,7 @@ public:
    { mat->Mult(x, y); mat_e->AddMult(x, y); }
 
    virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const
-   { mat -> AddMult (x, y, a); }
+   { assert(false);mat -> AddMult (x, y, a); }
 
    void FullAddMult(const Vector &x, Vector &y) const
    { mat->AddMult(x, y); mat_e->AddMult(x, y); }
@@ -216,7 +277,7 @@ public:
    }
 
    /// Adds new Domain Integrator.
-   void AddDomainIntegrator(BilinearFormIntegrator *bfi);
+   virtual void AddDomainIntegrator(AbstractBilinearFormIntegrator *bfi);
 
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi);
@@ -244,7 +305,7 @@ public:
    }
 
    /// Assembles the form i.e. sums over all domain/bdr integrators.
-   void Assemble(int skip_zeros = 1);
+   virtual void Assemble(int skip_zeros = 1);
 
    /// Get the finite element space prolongation matrix
    virtual const Operator *GetProlongation() const
@@ -260,7 +321,7 @@ public:
        non-conforming AMR; static condensation; hybridization.
 
        The GridFunction-size vector @a x must contain the essential b.c. The
-       BilinearForm and the LinearForm-size vector @a b must be assembled.
+       FABilinearForm and the LinearForm-size vector @a b must be assembled.
 
        The vector @a X is initialized with a suitable initial guess: when using
        hybridization, the vector @a X is set to zero; otherwise, the essential
@@ -278,13 +339,14 @@ public:
 
        NOTE: If there are no transformations, @a X simply reuses the data of
              @a x. */
-   void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
-                         SparseMatrix &A, Vector &X, Vector &B,
-                         int copy_interior = 0);
+   virtual void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
+                                 Operator &A, Vector &X, Vector &B,
+                                 int copy_interior = 0);
 
    /// Form the linear system matrix A, see FormLinearSystem() for details.
    void FormSystemMatrix(const Array<int> &ess_tdof_list, SparseMatrix &A);
-
+   virtual void FormOperator(const Array<int> &ess_tdof_list, Operator &A) {assert(false);}
+   
    /// Recover the solution of a linear system formed with FormLinearSystem().
    /** Call this method after solving a linear system constructed using the
        FormLinearSystem() method to recover the solution as a GridFunction-size
@@ -312,38 +374,38 @@ public:
        @a dpolicy. */
    void EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
                              const Vector &sol, Vector &rhs,
-                             DiagonalPolicy dpolicy = DIAG_ONE);
+                             Matrix::DiagonalPolicy dpolicy = Matrix::DIAG_ONE);
 
    /// Eliminate essential boundary DOFs from the system matrix.
    void EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
-                             DiagonalPolicy dpolicy = DIAG_ONE);
+                             Matrix::DiagonalPolicy dpolicy = Matrix::DIAG_ONE);
    /// Perform elimination and set the diagonal entry to the given value
    void EliminateEssentialBCDiag(const Array<int> &bdr_attr_is_ess,
                                  double value);
 
    /// Eliminate the given @a vdofs. NOTE: here, @a vdofs is a list of DOFs.
    void EliminateVDofs(const Array<int> &vdofs, const Vector &sol, Vector &rhs,
-                       DiagonalPolicy dpolicy = DIAG_ONE);
+                       Matrix::DiagonalPolicy dpolicy = Matrix::DIAG_ONE);
 
    /// Eliminate the given @a vdofs, storing the eliminated part internally.
    /** This method works in conjunction with EliminateVDofsInRHS() and allows
        elimination of boundary conditions in multiple right-hand sides. In this
        method, @a vdofs is a list of DOFs. */
    void EliminateVDofs(const Array<int> &vdofs,
-                       DiagonalPolicy dpolicy = DIAG_ONE);
+                       Matrix::DiagonalPolicy dpolicy = Matrix::DIAG_ONE);
 
    /** @brief Similar to
        EliminateVDofs(const Array<int> &, const Vector &, Vector &, DiagonalPolicy)
        but here @a ess_dofs is a marker (boolean) array on all vector-dofs
        (@a ess_dofs[i] < 0 is true). */
    void EliminateEssentialBCFromDofs(const Array<int> &ess_dofs, const Vector &sol,
-                                     Vector &rhs, DiagonalPolicy dpolicy = DIAG_ONE);
+                                     Vector &rhs, Matrix::DiagonalPolicy dpolicy = Matrix::DIAG_ONE);
 
    /** @brief Similar to EliminateVDofs(const Array<int> &, DiagonalPolicy) but
        here @a ess_dofs is a marker (boolean) array on all vector-dofs
        (@a ess_dofs[i] < 0 is true). */
    void EliminateEssentialBCFromDofs(const Array<int> &ess_dofs,
-                                     DiagonalPolicy dpolicy = DIAG_ONE);
+                                     Matrix::DiagonalPolicy dpolicy = Matrix::DIAG_ONE);
    /// Perform elimination and set the diagonal entry to the given value
    void EliminateEssentialBCFromDofsDiag(const Array<int> &ess_dofs,
                                          double value);
@@ -359,20 +421,59 @@ public:
 
    virtual void Update(FiniteElementSpace *nfes = NULL);
 
-   /// (DEPRECATED) Return the FE space associated with the BilinearForm.
+   /// (DEPRECATED) Return the FE space associated with the FABilinearForm.
    /** @deprecated Use FESpace() instead. */
    FiniteElementSpace *GetFES() { return fes; }
 
-   /// Return the FE space associated with the BilinearForm.
+   /// Return the FE space associated with the FABilinearForm.
    FiniteElementSpace *FESpace() { return fes; }
    /// Read-only access to the associated FiniteElementSpace.
    const FiniteElementSpace *FESpace() const { return fes; }
 
    /// Sets diagonal policy used upon construction of the linear system
-   void SetDiagonalPolicy(DiagonalPolicy policy);
+   void SetDiagonalPolicy(Matrix::DiagonalPolicy policy);
 
    /// Destroys bilinear form.
-   virtual ~BilinearForm();
+   virtual ~FABilinearForm();
+};
+
+// *****************************************************************************
+// * 
+// *****************************************************************************
+class BilinearForm{
+private:
+   const bool FA = true;
+   AbstractBilinearForm *abf;
+public:
+   BilinearForm(FiniteElementSpace *f):
+      FA(config::Get().PA()==false),
+      abf(FA?
+          static_cast<AbstractBilinearForm*>(new FABilinearForm(f)):
+          static_cast<AbstractBilinearForm*>(new PABilinearForm(f))) {}
+   ~BilinearForm(){}
+   // **************************************************************************
+   void EnableStaticCondensation(){assert(false);}
+   void AddDomainIntegrator(AbstractBilinearFormIntegrator *i){
+      abf->AddDomainIntegrator(i);
+   }
+   // **************************************************************************
+   virtual void Assemble() { abf->Assemble(); }
+   virtual void FormOperator(const Array<int> &ess_tdof_list,
+                             Operator &A) {
+      abf->FormOperator(ess_tdof_list,A);
+   }
+   virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
+                                 Vector &x, Vector &b,
+                                 Operator &A, Vector &X, Vector &B,
+                                 int copy_interior =0){
+      abf->FormLinearSystem(ess_tdof_list,x,b,A,X,B,copy_interior);
+   }
+   virtual void RecoverFEMSolution(const Vector &X, const Vector &b,
+                                   Vector &x) {
+      abf->RecoverFEMSolution(X,b,x);
+   }
+   virtual void Mult(const Vector &x, Vector &y) const {assert(false);}
+   virtual void MultTranspose(const Vector &x, Vector &y) const {assert(false);}
 };
 
 /**

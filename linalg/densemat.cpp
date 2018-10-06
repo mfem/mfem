@@ -627,7 +627,7 @@ DenseMatrix &DenseMatrix::operator=(const DenseMatrix &m)
 
 DenseMatrix &DenseMatrix::operator+=(const double *m)
 {
-   OKINA_ASSERT_CPU;
+   OKINA_ASSERT_GPU;
    const int hw = Height()*Width();
    for (int i = 0; i < hw; i++)
    {
@@ -638,7 +638,7 @@ DenseMatrix &DenseMatrix::operator+=(const double *m)
 
 DenseMatrix &DenseMatrix::operator+=(const DenseMatrix &m)
 {
-   OKINA_ASSERT_CPU;
+   OKINA_ASSERT_GPU;
    MFEM_ASSERT(Height() == m.Height() && Width() == m.Width(),
                "incompatible matrix sizes.");
    return *this += m.GetData();
@@ -3986,8 +3986,8 @@ void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt)
       mfem_error("AddMult_a_VVt(...)");
    }
 #endif
-   kAddMult_a_VVt(n,a,v.GetData(),VVt.Height(),VVt.GetData());
-   /*
+#warning kAddMult_a_VVt
+   //kAddMult_a_VVt(n,a,v.GetData(),VVt.Height(),VVt.GetData());
    for (int i = 0; i < n; i++)
    {
       double avi = a * v(i);
@@ -3998,12 +3998,13 @@ void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt)
          VVt(j, i) += avivj;
       }
       VVt(i, i) += avi * v(i);
-      }*/
+   }
 }
 
 
 void LUFactors::Factor(int m)
 {
+   //stk(true);
    OKINA_ASSERT_GPU;
 #ifdef MFEM_USE_LAPACK
    int info = 0;
@@ -4012,19 +4013,21 @@ void LUFactors::Factor(int m)
 #else
    // compiling without LAPACK
    double *data = this->data;
+#warning kFactor
+   //kFactor(m,ipiv,data);
    for (int i = 0; i < m; i++)
    {
       // pivoting
       {
          int piv = i;
          double a = std::abs(data[piv+i*m]);
-         for (int j = i+1; j < m; j++)
+        for (int j = i+1; j < m; j++)
          {
             const double b = std::abs(data[j+i*m]);
             if (b > a)
             {
                a = b;
-               piv = j;
+              piv = j;
             }
          }
          ipiv[i] = piv;
@@ -4032,23 +4035,23 @@ void LUFactors::Factor(int m)
          {
             // swap rows i and piv in both L and U parts
             for (int j = 0; j < m; j++)
-            {
+           {
                Swap<double>(data[i+j*m], data[piv+j*m]);
             }
          }
-      }
+     }
       MFEM_ASSERT(data[i+i*m] != 0.0, "division by zero");
       const double a_ii_inv = 1.0/data[i+i*m];
       for (int j = i+1; j < m; j++)
-      {
+     {
          data[j+i*m] *= a_ii_inv;
       }
       for (int k = i+1; k < m; k++)
       {
          const double a_ik = data[i+k*m];
-         for (int j = i+1; j < m; j++)
+        for (int j = i+1; j < m; j++)
          {
-            data[j+k*m] -= a_ik * data[j+i*m];
+           data[j+k*m] -= a_ik * data[j+i*m];
          }
       }
    }

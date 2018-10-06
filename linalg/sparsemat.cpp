@@ -42,6 +42,7 @@ SparseMatrix::SparseMatrix(int nrows, int ncols)
      ownData(true),
      isSorted(false)
 {
+   assert(Rows);
    kSparseMatrix(nrows,Rows);
 
 #ifdef MFEM_USE_MEMALLOC
@@ -583,9 +584,11 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 
    if (Ap == NULL)
    {
-   OKINA_ASSERT_CPU;
+      dbg();
+      stk(true);
+      OKINA_ASSERT_CPU;
       //  The matrix is not finalized, but multiplication is still possible
-   assert(false);
+      assert(false);
       for (i = 0; i < height; i++)
       {
          RowNode *row = Rows[i];
@@ -1660,11 +1663,10 @@ void SparseMatrix::EliminateRowColDiag(int rc, double value)
 void SparseMatrix::EliminateRowCol(int rc, SparseMatrix &Ae,
                                    DiagonalPolicy dpolicy)
 {
-   OKINA_ASSERT_GPU;
    int col;
-
    if (Rows)
    {
+      OKINA_ASSERT_GPU;
       RowNode *nd, *nd2;
       for (nd = Rows[rc]; nd != NULL; nd = nd->Prev)
       {
@@ -1709,6 +1711,7 @@ void SparseMatrix::EliminateRowCol(int rc, SparseMatrix &Ae,
    }
    else
    {
+      OKINA_ASSERT_GPU;
       for (int j = I[rc]; j < I[rc+1]; j++)
       {
          if ((col = J[j]) == rc)

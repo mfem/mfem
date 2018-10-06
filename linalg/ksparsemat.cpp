@@ -25,7 +25,7 @@ public:
 
 // *****************************************************************************
 void kSparseMatrix(const int nrows, RowNode** Rows){
-   GET_ADRS(Rows);
+   GET_ADRS_T(Rows,RowNode*);
    forall(i, nrows, d_Rows[i] = NULL;);
 }
 

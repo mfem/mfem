@@ -19,7 +19,7 @@
 namespace mfem
 {
 
-void BilinearForm::AllocMat()
+void FABilinearForm::AllocMat()
 {
    if (static_cond) { return; }
 
@@ -64,8 +64,8 @@ void BilinearForm::AllocMat()
    dof_dof.LoseData();
 }
 
-BilinearForm::BilinearForm (FiniteElementSpace * f)
-   : Matrix (f->GetVSize())
+FABilinearForm::FABilinearForm (FiniteElementSpace * f)
+   : AbstractBilinearForm(f)//Matrix (f->GetVSize())
 {
    fes = f;
    sequence = f->GetSequence();
@@ -75,11 +75,11 @@ BilinearForm::BilinearForm (FiniteElementSpace * f)
    static_cond = NULL;
    hybridization = NULL;
    precompute_sparsity = 0;
-   diag_policy = DIAG_KEEP;
+   diag_policy = Matrix::DIAG_KEEP;
 }
 
-BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
-   : Matrix (f->GetVSize())
+FABilinearForm::FABilinearForm (FiniteElementSpace * f, FABilinearForm * bf, int ps)
+   : AbstractBilinearForm (f)
 {
    int i;
    Array<BilinearFormIntegrator*> *bfi;
@@ -92,7 +92,7 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
    static_cond = NULL;
    hybridization = NULL;
    precompute_sparsity = ps;
-   diag_policy = DIAG_KEEP;
+   diag_policy = Matrix::DIAG_KEEP;
 
    bfi = bf->GetDBFI();
    dbfi.SetSize (bfi->Size());
@@ -125,7 +125,7 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
    AllocMat();
 }
 
-void BilinearForm::EnableStaticCondensation()
+void FABilinearForm::EnableStaticCondensation()
 {
    delete static_cond;
    static_cond = new StaticCondensation(fes);
@@ -142,7 +142,7 @@ void BilinearForm::EnableStaticCondensation()
    }
 }
 
-void BilinearForm::EnableHybridization(FiniteElementSpace *constr_space,
+void FABilinearForm::EnableHybridization(FiniteElementSpace *constr_space,
                                        BilinearFormIntegrator *constr_integ,
                                        const Array<int> &ess_tdof_list)
 {
@@ -152,7 +152,7 @@ void BilinearForm::EnableHybridization(FiniteElementSpace *constr_space,
    hybridization->Init(ess_tdof_list);
 }
 
-void BilinearForm::UseSparsity(int *I, int *J, bool isSorted)
+void FABilinearForm::UseSparsity(int *I, int *J, bool isSorted)
 {
    if (static_cond) { return; }
 
@@ -168,7 +168,7 @@ void BilinearForm::UseSparsity(int *I, int *J, bool isSorted)
    mat = new SparseMatrix(I, J, NULL, height, width, false, true, isSorted);
 }
 
-void BilinearForm::UseSparsity(SparseMatrix &A)
+void FABilinearForm::UseSparsity(SparseMatrix &A)
 {
    MFEM_ASSERT(A.Height() == fes->GetVSize() && A.Width() == fes->GetVSize(),
                "invalid matrix A dimensions: "
@@ -178,22 +178,22 @@ void BilinearForm::UseSparsity(SparseMatrix &A)
    UseSparsity(A.GetI(), A.GetJ(), A.areColumnsSorted());
 }
 
-double& BilinearForm::Elem (int i, int j)
+double& FABilinearForm::Elem (int i, int j)
 {
    return mat -> Elem(i,j);
 }
 
-const double& BilinearForm::Elem (int i, int j) const
+const double& FABilinearForm::Elem (int i, int j) const
 {
    return mat -> Elem(i,j);
 }
 
-MatrixInverse * BilinearForm::Inverse() const
+MatrixInverse * FABilinearForm::Inverse() const
 {
    return mat -> Inverse();
 }
 
-void BilinearForm::Finalize (int skip_zeros)
+void FABilinearForm::Finalize (int skip_zeros)
 {
    if (!static_cond) { mat->Finalize(skip_zeros); }
    if (mat_e) { mat_e->Finalize(skip_zeros); }
@@ -201,43 +201,43 @@ void BilinearForm::Finalize (int skip_zeros)
    if (hybridization) { hybridization->Finalize(); }
 }
 
-void BilinearForm::AddDomainIntegrator (BilinearFormIntegrator * bfi)
+void FABilinearForm::AddDomainIntegrator (AbstractBilinearFormIntegrator * bfi)
 {
-   dbfi.Append (bfi);
+   dbfi.Append (static_cast<BilinearFormIntegrator*>(bfi));
 }
 
-void BilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi)
+void FABilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi)
 {
    bbfi.Append (bfi);
    bbfi_marker.Append(NULL); // NULL marker means apply everywhere
 }
 
-void BilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi,
+void FABilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi,
                                           Array<int> &bdr_marker)
 {
    bbfi.Append (bfi);
    bbfi_marker.Append(&bdr_marker);
 }
 
-void BilinearForm::AddInteriorFaceIntegrator (BilinearFormIntegrator * bfi)
+void FABilinearForm::AddInteriorFaceIntegrator (BilinearFormIntegrator * bfi)
 {
    fbfi.Append (bfi);
 }
 
-void BilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi)
+void FABilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi)
 {
    bfbfi.Append(bfi);
    bfbfi_marker.Append(NULL); // NULL marker means apply everywhere
 }
 
-void BilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
+void FABilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
                                         Array<int> &bdr_marker)
 {
    bfbfi.Append(bfi);
    bfbfi_marker.Append(&bdr_marker);
 }
 
-void BilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat)
+void FABilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat)
 {
    if (element_matrices)
    {
@@ -265,7 +265,7 @@ void BilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat)
    }
 }
 
-void BilinearForm::AssembleElementMatrix(
+void FABilinearForm::AssembleElementMatrix(
    int i, const DenseMatrix &elmat, Array<int> &vdofs, int skip_zeros)
 {
    fes->GetElementVDofs(i, vdofs);
@@ -287,7 +287,7 @@ void BilinearForm::AssembleElementMatrix(
    }
 }
 
-void BilinearForm::AssembleBdrElementMatrix(
+void FABilinearForm::AssembleBdrElementMatrix(
    int i, const DenseMatrix &elmat, Array<int> &vdofs, int skip_zeros)
 {
    fes->GetBdrElementVDofs(i, vdofs);
@@ -309,27 +309,8 @@ void BilinearForm::AssembleBdrElementMatrix(
    }
 }
 
-void BilinearForm::Assemble (int skip_zeros)
+void FABilinearForm::Assemble (int skip_zeros)
 {
-   dbg();
-   GET_CUDA;
-   if (cuda){
-      dbg("CUDA mode");
-      assert(dbfi.Size()==1);
-      const IntegrationRule *ir0 = dbfi[0]->GetIntRule();
-      const FiniteElement &fe = *fes->GetFE(0);
-      const int order = ir0?ir0->GetOrder():2*fe.GetOrder() - 2;
-      const IntegrationRule *ir = &IntRules.Get(fe.GetGeomType(), order);
-      assert(ir);
-      static KDiffusionIntegrator *diffusion = NULL;
-      if (!diffusion){
-         dbg("new KDiffusionIntegrator");
-         diffusion = new KDiffusionIntegrator(fes,ir);
-      }
-      dbg("diffusion->Assemble()");
-      diffusion->Assemble();
-   }
-   
    ElementTransformation *eltrans;
    Mesh *mesh = fes -> GetMesh();
    DenseMatrix elmat, *elmat_p;
@@ -526,14 +507,14 @@ void BilinearForm::Assemble (int skip_zeros)
 #endif
 }
 
-void BilinearForm::ConformingAssemble()
+void FABilinearForm::ConformingAssemble()
 {
    // Do not remove zero entries to preserve the symmetric structure of the
    // matrix which in turn will give rise to symmetric structure in the new
    // matrix. This ensures that subsequent calls to EliminateRowCol will work
    // correctly.
    Finalize(0);
-   MFEM_ASSERT(mat, "the BilinearForm is not assembled");
+   MFEM_ASSERT(mat, "the FABilinearForm is not assembled");
 
    const SparseMatrix *P = fes->GetConformingProlongation();
    if (!P) { return; } // conforming mesh
@@ -561,15 +542,17 @@ void BilinearForm::ConformingAssemble()
    width = mat->Width();
 }
 
-void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
-                                    Vector &x, Vector &b,
-                                    SparseMatrix &A, Vector &X, Vector &B,
-                                    int copy_interior)
+void FABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
+                                      Vector &x, Vector &b,
+                                      Operator/*SparseMatrix*/ &opA, Vector &X, Vector &B,
+                                      int copy_interior)
 {
+   //assert(false);
    const SparseMatrix *P = fes->GetConformingProlongation();
-
+   SparseMatrix *Ap = static_cast<SparseMatrix*>(&opA);
+   SparseMatrix &A = *Ap;
+   
    FormSystemMatrix(ess_tdof_list, A);
-
    // Transform the system and perform the elimination in B, based on the
    // essential BC values from x. Restrict the BC part of x in X, and set the
    // non-BC part to zero. Since there is no good initial guess for the Lagrange
@@ -627,7 +610,7 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    }
 }
 
-void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
+void FABilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
                                     SparseMatrix &A)
 {
    // Finish the matrix assembly and perform BC elimination, storing the
@@ -664,7 +647,7 @@ void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
    }
 }
 
-void BilinearForm::RecoverFEMSolution(const Vector &X,
+void FABilinearForm::RecoverFEMSolution(const Vector &X,
                                       const Vector &b, Vector &x)
 {
    //mm::Get().Rsync(X.GetData());
@@ -715,7 +698,7 @@ void BilinearForm::RecoverFEMSolution(const Vector &X,
    }
 }
 
-void BilinearForm::ComputeElementMatrices()
+void FABilinearForm::ComputeElementMatrices()
 {
    dbg();
    if (element_matrices || dbfi.Size() == 0 || fes->GetNE() == 0)
@@ -742,7 +725,7 @@ void BilinearForm::ComputeElementMatrices()
       const FiniteElement &fe = *fes->GetFE(i);
 #ifdef MFEM_DEBUG
       if (num_dofs_per_el != fe.GetDof()*fes->GetVDim())
-         mfem_error("BilinearForm::ComputeElementMatrices:"
+         mfem_error("FABilinearForm::ComputeElementMatrices:"
                     " all elements must have same number of dofs");
 #endif
       fes->GetElementTransformation(i, &eltrans);
@@ -758,8 +741,8 @@ void BilinearForm::ComputeElementMatrices()
    }
 }
 
-void BilinearForm::EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
-                                        const Vector &sol, Vector &rhs, DiagonalPolicy dpolicy)
+void FABilinearForm::EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
+                                        const Vector &sol, Vector &rhs, Matrix::DiagonalPolicy dpolicy)
 {
    Array<int> ess_dofs, conf_ess_dofs;
    fes->GetEssentialVDofs(bdr_attr_is_ess, ess_dofs);
@@ -775,8 +758,8 @@ void BilinearForm::EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
    }
 }
 
-void BilinearForm::EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
-                                        DiagonalPolicy dpolicy)
+void FABilinearForm::EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
+                                        Matrix::DiagonalPolicy dpolicy)
 {
    Array<int> ess_dofs, conf_ess_dofs;
    fes->GetEssentialVDofs(bdr_attr_is_ess, ess_dofs);
@@ -792,7 +775,7 @@ void BilinearForm::EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
    }
 }
 
-void BilinearForm::EliminateEssentialBCDiag (const Array<int> &bdr_attr_is_ess,
+void FABilinearForm::EliminateEssentialBCDiag (const Array<int> &bdr_attr_is_ess,
                                              double value)
 {
    Array<int> ess_dofs, conf_ess_dofs;
@@ -809,9 +792,9 @@ void BilinearForm::EliminateEssentialBCDiag (const Array<int> &bdr_attr_is_ess,
    }
 }
 
-void BilinearForm::EliminateVDofs(const Array<int> &vdofs,
+void FABilinearForm::EliminateVDofs(const Array<int> &vdofs,
                                   const Vector &sol, Vector &rhs,
-                                  DiagonalPolicy dpolicy)
+                                  Matrix::DiagonalPolicy dpolicy)
 {
    for (int i = 0; i < vdofs.Size(); i++)
    {
@@ -827,11 +810,12 @@ void BilinearForm::EliminateVDofs(const Array<int> &vdofs,
    }
 }
 
-void BilinearForm::EliminateVDofs(const Array<int> &vdofs,
-                                  DiagonalPolicy dpolicy)
+void FABilinearForm::EliminateVDofs(const Array<int> &vdofs,
+                                  Matrix::DiagonalPolicy dpolicy)
 {
    if (mat_e == NULL)
    {
+      dbg("SparseMatrix");
       mat_e = new SparseMatrix(height);
    }
 
@@ -840,7 +824,7 @@ void BilinearForm::EliminateVDofs(const Array<int> &vdofs,
       int vdof = vdofs[i];
       if ( vdof >= 0 )
       {
-         mat -> EliminateRowCol (vdof, *mat_e, dpolicy);
+         mat -> EliminateRowCol (vdof, *mat_e, dpolicy);         
       }
       else
       {
@@ -849,9 +833,9 @@ void BilinearForm::EliminateVDofs(const Array<int> &vdofs,
    }
 }
 
-void BilinearForm::EliminateEssentialBCFromDofs(
+void FABilinearForm::EliminateEssentialBCFromDofs(
    const Array<int> &ess_dofs, const Vector &sol, Vector &rhs,
-   DiagonalPolicy dpolicy)
+   Matrix::DiagonalPolicy dpolicy)
 {
    MFEM_ASSERT(ess_dofs.Size() == height, "incorrect dof Array size");
    MFEM_ASSERT(sol.Size() == height, "incorrect sol Vector size");
@@ -864,8 +848,8 @@ void BilinearForm::EliminateEssentialBCFromDofs(
       }
 }
 
-void BilinearForm::EliminateEssentialBCFromDofs (const Array<int> &ess_dofs,
-                                                 DiagonalPolicy dpolicy)
+void FABilinearForm::EliminateEssentialBCFromDofs (const Array<int> &ess_dofs,
+                                                 Matrix::DiagonalPolicy dpolicy)
 {
    MFEM_ASSERT(ess_dofs.Size() == height, "incorrect dof Array size");
 
@@ -876,7 +860,7 @@ void BilinearForm::EliminateEssentialBCFromDofs (const Array<int> &ess_dofs,
       }
 }
 
-void BilinearForm::EliminateEssentialBCFromDofsDiag (const Array<int> &ess_dofs,
+void FABilinearForm::EliminateEssentialBCFromDofsDiag (const Array<int> &ess_dofs,
                                                      double value)
 {
    MFEM_ASSERT(ess_dofs.Size() == height, "incorrect dof Array size");
@@ -888,14 +872,14 @@ void BilinearForm::EliminateEssentialBCFromDofsDiag (const Array<int> &ess_dofs,
       }
 }
 
-void BilinearForm::EliminateVDofsInRHS(
+void FABilinearForm::EliminateVDofsInRHS(
    const Array<int> &vdofs, const Vector &x, Vector &b)
 {
    mat_e->AddMult(x, b, -1.);
    mat->PartMult(vdofs, x, b);
 }
 
-void BilinearForm::Update(FiniteElementSpace *nfes)
+void FABilinearForm::Update(FiniteElementSpace *nfes)
 {
    bool full_update;
 
@@ -935,12 +919,12 @@ void BilinearForm::Update(FiniteElementSpace *nfes)
    height = width = fes->GetVSize();
 }
 
-void BilinearForm::SetDiagonalPolicy(DiagonalPolicy policy)
+void FABilinearForm::SetDiagonalPolicy(Matrix::DiagonalPolicy policy)
 {
    diag_policy = policy;
 }
 
-BilinearForm::~BilinearForm()
+FABilinearForm::~FABilinearForm()
 {
    delete mat_e;
    delete mat;

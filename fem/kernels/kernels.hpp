@@ -42,5 +42,6 @@
 // *****************************************************************************
 #include "include/forall.hpp"
 #include "include/offsets.hpp"
+#include "include/kernels.hpp"
 
 #endif // MFEM_KERNELS_KERNELS_KERNELS

@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
    //    the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
-
+ 
    // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
@@ -135,8 +135,13 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
-   dbg("\033[32;7mSwitching to GPU!");
-   config::Get().Cuda(gpu);
+   if (gpu){
+      dbg("\033[32;7mSwitching to GPU!");
+      //#warning Need to do this before before switching to get the Nodes ready for kgeom
+      mesh->SetNodalFESpace(fespace);
+      config::Get().Cuda(true);
+      config::Get().PA(true);
+   }
 
    dbg("7. Define the solution vector x");// as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
@@ -147,7 +152,7 @@ int main(int argc, char *argv[])
    dbg("8. Set up the bilinear form a(.,.)");// on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
-   BilinearForm *a = new BilinearForm(fespace);
+   BilinearForm *a = new BilinearForm(fespace);  
    dbg("Add DiffusionIntegrator");
    a->AddDomainIntegrator(new DiffusionIntegrator(one));
 
@@ -157,14 +162,14 @@ int main(int argc, char *argv[])
    //    static condensation, etc.
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
-
+   
    SparseMatrix A;
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    cout << "Size of linear system: " << A.Height() << endl;
 
-   //config::Get().Cuda(gpu);
+    //config::Get().Cuda(gpu);
 
 #ifndef MFEM_USE_SUITESPARSE
    //dbg("10. Define a simple symmetric Gauss-Seidel preconditioner");// and use it to

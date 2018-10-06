@@ -28,6 +28,7 @@ class config{
 private:
    bool cuda = false;
    bool uvm = false;
+   bool pa = false;
    int dev;
    int gpu_count;
    CUdevice cuDevice;
@@ -52,6 +53,10 @@ public:
 
    // **************************************************************************
    inline void Cuda(const bool flag) { cuda = flag; }
+   
+   // **************************************************************************
+   inline bool PA() { return pa; }
+   inline void PA(const int mode) { pa = mode; }
 
    // **************************************************************************
    inline bool Uvm() { return uvm; }
