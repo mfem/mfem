@@ -91,7 +91,8 @@ int main(int argc, char *argv[])
 #if 1
    Array<int> ordering;
    //mesh->GetGeckoElementReordering(ordering, 1, 2);
-   mesh->GetMetisElementReordering(ordering);
+   //mesh->GetMetisElementReordering(ordering);
+   mesh->Triangularize(1); mesh->GetForsythElementReordering(ordering);
    mesh->ReorderElements(ordering);
 
    FiniteElementCollection *fec;
