@@ -537,6 +537,10 @@ public:
    /** */
    void GetMetisElementReordering(Array<int> &ordering);
 #endif
+   void GetForsythElementReordering(Array<int> &ordering);
+
+   /// Convert quads to triangles.
+   void Triangularize(int type = 0);
 
    /** Rebuilds the mesh with a different order of elements.  The ordering
        vector maps the old element number to the new element number.  This also

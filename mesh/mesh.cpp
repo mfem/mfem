@@ -50,6 +50,8 @@ extern "C" {
 #include "graph.h"
 #endif
 
+#include "forsyth.hpp"
+
 using namespace std;
 
 namespace mfem
@@ -1258,6 +1260,51 @@ void Mesh::GetMetisElementReordering(Array<int> &ordering)
    iperm.Copy(ordering);
 }
 #endif
+
+void Mesh::GetForsythElementReordering(Array<int> &ordering)
+{
+   MFEM_VERIFY(BaseGeom == Geometry::TRIANGLE, "");
+
+   Array<geometry::ForsythVertexIndexType> indices(3*GetNE());
+   for (int i = 0; i < GetNE(); i++)
+   {
+      const int *v = elements[i]->GetVertices();
+      indices[3*i + 0] = v[0];
+      indices[3*i + 1] = v[1];
+      indices[3*i + 2] = v[2];
+   }
+
+   ordering.SetSize(GetNE());
+   geometry::forsythReorder(ordering.GetData(), indices.GetData(),
+                            GetNE(), NumOfVertices);
+}
+
+void Mesh::Triangularize(int type)
+{
+   MFEM_VERIFY(BaseGeom == Geometry::SQUARE, "");
+   MFEM_VERIFY(Nodes == NULL, "");
+
+   Array<Element*> triangles(2*GetNE());
+   for (int i = 0; i < GetNE(); i++)
+   {
+      const int *v = elements[i]->GetVertices();
+      if (type)
+      {
+         triangles[2*i + 0] = new Triangle(v[0], v[1], v[3]);
+         triangles[2*i + 1] = new Triangle(v[2], v[3], v[1]);
+      }
+      else
+      {
+         triangles[2*i + 0] = new Triangle(v[1], v[2], v[0]);
+         triangles[2*i + 1] = new Triangle(v[3], v[0], v[2]);
+      }
+   }
+
+   mfem::Swap(elements, triangles);
+
+   NumOfElements = elements.Size();
+   BaseGeom = Geometry::TRIANGLE;
+}
 
 void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
 {
