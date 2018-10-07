@@ -1,6 +1,6 @@
 #Title:circInSquare.py
 #Author:T. M. McManus
-#Date:9-25-18
+#Date:10-7-18
 #Purpose: Fill a circular sector with triangles and a bounding region,
 #defined by 3 nodes, with quads.  Then reflect/preserve QuadI twice to
 #create a complete disc bounded in a square.
@@ -316,7 +316,7 @@ def quadInterDof(_edge,_linEleMat,_linVertMatRound):
                     return(_state,_interDof[0],_interDof[1])
 
     return(_state,0,0)
-        
+
 [eleMatTriHolder,numCircNodesTot]=eleMatCirc(numEdges) #Construct tri element matrix for the region inside circular sector
 eleMatQuadHolder=eleMatQuad(numEdges) #Construct quad element matrix for region outside the circular sector
 
@@ -471,18 +471,12 @@ g.close()
 if(visMesh==True):
     gVis(glvis,outputName+'Quad.mesh')
 
-
 #Cubic (P3/Q3) Element Generation
 
 cubeDofMat=sp.zeros([2*edgeMat.shape[0],2])#These will be the new DoFs that appear after the Element Vertices within the .mesh file
-#quadCentroidLoc=sp.zeros([4*eleMatQuadHolder.shape[0],2])
-#quadInterCounter=0
+
 counter=0
-for n in edgeMat: #Here DoF ordering matters.  It goes from low-to-high with respect to nodal numbering
-    # _quadInterDof=quadInterDof(n,linEleMat,linVertMatRound)
-    # if(_quadInterDof[0]==True):
-    #     quadCentroidLoc[quadInterCounter,:]=[_quadInterDof[1],_quadInterDof[2]]
-    #     quadInterCounter+=1
+for n in edgeMat: #Here DoF ordering matters. 
     if linVertMatRound[n[0],1] == linVertMatRound[n[1],1]:
         xmid=(linVertMatRound[n[0],0]+linVertMatRound[n[1],0])/2.0
         ymid=linVertMatRound[n[0],1]
@@ -543,33 +537,6 @@ for n in edgeMat: #Here DoF ordering matters.  It goes from low-to-high with res
             counter+=1
             
 cubeDofMat = sp.round_(cubeDofMat,5)
-#Place DoFs inside of P and Q Elements:
-#quadCentroidLoc=sp.zeros([4*eleMatQuadHolder.shape[0],2])
-
-counter=0
-# for n in range(eleMatQuadHolder.shape[0]):#Ordering now matters for DoF in the interior
-#     xmid=(linVertMatRound[eleMatQuadHolder[n,2],0]+linVertMatRound[eleMatQuadHolder[n,3],0]+linVertMatRound[eleMatQuadHolder[n,4],0]+linVertMatRound[eleMatQuadHolder[n,5],0])/4.0
-#     ymid=(linVertMatRound[eleMatQuadHolder[n,2],1]+linVertMatRound[eleMatQuadHolder[n,3],1]+linVertMatRound[eleMatQuadHolder[n,4],1]+linVertMatRound[eleMatQuadHolder[n,5],1])/4.0
-
-#     #Local edge ordering
-#     xmid1=(xmid+linVertMatRound[eleMatQuadHolder[n,2],0])/2.0
-#     ymid1=(ymid+linVertMatRound[eleMatQuadHolder[n,2],1])/2.0
-#     quadCentroidLoc[counter,:]=[xmid1,ymid1]
-#     counter+=1
-#     xmid2=(xmid+linVertMatRound[eleMatQuadHolder[n,3],0])/2.0
-#     ymid2=(ymid+linVertMatRound[eleMatQuadHolder[n,3],1])/2.0
-#     quadCentroidLoc[counter,:]=[xmid2,ymid2]
-#     counter+=1
-#     xmid3=(xmid+linVertMatRound[eleMatQuadHolder[n,4],0])/2.0
-#     ymid3=(ymid+linVertMatRound[eleMatQuadHolder[n,4],1])/2.0
-#     quadCentroidLoc[counter,:]=[xmid3,ymid3]
-#     counter+=1
-#     xmid4=(xmid+linVertMatRound[eleMatQuadHolder[n,5],0])/2.0
-#     ymid4=(ymid+linVertMatRound[eleMatQuadHolder[n,5],1])/2.0
-#     quadCentroidLoc[counter,:]=[xmid4,ymid4]
-#     counter+=1
-    
-# quadCentroidLoc = sp.round_(quadCentroidLoc,5)
 
 triCentroidLoc=sp.zeros([eleMatTriHolder.shape[0],2])
 
@@ -578,14 +545,12 @@ for n in range(eleMatTriHolder.shape[0]):
     triCentroidLoc[n,1]=(linVertMatRound[eleMatTriHolder[n,2],1]+linVertMatRound[eleMatTriHolder[n,3],1]+linVertMatRound[eleMatTriHolder[n,4],1])/3.0
 
 quadCentroidLocCubic=sp.zeros([4*eleMatQuadHolder.shape[0],2])
+
 counter=0
 for n in range(eleMatQuadHolder.shape[0]):
     xcent=quadCentroidLoc[n,0];ycent=quadCentroidLoc[n,1]
     a=eleMatQuadHolder[n,2:6]
-    print(a)
     aMinIndex=sp.where(a[:]==a.min())[0][0]
-    print(aMinIndex)
-    #Look to the 'left' and 'right' of aMinIndex
     dof0=0.5*sp.array([xcent+linVertMatRound[a[aMinIndex],0],ycent+linVertMatRound[a[aMinIndex],1]])
     quadCentroidLocCubic[counter,:]=dof0
     counter+=1
@@ -597,8 +562,19 @@ for n in range(eleMatQuadHolder.shape[0]):
         aLeft=aMinIndex-1
         aRight=aMinIndex+1
         aLast=sp.delete(a,[aMinIndex,aLeft,aRight])[0]
-    print("{},{},{}".format(aLeft,aRight,aLast))
-    if a[aLeft] < a[aRight]:
+    edge1=[a[aMinIndex], a[aLeft]]
+    edge2=[a[aMinIndex], a[aRight]]
+    edge1Index=0
+    edge2Index=0
+    edgeCounter=0
+    for edge in edgeMat:
+        if(edge[0]==edge1[0] and edge[1]==edge1[1]) or (edge[1]==edge1[0] and edge[0]==edge1[1]):
+            edge1Index=edgeCounter
+        if(edge[0]==edge2[0] and edge[1]==edge2[1]) or (edge[1]==edge2[0] and edge[0]==edge2[1]):
+            edge2Index=edgeCounter
+        edgeCounter+=1
+
+    if (edge1Index > edge2Index):
         dof1=0.5*sp.array([xcent+linVertMatRound[a[aLeft],0],ycent+linVertMatRound[a[aLeft],1]])
         quadCentroidLocCubic[counter,:]=dof1
         counter+=1
@@ -618,9 +594,7 @@ for n in range(eleMatQuadHolder.shape[0]):
         dof3=0.5*sp.array([xcent+linVertMatRound[a[aLast],0],ycent+linVertMatRound[a[aLast],1]])
         quadCentroidLocCubic[counter,:]=dof3
         counter+=1
-    #Determine Linear Element Centroid
-    #Find position of lowest node
-print(quadCentroidLocCubic)
+        
 truCentroidLoc=sp.round_(triCentroidLoc,5)
     
 #3.)Populate nodes section
@@ -650,7 +624,7 @@ g.close()
 
 if(visMesh==True):
     gVis(glvis,outputName+'Cub.mesh')
-raw_input()
+#raw_input()
 #'Reflecting' topology about one of its edges and append it to itself
 upperPlaneEleMat = sp.zeros([2*linEleMat.shape[0],6])
 for n in range(linEleMat.shape[0]):
