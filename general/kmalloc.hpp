@@ -41,6 +41,7 @@ template<class T> struct kmalloc{
          else
          {
             if (n==0) { n=1; }
+            //assert(false);
             checkCudaErrors(cuMemAlloc((CUdeviceptr*)&ptr, n*sizeof(T)));
          }
       }

@@ -28,6 +28,7 @@ void rIniGeom2D(const int numElements,
    const int e = blockDim.x * blockIdx.x + threadIdx.x;
    if (e < numElements)
 #else
+#warning CPU forall
    forall(e,numElements,
 #endif
    {
@@ -64,14 +65,14 @@ void rIniGeom2D(const int numElements,
          invJ[ijklNM(0, 1, q, e,2,NUM_QUAD)] = -J21 * r_idetJ;
          invJ[ijklNM(1, 1, q, e,2,NUM_QUAD)] =  J11 * r_idetJ;
          detJ[ijN(q, e,NUM_QUAD)] = r_detJ;
-      }
+         }
    }
 #ifndef __NVCC__
           );
 #endif
 }
 
-template kernel void rIniGeom2D<4,4>(int, double const*, double const*, double*, double*, double*);
+template kernel void rIniGeom2D<4,1>(int, double const*, double const*, double*, double*, double*);
 template kernel void rIniGeom2D<9,16>(int, double const*, double const*, double*, double*, double*);
 template kernel void rIniGeom2D<16,36>(int, double const*, double const*, double*, double*, double*);
 template kernel void rIniGeom2D<25,64>(int, double const*, double const*, double*, double*, double*);

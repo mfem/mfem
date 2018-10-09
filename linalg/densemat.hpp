@@ -579,11 +579,7 @@ public:
    void Mult(const DenseMatrix &B, DenseMatrix &X) const;
 
    /// Compute and return the inverse matrix in Ainv.
-   void GetInverseMatrix(DenseMatrix &Ainv) const
-   {
-      Ainv.SetSize(width);
-      lu.GetInverseMatrix(width, Ainv.Data());
-   }
+   void GetInverseMatrix(DenseMatrix &Ainv) const;
 
    /// Compute the determinant of the original DenseMatrix using the LU factors.
    double Det() const { return lu.Det(width); }

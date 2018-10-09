@@ -27,6 +27,7 @@ KDiffusionIntegrator::KDiffusionIntegrator(const FiniteElementSpace *f,
 
 // *****************************************************************************
 void KDiffusionIntegrator::Assemble(){
+   dbg();
    const FiniteElement &fe = *(fes->GetFE(0));
    const Mesh *mesh = fes->GetMesh();
    const int dim = mesh->Dimension();
@@ -61,6 +62,7 @@ void KDiffusionIntegrator::Assemble(){
 // *****************************************************************************
 void KDiffusionIntegrator::MultAdd(Vector &x, Vector &y)
 {
+   dbg();
    const int dim = fes->GetMesh()->Dimension();
    const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
    const int dofs1D = fes->GetFE(0)->GetOrder() + 1;
@@ -76,5 +78,6 @@ void KDiffusionIntegrator::MultAdd(Vector &x, Vector &y)
                      x,
                      y);
 }
+
 // *****************************************************************************
 MFEM_NAMESPACE_END

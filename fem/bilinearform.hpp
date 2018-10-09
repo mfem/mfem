@@ -46,6 +46,7 @@ public:
    virtual void RecoverFEMSolution(const Vector &X, const Vector &b,
                                    Vector &x) = 0;
    virtual void EnableStaticCondensation() =0;
+   virtual void Mult(const Vector &x, Vector &y) const { assert(false); }
 };
 
 // ***************************************************************************
@@ -449,7 +450,9 @@ public:
       FA(config::Get().PA()==false),
       abf(FA?
           static_cast<AbstractBilinearForm*>(new FABilinearForm(f)):
-          static_cast<AbstractBilinearForm*>(new PABilinearForm(f))) {}
+          static_cast<AbstractBilinearForm*>(new PABilinearForm(f))) {
+      dbg("\033[7mBilinearForm %s",FA?"FA":"PA");
+   }
    ~BilinearForm(){}
    // **************************************************************************
    void EnableStaticCondensation(){assert(false);}

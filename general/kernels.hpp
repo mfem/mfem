@@ -34,6 +34,8 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body){
       const size_t blockSize = 256;
       const size_t gridSize = (N+blockSize-1)/blockSize;
       kernel<<<gridSize, blockSize>>>(N,d_body);
+//#warning cudaDeviceSynchronize
+      cudaDeviceSynchronize();
       return;
    }
 #endif // __NVCC__

@@ -16,7 +16,27 @@ using namespace std;
 MFEM_NAMESPACE
 
 // *****************************************************************************
+void kFactorPrint(const int s, const double *data){
+   dbg();
+   GET_CONST_ADRS(data);
+   forall(i, s, {
+         printf("\n\t\033[32md_data[%d]=%f\033[m",i,d_data[i]);
+      });
+}
+
+// *****************************************************************************
+void kFactorSet(const int s, const double *adata, double *ludata){
+   dbg();
+   GET_CONST_ADRS(adata);
+   GET_ADRS(ludata);
+   forall(i, s, {
+         d_ludata[i] = d_adata[i];
+      });
+}
+
+// *****************************************************************************
 void kFactor(const int m, int *ipiv, double *data){
+   dbg();
    GET_ADRS_T(ipiv,int);
    GET_ADRS(data);
    forall(k,1,{
@@ -25,9 +45,11 @@ void kFactor(const int m, int *ipiv, double *data){
             {
                int piv = i;
                double a = fabs(d_data[piv+i*m]);
+               printf("\n a=%f",a);
                for (int j = i+1; j < m; j++)
                {
                   const double b = fabs(d_data[j+i*m]);
+                  printf("\n\t b=%f",b);
                   if (b > a)
                   {
                      a = b;

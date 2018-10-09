@@ -28,8 +28,7 @@ namespace mfem
 template <class T, bool xyz = true> class karray;
 
 // Partial Specializations for xyz==TRUE *************************************
-template <class T> class karray<T,true> : public kmalloc<T>
-{
+template <class T> class karray<T,true> {
 private:
    T* data = NULL;
    size_t sz=0;
@@ -41,15 +40,15 @@ public:
    karray(const karray<T,true> &r)
    {
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
-      mm::D2D(data,r.GetData(),r.bytes());
+      mm::D2D(data,r,r.bytes());
    }
    karray& operator=(const karray<T,true> &r)
    {
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
-      mm::D2D(data,r.GetData(),r.bytes());
+      mm::D2D(data,r,r.bytes());
       return *this;
    }
-   karray& operator=(mfem::Array<T> &a)
+   /*karray& operator=(mfem::Array<T> &a)
    {
       mm::H2D(data,a.GetData(),a.Size()*sizeof(T));
       return *this;
@@ -58,12 +57,12 @@ public:
    {
       mm::H2D(data,a.GetData(),a.Size()*sizeof(T));
       return *this;
-   }
-   ~karray() {kmalloc<T>::operator delete (data);}
+      }*/
+   ~karray() {mm::free<T>(data);}
    inline size_t* dim() { return &d[0]; }
-   inline T* ptr() { return data; }
-   inline const T* GetData() const { return data; }
-   inline const T* ptr() const { return data; }
+   //inline T* ptr() { return data; }
+   //inline const T* GetData() const { return data; }
+   //inline const T* ptr() const { return data; }
    inline operator T* () { return data; }
    inline operator const T* () const { return data; }
    double operator* (const karray& a) const { return vector_dot(sz, data, a.data); }
@@ -76,7 +75,7 @@ public:
    {
       d[0]=X; d[1]=Y; d[2]=Z; d[3]=D;
       sz=d[0]*d[1]*d[2]*d[3];
-      data=(T*) kmalloc<T>::operator new (sz);
+      data=(T*) mm::malloc<T>(sz);
    }
    inline bool isInitialized(void)const {return true;}
    inline T& operator[](const size_t x) { return data[x]; }
@@ -100,8 +99,7 @@ public:
 };
 
 // Partial Specializations for xyz==FALSE ************************************
-template <class T> class karray<T,false> : public kmalloc<T>
-{
+template <class T> class karray<T,false> {
 private:
    static const int DIM = 4;
    T* data = NULL;
@@ -126,7 +124,7 @@ public:
       mm::H2D(data,a.GetData(),a.Size()*sizeof(T));
       return *this;
    }
-   ~karray() {kmalloc<T>::operator delete (data);}
+   ~karray() {mm::free<T> (data);}
    inline size_t* dim() { return &d[0]; }
    inline T* ptr() { return data; }
    inline T* GetData() const { return data; }
@@ -144,7 +142,7 @@ public:
       d[0]=X; d[1]=Y; d[2]=Z; d[3]=D;
       sz=d[0]*d[1]*d[2]*d[3];
       assert(sz>0);
-      data=(T*) kmalloc<T>::operator new (sz);
+      data=(T*) mm::malloc<T>(sz);
       if (transposed) { std::swap(d[0],d[1]); }
       for (size_t i=1,b=d[0]; i<DIM; std::swap(d[i],b),++i)
       {

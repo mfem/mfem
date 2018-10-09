@@ -1666,7 +1666,7 @@ private:
 public:
    virtual void Setup() {assert(false);}
    virtual void Assemble() {assert(false);}
-   virtual void MultAdd(Vector&, Vector&) ;
+   virtual void MultAdd(Vector&, Vector&);
    virtual void MultTransposeAdd(Vector&, Vector&) {assert(false);}
 
 public:

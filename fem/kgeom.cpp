@@ -10,6 +10,10 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "../config/config.hpp"
+
+#include "../general/okina.hpp"
+#include "../linalg/kvector.hpp"
+
 #include "kgeom.hpp"
 #include "fem.hpp"
 #include "doftoquad.hpp"
@@ -40,6 +44,7 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
                           const IntegrationRule& ir,
                           const Vector& Sx)
 {
+   dbg();
    const Mesh *mesh = fes.GetMesh();
    const GridFunction *nodes = mesh->GetNodes();
    const FiniteElementSpace *fespace = nodes->FESpace();
@@ -60,11 +65,43 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
    return geom;
 }
 
+// **************************************************************************
+static void kGeomFill(const int dims,
+                      const size_t elements, const size_t numDofs,
+                      const int* elementMap, int* eMap,
+                      const double *nodes, double *meshNodes){
+   GET_CONST_ADRS_T(elementMap,int);
+   GET_ADRS_T(eMap,int);
+   GET_CONST_ADRS(nodes);
+   GET_ADRS(meshNodes);
+   forall(k, 1, {
+         for (int e = 0; e < elements; ++e)
+            for (int d = 0; d < numDofs; ++d) {
+               const int lid = d+numDofs*e;
+               const int gid = d_elementMap[lid];
+               d_eMap[lid] = gid;
+               for (int v = 0; v < dims; ++v) {
+                  const int moffset = v+dims*lid;
+                  const int xoffset = v+dims*gid;
+                  //printf("\n\t%d %d",moffset,xoffset);
+                  d_meshNodes[moffset] = d_nodes[xoffset];
+               }
+            }
+         });
+}
 
+// **************************************************************************
+static void kArrayAssign(const int n, const int *src, int *dest){
+   GET_CONST_ADRS_T(src,int);
+   GET_ADRS_T(dest,int);
+   forall(i, n, d_dest[i] = d_src[i];);
+}
+   
 // *****************************************************************************
 kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
                           const IntegrationRule& ir)
 {
+   dbg();
    Mesh& mesh = *(fes.GetMesh());
    const bool geom_to_allocate = !geom;
    if (geom_to_allocate)
@@ -72,8 +109,17 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
       dbg("geom_to_allocate: new kGeometry");
       geom = new kGeometry();
    }
-   if (!mesh.GetNodes()) { mesh.SetCurvature(1, false, -1, Ordering::byVDIM); }
+   if (!mesh.GetNodes()) {
+      //assert(false);
+      dbg("GetNodes, SetCurvature");
+      mesh.SetCurvature(1, false, -1, Ordering::byVDIM);
+   }
    GridFunction& nodes = *(mesh.GetNodes());
+   dbg("nodes: %p", nodes.GetData());
+   dbg("nodes size: %d", nodes.Size());
+   GET_CONST_ADRS(nodes);
+   dbg("d_nodes: %p", d_nodes);
+   
    const mfem::FiniteElementSpace& fespace = *(nodes.FESpace());
    const mfem::FiniteElement& fe = *(fespace.GetFE(0));
    const int dims     = fe.GetDim();
@@ -85,15 +131,27 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
 
    if (orderedByNODES)
    {
-      dbg("orderedByNODES, ReorderByVDim");
+      dbg("orderedByNODES => ReorderByVDim");
       ReorderByVDim(nodes);
    }
    const int asize = dims*numDofs*elements;
+   dbg("meshNodes(%d)",asize);
    mfem::Array<double> meshNodes(asize);
    const Table& e2dTable = fespace.GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
    mfem::Array<int> eMap(numDofs*elements);
    {
+      dbg("kGeomFill");
+      kGeomFill(dims,
+                elements,
+                numDofs,
+                elementMap,
+                eMap.GetData(),
+                nodes.GetData(),
+                meshNodes.GetData());
+      
+      //assert(false);
+      /*
       for (int e = 0; e < elements; ++e)
       {
          for (int d = 0; d < numDofs; ++d)
@@ -109,15 +167,22 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
             }
          }
       }
+      */
    }
    if (geom_to_allocate)
    {
+      dbg("geom_to_allocate");
+      dbg("meshNodes: asize=%d", asize);
       geom->meshNodes.allocate(dims, numDofs, elements);
       geom->eMap.allocate(numDofs, elements);
    }
    {
-      geom->meshNodes = meshNodes;
-      geom->eMap = eMap;
+      dbg("meshNodes= & eMap=");
+      kVectorAssign(asize, meshNodes.GetData(), geom->meshNodes);
+      //geom->meshNodes = meshNodes;
+      //geom->eMap = eMap;
+      kArrayAssign(numDofs*elements, eMap.GetData(), geom->eMap);
+      //assert(false);
    }
 
    // Reorder the original gf back
@@ -129,7 +194,10 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
 
    if (geom_to_allocate)
    {
-      dbg("geom_to_allocate: J, invJ & detJ");
+      dbg("dims=%d",dims);
+      dbg("numQuad=%d",numQuad);
+      dbg("elements=%d",elements);
+      dbg("geom_to_allocate: J, invJ & detJ: %ld", dims*dims*numQuad*elements);
       geom->J.allocate(dims, dims, numQuad, elements);
       geom->invJ.allocate(dims, dims, numQuad, elements);
       geom->detJ.allocate(numQuad, elements);
@@ -137,14 +205,18 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
 
    const kDofQuadMaps* maps = kDofQuadMaps::GetSimplexMaps(fe, ir);
    assert(maps);
-   {
-      rIniGeom(dims,numDofs,numQuad,elements,
-               maps->dofToQuadD,
-               geom->meshNodes,
-               geom->J,
-               geom->invJ,
-               geom->detJ);
-   }
+   
+   dbg("dims=%d",dims);
+   dbg("numDofs=%d",numDofs);
+   dbg("numQuad=%d",numQuad);
+   dbg("elements=%d",elements);
+   rIniGeom(dims, numDofs, numQuad, elements,
+            maps->dofToQuadD,
+            geom->meshNodes,
+            geom->J,
+            geom->invJ,
+            geom->detJ);
+   //assert(false);
    return geom;
 }
 
