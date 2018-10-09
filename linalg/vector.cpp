@@ -182,6 +182,7 @@ Vector &Vector::operator/=(double c)
 
 Vector &Vector::operator-=(double c)
 {
+   dbg();
    OKINA_ASSERT_CPU;
    for (int i = 0; i < size; i++)
    {
@@ -192,6 +193,7 @@ Vector &Vector::operator-=(double c)
 
 Vector &Vector::operator-=(const Vector &v)
 {
+   dbg();//stk(true);
    //OKINA_ASSERT_GPU;
 #ifdef MFEM_DEBUG
    if (size != v.size)
@@ -199,11 +201,7 @@ Vector &Vector::operator-=(const Vector &v)
       mfem_error("Vector::operator-=(const Vector &)");
    }
 #endif
-   kVectorOpSubtract(size,v,data);/*
-   for (int i = 0; i < size; i++)
-   {
-      data[i] -= v(i);
-      }*/
+   kVectorOpSubtract(size,v,data);
    return *this;
 }
 

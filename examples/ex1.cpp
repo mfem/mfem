@@ -153,8 +153,14 @@ int main(int argc, char *argv[])
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
    BilinearForm *a = new BilinearForm(fespace);  
-   dbg("Add DiffusionIntegrator");
-   a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   //a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   if (config::Get().PA()){
+      dbg("Add PA DiffusionIntegrator");
+      a->AddDomainIntegrator(new PADiffusionIntegrator(one));
+   }else{
+      dbg("Add FA DiffusionIntegrator");
+      a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   }
 
    dbg("9. Assemble the bilinear form");// and the corresponding linear system,
    //    applying any necessary transformations such as: eliminating boundary

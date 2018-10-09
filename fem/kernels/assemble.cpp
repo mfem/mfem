@@ -13,7 +13,10 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
+
+#include "../../general/okina.hpp"
 #include "kernels.hpp"
+using namespace mfem;
 
 // *****************************************************************************
 extern "C" kernel
@@ -70,12 +73,16 @@ void rDiffusionAssemble(const int dim,
                         const double COEFF,
                         double* __restrict oper)
 {
+   GET_CONST_ADRS(quadWeights);
+   GET_CONST_ADRS(J);
+   GET_ADRS(oper);
    if (dim==1) { assert(false); }
    if (dim==2) { rDiffusionAssemble2D(numElements,
                                       NUM_QUAD_1D*NUM_QUAD_1D,
                                       COEFF,
-                                      quadWeights,
-                                      J,
-                                      oper); }
+                                      d_quadWeights,
+                                      d_J,
+                                      d_oper); }
    if (dim==3) { assert(false); }
+   //assert(false);
 }

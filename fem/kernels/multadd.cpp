@@ -13,7 +13,10 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
+
+#include "../../general/okina.hpp"
 #include "kernels.hpp"
+using namespace mfem;
 
 #define QUAD_2D_ID(X, Y) (X + ((Y) * NUM_QUAD_1D))
 
@@ -178,6 +181,17 @@ void rDiffusionMultAdd(const int DIM,
       fflush(stdout);
    }
    assert(call[id]);
-   call0(dummy,id,grid,blck,
-         numElements,dofToQuad,dofToQuadD,quadToDof,quadToDofD,op,x,y);
+   
+   GET_CONST_ADRS(dofToQuad);
+   GET_CONST_ADRS(dofToQuadD);
+   GET_CONST_ADRS(quadToDof);
+   GET_CONST_ADRS(quadToDofD);
+   GET_CONST_ADRS(op);
+   GET_CONST_ADRS(x);
+   GET_ADRS(y);
+   
+   call0(rDiffusionMultAdd,id,grid,blck,
+         numElements,
+         d_dofToQuad, d_dofToQuadD, d_quadToDof, d_quadToDofD, d_op, d_x, d_y);
+   //assert(false);
 }

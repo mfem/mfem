@@ -104,6 +104,7 @@ kDofQuadMaps* kDofQuadMaps::GetTensorMaps(const FiniteElement& trialFE,
    maps->quadToDof   = testMaps->dofToQuad;
    maps->quadToDofD  = testMaps->dofToQuadD;
    maps->quadWeights = testMaps->quadWeights;
+   //assert(false);
    return maps;
 }
 
@@ -112,7 +113,7 @@ kDofQuadMaps* kDofQuadMaps::GetD2QTensorMaps(const FiniteElement& fe,
                                              const IntegrationRule& ir,
                                              const bool transpose)
 {
-   dbg();assert(false);
+   dbg();//assert(false);
    const IntegrationRule& ir1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder());
 
    const int dims = fe.GetDim();
@@ -195,8 +196,10 @@ kDofQuadMaps* kDofQuadMaps::GetD2QTensorMaps(const FiniteElement& fe,
       //maps->quadWeights = quadWeights;
       kVectorAssign(numQuad, quadWeights.GetData(), maps->quadWeights);
    }
-   maps->dofToQuad = dofToQuad;
-   maps->dofToQuadD = dofToQuadD;
+   //maps->dofToQuad = dofToQuad;
+   kVectorAssign(numQuad1D*numDofs, dofToQuad.GetData(), maps->dofToQuad);
+   //maps->dofToQuadD = dofToQuadD;
+   kVectorAssign(numQuad1D*numDofs, dofToQuadD.GetData(), maps->dofToQuadD);
    return maps;
 }
 
@@ -237,9 +240,6 @@ kDofQuadMaps* kDofQuadMaps::GetSimplexMaps(const FiniteElement& trialFE,
    maps->quadToDof   = testMaps->dofToQuad;
    maps->quadToDofD  = testMaps->dofToQuadD;
    maps->quadWeights = testMaps->quadWeights;
-   //dbg("testMaps->quadWeights.Size()=%d",testMaps->quadWeights.Size());
-   //testMaps->quadWeights.Size(), testMaps->quadWeights, maps->quadWeights);
-   //assert(false);
    return maps;
 }
 
