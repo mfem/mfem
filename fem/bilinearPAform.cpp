@@ -31,7 +31,7 @@ PABilinearForm::PABilinearForm(FiniteElementSpace* fes) :
    testFes(fes),
    localX(mesh->GetNE() * trialFes->GetFE(0)->GetDof() * trialFes->GetVDim()),
    localY(mesh->GetNE() * testFes->GetFE(0)->GetDof() * testFes->GetVDim()),
-   kfes(new kFiniteElementSpace(*fes)) { dbg("\033[7mPABilinearForm"); }
+   kfes(new kFiniteElementSpace(*fes)) { }
 
 // ***************************************************************************
 PABilinearForm::~PABilinearForm(){ /*delete kfes;*/}
@@ -81,7 +81,7 @@ void PABilinearForm::Assemble(int skip_zeros) {
       integrators[i]->Setup(fes,ir);
       integrators[i]->Assemble();
    }
-   
+   //assert(false);   
 }
 
 // ***************************************************************************
@@ -145,6 +145,8 @@ void PABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       w = 0.0;
       dbg("CO->Mult(w, z)");
       CO->Mult(w, z);
+      dbg("z="); z.Print();
+      dbg("b="); b.Print();
       dbg("b -= z");
       b -= z;
    } else {
@@ -157,20 +159,13 @@ void PABilinearForm::Mult(const Vector &x, Vector &y) const {
    dbg();
    //trialFes
    kfes->GlobalToLocal(x, localX);
-   localY = 0.0;
-   //assert(diffusion);
-//#warning diffusion Assemble
-   //diffusion->MultAdd(localX, localY);
-   
+   localY = 0.0;   
    const int iSz = integrators.Size();
    for (int i = 0; i < iSz; ++i) {
       integrators[i]->MultAdd(localX, localY);
    }
    //testFes
    kfes->LocalToGlobal(localY, y);
-   //stk(true);
-   //assert(false);
-   dbg("done");
 }
 
 // ***************************************************************************

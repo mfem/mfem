@@ -17,6 +17,8 @@ MFEM_NAMESPACE
 void kVectorAlphaAdd(double *vp, const double* v1p,
                      const double alpha, const double *v2p, const size_t N);
 
+void kVectorPrint(const size_t N, const double *data);
+
 void kVectorSet(const size_t N, const double value, double *data);
 
 void kVectorAssign(const size_t N, const double* v, double *data);

@@ -312,23 +312,39 @@ void NodalFiniteElement::Project (
 void NodalFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
 {
+   dbg("x");
    MFEM_ASSERT(dofs.Size() == vc.GetVDim()*Dof, "");
    Vector x(vc.GetVDim());
 
+   dbg("Dof=%d",Dof);
    for (int i = 0; i < Dof; i++)
    {
+      dbg("ip");
       const IntegrationPoint &ip = Nodes.IntPoint(i);
+      dbg("SetIntPoint");
       Trans.SetIntPoint(&ip);
+      dbg("Eval");
       vc.Eval (x, Trans, ip);
+      
+      dbg("mm::Get().Push(x.GetData())");
+      mm::Get().Push(x.GetData());
+      dbg("x:");
+      x.Print();
+      
       if (MapType == INTEGRAL)
       {
          x *= Trans.Weight();
       }
+      dbg("Set dofs");
       for (int j = 0; j < x.Size(); j++)
       {
          dofs(Dof*j+i) = x(j);
       }
    }
+   mm::Get().Push(dofs.GetData());
+   dbg("dofs:");
+   dofs.Print();
+   //assert(false);
 }
 
 void NodalFiniteElement::ProjectMatrixCoefficient(
@@ -7485,6 +7501,7 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
    : NodalFiniteElement(2, Geometry::TRIANGLE, ((p + 1)*(p + 2))/2, p,
                         FunctionSpace::Pk)
 {
+   dbg();
    const double *cp = poly1d.ClosedPoints(p, VerifyNodal(VerifyClosed(btype)));
 
 #ifndef MFEM_THREAD_SAFE

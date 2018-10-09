@@ -48,21 +48,8 @@ public:
       mm::D2D(data,r,r.bytes());
       return *this;
    }
-   /*karray& operator=(mfem::Array<T> &a)
-   {
-      mm::H2D(data,a.GetData(),a.Size()*sizeof(T));
-      return *this;
-   }
-   karray& operator=(const mfem::Array<T> &a)
-   {
-      mm::H2D(data,a.GetData(),a.Size()*sizeof(T));
-      return *this;
-      }*/
    ~karray() {mm::free<T>(data);}
    inline size_t* dim() { return &d[0]; }
-   //inline T* ptr() { return data; }
-   //inline const T* GetData() const { return data; }
-   //inline const T* ptr() const { return data; }
    inline operator T* () { return data; }
    inline operator const T* () const { return data; }
    double operator* (const karray& a) const { return vector_dot(sz, data, a.data); }
@@ -118,17 +105,17 @@ public:
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
       mm::D2D(data,r.GetData(),r.bytes());
       return *this;
-   }
+   }/*
    karray& operator=(mfem::Array<T> &a)
    {
       mm::H2D(data,a.GetData(),a.Size()*sizeof(T));
       return *this;
-   }
+      }*/
    ~karray() {mm::free<T> (data);}
    inline size_t* dim() { return &d[0]; }
-   inline T* ptr() { return data; }
-   inline T* GetData() const { return data; }
-   inline const T* ptr() const { return data; }
+   //inline T* ptr() { return data; }
+   //inline T* GetData() const { return data; }
+   //inline const T* ptr() const { return data; }
    inline operator T* () { return data; }
    inline operator const T* () const { return data; }
    double operator* (const karray& a) const { return vector_dot(sz, data, a.data); }

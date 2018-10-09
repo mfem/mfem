@@ -13,7 +13,6 @@
 
 #include "../general/okina.hpp"
 #include "../linalg/kvector.hpp"
-//#include "../kernels.hpp"
 #include "fem.hpp"
 
 #include "doftoquad.hpp"
@@ -194,11 +193,15 @@ kDofQuadMaps* kDofQuadMaps::GetD2QTensorMaps(const FiniteElement& fe,
          quadWeights[q] = w;
       }
       //maps->quadWeights = quadWeights;
+      mm::Get().Push(quadWeights.GetData());
       kVectorAssign(numQuad, quadWeights.GetData(), maps->quadWeights);
    }
    //maps->dofToQuad = dofToQuad;
+   mm::Get().Push(dofToQuad.GetData());
    kVectorAssign(numQuad1D*numDofs, dofToQuad.GetData(), maps->dofToQuad);
+   
    //maps->dofToQuadD = dofToQuadD;
+   mm::Get().Push(dofToQuadD.GetData());
    kVectorAssign(numQuad1D*numDofs, dofToQuadD.GetData(), maps->dofToQuadD);
    return maps;
 }
@@ -313,17 +316,17 @@ kDofQuadMaps* kDofQuadMaps::GetD2QSimplexMaps(const FiniteElement& fe,
    if (transpose)
    {
       //maps->quadWeights = quadWeights;
+      mm::Get().Push(quadWeights.GetData());
       kVectorAssign(numQuad, quadWeights.GetData(), maps->quadWeights);
-      dbg("numQuad=%d",numQuad);
-   }else{
-      dbg("else numQuad=%d",numQuad);
-   }
+    }
 
    //maps->dofToQuad = dofToQuad;
+   mm::Get().Push(dofToQuad.GetData());
    kVectorAssign(numQuad*numDofs, dofToQuad.GetData(), maps->dofToQuad);
    //assert(false);
    
    //maps->dofToQuadD = dofToQuadD;
+   mm::Get().Push(dofToQuadD.GetData());
    kVectorAssign(dims*numQuad*numDofs, dofToQuadD.GetData(), maps->dofToQuadD);
    //assert(false);
    dbg("done");

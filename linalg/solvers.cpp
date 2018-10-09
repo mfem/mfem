@@ -296,14 +296,23 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 {
    int i;
    double r0, den, nom, nom0, betanom, alpha, beta;
+   b.Print();
+   assert(false);
+   //0.297205 0 0 0 0 0 0 0
+   //0 0 0 0.237765 0 0 0.237764 0
+   //0 0.237764 0 0 0.237763 0 0 0.237764
+   //0 0 0.237765 0.237764 0.237763 0.237764 0.237765
 
    if (iterative_mode)
    {
+      dbg("iterative_mode");
       oper->Mult(x, r);
       subtract(b, r, r); // r = b - A x
+      
    }
    else
    {
+      dbg("NOT iterative_mode");
       r = b;
       x = 0.0;
    }

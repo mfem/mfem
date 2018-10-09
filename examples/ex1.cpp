@@ -134,15 +134,32 @@ int main(int argc, char *argv[])
    ConstantCoefficient one(1.0);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
+   dbg("LinearForm b=");
+   b->Print();
+   //0.297205 0.118882 0.118882 0.0594411 0.118881 0.059441 0.118881 0.0594409
+   //0.118882 0.0594411 0.0594411 0.237765 0.118882 0.118882 0.237764 0.118882
+   //0.118882 0.237764 0.118881 0.118881 0.237763 0.118882 0.118882 0.237764
+   //0.118882 0.118882 0.237765 0.237764 0.237763 0.237764 0.237765
+
+   //mesh->SetNodalFESpace(fespace);
+   //GridFunction *nodes = mesh->GetNodes();
+   //dbg("nodes:");
+   //nodes->Print();
+   //0 1 0.309017 1.30902 -0.809017 -0.5 -0.809017 -1.61803
+   //0.309017 -0.5 1.30902 0.5 1.15451 0.809019 0.154508 -0.0954915
+   //-0.654508 -0.404508 -1.21352 -1.21352 -0.404508 -0.654508 -0.0954915 0.154508
+   //0.809019 1.15451 0.654509 -0.25 -0.809016 -0.25 0.654509
+   //assert(false);
 
    if (gpu){
       //#warning Need to do this before before switching to get the Nodes ready for kgeom
       //mesh->SetNodalFESpace(fespace);
+      mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
       config::Get().Cuda(true);
       config::Get().PA(true);
       dbg("\033[32;7mSwitched to GPU & PA!");
    }
-
+ 
    dbg("7. Define the solution vector x");// as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
@@ -169,6 +186,7 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
    
+   dbg("9. PA:BilinearForm / FA:SparseMatrix");
    PABilinearForm paA(fespace);
    SparseMatrix faA;
    //Operator A = config::Get().PA() ? paA : faA;

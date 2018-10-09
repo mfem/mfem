@@ -91,6 +91,7 @@ double DeltaCoefficient::EvalDelta(ElementTransformation &T,
 void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
                              const IntegrationRule &ir)
 {
+   assert(false);
    Vector Mi;
    M.SetSize(vdim, ir.GetNPoints());
    for (int i = 0; i < ir.GetNPoints(); i++)
@@ -105,11 +106,15 @@ void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
 void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                      const IntegrationPoint &ip)
 {
+   dbg();
 #warning Eval
    //double x[3];
    static double *x = mm::malloc<double>(3);
    Vector transip(x, 3);
    T.Transform(ip, transip);
+   
+   dbg("transip:");
+   transip.Print();
 
    V.SetSize(vdim);
    if (Function)
