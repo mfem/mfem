@@ -4366,14 +4366,12 @@ void DenseMatrixInverse::Factor()
    const int s = width*width;
    
    assert(a);
-   dbg("adata");
-   kFactorPrint(s,adata);   
+   //dbg("adata");   kFactorPrint(s,adata);   
    
    double *ludata = lu.data;
    kFactorSet(s, adata, ludata);
    
-   dbg("ludata");
-   kFactorPrint(s,ludata);
+   //dbg("ludata"); kFactorPrint(s,ludata);
    //assert(false);
    lu.Factor(width);
 }
@@ -4402,14 +4400,13 @@ void DenseMatrixInverse::Factor(const DenseMatrix &mat)
 
    const double *data = mat.GetData();
    assert(mm::Get().Known(data));
-   const int s = width*width;
-   dbg("mat data");
-   kFactorPrint(s,data);
+   //const int s = width*width;
+   //dbg("mat data");kFactorPrint(s,data);
    
    a = &mat;
-   dbg("mat:");
-   mat.Print();
-   a->Print();
+   //dbg("mat:");
+   //mat.Print();
+   //a->Print();
    //OKINA_ASSERT_GPU;
    Factor();
 }

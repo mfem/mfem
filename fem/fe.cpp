@@ -7533,7 +7533,7 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
       }
 
    //assert(false);
-   dbg("T(%d)",Dof);
+   //dbg("T(%d)",Dof);
    DenseMatrix T(Dof);
    for (int k = 0; k < Dof; k++)
    {
@@ -7549,8 +7549,8 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
             T(o++, k) = shape_x(i)*shape_y(j)*shape_l(p-i-j);
          }
    }
-   dbg("T.Print():");
-   T.Print();
+   //dbg("T.Print():");
+   //T.Print();
 #warning T Push, because kernel is not written
    mm::Get().Push(T.GetData());
    Ti.Factor(T); // Ti: DenseMatrixInverse

@@ -45,11 +45,11 @@ void kFactor(const int m, int *ipiv, double *data){
             {
                int piv = i;
                double a = fabs(d_data[piv+i*m]);
-               printf("\n a=%f",a);
+               //printf("\n a=%f",a);
                for (int j = i+1; j < m; j++)
                {
                   const double b = fabs(d_data[j+i*m]);
-                  printf("\n\t b=%f",b);
+                  //printf("\n\t b=%f",b);
                   if (b > a)
                   {
                      a = b;
@@ -71,7 +71,7 @@ void kFactor(const int m, int *ipiv, double *data){
                }
             }
             const double diim = d_data[i+i*m];
-            printf("\n\t\033[32;7mdiim=%f\033[m",diim);
+            //printf("\n\t\033[32;7mdiim=%f\033[m",diim);
             assert(diim != 0.0);
             const double a_ii_inv = 1.0/d_data[i+i*m];
             for (int j = i+1; j < m; j++)

@@ -169,14 +169,20 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
    
-   PABilinearForm A(fespace);
-   //SparseMatrix faA;
+   PABilinearForm paA(fespace);
+   SparseMatrix faA;
    //Operator A = config::Get().PA() ? paA : faA;
    //Operator &A = config::Get().PA() ? Operator(0) : SparseMatrix();
    Vector B, X;
-   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+   if (config::Get().PA())
+      a->FormLinearSystem(ess_tdof_list, x, *b, paA, X, B);
+   else
+      a->FormLinearSystem(ess_tdof_list, x, *b, faA, X, B);
          
-   cout << "Size of linear system: " << A.Height() << endl;
+   if (config::Get().PA())
+      cout << "Size of linear system: " << paA.Height() << endl;
+   else
+      cout << "Size of linear system: " << faA.Height() << endl;
 
     //config::Get().Cuda(gpu);
 
@@ -185,7 +191,10 @@ int main(int argc, char *argv[])
    dbg("10. Solve the system A X = B with PCG.");
    //GSSmoother M(A);
    //PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
-   CG(A, B, X, 3, 1000, 1e-12, 0.0);
+   if (config::Get().PA())
+      CG(paA, B, X, 3, 1000, 1e-12, 0.0);
+   else
+      CG(faA, B, X, 3, 1000, 1e-12, 0.0);
 #else
    // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;
