@@ -31,12 +31,10 @@ PABilinearForm::PABilinearForm(FiniteElementSpace* fes) :
    testFes(fes),
    localX(mesh->GetNE() * trialFes->GetFE(0)->GetDof() * trialFes->GetVDim()),
    localY(mesh->GetNE() * testFes->GetFE(0)->GetDof() * testFes->GetVDim()),
-   kfes(new kFiniteElementSpace(*fes)),
-   diffusion(NULL)
-   { }
+   kfes(new kFiniteElementSpace(*fes)) { dbg("\033[7mPABilinearForm"); }
 
 // ***************************************************************************
-PABilinearForm::~PABilinearForm(){ delete kfes;}
+PABilinearForm::~PABilinearForm(){ /*delete kfes;*/}
 
 // *****************************************************************************
 void PABilinearForm::EnableStaticCondensation(){ assert(false);}
@@ -44,9 +42,9 @@ void PABilinearForm::EnableStaticCondensation(){ assert(false);}
 // ***************************************************************************
 // Adds new Domain Integrator.
 void PABilinearForm::AddDomainIntegrator(AbstractBilinearFormIntegrator *i) {
-   //assert(false);
+   dbg();
    dbg("\033[7mAddDomainIntegrator");
-   integrators.Append (static_cast<BilinearPAFormIntegrator*>(i));
+   integrators.Append(static_cast<BilinearPAFormIntegrator*>(i));
 }
 
 // Adds new Boundary Integrator.
@@ -69,6 +67,7 @@ void PABilinearForm::AddBoundaryFaceIntegrator(AbstractBilinearFormIntegrator *i
 
 // ***************************************************************************
 void PABilinearForm::Assemble(int skip_zeros) {
+   dbg("\033[7mAssemble");
    const int nbi = integrators.Size();
    dbg("nbi=%d",nbi);
    assert(integrators.Size()==1);
@@ -77,24 +76,19 @@ void PABilinearForm::Assemble(int skip_zeros) {
    const int order = ir0?ir0->GetOrder():2*fe.GetOrder() - 2;
    const IntegrationRule *ir = &IntRules.Get(fe.GetGeomType(), order);
    assert(ir);
-   dbg("diffusion->Assemble()");
-   if (!diffusion){
-      dbg("new KDiffusionIntegrator");
-      diffusion = new KDiffusionIntegrator(fes,ir);
+   const int integratorCount = integrators.Size();
+   for (int i = 0; i < integratorCount; ++i) {
+      integrators[i]->Setup(fes,ir);
+      integrators[i]->Assemble();
    }
-   diffusion->Assemble();
-
-   /*
-     const int integratorCount = integrators.Size();
-     for (int i = 0; i < integratorCount; ++i) {
-     integrators[i]->Assemble();
-     }
-   */
+   
 }
 
 // ***************************************************************************
 void PABilinearForm::FormOperator(const Array<int> &ess_tdof_list,
                                   Operator &A) {
+#warning move semantic?
+   dbg();assert(false);
    const Operator* trialP = trialFes->GetProlongationMatrix();
    const Operator* testP  = testFes->GetProlongationMatrix();
    Operator *rap = this;
@@ -110,17 +104,19 @@ void PABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                                       Vector &x, Vector &b,
                                       Operator &A, Vector &X, Vector &B,
                                       int copy_interior) {
+   dbg();
    //FormOperator(ess_tdof_list, A);
 
    const Operator* trialP = trialFes->GetProlongationMatrix();
    const Operator* testP  = testFes->GetProlongationMatrix();
    Operator *rap = this;
-   if (trialP) { rap = new RAPOperator(*testP, *this, *trialP); }
+   if (trialP) { assert(false);rap = new RAPOperator(*testP, *this, *trialP); }
    const bool own_A = rap!=this;
    assert(rap);
+   
    ConstrainedOperator *CO = new ConstrainedOperator(rap, ess_tdof_list, own_A);
    A = *CO;
-
+   
    const Operator* P = trialFes->GetProlongationMatrix();
    const Operator* R = trialFes->GetRestrictionMatrix();
    if (P) {
@@ -132,19 +128,24 @@ void PABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    } else {
       // rap, X and B point to the same data as this, x and b
 #warning look here too
-      //assert(false);
       X.SetSize(x.Size()/*,x*/); X = x;
       B.SetSize(b.Size()/*,b*/); B = b;
+      //assert(false);
    }
    //ConstrainedOperator *cA = static_cast<ConstrainedOperator*>(&A);
    assert(CO);
    if (CO) {
+      dbg("ConstrainedOperator");
 #warning and there
       //cA->EliminateRHS(X, B);
+      dbg("z, w");
       Vector z(A.Height());
       Vector w(A.Height());
+      dbg("w = 0.0");
       w = 0.0;
+      dbg("CO->Mult(w, z)");
       CO->Mult(w, z);
+      dbg("b -= z");
       b -= z;
    } else {
       mfem_error("BilinearForm::InitRHS expects an ConstrainedOperator");
@@ -153,37 +154,45 @@ void PABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
 
 // ***************************************************************************
 void PABilinearForm::Mult(const Vector &x, Vector &y) const {
-   //assert(false);
+   dbg();
    //trialFes
    kfes->GlobalToLocal(x, localX);
    localY = 0.0;
-#warning diffusion Assemble
-   diffusion->MultAdd(localX, localY);
-   /*
+   //assert(diffusion);
+//#warning diffusion Assemble
+   //diffusion->MultAdd(localX, localY);
+   
    const int iSz = integrators.Size();
    for (int i = 0; i < iSz; ++i) {
       integrators[i]->MultAdd(localX, localY);
-      }*/
+   }
    //testFes
    kfes->LocalToGlobal(localY, y);
+   //stk(true);
+   //assert(false);
+   dbg("done");
 }
 
 // ***************************************************************************
 void PABilinearForm::MultTranspose(const Vector &x, Vector &y) const {
+   dbg();
    assert(false);
-   //testFes->GlobalToLocal(x, localX);
+   //testFes
+   kfes->GlobalToLocal(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
    for (int i = 0; i < iSz; ++i) {
       integrators[i]->MultTransposeAdd(localX, localY);
    }
-   //trialFes->LocalToGlobal(localY, y);
+   //trialFes
+   kfes->LocalToGlobal(localY, y);
 }
 
 // ***************************************************************************
 void PABilinearForm::RecoverFEMSolution(const Vector &X,
                                           const Vector &b,
                                         Vector &x) {
+   dbg();
    const Operator *P = this->GetProlongation();
    if (P) {
       // Apply conforming prolongation

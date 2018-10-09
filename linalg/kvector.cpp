@@ -133,7 +133,7 @@ void kSetSubVector(const size_t n, const int *dofs, const double *elemvect,
 void kVectorOpSubtract(const size_t size, const double *v, double *data){
    GET_CONST_ADRS(v);
    GET_ADRS(data);
-   forall(i, size, data[i] -= v[i];);
+   forall(i, size, d_data[i] -= d_v[i];);
 }
 
 // *****************************************************************************
@@ -144,11 +144,11 @@ void kAddElementVector(const size_t n, const int *dofs,
    GET_ADRS(data);
    forall(k,1,{
          for (int i = 0; i < n; i++) {
-            const int j = dofs[i];
+            const int j = d_dofs[i];
             if (j >= 0){
-               data[j] += elem_data[i];
+               d_data[j] += d_elem_data[i];
             }else{
-               data[-1-j] -= elem_data[i];
+               d_data[-1-j] -= d_elem_data[i];
             }
          }
       });

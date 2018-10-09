@@ -21,7 +21,6 @@
 #include "staticcond.hpp"
 #include "hybridization.hpp"
 #include "kfespace.hpp"
-#include "kBilinIntegDiffusion.hpp"
 
 namespace mfem
 {
@@ -46,7 +45,7 @@ public:
    virtual void RecoverFEMSolution(const Vector &X, const Vector &b,
                                    Vector &x) = 0;
    virtual void EnableStaticCondensation() =0;
-   virtual void Mult(const Vector &x, Vector &y) const { assert(false); }
+   virtual void Mult(const Vector &x, Vector &y) const = 0;
 };
 
 // ***************************************************************************
@@ -60,7 +59,6 @@ protected:
    Array<BilinearPAFormIntegrator*> integrators;
    mutable Vector localX, localY;
    kFiniteElementSpace *kfes;
-   KDiffusionIntegrator *diffusion;
 public:
    PABilinearForm(FiniteElementSpace*);
    ~PABilinearForm();

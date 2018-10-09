@@ -14,7 +14,9 @@
 
 #include "../config/config.hpp"
 #include "nonlininteg.hpp"
-//#include "fespace.hpp"
+#include "fespace.hpp"
+//#include "kfespace.hpp"
+#include "kBilinIntegDiffusion.hpp"
 
 namespace mfem
 {
@@ -27,7 +29,7 @@ public:
    AbstractBilinearFormIntegrator(const IntegrationRule *ir = NULL) :
       NonlinearFormIntegrator(ir) { }
    virtual ~AbstractBilinearFormIntegrator() { }
-   virtual void Setup() =0;
+   virtual void Setup(const FiniteElementSpace*, const IntegrationRule*) =0;
    virtual void Assemble() =0;
    virtual void MultAdd(Vector&, Vector&) =0;
    virtual void MultTransposeAdd(Vector&, Vector&) =0;
@@ -40,30 +42,34 @@ public:
 // * Bilinear PA Form Integrator
 // *****************************************************************************
 class BilinearPAFormIntegrator : public AbstractBilinearFormIntegrator{
-protected:
-   const Mesh* mesh;
-   //FiniteElementSpace* trialFESpace;
-   //FiniteElementSpace* testFESpace;
-   const IntegrationRule* ir;
-   //DofQuadMaps* maps;
-   //DofQuadMaps* mapsTranspose;
-private:
 public:
    BilinearPAFormIntegrator(const IntegrationRule *ir = NULL) :
-      AbstractBilinearFormIntegrator(ir) { }
-   //virtual std::string GetName() = 0;
-   //void SetIntegrationRule(const IntegrationRule&);
-   //const IntegrationRule& GetIntegrationRule() const;
-   //virtual void SetupIntegrationRule();
-   //virtual void SetupIntegrator(BilinearPAForm&, const IntegratorType);
-   virtual void Setup() {assert(false);}
-   virtual void Assemble() {assert(false);}
-   virtual void MultAdd(Vector&, Vector&) {assert(false);}
-   virtual void MultTransposeAdd(Vector&, Vector&) {assert(false);}
-   //Geometry* GetGeometry();
+      AbstractBilinearFormIntegrator(ir) { dbg();}
+   virtual void Setup(const FiniteElementSpace*, const IntegrationRule*){dbg();assert(false);}
+   virtual void Assemble() {dbg();assert(false);}
+   virtual void MultAdd(Vector&, Vector&) {dbg();assert(false);}
+   virtual void MultTransposeAdd(Vector&, Vector&) {dbg();assert(false);}
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
-                                      DenseMatrix &elmat) {assert(false);}
+                                      DenseMatrix &elmat) {dbg();assert(false);}
+};
+
+// *****************************************************************************
+// * PA Diffusion Integrator
+// *****************************************************************************
+class PADiffusionIntegrator: public BilinearPAFormIntegrator {
+private:
+   Coefficient *Q;
+   KDiffusionIntegrator *diffusion;
+public:
+   PADiffusionIntegrator (Coefficient &q) : BilinearPAFormIntegrator(), Q(&q), diffusion(NULL) {dbg();}
+   void Setup(const FiniteElementSpace*, const IntegrationRule*);
+   void Assemble();
+   void MultAdd(Vector&, Vector&);
+   void MultTransposeAdd(Vector&, Vector&) {dbg();assert(false);}
+   void AssembleElementMatrix(const FiniteElement&,
+                              ElementTransformation&,
+                              DenseMatrix&) {dbg();assert(false);}
 };
 
 // *****************************************************************************
@@ -72,13 +78,12 @@ public:
 class BilinearFormIntegrator : public AbstractBilinearFormIntegrator {
 public:
    BilinearFormIntegrator(const IntegrationRule *ir = NULL) :
-      AbstractBilinearFormIntegrator(ir) { }
-
+      AbstractBilinearFormIntegrator(ir) { dbg();}
 public:
-   virtual void Setup() {assert(false);}
-   virtual void Assemble();
-   virtual void MultAdd(Vector&, Vector&) {assert(false);}
-   virtual void MultTransposeAdd(Vector&, Vector&) {assert(false);}
+   virtual void Setup(const FiniteElementSpace*, const IntegrationRule*) {dbg();assert(false);}
+   virtual void Assemble() {dbg();assert(false);}
+   virtual void MultAdd(Vector&, Vector&) {dbg();assert(false);}
+   virtual void MultTransposeAdd(Vector&, Vector&) {dbg();assert(false);}
 
    /// Given a particular Finite Element computes the element matrix elmat.
    virtual void AssembleElementMatrix(const FiniteElement &el,
@@ -1651,9 +1656,10 @@ protected:
    }
 };
 
+// *****************************************************************************
 /** Class for integrating the bilinear form a(u,v) := (Q grad u, grad v) where Q
     can be a scalar or a matrix coefficient. */
-class DiffusionIntegrator: public AbstractBilinearFormIntegrator //BilinearXFormIntegrator
+class DiffusionIntegrator: public BilinearFormIntegrator //BilinearXFormIntegrator
 {
 private:
    Vector vec, pointflux, shape;
@@ -1663,12 +1669,6 @@ private:
 #endif
    Coefficient *Q;
    MatrixCoefficient *MQ;
-public:
-   virtual void Setup() {assert(false);}
-   virtual void Assemble() {assert(false);}
-   virtual void MultAdd(Vector&, Vector&);
-   virtual void MultTransposeAdd(Vector&, Vector&) {assert(false);}
-
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
    DiffusionIntegrator() { Q = NULL; MQ = NULL; }

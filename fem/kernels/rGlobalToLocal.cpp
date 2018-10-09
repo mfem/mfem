@@ -13,7 +13,10 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
+
+#include "../../general/okina.hpp"
 #include "kernels.hpp"
+using namespace mfem;
 
 // *****************************************************************************
 extern "C" kernel
@@ -55,6 +58,13 @@ void rGlobalToLocal(const int NUM_VDIM,
                     const int* __restrict indices,
                     const double* __restrict globalX,
                     double* __restrict localX) {
-  cuKer(rGlobalToLocal,globalEntries,NUM_VDIM,VDIM_ORDERING,
-        localEntries,offsets,indices,globalX,localX);
+   
+   GET_CONST_ADRS_T(offsets,int);
+   GET_CONST_ADRS_T(indices,int);
+   GET_CONST_ADRS(globalX);
+   GET_ADRS(localX);
+   
+   cuKer(rGlobalToLocal, globalEntries, NUM_VDIM, VDIM_ORDERING, localEntries,
+         d_offsets, d_indices, d_globalX, d_localX);
+   //assert(false);
 }

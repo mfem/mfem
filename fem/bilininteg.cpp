@@ -19,13 +19,25 @@ using namespace std;
 
 namespace mfem
 {
-   
-void DiffusionIntegrator::MultAdd(Vector&, Vector&){
-   assert(false);
+// *****************************************************************************
+void PADiffusionIntegrator::Setup(const FiniteElementSpace *fes,
+                                  const IntegrationRule *ir){
+   dbg();
+   assert(diffusion==NULL);
+   diffusion = new KDiffusionIntegrator(fes,ir);
 }
-   
-void BilinearFormIntegrator::Assemble(){
-   assert(false);
+
+// *****************************************************************************
+void PADiffusionIntegrator::Assemble(){
+   dbg();
+   assert(diffusion);
+   diffusion->Assemble();
+}
+
+// *****************************************************************************
+void PADiffusionIntegrator::MultAdd(Vector &x, Vector &y){
+   dbg();
+   diffusion->MultAdd(x,y);
 }
 
 void BilinearFormIntegrator::AssembleElementMatrix (
