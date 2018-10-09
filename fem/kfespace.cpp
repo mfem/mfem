@@ -18,6 +18,14 @@
 // *****************************************************************************
 MFEM_NAMESPACE
 
+
+// **************************************************************************
+static void kArrayAssign(const int n, const int *src, int *dest){
+   GET_CONST_ADRS_T(src,int);
+   GET_ADRS_T(dest,int);
+   forall(i, n, d_dest[i] = d_src[i];);
+}
+
 // *****************************************************************************
 // * kFiniteElementSpace
 // *****************************************************************************
@@ -71,11 +79,19 @@ kFiniteElementSpace::kFiniteElementSpace(FiniteElementSpace &fes)
       h_offsets[i] = h_offsets[i - 1];
    }
    h_offsets[0] = 0;
-  
-   offsets = h_offsets;
-   indices = h_indices;
-   map = h_map;
-  
+
+#warning Push
+   mm::Get().Push(h_offsets);
+   mm::Get().Push(h_indices);
+   const int leN = localDofs*elements;
+   const int guN = globalDofs+1;
+   kArrayAssign(guN,h_offsets,offsets);
+   kArrayAssign(leN,h_indices,indices);
+   kArrayAssign(leN,h_map,map);
+   //offsets = h_offsets;
+   //indices = h_indices;
+   //map = h_map;
+   dbg("done");
 }
 
 // ***************************************************************************

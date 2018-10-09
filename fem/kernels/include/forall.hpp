@@ -69,8 +69,10 @@ const int CUDA_BLOCK_SIZE = 256;
 #define cuKerGBS(name,grid,block,end,...) name ## 0<<<grid,block>>>(end,__VA_ARGS__)
 #define call0p(name,id,grid,blck,...)                               \
   printf("\033[32;1m[call0] name=%s grid:%d, block:%d\033[m\n",#name,grid,blck); \
-  call[id]<<<grid,blck>>>(__VA_ARGS__)
-#define call0(name,id,grid,blck,...) call[id]<<<grid,blck>>>(__VA_ARGS__)
+  call[id]<<<grid,blck>>>(__VA_ARGS__);\
+  cudaDeviceSynchronize();
+#define call0(name,id,grid,blck,...) {call[id]<<<grid,blck>>>(__VA_ARGS__);\
+   cudaDeviceSynchronize();}
 #define ReduceDecl(type,var,ini) double var=ini;
 #define ReduceForall(i,max,body) 
 

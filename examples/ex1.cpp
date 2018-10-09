@@ -136,11 +136,11 @@ int main(int argc, char *argv[])
    b->Assemble();
 
    if (gpu){
-      dbg("\033[32;7mSwitching to GPU!");
       //#warning Need to do this before before switching to get the Nodes ready for kgeom
-      mesh->SetNodalFESpace(fespace);
+      //mesh->SetNodalFESpace(fespace);
       config::Get().Cuda(true);
       config::Get().PA(true);
+      dbg("\033[32;7mSwitched to GPU & PA!");
    }
 
    dbg("7. Define the solution vector x");// as a finite element grid function
@@ -163,10 +163,13 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
    
-   SparseMatrix A;
+   PABilinearForm A(fespace);
+   //SparseMatrix faA;
+   //Operator A = config::Get().PA() ? paA : faA;
+   //Operator &A = config::Get().PA() ? Operator(0) : SparseMatrix();
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-
+         
    cout << "Size of linear system: " << A.Height() << endl;
 
     //config::Get().Cuda(gpu);

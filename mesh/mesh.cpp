@@ -3355,6 +3355,7 @@ void Mesh::GetNodes(GridFunction &nodes) const
       //dbg("assign");
       nodes = *Nodes;
    }
+   dbg("done");
 }
 
 void Mesh::SetNodalFESpace(FiniteElementSpace *nfes)

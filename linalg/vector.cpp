@@ -192,17 +192,18 @@ Vector &Vector::operator-=(double c)
 
 Vector &Vector::operator-=(const Vector &v)
 {
-   OKINA_ASSERT_CPU;
+   //OKINA_ASSERT_GPU;
 #ifdef MFEM_DEBUG
    if (size != v.size)
    {
       mfem_error("Vector::operator-=(const Vector &)");
    }
 #endif
+   kVectorOpSubtract(size,v,data);/*
    for (int i = 0; i < size; i++)
    {
       data[i] -= v(i);
-   }
+      }*/
    return *this;
 }
 
@@ -579,9 +580,11 @@ void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
 
 void Vector::AddElementVector(const Array<int> &dofs, double *elem_data)
 {
-   OKINA_ASSERT_CPU;
-   int i, j, n = dofs.Size();
-
+   //OKINA_ASSERT_CPU;
+   //int i, j,
+   const int n = dofs.Size();
+   kAddElementVector(n,dofs,elem_data,data);
+   /*
    for (i = 0; i < n; i++)
    {
       if ((j = dofs[i]) >= 0)
@@ -592,7 +595,7 @@ void Vector::AddElementVector(const Array<int> &dofs, double *elem_data)
       {
          data[-1-j] -= elem_data[i];
       }
-   }
+      }*/
 }
 
 void Vector::AddElementVector(const Array<int> &dofs, const double a,

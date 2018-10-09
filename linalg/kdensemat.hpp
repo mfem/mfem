@@ -14,6 +14,10 @@
 
 MFEM_NAMESPACE
 
+void kFactorPrint(const int s, const double *data);
+
+void kFactorSet(const int s, const double *adata, double *data);
+
 void kFactor(const int m, int *ipiv, double *data);
 
 void kMult(const int ah, const int aw, const int bw,

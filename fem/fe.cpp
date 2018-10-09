@@ -6635,6 +6635,7 @@ const double *Poly_1D::GetPoints(const int p, const int btype)
 
    if (points_container.find(btype) == points_container.end())
    {
+      //assert(false);
       points_container[btype] = new Array<double*>;
    }
    Array<double*> &pts = *points_container[btype];
@@ -6644,7 +6645,9 @@ const double *Poly_1D::GetPoints(const int p, const int btype)
    }
    if (pts[p] == NULL)
    {
-      pts[p] = new double[p + 1];
+      //assert(false);
+      pts[p] = mm::malloc<double>(p + 1);
+      //pts[p] = new double[p + 1];      
       quad_func.GivePolyPoints(p+1, pts[p], qtype);
    }
    return pts[p];
@@ -7529,6 +7532,8 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
          Nodes.IntPoint(o++).Set2(cp[i]/w, cp[j]/w);
       }
 
+   //assert(false);
+   dbg("T(%d)",Dof);
    DenseMatrix T(Dof);
    for (int k = 0; k < Dof; k++)
    {
@@ -7544,8 +7549,12 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
             T(o++, k) = shape_x(i)*shape_y(j)*shape_l(p-i-j);
          }
    }
-
-   Ti.Factor(T);
+   dbg("T.Print():");
+   T.Print();
+#warning T Push, because kernel is not written
+   mm::Get().Push(T.GetData());
+   Ti.Factor(T); // Ti: DenseMatrixInverse
+   //assert(false);
    // mfem::out << "H1_TriangleElement(" << p << ") : "; Ti.TestInversion();
 }
 

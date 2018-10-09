@@ -141,7 +141,8 @@ DenseMatrix::DenseMatrix(double *d, int h, int w)
       data = d;
       capacity = -h*w;
    }else{
-      //data = mm::malloc<double>(h*w);
+      assert(false);
+      data = mm::malloc<double>(h*w);
       data = d;
       capacity = -h*w;
    }
@@ -154,11 +155,21 @@ void DenseMatrix::UseExternalData(double *d, int h, int w){
       width = w;
       capacity = -h*w;
    }else{
-      //data = mm::malloc<double>(h*w);
-      data = d;
-      height = h;
-      width = w;
-      capacity = -h*w;
+      stk(true);
+      //assert(false);
+      if (!d and h==0 and w==0){
+         //assert(false);
+         // mesh, ncmesh, DenseTensor point_matrices Clear
+         data = NULL;
+         height = width = capacity = 0;
+      }else{
+         //data = mm::malloc<double>(h*w);
+         assert(mm::Get().Known(d));
+         data = d;
+         height = h;
+         width = w;
+         capacity = -h*w;
+      }
    }
 }
 
@@ -1246,6 +1257,7 @@ void DenseMatrix::SingularValues(Vector &sv) const
 
 int DenseMatrix::Rank(double tol) const
 {
+   OKINA_ASSERT_CPU;
    int rank=0;
    Vector sv(min(Height(), Width()));
    SingularValues(sv);
@@ -1263,6 +1275,7 @@ static const double sqrt_1_eps = sqrt(1./numeric_limits<double>::epsilon());
 
 inline void Eigenvalues2S(const double &d12, double &d1, double &d2)
 {
+   OKINA_ASSERT_CPU;
    if (d12 != 0.)
    {
       // "The Symmetric Eigenvalue Problem", B. N. Parlett, pp.189-190
@@ -1283,6 +1296,7 @@ inline void Eigenvalues2S(const double &d12, double &d1, double &d2)
 inline void Eigensystem2S(const double &d12, double &d1, double &d2,
                           double &c, double &s)
 {
+   OKINA_ASSERT_CPU;
    if (d12 == 0.)
    {
       c = 1.;
@@ -1313,6 +1327,7 @@ inline void vec_normalize3_aux(
    const double &x1, const double &x2, const double &x3,
    double &n1, double &n2, double &n3)
 {
+   OKINA_ASSERT_CPU;
    double m, t, r;
 
    m = fabs(x1);
@@ -1329,6 +1344,7 @@ inline void vec_normalize3_aux(
 inline void vec_normalize3(const double &x1, const double &x2, const double &x3,
                            double &n1, double &n2, double &n3)
 {
+   OKINA_ASSERT_CPU;
    // should work ok when xk is the same as nk for some or all k
 
    if (fabs(x1) >= fabs(x2))
@@ -1358,6 +1374,7 @@ inline bool KernelVector2G(
    const int &mode,
    double &d1, double &d12, double &d21, double &d2)
 {
+   OKINA_ASSERT_CPU;
    // Find a vector (z1,z2) in the "near"-kernel of the matrix
    // |  d1  d12 |
    // | d21   d2 |
@@ -1500,6 +1517,7 @@ inline int KernelVector3G_aux(
    double &d1, double &d2, double &d3, double &c12, double &c13, double &c23,
    double &c21, double &c31, double &c32)
 {
+   OKINA_ASSERT_CPU;
    int kdim;
    double mu, n1, n2, n3, s1, s2, s3;
 
@@ -1605,6 +1623,7 @@ inline int KernelVector3S(
    const double &d12, const double &d13, const double &d23,
    double &d1, double &d2, double &d3)
 {
+   OKINA_ASSERT_CPU;
    // Find a unit vector (z1,z2,z3) in the "near"-kernel of the matrix
    // |  d1  d12  d13 |
    // | d12   d2  d23 |
@@ -1735,6 +1754,7 @@ inline int Reduce3S(
    double &z1, double &z2, double &z3, double &v1, double &v2, double &v3,
    double &g)
 {
+   OKINA_ASSERT_CPU;
    // Given the matrix
    //     |  d1  d12  d13 |
    // A = | d12   d2  d23 |
@@ -1853,6 +1873,7 @@ inline int Reduce3S(
 
 inline void GetScalingFactor(const double &d_max, double &mult)
 {
+   OKINA_ASSERT_CPU;
    int d_exp;
    if (d_max > 0.)
    {
@@ -1873,6 +1894,7 @@ inline void GetScalingFactor(const double &d_max, double &mult)
 
 double DenseMatrix::CalcSingularvalue(const int i) const
 {
+   OKINA_ASSERT_CPU;
    MFEM_ASSERT(Height() == Width() && Height() > 0 && Height() < 4,
                "The matrix must be square and sized 1, 2, or 3 to compute the"
                " singular values."
@@ -3115,6 +3137,7 @@ void Add(double alpha, const double *A,
 void Add(double alpha, const DenseMatrix &A,
          double beta,  const DenseMatrix &B, DenseMatrix &C)
 {
+   OKINA_ASSERT_CPU;
    MFEM_ASSERT(A.Height() == C.Height(), "");
    MFEM_ASSERT(B.Height() == C.Height(), "");
    MFEM_ASSERT(A.Width() == C.Width(), "");
@@ -4004,26 +4027,29 @@ void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt)
 
 void LUFactors::Factor(int m)
 {
-   //stk(true);
-   OKINA_ASSERT_GPU;
+   dbg();
+   stk(true);
+   //OKINA_ASSERT_GPU;
 #ifdef MFEM_USE_LAPACK
    int info = 0;
    if (m) { dgetrf_(&m, &m, data, &m, ipiv, &info); }
    MFEM_VERIFY(!info, "LAPACK: error in DGETRF");
 #else
    // compiling without LAPACK
+   /*
    double *data = this->data;
-#warning kFactor
-   //kFactor(m,ipiv,data);
+   assert(data);
    for (int i = 0; i < m; i++)
    {
       // pivoting
       {
          int piv = i;
          double a = std::abs(data[piv+i*m]);
+         printf("\n a=%f",a);
         for (int j = i+1; j < m; j++)
          {
             const double b = std::abs(data[j+i*m]);
+            printf("\n\t b=%f",b);
             if (b > a)
             {
                a = b;
@@ -4054,7 +4080,10 @@ void LUFactors::Factor(int m)
            data[j+k*m] -= a_ik * data[j+i*m];
          }
       }
-   }
+      }*/
+   dbg("kFactor");
+#warning kFactor
+   kFactor(m,ipiv,this->data);  
 #endif
 }
 
@@ -4115,6 +4144,7 @@ void LUFactors::Mult(int m, int n, double *X) const
 
 void LUFactors::LSolve(int m, int n, double *X) const
 {
+   OKINA_ASSERT_CPU;
    const double *data = this->data;
    const int *ipiv = this->ipiv;
    double *x = X;
@@ -4140,6 +4170,7 @@ void LUFactors::LSolve(int m, int n, double *X) const
 
 void LUFactors::USolve(int m, int n, double *X) const
 {
+   OKINA_ASSERT_CPU;
    const double *data = this->data;
    double *x = X;
    // X <- U^{-1} X
@@ -4159,6 +4190,7 @@ void LUFactors::USolve(int m, int n, double *X) const
 
 void LUFactors::Solve(int m, int n, double *X) const
 {
+   OKINA_ASSERT_CPU;
 #ifdef MFEM_USE_LAPACK
    char trans = 'N';
    int  info = 0;
@@ -4173,6 +4205,7 @@ void LUFactors::Solve(int m, int n, double *X) const
 
 void LUFactors::GetInverseMatrix(int m, double *X) const
 {
+   OKINA_ASSERT_CPU;
    // A^{-1} = U^{-1} L^{-1} P
    const double *data = this->data;
    const int *ipiv = this->ipiv;
@@ -4239,6 +4272,7 @@ void LUFactors::GetInverseMatrix(int m, double *X) const
 void LUFactors::SubMult(int m, int n, int r, const double *A21,
                         const double *X1, double *X2)
 {
+   OKINA_ASSERT_CPU;
    // X2 <- X2 - A21 X1
    for (int k = 0; k < r; k++)
    {
@@ -4256,6 +4290,7 @@ void LUFactors::SubMult(int m, int n, int r, const double *A21,
 void LUFactors::BlockFactor(
    int m, int n, double *A12, double *A21, double *A22) const
 {
+   OKINA_ASSERT_CPU;
    const double *data = this->data;
    // A12 <- L^{-1} P A12
    LSolve(m, n, A12);
@@ -4283,6 +4318,7 @@ void LUFactors::BlockFactor(
 void LUFactors::BlockForwSolve(int m, int n, int r, const double *L21,
                                double *B1, double *B2) const
 {
+   OKINA_ASSERT_CPU;
    // B1 <- L^{-1} P B1
    LSolve(m, r, B1);
    // B2 <- B2 - L21 B1
@@ -4292,6 +4328,7 @@ void LUFactors::BlockForwSolve(int m, int n, int r, const double *L21,
 void LUFactors::BlockBackSolve(int m, int n, int r, const double *U12,
                                const double *X2, double *Y1) const
 {
+   OKINA_ASSERT_CPU;
    // Y1 <- Y1 - U12 X2
    SubMult(n, m, r, U12, X2, Y1);
    // Y1 <- U^{-1} Y1
@@ -4302,6 +4339,7 @@ void LUFactors::BlockBackSolve(int m, int n, int r, const double *U12,
 DenseMatrixInverse::DenseMatrixInverse(const DenseMatrix &mat)
    : MatrixInverse(mat)
 {
+   OKINA_ASSERT_CPU;
    MFEM_ASSERT(height == width, "not a square matrix");
    a = &mat;
    lu.data = new double[width*width];
@@ -4321,32 +4359,64 @@ DenseMatrixInverse::DenseMatrixInverse(const DenseMatrix *mat)
 
 void DenseMatrixInverse::Factor()
 {
+   dbg();
+   //OKINA_ASSERT_GPU;
    MFEM_ASSERT(a, "DenseMatrix is not given");
    const double *adata = a->data;
-   for (int i = 0, s = width*width; i < s; i++)
-   {
-      lu.data[i] = adata[i];
-   }
+   const int s = width*width;
+   
+   assert(a);
+   dbg("adata");
+   kFactorPrint(s,adata);   
+   
+   double *ludata = lu.data;
+   kFactorSet(s, adata, ludata);
+   
+   dbg("ludata");
+   kFactorPrint(s,ludata);
+   //assert(false);
    lu.Factor(width);
+}
+   
+void DenseMatrixInverse::GetInverseMatrix(DenseMatrix &Ainv) const
+{
+   OKINA_ASSERT_CPU;
+   Ainv.SetSize(width);
+   lu.GetInverseMatrix(width, Ainv.Data());
 }
 
 void DenseMatrixInverse::Factor(const DenseMatrix &mat)
 {
+   dbg();
+   //OKINA_ASSERT_GPU;
    MFEM_VERIFY(mat.height == mat.width, "DenseMatrix is not square!");
    if (width != mat.width)
    {
+      dbg("free/malloc");
       height = width = mat.width;
       mm::free<double>(lu.data);
       lu.data = mm::malloc<double>(width*width);
       mm::free<double>(lu.ipiv);
       lu.ipiv = mm::malloc<int>(width);
    }
+
+   const double *data = mat.GetData();
+   assert(mm::Get().Known(data));
+   const int s = width*width;
+   dbg("mat data");
+   kFactorPrint(s,data);
+   
    a = &mat;
+   dbg("mat:");
+   mat.Print();
+   a->Print();
+   //OKINA_ASSERT_GPU;
    Factor();
 }
 
 void DenseMatrixInverse::SetOperator(const Operator &op)
 {
+   OKINA_ASSERT_CPU;
    const DenseMatrix *p = dynamic_cast<const DenseMatrix*>(&op);
    MFEM_VERIFY(p != NULL, "Operator is not a DenseMatrix!");
    Factor(*p);
@@ -4354,18 +4424,21 @@ void DenseMatrixInverse::SetOperator(const Operator &op)
 
 void DenseMatrixInverse::Mult(const Vector &x, Vector &y) const
 {
+   OKINA_ASSERT_CPU;
    y = x;
    lu.Solve(width, 1, y.GetData());
 }
 
 void DenseMatrixInverse::Mult(const DenseMatrix &B, DenseMatrix &X) const
 {
+   OKINA_ASSERT_CPU;
    X = B;
    lu.Solve(width, X.Width(), X.Data());
 }
 
 void DenseMatrixInverse::TestInversion()
 {
+   OKINA_ASSERT_CPU;
    DenseMatrix C(width);
    Mult(*a, C);
    for (int i = 0; i < width; i++)
@@ -4377,14 +4450,16 @@ void DenseMatrixInverse::TestInversion()
 
 DenseMatrixInverse::~DenseMatrixInverse()
 {
-   delete [] lu.data;
-   delete [] lu.ipiv;
+   //OKINA_ASSERT_GPU;
+   mm::free<double>(lu.data);
+   mm::free<int>(lu.ipiv);
 }
 
 
 DenseMatrixEigensystem::DenseMatrixEigensystem(DenseMatrix &m)
    : mat(m)
 {
+   OKINA_ASSERT_CPU;
    OKINA_ASSERT_CPU;
    n = mat.Width();
    EVal.SetSize(n);
@@ -4421,6 +4496,7 @@ DenseMatrixEigensystem::DenseMatrixEigensystem(
 
 void DenseMatrixEigensystem::Eval()
 {
+   OKINA_ASSERT_CPU;
 #ifdef MFEM_DEBUG
    if (mat.Width() != n)
    {
@@ -4446,6 +4522,7 @@ void DenseMatrixEigensystem::Eval()
 
 DenseMatrixEigensystem::~DenseMatrixEigensystem()
 {
+   OKINA_ASSERT_CPU;
 #ifdef MFEM_USE_LAPACK
    delete [] work;
 #endif
@@ -4454,6 +4531,7 @@ DenseMatrixEigensystem::~DenseMatrixEigensystem()
 
 DenseMatrixSVD::DenseMatrixSVD(DenseMatrix &M)
 {
+   OKINA_ASSERT_CPU;
    m = M.Height();
    n = M.Width();
    Init();
@@ -4461,6 +4539,7 @@ DenseMatrixSVD::DenseMatrixSVD(DenseMatrix &M)
 
 DenseMatrixSVD::DenseMatrixSVD(int h, int w)
 {
+   OKINA_ASSERT_CPU;
    m = h;
    n = w;
    Init();
@@ -4468,6 +4547,7 @@ DenseMatrixSVD::DenseMatrixSVD(int h, int w)
 
 void DenseMatrixSVD::Init()
 {
+   OKINA_ASSERT_CPU;
 #ifdef MFEM_USE_LAPACK
    sv.SetSize(min(m, n));
 
@@ -4488,6 +4568,7 @@ void DenseMatrixSVD::Init()
 
 void DenseMatrixSVD::Eval(DenseMatrix &M)
 {
+   OKINA_ASSERT_CPU;
 #ifdef MFEM_DEBUG
    if (M.Height() != m || M.Width() != n)
    {
@@ -4511,6 +4592,7 @@ void DenseMatrixSVD::Eval(DenseMatrix &M)
 
 DenseMatrixSVD::~DenseMatrixSVD()
 {
+   OKINA_ASSERT_CPU;
 #ifdef MFEM_USE_LAPACK
    delete [] work;
 #endif

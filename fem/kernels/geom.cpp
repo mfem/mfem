@@ -13,8 +13,10 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
+
+#include "../../general/okina.hpp"
 #include "kernels.hpp"
-#include "../../general/dbg.hpp"
+using namespace mfem;
 
 // *****************************************************************************
 template<const int NUM_DOFS,
@@ -47,18 +49,23 @@ void rIniGeom(const int DIM,
 #ifdef __NVCC__
    const int blck = CUDA_BLOCK_SIZE;
    const int grid = (numElements+blck-1)/blck;
+   dbg("blck=%d",blck);
+   dbg("grid=%d",grid);
 #endif
    const unsigned int dofs1D = IROOT(DIM,NUM_DOFS);
    const unsigned int quad1D = IROOT(DIM,NUM_QUAD);
    const unsigned int id = (DIM<<4)|(dofs1D-2);
-   //dbg("quad1D=%d",quad1D);
-   //dbg("dofs1D=%d",dofs1D);
+   dbg("DIM=%d",DIM);
+   dbg("quad1D=%d",quad1D);
+   dbg("dofs1D=%d",dofs1D);
+   dbg("id=%d",id);
    assert(LOG2(DIM)<=4);
    assert(LOG2(dofs1D-2)<=4);
+#warning assert(quad1D==2*(dofs1D-1))
    //assert(quad1D==2*(dofs1D-1));
    static std::unordered_map<unsigned int, fIniGeom> call = {
       // 2D
-      {0x20,&rIniGeom2D<2*2,(2*2-2)*(2*2-2)>},
+      {0x20,&rIniGeom2D<2*2,1>},
       {0x21,&rIniGeom2D<3*3,(3*2-2)*(3*2-2)>},
       {0x22,&rIniGeom2D<4*4,(4*2-2)*(4*2-2)>},
       {0x23,&rIniGeom2D<5*5,(5*2-2)*(5*2-2)>},
@@ -95,8 +102,20 @@ void rIniGeom(const int DIM,
    if (!call[id]){
       printf("\n[rIniGeom] id \033[33m0x%X\033[m ",id);
       fflush(stdout);
+   }else{
+      printf("\n[rIniGeom] id \033[33m0x%X\033[m ",id);
+      fflush(stdout);
    }
    assert(call[id]);
-   call0(dummy,id,grid,blck,
-        numElements,dofToQuadD,nodes,J,invJ,detJ);
+   assert(dofToQuadD);
+   
+   GET_CONST_ADRS(dofToQuadD);
+   GET_CONST_ADRS(nodes);
+   GET_ADRS(J);
+   GET_ADRS(invJ);
+   GET_ADRS(detJ);
+   
+   call0p(rIniGeom, id, grid, blck,
+         numElements, d_dofToQuadD, d_nodes, d_J, d_invJ, d_detJ);
+   //assert(false);   
 }

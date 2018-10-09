@@ -32,6 +32,7 @@ void mm::Setup(void){
 // *****************************************************************************
 void* mm::add(const void *h_adrs, const size_t size, const size_t size_of_T){
    dbg();
+   //stk(true);
    const size_t bytes = size*size_of_T;
    const auto search = mng->find(h_adrs);
    const bool present = search != mng->end();
@@ -72,7 +73,7 @@ void mm::del(const void *adrs){
    const auto search = mng->find(adrs);
    const bool present = search != mng->end();
    if (!present){ // should not happen
-      printf("\n\033[32m[mm::del] %p\033[m", adrs);
+      printf("\n\033[31;7m[mm::del] %p\033[m", adrs);
       assert(false); // should not happen
    }
    //printf("\n\033[32;7m[mm::del] %p\033[m", adrs);
@@ -97,20 +98,25 @@ void* mm::Adrs(const void *adrs){
    const bool present = search != mng->end();
 
    // Should look where that comes from
-   if (not present) return (void*)adrs;
+   if (not present) {
+      dbg();
+      stk(true);
+      assert(false);
+      return (void*)adrs;
+   }
    
    assert(present);
    /*const*/ mm2dev_t &mm2dev = mng->operator[](adrs);
    const size_t bytes = mm2dev.bytes;
    // If we are asking a known host address, just return it
    if (mm2dev.host and not cuda){
-      dbg("Returning host adrs %p", mm2dev.h_adrs);
+      dbg("Returning host adrs %p\033[m", mm2dev.h_adrs);
       return (void*)mm2dev.h_adrs;
    }
    // Otherwise push it to the device if it hasn't been seen
    //assert(mm2dev.d_adrs);
    if (!mm2dev.d_adrs){
-      dbg("\033[32;1mPushing new address to the GPU!");
+      dbg("\033[32;1mPushing new address to the GPU!\033[m");
       // allocate on the device
       CUdeviceptr ptr = (CUdeviceptr) NULL;
       if (bytes>0){
@@ -142,10 +148,30 @@ void mm::Rsync(const void *adrs){
    const bool present = search != mng->end();
    assert(present);
    const mm2dev_t &mm2dev = mng->operator[](adrs);
-   if (mm2dev.host) return;
+   if (mm2dev.host){
+      dbg("Already on host");
+      assert(false);
+      return;
+   }
    const size_t bytes = mm2dev.bytes;
    checkCudaErrors(cuMemcpyDtoH((void*)mm2dev.h_adrs,
                                 (CUdeviceptr)mm2dev.d_adrs,
+                                bytes));
+}
+
+// *****************************************************************************
+void mm::Push(const void *adrs){
+   const auto search = mng->find(adrs);
+   const bool present = search != mng->end();
+   assert(present);
+   const mm2dev_t &mm2dev = mng->operator[](adrs);
+   if (mm2dev.host){
+      dbg("On host");
+      return;
+   }
+   const size_t bytes = mm2dev.bytes;
+   checkCudaErrors(cuMemcpyHtoD((CUdeviceptr)mm2dev.d_adrs,
+                                (void*)mm2dev.h_adrs,
                                 bytes));
 }
 
@@ -161,12 +187,14 @@ void* mm::H2H(void *dest, const void *src, size_t bytes, const bool async) {
 // *************************************************************************
 void* mm::H2D(void *dest, const void *src, size_t bytes, const bool async) {
    dbg();
+   stk(true);
    if (bytes==0) return dest;
    assert(src); assert(dest);
    if (!config::Get().Cuda()) return memcpy(dest,src,bytes);
 #ifdef __NVCC__
-   if (!config::Get().Uvm())
+   if (!config::Get().Uvm()){
       checkCudaErrors(cuMemcpyHtoD((CUdeviceptr)dest,src,bytes));
+   }
    else checkCudaErrors(cuMemcpy((CUdeviceptr)dest,(CUdeviceptr)src,bytes));
 #endif
    return dest;
@@ -188,15 +216,18 @@ void* mm::D2H(void *dest, const void *src, size_t bytes, const bool async) {
   
 // ***************************************************************************
 void* mm::D2D(void *dest, const void *src, size_t bytes, const bool async) {
-   dbg();
+   dbg();//stk(true);
    if (bytes==0) return dest;
    assert(src); assert(dest);
    if (!config::Get().Cuda()) return memcpy(dest,src,bytes);
 #ifdef __NVCC__
    if (!config::Get().Uvm()){
-      if (!async)
-         checkCudaErrors(cuMemcpyDtoD((CUdeviceptr)dest,(CUdeviceptr)src,bytes));
-      else{
+      if (!async){
+         GET_ADRS(src);
+         GET_ADRS(dest);
+         //checkCudaErrors(cuMemcpyDtoD((CUdeviceptr)dest,(CUdeviceptr)src,bytes));
+         checkCudaErrors(cuMemcpyDtoD((CUdeviceptr)d_dest,(CUdeviceptr)d_src,bytes));
+      }else{
          const CUstream s = *config::Get().Stream();
          checkCudaErrors(cuMemcpyDtoDAsync((CUdeviceptr)dest,(CUdeviceptr)src,bytes,s));
       }

@@ -20,9 +20,9 @@ using namespace std;
 namespace mfem
 {
    
-   void DiffusionIntegrator::MultAdd(Vector&, Vector&){
-      assert(false);
-   }
+void DiffusionIntegrator::MultAdd(Vector&, Vector&){
+   assert(false);
+}
    
 void BilinearFormIntegrator::Assemble(){
    assert(false);
