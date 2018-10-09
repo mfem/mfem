@@ -31,7 +31,7 @@ void mm::Setup(void){
 // * Returns the 'instant' one
 // *****************************************************************************
 void* mm::add(const void *h_adrs, const size_t size, const size_t size_of_T){
-   dbg();
+   //dbg();
    //stk(true);
    const size_t bytes = size*size_of_T;
    const auto search = mng->find(h_adrs);
@@ -54,10 +54,10 @@ void* mm::add(const void *h_adrs, const size_t size, const size_t size_of_T){
       CUdeviceptr ptr = (CUdeviceptr)NULL;
       const size_t bytes = mm2dev.bytes;
       if (bytes>0){
-         printf(" \033[32;1m%ldo\033[m",bytes);
+         dbg(" \033[32;1m%ldo\033[m",bytes);
          checkCudaErrors(cuMemAlloc(&ptr,bytes));
       }else{
-         printf(" \033[31;1m%ldo\033[m",bytes);
+         dbg(" \033[31;1m%ldo\033[m",bytes);
       }
       mm2dev.d_adrs = (void*)ptr;
       // and say we are there
@@ -94,7 +94,7 @@ bool mm::Known(const void *adrs){
 // * 
 // *****************************************************************************
 void* mm::Adrs(const void *adrs){
-   dbg();
+   //dbg();
    const bool cuda = config::Get().Cuda();
    const auto search = mng->find(adrs);
    const bool present = search != mng->end();
@@ -112,7 +112,7 @@ void* mm::Adrs(const void *adrs){
    const size_t bytes = mm2dev.bytes;
    // If we are asking a known host address, just return it
    if (mm2dev.host and not cuda){
-      dbg("Returning host adrs %p\033[m", mm2dev.h_adrs);
+      //dbg("Returning host adrs %p\033[m", mm2dev.h_adrs);
       return (void*)mm2dev.h_adrs;
    }
    // Otherwise push it to the device if it hasn't been seen

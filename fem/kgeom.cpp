@@ -83,8 +83,9 @@ static void kGeomFill(const int dims,
                for (int v = 0; v < dims; ++v) {
                   const int moffset = v+dims*lid;
                   const int xoffset = v+dims*gid;
-                  //printf("\n\t%d %d",moffset,xoffset);
+                  //printf("\n\t[kGeomFill] offsets: %d %d",moffset,xoffset);
                   d_meshNodes[moffset] = d_nodes[xoffset];
+                  //printf("\n\t[kGeomFill] nodes: %f %f",d_meshNodes[moffset],d_nodes[xoffset]);
                }
             }
          });
@@ -110,7 +111,7 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
       geom = new kGeometry();
    }
    if (!mesh.GetNodes()) {
-      //assert(false);
+      assert(false);
       dbg("GetNodes, SetCurvature");
       mesh.SetCurvature(1, false, -1, Ordering::byVDIM);
    }
@@ -119,6 +120,14 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
    dbg("nodes size: %d", nodes.Size());
    GET_CONST_ADRS(nodes);
    dbg("d_nodes: %p", d_nodes);
+   mm::Get().Rsync(nodes.GetData());
+   dbg("nodes:\n");
+   nodes.Print();
+   //0 1 0.309017 1.30902 -0.809017 -0.5 -0.809017 -1.61803
+   //0.309017 -0.5 1.30902 0.5 1.15451 0.809019 0.154508 -0.0954915
+   //-0.654508 -0.404508 -1.21352 -1.21352 -0.404508 -0.654508 -0.0954915 0.154508
+   //0.809019 1.15451 0.654509 -0.25 -0.809016 -0.25 0.654509
+   //assert(false);
    
    const mfem::FiniteElementSpace& fespace = *(nodes.FESpace());
    const mfem::FiniteElement& fe = *(fespace.GetFE(0));
@@ -149,25 +158,6 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
                 eMap.GetData(),
                 nodes.GetData(),
                 meshNodes.GetData());
-      
-      //assert(false);
-      /*
-      for (int e = 0; e < elements; ++e)
-      {
-         for (int d = 0; d < numDofs; ++d)
-         {
-            const int lid = d+numDofs*e;
-            const int gid = elementMap[lid];
-            eMap[lid]=gid;
-            for (int v = 0; v < dims; ++v)
-            {
-               const int moffset = v+dims*lid;
-               const int xoffset = v+dims*gid;
-               meshNodes[moffset] = nodes[xoffset];
-            }
-         }
-      }
-      */
    }
    if (geom_to_allocate)
    {
@@ -179,6 +169,9 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
    {
       dbg("meshNodes= & eMap=");
       kVectorAssign(asize, meshNodes.GetData(), geom->meshNodes);
+      dbg("kVectorPrint(geom->meshNodes:");
+      kVectorPrint(asize, geom->meshNodes);
+      
       //geom->meshNodes = meshNodes;
       //geom->eMap = eMap;
       kArrayAssign(numDofs*elements, eMap.GetData(), geom->eMap);

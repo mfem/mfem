@@ -1594,16 +1594,36 @@ void GridFunction::ProjectCoefficient(
 
 void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
 {
+   dbg();
    int i;
    Array<int> vdofs;
    Vector vals;
 
+   dbg("#%d elements",fes->GetNE());
    for (i = 0; i < fes->GetNE(); i++)
    {
+      dbg("\tElem #%d",i);
+      
+      dbg("GetElementVDofs");
       fes->GetElementVDofs(i, vdofs);
+      dbg("\033[7mvdofs:\n");vdofs.Print();
+      
+      dbg("SetSize");
       vals.SetSize(vdofs.Size());
-      fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
+      
+      dbg("GetFE->Project");
+      fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals); // fe.cpp:312
+
+      dbg("\033[7mvals:\n");
+      vals.Print();
+      
+      dbg("SetSubVector");
       SetSubVector(vdofs, vals);
+      
+      
+      dbg("\033[7mthis:\n");
+      this->Print();
+      //assert(false);
    }
 }
 

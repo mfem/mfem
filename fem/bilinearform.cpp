@@ -544,7 +544,7 @@ void FABilinearForm::ConformingAssemble()
 
 void FABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                                       Vector &x, Vector &b,
-                                      Operator/*SparseMatrix*/ &opA, Vector &X, Vector &B,
+                                      Operator &opA, Vector &X, Vector &B,
                                       int copy_interior)
 {
    //assert(false);
@@ -608,6 +608,7 @@ void FABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
          if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
       }
    }
+   dbg("b="); b.Print();
 }
 
 void FABilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,

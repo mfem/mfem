@@ -46,7 +46,7 @@
 #define GET_CONST_ADRS_T(v,T) const T *d_##v = (const T*) mm::Get().Adrs(v)
 
 // *****************************************************************************
-#define OKINA_ASSERT_CPU {dbg();assert(__FILE__ and __LINE__ and false);}
-#define OKINA_ASSERT_GPU {dbg();assert(__FILE__ and __LINE__ and not config::Get().Cuda());}
+#define OKINA_ASSERT_CPU {/*dbg();*/assert(__FILE__ and __LINE__ and false);}
+#define OKINA_ASSERT_GPU {/*dbg();*/assert(__FILE__ and __LINE__ and not config::Get().Cuda());}
 
 #endif // MFEM_OKINA_HPP

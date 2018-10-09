@@ -3342,12 +3342,11 @@ void Mesh::GetNodes(GridFunction &nodes) const
    dbg();
    if (Nodes == NULL || Nodes->FESpace() != nodes.FESpace())
    {
-      //dbg("new");
       const int newSpaceDim = nodes.FESpace()->GetVDim();
-      //dbg("newSpaceDim=%d", newSpaceDim);
+      dbg("newSpaceDim=%d", newSpaceDim);
       VectorFunctionCoefficient xyz(newSpaceDim, XYZ_VectorFunction);
       nodes.ProjectCoefficient(xyz);
-      //nodes.Print();
+      nodes.Print();
       //assert(false);
    }
    else
@@ -3363,6 +3362,8 @@ void Mesh::SetNodalFESpace(FiniteElementSpace *nfes)
    dbg();
    GridFunction *nodes = new GridFunction(nfes);
    SetNodalGridFunction(nodes, true);
+   dbg("nodes->Print():");
+   nodes->Print();
 }
 
 void Mesh::SetNodalGridFunction(GridFunction *nodes, bool make_owner)
@@ -3379,21 +3380,31 @@ const FiniteElementSpace *Mesh::GetNodalFESpace() const
 
 void Mesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
 {
+   dbg();
    space_dim = (space_dim == -1) ? spaceDim : space_dim;
    FiniteElementCollection* nfec;
    if (discont)
    {
+      dbg("L2_FECollection");
       const int type = 1; // Gauss-Lobatto points
       nfec = new L2_FECollection(order, Dim, type);
    }
    else
    {
+      dbg("H1_FECollection");
       nfec = new H1_FECollection(order, Dim);
+      //assert(false);
    }
+   dbg("Nodes FiniteElementSpace");
    FiniteElementSpace* nfes = new FiniteElementSpace(this, nfec, space_dim,
                                                      ordering);
+   dbg("SetNodalFESpace");
    SetNodalFESpace(nfes);
    Nodes->MakeOwner(nfec);
+   dbg("Nodes->Print():");
+   Nodes->Print();
+   dbg("done");
+   //assert(false);
 }
 
 int Mesh::GetNumFaces() const

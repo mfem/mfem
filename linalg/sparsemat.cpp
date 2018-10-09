@@ -566,7 +566,6 @@ void SparseMatrix::Mult(const Vector &x, Vector &y) const
 {
    y = 0.0;
    AddMult(x, y);
-   //dbg("\033[7my:\n"); y.Print();
 }
 
 void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
@@ -585,7 +584,6 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
    if (Ap == NULL)
    {
       dbg();
-      stk(true);
       OKINA_ASSERT_CPU;
       //  The matrix is not finalized, but multiplication is still possible
       assert(false);
@@ -607,11 +605,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 
    if (a == 1.0)
    {
-      //dbg("pre-x:\n"); x.Print();
-      //dbg("pre-y:\n"); y.Print();
-      //OKINA_ASSERT_GPU;
 #ifndef MFEM_USE_OPENMP
-      dbg("height=%d",height);
       kAddMult(height,Ip,Jp,Ap,xp,yp);
 #else
       #pragma omp parallel for private(j,end)

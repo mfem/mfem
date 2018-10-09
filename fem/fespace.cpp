@@ -170,6 +170,7 @@ void FiniteElementSpace::AdjustVDofs (Array<int> &vdofs)
 
 void FiniteElementSpace::GetElementVDofs(int i, Array<int> &vdofs) const
 {
+   dbg();
    GetElementDofs(i, vdofs);
    DofsToVDofs(vdofs);
 }
@@ -1232,6 +1233,7 @@ void FiniteElementSpace::Construct()
 
 void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
 {
+   dbg();
    if (elem_dof)
    {
       elem_dof -> GetRow (i, dofs);

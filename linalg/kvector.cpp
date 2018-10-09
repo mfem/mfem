@@ -71,6 +71,12 @@ void kVectorAlphaAdd(double *vp, const double* v1p,
 }
 
 // *****************************************************************************
+void kVectorPrint(const size_t N, const double *data){
+   GET_CONST_ADRS(data);
+   forall(i, N, printf("\n\t%f",d_data[i]););
+}
+
+// *****************************************************************************
 void kVectorAssign(const size_t N, const double* v, double *data){
    GET_ADRS(data);
    GET_CONST_ADRS(v);
