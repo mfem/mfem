@@ -73,8 +73,10 @@ void mm::del(const void *adrs){
    const auto search = mng->find(adrs);
    const bool present = search != mng->end();
    if (!present){ // should not happen
+      stk(true);
       printf("\n\033[31;7m[mm::del] %p\033[m", adrs);
       assert(false); // should not happen
+      return;
    }
    //printf("\n\033[32;7m[mm::del] %p\033[m", adrs);
    // Remove element from the map
@@ -150,7 +152,7 @@ void mm::Rsync(const void *adrs){
    const mm2dev_t &mm2dev = mng->operator[](adrs);
    if (mm2dev.host){
       dbg("Already on host");
-      assert(false);
+      //assert(false);
       return;
    }
    const size_t bytes = mm2dev.bytes;
