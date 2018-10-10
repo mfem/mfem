@@ -60,7 +60,7 @@ MFEM_NAMESPACE
 
 // *****************************************************************************
 double kVectorDot(const size_t N, const double *x, const double *y){
-   dbg();
+   //dbg();
    GET_CUDA;
    GET_CONST_ADRS(x);
    GET_CONST_ADRS(y);

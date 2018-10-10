@@ -124,7 +124,7 @@ const double &Vector::Elem(int i) const
 
 double Vector::operator*(const double *v) const
 {
-   dbg();
+   //dbg();
    const int N = size;
    double prod = kVectorDot(N, data, v);
    return prod;

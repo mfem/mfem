@@ -162,9 +162,9 @@ void DenseMatrix::UseExternalData(double *d, int h, int w){
          // mesh, ncmesh, DenseTensor point_matrices Clear
          data = NULL;
          height = width = capacity = 0;
-      }else{
+      }else{ // d = NULL and h!=0, w!=0
          //data = mm::malloc<double>(h*w);
-         assert(mm::Get().Known(d));
+         //assert(mm::Get().Known(d));
          data = d;
          height = h;
          width = w;

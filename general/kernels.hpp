@@ -45,8 +45,8 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body){
 // *****************************************************************************
 // * FORALL split
 // *****************************************************************************
-#define forall(i,end,body) wrap(end,                                    \
-                                [=] __device__ (size_t i){body},        \
+#define forall(i,end,body) wrap(end,                                  \
+                                [=] __device__ (size_t i){body},      \
                                 [=] (size_t i){body})
 
 // *****************************************************************************

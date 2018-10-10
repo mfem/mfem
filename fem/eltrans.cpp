@@ -462,7 +462,7 @@ int IsoparametricTransformation::OrderGrad(const FiniteElement *fe)
 void IsoparametricTransformation::Transform (const IntegrationPoint &ip,
                                              Vector &trans)
 {
-   dbg();
+   //dbg();
    //assert(false);
    shape.SetSize(FElem->GetDof());
    trans.SetSize(PointMat.Height());
