@@ -34,8 +34,7 @@ void rDiffusionAssemble2D0(const int numElements,
    forall(e,numElements,
 #endif
    {
-      for (int q = 0; q < NUM_QUAD_2D; ++q)
-      {
+      for (int q = 0; q < NUM_QUAD_2D; ++q) {
          const double J11 = J[ijklNM(0,0,q,e,2,NUM_QUAD_2D)];
          const double J12 = J[ijklNM(1,0,q,e,2,NUM_QUAD_2D)];
          const double J21 = J[ijklNM(0,1,q,e,2,NUM_QUAD_2D)];

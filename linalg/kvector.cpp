@@ -112,7 +112,23 @@ void kVectorGetSubvector(const int N,
       });
 }
 
-
+// *****************************************************************************
+void kVectorSetSubvector(const int N,
+                         double* v0,
+                         const double* v1,
+                         const int* v2){
+   GET_ADRS(v0);
+   GET_CONST_ADRS(v1);
+   GET_CONST_ADRS_T(v2,int);
+   forall(i, N, {
+         const int dof_i = d_v2[i];
+         if (dof_i >= 0) {
+            d_v0[dof_i] = d_v1[i];
+         } else {
+            d_v0[-dof_i - 1] = -d_v1[i];
+         }
+      });
+}
 
 // *****************************************************************************
 void kVectorSubtract(double *zp, const double *xp, const double *yp,

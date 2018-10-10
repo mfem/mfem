@@ -40,41 +40,33 @@ void rDiffusionMultAdd2D(const int numElements,
 #endif
    {
       double grad[NUM_QUAD_1D][NUM_QUAD_1D][2];
-      for (int qy = 0; qy < NUM_QUAD_1D; ++qy)
-      {
-         for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
-         {
+      for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+         for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
             grad[qy][qx][0] = 0.0;
             grad[qy][qx][1] = 0.0;
          }
       }
 
-      for (int dy = 0; dy < NUM_DOFS_1D; ++dy)
-      {
+      for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
          double gradX[NUM_QUAD_1D][2];
-         for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
-         {
+         for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
             gradX[qx][0] = 0.0;
             gradX[qx][1] = 0.0;
          }
 
-         for (int dx = 0; dx < NUM_DOFS_1D; ++dx)
-         {
+         for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
             const double s = solIn[ijkN(dx,dy,e,NUM_DOFS_1D)];
             printf("\n\t[rDiffusionMultAdd2D] %f",s);
-            for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
-            {
+            for (int qx = 0; qx < NUM_QUAD_1D; ++qx){
                gradX[qx][0] += s * dofToQuad[ijN(qx,dx,NUM_QUAD_1D)];
                gradX[qx][1] += s * dofToQuadD[ijN(qx,dx,NUM_QUAD_1D)];
             }
          }
 
-         for (int qy = 0; qy < NUM_QUAD_1D; ++qy)
-         {
+         for (int qy = 0; qy < NUM_QUAD_1D; ++qy){
             const double wy  = dofToQuad[ijN(qy,dy,NUM_QUAD_1D)];
             const double wDy = dofToQuadD[ijN(qy,dy,NUM_QUAD_1D)];
-            for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
-            {
+            for (int qx = 0; qx < NUM_QUAD_1D; ++qx){
                grad[qy][qx][0] += gradX[qx][1] * wy;
                grad[qy][qx][1] += gradX[qx][0] * wDy;
             }
@@ -82,10 +74,8 @@ void rDiffusionMultAdd2D(const int numElements,
       }
 
       // Calculate Dxy, xDy in plane
-      for (int qy = 0; qy < NUM_QUAD_1D; ++qy)
-      {
-         for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
-         {
+      for (int qy = 0; qy < NUM_QUAD_1D; ++qy){
+         for (int qx = 0; qx < NUM_QUAD_1D; ++qx){
             const int q = QUAD_2D_ID(qx, qy);
             const double O11 = oper[ijkNM(0,q,e,3,NUM_QUAD_1D)];
             const double O12 = oper[ijkNM(1,q,e,3,NUM_QUAD_1D)];
@@ -99,21 +89,17 @@ void rDiffusionMultAdd2D(const int numElements,
          }
       }
 
-      for (int qy = 0; qy < NUM_QUAD_1D; ++qy)
-      {
+      for (int qy = 0; qy < NUM_QUAD_1D; ++qy){
          double gradX[NUM_DOFS_1D][2];
-         for (int dx = 0; dx < NUM_DOFS_1D; ++dx)
-         {
+         for (int dx = 0; dx < NUM_DOFS_1D; ++dx){
             gradX[dx][0] = 0;
             gradX[dx][1] = 0;
          }
 
-         for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
-         {
+         for (int qx = 0; qx < NUM_QUAD_1D; ++qx){
             const double gX = grad[qy][qx][0];
             const double gY = grad[qy][qx][1];
-            for (int dx = 0; dx < NUM_DOFS_1D; ++dx)
-            {
+            for (int dx = 0; dx < NUM_DOFS_1D; ++dx){
                const double wx  = quadToDof[ijN(dx,qx,NUM_DOFS_1D)];
                const double wDx = quadToDofD[ijN(dx,qx,NUM_DOFS_1D)];
                gradX[dx][0] += gX * wDx;
@@ -122,12 +108,10 @@ void rDiffusionMultAdd2D(const int numElements,
             }
          }
 
-         for (int dy = 0; dy < NUM_DOFS_1D; ++dy)
-         {
+         for (int dy = 0; dy < NUM_DOFS_1D; ++dy){
             const double wy  = quadToDof[ijN(dy,qy,NUM_DOFS_1D)];
             const double wDy = quadToDofD[ijN(dy,qy,NUM_DOFS_1D)];
-            for (int dx = 0; dx < NUM_DOFS_1D; ++dx)
-            {
+            for (int dx = 0; dx < NUM_DOFS_1D; ++dx){
                solOut[ijkN(dx,dy,e,NUM_DOFS_1D)] += ((gradX[dx][0] * wy) +
                                                      (gradX[dx][1] * wDy));
             }

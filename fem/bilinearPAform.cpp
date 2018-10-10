@@ -143,7 +143,7 @@ void PABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                           X.GetData(),
                           ess_tdof_list.GetData());
       X = 0.0;      
-      kVectorGetSubvector(csz,
+      kVectorSetSubvector(csz,
                           X.GetData(),
                           subvec.GetData(),
                           ess_tdof_list.GetData());
