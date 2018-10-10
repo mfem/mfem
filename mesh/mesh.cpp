@@ -12,6 +12,7 @@
 // Implementation of data type mesh
 
 #include "mesh_headers.hpp"
+#include "kmesh.hpp"
 #include "../fem/fem.hpp"
 #include "../general/sort_pairs.hpp"
 #include "../general/text.hpp"
@@ -5533,6 +5534,7 @@ void Mesh::UpdateNodes()
 
 void Mesh::QuadUniformRefinement()
 {
+   dbg();
    DeleteLazyTables();
    int i, j, *v, vv[2], attr;
    const int *e;
@@ -5594,13 +5596,10 @@ void Mesh::QuadUniformRefinement()
       v[1] = oedge+be_to_edge[i];
    }
 
-   static double quad_children[2*4*4] =
-   {
-      0.0,0.0, 0.5,0.0, 0.5,0.5, 0.0,0.5, // lower-left
-      0.5,0.0, 1.0,0.0, 1.0,0.5, 0.5,0.5, // lower-right
-      0.5,0.5, 1.0,0.5, 1.0,1.0, 0.5,1.0, // upper-right
-      0.0,0.5, 0.5,0.5, 0.5,1.0, 0.0,1.0  // upper-left
-   };
+   static double *quad_children = mm::malloc<double>(2*4*4);
+   assert(quad_children);
+   kQuadChildren(quad_children);
+   assert(quad_children);
 
    CoarseFineTr.point_matrices.UseExternalData(quad_children, 2, 4, 4);
    CoarseFineTr.embeddings.SetSize(elements.Size());

@@ -104,8 +104,8 @@ void rIniGeom(const int DIM,
       printf("\n[rIniGeom] id \033[33m0x%X\033[m ",id);
       fflush(stdout);
    }else{
-      printf("\n[rIniGeom] id \033[33m0x%X\033[m ",id);
-      fflush(stdout);
+      //printf("\n[rIniGeom] id \033[33m0x%X\033[m ",id);
+      //fflush(stdout);
    }
    assert(call[id]);
    assert(dofToQuadD);

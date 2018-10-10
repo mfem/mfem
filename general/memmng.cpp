@@ -54,10 +54,10 @@ void* mm::add(const void *h_adrs, const size_t size, const size_t size_of_T){
       CUdeviceptr ptr = (CUdeviceptr)NULL;
       const size_t bytes = mm2dev.bytes;
       if (bytes>0){
-         dbg(" \033[32;1m%ldo\033[m",bytes);
+         //dbg(" \033[32;1m%ldo\033[m",bytes);
          checkCudaErrors(cuMemAlloc(&ptr,bytes));
       }else{
-         dbg(" \033[31;1m%ldo\033[m",bytes);
+         //dbg(" \033[31;1m%ldo\033[m",bytes);
       }
       mm2dev.d_adrs = (void*)ptr;
       // and say we are there
@@ -85,6 +85,7 @@ void mm::del(const void *adrs){
 
 // *****************************************************************************
 bool mm::Known(const void *adrs){
+   if (!adrs){dbg("\n\033[31;7m[mm::Known] %p\033[m", adrs);} // NULL
    const auto search = mng->find(adrs);
    const bool present = search != mng->end();
    return present;
@@ -168,7 +169,7 @@ void mm::Push(const void *adrs){
    assert(present);
    const mm2dev_t &mm2dev = mng->operator[](adrs);
    if (mm2dev.host){
-      dbg("On host");
+      //dbg("On host");
       return;
    }
    const size_t bytes = mm2dev.bytes;

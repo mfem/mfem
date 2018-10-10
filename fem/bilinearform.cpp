@@ -577,19 +577,18 @@ void FABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       else
       {
          // A, X and B point to the same data as mat, x and b
-         dbg("b:\n"); b.Print();
-
-         dbg("EliminateVDofsInRHS:");
+         //dbg("b:\n"); b.Print();
+         //dbg("EliminateVDofsInRHS:");
          EliminateVDofsInRHS(ess_tdof_list, x, b);
-         dbg("b:\n"); b.Print();
+         //dbg("b:\n"); b.Print();
          
          X.NewDataAndSize(x.GetData(), x.Size());
          B.NewDataAndSize(b.GetData(), b.Size());
-         dbg("B:\n"); B.Print();
+         //dbg("B:\n"); B.Print();
          
          if (!copy_interior) { 
             X.SetSubVectorComplement(ess_tdof_list, 0.0);
-            dbg("X="); X.Print();
+            //dbg("X="); X.Print();
             //assert(false);
          }
       }
@@ -622,8 +621,8 @@ void FABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
          if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
       }
    }
-   dbg("b="); b.Print();
-   dbg("B="); B.Print();
+   //dbg("b="); b.Print();
+   //dbg("B="); B.Print();
    //assert(false);
 }
 

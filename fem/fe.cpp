@@ -312,7 +312,7 @@ void NodalFiniteElement::Project (
 void NodalFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
 {
-   dbg();
+   //dbg();
    MFEM_ASSERT(dofs.Size() == vc.GetVDim()*Dof, "");
    Vector x(vc.GetVDim());
 
