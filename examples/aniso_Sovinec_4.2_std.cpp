@@ -325,6 +325,16 @@ void H1AnisoDiffusionSolve(int myid, const ParMesh &pmesh,
                            ParGridFunction &qPara,
                            ParGridFunction &qPerp);
 
+void HDivAnisoDiffusionSolve(int myid, const ParMesh &pmesh,
+			     const IntegrationRule &ir,
+			     Coefficient &QCoef,
+			     MatrixCoefficient &ChiCoef,
+			     const ParGridFunction &unit_b,
+			     int order,
+			     ParGridFunction &t,
+			     ParGridFunction &qPara,
+			     ParGridFunction &qPerp);
+
 void shiftUnitSquare(const Vector &x, Vector &p)
 {
    p[0] = x[0] - 0.5;
@@ -345,6 +355,7 @@ int main(int argc, char *argv[])
    int irOrder = -1;
    int el_type = Element::QUADRILATERAL;
    int B_type = 2;
+   int sol_type = 0;
    bool zero_start = true;
    bool static_cond = false;
    bool visualization = false;
@@ -370,6 +381,8 @@ int main(int argc, char *argv[])
                   "Element type: 2-Triangle, 3-Quadrilateral.");
    args.AddOption(&B_type, "-b", "--b-field-type",
                   "B field type: 0 - H1, 1 - HCurl, 2-HDiv.");
+   args.AddOption(&sol_type, "-s", "--solver-type",
+                  "Solver type: 0 - H1, 1 - H1/HDiv Hybrid, 2-HDiv.");
    args.AddOption(&zero_start, "-z", "--zero-start", "-no-z",
                   "--no-zero-start",
                   "Initial guess of zero or exact solution.");
@@ -617,9 +630,22 @@ int main(int argc, char *argv[])
 
       AnisoConductionCoefficient ChiCoef(unit_b);
 
-      H1AnisoDiffusionSolve(myid, *pmesh, *ir, QCoef, ChiCoef, unit_b, order,
-                            t, qPara, qPerp);
-
+      switch(sol_type)
+	{
+	case 0:
+	  H1AnisoDiffusionSolve(myid, *pmesh, *ir, QCoef, ChiCoef,
+				unit_b, order,
+				t, qPara, qPerp);
+	  break;
+	case 1:
+	  break;
+	case 2:
+	  HDivAnisoDiffusionSolve(myid, *pmesh, *ir, QCoef, ChiCoef,
+				  unit_b, order,
+				  t, qPara, qPerp);
+	  break;
+	}
+      
       cout << "T norm: " << t.ComputeL2Error(zeroCoef) << " " << TNorm() << endl;
       cout << "qPerp norm: " << qPerp.ComputeL2Error(zeroVecCoef) << " " << qPerpNorm() << endl;
       cout << "qPara norm: " << qPara.ComputeL2Error(zeroVecCoef) << " " << qParaNorm() << endl;
@@ -680,6 +706,32 @@ int main(int argc, char *argv[])
                   << "Order " << order << ", "
                   << "Num Elems " << pow(2,p) << "^2, "
                   << "Error " << err_pt << "'\n" << flush;
+
+         socketstream q_para_sock(vishost, visport);
+         q_para_sock << "parallel " << num_procs << " " << myid << "\n";
+         q_para_sock.precision(8);
+         q_para_sock << "solution\n" << *pmesh << qPara;
+         q_para_sock << "window_geometry " << posx << " " << posy+395 << " 350 350\n";
+         q_para_sock << "keys mmaaAcvvv\n";
+         q_para_sock << "window_title '"
+		     << "q Para "
+		     << "Chi Ratio 10^" << (int)floor(log10(chi_ratio_)) << ", "
+		     << "Order " << order << ", "
+		     << "Num Elems " << pow(2,p) << "^2, "
+		     << "Error " << err_q_para << "'\n" << flush;
+
+         socketstream q_perp_sock(vishost, visport);
+         q_perp_sock << "parallel " << num_procs << " " << myid << "\n";
+         q_perp_sock.precision(8);
+         q_perp_sock << "solution\n" << *pmesh << qPerp;
+         q_perp_sock << "window_geometry " << posx+360 << " " << posy+395 << " 350 350\n";
+         q_perp_sock << "keys mmaaAcvvv\n";
+         q_perp_sock << "window_title '"
+		     << "q Perp "
+		     << "Chi Ratio 10^" << (int)floor(log10(chi_ratio_)) << ", "
+		     << "Order " << order << ", "
+		     << "Num Elems " << pow(2,p) << "^2, "
+		     << "Error " << err_q_perp << "'\n" << flush;
 
          posx += dposx;
          posy += dposy;
@@ -810,4 +862,198 @@ void H1AnisoDiffusionSolve(int myid, const ParMesh &pmesh,
      qPerp.Distribute(X);
      qPerp *= -1.0;
   }
+}
+
+class VectorFEDivLFIntegrator : public LinearFormIntegrator
+{
+public:
+  VectorFEDivLFIntegrator(Coefficient & q) : Q(&q) {}
+
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect)
+  {
+    int dof = el.GetDof();
+
+    divshape.SetSize(dof);
+
+    elvect.SetSize(dof);
+    elvect = 0.0;
+
+    const IntegrationRule *ir = IntRule;
+    if (ir == NULL)
+    {
+      // int intorder = 2*el.GetOrder() - 1; // ok for O(h^{k+1}) conv. in L2
+      int intorder = 2*el.GetOrder();
+      ir = &IntRules.Get(el.GetGeomType(), intorder);
+    }
+
+    for (int i = 0; i < ir->GetNPoints(); i++)
+    {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      Tr.SetIntPoint (&ip);
+      el.CalcPhysDivShape(Tr, divshape);
+
+      elvect.Add(ip.weight * Tr.Weight() * Q->Eval(Tr, ip), divshape);
+    }
+
+  }
+
+private:
+  Coefficient * Q;
+  Vector divshape;
+};
+
+void HDivAnisoDiffusionSolve(int myid, const ParMesh &pmesh,
+			     const IntegrationRule &ir,
+			     Coefficient &QCoef,
+			     MatrixCoefficient &ChiCoef,
+			     const ParGridFunction &unit_b,
+			     int order,
+			     ParGridFunction &t,
+			     ParGridFunction &qPara,
+			     ParGridFunction &qPerp)
+{
+   ParFiniteElementSpace * fespace_T = t.ParFESpace();
+   ParFiniteElementSpace * fespace_q = qPara.ParFESpace();
+
+   ParGridFunction q(fespace_q);
+   q = 0.0;
+
+   {
+    // Solve for q
+     int dim = pmesh.Dimension();
+     
+     Array<int> ess_tdof_list;
+     if (pmesh.bdr_attributes.Size())
+       {
+	 Array<int> ess_bdr(pmesh.bdr_attributes.Max());
+	 ess_bdr = 1;
+	 fespace_q->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+       }
+     
+     // BilinearFormIntegrator * divdivInteg = new DivDivIntegrator();
+     // divdivInteg->SetIntRule(&ir);
+
+     double dt = 100.0 / chi_ratio_;
+     InverseMatrixCoefficient ChiInvCoef(ChiCoef);
+     ScalarMatrixProductCoefficient dtChiInvCoef(1.0 / dt, ChiInvCoef);
+     //  ConstantCoefficient epsCoef(1e-6);
+     
+     ParBilinearForm a(fespace_q);
+     a.AddDomainIntegrator(new VectorFEMassIntegrator(dtChiInvCoef));
+     // a.AddDomainIntegrator(divdivInteg);
+      a.AddDomainIntegrator(new DivDivIntegrator());
+      a.Assemble();
+
+     ParBilinearForm s(fespace_q);
+     // s.AddDomainIntegrator(divdivInteg);
+      s.AddDomainIntegrator(new DivDivIntegrator());
+     s.Assemble();
+
+     ParLinearForm Qs(fespace_q);
+     Qs.AddDomainIntegrator(new VectorFEDivLFIntegrator(QCoef));
+     Qs.Assemble();
+
+     ParLinearForm rhs(fespace_q);
+     
+     ParGridFunction dqdt(fespace_q);
+     dqdt = 0.0;
+
+     HypreParMatrix A;
+     Vector RHS, X;
+
+     double tol  = 1e-5;
+     
+     double nrm = sqrt(InnerProduct(Qs.ParFESpace()->GetComm(), Qs, Qs));
+     while(true)
+       {
+	 rhs = Qs;
+
+	 s.AddMult(q, rhs, -1.0);
+
+	 double nrm_rhs = sqrt(InnerProduct(rhs.ParFESpace()->GetComm(),
+					    rhs, rhs));
+	 if ( nrm_rhs < nrm * tol ) break;
+	 cout << "Correction: " << nrm_rhs / nrm << endl;
+	 
+	 a.FormLinearSystem(ess_tdof_list, dqdt, rhs, A, X, RHS, true);
+
+	 //if (myid == 0)
+	 //{
+	 //  cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
+	 //}
+
+     // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
+     //     preconditioner from hypre.
+     HypreSolver *ads = (dim == 2) ?
+       (HypreSolver*)(new HypreAMS(A, fespace_q)) :
+       (HypreSolver*)(new HypreADS(A, fespace_q));
+     HyprePCG *pcg = new HyprePCG(A);
+     pcg->SetTol(1e-12);
+     pcg->SetMaxIter(10000);
+     pcg->SetPrintLevel(0);
+     pcg->SetPreconditioner(*ads);
+     pcg->Mult(RHS, X);
+
+	 // 13. Recover the parallel grid function corresponding to X. This is the
+	 //     local finite element solution on each processor.
+	 a.RecoverFEMSolution(X, rhs, dqdt);
+
+	 q.Add(dt, dqdt);
+	 
+	 // 16. Free the used memory.
+	 delete pcg;
+	 delete ads;
+       }
+     cout << "Done with pseudo-time-stepping" << endl;
+     // delete a;
+     // delete rhs;
+  }
+   cout << "Done with q calc" << endl;
+  {
+     // Solve for components of q
+     ParaCoefficient ParaCoef(BFunc);
+     PerpCoefficient PerpCoef(BFunc);
+
+     ParBilinearForm m2(fespace_q);
+     m2.AddDomainIntegrator(new VectorFEMassIntegrator());
+     m2.Assemble();
+
+     HypreParMatrix M2;
+     Array<int> ess_tdof(0);
+     m2.FormSystemMatrix(ess_tdof, M2);
+     HyprePCG M2Inv(M2);
+     M2Inv.SetTol(1e-12);
+     M2Inv.SetMaxIter(200);
+     M2Inv.SetPrintLevel(0);
+     HypreDiagScale M2Diag(M2);
+     M2Inv.SetPreconditioner(M2Diag);
+
+     ParBilinearForm mPara(fespace_q);
+     mPara.AddDomainIntegrator(new VectorFEMassIntegrator(ParaCoef));
+     mPara.Assemble();
+
+     ParBilinearForm mPerp(fespace_q);
+     mPerp.AddDomainIntegrator(new VectorFEMassIntegrator(PerpCoef));
+     mPerp.Assemble();
+
+     mPara.Mult(q, qPara);
+     mPerp.Mult(q, qPerp);
+
+     int q_size = fespace_q->GetTrueVSize();
+     Vector RHS(q_size);
+     Vector X(q_size);
+
+     qPara.ParallelAssemble(RHS);
+     M2Inv.Mult(RHS, X);
+     qPara.Distribute(X);
+     qPara *= chi_ratio_;
+     
+     qPerp.ParallelAssemble(RHS);
+     M2Inv.Mult(RHS, X);
+     qPerp.Distribute(X);
+  }
+  cout << "Leaving function call" << endl;
 }
