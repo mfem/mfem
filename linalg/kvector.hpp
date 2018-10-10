@@ -18,6 +18,7 @@ void kVectorMapDof(const int, double*, const double*, const int*);
 void kVectorSetDof(const int, double*, const double, const int*);
 
 void kVectorGetSubvector(const int, double*, const double*, const int*);
+void kVectorSetSubvector(const int, double*, const double*, const int*);
 
 void kVectorAlphaAdd(double *vp, const double* v1p,
                      const double alpha, const double *v2p, const size_t N);
