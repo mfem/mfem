@@ -155,11 +155,11 @@ void rDiffusionMultAdd(const int DIM,
    dbg("NUM_DOFS_1D=%d",NUM_DOFS_1D);
    dbg("NUM_QUAD_1D=%d",NUM_QUAD_1D);
    dbg("id=0x%x",id);
-   assert(false);
+   //assert(false);
    static std::unordered_map<unsigned int, fDiffusionMultAdd> call = {
     {0x20001,&rDiffusionMultAdd2D<1,2>},
     {0x20100,&rDiffusionMultAdd2D<2,1>},
-    //{0x20101,&rDiffusionMultAdd2D<2,2>},
+    {0x20101,&rDiffusionMultAdd2D<2,2>},
     //{0x20102,&rDiffusionMultAdd2D<2,4>},
     //{0x20202,&rDiffusionMultAdd2D<3,4>},
     //{0x20203,&rDiffusionMultAdd2D<3,6>},

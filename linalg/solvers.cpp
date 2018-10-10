@@ -349,7 +349,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       return;
    }
 
-   d=1.0;
+   //d=1.0;
    dbg("d=");d.Print();//assert(false);
    //0.297205 0 0 0 0 0 0 0
    //0 0 0 0.237765 0 0 0.237764 0
@@ -370,7 +370,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    //0 0 0.444119 0.444116 0.444114 0.444115 0.444119
    den = Dot(z, d);
    MFEM_ASSERT(IsFinite(den), "den = " << den);
-   printf("\033[33mden=%e\033[m",den);assert(false);
+   printf("\033[33mden=%e\033[m",den);//assert(false);
    
    if (print_level >= 0 && den < 0.0)
    {
