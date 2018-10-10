@@ -107,6 +107,23 @@ public:
    virtual ~ODE2Solver() { }
 };
 
+
+/// The classical midpoint method.
+class AverageAccelerationSolver : public ODE2Solver
+{
+private:
+   Vector d2xdt2;
+
+public:
+   AverageAccelerationSolver() { };
+
+   virtual void Init(TimeDependent2Operator &_f);
+
+   virtual void Step(Vector &x, Vector &dxdt, double &t, double &dt);
+
+};
+
+
 /// The classical newmark method.
 /// Newmark, N. M. (1959) A method of computation for structural dynamics.
 /// Journal of Engineering Mechanics, ASCE, 85 (EM3) 67-94.
@@ -126,12 +143,6 @@ public:
    virtual void Init(TimeDependent2Operator &_f);
 
    virtual void Step(Vector &x, Vector &dxdt, double &t, double &dt);
-};
-
-class AverageAccelerationSolver : public NewmarkSolver
-{
-public:
-   AverageAccelerationSolver() : NewmarkSolver(0.25, 0.5) { };
 };
 
 class LinearAccelerationSolver : public NewmarkSolver
@@ -222,20 +233,6 @@ public:
 
 };
 
-/// The classical newmark method.
-/// Newmark, N. M. (1959) A method of computation for structural dynamics.
-/// Journal of Engineering Mechanics, ASCE, 85 (EM3) 67-94.
-class Newmark2Solver : public GeneralizedAlpha2Solver
-{
-public:
-   Newmark2Solver(double beta_ = 0.25, double gamma_ = 0.5)
-   {
-      alpha_f = 1.0;
-      alpha_m = 1.0;
-      beta    = beta_;
-      gamma   = gamma_;
-   };
-};
 
 
 }
