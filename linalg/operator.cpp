@@ -181,24 +181,11 @@ void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
       A->Mult(x, y);
       return;
    }
-
    z = x;
-   
    const int csz = constraint_list.Size();
    kVectorSetDof(csz, z, 0.0, constraint_list);
-   /*
-   for (int i = 0; i < constraint_list.Size(); i++)
-   {
-      z(constraint_list[i]) = 0.0;
-      }*/
-
    A->Mult(z, y);
-
    kVectorMapDof(csz, y, x, constraint_list);
-/*   for (int i = 0; i < constraint_list.Size(); i++)
-   {
-      y(constraint_list[i]) = x(constraint_list[i]);
-      }*/
 }
 
 }

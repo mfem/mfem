@@ -3343,10 +3343,10 @@ void Mesh::GetNodes(GridFunction &nodes) const
    if (Nodes == NULL || Nodes->FESpace() != nodes.FESpace())
    {
       const int newSpaceDim = nodes.FESpace()->GetVDim();
-      dbg("newSpaceDim=%d", newSpaceDim);
+      //dbg("newSpaceDim=%d", newSpaceDim);
       VectorFunctionCoefficient xyz(newSpaceDim, XYZ_VectorFunction);
       nodes.ProjectCoefficient(xyz);
-      nodes.Print();
+      //nodes.Print();
       //assert(false);
    }
    else
@@ -3354,7 +3354,7 @@ void Mesh::GetNodes(GridFunction &nodes) const
       //dbg("assign");
       nodes = *Nodes;
    }
-   dbg("done");
+   //dbg("done");
 }
 
 void Mesh::SetNodalFESpace(FiniteElementSpace *nfes)
@@ -3362,8 +3362,7 @@ void Mesh::SetNodalFESpace(FiniteElementSpace *nfes)
    dbg();
    GridFunction *nodes = new GridFunction(nfes);
    SetNodalGridFunction(nodes, true);
-   dbg("nodes->Print():");
-   nodes->Print();
+   //dbg("nodes->Print():");nodes->Print();
 }
 
 void Mesh::SetNodalGridFunction(GridFunction *nodes, bool make_owner)
@@ -3401,9 +3400,8 @@ void Mesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
    dbg("SetNodalFESpace");
    SetNodalFESpace(nfes);
    Nodes->MakeOwner(nfec);
-   dbg("Nodes->Print():");
-   Nodes->Print();
-   dbg("done");
+   //dbg("Nodes->Print():"); Nodes->Print();
+   //dbg("done");
    //assert(false);
 }
 

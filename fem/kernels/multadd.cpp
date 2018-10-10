@@ -39,7 +39,7 @@ void rDiffusionMultAdd2D(const int numElements,
    forall(e,numElements,
 #endif
    {
-      if (e==0) printf("\n\t[rDiffusionMultAdd2D] NUM_QUAD_1D=%d, NUM_DOFS_1D=%d",NUM_QUAD_1D,NUM_DOFS_1D);
+      //if (e==0) printf("\n\t[rDiffusionMultAdd2D] NUM_QUAD_1D=%d, NUM_DOFS_1D=%d",NUM_QUAD_1D,NUM_DOFS_1D);
       double grad[NUM_QUAD_1D][NUM_QUAD_1D][2];
       for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
          for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
@@ -57,7 +57,7 @@ void rDiffusionMultAdd2D(const int numElements,
 
          for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
             const double s = solIn[ijkN(dx,dy,e,NUM_DOFS_1D)];
-            printf("\n\t[rDiffusionMultAdd2D] %f",s);
+            //printf("\n\t[rDiffusionMultAdd2D] %f",s);
             for (int qx = 0; qx < NUM_QUAD_1D; ++qx){
                gradX[qx][0] += s * dofToQuad[ijN(qx,dx,NUM_QUAD_1D)];
                gradX[qx][1] += s * dofToQuadD[ijN(qx,dx,NUM_QUAD_1D)];
@@ -105,7 +105,7 @@ void rDiffusionMultAdd2D(const int numElements,
                const double wDx = quadToDofD[ijN(dx,qx,NUM_DOFS_1D)];
                gradX[dx][0] += gX * wDx;
                gradX[dx][1] += gY * wx;
-               printf("\n\t[rDiffusionMultAdd2D] gradX: %f %f",gradX[dx][0],gradX[dx][1]);
+               //printf("\n\t[rDiffusionMultAdd2D] gradX: %f %f",gradX[dx][0],gradX[dx][1]);
             }
          }
 

@@ -312,38 +312,37 @@ void NodalFiniteElement::Project (
 void NodalFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
 {
-   dbg("x");
+   dbg();
    MFEM_ASSERT(dofs.Size() == vc.GetVDim()*Dof, "");
    Vector x(vc.GetVDim());
 
-   dbg("Dof=%d",Dof);
+   //dbg("Dof=%d",Dof);
    for (int i = 0; i < Dof; i++)
    {
-      dbg("ip");
+      //dbg("ip");
       const IntegrationPoint &ip = Nodes.IntPoint(i);
-      dbg("SetIntPoint");
+      //dbg("SetIntPoint");
       Trans.SetIntPoint(&ip);
-      dbg("Eval");
+      //dbg("Eval");
       vc.Eval (x, Trans, ip);
       
-      dbg("mm::Get().Push(x.GetData())");
-      mm::Get().Push(x.GetData());
-      dbg("x:");
-      x.Print();
+      //dbg("mm::Get().Push(x.GetData())");
+      //mm::Get().Push(x.GetData());
+      //dbg("x:");
+      //x.Print();
       
       if (MapType == INTEGRAL)
       {
          x *= Trans.Weight();
       }
-      dbg("Set dofs");
+      //dbg("Set dofs");
       for (int j = 0; j < x.Size(); j++)
       {
          dofs(Dof*j+i) = x(j);
       }
    }
-   mm::Get().Push(dofs.GetData());
-   dbg("dofs:");
-   dofs.Print();
+   //mm::Get().Push(dofs.GetData());
+   //dbg("dofs:");dofs.Print();
    //assert(false);
 }
 
