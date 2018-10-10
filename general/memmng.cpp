@@ -54,6 +54,7 @@ void* mm::add(const void *h_adrs, const size_t size, const size_t size_of_T){
       CUdeviceptr ptr = (CUdeviceptr)NULL;
       const size_t bytes = mm2dev.bytes;
       if (bytes>0){
+         //stk(true);
          //dbg(" \033[32;1m%ldo\033[m",bytes);
          checkCudaErrors(cuMemAlloc(&ptr,bytes));
       }else{

@@ -134,15 +134,17 @@ int main(int argc, char *argv[])
    b->Assemble();
    //dbg("LinearForm b=");b->Print();
 
+   // **************************************************************************
+   //#warning Need to do this before before switching to get the Nodes ready for kgeom
+   //mesh->SetNodalFESpace(fespace);
+   mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
+
    if (gpu){
-      //#warning Need to do this before before switching to get the Nodes ready for kgeom
-      //mesh->SetNodalFESpace(fespace);
-      mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
       config::Get().Cuda(true);
       config::Get().PA(true);
       dbg("\033[32;7mSwitched to GPU & PA!");
-   }
- 
+   }   
+   
    dbg("7. Define the solution vector x");// as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
@@ -161,6 +163,13 @@ int main(int argc, char *argv[])
       dbg("Add FA DiffusionIntegrator");
       a->AddDomainIntegrator(new DiffusionIntegrator(one));
    }
+
+   /*
+   if (gpu){
+      config::Get().Cuda(true);
+      config::Get().PA(true);
+      dbg("\033[32;7mSwitched to GPU & PA!");
+      }*/ 
 
    dbg("9. Assemble the bilinear form");// and the corresponding linear system,
    //    applying any necessary transformations such as: eliminating boundary

@@ -61,13 +61,12 @@ void rIniGeom(const int DIM,
    dbg("id=%d",id);
    assert(LOG2(DIM)<=4);
    assert(LOG2(dofs1D-2)<=4);
-   assert(quad1D==2*(dofs1D-1));
+   //assert(quad1D==2*(dofs1D-1));
    static std::unordered_map<unsigned int, fIniGeom> call = {
       // 2D
       {0x20,&rIniGeom2D<2*2,(2*2-2)*(2*2-2)>},
       {0x21,&rIniGeom2D<3*3,(3*2-2)*(3*2-2)>},
       {0x22,&rIniGeom2D<4*4,(4*2-2)*(4*2-2)>},
-/*
       {0x23,&rIniGeom2D<5*5,(5*2-2)*(5*2-2)>},
       {0x24,&rIniGeom2D<6*6,(6*2-2)*(6*2-2)>},
       {0x25,&rIniGeom2D<7*7,(7*2-2)*(7*2-2)>},
@@ -81,6 +80,7 @@ void rIniGeom(const int DIM,
       {0x2D,&rIniGeom2D<15*15,(15*2-2)*(15*2-2)>},
       {0x2E,&rIniGeom2D<16*16,(16*2-2)*(16*2-2)>},
       {0x2F,&rIniGeom2D<17*17,(17*2-2)*(17*2-2)>},
+      /*
       // 3D
       {0x30,&rIniGeom3D<2*2*2,2*2*2>},
       {0x31,&rIniGeom3D<3*3*3,4*4*4>},
@@ -98,14 +98,13 @@ void rIniGeom(const int DIM,
       {0x3D,&rIniGeom3D<15*15*15,28*28*28>},
       {0x3E,&rIniGeom3D<16*16*16,30*30*30>},
       {0x3F,&rIniGeom3D<17*17*17,32*32*32>},
-*/
+      */
    };
    if (!call[id]){
       printf("\n[rIniGeom] id \033[33m0x%X\033[m ",id);
       fflush(stdout);
    }else{
-      //printf("\n[rIniGeom] id \033[33m0x%X\033[m ",id);
-      //fflush(stdout);
+      dbg("\n[rIniGeom] id \033[33m0x%X\033[m ",id);
    }
    assert(call[id]);
    assert(dofToQuadD);
