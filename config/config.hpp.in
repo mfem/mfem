@@ -109,6 +109,9 @@
 // Enable functionality based on the MPFR library.
 // #define MFEM_USE_MPFR
 
+// Enable MFEM functionality based on the PUMI library
+// #define MFEM_USE_PUMI
+
 // Windows specific options
 #ifdef _WIN32
 // Macro needed to get defines like M_PI from <cmath>. (Visual Studio C++ only?)
@@ -117,5 +120,9 @@
 
 // Version of HYPRE used for building MFEM.
 // #define MFEM_HYPRE_VERSION @MFEM_HYPRE_VERSION@
+
+// Macro defined when PUMI is built with support for the Simmetrix SimModSuite
+// library.
+// #define MFEM_USE_SIMMETRIX
 
 #endif // MFEM_CONFIG_HEADER

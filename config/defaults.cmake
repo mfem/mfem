@@ -40,6 +40,7 @@ option(MFEM_USE_PETSC "Enable PETSc support." OFF)
 option(MFEM_USE_MPFR "Enable MPFR usage." OFF)
 option(MFEM_USE_SIDRE "Enable Axom/Sidre usage" OFF)
 option(MFEM_USE_CONDUIT "Enable Conduit usage" OFF)
+option(MFEM_USE_PUMI "Enable PUMI" OFF)
 
 # Allow a user to disable testing, examples, and/or miniapps at CONFIGURE TIME
 # if they don't want/need them (e.g. if MFEM is "just a dependency" and all they
@@ -144,6 +145,9 @@ set(AXOM_DIR "${MFEM_DIR}/../axom" CACHE PATH "Path to the Axom library.")
 # May need to add "Boost" as requirement.
 set(Axom_REQUIRED_PACKAGES "Conduit/relay" CACHE STRING
     "Additional packages required by Axom.")
+
+set(PUMI_DIR "${MFEM_DIR}/../pumi-2.1.0" CACHE STRING
+    "Directory where PUMI is installed")
 
 set(BLAS_INCLUDE_DIRS "" CACHE STRING "Path to BLAS headers.")
 set(BLAS_LIBRARIES "" CACHE STRING "The BLAS library.")

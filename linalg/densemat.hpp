@@ -421,6 +421,9 @@ void MultVWt(const Vector &v, const Vector &w, DenseMatrix &VWt);
 /// VWt += v w^t
 void AddMultVWt(const Vector &v, const Vector &w, DenseMatrix &VWt);
 
+/// VVt += v v^t
+void AddMultVVt(const Vector &v, DenseMatrix &VWt);
+
 /// VWt += a * v w^t
 void AddMult_a_VWt(const double a, const Vector &v, const Vector &w,
                    DenseMatrix &VWt);

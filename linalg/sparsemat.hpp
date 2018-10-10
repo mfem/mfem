@@ -240,7 +240,8 @@ public:
        zero. In addition, if the pointers @a x and @a b are not NULL, the
        eliminated matrix entries are multiplied by the corresponding solution
        value in @a *x and subtracted from the r.h.s. vector, @a *b. */
-   void EliminateCols(const Array<int> &cols, Vector *x = NULL, Vector *b = NULL);
+   void EliminateCols(const Array<int> &cols, const Vector *x = NULL,
+                      Vector *b = NULL);
 
    /// Eliminate row @a rc and column @a rc and modify the @a rhs using @a sol.
    /** Eliminates the column @a rc to the @a rhs, deletes the row @a rc and
