@@ -74,19 +74,18 @@ static void kGeomFill(const int dims,
    GET_ADRS_T(eMap,int);
    GET_CONST_ADRS(nodes);
    GET_ADRS(meshNodes);
-   forall(k, 1, {
-         for (int e = 0; e < elements; ++e)
-            for (int d = 0; d < numDofs; ++d) {
-               const int lid = d+numDofs*e;
-               const int gid = d_elementMap[lid];
-               d_eMap[lid] = gid;
-               for (int v = 0; v < dims; ++v) {
-                  const int moffset = v+dims*lid;
-                  const int xoffset = v+dims*gid;
-                  d_meshNodes[moffset] = d_nodes[xoffset];
-               }
+   forall(e, elements, {
+         for (int d = 0; d < numDofs; ++d) {
+            const int lid = d+numDofs*e;
+            const int gid = d_elementMap[lid];
+            d_eMap[lid] = gid;
+            for (int v = 0; v < dims; ++v) {
+               const int moffset = v+dims*lid;
+               const int xoffset = v+dims*gid;
+               d_meshNodes[moffset] = d_nodes[xoffset];
             }
-         });
+         }
+      });
 }
 
 // **************************************************************************

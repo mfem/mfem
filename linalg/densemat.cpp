@@ -155,7 +155,7 @@ void DenseMatrix::UseExternalData(double *d, int h, int w){
       width = w;
       capacity = -h*w;
    }else{
-      stk(true);
+      //stk(true);
       //assert(false);
       if (!d and h==0 and w==0){
          //assert(false);
@@ -497,7 +497,8 @@ MatrixInverse *DenseMatrix::Inverse() const
 
 double DenseMatrix::Det() const
 {
-   stk(true);
+   //stk(true);
+   //dbg("Height()=%d",Height());
    OKINA_ASSERT_GPU;
    MFEM_ASSERT(Height() == Width() && Height() > 0,
                "The matrix must be square and "
@@ -4028,7 +4029,7 @@ void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt)
 void LUFactors::Factor(int m)
 {
    dbg();
-   stk(true);
+   //stk(true);
    //OKINA_ASSERT_GPU;
 #ifdef MFEM_USE_LAPACK
    int info = 0;
