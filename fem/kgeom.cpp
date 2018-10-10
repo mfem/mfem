@@ -83,9 +83,7 @@ static void kGeomFill(const int dims,
                for (int v = 0; v < dims; ++v) {
                   const int moffset = v+dims*lid;
                   const int xoffset = v+dims*gid;
-                  //printf("\n\t[kGeomFill] offsets: %d %d",moffset,xoffset);
                   d_meshNodes[moffset] = d_nodes[xoffset];
-                  //printf("\n\t[kGeomFill] nodes: %f %f",d_meshNodes[moffset],d_nodes[xoffset]);
                }
             }
          });
@@ -116,18 +114,12 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
       mesh.SetCurvature(1, false, -1, Ordering::byVDIM);
    }
    GridFunction& nodes = *(mesh.GetNodes());
-   dbg("nodes: %p", nodes.GetData());
-   dbg("nodes size: %d", nodes.Size());
-   GET_CONST_ADRS(nodes);
-   dbg("d_nodes: %p", d_nodes);
-   mm::Get().Rsync(nodes.GetData());
-   dbg("nodes:\n");
-   nodes.Print();
-   //0 1 0.309017 1.30902 -0.809017 -0.5 -0.809017 -1.61803
-   //0.309017 -0.5 1.30902 0.5 1.15451 0.809019 0.154508 -0.0954915
-   //-0.654508 -0.404508 -1.21352 -1.21352 -0.404508 -0.654508 -0.0954915 0.154508
-   //0.809019 1.15451 0.654509 -0.25 -0.809016 -0.25 0.654509
-   //assert(false);
+   //dbg("nodes: %p", nodes.GetData());
+   //dbg("nodes size: %d", nodes.Size());
+   //GET_CONST_ADRS(nodes);
+   //dbg("d_nodes: %p", d_nodes);
+   //mm::Get().Rsync(nodes.GetData());
+   //dbg("nodes:\n");  nodes.Print();
    
    const mfem::FiniteElementSpace& fespace = *(nodes.FESpace());
    const mfem::FiniteElement& fe = *(fespace.GetFE(0));
@@ -175,7 +167,6 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
       //geom->meshNodes = meshNodes;
       //geom->eMap = eMap;
       kArrayAssign(numDofs*elements, eMap.GetData(), geom->eMap);
-      //assert(false);
    }
 
    // Reorder the original gf back
@@ -209,7 +200,6 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
             geom->J,
             geom->invJ,
             geom->detJ);
-   //assert(false);
    return geom;
 }
 

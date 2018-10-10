@@ -134,18 +134,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient one(1.0);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
-   dbg("LinearForm b=");
-   b->Print();
-
-   //mesh->SetNodalFESpace(fespace);
-   //GridFunction *nodes = mesh->GetNodes();
-   //dbg("nodes:");
-   //nodes->Print();
-   //0 1 0.309017 1.30902 -0.809017 -0.5 -0.809017 -1.61803
-   //0.309017 -0.5 1.30902 0.5 1.15451 0.809019 0.154508 -0.0954915
-   //-0.654508 -0.404508 -1.21352 -1.21352 -0.404508 -0.654508 -0.0954915 0.154508
-   //0.809019 1.15451 0.654509 -0.25 -0.809016 -0.25 0.654509
-   //assert(false);
+   //dbg("LinearForm b=");b->Print();
 
    if (gpu){
       //#warning Need to do this before before switching to get the Nodes ready for kgeom
