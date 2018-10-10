@@ -123,10 +123,10 @@ int main(int argc, char *argv[])
       case 14: ode_solver = new FoxGoodwinSolver();          break;
 
       // Newmark solvers --> as special case of gen-alpha
-      case 21: ode_solver = new Newmark2Solver(0.25,     0.5); break;
-      case 22: ode_solver = new Newmark2Solver(1.0/6.0,  0.5); break;
-      case 23: ode_solver = new Newmark2Solver(0.0,      0.5); break;
-      case 24: ode_solver = new Newmark2Solver(1.0/12.0, 0.5); break;
+      case 21: ode_solver = new NewmarkSolver(0.25,     0.5); break;
+      case 22: ode_solver = new NewmarkSolver(1.0/6.0,  0.5); break;
+      case 23: ode_solver = new NewmarkSolver(0.0,      0.5); break;
+      case 24: ode_solver = new NewmarkSolver(1.0/12.0, 0.5); break;
 
       // Hilber-Hughes-Taylor solvers --> as special case of gen-alpha
       case 30:  ode_solver = new HHTAlphaSolver(0.0); break;

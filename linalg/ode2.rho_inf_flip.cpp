@@ -11,29 +11,9 @@
 
 #include "operator.hpp"
 #include "ode2.hpp"
-#include <iomanip>
 
 namespace mfem
 {
-
-void AverageAccelerationSolver::Init(TimeDependent2Operator &_f)
-{
-   ODE2Solver::Init(_f);
-   d2xdt2.SetSize(f->Width());
-   d2xdt2 = 0.0;
-}
-
-void AverageAccelerationSolver::Step(Vector &x, Vector &dxdt, double &t,
-                                     double &dt)
-{
-   f->SetTime(t + dt);
-   x.Add(0.5*dt, dxdt);
-   f->ImplicitSolve(0.25*dt*dt, 0.5*dt, x, dxdt, d2xdt2);
-
-   x   .Add(0.25*dt*dt, d2xdt2);
-   dxdt.Add(0.5*dt,     d2xdt2);
-   t += dt;
-}
 
 void NewmarkSolver::Init(TimeDependent2Operator &_f)
 {
@@ -42,6 +22,7 @@ void NewmarkSolver::Init(TimeDependent2Operator &_f)
    d2xdt2 = 0.0;
    first = true;
 }
+
 
 void NewmarkSolver::PrintProperties(std::ostream &out)
 {
@@ -72,7 +53,8 @@ void NewmarkSolver::PrintProperties(std::ostream &out)
    }
 }
 
-void NewmarkSolver::Step(Vector &x, Vector &dxdt, double &t, double &dt)
+
+void NewmarkSolver::Step(Vector &x, Vector &dxdt,  double &t, double &dt)
 {
    double fac0 = 0.5 - beta;
    double fac2 = 1.0 - gamma;
@@ -94,25 +76,45 @@ void NewmarkSolver::Step(Vector &x, Vector &dxdt, double &t, double &dt)
 
    x.Add(dt, dxdt);
    x.Add(fac0*dt*dt, d2xdt2);
-   dxdt.Add(fac2*dt, d2xdt2);
+   dxdt.Add(fac2*dt,  d2xdt2);
 
-   f->SetTime(t + dt);
-   f->ImplicitSolve(fac3*dt*dt, fac4*dt, x, dxdt, d2xdt2);
-
-   x   .Add(fac3*dt*dt, d2xdt2);
-   dxdt.Add(fac4*dt,    d2xdt2);
+   f->ImplicitSolve(fac3*dt*dt,fac4*dt, x, dxdt, d2xdt2);
+   std::cout<<dt<<" "<<fac3*dt*dt<<" "<<fac4*dt<<"  -->  ";
+   std::cout<<x[0]<<" "<<dxdt[0]<<" "<<d2xdt2[0]<<std::endl;
+   x.Add(fac3*dt*dt, d2xdt2);
+   dxdt.Add(fac4*dt, d2xdt2);
    t += dt;
 }
 
 void GeneralizedAlpha2Solver::Init(TimeDependent2Operator &_f)
 {
    ODE2Solver::Init(_f);
-   xa.SetSize(f->Width());
-   va.SetSize(f->Width());
-   aa.SetSize(f->Width());
+   k.SetSize(f->Width());
    d2xdt2.SetSize(f->Width());
    d2xdt2 = 0.0;
    first = true;
+}
+
+void GeneralizedAlpha2Solver::SetRhoInf(double rho_inf)
+{
+   rho_inf = (rho_inf > 1.0) ? 1.0 : rho_inf;
+   rho_inf = (rho_inf < 0.0) ? 0.0 : rho_inf;
+   std::cout<<rho_inf<<std::endl;
+   alpha_m = 0.5*(3.0 - rho_inf)/(1.0 + rho_inf);
+   alpha_f = 1.0/(1.0 + rho_inf);
+
+   beta    = 0.25*pow(1.0 + alpha_m - alpha_f,2);
+   gamma   = 0.5 + alpha_m - alpha_f;
+
+   alpha_m = (2*rho_inf-1.0)/(1.0 + rho_inf);
+   alpha_f = rho_inf/(1.0 + rho_inf);
+
+   beta    = 0.25*pow(1.0 - alpha_m + alpha_f,2);
+   gamma   = 0.5 -alpha_m + alpha_f;
+
+   alpha_m = 1.0 - alpha_m;
+   alpha_f = 1.0 - alpha_f;
+
 }
 
 void GeneralizedAlpha2Solver::PrintProperties(std::ostream &out)
@@ -144,51 +146,53 @@ void GeneralizedAlpha2Solver::PrintProperties(std::ostream &out)
    }
 }
 
-void GeneralizedAlpha2Solver::Step(Vector &x, Vector &dxdt,
-                                   double &t, double &dt)
+void GeneralizedAlpha2Solver::Step(Vector &x, Vector &dxdt,  double &t,
+                                   double &dt)
 {
    double fac0 = (0.5 - (beta/alpha_m));
    double fac1 = alpha_f;
    double fac2 = alpha_f*(1.0 - (gamma/alpha_m));
    double fac3 = beta*alpha_f/alpha_m;
    double fac4 = gamma*alpha_f/alpha_m;
-   double fac5 = alpha_m;
+   double fac5 = 1.0/alpha_m;
 
    // In the first pass d2xdt2 is not yet computed. If parameter choices requires
-   // d2xdt2 then backward Euler is used instead for the first step only.
-   if (first)
+   // d2xdt2 then Midpoint (rho_inf = 1) is used instead for the first step only.
+   if (first && !(fac0*fac2 == 0.0))
    {
+      fac0 = 0.0;
+      fac1 = 0.5;
+      fac2 = 0.0;
+      fac3 = 0.25;
+      fac4 = 0.5;
+      fac5 = 0.5;
+
       fac0 = 0.0;
       fac1 = 1.0;
       fac2 = 0.0;
       fac3 = 0.5;
       fac4 = 1.0;
       fac5 = 1.0;
+
       first = false;
    }
+   std::cout<<fac0<<" "<<fac1<<" "<<fac2<<" "<<fac3<<" "<<fac4<<" "<<fac5<<std::endl;
 
-   // Predict alpha levels
-   add(dxdt, fac0*dt, d2xdt2, va);
-   add(x, fac1*dt, va, xa);
-   add(dxdt, fac2*dt, d2xdt2, va);
 
-   // Solve alpha levels
-   f->SetTime(t + dt);
-   f->ImplicitSolve(fac3*dt*dt, fac4*dt, xa, va, aa);
+   f->SetTime(t + fac1*dt);
 
-   // Correct alpha levels
-   xa.Add(fac3*dt*dt, aa);
-   va.Add(fac4*dt,    aa);
+   dxdt.Add(fac0*dt, d2xdt2);
+   x.Add(fac1*dt, dxdt);
+   dxdt.Add((fac2-fac0)*dt, d2xdt2);
 
-   // Extrapolate
-   x *= 1.0 - 1.0/fac1;
-   x.Add (1.0/fac1, xa);
+   f->ImplicitSolve(fac3*dt*dt,fac4*dt, x, dxdt, k);
+   std::cout<<dt<<" "<<fac3*dt*dt<<" "<<fac4*dt<<"  -->  ";
+   std::cout<<x[0]<<" "<<dxdt[0]<<" "<<k[0]<<std::endl;
+   x.Add(fac3*dt*dt, k);
+   dxdt.Add(fac4*dt, k);
 
-   dxdt *= 1.0 - 1.0/fac1;
-   dxdt.Add (1.0/fac1, va);
-
-   d2xdt2 *= 1.0 - 1.0/fac5;
-   d2xdt2.Add (1.0/fac5, aa);
+   k -= d2xdt2;
+   d2xdt2.Add(fac5,k);
 
    t += dt;
 
