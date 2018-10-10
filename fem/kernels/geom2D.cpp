@@ -101,17 +101,17 @@ void rIniGeom2D(const int numElements,
          for (int d = 0; d < NUM_DOFS; d +=1) {
             const int Nx = ijkNM(0,d,e,2,NUM_DOFS);
             const int Ny = ijkNM(1,d,e,2,NUM_DOFS);
-            printf("\n\t[rIniGeom2D] Nx=%d, Ny=%d", Nx, Ny);
+            //printf("\n\t[rIniGeom2D] Nx=%d, Ny=%d", Nx, Ny);
             const double wx = dofToQuadD[ijkNM(0,q,d,2,NUM_QUAD)];
             const double wy = dofToQuadD[ijkNM(1,q,d,2,NUM_QUAD)];
-            printf("\n\t[rIniGeom2D] wx wy: %f, %f",wx, wy);
+            //printf("\n\t[rIniGeom2D] wx wy: %f, %f",wx, wy);
             const double x = nodes[Nx];
             const double y = nodes[Ny];
             J11 += (wx * x); J12 += (wx * y);
             J21 += (wy * x); J22 += (wy * y);
          }
          const double r_detJ = (J11 * J22)-(J12 * J21);
-         printf("\n\t[rIniGeom2D] J11=%f, J12=%f, J21=%f, J22=%f, det=%f",J11, J12, J21, J22, r_detJ);
+         //printf("\n\t[rIniGeom2D] J11=%f, J12=%f, J21=%f, J22=%f, det=%f",J11, J12, J21, J22, r_detJ);
          assert(r_detJ!=0.0);
          J[ijklNM(0, 0, q, e,2,NUM_QUAD)] = J11;
          J[ijklNM(1, 0, q, e,2,NUM_QUAD)] = J12;
@@ -125,7 +125,7 @@ void rIniGeom2D(const int numElements,
          detJ[ijN(q, e,NUM_QUAD)] = r_detJ;
       }
    }
-   }
+}
 
 template kernel void rIniGeom2D<4,1>(int, double const*, double const*, double*, double*, double*);
 /*template kernel void rIniGeom2D<9,16>(int, double const*, double const*, double*, double*, double*);

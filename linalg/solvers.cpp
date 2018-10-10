@@ -291,24 +291,26 @@ void CGSolver::UpdateVectors()
    d.SetSize(width);
    z.SetSize(width);
 }
-
+   
+// Iteration :   0  (B r, r) = 0.653648
+// Iteration :   3  (B r, r) = 9.11866e-14
 void CGSolver::Mult(const Vector &b, Vector &x) const
 {
    int i;
    double r0, den, nom, nom0, betanom, alpha, beta;
-   b.Print();
-   assert(false);
-   //0.297205 0 0 0 0 0 0 0
-   //0 0 0 0.237765 0 0 0.237764 0
-   //0 0.237764 0 0 0.237763 0 0 0.237764
-   //0 0 0.237765 0.237764 0.237763 0.237764 0.237765
+   //b.Print(); assert(false);
 
    if (iterative_mode)
    {
       dbg("iterative_mode");
       oper->Mult(x, r);
       subtract(b, r, r); // r = b - A x
-      
+      dbg("r=");r.Print();
+      //0.297205 0 0 0 0 0 0 0
+      //0 0 0 0.237765 0 0 0.237764 0
+      //0 0.237764 0 0 0.237763 0 0 0.237764
+      //0 0 0.237765 0.237764 0.237763 0.237764 0.237765
+      //assert(false);
    }
    else
    {
@@ -326,7 +328,9 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    {
       d = r;
    }
-   nom0 = nom = Dot(d, r);
+   dbg("d=");d.Print();//assert(false);
+   dbg("r=");r.Print();
+   nom0 = nom = Dot(d, r);//assert(false);
    MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
 
    if (print_level == 1 || print_level == 3)
@@ -338,13 +342,24 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    r0 = std::max(nom*rel_tol*rel_tol, abs_tol*abs_tol);
    if (nom <= r0)
    {
+      dbg("converged");
       converged = 1;
       final_iter = 0;
       final_norm = sqrt(nom);
       return;
    }
 
+   dbg("d=");d.Print();//assert(false);
+   //0.297205 0 0 0 0 0 0 0
+   //0 0 0 0.237765 0 0 0.237764 0
+   //0 0.237764 0 0 0.237763 0 0 0.237764
+   //0 0 0.237765 0.237764 0.237763 0.237764 0.237765
    oper->Mult(d, z);  // z = A d
+   dbg("z=");z.Print();//assert(false);
+   //0.16005 0 0 0 0 0 0 0
+   //0 0 0 0.151913 0 0 0.151913 0
+   //0 0.151912 0 0 0.151911 0 0 0.151913
+   //0 0 0.444119 0.444116 0.444114 0.444115 0.444119
    den = Dot(z, d);
    MFEM_ASSERT(IsFinite(den), "den = " << den);
 

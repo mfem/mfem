@@ -10,6 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "../general/okina.hpp"
+#include "kvector.hpp"
 using namespace std;
 
 // *****************************************************************************
@@ -28,12 +29,14 @@ static double cub_vector_dot(const int N,
    push();
    static double *h_dot = NULL;
    if (!h_dot){
+      dbg("!h_dot");
       void *ptr;
       cuMemHostAlloc(&ptr, sizeof(double), CU_MEMHOSTALLOC_PORTABLE);
       h_dot=(double*)ptr;
    }
    static double *d_dot = NULL;
    if (!d_dot) {
+      dbg("!d_dot");
       cuMemAlloc((CUdeviceptr*)&d_dot, sizeof(double));
    }
    static void *d_storage = NULL;
@@ -44,13 +47,72 @@ static double cub_vector_dot(const int N,
       cuMemAlloc((CUdeviceptr*)&d_storage, storage_bytes*sizeof(double));
    }
    cub::DeviceReduce::Dot(d_storage, storage_bytes, vec1, vec2, d_dot, N);
-   mfem::mm::D2H(h_dot,d_dot,sizeof(double));
+   //mfem::mm::D2H(h_dot,d_dot,sizeof(double));
+   checkCudaErrors(cuMemcpy((CUdeviceptr)h_dot,(CUdeviceptr)d_dot,sizeof(double)));
+   dbg("dot=%e",*h_dot);
+   //assert(false);
    return *h_dot;
 }
 #endif // __NVCC__
 
 // *****************************************************************************
 MFEM_NAMESPACE
+
+// *****************************************************************************
+double kVectorDot(const size_t N, const double *x, const double *y){
+   dbg();
+   GET_CUDA;
+   GET_CONST_ADRS(x);
+   GET_CONST_ADRS(y);
+   dbg("x:");kVectorPrint(N, x);
+   dbg("y:");kVectorPrint(N, y);
+   if (cuda) return cub_vector_dot(N, d_x, d_y);
+   double dot = 0.0;
+   for(size_t i=0;i<N;i+=1)
+      dot += d_x[i] * d_y[i];
+   dbg("dot=%e",dot);
+   //assert(false);
+   return dot;
+}
+
+// *****************************************************************************
+void kVectorMapDof(const int N, double *v0, const double *v1, const int *dof){
+   GET_ADRS(v0);
+   GET_CONST_ADRS(v1);
+   GET_CONST_ADRS_T(dof,int);
+   forall(i, N, {
+         const int dof_i = d_dof[i];
+         d_v0[dof_i] = d_v1[dof_i];
+      });
+}
+
+// *****************************************************************************
+void kVectorSetDof(const int N, double *v0, const double alpha, const int *dof){
+   GET_ADRS(v0);
+   GET_CONST_ADRS_T(dof,int);
+   forall(i, N, {
+         const int dof_i = d_dof[i];
+         d_v0[dof_i] = alpha;
+      });
+}
+
+// *****************************************************************************
+void kVectorGetSubvector(const int N,
+                         double* v0,
+                         const double* v1,
+                         const int* v2){
+   GET_ADRS(v0);
+   GET_CONST_ADRS(v1);
+   GET_CONST_ADRS_T(v2,int);
+   forall(i, N, {
+         const int dof_i = d_v2[i];
+         printf("\n[kVectorGetSubvector] N=%d, i=%ld, dof_i=%d",N,i,dof_i);
+         assert(dof_i >= 0);
+         d_v0[i] = dof_i >= 0 ? d_v1[dof_i] : -d_v1[-dof_i-1];
+      });
+}
+
+
 
 // *****************************************************************************
 void kVectorSubtract(double *zp, const double *xp, const double *yp,
@@ -97,18 +159,6 @@ void kVectorMultOp(const size_t N,
                    double *data){
    GET_ADRS(data);
    forall(i, N, d_data[i] *= value;);
-}
-
-// *****************************************************************************
-double kVectorDot(const size_t N, const double *x, const double *y){
-   GET_CUDA;
-   GET_CONST_ADRS(x);
-   GET_CONST_ADRS(y);
-   if (cuda) return cub_vector_dot(N,d_x,d_y);
-   double dot = 0.0;
-   for(size_t i=0;i<N;i+=1)
-      dot += d_x[i] * d_y[i];
-   return dot;
 }
 
 // *****************************************************************************

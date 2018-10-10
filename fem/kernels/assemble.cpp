@@ -41,13 +41,10 @@ void rDiffusionAssemble2D0(const int numElements,
          const double J21 = J[ijklNM(0,1,q,e,2,NUM_QUAD_2D)];
          const double J22 = J[ijklNM(1,1,q,e,2,NUM_QUAD_2D)];
          const double c_detJ = quadWeights[q] * COEFF / ((J11*J22)-(J21*J12));
-         printf("\n\t[rDiffusionAssemble2D0] %f, %f, %f, %f, %f",J11,J12,J21,J22,c_detJ);
-         oper[ijkNM(0,q,e,3,NUM_QUAD_2D)]/*(0, q, e)*/ =  c_detJ *
-         (J21*J21 + J22*J22); // (1,1)
-         oper[ijkNM(1,q,e,3,NUM_QUAD_2D)]/*(1, q, e)*/ = -c_detJ *
-         (J21*J11 + J22*J12); // (1,2), (2,1)
-         oper[ijkNM(2,q,e,3,NUM_QUAD_2D)]/*(2, q, e)*/ =  c_detJ *
-         (J11*J11 + J12*J12); // (2,2)
+         //printf("\n\t[rDiffusionAssemble2D0] %f, %f, %f, %f, %f",J11,J12,J21,J22,c_detJ);
+         oper[ijkNM(0,q,e,3,NUM_QUAD_2D)] =  c_detJ * (J21*J21 + J22*J22); 
+         oper[ijkNM(1,q,e,3,NUM_QUAD_2D)] = -c_detJ * (J21*J11 + J22*J12);
+         oper[ijkNM(2,q,e,3,NUM_QUAD_2D)] =  c_detJ * (J11*J11 + J12*J12);
       }
    }
 #ifndef __NVCC__
@@ -77,6 +74,7 @@ void rDiffusionAssemble(const int dim,
    GET_CONST_ADRS(quadWeights);
    GET_CONST_ADRS(J);
    GET_ADRS(oper);
+   
    if (dim==1) { assert(false); }
    if (dim==2) { rDiffusionAssemble2D(numElements,
                                       NUM_QUAD_1D*NUM_QUAD_1D,

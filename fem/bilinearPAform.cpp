@@ -15,6 +15,7 @@
 #include "bilininteg.hpp"
 #include "kBilinIntegDiffusion.hpp"
 #include "kfespace.hpp"
+#include "../linalg/kvector.hpp"
 
 #include <cmath>
 
@@ -102,20 +103,19 @@ void PABilinearForm::FormOperator(const Array<int> &ess_tdof_list,
 // ***************************************************************************
 void PABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                                       Vector &x, Vector &b,
-                                      Operator &A, Vector &X, Vector &B,
+                                      Operator **A, Vector &X, Vector &B,
                                       int copy_interior) {
    dbg();
+   
    //FormOperator(ess_tdof_list, A);
-
    const Operator* trialP = trialFes->GetProlongationMatrix();
    const Operator* testP  = testFes->GetProlongationMatrix();
    Operator *rap = this;
-   if (trialP) { assert(false);rap = new RAPOperator(*testP, *this, *trialP); }
+   if (trialP) { rap = new RAPOperator(*testP, *this, *trialP); }
    const bool own_A = rap!=this;
    assert(rap);
    
-   ConstrainedOperator *CO = new ConstrainedOperator(rap, ess_tdof_list, own_A);
-   A = *CO;
+   *A = new ConstrainedOperator(rap, ess_tdof_list, own_A);
    
    const Operator* P = trialFes->GetProlongationMatrix();
    const Operator* R = trialFes->GetRestrictionMatrix();
@@ -127,28 +127,33 @@ void PABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       R->Mult(x, X);
    } else {
       // rap, X and B point to the same data as this, x and b
-#warning look here too
-      X.SetSize(x.Size()/*,x*/); X = x;
-      B.SetSize(b.Size()/*,b*/); B = b;
-      //assert(false);
+      // Could MakeRef
+      X.SetSize(x.Size()); X = x;
+      B.SetSize(b.Size()); B = b;
    }
-   //ConstrainedOperator *cA = static_cast<ConstrainedOperator*>(&A);
-   assert(CO);
-   if (CO) {
+   
+   if (!copy_interior and ess_tdof_list.Size()>0) {
+      const int csz = ess_tdof_list.Size();
+      const int xsz = X.Size();
+      assert(xsz>=csz);
+      Vector subvec(xsz);
+      subvec = 0.0;
+      kVectorGetSubvector(csz,
+                          subvec.GetData(),
+                          X.GetData(),
+                          ess_tdof_list.GetData());
+      X = 0.0;      
+      kVectorGetSubvector(csz,
+                          X.GetData(),
+                          subvec.GetData(),
+                          ess_tdof_list.GetData());
+   }
+      
+   ConstrainedOperator *cA = static_cast<ConstrainedOperator*>(*A);
+   assert(cA);
+   if (cA) {
       dbg("ConstrainedOperator");
-#warning and there
-      //cA->EliminateRHS(X, B);
-      dbg("z, w");
-      Vector z(A.Height());
-      Vector w(A.Height());
-      dbg("w = 0.0");
-      w = 0.0;
-      dbg("CO->Mult(w, z)");
-      CO->Mult(w, z);
-      dbg("z="); z.Print();
-      dbg("b="); b.Print();
-      dbg("b -= z");
-      b -= z;
+      cA->EliminateRHS(X, B);
    } else {
       mfem_error("BilinearForm::InitRHS expects an ConstrainedOperator");
    }
@@ -156,15 +161,17 @@ void PABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
 
 // ***************************************************************************
 void PABilinearForm::Mult(const Vector &x, Vector &y) const {
-   dbg();
-   //trialFes
+   dbg();//stk(true);
    kfes->GlobalToLocal(x, localX);
-   localY = 0.0;   
+   localY = 0.0;
    const int iSz = integrators.Size();
+   assert(iSz==1);
+   dbg("iSz=%d",iSz);
    for (int i = 0; i < iSz; ++i) {
+      dbg("integrators #%d",i);
       integrators[i]->MultAdd(localX, localY);
+      //dbg("localY");localY.Print();
    }
-   //testFes
    kfes->LocalToGlobal(localY, y);
 }
 
@@ -172,20 +179,19 @@ void PABilinearForm::Mult(const Vector &x, Vector &y) const {
 void PABilinearForm::MultTranspose(const Vector &x, Vector &y) const {
    dbg();
    assert(false);
-   //testFes
    kfes->GlobalToLocal(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
+   assert(iSz==1);
    for (int i = 0; i < iSz; ++i) {
       integrators[i]->MultTransposeAdd(localX, localY);
    }
-   //trialFes
    kfes->LocalToGlobal(localY, y);
 }
 
 // ***************************************************************************
 void PABilinearForm::RecoverFEMSolution(const Vector &X,
-                                          const Vector &b,
+                                        const Vector &b,
                                         Vector &x) {
    dbg();
    const Operator *P = this->GetProlongation();
