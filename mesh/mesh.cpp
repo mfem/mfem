@@ -61,6 +61,14 @@ void Mesh::GetElementJacobian(int i, DenseMatrix &J)
    Geometries.JacToPerfJac(geom, eltransf->Jacobian(), J);
 }
 
+void Mesh::GetElementCenter(int i, Vector &cent)
+{
+   cent.SetSize(spaceDim);
+   int geom = GetElementBaseGeometry(i);
+   ElementTransformation *eltransf = GetElementTransformation(i);
+   eltransf->Transform(Geometries.GetCenter(geom), cent);
+}
+
 double Mesh::GetElementSize(int i, int type)
 {
    DenseMatrix J(Dim);
@@ -2381,6 +2389,7 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
       faces[i] = (face) ? face->Duplicate(this) : NULL;
    }
    mesh.faces_info.Copy(faces_info);
+   mesh.nc_faces_info.Copy(nc_faces_info);
 
    // Do NOT copy the element-to-element Table, el_to_el
    el_to_el = NULL;
@@ -2410,9 +2419,16 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    }
 
    // Deep copy the NCMesh.
-   // TODO: ParNCMesh; ParMesh has a separate 'pncmesh' pointer, and 'ncmesh'
-   //       is initialized from it. Need ParNCMesh copy constructor.
-   ncmesh = mesh.ncmesh ? new NCMesh(*mesh.ncmesh) : NULL;
+#ifdef MFEM_USE_MPI
+   if (dynamic_cast<const ParMesh*>(&mesh))
+   {
+      ncmesh = NULL; // skip; will be done in ParMesh copy ctor
+   }
+   else
+#endif
+   {
+      ncmesh = mesh.ncmesh ? new NCMesh(*mesh.ncmesh) : NULL;
+   }
 
    // Duplicate the Nodes, including the FiniteElementCollection and the
    // FiniteElementSpace
@@ -5499,6 +5515,7 @@ void Mesh::UpdateNodes()
 
 void Mesh::QuadUniformRefinement()
 {
+   DeleteLazyTables();
    int i, j, *v, vv[2], attr;
    const int *e;
 
@@ -5601,6 +5618,7 @@ void Mesh::QuadUniformRefinement()
 
 void Mesh::HexUniformRefinement()
 {
+   DeleteLazyTables();
    int i;
    int * v;
    const int *e, *f;
@@ -5895,56 +5913,47 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
    }
    else if (Dim == 3) // ---------------------------------------------------
    {
-      // 1. Get table of vertex to vertex connections.
-      DSTable v_to_v(NumOfVertices);
-      GetVertexToVertexTable(v_to_v);
+      // 1. Hash table of vertex to vertex connections corresponding to refined
+      //    edges.
+      HashTable<Hashed2> v_to_v;
 
-      // 2. Get edge to element connections in arrays edge1 and edge2
-      nedges = v_to_v.NumberOfEntries();
-      int *middle = new int[nedges];
-
-      for (i = 0; i < nedges; i++)
-      {
-         middle[i] = -1;
-      }
-
-      // 3. Do the red refinement.
+      // 2. Do the red refinement.
       int ii;
       switch (type)
       {
          case 1:
             for (i = 0; i < marked_el.Size(); i++)
             {
-               Bisection(marked_el[i], v_to_v, NULL, NULL, middle);
+               Bisection(marked_el[i], v_to_v);
             }
             break;
          case 2:
             for (i = 0; i < marked_el.Size(); i++)
             {
-               Bisection(marked_el[i], v_to_v, NULL, NULL, middle);
+               Bisection(marked_el[i], v_to_v);
 
-               Bisection(NumOfElements - 1, v_to_v, NULL, NULL, middle);
-               Bisection(marked_el[i], v_to_v, NULL, NULL, middle);
+               Bisection(NumOfElements - 1, v_to_v);
+               Bisection(marked_el[i], v_to_v);
             }
             break;
          case 3:
             for (i = 0; i < marked_el.Size(); i++)
             {
-               Bisection(marked_el[i], v_to_v, NULL, NULL, middle);
+               Bisection(marked_el[i], v_to_v);
 
                ii = NumOfElements - 1;
-               Bisection(ii, v_to_v, NULL, NULL, middle);
-               Bisection(NumOfElements - 1, v_to_v, NULL, NULL, middle);
-               Bisection(ii, v_to_v, NULL, NULL, middle);
+               Bisection(ii, v_to_v);
+               Bisection(NumOfElements - 1, v_to_v);
+               Bisection(ii, v_to_v);
 
-               Bisection(marked_el[i], v_to_v, NULL, NULL, middle);
-               Bisection(NumOfElements-1, v_to_v, NULL, NULL, middle);
-               Bisection(marked_el[i], v_to_v, NULL, NULL, middle);
+               Bisection(marked_el[i], v_to_v);
+               Bisection(NumOfElements-1, v_to_v);
+               Bisection(marked_el[i], v_to_v);
             }
             break;
       }
 
-      // 4. Do the green refinement (to get conforming mesh).
+      // 3. Do the green refinement (to get conforming mesh).
       int need_refinement;
       // int need_refinement, onoe, max_gen = 0;
       do
@@ -5958,10 +5967,10 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
             // ((Tetrahedron *)elements[i])->
             // ParseRefinementFlag(redges, type, flag);
             // if (flag > max_gen)  max_gen = flag;
-            if (elements[i]->NeedRefinement(v_to_v, middle))
+            if (elements[i]->NeedRefinement(v_to_v))
             {
                need_refinement = 1;
-               Bisection(i, v_to_v, NULL, NULL, middle);
+               Bisection(i, v_to_v);
             }
          }
       }
@@ -5969,38 +5978,23 @@ void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
 
       // mfem::out << "Maximum generation: " << max_gen << endl;
 
-      // 5. Update the boundary elements.
+      // 4. Update the boundary elements.
       do
       {
          need_refinement = 0;
          for (i = 0; i < NumOfBdrElements; i++)
-            if (boundary[i]->NeedRefinement(v_to_v, middle))
+            if (boundary[i]->NeedRefinement(v_to_v))
             {
                need_refinement = 1;
-               Bisection(i, v_to_v, middle);
+               BdrBisection(i, v_to_v);
             }
       }
       while (need_refinement == 1);
 
-      // 6. Un-mark the Pf elements.
-      int refinement_edges[2], type, flag;
-      for (i = 0; i < NumOfElements; i++)
-      {
-         Tetrahedron* el = (Tetrahedron*) elements[i];
-         el->ParseRefinementFlag(refinement_edges, type, flag);
-
-         if (type == Tetrahedron::TYPE_PF)
-         {
-            el->CreateRefinementFlag(refinement_edges, Tetrahedron::TYPE_PU,
-                                     flag);
-         }
-      }
-
+      NumOfVertices = vertices.Size();
       NumOfBdrElements = boundary.Size();
 
-      // 7. Free the allocated memory.
-      delete [] middle;
-
+      // 5. Update element-to-edge and element-to-face relations.
       DeleteLazyTables();
       if (el_to_edge != NULL)
       {
@@ -6082,6 +6076,10 @@ void Mesh::DerefineMesh(const Array<int> &derefinements)
 
    Mesh* mesh2 = new Mesh(*ncmesh);
    ncmesh->OnMeshUpdated(mesh2);
+
+   // In parallel, preserve the global attribute lists.
+   attributes.Copy(mesh2->attributes);
+   bdr_attributes.Copy(mesh2->bdr_attributes);
 
    Swap(*mesh2, false);
    delete mesh2;
@@ -6578,7 +6576,21 @@ void Mesh::Bisection(int i, const DSTable &v_to_v,
       }
       NumOfElements++;
    }
-   else if (t == Element::TETRAHEDRON)
+   else
+   {
+      MFEM_ABORT("Bisection for now works only for triangles.");
+   }
+}
+
+void Mesh::Bisection(int i, HashTable<Hashed2> &v_to_v)
+{
+   int *vert;
+   int v[2][4], v_new, bisect, t;
+   Element *el = elements[i];
+   Vertex V;
+
+   t = el->GetType();
+   if (t == Element::TETRAHEDRON)
    {
       int j, type, new_type, old_redges[2], new_redges[2][2], flag;
       Tetrahedron *tet = (Tetrahedron *) el;
@@ -6589,32 +6601,19 @@ void Mesh::Bisection(int i, const DSTable &v_to_v,
       vert = tet->GetVertices();
 
       // 1. Get the index for the new vertex in v_new.
-      bisect = v_to_v(vert[0], vert[1]);
+      bisect = v_to_v.FindId(vert[0], vert[1]);
       if (bisect == -1)
       {
-         tet->ParseRefinementFlag(old_redges, type, flag);
-         mfem::err << "Error in Bisection(...) of tetrahedron!" << endl
-                   << "   redge[0] = " << old_redges[0]
-                   << "   redge[1] = " << old_redges[1]
-                   << "   type = " << type
-                   << "   flag = " << flag << endl;
-         mfem_error();
-      }
-
-      if (middle[bisect] == -1)
-      {
-         v_new = NumOfVertices++;
+         v_new = NumOfVertices + v_to_v.GetId(vert[0],vert[1]);
          for (j = 0; j < 3; j++)
          {
             V(j) = 0.5 * (vertices[vert[0]](j) + vertices[vert[1]](j));
          }
          vertices.Append(V);
-
-         middle[bisect] = v_new;
       }
       else
       {
-         v_new = middle[bisect];
+         v_new = NumOfVertices + bisect;
       }
 
       // 2. Set the node indices for the new elements in v[2][4] so that
@@ -6698,11 +6697,11 @@ void Mesh::Bisection(int i, const DSTable &v_to_v,
    }
    else
    {
-      MFEM_ABORT("Bisection for now works only for triangles & tetrahedra.");
+      MFEM_ABORT("Bisection with HashTable for now works only for tetrahedra.");
    }
 }
 
-void Mesh::Bisection(int i, const DSTable &v_to_v, int *middle)
+void Mesh::BdrBisection(int i, const HashTable<Hashed2> &v_to_v)
 {
    int *vert;
    int v[2][3], v_new, bisect, t;
@@ -6716,9 +6715,9 @@ void Mesh::Bisection(int i, const DSTable &v_to_v, int *middle)
       vert = tri->GetVertices();
 
       // 1. Get the index for the new vertex in v_new.
-      bisect = v_to_v(vert[0], vert[1]);
+      bisect = v_to_v.FindId(vert[0], vert[1]);
       MFEM_ASSERT(bisect >= 0, "");
-      v_new = middle[bisect];
+      v_new = NumOfVertices + bisect;
       MFEM_ASSERT(v_new != -1, "");
 
       // 2. Set the node indices for the new elements in v[0] and v[1] so that
@@ -6734,7 +6733,8 @@ void Mesh::Bisection(int i, const DSTable &v_to_v, int *middle)
    }
    else
    {
-      MFEM_ABORT("Bisection of boundary elements works only for triangles!");
+      MFEM_ABORT("Bisection of boundary elements with HashTable works only for"
+                 " triangles!");
    }
 }
 
