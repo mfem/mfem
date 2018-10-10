@@ -127,9 +127,9 @@ void rIniGeom2D(const int numElements,
    }
 }
 
-template kernel void rIniGeom2D<4,1>(int, double const*, double const*, double*, double*, double*);
-/*template kernel void rIniGeom2D<9,16>(int, double const*, double const*, double*, double*, double*);
-template kernel void rIniGeom2D<16,36>(int, double const*, double const*, double*, double*, double*);
+template kernel void rIniGeom2D<4,4>(int, double const*, double const*, double*, double*, double*);
+template kernel void rIniGeom2D<9,16>(int, double const*, double const*, double*, double*, double*);
+template kernel void rIniGeom2D<16,36>(int, double const*, double const*, double*, double*, double*);/*
 template kernel void rIniGeom2D<25,64>(int, double const*, double const*, double*, double*, double*);
 template kernel void rIniGeom2D<36,100>(int, double const*, double const*, double*, double*, double*);
 template kernel void rIniGeom2D<49,144>(int, double const*, double const*, double*, double*, double*);

@@ -66,6 +66,22 @@ void PABilinearForm::AddBoundaryFaceIntegrator(AbstractBilinearFormIntegrator *i
    //AddIntegrator(i, BoundaryFaceIntegrator);
 }
 
+// *****************************************************************************
+static const IntegrationRule &DiffusionGetRule(const FiniteElement &trial_fe,
+                                               const FiniteElement &test_fe){
+   int order;
+   if (trial_fe.Space() == FunctionSpace::Pk){
+      order = trial_fe.GetOrder() + test_fe.GetOrder() - 2;
+   }else{
+      // order = 2*el.GetOrder() - 2;  // <-- this seems to work fine too
+      order = trial_fe.GetOrder() + test_fe.GetOrder() + trial_fe.GetDim() - 1;
+   }
+   if (trial_fe.Space() == FunctionSpace::rQk){
+      return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
+   }
+   return IntRules.Get(trial_fe.GetGeomType(), order);
+}
+
 // ***************************************************************************
 void PABilinearForm::Assemble(int skip_zeros) {
    dbg("\033[7mAssemble");
@@ -74,9 +90,11 @@ void PABilinearForm::Assemble(int skip_zeros) {
    assert(integrators.Size()==1);
    const IntegrationRule *ir0 = integrators[0]->GetIntRule();
    const FiniteElement &fe = *fes->GetFE(0);
-   const int order = ir0?ir0->GetOrder():2*fe.GetOrder() - 2;
-   const IntegrationRule *ir = &IntRules.Get(fe.GetGeomType(), order);
+   const IntegrationRule *diffusionIR = &DiffusionGetRule(fe,fe);
+   const int order = ir0?ir0->GetOrder():diffusionIR->GetOrder();
+   const IntegrationRule *ir = ir0 ? ir0 : diffusionIR;
    assert(ir);
+   //const IntegrationRule *ir = &IntRules.Get(fe.GetGeomType(), order);
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i) {
       integrators[i]->Setup(fes,ir);
@@ -89,7 +107,7 @@ void PABilinearForm::Assemble(int skip_zeros) {
 // ***************************************************************************
 void PABilinearForm::FormOperator(const Array<int> &ess_tdof_list,
                                   Operator &A) {
-#warning move semantic?
+//#warning move semantic?
    dbg();assert(false);
    const Operator* trialP = trialFes->GetProlongationMatrix();
    const Operator* testP  = testFes->GetProlongationMatrix();
@@ -195,6 +213,10 @@ void PABilinearForm::RecoverFEMSolution(const Vector &X,
                                         const Vector &b,
                                         Vector &x) {
    dbg();
+   dbg("X=");kVectorPrint(X.Size(),X);
+   mm::Get().Rsync(X.GetData());
+   mm::Get().Rsync(b.GetData());
+   mm::Get().Rsync(x.GetData());
    const Operator *P = this->GetProlongation();
    if (P) {
       // Apply conforming prolongation
@@ -202,6 +224,8 @@ void PABilinearForm::RecoverFEMSolution(const Vector &X,
       P->Mult(X, x);
    }
    // Otherwise X and x point to the same data
+   x = X;
+   dbg("x:"); x.Print(); //assert(false);
 }
 
 // *****************************************************************************

@@ -62,13 +62,14 @@ void rIniGeom(const int DIM,
    assert(LOG2(DIM)<=4);
    assert(LOG2(dofs1D-2)<=4);
 //#warning assert(quad1D==2*(dofs1D-1))
-   //assert(quad1D==2*(dofs1D-1));
+   assert(quad1D==2*(dofs1D-1));
+   //assert(false);
    static std::unordered_map<unsigned int, fIniGeom> call = {
       // 2D
-      {0x20,&rIniGeom2D<2*2,1>},
-      /*
+      {0x20,&rIniGeom2D<2*2,(2*2-2)*(2*2-2)>},
       {0x21,&rIniGeom2D<3*3,(3*2-2)*(3*2-2)>},
       {0x22,&rIniGeom2D<4*4,(4*2-2)*(4*2-2)>},
+      /*
       {0x23,&rIniGeom2D<5*5,(5*2-2)*(5*2-2)>},
       {0x24,&rIniGeom2D<6*6,(6*2-2)*(6*2-2)>},
       {0x25,&rIniGeom2D<7*7,(7*2-2)*(7*2-2)>},
