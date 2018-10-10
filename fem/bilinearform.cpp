@@ -544,12 +544,12 @@ void FABilinearForm::ConformingAssemble()
 
 void FABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                                       Vector &x, Vector &b,
-                                      Operator &opA, Vector &X, Vector &B,
+                                      Operator **opA, Vector &X, Vector &B,
                                       int copy_interior)
 {
    //assert(false);
    const SparseMatrix *P = fes->GetConformingProlongation();
-   SparseMatrix *Ap = static_cast<SparseMatrix*>(&opA);
+   SparseMatrix *Ap = static_cast<SparseMatrix*>(*opA);
    SparseMatrix &A = *Ap;
    
    FormSystemMatrix(ess_tdof_list, A);
@@ -559,6 +559,7 @@ void FABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    // multipliers, set X = 0.0 for hybridization.
    if (static_cond)
    {
+      assert(false);
       // Schur complement reduction to the exposed dofs
       static_cond->ReduceSystem(x, b, X, B, copy_interior);
    }
@@ -566,6 +567,7 @@ void FABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    {
       if (hybridization)
       {
+         assert(false);
          // Reduction to the Lagrange multipliers system
          EliminateVDofsInRHS(ess_tdof_list, x, b);
          hybridization->ReduceRHS(b, B);
@@ -575,14 +577,26 @@ void FABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       else
       {
          // A, X and B point to the same data as mat, x and b
+         dbg("b:\n"); b.Print();
+
+         dbg("EliminateVDofsInRHS:");
          EliminateVDofsInRHS(ess_tdof_list, x, b);
+         dbg("b:\n"); b.Print();
+         
          X.NewDataAndSize(x.GetData(), x.Size());
          B.NewDataAndSize(b.GetData(), b.Size());
-         if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
+         dbg("B:\n"); B.Print();
+         
+         if (!copy_interior) { 
+            X.SetSubVectorComplement(ess_tdof_list, 0.0);
+            dbg("X="); X.Print();
+            //assert(false);
+         }
       }
    }
    else // non-conforming space
    {
+      assert(false);
       if (hybridization)
       {
          // Reduction to the Lagrange multipliers system
@@ -609,6 +623,8 @@ void FABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       }
    }
    dbg("b="); b.Print();
+   dbg("B="); B.Print();
+   //assert(false);
 }
 
 void FABilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
@@ -876,6 +892,7 @@ void FABilinearForm::EliminateEssentialBCFromDofsDiag (const Array<int> &ess_dof
 void FABilinearForm::EliminateVDofsInRHS(
    const Array<int> &vdofs, const Vector &x, Vector &b)
 {
+   dbg();
    mat_e->AddMult(x, b, -1.);
    mat->PartMult(vdofs, x, b);
 }

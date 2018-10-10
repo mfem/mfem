@@ -187,20 +187,18 @@ int main(int argc, char *argv[])
    a->Assemble();
    
    dbg("9. PA:BilinearForm / FA:SparseMatrix");
-   PABilinearForm paA(fespace);
-   SparseMatrix faA;
-   //Operator A = config::Get().PA() ? paA : faA;
-   //Operator &A = config::Get().PA() ? Operator(0) : SparseMatrix();
+   PABilinearForm *paA = new PABilinearForm(fespace);
+   SparseMatrix *faA = new SparseMatrix();
    Vector B, X;
    if (config::Get().PA())
-      a->FormLinearSystem(ess_tdof_list, x, *b, paA, X, B);
+      a->FormLinearSystem(ess_tdof_list, x, *b, (Operator **)&paA, X, B);
    else
-      a->FormLinearSystem(ess_tdof_list, x, *b, faA, X, B);
-         
+      a->FormLinearSystem(ess_tdof_list, x, *b, (Operator **)&faA, X, B);
+               
    if (config::Get().PA())
-      cout << "Size of linear system: " << paA.Height() << endl;
+      cout << "Size of linear system: " << paA->Height() << endl;
    else
-      cout << "Size of linear system: " << faA.Height() << endl;
+      cout << "Size of linear system: " << faA->Height() << endl;
 
     //config::Get().Cuda(gpu);
 
@@ -210,9 +208,9 @@ int main(int argc, char *argv[])
    //GSSmoother M(A);
    //PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
    if (config::Get().PA())
-      CG(paA, B, X, 3, 1000, 1e-12, 0.0);
+      CG(*paA, B, X, 3, 1000, 1e-12, 0.0);
    else
-      CG(faA, B, X, 3, 1000, 1e-12, 0.0);
+      CG(*faA, B, X, 3, 1000, 1e-12, 0.0);
 #else
    // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;

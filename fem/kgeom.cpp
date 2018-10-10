@@ -169,8 +169,8 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
    {
       dbg("meshNodes= & eMap=");
       kVectorAssign(asize, meshNodes.GetData(), geom->meshNodes);
-      dbg("kVectorPrint(geom->meshNodes:");
-      kVectorPrint(asize, geom->meshNodes);
+      //dbg("kVectorPrint(geom->meshNodes:");
+      //kVectorPrint(asize, geom->meshNodes);
       
       //geom->meshNodes = meshNodes;
       //geom->eMap = eMap;

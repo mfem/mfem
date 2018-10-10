@@ -53,7 +53,7 @@ void KDiffusionIntegrator::Assemble(){
                       geo->J,
                       1.0,//COEFF
                       vec);
-   dbg("vec=");vec.Print();
+   //dbg("vec=");vec.Print();
 }
 
 // *****************************************************************************

@@ -10,6 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "vector.hpp"
+#include "kvector.hpp"
 #include "operator.hpp"
 
 #include <iostream>
@@ -163,25 +164,45 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
 
 void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
+   dbg();
    assert(A);
-   w = 0.0;
-   for (int i = 0; i < constraint_list.Size(); i++)
+   //w = 0.0;
+   kVectorSet(w.Size(),0.0,w.GetData());
+   dbg("x:");kVectorPrint(x.Size(),x.GetData());
+   dbg("w:");kVectorPrint(w.Size(),w.GetData());
+   const int csz = constraint_list.Size();
+   kVectorMapDof(csz,w,x,constraint_list);
+   //mm::Get().Rsync(w.GetData());
+/*   for (int i = 0; i < constraint_list.Size(); i++)
    {
       w(constraint_list[i]) = x(constraint_list[i]);
    }
+   mm::Get().Push(w.GetData());
+*/
+   dbg("w:");w.Print();//assert(false);
    A->Mult(w, z);
+   dbg("z:");z.Print();
 
-   assert(false);
    b -= z;
+   dbg("b:");b.Print();
 
+   kVectorMapDof(csz,b,x,constraint_list);
+/*
+   //mm::Get().Rsync(b.GetData());
    for (int i = 0; i < constraint_list.Size(); i++)
    {
+      dbg("constraint %d",constraint_list[i]);
       b(constraint_list[i]) = x(constraint_list[i]);
    }
+#warning Push b to EliminateRHS
+   mm::Get().Push(b.GetData());
+*/
+   dbg("b(constraint):");b.Print();
 }
 
 void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
 {
+   //assert(false);
    if (constraint_list.Size() == 0)
    {
       A->Mult(x, y);
@@ -189,18 +210,22 @@ void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
    }
 
    z = x;
-
+   
+   const int csz = constraint_list.Size();
+   kVectorSetDof(csz, z, 0.0, constraint_list);
+   /*
    for (int i = 0; i < constraint_list.Size(); i++)
    {
       z(constraint_list[i]) = 0.0;
-   }
+      }*/
 
    A->Mult(z, y);
 
-   for (int i = 0; i < constraint_list.Size(); i++)
+   kVectorMapDof(csz, y, x, constraint_list);
+/*   for (int i = 0; i < constraint_list.Size(); i++)
    {
       y(constraint_list[i]) = x(constraint_list[i]);
-   }
+      }*/
 }
 
 }

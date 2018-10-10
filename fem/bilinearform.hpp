@@ -40,7 +40,7 @@ public:
                              Operator &A) = 0;
    virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
                                  Vector &x, Vector &b,
-                                 Operator &A, Vector &X, Vector &B,
+                                 Operator **A, Vector &X, Vector &B,
                                  int copy_interior=0) = 0;
    virtual void RecoverFEMSolution(const Vector &X, const Vector &b,
                                    Vector &x) = 0;
@@ -73,7 +73,7 @@ public:
    virtual void FormOperator(const Array<int> &ess_tdof_list, Operator &A);
    virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
                                  Vector &x, Vector &b,
-                                 Operator &A, Vector &X, Vector &B,
+                                 Operator **A, Vector &X, Vector &B,
                                  int copy_interior = 0);
    virtual void RecoverFEMSolution(const Vector &X, const Vector &b,
                                    Vector &x);
@@ -339,7 +339,7 @@ public:
        NOTE: If there are no transformations, @a X simply reuses the data of
              @a x. */
    virtual void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
-                                 Operator &A, Vector &X, Vector &B,
+                                 Operator **A, Vector &X, Vector &B,
                                  int copy_interior = 0);
 
    /// Form the linear system matrix A, see FormLinearSystem() for details.
@@ -465,7 +465,7 @@ public:
    }
    virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
                                  Vector &x, Vector &b,
-                                 Operator &A, Vector &X, Vector &B,
+                                 Operator **A, Vector &X, Vector &B,
                                  int copy_interior =0){
       abf->FormLinearSystem(ess_tdof_list,x,b,A,X,B,copy_interior);
    }

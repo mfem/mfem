@@ -44,8 +44,8 @@ void rDiffusionMultAdd2D(const int numElements,
       {
          for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
          {
-            grad[qy][qx][0] = 0;
-            grad[qy][qx][1] = 0;
+            grad[qy][qx][0] = 0.0;
+            grad[qy][qx][1] = 0.0;
          }
       }
 
@@ -54,13 +54,14 @@ void rDiffusionMultAdd2D(const int numElements,
          double gradX[NUM_QUAD_1D][2];
          for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
          {
-            gradX[qx][0] = 0;
-            gradX[qx][1] = 0;
+            gradX[qx][0] = 0.0;
+            gradX[qx][1] = 0.0;
          }
 
          for (int dx = 0; dx < NUM_DOFS_1D; ++dx)
          {
             const double s = solIn[ijkN(dx,dy,e,NUM_DOFS_1D)];
+            printf("\n\t[rDiffusionMultAdd2D] %f",s);
             for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
             {
                gradX[qx][0] += s * dofToQuad[ijN(qx,dx,NUM_QUAD_1D)];
@@ -86,9 +87,9 @@ void rDiffusionMultAdd2D(const int numElements,
          for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
          {
             const int q = QUAD_2D_ID(qx, qy);
-            const double O11 = oper[ijkNM(0,q,e,3,NUM_QUAD_1D)];//(0, q, e);
-            const double O12 = oper[ijkNM(1,q,e,3,NUM_QUAD_1D)];//(1, q, e);
-            const double O22 = oper[ijkNM(2,q,e,3,NUM_QUAD_1D)];//(2, q, e);
+            const double O11 = oper[ijkNM(0,q,e,3,NUM_QUAD_1D)];
+            const double O12 = oper[ijkNM(1,q,e,3,NUM_QUAD_1D)];
+            const double O22 = oper[ijkNM(2,q,e,3,NUM_QUAD_1D)];
 
             const double gradX = grad[qy][qx][0];
             const double gradY = grad[qy][qx][1];
@@ -117,6 +118,7 @@ void rDiffusionMultAdd2D(const int numElements,
                const double wDx = quadToDofD[ijN(dx,qx,NUM_DOFS_1D)];
                gradX[dx][0] += gX * wDx;
                gradX[dx][1] += gY * wx;
+               printf("\n\t[rDiffusionMultAdd2D] gradX: %f %f",gradX[dx][0],gradX[dx][1]);
             }
          }
 
@@ -165,14 +167,18 @@ void rDiffusionMultAdd(const int DIM,
    const int grid = (numElements+blck-1)/blck;
 #endif
    const unsigned int id = (DIM<<16)|((NUM_DOFS_1D-1)<<8)|(NUM_QUAD_1D>>1);
+   dbg("NUM_DOFS_1D=%d",NUM_DOFS_1D);
+   dbg("NUM_QUAD_1D=%d",NUM_QUAD_1D);
+   dbg("id=0x%x",id);
+   //assert(false);
    static std::unordered_map<unsigned int, fDiffusionMultAdd> call = {
     {0x20001,&rDiffusionMultAdd2D<1,2>},
     {0x20100,&rDiffusionMultAdd2D<2,1>},
-    {0x20101,&rDiffusionMultAdd2D<2,2>},
-    {0x20102,&rDiffusionMultAdd2D<2,4>},
-    {0x20202,&rDiffusionMultAdd2D<3,4>},
-    {0x20203,&rDiffusionMultAdd2D<3,6>},
-    {0x20303,&rDiffusionMultAdd2D<4,6>},
+    //{0x20101,&rDiffusionMultAdd2D<2,2>},
+    //{0x20102,&rDiffusionMultAdd2D<2,4>},
+    //{0x20202,&rDiffusionMultAdd2D<3,4>},
+    //{0x20203,&rDiffusionMultAdd2D<3,6>},
+    //{0x20303,&rDiffusionMultAdd2D<4,6>},
     //{0x30001,&rDiffusionMultAdd3D<1,2>},    {0x30101,&rDiffusionMultAdd3D<2,2>},
     //{0x30102,&rDiffusionMultAdd3D<2,4>},    {0x30202,&rDiffusionMultAdd3D<3,4>},
    };
