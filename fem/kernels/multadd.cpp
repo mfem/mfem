@@ -39,6 +39,7 @@ void rDiffusionMultAdd2D(const int numElements,
    forall(e,numElements,
 #endif
    {
+      if (e==0) printf("\n\t[rDiffusionMultAdd2D] NUM_QUAD_1D=%d, NUM_DOFS_1D=%d",NUM_QUAD_1D,NUM_DOFS_1D);
       double grad[NUM_QUAD_1D][NUM_QUAD_1D][2];
       for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
          for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
@@ -154,7 +155,7 @@ void rDiffusionMultAdd(const int DIM,
    dbg("NUM_DOFS_1D=%d",NUM_DOFS_1D);
    dbg("NUM_QUAD_1D=%d",NUM_QUAD_1D);
    dbg("id=0x%x",id);
-   //assert(false);
+   assert(false);
    static std::unordered_map<unsigned int, fDiffusionMultAdd> call = {
     {0x20001,&rDiffusionMultAdd2D<1,2>},
     {0x20100,&rDiffusionMultAdd2D<2,1>},
