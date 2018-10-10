@@ -80,6 +80,7 @@ void PABilinearForm::Assemble(int skip_zeros) {
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i) {
       integrators[i]->Setup(fes,ir);
+      //assert(false);
       integrators[i]->Assemble();
    }
    //assert(false);   

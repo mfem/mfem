@@ -23,7 +23,7 @@ KDiffusionIntegrator::KDiffusionIntegrator(const FiniteElementSpace *f,
    :vec(),
     maps(NULL),
     fes(f),
-    ir(i) {dbg();assert(fes);}
+    ir(i) {dbg();assert(i);assert(fes);}
 
 // *****************************************************************************
 void KDiffusionIntegrator::Assemble(){
@@ -38,7 +38,9 @@ void KDiffusionIntegrator::Assemble(){
    const int elements = fes->GetNE();
    assert(elements==mesh->GetNE());
    const int quadraturePoints = ir->GetNPoints();
+   dbg("quadraturePoints=%d",quadraturePoints);assert(false);
    const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
+   assert(quad1D==2);
    const int size = symmDims * quadraturePoints * elements;
    dbg("vec.SetSize(%d)",size);
    vec.SetSize(size);
@@ -64,6 +66,7 @@ void KDiffusionIntegrator::MultAdd(Vector &x, Vector &y)
    const Mesh *mesh = fes->GetMesh(); assert(mesh);
    const int dim = mesh->Dimension();
    const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
+   assert(quad1D==2);
    const int dofs1D = fes->GetFE(0)->GetOrder() + 1;
    rDiffusionMultAdd(dim,
                      dofs1D,
