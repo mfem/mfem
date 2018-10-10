@@ -4423,12 +4423,12 @@ void Mesh::GetFacePlanars(int i, Array<int> &pls, Array<int> &o) const
    o.SetSize(np);
    for (int j = 0; j < np; j++)
    {
-      const int *p = faces[i]->GetFaceVertices(j);
       const int *baseV = planars[pls[j]]->GetVertices();
       switch(planars[pls[j]]->GetType())
       {
       case Element::TRIANGLE:
       {
+         const int *p = tet_t::FaceVert[j];
          int tri[3] ={ v[p[0]], v[p[1]], v[p[2]] }; // TODO check for correctness!
          o[j] = GetTriOrientation(baseV,tri);
          break;
@@ -5604,7 +5604,6 @@ STable4D * Mesh::GetElementToFaceTable4D(int ret_ftbl)
       {
          case Element::TETRAHEDRON:
          {
-/*            printf("be[%d] pushed: %d %d %d %d\n",i, v[0], v[1],v[2],v[3]);*/
             be_to_face[i] = (*faces_tbl)(v[0], v[1], v[2], v[3]);
          }
          break;
