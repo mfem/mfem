@@ -7,6 +7,7 @@
 //    ex19 -m ../data/beam-tri.mesh
 //    ex19 -m ../data/beam-hex.mesh
 //    ex19 -m ../data/beam-tet.mesh
+//    ex19 -m ../data/beam-wedge.mesh
 //
 // Description:  This examples solves a quasi-static incompressible nonlinear
 //               elasticity problem of the form 0 = H(x), where H is an
