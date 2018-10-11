@@ -12,7 +12,7 @@
 // Implementation of data type mesh
 
 #include "mesh_headers.hpp"
-#include "kmesh.hpp"
+#include "kernels/mesh.hpp"
 #include "../fem/fem.hpp"
 #include "../general/sort_pairs.hpp"
 #include "../general/text.hpp"

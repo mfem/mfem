@@ -11,7 +11,7 @@
 
 #include "fem.hpp"
 #include "kBilinIntegDiffusion.hpp"
-#include "kgeom.hpp"
+#include "kernels/geometry.hpp"
 #include "kernels/diffusion.hpp"
 
 // *****************************************************************************

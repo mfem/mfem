@@ -12,7 +12,7 @@
 #include "../config/config.hpp"
 
 #include "../general/okina.hpp"
-#include "../linalg/kvector.hpp"
+#include "../linalg/kernels/vector.hpp"
 #include "fem.hpp"
 
 #include "doftoquad.hpp"
