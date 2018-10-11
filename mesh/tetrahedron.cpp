@@ -40,6 +40,15 @@ Tetrahedron::Tetrahedron(int ind1, int ind2, int ind3, int ind4, int attr)
    transform = 0;
 }
 
+void Tetrahedron::Init(int ind1, int ind2, int ind3, int ind4, int attr)
+{
+   attribute  = attr;
+   indices[0] = ind1;
+   indices[1] = ind2;
+   indices[2] = ind3;
+   indices[3] = ind4;
+}
+
 void Tetrahedron::ParseRefinementFlag(int refinement_edges[2], int &type,
                                       int &flag)
 {
@@ -261,8 +270,8 @@ void Tetrahedron::MarkEdge(const DSTable &v_to_v, const int *length)
 
    if (j)
    {
-      j = indices[0]; indices[0] = indices[1]; indices[1] = j;
-      j = indices[2]; indices[2] = indices[3]; indices[3] = j;
+      mfem::Swap(indices[0], indices[1]);
+      mfem::Swap(indices[2], indices[3]);
    }
 
    CreateRefinementFlag(ind, type);
@@ -332,7 +341,5 @@ Element *Tetrahedron::Duplicate(Mesh *m) const
    tet->SetRefinementFlag(refinement_flag);
    return tet;
 }
-
-Linear3DFiniteElement TetrahedronFE;
 
 }

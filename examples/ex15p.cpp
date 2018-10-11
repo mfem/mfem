@@ -151,6 +151,8 @@ int main(int argc, char *argv[])
    {
       mesh->UniformRefinement();
    }
+   // Make sure tet-only meshes are marked for local refinement.
+   mesh->Finalize(true);
 
    // 5. Define a parallel mesh by partitioning the serial mesh.  Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
