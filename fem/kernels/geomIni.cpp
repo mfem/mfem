@@ -15,19 +15,17 @@
 // testbed platforms, in support of the nation's exascale computing imperative.
 
 #include "../../general/okina.hpp"
-#include "kernels.hpp"
-using namespace mfem;
 
 // *****************************************************************************
 template<const int NUM_DOFS,
-         const int NUM_QUAD> kernel
+         const int NUM_QUAD> __kernel__
 void rIniGeom2D(const int,
                 const double*,const double*,
                 double*,double*,double*);
 
 // *****************************************************************************
 template<const int NUM_DOFS,
-         const int NUM_QUAD> kernel
+         const int NUM_QUAD> __kernel__
 void rIniGeom3D(const int,
                 const double*,const double*,
                 double*,double*,double*);

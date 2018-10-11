@@ -70,7 +70,8 @@ static void kdbge(const char *file, const int line, const char *func,
 
 // *****************************************************************************
 #define NX_ARGS(z,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,X,...) X
-#define NB_ARGS(...) NX_ARGS(,##__VA_ARGS__,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0)
+#define NB_ARGS(...) NX_ARGS(,##__VA_ARGS__,\
+                             16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0)
 
 #ifdef __NVCC__
 
@@ -93,8 +94,9 @@ static void kdbge(const char *file, const int line, const char *func,
 #else // __NVCC__
    
 // *****************************************************************************
-#define dbp(...) kdbge(_F_L_F_,false, NB_ARGS(__VA_ARGS__), GET_ARGS(__VA_ARGS__))
-#define dbg(...) kdbge(_F_L_F_, true, NB_ARGS(__VA_ARGS__), GET_ARGS(__VA_ARGS__))
+#define dbp(...) kdbge(_F_L_F_,false, NB_ARGS(__VA_ARGS__),__VA_ARGS__)
+#define dbg(...) kdbge(_F_L_F_, true, NB_ARGS(__VA_ARGS__),__VA_ARGS__)
+
 #endif // __NVCC__
 
 // *****************************************************************************

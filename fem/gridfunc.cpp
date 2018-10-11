@@ -1605,7 +1605,6 @@ void GridFunction::ProjectCoefficient(
 
 void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
 {
-   dbg();
    int i;
    Array<int> vdofs;
    Vector vals;

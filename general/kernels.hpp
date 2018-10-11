@@ -13,9 +13,6 @@
 #define MFEM_KERNELS_HPP
 
 // *****************************************************************************
-MFEM_NAMESPACE
-
-// *****************************************************************************
 #ifdef __NVCC__
 template <typename BODY> __global__
 void kernel(const size_t N, BODY body) {
@@ -34,8 +31,6 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body){
       const size_t blockSize = 256;
       const size_t gridSize = (N+blockSize-1)/blockSize;
       kernel<<<gridSize, blockSize>>>(N,d_body);
-//#warning cudaDeviceSynchronize
-      //cudaDeviceSynchronize();
       return;
    }
 #endif // __NVCC__
@@ -50,6 +45,13 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body){
                                 [=] (size_t i){body})
 
 // *****************************************************************************
-MFEM_NAMESPACE_END
+#ifdef __NVCC__
+#define CUDA_STD_BLOCK 256
+#define cuKer(name,end,...) name ## 0<<<((end+256-1)/256),256>>>(end,__VA_ARGS__)
+#define call0(name,id,grid,blck,...) call[id]<<<grid,blck>>>(__VA_ARGS__);
+#else
+#define cuKer(name,end,...) name ## 0(end,__VA_ARGS__)
+#define call0(name,id,grid,blck,...) call[id](__VA_ARGS__);
+#endif // __NVCC__
 
 #endif // MFEM_KERNELS_HPP

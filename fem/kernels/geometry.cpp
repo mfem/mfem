@@ -44,7 +44,6 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
                           const IntegrationRule& ir,
                           const Vector& Sx)
 {
-   dbg();
    const Mesh *mesh = fes.GetMesh();
    const GridFunction *nodes = mesh->GetNodes();
    const FiniteElementSpace *fespace = nodes->FESpace();
@@ -99,7 +98,6 @@ static void kArrayAssign(const int n, const int *src, int *dest){
 kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
                           const IntegrationRule& ir)
 {
-   dbg();
    Mesh& mesh = *(fes.GetMesh());
    const bool geom_to_allocate = !geom;
    if (geom_to_allocate)

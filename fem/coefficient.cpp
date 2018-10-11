@@ -91,7 +91,6 @@ double DeltaCoefficient::EvalDelta(ElementTransformation &T,
 void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
                              const IntegrationRule &ir)
 {
-   assert(false);
    Vector Mi;
    M.SetSize(vdim, ir.GetNPoints());
    for (int i = 0; i < ir.GetNPoints(); i++)
@@ -106,18 +105,14 @@ void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
 void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                      const IntegrationPoint &ip)
 {
-   dbg();
    static double *x = mm::malloc<double>(3);
    Vector transip(x, 3);
+
    T.Transform(ip, transip);
-   
+
    V.SetSize(vdim);
    if (Function)
    {
-      //assert(false);
-      // bring back everything because XYZ_VectorFunction is @ CPU
-      //mm::Get().Rsync(transip.GetData());
-      //mm::Get().Rsync(V.GetData());
 #warning (*Function)(transip, V);
       //(*Function)(transip, V);
       assert(transip.Size() == V.Size());
@@ -126,12 +121,10 @@ void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
    }
    else
    {
-      assert(false);
       (*TDFunction)(transip, GetTime(), V);
    }
    if (Q)
    {
-      assert(false);
       V *= Q->Eval(T, ip, GetTime());
    }
 }

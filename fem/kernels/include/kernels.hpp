@@ -15,27 +15,4 @@
 // testbed platforms, in support of the nation's exascale computing imperative.
 #ifndef LAGHOS_RAJA_KERNELS
 #define LAGHOS_RAJA_KERNELS
-
-#define restrict __restrict__
-
-
-// *****************************************************************************
-void rGlobalToLocal(const int NUM_VDIM,
-                    const bool VDIM_ORDERING,
-                    const int globalEntries,
-                    const int localEntries,
-                    const int* restrict offsets,
-                    const int* restrict indices,
-                    const double* restrict globalX,
-                    double* restrict localX);
-
-void rLocalToGlobal(const int NUM_VDIM,
-                    const bool VDIM_ORDERING,
-                    const int globalEntries,
-                    const int localEntries,
-                    const int* restrict offsets,
-                    const int* restrict indices,
-                    const double* restrict localX,
-                    double* restrict globalX);
-
 #endif // LAGHOS_RAJA_KERNELS

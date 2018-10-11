@@ -16,32 +16,24 @@
 #ifndef MFEM_KERNELS_KERNELS_KERNELS
 #define MFEM_KERNELS_KERNELS_KERNELS
 
-// *****************************************************************************
-#define __TEMPLATES__
 
 // *****************************************************************************
-#include <math.h>
-#include <stdarg.h>
-#include <string.h>
-#include <assert.h>
-#include <unordered_map>
+void rGlobalToLocal(const int NUM_VDIM,
+                    const bool VDIM_ORDERING,
+                    const int globalEntries,
+                    const int localEntries,
+                    const int* __restrict offsets,
+                    const int* __restrict indices,
+                    const double* __restrict globalX,
+                    double* __restrict localX);
 
-// *****************************************************************************
-#define LOG2(X) ((unsigned) (8*sizeof(unsigned long long)-__builtin_clzll((X))))
-#define ISQRT(N) static_cast<unsigned>(sqrt(static_cast<float>(N)))
-#define ICBRT(N) static_cast<unsigned>(cbrt(static_cast<float>(N)))
-#define IROOT(D,N) ((D==1)?N:(D==2)?ISQRT(N):(D==3)?ICBRT(N):0)
-
-// *****************************************************************************
-#ifdef __NVCC__
-#include <cuda.h>
-#include <helper_cuda.h>
-#include <helper_functions.h>
-#endif // __NVCC__
-
-// *****************************************************************************
-#include "include/forall.hpp"
-#include "include/offsets.hpp"
-#include "include/kernels.hpp"
+void rLocalToGlobal(const int NUM_VDIM,
+                    const bool VDIM_ORDERING,
+                    const int globalEntries,
+                    const int localEntries,
+                    const int* __restrict offsets,
+                    const int* __restrict indices,
+                    const double* __restrict localX,
+                    double* __restrict globalX);
 
 #endif // MFEM_KERNELS_KERNELS_KERNELS

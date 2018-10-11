@@ -9,6 +9,7 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
+#include "../general/error.hpp"
 #include "../general/okina.hpp"
 
 // *****************************************************************************
@@ -16,7 +17,6 @@ MFEM_NAMESPACE
 
 // *****************************************************************************
 void mm::Setup(void){
-   dbg();
    assert(!mng);
    // Create our mapping host => (size, h_adrs, d_adrs)
    mng = new mm_t();
@@ -47,8 +47,8 @@ void* mm::add(const void *h_adrs, const size_t size, const size_t size_of_T){
    mm2dev.bytes = bytes;
    mm2dev.h_adrs = h_adrs;
    mm2dev.d_adrs = NULL;
-   
    if (config::Get().Cuda()){ // alloc also there
+#ifdef __NVCC__
       CUdeviceptr ptr = (CUdeviceptr)NULL;
       const size_t bytes = mm2dev.bytes;
       if (bytes>0){
@@ -60,6 +60,9 @@ void* mm::add(const void *h_adrs, const size_t size, const size_t size_of_T){
       mm2dev.d_adrs = (void*)ptr;
       // and say we are there
       mm2dev.host = false;
+#else
+      mfem_error("[ERROR] MFEM has not been compiled with CUDA support!");
+#endif // __NVCC__
    }
    return (void*) (mm2dev.host ? mm2dev.h_adrs : mm2dev.d_adrs);
 }
@@ -112,6 +115,7 @@ void* mm::Adrs(const void *adrs){
    }
    // Otherwise push it to the device if it hasn't been seen
    if (!mm2dev.d_adrs){
+#ifdef __NVCC__
       dbg("\033[32;1mPushing new address to the GPU!\033[m");
       // allocate on the device
       CUdeviceptr ptr = (CUdeviceptr) NULL;
@@ -124,12 +128,19 @@ void* mm::Adrs(const void *adrs){
       checkCudaErrors(cuMemcpyHtoDAsync(ptr,mm2dev.h_adrs,bytes,s));
       // Now we are on the GPU
       mm2dev.host = false;
+#else
+      assert(false);
+#endif // __NVCC__
    }
    
    if (not cuda){
       dbg("return \033[31;1mGPU\033[m h_adrs %p",mm2dev.h_adrs);
       dbg("return \033[31;1mGPU\033[m d_adrs %p",mm2dev.d_adrs);
+#ifdef __NVCC__
       checkCudaErrors(cuMemcpyDtoH((void*)mm2dev.h_adrs,(CUdeviceptr)mm2dev.d_adrs,bytes));
+#else
+      assert(false);
+#endif // __NVCC__
       mm2dev.host = true;
       return (void*)mm2dev.h_adrs;
    }
@@ -140,7 +151,6 @@ void* mm::Adrs(const void *adrs){
 
 // *****************************************************************************
 void mm::Rsync(const void *adrs){
-   dbg();
    const auto search = mng->find(adrs);
    const bool present = search != mng->end();
    assert(present);
@@ -149,11 +159,13 @@ void mm::Rsync(const void *adrs){
       dbg("Already on host");
       return;
    }
+#ifdef __NVCC__
    dbg("From GPU");
    const size_t bytes = mm2dev.bytes;
    checkCudaErrors(cuMemcpyDtoH((void*)mm2dev.h_adrs,
                                 (CUdeviceptr)mm2dev.d_adrs,
                                 bytes));
+#endif // __NVCC__
 }
 
 // *****************************************************************************
@@ -163,10 +175,12 @@ void mm::Push(const void *adrs){
    assert(present);
    const mm2dev_t &mm2dev = mng->operator[](adrs);
    if (mm2dev.host) return;
+#ifdef __NVCC__
    const size_t bytes = mm2dev.bytes;
    checkCudaErrors(cuMemcpyHtoD((CUdeviceptr)mm2dev.d_adrs,
                                 (void*)mm2dev.h_adrs,
                                 bytes));
+#endif // __NVCC__
 }
 
 // **************************************************************************

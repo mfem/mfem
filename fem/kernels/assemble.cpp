@@ -15,11 +15,9 @@
 // testbed platforms, in support of the nation's exascale computing imperative.
 
 #include "../../general/okina.hpp"
-#include "kernels.hpp"
-using namespace mfem;
 
 // *****************************************************************************
-extern "C" kernel
+extern "C" __kernel__
 void rDiffusionAssemble2D0(const int numElements,
                            const int NUM_QUAD_2D,
                            const double COEFF,

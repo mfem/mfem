@@ -15,14 +15,13 @@
 // testbed platforms, in support of the nation's exascale computing imperative.
 
 #include "../../general/okina.hpp"
-#include "kernels.hpp"
 using namespace mfem;
 
 #define QUAD_2D_ID(X, Y) (X + ((Y) * NUM_QUAD_1D))
 
 // *****************************************************************************
 template<const int NUM_DOFS_1D,
-         const int NUM_QUAD_1D> kernel
+         const int NUM_QUAD_1D> __kernel__
 void rDiffusionMultAdd2D(const int numElements,
                          const double* __restrict dofToQuad,
                          const double* __restrict dofToQuadD,

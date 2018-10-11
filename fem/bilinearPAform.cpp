@@ -43,7 +43,7 @@ void PABilinearForm::EnableStaticCondensation(){ assert(false);}
 // ***************************************************************************
 // Adds new Domain Integrator.
 void PABilinearForm::AddDomainIntegrator(AbstractBilinearFormIntegrator *i) {
-   dbg();
+   
    dbg("\033[7mAddDomainIntegrator");
    integrators.Append(static_cast<BilinearPAFormIntegrator*>(i));
 }
@@ -86,7 +86,6 @@ static const IntegrationRule &DiffusionGetRule(const FiniteElement &trial_fe,
 
 // ***************************************************************************
 void PABilinearForm::Assemble(int skip_zeros) {
-   dbg();
    const int nbi = integrators.Size();
    assert(integrators.Size()==1);
    const IntegrationRule *ir0 = integrators[0]->GetIntRule();
@@ -105,7 +104,6 @@ void PABilinearForm::Assemble(int skip_zeros) {
 // ***************************************************************************
 void PABilinearForm::FormOperator(const Array<int> &ess_tdof_list,
                                   Operator &A) {
-   dbg();
    assert(false);
    const Operator* trialP = trialFes->GetProlongationMatrix();
    const Operator* testP  = testFes->GetProlongationMatrix();
@@ -122,8 +120,6 @@ void PABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                                       Vector &x, Vector &b,
                                       Operator **A, Vector &X, Vector &B,
                                       int copy_interior) {
-   dbg();
-
    //FormOperator(ess_tdof_list, A);
    const Operator* trialP = trialFes->GetProlongationMatrix();
    const Operator* testP  = testFes->GetProlongationMatrix();
@@ -177,7 +173,6 @@ void PABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
 
 // ***************************************************************************
 void PABilinearForm::Mult(const Vector &x, Vector &y) const {
-   dbg();
    kfes->GlobalToLocal(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
@@ -190,7 +185,6 @@ void PABilinearForm::Mult(const Vector &x, Vector &y) const {
 
 // ***************************************************************************
 void PABilinearForm::MultTranspose(const Vector &x, Vector &y) const {
-   dbg();
    assert(false);
    kfes->GlobalToLocal(x, localX);
    localY = 0.0;
@@ -206,7 +200,6 @@ void PABilinearForm::MultTranspose(const Vector &x, Vector &y) const {
 void PABilinearForm::RecoverFEMSolution(const Vector &X,
                                         const Vector &b,
                                         Vector &x) {
-   dbg();
    const Operator *P = this->GetProlongation();
    if (P) {
       // Apply conforming prolongation
