@@ -1882,15 +1882,17 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
    NURBSExtension *NURBSext = NULL;
    if (fes_format == 90) // original format, v0.9
    {
+      Array<int> master, slave;
+      getline(input, buff, ' '); // 'Periodic:'
+      master.Load(input);
+      slave.Load(input);
+
       if (nurbs_fec)
       {
          MFEM_VERIFY(m->NURBSext, "NURBS FE collection requires a NURBS mesh!");
          const int order = nurbs_fec->GetOrder();
-         if (order != m->NURBSext->GetOrder() &&
-             order != NURBSFECollection::VariableOrder)
-         {
-            NURBSext = new NURBSExtension(m->NURBSext, order);
-         }
+         NURBSext = new NURBSExtension(m->NURBSext, order);
+         NURBSext->ConnectBoundaries(master,slave);
       }
    }
    else if (fes_format == 100) // v1.0
@@ -1920,6 +1922,14 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
                NURBSext = new NURBSExtension(m->NURBSext, orders);
             }
          }
+         else if (buff == "NURBS_periodic")
+         {
+            Array<int> master, slave;
+            master.Load(input);
+            slave.Load(input);
+            NURBSext->ConnectBoundaries(master,slave);
+            MFEM_WARNING("NURBS_periodic in  reading FiniteElementSpace v1.0 needs checking");
+         }
          else if (buff == "NURBS_weights")
          {
             MFEM_VERIFY(NURBSext, "NURBS_weights: NURBS_orders have to be "
@@ -1944,7 +1954,6 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
    }
 
    Constructor(m, NURBSext, r_fec, vdim, ord);
-
    return r_fec;
 }
 
