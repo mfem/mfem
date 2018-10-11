@@ -2545,6 +2545,62 @@ public:
 
 };
 
+/** Class for integrating the bilinear form a(u,v) := (d_t u, v) + (Q grad_x u, grad_x v) where Q
+    can be a scalar or a matrix coefficient and grad_x is the gradient wrt to the spatial variables.
+    Here we use the space-time f.e. scheme by [Steinbach2015]. */
+class HeatEquationIntegrator: public BilinearFormIntegrator
+{
+private:
+   Vector vec, pointflux, shape;
+#ifndef MFEM_THREAD_SAFE
+   DenseMatrix dshape, dshapedxt, invdfdx, mq;
+   DenseMatrix te_dshape, te_dshapedxt;
+#endif
+   Coefficient *Q;
+   MatrixCoefficient *MQ;
+
+public:
+   /// Construct a diffusion integrator with coefficient Q = 1
+   HeatEquationIntegrator() { Q = NULL; MQ = NULL; }
+
+   /// Construct a diffusion integrator with a scalar coefficient q
+   HeatEquationIntegrator (Coefficient &q) : Q(&q) { MQ = NULL; }
+
+   /// Construct a diffusion integrator with a matrix coefficient q
+   HeatEquationIntegrator (MatrixCoefficient &q) : MQ(&q) { Q = NULL; }
+
+   /** Given a particular Finite Element
+       computes the element stiffness matrix elmat. */
+   virtual void AssembleElementMatrix(const FiniteElement &el,
+                                      ElementTransformation &Trans,
+                                      DenseMatrix &elmat);
+   /** Given a trial and test Finite Element computes the element stiffness
+       matrix elmat. */
+   virtual void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                                       const FiniteElement &test_fe,
+                                       ElementTransformation &Trans,
+                                       DenseMatrix &elmat)
+   { mfem_error("HeatEquationIntegrator::AssembleElementMatrix2: not implemented!"); }
+
+   /// Perform the local action of the BilinearFormIntegrator
+   virtual void AssembleElementVector(const FiniteElement &el,
+                                      ElementTransformation &Tr,
+                                      const Vector &elfun, Vector &elvect)
+   { mfem_error("HeatEquationIntegrator::AssembleElementVector: not implemented!"); }
+
+   virtual void ComputeElementFlux(const FiniteElement &el,
+                                   ElementTransformation &Trans,
+                                   Vector &u, const FiniteElement &fluxelem,
+                                   Vector &flux, int with_coef = 1)
+   { mfem_error("HeatEquationIntegrator::ComputeElementFlux: not implemented!"); }
+
+   virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
+                                    ElementTransformation &Trans,
+                                    Vector &flux, Vector *d_energy = NULL)
+   { mfem_error("HeatEquationIntegrator::ComputeFluxEnergy: not implemented!"); return -1;}
+};
+
+
 
 }
 

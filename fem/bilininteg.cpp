@@ -3286,4 +3286,87 @@ VectorInnerProductInterpolator::AssembleElementMatrix2(
    ran_fe.Project(dom_shape_coeff, Trans, elmat_as_vec);
 }
 
+void HeatEquationIntegrator::AssembleElementMatrix
+( const FiniteElement &el, ElementTransformation &Trans,
+  DenseMatrix &elmat )
+{
+   int nd = el.GetDof();
+   int dim = el.GetDim();
+   int spaceDim = Trans.GetSpaceDim();
+   bool square = (dim == spaceDim);
+   double w;
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix dshape(nd,dim), dshapedxt(nd,spaceDim), invdfdx(dim,spaceDim);
+   Vector shape(nd), vec(nd);
+#else
+   dshape.SetSize(nd,dim);
+   dshapedxt.SetSize(nd,spaceDim);
+   invdfdx.SetSize(dim,spaceDim);
+   shape.SetSize(nd);
+   vec.SetSize(nd);
+#endif
+   elmat.SetSize(nd);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int order;
+      if (el.Space() == FunctionSpace::Pk)
+      {
+         order = 2*el.GetOrder() - 2;
+      }
+      else
+         // order = 2*el.GetOrder() - 2;  // <-- this seems to work fine too
+      {
+         order = 2*el.GetOrder() + dim - 1;
+      }
+
+      if (el.Space() == FunctionSpace::rQk)
+      {
+         ir = &RefinedIntRules.Get(el.GetGeomType(), order);
+      }
+      else
+      {
+         ir = &IntRules.Get(el.GetGeomType(), order);
+      }
+   }
+
+   elmat = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      el.CalcShape(ip,shape);
+      el.CalcDShape(ip, dshape);
+
+      Trans.SetIntPoint(&ip);
+      w = std::abs(Trans.Weight());
+      w *= ip.weight;
+      CalcInverse(Trans.Jacobian(), invdfdx);
+      Mult(dshape, invdfdx, dshapedxt);
+
+      vec = 0.; // d_t u
+      dshapedxt.GetColumnReference(spaceDim - 1, pointflux);
+      vec.Swap(pointflux);
+
+      AddMult_a_VWt(w,vec,shape,elmat);
+      if (!MQ)
+      {
+         if (Q)
+         {
+            w *= Q->Eval(Trans, ip);
+         }
+         AddMult_a_AAt(w, dshapedxt, elmat);
+      }
+      else
+      {
+         MQ->Eval(invdfdx, Trans, ip);
+         invdfdx *= w;
+         Mult(dshapedxt, invdfdx, dshape);
+         AddMultABt(dshape, dshapedxt, elmat);
+      }
+   }
+}
+
+
 }
