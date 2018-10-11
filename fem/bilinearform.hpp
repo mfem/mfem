@@ -85,7 +85,6 @@ public:
 // * FA BilinearForm
 /** Class for bilinear form - "Matrix" with associated FE space and
     BLFIntegrators. */
-// *****************************************************************************
 class FABilinearForm : public AbstractBilinearForm
 {
 protected:
@@ -226,7 +225,7 @@ public:
    { mat->Mult(x, y); mat_e->AddMult(x, y); }
 
    virtual void AddMult(const Vector &x, Vector &y, const double a = 1.0) const
-   { assert(false);mat -> AddMult (x, y, a); }
+   { mat -> AddMult (x, y, a); }
 
    void FullAddMult(const Vector &x, Vector &y) const
    { mat->AddMult(x, y); mat_e->AddMult(x, y); }
@@ -304,7 +303,7 @@ public:
    }
 
    /// Assembles the form i.e. sums over all domain/bdr integrators.
-   virtual void Assemble(int skip_zeros = 1);
+   void Assemble(int skip_zeros = 1);
 
    /// Get the finite element space prolongation matrix
    virtual const Operator *GetProlongation() const
@@ -338,14 +337,14 @@ public:
 
        NOTE: If there are no transformations, @a X simply reuses the data of
              @a x. */
-   virtual void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
-                                 Operator **A, Vector &X, Vector &B,
-                                 int copy_interior = 0);
+   void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
+                         Operator **A, Vector &X, Vector &B,
+                         int copy_interior = 0);
 
    /// Form the linear system matrix A, see FormLinearSystem() for details.
    void FormSystemMatrix(const Array<int> &ess_tdof_list, SparseMatrix &A);
    virtual void FormOperator(const Array<int> &ess_tdof_list, Operator &A) {assert(false);}
-   
+
    /// Recover the solution of a linear system formed with FormLinearSystem().
    /** Call this method after solving a linear system constructed using the
        FormLinearSystem() method to recover the solution as a GridFunction-size

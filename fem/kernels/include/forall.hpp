@@ -16,42 +16,6 @@
 #ifndef MFEM_KERNELS_FORALL
 #define MFEM_KERNELS_FORALL
 
-// *****************************************************************************
-#define ELEMENT_BATCH 10
-#define M2_ELEMENT_BATCH 32
-#define A2_ELEMENT_BATCH 1
-#define A2_QUAD_BATCH 1
-
-// *****************************************************************************
-#ifdef __RAJA__ // *************************************************************
-//#warning RAJA KERNELS, WITH NVCC
-#define sync
-#define share
-#define kernel
-const int CUDA_BLOCK_SIZE = 256;
-#define cu_device __device__
-#define cu_exec RAJA::cuda_exec<CUDA_BLOCK_SIZE>
-#define cu_reduce RAJA::cuda_reduce<CUDA_BLOCK_SIZE>
-#define sq_device __host__
-#define sq_exec RAJA::seq_exec
-#define sq_reduce RAJA::seq_reduce
-#define ReduceDecl(type,var,ini) \
-  RAJA::Reduce ## type<sq_reduce, RAJA::Real_type> var(ini);
-#define ReduceForall(i,max,body) \
-  RAJA::forall<sq_exec>(0,max,[=]sq_device(RAJA::Index_type i) {body});
-#define forall(i,max,body)                                              \
-   if (mfem::config::Get().Cuda())                                      \
-    RAJA::forall<cu_exec>(0,max,[=]cu_device(RAJA::Index_type i) {body}); \
-  else                                                                  \
-    RAJA::forall<sq_exec>(0,max,[=]sq_device(RAJA::Index_type i) {body});
-#define forallS(i,max,step,body) {assert(false);forall(i,max,body)}
-#define call0(name,id,grid,blck,...) call[id](__VA_ARGS__)
-#define cuKerGBS(name,grid,block,end,...) name ## 0(end,__VA_ARGS__)
-#define cuKer(name,end,...) name ## 0(end,__VA_ARGS__)
-
-
-// *****************************************************************************
-#else // KERNELS on GPU, CUDA Kernel launches  *********************************
 #ifdef __NVCC__
 //#warning GPU KERNELS, WITH NVCC direct launch
 #define kernel __global__
@@ -105,6 +69,7 @@ public:
 #define call0(name,id,grid,blck,...) call[id](__VA_ARGS__)
 #define cuKer(name,...) name ## 0(__VA_ARGS__)
 #define cuKerGBS(name,grid,block,end,...) name ## 0(end,__VA_ARGS__)
+
 #endif //__NVCC__
-#endif // __RAJA__
+
 #endif // MFEM_KERNELS_FORALL

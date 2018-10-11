@@ -108,9 +108,7 @@ public:
        @sa SetDataAndSize(). */
    void NewDataAndSize(double *d, int s)
    {
-      if (allocsize > 0) { 
-         mm::free<double>(data);
-      }
+      if (allocsize > 0) { mm::free<double>(data); }
       SetDataAndSize(d, s);
    }
 
@@ -145,7 +143,7 @@ public:
 
    /// Changes the ownership of the data; after the call the Vector is empty
    inline void StealData(double **p)
-   { OKINA_ASSERT_CPU;*p = data; data = 0; size = allocsize = 0; }
+   { *p = data; data = 0; size = allocsize = 0; }
 
    /// Changes the ownership of the data; after the call the Vector is empty
    inline double *StealData() { double *p; StealData(&p); return p; }
@@ -375,7 +373,6 @@ inline const double & Vector::operator() (int i) const
 
 inline void Vector::Swap(Vector &other)
 {
-   OKINA_ASSERT_CPU;
    mfem::Swap(size, other.size);
    mfem::Swap(allocsize, other.allocsize);
    mfem::Swap(data, other.data);

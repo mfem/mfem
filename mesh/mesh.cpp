@@ -5835,13 +5835,6 @@ void Mesh::UniformRefinement2D()
       A,B, B,B, A,C
    };
    static double *quad_children = mm::malloc<double>(2*4*4);
-   /*static double quad_children[2*4*4] =
-   {
-      A,A, B,A, B,B, A,B, // lower-left
-      B,A, C,A, C,B, B,B, // lower-right
-      B,B, C,B, C,C, B,C, // upper-right
-      A,B, B,B, B,C, A,C  // upper-left
-      };*/
    kQuadChildren(quad_children);
 
    CoarseFineTr.point_matrices[Geometry::TRIANGLE].

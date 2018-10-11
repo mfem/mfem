@@ -65,7 +65,7 @@ void FABilinearForm::AllocMat()
 }
 
 FABilinearForm::FABilinearForm (FiniteElementSpace * f)
-   : AbstractBilinearForm(f)//Matrix (f->GetVSize())
+   : AbstractBilinearForm(f)
 {
    fes = f;
    sequence = f->GetSequence();
@@ -543,23 +543,22 @@ void FABilinearForm::ConformingAssemble()
 }
 
 void FABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
-                                      Vector &x, Vector &b,
-                                      Operator **opA, Vector &X, Vector &B,
-                                      int copy_interior)
+                                    Vector &x, Vector &b,
+                                    Operator **opA, Vector &X, Vector &B,
+                                    int copy_interior)
 {
-   //assert(false);
    const SparseMatrix *P = fes->GetConformingProlongation();
    SparseMatrix *Ap = static_cast<SparseMatrix*>(*opA);
    SparseMatrix &A = *Ap;
-   
+
    FormSystemMatrix(ess_tdof_list, A);
+
    // Transform the system and perform the elimination in B, based on the
    // essential BC values from x. Restrict the BC part of x in X, and set the
    // non-BC part to zero. Since there is no good initial guess for the Lagrange
    // multipliers, set X = 0.0 for hybridization.
    if (static_cond)
    {
-      assert(false);
       // Schur complement reduction to the exposed dofs
       static_cond->ReduceSystem(x, b, X, B, copy_interior);
    }
@@ -567,7 +566,6 @@ void FABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    {
       if (hybridization)
       {
-         assert(false);
          // Reduction to the Lagrange multipliers system
          EliminateVDofsInRHS(ess_tdof_list, x, b);
          hybridization->ReduceRHS(b, B);
@@ -577,25 +575,14 @@ void FABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       else
       {
          // A, X and B point to the same data as mat, x and b
-         //dbg("b:\n"); b.Print();
-         //dbg("EliminateVDofsInRHS:");
          EliminateVDofsInRHS(ess_tdof_list, x, b);
-         //dbg("b:\n"); b.Print();
-         
          X.NewDataAndSize(x.GetData(), x.Size());
          B.NewDataAndSize(b.GetData(), b.Size());
-         //dbg("B:\n"); B.Print();
-         
-         if (!copy_interior) { 
-            X.SetSubVectorComplement(ess_tdof_list, 0.0);
-            //dbg("X="); X.Print();
-            //assert(false);
-         }
+         if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
       }
    }
    else // non-conforming space
    {
-      assert(false);
       if (hybridization)
       {
          // Reduction to the Lagrange multipliers system
@@ -621,9 +608,6 @@ void FABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
          if (!copy_interior) { X.SetSubVectorComplement(ess_tdof_list, 0.0); }
       }
    }
-   //dbg("b="); b.Print();
-   //dbg("B="); B.Print();
-   //assert(false);
 }
 
 void FABilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
@@ -716,7 +700,6 @@ void FABilinearForm::RecoverFEMSolution(const Vector &X,
 
 void FABilinearForm::ComputeElementMatrices()
 {
-   dbg();
    if (element_matrices || dbfi.Size() == 0 || fes->GetNE() == 0)
    {
       return;
@@ -749,7 +732,7 @@ void FABilinearForm::ComputeElementMatrices()
       dbfi[0]->AssembleElementMatrix(fe, eltrans, elmat);
       for (int k = 1; k < dbfi.Size(); k++)
       {
-        // note: some integrators may not be thread-safe
+         // note: some integrators may not be thread-safe
          dbfi[k]->AssembleElementMatrix(fe, eltrans, tmp);
          elmat += tmp;
       }
@@ -831,7 +814,6 @@ void FABilinearForm::EliminateVDofs(const Array<int> &vdofs,
 {
    if (mat_e == NULL)
    {
-      dbg("SparseMatrix");
       mat_e = new SparseMatrix(height);
    }
 
@@ -891,7 +873,6 @@ void FABilinearForm::EliminateEssentialBCFromDofsDiag (const Array<int> &ess_dof
 void FABilinearForm::EliminateVDofsInRHS(
    const Array<int> &vdofs, const Vector &x, Vector &b)
 {
-   dbg();
    mat_e->AddMult(x, b, -1.);
    mat->PartMult(vdofs, x, b);
 }

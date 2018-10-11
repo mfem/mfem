@@ -584,7 +584,6 @@ inline double &SparseMatrix::SearchRow(const int col)
          OKINA_ASSERT_CPU;
          node_p = NodesMem->Alloc();
 #else
-         //node_p = new RowNode;
          node_p = mm::malloc<RowNode>(1);
 #endif
          node_p->Prev = Rows[current_row];
