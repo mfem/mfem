@@ -217,6 +217,7 @@ void NCMesh::Update()
    vertex_list.Clear();
    face_list.Clear();
    edge_list.Clear();
+   planar_list.Clear();
 
    element_vertex.Clear();
 }
@@ -549,6 +550,7 @@ int NCMesh::Face::GetSingleElement() const
 void NCMesh::Planar::RegisterElement(int e)
 {
    elem.Append(e);
+   elem.Unique();
 }
 
 void NCMesh::Planar::ForgetElement(int e)
@@ -1503,6 +1505,10 @@ void NCMesh::DerefineElement(int elem)
                             ch.node[fv[2]], ch.node[fv[3]])->attribute;
       }
    }
+   else if (el.geom == Geometry::PENTATOPE)
+   {
+// TODO implement derefinement of 16 pentatopes into one big pentatope
+   }
    else
    {
       MFEM_ABORT("Unsupported element geometry.");
@@ -2171,6 +2177,22 @@ int NCMesh::find_element_edge(const Element &el, int vn0, int vn1)
    return -1;
 }
 
+int NCMesh::find_pent_planar(int a, int b, int c)
+{
+   for (int i = 0; i < 10; i++)
+   {
+      const int* pv = gi_pent.planars[i];
+      if ((a == pv[0] || a == pv[1] || a == pv[2] || a == pv[3]) &&
+          (b == pv[0] || b == pv[1] || b == pv[2] || b == pv[3]) &&
+          (c == pv[0] || c == pv[1] || c == pv[2] || c == pv[3]))
+      {
+         return i;
+      }
+   }
+   MFEM_ABORT("Planar not found.");
+   return -1;
+}
+
 int NCMesh::find_hex_face(int a, int b, int c)
 {
    for (int i = 0; i < 6; i++)
@@ -2202,6 +2224,39 @@ int NCMesh::find_pent_face(int a, int b, int c, int d)
    }
    MFEM_ABORT("Face not found.");
    return -1;
+}
+
+int NCMesh::ReorderPlanarPointMat(int v0, int v1, int v2,
+                                  int elem, DenseMatrix& mat) const
+{
+   const Element &el = elements[elem];
+   int master[3] =
+   {
+      find_node(el, v0), find_node(el, v1),
+      find_node(el, v2)
+   };
+
+   int local = find_pent_planar(master[0], master[1], master[2]);
+   const int* pv = gi_pent.planars[local];
+
+   DenseMatrix tmp(mat);
+   for (int i = 0, j; i < 3; i++)
+   {
+      for (j = 0; j < 3; j++)
+      {
+         if (pv[i] == master[j])
+         {
+            // "pm.column(i) = tmp.column(j)"
+            for (int k = 0; k < mat.Height(); k++)
+            {
+               mat(k,i) = tmp(k,j);
+            }
+            break;
+         }
+      }
+      MFEM_ASSERT(j != 4, "node not found.");
+   }
+   return local;
 }
 
 int NCMesh::ReorderFacePointMat(int v0, int v1, int v2, int v3,
@@ -2244,113 +2299,194 @@ int NCMesh::ReorderFacePointMat(int v0, int v1, int v2, int v3,
 void NCMesh::TraverseFace(int vn0, int vn1, int vn2, int vn3,
                           const PointMatrix& pm, int level)
 {
+   if (level > 0)
+   {
+      // check if we made it to a face that is not split further
+      Face* fa = faces.Find(vn0, vn1, vn2, vn3);
+      if (fa)
+      {
+         // we have a slave face, add it to the list
+         int elem = fa->GetSingleElement();
+         face_list.slaves.push_back(Slave(fa->index, elem, -1));
+         DenseMatrix &mat = face_list.slaves.back().point_matrix;
+         pm.GetMatrix(mat);
+
+         // reorder the point matrix according to slave face orientation
+         int local = ReorderFacePointMat(vn0, vn1, vn2, vn3, elem, mat);
+         face_list.slaves.back().local = local;
+
+         return;
+      }
+   }
+
+   // we need to recurse deeper
+   int mid[4];
+   int split = FaceSplitType(vn0, vn1, vn2, vn3, mid);
+
+   if (split == 1) // "X" split face
+   {
+      Point mid0(pm(0), pm(1)), mid2(pm(2), pm(3));
+
+      TraverseFace(vn0, mid[0], mid[2], vn3,
+                   PointMatrix(pm(0), mid0, mid2, pm(3)), level+1);
+
+      TraverseFace(mid[0], vn1, vn2, mid[2],
+                   PointMatrix(mid0, pm(1), pm(2), mid2), level+1);
+   }
+   else if (split == 2) // "Y" split face
+   {
+      Point mid1(pm(1), pm(2)), mid3(pm(3), pm(0));
+
+      TraverseFace(vn0, vn1, mid[1], mid[3],
+                   PointMatrix(pm(0), pm(1), mid1, mid3), level+1);
+
+      TraverseFace(mid[3], mid[1], vn2, vn3,
+                   PointMatrix(mid3, mid1, pm(2), pm(3)), level+1);
+   }
+}
+
+void NCMesh::TraverseFace4D(int vn0, int vn1, int vn2, int vn3,
+                          const PointMatrix& pm, int level, int loc)
+{
    if (Dim <= 3)
+      return;
+
+   if (level > 0)
    {
-      if (level > 0)
+      // check if we made it to a face that is not split further
+      Face4D* fa = faces4d.Find(vn0, vn1, vn2, vn3,
+                              std::numeric_limits<int>::max());
+      if (fa)
       {
-         // check if we made it to a face that is not split further
-         Face* fa = faces.Find(vn0, vn1, vn2, vn3);
-         if (fa)
-         {
-            // we have a slave face, add it to the list
-            int elem = fa->GetSingleElement();
-            face_list.slaves.push_back(Slave(fa->index, elem, -1));
-            DenseMatrix &mat = face_list.slaves.back().point_matrix;
-            pm.GetMatrix(mat);
+         // we have a slave face, add it to the list
+         int elem = fa->GetSingleElement();
+         face_list.slaves.push_back(Slave(fa->index, elem, -1));
+         DenseMatrix &mat = face_list.slaves.back().point_matrix;
+         pm.GetMatrix(mat);
 
-            // reorder the point matrix according to slave face orientation
-            int local = ReorderFacePointMat(vn0, vn1, vn2, vn3, elem, mat);
-            face_list.slaves.back().local = local;
+         // reorder the point matrix according to slave face orientation
+         int local = ReorderFacePointMat(vn0, vn1, vn2, vn3, elem, mat);
+         face_list.slaves.back().local = local;
 
-            return;
-         }
-      }
-
-      // we need to recurse deeper
-      int mid[4];
-      int split = FaceSplitType(vn0, vn1, vn2, vn3, mid);
-
-      if (split == 1) // "X" split face
-      {
-         Point mid0(pm(0), pm(1)), mid2(pm(2), pm(3));
-
-         TraverseFace(vn0, mid[0], mid[2], vn3,
-                      PointMatrix(pm(0), mid0, mid2, pm(3)), level+1);
-
-         TraverseFace(mid[0], vn1, vn2, mid[2],
-                      PointMatrix(mid0, pm(1), pm(2), mid2), level+1);
-      }
-      else if (split == 2) // "Y" split face
-      {
-         Point mid1(pm(1), pm(2)), mid3(pm(3), pm(0));
-
-         TraverseFace(vn0, vn1, mid[1], mid[3],
-                      PointMatrix(pm(0), pm(1), mid1, mid3), level+1);
-
-         TraverseFace(mid[3], mid[1], vn2, vn3,
-                      PointMatrix(mid3, mid1, pm(2), pm(3)), level+1);
+         return;
       }
    }
-   else
+
+   bool swapped = (loc % 2 == 1);
+   int first[2] = {0, 1};
+
+   if (swapped)
    {
-      if (level > 0)
-      {
-         // check if we made it to a face that is not split further
-         Face4D* fa = faces4d.Find(vn0, vn1, vn2, vn3,
-                                 std::numeric_limits<int>::max());
-         if (fa)
-         {
-            // we have a slave face, add it to the list
-            int elem = fa->GetSingleElement();
-            face_list.slaves.push_back(Slave(fa->index, elem, -1));
-            DenseMatrix &mat = face_list.slaves.back().point_matrix;
-            pm.GetMatrix(mat);
-
-            // reorder the point matrix according to slave face orientation
-            int local = ReorderFacePointMat(vn0, vn1, vn2, vn3, elem, mat);
-            face_list.slaves.back().local = local;
-
-            return;
-         }
-      }
-
-      // we need to recurse deeper TODO
-      int mid[6];
-      mid[0] = nodes.FindId(vn0,vn1); mid[1] = nodes.FindId(vn0,vn2);
-      mid[2] = nodes.FindId(vn0,vn3); mid[3] = nodes.FindId(vn1,vn2);
-      mid[4] = nodes.FindId(vn1,vn3); mid[5] = nodes.FindId(vn2,vn3);
-      Point mid0(pm(0),pm(1)), mid1(pm(0),pm(2));
-      Point mid2(pm(0),pm(3)), mid3(pm(1),pm(2));
-      Point mid4(pm(1),pm(3)), mid5(pm(2),pm(3));
-
-      // corner tetrahedrons
-      if (mid[0] != -1 && mid[1] != -1 && mid[2] != -1)
-         TraverseFace(vn0,mid[0],mid[1],mid[2],
-                      PointMatrix(pm(0),mid0,mid1,mid2), level+1);
-      if (mid[0] != -1 && mid[3] != -1 && mid[4] != -1)
-         TraverseFace(mid[0],vn1,mid[3],mid[4],
-                      PointMatrix(mid0,pm(1),mid3,mid4), level+1);
-      if (mid[1] != -1 && mid[3] != -1 && mid[5] != -1)
-         TraverseFace(mid[1],mid[3],vn2,mid[5],
-                      PointMatrix(mid1,mid3,pm(2),mid5), level+1);
-      if (mid[2] != -1 && mid[4] != -1 && mid[5] != -1)
-         TraverseFace(mid[2],mid[4],mid[5],vn3,
-                      PointMatrix(mid2,mid4,mid5,pm(3)), level+1);
-      // interior tetrahedrons
-      if (mid[0] != -1 && mid[1] != -1 && mid[3] != -1 && mid[4] != -1)
-         TraverseFace(mid[0],mid[1],mid[3],mid[4],
-                      PointMatrix(mid0,mid1,mid3,mid4), level+1);
-      if (mid[0] != -1 && mid[1] != -1 && mid[2] != -1 && mid[4] != -1)
-         TraverseFace(mid[0],mid[1],mid[2],mid[4],
-                      PointMatrix(mid0,mid1,mid2,mid4), level+1);
-      if (mid[1] != -1 && mid[3] != -1 && mid[4] != -1 && mid[5] != -1)
-         TraverseFace(mid[1],mid[3],mid[4],mid[5],
-                      PointMatrix(mid1,mid3,mid4,mid5), level+1);
-      if (mid[1] != -1 && mid[2] != -1 && mid[4] != -1 && mid[5] != -1)
-         TraverseFace(mid[1],mid[2],mid[4],mid[5],
-                      PointMatrix(mid1,mid2,mid4,mid5), level+1);
-
+      Swap(vn0,vn1);
+      Swap(first[0],first[1]);
    }
+
+   // we need to recurse deeper TODO
+   int mid[6];
+   mid[0] = nodes.FindId(vn0,vn1); mid[1] = nodes.FindId(vn0,vn2);
+   mid[2] = nodes.FindId(vn0,vn3); mid[3] = nodes.FindId(vn1,vn2);
+   mid[4] = nodes.FindId(vn1,vn3); mid[5] = nodes.FindId(vn2,vn3);
+   Point mid0(pm(first[0]),pm(first[1])), mid1(pm(first[0]),pm(2));
+   Point mid2(pm(first[0]),pm(3)),        mid3(pm(first[1]),pm(2));
+   Point mid4(pm(first[1]),pm(3)),        mid5(pm(2),pm(3));
+
+   // corner tetrahedrons
+   if (mid[0] != -1 && mid[1] != -1 && mid[2] != -1)
+   {
+      if (!swapped)
+         TraverseFace4D(vn0,mid[0],mid[1],mid[2],
+                        PointMatrix(pm(first[0]),mid0,mid1,mid2), level+1,loc);
+      else
+         TraverseFace4D(mid[0],vn0,mid[1],mid[2],
+                        PointMatrix(mid0,pm(first[0]),mid1,mid2), level+1,loc);
+   }
+   if (mid[0] != -1 && mid[3] != -1 && mid[4] != -1)
+   {
+      if (!swapped)
+         TraverseFace4D(mid[0],vn1,mid[3],mid[4],
+                        PointMatrix(mid0,pm(first[1]),mid3,mid4), level+1, loc);
+      else
+         TraverseFace4D(vn1,mid[0],mid[3],mid[4],
+                        PointMatrix(pm(first[1]),mid0,mid3,mid4), level+1, loc);
+   }
+   if (mid[1] != -1 && mid[3] != -1 && mid[5] != -1)
+   {
+      if (!swapped)
+         TraverseFace4D(mid[1],mid[3],vn2,mid[5],
+                        PointMatrix(mid1,mid3,pm(2),mid5), level+1, loc);
+      else
+         TraverseFace4D(mid[3],mid[1],vn2,mid[5],
+                        PointMatrix(mid3,mid1,pm(2),mid5), level+1, loc);
+   }
+   if (mid[2] != -1 && mid[4] != -1 && mid[5] != -1)
+   {
+      if (!swapped)
+         TraverseFace4D(mid[2],mid[4],mid[5],vn3,
+                        PointMatrix(mid2,mid4,mid5,pm(3)), level+1, loc);
+      else
+         TraverseFace4D(mid[4],mid[2],mid[5],vn3,
+                        PointMatrix(mid4,mid2,mid5,pm(3)), level+1, loc);
+   }
+   // interior tetrahedrons
+   Array<bool> sw(4);
+   Array<int> lf(4);
+   lf = loc;
+   sw = swapped;
+   switch(loc)
+   {
+   case 1:
+      sw[1] = sw[2] = !swapped;
+      lf[1] = lf[2] = 2;
+      lf[3] = 3;
+      break;
+   case 2:
+      sw = !swapped;
+      lf[0] = lf[1] = 3;
+      lf[2] = lf[3] = 1;
+      break;
+   case 3:
+      sw[0] = sw[3] = !swapped;
+      lf[0] = lf[3] = 2;
+      lf[1] = 1;
+      break;
+   }
+   if (mid[0] != -1 && mid[1] != -1 && mid[3] != -1 && mid[4] != -1)
+   {
+      if (!sw[0])
+         TraverseFace4D(mid[0],mid[1],mid[3],mid[4],
+                        PointMatrix(mid0,mid1,mid3,mid4), level+1, lf[0]);
+      else
+         TraverseFace4D(mid[1],mid[0],mid[3],mid[4],
+                        PointMatrix(mid1,mid0,mid3,mid4), level+1, lf[0]);
+   }
+   if (mid[0] != -1 && mid[1] != -1 && mid[2] != -1 && mid[4] != -1)
+   {
+      if (!sw[1])
+         TraverseFace4D(mid[0],mid[1],mid[2],mid[4],
+                        PointMatrix(mid0,mid1,mid2,mid4), level+1, lf[1]);
+      else
+         TraverseFace4D(mid[1],mid[0],mid[2],mid[4],
+                        PointMatrix(mid1,mid0,mid2,mid4), level+1, lf[1]);
+   }
+   if (mid[1] != -1 && mid[3] != -1 && mid[4] != -1 && mid[5] != -1)
+   {
+      if (!sw[2])
+         TraverseFace4D(mid[1],mid[3],mid[4],mid[5],
+                        PointMatrix(mid1,mid3,mid4,mid5), level+1, lf[2]);
+      else
+         TraverseFace4D(mid[3],mid[1],mid[4],mid[5],
+                        PointMatrix(mid3,mid1,mid4,mid5), level+1, lf[2]);
+   }
+   if (mid[1] != -1 && mid[2] != -1 && mid[4] != -1 && mid[5] != -1)
+   {
+      if (!sw[3])
+         TraverseFace4D(mid[1],mid[2],mid[4],mid[5],
+                        PointMatrix(mid1,mid2,mid4,mid5), level+1, lf[3]);
+      else
+         TraverseFace4D(mid[2],mid[1],mid[4],mid[5],
+                        PointMatrix(mid2,mid1,mid4,mid5), level+1, lf[3]);
+   }
+
 }
 
 void NCMesh::BuildFaceList()
@@ -2458,7 +2594,7 @@ void NCMesh::BuildFaceList()
                // this is either a master face or a slave face, but we can't
                // tell until we traverse the face refinement 'tree'...
                int sb = face_list.slaves.size();
-               TraverseFace(node[0], node[1], node[2], node[3], pm, 0);
+               TraverseFace4D(node[0], node[1], node[2], node[3], pm, 0, j);
 
                int se = face_list.slaves.size();
                if (sb < se)
@@ -2495,7 +2631,7 @@ void NCMesh::TraversePlanar(int vn0, int vn1, int vn2, const PointMatrix& pm,
          pm.GetMatrix(mat);
 
          // reorder the point matrix according to slave face orientation
-         int local = -1; //ReorderPlanarPointMat(vn0, vn1, vn2, elem, mat);
+         int local = -1/*ReorderPlanarPointMat(vn0, vn1, vn2, elem, mat)*/;
          face_list.slaves.back().local = local;
 
          return;
@@ -3627,7 +3763,7 @@ void NCMesh::TraverseRefinements(int elem, int coarse_index,
       ref_path.push_back(el.ref_type);
       ref_path.push_back(0);
 
-      for (int i = 0; i < 8; i++)
+      for (int i = 0; i < 16; i++)
       {
          if (el.child[i] >= 0)
          {
@@ -3759,6 +3895,32 @@ int NCMesh::GetEdgeNCOrientation(const NCMesh::MeshId &edge_id) const
    return ((v0 < v1 && ev[0] > ev[1]) || (v0 > v1 && ev[0] < ev[1])) ? -1 : 1;
 }
 
+void NCMesh::GetPlanarVerticesEdges(const MeshId &planar_id,
+                                    int vert_index[3], int edge_index[3],
+                                    int edge_orientation[3]) const
+{
+   const Element &el = elements[planar_id.element];
+   const int* pv = GI[(int) el.geom].planars[planar_id.local];
+
+   for (int i = 0; i < 3; i++)
+   {
+      vert_index[i] = nodes[el.node[pv[i]]].vert_index;
+   }
+
+   for (int i = 0; i < 3; i++)
+   {
+      int j = (i+1) & 0x2;
+      int n1 = el.node[pv[i]];
+      int n2 = el.node[pv[j]];
+
+      const Node* en = nodes.Find(n1, n2);
+      MFEM_ASSERT(en != NULL, "edge not found.");
+
+      edge_index[i] = en->edge_index;
+      edge_orientation[i] = (vert_index[i] < vert_index[j]) ? 1 : -1;
+   }
+}
+
 void NCMesh::GetFaceVerticesEdges(const MeshId &face_id,
                                   int vert_index[4], int edge_index[4],
                                   int edge_orientation[4]) const
@@ -3782,6 +3944,49 @@ void NCMesh::GetFaceVerticesEdges(const MeshId &face_id,
 
       edge_index[i] = en->edge_index;
       edge_orientation[i] = (vert_index[i] < vert_index[j]) ? 1 : -1;
+   }
+}
+
+void NCMesh::GetFaceVerticesEdgesPlanars(const MeshId &face_id,
+                                         int vert_index[4], int edge_index[6],
+                                         int edge_orientation[6], int planar_index[4],
+                                         int planar_orientation[4]) const
+{
+   const Element &el = elements[face_id.element];
+   const int* fv = GI[(int) el.geom].faces[face_id.local];
+
+   for (int i = 0; i < 4; i++)
+   {
+      vert_index[i] = nodes[el.node[fv[i]]].vert_index;
+   }
+
+   int e = 0;
+   for (int i = 0; i < 4; i++)
+   {
+      for (int j = (i+1); j < 4; ++j)
+      {
+         int n1 = el.node[fv[i]];
+         int n2 = el.node[fv[j]];
+
+         const Node* en = nodes.Find(n1, n2);
+         MFEM_ASSERT(en != NULL, "edge not found.");
+
+         edge_index[e] = en->edge_index;
+         edge_orientation[e++] = (vert_index[i] < vert_index[j]) ? 1 : -1;
+      }
+   }
+
+   for (int i = 0; i < 4; i++)
+   {
+      const int* pv = GI[Geometry::TETRAHEDRON].faces[i];
+
+      const Planar* p = planars.Find(el.node[fv[pv[0]]], el.node[fv[pv[1]]], el.node[fv[pv[2]]], std::numeric_limits<int>::max());
+      MFEM_ASSERT(p != NULL, "planar not found.");
+
+      planar_index[i] = p->index;
+      int baseV[3] = { p->p1, p->p2, p->p3 };
+      int myTri[3] = { el.node[fv[pv[0]]], el.node[fv[pv[1]]], el.node[fv[pv[2]]] };
+      planar_orientation[i] = 0; // Mesh::GetTriOrientation(baseV, myTri); TODO find a way to obtain this
    }
 }
 
@@ -3902,6 +4107,8 @@ void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
          {
             int node[4];
             FindFaceNodes4D(face, node);
+            
+           // TODO add planars that might not be reachable from any boundary element!
 
             for (int j = 0; j < 4; j++)
             {
@@ -4196,12 +4403,12 @@ int NCMesh::PrintElements(std::ostream &out, int elem, int &coarse_id) const
    const Element &el = elements[elem];
    if (el.ref_type)
    {
-      int child_id[8], nch = 0;
-      for (int i = 0; i < 8 && el.child[i] >= 0; i++)
+      int child_id[16], nch = 0;
+      for (int i = 0; i < 16 && el.child[i] >= 0; i++)
       {
          child_id[nch++] = PrintElements(out, el.child[i], coarse_id);
       }
-      MFEM_ASSERT(nch == ref_type_num_children[(int) el.ref_type], "");
+//      MFEM_ASSERT(nch == ref_type_num_children[(int) el.ref_type], "");
 
       out << (int) el.ref_type;
       for (int i = 0; i < nch; i++)

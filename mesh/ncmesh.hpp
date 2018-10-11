@@ -221,6 +221,8 @@ public:
       {
          case 0: return GetVertexList();
          case 1: return GetEdgeList();
+         case 2: if (Dim == 4) { return GetPlanarList(); }
+         /* no break */
          default: return GetFaceList();
       }
    }
@@ -262,6 +264,17 @@ public:
    void GetFaceVerticesEdges(const MeshId &face_id,
                              int vert_index[4], int edge_index[4],
                              int edge_orientation[4]) const;
+
+   /// Return Mesh vertex, edge and planar indices of a face identified by 'face_id'.
+   void GetFaceVerticesEdgesPlanars(const MeshId &face_id,
+                                    int vert_index[4], int edge_index[6],
+                                    int edge_orientation[6], int planar_index[4],
+                                    int planar_orientation[4]) const;
+
+   /// Return Mesh vertex and edge indices of a planar identified by 'planar_id'.
+   void GetPlanarVerticesEdges(const MeshId &planar_id,
+                               int vert_index[3], int edge_index[3],
+                               int edge_orientation[3]) const;
 
    /** Given an edge (by its vertex indices v1 and v2) return the first
        (geometric) parent edge that exists in the Mesh or -1 if there is no such
@@ -457,6 +470,8 @@ protected: // implementation
 
    typedef HashTable<Node>::iterator node_iterator;
    typedef HashTable<Face>::iterator face_iterator;
+   typedef HashTable<Face4D>::iterator face4d_iterator;
+   typedef HashTable<Planar>::iterator planar_iterator;
    typedef HashTable<Node>::const_iterator node_const_iterator;
    typedef HashTable<Face>::const_iterator face_const_iterator;
    typedef HashTable<Face4D>::const_iterator face4d_const_iterator;
@@ -589,14 +604,19 @@ protected: // implementation
 
    static int find_node(const Element &el, int node);
    static int find_element_edge(const Element &el, int vn0, int vn1);
+   static int find_pent_planar(int a, int b, int c);
    static int find_hex_face(int a, int b, int c);
    static int find_pent_face(int a, int b, int c, int d);
 
    int ReorderFacePointMat(int v0, int v1, int v2, int v3,
                            int elem, DenseMatrix& mat) const;
+   int ReorderPlanarPointMat(int v0, int v1, int v2,
+                             int elem, DenseMatrix& mat) const;
    struct PointMatrix;
    void TraverseFace(int vn0, int vn1, int vn2, int vn3,
                      const PointMatrix& pm, int level);
+   void TraverseFace4D(int vn0, int vn1, int vn2, int vn3,
+                       const PointMatrix& pm, int level, int local);
 
    void TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
                      int level);
