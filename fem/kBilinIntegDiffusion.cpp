@@ -12,7 +12,7 @@
 #include "fem.hpp"
 #include "kBilinIntegDiffusion.hpp"
 #include "kernels/kGeometry.hpp"
-#include "kernels/diffusion.hpp"
+#include "kernels/kIntDiffusion.hpp"
 
 // *****************************************************************************
 MFEM_NAMESPACE
@@ -47,13 +47,13 @@ void KDiffusionIntegrator::Assemble(){
    maps = kDofQuadMaps::Get(*fes, *fes, *ir);
    assert(geo);
    assert(fes);
-   rDiffusionAssemble(dim,
-                      quad1D,
-                      elements,
-                      maps->quadWeights,
-                      geo->J,
-                      1.0,//COEFF
-                      vec);
+   kIntDiffusionAssemble(dim,
+                         quad1D,
+                         elements,
+                         maps->quadWeights,
+                         geo->J,
+                         1.0,//COEFF
+                         vec);
    //dbg("vec=");vec.Print();
 }
 
@@ -66,17 +66,17 @@ void KDiffusionIntegrator::MultAdd(Vector &x, Vector &y)
    const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
    //assert(quad1D==2);
    const int dofs1D = fes->GetFE(0)->GetOrder() + 1;
-   rDiffusionMultAdd(dim,
-                     dofs1D,
-                     quad1D,
-                     fes->GetMesh()->GetNE(),
-                     maps->dofToQuad,
-                     maps->dofToQuadD,
-                     maps->quadToDof,
-                     maps->quadToDofD,
-                     vec,
-                     x,
-                     y);
+   kIntDiffusionMultAdd(dim,
+                        dofs1D,
+                        quad1D,
+                        fes->GetMesh()->GetNE(),
+                        maps->dofToQuad,
+                        maps->dofToQuadD,
+                        maps->quadToDof,
+                        maps->quadToDofD,
+                        vec,
+                        x,
+                        y);
 }
 
 // *****************************************************************************

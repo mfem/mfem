@@ -17,26 +17,23 @@
 #define MFEM_KERNELS_DIFFUSION
 
 // *****************************************************************************
-#define restrict __restrict__
-
-// *****************************************************************************
-void rDiffusionAssemble(const int dim,
-                        const int NUM_QUAD,
-                        const int numElements,
-                        const double* quadWeights,
-                        const double* J,
-                        const double COEFF,
-                        double* restrict oper);
-void rDiffusionMultAdd(const int dim,
-                       const int NUM_DOFS_1D,
-                       const int NUM_QUAD_1D,
-                       const int numElements,
-                       const double* restrict dofToQuad,
-                       const double* restrict dofToQuadD,
-                       const double* restrict quadToDof,
-                       const double* restrict quadToDofD,
-                       const double* restrict op,
-                       const double* restrict x,
-                       double* restrict y);
+void kIntDiffusionAssemble(const int dim,
+                           const int NUM_QUAD,
+                           const int numElements,
+                           const double* __restrict quadWeights,
+                           const double* __restrict J,
+                           const double COEFF,
+                           double* __restrict oper);
+void kIntDiffusionMultAdd(const int dim,
+                          const int NUM_DOFS_1D,
+                          const int NUM_QUAD_1D,
+                          const int numElements,
+                          const double* __restrict dofToQuad,
+                          const double* __restrict dofToQuadD,
+                          const double* __restrict quadToDof,
+                          const double* __restrict quadToDofD,
+                          const double* __restrict op,
+                          const double* __restrict x,
+                          double* __restrict y);
 
 #endif // MFEM_KERNELS_DIFFUSION

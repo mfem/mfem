@@ -17,13 +17,13 @@
 #include "../../general/okina.hpp"
 
 // *****************************************************************************
-void rDiffusionAssemble(const int dim,
-                        const int NUM_QUAD_1D,
-                        const int numElements,
-                        const double* quadWeights,
-                        const double* J,
-                        const double COEFF,
-                        double* __restrict oper)
+void kIntDiffusionAssemble(const int dim,
+                           const int NUM_QUAD_1D,
+                           const int numElements,
+                           const double* quadWeights,
+                           const double* J,
+                           const double COEFF,
+                           double* __restrict oper)
 {
    GET_CONST_ADRS(quadWeights);
    GET_CONST_ADRS(J);
