@@ -104,7 +104,9 @@ void PumiMesh::Load(apf::Mesh2* apf_mesh, int generate_edges, int refine,
 
    // Read mesh
    ReadSCORECMesh(apf_mesh, v_num_loc, curved);
+#ifdef MFEM_DEBUG
    mfem::out << "After ReadSCORECMesh" << endl;
+#endif
    // at this point the following should be defined:
    //  1) Dim
    //  2) NumOfElements, elements
@@ -270,9 +272,6 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
    // Set the communicator for gtopo
    gtopo.SetComm(comm);
 
-   int i, j;
-   Array<int> vert;
-
    MyComm = comm;
    MPI_Comm_size(MyComm, &NRanks);
    MPI_Comm_rank(MyComm, &MyRank);
@@ -280,56 +279,35 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
    Dim = apf_mesh->getDimension();
    spaceDim = Dim;// mesh.spaceDim;
 
-   // Iterator to get type
-   apf::MeshIterator* itr = apf_mesh->begin(Dim);
-   BaseGeom = apf_mesh->getType(apf_mesh->iterate(itr));
-   apf_mesh->end(itr);
-
-   itr = apf_mesh->begin(Dim - 1);
-   BaseBdrGeom = apf_mesh->getType(apf_mesh->iterate(itr));
-   apf_mesh->end(itr);
+   apf::MeshIterator* itr;
+   apf::MeshEntity* ent;
 
    // Global numbering of vertices. This is necessary to build a local numbering
    // that has the same ordering in each process.
-   apf::FieldShape* v_shape = apf::getConstant(0);
    apf::Numbering* vLocNum =
-      apf::createNumbering(apf_mesh, "AuxVertexNumbering", v_shape, 1);
-   // Number
-   itr = apf_mesh->begin(0);
-   apf::MeshEntity* ent;
-   int owned_num = 0;
-   int all_num = 0;
-   int shared_num = 0;
-   while ((ent = apf_mesh->iterate(itr)))
-   {
-      all_num++;
-      if (apf_mesh->isOwned(ent))
-      {
-         apf::number(vLocNum, ent, 0, 0, owned_num++);
-      }
-      if (apf_mesh->isShared(ent))
-      {
-         shared_num++;
-      }
-   }
-   apf_mesh->end(itr);
-
-   // Make the local numbering global
+      apf::numberOwnedDimension(apf_mesh, "AuxVertexNumbering", 0);
    apf::GlobalNumbering* VertexNumbering = apf::makeGlobal(vLocNum, true);
    apf::synchronize(VertexNumbering);
 
-   // Take this process global IDs and sort
-   Array<int> thisIds(all_num);
-   Array<int> SharedVertIds(shared_num);
+   // Take this process global vertex IDs and sort
+   Array<Pair<long,int> > thisVertIds(apf_mesh->count(0));
    itr = apf_mesh->begin(0);
-   all_num = 0;
-   while ((ent = apf_mesh->iterate(itr)))
+   for (int i = 0; (ent = apf_mesh->iterate(itr)); i++)
    {
-      unsigned int id = apf::getNumber(VertexNumbering, ent, 0, 0);
-      thisIds[all_num++] = id;
+      long id = apf::getNumber(VertexNumbering, ent, 0, 0);
+      thisVertIds[i] = Pair<long,int>(id, i);
    }
    apf_mesh->end(itr);
-   thisIds.Sort();
+   apf::destroyGlobalNumbering(VertexNumbering);
+   thisVertIds.Sort();
+   // Set thisVertIds[i].one = j where j is such that thisVertIds[j].two = i.
+   // Thus, the mapping i -> thisVertIds[i].one is the inverse of the mapping
+   // j -> thisVertIds[j].two.
+   for (int j = 0; j < thisVertIds.Size(); j++)
+   {
+      const int i = thisVertIds[j].two;
+      thisVertIds[i].one = j;
+   }
 
    // Create local numbering that respects the global ordering
    apf::Field* apf_field_crd = apf_mesh->getCoordinateField();
@@ -338,35 +316,16 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
                                                     "LocalVertexNumbering",
                                                     crd_shape, 1);
 
-   NumOfVertices = 0;
-   shared_num = 0;
-   itr = apf_mesh->begin(0);
-   while ((ent = apf_mesh->iterate(itr)))
-   {
-      // ID from global numbering
-      unsigned int id = apf::getNumber(VertexNumbering, ent, 0, 0);
-      // Find its position at sorted list
-      int ordered_id = thisIds.FindSorted(id);
-      // Assign as local number
-      apf::number(v_num_loc, ent, 0, 0, ordered_id);
-      NumOfVertices++;
-
-      // Add to shared vertices list
-      if (apf_mesh->isShared(ent))
-      {
-         SharedVertIds[shared_num++] = ordered_id;
-      }
-   }
-   apf_mesh->end(itr);
-   SharedVertIds.Sort();
-   apf::destroyGlobalNumbering(VertexNumbering);
-
+   // Construct the numbering v_loc_num and set the coordinates of the vertices.
+   NumOfVertices = thisVertIds.Size();
    vertices.SetSize(NumOfVertices);
-   // Set vertices
    itr = apf_mesh->begin(0);
-   while ((ent = apf_mesh->iterate(itr)))
+   for (int i = 0; (ent = apf_mesh->iterate(itr)); i++)
    {
-      unsigned int id = apf::getNumber(v_num_loc, ent, 0, 0);
+      const int id = thisVertIds[i].one;
+      // Assign as local number
+      apf::number(v_num_loc, ent, 0, 0, id);
+
       apf::Vector3 Crds;
       apf_mesh->getPoint(ent,0,Crds);
 
@@ -376,6 +335,7 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
       }
    }
    apf_mesh->end(itr);
+   thisVertIds.DeleteAll();
 
    // Fill the elements
    NumOfElements = countOwned(apf_mesh,Dim);
@@ -383,8 +343,7 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
 
    // Read elements from SCOREC Mesh
    itr = apf_mesh->begin(Dim);
-   j=0;
-   while ((ent = apf_mesh->iterate(itr)))
+   for (int j = 0; (ent = apf_mesh->iterate(itr)); j++)
    {
       // Get vertices
       apf::Downward verts;
@@ -392,20 +351,16 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
 
       // Get attribute Tag vs Geometry
       int attr = 1;
-      int geom_type = BaseGeom;
+      int geom_type = apf_mesh->getType(ent);
       elements[j] = ReadElement(ent, geom_type, verts, attr, v_num_loc);
-      j++;
    }
    // End iterator
    apf_mesh->end(itr);
-
-   Table *edge_element = NULL;
 
    // Count number of boundaries by classification
    int BcDim = Dim - 1;
    itr = apf_mesh->begin(BcDim);
    NumOfBdrElements = 0;
-
    while ((ent=apf_mesh->iterate(itr)))
    {
       apf::ModelEntity* mdEnt = apf_mesh->toModel(ent);
@@ -417,10 +372,9 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
    apf_mesh->end(itr);
 
    boundary.SetSize(NumOfBdrElements);
-   int bdr_ctr=0;
    // Read boundary from SCOREC mesh
    itr = apf_mesh->begin(BcDim);
-   while ((ent = apf_mesh->iterate(itr)))
+   for (int bdr_ctr = 0; (ent = apf_mesh->iterate(itr)); )
    {
       // Check if this mesh entity is on the model boundary
       apf::ModelEntity* mdEnt = apf_mesh->toModel(ent);
@@ -429,10 +383,9 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
          apf::Downward verts;
          apf_mesh->getDownward(ent, 0, verts);
          int attr = 1 ;
-         int geom_type = BaseBdrGeom;// apf_mesh->getType(ent);
-         boundary[bdr_ctr] = ReadElement(ent, geom_type, verts, attr,
-                                         v_num_loc);
-         bdr_ctr++;
+         int geom_type = apf_mesh->getType(ent);
+         boundary[bdr_ctr++] = ReadElement(ent, geom_type, verts, attr,
+                                           v_num_loc);
       }
    }
    apf_mesh->end(itr);
@@ -446,8 +399,6 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
 
    this->FinalizeTopology();
 
-   STable3D *faces_tbl = (Dim == 3) ? GetFacesTable() : NULL;
-
    ListOfIntegerSets  groups;
    IntegerSet         group;
 
@@ -459,170 +410,94 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
                "[proc " << MyRank << "]: invalid state");
 
    // Determine shared faces
-   int sface_counter = 0;
-   Array<int> face_group(GetNFaces());
-   apf::FieldShape* fc_shape =apf::getConstant(2);
-   apf::Numbering* faceNum = apf::createNumbering(apf_mesh, "FaceNumbering",
-                                                  fc_shape, 1);
-   Array<int> SharedFaceIds;
+   Array<Pair<long, apf::MeshEntity*> > sfaces;
+   // Initially sfaces[i].one holds the global face id.
+   // Then it is replaced by the group id of the shared face.
    if (Dim > 2)
    {
-      // Number Faces
+      // Number the faces globally and enumerate the local shared faces
+      // following the global enumeration. This way we ensure that the ordering
+      // of the shared faces within each group (of processors) is the same in
+      // each processor in the group.
       apf::Numbering* AuxFaceNum =
          apf::numberOwnedDimension(apf_mesh, "AuxFaceNumbering", 2);
       apf::GlobalNumbering* GlobalFaceNum = apf::makeGlobal(AuxFaceNum, true);
       apf::synchronize(GlobalFaceNum);
 
-      // Take this process global IDs and sort
-      Array<int> thisFaceIds(GetNFaces());
-
-      itr = apf_mesh->begin(2);
-      all_num = 0;
-      shared_num = 0;
-      while ((ent = apf_mesh->iterate(itr)))
-      {
-         unsigned int id = apf::getNumber(GlobalFaceNum, ent, 0, 0);
-         thisFaceIds[all_num++] = id;
-         if (apf_mesh->isShared(ent))
-         {
-            shared_num++;
-         }
-      }
-      apf_mesh->end(itr);
-      thisFaceIds.Sort();
-
-      // Create local numbering that respects the global ordering
-      SharedFaceIds.SetSize(shared_num);
-      shared_num = 0;
       itr = apf_mesh->begin(2);
       while ((ent = apf_mesh->iterate(itr)))
       {
-         // ID from global numbering
-         unsigned int id = apf::getNumber(GlobalFaceNum, ent, 0, 0);
-         // Find its position at sorted list
-         int ordered_id = thisFaceIds.FindSorted(id);
-         // Assign as local number
-         apf::number(faceNum, ent, 0, 0, ordered_id);
-
          if (apf_mesh->isShared(ent))
          {
-            SharedFaceIds[shared_num++] = ordered_id;
+            long id = apf::getNumber(GlobalFaceNum, ent, 0, 0);
+            sfaces.Append(Pair<long,apf::MeshEntity*>(id, ent));
          }
       }
       apf_mesh->end(itr);
-      SharedFaceIds.Sort();
+      sfaces.Sort();
       apf::destroyGlobalNumbering(GlobalFaceNum);
 
-      itr = apf_mesh->begin(2);
-      while ((ent = apf_mesh->iterate(itr)))
+      // Replace the global face id in sfaces[i].one with group id.
+      for (int i = 0; i < sfaces.Size(); i++)
       {
-         int faceId = apf::getNumber(faceNum, ent, 0, 0);
-         face_group[faceId] = -1;
-         if (apf_mesh->isShared(ent))
+         ent = sfaces[i].two;
+
+         const int thisNumAdjs = 2;
+         int eleRanks[thisNumAdjs];
+
+         // Get the IDs
+         apf::Parts res;
+         apf_mesh->getResidence(ent, res);
+         int kk = 0;
+         for (std::set<int>::iterator itr = res.begin();
+              itr != res.end(); ++itr)
          {
-            // Number of adjacent element
-            const int thisNumAdjs = 2;
-            int eleRanks[thisNumAdjs];
-
-            // Get the IDs
-            apf::Parts res;
-            apf_mesh->getResidence(ent, res);
-            int kk = 0;
-            for (std::set<int>::iterator itr = res.begin();
-                 itr != res.end(); ++itr)
-            {
-               eleRanks[kk++] = *itr;
-            }
-
-            group.Recreate(2, eleRanks);
-            face_group[faceId] = groups.Insert(group) - 1;
-            sface_counter++;
+            eleRanks[kk++] = *itr;
          }
+
+         group.Recreate(2, eleRanks);
+         sfaces[i].one = groups.Insert(group) - 1;
       }
-      apf_mesh->end(itr);
    }
 
    // Determine shared edges
-   int sedge_counter = 0;
-   if (!edge_element)
+   Array<Pair<long, apf::MeshEntity*> > sedges;
+   // Initially sedges[i].one holds the global edge id.
+   // Then it is replaced by the group id of the shared edge.
+   if (Dim > 1)
    {
-      edge_element = new Table;
-      if (Dim == 1)
+      // Number the edges globally and enumerate the local shared edges
+      // following the global enumeration. This way we ensure that the ordering
+      // of the shared edges within each group (of processors) is the same in
+      // each processor in the group.
+      apf::Numbering* AuxEdgeNum =
+         apf::numberOwnedDimension(apf_mesh, "EdgeNumbering", 1);
+      apf::GlobalNumbering* GlobalEdgeNum = apf::makeGlobal(AuxEdgeNum, true);
+      apf::synchronize(GlobalEdgeNum);
+
+      itr = apf_mesh->begin(1);
+      while ((ent = apf_mesh->iterate(itr)))
       {
-         edge_element->SetDims(0,0);
+         if (apf_mesh->isShared(ent))
+         {
+            long id = apf::getNumber(GlobalEdgeNum, ent, 0, 0);
+            sedges.Append(Pair<long,apf::MeshEntity*>(id, ent));
+         }
       }
-      else
+      apf_mesh->end(itr);
+      sedges.Sort();
+      apf::destroyGlobalNumbering(GlobalEdgeNum);
+
+      // Replace the global edge id in sedges[i].one with group id.
+      Array<int> eleRanks;
+      for (int i = 0; i < sedges.Size(); i++)
       {
-         edge_element->SetSize(GetNEdges(), 1);
-      }
-   }
-
-   // Number Edges
-   apf::Numbering* AuxEdgeNum = apf::numberOwnedDimension(apf_mesh,
-                                                          "EdgeNumbering", 1);
-   apf::GlobalNumbering* GlobalEdgeNum = apf::makeGlobal(AuxEdgeNum, true);
-   apf::synchronize(GlobalEdgeNum);
-
-   // Take this process global IDs and sort
-   Array<int> thisEdgeIds(GetNEdges());
-
-   itr = apf_mesh->begin(1);
-   all_num = 0;
-   shared_num = 0;
-   while ((ent = apf_mesh->iterate(itr)))
-   {
-      unsigned int id = apf::getNumber(GlobalEdgeNum, ent, 0, 0);
-      thisEdgeIds[all_num++] = id;
-      if (apf_mesh->isShared(ent))
-      {
-         shared_num++;
-      }
-   }
-   apf_mesh->end(itr);
-   thisEdgeIds.Sort();
-
-   // Create local numbering that respects the global ordering
-   apf::FieldShape* ed_shape =apf::getConstant(1);
-   apf::Numbering* edgeNum = apf::createNumbering(apf_mesh, "EdgeNumbering",
-                                                  ed_shape, 1);
-
-   Array<int> SharedEdgeIds(shared_num);
-   shared_num = 0;
-   itr = apf_mesh->begin(1);
-   while ((ent = apf_mesh->iterate(itr)))
-   {
-      // ID from global numbering
-      unsigned int id = apf::getNumber(GlobalEdgeNum, ent, 0, 0);
-      // Find its position at sorted list
-      int ordered_id = thisEdgeIds.FindSorted(id);
-      // Assign as local number
-      apf::number(edgeNum, ent, 0, 0, ordered_id);
-
-      if (apf_mesh->isShared(ent))
-      {
-         SharedEdgeIds[shared_num++] = ordered_id;
-      }
-   }
-   apf_mesh->end(itr);
-   SharedEdgeIds.Sort();
-   apf::destroyGlobalNumbering(GlobalEdgeNum);
-
-   itr = apf_mesh->begin(1);
-   i = 0;
-   while ((ent = apf_mesh->iterate(itr)))
-   {
-      int edId = apf::getNumber(edgeNum, ent, 0, 0);
-      edge_element->GetRow(edId)[0] = -1;
-
-      if (apf_mesh->isShared(ent))
-      {
-         sedge_counter++;
+         ent = sedges[i].two;
 
          // Number of adjacent element
          apf::Parts res;
          apf_mesh->getResidence(ent, res);
-         int thisNumAdjs = res.size();
-         Array<int> eleRanks(thisNumAdjs);
+         eleRanks.SetSize(res.size());
 
          // Get the IDs
          int kk = 0;
@@ -633,33 +508,39 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
          }
 
          // Generate the group
-         group.Recreate(thisNumAdjs, eleRanks);
-         edge_element->GetRow(edId)[0] = groups.Insert(group) - 1;
-
+         group.Recreate(eleRanks.Size(), eleRanks);
+         sedges[i].one = groups.Insert(group) - 1;
       }
-      i++;
    }
-   apf_mesh->end(itr);
 
    // Determine shared vertices
-   int svert_counter = 0;
-   Table *vert_element = new Table;
-   vert_element->SetSize(GetNV(), 1);
-
-   itr = apf_mesh->begin(0);
-   while ((ent = apf_mesh->iterate(itr)))
+   Array<Pair<int, apf::MeshEntity*> > sverts;
+   // The entries sverts[i].one hold the local vertex ids.
+   Array<int> svert_group;
    {
-      int vtId = apf::getNumber(v_num_loc, ent, 0, 0);
-      vert_element->GetRow(vtId)[0] = -1;
-
-      if (apf_mesh->isShared(ent))
+      itr = apf_mesh->begin(0);
+      while ((ent = apf_mesh->iterate(itr)))
       {
-         svert_counter++;
+         if (apf_mesh->isShared(ent))
+         {
+            int vtId = apf::getNumber(v_num_loc, ent, 0, 0);
+            sverts.Append(Pair<int,apf::MeshEntity*>(vtId, ent));
+         }
+      }
+      apf_mesh->end(itr);
+      sverts.Sort();
+
+      // Determine svert_group
+      svert_group.SetSize(sverts.Size());
+      Array<int> eleRanks;
+      for (int i = 0; i < sverts.Size(); i++)
+      {
+         ent = sverts[i].two;
+
          // Number of adjacent element
          apf::Parts res;
          apf_mesh->getResidence(ent, res);
-         int thisNumAdjs = res.size();
-         Array<int> eleRanks(thisNumAdjs);
+         eleRanks.SetSize(res.size());
 
          // Get the IDs
          int kk = 0;
@@ -669,185 +550,134 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
             eleRanks[kk++] = *itr;
          }
 
-         group.Recreate(thisNumAdjs, eleRanks);
-         vert_element->GetRow(vtId)[0]= groups.Insert(group) - 1;
+         group.Recreate(eleRanks.Size(), eleRanks);
+         svert_group[i] = groups.Insert(group) - 1;
       }
    }
-   apf_mesh->end(itr);
 
-   // Build group_sface
-   group_sface.MakeI(groups.Size()-1);
-
-   for (i = 0; i < face_group.Size(); i++)
+   // Build group_stria and group_squad.
+   // Also allocate shared_trias, shared_quads, and sface_lface.
+   group_stria.MakeI(groups.Size()-1);
+   group_squad.MakeI(groups.Size()-1);
+   for (int i = 0; i < sfaces.Size(); i++)
    {
-      if (face_group[i] >= 0)
+      apf::Mesh::Type ftype = apf_mesh->getType(sfaces[i].two);
+      if (ftype == apf::Mesh::TRIANGLE)
       {
-         group_sface.AddAColumnInRow(face_group[i]);
+         group_stria.AddAColumnInRow(sfaces[i].one);
+      }
+      else if (ftype == apf::Mesh::QUAD)
+      {
+         group_squad.AddAColumnInRow(sfaces[i].one);
       }
    }
-
-   group_sface.MakeJ();
-
-   sface_counter = 0;
-   for (i = 0; i < face_group.Size(); i++)
+   group_stria.MakeJ();
+   group_squad.MakeJ();
    {
-      if (face_group[i] >= 0)
+      int nst = 0;
+      for (int i = 0; i < sfaces.Size(); i++)
       {
-         group_sface.AddConnection(face_group[i], sface_counter++);
+         apf::Mesh::Type ftype = apf_mesh->getType(sfaces[i].two);
+         if (ftype == apf::Mesh::TRIANGLE)
+         {
+            group_stria.AddConnection(sfaces[i].one, nst++);
+         }
+         else if (ftype == apf::Mesh::QUAD)
+         {
+            group_squad.AddConnection(sfaces[i].one, i-nst);
+         }
       }
+      shared_trias.SetSize(nst);
+      shared_quads.SetSize(sfaces.Size()-nst);
+      sface_lface.SetSize(sfaces.Size());
    }
-
-   group_sface.ShiftUpI();
+   group_stria.ShiftUpI();
+   group_squad.ShiftUpI();
 
    // Build group_sedge
    group_sedge.MakeI(groups.Size()-1);
-
-   for (i = 0; i < edge_element->Size(); i++)
+   for (int i = 0; i < sedges.Size(); i++)
    {
-      if (edge_element->GetRow(i)[0] >= 0)
-      {
-         group_sedge.AddAColumnInRow(edge_element->GetRow(i)[0]);
-      }
+      group_sedge.AddAColumnInRow(sedges[i].one);
    }
-
    group_sedge.MakeJ();
-
-   sedge_counter = 0;
-   for (i = 0; i < edge_element->Size(); i++)
+   for (int i = 0; i < sedges.Size(); i++)
    {
-      if (edge_element->GetRow(i)[0] >= 0)
-      {
-         group_sedge.AddConnection(edge_element->GetRow(i)[0], sedge_counter++);
-      }
+      group_sedge.AddConnection(sedges[i].one, i);
    }
-
    group_sedge.ShiftUpI();
 
    // Build group_svert
    group_svert.MakeI(groups.Size()-1);
-
-   for (i = 0; i < vert_element->Size(); i++)
+   for (int i = 0; i < svert_group.Size(); i++)
    {
-      if (vert_element->GetRow(i)[0] >= 0)
-      {
-         group_svert.AddAColumnInRow(vert_element->GetRow(i)[0]);
-      }
+      group_svert.AddAColumnInRow(svert_group[i]);
    }
-
    group_svert.MakeJ();
-
-   svert_counter = 0;
-   for (i = 0; i < vert_element->Size(); i++)
+   for (int i = 0; i < svert_group.Size(); i++)
    {
-      if (vert_element->GetRow(i)[0] >= 0)
-      {
-         group_svert.AddConnection(vert_element->GetRow(i)[0], svert_counter++);
-      }
+      group_svert.AddConnection(svert_group[i], i);
    }
    group_svert.ShiftUpI();
 
-   // Build shared_faces and sface_lface
-   shared_faces.SetSize(sface_counter);
-   sface_lface. SetSize(sface_counter);
-
-   if (Dim == 3)
+   // Build shared_trias and shared_quads. They are allocated above.
    {
-      sface_counter = 0;
-      itr = apf_mesh->begin(2);
-      while ((ent = apf_mesh->iterate(itr)))
+      int nst = 0;
+      for (int i = 0; i < sfaces.Size(); i++)
       {
-         if (apf_mesh->isShared(ent))
+         ent = sfaces[i].two;
+
+         apf::Downward verts;
+         apf_mesh->getDownward(ent,0,verts);
+
+         int *v, nv = 0;
+         apf::Mesh::Type ftype = apf_mesh->getType(ent);
+         if (ftype == apf::Mesh::TRIANGLE)
          {
-            // Generate the face
-            int fcId = apf::getNumber(faceNum, ent, 0, 0);
-            int ctr = SharedFaceIds.FindSorted(fcId);
-
-            apf::Downward verts;
-            apf_mesh->getDownward(ent,0,verts);
-            int geom = BaseBdrGeom;
-            int attr = 1;
-            shared_faces[ctr] = ReadElement(ent, geom, verts, attr,
-                                            v_num_loc);
-
-            int *v = shared_faces[ctr]->GetVertices();
-            switch ( geom )
-            {
-               case Element::TRIANGLE:
-                  sface_lface[ctr] = (*faces_tbl)(v[0], v[1], v[2]);
-                  // The marking for refinement is omitted. All done in PUMI
-                  break;
-               case Element::QUADRILATERAL:
-                  sface_lface[ctr] =
-                     (*faces_tbl)(v[0], v[1], v[2], v[3]);
-                  break;
-            }
-            sface_counter++;
+            v = shared_trias[nst++].v;
+            nv = 3;
          }
-      }
-      apf_mesh->end(itr);
-      delete faces_tbl;
-   }
-
-   // Build shared_edges and sedge_ledge
-   shared_edges.SetSize(sedge_counter);
-   sedge_ledge. SetSize(sedge_counter);
-
-   {
-      DSTable v_to_v(NumOfVertices);
-      GetVertexToVertexTable(v_to_v);
-
-      sedge_counter = 0;
-      itr = apf_mesh->begin(1);
-      while ((ent = apf_mesh->iterate(itr)))
-      {
-         if (apf_mesh->isShared(ent))
+         else if (ftype == apf::Mesh::QUAD)
          {
-            int edId = apf::getNumber(edgeNum, ent, 0, 0);
-            int ctr = SharedEdgeIds.FindSorted(edId);
-            apf::Downward verts;
-            apf_mesh->getDownward(ent, 0, verts);
-            int id1, id2;
-            id1 = apf::getNumber(v_num_loc, verts[0], 0, 0);
-            id2 = apf::getNumber(v_num_loc, verts[1], 0, 0);
-            if (id1 > id2) { swap(id1,id2); }
-
-            shared_edges[ctr] = new Segment(id1, id2, 1);
-            if ((sedge_ledge[ctr] = v_to_v(id1,id2)) < 0)
-            {
-               mfem::err << "\n\n\n" << MyRank << ": ParPumiMesh::ParPumiMesh: "
-                         << "ERROR in v_to_v\n\n" << endl;
-               mfem_error();
-            }
-
-            sedge_counter++;
+            v = shared_quads[i-nst].v;
+            nv = 4;
+         }
+         for (int j = 0; j < nv; ++j)
+         {
+            v[j] = apf::getNumber(v_num_loc, verts[j], 0, 0);
          }
       }
    }
-   apf_mesh->end(itr);
 
-   delete edge_element;
+   // Build shared_edges and allocate sedge_ledge
+   shared_edges.SetSize(sedges.Size());
+   sedge_ledge. SetSize(sedges.Size());
+   for (int i = 0; i < sedges.Size(); i++)
+   {
+      ent = sedges[i].two;
+
+      apf::Downward verts;
+      apf_mesh->getDownward(ent, 0, verts);
+      int id1, id2;
+      id1 = apf::getNumber(v_num_loc, verts[0], 0, 0);
+      id2 = apf::getNumber(v_num_loc, verts[1], 0, 0);
+      if (id1 > id2) { swap(id1,id2); }
+
+      shared_edges[i] = new Segment(id1, id2, 1);
+   }
 
    // Build svert_lvert
-   svert_lvert.SetSize(svert_counter);
-
-   svert_counter = 0;
-   itr = apf_mesh->begin(0);
-   while ((ent = apf_mesh->iterate(itr)))
+   svert_lvert.SetSize(sverts.Size());
+   for (int i = 0; i < sverts.Size(); i++)
    {
-      if (apf_mesh->isShared(ent))
-      {
-         int vt_id = apf::getNumber(v_num_loc, ent, 0, 0);
-         int ctr = SharedVertIds.FindSorted(vt_id);
-         svert_lvert[ctr] = vt_id;
-         svert_counter++;
-      }
+      svert_lvert[i] = sverts[i].one;
    }
-   apf_mesh->end(itr);
-
-   delete vert_element;
 
    // Build the group communication topology
    gtopo.Create(groups, 822);
+
+   // Determine sedge_ledge and sface_lface
+   FinalizeParTopo();
 
    // Set nodes for higher order mesh
    int curved = (crd_shape->getOrder() > 1) ? 1 : 0;
@@ -860,8 +690,6 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh)
       this->edge_vertex = NULL;
       own_nodes = 1;
    }
-   apf::destroyNumbering(edgeNum);
-   apf::destroyNumbering(faceNum);
 }
 
 
@@ -943,19 +771,17 @@ void ParPumiMesh::UpdateMesh(const ParMesh* AdaptedpMesh)
 
    DeleteFaceNbrData();
 
-   for (int i = 0; i < shared_faces.Size(); i++)
-   {
-      FreeElement(shared_faces[i]);
-   }
    for (int i = 0; i < shared_edges.Size(); i++)
    {
       FreeElement(shared_edges[i]);
    }
-   shared_faces.DeleteAll();
+   shared_quads.DeleteAll();
+   shared_trias.DeleteAll();
    shared_edges.DeleteAll();
    group_svert.Clear();
    group_sedge.Clear();
-   group_sface.Clear();
+   group_stria.Clear();
+   group_squad.Clear();
    svert_lvert.DeleteAll();
    sedge_ledge.DeleteAll();
    sface_lface.DeleteAll();
@@ -966,8 +792,7 @@ void ParPumiMesh::UpdateMesh(const ParMesh* AdaptedpMesh)
    // Assuming Dim, spaceDim, geom type is unchanged
    MFEM_ASSERT(Dim == AdaptedpMesh->Dim, "");
    MFEM_ASSERT(spaceDim == AdaptedpMesh->spaceDim, "");
-   MFEM_ASSERT(BaseGeom == AdaptedpMesh->BaseGeom, "");
-   MFEM_ASSERT(BaseBdrGeom == AdaptedpMesh->BaseBdrGeom, "");
+   MFEM_ASSERT(meshgen == AdaptedpMesh->meshgen, "");
 
    NumOfVertices = AdaptedpMesh->GetNV();
    NumOfElements = AdaptedpMesh->GetNE();
@@ -1053,7 +878,8 @@ void ParPumiMesh::UpdateMesh(const ParMesh* AdaptedpMesh)
    // Parallel Implications
    AdaptedpMesh->group_svert.Copy(group_svert);
    AdaptedpMesh->group_sedge.Copy(group_sedge);
-   AdaptedpMesh->group_sface.Copy(group_sface);
+   group_stria = AdaptedpMesh->group_stria;
+   group_squad = AdaptedpMesh->group_squad;
    AdaptedpMesh->gtopo.Copy(gtopo);
 
    MyComm = AdaptedpMesh->MyComm;
@@ -1067,12 +893,9 @@ void ParPumiMesh::UpdateMesh(const ParMesh* AdaptedpMesh)
       shared_edges[i] = AdaptedpMesh->shared_edges[i]->Duplicate(this);
    }
 
-   // Duplicate the shared_faces
-   shared_faces.SetSize(AdaptedpMesh->shared_faces.Size());
-   for (int i = 0; i < shared_faces.Size(); i++)
-   {
-      shared_faces[i] = AdaptedpMesh->shared_faces[i]->Duplicate(this);
-   }
+   // Duplicate the shared_trias and shared_quads
+   shared_trias = AdaptedpMesh->shared_trias;
+   shared_quads = AdaptedpMesh->shared_quads;
 
    // Copy the shared-to-local index Arrays
    AdaptedpMesh->svert_lvert.Copy(svert_lvert);
