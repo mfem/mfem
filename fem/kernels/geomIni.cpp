@@ -18,14 +18,14 @@
 
 // *****************************************************************************
 template<const int NUM_DOFS,
-         const int NUM_QUAD> __kernel__
+         const int NUM_QUAD>
 void rIniGeom2D(const int,
                 const double*,const double*,
                 double*,double*,double*);
 
 // *****************************************************************************
 template<const int NUM_DOFS,
-         const int NUM_QUAD> __kernel__
+         const int NUM_QUAD>
 void rIniGeom3D(const int,
                 const double*,const double*,
                 double*,double*,double*);
@@ -44,12 +44,6 @@ void rIniGeom(const int DIM,
               double* J,
               double* invJ,
               double* detJ){
-#ifdef __NVCC__
-   const int blck = CUDA_BLOCK_SIZE;
-   const int grid = (numElements+blck-1)/blck;
-   dbg("blck=%d",blck);
-   dbg("grid=%d",grid);
-#endif
    const unsigned int dofs1D = IROOT(DIM,NUM_DOFS);
    const unsigned int quad1D = IROOT(DIM,NUM_QUAD);
    const unsigned int id = (DIM<<4)|(dofs1D-2);
@@ -113,6 +107,5 @@ void rIniGeom(const int DIM,
    GET_ADRS(invJ);
    GET_ADRS(detJ);
    
-   call0(rIniGeom, id, grid, blck,
-         numElements, d_dofToQuadD, d_nodes, d_J, d_invJ, d_detJ);
+   call[id](numElements, d_dofToQuadD, d_nodes, d_J, d_invJ, d_detJ);
 }
