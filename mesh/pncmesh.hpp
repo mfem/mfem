@@ -94,6 +94,7 @@ public:
 
    int GetNGhostVertices() const { return NGhostVertices; }
    int GetNGhostEdges() const { return NGhostEdges; }
+   int GetNGhostPlanars() const { return NGhostPlanars; }
    int GetNGhostFaces() const { return NGhostFaces; }
    int GetNGhostElements() const { return NGhostElements; }
 
@@ -101,6 +102,7 @@ public:
    // least one other processor. These are subsets of NCMesh::<entity>_list. */
    const NCList& GetSharedVertices() { GetVertexList(); return shared_vertices; }
    const NCList& GetSharedEdges() { GetEdgeList(); return shared_edges; }
+   const NCList& GetSharedPlanars() { GetPlanarList(); return shared_planars; }
    const NCList& GetSharedFaces() { GetFaceList(); return shared_faces; }
 
    /// Helper to get shared vertices/edges/faces ('entity' == 0/1/2 resp.).
@@ -114,6 +116,18 @@ public:
       }
    }
 
+   /// Helper to get shared vertices/edges/faces ('entity' == 0/1/2 resp.).
+      const NCList& GetSharedList4D(int entity)
+      {
+         switch (entity)
+         {
+            case 0: return GetSharedVertices();
+            case 1: return GetSharedEdges();
+            case 2: return GetSharedPlanars();
+            default: return GetSharedFaces();
+         }
+      }
+
    /// Return (shared) face orientation relative to its owner element.
    int GetFaceOrientation(int index) const
    {
@@ -126,11 +140,12 @@ public:
    /// Return vertex/edge/face ('entity' == 0/1/2, resp.) owner.
    GroupId GetEntityOwnerId(int entity, int index)
    {
-      MFEM_ASSERT(entity >= 0 && entity < 3, "");
+      MFEM_ASSERT(entity >= 0 && entity < max_entity, "");
       MFEM_ASSERT(index >= 0, "");
       if (!entity_owner[entity].Size())
       {
-         GetSharedList(entity);
+         if (Dim == 4) { GetSharedList4D(entity); }
+         else { GetSharedList(entity); }
       }
       return entity_owner[entity][index];
    }
@@ -140,7 +155,7 @@ public:
        construction algorithm and its communication pattern. */
    GroupId GetEntityGroupId(int entity, int index)
    {
-      MFEM_ASSERT(entity >= 0 && entity < 3, "");
+      MFEM_ASSERT(entity >= 0 && entity < max_entity, "");
       MFEM_ASSERT(index >= 0, "");
       if (!entity_pmat_group[entity].Size())
       {
@@ -166,6 +181,16 @@ public:
       {
          case 0: return index >= NVertices;
          case 1: return index >= NEdges;
+         default: return index >= NFaces;
+      }
+   }
+   bool IsGhost4D(int entity, int index) const
+   {
+      switch (entity)
+      {
+         case 0: return index >= NVertices;
+         case 1: return index >= NEdges;
+         case 2: return index >= NPlanars;
          default: return index >= NFaces;
       }
    }
@@ -233,7 +258,7 @@ protected:
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
-   int NGhostVertices, NGhostEdges, NGhostFaces;
+   int NGhostVertices, NGhostEdges, NGhostPlanars, NGhostFaces;
    int NElements, NGhostElements;
 
    typedef std::vector<CommGroup> GroupList;
@@ -242,13 +267,15 @@ protected:
    GroupList groups;  // comm group list; NOTE: groups[0] = { MyRank }
    GroupMap group_id; // search index over groups
 
+   int face_entity_index;
+   int max_entity;
    // owner rank for each vertex, edge and face (encoded as singleton groups)
-   Array<GroupId> entity_owner[3];
-   // P matrix comm pattern groups for each vertex, edge and face (0/1/2)
-   Array<GroupId> entity_pmat_group[3];
+   Array<GroupId> entity_owner[4];
+   // P matrix comm pattern groups for each vertex, edge, planar (4D) and face (0/1/2/3)
+   Array<GroupId> entity_pmat_group[4];
 
    // lists of vertices/edges/faces shared by us and at least one more processor
-   NCList shared_vertices, shared_edges, shared_faces;
+   NCList shared_vertices, shared_edges, shared_planars, shared_faces;
 
    Array<char> face_orient; // see CalcFaceOrientations
 
@@ -288,10 +315,12 @@ protected:
    virtual void OnMeshUpdated(Mesh *mesh);
 
    virtual void BuildFaceList();
+   virtual void BuildPlanarList();
    virtual void BuildEdgeList();
    virtual void BuildVertexList();
 
    virtual void ElementSharesFace(int elem, int face);
+   virtual void ElementSharesPlanar(int elem, int planar);
    virtual void ElementSharesEdge(int elem, int enode);
    virtual void ElementSharesVertex(int elem, int vnode);
 
@@ -300,13 +329,14 @@ protected:
 
    Array<int> tmp_owner; // temporary
    Array<char> tmp_shared_flag; // temporary
-   Array<Connection> entity_index_rank[3]; // temporary
+   Array<Connection> entity_index_rank[4]; // temporary
 
    void InitOwners(int num, Array<GroupId> &entity_owner);
    void MakeSharedList(const NCList &list, NCList &shared);
 
    void AddConnections(int entity, int index, const Array<int> &ranks);
    void CalculatePMatrixGroups();
+   void CalculatePMatrixGroups4D();
    void CreateGroups(int nentities, Array<Connection> &index_rank,
                      Array<GroupId> &entity_group);
 

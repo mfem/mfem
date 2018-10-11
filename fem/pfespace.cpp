@@ -155,10 +155,16 @@ void ParFiniteElementSpace::Construct()
          ngfdofs = pncmesh->GetNGhostFaces()
                    * fec->DofForGeometry(mesh->GetBdrElementBaseGeometry());
       }
+      ngpdofs = 0;
+      if (pmesh->Dimension() > 3)
+      {
+         ngpdofs = pncmesh->GetNGhostPlanars()
+                   * fec->DofForGeometry(mesh->GetPlanarBaseGeometry(0));
+      }
 
       // total number of ghost DOFs. Ghost DOFs start at index 'ndofs', i.e.,
       // after all regular DOFs
-      ngdofs = ngvdofs + ngedofs + ngfdofs;
+      ngdofs = ngvdofs + ngedofs + ngfdofs + ngpdofs;
 
       // get P and R matrices, initialize DOF offsets, etc. NOTE: in the NC
       // case this needs to be done here to get the number of true DOFs
@@ -1259,6 +1265,110 @@ void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
    }
 }
 
+void ParFiniteElementSpace::GetGhostFaceDofs4D(const MeshId &face_id,
+                                               Array<int> &dofs) const
+{
+   MFEM_ASSERT(mesh->GetFaceBaseGeometry(0) == Geometry::TETRAHEDRON, "");
+
+   int nv = fec->DofForGeometry(Geometry::POINT);
+   int ne = fec->DofForGeometry(Geometry::SEGMENT);
+   int np = fec->DofForGeometry(Geometry::TRIANGLE);
+   int nf = fec->DofForGeometry(Geometry::TETRAHEDRON);
+   dofs.SetSize(4*nv + 6*ne + 4*np + nf);
+
+   int V[4], E[6], Eo[6], P[4], Po[4];
+   pmesh->pncmesh->GetFaceVerticesEdgesPlanars(face_id, V, E, Eo, P, Po);
+
+   int offset = 0;
+   for (int i = 0; i < 4; i++)
+   {
+      int ghost = pncmesh->GetNVertices();
+      int first = (V[i] < ghost) ? V[i]*nv : (ndofs + (V[i] - ghost)*nv);
+      for (int j = 0; j < nv; j++)
+      {
+         dofs[offset++] = first + j;
+      }
+   }
+
+   for (int i = 0; i < 6; i++)
+   {
+      int ghost = pncmesh->GetNEdges();
+      int first = (E[i] < ghost) ? nvdofs + E[i]*ne
+                  /*          */ : ndofs + ngvdofs + (E[i] - ghost)*ne;
+      const int *ind = fec->DofOrderForOrientation(Geometry::SEGMENT, Eo[i]);
+      for (int j = 0; j < ne; j++)
+      {
+         dofs[offset++] = (ind[j] >= 0) ? (first + ind[j])
+                          /*         */ : (-1 - (first + (-1 - ind[j])));
+      }
+   }
+
+   for (int i = 0; i < 4; i++)
+   {
+      // TODO higher order
+      int ghost = pncmesh->GetNPlanars();
+      int first = (P[i] < ghost) ? nvdofs + nedofs +  P[i]*np
+                  /*          */ : ndofs + ngvdofs + nedofs + ngedofs +  (P[i] - ghost)*np;
+//      const int *ind = fec->DofOrderForOrientation(Geometry::SEGMENT, Eo[i]);
+      for (int j = 0; j < np; j++)
+      {
+         dofs[offset++] = first + j;
+      }
+   }
+
+   int first = ndofs + ngvdofs + ngedofs +
+               (face_id.index - pncmesh->GetNFaces())*nf;
+   for (int j = 0; j < nf; j++)
+   {
+      dofs[offset++] = first + j;
+   }
+}
+
+void ParFiniteElementSpace::GetGhostPlanarDofs(const MeshId &planar_id, Array<int> &dofs) const
+{
+   MFEM_ASSERT(mesh->GetPlanarBaseGeometry(0) == Geometry::TRIANGLE, "");
+
+   int nv = fec->DofForGeometry(Geometry::POINT);
+   int ne = fec->DofForGeometry(Geometry::SEGMENT);
+   int np = fec->DofForGeometry(Geometry::TRIANGLE);
+   dofs.SetSize(3*nv + 3*ne + np);
+
+   int V[3], E[3], Eo[3];
+   pmesh->pncmesh->GetPlanarVerticesEdges(planar_id, V, E, Eo);
+
+   int offset = 0;
+   for (int i = 0; i < 3; i++)
+   {
+    int ghost = pncmesh->GetNVertices();
+    int first = (V[i] < ghost) ? V[i]*nv : (ndofs + (V[i] - ghost)*nv);
+    for (int j = 0; j < nv; j++)
+    {
+       dofs[offset++] = first + j;
+    }
+   }
+
+   for (int i = 0; i < 3; i++)
+   {
+    int ghost = pncmesh->GetNEdges();
+    int first = (E[i] < ghost) ? nvdofs + E[i]*ne
+                /*          */ : ndofs + ngvdofs + (E[i] - ghost)*ne;
+    const int *ind = fec->DofOrderForOrientation(Geometry::SEGMENT, Eo[i]);
+    for (int j = 0; j < ne; j++)
+    {
+       dofs[offset++] = (ind[j] >= 0) ? (first + ind[j])
+                        /*         */ : (-1 - (first + (-1 - ind[j])));
+    }
+   }
+
+   int first = ndofs + ngvdofs + ngedofs +
+             (planar_id.index - pncmesh->GetNPlanars())*np;
+   for (int j = 0; j < np; j++)
+   {
+    dofs[offset++] = first + j;
+   }
+}
+
+
 void ParFiniteElementSpace::GetGhostDofs(int entity, const MeshId &id,
                                          Array<int> &dofs) const
 {
@@ -1268,6 +1378,19 @@ void ParFiniteElementSpace::GetGhostDofs(int entity, const MeshId &id,
       case 0: GetGhostVertexDofs(id, dofs); break;
       case 1: GetGhostEdgeDofs(id, dofs); break;
       case 2: GetGhostFaceDofs(id, dofs); break;
+   }
+}
+
+void ParFiniteElementSpace::GetGhostDofs4D(int entity, const MeshId &id,
+                                           Array<int> &dofs) const
+{
+   // helper to get ghost vertex, ghost edge or ghost face DOFs
+   switch (entity)
+   {
+      case 0: GetGhostVertexDofs(id, dofs); break;
+      case 1: GetGhostEdgeDofs(id, dofs); break;
+      case 2: GetGhostPlanarDofs(id, dofs); break;
+      case 3: GetGhostFaceDofs4D(id, dofs); break;
    }
 }
 
@@ -1308,6 +1431,53 @@ void ParFiniteElementSpace::GetBareDofs(int entity, int index,
       dofs[i] = first + i;
    }
 }
+
+void ParFiniteElementSpace::GetBareDofs4D(int entity, int index,
+                                        Array<int> &dofs) const
+{
+   int ned, ghost, first;
+   switch (entity)
+   {
+      case 0:
+         ned = fec->DofForGeometry(Geometry::POINT);
+         ghost = pncmesh->GetNVertices();
+         first = (index < ghost)
+                 ? index*ned // regular vertex
+                 : ndofs + (index - ghost)*ned; // ghost vertex
+         break;
+
+      case 1:
+         ned = fec->DofForGeometry(Geometry::SEGMENT);
+         ghost = pncmesh->GetNEdges();
+         first = (index < ghost)
+                 ? nvdofs + index*ned // regular edge
+                 : ndofs + ngvdofs + (index - ghost)*ned; // ghost edge
+         break;
+
+      case 2:
+         ned = fec->DofForGeometry(mesh->GetPlanarBaseGeometry(0));
+         ghost = pncmesh->GetNPlanars();
+         first = (index < ghost)
+                 ? nvdofs + nedofs + index*ned
+                 : ndofs + ngvdofs + ngedofs + (index - ghost)*ned;
+         break;
+
+      default:
+         ned = fec->DofForGeometry(mesh->GetFaceBaseGeometry(0));
+         ghost = pncmesh->GetNFaces();
+         first = (index < ghost)
+                 ? nvdofs + nedofs + npdofs + index*ned // regular face
+                 : ndofs + ngvdofs + ngedofs + ngpdofs + (index - ghost)*ned; // ghost
+         break;
+   }
+
+   dofs.SetSize(ned);
+   for (int i = 0; i < ned; i++)
+   {
+      dofs[i] = first + i;
+   }
+}
+
 
 int ParFiniteElementSpace::PackDof(int entity, int index, int edof) const
 {
@@ -1784,7 +1954,8 @@ int ParFiniteElementSpace
                                        Array<int> *dof_tdof,
                                        bool partial) const
 {
-   bool dg = (nvdofs == 0 && nedofs == 0 && nfdofs == 0);
+   bool dg = (nvdofs == 0 && nedofs == 0 && nfdofs == 0 && npdofs == 0);
+   int max_entity = (pmesh->Dimension() ==4) ? 3 : 2;
 
    // *** STEP 1: build master-slave dependency lists ***
 
@@ -1796,16 +1967,30 @@ int ParFiniteElementSpace
       Array<int> master_dofs, slave_dofs;
 
       // loop through *all* master edges/faces, constrain their slaves
-      for (int entity = 0; entity <= 2; entity++)
+      for (int entity = 0; entity <= max_entity; entity++)
       {
          const NCMesh::NCList &list = pncmesh->GetNCList(entity);
          if (!list.masters.size()) { continue; }
 
          IsoparametricTransformation T;
-         if (entity > 1) { T.SetFE(&QuadrilateralFE); }
-         else { T.SetFE(&SegmentFE); }
+         if (pmesh->Dimension() <= 3)
+         {
+            if (entity > 1) { T.SetFE(&QuadrilateralFE); }
+            else { T.SetFE(&SegmentFE); }
+         }
+         else
+         {
+            if (entity > 2) { T.SetFE(&TetrahedronFE); }
+            else if (entity > 1) { T.SetFE(&TriangleFE); }
+            else { T.SetFE(&SegmentFE); }
+         }
 
          int geom = (entity > 1) ? Geometry::SQUARE : Geometry::SEGMENT;
+         if (pmesh->Dimension() == 4)
+         {
+            geom = (entity > 2) ? Geometry::TETRAHEDRON :
+                   ((entity > 1) ? Geometry::TRIANGLE : Geometry::SEGMENT );
+         }
          const FiniteElement* fe = fec->FiniteElementForGeometry(geom);
          if (!fe) { continue; }
 
@@ -1817,32 +2002,57 @@ int ParFiniteElementSpace
             const NCMesh::Master &mf = list.masters[mi];
 
             // get master DOFs
-            pncmesh->IsGhost(entity, mf.index)
-            ? GetGhostDofs(entity, mf, master_dofs)
-            : GetEntityDofs(entity, mf.index, master_dofs);
+            if (pmesh->Dimension() == 4)
+            {
+               pncmesh->IsGhost4D(entity, mf.index)
+               ? GetGhostDofs4D(entity, mf, master_dofs)
+               : GetEntityDofs4D(entity, mf.index, master_dofs);
+            }
+            else
+            {
+               pncmesh->IsGhost(entity, mf.index)
+               ? GetGhostDofs(entity, mf, master_dofs)
+               : GetEntityDofs(entity, mf.index, master_dofs);
+            }
 
             if (!master_dofs.Size()) { continue; }
+//            mfem::out << mf.slaves_end - mf.slaves_begin << "--------------------\n";
+//            master_dofs.Print(mfem::out,master_dofs.Size());
+//            mfem::out << "....................\n";
 
             // constrain slaves that exist in our mesh
             for (int si = mf.slaves_begin; si < mf.slaves_end; si++)
             {
                const NCMesh::Slave &sf = list.slaves[si];
-               if (pncmesh->IsGhost(entity, sf.index)) { continue; }
+               if (pmesh->Dimension() == 4)
+               {
+                  if (pncmesh->IsGhost4D(entity, sf.index)) { continue; }
+                  GetEntityDofs4D(entity, sf.index, slave_dofs);
+               }
+               else
+               {
+                  if (pncmesh->IsGhost(entity, sf.index)) { continue; }
 
-               GetEntityDofs(entity, sf.index, slave_dofs);
+                  GetEntityDofs(entity, sf.index, slave_dofs);
+               }
                if (!slave_dofs.Size()) { continue; }
 
                sf.OrientedPointMatrix(T.GetPointMat());
                T.FinalizeTransformation();
                fe->GetLocalInterpolation(T, I);
-
+//
+//               slave_dofs.Print(mfem::out,slave_dofs.Size());
+//               mfem::out << "**************\n";
                // make each slave DOF dependent on all master DOFs
                AddDependencies(deps, master_dofs, slave_dofs, I);
             }
+//            mfem::out << "--------------------\n";
          }
       }
 
       deps.Finalize();
+//      deps.PrintMatlab(mfem::out);
+
    }
 
    // *** STEP 2: initialize group and owner ID for each DOF ***
@@ -1857,7 +2067,7 @@ int ParFiniteElementSpace
       Array<int> dofs;
 
       // initialize dof_group[], dof_owner[]
-      for (int entity = 0; entity <= 2; entity++)
+      for (int entity = 0; entity <= max_entity; entity++)
       {
          const NCMesh::NCList &list = pncmesh->GetNCList(entity);
 
@@ -1876,7 +2086,10 @@ int ParFiniteElementSpace
                GroupId owner = pncmesh->GetEntityOwnerId(entity, id.index);
                GroupId group = pncmesh->GetEntityGroupId(entity, id.index);
 
-               GetBareDofs(entity, id.index, dofs);
+               if (pmesh->Dimension() <= 3)
+                  GetBareDofs(entity, id.index, dofs);
+               else
+                  GetBareDofs4D(entity, id.index, dofs);
 
                for (int j = 0; j < dofs.Size(); j++)
                {

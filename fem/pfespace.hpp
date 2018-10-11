@@ -45,7 +45,7 @@ private:
    mutable int ltdof_size;
 
    /// Number of vertex/edge/face/total ghost DOFs (nonconforming case).
-   int ngvdofs, ngedofs, ngfdofs, ngdofs;
+   int ngvdofs, ngedofs, ngfdofs, ngdofs, ngpdofs;
 
    /// The group of each local dof.
    Array<int> ldof_group;
@@ -111,10 +111,14 @@ private:
    void GetGhostVertexDofs(const MeshId &id, Array<int> &dofs) const;
    void GetGhostEdgeDofs(const MeshId &edge_id, Array<int> &dofs) const;
    void GetGhostFaceDofs(const MeshId &face_id, Array<int> &dofs) const;
+   void GetGhostFaceDofs4D(const MeshId &face_id, Array<int> &dofs) const;
+   void GetGhostPlanarDofs(const MeshId &planar_id, Array<int> &dofs) const;
 
    void GetGhostDofs(int entity, const MeshId &id, Array<int> &dofs) const;
+   void GetGhostDofs4D(int entity, const MeshId &id, Array<int> &dofs) const;
    // Return the dofs associated with the interior of the given mesh entity.
    void GetBareDofs(int entity, int index, Array<int> &dofs) const;
+   void GetBareDofs4D(int entity, int index, Array<int> &dofs) const;
 
    int  PackDof(int entity, int index, int edof) const;
    void UnpackDof(int dof, int &entity, int &index, int &edof) const;
