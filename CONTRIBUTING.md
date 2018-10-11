@@ -316,9 +316,9 @@ Before a PR can be merged, it should satisfy the following:
     - [ ] Is this a new feature users need to be aware of? New or updated example or miniapp?
     - [ ] Does it make sense to create a new section in the `CHANGELOG` to group with other related features?
 - [ ] Update `INSTALL`:
-    - [ ] Has a new optional library been added? (*Make sure the external library is licensed under LGPL, not GPL!*)
+    - [ ] Had a new optional library been added? (*Make sure the external library is licensed under LGPL, not GPL!*)
     - [ ] Does `make` or `cmake` have a new target?
-    - [ ] Did the requirements or the installation process change? *(rare)*.
+    - [ ] Did the requirements or the installation process change? *(rare)*
 - [ ] Update `.gitignore`:
     - [ ] Check if `make distclean; git status` shows any files that are generated from the source but we don't want to track in the repository.
     - [ ] Add new patterns (just for the new files above) and re-run the above test.

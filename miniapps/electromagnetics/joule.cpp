@@ -392,6 +392,8 @@ int main(int argc, char *argv[])
    {
       pmesh->UniformRefinement();
    }
+   // Make sure tet-only meshes are marked for local refinement.
+   pmesh->Finalize(true);
 
    // 9. Apply non-uniform non-conforming mesh refinement to the mesh.  The
    //    whole metal region is refined once, before the start of the time loop,
