@@ -66,6 +66,50 @@ private:
 };
 
 
+/** The L2_FESpace class is a FiniteElementSpace which automatically
+    allocates and destroys its own FiniteElementCollection, in this
+    case an L2_FECollection object.
+*/
+class L2_FESpace : public FiniteElementSpace
+{
+public:
+   L2_FESpace(Mesh *m, const int p, const int space_dim,
+              int vdim = 1, int order = Ordering::byNODES);
+   ~L2_FESpace();
+private:
+   const FiniteElementCollection *FEC_;
+};
+
+class DiscreteInterpolationOperator : public DiscreteLinearOperator
+{
+public:
+   DiscreteInterpolationOperator(FiniteElementSpace *dfes,
+                                 FiniteElementSpace *rfes)
+      : DiscreteLinearOperator(dfes, rfes) {}
+   virtual ~DiscreteInterpolationOperator();
+};
+
+class DiscreteGradOperator : public DiscreteInterpolationOperator
+{
+public:
+   DiscreteGradOperator(FiniteElementSpace *dfes,
+                        FiniteElementSpace *rfes);
+};
+
+class DiscreteCurlOperator : public DiscreteInterpolationOperator
+{
+public:
+   DiscreteCurlOperator(FiniteElementSpace *dfes,
+                        FiniteElementSpace *rfes);
+};
+
+class DiscreteDivOperator : public DiscreteInterpolationOperator
+{
+public:
+   DiscreteDivOperator(FiniteElementSpace *dfes,
+                       FiniteElementSpace *rfes);
+};
+
 /// Visualize the given grid function, using a GLVis server on the
 /// specified host and port. Set the visualization window title, and optionally,
 /// its geometry.
