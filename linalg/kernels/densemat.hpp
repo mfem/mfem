@@ -14,6 +14,10 @@
 
 MFEM_NAMESPACE
 
+void kLSolve(const int m, const int n, const double *data, const int *ipiv, double *X);
+
+void kUSolve(const int m, const int n, const double *data, double *X);
+
 void kFactorPrint(const int s, const double *data);
 
 void kFactorSet(const int s, const double *adata, double *data);

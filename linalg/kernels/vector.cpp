@@ -137,7 +137,7 @@ void kVectorSetSubvector(const int N,
    forall(k, 1, {
          for(int i=0;i<N;i+=1){
             const int j = d_dofs[i];
-            printf("\n\tj=%d, set: %f",j,d_elemvect[i]);
+            //printf("\n\tj=%d, set: %f",j,d_elemvect[i]);
             if (j >= 0) {
                d_data[j] = d_elemvect[i];
             } else {
