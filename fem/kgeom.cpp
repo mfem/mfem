@@ -108,17 +108,29 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
       geom = new kGeometry();
    }
    if (!mesh.GetNodes()) {
-      assert(false);
-      dbg("GetNodes, SetCurvature");
+      dbg("\033[7mGetNodes, SetCurvature");
       mesh.SetCurvature(1, false, -1, Ordering::byVDIM);
    }
    GridFunction& nodes = *(mesh.GetNodes());
+   //mm::Get().Push(nodes.GetData());
+   //dbg("nodes:"); kVectorPrint(nodes.Size(),nodes.GetData());
+   //cudaDeviceSynchronize();
    //dbg("nodes: %p", nodes.GetData());
    //dbg("nodes size: %d", nodes.Size());
    //GET_CONST_ADRS(nodes);
    //dbg("d_nodes: %p", d_nodes);
    //mm::Get().Rsync(nodes.GetData());
-   //dbg("nodes:\n");  nodes.Print();
+   dbg("nodes:\n"); nodes.Print();
+   //0 0 1 0 0.309017 0.951057 1.30902 0.951057
+   //-0.809017 0.587785 -0.5 1.53884 -0.809017 -0.587785 -1.61803 0
+   //0.309017 -0.951057 -0.5 -1.53884 1.30902 -0.951057 0.5 0
+   //1.15451 0.475529 0.809019 0.951057 0.154508 0.475529 -0.0954915 1.24495
+   //-0.654508 1.06331 -0.404508 0.293893 -1.21352 0.293893 -1.21352 -0.293892
+   //-0.404508 -0.293893 -0.654508 -1.06331 -0.0954915 -1.24495 0.154508 -0.475529
+   //0.809019 -0.951057 1.15451 -0.475529 0.654509 0.475529 -0.25 0.769421
+   //-0.809016 0 -0.25 -0.76942 0.654509 -0.475529
+
+   assert(false);
    
    const mfem::FiniteElementSpace& fespace = *(nodes.FESpace());
    const mfem::FiniteElement& fe = *(fespace.GetFE(0));

@@ -1468,6 +1468,7 @@ const
 
 H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
 {
+   dbg();
    MFEM_VERIFY(p >= 1, "H1_FECollection requires order >= 1.");
    MFEM_VERIFY(dim >= 0 && dim <= 3, "H1_FECollection requires 0 <= dim <= 3.");
 
@@ -1555,7 +1556,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       else
       {
          dbg("H1_TriangleElement");
-         H1_Elements[Geometry::TRIANGLE] = new H1_TriangleElement(p, btype);
+         H1_Elements[Geometry::TRIANGLE] = new H1_TriangleElement(p, btype); // fe:7499
          dbg("H1_QuadrilateralElement");
          H1_Elements[Geometry::SQUARE] = new H1_QuadrilateralElement(p, btype);
       }

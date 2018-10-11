@@ -15,6 +15,7 @@
 #include "fe_coll.hpp"
 #include "../mesh/nurbs.hpp"
 #include "bilininteg.hpp"
+#include "../linalg/kvector.hpp"
 #include <cmath>
 
 namespace mfem
@@ -312,37 +313,39 @@ void NodalFiniteElement::Project (
 void NodalFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
 {
-   //dbg();
+   dbg();
    MFEM_ASSERT(dofs.Size() == vc.GetVDim()*Dof, "");
    Vector x(vc.GetVDim());
 
-   //dbg("Dof=%d",Dof);
+   dbg("Dof=%d",Dof);
+   mm::Get().Rsync(dofs.GetData());
    for (int i = 0; i < Dof; i++)
    {
-      //dbg("ip");
+      dbg("ip #%d",i);
       const IntegrationPoint &ip = Nodes.IntPoint(i);
-      //dbg("SetIntPoint");
+      dbg("SetIntPoint");
       Trans.SetIntPoint(&ip);
-      //dbg("Eval");
-      vc.Eval (x, Trans, ip);
-      
-      //dbg("mm::Get().Push(x.GetData())");
+      //printf("\nip: x=%f, y=%f, z=%f, w=%f",ip.x,ip.y,ip.z,ip.weight);
+      dbg("Eval");
+      vc.Eval(x, Trans, ip); // fem/coefficient:109:
       //mm::Get().Push(x.GetData());
-      //dbg("x:");
-      //x.Print();
+      dbg("x:"); x.Print();
       
       if (MapType == INTEGRAL)
       {
+         assert(false);
          x *= Trans.Weight();
       }
-      //dbg("Set dofs");
+      dbg("pre dofs:");dofs.Print();
       for (int j = 0; j < x.Size(); j++)
       {
-         dofs(Dof*j+i) = x(j);
+         const int dji = Dof*j+i;
+         kVectorMapDof(dofs.GetData(),x.GetData(),dji,j);
       }
+      dbg("post dofs:");dofs.Print();
    }
    //mm::Get().Push(dofs.GetData());
-   //dbg("dofs:");dofs.Print();
+   dbg("done dofs:");dofs.Print();
    //assert(false);
 }
 
@@ -7504,6 +7507,7 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
    const double *cp = poly1d.ClosedPoints(p, VerifyNodal(VerifyClosed(btype)));
 
 #ifndef MFEM_THREAD_SAFE
+   dbg("SetSize(s)");
    shape_x.SetSize(p + 1);
    shape_y.SetSize(p + 1);
    shape_l.SetSize(p + 1);
@@ -7520,12 +7524,12 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
    Vector shape_x(p + 1), shape_y(p + 1), shape_l(p + 1);
 #endif
 
-   // vertices
+   dbg("vertices");
    Nodes.IntPoint(0).Set2(cp[0], cp[0]);
    Nodes.IntPoint(1).Set2(cp[p], cp[0]);
    Nodes.IntPoint(2).Set2(cp[0], cp[p]);
 
-   // edges
+   dbg("edges");
    int o = 3;
    for (int i = 1; i < p; i++)
    {
@@ -7540,7 +7544,7 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
       Nodes.IntPoint(o++).Set2(cp[0], cp[p-i]);
    }
 
-   // interior
+   dbg("interior");
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)
       {
@@ -7548,8 +7552,7 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
          Nodes.IntPoint(o++).Set2(cp[i]/w, cp[j]/w);
       }
 
-   //assert(false);
-   //dbg("T(%d)",Dof);
+   dbg("T");
    DenseMatrix T(Dof);
    for (int k = 0; k < Dof; k++)
    {
@@ -7565,18 +7568,17 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
             T(o++, k) = shape_x(i)*shape_y(j)*shape_l(p-i-j);
          }
    }
-   //dbg("T.Print():");
-   //T.Print();
-#warning T Push, because kernel is not written
+   //dbg("T.Print():"); T.Print();   
+#warning T @ CPU => Push
    mm::Get().Push(T.GetData());
-   Ti.Factor(T); // Ti: DenseMatrixInverse
-   //assert(false);
+   Ti.Factor(T); // Ti is a DenseMatrixInverse
    // mfem::out << "H1_TriangleElement(" << p << ") : "; Ti.TestInversion();
 }
 
 void H1_TriangleElement::CalcShape(const IntegrationPoint &ip,
                                    Vector &shape) const
 {
+   dbg();
    const int p = Order;
 
 #ifdef MFEM_THREAD_SAFE

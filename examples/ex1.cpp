@@ -83,13 +83,14 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
-   {
+   {/*
       int ref_levels =
          (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
+    */
    }
 
    dbg("4. Define a finite element space on the mesh.");// Here we use continuous
@@ -133,17 +134,17 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
    //dbg("LinearForm b=");b->Print();
-
+   
    // **************************************************************************
-   //#warning Need to do this before before switching to get the Nodes ready for kgeom
-   //mesh->SetNodalFESpace(fespace);
-   mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
-
    if (gpu){
+      //#warning Need to do this before before switching to get the Nodes ready for kgeom
+      //mesh->SetNodalFESpace(fespace);
+      //mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
+      //assert(false);
       config::Get().Cuda(true);
       config::Get().PA(true);
       dbg("\033[32;7mSwitched to GPU & PA!");
-   }   
+   }
    
    dbg("7. Define the solution vector x");// as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,

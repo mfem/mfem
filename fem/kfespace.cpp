@@ -45,6 +45,7 @@ kFiniteElementSpace::kFiniteElementSpace(FiniteElementSpace &fes)
    const int* elementMap = e2dTable.GetJ();
    const int elements = GetNE();
    Array<int> h_offsets(globalDofs+1);
+   
    // We'll be keeping a count of how many local nodes point to its global dof
    for (int i = 0; i <= globalDofs; ++i) {
       h_offsets[i] = 0;
@@ -80,18 +81,22 @@ kFiniteElementSpace::kFiniteElementSpace(FiniteElementSpace &fes)
    }
    h_offsets[0] = 0;
 
-#warning Push
+   // Pushing because the kernels above are still on CPU
    mm::Get().Push(h_offsets);
    mm::Get().Push(h_indices);
+   mm::Get().Push(h_map);
+   
    const int leN = localDofs*elements;
    const int guN = globalDofs+1;
-   kArrayAssign(guN,h_offsets,offsets);
-   kArrayAssign(leN,h_indices,indices);
-   kArrayAssign(leN,h_map,map);
+   
    //offsets = h_offsets;
+   kArrayAssign(guN,h_offsets,offsets);
+   
    //indices = h_indices;
+   kArrayAssign(leN,h_indices,indices);
+   
    //map = h_map;
-   dbg("done");
+   kArrayAssign(leN,h_map,map);
 }
 
 // ***************************************************************************

@@ -497,8 +497,6 @@ MatrixInverse *DenseMatrix::Inverse() const
 
 double DenseMatrix::Det() const
 {
-   //stk(true);
-   //dbg("Height()=%d",Height());
    OKINA_ASSERT_GPU;
    MFEM_ASSERT(Height() == Width() && Height() > 0,
                "The matrix must be square and "
@@ -4010,80 +4008,19 @@ void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt)
       mfem_error("AddMult_a_VVt(...)");
    }
 #endif
-#warning kAddMult_a_VVt
-   //kAddMult_a_VVt(n,a,v.GetData(),VVt.Height(),VVt.GetData());
-   for (int i = 0; i < n; i++)
-   {
-      double avi = a * v(i);
-      for (int j = 0; j < i; j++)
-      {
-         double avivj = avi * v(j);
-         VVt(i, j) += avivj;
-         VVt(j, i) += avivj;
-      }
-      VVt(i, i) += avi * v(i);
-   }
+   kAddMult_a_VVt(n,a,v.GetData(),VVt.Height(),VVt.GetData());
 }
 
 
 void LUFactors::Factor(int m)
 {
    dbg();
-   //stk(true);
-   //OKINA_ASSERT_GPU;
 #ifdef MFEM_USE_LAPACK
    int info = 0;
    if (m) { dgetrf_(&m, &m, data, &m, ipiv, &info); }
    MFEM_VERIFY(!info, "LAPACK: error in DGETRF");
 #else
    // compiling without LAPACK
-   /*
-   double *data = this->data;
-   assert(data);
-   for (int i = 0; i < m; i++)
-   {
-      // pivoting
-      {
-         int piv = i;
-         double a = std::abs(data[piv+i*m]);
-         printf("\n a=%f",a);
-        for (int j = i+1; j < m; j++)
-         {
-            const double b = std::abs(data[j+i*m]);
-            printf("\n\t b=%f",b);
-            if (b > a)
-            {
-               a = b;
-              piv = j;
-            }
-         }
-         ipiv[i] = piv;
-         if (piv != i)
-         {
-            // swap rows i and piv in both L and U parts
-            for (int j = 0; j < m; j++)
-           {
-               Swap<double>(data[i+j*m], data[piv+j*m]);
-            }
-         }
-     }
-      MFEM_ASSERT(data[i+i*m] != 0.0, "division by zero");
-      const double a_ii_inv = 1.0/data[i+i*m];
-      for (int j = i+1; j < m; j++)
-     {
-         data[j+i*m] *= a_ii_inv;
-      }
-      for (int k = i+1; k < m; k++)
-      {
-         const double a_ik = data[i+k*m];
-        for (int j = i+1; j < m; j++)
-         {
-           data[j+k*m] -= a_ik * data[j+i*m];
-         }
-      }
-      }*/
-   dbg("kFactor");
-#warning kFactor
    kFactor(m,ipiv,this->data);  
 #endif
 }
@@ -4361,7 +4298,6 @@ DenseMatrixInverse::DenseMatrixInverse(const DenseMatrix *mat)
 void DenseMatrixInverse::Factor()
 {
    dbg();
-   //OKINA_ASSERT_GPU;
    MFEM_ASSERT(a, "DenseMatrix is not given");
    const double *adata = a->data;
    const int s = width*width;
@@ -4407,7 +4343,7 @@ void DenseMatrixInverse::Factor(const DenseMatrix &mat)
    a = &mat;
    //dbg("mat:");
    //mat.Print();
-   //a->Print();
+   //dbg("a:");a->Print();
    //OKINA_ASSERT_GPU;
    Factor();
 }

@@ -106,25 +106,35 @@ void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
 void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                      const IntegrationPoint &ip)
 {
-   //dbg();
+   dbg();
    //double x[3];
    static double *x = mm::malloc<double>(3);
    Vector transip(x, 3);
    T.Transform(ip, transip);
    
-   //dbg("transip:");transip.Print();
+   dbg("transip:");transip.Print();
 
    V.SetSize(vdim);
    if (Function)
    {
-      (*Function)(transip, V);
+      //assert(false);
+      // bring back everything because XYZ_VectorFunction is @ CPU
+      //mm::Get().Rsync(transip.GetData());
+      //mm::Get().Rsync(V.GetData());
+#warning (*Function)(transip, V);
+      //(*Function)(transip, V);
+      assert(transip.Size() == V.Size());
+      V = transip;
+      dbg("V:");V.Print();
    }
    else
    {
+      assert(false);
       (*TDFunction)(transip, GetTime(), V);
    }
    if (Q)
    {
+      assert(false);
       V *= Q->Eval(T, ip, GetTime());
    }
 }

@@ -49,21 +49,10 @@ Vector::Vector(const Vector &v)
 }
    
 Vector::Vector(double *_data, int _size) {
-   if (mm::Get().Known(_data)){
-      data = _data;
-      size = _size;
-      allocsize = -size;
-   }else{
-#warning look at here
-      //stk(true);assert(false);
-      //dbg("_size=%d",_size);
-      //dbg("_data=%p",_data);
-      //data = mm::malloc<double>(_size);
-      //mm::H2D(data, _data, sizeof(double)*_size);
-      data = _data;
-      size = _size;
-      allocsize = -size;
-   }
+   if (not mm::Get().Known(_data)) assert(false);
+   data = _data;
+   size = _size;
+   allocsize = -size;
 }
    
 void Vector::SetData(double *d) {
@@ -537,7 +526,10 @@ void Vector::SetSubVector(const Array<int> &dofs, const double value)
 
 void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
 {
-   kSetSubVector(dofs.Size(), dofs.GetData(), elemvect.GetData(), data);
+   dbg();
+   elemvect.Print();
+   dofs.Print();
+   kVectorSetSubvector(dofs.Size(), GetData(), elemvect.GetData(), dofs.GetData());
 }
 
 void Vector::SetSubVector(const Array<int> &dofs, double *elem_data)

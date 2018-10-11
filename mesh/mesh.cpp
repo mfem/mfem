@@ -3343,11 +3343,13 @@ void Mesh::GetNodes(GridFunction &nodes) const
    dbg();
    if (Nodes == NULL || Nodes->FESpace() != nodes.FESpace())
    {
+      dbg("\033[7mNEW NODES!!");
       const int newSpaceDim = nodes.FESpace()->GetVDim();
-      //dbg("newSpaceDim=%d", newSpaceDim);
+      dbg("\033[7mnewSpaceDim=%d", newSpaceDim);
       VectorFunctionCoefficient xyz(newSpaceDim, XYZ_VectorFunction);
-      nodes.ProjectCoefficient(xyz);
-      //nodes.Print();
+      dbg("\033[7mProjectCoefficient");
+      nodes.ProjectCoefficient(xyz); // fem/gridfunc:1597
+      nodes.Print();
       //assert(false);
    }
    else
@@ -3360,16 +3362,18 @@ void Mesh::GetNodes(GridFunction &nodes) const
 
 void Mesh::SetNodalFESpace(FiniteElementSpace *nfes)
 {
-   dbg();
+   dbg("new GridFunction");
    GridFunction *nodes = new GridFunction(nfes);
+   dbg("SetNodalGridFunction");
    SetNodalGridFunction(nodes, true);
    //dbg("nodes->Print():");nodes->Print();
 }
 
 void Mesh::SetNodalGridFunction(GridFunction *nodes, bool make_owner)
 {
-   dbg();
+   dbg("GetNodes");
    GetNodes(*nodes);
+   dbg("NewNodes");
    NewNodes(*nodes, make_owner);
 }
 
@@ -3380,26 +3384,27 @@ const FiniteElementSpace *Mesh::GetNodalFESpace() const
 
 void Mesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
 {
-   dbg();
+   dbg("\033[7mSetCurvature");
    space_dim = (space_dim == -1) ? spaceDim : space_dim;
    FiniteElementCollection* nfec;
    if (discont)
    {
-      dbg("L2_FECollection");
+      dbg("\033[7mL2_FECollection");
       const int type = 1; // Gauss-Lobatto points
       nfec = new L2_FECollection(order, Dim, type);
    }
    else
    {
-      dbg("H1_FECollection");
+      dbg("\033[7mH1_FECollection");
       nfec = new H1_FECollection(order, Dim);
       //assert(false);
    }
-   dbg("Nodes FiniteElementSpace");
+   dbg("\033[7mNodes FiniteElementSpace");
    FiniteElementSpace* nfes = new FiniteElementSpace(this, nfec, space_dim,
                                                      ordering);
-   dbg("SetNodalFESpace");
+   dbg("\033[7mSetNodalFESpace");
    SetNodalFESpace(nfes);
+   dbg("\033[7mMakeOwner");
    Nodes->MakeOwner(nfec);
    //dbg("Nodes->Print():"); Nodes->Print();
    //dbg("done");
