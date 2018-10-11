@@ -286,6 +286,9 @@ public:
        the edges. */
    inline int GetNF() const { return mesh->GetNumFaces(); }
 
+   /// Returns number of planars (i.e. co-dimension 2 entities) in the mesh.
+   inline int GetNP() const { return mesh->GetNPlanars(); }
+
    /// Returns number of boundary elements in the mesh.
    inline int GetNBE() const { return mesh->GetNBE(); }
 

@@ -785,6 +785,9 @@ void FiniteElementSpace::BuildConformingInterpolation4D() const
          GetEntityDofs4D(entity, master.index, master_dofs);
          if (!master_dofs.Size()) { continue; }
 
+//         mfem::out << "--------------------\n";
+//         master_dofs.Print(mfem::out,master_dofs.Size());
+
          for (int si = master.slaves_begin; si < master.slaves_end; si++)
          {
             const NCMesh::Slave &slave = list.slaves[si];
@@ -795,6 +798,12 @@ void FiniteElementSpace::BuildConformingInterpolation4D() const
             T.FinalizeTransformation();
             fe->GetLocalInterpolation(T, I);
 
+//            mfem::out << "********************\n";
+//            slave_dofs.Print(mfem::out,slave_dofs.Size());
+//            mfem::out << "++++++++++++++++++++\n";
+//            I.PrintMatlab(mfem::out);
+//            mfem::out << "++++++++++++++++++++\n";
+
             // make each slave DOF dependent on all master DOFs
             AddDependencies(deps, master_dofs, slave_dofs, I);
          }
@@ -802,6 +811,7 @@ void FiniteElementSpace::BuildConformingInterpolation4D() const
    }
 
    deps.Finalize();
+//   deps.PrintMatlab(mfem::out);
 
    // DOFs that stayed independent are true DOFs
    int n_true_dofs = 0;
@@ -1745,9 +1755,19 @@ void FiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
    {
       for (k = 0; k < P.Size(); k++)
       {
+         ind = fec->DofOrderForOrientation(mesh->GetPlanarBaseGeometry(P[k]),
+                                           Po[k]);
+         np = fec->DofForGeometry(mesh->GetPlanarBaseGeometry(P[k]));
          for (j = 0; j < np; j++)
          {
-            dofs[ne+k*np+j] = P[k]*np+j;
+            if (ind[j] < 0)
+            {
+               dofs[ne+k*np+j] = -1 - ( nvdofs+nedofs+pdofs[P[k]]+(-1-ind[j]) );
+            }
+            else
+            {
+               dofs[ne+k*np+j] = nvdofs+nedofs+pdofs[P[k]]+ind[j];
+            }
          }
       }
    }
@@ -1756,7 +1776,7 @@ void FiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
    {
       for (j = nvdofs+nedofs+npdofs+fdofs[i], k = 0; k < nf; j++, k++)
       {
-         dofs[ne+k] = j;
+         dofs[np+k] = j;
       }
    }
 }
