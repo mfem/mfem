@@ -33,7 +33,7 @@ struct Hashed2
  */
 struct Hashed4
 {
-   int p1, p2, p3; // NOTE: p4 is not hashed nor stored
+   int p1, p2, p3; // NOTE: p4 is neither hashed nor stored
    int next;
 };
 

@@ -109,10 +109,6 @@
 // Enable MFEM functionality based on the SUNDIALS libraries.
 #cmakedefine MFEM_USE_SUNDIALS
 
-// Windows specific options
-// Macro needed to get defines like M_PI from <cmath>. (Visual Studio C++ only?)
-#cmakedefine _USE_MATH_DEFINES
-
 // Version of HYPRE used for building MFEM.
 #cmakedefine MFEM_HYPRE_VERSION @MFEM_HYPRE_VERSION@
 

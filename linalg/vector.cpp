@@ -548,7 +548,9 @@ void Vector::SetSubVector(const Array<int> &dofs, double *elem_data)
 void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
 {
    OKINA_ASSERT_GPU;
-   MFEM_ASSERT(dofs.Size() == elemvect.Size(), "");
+   MFEM_ASSERT(dofs.Size() == elemvect.Size(), "Size mismatch: "
+               "length of dofs is " << dofs.Size() <<
+               ", length of elemvect is " << elemvect.Size());
    int i, j, n = dofs.Size();
 
    for (i = 0; i < n; i++)

@@ -7,6 +7,7 @@
 //               ex3 -m ../data/beam-tet.mesh
 //               ex3 -m ../data/beam-hex.mesh
 //               ex3 -m ../data/escher.mesh
+//               ex3 -m ../data/escher.mesh -o 2
 //               ex3 -m ../data/fichera.mesh
 //               ex3 -m ../data/fichera-q2.vtk
 //               ex3 -m ../data/fichera-q3.mesh
