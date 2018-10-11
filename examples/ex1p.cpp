@@ -12,13 +12,14 @@
 //               mpirun -np 4 ex1p -m ../data/square-disc-p2.vtk -o 2
 //               mpirun -np 4 ex1p -m ../data/square-disc-p3.mesh -o 3
 //               mpirun -np 4 ex1p -m ../data/square-disc-nurbs.mesh -o -1
+//               mpirun -np 4 ex1p -m ../data/star-mixed-p2.mesh -o 2
 //               mpirun -np 4 ex1p -m ../data/disc-nurbs.mesh -o -1
 //               mpirun -np 4 ex1p -m ../data/pipe-nurbs.mesh -o -1
 //               mpirun -np 4 ex1p -m ../data/ball-nurbs.mesh -o 2
+//               mpirun -np 4 ex1p -m ../data/fichera-mixed-p2.mesh -o 2
 //               mpirun -np 4 ex1p -m ../data/star-surf.mesh
 //               mpirun -np 4 ex1p -m ../data/square-disc-surf.mesh
 //               mpirun -np 4 ex1p -m ../data/inline-segment.mesh
-//               mpirun -np 4 ex1p -m ../data/star-mixed.mesh -nz 3 -hz 2
 //               mpirun -np 4 ex1p -m ../data/amr-quad.mesh
 //               mpirun -np 4 ex1p -m ../data/amr-hex.mesh
 //               mpirun -np 4 ex1p -m ../data/mobius-strip.mesh

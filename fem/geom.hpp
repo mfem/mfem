@@ -31,16 +31,20 @@ namespace mfem
 class Geometry
 {
 public:
-   enum Type { INVALID = -2, MIXED = -1,
-               POINT, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE, PRISM
-             };
+   enum Type
+   {
+      INVALID = -1,
+      POINT = 0, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE, PRISM,
+      NUM_GEOMETRIES
+   };
 
-   static const int NumGeom = 7;
+   static const int NumGeom = NUM_GEOMETRIES;
    static const int MaxDim = 3;
    static const int NumBdrArray[NumGeom];
    static const char *Name[NumGeom];
    static const double Volume[NumGeom];
    static const int Dimension[NumGeom];
+   static const int DimStart[MaxDim+2]; // including MaxDim+1
    static const int NumVerts[NumGeom];
    static const int NumEdges[NumGeom];
    static const int NumFaces[NumGeom];
