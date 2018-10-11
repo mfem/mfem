@@ -21,6 +21,18 @@
 namespace mfem
 {
 
+
+const DenseTensor &CoarseFineTransformations::GetPointMatrices(
+   Geometry::Type geom) const
+{
+   std::map<Geometry::Type, DenseTensor>::const_iterator pm_it;
+   pm_it = point_matrices.find(geom);
+   MFEM_VERIFY(pm_it != point_matrices.end(),
+               "cannot find point matrices for geometry type \"" << geom
+               << "\"");
+   return pm_it->second;
+}
+
 NCMesh::GeomInfo NCMesh::GI[Geometry::NumGeom];
 
 NCMesh::GeomInfo& NCMesh::gi_hex  = NCMesh::GI[Geometry::CUBE];
@@ -115,7 +127,7 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
    {
       const mfem::Element *elem = mesh->GetElement(i);
 
-      int geom = elem->GetGeometryType();
+      Geometry::Type geom = elem->GetGeometryType();
       if (geom != Geometry::TRIANGLE &&
           geom != Geometry::SQUARE &&
           geom != Geometry::CUBE)
@@ -433,7 +445,7 @@ int NCMesh::FindAltParents(int node1, int node2)
 
 //// Refinement & Derefinement /////////////////////////////////////////////////
 
-NCMesh::Element::Element(int geom, int attr)
+NCMesh::Element::Element(Geometry::Type geom, int attr)
    : geom(geom), ref_type(0), flag(0), index(-1), rank(0), attribute(attr)
    , parent(-1)
 {
@@ -1360,7 +1372,12 @@ void NCMesh::InitDerefTransforms()
    }
 
    // this will tell GetDerefinementTransforms that transforms are not finished
-   transforms.point_matrices.SetSize(0, 0, 0);
+   std::map<Geometry::Type, DenseTensor>::iterator it;
+   for (it=transforms.point_matrices.begin();
+        it!=transforms.point_matrices.end(); it++)
+   {
+      it->second.SetSize(0, 0, 0);
+   }
 }
 
 void NCMesh::SetDerefMatrixCodes(int parent, Array<int> &fine_coarse)
@@ -3019,16 +3036,16 @@ const CoarseFineTransformations& NCMesh::GetRefinementTransforms()
       }
 
       MFEM_ASSERT(elements.Size() > free_element_ids.Size(), "");
-      int geom = elements[0].geom;
+      Geometry::Type geom = elements[0].geom;
       const PointMatrix &identity = GetGeomIdentity(geom);
 
-      transforms.point_matrices.SetSize(Dim, identity.np, map.size());
+      transforms.point_matrices[geom].SetSize(Dim, identity.np, map.size());
 
       // calculate the point matrices
       for (RefPathMap::iterator it = map.begin(); it != map.end(); ++it)
       {
          GetPointMatrix(geom, it->first.c_str(),
-                        transforms.point_matrices(it->second-1));
+                        transforms.point_matrices[geom](it->second-1));
       }
    }
    return transforms;
@@ -3039,7 +3056,9 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
    MFEM_VERIFY(transforms.embeddings.Size() || !leaf_elements.Size(),
                "GetDerefinementTransforms() must be preceded by Derefine().");
 
-   if (!transforms.point_matrices.SizeK())
+   Geometry::Type geom = elements[0].geom;
+
+   if (!transforms.point_matrices[geom].SizeK())
    {
       std::map<int, int> mat_no;
       mat_no[0] = 1; // identity
@@ -3057,10 +3076,9 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
       }
 
       MFEM_ASSERT(elements.Size() > free_element_ids.Size(), "");
-      int geom = elements[0].geom;
       const PointMatrix &identity = GetGeomIdentity(geom);
 
-      transforms.point_matrices.SetSize(Dim, identity.np, mat_no.size());
+      transforms.point_matrices[geom].SetSize(Dim, identity.np, mat_no.size());
 
       std::map<int, int>::iterator it;
       for (it = mat_no.begin(); it != mat_no.end(); ++it)
@@ -3071,7 +3089,8 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
          path[1] = code & 7;  // child
          path[2] = 0;
 
-         GetPointMatrix(geom, path, transforms.point_matrices(it->second-1));
+         GetPointMatrix(geom, path,
+                        transforms.point_matrices[geom](it->second-1));
       }
    }
    return transforms;
@@ -3081,7 +3100,12 @@ void NCMesh::ClearTransforms()
 {
    coarse_elements.DeleteAll();
    transforms.embeddings.DeleteAll();
-   transforms.point_matrices.SetSize(0, 0, 0);
+   std::map<Geometry::Type, DenseTensor>::iterator it;
+   for (it=transforms.point_matrices.begin();
+        it!=transforms.point_matrices.end(); it++)
+   {
+      it->second.SetSize(0, 0, 0);
+   }
 }
 
 
@@ -3826,7 +3850,7 @@ void NCMesh::LoadCoarseElements(std::istream &input)
       int ref_type;
       input >> ref_type;
 
-      int elem = AddElement(Element(0, 0));
+      int elem = AddElement(Element(Geometry::INVALID, 0));
       Element &el = elements[elem];
       el.ref_type = ref_type;
 
@@ -3931,7 +3955,16 @@ long NCMesh::NCList::MemoryUsage() const
 
 long CoarseFineTransformations::MemoryUsage() const
 {
-   return point_matrices.MemoryUsage() + embeddings.MemoryUsage();
+   long mem = embeddings.MemoryUsage();
+
+   std::map<Geometry::Type, DenseTensor>::const_iterator it;
+   for (it=point_matrices.begin();
+        it!=point_matrices.end(); it++)
+   {
+      mem += it->second.MemoryUsage();
+   }
+
+   return mem;
 }
 
 long NCMesh::MemoryUsage() const
