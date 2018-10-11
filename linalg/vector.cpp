@@ -113,7 +113,6 @@ const double &Vector::Elem(int i) const
 
 double Vector::operator*(const double *v) const
 {
-   //dbg();
    const int N = size;
    double prod = kVectorDot(N, data, v);
    return prod;
@@ -183,8 +182,6 @@ Vector &Vector::operator-=(double c)
 
 Vector &Vector::operator-=(const Vector &v)
 {
-   dbg();//stk(true);
-   //OKINA_ASSERT_GPU;
 #ifdef MFEM_DEBUG
    if (size != v.size)
    {
@@ -311,7 +308,8 @@ void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
       double *vp = v.data;
       int s = v.size;
 #ifdef MFEM_USE_OPENMP
-//#pragma omp parallel for
+#warning MFEM_USE_OPENMP with KERNELS
+      //#pragma omp parallel for
 #endif
       kVectorAlphaAdd(vp,v1p,alpha,v2p,s);
    }
@@ -526,7 +524,6 @@ void Vector::SetSubVector(const Array<int> &dofs, const double value)
 
 void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
 {
-   dbg();
    kVectorSetSubvector(dofs.Size(), GetData(), elemvect.GetData(), dofs.GetData());
 }
 
@@ -571,22 +568,8 @@ void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
 
 void Vector::AddElementVector(const Array<int> &dofs, double *elem_data)
 {
-   //OKINA_ASSERT_CPU;
-   //int i, j,
    const int n = dofs.Size();
    kAddElementVector(n,dofs,elem_data,data);
-   /*
-   for (i = 0; i < n; i++)
-   {
-      if ((j = dofs[i]) >= 0)
-      {
-         data[j] += elem_data[i];
-      }
-      else
-      {
-         data[-1-j] -= elem_data[i];
-      }
-      }*/
 }
 
 void Vector::AddElementVector(const Array<int> &dofs, const double a,

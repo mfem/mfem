@@ -52,7 +52,6 @@ void* mm::add(const void *h_adrs, const size_t size, const size_t size_of_T){
       CUdeviceptr ptr = (CUdeviceptr)NULL;
       const size_t bytes = mm2dev.bytes;
       if (bytes>0){
-         //stk(true);
          //dbg(" \033[32;1m%ldo\033[m",bytes);
          checkCudaErrors(cuMemAlloc(&ptr,bytes));
       }else{
@@ -215,7 +214,6 @@ void* mm::D2D(void *dest, const void *src, size_t bytes, const bool async) {
       if (!async){
          GET_ADRS(src);
          GET_ADRS(dest);
-         //checkCudaErrors(cuMemcpyDtoD((CUdeviceptr)dest,(CUdeviceptr)src,bytes));
          checkCudaErrors(cuMemcpyDtoD((CUdeviceptr)d_dest,(CUdeviceptr)d_src,bytes));
       }else{
          const CUstream s = *config::Get().Stream();
@@ -226,6 +224,13 @@ void* mm::D2D(void *dest, const void *src, size_t bytes, const bool async) {
    return dest;
 }
 
+// ***************************************************************************
+void* mm::memcpy(void *dest, const void *src, size_t bytes) {
+   return D2D(dest, src, bytes, false);
+}
+
+// *****************************************************************************
+// *  SIGSEGV handler
 // *****************************************************************************
 void mm::handler(int nSignum, siginfo_t* si, void* vcontext) {
    fflush(0);
@@ -236,6 +241,8 @@ void mm::handler(int nSignum, siginfo_t* si, void* vcontext) {
    exit(!0);
 }
 
+// *****************************************************************************
+// *  SIGNALS actions
 // *****************************************************************************
 void mm::iniHandler(){
    struct sigaction action;

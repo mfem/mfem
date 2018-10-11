@@ -42,7 +42,6 @@ SparseMatrix::SparseMatrix(int nrows, int ncols)
      ownData(true),
      isSorted(false)
 {
-   assert(Rows);
    kSparseMatrix(nrows,Rows);
 
 #ifdef MFEM_USE_MEMALLOC

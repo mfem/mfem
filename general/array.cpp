@@ -23,7 +23,6 @@ BaseArray::BaseArray(int asize, int ainc, int elementsize)
 {
    if (asize > 0)
    {
-      //data = new char[asize * elementsize];
       data = mfem::mm::malloc<char>(asize * elementsize);
       size = allocsize = asize;
    }
@@ -39,7 +38,6 @@ BaseArray::~BaseArray()
 {
    if (allocsize > 0)
    {
-      //delete [] (char*)data;
       mm::free<char>(data);
    }
 }
@@ -50,7 +48,6 @@ void BaseArray::GrowSize(int minsize, int elementsize)
    int nsize = (inc > 0) ? abs(allocsize) + inc : 2 * abs(allocsize);
    if (nsize < minsize) { nsize = minsize; }
 
-   //p = new char[nsize * elementsize];
    p = mm::malloc<char>(nsize * elementsize);
    if (size > 0)
    {
@@ -58,7 +55,6 @@ void BaseArray::GrowSize(int minsize, int elementsize)
    }
    if (allocsize > 0)
    {
-      //delete [] (char*)data;
       mm::free<char>(data);
    }
    data = p;

@@ -107,13 +107,10 @@ void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                      const IntegrationPoint &ip)
 {
    dbg();
-   //double x[3];
    static double *x = mm::malloc<double>(3);
    Vector transip(x, 3);
    T.Transform(ip, transip);
    
-   //dbg("transip:");transip.Print();
-
    V.SetSize(vdim);
    if (Function)
    {
