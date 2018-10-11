@@ -34,7 +34,6 @@ inline void Swap(T &a, T &b){
 void kLSolve( const int m,
               const int n,
               const double *data, const int *ipiv, double *x){
-   dbg();
    GET_CONST_ADRS(data);
    GET_CONST_ADRS_T(ipiv,int);
    GET_ADRS(x);
@@ -57,7 +56,6 @@ void kLSolve( const int m,
 
 // *****************************************************************************
 void kUSolve(const int m, const int n, const double *data, double *x){
-   dbg();
    GET_CONST_ADRS(data);
    GET_ADRS(x);
    
@@ -74,7 +72,6 @@ void kUSolve(const int m, const int n, const double *data, double *x){
 
 // *****************************************************************************
 void kFactorPrint(const int s, const double *data){
-   dbg();
    GET_CONST_ADRS(data);
    forall(i, s, {
          printf("\n\t\033[32md_data[%d]=%f\033[m",i,d_data[i]);
@@ -83,7 +80,6 @@ void kFactorPrint(const int s, const double *data){
 
 // *****************************************************************************
 void kFactorSet(const int s, const double *adata, double *ludata){
-   dbg();
    GET_CONST_ADRS(adata);
    GET_ADRS(ludata);
    forall(i, s, {
@@ -93,7 +89,6 @@ void kFactorSet(const int s, const double *adata, double *ludata){
 
 // *****************************************************************************
 void kFactor(const int m, int *ipiv, double *data){
-   dbg();
    GET_ADRS_T(ipiv,int);
    GET_ADRS(data);
    forall(i,m,{

@@ -13,12 +13,12 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
-#include "kernels.hpp"
 
+#include "../../general/okina.hpp"
 
 // *****************************************************************************
 template<const int NUM_DOFS,
-         const int NUM_QUAD> kernel
+         const int NUM_QUAD> __kernel__
 void rIniGeom2D(const int numElements,
                 const double* __restrict dofToQuadD,
                 const double* __restrict nodes,
@@ -29,7 +29,6 @@ void rIniGeom2D(const int numElements,
    const int e = blockDim.x * blockIdx.x + threadIdx.x;
    if (e < numElements)
 #else
-#warning CPU forall
    forall(e,numElements,
 #endif
    {
@@ -85,7 +84,7 @@ void rIniGeom2D(const int numElements,
 /*
 // *****************************************************************************
 template<const int NUM_DOFS,
-         const int NUM_QUAD> kernel
+         const int NUM_QUAD> __kernel__
 void rIniGeom2D(const int numElements,
                 const double* __restrict dofToQuadD,
                 const double* __restrict nodes,
@@ -127,20 +126,20 @@ void rIniGeom2D(const int numElements,
    }
    }*/
 
-template kernel void rIniGeom2D<4,4>(int, double const*, double const*, double*, double*, double*);
-template kernel void rIniGeom2D<9,16>(int, double const*, double const*, double*, double*, double*);
-template kernel void rIniGeom2D<16,36>(int, double const*, double const*, double*, double*, double*);
-template kernel void rIniGeom2D<25,64>(int, double const*, double const*, double*, double*, double*);
-template kernel void rIniGeom2D<36,100>(int, double const*, double const*, double*, double*, double*);
-template kernel void rIniGeom2D<49,144>(int, double const*, double const*, double*, double*, double*);
-template kernel void rIniGeom2D<64,196>(int, double const*, double const*, double*, double*, double*);
-template kernel void rIniGeom2D<81,256>(int, double const*, double const*, double*, double*, double*);
-template kernel void rIniGeom2D<100,324>(int, double const*, double const*, double*, double*, double*);
-template kernel void rIniGeom2D<121,400>(int, double const*, double const*, double*, double*, double*);
-template kernel void rIniGeom2D<144,484>(int, double const*, double const*, double*, double*, double*);
-template kernel void rIniGeom2D<169,576>(int, double const*, double const*, double*, double*, double*);
-template kernel void rIniGeom2D<196,676>(int, double const*, double const*, double*, double*, double*);
-template kernel void rIniGeom2D<225,784>(int, double const*, double const*, double*, double*, double*);
-template kernel void rIniGeom2D<256,900>(int, double const*, double const*, double*, double*, double*);
-template kernel void rIniGeom2D<289,1024>(int, double const*, double const*, double*, double*, double*);
+template __kernel__ void rIniGeom2D<4,4>(int, double const*, double const*, double*, double*, double*);
+template __kernel__ void rIniGeom2D<9,16>(int, double const*, double const*, double*, double*, double*);
+template __kernel__ void rIniGeom2D<16,36>(int, double const*, double const*, double*, double*, double*);
+template __kernel__ void rIniGeom2D<25,64>(int, double const*, double const*, double*, double*, double*);
+template __kernel__ void rIniGeom2D<36,100>(int, double const*, double const*, double*, double*, double*);
+template __kernel__ void rIniGeom2D<49,144>(int, double const*, double const*, double*, double*, double*);
+template __kernel__ void rIniGeom2D<64,196>(int, double const*, double const*, double*, double*, double*);
+template __kernel__ void rIniGeom2D<81,256>(int, double const*, double const*, double*, double*, double*);
+template __kernel__ void rIniGeom2D<100,324>(int, double const*, double const*, double*, double*, double*);
+template __kernel__ void rIniGeom2D<121,400>(int, double const*, double const*, double*, double*, double*);
+template __kernel__ void rIniGeom2D<144,484>(int, double const*, double const*, double*, double*, double*);
+template __kernel__ void rIniGeom2D<169,576>(int, double const*, double const*, double*, double*, double*);
+template __kernel__ void rIniGeom2D<196,676>(int, double const*, double const*, double*, double*, double*);
+template __kernel__ void rIniGeom2D<225,784>(int, double const*, double const*, double*, double*, double*);
+template __kernel__ void rIniGeom2D<256,900>(int, double const*, double const*, double*, double*, double*);
+template __kernel__ void rIniGeom2D<289,1024>(int, double const*, double const*, double*, double*, double*);
 

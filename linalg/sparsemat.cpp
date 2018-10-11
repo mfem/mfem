@@ -45,7 +45,7 @@ SparseMatrix::SparseMatrix(int nrows, int ncols)
    kSparseMatrix(nrows,Rows);
 
 #ifdef MFEM_USE_MEMALLOC
-   OKINA_ASSERT_CPU;
+   //OKINA_ASSERT_CPU;
    NodesMem = new RowNodeAlloc;
 #endif
 }
@@ -582,7 +582,6 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 
    if (Ap == NULL)
    {
-      dbg();
       OKINA_ASSERT_CPU;
       //  The matrix is not finalized, but multiplication is still possible
       assert(false);
@@ -836,7 +835,6 @@ double SparseMatrix::GetRowNorml1(int irow) const
 
 void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
 {
-   dbg();
    OKINA_ASSERT_GPU;
    int i, j, nr, nz;
    RowNode *aux;

@@ -16,20 +16,4 @@
 #ifndef MFEM_KERNELS_KERNEL_OFFSETS
 #define MFEM_KERNELS_KERNEL_OFFSETS
 
-// Offsets *********************************************************************
-#define   ijN(i,j,N) (i)+(N)*(j)
-#define  ijkN(i,j,k,N) (i)+(N)*((j)+(N)*(k))
-#define ijklN(i,j,k,l,N) (i)+(N)*((j)+(N)*((k)+(N)*(l)))
-
-#define    ijNMt(i,j,N,M,t) (t)?((i)+(N)*(j)):((j)+(M)*(i))
-#define    ijkNM(i,j,k,N,M) (i)+(N)*((j)+(M)*(k))
-#define   _ijkNM(i,j,k,N,M) (j)+(N)*((k)+(M)*(i))
-#define   ijklNM(i,j,k,l,N,M) (i)+(N)*((j)+(N)*((k)+(M)*(l)))
-#define  _ijklNM(i,j,k,l,N,M) (j)+(N)*((k)+(N)*((l)+(M)*(i)))
-#define   ijklmNM(i,j,k,l,m,N,M) (i)+(N)*((j)+(N)*((k)+(M)*((l)+(M)*(m))))
-#define __ijklmNM(i,j,k,l,m,N,M) (k)+(M)*((l)+(M)*((m)+(N*N)*((i)+(N)*j)))
-
-#define _ijklmNM(i,j,k,l,m,N,M) (j)+(N)*((k)+(N)*((l)+(N)*((m)+(M)*(i))))
-#define ijklmnNM(i,j,k,l,m,n,N,M) (i)+(N)*((j)+(N)*((k)+(M)*((l)+(M)*((m)+(M)*(n)))))
-
 #endif // MFEM_KERNELS_KERNEL_OFFSETS

@@ -323,7 +323,6 @@ int InverseElementTransformation::NewtonSolve(const Vector &pt,
 int InverseElementTransformation::Transform(const Vector &pt,
                                             IntegrationPoint &ip)
 {
-   assert(false);
    MFEM_VERIFY(T != NULL, "invalid ElementTransformation");
 
    // Select initial guess ...
@@ -464,25 +463,17 @@ int IsoparametricTransformation::OrderGrad(const FiniteElement *fe)
 void IsoparametricTransformation::Transform (const IntegrationPoint &ip,
                                              Vector &trans)
 {
-   dbg();
-   //assert(false);
    shape.SetSize(FElem->GetDof());
    trans.SetSize(PointMat.Height());
-   //#warning Transform
-   //printf("\n\t\033[m[Transform] ip: %f %f %f %f",ip.x,ip.y,ip.z,ip.weight);
    FElem -> CalcShape(ip, shape);
 #warning Pushing because still on the host
    mm::Get().Push(shape.GetData());
-   //dbg("shape:");shape.Print();
    PointMat.Mult(shape, trans);
-   //dbg("trans:");trans.Print();
-   //assert(false);
 }
 
 void IsoparametricTransformation::Transform (const IntegrationRule &ir,
                                              DenseMatrix &tr)
 {
-   assert(false);
    int dof, n, dim, i, j, k;
 
    dim = PointMat.Height();

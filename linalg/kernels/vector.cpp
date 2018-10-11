@@ -60,13 +60,14 @@ MFEM_NAMESPACE
 
 // *****************************************************************************
 double kVectorDot(const size_t N, const double *x, const double *y){
-   //dbg();
    GET_CUDA;
    GET_CONST_ADRS(x);
    GET_CONST_ADRS(y);
    //dbg("x:");kVectorPrint(N, x);
    //dbg("y:");kVectorPrint(N, y);
+#ifdef __NVCC__
    if (cuda) return cub_vector_dot(N, d_x, d_y);
+#endif // __NVCC__
    double dot = 0.0;
    for(size_t i=0;i<N;i+=1)
       dot += d_x[i] * d_y[i];

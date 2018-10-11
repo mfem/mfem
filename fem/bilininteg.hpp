@@ -44,14 +44,14 @@ public:
 class BilinearPAFormIntegrator : public AbstractBilinearFormIntegrator{
 public:
    BilinearPAFormIntegrator(const IntegrationRule *ir = NULL) :
-      AbstractBilinearFormIntegrator(ir) { dbg();}
-   virtual void Setup(const FiniteElementSpace*, const IntegrationRule*){dbg();assert(false);}
-   virtual void Assemble() {dbg();assert(false);}
-   virtual void MultAdd(Vector&, Vector&) {dbg();assert(false);}
-   virtual void MultTransposeAdd(Vector&, Vector&) {dbg();assert(false);}
+      AbstractBilinearFormIntegrator(ir) { }
+   virtual void Setup(const FiniteElementSpace*, const IntegrationRule*){assert(false);}
+   virtual void Assemble() {assert(false);}
+   virtual void MultAdd(Vector&, Vector&) {assert(false);}
+   virtual void MultTransposeAdd(Vector&, Vector&) {assert(false);}
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
-                                      DenseMatrix &elmat) {dbg();assert(false);}
+                                      DenseMatrix &elmat) {assert(false);}
 };
 
 // *****************************************************************************
@@ -62,14 +62,14 @@ private:
    Coefficient *Q;
    KDiffusionIntegrator *diffusion;
 public:
-   PADiffusionIntegrator (Coefficient &q) : BilinearPAFormIntegrator(), Q(&q), diffusion(NULL) {dbg();}
+   PADiffusionIntegrator (Coefficient &q) : BilinearPAFormIntegrator(), Q(&q), diffusion(NULL) {}
    void Setup(const FiniteElementSpace*, const IntegrationRule*);
    void Assemble();
    void MultAdd(Vector&, Vector&);
-   void MultTransposeAdd(Vector&, Vector&) {dbg();assert(false);}
+   void MultTransposeAdd(Vector&, Vector&) {assert(false);}
    void AssembleElementMatrix(const FiniteElement&,
                               ElementTransformation&,
-                              DenseMatrix&) {dbg();assert(false);}
+                              DenseMatrix&) {assert(false);}
 };
 
 // *****************************************************************************
@@ -78,12 +78,12 @@ public:
 class BilinearFormIntegrator : public AbstractBilinearFormIntegrator {
 public:
    BilinearFormIntegrator(const IntegrationRule *ir = NULL) :
-      AbstractBilinearFormIntegrator(ir) { dbg();}
+      AbstractBilinearFormIntegrator(ir) { }
 public:
-   virtual void Setup(const FiniteElementSpace*, const IntegrationRule*) {dbg();assert(false);}
-   virtual void Assemble() {dbg();assert(false);}
-   virtual void MultAdd(Vector&, Vector&) {dbg();assert(false);}
-   virtual void MultTransposeAdd(Vector&, Vector&) {dbg();assert(false);}
+   virtual void Setup(const FiniteElementSpace*, const IntegrationRule*) {assert(false);}
+   virtual void Assemble() {assert(false);}
+   virtual void MultAdd(Vector&, Vector&) {assert(false);}
+   virtual void MultTransposeAdd(Vector&, Vector&) {assert(false);}
 
    /// Given a particular Finite Element computes the element matrix elmat.
    virtual void AssembleElementMatrix(const FiniteElement &el,

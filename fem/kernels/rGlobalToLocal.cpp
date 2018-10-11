@@ -19,7 +19,7 @@
 using namespace mfem;
 
 // *****************************************************************************
-extern "C" kernel
+extern "C" __kernel__
 void rGlobalToLocal0(const int globalEntries,
                      const int NUM_VDIM,
                      const bool VDIM_ORDERING,                     
@@ -28,11 +28,11 @@ void rGlobalToLocal0(const int globalEntries,
                      const int* __restrict indices,
                      const double* __restrict globalX,
                      double* __restrict localX) {
-#ifdef __LAMBDA__
-  forall(i,globalEntries,
-#else
+#ifdef __NVCC__
   const int i = blockDim.x * blockIdx.x + threadIdx.x;
   if (i < globalEntries)
+#else
+  forall(i,globalEntries,
 #endif
   {
     const int offset = offsets[i];
@@ -46,7 +46,7 @@ void rGlobalToLocal0(const int globalEntries,
       }
     }
   }
-#ifdef __LAMBDA__
+#ifndef __NVCC__
          );
 #endif
 }

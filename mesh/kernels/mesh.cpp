@@ -32,7 +32,6 @@ const double h_quad_children_init[2*4*4] = {
 
 // *****************************************************************************
 void kQuadChildren(double *data){
-   dbg();
    GET_CUDA;
    GET_ADRS(data);
    const double *p_h_quad_children_init = h_quad_children_init;

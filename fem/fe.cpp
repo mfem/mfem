@@ -313,7 +313,6 @@ void NodalFiniteElement::Project (
 void NodalFiniteElement::Project (
    VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
 {
-   dbg();
    MFEM_ASSERT(dofs.Size() == vc.GetVDim()*Dof, "");
    Vector x(vc.GetVDim());
 
@@ -7504,7 +7503,6 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
    : NodalFiniteElement(2, Geometry::TRIANGLE, ((p + 1)*(p + 2))/2, p,
                         FunctionSpace::Pk)
 {
-   dbg();
    const double *cp = poly1d.ClosedPoints(p, VerifyNodal(VerifyClosed(btype)));
 
 #ifndef MFEM_THREAD_SAFE
@@ -7579,7 +7577,6 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
 void H1_TriangleElement::CalcShape(const IntegrationPoint &ip,
                                    Vector &shape) const
 {
-   dbg();
    const int p = Order;
 
 #ifdef MFEM_THREAD_SAFE

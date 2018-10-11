@@ -171,7 +171,6 @@ Vector &Vector::operator/=(double c)
 
 Vector &Vector::operator-=(double c)
 {
-   dbg();
    OKINA_ASSERT_CPU;
    for (int i = 0; i < size; i++)
    {
