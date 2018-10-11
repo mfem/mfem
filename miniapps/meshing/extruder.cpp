@@ -10,18 +10,18 @@
 // Software Foundation) version 2.1 dated February 1999.
 //
 //   ------------------------------------------------------------------------
-//   Extruder Miniapp: Extrude a low dimensional mesh into a higher dimension
+//   Extruder Miniapp: Extrude a low-dimensional mesh into a higher dimension
 //   ------------------------------------------------------------------------
 //
-// This miniapp creates higher dimensional meshes from lower dimensional meshes
-// by extrusion.  Simple coordinate transformations can also be applied if
-// desired.  The initial mesh can be 1D or 2D. 1D meshes can be extruded in the
-// y-direction first and then in the z-direction.  2D meshes can be triangular,
-// quadrilateral, or contain both element types.  The initial mesh can also be
+// This miniapp creates higher-dimensional meshes from lower-dimensional meshes
+// by extrusion. Simple coordinate transformations can also be applied if
+// desired. The initial mesh can be 1D or 2D. 1D meshes can be extruded in the
+// y-direction first and then in the z-direction. 2D meshes can be triangular,
+// quadrilateral, or contain both element types. The initial mesh can also be
 // curved although NURBS meshes are not supported.
 //
-// The resulting mesh will be displayed with GLVis (unless disabled) and also
-// written to the file "extruder.mesh".
+// The resulting mesh is displayed with GLVis (unless explicitly disabled) and
+// is also written to the file "extruder.mesh".
 //
 // Compile with: make extruder
 //
