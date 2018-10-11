@@ -186,6 +186,12 @@ void FiniteElementSpace::GetFaceVDofs(int i, Array<int> &vdofs) const
    DofsToVDofs(vdofs);
 }
 
+void FiniteElementSpace::GetPlanarVDofs(int i, Array<int> &vdofs) const
+{
+   GetPlanarDofs(i, vdofs);
+   DofsToVDofs(vdofs);
+}
+
 void FiniteElementSpace::GetEdgeVDofs(int i, Array<int> &vdofs) const
 {
    GetEdgeDofs(i, vdofs);
@@ -326,8 +332,11 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
    // local DOFs affected by boundary elements on other processors
    if (mesh->ncmesh)
    {
-      Array<int> bdr_verts, bdr_edges;
-      mesh->ncmesh->GetBoundaryClosure(bdr_attr_is_ess, bdr_verts, bdr_edges);
+      Array<int> bdr_verts, bdr_edges, bdr_planars;
+      if (mesh->Dimension() > 3)
+         mesh->ncmesh->GetBoundaryClosure(bdr_attr_is_ess, bdr_verts, bdr_edges, bdr_planars);
+      else
+         mesh->ncmesh->GetBoundaryClosure(bdr_attr_is_ess, bdr_verts, bdr_edges);
 
       for (int i = 0; i < bdr_verts.Size(); i++)
       {
@@ -354,6 +363,21 @@ void FiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
          else
          {
             GetEdgeDofs(bdr_edges[i], dofs);
+            for (int d = 0; d < dofs.Size(); d++)
+            { dofs[d] = DofToVDof(dofs[d], component); }
+            mark_dofs(dofs, ess_vdofs);
+         }
+      }
+      for (int i = 0; i < bdr_planars.Size(); i++)
+      {
+         if (component < 0)
+         {
+            GetPlanarVDofs(bdr_planars[i], vdofs);
+            mark_dofs(vdofs, ess_vdofs);
+         }
+         else
+         {
+            GetPlanarVDofs(bdr_planars[i], dofs);
             for (int d = 0; d < dofs.Size(); d++)
             { dofs[d] = DofToVDof(dofs[d], component); }
             mark_dofs(dofs, ess_vdofs);

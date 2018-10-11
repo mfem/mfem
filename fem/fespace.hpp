@@ -368,6 +368,9 @@ public:
    /// Returns indexes of degrees of freedom for i'th face element (2D and 3D).
    void GetFaceVDofs(int i, Array<int> &vdofs) const;
 
+   /// Returns indexes of degrees of freedom for i'th planar element (4D).
+   void GetPlanarVDofs(int i, Array<int> &vdofs) const;
+
    /// Returns indexes of degrees of freedom for i'th edge.
    void GetEdgeVDofs(int i, Array<int> &vdofs) const;
 

@@ -4022,6 +4022,79 @@ int NCMesh::GetEdgeMaster(int node) const
    return -1;
 }
 
+int NCMesh::GetPlanarMaster(int planar) const
+{
+   MFEM_ASSERT(planar >= 0, "planar not found.");
+   const Planar &pl = planars[planar];
+
+   int p1 = pl.p1; int p2 = pl.p2; int p3 = pl.p3;
+   const Node &n1 = nodes[p1], &n2 = nodes[p2], &n3 = nodes[p3];
+
+   int n1p1 = n1.p1, n1p2 = n1.p2;
+   int n2p1 = n2.p1, n2p2 = n2.p2;
+   int n3p1 = n3.p1, n3p2 = n3.p2;
+
+   int parent_pl[3] = { -1, -1, -1};
+   int parent_count = 0;
+
+   if ((n2p1 != n2p2) && (p1 == n2p1 || p1 == n2p2))
+   {
+      // the triangle planar is the lower left triangle
+      parent_pl[parent_count++] = p1;
+      if (p1 == n2p1)
+         parent_pl[parent_count++] = n2p2;
+      else
+         parent_pl[parent_count++] = n2p1;
+
+      if (p1 == n3p1)
+         parent_pl[parent_count++] = n3p2;
+      else
+         parent_pl[parent_count++] = n3p1;
+   }
+   else if ((n1p1 != n1p2) && (p2 == n1p1 || p2 == n1p2))
+   {
+      // the triangle planar is the lower right triangle
+      parent_pl[parent_count++] = p2;
+      if (p2 == n1p1)
+         parent_pl[parent_count++] = n1p2;
+      else
+         parent_pl[parent_count++] = n1p1;
+
+      if (p2 == n3p1)
+         parent_pl[parent_count++] = n3p2;
+      else
+         parent_pl[parent_count++] = n3p1;
+   }
+   else if ((n1p1 != n1p2) && (p3 == n1p1 || p3 == n1p2))
+   {
+      // the triangle planar is the upper triangle
+      parent_pl[parent_count++] = p3;
+      if (p3 == n1p1)
+         parent_pl[parent_count++] = n1p2;
+      else
+         parent_pl[parent_count++] = n1p1;
+
+      if (p3 == n2p1)
+         parent_pl[parent_count++] = n2p2;
+      else
+         parent_pl[parent_count++] = n2p1;
+   }
+   else if ((n1p1 != n1p2) && (n2p1 != n2p2) && (n3p1 != n3p2))
+   {
+      // the triangle planar is the middle triangle
+      Array<int> s(6);
+      s[0] = n1p1; s[1] = n1p2;
+      s[2] = n2p1; s[3] = n2p2;
+      s[4] = n3p1; s[5] = n3p2;
+      s.Unique();
+      parent_pl[0] = s[0];
+      parent_pl[1] = s[1];
+      parent_pl[2] = s[2];
+   }
+
+   return planars.FindId(parent_pl[0],parent_pl[1],parent_pl[2],std::numeric_limits<int>::max());
+}
+
 int NCMesh::GetEdgeMaster(int v1, int v2) const
 {
    int node = nodes.FindId(vertex_nodeId[v1], vertex_nodeId[v2]);
@@ -4096,42 +4169,7 @@ void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
    bdr_vertices.SetSize(0);
    bdr_edges.SetSize(0);
 
-   if (Dim == 4)
-   {
-      GetFaceList(); // make sure 'boundary_faces' is up to date
-
-      for (int i = 0; i < boundary_faces.Size(); i++)
-      {
-         int face = boundary_faces[i];
-         if (bdr_attr_is_ess[faces4d[face].attribute - 1])
-         {
-            int node[4];
-            FindFaceNodes4D(face, node);
-            
-           // TODO add planars that might not be reachable from any boundary element!
-
-            for (int j = 0; j < 4; j++)
-            {
-               bdr_vertices.Append(nodes[node[j]].vert_index);
-
-               for (int k = j+1; k < 4; k++)
-               {
-                  int enode = nodes.FindId(node[j], node[k]);
-                  MFEM_ASSERT(enode >= 0 && nodes[enode].HasEdge(), "Edge not found.");
-                  bdr_edges.Append(nodes[enode].edge_index);
-
-                  while ((enode = GetEdgeMaster(enode)) >= 0)
-                  {
-                     // append master edges that may not be accessible from any
-                     // boundary element, this happens in 3D in re-entrant corners
-                     bdr_edges.Append(nodes[enode].edge_index);
-                  }
-               }
-            }
-         }
-      }
-   }
-   else if (Dim == 3)
+   if (Dim == 3)
    {
       GetFaceList(); // make sure 'boundary_faces' is up to date
 
@@ -4183,6 +4221,69 @@ void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
    bdr_edges.Sort();
    bdr_edges.Unique();
 }
+
+void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
+                                Array<int> &bdr_vertices, Array<int> &bdr_edges, Array<int> &bdr_planars)
+{
+   bdr_vertices.SetSize(0);
+   bdr_edges.SetSize(0);
+   bdr_planars.SetSize(0);
+
+   if (Dim < 4)
+      return;
+   GetFaceList(); // make sure 'boundary_faces' is up to date
+
+   for (int i = 0; i < boundary_faces.Size(); i++)
+   {
+      int face = boundary_faces[i];
+      if (bdr_attr_is_ess[faces4d[face].attribute - 1])
+      {
+         int node[4];
+         FindFaceNodes4D(face, node);
+
+         for (int j = 0; j < 4; j++)
+         {
+            bdr_vertices.Append(nodes[node[j]].vert_index);
+
+            for (int k = j+1; k < 4; k++)
+            {
+               int enode = nodes.FindId(node[j], node[k]);
+               MFEM_ASSERT(enode >= 0 && nodes[enode].HasEdge(), "Edge not found.");
+               bdr_edges.Append(nodes[enode].edge_index);
+
+               while ((enode = GetEdgeMaster(enode)) >= 0)
+               {
+                  // append master edges that may not be accessible from any
+                  // boundary element, this happens in 3D in re-entrant corners
+                  bdr_edges.Append(nodes[enode].edge_index);
+               }
+            }
+            const int *fv = Geometry::Constants<Geometry::TETRAHEDRON>::FaceVert[j];
+
+            int planar = planars.FindId(node[fv[0]],node[fv[1]],node[fv[2]],std::numeric_limits<int>::max());
+            MFEM_ASSERT(planar >= 0, "Planar not found.");
+
+            bdr_planars.Append(planars[planar].index);
+
+            while ((planar = GetPlanarMaster(planar)) >= 0)
+            {
+               bdr_planars.Append(planars[planar].index);
+            }
+         }
+
+      }
+   }
+
+   bdr_vertices.Sort();
+   bdr_vertices.Unique();
+
+   bdr_edges.Sort();
+   bdr_edges.Unique();
+
+   bdr_planars.Sort();
+   bdr_planars.Unique();
+}
+
 
 int NCMesh::EdgeSplitLevel(int vn1, int vn2) const
 {
