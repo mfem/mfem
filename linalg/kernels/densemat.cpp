@@ -39,22 +39,19 @@ void kLSolve( const int m,
    GET_CONST_ADRS_T(ipiv,int);
    GET_ADRS(x);
 
-   forall(p, 1, {
-         for (int k = 0; k < n; k++){
-            double *d_mx = &d_x[k*m];
-            // X <- P X
-            for (int i = 0; i < m; i++){
-               Swap<double>(d_mx[i], d_mx[d_ipiv[i]-ipiv_base]);
-            }
-            // X <- L^{-1} X
-            for (int j = 0; j < m; j++){
-               const double d_mx_j = d_mx[j];
-               for (int i = j+1; i < m; i++){
-                  d_mx[i] -= d_data[i+j*m] * d_mx_j;
-               }
-            }
-            //d_x = d_x +m;
+   forall(k, n, {
+         double *d_mx = &d_x[k*m];
+         // X <- P X
+         for (int i = 0; i < m; i++){
+            Swap<double>(d_mx[i], d_mx[d_ipiv[i]-ipiv_base]);
          }
+         // X <- L^{-1} X
+         for (int j = 0; j < m; j++){
+            const double d_mx_j = d_mx[j];
+            for (int i = j+1; i < m; i++){
+               d_mx[i] -= d_data[i+j*m] * d_mx_j;
+            }
+         }      
       });
 }
 
@@ -64,16 +61,13 @@ void kUSolve(const int m, const int n, const double *data, double *x){
    GET_CONST_ADRS(data);
    GET_ADRS(x);
    
-   forall(p, 1, {
-         for (int k = 0; k < n; k++){
-            double *d_mx = &d_x[k*m];
-            for (int j = m-1; j >= 0; j--){
-               const double x_j = ( d_mx[j] /= d_data[j+j*m] );
-               for (int i = 0; i < j; i++) {
-                  d_mx[i] -= d_data[i+j*m] * x_j;
-               }
+   forall(k, n, {
+         double *d_mx = &d_x[k*m];
+         for (int j = m-1; j >= 0; j--){
+            const double x_j = ( d_mx[j] /= d_data[j+j*m] );
+            for (int i = 0; i < j; i++) {
+               d_mx[i] -= d_data[i+j*m] * x_j;
             }
-            //x += m;
          }
       });
 }
@@ -102,8 +96,8 @@ void kFactor(const int m, int *ipiv, double *data){
    dbg();
    GET_ADRS_T(ipiv,int);
    GET_ADRS(data);
-   forall(k,1,{
-         for (int i = 0; i < m; i++) {
+   forall(i,m,{
+         //for (int i = 0; i < m; i++) {
             // pivoting
             {
                int piv = i;
@@ -149,7 +143,7 @@ void kFactor(const int m, int *ipiv, double *data){
                   d_data[j+k*m] -= a_ik * d_data[j+i*m];
                }
             }
-         }
+            //}
       });
 }        
 

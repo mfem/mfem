@@ -329,23 +329,23 @@ void NodalFiniteElement::Project (
       dbg("Eval");
       vc.Eval(x, Trans, ip); // fem/coefficient:109:
       //mm::Get().Push(x.GetData());
-      dbg("x:"); x.Print();
+      //dbg("x:"); x.Print();
       
       if (MapType == INTEGRAL)
       {
          assert(false);
          x *= Trans.Weight();
       }
-      dbg("pre dofs:");dofs.Print();
+      //dbg("pre dofs:");dofs.Print();
       for (int j = 0; j < x.Size(); j++)
       {
          const int dji = Dof*j+i;
          kVectorMapDof(dofs.GetData(),x.GetData(),dji,j);
       }
-      dbg("post dofs:");dofs.Print();
+      //dbg("post dofs:");dofs.Print();
    }
    //mm::Get().Push(dofs.GetData());
-   dbg("done dofs:");dofs.Print();
+   //dbg("done dofs:");dofs.Print();
    //assert(false);
 }
 
