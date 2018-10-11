@@ -314,7 +314,10 @@ public:
 
    // generate connections between boundaries -- such as periodic BCs
    void ConnectBoundaries(Array<int> &master, Array<int> &slave);
-
+   const Array<int> &GetMaster() const { return  master; };
+   Array<int> &GetMaster()  { return  master; };
+   const Array<int> &GetSlave() const { return  slave; };
+   Array<int> &GetSlave()  { return  slave; };
    void MergeGridFunctions(GridFunction *gf_array[], int num_pieces,
                            GridFunction &merged);
 

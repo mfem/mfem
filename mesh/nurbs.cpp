@@ -1582,13 +1582,6 @@ void NURBSExtension::Print(std::ostream &out) const
             }
       }
 
-     /* if (master.Size() != 0)
-      {
-         out << "\nperiodic\n";
-         master.Print(out, master.Size());
-         slave.Print(out, slave.Size());
-      }*/
-
       out << "\nweights\n";
       weights.Print(out, 1);
    }

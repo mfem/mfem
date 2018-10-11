@@ -1824,8 +1824,13 @@ void FiniteElementSpace::Save(std::ostream &out) const
        << "FiniteElementCollection: " << fec->Name() << '\n'
        << "VDim: " << vdim << '\n'
        << "Ordering: " << ordering << '\n';
-
-   if (fes_format == 100) // v1.0
+   if ((fes_format == 90) && NURBSext)
+   {
+      out <<"Periodic: "<<endl;
+      NURBSext->GetMaster().Save(out);
+      NURBSext->GetSlave().Save(out);
+   }
+   else if (fes_format == 100) // v1.0
    {
       if (!NURBSext)
       {
