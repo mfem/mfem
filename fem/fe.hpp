@@ -140,13 +140,13 @@ class KnotVector;
 class FiniteElement
 {
 protected:
-   int Dim,      ///< Dimension of reference space
-       GeomType, ///< Geometry::Type of the reference element
-       FuncSpace, RangeType, MapType,
+   int Dim;      ///< Dimension of reference space
+   Geometry::Type GeomType; ///< Geometry::Type of the reference element
+   int FuncSpace, RangeType, MapType,
        DerivType, DerivRangeType, DerivMapType;
    mutable
-   int  Dof,      ///< Number of degrees of freedom
-        Order;    ///< Order/degree of the shape functions
+   int Dof,      ///< Number of degrees of freedom
+       Order;    ///< Order/degree of the shape functions
    mutable int Orders[Geometry::MaxDim]; ///< Anisotropic orders
    IntegrationRule Nodes;
 #ifndef MFEM_THREAD_SAFE
@@ -205,13 +205,14 @@ public:
        @param O    Order/degree of the FiniteElement
        @param F    FunctionSpace type of the FiniteElement
     */
-   FiniteElement(int D, int G, int Do, int O, int F = FunctionSpace::Pk);
+   FiniteElement(int D, Geometry::Type G, int Do, int O,
+                 int F = FunctionSpace::Pk);
 
    /// Returns the reference space dimension for the finite element
    int GetDim() const { return Dim; }
 
    /// Returns the Geometry::Type of the reference element
-   int GetGeomType() const { return GeomType; }
+   Geometry::Type GetGeomType() const { return GeomType; }
 
    /// Returns the number of degrees of freedom in the finite element
    int GetDof() const { return Dof; }
@@ -446,7 +447,8 @@ protected:
    }
 
 public:
-   ScalarFiniteElement(int D, int G, int Do, int O, int F = FunctionSpace::Pk)
+   ScalarFiniteElement(int D, Geometry::Type G, int Do, int O,
+                       int F = FunctionSpace::Pk)
 #ifdef MFEM_THREAD_SAFE
       : FiniteElement(D, G, Do, O, F)
    { DerivType = GRAD; DerivRangeType = VECTOR; DerivMapType = H_CURL; }
@@ -484,7 +486,8 @@ protected:
                        DenseMatrix &curl) const;
 
 public:
-   NodalFiniteElement(int D, int G, int Do, int O, int F = FunctionSpace::Pk)
+   NodalFiniteElement(int D, Geometry::Type G, int Do, int O,
+                      int F = FunctionSpace::Pk)
       : ScalarFiniteElement(D, G, Do, O, F) { }
 
    virtual void GetLocalInterpolation(ElementTransformation &Trans,
@@ -522,7 +525,7 @@ public:
 class PositiveFiniteElement : public ScalarFiniteElement
 {
 public:
-   PositiveFiniteElement(int D, int G, int Do, int O,
+   PositiveFiniteElement(int D, Geometry::Type G, int Do, int O,
                          int F = FunctionSpace::Pk) :
       ScalarFiniteElement(D, G, Do, O, F)
    { }
@@ -638,7 +641,7 @@ protected:
    }
 
 public:
-   VectorFiniteElement (int D, int G, int Do, int O, int M,
+   VectorFiniteElement (int D, Geometry::Type G, int Do, int O, int M,
                         int F = FunctionSpace::Pk) :
 #ifdef MFEM_THREAD_SAFE
       FiniteElement(D, G, Do, O, F)
@@ -1020,6 +1023,7 @@ public:
    virtual void ProjectDelta(int vertex, Vector &dofs) const
    { dofs = 0.0; dofs(vertex) = 1.0; }
 };
+
 
 /// Crouzeix-Raviart finite element on triangle
 class CrouzeixRaviartFiniteElement : public NodalFiniteElement
@@ -1685,14 +1689,16 @@ public:
        Array will be empty. */
    const Array<int> &GetDofMap() const { return dof_map; }
 
-   static int GetTensorProductGeometry(int dim)
+   static Geometry::Type GetTensorProductGeometry(int dim)
    {
       switch (dim)
       {
          case 1: return Geometry::SEGMENT;
          case 2: return Geometry::SQUARE;
          case 3: return Geometry::CUBE;
-         default: MFEM_ABORT("invalid dimension: " << dim); return -1;
+         default:
+            MFEM_ABORT("invalid dimension: " << dim);
+            return Geometry::INVALID;
       }
    }
 
@@ -1922,6 +1928,71 @@ public:
 };
 
 
+class H1_WedgeElement : public NodalFiniteElement
+{
+private:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector t_shape, s_shape;
+   mutable DenseMatrix t_dshape, s_dshape;
+#endif
+   Array<int> t_dof, s_dof;
+
+   H1_TriangleElement TriangleFE;
+   H1_SegmentElement  SegmentFE;
+
+public:
+   H1_WedgeElement(const int p,
+                   const int btype = BasisType::GaussLobatto);
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+};
+
+/// Class for linear FE on wedge
+class BiLinear3DFiniteElement : public H1_WedgeElement
+{
+public:
+   /// Construct a linear FE on wedge
+   BiLinear3DFiniteElement() : H1_WedgeElement(1) {}
+};
+
+/// Class for quadratic FE on wedge
+class BiQuadratic3DFiniteElement : public H1_WedgeElement
+{
+public:
+   /// Construct a quadratic FE on wedge
+   BiQuadratic3DFiniteElement() : H1_WedgeElement(2) {}
+};
+
+/// Class for cubic FE on wedge
+class BiCubic3DFiniteElement : public H1_WedgeElement
+{
+public:
+   /// Construct a cubic FE on wedge
+   BiCubic3DFiniteElement() : H1_WedgeElement(3) {}
+};
+
+class H1Pos_WedgeElement : public PositiveFiniteElement
+{
+protected:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector t_shape, s_shape;
+   mutable DenseMatrix t_dshape, s_dshape;
+#endif
+   Array<int> t_dof, s_dof;
+
+   H1Pos_TriangleElement TriangleFE;
+   H1Pos_SegmentElement  SegmentFE;
+
+public:
+   H1Pos_WedgeElement(const int p);
+
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+};
+
+
 class L2_SegmentElement : public NodalTensorFiniteElement
 {
 private:
@@ -2096,6 +2167,53 @@ public:
    virtual void CalcDShape(const IntegrationPoint &ip,
                            DenseMatrix &dshape) const;
    virtual void ProjectDelta(int vertex, Vector &dofs) const;
+};
+
+
+class L2_WedgeElement : public NodalFiniteElement
+{
+private:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector t_shape, s_shape;
+   mutable DenseMatrix t_dshape, s_dshape;
+#endif
+   Array<int> t_dof, s_dof;
+
+   L2_TriangleElement TriangleFE;
+   L2_SegmentElement  SegmentFE;
+
+public:
+   L2_WedgeElement(const int p,
+                   const int btype = BasisType::GaussLegendre);
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+};
+
+class P0WedgeFiniteElement : public L2_WedgeElement
+{
+public:
+   P0WedgeFiniteElement () : L2_WedgeElement(0) {}
+};
+
+class L2Pos_WedgeElement : public PositiveFiniteElement
+{
+protected:
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector t_shape, s_shape;
+   mutable DenseMatrix t_dshape, s_dshape;
+#endif
+   Array<int> t_dof, s_dof;
+
+   L2Pos_TriangleElement TriangleFE;
+   L2Pos_SegmentElement  SegmentFE;
+
+public:
+   L2Pos_WedgeElement(const int p);
+
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
 };
 
 
@@ -2555,7 +2673,7 @@ protected:
    mutable Vector weights;
 
 public:
-   NURBSFiniteElement(int D, int G, int Do, int O, int F)
+   NURBSFiniteElement(int D, Geometry::Type G, int Do, int O, int F)
       : ScalarFiniteElement(D, G, Do, O, F)
    {
       ijk = NULL;
