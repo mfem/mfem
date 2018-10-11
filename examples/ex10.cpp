@@ -7,6 +7,7 @@
 //    ex10 -m ../data/beam-tri.mesh -s 3 -r 2 -o 2 -dt 3
 //    ex10 -m ../data/beam-hex.mesh -s 2 -r 1 -o 2 -dt 3
 //    ex10 -m ../data/beam-tet.mesh -s 2 -r 1 -o 2 -dt 3
+//    ex10 -m ../data/beam-wedge.mesh -s 2 -r 1 -o 2 -dt 3
 //    ex10 -m ../data/beam-quad.mesh -s 14 -r 2 -o 2 -dt 0.03 -vs 20
 //    ex10 -m ../data/beam-hex.mesh -s 14 -r 1 -o 2 -dt 0.05 -vs 20
 //    ex10 -m ../data/beam-quad-amr.mesh -s 3 -r 2 -o 2 -dt 3

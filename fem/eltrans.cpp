@@ -369,7 +369,8 @@ int InverseElementTransformation::Transform(const Vector &pt,
 }
 
 
-void IsoparametricTransformation::SetIdentityTransformation(int GeomType)
+void IsoparametricTransformation::SetIdentityTransformation(
+   Geometry::Type GeomType)
 {
    switch (GeomType)
    {
@@ -379,6 +380,7 @@ void IsoparametricTransformation::SetIdentityTransformation(int GeomType)
       case Geometry::SQUARE :      FElem = &QuadrilateralFE; break;
       case Geometry::TETRAHEDRON : FElem = &TetrahedronFE; break;
       case Geometry::CUBE :        FElem = &HexahedronFE; break;
+      case Geometry::PRISM :       FElem = &WedgeFE; break;
       default:
          MFEM_ABORT("unknown Geometry::Type!");
    }

@@ -6,6 +6,7 @@
 //               mpirun -np 4 ex2p -m ../data/beam-quad.mesh
 //               mpirun -np 4 ex2p -m ../data/beam-tet.mesh
 //               mpirun -np 4 ex2p -m ../data/beam-hex.mesh
+//               mpirun -np 4 ex2p -m ../data/beam-wedge.mesh
 //               mpirun -np 4 ex2p -m ../data/beam-tri.mesh -o 2 -sys
 //               mpirun -np 4 ex2p -m ../data/beam-quad.mesh -o 3 -elast
 //               mpirun -np 4 ex2p -m ../data/beam-quad.mesh -o 3 -sc
