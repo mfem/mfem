@@ -22,17 +22,17 @@
 // *****************************************************************************
 template<const int NUM_DOFS_1D,
          const int NUM_QUAD_1D> 
-void rDiffusionMultAdd2D(const int numElements,
-                         const double* __restrict dofToQuad,
-                         const double* __restrict dofToQuadD,
-                         const double* __restrict quadToDof,
-                         const double* __restrict quadToDofD,
-                         const double* __restrict oper,
-                         const double* __restrict solIn,
-                         double* __restrict solOut)
+void kIntDiffusionMultAdd2D(const int numElements,
+                            const double* __restrict dofToQuad,
+                            const double* __restrict dofToQuadD,
+                            const double* __restrict quadToDof,
+                            const double* __restrict quadToDofD,
+                            const double* __restrict oper,
+                            const double* __restrict solIn,
+                            double* __restrict solOut)
 {
    forall(e, numElements, {
-      double grad[NUM_QUAD_1D][NUM_QUAD_1D][2];
+         double grad[NUM_QUAD_1D][NUM_QUAD_1D][2];
       for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
          for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
             grad[qy][qx][0] = 0.0;
@@ -122,39 +122,39 @@ typedef void (*fDiffusionMultAdd)(const int numElements,
                                   double* __restrict solOut);
 
 // *****************************************************************************
-void rDiffusionMultAdd(const int DIM,
-                       const int NUM_DOFS_1D,
-                       const int NUM_QUAD_1D,
-                       const int numElements,
-                       const double* dofToQuad,
-                       const double* dofToQuadD,
-                       const double* quadToDof,
-                       const double* quadToDofD,
-                       const double* op,
-                       const double* x,
-                       double* __restrict y)
+void kIntDiffusionMultAdd(const int DIM,
+                          const int NUM_DOFS_1D,
+                          const int NUM_QUAD_1D,
+                          const int numElements,
+                          const double* dofToQuad,
+                          const double* dofToQuadD,
+                          const double* quadToDof,
+                          const double* quadToDofD,
+                          const double* op,
+                          const double* x,
+                          double* __restrict y)
 {
    const unsigned int id = (DIM<<16)|((NUM_DOFS_1D-1)<<8)|(NUM_QUAD_1D>>1);
    dbg("NUM_DOFS_1D=%d",NUM_DOFS_1D);
    dbg("NUM_QUAD_1D=%d",NUM_QUAD_1D);
    dbg("id=0x%x",id);
    static std::unordered_map<unsigned int, fDiffusionMultAdd> call = {
-    {0x20001,&rDiffusionMultAdd2D<1,2>},
-    {0x20100,&rDiffusionMultAdd2D<2,1>},
-    {0x20101,&rDiffusionMultAdd2D<2,2>},
-    {0x20102,&rDiffusionMultAdd2D<2,4>},
-    {0x20201,&rDiffusionMultAdd2D<3,3>},
-    {0x20202,&rDiffusionMultAdd2D<3,4>},
-    {0x20203,&rDiffusionMultAdd2D<3,6>},
-    {0x20302,&rDiffusionMultAdd2D<4,5>},
-    {0x20303,&rDiffusionMultAdd2D<4,6>},
-    //{0x30001,&rDiffusionMultAdd3D<1,2>},
-    //{0x30101,&rDiffusionMultAdd3D<2,2>},
-    //{0x30102,&rDiffusionMultAdd3D<2,4>},
-    //{0x30202,&rDiffusionMultAdd3D<3,4>},
+    {0x20001,&kIntDiffusionMultAdd2D<1,2>},
+    {0x20100,&kIntDiffusionMultAdd2D<2,1>},
+    {0x20101,&kIntDiffusionMultAdd2D<2,2>},
+    {0x20102,&kIntDiffusionMultAdd2D<2,4>},
+    {0x20201,&kIntDiffusionMultAdd2D<3,3>},
+    {0x20202,&kIntDiffusionMultAdd2D<3,4>},
+    {0x20203,&kIntDiffusionMultAdd2D<3,6>},
+    {0x20302,&kIntDiffusionMultAdd2D<4,5>},
+    {0x20303,&kIntDiffusionMultAdd2D<4,6>},
+    //{0x30001,&kIntDiffusionMultAdd3D<1,2>},
+    //{0x30101,&kIntDiffusionMultAdd3D<2,2>},
+    //{0x30102,&kIntDiffusionMultAdd3D<2,4>},
+    //{0x30202,&kIntDiffusionMultAdd3D<3,4>},
    };
    if(!call[id]){
-      printf("\n[rDiffusionMultAdd] id \033[33m0x%X\033[m ",id);
+      printf("\n[kIntDiffusionMultAdd] id \033[33m0x%X\033[m ",id);
       fflush(stdout);
    }
    assert(call[id]);
