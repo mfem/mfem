@@ -21,7 +21,7 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS =
+SEQ_MINIAPPS = hertz_ser
 PAR_MINIAPPS = volta tesla maxwell hertz joule
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -34,7 +34,7 @@ endif
 .PHONY: all clean clean-build clean-exec
 .PRECIOUS: %.o
 
-COMMON_O=../common/pfem_extras.o
+COMMON_O=../common/fem_extras.o ../common/pfem_extras.o
 
 # Remove built-in rules
 %: %.cpp
@@ -99,4 +99,5 @@ clean-build:
 
 clean-exec:
 	@rm -rf Volta-AMR* Tesla-AMR* Maxwell-Parallel* Hertz-AMR-Parallel* \
+	Hertz-AMR-Serial* \
 	Joule_*
