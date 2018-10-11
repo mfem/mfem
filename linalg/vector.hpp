@@ -319,7 +319,6 @@ inline Vector::Vector (int s)
    if (s > 0)
    {
       allocsize = size = s;
-      //data = new double[s];
       data = mm::malloc<double>(s);
    }
    else
@@ -342,19 +341,16 @@ inline void Vector::SetSize(int s)
    }
    if (allocsize > 0)
    {
-      //delete [] data;
       mm::free<double>(data);
    }
    allocsize = size = s;
    data = mm::malloc<double>(s);
-   //data = new double[s];
 }
 
 inline void Vector::Destroy()
 {
    if (allocsize > 0)
    {
-      //delete [] data;
       mm::free<double>(data);
    }
    allocsize = size = 0;
@@ -378,7 +374,8 @@ inline const double & Vector::operator() (int i) const
 }
 
 inline void Vector::Swap(Vector &other)
-{OKINA_ASSERT_CPU;
+{
+   OKINA_ASSERT_CPU;
    mfem::Swap(size, other.size);
    mfem::Swap(allocsize, other.allocsize);
    mfem::Swap(data, other.data);
@@ -394,13 +391,13 @@ inline Vector::~Vector()
 {
    if (allocsize > 0)
    {
-      //delete [] data;
       mm::free<double>(data);
    }
 }
 
 inline double DistanceSquared(const double *x, const double *y, const int n)
-{OKINA_ASSERT_CPU;
+{
+   OKINA_ASSERT_CPU;
    double d = 0.0;
 
    for (int i = 0; i < n; i++)
@@ -412,17 +409,20 @@ inline double DistanceSquared(const double *x, const double *y, const int n)
 }
 
 inline double Distance(const double *x, const double *y, const int n)
-{OKINA_ASSERT_CPU;
+{
+   OKINA_ASSERT_CPU;
    return std::sqrt(DistanceSquared(x, y, n));
 }
 
 inline double Vector::DistanceSquaredTo(const double *p) const
-{OKINA_ASSERT_CPU;
+{
+   OKINA_ASSERT_CPU;
    return DistanceSquared(data, p, size);
 }
 
 inline double Vector::DistanceTo(const double *p) const
-{OKINA_ASSERT_CPU;
+{
+   OKINA_ASSERT_CPU;
    return Distance(data, p, size);
 }
 
@@ -431,7 +431,8 @@ inline double Vector::DistanceTo(const double *p) const
     producing different results on each MPI rank.
 */
 inline double InnerProduct(const Vector &x, const Vector &y)
-{OKINA_ASSERT_CPU;
+{
+   OKINA_ASSERT_CPU;
    return x * y;
 }
 
@@ -441,7 +442,8 @@ inline double InnerProduct(const Vector &x, const Vector &y)
     producing identical results on each MPI rank.
 */
 inline double InnerProduct(MPI_Comm comm, const Vector &x, const Vector &y)
-{OKINA_ASSERT_CPU;
+{
+   OKINA_ASSERT_CPU;
    double loc_prod = x * y;
    double glb_prod;
    MPI_Allreduce(&loc_prod, &glb_prod, 1, MPI_DOUBLE, MPI_SUM, comm);
