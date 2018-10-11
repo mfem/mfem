@@ -15,57 +15,26 @@
 // testbed platforms, in support of the nation's exascale computing imperative.
 
 #include "../../general/okina.hpp"
-#include "kernels.hpp"
-using namespace mfem;
 
 // *****************************************************************************
-#ifdef __NVCC__
-extern "C" kernel
-#endif
-void rNodeCopyByVDim0(const int elements,
+void rNodeCopyByVDim(const int elements,
                       const int numDofs,
                       const int ndofs,
                       const int dims,
                       const int* eMap,
                       const double* Sx,
-                      double* nodes)
-{
-#ifdef __NVCC__
-   const int e = blockDim.x * blockIdx.x + threadIdx.x;
-   if (e < elements)
-#else
-   forall(e,elements,
-#endif
-   {
-      for (int dof = 0; dof < numDofs; ++dof)
-      {
-         const int lid = dof+numDofs*e;
-         const int gid = eMap[lid];
-         for (int v = 0; v < dims; ++v)
+                      double* nodes){
+   forall(e,elements, {
+         for (int dof = 0; dof < numDofs; ++dof)
          {
-            const int moffset = v+dims*lid;
-            const int voffset = gid+v*ndofs;
-            nodes[moffset] = Sx[voffset];
+            const int lid = dof+numDofs*e;
+            const int gid = eMap[lid];
+            for (int v = 0; v < dims; ++v)
+            {
+               const int moffset = v+dims*lid;
+               const int voffset = gid+v*ndofs;
+               nodes[moffset] = Sx[voffset];
+            }
          }
-      }
-   }
-#ifndef __NVCC__
-   );
-#endif
-}
-
-// *****************************************************************************
-void rNodeCopyByVDim(const int elements,
-                     const int numDofs,
-                     const int ndofs,
-                     const int dims,
-                     const int* eMap,
-                     const double* Sx,
-                     double* nodes)
-{
-#ifdef __NVCC__
-   cuKer(rNodeCopyByVDim,elements,numDofs,ndofs,dims,eMap,Sx,nodes);
-#else
-   rNodeCopyByVDim0(elements,numDofs,ndofs,dims,eMap,Sx,nodes);
-#endif
+      });
 }

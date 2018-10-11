@@ -15,13 +15,13 @@
 // testbed platforms, in support of the nation's exascale computing imperative.
 
 #include "../../general/okina.hpp"
-using namespace mfem;
 
+// *****************************************************************************
 #define QUAD_2D_ID(X, Y) (X + ((Y) * NUM_QUAD_1D))
 
 // *****************************************************************************
 template<const int NUM_DOFS_1D,
-         const int NUM_QUAD_1D> __kernel__
+         const int NUM_QUAD_1D> 
 void rDiffusionMultAdd2D(const int numElements,
                          const double* __restrict dofToQuad,
                          const double* __restrict dofToQuadD,
@@ -31,14 +31,7 @@ void rDiffusionMultAdd2D(const int numElements,
                          const double* __restrict solIn,
                          double* __restrict solOut)
 {
-#ifdef __NVCC__
-   const int e = blockDim.x * blockIdx.x + threadIdx.x;
-   if (e < numElements)
-#else
-   forall(e,numElements,
-#endif
-   {
-      //if (e==0) printf("\n\t[rDiffusionMultAdd2D] NUM_QUAD_1D=%d, NUM_DOFS_1D=%d",NUM_QUAD_1D,NUM_DOFS_1D);
+   forall(e, numElements, {
       double grad[NUM_QUAD_1D][NUM_QUAD_1D][2];
       for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
          for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
@@ -56,7 +49,6 @@ void rDiffusionMultAdd2D(const int numElements,
 
          for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
             const double s = solIn[ijkN(dx,dy,e,NUM_DOFS_1D)];
-            //printf("\n\t[rDiffusionMultAdd2D] %f",s);
             for (int qx = 0; qx < NUM_QUAD_1D; ++qx){
                gradX[qx][0] += s * dofToQuad[ijN(qx,dx,NUM_QUAD_1D)];
                gradX[qx][1] += s * dofToQuadD[ijN(qx,dx,NUM_QUAD_1D)];
@@ -104,7 +96,6 @@ void rDiffusionMultAdd2D(const int numElements,
                const double wDx = quadToDofD[ijN(dx,qx,NUM_DOFS_1D)];
                gradX[dx][0] += gX * wDx;
                gradX[dx][1] += gY * wx;
-               //printf("\n\t[rDiffusionMultAdd2D] gradX: %f %f",gradX[dx][0],gradX[dx][1]);
             }
          }
 
@@ -117,10 +108,7 @@ void rDiffusionMultAdd2D(const int numElements,
             }
          }
       }
-   }
-#ifndef __NVCC__
-          );
-#endif
+   });
 }
 
 // *****************************************************************************
@@ -146,15 +134,10 @@ void rDiffusionMultAdd(const int DIM,
                        const double* x,
                        double* __restrict y)
 {
-#ifdef __NVCC__
-   const int blck = 256;
-   const int grid = (numElements+blck-1)/blck;
-#endif
    const unsigned int id = (DIM<<16)|((NUM_DOFS_1D-1)<<8)|(NUM_QUAD_1D>>1);
    dbg("NUM_DOFS_1D=%d",NUM_DOFS_1D);
    dbg("NUM_QUAD_1D=%d",NUM_QUAD_1D);
    dbg("id=0x%x",id);
-   //assert(false);
    static std::unordered_map<unsigned int, fDiffusionMultAdd> call = {
     {0x20001,&rDiffusionMultAdd2D<1,2>},
     {0x20100,&rDiffusionMultAdd2D<2,1>},
@@ -184,8 +167,5 @@ void rDiffusionMultAdd(const int DIM,
    GET_CONST_ADRS(x);
    GET_ADRS(y);
    
-   call0(rDiffusionMultAdd,id,grid,blck,
-         numElements,
-         d_dofToQuad, d_dofToQuadD, d_quadToDof, d_quadToDofD, d_op, d_x, d_y);
-   //assert(false);
+   call[id](numElements, d_dofToQuad, d_dofToQuadD, d_quadToDof, d_quadToDofD, d_op, d_x, d_y);
 }

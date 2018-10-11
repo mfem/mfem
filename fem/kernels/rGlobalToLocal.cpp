@@ -15,41 +15,8 @@
 // testbed platforms, in support of the nation's exascale computing imperative.
 
 #include "../../general/okina.hpp"
-#include "kernels.hpp"
-using namespace mfem;
 
 // *****************************************************************************
-extern "C" __kernel__
-void rGlobalToLocal0(const int globalEntries,
-                     const int NUM_VDIM,
-                     const bool VDIM_ORDERING,                     
-                     const int localEntries,
-                     const int* __restrict offsets,
-                     const int* __restrict indices,
-                     const double* __restrict globalX,
-                     double* __restrict localX) {
-#ifdef __NVCC__
-  const int i = blockDim.x * blockIdx.x + threadIdx.x;
-  if (i < globalEntries)
-#else
-  forall(i,globalEntries,
-#endif
-  {
-    const int offset = offsets[i];
-    const int nextOffset = offsets[i+1];
-    for (int v = 0; v < NUM_VDIM; ++v) {
-      const int g_offset = ijNMt(v,i,NUM_VDIM,globalEntries,VDIM_ORDERING);
-      const double dofValue = globalX[g_offset];
-      for (int j = offset; j < nextOffset; ++j) {
-        const int l_offset = ijNMt(v,indices[j],NUM_VDIM,localEntries,VDIM_ORDERING);
-        localX[l_offset] = dofValue;
-      }
-    }
-  }
-#ifndef __NVCC__
-         );
-#endif
-}
 void rGlobalToLocal(const int NUM_VDIM,
                     const bool VDIM_ORDERING,
                     const int globalEntries,
@@ -64,7 +31,16 @@ void rGlobalToLocal(const int NUM_VDIM,
    GET_CONST_ADRS(globalX);
    GET_ADRS(localX);
    
-   cuKer(rGlobalToLocal, globalEntries, NUM_VDIM, VDIM_ORDERING, localEntries,
-         d_offsets, d_indices, d_globalX, d_localX);
-   //assert(false);
+   forall(i, globalEntries, {
+         const int offset = d_offsets[i];
+         const int nextOffset = d_offsets[i+1];
+         for (int v = 0; v < NUM_VDIM; ++v) {
+            const int g_offset = ijNMt(v,i,NUM_VDIM,globalEntries,VDIM_ORDERING);
+            const double dofValue = d_globalX[g_offset];
+            for (int j = offset; j < nextOffset; ++j) {
+               const int l_offset = ijNMt(v,d_indices[j],NUM_VDIM,localEntries,VDIM_ORDERING);
+               d_localX[l_offset] = dofValue;
+            }
+         }
+      });
 }

@@ -26,7 +26,7 @@ void kernel(const size_t N, BODY body) {
 template <typename DBODY, typename HBODY>
 void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body){
 #ifdef __NVCC__
-   const bool gpu = config::Get().Cuda();
+   const bool gpu = mfem::config::Get().Cuda();
    if (gpu){
       const size_t blockSize = 256;
       const size_t gridSize = (N+blockSize-1)/blockSize;
@@ -43,15 +43,5 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body){
 #define forall(i,end,body) wrap(end,                                  \
                                 [=] __device__ (size_t i){body},      \
                                 [=] (size_t i){body})
-
-// *****************************************************************************
-#ifdef __NVCC__
-#define CUDA_STD_BLOCK 256
-#define cuKer(name,end,...) name ## 0<<<((end+256-1)/256),256>>>(end,__VA_ARGS__)
-#define call0(name,id,grid,blck,...) call[id]<<<grid,blck>>>(__VA_ARGS__);
-#else
-#define cuKer(name,end,...) name ## 0(end,__VA_ARGS__)
-#define call0(name,id,grid,blck,...) call[id](__VA_ARGS__);
-#endif // __NVCC__
 
 #endif // MFEM_KERNELS_HPP
