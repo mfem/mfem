@@ -148,15 +148,16 @@ void* mm::Adrs(const void *adrs){
 
 // *****************************************************************************
 void mm::Rsync(const void *adrs){
+   dbg();
    const auto search = mng->find(adrs);
    const bool present = search != mng->end();
    assert(present);
    const mm2dev_t &mm2dev = mng->operator[](adrs);
    if (mm2dev.host){
       dbg("Already on host");
-      //assert(false);
       return;
    }
+   dbg("From GPU");
    const size_t bytes = mm2dev.bytes;
    checkCudaErrors(cuMemcpyDtoH((void*)mm2dev.h_adrs,
                                 (CUdeviceptr)mm2dev.d_adrs,
@@ -165,6 +166,7 @@ void mm::Rsync(const void *adrs){
 
 // *****************************************************************************
 void mm::Push(const void *adrs){
+   dbg();stk(true);
    const auto search = mng->find(adrs);
    const bool present = search != mng->end();
    assert(present);

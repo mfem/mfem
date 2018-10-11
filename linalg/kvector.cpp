@@ -87,6 +87,19 @@ void kVectorMapDof(const int N, double *v0, const double *v1, const int *dof){
 }
 
 // *****************************************************************************
+void kVectorMapDof(double *v0, const double *v1, const int dof, const int j){
+   GET_ADRS(v0);
+   GET_CONST_ADRS(v1);
+   forall(i, 1, d_v0[dof] = d_v1[j]; );
+}
+
+// *****************************************************************************
+void kVectorSetDof(double *v0, const double alpha, const int dof){
+   GET_ADRS(v0);
+   forall(i, 1, d_v0[dof] = alpha; );
+}
+
+// *****************************************************************************
 void kVectorSetDof(const int N, double *v0, const double alpha, const int *dof){
    GET_ADRS(v0);
    GET_CONST_ADRS_T(dof,int);
@@ -114,18 +127,23 @@ void kVectorGetSubvector(const int N,
 
 // *****************************************************************************
 void kVectorSetSubvector(const int N,
-                         double* v0,
-                         const double* v1,
-                         const int* v2){
-   GET_ADRS(v0);
-   GET_CONST_ADRS(v1);
-   GET_CONST_ADRS_T(v2,int);
-   forall(i, N, {
-         const int dof_i = d_v2[i];
-         if (dof_i >= 0) {
-            d_v0[dof_i] = d_v1[i];
-         } else {
-            d_v0[-dof_i - 1] = -d_v1[i];
+                         double* data,
+                         const double* elemvect,
+                         const int* dofs){
+   GET_ADRS(data);
+   GET_CONST_ADRS(elemvect);
+   GET_CONST_ADRS_T(dofs,int);
+#warning sequential kVectorSetSubvector
+   forall(k, 1, {
+         for(int i=0;i<N;i+=1){
+            const int j = d_dofs[i];
+            printf("\n\tj=%d, set: %f",j,d_elemvect[i]);
+            if (j >= 0) {
+               d_data[j] = d_elemvect[i];
+            } else {
+               assert(false);
+               d_data[-1-j] = -d_elemvect[i];
+            }
          }
       });
 }
@@ -150,8 +168,8 @@ void kVectorAlphaAdd(double *vp, const double* v1p,
 
 // *****************************************************************************
 void kVectorPrint(const size_t N, const double *data){
-   GET_CONST_ADRS(data);
-   forall(i, N, printf("\n\t%f",d_data[i]););
+   GET_CONST_ADRS(data); // Sequential printf
+   forall(k,1,for(int i=0;i<N;i+=1)printf("\n\t%f",d_data[i]););
 }
 
 // *****************************************************************************
@@ -183,7 +201,7 @@ void kVectorDotOpPlusEQ(const size_t size, const double *v, double *data){
    GET_ADRS(data);
    forall(i, size, d_data[i] += d_v[i];);
 }
-
+/*
 // *****************************************************************************
 void kSetSubVector(const size_t n, const int *dofs, const double *elemvect,
                    double *data){
@@ -199,7 +217,7 @@ void kSetSubVector(const size_t n, const int *dofs, const double *elemvect,
             d_data[-1-j] = -d_elemvect[i];
          }
       });
-}
+      }*/
 
 // *****************************************************************************
 void kVectorOpSubtract(const size_t size, const double *v, double *data){

@@ -462,11 +462,11 @@ int IsoparametricTransformation::OrderGrad(const FiniteElement *fe)
 void IsoparametricTransformation::Transform (const IntegrationPoint &ip,
                                              Vector &trans)
 {
-   //dbg();
+   dbg();
    //assert(false);
    shape.SetSize(FElem->GetDof());
    trans.SetSize(PointMat.Height());
-//#warning Transform
+   //#warning Transform
    //printf("\n\t\033[m[Transform] ip: %f %f %f %f",ip.x,ip.y,ip.z,ip.weight);
    FElem -> CalcShape(ip, shape);
 #warning Pushing because still on the host
