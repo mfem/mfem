@@ -97,7 +97,8 @@ void Triangle::MarkEdge(DenseMatrix &pmat)
    }
 }
 
-void Triangle::MarkEdge(const DSTable &v_to_v, const int *length)
+// Static method
+void Triangle::MarkEdge(int *indices, const DSTable &v_to_v, const int *length)
 {
    int l, L, j, ind[3], i;
 
@@ -192,7 +193,5 @@ void Triangle::GetVertices(Array<int> &v) const
       v[i] = indices[i];
    }
 }
-
-Linear2DFiniteElement TriangleFE;
 
 } // namespace mfem

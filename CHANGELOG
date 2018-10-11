@@ -10,15 +10,65 @@
 
 Version 3.4.1 (development)
 ===========================
+
+- Added support for wedge shaped mesh elements of arbitrary order (with Geometry
+  type PRISM) which have two triangular faces and three quadrilateral faces.
+  Several examples of such meshes can be found in the data/ directory.
+
+- Added H1 and L2 finite elements of arbitrary order for Wedge elements.
+
+- Added support for mixed meshes containing triangles and quadrilaterals in 2D
+  or tetrahedra, wedges, and hexahedra in 3D. This includes support for uniform
+  refinement of such meshes. Several examples of such meshes can be found in the
+  data/ directory.
+
+- Added the capability to produce 3D meshes by extruding 2D meshes, see the new
+  miniapp, Extruder, in the miniapps/meshing directory.
+
+- Added a new meshing miniapp, Toroid, which can produce a variety of torus
+  shaped meshes by twisting a stack of wedges or hexahedra.
+
+- Improved the uniform refinement of tetrahedral meshes (also part of the
+  uniform refinement of mixed 3D meshes). The previous refinement algorithm is
+  still available as an option in Mesh::UniformRefinement. Both can be used in
+  the updated Mesh Explorer miniapp.
+
+- Added support for reading and writting linear and quadratic meshes containing
+  wedge elements in VTK mesh format. Several examples of such meshes can be
+  found in the data/ directory.
+
 - Added support for reading linear and quadratic 2D quadrilateral and triangular
   Cubit meshes.
 
-- The tetrahedral mesh refinement algorithm in serial and in parallel now
+- The local tetrahedral mesh refinement algorithm in serial and in parallel now
   follows precisely the paper:
+
      D. Arnold, A. Mukherjee, and L. Pouly, "Locally Adapted Tetrahedral Meshes
      Using Bisection", SIAM J. Sci. Comput., 22(2), 431–448.
+
   This guarantees that the shape regularity of the elements will be preserved
   under refinement.
+
+API changes
+-----------
+- In multiple places, use Geometry::Type instead of int, where appropriate.
+- In multiple places, use Element::Type instead of int, where appropriate.
+- The Mesh methods GetElementBaseGeometry and GetBdrElementBaseGeometry no
+  longer have a default value for their parameter, they only work with an
+  explicitly given index.
+- In class Mesh, added methods useful for queries regarding the types of
+  elements present in the mesh: HasGeometry, GetNumGeometries, GetGeometries,
+  and class Mesh::GeometryList.
+- The struct CoarseFineTransformations (returned by the Mesh method
+  GetRefinementTransforms) now stores the embedding matrices separately for each
+  Geometry::Type.
+- In class ParMesh, replaced the method GroupNFaces with two new methods:
+  GroupNTriangles and GroupNQuadrilaterals. Also, replaced GroupFace with two
+  methods: GroupTriangle and GroupQuadrilateral.
+- In class ParMesh, made the two RefineGroups methods protected.
+- Removed the virtual method Element::GetRefinementFlag, it is only used by the
+  derived class Tetrahedron.
+- Added new methods: Array::CopyTo, Tetrahedron::Init.
 
 
 Version 3.4, released on May 29, 2018
