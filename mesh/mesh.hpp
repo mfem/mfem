@@ -407,8 +407,8 @@ protected:
                 std::string section_delimiter = "") const;
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
-       nx*ny*nz hexahedrals if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons
-       if type=TETRAHEDRON. If generate_edges = 0 (default) edges are not
+       nx*ny*nz hexahedra if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons if
+       type=TETRAHEDRON. If generate_edges = 0 (default) edges are not
        generated, if 1 edges are generated. */
    void Make3D(int nx, int ny, int nz, Element::Type type, int generate_edges,
                double sx, double sy, double sz);
@@ -565,8 +565,8 @@ public:
    void ReorderElements(const Array<int> &ordering, bool reorder_vertices = true);
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
-       nx*ny*nz hexahedrals if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons
-       if type=TETRAHEDRON. If generate_edges = 0 (default) edges are not
+       nx*ny*nz hexahedra if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons if
+       type=TETRAHEDRON. If generate_edges = 0 (default) edges are not
        generated, if 1 edges are generated. */
    Mesh(int nx, int ny, int nz, Element::Type type, int generate_edges = 0,
         double sx = 1.0, double sy = 1.0, double sz = 1.0)
@@ -593,13 +593,13 @@ public:
       // Finalize(); // reminder: not needed
    }
 
-   /** Creates mesh by reading a file in MFEM, netgen, or VTK format. If
+   /** Creates mesh by reading a file in MFEM, Netgen, or VTK format. If
        generate_edges = 0 (default) edges are not generated, if 1 edges are
        generated. */
    explicit Mesh(const char *filename, int generate_edges = 0, int refine = 1,
                  bool fix_orientation = true);
 
-   /** Creates mesh by reading data stream in MFEM, netgen, or VTK format. If
+   /** Creates mesh by reading data stream in MFEM, Netgen, or VTK format. If
        generate_edges = 0 (default) edges are not generated, if 1 edges are
        generated. */
    explicit Mesh(std::istream &input, int generate_edges = 0, int refine = 1,
@@ -623,7 +623,7 @@ public:
 
    /** This is similar to the mesh constructor with the same arguments, but here
        the current mesh is destroyed and another one created based on the data
-       stream again given in MFEM, netgen, or VTK format. If generate_edges = 0
+       stream again given in MFEM, Netgen, or VTK format. If generate_edges = 0
        (default) edges are not generated, if 1 edges are generated. */
    /// \see mfem::igzstream() for on-the-fly decompression of compressed ascii
    /// inputs.
@@ -1043,7 +1043,7 @@ public:
    /** Refine selected mesh elements. Refinement type can be specified for each
        element. The function can do conforming refinement of triangles and
        tetrahedra and non-conforming refinement (i.e., with hanging-nodes) of
-       triangles, quadrilaterals and hexahedrons. If 'nonconforming' = -1,
+       triangles, quadrilaterals and hexahedra. If 'nonconforming' = -1,
        suitable refinement method is selected automatically (namely, conforming
        refinement for triangles). Use nonconforming = 0/1 to force the method.
        For nonconforming refinements, nc_limit optionally specifies the maximum
