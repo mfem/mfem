@@ -896,7 +896,6 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
    }
 
 #ifdef MFEM_USE_MEMALLOC
-   OKINA_ASSERT_CPU;
    delete NodesMem;
    NodesMem = NULL;
 #else
@@ -2725,7 +2724,6 @@ void SparseMatrix::Destroy()
       mm::free<RowNode*>(ColPtrNode);
    }
 #ifdef MFEM_USE_MEMALLOC
-   OKINA_ASSERT_CPU;
    if (NodesMem != NULL)
    {
       delete NodesMem;

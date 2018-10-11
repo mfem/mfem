@@ -10,7 +10,6 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "../../general/okina.hpp"
-using namespace std;
 
 // *****************************************************************************
 MFEM_NAMESPACE

@@ -581,7 +581,6 @@ inline double &SparseMatrix::SearchRow(const int col)
       if (node_p == NULL)
       {
 #ifdef MFEM_USE_MEMALLOC
-         OKINA_ASSERT_CPU;
          node_p = NodesMem->Alloc();
 #else
          node_p = mm::malloc<RowNode>(1);
