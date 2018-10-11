@@ -120,7 +120,7 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
    //GET_CONST_ADRS(nodes);
    //dbg("d_nodes: %p", d_nodes);
    //mm::Get().Rsync(nodes.GetData());
-   dbg("nodes:\n"); nodes.Print();
+   //dbg("nodes:\n"); nodes.Print();
    //0 0 1 0 0.309017 0.951057 1.30902 0.951057
    //-0.809017 0.587785 -0.5 1.53884 -0.809017 -0.587785 -1.61803 0
    //0.309017 -0.951057 -0.5 -1.53884 1.30902 -0.951057 0.5 0

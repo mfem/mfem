@@ -1617,20 +1617,20 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
       dbg("GetElementVDofs");
       fes->GetElementVDofs(i, vdofs);
       mm::Get().Push(vdofs.GetData());
-      dbg("\033[7mvdofs:\n");vdofs.Print();
+      //dbg("\033[7mvdofs:\n");vdofs.Print();
       dbg("SetSize: %d",vdofs.Size());
       vals.SetSize(vdofs.Size());
       dbg("GetFE->Project");
       fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals); // fe.cpp:315
-      dbg("\033[7mvals:\n");vals.Print();
+      //dbg("\033[7mvals:\n");vals.Print();
       dbg("SetSubVector");
       //dbg("\033[7mvdofs:\n");vdofs.Print();     
       //mm::Get().Push(this->GetData()); 
       SetSubVector(vdofs, vals);
-      dbg("\033[7mthis:\n"); this->Print();
+      //dbg("\033[7mthis:\n"); this->Print();
       //assert(false);
    }
-   dbg("this:");this->Print();
+   //dbg("this:");this->Print();
    //assert(false);
 }
 
