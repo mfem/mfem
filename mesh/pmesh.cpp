@@ -862,6 +862,7 @@ ParMesh::ParMesh(MPI_Comm comm, istream &input, bool refine)
    {
       skip_comment_lines(input, '#');
 #if 0
+      // implementation prior to prism-dev merge
       int g;
       input >> ident >> g; // group
       if (g != gr)

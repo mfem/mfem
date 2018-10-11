@@ -2305,24 +2305,6 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
    FinalizeTopology();
 
    // Finalize(...) can be called after this method, if needed
-
-#if 0
-   int refine = 1;
-   bool fix_orientation = true;
-
-   if (type == Element::TETRAHEDRON)
-   {
-      FinalizeTetMesh(generate_edges, refine, fix_orientation);
-   }
-   else if (type == Element::WEDGE)
-   {
-      FinalizeWedgeMesh(generate_edges, refine, fix_orientation);
-   }
-   else
-   {
-      FinalizeHexMesh(generate_edges, refine, fix_orientation);
-   }
-#endif
 }
 
 void Mesh::Make2D(int nx, int ny, Element::Type type, int generate_edges,
