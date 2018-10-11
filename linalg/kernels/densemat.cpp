@@ -10,7 +10,6 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "../../general/okina.hpp"
-using namespace std;
 
 // *****************************************************************************
 MFEM_NAMESPACE
@@ -37,7 +36,6 @@ void kLSolve( const int m,
    GET_CONST_ADRS(data);
    GET_CONST_ADRS_T(ipiv,int);
    GET_ADRS(x);
-
    forall(k, n, {
          double *d_mx = &d_x[k*m];
          // X <- P X
@@ -57,8 +55,7 @@ void kLSolve( const int m,
 // *****************************************************************************
 void kUSolve(const int m, const int n, const double *data, double *x){
    GET_CONST_ADRS(data);
-   GET_ADRS(x);
-   
+   GET_ADRS(x);   
    forall(k, n, {
          double *d_mx = &d_x[k*m];
          for (int j = m-1; j >= 0; j--){
@@ -92,7 +89,6 @@ void kFactor(const int m, int *ipiv, double *data){
    GET_ADRS_T(ipiv,int);
    GET_ADRS(data);
    forall(i,m,{
-         //for (int i = 0; i < m; i++) {
             // pivoting
             {
                int piv = i;
