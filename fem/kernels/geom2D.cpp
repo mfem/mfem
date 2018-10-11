@@ -17,14 +17,17 @@
 #include "../../general/okina.hpp"
 
 // *****************************************************************************
+MFEM_NAMESPACE
+
+// *****************************************************************************
 template<const int NUM_DOFS,
          const int NUM_QUAD> 
-void rIniGeom2D(const int numElements,
-                const double* __restrict dofToQuadD,
-                const double* __restrict nodes,
-                double* __restrict J,
-                double* __restrict invJ,
-                double* __restrict detJ){
+void kGeom2D(const int numElements,
+             const double* __restrict dofToQuadD,
+             const double* __restrict nodes,
+             double* __restrict J,
+             double* __restrict invJ,
+             double* __restrict detJ){
    forall(e, numElements, {
          double s_nodes[2 * NUM_DOFS];
          for (int q = 0; q < NUM_QUAD; ++q)
@@ -35,10 +38,10 @@ void rIniGeom2D(const int numElements,
                const int s1 = ijN(1,d,2);
                const int x0 = ijkNM(0,d,e,2,NUM_DOFS);
                const int y0 = ijkNM(1,d,e,2,NUM_DOFS);
-               //printf("\n\t[rIniGeom2D] s0=%d, s1=%d, x0=%d, y0=%d", s0, s1, x0, y0);
+               //printf("\n\t[kGeom2D] s0=%d, s1=%d, x0=%d, y0=%d", s0, s1, x0, y0);
                s_nodes[s0] = nodes[x0];
                s_nodes[s1] = nodes[y0];
-               //printf("\n\t[rIniGeom2D] s_nodes %f, %f",nodes[x0],nodes[y0]);
+               //printf("\n\t[kGeom2D] s_nodes %f, %f",nodes[x0],nodes[y0]);
             }
          }
          for (int q = 0; q < NUM_QUAD; ++q)
@@ -49,7 +52,7 @@ void rIniGeom2D(const int numElements,
             {
                const double wx = dofToQuadD[ijkNM(0,q,d,2,NUM_QUAD)];
                const double wy = dofToQuadD[ijkNM(1,q,d,2,NUM_QUAD)];
-               //printf("\n\t[rIniGeom2D] wx wy: %f, %f",wx, wy);
+               //printf("\n\t[kGeom2D] wx wy: %f, %f",wx, wy);
                const double x = s_nodes[ijN(0,d,2)];
                const double y = s_nodes[ijN(1,d,2)];
                J11 += (wx * x); J12 += (wx * y);
@@ -67,25 +70,27 @@ void rIniGeom2D(const int numElements,
             invJ[ijklNM(1, 1, q, e,2,NUM_QUAD)] =  J11 * r_idetJ;
             detJ[ijN(q, e,NUM_QUAD)] = r_detJ;
             assert(r_detJ!=0.0);
-            //printf("\n\t[rIniGeom2D] %f, %f, %f, %f, %f",J11,J12,J21,J22,r_detJ);
+            //printf("\n\t[kGeom2D] %f, %f, %f, %f, %f",J11,J12,J21,J22,r_detJ);
          }
       });
 }
 
-template void rIniGeom2D<4,4>(int, double const*, double const*, double*, double*, double*);
-template void rIniGeom2D<9,16>(int, double const*, double const*, double*, double*, double*);
-template void rIniGeom2D<16,36>(int, double const*, double const*, double*, double*, double*);
-template void rIniGeom2D<25,64>(int, double const*, double const*, double*, double*, double*);
-template void rIniGeom2D<36,100>(int, double const*, double const*, double*, double*, double*);
-template void rIniGeom2D<49,144>(int, double const*, double const*, double*, double*, double*);
-template void rIniGeom2D<64,196>(int, double const*, double const*, double*, double*, double*);
-template void rIniGeom2D<81,256>(int, double const*, double const*, double*, double*, double*);
-template void rIniGeom2D<100,324>(int, double const*, double const*, double*, double*, double*);
-template void rIniGeom2D<121,400>(int, double const*, double const*, double*, double*, double*);
-template void rIniGeom2D<144,484>(int, double const*, double const*, double*, double*, double*);
-template void rIniGeom2D<169,576>(int, double const*, double const*, double*, double*, double*);
-template void rIniGeom2D<196,676>(int, double const*, double const*, double*, double*, double*);
-template void rIniGeom2D<225,784>(int, double const*, double const*, double*, double*, double*);
-template void rIniGeom2D<256,900>(int, double const*, double const*, double*, double*, double*);
-template void rIniGeom2D<289,1024>(int, double const*, double const*, double*, double*, double*);
+template void kGeom2D<4,4>(int, double const*, double const*, double*, double*, double*);
+template void kGeom2D<9,16>(int, double const*, double const*, double*, double*, double*);
+template void kGeom2D<16,36>(int, double const*, double const*, double*, double*, double*);
+template void kGeom2D<25,64>(int, double const*, double const*, double*, double*, double*);
+template void kGeom2D<36,100>(int, double const*, double const*, double*, double*, double*);
+template void kGeom2D<49,144>(int, double const*, double const*, double*, double*, double*);
+template void kGeom2D<64,196>(int, double const*, double const*, double*, double*, double*);
+template void kGeom2D<81,256>(int, double const*, double const*, double*, double*, double*);
+template void kGeom2D<100,324>(int, double const*, double const*, double*, double*, double*);
+template void kGeom2D<121,400>(int, double const*, double const*, double*, double*, double*);
+template void kGeom2D<144,484>(int, double const*, double const*, double*, double*, double*);
+template void kGeom2D<169,576>(int, double const*, double const*, double*, double*, double*);
+template void kGeom2D<196,676>(int, double const*, double const*, double*, double*, double*);
+template void kGeom2D<225,784>(int, double const*, double const*, double*, double*, double*);
+template void kGeom2D<256,900>(int, double const*, double const*, double*, double*, double*);
+template void kGeom2D<289,1024>(int, double const*, double const*, double*, double*, double*);
 
+// *****************************************************************************
+MFEM_NAMESPACE_END

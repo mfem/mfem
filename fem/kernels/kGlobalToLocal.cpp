@@ -17,7 +17,7 @@
 #include "../../general/okina.hpp"
 
 // *****************************************************************************
-void rGlobalToLocal(const int NUM_VDIM,
+void kGlobalToLocal(const int NUM_VDIM,
                     const bool VDIM_ORDERING,
                     const int globalEntries,
                     const int localEntries,

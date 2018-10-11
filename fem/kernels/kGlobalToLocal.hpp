@@ -13,28 +13,17 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
-
-#include "../../general/okina.hpp"
+#ifndef MFEM_FEM_KERNELS_GLOBAL_LOCAL_HPP
+#define MFEM_FEM_KERNELS_GLOBAL_LOCAL_HPP
 
 // *****************************************************************************
-void rNodeCopyByVDim(const int elements,
-                      const int numDofs,
-                      const int ndofs,
-                      const int dims,
-                      const int* eMap,
-                      const double* Sx,
-                      double* nodes){
-   forall(e,elements, {
-         for (int dof = 0; dof < numDofs; ++dof)
-         {
-            const int lid = dof+numDofs*e;
-            const int gid = eMap[lid];
-            for (int v = 0; v < dims; ++v)
-            {
-               const int moffset = v+dims*lid;
-               const int voffset = gid+v*ndofs;
-               nodes[moffset] = Sx[voffset];
-            }
-         }
-      });
-}
+void kGlobalToLocal(const int NUM_VDIM,
+                    const bool VDIM_ORDERING,
+                    const int globalEntries,
+                    const int localEntries,
+                    const int* __restrict offsets,
+                    const int* __restrict indices,
+                    const double* __restrict globalX,
+                    double* __restrict localX);
+
+#endif // MFEM_FEM_KERNELS_GLOBAL_LOCAL_HPP
