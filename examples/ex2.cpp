@@ -39,14 +39,12 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "/home/camier1/home/stk/stk.hpp"
 
 using namespace std;
 using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   stkIni(argv[0]);
    // 1. Parse command-line options.
    const char *mesh_file = "../data/beam-tri.mesh";
    int order = 1;

@@ -220,12 +220,12 @@ void DenseMatrix::Mult(const Vector &x, Vector &y) const
 {
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
                "incompatible dimensions");
+
    Mult((const double *)x, (double *)y);
 }
 
 double DenseMatrix::operator *(const DenseMatrix &m) const
 {
-   OKINA_ASSERT_CPU;
    MFEM_ASSERT(Height() == m.Height() && Width() == m.Width(),
                "incompatible dimensions");
 
@@ -241,7 +241,6 @@ double DenseMatrix::operator *(const DenseMatrix &m) const
 
 void DenseMatrix::MultTranspose(const double *x, double *y) const
 {
-   OKINA_ASSERT_CPU;
    double *d_col = data;
    for (int col = 0; col < width; col++)
    {
@@ -257,7 +256,6 @@ void DenseMatrix::MultTranspose(const double *x, double *y) const
 
 void DenseMatrix::MultTranspose(const Vector &x, Vector &y) const
 {
-   OKINA_ASSERT_CPU;
    MFEM_ASSERT(height == x.Size() && width == y.Size(),
                "incompatible dimensions");
 
@@ -266,7 +264,6 @@ void DenseMatrix::MultTranspose(const Vector &x, Vector &y) const
 
 void DenseMatrix::AddMult(const Vector &x, Vector &y) const
 {
-   OKINA_ASSERT_CPU;
    MFEM_ASSERT(height == y.Size() && width == x.Size(),
                "incompatible dimensions");
 

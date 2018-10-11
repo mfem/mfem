@@ -3340,40 +3340,27 @@ void XYZ_VectorFunction(const Vector &p, Vector &v)
 
 void Mesh::GetNodes(GridFunction &nodes) const
 {
-   dbg();
    if (Nodes == NULL || Nodes->FESpace() != nodes.FESpace())
    {
-      dbg("\033[7mNEW NODES!!");
       const int newSpaceDim = nodes.FESpace()->GetVDim();
-      dbg("\033[7mnewSpaceDim=%d", newSpaceDim);
       VectorFunctionCoefficient xyz(newSpaceDim, XYZ_VectorFunction);
-      dbg("\033[7mProjectCoefficient");
-      nodes.ProjectCoefficient(xyz); // fem/gridfunc:1597
-      nodes.Print();
-      //assert(false);
+      nodes.ProjectCoefficient(xyz);
    }
    else
    {
-      //dbg("assign");
       nodes = *Nodes;
    }
-   //dbg("done");
 }
 
 void Mesh::SetNodalFESpace(FiniteElementSpace *nfes)
 {
-   dbg("new GridFunction");
    GridFunction *nodes = new GridFunction(nfes);
-   dbg("SetNodalGridFunction");
    SetNodalGridFunction(nodes, true);
-   //dbg("nodes->Print():");nodes->Print();
 }
 
 void Mesh::SetNodalGridFunction(GridFunction *nodes, bool make_owner)
 {
-   dbg("GetNodes");
    GetNodes(*nodes);
-   dbg("NewNodes");
    NewNodes(*nodes, make_owner);
 }
 
@@ -3384,31 +3371,21 @@ const FiniteElementSpace *Mesh::GetNodalFESpace() const
 
 void Mesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
 {
-   dbg("\033[7mSetCurvature");
    space_dim = (space_dim == -1) ? spaceDim : space_dim;
    FiniteElementCollection* nfec;
    if (discont)
    {
-      dbg("\033[7mL2_FECollection");
       const int type = 1; // Gauss-Lobatto points
       nfec = new L2_FECollection(order, Dim, type);
    }
    else
    {
-      dbg("\033[7mH1_FECollection");
       nfec = new H1_FECollection(order, Dim);
-      //assert(false);
    }
-   dbg("\033[7mNodes FiniteElementSpace");
    FiniteElementSpace* nfes = new FiniteElementSpace(this, nfec, space_dim,
                                                      ordering);
-   dbg("\033[7mSetNodalFESpace");
    SetNodalFESpace(nfes);
-   dbg("\033[7mMakeOwner");
    Nodes->MakeOwner(nfec);
-   //dbg("Nodes->Print():"); Nodes->Print();
-   //dbg("done");
-   //assert(false);
 }
 
 int Mesh::GetNumFaces() const
@@ -5539,7 +5516,6 @@ void Mesh::UpdateNodes()
 
 void Mesh::QuadUniformRefinement()
 {
-   dbg();
    DeleteLazyTables();
    int i, j, *v, vv[2], attr;
    const int *e;
@@ -5602,9 +5578,7 @@ void Mesh::QuadUniformRefinement()
    }
 
    static double *quad_children = mm::malloc<double>(2*4*4);
-   assert(quad_children);
    kQuadChildren(quad_children);
-   assert(quad_children);
 
    CoarseFineTr.point_matrices.UseExternalData(quad_children, 2, 4, 4);
    CoarseFineTr.embeddings.SetSize(elements.Size());
