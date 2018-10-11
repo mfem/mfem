@@ -93,7 +93,6 @@ int main(int argc, char *argv[])
       {
          mesh->UniformRefinement();
       }
-    
    }
 
    // 4. Define a finite element space on the mesh. Here we use continuous
@@ -144,6 +143,7 @@ int main(int argc, char *argv[])
       config::Get().PA(true);
       dbg("\033[32;7mSwitched to GPU & PA!");
    }
+   const bool PA = config::Get().PA();
 
    // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
@@ -155,13 +155,8 @@ int main(int argc, char *argv[])
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
    BilinearForm *a = new BilinearForm(fespace);
-   if (config::Get().PA()){
-      dbg("Add PA DiffusionIntegrator");
-      a->AddDomainIntegrator(new PADiffusionIntegrator(one));
-   }else{
-      dbg("Add FA DiffusionIntegrator");
-      a->AddDomainIntegrator(new DiffusionIntegrator(one));
-   }
+   if (PA) a->AddDomainIntegrator(new PADiffusionIntegrator(one));
+   else    a->AddDomainIntegrator(new   DiffusionIntegrator(one));
 
    // 9. Assemble the bilinear form and the corresponding linear system,
    //    applying any necessary transformations such as: eliminating boundary
@@ -170,18 +165,14 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
-   PABilinearForm *paA = new PABilinearForm(fespace);
-   SparseMatrix *faA = new SparseMatrix();
    Vector B, X;
-   if (config::Get().PA())
-      a->FormLinearSystem(ess_tdof_list, x, *b, (Operator **)&paA, X, B);
-   else
-      a->FormLinearSystem(ess_tdof_list, x, *b, (Operator **)&faA, X, B);
-               
-   if (config::Get().PA())
-      cout << "Size of linear system: " << paA->Height() << endl;
-   else
-      cout << "Size of linear system: " << faA->Height() << endl;
+   SparseMatrix *faA = new SparseMatrix();
+   PABilinearForm *paA = new PABilinearForm(fespace);
+   if (PA) a->FormLinearSystem(ess_tdof_list, x, *b, (Operator**)&paA, X, B);
+   else    a->FormLinearSystem(ess_tdof_list, x, *b, (Operator**)&faA, X, B);
+
+   const int height = PA ? paA->Height() : faA->Height();
+   cout << "Size of linear system: " << height << endl;
 
 #ifndef MFEM_USE_SUITESPARSE
    //dbg("10. Define a simple symmetric Gauss-Seidel preconditioner");// and use it to
