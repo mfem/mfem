@@ -180,6 +180,24 @@ void LinearForm::AssembleDelta()
    }
 }
 
+LinearForm & LinearForm::operator=(double value)
+{
+   Vector::operator=(value);
+   return *this;
+}
+
+LinearForm & LinearForm::operator=(const Vector &v)
+{
+   MFEM_ASSERT(fes && v.Size() == fes->GetVSize(), "");
+   Vector::operator=(v);
+   return *this;
+}
+
+LinearForm & LinearForm::operator=(const LinearForm &v)
+{
+   return this->operator=((const Vector &)v);
+}
+
 LinearForm::~LinearForm()
 {
    int k;
