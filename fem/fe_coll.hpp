@@ -36,23 +36,26 @@ protected:
    template <Geometry::Type geom, Geometry::Type f_geom,
              typename v_t, typename e_t, typename eo_t>
    static inline void GetFace(int &nv, v_t &v, int &ne, e_t &e, eo_t &eo,
-                              int &nf, int &f, int &fg, int &fo,
+                              int &nf, int &f, Geometry::Type &fg, int &fo,
                               const int face_info);
 
 public:
    virtual const FiniteElement *
-   FiniteElementForGeometry(int GeomType) const = 0;
+   FiniteElementForGeometry(Geometry::Type GeomType) const = 0;
 
-   virtual int DofForGeometry(int GeomType) const = 0;
+   virtual int DofForGeometry(Geometry::Type GeomType) const = 0;
 
-   virtual int * DofOrderForOrientation(int GeomType, int Or) const = 0;
+   /** @brief Returns an array, say p, that maps a local permuted index i to
+       a local base index: base_i = p[i]. */
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const = 0;
 
    virtual const char * Name() const { return "Undefined"; }
 
-   int HasFaceDofs(int GeomType) const;
+   int HasFaceDofs(Geometry::Type GeomType) const;
 
    virtual const FiniteElement *TraceFiniteElementForGeometry(
-      int GeomType) const
+      Geometry::Type GeomType) const
    {
       return FiniteElementForGeometry(GeomType);
    }
@@ -72,7 +75,8 @@ public:
       the sub-manifold (inside Geom) and its orientation are given by the
       parameter Info = 64 * SubIndex + SubOrientation. Naturally, it is assumed
       that 0 <= SDim <= Dim(Geom). */
-   void SubDofOrder(int Geom, int SDim, int Info, Array<int> &dofs) const;
+   void SubDofOrder(Geometry::Type Geom, int SDim, int Info,
+                    Array<int> &dofs) const;
 };
 
 /// Arbitrary order H1-conforming (continuous) finite elements.
@@ -90,17 +94,19 @@ public:
    explicit H1_FECollection(const int p, const int dim = 3,
                             const int btype = BasisType::GaussLobatto);
 
-   virtual const FiniteElement *FiniteElementForGeometry(int GeomType) const
+   virtual const FiniteElement *FiniteElementForGeometry(
+      Geometry::Type GeomType) const
    { return H1_Elements[GeomType]; }
-   virtual int DofForGeometry(int GeomType) const
+   virtual int DofForGeometry(Geometry::Type GeomType) const
    { return H1_dof[GeomType]; }
-   virtual int *DofOrderForOrientation(int GeomType, int Or) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
    virtual const char *Name() const { return h1_name; }
    FiniteElementCollection *GetTraceCollection() const;
 
    int GetBasisType() const { return b_type; }
    /// Get the Cartesian to local H1 dof map
-   const int *GetDofMap(int GeomType) const;
+   const int *GetDofMap(Geometry::Type GeomType) const;
 
    virtual ~H1_FECollection();
 };
@@ -141,9 +147,10 @@ public:
                    const int btype = BasisType::GaussLegendre,
                    const int map_type = FiniteElement::VALUE);
 
-   virtual const FiniteElement *FiniteElementForGeometry(int GeomType) const
+   virtual const FiniteElement *FiniteElementForGeometry(
+      Geometry::Type GeomType) const
    { return L2_Elements[GeomType]; }
-   virtual int DofForGeometry(int GeomType) const
+   virtual int DofForGeometry(Geometry::Type GeomType) const
    {
       if (L2_Elements[GeomType])
       {
@@ -151,11 +158,12 @@ public:
       }
       return 0;
    }
-   virtual int *DofOrderForOrientation(int GeomType, int Or) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
    virtual const char *Name() const { return d_name; }
 
    virtual const FiniteElement *TraceFiniteElementForGeometry(
-      int GeomType) const
+      Geometry::Type GeomType) const
    {
       return Tr_Elements[GeomType];
    }
@@ -193,11 +201,13 @@ public:
                    const int cb_type = BasisType::GaussLobatto,
                    const int ob_type = BasisType::GaussLegendre);
 
-   virtual const FiniteElement *FiniteElementForGeometry(int GeomType) const
+   virtual const FiniteElement *FiniteElementForGeometry(
+      Geometry::Type GeomType) const
    { return RT_Elements[GeomType]; }
-   virtual int DofForGeometry(int GeomType) const
+   virtual int DofForGeometry(Geometry::Type GeomType) const
    { return RT_dof[GeomType]; }
-   virtual int *DofOrderForOrientation(int GeomType, int Or) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
    virtual const char *Name() const { return rt_name; }
    FiniteElementCollection *GetTraceCollection() const;
 
@@ -240,11 +250,13 @@ public:
                    const int cb_type = BasisType::GaussLobatto,
                    const int ob_type = BasisType::GaussLegendre);
 
-   virtual const FiniteElement *FiniteElementForGeometry(int GeomType) const
+   virtual const FiniteElement *FiniteElementForGeometry(Geometry::Type GeomType)
+   const
    { return ND_Elements[GeomType]; }
-   virtual int DofForGeometry(int GeomType) const
+   virtual int DofForGeometry(Geometry::Type GeomType) const
    { return ND_dof[GeomType]; }
-   virtual int *DofOrderForOrientation(int GeomType, int Or) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
    virtual const char *Name() const { return nd_name; }
    FiniteElementCollection *GetTraceCollection() const;
 
@@ -301,11 +313,12 @@ public:
    void SetOrder(int Order) const;
 
    virtual const FiniteElement *
-   FiniteElementForGeometry(int GeomType) const;
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
 
-   virtual int DofForGeometry(int GeomType) const;
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual int *DofOrderForOrientation(int GeomType, int Or) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
 
    virtual const char *Name() const { return name; }
 
@@ -325,15 +338,17 @@ private:
    const BiLinear2DFiniteElement QuadrilateralFE;
    const Linear3DFiniteElement TetrahedronFE;
    const TriLinear3DFiniteElement ParallelepipedFE;
+   const H1_WedgeElement WedgeFE;
 public:
-   LinearFECollection() { }
+   LinearFECollection() : WedgeFE(1) { }
 
    virtual const FiniteElement *
-   FiniteElementForGeometry(int GeomType) const;
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
 
-   virtual int DofForGeometry(int GeomType) const;
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual int * DofOrderForOrientation(int GeomType, int Or) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
 
    virtual const char * Name() const { return "Linear"; }
 };
@@ -348,16 +363,18 @@ private:
    const BiQuad2DFiniteElement QuadrilateralFE;
    const Quadratic3DFiniteElement TetrahedronFE;
    const LagrangeHexFiniteElement ParallelepipedFE;
+   const H1_WedgeElement WedgeFE;
 
 public:
-   QuadraticFECollection() : ParallelepipedFE(2) { }
+   QuadraticFECollection() : ParallelepipedFE(2), WedgeFE(2) { }
 
    virtual const FiniteElement *
-   FiniteElementForGeometry(int GeomType) const;
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
 
-   virtual int DofForGeometry(int GeomType) const;
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual int * DofOrderForOrientation(int GeomType, int Or) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
 
    virtual const char * Name() const { return "Quadratic"; }
 };
@@ -373,11 +390,12 @@ public:
    QuadraticPosFECollection() { }
 
    virtual const FiniteElement *
-   FiniteElementForGeometry(int GeomType) const;
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
 
-   virtual int DofForGeometry(int GeomType) const;
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual int * DofOrderForOrientation(int GeomType, int Or) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
 
    virtual const char * Name() const { return "QuadraticPos"; }
 };
@@ -392,16 +410,19 @@ private:
    const BiCubic2DFiniteElement QuadrilateralFE;
    const Cubic3DFiniteElement TetrahedronFE;
    const LagrangeHexFiniteElement ParallelepipedFE;
+   const H1_WedgeElement WedgeFE;
 
 public:
-   CubicFECollection() : ParallelepipedFE(3) { }
+   CubicFECollection()
+      : ParallelepipedFE(3), WedgeFE(3, BasisType::ClosedUniform) { }
 
    virtual const FiniteElement *
-   FiniteElementForGeometry(int GeomType) const;
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
 
-   virtual int DofForGeometry(int GeomType) const;
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual int * DofOrderForOrientation(int GeomType, int Or) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
 
    virtual const char * Name() const { return "Cubic"; }
 };
@@ -417,11 +438,12 @@ public:
    CrouzeixRaviartFECollection() : SegmentFE(1) { }
 
    virtual const FiniteElement *
-   FiniteElementForGeometry(int GeomType) const;
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
 
-   virtual int DofForGeometry(int GeomType) const;
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual int * DofOrderForOrientation(int GeomType, int Or) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
 
    virtual const char * Name() const { return "CrouzeixRaviart"; }
 };
@@ -439,11 +461,12 @@ public:
    LinearNonConf3DFECollection () { }
 
    virtual const FiniteElement *
-   FiniteElementForGeometry(int GeomType) const;
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
 
-   virtual int DofForGeometry(int GeomType) const;
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual int * DofOrderForOrientation(int GeomType, int Or) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
 
    virtual const char * Name() const { return "LinearNonConf3D"; }
 };
@@ -461,11 +484,12 @@ public:
    RT0_2DFECollection() : SegmentFE(0) { }
 
    virtual const FiniteElement *
-   FiniteElementForGeometry(int GeomType) const;
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
 
-   virtual int DofForGeometry(int GeomType) const;
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual int * DofOrderForOrientation(int GeomType, int Or) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
 
    virtual const char * Name() const { return "RT0_2D"; }
 };
@@ -482,11 +506,12 @@ public:
    RT1_2DFECollection() { }
 
    virtual const FiniteElement *
-   FiniteElementForGeometry(int GeomType) const;
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
 
-   virtual int DofForGeometry(int GeomType) const;
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual int * DofOrderForOrientation(int GeomType, int Or) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
 
    virtual const char * Name() const { return "RT1_2D"; }
 };
@@ -503,11 +528,12 @@ public:
    RT2_2DFECollection() { }
 
    virtual const FiniteElement *
-   FiniteElementForGeometry(int GeomType) const;
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
 
-   virtual int DofForGeometry(int GeomType) const;
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual int * DofOrderForOrientation(int GeomType, int Or) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
 
    virtual const char * Name() const { return "RT2_2D"; }
 };
@@ -523,11 +549,12 @@ public:
    Const2DFECollection() { }
 
    virtual const FiniteElement *
-   FiniteElementForGeometry(int GeomType) const;
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
 
-   virtual int DofForGeometry(int GeomType) const;
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual int * DofOrderForOrientation(int GeomType, int Or) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
 
    virtual const char * Name() const { return "Const2D"; }
 };
@@ -544,11 +571,12 @@ public:
    LinearDiscont2DFECollection() { }
 
    virtual const FiniteElement *
-   FiniteElementForGeometry(int GeomType) const;
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
 
-   virtual int DofForGeometry(int GeomType) const;
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual int * DofOrderForOrientation(int GeomType, int Or) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
 
    virtual const char * Name() const { return "LinearDiscont2D"; }
 };
@@ -565,11 +593,12 @@ public:
    GaussLinearDiscont2DFECollection() { }
 
    virtual const FiniteElement *
-   FiniteElementForGeometry(int GeomType) const;
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
 
-   virtual int DofForGeometry(int GeomType) const;
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual int * DofOrderForOrientation(int GeomType, int Or) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
 
    virtual const char * Name() const { return "GaussLinearDiscont2D"; }
 };
@@ -582,9 +611,10 @@ private:
 public:
    P1OnQuadFECollection() { }
    virtual const FiniteElement *
-   FiniteElementForGeometry(int GeomType) const;
-   virtual int DofForGeometry(int GeomType) const;
-   virtual int * DofOrderForOrientation(int GeomType, int Or) const;
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
    virtual const char * Name() const { return "P1OnQuad"; }
 };
 
@@ -600,11 +630,12 @@ public:
    QuadraticDiscont2DFECollection() { }
 
    virtual const FiniteElement *
-   FiniteElementForGeometry(int GeomType) const;
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
 
-   virtual int DofForGeometry(int GeomType) const;
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual int * DofOrderForOrientation(int GeomType, int Or) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
 
    virtual const char * Name() const { return "QuadraticDiscont2D"; }
 };
@@ -618,9 +649,10 @@ private:
 public:
    QuadraticPosDiscont2DFECollection() { }
    virtual const FiniteElement *
-   FiniteElementForGeometry(int GeomType) const;
-   virtual int DofForGeometry(int GeomType) const;
-   virtual int * DofOrderForOrientation(int GeomType, int Or) const
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const
    { return NULL; }
    virtual const char * Name() const { return "QuadraticPosDiscont2D"; }
 };
@@ -637,11 +669,12 @@ public:
    GaussQuadraticDiscont2DFECollection() { }
 
    virtual const FiniteElement *
-   FiniteElementForGeometry(int GeomType) const;
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
 
-   virtual int DofForGeometry(int GeomType) const;
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual int * DofOrderForOrientation(int GeomType, int Or) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
 
    virtual const char * Name() const { return "GaussQuadraticDiscont2D"; }
 };
@@ -658,11 +691,12 @@ public:
    CubicDiscont2DFECollection() { }
 
    virtual const FiniteElement *
-   FiniteElementForGeometry(int GeomType) const;
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
 
-   virtual int DofForGeometry(int GeomType) const;
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual int * DofOrderForOrientation(int GeomType, int Or) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
 
    virtual const char * Name() const { return "CubicDiscont2D"; }
 };
@@ -674,16 +708,18 @@ class Const3DFECollection : public FiniteElementCollection
 private:
    const P0TetFiniteElement TetrahedronFE;
    const P0HexFiniteElement ParallelepipedFE;
+   const L2_WedgeElement WedgeFE;
 
 public:
-   Const3DFECollection () { }
+   Const3DFECollection() : WedgeFE(0) { }
 
    virtual const FiniteElement *
-   FiniteElementForGeometry(int GeomType) const;
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
 
-   virtual int DofForGeometry(int GeomType) const;
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual int * DofOrderForOrientation(int GeomType, int Or) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
 
    virtual const char * Name() const { return "Const3D"; }
 };
@@ -700,11 +736,12 @@ public:
    LinearDiscont3DFECollection () { }
 
    virtual const FiniteElement *
-   FiniteElementForGeometry(int GeomType) const;
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
 
-   virtual int DofForGeometry(int GeomType) const;
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual int * DofOrderForOrientation(int GeomType, int Or) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
 
    virtual const char * Name() const { return "LinearDiscont3D"; }
 };
@@ -721,11 +758,12 @@ public:
    QuadraticDiscont3DFECollection () : ParallelepipedFE(2) { }
 
    virtual const FiniteElement *
-   FiniteElementForGeometry(int GeomType) const;
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
 
-   virtual int DofForGeometry(int GeomType) const;
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual int * DofOrderForOrientation(int GeomType, int Or) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
 
    virtual const char * Name() const { return "QuadraticDiscont3D"; }
 };
@@ -745,11 +783,12 @@ public:
    RefinedLinearFECollection() { }
 
    virtual const FiniteElement *
-   FiniteElementForGeometry(int GeomType) const;
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
 
-   virtual int DofForGeometry(int GeomType) const;
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual int * DofOrderForOrientation(int GeomType, int Or) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
 
    virtual const char * Name() const { return "RefinedLinear"; }
 };
@@ -766,11 +805,12 @@ public:
    ND1_3DFECollection() { }
 
    virtual const FiniteElement *
-   FiniteElementForGeometry(int GeomType) const;
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
 
-   virtual int DofForGeometry(int GeomType) const;
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual int * DofOrderForOrientation(int GeomType, int Or) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
 
    virtual const char * Name() const { return "ND1_3D"; }
 };
@@ -788,11 +828,12 @@ public:
    RT0_3DFECollection() { }
 
    virtual const FiniteElement *
-   FiniteElementForGeometry(int GeomType) const;
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
 
-   virtual int DofForGeometry(int GeomType) const;
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual int * DofOrderForOrientation(int GeomType, int Or) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
 
    virtual const char * Name() const { return "RT0_3D"; }
 };
@@ -809,11 +850,12 @@ public:
    RT1_3DFECollection() { }
 
    virtual const FiniteElement *
-   FiniteElementForGeometry(int GeomType) const;
+   FiniteElementForGeometry(Geometry::Type GeomType) const;
 
-   virtual int DofForGeometry(int GeomType) const;
+   virtual int DofForGeometry(Geometry::Type GeomType) const;
 
-   virtual int * DofOrderForOrientation(int GeomType, int Or) const;
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const;
 
    virtual const char * Name() const { return "RT1_3D"; }
 };
@@ -823,17 +865,19 @@ class Local_FECollection : public FiniteElementCollection
 {
 private:
    char d_name[32];
-   int GeomType;
+   Geometry::Type GeomType;
    FiniteElement *Local_Element;
 
 public:
    Local_FECollection(const char *fe_name);
 
-   virtual const FiniteElement *FiniteElementForGeometry(int _GeomType) const
+   virtual const FiniteElement *FiniteElementForGeometry(
+      Geometry::Type _GeomType) const
    { return (GeomType == _GeomType) ? Local_Element : NULL; }
-   virtual int DofForGeometry(int _GeomType) const
+   virtual int DofForGeometry(Geometry::Type _GeomType) const
    { return (GeomType == _GeomType) ? Local_Element->GetDof() : 0; }
-   virtual int *DofOrderForOrientation(int GeomType, int Or) const
+   virtual const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                             int Or) const
    { return NULL; }
    virtual const char *Name() const { return d_name; }
 

@@ -321,9 +321,6 @@ message(STATUS "MFEM build type: CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 message(STATUS "MFEM version: v${MFEM_VERSION_STRING}")
 message(STATUS "MFEM git string: ${MFEM_GIT_STRING}")
 
-# Windows specific
-set(_USE_MATH_DEFINES ${WIN32})
-
 #-------------------------------------------------------------------------------
 # Define and configure the MFEM library
 #-------------------------------------------------------------------------------
