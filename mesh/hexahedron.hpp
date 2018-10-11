@@ -37,7 +37,7 @@ public:
               int ind5, int ind6, int ind7, int ind8, int attr = 1);
 
    /// Return element's type
-   int GetType() const { return Element::HEXAHEDRON; }
+   Type GetType() const { return Element::HEXAHEDRON; }
 
    /// Returns the indices of the element's vertices.
    virtual void GetVertices(Array<int> &v) const;
