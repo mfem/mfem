@@ -13,11 +13,11 @@
 
 #include "fem.hpp"
 #include "kfespace.hpp"
-#include "kernels/kernels.hpp"
+#include "kernels/kGlobalToLocal.hpp"
+#include "kernels/kLocalToGlobal.hpp"
 
 // *****************************************************************************
 MFEM_NAMESPACE
-
 
 // **************************************************************************
 static void kArrayAssign(const int n, const int *src, int *dest){
@@ -110,7 +110,7 @@ void kFiniteElementSpace::GlobalToLocal(const Vector& globalVec,
    const int vdim = GetVDim();
    const int localEntries = localDofs * GetNE();
    const bool vdim_ordering = ordering == Ordering::byVDIM;
-   rGlobalToLocal(vdim,
+   kGlobalToLocal(vdim,
                   vdim_ordering,
                   globalDofs,
                   localEntries,
@@ -127,7 +127,7 @@ void kFiniteElementSpace::GlobalToLocal(const Vector& globalVec,
     const int vdim = GetVDim();
     const int localEntries = localDofs * GetNE();
     const bool vdim_ordering = ordering == Ordering::byVDIM;
-    rLocalToGlobal(vdim,
+    kLocalToGlobal(vdim,
                    vdim_ordering,
                    globalDofs,
                    localEntries,

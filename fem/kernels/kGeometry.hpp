@@ -9,22 +9,21 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_BILIN_GEOM_HPP
-#define MFEM_BILIN_GEOM_HPP
+#ifndef MFEM_FEM_KERNEL_GEOM_HPP
+#define MFEM_FEM_KERNEL_GEOM_HPP
 
 #include "../../config/config.hpp"
 #include "../../general/karray.hpp"
 
 #include "../fespace.hpp"
 
-namespace mfem
-{
+// *****************************************************************************
+MFEM_NAMESPACE
 
 // ***************************************************************************
 // * kGeometry
 // ***************************************************************************
-class kGeometry
-{
+class kGeometry {
 public:
    ~kGeometry();
    karray<int> eMap;
@@ -42,6 +41,7 @@ public:
    static void ReorderByNodes(GridFunction&);
 };
 
-} // namespace mfem
+// *****************************************************************************
+MFEM_NAMESPACE_END
 
-#endif // MFEM_BILIN_GEOM_HPP
+#endif // MFEM_FEM_KERNEL_GEOM_HPP
