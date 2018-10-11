@@ -7,6 +7,7 @@
 //               mpirun -np 4 ex3p -m ../data/beam-tet.mesh
 //               mpirun -np 4 ex3p -m ../data/beam-hex.mesh
 //               mpirun -np 4 ex3p -m ../data/escher.mesh
+//               mpirun -np 4 ex3p -m ../data/escher.mesh -o 2
 //               mpirun -np 4 ex3p -m ../data/fichera.mesh
 //               mpirun -np 4 ex3p -m ../data/fichera-q2.vtk
 //               mpirun -np 4 ex3p -m ../data/fichera-q3.mesh

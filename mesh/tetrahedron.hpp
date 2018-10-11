@@ -51,6 +51,9 @@ public:
    /// Constructs tetrahedron by specifying the indices and the attribute.
    Tetrahedron(int ind1, int ind2, int ind3, int ind4, int attr = 1);
 
+   /// Initialize the vertex indices and the attribute of a Tetrahedron.
+   void Init(int ind1, int ind2, int ind3, int ind4, int attr = 1);
+
    /// Return element's type.
    virtual Type GetType() const { return Element::TETRAHEDRON; }
 
@@ -59,7 +62,7 @@ public:
 
    void GetMarkedFace(const int face, int *fv);
 
-   virtual int GetRefinementFlag() { return refinement_flag; }
+   int GetRefinementFlag() { return refinement_flag; }
 
    void SetRefinementFlag(int rf) { refinement_flag = rf; }
 

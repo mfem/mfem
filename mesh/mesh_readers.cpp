@@ -361,6 +361,7 @@ const int Mesh::vtk_quadratic_tet[10] =
 { 0, 1, 2, 3, 4, 7, 5, 6, 8, 9 };
 
 // see Wedge::edges & Mesh::GenerateFaces
+// https://www.vtk.org/doc/nightly/html/classvtkBiQuadraticQuadraticWedge.html
 const int Mesh::vtk_quadratic_wedge[18] =
 { 0, 2, 1, 3, 5, 4, 8, 7, 6, 11, 10, 9, 12, 14, 13, 17, 16, 15};
 
@@ -374,6 +375,12 @@ const int Mesh::vtk_quadratic_hex[27] =
 void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
                        bool &finalize_topo)
 {
+   // VTK resources:
+   //   * https://www.vtk.org/doc/nightly/html/vtkCellType_8h_source.html
+   //   * https://www.vtk.org/doc/nightly/html/classvtkCell.html
+   //   * https://lorensen.github.io/VTKExamples/site/VTKFileFormats
+   //   * https://www.kitware.com/products/books/VTKUsersGuide.pdf
+
    int i, j, n, attr;
 
    string buff;
@@ -431,8 +438,8 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
    }
 
    // Read the cell types
-   Dim = 0;
-   int order = 1;
+   Dim = -1;
+   int order = -1;
    input >> ws >> buff;
    if (buff == "CELL_TYPES")
    {
@@ -440,20 +447,20 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
       elements.SetSize(NumOfElements);
       for (j = i = 0; i < NumOfElements; i++)
       {
-         int ct;
+         int ct, elem_dim, elem_order = 1;
          input >> ct;
          switch (ct)
          {
             case 5:   // triangle
-               Dim = 2;
+               elem_dim = 2;
                elements[i] = new Triangle(&cells_data[j+1]);
                break;
             case 9:   // quadrilateral
-               Dim = 2;
+               elem_dim = 2;
                elements[i] = new Quadrilateral(&cells_data[j+1]);
                break;
             case 10:  // tetrahedron
-               Dim = 3;
+               elem_dim = 3;
 #ifdef MFEM_USE_MEMALLOC
                elements[i] = TetMemory.Alloc();
                elements[i]->SetVertices(&cells_data[j+1]);
@@ -462,23 +469,31 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
 #endif
                break;
             case 12:  // hexahedron
-               Dim = 3;
+               elem_dim = 3;
                elements[i] = new Hexahedron(&cells_data[j+1]);
+               break;
+            case 13:  // wedge
+               elem_dim = 3;
+               // switch between vtk vertex ordering and mfem vertex ordering:
+               // swap vertices (1,2) and (4,5)
+               elements[i] =
+                  new Wedge(cells_data[j+1], cells_data[j+3], cells_data[j+2],
+                            cells_data[j+4], cells_data[j+6], cells_data[j+5]);
                break;
 
             case 22:  // quadratic triangle
-               Dim = 2;
-               order = 2;
+               elem_dim = 2;
+               elem_order = 2;
                elements[i] = new Triangle(&cells_data[j+1]);
                break;
             case 28:  // biquadratic quadrilateral
-               Dim = 2;
-               order = 2;
+               elem_dim = 2;
+               elem_order = 2;
                elements[i] = new Quadrilateral(&cells_data[j+1]);
                break;
             case 24:  // quadratic tetrahedron
-               Dim = 3;
-               order = 2;
+               elem_dim = 3;
+               elem_order = 2;
 #ifdef MFEM_USE_MEMALLOC
                elements[i] = TetMemory.Alloc();
                elements[i]->SetVertices(&cells_data[j+1]);
@@ -486,15 +501,30 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
                elements[i] = new Tetrahedron(&cells_data[j+1]);
 #endif
                break;
+            case 32: // biquadratic-quadratic wedge
+               elem_dim = 3;
+               elem_order = 2;
+               // switch between vtk vertex ordering and mfem vertex ordering:
+               // swap vertices (1,2) and (4,5)
+               elements[i] =
+                  new Wedge(cells_data[j+1], cells_data[j+3], cells_data[j+2],
+                            cells_data[j+4], cells_data[j+6], cells_data[j+5]);
+               break;
             case 29:  // triquadratic hexahedron
-               Dim = 3;
-               order = 2;
+               elem_dim = 3;
+               elem_order = 2;
                elements[i] = new Hexahedron(&cells_data[j+1]);
                break;
             default:
                MFEM_ABORT("VTK mesh : cell type " << ct << " is not supported!");
                return;
          }
+         MFEM_VERIFY(Dim == -1 || Dim == elem_dim,
+                     "elements with different dimensions are not supported");
+         MFEM_VERIFY(order == -1 || order == elem_order,
+                     "elements with different orders are not supported");
+         Dim = elem_dim;
+         order = elem_order;
          j += cells_data[j] + 1;
       }
    }
@@ -618,8 +648,11 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
             case Geometry::TETRAHEDRON:
                vtk_mfem = vtk_quadratic_tet; break;
             case Geometry::CUBE:
-            default:
                vtk_mfem = vtk_quadratic_hex; break;
+            case Geometry::PRISM:
+               vtk_mfem = vtk_quadratic_wedge; break;
+            default:
+               break;
          }
 
          for (n++, j = 0; j < dofs.Size(); j++, n++)
@@ -785,7 +818,7 @@ void Mesh::ReadInlineMesh(std::istream &input, int generate_edges)
          {
             MFEM_ABORT("unrecognized element type (read '" << eltype
                        << "') in inline mesh format.  "
-                       "Allowed: segment, tri, tet, quad, hex, pri");
+                       "Allowed: segment, tri, quad, tet, hex, wedge");
          }
       }
       else
@@ -848,10 +881,8 @@ void Mesh::ReadInlineMesh(std::istream &input, int generate_edges)
    else
    {
       MFEM_ABORT("For inline mesh, must specify an element type ="
-                 " [segment, tri, quad, tet, pri, hex]");
+                 " [segment, tri, quad, tet, hex, wedge]");
    }
-   InitBaseGeom();
-   return; // done with inline mesh construction
 }
 
 void Mesh::ReadGmshMesh(std::istream &input)
@@ -942,7 +973,7 @@ void Mesh::ReadGmshMesh(std::istream &input)
             4, // 4-node quadrangle.
             4, // 4-node tetrahedron.
             8, // 8-node hexahedron.
-            6, // 6-node wedge.
+            6, // 6-node prism.
             5, // 5-node pyramid.
             3, /* 3-node second order line (2 nodes associated with the vertices
                     and 1 with the edge). */
@@ -955,7 +986,7 @@ void Mesh::ReadGmshMesh(std::istream &input)
             27,/* 27-node second order hexahedron (8 nodes associated with the
                      vertices, 12 with the edges, 6 with the faces and 1 with
                      the volume). */
-            18,/* 18-node second order wedge (6 nodes associated with the
+            18,/* 18-node second order prism (6 nodes associated with the
                      vertices, 9 with the edges and 3 with the quadrangular
                      faces). */
             14,/* 14-node second order pyramid (5 nodes associated with the
@@ -966,7 +997,7 @@ void Mesh::ReadGmshMesh(std::istream &input)
                     vertices and 4 with the edges). */
             20,/* 20-node second order hexahedron (8 nodes associated with the
                      vertices and 12 with the edges). */
-            15,/* 15-node second order wedge (6 nodes associated with the
+            15,/* 15-node second order prism (6 nodes associated with the
                      vertices and 9 with the edges). */
             13,/* 13-node second order pyramid (5 nodes associated with the
                      vertices and 8 with the edges). */
@@ -1453,7 +1484,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 
    CubitElementType cubit_element_type = ELEMENT_TRI3; // suppress a warning
    CubitFaceType cubit_face_type;
-   int num_element_linear_nodes;
+   int num_element_linear_nodes = 0; // initialize to suppress a warning
 
    if (num_dim == 2)
    {
