@@ -4,13 +4,18 @@
 //
 // Sample runs:  ex1 -m ../data/square-disc.mesh
 //               ex1 -m ../data/star.mesh
+//               ex1 -m ../data/star-mixed.mesh
 //               ex1 -m ../data/escher.mesh
 //               ex1 -m ../data/fichera.mesh
+//               ex1 -m ../data/fichera-mixed.mesh
+//               ex1 -m ../data/toroid-wedge.mesh
 //               ex1 -m ../data/square-disc-p2.vtk -o 2
 //               ex1 -m ../data/square-disc-p3.mesh -o 3
 //               ex1 -m ../data/square-disc-nurbs.mesh -o -1
+//               ex1 -m ../data/star-mixed-p2.mesh -o 2
 //               ex1 -m ../data/disc-nurbs.mesh -o -1
 //               ex1 -m ../data/pipe-nurbs.mesh -o -1
+//               ex1 -m ../data/fichera-mixed-p2.mesh -o 2
 //               ex1 -m ../data/star-surf.mesh
 //               ex1 -m ../data/square-disc-surf.mesh
 //               ex1 -m ../data/inline-segment.mesh
@@ -39,13 +44,11 @@
 #include <fstream>
 #include <iostream>
 
-#include "/home/camier1/home/stk/stk.hpp"
 using namespace std;
 using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   stkIni(argv[0]);
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
@@ -78,22 +81,21 @@ int main(int argc, char *argv[])
    //    the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
- 
+
    // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
-   {/*
+   {
       int ref_levels =
          (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
-    */
    }
 
-   dbg("4. Define a finite element space on the mesh.");// Here we use continuous
+   // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
    FiniteElementCollection *fec;
@@ -114,7 +116,7 @@ int main(int argc, char *argv[])
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
 
-   dbg("5. Determine the list of true (i.e. conforming) essential boundary dofs.");
+   // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
    //    the boundary attributes from the mesh as essential (Dirichlet) and
    //    converting them to a list of true dofs.
@@ -126,37 +128,32 @@ int main(int argc, char *argv[])
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   dbg("6. Set up the linear form b(.)");// which corresponds to the right-hand side of
+   // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
    LinearForm *b = new LinearForm(fespace);
    ConstantCoefficient one(1.0);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
-   //dbg("LinearForm b=");b->Print();
-   
+
    // **************************************************************************
    if (gpu){
-      //#warning Need to do this before before switching to get the Nodes ready for kgeom
-      //mesh->SetNodalFESpace(fespace);
-      //mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
-      //assert(false);
+      mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
       config::Get().Cuda(true);
       config::Get().PA(true);
       dbg("\033[32;7mSwitched to GPU & PA!");
    }
-   
-   dbg("7. Define the solution vector x");// as a finite element grid function
+
+   // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
    GridFunction x(fespace);
    x = 0.0;
 
-   dbg("8. Set up the bilinear form a(.,.)");// on the finite element space
+   // 8. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
-   BilinearForm *a = new BilinearForm(fespace);  
-   //a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   BilinearForm *a = new BilinearForm(fespace);
    if (config::Get().PA()){
       dbg("Add PA DiffusionIntegrator");
       a->AddDomainIntegrator(new PADiffusionIntegrator(one));
@@ -165,21 +162,13 @@ int main(int argc, char *argv[])
       a->AddDomainIntegrator(new DiffusionIntegrator(one));
    }
 
-   /*
-   if (gpu){
-      config::Get().Cuda(true);
-      config::Get().PA(true);
-      dbg("\033[32;7mSwitched to GPU & PA!");
-      }*/ 
-
-   dbg("9. Assemble the bilinear form");// and the corresponding linear system,
+   // 9. Assemble the bilinear form and the corresponding linear system,
    //    applying any necessary transformations such as: eliminating boundary
    //    conditions, applying conforming constraints for non-conforming AMR,
    //    static condensation, etc.
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
-   
-   dbg("9. PA:BilinearForm / FA:SparseMatrix");
+
    PABilinearForm *paA = new PABilinearForm(fespace);
    SparseMatrix *faA = new SparseMatrix();
    Vector B, X;
@@ -192,8 +181,6 @@ int main(int argc, char *argv[])
       cout << "Size of linear system: " << paA->Height() << endl;
    else
       cout << "Size of linear system: " << faA->Height() << endl;
-
-    //config::Get().Cuda(gpu);
 
 #ifndef MFEM_USE_SUITESPARSE
    //dbg("10. Define a simple symmetric Gauss-Seidel preconditioner");// and use it to

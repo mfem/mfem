@@ -12,10 +12,10 @@
 #ifndef MFEM_BILIN_GEOM_HPP
 #define MFEM_BILIN_GEOM_HPP
 
-#include "../config/config.hpp"
-#include "../general/karray.hpp"
+#include "../../config/config.hpp"
+#include "../../general/karray.hpp"
 
-#include "fespace.hpp"
+#include "../fespace.hpp"
 
 namespace mfem
 {

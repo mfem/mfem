@@ -22,7 +22,7 @@
 #include <limits>
 #include <cstring>
 
-#include "ksparsemat.hpp"
+#include "kernels/sparsemat.hpp"
 
 namespace mfem
 {

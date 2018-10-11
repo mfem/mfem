@@ -15,7 +15,7 @@
 #include "bilininteg.hpp"
 #include "kBilinIntegDiffusion.hpp"
 #include "kfespace.hpp"
-#include "../linalg/kvector.hpp"
+#include "../linalg/kernels/vector.hpp"
 
 #include <cmath>
 

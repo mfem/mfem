@@ -9,15 +9,15 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "../config/config.hpp"
+#include "../../config/config.hpp"
 
-#include "../general/okina.hpp"
-#include "../linalg/kvector.hpp"
+#include "../../general/okina.hpp"
+#include "../../linalg/kernels/vector.hpp"
 
-#include "kgeom.hpp"
-#include "fem.hpp"
-#include "doftoquad.hpp"
-#include "kernels/geom.hpp"
+#include "geometry.hpp"
+#include "../fem.hpp"
+#include "../doftoquad.hpp"
+#include "geomIni.hpp"
 
 namespace mfem
 {
@@ -130,7 +130,7 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
    //0.809019 -0.951057 1.15451 -0.475529 0.654509 0.475529 -0.25 0.769421
    //-0.809016 0 -0.25 -0.76942 0.654509 -0.475529
 
-   assert(false);
+   //assert(false);
    
    const mfem::FiniteElementSpace& fespace = *(nodes.FESpace());
    const mfem::FiniteElement& fe = *(fespace.GetFE(0));

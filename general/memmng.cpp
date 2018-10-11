@@ -31,8 +31,6 @@ void mm::Setup(void){
 // * Returns the 'instant' one
 // *****************************************************************************
 void* mm::add(const void *h_adrs, const size_t size, const size_t size_of_T){
-   //dbg();
-   //stk(true);
    const size_t bytes = size*size_of_T;
    const auto search = mng->find(h_adrs);
    const bool present = search != mng->end();
@@ -74,7 +72,6 @@ void mm::del(const void *adrs){
    const auto search = mng->find(adrs);
    const bool present = search != mng->end();
    if (!present){ // should not happen
-      stk(true);
       printf("\n\033[31;7m[mm::del] %p\033[m", adrs);
       assert(false); // should not happen
       return;
@@ -96,21 +93,18 @@ bool mm::Known(const void *adrs){
 // * 
 // *****************************************************************************
 void* mm::Adrs(const void *adrs){
-   //dbg();
    const bool cuda = config::Get().Cuda();
    const auto search = mng->find(adrs);
    const bool present = search != mng->end();
 
    // Should look where that comes from
    if (not present) {
-      dbg();
-      stk(true);
       assert(false);
       return (void*)adrs;
    }
    
    assert(present);
-   /*const*/ mm2dev_t &mm2dev = mng->operator[](adrs);
+   mm2dev_t &mm2dev = mng->operator[](adrs);
    const size_t bytes = mm2dev.bytes;
    // If we are asking a known host address, just return it
    if (mm2dev.host and not cuda){
@@ -118,7 +112,6 @@ void* mm::Adrs(const void *adrs){
       return (void*)mm2dev.h_adrs;
    }
    // Otherwise push it to the device if it hasn't been seen
-   //assert(mm2dev.d_adrs);
    if (!mm2dev.d_adrs){
       dbg("\033[32;1mPushing new address to the GPU!\033[m");
       // allocate on the device
@@ -166,15 +159,11 @@ void mm::Rsync(const void *adrs){
 
 // *****************************************************************************
 void mm::Push(const void *adrs){
-   dbg();stk(true);
    const auto search = mng->find(adrs);
    const bool present = search != mng->end();
    assert(present);
    const mm2dev_t &mm2dev = mng->operator[](adrs);
-   if (mm2dev.host){
-      //dbg("On host");
-      return;
-   }
+   if (mm2dev.host) return;
    const size_t bytes = mm2dev.bytes;
    checkCudaErrors(cuMemcpyHtoD((CUdeviceptr)mm2dev.d_adrs,
                                 (void*)mm2dev.h_adrs,
@@ -183,7 +172,6 @@ void mm::Push(const void *adrs){
 
 // **************************************************************************
 void* mm::H2H(void *dest, const void *src, size_t bytes, const bool async) {
-   dbg();
    if (bytes==0) return dest;
    assert(src); assert(dest);
    std::memcpy(dest,src,bytes);
@@ -192,8 +180,6 @@ void* mm::H2H(void *dest, const void *src, size_t bytes, const bool async) {
 
 // *************************************************************************
 void* mm::H2D(void *dest, const void *src, size_t bytes, const bool async) {
-   dbg();
-   stk(true);
    if (bytes==0) return dest;
    assert(src); assert(dest);
    if (!config::Get().Cuda()) return memcpy(dest,src,bytes);
@@ -208,7 +194,6 @@ void* mm::H2D(void *dest, const void *src, size_t bytes, const bool async) {
 
 // ***************************************************************************
 void* mm::D2H(void *dest, const void *src, size_t bytes, const bool async) {
-   dbg();
    if (bytes==0) return dest;
    assert(src); assert(dest);
    if (!config::Get().Cuda()) return memcpy(dest,src,bytes);
@@ -222,7 +207,6 @@ void* mm::D2H(void *dest, const void *src, size_t bytes, const bool async) {
   
 // ***************************************************************************
 void* mm::D2D(void *dest, const void *src, size_t bytes, const bool async) {
-   dbg();//stk(true);
    if (bytes==0) return dest;
    assert(src); assert(dest);
    if (!config::Get().Cuda()) return memcpy(dest,src,bytes);
@@ -254,7 +238,6 @@ void mm::handler(int nSignum, siginfo_t* si, void* vcontext) {
 
 // *****************************************************************************
 void mm::iniHandler(){
-   dbg();
    struct sigaction action;
    memset(&action, 0, sizeof(struct sigaction));
    action.sa_flags = SA_SIGINFO;
