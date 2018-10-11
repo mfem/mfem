@@ -16,6 +16,69 @@ using namespace std;
 MFEM_NAMESPACE
 
 // *****************************************************************************
+#ifdef MFEM_USE_LAPACK
+   #define ipiv_base 1
+#else
+   #define ipiv_base 0
+#endif
+
+// *****************************************************************************
+template <class T> __device__ __host__
+inline void Swap(T &a, T &b){
+   T tmp(a);
+   a = b;
+   b = tmp;
+}
+
+// *****************************************************************************
+void kLSolve( const int m,
+              const int n,
+              const double *data, const int *ipiv, double *x){
+   dbg();
+   GET_CONST_ADRS(data);
+   GET_CONST_ADRS_T(ipiv,int);
+   GET_ADRS(x);
+
+   forall(p, 1, {
+         for (int k = 0; k < n; k++){
+            double *d_mx = &d_x[k*m];
+            // X <- P X
+            for (int i = 0; i < m; i++){
+               Swap<double>(d_mx[i], d_mx[d_ipiv[i]-ipiv_base]);
+            }
+            // X <- L^{-1} X
+            for (int j = 0; j < m; j++){
+               const double d_mx_j = d_mx[j];
+               for (int i = j+1; i < m; i++){
+                  d_mx[i] -= d_data[i+j*m] * d_mx_j;
+               }
+            }
+            //d_x = d_x +m;
+         }
+      });
+}
+
+// *****************************************************************************
+void kUSolve(const int m, const int n, const double *data, double *x){
+   dbg();
+   GET_CONST_ADRS(data);
+   GET_ADRS(x);
+   
+   forall(p, 1, {
+         for (int k = 0; k < n; k++){
+            double *d_mx = &d_x[k*m];
+            for (int j = m-1; j >= 0; j--){
+               const double x_j = ( d_mx[j] /= d_data[j+j*m] );
+               for (int i = 0; i < j; i++) {
+                  d_mx[i] -= d_data[i+j*m] * x_j;
+               }
+            }
+            //x += m;
+         }
+      });
+}
+
+// *****************************************************************************
 void kFactorPrint(const int s, const double *data){
    dbg();
    GET_CONST_ADRS(data);

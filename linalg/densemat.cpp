@@ -4079,10 +4079,12 @@ void LUFactors::Mult(int m, int n, double *X) const
 
 void LUFactors::LSolve(int m, int n, double *X) const
 {
-   OKINA_ASSERT_CPU;
+   OKINA_ASSERT_GPU;
    const double *data = this->data;
    const int *ipiv = this->ipiv;
    double *x = X;
+   kLSolve(m, n, data, ipiv, x);
+   /*
    for (int k = 0; k < n; k++)
    {
       // X <- P X
@@ -4100,15 +4102,17 @@ void LUFactors::LSolve(int m, int n, double *X) const
          }
       }
       x += m;
-   }
+      }*/
 }
 
 void LUFactors::USolve(int m, int n, double *X) const
 {
-   OKINA_ASSERT_CPU;
+   OKINA_ASSERT_GPU;
    const double *data = this->data;
    double *x = X;
    // X <- U^{-1} X
+   kUSolve(m, n, data, x);
+   /*
    for (int k = 0; k < n; k++)
    {
       for (int j = m-1; j >= 0; j--)
@@ -4120,12 +4124,12 @@ void LUFactors::USolve(int m, int n, double *X) const
          }
       }
       x += m;
-   }
+      }*/
 }
 
 void LUFactors::Solve(int m, int n, double *X) const
 {
-   OKINA_ASSERT_CPU;
+   OKINA_ASSERT_GPU;
 #ifdef MFEM_USE_LAPACK
    char trans = 'N';
    int  info = 0;
@@ -4355,14 +4359,14 @@ void DenseMatrixInverse::SetOperator(const Operator &op)
 
 void DenseMatrixInverse::Mult(const Vector &x, Vector &y) const
 {
-   OKINA_ASSERT_CPU;
+   OKINA_ASSERT_GPU;
    y = x;
    lu.Solve(width, 1, y.GetData());
 }
 
 void DenseMatrixInverse::Mult(const DenseMatrix &B, DenseMatrix &X) const
 {
-   OKINA_ASSERT_CPU;
+   OKINA_ASSERT_GPU;
    X = B;
    lu.Solve(width, X.Width(), X.Data());
 }

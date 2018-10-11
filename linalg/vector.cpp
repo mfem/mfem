@@ -527,8 +527,6 @@ void Vector::SetSubVector(const Array<int> &dofs, const double value)
 void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
 {
    dbg();
-   elemvect.Print();
-   dofs.Print();
    kVectorSetSubvector(dofs.Size(), GetData(), elemvect.GetData(), dofs.GetData());
 }
 
