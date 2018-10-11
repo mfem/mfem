@@ -86,6 +86,7 @@ MFEM_USE_MPI         = NO
 MFEM_USE_METIS       = $(MFEM_USE_MPI)
 MFEM_USE_METIS_5     = NO
 MFEM_DEBUG           = NO
+MFEM_USE_EXCEPTIONS  = NO
 MFEM_USE_GZSTREAM    = NO
 MFEM_USE_LIBUNWIND   = NO
 MFEM_USE_LAPACK      = NO
@@ -104,6 +105,8 @@ MFEM_USE_NETCDF      = NO
 MFEM_USE_PETSC       = NO
 MFEM_USE_MPFR        = NO
 MFEM_USE_SIDRE       = NO
+MFEM_USE_CONDUIT     = NO
+MFEM_USE_PUMI        = NO
 
 # Compile and link options for zlib.
 ZLIB_DIR =
@@ -242,17 +245,39 @@ endif
 MPFR_OPT =
 MPFR_LIB = -lmpfr
 
+# Conduit and required libraries configuration
+CONDUIT_DIR = @MFEM_DIR@/../conduit
+CONDUIT_OPT = -I$(CONDUIT_DIR)/include/conduit
+CONDUIT_LIB = \
+   -Wl,-rpath,$(CONDUIT_DIR)/lib -L$(CONDUIT_DIR)/lib \
+   -lconduit -lconduit_relay -lconduit_blueprint  -ldl
+
+# Check if Conduit was built with hdf5 support, by looking
+# for the relay hdf5 header
+CONDUIT_HDF5_HEADER=$(CONDUIT_DIR)/include/conduit/conduit_relay_hdf5.hpp
+ifneq (,$(wildcard $(CONDUIT_HDF5_HEADER)))
+   CONDUIT_OPT += -I$(HDF5_DIR)/include
+   CONDUIT_LIB += -Wl,-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib \
+                  -lhdf5 $(ZLIB_LIB)
+endif
+
 # Sidre and required libraries configuration
 # Be sure to check the HDF5_DIR (set above) is correct
 SIDRE_DIR = @MFEM_DIR@/../axom
-CONDUIT_DIR = @MFEM_DIR@/../conduit
 SIDRE_OPT = -I$(SIDRE_DIR)/include -I$(CONDUIT_DIR)/include/conduit\
  -I$(HDF5_DIR)/include
 SIDRE_LIB = \
    -Wl,-rpath,$(SIDRE_DIR)/lib -L$(SIDRE_DIR)/lib \
    -Wl,-rpath,$(CONDUIT_DIR)/lib -L$(CONDUIT_DIR)/lib \
    -Wl,-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib \
-   -lsidre -lslic -laxom_utils -lconduit -lconduit_relay -lhdf5 -lz -ldl
+   -lsidre -lslic -laxom_utils -lconduit -lconduit_relay -lhdf5 $(ZLIB_LIB) -ldl
+
+# PUMI
+# Note that PUMI_DIR is needed -- it is used to check for gmi_sim.h
+PUMI_DIR = @MFEM_DIR@/../pumi-2.1.0
+PUMI_OPT = -I$(PUMI_DIR)/include
+PUMI_LIB = -L$(PUMI_DIR)/lib -lpumi -lcrv -lma -lmds -lapf -lpcu -lgmi -lparma\
+   -llion -lmth -lapf_zoltan -lspr
 
 # If YES, enable some informational messages
 VERBOSE = NO

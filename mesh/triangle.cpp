@@ -34,13 +34,11 @@ Triangle::Triangle(int ind1, int ind2, int ind3, int attr)
    transform = 0;
 }
 
-int Triangle::NeedRefinement(DSTable &v_to_v, int *middle) const
+int Triangle::NeedRefinement(HashTable<Hashed2> &v_to_v) const
 {
-   int m;
-
-   if ((m = v_to_v(indices[0], indices[1])) != -1 && middle[m] != -1) { return 1; }
-   if ((m = v_to_v(indices[1], indices[2])) != -1 && middle[m] != -1) { return 1; }
-   if ((m = v_to_v(indices[2], indices[0])) != -1 && middle[m] != -1) { return 1; }
+   if (v_to_v.FindId(indices[0], indices[1]) != -1) { return 1; }
+   if (v_to_v.FindId(indices[1], indices[2]) != -1) { return 1; }
+   if (v_to_v.FindId(indices[2], indices[0]) != -1) { return 1; }
    return 0;
 }
 
@@ -99,7 +97,8 @@ void Triangle::MarkEdge(DenseMatrix &pmat)
    }
 }
 
-void Triangle::MarkEdge(const DSTable &v_to_v, const int *length)
+// Static method
+void Triangle::MarkEdge(int *indices, const DSTable &v_to_v, const int *length)
 {
    int l, L, j, ind[3], i;
 
@@ -194,7 +193,5 @@ void Triangle::GetVertices(Array<int> &v) const
       v[i] = indices[i];
    }
 }
-
-Linear2DFiniteElement TriangleFE;
 
 } // namespace mfem

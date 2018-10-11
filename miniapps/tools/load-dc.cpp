@@ -22,7 +22,7 @@
 // Serial sample runs:
 //   > load-dc -r ../../examples/Example5
 //
-// Paralle sample runs:
+// Parallel sample runs:
 //   > mpirun -np 4 load-dc -r ../../examples/Example5-Parallel
 
 #include "mfem.hpp"

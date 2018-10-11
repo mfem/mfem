@@ -122,12 +122,15 @@ int main (int argc, char *argv[])
 {
    int np = 0;
    const char *mesh_file = "../../data/beam-hex.mesh";
+   bool refine = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to visualize.");
    args.AddOption(&np, "-np", "--num-proc",
                   "Load mesh from multiple processors.");
+   args.AddOption(&refine, "-ref", "--refinement", "-no-ref", "--no-refinement",
+                  "Prepare the mesh for refinement or not.");
    args.Parse();
    if (!args.Good())
    {
@@ -149,7 +152,7 @@ int main (int argc, char *argv[])
    Mesh *mesh;
    if (np <= 0)
    {
-      mesh = new Mesh(mesh_file, 1, 1);
+      mesh = new Mesh(mesh_file, 1, refine);
    }
    else
    {
@@ -219,9 +222,11 @@ int main (int argc, char *argv[])
            "f) Find physical point in reference space\n"
            "p) Generate a partitioning\n"
            "S) Save\n"
+           "V) Save in VTK format (only linear and quadratic meshes)\n"
            "--> " << flush;
       char mk;
       cin >> mk;
+      if (!cin) { break; }
 
       if (mk == 'q')
       {
@@ -233,6 +238,7 @@ int main (int argc, char *argv[])
          cout <<
               "Choose type of refinement:\n"
               "s) standard refinement with Mesh::UniformRefinement()\n"
+              "b) Mesh::UniformRefinement() (bisection for tet meshes)\n"
               "u) uniform refinement with a factor\n"
               "g) non-uniform refinement (Gauss-Lobatto) with a factor\n"
               "l) refine locally using the region() function\n"
@@ -243,6 +249,11 @@ int main (int argc, char *argv[])
          {
             case 's':
                mesh->UniformRefinement();
+               // Make sure tet-only meshes are marked for local refinement.
+               mesh->Finalize(true);
+               break;
+            case 'b':
+               mesh->UniformRefinement(1); // ref_algo = 1
                break;
             case 'u':
             case 'g':
@@ -372,9 +383,12 @@ int main (int argc, char *argv[])
                }
             }
 
-            int bdr = 0;
+            char move_bdr = 'n';
+            cout << "move boundary nodes? [y/n] ---> " << flush;
+            cin >> move_bdr;
+
             // don't perturb the boundary
-            if (!bdr)
+            if (move_bdr == 'n')
             {
                Array<int> vdofs;
                for (int i = 0; i < fespace->GetNBE(); i++)
@@ -403,9 +417,11 @@ int main (int argc, char *argv[])
          max_det_J = max_kappa = max_ratio_det_J_z = -infinity();
          cout << "subdivision factor ---> " << flush;
          cin >> sd;
+         Array<int> bad_elems_by_geom(Geometry::NumGeom);
+         bad_elems_by_geom = 0;
          for (int i = 0; i < mesh->GetNE(); i++)
          {
-            int geom = mesh->GetElementBaseGeometry(i);
+            Geometry::Type geom = mesh->GetElementBaseGeometry(i);
             ElementTransformation *T = mesh->GetElementTransformation(i);
 
             RefinedGeometry *RefG = GlobGeometryRefiner.Refine(geom, sd, 1);
@@ -435,15 +451,21 @@ int main (int argc, char *argv[])
             if (min_det_J_z <= 0.0)
             {
                nz++;
+               bad_elems_by_geom[geom]++;
             }
          }
-         cout  << "\nbad elements = " << nz
-               << "\nmin det(J)   = " << min_det_J
-               << "\nmax det(J)   = " << max_det_J
-               << "\nglobal ratio = " << max_det_J/min_det_J
-               << "\nmax el ratio = " << max_ratio_det_J_z
-               << "\nmin kappa    = " << min_kappa
-               << "\nmax kappa    = " << max_kappa << endl;
+         cout << "\nbad elements = " << nz;
+         if (nz)
+         {
+            cout << "  --  ";
+            Mesh::PrintElementsByGeometry(dim, bad_elems_by_geom, cout);
+         }
+         cout << "\nmin det(J)   = " << min_det_J
+              << "\nmax det(J)   = " << max_det_J
+              << "\nglobal ratio = " << max_det_J/min_det_J
+              << "\nmax el ratio = " << max_ratio_det_J_z
+              << "\nmin kappa    = " << min_kappa
+              << "\nmax kappa    = " << max_kappa << endl;
       }
 
       if (mk == 'f')
@@ -481,6 +503,7 @@ int main (int argc, char *argv[])
          }
       }
 
+      // These are the cases that open a new GLVis window
       if (mk == 'm' || mk == 'b' || mk == 'e' || mk == 'v' || mk == 'h' ||
           mk == 'k' || mk == 'p')
       {
@@ -752,8 +775,18 @@ int main (int argc, char *argv[])
          mesh->Print(omesh);
          cout << "New mesh file: " << mesh_file << endl;
       }
+
+      if (mk == 'V')
+      {
+         const char mesh_file[] = "mesh-explorer.vtk";
+         ofstream omesh(mesh_file);
+         omesh.precision(14);
+         mesh->PrintVTK(omesh);
+         cout << "New VTK mesh file: " << mesh_file << endl;
+      }
    }
 
    delete attr_fec;
    delete mesh;
+   return 0;
 }

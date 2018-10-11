@@ -23,6 +23,7 @@ set(SRCS
   tetrahedron.cpp
   triangle.cpp
   vertex.cpp
+  wedge.cpp
   )
 
 set(HDRS
@@ -40,6 +41,7 @@ set(HDRS
   tmesh.hpp
   triangle.hpp
   vertex.hpp
+  wedge.hpp
   )
 
 if (MFEM_USE_MPI)
@@ -58,6 +60,13 @@ if (MFEM_USE_MESQUITE)
   # If this list (HDRS -> HEADERS) is used for install, we probably want the
   # header added all the time.
   list(APPEND HDRS mesquite.hpp)
+endif()
+
+if (MFEM_USE_PUMI)
+  list(APPEND SRCS
+    pumi.cpp)
+  list(APPEND HDRS
+    pumi.hpp)
 endif()
 
 convert_filenames_to_full_paths(SRCS)

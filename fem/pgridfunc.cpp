@@ -373,6 +373,116 @@ void ParGridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
    ComputeMeans(type, zones_per_vdof);
 }
 
+void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &vcoeff,
+                                             AvgType type)
+{
+   // Harmonic  (x1 ... xn) = [ (1/x1 + ... + 1/xn) / n ]^-1.
+   // Arithmetic(x1 ... xn) = (x1 + ... + xn) / n.
+
+   // Number of zones that contain a given dof.
+   Array<int> zones_per_vdof;
+   AccumulateAndCountZones(vcoeff, type, zones_per_vdof);
+
+   // Count the zones globally.
+   GroupCommunicator &gcomm = pfes->GroupComm();
+   gcomm.Reduce<int>(zones_per_vdof, GroupCommunicator::Sum);
+   gcomm.Bcast(zones_per_vdof);
+   // Accumulate for all tdofs.
+   HypreParVector *tv = this->ParallelAssemble();
+   this->Distribute(tv);
+   delete tv;
+
+   ComputeMeans(type, zones_per_vdof);
+}
+
+void ParGridFunction::ProjectBdrCoefficient(
+   Coefficient *coeff[], Array<int> &attr)
+{
+   Array<int> values_counter;
+   AccumulateAndCountBdrValues(coeff, attr, values_counter);
+   if (pfes->Conforming())
+   {
+      Vector values(Size());
+      for (int i = 0; i < values.Size(); i++)
+      {
+         values(i) = values_counter[i] ? (*this)(i) : 0.0;
+      }
+      // Count the values globally.
+      GroupCommunicator &gcomm = pfes->GroupComm();
+      gcomm.Reduce<int>(values_counter, GroupCommunicator::Sum);
+      // Accumulate the values globally.
+      gcomm.Reduce<double>(values, GroupCommunicator::Sum);
+      // Only the values in the master are guaranteed to be correct!
+      for (int i = 0; i < values.Size(); i++)
+      {
+         if (values_counter[i])
+         {
+            (*this)(i) = values(i)/values_counter[i];
+         }
+      }
+   }
+   else
+   {
+      // FIXME: same as the conforming case after 'cut-mesh-groups-dev-*' is
+      //        merged?
+      ComputeMeans(ARITHMETIC, values_counter);
+   }
+#ifdef MFEM_DEBUG
+   Array<int> ess_vdofs_marker;
+   pfes->GetEssentialVDofs(attr, ess_vdofs_marker);
+   for (int i = 0; i < values_counter.Size(); i++)
+   {
+      MFEM_ASSERT(pfes->GetLocalTDofNumber(i) == -1 ||
+                  bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
+                  "internal error");
+   }
+#endif
+}
+
+void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
+                                                   Array<int> &bdr_attr)
+{
+   Array<int> values_counter;
+   AccumulateAndCountBdrTangentValues(vcoeff, bdr_attr, values_counter);
+   if (pfes->Conforming())
+   {
+      Vector values(Size());
+      for (int i = 0; i < values.Size(); i++)
+      {
+         values(i) = values_counter[i] ? (*this)(i) : 0.0;
+      }
+      // Count the values globally.
+      GroupCommunicator &gcomm = pfes->GroupComm();
+      gcomm.Reduce<int>(values_counter, GroupCommunicator::Sum);
+      // Accumulate the values globally.
+      gcomm.Reduce<double>(values, GroupCommunicator::Sum);
+      // Only the values in the master are guaranteed to be correct!
+      for (int i = 0; i < values.Size(); i++)
+      {
+         if (values_counter[i])
+         {
+            (*this)(i) = values(i)/values_counter[i];
+         }
+      }
+   }
+   else
+   {
+      // FIXME: same as the conforming case after 'cut-mesh-groups-dev-*' is
+      //        merged?
+      ComputeMeans(ARITHMETIC, values_counter);
+   }
+#ifdef MFEM_DEBUG
+   Array<int> ess_vdofs_marker;
+   pfes->GetEssentialVDofs(bdr_attr, ess_vdofs_marker);
+   for (int i = 0; i < values_counter.Size(); i++)
+   {
+      MFEM_ASSERT(pfes->GetLocalTDofNumber(i) == -1 ||
+                  bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
+                  "internal error");
+   }
+#endif
+}
+
 void ParGridFunction::Save(std::ostream &out) const
 {
    for (int i = 0; i < size; i++)
@@ -567,7 +677,7 @@ void ParGridFunction::ComputeFlux(
    Array<int> count(flux.Size());
    SumFluxAndCount(blfi, flux, count, wcoef, subdomain);
 
-   if (ffes->Conforming()) // FIXME: nonconforming
+   if (ffes->Conforming())
    {
       // Accumulate flux and counts in parallel
 
@@ -579,6 +689,7 @@ void ParGridFunction::ComputeFlux(
    }
    else
    {
+      // FIXME: nonconforming mesh case
       MFEM_ABORT("Averaging on processor boundaries not implemented for "
                  "NC meshes yet.\n"
                  "Use L2ZZErrorEstimator() instead of ZZErrorEstimator().");

@@ -10,6 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "fem.hpp"
+#include "../mesh/nurbs.hpp"
 #include "../general/text.hpp"
 #include "picojson.h"
 
@@ -132,6 +133,20 @@ void DataCollection::SetMesh(Mesh *new_mesh)
    }
 #endif
 }
+
+#ifdef MFEM_USE_MPI
+void DataCollection::SetMesh(MPI_Comm comm, Mesh *new_mesh)
+{
+   // This seems to be the cleanest way to accomplish this
+   // and avoid duplicating fine grained details:
+
+   SetMesh(new_mesh);
+
+   m_comm = comm;
+   MPI_Comm_rank(comm, &myid);
+   MPI_Comm_size(comm, &num_procs);
+}
+#endif
 
 void DataCollection::SetFormat(int fmt)
 {
@@ -317,6 +332,25 @@ DataCollection::~DataCollection()
 
 // class VisItDataCollection implementation
 
+void VisItDataCollection::UpdateMeshInfo()
+{
+   if (mesh)
+   {
+      spatial_dim = mesh->SpaceDimension();
+      topo_dim = mesh->Dimension();
+      if (mesh->NURBSext)
+      {
+         visit_levels_of_detail =
+            std::max(visit_levels_of_detail, mesh->NURBSext->GetOrder());
+      }
+   }
+   else
+   {
+      spatial_dim = 0;
+      topo_dim = 0;
+   }
+}
+
 VisItDataCollection::VisItDataCollection(const std::string& collection_name,
                                          Mesh *mesh)
    : DataCollection(collection_name, mesh)
@@ -324,32 +358,28 @@ VisItDataCollection::VisItDataCollection(const std::string& collection_name,
    appendRankToFileName = true; // always include rank in file names
    cycle = 0;                   // always include cycle in directory names
 
-   if (mesh)
-   {
-      spatial_dim = mesh->SpaceDimension();
-      topo_dim = mesh->Dimension();
-   }
-   else
-   {
-      spatial_dim = 0;
-      topo_dim = 0;
-   }
+   visit_levels_of_detail = 1;
    visit_max_levels_of_detail = 32;
+
+   UpdateMeshInfo();
 }
 
 #ifdef MFEM_USE_MPI
 VisItDataCollection::VisItDataCollection(MPI_Comm comm,
-                                         const std::string& collection_name)
-   : DataCollection(collection_name, NULL)
+                                         const std::string& collection_name,
+                                         Mesh *mesh)
+   : DataCollection(collection_name, mesh)
 {
    m_comm = comm;
    MPI_Comm_rank(comm, &myid);
    MPI_Comm_size(comm, &num_procs);
    appendRankToFileName = true; // always include rank in file names
    cycle = 0;                   // always include cycle in directory names
-   spatial_dim = 0;
-   topo_dim = 0;
+
+   visit_levels_of_detail = 1;
    visit_max_levels_of_detail = 32;
+
+   UpdateMeshInfo();
 }
 #endif
 
@@ -357,15 +387,45 @@ void VisItDataCollection::SetMesh(Mesh *new_mesh)
 {
    DataCollection::SetMesh(new_mesh);
    appendRankToFileName = true;
-   spatial_dim = mesh->SpaceDimension();
-   topo_dim = mesh->Dimension();
+   UpdateMeshInfo();
 }
+
+#ifdef MFEM_USE_MPI
+void VisItDataCollection::SetMesh(MPI_Comm comm, Mesh *new_mesh)
+{
+   // use VisItDataCollection's custom SetMesh, then set MPI info
+   SetMesh(new_mesh);
+   m_comm = comm;
+   MPI_Comm_rank(comm, &myid);
+   MPI_Comm_size(comm, &num_procs);
+}
+#endif
 
 void VisItDataCollection::RegisterField(const std::string& name,
                                         GridFunction *gf)
 {
    DataCollection::RegisterField(name, gf);
    field_info_map[name] = VisItFieldInfo("nodes", gf->VectorDim());
+
+   int LOD = 1;
+   if (gf->FESpace()->GetNURBSext())
+   {
+      LOD = gf->FESpace()->GetNURBSext()->GetOrder();
+   }
+   else
+   {
+      for (int e=0; e<gf->FESpace()->GetNE() ; e++)
+      {
+         LOD = std::max(LOD,gf->FESpace()->GetFE(e)->GetOrder());
+      }
+   }
+
+   visit_levels_of_detail = std::max(visit_levels_of_detail, LOD);
+}
+
+void VisItDataCollection::SetLevelsOfDetail(int levels_of_detail)
+{
+   visit_levels_of_detail = levels_of_detail;
 }
 
 void VisItDataCollection::SetMaxLevelsOfDetail(int max_levels_of_detail)
@@ -569,6 +629,7 @@ std::string VisItDataCollection::GetVisItRootString()
    {
       ftags["assoc"] = picojson::value((it->second).association);
       ftags["comps"] = picojson::value(to_string((it->second).num_components));
+      ftags["lod"] = picojson::value(to_string(visit_levels_of_detail));
       field["path"] = picojson::value(path_str + it->first + file_ext_format);
       field["tags"] = picojson::value(ftags);
       fields[it->first] = picojson::value(field);

@@ -153,7 +153,7 @@ void OperatorHandle::MakePtAP(OperatorHandle &A, OperatorHandle &P)
       }
 #endif
 #endif
-      default: MFEM_ABORT(not_supported_msg << type_id);
+      default: MFEM_ABORT(not_supported_msg << A.Type());
    }
 }
 
@@ -192,7 +192,7 @@ void OperatorHandle::MakeRAP(OperatorHandle &Rt, OperatorHandle &A,
       }
 #endif
 #endif
-      default: MFEM_ABORT(not_supported_msg << type_id);
+      default: MFEM_ABORT(not_supported_msg << A.Type());
    }
 }
 
