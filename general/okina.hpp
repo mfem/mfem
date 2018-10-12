@@ -30,6 +30,10 @@
 
 #include <stdarg.h>
 #include <signal.h>
+//#include <setjmp.h>
+
+// *****************************************************************************
+//#include "/home/camier1/home/stk/stk.hpp"
 
 // *****************************************************************************
 #define MFEM_NAMESPACE namespace mfem {

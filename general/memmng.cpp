@@ -16,14 +16,21 @@
 MFEM_NAMESPACE
 
 // *****************************************************************************
+//static jmp_buf env;
+//static size_t xs_shift = 0;
+//static void *xs_adrs = NULL;
+
+// *****************************************************************************
 void mm::Setup(void){
    assert(!mng);
-   // Create our mapping host => (size, h_adrs, d_adrs)
+   // Create our mapping h_adrs => (size, h_adrs, d_adrs)
    mng = new mm_t();
    // Initialize our SIGSEGV handler
    mm::iniHandler();
    // Initialize the CUDA device to be ready to allocate memory
    config::Get().Setup();
+   // We can shift address accesses to trig SIGSEGV (experimental) 
+   //xs_shift = 0;//1ull << 48;
 }
 
 // *****************************************************************************
@@ -31,24 +38,27 @@ void mm::Setup(void){
 // * Returns the 'instant' one
 // *****************************************************************************
 void* mm::add(const void *h_adrs, const size_t size, const size_t size_of_T){
+   //size_t *h_adrs = (size_t *) adrs;
    const size_t bytes = size*size_of_T;
    const auto search = mng->find(h_adrs);
    const bool present = search != mng->end();
    
-   if (present) { // should not happen
-      printf("\n\033[31;7m[mm::add] Trying to add already present %p(%ldo)\033[m", h_adrs, bytes);
-      fflush(0);
-      assert(false);
-   }
+   if (present)
+      mfem_error("[ERROR] Trying to add already present address!");
 
+   // Shift host address (not yet used)
+   //dbg("h_adrs @%p",h_adrs);
+   //h_adrs += xs_shift;
+   //dbg("h_adrs++ @%p",h_adrs);  
+   
    //printf(" \033[31m%p(%ldo)\033[m", h_adrs, bytes);fflush(0);
    mm2dev_t &mm2dev = mng->operator[](h_adrs);
    mm2dev.host = true;
    mm2dev.bytes = bytes;
    mm2dev.h_adrs = h_adrs;
    mm2dev.d_adrs = NULL;
-   if (config::Get().Cuda()){ // alloc also there
 #ifdef __NVCC__
+   if (config::Get().Cuda()){ // alloc also there
       CUdeviceptr ptr = (CUdeviceptr)NULL;
       const size_t bytes = mm2dev.bytes;
       if (bytes>0){
@@ -60,11 +70,13 @@ void* mm::add(const void *h_adrs, const size_t size, const size_t size_of_T){
       mm2dev.d_adrs = (void*)ptr;
       // and say we are there
       mm2dev.host = false;
-#else
-      mfem_error("[ERROR] MFEM has not been compiled with CUDA support!");
-#endif // __NVCC__
    }
-   return (void*) (mm2dev.host ? mm2dev.h_adrs : mm2dev.d_adrs);
+#else
+   return (void*) mm2dev.h_adrs;
+#endif // __NVCC__
+   void *address = (void*) (mm2dev.host ? mm2dev.h_adrs : mm2dev.d_adrs);
+   dbg("returning @%p",address); 
+   return address;
 }
 
 // *****************************************************************************
@@ -95,17 +107,29 @@ bool mm::Known(const void *adrs){
 // * 
 // *****************************************************************************
 void* mm::Adrs(const void *adrs){
+   /*
+   xs_adrs = (void*) adrs;
+   if (!setjmp(env)){
+      dbg("\033[32mTrying %p...",xs_adrs);
+      volatile size_t read = *(size_t*)xs_adrs;
+      *(size_t*)xs_adrs = read;
+   }else{
+      dbg("\033[32mRewinding, adrs was %p",xs_adrs);
+      assert(false);
+      //adrs -= xs_shift;
+   }
+   dbg("Looking for %p", adrs);
+   */
    const bool cuda = config::Get().Cuda();
    const auto search = mng->find(adrs);
    const bool present = search != mng->end();
 
-   // Should look where that comes from
-   if (not present) {
+   if (not present){
+      dbg("Unknown %p", adrs);
       assert(false);
-      return (void*)adrs;
+      //mfem_error("[ERROR] Trying to convert unknown address!");
    }
-   
-   assert(present);
+
    mm2dev_t &mm2dev = mng->operator[](adrs);
    const size_t bytes = mm2dev.bytes;
    // If we are asking a known host address, just return it
@@ -183,7 +207,7 @@ void mm::Push(const void *adrs){
 #endif // __NVCC__
 }
 
-// **************************************************************************
+// *****************************************************************************
 void* mm::H2H(void *dest, const void *src, size_t bytes, const bool async) {
    if (bytes==0) return dest;
    assert(src); assert(dest);
@@ -191,7 +215,7 @@ void* mm::H2H(void *dest, const void *src, size_t bytes, const bool async) {
    return dest;
 }
 
-// *************************************************************************
+// ******************************************************************************
 void* mm::H2D(void *dest, const void *src, size_t bytes, const bool async) {
    if (bytes==0) return dest;
    assert(src); assert(dest);
@@ -205,7 +229,7 @@ void* mm::H2D(void *dest, const void *src, size_t bytes, const bool async) {
    return dest;
 }
 
-// ***************************************************************************
+// *****************************************************************************
 void* mm::D2H(void *dest, const void *src, size_t bytes, const bool async) {
    if (bytes==0) return dest;
    assert(src); assert(dest);
@@ -218,7 +242,7 @@ void* mm::D2H(void *dest, const void *src, size_t bytes, const bool async) {
    return dest;
   }
   
-// ***************************************************************************
+// *****************************************************************************
 void* mm::D2D(void *dest, const void *src, size_t bytes, const bool async) {
    if (bytes==0) return dest;
    assert(src); assert(dest);
@@ -238,13 +262,13 @@ void* mm::D2D(void *dest, const void *src, size_t bytes, const bool async) {
    return dest;
 }
 
-// ***************************************************************************
+// *****************************************************************************
 void* mm::memcpy(void *dest, const void *src, size_t bytes) {
    return D2D(dest, src, bytes, false);
 }
 
 // *****************************************************************************
-// *  SIGSEGV handler
+// *  SIGSEGV handler (not used anymore)
 // *****************************************************************************
 void mm::handler(int nSignum, siginfo_t* si, void* vcontext) {
    fflush(0);
@@ -252,18 +276,32 @@ void mm::handler(int nSignum, siginfo_t* si, void* vcontext) {
    ucontext_t* context = (ucontext_t*)vcontext;
    context->uc_mcontext.gregs[REG_RIP]++;
    fflush(0);
-   exit(!0);
+   //exit(!0);
+   //longjmp(env, 1);
+}
+
+// *****************************************************************************
+// *  SIGSEGV handler that longjmps
+// *****************************************************************************
+static void SIGSEGV_handler(int s){
+   //if (s==SIGSEGV) longjmp(env, 1);
+   assert(false);
 }
 
 // *****************************************************************************
 // *  SIGNALS actions
 // *****************************************************************************
 void mm::iniHandler(){
-   struct sigaction action;
+   /*struct sigaction action;
    memset(&action, 0, sizeof(struct sigaction));
    action.sa_flags = SA_SIGINFO;
    action.sa_sigaction = handler;
    sigaction(SIGSEGV, &action, NULL);
+   if (!setjmp(env)) return;*/
+   signal(SIGSEGV, SIGSEGV_handler);
+   //if (!setjmp(env)) return;
+   //dbg("Flash back");
+   //stk(true);
 }
 
 // *****************************************************************************
