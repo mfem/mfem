@@ -43,13 +43,12 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-//#include "/home/camier1/home/stk/stk.hpp"
+
 using namespace std;
 using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   //stkIni(argv[0]);
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
@@ -91,13 +90,13 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
-   {/*
+   {
       int ref_levels = (rl < 0) ?
          (int)floor(log(50000./mesh->GetNE())/log(2.)/dim) : rl;
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
-         }*/
+      }
    }
 
    // 4. Define a finite element space on the mesh. Here we use continuous
@@ -132,7 +131,7 @@ int main(int argc, char *argv[])
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
-   
+
    // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
@@ -142,7 +141,7 @@ int main(int argc, char *argv[])
    b->Assemble();
 
    // **************************************************************************
-   dbg("\033[32;7mStill mesh->SetCurvature");
+   dbg("\033[32;7mStill have to prepare the nodes from the mesh");
    if (gpu or pa)
       mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
    if (gpu) {
@@ -174,24 +173,20 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
+   SparseMatrix faA;
    Vector B, X;
-   SparseMatrix *faA = new SparseMatrix();
-   PABilinearForm *paA = new PABilinearForm(fespace);
-   if (pa) a->FormLinearSystem(ess_tdof_list, x, *b, (Operator**)&paA, X, B);
-   else    a->FormLinearSystem(ess_tdof_list, x, *b, (Operator**)&faA, X, B);
+   PABilinearForm paA(fespace);
+   Operator *A = pa? static_cast<Operator*>(&paA):
+                     static_cast<Operator*>(&faA);
+   a->FormLinearSystem(ess_tdof_list, x, *b, &A, X, B);
 
-   const int height = pa ? paA->Height() : faA->Height();
-   cout << "Size of linear system: " << height << endl;
+   cout << "Size of linear system: " << A->Height() << endl;
 
 #ifndef MFEM_USE_SUITESPARSE
-   //dbg("10. Define a simple symmetric Gauss-Seidel preconditioner");// and use it to
-   dbg("10. Solve the system A X = B with PCG.");
+   // 10. Define a simple symmetric Gauss-Seidel preconditioner and use it to
+   //     solve the system A X = B with PCG.
    //GSSmoother M(A);
-   //PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
-   if (pa)
-      CG(*paA, B, X, 3, 1000, 1e-12, 0.0);
-   else
-      CG(*faA, B, X, 3, 1000, 1e-12, 0.0);
+   /*P*/CG(*A, /*M,*/ B, X, 3, 200, 1e-12, 0.0);
 #else
    // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;

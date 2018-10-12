@@ -45,7 +45,6 @@ SparseMatrix::SparseMatrix(int nrows, int ncols)
    kSparseMatrix(nrows,Rows);
 
 #ifdef MFEM_USE_MEMALLOC
-   //OKINA_ASSERT_CPU;
    NodesMem = new RowNodeAlloc;
 #endif
 }
@@ -62,7 +61,6 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n)
      ownData(true),
      isSorted(false)
 {
-   OKINA_ASSERT_CPU;
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
 #endif
@@ -81,15 +79,13 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n,
      ownData(owna),
      isSorted(issorted)
 {
-   OKINA_ASSERT_CPU;
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
 #endif
 
    if ( A == NULL )
    {
-      OKINA_ASSERT_CPU;
-      ownData = true;
+         ownData = true;
       int nnz = I[height];
       A = new double[ nnz ];
       for (int i=0; i<nnz; ++i)
@@ -108,11 +104,9 @@ SparseMatrix::SparseMatrix(int nrows, int ncols, int rowsize)
    , ownData(true)
    , isSorted(false)
 {
-   OKINA_ASSERT_CPU;
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
 #endif
-   OKINA_ASSERT_CPU;
    I = new int[nrows + 1];
    J = new int[nrows * rowsize];
    A = new double[nrows * rowsize];
@@ -126,7 +120,6 @@ SparseMatrix::SparseMatrix(int nrows, int ncols, int rowsize)
 SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
    : AbstractSparseMatrix(mat.Height(), mat.Width())
 {
-   OKINA_ASSERT_CPU;
    if (mat.Finalized())
    {
       const int nnz = mat.I[height];
@@ -199,7 +192,6 @@ SparseMatrix::SparseMatrix(const Vector &v)
    , ownData(true)
    , isSorted(true)
 {
-   OKINA_ASSERT_CPU;
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = NULL;
 #endif
@@ -221,7 +213,6 @@ SparseMatrix::SparseMatrix(const Vector &v)
 
 SparseMatrix& SparseMatrix::operator=(const SparseMatrix &rhs)
 {
-   OKINA_ASSERT_CPU;
    Clear();
 
    SparseMatrix copy(rhs);
@@ -232,7 +223,6 @@ SparseMatrix& SparseMatrix::operator=(const SparseMatrix &rhs)
 
 void SparseMatrix::MakeRef(const SparseMatrix &master)
 {
-   OKINA_ASSERT_GPU;
    MFEM_ASSERT(master.Finalized(), "'master' must be finalized");
    Clear();
    height = master.Height();
@@ -260,7 +250,6 @@ void SparseMatrix::SetEmpty()
 
 int SparseMatrix::RowSize(const int i) const
 {
-   OKINA_ASSERT_CPU;
    int gi = i;
    if (gi < 0)
    {
@@ -284,7 +273,6 @@ int SparseMatrix::RowSize(const int i) const
 
 int SparseMatrix::MaxRowSize() const
 {
-   OKINA_ASSERT_CPU;
    int out=0;
    int rowSize=0;
    if (I)
@@ -353,13 +341,11 @@ void SparseMatrix::SetWidth(int newWidth)
       // We need to reset ColPtr, since now we may have additional columns.
       if (Rows != NULL)
       {
-         OKINA_ASSERT_CPU;
          delete [] ColPtrNode;
          ColPtrNode = static_cast<RowNode **>(NULL);
       }
       else
       {
-         OKINA_ASSERT_CPU;
          delete [] ColPtrJ;
          ColPtrJ = static_cast<int *>(NULL);
       }
@@ -377,7 +363,6 @@ void SparseMatrix::SetWidth(int newWidth)
 
 void SparseMatrix::SortColumnIndices()
 {
-   OKINA_ASSERT_CPU;
    MFEM_VERIFY(Finalized(), "Matrix is not Finalized!");
 
    if (isSorted)
@@ -441,7 +426,6 @@ const double &SparseMatrix::Elem(int i, int j) const
 
 double &SparseMatrix::operator()(int i, int j)
 {
-   OKINA_ASSERT_CPU;
    MFEM_ASSERT(i < height && i >= 0 && j < width && j >= 0,
                "Trying to access element outside of the matrix.  "
                << "height = " << height << ", "
@@ -465,7 +449,6 @@ double &SparseMatrix::operator()(int i, int j)
 
 const double &SparseMatrix::operator()(int i, int j) const
 {
-   OKINA_ASSERT_CPU;
    static const double zero = 0.0;
 
    MFEM_ASSERT(i < height && i >= 0 && j < width && j >= 0,
@@ -501,7 +484,6 @@ const double &SparseMatrix::operator()(int i, int j) const
 
 void SparseMatrix::GetDiag(Vector & d) const
 {
-   OKINA_ASSERT_CPU;
    MFEM_VERIFY(height == width,
                "Matrix must be square, not height = " << height << ", width = " << width);
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
@@ -531,7 +513,6 @@ void SparseMatrix::GetDiag(Vector & d) const
 /// Produces a DenseMatrix from a SparseMatrix
 DenseMatrix *SparseMatrix::ToDenseMatrix() const
 {
-   OKINA_ASSERT_CPU;
    int num_rows = this->Height();
    int num_cols = this->Width();
 
@@ -545,7 +526,6 @@ DenseMatrix *SparseMatrix::ToDenseMatrix() const
 /// Produces a DenseMatrix from a SparseMatrix
 void SparseMatrix::ToDenseMatrix(DenseMatrix & B) const
 {
-   OKINA_ASSERT_CPU;
    B.SetSize(height, width);
    B = 0.0;
 
@@ -582,9 +562,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
 
    if (Ap == NULL)
    {
-      OKINA_ASSERT_CPU;
       //  The matrix is not finalized, but multiplication is still possible
-      assert(false);
       for (i = 0; i < height; i++)
       {
          RowNode *row = Rows[i];
@@ -620,7 +598,6 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
    }
    else
    {
-      OKINA_ASSERT_GPU;
       for (i = j = 0; i < height; i++)
       {
          double d = 0.0;
@@ -642,7 +619,6 @@ void SparseMatrix::MultTranspose(const Vector &x, Vector &y) const
 void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
                                     const double a) const
 {
-   OKINA_ASSERT_CPU;
    MFEM_ASSERT(height == x.Size(),
                "Input vector size (" << x.Size() << ") must match matrix height (" << height
                << ")");
@@ -682,7 +658,6 @@ void SparseMatrix::AddMultTranspose(const Vector &x, Vector &y,
 void SparseMatrix::PartMult(
    const Array<int> &rows, const Vector &x, Vector &y) const
 {
-   OKINA_ASSERT_GPU;
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    for (int i = 0; i < rows.Size(); i++)
@@ -701,7 +676,6 @@ void SparseMatrix::PartMult(
 void SparseMatrix::PartAddMult(
    const Array<int> &rows, const Vector &x, Vector &y, const double a) const
 {
-   OKINA_ASSERT_CPU;
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    for (int i = 0; i < rows.Size(); i++)
@@ -719,7 +693,6 @@ void SparseMatrix::PartAddMult(
 
 void SparseMatrix::BooleanMult(const Array<int> &x, Array<int> &y) const
 {
-   OKINA_ASSERT_CPU;
    MFEM_ASSERT(Finalized(), "Matrix must be finalized.");
    MFEM_ASSERT(x.Size() == Width(), "Input vector size (" << x.Size()
                << ") must match matrix width (" << Width() << ")");
@@ -744,7 +717,6 @@ void SparseMatrix::BooleanMult(const Array<int> &x, Array<int> &y) const
 void SparseMatrix::BooleanMultTranspose(const Array<int> &x,
                                         Array<int> &y) const
 {
-   OKINA_ASSERT_CPU;
    MFEM_ASSERT(Finalized(), "Matrix must be finalized.");
    MFEM_ASSERT(x.Size() == Height(), "Input vector size (" << x.Size()
                << ") must match matrix height (" << Height() << ")");
@@ -767,7 +739,6 @@ void SparseMatrix::BooleanMultTranspose(const Array<int> &x,
 
 double SparseMatrix::InnerProduct(const Vector &x, const Vector &y) const
 {
-   OKINA_ASSERT_CPU;
    MFEM_ASSERT(x.Size() == Width(), "x.Size() = " << x.Size()
                << " must be equal to Width() = " << Width());
    MFEM_ASSERT(y.Size() == Height(), "y.Size() = " << y.Size()
@@ -794,7 +765,6 @@ double SparseMatrix::InnerProduct(const Vector &x, const Vector &y) const
 
 void SparseMatrix::GetRowSums(Vector &x) const
 {
-   OKINA_ASSERT_CPU;
    for (int i = 0; i < height; i++)
    {
       double a = 0.0;
@@ -814,7 +784,6 @@ void SparseMatrix::GetRowSums(Vector &x) const
 
 double SparseMatrix::GetRowNorml1(int irow) const
 {
-   OKINA_ASSERT_CPU;
    MFEM_VERIFY(irow < height,
                "row " << irow << " not in matrix with height " << height);
 
@@ -835,7 +804,6 @@ double SparseMatrix::GetRowNorml1(int irow) const
 
 void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
 {
-   OKINA_ASSERT_GPU;
    int i, j, nr, nz;
    RowNode *aux;
 
@@ -906,7 +874,6 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
       {
          aux = node_p;
          node_p = node_p->Prev;
-         //delete aux;
          mm::free<RowNode>(aux);
       }
    }
@@ -918,7 +885,6 @@ void SparseMatrix::Finalize(int skip_zeros, bool fix_empty_rows)
 
 void SparseMatrix::GetBlocks(Array2D<SparseMatrix *> &blocks) const
 {
-   OKINA_ASSERT_CPU;
    int br = blocks.NumRows(), bc = blocks.NumCols();
    int nr = (height + br - 1)/br, nc = (width + bc - 1)/bc;
 
@@ -1009,7 +975,6 @@ void SparseMatrix::GetBlocks(Array2D<SparseMatrix *> &blocks) const
 
 double SparseMatrix::IsSymmetric() const
 {
-   OKINA_ASSERT_CPU;
    if (height != width)
    {
       return infinity();
@@ -1052,7 +1017,6 @@ double SparseMatrix::IsSymmetric() const
 
 void SparseMatrix::Symmetrize()
 {
-   OKINA_ASSERT_CPU;
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    int i, j;
@@ -1068,7 +1032,6 @@ void SparseMatrix::Symmetrize()
 
 int SparseMatrix::NumNonZeroElems() const
 {
-   OKINA_ASSERT_CPU;
    if (A != NULL)  // matrix is finalized
    {
       return I[height];
@@ -1091,7 +1054,6 @@ int SparseMatrix::NumNonZeroElems() const
 
 double SparseMatrix::MaxNorm() const
 {
-   OKINA_ASSERT_CPU;
    double m = 0.0;
 
    if (A)
@@ -1115,7 +1077,6 @@ double SparseMatrix::MaxNorm() const
 
 int SparseMatrix::CountSmallElems(double tol) const
 {
-   OKINA_ASSERT_CPU;
    int counter = 0;
 
    if (A)
@@ -1144,7 +1105,6 @@ int SparseMatrix::CountSmallElems(double tol) const
 
 int SparseMatrix::CheckFinite() const
 {
-   OKINA_ASSERT_CPU;
    if (Empty())
    {
       return 0;
@@ -1169,13 +1129,11 @@ int SparseMatrix::CheckFinite() const
 
 MatrixInverse *SparseMatrix::Inverse() const
 {
-   OKINA_ASSERT_CPU;
    return NULL;
 }
 
 void SparseMatrix::EliminateRow(int row, const double sol, Vector &rhs)
 {
-   OKINA_ASSERT_CPU;
    RowNode *aux;
 
    MFEM_ASSERT(row < height && row >= 0,
@@ -1192,7 +1150,6 @@ void SparseMatrix::EliminateRow(int row, const double sol, Vector &rhs)
 
 void SparseMatrix::EliminateRow(int row, DiagonalPolicy dpolicy)
 {
-   OKINA_ASSERT_CPU;
    RowNode *aux;
 
    MFEM_ASSERT(row < height && row >= 0,
@@ -1225,7 +1182,6 @@ void SparseMatrix::EliminateRow(int row, DiagonalPolicy dpolicy)
 
 void SparseMatrix::EliminateCol(int col, DiagonalPolicy dpolicy)
 {
-   OKINA_ASSERT_CPU;
    MFEM_ASSERT(col < width && col >= 0,
                "Col " << col << " not in matrix of width " << width);
    MFEM_ASSERT(dpolicy != DIAG_KEEP, "Diagonal policy must not be DIAG_KEEP");
@@ -1267,7 +1223,6 @@ void SparseMatrix::EliminateCol(int col, DiagonalPolicy dpolicy)
 void SparseMatrix::EliminateCols(const Array<int> &cols, const Vector *x,
                                  Vector *b)
 {
-   OKINA_ASSERT_CPU;
    if (Rows == NULL)
    {
       for (int i = 0; i < height; i++)
@@ -1299,7 +1254,6 @@ void SparseMatrix::EliminateCols(const Array<int> &cols, const Vector *x,
 void SparseMatrix::EliminateRowCol(int rc, const double sol, Vector &rhs,
                                    DiagonalPolicy dpolicy)
 {
-   OKINA_ASSERT_CPU;
    int col;
 
    MFEM_ASSERT(rc < height && rc >= 0,
@@ -1397,7 +1351,6 @@ void SparseMatrix::EliminateRowColMultipleRHS(int rc, const Vector &sol,
                                               DenseMatrix &rhs,
                                               DiagonalPolicy dpolicy)
 {
-   OKINA_ASSERT_CPU;
    int col;
    int num_rhs = rhs.Width();
 
@@ -1520,7 +1473,6 @@ void SparseMatrix::EliminateRowColMultipleRHS(int rc, const Vector &sol,
 
 void SparseMatrix::EliminateRowCol(int rc, DiagonalPolicy dpolicy)
 {
-   OKINA_ASSERT_CPU;
    int col;
 
    MFEM_ASSERT(rc < height && rc >= 0,
@@ -1594,7 +1546,6 @@ void SparseMatrix::EliminateRowCol(int rc, DiagonalPolicy dpolicy)
 // the A[j] = value; and aux->Value = value; lines.
 void SparseMatrix::EliminateRowColDiag(int rc, double value)
 {
-   OKINA_ASSERT_CPU;
    int col;
 
    MFEM_ASSERT(rc < height && rc >= 0,
@@ -1654,9 +1605,9 @@ void SparseMatrix::EliminateRowCol(int rc, SparseMatrix &Ae,
                                    DiagonalPolicy dpolicy)
 {
    int col;
+
    if (Rows)
    {
-      OKINA_ASSERT_GPU;
       RowNode *nd, *nd2;
       for (nd = Rows[rc]; nd != NULL; nd = nd->Prev)
       {
@@ -1701,7 +1652,6 @@ void SparseMatrix::EliminateRowCol(int rc, SparseMatrix &Ae,
    }
    else
    {
-      OKINA_ASSERT_GPU;
       for (int j = I[rc]; j < I[rc+1]; j++)
       {
          if ((col = J[j]) == rc)
@@ -1747,7 +1697,6 @@ void SparseMatrix::EliminateRowCol(int rc, SparseMatrix &Ae,
 
 void SparseMatrix::SetDiagIdentity()
 {
-   OKINA_ASSERT_CPU;
    for (int i = 0; i < height; i++)
       if (I[i+1] == I[i]+1 && fabs(A[I[i]]) < 1e-16)
       {
@@ -1757,7 +1706,6 @@ void SparseMatrix::SetDiagIdentity()
 
 void SparseMatrix::EliminateZeroRows(const double threshold)
 {
-   OKINA_ASSERT_CPU;
    int i, j;
    double zero;
 
@@ -1791,7 +1739,6 @@ void SparseMatrix::Gauss_Seidel_forw(const Vector &x, Vector &y) const
 
    if (A == NULL)
    {
-      OKINA_ASSERT_CPU;
       RowNode **R = Rows;
       kGauss_Seidel_forw_A_NULL(s,R,xp,yp);
    }
@@ -1809,7 +1756,6 @@ void SparseMatrix::Gauss_Seidel_back(const Vector &x, Vector &y) const
 
    if (A == NULL)
    {
-      OKINA_ASSERT_CPU;
       RowNode *diag_p, *n_p, **R = Rows;
 
       for (i = height-1; i >= 0; i--)
@@ -1848,7 +1794,6 @@ void SparseMatrix::Gauss_Seidel_back(const Vector &x, Vector &y) const
 
 double SparseMatrix::GetJacobiScaling() const
 {
-   OKINA_ASSERT_CPU;
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    double sc = 1.0;
@@ -1883,7 +1828,6 @@ double SparseMatrix::GetJacobiScaling() const
 void SparseMatrix::Jacobi(const Vector &b, const Vector &x0, Vector &x1,
                           double sc) const
 {
-   OKINA_ASSERT_CPU;
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    for (int i = 0; i < height; i++)
@@ -1914,7 +1858,6 @@ void SparseMatrix::Jacobi(const Vector &b, const Vector &x0, Vector &x1,
 
 void SparseMatrix::DiagScale(const Vector &b, Vector &x, double sc) const
 {
-   OKINA_ASSERT_CPU;
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    bool scale = (sc != 1.0);
@@ -1948,7 +1891,6 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x, double sc) const
 void SparseMatrix::Jacobi2(const Vector &b, const Vector &x0, Vector &x1,
                            double sc) const
 {
-   OKINA_ASSERT_CPU;
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    for (int i = 0; i < height; i++)
@@ -1973,7 +1915,6 @@ void SparseMatrix::Jacobi2(const Vector &b, const Vector &x0, Vector &x1,
 void SparseMatrix::Jacobi3(const Vector &b, const Vector &x0, Vector &x1,
                            double sc) const
 {
-   OKINA_ASSERT_CPU;
    MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
 
    for (int i = 0; i < height; i++)
@@ -2031,12 +1972,10 @@ void SparseMatrix::AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
       }
       ClearColPtr();
    }
-   //OKINA_ASSERT_CPU;
 }
 
 void SparseMatrix::Set(const int i, const int j, const double A)
 {
-   OKINA_ASSERT_CPU;
    double a = A;
    int gi, gj, s, t;
 
@@ -2056,7 +1995,6 @@ void SparseMatrix::Set(const int i, const int j, const double A)
 
 void SparseMatrix::Add(const int i, const int j, const double A)
 {
-   OKINA_ASSERT_GPU;
    int gi, gj, s, t;
    double a = A;
 
@@ -2077,7 +2015,6 @@ void SparseMatrix::Add(const int i, const int j, const double A)
 void SparseMatrix::SetSubMatrix(const Array<int> &rows, const Array<int> &cols,
                                 const DenseMatrix &subm, int skip_zeros)
 {
-   OKINA_ASSERT_CPU;
    int i, j, gi, gj, s, t;
    double a;
 
@@ -2113,7 +2050,6 @@ void SparseMatrix::SetSubMatrixTranspose(const Array<int> &rows,
                                          const DenseMatrix &subm,
                                          int skip_zeros)
 {
-   OKINA_ASSERT_CPU;
    int i, j, gi, gj, s, t;
    double a;
 
@@ -2147,7 +2083,6 @@ void SparseMatrix::SetSubMatrixTranspose(const Array<int> &rows,
 void SparseMatrix::GetSubMatrix(const Array<int> &rows, const Array<int> &cols,
                                 DenseMatrix &subm) const
 {
-   OKINA_ASSERT_CPU;
    int i, j, gi, gj, s, t;
    double a;
 
@@ -2175,7 +2110,6 @@ void SparseMatrix::GetSubMatrix(const Array<int> &rows, const Array<int> &cols,
 
 bool SparseMatrix::RowIsEmpty(const int row) const
 {
-   OKINA_ASSERT_CPU;
    int gi;
 
    if ((gi=row) < 0)
@@ -2197,7 +2131,6 @@ bool SparseMatrix::RowIsEmpty(const int row) const
 
 int SparseMatrix::GetRow(const int row, Array<int> &cols, Vector &srow) const
 {
-   OKINA_ASSERT_CPU;
    RowNode *n;
    int j, gi;
 
@@ -2238,7 +2171,6 @@ int SparseMatrix::GetRow(const int row, Array<int> &cols, Vector &srow) const
 void SparseMatrix::SetRow(const int row, const Array<int> &cols,
                           const Vector &srow)
 {
-   OKINA_ASSERT_CPU;
    int gi, gj, s, t;
    double a;
 
@@ -2287,7 +2219,6 @@ void SparseMatrix::SetRow(const int row, const Array<int> &cols,
 void SparseMatrix::AddRow(const int row, const Array<int> &cols,
                           const Vector &srow)
 {
-   OKINA_ASSERT_CPU;
    int j, gi, gj, s, t;
    double a;
 
@@ -2319,7 +2250,6 @@ void SparseMatrix::AddRow(const int row, const Array<int> &cols,
 
 void SparseMatrix::ScaleRow(const int row, const double scale)
 {
-   OKINA_ASSERT_CPU;
    int i;
 
    if ((i=row) < 0)
@@ -2348,7 +2278,6 @@ void SparseMatrix::ScaleRow(const int row, const double scale)
 
 void SparseMatrix::ScaleRows(const Vector & sl)
 {
-   OKINA_ASSERT_CPU;
    double scale;
    if (Rows != NULL)
    {
@@ -2380,7 +2309,6 @@ void SparseMatrix::ScaleRows(const Vector & sl)
 
 void SparseMatrix::ScaleColumns(const Vector & sr)
 {
-   OKINA_ASSERT_CPU;
    if (Rows != NULL)
    {
       RowNode *aux;
@@ -2409,7 +2337,6 @@ void SparseMatrix::ScaleColumns(const Vector & sr)
 
 SparseMatrix &SparseMatrix::operator+=(const SparseMatrix &B)
 {
-   OKINA_ASSERT_CPU;
    MFEM_ASSERT(height == B.height && width == B.width,
                "Mismatch of this matrix size and rhs.  This height = "
                << height << ", width = " << width << ", B.height = "
@@ -2440,7 +2367,6 @@ SparseMatrix &SparseMatrix::operator+=(const SparseMatrix &B)
 
 void SparseMatrix::Add(const double a, const SparseMatrix &B)
 {
-   OKINA_ASSERT_CPU;
    for (int i = 0; i < height; i++)
    {
       B.SetColPtr(i);
@@ -2464,7 +2390,6 @@ void SparseMatrix::Add(const double a, const SparseMatrix &B)
 
 SparseMatrix &SparseMatrix::operator=(double a)
 {
-   OKINA_ASSERT_CPU;
    if (Rows == NULL)
       for (int i = 0, nnz = I[height]; i < nnz; i++)
       {
@@ -2483,7 +2408,6 @@ SparseMatrix &SparseMatrix::operator=(double a)
 
 SparseMatrix &SparseMatrix::operator*=(double a)
 {
-   OKINA_ASSERT_CPU;
    if (Rows == NULL)
       for (int i = 0, nnz = I[height]; i < nnz; i++)
       {
@@ -2684,7 +2608,6 @@ void SparseMatrix::PrintInfo(std::ostream &out) const
 
 void SparseMatrix::Destroy()
 {
-   //OKINA_ASSERT_GPU;
    if (I != NULL && ownGraph)
    {
       mm::free<int>(I);
@@ -2759,7 +2682,6 @@ int SparseMatrix::ActualWidth()
 
 void SparseMatrixFunction (SparseMatrix & S, double (*f)(double))
 {
-   OKINA_ASSERT_CPU;
    int n = S.NumNonZeroElems();
    double * s = S.GetData();
 
@@ -2771,7 +2693,6 @@ void SparseMatrixFunction (SparseMatrix & S, double (*f)(double))
 
 SparseMatrix *Transpose (const SparseMatrix &A)
 {
-   OKINA_ASSERT_CPU;
    MFEM_VERIFY(
       A.Finalized(),
       "Finalize must be called before Transpose. Use TransposeRowMatrix instead");
@@ -2827,7 +2748,6 @@ SparseMatrix *Transpose (const SparseMatrix &A)
 SparseMatrix *TransposeAbstractSparseMatrix (const AbstractSparseMatrix &A,
                                              int useActualWidth)
 {
-   OKINA_ASSERT_CPU;
    int i, j;
    int m, n, nnz, *At_i, *At_j;
    double *At_data;
@@ -2905,7 +2825,6 @@ SparseMatrix *TransposeAbstractSparseMatrix (const AbstractSparseMatrix &A,
 SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
                     SparseMatrix *OAB)
 {
-   OKINA_ASSERT_CPU;
    int nrowsA, ncolsA, nrowsB, ncolsB;
    int *A_i, *A_j, *B_i, *B_j, *C_i, *C_j, *B_marker;
    double *A_data, *B_data, *C_data;
@@ -3031,7 +2950,6 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
 
 SparseMatrix * TransposeMult(const SparseMatrix &A, const SparseMatrix &B)
 {
-   OKINA_ASSERT_CPU;
    SparseMatrix *At  = Transpose(A);
    SparseMatrix *AtB = Mult(*At, B);
    delete At;
@@ -3041,7 +2959,6 @@ SparseMatrix * TransposeMult(const SparseMatrix &A, const SparseMatrix &B)
 SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
                                         const AbstractSparseMatrix &B)
 {
-   OKINA_ASSERT_CPU;
    int nrowsA, ncolsA, nrowsB, ncolsB;
    int *C_i, *C_j, *B_marker;
    double *C_data;
@@ -3138,7 +3055,6 @@ SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
 
 DenseMatrix *Mult (const SparseMatrix &A, DenseMatrix &B)
 {
-   OKINA_ASSERT_CPU;
    DenseMatrix *C = new DenseMatrix(A.Height(), B.Width());
    Vector columnB, columnC;
    for (int j = 0; j < B.Width(); ++j)
@@ -3152,7 +3068,6 @@ DenseMatrix *Mult (const SparseMatrix &A, DenseMatrix &B)
 
 DenseMatrix *RAP (const SparseMatrix &A, DenseMatrix &P)
 {
-   OKINA_ASSERT_CPU;
    DenseMatrix R (P, 't'); // R = P^T
    DenseMatrix *AP   = Mult (A, P);
    DenseMatrix *_RAP = new DenseMatrix(R.Height(), AP->Width());
@@ -3163,7 +3078,6 @@ DenseMatrix *RAP (const SparseMatrix &A, DenseMatrix &P)
 
 DenseMatrix *RAP(DenseMatrix &A, const SparseMatrix &P)
 {
-   OKINA_ASSERT_CPU;
    SparseMatrix *R  = Transpose(P);
    DenseMatrix  *RA = Mult(*R, A);
    DenseMatrix   AtP(*RA, 't');
@@ -3178,7 +3092,6 @@ DenseMatrix *RAP(DenseMatrix &A, const SparseMatrix &P)
 SparseMatrix *RAP (const SparseMatrix &A, const SparseMatrix &R,
                    SparseMatrix *ORAP)
 {
-   OKINA_ASSERT_CPU;
    SparseMatrix *P  = Transpose (R);
    SparseMatrix *AP = Mult (A, *P);
    delete P;
@@ -3190,7 +3103,6 @@ SparseMatrix *RAP (const SparseMatrix &A, const SparseMatrix &R,
 SparseMatrix *RAP(const SparseMatrix &Rt, const SparseMatrix &A,
                   const SparseMatrix &P)
 {
-   OKINA_ASSERT_CPU;
    SparseMatrix * R = Transpose(Rt);
    SparseMatrix * RA = Mult(*R,A);
    delete R;
@@ -3202,7 +3114,6 @@ SparseMatrix *RAP(const SparseMatrix &Rt, const SparseMatrix &A,
 SparseMatrix *Mult_AtDA (const SparseMatrix &A, const Vector &D,
                          SparseMatrix *OAtDA)
 {
-   OKINA_ASSERT_CPU;
    int i, At_nnz, *At_j;
    double *At_data;
 
@@ -3222,7 +3133,6 @@ SparseMatrix *Mult_AtDA (const SparseMatrix &A, const Vector &D,
 SparseMatrix * Add(double a, const SparseMatrix & A, double b,
                    const SparseMatrix & B)
 {
-   OKINA_ASSERT_CPU;
    int nrows = A.Height();
    int ncols = A.Width();
 
@@ -3305,13 +3215,11 @@ SparseMatrix * Add(double a, const SparseMatrix & A, double b,
 
 SparseMatrix * Add(const SparseMatrix & A, const SparseMatrix & B)
 {
-   OKINA_ASSERT_CPU;
    return Add(1.,A,1.,B);
 }
 
 SparseMatrix * Add(Array<SparseMatrix *> & Ai)
 {
-   OKINA_ASSERT_CPU;
    MFEM_ASSERT(Ai.Size() > 0, "invalid size Ai.Size() = " << Ai.Size());
 
    SparseMatrix * accumulate = Ai[0];
@@ -3335,7 +3243,6 @@ SparseMatrix * Add(Array<SparseMatrix *> & Ai)
 void Add(const SparseMatrix &A,
          double alpha, DenseMatrix &B)
 {
-   OKINA_ASSERT_CPU;
    for (int r = 0; r < B.Height(); r++)
    {
       const int    * colA = A.GetRowColumns(r);
@@ -3350,7 +3257,6 @@ void Add(const SparseMatrix &A,
 /// Produces a block matrix with blocks A_{ij}*B
 DenseMatrix *OuterProduct(const DenseMatrix &A, const DenseMatrix &B)
 {
-   OKINA_ASSERT_CPU;
    int mA = A.Height(), nA = A.Width();
    int mB = B.Height(), nB = B.Width();
 
@@ -3369,7 +3275,6 @@ DenseMatrix *OuterProduct(const DenseMatrix &A, const DenseMatrix &B)
 /// Produces a block matrix with blocks A_{ij}*B
 SparseMatrix *OuterProduct(const DenseMatrix &A, const SparseMatrix &B)
 {
-   OKINA_ASSERT_CPU;
    int mA = A.Height(), nA = A.Width();
    int mB = B.Height(), nB = B.Width();
 
@@ -3399,7 +3304,6 @@ SparseMatrix *OuterProduct(const DenseMatrix &A, const SparseMatrix &B)
 /// Produces a block matrix with blocks A_{ij}*B
 SparseMatrix *OuterProduct(const SparseMatrix &A, const DenseMatrix &B)
 {
-   OKINA_ASSERT_CPU;
    int mA = A.Height(), nA = A.Width();
    int mB = B.Height(), nB = B.Width();
 
@@ -3429,7 +3333,6 @@ SparseMatrix *OuterProduct(const SparseMatrix &A, const DenseMatrix &B)
 /// Produces a block matrix with blocks A_{ij}*B
 SparseMatrix *OuterProduct(const SparseMatrix &A, const SparseMatrix &B)
 {
-   OKINA_ASSERT_CPU;
    int mA = A.Height(), nA = A.Width();
    int mB = B.Height(), nB = B.Width();
 
@@ -3462,7 +3365,6 @@ SparseMatrix *OuterProduct(const SparseMatrix &A, const SparseMatrix &B)
 
 void SparseMatrix::Swap(SparseMatrix &other)
 {
-   OKINA_ASSERT_CPU;
    mfem::Swap(width, other.width);
    mfem::Swap(height, other.height);
    mfem::Swap(I, other.I);

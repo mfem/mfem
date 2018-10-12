@@ -15,7 +15,6 @@
 #include "../config/config.hpp"
 #include "nonlininteg.hpp"
 #include "fespace.hpp"
-//#include "kfespace.hpp"
 #include "kBilinIntegDiffusion.hpp"
 
 namespace mfem
@@ -1656,10 +1655,9 @@ protected:
    }
 };
 
-// *****************************************************************************
 /** Class for integrating the bilinear form a(u,v) := (Q grad u, grad v) where Q
     can be a scalar or a matrix coefficient. */
-class DiffusionIntegrator: public BilinearFormIntegrator //BilinearXFormIntegrator
+class DiffusionIntegrator: public BilinearFormIntegrator
 {
 private:
    Vector vec, pointflux, shape;
@@ -1669,6 +1667,7 @@ private:
 #endif
    Coefficient *Q;
    MatrixCoefficient *MQ;
+
 public:
    /// Construct a diffusion integrator with coefficient Q = 1
    DiffusionIntegrator() { Q = NULL; MQ = NULL; }

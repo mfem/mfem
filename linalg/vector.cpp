@@ -69,7 +69,6 @@ void Vector::SetDataAndSize(double *d, int s){
 
 void Vector::Load(std::istream **in, int np, int *dim)
 {
-   OKINA_ASSERT_CPU;
    int i, j, s;
 
    s = 0;
@@ -90,7 +89,6 @@ void Vector::Load(std::istream **in, int np, int *dim)
 
 void Vector::Load(std::istream &in, int Size)
 {
-   OKINA_ASSERT_CPU;
    SetSize(Size);
 
    for (int i = 0; i < size; i++)
@@ -101,13 +99,11 @@ void Vector::Load(std::istream &in, int Size)
 
 double &Vector::Elem(int i)
 {
-   OKINA_ASSERT_CPU;
    return operator()(i);
 }
 
 const double &Vector::Elem(int i) const
 {
-   OKINA_ASSERT_CPU;
    return operator()(i);
 }
 
@@ -160,7 +156,6 @@ Vector &Vector::operator*=(double c)
 
 Vector &Vector::operator/=(double c)
 {
-   OKINA_ASSERT_CPU;
    double m = 1.0/c;
    for (int i = 0; i < size; i++)
    {
@@ -171,7 +166,6 @@ Vector &Vector::operator/=(double c)
 
 Vector &Vector::operator-=(double c)
 {
-   OKINA_ASSERT_CPU;
    for (int i = 0; i < size; i++)
    {
       data[i] -= c;
@@ -205,7 +199,6 @@ Vector &Vector::operator+=(const Vector &v)
 
 Vector &Vector::Add(const double a, const Vector &Va)
 {
-   OKINA_ASSERT_CPU;
 #ifdef MFEM_DEBUG
    if (size != Va.size)
    {
@@ -224,7 +217,6 @@ Vector &Vector::Add(const double a, const Vector &Va)
 
 Vector &Vector::Set(const double a, const Vector &Va)
 {
-   OKINA_ASSERT_CPU;
 #ifdef MFEM_DEBUG
    if (size != Va.size)
    {
@@ -240,7 +232,6 @@ Vector &Vector::Set(const double a, const Vector &Va)
 
 void Vector::SetVector(const Vector &v, int offset)
 {
-   OKINA_ASSERT_CPU;
    int vs = v.Size();
    double *vp = v.data, *p = data + offset;
 
@@ -259,7 +250,6 @@ void Vector::SetVector(const Vector &v, int offset)
 
 void Vector::Neg()
 {
-   OKINA_ASSERT_CPU;
    for (int i = 0; i < size; i++)
    {
       data[i] = -data[i];
@@ -268,7 +258,6 @@ void Vector::Neg()
 
 void add(const Vector &v1, const Vector &v2, Vector &v)
 {
-   OKINA_ASSERT_CPU;
 #ifdef MFEM_DEBUG
    if (v.size != v1.size || v.size != v2.size)
    {
@@ -316,7 +305,6 @@ void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
 
 void add(const double a, const Vector &x, const Vector &y, Vector &z)
 {
-   OKINA_ASSERT_CPU;
 #ifdef MFEM_DEBUG
    if (x.size != y.size || x.size != z.size)
       mfem_error ("add(const double a, const Vector &x, const Vector &y,"
@@ -350,7 +338,6 @@ void add(const double a, const Vector &x, const Vector &y, Vector &z)
 void add(const double a, const Vector &x,
          const double b, const Vector &y, Vector &z)
 {
-   OKINA_ASSERT_CPU;
 #ifdef MFEM_DEBUG
    if (x.size != y.size || x.size != z.size)
       mfem_error("add(const double a, const Vector &x,\n"
@@ -414,7 +401,6 @@ void subtract(const Vector &x, const Vector &y, Vector &z)
 
 void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
 {
-   OKINA_ASSERT_CPU;
 #ifdef MFEM_DEBUG
    if (x.size != y.size || x.size != z.size)
       mfem_error("subtract(const double a, const Vector &x,"
@@ -448,7 +434,6 @@ void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
 
 void Vector::median(const Vector &lo, const Vector &hi)
 {
-   OKINA_ASSERT_CPU;
    double *v = data;
 
    for (int i = 0; i < size; i++)
@@ -466,7 +451,6 @@ void Vector::median(const Vector &lo, const Vector &hi)
 
 void Vector::GetSubVector(const Array<int> &dofs, Vector &elemvect) const
 {
-   OKINA_ASSERT_GPU;
    int i, j, n = dofs.Size();
 
    elemvect.SetSize (n);
@@ -486,7 +470,6 @@ void Vector::GetSubVector(const Array<int> &dofs, Vector &elemvect) const
 
 void Vector::GetSubVector(const Array<int> &dofs, double *elem_data) const
 {
-   OKINA_ASSERT_CPU;
    int i, j, n = dofs.Size();
 
    for (i = 0; i < n; i++)
@@ -504,7 +487,6 @@ void Vector::GetSubVector(const Array<int> &dofs, double *elem_data) const
 
 void Vector::SetSubVector(const Array<int> &dofs, const double value)
 {
-   OKINA_ASSERT_CPU;
    const int n = dofs.Size();
 
    for (int i = 0; i < n; i++)
@@ -528,7 +510,6 @@ void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
 
 void Vector::SetSubVector(const Array<int> &dofs, double *elem_data)
 {
-   OKINA_ASSERT_CPU;
    int i, j, n = dofs.Size();
 
    for (i = 0; i < n; i++)
@@ -546,7 +527,6 @@ void Vector::SetSubVector(const Array<int> &dofs, double *elem_data)
 
 void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
 {
-   OKINA_ASSERT_GPU;
    MFEM_ASSERT(dofs.Size() == elemvect.Size(), "Size mismatch: "
                "length of dofs is " << dofs.Size() <<
                ", length of elemvect is " << elemvect.Size());
@@ -574,7 +554,6 @@ void Vector::AddElementVector(const Array<int> &dofs, double *elem_data)
 void Vector::AddElementVector(const Array<int> &dofs, const double a,
                               const Vector &elemvect)
 {
-   OKINA_ASSERT_CPU;
    int i, j, n = dofs.Size();
 
    for (i = 0; i < n; i++)
@@ -590,7 +569,6 @@ void Vector::AddElementVector(const Array<int> &dofs, const double a,
 
 void Vector::SetSubVectorComplement(const Array<int> &dofs, const double val)
 {
-   OKINA_ASSERT_GPU;
    Vector dofs_vals;
    GetSubVector(dofs, dofs_vals);
    operator=(val);
@@ -641,7 +619,6 @@ void Vector::Print_HYPRE(std::ostream &out) const
 
 void Vector::Randomize(int seed)
 {
-   OKINA_ASSERT_CPU;
    // static unsigned int seed = time(0);
    const double max = (double)(RAND_MAX) + 1.;
 
@@ -661,7 +638,6 @@ void Vector::Randomize(int seed)
 
 double Vector::Norml2() const
 {
-   OKINA_ASSERT_CPU;
    // Scale entries of Vector on the fly, using algorithms from
    // std::hypot() and LAPACK's drm2. This scaling ensures that the
    // argument of each call to std::pow is <= 1 to avoid overflow.
@@ -699,7 +675,6 @@ double Vector::Norml2() const
 
 double Vector::Normlinf() const
 {
-   OKINA_ASSERT_CPU;
    double max = 0.0;
    for (int i = 0; i < size; i++)
    {
@@ -710,7 +685,6 @@ double Vector::Normlinf() const
 
 double Vector::Norml1() const
 {
-   OKINA_ASSERT_CPU;
    double sum = 0.0;
    for (int i = 0; i < size; i++)
    {
@@ -721,7 +695,6 @@ double Vector::Norml1() const
 
 double Vector::Normlp(double p) const
 {
-   OKINA_ASSERT_CPU;
    MFEM_ASSERT(p > 0.0, "Vector::Normlp");
    if (p == 1.0)
    {
@@ -771,7 +744,6 @@ double Vector::Normlp(double p) const
 
 double Vector::Max() const
 {
-   OKINA_ASSERT_CPU;
    double max = data[0];
 
    for (int i = 1; i < size; i++)
@@ -785,7 +757,6 @@ double Vector::Max() const
 
 double Vector::Min() const
 {
-   OKINA_ASSERT_CPU;
    double min = data[0];
 
    for (int i = 1; i < size; i++)
@@ -799,7 +770,6 @@ double Vector::Min() const
 
 double Vector::Sum() const
 {
-   OKINA_ASSERT_CPU;
    double sum = 0.0;
 
    for (int i = 0; i < size; i++)

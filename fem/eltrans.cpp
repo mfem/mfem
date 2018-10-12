@@ -465,9 +465,8 @@ void IsoparametricTransformation::Transform (const IntegrationPoint &ip,
 {
    shape.SetSize(FElem->GetDof());
    trans.SetSize(PointMat.Height());
+
    FElem -> CalcShape(ip, shape);
-#warning Pushing because still on the host
-   mm::Get().Push(shape.GetData());
    PointMat.Mult(shape, trans);
 }
 
