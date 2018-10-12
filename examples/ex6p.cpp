@@ -20,7 +20,7 @@
 //               equation -Delta u = 1 with homogeneous Dirichlet boundary
 //               conditions. The problem is solved on a sequence of meshes which
 //               are locally refined in a conforming (triangles, tetrahedrons)
-//               or non-conforming (quadrilateral, hexahedrons) manner according
+//               or non-conforming (quadrilaterals, hexahedra) manner according
 //               to a simple ZZ error estimator.
 //
 //               The example demonstrates MFEM's capability to work with both
