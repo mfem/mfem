@@ -43,12 +43,13 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-
+//#include "/home/camier1/home/stk/stk.hpp"
 using namespace std;
 using namespace mfem;
 
 int main(int argc, char *argv[])
 {
+   //stkIni(argv[0]);
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
@@ -90,13 +91,13 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
-   {
+   {/*
       int ref_levels = (rl < 0) ?
          (int)floor(log(50000./mesh->GetNE())/log(2.)/dim) : rl;
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
-      }
+         }*/
    }
 
    // 4. Define a finite element space on the mesh. Here we use continuous
@@ -142,10 +143,11 @@ int main(int argc, char *argv[])
 
    // **************************************************************************
    dbg("\033[32;7mStill mesh->SetCurvature");
-   mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
+   if (gpu or pa)
+      mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
    if (gpu) {
       config::Get().Cuda(true);
-      dbg("\033[32;7mSwitched to GPU !");
+      dbg("\033[32;7mSwitched to GPU!");
    }
    if (pa){
       config::Get().PA(true);

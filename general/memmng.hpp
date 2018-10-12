@@ -46,7 +46,7 @@ public:
    // **************************************************************************
 private:
    void Setup();
-   void* add(const void*, const size_t, const size_t);
+   void *add(const void*, const size_t, const size_t);
    void del(const void*);
    void Cuda();
    
@@ -58,8 +58,7 @@ public:
       // alloc on host first
       T *ptr = ::new T[size];
       // add to the pool of registered adresses
-      mm::Get().add((void*)ptr,size,size_of_T);
-      return ptr;
+      return (T*) mm::Get().add((void*)ptr,size,size_of_T);
    }
    
    // **************************************************************************
