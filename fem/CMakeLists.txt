@@ -12,6 +12,7 @@
 set(SRCS
   bilinearform.cpp
   bilininteg.cpp
+  block_fem.cpp
   coefficient.cpp
   datacollection.cpp
   eltrans.cpp
