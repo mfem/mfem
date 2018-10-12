@@ -88,11 +88,11 @@ static const IntegrationRule &DiffusionGetRule(const FiniteElement &trial_fe,
 void PABilinearForm::Assemble(int skip_zeros) {
    const int nbi = integrators.Size();
    assert(integrators.Size()==1);
-   const IntegrationRule *ir0 = integrators[0]->GetIntRule();
+   //const IntegrationRule *ir0 = integrators[0]->GetIntRule();
    const FiniteElement &fe = *fes->GetFE(0);
    const IntegrationRule *diffusionIR = &DiffusionGetRule(fe,fe);
-   const int order = ir0?ir0->GetOrder():diffusionIR->GetOrder();
-   const IntegrationRule *ir = ir0 ? ir0 : diffusionIR;
+   const int order = /*ir0?ir0->GetOrder():*/diffusionIR->GetOrder();
+   const IntegrationRule *ir = /*ir0 ? ir0 : */diffusionIR;
    assert(ir);
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i) {

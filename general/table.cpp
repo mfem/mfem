@@ -30,9 +30,7 @@ Table::Table(const Table &table)
    if (size >= 0)
    {
       const int nnz = table.I[size];
-      //I = new int[size+1];
       I = mm::malloc<int>(size+1);
-      //J = new int[nnz];
       J = mm::malloc<int>(nnz);
       memcpy(I, table.I, sizeof(int)*(size+1));
       memcpy(J, table.J, sizeof(int)*nnz);
@@ -58,9 +56,7 @@ Table::Table (int dim, int connections_per_row)
    int i, j, sum = dim * connections_per_row;
 
    size = dim;
-   //I = new int[size+1];
    I = mm::malloc<int>(size+1);
-   //J = new int[sum];
    J = mm::malloc<int>(sum);
 
    I[0] = 0;
@@ -75,9 +71,7 @@ Table::Table (int nrows, int *partitioning)
 {
    size = nrows;
 
-   //I = new int[size+1];
    I = mm::malloc<int>(size+1);
-   //J = new int[size];
    J = mm::malloc<int>(size);
 
    for (int i = 0; i < size; i++)
@@ -107,7 +101,6 @@ void Table::MakeJ()
       j = I[i], I[i] = k, k += j;
    }
 
-   //J = new int[I[size]=k];
    J = mm::malloc<int>(I[size]=k);
 }
 
@@ -156,14 +149,12 @@ void Table::SetDims(int rows, int nnz)
    {
       size = rows;
       if (I) { mm::free<int>(I); }
-      //I = (rows >= 0) ? (new int[rows+1]) : (NULL);
       I = (rows >= 0) ? (mm::malloc<int>(rows+1)) : (NULL);
    }
 
    if (j != nnz)
    {
       if (J) { mm::free<int>(J); }
-      //J = (nnz > 0) ? (new int[nnz]) : (NULL);
       J = (nnz > 0) ? (mm::malloc<int>(nnz)) : (NULL);
    }
 
@@ -258,7 +249,6 @@ void Table::Finalize()
 
    if (sum != I[size])
    {
-      //int *NewJ = new int[sum];
       int *NewJ = mm::malloc<int>(sum);
 
       for (i=0; i<size; i++)
@@ -274,7 +264,6 @@ void Table::Finalize()
       }
       I[size] = sum;
 
-      //delete [] J;
       mm::free<int>(J);
 
       J = NewJ;
@@ -290,9 +279,7 @@ void Table::MakeFromList(int nrows, const Array<Connection> &list)
    size = nrows;
    int nnz = list.Size();
 
-   //I = new int[size+1];
    I = mm::malloc<int>(size+1);
-   //J = new int[nnz];
    J = mm::malloc<int>(nnz);
 
    for (int i = 0, k = 0; i <= size; i++)
@@ -371,14 +358,12 @@ void Table::Load(std::istream &in)
    mm::free<int>(J);
 
    in >> size;
-   //I = new int[size+1];
    I = mm::malloc<int>(size+1);
    for (int i = 0; i <= size; i++)
    {
       in >> I[i];
    }
    int nnz = I[size];
-   //J = new int[nnz];
    J =mm::malloc<int>(nnz);
    for (int j = 0; j < nnz; j++)
    {
@@ -388,9 +373,7 @@ void Table::Load(std::istream &in)
 
 void Table::Clear()
 {
-   //delete [] I;
    mm::free<int>(I);
-   //delete [] J;
    mm::free<int>(J);
    size = -1;
    I = J = NULL;
@@ -602,7 +585,6 @@ int STable::Push( int i, int j )
 
 DSTable::DSTable(int nrows)
 {
-   //Rows = new Node*[nrows];
    Rows = mm::malloc<Node*>(nrows);
    for (int i = 0; i < nrows; i++)
    {
@@ -627,7 +609,6 @@ int DSTable::Push_(int r, int c)
 #ifdef MFEM_USE_MEMALLOC
    n = NodesMem.Alloc ();
 #else
-   //n = new Node;
    n = mm::malloc<Node>(1);
 #endif
    n->Column = c;
@@ -666,12 +647,10 @@ DSTable::~DSTable()
       {
          na = nb;
          nb = nb->Prev;
-         //delete na;
          mm::free<int>(na);
       }
    }
 #endif
-   //delete [] Rows;
    mm::free<int>(Rows);
 }
 
