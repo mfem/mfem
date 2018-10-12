@@ -116,7 +116,7 @@ void PABilinearForm::FormOperator(const Array<int> &ess_tdof_list,
 // ***************************************************************************
 void PABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                                       Vector &x, Vector &b,
-                                      Operator **A, Vector &X, Vector &B,
+                                      Operator *&A, Vector &X, Vector &B,
                                       int copy_interior) {
    //FormOperator(ess_tdof_list, A);
    const Operator* trialP = trialFes->GetProlongationMatrix();
@@ -126,7 +126,7 @@ void PABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    const bool own_A = rap!=this;
    assert(rap);
    
-   *A = new ConstrainedOperator(rap, ess_tdof_list, own_A);
+   A = new ConstrainedOperator(rap, ess_tdof_list, own_A);
    
    const Operator* P = trialFes->GetProlongationMatrix();
    const Operator* R = trialFes->GetRestrictionMatrix();
@@ -159,7 +159,7 @@ void PABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                           ess_tdof_list.GetData());
    }
       
-   ConstrainedOperator *cA = static_cast<ConstrainedOperator*>(*A);
+   ConstrainedOperator *cA = static_cast<ConstrainedOperator*>(A);
    assert(cA);
    if (cA) {
       dbg("ConstrainedOperator");

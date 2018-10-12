@@ -394,7 +394,6 @@ inline Vector::~Vector()
 
 inline double DistanceSquared(const double *x, const double *y, const int n)
 {
-   OKINA_ASSERT_CPU;
    double d = 0.0;
 
    for (int i = 0; i < n; i++)
@@ -407,19 +406,16 @@ inline double DistanceSquared(const double *x, const double *y, const int n)
 
 inline double Distance(const double *x, const double *y, const int n)
 {
-   OKINA_ASSERT_CPU;
    return std::sqrt(DistanceSquared(x, y, n));
 }
 
 inline double Vector::DistanceSquaredTo(const double *p) const
 {
-   OKINA_ASSERT_CPU;
    return DistanceSquared(data, p, size);
 }
 
 inline double Vector::DistanceTo(const double *p) const
 {
-   OKINA_ASSERT_CPU;
    return Distance(data, p, size);
 }
 
@@ -429,7 +425,6 @@ inline double Vector::DistanceTo(const double *p) const
 */
 inline double InnerProduct(const Vector &x, const Vector &y)
 {
-   OKINA_ASSERT_CPU;
    return x * y;
 }
 
@@ -440,7 +435,6 @@ inline double InnerProduct(const Vector &x, const Vector &y)
 */
 inline double InnerProduct(MPI_Comm comm, const Vector &x, const Vector &y)
 {
-   OKINA_ASSERT_CPU;
    double loc_prod = x * y;
    double glb_prod;
    MPI_Allreduce(&loc_prod, &glb_prod, 1, MPI_DOUBLE, MPI_SUM, comm);

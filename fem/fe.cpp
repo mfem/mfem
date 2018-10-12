@@ -316,36 +316,21 @@ void NodalFiniteElement::Project (
    MFEM_ASSERT(dofs.Size() == vc.GetVDim()*Dof, "");
    Vector x(vc.GetVDim());
 
-   dbg("Dof=%d",Dof);
-   mm::Get().Rsync(dofs.GetData());
    for (int i = 0; i < Dof; i++)
    {
-      dbg("ip #%d",i);
       const IntegrationPoint &ip = Nodes.IntPoint(i);
-      dbg("SetIntPoint");
       Trans.SetIntPoint(&ip);
-      //printf("\nip: x=%f, y=%f, z=%f, w=%f",ip.x,ip.y,ip.z,ip.weight);
-      dbg("Eval");
-      vc.Eval(x, Trans, ip); // fem/coefficient:109:
-      //mm::Get().Push(x.GetData());
-      //dbg("x:"); x.Print();
-      
+      vc.Eval (x, Trans, ip);
       if (MapType == INTEGRAL)
       {
-         assert(false);
          x *= Trans.Weight();
       }
-      //dbg("pre dofs:");dofs.Print();
       for (int j = 0; j < x.Size(); j++)
       {
          const int dji = Dof*j+i;
          kVectorMapDof(dofs.GetData(),x.GetData(),dji,j);
       }
-      //dbg("post dofs:");dofs.Print();
    }
-   //mm::Get().Push(dofs.GetData());
-   //dbg("done dofs:");dofs.Print();
-   //assert(false);
 }
 
 void NodalFiniteElement::ProjectMatrixCoefficient(
@@ -7562,10 +7547,8 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
             T(o++, k) = shape_x(i)*shape_y(j)*shape_l(p-i-j);
          }
    }
-   //dbg("T.Print():"); T.Print();   
-#warning T @ CPU => Push
-   mm::Get().Push(T.GetData());
-   Ti.Factor(T); // Ti is a DenseMatrixInverse
+
+   Ti.Factor(T);
    // mfem::out << "H1_TriangleElement(" << p << ") : "; Ti.TestInversion();
 }
 

@@ -544,11 +544,11 @@ void FABilinearForm::ConformingAssemble()
 
 void FABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                                     Vector &x, Vector &b,
-                                    Operator **opA, Vector &X, Vector &B,
+                                    Operator *&opA, Vector &X, Vector &B,
                                     int copy_interior)
 {
    const SparseMatrix *P = fes->GetConformingProlongation();
-   SparseMatrix *Ap = static_cast<SparseMatrix*>(*opA);
+   SparseMatrix *Ap = static_cast<SparseMatrix*>(opA);
    SparseMatrix &A = *Ap;
 
    FormSystemMatrix(ess_tdof_list, A);

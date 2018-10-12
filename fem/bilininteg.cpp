@@ -420,6 +420,7 @@ void DiffusionIntegrator::AssembleElementMatrix
          ir = &IntRules.Get(el.GetGeomType(), order);
       }
    }
+
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
    {

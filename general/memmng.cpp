@@ -16,13 +16,15 @@
 MFEM_NAMESPACE
 
 // *****************************************************************************
-//static jmp_buf env;
-//static size_t xs_shift = 0;
-//static void *xs_adrs = NULL;
+static jmp_buf env;
+static size_t xs_shift = 0;
+static void *xs_adrs = NULL;
+static bool test_mem_xs = false;
 
 // *****************************************************************************
 void mm::Setup(void){
    assert(!mng);
+   test_mem_xs = getenv("XS");
    // Create our mapping h_adrs => (size, h_adrs, d_adrs)
    mng = new mm_t();
    // Initialize our SIGSEGV handler
@@ -30,15 +32,15 @@ void mm::Setup(void){
    // Initialize the CUDA device to be ready to allocate memory
    config::Get().Setup();
    // We can shift address accesses to trig SIGSEGV (experimental) 
-   //xs_shift = 0;//1ull << 48;
+   if (test_mem_xs) xs_shift = 1ull << 48;
 }
 
 // *****************************************************************************
 // * Add a host address, if we are in CUDA mode, allocate there too
 // * Returns the 'instant' one
 // *****************************************************************************
-void* mm::add(const void *h_adrs, const size_t size, const size_t size_of_T){
-   //size_t *h_adrs = (size_t *) adrs;
+void* mm::add(const void *adrs, const size_t size, const size_t size_of_T){
+   size_t *h_adrs = (size_t *) adrs;
    const size_t bytes = size*size_of_T;
    const auto search = mng->find(h_adrs);
    const bool present = search != mng->end();
@@ -46,10 +48,12 @@ void* mm::add(const void *h_adrs, const size_t size, const size_t size_of_T){
    if (present)
       mfem_error("[ERROR] Trying to add already present address!");
 
-   // Shift host address (not yet used)
-   //dbg("h_adrs @%p",h_adrs);
-   //h_adrs += xs_shift;
-   //dbg("h_adrs++ @%p",h_adrs);  
+   if (test_mem_xs){
+      // Shift host address to force a SIGSEGV
+      dbg("h_adrs @%p",h_adrs);
+      h_adrs += xs_shift;
+      dbg("h_adrs++ @%p",h_adrs);
+   }
    
    //printf(" \033[31m%p(%ldo)\033[m", h_adrs, bytes);fflush(0);
    mm2dev_t &mm2dev = mng->operator[](h_adrs);
@@ -71,12 +75,8 @@ void* mm::add(const void *h_adrs, const size_t size, const size_t size_of_T){
       // and say we are there
       mm2dev.host = false;
    }
-#else
-   return (void*) mm2dev.h_adrs;
 #endif // __NVCC__
-   void *address = (void*) (mm2dev.host ? mm2dev.h_adrs : mm2dev.d_adrs);
-   dbg("returning @%p",address); 
-   return address;
+   return (void*) mm2dev.h_adrs;
 }
 
 // *****************************************************************************
@@ -107,19 +107,21 @@ bool mm::Known(const void *adrs){
 // * 
 // *****************************************************************************
 void* mm::Adrs(const void *adrs){
-   /*
-   xs_adrs = (void*) adrs;
-   if (!setjmp(env)){
-      dbg("\033[32mTrying %p...",xs_adrs);
-      volatile size_t read = *(size_t*)xs_adrs;
-      *(size_t*)xs_adrs = read;
-   }else{
-      dbg("\033[32mRewinding, adrs was %p",xs_adrs);
-      assert(false);
-      //adrs -= xs_shift;
+   
+   if (test_mem_xs){
+      xs_adrs = (void*) adrs; // save to global
+      if (!setjmp(env)){
+         dbg("\033[32mTrying %p...",xs_adrs);
+         volatile size_t read = *(size_t*)xs_adrs;
+         *(size_t*)xs_adrs = read;
+      }else{ // read from global if we hit a fault
+         dbg("\033[32mRewinding, adrs was %p",xs_adrs);
+         assert(false);
+         //adrs -= xs_shift;
+      }
+      dbg("Looking for %p", adrs);
    }
-   dbg("Looking for %p", adrs);
-   */
+   
    const bool cuda = config::Get().Cuda();
    const auto search = mng->find(adrs);
    const bool present = search != mng->end();
@@ -284,7 +286,7 @@ void mm::handler(int nSignum, siginfo_t* si, void* vcontext) {
 // *  SIGSEGV handler that longjmps
 // *****************************************************************************
 static void SIGSEGV_handler(int s){
-   //if (s==SIGSEGV) longjmp(env, 1);
+   if (s==SIGSEGV) longjmp(env, 1);
    assert(false);
 }
 
