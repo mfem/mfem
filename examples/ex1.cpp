@@ -53,6 +53,8 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool static_cond = false;
+   int rl = -1;
+   bool pa = false;
    bool gpu = false;
    bool visualization = 1;
 
@@ -64,6 +66,8 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
+   args.AddOption(&rl, "-r", "--ref-levels", "Refinement level");
+   args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa", "Enable Partial Assembly.");
    args.AddOption(&gpu, "-g", "--gpu", "-no-g", "--no-gpu", "Enable GPU.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -87,8 +91,8 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels = (rl < 0) ?
+         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim) : rl;
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -127,7 +131,7 @@ int main(int argc, char *argv[])
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
-
+   
    // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
@@ -137,13 +141,16 @@ int main(int argc, char *argv[])
    b->Assemble();
 
    // **************************************************************************
-   if (gpu){
-      mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
+   dbg("\033[32;7mStill mesh->SetCurvature");
+   mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
+   if (gpu) {
       config::Get().Cuda(true);
-      config::Get().PA(true);
-      dbg("\033[32;7mSwitched to GPU & PA!");
+      dbg("\033[32;7mSwitched to GPU !");
    }
-   const bool PA = config::Get().PA();
+   if (pa){
+      config::Get().PA(true);
+      dbg("\033[32;7mSwitched to PA!");
+   }
 
    // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
@@ -155,7 +162,7 @@ int main(int argc, char *argv[])
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
    BilinearForm *a = new BilinearForm(fespace);
-   if (PA) a->AddDomainIntegrator(new PADiffusionIntegrator(one));
+   if (pa) a->AddDomainIntegrator(new PADiffusionIntegrator(one));
    else    a->AddDomainIntegrator(new   DiffusionIntegrator(one));
 
    // 9. Assemble the bilinear form and the corresponding linear system,
@@ -168,10 +175,10 @@ int main(int argc, char *argv[])
    Vector B, X;
    SparseMatrix *faA = new SparseMatrix();
    PABilinearForm *paA = new PABilinearForm(fespace);
-   if (PA) a->FormLinearSystem(ess_tdof_list, x, *b, (Operator**)&paA, X, B);
+   if (pa) a->FormLinearSystem(ess_tdof_list, x, *b, (Operator**)&paA, X, B);
    else    a->FormLinearSystem(ess_tdof_list, x, *b, (Operator**)&faA, X, B);
 
-   const int height = PA ? paA->Height() : faA->Height();
+   const int height = pa ? paA->Height() : faA->Height();
    cout << "Size of linear system: " << height << endl;
 
 #ifndef MFEM_USE_SUITESPARSE
@@ -179,7 +186,7 @@ int main(int argc, char *argv[])
    dbg("10. Solve the system A X = B with PCG.");
    //GSSmoother M(A);
    //PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
-   if (config::Get().PA())
+   if (pa)
       CG(*paA, B, X, 3, 1000, 1e-12, 0.0);
    else
       CG(*faA, B, X, 3, 1000, 1e-12, 0.0);

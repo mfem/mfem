@@ -222,7 +222,7 @@ void* mm::D2H(void *dest, const void *src, size_t bytes, const bool async) {
 void* mm::D2D(void *dest, const void *src, size_t bytes, const bool async) {
    if (bytes==0) return dest;
    assert(src); assert(dest);
-   if (!config::Get().Cuda()) return memcpy(dest,src,bytes);
+   if (!config::Get().Cuda()) return std::memcpy(dest,src,bytes);
 #ifdef __NVCC__
    if (!config::Get().Uvm()){
       if (!async){
