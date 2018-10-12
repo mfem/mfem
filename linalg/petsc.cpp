@@ -528,6 +528,14 @@ PetscParMatrix::PetscParMatrix(const HypreParMatrix *ha, Operator::Type tid)
    ConvertOperator(ha->GetComm(),*ha,&A,tid);
 }
 
+PetscParMatrix::PetscParMatrix(const SparseMatrix *sa, Operator::Type tid)
+{
+   Init();
+   height = sa->Height();
+   width  = sa->Width();
+   ConvertOperator(PETSC_COMM_SELF,*sa,&A,tid);
+}
+
 PetscParMatrix::PetscParMatrix(MPI_Comm comm, const Operator *op,
                                Operator::Type tid)
 {
@@ -797,6 +805,8 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
                           (dynamic_cast<const BlockOperator *>(&op));
    IdentityOperator *pI = const_cast<IdentityOperator *>
                           (dynamic_cast<const IdentityOperator *>(&op));
+   SparseMatrix     *pS = const_cast<SparseMatrix *>
+                          (dynamic_cast<const SparseMatrix *>(&op));
 
    PetscBool avoidmatconvert = PETSC_FALSE;
    if (pA) // we test for these types since MatConvert will fail
@@ -1049,6 +1059,82 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
       }
       ierr = MatAssemblyBegin(*A,MAT_FINAL_ASSEMBLY); PCHKERRQ(*A,ierr);
       ierr = MatAssemblyEnd(*A,MAT_FINAL_ASSEMBLY); PCHKERRQ(*A,ierr);
+   }
+   else if (pS)
+   {
+      if (tid == PETSC_MATSHELL)
+      {
+         MakeWrapper(comm,&op,A);
+      }
+      else
+      {
+         Mat B;
+         PetscScalar *pdata;
+         PetscInt *pii,*pjj;
+
+         int m = pS->Height();
+         int n = pS->Width();
+         int *ii = pS->GetI();
+         int *jj = pS->GetJ();
+         double *data = pS->GetData();
+         bool issorted = pS->areColumnsSorted();
+
+         ierr = PetscMalloc1(m+1,&pii); CCHKERRQ(comm,ierr);
+         ierr = PetscMalloc1(ii[m],&pjj); CCHKERRQ(comm,ierr);
+         ierr = PetscMalloc1(ii[m],&pdata); CCHKERRQ(comm,ierr);
+         pii[0] = ii[0];
+         for (int i = 0; i < m; i++)
+         {
+            pii[i+1] = ii[i+1];
+            for (int j = ii[i]; j < ii[i+1]; j++)
+            {
+               pjj[j] = jj[j];
+               pdata[j] = data[j];
+            }
+            if (!issorted)
+            {
+               ierr = PetscSortIntWithScalarArray(pii[i+1]-pii[i],pjj,pdata); CCHKERRQ(comm,ierr);
+            }
+         }
+
+         ierr = MatCreateSeqAIJWithArrays(PETSC_COMM_SELF,m,n,pii,pjj,pdata,&B); CCHKERRQ(comm,ierr);
+
+         void *ptrs[3] = {pii,pjj,pdata};
+         const char *names[3] = {"_mfem_csr_pii",
+                                 "_mfem_csr_pjj",
+                                 "_mfem_csr_pdata",
+                                };
+         for (int i=0; i<3; i++)
+         {
+            PetscContainer c;
+
+            ierr = PetscContainerCreate(PETSC_COMM_SELF,&c); PCHKERRQ(B,ierr);
+            ierr = PetscContainerSetPointer(c,ptrs[i]); PCHKERRQ(B,ierr);
+            ierr = PetscContainerSetUserDestroy(c,__mfem_array_container_destroy);
+            PCHKERRQ(B,ierr);
+            ierr = PetscObjectCompose((PetscObject)(B),names[i],(PetscObject)c);
+            PCHKERRQ(B,ierr);
+            ierr = PetscContainerDestroy(&c); PCHKERRQ(B,ierr);
+         }
+         if (tid == PETSC_MATAIJ)
+         {
+            *A = B;
+         }
+         else if (tid == PETSC_MATHYPRE)
+         {
+            ierr = MatConvert(B,MATHYPRE,MAT_INITIAL_MATRIX,A); PCHKERRQ(B,ierr);
+            ierr = MatDestroy(&B); PCHKERRQ(*A,ierr);
+         }
+         else if (tid == PETSC_MATIS)
+         {
+            ierr = MatConvert(B,MATIS,MAT_INITIAL_MATRIX,A); PCHKERRQ(B,ierr);
+            ierr = MatDestroy(&B); PCHKERRQ(*A,ierr);
+         }
+         else
+         {
+            MFEM_ABORT("Unsupported operator type conversion " << tid)
+         }
+      }
    }
    else // fallback to general operator
    {

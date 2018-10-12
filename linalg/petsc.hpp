@@ -212,6 +212,11 @@ public:
    explicit PetscParMatrix(const HypreParMatrix *ha,
                            Operator::Type tid = Operator::PETSC_MATAIJ);
 
+   /** @brief Convert a SparseMatrix @a ha to a PetscParMatrix in the given
+       PETSc format @a tid. */
+   explicit PetscParMatrix(const SparseMatrix *sa,
+                           Operator::Type tid = Operator::PETSC_MATAIJ);
+
    /** @brief Convert an mfem::Operator into a PetscParMatrix in the given PETSc
        format @a tid. */
    /** If @a tid is Operator::PETSC_MATSHELL and @a op is not a PetscParMatrix,
