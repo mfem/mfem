@@ -6653,7 +6653,6 @@ const double *Poly_1D::GetPoints(const int p, const int btype)
 
    if (points_container.find(btype) == points_container.end())
    {
-      //assert(false);
       points_container[btype] = new Array<double*>;
    }
    Array<double*> &pts = *points_container[btype];
@@ -6663,9 +6662,7 @@ const double *Poly_1D::GetPoints(const int p, const int btype)
    }
    if (pts[p] == NULL)
    {
-      //assert(false);
       pts[p] = mm::malloc<double>(p + 1);
-      //pts[p] = new double[p + 1];      
       quad_func.GivePolyPoints(p+1, pts[p], qtype);
    }
    return pts[p];
@@ -7506,7 +7503,6 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
    const double *cp = poly1d.ClosedPoints(p, VerifyNodal(VerifyClosed(btype)));
 
 #ifndef MFEM_THREAD_SAFE
-   dbg("SetSize(s)");
    shape_x.SetSize(p + 1);
    shape_y.SetSize(p + 1);
    shape_l.SetSize(p + 1);
@@ -7523,12 +7519,12 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
    Vector shape_x(p + 1), shape_y(p + 1), shape_l(p + 1);
 #endif
 
-   dbg("vertices");
+   // vertices
    Nodes.IntPoint(0).Set2(cp[0], cp[0]);
    Nodes.IntPoint(1).Set2(cp[p], cp[0]);
    Nodes.IntPoint(2).Set2(cp[0], cp[p]);
 
-   dbg("edges");
+   // edges
    int o = 3;
    for (int i = 1; i < p; i++)
    {
@@ -7543,7 +7539,7 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
       Nodes.IntPoint(o++).Set2(cp[0], cp[p-i]);
    }
 
-   dbg("interior");
+   // interior
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)
       {
@@ -7551,7 +7547,6 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
          Nodes.IntPoint(o++).Set2(cp[i]/w, cp[j]/w);
       }
 
-   dbg("T");
    DenseMatrix T(Dof);
    for (int k = 0; k < Dof; k++)
    {

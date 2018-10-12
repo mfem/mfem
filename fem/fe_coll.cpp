@@ -1549,13 +1549,11 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       QuadDofOrd[i] = NULL;
    }
 
-   dbg("POINT");
    H1_dof[Geometry::POINT] = 1;
    H1_Elements[Geometry::POINT] = new PointFiniteElement;
 
    if (dim >= 1)
    {
-      dbg("SEGMENT");
       H1_dof[Geometry::SEGMENT] = pm1;
       if (b_type == BasisType::Positive)
       {
@@ -1577,7 +1575,6 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
 
    if (dim >= 2)
    {
-      dbg("TRIANGLE/SQUARE");
       H1_dof[Geometry::TRIANGLE] = (pm1*pm2)/2;
       H1_dof[Geometry::SQUARE] = pm1*pm1;
       if (b_type == BasisType::Positive)
@@ -1587,9 +1584,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
       }
       else
       {
-         dbg("H1_TriangleElement");
-         H1_Elements[Geometry::TRIANGLE] = new H1_TriangleElement(p, btype); // fe:7499
-         dbg("H1_QuadrilateralElement");
+         H1_Elements[Geometry::TRIANGLE] = new H1_TriangleElement(p, btype);
          H1_Elements[Geometry::SQUARE] = new H1_QuadrilateralElement(p, btype);
       }
 
@@ -1616,7 +1611,6 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          }
       }
 
-      dbg("QUADS");
       QuadDofOrd[0] = new int[8*QuadDof];
       for (int i = 1; i < 8; i++)
       {
