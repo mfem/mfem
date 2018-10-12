@@ -831,7 +831,12 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
    int ng = pmesh.gtopo.NGroups();
    MakeSharedTable(ng, entity_conf_group[0], pmesh.svert_lvert, pmesh.group_svert);
    MakeSharedTable(ng, entity_conf_group[1], pmesh.sedge_ledge, pmesh.group_sedge);
-   MakeSharedTable(ng, entity_conf_group[2], pmesh.sface_lface, pmesh.group_sface);
+   MakeSharedTable(ng, entity_conf_group[2], pmesh.sface_lface, pmesh.group_squad);
+
+   // create an empty group_stria (we currently don't have triangle faces)
+   pmesh.group_stria.MakeI(ng-1);
+   pmesh.group_stria.MakeJ();
+   pmesh.group_stria.ShiftUpI();
 
    // create shared_edges
    pmesh.shared_edges.SetSize(pmesh.sedge_ledge.Size());
@@ -843,12 +848,12 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
    }
 
    // create shared_faces
-   pmesh.shared_faces.SetSize(pmesh.sface_lface.Size());
-   for (int i = 0; i < pmesh.shared_faces.Size(); i++)
+   pmesh.shared_quads.SetSize(pmesh.sface_lface.Size());
+   for (int i = 0; i < pmesh.shared_quads.Size(); i++)
    {
-      int v[4], e[4], eo[4];
-      GetFaceVerticesEdges(face_list.LookUp(pmesh.sface_lface[i]), v, e, eo);
-      pmesh.shared_faces[i] = new Quadrilateral(v, 1);
+      int e[4], eo[4];
+      GetFaceVerticesEdges(face_list.LookUp(pmesh.sface_lface[i]),
+                           pmesh.shared_quads[i].v, e, eo);
    }
 
    // free conf_group arrays, they're not needed now (until next mesh update)
