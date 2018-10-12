@@ -42,8 +42,11 @@ struct Refinement
 /// Defines the position of a fine element within a coarse element.
 struct Embedding
 {
-   int parent; ///< element index in the coarse mesh
-   int matrix; ///< index into CoarseFineTransformations::point_matrices
+   /// %Element index in the coarse mesh.
+   int parent;
+   /** @brief Index into the DenseTensor corresponding to the parent
+       Geometry::Type stored in CoarseFineTransformations::point_matrices. */
+   int matrix;
 
    Embedding(int elem, int matrix = 0) : parent(elem), matrix(matrix) {}
 };
@@ -51,10 +54,13 @@ struct Embedding
 /// Defines the coarse-fine transformations of all fine elements.
 struct CoarseFineTransformations
 {
-   DenseTensor point_matrices;  ///< matrices for IsoparametricTransformation
-   Array<Embedding> embeddings; ///< fine element positions in their parents
+   /// Matrices for IsoparametricTransformation organized by Geometry::Type
+   std::map<Geometry::Type, DenseTensor> point_matrices;
+   /// Fine element positions in their parents.
+   Array<Embedding> embeddings;
 
-   void Clear() { point_matrices.Clear(); embeddings.DeleteAll(); }
+   const DenseTensor &GetPointMatrices(Geometry::Type geom) const;
+   void Clear() { point_matrices.clear(); embeddings.DeleteAll(); }
    long MemoryUsage() const;
 };
 
@@ -296,9 +302,9 @@ public:
                                    Array<int> &bdr_planars);
 
    /// Return the type of elements in the mesh.
-   int GetElementGeometry() const { return elements[0].geom; }
+   Geometry::Type GetElementGeometry() const { return elements[0].geom; }
 
-   int GetFaceGeometry() const { return Geometry::SQUARE; }
+   Geometry::Type GetFaceGeometry() const { return Geometry::SQUARE; }
 
    /// Return the distance of leaf 'i' from the root.
    int GetElementDepth(int i) const;
@@ -441,7 +447,7 @@ protected: // implementation
        to its vertex nodes. */
    struct Element
    {
-      char geom;     ///< Geometry::Type of the element
+      Geometry::Type geom; ///< Geometry::Type of the element
       char ref_type; ///< bit mask of X,Y,Z refinements (bits 0,1,2 respectively)
       char flag;     ///< generic flag/marker, can be used by algorithms
       int index;     ///< element number in the Mesh, -1 if refined
@@ -454,7 +460,7 @@ protected: // implementation
       };
       int parent; ///< parent element, -1 if this is a root element, -2 if free
 
-      Element(int geom, int attr);
+      Element(Geometry::Type geom, int attr);
    };
 
    // primary data

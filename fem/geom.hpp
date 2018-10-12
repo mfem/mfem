@@ -26,19 +26,27 @@ namespace mfem
     Geometry::SQUARE   - the unit square (0,1)x(0,1)
     Geometry::TETRAHEDRON - w/ vert. (0,0,0),(1,0,0),(0,1,0),(0,0,1)
     Geometry::CUBE - the unit cube
+    Geometry::PRISM - w/ vert. (0,0,0),(1,0,0),(0,1,0),(0,0,1),(1,0,1),(0,1,1)
     Geometry::PENTATOPE - w/ vert. (0,0,0,0),(1,0,0,0),(0,1,0,0),(0,0,1,0),(0,0,0,1)
-    Geometry::TESSERACT - the 4d unit cube                                           */
+    Geometry::TESSERACT - the 4d unit cube                                           
+*/
 class Geometry
 {
 public:
-   enum Type { POINT, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE, PENTATOPE, TESSERACT };
+   enum Type
+   {
+      INVALID = -1,
+      POINT = 0, SEGMENT, TRIANGLE, SQUARE, TETRAHEDRON, CUBE, PRISM, PENTATOPE, TESSERACT,
+      NUM_GEOMETRIES
+   };
 
-   static const int NumGeom = 8;
+   static const int NumGeom = NUM_GEOMETRIES;
    static const int MaxDim = 4;
    static const int NumBdrArray[NumGeom];
    static const char *Name[NumGeom];
    static const double Volume[NumGeom];
    static const int Dimension[NumGeom];
+   static const int DimStart[MaxDim+2]; // including MaxDim+1
    static const int NumVerts[NumGeom];
    static const int NumEdges[NumGeom];
    static const int NumFaces[NumGeom];
@@ -128,7 +136,7 @@ template <> struct Geometry::Constants<Geometry::TRIANGLE>
    static const int NumVert = 3;
    static const int NumEdges = 3;
    static const int Edges[NumEdges][2];
-   // Lower-triangular part of the local vertex-to-vertex graph.
+   // Upper-triangular part of the local vertex-to-vertex graph.
    struct VertToVert
    {
       static const int I[NumVert];
@@ -154,7 +162,7 @@ template <> struct Geometry::Constants<Geometry::SQUARE>
    static const int NumVert = 4;
    static const int NumEdges = 4;
    static const int Edges[NumEdges][2];
-   // Lower-triangular part of the local vertex-to-vertex graph.
+   // Upper-triangular part of the local vertex-to-vertex graph.
    struct VertToVert
    {
       static const int I[NumVert];
@@ -178,7 +186,7 @@ template <> struct Geometry::Constants<Geometry::TETRAHEDRON>
    static const int FaceTypes[NumFaces];
    static const int MaxFaceVert = 3;
    static const int FaceVert[NumFaces][MaxFaceVert];
-   // Lower-triangular part of the local vertex-to-vertex graph.
+   // Upper-triangular part of the local vertex-to-vertex graph.
    struct VertToVert
    {
       static const int I[NumVert];
@@ -205,7 +213,7 @@ template <> struct Geometry::Constants<Geometry::CUBE>
    static const int FaceTypes[NumFaces];
    static const int MaxFaceVert = 4;
    static const int FaceVert[NumFaces][MaxFaceVert];
-   // Lower-triangular part of the local vertex-to-vertex graph.
+   // Upper-triangular part of the local vertex-to-vertex graph.
    struct VertToVert
    {
       static const int I[NumVert];
@@ -252,7 +260,27 @@ template <> struct Geometry::Constants<Geometry::TESSERACT>
    };
 };
 
+template <> struct Geometry::Constants<Geometry::PRISM>
+{
+   static const int Dimension = 3;
+   static const int NumVert = 6;
+   static const int NumEdges = 9;
+   static const int Edges[NumEdges][2];
+   static const int NumFaces = 5;
+   static const int FaceTypes[NumFaces];
+   static const int MaxFaceVert = 4;
+   static const int FaceVert[NumFaces][MaxFaceVert];
+   // Upper-triangular part of the local vertex-to-vertex graph.
+   struct VertToVert
+   {
+      static const int I[NumVert];
+      static const int J[NumEdges][2]; // {end,edge_idx}
+   };
+};
+
+// Defined in fe.cpp to ensure construction after 'mfem::WedgeFE'.
 extern Geometry Geometries;
+
 
 class RefinedGeometry
 {
@@ -274,8 +302,9 @@ private:
    Array<RefinedGeometry *> RGeom[Geometry::NumGeom];
    Array<IntegrationRule *> IntPts[Geometry::NumGeom];
 
-   RefinedGeometry *FindInRGeom(int Geom, int Times, int ETimes, int Type);
-   IntegrationRule *FindInIntPts(int Geom, int NPts);
+   RefinedGeometry *FindInRGeom(Geometry::Type Geom, int Times, int ETimes,
+                                int Type);
+   IntegrationRule *FindInIntPts(Geometry::Type Geom, int NPts);
 
 public:
    GeometryRefiner();
@@ -285,10 +314,10 @@ public:
    /// Get the Quadrature1D type of points used for subdivision.
    int GetType() const { return type; }
 
-   RefinedGeometry *Refine(int Geom, int Times, int ETimes = 1);
+   RefinedGeometry *Refine(Geometry::Type Geom, int Times, int ETimes = 1);
 
    /// @note This method always uses Quadrature1D::OpenUniform points.
-   const IntegrationRule *RefineInterior(int Geom, int Times);
+   const IntegrationRule *RefineInterior(Geometry::Type Geom, int Times);
 
    ~GeometryRefiner();
 };

@@ -23,6 +23,7 @@ set(SRCS
   tetrahedron.cpp
   triangle.cpp
   vertex.cpp
+  wedge.cpp
   pentatope.cpp
   tesseract.cpp
   )
@@ -42,6 +43,7 @@ set(HDRS
   tmesh.hpp
   triangle.hpp
   vertex.hpp
+  wedge.hpp
   pentatope.hpp
   tesseract.hpp
   )

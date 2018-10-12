@@ -51,15 +51,18 @@ public:
    /// Constructs tetrahedron by specifying the indices and the attribute.
    Tetrahedron(int ind1, int ind2, int ind3, int ind4, int attr = 1);
 
+   /// Initialize the vertex indices and the attribute of a Tetrahedron.
+   void Init(int ind1, int ind2, int ind3, int ind4, int attr = 1);
+
    /// Return element's type.
-   virtual int GetType() const { return Element::TETRAHEDRON; }
+   virtual Type GetType() const { return Element::TETRAHEDRON; }
 
    void  ParseRefinementFlag(int refinement_edges[2], int &type, int &flag);
    void CreateRefinementFlag(int refinement_edges[2], int  type, int  flag = 0);
 
    void GetMarkedFace(const int face, int *fv);
 
-   virtual int GetRefinementFlag() { return refinement_flag; }
+   int GetRefinementFlag() { return refinement_flag; }
 
    void SetRefinementFlag(int rf) { refinement_flag = rf; }
 
@@ -68,9 +71,6 @@ public:
 
    /// Set the vertices according to the given input.
    virtual void SetVertices(const int *ind);
-
-   /// Mark the longest edge by assuming/changing the order of the vertices.
-   virtual void MarkEdge(DenseMatrix &pmat) { }
 
    /** Reorder the vertices so that the longest edge is from vertex 0
        to vertex 1. If called it should be once from the mesh constructor,
@@ -110,7 +110,8 @@ public:
    virtual ~Tetrahedron() { }
 };
 
-extern Linear3DFiniteElement TetrahedronFE;
+// Defined in fe.cpp to ensure construction before 'mfem::Geometries'.
+extern class Linear3DFiniteElement TetrahedronFE;
 
 }
 
