@@ -134,17 +134,14 @@ void kVectorSetSubvector(const int N,
    GET_ADRS(data);
    GET_CONST_ADRS(elemvect);
    GET_CONST_ADRS_T(dofs,int);
-#warning sequential kVectorSetSubvector
-   forall(k, 1, {
-         for(int i=0;i<N;i+=1){
-            const int j = d_dofs[i];
-            //printf("\n\tj=%d, set: %f",j,d_elemvect[i]);
-            if (j >= 0) {
-               d_data[j] = d_elemvect[i];
-            } else {
-               assert(false);
-               d_data[-1-j] = -d_elemvect[i];
-            }
+   forall(i,N,{
+         const int j = d_dofs[i];
+         //printf("\n\tj=%d, set: %f",j,d_elemvect[i]);
+         if (j >= 0) {
+            d_data[j] = d_elemvect[i];
+         } else {
+            assert(false);
+            d_data[-1-j] = -d_elemvect[i];
          }
       });
 }

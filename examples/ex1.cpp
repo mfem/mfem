@@ -178,7 +178,7 @@ int main(int argc, char *argv[])
    PABilinearForm paA(fespace);
    Operator *A = pa? static_cast<Operator*>(&paA):
                      static_cast<Operator*>(&faA);
-   a->FormLinearSystem(ess_tdof_list, x, *b, &A, X, B);
+   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    cout << "Size of linear system: " << A->Height() << endl;
 
