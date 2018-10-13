@@ -1512,8 +1512,11 @@ int OptimizationProblem::GetNumConstraints() const
 
 void SLBQPOptimizer::SetOptimizationProblem(OptimizationProblem &prob)
 {
-   MFEM_WARNING("Objective functional is ignored as SLBQP always minimizes"
-                "the l2 norm of (x - x_target).");
+   if (print_level == 3)
+   {
+      MFEM_WARNING("Objective functional is ignored as SLBQP always minimizes"
+                   "the l2 norm of (x - x_target).");
+   }
    MFEM_ASSERT(prob.C, "Linear constraint is not set.");
    MFEM_ASSERT(prob.C->Height() == 1, "Solver expects scalar constraint.");
 

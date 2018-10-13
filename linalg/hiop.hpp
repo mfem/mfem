@@ -53,11 +53,12 @@ private:
 
 public:
    HiopOptimizationProblem(OptimizationProblem &prob)
-      : x_start(NULL),
-        problem(prob),
+      : problem(prob),
         ntdofs_loc(prob.input_size), ntdofs_glob(ntdofs_loc),
         m_total(prob.GetNumConstraints()),
-        constr_vals(m_total), constr_grads(), constr_info_is_current(false)
+        x_start(NULL),
+        constr_vals(m_total), constr_grads(m_total, ntdofs_loc),
+        constr_info_is_current(false)
   { 
 #ifdef MFEM_USE_MPI
     // Used when HiOp with MPI support is called by a serial driver.
@@ -67,11 +68,13 @@ public:
 
 #ifdef MFEM_USE_MPI
    HiopOptimizationProblem(const MPI_Comm& _comm, OptimizationProblem &prob)
-      : comm_(_comm), x_start(NULL),
+      : comm_(_comm),
         problem(prob),
         ntdofs_loc(prob.input_size), ntdofs_glob(0),
         m_total(prob.GetNumConstraints()),
-        constr_vals(m_total), constr_info_is_current(false)
+        x_start(NULL),
+        constr_vals(m_total), constr_grads(m_total, ntdofs_loc),
+        constr_info_is_current(false)
    {
       MPI_Allreduce(&ntdofs_loc, &ntdofs_glob, 1, MPI_LONG_LONG_INT,
                     MPI_SUM, comm_);
@@ -93,12 +96,12 @@ public:
 
    /** bounds on the constraints
     *  (clow<=-1e20 means no lower bound, cupp>=1e20 means no upper bound) */
-   virtual bool get_cons_info(const long long& m, double* clow, double* cupp,
+   virtual bool get_cons_info(const long long &m, double *clow, double *cupp,
                               NonlinearityType* type);
 
    /** Objective function evaluation.
     *  Each rank returns the global objective value. */
-   virtual bool eval_f(const long long& n, const double* x, bool new_x,
+   virtual bool eval_f(const long long& n, const double *x, bool new_x,
                        double& obj_value);
 
    /** Gradient of the objective function (local chunk). */

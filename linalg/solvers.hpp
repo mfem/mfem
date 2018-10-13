@@ -316,14 +316,15 @@ class OptimizationProblem
 {
 public:
    const int input_size;
-   const Operator *C, *D;
    /// Not owned, some can remain unused (NULL).
+   const Operator *C, *D;
    const Vector *c_e, *d_lo, *d_hi, *x_lo, *x_hi;
 
    /// In parallel, insize is the number of the local true dofs.
    OptimizationProblem(int insize, const Operator *C_, const Operator *D_);
 
    virtual double CalcObjective(const Vector &x) const = 0;
+   /// The result grad is expected to enter with the correct size.
    virtual void CalcObjectiveGrad(const Vector &x, Vector &grad) const
    { MFEM_ABORT("The objective gradient is not implemented."); }
 
@@ -348,7 +349,7 @@ public:
 #endif
    virtual ~OptimizationSolver() { }
 
-   /** This function as virtual as solvers might need to perform some initial
+   /** This function is virtual as solvers might need to perform some initial
     *  actions (e.g. validation) with the OptimizationProblem. */
    virtual void SetOptimizationProblem(OptimizationProblem &prob)
    { problem = &prob; }
@@ -387,6 +388,7 @@ protected:
          Vector c(1);
          // Includes parallel communication.
          problem->C->Mult(x, c);
+
          return c(0) - (*problem->c_e)(0);
       }
    }
