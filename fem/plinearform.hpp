@@ -33,6 +33,9 @@ public:
 
    ParLinearForm(ParFiniteElementSpace *pf) : LinearForm(pf) { pfes = pf; }
 
+   ParLinearForm(ParFiniteElementSpace *pf, double * data)
+      : LinearForm(pf, data) { pfes = pf; }
+
    ParFiniteElementSpace *ParFESpace() const { return pfes; }
 
    void Update(ParFiniteElementSpace *pf = NULL);

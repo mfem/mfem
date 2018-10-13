@@ -56,6 +56,11 @@ public:
    LinearForm (FiniteElementSpace * f) : Vector (f -> GetVSize())
    { fes = f; }
 
+   /// Creates linear form associated with FE space *f.
+   LinearForm (FiniteElementSpace * f, double * data)
+      : Vector (data, f -> GetVSize())
+   { fes = f; }
+
    LinearForm() { fes = NULL; }
 
    /// (DEPRECATED) Return the FE space associated with the LinearForm.
