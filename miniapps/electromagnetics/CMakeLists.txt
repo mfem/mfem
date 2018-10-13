@@ -9,7 +9,7 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
-add_mfem_miniapp(hertz
+add_mfem_miniapp(hertz_ser
   MAIN hertz_ser.cpp
   EXTRA_SOURCES hertz_ser_solver.cpp
   EXTRA_HEADERS hertz_ser_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
