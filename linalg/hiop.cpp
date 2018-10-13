@@ -26,9 +26,7 @@ namespace mfem
 bool HiopOptimizationProblem::get_prob_sizes(long long &n, long long &m)
 {
    n = ntdofs_glob;
-
-   const int m_loc = problem.GetNumConstraints();
-   MPI_Allreduce(&m_loc, &m, 1, MPI_LONG_LONG_INT, MPI_SUM, comm_);
+   m = problem.GetNumConstraints();
 
    return true;
 }
@@ -48,6 +46,8 @@ bool HiopOptimizationProblem::get_vars_info(const long long &n,
                                             NonlinearityType *type)
 {
    MFEM_ASSERT(n == ntdofs_glob, "Global input mismatch.");
+   MFEM_ASSERT(problem.x_lo && problem.x_hi,
+               "Solution bounds are not set!");
 
    std::memcpy(xlow, problem.x_lo->GetData(), ntdofs_loc * sizeof(double));
    std::memcpy(xupp, problem.x_hi->GetData(), ntdofs_loc * sizeof(double));
@@ -61,12 +61,19 @@ bool HiopOptimizationProblem::get_cons_info(const long long &m,
 {
    MFEM_ASSERT(m == m_total, "Global constraint size mismatch.");
 
-   const int csize = problem.c_e->Size();
-   std::memcpy(clow, problem.c_e->GetData(), csize * sizeof(double));
-   std::memcpy(cupp, problem.c_e->GetData(), csize * sizeof(double));
-   const int dsize = problem.d_lo->Size();
-   std::memcpy(clow + csize, problem.d_lo->GetData(), dsize * sizeof(double));
-   std::memcpy(cupp + csize, problem.d_hi->GetData(), dsize * sizeof(double));
+   int csize = 0;
+   if (problem.C)
+   {
+      csize = problem.c_e->Size();
+      std::memcpy(clow, problem.c_e->GetData(), csize * sizeof(double));
+      std::memcpy(cupp, problem.c_e->GetData(), csize * sizeof(double));
+   }
+   if (problem.D)
+   {
+      const int dsize = problem.d_lo->Size();
+      std::memcpy(clow + csize, problem.d_lo->GetData(), dsize *sizeof(double));
+      std::memcpy(cupp + csize, problem.d_hi->GetData(), dsize *sizeof(double));
+   }
 
    return true;
 }
@@ -93,9 +100,10 @@ bool HiopOptimizationProblem::eval_grad_f(const long long &n, const double *x,
 {
    MFEM_ASSERT(n == ntdofs_glob, "Global input mismatch.");
 
-   Vector x_vec(ntdofs_loc), gradf_vec(gradf, ntdofs_loc);
+   Vector x_vec(ntdofs_loc), gradf_vec(ntdofs_loc);
    x_vec = x;
    problem.CalcObjectiveGrad(x_vec, gradf_vec);
+   std::memcpy(gradf, gradf_vec.GetData(), ntdofs_loc * sizeof(double));
 
    return true;
 }
@@ -182,11 +190,13 @@ bool HiopOptimizationProblem::get_vecdistrib_info(long long global_n,
 
 void HiopOptimizationProblem::UpdateConstrValsGrads(const Vector x)
 {
-   if (constr_info_is_current) { return; }
+   // TODO uncommenting this changes the results (bug).
+   // if (constr_info_is_current) { return; }
 
+   int cheight = 0;
    if (problem.C)
    {
-      const int cheight = problem.C->Height();
+      cheight = problem.C->Height();
 
       // Values of C.
       Vector vals_C(constr_vals.GetData(), cheight);
@@ -209,8 +219,7 @@ void HiopOptimizationProblem::UpdateConstrValsGrads(const Vector x)
 
    if (problem.D)
    {
-      const int dheight = problem.D->Height(),
-                cheight = (problem.C) ? problem.C->Height() : 0;
+      const int dheight = problem.D->Height();
 
       // Values of D.
       Vector vals_D(constr_vals.GetData() + cheight, dheight);
@@ -220,8 +229,8 @@ void HiopOptimizationProblem::UpdateConstrValsGrads(const Vector x)
       const Operator &oper_D = problem.D->GetGradient(x);
       const DenseMatrix *grad_D = dynamic_cast<const DenseMatrix *>(&oper_D);
       MFEM_VERIFY(grad_D, "Hiop expects DenseMatrices as operator gradients.");
-      MFEM_ASSERT(grad_D->Height() == dheight && grad_C->Width() == ntdofs_loc,
-                  "Incorrect dimensions of the C constraint gradient.");
+      MFEM_ASSERT(grad_D->Height() == dheight && grad_D->Width() == ntdofs_loc,
+                  "Incorrect dimensions of the D constraint gradient.");
       for (int i = 0; i < dheight; i++)
       {
          for (int j = 0; j < ntdofs_loc; j++)

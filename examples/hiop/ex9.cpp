@@ -58,6 +58,72 @@ double inflow_function(const Vector &x);
 // Mesh bounding box
 Vector bb_min, bb_max;
 
+/// Computes C(x) = sum w_i x_i, where w is a given Vector.
+class LinearScaleOperator : public Operator
+{
+private:
+   const Vector &w;
+   mutable DenseMatrix grad;
+
+public:
+   LinearScaleOperator(const Vector &weight)
+      : Operator(1, weight.Size()), w(weight), grad(1, width)
+   {
+      for (int i = 0; i < width; i++) { grad(0, i) = w(i); }
+   }
+
+   virtual void Mult(const Vector &x, Vector &y) const
+   {
+      y(0) = w * x;
+   }
+
+   virtual Operator &GetGradient(const Vector &x) const
+   {
+      return grad;
+   }
+};
+
+/** Monotone and conservative a-posteriori correction for transport solutions:
+ *  Find x that minimizes 0.5 || x - x_HO ||^2, subject to
+ *  sum w_i x_i = mass,
+ *  x_min <= x <= x_max.
+ */
+class OptimizedTransportProblem : public OptimizationProblem
+{
+private:
+   const Vector &x_HO;
+   Vector massvec;
+   const LinearScaleOperator LSoper;
+
+public:
+   OptimizedTransportProblem(const Vector &xho, const Vector &w, double mass,
+                             const Vector &xmin, const Vector &xmax)
+      : OptimizationProblem(xho.Size(), NULL, NULL),
+        x_HO(xho), massvec(1), LSoper(w)
+   {
+      C = &LSoper;
+      massvec(0) = mass;
+      SetEqualityConstraint(massvec);
+      SetSolutionBounds(xmin, xmax);
+   }
+
+   virtual double CalcObjective(const Vector &x) const
+   {
+      double res = 0.0;
+      for (int i = 0; i < input_size; i++)
+      {
+         const double d = x(i) - x_HO(i);
+         res += d * d;
+      }
+      return 0.5 * res;
+   }
+
+   virtual void CalcObjectiveGrad(const Vector &x, Vector &grad) const
+   {
+      for (int i = 0; i < input_size; i++) { grad(i) = x(i) - x_HO(i); }
+   }
+};
+
 
 /** A time-dependent operator for the right-hand side of the ODE. The DG weak
     form of du/dt = -v.grad(u) is M du/dt = K u + b, where M and K are the mass
@@ -431,37 +497,33 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    const double rtol = 1.e-12;
    double atol = 1.e-7;
 
-   OptimizationSolver* optsolver = NULL;
-   HiopNlpOptimizer *tmp_opt_ptr = NULL;
-   if (optimizer_type == 3)
+   OptimizationSolver *optsolver = NULL;
+   if (optimizer_type == 2)
    {
-      tmp_opt_ptr = new HiopNlpOptimizer();
-      DenseMatrix A;
-      A.Diag(1.0, dofs);
-      Vector xt_neg(y);
-      xt_neg.Neg();
-      tmp_opt_ptr->SetObjectiveFunction(A, xt_neg);
+      HiopNlpOptimizer *tmp_opt_ptr = new HiopNlpOptimizer();
       optsolver = tmp_opt_ptr;
    }
-   else if (optimizer_type == 2) { optsolver = new HiopNlpOptimizer_Simple(); }
    else
    {
-      optsolver = new SLBQPOptimizer();
+      SLBQPOptimizer *slbqp = new SLBQPOptimizer();
+      slbqp->SetBounds(y_min, y_max);
+      slbqp->SetLinearConstraint(M_rowsums, tot_mass);
       atol = 1.e-15;
+      optsolver = slbqp;
    }
+
+   OptimizedTransportProblem ot_prob(y, M_rowsums, tot_mass, y_min, y_max);
+   optsolver->SetOptimizationProblem(ot_prob);
 
    optsolver->SetMaxIter(max_iter);
    optsolver->SetAbsTol(atol);
    optsolver->SetRelTol(rtol);
-   optsolver->SetBounds(y_min, y_max);
-   optsolver->SetLinearConstraint(M_rowsums, tot_mass);
    optsolver->SetPrintLevel(0);
-   if (optimizer_type == 3)   { tmp_opt_ptr->Mult(y_out); }
-   else   { optsolver->Mult(y, y_out); }
-
-   delete optsolver;
+   optsolver->Mult(y, y_out);
 
    y = y_out;
+
+   delete optsolver;
 }
 
 
