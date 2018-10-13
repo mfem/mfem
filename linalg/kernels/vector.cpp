@@ -11,10 +11,10 @@
 
 #include "../../general/okina.hpp"
 #include "vector.hpp"
-using namespace std;
 
 // *****************************************************************************
 #ifdef __NVCC__
+#if __CUDA_ARCH__ > 300
 
 // *****************************************************************************
 #include <cub/cub.cuh>
@@ -53,6 +53,18 @@ static double cub_vector_dot(const int N,
    //assert(false);
    return *h_dot;
 }
+#else // __CUDA_ARCH__ > 300
+// *****************************************************************************
+void kdot(const size_t N, const double *d_x, const double *d_y, double *d_dot){
+   forall(k, 1, {
+         double l_dot = 0.0;
+         for(int i=0;i<N;i+=1){
+            l_dot += d_x[i] * d_y[i];
+         }
+         *d_dot = l_dot;
+      });
+}
+#endif // __CUDA_ARCH__
 #endif // __NVCC__
 
 // *****************************************************************************
@@ -63,16 +75,31 @@ double kVectorDot(const size_t N, const double *x, const double *y){
    GET_CUDA;
    GET_CONST_ADRS(x);
    GET_CONST_ADRS(y);
-   //dbg("x:");kVectorPrint(N, x);
-   //dbg("y:");kVectorPrint(N, y);
 #ifdef __NVCC__
+#if __CUDA_ARCH__ > 300
    if (cuda) return cub_vector_dot(N, d_x, d_y);
+#else // __CUDA_ARCH__
+   if (cuda){
+      static double *h_dot = NULL;
+      if (!h_dot){
+         void *ptr;
+         cuMemHostAlloc(&ptr, sizeof(double), CU_MEMHOSTALLOC_PORTABLE);
+         h_dot=(double*)ptr;
+      }
+      static double *d_dot = NULL;
+      if (!d_dot) {
+         dbg("!d_dot");
+         cuMemAlloc((CUdeviceptr*)&d_dot, sizeof(double));
+      }
+      kdot(N,d_x,d_y,d_dot);
+      mfem::mm::D2H(h_dot,d_dot,sizeof(double));
+      return *h_dot;
+   }
+#endif // __CUDA_ARCH__
 #endif // __NVCC__
    double dot = 0.0;
    for(size_t i=0;i<N;i+=1)
       dot += d_x[i] * d_y[i];
-   //dbg("dot=%e",dot);
-   //assert(false);
    return dot;
 }
 

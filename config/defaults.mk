@@ -21,7 +21,7 @@ NOTMAC := $(subst Darwin,,$(shell uname -s))
 CXX = g++
 MPICXX = mpicxx
 
-OPTIM_FLAGS = -O3
+OPTIM_FLAGS = -O3 -std=c++11
 DEBUG_FLAGS = -g -Wall
 
 # Destination location of make install
@@ -37,11 +37,9 @@ ifneq ($(NOTMAC),)
    AR      = ar
    ARFLAGS = cruv
    RANLIB  = ranlib
-#   PICFLAG = -fPIC
-   PICFLAG = -shared
+   PICFLAG = -fPIC
    SO_EXT  = so
    SO_VER  = so.$(MFEM_VERSION_STRING)
-#   BUILD_SOFLAGS = -shared -Wl,-soname,libmfem.$(SO_VER)
    BUILD_SOFLAGS = -shared -Wl,-soname,libmfem.$(SO_VER)
    BUILD_RPATH = -Wl,-rpath,$(BUILD_REAL_DIR)
    INSTALL_SOFLAGS = $(BUILD_SOFLAGS)

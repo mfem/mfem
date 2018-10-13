@@ -53,7 +53,6 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool static_cond = false;
-   int rl = -1;
    bool pa = false;
    bool gpu = false;
    bool visualization = 1;
@@ -66,8 +65,8 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
-   args.AddOption(&rl, "-r", "--ref-levels", "Refinement level");
-   args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa", "Enable Partial Assembly.");
+   args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
+                  "Enable Partial Assembly.");
    args.AddOption(&gpu, "-g", "--gpu", "-no-g", "--no-gpu", "Enable GPU.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -91,8 +90,8 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels = (rl < 0) ?
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim) : rl;
+      int ref_levels =
+         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -140,18 +139,9 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
-   // **************************************************************************
-   dbg("\033[32;7mStill have to prepare the nodes from the mesh");
-   if (gpu or pa)
-      mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
-   if (gpu) {
-      config::Get().Cuda(true);
-      dbg("\033[32;7mSwitched to GPU!");
-   }
-   if (pa){
-      config::Get().PA(true);
-      dbg("\033[32;7mSwitched to PA!");
-   }
+   mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
+   if (gpu) { config::Get().Cuda(true); }
+   if (pa)  { config::Get().PA(true);   }
 
    // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
@@ -163,8 +153,8 @@ int main(int argc, char *argv[])
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
    BilinearForm *a = new BilinearForm(fespace);
-   if (pa) a->AddDomainIntegrator(new PADiffusionIntegrator(one));
-   else    a->AddDomainIntegrator(new   DiffusionIntegrator(one));
+   if (pa) { a->AddDomainIntegrator(new PADiffusionIntegrator(one)); }
+   else    { a->AddDomainIntegrator(new DiffusionIntegrator(one)); }
 
    // 9. Assemble the bilinear form and the corresponding linear system,
    //    applying any necessary transformations such as: eliminating boundary
@@ -173,20 +163,16 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
-   SparseMatrix faA;
    Vector B, X;
-   PABilinearForm paA(fespace);
-   Operator *A = pa? static_cast<Operator*>(&paA):
-                     static_cast<Operator*>(&faA);
+   Operator *A;
+   if (pa) { A = new PABilinearForm(fespace); }
+   else    { A = new SparseMatrix(); }
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    cout << "Size of linear system: " << A->Height() << endl;
 
 #ifndef MFEM_USE_SUITESPARSE
-   // 10. Define a simple symmetric Gauss-Seidel preconditioner and use it to
-   //     solve the system A X = B with PCG.
-   //GSSmoother M(A);
-   /*P*/CG(*A, /*M,*/ B, X, 3, 200, 1e-12, 0.0);
+   CG(*A, B, X, 3, 200, 1e-12, 0.0);
 #else
    // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;
@@ -223,6 +209,8 @@ int main(int argc, char *argv[])
    delete fespace;
    if (order > 0) { delete fec; }
    delete mesh;
+
+   delete A;
 
    return 0;
 }
