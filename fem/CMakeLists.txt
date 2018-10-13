@@ -35,6 +35,7 @@ set(SRCS
 set(HDRS
   bilinearform.hpp
   bilininteg.hpp
+  block_fem.hpp
   coefficient.hpp
   datacollection.hpp
   eltrans.hpp
