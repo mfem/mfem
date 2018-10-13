@@ -194,7 +194,7 @@ kDofQuadMaps* kDofQuadMaps::GetD2QTensorMaps(const FiniteElement& fe,
    //maps->dofToQuad = dofToQuad;
    mm::Get().Push(dofToQuad.GetData());
    kVectorAssign(numQuad1D*numDofs, dofToQuad.GetData(), maps->dofToQuad);
-   
+
    //maps->dofToQuadD = dofToQuadD;
    mm::Get().Push(dofToQuadD.GetData());
    kVectorAssign(numQuad1D*numDofs, dofToQuadD.GetData(), maps->dofToQuadD);
@@ -310,13 +310,13 @@ kDofQuadMaps* kDofQuadMaps::GetD2QSimplexMaps(const FiniteElement& fe,
       //maps->quadWeights = quadWeights;
       mm::Get().Push(quadWeights.GetData());
       kVectorAssign(numQuad, quadWeights.GetData(), maps->quadWeights);
-    }
+   }
 
    //maps->dofToQuad = dofToQuad;
    mm::Get().Push(dofToQuad.GetData());
    kVectorAssign(numQuad*numDofs, dofToQuad.GetData(), maps->dofToQuad);
    //assert(false);
-   
+
    //maps->dofToQuadD = dofToQuadD;
    mm::Get().Push(dofToQuadD.GetData());
    kVectorAssign(dims*numQuad*numDofs, dofToQuadD.GetData(), maps->dofToQuadD);

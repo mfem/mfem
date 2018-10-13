@@ -13,10 +13,12 @@
 #define MFEM_DBG_HPP
 
 // *****************************************************************************
-static const char *strrnchr(const char *s, const unsigned char c, int n){
+static const char *strrnchr(const char *s, const unsigned char c, int n)
+{
    size_t len = strlen(s);
    char *p = (char*)s+len-1;
-   for (; n; n--,p--,len--){
+   for (; n; n--,p--,len--)
+   {
       for (; len; p--,len--)
          if (*p==c) { break; }
       if (!len) { return NULL; }
@@ -26,10 +28,12 @@ static const char *strrnchr(const char *s, const unsigned char c, int n){
 }
 
 //*****************************************************************************
-static uint8_t chk8(const char *bfr){
+static uint8_t chk8(const char *bfr)
+{
    unsigned int chk = 0;
    size_t len = strlen(bfr);
-   for (; len; len--,bfr++){
+   for (; len; len--,bfr++)
+   {
       chk += *bfr;
    }
    return (uint8_t) chk;
@@ -37,7 +41,8 @@ static uint8_t chk8(const char *bfr){
 
 // *****************************************************************************
 static void kdbge(const char *file, const int line, const char *func,
-                  const bool header, const int nargs, ...){
+                  const bool header, const int nargs, ...)
+{
    static bool env_ini = false;
    static bool env_dbg = false;
    if (!env_ini) { env_dbg = getenv("DBG"); env_ini = true; }
@@ -45,13 +50,16 @@ static void kdbge(const char *file, const int line, const char *func,
    const uint8_t color = 17 + chk8(file)%216;
    fflush(stdout);
    fprintf(stdout,"\033[38;5;%dm",color);
-   if (header){
+   if (header)
+   {
       fprintf(stdout,"\n%24s\b\b\b\b:\033[2m%3d\033[22m: %s: \033[1m",
               file, line, func);
-   }else {
+   }
+   else
+   {
       fprintf(stdout,"\033[1m");
    }
-   if (nargs==0) return;
+   if (nargs==0) { return; }
    va_list args;
    va_start(args,nargs);
    const char *format=va_arg(args,const char*);
@@ -92,7 +100,7 @@ static void kdbge(const char *file, const int line, const char *func,
 #define dbg(...) CHOOSE(__VA_ARGS__)(__VA_ARGS__)
 
 #else // __NVCC__
-   
+
 // *****************************************************************************
 #define dbp(...) kdbge(_F_L_F_,false, NB_ARGS(__VA_ARGS__),__VA_ARGS__)
 #define dbg(...) kdbge(_F_L_F_, true, NB_ARGS(__VA_ARGS__),__VA_ARGS__)
@@ -100,7 +108,8 @@ static void kdbge(const char *file, const int line, const char *func,
 #endif // __NVCC__
 
 // *****************************************************************************
-static void push_flf(const char *file, const int line, const char *func){
+static void push_flf(const char *file, const int line, const char *func)
+{
    static bool env_ini = false;
    static bool env_dbg = false;
    if (!env_ini) { env_dbg = getenv("DBG"); env_ini = true; }

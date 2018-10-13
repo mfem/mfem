@@ -536,7 +536,7 @@ inline void SparseMatrix::SetColPtr(const int row) const
    }
    else
    {
-         if (ColPtrJ == NULL)
+      if (ColPtrJ == NULL)
       {
          ColPtrJ = mm::malloc<int>(width);
          for (int i = 0; i < width; i++)

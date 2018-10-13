@@ -35,33 +35,39 @@ PABilinearForm::PABilinearForm(FiniteElementSpace* fes) :
    kfes(new kFiniteElementSpace(*fes)) { }
 
 // ***************************************************************************
-PABilinearForm::~PABilinearForm(){ /*delete kfes;*/}
+PABilinearForm::~PABilinearForm() { /*delete kfes;*/}
 
 // *****************************************************************************
-void PABilinearForm::EnableStaticCondensation(){ assert(false);}
+void PABilinearForm::EnableStaticCondensation() { assert(false);}
 
 // ***************************************************************************
 // Adds new Domain Integrator.
-void PABilinearForm::AddDomainIntegrator(AbstractBilinearFormIntegrator *i) {
-   
+void PABilinearForm::AddDomainIntegrator(AbstractBilinearFormIntegrator *i)
+{
+
    dbg("\033[7mAddDomainIntegrator");
    integrators.Append(static_cast<BilinearPAFormIntegrator*>(i));
 }
 
 // Adds new Boundary Integrator.
-void PABilinearForm::AddBoundaryIntegrator(AbstractBilinearFormIntegrator *i) {
+void PABilinearForm::AddBoundaryIntegrator(AbstractBilinearFormIntegrator *i)
+{
    assert(false);
    //AddIntegrator(i, BoundaryIntegrator);
 }
 
 // Adds new interior Face Integrator.
-void PABilinearForm::AddInteriorFaceIntegrator(AbstractBilinearFormIntegrator *i) {
+void PABilinearForm::AddInteriorFaceIntegrator(AbstractBilinearFormIntegrator
+                                               *i)
+{
    assert(false);
    //AddIntegrator(i, InteriorFaceIntegrator);
 }
 
 // Adds new boundary Face Integrator.
-void PABilinearForm::AddBoundaryFaceIntegrator(AbstractBilinearFormIntegrator *i) {
+void PABilinearForm::AddBoundaryFaceIntegrator(AbstractBilinearFormIntegrator
+                                               *i)
+{
    assert(false);
    //AddIntegrator(i, BoundaryFaceIntegrator);
 }
@@ -70,22 +76,28 @@ void PABilinearForm::AddBoundaryFaceIntegrator(AbstractBilinearFormIntegrator *i
 // * WARNING DiffusionGetRule
 // *****************************************************************************
 static const IntegrationRule &DiffusionGetRule(const FiniteElement &trial_fe,
-                                               const FiniteElement &test_fe){
+                                               const FiniteElement &test_fe)
+{
    int order;
-   if (trial_fe.Space() == FunctionSpace::Pk){
+   if (trial_fe.Space() == FunctionSpace::Pk)
+   {
       order = trial_fe.GetOrder() + test_fe.GetOrder() - 2;
-   }else{
+   }
+   else
+   {
       // order = 2*el.GetOrder() - 2;  // <-- this seems to work fine too
       order = trial_fe.GetOrder() + test_fe.GetOrder() + trial_fe.GetDim() - 1;
    }
-   if (trial_fe.Space() == FunctionSpace::rQk){
+   if (trial_fe.Space() == FunctionSpace::rQk)
+   {
       return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
    }
    return IntRules.Get(trial_fe.GetGeomType(), order);
 }
 
 // ***************************************************************************
-void PABilinearForm::Assemble(int skip_zeros) {
+void PABilinearForm::Assemble(int skip_zeros)
+{
    const int nbi = integrators.Size();
    assert(integrators.Size()==1);
    const FiniteElement &fe = *fes->GetFE(0);
@@ -93,7 +105,8 @@ void PABilinearForm::Assemble(int skip_zeros) {
    const int order = ir->GetOrder();
    assert(ir);
    const int integratorCount = integrators.Size();
-   for (int i = 0; i < integratorCount; ++i) {
+   for (int i = 0; i < integratorCount; ++i)
+   {
       integrators[i]->Setup(fes,ir);
       integrators[i]->Assemble();
    }
@@ -101,7 +114,8 @@ void PABilinearForm::Assemble(int skip_zeros) {
 
 // ***************************************************************************
 void PABilinearForm::FormOperator(const Array<int> &ess_tdof_list,
-                                  Operator &A) {
+                                  Operator &A)
+{
    assert(false);
    const Operator* trialP = trialFes->GetProlongationMatrix();
    const Operator* testP  = testFes->GetProlongationMatrix();
@@ -117,7 +131,8 @@ void PABilinearForm::FormOperator(const Array<int> &ess_tdof_list,
 void PABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                                       Vector &x, Vector &b,
                                       Operator *&A, Vector &X, Vector &B,
-                                      int copy_interior) {
+                                      int copy_interior)
+{
    //FormOperator(ess_tdof_list, A);
    const Operator* trialP = trialFes->GetProlongationMatrix();
    const Operator* testP  = testFes->GetProlongationMatrix();
@@ -125,24 +140,28 @@ void PABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    if (trialP) { rap = new RAPOperator(*testP, *this, *trialP); }
    const bool own_A = rap!=this;
    assert(rap);
-   
+
    A = new ConstrainedOperator(rap, ess_tdof_list, own_A);
-   
+
    const Operator* P = trialFes->GetProlongationMatrix();
    const Operator* R = trialFes->GetRestrictionMatrix();
-   if (P) {
+   if (P)
+   {
       // Variational restriction with P
       B.SetSize(P->Width());
       P->MultTranspose(b, B);
       X.SetSize(R->Height());
       R->Mult(x, X);
-   } else {
+   }
+   else
+   {
       // rap, X and B point to the same data as this, x and b
       X.SetSize(x.Size()); X = x;
       B.SetSize(b.Size()); B = b;
    }
-   
-   if (!copy_interior and ess_tdof_list.Size()>0) {
+
+   if (!copy_interior and ess_tdof_list.Size()>0)
+   {
       const int csz = ess_tdof_list.Size();
       const int xsz = X.Size();
       assert(xsz>=csz);
@@ -152,43 +171,50 @@ void PABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                           subvec.GetData(),
                           X.GetData(),
                           ess_tdof_list.GetData());
-      X = 0.0;      
+      X = 0.0;
       kVectorSetSubvector(csz,
                           X.GetData(),
                           subvec.GetData(),
                           ess_tdof_list.GetData());
    }
-      
+
    ConstrainedOperator *cA = static_cast<ConstrainedOperator*>(A);
    assert(cA);
-   if (cA) {
+   if (cA)
+   {
       dbg("ConstrainedOperator");
       cA->EliminateRHS(X, B);
-   } else {
+   }
+   else
+   {
       mfem_error("BilinearForm::InitRHS expects an ConstrainedOperator");
    }
 }
 
 // ***************************************************************************
-void PABilinearForm::Mult(const Vector &x, Vector &y) const {
+void PABilinearForm::Mult(const Vector &x, Vector &y) const
+{
    kfes->GlobalToLocal(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
    assert(iSz==1);
-   for (int i = 0; i < iSz; ++i) {
+   for (int i = 0; i < iSz; ++i)
+   {
       integrators[i]->MultAdd(localX, localY);
    }
    kfes->LocalToGlobal(localY, y);
 }
 
 // ***************************************************************************
-void PABilinearForm::MultTranspose(const Vector &x, Vector &y) const {
+void PABilinearForm::MultTranspose(const Vector &x, Vector &y) const
+{
    assert(false);
    kfes->GlobalToLocal(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
    assert(iSz==1);
-   for (int i = 0; i < iSz; ++i) {
+   for (int i = 0; i < iSz; ++i)
+   {
       integrators[i]->MultTransposeAdd(localX, localY);
    }
    kfes->LocalToGlobal(localY, y);
@@ -197,9 +223,11 @@ void PABilinearForm::MultTranspose(const Vector &x, Vector &y) const {
 // ***************************************************************************
 void PABilinearForm::RecoverFEMSolution(const Vector &X,
                                         const Vector &b,
-                                        Vector &x) {
+                                        Vector &x)
+{
    const Operator *P = this->GetProlongation();
-   if (P) {
+   if (P)
+   {
       // Apply conforming prolongation
       x.SetSize(P->Height());
       P->Mult(X, x);

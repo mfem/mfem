@@ -14,7 +14,8 @@
 
 MFEM_NAMESPACE
 
-void kLSolve(const int m, const int n, const double *data, const int *ipiv, double *X);
+void kLSolve(const int m, const int n, const double *data, const int *ipiv,
+             double *X);
 
 void kUSolve(const int m, const int n, const double *data, double *X);
 

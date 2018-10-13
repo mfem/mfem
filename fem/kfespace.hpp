@@ -19,22 +19,23 @@
 // *****************************************************************************
 MFEM_NAMESPACE
 
-  // ***************************************************************************
-  // * kFiniteElementSpace
-  //  **************************************************************************
-  class kFiniteElementSpace : public FiniteElementSpace {
-  private:
-    int globalDofs, localDofs;
-    karray<int> offsets;
-    karray<int> indices, *reorderIndices;
-    karray<int> map;
-  public:
-    kFiniteElementSpace(FiniteElementSpace&);
-    ~kFiniteElementSpace();
-    // *************************************************************************
-    void GlobalToLocal(const Vector&, Vector&) const;
-    void LocalToGlobal(const Vector&, Vector&) const;
-  };
+// ***************************************************************************
+// * kFiniteElementSpace
+//  **************************************************************************
+class kFiniteElementSpace : public FiniteElementSpace
+{
+private:
+   int globalDofs, localDofs;
+   karray<int> offsets;
+   karray<int> indices, *reorderIndices;
+   karray<int> map;
+public:
+   kFiniteElementSpace(FiniteElementSpace&);
+   ~kFiniteElementSpace();
+   // *************************************************************************
+   void GlobalToLocal(const Vector&, Vector&) const;
+   void LocalToGlobal(const Vector&, Vector&) const;
+};
 
 } // namespace mfem
 

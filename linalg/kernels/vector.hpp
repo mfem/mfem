@@ -34,7 +34,8 @@ void kVectorAssign(const size_t N, const double* v, double *data);
 
 void kVectorMultOp(const size_t N, const double value, double *data);
 
-void kVectorSubtract(double *zp, const double *xp, const double *yp, const size_t N);
+void kVectorSubtract(double *zp, const double *xp, const double *yp,
+                     const size_t N);
 
 double kVectorDot(const size_t N, const double *x, const double *y);
 

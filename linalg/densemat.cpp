@@ -133,32 +133,43 @@ DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
       data = NULL;
    }
 }
-   
+
 DenseMatrix::DenseMatrix(double *d, int h, int w)
-   : Matrix(h, w) {
-   if (mm::Get().Known(d)){
+   : Matrix(h, w)
+{
+   if (mm::Get().Known(d))
+   {
       data = d;
       capacity = -h*w;
-   }else{
+   }
+   else
+   {
       assert(false);
       data = mm::malloc<double>(h*w);
       data = d;
       capacity = -h*w;
    }
 }
-   
-void DenseMatrix::UseExternalData(double *d, int h, int w){
-   if (mm::Get().Known(d)){
+
+void DenseMatrix::UseExternalData(double *d, int h, int w)
+{
+   if (mm::Get().Known(d))
+   {
       data = d;
       height = h;
       width = w;
       capacity = -h*w;
-   }else{
-      if (!d and h==0 and w==0){
+   }
+   else
+   {
+      if (!d and h==0 and w==0)
+      {
          // mesh, ncmesh, DenseTensor point_matrices Clear
          data = NULL;
          height = width = capacity = 0;
-      }else{ // d = NULL and h!=0, w!=0
+      }
+      else   // d = NULL and h!=0, w!=0
+      {
          data = d;
          height = h;
          width = w;
@@ -3900,7 +3911,7 @@ void LUFactors::Factor(int m)
    MFEM_VERIFY(!info, "LAPACK: error in DGETRF");
 #else
    // compiling without LAPACK
-   kFactor(m, ipiv, this->data);  
+   kFactor(m, ipiv, this->data);
 #endif
 }
 
@@ -4138,10 +4149,10 @@ void DenseMatrixInverse::Factor()
 {
    MFEM_ASSERT(a, "DenseMatrix is not given");
    const double *adata = a->data;
-   kFactorSet(width*width, adata, lu.data);   
+   kFactorSet(width*width, adata, lu.data);
    lu.Factor(width);
 }
-   
+
 void DenseMatrixInverse::GetInverseMatrix(DenseMatrix &Ainv) const
 {
    Ainv.SetSize(width);

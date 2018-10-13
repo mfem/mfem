@@ -19,11 +19,12 @@
 
 namespace mfem
 {
-   
+
 // *****************************************************************************
 // * Abstract Bilinear Form Integrator
 // *****************************************************************************
-class AbstractBilinearFormIntegrator : public NonlinearFormIntegrator{
+class AbstractBilinearFormIntegrator : public NonlinearFormIntegrator
+{
 public:
    AbstractBilinearFormIntegrator(const IntegrationRule *ir = NULL) :
       NonlinearFormIntegrator(ir) { }
@@ -40,11 +41,12 @@ public:
 // *****************************************************************************
 // * Bilinear PA Form Integrator
 // *****************************************************************************
-class BilinearPAFormIntegrator : public AbstractBilinearFormIntegrator{
+class BilinearPAFormIntegrator : public AbstractBilinearFormIntegrator
+{
 public:
    BilinearPAFormIntegrator(const IntegrationRule *ir = NULL) :
       AbstractBilinearFormIntegrator(ir) { }
-   virtual void Setup(const FiniteElementSpace*, const IntegrationRule*){assert(false);}
+   virtual void Setup(const FiniteElementSpace*, const IntegrationRule*) {assert(false);}
    virtual void Assemble() {assert(false);}
    virtual void MultAdd(Vector&, Vector&) {assert(false);}
    virtual void MultTransposeAdd(Vector&, Vector&) {assert(false);}
@@ -56,12 +58,14 @@ public:
 // *****************************************************************************
 // * PA Diffusion Integrator
 // *****************************************************************************
-class PADiffusionIntegrator: public BilinearPAFormIntegrator {
+class PADiffusionIntegrator: public BilinearPAFormIntegrator
+{
 private:
    Coefficient *Q;
    KDiffusionIntegrator *diffusion;
 public:
-   PADiffusionIntegrator (Coefficient &q) : BilinearPAFormIntegrator(), Q(&q), diffusion(NULL) {}
+   PADiffusionIntegrator (Coefficient &q) : BilinearPAFormIntegrator(), Q(&q),
+      diffusion(NULL) {}
    void Setup(const FiniteElementSpace*, const IntegrationRule*);
    void Assemble();
    void MultAdd(Vector&, Vector&);
@@ -74,7 +78,8 @@ public:
 // *****************************************************************************
 /// Bilinear FA Form Integrator
 // *****************************************************************************
-class BilinearFormIntegrator : public AbstractBilinearFormIntegrator {
+class BilinearFormIntegrator : public AbstractBilinearFormIntegrator
+{
 public:
    BilinearFormIntegrator(const IntegrationRule *ir = NULL) :
       AbstractBilinearFormIntegrator(ir) { }

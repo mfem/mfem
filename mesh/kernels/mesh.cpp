@@ -16,32 +16,36 @@ using namespace std;
 MFEM_NAMESPACE
 
 // *****************************************************************************
-__device__ __constant__ double d_quad_children_init[2*4*4] = {
+__device__ __constant__ double d_quad_children_init[2*4*4] =
+{
    0.0,0.0, 0.5,0.0, 0.5,0.5, 0.0,0.5,
-   0.5,0.0, 1.0,0.0, 1.0,0.5, 0.5,0.5, 
-   0.5,0.5, 1.0,0.5, 1.0,1.0, 0.5,1.0, 
-   0.0,0.5, 0.5,0.5, 0.5,1.0, 0.0,1.0  
+   0.5,0.0, 1.0,0.0, 1.0,0.5, 0.5,0.5,
+   0.5,0.5, 1.0,0.5, 1.0,1.0, 0.5,1.0,
+   0.0,0.5, 0.5,0.5, 0.5,1.0, 0.0,1.0
 };
 
-const double h_quad_children_init[2*4*4] = {
+const double h_quad_children_init[2*4*4] =
+{
    0.0,0.0, 0.5,0.0, 0.5,0.5, 0.0,0.5,
-   0.5,0.0, 1.0,0.0, 1.0,0.5, 0.5,0.5, 
-   0.5,0.5, 1.0,0.5, 1.0,1.0, 0.5,1.0, 
-   0.0,0.5, 0.5,0.5, 0.5,1.0, 0.0,1.0  
+   0.5,0.0, 1.0,0.0, 1.0,0.5, 0.5,0.5,
+   0.5,0.5, 1.0,0.5, 1.0,1.0, 0.5,1.0,
+   0.0,0.5, 0.5,0.5, 0.5,1.0, 0.0,1.0
 };
 
 // *****************************************************************************
-void kQuadChildren(double *data){
+void kQuadChildren(double *data)
+{
    GET_CUDA;
    GET_ADRS(data);
    const double *p_h_quad_children_init = h_quad_children_init;
    const int N = 2*4*4;
-   forall(i, N,{
-          d_data[i] = cuda?
-          d_quad_children_init[i]:
-          p_h_quad_children_init[i];
-          //printf(" %f",d_data[i]);
-      });
+   forall(i, N,
+   {
+      d_data[i] = cuda?
+      d_quad_children_init[i]:
+      p_h_quad_children_init[i];
+      //printf(" %f",d_data[i]);
+   });
 }
 
 // *****************************************************************************
