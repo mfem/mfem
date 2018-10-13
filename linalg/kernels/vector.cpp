@@ -12,55 +12,6 @@
 #include "../../general/okina.hpp"
 #include "vector.hpp"
 
-#ifdef __NVCC__
-// *****************************************************************************
-#include <cub/cub.cuh>
-__inline__ __device__ double4 operator*(double4 a, double4 b)
-{
-   return make_double4(a.x*b.x, a.y*b.y, a.z*b.z, a.w*b.w);
-}
-
-// *****************************************************************************
-#if __CUDA_ARCH__ > 300
-
-// *****************************************************************************
-static double cub_vector_dot(const int N,
-                             const double* __restrict vec1,
-                             const double* __restrict vec2)
-{
-   push();
-   static double *h_dot = NULL;
-   if (!h_dot)
-   {
-      dbg("!h_dot");
-      void *ptr;
-      cuMemHostAlloc(&ptr, sizeof(double), CU_MEMHOSTALLOC_PORTABLE);
-      h_dot=(double*)ptr;
-   }
-   static double *d_dot = NULL;
-   if (!d_dot)
-   {
-      dbg("!d_dot");
-      cuMemAlloc((CUdeviceptr*)&d_dot, sizeof(double));
-   }
-   static void *d_storage = NULL;
-   static size_t storage_bytes = 0;
-   if (!d_storage)
-   {
-      dbg("[cub_vector_dot] !d_storage");
-      cub::DeviceReduce::Dot(d_storage, storage_bytes, vec1, vec2, d_dot, N);
-      cuMemAlloc((CUdeviceptr*)&d_storage, storage_bytes*sizeof(double));
-   }
-   cub::DeviceReduce::Dot(d_storage, storage_bytes, vec1, vec2, d_dot, N);
-   //mfem::mm::D2H(h_dot,d_dot,sizeof(double));
-   checkCudaErrors(cuMemcpy((CUdeviceptr)h_dot,(CUdeviceptr)d_dot,sizeof(double)));
-   //dbg("dot=%e",*h_dot);
-   //assert(false);
-   return *h_dot;
-}
-
-#else // __CUDA_ARCH__
-
 // *****************************************************************************
 void kdot(const size_t N, const double *d_x, const double *d_y, double *d_dot)
 {
@@ -75,9 +26,6 @@ void kdot(const size_t N, const double *d_x, const double *d_y, double *d_dot)
    });
 }
 
-#endif // __CUDA_ARCH__
-#endif // __NVCC__
-
 // *****************************************************************************
 MFEM_NAMESPACE
 
@@ -88,9 +36,6 @@ double kVectorDot(const size_t N, const double *x, const double *y)
    GET_CONST_ADRS(x);
    GET_CONST_ADRS(y);
 #ifdef __NVCC__
-#if __CUDA_ARCH__ > 300
-   if (cuda) { return cub_vector_dot(N, d_x, d_y); }
-#else // __CUDA_ARCH__
    if (cuda)
    {
       static double *h_dot = NULL;
@@ -110,7 +55,6 @@ double kVectorDot(const size_t N, const double *x, const double *y)
       mfem::mm::D2H(h_dot,d_dot,sizeof(double));
       return *h_dot;
    }
-#endif // __CUDA_ARCH__
 #endif // __NVCC__
    double dot = 0.0;
    for (size_t i=0; i<N; i+=1)
