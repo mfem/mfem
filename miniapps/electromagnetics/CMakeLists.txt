@@ -9,6 +9,12 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
+add_mfem_miniapp(hertz
+  MAIN hertz_ser.cpp
+  EXTRA_SOURCES hertz_ser_solver.cpp
+  EXTRA_HEADERS hertz_ser_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
+  LIBRARIES mfem mfem_miniapps_common)
+
 if (MFEM_USE_MPI)
   add_mfem_miniapp(tesla
     MAIN tesla.cpp
@@ -21,6 +27,12 @@ if (MFEM_USE_MPI)
     EXTRA_SOURCES volta_solver.cpp
     EXTRA_HEADERS volta_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
     LIBRARIES mfem mfem_miniapps_common)
+
+ add_mfem_miniapp(hertz
+   MAIN hertz.cpp
+   EXTRA_SOURCES hertz_solver.cpp
+   EXTRA_HEADERS hertz_solver.hpp ${MFEM_MINIAPPS_COMMON_HEADERS}
+   LIBRARIES mfem mfem_miniapps_common)
 
  add_mfem_miniapp(joule
    MAIN joule.cpp

@@ -13,6 +13,7 @@ set(SRCS
   bilinearform.cpp
   bilininteg.cpp
   coefficient.cpp
+  complex_fem.cpp
   datacollection.cpp
   eltrans.cpp
   estimators.cpp
@@ -35,6 +36,7 @@ set(HDRS
   bilinearform.hpp
   bilininteg.hpp
   coefficient.hpp
+  complex_fem.hpp
   datacollection.hpp
   eltrans.hpp
   estimators.hpp
