@@ -19,7 +19,8 @@
 MFEM_NAMESPACE
 
 // *****************************************************************************
-class KDiffusionIntegrator{
+class KDiffusionIntegrator
+{
 private:
    Vector vec;
    kDofQuadMaps *maps;

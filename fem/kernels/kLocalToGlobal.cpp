@@ -24,25 +24,29 @@ void kLocalToGlobal(const int NUM_VDIM,
                     const int* offsets,
                     const int* indices,
                     const double* localX,
-                    double* __restrict globalX) {
-   
+                    double* __restrict globalX)
+{
+
    GET_CONST_ADRS_T(offsets,int);
    GET_CONST_ADRS_T(indices,int);
    GET_CONST_ADRS(localX);
    GET_ADRS(globalX);
-   
-   forall(i, globalEntries, {
-         const int offset = d_offsets[i];
-         const int nextOffset = d_offsets[i + 1];
-         for (int v = 0; v < NUM_VDIM; ++v) {
-            double dofValue = 0;
-            for (int j = offset; j < nextOffset; ++j) {
-               const int l_offset = ijNMt(v,d_indices[j],NUM_VDIM,localEntries,VDIM_ORDERING);
-               dofValue += d_localX[l_offset];
-            }
-            const int g_offset = ijNMt(v,i,NUM_VDIM,globalEntries,VDIM_ORDERING);
-            d_globalX[g_offset] = dofValue;
+
+   forall(i, globalEntries,
+   {
+      const int offset = d_offsets[i];
+      const int nextOffset = d_offsets[i + 1];
+      for (int v = 0; v < NUM_VDIM; ++v)
+      {
+         double dofValue = 0;
+         for (int j = offset; j < nextOffset; ++j)
+         {
+            const int l_offset = ijNMt(v,d_indices[j],NUM_VDIM,localEntries,VDIM_ORDERING);
+            dofValue += d_localX[l_offset];
          }
-      });
-   
+         const int g_offset = ijNMt(v,i,NUM_VDIM,globalEntries,VDIM_ORDERING);
+         d_globalX[g_offset] = dofValue;
+      }
+   });
+
 }

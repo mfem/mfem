@@ -24,7 +24,8 @@ typedef int CUstream;
 // *****************************************************************************
 // * Config
 // *****************************************************************************
-class config{
+class config
+{
 private:
    bool cuda = false;
    bool uvm = false;
@@ -35,11 +36,12 @@ private:
    CUcontext cuContext;
    CUstream *hStream;
 private:
-   config(){}
+   config() {}
    config(config const&);
    void operator=(config const&);
 public:
-   static config& Get(){
+   static config& Get()
+   {
       static config singleton;
       return singleton;
    }
@@ -53,7 +55,7 @@ public:
 
    // **************************************************************************
    inline void Cuda(const bool flag) { cuda = flag; }
-   
+
    // **************************************************************************
    inline bool PA() { return pa; }
    inline void PA(const int mode) { pa = mode; }
@@ -63,7 +65,7 @@ public:
 
    // **************************************************************************
    void Setup();
-   
+
    // **************************************************************************
    inline CUstream *Stream() { return hStream; }
 };

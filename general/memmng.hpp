@@ -18,7 +18,8 @@
 MFEM_NAMESPACE
 
 // *****************************************************************************
-typedef struct mm2dev{
+typedef struct mm2dev
+{
    bool host = true;
    size_t bytes = 0;
    const void *h_adrs = NULL;
@@ -31,15 +32,17 @@ typedef std::unordered_map<const void*,mm2dev_t> mm_t;
 // *****************************************************************************
 // * Memory manager singleton
 // *****************************************************************************
-class mm {
+class mm
+{
 protected:
    mm_t *mng = NULL;
 private:
-   mm(){}
+   mm() {}
    mm(mm const&);
    void operator=(mm const&);
 public:
-   static mm& Get(){
+   static mm& Get()
+   {
       static mm mm_singleton;
       return mm_singleton;
    }
@@ -49,27 +52,29 @@ private:
    void *add(const void*, const size_t, const size_t);
    void del(const void*);
    void Cuda();
-   
+
    // **************************************************************************
 public:
    template<class T>
-   static inline T* malloc(size_t size, const size_t size_of_T = sizeof(T)) {
-      if (!mm::Get().mng) mm::Get().Setup();
+   static inline T* malloc(size_t size, const size_t size_of_T = sizeof(T))
+   {
+      if (!mm::Get().mng) { mm::Get().Setup(); }
       // alloc on host first
       T *ptr = ::new T[size];
       // add to the pool of registered adresses
       return (T*) mm::Get().add((void*)ptr,size,size_of_T);
    }
-   
+
    // **************************************************************************
    template<class T>
-   static inline void free(void *ptr) {
-      if (!ptr) return;
+   static inline void free(void *ptr)
+   {
+      if (!ptr) { return; }
       mm::Get().del(ptr);
       ::delete[] static_cast<T*>(ptr);
       ptr = nullptr;
    }
-   
+
    // **************************************************************************
    void* Adrs(const void*);
 
@@ -78,7 +83,7 @@ public:
 
    // **************************************************************************
    void Rsync(const void*);
-   
+
    // **************************************************************************
    void Push(const void*);
 
@@ -90,15 +95,15 @@ public:
    // **************************************************************************
    static void* H2D(void*, const void*, size_t, const bool =false);
 
-  // ***************************************************************************
+   // ***************************************************************************
    static void* D2H(void*, const void*, size_t, const bool =false);
-  
+
    // **************************************************************************
    static void* D2D(void*, const void*, size_t, const bool =false);
 
    // **************************************************************************
    static void* memcpy(void*, const void*, size_t);
-   
+
    // **************************************************************************
 private:
    static void handler(int, siginfo_t*, void*);

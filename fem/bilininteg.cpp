@@ -21,19 +21,22 @@ namespace mfem
 {
 // *****************************************************************************
 void PADiffusionIntegrator::Setup(const FiniteElementSpace *fes,
-                                  const IntegrationRule *ir){
+                                  const IntegrationRule *ir)
+{
    assert(diffusion==NULL);
    diffusion = new KDiffusionIntegrator(fes,ir);
 }
 
 // *****************************************************************************
-void PADiffusionIntegrator::Assemble(){
+void PADiffusionIntegrator::Assemble()
+{
    assert(diffusion);
    diffusion->Assemble();
 }
 
 // *****************************************************************************
-void PADiffusionIntegrator::MultAdd(Vector &x, Vector &y){
+void PADiffusionIntegrator::MultAdd(Vector &x, Vector &y)
+{
    diffusion->MultAdd(x,y);
 }
 

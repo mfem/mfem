@@ -28,7 +28,8 @@ namespace mfem
 template <class T, bool xyz = true> class karray;
 
 // Partial Specializations for xyz==TRUE *************************************
-template <class T> class karray<T,true> {
+template <class T> class karray<T,true>
+{
 private:
    T* data = NULL;
    size_t sz=0;
@@ -86,7 +87,8 @@ public:
 };
 
 // Partial Specializations for xyz==FALSE ************************************
-template <class T> class karray<T,false> {
+template <class T> class karray<T,false>
+{
 private:
    static const int DIM = 4;
    T* data = NULL;

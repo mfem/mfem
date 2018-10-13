@@ -44,7 +44,8 @@ void kGeom(const int DIM,
            const double* nodes,
            double* J,
            double* invJ,
-           double* detJ){
+           double* detJ)
+{
    const unsigned int dofs1D = IROOT(DIM,NUM_DOFS);
    const unsigned int quad1D = IROOT(DIM,NUM_QUAD);
    const unsigned int id = (DIM<<4)|(dofs1D-2);
@@ -54,7 +55,8 @@ void kGeom(const int DIM,
    dbg("id=%d",id);
    assert(LOG2(DIM)<=4);
    assert(LOG2(dofs1D-2)<=4);
-   static std::unordered_map<unsigned int, fIniGeom> call = {
+   static std::unordered_map<unsigned int, fIniGeom> call =
+   {
       // 2D
       {0x20,&kGeom2D<2*2,(2*2-2)*(2*2-2)>},
       {0x21,&kGeom2D<3*3,(3*2-2)*(3*2-2)>},
@@ -92,10 +94,13 @@ void kGeom(const int DIM,
       {0x3F,&kGeom3D<17*17*17,32*32*32>},
       */
    };
-   if (!call[id]){
+   if (!call[id])
+   {
       printf("\n[kGeom] id \033[33m0x%X\033[m ",id);
       fflush(stdout);
-   }else{
+   }
+   else
+   {
       dbg("\n[kGeom] id \033[33m0x%X\033[m ",id);
    }
    assert(call[id]);
@@ -106,7 +111,7 @@ void kGeom(const int DIM,
    GET_ADRS(detJ);
    call[id](numElements, d_dofToQuadD, d_nodes, d_J, d_invJ, d_detJ);
 }
-   
+
 // *****************************************************************************
 static kGeometry *geom = NULL;
 
@@ -127,27 +132,32 @@ kGeometry::~kGeometry()
 static void kGeomFill(const int dims,
                       const size_t elements, const size_t numDofs,
                       const int* elementMap, int* eMap,
-                      const double *nodes, double *meshNodes){
+                      const double *nodes, double *meshNodes)
+{
    GET_CONST_ADRS_T(elementMap,int);
    GET_ADRS_T(eMap,int);
    GET_CONST_ADRS(nodes);
    GET_ADRS(meshNodes);
-   forall(e, elements, {
-         for (int d = 0; d < numDofs; ++d) {
-            const int lid = d+numDofs*e;
-            const int gid = d_elementMap[lid];
-            d_eMap[lid] = gid;
-            for (int v = 0; v < dims; ++v) {
-               const int moffset = v+dims*lid;
-               const int xoffset = v+dims*gid;
-               d_meshNodes[moffset] = d_nodes[xoffset];
-            }
+   forall(e, elements,
+   {
+      for (int d = 0; d < numDofs; ++d)
+      {
+         const int lid = d+numDofs*e;
+         const int gid = d_elementMap[lid];
+         d_eMap[lid] = gid;
+         for (int v = 0; v < dims; ++v)
+         {
+            const int moffset = v+dims*lid;
+            const int xoffset = v+dims*gid;
+            d_meshNodes[moffset] = d_nodes[xoffset];
          }
-      });
+      }
+   });
 }
 
 // *****************************************************************************
-static void kArrayAssign(const int n, const int *src, int *dest){
+static void kArrayAssign(const int n, const int *src, int *dest)
+{
    GET_CONST_ADRS_T(src,int);
    GET_ADRS_T(dest,int);
    forall(i, n, d_dest[i] = d_src[i];);
@@ -155,25 +165,27 @@ static void kArrayAssign(const int n, const int *src, int *dest){
 
 // *****************************************************************************
 static void rNodeCopyByVDim(const int elements,
-                      const int numDofs,
-                      const int ndofs,
-                      const int dims,
-                      const int* eMap,
-                      const double* Sx,
-                      double* nodes){
-   forall(e,elements, {
-         for (int dof = 0; dof < numDofs; ++dof)
+                            const int numDofs,
+                            const int ndofs,
+                            const int dims,
+                            const int* eMap,
+                            const double* Sx,
+                            double* nodes)
+{
+   forall(e,elements,
+   {
+      for (int dof = 0; dof < numDofs; ++dof)
+      {
+         const int lid = dof+numDofs*e;
+         const int gid = eMap[lid];
+         for (int v = 0; v < dims; ++v)
          {
-            const int lid = dof+numDofs*e;
-            const int gid = eMap[lid];
-            for (int v = 0; v < dims; ++v)
-            {
-               const int moffset = v+dims*lid;
-               const int voffset = gid+v*ndofs;
-               nodes[moffset] = Sx[voffset];
-            }
+            const int moffset = v+dims*lid;
+            const int voffset = gid+v*ndofs;
+            nodes[moffset] = Sx[voffset];
          }
-      });
+      }
+   });
 }
 
 
@@ -210,7 +222,8 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
       dbg("geom_to_allocate: new kGeometry");
       geom = new kGeometry();
    }
-   if (!mesh.GetNodes()) {
+   if (!mesh.GetNodes())
+   {
       dbg("\033[7mGetNodes, SetCurvature");
       mesh.SetCurvature(1, false, -1, Ordering::byVDIM);
    }
@@ -234,7 +247,7 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
    //-0.809016 0 -0.25 -0.76942 0.654509 -0.475529
 
    //assert(false);
-   
+
    const mfem::FiniteElementSpace& fespace = *(nodes.FESpace());
    const mfem::FiniteElement& fe = *(fespace.GetFE(0));
    const int dims     = fe.GetDim();
@@ -255,7 +268,7 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
    const Table& e2dTable = fespace.GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
    mfem::Array<int> eMap(numDofs*elements);
-   
+
    dbg("kGeomFill");
    kGeomFill(dims,
              elements,
@@ -264,7 +277,7 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
              eMap.GetData(),
              nodes.GetData(),
              meshNodes.GetData());
-   
+
    if (geom_to_allocate)
    {
       dbg("geom_to_allocate");
@@ -277,7 +290,7 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
       kVectorAssign(asize, meshNodes.GetData(), geom->meshNodes);
       //dbg("kVectorPrint(geom->meshNodes:");
       //kVectorPrint(asize, geom->meshNodes);
-      
+
       //geom->meshNodes = meshNodes;
       //geom->eMap = eMap;
       kArrayAssign(numDofs*elements, eMap.GetData(), geom->eMap);
@@ -303,7 +316,7 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
 
    const kDofQuadMaps* maps = kDofQuadMaps::GetSimplexMaps(fe, ir);
    assert(maps);
-   
+
    dbg("dims=%d",dims);
    dbg("numDofs=%d",numDofs);
    dbg("numQuad=%d",numQuad);

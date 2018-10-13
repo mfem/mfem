@@ -163,7 +163,7 @@ ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,
 
 void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
 {
-   w = 0.0;   
+   w = 0.0;
    const int csz = constraint_list.Size();
    kVectorMapDof(csz, w, x, constraint_list);
    A->Mult(w, z);

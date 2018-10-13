@@ -23,10 +23,11 @@ KDiffusionIntegrator::KDiffusionIntegrator(const FiniteElementSpace *f,
    :vec(),
     maps(NULL),
     fes(f),
-    ir(i) {assert(i);assert(fes);}
+    ir(i) {assert(i); assert(fes);}
 
 // *****************************************************************************
-void KDiffusionIntegrator::Assemble(){
+void KDiffusionIntegrator::Assemble()
+{
    assert(fes);
    const FiniteElement &fe = *(fes->GetFE(0));
    const Mesh *mesh = fes->GetMesh();

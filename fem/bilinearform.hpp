@@ -28,11 +28,13 @@ namespace mfem
 // *****************************************************************************
 // * AbstractBilinearForm
 // *****************************************************************************
-class AbstractBilinearForm : public Operator{
+class AbstractBilinearForm : public Operator
+{
 public:
    const FiniteElementSpace *fes;
 public:
-   AbstractBilinearForm(FiniteElementSpace *f) : Operator(f?f->GetVSize():0), fes(f) { }
+   AbstractBilinearForm(FiniteElementSpace *f) : Operator(f?f->GetVSize():0),
+      fes(f) { }
    virtual ~AbstractBilinearForm() { }
    virtual void AddDomainIntegrator(AbstractBilinearFormIntegrator*) = 0;
    virtual void Assemble(int skip_zeros = 1) = 0;
@@ -51,7 +53,8 @@ public:
 // ***************************************************************************
 // * PA BilinearForm
 // ***************************************************************************
-class PABilinearForm : public AbstractBilinearForm {
+class PABilinearForm : public AbstractBilinearForm
+{
 protected:
    const Mesh *mesh;
    const FiniteElementSpace *trialFes;
@@ -436,9 +439,10 @@ public:
 };
 
 // *****************************************************************************
-// * 
+// *
 // *****************************************************************************
-class BilinearForm{
+class BilinearForm
+{
 private:
    const bool FA = true;
    AbstractBilinearForm *abf;
@@ -447,29 +451,34 @@ public:
       FA(config::Get().PA()==false),
       abf(FA?
           static_cast<AbstractBilinearForm*>(new FABilinearForm(f)):
-          static_cast<AbstractBilinearForm*>(new PABilinearForm(f))) {
+          static_cast<AbstractBilinearForm*>(new PABilinearForm(f)))
+   {
       dbg("\033[7mBilinearForm %s",FA?"FA":"PA");
    }
-   ~BilinearForm(){}
+   ~BilinearForm() {}
    // **************************************************************************
-   void EnableStaticCondensation(){assert(false);}
-   void AddDomainIntegrator(AbstractBilinearFormIntegrator *i){
+   void EnableStaticCondensation() {assert(false);}
+   void AddDomainIntegrator(AbstractBilinearFormIntegrator *i)
+   {
       abf->AddDomainIntegrator(i);
    }
    // **************************************************************************
    virtual void Assemble() { abf->Assemble(); }
    virtual void FormOperator(const Array<int> &ess_tdof_list,
-                             Operator &A) {
+                             Operator &A)
+   {
       abf->FormOperator(ess_tdof_list,A);
    }
    virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
                                  Vector &x, Vector &b,
                                  Operator *&A, Vector &X, Vector &B,
-                                 int copy_interior =0){
+                                 int copy_interior =0)
+   {
       abf->FormLinearSystem(ess_tdof_list,x,b,A,X,B,copy_interior);
    }
    virtual void RecoverFEMSolution(const Vector &X, const Vector &b,
-                                   Vector &x) {
+                                   Vector &x)
+   {
       abf->RecoverFEMSolution(X,b,x);
    }
    virtual void Mult(const Vector &x, Vector &y) const {assert(false);}

@@ -24,7 +24,8 @@ namespace mfem
 {
 
 // ***************************************************************************
-template<class T> struct kmalloc{
+template<class T> struct kmalloc
+{
 
    // *************************************************************************
    inline void* operator new (size_t n, bool lock_page = false)

@@ -47,20 +47,23 @@ Vector::Vector(const Vector &v)
       data = NULL;
    }
 }
-   
-Vector::Vector(double *_data, int _size) {
-   if (not mm::Get().Known(_data)) assert(false);
+
+Vector::Vector(double *_data, int _size)
+{
+   if (not mm::Get().Known(_data)) { assert(false); }
    data = _data;
    size = _size;
    allocsize = -size;
 }
-   
-void Vector::SetData(double *d) {
+
+void Vector::SetData(double *d)
+{
    assert(mm::Get().Known(d));
    data = d;
 }
-   
-void Vector::SetDataAndSize(double *d, int s){
+
+void Vector::SetDataAndSize(double *d, int s)
+{
    assert(mm::Get().Known(d));
    data = d;
    size = s;
@@ -394,7 +397,7 @@ void subtract(const Vector &x, const Vector &y, Vector &z)
    int            s = x.size;
 
 #ifdef MFEM_USE_OPENMP
-//#pragma omp parallel for
+   //#pragma omp parallel for
 #endif
    kVectorSubtract(zp,xp,yp,s);
 }

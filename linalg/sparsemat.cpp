@@ -85,7 +85,7 @@ SparseMatrix::SparseMatrix(int *i, int *j, double *data, int m, int n,
 
    if ( A == NULL )
    {
-         ownData = true;
+      ownData = true;
       int nnz = I[height];
       A = new double[ nnz ];
       for (int i=0; i<nnz; ++i)

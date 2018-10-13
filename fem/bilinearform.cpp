@@ -78,7 +78,8 @@ FABilinearForm::FABilinearForm (FiniteElementSpace * f)
    diag_policy = Matrix::DIAG_KEEP;
 }
 
-FABilinearForm::FABilinearForm (FiniteElementSpace * f, FABilinearForm * bf, int ps)
+FABilinearForm::FABilinearForm (FiniteElementSpace * f, FABilinearForm * bf,
+                                int ps)
    : AbstractBilinearForm (f)
 {
    int i;
@@ -143,8 +144,8 @@ void FABilinearForm::EnableStaticCondensation()
 }
 
 void FABilinearForm::EnableHybridization(FiniteElementSpace *constr_space,
-                                       BilinearFormIntegrator *constr_integ,
-                                       const Array<int> &ess_tdof_list)
+                                         BilinearFormIntegrator *constr_integ,
+                                         const Array<int> &ess_tdof_list)
 {
    delete hybridization;
    hybridization = new Hybridization(fes, constr_space);
@@ -213,7 +214,7 @@ void FABilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi)
 }
 
 void FABilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi,
-                                          Array<int> &bdr_marker)
+                                            Array<int> &bdr_marker)
 {
    bbfi.Append (bfi);
    bbfi_marker.Append(&bdr_marker);
@@ -231,7 +232,7 @@ void FABilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi)
 }
 
 void FABilinearForm::AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
-                                        Array<int> &bdr_marker)
+                                          Array<int> &bdr_marker)
 {
    bfbfi.Append(bfi);
    bfbfi_marker.Append(&bdr_marker);
@@ -543,9 +544,9 @@ void FABilinearForm::ConformingAssemble()
 }
 
 void FABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
-                                    Vector &x, Vector &b,
-                                    Operator *&opA, Vector &X, Vector &B,
-                                    int copy_interior)
+                                      Vector &x, Vector &b,
+                                      Operator *&opA, Vector &X, Vector &B,
+                                      int copy_interior)
 {
    const SparseMatrix *P = fes->GetConformingProlongation();
    SparseMatrix *Ap = static_cast<SparseMatrix*>(opA);
@@ -611,7 +612,7 @@ void FABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
 }
 
 void FABilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
-                                    SparseMatrix &A)
+                                      SparseMatrix &A)
 {
    // Finish the matrix assembly and perform BC elimination, storing the
    // eliminated part of the matrix.
@@ -648,7 +649,7 @@ void FABilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
 }
 
 void FABilinearForm::RecoverFEMSolution(const Vector &X,
-                                      const Vector &b, Vector &x)
+                                        const Vector &b, Vector &x)
 {
    //mm::Get().Rsync(X.GetData());
    //mm::Get().Rsync(b.GetData());
@@ -741,7 +742,7 @@ void FABilinearForm::ComputeElementMatrices()
 }
 
 void FABilinearForm::EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
-                                        const Vector &sol, Vector &rhs, Matrix::DiagonalPolicy dpolicy)
+                                          const Vector &sol, Vector &rhs, Matrix::DiagonalPolicy dpolicy)
 {
    Array<int> ess_dofs, conf_ess_dofs;
    fes->GetEssentialVDofs(bdr_attr_is_ess, ess_dofs);
@@ -758,7 +759,7 @@ void FABilinearForm::EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
 }
 
 void FABilinearForm::EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
-                                        Matrix::DiagonalPolicy dpolicy)
+                                          Matrix::DiagonalPolicy dpolicy)
 {
    Array<int> ess_dofs, conf_ess_dofs;
    fes->GetEssentialVDofs(bdr_attr_is_ess, ess_dofs);
@@ -774,8 +775,9 @@ void FABilinearForm::EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
    }
 }
 
-void FABilinearForm::EliminateEssentialBCDiag (const Array<int> &bdr_attr_is_ess,
-                                             double value)
+void FABilinearForm::EliminateEssentialBCDiag (const Array<int>
+                                               &bdr_attr_is_ess,
+                                               double value)
 {
    Array<int> ess_dofs, conf_ess_dofs;
    fes->GetEssentialVDofs(bdr_attr_is_ess, ess_dofs);
@@ -792,8 +794,8 @@ void FABilinearForm::EliminateEssentialBCDiag (const Array<int> &bdr_attr_is_ess
 }
 
 void FABilinearForm::EliminateVDofs(const Array<int> &vdofs,
-                                  const Vector &sol, Vector &rhs,
-                                  Matrix::DiagonalPolicy dpolicy)
+                                    const Vector &sol, Vector &rhs,
+                                    Matrix::DiagonalPolicy dpolicy)
 {
    for (int i = 0; i < vdofs.Size(); i++)
    {
@@ -810,7 +812,7 @@ void FABilinearForm::EliminateVDofs(const Array<int> &vdofs,
 }
 
 void FABilinearForm::EliminateVDofs(const Array<int> &vdofs,
-                                  Matrix::DiagonalPolicy dpolicy)
+                                    Matrix::DiagonalPolicy dpolicy)
 {
    if (mat_e == NULL)
    {
@@ -822,7 +824,7 @@ void FABilinearForm::EliminateVDofs(const Array<int> &vdofs,
       int vdof = vdofs[i];
       if ( vdof >= 0 )
       {
-         mat -> EliminateRowCol (vdof, *mat_e, dpolicy);         
+         mat -> EliminateRowCol (vdof, *mat_e, dpolicy);
       }
       else
       {
@@ -847,7 +849,7 @@ void FABilinearForm::EliminateEssentialBCFromDofs(
 }
 
 void FABilinearForm::EliminateEssentialBCFromDofs (const Array<int> &ess_dofs,
-                                                 Matrix::DiagonalPolicy dpolicy)
+                                                   Matrix::DiagonalPolicy dpolicy)
 {
    MFEM_ASSERT(ess_dofs.Size() == height, "incorrect dof Array size");
 
@@ -858,8 +860,9 @@ void FABilinearForm::EliminateEssentialBCFromDofs (const Array<int> &ess_dofs,
       }
 }
 
-void FABilinearForm::EliminateEssentialBCFromDofsDiag (const Array<int> &ess_dofs,
-                                                     double value)
+void FABilinearForm::EliminateEssentialBCFromDofsDiag (const Array<int>
+                                                       &ess_dofs,
+                                                       double value)
 {
    MFEM_ASSERT(ess_dofs.Size() == height, "incorrect dof Array size");
 

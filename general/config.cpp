@@ -14,8 +14,9 @@
 // *****************************************************************************
 MFEM_NAMESPACE
 
-// ***************************************************************************** 
-void config::cuDeviceSetup(const int device){
+// *****************************************************************************
+void config::cuDeviceSetup(const int device)
+{
 #ifdef __NVCC__
    gpu_count=0;
    checkCudaErrors(cudaGetDeviceCount(&gpu_count));
@@ -30,7 +31,8 @@ void config::cuDeviceSetup(const int device){
 }
 
 // *****************************************************************************
-void config::Setup(){
+void config::Setup()
+{
    cuDeviceSetup(0);
 }
 
