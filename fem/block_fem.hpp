@@ -24,14 +24,13 @@
 namespace mfem
 {
 
-class BlockFiniteElementSpace
+class BlockObject
 {
-private:
-   int nblocks;
-   FiniteElementSpace ** fes;
-   bool owns_fes;
-  
 protected:
+   int nblocks;
+
+   BlockObject(int num_blocks) : nblocks(num_blocks) {}
+
    inline void CheckIndex(int index) const
    {
       MFEM_ASSERT(index >= 0 && index < nblocks,
@@ -39,167 +38,227 @@ protected:
    }
 
 public:
-  /** Construct FiniteElementSpaces with different finite element
-      collections but the same vdim and ordering.  @note The internally
-      constructed FiniteElementSpace objects will be owned, and free'd, by
-      the BlockFiniteElementSpace object. */
-  BlockFiniteElementSpace(int num_blocks, Mesh *mesh,
-			  FiniteElementCollection ** fec,
-			  int vdim = 1, int ordering = Ordering::byNODES);
 
-  /** Construct from an arbitrary set of finite element spaces.
-      @note The FiniteElementSpace objects must be maintained by the caller. */
-  BlockFiniteElementSpace(int num_blocks, FiniteElementSpace ** fespace);
+   inline int GetNBlocks() const { return nblocks; }
 
-  ~BlockFiniteElementSpace();
+};
 
-  /** The following methods might be useful but let's hold off and see
-      which are actually needed. */
-  
+/// Tensor Product Block Object
+class TPBlockObject
+{
+protected:
+   int nrows;
+   int ncols;
+   int nblocks;
+
+   // Square tensor product
+   TPBlockObject(int size)
+      : nrows(size), ncols(size), nblocks(size * size) {}
+   // Rectangular tensor product
+   TPBlockObject(int num_rows, int num_cols)
+      : nrows(num_rows), ncols(num_cols), nblocks(nrows * ncols) {}
+
+   inline int CheckIndex(int r, int c) const
+   {
+      MFEM_ASSERT(r >= 0 && r < nrows && c >= 0 && c < ncols,
+                  "Out of bounds access: (" << r << "," << c
+                  << "), dimensions = " << nrows << " x " << ncols);
+      return r * ncols + c;
+   }
+
+public:
+   inline int GetNBlocks() const { return nblocks; }
+   inline int GetNRows() const { return nrows; }
+   inline int GetNColumns() const { return ncols; }
+
+};
+
+class BlockFiniteElementSpace : public BlockObject
+{
+private:
+   Array<int> vsize_offsets;
+   FiniteElementSpace **fes;
+   bool owns_fes;
+
+public:
+   /** Construct FiniteElementSpaces with different finite element
+       collections but the same vdim and ordering.  @note The internally
+       constructed FiniteElementSpace objects will be owned, and free'd, by
+       the BlockFiniteElementSpace object. */
+   BlockFiniteElementSpace(int num_blocks, Mesh *mesh,
+                           FiniteElementCollection ** fec,
+                           int vdim = 1, int ordering = Ordering::byNODES);
+
+   /** Construct from an arbitrary set of finite element spaces.
+       @note The FiniteElementSpace objects must be maintained by the caller. */
+   BlockFiniteElementSpace(int num_blocks, FiniteElementSpace ** fespace);
+
+   virtual ~BlockFiniteElementSpace();
+
+   /** The following methods might be useful but let's hold off and see
+       which are actually needed. */
+
    /// Returns the mesh
-  // inline Mesh *GetMesh() const { return mesh; }
+   // inline Mesh *GetMesh() const { return mesh; }
 
    /// Returns number of degrees of freedom.
-  // inline int GetNDofs() const { return ndofs; }
+   // inline int GetNDofs() const { return ndofs; }
 
    /// Return the number of vector dofs, i.e. GetNDofs() x GetVDim().
-  // inline int GetVSize() const { return vdim * ndofs; }
+   inline int GetVSize() const { return vsize_offsets[nblocks]; }
 
    /// Return the number of vector true (conforming) dofs.
-  // virtual int GetTrueVSize() const { return GetConformingVSize(); }
+   // virtual int GetTrueVSize() const { return GetConformingVSize(); }
 
    /// Returns the number of conforming ("true") degrees of freedom
    /// (if the space is on a nonconforming mesh with hanging nodes).
-  // int GetNConformingDofs() const;
+   // int GetNConformingDofs() const;
 
-  // int GetConformingVSize() const { return vdim * GetNConformingDofs(); }
+   // int GetConformingVSize() const { return vdim * GetNConformingDofs(); }
 
-  virtual void Update();
-  
-  FiniteElementSpace * FESpace(int index)
-  { CheckIndex(index); return fes[index]; }
-  const FiniteElementSpace * FESpace(int index) const
-  { CheckIndex(index); return fes[index]; }
+   void Update();
+
+   inline int GetVSizeOffset(int index) const
+   { return vsize_offsets[index]; }
+
+   FiniteElementSpace & GetBlock(int index)
+   { CheckIndex(index); return *fes[index]; }
+   const FiniteElementSpace & GetBlock(int index) const
+   { CheckIndex(index); return *fes[index]; }
 };
-  
+
 /// Class for grid functions defined in blocks
-class BlockGridFunction : public Vector
+class BlockGridFunction : public BlockObject, public Vector
 {
 private:
-
-   GridFunction * gfr_;
-   GridFunction * gfi_;
-
-protected:
-   void Destroy() { delete gfr_; delete gfi_; }
+   BlockFiniteElementSpace *fes;
+   GridFunction **gf;
 
 public:
 
    /* @brief Construct a BlockGridFunction associated with the
       FiniteElementSpace @a *f. */
-   BlockGridFunction(FiniteElementSpace *f);
+   BlockGridFunction(BlockFiniteElementSpace *f);
 
    void Update();
 
    /// Assign constant values to the BlockGridFunction data.
-   BlockGridFunction &operator=(const std::complex<double> & value)
-   { *gfr_ = value.real(); *gfi_ = value.imag(); return *this; }
+   BlockGridFunction &operator=(double value);
 
-   virtual void ProjectCoefficient(Coefficient &real_coeff,
-                                   Coefficient &imag_coeff);
-   virtual void ProjectCoefficient(VectorCoefficient &real_vcoeff,
-                                   VectorCoefficient &imag_vcoeff);
+   /*
+    virtual void ProjectCoefficient(Coefficient &real_coeff,
+                                    Coefficient &imag_coeff);
+    virtual void ProjectCoefficient(VectorCoefficient &real_vcoeff,
+                                    VectorCoefficient &imag_vcoeff);
 
-   virtual void ProjectBdrCoefficient(Coefficient &real_coeff,
-                                      Coefficient &imag_coeff,
-                                      Array<int> &attr);
-   virtual void ProjectBdrCoefficientNormal(VectorCoefficient &real_coeff,
-                                            VectorCoefficient &imag_coeff,
-                                            Array<int> &attr);
-   virtual void ProjectBdrCoefficientTangent(VectorCoefficient &real_coeff,
+    virtual void ProjectBdrCoefficient(Coefficient &real_coeff,
+                                       Coefficient &imag_coeff,
+                                       Array<int> &attr);
+    virtual void ProjectBdrCoefficientNormal(VectorCoefficient &real_coeff,
                                              VectorCoefficient &imag_coeff,
                                              Array<int> &attr);
-
-   FiniteElementSpace *FESpace() { return gfr_->FESpace(); }
-   const FiniteElementSpace *FESpace() const { return gfr_->FESpace(); }
-
-   GridFunction & real() { return *gfr_; }
-   GridFunction & imag() { return *gfi_; }
-   const GridFunction & real() const { return *gfr_; }
-   const GridFunction & imag() const { return *gfi_; }
+    virtual void ProjectBdrCoefficientTangent(VectorCoefficient &real_coeff,
+                                              VectorCoefficient &imag_coeff,
+                                              Array<int> &attr);
+   */
+   BlockFiniteElementSpace *FESpace() { return fes; }
+   const BlockFiniteElementSpace *FESpace() const { return fes; }
+   /*
+    GridFunction & real() { return *gfr_; }
+    GridFunction & imag() { return *gfi_; }
+    const GridFunction & real() const { return *gfr_; }
+    const GridFunction & imag() const { return *gfi_; }
+   */
+   GridFunction & GetBlock(int index)
+   { CheckIndex(index); return *gf[index]; }
+   const GridFunction & GetBlock(int index) const
+   { CheckIndex(index); return *gf[index]; }
 
    /// Destroys grid function.
-   virtual ~BlockGridFunction() { Destroy(); }
-
+   virtual ~BlockGridFunction();
 };
 
-class BlockLinearForm : public Vector
+class BlockLinearForm : public BlockObject, public Vector
 {
 private:
-   BlockOperator::Convention conv_;
-
-protected:
-   LinearForm * lfr_;
-   LinearForm * lfi_;
-
-   // HYPRE_Int * tdof_offsets_;
+   BlockFiniteElementSpace *fes;
+   LinearForm **lf;
 
 public:
 
-   BlockLinearForm(FiniteElementSpace *fes,
-                     BlockOperator::Convention
-                     convention = BlockOperator::HERMITIAN);
+   BlockLinearForm(BlockFiniteElementSpace *f);
 
    virtual ~BlockLinearForm();
 
    /// Adds new Domain Integrator.
-   void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
-                            LinearFormIntegrator *lfi_imag);
+   void AddDomainIntegrator(int index, LinearFormIntegrator *lfi);
 
-   FiniteElementSpace *FESpace() const { return lfr_->FESpace(); }
-
-   LinearForm & real() { return *lfr_; }
-   LinearForm & imag() { return *lfi_; }
-   const LinearForm & real() const { return *lfr_; }
-   const LinearForm & imag() const { return *lfi_; }
+   BlockFiniteElementSpace *FESpace() const { return fes; }
+   /*
+    LinearForm & real() { return *lfr_; }
+    LinearForm & imag() { return *lfi_; }
+    const LinearForm & real() const { return *lfr_; }
+    const LinearForm & imag() const { return *lfi_; }
+   */
+   LinearForm & GetBlock(int index)
+   { CheckIndex(index); return *lf[index]; }
+   const LinearForm & GetBlock(int index) const
+   { CheckIndex(index); return *lf[index]; }
 
    void Update();
-   void Update(FiniteElementSpace *f);
+   void Update(BlockFiniteElementSpace *f);
 
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
    void Assemble();
 
-   std::complex<double> operator()(const BlockGridFunction &gf) const;
+   double operator()(const BlockGridFunction &gf) const;
 
 };
 
 // Class for block-structured bilinear forms
-class BlockBilinearForm
+class BlockBilinearForm : public TPBlockObject
 {
 private:
-   //protected:
-   BilinearForm *blfr_;
-   BilinearForm *blfi_;
+   BlockFiniteElementSpace *trial_fes; // Row space
+   BlockFiniteElementSpace *test_fes; // Col space
+   Matrix **blf;
+   bool *mixed;
+   bool sym;
+
+   void initBilinearForm(int r, int c);
 
 public:
-   BlockBilinearForm(FiniteElementSpace *fes);
+   BlockBilinearForm(BlockFiniteElementSpace *fes, bool symmetric = false);
+   BlockBilinearForm(BlockFiniteElementSpace *trial_fes,
+                     BlockFiniteElementSpace *test_fes);
+   /*
+    BilinearForm & real() { return *blfr_; }
+    BilinearForm & imag() { return *blfi_; }
+    const BilinearForm & real() const { return *blfr_; }
+    const BilinearForm & imag() const { return *blfi_; }
+   */
+   bool isBlockMixed(int r, int c) const
+   { int index = CheckIndex(r, c); return mixed[index]; }
 
-   BilinearForm & real() { return *blfr_; }
-   BilinearForm & imag() { return *blfi_; }
-   const BilinearForm & real() const { return *blfr_; }
-   const BilinearForm & imag() const { return *blfi_; }
+   /** The following methods can return NULL if the requested block is empty */
+   BilinearForm * GetSquareBlock(int r, int c)
+   { int index = CheckIndex(r, c); return (BilinearForm*)blf[index]; }
+   const BilinearForm * GetSquareBlock(int r, int c) const
+   { int index = CheckIndex(r, c); return (BilinearForm*)blf[index]; }
+
+   MixedBilinearForm * GetMixedBlock(int r, int c)
+   { int index = CheckIndex(r, c); return (MixedBilinearForm*)blf[index]; }
+   const MixedBilinearForm * GetMixedBlock(int r, int c) const
+   { int index = CheckIndex(r, c); return (MixedBilinearForm*)blf[index]; }
 
    /// Adds new Domain Integrator.
-   void AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
-                            BilinearFormIntegrator *bfi_imag);
+   void AddDomainIntegrator(int r, int c, BilinearFormIntegrator *bfi);
 
    /// Adds new Boundary Integrator.
-   void AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
-                              BilinearFormIntegrator *bfi_imag);
+   void AddBoundaryIntegrator(int r, int c, BilinearFormIntegrator *bfi);
 
    /// Adds new Boundary Integrator, restricted to specific boundary attributes.
-   void AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
-                              BilinearFormIntegrator *bfi_imag,
+   void AddBoundaryIntegrator(int r, int c, BilinearFormIntegrator *bfi,
                               Array<int> &bdr_marker);
 
    /// Assemble the local matrix
@@ -210,10 +269,13 @@ public:
 
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */
-   BlockSparseMatrix *AssembleCompSpMat();
+   // BlockSparseMatrix *AssembleCompSpMat();
 
    /// Return the parallel FE space associated with the ParBilinearForm.
-   FiniteElementSpace *FESpace() const { return blfr_->FESpace(); }
+   BlockFiniteElementSpace *TrialFESpace() const { return trial_fes; }
+   BlockFiniteElementSpace *RowFESpace() const { return trial_fes; }
+   BlockFiniteElementSpace *TestFESpace() const { return test_fes; }
+   BlockFiniteElementSpace *ColumnFESpace() const { return test_fes; }
 
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
                          OperatorHandle &A, Vector &X, Vector &B,
@@ -222,103 +284,162 @@ public:
    /** Call this method after solving a linear system constructed using the
        FormLinearSystem method to recover the solution as a ParGridFunction-size
        vector in x. Use the same arguments as in the FormLinearSystem call. */
-   virtual void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
+   void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
 
-   virtual void Update(FiniteElementSpace *nfes = NULL);
+   void Update(BlockFiniteElementSpace *nfes = NULL);
 
    virtual ~BlockBilinearForm();
 };
 
 #ifdef MFEM_USE_MPI
 
-/// Class for complex-valued grid function - Vector with associated FE space.
-class ParBlockGridFunction : public Vector
+class ParBlockFiniteElementSpace : public BlockObject
 {
 private:
+   Array<int> vsize_offsets;
+   Array<int> truev_offsets;
+   ParFiniteElementSpace **pfes;
+   bool owns_pfes;
 
-   ParGridFunction * pgfr_;
-   ParGridFunction * pgfi_;
+public:
+   /** Construct FiniteElementSpaces with different finite element
+       collections but the same vdim and ordering.  @note The internally
+       constructed FiniteElementSpace objects will be owned, and free'd, by
+       the BlockFiniteElementSpace object. */
+   ParBlockFiniteElementSpace(int num_blocks, ParMesh *mesh,
+                              FiniteElementCollection ** fec,
+                              int vdim = 1, int ordering = Ordering::byNODES);
+
+   /** Construct from an arbitrary set of finite element spaces.
+       @note The FiniteElementSpace objects must be maintained by the caller. */
+   ParBlockFiniteElementSpace(int num_blocks, ParFiniteElementSpace ** fespace);
+
+   virtual ~ParBlockFiniteElementSpace();
+
+   /** The following methods might be useful but let's hold off and see
+       which are actually needed. */
+
+   /// Returns the mesh
+   // inline Mesh *GetMesh() const { return mesh; }
+
+   /// Returns number of degrees of freedom.
+   // inline int GetNDofs() const { return ndofs; }
+
+   /// Return the number of vector dofs, i.e. GetNDofs() x GetVDim().
+   inline int GetVSize() const { return vsize_offsets[nblocks]; }
+
+   /// Return the number of vector true (conforming) dofs.
+   // virtual int GetTrueVSize() const { return GetConformingVSize(); }
+
+   /// Returns the number of conforming ("true") degrees of freedom
+   /// (if the space is on a nonconforming mesh with hanging nodes).
+   // int GetNConformingDofs() const;
+
+   // int GetConformingVSize() const { return vdim * GetNConformingDofs(); }
+
+   void Update();
+
+   inline int GetVSizeOffset(int index) const
+   { return vsize_offsets[index]; }
+
+   inline int GetTrueVSizeOffset(int index) const
+   { return truev_offsets[index]; }
+
+   ParFiniteElementSpace & GetBlock(int index)
+   { CheckIndex(index); return *pfes[index]; }
+   const ParFiniteElementSpace & GetBlock(int index) const
+   { CheckIndex(index); return *pfes[index]; }
+};
+
+/// Class for complex-valued grid function - Vector with associated FE space.
+class ParBlockGridFunction : public BlockObject, public Vector
+{
+private:
+   ParBlockFiniteElementSpace *pfes;
+   ParGridFunction **pgf;
 
 protected:
-   void Destroy() { delete pgfr_; delete pgfi_; }
+   void Destroy();
 
 public:
 
    /* @brief Construct a ParBlockGridFunction associated with the
       ParFiniteElementSpace @a *f. */
-   ParBlockGridFunction(ParFiniteElementSpace *pf);
+   ParBlockGridFunction(ParBlockFiniteElementSpace *pf);
 
    void Update();
 
    /// Assign constant values to the ParBlockGridFunction data.
-   ParBlockGridFunction &operator=(const std::complex<double> & value)
-   { *pgfr_ = value.real(); *pgfi_ = value.imag(); return *this; }
+   ParBlockGridFunction &operator=(double value);
 
-   virtual void ProjectCoefficient(Coefficient &real_coeff,
-                                   Coefficient &imag_coeff);
-   virtual void ProjectCoefficient(VectorCoefficient &real_vcoeff,
-                                   VectorCoefficient &imag_vcoeff);
+   /*
+    virtual void ProjectCoefficient(Coefficient &real_coeff,
+                                    Coefficient &imag_coeff);
+    virtual void ProjectCoefficient(VectorCoefficient &real_vcoeff,
+                                    VectorCoefficient &imag_vcoeff);
 
-   virtual void ProjectBdrCoefficient(Coefficient &real_coeff,
-                                      Coefficient &imag_coeff,
-                                      Array<int> &attr);
-   virtual void ProjectBdrCoefficientNormal(VectorCoefficient &real_coeff,
-                                            VectorCoefficient &imag_coeff,
-                                            Array<int> &attr);
-   virtual void ProjectBdrCoefficientTangent(VectorCoefficient &real_coeff,
+    virtual void ProjectBdrCoefficient(Coefficient &real_coeff,
+                                       Coefficient &imag_coeff,
+                                       Array<int> &attr);
+    virtual void ProjectBdrCoefficientNormal(VectorCoefficient &real_coeff,
                                              VectorCoefficient &imag_coeff,
                                              Array<int> &attr);
-
+    virtual void ProjectBdrCoefficientTangent(VectorCoefficient &real_coeff,
+                                              VectorCoefficient &imag_coeff,
+                                              Array<int> &attr);
+   */
    void Distribute(const Vector *tv);
    void Distribute(const Vector &tv) { Distribute(&tv); }
 
    /// Returns the vector restricted to the true dofs.
    void ParallelProject(Vector &tv) const;
 
-   FiniteElementSpace *FESpace() { return pgfr_->FESpace(); }
-   const FiniteElementSpace *FESpace() const { return pgfr_->FESpace(); }
-
-   ParGridFunction & real() { return *pgfr_; }
-   ParGridFunction & imag() { return *pgfi_; }
-   const ParGridFunction & real() const { return *pgfr_; }
-   const ParGridFunction & imag() const { return *pgfi_; }
+   ParBlockFiniteElementSpace *ParFESpace() { return pfes; }
+   const ParBlockFiniteElementSpace *ParFESpace() const { return pfes; }
+   /*
+    ParGridFunction & real() { return *pgfr_; }
+    ParGridFunction & imag() { return *pgfi_; }
+    const ParGridFunction & real() const { return *pgfr_; }
+    const ParGridFunction & imag() const { return *pgfi_; }
+   */
+   ParGridFunction & GetBlock(int index)
+   { CheckIndex(index); return *pgf[index]; }
+   const ParGridFunction & GetBlock(int index) const
+   { CheckIndex(index); return *pgf[index]; }
 
    /// Destroys grid function.
    virtual ~ParBlockGridFunction() { Destroy(); }
 
 };
 
-class ParBlockLinearForm : public Vector
+class ParBlockLinearForm : public BlockObject, public Vector
 {
 private:
-   BlockOperator::Convention conv_;
-
-protected:
-   ParLinearForm * plfr_;
-   ParLinearForm * plfi_;
-
-   HYPRE_Int * tdof_offsets_;
+   ParBlockFiniteElementSpace *pfes;
+   ParLinearForm ** plf;
 
 public:
 
-   ParBlockLinearForm(ParFiniteElementSpace *pf,
-                        BlockOperator::Convention
-                        convention = BlockOperator::HERMITIAN);
+   ParBlockLinearForm(ParBlockFiniteElementSpace *pf);
 
    virtual ~ParBlockLinearForm();
 
    /// Adds new Domain Integrator.
-   void AddDomainIntegrator(LinearFormIntegrator *lfi_real,
-                            LinearFormIntegrator *lfi_imag);
+   void AddDomainIntegrator(int index, LinearFormIntegrator *lfi);
 
-   ParFiniteElementSpace *ParFESpace() const { return plfr_->ParFESpace(); }
+   ParBlockFiniteElementSpace *ParFESpace() const { return pfes; }
+   /*
+    ParLinearForm & real() { return *plfr_; }
+    ParLinearForm & imag() { return *plfi_; }
+    const ParLinearForm & real() const { return *plfr_; }
+    const ParLinearForm & imag() const { return *plfi_; }
+   */
+   ParLinearForm & GetBlock(int index)
+   { CheckIndex(index); return *plf[index]; }
+   const ParLinearForm & GetBlock(int index) const
+   { CheckIndex(index); return *plf[index]; }
 
-   ParLinearForm & real() { return *plfr_; }
-   ParLinearForm & imag() { return *plfi_; }
-   const ParLinearForm & real() const { return *plfr_; }
-   const ParLinearForm & imag() const { return *plfi_; }
-
-   void Update(ParFiniteElementSpace *pf = NULL);
+   void Update(ParBlockFiniteElementSpace *pf = NULL);
 
    /// Assembles the linear form i.e. sums over all domain/bdr integrators.
    void Assemble();
@@ -327,47 +448,56 @@ public:
    void ParallelAssemble(Vector &tv);
 
    /// Returns the vector assembled on the true dofs, i.e. P^t v.
-   HypreParVector *ParallelAssemble();
+   BlockVector *ParallelAssemble();
 
-   std::complex<double> operator()(const ParBlockGridFunction &gf) const;
+   double operator()(const ParBlockGridFunction &gf) const;
 
 };
 
 // Class for parallel block-structured bilinear forms
-class ParBlockBilinearForm
+class ParBlockBilinearForm : public TPBlockObject
 {
 private:
-   BlockOperator::Convention conv_;
+   ParBlockFiniteElementSpace *trial_pfes; // Row space
+   ParBlockFiniteElementSpace *test_pfes; // Col space
+   Matrix **pblf;
+   bool *mixed;
+   bool sym;
 
-   //protected:
-   ParBilinearForm *pblfr_;
-   ParBilinearForm *pblfi_;
+   void initParBilinearForm(int r, int c);
 
 public:
-   ParBlockBilinearForm(ParFiniteElementSpace *pf,
-                       BlockOperator::Convention
-                       convention = BlockOperator::HERMITIAN);
+   ParBlockBilinearForm(ParBlockFiniteElementSpace *pf, bool symmetric = false);
+   ParBlockBilinearForm(ParBlockFiniteElementSpace *trial_pf,
+                        ParBlockFiniteElementSpace *test_pf);
+   /*
+    ParBilinearForm & real() { return *pblf[index]; }
+    ParBilinearForm & imag() { return *pblfi_; }
+    const ParBilinearForm & real() const { return *pblfr_; }
+    const ParBilinearForm & imag() const { return *pblfi_; }
+   */
+   bool isBlockMixed(int r, int c) const
+   { int index = CheckIndex(r, c); return mixed[index]; }
+  
+   /** The following methods can return NULL if the requested block is empty */
+   ParBilinearForm * GetSquareBlock(int r, int c)
+   { int index = CheckIndex(r, c); return (ParBilinearForm*)pblf[index]; }
+   const ParBilinearForm * GetSquareBlock(int r, int c) const
+   { int index = CheckIndex(r, c); return (ParBilinearForm*)pblf[index]; }
 
-   BlockOperator::Convention GetConvention() const { return conv_; }
-   void SetConvention(const BlockOperator::Convention &
-                      convention) { conv_  = convention; }
-
-   ParBilinearForm & real() { return *pblfr_; }
-   ParBilinearForm & imag() { return *pblfi_; }
-   const ParBilinearForm & real() const { return *pblfr_; }
-   const ParBilinearForm & imag() const { return *pblfi_; }
+   ParMixedBilinearForm * GetMixedBlock(int r, int c)
+   { int index = CheckIndex(r, c); return (ParMixedBilinearForm*)pblf[index]; }
+   const ParMixedBilinearForm * GetMixedBlock(int r, int c) const
+   { int index = CheckIndex(r, c); return (ParMixedBilinearForm*)pblf[index]; }
 
    /// Adds new Domain Integrator.
-   void AddDomainIntegrator(BilinearFormIntegrator *bfi_real,
-                            BilinearFormIntegrator *bfi_imag);
+   void AddDomainIntegrator(int r, int c, BilinearFormIntegrator *bfi);
 
    /// Adds new Boundary Integrator.
-   void AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
-                              BilinearFormIntegrator *bfi_imag);
+   void AddBoundaryIntegrator(int r, int c, BilinearFormIntegrator *bfi);
 
    /// Adds new Boundary Integrator, restricted to specific boundary attributes.
-   void AddBoundaryIntegrator(BilinearFormIntegrator *bfi_real,
-                              BilinearFormIntegrator *bfi_imag,
+   void AddBoundaryIntegrator(int r, int c, BilinearFormIntegrator *bfi,
                               Array<int> &bdr_marker);
 
    /// Assemble the local matrix
@@ -378,10 +508,13 @@ public:
 
    /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
    /** The returned matrix has to be deleted by the caller. */
-   BlockHypreParMatrix *ParallelAssemble();
+   BlockOperator *ParallelAssemble();
 
    /// Return the parallel FE space associated with the ParBilinearForm.
-   ParFiniteElementSpace *ParFESpace() const { return pblfr_->ParFESpace(); }
+   ParBlockFiniteElementSpace *TrialParFESpace() const { return trial_pfes; }
+   ParBlockFiniteElementSpace *RowParFESpace() const { return trial_pfes; }
+   ParBlockFiniteElementSpace *TestParFESpace() const { return test_pfes; }
+   ParBlockFiniteElementSpace *ColumnParFESpace() const { return test_pfes; }
 
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
                          OperatorHandle &A, Vector &X, Vector &B,
@@ -390,9 +523,9 @@ public:
    /** Call this method after solving a linear system constructed using the
        FormLinearSystem method to recover the solution as a ParGridFunction-size
        vector in x. Use the same arguments as in the FormLinearSystem call. */
-   virtual void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
+   void RecoverFEMSolution(const Vector &X, const Vector &b, Vector &x);
 
-   virtual void Update(FiniteElementSpace *nfes = NULL);
+   void Update(ParBlockFiniteElementSpace *nfes = NULL);
 
    virtual ~ParBlockBilinearForm();
 };
