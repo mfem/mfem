@@ -12,16 +12,16 @@
 #include "../../general/okina.hpp"
 #include "vector.hpp"
 
-// *****************************************************************************
 #ifdef __NVCC__
-#if __CUDA_ARCH__ > 300
-
 // *****************************************************************************
 #include <cub/cub.cuh>
 __inline__ __device__ double4 operator*(double4 a, double4 b)
 {
    return make_double4(a.x*b.x, a.y*b.y, a.z*b.z, a.w*b.w);
 }
+
+// *****************************************************************************
+#if __CUDA_ARCH__ > 300
 
 // *****************************************************************************
 static double cub_vector_dot(const int N,
@@ -58,7 +58,9 @@ static double cub_vector_dot(const int N,
    //assert(false);
    return *h_dot;
 }
-#else // __CUDA_ARCH__ > 300
+
+#else // __CUDA_ARCH__
+
 // *****************************************************************************
 void kdot(const size_t N, const double *d_x, const double *d_y, double *d_dot)
 {
@@ -72,6 +74,7 @@ void kdot(const size_t N, const double *d_x, const double *d_y, double *d_dot)
       *d_dot = l_dot;
    });
 }
+
 #endif // __CUDA_ARCH__
 #endif // __NVCC__
 
