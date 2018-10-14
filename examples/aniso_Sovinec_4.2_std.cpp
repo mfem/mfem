@@ -240,9 +240,9 @@ double qParaNorm()
 
 double qNorm()
 {
-  double para = qParaNorm();
-  double perp = qPerpNorm();
-  return sqrt(para * para + perp * perp);
+   double para = qParaNorm();
+   double perp = qPerpNorm();
+   return sqrt(para * para + perp * perp);
 }
 
 class AnisoConductionCoefficient : public MatrixCoefficient
@@ -343,7 +343,7 @@ void H1L2AnisoDiffusionSolve(int myid, const ParMesh &pmesh,
                              const ParGridFunction &unit_b,
                              int order,
                              ParGridFunction &t,
-			     ParGridFunction &q,
+                             ParGridFunction &q,
                              ParGridFunction &qPara,
                              ParGridFunction &qPerp);
 
@@ -354,7 +354,7 @@ void HDivAnisoDiffusionSolve(int myid, const ParMesh &pmesh,
                              const ParGridFunction &unit_b,
                              int order,
                              ParGridFunction &t,
-			     ParGridFunction &q,
+                             ParGridFunction &q,
                              ParGridFunction &qPara,
                              ParGridFunction &qPerp);
 
@@ -702,7 +702,7 @@ int main(int argc, char *argv[])
       if (myid == 0)
       {
          cout << "Relative L2 Error of T: " << err_T / TNorm() << endl;
-	 cout << "Relative L2 Error of q: " << err_q / qNorm() << endl;
+         cout << "Relative L2 Error of q: " << err_q / qNorm() << endl;
          if (prob_ == 1)
          {
             cout << "L2 Error of q Para: " << err_q_para << endl;
@@ -719,17 +719,17 @@ int main(int argc, char *argv[])
       if ( myid == 0 )
       {
          ofs << 1.0/n << "\t" << "1/" << n << "\t" << fabs(1.0/t_max - 1.0)
-	     << "\t" << err_T / TNorm() << "\t" << err_q / qNorm();
+             << "\t" << err_T / TNorm() << "\t" << err_q / qNorm();
          if (prob_ == 1)
          {
-	   ofs << "\t" << err_q_para << endl;
+            ofs << "\t" << err_q_para << endl;
          }
          else
          {
             ofs << "\t" << err_q_para / qParaNorm() << endl;
          }
-	 ofs << "\t" << err_q_perp / qPerpNorm()
-	     << endl;
+         ofs << "\t" << err_q_perp / qPerpNorm()
+             << endl;
       }
 
       // 14. Save the refined mesh and the solution in parallel. This output can
@@ -883,7 +883,7 @@ void H1AnisoDiffusionSolve(int myid, const ParMesh &pmesh,
       ParaCoefficient ParaCoef(BFunc);
       PerpCoefficient PerpCoef(BFunc);
       MatrixSumCoefficient FullCoef(ParaCoef, PerpCoef, chi_ratio_);
-      
+
       ParBilinearForm m2(fespace_q);
       m2.AddDomainIntegrator(new VectorFEMassIntegrator());
       m2.Assemble();
@@ -943,7 +943,7 @@ void H1L2AnisoDiffusionSolve(int myid, const ParMesh &pmesh,
                              const ParGridFunction &unit_b,
                              int order,
                              ParGridFunction &t,
-			     ParGridFunction &q,
+                             ParGridFunction &q,
                              ParGridFunction &qPara,
                              ParGridFunction &qPerp)
 {
@@ -1117,8 +1117,8 @@ void HDivAnisoDiffusionSolve(int myid, const ParMesh &pmesh,
                              const ParGridFunction &unit_b,
                              int order,
                              ParGridFunction &t,
-			     ParGridFunction &q,
-			     ParGridFunction &qPara,
+                             ParGridFunction &q,
+                             ParGridFunction &qPara,
                              ParGridFunction &qPerp)
 {
    ParFiniteElementSpace * fespace_T = t.ParFESpace();
