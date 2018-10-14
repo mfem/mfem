@@ -167,7 +167,7 @@ public:
                      const scalar_t &b, const Vector_ &y);
 
    /// Destroy (clear) a vector, deleting any owned data.
-   inline void Destroy() { this->Clear(); MFEM_IF_BACKENDS(dev_ext.Reset();,;) }
+   inline void Destroy() { this->Clear(); MFEM_IF_BACKENDS(dev_ext.Reset(); ,;) }
 
    /// Swap the contents of two Vectors
    inline void Swap(Vector_ &other);

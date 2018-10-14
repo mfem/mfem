@@ -182,7 +182,7 @@ protected:
    // Kernel: copy owned ldofs from 'src' to ltdofs in 'dst'.
    //         dst[i] = src[ltdof_ldof[i]]
    void ReduceLocalCopy(const ::occa::memory &src, ::occa::memory &dst,
-                       std::size_t item_size) const;
+                        std::size_t item_size) const;
    // Kernel: assemble dofs from 'shr_buf' into to 'dst' - after recv.
    //         dst[shr_ltdof[i]] += shr_buf[i]
    void ReduceEndAssemble(::occa::memory &dst, std::size_t item_size) const;

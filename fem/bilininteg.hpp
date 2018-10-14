@@ -110,7 +110,7 @@ public:
                                    FaceElementTransformations &Trans,
                                    DenseMatrix &elmat);
 
-   void GetParameters(BilinearFormIntegrator*& _bfi){_bfi=bfi;}
+   void GetParameters(BilinearFormIntegrator*& _bfi) {_bfi=bfi;}
 
    virtual const char *Name() const { return "transpose"; }
 
@@ -1710,8 +1710,8 @@ public:
 
    void GetParameters(VectorCoefficient*& vcoef, double*& a)
    {
-    vcoef = &Q;
-    a = &alpha;
+      vcoef = &Q;
+      a = &alpha;
    }
 };
 
@@ -2101,12 +2101,13 @@ public:
 
    virtual const char *Name() const { return "dgtrace"; }
 
-   void GetParameters(Coefficient*& _rho, VectorCoefficient*& _u, double*& _alpha, double*& _beta)
+   void GetParameters(Coefficient*& _rho, VectorCoefficient*& _u, double*& _alpha,
+                      double*& _beta)
    {
-    _rho   = rho;
-    _u     = u;
-    _alpha = &alpha;
-    _beta  = &beta;
+      _rho   = rho;
+      _u     = u;
+      _alpha = &alpha;
+      _beta  = &beta;
    }
 };
 

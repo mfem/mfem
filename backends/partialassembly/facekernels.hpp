@@ -27,17 +27,19 @@ namespace pa
 /**
 *  This class contains the permutation functions to apply before applying the external flux kernels.
 */
-class Permutation{
+class Permutation
+{
 public:
    /**
    *  A structure that stores the indirection and permutation on dofs for an external flux on a face.
    */
-   struct PermIndir{
+   struct PermIndir
+   {
       int indirection;
       int permutation;
    };
    /**
-   *  KData contains 
+   *  KData contains
    */
    typedef Tensor<2,PermIndir> KData;
    typedef Tensor<3,double> Tensor3d;
@@ -45,8 +47,8 @@ public:
 
    void initKernelData(const int& nb_elts, const int& nb_faces_elt)
    {
-      kernel_data.setSize(nb_elts,nb_faces_elt);   
-   }   
+      kernel_data.setSize(nb_elts,nb_faces_elt);
+   }
 
    void initFaceData(const int& dim,
                      const int& ind_elt1, const int& face_id1, const int& nb_rot1, int& perm1,
@@ -69,12 +71,14 @@ public:
    /**
    *  Permutation for 2D hex meshes.
    */
-   void Permutation2d(int face_id, int nbe, int dofs1d, const Tensor3d& T0, Tensor3d& T0p) const;
+   void Permutation2d(int face_id, int nbe, int dofs1d, const Tensor3d& T0,
+                      Tensor3d& T0p) const;
 
    /**
    *  Permutation for 3D hex meshes.
    */
-   void Permutation3d(int face_id, int nbe, int dofs1d, const Tensor4d& T0, Tensor4d& T0p) const;
+   void Permutation3d(int face_id, int nbe, int dofs1d, const Tensor4d& T0,
+                      Tensor4d& T0p) const;
 
 private:
    KData kernel_data;// Data needed by the Kernel
@@ -89,8 +93,8 @@ private:
 //                                             //
 /////////////////////////////////////////////////
 
-  ////////////////////////////
- // Available Face Kernels //
+////////////////////////////
+// Available Face Kernels //
 ////////////////////////////
 
 /**
@@ -99,8 +103,8 @@ private:
 template<typename Equation, PAOp Op, typename Vector>
 class FaceMult;
 
-  ///////////////////
- // BtDB Operator //
+///////////////////
+// BtDB Operator //
 ///////////////////
 
 /**
@@ -108,7 +112,7 @@ class FaceMult;
 */
 template<typename Equation, typename Vector>
 class FaceMult<Equation,BtDB,Vector>
-: private Equation, FaceTensorBasis<BtDB>, protected Permutation
+   : private Equation, FaceTensorBasis<BtDB>, protected Permutation
 {
 
 public:
@@ -124,11 +128,12 @@ protected:
 public:
    template <typename Args>
    FaceMult(mfem::FiniteElementSpace* fes, int order, const Args& args)
-   : FaceTensorBasis(fes, order), fes(fes), Dint(), Dext()
+      : FaceTensorBasis(fes, order), fes(fes), Dint(), Dext()
    {
    }
 
-   void init(const int dim, const int quads, const int nb_elts, const int nb_faces_elt)
+   void init(const int dim, const int quads, const int nb_elts,
+             const int nb_faces_elt)
    {
       this->initKernelData(nb_elts,nb_faces_elt);
       Dint.setSize(quads,nb_elts,nb_faces_elt);
@@ -136,7 +141,8 @@ public:
    }
 
    template <typename Args>
-   void evalEq(const int dim, const int k1, const int k2, const mfem::Vector& normal,
+   void evalEq(const int dim, const int k1, const int k2,
+               const mfem::Vector& normal,
                const int ind_elt1, const int face_id1,
                const int ind_elt2, const int face_id2, FaceElementTransformations* face_tr,
                const IntegrationPoint & ip1, const IntegrationPoint & ip2,
@@ -255,14 +261,15 @@ private:
 
 
 
-    //////////////////////////////////////
-   ///                                ///
-  ///   FACE KERNELS IMPLEMENTATION  ///
- ///                                ///
+//////////////////////////////////////
+///                                ///
+///   FACE KERNELS IMPLEMENTATION  ///
+///                                ///
 //////////////////////////////////////
 
 template <typename Equation, typename Vector>
-void FaceMult<Equation,PAOp::BtDB,Vector>::MultIntX2D(int face_id, const Vector& U, Vector& V) const
+void FaceMult<Equation,PAOp::BtDB,Vector>::MultIntX2D(int face_id,
+                                                      const Vector& U, Vector& V) const
 {
    // nunber of elements
    const int nbe = fes->GetNE();
@@ -349,7 +356,8 @@ void FaceMult<Equation,PAOp::BtDB,Vector>::MultIntX2D(int face_id, const Vector&
 // }
 
 template <typename Equation, typename Vector>
-void FaceMult<Equation,PAOp::BtDB,Vector>::MultIntY2D(int face_id, const Vector& U, Vector& V) const
+void FaceMult<Equation,PAOp::BtDB,Vector>::MultIntY2D(int face_id,
+                                                      const Vector& U, Vector& V) const
 {
    // nunber of elements
    const int nbe = fes->GetNE();
@@ -437,7 +445,8 @@ void FaceMult<Equation,PAOp::BtDB,Vector>::MultIntY2D(int face_id, const Vector&
 // }
 
 template <typename Equation, typename Vector>
-void FaceMult<Equation,PAOp::BtDB,Vector>::MultExtX2D(int face_id, const Vector& U, Vector& V) const
+void FaceMult<Equation,PAOp::BtDB,Vector>::MultExtX2D(int face_id,
+                                                      const Vector& U, Vector& V) const
 {
    // nunber of elements
    const int nbe = fes->GetNE();
@@ -500,7 +509,8 @@ void FaceMult<Equation,PAOp::BtDB,Vector>::MultExtX2D(int face_id, const Vector&
 }
 
 template <typename Equation, typename Vector>
-void FaceMult<Equation,PAOp::BtDB,Vector>::MultExtY2D(int face_id, const Vector& U, Vector& V) const
+void FaceMult<Equation,PAOp::BtDB,Vector>::MultExtY2D(int face_id,
+                                                      const Vector& U, Vector& V) const
 {
    // nunber of elements
    const int nbe = fes->GetNE();
@@ -563,7 +573,8 @@ void FaceMult<Equation,PAOp::BtDB,Vector>::MultExtY2D(int face_id, const Vector&
 }
 
 template <typename Equation, typename Vector>
-void FaceMult<Equation,PAOp::BtDB,Vector>::MultIntX3D(int face_id, const Vector& U, Vector& V) const
+void FaceMult<Equation,PAOp::BtDB,Vector>::MultIntX3D(int face_id,
+                                                      const Vector& U, Vector& V) const
 {
    // nunber of elements
    const int nbe = fes->GetNE();
@@ -577,7 +588,8 @@ void FaceMult<Equation,PAOp::BtDB,Vector>::MultIntX3D(int face_id, const Vector&
    Tensor<4> T0(U.GetData(),dofs1d,dofs1d,dofs1d,nbe);
    Tensor<4> R(V.GetData(),dofs1d,dofs1d,dofs1d,nbe);
    //TODO: Check size
-   Tensor<2> T1(dofs1d,dofs1d),T2(dofs1d,quads1d),T3(quads1d,quads1d),T4(quads1d,dofs1d),T5(dofs1d,dofs1d);
+   Tensor<2> T1(dofs1d,dofs1d),T2(dofs1d,quads1d),T3(quads1d,quads1d),T4(quads1d,
+                                                                         dofs1d),T5(dofs1d,dofs1d);
    for (int e = 0; e < nbe; ++e)
    {
       for (int i3 = 0; i3 < dofs1d; ++i3)
@@ -656,7 +668,8 @@ void FaceMult<Equation,PAOp::BtDB,Vector>::MultIntX3D(int face_id, const Vector&
 }
 
 template <typename Equation, typename Vector>
-void FaceMult<Equation,PAOp::BtDB,Vector>::MultIntY3D(int face_id, const Vector& U, Vector& V) const
+void FaceMult<Equation,PAOp::BtDB,Vector>::MultIntY3D(int face_id,
+                                                      const Vector& U, Vector& V) const
 {
    // nunber of elements
    const int nbe = fes->GetNE();
@@ -670,7 +683,8 @@ void FaceMult<Equation,PAOp::BtDB,Vector>::MultIntY3D(int face_id, const Vector&
    Tensor<4> T0(U.GetData(),dofs1d,dofs1d,dofs1d,nbe);
    Tensor<4> R(V.GetData(),dofs1d,dofs1d,dofs1d,nbe);
    //TODO: Check size
-   Tensor<2> T1(dofs1d,dofs1d),T2(dofs1d,quads1d),T3(quads1d,quads1d),T4(quads1d,dofs1d),T5(dofs1d,dofs1d);
+   Tensor<2> T1(dofs1d,dofs1d),T2(dofs1d,quads1d),T3(quads1d,quads1d),T4(quads1d,
+                                                                         dofs1d),T5(dofs1d,dofs1d);
    for (int e = 0; e < nbe; ++e)
    {
       for (int i3 = 0; i3 < dofs1d; ++i3)
@@ -749,7 +763,8 @@ void FaceMult<Equation,PAOp::BtDB,Vector>::MultIntY3D(int face_id, const Vector&
 }
 
 template <typename Equation, typename Vector>
-void FaceMult<Equation,PAOp::BtDB,Vector>::MultIntZ3D(int face_id, const Vector& U, Vector& V) const
+void FaceMult<Equation,PAOp::BtDB,Vector>::MultIntZ3D(int face_id,
+                                                      const Vector& U, Vector& V) const
 {
    // nunber of elements
    const int nbe = fes->GetNE();
@@ -763,7 +778,8 @@ void FaceMult<Equation,PAOp::BtDB,Vector>::MultIntZ3D(int face_id, const Vector&
    Tensor<4> T0(U.GetData(),dofs1d,dofs1d,dofs1d,nbe);
    Tensor<4> R(V.GetData(),dofs1d,dofs1d,dofs1d,nbe);
    //TODO: Check size
-   Tensor<2> T1(dofs1d,dofs1d),T2(dofs1d,quads1d),T3(quads1d,quads1d),T4(quads1d,dofs1d),T5(dofs1d,dofs1d);
+   Tensor<2> T1(dofs1d,dofs1d),T2(dofs1d,quads1d),T3(quads1d,quads1d),T4(quads1d,
+                                                                         dofs1d),T5(dofs1d,dofs1d);
    for (int e = 0; e < nbe; ++e)
    {
       for (int i2 = 0; i2 < dofs1d; ++i2)
@@ -842,7 +858,8 @@ void FaceMult<Equation,PAOp::BtDB,Vector>::MultIntZ3D(int face_id, const Vector&
 }
 
 template <typename Equation, typename Vector>
-void FaceMult<Equation,PAOp::BtDB,Vector>::MultExtX3D(int face_id, const Vector& U, Vector& V) const
+void FaceMult<Equation,PAOp::BtDB,Vector>::MultExtX3D(int face_id,
+                                                      const Vector& U, Vector& V) const
 {
    // nunber of elements
    const int nbe = fes->GetNE();
@@ -856,7 +873,8 @@ void FaceMult<Equation,PAOp::BtDB,Vector>::MultExtX3D(int face_id, const Vector&
    const int quads1d = B.Width();
    Tensor<4> T0p(U.GetData(),dofs1d,dofs1d,dofs1d,nbe);
    Tensor<4> R(V.GetData(),dofs1d,dofs1d,dofs1d,nbe);
-   Tensor<2> T1(dofs1d,dofs1d),T2(dofs1d,quads1d),T3(quads1d,quads1d),T4(quads1d,dofs1d),T5(dofs1d,dofs1d);
+   Tensor<2> T1(dofs1d,dofs1d),T2(dofs1d,quads1d),T3(quads1d,quads1d),T4(quads1d,
+                                                                         dofs1d),T5(dofs1d,dofs1d);
    Tensor<4> T0(dofs1d,dofs1d,dofs1d,nbe);
    Permutation3d(face_id,nbe,dofs1d,T0p,T0);
    for (int e = 0; e < nbe; ++e)
@@ -937,7 +955,8 @@ void FaceMult<Equation,PAOp::BtDB,Vector>::MultExtX3D(int face_id, const Vector&
 }
 
 template <typename Equation, typename Vector>
-void FaceMult<Equation,PAOp::BtDB,Vector>::MultExtY3D(int face_id, const Vector& U, Vector& V) const
+void FaceMult<Equation,PAOp::BtDB,Vector>::MultExtY3D(int face_id,
+                                                      const Vector& U, Vector& V) const
 {
    // nunber of elements
    const int nbe = fes->GetNE();
@@ -951,7 +970,8 @@ void FaceMult<Equation,PAOp::BtDB,Vector>::MultExtY3D(int face_id, const Vector&
    const int quads1d = B.Width();
    Tensor<4> T0p(U.GetData(),dofs1d,dofs1d,dofs1d,nbe);
    Tensor<4> R(V.GetData(),dofs1d,dofs1d,dofs1d,nbe);
-   Tensor<2> T1(dofs1d,dofs1d),T2(dofs1d,quads1d),T3(quads1d,quads1d),T4(quads1d,dofs1d),T5(dofs1d,dofs1d);
+   Tensor<2> T1(dofs1d,dofs1d),T2(dofs1d,quads1d),T3(quads1d,quads1d),T4(quads1d,
+                                                                         dofs1d),T5(dofs1d,dofs1d);
    Tensor<4> T0(dofs1d,dofs1d,dofs1d,nbe);
    Permutation3d(face_id,nbe,dofs1d,T0p,T0);
    for (int e = 0; e < nbe; ++e)
@@ -1032,7 +1052,8 @@ void FaceMult<Equation,PAOp::BtDB,Vector>::MultExtY3D(int face_id, const Vector&
 }
 
 template <typename Equation, typename Vector>
-void FaceMult<Equation,PAOp::BtDB,Vector>::MultExtZ3D(int face_id, const Vector& U, Vector& V) const
+void FaceMult<Equation,PAOp::BtDB,Vector>::MultExtZ3D(int face_id,
+                                                      const Vector& U, Vector& V) const
 {
    // nunber of elements
    const int nbe = fes->GetNE();
@@ -1046,7 +1067,8 @@ void FaceMult<Equation,PAOp::BtDB,Vector>::MultExtZ3D(int face_id, const Vector&
    const int quads1d = B.Width();
    Tensor<4> T0p(U.GetData(),dofs1d,dofs1d,dofs1d,nbe);
    Tensor<4> R(V.GetData(),dofs1d,dofs1d,dofs1d,nbe);
-   Tensor<2> T1(dofs1d,dofs1d),T2(dofs1d,quads1d),T3(quads1d,quads1d),T4(quads1d,dofs1d),T5(dofs1d,dofs1d);
+   Tensor<2> T1(dofs1d,dofs1d),T2(dofs1d,quads1d),T3(quads1d,quads1d),T4(quads1d,
+                                                                         dofs1d),T5(dofs1d,dofs1d);
    Tensor<4> T0(dofs1d,dofs1d,dofs1d,nbe);
    Permutation3d(face_id,nbe,dofs1d,T0p,T0);
    for (int e = 0; e < nbe; ++e)

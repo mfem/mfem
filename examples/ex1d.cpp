@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_BACKENDS
    mesh->SetEngine(*engine);
    mesh->SetCurvature(1);//FIXME
-   
+
 #endif
    int dim = mesh->Dimension();
 
@@ -82,7 +82,7 @@ int main(int argc, char *argv[])
    //    elements.
    {
       ref_levels = ref_levels >= 0 ? ref_levels :
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+                   (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();

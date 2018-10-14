@@ -235,9 +235,9 @@ public:
    TimeDependentOperator(int h, int w, double t_ = 0.0, Type type_ = EXPLICIT)
       : Operator(h, w) { t = t_; type = type_; }
 
-  TimeDependentOperator(const Operator& A, double t_ = 0.0, Type type_ = EXPLICIT)
+   TimeDependentOperator(const Operator& A, double t_ = 0.0, Type type_ = EXPLICIT)
       : Operator(A) { t = t_; type = type_; }
-      
+
 #ifdef MFEM_USE_BACKENDS
    TimeDependentOperator(PLayout &in_layout_, PLayout &out_layout_,
                          double t_ = 0.0, Type type_ = EXPLICIT)

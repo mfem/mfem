@@ -43,7 +43,7 @@ protected:
    //
 
    virtual Array* DoClone(bool copy_data, void **buffer,
-                           std::size_t item_size) const;
+                          std::size_t item_size) const;
 
    virtual int DoResize(PLayout &new_layout, void **buffer,
                         std::size_t item_size);

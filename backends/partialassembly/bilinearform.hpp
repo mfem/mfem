@@ -59,7 +59,7 @@ protected:
                 mfem::Vector &mfem_X, mfem::Vector &mfem_B,
                 int copy_interior = 0) const;
 
-   void AddIntegrator(TensorBilinearFormIntegrator* integrator){ tbfi.Append(integrator); }
+   void AddIntegrator(TensorBilinearFormIntegrator* integrator) { tbfi.Append(integrator); }
 
 public:
    BilinearForm(const Engine &e, mfem::BilinearForm &bf)
@@ -102,7 +102,8 @@ public:
                                  mfem::OperatorHandle &A, mfem::Vector &mfem_X, mfem::Vector &mfem_B,
                                  int copy_interior);
 
-   virtual void RecoverFEMSolution(const mfem::Vector &mfem_X, const mfem::Vector &mfem_b,
+   virtual void RecoverFEMSolution(const mfem::Vector &mfem_X,
+                                   const mfem::Vector &mfem_b,
                                    mfem::Vector &mfem_x);
 
    /// Operator application: `y=A(x)`.
@@ -110,7 +111,8 @@ public:
 
    /** @brief Action of the transpose operator: `y=A^t(x)`. The default behavior
        in class Operator is to generate an error. */
-   virtual void MultTranspose(const mfem::Vector &mfem_x, mfem::Vector &mfem_y) const;
+   virtual void MultTranspose(const mfem::Vector &mfem_x,
+                              mfem::Vector &mfem_y) const;
 };
 
 /**

@@ -222,7 +222,7 @@ int main(int argc, char *argv[])
    // k.Assemble(skip_zeros);
    // k.Finalize(skip_zeros);
    b.Assemble();
-   
+
    // 7. Define the initial conditions, save the corresponding grid function to
    //    a file and (optionally) save data in the VisIt format and initialize
    //    GLVis visualization.
@@ -339,7 +339,7 @@ int main(int argc, char *argv[])
 
    tic_toc.Stop();
    cout << " done, " << tic_toc.RealTime() << "s." << endl;
-   
+
    // 9. Save the final solution. This output can be viewed later using GLVis:
    //    "glvis -m ex9.mesh -g ex9-final.gf".
    {
@@ -369,8 +369,9 @@ int main(int argc, char *argv[])
 //    M_solver.SetMaxIter(100);
 //    M_solver.SetPrintLevel(0);
 // }
-FE_Evolution::FE_Evolution(OperatorHandle &_M, OperatorHandle &_K, const Vector &_b)
-   : TimeDependentOperator(*_K.Ptr()), M(_M), K(_K), b(_b), z(_b,false) 
+FE_Evolution::FE_Evolution(OperatorHandle &_M, OperatorHandle &_K,
+                           const Vector &_b)
+   : TimeDependentOperator(*_K.Ptr()), M(_M), K(_K), b(_b), z(_b,false)
 {
 }
 
