@@ -22,24 +22,24 @@
 
 namespace mfem
 {
-  /*
+/*
 class UnitVectorField : public VectorCoefficient
 {
 private:
-   int prob_;
-   int unit_vec_type_;
-   double a_;
-   double b_;
+ int prob_;
+ int unit_vec_type_;
+ double a_;
+ double b_;
 
 public:
-   UnitVectorField(int prob, int unit_vec_type, double a = 0.4, double b = 0.8)
-     : VectorCoefficient(2), prob_(prob), unit_vec_type_(unit_vec_type),
-       a_(a), b_(b) {}
+ UnitVectorField(int prob, int unit_vec_type, double a = 0.4, double b = 0.8)
+   : VectorCoefficient(2), prob_(prob), unit_vec_type_(unit_vec_type),
+     a_(a), b_(b) {}
 
-   void Eval(Vector &V, ElementTransformation &T,
-             const IntegrationPoint &ip);
+ void Eval(Vector &V, ElementTransformation &T,
+           const IntegrationPoint &ip);
 };
-  */
+*/
 class ChiParaCoef : public MatrixCoefficient
 {
 private:
@@ -68,11 +68,11 @@ private:
    GridFunctionCoefficient * T_;
    double chi_perp_;
    bool nonlin_;
-  
+
 public:
    ChiPerpCoef(MatrixCoefficient &bbT, GridFunctionCoefficient &T,
                double chi_perp, bool nonlin = false)
-     : MatrixCoefficient(2), bbT_(&bbT), T_(&T),
+      : MatrixCoefficient(2), bbT_(&bbT), T_(&T),
         chi_perp_(chi_perp), nonlin_(nonlin)
    {}
 
@@ -85,13 +85,16 @@ public:
 class ChiCoef : public MatrixSumCoefficient
 {
 private:
+   ChiPerpCoef * chiPerpCoef_;
    ChiParaCoef * chiParaCoef_;
 
 public:
-   ChiCoef(MatrixCoefficient & chiPerp, ChiParaCoef & chiPara)
-      : MatrixSumCoefficient(chiPerp, chiPara), chiParaCoef_(&chiPara) {}
+   ChiCoef(ChiPerpCoef & chiPerp, ChiParaCoef & chiPara)
+      : MatrixSumCoefficient(chiPerp, chiPara),
+        chiPerpCoef_(&chiPerp), chiParaCoef_(&chiPara) {}
 
-   void SetTemp(GridFunction & T) { chiParaCoef_->SetTemp(T); }
+   void SetTemp(GridFunction & T)
+   { chiPerpCoef_->SetTemp(T); chiParaCoef_->SetTemp(T); }
 };
 
 class dChiCoef : public MatrixCoefficient
@@ -99,16 +102,14 @@ class dChiCoef : public MatrixCoefficient
 private:
    MatrixCoefficient * bbT_;
    GridFunctionCoefficient * T_;
-   double chi_min_;
-   double chi_max_;
-   double gamma_;
+   double chi_perp_;
+   double chi_para_;
 
 public:
    dChiCoef(MatrixCoefficient &bbT, GridFunctionCoefficient &T,
-            double chi_min, double chi_max)
+            double chi_perp, double chi_para)
       : MatrixCoefficient(2), bbT_(&bbT), T_(&T),
-        chi_min_(chi_min), chi_max_(chi_max),
-        gamma_(pow(chi_max/chi_min, 0.4) - 1.0)
+        chi_perp_(chi_perp), chi_para_(chi_para)
    {}
 
    void SetTemp(GridFunction & T) { T_->SetGridFunction(&T); }
@@ -231,8 +232,8 @@ public:
                        double chi_perp,
                        double chi_para,
                        int prob,
-		       int coef_type,
-		       VectorCoefficient & UnitB,
+                       int coef_type,
+                       VectorCoefficient & UnitB,
                        Coefficient & c, bool td_c,
                        Coefficient & Q, bool td_Q);
 

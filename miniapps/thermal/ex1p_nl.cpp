@@ -46,8 +46,8 @@ using namespace mfem;
 static double nl_exp_       = 2.5;
 static double theta_        = 0.0;
 static double chi_perp_     = 1.0;
-static double chi_min_para_ = 100.0;
-static double chi_max_para_ = 1000.0;
+static double chi_para_min_ = 100.0;
+static double chi_para_max_ = 1000.0;
 
 double uFunc(const Vector &x)
 {
@@ -56,29 +56,29 @@ double uFunc(const Vector &x)
 
 double QFunc(const Vector &x)
 {
-  double chi_ratio = (nl_exp_ > 0.0) ?
-    pow(chi_min_para_ / chi_max_para_, 1.0 / nl_exp_) : 1.0;
-  double u = uFunc(x);
-  double T = chi_ratio + (1.0 - chi_ratio) * u;
-  double cx = cos(M_PI * x[0]);
-  double sx = sin(M_PI * x[0]);
-  double cy = cos(M_PI * x[1]);
-  double sy = sin(M_PI * x[1]);
-  double ct = cos(theta_);
-  double st = sin(theta_);
-  double s2t = sin(2.0 * theta_);
-  return M_PI * M_PI * (chi_perp_ * (u + cx * cy * s2t) +
-			chi_max_para_ * (u - cx * cy * s2t) * pow(T, nl_exp_) +
-			chi_max_para_ * nl_exp_ * (1.0 - chi_ratio) *
-			(u * u - sx * sx * st * st - sy * sy * ct * ct -
-			 u * cx * cy * s2t) * pow(T, nl_exp_ - 1.0) );
+   double chi_ratio = (nl_exp_ > 0.0) ?
+                      pow(chi_para_min_ / chi_para_max_, 1.0 / nl_exp_) : 1.0;
+   double u = uFunc(x);
+   double T = chi_ratio + (1.0 - chi_ratio) * u;
+   double cx = cos(M_PI * x[0]);
+   double sx = sin(M_PI * x[0]);
+   double cy = cos(M_PI * x[1]);
+   double sy = sin(M_PI * x[1]);
+   double ct = cos(theta_);
+   double st = sin(theta_);
+   double s2t = sin(2.0 * theta_);
+   return M_PI * M_PI * (chi_perp_ * (u + cx * cy * s2t) +
+                         chi_para_max_ * (u - cx * cy * s2t) * pow(T, nl_exp_) +
+                         chi_para_max_ * nl_exp_ * (1.0 - chi_ratio) *
+                         (u * u - sx * sx * st * st - sy * sy * ct * ct -
+                          u * cx * cy * s2t) * pow(T, nl_exp_ - 1.0) );
 }
 
 void unitVectorField(const Vector &, Vector &u)
 {
-  u.SetSize(2);
-  u[0] = cos(theta_);
-  u[1] = sin(theta_);
+   u.SetSize(2);
+   u[0] = cos(theta_);
+   u[1] = sin(theta_);
 }
 
 class ChiParaCoef : public MatrixCoefficient
@@ -92,12 +92,14 @@ private:
    double gamma_;
 
 public:
-  ChiParaCoef(MatrixCoefficient &bbT, GridFunctionCoefficient &T,
-	      double nl_exp, double chi_min, double chi_max)
-    : MatrixCoefficient(2), bbT_(&bbT), T_(&T), nl_exp_(nl_exp),
-      chi_min_(chi_min), chi_max_(chi_max),
-      gamma_(pow(chi_min/chi_max, nl_exp_))
-   {}
+   ChiParaCoef(MatrixCoefficient &bbT, GridFunctionCoefficient &T,
+               double nl_exp, double chi_min, double chi_max)
+      : MatrixCoefficient(2), bbT_(&bbT), T_(&T), nl_exp_(nl_exp),
+        chi_min_(chi_min), chi_max_(chi_max),
+        gamma_(pow(chi_min/chi_max, 1.0 / nl_exp_))
+   {
+      // cout << "(chi_min/chi_max)^nl_exp = " << gamma_ << endl;
+   }
 
    void SetTemp(GridFunction & T) { T_->SetGridFunction(&T); }
 
@@ -105,16 +107,20 @@ public:
              const IntegrationPoint &ip)
    {
       bbT_->Eval(K, T, ip);
-      
+
       if ( nl_exp_ == 0.0)
       {
-	 K *= chi_max_;
+         K *= chi_max_;
       }
       else
       {
- 	 double Tval = T_->Eval(T, ip);
- 	 K *= chi_max_ * pow(gamma_ + (1.0 - gamma_) * Tval, nl_exp_);
-      }  
+         double Tval = T_->Eval(T, ip);
+         // cout << "Tval = " << Tval << endl;
+         // cout << "Multiplier: " << pow(gamma_ + (1.0 - gamma_) * Tval, nl_exp_) << endl;
+         double u = gamma_ + (1.0 - gamma_) * Tval;
+         u = max(gamma_, min(u, 1.0));
+         K *= chi_max_ * pow(u, nl_exp_);
+      }
    }
 };
 
@@ -143,9 +149,9 @@ private:
 public:
    dChiCoef(MatrixCoefficient &bbT, GridFunctionCoefficient &T,
             double nl_exp, double chi_min, double chi_max)
-     : MatrixCoefficient(2), bbT_(&bbT), T_(&T), nl_exp_(nl_exp),
+      : MatrixCoefficient(2), bbT_(&bbT), T_(&T), nl_exp_(nl_exp),
         chi_min_(chi_min), chi_max_(chi_max),
-        gamma_(pow(chi_max/chi_min, 0.4) - 1.0)
+        gamma_(pow(chi_min/chi_max, 1.0 / nl_exp_))
    {}
 
    void SetTemp(GridFunction & T) { T_->SetGridFunction(&T); }
@@ -155,8 +161,9 @@ public:
    {
       bbT_->Eval(K, T, ip);
       double Tval = T_->Eval(T, ip);
-      K *= nl_exp_ * chi_max_ * (1.0 - gamma_) *
-	pow(gamma_ + (1.0 - gamma_) * Tval, nl_exp_ - 1.0);
+      double u = gamma_ + (1.0 - gamma_) * Tval;
+      u = max(gamma_, min(u, 1.0));
+      K *= nl_exp_ * chi_max_ * (1.0 - gamma_) * pow(u, nl_exp_ - 1.0);
    }
 };
 
@@ -171,7 +178,7 @@ public:
                   Coefficient & heatSource);
    ~ImplicitDiffOp();
 
-  // void SetState(ParGridFunction & T);
+   // void SetState(ParGridFunction & T);
 
    void Mult(const Vector &x, Vector &y) const;
 
@@ -193,22 +200,22 @@ private:
    ChiCoef     * chiCoef_;
    dChiCoef    * dChiCoef_;
    Coefficient * QCoef_;
-  // ScalarMatrixProductCoefficient dtChiCoef_;
+   // ScalarMatrixProductCoefficient dtChiCoef_;
 
    mutable ParGridFunction T_;
    // mutable ParGridFunction T1_;
    // mutable ParGridFunction dT_;
 
    mutable GradientGridFunctionCoefficient gradTCoef_;
-  // ScalarVectorProductCoefficient dtGradTCoef_;
-  // MatVecCoefficient dtdChiGradTCoef_;
+   // ScalarVectorProductCoefficient dtGradTCoef_;
+   // MatVecCoefficient dtdChiGradTCoef_;
    MatVecCoefficient dChiGradTCoef_;
 
    mutable ParBilinearForm s0chi_;
    mutable ParBilinearForm a0_;
 
    mutable HypreParMatrix A_;
-  // mutable ParGridFunction dTdt_;
+   // mutable ParGridFunction dTdt_;
    mutable ParLinearForm Q_;
    mutable ParLinearForm Qs_;
    mutable ParLinearForm rhs_;
@@ -233,6 +240,7 @@ int main(int argc, char *argv[])
    int n = 1;
    int el_type = Element::QUADRILATERAL;
    int order = 1;
+   int max_iter = 100;
    int ser_ref_levels = 0;
    int par_ref_levels = 0;
    bool static_cond = false;
@@ -251,6 +259,14 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&max_iter, "-mit", "--max-iter",
+                  "Maximum number of Newton iterations.");
+   args.AddOption(&chi_perp_, "-chi-perp", "--chi-perpendicular",
+                  "Chi_perp.");
+   args.AddOption(&chi_para_max_, "-chi-max", "--chi-para-max",
+                  "Maximum value of chi along field lines.");
+   args.AddOption(&chi_para_min_, "-chi-min", "--chi-para-min",
+                  "Minimum value of chi along field lines.");
    args.AddOption(&theta_, "-t", "--theta",
                   "Angle of strong diffusion in degrees.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
@@ -274,7 +290,7 @@ int main(int argc, char *argv[])
    }
 
    theta_ *= M_PI / 180.0;
-   
+
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
@@ -363,7 +379,7 @@ int main(int argc, char *argv[])
    //u = 0.0;
    u.ProjectCoefficient(uCoef);
    Q_gf.ProjectCoefficient(QCoef);
-   
+
    // 10. Set up the parallel bilinear form a(.,.) on the finite element space
    //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //     domain integrator.
@@ -371,14 +387,14 @@ int main(int argc, char *argv[])
    OuterProductCoefficient vvTCoef(vCoef, vCoef);
    IdentityMatrixCoefficient ICoef(2);
    GridFunctionCoefficient uGFCoef(&u);
-   
-   ChiParaCoef chiPara(vvTCoef, uGFCoef, nl_exp_, chi_min_para_, chi_max_para_);
+
+   ChiParaCoef chiPara(vvTCoef, uGFCoef, nl_exp_, chi_para_min_, chi_para_max_);
    MatrixSumCoefficient chiPerp(ICoef, vvTCoef, chi_perp_, -chi_perp_);
-   ChiCoef chiCoef(chiPerp, chiPara);   
-   dChiCoef dchiCoef(vvTCoef, uGFCoef, nl_exp_, chi_min_para_, chi_max_para_);
+   ChiCoef chiCoef(chiPerp, chiPara);
+   dChiCoef dchiCoef(vvTCoef, uGFCoef, nl_exp_, chi_para_min_, chi_para_max_);
 
    ImplicitDiffOp ido(*fespace, zeroCoef, ess_bdr,
-		      chiCoef, dchiCoef, QCoef);
+                      chiCoef, dchiCoef, QCoef);
 
    /*
    ParBilinearForm *a = new ParBilinearForm(fespace);
@@ -418,71 +434,93 @@ int main(int argc, char *argv[])
    Solver & solver = ido.GetGradientSolver();
    NewtonSolver newton(MPI_COMM_WORLD);
    newton.SetPrintLevel(2);
-   newton.SetRelTol(1e-10);
-   newton.SetAbsTol(0.0);
+   // newton.SetRelTol(1e-10);
+   newton.SetAbsTol(1e-10);
+   // newton.SetMaxIter(max_iter);
 
    newton.SetOperator(ido);
    newton.SetSolver(solver);
 
-   Vector uVec(fespace->GetTrueVSize()); uVec = 0.0;
-   newton.Mult(ido.GetRHS(), uVec);
-   u.Distribute(uVec);
-   
-   u.GridFunction::ComputeElementL2Errors(uCoef, u_error);
+   Vector uVec(fespace->GetTrueVSize());
+   Vector duVec(fespace->GetTrueVSize());
+   uVec = 1.0;
+   duVec = 0.001;
+   cout << "Gradient verification: " << newton.CheckGradient(uVec, duVec)
+        << endl;
 
-   double err = u.ComputeL2Error(uCoef);
+   uVec = 0.0;
+   socketstream vis_T, vis_Q, vis_errT;
+
+   for (int it = 0; it<max_iter; it++)
+   {
+      newton.SetMaxIter(1);
+      newton.Mult(ido.GetRHS(), uVec);
+
+      bool conv = newton.GetConverged();
+
+      u.Distribute(uVec);
+
+      u.GridFunction::ComputeElementL2Errors(uCoef, u_error);
+
+      double err = u.ComputeL2Error(uCoef);
       if (myid == 0)
-   {
-      cout << "L2 Error of Solution: " << err << endl;
+      {
+         cout << "Range of solution vector: "
+              << uVec.Min() << " -> " << uVec.Max() << endl;
+         cout << "L2 Error of Solution: " << err << endl;
+      }
+
+      // 14. Save the refined mesh and the solution in parallel. This output can
+      //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+      {
+         ostringstream mesh_name, sol_name;
+         mesh_name << "mesh." << setfill('0') << setw(6) << myid;
+         sol_name << "sol." << setfill('0') << setw(6) << myid;
+
+         ofstream mesh_ofs(mesh_name.str().c_str());
+         mesh_ofs.precision(8);
+         pmesh->Print(mesh_ofs);
+
+         ofstream sol_ofs(sol_name.str().c_str());
+         sol_ofs.precision(8);
+         u.Save(sol_ofs);
+      }
+
+      // 15. Send the solution by socket to a GLVis server.
+      if (visualization)
+      {
+         char vishost[] = "localhost";
+         int  visport   = 19916;
+
+         // Make sure all ranks have sent their 'v' solution before initiating
+         // another set of GLVis connections (one from each rank):
+         MPI_Barrier(pmesh->GetComm());
+
+         vis_T.precision(8);
+         vis_Q.precision(8);
+         vis_errT.precision(8);
+
+         int Wx = 0, Wy = 0; // window position
+         int Ww = 350, Wh = 350; // window size
+         int offx = Ww+10;//, offy = Wh+45; // window offsets
+
+         miniapps::VisualizeField(vis_Q, vishost, visport,
+                                  Q_gf, "Heat Soruce", Wx, Wy, Ww, Wh);
+
+         Wx += offx;
+         miniapps::VisualizeField(vis_T, vishost, visport,
+                                  u, "Temperature", Wx, Wy, Ww, Wh);
+
+         Wx += offx;
+         miniapps::VisualizeField(vis_errT, vishost, visport,
+                                  u_error, "Error in T", Wx, Wy, Ww, Wh);
+      }
+      if (conv)
+      {
+         cout << "Number of Newton Iterations: " << it+1 << endl;
+         break;
+      }
    }
- 
-   // 14. Save the refined mesh and the solution in parallel. This output can
-   //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
-   {
-      ostringstream mesh_name, sol_name;
-      mesh_name << "mesh." << setfill('0') << setw(6) << myid;
-      sol_name << "sol." << setfill('0') << setw(6) << myid;
-
-      ofstream mesh_ofs(mesh_name.str().c_str());
-      mesh_ofs.precision(8);
-      pmesh->Print(mesh_ofs);
-
-      ofstream sol_ofs(sol_name.str().c_str());
-      sol_ofs.precision(8);
-      u.Save(sol_ofs);
-   }
-
-   // 15. Send the solution by socket to a GLVis server.
-   if (visualization)
-   {
-      socketstream vis_T, vis_Q, vis_errT;
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-
-      // Make sure all ranks have sent their 'v' solution before initiating
-      // another set of GLVis connections (one from each rank):
-      MPI_Barrier(pmesh->GetComm());
-
-      vis_T.precision(8);
-      vis_Q.precision(8);
-      vis_errT.precision(8);
-
-      int Wx = 0, Wy = 0; // window position
-      int Ww = 350, Wh = 350; // window size
-      int offx = Ww+10;//, offy = Wh+45; // window offsets
-
-      miniapps::VisualizeField(vis_Q, vishost, visport,
-                               Q_gf, "Heat Soruce", Wx, Wy, Ww, Wh);
-
-      Wx += offx;
-      miniapps::VisualizeField(vis_T, vishost, visport,
-                               u, "Temperature", Wx, Wy, Ww, Wh);
-
-      Wx += offx;
-      miniapps::VisualizeField(vis_errT, vishost, visport,
-			       u_error, "Error in T", Wx, Wy, Ww, Wh);
-   }
-
    // 16. Free the used memory.
    // delete pcg;
    // delete amg;
@@ -531,8 +569,8 @@ ImplicitDiffOp::ImplicitDiffOp(ParFiniteElementSpace & H1_FESpace,
    s0chi_.AddDomainIntegrator(new DiffusionIntegrator(*chiCoef_));
 
    a0_.AddDomainIntegrator(new DiffusionIntegrator(*chiCoef_));
-   a0_.AddDomainIntegrator(new MixedScalarWeakDivergenceIntegrator(
-       dChiGradTCoef_));
+   //a0_.AddDomainIntegrator(new MixedScalarWeakDivergenceIntegrator(
+   //   dChiGradTCoef_));
 
    Qs_.AddDomainIntegrator(new DomainLFIntegrator(*QCoef_));
    Qs_.Assemble();
@@ -580,7 +618,7 @@ void ImplicitDiffOp::Mult(const Vector &T, Vector &Q) const
    s0chi_.Assemble(0);
    s0chi_.Finalize(0);
 
-   s0chi_.AddMult(T_, Q_);
+   s0chi_.Mult(T_, Q_);
 
    Q_.ParallelAssemble(Q);
    Q.SetSubVector(ess_bdr_tdofs_, 0.0);
@@ -588,21 +626,21 @@ void ImplicitDiffOp::Mult(const Vector &T, Vector &Q) const
 
 Operator & ImplicitDiffOp::GetGradient(const Vector &T) const
 {
-  T_.Distribute(T);
+   T_.Distribute(T);
 
-  chiCoef_->SetTemp(T_);
-  dChiCoef_->SetTemp(T_);
-  gradTCoef_.SetGridFunction(&T_);
-  
-  s0chi_.Update();
-  s0chi_.Assemble(0);
-  s0chi_.Finalize(0);
+   chiCoef_->SetTemp(T_);
+   dChiCoef_->SetTemp(T_);
+   gradTCoef_.SetGridFunction(&T_);
 
-  a0_.Update();
-  a0_.Assemble(0);
-  a0_.Finalize(0);
+   s0chi_.Update();
+   s0chi_.Assemble(0);
+   s0chi_.Finalize(0);
 
-  rhs_ = Qs_;
+   a0_.Update();
+   a0_.Assemble(0);
+   a0_.Finalize(0);
+
+   rhs_ = Qs_;
 
    T_.ProjectBdrCoefficient(*bdrCoef_, ess_bdr_attr_);
 
@@ -613,41 +651,41 @@ Operator & ImplicitDiffOp::GetGradient(const Vector &T) const
 
 Solver & ImplicitDiffOp::GetGradientSolver() const
 {
-  if (AInv_ == NULL)
-  {
-    /*
-              HypreSmoother *J_hypreSmoother = new HypreSmoother;
-         J_hypreSmoother->SetType(HypreSmoother::l1Jacobi);
-         J_hypreSmoother->SetPositiveDiagonal(true);
-         JPrecond_ = J_hypreSmoother;
+   if (AInv_ == NULL)
+   {
+      /*
+                HypreSmoother *J_hypreSmoother = new HypreSmoother;
+           J_hypreSmoother->SetType(HypreSmoother::l1Jacobi);
+           J_hypreSmoother->SetPositiveDiagonal(true);
+           JPrecond_ = J_hypreSmoother;
 
-              GMRESSolver * AInv_gmres = NULL;
+                GMRESSolver * AInv_gmres = NULL;
 
-              cout << "Building GMRES" << endl;
-              AInv_gmres = new GMRESSolver(T0_.ParFESpace()->GetComm());
-              AInv_gmres->SetRelTol(1e-12);
-              AInv_gmres->SetAbsTol(0.0);
-              AInv_gmres->SetMaxIter(20000);
-              AInv_gmres->SetPrintLevel(2);
-         AInv_gmres->SetPreconditioner(*JPrecond_);
-         AInv_ = AInv_gmres;
-    */
-    HypreGMRES * AInv_gmres = NULL;
+                cout << "Building GMRES" << endl;
+                AInv_gmres = new GMRESSolver(T0_.ParFESpace()->GetComm());
+                AInv_gmres->SetRelTol(1e-12);
+                AInv_gmres->SetAbsTol(0.0);
+                AInv_gmres->SetMaxIter(20000);
+                AInv_gmres->SetPrintLevel(2);
+           AInv_gmres->SetPreconditioner(*JPrecond_);
+           AInv_ = AInv_gmres;
+      */
+      HypreGMRES * AInv_gmres = NULL;
 
-    cout << "Building HypreGMRES" << endl;
-    AInv_gmres = new HypreGMRES(T_.ParFESpace()->GetComm());
-    AInv_gmres->SetTol(1e-12);
-    AInv_gmres->SetMaxIter(200);
-    AInv_gmres->SetPrintLevel(2);
-    if ( APrecond_ == NULL )
-    {
-      cout << "Building AMG" << endl;
-      APrecond_ = new HypreBoomerAMG();
-      APrecond_->SetPrintLevel(0);
-      AInv_gmres->SetPreconditioner(*APrecond_);
-    }
-    AInv_ = AInv_gmres;
-  }
+      cout << "Building HypreGMRES" << endl;
+      AInv_gmres = new HypreGMRES(T_.ParFESpace()->GetComm());
+      AInv_gmres->SetTol(1e-12);
+      AInv_gmres->SetMaxIter(200);
+      AInv_gmres->SetPrintLevel(2);
+      if ( APrecond_ == NULL )
+      {
+         cout << "Building AMG" << endl;
+         APrecond_ = new HypreBoomerAMG();
+         APrecond_->SetPrintLevel(0);
+         AInv_gmres->SetPreconditioner(*APrecond_);
+      }
+      AInv_ = AInv_gmres;
+   }
 
    return *AInv_;
 }

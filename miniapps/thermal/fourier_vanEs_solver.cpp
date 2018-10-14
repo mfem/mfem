@@ -19,46 +19,46 @@ namespace mfem
 {
 
 using namespace miniapps;
-  /*
+/*
 void
 UnitVectorField::Eval(Vector &V, ElementTransformation &T,
-                      const IntegrationPoint &ip)
+                    const IntegrationPoint &ip)
 {
-   double x[2];
-   Vector transip(x, 2);
+ double x[2];
+ Vector transip(x, 2);
 
-   T.Transform(T.GetIntPoint(), transip);
+ T.Transform(T.GetIntPoint(), transip);
 
-   V.SetSize(2);
+ V.SetSize(2);
 
-   if ( prob_ % 2 == 1 )
-   {
-      if (unit_vec_type_ == 1)
-      {
-         double cx = cos(M_PI * x[0]);
-	 double cy = cos(M_PI * x[1]);
-	 double sx = sin(M_PI * x[0]);
-	 double sy = sin(M_PI * x[1]);
+ if ( prob_ % 2 == 1 )
+ {
+    if (unit_vec_type_ == 1)
+    {
+       double cx = cos(M_PI * x[0]);
+ double cy = cos(M_PI * x[1]);
+ double sx = sin(M_PI * x[0]);
+ double sy = sin(M_PI * x[1]);
 
-	 V[0] = -sx * cy;
-	 V[1] =  sy * cx;
-      }
-      else
-      {
-	 V[0] = cos(M_PI/6.0);
-	 V[1] = sin(M_PI/6.0);
-      }
-   }
-   else
-   {
-      V[0] = -a_ * a_ * x[1];
-      V[1] =  b_ * b_ * x[0];
-   }
+ V[0] = -sx * cy;
+ V[1] =  sy * cx;
+    }
+    else
+    {
+ V[0] = cos(M_PI/6.0);
+ V[1] = sin(M_PI/6.0);
+    }
+ }
+ else
+ {
+    V[0] = -a_ * a_ * x[1];
+    V[1] =  b_ * b_ * x[0];
+ }
 
-   double nrm = V.Norml2();
-   V *= (nrm > 1e-6 * min(a_,b_)) ? (1.0/nrm) : 0.0;
+ double nrm = V.Norml2();
+ V *= (nrm > 1e-6 * min(a_,b_)) ? (1.0/nrm) : 0.0;
 }
-  */
+*/
 void ChiParaCoef::Eval(DenseMatrix &K, ElementTransformation &T,
                        const IntegrationPoint &ip)
 {
@@ -78,10 +78,10 @@ void ChiPerpCoef::Eval(DenseMatrix &K, ElementTransformation &T,
    K *= -1.0;
    K(0,0) += 1.0;
    K(1,1) += 1.0;
-   
+
    if (nonlin_)
    {
-     K *= 1.0 / sqrt(T_->Eval(T, ip));
+      K *= 1.0 / sqrt(T_->Eval(T, ip));
    }
    K *= chi_perp_;
 }
@@ -89,8 +89,14 @@ void ChiPerpCoef::Eval(DenseMatrix &K, ElementTransformation &T,
 void dChiCoef::Eval(DenseMatrix &K, ElementTransformation &T,
                     const IntegrationPoint &ip)
 {
+   double temp = T_->Eval(T, ip);
+   double perp_factor = 0.5 * chi_perp_ * pow(temp, -1.5);
+   double para_factor = 2.5 * chi_para_ * pow(temp,  1.5);
+
    bbT_->Eval(K, T, ip);
-   K *= 2.5 * chi_min_ * gamma_ * pow(1.0 + gamma_ * T_->Eval(T, ip), 1.5);
+   K *= perp_factor + para_factor;
+   K(0,0) -= perp_factor;
+   K(1,1) -= perp_factor;
 }
 
 namespace thermal
@@ -120,7 +126,7 @@ ThermalDiffusionTDO::ThermalDiffusionTDO(
      chiPerpCoef_(bbTCoef_, TCoef_, chi_perp, coef_type != 0),
      chiParaCoef_(bbTCoef_, TCoef_, chi_para, coef_type != 0),
      chiCoef_(chiPerpCoef_, chiParaCoef_),
-     dChiCoef_(bbTCoef_, TCoef_, chi_para, chi_para),
+     dChiCoef_(bbTCoef_, TCoef_, chi_perp, chi_para),
      impOp_(H1_FESpace,
             dTdtBdr, false,
             bdr_attr,

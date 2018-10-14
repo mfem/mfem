@@ -27,12 +27,14 @@ class UnitVectorField : public VectorCoefficient
 {
 private:
    int prob_;
+   int unit_vec_type_;
    double a_;
    double b_;
 
 public:
-   UnitVectorField(int prob, double a = 0.4, double b = 0.8)
-      : VectorCoefficient(2), prob_(prob), a_(a), b_(b) {}
+   UnitVectorField(int prob, int unit_vec_type, double a = 0.4, double b = 0.8)
+      : VectorCoefficient(2), prob_(prob), unit_vec_type_(unit_vec_type),
+        a_(a), b_(b) {}
 
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip);
@@ -235,6 +237,7 @@ public:
                        double chi_para_min,
                        double chi_para_max,
                        int prob,
+                       int unit_vec_type,
                        int coef_type,
                        Coefficient & c, bool td_c,
                        Coefficient & Q, bool td_Q);

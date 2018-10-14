@@ -30,7 +30,8 @@ void display_banner(ostream & os);
 static int    prob_          = 1;
 static int    unit_vec_type_ = 1;
 static bool   non_linear_    = false;
-static double theta_         = 0.0;
+static double theta_         = M_PI/6.0;
+static double nl_exp_        = 2.5;
 static double chi_perp_      = 1.0;
 static double chi_para_max_  = 1.0;
 static double chi_para_min_  = 1.0;
@@ -60,12 +61,25 @@ double QFunc(const Vector &x, double t)
    {
       if (unit_vec_type_ == 1)
          return 2.0 * chi_perp_ * M_PI * M_PI *
-	   sin(M_PI * x[0]) * sin(M_PI * x[1]);
+                sin(M_PI * x[0]) * sin(M_PI * x[1]);
       else
       {
- 	 double T = TFunc(x, t);
-	 return 2.0 * chi_perp_ * M_PI * M_PI *
-	   sin(M_PI * x[0]) * sin(M_PI * x[1]);	
+         double chi_ratio = (nl_exp_ > 0.0) ?
+                            pow(chi_para_min_ / chi_para_max_, 1.0 / nl_exp_) : 1.0;
+         double cx = cos(M_PI * x[0]);
+         double sx = sin(M_PI * x[0]);
+         double cy = cos(M_PI * x[1]);
+         double sy = sin(M_PI * x[1]);
+         double ct = cos(theta_);
+         double st = sin(theta_);
+         double s2t = sin(2.0 * theta_);
+         double u = sx * sy;
+         double T = chi_ratio + (1.0 - chi_ratio) * u;
+         return M_PI * M_PI * (chi_perp_ * (u + cx * cy * s2t) +
+                               chi_para_max_ * (u - cx * cy * s2t) * pow(T, nl_exp_) +
+                               chi_para_max_ * nl_exp_ * (1.0 - chi_ratio) *
+                               (u * u - sx * sx * st * st - sy * sy * ct * ct -
+                                u * cx * cy * s2t) * pow(T, nl_exp_ - 1.0) );
       }
    }
    else
@@ -128,7 +142,7 @@ int main(int argc, char *argv[])
    int ode_solver_type = 1;
    int coef_type = 0;
    int vis_steps = 1;
-   double dt = 0.5;
+   double dt = -1.0;
    double t_final = 5.0;
    double tol = 1e-4;
    const char *basename = "Fourier";
@@ -149,8 +163,8 @@ int main(int argc, char *argv[])
                   "Specify problem type: 1 - Square, 2 - Ellipse.");
    args.AddOption(&unit_vec_type_, "-u", "--unit-vec-type",
                   "Specify B field unit vector type: \n"
-		  "   1 - Square, 2 - Ellipse,\n"
-		  "   3 - Constant (angle theta).");
+                  "   1 - Square, 2 - Ellipse,\n"
+                  "   3 - Constant (angle theta).");
    args.AddOption(&coef_type, "-c", "--coef",
                   "Specify diffusion coefficient type: "
                   "0 - Constant, 1 - Linearized, 2 - Non-Linear.");
@@ -336,6 +350,7 @@ int main(int argc, char *argv[])
                             chi_para_min_,
                             chi_para_max_,
                             prob_,
+                            unit_vec_type_,
                             coef_type,
                             SpecificHeatCoef, false,
                             // ConductionCoef, false,
@@ -361,12 +376,12 @@ int main(int argc, char *argv[])
       int Ww = 350, Wh = 350; // window size
       int offx = Ww+10;//, offy = Wh+45; // window offsets
 
-      miniapps::VisualizeField(vis_T, vishost, visport,
-                               T_gf, "Temperature", Wx, Wy, Ww, Wh);
+      miniapps::VisualizeField(vis_Q, vishost, visport,
+                               Qs_gf, "Heat Soruce", Wx, Wy, Ww, Wh);
 
       Wx += offx;
-      miniapps::VisualizeField(vis_Q, vishost, visport,
-                               Qs_gf, "Heat Soruce", Wx+offx, Wy, Ww, Wh);
+      miniapps::VisualizeField(vis_T, vishost, visport,
+                               T_gf, "Temperature", Wx, Wy, Ww, Wh);
 
       Wx += offx;
       miniapps::VisualizeField(vis_errT, vishost, visport,
@@ -400,6 +415,21 @@ int main(int argc, char *argv[])
    //     the time integrators.
    ode_solver->Init(oper);
    double t = 0.0;
+   double dt_courant = 0.0;
+   {
+      double h_min, h_max, kappa_min, kappa_max;
+      pmesh->GetCharacteristics(h_min, h_max, kappa_min, kappa_max);
+      dt_courant = 1.0 * h_min * h_min / chi_para_max_;
+   }
+   if (dt < 0.0)
+   {
+      dt = dt_courant;
+   }
+   if ( myid == 0 )
+   {
+      cout << "Using time step: " << dt
+           << " (Courant " << dt_courant << ")" << endl;
+   }
 
    int tsize = HGradFESpace.GetTrueVSize();
    Vector T0(tsize), T1(tsize), dT(tsize);
@@ -494,6 +524,7 @@ int main(int argc, char *argv[])
             int Ww = 350, Wh = 350; // window size
             int offx = Ww+10;//, offy = Wh+45; // window offsets
 
+            Wx += offx;
             miniapps::VisualizeField(vis_T, vishost, visport,
                                      T_gf, "Temperature", Wx, Wy, Ww, Wh);
 

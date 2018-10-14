@@ -180,23 +180,25 @@ void BFunc(const Vector &x, Vector &B)
 
 long int factorial(unsigned int n)
 {
-  long int fact = 1;
-  for (unsigned int i=2; i<=n; i++)
-    fact *= i;
-  return fact;
+   long int fact = 1;
+   for (unsigned int i=2; i<=n; i++)
+   {
+      fact *= i;
+   }
+   return fact;
 }
 
 // Returns the Gamma(n) function for a positive integer n
 long int gamma(unsigned int n)
 {
-  assert(n > 0);
-  return factorial(n-1);
+   assert(n > 0);
+   return factorial(n-1);
 }
 
 // Returns Gamma(n+1/2) for a positive integer n
 double gamma1_2(unsigned int n)
 {
-  return sqrt(M_PI) * factorial(2*n) / (pow(4, n) * factorial(n));
+   return sqrt(M_PI) * factorial(2*n) / (pow(4, n) * factorial(n));
 }
 
 double TNorm()
@@ -204,10 +206,10 @@ double TNorm()
    switch (prob_)
    {
       case 1:
-	return 0.5;
+         return 0.5;
       case 2:
-	return (gamma1_2((unsigned int)gamma_) /
-		gamma((unsigned int)gamma_+1)) / sqrt(M_PI);
+         return (gamma1_2((unsigned int)gamma_) /
+                 gamma((unsigned int)gamma_+1)) / sqrt(M_PI);
    }
 }
 
@@ -216,12 +218,12 @@ double qPerpNorm()
    switch (prob_)
    {
       case 1:
-	return M_PI * M_SQRT1_2 * chi_ratio_;
+         return M_PI * M_SQRT1_2 * chi_ratio_;
       case 2:
-	return sqrt(M_PI * gamma_) * M_SQRT1_2 *
-	  sqrt(gamma1_2((unsigned int)gamma_-1) *
-	       gamma1_2((unsigned int)gamma_)) /
-	  sqrt(gamma((unsigned int)gamma_) * gamma((unsigned int)gamma_+1));
+         return sqrt(M_PI * gamma_) * M_SQRT1_2 *
+                sqrt(gamma1_2((unsigned int)gamma_-1) *
+                     gamma1_2((unsigned int)gamma_)) /
+                sqrt(gamma((unsigned int)gamma_) * gamma((unsigned int)gamma_+1));
    }
 }
 
@@ -230,9 +232,9 @@ double qParaNorm()
    switch (prob_)
    {
       case 1:
-	return 0.0;
+         return 0.0;
       case 2:
-	return chi_ratio_ * qPerpNorm();
+         return chi_ratio_ * qPerpNorm();
    }
 }
 
@@ -267,7 +269,7 @@ class ParaCoefficient : public MatrixCoefficient
 {
 public:
    ParaCoefficient(void (*unit_b)(const Vector &, Vector &))
-     : MatrixCoefficient(2), unit_b_(unit_b), B_(2) , x_(2) {}
+      : MatrixCoefficient(2), unit_b_(unit_b), B_(2) , x_(2) {}
 
    void Eval(DenseMatrix &K, ElementTransformation &T,
              const IntegrationPoint &ip)
@@ -293,7 +295,7 @@ class PerpCoefficient : public MatrixCoefficient
 {
 public:
    PerpCoefficient(void (*unit_b)(const Vector &, Vector &))
-     : MatrixCoefficient(2), unit_b_(unit_b), B_(2) , x_(2) {}
+      : MatrixCoefficient(2), unit_b_(unit_b), B_(2) , x_(2) {}
 
    void Eval(DenseMatrix &K, ElementTransformation &T,
              const IntegrationPoint &ip)
@@ -325,15 +327,26 @@ void H1AnisoDiffusionSolve(int myid, const ParMesh &pmesh,
                            ParGridFunction &qPara,
                            ParGridFunction &qPerp);
 
+void H1L2AnisoDiffusionSolve(int myid, const ParMesh &pmesh,
+                             ParFiniteElementSpace * fespace_l2,
+                             const IntegrationRule &ir,
+                             Coefficient &QCoef,
+                             MatrixCoefficient &ChiCoef,
+                             const ParGridFunction &unit_b,
+                             int order,
+                             ParGridFunction &t,
+                             ParGridFunction &qPara,
+                             ParGridFunction &qPerp);
+
 void HDivAnisoDiffusionSolve(int myid, const ParMesh &pmesh,
-			     const IntegrationRule &ir,
-			     Coefficient &QCoef,
-			     MatrixCoefficient &ChiCoef,
-			     const ParGridFunction &unit_b,
-			     int order,
-			     ParGridFunction &t,
-			     ParGridFunction &qPara,
-			     ParGridFunction &qPerp);
+                             const IntegrationRule &ir,
+                             Coefficient &QCoef,
+                             MatrixCoefficient &ChiCoef,
+                             const ParGridFunction &unit_b,
+                             int order,
+                             ParGridFunction &t,
+                             ParGridFunction &qPara,
+                             ParGridFunction &qPerp);
 
 void shiftUnitSquare(const Vector &x, Vector &p)
 {
@@ -382,7 +395,7 @@ int main(int argc, char *argv[])
    args.AddOption(&B_type, "-b", "--b-field-type",
                   "B field type: 0 - H1, 1 - HCurl, 2-HDiv.");
    args.AddOption(&sol_type, "-s", "--solver-type",
-                  "Solver type: 0 - H1, 1 - H1/HDiv Hybrid, 2-HDiv.");
+                  "Solver type: 0 - H1, 1 - H1/L2 Hybrid, 2-HDiv.");
    args.AddOption(&zero_start, "-z", "--zero-start", "-no-z",
                   "--no-zero-start",
                   "Initial guess of zero or exact solution.");
@@ -501,6 +514,15 @@ int main(int argc, char *argv[])
          cout << "Number of finite element unknowns (q): " << size_q << endl;
       }
 
+      FiniteElementCollection * fec_l2 = new L2_FECollection(order - 1, dim);
+      ParFiniteElementSpace * fespace_l2 =
+         new ParFiniteElementSpace(pmesh, fec_l2);
+      HYPRE_Int size_l2 = fespace_l2->GlobalTrueVSize();
+      if (myid == 0)
+      {
+         cout << "Number of finite element unknowns (L2): " << size_l2 << endl;
+      }
+
       FiniteElementCollection *fec_B = NULL;
       switch (B_type)
       {
@@ -577,7 +599,7 @@ int main(int argc, char *argv[])
       ParGridFunction qPerp(fespace_q);
       VectorFunctionCoefficient qParaExact(2, qParaFunc);
       VectorFunctionCoefficient qPerpExact(2, qPerpFunc);
-      
+
       ParGridFunction unit_b(fespace_B);
       VectorFunctionCoefficient BExact(2, BFunc);
       unit_b.ProjectCoefficient(BExact);
@@ -630,25 +652,30 @@ int main(int argc, char *argv[])
 
       AnisoConductionCoefficient ChiCoef(unit_b);
 
-      switch(sol_type)
-	{
-	case 0:
-	  H1AnisoDiffusionSolve(myid, *pmesh, *ir, QCoef, ChiCoef,
-				unit_b, order,
-				t, qPara, qPerp);
-	  break;
-	case 1:
-	  break;
-	case 2:
-	  HDivAnisoDiffusionSolve(myid, *pmesh, *ir, QCoef, ChiCoef,
-				  unit_b, order,
-				  t, qPara, qPerp);
-	  break;
-	}
-      
+      switch (sol_type)
+      {
+         case 0:
+            H1AnisoDiffusionSolve(myid, *pmesh, *ir, QCoef, ChiCoef,
+                                  unit_b, order,
+                                  t, qPara, qPerp);
+            break;
+         case 1:
+            H1L2AnisoDiffusionSolve(myid, *pmesh, fespace_l2, *ir, QCoef, ChiCoef,
+                                    unit_b, order,
+                                    t, qPara, qPerp);
+            break;
+         case 2:
+            HDivAnisoDiffusionSolve(myid, *pmesh, *ir, QCoef, ChiCoef,
+                                    unit_b, order,
+                                    t, qPara, qPerp);
+            break;
+      }
+
       cout << "T norm: " << t.ComputeL2Error(zeroCoef) << " " << TNorm() << endl;
-      cout << "qPerp norm: " << qPerp.ComputeL2Error(zeroVecCoef) << " " << qPerpNorm() << endl;
-      cout << "qPara norm: " << qPara.ComputeL2Error(zeroVecCoef) << " " << qParaNorm() << endl;
+      cout << "qPerp norm: " << qPerp.ComputeL2Error(zeroVecCoef) << " " <<
+           qPerpNorm() << endl;
+      cout << "qPara norm: " << qPara.ComputeL2Error(zeroVecCoef) << " " <<
+           qParaNorm() << endl;
 
       // 13b. Extract and report the solution value at (0.5, 0.5) which
       //      conveniently is the location of the maximum.
@@ -659,11 +686,15 @@ int main(int argc, char *argv[])
       double err_q_perp = qPerp.ComputeL2Error(qPerpExact);
       if (myid == 0)
       {
- 	 cout << "Relative L2 Error of Solution: " << err_T / TNorm() << endl;
-	 if (prob_ == 1)
-	   cout << "L2 Error of q Para: " << err_q_para << endl;
-	 else
-	   cout << "Relative L2 Error of q Para: " << err_q_para / qParaNorm() << endl;
+         cout << "Relative L2 Error of Solution: " << err_T / TNorm() << endl;
+         if (prob_ == 1)
+         {
+            cout << "L2 Error of q Para: " << err_q_para << endl;
+         }
+         else
+         {
+            cout << "Relative L2 Error of q Para: " << err_q_para / qParaNorm() << endl;
+         }
          cout << "Relative L2 Error of q Perp: " << err_q_perp / qPerpNorm() << endl;
          cout << "Maximum Temperature: " << t_max << endl;
          cout << "| chi_eff - 1 | = " << err_pt << endl;
@@ -714,24 +745,25 @@ int main(int argc, char *argv[])
          q_para_sock << "window_geometry " << posx << " " << posy+395 << " 350 350\n";
          q_para_sock << "keys mmaaAcvvv\n";
          q_para_sock << "window_title '"
-		     << "q Para "
-		     << "Chi Ratio 10^" << (int)floor(log10(chi_ratio_)) << ", "
-		     << "Order " << order << ", "
-		     << "Num Elems " << pow(2,p) << "^2, "
-		     << "Error " << err_q_para << "'\n" << flush;
+                     << "q Para "
+                     << "Chi Ratio 10^" << (int)floor(log10(chi_ratio_)) << ", "
+                     << "Order " << order << ", "
+                     << "Num Elems " << pow(2,p) << "^2, "
+                     << "Error " << err_q_para << "'\n" << flush;
 
          socketstream q_perp_sock(vishost, visport);
          q_perp_sock << "parallel " << num_procs << " " << myid << "\n";
          q_perp_sock.precision(8);
          q_perp_sock << "solution\n" << *pmesh << qPerp;
-         q_perp_sock << "window_geometry " << posx+360 << " " << posy+395 << " 350 350\n";
+         q_perp_sock << "window_geometry " << posx+360 << " " << posy+395 <<
+                     " 350 350\n";
          q_perp_sock << "keys mmaaAcvvv\n";
          q_perp_sock << "window_title '"
-		     << "q Perp "
-		     << "Chi Ratio 10^" << (int)floor(log10(chi_ratio_)) << ", "
-		     << "Order " << order << ", "
-		     << "Num Elems " << pow(2,p) << "^2, "
-		     << "Error " << err_q_perp << "'\n" << flush;
+                     << "q Perp "
+                     << "Chi Ratio 10^" << (int)floor(log10(chi_ratio_)) << ", "
+                     << "Order " << order << ", "
+                     << "Num Elems " << pow(2,p) << "^2, "
+                     << "Error " << err_q_perp << "'\n" << flush;
 
          posx += dposx;
          posy += dposy;
@@ -768,152 +800,283 @@ void H1AnisoDiffusionSolve(int myid, const ParMesh &pmesh,
    ParFiniteElementSpace * fespace_T = t.ParFESpace();
    ParFiniteElementSpace * fespace_q = qPara.ParFESpace();
    {
-    // Solve for T
+      // Solve for T
 
-   Array<int> ess_tdof_list;
-   if (pmesh.bdr_attributes.Size())
-   {
-      Array<int> ess_bdr(pmesh.bdr_attributes.Max());
-      ess_bdr = 1;
-      fespace_T->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      Array<int> ess_tdof_list;
+      if (pmesh.bdr_attributes.Size())
+      {
+         Array<int> ess_bdr(pmesh.bdr_attributes.Max());
+         ess_bdr = 1;
+         fespace_T->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
+
+      BilinearFormIntegrator * diffInteg = new DiffusionIntegrator(ChiCoef);
+      diffInteg->SetIntRule(&ir);
+
+      ParBilinearForm *a = new ParBilinearForm(fespace_T);
+      a->AddDomainIntegrator(diffInteg);
+      a->Assemble();
+
+      ParLinearForm *rhs = new ParLinearForm(fespace_T);
+      rhs->AddDomainIntegrator(new DomainLFIntegrator(QCoef));
+      rhs->Assemble();
+
+      HypreParMatrix A;
+      Vector RHS, T;
+      a->FormLinearSystem(ess_tdof_list, t, *rhs, A, T, RHS, true);
+
+      if (myid == 0)
+      {
+         cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
+      }
+
+      // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
+      //     preconditioner from hypre.
+      HypreSolver *amg = new HypreBoomerAMG(A);
+      HyprePCG *pcg = new HyprePCG(A);
+      pcg->SetTol(1e-12);
+      pcg->SetMaxIter(10000);
+      pcg->SetPrintLevel(2);
+      pcg->SetPreconditioner(*amg);
+      pcg->Mult(RHS, T);
+
+      // 13. Recover the parallel grid function corresponding to X. This is the
+      //     local finite element solution on each processor.
+      a->RecoverFEMSolution(T, *rhs, t);
+
+      // 16. Free the used memory.
+      delete pcg;
+      delete amg;
+      delete a;
+      delete rhs;
    }
-
-   BilinearFormIntegrator * diffInteg = new DiffusionIntegrator(ChiCoef);
-   diffInteg->SetIntRule(&ir);
-
-   ParBilinearForm *a = new ParBilinearForm(fespace_T);
-   a->AddDomainIntegrator(diffInteg);
-   a->Assemble();
-
-   ParLinearForm *rhs = new ParLinearForm(fespace_T);
-   rhs->AddDomainIntegrator(new DomainLFIntegrator(QCoef));
-   rhs->Assemble();
-
-   HypreParMatrix A;
-   Vector RHS, T;
-   a->FormLinearSystem(ess_tdof_list, t, *rhs, A, T, RHS, true);
-
-   if (myid == 0)
    {
-      cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
+      // Solve for components of q
+      ParaCoefficient ParaCoef(BFunc);
+      PerpCoefficient PerpCoef(BFunc);
+
+      ParBilinearForm m2(fespace_q);
+      m2.AddDomainIntegrator(new VectorFEMassIntegrator());
+      m2.Assemble();
+
+      HypreParMatrix M2;
+      Array<int> ess_tdof(0);
+      m2.FormSystemMatrix(ess_tdof, M2);
+      HyprePCG M2Inv(M2);
+      M2Inv.SetTol(1e-12);
+      M2Inv.SetMaxIter(200);
+      M2Inv.SetPrintLevel(0);
+      HypreDiagScale M2Diag(M2);
+      M2Inv.SetPreconditioner(M2Diag);
+
+      ParMixedBilinearForm gPara(fespace_T, fespace_q);
+      gPara.AddDomainIntegrator(new MixedVectorGradientIntegrator(ParaCoef));
+      gPara.Assemble();
+
+      ParMixedBilinearForm gPerp(fespace_T, fespace_q);
+      gPerp.AddDomainIntegrator(new MixedVectorGradientIntegrator(PerpCoef));
+      gPerp.Assemble();
+
+      gPara.Mult(t, qPara);
+      gPerp.Mult(t, qPerp);
+
+      int q_size = fespace_q->GetTrueVSize();
+      Vector RHS(q_size);
+      Vector X(q_size);
+
+      qPara.ParallelAssemble(RHS);
+      M2Inv.Mult(RHS, X);
+      qPara.Distribute(X);
+      qPara *= -chi_ratio_;
+
+      qPerp.ParallelAssemble(RHS);
+      M2Inv.Mult(RHS, X);
+      qPerp.Distribute(X);
+      qPerp *= -1.0;
    }
+}
 
-   // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
-   //     preconditioner from hypre.
-   HypreSolver *amg = new HypreBoomerAMG(A);
-   HyprePCG *pcg = new HyprePCG(A);
-   pcg->SetTol(1e-12);
-   pcg->SetMaxIter(10000);
-   pcg->SetPrintLevel(2);
-   pcg->SetPreconditioner(*amg);
-   pcg->Mult(RHS, T);
+void H1L2AnisoDiffusionSolve(int myid, const ParMesh &pmesh,
+                             ParFiniteElementSpace * fespace_l2,
+                             const IntegrationRule &ir,
+                             Coefficient &QCoef,
+                             MatrixCoefficient &ChiCoef,
+                             const ParGridFunction &unit_b,
+                             int order,
+                             ParGridFunction &t,
+                             ParGridFunction &qPara,
+                             ParGridFunction &qPerp)
+{
+   ParFiniteElementSpace * fespace_T = t.ParFESpace();
+   ParFiniteElementSpace * fespace_q = qPara.ParFESpace();
+   {
+      // Solve for T
+      Array<int> ess_bdr;
+      Array<int> ess_tdof_list;
 
-   // 13. Recover the parallel grid function corresponding to X. This is the
-   //     local finite element solution on each processor.
-   a->RecoverFEMSolution(T, *rhs, t);
+      if (pmesh.bdr_attributes.Size())
+      {
+         ess_bdr.SetSize(pmesh.bdr_attributes.Max());
+         ess_bdr = 1;
+         fespace_T->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
 
-   // 16. Free the used memory.
-   delete pcg;
-   delete amg;
-   delete a;
-   delete rhs;
-  }
-  {
-     // Solve for components of q
-     ParaCoefficient ParaCoef(BFunc);
-     PerpCoefficient PerpCoef(BFunc);
+      BilinearFormIntegrator * diffInteg = new DiffusionIntegrator();
+      diffInteg->SetIntRule(&ir);
 
-     ParBilinearForm m2(fespace_q);
-     m2.AddDomainIntegrator(new VectorFEMassIntegrator());
-     m2.Assemble();
+      ParBilinearForm a(fespace_T);
+      a.AddDomainIntegrator(diffInteg);
+      a.Assemble();
 
-     HypreParMatrix M2;
-     Array<int> ess_tdof(0);
-     m2.FormSystemMatrix(ess_tdof, M2);
-     HyprePCG M2Inv(M2);
-     M2Inv.SetTol(1e-12);
-     M2Inv.SetMaxIter(200);
-     M2Inv.SetPrintLevel(0);
-     HypreDiagScale M2Diag(M2);
-     M2Inv.SetPreconditioner(M2Diag);
+      VectorGridFunctionCoefficient unitBCoef(const_cast<ParGridFunction*>(&unit_b));
+      ScalarVectorProductCoefficient scaledBCoef(1.0 - chi_ratio_, unitBCoef);
+      ScalarVectorProductCoefficient negUnitBCoef(-1.0, unitBCoef);
 
-     ParMixedBilinearForm gPara(fespace_T, fespace_q);
-     gPara.AddDomainIntegrator(new MixedVectorGradientIntegrator(ParaCoef));
-     gPara.Assemble();
+      ParMixedBilinearForm wd(fespace_T, fespace_l2);
+      wd.AddDomainIntegrator(new MixedScalarWeakDivergenceIntegrator(scaledBCoef));
+      wd.Assemble();
+      wd.EliminateTestDofs(ess_bdr);
 
-     ParMixedBilinearForm gPerp(fespace_T, fespace_q);
-     gPerp.AddDomainIntegrator(new MixedVectorGradientIntegrator(PerpCoef));
-     gPerp.Assemble();
+      ParMixedBilinearForm dd(fespace_l2, fespace_T);
+      dd.AddDomainIntegrator(new MixedDirectionalDerivativeIntegrator(negUnitBCoef));
+      dd.Assemble();
 
-     gPara.Mult(t, qPara);
-     gPerp.Mult(t, qPerp);
+      Vector X0(1), RHS3(1);
+      dd.EliminateTrialDofs(ess_bdr, X0, RHS3);
 
-     int q_size = fespace_q->GetTrueVSize();
-     Vector RHS(q_size);
-     Vector X(q_size);
+      ParBilinearForm m3(fespace_l2);
+      m3.AddDomainIntegrator(new MassIntegrator());
+      m3.Assemble();
 
-     qPara.ParallelAssemble(RHS);
-     M2Inv.Mult(RHS, X);
-     qPara.Distribute(X);
-     qPara *= -chi_ratio_;
-     
-     qPerp.ParallelAssemble(RHS);
-     M2Inv.Mult(RHS, X);
-     qPerp.Distribute(X);
-     qPerp *= -1.0;
-  }
+      ParLinearForm rhs(fespace_T);
+      rhs.AddDomainIntegrator(new DomainLFIntegrator(QCoef));
+      rhs.Assemble();
+
+      HypreParMatrix A;
+      Vector RHS, T;
+      a.FormLinearSystem(ess_tdof_list, t, rhs, A, T, RHS, true);
+
+      if (myid == 0)
+      {
+         cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
+      }
+
+      // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
+      //     preconditioner from hypre.
+      HypreSolver *amg = new HypreBoomerAMG(A);
+      HyprePCG *pcg = new HyprePCG(A);
+      pcg->SetTol(1e-12);
+      pcg->SetMaxIter(10000);
+      pcg->SetPrintLevel(2);
+      pcg->SetPreconditioner(*amg);
+      pcg->Mult(RHS, T);
+
+      // 13. Recover the parallel grid function corresponding to X. This is the
+      //     local finite element solution on each processor.
+      a.RecoverFEMSolution(T, rhs, t);
+
+      // 16. Free the used memory.
+      delete pcg;
+      delete amg;
+      // delete a;
+      // delete rhs;
+   }
+   {
+      // Solve for components of q
+      ParaCoefficient ParaCoef(BFunc);
+      PerpCoefficient PerpCoef(BFunc);
+
+      ParBilinearForm m2(fespace_q);
+      m2.AddDomainIntegrator(new VectorFEMassIntegrator());
+      m2.Assemble();
+
+      HypreParMatrix M2;
+      Array<int> ess_tdof(0);
+      m2.FormSystemMatrix(ess_tdof, M2);
+      HyprePCG M2Inv(M2);
+      M2Inv.SetTol(1e-12);
+      M2Inv.SetMaxIter(200);
+      M2Inv.SetPrintLevel(0);
+      HypreDiagScale M2Diag(M2);
+      M2Inv.SetPreconditioner(M2Diag);
+
+      ParMixedBilinearForm gPara(fespace_T, fespace_q);
+      gPara.AddDomainIntegrator(new MixedVectorGradientIntegrator(ParaCoef));
+      gPara.Assemble();
+
+      ParMixedBilinearForm gPerp(fespace_T, fespace_q);
+      gPerp.AddDomainIntegrator(new MixedVectorGradientIntegrator(PerpCoef));
+      gPerp.Assemble();
+
+      gPara.Mult(t, qPara);
+      gPerp.Mult(t, qPerp);
+
+      int q_size = fespace_q->GetTrueVSize();
+      Vector RHS(q_size);
+      Vector X(q_size);
+
+      qPara.ParallelAssemble(RHS);
+      M2Inv.Mult(RHS, X);
+      qPara.Distribute(X);
+      qPara *= -chi_ratio_;
+
+      qPerp.ParallelAssemble(RHS);
+      M2Inv.Mult(RHS, X);
+      qPerp.Distribute(X);
+      qPerp *= -1.0;
+   }
 }
 
 class VectorFEDivLFIntegrator : public LinearFormIntegrator
 {
 public:
-  VectorFEDivLFIntegrator(Coefficient & q) : Q(&q) {}
+   VectorFEDivLFIntegrator(Coefficient & q) : Q(&q) {}
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
                                        Vector &elvect)
-  {
-    int dof = el.GetDof();
+   {
+      int dof = el.GetDof();
 
-    divshape.SetSize(dof);
+      divshape.SetSize(dof);
 
-    elvect.SetSize(dof);
-    elvect = 0.0;
+      elvect.SetSize(dof);
+      elvect = 0.0;
 
-    const IntegrationRule *ir = IntRule;
-    if (ir == NULL)
-    {
-      // int intorder = 2*el.GetOrder() - 1; // ok for O(h^{k+1}) conv. in L2
-      int intorder = 2*el.GetOrder();
-      ir = &IntRules.Get(el.GetGeomType(), intorder);
-    }
+      const IntegrationRule *ir = IntRule;
+      if (ir == NULL)
+      {
+         // int intorder = 2*el.GetOrder() - 1; // ok for O(h^{k+1}) conv. in L2
+         int intorder = 2*el.GetOrder();
+         ir = &IntRules.Get(el.GetGeomType(), intorder);
+      }
 
-    for (int i = 0; i < ir->GetNPoints(); i++)
-    {
-      const IntegrationPoint &ip = ir->IntPoint(i);
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
 
-      Tr.SetIntPoint (&ip);
-      el.CalcPhysDivShape(Tr, divshape);
+         Tr.SetIntPoint (&ip);
+         el.CalcPhysDivShape(Tr, divshape);
 
-      elvect.Add(ip.weight * Tr.Weight() * Q->Eval(Tr, ip), divshape);
-    }
+         elvect.Add(ip.weight * Tr.Weight() * Q->Eval(Tr, ip), divshape);
+      }
 
-  }
+   }
 
 private:
-  Coefficient * Q;
-  Vector divshape;
+   Coefficient * Q;
+   Vector divshape;
 };
 
 void HDivAnisoDiffusionSolve(int myid, const ParMesh &pmesh,
-			     const IntegrationRule &ir,
-			     Coefficient &QCoef,
-			     MatrixCoefficient &ChiCoef,
-			     const ParGridFunction &unit_b,
-			     int order,
-			     ParGridFunction &t,
-			     ParGridFunction &qPara,
-			     ParGridFunction &qPerp)
+                             const IntegrationRule &ir,
+                             Coefficient &QCoef,
+                             MatrixCoefficient &ChiCoef,
+                             const ParGridFunction &unit_b,
+                             int order,
+                             ParGridFunction &t,
+                             ParGridFunction &qPara,
+                             ParGridFunction &qPerp)
 {
    ParFiniteElementSpace * fespace_T = t.ParFESpace();
    ParFiniteElementSpace * fespace_q = qPara.ParFESpace();
@@ -922,138 +1085,142 @@ void HDivAnisoDiffusionSolve(int myid, const ParMesh &pmesh,
    q = 0.0;
 
    {
-    // Solve for q
-     int dim = pmesh.Dimension();
-     
-     Array<int> ess_tdof_list;
-     if (pmesh.bdr_attributes.Size())
-       {
-	 Array<int> ess_bdr(pmesh.bdr_attributes.Max());
-	 ess_bdr = 1;
-	 fespace_q->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-       }
-     
-     // BilinearFormIntegrator * divdivInteg = new DivDivIntegrator();
-     // divdivInteg->SetIntRule(&ir);
+      // Solve for q
+      int dim = pmesh.Dimension();
 
-     double dt = 100.0 / chi_ratio_;
-     InverseMatrixCoefficient ChiInvCoef(ChiCoef);
-     ScalarMatrixProductCoefficient dtChiInvCoef(1.0 / dt, ChiInvCoef);
-     //  ConstantCoefficient epsCoef(1e-6);
-     
-     ParBilinearForm a(fespace_q);
-     a.AddDomainIntegrator(new VectorFEMassIntegrator(dtChiInvCoef));
-     // a.AddDomainIntegrator(divdivInteg);
-      a.AddDomainIntegrator(new DivDivIntegrator());
+      Array<int> ess_tdof_list;
+      if (pmesh.bdr_attributes.Size())
+      {
+         Array<int> ess_bdr(pmesh.bdr_attributes.Max());
+         ess_bdr = 1;
+         fespace_q->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      }
+
+      // BilinearFormIntegrator * divdivInteg = new DivDivIntegrator();
+      // divdivInteg->SetIntRule(&ir);
+
+      double dt = 0.1;
+      ConstantCoefficient dtCoef(dt);
+      // ConstantCoefficient dtInvCoef(1.0 / dt);
+      // double dt = 100.0 / chi_ratio_;
+      // InverseMatrixCoefficient ChiInvCoef(ChiCoef);
+      //ScalarMatrixProductCoefficient dtChiInvCoef(1.0 / dt, ChiInvCoef);
+      //  ConstantCoefficient epsCoef(1e-6);
+
+      ParBilinearForm a(fespace_q);
+      //a.AddDomainIntegrator(new VectorFEMassIntegrator(dtChiInvCoef));
+      a.AddDomainIntegrator(new VectorFEMassIntegrator());
+      // a.AddDomainIntegrator(divdivInteg);
+      a.AddDomainIntegrator(new DivDivIntegrator(dtCoef));
       a.Assemble();
 
-     ParBilinearForm s(fespace_q);
-     // s.AddDomainIntegrator(divdivInteg);
+      ParBilinearForm s(fespace_q);
+      // s.AddDomainIntegrator(divdivInteg);
       s.AddDomainIntegrator(new DivDivIntegrator());
-     s.Assemble();
+      s.Assemble();
 
-     ParLinearForm Qs(fespace_q);
-     Qs.AddDomainIntegrator(new VectorFEDivLFIntegrator(QCoef));
-     Qs.Assemble();
+      ParLinearForm Qs(fespace_q);
+      Qs.AddDomainIntegrator(new VectorFEDivLFIntegrator(QCoef));
+      Qs.Assemble();
 
-     ParLinearForm rhs(fespace_q);
-     
-     ParGridFunction dqdt(fespace_q);
-     dqdt = 0.0;
+      ParLinearForm rhs(fespace_q);
 
-     HypreParMatrix A;
-     Vector RHS, X;
+      ParGridFunction dqdt(fespace_q);
+      dqdt = 0.0;
 
-     double tol  = 1e-5;
-     
-     double nrm = sqrt(InnerProduct(Qs.ParFESpace()->GetComm(), Qs, Qs));
-     while(true)
-       {
-	 rhs = Qs;
+      HypreParMatrix A;
+      Vector RHS, X;
 
-	 s.AddMult(q, rhs, -1.0);
+      double tol  = 1e-5;
 
-	 double nrm_rhs = sqrt(InnerProduct(rhs.ParFESpace()->GetComm(),
-					    rhs, rhs));
-	 if ( nrm_rhs < nrm * tol ) break;
-	 cout << "Correction: " << nrm_rhs / nrm << endl;
-	 
-	 a.FormLinearSystem(ess_tdof_list, dqdt, rhs, A, X, RHS, true);
+      double nrm = sqrt(InnerProduct(Qs.ParFESpace()->GetComm(), Qs, Qs));
+      while (true)
+      {
+         rhs.Set(1.0, Qs);
 
-	 //if (myid == 0)
-	 //{
-	 //  cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
-	 //}
+         s.AddMult(q, rhs, -1.0);
 
-     // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
-     //     preconditioner from hypre.
-     HypreSolver *ads = (dim == 2) ?
-       (HypreSolver*)(new HypreAMS(A, fespace_q)) :
-       (HypreSolver*)(new HypreADS(A, fespace_q));
-     HyprePCG *pcg = new HyprePCG(A);
-     pcg->SetTol(1e-12);
-     pcg->SetMaxIter(10000);
-     pcg->SetPrintLevel(0);
-     pcg->SetPreconditioner(*ads);
-     pcg->Mult(RHS, X);
+         double nrm_rhs = sqrt(InnerProduct(rhs.ParFESpace()->GetComm(),
+                                            rhs, rhs));
+         if ( nrm_rhs < nrm * tol ) { break; }
+         cout << "Correction: " << nrm_rhs / nrm << endl;
 
-	 // 13. Recover the parallel grid function corresponding to X. This is the
-	 //     local finite element solution on each processor.
-	 a.RecoverFEMSolution(X, rhs, dqdt);
+         a.FormLinearSystem(ess_tdof_list, dqdt, rhs, A, X, RHS, true);
 
-	 q.Add(dt, dqdt);
-	 
-	 // 16. Free the used memory.
-	 delete pcg;
-	 delete ads;
-       }
-     cout << "Done with pseudo-time-stepping" << endl;
-     // delete a;
-     // delete rhs;
-  }
+         //if (myid == 0)
+         //{
+         //  cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
+         //}
+
+         // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
+         //     preconditioner from hypre.
+         HypreSolver *ads = (dim == 2) ?
+                            (HypreSolver*)(new HypreAMS(A, fespace_q)) :
+                            (HypreSolver*)(new HypreADS(A, fespace_q));
+         HyprePCG *pcg = new HyprePCG(A);
+         pcg->SetTol(1e-12);
+         pcg->SetMaxIter(10000);
+         pcg->SetPrintLevel(0);
+         pcg->SetPreconditioner(*ads);
+         pcg->Mult(RHS, X);
+
+         // 13. Recover the parallel grid function corresponding to X. This is the
+         //     local finite element solution on each processor.
+         a.RecoverFEMSolution(X, rhs, dqdt);
+
+         q.Add(dt, dqdt);
+
+         // 16. Free the used memory.
+         delete pcg;
+         delete ads;
+      }
+      cout << "Done with pseudo-time-stepping" << endl;
+      // delete a;
+      // delete rhs;
+   }
    cout << "Done with q calc" << endl;
-  {
-     // Solve for components of q
-     ParaCoefficient ParaCoef(BFunc);
-     PerpCoefficient PerpCoef(BFunc);
+   {
+      // Solve for components of q
+      ParaCoefficient ParaCoef(BFunc);
+      PerpCoefficient PerpCoef(BFunc);
 
-     ParBilinearForm m2(fespace_q);
-     m2.AddDomainIntegrator(new VectorFEMassIntegrator());
-     m2.Assemble();
+      ParBilinearForm m2(fespace_q);
+      m2.AddDomainIntegrator(new VectorFEMassIntegrator());
+      m2.Assemble();
 
-     HypreParMatrix M2;
-     Array<int> ess_tdof(0);
-     m2.FormSystemMatrix(ess_tdof, M2);
-     HyprePCG M2Inv(M2);
-     M2Inv.SetTol(1e-12);
-     M2Inv.SetMaxIter(200);
-     M2Inv.SetPrintLevel(0);
-     HypreDiagScale M2Diag(M2);
-     M2Inv.SetPreconditioner(M2Diag);
+      HypreParMatrix M2;
+      Array<int> ess_tdof(0);
+      m2.FormSystemMatrix(ess_tdof, M2);
+      HyprePCG M2Inv(M2);
+      M2Inv.SetTol(1e-12);
+      M2Inv.SetMaxIter(200);
+      M2Inv.SetPrintLevel(0);
+      HypreDiagScale M2Diag(M2);
+      M2Inv.SetPreconditioner(M2Diag);
 
-     ParBilinearForm mPara(fespace_q);
-     mPara.AddDomainIntegrator(new VectorFEMassIntegrator(ParaCoef));
-     mPara.Assemble();
+      ParBilinearForm mPara(fespace_q);
+      mPara.AddDomainIntegrator(new VectorFEMassIntegrator(ParaCoef));
+      mPara.Assemble();
 
-     ParBilinearForm mPerp(fespace_q);
-     mPerp.AddDomainIntegrator(new VectorFEMassIntegrator(PerpCoef));
-     mPerp.Assemble();
+      ParBilinearForm mPerp(fespace_q);
+      mPerp.AddDomainIntegrator(new VectorFEMassIntegrator(PerpCoef));
+      mPerp.Assemble();
 
-     mPara.Mult(q, qPara);
-     mPerp.Mult(q, qPerp);
+      mPara.Mult(q, qPara);
+      mPerp.Mult(q, qPerp);
 
-     int q_size = fespace_q->GetTrueVSize();
-     Vector RHS(q_size);
-     Vector X(q_size);
+      int q_size = fespace_q->GetTrueVSize();
+      Vector RHS(q_size);
+      Vector X(q_size);
 
-     qPara.ParallelAssemble(RHS);
-     M2Inv.Mult(RHS, X);
-     qPara.Distribute(X);
-     qPara *= chi_ratio_;
-     
-     qPerp.ParallelAssemble(RHS);
-     M2Inv.Mult(RHS, X);
-     qPerp.Distribute(X);
-  }
-  cout << "Leaving function call" << endl;
+      qPara.ParallelAssemble(RHS);
+      M2Inv.Mult(RHS, X);
+      qPara.Distribute(X);
+      qPara *= chi_ratio_;
+
+      qPerp.ParallelAssemble(RHS);
+      M2Inv.Mult(RHS, X);
+      qPerp.Distribute(X);
+   }
+   cout << "Leaving function call" << endl;
 }

@@ -33,13 +33,21 @@ UnitVectorField::Eval(Vector &V, ElementTransformation &T,
 
    if ( prob_ % 2 == 1 )
    {
-      double cx = cos(M_PI * x[0]);
-      double cy = cos(M_PI * x[1]);
-      double sx = sin(M_PI * x[0]);
-      double sy = sin(M_PI * x[1]);
+      if (unit_vec_type_ == 1)
+      {
+         double cx = cos(M_PI * x[0]);
+         double cy = cos(M_PI * x[1]);
+         double sx = sin(M_PI * x[0]);
+         double sy = sin(M_PI * x[1]);
 
-      V[0] = -sx * cy;
-      V[1] =  sy * cx;
+         V[0] = -sx * cy;
+         V[1] =  sy * cx;
+      }
+      else
+      {
+         V[0] = cos(M_PI/6.0);
+         V[1] = sin(M_PI/6.0);
+      }
    }
    else
    {
@@ -84,6 +92,7 @@ ThermalDiffusionTDO::ThermalDiffusionTDO(
    double chi_para_min,
    double chi_para_max,
    int prob,
+   int unit_vec_type,
    int coef_type,
    Coefficient & c, bool td_c,
    Coefficient & Q, bool td_Q)
@@ -94,7 +103,7 @@ ThermalDiffusionTDO::ThermalDiffusionTDO(
      multCount_(0), solveCount_(0),
      T_(&H1_FESpace),
      TCoef_(&T_),
-     unitBCoef_(prob),
+     unitBCoef_(prob, unit_vec_type),
      ICoef_(2),
      bbTCoef_(unitBCoef_, unitBCoef_),
      chiPerpCoef_(ICoef_, bbTCoef_, chi_perp, -chi_perp),

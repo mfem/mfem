@@ -44,96 +44,96 @@ static double yc_            = 0.0;
 
 double TFunc(const Vector &x, double t)
 {
-  switch(prob_)
-  {
-  case 1:
-    return x[0] * x[1] * pow(sin(M_PI * x[0]) * sin(M_PI * x[1]), gamma_);
-  case 2:
-    return 1.0 - pow(pow(x[0] - xc_, 2) + pow(x[1] - yc_, 2), 1.5);
-  case 3:
-    return 1.0 + (a_ * x[0] + b_ * x[1]) * pow(x[0] * x[0] + x[1] * x[1], 1.5);
-  case 4:
-    return 1.0 - pow(a_ * pow(x[0] * cos(theta_) + x[1] * sin(theta_), 2) +
-		     b_ * pow(x[0] * sin(theta_) - x[1] * cos(theta_), 2), 1.5);
-  default:
-    return 0.0;
-  }
+   switch (prob_)
+   {
+      case 1:
+         return x[0] * x[1] * pow(sin(M_PI * x[0]) * sin(M_PI * x[1]), gamma_);
+      case 2:
+         return 1.0 - pow(pow(x[0] - xc_, 2) + pow(x[1] - yc_, 2), 1.5);
+      case 3:
+         return 1.0 + (a_ * x[0] + b_ * x[1]) * pow(x[0] * x[0] + x[1] * x[1], 1.5);
+      case 4:
+         return 1.0 - pow(a_ * pow(x[0] * cos(theta_) + x[1] * sin(theta_), 2) +
+                          b_ * pow(x[0] * sin(theta_) - x[1] * cos(theta_), 2), 1.5);
+      default:
+         return 0.0;
+   }
 }
 
 void UnitBFunc(const Vector &x, Vector &b)
 {
-  switch(unit_vec_type_)
-    {
-    case 2:
+   switch (unit_vec_type_)
+   {
+      case 2:
       {
-	b[0] = -x[1] + yc_;
-	b[1] = x[0] - xc_;
+         b[0] = -x[1] + yc_;
+         b[1] = x[0] - xc_;
       }
       break;
-    case 3:
+      case 3:
       {
-	b[0] = -3.0 * a_ * x[0] * x[1] -
-	  b_ * (x[0] * x[0] + 4.0 * x[1] * x[1]); 
-	b[1] = a_ * (4.0 * x[0] * x[0] + x[1] * x[1]) + 3.0 * b_ * x[0] * x[1]; 
+         b[0] = -3.0 * a_ * x[0] * x[1] -
+                b_ * (x[0] * x[0] + 4.0 * x[1] * x[1]);
+         b[1] = a_ * (4.0 * x[0] * x[0] + x[1] * x[1]) + 3.0 * b_ * x[0] * x[1];
       }
       break;
-    case 4:
+      case 4:
       {
-	double ct = cos(theta_);
-	double st = sin(theta_);
-	double ctst = 0.5 * sin(2.0 * theta_);
-	b[0] = x[1] * (a_ * st * st + b_ * ct * ct) + (a_ - b_) * x[0] * ctst;
-	b[1] = -x[0] * (a_ * ct * ct + b_ * st * st) - (a_ - b_) * x[1] * ctst;
+         double ct = cos(theta_);
+         double st = sin(theta_);
+         double ctst = 0.5 * sin(2.0 * theta_);
+         b[0] = x[1] * (a_ * st * st + b_ * ct * ct) + (a_ - b_) * x[0] * ctst;
+         b[1] = -x[0] * (a_ * ct * ct + b_ * st * st) - (a_ - b_) * x[1] * ctst;
       }
       break;
-    default:
-      b[0] = cos(alpha_);
-      b[1] = sin(alpha_);
-    }
-  double nrm = b.Norml2();
-  if ( nrm > 0.0 ) b /= nrm;
+      default:
+         b[0] = cos(alpha_);
+         b[1] = sin(alpha_);
+   }
+   double nrm = b.Norml2();
+   if ( nrm > 0.0 ) { b /= nrm; }
 }
 
 double QFunc(const Vector &x, double t)
 {
-  switch(prob_)
-    {
-    case 1:
+   switch (prob_)
+   {
+      case 1:
       {
-	double cx  = cos(M_PI * x[0]);
-	double sx  = sin(M_PI * x[0]);
-	double s2x = sin(2.0 * M_PI * x[0]);
-	double cy  = cos(M_PI * x[1]);
-	double sy  = sin(M_PI * x[1]);
-	double s2y = sin(2.0 * M_PI * x[1]);
-	double ca  = cos(alpha_);
-	double sa  = sin(alpha_);
-	double s2a = sin(2.0 * alpha_);
-	double chi_sc = chi_perp_ * sa * sa + chi_para_ * ca * ca;
-	double chi_cs = chi_perp_ * ca * ca + chi_para_ * sa * sa;
-	double chi_s2 = (chi_para_ - chi_perp_) * s2a;
-	double s2gcx = s2x + M_PI * x[0] * (gamma_ * cx * cx - 1.0);
-	double s2gcy = s2y + M_PI * x[1] * (gamma_ * cy * cy - 1.0);
-	double sgcx = sx + M_PI * x[0] * gamma_ * cx;
-	double sgcy = sy + M_PI * x[1] * gamma_ * cy;
-	return -1.0 * (M_PI * gamma_ * x[0] * chi_cs * s2gcy * sx * sx +
-		       M_PI * gamma_ * x[1] * chi_sc * s2gcx * sy * sy +
-		       chi_s2 * sgcx * sgcy * sx * sy) *
-	  pow(sx * sy, gamma_ - 2.0);
+         double cx  = cos(M_PI * x[0]);
+         double sx  = sin(M_PI * x[0]);
+         double s2x = sin(2.0 * M_PI * x[0]);
+         double cy  = cos(M_PI * x[1]);
+         double sy  = sin(M_PI * x[1]);
+         double s2y = sin(2.0 * M_PI * x[1]);
+         double ca  = cos(alpha_);
+         double sa  = sin(alpha_);
+         double s2a = sin(2.0 * alpha_);
+         double chi_sc = chi_perp_ * sa * sa + chi_para_ * ca * ca;
+         double chi_cs = chi_perp_ * ca * ca + chi_para_ * sa * sa;
+         double chi_s2 = (chi_para_ - chi_perp_) * s2a;
+         double s2gcx = s2x + M_PI * x[0] * (gamma_ * cx * cx - 1.0);
+         double s2gcy = s2y + M_PI * x[1] * (gamma_ * cy * cy - 1.0);
+         double sgcx = sx + M_PI * x[0] * gamma_ * cx;
+         double sgcy = sy + M_PI * x[1] * gamma_ * cy;
+         return -1.0 * (M_PI * gamma_ * x[0] * chi_cs * s2gcy * sx * sx +
+                        M_PI * gamma_ * x[1] * chi_sc * s2gcx * sy * sy +
+                        chi_s2 * sgcx * sgcy * sx * sy) *
+                pow(sx * sy, gamma_ - 2.0);
       }
-    case 2:
+      case 2:
       {
-	return 9.0 * chi_perp_ * sqrt(pow(x[0] - xc_, 2) + pow(x[1] - yc_, 2));
+         return 9.0 * chi_perp_ * sqrt(pow(x[0] - xc_, 2) + pow(x[1] - yc_, 2));
       }
-    default:
-      return 0.0;
-    }
+      default:
+         return 0.0;
+   }
 }
 
 void shiftUnitSquare(const Vector &x, Vector &p)
 {
-  p[0] = x[0] - 0.5;
-  p[1] = x[1] - 0.5;
+   p[0] = x[0] - 0.5;
+   p[1] = x[1] - 0.5;
 }
 
 int main(int argc, char *argv[])
@@ -172,11 +172,11 @@ int main(int argc, char *argv[])
                   "Total number of elements is n^2.");
    args.AddOption(&prob_, "-p", "--problem",
                   "Specify problem type:\n"
-		  "   1 - section 4.1, 2 - section 4.2, 3 - section 4.3.");
+                  "   1 - section 4.1, 2 - section 4.2, 3 - section 4.3.");
    // args.AddOption(&unit_vec_type_, "-u", "--unit-vec-type",
    //             "Specify B field unit vector type: \n"
-   //  		  "   1 - Constant, 2 - ,\n"
-   // 		  "   3 - Constant (angle theta).");
+   //         "   1 - Constant, 2 - ,\n"
+   //         "   3 - Constant (angle theta).");
    args.AddOption(&alpha_, "-alpha", "--constant-angle",
                   "Angle for constant B field (in degrees)");
    args.AddOption(&xc_, "-xc", "--x-center",
@@ -184,8 +184,8 @@ int main(int argc, char *argv[])
    args.AddOption(&yc_, "-yc", "--y-center",
                   "y coordinate of field center");
    args.AddOption(&coef_type, "-c", "--coef",
-		  "Specify diffusion coefficient type: "
-		  "0 - Constant, 1 - Linearized, 2 - Non-Linear.");
+                  "Specify diffusion coefficient type: "
+                  "0 - Constant, 1 - Linearized, 2 - Non-Linear.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -196,7 +196,7 @@ int main(int argc, char *argv[])
    args.AddOption(&chi_para_, "-chi-para", "--chi-parallel",
                   "Value of chi along field lines.");
    // args.AddOption(&nonlin_chi, "-nl", "--nonlin-chi",
-   //		  "-no-nl", "--no-nonlin-chi",
+   //      "-no-nl", "--no-nonlin-chi",
    //             "Enable or disable Nonlinear Diffusion.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
@@ -246,13 +246,13 @@ int main(int argc, char *argv[])
    }
 
    if (isnan(alpha_))
-     {
-       alpha_ = 0.0;
-     }
+   {
+      alpha_ = 0.0;
+   }
    else
-     {
-       alpha_ *= M_PI / 180.0;
-     }
+   {
+      alpha_ *= M_PI / 180.0;
+   }
 
    unit_vec_type_ = prob_;
    non_linear_ = coef_type > 0;
@@ -265,8 +265,8 @@ int main(int argc, char *argv[])
                 new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
-   if (prob_ > 1) mesh->Transform(shiftUnitSquare);
-   
+   if (prob_ > 1) { mesh->Transform(shiftUnitSquare); }
+
    // 4. This step is no longer needed
 
    // 5. Define a parallel mesh by a partitioning of the serial mesh. Once the
@@ -371,7 +371,7 @@ int main(int argc, char *argv[])
    FunctionCoefficient HeatSourceCoef(QFunc);
 
    VectorFunctionCoefficient UnitBCoef(2, UnitBFunc);
-   
+
    Qs_gf.ProjectCoefficient(HeatSourceCoef);
    T_gf.ProjectBdrCoefficient(TCoef, ess_bdr);
    T_gf.GridFunction::ComputeElementL2Errors(TCoef, errorT);
@@ -383,8 +383,8 @@ int main(int argc, char *argv[])
                             chi_perp_,
                             chi_para_,
                             prob_,
-			    coef_type,
-			    UnitBCoef,
+                            coef_type,
+                            UnitBCoef,
                             SpecificHeatCoef, false,
                             // ConductionCoef, false,
                             HeatSourceCoef, false);
@@ -450,25 +450,25 @@ int main(int argc, char *argv[])
    double t = 0.0;
    double dt_courant = 0.0;
    {
-     double h_min, h_max, kappa_min, kappa_max;
-     pmesh->GetCharacteristics(h_min, h_max, kappa_min, kappa_max);
-     dt_courant = 1.0 * h_min * h_min / chi_para_;
+      double h_min, h_max, kappa_min, kappa_max;
+      pmesh->GetCharacteristics(h_min, h_max, kappa_min, kappa_max);
+      dt_courant = 1.0 * h_min * h_min / chi_para_;
    }
    if (dt < 0.0)
    {
-     dt = dt_courant;
+      dt = dt_courant;
    }
    if ( myid == 0 )
    {
-     cout << "Using time step: " << dt
-	  << " (Courant " << dt_courant << ")" << endl;
+      cout << "Using time step: " << dt
+           << " (Courant " << dt_courant << ")" << endl;
    }
-   
+
    int tsize = HGradFESpace.GetTrueVSize();
    Vector T0(tsize), T1(tsize), dT(tsize);
    T0 = 0.0; T1 = 0.0; dT = 0.0;
    T_gf.ParallelProject(T1);
-   
+
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
    {

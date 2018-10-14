@@ -42,96 +42,186 @@ static double yc_            = 0.0;
 
 double TFunc(const Vector &x, double t)
 {
-  switch(prob_)
-  {
-  case 1:
-    return x[0] * x[1] * pow(sin(M_PI * x[0]) * sin(M_PI * x[1]), gamma_);
-  case 2:
-    return 1.0 - pow(pow(x[0] - xc_, 2) + pow(x[1] - yc_, 2), 1.5);
-  case 3:
-    return 1.0 + (a_ * x[0] + b_ * x[1]) * pow(x[0] * x[0] + x[1] * x[1], 1.5);
-  case 4:
-    return 1.0 - pow(a_ * pow(x[0] * cos(theta_) + x[1] * sin(theta_), 2) +
-		     b_ * pow(x[0] * sin(theta_) - x[1] * cos(theta_), 2), 1.5);
-  default:
-    return 0.0;
-  }
+   switch (prob_)
+   {
+      case 1:
+         return x[0] * x[1] * pow(sin(M_PI * x[0]) * sin(M_PI * x[1]), gamma_);
+      case 2:
+         return 1.0 - pow(pow(x[0] - xc_, 2) + pow(x[1] - yc_, 2), 1.5);
+      case 3:
+         return 1.0 + (a_ * x[0] + b_ * x[1]) * pow(x[0] * x[0] + x[1] * x[1], 1.5);
+      case 4:
+         return 1.0 - pow(a_ * pow(x[0] * cos(theta_) + x[1] * sin(theta_), 2) +
+                          b_ * pow(x[0] * sin(theta_) - x[1] * cos(theta_), 2), 1.5);
+      default:
+         return 0.0;
+   }
+}
+
+void qFunc(const Vector &x, Vector &q)
+{
+   q.SetSize(2);
+
+   switch (prob_)
+   {
+      case 1:
+      {
+         double ssg = pow(sin(M_PI * x[0]) * sin(M_PI * x[1]), gamma_ - 1.0);
+         double ca = cos(alpha_);
+         double sa = sin(alpha_);
+         double cx = cos(M_PI * x[0]);
+         double cy = cos(M_PI * x[1]);
+         double sx = sin(M_PI * x[0]);
+         double sy = sin(M_PI * x[1]);
+         double xcx = sx + M_PI * gamma_ * x[0] * cx;
+         double ycy = sy + M_PI * gamma_ * x[1] * cy;
+         double cd = chi_para_ - chi_perp_;
+         double cdca = cd * ca * ca + chi_perp_;
+         double cdsa = cd * sa * sa + chi_perp_;
+         q[0] = - x[0] * cd * ca * sa * sx * ycy - x[1] * cdca * sy * xcx;
+         q[1] = - x[1] * cd * ca * sa * sy * xcx - x[0] * cdsa * sx * ycy;
+         q *= ssg;
+      }
+      break;
+      default:
+         q = 0.0;
+   }
+}
+
+void qParaFunc(const Vector &x, Vector &q)
+{
+   q.SetSize(2);
+
+   switch (prob_)
+   {
+      case 1:
+      {
+         double ssg = pow(sin(M_PI * x[0]) * sin(M_PI * x[1]), gamma_ - 1.0);
+         double ca = cos(alpha_);
+         double sa = sin(alpha_);
+         double cx = cos(M_PI * x[0]);
+         double cy = cos(M_PI * x[1]);
+         double sx = sin(M_PI * x[0]);
+         double sy = sin(M_PI * x[1]);
+         double xcx = sx + M_PI * gamma_ * x[0] * cx;
+         double ycy = sy + M_PI * gamma_ * x[1] * cy;
+         double cd = chi_para_;
+         double cdca = cd * ca * ca;
+         double cdsa = cd * sa * sa;
+         q[0] = - x[0] * cd * ca * sa * sx * ycy - x[1] * cdca * sy * xcx;
+         q[1] = - x[1] * cd * ca * sa * sy * xcx - x[0] * cdsa * sx * ycy;
+         q *= ssg;
+      }
+      break;
+      default:
+         q = 0.0;
+   }
+}
+
+void qPerpFunc(const Vector &x, Vector &q)
+{
+   q.SetSize(2);
+
+   switch (prob_)
+   {
+      case 1:
+      {
+         double ssg = pow(sin(M_PI * x[0]) * sin(M_PI * x[1]), gamma_ - 1.0);
+         double ca = cos(alpha_);
+         double sa = sin(alpha_);
+         double cx = cos(M_PI * x[0]);
+         double cy = cos(M_PI * x[1]);
+         double sx = sin(M_PI * x[0]);
+         double sy = sin(M_PI * x[1]);
+         double xcx = sx + M_PI * gamma_ * x[0] * cx;
+         double ycy = sy + M_PI * gamma_ * x[1] * cy;
+         double cd = - chi_perp_;
+         double cdca = cd * ca * ca + chi_perp_;
+         double cdsa = cd * sa * sa + chi_perp_;
+         q[0] = - x[0] * cd * ca * sa * sx * ycy - x[1] * cdca * sy * xcx;
+         q[1] = - x[1] * cd * ca * sa * sy * xcx - x[0] * cdsa * sx * ycy;
+         q *= ssg;
+      }
+      break;
+      default:
+         q = 0.0;
+   }
 }
 
 void UnitBFunc(const Vector &x, Vector &b)
 {
-  switch(unit_vec_type_)
-    {
-    case 2:
+   switch (unit_vec_type_)
+   {
+      case 2:
       {
-	b[0] = -x[1] + yc_;
-	b[1] = x[0] - xc_;
+         b[0] = -x[1] + yc_;
+         b[1] = x[0] - xc_;
       }
       break;
-    case 3:
+      case 3:
       {
-	b[0] = -3.0 * a_ * x[0] * x[1] -
-	  b_ * (x[0] * x[0] + 4.0 * x[1] * x[1]); 
-	b[1] = a_ * (4.0 * x[0] * x[0] + x[1] * x[1]) + 3.0 * b_ * x[0] * x[1]; 
+         b[0] = -3.0 * a_ * x[0] * x[1] -
+                b_ * (x[0] * x[0] + 4.0 * x[1] * x[1]);
+         b[1] = a_ * (4.0 * x[0] * x[0] + x[1] * x[1]) + 3.0 * b_ * x[0] * x[1];
       }
       break;
-    case 4:
+      case 4:
       {
-	double ct = cos(theta_);
-	double st = sin(theta_);
-	double ctst = 0.5 * sin(2.0 * theta_);
-	b[0] = x[1] * (a_ * st * st + b_ * ct * ct) + (a_ - b_) * x[0] * ctst;
-	b[1] = -x[0] * (a_ * ct * ct + b_ * st * st) - (a_ - b_) * x[1] * ctst;
+         double ct = cos(theta_);
+         double st = sin(theta_);
+         double ctst = 0.5 * sin(2.0 * theta_);
+         b[0] = x[1] * (a_ * st * st + b_ * ct * ct) + (a_ - b_) * x[0] * ctst;
+         b[1] = -x[0] * (a_ * ct * ct + b_ * st * st) - (a_ - b_) * x[1] * ctst;
       }
       break;
-    default:
-      b[0] = cos(alpha_);
-      b[1] = sin(alpha_);
-    }
-  double nrm = b.Norml2();
-  if ( nrm > 0.0 ) b /= nrm;
+      default:
+         b[0] = cos(alpha_);
+         b[1] = sin(alpha_);
+   }
+   double nrm = b.Norml2();
+   if ( nrm > 0.0 ) { b /= nrm; }
 }
 
 double QFunc(const Vector &x, double t)
 {
-  switch(prob_)
-    {
-    case 1:
+   switch (prob_)
+   {
+      case 1:
       {
-	double cx  = cos(M_PI * x[0]);
-	double sx  = sin(M_PI * x[0]);
-	double s2x = sin(2.0 * M_PI * x[0]);
-	double cy  = cos(M_PI * x[1]);
-	double sy  = sin(M_PI * x[1]);
-	double s2y = sin(2.0 * M_PI * x[1]);
-	double ca  = cos(alpha_);
-	double sa  = sin(alpha_);
-	double s2a = sin(2.0 * alpha_);
-	double chi_sc = chi_perp_ * sa * sa + chi_para_ * ca * ca;
-	double chi_cs = chi_perp_ * ca * ca + chi_para_ * sa * sa;
-	double chi_s2 = (chi_para_ - chi_perp_) * s2a;
-	double s2gcx = s2x + M_PI * x[0] * (gamma_ * cx * cx - 1.0);
-	double s2gcy = s2y + M_PI * x[1] * (gamma_ * cy * cy - 1.0);
-	double sgcx = sx + M_PI * x[0] * gamma_ * cx;
-	double sgcy = sy + M_PI * x[1] * gamma_ * cy;
-	return -1.0 * (M_PI * gamma_ * x[0] * chi_cs * s2gcy * sx * sx +
-		       M_PI * gamma_ * x[1] * chi_sc * s2gcx * sy * sy +
-		       chi_s2 * sgcx * sgcy * sx * sy) *
-	  pow(sx * sy, gamma_ - 2.0);
+         double cx  = cos(M_PI * x[0]);
+         double sx  = sin(M_PI * x[0]);
+         double s2x = sin(2.0 * M_PI * x[0]);
+         double cy  = cos(M_PI * x[1]);
+         double sy  = sin(M_PI * x[1]);
+         double s2y = sin(2.0 * M_PI * x[1]);
+         double ca  = cos(alpha_);
+         double sa  = sin(alpha_);
+         double s2a = sin(2.0 * alpha_);
+         double chi_sc = chi_perp_ * sa * sa + chi_para_ * ca * ca;
+         double chi_cs = chi_perp_ * ca * ca + chi_para_ * sa * sa;
+         double chi_s2 = (chi_para_ - chi_perp_) * s2a;
+         double s2gcx = s2x + M_PI * x[0] * (gamma_ * cx * cx - 1.0);
+         double s2gcy = s2y + M_PI * x[1] * (gamma_ * cy * cy - 1.0);
+         double sgcx = sx + M_PI * x[0] * gamma_ * cx;
+         double sgcy = sy + M_PI * x[1] * gamma_ * cy;
+         return -1.0 * (M_PI * gamma_ * x[0] * chi_cs * s2gcy * sx * sx +
+                        M_PI * gamma_ * x[1] * chi_sc * s2gcx * sy * sy +
+                        chi_s2 * sgcx * sgcy * sx * sy) *
+                pow(sx * sy, gamma_ - 2.0);
       }
-    case 2:
+      case 2:
       {
-	return 9.0 * chi_perp_ * sqrt(pow(x[0] - xc_, 2) + pow(x[1] - yc_, 2));
+         return 9.0 * chi_perp_ * sqrt(pow(x[0] - xc_, 2) + pow(x[1] - yc_, 2));
       }
-    default:
-      return 0.0;
-    }
+      default:
+         return 0.0;
+   }
 }
 
 void shiftUnitSquare(const Vector &x, Vector &p)
 {
-  p[0] = x[0] - 0.5;
-  p[1] = x[1] - 0.5;
+   p[0] = x[0] - 0.5;
+   p[1] = x[1] - 0.5;
 }
 
 int main(int argc, char *argv[])
@@ -242,13 +332,13 @@ int main(int argc, char *argv[])
    }
 
    if (isnan(alpha_))
-     {
-       alpha_ = 0.0;
-     }
+   {
+      alpha_ = 0.0;
+   }
    else
-     {
-       alpha_ *= M_PI / 180.0;
-     }
+   {
+      alpha_ *= M_PI / 180.0;
+   }
 
    unit_vec_type_ = prob_;
    non_linear_ = coef_type > 0;
@@ -261,8 +351,8 @@ int main(int argc, char *argv[])
                 new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
-   if (prob_ > 1) mesh->Transform(shiftUnitSquare);
-   
+   if (prob_ > 1) { mesh->Transform(shiftUnitSquare); }
+
    // 4. This step is no longer needed
 
    // 5. Define a parallel mesh by a partitioning of the serial mesh. Once the
@@ -324,6 +414,7 @@ int main(int argc, char *argv[])
    // RT contains Raviart-Thomas "face-centered" vector finite elements with
    // continuous normal component.
    RT_FECollection HDivFEC(order-1, dim);
+   ND_FECollection HCurlFEC(order, dim);
 
    // H1 contains continuous "node-centered" Lagrange finite elements.
    H1_FECollection HGradFEC(order, dim);
@@ -331,6 +422,7 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace   L2FESpace0(pmesh, &L2FEC0);
    ParFiniteElementSpace    L2FESpace(pmesh, &L2FEC);
    ParFiniteElementSpace  HDivFESpace(pmesh, &HDivFEC);
+   ParFiniteElementSpace  HCurlFESpace(pmesh, &HCurlFEC);
    ParFiniteElementSpace  HGradFESpace(pmesh, &HGradFEC);
 
    // The terminology is TrueVSize is the unique (non-redundant) number of dofs
@@ -354,9 +446,19 @@ int main(int argc, char *argv[])
    // grid functions E, B, T, F, P, and w which is the Joule heating
    ParGridFunction  T_gf(&HGradFESpace);
    ParGridFunction  q_gf(&HDivFESpace);
+   ParGridFunction  qPerpT_gf(&HDivFESpace);
+   ParGridFunction  qParaT_gf(&HDivFESpace);
+   ParGridFunction  qPerp_gf(&HDivFESpace);
+   ParGridFunction  qPara_gf(&HDivFESpace);
+   ParGridFunction  b_gf(&HDivFESpace);
    ParGridFunction dT_gf(&HGradFESpace);
    ParGridFunction Qs_gf(&HGradFESpace);
    ParGridFunction errorT(&L2FESpace0);
+   ParGridFunction errorq(&L2FESpace0);
+   ParGridFunction errorqPerp(&L2FESpace0);
+   ParGridFunction errorqPara(&L2FESpace0);
+   ParGridFunction errorqPerpT(&L2FESpace0);
+   ParGridFunction errorqParaT(&L2FESpace0);
    T_gf  = 0.0;
    q_gf  = 0.0;
    dT_gf = 1.0;
@@ -366,6 +468,9 @@ int main(int argc, char *argv[])
    //     b_exact in this case are exact analytical solutions, taking a 3-vector
    //     point as input and returning a 3-vector field
    FunctionCoefficient TCoef(TFunc);
+   VectorFunctionCoefficient qCoef(2, qFunc);
+   VectorFunctionCoefficient qParaCoef(2, qParaFunc);
+   VectorFunctionCoefficient qPerpCoef(2, qPerpFunc);
 
    Vector zeroVec(2); zeroVec = 0.0;
    ConstantCoefficient zeroCoef(0.0);
@@ -376,31 +481,46 @@ int main(int argc, char *argv[])
 
    VectorFunctionCoefficient UnitBCoef(2, UnitBFunc);
 
+   b_gf.ProjectCoefficient(UnitBCoef);
    Qs_gf.ProjectCoefficient(HeatSourceCoef);
+
+   T_gf.ProjectCoefficient(TCoef);
+   q_gf.ProjectCoefficient(qCoef);
+   qPara_gf.ProjectCoefficient(qParaCoef);
+   qPerp_gf.ProjectCoefficient(qPerpCoef);
+
+   double T_nrm = T_gf.ComputeL2Error(zeroCoef);
+   double q_nrm = q_gf.ComputeL2Error(zeroVecCoef);
+   double qPara_nrm = qPara_gf.ComputeL2Error(zeroVecCoef);
+   double qPerp_nrm = qPerp_gf.ComputeL2Error(zeroVecCoef);
+
    T_gf.ProjectBdrCoefficient(TCoef, ess_bdr);
+   q_gf.ProjectBdrCoefficientNormal(qCoef, ess_bdr);
    T_gf.GridFunction::ComputeElementL2Errors(TCoef, errorT);
+   q_gf.GridFunction::ComputeElementL2Errors(qCoef, errorq);
 
    // 14. Initialize the Diffusion operator, the GLVis visualization and print
    //     the initial energies.
    cout << "Building TDO" << endl;
    HybridThermalDiffusionTDO oper(HGradFESpace,
-				  HDivFESpace,
-				  L2FESpace,
-				  zeroVecCoef,
-				  zeroCoef, ess_bdr,
-				  chi_perp_,
-				  chi_para_,
-				  prob_,
-				  coef_type,
-				  UnitBCoef,
-				  SpecificHeatCoef, false,
-				  // ConductionCoef, false,
-				  HeatSourceCoef, false);
+                                  HCurlFESpace,
+                                  HDivFESpace,
+                                  L2FESpace,
+                                  zeroVecCoef,
+                                  zeroCoef, ess_bdr,
+                                  chi_perp_,
+                                  chi_para_,
+                                  prob_,
+                                  coef_type,
+                                  UnitBCoef,
+                                  SpecificHeatCoef, false,
+                                  // ConductionCoef, false,
+                                  HeatSourceCoef, false);
 
    // This function initializes all the fields to zero or some provided IC
    // oper.Init(F);
 
-   socketstream vis_T, vis_q, vis_Q, vis_errT;
+   socketstream vis_T, vis_q, vis_b, vis_Q, vis_errT, vis_errq;
    char vishost[] = "localhost";
    int  visport   = 19916;
    if (visualization)
@@ -412,26 +532,36 @@ int main(int argc, char *argv[])
       vis_T.precision(8);
       vis_Q.precision(8);
       vis_q.precision(8);
+      vis_b.precision(8);
       vis_errT.precision(8);
+      vis_errq.precision(8);
 
       int Wx = 0, Wy = 0; // window position
       int Ww = 350, Wh = 350; // window size
       int offx = Ww+10, offy = Wh+45; // window offsets
 
-      miniapps::VisualizeField(vis_T, vishost, visport,
-                               T_gf, "Temperature", Wx, Wy, Ww, Wh);
-
-      Wx += offx;
-      miniapps::VisualizeField(vis_q, vishost, visport,
-                               q_gf, "Heat Flux", Wx, Wy, Ww, Wh);
-
-      Wx -= offx; Wy += offy;
       miniapps::VisualizeField(vis_Q, vishost, visport,
                                Qs_gf, "Heat Source", Wx, Wy, Ww, Wh);
 
-      Wx += offx;
+      Wy += offy;
+      miniapps::VisualizeField(vis_b, vishost, visport,
+                               b_gf, "Unit B Field", Wx, Wy, Ww, Wh, true);
+
+      Wx += offx; Wy -= offy;
+      miniapps::VisualizeField(vis_T, vishost, visport,
+                               T_gf, "Temperature", Wx, Wy, Ww, Wh);
+
+      Wy += offy;
       miniapps::VisualizeField(vis_errT, vishost, visport,
                                errorT, "Error in T", Wx, Wy, Ww, Wh);
+
+      Wx += offx; Wy -= offy;
+      miniapps::VisualizeField(vis_q, vishost, visport,
+                               q_gf, "Heat Flux", Wx, Wy, Ww, Wh, true);
+
+      Wy += offy;
+      miniapps::VisualizeField(vis_errq, vishost, visport,
+                               errorq, "Error in q", Wx, Wy, Ww, Wh);
    }
    // VisIt visualization
    VisItDataCollection visit_dc(basename, pmesh);
@@ -440,7 +570,19 @@ int main(int argc, char *argv[])
       visit_dc.RegisterField("T", &T_gf);
       visit_dc.RegisterField("Qs", &Qs_gf);
       visit_dc.RegisterField("q", &q_gf);
+      visit_dc.RegisterField("qPerp", &qPerp_gf);
+      visit_dc.RegisterField("qPara", &qPara_gf);
+      visit_dc.RegisterField("qPerpT", &qPerpT_gf);
+      visit_dc.RegisterField("qParaT", &qParaT_gf);
+      visit_dc.RegisterField("b", &b_gf);
       visit_dc.RegisterField("L2 Error T", &errorT);
+      visit_dc.RegisterField("L2 Error q", &errorq);
+      visit_dc.RegisterField("L2 Error qPerp", &errorqPerp);
+      visit_dc.RegisterField("L2 Error qPara", &errorqPara);
+      visit_dc.RegisterField("L2 Error qPerpT", &errorqPerpT);
+      visit_dc.RegisterField("L2 Error qParaT", &errorqParaT);
+
+      oper.SetVisItDC(visit_dc);
 
       visit_dc.SetCycle(0);
       visit_dc.SetTime(0.0);
@@ -466,7 +608,10 @@ int main(int argc, char *argv[])
    int tsize = HGradFESpace.GetTrueVSize();
    int qsize = HDivFESpace.GetTrueVSize();
    Vector X0(tsize+qsize), X1(tsize+qsize), dX(tsize+qsize);
+   Vector T1(X1.GetData(), tsize);
+   Vector q1(&(X1.GetData())[tsize], qsize);
    X0 = 0.0; X1 = 0.0; dX = 0.0;
+   T_gf.ParallelProject(T1);
 
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
@@ -485,20 +630,30 @@ int main(int argc, char *argv[])
       X0 = X1;
       ode_solver->Step(X1, t, dt);
 
-      Vector T1(X1.GetData(), tsize);
-      Vector q1(&(X1.GetData())[tsize], qsize);
       T_gf.Distribute(T1);
       q_gf.Distribute(q1);
 
       TCoef.SetTime(t);
 
+      oper.GetParaFluxFromTemp(T_gf, qParaT_gf);
+      oper.GetPerpFluxFromTemp(T_gf, qPerpT_gf);
+
+      oper.GetParaFluxFromFlux(q_gf, qPara_gf);
+      oper.GetPerpFluxFromFlux(q_gf, qPerp_gf);
+
       T_gf.GridFunction::ComputeElementL2Errors(TCoef, errorT);
+      q_gf.GridFunction::ComputeElementL2Errors(qCoef, errorq);
+      qPerp_gf.GridFunction::ComputeElementL2Errors(qPerpCoef, errorqPerp);
+      qPara_gf.GridFunction::ComputeElementL2Errors(qParaCoef, errorqPara);
+      qPerpT_gf.GridFunction::ComputeElementL2Errors(qPerpCoef, errorqPerpT);
+      qParaT_gf.GridFunction::ComputeElementL2Errors(qParaCoef, errorqParaT);
       double l2_error_T = T_gf.ComputeL2Error(TCoef);
+      double l2_error_q = q_gf.ComputeL2Error(qCoef);
 
       if ( myid == 0 )
       {
-         ofs_errs << t << '\t' << l2_error_T << endl;
-         cout << t << '\t' << l2_error_T << endl;
+         ofs_errs << t << '\t' << l2_error_T << '\t' << l2_error_q << endl;
+         cout << t << '\t' << l2_error_T << '\t' << l2_error_q << endl;
       }
 
       add(1.0, X1, -1.0, X0, dX);
@@ -532,7 +687,7 @@ int main(int argc, char *argv[])
       */
       if (gfprint)
       {
- 	 ostringstream T_name, q_name, mesh_name;
+         ostringstream T_name, q_name, mesh_name;
          T_name << basename << "_" << setfill('0') << setw(6) << t << "_"
                 << "T." << setfill('0') << setw(6) << myid;
          q_name << basename << "_" << setfill('0') << setw(6) << t << "_"
@@ -566,18 +721,18 @@ int main(int argc, char *argv[])
          {
             int Wx = 0, Wy = 0; // window position
             int Ww = 350, Wh = 350; // window size
-            int offx = Ww+10;//, offy = Wh+45; // window offsets
 
             miniapps::VisualizeField(vis_T, vishost, visport,
                                      T_gf, "Temperature", Wx, Wy, Ww, Wh);
 
-            Wx += offx;
             miniapps::VisualizeField(vis_q, vishost, visport,
                                      q_gf, "Heat Flux", Wx, Wy, Ww, Wh);
 
-            Wx += offx;
             miniapps::VisualizeField(vis_errT, vishost, visport,
                                      errorT, "Error in T", Wx, Wy, Ww, Wh);
+
+            miniapps::VisualizeField(vis_errq, vishost, visport,
+                                     errorq, "Error in q", Wx, Wy, Ww, Wh);
          }
 
          if (visit)
@@ -588,11 +743,16 @@ int main(int argc, char *argv[])
          }
       }
    }
+
+   // oper.GetParaFluxFromTemp(T_gf, qParaT_gf);
+   // oper.GetPerpFluxFromTemp(T_gf, qPerpT_gf);
+
    if (visualization)
    {
       vis_T.close();
       vis_q.close();
       vis_errT.close();
+      vis_errq.close();
    }
    if (myid == 0) { ofs_errs.close(); }
 
@@ -603,13 +763,39 @@ int main(int argc, char *argv[])
                  MPI_COMM_WORLD);
    */
    double err1 = T_gf.ComputeL2Error(TCoef);
+   double errq = q_gf.ComputeL2Error(qCoef);
+   double errqParaT = qParaT_gf.ComputeL2Error(qParaCoef);
+   double errqPerpT = qPerpT_gf.ComputeL2Error(qPerpCoef);
+   double errqPara = qPara_gf.ComputeL2Error(qParaCoef);
+   double errqPerp = qPerp_gf.ComputeL2Error(qPerpCoef);
    double T_max = T_gf.ComputeMaxError(zeroCoef);
+   double q_max = q_gf.ComputeMaxError(zeroVecCoef);
+   // double qParaT_max = qParaT_gf.ComputeMaxError(zeroVecCoef);
+   // double qPerpT_max = qPerpT_gf.ComputeMaxError(zeroVecCoef);
+   // double qPara_max = qPara_gf.ComputeMaxError(zeroVecCoef);
+   // double qPerp_max = qPerp_gf.ComputeMaxError(zeroVecCoef);
    if (myid == 0)
    {
-      cout << "Maximum Temperature: " << T_max << endl;
-      cout << "L2 Error of Solution: " << err1
-	   << ", (relative to maximum temperature " << err1 / T_max << ")"
-	   << endl;
+      cout << "Maximum Temperature:     " << T_max << endl;
+      cout << "Maximum Flux Magnitude:  " << q_max << endl;
+      cout << "L2 Error of Temperature: " << err1
+           << ", (relative " << err1 / T_nrm << ")"
+           << endl;
+      cout << "L2 Error of Flux: " << errq
+           << ", (relative " << errq / q_nrm << ")"
+           << endl;
+      cout << "L2 Error of Para Flux: " << errqPara
+           << ", (relative " << errqPara / qPara_nrm << ")"
+           << endl;
+      cout << "L2 Error of Perp Flux: " << errqPerp
+           << ", (relative " << errqPerp / qPerp_nrm << ")"
+           << endl;
+      cout << "L2 Error of Para Flux T: " << errqParaT
+           << ", (relative " << errqParaT / qPara_nrm << ")"
+           << endl;
+      cout << "L2 Error of Perp Flux T: " << errqPerpT
+           << ", (relative " << errqPerpT / qPerp_nrm << ")"
+           << endl;
       cout << "| chi_eff - 1 | = " << fabs(1.0/T_max - 1) << endl;
    }
 
