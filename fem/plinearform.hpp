@@ -62,10 +62,6 @@ public:
    /// Copy the data from a Vector to the ParLinearForm data.
    ParLinearForm &operator=(const Vector &v)
    { LinearForm::operator=(v); return *this; }
-
-   /// Copy the data from a ParLinearForm to the ParLinearForm data.
-   ParLinearForm &operator=(const ParLinearForm &v)
-   { LinearForm::operator=(v); return *this; }
 };
 
 }

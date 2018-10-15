@@ -109,11 +109,6 @@ public:
        @a fes. */
    LinearForm &operator=(const Vector &v);
 
-   /// Copy the data from @a v.
-   /** The LinearForms @a v and @a *this must have FiniteElementSpaces with
-       the same size. */
-   LinearForm &operator=(const LinearForm &v);
-
    /// Destroys linear form.
    ~LinearForm();
 };
