@@ -53,6 +53,11 @@ public:
                             double scale = 1.0);
    MeshDependentCoefficient(const MeshDependentCoefficient &cloneMe);
    virtual double Eval(const ElementTransformation &T) const;
+#ifdef MFEM_DEPRECATED
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   { return Eval(T); }
+#endif
    void SetScaleFactor(const double &scale) { scaleFactor = scale; }
    virtual ~MeshDependentCoefficient()
    {
@@ -235,6 +240,11 @@ public:
                            ParGridFunction &E_gf_)
       : E_gf(E_gf_), sigma(sigma_) {}
    virtual double Eval(const ElementTransformation &T) const;
+#ifdef MFEM_DEPRECATED
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   { return Eval(T); }
+#endif
    virtual ~JouleHeatingCoefficient() {}
 };
 

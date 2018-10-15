@@ -3069,6 +3069,11 @@ ScalarProductInterpolator::AssembleElementMatrix2(const FiniteElement &dom_fe,
          fe.CalcPhysShape(T, V);
          V *= Q.Eval(T);
       }
+#ifdef MFEM_DEPRECATED
+      virtual void Eval(Vector &V, ElementTransformation &T,
+                        const IntegrationPoint &ip)
+      { return Eval(V, T); }
+#endif
    };
 
    ShapeCoefficient dom_shape_coeff(Q, dom_fe);
@@ -3103,6 +3108,12 @@ ScalarVectorProductInterpolator::AssembleElementMatrix2(
          fe.CalcPhysVShape(T, M);
          M *= Q.Eval(T);
       }
+
+#ifdef MFEM_DEPRECATED
+      virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                        const IntegrationPoint &ip)
+      { return Eval(M, T); }
+#endif
    };
 
    VShapeCoefficient dom_shape_coeff(Q, dom_fe, Trans.GetSpaceDim());
@@ -3140,6 +3151,12 @@ VectorScalarProductInterpolator::AssembleElementMatrix2(
          fe.CalcPhysShape(T, shape);
          MultVWt(shape, vc, M);
       }
+
+#ifdef MFEM_DEPRECATED
+      virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                        const IntegrationPoint &ip)
+      { return Eval(M, T); }
+#endif
    };
 
    VecShapeCoefficient dom_shape_coeff(VQ, dom_fe);
@@ -3186,6 +3203,12 @@ VectorCrossProductInterpolator::AssembleElementMatrix2(
             M(k,2) = vc(0) * vshape(k,1) - vc(1) * vshape(k,0);
          }
       }
+
+#ifdef MFEM_DEPRECATED
+      virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                        const IntegrationPoint &ip)
+      { return Eval(M, T); }
+#endif
    };
 
    VCrossVShapeCoefficient dom_shape_coeff(VQ, dom_fe);
@@ -3232,6 +3255,12 @@ VectorInnerProductInterpolator::AssembleElementMatrix2(
          fe.CalcPhysVShape(T, vshape);
          vshape.Mult(vc, V);
       }
+
+#ifdef MFEM_DEPRECATED
+      virtual void Eval(Vector &V, ElementTransformation &T,
+                        const IntegrationPoint &ip)
+      { return Eval(V, T); }
+#endif
    };
 
    VDotVShapeCoefficient dom_shape_coeff(VQ, dom_fe);

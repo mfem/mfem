@@ -42,8 +42,7 @@ public:
 #ifdef MFEM_DEPRECATED
    /// DEPRECATED - please use Eval(ElementTransformation &T) instead
    virtual double Eval(ElementTransformation &T,
-                       const IntegrationPoint &ip)
-   { return Eval(T); }
+                       const IntegrationPoint &ip) = 0;
 
    /** DEPRECATED - please use Eval(ElementTransformation &T, double t)
        instead */
@@ -53,9 +52,18 @@ public:
       SetTime(t);
       return Eval(T);
    }
-#endif
+
+   virtual double Eval(const ElementTransformation &T) const
+   {
+      return const_cast<Coefficient*>(this)->
+             Eval(const_cast<ElementTransformation &>(T), T.GetIntPoint());
+   }
+
+#else
 
    virtual double Eval(const ElementTransformation &T) const = 0;
+
+#endif
 
    double Eval(const ElementTransformation &T, double t)
    {
@@ -79,6 +87,12 @@ public:
    /// Evaluate the coefficient
    virtual double Eval(const ElementTransformation &T) const
    { return (constant); }
+
+#ifdef MFEM_DEPRECATED
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   { return Eval(T); }
+#endif
 };
 
 /// class for piecewise constant coefficient
@@ -112,6 +126,12 @@ public:
 
    /// Evaluate the coefficient function
    virtual double Eval(const ElementTransformation &T) const;
+
+#ifdef MFEM_DEPRECATED
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   { return Eval(T); }
+#endif
 };
 
 /// class for C-function coefficient
@@ -156,6 +176,12 @@ public:
 
    /// Evaluate coefficient
    virtual double Eval(const ElementTransformation &T) const;
+
+#ifdef MFEM_DEPRECATED
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   { return Eval(T); }
+#endif
 };
 
 class GridFunction;
@@ -177,6 +203,12 @@ public:
    GridFunction * GetGridFunction() const { return GridF; }
 
    virtual double Eval(const ElementTransformation &T) const;
+
+#ifdef MFEM_DEPRECATED
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   { return Eval(T); }
+#endif
 };
 
 class TransformedCoefficient : public Coefficient
@@ -195,6 +227,12 @@ public:
       : Q1(q1), Q2(q2), Transform2(F) { Transform1 = 0; }
 
    virtual double Eval(const ElementTransformation &T) const;
+
+#ifdef MFEM_DEPRECATED
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   { return Eval(T); }
+#endif
 };
 
 /// Delta function coefficient
@@ -255,7 +293,11 @@ public:
    double EvalDelta(const ElementTransformation &T) const;
    /** @brief A DeltaFunction cannot be evaluated. Calling this method will
        cause an MFEM error, terminating the application. */
+#ifdef MFEM_DEPRECATED
+   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
+#else
    virtual double Eval(const ElementTransformation &T) const
+#endif
    { mfem_error("DeltaCoefficient::Eval"); return 0.; }
    virtual ~DeltaCoefficient() { delete weight; }
 };
@@ -273,6 +315,12 @@ public:
 
    virtual double Eval(const ElementTransformation &T) const
    { return active_attr[T.Attribute-1] ? c->Eval(T, GetTime()) : 0.0; }
+
+#ifdef MFEM_DEPRECATED
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   { return Eval(T); }
+#endif
 };
 
 class VectorCoefficient
@@ -293,11 +341,19 @@ public:
 #ifdef MFEM_DEPRECATED
    /// DEPRECATED - please use Eval(Vector &V, ElementTransformation &T) instead
    virtual void Eval(Vector &V, ElementTransformation &T,
-                     const IntegrationPoint &ip)
-   { Eval(V, T); }
-#endif
+                     const IntegrationPoint &ip) = 0;
+
+   virtual void Eval(Vector &V, const ElementTransformation &T) const
+   {
+      const_cast<VectorCoefficient*>(this)->
+      Eval(V, const_cast<ElementTransformation &>(T), T.GetIntPoint());
+   }
+
+#else
 
    virtual void Eval(Vector &V, const ElementTransformation &T) const = 0;
+
+#endif
 
    // General implementation using the Eval method for one IntegrationPoint.
    // Can be overloaded for more efficient implementation.
@@ -317,6 +373,12 @@ public:
    using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, const ElementTransformation &T) const
    { V = vec; }
+
+#ifdef MFEM_DEPRECATED
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   { return Eval(V, T); }
+#endif
 };
 
 class VectorFunctionCoefficient : public VectorCoefficient
@@ -349,6 +411,12 @@ public:
    using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, const ElementTransformation &T) const;
 
+#ifdef MFEM_DEPRECATED
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   { return Eval(V, T); }
+#endif
+
    virtual ~VectorFunctionCoefficient() { }
 };
 
@@ -377,6 +445,12 @@ public:
    using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, const ElementTransformation &T) const;
 
+#ifdef MFEM_DEPRECATED
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   { return Eval(V, T); }
+#endif
+
    /// Destroys vector coefficient.
    virtual ~VectorArrayCoefficient();
 };
@@ -394,6 +468,12 @@ public:
    GridFunction * GetGridFunction() const { return GridFunc; }
 
    virtual void Eval(Vector &V, const ElementTransformation &T) const;
+
+#ifdef MFEM_DEPRECATED
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   { return Eval(V, T); }
+#endif
 
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationRule &ir) const;
@@ -439,7 +519,12 @@ public:
    using VectorCoefficient::Eval;
    /** @brief A VectorDeltaFunction cannot be evaluated. Calling this method
        will cause an MFEM error, terminating the application. */
+#ifdef MFEM_DEPRECATED
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+#else
    virtual void Eval(Vector &V, const ElementTransformation &T) const
+#endif
    { mfem_error("VectorDeltaCoefficient::Eval"); }
    virtual ~VectorDeltaCoefficient() { }
 };
@@ -457,6 +542,12 @@ public:
    { c = &vc; attr.Copy(active_attr); }
 
    virtual void Eval(Vector &V, const ElementTransformation &T) const;
+
+#ifdef MFEM_DEPRECATED
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   { return Eval(V, T); }
+#endif
 
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationRule &ir) const;
@@ -485,11 +576,19 @@ public:
 #ifdef MFEM_DEPRECATED
    /// DEPRECATED - please use Eval(DenseMatrix &K, ElementTransformation &T) instead
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip)
-   { Eval(K, T); }
-#endif
+                     const IntegrationPoint &ip) = 0;
+
+   virtual void Eval(DenseMatrix &K, const ElementTransformation &T) const
+   {
+      const_cast<MatrixCoefficient*>(this)->
+      Eval(K, const_cast<ElementTransformation &>(T), T.GetIntPoint());
+   }
+
+#else
 
    virtual void Eval(DenseMatrix &K, const ElementTransformation &T) const = 0;
+
+#endif
 
    virtual ~MatrixCoefficient() { }
 };
@@ -504,6 +603,12 @@ public:
    using MatrixCoefficient::Eval;
    virtual void Eval(DenseMatrix &M, const ElementTransformation &T) const
    { M = mat; }
+
+#ifdef MFEM_DEPRECATED
+   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   { return Eval(M, T); }
+#endif
 };
 
 class MatrixFunctionCoefficient : public MatrixCoefficient
@@ -547,6 +652,12 @@ public:
 
    virtual void Eval(DenseMatrix &K, const ElementTransformation &T) const;
 
+#ifdef MFEM_DEPRECATED
+   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   { return Eval(M, T); }
+#endif
+
    virtual ~MatrixFunctionCoefficient() { }
 };
 
@@ -569,6 +680,12 @@ public:
 
    virtual void Eval(DenseMatrix &K, const ElementTransformation &T) const;
 
+#ifdef MFEM_DEPRECATED
+   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   { return Eval(M, T); }
+#endif
+
    virtual ~MatrixArrayCoefficient();
 };
 
@@ -585,6 +702,12 @@ public:
    { c = &mc; attr.Copy(active_attr); }
 
    virtual void Eval(DenseMatrix &K, const ElementTransformation &T) const;
+
+#ifdef MFEM_DEPRECATED
+   virtual void Eval(DenseMatrix &M, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   { return Eval(M, T); }
+#endif
 };
 
 /** Compute the Lp norm of a function f.

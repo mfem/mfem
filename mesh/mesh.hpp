@@ -1254,6 +1254,11 @@ public:
    void SetLayer(const int l) { layer = l; }
    using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, const ElementTransformation &T) const;
+#ifdef MFEM_DEPRECATED
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   { return Eval(V, T); }
+#endif
    virtual ~NodeExtrudeCoefficient() { }
 };
 

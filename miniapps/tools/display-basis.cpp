@@ -80,6 +80,12 @@ public:
 
    void Eval(Vector &v, const ElementTransformation &T) const;
 
+#ifdef MFEM_DEPRECATED
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   { return Eval(V, T); }
+#endif
+
 private:
    void Def1D(const Vector & u, Vector & v) const;
    void Def2D(const Vector & u, Vector & v) const;

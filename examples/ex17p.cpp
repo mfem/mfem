@@ -70,6 +70,12 @@ public:
    void SetComponent(int i, int j) { si = i; sj = j; }
 
    virtual double Eval(const ElementTransformation &T) const;
+
+#ifdef MFEM_DEPRECATED
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   { return Eval(T); }
+#endif
 };
 
 // Simple GLVis visualization manager.

@@ -627,6 +627,12 @@ private:
 public:
    ExtrudeCoefficient(Mesh *m, Coefficient &s, int _n)
       : n(_n), mesh_in(m), sol_in(s) { }
+
+#ifdef MFEM_DEPRECATED
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   { return Eval(T); }
+#endif
    virtual double Eval(const ElementTransformation &T) const;
    virtual ~ExtrudeCoefficient() { }
 };

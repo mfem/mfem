@@ -147,6 +147,11 @@ public:
    ElasticEnergyCoefficient(HyperelasticModel &m, const ParGridFunction &x_)
       : model(m), x(x_) { }
    virtual double Eval(const ElementTransformation &T) const;
+#ifdef MFEM_DEPRECATED
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   { return Eval(T); }
+#endif
    virtual ~ElasticEnergyCoefficient() { }
 };
 
