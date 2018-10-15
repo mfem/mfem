@@ -67,7 +67,7 @@ void Array::DoFill(const void *value_ptr, std::size_t item_size)
 
 void Array::DoPushData(const void *src_buffer, std::size_t item_size)
 {
-   if (src_buffer) memcpy(data, src_buffer, size);
+   if (src_buffer) { memcpy(data, src_buffer, size); }
 }
 
 void Array::DoAssign(const PArray &src, std::size_t item_size)

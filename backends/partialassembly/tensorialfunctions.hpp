@@ -27,9 +27,9 @@ namespace pa
 {
 
 /// Returns number of degrees of freedom in each direction.
-inline const int GetNDofs1d(const mfem::FiniteElementSpace& fes){ return fes.GetFE(0)->GetOrder() + 1; }
+inline const int GetNDofs1d(const mfem::FiniteElementSpace& fes) { return fes.GetFE(0)->GetOrder() + 1; }
 
-inline const int GetNDofs1d(const mfem::FiniteElementSpace* fes){ return GetNDofs1d(*fes); }
+inline const int GetNDofs1d(const mfem::FiniteElementSpace* fes) { return GetNDofs1d(*fes); }
 
 /// Returns number of quadrature points in each direction.
 inline const int GetNQuads1d(const int order)
@@ -43,7 +43,7 @@ inline const int GetNQuads1d(const int order)
 */
 template <typename Tensor>
 void ComputeBasis0d(const FiniteElement *fe, double x,
-                     Tensor& shape0d, Tensor& dshape0d)
+                    Tensor& shape0d, Tensor& dshape0d)
 {
    const TensorBasisElement* tfe(dynamic_cast<const TensorBasisElement*>(fe));
    const Poly_1D::Basis &basis0d = tfe->GetBasis1D();
@@ -66,7 +66,7 @@ void ComputeBasis0d(const FiniteElement *fe, double x,
 */
 template <typename Tensor>
 void ComputeBasis1d(const FiniteElement *fe, int order, Tensor& shape1d,
-                           Tensor& dshape1d, bool backward=false)
+                    Tensor& dshape1d, bool backward=false)
 {
    const TensorBasisElement* tfe(dynamic_cast<const TensorBasisElement*>(fe));
    const Poly_1D::Basis &basis1d = tfe->GetBasis1D();
@@ -114,7 +114,8 @@ void ComputeBasis0d(const FiniteElement *fe, double x, Tensor& shape0d)
 * Gives the evaluation of the 1d basis functions at all quadrature points
 */
 template <typename Tensor>
-void ComputeBasis1d(const FiniteElement *fe, int order, Tensor& shape1d, bool backward=false)
+void ComputeBasis1d(const FiniteElement *fe, int order, Tensor& shape1d,
+                    bool backward=false)
 {
    const TensorBasisElement* tfe(dynamic_cast<const TensorBasisElement*>(fe));
    const Poly_1D::Basis &basis1d = tfe->GetBasis1D();
@@ -149,9 +150,9 @@ private:
 
 public:
    TensorBasis(mfem::FiniteElementSpace* fes, const int order)
-   : dim(fes->GetFE(0)->GetDim()),
-     shape1d(GetNDofs1d(fes),GetNQuads1d(order)),
-     dshape1d(GetNDofs1d(fes),GetNQuads1d(order))
+      : dim(fes->GetFE(0)->GetDim()),
+        shape1d(GetNDofs1d(fes),GetNQuads1d(order)),
+        dshape1d(GetNDofs1d(fes),GetNQuads1d(order))
    {
       // Store the 1d shape functions and gradients
       ComputeBasis1d(fes->GetFE(0), order, shape1d, dshape1d);
@@ -181,8 +182,8 @@ private:
 
 public:
    TensorBasis(mfem::FiniteElementSpace* fes, const int order)
-   : dim(fes->GetFE(0)->GetDim()),
-     shape1d(GetNDofs1d(fes),GetNQuads1d(order))
+      : dim(fes->GetFE(0)->GetDim()),
+        shape1d(GetNDofs1d(fes),GetNQuads1d(order))
    {
       // Store the 1d shape functions and gradients
       ComputeBasis1d(fes->GetFE(0), order, shape1d);
@@ -206,9 +207,9 @@ private:
 
 public:
    FaceTensorBasis(mfem::FiniteElementSpace* fes, const int order)
-   : TensorBasis<Op>(fes,order),
-     shape0d0(GetNDofs1d(fes),GetNQuads1d(order)),
-     shape0d1(GetNDofs1d(fes),GetNQuads1d(order))
+      : TensorBasis<Op>(fes,order),
+        shape0d0(GetNDofs1d(fes),GetNQuads1d(order)),
+        shape0d1(GetNDofs1d(fes),GetNQuads1d(order))
    {
       // Store the two 0d shape functions and gradients
       // in x = 0.0
@@ -219,259 +220,259 @@ public:
 
    const Tensor2d& getB0d(const int face_id) const
    {
-      switch(this->dim)
+      switch (this->dim)
       {
          case 1:
-         switch(face_id)
-         {
-            case 0://WEST
-               return shape0d0;
-            case 1://EAST
-               return shape0d1;
-         }
+            switch (face_id)
+            {
+               case 0://WEST
+                  return shape0d0;
+               case 1://EAST
+                  return shape0d1;
+            }
          case 2:
-         switch(face_id)
-         {
-            case 0://SOUTH
-               return shape0d0;
-            case 1://EAST
-               return shape0d1;
-            case 2://NORTH
-               return shape0d1;
-            case 3://WEST
-               return shape0d0;
-         }
+            switch (face_id)
+            {
+               case 0://SOUTH
+                  return shape0d0;
+               case 1://EAST
+                  return shape0d1;
+               case 2://NORTH
+                  return shape0d1;
+               case 3://WEST
+                  return shape0d0;
+            }
          case 3:
-         switch(face_id)
-         {
-            case 0://BOTTOM
-               return shape0d0;
-            case 1://SOUTH
-               return shape0d0;
-            case 2://EAST
-               return shape0d1;
-            case 3://NORTH
-               return shape0d1;
-            case 4://WEST
-               return shape0d0;
-            case 5://TOP
-               return shape0d1;
-         }
+            switch (face_id)
+            {
+               case 0://BOTTOM
+                  return shape0d0;
+               case 1://SOUTH
+                  return shape0d0;
+               case 2://EAST
+                  return shape0d1;
+               case 3://NORTH
+                  return shape0d1;
+               case 4://WEST
+                  return shape0d0;
+               case 5://TOP
+                  return shape0d1;
+            }
       }
    }
 
    const Tensor2d& getB0dTrial(const int face_id) const
    {
-      switch(this->dim)
+      switch (this->dim)
       {
          case 1:
-         switch(face_id)
-         {
-            case 0://WEST
-               return shape0d1;
-            case 1://EAST
-               return shape0d0;
-         }
+            switch (face_id)
+            {
+               case 0://WEST
+                  return shape0d1;
+               case 1://EAST
+                  return shape0d0;
+            }
          case 2:
-         switch(face_id)
-         {
-            case 0://SOUTH
-               return shape0d1;
-            case 1://EAST
-               return shape0d0;
-            case 2://NORTH
-               return shape0d0;
-            case 3://WEST
-               return shape0d1;
-         }
+            switch (face_id)
+            {
+               case 0://SOUTH
+                  return shape0d1;
+               case 1://EAST
+                  return shape0d0;
+               case 2://NORTH
+                  return shape0d0;
+               case 3://WEST
+                  return shape0d1;
+            }
          case 3:
-         switch(face_id)
-         {
-            case 0://BOTTOM
-               return shape0d1;
-            case 1://SOUTH
-               return shape0d1;
-            case 2://EAST
-               return shape0d0;
-            case 3://NORTH
-               return shape0d0;
-            case 4://WEST
-               return shape0d1;
-            case 5://TOP
-               return shape0d0;
-         }
+            switch (face_id)
+            {
+               case 0://BOTTOM
+                  return shape0d1;
+               case 1://SOUTH
+                  return shape0d1;
+               case 2://EAST
+                  return shape0d0;
+               case 3://NORTH
+                  return shape0d0;
+               case 4://WEST
+                  return shape0d1;
+               case 5://TOP
+                  return shape0d0;
+            }
       }
    }
 
    const Tensor2d& getB0dTest(const int face_id) const
    {
-      switch(this->dim)
+      switch (this->dim)
       {
          case 1:
-         switch(face_id)
-         {
-            case 0://WEST
-               return shape0d0;
-            case 1://EAST
-               return shape0d1;
-         }
+            switch (face_id)
+            {
+               case 0://WEST
+                  return shape0d0;
+               case 1://EAST
+                  return shape0d1;
+            }
          case 2:
-         switch(face_id)
-         {
-            case 0://SOUTH
-               return shape0d0;
-            case 1://EAST
-               return shape0d1;
-            case 2://NORTH
-               return shape0d1;
-            case 3://WEST
-               return shape0d0;
-         }
+            switch (face_id)
+            {
+               case 0://SOUTH
+                  return shape0d0;
+               case 1://EAST
+                  return shape0d1;
+               case 2://NORTH
+                  return shape0d1;
+               case 3://WEST
+                  return shape0d0;
+            }
          case 3:
-         switch(face_id)
-         {
-            case 0://BOTTOM
-               return shape0d0;
-            case 1://SOUTH
-               return shape0d0;
-            case 2://EAST
-               return shape0d1;
-            case 3://NORTH
-               return shape0d1;
-            case 4://WEST
-               return shape0d0;
-            case 5://TOP
-               return shape0d1;
-         }
+            switch (face_id)
+            {
+               case 0://BOTTOM
+                  return shape0d0;
+               case 1://SOUTH
+                  return shape0d0;
+               case 2://EAST
+                  return shape0d1;
+               case 3://NORTH
+                  return shape0d1;
+               case 4://WEST
+                  return shape0d0;
+               case 5://TOP
+                  return shape0d1;
+            }
       }
    }
 
    const Tensor2d& getG0d(const int face_id) const
    {
-      switch(this->dim)
+      switch (this->dim)
       {
          case 1:
-         switch(face_id)
-         {
-            case 0://WEST
-               return dshape0d0;
-            case 1://EAST
-               return dshape0d1;
-         }
+            switch (face_id)
+            {
+               case 0://WEST
+                  return dshape0d0;
+               case 1://EAST
+                  return dshape0d1;
+            }
          case 2:
-         switch(face_id)
-         {
-            case 0://SOUTH
-               return dshape0d0;
-            case 1://EAST
-               return dshape0d1;
-            case 2://NORTH
-               return dshape0d1;
-            case 3://WEST
-               return dshape0d0;
-         }
+            switch (face_id)
+            {
+               case 0://SOUTH
+                  return dshape0d0;
+               case 1://EAST
+                  return dshape0d1;
+               case 2://NORTH
+                  return dshape0d1;
+               case 3://WEST
+                  return dshape0d0;
+            }
          case 3:
-         switch(face_id)
-         {
-            case 0://BOTTOM
-               return dshape0d0;
-            case 1://SOUTH
-               return dshape0d0;
-            case 2://EAST
-               return dshape0d1;
-            case 3://NORTH
-               return dshape0d1;
-            case 4://WEST
-               return dshape0d0;
-            case 5://TOP
-               return dshape0d1;
-         }
+            switch (face_id)
+            {
+               case 0://BOTTOM
+                  return dshape0d0;
+               case 1://SOUTH
+                  return dshape0d0;
+               case 2://EAST
+                  return dshape0d1;
+               case 3://NORTH
+                  return dshape0d1;
+               case 4://WEST
+                  return dshape0d0;
+               case 5://TOP
+                  return dshape0d1;
+            }
       }
    }
 
    const Tensor2d& getG0dTrial(const int face_id) const
    {
-      switch(this->dim)
+      switch (this->dim)
       {
          case 1:
-         switch(face_id)
-         {
-            case 0://WEST
-               return dshape0d1;
-            case 1://EAST
-               return dshape0d0;
-         }
+            switch (face_id)
+            {
+               case 0://WEST
+                  return dshape0d1;
+               case 1://EAST
+                  return dshape0d0;
+            }
          case 2:
-         switch(face_id)
-         {
-            case 0://SOUTH
-               return dshape0d1;
-            case 1://EAST
-               return dshape0d0;
-            case 2://NORTH
-               return dshape0d0;
-            case 3://WEST
-               return dshape0d1;
-         }
+            switch (face_id)
+            {
+               case 0://SOUTH
+                  return dshape0d1;
+               case 1://EAST
+                  return dshape0d0;
+               case 2://NORTH
+                  return dshape0d0;
+               case 3://WEST
+                  return dshape0d1;
+            }
          case 3:
-         switch(face_id)
-         {
-            case 0://BOTTOM
-               return dshape0d1;
-            case 1://SOUTH
-               return dshape0d1;
-            case 2://EAST
-               return dshape0d0;
-            case 3://NORTH
-               return dshape0d0;
-            case 4://WEST
-               return dshape0d1;
-            case 5://TOP
-               return dshape0d0;
-         }
+            switch (face_id)
+            {
+               case 0://BOTTOM
+                  return dshape0d1;
+               case 1://SOUTH
+                  return dshape0d1;
+               case 2://EAST
+                  return dshape0d0;
+               case 3://NORTH
+                  return dshape0d0;
+               case 4://WEST
+                  return dshape0d1;
+               case 5://TOP
+                  return dshape0d0;
+            }
       }
    }
 
    const Tensor2d& getG0dTest(const int face_id) const
    {
-      switch(this->dim)
+      switch (this->dim)
       {
          case 1:
-         switch(face_id)
-         {
-            case 0://WEST
-               return dshape0d0;
-            case 1://EAST
-               return dshape0d1;
-         }
+            switch (face_id)
+            {
+               case 0://WEST
+                  return dshape0d0;
+               case 1://EAST
+                  return dshape0d1;
+            }
          case 2:
-         switch(face_id)
-         {
-            case 0://SOUTH
-               return dshape0d0;
-            case 1://EAST
-               return dshape0d1;
-            case 2://NORTH
-               return dshape0d1;
-            case 3://WEST
-               return dshape0d0;
-         }
+            switch (face_id)
+            {
+               case 0://SOUTH
+                  return dshape0d0;
+               case 1://EAST
+                  return dshape0d1;
+               case 2://NORTH
+                  return dshape0d1;
+               case 3://WEST
+                  return dshape0d0;
+            }
          case 3:
-         switch(face_id)
-         {
-            case 0://BOTTOM
-               return dshape0d0;
-            case 1://SOUTH
-               return dshape0d0;
-            case 2://EAST
-               return dshape0d1;
-            case 3://NORTH
-               return dshape0d1;
-            case 4://WEST
-               return dshape0d0;
-            case 5://TOP
-               return dshape0d1;
-         }
+            switch (face_id)
+            {
+               case 0://BOTTOM
+                  return dshape0d0;
+               case 1://SOUTH
+                  return dshape0d0;
+               case 2://EAST
+                  return dshape0d1;
+               case 3://NORTH
+                  return dshape0d1;
+               case 4://WEST
+                  return dshape0d0;
+               case 5://TOP
+                  return dshape0d1;
+            }
       }
    }
 
@@ -486,9 +487,9 @@ private:
 
 public:
    FaceTensorBasis(mfem::FiniteElementSpace* fes, const int order)
-   : TensorBasis<BtDB>(fes,order),
-     shape0d0(GetNDofs1d(fes),GetNQuads1d(order)),
-     shape0d1(GetNDofs1d(fes),GetNQuads1d(order))
+      : TensorBasis<BtDB>(fes,order),
+        shape0d0(GetNDofs1d(fes),GetNQuads1d(order)),
+        shape0d1(GetNDofs1d(fes),GetNQuads1d(order))
    {
       // Store the two 0d shape functions and gradients
       // in x = 0.0
@@ -499,150 +500,153 @@ public:
 
    const Tensor2d& getB0d(const int face_id) const
    {
-      switch(this->dim)
+      switch (this->dim)
       {
          case 1:
-         switch(face_id)
-         {
-            case 0://WEST
-               return shape0d0;
-            case 1://EAST
-               return shape0d1;
-         }
+            switch (face_id)
+            {
+               case 0://WEST
+                  return shape0d0;
+               case 1://EAST
+                  return shape0d1;
+            }
          case 2:
-         switch(face_id)
-         {
-            case 0://SOUTH
-               return shape0d0;
-            case 1://EAST
-               return shape0d1;
-            case 2://NORTH
-               return shape0d1;
-            case 3://WEST
-               return shape0d0;
-         }
+            switch (face_id)
+            {
+               case 0://SOUTH
+                  return shape0d0;
+               case 1://EAST
+                  return shape0d1;
+               case 2://NORTH
+                  return shape0d1;
+               case 3://WEST
+                  return shape0d0;
+            }
          case 3:
-         switch(face_id)
-         {
-            case 0://BOTTOM
-               return shape0d0;
-            case 1://SOUTH
-               return shape0d0;
-            case 2://EAST
-               return shape0d1;
-            case 3://NORTH
-               return shape0d1;
-            case 4://WEST
-               return shape0d0;
-            case 5://TOP
-               return shape0d1;
-         }
+            switch (face_id)
+            {
+               case 0://BOTTOM
+                  return shape0d0;
+               case 1://SOUTH
+                  return shape0d0;
+               case 2://EAST
+                  return shape0d1;
+               case 3://NORTH
+                  return shape0d1;
+               case 4://WEST
+                  return shape0d0;
+               case 5://TOP
+                  return shape0d1;
+            }
       }
    }
 
    const Tensor2d& getB0dTrial(const int face_id) const
    {
-      switch(this->dim)
+      switch (this->dim)
       {
          case 1:
-         switch(face_id)
-         {
-            case 0://WEST
-               return shape0d1;
-            case 1://EAST
-               return shape0d0;
-         }
+            switch (face_id)
+            {
+               case 0://WEST
+                  return shape0d1;
+               case 1://EAST
+                  return shape0d0;
+            }
          case 2:
-         switch(face_id)
-         {
-            case 0://SOUTH
-               return shape0d1;
-            case 1://EAST
-               return shape0d0;
-            case 2://NORTH
-               return shape0d0;
-            case 3://WEST
-               return shape0d1;
-         }
+            switch (face_id)
+            {
+               case 0://SOUTH
+                  return shape0d1;
+               case 1://EAST
+                  return shape0d0;
+               case 2://NORTH
+                  return shape0d0;
+               case 3://WEST
+                  return shape0d1;
+            }
          case 3:
-         switch(face_id)
-         {
-            case 0://BOTTOM
-               return shape0d1;
-            case 1://SOUTH
-               return shape0d1;
-            case 2://EAST
-               return shape0d0;
-            case 3://NORTH
-               return shape0d0;
-            case 4://WEST
-               return shape0d1;
-            case 5://TOP
-               return shape0d0;
-         }
+            switch (face_id)
+            {
+               case 0://BOTTOM
+                  return shape0d1;
+               case 1://SOUTH
+                  return shape0d1;
+               case 2://EAST
+                  return shape0d0;
+               case 3://NORTH
+                  return shape0d0;
+               case 4://WEST
+                  return shape0d1;
+               case 5://TOP
+                  return shape0d0;
+            }
       }
    }
 
    const Tensor2d& getB0dTest(const int face_id) const
    {
-      switch(this->dim)
+      switch (this->dim)
       {
          case 1:
-         switch(face_id)
-         {
-            case 0://WEST
-               return shape0d0;
-            case 1://EAST
-               return shape0d1;
-         }
+            switch (face_id)
+            {
+               case 0://WEST
+                  return shape0d0;
+               case 1://EAST
+                  return shape0d1;
+            }
          case 2:
-         switch(face_id)
-         {
-            case 0://SOUTH
-               return shape0d0;
-            case 1://EAST
-               return shape0d1;
-            case 2://NORTH
-               return shape0d1;
-            case 3://WEST
-               return shape0d0;
-         }
+            switch (face_id)
+            {
+               case 0://SOUTH
+                  return shape0d0;
+               case 1://EAST
+                  return shape0d1;
+               case 2://NORTH
+                  return shape0d1;
+               case 3://WEST
+                  return shape0d0;
+            }
          case 3:
-         switch(face_id)
-         {
-            case 0://BOTTOM
-               return shape0d0;
-            case 1://SOUTH
-               return shape0d0;
-            case 2://EAST
-               return shape0d1;
-            case 3://NORTH
-               return shape0d1;
-            case 4://WEST
-               return shape0d0;
-            case 5://TOP
-               return shape0d1;
-         }
+            switch (face_id)
+            {
+               case 0://BOTTOM
+                  return shape0d0;
+               case 1://SOUTH
+                  return shape0d0;
+               case 2://EAST
+                  return shape0d1;
+               case 3://NORTH
+                  return shape0d1;
+               case 4://WEST
+                  return shape0d0;
+               case 5://TOP
+                  return shape0d1;
+            }
       }
    }
 };
 
 
-void ScatterDofs(const mfem::FiniteElementSpace* mfes, const Table& eldof, const mfem::Array<int>& dof_map,
-                  const GridFunction* nodes, const int dofs, const int dim, const int e,
-                  Tensor<2>& LexPointMat);
+void ScatterDofs(const mfem::FiniteElementSpace* mfes, const Table& eldof,
+                 const mfem::Array<int>& dof_map,
+                 const GridFunction* nodes, const int dofs, const int dim, const int e,
+                 Tensor<2>& LexPointMat);
 
 /**
 *  Eval the Jacobian of all elements in a Finite Element Space.
 */
-void EvalJacobians( const int dim, const mfem::FiniteElementSpace* fes, const int order,
-                     Tensor<1>& J );
+void EvalJacobians( const int dim, const mfem::FiniteElementSpace* fes,
+                    const int order,
+                    Tensor<1>& J );
 
 /**
 *  Return the diagonal of a 1d Partial Assembly Operator
 */
 template <int Dim, typename Op>
-void GetDiag1d(const mfem::FiniteElementSpace& fes, const int order, const Op& op, Tensor<Dim>& diag)
+void GetDiag1d(const mfem::FiniteElementSpace& fes, const int order,
+               const Op& op, Tensor<Dim>& diag)
 {
    const int dofs1d = GetNDofs1d(fes);
    const int quads1d = GetNQuads1d(order);
@@ -660,7 +664,7 @@ void GetDiag1d(const mfem::FiniteElementSpace& fes, const int order, const Op& o
       {
          for (int i1 = 0; i1 < dofs1d; ++i1)
          {
-               diagT(i1,e) += D(j1,e) * shape1d(i1,j1) * shape1d(i1,j1);
+            diagT(i1,e) += D(j1,e) * shape1d(i1,j1) * shape1d(i1,j1);
          }
       }
    }
@@ -670,7 +674,8 @@ void GetDiag1d(const mfem::FiniteElementSpace& fes, const int order, const Op& o
 *  Return the diagonal of a 2d Partial Assembly Operator
 */
 template <int Dim, typename Op>
-void GetDiag2d(const mfem::FiniteElementSpace& fes, const int order, const Op& op, Tensor<Dim>& diag)
+void GetDiag2d(const mfem::FiniteElementSpace& fes, const int order,
+               const Op& op, Tensor<Dim>& diag)
 {
    const int dofs1d = GetNDofs1d(fes);
    const int quads1d = GetNQuads1d(order);
@@ -693,7 +698,7 @@ void GetDiag2d(const mfem::FiniteElementSpace& fes, const int order, const Op& o
          {
             for (int i1 = 0; i1 < dofs1d; ++i1)
             {
-                  T1(i1,j2) += D(j1,j2,e) * shape1d(i1,j1) * shape1d(i1,j1);
+               T1(i1,j2) += D(j1,j2,e) * shape1d(i1,j1) * shape1d(i1,j1);
             }
          }
       }
@@ -703,7 +708,7 @@ void GetDiag2d(const mfem::FiniteElementSpace& fes, const int order, const Op& o
          {
             for (int i1 = 0; i1 < dofs1d; ++i1)
             {
-                  diagT(i1,i2,e) += T1(i1,j2) * shape1d(i2,j2) * shape1d(i2,j2);
+               diagT(i1,i2,e) += T1(i1,j2) * shape1d(i2,j2) * shape1d(i2,j2);
             }
          }
       }
@@ -714,7 +719,8 @@ void GetDiag2d(const mfem::FiniteElementSpace& fes, const int order, const Op& o
 *  Return the diagonal of a 3d Partial Assembly Operator
 */
 template <int Dim, typename Op>
-void GetDiag3d(const mfem::FiniteElementSpace& fes, const int order, const Op& op, Tensor<Dim>& diag)
+void GetDiag3d(const mfem::FiniteElementSpace& fes, const int order,
+               const Op& op, Tensor<Dim>& diag)
 {
    const int dofs1d = GetNDofs1d(fes);
    const int quads1d = GetNQuads1d(order);
@@ -739,7 +745,7 @@ void GetDiag3d(const mfem::FiniteElementSpace& fes, const int order, const Op& o
             {
                for (int i1 = 0; i1 < dofs1d; ++i1)
                {
-                     T1(i1,j2,j3) += D(j1,j2,j3,e) * shape1d(i1,j1) * shape1d(i1,j1);
+                  T1(i1,j2,j3) += D(j1,j2,j3,e) * shape1d(i1,j1) * shape1d(i1,j1);
                }
             }
          }
@@ -753,7 +759,7 @@ void GetDiag3d(const mfem::FiniteElementSpace& fes, const int order, const Op& o
             {
                for (int i1 = 0; i1 < dofs1d; ++i1)
                {
-                     T2(i1,i2,j3) += T1(i1,j2,j3) * shape1d(i2,j2) * shape1d(i2,j2);
+                  T2(i1,i2,j3) += T1(i1,j2,j3) * shape1d(i2,j2) * shape1d(i2,j2);
                }
             }
          }
@@ -766,7 +772,7 @@ void GetDiag3d(const mfem::FiniteElementSpace& fes, const int order, const Op& o
             {
                for (int i1 = 0; i1 < dofs1d; ++i1)
                {
-                     diagT(i1,i2,i3,e) += T2(i1,i2,j3) * shape1d(i3,j3) * shape1d(i3,j3);
+                  diagT(i1,i2,i3,e) += T2(i1,i2,j3) * shape1d(i3,j3) * shape1d(i3,j3);
                }
             }
          }
@@ -778,9 +784,10 @@ void GetDiag3d(const mfem::FiniteElementSpace& fes, const int order, const Op& o
 *  Return the diagonal of a Partial Assembly Operator
 */
 template <int Dim, typename Op>
-void GetDiag(const FiniteElementSpace& fes, const int order, const Op& op, Tensor<Dim>& diag)
+void GetDiag(const FiniteElementSpace& fes, const int order, const Op& op,
+             Tensor<Dim>& diag)
 {
-   switch(fes.GetFE(0)->GetDim())
+   switch (fes.GetFE(0)->GetDim())
    {
       case 1:
          GetDiag1d(fes, order, op, diag);

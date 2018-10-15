@@ -68,11 +68,13 @@ public:
    {
       return mfem::Vector(static_cast<T*>(data) + offset, size);
    }
-   const mfem::DenseMatrix GetMatrixView(const int offset, const int height, const int width) const
+   const mfem::DenseMatrix GetMatrixView(const int offset, const int height,
+                                         const int width) const
    {
       return mfem::DenseMatrix(static_cast<T*>(data) + offset, height, width);
    }
-   const mfem::DenseTensor GetTensorView(const int offset, const int i, const int j, const int k) const
+   const mfem::DenseTensor GetTensorView(const int offset, const int i,
+                                         const int j, const int k) const
    {
       return mfem::DenseTensor(static_cast<T*>(data) + offset, i, j, k);
       // return mfem::DenseTensor().UseExternalData(data+offset,i,j,k);
@@ -88,7 +90,8 @@ template<typename T>
 PVector* Vector<T>::DoVectorClone(bool copy_data, void **buffer,
                                   int buffer_type_id) const
 {
-   MFEM_ASSERT(buffer_type_id == ScalarId<T>::value, "The buffer has a different type.");
+   MFEM_ASSERT(buffer_type_id == ScalarId<T>::value,
+               "The buffer has a different type.");
    Layout& lt = static_cast<Layout&>(*layout);
    Vector<T> *new_vector = new Vector<T>(lt);
    if (copy_data)
@@ -106,7 +109,8 @@ template<typename T>
 void Vector<T>::DoDotProduct(const PVector &x, void *result,
                              int result_type_id) const
 {
-   MFEM_ASSERT(result_type_id == ScalarId<T>::value, "The buffer has a different type.");
+   MFEM_ASSERT(result_type_id == ScalarId<T>::value,
+               "The buffer has a different type.");
    const T* data_v1 = this->GetData();
    const T* data_v2 = x.As<Vector<T>>().GetData();
    T& result_d = *static_cast<T*>(result);
@@ -122,10 +126,12 @@ void Vector<T>::DoAxpby(const void *a, const PVector &x,
                         const void *b, const PVector &y,
                         int ab_type_id)
 {
-   MFEM_ASSERT(ab_type_id == ScalarId<T>::value, "The buffer has a different type.");
+   MFEM_ASSERT(ab_type_id == ScalarId<T>::value,
+               "The buffer has a different type.");
    const T& va = *static_cast<const T*>(a);
    const T& vb = *static_cast<const T*>(b);
-   if (va != 0.0 && vb != 0.0) {
+   if (va != 0.0 && vb != 0.0)
+   {
       const T* vx = x.As<Vector<T>>().GetData();
       const T* vy = y.As<Vector<T>>().GetData();
       T* typed_data = GetData();
@@ -133,14 +139,18 @@ void Vector<T>::DoAxpby(const void *a, const PVector &x,
       {
          typed_data[i] = va * vx[i] + vb * vy[i];
       }
-   } else if (va == 0.0) {
+   }
+   else if (va == 0.0)
+   {
       const T* vy = y.As<Vector<T>>().GetData();
       T* typed_data = GetData();
       for (std::size_t i = 0; i < layout->Size(); ++i)
       {
          typed_data[i] = vb * vy[i];
       }
-   } else if (vb == 0.0) {
+   }
+   else if (vb == 0.0)
+   {
       const T* vx = x.As<Vector<T>>().GetData();
       T* typed_data = GetData();
       for (std::size_t i = 0; i < layout->Size(); ++i)

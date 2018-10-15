@@ -42,7 +42,8 @@ void FiniteElementSpace::BuildDofMaps()
    const int vdim = mfem_fes->GetVDim();
 
    // Now we can allocate and fill the global map
-   tensor_offsets = new mfem::Array<int>(*(new Layout(GetEngine(), global_size + 1)));
+   tensor_offsets = new mfem::Array<int>(*(new Layout(GetEngine(),
+                                                      global_size + 1)));
    tensor_indices = new mfem::Array<int>(*(new Layout(GetEngine(), local_size)));
 
    mfem::Array<int> &offsets = *tensor_offsets;
@@ -69,7 +70,9 @@ void FiniteElementSpace::BuildDofMaps()
             {
                global_map[offset + dofs*vd + i] = elem_vdof[dofs*vd + i];
             }
-      }else{
+      }
+      else
+      {
          for (int vd = 0; vd < vdim; vd++)
             for (int i = 0; i < vdofs; i++)
             {
@@ -119,9 +122,10 @@ void FiniteElementSpace::BuildDofMaps()
 }
 
 /// Convert an E vector to L vector
-void FiniteElementSpace::ToLVector(const Vector<double>& e_vector, Vector<double>& l_vector)
+void FiniteElementSpace::ToLVector(const Vector<double>& e_vector,
+                                   Vector<double>& l_vector)
 {
-   if (tensor_indices == NULL) BuildDofMaps();
+   if (tensor_indices == NULL) { BuildDofMaps(); }
 
    if (l_vector.Size() != (std::size_t) GetFESpace()->GetVSize())
    {
@@ -129,8 +133,10 @@ void FiniteElementSpace::ToLVector(const Vector<double>& e_vector, Vector<double
    }
 
    const int lsize = l_vector.Size();
-   const int *offsets = tensor_offsets->Get_PArray()->As<Array>().GetTypedData<int>();
-   const int *indices = tensor_indices->Get_PArray()->As<Array>().GetTypedData<int>();
+   const int *offsets =
+      tensor_offsets->Get_PArray()->As<Array>().GetTypedData<int>();
+   const int *indices =
+      tensor_indices->Get_PArray()->As<Array>().GetTypedData<int>();
 
    const double *e_data = e_vector.GetData();
    double *l_data = l_vector.GetData();
@@ -149,9 +155,10 @@ void FiniteElementSpace::ToLVector(const Vector<double>& e_vector, Vector<double
 }
 
 /// Covert an L vector to E vector
-void FiniteElementSpace::ToEVector(const Vector<double>& l_vector, Vector<double>& e_vector)
+void FiniteElementSpace::ToEVector(const Vector<double>& l_vector,
+                                   Vector<double>& e_vector)
 {
-   if (tensor_indices == NULL) BuildDofMaps();
+   if (tensor_indices == NULL) { BuildDofMaps(); }
 
    if (e_vector.Size() != (std::size_t) e_layout.Size())
    {
@@ -159,8 +166,10 @@ void FiniteElementSpace::ToEVector(const Vector<double>& l_vector, Vector<double
    }
 
    const int lsize = l_vector.Size();
-   const int *offsets = tensor_offsets->Get_PArray()->As<Array>().GetTypedData<int>();
-   const int *indices = tensor_indices->Get_PArray()->As<Array>().GetTypedData<int>();
+   const int *offsets =
+      tensor_offsets->Get_PArray()->As<Array>().GetTypedData<int>();
+   const int *indices =
+      tensor_indices->Get_PArray()->As<Array>().GetTypedData<int>();
 
    const double *l_data = l_vector.GetData();
    double *e_data = e_vector.GetData();

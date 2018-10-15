@@ -96,7 +96,7 @@ void RK4Solver::Init(TimeDependentOperator &_f)
    ODESolver::Init(_f);
    int n = f->Width();
 #ifdef MFEM_USE_BACKENDS
-   const DLayout& in_layout = f->InLayout(); 
+   const DLayout& in_layout = f->InLayout();
    if (in_layout)
    {
       y.Resize(in_layout);
@@ -475,8 +475,20 @@ void SDIRK34Solver::Step(Vector &x, double &t, double &dt)
 void SDIRK33Solver::Init(TimeDependentOperator &_f)
 {
    ODESolver::Init(_f);
-   k.SetSize(f->Width());
-   y.SetSize(f->Width());
+#ifdef MFEM_USE_BACKENDS
+   const DLayout &in_layout = _f.InLayout();
+   if (in_layout)
+   {
+      k.Resize(in_layout);
+      y.Resize(in_layout);
+   }
+   else
+#endif
+   {
+      const int n = f->Width();
+      k.SetSize(n);
+      y.SetSize(n);
+   }
 }
 
 void SDIRK33Solver::Step(Vector &x, double &t, double &dt)
@@ -492,16 +504,20 @@ void SDIRK33Solver::Step(Vector &x, double &t, double &dt)
 
    f->SetTime(t + a*dt);
    f->ImplicitSolve(a*dt, x, k);
-   add(x, (c-a)*dt, k, y);
-   x.Add(b*dt, k);
+   // add(x, (c-a)*dt, k, y);
+   y.Axpby(1.0, x, (c-a)*dt, k);
+   // x.Add(b*dt, k);
+   x.Axpby(1.0, x, b*dt, k);
 
    f->SetTime(t + c*dt);
    f->ImplicitSolve(a*dt, y, k);
-   x.Add((1.-a-b)*dt, k);
+   // x.Add((1.-a-b)*dt, k);
+   x.Axpby(1.0, x, (1.-a-b)*dt, k);
 
    f->SetTime(t + dt);
    f->ImplicitSolve(a*dt, x, k);
-   x.Add(a*dt, k);
+   // x.Add(a*dt, k);
+   x.Axpby(1.0, x, a*dt, k);
    t += dt;
 }
 

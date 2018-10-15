@@ -80,14 +80,14 @@ DVector Engine::MakeVector(PLayout &layout, int type_id) const
    Layout *lt = static_cast<Layout *>(&layout);
    switch (type_id)
    {
-   case ScalarId<double>::value:
-      return DVector(new Vector<double>(*lt));
-   case ScalarId<std::complex<double>>::value:
-      return DVector(new Vector<std::complex<double>>(*lt));
-   // case ScalarId<int>::value:
-   //    return DVector(new Vector<int>(*lt));
-   default:
-      mfem_error("Invalid type_id");
+      case ScalarId<double>::value:
+         return DVector(new Vector<double>(*lt));
+      case ScalarId<std::complex<double>>::value:
+         return DVector(new Vector<std::complex<double>>(*lt));
+      // case ScalarId<int>::value:
+      //    return DVector(new Vector<int>(*lt));
+      default:
+         mfem_error("Invalid type_id");
    }
 }
 

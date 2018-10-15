@@ -688,7 +688,7 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    else
 #endif
    {
-      if (A.Type() == Operator::MFEM_SPARSEMAT)
+      if (A.Type() == Operator::MFEM_SPARSEMAT || A.Type() == Operator::ANY_TYPE)
       {
          SparseMatrix A_sm;
          FormLinearSystem(ess_tdof_list, x, b, A_sm, X, B, copy_interior);
@@ -724,7 +724,7 @@ void BilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
    else
 #endif
    {
-      if (A.Type() == Operator::MFEM_SPARSEMAT)
+      if (A.Type() == Operator::MFEM_SPARSEMAT || A.Type() == Operator::ANY_TYPE)
       {
          SparseMatrix A_sm;
          FormSystemMatrix(ess_tdof_list, A_sm);
@@ -847,7 +847,7 @@ void BilinearForm::ComputeElementMatrices()
 }
 
 void BilinearForm::EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
-                                        Vector &sol, Vector &rhs,
+                                        const Vector &sol, Vector &rhs,
                                         DiagonalPolicy dpolicy)
 {
    Array<int> ess_dofs, conf_ess_dofs;
@@ -899,7 +899,7 @@ void BilinearForm::EliminateEssentialBCDiag (const Array<int> &bdr_attr_is_ess,
 }
 
 void BilinearForm::EliminateVDofs(const Array<int> &vdofs,
-                                  Vector &sol, Vector &rhs,
+                                  const Vector &sol, Vector &rhs,
                                   DiagonalPolicy dpolicy)
 {
    for (int i = 0; i < vdofs.Size(); i++)
@@ -939,7 +939,8 @@ void BilinearForm::EliminateVDofs(const Array<int> &vdofs,
 }
 
 void BilinearForm::EliminateEssentialBCFromDofs(
-   const Array<int> &ess_dofs, Vector &sol, Vector &rhs, DiagonalPolicy dpolicy)
+   const Array<int> &ess_dofs, const Vector &sol, Vector &rhs,
+   DiagonalPolicy dpolicy)
 {
    MFEM_ASSERT(ess_dofs.Size() == height, "incorrect dof Array size");
    MFEM_ASSERT(sol.Size() == height, "incorrect sol Vector size");
@@ -1232,7 +1233,7 @@ void MixedBilinearForm::ConformingAssemble()
 }
 
 void MixedBilinearForm::EliminateTrialDofs (
-   Array<int> &bdr_attr_is_ess, Vector &sol, Vector &rhs )
+   Array<int> &bdr_attr_is_ess, const Vector &sol, Vector &rhs )
 {
    int i, j, k;
    Array<int> tr_vdofs, cols_marker (trial_fes -> GetVSize());
@@ -1255,7 +1256,7 @@ void MixedBilinearForm::EliminateTrialDofs (
 }
 
 void MixedBilinearForm::EliminateEssentialBCFromTrialDofs (
-   Array<int> &marked_vdofs, Vector &sol, Vector &rhs)
+   Array<int> &marked_vdofs, const Vector &sol, Vector &rhs)
 {
    mat -> EliminateCols (marked_vdofs, &sol, &rhs);
 }

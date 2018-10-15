@@ -24,10 +24,12 @@ namespace pa
 BilinearForm::~BilinearForm()
 {
    // Make sure all integrators free their data
-   for (int i = 0; i < tbfi.Size(); i++) delete tbfi[i];
+   for (int i = 0; i < tbfi.Size(); i++) { delete tbfi[i]; }
 }
 
-void BilinearForm::TransferIntegrators(mfem::Array<mfem::BilinearFormIntegrator*>& bfi) {
+void BilinearForm::TransferIntegrators(
+   mfem::Array<mfem::BilinearFormIntegrator*>& bfi)
+{
    for (int i = 0; i < bfi.Size(); i++)
    {
       mfem::FiniteElementSpace* fes = bform->FESpace();
@@ -46,14 +48,19 @@ void BilinearForm::TransferIntegrators(mfem::Array<mfem::BilinearFormIntegrator*
          MassIntegrator* integ = dynamic_cast<MassIntegrator*>(bfi[i]);
          Coefficient* coef;
          integ->GetParameters(coef);
-         if (coef) {
+         if (coef)
+         {
             std::cout << "==> with Coefficient" << std::endl;
             typename MassEquation::ArgsCoeff args(*coef);
-            AddIntegrator( new PADomainInt<MassEquation, Vector<double>>(fes, ir_order, args) );
-         } else {
+            AddIntegrator( new PADomainInt<MassEquation, Vector<double>>(fes, ir_order,
+                                                                         args) );
+         }
+         else
+         {
             std::cout << "==> without Coefficient" << std::endl;
             typename MassEquation::ArgsEmpty args;
-            AddIntegrator( new PADomainInt<MassEquation, Vector<double>>(fes, ir_order, args) );
+            AddIntegrator( new PADomainInt<MassEquation, Vector<double>>(fes, ir_order,
+                                                                         args) );
          }
       }
       else if (integ_name == "diffusion")
@@ -63,7 +70,9 @@ void BilinearForm::TransferIntegrators(mfem::Array<mfem::BilinearFormIntegrator*
          Coefficient* coef;
          integ->GetParameters(coef);
          typename DiffusionEquation::Args args(*coef);
-         AddIntegrator( new PADomainInt<DiffusionEquation, Vector<double>, TensorDomainMult>(fes, ir_order, args) );
+         AddIntegrator( new
+                        PADomainInt<DiffusionEquation, Vector<double>, TensorDomainMult>(fes, ir_order,
+                                                                                         args) );
       }
       else if (integ_name == "convection")
       {
@@ -73,7 +82,8 @@ void BilinearForm::TransferIntegrators(mfem::Array<mfem::BilinearFormIntegrator*
          double* alpha;
          integ->GetParameters(u, alpha);
          typename DGConvectionEquation::Args args(*u, *alpha);
-         AddIntegrator( new PADomainInt<DGConvectionEquation, Vector<double>>(fes, ir_order, args) );
+         AddIntegrator( new PADomainInt<DGConvectionEquation, Vector<double>>(fes,
+                                                                              ir_order, args) );
       }
       else if (integ_name == "transpose")
       {
@@ -92,7 +102,8 @@ void BilinearForm::TransferIntegrators(mfem::Array<mfem::BilinearFormIntegrator*
             double* beta;
             integ->GetParameters(rho, u, alpha, beta);
             typename DGConvectionEquation::Args args(*u, -(*alpha), *beta);
-            AddIntegrator( new PAFaceInt<DGConvectionEquation, Vector<double>>(fes, ir_order, args) );
+            AddIntegrator( new PAFaceInt<DGConvectionEquation, Vector<double>>(fes,
+                                                                               ir_order, args) );
          }
          else
          {
@@ -151,11 +162,11 @@ void BilinearForm::InitRHS(const mfem::Array<int> &ess_tdof_list,
 
       const std::size_t num_constraint = constraint_list.Size();
 
-      for (std::size_t i = 0; i < num_constraint; i++) subvec_data[i] = X_data[constraint_data[i]];
+      for (std::size_t i = 0; i < num_constraint; i++) { subvec_data[i] = X_data[constraint_data[i]]; }
 
       X.Fill(0.0);
 
-      for (std::size_t i = 0; i < num_constraint; i++) X_data[constraint_data[i]] = subvec_data[i];
+      for (std::size_t i = 0; i < num_constraint; i++) { X_data[constraint_data[i]] = subvec_data[i]; }
    }
 
    if (A.Type() == mfem::Operator::ANY_TYPE)
@@ -187,7 +198,7 @@ void BilinearForm::FormSystemMatrix(const mfem::Array<int> &ess_tdof_list,
       const mfem::Operator *P = GetProlongation();
 
       mfem::Operator *rap = this;
-      if (P != NULL) rap = new mfem::RAPOperator(*P, *this, *P);
+      if (P != NULL) { rap = new mfem::RAPOperator(*P, *this, *P); }
 
       A.Reset(new ConstrainedOperator(rap, ess_tdof_list, (rap != this)));
    }
@@ -206,7 +217,8 @@ void BilinearForm::FormLinearSystem(const mfem::Array<int> &ess_tdof_list,
    InitRHS(ess_tdof_list, x, b, A, X, B, copy_interior);
 }
 
-void BilinearForm::RecoverFEMSolution(const mfem::Vector &X, const mfem::Vector &b,
+void BilinearForm::RecoverFEMSolution(const mfem::Vector &X,
+                                      const mfem::Vector &b,
                                       mfem::Vector &x)
 {
    const mfem::Operator *P = GetProlongation();
@@ -225,7 +237,6 @@ void BilinearForm::Mult(const mfem::Vector &x, mfem::Vector &y) const
 
    y_local.Fill<double>(0.0);
    for (int i = 0; i < tbfi.Size(); i++) tbfi[i]->MultAdd(x_local, y_local);
-   // for (int i = 0; i < pabfi.Size(); i++) pabfi[i]->MultAdd(x_local, y_local);
 
    test_fes->ToLVector(y_local, y.Get_PVector()->As<Vector<double>>());
 }
@@ -235,12 +246,13 @@ void BilinearForm::MultTranspose(const mfem::Vector &x, mfem::Vector &y) const
 
 
 ConstrainedOperator::ConstrainedOperator(mfem::Operator *A_,
-      const mfem::Array<int> &constraint_list_,
-      bool own_A_)
+                                         const mfem::Array<int> &constraint_list_,
+                                         bool own_A_)
    : Operator(A_->InLayout()->As<Layout>()),
      A(A_),
      own_A(own_A_),
-     constraint_list(*InLayout()->GetEngine().MakeLayout(constraint_list_.Size()).As<Layout>(), sizeof(int)),
+     constraint_list(*InLayout()->GetEngine().MakeLayout(
+                        constraint_list_.Size()).As<Layout>(), sizeof(int)),
      z(OutLayout()->As<Layout>()),
      w(OutLayout()->As<Layout>()),
      mfem_z((z.DontDelete(), z)),
@@ -249,7 +261,8 @@ ConstrainedOperator::ConstrainedOperator(mfem::Operator *A_,
    constraint_list.PushData(constraint_list_.GetData());
 }
 
-void ConstrainedOperator::EliminateRHS(const mfem::Vector &mfem_x, mfem::Vector &mfem_b) const
+void ConstrainedOperator::EliminateRHS(const mfem::Vector &mfem_x,
+                                       mfem::Vector &mfem_b) const
 {
    w.Fill<double>(0.0);
 
@@ -266,7 +279,9 @@ void ConstrainedOperator::EliminateRHS(const mfem::Vector &mfem_x, mfem::Vector 
    if (num_constraint > 0)
    {
       for (std::size_t i = 0; i < num_constraint; i++)
+      {
          w_data[constraint_data[i]] = x_data[constraint_data[i]];
+      }
    }
 
    A->Mult(mfem_w, mfem_z);
@@ -276,11 +291,14 @@ void ConstrainedOperator::EliminateRHS(const mfem::Vector &mfem_x, mfem::Vector 
    if (num_constraint > 0)
    {
       for (std::size_t i = 0; i < num_constraint; i++)
+      {
          b_data[constraint_data[i]] = x_data[constraint_data[i]];
+      }
    }
 }
 
-void ConstrainedOperator::Mult(const mfem::Vector &mfem_x, mfem::Vector &mfem_y) const
+void ConstrainedOperator::Mult(const mfem::Vector &mfem_x,
+                               mfem::Vector &mfem_y) const
 {
    if (constraint_list.Size() == 0)
    {
@@ -302,20 +320,24 @@ void ConstrainedOperator::Mult(const mfem::Vector &mfem_x, mfem::Vector &mfem_y)
 
    // z[constraint_list] = 0.0
    for (std::size_t i = 0; i < num_constraint; i++)
+   {
       z_data[constraint_data[i]] = 0.0;
+   }
 
    // y = A * z
    A->Mult(mfem_z, mfem_y);
 
    // y[constraint_list] = x[constraint_list]
    for (std::size_t i = 0; i < num_constraint; i++)
+   {
       y_data[constraint_data[i]] = x_data[constraint_data[i]];
+   }
 }
 
 // Destructor: destroys the unconstrained Operator @a A if @a own_A is true.
 ConstrainedOperator::~ConstrainedOperator()
 {
-   if (own_A) delete A;
+   if (own_A) { delete A; }
 }
 
 

@@ -178,13 +178,14 @@ class OccaGridFunctionParameter : public OccaParameter
 {
 private:
    const std::string name;
-   OccaGridFunction &gf;
+   mfem::GridFunction &gf;
    Vector gfQuad;
    bool useRestrict;
 
 public:
    OccaGridFunctionParameter(const std::string &name_,
-                             OccaGridFunction &gf_,
+                             const Engine &e,
+                             mfem::GridFunction &gf_,
                              const bool useRestrict_ = false);
 
    virtual OccaParameter* Clone();
@@ -219,6 +220,8 @@ private:
 
 public:
    OccaCoefficient(const Engine &e, const double value = 1.0);
+   OccaCoefficient(const Engine &e, mfem::GridFunction &gf,
+                   const bool useRestrict = false);
    OccaCoefficient(const Engine &e, const std::string &source);
    OccaCoefficient(const Engine &e, const char *source);
    ~OccaCoefficient();
@@ -263,7 +266,7 @@ public:
                               const bool useRestrict = false);
 
    OccaCoefficient& AddGridFunction(const std::string &name_,
-                                    OccaGridFunction &gf,
+                                    mfem::GridFunction &gf,
                                     const bool useRestrict = false);
 
    bool IsConstant();

@@ -23,14 +23,14 @@ namespace pa
 
 void Layout::Resize(std::size_t new_size)
 {
-	size = new_size;
+   size = new_size;
 }
 
 void Layout::Resize(const Array<std::size_t> &offsets)
 {
-	MFEM_ASSERT(offsets.Size() == 2,
-	            "multiple workers are not supported yet");
-	size = offsets.Last();
+   MFEM_ASSERT(offsets.Size() == 2,
+               "multiple workers are not supported yet");
+   size = offsets.Last();
 }
 
 } // namespace mfem::pa

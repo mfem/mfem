@@ -14,17 +14,20 @@ int main(int argc, char *argv[])
    const char *spec = "cpu";
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
+   int ref_levels = -1;
    bool static_cond = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&spec, "-s", "--spec",
-                  "Compute resurce specification.");
+                  "Compute resource specification.");
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&ref_levels, "-r", "--refine-levels",
+                  "Number of uniform refinements to apply to the mesh.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -38,24 +41,39 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
+#ifdef MFEM_USE_BACKENDS
    /// Engine *engine = EngineDepot.Select(spec);
    // string occa_spec("mode: 'Serial'");
    // string occa_spec("mode: 'CUDA', deviceID: 0");
    // string occa_spec("mode: 'OpenMP', threads: 4");
    // string occa_spec("mode: 'OpenCL', deviceID: 0, platformID: 0");
-   string pa_spec("Hello world");
 
    // SharedPtr<Engine> engine(new mfem::occa::Engine(occa_spec));
    // SharedPtr<Engine> engine(new mfem::pa::Engine("hello world"));
    SharedPtr<Engine> engine(new mfem::pa::Engine());
 
+   // string occa_spec("mode: 'Serial'");
+   // string occa_spec("mode: 'CUDA', device_id: 0");
+   // string occa_spec("mode: 'OpenMP', threads: 4");
+   // string occa_spec("mode: 'OpenCL', device_id: 0, platform_id: 0");
+
+   // The following flag affects only 'Serial' and 'OpenMP' modes.
+   // In 'CUDA' mode, '-O3' affects only host code.
+   // In 'OpenCL' mode, adding '-O3' breaks compilation.
+   // occa_spec += ", kernel: { compiler_flags: '-O3' }";
+
+   //SharedPtr<Engine> engine(new mfem::occa::Engine(occa_spec));
+#endif
+
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
+#ifdef MFEM_USE_BACKENDS
    mesh->SetEngine(*engine);
-   mesh->SetCurvature(1);
-   
+   mesh->SetCurvature(1);//FIXME
+
+#endif
    int dim = mesh->Dimension();
 
    // 3. Refine the mesh to increase the resolution. In this example we do
@@ -63,8 +81,8 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+      ref_levels = ref_levels >= 0 ? ref_levels :
+                   (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -142,7 +160,8 @@ int main(int argc, char *argv[])
    cout << " Initialization time: " << tic_toc.RealTime() << "s." << endl;
    tic_toc.Clear();
    tic_toc.Start();
-   CG(*A.Ptr(), B, X, 3, 1000, 1e-12, 0.0);
+   const int print_level = 3;
+   CG(*A.Ptr(), B, X, print_level, 1000, 1e-12, 0.0);
    tic_toc.Stop();
    cout << " Computation time: " << tic_toc.RealTime() << "s." << endl;
 

@@ -11,60 +11,65 @@
 
 #include "facekernels.hpp"
 
-namespace mfem{
+namespace mfem
+{
 
-namespace pa{
+namespace pa
+{
 
-void Permutation::Permutation2d(int face_id, int nbe, int dofs1d, const Tensor3d& T0, Tensor3d& T0p) const
+void Permutation::Permutation2d(int face_id, int nbe, int dofs1d,
+                                const Tensor3d& T0, Tensor3d& T0p) const
 {
    for (int e = 0; e < nbe; ++e)
    {
       const int trial = kernel_data(e,face_id).indirection;
       const int permutation = kernel_data(e,face_id).permutation;
-      if(trial!=-1)
+      if (trial!=-1)
       {
-         switch(permutation)
+         switch (permutation)
          {
-         case 0:
-            for (int i2 = 0; i2 < dofs1d; ++i2)
-            {
-               for (int i1 = 0; i1 < dofs1d; ++i1)
+            case 0:
+               for (int i2 = 0; i2 < dofs1d; ++i2)
                {
-                  T0p(i1,i2,e) = T0(i1,i2,trial);
+                  for (int i1 = 0; i1 < dofs1d; ++i1)
+                  {
+                     T0p(i1,i2,e) = T0(i1,i2,trial);
+                  }
                }
-            }
-            break;
-         case 1:
-            for (int i2 = 0, j1 = dofs1d-1; i2 < dofs1d; ++i2, --j1)
-            {
-               for (int i1 = 0, j2 = 0; i1 < dofs1d; ++i1, ++j2)
+               break;
+            case 1:
+               for (int i2 = 0, j1 = dofs1d-1; i2 < dofs1d; ++i2, --j1)
                {
-                  T0p(i1,i2,e) = T0(j1,j2,trial);
+                  for (int i1 = 0, j2 = 0; i1 < dofs1d; ++i1, ++j2)
+                  {
+                     T0p(i1,i2,e) = T0(j1,j2,trial);
+                  }
                }
-            }
-            break;
-         case 2:
-            for (int i2 = 0, j2 = dofs1d-1; i2 < dofs1d; ++i2, --j2)
-            {
-               for (int i1 = 0, j1 = dofs1d-1; i1 < dofs1d; ++i1, --j1)
+               break;
+            case 2:
+               for (int i2 = 0, j2 = dofs1d-1; i2 < dofs1d; ++i2, --j2)
                {
-                  T0p(i1,i2,e) = T0(j1,j2,trial);
+                  for (int i1 = 0, j1 = dofs1d-1; i1 < dofs1d; ++i1, --j1)
+                  {
+                     T0p(i1,i2,e) = T0(j1,j2,trial);
+                  }
                }
-            }
-            break;
-         case 3:
-            for (int i2 = 0, j1 = 0; i2 < dofs1d; ++i2, ++j1)
-            {
-               for (int i1 = 0, j2 = dofs1d-1; i1 < dofs1d; ++i1, --j2)
+               break;
+            case 3:
+               for (int i2 = 0, j1 = 0; i2 < dofs1d; ++i2, ++j1)
                {
-                  T0p(i1,i2,e) = T0(j1,j2,trial);
+                  for (int i1 = 0, j2 = dofs1d-1; i1 < dofs1d; ++i1, --j2)
+                  {
+                     T0p(i1,i2,e) = T0(j1,j2,trial);
+                  }
                }
-            }
-            break;
-         default:
-            mfem_error("This permutation id does not exist in 2D");
+               break;
+            default:
+               mfem_error("This permutation id does not exist in 2D");
          }
-      }else{
+      }
+      else
+      {
          for (int i2 = 0; i2 < dofs1d; ++i2)
          {
             for (int i1 = 0; i1 < dofs1d; ++i1)
@@ -79,7 +84,8 @@ void Permutation::Permutation2d(int face_id, int nbe, int dofs1d, const Tensor3d
 /**
 *  The Permutation3d works differently than the 2d version, here we receive a change of basis matrix encrypted in one integer.
 */
-void Permutation::Permutation3d(int face_id, int nbe, int dofs1d, const Tensor4d& T0, Tensor4d& T0p) const
+void Permutation::Permutation3d(int face_id, int nbe, int dofs1d,
+                                const Tensor4d& T0, Tensor4d& T0p) const
 {
    const double* U = T0.getData();
    int elt, ii, jj, kk;
@@ -93,9 +99,12 @@ void Permutation::Permutation3d(int face_id, int nbe, int dofs1d, const Tensor4d
          elt = trial*step_elt;
          IntMatrix P(3,3);
          GetChangeOfBasis(permutation, P);
-         int begin_ii = (P(0,0)==-1)*(dofs1d-1) + (P(1,0)==-1)*(dofs1d*dofs1d-1) + (P(2,0)==-1)*(dofs1d*dofs1d*dofs1d-1);
-         int begin_jj = (P(0,1)==-1)*(dofs1d-1) + (P(1,1)==-1)*(dofs1d*dofs1d-1) + (P(2,1)==-1)*(dofs1d*dofs1d*dofs1d-1);
-         int begin_kk = (P(0,2)==-1)*(dofs1d-1) + (P(1,2)==-1)*(dofs1d*dofs1d-1) + (P(2,2)==-1)*(dofs1d*dofs1d*dofs1d-1);
+         int begin_ii = (P(0,0)==-1)*(dofs1d-1) + (P(1,0)==-1)*(dofs1d*dofs1d-1) + (P(2,
+                                                                                      0)==-1)*(dofs1d*dofs1d*dofs1d-1);
+         int begin_jj = (P(0,1)==-1)*(dofs1d-1) + (P(1,1)==-1)*(dofs1d*dofs1d-1) + (P(2,
+                                                                                      1)==-1)*(dofs1d*dofs1d*dofs1d-1);
+         int begin_kk = (P(0,2)==-1)*(dofs1d-1) + (P(1,2)==-1)*(dofs1d*dofs1d-1) + (P(2,
+                                                                                      2)==-1)*(dofs1d*dofs1d*dofs1d-1);
          int step_ii  = P(0,0) + P(1,0)*dofs1d + P(2,0)*dofs1d*dofs1d;
          int step_jj  = P(0,1) + P(1,1)*dofs1d + P(2,1)*dofs1d*dofs1d;
          int step_kk  = P(0,2) + P(1,2)*dofs1d + P(2,2)*dofs1d*dofs1d;

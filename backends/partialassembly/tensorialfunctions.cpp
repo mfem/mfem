@@ -28,13 +28,14 @@ namespace mfem
 namespace pa
 {
 
-void ScatterDofs(const mfem::FiniteElementSpace* mfes, const Table& eldof, const mfem::Array<int>& dof_map,
-                  const GridFunction* nodes, const int dofs, const int dim, const int e,
-                  Tensor<2>& LexPointMat)
+void ScatterDofs(const mfem::FiniteElementSpace* mfes, const Table& eldof,
+                 const mfem::Array<int>& dof_map,
+                 const GridFunction* nodes, const int dofs, const int dim, const int e,
+                 Tensor<2>& LexPointMat)
 {
    if (dof_map.Size()==0)
    {
-      if(mfes->GetOrdering()==Ordering::byVDIM)
+      if (mfes->GetOrdering()==Ordering::byVDIM)
       {
          for (int i = 0; i < dofs; ++i)
          {
@@ -43,7 +44,9 @@ void ScatterDofs(const mfem::FiniteElementSpace* mfes, const Table& eldof, const
                LexPointMat(j,i) = (*nodes)( ( e*dofs + i )*dim + j );
             }
          }
-      }else{
+      }
+      else
+      {
          for (int i = 0; i < dofs; ++i)
          {
             for (int j = 0; j < dim; ++j)
@@ -52,8 +55,10 @@ void ScatterDofs(const mfem::FiniteElementSpace* mfes, const Table& eldof, const
             }
          }
       }
-   }else{
-      if(mfes->GetOrdering()==Ordering::byVDIM)
+   }
+   else
+   {
+      if (mfes->GetOrdering()==Ordering::byVDIM)
       {
          for (int i = 0; i < dofs; ++i)
          {
@@ -63,20 +68,24 @@ void ScatterDofs(const mfem::FiniteElementSpace* mfes, const Table& eldof, const
                LexPointMat(j,i) = (*nodes)(eldof.GetJ()[ e*dofs + pivot ]*dim + j);
             }
          }
-      }else{
+      }
+      else
+      {
          for (int i = 0; i < dofs; ++i)
          {
             const int pivot = dof_map[i];
             for (int j = 0; j < dim; ++j)
             {
-               LexPointMat(j,i) = (*nodes)(eldof.GetJ()[ e*dofs + pivot ] + j*mfes->GetNDofs());
+               LexPointMat(j,i) = (*nodes)(eldof.GetJ()[ e*dofs + pivot ] +
+                                           j*mfes->GetNDofs());
             }
          }
       }
-   }   
+   }
 }
 
-static void EvalJacobians1D(const mfem::FiniteElementSpace* fes, const int order, Tensor<1>& J)
+static void EvalJacobians1D(const mfem::FiniteElementSpace* fes,
+                            const int order, Tensor<1>& J)
 {
    const int dim = 1;
 
@@ -87,7 +96,8 @@ static void EvalJacobians1D(const mfem::FiniteElementSpace* fes, const int order
    const TensorBasisElement* tfe = dynamic_cast<const TensorBasisElement*>(fe);
    const mfem::Array<int>& dof_map = tfe->GetDofMap();
    const GridFunction* nodes = mesh->GetNodes();
-   Tensor<2> shape1d(GetNDofs1d(mfes),GetNQuads1d(order)), dshape1d(GetNDofs1d(mfes),GetNQuads1d(order));
+   Tensor<2> shape1d(GetNDofs1d(mfes),GetNQuads1d(order)),
+          dshape1d(GetNDofs1d(mfes),GetNQuads1d(order));
    ComputeBasis1d( fe, order, shape1d, dshape1d );
 
    const int NE = fes->GetNE();
@@ -118,7 +128,8 @@ static void EvalJacobians1D(const mfem::FiniteElementSpace* fes, const int order
    }
 }
 
-static void EvalJacobians2D(const mfem::FiniteElementSpace* fes, const int order, Tensor<1>& J)
+static void EvalJacobians2D(const mfem::FiniteElementSpace* fes,
+                            const int order, Tensor<1>& J)
 {
    const int dim = 2;
 
@@ -129,7 +140,8 @@ static void EvalJacobians2D(const mfem::FiniteElementSpace* fes, const int order
    const TensorBasisElement* tfe = dynamic_cast<const TensorBasisElement*>(fe);
    const mfem::Array<int>& dof_map = tfe->GetDofMap();
    const GridFunction* nodes = mesh->GetNodes();
-   Tensor<2> shape1d(GetNDofs1d(mfes),GetNQuads1d(order)), dshape1d(GetNDofs1d(mfes),GetNQuads1d(order));
+   Tensor<2> shape1d(GetNDofs1d(mfes),GetNQuads1d(order)),
+          dshape1d(GetNDofs1d(mfes),GetNQuads1d(order));
    ComputeBasis1d( fe, order, shape1d, dshape1d );
 
    const int NE = mfes->GetNE();
@@ -179,7 +191,8 @@ static void EvalJacobians2D(const mfem::FiniteElementSpace* fes, const int order
    }
 }
 
-static void EvalJacobians3D(const mfem::FiniteElementSpace* fes, const int order, Tensor<1>& J)
+static void EvalJacobians3D(const mfem::FiniteElementSpace* fes,
+                            const int order, Tensor<1>& J)
 {
    const int dim = 3;
 
@@ -190,7 +203,8 @@ static void EvalJacobians3D(const mfem::FiniteElementSpace* fes, const int order
    const TensorBasisElement* tfe = dynamic_cast<const TensorBasisElement*>(fe);
    const mfem::Array<int>& dof_map = tfe->GetDofMap();
    const GridFunction* nodes = mesh->GetNodes();
-   Tensor<2> shape1d(GetNDofs1d(mfes),GetNQuads1d(order)), dshape1d(GetNDofs1d(mfes),GetNQuads1d(order));
+   Tensor<2> shape1d(GetNDofs1d(mfes),GetNQuads1d(order)),
+          dshape1d(GetNDofs1d(mfes),GetNQuads1d(order));
    ComputeBasis1d( fe, order, shape1d, dshape1d );
 
    const int NE = fes->GetNE();
@@ -205,7 +219,8 @@ static void EvalJacobians3D(const mfem::FiniteElementSpace* fes, const int order
 
    Tensor<4> T0(LexPointMat.getData(),dim,dofs1d,dofs1d,dofs1d);
    Tensor<2> T1b(dim,quads1d), T1d(dim,quads1d);
-   Tensor<3> T2bb(dim,quads1d,quads1d), T2db(dim,quads1d,quads1d), T2bd(dim,quads1d,quads1d);
+   Tensor<3> T2bb(dim,quads1d,quads1d), T2db(dim,quads1d,quads1d), T2bd(dim,
+                                                                        quads1d,quads1d);
    for (int e = 0; e < NE; ++e)
    {
       // Modifies T0 in the same time...
@@ -263,10 +278,11 @@ static void EvalJacobians3D(const mfem::FiniteElementSpace* fes, const int order
    }
 }
 
-void EvalJacobians( const int dim, const mfem::FiniteElementSpace* fes, const int order,
-                     Tensor<1>& J )
+void EvalJacobians( const int dim, const mfem::FiniteElementSpace* fes,
+                    const int order,
+                    Tensor<1>& J )
 {
-   switch(dim)
+   switch (dim)
    {
       case 1:
          EvalJacobians1D( fes, order, J );

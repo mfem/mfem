@@ -59,7 +59,8 @@ namespace pa
 template < typename Equation, typename Vector = mfem::Vector,
            template<typename, PAOp, typename> class IMPL = DomainMult>
 class PADomainInt
-   : public TensorBilinearFormIntegrator, public IMPL<Equation, Equation::OpName, Vector>
+   : public TensorBilinearFormIntegrator,
+     public IMPL<Equation, Equation::OpName, Vector>
 {
 private:
    typedef IMPL<Equation, Equation::OpName, Vector> Op;
@@ -108,10 +109,10 @@ public:
       int dim = this->fes->GetFE(0)->GetDim();
       switch (dim)
       {
-      case 1: this->Mult1d(u, v); break;
-      case 2: this->Mult2d(u, v); break;
-      case 3: this->Mult3d(u, v); break;
-      default: mfem_error("More than # dimension not yet supported"); break;
+         case 1: this->Mult1d(u, v); break;
+         case 2: this->Mult2d(u, v); break;
+         case 3: this->Mult3d(u, v); break;
+         default: mfem_error("More than # dimension not yet supported"); break;
       }
    }
 
@@ -130,7 +131,8 @@ public:
 template <typename Equation, typename Vector = mfem::Vector,
           template<typename, PAOp, typename> class IMPL = FaceMult>
 class PAFaceInt
-   : public TensorBilinearFormIntegrator, public IMPL<Equation, Equation::FaceOpName, Vector>
+   : public TensorBilinearFormIntegrator,
+     public IMPL<Equation, Equation::FaceOpName, Vector>
 {
 private:
    typedef IMPL<Equation, Equation::FaceOpName, Vector> Op;
@@ -146,10 +148,11 @@ public:
       const int nb_elts = fes->GetNE();
       const int nb_faces_elt = 2 * dim;
       int geom;
-      switch (dim) {
-      case 1: geom = Geometry::POINT; break;
-      case 2: geom = Geometry::SEGMENT; break;
-      case 3: geom = Geometry::SQUARE; break;
+      switch (dim)
+      {
+         case 1: geom = Geometry::POINT; break;
+         case 2: geom = Geometry::SEGMENT; break;
+         case 3: geom = Geometry::SQUARE; break;
       }
       const IntegrationRule& ir = IntRules.Get(geom, order);
       const int quads  = ir.GetNPoints();
@@ -163,20 +166,20 @@ public:
       int dim = this->fes->GetFE(0)->GetDim();
       switch (dim)
       {
-      case 1:
-         mfem_error("Not yet implemented");
-         break;
-      case 2:
-         this->EvalInt2D(u, v);
-         this->EvalExt2D(u, v);
-         break;
-      case 3:
-         this->EvalInt3D(u, v);
-         this->EvalExt3D(u, v);
-         break;
-      default:
-         mfem_error("Face Kernel does not exist for this dimension.");
-         break;
+         case 1:
+            mfem_error("Not yet implemented");
+            break;
+         case 2:
+            this->EvalInt2D(u, v);
+            this->EvalExt2D(u, v);
+            break;
+         case 3:
+            this->EvalInt3D(u, v);
+            this->EvalExt3D(u, v);
+            break;
+         default:
+            mfem_error("Face Kernel does not exist for this dimension.");
+            break;
       }
    }
 
@@ -193,10 +196,11 @@ private:
       // const int nb_faces_elt = 2 * dim;
       const int nb_faces = mesh->GetNumFaces();
       int geom;
-      switch (dim) {
-      case 1: geom = Geometry::POINT; break;
-      case 2: geom = Geometry::SEGMENT; break;
-      case 3: geom = Geometry::SQUARE; break;
+      switch (dim)
+      {
+         case 1: geom = Geometry::POINT; break;
+         case 2: geom = Geometry::SEGMENT; break;
+         case 3: geom = Geometry::SQUARE; break;
       }
       const IntegrationRule& ir = IntRules.Get(geom, order);
       const int quads  = ir.GetNPoints();
@@ -207,7 +211,8 @@ private:
       // !!! Should not be recomputed... !!!
       Tensor<1> Jac1D(dim * dim * quads * quads1d * nb_elts);
       EvalJacobians(dim, fes, order, Jac1D);
-      Tensor<4> Jac(Jac1D.getData(), dim, dim, quads * quads1d, nb_elts); // Creating a view
+      Tensor<4> Jac(Jac1D.getData(), dim, dim, quads * quads1d,
+                    nb_elts); // Creating a view
       // !!!                             !!!
       // We have a per face approach for the fluxes
       for (int face = 0; face < nb_faces; ++face)
@@ -215,19 +220,22 @@ private:
          int ind_elt1, ind_elt2;
          int face_id1, face_id2;
          int nb_rot1, nb_rot2;
-         GetFaceInfo(mesh, face, ind_elt1, ind_elt2, face_id1, face_id2, nb_rot1, nb_rot2);
+         GetFaceInfo(mesh, face, ind_elt1, ind_elt2, face_id1, face_id2, nb_rot1,
+                     nb_rot2);
          FaceElementTransformations* face_tr = mesh->GetFaceElementTransformations(face);
          int perm1, perm2;
          // cout << "ind_elt1=" << ind_elt1 << ", face_id1=" << face_id1 << ", nb_rot1=" << nb_rot1 << ", ind_elt2=" << ind_elt2 << ", face_id2=" << face_id2 << ", nb_rot2=" << nb_rot2 << endl;
          for (int kf = 0; kf < quads; ++kf)
          {
             const IntegrationPoint& ip = ir.IntPoint(kf);
-            if (ind_elt2 != -1) { //Not a boundary face
+            if (ind_elt2 != -1)   //Not a boundary face
+            {
                Tensor<1, int> ind_f1(dim - 1), ind_f2(dim - 1);
                // We compute the lexicographical index on each face
                int k1 = GetFaceQuadIndex(dim, face_id1, nb_rot1, kf, quads1d, ind_f1);
                int k2 = GetFaceQuadIndex(dim, face_id2, nb_rot2, kf, quads1d, ind_f2);
-               this->initFaceData(dim, ind_elt1, face_id1, nb_rot1, perm1, ind_elt2, face_id2, nb_rot2, perm2);
+               this->initFaceData(dim, ind_elt1, face_id1, nb_rot1, perm1, ind_elt2, face_id2,
+                                  nb_rot2, perm2);
                face_tr->Face->SetIntPoint( &ip );
                IntegrationPoint eip1;
                face_tr->Loc1.Transform(ip, eip1);
@@ -242,8 +250,11 @@ private:
                Tensor<2> Adj(dim, dim);
                adjugate(J_e1, Adj);
                calcOrtho( Adj, face_id1, normal); // normal*determinant (risky, bug prone)
-               this->evalEq(dim, k1, k2, n, ind_elt1, face_id1, ind_elt2, face_id2, face_tr, eip1, eip2, J_e1, J_e2, args);
-            } else { //Boundary face
+               this->evalEq(dim, k1, k2, n, ind_elt1, face_id1, ind_elt2, face_id2, face_tr,
+                            eip1, eip2, J_e1, J_e2, args);
+            }
+            else     //Boundary face
+            {
                this->initBoundaryFaceData(ind_elt1, face_id1);
                // TODO: Something should be done here when there is boundary conditions!
                // D11(ind) = 0;

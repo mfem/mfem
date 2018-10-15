@@ -40,13 +40,15 @@ class DiffusionEquation
 public:
    static const PAOp OpName = GtDG;
 
-   struct Args {
+   struct Args
+   {
       Args(Coefficient& q) : q(q) {}
       Coefficient& q;
    };
 
-   void evalD(Tensor<2>& res, ElementTransformation *Tr, const IntegrationPoint& ip,
-                  const Tensor<2>& Jac, const Args& args)
+   void evalD(Tensor<2>& res, ElementTransformation *Tr,
+              const IntegrationPoint& ip,
+              const Tensor<2>& Jac, const Args& args)
    {
       const int dim = res.size(0);
       Tensor<2> Adj(dim,dim);
@@ -71,7 +73,7 @@ public:
 };
 
 /**
-*	A class that describes the Convection Equation using DG for Partial Assembly.
+*  A class that describes the Convection Equation using DG for Partial Assembly.
 */
 class DGConvectionEquation
 {
@@ -84,7 +86,8 @@ public:
    /**
    *  Defines the variables needed to build D for the Domain kernel
    */
-   struct Args {
+   struct Args
+   {
       Args(VectorCoefficient& _q, double _a, double _b = 0.0) : q(_q), a(_a), b(_b) {}
       VectorCoefficient& q;
       double a;
@@ -94,8 +97,9 @@ public:
    /**
    *  Returns the values of the D tensor at a given integration Point.
    */
-   void evalD(Tensor<1>& res, ElementTransformation *Tr, const IntegrationPoint& ip,
-                  const Tensor<2>& Jac, const Args& args)
+   void evalD(Tensor<1>& res, ElementTransformation *Tr,
+              const IntegrationPoint& ip,
+              const Tensor<2>& Jac, const Args& args)
    {
       const int dim = res.size(0);
       mfem::Vector qvec(dim);
@@ -123,10 +127,10 @@ public:
    *  each element over a face.
    */
    void evalFaceD(double& res11, double& res21, double& res22, double& res12,
-      const FaceElementTransformations* face_tr, const mfem::Vector& normal,
-      const IntegrationPoint& ip1, const IntegrationPoint& ip2,
-      const Tensor<2>& Jac1, const Tensor<2>& Jac2,
-      const Args& args)
+                  const FaceElementTransformations* face_tr, const mfem::Vector& normal,
+                  const IntegrationPoint& ip1, const IntegrationPoint& ip2,
+                  const Tensor<2>& Jac1, const Tensor<2>& Jac2,
+                  const Args& args)
    {
       const int dim = normal.Size();
       mfem::Vector qvec(dim);
@@ -139,7 +143,7 @@ public:
       res21 = ip1.weight * (   a/2 * res - b * abs(res) );
       res22 = ip1.weight * ( - a/2 * res + b * abs(res) );
       res12 = ip1.weight * ( - a/2 * res - b * abs(res) );
-   }  
+   }
 };
 
 /**
@@ -150,10 +154,10 @@ class MassEquation
 public:
    static const PAOp OpName = BtDB;
 
-   struct ArgsEmpty{};
+   struct ArgsEmpty {};
 
    void evalD(double& res, ElementTransformation* Tr, const IntegrationPoint& ip,
-               const Tensor<2>& Jac, const ArgsEmpty& args)
+              const Tensor<2>& Jac, const ArgsEmpty& args)
    {
       res = ip.weight * det(Jac);
    }
@@ -165,13 +169,13 @@ public:
    };
 
    void evalD(double& res, ElementTransformation* Tr, const IntegrationPoint& ip,
-               const Tensor<2>& Jac, const ArgsCoeff& args)
+              const Tensor<2>& Jac, const ArgsCoeff& args)
    {
       res = args.coeff.Eval(*Tr, ip) * ip.weight * det(Jac);
    }
 
    void evalD(double& res, ElementTransformation* Tr, const IntegrationPoint& ip,
-               const Tensor<2>& Jac, Coefficient& coeff)
+              const Tensor<2>& Jac, Coefficient& coeff)
    {
       res = coeff.Eval(*Tr, ip) * ip.weight * det(Jac);
    }

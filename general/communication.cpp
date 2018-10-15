@@ -324,6 +324,14 @@ void GroupTopology::Load(istream &in)
    Create(integer_sets, 823);
 }
 
+void GroupTopology::Copy(GroupTopology& copy) const
+{
+   copy.SetComm(MyComm);
+   group_lproc.Copy(copy.group_lproc);
+   groupmaster_lproc.Copy(copy.groupmaster_lproc);
+   lproc_proc.Copy(copy.lproc_proc);
+   group_mgroup.Copy(copy.group_mgroup);
+}
 
 // Initialize the static mpi_type for the specializations of MPITypeMap:
 const MPI_Datatype MPITypeMap<int>::mpi_type = MPI_INT;
@@ -503,6 +511,78 @@ void GroupCommunicator::SetLTDofTable(const Array<int> &ldof_ltdof)
       }
    }
    group_ltdof.ShiftUpI();
+}
+
+void GroupCommunicator::GetNeighborLTDofTable(Table &nbr_ltdof) const
+{
+   nbr_ltdof.MakeI(nbr_send_groups.Size());
+   for (int nbr = 1; nbr < nbr_send_groups.Size(); nbr++)
+   {
+      const int num_send_groups = nbr_send_groups.RowSize(nbr);
+      if (num_send_groups > 0)
+      {
+         const int *grp_list = nbr_send_groups.GetRow(nbr);
+         for (int i = 0; i < num_send_groups; i++)
+         {
+            const int group = grp_list[i];
+            const int nltdofs = group_ltdof.RowSize(group);
+            nbr_ltdof.AddColumnsInRow(nbr, nltdofs);
+         }
+      }
+   }
+   nbr_ltdof.MakeJ();
+   for (int nbr = 1; nbr < nbr_send_groups.Size(); nbr++)
+   {
+      const int num_send_groups = nbr_send_groups.RowSize(nbr);
+      if (num_send_groups > 0)
+      {
+         const int *grp_list = nbr_send_groups.GetRow(nbr);
+         for (int i = 0; i < num_send_groups; i++)
+         {
+            const int group = grp_list[i];
+            const int nltdofs = group_ltdof.RowSize(group);
+            const int *ltdofs = group_ltdof.GetRow(group);
+            nbr_ltdof.AddConnections(nbr, ltdofs, nltdofs);
+         }
+      }
+   }
+   nbr_ltdof.ShiftUpI();
+}
+
+void GroupCommunicator::GetNeighborLDofTable(Table &nbr_ldof) const
+{
+   nbr_ldof.MakeI(nbr_recv_groups.Size());
+   for (int nbr = 1; nbr < nbr_recv_groups.Size(); nbr++)
+   {
+      const int num_recv_groups = nbr_recv_groups.RowSize(nbr);
+      if (num_recv_groups > 0)
+      {
+         const int *grp_list = nbr_recv_groups.GetRow(nbr);
+         for (int i = 0; i < num_recv_groups; i++)
+         {
+            const int group = grp_list[i];
+            const int nldofs = group_ldof.RowSize(group);
+            nbr_ldof.AddColumnsInRow(nbr, nldofs);
+         }
+      }
+   }
+   nbr_ldof.MakeJ();
+   for (int nbr = 1; nbr < nbr_recv_groups.Size(); nbr++)
+   {
+      const int num_recv_groups = nbr_recv_groups.RowSize(nbr);
+      if (num_recv_groups > 0)
+      {
+         const int *grp_list = nbr_recv_groups.GetRow(nbr);
+         for (int i = 0; i < num_recv_groups; i++)
+         {
+            const int group = grp_list[i];
+            const int nldofs = group_ldof.RowSize(group);
+            const int *ldofs = group_ldof.GetRow(group);
+            nbr_ldof.AddConnections(nbr, ldofs, nldofs);
+         }
+      }
+   }
+   nbr_ldof.ShiftUpI();
 }
 
 template <class T>

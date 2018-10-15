@@ -156,18 +156,18 @@ int main(int argc, char *argv[])
 
    cout << "Size of linear system: " << A.Height() << endl;
 
-// #ifndef MFEM_USE_SUITESPARSE
-//    // 10. Define a simple symmetric Gauss-Seidel preconditioner and use it to
-//    //     solve the system A X = B with PCG.
-//    GSSmoother M(A);
-//    PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
-// #else
-//    // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-//    UMFPackSolver umf_solver;
-//    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-//    umf_solver.SetOperator(A);
-//    umf_solver.Mult(B, X);
-// #endif
+   // #ifndef MFEM_USE_SUITESPARSE
+   //    // 10. Define a simple symmetric Gauss-Seidel preconditioner and use it to
+   //    //     solve the system A X = B with PCG.
+   //    GSSmoother M(A);
+   //    PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
+   // #else
+   //    // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+   //    UMFPackSolver umf_solver;
+   //    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
+   //    umf_solver.SetOperator(A);
+   //    umf_solver.Mult(B, X);
+   // #endif
    tic_toc.Stop();
    cout << " Initialization time: " << tic_toc.RealTime() << "s." << endl;
    tic_toc.Clear();
