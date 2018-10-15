@@ -83,6 +83,8 @@ bool HiopOptimizationProblem::eval_f(const long long &n, const double *x,
 {
    MFEM_ASSERT(n == ntdofs_glob, "Global input mismatch.");
 
+   if (new_x) { constr_info_is_current = false; }
+
    Vector x_vec(ntdofs_loc);
    x_vec = x;
    obj_value = problem.CalcObjective(x_vec);
@@ -99,6 +101,8 @@ bool HiopOptimizationProblem::eval_grad_f(const long long &n, const double *x,
                                           bool new_x, double *gradf)
 {
    MFEM_ASSERT(n == ntdofs_glob, "Global input mismatch.");
+
+   if (new_x) { constr_info_is_current = false; }
 
    Vector x_vec(ntdofs_loc), gradf_vec(ntdofs_loc);
    x_vec = x;
@@ -190,8 +194,7 @@ bool HiopOptimizationProblem::get_vecdistrib_info(long long global_n,
 
 void HiopOptimizationProblem::UpdateConstrValsGrads(const Vector x)
 {
-   // TODO uncommenting this changes the results (bug).
-   // if (constr_info_is_current) { return; }
+   if (constr_info_is_current) { return; }
 
    int cheight = 0;
    if (problem.C)
