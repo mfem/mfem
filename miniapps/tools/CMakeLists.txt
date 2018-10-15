@@ -19,3 +19,9 @@ add_mfem_miniapp(load-dc
 
 add_mfem_miniapp(convert-dc
   MAIN convert-dc.cpp LIBRARIES mfem)
+
+add_mfem_miniapp(check-1st-ti
+  MAIN check-1st-ti.cpp LIBRARIES mfem)
+
+add_mfem_miniapp(check-2nd-ti
+  MAIN check-2nd-ti.cpp LIBRARIES mfem)
