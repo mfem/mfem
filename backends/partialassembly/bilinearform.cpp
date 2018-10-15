@@ -225,7 +225,7 @@ void BilinearForm::Mult(const mfem::Vector &x, mfem::Vector &y) const
 
    y_local.Fill<double>(0.0);
    for (int i = 0; i < tbfi.Size(); i++) tbfi[i]->MultAdd(x_local, y_local);
-   for (int i = 0; i < pabfi.Size(); i++) pabfi[i]->MultAdd(x_local, y_local);
+   // for (int i = 0; i < pabfi.Size(); i++) pabfi[i]->MultAdd(x_local, y_local);
 
    test_fes->ToLVector(y_local, y.Get_PVector()->As<Vector<double>>());
 }

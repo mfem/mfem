@@ -42,7 +42,7 @@ protected:
    // Virtual interface
    //
 
-   virtual Array* DoClone(bool copy_data, void **buffer,
+   virtual PArray* DoClone(bool copy_data, void **buffer,
                            std::size_t item_size) const;
 
    virtual int DoResize(PLayout &new_layout, void **buffer,

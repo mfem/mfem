@@ -41,7 +41,6 @@ protected:
    // mfem::BilinearForm *bform;
 
    mfem::Array<TensorBilinearFormIntegrator*> tbfi;
-   mfem::Array<PAIntegrator<Vector<double>>*> pabfi;
    bool has_assembled;
 
    mutable FiniteElementSpace *trial_fes, *test_fes;
@@ -67,7 +66,6 @@ public:
         // FIXME: for mixed bilinear forms
         mfem::Operator(*bf.FESpace()->GetVLayout().As<Layout>()),
         tbfi(),
-        pabfi(),
         has_assembled(false),
         trial_fes(&bf.FESpace()->Get_PFESpace()->As<FiniteElementSpace>()),
         test_fes(&bf.FESpace()->Get_PFESpace()->As<FiniteElementSpace>()),

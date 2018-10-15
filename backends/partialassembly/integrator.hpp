@@ -21,7 +21,6 @@ namespace mfem
 
 namespace pa
 {
-
 /**
 * A simple class to represent a backend partial Assembly Integrator.
 */
