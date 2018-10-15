@@ -82,9 +82,11 @@ public:
 
    virtual const mfem::Operator *GetRestrictionOperator() const {return NULL;}
 
-   virtual const mfem::Operator *GetInterpolationOperator(const mfem::QuadratureSpace &qspace) const {return NULL;}
+   virtual const mfem::Operator *GetInterpolationOperator(const
+                                                          mfem::QuadratureSpace &qspace) const {return NULL;}
 
-   virtual const mfem::Operator *GetGradientOperator(const mfem::QuadratureSpace &qspace) const {return NULL;}
+   virtual const mfem::Operator *GetGradientOperator(const mfem::QuadratureSpace
+                                                     &qspace) const {return NULL;}
 };
 
 } // namespace mfem::pa
