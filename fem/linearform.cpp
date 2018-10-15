@@ -193,11 +193,6 @@ LinearForm & LinearForm::operator=(const Vector &v)
    return *this;
 }
 
-LinearForm & LinearForm::operator=(const LinearForm &v)
-{
-   return this->operator=((const Vector &)v);
-}
-
 LinearForm::~LinearForm()
 {
    int k;

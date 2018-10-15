@@ -82,10 +82,6 @@ public:
    ParGridFunction &operator=(const Vector &v)
    { GridFunction::operator=(v); return *this; }
 
-   /// Copy the data from a ParGridFunction to the ParGridFunction data.
-   ParGridFunction &operator=(const ParGridFunction &v)
-   { GridFunction::operator=(v); return *this; }
-
    ParFiniteElementSpace *ParFESpace() const { return pfes; }
 
    virtual void Update();
