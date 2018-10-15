@@ -480,9 +480,6 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
       y_max(i) = (y_max(i) - x(i) ) / dt;
    }
 
-   y_min -= 1e-6;
-   y_max -= (-1e-6);
-
    // Compute the high-order solution y = M^{-1} (K x + b).
    K.Mult(x, z);
    z += b;
