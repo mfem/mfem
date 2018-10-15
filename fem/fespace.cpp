@@ -1812,8 +1812,9 @@ void FiniteElementSpace::Save(std::ostream &out) const
       const double eps = 5e-14;
       nurbs_unit_weights = (NURBSext->GetWeights().Min() >= 1.0-eps &&
                             NURBSext->GetWeights().Max() <= 1.0+eps);
-      if (NURBSext->GetOrder() == NURBSFECollection::VariableOrder ||
-          (NURBSext != mesh->NURBSext && !nurbs_unit_weights))
+      if ((NURBSext->GetOrder() == NURBSFECollection::VariableOrder) ||
+          (NURBSext != mesh->NURBSext && !nurbs_unit_weights) ||
+          (NURBSext->GetMaster().Size() != 0 ))
       {
          fes_format = 100; // v1.0 format
       }
@@ -1842,6 +1843,13 @@ void FiniteElementSpace::Save(std::ostream &out) const
             out << "NURBS_orders\n";
             // 1 = do not write the size, just the entries:
             NURBSext->GetOrders().Save(out, 1);
+         }
+         // If periodic BCs are given write connectivity
+         if (NURBSext->GetMaster().Size() != 0 )
+         {
+            out <<"NURBS_periodic\n";
+            NURBSext->GetMaster().Save(out);
+            NURBSext->GetSlave().Save(out);
          }
          // If the weights are not unit, write them to the output:
          if (!nurbs_unit_weights)
@@ -1920,6 +1928,13 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
                NURBSext = new NURBSExtension(m->NURBSext, orders);
             }
          }
+         else if (buff == "NURBS_periodic")
+         {
+            Array<int> master, slave;
+            master.Load(input);
+            slave.Load(input);
+            NURBSext->ConnectBoundaries(master,slave);
+         }
          else if (buff == "NURBS_weights")
          {
             MFEM_VERIFY(NURBSext, "NURBS_weights: NURBS_orders have to be "
@@ -1944,7 +1959,6 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
    }
 
    Constructor(m, NURBSext, r_fec, vdim, ord);
-
    return r_fec;
 }
 
