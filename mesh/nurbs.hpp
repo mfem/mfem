@@ -182,9 +182,9 @@ protected:
    Array<KnotVector *> knotVectors;
    Vector weights;
 
-   // periodic BC info
-   //  dof 2 dof map
-   //  master and slave boundary indices
+   // periodic BC info:
+   // - dof 2 dof map
+   // - master and slave boundary indices
    Array<int> d_to_d;
    Array<int> master;
    Array<int> slave;
@@ -312,7 +312,7 @@ public:
    /// Construct a NURBSExtension by merging a partitioned NURBS mesh
    NURBSExtension(Mesh *mesh_array[], int num_pieces);
 
-   // generate connections between boundaries -- such as periodic BCs
+   // Generate connections between boundaries, such as periodic BCs
    void ConnectBoundaries(Array<int> &master, Array<int> &slave);
    const Array<int> &GetMaster() const { return  master; };
    Array<int> &GetMaster()  { return  master; };

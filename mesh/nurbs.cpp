@@ -1228,7 +1228,6 @@ NURBSExtension::NURBSExtension(const NURBSExtension &orig)
    {
       patches[p] = new NURBSPatch(*orig.patches[p]);
    }
-
 }
 
 NURBSExtension::NURBSExtension(std::istream &input)
@@ -1382,9 +1381,8 @@ NURBSExtension::NURBSExtension(std::istream &input)
       }
    }
 
-   // Periodic
+   // periodic
    ConnectBoundaries();
-
 }
 
 NURBSExtension::NURBSExtension(NURBSExtension *parent, int newOrder)
@@ -1432,7 +1430,7 @@ NURBSExtension::NURBSExtension(NURBSExtension *parent, int newOrder)
    weights.SetSize(GetNDof());
    weights = 1.0;
 
-   // Periodic
+   // periodic
    parent->master.Copy(master);
    parent->slave.Copy(slave);
    ConnectBoundaries();
@@ -1534,7 +1532,6 @@ NURBSExtension::NURBSExtension(Mesh *mesh_array[], int num_pieces)
 
    weights.SetSize(GetNDof());
    MergeWeights(mesh_array, num_pieces);
-
 }
 
 NURBSExtension::~NURBSExtension()
@@ -1626,14 +1623,12 @@ void NURBSExtension::PrintCharacteristics(std::ostream &out) const
    out << endl;
 }
 
-
 void NURBSExtension::InitDofMap()
 {
    master.SetSize(0);
    slave.SetSize(0);
    d_to_d.SetSize(0);
 }
-
 
 void NURBSExtension::ConnectBoundaries(Array<int> &bnds0, Array<int> &bnds1)
 {
@@ -1743,7 +1738,6 @@ void NURBSExtension::ConnectBoundaries2D(int bnd0, int bnd1)
    {
       d_to_d[i] = tmp[d_to_d[i]];
    }
-
 }
 
 void NURBSExtension::ConnectBoundaries3D(int bnd0, int bnd1)
@@ -1844,9 +1838,6 @@ void NURBSExtension::ConnectBoundaries3D(int bnd0, int bnd1)
       d_to_d[i] = tmp[d_to_d[i]];
    }
 }
-
-
-
 
 void NURBSExtension::GenerateActiveVertices()
 {
@@ -2514,6 +2505,7 @@ void NURBSExtension::Generate2DElementDofTable()
    for (int p = 0; p < GetNP(); p++)
    {
       p2g.SetPatchDofMap(p, kv);
+
       // Load dofs
       const int ord0 = kv[0]->GetOrder();
       const int ord1 = kv[1]->GetOrder();
@@ -2540,6 +2532,7 @@ void NURBSExtension::Generate2DElementDofTable()
                      el_to_patch[el] = p;
                      el_to_IJK(el,0) = i;
                      el_to_IJK(el,1) = j;
+
                      el++;
                   }
                   eg++;
@@ -2861,7 +2854,6 @@ void NURBSExtension::SetKnotsFromPatches()
 
 void NURBSExtension::LoadSolution(std::istream &input, GridFunction &sol) const
 {
-
    const FiniteElementSpace *fes = sol.FESpace();
    MFEM_VERIFY(fes->GetNURBSext() == this, "");
 
@@ -2900,7 +2892,6 @@ void NURBSExtension::LoadSolution(std::istream &input, GridFunction &sol) const
 void NURBSExtension::PrintSolution(const GridFunction &sol, std::ostream &out)
 const
 {
-
    const FiniteElementSpace *fes = sol.FESpace();
    MFEM_VERIFY(fes->GetNURBSext() == this, "");
 

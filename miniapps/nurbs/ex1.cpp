@@ -19,6 +19,7 @@
 //               ex1 -m ../../data/fichera-amr.mesh
 //               ex1 -m ../../data/mobius-strip.mesh
 //               ex1 -m ../../data/mobius-strip.mesh -o -1 -sc
+//               ex1 -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2y
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
@@ -57,20 +58,15 @@ int main(int argc, char *argv[])
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
-
    args.AddOption(&per_file, "-p", "--per",
                   "Periodic BCS file.");
-
    args.AddOption(&master, "-pm", "--master",
                   "Master boundaries for periodic BCs");
-
    args.AddOption(&slave, "-ps", "--slave",
                   "Slave boundaries for periodic BCs");
-
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -164,7 +160,6 @@ int main(int argc, char *argv[])
       fec = new H1_FECollection(abs(order[0]), dim);
       own_fec = 1;
    }
-
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, NURBSext, fec);
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
