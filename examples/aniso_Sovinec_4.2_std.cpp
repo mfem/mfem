@@ -373,6 +373,7 @@ int main(int argc, char *argv[])
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
    // 2. Parse command-line options.
+   int p_min = 2;
    int p_max = 4;
    int order = 1;
    int irOrder = -1;
@@ -384,6 +385,9 @@ int main(int argc, char *argv[])
    bool visualization = false;
 
    OptionsParser args(argc, argv);
+   args.AddOption(&p_min, "-p0", "--power-min",
+                  "Number of elements in x and y directions.  "
+                  "Total number of elements is 2^p.");
    args.AddOption(&p_max, "-p", "--power",
                   "Number of elements in x and y directions.  "
                   "Total number of elements is 2^p.");
@@ -468,7 +472,7 @@ int main(int argc, char *argv[])
       b_sock.precision(8);
    }
 
-   for (int p=2; p<=p_max; p++)
+   for (int p=p_min; p<=p_max; p++)
    {
       int n = pow(2, p);
 
@@ -722,11 +726,11 @@ int main(int argc, char *argv[])
              << "\t" << err_T / TNorm() << "\t" << err_q / qNorm();
          if (prob_ == 1)
          {
-            ofs << "\t" << err_q_para << endl;
+            ofs << "\t" << err_q_para;
          }
          else
          {
-            ofs << "\t" << err_q_para / qParaNorm() << endl;
+            ofs << "\t" << err_q_para / qParaNorm();
          }
          ofs << "\t" << err_q_perp / qPerpNorm()
              << endl;
