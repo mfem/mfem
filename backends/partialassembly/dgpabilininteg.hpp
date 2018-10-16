@@ -139,10 +139,10 @@ public:
       args.q.Eval( qvec, *(face_tr->Elem1), ip1 );
       const double res = qvec * normal;
       const double a = -args.a, b = args.b;
-      res11 = ip1.weight * (   a/2 * res + b * abs(res) );
-      res21 = ip1.weight * (   a/2 * res - b * abs(res) );
-      res22 = ip1.weight * ( - a/2 * res + b * abs(res) );
-      res12 = ip1.weight * ( - a/2 * res - b * abs(res) );
+      res11 = ip1.weight * (   a/2 * res + b * fabs(res) );
+      res21 = ip1.weight * (   a/2 * res - b * fabs(res) );
+      res22 = ip1.weight * ( - a/2 * res + b * fabs(res) );
+      res12 = ip1.weight * ( - a/2 * res - b * fabs(res) );
    }
 };
 
