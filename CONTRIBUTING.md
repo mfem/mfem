@@ -367,10 +367,10 @@ Before a PR can be merged, it should satisfy the following:
    - [ ] If this is a major new feature, consider mentioning in the short summary inside `README` *(rare)*.
    - [ ] List major new classes in `doc/CodeDocumentation.dox` *(rare)*.
 - [ ] Update this checklist, if the new pull request affects it.
+- [ ] Run the unit tests and make sure they all pass `make unittest`.
 - [ ] (LLNL only) Clone the `tests` repository and run the following tests, see `mfem/tests/README.md`:
    - [ ] `compilers`
    - [ ] `memcheck`
-   - [ ] `unit-test`
    - [ ] `documentation`
 - [ ] (LLNL only) After merging:
    - [ ] Regenerate `README.html` files from companion documentation pull requests.
