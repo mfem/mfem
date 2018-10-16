@@ -1,0 +1,93 @@
+#!/bin/sh
+
+# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
+# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
+# See file COPYRIGHT for details.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability see http://mfem.googlecode.com.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the GNU Lesser General Public License (as published by the Free
+# Software Foundation) version 2.1 dated February 1999.
+
+# Set the test directory
+test_dir=$( cd "$( dirname "$0" )" && pwd )
+build_np=${MFEM_TEST_NP:-4}
+
+# Echo usage information
+case $1 in
+   -h|-help)
+      cat <<EOF
+
+   $0 [-h|-help] {mfem_dir}
+
+   where: {mfem_dir}  is the MFEM source directory [default value: ../mfem]
+          -h|-help    prints this usage information and exits
+
+   This script builds and runs the MFEM unit tests from the unit-test.code
+   sub-directory of the test directory [1].
+
+   [1] test directory = $test_dir
+
+   Optional environment variables used by this script:
+     MFEM_TEST_NP - number of processors to use for building, default: 4
+
+   Example usage: $0 ../mfem
+
+EOF
+      exit
+      ;;
+esac
+
+# Setup
+mfem_dir=$1
+if [ "$mfem_dir" = "" ]; then
+    mfem_dir="../mfem"
+fi
+shift
+cd $mfem_dir || \
+{ echo "Invalid MFEM directory: \"$mfem_dir\". Stop."; exit 1; }
+mfem_dir=`pwd`
+ext_libdirs=""
+ext_libs=""
+ext_includes=""
+
+# If we have gecko installed try to compile MFEM with it enabled
+if [ -d "../gecko" ]; then
+    echo "Building MFEM with Gecko ..."
+    ( make distclean
+      make config MFEM_USE_MPI=NO MFEM_DEBUG=YES MFEM_USE_GECKO=YES && \
+      make -j  $build_np ) > /dev/null 2>&1
+    err_code=$?
+    ext_libdirs=$ext_libdirs"-L"$mfem_dir"/../gecko/lib"
+    ext_libs=$ext_libs"-lgecko"
+    ext_includes=$ext_includes"-I"$mfem_dir"/../gecko"
+else
+    echo "Building MFEM ..."
+    ( make distclean; make debug -j $build_np ) > /dev/null 2>&1
+    err_code=$?
+fi
+if [ $err_code -ne 0 ]; then
+   echo "Building MFEM failed. Stop." 1>&2
+   exit $err_code
+fi
+
+# Build the unit tests
+echo "Building the unit tests ..."
+cd $test_dir/unit-test.code
+make clean
+make MFEM_DIR=$mfem_dir \
+   EXT_LIBDIRS=$ext_libdirs \
+   EXT_LIBS=$ext_libs \
+   EXT_INCLUDES=$ext_includes -j $build_np || \
+{ echo "Building the unit test code failed. Stop." 1>&2; exit 1; }
+
+# Run the unit tests
+echo "Running the unit tests ..."
+if ./test -d yes; then
+   echo "All unit tests succeeded."
+else
+   echo "Some unit tests failed." 1>&2
+   exit 1
+fi
