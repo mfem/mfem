@@ -249,13 +249,19 @@ class AnisoConductionCoefficient : public MatrixCoefficient
 {
 public:
    AnisoConductionCoefficient(ParGridFunction & b)
-      : MatrixCoefficient(2), b_(&b), B_(2) {}
+     : MatrixCoefficient(2), b_(&b), bCoef_(NULL), B_(2) {}
+
+   AnisoConductionCoefficient(VectorCoefficient & bCoef)
+     : MatrixCoefficient(2), b_(NULL), bCoef_(&bCoef), B_(2) {}
 
    void Eval(DenseMatrix &K, ElementTransformation &T,
              const IntegrationPoint &ip)
    {
-      b_->GetVectorValue(T.ElementNo, ip, B_);
-
+      if (b_)
+	b_->GetVectorValue(T.ElementNo, ip, B_);
+      else
+	bCoef_->Eval(B_, T, ip);
+      
       K.SetSize(2);
 
       double B2 = B_ * B_;
@@ -269,6 +275,7 @@ public:
 
 private:
    ParGridFunction * b_;
+   VectorCoefficient * bCoef_;
    Vector B_;
 };
 
@@ -328,7 +335,7 @@ void H1AnisoDiffusionSolve(int myid, const ParMesh &pmesh,
                            const IntegrationRule &ir,
                            Coefficient &QCoef,
                            MatrixCoefficient &ChiCoef,
-                           const ParGridFunction &unit_b,
+			   // const ParGridFunction &unit_b,
                            int order,
                            ParGridFunction &t,
                            ParGridFunction &q,
@@ -340,7 +347,7 @@ void H1L2AnisoDiffusionSolve(int myid, const ParMesh &pmesh,
                              const IntegrationRule &ir,
                              Coefficient &QCoef,
                              MatrixCoefficient &ChiCoef,
-                             const ParGridFunction &unit_b,
+			     // const ParGridFunction &unit_b,
                              int order,
                              ParGridFunction &t,
                              ParGridFunction &q,
@@ -351,7 +358,7 @@ void HDivAnisoDiffusionSolve(int myid, const ParMesh &pmesh,
                              const IntegrationRule &ir,
                              Coefficient &QCoef,
                              MatrixCoefficient &ChiCoef,
-                             const ParGridFunction &unit_b,
+			     // const ParGridFunction &unit_b,
                              int order,
                              ParGridFunction &t,
                              ParGridFunction &q,
@@ -666,23 +673,27 @@ int main(int argc, char *argv[])
               << irOrder << "\t" << ir->GetNPoints() << endl;
       }
 
-      AnisoConductionCoefficient ChiCoef(unit_b);
-
+      // AnisoConductionCoefficient ChiCoef(unit_b);
+      AnisoConductionCoefficient ChiCoef(BExact);
+ 
       switch (sol_type)
       {
          case 0:
             H1AnisoDiffusionSolve(myid, *pmesh, *ir, QCoef, ChiCoef,
-                                  unit_b, order,
+                                  //unit_b,
+				  order,
                                   t, q, qPara, qPerp);
             break;
          case 1:
             H1L2AnisoDiffusionSolve(myid, *pmesh, fespace_l2, *ir, QCoef, ChiCoef,
-                                    unit_b, order,
+                                    //unit_b,
+				    order,
                                     t, q, qPara, qPerp);
             break;
          case 2:
             HDivAnisoDiffusionSolve(myid, *pmesh, *ir, QCoef, ChiCoef,
-                                    unit_b, order,
+                                    // unit_b,
+				    order,
                                     t, q, qPara, qPerp);
             break;
       }
@@ -822,7 +833,7 @@ void H1AnisoDiffusionSolve(int myid, const ParMesh &pmesh,
                            const IntegrationRule &ir,
                            Coefficient &QCoef,
                            MatrixCoefficient &ChiCoef,
-                           const ParGridFunction &unit_b,
+			   // const ParGridFunction &unit_b,
                            int order,
                            ParGridFunction &t,
                            ParGridFunction &q,
@@ -944,7 +955,7 @@ void H1L2AnisoDiffusionSolve(int myid, const ParMesh &pmesh,
                              const IntegrationRule &ir,
                              Coefficient &QCoef,
                              MatrixCoefficient &ChiCoef,
-                             const ParGridFunction &unit_b,
+			     // const ParGridFunction &unit_b,
                              int order,
                              ParGridFunction &t,
                              ParGridFunction &q,
@@ -974,7 +985,8 @@ void H1L2AnisoDiffusionSolve(int myid, const ParMesh &pmesh,
       a.AddDomainIntegrator(diffInteg);
       a.Assemble();
 
-      VectorGridFunctionCoefficient unitBCoef(const_cast<ParGridFunction*>(&unit_b));
+      // VectorGridFunctionCoefficient unitBCoef(const_cast<ParGridFunction*>(&unit_b));
+      VectorFunctionCoefficient unitBCoef(2, BFunc);
       ScalarVectorProductCoefficient scaledBCoef(1.0 - chi_ratio_, unitBCoef);
       ScalarVectorProductCoefficient negUnitBCoef(-1.0, unitBCoef);
 
@@ -1118,7 +1130,7 @@ void HDivAnisoDiffusionSolve(int myid, const ParMesh &pmesh,
                              const IntegrationRule &ir,
                              Coefficient &QCoef,
                              MatrixCoefficient &ChiCoef,
-                             const ParGridFunction &unit_b,
+			     // const ParGridFunction &unit_b,
                              int order,
                              ParGridFunction &t,
                              ParGridFunction &q,
