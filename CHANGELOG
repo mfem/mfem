@@ -49,6 +49,8 @@ Version 3.4.1 (development)
   This guarantees that the shape regularity of the elements will be preserved
   under refinement.
 
+- Added element flux computation in ElasticityIntegrator.
+
 API changes
 -----------
 - In multiple places, use Geometry::Type instead of int, where appropriate.
