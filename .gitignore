@@ -169,3 +169,7 @@ miniapps/nurbs/mesh.*
 miniapps/nurbs/sol.*
 miniapps/nurbs/mode_*
 miniapps/nurbs/Example1*
+
+# Unit test binary and outputs
+test/unittest/output_meshes
+test/unittest/test
