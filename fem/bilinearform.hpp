@@ -455,7 +455,7 @@ public:
    {
       dbg("\033[7mBilinearForm %s",FA?"FA":"PA");
    }
-   ~BilinearForm() {}
+   virtual ~BilinearForm() {}
    // **************************************************************************
    void EnableStaticCondensation() {assert(false);}
    void AddDomainIntegrator(AbstractBilinearFormIntegrator *i)

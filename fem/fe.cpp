@@ -12,10 +12,13 @@
 // Finite Element classes
 
 #include "fe.hpp"
+#include "kernels/fe.hpp"
+#include "../linalg/kernels/vector.hpp"
+#include "../linalg/kernels/densemat.hpp"
+
 #include "fe_coll.hpp"
 #include "../mesh/nurbs.hpp"
 #include "bilininteg.hpp"
-#include "../linalg/kernels/vector.hpp"
 #include <cmath>
 
 namespace mfem
@@ -939,7 +942,8 @@ void VectorFiniteElement::LocalInterpolation_ND(
 PointFiniteElement::PointFiniteElement()
    : NodalFiniteElement(0, Geometry::POINT, 1, 0)
 {
-   Nodes.IntPoint(0).x = 0.0;
+   kIntRulesPointIni(Nodes.GetData());
+   //Nodes.IntPoint(0).x = 0.0;
 }
 
 void PointFiniteElement::CalcShape(const IntegrationPoint &ip,
@@ -957,8 +961,10 @@ void PointFiniteElement::CalcDShape(const IntegrationPoint &ip,
 Linear1DFiniteElement::Linear1DFiniteElement()
    : NodalFiniteElement(1, Geometry::SEGMENT, 2, 1)
 {
-   Nodes.IntPoint(0).x = 0.0;
-   Nodes.IntPoint(1).x = 1.0;
+   dbg("Linear1DFiniteElement");
+   kIntRulesLinear1DIni(Nodes.GetData());
+   //Nodes.IntPoint(0).x = 0.0;
+   //Nodes.IntPoint(1).x = 1.0;
 }
 
 void Linear1DFiniteElement::CalcShape(const IntegrationPoint &ip,
@@ -978,12 +984,15 @@ void Linear1DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 Linear2DFiniteElement::Linear2DFiniteElement()
    : NodalFiniteElement(2, Geometry::TRIANGLE, 3, 1)
 {
+   kIntRulesLinear2DIni(Nodes.GetData());
+   /*
    Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(0).y = 0.0;
    Nodes.IntPoint(1).x = 1.0;
    Nodes.IntPoint(1).y = 0.0;
    Nodes.IntPoint(2).x = 0.0;
    Nodes.IntPoint(2).y = 1.0;
+   */
 }
 
 void Linear2DFiniteElement::CalcShape(const IntegrationPoint &ip,
@@ -1005,14 +1014,15 @@ void Linear2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 BiLinear2DFiniteElement::BiLinear2DFiniteElement()
    : NodalFiniteElement(2, Geometry::SQUARE, 4, 1, FunctionSpace::Qk)
 {
-   Nodes.IntPoint(0).x = 0.0;
+   kIntRulesBiLinear2DIni(Nodes.GetData());
+   /*Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(0).y = 0.0;
    Nodes.IntPoint(1).x = 1.0;
    Nodes.IntPoint(1).y = 0.0;
    Nodes.IntPoint(2).x = 1.0;
    Nodes.IntPoint(2).y = 1.0;
    Nodes.IntPoint(3).x = 0.0;
-   Nodes.IntPoint(3).y = 1.0;
+   Nodes.IntPoint(3).y = 1.0;*/
 }
 
 void BiLinear2DFiniteElement::CalcShape(const IntegrationPoint &ip,
@@ -2329,6 +2339,7 @@ void P0QuadFiniteElement::CalcDShape(const IntegrationPoint &ip,
 Linear3DFiniteElement::Linear3DFiniteElement()
    : NodalFiniteElement(3, Geometry::TETRAHEDRON, 4, 1)
 {
+   kIntRulesLinear3DIni(Nodes.GetData());/*
    Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(0).y = 0.0;
    Nodes.IntPoint(0).z = 0.0;
@@ -2340,7 +2351,7 @@ Linear3DFiniteElement::Linear3DFiniteElement()
    Nodes.IntPoint(2).z = 0.0;
    Nodes.IntPoint(3).x = 0.0;
    Nodes.IntPoint(3).y = 0.0;
-   Nodes.IntPoint(3).z = 1.0;
+   Nodes.IntPoint(3).z = 1.0;*/
 }
 
 void Linear3DFiniteElement::CalcShape(const IntegrationPoint &ip,
@@ -2464,6 +2475,7 @@ void Quadratic3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 TriLinear3DFiniteElement::TriLinear3DFiniteElement()
    : NodalFiniteElement(3, Geometry::CUBE, 8, 1, FunctionSpace::Qk)
 {
+   kIntRulesTriLinear3DIni(Nodes.GetData());/*
    Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(0).y = 0.0;
    Nodes.IntPoint(0).z = 0.0;
@@ -2494,7 +2506,7 @@ TriLinear3DFiniteElement::TriLinear3DFiniteElement()
 
    Nodes.IntPoint(7).x = 0.0;
    Nodes.IntPoint(7).y = 1.0;
-   Nodes.IntPoint(7).z = 1.0;
+   Nodes.IntPoint(7).z = 1.0;*/
 }
 
 void TriLinear3DFiniteElement::CalcShape(const IntegrationPoint &ip,
@@ -3927,9 +3939,12 @@ LagrangeHexFiniteElement::LagrangeHexFiniteElement (int degree)
 {
    if (degree == 2)
    {
-      I = new int[Dof];
-      J = new int[Dof];
-      K = new int[Dof];
+      //I = new int[Dof];
+      I = mm::malloc<int>(Dof);
+      //J = new int[Dof];
+      J = mm::malloc<int>(Dof);
+      //K = new int[Dof];
+      K = mm::malloc<int>(Dof);
       // nodes
       I[ 0] = 0; J[ 0] = 0; K[ 0] = 0;
       I[ 1] = 1; J[ 1] = 0; K[ 1] = 0;
@@ -3964,9 +3979,12 @@ LagrangeHexFiniteElement::LagrangeHexFiniteElement (int degree)
    }
    else if (degree == 3)
    {
-      I = new int[Dof];
-      J = new int[Dof];
-      K = new int[Dof];
+      //I = new int[Dof];
+      I = mm::malloc<int>(Dof);
+      //J = new int[Dof];
+      J = mm::malloc<int>(Dof);
+      //K = new int[Dof];
+      K = mm::malloc<int>(Dof);
       // nodes
       I[ 0] = 0; J[ 0] = 0; K[ 0] = 0;
       I[ 1] = 1; J[ 1] = 0; K[ 1] = 0;
@@ -6568,6 +6586,8 @@ void Poly_1D::CalcChebyshev(const int p, const double x, double *u)
    // recursive definition, z in [-1,1]
    // T_0(z) = 1,  T_1(z) = z
    // T_{n+1}(z) = 2*z*T_n(z) - T_{n-1}(z)
+   kCalcChebyshev(p,x,u);
+/*
    double z;
    u[0] = 1.;
    if (p == 0) { return; }
@@ -6575,7 +6595,7 @@ void Poly_1D::CalcChebyshev(const int p, const double x, double *u)
    for (int n = 1; n < p; n++)
    {
       u[n+1] = 2*z*u[n] - u[n-1];
-   }
+      }*/
 }
 
 void Poly_1D::CalcChebyshev(const int p, const double x, double *u, double *d)
@@ -6645,12 +6665,14 @@ const double *Poly_1D::GetPoints(const int p, const int btype)
    {
       pts.SetSize(p + 1, NULL);
    }
-   if (pts[p] == NULL)
+   double *pts_p = kArrayInitGet(p,pts.GetData());
+   if (pts_p == NULL)
    {
-      pts[p] = mm::malloc<double>(p + 1);
-      quad_func.GivePolyPoints(p+1, pts[p], qtype);
+      double *adrs = mm::malloc<double>(p + 1);
+      kArrayInitSet(&pts_p, adrs);
+      quad_func.GivePolyPoints(p+1, pts_p, qtype);
    }
-   return pts[p];
+   return pts_p;
 }
 
 Poly_1D::Basis &Poly_1D::GetBasis(const int p, const int btype)
@@ -6683,7 +6705,8 @@ Poly_1D::~Poly_1D()
       Array<double*>& pts = *it->second;
       for ( int i = 0 ; i < pts.Size() ; ++i )
       {
-         delete [] pts[i];
+         //delete [] pts[i];
+         mm::free<double>(pts[i]);
       }
       delete it->second;
    }
@@ -7503,12 +7526,19 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
 #else
    Vector shape_x(p + 1), shape_y(p + 1), shape_l(p + 1);
 #endif
-
+   
+   printf("\n\tcp= %f %f",cp[0],cp[1]);
    // vertices
-   Nodes.IntPoint(0).Set2(cp[0], cp[0]);
-   Nodes.IntPoint(1).Set2(cp[p], cp[0]);
-   Nodes.IntPoint(2).Set2(cp[0], cp[p]);
-
+   const IntegrationPoint *ip = &Nodes.IntPoint(0);
+   //Nodes.IntPoint(0).Set2(cp[0], cp[0]);
+   kIPSetXY(ip,cp,0,cp,0,0);
+   //Nodes.IntPoint(1).Set2(cp[p], cp[0]);
+   kIPSetXY(ip,cp,p,cp,0,1);
+   //Nodes.IntPoint(2).Set2(cp[0], cp[p]);
+   kIPSetXY(ip,cp,0,cp,p,2);
+   
+   assert(p==1);
+   
    // edges
    int o = 3;
    for (int i = 1; i < p; i++)
@@ -7528,6 +7558,7 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)
       {
+         assert(false);
          const double w = cp[i] + cp[j] + cp[p-i-j];
          Nodes.IntPoint(o++).Set2(cp[i]/w, cp[j]/w);
       }
@@ -7535,20 +7566,34 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
    DenseMatrix T(Dof);
    for (int k = 0; k < Dof; k++)
    {
-      IntegrationPoint &ip = Nodes.IntPoint(k);
-      poly1d.CalcBasis(p, ip.x, shape_x);
-      poly1d.CalcBasis(p, ip.y, shape_y);
-      poly1d.CalcBasis(p, 1. - ip.x - ip.y, shape_l);
-
+      //IntegrationPoint &ip = Nodes.IntPoint(k);
+      IntegrationPoint *ip = &Nodes.IntPoint(0);
+      double ip_x = kIPGetX(ip, k);//dbg("ip_x=%f",ip_x);
+      printf("\n\tip.x=%f",ip_x);
+      poly1d.CalcBasis(p, ip_x, shape_x);
+      double ip_y = kIPGetY(ip, k);//dbg("ip_y=%f",ip_y);
+      poly1d.CalcBasis(p, ip_y, shape_y);
+      printf("\n\tip.y=%f",ip_y);
+      poly1d.CalcBasis(p, 1. - ip_x - ip_y, shape_l);
+      /*
       o = 0;
-      for (int j = 0; j <= p; j++)
+      for (int j = 0; j <= p; j++){
          for (int i = 0; i + j <= p; i++)
          {
             T(o++, k) = shape_x(i)*shape_y(j)*shape_l(p-i-j);
          }
+      }
+      */
+      kH1_TriangleElement(p, k, T.Height(),
+                          shape_x.GetData(),
+                          shape_y.GetData(),
+                          shape_l.GetData(),
+                          T.GetData());
+      
    }
-
+   T.Print();
    Ti.Factor(T);
+   assert(false);
    // mfem::out << "H1_TriangleElement(" << p << ") : "; Ti.TestInversion();
 }
 

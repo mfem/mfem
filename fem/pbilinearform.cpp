@@ -231,7 +231,7 @@ void ParBilinearForm::Assemble(int skip_zeros)
       pAllocMat();
    }
 
-   BilinearForm::Assemble(skip_zeros);
+   FABilinearForm::Assemble(skip_zeros);
 
    if (fbfi.Size() > 0)
    {
@@ -397,7 +397,7 @@ void ParBilinearForm::RecoverFEMSolution(
 
 void ParBilinearForm::Update(FiniteElementSpace *nfes)
 {
-   BilinearForm::Update(nfes);
+   FABilinearForm::Update(nfes);
 
    if (nfes)
    {

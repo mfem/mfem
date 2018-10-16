@@ -18,7 +18,7 @@ MFEM_NAMESPACE
 // *****************************************************************************
 static jmp_buf env;
 static size_t xs_shift = 0;
-static void *xs_adrs = NULL;
+//static void *xs_adrs = NULL;
 static bool test_mem_xs = false;
 
 // *****************************************************************************
@@ -37,12 +37,54 @@ void mm::Setup(void)
 }
 
 // *****************************************************************************
+// * Set global xs_adrs, save context and try read/write access it
+// *****************************************************************************
+/*__attribute__((unused))
+static void *setJmpAndTryThis(const void *adrs){
+#ifdef MFEM_DEBUG
+   if (!test_mem_xs) return (void*) adrs;
+   xs_adrs = (void*) adrs; // save to global
+   if (!setjmp(env))
+   {
+      dbg("\033[32mTrying %p...",xs_adrs);
+      volatile size_t read = *(size_t*)xs_adrs;
+      *(size_t*)xs_adrs = read;
+   }
+   else   // read from global if we hit a fault
+   {
+      dbg("\033[32mRewinding, adrs was %p",xs_adrs);
+      stk(true);
+      //assert(false);
+      exit(0);
+   }
+   dbg("ok");
+   *(size_t*)xs_adrs -= xs_shift;
+   return xs_adrs;
+#endif // MFEM_DEBUG
+}*/
+
+// *****************************************************************************
+static void *shiftBack(const void *adrs){
+   if (!test_mem_xs) return (void*) adrs;
+   void *shifted_address = ((size_t*) adrs) - xs_shift;
+   dbg("shifted_address: %p",shifted_address);
+   return  shifted_address;
+}
+
+// *****************************************************************************
 // * Add a host address, if we are in CUDA mode, allocate there too
 // * Returns the 'instant' one
 // *****************************************************************************
 void* mm::add(const void *adrs, const size_t size, const size_t size_of_T)
 {
    size_t *h_adrs = (size_t *) adrs;
+   
+   if (test_mem_xs)
+   {
+      // Shift host address to force a SIGSEGV
+      h_adrs += xs_shift;
+   }
+   
    const size_t bytes = size*size_of_T;
    const auto search = mng->find(h_adrs);
    const bool present = search != mng->end();
@@ -52,15 +94,7 @@ void* mm::add(const void *adrs, const size_t size, const size_t size_of_T)
       mfem_error("[ERROR] Trying to add already present address!");
    }
 
-   if (test_mem_xs)
-   {
-      // Shift host address to force a SIGSEGV
-      dbg("h_adrs @%p",h_adrs);
-      h_adrs += xs_shift;
-      dbg("h_adrs++ @%p",h_adrs);
-   }
-
-   //printf(" \033[31m%p(%ldo)\033[m", h_adrs, bytes);fflush(0);
+   printf("\n\t\033[31m%p (%ldo)\033[m", h_adrs, bytes);fflush(0);
    mm2dev_t &mm2dev = mng->operator[](h_adrs);
    mm2dev.host = true;
    mm2dev.bytes = bytes;
@@ -91,25 +125,33 @@ void* mm::add(const void *adrs, const size_t size, const size_t size_of_T)
 // *****************************************************************************
 // * Remove the address from the map
 // *****************************************************************************
-void mm::del(const void *adrs)
+void *mm::del(const void *adrs)
 {
+   dbg("adrs: %p",adrs);
    const auto search = mng->find(adrs);
    const bool present = search != mng->end();
    if (!present)  // should not happen
    {
       printf("\n\033[31;7m[mm::del] %p\033[m", adrs);
       assert(false); // should not happen
-      return;
+      stk(true);
+      //#warning not asserting false!
+      return (void*)adrs;
    }
-   //printf("\n\033[32;7m[mm::del] %p\033[m", adrs);
+   printf("\n\033[32;7m[mm::del] %p\033[m", adrs);fflush(0);
    // Remove element from the map
    mng->erase(adrs);
+   return shiftBack(adrs);
 }
 
 // *****************************************************************************
 bool mm::Known(const void *adrs)
 {
-   if (!adrs) {dbg("\n\033[31;7m[mm::Known] %p\033[m", adrs);} // NULL
+   if (!adrs) {
+      // mfem::Mesh::UniformRefinement comes here
+      //stk(true);
+      dbg("\n\033[31;7m[mm::Known] %p\033[m", adrs);
+   } // NULL
    const auto search = mng->find(adrs);
    const bool present = search != mng->end();
    return present;
@@ -120,25 +162,7 @@ bool mm::Known(const void *adrs)
 // *****************************************************************************
 void* mm::Adrs(const void *adrs)
 {
-
-   if (test_mem_xs)
-   {
-      xs_adrs = (void*) adrs; // save to global
-      if (!setjmp(env))
-      {
-         dbg("\033[32mTrying %p...",xs_adrs);
-         volatile size_t read = *(size_t*)xs_adrs;
-         *(size_t*)xs_adrs = read;
-      }
-      else   // read from global if we hit a fault
-      {
-         dbg("\033[32mRewinding, adrs was %p",xs_adrs);
-         assert(false);
-         //adrs -= xs_shift;
-      }
-      dbg("Looking for %p", adrs);
-   }
-
+   dbg("Looking for %p", adrs);
    const bool cuda = config::Get().Cuda();
    const auto search = mng->find(adrs);
    const bool present = search != mng->end();
@@ -146,22 +170,25 @@ void* mm::Adrs(const void *adrs)
    if (not present)
    {
       dbg("Unknown %p", adrs);
+      stk(true);
+      //#warning not asserting false!
       assert(false);
       //mfem_error("[ERROR] Trying to convert unknown address!");
+      return (void*)adrs;
    }
-
+   
    mm2dev_t &mm2dev = mng->operator[](adrs);
-   const size_t bytes = mm2dev.bytes;
    // If we are asking a known host address, just return it
    if (mm2dev.host and not cuda)
    {
-      //dbg("Returning host adrs %p\033[m", mm2dev.h_adrs);
-      return (void*)mm2dev.h_adrs;
+      dbg("Returning host adrs %p\033[m", mm2dev.h_adrs);
+      return shiftBack(mm2dev.h_adrs);
    }
    // Otherwise push it to the device if it hasn't been seen
    if (!mm2dev.d_adrs)
    {
 #ifdef __NVCC__
+      const size_t bytes = mm2dev.bytes;
       dbg("\033[32;1mPushing new address to the GPU!\033[m");
       // allocate on the device
       CUdeviceptr ptr = (CUdeviceptr) NULL;
@@ -313,11 +340,10 @@ void* mm::memcpy(void *dest, const void *src, size_t bytes)
 // *****************************************************************************
 void mm::handler(int nSignum, siginfo_t* si, void* vcontext)
 {
-   fflush(0);
    printf("\n\033[31;7;1mSegmentation fault\033[m\n");
-   ucontext_t* context = (ucontext_t*)vcontext;
-   context->uc_mcontext.gregs[REG_RIP]++;
    fflush(0);
+   //ucontext_t* context = (ucontext_t*)vcontext;
+   //context->uc_mcontext.gregs[REG_RIP]++;
    //exit(!0);
    //longjmp(env, 1);
 }

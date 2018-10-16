@@ -43,12 +43,15 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include "/home/camier1/home/stk/stk.hpp"
 
 using namespace std;
 using namespace mfem;
 
 int main(int argc, char *argv[])
 {
+   stkIni(argv[0]);
+   stk(true);
    // 1. Initialize MPI.
    int num_procs, myid;
    MPI_Init(&argc, &argv);
@@ -59,6 +62,8 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool static_cond = false;
+   bool pa = false;
+   bool gpu = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -69,6 +74,9 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
+   args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
+                  "Enable Partial Assembly.");
+   args.AddOption(&gpu, "-g", "--gpu", "-no-g", "--no-gpu", "Enable GPU.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -87,39 +95,39 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   // 3. Read the (serial) mesh from the given mesh file on all processors.  We
+   dbg("3. Read the (serial) mesh");// from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
-   // 4. Refine the serial mesh on all processors to increase the resolution. In
+   dbg("4. Refine the serial mesh on all processors");// to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
-   {
+   {/*
       int ref_levels =
          (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
-      }
+         }*/
    }
 
-   // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
+   dbg("5. Define a parallel mesh"); //by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
-   {
+   {/*
       int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
-      }
+         }*/
    }
 
-   // 6. Define a parallel finite element space on the parallel mesh. Here we
+   dbg("6. Define a parallel finite element space");// on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
    //    order < 1, we instead use an isoparametric/isogeometric space.
    FiniteElementCollection *fec;
@@ -146,7 +154,7 @@ int main(int argc, char *argv[])
       cout << "Number of finite element unknowns: " << size << endl;
    }
 
-   // 7. Determine the list of true (i.e. parallel conforming) essential
+   dbg("7. Determine the list");// of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
    //    by marking all the boundary attributes from the mesh as essential
    //    (Dirichlet) and converting them to a list of true dofs.
@@ -158,13 +166,18 @@ int main(int argc, char *argv[])
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   // 8. Set up the parallel linear form b(.) which corresponds to the
+   dbg("8. Set up the parallel linear form b(.)");// which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is
    //    (1,phi_i) where phi_i are the basis functions in fespace.
    ParLinearForm *b = new ParLinearForm(fespace);
    ConstantCoefficient one(1.0);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
+
+   dbg("mesh->SetCurvature");
+   mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
+   if (gpu) { config::Get().Cuda(true); }
+   if (pa)  { config::Get().PA(true);   }
 
    // 9. Define the solution vector x as a parallel finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
@@ -176,7 +189,8 @@ int main(int argc, char *argv[])
    //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //     domain integrator.
    ParBilinearForm *a = new ParBilinearForm(fespace);
-   a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   if (pa) { a->AddDomainIntegrator(new PADiffusionIntegrator(one)); }
+   else    { a->AddDomainIntegrator(new DiffusionIntegrator(one)); }
 
    // 11. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
@@ -185,24 +199,30 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
-   HypreParMatrix A;
    Vector B, X;
+   //Operator *A;
+   OperatorHandle A(Operator::ANY_TYPE);
+   //HypreParMatrix A;
+   //if (pa) { A = new PABilinearForm(fespace); }
+   //else    { A = new SparseMatrix(); }
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    if (myid == 0)
    {
-      cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
+      cout << "Size of linear system: " << A.Ptr()->Height() << endl;
    }
 
    // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
    //     preconditioner from hypre.
-   HypreSolver *amg = new HypreBoomerAMG(A);
-   HyprePCG *pcg = new HyprePCG(A);
-   pcg->SetTol(1e-12);
-   pcg->SetMaxIter(200);
-   pcg->SetPrintLevel(2);
-   pcg->SetPreconditioner(*amg);
-   pcg->Mult(B, X);
+   //HypreSolver *amg = new HypreBoomerAMG(A);
+   //HyprePCG *pcg = new HyprePCG(A);
+   //pcg->SetTol(1e-12);
+   //pcg->SetMaxIter(200);
+   //pcg->SetPrintLevel(2);
+   //pcg->SetPreconditioner(*amg);
+   //pcg->Mult(B, X);
+   CG(*A.Ptr(), B, X, 3, 1000, 1e-12, 0.0);
+
 
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
@@ -236,8 +256,8 @@ int main(int argc, char *argv[])
    }
 
    // 16. Free the used memory.
-   delete pcg;
-   delete amg;
+   //delete pcg;
+   //delete amg;
    delete a;
    delete b;
    delete fespace;

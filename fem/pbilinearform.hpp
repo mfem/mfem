@@ -25,7 +25,7 @@ namespace mfem
 {
 
 /// Class for parallel bilinear form
-class ParBilinearForm : public BilinearForm
+class ParBilinearForm : public FABilinearForm
 {
 protected:
    ParFiniteElementSpace *pfes;
@@ -42,12 +42,12 @@ protected:
 
 public:
    ParBilinearForm(ParFiniteElementSpace *pf)
-      : BilinearForm(pf), pfes(pf),
+      : FABilinearForm(pf), pfes(pf),
         p_mat(Operator::Hypre_ParCSR), p_mat_e(Operator::Hypre_ParCSR)
    { keep_nbr_block = false; }
 
    ParBilinearForm(ParFiniteElementSpace *pf, ParBilinearForm *bf)
-      : BilinearForm(pf, bf), pfes(pf),
+      : FABilinearForm(pf, bf), pfes(pf),
         p_mat(Operator::Hypre_ParCSR), p_mat_e(Operator::Hypre_ParCSR)
    { keep_nbr_block = false; }
 
