@@ -63,6 +63,8 @@ class ParNCMesh : public NCMesh
 public:
    ParNCMesh(MPI_Comm comm, const NCMesh& ncmesh);
 
+   ParNCMesh(const ParNCMesh &other);
+
    virtual ~ParNCMesh();
 
    /** An override of NCMesh::Refine, which is called eventually, after making
@@ -94,6 +96,9 @@ public:
    int GetNGhostEdges() const { return NGhostEdges; }
    int GetNGhostFaces() const { return NGhostFaces; }
    int GetNGhostElements() const { return NGhostElements; }
+
+   Geometry::Type GetGhostFaceGeometry(int ghost_face_id) const
+   { return Geometry::SQUARE; }
 
    // Return a list of vertices/edges/faces shared by this processor and at
    // least one other processor. These are subsets of NCMesh::<entity>_list. */

@@ -91,6 +91,7 @@ SidreDataCollection::SidreDataCollection(const std::string& collection_name,
 
 SidreDataCollection::~SidreDataCollection()
 {
+   attr_map.DeleteData(true);
    if (m_owns_datastore)
    {
       delete m_datastore_ptr;
@@ -393,23 +394,17 @@ createMeshBlueprintTopologies(bool hasBP, const std::string& mesh_name)
 
    if (num_elements > 0)
    {
-      element_size = !isBdry
-                     ? mesh->GetElement(0)->GetNVertices()
-                     : mesh->GetBdrElement(0)->GetNVertices();
+      mfem::Element *elem = !isBdry
+                            ? mesh->GetElement(0)
+                            : mesh->GetBdrElement(0);
+      element_size = elem->GetNVertices();
 
       num_indices = num_elements * element_size;
 
       // Find the element shape
       // Note: Assumes homogeneous elements, so only check the first element
-      geom = isBdry ?
-             mesh->GetBdrElementBaseGeometry(0) :
-             mesh->GetElementBaseGeometry(0);
-      eltTypeStr =
-         !isBdry
-         ? getElementName( static_cast<Element::Type>(
-                              mesh->GetElement(0)->GetType() ) )
-         : getElementName( static_cast<Element::Type>(
-                              mesh->GetBdrElement(0)->GetType() ) );
+      geom = elem->GetGeometryType();
+      eltTypeStr = getElementName(elem->GetType());
    }
 
    // Create the blueprint "topology" group, if not present
@@ -1132,7 +1127,7 @@ void SidreDataCollection::RegisterAttributeField(const std::string& attr_name,
       m_bp_grp->getGroup("fields")->getGroup(attr_name)->getView("values");
    Array<int>* attr = new Array<int>(a->getData<int*>(), a->getNumElements());
 
-   attr_map.Register(attr_name, attr, own_data);
+   attr_map.Register(attr_name, attr, true);
 }
 
 void SidreDataCollection::RegisterAttributeFieldInBPIndex(
@@ -1161,7 +1156,7 @@ void SidreDataCollection::RegisterAttributeFieldInBPIndex(
 
 void SidreDataCollection::DeregisterAttributeField(const std::string& attr_name)
 {
-   attr_map.Deregister(name, own_data);
+   attr_map.Deregister(name, true);
 
    sidre::Group * attr_grp = m_bp_grp->getGroup("fields");
    MFEM_VERIFY(attr_grp->hasGroup(attr_name),
@@ -1254,6 +1249,8 @@ std::string SidreDataCollection::getElementName(Element::Type elementEnum)
       case Element::QUADRILATERAL:  return "quad";
       case Element::TETRAHEDRON:    return "tet";
       case Element::HEXAHEDRON:     return "hex";
+      case Element::WEDGE:
+      default: ;
    }
 
    return "unknown";
