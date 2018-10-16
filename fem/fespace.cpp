@@ -1907,7 +1907,7 @@ void FiniteElementSpace::Save(std::ostream &out) const
             // 1 = do not write the size, just the entries:
             NURBSext->GetOrders().Save(out, 1);
          }
-         // If periodic BCs are given write connectivity
+         // If periodic BCs are given, write connectivity
          if (NURBSext->GetMaster().Size() != 0 )
          {
             out <<"NURBS_periodic\n";
@@ -2022,6 +2022,7 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
    }
 
    Constructor(m, NURBSext, r_fec, vdim, ord);
+
    return r_fec;
 }
 
