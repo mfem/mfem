@@ -59,6 +59,10 @@ make test
    Verify the build by checking the results from running all examples and miniapps.
 make check
    Quick-check the build by compiling and running Example 1/1p.
+make unittest
+   Verify the build against the unit tests.
+make alltest
+   Verify the build by running all the unittests, examples, and miniapps.
 make install PREFIX=<dir>
    Install the library and headers in <dir>/lib and <dir>/include.
 make clean
@@ -310,7 +314,7 @@ RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 
 .PHONY: lib all clean distclean install config status info deps serial parallel\
- debug pdebug style check test
+ debug pdebug style check test unittest
 
 .SUFFIXES:
 .SUFFIXES: .cpp .o
@@ -390,6 +394,15 @@ test:
 	   ERR=1; fi; done; \
 	   if [ 0 -ne $${ERR} ]; then echo "Some tests failed."; exit 1; \
 	   else echo "All tests passed."; fi
+
+unittest: lib
+	@echo "Unit testing the MFEM library. This may take a while..."
+	@echo "Building the unit tests..."
+	cd $(MFEM_DIR)/test/unittest; \
+		make || (echo "Build of unit tests failed"; exit 1); \
+		./test || (echo "Unit tests failed."; exit 1)
+
+alltest: unittest test
 
 .PHONY: test-print
 test-print:

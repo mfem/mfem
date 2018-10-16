@@ -9,7 +9,7 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
-MFEM_DIR = ../../mfem
+MFEM_DIR = ../../
 CONFIG_MK = $(MFEM_DIR)/config/config.mk
 USER_CONFIG = $(MFEM_DIR)/config/user.mk
 

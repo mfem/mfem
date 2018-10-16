@@ -11,6 +11,8 @@
 Version 3.4.1 (development)
 ===========================
 
+- Added unit tests based on the Catch++ library.
+
 - Added support for wedge shaped mesh elements of arbitrary order (with Geometry
   type PRISM) which have two triangular faces and three quadrilateral faces.
   Several examples of such meshes can be found in the data/ directory.

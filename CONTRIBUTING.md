@@ -90,13 +90,19 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   ├── general
   ├── linalg
   ├── mesh
-  └── miniapps
-      ├── common
-      ├── electromagnetics
-      ├── meshing
-      ├── nurbs
-      ├── performance
-      └── tools
+  ├── miniapps
+  │   ├── common
+  │   ├── electromagnetics
+  │   ├── meshing
+  │   ├── nurbs
+  │   ├── performance
+  │   └── tools
+  └── test
+      └── unittest
+          ├── data
+          ├── fem
+          ├── linalg
+          └── mesh
   ```
 
 - The main directories are `fem/`, `mesh/` and `linalg/` containing the C++
@@ -150,6 +156,9 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
 - The `data/` directory contains a collection of small mesh files, that are used
   in the simple example codes and more fully-featured mini applications in the
   `examples/` and `miniapps/` directories.
+
+- The `test/` directory contains a collection of tests currently consisting of a
+  unit test suite.  Baseline and performance testing may live here later.
 
 - See also the [code overview](http://mfem.org/code-overview/) section on the
   MFEM website.
@@ -471,7 +480,6 @@ MFEM uses a `master`/`next`-branch workflow as described below:
      it to build your code between releases.
   - `mfem:gh-next` -- Bleeding-edge development version, may be broken, use at
      your own risk.
-
 
 ## Automated Testing
 
