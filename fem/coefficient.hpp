@@ -26,6 +26,11 @@ class Mesh;
 class ParMesh;
 #endif
 
+#ifdef MFEM_DEPRECATED
+static int dcoef_eval_warn = 0;
+static int vcoef_eval_warn = 0;
+static int mcoef_eval_warn = 0;
+#endif
 
 /// Base class Coefficient that may optionally depend on time.
 class Coefficient
@@ -55,6 +60,15 @@ public:
 
    virtual double Eval(const ElementTransformation &T) const
    {
+      if (dcoef_eval_warn == 0)
+      {
+         dcoef_eval_warn++;
+         MFEM_WARNING("\'Coefficient::Eval(ElementTransformation &T, "
+                      "const IntegrationPoint &ip)\' is deprecated.  "
+                      "Please consider implementing "
+                      "\'Coefficient::Eval(const ElementTransformation &T) "
+                      "const\' instead.");
+      }
       return const_cast<Coefficient*>(this)->
              Eval(const_cast<ElementTransformation &>(T), T.GetIntPoint());
    }
@@ -345,6 +359,17 @@ public:
 
    virtual void Eval(Vector &V, const ElementTransformation &T) const
    {
+      if (vcoef_eval_warn == 0)
+      {
+         vcoef_eval_warn++;
+         MFEM_WARNING("\'VectorCoefficient::Eval(Vector &V, "
+                      "ElementTransformation &T, "
+                      "const IntegrationPoint &ip)\' is deprecated.  "
+                      "Please consider implementing "
+                      "\'VectorCoefficient::Eval"
+                      "(Vector &V, const ElementTransformation &T) const\' "
+                      "instead.");
+      }
       const_cast<VectorCoefficient*>(this)->
       Eval(V, const_cast<ElementTransformation &>(T), T.GetIntPoint());
    }
@@ -580,6 +605,17 @@ public:
 
    virtual void Eval(DenseMatrix &K, const ElementTransformation &T) const
    {
+      if (mcoef_eval_warn == 0)
+      {
+         mcoef_eval_warn++;
+         MFEM_WARNING("\'MatrixCoefficient::Eval(DenseMatrix &K, "
+                      "ElementTransformation &T, "
+                      "const IntegrationPoint &ip)\' is deprecated.  "
+                      "Please consider implementing "
+                      "\'MatrixCoefficient::Eval"
+                      "(DenseMatrix &K, const ElementTransformation &T) "
+                      "const\' instead.");
+      }
       const_cast<MatrixCoefficient*>(this)->
       Eval(K, const_cast<ElementTransformation &>(T), T.GetIntPoint());
    }
