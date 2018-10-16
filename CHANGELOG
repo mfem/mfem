@@ -25,6 +25,9 @@ Version 3.4.1 (development)
 - Added the capability to produce 3D meshes by extruding 2D meshes, see the new
   miniapp, Extruder, in the miniapps/meshing directory.
 
+- A boundary in a NURBS mesh can now be connected with an other boundary, which
+  is useful for periodic boundary conditions.
+
 - Added a new meshing miniapp, Toroid, which can produce a variety of torus
   shaped meshes by twisting a stack of wedges or hexahedra.
 
