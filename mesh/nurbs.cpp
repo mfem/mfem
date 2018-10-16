@@ -2885,7 +2885,7 @@ void NURBSExtension::LoadSolution(std::istream &input, GridFunction &sol) const
          {
             for (int i = 0; i < nx; i++)
             {
-               const int ll = (kv.Size() == 2) ? p2g(i,j) : p2g(i,j,k); 
+               const int ll = (kv.Size() == 2) ? p2g(i,j) : p2g(i,j,k);
                const int l  = DofMap(l);
                for (int vd = 0; vd < vdim; vd++)
                {

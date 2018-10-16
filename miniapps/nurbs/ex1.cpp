@@ -181,8 +181,8 @@ int main(int argc, char *argv[])
       // Remove periodic BCs
       for (int i = 0; i < master.Size(); i++)
       {
-          ess_bdr[master[i]-1] = 0;
-          ess_bdr[slave[i]-1] = 0;
+         ess_bdr[master[i]-1] = 0;
+         ess_bdr[slave[i]-1] = 0;
       }
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
