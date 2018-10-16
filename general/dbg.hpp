@@ -13,6 +13,7 @@
 #define MFEM_DBG_HPP
 
 // *****************************************************************************
+__attribute__((unused))
 static const char *strrnchr(const char *s, const unsigned char c, int n)
 {
    size_t len = strlen(s);
@@ -28,6 +29,7 @@ static const char *strrnchr(const char *s, const unsigned char c, int n)
 }
 
 //*****************************************************************************
+__attribute__((unused))
 static uint8_t chk8(const char *bfr)
 {
    unsigned int chk = 0;
@@ -40,6 +42,7 @@ static uint8_t chk8(const char *bfr)
 }
 
 // *****************************************************************************
+__attribute__((unused))
 static void kdbge(const char *file, const int line, const char *func,
                   const bool header, const int nargs, ...)
 {
@@ -108,6 +111,7 @@ static void kdbge(const char *file, const int line, const char *func,
 #endif // __NVCC__
 
 // *****************************************************************************
+__attribute__((unused))
 static void push_flf(const char *file, const int line, const char *func)
 {
    static bool env_ini = false;

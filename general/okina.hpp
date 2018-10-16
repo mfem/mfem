@@ -33,7 +33,7 @@
 #include <setjmp.h>
 
 // *****************************************************************************
-//#include "/home/camier1/home/stk/stk.hpp"
+#include "/home/camier1/home/stk/stk.hpp"
 
 // *****************************************************************************
 #define MFEM_NAMESPACE namespace mfem {

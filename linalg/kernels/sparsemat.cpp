@@ -42,7 +42,7 @@ void kGauss_Seidel_forw_A_NULL(const size_t s,
    assert(false);
    forall(i,s,
    {
-      int c;
+      size_t c;
       double sum = 0.0;
       RowNode *diag_p = NULL;
       RowNode *n_p;
@@ -84,14 +84,14 @@ void kGauss_Seidel_forw(const size_t height,
    GET_ADRS(yp);
    forall(k,1,
    {
-      for (int i=0; i<height; i+=1)
+      for (size_t i=0; i<height; i+=1)
       {
          int d = -1;
          const int end = d_Ip[i+1];
          double sum = 0.0;
          for (int j = d_Ip[i]; j < end; j+=1)
          {
-            const int c = d_Jp[j];
+            const size_t c = d_Jp[j];
             const bool c_eq_i = c == i;
             d = c_eq_i ? j : d;
             const double Ay = d_Ap[j] * d_yp[c];

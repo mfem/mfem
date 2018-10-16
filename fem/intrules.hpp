@@ -14,6 +14,8 @@
 
 #include "../config/config.hpp"
 #include "../general/array.hpp"
+#include "../general/okina.hpp"
+#include "kernels/kIntrules.hpp"
 
 namespace mfem
 {
@@ -207,14 +209,7 @@ public:
       Array<IntegrationPoint>(), Order(0) { }
 
    /// Construct an integration rule with given number of points
-   explicit IntegrationRule(int NP) :
-      Array<IntegrationPoint>(NP), Order(0)
-   {
-      for (int i = 0; i < this->Size(); i++)
-      {
-         (*this)[i].Init();
-      }
-   }
+   explicit IntegrationRule(int NP);
 
    /// Tensor product of two 1D integration rules
    IntegrationRule(IntegrationRule &irx, IntegrationRule &iry);

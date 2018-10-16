@@ -18,7 +18,7 @@ void kdot(const size_t N, const double *d_x, const double *d_y, double *d_dot)
    forall(k, 1,
    {
       double l_dot = 0.0;
-      for (int i=0; i<N; i+=1)
+      for (size_t i=0; i<N; i+=1)
       {
          l_dot += d_x[i] * d_y[i];
       }
@@ -32,10 +32,10 @@ MFEM_NAMESPACE
 // *****************************************************************************
 double kVectorDot(const size_t N, const double *x, const double *y)
 {
-   GET_CUDA;
    GET_CONST_ADRS(x);
    GET_CONST_ADRS(y);
 #ifdef __NVCC__
+   GET_CUDA;
    if (cuda)
    {
       static double *h_dot = NULL;
@@ -170,7 +170,7 @@ void kVectorAlphaAdd(double *vp, const double* v1p,
 void kVectorPrint(const size_t N, const double *data)
 {
    GET_CONST_ADRS(data); // Sequential printf
-   forall(k,1,for (int i=0; i<N; i+=1)printf("\n\t%f",d_data[i]););
+   forall(k,1,for(size_t i=0; i<N; i+=1)printf("\n\t%f",d_data[i]););
 }
 
 // *****************************************************************************
@@ -241,7 +241,7 @@ void kAddElementVector(const size_t n, const int *dofs,
    GET_ADRS(data);
    forall(k,1,
    {
-      for (int i = 0; i < n; i++)
+      for (size_t i = 0; i < n; i++)
       {
          const int j = d_dofs[i];
          if (j >= 0)

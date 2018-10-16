@@ -140,7 +140,7 @@ static void kGeomFill(const int dims,
    GET_ADRS(meshNodes);
    forall(e, elements,
    {
-      for (int d = 0; d < numDofs; ++d)
+      for (size_t d = 0; d < numDofs; ++d)
       {
          const int lid = d+numDofs*e;
          const int gid = d_elementMap[lid];

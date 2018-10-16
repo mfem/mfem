@@ -50,7 +50,7 @@ public:
 private:
    void Setup();
    void *add(const void*, const size_t, const size_t);
-   void del(const void*);
+   void *del(const void*);
    void Cuda();
 
    // **************************************************************************
@@ -70,9 +70,9 @@ public:
    static inline void free(void *ptr)
    {
       if (!ptr) { return; }
-      mm::Get().del(ptr);
-      ::delete[] static_cast<T*>(ptr);
-      ptr = nullptr;
+      void *back = mm::Get().del(ptr);
+      ::delete[] static_cast<T*>(back);
+      back = nullptr;
    }
 
    // **************************************************************************
