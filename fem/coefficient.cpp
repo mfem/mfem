@@ -204,7 +204,7 @@ void GradientGridFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
 void GradientGridFunctionCoefficient::Eval(
    DenseMatrix &M, ElementTransformation &T, const IntegrationRule &ir)
 {
-   GridFunc->GetGradients(T.ElementNo, ir, M);
+   GridFunc->GetGradients(T, ir, M);
 }
 
 CurlGridFunctionCoefficient::CurlGridFunctionCoefficient (
