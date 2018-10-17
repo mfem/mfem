@@ -178,7 +178,7 @@ int main(int argc, char *argv[])
    //     operator curl muinv curl + sigma I, by adding the curl-curl and the
    //     mass domain integrators.
    Coefficient *muinv = new ConstantCoefficient(1.0);
-   Coefficient *sigma = new ConstantCoefficient(1.0);
+   Coefficient *sigma = new ConstantCoefficient(-1.0);
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
    a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
@@ -199,6 +199,10 @@ int main(int argc, char *argv[])
       cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
    }
 
+   StopWatch chrono;
+   chrono.Clear();
+   chrono.Start();
+   
 #ifdef MFEM_USE_STRUMPACK
    if (use_strumpack)
      {
@@ -239,6 +243,9 @@ int main(int argc, char *argv[])
        delete ams;
      }
    
+   chrono.Stop();
+   cout << "Solver time " << chrono.RealTime() << endl;
+
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(X, *b, x);
