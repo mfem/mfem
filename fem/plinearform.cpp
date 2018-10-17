@@ -14,7 +14,6 @@
 #ifdef MFEM_USE_MPI
 
 #include "fem.hpp"
-using namespace std;
 
 namespace mfem
 {
