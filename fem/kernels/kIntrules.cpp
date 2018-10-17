@@ -18,7 +18,6 @@ MFEM_NAMESPACE
 
 // *****************************************************************************
 void kIPPts(const IntegrationPoint *ip, const size_t N, double *pts){
-   push();
    GET_CUDA;
    GET_ADRS(pts);
    GET_ADRS_T(ip,IntegrationPoint);
@@ -225,9 +224,11 @@ void kIntRulesTriLinear3DIni(IntegrationPoint *ip){
 
 // *****************************************************************************
 void kCalcChebyshev(const int p, const double x, double *u){
-   push();
    GET_ADRS(u);
 
+   GET_CUDA;
+   if (cuda){ assert(false); }
+   
    // recursive definition, z in [-1,1]
    // T_0(z) = 1,  T_1(z) = z
    // T_{n+1}(z) = 2*z*T_n(z) - T_{n-1}(z)
@@ -243,10 +244,12 @@ void kCalcChebyshev(const int p, const double x, double *u){
 
 // *****************************************************************************
 void kCalcChebyshev(const int p, const double x, double *u, double *d){
-   push();
    GET_ADRS(u);
    GET_ADRS(d);
       
+   GET_CUDA;
+   if (cuda){ assert(false); }
+   
    double z;
    d_u[0] = 1.;
    d_d[0] = 0.;

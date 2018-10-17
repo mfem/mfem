@@ -169,7 +169,7 @@ void* mm::Adrs(const void *adrs)
 
    if (not present)
    {
-      dbg("Unknown %p", adrs);
+      printf("\n\033[31;7m[mm::Adrs] %p\033[m", adrs);
       stk(true);
       #warning not asserting false!
       //assert(false);
@@ -203,7 +203,7 @@ void* mm::Adrs(const void *adrs)
       // Now we are on the GPU
       mm2dev.host = false;
 #else
-      assert(false);
+      mfem_error("[ERROR] Trying to run without CUDA support!");
 #endif // __NVCC__
    }
 
