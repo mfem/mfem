@@ -177,7 +177,8 @@ public:
                      DenseMatrix &grad) const;
 
    void GetGradients(const int elem, const IntegrationRule &ir,
-                     DenseMatrix &grad) const;
+                     DenseMatrix &grad) const
+   { GetGradients(*fes->GetElementTransformation(elem), ir, grad); }
 
    void GetVectorGradient(ElementTransformation &tr, DenseMatrix &grad) const;
 

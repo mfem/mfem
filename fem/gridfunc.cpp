@@ -1015,7 +1015,6 @@ void GridFunction::GetGradients(ElementTransformation &tr,
    const FiniteElement *fe = fes->GetFE(elNo);
    MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE, "invalid FE map type");
    DenseMatrix dshape(fe->GetDof(), fe->GetDim());
-   DenseMatrix Jinv(fe->GetDim());
    Vector lval, gh(fe->GetDim()), gcol;
    Array<int> dofs;
    fes->GetElementDofs(elNo, dofs);
@@ -1029,31 +1028,6 @@ void GridFunction::GetGradients(ElementTransformation &tr,
       tr.SetIntPoint(&ip);
       grad.GetColumnReference(i, gcol);
       const DenseMatrix &Jinv = tr.InverseJacobian();
-      Jinv.MultTranspose(gh, gcol);
-   }
-}
-
-void GridFunction::GetGradients(const int elem, const IntegrationRule &ir,
-                                DenseMatrix &grad) const
-{
-   const FiniteElement *fe = fes->GetFE(elem);
-   MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE, "invalid FE map type");
-   ElementTransformation *Tr = fes->GetElementTransformation(elem);
-   DenseMatrix dshape(fe->GetDof(), fe->GetDim());
-   DenseMatrix Jinv(fe->GetDim());
-   Vector lval, gh(fe->GetDim()), gcol;
-   Array<int> dofs;
-   fes->GetElementDofs(elem, dofs);
-   GetSubVector(dofs, lval);
-   grad.SetSize(fe->GetDim(), ir.GetNPoints());
-   for (int i = 0; i < ir.GetNPoints(); i++)
-   {
-      const IntegrationPoint &ip = ir.IntPoint(i);
-      fe->CalcDShape(ip, dshape);
-      dshape.MultTranspose(lval, gh);
-      Tr->SetIntPoint(&ip);
-      grad.GetColumnReference(i, gcol);
-      const DenseMatrix &Jinv = Tr->InverseJacobian();
       Jinv.MultTranspose(gh, gcol);
    }
 }
