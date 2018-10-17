@@ -915,9 +915,7 @@ double GridFunction::GetDivergence(ElementTransformation &tr) const
                   "invalid FE map type");
       DenseMatrix grad_hat;
       GetVectorGradientHat(tr, grad_hat);
-      const DenseMatrix &J = tr.Jacobian();
-      DenseMatrix Jinv(J.Width(), J.Height());
-      CalcInverse(J, Jinv);
+      const DenseMatrix &Jinv = tr.InverseJacobian();
       div_v = 0.0;
       for (int i = 0; i < Jinv.Width(); i++)
       {
@@ -950,9 +948,7 @@ void GridFunction::GetCurl(ElementTransformation &tr, Vector &curl) const
                   "invalid FE map type");
       DenseMatrix grad_hat;
       GetVectorGradientHat(tr, grad_hat);
-      const DenseMatrix &J = tr.Jacobian();
-      DenseMatrix Jinv(J.Width(), J.Height());
-      CalcInverse(J, Jinv);
+      const DenseMatrix &Jinv = tr.InverseJacobian();
       DenseMatrix grad(grad_hat.Height(), Jinv.Width()); // vdim x FElem->Dim
       Mult(grad_hat, Jinv, grad);
       MFEM_ASSERT(grad.Height() == grad.Width(), "");
@@ -999,7 +995,7 @@ void GridFunction::GetGradient(ElementTransformation &tr, Vector &grad) const
    const FiniteElement *fe = fes->GetFE(elNo);
    MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE, "invalid FE map type");
    int dim = fe->GetDim(), dof = fe->GetDof();
-   DenseMatrix dshape(dof, dim), Jinv(dim);
+   DenseMatrix dshape(dof, dim);
    Vector lval, gh(dim);
    Array<int> dofs;
 
@@ -1008,8 +1004,7 @@ void GridFunction::GetGradient(ElementTransformation &tr, Vector &grad) const
    GetSubVector(dofs, lval);
    fe->CalcDShape(tr.GetIntPoint(), dshape);
    dshape.MultTranspose(lval, gh);
-   CalcInverse(tr.Jacobian(), Jinv);
-   Jinv.MultTranspose(gh, grad);
+   tr.InverseJacobian().MultTranspose(gh, grad);
 }
 
 void GridFunction::GetGradients(const int elem, const IntegrationRule &ir,
@@ -1044,9 +1039,7 @@ void GridFunction::GetVectorGradient(
                "invalid FE map type");
    DenseMatrix grad_hat;
    GetVectorGradientHat(tr, grad_hat);
-   const DenseMatrix &J = tr.Jacobian();
-   DenseMatrix Jinv(J.Width(), J.Height());
-   CalcInverse(J, Jinv);
+   const DenseMatrix &Jinv = tr.InverseJacobian();
    grad.SetSize(grad_hat.Height(), Jinv.Width());
    Mult(grad_hat, Jinv, grad);
 }
