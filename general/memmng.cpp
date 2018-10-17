@@ -94,7 +94,7 @@ void* mm::add(const void *adrs, const size_t size, const size_t size_of_T)
       mfem_error("[ERROR] Trying to add already present address!");
    }
 
-   printf("\n\t\033[31m%p (%ldo)\033[m", h_adrs, bytes);fflush(0);
+   //printf("\n\t\033[31m%p (%ldo)\033[m", h_adrs, bytes);fflush(0);
    mm2dev_t &mm2dev = mng->operator[](h_adrs);
    mm2dev.host = true;
    mm2dev.bytes = bytes;

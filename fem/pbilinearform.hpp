@@ -336,7 +336,7 @@ public:
                                  Operator *&A, Vector &X, Vector &B,
                                  int copy_interior =0)
    {
-      (FA? assert(false):
+      (FA? pfabf->FormLinearSystem(ess_tdof_list,x,b,*static_cast<HypreParMatrix*>(A),X,B,copy_interior) :
        ppabf->FormLinearSystem(ess_tdof_list,x,b,A,X,B,copy_interior));
    }
    virtual void RecoverFEMSolution(const Vector &X, const Vector &b,
