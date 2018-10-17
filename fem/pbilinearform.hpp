@@ -326,7 +326,6 @@ public:
                          OpType &A, Vector &X, Vector &B,
                          int copy_interior = 0)
    {
-      //assert(false);
       assert(FA);
       pfabf->FormLinearSystem(ess_tdof_list,x,b,A,X,B,copy_interior);
    }
