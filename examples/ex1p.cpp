@@ -179,7 +179,7 @@ int main(int argc, char *argv[])
    b->Assemble();
 
    //dbg("mesh->SetCurvature");
-   //mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
+   pmesh->SetCurvature(1, false, -1, Ordering::byVDIM);
    if (gpu) { config::Get().Cuda(true); }
    if (pa)  { config::Get().PA(true);   }
 
