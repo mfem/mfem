@@ -908,7 +908,6 @@ IntegrationRules::IntegrationRules(int Ref, int _type):
 
 const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
 {
-   OKINA_ASSERT_GPU;
    Array<IntegrationRule *> *ir_array;
 
    switch (GeomType)
