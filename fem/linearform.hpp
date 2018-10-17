@@ -56,8 +56,8 @@ public:
    LinearForm (FiniteElementSpace * f) : Vector (f -> GetVSize())
    { fes = f; }
 
-   /// Construct a GridFunction using previously allocated array @a data.
-   /** The GridFunction does not assume ownership of @a data which is assumed to
+   /// Construct a LinearForm using previously allocated array @a data.
+   /** The LinearForm does not assume ownership of @a data which is assumed to
        be of size at least `f->GetVSize()`. Similar to the Vector constructor
        for externally allocated array, the pointer @a data can be NULL. The data
        array can be replaced later using the method SetData().
