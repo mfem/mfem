@@ -205,33 +205,30 @@ int main(int argc, char *argv[])
 
    Vector B, X;
    Operator *A;
-   HypreParMatrix faA;
    if (pa) { A = new ParPABilinearForm(fespace); }
+   else    { A = new HypreParMatrix(); }
    
    dbg("a->FormLinearSystem");
-   if (pa) { a->FormLinearSystem(ess_tdof_list, x, *b,   A, X, B); }
-   else    { a->FormLinearSystem(ess_tdof_list, x, *b, faA, X, B);   }
+   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    if (myid == 0)
    {
-      if (pa) { cout << "Size of linear system: " << A->Height() << endl; }
-      else    { cout << "Size of linear system: " << faA.GetGlobalNumRows() << endl;}
+       cout << "Size of linear system: " << A->Height() << endl;
    }
 
    // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
    //     preconditioner from hypre.
-   if (pa){
-      CG(*A, B, X, 3, 1000, 1e-12, 0.0);
-   }else{
-      HypreSolver *amg = new HypreBoomerAMG(faA);
-      HyprePCG *pcg = new HyprePCG(faA);
-      pcg->SetTol(1e-12);
-      pcg->SetMaxIter(200);
-      pcg->SetPrintLevel(2);
-      pcg->SetPreconditioner(*amg);
-      pcg->Mult(B, X);
-   }
-
+   CG(*A, B, X, 3, 1000, 1e-12, 0.0);
+   /*
+     HypreSolver *amg = new HypreBoomerAMG(faA);
+     HyprePCG *pcg = new HyprePCG(faA);
+     pcg->SetTol(1e-12);
+     pcg->SetMaxIter(200);
+     pcg->SetPrintLevel(2);
+     pcg->SetPreconditioner(*amg);
+     pcg->Mult(B, X);
+     }*/
+   
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(X, *b, x);
