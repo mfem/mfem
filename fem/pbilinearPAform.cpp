@@ -11,8 +11,11 @@
 
 // Implementation of class BilinearForm
 
+#ifdef MFEM_USE_MPI
+
 #include "fem.hpp"
 #include "bilininteg.hpp"
+#include "pbilinearform.hpp"
 #include "kBilinIntegDiffusion.hpp"
 #include "kfespace.hpp"
 #include "../linalg/kernels/vector.hpp"
@@ -249,3 +252,5 @@ void ParPABilinearForm::RecoverFEMSolution(const Vector &X,
 
 // *****************************************************************************
 MFEM_NAMESPACE_END
+
+#endif // MFEM_USE_MPI

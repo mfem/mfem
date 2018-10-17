@@ -133,9 +133,9 @@ void *mm::del(const void *adrs)
    if (!present)  // should not happen
    {
       printf("\n\033[31;7m[mm::del] %p\033[m", adrs);
-      //assert(false); // should not happen
       stk(true);
-#warning not asserting false!
+      assert(false); // should not happen
+//#warning not asserting false!
       return (void*)adrs;
    }
    //printf("\n\033[32;7m[mm::del] %p\033[m", adrs);fflush(0);
@@ -171,8 +171,8 @@ void* mm::Adrs(const void *adrs)
    {
       printf("\n\033[31;7m[mm::Adrs] %p\033[m", adrs);
       stk(true);
-      #warning not asserting false!
-      //assert(false);
+//#warning not asserting false!
+      assert(false);
       //mfem_error("[ERROR] Trying to convert unknown address!");
       return (void*)adrs;
    }
@@ -213,7 +213,7 @@ void* mm::Adrs(const void *adrs)
       dbg("return \033[31;1mGPU\033[m d_adrs %p",mm2dev.d_adrs);
 #ifdef __NVCC__
       checkCudaErrors(cuMemcpyDtoH((void*)mm2dev.h_adrs,(CUdeviceptr)mm2dev.d_adrs,
-                                   bytes));
+                                   mm2dev.bytes));
 #else
       assert(false);
 #endif // __NVCC__
