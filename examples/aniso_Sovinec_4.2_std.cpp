@@ -931,7 +931,7 @@ void H1AnisoDiffusionSolve(int myid, const ParMesh &pmesh,
 
       int q_size = fespace_q->GetTrueVSize();
       Vector RHS(q_size);
-      Vector X(q_size);
+      Vector X(q_size); X = 0.0;
 
       q.ParallelAssemble(RHS);
       M2Inv.Mult(RHS, X);
