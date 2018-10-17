@@ -324,15 +324,6 @@ void ParFABilinearForm::FormLinearSystem(
    }
 }
 
-// *****************************************************************************
-/*void ParFABilinearForm::FormLinearSystem(
-   const Array<int> &ess_tdof_list, Vector &x, Vector &b,
-   Operator *&A, Vector &X, Vector &B, int copy_interior)
-{
-   OperatorHandle Ah(A);
-   FormLinearSystem(ess_tdof_list, x, b, Ah, X, B, copy_interior);
-   }*/
-
 void ParFABilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
                                        OperatorHandle &A)
 {
