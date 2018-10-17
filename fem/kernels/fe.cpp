@@ -114,15 +114,14 @@ void kBasis(const size_t p, const double *x, double *w){
 // *****************************************************************************
 void kNodesAreIncreasing(const size_t p, const double *x){
    GET_CONST_ADRS(x);
-   forall(i, p, {
-         printf("\n\t%f >? %f",d_x[i],d_x[i+1]);fflush(0);
-         assert(d_x[i] < d_x[i+1]);
-      });
+   forall(i, p, assert(d_x[i] < d_x[i+1]); );
 }
 
 // *****************************************************************************
 void kLinear3DFiniteElementHeightEq4(double *A){
    GET_ADRS(A);
+   GET_CUDA;
+   if (cuda){ assert(false); }
    d_A[0] = -1.; d_A[4] = -1.; d_A[8]  = -1.;
    d_A[1] =  1.; d_A[5] =  0.; d_A[9]  =  0.;
    d_A[2] =  0.; d_A[6] =  1.; d_A[10] =  0.;

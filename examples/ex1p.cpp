@@ -178,7 +178,7 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
-   //dbg("mesh->SetCurvature");
+   dbg("mesh->SetCurvature");
    pmesh->SetCurvature(1, false, -1, Ordering::byVDIM);
    if (gpu) { config::Get().Cuda(true); }
    if (pa)  { config::Get().PA(true);   }
@@ -263,6 +263,7 @@ int main(int argc, char *argv[])
    // 16. Free the used memory.
    //delete pcg;
    //delete amg;
+   delete A;
    delete a;
    delete b;
    delete fespace;

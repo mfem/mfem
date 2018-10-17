@@ -7587,11 +7587,11 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
       //IntegrationPoint &ip = Nodes.IntPoint(k);
       IntegrationPoint *ip = &Nodes.IntPoint(0);
       double ip_x = kIPGetX(ip, k);//dbg("ip_x=%f",ip_x);
-      printf("\n\tip.x=%f",ip_x);
+      //printf("\n\tip.x=%f",ip_x);
       poly1d.CalcBasis(p, ip_x, shape_x);
       double ip_y = kIPGetY(ip, k);//dbg("ip_y=%f",ip_y);
       poly1d.CalcBasis(p, ip_y, shape_y);
-      printf("\n\tip.y=%f",ip_y);
+      //printf("\n\tip.y=%f",ip_y);
       poly1d.CalcBasis(p, 1. - ip_x - ip_y, shape_l);
       /*
       o = 0;
