@@ -328,7 +328,7 @@ char HypreParMatrix::CopyCSR(SparseMatrix *csr, hypre_CSRMatrix *hypre_csr)
 char HypreParMatrix::CopyBoolCSR(Table *bool_csr, hypre_CSRMatrix *hypre_csr)
 {
    int nnz = bool_csr->Size_of_connections();
-   double *data = new double[nnz];
+   double *data = mm::malloc<double>(nnz);
    for (int i = 0; i < nnz; i++)
    {
       data[i] = 1.0;
@@ -641,13 +641,13 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int id, int np,
 
    HYPRE_Int i;
 
-   double *a_diag = new double[diag_nnz];
+   double *a_diag = mm::malloc<double>(diag_nnz);
    for (i = 0; i < diag_nnz; i++)
    {
       a_diag[i] = 1.0;
    }
 
-   double *a_offd = new double[offd_nnz];
+   double *a_offd =mm::malloc<double>(offd_nnz);
    for (i = 0; i < offd_nnz; i++)
    {
       a_offd[i] = 1.0;
@@ -1945,10 +1945,10 @@ void HypreSmoother::SetFIRCoefficients(double max_eig)
       delete [] fir_coeffs;
    }
 
-   fir_coeffs = new double[poly_order+1];
+   fir_coeffs = mm::malloc<double>(poly_order+1);
 
-   double* window_coeffs = new double[poly_order+1];
-   double* cheby_coeffs = new double[poly_order+1];
+   double* window_coeffs = mm::malloc<double>(poly_order+1);
+   double* cheby_coeffs = mm::malloc<double>(poly_order+1);
 
    double a = window_params[0];
    double b = window_params[1];
@@ -3306,7 +3306,7 @@ HypreLOBPCG::SetOperator(Operator & A)
 
    if (HYPRE_AssumedPartitionCheck())
    {
-      part = new HYPRE_Int[2];
+      part = mm::malloc<HYPRE_Int>(2);
 
       MPI_Scan(&locSize, &part[1], 1, HYPRE_MPI_INT, MPI_SUM, comm);
 

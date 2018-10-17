@@ -11,6 +11,7 @@
 
 #include "fem.hpp"
 #include "../mesh/wedge.hpp"
+#include "../linalg/kernels/densemat.hpp"
 
 namespace mfem
 {
@@ -25,119 +26,190 @@ Geometry::Geometry()
 {
    // Vertices for Geometry::POINT
    GeomVert[0] =  new IntegrationRule(1);
-   GeomVert[0]->IntPoint(0).x = 0.0;
+   //GeomVert[0]->IntPoint(0).x = 0.0;
+   kIPSetX(&GeomVert[0]->IntPoint(0), 0.0, 0);
 
    // Vertices for Geometry::SEGMENT
    GeomVert[1] = new IntegrationRule(2);
 
-   GeomVert[1]->IntPoint(0).x = 0.0;
-   GeomVert[1]->IntPoint(1).x = 1.0;
+   //GeomVert[1]->IntPoint(0).x = 0.0;
+   kIPSetX(&GeomVert[1]->IntPoint(0), 0.0, 0);
+   //GeomVert[1]->IntPoint(1).x = 1.0;
+   kIPSetX(&GeomVert[1]->IntPoint(0), 1.0, 1);
 
    // Vertices for Geometry::TRIANGLE
    GeomVert[2] = new IntegrationRule(3);
 
-   GeomVert[2]->IntPoint(0).x = 0.0;
-   GeomVert[2]->IntPoint(0).y = 0.0;
+   //GeomVert[2]->IntPoint(0).x = 0.0;
+   kIPSetX(&GeomVert[2]->IntPoint(0), 0.0, 0);
+   //GeomVert[2]->IntPoint(0).y = 0.0;
+   kIPSetY(&GeomVert[2]->IntPoint(0), 0.0, 0);
 
-   GeomVert[2]->IntPoint(1).x = 1.0;
-   GeomVert[2]->IntPoint(1).y = 0.0;
+   //GeomVert[2]->IntPoint(1).x = 1.0;
+   kIPSetX(&GeomVert[2]->IntPoint(0), 1.0, 1);
+   //GeomVert[2]->IntPoint(1).y = 0.0;
+   kIPSetY(&GeomVert[2]->IntPoint(0), 0.0, 1);
 
-   GeomVert[2]->IntPoint(2).x = 0.0;
-   GeomVert[2]->IntPoint(2).y = 1.0;
+   //GeomVert[2]->IntPoint(2).x = 0.0;
+   kIPSetX(&GeomVert[2]->IntPoint(0), 0.0, 2);
+   //GeomVert[2]->IntPoint(2).y = 1.0;
+   kIPSetY(&GeomVert[2]->IntPoint(0), 1.0, 2);
 
    // Vertices for Geometry::SQUARE
    GeomVert[3] = new IntegrationRule(4);
 
-   GeomVert[3]->IntPoint(0).x = 0.0;
-   GeomVert[3]->IntPoint(0).y = 0.0;
+   //GeomVert[3]->IntPoint(0).x = 0.0;
+   kIPSetX(&GeomVert[3]->IntPoint(0), 0.0, 0);
+   //GeomVert[3]->IntPoint(0).y = 0.0;
+   kIPSetY(&GeomVert[3]->IntPoint(0), 0.0, 0);
 
-   GeomVert[3]->IntPoint(1).x = 1.0;
-   GeomVert[3]->IntPoint(1).y = 0.0;
+   //GeomVert[3]->IntPoint(1).x = 1.0;
+   kIPSetX(&GeomVert[3]->IntPoint(0), 1.0, 1);
+   //GeomVert[3]->IntPoint(1).y = 0.0;
+   kIPSetY(&GeomVert[3]->IntPoint(0), 0.0, 1);
 
-   GeomVert[3]->IntPoint(2).x = 1.0;
-   GeomVert[3]->IntPoint(2).y = 1.0;
+   //GeomVert[3]->IntPoint(2).x = 1.0;
+   kIPSetX(&GeomVert[3]->IntPoint(0), 1.0, 2);
+   //GeomVert[3]->IntPoint(2).y = 1.0;
+   kIPSetY(&GeomVert[3]->IntPoint(0), 1.0, 2);
 
-   GeomVert[3]->IntPoint(3).x = 0.0;
-   GeomVert[3]->IntPoint(3).y = 1.0;
+   //GeomVert[3]->IntPoint(3).x = 0.0;
+   kIPSetX(&GeomVert[3]->IntPoint(0), 0.0, 3);
+   //GeomVert[3]->IntPoint(3).y = 1.0;
+   kIPSetY(&GeomVert[3]->IntPoint(0), 1.0, 3);
 
    // Vertices for Geometry::TETRAHEDRON
    GeomVert[4] = new IntegrationRule(4);
-   GeomVert[4]->IntPoint(0).x = 0.0;
-   GeomVert[4]->IntPoint(0).y = 0.0;
-   GeomVert[4]->IntPoint(0).z = 0.0;
+   //GeomVert[4]->IntPoint(0).x = 0.0;
+   kIPSetX(&GeomVert[4]->IntPoint(0), 0.0, 0);
+   //GeomVert[4]->IntPoint(0).y = 0.0;
+   kIPSetY(&GeomVert[4]->IntPoint(0), 0.0, 0);
+   //GeomVert[4]->IntPoint(0).z = 0.0;
+   kIPSetZ(&GeomVert[4]->IntPoint(0), 0.0, 0);
 
-   GeomVert[4]->IntPoint(1).x = 1.0;
-   GeomVert[4]->IntPoint(1).y = 0.0;
-   GeomVert[4]->IntPoint(1).z = 0.0;
+   //GeomVert[4]->IntPoint(1).x = 1.0;
+   kIPSetX(&GeomVert[4]->IntPoint(0), 1.0, 1);
+   //GeomVert[4]->IntPoint(1).y = 0.0;
+   kIPSetY(&GeomVert[4]->IntPoint(0), 0.0, 1);
+   //GeomVert[4]->IntPoint(1).z = 0.0;
+   kIPSetZ(&GeomVert[4]->IntPoint(0), 0.0, 1);
 
-   GeomVert[4]->IntPoint(2).x = 0.0;
-   GeomVert[4]->IntPoint(2).y = 1.0;
-   GeomVert[4]->IntPoint(2).z = 0.0;
+   //GeomVert[4]->IntPoint(2).x = 0.0;
+   kIPSetX(&GeomVert[4]->IntPoint(0), 0.0, 2);
+   //GeomVert[4]->IntPoint(2).y = 1.0;
+   kIPSetY(&GeomVert[4]->IntPoint(0), 1.0, 2);
+   //GeomVert[4]->IntPoint(2).z = 0.0;
+   kIPSetZ(&GeomVert[4]->IntPoint(0), 0.0, 2);
 
-   GeomVert[4]->IntPoint(3).x = 0.0;
-   GeomVert[4]->IntPoint(3).y = 0.0;
-   GeomVert[4]->IntPoint(3).z = 1.0;
+   //GeomVert[4]->IntPoint(3).x = 0.0;
+   kIPSetX(&GeomVert[4]->IntPoint(0), 0.0, 3);
+   //GeomVert[4]->IntPoint(3).y = 0.0;
+   kIPSetY(&GeomVert[4]->IntPoint(0), 0.0, 3);
+   //GeomVert[4]->IntPoint(3).z = 1.0;
+   kIPSetZ(&GeomVert[4]->IntPoint(0), 1.0, 3);
 
    // Vertices for Geometry::CUBE
    GeomVert[5] = new IntegrationRule(8);
 
-   GeomVert[5]->IntPoint(0).x = 0.0;
-   GeomVert[5]->IntPoint(0).y = 0.0;
-   GeomVert[5]->IntPoint(0).z = 0.0;
+   //GeomVert[5]->IntPoint(0).x = 0.0;
+   kIPSetX(&GeomVert[5]->IntPoint(0), 0.0, 0);
+   //GeomVert[5]->IntPoint(0).y = 0.0;
+   kIPSetY(&GeomVert[5]->IntPoint(0), 0.0, 0);
+   //GeomVert[5]->IntPoint(0).z = 0.0;
+   kIPSetZ(&GeomVert[5]->IntPoint(0), 0.0, 0);
 
-   GeomVert[5]->IntPoint(1).x = 1.0;
-   GeomVert[5]->IntPoint(1).y = 0.0;
-   GeomVert[5]->IntPoint(1).z = 0.0;
+   //GeomVert[5]->IntPoint(1).x = 1.0;
+   kIPSetX(&GeomVert[5]->IntPoint(0), 1.0, 1);
+   //GeomVert[5]->IntPoint(1).y = 0.0;
+   kIPSetY(&GeomVert[5]->IntPoint(0), 0.0, 1);
+   //GeomVert[5]->IntPoint(1).z = 0.0;
+   kIPSetZ(&GeomVert[5]->IntPoint(0), 0.0, 1);
 
-   GeomVert[5]->IntPoint(2).x = 1.0;
-   GeomVert[5]->IntPoint(2).y = 1.0;
-   GeomVert[5]->IntPoint(2).z = 0.0;
+   //GeomVert[5]->IntPoint(2).x = 1.0;
+   kIPSetX(&GeomVert[5]->IntPoint(0), 1.0, 2);
+   //GeomVert[5]->IntPoint(2).y = 1.0;
+   kIPSetY(&GeomVert[5]->IntPoint(0), 1.0, 2);
+   //GeomVert[5]->IntPoint(2).z = 0.0;
+   kIPSetZ(&GeomVert[5]->IntPoint(0), 0.0, 2);
 
-   GeomVert[5]->IntPoint(3).x = 0.0;
-   GeomVert[5]->IntPoint(3).y = 1.0;
-   GeomVert[5]->IntPoint(3).z = 0.0;
+   //GeomVert[5]->IntPoint(3).x = 0.0;
+   kIPSetX(&GeomVert[5]->IntPoint(0), 0.0, 3);
+   //GeomVert[5]->IntPoint(3).y = 1.0;
+   kIPSetY(&GeomVert[5]->IntPoint(0), 1.0, 3);
+   //GeomVert[5]->IntPoint(3).z = 0.0;
+   kIPSetZ(&GeomVert[5]->IntPoint(0), 0.0, 3);
 
-   GeomVert[5]->IntPoint(4).x = 0.0;
-   GeomVert[5]->IntPoint(4).y = 0.0;
-   GeomVert[5]->IntPoint(4).z = 1.0;
+   //GeomVert[5]->IntPoint(4).x = 0.0;
+   kIPSetX(&GeomVert[5]->IntPoint(0), 0.0, 4);
+   //GeomVert[5]->IntPoint(4).y = 0.0;
+   kIPSetY(&GeomVert[5]->IntPoint(0), 0.0, 4);
+   //GeomVert[5]->IntPoint(4).z = 1.0;
+   kIPSetZ(&GeomVert[5]->IntPoint(0), 1.0, 4);
 
-   GeomVert[5]->IntPoint(5).x = 1.0;
-   GeomVert[5]->IntPoint(5).y = 0.0;
-   GeomVert[5]->IntPoint(5).z = 1.0;
+   //GeomVert[5]->IntPoint(5).x = 1.0;
+   kIPSetX(&GeomVert[5]->IntPoint(0), 1.0, 5);
+   //GeomVert[5]->IntPoint(5).y = 0.0;
+   kIPSetY(&GeomVert[5]->IntPoint(0), 0.0, 5);
+   //GeomVert[5]->IntPoint(5).z = 1.0;
+   kIPSetZ(&GeomVert[5]->IntPoint(0), 1.0, 5);
 
-   GeomVert[5]->IntPoint(6).x = 1.0;
-   GeomVert[5]->IntPoint(6).y = 1.0;
-   GeomVert[5]->IntPoint(6).z = 1.0;
+   //GeomVert[5]->IntPoint(6).x = 1.0;
+   kIPSetX(&GeomVert[5]->IntPoint(0), 1.0, 6);
+   //GeomVert[5]->IntPoint(6).y = 1.0;
+   kIPSetY(&GeomVert[5]->IntPoint(0), 1.0, 6);
+   //GeomVert[5]->IntPoint(6).z = 1.0;
+   kIPSetZ(&GeomVert[5]->IntPoint(0), 1.0, 6);
 
-   GeomVert[5]->IntPoint(7).x = 0.0;
-   GeomVert[5]->IntPoint(7).y = 1.0;
-   GeomVert[5]->IntPoint(7).z = 1.0;
+   //GeomVert[5]->IntPoint(7).x = 0.0;
+   kIPSetX(&GeomVert[5]->IntPoint(0), 0.0, 7);
+   //GeomVert[5]->IntPoint(7).y = 1.0;
+   kIPSetY(&GeomVert[5]->IntPoint(0), 1.0, 7);
+   //GeomVert[5]->IntPoint(7).z = 1.0;
+   kIPSetZ(&GeomVert[5]->IntPoint(0), 1.0, 7);
 
    // Vertices for Geometry::PRISM
    GeomVert[6] = new IntegrationRule(6);
-   GeomVert[6]->IntPoint(0).x = 0.0;
-   GeomVert[6]->IntPoint(0).y = 0.0;
-   GeomVert[6]->IntPoint(0).z = 0.0;
+   //GeomVert[6]->IntPoint(0).x = 0.0;
+   kIPSetX(&GeomVert[6]->IntPoint(0), 0.0, 0);
+   //GeomVert[6]->IntPoint(0).y = 0.0;
+   kIPSetY(&GeomVert[6]->IntPoint(0), 0.0, 0);
+   //GeomVert[6]->IntPoint(0).z = 0.0;
+   kIPSetZ(&GeomVert[6]->IntPoint(0), 0.0, 0);
 
-   GeomVert[6]->IntPoint(1).x = 1.0;
-   GeomVert[6]->IntPoint(1).y = 0.0;
-   GeomVert[6]->IntPoint(1).z = 0.0;
+   //GeomVert[6]->IntPoint(1).x = 1.0;
+   kIPSetX(&GeomVert[6]->IntPoint(0), 1.0, 1);
+   //GeomVert[6]->IntPoint(1).y = 0.0;
+   kIPSetY(&GeomVert[6]->IntPoint(0), 0.0, 1);
+   //GeomVert[6]->IntPoint(1).z = 0.0;
+   kIPSetZ(&GeomVert[6]->IntPoint(0), 0.0, 1);
 
-   GeomVert[6]->IntPoint(2).x = 0.0;
-   GeomVert[6]->IntPoint(2).y = 1.0;
-   GeomVert[6]->IntPoint(2).z = 0.0;
+   //GeomVert[6]->IntPoint(2).x = 0.0;
+   kIPSetX(&GeomVert[6]->IntPoint(0), 0.0, 2);
+   //GeomVert[6]->IntPoint(2).y = 1.0;
+   kIPSetY(&GeomVert[6]->IntPoint(0), 1.0, 2);
+   //GeomVert[6]->IntPoint(2).z = 0.0;
+   kIPSetZ(&GeomVert[6]->IntPoint(0), 0.0, 2);
 
-   GeomVert[6]->IntPoint(3).x = 0.0;
-   GeomVert[6]->IntPoint(3).y = 0.0;
-   GeomVert[6]->IntPoint(3).z = 1.0;
+   //GeomVert[6]->IntPoint(3).x = 0.0;
+   kIPSetX(&GeomVert[6]->IntPoint(0), 0.0, 3);
+   //GeomVert[6]->IntPoint(3).y = 0.0;
+   kIPSetY(&GeomVert[6]->IntPoint(0), 0.0, 3);
+   //GeomVert[6]->IntPoint(3).z = 1.0;
+   kIPSetZ(&GeomVert[6]->IntPoint(0), 1.0, 3);
 
-   GeomVert[6]->IntPoint(4).x = 1.0;
-   GeomVert[6]->IntPoint(4).y = 0.0;
-   GeomVert[6]->IntPoint(4).z = 1.0;
+   //GeomVert[6]->IntPoint(4).x = 1.0;
+   kIPSetX(&GeomVert[6]->IntPoint(0), 1.0, 4);
+   //GeomVert[6]->IntPoint(4).y = 0.0;
+   kIPSetY(&GeomVert[6]->IntPoint(0), 0.0, 4);
+   //GeomVert[6]->IntPoint(4).z = 1.0;
+   kIPSetZ(&GeomVert[6]->IntPoint(0), 1.0, 4);
 
-   GeomVert[6]->IntPoint(5).x = 0.0;
-   GeomVert[6]->IntPoint(5).y = 1.0;
-   GeomVert[6]->IntPoint(5).z = 1.0;
+   //GeomVert[6]->IntPoint(5).x = 0.0;
+   kIPSetX(&GeomVert[6]->IntPoint(0), 0.0, 5);
+   //GeomVert[6]->IntPoint(5).y = 1.0;
+   kIPSetY(&GeomVert[6]->IntPoint(0), 1.0, 5);
+   //GeomVert[6]->IntPoint(5).z = 1.0;
+   kIPSetZ(&GeomVert[6]->IntPoint(0), 1.0, 5);
 
    GeomCenter[POINT].x = 0.0;
    GeomCenter[POINT].y = 0.0;
@@ -676,9 +748,14 @@ void Geometry::GetPerfPointMat(int GeomType, DenseMatrix &pm)
       case Geometry::TRIANGLE:
       {
          pm.SetSize (2, 3);
-         pm(0,0) = 0.0;  pm(1,0) = 0.0;
-         pm(0,1) = 1.0;  pm(1,1) = 0.0;
-         pm(0,2) = 0.5;  pm(1,2) = 0.86602540378443864676;
+         double *d = pm.GetData(); 
+         const size_t h = pm.Height();                              
+         //pm(0,0) = 0.0;  pm(1,0) = 0.0;
+         kDMSetK(d,h,0,0,0.0); kDMSetK(d,h,1,0,0.0);
+         //pm(0,1) = 1.0;  pm(1,1) = 0.0;
+         kDMSetK(d,h,0,1,1.0); kDMSetK(d,h,1,1,0.0);
+         //pm(0,2) = 0.5;  pm(1,2) = 0.86602540378443864676;
+         kDMSetK(d,h,0,2,0.5); kDMSetK(d,h,1,2,0.86602540378443864676);
       }
       break;
 
@@ -695,11 +772,18 @@ void Geometry::GetPerfPointMat(int GeomType, DenseMatrix &pm)
       case Geometry::TETRAHEDRON:
       {
          pm.SetSize (3, 4);
-         pm(0,0) = 0.0;  pm(1,0) = 0.0;  pm(2,0) = 0.0;
-         pm(0,1) = 1.0;  pm(1,1) = 0.0;  pm(2,1) = 0.0;
-         pm(0,2) = 0.5;  pm(1,2) = 0.86602540378443864676;  pm(2,2) = 0.0;
-         pm(0,3) = 0.5;  pm(1,3) = 0.28867513459481288225;
-         pm(2,3) = 0.81649658092772603273;
+         double *d = pm.GetData(); 
+         const size_t h = pm.Height();  
+         //pm(0,0) = 0.0;  pm(1,0) = 0.0;  pm(2,0) = 0.0;
+         kDMSetK(d,h,0,0,0.0); kDMSetK(d,h,1,0,0.0); kDMSetK(d,h,2,0,0.0);
+         //pm(0,1) = 1.0;  pm(1,1) = 0.0;  pm(2,1) = 0.0;
+         kDMSetK(d,h,0,1,1.0); kDMSetK(d,h,1,1,0.0); kDMSetK(d,h,2,1,0.0);
+         //pm(0,2) = 0.5;  pm(1,2) = 0.86602540378443864676;  pm(2,2) = 0.0;
+         kDMSetK(d,h,0,2,0.5); kDMSetK(d,h,1,2,0.86602540378443864676); kDMSetK(d,h,2,2,0.0);
+         //pm(0,3) = 0.5;  pm(1,3) = 0.28867513459481288225;
+         kDMSetK(d,h,0,3,0.5); kDMSetK(d,h,1,3,0.28867513459481288225);
+         //pm(2,3) = 0.81649658092772603273;
+         kDMSetK(d,h,2,3,0.81649658092772603273);
       }
       break;
 
@@ -720,12 +804,20 @@ void Geometry::GetPerfPointMat(int GeomType, DenseMatrix &pm)
       case Geometry::PRISM:
       {
          pm.SetSize (3, 6);
-         pm(0,0) = 0.0;  pm(1,0) = 0.0;  pm(2,0) = 0.0;
-         pm(0,1) = 1.0;  pm(1,1) = 0.0;  pm(2,1) = 0.0;
-         pm(0,2) = 0.5;  pm(1,2) = 0.86602540378443864676;  pm(2,2) = 0.0;
-         pm(0,3) = 0.0;  pm(1,3) = 0.0;  pm(2,3) = 1.0;
-         pm(0,4) = 1.0;  pm(1,4) = 0.0;  pm(2,4) = 1.0;
-         pm(0,5) = 0.5;  pm(1,5) = 0.86602540378443864676;  pm(2,5) = 1.0;
+         double *d = pm.GetData(); 
+         const size_t h = pm.Height(); 
+         //pm(0,0) = 0.0;  pm(1,0) = 0.0;  pm(2,0) = 0.0;
+         kDMSetK(d,h,0,0,0.0); kDMSetK(d,h,1,0,0.0); kDMSetK(d,h,2,0,0.0);
+         //pm(0,1) = 1.0;  pm(1,1) = 0.0;  pm(2,1) = 0.0;
+         kDMSetK(d,h,0,1,1.0); kDMSetK(d,h,1,1,0.0); kDMSetK(d,h,2,1,0.0);
+         //pm(0,2) = 0.5;  pm(1,2) = 0.86602540378443864676;  pm(2,2) = 0.0;
+         kDMSetK(d,h,0,2,0.5); kDMSetK(d,h,1,2,0.86602540378443864676); kDMSetK(d,h,2,2,0.0);
+         //pm(0,3) = 0.0;  pm(1,3) = 0.0;  pm(2,3) = 1.0;
+         kDMSetK(d,h,0,3,0.0); kDMSetK(d,h,1,3,0.0); kDMSetK(d,h,2,3,1.0);
+         //pm(0,4) = 1.0;  pm(1,4) = 0.0;  pm(2,4) = 1.0;
+         kDMSetK(d,h,0,4,1.0); kDMSetK(d,h,1,4,0.0); kDMSetK(d,h,2,4,1.0);
+         //pm(0,5) = 0.5;  pm(1,5) = 0.86602540378443864676;  pm(2,5) = 1.0;
+         kDMSetK(d,h,0,5,0.5); kDMSetK(d,h,1,5,0.86602540378443864676); kDMSetK(d,h,2,5,1.0);
       }
       break;
 

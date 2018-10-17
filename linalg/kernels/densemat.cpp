@@ -278,5 +278,87 @@ void kMult(const size_t height, const size_t width,
       d_y[i] = sum;
    });
 }
+
+// *****************************************************************************
+void kDiag(const size_t n, const size_t N, const double c, double *data){
+   GET_ADRS(data);
+   forall(i, N, d_data[i] = 0.0;);
+   forall(i, n, d_data[i*(n+1)] = c;);
+}
+
+// *****************************************************************************
+void kOpEq(const size_t hw, const double *m, double *data){
+   GET_CONST_ADRS(m);
+   GET_ADRS(data);
+   forall(i, hw, d_data[i] = d_m[i];);
+}
+
+// *****************************************************************************
+double kDMDet2(const double *data){
+   GET_ADRS(data);
+   return d_data[0] * d_data[3] - d_data[1] * d_data[2];
+}
+
+// *****************************************************************************
+double kDMDet3(const double *d){
+   GET_ADRS(d);
+   return
+      d_d[0] * (d_d[4] * d_d[8] - d_d[5] * d_d[7]) +
+      d_d[3] * (d_d[2] * d_d[7] - d_d[1] * d_d[8]) +
+      d_d[6] * (d_d[1] * d_d[5] - d_d[2] * d_d[4]);
+}
+
+// *****************************************************************************
+double kFNormMax(const size_t hw, const double *data){
+   GET_ADRS(data);
+   double max_norm = 0.0;
+   for (size_t i = 0; i < hw; i++){
+      const double entry = fabs(d_data[i]);
+      if (entry > max_norm) {
+         max_norm = entry;
+      }
+   }
+   return max_norm;
+}
+
+// *****************************************************************************
+double kFNorm2(const size_t hw, const double max_norm, const double *data){
+   GET_ADRS(data);
+   double fnorm2 = 0.0;
+   for (size_t i = 0; i < hw; i++){
+      const double entry = d_data[i] / max_norm;
+      fnorm2 += entry * entry;
+   }
+   return fnorm2;
+}
+
+// *****************************************************************************
+void kCalcInverse2D(const double t, const double *a, double *inva){
+   GET_CONST_ADRS(a);
+   GET_ADRS(inva);
+   d_inva[0+2*0] = d_a[1+2*1] * t ;
+   d_inva[0+2*1] = -d_a[0+2*1] * t ;
+   d_inva[1+2*0] = -d_a[1+2*0] * t ;
+   d_inva[1+2*1] = d_a[0+2*0] * t ;
+}
+
+// *****************************************************************************
+void kCalcInverse3D(const double t, const double *a, double *inva){
+   GET_CONST_ADRS(a);
+   GET_ADRS(inva);
+   
+   d_inva[0+3*0] = (d_a[1+3*1]*d_a[2+3*2]-d_a[1+3*2]*d_a[2+3*1])*t;
+   d_inva[0+3*1] = (d_a[0+3*2]*d_a[2+3*1]-d_a[0+3*1]*d_a[2+3*2])*t;
+   d_inva[0+3*2] = (d_a[0+3*1]*d_a[1+3*2]-d_a[0+3*2]*d_a[1+3*1])*t;
+
+   d_inva[1+3*0] = (d_a[1+3*2]*d_a[2+3*0]-d_a[1+3*0]*d_a[2+3*2])*t;
+   d_inva[1+3*1] = (d_a[0+3*0]*d_a[2+3*2]-d_a[0+3*2]*d_a[2+3*0])*t;
+   d_inva[1+3*2] = (d_a[0+3*2]*d_a[1+3*0]-d_a[0+3*0]*d_a[1+3*2])*t;
+
+   d_inva[2+3*0] = (d_a[1+3*0]*d_a[2+3*1]-d_a[1+3*1]*d_a[2+3*0])*t;
+   d_inva[2+3*1] = (d_a[0+3*1]*d_a[2+3*0]-d_a[0+3*0]*d_a[2+3*1])*t;
+   d_inva[2+3*2] = (d_a[0+3*0]*d_a[1+3*1]-d_a[0+3*1]*d_a[1+3*0])*t;         
+}
+
 // *****************************************************************************
 MFEM_NAMESPACE_END

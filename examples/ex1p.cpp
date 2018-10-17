@@ -52,7 +52,7 @@ int main(int argc, char *argv[])
 {
    stkIni(argv[0]);
    stk(true);
-   // 1. Initialize MPI.
+   dbg("1. Initialize MPI.");
    int num_procs, myid;
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
@@ -133,6 +133,7 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec;
    if (order > 0)
    {
+      dbg("order > 0, H1_FECollection");
       fec = new H1_FECollection(order, dim);
    }
    else if (pmesh->GetNodes())
@@ -145,8 +146,10 @@ int main(int argc, char *argv[])
    }
    else
    {
+      assert(false);
       fec = new H1_FECollection(order = 1, dim);
    }
+   dbg("ParFiniteElementSpace");
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
    HYPRE_Int size = fespace->GlobalTrueVSize();
    if (myid == 0)
@@ -161,6 +164,7 @@ int main(int argc, char *argv[])
    Array<int> ess_tdof_list;
    if (pmesh->bdr_attributes.Size())
    {
+      dbg("ess_bdr");
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
@@ -174,25 +178,25 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
-   dbg("mesh->SetCurvature");
-   mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
+   //dbg("mesh->SetCurvature");
+   //mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
    if (gpu) { config::Get().Cuda(true); }
    if (pa)  { config::Get().PA(true);   }
 
-   // 9. Define the solution vector x as a parallel finite element grid function
+   dbg("9. Define the solution vector x");// as a parallel finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
    ParGridFunction x(fespace);
    x = 0.0;
 
-   // 10. Set up the parallel bilinear form a(.,.) on the finite element space
+   dbg("10. Set up the parallel bilinear form a(.,.)");// on the finite element space
    //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //     domain integrator.
    ParBilinearForm *a = new ParBilinearForm(fespace);
    if (pa) { a->AddDomainIntegrator(new PADiffusionIntegrator(one)); }
    else    { a->AddDomainIntegrator(new DiffusionIntegrator(one)); }
 
-   // 11. Assemble the parallel bilinear form and the corresponding linear
+   dbg("11. Assemble the parallel bilinear form");// and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, static condensation, etc.
@@ -200,29 +204,33 @@ int main(int argc, char *argv[])
    a->Assemble();
 
    Vector B, X;
-   //Operator *A;
-   OperatorHandle A(Operator::ANY_TYPE);
-   //HypreParMatrix A;
-   //if (pa) { A = new PABilinearForm(fespace); }
-   //else    { A = new SparseMatrix(); }
-   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+   Operator *A;
+   HypreParMatrix faA;
+   if (pa) { A = new ParPABilinearForm(fespace); }
+   
+   dbg("a->FormLinearSystem");
+   if (pa) { a->FormLinearSystem(ess_tdof_list, x, *b,   A, X, B); }
+   else    { a->FormLinearSystem(ess_tdof_list, x, *b, faA, X, B);   }
 
    if (myid == 0)
    {
-      cout << "Size of linear system: " << A.Ptr()->Height() << endl;
+      if (pa) { cout << "Size of linear system: " << A->Height() << endl; }
+      else    { cout << "Size of linear system: " << faA.GetGlobalNumRows() << endl;}
    }
 
    // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
    //     preconditioner from hypre.
-   //HypreSolver *amg = new HypreBoomerAMG(A);
-   //HyprePCG *pcg = new HyprePCG(A);
-   //pcg->SetTol(1e-12);
-   //pcg->SetMaxIter(200);
-   //pcg->SetPrintLevel(2);
-   //pcg->SetPreconditioner(*amg);
-   //pcg->Mult(B, X);
-   CG(*A.Ptr(), B, X, 3, 1000, 1e-12, 0.0);
-
+   if (pa){
+      CG(*A, B, X, 3, 1000, 1e-12, 0.0);
+   }else{
+      HypreSolver *amg = new HypreBoomerAMG(faA);
+      HyprePCG *pcg = new HyprePCG(faA);
+      pcg->SetTol(1e-12);
+      pcg->SetMaxIter(200);
+      pcg->SetPrintLevel(2);
+      pcg->SetPreconditioner(*amg);
+      pcg->Mult(B, X);
+   }
 
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.

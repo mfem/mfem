@@ -39,9 +39,35 @@ double kIPGetY(const IntegrationPoint *ip, const size_t offset){
 }
 
 // *****************************************************************************
+double kIPGetZ(const IntegrationPoint *ip, const size_t offset){
+   GET_ADRS_T(ip,IntegrationPoint);
+   return d_ip[offset].z;
+}
+
+// *****************************************************************************
 void kIPSetX(const IntegrationPoint *ip, const double x, const size_t offset){
    GET_ADRS_T(ip,IntegrationPoint);
    forall(i, 1, d_ip[offset].x = x; );
+}
+
+// *****************************************************************************
+
+void kIPSetX(const IntegrationPoint *ip, const double *x, const int i, const size_t offset){
+   GET_CONST_ADRS(x);
+   GET_ADRS_T(ip, IntegrationPoint);
+   forall(i, 1, d_ip[offset].x = d_x[i]; );
+}
+
+// *****************************************************************************
+void kIPSetY(const IntegrationPoint *ip, const double y, const size_t offset){
+   GET_ADRS_T(ip,IntegrationPoint);
+   forall(i, 1, d_ip[offset].y = y; );
+}
+
+// *****************************************************************************
+void kIPSetZ(const IntegrationPoint *ip, const double z, const size_t offset){
+   GET_ADRS_T(ip,IntegrationPoint);
+   forall(i, 1, d_ip[offset].z = z; );
 }
 
 // *****************************************************************************
@@ -58,9 +84,35 @@ void kIPSetXY(const IntegrationPoint *ip,
 }
 
 // *****************************************************************************
+void kIPSetIPXY(const int nx,
+                const IntegrationPoint *ip,
+                const IntegrationPoint *ipx,
+                const IntegrationPoint *ipy,
+                const size_t j, const size_t i){
+   GET_ADRS_T(ip,IntegrationPoint);
+   GET_CONST_ADRS_T(ipx,IntegrationPoint);
+   GET_CONST_ADRS_T(ipy,IntegrationPoint);
+   forall(k, 1, {
+         d_ip[j*nx+i].x = d_ipx[i].x;
+         d_ip[j*nx+i].y = d_ipy[j].x;
+         d_ip[j*nx+i].weight = d_ipx[i].weight * d_ipy[j].weight;
+      });
+}
+
+// *****************************************************************************
 void kIPSetW(const IntegrationPoint *ip, const double w, const size_t offset){
    GET_ADRS_T(ip,IntegrationPoint);
    forall(i, 1, d_ip[offset].weight = w; );
+}
+
+// *****************************************************************************
+void kIPSet1W(const IntegrationPoint *ip,
+              const double x, const double w, const size_t offset){
+   GET_ADRS_T(ip,IntegrationPoint);
+   forall(i, 1, {
+         d_ip[offset].x = x;
+         d_ip[offset].weight = w;
+      });
 }
 
 // *****************************************************************************
@@ -189,5 +241,25 @@ void kCalcChebyshev(const int p, const double x, double *u){
    }
 }
 
+// *****************************************************************************
+void kCalcChebyshev(const int p, const double x, double *u, double *d){
+   push();
+   GET_ADRS(u);
+   GET_ADRS(d);
+      
+   double z;
+   d_u[0] = 1.;
+   d_d[0] = 0.;
+   if (p == 0) { return; }
+   d_u[1] = z = 2.*x - 1.;
+   d_d[1] = 2.;
+   for (int n = 1; n < p; n++)
+   {
+      d_u[n+1] = 2*z*d_u[n] - d_u[n-1];
+      d_d[n+1] = (n + 1)*(z*d_d[n]/n + 2*d_u[n]);
+   }
+}
+
+      
 // *****************************************************************************
 MFEM_NAMESPACE_END

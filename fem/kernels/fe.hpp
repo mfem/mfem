@@ -27,6 +27,33 @@ void kH1_TriangleElement(const size_t p,
                          const double *shape_l,
                          double *T);
 
+// *****************************************************************************
+void kH1_TriangleElement_CalcShape(const size_t p,
+                                   const double *shape_x,
+                                   const double *shape_y,
+                                   const double *shape_l,
+                                   double *T);
+
+// *****************************************************************************
+void kH1_TriangleElement_CalcDShape(const size_t p,
+                                    const size_t height,
+                                    const double *shape_x,
+                                    const double *shape_y,
+                                    const double *shape_l,
+                                    const double *dshape_x,
+                                    const double *dshape_y,
+                                    const double *dshape_l,
+                                    double *du);
+
+// *****************************************************************************
+void kLinear3DFiniteElementHeightEq4(double*);
+      
+// *****************************************************************************
+void kBasis(const size_t p, const double *x, double *w);
+
+// *****************************************************************************
+void kNodesAreIncreasing(const size_t p, const double *x);
+
 MFEM_NAMESPACE_END
 
 #endif // MFEM_FEM_KERNELS_FE

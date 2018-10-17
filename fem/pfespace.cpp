@@ -30,6 +30,7 @@ ParFiniteElementSpace::ParFiniteElementSpace(
    const FiniteElementCollection *fec)
    : FiniteElementSpace(orig, pmesh, fec)
 {
+   push();
    ParInit(pmesh ? pmesh : orig.pmesh);
 }
 
@@ -38,6 +39,7 @@ ParFiniteElementSpace::ParFiniteElementSpace(
    const FiniteElementCollection *fec)
    : FiniteElementSpace(orig, &pmesh, fec)
 {
+   push();
    ParInit(&pmesh);
 }
 
@@ -49,6 +51,7 @@ ParFiniteElementSpace::ParFiniteElementSpace(
                         f ? f : global_fes->FEColl(),
                         global_fes->GetVDim(), global_fes->GetOrdering())
 {
+   push();
    ParInit(pm);
    // For NURBS spaces, the variable-order data is contained in the
    // NURBSExtension of 'global_fes' and inside the ParNURBSExtension of 'pm'.
@@ -61,6 +64,7 @@ ParFiniteElementSpace::ParFiniteElementSpace(
    ParMesh *pm, const FiniteElementCollection *f, int dim, int ordering)
    : FiniteElementSpace(pm, f, dim, ordering)
 {
+   push();
    ParInit(pm);
 }
 
@@ -69,6 +73,7 @@ ParFiniteElementSpace::ParFiniteElementSpace(
    int dim, int ordering)
    : FiniteElementSpace(pm, ext, f, dim, ordering)
 {
+   push();
    ParInit(pm);
 }
 
@@ -88,6 +93,7 @@ ParNURBSExtension *ParFiniteElementSpace::MakeLocalNURBSext(
 
 void ParFiniteElementSpace::ParInit(ParMesh *pm)
 {
+   push();
    pmesh = pm;
    pncmesh = pm->pncmesh;
 
@@ -128,6 +134,7 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
 
 void ParFiniteElementSpace::Construct()
 {
+   push();
    if (NURBSext)
    {
       ConstructTrueNURBSDofs();
@@ -174,6 +181,7 @@ void ParFiniteElementSpace::Construct()
 void ParFiniteElementSpace::GetGroupComm(
    GroupCommunicator &gc, int ldof_type, Array<int> *ldof_sign)
 {
+   push();
    int gr;
    int ng = pmesh->GetNGroups();
    int nvd, ned, ntd = 0, nqd = 0;
@@ -380,6 +388,7 @@ void ParFiniteElementSpace::GetGroupComm(
 
 void ParFiniteElementSpace::ApplyLDofSigns(Array<int> &dofs) const
 {
+   push();
    MFEM_ASSERT(Conforming(), "wrong code path");
 
    for (int i = 0; i < dofs.Size(); i++)
@@ -403,12 +412,14 @@ void ParFiniteElementSpace::ApplyLDofSigns(Array<int> &dofs) const
 
 void ParFiniteElementSpace::ApplyLDofSigns(Table &el_dof) const
 {
+   push();
    Array<int> all_dofs(el_dof.GetJ(), el_dof.Size_of_connections());
    ApplyLDofSigns(all_dofs);
 }
 
 void ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs) const
 {
+   push();
    if (elem_dof)
    {
       elem_dof->GetRow(i, dofs);
@@ -423,6 +434,7 @@ void ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs) const
 
 void ParFiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
 {
+   push();
    if (bdrElem_dof)
    {
       bdrElem_dof->GetRow(i, dofs);
@@ -437,6 +449,7 @@ void ParFiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const
 
 void ParFiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
 {
+   push();
    FiniteElementSpace::GetFaceDofs(i, dofs);
    if (Conforming())
    {
@@ -447,6 +460,7 @@ void ParFiniteElementSpace::GetFaceDofs(int i, Array<int> &dofs) const
 void ParFiniteElementSpace::GetSharedEdgeDofs(
    int group, int ei, Array<int> &dofs) const
 {
+   push();
    int l_edge, ori;
    MFEM_ASSERT(0 <= ei && ei < pmesh->GroupNEdges(group), "invalid edge index");
    pmesh->GroupEdge(group, ei, l_edge, ori);
@@ -470,6 +484,7 @@ void ParFiniteElementSpace::GetSharedEdgeDofs(
 void ParFiniteElementSpace::GetSharedTriangleDofs(
    int group, int fi, Array<int> &dofs) const
 {
+   push();
    int l_face, ori;
    MFEM_ASSERT(0 <= fi && fi < pmesh->GroupNTriangles(group),
                "invalid triangular face index");
@@ -494,6 +509,7 @@ void ParFiniteElementSpace::GetSharedTriangleDofs(
 void ParFiniteElementSpace::GetSharedQuadrilateralDofs(
    int group, int fi, Array<int> &dofs) const
 {
+   push();
    int l_face, ori;
    MFEM_ASSERT(0 <= fi && fi < pmesh->GroupNQuadrilaterals(group),
                "invalid quadrilateral face index");
@@ -517,6 +533,7 @@ void ParFiniteElementSpace::GetSharedQuadrilateralDofs(
 
 void ParFiniteElementSpace::GenerateGlobalOffsets() const
 {
+   push();
    MFEM_ASSERT(Conforming(), "wrong code path");
 
    HYPRE_Int ldof[2];
@@ -532,8 +549,10 @@ void ParFiniteElementSpace::GenerateGlobalOffsets() const
       // communicate the neighbor offsets in tdof_nb_offsets
       GroupTopology &gt = GetGroupTopo();
       int nsize = gt.GetNumNeighbors()-1;
-      MPI_Request *requests = new MPI_Request[2*nsize];
-      MPI_Status  *statuses = new MPI_Status[2*nsize];
+      //MPI_Request *requests = new MPI_Request[2*nsize];
+      MPI_Request *requests = mm::malloc<MPI_Request>(2*nsize);
+      //MPI_Status  *statuses = new MPI_Status[2*nsize];
+      MPI_Status  *statuses = mm::malloc<MPI_Status>(2*nsize);
       tdof_nb_offsets.SetSize(nsize+1);
       tdof_nb_offsets[0] = tdof_offsets[0];
 
@@ -553,13 +572,16 @@ void ParFiniteElementSpace::GenerateGlobalOffsets() const
       }
       MPI_Waitall(request_counter, requests, statuses);
 
-      delete [] statuses;
-      delete [] requests;
+      //delete [] statuses;
+      mm::free<MPI_Request>(statuses);
+      //delete [] requests;
+      mm::free<MPI_Request>(requests);
    }
 }
 
 void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
 {
+   push();
    MFEM_ASSERT(Conforming(), "wrong code path");
 
    if (P) { return; }
@@ -567,15 +589,20 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
    int ldof  = GetVSize();
    int ltdof = TrueVSize();
 
-   HYPRE_Int *i_diag = new HYPRE_Int[ldof+1];
-   HYPRE_Int *j_diag = new HYPRE_Int[ltdof];
+   //HYPRE_Int *i_diag = new HYPRE_Int[ldof+1];
+   HYPRE_Int *i_diag = mm::malloc<HYPRE_Int>(ldof+1);
+   //HYPRE_Int *j_diag = new HYPRE_Int[ltdof];
+   HYPRE_Int *j_diag = mm::malloc<HYPRE_Int>(ltdof);
    int diag_counter;
 
-   HYPRE_Int *i_offd = new HYPRE_Int[ldof+1];
-   HYPRE_Int *j_offd = new HYPRE_Int[ldof-ltdof];
+   //HYPRE_Int *i_offd = new HYPRE_Int[ldof+1];
+   HYPRE_Int *i_offd = mm::malloc<HYPRE_Int>(ldof+1);
+   //HYPRE_Int *j_offd = new HYPRE_Int[ldof-ltdof];
+   HYPRE_Int *j_offd = mm::malloc<HYPRE_Int>(ldof-ltdof);
    int offd_counter;
 
-   HYPRE_Int *cmap   = new HYPRE_Int[ldof-ltdof];
+   //HYPRE_Int *cmap   = new HYPRE_Int[ldof-ltdof];
+   HYPRE_Int *cmap   = mm::malloc<HYPRE_Int>(ldof-ltdof);
 
    HYPRE_Int *col_starts = GetTrueDofOffsets();
    HYPRE_Int *row_starts = GetDofOffsets();
@@ -619,6 +646,7 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
 
 HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
 {
+   push();
    HypreParMatrix *P_pc;
    Array<HYPRE_Int> P_pc_row_starts, P_pc_col_starts;
    BuildParallelConformingInterpolation(&P_pc, NULL, P_pc_row_starts,
@@ -630,6 +658,7 @@ HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
 
 void ParFiniteElementSpace::DivideByGroupSize(double *vec)
 {
+   push();
    if (Nonconforming())
    {
       MFEM_ABORT("Not implemented for NC mesh.");
@@ -648,6 +677,7 @@ void ParFiniteElementSpace::DivideByGroupSize(double *vec)
 
 GroupCommunicator *ParFiniteElementSpace::ScalarGroupComm()
 {
+   push();
    if (Nonconforming())
    {
       // MFEM_WARNING("Not implemented for NC mesh.");
@@ -668,6 +698,7 @@ GroupCommunicator *ParFiniteElementSpace::ScalarGroupComm()
 
 void ParFiniteElementSpace::Synchronize(Array<int> &ldof_marker) const
 {
+   push();
    if (Nonconforming())
    {
       MFEM_ABORT("Not implemented for NC mesh.");
@@ -687,6 +718,7 @@ void ParFiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
                                               Array<int> &ess_dofs,
                                               int component) const
 {
+   push();
    FiniteElementSpace::GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, component);
 
    if (Conforming())
@@ -702,6 +734,7 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
                                                  Array<int> &ess_tdof_list,
                                                  int component)
 {
+   push();
    Array<int> ess_dofs, true_ess_dofs;
 
    GetEssentialVDofs(bdr_attr_is_ess, ess_dofs, component);
@@ -724,6 +757,7 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
 
 int ParFiniteElementSpace::GetLocalTDofNumber(int ldof) const
 {
+   push();
    if (Nonconforming())
    {
       Dof_TrueDof_Matrix(); // inline method
@@ -745,6 +779,7 @@ int ParFiniteElementSpace::GetLocalTDofNumber(int ldof) const
 
 HYPRE_Int ParFiniteElementSpace::GetGlobalTDofNumber(int ldof) const
 {
+   push();
    if (Nonconforming())
    {
       MFEM_VERIFY(ldof_ltdof[ldof] >= 0, "ldof " << ldof << " not a true DOF.");
@@ -768,6 +803,7 @@ HYPRE_Int ParFiniteElementSpace::GetGlobalTDofNumber(int ldof) const
 
 HYPRE_Int ParFiniteElementSpace::GetGlobalScalarTDofNumber(int sldof)
 {
+   push();
    if (Nonconforming())
    {
       MFEM_ABORT("Not implemented for NC mesh.");
@@ -805,16 +841,19 @@ HYPRE_Int ParFiniteElementSpace::GetGlobalScalarTDofNumber(int sldof)
 
 HYPRE_Int ParFiniteElementSpace::GetMyDofOffset() const
 {
+   push();
    return HYPRE_AssumedPartitionCheck() ? dof_offsets[0] : dof_offsets[MyRank];
 }
 
 HYPRE_Int ParFiniteElementSpace::GetMyTDofOffset() const
 {
+   push();
    return HYPRE_AssumedPartitionCheck()? tdof_offsets[0] : tdof_offsets[MyRank];
 }
 
 const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
 {
+   push();
    if (Conforming())
    {
       if (!Pconf) { Pconf = new ConformingProlongationOperator(*this); }
@@ -828,6 +867,7 @@ const Operator *ParFiniteElementSpace::GetProlongationMatrix() const
 
 void ParFiniteElementSpace::ExchangeFaceNbrData()
 {
+   push();
    if (num_face_nbr_dofs >= 0) { return; }
 
    pmesh->ExchangeFaceNbrData();
@@ -1053,6 +1093,7 @@ void ParFiniteElementSpace::GetFaceNbrElementVDofs(
 
 void ParFiniteElementSpace::GetFaceNbrFaceVDofs(int i, Array<int> &vdofs) const
 {
+   push();
    // Works for NC mesh where 'i' is an index returned by
    // ParMesh::GetSharedFace() such that i >= Mesh::GetNumFaces(), i.e. 'i' is
    // the index of a ghost.
@@ -1081,6 +1122,7 @@ void ParFiniteElementSpace::GetFaceNbrFaceVDofs(int i, Array<int> &vdofs) const
 
 const FiniteElement *ParFiniteElementSpace::GetFaceNbrFE(int i) const
 {
+   push();
    const FiniteElement *FE =
       fec->FiniteElementForGeometry(
          pmesh->face_nbr_elements[i]->GetGeometryType());
@@ -1095,6 +1137,7 @@ const FiniteElement *ParFiniteElementSpace::GetFaceNbrFE(int i) const
 
 const FiniteElement *ParFiniteElementSpace::GetFaceNbrFaceFE(int i) const
 {
+   push();
    // Works in tandem with GetFaceNbrFaceVDofs() defined above.
    MFEM_ASSERT(Nonconforming() && !NURBSext, "");
    Geometry::Type geom = (pmesh->Dimension() == 2) ?
@@ -1104,6 +1147,7 @@ const FiniteElement *ParFiniteElementSpace::GetFaceNbrFaceFE(int i) const
 
 void ParFiniteElementSpace::Lose_Dof_TrueDof_Matrix()
 {
+   push();
    hypre_ParCSRMatrix *csrP = (hypre_ParCSRMatrix*)(*P);
    hypre_ParCSRMatrixOwnsRowStarts(csrP) = 1;
    hypre_ParCSRMatrixOwnsColStarts(csrP) = 1;
@@ -1114,6 +1158,7 @@ void ParFiniteElementSpace::Lose_Dof_TrueDof_Matrix()
 
 void ParFiniteElementSpace::ConstructTrueDofs()
 {
+   push();
    int i, gr, n = GetVSize();
    GroupTopology &gt = pmesh->gtopo;
    gcomm = new GroupCommunicator(gt);
@@ -1164,6 +1209,7 @@ void ParFiniteElementSpace::ConstructTrueDofs()
 
 void ParFiniteElementSpace::ConstructTrueNURBSDofs()
 {
+   push();
    int n = GetVSize();
    GroupTopology &gt = pNURBSext()->gtopo;
    gcomm = new GroupCommunicator(gt);
@@ -1212,6 +1258,7 @@ void ParFiniteElementSpace::ConstructTrueNURBSDofs()
 void ParFiniteElementSpace::GetGhostVertexDofs(const MeshId &id,
                                                Array<int> &dofs) const
 {
+   push();
    int nv = fec->DofForGeometry(Geometry::POINT);
    dofs.SetSize(nv);
    for (int j = 0; j < nv; j++)
@@ -1223,6 +1270,7 @@ void ParFiniteElementSpace::GetGhostVertexDofs(const MeshId &id,
 void ParFiniteElementSpace::GetGhostEdgeDofs(const MeshId &edge_id,
                                              Array<int> &dofs) const
 {
+   push();
    int nv = fec->DofForGeometry(Geometry::POINT);
    int ne = fec->DofForGeometry(Geometry::SEGMENT);
    dofs.SetSize(2*nv + ne);
@@ -1249,6 +1297,7 @@ void ParFiniteElementSpace::GetGhostEdgeDofs(const MeshId &edge_id,
 void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
                                              Array<int> &dofs) const
 {
+   push();
    const int ghost_face_index = face_id.index - pncmesh->GetNFaces();
    MFEM_ASSERT(pncmesh->GetGhostFaceGeometry(ghost_face_index)
                == Geometry::SQUARE, "");
@@ -1296,6 +1345,7 @@ void ParFiniteElementSpace::GetGhostFaceDofs(const MeshId &face_id,
 void ParFiniteElementSpace::GetGhostDofs(int entity, const MeshId &id,
                                          Array<int> &dofs) const
 {
+   push();
    // helper to get ghost vertex, ghost edge or ghost face DOFs
    switch (entity)
    {
@@ -1308,6 +1358,7 @@ void ParFiniteElementSpace::GetGhostDofs(int entity, const MeshId &id,
 void ParFiniteElementSpace::GetBareDofs(int entity, int index,
                                         Array<int> &dofs) const
 {
+   push();
    int ned, ghost, first;
    switch (entity)
    {
@@ -1346,6 +1397,7 @@ void ParFiniteElementSpace::GetBareDofs(int entity, int index,
 
 int ParFiniteElementSpace::PackDof(int entity, int index, int edof) const
 {
+   push();
    // DOFs are ordered as follows:
    // vertices | edges | faces | internal | ghost vert. | g. edges | g. faces
 
@@ -1385,6 +1437,7 @@ int ParFiniteElementSpace::PackDof(int entity, int index, int edof) const
 void ParFiniteElementSpace::UnpackDof(int dof,
                                       int &entity, int &index, int &edof) const
 {
+   push();
    MFEM_VERIFY(dof >= 0, "");
    if (dof < ndofs)
    {
@@ -1821,6 +1874,7 @@ int ParFiniteElementSpace
                                        Array<int> *dof_tdof,
                                        bool partial) const
 {
+   push();
    bool dg = (nvdofs == 0 && nedofs == 0 && nfdofs == 0);
 
    // *** STEP 1: build master-slave dependency lists ***
@@ -2135,6 +2189,7 @@ HypreParMatrix* ParFiniteElementSpace
                       Array<HYPRE_Int> &row_starts,
                       Array<HYPRE_Int> &col_starts) const
 {
+   push();
    bool assumed = HYPRE_AssumedPartitionCheck();
    bool bynodes = (ordering == Ordering::byNODES);
 
@@ -2167,7 +2222,8 @@ HypreParMatrix* ParFiniteElementSpace
    }
 
    // create offd column mapping
-   HYPRE_Int *cmap = new HYPRE_Int[col_map.size()];
+   //HYPRE_Int *cmap = new HYPRE_Int[col_map.size()];
+   HYPRE_Int *cmap = mm::malloc<HYPRE_Int>(col_map.size());
    int offd_col = 0;
    for (std::map<HYPRE_Int, int>::iterator
         it = col_map.begin(); it != col_map.end(); ++it)
@@ -2176,14 +2232,14 @@ HypreParMatrix* ParFiniteElementSpace
       it->second = offd_col++;
    }
 
-   HYPRE_Int *I_diag = new HYPRE_Int[vdim*local_rows + 1];
-   HYPRE_Int *I_offd = new HYPRE_Int[vdim*local_rows + 1];
+   HYPRE_Int *I_diag = mm::malloc<HYPRE_Int>(vdim*local_rows + 1);
+   HYPRE_Int *I_offd = mm::malloc<HYPRE_Int>(vdim*local_rows + 1);
 
-   HYPRE_Int *J_diag = new HYPRE_Int[nnz_diag];
-   HYPRE_Int *J_offd = new HYPRE_Int[nnz_offd];
+   HYPRE_Int *J_diag = mm::malloc<HYPRE_Int>(nnz_diag);
+   HYPRE_Int *J_offd = mm::malloc<HYPRE_Int>(nnz_offd);
 
-   double *A_diag = new double[nnz_diag];
-   double *A_offd = new double[nnz_offd];
+   double *A_diag = mm::malloc<double>(nnz_diag);
+   double *A_offd = mm::malloc<double>(nnz_offd);
 
    int vdim1 = bynodes ? vdim : 1;
    int vdim2 = bynodes ? 1 : vdim;
@@ -2234,19 +2290,21 @@ HypreParMatrix* ParFiniteElementSpace
 
 static HYPRE_Int* make_i_array(int nrows)
 {
-   HYPRE_Int *I = new HYPRE_Int[nrows+1];
+   push();
+   HYPRE_Int *I = mm::malloc<HYPRE_Int>(nrows+1);
    for (int i = 0; i <= nrows; i++) { I[i] = -1; }
    return I;
 }
 
 static HYPRE_Int* make_j_array(HYPRE_Int* I, int nrows)
 {
+   push();
    int nnz = 0;
    for (int i = 0; i < nrows; i++)
    {
       if (I[i] >= 0) { nnz++; }
    }
-   HYPRE_Int *J = new HYPRE_Int[nnz];
+   HYPRE_Int *J = mm::malloc<HYPRE_Int>(nnz);
 
    I[nrows] = -1;
    for (int i = 0, k = 0; i <= nrows; i++)
@@ -2262,6 +2320,7 @@ HypreParMatrix*
 ParFiniteElementSpace::RebalanceMatrix(int old_ndofs,
                                        const Table* old_elem_dof)
 {
+   push();
    MFEM_VERIFY(Nonconforming(), "Only supported for nonconforming meshes.");
    MFEM_VERIFY(old_dof_offsets.Size(), "ParFiniteElementSpace::Update needs to "
                "be called before ParFiniteElementSpace::RebalanceMatrix");
@@ -2345,7 +2404,7 @@ ParFiniteElementSpace::RebalanceMatrix(int old_ndofs,
    }
    SortPairs<HYPRE_Int, int>(cmap_offd, offd_cols);
 
-   HYPRE_Int* cmap = new HYPRE_Int[offd_cols];
+   HYPRE_Int* cmap = mm::malloc<HYPRE_Int>(offd_cols);
    for (int i = 0; i < offd_cols; i++)
    {
       cmap[i] = cmap_offd[i].one;
@@ -2541,7 +2600,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    offd->SetWidth(col_map.size());
 
    // create offd column mapping for use by hypre
-   HYPRE_Int *cmap = new HYPRE_Int[offd->Width()];
+   HYPRE_Int *cmap = mm::malloc<HYPRE_Int>(offd->Width());
    for (std::map<HYPRE_Int, int>::iterator
         it = col_map.begin(); it != col_map.end(); ++it)
    {
@@ -2597,6 +2656,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
 
 void ParFiniteElementSpace::Destroy()
 {
+   push();
    ldof_group.DeleteAll();
    ldof_ltdof.DeleteAll();
    dof_offsets.DeleteAll();
@@ -2621,6 +2681,7 @@ void ParFiniteElementSpace::Destroy()
 void ParFiniteElementSpace::GetTrueTransferOperator(
    const FiniteElementSpace &coarse_fes, OperatorHandle &T) const
 {
+   push();
    OperatorHandle Tgf(T.Type() == Operator::Hypre_ParCSR ?
                       Operator::MFEM_SPARSEMAT : Operator::ANY_TYPE);
    GetTransferOperator(coarse_fes, Tgf);
@@ -2647,6 +2708,7 @@ void ParFiniteElementSpace::GetTrueTransferOperator(
 
 void ParFiniteElementSpace::Update(bool want_transform)
 {
+   push();
    if (mesh->GetSequence() == sequence)
    {
       return; // no need to update, no-op
@@ -2739,6 +2801,7 @@ ConformingProlongationOperator::ConformingProlongationOperator(
      external_ldofs(),
      gc(pfes.GroupComm())
 {
+   push();
    MFEM_VERIFY(pfes.Conforming(), "");
    const Table &group_ldof = gc.GroupLDofTable();
    external_ldofs.Reserve(Height()-Width());
@@ -2778,6 +2841,7 @@ ConformingProlongationOperator::ConformingProlongationOperator(
 
 void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
 {
+   push();
    MFEM_ASSERT(x.Size() == Width(), "");
    MFEM_ASSERT(y.Size() == Height(), "");
 
@@ -2804,6 +2868,7 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
 void ConformingProlongationOperator::MultTranspose(
    const Vector &x, Vector &y) const
 {
+   push();
    MFEM_ASSERT(x.Size() == Height(), "");
    MFEM_ASSERT(y.Size() == Width(), "");
 

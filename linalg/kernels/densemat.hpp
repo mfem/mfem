@@ -45,6 +45,35 @@ void kMult0(const size_t height, double *y);
 void kMult(const size_t height, const size_t width,
            const double *data, const double *x, double *y);
 
+void kDiag(const size_t, const size_t, const double, double*);
+
+void kOpEq(const size_t, const double*, double*);
+
+double kDMDet2(const double*);
+double kDMDet3(const double*);
+
+double kFNormMax(const size_t, const double*);
+double kFNorm2(const size_t, const double, const double*);
+void kCalcInverse2D(const double, const double*, double*);
+void kCalcInverse3D(const double, const double*, double*);
+
+// *****************************************************************************
+template<typename T>
+void kDMSetK(T *data, const size_t h, const size_t i, const size_t j, T value){
+   GET_CUDA;
+   GET_ADRS_T(data,T);
+   if (cuda){ assert(false); }
+   d_data[i+h*j] = value;
+}
+
+// *****************************************************************************
+template<typename T>
+T kDMGetK(const T *data, const size_t h, const size_t i, const size_t j){
+   GET_CUDA;
+   GET_CONST_ADRS_T(data,T);
+   if (cuda){ assert(false); }
+   return d_data[i+h*j];
+}
 MFEM_NAMESPACE_END
 
 #endif // MFEM_DENSEMAT_KERNELS

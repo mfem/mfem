@@ -30,14 +30,27 @@ void kIntRulesBiLinear2DIni(IntegrationPoint*);
 void kIntRulesTriLinear3DIni(IntegrationPoint*);
 
 void kIPSetX(const IntegrationPoint*,const double, const size_t =0);
+void kIPSetY(const IntegrationPoint*,const double, const size_t =0);
+void kIPSetZ(const IntegrationPoint*,const double, const size_t =0);
+
+void kIPSetX(const IntegrationPoint*,const double*, const int, const size_t =0);
+
+
 double kIPGetX(const IntegrationPoint*, const size_t =0);
 double kIPGetY(const IntegrationPoint*, const size_t =0);
+double kIPGetZ(const IntegrationPoint*, const size_t =0);
+
 void kIPSetXY(const IntegrationPoint*,const double*,const int,const double*, const int,const size_t =0);
+void kIPSetIPXY(const int,
+                const IntegrationPoint*, const IntegrationPoint*,
+                const IntegrationPoint*, const size_t, const size_t);
 void kIPSetW(const IntegrationPoint*,const double, const size_t =0);
+void kIPSet1W(const IntegrationPoint*,const double,const double, const size_t =0);
 
 void kIPPts(const IntegrationPoint*,const size_t, double*);
 
 void kCalcChebyshev(const int, const double, double*);
+void kCalcChebyshev(const int, const double, double*, double*);
    
 MFEM_NAMESPACE_END
 
