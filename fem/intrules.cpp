@@ -37,7 +37,7 @@ IntegrationRule::IntegrationRule(int NP) :
 
 IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry)
 {
-   OKINA_ASSERT_CPU;
+   OKINA_ASSERT_GPU;
    int i, j, nx, ny;
 
    nx = irx.GetNPoints();
@@ -46,15 +46,20 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry)
 
    for (j = 0; j < ny; j++)
    {
-      IntegrationPoint &ipy = iry.IntPoint(j);
+      //IntegrationPoint &ipy = iry.IntPoint(j);
+      IntegrationPoint *ipy = &iry.IntPoint(0); // j
       for (i = 0; i < nx; i++)
       {
+         IntegrationPoint *ipx = &irx.IntPoint(0); // i
+         IntegrationPoint *ip  = &IntPoint(0); // j*nx+i
+         kIPSetIPXY(nx, ip, ipx, ipy, j, i);
+         /*
          IntegrationPoint &ipx = irx.IntPoint(i);
          IntegrationPoint &ip  = IntPoint(j*nx+i);
-
          ip.x = ipx.x;
          ip.y = ipy.x;
          ip.weight = ipx.weight * ipy.weight;
+         */
       }
    }
 }
@@ -362,19 +367,26 @@ public:
 
 void QuadratureFunctions1D::GaussLegendre(const int np, IntegrationRule* ir)
 {
-   OKINA_ASSERT_CPU;
+   OKINA_ASSERT_GPU;
    ir->SetSize(np);
 
    switch (np)
    {
       case 1:
+         OKINA_ASSERT_CPU;
          ir->IntPoint(0).Set1w(0.5, 1.0);
          return;
-      case 2:
-         ir->IntPoint(0).Set1w(0.21132486540518711775, 0.5);
-         ir->IntPoint(1).Set1w(0.78867513459481288225, 0.5);
+      case 2:{
+         OKINA_ASSERT_GPU;
+         const IntegrationPoint *ip = &ir->IntPoint(0);
+         //ir->IntPoint(0).Set1w(0.21132486540518711775, 0.5);
+         kIPSet1W(ip, 0.21132486540518711775, 0.5, 0);
+         //ir->IntPoint(1).Set1w(0.78867513459481288225, 0.5);
+         kIPSet1W(ip, 0.78867513459481288225, 0.5, 1);
          return;
+      }
       case 3:
+         OKINA_ASSERT_CPU;
          ir->IntPoint(0).Set1w(0.11270166537925831148, 5./18.);
          ir->IntPoint(1).Set1w(0.5, 4./9.);
          ir->IntPoint(2).Set1w(0.88729833462074168852, 5./18.);
@@ -863,7 +875,7 @@ IntegrationRules RefinedIntRules(1, Quadrature1D::GaussLegendre);
 IntegrationRules::IntegrationRules(int Ref, int _type):
    quad_type(_type)
 {
-   OKINA_ASSERT_CPU;
+   OKINA_ASSERT_GPU;
    refined = Ref;
 
    if (refined < 0) { own_rules = 0; return; }
@@ -896,7 +908,7 @@ IntegrationRules::IntegrationRules(int Ref, int _type):
 
 const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
 {
-   OKINA_ASSERT_CPU;
+   OKINA_ASSERT_GPU;
    Array<IntegrationRule *> *ir_array;
 
    switch (GeomType)
@@ -1004,7 +1016,7 @@ IntegrationRules::~IntegrationRules()
 IntegrationRule *IntegrationRules::GenerateIntegrationRule(int GeomType,
                                                            int Order)
 {
-   OKINA_ASSERT_CPU;
+   OKINA_ASSERT_GPU;
    switch (GeomType)
    {
       case Geometry::POINT:
@@ -1050,7 +1062,7 @@ IntegrationRule *IntegrationRules::PointIntegrationRule(int Order)
 // Integration rules for line segment [0,1]
 IntegrationRule *IntegrationRules::SegmentIntegrationRule(int Order)
 {
-   OKINA_ASSERT_CPU;
+   OKINA_ASSERT_GPU;
    int RealOrder = GetSegmentRealOrder(Order); // RealOrder >= Order
    // Order is one of {RealOrder-1,RealOrder}
    AllocIntRule(SegmentIntRules, RealOrder);
@@ -1105,6 +1117,7 @@ IntegrationRule *IntegrationRules::SegmentIntegrationRule(int Order)
    }
    if (refined)
    {
+      OKINA_ASSERT_CPU;
       // Effectively passing memory management to SegmentIntegrationRules
       ir = new IntegrationRule(2*n);
       for (int j = 0; j < n; j++)
@@ -1508,7 +1521,7 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
 // Integration rules for unit square
 IntegrationRule *IntegrationRules::SquareIntegrationRule(int Order)
 {
-   OKINA_ASSERT_CPU;
+   OKINA_ASSERT_GPU;
    int RealOrder = GetSegmentRealOrder(Order);
    // Order is one of {RealOrder-1,RealOrder}
    if (!HaveIntRule(SegmentIntRules, RealOrder))

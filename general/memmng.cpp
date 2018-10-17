@@ -127,18 +127,18 @@ void* mm::add(const void *adrs, const size_t size, const size_t size_of_T)
 // *****************************************************************************
 void *mm::del(const void *adrs)
 {
-   dbg("adrs: %p",adrs);
+   //dbg("adrs: %p",adrs);
    const auto search = mng->find(adrs);
    const bool present = search != mng->end();
    if (!present)  // should not happen
    {
       printf("\n\033[31;7m[mm::del] %p\033[m", adrs);
-      assert(false); // should not happen
+      //assert(false); // should not happen
       stk(true);
-      //#warning not asserting false!
+#warning not asserting false!
       return (void*)adrs;
    }
-   printf("\n\033[32;7m[mm::del] %p\033[m", adrs);fflush(0);
+   //printf("\n\033[32;7m[mm::del] %p\033[m", adrs);fflush(0);
    // Remove element from the map
    mng->erase(adrs);
    return shiftBack(adrs);
@@ -162,7 +162,7 @@ bool mm::Known(const void *adrs)
 // *****************************************************************************
 void* mm::Adrs(const void *adrs)
 {
-   dbg("Looking for %p", adrs);
+   //dbg("Looking for %p", adrs);
    const bool cuda = config::Get().Cuda();
    const auto search = mng->find(adrs);
    const bool present = search != mng->end();
@@ -171,8 +171,8 @@ void* mm::Adrs(const void *adrs)
    {
       dbg("Unknown %p", adrs);
       stk(true);
-      //#warning not asserting false!
-      assert(false);
+      #warning not asserting false!
+      //assert(false);
       //mfem_error("[ERROR] Trying to convert unknown address!");
       return (void*)adrs;
    }
@@ -181,7 +181,7 @@ void* mm::Adrs(const void *adrs)
    // If we are asking a known host address, just return it
    if (mm2dev.host and not cuda)
    {
-      dbg("Returning host adrs %p\033[m", mm2dev.h_adrs);
+      //dbg("Returning host adrs %p\033[m", mm2dev.h_adrs);
       return shiftBack(mm2dev.h_adrs);
    }
    // Otherwise push it to the device if it hasn't been seen

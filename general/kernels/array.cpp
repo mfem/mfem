@@ -40,6 +40,14 @@ double *kArrayInitGet(const int p, double **pts){
 }
 
 // *****************************************************************************
+void* kArrayVoidGet(const int p, void **bases){
+   GET_CUDA;
+   GET_ADRS_T(bases,void*);
+   if (cuda){ assert(false); }
+   return d_bases[p];
+}
+
+// *****************************************************************************
 void kArrayInitSet(double **d_pts, double *adrs){
    push();
    GET_CUDA;

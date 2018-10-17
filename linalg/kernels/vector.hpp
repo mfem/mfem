@@ -28,6 +28,24 @@ void kVectorAlphaAdd(double *vp, const double* v1p,
 
 void kVectorPrint(const size_t N, const double *data);
 
+// *****************************************************************************
+template<typename T>
+void kVectorSetK(T *data, const size_t k, T value){
+   GET_CUDA;
+   GET_ADRS_T(data,T);
+   if (cuda){ assert(false); }
+   d_data[k] = value;
+}
+
+// *****************************************************************************
+template<typename T>
+T kVectorGetK(const T *data, const size_t k){
+   GET_CUDA;
+   GET_CONST_ADRS_T(data,T);
+   if (cuda){ assert(false); }
+   return d_data[k];
+}
+
 void kVectorSet(const size_t N, const double value, double *data);
 
 void kVectorAssign(const size_t N, const double* v, double *data);
