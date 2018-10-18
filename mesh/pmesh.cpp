@@ -1402,12 +1402,23 @@ void ParMesh::GroupEdge(int group, int i, int &edge, int &o)
 void ParMesh::GroupTriangle(int group, int i, int &face, int &o)
 {
    int stria = group_stria.GetRow(group-1)[i];
-   face = sface_lface[stria];
-   // face gives the base orientation
-   MFEM_ASSERT(faces[face]->GetType() == Element::TRIANGLE,
-               "Expecting a triangular face.");
+   if (Dim < 4)
+   {
+      face = sface_lface[stria];
+      // face gives the base orientation
+      MFEM_ASSERT(faces[face]->GetType() == Element::TRIANGLE,
+                  "Expecting a triangular face.");
+      o = GetTriOrientation(faces[face]->GetVertices(), shared_trias[stria].v);
+   }
+   else
+   {
+      face = splan_lplan[stria];
+      // face gives the base orientation
+      MFEM_ASSERT(planars[face]->GetType() == Element::TRIANGLE,
+                  "Expecting a triangular planar.");
+      o = GetTriOrientation(planars[face]->GetVertices(), shared_trias[stria].v);
+   }
 
-   o = GetTriOrientation(faces[face]->GetVertices(), shared_trias[stria].v);
 }
 
 void ParMesh::GroupQuadrilateral(int group, int i, int &face, int &o)
