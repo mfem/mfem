@@ -31,6 +31,29 @@ inline void Swap(T &a, T &b)
 }
 
 // *****************************************************************************
+__kernel__ void LSolve(const int m,
+                       const int n,
+                       const double *data,
+                       const int *ipiv,
+                       double *x)
+{
+   for(int k=0; k<n; k+=1) {
+      double *mx = &x[k*m];
+      // X <- P X
+      for (int i = 0; i < m; i++) {
+         Swap<double>(mx[i], mx[ipiv[i]-ipiv_base]);
+      }
+      // X <- L^{-1} X
+      for (int j = 0; j < m; j++) {
+         const double mx_j = mx[j];
+         for (int i = j+1; i < m; i++) {
+            mx[i] -= data[i+j*m] * mx_j;
+         }
+      }
+   }
+}
+
+// *****************************************************************************
 void kLSolve( const int m,
               const int n,
               const double *data, const int *ipiv, double *x)

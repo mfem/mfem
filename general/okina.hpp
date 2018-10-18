@@ -13,6 +13,7 @@
 #define MFEM_OKINA_HPP
 
 #ifdef __NVCC__
+#define __kernel__
 #include <cuda.h>
 #include <helper_cuda.h>
 #include <helper_functions.h>
