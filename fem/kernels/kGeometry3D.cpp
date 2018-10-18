@@ -63,6 +63,7 @@ void kGeom3D(const int numElements,
          const double r_detJ = ((J11 * J22 * J33) + (J12 * J23 * J31) +
                                 (J13 * J21 * J32) -
                                 (J13 * J22 * J31)-(J12 * J21 * J33)-(J11 * J23 * J32));
+         assert(r_detJ!=0.0);
          J[ijklNM(0, 0, q, e,3,NUM_QUAD)] = J11;
          J[ijklNM(1, 0, q, e,3,NUM_QUAD)] = J12;
          J[ijklNM(2, 0, q, e,3,NUM_QUAD)] = J13;
@@ -91,7 +92,8 @@ void kGeom3D(const int numElements,
 }
 
 template void kGeom3D<2,2>(int, double const*, double const*, double*, double*, double*);
-template void kGeom3D<3,3>(int, double const*, double const*, double*, double*, double*);
+template void kGeom3D<2,3>(int, double const*, double const*, double*, double*, double*);
+/*template void kGeom3D<3,3>(int, double const*, double const*, double*, double*, double*);
 template void kGeom3D<4,4>(int, double const*, double const*, double*, double*, double*);
 template void kGeom3D<5,5>(int, double const*, double const*, double*, double*, double*);
 template void kGeom3D<6,6>(int, double const*, double const*, double*, double*, double*);
@@ -106,7 +108,7 @@ template void kGeom3D<14,14>(int, double const*, double const*, double*, double*
 template void kGeom3D<15,15>(int, double const*, double const*, double*, double*, double*);
 template void kGeom3D<16,16>(int, double const*, double const*, double*, double*, double*);
 template void kGeom3D<17,17>(int, double const*, double const*, double*, double*, double*);
-
+*/
 
 // *****************************************************************************
 MFEM_NAMESPACE_END

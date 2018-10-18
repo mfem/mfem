@@ -67,7 +67,7 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry)
 IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
                                  IntegrationRule &irz)
 {
-   OKINA_ASSERT_CPU;
+   //OKINA_ASSERT_CPU;
    const int nx = irx.GetNPoints();
    const int ny = iry.GetNPoints();
    const int nz = irz.GetNPoints();
