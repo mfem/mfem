@@ -1028,15 +1028,16 @@ public:
                      int ordering = 1);
 
    /// Refine all mesh elements.
-   /** @param[in] ref_algo Refinement algorithm. Currently used only for pure
+   /** @param[in] ref_algo %Refinement algorithm. Currently used only for pure
        tetrahedral meshes. If set to zero (default), a tet mesh will be refined
        using algorithm A, that produces elements with better quality compared to
-       algorithm B used when the parameter is non-zero.  For tetrahedral meshes,
-       after using algorithm A, the mesh cannot be refined locally using methods
-       like GeneralRefinement() unless it is re-finalized using Finalize() with
-       the parameter @a refine set to true.  Note that calling Finalize() in
-       this way will generally invalidate any FiniteElementSpace%s and
-       GridFuncion%s defined on the mesh. */
+       algorithm B used when the parameter is non-zero.
+
+       For tetrahedral meshes, after using algorithm A, the mesh cannot be
+       refined locally using methods like GeneralRefinement() unless it is
+       re-finalized using Finalize() with the parameter @a refine set to true.
+       Note that calling Finalize() in this way will generally invalidate any
+       FiniteElementSpace%s and GridFunction%s defined on the mesh. */
    void UniformRefinement(int ref_algo = 0);
 
    /** Refine selected mesh elements. Refinement type can be specified for each
