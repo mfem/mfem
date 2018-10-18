@@ -40,7 +40,7 @@ public:
              int ind13, int ind14, int ind15, int ind16, int attr = 1);
 
    /// Return element's type
-   int GetType() const { return Element::TESSERACT; }
+   Type GetType() const { return Element::TESSERACT; }
 
    /// Returns the indices of the element's vertices.
    virtual void GetVertices(Array<int> &v) const;

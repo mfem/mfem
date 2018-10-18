@@ -63,7 +63,7 @@ public:
 
 
    /// Return element's type.
-   virtual int GetType() const { return Element::PENTATOPE; }
+   virtual Type GetType() const { return Element::PENTATOPE; }
 
    /// Returns the indices of the element's  vertices.
    virtual void GetVertices(Array<int> &v) const;
