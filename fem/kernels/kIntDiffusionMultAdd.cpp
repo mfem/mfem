@@ -32,7 +32,6 @@ void kIntDiffusionMultAdd2D(const int numElements,
                             const double* __restrict solIn,
                             double* __restrict solOut)
 {
-   printf("\n\r[kIntDiffusionMultAdd2D] NUM_DOFS_1D=%d NUM_QUAD_1D:%d",NUM_DOFS_1D,NUM_QUAD_1D);
    const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D;
    forall(e, numElements,
    {
@@ -58,7 +57,6 @@ void kIntDiffusionMultAdd2D(const int numElements,
          for (int dx = 0; dx < NUM_DOFS_1D; ++dx)
          {
             const double s = solIn[ijkN(dx,dy,e,NUM_DOFS_1D)];
-            //printf("\n\t[rDiffusionMultAdd2D] e=%02d dx,dy=(%d,%d) %f",e, dx,dy,s);
             for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
             {
                gradX[qx][0] += s * dofToQuad[ijN(qx,dx,NUM_QUAD_1D)];
@@ -84,8 +82,7 @@ void kIntDiffusionMultAdd2D(const int numElements,
          for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
          {
             const int q = QUAD_2D_ID(qx, qy);
-            if (e==0 and q==0)
-               printf("\n\t[rDiffusionMultAdd2D] e=%02d qx,qy=(%d,%d) oper=%f",e,qx,qy,oper[ijkNM(0,q,e,3,NUM_QUAD)]);
+            
             const double O11 = oper[ijkNM(0,q,e,3,NUM_QUAD)];
             const double O12 = oper[ijkNM(1,q,e,3,NUM_QUAD)];
             const double O22 = oper[ijkNM(2,q,e,3,NUM_QUAD)];
@@ -117,7 +114,6 @@ void kIntDiffusionMultAdd2D(const int numElements,
                const double wDx = quadToDofD[ijN(dx,qx,NUM_DOFS_1D)];
                gradX[dx][0] += gX * wDx;
                gradX[dx][1] += gY * wx;
-               //printf("\n\t[rDiffusionMultAdd2D] e=%02d qx,qy=(%d,%d) gradX: %f %f",e,qx,qy,gradX[dx][0],gradX[dx][1]);
             }
          }
 
@@ -132,17 +128,7 @@ void kIntDiffusionMultAdd2D(const int numElements,
             }
          }
       }
-
-      for (int dx = 0; dx < NUM_DOFS_1D; ++dx){
-         for (int dy = 0; dy < NUM_DOFS_1D; ++dy){
-            const long offset = ijkN(dx,dy,e,NUM_DOFS_1D)-ijkN(0,0,0,NUM_DOFS_1D);
-            const double so = solOut[ijkN(dx,dy,e,NUM_DOFS_1D)];
-            //printf("\n\t[rDiffusionMultAdd2D] e:%02d so[%ld]=%e",e,offset,so);
-         }
-      }
-
    });
-   //assert(false);
 }
 
 // *****************************************************************************
@@ -326,38 +312,30 @@ void kIntDiffusionMultAdd(const int DIM,
                           const double* __restrict x,
                           double* __restrict y)
 {
-   const unsigned int id = (DIM<<16)|((NUM_DOFS_1D-1)<<8)|(NUM_QUAD_1D>>1);
+   const unsigned int id = (DIM<<16)|(NUM_DOFS_1D<<8)|(NUM_QUAD_1D);
    dbg("NUM_DOFS_1D=%d",NUM_DOFS_1D);
    dbg("NUM_QUAD_1D=%d",NUM_QUAD_1D);
    dbg("id=0x%x",id);
    static std::unordered_map<unsigned int, fDiffusionMultAdd> call =
-   {
-      {0x20101,&kIntDiffusionMultAdd2D<2,2>},
-      {0x20102,&kIntDiffusionMultAdd2D<2,4>},
+   {      
+      {0x20202,&kIntDiffusionMultAdd2D<2,2>},
+      {0x20303,&kIntDiffusionMultAdd2D<3,3>},
+      {0x20404,&kIntDiffusionMultAdd2D<4,4>},
+      {0x20505,&kIntDiffusionMultAdd2D<5,5>},
+      {0x20606,&kIntDiffusionMultAdd2D<6,6>},
+      {0x20707,&kIntDiffusionMultAdd2D<7,7>},
+      {0x20808,&kIntDiffusionMultAdd2D<8,8>},
+      {0x20909,&kIntDiffusionMultAdd2D<9,9>},
+      {0x20A0A,&kIntDiffusionMultAdd2D<10,10>},
+      {0x20B0B,&kIntDiffusionMultAdd2D<11,11>},
+      {0x20C0C,&kIntDiffusionMultAdd2D<12,12>},
+      {0x20D0D,&kIntDiffusionMultAdd2D<13,13>},
+      {0x20E0E,&kIntDiffusionMultAdd2D<14,14>},
+      {0x20F0F,&kIntDiffusionMultAdd2D<15,15>},
+      {0x21010,&kIntDiffusionMultAdd2D<16,16>},
+      {0x21111,&kIntDiffusionMultAdd2D<17,17>},
       
-      {0x20201,&kIntDiffusionMultAdd2D<3,2>},
-      
-      {0x20302,&kIntDiffusionMultAdd2D<4,4>},
-      
-      {0x20402,&kIntDiffusionMultAdd2D<5,4>},
-      
-      {0x20503,&kIntDiffusionMultAdd2D<6,6>},
-
-/*
-      {0x20000,&kIntDiffusionMultAdd2D<1,1>},
-      {0x20001,&kIntDiffusionMultAdd2D<1,2>},
-      {0x20002,&kIntDiffusionMultAdd2D<1,4>},
-       
-      {0x20100,&kIntDiffusionMultAdd2D<2,1>},
-      {0x20102,&kIntDiffusionMultAdd2D<2,4>},
-      
-      {0x20202,&kIntDiffusionMultAdd2D<3,4>},
-      {0x20203,&kIntDiffusionMultAdd2D<3,6>},
-      
-      {0x20303,&kIntDiffusionMultAdd2D<4,6>},
-      
-      {0x20402,&kIntDiffusionMultAdd2D<5,4>},
-      
+/*      
       {0x30001,&kIntDiffusionMultAdd3D<1,2>},
       {0x30100,&kIntDiffusionMultAdd3D<2,1>},
       {0x30101,&kIntDiffusionMultAdd3D<2,2>},
