@@ -23,7 +23,6 @@ static void kAssemble2D(const int NUM_QUAD_1D,
                         const double* __restrict J,
                         const double COEFF,
                         double* __restrict oper) {
-   dbg("NUM_QUAD_1D:%d",NUM_QUAD_1D);
    const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D;
    forall(e,numElements,
    {
@@ -34,12 +33,9 @@ static void kAssemble2D(const int NUM_QUAD_1D,
          const double J21 = J[ijklNM(0,1,q,e,2,NUM_QUAD)];
          const double J22 = J[ijklNM(1,1,q,e,2,NUM_QUAD)];
          const double c_detJ = quadWeights[q] * COEFF / ((J11*J22)-(J21*J12));
-         //printf("\n\t[rDiffusionAssemble2D0] e:%d %f, %f, %f, %f, %f",e,J11,J12,J21,J22,c_detJ);
          oper[ijkNM(0,q,e,3,NUM_QUAD)] =  c_detJ * (J21*J21 + J22*J22);
          oper[ijkNM(1,q,e,3,NUM_QUAD)] = -c_detJ * (J21*J11 + J22*J12);
          oper[ijkNM(2,q,e,3,NUM_QUAD)] =  c_detJ * (J11*J11 + J12*J12);
-         const long offset = ijkNM(0,q,e,3,NUM_QUAD)-ijkNM(0,0,0,3,NUM_QUAD);
-         printf("\n\t[rDiffusionAssemble2D0] e=%d offset=%d",e,offset);
       }
    });
 }
