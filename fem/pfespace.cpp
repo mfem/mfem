@@ -183,7 +183,7 @@ void ParFiniteElementSpace::GetGroupComm(
    int gr;
    int ng = pmesh->GetNGroups();
    int nvd, ned, ntd = 0, nqd = 0;
-   int nfd, npd;
+   int nted = 0;
    Array<int> dofs;
 
    int dim = pmesh->Dimension();
@@ -204,6 +204,10 @@ void ParFiniteElementSpace::GetGroupComm(
       {
          nqd = fec->DofForGeometry(Geometry::SQUARE);
       }
+      if (mesh->HasGeometry(Geometry::TETRAHEDRON) && dim > 3)
+      {
+         nted = fec->DofForGeometry(Geometry::TETRAHEDRON);
+      }
    }
 
    if (ldof_sign)
@@ -220,8 +224,7 @@ void ParFiniteElementSpace::GetGroupComm(
       group_ldof_counter += ned * pmesh->GroupNEdges(gr);
       group_ldof_counter += ntd * pmesh->GroupNTriangles(gr);
       group_ldof_counter += nqd * pmesh->GroupNQuadrilaterals(gr);
-      if (dim==4) { group_ldof_counter += npd * pmesh->GroupNPlanars(gr); }
-      group_ldof_counter += nfd * pmesh->GroupNFaces(gr);
+      group_ldof_counter += nted * pmesh->GroupNTetrahedra(gr);
    }
    if (ldof_type)
    {
@@ -235,16 +238,14 @@ void ParFiniteElementSpace::GetGroupComm(
    group_ldof.GetI()[0] = group_ldof.GetI()[1] = 0;
    for (gr = 1; gr < ng; gr++)
    {
-      int j, k, l, m, o, nv, ne, nt, nq;
-      int np, nf;
+      int j, k, l, m, o, nv, ne, nt, nq, nte;
       const int *ind;
 
       nv = pmesh->GroupNVertices(gr);
       ne = pmesh->GroupNEdges(gr);
       nt = pmesh->GroupNTriangles(gr);
       nq = pmesh->GroupNQuadrilaterals(gr);
-      if (dim==4) { np = pmesh->GroupNPlanars(gr); }
-      nf = pmesh->GroupNFaces(gr);
+      nte = pmesh->GroupNTetrahedra(gr);
 
       // vertices
       if (nvd > 0)
@@ -310,43 +311,6 @@ void ParFiniteElementSpace::GetGroupComm(
          }
       }
 
-      // planars
-      if (npd > 0)
-      {
-         for (j = 0; j < np; j++)
-         {
-            pmesh->GroupPlanar(gr, j, k, o);
-
-            dofs.SetSize(npd);
-            m = nvdofs+nedofs+pdofs[k];
-            ind = fec->DofOrderForOrientation(
-                     mesh->GetPlanarBaseGeometry(k), o);
-            for (l = 0; l < npd; l++)
-               if (ind[l] < 0)
-               {
-                  dofs[l] = m + (-1-ind[l]);
-                  if (ldof_sign)
-                  {
-                     (*ldof_sign)[dofs[l]] = -1;
-                  }
-               }
-               else
-               {
-                  dofs[l] = m + ind[l];
-               }
-
-            if (ldof_type)
-            {
-               DofsToVDofs(dofs);
-            }
-
-            for (l = 0; l < dofs.Size(); l++)
-            {
-               group_ldof.GetJ()[group_ldof_counter++] = dofs[l];
-            }
-         }
-      }
-
       // triangles
       if (ntd > 0)
       {
@@ -356,6 +320,8 @@ void ParFiniteElementSpace::GetGroupComm(
 
             dofs.SetSize(ntd);
             m = nvdofs+nedofs+fdofs[k];
+            if (dim == 4)
+               m = nvdofs+nedofs+pdofs[k];
             ind = fec->DofOrderForOrientation(Geometry::TRIANGLE, o);
             for (l = 0; l < ntd; l++)
             {
@@ -423,18 +389,18 @@ void ParFiniteElementSpace::GetGroupComm(
          }
       }
 
-      // faces
-      if (nfd > 0)
+      // tetrahedra (4D)
+      if (nted > 0)
       {
-         for (j = 0; j < nf; j++)
+         for (j = 0; j < nte; j++)
          {
-            pmesh->GroupFace(gr, j, k, o);
+            pmesh->GroupTetrahedron(gr, j, k, o);
 
-            dofs.SetSize(nfd);
-            m = nvdofs+nedofs+fdofs[k];
+            dofs.SetSize(nted);
+            m = nvdofs+nedofs+npdofs+fdofs[k];
             ind = fec->DofOrderForOrientation(
                      mesh->GetFaceBaseGeometry(k), o);
-            for (l = 0; l < nfd; l++)
+            for (l = 0; l < nted; l++)
             {
                if (ind[l] < 0)
                {
@@ -605,12 +571,12 @@ void ParFiniteElementSpace::GetSharedQuadrilateralDofs(
    }
 }
 
-void ParFiniteElementSpace::GetSharedFaceDofs(
+void ParFiniteElementSpace::GetSharedTetrahedronDofs(
    int group, int fi, Array<int> &dofs) const
 {
    int l_face, ori;
-   MFEM_ASSERT(0 <= fi && fi < pmesh->GroupNFaces(group), "invalid face index");
-   pmesh->GroupFace(group, fi, l_face, ori);
+   MFEM_ASSERT(0 <= fi && fi < pmesh->GroupNTetrahedra(group), "invalid face index");
+   pmesh->GroupTetrahedron(group, fi, l_face, ori);
    if (ori == 0)
    {
       GetFaceDofs(l_face, dofs);
@@ -2129,7 +2095,7 @@ int ParFiniteElementSpace
             else { T.SetFE(&SegmentFE); }
          }
 
-         int geom = (entity > 1) ? Geometry::SQUARE : Geometry::SEGMENT;
+         Geometry::Type geom = (entity > 1) ? Geometry::SQUARE : Geometry::SEGMENT;
          if (pmesh->Dimension() == 4)
          {
             geom = (entity > 2) ? Geometry::TETRAHEDRON :

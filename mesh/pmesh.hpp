@@ -68,22 +68,23 @@ protected:
    //   * quad id 'i-shared_trias.Size()',  otherwise
    Array<Vert3> shared_trias;
    Array<Vert4> shared_quads;
-   Array<Element *> shared_planars;
-   Array<Element *> shared_faces;
+   Array<Vert4> shared_tetra;
+//   Array<Element *> shared_planars;
 
    /// Shared objects in each group.
    Table group_svert;
    Table group_sedge;
    Table group_stria;  // contains shared triangle indices
    Table group_squad;  // contains shared quadrilateral indices
-   Table group_splan;
-   Table group_sface;
+   Table group_stetr;
+//   Table group_splan;
 
    /// Shared to local index mapping.
    Array<int> svert_lvert;
    Array<int> sedge_ledge;
    Array<int> splan_lplan;
    // sface ids: all triangles first, then all quads
+   // in 4D, just all tetrahedra
    Array<int> sface_lface;
 
    /// Create from a nonconforming mesh.
@@ -120,6 +121,8 @@ protected:
 
    /// Update the groups after tetrahedron refinement
    void RefineGroups(int old_nv, const HashTable<Hashed2> &v_to_v);
+
+   void RefineGroups4D(int old_nv, const HashTable<Hashed2> &v_to_v);
 
    void UniformRefineGroups2D(int old_nv);
 
@@ -208,16 +211,15 @@ public:
    int GroupNEdges(int group)    { return group_sedge.RowSize(group-1); }
    int GroupNTriangles(int group) { return group_stria.RowSize(group-1); }
    int GroupNQuadrilaterals(int group) { return group_squad.RowSize(group-1); }
-   int GroupNPlanars(int group)  { return group_splan.RowSize(group-1); }
-   int GroupNFaces(int group)    { return group_sface.RowSize(group-1); }
+//   int GroupNPlanars(int group)  { return group_splan.RowSize(group-1); }
+   int GroupNTetrahedra(int group)    { return group_stetr.RowSize(group-1); }
 
    int GroupVertex(int group, int i)
    { return svert_lvert[group_svert.GetRow(group-1)[i]]; }
    void GroupEdge(int group, int i, int &edge, int &o);
    void GroupTriangle(int group, int i, int &face, int &o);
    void GroupQuadrilateral(int group, int i, int &face, int &o);
-   void GroupPlanar(int group, int i, int &planar, int &o);
-   void GroupFace(int group, int i, int &face, int &o);
+   void GroupTetrahedron(int group, int i, int &face, int &o);
    ///@}
 
    void GenerateOffsets(int N, HYPRE_Int loc_sizes[],

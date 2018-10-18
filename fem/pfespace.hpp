@@ -266,6 +266,7 @@ public:
    void GetSharedEdgeDofs(int group, int ei, Array<int> &dofs) const;
    void GetSharedTriangleDofs(int group, int fi, Array<int> &dofs) const;
    void GetSharedQuadrilateralDofs(int group, int fi, Array<int> &dofs) const;
+   void GetSharedTetrahedronDofs(int group, int fi, Array<int> &dofs) const;
 
    /// The true dof-to-dof interpolation matrix
    HypreParMatrix *Dof_TrueDof_Matrix() const
