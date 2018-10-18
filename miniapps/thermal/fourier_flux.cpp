@@ -24,6 +24,7 @@
 
 using namespace std;
 using namespace mfem;
+using namespace mfem::miniapps;
 using namespace mfem::thermal;
 
 void display_banner(ostream & os);
@@ -564,17 +565,23 @@ int main(int argc, char *argv[])
    // continuous normal component.
    RT_FECollection HDivFEC(order-1, dim);
 
+   // ND contains Nedelec "edge-centered" vector finite elements with
+   // continuous tangential component.
+   ND_FECollection HCurlFEC(order, dim);
+
    // H1 contains continuous "node-centered" Lagrange finite elements.
    H1_FECollection HGradFEC(order, dim);
 
    ParFiniteElementSpace   L2FESpace0(pmesh, &L2FEC0);
    ParFiniteElementSpace    L2FESpace(pmesh, &L2FEC);
    ParFiniteElementSpace  HDivFESpace(pmesh, &HDivFEC);
+   ParFiniteElementSpace HCurlFESpace(pmesh, &HCurlFEC);
    ParFiniteElementSpace HGradFESpace(pmesh, &HGradFEC);
 
    // The terminology is TrueVSize is the unique (non-redundant) number of dofs
    HYPRE_Int glob_size_l2 = L2FESpace.GlobalTrueVSize();
    HYPRE_Int glob_size_rt = HDivFESpace.GlobalTrueVSize();
+   HYPRE_Int glob_size_nd = HCurlFESpace.GlobalTrueVSize();
    HYPRE_Int glob_size_h1 = HGradFESpace.GlobalTrueVSize();
 
    if (mpi.Root())
@@ -594,6 +601,7 @@ int main(int argc, char *argv[])
    BlockVector x(block_offsets);
 
    ParGridFunction q;
+   ParGridFunction qInit(&HDivFESpace);
    ParGridFunction qPara(&HDivFESpace);
    ParGridFunction qPerp(&HDivFESpace);
    ParGridFunction Q(&L2FESpace);
@@ -649,8 +657,12 @@ int main(int argc, char *argv[])
    if (!zero_start)
    {
       T.ProjectCoefficient(TCoef);
-      q.ProjectCoefficient(qCoef);
       U1.ProjectCoefficient(TCoef);
+      qInit.ProjectCoefficient(qCoef);
+
+      IrrotationalRTProjector curlFreeProj(HCurlFESpace, HDivFESpace, irOrder);
+
+      curlFreeProj.Mult(qInit, q);
    }
 
    T.GridFunction::ComputeElementL2Errors(TCoef, errorT);
