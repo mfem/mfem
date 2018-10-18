@@ -115,7 +115,7 @@ double TFunc(const Vector &x, double t)
          double b = 0.8;
 
          double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
-	 double rs = pow(x[0] - 0.5 * a, 2) + pow(x[1] - 0.5 * b, 2);
+         double rs = pow(x[0] - 0.5 * a, 2) + pow(x[1] - 0.5 * b, 2);
          return cos(0.5 * M_PI * sqrt(r)) + 0.5 * exp(-400.0 * rs);
       }
    }
@@ -169,20 +169,20 @@ void dTFunc(const Vector &x, double t, Vector &dT)
          double b = 0.8;
 
          double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
-	 double rs = pow(x[0] - 0.5 * a, 2) + pow(x[1] - 0.5 * b, 2);
-	 double ers = exp(-400.0 * rs);
-	 
+         double rs = pow(x[0] - 0.5 * a, 2) + pow(x[1] - 0.5 * b, 2);
+         double ers = exp(-400.0 * rs);
+
          double r_2 = sqrt(r);
          double sr = sin(0.5 * M_PI * r_2);
 
-	 // T = cos(0.5 * M_PI * sqrt(r)) + 0.5 * exp(-400.0 * rs);
+         // T = cos(0.5 * M_PI * sqrt(r)) + 0.5 * exp(-400.0 * rs);
 
          dT[0] = -0.5 * M_PI * x[0] * sr / ( a * a * r_2 );
          dT[1] = -0.5 * M_PI * x[1] * sr / ( b * b * r_2 );
 
-	 dT[0] -= 400.0 * (x[0] - 0.5 * a) * ers;
-	 dT[1] -= 400.0 * (x[1] - 0.5 * b) * ers;
-	 
+         dT[0] -= 400.0 * (x[0] - 0.5 * a) * ers;
+         dT[1] -= 400.0 * (x[1] - 0.5 * b) * ers;
+
       }
       break;
    }
@@ -607,7 +607,7 @@ int main(int argc, char *argv[])
    //     point as input and returning a 3-vector field
    FunctionCoefficient TCoef(TFunc);
    VectorFunctionCoefficient qCoef(2, qFunc);
-   
+
    Vector zeroVec(dim); zeroVec = 0.0;
    ConstantCoefficient zeroCoef(0.0);
    VectorConstantCoefficient zeroVecCoef(zeroVec);
@@ -627,8 +627,8 @@ int main(int argc, char *argv[])
 
    if (!zero_start)
    {
-     T1.ProjectCoefficient(TCoef);
-     q.ProjectCoefficient(qCoef);
+      T1.ProjectCoefficient(TCoef);
+      q.ProjectCoefficient(qCoef);
    }
 
    T1.GridFunction::ComputeElementL2Errors(TCoef, errorT);
@@ -817,7 +817,7 @@ int main(int argc, char *argv[])
       */
       gPara.Mult(T1, qPara);
       gPerp.Mult(T1, qPerp);
-      
+
       qPara.ParallelAssemble(RHS1);
       X1 = 0.0;
       M1Inv.Mult(RHS1, X1);
@@ -832,7 +832,7 @@ int main(int argc, char *argv[])
 
       q = qPara;
       q += qPerp;
-      
+
       if (gfprint)
       {
          ostringstream q_name, T_name, mesh_name;
@@ -883,8 +883,8 @@ int main(int argc, char *argv[])
                                      Wx, Wy, Ww, Wh);
 
             // Wx += offx;
-	    // miniapps::VisualizeField(vis_U, vishost, visport,
-	    //                       U1, "Energy", Wx, Wy, Ww, Wh);
+            // miniapps::VisualizeField(vis_U, vishost, visport,
+            //                       U1, "Energy", Wx, Wy, Ww, Wh);
 
             // Wx -= offx;
             // Wy += offy;

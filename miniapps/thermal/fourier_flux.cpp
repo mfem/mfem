@@ -113,7 +113,7 @@ double TFunc(const Vector &x, double t)
          double b = 0.8;
 
          double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
-	 double rs = pow(x[0] - 0.5 * a, 2) + pow(x[1] - 0.5 * b, 2);
+         double rs = pow(x[0] - 0.5 * a, 2) + pow(x[1] - 0.5 * b, 2);
          return cos(0.5 * M_PI * sqrt(r)) + 0.5 * exp(-400.0 * rs);
       }
    }
@@ -167,20 +167,20 @@ void dTFunc(const Vector &x, double t, Vector &dT)
          double b = 0.8;
 
          double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
-	 double rs = pow(x[0] - 0.5 * a, 2) + pow(x[1] - 0.5 * b, 2);
-	 double ers = exp(-400.0 * rs);
-	 
+         double rs = pow(x[0] - 0.5 * a, 2) + pow(x[1] - 0.5 * b, 2);
+         double ers = exp(-400.0 * rs);
+
          double r_2 = sqrt(r);
          double sr = sin(0.5 * M_PI * r_2);
 
-	 // T = cos(0.5 * M_PI * sqrt(r)) + 0.5 * exp(-400.0 * rs);
+         // T = cos(0.5 * M_PI * sqrt(r)) + 0.5 * exp(-400.0 * rs);
 
          dT[0] = -0.5 * M_PI * x[0] * sr / ( a * a * r_2 );
          dT[1] = -0.5 * M_PI * x[1] * sr / ( b * b * r_2 );
 
-	 dT[0] -= 400.0 * (x[0] - 0.5 * a) * ers;
-	 dT[1] -= 400.0 * (x[1] - 0.5 * b) * ers;
-	 
+         dT[0] -= 400.0 * (x[0] - 0.5 * a) * ers;
+         dT[1] -= 400.0 * (x[1] - 0.5 * b) * ers;
+
       }
       break;
    }
@@ -570,7 +570,7 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace   L2FESpace0(pmesh, &L2FEC0);
    ParFiniteElementSpace    L2FESpace(pmesh, &L2FEC);
    ParFiniteElementSpace  HDivFESpace(pmesh, &HDivFEC);
-   ParFiniteElementSpace  HGradFESpace(pmesh, &HGradFEC);
+   ParFiniteElementSpace HGradFESpace(pmesh, &HGradFEC);
 
    // The terminology is TrueVSize is the unique (non-redundant) number of dofs
    HYPRE_Int glob_size_l2 = L2FESpace.GlobalTrueVSize();
@@ -648,11 +648,11 @@ int main(int argc, char *argv[])
 
    if (!zero_start)
    {
-     T.ProjectCoefficient(TCoef);
-     q.ProjectCoefficient(qCoef);
-     U1.ProjectCoefficient(TCoef);
+      T.ProjectCoefficient(TCoef);
+      q.ProjectCoefficient(qCoef);
+      U1.ProjectCoefficient(TCoef);
    }
-   
+
    T.GridFunction::ComputeElementL2Errors(TCoef, errorT);
    q.GridFunction::ComputeElementL2Errors(qCoef, errorq);
    qPara.GridFunction::ComputeElementL2Errors(qParaCoef, errorqPara);
