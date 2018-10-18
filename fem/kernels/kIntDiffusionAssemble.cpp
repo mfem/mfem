@@ -23,20 +23,23 @@ static void kAssemble2D(const int NUM_QUAD_1D,
                         const double* __restrict J,
                         const double COEFF,
                         double* __restrict oper) {
-   const int NUM_QUAD_2D = NUM_QUAD_1D*NUM_QUAD_1D;
+   dbg("NUM_QUAD_1D:%d",NUM_QUAD_1D);
+   const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D;
    forall(e,numElements,
    {
-      for (int q = 0; q < NUM_QUAD_2D; ++q)
+      for (int q = 0; q < NUM_QUAD; ++q)
       {
-         const double J11 = J[ijklNM(0,0,q,e,2,NUM_QUAD_2D)];
-         const double J12 = J[ijklNM(1,0,q,e,2,NUM_QUAD_2D)];
-         const double J21 = J[ijklNM(0,1,q,e,2,NUM_QUAD_2D)];
-         const double J22 = J[ijklNM(1,1,q,e,2,NUM_QUAD_2D)];
+         const double J11 = J[ijklNM(0,0,q,e,2,NUM_QUAD)];
+         const double J12 = J[ijklNM(1,0,q,e,2,NUM_QUAD)];
+         const double J21 = J[ijklNM(0,1,q,e,2,NUM_QUAD)];
+         const double J22 = J[ijklNM(1,1,q,e,2,NUM_QUAD)];
          const double c_detJ = quadWeights[q] * COEFF / ((J11*J22)-(J21*J12));
-         //printf("\n\t[rDiffusionAssemble2D0] %f, %f, %f, %f, %f",J11,J12,J21,J22,c_detJ);
-         oper[ijkNM(0,q,e,3,NUM_QUAD_2D)] =  c_detJ * (J21*J21 + J22*J22);
-         oper[ijkNM(1,q,e,3,NUM_QUAD_2D)] = -c_detJ * (J21*J11 + J22*J12);
-         oper[ijkNM(2,q,e,3,NUM_QUAD_2D)] =  c_detJ * (J11*J11 + J12*J12);
+         //printf("\n\t[rDiffusionAssemble2D0] e:%d %f, %f, %f, %f, %f",e,J11,J12,J21,J22,c_detJ);
+         oper[ijkNM(0,q,e,3,NUM_QUAD)] =  c_detJ * (J21*J21 + J22*J22);
+         oper[ijkNM(1,q,e,3,NUM_QUAD)] = -c_detJ * (J21*J11 + J22*J12);
+         oper[ijkNM(2,q,e,3,NUM_QUAD)] =  c_detJ * (J11*J11 + J12*J12);
+         const long offset = ijkNM(0,q,e,3,NUM_QUAD)-ijkNM(0,0,0,3,NUM_QUAD);
+         printf("\n\t[rDiffusionAssemble2D0] e=%d offset=%d",e,offset);
       }
    });
 }
@@ -77,12 +80,12 @@ static void kAssemble3D(const int NUM_QUAD_1D,
          const double A32 = (J13 * J21) - (J11 * J23);
          const double A33 = (J11 * J22) - (J12 * J21);
          // adj(J)^Tadj(J)
-         oper[ijkNM(0,q,e,6,NUM_QUAD_3D)] = c_detJ * (A11*A11 + A21*A21 + A31*A31); // (1,1)
-         oper[ijkNM(1,q,e,6,NUM_QUAD_3D)] = c_detJ * (A11*A12 + A21*A22 + A31*A32); // (1,2), (2,1)
-         oper[ijkNM(2,q,e,6,NUM_QUAD_3D)] = c_detJ * (A11*A13 + A21*A23 + A31*A33); // (1,3), (3,1)
-         oper[ijkNM(3,q,e,6,NUM_QUAD_3D)] = c_detJ * (A12*A12 + A22*A22 + A32*A32); // (2,2)
-         oper[ijkNM(4,q,e,6,NUM_QUAD_3D)] = c_detJ * (A12*A13 + A22*A23 + A32*A33); // (2,3), (3,2)
-         oper[ijkNM(5,q,e,6,NUM_QUAD_3D)] = c_detJ * (A13*A13 + A23*A23 + A33*A33); // (3,3)
+         oper[ijkNM(0,q,e,6,NUM_QUAD_1D)] = c_detJ * (A11*A11 + A21*A21 + A31*A31); // (1,1)
+         oper[ijkNM(1,q,e,6,NUM_QUAD_1D)] = c_detJ * (A11*A12 + A21*A22 + A31*A32); // (1,2), (2,1)
+         oper[ijkNM(2,q,e,6,NUM_QUAD_1D)] = c_detJ * (A11*A13 + A21*A23 + A31*A33); // (1,3), (3,1)
+         oper[ijkNM(3,q,e,6,NUM_QUAD_1D)] = c_detJ * (A12*A12 + A22*A22 + A32*A32); // (2,2)
+         oper[ijkNM(4,q,e,6,NUM_QUAD_1D)] = c_detJ * (A12*A13 + A22*A23 + A32*A33); // (2,3), (3,2)
+         oper[ijkNM(5,q,e,6,NUM_QUAD_1D)] = c_detJ * (A13*A13 + A23*A23 + A33*A33); // (3,3)
       }
    });
 }

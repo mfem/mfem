@@ -142,8 +142,7 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
-   dbg("SetCurvature, order=%d",order);
-   mesh->SetCurvature(order, false, -1, Ordering::byVDIM);
+   mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
    if (gpu) { config::Get().Cuda(true); }
    if (pa)  { config::Get().PA(true);   }
 
