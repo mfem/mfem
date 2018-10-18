@@ -20,8 +20,8 @@
 MFEM_NAMESPACE
 
 // *****************************************************************************
-template<const int NUM_DOFS,
-         const int NUM_QUAD>
+template<const int NUM_DOFS_1D,
+         const int NUM_QUAD_1D>
 void kGeom3D(const int numElements,
              const double* __restrict dofToQuadD,
              const double* __restrict nodes,
@@ -29,6 +29,8 @@ void kGeom3D(const int numElements,
              double* __restrict invJ,
              double* __restrict detJ)
 {
+   const int NUM_DOFS = NUM_DOFS_1D*NUM_DOFS_1D*NUM_DOFS_1D;
+   const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D*NUM_QUAD_1D;
    forall(e,numElements,
    {
       double s_nodes[3*NUM_DOFS];
@@ -88,24 +90,23 @@ void kGeom3D(const int numElements,
    });
 }
 
-/*
+template void kGeom3D<2,2>(int, double const*, double const*, double*, double*, double*);
+template void kGeom3D<3,3>(int, double const*, double const*, double*, double*, double*);
+template void kGeom3D<4,4>(int, double const*, double const*, double*, double*, double*);
+template void kGeom3D<5,5>(int, double const*, double const*, double*, double*, double*);
+template void kGeom3D<6,6>(int, double const*, double const*, double*, double*, double*);
+template void kGeom3D<7,7>(int, double const*, double const*, double*, double*, double*);
 template void kGeom3D<8,8>(int, double const*, double const*, double*, double*, double*);
-template void kGeom3D<27,64>(int, double const*, double const*, double*, double*, double*);
-template void kGeom3D<64,216>(int, double const*, double const*, double*, double*, double*);
-template void kGeom3D<125,512>(int, double const*, double const*, double*, double*, double*);
-template void kGeom3D<216,1000>(int, double const*, double const*, double*, double*, double*);
-template void kGeom3D<343,1728>(int, double const*, double const*, double*, double*, double*);
-template void kGeom3D<512,2744>(int, double const*, double const*, double*, double*, double*);
-template void kGeom3D<729,4096>(int, double const*, double const*, double*, double*, double*);
-template void kGeom3D<1000,5832>(int, double const*, double const*, double*, double*, double*);
-template void kGeom3D<1331,8000>(int, double const*, double const*, double*, double*, double*);
-template void kGeom3D<1728,10648>(int, double const*, double const*, double*, double*, double*);
-template void kGeom3D<2197,13824>(int, double const*, double const*, double*, double*, double*);
-template void kGeom3D<2744,17576>(int, double const*, double const*, double*, double*, double*);
-template void kGeom3D<3375,21952>(int, double const*, double const*, double*, double*, double*);
-template void kGeom3D<4096,27000>(int, double const*, double const*, double*, double*, double*);
-template void kGeom3D<4913,32768>(int, double const*, double const*, double*, double*, double*);
-*/
+template void kGeom3D<9,9>(int, double const*, double const*, double*, double*, double*);
+template void kGeom3D<10,10>(int, double const*, double const*, double*, double*, double*);
+template void kGeom3D<11,11>(int, double const*, double const*, double*, double*, double*);
+template void kGeom3D<12,12>(int, double const*, double const*, double*, double*, double*);
+template void kGeom3D<13,13>(int, double const*, double const*, double*, double*, double*);
+template void kGeom3D<14,14>(int, double const*, double const*, double*, double*, double*);
+template void kGeom3D<15,15>(int, double const*, double const*, double*, double*, double*);
+template void kGeom3D<16,16>(int, double const*, double const*, double*, double*, double*);
+template void kGeom3D<17,17>(int, double const*, double const*, double*, double*, double*);
+
 
 // *****************************************************************************
 MFEM_NAMESPACE_END

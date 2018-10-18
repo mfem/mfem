@@ -22,13 +22,13 @@
 MFEM_NAMESPACE
 
 // *****************************************************************************
-template<const int NUM_DOFS,
-         const int NUM_QUAD>
+template<const int NUM_DOFS_1D,
+         const int NUM_QUAD_1D>
 void kGeom2D(const int,const double*,const double*,double*,double*,double*);
 
 // *****************************************************************************
-template<const int NUM_DOFS,
-         const int NUM_QUAD>
+template<const int NUM_DOFS_1D,
+         const int NUM_QUAD_1D>
 void kGeom3D(const int,const double*,const double*,double*,double*,double*);
 
 // *****************************************************************************
@@ -48,51 +48,50 @@ void kGeom(const int DIM,
 {
    const unsigned int dofs1D = IROOT(DIM,NUM_DOFS);
    const unsigned int quad1D = IROOT(DIM,NUM_QUAD);
-   const unsigned int id = (DIM<<4)|(dofs1D-2);
+   const unsigned int id = (DIM<<8)|(dofs1D-2)<<4|(quad1D-2);
    dbg("DIM=%d",DIM);
    dbg("quad1D=%d",quad1D);
    dbg("dofs1D=%d",dofs1D);
    dbg("id=%d",id);
    assert(LOG2(DIM)<=4);
    assert(LOG2(dofs1D-2)<=4);
+   assert(LOG2(quad1D-2)<=4);
    static std::unordered_map<unsigned int, fIniGeom> call =
    {
       // 2D
-      {0x20,&kGeom2D<2*2,(2*2-2)*(2*2-2)>},
-      {0x21,&kGeom2D<3*3,(3*2-2)*(3*2-2)>},
-      {0x22,&kGeom2D<4*4,(4*2-2)*(4*2-2)>},
-      {0x23,&kGeom2D<5*5,(5*2-2)*(5*2-2)>},
-      {0x24,&kGeom2D<6*6,(6*2-2)*(6*2-2)>},
-      {0x25,&kGeom2D<7*7,(7*2-2)*(7*2-2)>},
-      {0x26,&kGeom2D<8*8,(8*2-2)*(8*2-2)>},
-      {0x27,&kGeom2D<9*9,(9*2-2)*(9*2-2)>},
-      {0x28,&kGeom2D<10*10,(10*2-2)*(10*2-2)>},
-      {0x29,&kGeom2D<11*11,(11*2-2)*(11*2-2)>},
-      {0x2A,&kGeom2D<12*12,(12*2-2)*(12*2-2)>},
-      {0x2B,&kGeom2D<13*13,(13*2-2)*(13*2-2)>},
-      {0x2C,&kGeom2D<14*14,(14*2-2)*(14*2-2)>},
-      {0x2D,&kGeom2D<15*15,(15*2-2)*(15*2-2)>},
-      {0x2E,&kGeom2D<16*16,(16*2-2)*(16*2-2)>},
-      {0x2F,&kGeom2D<17*17,(17*2-2)*(17*2-2)>},
-      /*
+      {0x200,&kGeom2D<2,2>},
+      {0x211,&kGeom2D<3,3>},
+      {0x222,&kGeom2D<4,4>},
+      {0x233,&kGeom2D<5,5>},
+      {0x244,&kGeom2D<6,6>},
+      {0x255,&kGeom2D<7,7>},
+      {0x266,&kGeom2D<8,8>},
+      {0x277,&kGeom2D<9,9>},
+      {0x288,&kGeom2D<10,10>},
+      {0x299,&kGeom2D<11,11>},
+      {0x2AA,&kGeom2D<12,12>},
+      {0x2BB,&kGeom2D<13,13>},
+      {0x2CC,&kGeom2D<14,14>},
+      {0x2DD,&kGeom2D<15,15>},
+      {0x2EE,&kGeom2D<16,16>},
+      {0x2FF,&kGeom2D<17,17>},
       // 3D
-      {0x30,&kGeom3D<2*2*2,2*2*2>},
-      {0x31,&kGeom3D<3*3*3,4*4*4>},
-      {0x32,&kGeom3D<4*4*4,6*6*6>},
-      {0x33,&kGeom3D<5*5*5,8*8*8>},
-      {0x34,&kGeom3D<6*6*6,10*10*10>},
-      {0x35,&kGeom3D<7*7*7,12*12*12>},
-      {0x36,&kGeom3D<8*8*8,14*14*14>},
-      {0x37,&kGeom3D<9*9*9,16*16*16>},
-      {0x38,&kGeom3D<10*10*10,18*18*18>},
-      {0x39,&kGeom3D<11*11*11,20*20*20>},
-      {0x3A,&kGeom3D<12*12*12,22*22*22>},
-      {0x3B,&kGeom3D<13*13*13,24*24*24>},
-      {0x3C,&kGeom3D<14*14*14,26*26*26>},
-      {0x3D,&kGeom3D<15*15*15,28*28*28>},
-      {0x3E,&kGeom3D<16*16*16,30*30*30>},
-      {0x3F,&kGeom3D<17*17*17,32*32*32>},
-      */
+      {0x300,&kGeom3D<2,2>},
+      {0x311,&kGeom3D<3,3>},
+      {0x322,&kGeom3D<4,4>},
+      {0x333,&kGeom3D<5,5>},
+      {0x344,&kGeom3D<6,6>},
+      {0x355,&kGeom3D<7,7>},
+      {0x366,&kGeom3D<8,8>},
+      {0x377,&kGeom3D<9,9>},
+      {0x388,&kGeom3D<10,10>},
+      {0x399,&kGeom3D<11,11>},
+      {0x3AA,&kGeom3D<12,12>},
+      {0x3BB,&kGeom3D<13,13>},
+      {0x3CC,&kGeom3D<14,14>},
+      {0x3DD,&kGeom3D<15,15>},
+      {0x3EE,&kGeom3D<16,16>},
+      {0x3FF,&kGeom3D<17,17>},
    };
    if (!call[id])
    {
@@ -215,46 +214,33 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
 kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
                           const IntegrationRule& ir)
 {
-   Mesh& mesh = *(fes.GetMesh());
+   Mesh *mesh = fes.GetMesh();
    const bool geom_to_allocate = !geom;
    if (geom_to_allocate)
    {
-      dbg("geom_to_allocate: new kGeometry");
+      dbg("geom_to_allocate");
       geom = new kGeometry();
    }
-   if (!mesh.GetNodes())
+   if (!mesh->GetNodes())
    {
+      assert(false);
       dbg("\033[7mGetNodes, SetCurvature");
-      mesh.SetCurvature(1, false, -1, Ordering::byVDIM);
+      mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
    }
-   GridFunction& nodes = *(mesh.GetNodes());
-   //mm::Get().Push(nodes.GetData());
-   //dbg("nodes:"); kVectorPrint(nodes.Size(),nodes.GetData());
-   //cudaDeviceSynchronize();
-   //dbg("nodes: %p", nodes.GetData());
-   //dbg("nodes size: %d", nodes.Size());
-   //GET_CONST_ADRS(nodes);
-   //dbg("d_nodes: %p", d_nodes);
-   //mm::Get().Rsync(nodes.GetData());
-   //dbg("nodes:\n"); nodes.Print();
-   //0 0 1 0 0.309017 0.951057 1.30902 0.951057
-   //-0.809017 0.587785 -0.5 1.53884 -0.809017 -0.587785 -1.61803 0
-   //0.309017 -0.951057 -0.5 -1.53884 1.30902 -0.951057 0.5 0
-   //1.15451 0.475529 0.809019 0.951057 0.154508 0.475529 -0.0954915 1.24495
-   //-0.654508 1.06331 -0.404508 0.293893 -1.21352 0.293893 -1.21352 -0.293892
-   //-0.404508 -0.293893 -0.654508 -1.06331 -0.0954915 -1.24495 0.154508 -0.475529
-   //0.809019 -0.951057 1.15451 -0.475529 0.654509 0.475529 -0.25 0.769421
-   //-0.809016 0 -0.25 -0.76942 0.654509 -0.475529
+   const GridFunction *nodes = mesh->GetNodes();
 
-   //assert(false);
-
-   const mfem::FiniteElementSpace& fespace = *(nodes.FESpace());
-   const mfem::FiniteElement& fe = *(fespace.GetFE(0));
-   const int dims     = fe.GetDim();
-   const int elements = fespace.GetNE();
-   const int numDofs  = fe.GetDof();
+   const mfem::FiniteElementSpace *fespace = nodes->FESpace();
+   const mfem::FiniteElement *fe = fespace->GetFE(0);
+   const int dims     = fe->GetDim();
+   const int elements = fespace->GetNE();
+   const int numDofs  = fe->GetDof();
    const int numQuad  = ir.GetNPoints();
-   const bool orderedByNODES = (fespace.GetOrdering() == Ordering::byNODES);
+   dbg("dims=%d",dims);
+   dbg("elements=%d",elements);
+   dbg("numDofs=%d",numDofs);
+   dbg("numQuad=%d",numQuad);
+
+   const bool orderedByNODES = (fespace->GetOrdering() == Ordering::byNODES);
    dbg("orderedByNODES: %s", orderedByNODES?"true":"false");
 
    if (orderedByNODES)
@@ -265,7 +251,7 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
    const int asize = dims*numDofs*elements;
    dbg("meshNodes(%d)",asize);
    mfem::Array<double> meshNodes(asize);
-   const Table& e2dTable = fespace.GetElementToDofTable();
+   const Table& e2dTable = fespace->GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
    mfem::Array<int> eMap(numDofs*elements);
 
@@ -275,7 +261,7 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
              numDofs,
              elementMap,
              eMap.GetData(),
-             nodes.GetData(),
+             nodes->GetData(),
              meshNodes.GetData());
 
    if (geom_to_allocate)
@@ -286,12 +272,9 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
       geom->eMap.allocate(numDofs, elements);
    }
    {
-      dbg("meshNodes= & eMap=");
-      kVectorAssign(asize, meshNodes.GetData(), geom->meshNodes);
-      //dbg("kVectorPrint(geom->meshNodes:");
-      //kVectorPrint(asize, geom->meshNodes);
-
       //geom->meshNodes = meshNodes;
+      kVectorAssign(asize, meshNodes.GetData(), geom->meshNodes);
+
       //geom->eMap = eMap;
       kArrayAssign(numDofs*elements, eMap.GetData(), geom->eMap);
    }
@@ -314,7 +297,7 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
       geom->detJ.allocate(numQuad, elements);
    }
 
-   const kDofQuadMaps* maps = kDofQuadMaps::GetSimplexMaps(fe, ir);
+   const kDofQuadMaps* maps = kDofQuadMaps::GetSimplexMaps(*fe, ir);
    assert(maps);
 
    dbg("dims=%d",dims);
@@ -328,13 +311,13 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
 }
 
 // ***************************************************************************
-void kGeometry::ReorderByVDim(GridFunction& nodes)
+void kGeometry::ReorderByVDim(const GridFunction *nodes)
 {
-   const mfem::FiniteElementSpace *fes=nodes.FESpace();
-   const int size = nodes.Size();
+   const mfem::FiniteElementSpace *fes = nodes->FESpace();
+   const int size = nodes->Size();
    const int vdim = fes->GetVDim();
    const int ndofs = fes->GetNDofs();
-   double *data = nodes.GetData();
+   double *data = nodes->GetData();
    double *temp = new double[size];
    int k=0;
    for (int d = 0; d < ndofs; d++)
@@ -350,13 +333,13 @@ void kGeometry::ReorderByVDim(GridFunction& nodes)
 }
 
 // ***************************************************************************
-void kGeometry::ReorderByNodes(GridFunction& nodes)
+void kGeometry::ReorderByNodes(const GridFunction *nodes)
 {
-   const mfem::FiniteElementSpace *fes=nodes.FESpace();
-   const int size = nodes.Size();
+   const mfem::FiniteElementSpace *fes = nodes->FESpace();
+   const int size = nodes->Size();
    const int vdim = fes->GetVDim();
    const int ndofs = fes->GetNDofs();
-   double *data = nodes.GetData();
+   double *data = nodes->GetData();
    double *temp = new double[size];
    int k = 0;
    for (int j = 0; j < ndofs; j++)

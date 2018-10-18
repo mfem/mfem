@@ -50,7 +50,7 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   dbg("main");
+   dbg("main\n");
    stkIni(argv[0]);
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
@@ -142,7 +142,8 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
-   mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
+   dbg("SetCurvature, order=%d",order);
+   mesh->SetCurvature(order, false, -1, Ordering::byVDIM);
    if (gpu) { config::Get().Cuda(true); }
    if (pa)  { config::Get().PA(true);   }
 

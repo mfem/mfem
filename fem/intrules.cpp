@@ -386,7 +386,7 @@ void QuadratureFunctions1D::GaussLegendre(const int np, IntegrationRule* ir)
          return;
       }
       case 3:
-         OKINA_ASSERT_CPU;
+         //OKINA_ASSERT_CPU;
          ir->IntPoint(0).Set1w(0.11270166537925831148, 5./18.);
          ir->IntPoint(1).Set1w(0.5, 4./9.);
          ir->IntPoint(2).Set1w(0.88729833462074168852, 5./18.);
@@ -1676,7 +1676,7 @@ IntegrationRule *IntegrationRules::PrismIntegrationRule(int Order)
 // Integration rules for reference cube
 IntegrationRule *IntegrationRules::CubeIntegrationRule(int Order)
 {
-   OKINA_ASSERT_CPU;
+   //OKINA_ASSERT_CPU;
    int RealOrder = GetSegmentRealOrder(Order);
    if (!HaveIntRule(SegmentIntRules, RealOrder))
    {

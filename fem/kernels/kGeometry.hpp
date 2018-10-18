@@ -38,8 +38,8 @@ public:
    static kGeometry* Get(const FiniteElementSpace&,
                          const IntegrationRule&,
                          const Vector&);
-   static void ReorderByVDim(GridFunction&);
-   static void ReorderByNodes(GridFunction&);
+   static void ReorderByVDim(const GridFunction*);
+   static void ReorderByNodes(const GridFunction*);
 };
 
 // *****************************************************************************
