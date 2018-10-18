@@ -1449,7 +1449,7 @@ int ND1_4DFECollection::DofForGeometry(Geometry::Type GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * ND1_4DFECollection::DofOrderForOrientation(Geometry::Type GeomType, int Or)
+const int * ND1_4DFECollection::DofOrderForOrientation(Geometry::Type GeomType, int Or)
 const
 {
    static int ind_pos[] = { 0 };
@@ -1492,7 +1492,7 @@ int ND2_4DFECollection::DofForGeometry(Geometry::Type GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * ND2_4DFECollection::DofOrderForOrientation(Geometry::Type GeomType, int Or)
+const int * ND2_4DFECollection::DofOrderForOrientation(Geometry::Type GeomType, int Or)
 const
 {
    static int ind_pos[] = { 0, 1 };
@@ -1534,7 +1534,7 @@ int DivSkew1_4DFECollection::DofForGeometry(Geometry::Type GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * DivSkew1_4DFECollection::DofOrderForOrientation(Geometry::Type GeomType, int Or)
+const int * DivSkew1_4DFECollection::DofOrderForOrientation(Geometry::Type GeomType, int Or)
 const
 {
    static int ind_pos[] = { 0 };
@@ -1675,7 +1675,7 @@ int RT0_4DFECollection::DofForGeometry(Geometry::Type GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * RT0_4DFECollection::DofOrderForOrientation(Geometry::Type GeomType, int Or)
+const int * RT0_4DFECollection::DofOrderForOrientation(Geometry::Type GeomType, int Or)
 const
 {
    static int ind_pos[] = { 0 };
@@ -2136,7 +2136,6 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
       const int HexDof = L2_Elements[Geometry::CUBE]->GetDof();
       const int PriDof = L2_Elements[Geometry::PRISM]->GetDof();
       const int MaxDof = std::max(TetDof, std::max(PriDof, HexDof));
-      const int MaxDof = std::max(TetDof, HexDof);
       OtherDofOrd = new int[MaxDof];
       for (int j = 0; j < MaxDof; j++)
       {
