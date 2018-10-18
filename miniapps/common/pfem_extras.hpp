@@ -115,16 +115,16 @@ public:
 /// This class computes the irrotational portion of a vector field.
 /// This vector field must be discretized using Nedelec basis
 /// functions.
-class IrrotationalProjector : public Operator
+class IrrotationalNDProjector : public Operator
 {
 public:
-   IrrotationalProjector(ParFiniteElementSpace   & H1FESpace,
-                         ParFiniteElementSpace   & HCurlFESpace,
-                         const int               & irOrder,
-                         ParBilinearForm         * s0 = NULL,
-                         ParMixedBilinearForm    * weakDiv = NULL,
-                         ParDiscreteGradOperator * grad = NULL);
-   virtual ~IrrotationalProjector();
+   IrrotationalNDProjector(ParFiniteElementSpace   & H1FESpace,
+                           ParFiniteElementSpace   & HCurlFESpace,
+                           const int               & irOrder,
+                           ParBilinearForm         * s0 = NULL,
+                           ParMixedBilinearForm    * weakDiv = NULL,
+                           ParDiscreteGradOperator * grad = NULL);
+   virtual ~IrrotationalNDProjector();
 
    // Given a GridFunction 'x' of Nedelec DoFs for an arbitrary vector field,
    // compute the Nedelec DoFs of the irrotational portion, 'y', of
@@ -164,16 +164,16 @@ private:
 /// This class computes the divergence free portion of a vector field.
 /// This vector field must be discretized using Nedelec basis
 /// functions.
-class DivergenceFreeProjector : public IrrotationalProjector
+class DivergenceFreeNDProjector : public IrrotationalNDProjector
 {
 public:
-   DivergenceFreeProjector(ParFiniteElementSpace   & H1FESpace,
-                           ParFiniteElementSpace   & HCurlFESpace,
-                           const int               & irOrder,
-                           ParBilinearForm         * s0 = NULL,
-                           ParMixedBilinearForm    * weakDiv = NULL,
-                           ParDiscreteGradOperator * grad = NULL);
-   virtual ~DivergenceFreeProjector();
+   DivergenceFreeNDProjector(ParFiniteElementSpace   & H1FESpace,
+                             ParFiniteElementSpace   & HCurlFESpace,
+                             const int               & irOrder,
+                             ParBilinearForm         * s0 = NULL,
+                             ParMixedBilinearForm    * weakDiv = NULL,
+                             ParDiscreteGradOperator * grad = NULL);
+   virtual ~DivergenceFreeNDProjector();
 
    // Given a vector 'x' of Nedelec DoFs for an arbitrary vector field,
    // compute the Nedelec DoFs of the divergence free portion, 'y', of
@@ -184,6 +184,78 @@ public:
    void Update();
 };
 
+
+/// This class computes the divergence free portion of a vector field.
+/// This vector field must be discretized using Raviart-Thomas basis
+/// functions.
+class DivergenceFreeRTProjector : public Operator
+{
+public:
+   DivergenceFreeRTProjector(ParFiniteElementSpace   & HCurlFESpace,
+                             ParFiniteElementSpace   & HDivFESpace,
+                             const int               & irOrder,
+                             ParBilinearForm         * s1 = NULL,
+                             ParMixedBilinearForm    * weakCurl = NULL,
+                             ParDiscreteCurlOperator * curl = NULL);
+   virtual ~DivergenceFreeRTProjector();
+
+   // Given a GridFunction 'x' of Raviart-Thomas DoFs for an arbitrary vector
+   // field, compute the Raviart-Thomas DoFs of the divergence free portion,
+   // 'y', of this vector field.  The resulting GridFunction will satisfy
+   // Div y = 0 to machine precision.
+   virtual void Mult(const Vector &x, Vector &y) const;
+
+   void Update();
+
+private:
+   void InitSolver() const;
+
+   ParFiniteElementSpace * HCurlFESpace_;
+   ParFiniteElementSpace * HDivFESpace_;
+
+   ParBilinearForm         * s1_;
+   ParMixedBilinearForm    * weakCurl_;
+   ParDiscreteCurlOperator * curl_;
+
+   ParGridFunction * psi_;
+   ParGridFunction * xCurl_;
+
+   HypreParMatrix * S1_;
+   mutable Vector Psi_;
+   mutable Vector RHS_;
+
+   mutable HypreAMS * ams_;
+   mutable HyprePCG * pcg_;
+
+   Array<int> ess_bdr_, ess_bdr_tdofs_;
+
+   bool ownsS1_;
+   bool ownsWeakCurl_;
+   bool ownsCurl_;
+};
+
+/// This class computes the irrotational portion of a vector field.
+/// This vector field must be discretized using Nedelec basis
+/// functions.
+class IrrotationalRTProjector : public DivergenceFreeRTProjector
+{
+public:
+   IrrotationalRTProjector(ParFiniteElementSpace   & HCurlFESpace,
+                           ParFiniteElementSpace   & HDivFESpace,
+                           const int               & irOrder,
+                           ParBilinearForm         * s1 = NULL,
+                           ParMixedBilinearForm    * weakCurl = NULL,
+                           ParDiscreteCurlOperator * curl = NULL);
+   virtual ~IrrotationalRTProjector();
+
+   // Given a GridFunction 'x' of Raviart-Thomas DoFs for an arbitrary vector
+   // field, compute the Raviart-Thomas DoFs of the irrotational portion,
+   // 'y', of this vector field.  The resulting GridFunction will satisfy
+   // Curl y = 0 to machine precision.
+   virtual void Mult(const Vector &x, Vector &y) const;
+
+   void Update();
+};
 
 /// Visualize the given parallel grid function, using a GLVis server on the
 /// specified host and port. Set the visualization window title, and optionally,

@@ -152,8 +152,8 @@ TeslaSolver::TeslaSolver(ParMesh & pmesh, int order,
    {
       jr_          = new ParGridFunction(HCurlFESpace_);
       j_           = new ParGridFunction(HCurlFESpace_);
-      DivFreeProj_ = new DivergenceFreeProjector(*H1FESpace_, *HCurlFESpace_,
-                                                 irOrder, NULL, NULL, grad_);
+      DivFreeProj_ = new DivergenceFreeNDProjector(*H1FESpace_, *HCurlFESpace_,
+                                                   irOrder, NULL, NULL, grad_);
    }
 
    if ( kbcs.Size() > 0 )
