@@ -143,9 +143,9 @@ void kIntDiffusionMultAdd3D(const int numElements,
                             const double* __restrict solIn,
                             double* __restrict solOut)
 {
-   //const int NUM_QUAD_3D = NUM_QUAD_1D*NUM_QUAD_1D*NUM_QUAD_1D;
-   // Iterate over elements
-   for (int e = 0; e < numElements; ++e) {
+   const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D*NUM_QUAD_1D;
+   forall(e, numElements,
+   {
       double grad[NUM_QUAD_1D][NUM_QUAD_1D][NUM_QUAD_1D][4];
       for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
          for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
@@ -156,7 +156,6 @@ void kIntDiffusionMultAdd3D(const int numElements,
             }
          }
       }
-
       for (int dz = 0; dz < NUM_DOFS_1D; ++dz) {
          double gradXY[NUM_QUAD_1D][NUM_QUAD_1D][4];
          for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
@@ -166,14 +165,12 @@ void kIntDiffusionMultAdd3D(const int numElements,
                gradXY[qy][qx][2] = 0.0;
             }
          }
-
          for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
             double gradX[NUM_QUAD_1D][2];
             for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
                gradX[qx][0] = 0.0;
                gradX[qx][1] = 0.0;
             }
-
             for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
                const double s = solIn[ijklN(dx,dy,dz,e,NUM_DOFS_1D)];
                for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
@@ -181,7 +178,6 @@ void kIntDiffusionMultAdd3D(const int numElements,
                   gradX[qx][1] += s * dofToQuadD[ijN(qx,dx,NUM_QUAD_1D)];
                }
             }
-
             for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
                const double wy  = dofToQuad[ijN(qy,dy,NUM_QUAD_1D)];
                const double wDy = dofToQuadD[ijN(qy,dy,NUM_QUAD_1D)];
@@ -194,7 +190,6 @@ void kIntDiffusionMultAdd3D(const int numElements,
                }
             }
          }
-
          for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
             const double wz  = dofToQuad[ijN(qz,dz,NUM_QUAD_1D)];
             const double wDz = dofToQuadD[ijN(qz,dz,NUM_QUAD_1D)];
@@ -213,12 +208,12 @@ void kIntDiffusionMultAdd3D(const int numElements,
          for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
             for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
                const int q = QUAD_3D_ID(qx, qy, qz);
-               const double O11 = oper[ijkNM(0,q,e,6,NUM_QUAD_1D)];
-               const double O12 = oper[ijkNM(1,q,e,6,NUM_QUAD_1D)];
-               const double O13 = oper[ijkNM(2,q,e,6,NUM_QUAD_1D)];
-               const double O22 = oper[ijkNM(3,q,e,6,NUM_QUAD_1D)];
-               const double O23 = oper[ijkNM(4,q,e,6,NUM_QUAD_1D)];
-               const double O33 = oper[ijkNM(5,q,e,6,NUM_QUAD_1D)];
+               const double O11 = oper[ijkNM(0,q,e,6,NUM_QUAD)];
+               const double O12 = oper[ijkNM(1,q,e,6,NUM_QUAD)];
+               const double O13 = oper[ijkNM(2,q,e,6,NUM_QUAD)];
+               const double O22 = oper[ijkNM(3,q,e,6,NUM_QUAD)];
+               const double O23 = oper[ijkNM(4,q,e,6,NUM_QUAD)];
+               const double O33 = oper[ijkNM(5,q,e,6,NUM_QUAD)];
 
                const double gradX = grad[qz][qy][qx][0];
                const double gradY = grad[qz][qy][qx][1];
@@ -286,7 +281,7 @@ void kIntDiffusionMultAdd3D(const int numElements,
             }
          }
       }
-   }
+   });
 }
 
 // *****************************************************************************
@@ -335,15 +330,20 @@ void kIntDiffusionMultAdd(const int DIM,
       {0x21010,&kIntDiffusionMultAdd2D<16,16>},
       {0x21111,&kIntDiffusionMultAdd2D<17,17>},
       
-/*      
-      {0x30001,&kIntDiffusionMultAdd3D<1,2>},
-      {0x30100,&kIntDiffusionMultAdd3D<2,1>},
-      {0x30101,&kIntDiffusionMultAdd3D<2,2>},
-      {0x30102,&kIntDiffusionMultAdd3D<2,4>},
-      {0x30202,&kIntDiffusionMultAdd3D<3,4>},
-      {0x30203,&kIntDiffusionMultAdd3D<3,6>},
-      {0x30302,&kIntDiffusionMultAdd3D<4,4>},
-      {0x30303,&kIntDiffusionMultAdd3D<4,6>},*/
+      {0x30203,&kIntDiffusionMultAdd3D<2,3>},/*
+      {0x30304,&kIntDiffusionMultAdd3D<3,4>},
+      {0x30405,&kIntDiffusionMultAdd3D<4,5>},
+      {0x30506,&kIntDiffusionMultAdd3D<5,6>},
+      {0x30607,&kIntDiffusionMultAdd3D<6,7>},
+      {0x30708,&kIntDiffusionMultAdd3D<7,8>},
+      {0x30809,&kIntDiffusionMultAdd3D<8,9>},
+      {0x3090A,&kIntDiffusionMultAdd3D<9,10>},
+      {0x30A0B,&kIntDiffusionMultAdd3D<10,11>},
+      {0x30B0C,&kIntDiffusionMultAdd3D<11,12>},
+      {0x30C0D,&kIntDiffusionMultAdd3D<12,13>},
+      {0x30D0E,&kIntDiffusionMultAdd3D<13,14>},
+      {0x30E0F,&kIntDiffusionMultAdd3D<14,15>},
+      {0x30F10,&kIntDiffusionMultAdd3D<15,16>},*/
    };
    if (!call[id])
    {

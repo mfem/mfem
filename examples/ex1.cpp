@@ -92,13 +92,13 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
-   {/*
+   {
       int ref_levels =
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
-         }*/
+      }
    }
 
    // 4. Define a finite element space on the mesh. Here we use continuous
@@ -175,7 +175,7 @@ int main(int argc, char *argv[])
    cout << "Size of linear system: " << A->Height() << endl;
 
 #ifndef MFEM_USE_SUITESPARSE
-   CG(*A, B, X, 3, 200, 1e-12, 0.0);
+   CG(*A, B, X, 3, 2000, 1e-12, 0.0);
 #else
    // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;
