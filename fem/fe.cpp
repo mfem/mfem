@@ -961,7 +961,6 @@ void PointFiniteElement::CalcDShape(const IntegrationPoint &ip,
 Linear1DFiniteElement::Linear1DFiniteElement()
    : NodalFiniteElement(1, Geometry::SEGMENT, 2, 1)
 {
-   dbg("Linear1DFiniteElement");
    kIntRulesLinear1DIni(Nodes.GetData());
    //Nodes.IntPoint(0).x = 0.0;
    //Nodes.IntPoint(1).x = 1.0;
@@ -7555,7 +7554,7 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
    //Nodes.IntPoint(2).Set2(cp[0], cp[p]);
    kIPSetXY(ip,cp,0,cp,p,2);
    
-   assert(p==1);
+   //assert(p==1);
    
    // edges
    int o = 3;
@@ -7576,7 +7575,7 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)
       {
-         assert(false);
+         //assert(false);
          const double w = cp[i] + cp[j] + cp[p-i-j];
          Nodes.IntPoint(o++).Set2(cp[i]/w, cp[j]/w);
       }

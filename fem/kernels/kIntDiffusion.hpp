@@ -18,12 +18,14 @@
 
 // *****************************************************************************
 void kIntDiffusionAssemble(const int dim,
-                           const int NUM_QUAD,
+                           const int NUM_QUAD_1D,
                            const int numElements,
                            const double* __restrict quadWeights,
                            const double* __restrict J,
                            const double COEFF,
                            double* __restrict oper);
+
+// *****************************************************************************
 void kIntDiffusionMultAdd(const int dim,
                           const int NUM_DOFS_1D,
                           const int NUM_QUAD_1D,

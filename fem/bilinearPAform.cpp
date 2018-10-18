@@ -101,6 +101,7 @@ void PABilinearForm::Assemble(int skip_zeros)
    //const int nbi = integrators.Size();
    assert(integrators.Size()==1);
    const FiniteElement &fe = *fes->GetFE(0);
+#warning DiffusionGetRule
    const IntegrationRule *ir = &DiffusionGetRule(fe,fe);
    //const int order = ir->GetOrder();
    assert(ir);

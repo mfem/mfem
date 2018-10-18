@@ -23,6 +23,7 @@ namespace mfem
 void PADiffusionIntegrator::Setup(const FiniteElementSpace *fes,
                                   const IntegrationRule *ir)
 {
+   assert(ir);
    assert(diffusion==NULL);
    diffusion = new KDiffusionIntegrator(fes,ir);
 }
