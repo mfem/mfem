@@ -38,12 +38,8 @@ void kGeom2D(const int numElements,
       {
          for (int d = q; d < NUM_DOFS; d +=NUM_QUAD)
          {
-            const int s0 = ijN(0,d,2);
-            const int s1 = ijN(1,d,2);
-            const int x0 = ijkNM(0,d,e,2,NUM_DOFS);
-            const int y0 = ijkNM(1,d,e,2,NUM_DOFS);
-            s_nodes[s0] = nodes[x0];
-            s_nodes[s1] = nodes[y0];
+            s_nodes[ijN(0,d,2)] = nodes[ijkNM(0,d,e,2,NUM_DOFS)];
+            s_nodes[ijN(1,d,2)] = nodes[ijkNM(1,d,e,2,NUM_DOFS)];
          }
       }
       for (int q = 0; q < NUM_QUAD; ++q)

@@ -77,23 +77,22 @@ void kGeom(const int DIM,
       {0x20F,&kGeom2D<2,17>},
       
       // 3D
-/*
       {0x300,&kGeom3D<2,2>},
-      {0x311,&kGeom3D<3,3>},
-      {0x322,&kGeom3D<4,4>},
-      {0x333,&kGeom3D<5,5>},
-      {0x344,&kGeom3D<6,6>},
-      {0x355,&kGeom3D<7,7>},
-      {0x366,&kGeom3D<8,8>},
-      {0x377,&kGeom3D<9,9>},
-      {0x388,&kGeom3D<10,10>},
-      {0x399,&kGeom3D<11,11>},
-      {0x3AA,&kGeom3D<12,12>},
-      {0x3BB,&kGeom3D<13,13>},
-      {0x3CC,&kGeom3D<14,14>},
-      {0x3DD,&kGeom3D<15,15>},
-      {0x3EE,&kGeom3D<16,16>},
-      {0x3FF,&kGeom3D<17,17>},*/
+      {0x301,&kGeom3D<2,3>},
+      {0x302,&kGeom3D<2,4>},
+      {0x303,&kGeom3D<2,5>},
+      {0x304,&kGeom3D<2,6>},
+      {0x305,&kGeom3D<2,7>},
+      {0x306,&kGeom3D<2,8>},
+      {0x307,&kGeom3D<2,9>},
+      {0x308,&kGeom3D<2,10>},
+      {0x309,&kGeom3D<2,11>},
+      {0x30A,&kGeom3D<2,12>},
+      {0x30B,&kGeom3D<2,13>},
+      {0x30C,&kGeom3D<2,14>},
+      {0x30D,&kGeom3D<2,15>},
+      {0x30E,&kGeom3D<2,16>},
+      {0x30F,&kGeom3D<2,17>},
    };
    if (!call[id])
    {
