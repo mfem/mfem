@@ -1353,16 +1353,24 @@ void GridFunction::AccumulateAndCountBdrValues(
    // iff A_ij != 0. It is sufficient to resolve just the first level of
    // dependency, since A is a projection matrix: A^n = A due to cR.cP = I.
    // Cases like these arise in 3D when boundary edges are constrained by
-   // (depend on) internal faces/elements. We use the virtual method
+   // (depend on) internal faces/elements, in 4D the same can happen for
+   // planars (2D objects) as well. We use the virtual method
    // GetBoundaryClosure from NCMesh to resolve the dependencies.
 
-   if (fes->Nonconforming() && fes->GetMesh()->Dimension() == 3)
+   if (fes->Nonconforming() && fes->GetMesh()->Dimension() >= 3)
    {
       Vector vals;
       Mesh *mesh = fes->GetMesh();
       NCMesh *ncmesh = mesh->ncmesh;
-      Array<int> bdr_edges, bdr_vertices;
-      ncmesh->GetBoundaryClosure(attr, bdr_vertices, bdr_edges);
+      Array<int> bdr_edges, bdr_vertices, bdr_planars;
+      if (mesh->Dimension() < 4)
+      {
+         ncmesh->GetBoundaryClosure(attr, bdr_vertices, bdr_edges);
+      }
+      else
+      {
+         ncmesh->GetBoundaryClosure(attr, bdr_vertices, bdr_edges, bdr_planars);
+      }
 
       for (i = 0; i < bdr_edges.Size(); i++)
       {
@@ -1373,6 +1381,35 @@ void GridFunction::AccumulateAndCountBdrValues(
          transf = mesh->GetEdgeTransformation(edge);
          transf->Attribute = -1; // FIXME: set the boundary attribute
          fe = fes->GetEdgeElement(edge);
+         vals.SetSize(fe->GetDof());
+         for (d = 0; d < vdim; d++)
+         {
+            if (!coeff[d]) { continue; }
+
+            fe->Project(*coeff[d], *transf, vals);
+            for (int k = 0; k < vals.Size(); k++)
+            {
+               ind = vdofs[d*vals.Size()+k];
+               if (++values_counter[ind] == 1)
+               {
+                  (*this)(ind) = vals(k);
+               }
+               else
+               {
+                  (*this)(ind) += vals(k);
+               }
+            }
+         }
+      }
+      for (i = 0; i < bdr_planars.Size(); i++)
+      {
+         int planar = bdr_planars[i];
+         fes->GetPlanarVDofs(planar, vdofs);
+         if (vdofs.Size() == 0) { continue; }
+
+         transf = mesh->GetPlanarTransformation(planar);
+         transf->Attribute = -1; // FIXME: set the boundary attribute
+         fe = fes->GetPlanarElement(planar);
          vals.SetSize(fe->GetDof());
          for (d = 0; d < vdim; d++)
          {

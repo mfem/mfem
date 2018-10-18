@@ -539,6 +539,52 @@ ElementTransformation *Mesh::GetFaceTransformation(int FaceNo)
    return &FaceTransformation;
 }
 
+void Mesh::GetPlanarTransformation(int PlanarNo, IsoparametricTransformation *PlTr)
+{
+   if (Dim < 4)
+   {
+      mfem_error("Mesh::GetPlanarTransformation not defined in >4D \n");
+   }
+
+   PlTr->Attribute = 1;
+   PlTr->ElementNo = PlanarNo;
+   DenseMatrix &pm = PlTr->GetPointMat();
+   if (Nodes == NULL)
+   {
+      if (GetPlanarBaseGeometry(PlanarNo) == Geometry::TRIANGLE)
+      {
+         Array<int> v;
+         GetPlanVertices(PlanarNo, v);
+         const int nv = 3;
+         pm.SetSize(spaceDim, nv);
+         for (int i = 0; i < spaceDim; i++)
+         {
+            for (int j = 0; j < nv; j++)
+            {
+               pm(i, j) = vertices[v[j]](i);
+            }
+         }
+         PlTr->SetFE(GetTransformationFEforElementType(Element::TRIANGLE));
+      }
+      else
+      {
+         MFEM_ABORT("Not implemented for quadrilateral planars.");
+      }
+   }
+   else
+   {
+      MFEM_ABORT("Not implemented.");
+   }
+   PlTr->FinalizeTransformation();
+}
+
+ElementTransformation *Mesh::GetPlanarTransformation(int PlanarNo)
+{
+   GetPlanarTransformation(PlanarNo, &PlanarTransformation);
+   return &PlanarTransformation;
+}
+
+
 void Mesh::GetEdgeTransformation(int EdgeNo, IsoparametricTransformation *EdTr)
 {
    if (Dim == 2)
@@ -2084,8 +2130,11 @@ void Mesh::FinalizeTopology()
    // generate the faces
    if (Dim > 2)
    {
-      if (Dim==3) { GetElementToFaceTable(); }
-      else if (Dim==4)
+      if (Dim == 3)
+      {
+         GetElementToFaceTable();
+      }
+      else if (Dim == 4)
       {
          GetElementToFaceTable4D();
       }
@@ -2093,21 +2142,21 @@ void Mesh::FinalizeTopology()
       if (NumOfBdrElements == 0)
       {
          GenerateBoundaryElements();
-        if (Dim==3) { GetElementToFaceTable(); }
-      	else if (Dim==4)
-      	{
-         	GetElementToFaceTable4D();
-      	} // update be_to_face
-        if (Dim==4)
-        {
-	   ReplaceBoundaryFromFaces();
+         if (Dim == 3)
+         {
+            GetElementToFaceTable(); // update be_to_face
+         }
+         else if (Dim == 4)
+         {
+            GetElementToFaceTable4D();
+         }
+      }
+      if (Dim == 4)
+      {
+         ReplaceBoundaryFromFaces();
 
-	   GetElementToPlanarTable();
-	   GeneratePlanars();
-
-	   //        GetElementToQuadTable4D();
-	   //        GenerateQuads4D();
-        }
+         GetElementToPlanarTable();
+         GeneratePlanars();
       }
    }
    else
@@ -2215,7 +2264,7 @@ void Mesh::Finalize(bool refine, bool fix_orientation)
 #ifdef MFEM_DEBUG
    // For non-orientable surfaces/manifolds, the check below will fail, so we
    // only perform it when Dim == spaceDim.
-   if (Dim >= 2 && Dim == spaceDim)
+   if (Dim >= 2 && Dim == spaceDim && Dim < 4) // TODO check the 4D case
    {
       const int num_faces = GetNumFaces();
       for (int i = 0; i < num_faces; i++)
@@ -4943,22 +4992,7 @@ const
    }
 }
 
-int Mesh::GetPlanarBaseGeometry(int i) const
-{
-   // Here, we assume all planars are of the same type
-   switch (GetElementType(0))
-   {
-      case Element::PENTATOPE:
-         return Geometry::TRIANGLE;
-      case Element::TESSERACT:
-         return Geometry::SQUARE;
-      default:
-         mfem_error("Mesh::GetPlanarBaseGeometry(...) #1");
-   }
-   return (-1);
-}
-
-int Mesh::GetBdrPlanarBaseGeometry(int i) const
+Geometry::Type Mesh::GetBdrPlanarBaseGeometry(int i) const
 {
    // Here, we assume all planars are of the same type
    switch (GetBdrElementType(0))
@@ -4970,7 +5004,7 @@ int Mesh::GetBdrPlanarBaseGeometry(int i) const
       default:
          mfem_error("Mesh::GetBdrPlanarBaseGeometry(...) #1");
    }
-   return (-1);
+   return Geometry::INVALID;
 }
 
 int Mesh::GetBdrElementEdgeIndex(int i) const
@@ -5505,11 +5539,11 @@ void Mesh::GenerateFaces()
             if (swapped) { Swap(tempv); }
 
             int filter[5] = {0,1,2,3,4};
-            if (swapped)
-            {
-               filter[3] = 4;
-               filter[4] = 3;
-            }
+//            if (swapped)
+//            {
+//               filter[3] = 4;
+//               filter[4] = 3;
+//            }
 
             for (int j = 0; j < 5; j++)
             {
@@ -8050,7 +8084,7 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
       el_to_edge = new Table;
       NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
    }
-   if (Dim > 2)
+   if (Dim == 3)
    {
       GetElementToFaceTable();
    }
@@ -8278,7 +8312,7 @@ void Mesh::EnsureNCMesh(bool triangles_nonconforming)
    if (!ncmesh)
    {
       if ((meshgen & 2) /* quads/hexes */ ||
-          (triangles_nonconforming && Dim == 2 && (meshgen & 1)))
+          (triangles_nonconforming && Dim == 2 && (meshgen & 1)) ||
           (triangles_nonconforming && Dim == 4 && (meshgen & 1)))
       {
          MFEM_VERIFY(GetNumGeometries(Dim) <= 1,

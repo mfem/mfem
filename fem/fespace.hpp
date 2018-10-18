@@ -413,6 +413,8 @@ public:
 
    const FiniteElement *GetFaceElement(int i) const;
 
+   const FiniteElement *GetPlanarElement(int i) const;
+
    const FiniteElement *GetEdgeElement(int i) const;
 
    /// Return the trace element from element 'i' to the given 'geom_type'

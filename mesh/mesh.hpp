@@ -147,7 +147,7 @@ protected:
    mutable Table *edge_vertex;
 
    IsoparametricTransformation Transformation, Transformation2;
-   IsoparametricTransformation FaceTransformation, EdgeTransformation;
+   IsoparametricTransformation FaceTransformation, PlanarTransformation, EdgeTransformation;
    FaceElementTransformations FaceElemTr;
 
    // refinement embeddings for forward compatibility with NCMesh
@@ -160,6 +160,7 @@ protected:
    int own_nodes;
 
    static const int vtk_quadratic_tet[10];
+   static const int vtk_quadratic_wedge[18];
    static const int vtk_quadratic_hex[27];
 
 #ifdef MFEM_USE_MEMALLOC
@@ -787,6 +788,11 @@ public:
       return faces[i]->GetGeometryType();
    }
 
+   Geometry::Type GetPlanarBaseGeometry(int i) const
+   {
+      return planars[i]->GetGeometryType();
+   }
+
    Geometry::Type GetElementBaseGeometry(int i) const
    {
       return elements[i]->GetGeometryType();
@@ -797,7 +803,7 @@ public:
       return boundary[i]->GetGeometryType();
    }
 
-   int GetBdrPlanarBaseGeometry(int i) const;
+   Geometry::Type GetBdrPlanarBaseGeometry(int i) const;
    /** @brief Return true iff the given @a geom is encountered in the mesh.
        Geometries of dimensions lower than Dimension() are counted as well. */
    bool HasGeometry(Geometry::Type geom) const
@@ -955,6 +961,13 @@ public:
 
    /// Returns the transformation defining the given face element
    ElementTransformation *GetFaceTransformation(int FaceNo);
+
+   /** Returns the transformation defining the given planar element.
+       The transformation is stored in a user-defined variable. */
+   void GetPlanarTransformation(int i, IsoparametricTransformation *PlTr);
+
+   /// Returns the transformation defining the given face element
+   ElementTransformation *GetPlanarTransformation(int PlanarNo);
 
    /** Returns the transformation defining the given edge element.
        The transformation is stored in a user-defined variable. */

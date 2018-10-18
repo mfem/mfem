@@ -799,7 +799,7 @@ void FiniteElementSpace::BuildConformingInterpolation4D() const
       else if (entity > 1) { T.SetFE(&TriangleFE); }
       else { T.SetFE(&SegmentFE); }
 
-      int geom = (entity > 2) ? Geometry::TETRAHEDRON : ( (entity > 1) ? Geometry::TRIANGLE : Geometry::SEGMENT );
+      Geometry::Type geom = (entity > 2) ? Geometry::TETRAHEDRON : ( (entity > 1) ? Geometry::TRIANGLE : Geometry::SEGMENT );
       const FiniteElement* fe = fec->FiniteElementForGeometry(geom);
       if (!fe) { continue; }
 
@@ -2049,6 +2049,11 @@ const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
    //    NURBSext->LoadFaceElement(i, fe);
 
    return fe;
+}
+
+const FiniteElement *FiniteElementSpace::GetPlanarElement(int i) const
+{
+   return fec->FiniteElementForGeometry(mesh->GetPlanarBaseGeometry(i));
 }
 
 const FiniteElement *FiniteElementSpace::GetEdgeElement(int i) const
