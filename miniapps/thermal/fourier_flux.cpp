@@ -43,6 +43,7 @@ double QFunc(const Vector &x, double t)
          return 2.0 * M_PI * M_PI * sin(M_PI * x[0]) * sin(M_PI * x[1]);
       }
       case 2:
+      case 4:
       {
          double a = 0.4;
          double b = 0.8;
@@ -106,6 +107,15 @@ double TFunc(const Vector &x, double t)
       }
       case 3:
          return pow(sin(M_PI * x[0]) * sin(M_PI * x[1]), gamma_);
+      case 4:
+      {
+         double a = 0.4;
+         double b = 0.8;
+
+         double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
+	 double rs = pow(x[0] - 0.5 * a, 2) + pow(x[1] - 0.5 * b, 2);
+         return cos(0.5 * M_PI * sqrt(r)) + 0.5 * exp(-400.0 * rs);
+      }
    }
 }
 
@@ -151,6 +161,28 @@ void dTFunc(const Vector &x, double t, Vector &dT)
          dT *= M_PI * gamma_ * pow(sx * sy, gamma_ - 1);
       }
       break;
+      case 4:
+      {
+         double a = 0.4;
+         double b = 0.8;
+
+         double r = pow(x[0] / a, 2) + pow(x[1] / b, 2);
+	 double rs = pow(x[0] - 0.5 * a, 2) + pow(x[1] - 0.5 * b, 2);
+	 double ers = exp(-400.0 * rs);
+	 
+         double r_2 = sqrt(r);
+         double sr = sin(0.5 * M_PI * r_2);
+
+	 // T = cos(0.5 * M_PI * sqrt(r)) + 0.5 * exp(-400.0 * rs);
+
+         dT[0] = -0.5 * M_PI * x[0] * sr / ( a * a * r_2 );
+         dT[1] = -0.5 * M_PI * x[1] * sr / ( b * b * r_2 );
+
+	 dT[0] -= 400.0 * (x[0] - 0.5 * a) * ers;
+	 dT[1] -= 400.0 * (x[1] - 0.5 * b) * ers;
+	 
+      }
+      break;
    }
 }
 
@@ -179,6 +211,7 @@ void ChiFunc(const Vector &x, DenseMatrix &M)
       }
       break;
       case 2:
+      case 4:
       {
          double a = 0.4;
          double b = 0.8;
@@ -234,6 +267,7 @@ void bbTFunc(const Vector &x, DenseMatrix &M)
       }
       break;
       case 2:
+      case 4:
       {
          double a = 0.4;
          double b = 0.8;
@@ -612,6 +646,13 @@ int main(int argc, char *argv[])
 
    Q.ProjectCoefficient(HeatSourceCoef);
 
+   if (!zero_start)
+   {
+     T.ProjectCoefficient(TCoef);
+     q.ProjectCoefficient(qCoef);
+     U1.ProjectCoefficient(TCoef);
+   }
+   
    T.GridFunction::ComputeElementL2Errors(TCoef, errorT);
    q.GridFunction::ComputeElementL2Errors(qCoef, errorq);
    qPara.GridFunction::ComputeElementL2Errors(qParaCoef, errorqPara);
