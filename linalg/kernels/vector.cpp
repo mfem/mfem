@@ -13,55 +13,59 @@
 #include "vector.hpp"
 
 // *****************************************************************************
+MFEM_NAMESPACE
+
+// *****************************************************************************
 #ifdef __NVCC__
 
 // *****************************************************************************
-#include <cub/cub.cuh>
-__inline__ __device__ double4 operator*(double4 a, double4 b)
-{
-   return make_double4(a.x*b.x, a.y*b.y, a.z*b.z, a.w*b.w);
+#define CUDA_BLOCKSIZE 256
+
+// *****************************************************************************
+__global__ void cuKernelDot(const size_t N, double *gdsr,
+                            const double *x, const double *y){
+   __shared__ double s_dot[CUDA_BLOCKSIZE];
+   const size_t n = blockDim.x*blockIdx.x + threadIdx.x;
+   if (n>=N) return;   
+   const size_t bid = blockIdx.x;
+   const size_t tid = threadIdx.x;
+   const size_t bbd = bid*blockDim.x;
+   const size_t rid = bbd+tid;
+   s_dot[tid] = x[n] * y[n];
+   __syncthreads();
+   for(size_t workers=blockDim.x>>1; workers>0; workers>>=1){
+      if (tid >= workers) continue;
+      if (rid >= N) continue;
+      const size_t dualTid = tid + workers;
+      if (dualTid >= N) continue;
+      const size_t rdd = bbd+dualTid;
+      if (rdd >= N) continue;
+      if (dualTid >= blockDim.x) continue;
+      s_dot[tid] += s_dot[dualTid];
+      __syncthreads();
+   }
+   if (tid==0) gdsr[bid] = s_dot[0];
+   __syncthreads();
 }
 
 // *****************************************************************************
-static double cub_vector_dot(const int N,
-                             const double* __restrict vec1,
-                             const double* __restrict vec2)
-{
-   push();
+double cuVectorDot(const size_t N, const double *x, const double *y){
+   const size_t tpb = CUDA_BLOCKSIZE;
+   const size_t blockSize = CUDA_BLOCKSIZE;
+   const size_t gridSize = (N+blockSize-1)/blockSize;
+   const size_t dot_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
+   const size_t bytes = dot_sz*sizeof(double);   
    static double *h_dot = NULL;
-   if (!h_dot)
-   {
-      dbg("!h_dot");
-      void *ptr;
-      cuMemHostAlloc(&ptr, sizeof(double), CU_MEMHOSTALLOC_PORTABLE);
-      h_dot=(double*)ptr;
-   }
-   static double *d_dot = NULL;
-   if (!d_dot)
-   {
-      dbg("!d_dot");
-      cuMemAlloc((CUdeviceptr*)&d_dot, sizeof(double));
-   }
-   static void *d_storage = NULL;
-   static size_t storage_bytes = 0;
-   if (!d_storage)
-   {
-      dbg("[cub_vector_dot] !d_storage");
-      cub::DeviceReduce::Dot(d_storage, storage_bytes, vec1, vec2, d_dot, N);
-      cuMemAlloc((CUdeviceptr*)&d_storage, storage_bytes*sizeof(double));
-   }
-   cub::DeviceReduce::Dot(d_storage, storage_bytes, vec1, vec2, d_dot, N);
-   //mfem::mm::D2H(h_dot,d_dot,sizeof(double));
-   checkCudaErrors(cuMemcpy((CUdeviceptr)h_dot,(CUdeviceptr)d_dot,sizeof(double)));
-   //dbg("dot=%e",*h_dot);
-   //assert(false);
-   pop();
-   return *h_dot;   
+   if (!h_dot) { h_dot = (double*)calloc(dot_sz,sizeof(double)); }
+   static CUdeviceptr gdsr = NULL;
+   if (!gdsr) { checkCudaErrors(cuMemAlloc(&gdsr,bytes)); }
+   cuKernelDot<<<gridSize,blockSize>>>(N, (double*)gdsr, x, y);
+   checkCudaErrors(cuMemcpy((CUdeviceptr)h_dot,(CUdeviceptr)gdsr,bytes));
+   double dot = 0.0;
+   for(size_t i=0; i<dot_sz; i+=1) dot += h_dot[i];
+   return dot;
 }
 #endif // __NVCC__
-
-// *****************************************************************************
-MFEM_NAMESPACE
 
 // *****************************************************************************
 double kVectorDot(const size_t N, const double *x, const double *y)
@@ -70,13 +74,10 @@ double kVectorDot(const size_t N, const double *x, const double *y)
    GET_CONST_ADRS(x);
    GET_CONST_ADRS(y);
 #ifdef __NVCC__
-   if (cuda) { return cub_vector_dot(N, d_x, d_y); }
+   if (cuda) { return cuVectorDot(N, d_x, d_y); }
 #endif // __NVCC__
    double dot = 0.0;
-   for (size_t i=0; i<N; i+=1)
-   {
-      dot += d_x[i] * d_y[i];
-   }
+   for (size_t i=0; i<N; i+=1) { dot += d_x[i] * d_y[i]; }
    return dot;
 }
 
