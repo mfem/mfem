@@ -1457,8 +1457,9 @@ void FiniteElementSpace::Construct()
 
    if (mesh->GetNFaces() > 0)
    {
+      int dim = mesh->Dimension();
       bool have_face_dofs = false;
-      for (int g = Geometry::DimStart[2]; g < Geometry::DimStart[3]; g++)
+      for (int g = Geometry::DimStart[dim-1]; g < Geometry::DimStart[dim]; g++)
       {
          if (mesh->HasGeometry(Geometry::Type(g)) &&
              fec->DofForGeometry(Geometry::Type(g)) > 0)
