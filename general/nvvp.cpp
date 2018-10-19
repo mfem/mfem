@@ -27,7 +27,7 @@ void push_flf(const char *file, const int line, const char *func)
    fflush(stdout);
 }
 
-#if defined(__NVCC__) //and defined(__NVVP__)
+#if defined(__NVCC__) and defined(__NVVP__)
 
 // *****************************************************************************
 static const uint32_t legacy_colors[] =

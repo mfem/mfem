@@ -12,6 +12,9 @@
 #define MFEM_OKINA_NVVP_HPP
 
 // *****************************************************************************
+void push_flf(const char *file, const int line, const char *func);
+
+// *****************************************************************************
 // en.wikipedia.org/wiki/Web_colors#Hex_triplet
 typedef enum
 {
@@ -42,7 +45,7 @@ typedef enum
 } colors;
 
 // *****************************************************************************
-#if defined(__NVCC__) //and defined(__NVVP__)
+#if defined(__NVCC__) and defined(__NVVP__)
 
 #include <cuda.h>
 #include <nvToolsExt.h>
@@ -63,9 +66,9 @@ NVTX_DECLSPEC int NVTX_API kNvtxSyncPop(void);
 #define PUSH0() kNvtxRangePushEx(__PRETTY_FUNCTION__, __FILE__, __LINE__,Lime);
 
 // *****************************************************************************
-//#define LPAREN (
-//#define COMMA_IF_PARENS(...) ,
-//#define EXPAND(...) __VA_ARGS__
+#define LPAREN (
+#define COMMA_IF_PARENS(...) ,
+#define EXPAND(...) __VA_ARGS__
 #define PUSH(a0,a1,a2,a3,a4,a5,a,...) a
 #define PUSH_CHOOSE(...) EXPAND(PUSH LPAREN \
       __VA_ARGS__ COMMA_IF_PARENS \
@@ -75,14 +78,8 @@ NVTX_DECLSPEC int NVTX_API kNvtxSyncPop(void);
 
 #else // __NVCC__ && _NVVP__ ***************************************************
 
-// *****************************************************************************
-void push_flf(const char *file, const int line, const char *func);
-
-// *****************************************************************************
 #define pop(...)
-#define push(...) mfem::push_flf(__FILENAME__,__LINE__,__FUNCTION__)
-#define cuProfilerStart(...)
-#define cuProfilerStop(...)
+#define push(...) //push_flf(__FILENAME__,__LINE__,__FUNCTION__)
 
 #endif // defined(__NVCC__) and defined(__NVVP__)
 

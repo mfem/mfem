@@ -87,6 +87,8 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+   if (nvvp){ config::Get().Nvvp(true); }
+   if (sync){ config::Get().Sync(true); }
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
@@ -99,17 +101,20 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
+      push(Refine,Indigo);
       int ref_levels = level>0 ? level :
          (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
+      pop();
    }
 
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
+   push(FEC,LightSalmon);
    FiniteElementCollection *fec;
    if (order > 0)
    {
@@ -124,14 +129,18 @@ int main(int argc, char *argv[])
    {
       fec = new H1_FECollection(order = 1, dim);
    }
+   pop();
+   push(FES,Plum);
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
+   pop();
 
    // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
    //    the boundary attributes from the mesh as essential (Dirichlet) and
    //    converting them to a list of true dofs.
+   push(BC,Tomato);
    Array<int> ess_tdof_list;
    if (mesh->bdr_attributes.Size())
    {
@@ -139,21 +148,24 @@ int main(int argc, char *argv[])
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
+   pop();
 
    // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
+   push(b,DarkMagenta);
    LinearForm *b = new LinearForm(fespace);
    ConstantCoefficient one(1.0);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
+   pop();
 
    // **************************************************************************
+   push(SetCurvature,OliveDrab);
    mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
+   pop();
    if (gpu) { config::Get().Cuda(true); }
    if (pa)  { config::Get().PA(true);   }
-   if (nvvp){ config::Get().Nvvp(true); }
-   if (sync){ config::Get().Sync(true); }
       
    dbg(" 7. Define the solution vector x");// as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
