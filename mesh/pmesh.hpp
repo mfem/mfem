@@ -166,8 +166,7 @@ protected:
    int FindSharedEdges(const Mesh &mesh, const int* partition,
                        Table* &edge_element, ListOfIntegerSets& groups);
 
-   int FindSharedVertices(const Mesh &mesh, const int *partition,
-                          Table* vertex_element,
+   int FindSharedVertices(const int *partition, Table* vertex_element,
                           ListOfIntegerSets& groups);
 
    void BuildFaceGroup(int ngroups, const Mesh &mesh,
