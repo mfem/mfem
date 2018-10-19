@@ -110,22 +110,4 @@ static void kdbge(const char *file, const int line, const char *func,
 
 #endif // __NVCC__
 
-// *****************************************************************************
-__attribute__((unused))
-static void push_flf(const char *file, const int line, const char *func)
-{
-   static bool env_ini = false;
-   static bool env_dbg = false;
-   if (!env_ini) { env_dbg = getenv("DBG"); env_ini = true; }
-   if (!env_dbg) { return; }
-   const uint8_t color = 17 + chk8(file)%216;
-   fflush(stdout);
-   fprintf(stdout,"\033[38;5;%dm",color);
-   fprintf(stdout,"\n%24s\b\b\b\b:\033[2m%3d\033[22m: %s", file, line, func);
-   fprintf(stdout,"\033[m");
-   fflush(stdout);
-}
-#define push(...) push_flf(__FILENAME__,__LINE__,__FUNCTION__)
-
-
 #endif // MFEM_DBG_HPP

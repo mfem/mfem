@@ -103,6 +103,7 @@ void* mm::add(const void *adrs, const size_t size, const size_t size_of_T)
 #ifdef __NVCC__
    if (config::Get().Cuda())  // alloc also there
    {
+      //stk(true);
       CUdeviceptr ptr = (CUdeviceptr)NULL;
       const size_t bytes = mm2dev.bytes;
       if (bytes>0)

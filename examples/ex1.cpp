@@ -55,9 +55,12 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
+   int level = -1;
    bool static_cond = false;
    bool pa = false;
    bool gpu = false;
+   bool nvvp = false;
+   bool sync = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -66,11 +69,14 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&level, "-l", "--level", "Refinement level");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
                   "Enable Partial Assembly.");
    args.AddOption(&gpu, "-g", "--gpu", "-no-g", "--no-gpu", "Enable GPU.");
+   args.AddOption(&nvvp, "-n", "--nvvp", "-no-n", "--no-nvvp", "Enable NVVP.");
+   args.AddOption(&sync, "-s", "--sync", "-no-s", "--no-sync", "Enable SYNC.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -93,8 +99,8 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels =
-         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels = level>0 ? level :
+         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -142,40 +148,59 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
+   // **************************************************************************
    mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
    if (gpu) { config::Get().Cuda(true); }
    if (pa)  { config::Get().PA(true);   }
-
-   // 7. Define the solution vector x as a finite element grid function
+   if (nvvp){ config::Get().Nvvp(true); }
+   if (sync){ config::Get().Sync(true); }
+      
+   dbg(" 7. Define the solution vector x");// as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
+   push(GridFunction,Fuchsia);
    GridFunction x(fespace);
    x = 0.0;
+   pop();
 
-   // 8. Set up the bilinear form a(.,.) on the finite element space
+   dbg(" 8. Set up the bilinear form a(.,.)");// on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
-   BilinearForm *a = new BilinearForm(fespace);
+   push(BilinearForm,Fuchsia);
+   BilinearForm *a = new BilinearForm(fespace); // On piece here
+   pop();
+   
+   push(AddDomainIntegrator,Fuchsia);
    if (pa) { a->AddDomainIntegrator(new PADiffusionIntegrator(one)); }
    else    { a->AddDomainIntegrator(new DiffusionIntegrator(one)); }
+   pop();   
 
-   // 9. Assemble the bilinear form and the corresponding linear system,
+   dbg(" 9. Assemble the bilinear form");// and the corresponding linear system,
    //    applying any necessary transformations such as: eliminating boundary
    //    conditions, applying conforming constraints for non-conforming AMR,
    //    static condensation, etc.
    if (static_cond) { a->EnableStaticCondensation(); }
-   a->Assemble();
+
+   push(Assemble,Fuchsia);
+   a->Assemble(); // On piece here
+   pop();
 
    Vector B, X;
    Operator *A;
+   push(Operator,Fuchsia);
    if (pa) { A = new PABilinearForm(fespace); }
    else    { A = new SparseMatrix(); }
+   pop();
+   push(FormLinearSystem,Fuchsia);
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-
+   pop();
+   
    cout << "Size of linear system: " << A->Height() << endl;
 
 #ifndef MFEM_USE_SUITESPARSE
+   push();
    CG(*A, B, X, 3, 2000, 1e-12, 0.0);
+   pop();
 #else
    // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;

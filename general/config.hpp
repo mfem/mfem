@@ -30,6 +30,8 @@ private:
    bool cuda = false;
    bool uvm = false;
    bool pa = false;
+   bool sync = false;
+   bool nvvp = false;
    int dev;
    int gpu_count;
    CUdevice cuDevice;
@@ -63,6 +65,12 @@ public:
    // **************************************************************************
    inline bool Uvm() { return uvm; }
 
+   // **************************************************************************
+   inline bool Sync(bool toggle=false) { return toggle?sync=!sync:sync; }
+   
+   // **************************************************************************
+   inline bool Nvvp(bool toggle=false) { return toggle?nvvp=!nvvp:nvvp; }
+   
    // **************************************************************************
    void Setup();
 

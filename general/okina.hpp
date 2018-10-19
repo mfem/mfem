@@ -42,6 +42,7 @@
 
 // *****************************************************************************
 #include "dbg.hpp"
+#include "nvvp.hpp"
 #include "memmng.hpp"
 #include "config.hpp"
 #include "kernels.hpp"
