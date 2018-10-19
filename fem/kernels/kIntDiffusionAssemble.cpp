@@ -82,8 +82,11 @@ static void kAssemble3D(const int NUM_QUAD_1D,
          oper[ijkNM(3,q,e,6,NUM_QUAD)] = c_detJ * (A12*A12 + A22*A22 + A32*A32); // (2,2)
          oper[ijkNM(4,q,e,6,NUM_QUAD)] = c_detJ * (A12*A13 + A22*A23 + A32*A33); // (2,3), (3,2)
          oper[ijkNM(5,q,e,6,NUM_QUAD)] = c_detJ * (A13*A13 + A23*A23 + A33*A33); // (3,3)
+         //printf(" %e",oper[ijkNM(5,q,e,6,NUM_QUAD)]);
       }
-   });
+   });/*
+   fflush(0);
+   assert(false);*/
 }
 
 // *****************************************************************************

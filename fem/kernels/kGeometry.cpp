@@ -110,6 +110,15 @@ void kGeom(const int DIM,
    GET_ADRS(invJ);
    GET_ADRS(detJ);
    call[id](numElements, d_dofToQuadD, d_nodes, d_J, d_invJ, d_detJ);
+   /*printf("\nnumQuad=%d",NUM_QUAD);
+   printf("\nelements=%d",numElements);
+   printf("\n");
+   for(size_t i=0;i<64;i+=1){
+      if (!(i%8)) printf("\n");
+      printf(" %e",d_J[i]);
+   }
+   fflush(0);
+   assert(false);*/
 }
 
 // *****************************************************************************

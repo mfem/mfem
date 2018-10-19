@@ -367,7 +367,6 @@ public:
 
 void QuadratureFunctions1D::GaussLegendre(const int np, IntegrationRule* ir)
 {
-   OKINA_ASSERT_GPU;
    ir->SetSize(np);
 
    switch (np)
@@ -1015,7 +1014,6 @@ IntegrationRules::~IntegrationRules()
 IntegrationRule *IntegrationRules::GenerateIntegrationRule(int GeomType,
                                                            int Order)
 {
-   OKINA_ASSERT_GPU;
    switch (GeomType)
    {
       case Geometry::POINT:
@@ -1061,7 +1059,6 @@ IntegrationRule *IntegrationRules::PointIntegrationRule(int Order)
 // Integration rules for line segment [0,1]
 IntegrationRule *IntegrationRules::SegmentIntegrationRule(int Order)
 {
-   OKINA_ASSERT_GPU;
    int RealOrder = GetSegmentRealOrder(Order); // RealOrder >= Order
    // Order is one of {RealOrder-1,RealOrder}
    AllocIntRule(SegmentIntRules, RealOrder);
