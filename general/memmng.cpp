@@ -72,7 +72,9 @@ static void *shiftBack(const void *adrs){
 }
 
 // *****************************************************************************
-// * Add a host address, if we are in CUDA mode, allocate there too
+// * Add a host address
+// * For now, if we are in CUDA mode, allocate there too: that could be avoided
+// * and only done after when requested with an mm::Adrs
 // * Returns the 'instant' one
 // *****************************************************************************
 void* mm::add(const void *adrs, const size_t size, const size_t size_of_T)

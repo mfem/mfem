@@ -22,8 +22,7 @@ MFEM_NAMESPACE
 // ***************************************************************************
 // * kFiniteElementSpace
 //  **************************************************************************
-class kFiniteElementSpace //: public FiniteElementSpace
-{
+class kFiniteElementSpace {
 private:
    FiniteElementSpace *fes;
    int globalDofs, localDofs;
@@ -38,6 +37,7 @@ public:
    void LocalToGlobal(const Vector&, Vector&) const;
 };
 
-} // namespace mfem
+// *****************************************************************************
+MFEM_NAMESPACE_END
 
 #endif // MFEM_KFESPACE_HPP
