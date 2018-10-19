@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
    //    more than 1,000 elements.
    {
       int ref_levels =
-         (int)floor(log(100000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(100./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -134,16 +134,20 @@ int main(int argc, char *argv[])
    }
    pmesh->ReorientTetMesh();
 
+
+
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements of the specified order.
    FiniteElementCollection *fec = new ND_FECollection(order, dim);
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
    HYPRE_Int size = fespace->GlobalTrueVSize();
+   long globalNE = pmesh->GetGlobalNE();
    if (myid == 0)
    {
+     cout << "Number of mesh elements: " << globalNE << endl;
       cout << "Number of finite element unknowns: " << size << endl;
    }
-
+   
    // 7. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
    //    by marking all the boundary attributes from the mesh as essential
@@ -178,7 +182,7 @@ int main(int argc, char *argv[])
    //     operator curl muinv curl + sigma I, by adding the curl-curl and the
    //     mass domain integrators.
    Coefficient *muinv = new ConstantCoefficient(1.0);
-   Coefficient *sigma = new ConstantCoefficient(-1.0);
+   Coefficient *sigma = new ConstantCoefficient(-1000.0);
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
    a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
@@ -206,23 +210,56 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_STRUMPACK
    if (use_strumpack)
      {
-       Operator * Arow = new STRUMPACKRowLocMatrix(A);
+       const bool fullDirect = true;
 
-       STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
-       strumpack->SetPrintFactorStatistics(true);
-       strumpack->SetPrintSolveStatistics(false);
-       strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
-       strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
-       // strumpack->SetMC64Job(strumpack::MC64Job::NONE);
-       // strumpack->SetSymmetricPattern(true);
-       strumpack->SetOperator(*Arow);
-       strumpack->SetFromCommandLine();
-       //Solver * precond = strumpack;
+       if (fullDirect)
+	 {
+	   Operator * Arow = new STRUMPACKRowLocMatrix(A);
 
-       strumpack->Mult(B, X);
+	   STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
+	   strumpack->SetPrintFactorStatistics(true);
+	   strumpack->SetPrintSolveStatistics(false);
+	   strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+	   strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+	   // strumpack->SetMC64Job(strumpack::MC64Job::NONE);
+	   // strumpack->SetSymmetricPattern(true);
+	   strumpack->SetOperator(*Arow);
+	   strumpack->SetFromCommandLine();
+	   //Solver * precond = strumpack;
+
+	   strumpack->Mult(B, X);
        
-       delete strumpack;
-       delete Arow;
+	   delete strumpack;
+	   delete Arow;
+	 }
+       else
+	 {
+	   ParFiniteElementSpace *prec_fespace =
+	     (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
+	   HypreSolver *ams = new HypreAMS(A, prec_fespace);
+
+	   HypreGMRES *gmres = new HypreGMRES(A);
+	   gmres->SetTol(1e-12);
+	   gmres->SetMaxIter(100);
+	   gmres->SetPrintLevel(2);
+
+#ifdef HYPRE_DYLAN
+	   {
+	     Vector Xtmp(X);
+	     ams->Mult(B, Xtmp);  // Just a hack to get ams to run its setup function. There should be a better way.
+	   }
+	   
+	   HypreIAMS iams(A, ams);
+	   gmres->SetPreconditioner(iams);
+#else
+	   gmres->SetPreconditioner(*ams);
+#endif
+
+	   gmres->Mult(B, X);
+
+	   delete gmres;
+	   delete ams;
+	 }
      }
    else
 #endif
@@ -321,9 +358,9 @@ void f_exact(const Vector &x, Vector &f)
 {
    if (dim == 3)
    {
-      f(0) = (1. + kappa * kappa) * sin(kappa * x(1));
-      f(1) = (1. + kappa * kappa) * sin(kappa * x(2));
-      f(2) = (1. + kappa * kappa) * sin(kappa * x(0));
+      f(0) = (-1000. + kappa * kappa) * sin(kappa * x(1));
+      f(1) = (-1000. + kappa * kappa) * sin(kappa * x(2));
+      f(2) = (-1000. + kappa * kappa) * sin(kappa * x(0));
    }
    else
    {

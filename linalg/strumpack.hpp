@@ -45,6 +45,8 @@ class StrumpackSparseSolverMPIDist;
 namespace mfem
 {
 
+  class HypreParMatrix;
+  
 class STRUMPACKRowLocMatrix : public Operator
 {
 public:

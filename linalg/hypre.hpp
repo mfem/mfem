@@ -14,6 +14,13 @@
 
 #include "../config/config.hpp"
 
+#define HYPRE_DYLAN
+
+#ifdef MFEM_USE_STRUMPACK
+#include "strumpack.hpp"
+#endif
+
+
 #ifdef MFEM_USE_MPI
 
 #include <mpi.h>
@@ -43,7 +50,8 @@ namespace mfem
 
 class ParFiniteElementSpace;
 class HypreParMatrix;
-
+class STRUMPACKSolver;
+  
 namespace internal
 {
 
@@ -649,6 +657,48 @@ public:
    virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
    virtual void Mult(const Vector &b, Vector &x) const;
 
+#ifdef HYPRE_DYLAN
+  virtual HYPRE_ParCSRMatrix Get_Pix() const
+  {
+    return 0;
+  }
+  
+  virtual HYPRE_ParCSRMatrix Get_Piy() const
+  {
+    return 0;
+  }
+    
+  virtual HYPRE_ParCSRMatrix Get_Piz() const
+  {
+    return 0;
+  }
+  
+  virtual HYPRE_ParCSRMatrix Get_G() const
+  {
+    return 0;
+  }
+  
+  virtual HYPRE_ParCSRMatrix Get_A_Pix() const
+  {
+    return 0;
+  }
+  
+  virtual HYPRE_ParCSRMatrix Get_A_Piy() const
+  {
+    return 0;
+  }
+    
+  virtual HYPRE_ParCSRMatrix Get_A_Piz() const
+  {
+    return 0;
+  }
+  
+  virtual HYPRE_ParCSRMatrix Get_A_G() const
+  {
+    return 0;
+  }
+#endif
+  
    virtual ~HypreSolver();
 };
 
@@ -884,7 +934,49 @@ public:
    virtual HYPRE_PtrToParSolverFcn SolveFcn() const
    { return (HYPRE_PtrToParSolverFcn) HYPRE_AMSSolve; }
 
-   virtual ~HypreAMS();
+#ifdef HYPRE_DYLAN
+  virtual HYPRE_ParCSRMatrix Get_Pix() const
+  {
+    return hypre_AMSGet_Pix(ams);
+  }
+
+  virtual HYPRE_ParCSRMatrix Get_Piy() const
+  {
+    return hypre_AMSGet_Piy(ams);
+  }
+
+  virtual HYPRE_ParCSRMatrix Get_Piz() const
+  {
+    return hypre_AMSGet_Piz(ams);
+  }
+
+  virtual HYPRE_ParCSRMatrix Get_G() const
+  {
+    return hypre_AMSGet_G(ams);
+  }
+
+  virtual HYPRE_ParCSRMatrix Get_A_Pix() const
+  {
+    return hypre_AMSGetA_Pix(ams);
+  }
+
+  virtual HYPRE_ParCSRMatrix Get_A_Piy() const
+  {
+    return hypre_AMSGetA_Piy(ams);
+  }
+
+  virtual HYPRE_ParCSRMatrix Get_A_Piz() const
+  {
+    return hypre_AMSGetA_Piz(ams);
+  }
+
+  virtual HYPRE_ParCSRMatrix Get_A_G() const
+  {
+    return hypre_AMSGetA_G(ams);
+  }
+#endif
+
+  virtual ~HypreAMS();
 };
 
 /// The Auxiliary-space Divergence Solver in hypre
@@ -1133,6 +1225,28 @@ public:
    /// Transfer ownership of the converged eigenvectors
    HypreParVector ** StealEigenvectors();
 };
+
+
+#ifdef HYPRE_DYLAN
+/// An experimental auxiliary-space indefinite Maxwell Solver, using hypre
+class HypreIAMS : public HypreSolver
+{
+private:
+  Operator* Arow[4];
+  HypreParMatrix* Pi[4];
+  STRUMPACKSolver* strumpack[4];
+  
+public:
+  HypreIAMS(HypreParMatrix &A, HypreAMS *ams, int argc, char *argv[]);
+
+  void SetPrintLevel(int print_lvl);
+
+  virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
+  
+  virtual ~HypreIAMS();
+};
+#endif 
+
 
 }
 

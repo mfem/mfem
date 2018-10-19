@@ -3698,6 +3698,64 @@ HypreAME::StealEigenvectors()
    return vecs;
 }
 
+#ifdef HYPRE_DYLAN
+HypreIAMS::HypreIAMS(HypreParMatrix &A, HypreAMS *ams, int argc, char *argv[])
+   : HypreSolver(&A)
+{
+  //HYPRE_ParCSRMatrix A_Pix = ams->Get_A_Pix();
+  HypreParMatrix A_Pix(ams->Get_A_Pix());
+  HypreParMatrix A_Piy(ams->Get_A_Piy());
+  HypreParMatrix A_Piz(ams->Get_A_Piz());
+  HypreParMatrix A_G(ams->Get_A_G());
+
+  HypreParMatrix Pix(ams->Get_Pix());
+  HypreParMatrix Piy(ams->Get_Piy());
+  HypreParMatrix Piz(ams->Get_Piz());
+  HypreParMatrix G(ams->Get_G());
+
+  Arow[0] = new STRUMPACKRowLocMatrix(A_Pix);
+  Arow[1] = new STRUMPACKRowLocMatrix(A_Piy);
+  Arow[2] = new STRUMPACKRowLocMatrix(A_Piz);
+  Arow[3] = new STRUMPACKRowLocMatrix(A_G);
+  
+  for (int i=0; i<4; ++i)
+    {
+      strumpack[i] = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
+      strumpack[i]->SetPrintFactorStatistics(true);
+      strumpack[i]->SetPrintSolveStatistics(false);
+      strumpack[i]->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+      strumpack[i]->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+      // strumpack->SetMC64Job(strumpack::MC64Job::NONE);
+      // strumpack->SetSymmetricPattern(true);
+      strumpack[i]->SetOperator(*Arow[i]);
+      strumpack[i]->SetFromCommandLine();
+    }
+}
+
+void HypreIAMS::Mult(const HypreParVector &b, HypreParVector &x) const
+{
+  for (int i=0; i<4; ++i)
+    {
+      // Multiply by projection operators
+      strumpack[i]->Mult(b, x);
+    }
+}
+
+HypreIAMS::~HypreIAMS()
+{
+  for (int i=0; i<4; ++i)
+    {
+      delete Arow[i];
+      delete strumpack[i];
+    }
+}
+
+void HypreIAMS::SetPrintLevel(int print_lvl)
+{
+
+}
+#endif
+
 }
 
 #endif
