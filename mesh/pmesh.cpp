@@ -196,7 +196,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
       FindSharedFaces(mesh, partitioning, face_group, groups);
       int nsedges = FindSharedEdges(mesh, partitioning, edge_element, groups);
-      int nsvert = FindSharedVertices(mesh, partitioning, vert_element, groups);
+      int nsvert = FindSharedVertices(partitioning, vert_element, groups);
 
       // build the group communication topology
       gtopo.Create(groups, 822);
@@ -560,8 +560,7 @@ int ParMesh::FindSharedEdges(const Mesh &mesh, const int *partitioning,
    return sedge_counter;
 }
 
-int ParMesh::FindSharedVertices(const Mesh &mesh, const int *partitioning,
-                                Table *vert_element,
+int ParMesh::FindSharedVertices(const int *partitioning, Table *vert_element,
                                 ListOfIntegerSets &groups)
 {
    IntegerSet group;
