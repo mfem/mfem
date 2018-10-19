@@ -637,7 +637,15 @@ void ParFiniteElementSpace::DivideByGroupSize(double *vec)
    {
       if (gt.IAmMaster(ldof_group[i])) // we are the master
       {
-         vec[ldof_ltdof[i]] /= gt.GetGroupSize(ldof_group[i]);
+         if (ldof_ltdof[i] >= 0) // see note below
+         {
+            vec[ldof_ltdof[i]] /= gt.GetGroupSize(ldof_group[i]);
+         }
+         // NOTE: in NC meshes, ldof_ltdof generated for the gtopo
+         // groups by ConstructTrueDofs gets overwritten by
+         // BuildParallelConformingInterpolation. Some DOFs that are
+         // seen as true by the conforming code are actually slaves and
+         // end up with a -1 in ldof_ltdof.
       }
    }
 }
