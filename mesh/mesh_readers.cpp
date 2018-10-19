@@ -360,6 +360,11 @@ void Mesh::ReadTrueGridMesh(std::istream &input)
 const int Mesh::vtk_quadratic_tet[10] =
 { 0, 1, 2, 3, 4, 7, 5, 6, 8, 9 };
 
+// see Wedge::edges & Mesh::GenerateFaces
+// https://www.vtk.org/doc/nightly/html/classvtkBiQuadraticQuadraticWedge.html
+const int Mesh::vtk_quadratic_wedge[18] =
+{ 0, 2, 1, 3, 5, 4, 8, 7, 6, 11, 10, 9, 12, 14, 13, 17, 16, 15};
+
 // see Hexahedron::edges & Mesh::GenerateFaces
 const int Mesh::vtk_quadratic_hex[27] =
 {
@@ -367,8 +372,15 @@ const int Mesh::vtk_quadratic_hex[27] =
    24, 22, 21, 23, 20, 25, 26
 };
 
-void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf)
+void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
+                       bool &finalize_topo)
 {
+   // VTK resources:
+   //   * https://www.vtk.org/doc/nightly/html/vtkCellType_8h_source.html
+   //   * https://www.vtk.org/doc/nightly/html/classvtkCell.html
+   //   * https://lorensen.github.io/VTKExamples/site/VTKFileFormats
+   //   * https://www.kitware.com/products/books/VTKUsersGuide.pdf
+
    int i, j, n, attr;
 
    string buff;
@@ -426,8 +438,8 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf)
    }
 
    // Read the cell types
-   Dim = 0;
-   int order = 1;
+   Dim = -1;
+   int order = -1;
    input >> ws >> buff;
    if (buff == "CELL_TYPES")
    {
@@ -435,20 +447,20 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf)
       elements.SetSize(NumOfElements);
       for (j = i = 0; i < NumOfElements; i++)
       {
-         int ct;
+         int ct, elem_dim, elem_order = 1;
          input >> ct;
          switch (ct)
          {
             case 5:   // triangle
-               Dim = 2;
+               elem_dim = 2;
                elements[i] = new Triangle(&cells_data[j+1]);
                break;
             case 9:   // quadrilateral
-               Dim = 2;
+               elem_dim = 2;
                elements[i] = new Quadrilateral(&cells_data[j+1]);
                break;
             case 10:  // tetrahedron
-               Dim = 3;
+               elem_dim = 3;
 #ifdef MFEM_USE_MEMALLOC
                elements[i] = TetMemory.Alloc();
                elements[i]->SetVertices(&cells_data[j+1]);
@@ -457,23 +469,31 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf)
 #endif
                break;
             case 12:  // hexahedron
-               Dim = 3;
+               elem_dim = 3;
                elements[i] = new Hexahedron(&cells_data[j+1]);
+               break;
+            case 13:  // wedge
+               elem_dim = 3;
+               // switch between vtk vertex ordering and mfem vertex ordering:
+               // swap vertices (1,2) and (4,5)
+               elements[i] =
+                  new Wedge(cells_data[j+1], cells_data[j+3], cells_data[j+2],
+                            cells_data[j+4], cells_data[j+6], cells_data[j+5]);
                break;
 
             case 22:  // quadratic triangle
-               Dim = 2;
-               order = 2;
+               elem_dim = 2;
+               elem_order = 2;
                elements[i] = new Triangle(&cells_data[j+1]);
                break;
             case 28:  // biquadratic quadrilateral
-               Dim = 2;
-               order = 2;
+               elem_dim = 2;
+               elem_order = 2;
                elements[i] = new Quadrilateral(&cells_data[j+1]);
                break;
             case 24:  // quadratic tetrahedron
-               Dim = 3;
-               order = 2;
+               elem_dim = 3;
+               elem_order = 2;
 #ifdef MFEM_USE_MEMALLOC
                elements[i] = TetMemory.Alloc();
                elements[i]->SetVertices(&cells_data[j+1]);
@@ -481,15 +501,30 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf)
                elements[i] = new Tetrahedron(&cells_data[j+1]);
 #endif
                break;
+            case 32: // biquadratic-quadratic wedge
+               elem_dim = 3;
+               elem_order = 2;
+               // switch between vtk vertex ordering and mfem vertex ordering:
+               // swap vertices (1,2) and (4,5)
+               elements[i] =
+                  new Wedge(cells_data[j+1], cells_data[j+3], cells_data[j+2],
+                            cells_data[j+4], cells_data[j+6], cells_data[j+5]);
+               break;
             case 29:  // triquadratic hexahedron
-               Dim = 3;
-               order = 2;
+               elem_dim = 3;
+               elem_order = 2;
                elements[i] = new Hexahedron(&cells_data[j+1]);
                break;
             default:
                MFEM_ABORT("VTK mesh : cell type " << ct << " is not supported!");
                return;
          }
+         MFEM_VERIFY(Dim == -1 || Dim == elem_dim,
+                     "elements with different dimensions are not supported");
+         MFEM_VERIFY(order == -1 || order == elem_order,
+                     "elements with different orders are not supported");
+         Dim = elem_dim;
+         order = elem_order;
          j += cells_data[j] + 1;
       }
    }
@@ -589,25 +624,8 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf)
 
       // Generate faces and edges so that we can define quadratic
       // FE space on the mesh
-
-      // Generate faces
-      if (Dim > 2)
-      {
-         GetElementToFaceTable();
-         GenerateFaces();
-      }
-      else
-      {
-         NumOfFaces = 0;
-      }
-
-      // Generate edges
-      el_to_edge = new Table;
-      NumOfEdges = GetElementToEdgeTable(*el_to_edge, be_to_edge);
-      if (Dim == 2)
-      {
-         GenerateFaces();   // 'Faces' in 2D refers to the edges
-      }
+      FinalizeTopology();
+      finalize_topo = false;
 
       // Define quadratic FE space
       FiniteElementCollection *fec = new QuadraticFECollection;
@@ -630,8 +648,11 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf)
             case Geometry::TETRAHEDRON:
                vtk_mfem = vtk_quadratic_tet; break;
             case Geometry::CUBE:
-            default:
                vtk_mfem = vtk_quadratic_hex; break;
+            case Geometry::PRISM:
+               vtk_mfem = vtk_quadratic_wedge; break;
+            default:
+               break;
          }
 
          for (n++, j = 0; j < dofs.Size(); j++, n++)
@@ -785,6 +806,10 @@ void Mesh::ReadInlineMesh(std::istream &input, int generate_edges)
          {
             type = Element::HEXAHEDRON;
          }
+         else if (eltype == "wedge")
+         {
+            type = Element::WEDGE;
+         }
          else if (eltype == "tet")
          {
             type = Element::TETRAHEDRON;
@@ -793,7 +818,7 @@ void Mesh::ReadInlineMesh(std::istream &input, int generate_edges)
          {
             MFEM_ABORT("unrecognized element type (read '" << eltype
                        << "') in inline mesh format.  "
-                       "Allowed: segment, tri, tet, quad, hex");
+                       "Allowed: segment, tri, quad, tet, hex, wedge");
          }
       }
       else
@@ -838,7 +863,8 @@ void Mesh::ReadInlineMesh(std::istream &input, int generate_edges)
                   << "   sy = " << sy << "\n");
       Make2D(nx, ny, type, generate_edges, sx, sy);
    }
-   else if (type == Element::TETRAHEDRON || type == Element::HEXAHEDRON)
+   else if (type == Element::TETRAHEDRON || type == Element::WEDGE ||
+            type == Element::HEXAHEDRON)
    {
       MFEM_VERIFY(nx > 0 && ny > 0 && nz > 0 &&
                   sx > 0.0 && sy > 0.0 && sz > 0.0,
@@ -855,10 +881,8 @@ void Mesh::ReadInlineMesh(std::istream &input, int generate_edges)
    else
    {
       MFEM_ABORT("For inline mesh, must specify an element type ="
-                 " [segment, tri, quad, tet, hex]");
+                 " [segment, tri, quad, tet, hex, wedge]");
    }
-   InitBaseGeom();
-   return; // done with inline mesh construction
 }
 
 void Mesh::ReadGmshMesh(std::istream &input)
@@ -1460,7 +1484,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
 
    CubitElementType cubit_element_type = ELEMENT_TRI3; // suppress a warning
    CubitFaceType cubit_face_type;
-   int num_element_linear_nodes;
+   int num_element_linear_nodes = 0; // initialize to suppress a warning
 
    if (num_dim == 2)
    {
