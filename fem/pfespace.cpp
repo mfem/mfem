@@ -140,6 +140,11 @@ void ParFiniteElementSpace::Construct()
    }
    else // Nonconforming()
    {
+      // Initialize 'gcomm' for the cut (aka "partially conforming") space.
+      // In the process, the array 'ldof_ltdof' is also initialized (for the cut
+      // space) and used; however, it will be overwritten below with the real
+      // true dofs. Also, 'ldof_sign' and 'ldof_group' are contructed for the
+      // cut space.
       ConstructTrueDofs();
 
       // calculate number of ghost DOFs
@@ -666,15 +671,10 @@ GroupCommunicator *ParFiniteElementSpace::ScalarGroupComm()
 
 void ParFiniteElementSpace::Synchronize(Array<int> &ldof_marker) const
 {
-   if (Nonconforming()) // TODO: maybe this is working now?
-   {
-      MFEM_ABORT("Not implemented for NC mesh.");
-   }
+   // For non-conforming mesh, synchronization is performed on the cut (aka
+   // "partially conforming") space.
 
-   if (ldof_marker.Size() != GetVSize())
-   {
-      mfem_error("ParFiniteElementSpace::Synchronize");
-   }
+   MFEM_VERIFY(ldof_marker.Size() == GetVSize(), "invalid in/out array");
 
    // implement allreduce(|) as reduce(|) + broadcast
    gcomm->Reduce<int>(ldof_marker, GroupCommunicator::BitOR);

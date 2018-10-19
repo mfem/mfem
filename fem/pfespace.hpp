@@ -286,11 +286,14 @@ public:
    /// Return a const reference to the internal GroupCommunicator (on VDofs)
    const GroupCommunicator &GroupComm() const { return *gcomm; }
 
-   /// Return a new GroupCommunicator on Dofs
+   /// Return a new GroupCommunicator on scalar dofs, i.e. for VDim = 1.
+   /** @note The returned pointer must be deleted by the caller. */
    GroupCommunicator *ScalarGroupComm();
 
-   /** Given an integer array on the local degrees of freedom, perform
+   /** @brief Given an integer array on the local degrees of freedom, perform
        a bitwise OR between the shared dofs. */
+   /** For non-conforming mesh, synchronization is performed on the cut (aka
+       "partially conforming") space. */
    void Synchronize(Array<int> &ldof_marker) const;
 
    /// Determine the boundary degrees of freedom

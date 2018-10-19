@@ -26,6 +26,9 @@
 namespace mfem
 {
 
+class FiniteElementSpace;
+
+
 /** \brief A parallel extension of the NCMesh class.
  *
  *  The basic idea (and assumption) is that all processors share the coarsest
