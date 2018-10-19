@@ -57,7 +57,7 @@ double cuVectorDot(const size_t N, const double *x, const double *y){
    const size_t bytes = dot_sz*sizeof(double);   
    static double *h_dot = NULL;
    if (!h_dot) { h_dot = (double*)calloc(dot_sz,sizeof(double)); }
-   static CUdeviceptr gdsr = NULL;
+   static CUdeviceptr gdsr = (CUdeviceptr) NULL;
    if (!gdsr) { checkCudaErrors(cuMemAlloc(&gdsr,bytes)); }
    cuKernelDot<<<gridSize,blockSize>>>(N, (double*)gdsr, x, y);
    checkCudaErrors(cuMemcpy((CUdeviceptr)h_dot,(CUdeviceptr)gdsr,bytes));
@@ -133,7 +133,6 @@ void kVectorGetSubvector(const int N,
    forall(i, N,
    {
       const int dof_i = d_v2[i];
-      //printf("\n[kVectorGetSubvector] N=%d, i=%ld, dof_i=%d",N,i,dof_i);
       assert(dof_i >= 0);
       d_v0[i] = dof_i >= 0 ? d_v1[dof_i] : -d_v1[-dof_i-1];
    });
@@ -151,7 +150,6 @@ void kVectorSetSubvector(const int N,
    forall(i,N,
    {
       const int j = d_dofs[i];
-      //printf("\n\tj=%d, set: %f",j,d_elemvect[i]);
       if (j >= 0)
       {
          d_data[j] = d_elemvect[i];
@@ -223,23 +221,6 @@ void kVectorDotOpPlusEQ(const size_t size, const double *v, double *data)
    GET_ADRS(data);
    forall(i, size, d_data[i] += d_v[i];);
 }
-/*
-// *****************************************************************************
-void kSetSubVector(const size_t n, const int *dofs, const double *elemvect,
-                   double *data){
-   GET_CONST_ADRS_T(dofs,int);
-   GET_CONST_ADRS(elemvect);
-   GET_ADRS(data);
-//#warning make sure we can work on this outer loop
-   forall(i, n,{
-         const int j = d_dofs[i];
-         if (j >= 0) {
-            d_data[j] = d_elemvect[i];
-         }else{
-            d_data[-1-j] = -d_elemvect[i];
-         }
-      });
-      }*/
 
 // *****************************************************************************
 void kVectorOpSubtract(const size_t size, const double *v, double *data)
@@ -256,21 +237,13 @@ void kAddElementVector(const size_t n, const int *dofs,
    GET_CONST_ADRS_T(dofs,int);
    GET_CONST_ADRS(elem_data);
    GET_ADRS(data);
-   forall(k,1,
-   {
-      for (size_t i = 0; i < n; i++)
-      {
+   forall(i, n, {
          const int j = d_dofs[i];
          if (j >= 0)
-         {
             d_data[j] += d_elem_data[i];
-         }
          else
-         {
             d_data[-1-j] -= d_elem_data[i];
-         }
-      }
-   });
+      });
 }
 
 // *****************************************************************************

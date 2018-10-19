@@ -18,7 +18,6 @@ MFEM_NAMESPACE
 // *****************************************************************************
 static jmp_buf env;
 static size_t xs_shift = 0;
-//static void *xs_adrs = NULL;
 static bool test_mem_xs = false;
 
 // *****************************************************************************
@@ -37,91 +36,30 @@ void mm::Setup(void)
 }
 
 // *****************************************************************************
-// * Set global xs_adrs, save context and try read/write access it
-// *****************************************************************************
-/*__attribute__((unused))
-static void *setJmpAndTryThis(const void *adrs){
-#ifdef MFEM_DEBUG
-   if (!test_mem_xs) return (void*) adrs;
-   xs_adrs = (void*) adrs; // save to global
-   if (!setjmp(env))
-   {
-      dbg("\033[32mTrying %p...",xs_adrs);
-      volatile size_t read = *(size_t*)xs_adrs;
-      *(size_t*)xs_adrs = read;
-   }
-   else   // read from global if we hit a fault
-   {
-      dbg("\033[32mRewinding, adrs was %p",xs_adrs);
-      stk(true);
-      //assert(false);
-      exit(0);
-   }
-   dbg("ok");
-   *(size_t*)xs_adrs -= xs_shift;
-   return xs_adrs;
-#endif // MFEM_DEBUG
-}*/
-
-// *****************************************************************************
-static void *shiftBack(const void *adrs){
+static inline void *shiftBack(const void *adrs){
    if (!test_mem_xs) return (void*) adrs;
    void *shifted_address = ((size_t*) adrs) - xs_shift;
-   dbg("shifted_address: %p",shifted_address);
    return  shifted_address;
 }
 
 // *****************************************************************************
-// * Add a host address
-// * For now, if we are in CUDA mode, allocate there too: that could be avoided
-// * and only done after when requested with an mm::Adrs
-// * Returns the 'instant' one
+// * Add an address lazily only on the host
 // *****************************************************************************
 void* mm::add(const void *adrs, const size_t size, const size_t size_of_T)
 {
    size_t *h_adrs = (size_t *) adrs;
-   
-   if (test_mem_xs)
-   {
-      // Shift host address to force a SIGSEGV
+   if (test_mem_xs) // Shift host address to force a SIGSEGV
       h_adrs += xs_shift;
-   }
-   
    const size_t bytes = size*size_of_T;
    const auto search = mng->find(h_adrs);
    const bool present = search != mng->end();
-
    if (present)
-   {
       mfem_error("[ERROR] Trying to add already present address!");
-   }
-
-   //printf("\n\t\033[31m%p (%ldo)\033[m", h_adrs, bytes);fflush(0);
    mm2dev_t &mm2dev = mng->operator[](h_adrs);
    mm2dev.host = true;
    mm2dev.bytes = bytes;
    mm2dev.h_adrs = h_adrs;
    mm2dev.d_adrs = NULL;
-#ifdef __NVCC__
-   if (config::Get().Cuda())  // alloc also there
-   {
-      //stk(true);
-      CUdeviceptr ptr = (CUdeviceptr)NULL;
-      const size_t bytes = mm2dev.bytes;
-      if (bytes>0)
-      {
-         //dbg(" \033[32;1m%ldo\033[m",bytes);
-         checkCudaErrors(cuMemAlloc(&ptr,bytes));
-      }
-      else
-      {
-         //dbg(" \033[31;1m%ldo\033[m",bytes);
-      }
-      mm2dev.d_adrs = (void*)ptr;
-      // and say we are there
-      mm2dev.host = false;
-   }
-#endif // __NVCC__
    return (void*) mm2dev.h_adrs;
 }
 
@@ -130,18 +68,10 @@ void* mm::add(const void *adrs, const size_t size, const size_t size_of_T)
 // *****************************************************************************
 void *mm::del(const void *adrs)
 {
-   //dbg("adrs: %p",adrs);
    const auto search = mng->find(adrs);
    const bool present = search != mng->end();
-   if (!present)  // should not happen
-   {
-      printf("\n\033[31;7m[mm::del] %p\033[m", adrs);
-      stk(true);
-      assert(false); // should not happen
-//#warning not asserting false!
-      return (void*)adrs;
-   }
-   //printf("\n\033[32;7m[mm::del] %p\033[m", adrs);fflush(0);
+   if (not present)
+      mfem_error("[ERROR] Trying to remove an unknown address!");
    // Remove element from the map
    mng->erase(adrs);
    return shiftBack(adrs);
@@ -150,11 +80,6 @@ void *mm::del(const void *adrs)
 // *****************************************************************************
 bool mm::Known(const void *adrs)
 {
-   if (!adrs) {
-      // mfem::Mesh::UniformRefinement comes here
-      //stk(true);
-      dbg("\n\033[31;7m[mm::Known] %p\033[m", adrs);
-   } // NULL
    const auto search = mng->find(adrs);
    const bool present = search != mng->end();
    return present;
@@ -165,30 +90,21 @@ bool mm::Known(const void *adrs)
 // *****************************************************************************
 void* mm::Adrs(const void *adrs)
 {
-   //dbg("Looking for %p", adrs);
-   const bool cuda = config::Get().Cuda();
    const auto search = mng->find(adrs);
    const bool present = search != mng->end();
 
    if (not present)
-   {
-      printf("\n\033[31;7m[mm::Adrs] %p\033[m", adrs);
-      stk(true);
-//#warning not asserting false!
-      assert(false);
-      //mfem_error("[ERROR] Trying to convert unknown address!");
-      return (void*)adrs;
-   }
+      mfem_error("[ERROR] Trying to convert unknown address!");
    
+   const bool cuda = config::Get().Cuda();
    mm2dev_t &mm2dev = mng->operator[](adrs);
-   // If we are asking a known host address, just return it
+   
+   // If we are asked for a known host address, just return it
    if (mm2dev.host and not cuda)
-   {
-      //dbg("Returning host adrs %p\033[m", mm2dev.h_adrs);
-      return shiftBack(mm2dev.h_adrs);
-   }
+      return shiftBack(mm2dev.h_adrs);   
+   
    // Otherwise push it to the device if it hasn't been seen
-   if (!mm2dev.d_adrs)
+   if (not mm2dev.d_adrs)
    {
 #ifdef __NVCC__
       const size_t bytes = mm2dev.bytes;
@@ -212,8 +128,8 @@ void* mm::Adrs(const void *adrs)
 
    if (not cuda)
    {
-      dbg("return \033[31;1mGPU\033[m h_adrs %p",mm2dev.h_adrs);
-      dbg("return \033[31;1mGPU\033[m d_adrs %p",mm2dev.d_adrs);
+      //dbg("return \033[31;1mGPU\033[m h_adrs %p",mm2dev.h_adrs);
+      //dbg("return \033[31;1mGPU\033[m d_adrs %p",mm2dev.d_adrs);
 #ifdef __NVCC__
       checkCudaErrors(cuMemcpyDtoH((void*)mm2dev.h_adrs,(CUdeviceptr)mm2dev.d_adrs,
                                    mm2dev.bytes));
@@ -224,7 +140,7 @@ void* mm::Adrs(const void *adrs)
       return (void*)mm2dev.h_adrs;
    }
 
-   dbg("return \033[32;1mGPU\033[m address %p",mm2dev.d_adrs);
+   //dbg("return \033[32;1mGPU\033[m address %p",mm2dev.d_adrs);
    return (void*)mm2dev.d_adrs;
 }
 
@@ -255,10 +171,19 @@ void mm::Push(const void *adrs)
    const auto search = mng->find(adrs);
    const bool present = search != mng->end();
    assert(present);
-   const mm2dev_t &mm2dev = mng->operator[](adrs);
+   mm2dev_t &mm2dev = mng->operator[](adrs);
    if (mm2dev.host) { return; }
 #ifdef __NVCC__
    const size_t bytes = mm2dev.bytes;
+   if (not mm2dev.d_adrs){
+      CUdeviceptr ptr = (CUdeviceptr) NULL;
+      if (bytes>0)
+      {
+         dbg(" \033[32;1m%ldo\033[m",bytes);
+         checkCudaErrors(cuMemAlloc(&ptr,bytes));
+      }
+      mm2dev.d_adrs = (void*)ptr;
+   }
    checkCudaErrors(cuMemcpyHtoD((CUdeviceptr)mm2dev.d_adrs,
                                 (void*)mm2dev.h_adrs,
                                 bytes));
@@ -345,10 +270,6 @@ void mm::handler(int nSignum, siginfo_t* si, void* vcontext)
 {
    printf("\n\033[31;7;1mSegmentation fault\033[m\n");
    fflush(0);
-   //ucontext_t* context = (ucontext_t*)vcontext;
-   //context->uc_mcontext.gregs[REG_RIP]++;
-   //exit(!0);
-   //longjmp(env, 1);
 }
 
 // *****************************************************************************
@@ -365,16 +286,7 @@ static void SIGSEGV_handler(int s)
 // *****************************************************************************
 void mm::iniHandler()
 {
-   /*struct sigaction action;
-   memset(&action, 0, sizeof(struct sigaction));
-   action.sa_flags = SA_SIGINFO;
-   action.sa_sigaction = handler;
-   sigaction(SIGSEGV, &action, NULL);
-   if (!setjmp(env)) return;*/
    signal(SIGSEGV, SIGSEGV_handler);
-   //if (!setjmp(env)) return;
-   //dbg("Flash back");
-   //stk(true);
 }
 
 // *****************************************************************************
