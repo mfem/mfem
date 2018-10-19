@@ -55,7 +55,8 @@ static double cub_vector_dot(const int N,
    checkCudaErrors(cuMemcpy((CUdeviceptr)h_dot,(CUdeviceptr)d_dot,sizeof(double)));
    //dbg("dot=%e",*h_dot);
    //assert(false);
-   return *h_dot;
+   pop();
+   return *h_dot;   
 }
 #endif // __NVCC__
 
