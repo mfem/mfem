@@ -100,13 +100,13 @@ static void kdbge(const char *file, const int line, const char *func,
       __VA_ARGS__ COMMA_IF_PARENS \
       __VA_ARGS__ COMMA_IF_PARENS __VA_ARGS__ (),  \
       DBG2, impossible, DBG2, DBG1, DBG0, DBG1, ))
-#define dbg(...) CHOOSE(__VA_ARGS__)(__VA_ARGS__)
+#define dbg(...) //CHOOSE(__VA_ARGS__)(__VA_ARGS__)
 
 #else // __NVCC__
 
 // *****************************************************************************
-#define dbp(...) kdbge(_F_L_F_,false, NB_ARGS(__VA_ARGS__),__VA_ARGS__)
-#define dbg(...) kdbge(_F_L_F_, true, NB_ARGS(__VA_ARGS__),__VA_ARGS__)
+#define dbp(...) //kdbge(_F_L_F_,false, NB_ARGS(__VA_ARGS__),__VA_ARGS__)
+#define dbg(...) //kdbge(_F_L_F_, true, NB_ARGS(__VA_ARGS__),__VA_ARGS__)
 
 #endif // __NVCC__
 
