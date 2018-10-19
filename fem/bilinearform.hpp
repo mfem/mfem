@@ -452,34 +452,43 @@ public:
       abf(FA?
           static_cast<AbstractBilinearForm*>(new FABilinearForm(f)):
           static_cast<AbstractBilinearForm*>(new PABilinearForm(f)))
-   {
+   {  push();
       dbg("\033[7mBilinearForm %s",FA?"FA":"PA");
+      pop();
    }
    virtual ~BilinearForm() {}
    // **************************************************************************
    void EnableStaticCondensation() {assert(false);}
    void AddDomainIntegrator(AbstractBilinearFormIntegrator *i)
    {
+      push();
       abf->AddDomainIntegrator(i);
+      pop();
    }
    // **************************************************************************
    virtual void Assemble() { abf->Assemble(); }
    virtual void FormOperator(const Array<int> &ess_tdof_list,
                              Operator &A)
    {
+      push();
       abf->FormOperator(ess_tdof_list,A);
+      pop();
    }
    virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
                                  Vector &x, Vector &b,
                                  Operator *&A, Vector &X, Vector &B,
                                  int copy_interior =0)
    {
+      push();
       abf->FormLinearSystem(ess_tdof_list,x,b,A,X,B,copy_interior);
+      pop();
    }
    virtual void RecoverFEMSolution(const Vector &X, const Vector &b,
                                    Vector &x)
    {
+      push();
       abf->RecoverFEMSolution(X,b,x);
+      pop();
    }
    virtual void Mult(const Vector &x, Vector &y) const {assert(false);}
    virtual void MultTranspose(const Vector &x, Vector &y) const {assert(false);}

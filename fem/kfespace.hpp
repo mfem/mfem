@@ -22,15 +22,16 @@ MFEM_NAMESPACE
 // ***************************************************************************
 // * kFiniteElementSpace
 //  **************************************************************************
-class kFiniteElementSpace : public FiniteElementSpace
+class kFiniteElementSpace //: public FiniteElementSpace
 {
 private:
+   FiniteElementSpace *fes;
    int globalDofs, localDofs;
    karray<int> offsets;
    karray<int> indices, *reorderIndices;
    karray<int> map;
 public:
-   kFiniteElementSpace(FiniteElementSpace&);
+   kFiniteElementSpace(FiniteElementSpace*);
    ~kFiniteElementSpace();
    // *************************************************************************
    void GlobalToLocal(const Vector&, Vector&) const;
