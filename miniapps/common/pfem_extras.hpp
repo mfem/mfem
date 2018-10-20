@@ -224,11 +224,12 @@ private:
    mutable Vector Psi_;
    mutable Vector RHS_;
 
-   mutable HypreAMS * ams_;
-   mutable HyprePCG * pcg_;
+   mutable HypreSolver * pc_;
+   mutable HyprePCG    * pcg_;
 
    Array<int> ess_bdr_, ess_bdr_tdofs_;
 
+   int dim_;
    bool ownsS1_;
    bool ownsWeakCurl_;
    bool ownsCurl_;

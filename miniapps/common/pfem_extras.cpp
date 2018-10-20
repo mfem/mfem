@@ -276,8 +276,9 @@ DivergenceFreeRTProjector
      psi_(NULL),
      xCurl_(NULL),
      S1_(NULL),
-     ams_(NULL),
+     pc_(NULL),
      pcg_(NULL),
+     dim_(HCurlFESpace_->GetFE(0)->GetDim()),
      ownsS1_(s1 == NULL),
      ownsWeakCurl_(weakCurl == NULL),
      ownsCurl_(curl == NULL)
@@ -292,7 +293,9 @@ DivergenceFreeRTProjector
    if ( s1 == NULL )
    {
       s1_ = new ParBilinearForm(HCurlFESpace_);
-      BilinearFormIntegrator * ccInteg = new CurlCurlIntegrator;
+      BilinearFormIntegrator * ccInteg = (dim_==2) ?
+                                         dynamic_cast<BilinearFormIntegrator*>(new DiffusionIntegrator) :
+                                         dynamic_cast<BilinearFormIntegrator*>(new CurlCurlIntegrator);
       ccInteg->SetIntRule(ir);
       s1_->AddDomainIntegrator(ccInteg);
       s1_->Assemble();
@@ -324,7 +327,7 @@ DivergenceFreeRTProjector::~DivergenceFreeRTProjector()
    delete psi_;
    delete xCurl_;
 
-   delete ams_;
+   delete pc_;
    delete pcg_;
 
    delete S1_;
@@ -337,15 +340,25 @@ void
 DivergenceFreeRTProjector::InitSolver() const
 {
    delete pcg_;
-   delete ams_;
+   delete pc_;
 
-   ams_ = new HypreAMS(*S1_, HCurlFESpace_);
-   ams_->SetPrintLevel(0);
+   if (dim_ == 2)
+   {
+      HypreBoomerAMG * amg = new HypreBoomerAMG(*S1_);
+      amg->SetPrintLevel(0);
+      pc_ = amg;
+   }
+   else
+   {
+      HypreAMS * ams = new HypreAMS(*S1_, HCurlFESpace_);
+      ams->SetPrintLevel(0);
+      pc_ = ams;
+   }
    pcg_ = new HyprePCG(*S1_);
    pcg_->SetTol(1e-14);
    pcg_->SetMaxIter(200);
    pcg_->SetPrintLevel(0);
-   pcg_->SetPreconditioner(*ams_);
+   pcg_->SetPreconditioner(*pc_);
 }
 
 void
@@ -373,7 +386,7 @@ void
 DivergenceFreeRTProjector::Update()
 {
    delete pcg_; pcg_ = NULL;
-   delete ams_; ams_ = NULL;
+   delete pc_;  pc_  = NULL;
    delete S1_;  S1_  = new HypreParMatrix;
 
    psi_->Update();
