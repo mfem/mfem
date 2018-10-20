@@ -22,7 +22,8 @@ MFEM_NAMESPACE
 // ***************************************************************************
 // * kFiniteElementSpace
 //  **************************************************************************
-class kFiniteElementSpace {
+class kFiniteElementSpace
+{
 private:
    FiniteElementSpace *fes;
    int globalDofs, localDofs;

@@ -30,19 +30,21 @@ void kVectorPrint(const size_t N, const double *data);
 
 // *****************************************************************************
 template<typename T>
-void kVectorSetK(T *data, const size_t k, T value){
+void kVectorSetK(T *data, const size_t k, T value)
+{
    GET_CUDA;
    GET_ADRS_T(data,T);
-   if (cuda){ assert(false); }
+   if (cuda) { assert(false); }
    d_data[k] = value;
 }
 
 // *****************************************************************************
 template<typename T>
-T kVectorGetK(const T *data, const size_t k){
+T kVectorGetK(const T *data, const size_t k)
+{
    GET_CUDA;
    GET_CONST_ADRS_T(data,T);
-   if (cuda){ assert(false); }
+   if (cuda) { assert(false); }
    return d_data[k];
 }
 

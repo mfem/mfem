@@ -82,7 +82,7 @@ void kIntDiffusionMultAdd2D(const int numElements,
          for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
          {
             const int q = QUAD_2D_ID(qx, qy);
-            
+
             const double O11 = oper[ijkNM(0,q,e,3,NUM_QUAD)];
             const double O12 = oper[ijkNM(1,q,e,3,NUM_QUAD)];
             const double O22 = oper[ijkNM(2,q,e,3,NUM_QUAD)];
@@ -147,42 +147,54 @@ void kIntDiffusionMultAdd3D(const int numElements,
    forall(e, numElements,
    {
       double grad[NUM_QUAD_1D][NUM_QUAD_1D][NUM_QUAD_1D][4];
-      for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
-         for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
-            for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+      for (int qz = 0; qz < NUM_QUAD_1D; ++qz)
+      {
+         for (int qy = 0; qy < NUM_QUAD_1D; ++qy)
+         {
+            for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
+            {
                grad[qz][qy][qx][0] = 0.0;
                grad[qz][qy][qx][1] = 0.0;
                grad[qz][qy][qx][2] = 0.0;
             }
          }
       }
-      for (int dz = 0; dz < NUM_DOFS_1D; ++dz) {
+      for (int dz = 0; dz < NUM_DOFS_1D; ++dz)
+      {
          double gradXY[NUM_QUAD_1D][NUM_QUAD_1D][4];
-         for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
-            for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+         for (int qy = 0; qy < NUM_QUAD_1D; ++qy)
+         {
+            for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
+            {
                gradXY[qy][qx][0] = 0.0;
                gradXY[qy][qx][1] = 0.0;
                gradXY[qy][qx][2] = 0.0;
             }
          }
-         for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
+         for (int dy = 0; dy < NUM_DOFS_1D; ++dy)
+         {
             double gradX[NUM_QUAD_1D][2];
-            for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+            for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
+            {
                gradX[qx][0] = 0.0;
                gradX[qx][1] = 0.0;
             }
-            for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+            for (int dx = 0; dx < NUM_DOFS_1D; ++dx)
+            {
                const double s = solIn[ijklN(dx,dy,dz,e,NUM_DOFS_1D)];
                //printf(" %e",s);
-               for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+               for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
+               {
                   gradX[qx][0] += s;// * dofToQuad[ijN(qx,dx,NUM_QUAD_1D)];
                   gradX[qx][1] += s;// * dofToQuadD[ijN(qx,dx,NUM_QUAD_1D)];
                }
             }
-            for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+            for (int qy = 0; qy < NUM_QUAD_1D; ++qy)
+            {
                const double wy  = 1.0;//dofToQuad[ijN(qy,dy,NUM_QUAD_1D)];
                const double wDy = 1.0;//dofToQuadD[ijN(qy,dy,NUM_QUAD_1D)];
-               for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+               for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
+               {
                   const double wx  = gradX[qx][0];
                   const double wDx = gradX[qx][1];
                   gradXY[qy][qx][0] += wDx * wy;
@@ -191,11 +203,14 @@ void kIntDiffusionMultAdd3D(const int numElements,
                }
             }
          }
-         for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
+         for (int qz = 0; qz < NUM_QUAD_1D; ++qz)
+         {
             const double wz  = 1.0;//dofToQuad[ijN(qz,dz,NUM_QUAD_1D)];
             const double wDz = 1.0;//dofToQuadD[ijN(qz,dz,NUM_QUAD_1D)];
-            for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
-               for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+            for (int qy = 0; qy < NUM_QUAD_1D; ++qy)
+            {
+               for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
+               {
                   grad[qz][qy][qx][0] += gradXY[qy][qx][0] * wz;
                   grad[qz][qy][qx][1] += gradXY[qy][qx][1] * wz;
                   grad[qz][qy][qx][2] += gradXY[qy][qx][2] * wDz;
@@ -205,9 +220,12 @@ void kIntDiffusionMultAdd3D(const int numElements,
       }
 
       // Calculate Dxyz, xDyz, xyDz in plane
-      for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
-         for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
-            for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+      for (int qz = 0; qz < NUM_QUAD_1D; ++qz)
+      {
+         for (int qy = 0; qy < NUM_QUAD_1D; ++qy)
+         {
+            for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
+            {
                const int q = QUAD_3D_ID(qx, qy, qz);
                const double O11 = oper[ijkNM(0,q,e,6,NUM_QUAD)];
                const double O12 = oper[ijkNM(1,q,e,6,NUM_QUAD)];
@@ -227,29 +245,36 @@ void kIntDiffusionMultAdd3D(const int numElements,
          }
       }
 
-      for (int qz = 0; qz < NUM_QUAD_1D; ++qz) {
+      for (int qz = 0; qz < NUM_QUAD_1D; ++qz)
+      {
          double gradXY[NUM_DOFS_1D][NUM_DOFS_1D][4];
-         for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
-            for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+         for (int dy = 0; dy < NUM_DOFS_1D; ++dy)
+         {
+            for (int dx = 0; dx < NUM_DOFS_1D; ++dx)
+            {
                gradXY[dy][dx][0] = 0;
                gradXY[dy][dx][1] = 0;
                gradXY[dy][dx][2] = 0;
             }
          }
 
-         for (int qy = 0; qy < NUM_QUAD_1D; ++qy) {
+         for (int qy = 0; qy < NUM_QUAD_1D; ++qy)
+         {
             double gradX[NUM_DOFS_1D][4];
-            for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+            for (int dx = 0; dx < NUM_DOFS_1D; ++dx)
+            {
                gradX[dx][0] = 0;
                gradX[dx][1] = 0;
                gradX[dx][2] = 0;
             }
 
-            for (int qx = 0; qx < NUM_QUAD_1D; ++qx) {
+            for (int qx = 0; qx < NUM_QUAD_1D; ++qx)
+            {
                const double gX = grad[qz][qy][qx][0];
                const double gY = grad[qz][qy][qx][1];
                const double gZ = grad[qz][qy][qx][2];
-               for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+               for (int dx = 0; dx < NUM_DOFS_1D; ++dx)
+               {
                   const double wx  = 1.0;//quadToDof[ijN(dx,qx,NUM_QUAD_1D)];
                   const double wDx = 1.0;//quadToDofD[ijN(dx,qx,NUM_QUAD_1D)];
                   gradX[dx][0] += gX * wDx;
@@ -258,10 +283,12 @@ void kIntDiffusionMultAdd3D(const int numElements,
                }
             }
 
-            for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
+            for (int dy = 0; dy < NUM_DOFS_1D; ++dy)
+            {
                const double wy  = 1.0;//quadToDof[ijN(dy,qy,NUM_DOFS_1D)];
                const double wDy = 1.0;//quadToDofD[ijN(dy,qy,NUM_DOFS_1D)];
-               for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+               for (int dx = 0; dx < NUM_DOFS_1D; ++dx)
+               {
                   gradXY[dy][dx][0] += gradX[dx][0] * wy;
                   gradXY[dy][dx][1] += gradX[dx][1] * wDy;
                   gradXY[dy][dx][2] += gradX[dx][2] * wy;
@@ -269,11 +296,14 @@ void kIntDiffusionMultAdd3D(const int numElements,
             }
          }
 
-         for (int dz = 0; dz < NUM_DOFS_1D; ++dz) {
+         for (int dz = 0; dz < NUM_DOFS_1D; ++dz)
+         {
             const double wz  = 1.0;//quadToDof[ijN(dz,qz,NUM_DOFS_1D)];
             const double wDz = 1.0;//quadToDofD[ijN(dz,qz,NUM_DOFS_1D)];
-            for (int dy = 0; dy < NUM_DOFS_1D; ++dy) {
-               for (int dx = 0; dx < NUM_DOFS_1D; ++dx) {
+            for (int dy = 0; dy < NUM_DOFS_1D; ++dy)
+            {
+               for (int dx = 0; dx < NUM_DOFS_1D; ++dx)
+               {
                   solOut[ijklN(dx,dy,dz,e,NUM_DOFS_1D)] +=
                      ((gradXY[dy][dx][0] * wz) +
                       (gradXY[dy][dx][1] * wz) +
@@ -323,7 +353,7 @@ void kIntDiffusionMultAdd(const int DIM,
    dbg("id=0x%x",id);
    //assert(false);
    static std::unordered_map<unsigned int, fDiffusionMultAdd> call =
-   {      
+   {
       {0x20202,&kIntDiffusionMultAdd2D<2,2>},
       {0x20303,&kIntDiffusionMultAdd2D<3,3>},
       {0x20404,&kIntDiffusionMultAdd2D<4,4>},
@@ -340,7 +370,7 @@ void kIntDiffusionMultAdd(const int DIM,
       {0x20F0F,&kIntDiffusionMultAdd2D<15,15>},
       {0x21010,&kIntDiffusionMultAdd2D<16,16>},
       {0x21111,&kIntDiffusionMultAdd2D<17,17>},
-      
+
       {0x30203,&kIntDiffusionMultAdd3D<2,3>},/*
       {0x30304,&kIntDiffusionMultAdd3D<3,4>},
       {0x30405,&kIntDiffusionMultAdd3D<4,5>},

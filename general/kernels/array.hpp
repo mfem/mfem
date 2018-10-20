@@ -24,19 +24,21 @@ void kArrayInitVal(const size_t, const size_t, void*, size_t, void*);
 
 // *****************************************************************************
 template<typename T>
-void kArraySetK(T *data, const size_t k, T value){
+void kArraySetK(T *data, const size_t k, T value)
+{
    GET_CUDA;
    GET_ADRS_T(data,T);
-   if (cuda){ assert(false); }
+   if (cuda) { assert(false); }
    d_data[k] = value;
 }
 
 // *****************************************************************************
 template<typename T>
-T kArrayGetK(const T *data, const size_t k){
+T kArrayGetK(const T *data, const size_t k)
+{
    GET_CUDA;
    GET_CONST_ADRS_T(data,T);
-   if (cuda){ assert(false); }
+   if (cuda) { assert(false); }
    return d_data[k];
 }
 

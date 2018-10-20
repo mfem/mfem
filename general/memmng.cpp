@@ -36,8 +36,9 @@ void mm::Setup(void)
 }
 
 // *****************************************************************************
-static inline void *shiftBack(const void *adrs){
-   if (!test_mem_xs) return (void*) adrs;
+static inline void *shiftBack(const void *adrs)
+{
+   if (!test_mem_xs) { return (void*) adrs; }
    void *shifted_address = ((size_t*) adrs) - xs_shift;
    return  shifted_address;
 }
@@ -49,12 +50,16 @@ void* mm::add(const void *adrs, const size_t size, const size_t size_of_T)
 {
    size_t *h_adrs = (size_t *) adrs;
    if (test_mem_xs) // Shift host address to force a SIGSEGV
+   {
       h_adrs += xs_shift;
+   }
    const size_t bytes = size*size_of_T;
    const auto search = mng->find(h_adrs);
    const bool present = search != mng->end();
    if (present)
+   {
       mfem_error("[ERROR] Trying to add already present address!");
+   }
    mm2dev_t &mm2dev = mng->operator[](h_adrs);
    mm2dev.host = true;
    mm2dev.bytes = bytes;
@@ -71,7 +76,9 @@ void *mm::del(const void *adrs)
    const auto search = mng->find(adrs);
    const bool present = search != mng->end();
    if (not present)
+   {
       mfem_error("[ERROR] Trying to remove an unknown address!");
+   }
    // Remove element from the map
    mng->erase(adrs);
    return shiftBack(adrs);
@@ -94,15 +101,19 @@ void* mm::Adrs(const void *adrs)
    const bool present = search != mng->end();
 
    if (not present)
+   {
       mfem_error("[ERROR] Trying to convert unknown address!");
-   
+   }
+
    const bool cuda = config::Get().Cuda();
    mm2dev_t &mm2dev = mng->operator[](adrs);
-   
+
    // If we are asked for a known host address, just return it
    if (mm2dev.host and not cuda)
-      return shiftBack(mm2dev.h_adrs);   
-   
+   {
+      return shiftBack(mm2dev.h_adrs);
+   }
+
    // Otherwise push it to the device if it hasn't been seen
    if (not mm2dev.d_adrs)
    {
@@ -175,7 +186,8 @@ void mm::Push(const void *adrs)
    if (mm2dev.host) { return; }
 #ifdef __NVCC__
    const size_t bytes = mm2dev.bytes;
-   if (not mm2dev.d_adrs){
+   if (not mm2dev.d_adrs)
+   {
       CUdeviceptr ptr = (CUdeviceptr) NULL;
       if (bytes>0)
       {

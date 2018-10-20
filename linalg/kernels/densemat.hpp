@@ -59,19 +59,21 @@ void kCalcInverse3D(const double, const double*, double*);
 
 // *****************************************************************************
 template<typename T>
-void kDMSetK(T *data, const size_t h, const size_t i, const size_t j, T value){
+void kDMSetK(T *data, const size_t h, const size_t i, const size_t j, T value)
+{
    GET_CUDA;
    GET_ADRS_T(data,T);
-   if (cuda){ assert(false); }
+   if (cuda) { assert(false); }
    d_data[i+h*j] = value;
 }
 
 // *****************************************************************************
 template<typename T>
-T kDMGetK(const T *data, const size_t h, const size_t i, const size_t j){
+T kDMGetK(const T *data, const size_t h, const size_t i, const size_t j)
+{
    GET_CUDA;
    GET_CONST_ADRS_T(data,T);
-   if (cuda){ assert(false); }
+   if (cuda) { assert(false); }
    return d_data[i+h*j];
 }
 MFEM_NAMESPACE_END

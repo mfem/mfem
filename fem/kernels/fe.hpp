@@ -47,7 +47,7 @@ void kH1_TriangleElement_CalcDShape(const size_t p,
 
 // *****************************************************************************
 void kLinear3DFiniteElementHeightEq4(double*);
-      
+
 // *****************************************************************************
 void kBasis(const size_t p, const double *x, double *w);
 

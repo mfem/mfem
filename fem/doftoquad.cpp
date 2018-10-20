@@ -130,7 +130,7 @@ kDofQuadMaps* kDofQuadMaps::GetD2QTensorMaps(const FiniteElement& fe,
       << " numQuad1D:" << numQuad1D
       << " transpose:"  << (transpose?"true":"false");
    std::string hash = ss.str();
-   
+
    if (AllDofQuadMaps.find(hash)!=AllDofQuadMaps.end())
    {
       return AllDofQuadMaps[hash];

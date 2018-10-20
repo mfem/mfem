@@ -748,8 +748,8 @@ void Geometry::GetPerfPointMat(int GeomType, DenseMatrix &pm)
       case Geometry::TRIANGLE:
       {
          pm.SetSize (2, 3);
-         double *d = pm.GetData(); 
-         const size_t h = pm.Height();                              
+         double *d = pm.GetData();
+         const size_t h = pm.Height();
          //pm(0,0) = 0.0;  pm(1,0) = 0.0;
          kDMSetK(d,h,0,0,0.0); kDMSetK(d,h,1,0,0.0);
          //pm(0,1) = 1.0;  pm(1,1) = 0.0;
@@ -772,14 +772,15 @@ void Geometry::GetPerfPointMat(int GeomType, DenseMatrix &pm)
       case Geometry::TETRAHEDRON:
       {
          pm.SetSize (3, 4);
-         double *d = pm.GetData(); 
-         const size_t h = pm.Height();  
+         double *d = pm.GetData();
+         const size_t h = pm.Height();
          //pm(0,0) = 0.0;  pm(1,0) = 0.0;  pm(2,0) = 0.0;
          kDMSetK(d,h,0,0,0.0); kDMSetK(d,h,1,0,0.0); kDMSetK(d,h,2,0,0.0);
          //pm(0,1) = 1.0;  pm(1,1) = 0.0;  pm(2,1) = 0.0;
          kDMSetK(d,h,0,1,1.0); kDMSetK(d,h,1,1,0.0); kDMSetK(d,h,2,1,0.0);
          //pm(0,2) = 0.5;  pm(1,2) = 0.86602540378443864676;  pm(2,2) = 0.0;
-         kDMSetK(d,h,0,2,0.5); kDMSetK(d,h,1,2,0.86602540378443864676); kDMSetK(d,h,2,2,0.0);
+         kDMSetK(d,h,0,2,0.5); kDMSetK(d,h,1,2,0.86602540378443864676);
+         kDMSetK(d,h,2,2,0.0);
          //pm(0,3) = 0.5;  pm(1,3) = 0.28867513459481288225;
          kDMSetK(d,h,0,3,0.5); kDMSetK(d,h,1,3,0.28867513459481288225);
          //pm(2,3) = 0.81649658092772603273;
@@ -804,20 +805,22 @@ void Geometry::GetPerfPointMat(int GeomType, DenseMatrix &pm)
       case Geometry::PRISM:
       {
          pm.SetSize (3, 6);
-         double *d = pm.GetData(); 
-         const size_t h = pm.Height(); 
+         double *d = pm.GetData();
+         const size_t h = pm.Height();
          //pm(0,0) = 0.0;  pm(1,0) = 0.0;  pm(2,0) = 0.0;
          kDMSetK(d,h,0,0,0.0); kDMSetK(d,h,1,0,0.0); kDMSetK(d,h,2,0,0.0);
          //pm(0,1) = 1.0;  pm(1,1) = 0.0;  pm(2,1) = 0.0;
          kDMSetK(d,h,0,1,1.0); kDMSetK(d,h,1,1,0.0); kDMSetK(d,h,2,1,0.0);
          //pm(0,2) = 0.5;  pm(1,2) = 0.86602540378443864676;  pm(2,2) = 0.0;
-         kDMSetK(d,h,0,2,0.5); kDMSetK(d,h,1,2,0.86602540378443864676); kDMSetK(d,h,2,2,0.0);
+         kDMSetK(d,h,0,2,0.5); kDMSetK(d,h,1,2,0.86602540378443864676);
+         kDMSetK(d,h,2,2,0.0);
          //pm(0,3) = 0.0;  pm(1,3) = 0.0;  pm(2,3) = 1.0;
          kDMSetK(d,h,0,3,0.0); kDMSetK(d,h,1,3,0.0); kDMSetK(d,h,2,3,1.0);
          //pm(0,4) = 1.0;  pm(1,4) = 0.0;  pm(2,4) = 1.0;
          kDMSetK(d,h,0,4,1.0); kDMSetK(d,h,1,4,0.0); kDMSetK(d,h,2,4,1.0);
          //pm(0,5) = 0.5;  pm(1,5) = 0.86602540378443864676;  pm(2,5) = 1.0;
-         kDMSetK(d,h,0,5,0.5); kDMSetK(d,h,1,5,0.86602540378443864676); kDMSetK(d,h,2,5,1.0);
+         kDMSetK(d,h,0,5,0.5); kDMSetK(d,h,1,5,0.86602540378443864676);
+         kDMSetK(d,h,2,5,1.0);
       }
       break;
 
