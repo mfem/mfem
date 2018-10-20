@@ -308,7 +308,8 @@ public:
        ppabf->AddDomainIntegrator(i));
    }
    // **************************************************************************
-   virtual void Assemble() {
+   virtual void Assemble()
+   {
       (FA?
        pfabf->Assemble():
        ppabf->Assemble());
@@ -329,13 +330,14 @@ public:
       assert(FA);
       pfabf->FormLinearSystem(ess_tdof_list,x,b,A,X,B,copy_interior);
    }
-   
+
    virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
                                  Vector &x, Vector &b,
                                  Operator *&A, Vector &X, Vector &B,
                                  int copy_interior =0)
    {
-      (FA? pfabf->FormLinearSystem(ess_tdof_list,x,b,*static_cast<HypreParMatrix*>(A),X,B,copy_interior) :
+      (FA? pfabf->FormLinearSystem(ess_tdof_list,x,b,*static_cast<HypreParMatrix*>(A),
+                                   X,B,copy_interior) :
        ppabf->FormLinearSystem(ess_tdof_list,x,b,A,X,B,copy_interior));
    }
    virtual void RecoverFEMSolution(const Vector &X, const Vector &b,
@@ -346,7 +348,7 @@ public:
        ppabf->RecoverFEMSolution(X,b,x));
    }
    HypreParMatrix *ParallelAssemble() { assert(false); return NULL; }
-   virtual void Finalize(int skip_zeros = 1){assert(false);}
+   virtual void Finalize(int skip_zeros = 1) {assert(false);}
    virtual void Mult(const Vector &x, Vector &y) const {assert(false);}
    virtual void MultTranspose(const Vector &x, Vector &y) const {assert(false);}
 };

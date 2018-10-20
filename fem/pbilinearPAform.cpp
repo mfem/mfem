@@ -60,7 +60,7 @@ void ParPABilinearForm::AddBoundaryIntegrator(AbstractBilinearFormIntegrator *i)
 
 // Adds new interior Face Integrator.
 void ParPABilinearForm::AddInteriorFaceIntegrator(AbstractBilinearFormIntegrator
-                                               *i)
+                                                  *i)
 {
    assert(false);
    //AddIntegrator(i, InteriorFaceIntegrator);
@@ -68,7 +68,7 @@ void ParPABilinearForm::AddInteriorFaceIntegrator(AbstractBilinearFormIntegrator
 
 // Adds new boundary Face Integrator.
 void ParPABilinearForm::AddBoundaryFaceIntegrator(AbstractBilinearFormIntegrator
-                                               *i)
+                                                  *i)
 {
    assert(false);
    //AddIntegrator(i, BoundaryFaceIntegrator);
@@ -117,7 +117,7 @@ void ParPABilinearForm::Assemble(int skip_zeros)
 
 // ***************************************************************************
 void ParPABilinearForm::FormOperator(const Array<int> &ess_tdof_list,
-                                  Operator &A)
+                                     Operator &A)
 {
    assert(false);
    const Operator* trialP = trialFes->GetProlongationMatrix();
@@ -132,9 +132,9 @@ void ParPABilinearForm::FormOperator(const Array<int> &ess_tdof_list,
 
 // ***************************************************************************
 void ParPABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
-                                      Vector &x, Vector &b,
-                                      Operator *&A, Vector &X, Vector &B,
-                                      int copy_interior)
+                                         Vector &x, Vector &b,
+                                         Operator *&A, Vector &X, Vector &B,
+                                         int copy_interior)
 {
    push();
    const Operator* trialP = trialFes->GetProlongationMatrix();

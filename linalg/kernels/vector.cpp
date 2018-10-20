@@ -23,38 +23,41 @@ MFEM_NAMESPACE
 
 // *****************************************************************************
 __global__ void cuKernelDot(const size_t N, double *gdsr,
-                            const double *x, const double *y){
+                            const double *x, const double *y)
+{
    __shared__ double s_dot[CUDA_BLOCKSIZE];
    const size_t n = blockDim.x*blockIdx.x + threadIdx.x;
-   if (n>=N) return;   
+   if (n>=N) { return; }
    const size_t bid = blockIdx.x;
    const size_t tid = threadIdx.x;
    const size_t bbd = bid*blockDim.x;
    const size_t rid = bbd+tid;
    s_dot[tid] = x[n] * y[n];
    __syncthreads();
-   for(size_t workers=blockDim.x>>1; workers>0; workers>>=1){
-      if (tid >= workers) continue;
-      if (rid >= N) continue;
+   for (size_t workers=blockDim.x>>1; workers>0; workers>>=1)
+   {
+      if (tid >= workers) { continue; }
+      if (rid >= N) { continue; }
       const size_t dualTid = tid + workers;
-      if (dualTid >= N) continue;
+      if (dualTid >= N) { continue; }
       const size_t rdd = bbd+dualTid;
-      if (rdd >= N) continue;
-      if (dualTid >= blockDim.x) continue;
+      if (rdd >= N) { continue; }
+      if (dualTid >= blockDim.x) { continue; }
       s_dot[tid] += s_dot[dualTid];
       __syncthreads();
    }
-   if (tid==0) gdsr[bid] = s_dot[0];
+   if (tid==0) { gdsr[bid] = s_dot[0]; }
    __syncthreads();
 }
 
 // *****************************************************************************
-double cuVectorDot(const size_t N, const double *x, const double *y){
+double cuVectorDot(const size_t N, const double *x, const double *y)
+{
    const size_t tpb = CUDA_BLOCKSIZE;
    const size_t blockSize = CUDA_BLOCKSIZE;
    const size_t gridSize = (N+blockSize-1)/blockSize;
    const size_t dot_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
-   const size_t bytes = dot_sz*sizeof(double);   
+   const size_t bytes = dot_sz*sizeof(double);
    static double *h_dot = NULL;
    if (!h_dot) { h_dot = (double*)calloc(dot_sz,sizeof(double)); }
    static CUdeviceptr gdsr = (CUdeviceptr) NULL;
@@ -62,7 +65,7 @@ double cuVectorDot(const size_t N, const double *x, const double *y){
    cuKernelDot<<<gridSize,blockSize>>>(N, (double*)gdsr, x, y);
    checkCudaErrors(cuMemcpy((CUdeviceptr)h_dot,(CUdeviceptr)gdsr,bytes));
    double dot = 0.0;
-   for(size_t i=0; i<dot_sz; i+=1) dot += h_dot[i];
+   for (size_t i=0; i<dot_sz; i+=1) { dot += h_dot[i]; }
    return dot;
 }
 #endif // __NVCC__
@@ -154,7 +157,8 @@ void kVectorSetSubvector(const int N,
       {
          d_data[j] = d_elemvect[i];
       }
-      else {
+      else
+      {
          assert(false);
          d_data[-1-j] = -d_elemvect[i];
       }
@@ -185,7 +189,7 @@ void kVectorAlphaAdd(double *vp, const double* v1p,
 void kVectorPrint(const size_t N, const double *data)
 {
    GET_CONST_ADRS(data); // Sequential printf
-   forall(k,1,for(size_t i=0; i<N; i+=1)printf("\n\t%f",d_data[i]););
+   forall(k,1,for (size_t i=0; i<N; i+=1)printf("\n\t%f",d_data[i]););
 }
 
 // *****************************************************************************
@@ -237,13 +241,16 @@ void kAddElementVector(const size_t n, const int *dofs,
    GET_CONST_ADRS_T(dofs,int);
    GET_CONST_ADRS(elem_data);
    GET_ADRS(data);
-   forall(i, n, {
-         const int j = d_dofs[i];
-         if (j >= 0)
-            d_data[j] += d_elem_data[i];
-         else
-            d_data[-1-j] -= d_elem_data[i];
-      });
+   forall(i, n,
+   {
+      const int j = d_dofs[i];
+      if (j >= 0)
+         d_data[j] += d_elem_data[i];
+      else
+      {
+         d_data[-1-j] -= d_elem_data[i];
+      }
+   });
 }
 
 // *****************************************************************************

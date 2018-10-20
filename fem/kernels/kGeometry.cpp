@@ -75,7 +75,7 @@ void kGeom(const int DIM,
       {0x20D,&kGeom2D<2,15>},
       {0x20E,&kGeom2D<2,16>},
       {0x20F,&kGeom2D<2,17>},
-      
+
       // 3D
       {0x300,&kGeom3D<2,2>},
       {0x301,&kGeom3D<2,3>},

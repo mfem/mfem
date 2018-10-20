@@ -452,7 +452,8 @@ public:
       abf(FA?
           static_cast<AbstractBilinearForm*>(new FABilinearForm(f)):
           static_cast<AbstractBilinearForm*>(new PABilinearForm(f)))
-   {  push();
+   {
+      push();
       dbg("\033[7mBilinearForm %s",FA?"FA":"PA");
       pop();
    }

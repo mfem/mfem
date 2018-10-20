@@ -87,8 +87,8 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
-   if (nvvp){ config::Get().Nvvp(true); }
-   if (sync){ config::Get().Sync(true); }
+   if (nvvp) { config::Get().Nvvp(true); }
+   if (sync) { config::Get().Sync(true); }
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
    {
       push(Refine,Indigo);
       int ref_levels = level>0 ? level :
-         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+                       (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -166,7 +166,7 @@ int main(int argc, char *argv[])
    pop();
    if (gpu) { config::Get().Cuda(true); }
    if (pa)  { config::Get().PA(true);   }
-      
+
    dbg(" 7. Define the solution vector x");// as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
@@ -181,11 +181,11 @@ int main(int argc, char *argv[])
    push(BilinearForm,Fuchsia);
    BilinearForm *a = new BilinearForm(fespace); // On piece here
    pop();
-   
+
    push(AddDomainIntegrator,Fuchsia);
    if (pa) { a->AddDomainIntegrator(new PADiffusionIntegrator(one)); }
    else    { a->AddDomainIntegrator(new DiffusionIntegrator(one)); }
-   pop();   
+   pop();
 
    dbg(" 9. Assemble the bilinear form");// and the corresponding linear system,
    //    applying any necessary transformations such as: eliminating boundary
@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
    push(FormLinearSystem,Fuchsia);
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
    pop();
-   
+
    cout << "Size of linear system: " << A->Height() << endl;
 
 #ifndef MFEM_USE_SUITESPARSE

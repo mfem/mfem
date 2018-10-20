@@ -498,16 +498,17 @@ double DenseMatrix::Det() const
       case 1:
          return data[0];
 
-   case 2: return kDMDet2(data);
+      case 2: return kDMDet2(data);
       //return data[0] * data[3] - data[1] * data[2];
 
       case 3:
-      { return kDMDet3(data);/*
-         const double *d = data;
-         return
-            d[0] * (d[4] * d[8] - d[5] * d[7]) +
-            d[3] * (d[2] * d[7] - d[1] * d[8]) +
-            d[6] * (d[1] * d[5] - d[2] * d[4]);*/
+      {
+         return kDMDet3(data);/*
+      const double *d = data;
+      return
+         d[0] * (d[4] * d[8] - d[5] * d[7]) +
+         d[3] * (d[2] * d[7] - d[1] * d[8]) +
+         d[6] * (d[1] * d[5] - d[2] * d[4]);*/
       }
       case 4:
       {
@@ -609,7 +610,7 @@ DenseMatrix &DenseMatrix::operator=(const DenseMatrix &m)
    SetSize(m.height, m.width);
 
    const int hw = height * width;
-   
+
    kOpEq(hw,m.GetData(),data);
    /*
    for (int i = 0; i < hw; i++)

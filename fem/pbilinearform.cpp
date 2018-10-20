@@ -121,7 +121,8 @@ void ParFABilinearForm::pAllocMat()
    dof_dof.LoseData();
 }
 
-void ParFABilinearForm::ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local)
+void ParFABilinearForm::ParallelAssemble(OperatorHandle &A,
+                                         SparseMatrix *A_local)
 {
    A.Clear();
 
@@ -325,7 +326,7 @@ void ParFABilinearForm::FormLinearSystem(
 }
 
 void ParFABilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
-                                       OperatorHandle &A)
+                                         OperatorHandle &A)
 {
    // Finish the matrix assembly and perform BC elimination, storing the
    // eliminated part of the matrix.

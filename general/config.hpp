@@ -67,10 +67,10 @@ public:
 
    // **************************************************************************
    inline bool Sync(bool toggle=false) { return toggle?sync=!sync:sync; }
-   
+
    // **************************************************************************
    inline bool Nvvp(bool toggle=false) { return toggle?nvvp=!nvvp:nvvp; }
-   
+
    // **************************************************************************
    void Setup();
 

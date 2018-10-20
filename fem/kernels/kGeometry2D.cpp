@@ -72,22 +72,38 @@ void kGeom2D(const int numElements,
 }
 
 // *****************************************************************************
-template void kGeom2D<2,2>(int, double const*, double const*, double*, double*, double*);
-template void kGeom2D<2,3>(int, double const*, double const*, double*, double*, double*);
-template void kGeom2D<2,4>(int, double const*, double const*, double*, double*, double*);
-template void kGeom2D<2,5>(int, double const*, double const*, double*, double*, double*);
-template void kGeom2D<2,6>(int, double const*, double const*, double*, double*, double*);
-template void kGeom2D<2,7>(int, double const*, double const*, double*, double*, double*);
-template void kGeom2D<2,8>(int, double const*, double const*, double*, double*, double*);
-template void kGeom2D<2,9>(int, double const*, double const*, double*, double*, double*);
-template void kGeom2D<2,10>(int, double const*, double const*, double*, double*, double*);
-template void kGeom2D<2,11>(int, double const*, double const*, double*, double*, double*);
-template void kGeom2D<2,12>(int, double const*, double const*, double*, double*, double*);
-template void kGeom2D<2,13>(int, double const*, double const*, double*, double*, double*);
-template void kGeom2D<2,14>(int, double const*, double const*, double*, double*, double*);
-template void kGeom2D<2,15>(int, double const*, double const*, double*, double*, double*);
-template void kGeom2D<2,16>(int, double const*, double const*, double*, double*, double*);
-template void kGeom2D<2,17>(int, double const*, double const*, double*, double*, double*);
+template void kGeom2D<2,2>(int, double const*, double const*, double*, double*,
+                           double*);
+template void kGeom2D<2,3>(int, double const*, double const*, double*, double*,
+                           double*);
+template void kGeom2D<2,4>(int, double const*, double const*, double*, double*,
+                           double*);
+template void kGeom2D<2,5>(int, double const*, double const*, double*, double*,
+                           double*);
+template void kGeom2D<2,6>(int, double const*, double const*, double*, double*,
+                           double*);
+template void kGeom2D<2,7>(int, double const*, double const*, double*, double*,
+                           double*);
+template void kGeom2D<2,8>(int, double const*, double const*, double*, double*,
+                           double*);
+template void kGeom2D<2,9>(int, double const*, double const*, double*, double*,
+                           double*);
+template void kGeom2D<2,10>(int, double const*, double const*, double*, double*,
+                            double*);
+template void kGeom2D<2,11>(int, double const*, double const*, double*, double*,
+                            double*);
+template void kGeom2D<2,12>(int, double const*, double const*, double*, double*,
+                            double*);
+template void kGeom2D<2,13>(int, double const*, double const*, double*, double*,
+                            double*);
+template void kGeom2D<2,14>(int, double const*, double const*, double*, double*,
+                            double*);
+template void kGeom2D<2,15>(int, double const*, double const*, double*, double*,
+                            double*);
+template void kGeom2D<2,16>(int, double const*, double const*, double*, double*,
+                            double*);
+template void kGeom2D<2,17>(int, double const*, double const*, double*, double*,
+                            double*);
 
 // *****************************************************************************
 MFEM_NAMESPACE_END

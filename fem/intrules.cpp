@@ -29,11 +29,11 @@ namespace mfem
 {
 
 IntegrationRule::IntegrationRule(int NP) :
-      Array<IntegrationPoint>(NP), Order(0)
-   {
-      const size_t N = this->Size();
-      kIntRulesInit(N,GetData());
-   }
+   Array<IntegrationPoint>(NP), Order(0)
+{
+   const size_t N = this->Size();
+   kIntRulesInit(N,GetData());
+}
 
 IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry)
 {
@@ -375,7 +375,8 @@ void QuadratureFunctions1D::GaussLegendre(const int np, IntegrationRule* ir)
          OKINA_ASSERT_CPU;
          ir->IntPoint(0).Set1w(0.5, 1.0);
          return;
-      case 2:{
+      case 2:
+      {
          OKINA_ASSERT_GPU;
          const IntegrationPoint *ip = &ir->IntPoint(0);
          //ir->IntPoint(0).Set1w(0.21132486540518711775, 0.5);
@@ -491,11 +492,11 @@ void QuadratureFunctions1D::GaussLobatto(const int np, IntegrationRule* ir)
       // endpoints and respective weights
       //ir->IntPoint(0).x = 0.0;
       //ir->IntPoint(np-1).x = 1.0;
-      
+
       const IntegrationPoint *ip = &ir->IntPoint(0);
       kIPSetX(ip, 0.0, 0);
       kIPSetX(ip, 1.0, np-1);
-      
+
       //ir->IntPoint(0).weight = ir->IntPoint(np-1).weight = 1.0/(np*(np-1));
       const double weight = 1.0/(np*(np-1));
       kIPSetW(ip, weight, 0);
@@ -939,7 +940,7 @@ const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
             IntegrationRule *ir = GenerateIntegrationRule(GeomType, Order);
             int RealOrder = Order;
             while (RealOrder+1 < ir_array->Size() &&
-            /*  */ (*ir_array)[RealOrder+1] == ir)
+                   /*  */ (*ir_array)[RealOrder+1] == ir)
             {
                RealOrder++;
             }
