@@ -21,7 +21,8 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = mobius-strip klein-bottle mesh-explorer shaper mesh-optimizer
+SEQ_MINIAPPS = mobius-strip klein-bottle toroid \
+	mesh-explorer shaper extruder mesh-optimizer
 PAR_MINIAPPS = pmesh-optimizer
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -60,6 +61,8 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 	@$(call mfem-test-file,$<, $(RUN_MPI), Meshing miniapp,$(<).mesh)
 %-test-seq: %
 	@$(call mfem-test-file,$<,, Meshing miniapp,$(<).mesh)
+toroid-test-seq: toroid
+	@$(call mfem-test-file,$<,, Meshing miniapp,$(<)-wedge-o3-s0.mesh)
 mesh-optimizer-test-seq: mesh-optimizer
 	@$(call mfem-test,$<,, Meshing miniapp)
 pmesh-optimizer-test-par: pmesh-optimizer
@@ -80,11 +83,13 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ mobius-strip klein-bottle mesh-explorer shaper
+	rm -f *.o *~ mobius-strip klein-bottle toroid
+	rm -f mesh-explorer shaper extruder
 	rm -f mesh-optimizer pmesh-optimizer
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
 	@rm -f mobius-strip.mesh klein-bottle.mesh mesh-explorer.mesh
-	@rm -f partitioning.txt shaper.mesh
+	@rm -f toroid-*.mesh
+	@rm -f partitioning.txt shaper.mesh extruder.mesh
 	@rm -f optimized* perturbed*
