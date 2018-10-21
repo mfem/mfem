@@ -1363,6 +1363,46 @@ void PetscParMatrix::Print(const char *fname, bool binary) const
    }
 }
 
+void PetscParMatrix::ScaleRows(const Vector & s)
+{
+   MFEM_ASSERT(s.Size() == Height(), "invalid s.Size() = " << s.Size()
+               << ", expected size = " << Height());
+
+   PetscParVector *YY = GetY();
+   YY->PlaceArray(s.GetData());
+   ierr = MatDiagonalScale(A,*YY,NULL); PCHKERRQ(A,ierr);
+   YY->ResetArray();
+}
+
+void PetscParMatrix::ScaleCols(const Vector & s)
+{
+   MFEM_ASSERT(s.Size() == Width(), "invalid s.Size() = " << s.Size()
+               << ", expected size = " << Width());
+
+   PetscParVector *XX = GetX();
+   XX->PlaceArray(s.GetData());
+   ierr = MatDiagonalScale(A,NULL,*XX); PCHKERRQ(A,ierr);
+   XX->ResetArray();
+}
+
+void PetscParMatrix::Shift(double s)
+{
+   ierr = MatShift(A,(PetscScalar)s); PCHKERRQ(A,ierr);
+}
+
+void PetscParMatrix::Shift(const Vector & s)
+{
+   // for matrices with square diagonal blocks only
+   MFEM_ASSERT(s.Size() == Height(), "invalid s.Size() = " << s.Size()
+               << ", expected size = " << Height());
+   MFEM_ASSERT(s.Size() == Width(), "invalid s.Size() = " << s.Size()
+               << ", expected size = " << Width());
+
+   PetscParVector *XX = GetX();
+   XX->PlaceArray(s.GetData());
+   ierr = MatDiagonalSet(A,*XX,ADD_VALUES); PCHKERRQ(A,ierr);
+   XX->ResetArray();
+}
 
 PetscParMatrix * RAP(PetscParMatrix *Rt, PetscParMatrix *A, PetscParMatrix *P)
 {
