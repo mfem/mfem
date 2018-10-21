@@ -3142,50 +3142,14 @@ void PetscODESolver::Init(TimeDependentOperator &f_,
    __mfem_ts_ctx *ts_ctx = (__mfem_ts_ctx*)private_ctx;
    if (operatorset)
    {
-      PetscBool ls,gs;
-      void *fctx = NULL,*jctx = NULL,*rfctx = NULL,*rjctx = NULL;
-
-      if (f->isImplicit())
-      {
-         ierr = TSGetIFunction(ts, NULL, NULL, &fctx);
-         PCHKERRQ(ts, ierr);
-         ierr = TSGetIJacobian(ts, NULL, NULL, NULL, &jctx);
-         PCHKERRQ(ts, ierr);
-      }
-      if (!f->isHomogeneous())
-      {
-         ierr = TSGetRHSFunction(ts, NULL, NULL, &rfctx);
-         PCHKERRQ(ts, ierr);
-         ierr = TSGetRHSJacobian(ts, NULL, NULL, NULL, &rjctx);
-         PCHKERRQ(ts, ierr);
-      }
-      ls = (PetscBool)(f->Height() == f_.Height() &&
-                       f->Width() == f_.Width() &&
-                       f->isExplicit() == f_.isExplicit() &&
-                       f->isImplicit() == f_.isImplicit() &&
-                       f->isHomogeneous() == f_.isHomogeneous());
-      if (ls && f_.isImplicit())
-      {
-         ls = (PetscBool)(ls && (void*)&f_ == fctx && (void*)&f_ == jctx);
-      }
-      if (ls && !f_.isHomogeneous())
-      {
-         ls = (PetscBool)(ls && (void*)&f_ == rfctx && (void*)&f_ == rjctx);
-      }
-      ierr = MPI_Allreduce(&ls,&gs,1,MPIU_BOOL,MPI_LAND,
-                           PetscObjectComm((PetscObject)ts));
-      PCHKERRQ(ts,ierr);
-      if (!gs)
-      {
-         ierr = TSReset(ts); PCHKERRQ(ts,ierr);
-         delete X;
-         X = NULL;
-         ts_ctx->cached_shift = std::numeric_limits<PetscReal>::min();
-         ts_ctx->cached_ijacstate = -1;
-         ts_ctx->cached_rhsjacstate = -1;
-         ts_ctx->cached_splits_xstate = -1;
-         ts_ctx->cached_splits_xdotstate = -1;
-      }
+      ierr = TSReset(ts); PCHKERRQ(ts,ierr);
+      delete X;
+      X = NULL;
+      ts_ctx->cached_shift = std::numeric_limits<PetscReal>::min();
+      ts_ctx->cached_ijacstate = -1;
+      ts_ctx->cached_rhsjacstate = -1;
+      ts_ctx->cached_splits_xstate = -1;
+      ts_ctx->cached_splits_xdotstate = -1;
    }
    f = &f_;
 
