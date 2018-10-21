@@ -347,6 +347,18 @@ public:
        the original matrix. */
    PetscParMatrix* EliminateRowsCols(const Array<int> &rows_cols);
 
+   /// Scale the local row i by s(i).
+   void ScaleRows(const Vector & s);
+
+   /// Scale the local col i by s(i).
+   void ScaleCols(const Vector & s);
+
+   /// Shift diagonal by a constant
+   void Shift(double s);
+
+   /// Shift diagonal by a vector
+   void Shift(const Vector & s);
+
    /** @brief Eliminate only the rows from the matrix */
    void EliminateRows(const Array<int> &rows);
 
