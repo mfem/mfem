@@ -101,6 +101,14 @@ public:
        and GridFunction. */
    double operator()(const GridFunction &gf) const { return (*this)*gf; }
 
+   /// Redefine '=' for LinearForm = constant.
+   LinearForm &operator=(double value);
+
+   /// Copy the data from @a v.
+   /** The size of @a v must be equal to the size of the FiniteElementSpace
+       @a fes. */
+   LinearForm &operator=(const Vector &v);
+
    /// Destroys linear form.
    ~LinearForm();
 };

@@ -2579,11 +2579,6 @@ GridFunction & GridFunction::operator=(const Vector &v)
    return *this;
 }
 
-GridFunction & GridFunction::operator=(const GridFunction &v)
-{
-   return this->operator=((const Vector &)v);
-}
-
 void GridFunction::Save(std::ostream &out) const
 {
    fes->Save(out);
