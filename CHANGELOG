@@ -70,6 +70,12 @@ API changes
   derived class Tetrahedron.
 - Added new methods: Array::CopyTo, Tetrahedron::Init.
 
+New and updated examples and miniapps
+-------------------------------------
+- Added a new example, Example 20, that solves a system of 1D ODEs derived from
+  a Hamiltonian. The example demonstrates the use of the variable order,
+  symplectic integration algorithm implemented in class SIAVSolver.
+
 
 Version 3.4, released on May 29, 2018
 =====================================
