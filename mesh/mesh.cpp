@@ -3441,6 +3441,7 @@ void Mesh::LoadPatchTopo(std::istream &input, Array<int> &edge_to_knot)
    vertices.SetSize(0);
 
    FinalizeTopology();
+   CheckBdrElementOrientation(); // check and fix boundary element orientation
 }
 
 void XYZ_VectorFunction(const Vector &p, Vector &v)
