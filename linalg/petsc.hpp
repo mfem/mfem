@@ -533,6 +533,9 @@ public:
    /// Conversion function to PetscObject.
    operator PetscObject() const { return obj; }
 
+   /// Get the associated MPI communicator
+   MPI_Comm GetComm() const { return PetscObjectComm(obj); }
+
 protected:
    /// These two methods handle creation and destructions of
    /// private data for the Solver objects
