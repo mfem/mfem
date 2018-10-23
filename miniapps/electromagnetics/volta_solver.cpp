@@ -383,7 +383,7 @@ VoltaSolver::Solve()
    divEpsGrad_->RecoverFEMSolution(Phi, *rhod_, *phi_);
 
    // Compute the negative Gradient of the solution vector.  This is
-   // the magnetic field corresponding to the scalar potential
+   // the electric field corresponding to the scalar potential
    // represented by phi.
    grad_->Mult(*phi_, *e_); *e_ *= -1.0;
 
