@@ -4325,11 +4325,24 @@ int Mesh::GetElementToEdgeTable(Table & e_to_f, Array<int> &be_to_f)
    {
       // Initialize the indices for the boundary elements.
       be_to_f.SetSize(NumOfBdrElements);
+      int good_be = 0;
       for (i = 0; i < NumOfBdrElements; i++)
       {
          const int *v = boundary[i]->GetVertices();
-         be_to_f[i] = v_to_v(v[0], v[1]);
+         const int edge_id = v_to_v(v[0], v[1]);
+         if (edge_id >= 0)
+         {
+            boundary[good_be] = boundary[i];
+            be_to_f[good_be++] = edge_id;
+         }
+         else
+         {
+            FreeElement(boundary[i]);
+         }
       }
+      NumOfBdrElements = good_be;
+      be_to_f.SetSize(NumOfBdrElements);
+      boundary.SetSize(NumOfBdrElements);
    }
    else if (Dim == 3)
    {
