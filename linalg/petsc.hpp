@@ -26,6 +26,10 @@
 namespace mfem
 {
 
+/// Convenience functions to initialize/finalize PETSc
+void MFEMInitializePetsc(int*,char***,const char[],const char[]);
+void MFEMFinalizePetsc();
+
 class ParFiniteElementSpace;
 class PetscParMatrix;
 

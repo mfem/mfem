@@ -150,6 +150,18 @@ using namespace std;
 namespace mfem
 {
 
+void MFEMInitializePetsc(int *argc,char ***argv,const char rc_file[],const char help[])
+{
+   ierr = PetscInitialize(argc,argv,rc_file,help);
+   MFEM_VERIFY(!ierr,"Unable to initialize PETSc");
+}
+
+void MFEMFinalizePetsc()
+{
+   ierr = PetscFinalize();
+   MFEM_VERIFY(!ierr,"Unable to finalize PETSc");
+}
+
 // PetscParVector methods
 
 void PetscParVector::_SetDataAndSize_()
