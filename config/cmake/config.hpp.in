@@ -101,6 +101,9 @@
 // Enable MFEM functionality based on the PUMI library
 #cmakedefine MFEM_USE_PUMI
 
+// Enable MFEM functionality based on the HiOp library
+#cmakedefine MFEM_USE_HIOP
+
 // Which library functions to use in class StopWatch for measuring time.
 // For a list of the available options, see INSTALL.
 // If not defined, an option is selected automatically.
