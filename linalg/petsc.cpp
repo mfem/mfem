@@ -298,6 +298,11 @@ PetscParVector::PetscParVector(ParFiniteElementSpace *pfes) : Vector()
    _SetDataAndSize_();
 }
 
+MPI_Comm PetscParVector::GetComm() const
+{
+   return x ? PetscObjectComm((PetscObject)x) : MPI_COMM_NULL;
+}
+
 Vector * PetscParVector::GlobalVector() const
 {
    VecScatter   scctx;
@@ -763,6 +768,11 @@ BlockDiagonalConstructor(MPI_Comm comm,
    ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY); PCHKERRQ(A,ierr);
 
    *Ad = A;
+}
+
+MPI_Comm PetscParMatrix::GetComm() const
+{
+   return A ? PetscObjectComm((PetscObject)A) : MPI_COMM_NULL;
 }
 
 // TODO ADD THIS CONSTRUCTOR
@@ -1822,6 +1832,11 @@ void PetscSolver::SetPrintLevel(int plev)
    {
       MFEM_ABORT("CLASSID = " << cid << " is not implemented!");
    }
+}
+
+MPI_Comm PetscSolver::GetComm() const
+{
+   return obj ? PetscObjectComm(obj) : MPI_COMM_NULL;
 }
 
 void PetscSolver::SetMonitor(PetscSolverMonitor *ctx)
