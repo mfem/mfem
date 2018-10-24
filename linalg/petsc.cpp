@@ -18,6 +18,8 @@
 
 #include "linalg.hpp"
 #include "../fem/fem.hpp"
+
+#include "petsc.h"
 #if defined(PETSC_HAVE_HYPRE)
 #include "petscmathypre.h"
 #endif

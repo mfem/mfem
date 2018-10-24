@@ -20,7 +20,39 @@
 #ifdef MFEM_USE_PETSC
 #ifdef MFEM_USE_MPI
 
-#include <petsc.h>
+#include "petscconf.h"
+#if !defined(PETSC_USE_REAL_DOUBLE)
+#error "MFEM does not work with PETSc compiled without double precision"
+#endif
+#if defined(PETSC_USE_COMPLEX)
+#error "MFEM does not work with PETSc compiled with complex numbers support"
+#endif
+#if defined(PETSC_USE_64BIT_INDICES) && !defined(HYPRE_BIGINT)
+#error "Mismatch between HYPRE (32bit) and PETSc (64bit) integer types"
+#endif
+#if !defined(PETSC_USE_64BIT_INDICES) && defined(HYPRE_BIGINT)
+#error "Mismatch between HYPRE (64bit) and PETSc (32bit) integer types"
+#endif
+
+#include "petscversion.h"
+#if PETSC_VERSION_GE(3,12,0)
+#include "petscsystypes.h"
+#else
+typedef HYPRE_Int PetscInt;
+typedef double PetscScalar;
+typedef double PetscReal;
+typedef int PetscClassId;
+typedef struct _p_PetscObject *PetscObject;
+#endif
+
+// forward declarations of PETSc objects
+typedef struct _p_Vec *Vec;
+typedef struct _p_Mat *Mat;
+typedef struct _p_KSP *KSP;
+typedef struct _p_PC *PC;
+typedef struct _p_SNES *SNES;
+typedef struct _p_TS *TS;
+
 #include <limits>
 
 namespace mfem
