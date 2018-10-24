@@ -1845,7 +1845,49 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
             H1_Elements[Geometry::CUBE] = new H1_HexahedronElement(p, btype);
             H1_Elements[Geometry::PRISM] = new H1_WedgeElement(p, btype);
          }
-         
+         const int &TetDof = H1_dof[Geometry::TETRAHEDRON];
+         const int TriDof2 = pm2*pm3/2;
+         TetDofOrd[0] = new int[24*TetDof];
+         for (int i = 1; i < 24; i++)
+         {
+            TetDofOrd[i] = TetDofOrd[i-1] + TetDof;
+         }
+         for(int k=0;k<pm3;k++)
+         {
+            for(int j=0;j+k<pm3;j++)
+            {
+               for(int i=0;i+j+k<pm3;i++)
+               {
+                  int o = TetDof + TriDof2 - ((pm1-k)*(pm2-k)*(pm3-k))/6 - (pm2-j)*(pm3-j)/2 - k*j + i;
+                  int l = pm4-k-j-i;
+                  TetDofOrd[0][o] = o;
+                  TetDofOrd[1][o] = TetDof + TriDof2 - ((pm1-k)*(pm2-k)*(pm3-k))/6 - (pm2-j)*(pm3-j)/2 - k*j + l;
+                  TetDofOrd[2][o] = TetDof + TriDof2 - ((pm1-k)*(pm2-k)*(pm3-k))/6 - (pm2-i)*(pm3-i)/2 - k*i + l;
+                  TetDofOrd[3][o] = TetDof + TriDof2 - ((pm1-k)*(pm2-k)*(pm3-k))/6 - (pm2-l)*(pm3-l)/2 - k*l + i;
+                  TetDofOrd[4][o] = TetDof + TriDof2 - ((pm1-k)*(pm2-k)*(pm3-k))/6 - (pm2-l)*(pm3-l)/2 - k*l + j;
+                  TetDofOrd[5][o] = TetDof + TriDof2 - ((pm1-k)*(pm2-k)*(pm3-k))/6 - (pm2-i)*(pm3-i)/2 - k*i + j;
+                  TetDofOrd[6][o] = TetDof + TriDof2 - ((pm1-j)*(pm2-j)*(pm3-j))/6 - (pm2-i)*(pm3-i)/2 - j*i + k;
+                  TetDofOrd[7][o] = TetDof + TriDof2 - ((pm1-j)*(pm2-j)*(pm3-j))/6 - (pm2-l)*(pm3-l)/2 - j*l + k;
+                  TetDofOrd[8][o] = TetDof + TriDof2 - ((pm1-i)*(pm2-i)*(pm3-i))/6 - (pm2-l)*(pm3-l)/2 - i*l + k;
+                  TetDofOrd[9][o] = TetDof + TriDof2 - ((pm1-l)*(pm2-l)*(pm3-l))/6 - (pm2-i)*(pm3-i)/2 - l*i + k;
+                  TetDofOrd[10][o] = TetDof + TriDof2 - ((pm1-l)*(pm2-l)*(pm3-l))/6 - (pm2-j)*(pm3-j)/2 - l*j + k;
+                  TetDofOrd[11][o] = TetDof + TriDof2 - ((pm1-i)*(pm2-i)*(pm3-i))/6 - (pm2-j)*(pm3-j)/2 - i*j + k;
+                  TetDofOrd[12][o] = TetDof + TriDof2 - ((pm1-i)*(pm2-i)*(pm3-i))/6 - (pm2-k)*(pm3-k)/2 - i*k + j;
+                  TetDofOrd[13][o] = TetDof + TriDof2 - ((pm1-l)*(pm2-l)*(pm3-l))/6 - (pm2-k)*(pm3-k)/2 - l*k + j;
+                  TetDofOrd[14][o] = TetDof + TriDof2 - ((pm1-l)*(pm2-l)*(pm3-l))/6 - (pm2-k)*(pm3-k)/2 - l*k + i;
+                  TetDofOrd[15][o] = TetDof + TriDof2 - ((pm1-i)*(pm2-i)*(pm3-i))/6 - (pm2-k)*(pm3-k)/2 - i*k + l;
+                  TetDofOrd[16][o] = TetDof + TriDof2 - ((pm1-j)*(pm2-j)*(pm3-j))/6 - (pm2-k)*(pm3-k)/2 - j*k + l;
+                  TetDofOrd[17][o] = TetDof + TriDof2 - ((pm1-j)*(pm2-j)*(pm3-j))/6 - (pm2-k)*(pm3-k)/2 - j*k + i;
+                  TetDofOrd[18][o] = TetDof + TriDof2 - ((pm1-j)*(pm2-j)*(pm3-j))/6 - (pm2-l)*(pm3-l)/2 - j*l + i;
+                  TetDofOrd[19][o] = TetDof + TriDof2 - ((pm1-j)*(pm2-j)*(pm3-j))/6 - (pm2-i)*(pm3-i)/2 - j*i + l;
+                  TetDofOrd[20][o] = TetDof + TriDof2 - ((pm1-i)*(pm2-i)*(pm3-i))/6 - (pm2-j)*(pm3-j)/2 - i*j + l;
+                  TetDofOrd[21][o] = TetDof + TriDof2 - ((pm1-l)*(pm2-l)*(pm3-l))/6 - (pm2-j)*(pm3-j)/2 - l*j + i;
+                  TetDofOrd[22][o] = TetDof + TriDof2 - ((pm1-l)*(pm2-l)*(pm3-l))/6 - (pm2-i)*(pm3-i)/2 - l*i + j;
+                  TetDofOrd[23][o] = TetDof + TriDof2 - ((pm1-i)*(pm2-i)*(pm3-i))/6 - (pm2-l)*(pm3-l)/2 - i*l + j;
+               }
+            }
+         }
+
          if (dim >= 4)
          {
             H1_dof[Geometry::PENTATOPE] = (TriDof*pm3*pm4)/12;
@@ -1857,48 +1899,6 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
             else
             {
                H1_Elements[Geometry::PENTATOPE] = new H1_PentatopeElement(p, pt_type);
-            }
-            const int &TetDof = H1_dof[Geometry::TETRAHEDRON];
-            const int TriDof2 = pm2*pm3/2;
-            TetDofOrd[0] = new int[24*TetDof];
-            for (int i = 1; i < 24; i++)
-            {
-               TetDofOrd[i] = TetDofOrd[i-1] + TetDof;
-            }
-            for(int k=0;k<pm3;k++)
-            {
-               for(int j=0;j+k<pm3;j++)
-               {
-                  for(int i=0;i+j+k<pm3;i++)
-                  {
-                     int o = TetDof + TriDof2 - ((pm1-k)*(pm2-k)*(pm3-k))/6 - (pm2-j)*(pm3-j)/2 - k*j + i;
-                     int l = pm4-k-j-i;
-                     TetDofOrd[0][o] = o;
-                     TetDofOrd[1][o] = TetDof + TriDof2 - ((pm1-k)*(pm2-k)*(pm3-k))/6 - (pm2-j)*(pm3-j)/2 - k*j + l;
-                     TetDofOrd[2][o] = TetDof + TriDof2 - ((pm1-k)*(pm2-k)*(pm3-k))/6 - (pm2-i)*(pm3-i)/2 - k*i + l;
-                     TetDofOrd[3][o] = TetDof + TriDof2 - ((pm1-k)*(pm2-k)*(pm3-k))/6 - (pm2-l)*(pm3-l)/2 - k*l + i;
-                     TetDofOrd[4][o] = TetDof + TriDof2 - ((pm1-k)*(pm2-k)*(pm3-k))/6 - (pm2-l)*(pm3-l)/2 - k*l + j;
-                     TetDofOrd[5][o] = TetDof + TriDof2 - ((pm1-k)*(pm2-k)*(pm3-k))/6 - (pm2-i)*(pm3-i)/2 - k*i + j;
-                     TetDofOrd[6][o] = TetDof + TriDof2 - ((pm1-j)*(pm2-j)*(pm3-j))/6 - (pm2-i)*(pm3-i)/2 - j*i + k;
-                     TetDofOrd[7][o] = TetDof + TriDof2 - ((pm1-j)*(pm2-j)*(pm3-j))/6 - (pm2-l)*(pm3-l)/2 - j*l + k;
-                     TetDofOrd[8][o] = TetDof + TriDof2 - ((pm1-i)*(pm2-i)*(pm3-i))/6 - (pm2-l)*(pm3-l)/2 - i*l + k;
-                     TetDofOrd[9][o] = TetDof + TriDof2 - ((pm1-l)*(pm2-l)*(pm3-l))/6 - (pm2-i)*(pm3-i)/2 - l*i + k;
-                     TetDofOrd[10][o] = TetDof + TriDof2 - ((pm1-l)*(pm2-l)*(pm3-l))/6 - (pm2-j)*(pm3-j)/2 - l*j + k;
-                     TetDofOrd[11][o] = TetDof + TriDof2 - ((pm1-i)*(pm2-i)*(pm3-i))/6 - (pm2-j)*(pm3-j)/2 - i*j + k;
-                     TetDofOrd[12][o] = TetDof + TriDof2 - ((pm1-i)*(pm2-i)*(pm3-i))/6 - (pm2-k)*(pm3-k)/2 - i*k + j;
-                     TetDofOrd[13][o] = TetDof + TriDof2 - ((pm1-l)*(pm2-l)*(pm3-l))/6 - (pm2-k)*(pm3-k)/2 - l*k + j;
-                     TetDofOrd[14][o] = TetDof + TriDof2 - ((pm1-l)*(pm2-l)*(pm3-l))/6 - (pm2-k)*(pm3-k)/2 - l*k + i;
-                     TetDofOrd[15][o] = TetDof + TriDof2 - ((pm1-i)*(pm2-i)*(pm3-i))/6 - (pm2-k)*(pm3-k)/2 - i*k + l;
-                     TetDofOrd[16][o] = TetDof + TriDof2 - ((pm1-j)*(pm2-j)*(pm3-j))/6 - (pm2-k)*(pm3-k)/2 - j*k + l;
-                     TetDofOrd[17][o] = TetDof + TriDof2 - ((pm1-j)*(pm2-j)*(pm3-j))/6 - (pm2-k)*(pm3-k)/2 - j*k + i;
-                     TetDofOrd[18][o] = TetDof + TriDof2 - ((pm1-j)*(pm2-j)*(pm3-j))/6 - (pm2-l)*(pm3-l)/2 - j*l + i;
-                     TetDofOrd[19][o] = TetDof + TriDof2 - ((pm1-j)*(pm2-j)*(pm3-j))/6 - (pm2-i)*(pm3-i)/2 - j*i + l;
-                     TetDofOrd[20][o] = TetDof + TriDof2 - ((pm1-i)*(pm2-i)*(pm3-i))/6 - (pm2-j)*(pm3-j)/2 - i*j + l;
-                     TetDofOrd[21][o] = TetDof + TriDof2 - ((pm1-l)*(pm2-l)*(pm3-l))/6 - (pm2-j)*(pm3-j)/2 - l*j + i;
-                     TetDofOrd[22][o] = TetDof + TriDof2 - ((pm1-l)*(pm2-l)*(pm3-l))/6 - (pm2-i)*(pm3-i)/2 - l*i + j;
-                     TetDofOrd[23][o] = TetDof + TriDof2 - ((pm1-i)*(pm2-i)*(pm3-i))/6 - (pm2-l)*(pm3-l)/2 - i*l + j;
-                  }
-               }
             }
          }
       }

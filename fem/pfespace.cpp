@@ -194,7 +194,7 @@ void ParFiniteElementSpace::GetGroupComm(
    nvd = fec->DofForGeometry(Geometry::POINT);
    ned = fec->DofForGeometry(Geometry::SEGMENT);
 
-   if (fdofs)
+   if (fdofs || pdofs)
    {
       if (mesh->HasGeometry(Geometry::TRIANGLE))
       {
@@ -319,9 +319,10 @@ void ParFiniteElementSpace::GetGroupComm(
             pmesh->GroupTriangle(gr, j, k, o);
 
             dofs.SetSize(ntd);
-            m = nvdofs+nedofs+fdofs[k];
             if (dim == 4)
                m = nvdofs+nedofs+pdofs[k];
+            else
+               m = nvdofs+nedofs+fdofs[k];
             ind = fec->DofOrderForOrientation(Geometry::TRIANGLE, o);
             for (l = 0; l < ntd; l++)
             {

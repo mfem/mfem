@@ -5353,9 +5353,8 @@ void Mesh::AddTetrahedralFaceElement(int lf, int gf, int el,
       //   int oEl = 0; if(w < 0.0) oEl = 1;
       //   if(oEl==1) cout << "negative weight!" << endl;
 #ifdef MFEM_USE_MEMALLOC
-   Tetrahedron *tet;
    int vi[]={v0,v1,v2,v3};
-   tet = TetMemory.Alloc();
+   Element *tet = NewElement(Geometry::TETRAHEDRON);
    tet->SetVertices(vi);
    tet->SetAttribute(1);
    faces[gf] = tet;
@@ -8069,7 +8068,13 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh)
 
    DeleteTables();
 
+#ifdef MFEM_USE_MEMALLOC
+   ncmesh.GetMeshComponents(vertices, elements, boundary, TetMemory);
+#else
    ncmesh.GetMeshComponents(vertices, elements, boundary);
+#endif
+
+
 
    NumOfVertices = vertices.Size();
    NumOfElements = elements.Size();
