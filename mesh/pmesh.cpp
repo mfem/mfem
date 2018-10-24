@@ -4107,6 +4107,7 @@ void ParMesh::PrintAsOne(std::ostream &out)
                ints.Append(shared_quads[i].v, 4);
                ne++;
             }
+            break;
 
          default:
             MFEM_ABORT("invalid dimension: " << Dim);
