@@ -217,15 +217,6 @@ if (MFEM_USE_STRUMPACK)
   endif()
 endif()
 
-# Hiop optimizer
-if (MFEM_USE_HIOP)
-  find_package(HIOP REQUIRED)
-  # find_package updates HIOP_FOUND, HIOP_INCLUDE_DIRS, HIOP_LIBRARIES
-
-  add_definitions("-DMFEM_USE_HIOP")
-endif()
-
-
 # Gecko
 if (MFEM_USE_GECKO)
   find_package(Gecko REQUIRED)
@@ -271,6 +262,12 @@ if (MFEM_USE_PUMI)
   endif()
 endif()
 
+# HiOp optimizer
+if (MFEM_USE_HIOP)
+  find_package(HIOP REQUIRED)
+  # find_package updates HIOP_FOUND, HIOP_INCLUDE_DIRS, HIOP_LIBRARIES
+endif()
+
 # MFEM_TIMER_TYPE
 if (NOT DEFINED MFEM_TIMER_TYPE)
   if (APPLE)
@@ -295,8 +292,8 @@ endif()
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
-    MESQUITE SuperLUDist STRUMPACK HIOP AXOM CONDUIT GECKO GNUTLS NETCDF MPFR PUMI
-    POSIXCLOCKS MFEMBacktrace ZLIB)
+    MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT GECKO GNUTLS NETCDF MPFR PUMI
+    HIOP POSIXCLOCKS MFEMBacktrace ZLIB)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")
