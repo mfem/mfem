@@ -93,7 +93,7 @@ public:
    virtual ~PetscParVector();
 
    /// Get the associated MPI communicator
-   MPI_Comm GetComm() const { return PetscObjectComm((PetscObject)x); }
+   MPI_Comm GetComm() const;
 
    /// Returns the global number of rows
    PetscInt GlobalSize() const;
@@ -279,7 +279,7 @@ public:
    { MultTranspose(1.0, x, 0.0, y); }
 
    /// Get the associated MPI communicator
-   MPI_Comm GetComm() const { return PetscObjectComm((PetscObject)A); }
+   MPI_Comm GetComm() const;
 
    /// Typecasting to PETSc's Mat type
    operator Mat() const { return A; }
@@ -534,7 +534,7 @@ public:
    operator PetscObject() const { return obj; }
 
    /// Get the associated MPI communicator
-   MPI_Comm GetComm() const { return PetscObjectComm(obj); }
+   MPI_Comm GetComm() const;
 
 protected:
    /// These two methods handle creation and destructions of
