@@ -33,9 +33,9 @@ __global__ void cuKernelDot(const size_t N, double *gdsr,
    const size_t bbd = bid*blockDim.x;
    const size_t rid = bbd+tid;
    s_dot[tid] = x[n] * y[n];
-   __syncthreads();
    for (size_t workers=blockDim.x>>1; workers>0; workers>>=1)
    {
+      __syncthreads();
       if (tid >= workers) { continue; }
       if (rid >= N) { continue; }
       const size_t dualTid = tid + workers;
