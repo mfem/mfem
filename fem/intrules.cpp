@@ -1668,11 +1668,11 @@ IntegrationRule *IntegrationRules::PentatopeIntegrationRule(int Order)
          ir->AddPentMidPoint(0, 1./24.);
          return ir;
 
-      case 2:  // 5 points - degree 3
-      case 3:
-         PentatopeIntRules[2] = PentatopeIntRules[3] = ir = new IntegrationRule(5);
-         ir->AddPentPoints5(0,0.118350341907227374, 0.526598632371090503, 1/120.);
-         return ir;
+//      case 2:  // 5 points - degree 3
+////      case 3:
+//         PentatopeIntRules[2] = PentatopeIntRules[3] = ir = new IntegrationRule(5);
+//         ir->AddPentPoints5(0,0.118350341907227374, 0.526598632371090503, 1/120.);
+//         return ir;
 
       default:
       {
