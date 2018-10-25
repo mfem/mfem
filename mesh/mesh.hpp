@@ -537,7 +537,9 @@ public:
    /** */
    void GetMetisElementReordering(Array<int> &ordering);
 #endif
+#if 0
    void GetForsythElementReordering(Array<int> &ordering);
+#endif
 
    /// Convert quads to triangles.
    void Triangularize(int type = 0);
