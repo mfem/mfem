@@ -44,10 +44,8 @@ __global__ void cuKernelDot(const size_t N, double *gdsr,
       if (rdd >= N) { continue; }
       if (dualTid >= blockDim.x) { continue; }
       s_dot[tid] += s_dot[dualTid];
-      __syncthreads();
    }
    if (tid==0) { gdsr[bid] = s_dot[0]; }
-   __syncthreads();
 }
 
 // *****************************************************************************
