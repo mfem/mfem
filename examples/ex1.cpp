@@ -56,6 +56,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    int level = -1;
+   int max_iter = 2000;
    bool static_cond = false;
    bool pa = false;
    bool gpu = false;
@@ -70,6 +71,8 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
    args.AddOption(&level, "-l", "--level", "Refinement level");
+   args.AddOption(&max_iter, "-mi", "--max-iter",
+                  "Maximum number of CG iterations");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
@@ -102,7 +105,7 @@ int main(int argc, char *argv[])
    //    elements.
    {
       push(Refine,Indigo);
-      int ref_levels = level>0 ? level :
+      int ref_levels = level>=0 ? level :
                        (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
@@ -209,9 +212,18 @@ int main(int argc, char *argv[])
 
    cout << "Size of linear system: " << A->Height() << endl;
 
+   CGSolver *cg;
+   cg = new CGSolver;
+   cg->SetRelTol(1e-6);
+   cg->SetMaxIter(max_iter);
+   cg->SetPrintLevel(3);
+   cg->SetOperator(*A);
+
+   tic_toc.Clear();
+   tic_toc.Start();
 #ifndef MFEM_USE_SUITESPARSE
    push();
-   CG(*A, B, X, 3, 2000, 1e-12, 0.0);
+   cg->Mult(B, X);
    pop();
 #else
    // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
@@ -220,6 +232,16 @@ int main(int argc, char *argv[])
    umf_solver.SetOperator(A);
    umf_solver.Mult(B, X);
 #endif
+
+   double my_rt = tic_toc.RealTime();
+   cout << "\nTotal CG time:    " << my_rt << " sec." << endl;
+   cout << "Time per CG step: "
+        << my_rt / cg->GetNumIterations() << " sec." << endl;
+   cout << "\n\"DOFs/sec\" in CG: "
+        << 1e-6*A->Height()*cg->GetNumIterations()/my_rt << " million.\n"
+        << endl;
+
+   delete cg;
 
    // 11. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
