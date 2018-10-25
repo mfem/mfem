@@ -1,0 +1,44 @@
+10/24
+this is useful (basic classes):
+http://mfem.org/code-overview/#mesh
+
+bilinear form (very helpful!)
+http://mfem.org/bilininteg/
+
+some thing I need:
+CalcDivShape (probably not, unless we use some fancy space)
+CalcDShape
+CalcShape
+
+10/3
+There is already a wrapper to KINSOL. Will that be enough if we add our own preconditioner? Or it is better to implement our own. We probably cannot use the multigrid in the algorithm.
+
+ex2 is a basic linear elasticity example: H1 or NURBS elements; How to add boundary as an extra degree of freedoms; 
+ex5 is a saddle point problem: visit output (very easy)
+
+10/2
+ex19.cpp
+ex19 -m ../data/beam-quad.mesh
+glvis -m deform.mesh -g pressure.sol
+glvis -m deform.mesh -g deformation.sol
+
+H1_FECollection lin_coll(order-1, dim); 
+should dim=1??: No, here is just define a scalar value
+
+should read ex2 ex5 and ex10
+
+>>>>>>
+ex2.cpp
+Do not know static condensation
+this problem requires two boundary attibutes in the mesh (come with the grid generator)
+
+This part is not clear (boundary condition)
+   ess_bdr = 0;
+   ess_bdr[0] = 1;
+   fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+
+I think the boundary condition may not be the same as it claims
+
+9/30
+run ex1
+../../glvis-3.4/glvis -m refined.mesh -g sol.gf
