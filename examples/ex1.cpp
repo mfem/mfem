@@ -95,10 +95,9 @@ int main(int argc, char *argv[])
 
 #if 1
    Array<int> ordering;
-   mesh->GetGeckoElementReordering(ordering, 1, 2);
+   mesh->GetGeckoElementReordering(ordering, 1, 8);
    //mesh->GetMetisElementReordering(ordering);
    //mesh->Triangularize(1); mesh->GetForsythElementReordering(ordering);
-
    mesh->ReorderElements(ordering);
 
    mesh->EnsureNCMesh();

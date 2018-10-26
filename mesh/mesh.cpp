@@ -1376,7 +1376,6 @@ void Mesh::GetForsythElementReordering(Array<int> &ordering)
    geometry::forsythReorder(ordering.GetData(), indices.GetData(),
                             GetNE(), NumOfVertices);
 }
-#endif
 
 void Mesh::Triangularize(int type)
 {
@@ -1404,6 +1403,7 @@ void Mesh::Triangularize(int type)
    NumOfElements = elements.Size();
    BaseGeom = Geometry::TRIANGLE;
 }
+#endif
 
 void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
 {
