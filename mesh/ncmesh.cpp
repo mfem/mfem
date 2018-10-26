@@ -120,8 +120,7 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
    }
 
    // create the NCMesh::Element struct for each Mesh element
-   root_count = mesh->GetNE();
-   for (int i = 0; i < root_count; i++)
+   for (int i = 0; i < mesh->GetNE(); i++)
    {
       const mfem::Element *elem = mesh->GetElement(i);
 
@@ -180,6 +179,8 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
       }
    }
 
+   InitRootState(mesh->GetNE());
+
    Update();
 }
 
@@ -190,9 +191,9 @@ NCMesh::NCMesh(const NCMesh &other)
    , nodes(other.nodes)
    , faces(other.faces)
    , elements(other.elements)
-   , root_count(other.root_count)
 {
    other.free_element_ids.Copy(free_element_ids);
+   other.root_state.Copy(root_state);
    other.top_vertex_pos.Copy(top_vertex_pos);
    Update();
 }
@@ -1272,7 +1273,7 @@ const Table& NCMesh::GetDerefinementTable()
    Array<Connection> list;
    list.Reserve(leaf_elements.Size());
 
-   for (int i = 0; i < root_count; i++)
+   for (int i = 0; i < root_state.Size(); i++)
    {
       CollectDerefinements(i, list);
    }
@@ -1482,9 +1483,9 @@ void NCMesh::UpdateLeafElements()
 {
    // collect leaf elements from all roots
    leaf_elements.SetSize(0);
-   for (int i = 0; i < root_count; i++)
+   for (int i = 0; i < root_state.Size(); i++)
    {
-      CollectLeafElements(i, 0);
+      CollectLeafElements(i, root_state[i]);
       // TODO: root state should not always be 0, we need a precomputed array
       // with root element states to ensure continuity where possible, also
       // optimized ordering of the root elements themselves (Gecko?)
@@ -1498,6 +1499,47 @@ void NCMesh::AssignLeafIndices()
    for (int i = 0; i < leaf_elements.Size(); i++)
    {
       elements[leaf_elements[i]].index = i;
+   }
+}
+
+void NCMesh::InitRootState(int root_count)
+{
+   root_state.SetSize(root_count);
+   root_state = 0;
+
+   if (GetElementGeometry() != Geometry::SQUARE) { return; }
+
+   int entry_node = -2;
+   for (int i = 0; i < root_count; i++)
+   {
+      Element &el = elements[i];
+      int v_in = find_node(el, entry_node, false);
+
+      char shared[4] = { 0, 0, 0, 0 };
+      if (i+1 < root_count)
+      {
+         Element &next = elements[i+1];
+         for (int i = 0; i < 4; i++)
+         {
+            shared[i] = (find_node(el, next.node[i], false) >= 0);
+         }
+      }
+
+      if (v_in < 0)
+      {
+         // TODO look at shared
+         v_in = 0;
+      }
+
+      int state = 2*v_in;
+      for (int i = 0; i < 2; i++)
+      {
+         if (shared[int(quad_hilbert_child_order[state][3])]) { break; }
+         state++;
+      }
+
+      root_state[i] = state;
+      entry_node = el.node[int(quad_hilbert_child_order[state][3])];
    }
 }
 
@@ -1693,13 +1735,13 @@ int NCMesh::FaceSplitType(int v1, int v2, int v3, int v4,
    else { return 2; }  // face split "horizontally"
 }
 
-int NCMesh::find_node(const Element &el, int node)
+int NCMesh::find_node(const Element &el, int node, bool abort)
 {
    for (int i = 0; i < 8; i++)
    {
       if (el.node[i] == node) { return i; }
    }
-   MFEM_ABORT("Node not found.");
+   if (abort) { MFEM_ABORT("Node not found."); }
    return -1;
 }
 
@@ -3419,7 +3461,7 @@ void NCMesh::PrintCoarseElements(std::ostream &out) const
 
    // print the hierarchy recursively
    int coarse_id = leaf_elements.Size();
-   for (int i = 0; i < root_count; i++)
+   for (int i = 0; i < root_state.Size(); i++)
    {
       PrintElements(out, i, coarse_id);
    }
@@ -3499,7 +3541,7 @@ void NCMesh::LoadCoarseElements(std::istream &input)
    index_map = -1;
 
    // copy roots, they need to be at the beginning of 'elements'
-   root_count = 0;
+   int root_count = 0;
    for (elem_iterator el = tmp_elements.begin(); el != tmp_elements.end(); ++el)
    {
       if (el->parent == -1)
@@ -3531,6 +3573,8 @@ void NCMesh::LoadCoarseElements(std::istream &input)
 
    // set the Iso flag (must be false if there are 3D aniso refinements)
    Iso = iso;
+
+   InitRootState(root_count);
 
    Update();
 }
@@ -3581,6 +3625,7 @@ long NCMesh::MemoryUsage() const
           faces.MemoryUsage() +
           elements.MemoryUsage() +
           free_element_ids.MemoryUsage() +
+          root_state.MemoryUsage() +
           top_vertex_pos.MemoryUsage() +
           leaf_elements.MemoryUsage() +
           vertex_nodeId.MemoryUsage() +
@@ -3603,6 +3648,7 @@ int NCMesh::PrintMemoryDetail() const
 
    mfem::out << elements.MemoryUsage() << " elements\n"
              << free_element_ids.MemoryUsage() << " free_element_ids\n"
+             << root_state.MemoryUsage() << " root_state\n"
              << top_vertex_pos.MemoryUsage() << " top_vertex_pos\n"
              << leaf_elements.MemoryUsage() << " leaf_elements\n"
              << vertex_nodeId.MemoryUsage() << " vertex_nodeId\n"
@@ -3645,7 +3691,8 @@ void NCMesh::PrintStats(std::ostream &out) const
            free_element_ids.MemoryUsage())/MiB << " MiB ]\n"
        "      free                     " << std::setw(9)
        << free_element_ids.Size() << "\n"
-       "   number of root elements   : " << std::setw(9) << root_count << "\n"
+       "   number of root elements   : " << std::setw(9)
+       << root_state.Size() << "\n"
        "   number of leaf elements   : " << std::setw(9)
        << leaf_elements.Size() << "\n"
        "   number of vertices        : " << std::setw(9)

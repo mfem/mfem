@@ -50,8 +50,6 @@ extern "C" {
 #include "graph.h"
 #endif
 
-#include "forsyth.hpp"
-
 using namespace std;
 
 namespace mfem
@@ -1360,6 +1358,7 @@ void Mesh::GetMetisElementReordering(Array<int> &ordering)
 }
 #endif
 
+#if 0
 void Mesh::GetForsythElementReordering(Array<int> &ordering)
 {
    MFEM_VERIFY(BaseGeom == Geometry::TRIANGLE, "");
@@ -1377,6 +1376,7 @@ void Mesh::GetForsythElementReordering(Array<int> &ordering)
    geometry::forsythReorder(ordering.GetData(), indices.GetData(),
                             GetNE(), NumOfVertices);
 }
+#endif
 
 void Mesh::Triangularize(int type)
 {
