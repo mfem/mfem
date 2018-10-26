@@ -1515,13 +1515,14 @@ void NCMesh::InitRootState(int root_count)
       Element &el = elements[i];
       int v_in = find_node(el, entry_node, false);
 
-      char shared[4] = { 0, 0, 0, 0 };
+      bool shared[4] = { 0, 0, 0, 0 };
       if (i+1 < root_count)
       {
          Element &next = elements[i+1];
-         for (int i = 0; i < 4; i++)
+         for (int j = 0; j < 4; j++)
          {
-            shared[i] = (find_node(el, next.node[i], false) >= 0);
+            int node = find_node(el, next.node[j], false);
+            if (node >= 0) { shared[node] = true; }
          }
       }
 
@@ -1532,10 +1533,13 @@ void NCMesh::InitRootState(int root_count)
       }
 
       int state = 2*v_in;
-      for (int i = 0; i < 2; i++)
+      for (int j = 0; j < 2; j++)
       {
-         if (shared[int(quad_hilbert_child_order[state][3])]) { break; }
-         state++;
+         if (shared[int(quad_hilbert_child_order[state + j][3])])
+         {
+            state += j;
+            break;
+         }
       }
 
       root_state[i] = state;
