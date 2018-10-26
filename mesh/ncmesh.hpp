@@ -405,10 +405,12 @@ protected: // implementation
    BlockArray<Element> elements; // storage for all Elements
    Array<int> free_element_ids;  // unused element ids - indices into 'elements'
 
-   // the first 'root_count' entries of 'elements' is the coarse mesh
-   int root_count;
+   /** initial traversal state (~ element orientation) for each root element
+       NOTE: M = root_state.Size() is the number of root elements
+       NOTE: the first M items of 'elements' is the coarse mesh. */
+   Array<int> root_state;
 
-   // coordinates of top-level vertices (organized as triples)
+   /// coordinates of top-level vertices (organized as triples)
    Array<double> top_vertex_pos;
 
    typedef HashTable<Node>::iterator node_iterator;
@@ -448,6 +450,10 @@ protected: // implementation
    void UpdateLeafElements();
 
    virtual void AssignLeafIndices();
+
+   /** Try to find a space-filling curve friendly orientation of the root
+       elements: set 'root_state' based on the ordering of coarse elements. */
+   void InitRootState(int root_count);
 
    virtual bool IsGhost(const Element &el) const { return false; }
    virtual int GetNumGhostElements() const { return 0; }
@@ -530,7 +536,7 @@ protected: // implementation
 
    // face/edge lists
 
-   static int find_node(const Element &el, int node);
+   static int find_node(const Element &el, int node, bool abort = false);
    static int find_element_edge(const Element &el, int vn0, int vn1);
    static int find_hex_face(int a, int b, int c);
 
