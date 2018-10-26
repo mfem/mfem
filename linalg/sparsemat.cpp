@@ -184,6 +184,34 @@ SparseMatrix::SparseMatrix(const SparseMatrix &mat, bool copy_graph)
    isSorted = mat.isSorted;
 }
 
+SparseMatrix::SparseMatrix(const Vector &v)
+   : AbstractSparseMatrix(v.Size(), v.Size())
+   , Rows(NULL)
+   , ColPtrJ(NULL)
+   , ColPtrNode(NULL)
+   , ownGraph(true)
+   , ownData(true)
+   , isSorted(true)
+{
+#ifdef MFEM_USE_MEMALLOC
+   NodesMem = NULL;
+#endif
+   I = new int[height + 1];
+   J = new int[height];
+   A = new double[height];
+
+   for (int i = 0; i <= height; i++)
+   {
+      I[i] = i;
+   }
+
+   for (int r=0; r<height; r++)
+   {
+      J[r] = r;
+      A[r] = v[r];
+   }
+}
+
 SparseMatrix& SparseMatrix::operator=(const SparseMatrix &rhs)
 {
    Clear();
@@ -479,6 +507,37 @@ void SparseMatrix::GetDiag(Vector & d) const
       if (j == end)
       {
          d[i] = 0.;
+      }
+   }
+}
+
+/// Produces a DenseMatrix from a SparseMatrix
+DenseMatrix *SparseMatrix::ToDenseMatrix() const
+{
+   int num_rows = this->Height();
+   int num_cols = this->Width();
+
+   DenseMatrix * B = new DenseMatrix(num_rows, num_cols);
+
+   this->ToDenseMatrix(*B);
+
+   return B;
+}
+
+/// Produces a DenseMatrix from a SparseMatrix
+void SparseMatrix::ToDenseMatrix(DenseMatrix & B) const
+{
+   B.SetSize(height, width);
+   B = 0.0;
+
+   for (int r=0; r<height; r++)
+   {
+      const int    * col = this->GetRowColumns(r);
+      const double * val = this->GetRowEntries(r);
+
+      for (int cj=0; cj<this->RowSize(r); cj++)
+      {
+         B(r, col[cj]) = val[cj];
       }
    }
 }
@@ -2987,6 +3046,14 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
    return C;
 }
 
+SparseMatrix * TransposeMult(const SparseMatrix &A, const SparseMatrix &B)
+{
+   SparseMatrix *At  = Transpose(A);
+   SparseMatrix *AtB = Mult(*At, B);
+   delete At;
+   return AtB;
+}
+
 SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
                                         const AbstractSparseMatrix &B)
 {
@@ -3104,6 +3171,19 @@ DenseMatrix *RAP (const SparseMatrix &A, DenseMatrix &P)
    DenseMatrix *_RAP = new DenseMatrix(R.Height(), AP->Width());
    Mult (R, *AP, *_RAP);
    delete AP;
+   return _RAP;
+}
+
+DenseMatrix *RAP(DenseMatrix &A, const SparseMatrix &P)
+{
+   SparseMatrix *R  = Transpose(P);
+   DenseMatrix  *RA = Mult(*R, A);
+   DenseMatrix   AtP(*RA, 't');
+   delete RA;
+   DenseMatrix  *RAtP = Mult(*R, AtP);
+   delete R;
+   DenseMatrix * _RAP = new DenseMatrix(*RAtP, 't');
+   delete RAtP;
    return _RAP;
 }
 
@@ -3255,6 +3335,130 @@ SparseMatrix * Add(Array<SparseMatrix *> & Ai)
    }
 
    return result;
+}
+
+/// B += alpha * A
+void Add(const SparseMatrix &A,
+         double alpha, DenseMatrix &B)
+{
+   for (int r = 0; r < B.Height(); r++)
+   {
+      const int    * colA = A.GetRowColumns(r);
+      const double * valA = A.GetRowEntries(r);
+      for (int i=0; i<A.RowSize(r); i++)
+      {
+         B(r, colA[i]) += alpha * valA[i];
+      }
+   }
+}
+
+/// Produces a block matrix with blocks A_{ij}*B
+DenseMatrix *OuterProduct(const DenseMatrix &A, const DenseMatrix &B)
+{
+   int mA = A.Height(), nA = A.Width();
+   int mB = B.Height(), nB = B.Width();
+
+   DenseMatrix *C = new DenseMatrix(mA * mB, nA * nB);
+   *C = 0.0;
+   for (int i=0; i<mA; i++)
+   {
+      for (int j=0; j<nA; j++)
+      {
+         C->AddMatrix(A(i,j), const_cast<DenseMatrix&>(B), i * mB, j * nB);
+      }
+   }
+   return C;
+}
+
+/// Produces a block matrix with blocks A_{ij}*B
+SparseMatrix *OuterProduct(const DenseMatrix &A, const SparseMatrix &B)
+{
+   int mA = A.Height(), nA = A.Width();
+   int mB = B.Height(), nB = B.Width();
+
+   SparseMatrix *C = new SparseMatrix(mA * mB, nA * nB);
+
+   for (int i=0; i<mA; i++)
+   {
+      for (int j=0; j<nA; j++)
+      {
+         for (int r=0; r<mB; r++)
+         {
+            const int    * colB = B.GetRowColumns(r);
+            const double * valB = B.GetRowEntries(r);
+
+            for (int cj=0; cj<B.RowSize(r); cj++)
+            {
+               C->Set(i * mB + r, j * nB + colB[cj], A(i,j) * valB[cj]);
+            }
+         }
+      }
+   }
+   C->Finalize();
+
+   return C;
+}
+
+/// Produces a block matrix with blocks A_{ij}*B
+SparseMatrix *OuterProduct(const SparseMatrix &A, const DenseMatrix &B)
+{
+   int mA = A.Height(), nA = A.Width();
+   int mB = B.Height(), nB = B.Width();
+
+   SparseMatrix *C = new SparseMatrix(mA * mB, nA * nB);
+
+   for (int r=0; r<mA; r++)
+   {
+      const int    * colA = A.GetRowColumns(r);
+      const double * valA = A.GetRowEntries(r);
+
+      for (int aj=0; aj<A.RowSize(r); aj++)
+      {
+         for (int i=0; i<mB; i++)
+         {
+            for (int j=0; j<nB; j++)
+            {
+               C->Set(r * mB + i, colA[aj] * nB + j, valA[aj] * B(i, j));
+            }
+         }
+      }
+   }
+   C->Finalize();
+
+   return C;
+}
+
+/// Produces a block matrix with blocks A_{ij}*B
+SparseMatrix *OuterProduct(const SparseMatrix &A, const SparseMatrix &B)
+{
+   int mA = A.Height(), nA = A.Width();
+   int mB = B.Height(), nB = B.Width();
+
+   SparseMatrix *C = new SparseMatrix(mA * mB, nA * nB);
+
+   for (int ar=0; ar<mA; ar++)
+   {
+      const int    * colA = A.GetRowColumns(ar);
+      const double * valA = A.GetRowEntries(ar);
+
+      for (int aj=0; aj<A.RowSize(ar); aj++)
+      {
+         for (int br=0; br<mB; br++)
+         {
+            const int    * colB = B.GetRowColumns(br);
+            const double * valB = B.GetRowEntries(br);
+
+            for (int bj=0; bj<B.RowSize(br); bj++)
+            {
+               C->Set(ar * mB + br, colA[aj] * nB + colB[bj],
+                      valA[aj] * valB[bj]);
+            }
+         }
+      }
+   }
+   C->Finalize();
+
+   return C;
 }
 
 void SparseMatrix::Swap(SparseMatrix &other)

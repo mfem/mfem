@@ -209,7 +209,7 @@ void VectorRestrictedCoefficient::Eval(
    }
    else
    {
-      M.SetSize(vdim);
+      M.SetSize(vdim, ir.GetNPoints());
       M = 0.0;
    }
 }

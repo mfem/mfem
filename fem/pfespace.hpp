@@ -114,8 +114,7 @@ private:
 
    void GetGhostDofs(int entity, const MeshId &id, Array<int> &dofs) const;
    // Return the dofs associated with the interior of the given mesh entity.
-   // The MeshId may be the id of a regular or a ghost mesh entity.
-   void GetBareDofs(int entity, const MeshId &id, Array<int> &dofs) const;
+   void GetBareDofs(int entity, int index, Array<int> &dofs) const;
 
    int  PackDof(int entity, int index, int edof) const;
    void UnpackDof(int dof, int &entity, int &index, int &edof) const;
@@ -133,7 +132,7 @@ private:
                    std::map<int, class NeighborRowMessage> &send_msg) const;
 
 #ifdef MFEM_DEBUG_PMATRIX
-   void DebugDumpDOFs(std::ofstream &os,
+   void DebugDumpDOFs(std::ostream &os,
                       const SparseMatrix &deps,
                       const Array<GroupId> &dof_group,
                       const Array<GroupId> &dof_owner,
@@ -266,7 +265,8 @@ public:
    virtual void GetFaceDofs(int i, Array<int> &dofs) const;
 
    void GetSharedEdgeDofs(int group, int ei, Array<int> &dofs) const;
-   void GetSharedFaceDofs(int group, int fi, Array<int> &dofs) const;
+   void GetSharedTriangleDofs(int group, int fi, Array<int> &dofs) const;
+   void GetSharedQuadrilateralDofs(int group, int fi, Array<int> &dofs) const;
 
    /// The true dof-to-dof interpolation matrix
    HypreParMatrix *Dof_TrueDof_Matrix() const
@@ -291,11 +291,14 @@ public:
    /// Return a const reference to the internal GroupCommunicator (on VDofs)
    const GroupCommunicator &GroupComm() const { return *gcomm; }
 
-   /// Return a new GroupCommunicator on Dofs
+   /// Return a new GroupCommunicator on scalar dofs, i.e. for VDim = 1.
+   /** @note The returned pointer must be deleted by the caller. */
    GroupCommunicator *ScalarGroupComm();
 
-   /** Given an integer array on the local degrees of freedom, perform
+   /** @brief Given an integer array on the local degrees of freedom, perform
        a bitwise OR between the shared dofs. */
+   /** For non-conforming mesh, synchronization is performed on the cut (aka
+       "partially conforming") space. */
    void Synchronize(Array<int> &ldof_marker) const;
 
    /// Determine the boundary degrees of freedom
