@@ -36,7 +36,7 @@ public:
    Quadrilateral(int ind1, int ind2, int ind3, int ind4, int attr = 1);
 
    /// Return element's type
-   int GetType() const { return Element::QUADRILATERAL; }
+   Type GetType() const { return Element::QUADRILATERAL; }
 
    /// Set the vertices according to the given input.
    virtual void SetVertices(const int *ind);

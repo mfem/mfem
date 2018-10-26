@@ -63,31 +63,29 @@ add_mfem_examples(PETSC_EXAMPLES_SRCS ${PFX} copy_petsc_rc_files test_petsc)
 #   ctest -R petsc
 
 # Command line options for the tests.
-set(EX1P_ARGS -m ../../data/amr-quad.mesh --usepetsc --petscopts rc_ex1p)
-set(EX2P_ARGS -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex2p)
-set(EX3P_ARGS -m ../../data/klein-bottle.mesh
-    -o 2 -f 0.1 --usepetsc --petscopts rc_ex3p_bddc --nonoverlapping)
-set(EX4P_ARGS -m ../../data/klein-bottle.mesh
-    -o 2 --usepetsc --petscopts rc_ex4p_bddc --nonoverlapping)
-set(EX5P_BDDC_ARGS -m ../../data/star.mesh
-    --usepetsc --petscopts rc_ex5p_bddc --nonoverlapping)
-set(EX5P_FSPL_ARGS -m ../../data/beam-tet.mesh
-    --usepetsc --petscopts rc_ex5p_fieldsplit)
-set(EX6P_ARGS -m ../../data/amr-quad.mesh --usepetsc)
-set(EX9P_E_ARGS -m ../../data/periodic-hexagon.mesh
-    --usepetsc --petscopts rc_ex9p_expl -dt 0.1)
-set(EX9P_ES_ARGS -m ../../data/periodic-hexagon.mesh
-    --usepetsc --petscopts rc_ex9p_expl --no-step)
-set(EX9P_IS_ARGS -m ../../data/periodic-hexagon.mesh
-    --usepetsc --petscopts rc_ex9p_impl --implicit -tf 0.5)
-set(EX10P_ARGS -m ../../data/beam-quad.mesh
-    -tf 30 -s 3 -rs 2 -dt 3 --usepetsc --petscopts rc_ex10p)
+set(EX1_ARGS_W       -m ../../data/amr-quad.mesh --usepetsc)
+set(EX1_ARGS_P       -m ../../data/amr-quad.mesh --usepetsc --petscopts rc_ex1p)
+set(EX2_ARGS         -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex2p)
+set(EX3_ARGS         -m ../../data/klein-bottle.mesh -o 2 -f 0.1 --usepetsc --petscopts rc_ex3p_bddc --nonoverlapping)
+set(EX4_ARGS         -m ../../data/klein-bottle.mesh -o 2 --usepetsc --petscopts rc_ex4p_bddc --nonoverlapping)
+set(EX4_HYB_ARGS     -m ../../data/klein-bottle.mesh -o 2 --usepetsc --petscopts rc_ex4p_bddc --nonoverlapping --hybridization)
+set(EX5_BDDC_LB_ARGS -m ../../data/star.mesh --usepetsc -o 0 --petscopts rc_ex5p_bddc --nonoverlapping --local-bdr)
+set(EX5_BDDC_GB_ARGS -m ../../data/star.mesh --usepetsc -o 0 --petscopts rc_ex5p_bddc --nonoverlapping)
+set(EX5_FSPL_ARGS    -m ../../data/beam-tet.mesh --usepetsc -o 0 --petscopts rc_ex5p_fieldsplit)
+set(EX6_ARGS         -m ../../data/amr-quad.mesh --usepetsc)
+set(EX6_NONOVL_ARGS  -m ../../data/amr-quad.mesh --usepetsc --nonoverlapping)
+set(EX9_E_ARGS       -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts rc_ex9p_expl -dt 0.1)
+set(EX9_ES_ARGS      -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts rc_ex9p_expl --no-step)
+set(EX9_IS_ARGS      -m ../../data/periodic-hexagon.mesh --usepetsc --petscopts rc_ex9p_impl --implicit -tf 0.5)
+set(EX10_ARGS        -m ../../data/beam-quad.mesh --usepetsc --petscopts rc_ex10p -tf 30 -s 3 -rs 2 -dt 3)
 
 # Add the tests: one test per command-line-variable.
 foreach(TEST_OPTIONS_VAR
-        EX1P_ARGS EX2P_ARGS EX3P_ARGS EX4P_ARGS EX5P_BDDC_ARGS EX5P_FSPL_ARGS
-        EX6P_ARGS EX9P_E_ARGS EX9P_ES_ARGS EX9P_IS_ARGS EX10P_ARGS)
+        EX1_ARGS_W EX1_ARGS_P EX2_ARGS EX3_ARGS EX4_ARGS EX4_HYB_ARGS
+        EX5_BDDC_LB_ARGS EX5_BDDC_GB_ARGS EX5_FSPL_ARGS EX6_ARGS EX6_NONOVL_ARGS
+        EX9_E_ARGS EX9_ES_ARGS EX9_IS_ARGS EX10_ARGS)
   string(REGEX REPLACE "^(.+)_ARGS" "\\1" TEST_NAME_UC ${TEST_OPTIONS_VAR})
+  string(REGEX REPLACE "^([^_]+)" "\\1P" TEST_NAME_UC ${TEST_NAME_UC})
   string(TOLOWER ${TEST_NAME_UC} TEST_NAME_FULL)
   string(REGEX REPLACE "^([^_]+).*" "\\1" TEST_NAME ${TEST_NAME_FULL})
   set(TEST_NAME_FULL ${PFX}${TEST_NAME_FULL})

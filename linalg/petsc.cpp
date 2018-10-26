@@ -834,7 +834,7 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
                if (tid == PETSC_MATIS && needl2l)
                {
                   PetscContainer c;
-                  ierr = PetscObjectQuery((PetscObject)mats[i*nc+j],"__mfem_l2l",
+                  ierr = PetscObjectQuery((PetscObject)mats[i*nc+j],"_MatIS_PtAP_l2l",
                                           (PetscObject*)&c);
                   PCHKERRQ(mats[i*nc+j],ierr);
                   // special case for block operators: the local Vdofs should be
@@ -871,7 +871,7 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
          ierr = PetscContainerSetPointer(c,vmatsl2l); PCHKERRQ(c,ierr);
          ierr = PetscContainerSetUserDestroy(c,__mfem_matarray_container_destroy);
          PCHKERRQ(c,ierr);
-         ierr = PetscObjectCompose((PetscObject)(*A),"__mfem_l2l",(PetscObject)c);
+         ierr = PetscObjectCompose((PetscObject)(*A),"_MatIS_PtAP_l2l",(PetscObject)c);
          PCHKERRQ((*A),ierr);
          ierr = PetscContainerDestroy(&c); CCHKERRQ(comm,ierr);
       }
@@ -1162,7 +1162,7 @@ PetscParMatrix * RAP(PetscParMatrix *Rt, PetscParMatrix *A, PetscParMatrix *P)
          ierr = PetscContainerSetPointer(c,vmatsl2l); PCHKERRQ(c,ierr);
          ierr = PetscContainerSetUserDestroy(c,__mfem_matarray_container_destroy);
          PCHKERRQ(c,ierr);
-         ierr = PetscObjectCompose((PetscObject)B,"__mfem_l2l",(PetscObject)c);
+         ierr = PetscObjectCompose((PetscObject)B,"_MatIS_PtAP_l2l",(PetscObject)c);
          PCHKERRQ(B,ierr);
          ierr = PetscContainerDestroy(&c); PCHKERRQ(B,ierr);
       }
@@ -2266,7 +2266,7 @@ void PetscBDDCSolver::BDDCSolverConstructor(const PetscBDDCSolverParams &opts)
    {
       PetscContainer c;
 
-      ierr = PetscObjectQuery((PetscObject)pA,"__mfem_l2l",(PetscObject*)&c);
+      ierr = PetscObjectQuery((PetscObject)pA,"_MatIS_PtAP_l2l",(PetscObject*)&c);
       MFEM_VERIFY(c,"Local-to-local PETSc container not present");
       ierr = PetscContainerGetPointer(c,(void**)&l2l); PCHKERRQ(c,ierr);
    }
