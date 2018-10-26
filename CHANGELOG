@@ -11,6 +11,8 @@
 Version 3.4.1 (development)
 ===========================
 
+Support for wedge elements and meshes with mixed element types
+--------------------------------------------------------------
 - Added support for wedge shaped mesh elements of arbitrary order (with Geometry
   type PRISM) which have two triangular faces and three quadrilateral faces.
   Several examples of such meshes can be found in the data/ directory.
@@ -22,23 +24,16 @@ Version 3.4.1 (development)
   refinement of such meshes. Several examples of such meshes can be found in the
   data/ directory.
 
-- Added the capability to produce 3D meshes by extruding 2D meshes, see the new
-  miniapp, Extruder, in the miniapps/meshing directory.
+- Added support for reading and writing linear and quadratic meshes containing
+  wedge elements in VTK mesh format. Several examples of such meshes can be
+  found in the data/ directory.
 
-- Added a new meshing miniapp, Toroid, which can produce a variety of torus
-  shaped meshes by twisting a stack of wedges or hexahedra.
-
+Other meshing improvements
+--------------------------
 - Improved the uniform refinement of tetrahedral meshes (also part of the
   uniform refinement of mixed 3D meshes). The previous refinement algorithm is
   still available as an option in Mesh::UniformRefinement. Both can be used in
   the updated Mesh Explorer miniapp.
-
-- Added support for reading and writting linear and quadratic meshes containing
-  wedge elements in VTK mesh format. Several examples of such meshes can be
-  found in the data/ directory.
-
-- Added support for reading linear and quadratic 2D quadrilateral and triangular
-  Cubit meshes.
 
 - The local tetrahedral mesh refinement algorithm in serial and in parallel now
   follows precisely the paper:
@@ -48,6 +43,27 @@ Version 3.4.1 (development)
 
   This guarantees that the shape regularity of the elements will be preserved
   under refinement.
+
+- Added support for parallel communication groups on non-conforming meshes.
+
+- Added support for reading linear and quadratic 2D quadrilateral and triangular
+  Cubit meshes.
+
+New and updated examples and miniapps
+-------------------------------------
+- Added a new meshing miniapp, Toroid, which can produce a variety of torus
+  shaped meshes by twisting a stack of wedges or hexahedra.
+
+- Added a new meshing miniapp, Extruder, that demonstrates the capability to
+  produce 3D meshes by extruding 2D meshes.
+
+- Added a new example, Example 20, that solves a system of 1D ODEs derived from
+  a Hamiltonian. The example demonstrates the use of the variable order,
+  symplectic integration algorithm implemented in class SIAVSolver.
+
+Miscellaneous
+-------------
+- Various other simplifications, extensions, and bugfixes in the code.
 
 API changes
 -----------
@@ -69,12 +85,6 @@ API changes
 - Removed the virtual method Element::GetRefinementFlag, it is only used by the
   derived class Tetrahedron.
 - Added new methods: Array::CopyTo, Tetrahedron::Init.
-
-New and updated examples and miniapps
--------------------------------------
-- Added a new example, Example 20, that solves a system of 1D ODEs derived from
-  a Hamiltonian. The example demonstrates the use of the variable order,
-  symplectic integration algorithm implemented in class SIAVSolver.
 
 
 Version 3.4, released on May 29, 2018
