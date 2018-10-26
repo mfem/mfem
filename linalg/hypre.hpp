@@ -873,7 +873,7 @@ public:
 
    void SetAIROptions(int distance=2,  std::string prerelax="",
                       std::string postrelax="FFC", double strength_tol=0.1,
-                      double strength_tolR=0.01,
+                      double strength_tolR=0.01, double filter_tolR=0.0,
                       int interp_type=100, int relax_type=0, double filterA_tol=0.0, 
                       int splitting=6, int blksize=0, int Sabs=0);
 
@@ -890,6 +890,15 @@ public:
 
    void SetTol(double tol)
    { HYPRE_BoomerAMGSetTol(amg_precond, tol); }
+
+   void SetStrengthThresh(double strength)
+   { HYPRE_BoomerAMGSetStrongThreshold(amg_precond, strength); }
+
+   void SetStrengthThreshR(double strengthR)
+   { HYPRE_BoomerAMGSetStrongThresholdR(amg_precond, strengthR); }
+
+   void SetFilterThreshR(double filterR)
+   { HYPRE_BoomerAMGSetFilterThresholdR(amg_precond, filterR); }
 
    void SetInterpolation(int interp_type)
    { HYPRE_BoomerAMGSetInterpType(amg_precond, interp_type); }

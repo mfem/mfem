@@ -2850,6 +2850,7 @@ void HypreBoomerAMG::SetAIROptions(int distance,
                                    std::string postrelax, 
                                    double strength_tolC,
                                    double strength_tolR,
+                                   double filter_tolR,
                                    int interp_type, 
                                    int relax_type,
                                    double filterA_tol, 
@@ -2931,6 +2932,7 @@ void HypreBoomerAMG::SetAIROptions(int distance,
    if (distance > 0)
    {
       HYPRE_BoomerAMGSetStrongThresholdR(amg_precond, strength_tolR);
+      HYPRE_BoomerAMGSetFilterThresholdR(amg_precond, filter_tolR);
    }
 
    if (relax_type > -1)
