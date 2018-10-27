@@ -119,7 +119,9 @@ int main(int argc, char *argv[])
 
    exact_sol = check_for_inline_mesh(mesh_file);
    if (exact_sol)
+   {
       cout << "Identified an 'inline' mesh" << endl;
+   }
 
    ComplexOperator::Convention conv =
       herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
@@ -144,7 +146,7 @@ int main(int argc, char *argv[])
    if (dim == 1 && prob != 0 )
    {
       cout << "Switching to problem type 0, H1 basis functions, "
-	   << "for 1 dimensional mesh." << endl;
+           << "for 1 dimensional mesh." << endl;
       prob = 0;
    }
 
@@ -157,7 +159,7 @@ int main(int argc, char *argv[])
    }
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of finite element unknowns: " << fespace->GetTrueVSize()
-	<< endl;
+        << endl;
 
    // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined based on the type
@@ -239,7 +241,7 @@ int main(int argc, char *argv[])
    // 8. Set up the sesquilinear form a(.,.) on the finite element
    //    space corresponding to the damped harmonic oscillator operator
    //    of the appropriate type:
-   //    
+   //
    //    0) A scalar H1 field
    //       -Div(a Grad) - omega^2 b + i omega c
    //
@@ -396,7 +398,7 @@ int main(int argc, char *argv[])
                << "pause\n" << flush;
 
       cout << "GLVis visualization paused."
-	   << " Press space (in the GLVis window) to resume it.\n";
+           << " Press space (in the GLVis window) to resume it.\n";
       int num_frames = 32;
       int i = 0;
       while (sol_sock)

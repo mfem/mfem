@@ -135,7 +135,9 @@ int main(int argc, char *argv[])
 
    exact_sol = check_for_inline_mesh(mesh_file);
    if (myid == 0 && exact_sol)
+   {
       cout << "Identified an 'inline' mesh" << endl;
+   }
 
    ComplexOperator::Convention conv =
       herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
@@ -271,7 +273,7 @@ int main(int argc, char *argv[])
    // 10. Set up the parallel sesquilinear form a(.,.) on the finite element
    //     space corresponding to the damped harmonic oscillator operator
    //     of the appropriate type:
-   //    
+   //
    //     0) A scalar H1 field
    //        -Div(a Grad) - omega^2 b + i omega c
    //
@@ -311,7 +313,7 @@ int main(int argc, char *argv[])
 
    // 10a. Set up the parallel bilinear form for the preconditioner
    //      corresponding to the appropriate operator
-   //    
+   //
    //      0) A scalar H1 field
    //         -Div(a Grad) - omega^2 b + omega c
    //
@@ -387,7 +389,7 @@ int main(int argc, char *argv[])
       {
          case 0:
             pc_r =
-	      new HypreBoomerAMG(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()));
+               new HypreBoomerAMG(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()));
             pc_i = new ScaledOperator(pc_r,
                                       (conv == ComplexOperator::HERMITIAN) ?
                                       1.0:-1.0);
