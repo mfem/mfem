@@ -2,16 +2,16 @@
 //
 // Compile with: make ex21p
 //
-// Sample runs:  mpirun -np 4 ex21p_proposed -m ../data/inline-segment.mesh -o 3
-//               mpirun -np 4 ex21p_proposed -m ../data/inline-tri.mesh -o 3
-//               mpirun -np 4 ex21p_proposed -m ../data/inline-quad.mesh -o 3
-//               mpirun -np 4 ex21p_proposed -m ../data/inline-quad.mesh -o 3 -p 1
-//               mpirun -np 4 ex21p_proposed -m ../data/inline-quad.mesh -o 3 -p 2
-//               mpirun -np 4 ex21p_proposed -m ../data/inline-tet.mesh -o 2
-//               mpirun -np 4 ex21p_proposed -m ../data/inline-hex.mesh -o 2
-//               mpirun -np 4 ex21p_proposed -m ../data/inline-hex.mesh -o 2 -p 1
-//               mpirun -np 4 ex21p_proposed -m ../data/inline-hex.mesh -o 2 -p 2
-//               mpirun -np 4 ex21p_proposed -m ../data/star.mesh -o 2 -sigma 10.0
+// Sample runs:  mpirun -np 4 ex21p -m ../data/inline-segment.mesh -o 3
+//               mpirun -np 4 ex21p -m ../data/inline-tri.mesh -o 3
+//               mpirun -np 4 ex21p -m ../data/inline-quad.mesh -o 3
+//               mpirun -np 4 ex21p -m ../data/inline-quad.mesh -o 3 -p 1
+//               mpirun -np 4 ex21p -m ../data/inline-quad.mesh -o 3 -p 2
+//               mpirun -np 4 ex21p -m ../data/inline-tet.mesh -o 2
+//               mpirun -np 4 ex21p -m ../data/inline-hex.mesh -o 2
+//               mpirun -np 4 ex21p -m ../data/inline-hex.mesh -o 2 -p 1
+//               mpirun -np 4 ex21p -m ../data/inline-hex.mesh -o 2 -p 2
+//               mpirun -np 4 ex21p -m ../data/star.mesh -o 2 -sigma 10.0
 //
 // Description:  This example code demonstrates the use of MFEM to define and
 //               solve simple complex-valued linear systems.  We implement three
