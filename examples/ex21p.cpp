@@ -2,20 +2,20 @@
 //
 // Compile with: make ex21p
 //
-// Sample runs:  mpirun -np 4 ex21p_proposed -m ../data/inline-segment.mesh -o 3
-//               mpirun -np 4 ex21p_proposed -m ../data/inline-tri.mesh -o 3
-//               mpirun -np 4 ex21p_proposed -m ../data/inline-quad.mesh -o 3
-//               mpirun -np 4 ex21p_proposed -m ../data/inline-quad.mesh -o 3 -p 1
-//               mpirun -np 4 ex21p_proposed -m ../data/inline-quad.mesh -o 3 -p 2
-//               mpirun -np 4 ex21p_proposed -m ../data/inline-tet.mesh -o 2
-//               mpirun -np 4 ex21p_proposed -m ../data/inline-hex.mesh -o 2
-//               mpirun -np 4 ex21p_proposed -m ../data/inline-hex.mesh -o 2 -p 1
-//               mpirun -np 4 ex21p_proposed -m ../data/inline-hex.mesh -o 2 -p 2
-//               mpirun -np 4 ex21p_proposed -m ../data/star.mesh -o 2 -sigma 10.0
+// Sample runs:  mpirun -np 4 ex21p -m ../data/inline-segment.mesh -o 3
+//               mpirun -np 4 ex21p -m ../data/inline-tri.mesh -o 3
+//               mpirun -np 4 ex21p -m ../data/inline-quad.mesh -o 3
+//               mpirun -np 4 ex21p -m ../data/inline-quad.mesh -o 3 -p 1
+//               mpirun -np 4 ex21p -m ../data/inline-quad.mesh -o 3 -p 2
+//               mpirun -np 4 ex21p -m ../data/inline-tet.mesh -o 2
+//               mpirun -np 4 ex21p -m ../data/inline-hex.mesh -o 2
+//               mpirun -np 4 ex21p -m ../data/inline-hex.mesh -o 2 -p 1
+//               mpirun -np 4 ex21p -m ../data/inline-hex.mesh -o 2 -p 2
+//               mpirun -np 4 ex21p -m ../data/star.mesh -o 2 -sigma 10.0
 //
 // Description:  This example code demonstrates the use of MFEM to define and
-//               solve simple complex-valued linear systems.  We implement
-//               three variants of a damped harmonic oscillator:
+//               solve simple complex-valued linear systems.  We implement three
+//               variants of a damped harmonic oscillator:
 //
 //               1) A scalar H1 field
 //                  -Div(a Grad u) - omega^2 b u + i omega c u = 0
@@ -30,8 +30,8 @@
 //               angular frequency omega, imposed at the boundary or a portion
 //               of the boundary.
 //
-//               In electromagnetics the coefficients are typically named
-//               the permeability, mu = 1/a, permittivity, epsilon = b, and
+//               In electromagnetics the coefficients are typically named the
+//               permeability, mu = 1/a, permittivity, epsilon = b, and
 //               conductivity, sigma = c.  The user can specify these constants
 //               using either set of names.
 //
@@ -145,11 +145,13 @@ int main(int argc, char *argv[])
    }
 
    exact_sol = check_for_inline_mesh(mesh_file);
-   cout << "exact_sol set to " << exact_sol << endl;
+   if (myid == 0 && exact_sol)
+   {
+      cout << "Identified an 'inline' mesh" << endl;
+   }
 
    ComplexOperator::Convention conv =
       herm_conv ? ComplexOperator::HERMITIAN : ComplexOperator::BLOCK_SYMMETRIC;
-
 
    // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
@@ -157,17 +159,10 @@ int main(int argc, char *argv[])
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
-   // 4. Refine the serial mesh on all processors to increase the resolution. In
-   //    this example we do 'ref_levels' of uniform refinement. We choose
-   //    'ref_levels' to be the largest number that gives a final mesh with no
-   //    more than 10,000 elements.
+   // 4. Refine the serial mesh on all processors to increase the resolution.
+   for (int l = 0; l < ser_ref_levels; l++)
    {
-      int ref_levels = ser_ref_levels;
-      //        (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels; l++)
-      {
-         mesh->UniformRefinement();
-      }
+      mesh->UniformRefinement();
    }
 
    // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
@@ -175,19 +170,17 @@ int main(int argc, char *argv[])
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
+   for (int l = 0; l < par_ref_levels; l++)
    {
-      for (int l = 0; l < par_ref_levels; l++)
-      {
-         pmesh->UniformRefinement();
-      }
+      pmesh->UniformRefinement();
    }
 
-   // 6. Define a parallel finite element space on the parallel mesh. Here we
-   //    use continuous Lagrange finite elements of the specified order. If
-   //    order < 1, we instead use an isoparametric/isogeometric space.
+   // 6. Define a parallel finite element space on the parallel
+   //    mesh. Here we use continuous Lagrange, Nedelec, or
+   //    Raviart-Thomas finite elements of the specified order.
    if (dim == 1 && prob != 0 )
    {
-      if (myid == 0 )
+      if (myid == 0)
       {
          cout << "Switching to problem type 0, H1 basis functions, "
               << "for 1 dimensional mesh." << endl;
@@ -198,15 +191,9 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec;
    switch (prob)
    {
-      case 0:
-         fec = new H1_FECollection(order, dim);
-         break;
-      case 1:
-         fec = new ND_FECollection(order, dim);
-         break;
-      case 2:
-         fec = new RT_FECollection(order - 1, dim);
-         break;
+      case 0:  fec = new H1_FECollection(order, dim);      break;
+      case 1:  fec = new ND_FECollection(order, dim);      break;
+      case 2:  fec = new RT_FECollection(order - 1, dim);  break;
    }
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
    HYPRE_Int size = fespace->GlobalTrueVSize();
@@ -217,8 +204,7 @@ int main(int argc, char *argv[])
 
    // 7. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
-   //    by marking all the boundary attributes from the mesh as essential
-   //    (Dirichlet) and converting them to a list of true dofs.
+   //    based on the type of mesh and the problem type.
    Array<int> ess_tdof_list;
    Array<int> ess_bdr;
    if (pmesh->bdr_attributes.Size())
@@ -229,12 +215,8 @@ int main(int argc, char *argv[])
       {
          switch (prob)
          {
-            case 0:
-               ess_bdr = 0; ess_bdr[0] = 1;
-               break;
-            default:
-               ess_bdr = 1; ess_bdr[2] = 0;
-               break;
+            case 0:   ess_bdr = 0; ess_bdr[0] = 1;  break;
+            default:  ess_bdr = 1; ess_bdr[2] = 0;  break;
          }
       }
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
@@ -245,9 +227,9 @@ int main(int argc, char *argv[])
    ParComplexLinearForm b(fespace, conv);
    b.Vector::operator=(0.0);
 
-   // 9. Define the solution vector x as a parallel finite element grid function
-   //    corresponding to fespace. Initialize x with initial guess of zero,
-   //    which satisfies the boundary conditions.
+   // 9. Define the solution vector u as a parallel finite element
+   //    grid function corresponding to fespace. Initialize u with
+   //    initial guess of 1+0i or the exact solution if it is known.
    ParComplexGridFunction u(fespace);
    ParComplexGridFunction * u_exact = NULL;
    if (exact_sol) { u_exact = new ParComplexGridFunction(fespace); }
@@ -301,9 +283,17 @@ int main(int argc, char *argv[])
 
    // 10. Set up the parallel sesquilinear form a(.,.) on the finite element
    //     space corresponding to the damped harmonic oscillator operator
-   //     -Div(tau Grad) + omega^2 rho - i omega sigma, by adding the
-   //     Diffusion domain integrator and appropriate Mass domain integrators.
-
+   //     of the appropriate type:
+   //
+   //     0) A scalar H1 field
+   //        -Div(a Grad) - omega^2 b + i omega c
+   //
+   //     1) A vector H(Curl) field
+   //        Curl(a Curl) - omega^2 b + i omega c
+   //
+   //     2) A vector H(Div) field
+   //        -Grad(a Div) - omega^2 b + i omega c
+   //
    ConstantCoefficient stiffnessCoef(1.0/mu_);
    ConstantCoefficient massCoef(-omega_ * omega_ * epsilon_);
    ConstantCoefficient lossCoef(omega_ * sigma_);
@@ -332,14 +322,24 @@ int main(int argc, char *argv[])
          break;
    }
 
+   // 10a. Set up the parallel bilinear form for the preconditioner
+   //      corresponding to the appropriate operator if the STRUMPACK solver
+   //      has not been selected.
+   //
+   //      0) A scalar H1 field
+   //         -Div(a Grad) - omega^2 b + omega c
+   //
+   //      1) A vector H(Curl) field
+   //         Curl(a Curl) + omega^2 b + omega c
+   //
+   //      2) A vector H(Div) field
+   //         -Grad(a Div) - omega^2 b + omega c
+   //
    ParBilinearForm *pcOp = NULL;
 #ifdef MFEM_USE_STRUMPACK
    if (!strumpack)
 #endif
    {
-      // 10a. Set up the parallel bilinear form for the preconditioner
-      //      corresponding to the operator
-      //      -Div(tau Grad) + omega^2 rho + omega sigma
       pcOp = new ParBilinearForm(fespace);
       switch (prob)
       {
@@ -387,8 +387,9 @@ int main(int argc, char *argv[])
            << 2 * Ahyp->real().GetGlobalNumRows() << endl << endl;
    }
 
-   // 12. Define and apply a parallel FGMRES solver for AX=B with the BoomerAMG
-   //     preconditioner from hypre.
+   // 12. Define and apply a parallel FGMRES solver for AU=B with a
+   //     block diagonal preconditioner based on the appropriate multigrid
+   //     preconditioner from hypre or simply use STRUMPACK.
 #ifdef MFEM_USE_STRUMPACK
    if (!strumpack)
 #endif
@@ -408,7 +409,8 @@ int main(int argc, char *argv[])
       switch (prob)
       {
          case 0:
-            pc_r = new HypreBoomerAMG(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()));
+            pc_r =
+               new HypreBoomerAMG(dynamic_cast<HypreParMatrix&>(*PCOp.Ptr()));
             pc_i = new ScaledOperator(pc_r,
                                       (conv == ComplexOperator::HERMITIAN) ?
                                       1.0:-1.0);
@@ -472,7 +474,7 @@ int main(int argc, char *argv[])
    }
 #endif
 
-   // 13. Recover the parallel grid function corresponding to X. This is the
+   // 13. Recover the parallel grid function corresponding to U. This is the
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(U, b, u);
 
@@ -506,8 +508,8 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 14. Save the refined mesh and the solution in parallel. This output can
-   //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
+   // 14. Save the refined mesh and the solution in parallel. This output can be
+   //     viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
    {
       ostringstream mesh_name, sol_r_name, sol_i_name;
       mesh_name << "mesh." << setfill('0') << setw(6) << myid;

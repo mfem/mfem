@@ -34,6 +34,7 @@ private:
 
    /// Set of Boundary Integrators to be applied.
    Array<LinearFormIntegrator*> blfi;
+   Array<Array<int>*>           blfi_marker;
 
    /// Set of Boundary Face Integrators to be applied.
    Array<LinearFormIntegrator*> flfi;
@@ -56,8 +57,8 @@ public:
    LinearForm (FiniteElementSpace * f) : Vector (f -> GetVSize())
    { fes = f; }
 
-   /// Construct a GridFunction using previously allocated array @a data.
-   /** The GridFunction does not assume ownership of @a data which is assumed to
+   /// Construct a LinearForm using previously allocated array @a data.
+   /** The LinearForm does not assume ownership of @a data which is assumed to
        be of size at least `f->GetVSize()`. Similar to the Vector constructor
        for externally allocated array, the pointer @a data can be NULL. The data
        array can be replaced later using the method SetData().
@@ -81,6 +82,11 @@ public:
 
    /// Adds new Boundary Integrator.
    void AddBoundaryIntegrator (LinearFormIntegrator * lfi);
+
+   /** @brief Add new Boundary Integrator, restricted to the given boundary
+       attributes. */
+   void AddBoundaryIntegrator(LinearFormIntegrator *lfi,
+                              Array<int> &bdr_attr_marker);
 
    /// Adds new Boundary Face Integrator.
    void AddBdrFaceIntegrator (LinearFormIntegrator * lfi);
@@ -109,6 +115,14 @@ public:
        this case is equivalent as an inner product of the LinearForm
        and GridFunction. */
    double operator()(const GridFunction &gf) const { return (*this)*gf; }
+
+   /// Redefine '=' for LinearForm = constant.
+   LinearForm &operator=(double value);
+
+   /// Copy the data from @a v.
+   /** The size of @a v must be equal to the size of the FiniteElementSpace
+       @a fes. */
+   LinearForm &operator=(const Vector &v);
 
    /// Destroys linear form.
    ~LinearForm();

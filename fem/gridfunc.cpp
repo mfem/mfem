@@ -1098,7 +1098,7 @@ void GridFunction::ProjectGridFunction(const GridFunction &src)
                              *mesh->GetElementTransformation(0), P);
    }
    const int vdim = fes->GetVDim();
-   MFEM_VERIFY(vdim != src.fes->GetVDim(), "incompatible vector dimensions!");
+   MFEM_VERIFY(vdim == src.fes->GetVDim(), "incompatible vector dimensions!");
 
    Array<int> src_vdofs, dest_vdofs;
    Vector src_lvec, dest_lvec(vdim*P.Height());
@@ -2577,11 +2577,6 @@ GridFunction & GridFunction::operator=(const Vector &v)
    MFEM_ASSERT(fes && v.Size() == fes->GetVSize(), "");
    Vector::operator=(v);
    return *this;
-}
-
-GridFunction & GridFunction::operator=(const GridFunction &v)
-{
-   return this->operator=((const Vector &)v);
 }
 
 void GridFunction::Save(std::ostream &out) const
