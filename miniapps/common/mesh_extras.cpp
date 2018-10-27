@@ -109,6 +109,26 @@ ElementMeshStream::ElementMeshStream(Element::Type e)
                << "1 1 1" << endl
                << "0 1 1" << endl;
          break;
+      case Element::WEDGE:
+         *this << "dimension" << endl << 3 << endl
+               << "elements" << endl << 1 << endl
+               << "1 6 0 1 2 3 4 5" << endl
+               << "boundary" << endl << 5 << endl
+               << "1 2 2 1 0" << endl
+               << "1 2 3 4 5" << endl
+               << "1 3 0 1 4 3" << endl
+               << "1 3 1 2 5 4" << endl
+               << "1 3 2 0 3 5" << endl
+               << "vertices" << endl
+               << "6" << endl
+               << "3" << endl
+               << "0 0 0" << endl
+               << "1 0 0" << endl
+               << "0 1 0" << endl
+               << "0 0 1" << endl
+               << "1 0 1" << endl
+               << "0 1 1" << endl;
+         break;
       default:
          mfem_error("Invalid element type!");
          break;
