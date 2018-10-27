@@ -359,7 +359,7 @@ void STRUMPACKSolver::SetOperator( const Operator & op )
 
 }
 
-  template class STRUMPACKBaseSolver<complex<double>,int>;
+template class STRUMPACKBaseSolver<complex<double>,int>;
 
 STRUMPACKCmplxSolver::STRUMPACKCmplxSolver(int argc, char* argv[],
                                            MPI_Comm comm)

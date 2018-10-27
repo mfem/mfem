@@ -202,47 +202,47 @@ int main(int argc, char *argv[])
    StopWatch chrono;
    chrono.Clear();
    chrono.Start();
-   
+
 #ifdef MFEM_USE_STRUMPACK
    if (use_strumpack)
-     {
-       Operator * Arow = new STRUMPACKRowLocMatrix(A);
+   {
+      Operator * Arow = new STRUMPACKRowLocMatrix(A);
 
-       STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
-       strumpack->SetPrintFactorStatistics(true);
-       strumpack->SetPrintSolveStatistics(false);
-       strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
-       strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
-       // strumpack->SetMC64Job(strumpack::MC64Job::NONE);
-       // strumpack->SetSymmetricPattern(true);
-       strumpack->SetOperator(*Arow);
-       strumpack->SetFromCommandLine();
-       //Solver * precond = strumpack;
+      STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
+      strumpack->SetPrintFactorStatistics(true);
+      strumpack->SetPrintSolveStatistics(false);
+      strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+      strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+      // strumpack->SetMC64Job(strumpack::MC64Job::NONE);
+      // strumpack->SetSymmetricPattern(true);
+      strumpack->SetOperator(*Arow);
+      strumpack->SetFromCommandLine();
+      //Solver * precond = strumpack;
 
-       strumpack->Mult(B, X);
-       
-       delete strumpack;
-       delete Arow;
-     }
+      strumpack->Mult(B, X);
+
+      delete strumpack;
+      delete Arow;
+   }
    else
 #endif
-     {
-       // 12. Define and apply a parallel PCG solver for AX=B with the AMS
-       //     preconditioner from hypre.
-       ParFiniteElementSpace *prec_fespace =
-	 (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
-       HypreSolver *ams = new HypreAMS(A, prec_fespace);
-       HyprePCG *pcg = new HyprePCG(A);
-       pcg->SetTol(1e-12);
-       pcg->SetMaxIter(500);
-       pcg->SetPrintLevel(2);
-       pcg->SetPreconditioner(*ams);
-       pcg->Mult(B, X);
+   {
+      // 12. Define and apply a parallel PCG solver for AX=B with the AMS
+      //     preconditioner from hypre.
+      ParFiniteElementSpace *prec_fespace =
+         (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
+      HypreSolver *ams = new HypreAMS(A, prec_fespace);
+      HyprePCG *pcg = new HyprePCG(A);
+      pcg->SetTol(1e-12);
+      pcg->SetMaxIter(500);
+      pcg->SetPrintLevel(2);
+      pcg->SetPreconditioner(*ams);
+      pcg->Mult(B, X);
 
-       delete pcg;
-       delete ams;
-     }
-   
+      delete pcg;
+      delete ams;
+   }
+
    chrono.Stop();
    cout << "Solver time " << chrono.RealTime() << endl;
 

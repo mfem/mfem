@@ -37,9 +37,9 @@ template<typename scalar_t, typename index_t>
 class StrumpackSparseSolverMPIDist;
 }
 #include<StrumpackOptions.hpp>
-  //class KrylovSolver;
-  //class ReorderingStrategy;
-  //class MC64Job;
+//class KrylovSolver;
+//class ReorderingStrategy;
+//class MC64Job;
 #endif
 
 namespace mfem
@@ -191,7 +191,7 @@ public:
     *    MAX_DIAGONAL_PRODUCT_SCALING:  Maximize the product of the diagonal
     *                                   values and perform row & column scaling
     */
-  // void SetMC64Job( strumpack::MC64Job job );
+   // void SetMC64Job( strumpack::MC64Job job );
 
 private:
    void Init( int argc, char* argv[] );
