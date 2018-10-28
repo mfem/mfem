@@ -26,6 +26,9 @@
 namespace mfem
 {
 
+class FiniteElementSpace;
+
+
 /** \brief A parallel extension of the NCMesh class.
  *
  *  The basic idea (and assumption) is that all processors share the coarsest
@@ -181,13 +184,6 @@ public:
    }
 
 
-   // interface for ParMesh
-
-   /** Populate face neighbor members of ParMesh from the ghost layer, without
-       communication. */
-   void GetFaceNeighbors(class ParMesh &pmesh);
-
-
    // utility
 
    int GetMyRank() const { return MyRank; }
@@ -232,7 +228,22 @@ public:
    void GetDebugMesh(Mesh &debug_mesh) const;
 
 
-protected:
+protected: // interface for ParMesh
+
+   friend class ParMesh;
+
+   /** For compatibility with conforming code in ParMesh and ParFESpace.
+       Initializes shared structures in ParMesh: gtopo, shared_*, group_s*, s*_l*.
+       The ParMesh then acts as a parallel mesh cut along the NC interfaces. */
+   void GetConformingSharedStructures(class ParMesh &pmesh);
+
+   /** Populate face neighbor members of ParMesh from the ghost layer, without
+       communication. */
+   void GetFaceNeighbors(class ParMesh &pmesh);
+
+
+protected: // implementation
+
    MPI_Comm MyComm;
    int NRanks, MyRank;
 
@@ -247,8 +258,10 @@ protected:
 
    // owner rank for each vertex, edge and face (encoded as singleton groups)
    Array<GroupId> entity_owner[3];
-   // P matrix comm pattern groups for each vertex, edge and face (0/1/2)
+   // P matrix comm pattern groups for each vertex/edge/face (0/1/2)
    Array<GroupId> entity_pmat_group[3];
+   // ParMesh-compatible (conforming) groups for each vertex/edge/face (0/1/2)
+   Array<GroupId> entity_conf_group[3];
 
    // lists of vertices/edges/faces shared by us and at least one more processor
    NCList shared_vertices, shared_edges, shared_faces;
@@ -509,7 +522,6 @@ protected:
 
    static bool compare_ranks_indices(const Element* a, const Element* b);
 
-   friend class ParMesh;
    friend class NeighborRowMessage;
 };
 
