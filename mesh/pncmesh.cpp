@@ -254,6 +254,9 @@ void ParNCMesh::BuildFaceList()
 
    tmp_owner.DeleteAll();
    tmp_shared_flag.DeleteAll();
+
+   // create simple conforming (cut-mesh) groups now
+   CreateGroups(NFaces, entity_index_rank[2], entity_conf_group[2]);
    // NOTE: entity_index_rank[2] is not deleted until CalculatePMatrixGroups
 
    CalcFaceOrientations();
@@ -300,6 +303,9 @@ void ParNCMesh::BuildEdgeList()
 
    tmp_owner.DeleteAll();
    tmp_shared_flag.DeleteAll();
+
+   // create simple conforming (cut-mesh) groups now
+   CreateGroups(NEdges, entity_index_rank[1], entity_conf_group[1]);
    // NOTE: entity_index_rank[1] is not deleted until CalculatePMatrixGroups
 }
 
@@ -314,8 +320,7 @@ void ParNCMesh::ElementSharesVertex(int elem, int vnode)
    owner = std::min(owner, el_rank);
 
    char &flag = tmp_shared_flag[v_index];
-   if (el_rank == MyRank) { flag |= 0x1; }
-   if (el_rank != MyRank) { flag |= 0x2; }
+   flag |= (el_rank == MyRank) ? 0x1 : 0x2;
 
    entity_index_rank[0].Append(Connection(v_index, el_rank));
 }
@@ -343,6 +348,9 @@ void ParNCMesh::BuildVertexList()
 
    tmp_owner.DeleteAll();
    tmp_shared_flag.DeleteAll();
+
+   // create simple conforming (cut-mesh) groups now
+   CreateGroups(NVertices, entity_index_rank[0], entity_conf_group[0]);
    // NOTE: entity_index_rank[0] is not deleted until CalculatePMatrixGroups
 }
 
@@ -475,6 +483,10 @@ void ParNCMesh::CreateGroups(int nentities, Array<Connection> &index_rank,
    while (begin < index_rank.Size())
    {
       int index = index_rank[begin].from;
+      if (index >= nentities)
+      {
+         break; // probably creating entity_conf_group (no ghosts)
+      }
       while (end < index_rank.Size() && index_rank[end].from == index)
       {
          end++;
@@ -743,6 +755,112 @@ void ParNCMesh::NeighborProcessors(Array<int> &neighbors)
       ranks.insert(elements[ghost_layer[i]].rank);
    }
    set_to_array(ranks, neighbors);
+}
+
+
+//// ParMesh compatibility /////////////////////////////////////////////////////
+
+static void MakeSharedTable(int ngroups,
+                            const Array<ParNCMesh::GroupId> &conf_group,
+                            Array<int> &shared_local, Table &group_shared)
+{
+   int num_shared = 0;
+   group_shared.MakeI(ngroups-1);
+
+   for (int i = 0; i < conf_group.Size(); i++)
+   {
+      if (conf_group[i])
+      {
+         num_shared++;
+         group_shared.AddAColumnInRow(conf_group[i]-1);
+      }
+   }
+
+   shared_local.SetSize(num_shared);
+   group_shared.MakeJ();
+
+   for (int i = 0, j = 0; i < conf_group.Size(); i++)
+   {
+      if (conf_group[i])
+      {
+         shared_local[j] = i;
+         group_shared.AddConnection(conf_group[i]-1, j);
+         j++;
+      }
+   }
+   group_shared.ShiftUpI();
+}
+
+void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
+{
+   // make sure we have entity_conf_group[x]
+   for (int ent = 0; ent < Dim; ent++)
+   {
+      GetSharedList(ent);
+      MFEM_VERIFY(entity_conf_group[ent].Size(), "internal error");
+   }
+
+   // create ParMesh groups, and the map (ncmesh_group -> pmesh_group)
+   Array<int> group_map(groups.size());
+   {
+      group_map = 0;
+      IntegerSet iset;
+      ListOfIntegerSets int_groups;
+      for (unsigned i = 0; i < groups.size(); i++)
+      {
+         if (groups[i].size() > 1 || !i) // skip singleton groups
+         {
+            iset.Recreate(groups[i].size(), groups[i].data());
+            group_map[i] = int_groups.Insert(iset);
+         }
+      }
+      pmesh.gtopo.Create(int_groups, 822);
+   }
+
+   // renumber groups in entity_conf_group[] (due to missing singletons)
+   for (int ent = 0; ent < 3; ent++)
+   {
+      for (int i = 0; i < entity_conf_group[ent].Size(); i++)
+      {
+         GroupId &ecg = entity_conf_group[ent][i];
+         ecg = group_map[ecg];
+      }
+   }
+
+   // create shared to local index mappings and group tables
+   int ng = pmesh.gtopo.NGroups();
+   MakeSharedTable(ng, entity_conf_group[0], pmesh.svert_lvert, pmesh.group_svert);
+   MakeSharedTable(ng, entity_conf_group[1], pmesh.sedge_ledge, pmesh.group_sedge);
+   MakeSharedTable(ng, entity_conf_group[2], pmesh.sface_lface, pmesh.group_squad);
+
+   // create an empty group_stria (we currently don't have triangle faces)
+   pmesh.group_stria.MakeI(ng-1);
+   pmesh.group_stria.MakeJ();
+   pmesh.group_stria.ShiftUpI();
+
+   // create shared_edges
+   pmesh.shared_edges.SetSize(pmesh.sedge_ledge.Size());
+   for (int i = 0; i < pmesh.shared_edges.Size(); i++)
+   {
+      int v[2];
+      GetEdgeVertices(edge_list.LookUp(pmesh.sedge_ledge[i]), v);
+      pmesh.shared_edges[i] = new Segment(v, 1);
+   }
+
+   // create shared_faces
+   pmesh.shared_quads.SetSize(pmesh.sface_lface.Size());
+   for (int i = 0; i < pmesh.shared_quads.Size(); i++)
+   {
+      int e[4], eo[4];
+      GetFaceVerticesEdges(face_list.LookUp(pmesh.sface_lface[i]),
+                           pmesh.shared_quads[i].v, e, eo);
+   }
+
+   // free conf_group arrays, they're not needed now (until next mesh update)
+   for (int ent = 0; ent < Dim; ent++)
+   {
+      entity_conf_group[ent].DeleteAll();
+   }
 }
 
 bool ParNCMesh::compare_ranks_indices(const Element* a, const Element* b)

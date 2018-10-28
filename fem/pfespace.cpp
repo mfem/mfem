@@ -140,6 +140,13 @@ void ParFiniteElementSpace::Construct()
    }
    else // Nonconforming()
    {
+      // Initialize 'gcomm' for the cut (aka "partially conforming") space.
+      // In the process, the array 'ldof_ltdof' is also initialized (for the cut
+      // space) and used; however, it will be overwritten below with the real
+      // true dofs. Also, 'ldof_sign' and 'ldof_group' are contructed for the
+      // cut space.
+      ConstructTrueDofs();
+
       // calculate number of ghost DOFs
       ngvdofs = pncmesh->GetNGhostVertices()
                 * fec->DofForGeometry(Geometry::POINT);
@@ -630,30 +637,26 @@ HypreParMatrix *ParFiniteElementSpace::GetPartialConformingInterpolation()
 
 void ParFiniteElementSpace::DivideByGroupSize(double *vec)
 {
-   if (Nonconforming())
-   {
-      MFEM_ABORT("Not implemented for NC mesh.");
-   }
-
    GroupTopology &gt = GetGroupTopo();
-
    for (int i = 0; i < ldof_group.Size(); i++)
    {
       if (gt.IAmMaster(ldof_group[i])) // we are the master
       {
-         vec[ldof_ltdof[i]] /= gt.GetGroupSize(ldof_group[i]);
+         if (ldof_ltdof[i] >= 0) // see note below
+         {
+            vec[ldof_ltdof[i]] /= gt.GetGroupSize(ldof_group[i]);
+         }
+         // NOTE: in NC meshes, ldof_ltdof generated for the gtopo
+         // groups by ConstructTrueDofs gets overwritten by
+         // BuildParallelConformingInterpolation. Some DOFs that are
+         // seen as true by the conforming code are actually slaves and
+         // end up with a -1 in ldof_ltdof.
       }
    }
 }
 
 GroupCommunicator *ParFiniteElementSpace::ScalarGroupComm()
 {
-   if (Nonconforming())
-   {
-      // MFEM_WARNING("Not implemented for NC mesh.");
-      return NULL;
-   }
-
    GroupCommunicator *gc = new GroupCommunicator(GetGroupTopo());
    if (NURBSext)
    {
@@ -668,15 +671,10 @@ GroupCommunicator *ParFiniteElementSpace::ScalarGroupComm()
 
 void ParFiniteElementSpace::Synchronize(Array<int> &ldof_marker) const
 {
-   if (Nonconforming())
-   {
-      MFEM_ABORT("Not implemented for NC mesh.");
-   }
+   // For non-conforming mesh, synchronization is performed on the cut (aka
+   // "partially conforming") space.
 
-   if (ldof_marker.Size() != GetVSize())
-   {
-      mfem_error("ParFiniteElementSpace::Synchronize");
-   }
+   MFEM_VERIFY(ldof_marker.Size() == GetVSize(), "invalid in/out array");
 
    // implement allreduce(|) as reduce(|) + broadcast
    gcomm->Reduce<int>(ldof_marker, GroupCommunicator::BitOR);
