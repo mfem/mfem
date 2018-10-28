@@ -3133,32 +3133,38 @@ void NormalInterpolator::AssembleElementMatrix2(
 }
 
 
+namespace internal
+{
+
+// Scalar shape functions scaled by scalar coefficient.
+// Used in the implementation of class ScalarProductInterpolator below.
+struct ShapeCoefficient : public VectorCoefficient
+{
+   Coefficient &Q;
+   const FiniteElement &fe;
+
+   ShapeCoefficient(Coefficient &q, const FiniteElement &fe_)
+      : VectorCoefficient(fe_.GetDof()), Q(q), fe(fe_) { }
+
+   using VectorCoefficient::Eval;
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      V.SetSize(vdim);
+      fe.CalcPhysShape(T, V);
+      V *= Q.Eval(T, ip);
+   }
+};
+
+}
+
 void
 ScalarProductInterpolator::AssembleElementMatrix2(const FiniteElement &dom_fe,
                                                   const FiniteElement &ran_fe,
                                                   ElementTransformation &Trans,
                                                   DenseMatrix &elmat)
 {
-   // Scalar shape functions scaled by scalar coefficient
-   struct ShapeCoefficient : public VectorCoefficient
-   {
-      Coefficient &Q;
-      const FiniteElement &fe;
-
-      ShapeCoefficient(Coefficient &q, const FiniteElement &fe_)
-         : VectorCoefficient(fe_.GetDof()), Q(q), fe(fe_) { }
-
-      using VectorCoefficient::Eval;
-      virtual void Eval(Vector &V, ElementTransformation &T,
-                        const IntegrationPoint &ip)
-      {
-         V.SetSize(vdim);
-         fe.CalcPhysShape(T, V);
-         V *= Q.Eval(T, ip);
-      }
-   };
-
-   ShapeCoefficient dom_shape_coeff(Q, dom_fe);
+   internal::ShapeCoefficient dom_shape_coeff(Q, dom_fe);
 
    elmat.SetSize(ran_fe.GetDof(),dom_fe.GetDof());
 
@@ -3295,6 +3301,35 @@ VectorCrossProductInterpolator::AssembleElementMatrix2(
 }
 
 
+namespace internal
+{
+
+// Vector shape functions dot product with a vector coefficient.
+// Used in the implementation of class VectorInnerProductInterpolator below.
+struct VDotVShapeCoefficient : public VectorCoefficient
+{
+   VectorCoefficient &VQ;
+   const FiniteElement &fe;
+   DenseMatrix vshape;
+   Vector vc;
+
+   VDotVShapeCoefficient(VectorCoefficient &vq, const FiniteElement &fe_)
+      : VectorCoefficient(fe_.GetDof()), VQ(vq), fe(fe_),
+        vshape(vdim, vq.GetVDim()), vc(vq.GetVDim()) { }
+
+   using VectorCoefficient::Eval;
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip)
+   {
+      V.SetSize(vdim);
+      VQ.Eval(vc, T, ip);
+      fe.CalcPhysVShape(T, vshape);
+      vshape.Mult(vc, V);
+   }
+};
+
+}
+
 void
 VectorInnerProductInterpolator::AssembleElementMatrix2(
    const FiniteElement &dom_fe,
@@ -3302,30 +3337,7 @@ VectorInnerProductInterpolator::AssembleElementMatrix2(
    ElementTransformation &Trans,
    DenseMatrix &elmat)
 {
-   // Vector shape functions dot product with a vector coefficient
-   struct VDotVShapeCoefficient : public VectorCoefficient
-   {
-      VectorCoefficient &VQ;
-      const FiniteElement &fe;
-      DenseMatrix vshape;
-      Vector vc;
-
-      VDotVShapeCoefficient(VectorCoefficient &vq, const FiniteElement &fe_)
-         : VectorCoefficient(fe_.GetDof()), VQ(vq), fe(fe_),
-           vshape(vdim, vq.GetVDim()), vc(vq.GetVDim()) { }
-
-      using VectorCoefficient::Eval;
-      virtual void Eval(Vector &V, ElementTransformation &T,
-                        const IntegrationPoint &ip)
-      {
-         V.SetSize(vdim);
-         VQ.Eval(vc, T, ip);
-         fe.CalcPhysVShape(T, vshape);
-         vshape.Mult(vc, V);
-      }
-   };
-
-   VDotVShapeCoefficient dom_shape_coeff(VQ, dom_fe);
+   internal::VDotVShapeCoefficient dom_shape_coeff(VQ, dom_fe);
 
    elmat.SetSize(ran_fe.GetDof(),dom_fe.GetDof());
 
