@@ -1507,19 +1507,39 @@ void NCMesh::InitRootState(int root_count)
    root_state.SetSize(root_count);
    root_state = 0;
 
-   if (GetElementGeometry() != Geometry::SQUARE) { return; }
+   char* node_order;
+   int nch;
+
+   switch (GetElementGeometry())
+   {
+      case Geometry::SQUARE:
+         nch = 4;
+         node_order = (char*) quad_hilbert_child_order;
+         break;
+
+      case Geometry::CUBE:
+         nch = 8;
+         node_order = (char*) hex_hilbert_child_order;
+         break;
+
+      default:
+         return; // do nothing, all states zero
+   }
 
    int entry_node = -2;
+
+   // process the root element sequence
    for (int i = 0; i < root_count; i++)
    {
       Element &el = elements[i];
       int v_in = find_node(el, entry_node, false);
 
-      bool shared[4] = { 0, 0, 0, 0 };
+      // determine which nodes are shared with the next element
+      bool shared[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
       if (i+1 < root_count)
       {
          Element &next = elements[i+1];
-         for (int j = 0; j < 4; j++)
+         for (int j = 0; j < nch; j++)
          {
             int node = find_node(el, next.node[j], false);
             if (node >= 0) { shared[node] = true; }
@@ -1532,10 +1552,11 @@ void NCMesh::InitRootState(int root_count)
          v_in = 0;
       }
 
-      int state = 2*v_in;
-      for (int j = 0; j < 2; j++)
+      // select orientation that starts in v_in and exits in shared node
+      int state = Dim*v_in;
+      for (int j = 0; j < Dim; j++)
       {
-         if (shared[int(quad_hilbert_child_order[state + j][3])])
+         if (shared[(int) node_order[nch*(state + j) + nch-1]])
          {
             state += j;
             break;
@@ -1543,7 +1564,8 @@ void NCMesh::InitRootState(int root_count)
       }
 
       root_state[i] = state;
-      entry_node = el.node[int(quad_hilbert_child_order[state][3])];
+
+      entry_node = el.node[(int) node_order[nch*state + nch-1]];
    }
 }
 
