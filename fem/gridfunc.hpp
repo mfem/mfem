@@ -396,11 +396,6 @@ public:
        @a fes. */
    GridFunction &operator=(const Vector &v);
 
-   /// Copy the data from @a v.
-   /** The GridFunctions @a v and @a *this must have FiniteElementSpaces with
-       the same size. */
-   GridFunction &operator=(const GridFunction &v);
-
    /// Transform by the Space UpdateMatrix (e.g., on Mesh change).
    virtual void Update();
 
