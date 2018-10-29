@@ -16,6 +16,9 @@
 
 #include "../../general/okina.hpp"
 
+namespace mfem
+{
+
 // *****************************************************************************
 void kIntDiffusionAssemble(const int dim,
                            const int NUM_QUAD_1D,
@@ -49,4 +52,6 @@ void kIntDiffusionAssemble(const int dim,
          d_oper[ijkNM(2,q,e,3,NUM_QUAD_2D)] =  c_detJ * (J11*J11 + J12*J12);
       }
    });
+}
+
 }

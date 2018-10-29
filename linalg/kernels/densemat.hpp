@@ -12,7 +12,8 @@
 #ifndef MFEM_DENSEMAT_KERNELS
 #define MFEM_DENSEMAT_KERNELS
 
-MFEM_NAMESPACE
+namespace mfem
+{
 
 void kLSolve(const int m, const int n, const double *data, const int *ipiv,
              double *X);
@@ -45,6 +46,6 @@ void kMult0(const size_t height, double *y);
 void kMult(const size_t height, const size_t width,
            const double *data, const double *x, double *y);
 
-MFEM_NAMESPACE_END
+}
 
 #endif // MFEM_DENSEMAT_KERNELS

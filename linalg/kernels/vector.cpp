@@ -26,8 +26,8 @@ void kdot(const size_t N, const double *d_x, const double *d_y, double *d_dot)
    });
 }
 
-// *****************************************************************************
-MFEM_NAMESPACE
+namespace mfem
+{
 
 // *****************************************************************************
 double kVectorDot(const size_t N, const double *x, const double *y)
@@ -256,5 +256,4 @@ void kAddElementVector(const size_t n, const int *dofs,
    });
 }
 
-// *****************************************************************************
-MFEM_NAMESPACE_END
+}

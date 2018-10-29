@@ -12,10 +12,11 @@
 #ifndef MFEM_MESH_KERNELS
 #define MFEM_MESH_KERNELS
 
-MFEM_NAMESPACE
+namespace mfem
+{
 
 void kQuadChildren(double *data);
 
-MFEM_NAMESPACE_END
+}
 
 #endif // MFEM_MESH_KERNELS

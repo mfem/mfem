@@ -16,6 +16,9 @@
 
 #include "../../general/okina.hpp"
 
+namespace mfem
+{
+
 // *****************************************************************************
 #define QUAD_2D_ID(X, Y) (X + ((Y) * NUM_QUAD_1D))
 
@@ -188,4 +191,6 @@ void kIntDiffusionMultAdd(const int DIM,
 
    call[id](numElements, d_dofToQuad, d_dofToQuadD, d_quadToDof, d_quadToDofD,
             d_op, d_x, d_y);
+}
+
 }

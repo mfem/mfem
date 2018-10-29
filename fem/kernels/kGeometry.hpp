@@ -17,8 +17,8 @@
 
 #include "../fespace.hpp"
 
-// *****************************************************************************
-MFEM_NAMESPACE
+namespace mfem
+{
 
 // ***************************************************************************
 // * kGeometry
@@ -42,7 +42,6 @@ public:
    static void ReorderByNodes(GridFunction&);
 };
 
-// *****************************************************************************
-MFEM_NAMESPACE_END
+}
 
 #endif // MFEM_FEM_KERNEL_GEOM_HPP
