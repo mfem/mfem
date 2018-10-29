@@ -48,7 +48,7 @@ double kVectorDot(const size_t N, const double *x, const double *y)
       static double *d_dot = NULL;
       if (!d_dot)
       {
-         dbg("!d_dot");
+         // dbg("!d_dot");
          cuMemAlloc((CUdeviceptr*)&d_dot, sizeof(double));
       }
       kdot(N,d_x,d_y,d_dot);
