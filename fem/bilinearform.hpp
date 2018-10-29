@@ -35,7 +35,6 @@ public:
 public:
    AbstractBilinearForm(FiniteElementSpace *f) : Operator(f?f->GetVSize():0),
       fes(f) { }
-   virtual ~AbstractBilinearForm() { }
    virtual void AddDomainIntegrator(AbstractBilinearFormIntegrator*) = 0;
    virtual void Assemble(int skip_zeros = 1) = 0;
    virtual void FormOperator(const Array<int> &ess_tdof_list,
@@ -48,6 +47,7 @@ public:
                                    Vector &x) = 0;
    virtual void EnableStaticCondensation() =0;
    virtual void Mult(const Vector &x, Vector &y) const = 0;
+   virtual ~AbstractBilinearForm() {}
 };
 
 // ***************************************************************************
@@ -64,7 +64,6 @@ protected:
    kFiniteElementSpace *kfes;
 public:
    PABilinearForm(FiniteElementSpace*);
-   ~PABilinearForm();
    // *************************************************************************
    virtual void EnableStaticCondensation();
    virtual void AddDomainIntegrator(AbstractBilinearFormIntegrator*);
@@ -82,6 +81,8 @@ public:
                                    Vector &x);
    virtual void Mult(const Vector &x, Vector &y) const;
    virtual void MultTranspose(const Vector &x, Vector &y) const;
+
+   virtual ~PABilinearForm();
 };
 
 // *****************************************************************************
@@ -455,7 +456,7 @@ public:
    {
       // dbg("\033[7mBilinearForm %s",FA?"FA":"PA");
    }
-   ~BilinearForm() {}
+   virtual ~BilinearForm() {}
    // **************************************************************************
    void EnableStaticCondensation() {assert(false);}
    void AddDomainIntegrator(AbstractBilinearFormIntegrator *i)
