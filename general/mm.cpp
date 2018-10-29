@@ -151,7 +151,7 @@ void* mm::Adrs(const void *adrs)
    }
 
    mm2dev_t &mm2dev = mng->operator[](adrs);
-   const size_t bytes = mm2dev.bytes;
+   // const size_t bytes = mm2dev.bytes;
    // If we are asking a known host address, just return it
    if (mm2dev.host and not cuda)
    {

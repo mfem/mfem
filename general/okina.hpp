@@ -33,7 +33,7 @@
 #include <setjmp.h>
 
 // *****************************************************************************
-#include "memmng.hpp"
+#include "mm.hpp"
 #include "config.hpp"
 #include "kernels.hpp"
 
