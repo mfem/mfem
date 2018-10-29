@@ -16,8 +16,8 @@
 
 #include "../../general/okina.hpp"
 
-// *****************************************************************************
-MFEM_NAMESPACE
+namespace mfem
+{
 
 // *****************************************************************************
 template<const int NUM_DOFS,
@@ -110,5 +110,4 @@ template void kGeom2D<256,900>(int, double const*, double const*, double*,
 template void kGeom2D<289,1024>(int, double const*, double const*, double*,
                                 double*, double*);
 
-// *****************************************************************************
-MFEM_NAMESPACE_END
+}

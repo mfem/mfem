@@ -18,8 +18,8 @@
 #include "../fem.hpp"
 #include "../doftoquad.hpp"
 
-// *****************************************************************************
-MFEM_NAMESPACE
+namespace mfem
+{
 
 // *****************************************************************************
 template<const int NUM_DOFS,
@@ -371,5 +371,4 @@ void kGeometry::ReorderByNodes(GridFunction& nodes)
    delete [] temp;
 }
 
-// *****************************************************************************
-MFEM_NAMESPACE_END
+}

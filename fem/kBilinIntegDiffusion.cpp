@@ -14,8 +14,8 @@
 #include "kernels/kGeometry.hpp"
 #include "kernels/kIntDiffusion.hpp"
 
-// *****************************************************************************
-MFEM_NAMESPACE
+namespace mfem
+{
 
 // *****************************************************************************
 KDiffusionIntegrator::KDiffusionIntegrator(const FiniteElementSpace *f,
@@ -80,5 +80,4 @@ void KDiffusionIntegrator::MultAdd(Vector &x, Vector &y)
                         y);
 }
 
-// *****************************************************************************
-MFEM_NAMESPACE_END
+}

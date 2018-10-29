@@ -11,8 +11,8 @@
 
 #include "../general/okina.hpp"
 
-// *****************************************************************************
-MFEM_NAMESPACE
+namespace mfem
+{
 
 // *****************************************************************************
 void config::cuDeviceSetup(const int device)
@@ -36,5 +36,4 @@ void config::Setup()
    cuDeviceSetup(0);
 }
 
-// *****************************************************************************
-MFEM_NAMESPACE_END
+}
