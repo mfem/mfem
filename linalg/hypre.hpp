@@ -1229,19 +1229,35 @@ public:
 
 #ifdef HYPRE_DYLAN
 /// An experimental auxiliary-space indefinite Maxwell Solver, using hypre
-class HypreIAMS : public HypreSolver
+class HypreIAMS : public Solver
 {
 private:
   Operator* Arow[4];
-  HypreParMatrix* Pi[4];
   STRUMPACKSolver* strumpack[4];
+  HypreAMS *m_ams;
+  HYPRE_Solver empty_ams;
+  HypreParMatrix m_Pix, m_Piy, m_Piz, m_G;
+  HypreSmoother smoother;
+  mutable HypreParVector z, w, r;
   
 public:
   HypreIAMS(HypreParMatrix &A, HypreAMS *ams, int argc, char *argv[]);
-
+  
   void SetPrintLevel(int print_lvl);
 
-  virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
+  virtual void Mult(const Vector &x, Vector &y) const;
+  //virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
+  virtual void SetOperator(const Operator &op);
+
+  /*
+  virtual operator HYPRE_Solver() const { return empty_ams; }
+  //virtual operator HYPRE_Solver() const { return m_ams->HYPRE_Solver(); }
+
+  virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+  { return (HYPRE_PtrToParSolverFcn) HYPRE_AMSSetup; }
+  virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+  { return (HYPRE_PtrToParSolverFcn) HYPRE_AMSSolve; }
+  */
   
   virtual ~HypreIAMS();
 };

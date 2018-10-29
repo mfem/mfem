@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
    //    more than 1,000 elements.
    {
       int ref_levels =
-         (int)floor(log(100./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -210,7 +210,7 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_STRUMPACK
    if (use_strumpack)
      {
-       const bool fullDirect = true;
+       const bool fullDirect = false;
 
        if (fullDirect)
 	 {
@@ -238,27 +238,30 @@ int main(int argc, char *argv[])
 	     (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
 	   HypreSolver *ams = new HypreAMS(A, prec_fespace);
 
-	   HypreGMRES *gmres = new HypreGMRES(A);
-	   gmres->SetTol(1e-12);
-	   gmres->SetMaxIter(100);
-	   gmres->SetPrintLevel(2);
-
 #ifdef HYPRE_DYLAN
 	   {
 	     Vector Xtmp(X);
 	     ams->Mult(B, Xtmp);  // Just a hack to get ams to run its setup function. There should be a better way.
 	   }
+
+	   HypreIAMS *iams = new HypreIAMS(A, (HypreAMS*) ams, argc, argv);
 	   
-	   HypreIAMS iams(A, ams);
-	   gmres->SetPreconditioner(iams);
-#else
+	   GMRESSolver *gmres = new GMRESSolver();
+	   gmres->SetOperator(A);
+	   gmres->SetRelTol(1e-12);
+	   gmres->SetMaxIter(100);
+	   gmres->SetPrintLevel(1);
+
+	   gmres->SetPreconditioner(*iams);
+#else	   
 	   gmres->SetPreconditioner(*ams);
 #endif
 
 	   gmres->Mult(B, X);
 
 	   delete gmres;
-	   delete ams;
+	   delete iams;
+	   //delete ams;
 	 }
      }
    else

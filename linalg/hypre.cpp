@@ -3700,18 +3700,16 @@ HypreAME::StealEigenvectors()
 
 #ifdef HYPRE_DYLAN
 HypreIAMS::HypreIAMS(HypreParMatrix &A, HypreAMS *ams, int argc, char *argv[])
-   : HypreSolver(&A)
+  : m_ams(ams), m_Pix(ams->Get_Pix(), false), m_Piy(ams->Get_Piy(), false), m_Piz(ams->Get_Piz(), false), m_G(ams->Get_G(), false),
+    z(ams->Get_Pix()->comm, hypre_ParCSRMatrixGlobalNumCols(ams->Get_Pix()), hypre_ParCSRMatrixColStarts(ams->Get_Pix())),
+    w(ams->Get_Pix()->comm, hypre_ParCSRMatrixGlobalNumCols(ams->Get_Pix()), hypre_ParCSRMatrixColStarts(ams->Get_Pix())),
+    r(ams->Get_Pix()->comm, hypre_ParCSRMatrixGlobalNumRows(ams->Get_Pix()), hypre_ParCSRMatrixRowStarts(ams->Get_Pix())),
+    smoother(A, HypreSmoother::Jacobi)
 {
-  //HYPRE_ParCSRMatrix A_Pix = ams->Get_A_Pix();
   HypreParMatrix A_Pix(ams->Get_A_Pix());
   HypreParMatrix A_Piy(ams->Get_A_Piy());
   HypreParMatrix A_Piz(ams->Get_A_Piz());
   HypreParMatrix A_G(ams->Get_A_G());
-
-  HypreParMatrix Pix(ams->Get_Pix());
-  HypreParMatrix Piy(ams->Get_Piy());
-  HypreParMatrix Piz(ams->Get_Piz());
-  HypreParMatrix G(ams->Get_G());
 
   Arow[0] = new STRUMPACKRowLocMatrix(A_Pix);
   Arow[1] = new STRUMPACKRowLocMatrix(A_Piy);
@@ -3732,21 +3730,46 @@ HypreIAMS::HypreIAMS(HypreParMatrix &A, HypreAMS *ams, int argc, char *argv[])
     }
 }
 
-void HypreIAMS::Mult(const HypreParVector &b, HypreParVector &x) const
+void HypreIAMS::SetOperator(const Operator &op)
 {
-  for (int i=0; i<4; ++i)
-    {
-      // Multiply by projection operators
-      strumpack[i]->Mult(b, x);
-    }
+
+}
+
+void HypreIAMS::Mult(const mfem::Vector &x, mfem::Vector &y) const
+{
+  m_Pix.MultTranspose(x, w);
+  strumpack[0]->Mult(w, z);
+  m_Pix.Mult(z, y);
+
+  m_Piy.MultTranspose(x, w);
+  strumpack[1]->Mult(w, z);
+  m_Piy.Mult(z, r);
+
+  y += r;
+
+  m_Piz.MultTranspose(x, w);
+  strumpack[2]->Mult(w, z);
+  m_Piz.Mult(z, r);
+
+  y += r;
+
+  m_G.MultTranspose(x, w);
+  strumpack[3]->Mult(w, z);
+  m_G.Mult(z, r);
+
+  y += r;
+
+  smoother.Mult(x, r);
+
+  y += r;
 }
 
 HypreIAMS::~HypreIAMS()
 {
   for (int i=0; i<4; ++i)
     {
-      delete Arow[i];
       delete strumpack[i];
+      delete Arow[i];
     }
 }
 
@@ -3754,6 +3777,7 @@ void HypreIAMS::SetPrintLevel(int print_lvl)
 {
 
 }
+
 #endif
 
 }
