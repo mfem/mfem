@@ -54,6 +54,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool visualization = 1;
+   int ref_levels = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -61,6 +62,8 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&ref_levels, "-r", "--ref_levels",
+                  "Uniform refinement level.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -84,16 +87,19 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
-   {
-      int ref_levels = 0;
-         //(int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+   /*{
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
-   }
+   }*/
 
 #if 1
+   if (mesh->NURBSext)
+   {
+      mesh->SetCurvature(2);
+   }
+
    Array<int> ordering;
    mesh->GetGeckoElementReordering(ordering, 1, 8);
    //mesh->GetMetisElementReordering(ordering);
@@ -101,7 +107,10 @@ int main(int argc, char *argv[])
    mesh->ReorderElements(ordering);
 
    mesh->EnsureNCMesh();
-   mesh->UniformRefinement();
+   for (int l = 0; l < ref_levels; l++)
+   {
+      mesh->UniformRefinement();
+   }
 
    FiniteElementCollection *fec;
    fec = new L2_FECollection(0, dim);
