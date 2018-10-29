@@ -44,8 +44,7 @@ void PABilinearForm::EnableStaticCondensation() { assert(false);}
 // Adds new Domain Integrator.
 void PABilinearForm::AddDomainIntegrator(AbstractBilinearFormIntegrator *i)
 {
-
-   dbg("\033[7mAddDomainIntegrator");
+   // dbg("\033[7mAddDomainIntegrator");
    integrators.Append(static_cast<BilinearPAFormIntegrator*>(i));
 }
 
@@ -182,7 +181,7 @@ void PABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    assert(cA);
    if (cA)
    {
-      dbg("ConstrainedOperator");
+      // dbg("ConstrainedOperator");
       cA->EliminateRHS(X, B);
    }
    else

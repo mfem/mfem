@@ -55,9 +55,9 @@ void* mm::add(const void *adrs, const size_t size, const size_t size_of_T)
    if (test_mem_xs)
    {
       // Shift host address to force a SIGSEGV
-      dbg("h_adrs @%p",h_adrs);
+      // dbg("h_adrs @%p",h_adrs);
       h_adrs += xs_shift;
-      dbg("h_adrs++ @%p",h_adrs);
+      // dbg("h_adrs++ @%p",h_adrs);
    }
 
    //printf(" \033[31m%p(%ldo)\033[m", h_adrs, bytes);fflush(0);
@@ -73,12 +73,12 @@ void* mm::add(const void *adrs, const size_t size, const size_t size_of_T)
       const size_t bytes = mm2dev.bytes;
       if (bytes>0)
       {
-         //dbg(" \033[32;1m%ldo\033[m",bytes);
+         // dbg(" \033[32;1m%ldo\033[m",bytes);
          checkCudaErrors(cuMemAlloc(&ptr,bytes));
       }
       else
       {
-         //dbg(" \033[31;1m%ldo\033[m",bytes);
+         // dbg(" \033[31;1m%ldo\033[m",bytes);
       }
       mm2dev.d_adrs = (void*)ptr;
       // and say we are there
@@ -109,7 +109,7 @@ void mm::del(const void *adrs)
 // *****************************************************************************
 bool mm::Known(const void *adrs)
 {
-   if (!adrs) {dbg("\n\033[31;7m[mm::Known] %p\033[m", adrs);} // NULL
+   // if (!adrs) {dbg("\n\033[31;7m[mm::Known] %p\033[m", adrs);} // NULL
    const auto search = mng->find(adrs);
    const bool present = search != mng->end();
    return present;
@@ -126,17 +126,17 @@ void* mm::Adrs(const void *adrs)
       xs_adrs = (void*) adrs; // save to global
       if (!setjmp(env))
       {
-         dbg("\033[32mTrying %p...",xs_adrs);
+         // dbg("\033[32mTrying %p...",xs_adrs);
          volatile size_t read = *(size_t*)xs_adrs;
          *(size_t*)xs_adrs = read;
       }
       else   // read from global if we hit a fault
       {
-         dbg("\033[32mRewinding, adrs was %p",xs_adrs);
+         // dbg("\033[32mRewinding, adrs was %p",xs_adrs);
          assert(false);
          //adrs -= xs_shift;
       }
-      dbg("Looking for %p", adrs);
+      // dbg("Looking for %p", adrs);
    }
 
    const bool cuda = config::Get().Cuda();
@@ -145,7 +145,7 @@ void* mm::Adrs(const void *adrs)
 
    if (not present)
    {
-      dbg("Unknown %p", adrs);
+      // dbg("Unknown %p", adrs);
       assert(false);
       //mfem_error("[ERROR] Trying to convert unknown address!");
    }
@@ -162,12 +162,12 @@ void* mm::Adrs(const void *adrs)
    if (!mm2dev.d_adrs)
    {
 #ifdef __NVCC__
-      dbg("\033[32;1mPushing new address to the GPU!\033[m");
+      // dbg("\033[32;1mPushing new address to the GPU!\033[m");
       // allocate on the device
       CUdeviceptr ptr = (CUdeviceptr) NULL;
       if (bytes>0)
       {
-         dbg(" \033[32;1m%ldo\033[m",bytes);
+         // dbg(" \033[32;1m%ldo\033[m",bytes);
          checkCudaErrors(cuMemAlloc(&ptr,bytes));
       }
       mm2dev.d_adrs = (void*)ptr;
@@ -182,8 +182,8 @@ void* mm::Adrs(const void *adrs)
 
    if (not cuda)
    {
-      dbg("return \033[31;1mGPU\033[m h_adrs %p",mm2dev.h_adrs);
-      dbg("return \033[31;1mGPU\033[m d_adrs %p",mm2dev.d_adrs);
+      // dbg("return \033[31;1mGPU\033[m h_adrs %p",mm2dev.h_adrs);
+      // dbg("return \033[31;1mGPU\033[m d_adrs %p",mm2dev.d_adrs);
 #ifdef __NVCC__
       checkCudaErrors(cuMemcpyDtoH((void*)mm2dev.h_adrs,(CUdeviceptr)mm2dev.d_adrs,
                                    bytes));
@@ -194,7 +194,7 @@ void* mm::Adrs(const void *adrs)
       return (void*)mm2dev.h_adrs;
    }
 
-   dbg("return \033[32;1mGPU\033[m address %p",mm2dev.d_adrs);
+   // dbg("return \033[32;1mGPU\033[m address %p",mm2dev.d_adrs);
    return (void*)mm2dev.d_adrs;
 }
 
@@ -207,11 +207,11 @@ void mm::Rsync(const void *adrs)
    const mm2dev_t &mm2dev = mng->operator[](adrs);
    if (mm2dev.host)
    {
-      dbg("Already on host");
+      // dbg("Already on host");
       return;
    }
 #ifdef __NVCC__
-   dbg("From GPU");
+   // dbg("From GPU");
    const size_t bytes = mm2dev.bytes;
    checkCudaErrors(cuMemcpyDtoH((void*)mm2dev.h_adrs,
                                 (CUdeviceptr)mm2dev.d_adrs,

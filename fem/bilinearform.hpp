@@ -453,7 +453,7 @@ public:
           static_cast<AbstractBilinearForm*>(new FABilinearForm(f)):
           static_cast<AbstractBilinearForm*>(new PABilinearForm(f)))
    {
-      dbg("\033[7mBilinearForm %s",FA?"FA":"PA");
+      // dbg("\033[7mBilinearForm %s",FA?"FA":"PA");
    }
    ~BilinearForm() {}
    // **************************************************************************
