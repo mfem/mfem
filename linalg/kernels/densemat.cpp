@@ -83,7 +83,7 @@ void kFactorPrint(const int s, const double *data)
    GET_CONST_ADRS(data);
    forall(i, s,
    {
-      printf("\n\t\033[32md_data[%d]=%f\033[m",i,d_data[i]);
+      printf("\n\t\033[32md_data[%d]=%f\033[m",(int)i,d_data[i]);
    });
 }
 
@@ -121,7 +121,7 @@ void kFactor(const int m, int *ipiv, double *data)
             }
          }
          d_ipiv[i] = piv;
-         if (piv != i)
+         if (piv != (int) i)
          {
             // swap rows i and piv in both L and U parts
             for (int j = 0; j < m; j++)
@@ -243,7 +243,7 @@ void kAddMult_a_VVt(const size_t n, const double a, const double *v,
    forall(i, n,
    {
       double avi = a * d_v[i];
-      for (int j = 0; j < i; j++)
+      for (size_t j = 0; j < i; j++)
       {
          double avivj = avi * d_v[j];
          d_VVt[i+j*height] += avivj;
@@ -271,7 +271,7 @@ void kMult(const size_t height, const size_t width,
    forall(i, height,
    {
       double sum = 0.0;
-      for (int j=0; j<width; j+=1)
+      for (size_t j=0; j<width; j+=1)
       {
          sum += d_x[j]*d_data[i+j*height];
       }

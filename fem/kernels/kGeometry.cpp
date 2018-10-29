@@ -47,7 +47,7 @@ void kGeom(const int DIM,
            double* detJ)
 {
    const unsigned int dofs1D = IROOT(DIM,NUM_DOFS);
-   const unsigned int quad1D = IROOT(DIM,NUM_QUAD);
+   // const unsigned int quad1D = IROOT(DIM,NUM_QUAD);
    const unsigned int id = (DIM<<4)|(dofs1D-2);
    // dbg("DIM=%d",DIM);
    // dbg("quad1D=%d",quad1D);
@@ -140,7 +140,7 @@ static void kGeomFill(const int dims,
    GET_ADRS(meshNodes);
    forall(e, elements,
    {
-      for (int d = 0; d < numDofs; ++d)
+      for (size_t d = 0; d < numDofs; ++d)
       {
          const int lid = d+numDofs*e;
          const int gid = d_elementMap[lid];
