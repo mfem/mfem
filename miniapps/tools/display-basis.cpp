@@ -521,6 +521,9 @@ string elemTypeStr(const Element::Type & eType)
       case Element::HEXAHEDRON:
          return "HEXAHEDRON";
          break;
+      case Element::WEDGE:
+         return "WEDGE";
+         break;
       default:
          return "INVALID";
          break;
