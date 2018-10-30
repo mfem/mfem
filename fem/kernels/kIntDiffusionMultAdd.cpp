@@ -350,19 +350,20 @@ void kIntDiffusionMultAdd(const int DIM,
                           const double* __restrict x,
                           double* __restrict y)
 {
-   const unsigned int id = (DIM<<16)|((NUM_DOFS_1D-1)<<8)|(NUM_QUAD_1D>>1);
-   // dbg("NUM_DOFS_1D=%d",NUM_DOFS_1D);
-   // dbg("NUM_QUAD_1D=%d",NUM_QUAD_1D);
-   // dbg("id=0x%x",id);
+   const unsigned int id = (DIM<<16)|(NUM_DOFS_1D<<8)|(NUM_QUAD_1D);
+   assert(LOG2(NUM_DOFS_1D)<=8);
+   assert(LOG2(NUM_QUAD_1D)<=8);
    static std::unordered_map<unsigned int, fDiffusionMultAdd> call =
    {
+      {0x20101,&kIntDiffusionMultAdd2D<1,1>},
+      {0x20201,&kIntDiffusionMultAdd2D<2,1>},
       {0x20202,&kIntDiffusionMultAdd2D<2,2>},
       {0x20303,&kIntDiffusionMultAdd2D<3,3>},
       {0x20404,&kIntDiffusionMultAdd2D<4,4>},
       {0x20505,&kIntDiffusionMultAdd2D<5,5>},
       {0x20606,&kIntDiffusionMultAdd2D<6,6>},
       {0x20707,&kIntDiffusionMultAdd2D<7,7>},
-      {0x20808,&kIntDiffusionMultAdd2D<8,8>},
+      {0x20808,&kIntDiffusionMultAdd2D<8,8>},/*
       {0x20909,&kIntDiffusionMultAdd2D<9,9>},
       {0x20A0A,&kIntDiffusionMultAdd2D<10,10>},
       {0x20B0B,&kIntDiffusionMultAdd2D<11,11>},
@@ -371,22 +372,25 @@ void kIntDiffusionMultAdd(const int DIM,
       {0x20E0E,&kIntDiffusionMultAdd2D<14,14>},
       {0x20F0F,&kIntDiffusionMultAdd2D<15,15>},
       {0x21010,&kIntDiffusionMultAdd2D<16,16>},
-      {0x21111,&kIntDiffusionMultAdd2D<17,17>},
+      {0x21111,&kIntDiffusionMultAdd2D<17,17>},*/
 
-      {0x30203,&kIntDiffusionMultAdd3D<2,3>},/*
-      {0x30304,&kIntDiffusionMultAdd3D<3,4>},
-      {0x30405,&kIntDiffusionMultAdd3D<4,5>},
-      {0x30506,&kIntDiffusionMultAdd3D<5,6>},
-      {0x30607,&kIntDiffusionMultAdd3D<6,7>},
-      {0x30708,&kIntDiffusionMultAdd3D<7,8>},
-      {0x30809,&kIntDiffusionMultAdd3D<8,9>},
-      {0x3090A,&kIntDiffusionMultAdd3D<9,10>},
-      {0x30A0B,&kIntDiffusionMultAdd3D<10,11>},
-      {0x30B0C,&kIntDiffusionMultAdd3D<11,12>},
-      {0x30C0D,&kIntDiffusionMultAdd3D<12,13>},
-      {0x30D0E,&kIntDiffusionMultAdd3D<13,14>},
-      {0x30E0F,&kIntDiffusionMultAdd3D<14,15>},
-      {0x30F10,&kIntDiffusionMultAdd3D<15,16>},*/
+      {0x30101,&kIntDiffusionMultAdd3D<1,1>},/*
+      {0x30201,&kIntDiffusionMultAdd3D<2,1>},
+      {0x30202,&kIntDiffusionMultAdd3D<2,2>},
+      {0x30303,&kIntDiffusionMultAdd3D<3,3>},
+      {0x30404,&kIntDiffusionMultAdd3D<4,4>},
+      {0x30505,&kIntDiffusionMultAdd3D<5,5>},
+      {0x30606,&kIntDiffusionMultAdd3D<6,6>},
+      {0x30707,&kIntDiffusionMultAdd3D<7,7>},
+      {0x30808,&kIntDiffusionMultAdd3D<8,8>},
+      {0x30909,&kIntDiffusionMultAdd3D<9,9>},
+      {0x30A0A,&kIntDiffusionMultAdd3D<10,10>},
+      {0x30B0B,&kIntDiffusionMultAdd3D<11,11>},
+      {0x30C0C,&kIntDiffusionMultAdd3D<12,12>},
+      {0x30D0D,&kIntDiffusionMultAdd3D<13,13>},
+      {0x30E0E,&kIntDiffusionMultAdd3D<14,14>},
+      {0x30F0F,&kIntDiffusionMultAdd3D<15,15>},
+      {0x31010,&kIntDiffusionMultAdd3D<16,16>},*/
    };
    if (!call[id])
    {
