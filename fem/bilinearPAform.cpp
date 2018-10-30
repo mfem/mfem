@@ -19,8 +19,8 @@
 
 #include <cmath>
 
-// *****************************************************************************
-MFEM_NAMESPACE
+namespace mfem
+{
 
 // ***************************************************************************
 // * PABilinearForm
@@ -44,8 +44,7 @@ void PABilinearForm::EnableStaticCondensation() { assert(false);}
 // Adds new Domain Integrator.
 void PABilinearForm::AddDomainIntegrator(AbstractBilinearFormIntegrator *i)
 {
-
-   dbg("\033[7mAddDomainIntegrator");
+   // dbg("\033[7mAddDomainIntegrator");
    integrators.Append(static_cast<BilinearPAFormIntegrator*>(i));
 }
 
@@ -98,11 +97,11 @@ static const IntegrationRule &DiffusionGetRule(const FiniteElement &trial_fe,
 // ***************************************************************************
 void PABilinearForm::Assemble(int skip_zeros)
 {
-   const int nbi = integrators.Size();
+   // const int nbi = integrators.Size();
    assert(integrators.Size()==1);
    const FiniteElement &fe = *fes->GetFE(0);
    const IntegrationRule *ir = &DiffusionGetRule(fe,fe);
-   const int order = ir->GetOrder();
+   // const int order = ir->GetOrder();
    assert(ir);
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
@@ -182,7 +181,7 @@ void PABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    assert(cA);
    if (cA)
    {
-      dbg("ConstrainedOperator");
+      // dbg("ConstrainedOperator");
       cA->EliminateRHS(X, B);
    }
    else
@@ -237,5 +236,4 @@ void PABilinearForm::RecoverFEMSolution(const Vector &X,
    x = X;
 }
 
-// *****************************************************************************
-MFEM_NAMESPACE_END
+}

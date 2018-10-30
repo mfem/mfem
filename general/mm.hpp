@@ -9,13 +9,13 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_MEMMNG_HPP
-#define MFEM_MEMMNG_HPP
+#ifndef MFEM_MM_HPP
+#define MFEM_MM_HPP
 
 #include <unordered_map>
 
-// *****************************************************************************
-MFEM_NAMESPACE
+namespace mfem
+{
 
 // *****************************************************************************
 typedef struct mm2dev
@@ -110,7 +110,6 @@ private:
    static void iniHandler();
 };
 
-// *****************************************************************************
-MFEM_NAMESPACE_END
+}
 
-#endif // MFEM_MEMMNG_HPP
+#endif // MFEM_MM_HPP

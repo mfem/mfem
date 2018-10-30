@@ -16,6 +16,9 @@
 
 #include "../../general/okina.hpp"
 
+namespace mfem
+{
+
 // *****************************************************************************
 #define QUAD_2D_ID(X, Y) (X + ((Y) * NUM_QUAD_1D))
 
@@ -152,9 +155,9 @@ void kIntDiffusionMultAdd(const int DIM,
                           double* __restrict y)
 {
    const unsigned int id = (DIM<<16)|((NUM_DOFS_1D-1)<<8)|(NUM_QUAD_1D>>1);
-   dbg("NUM_DOFS_1D=%d",NUM_DOFS_1D);
-   dbg("NUM_QUAD_1D=%d",NUM_QUAD_1D);
-   dbg("id=0x%x",id);
+   // dbg("NUM_DOFS_1D=%d",NUM_DOFS_1D);
+   // dbg("NUM_QUAD_1D=%d",NUM_QUAD_1D);
+   // dbg("id=0x%x",id);
    static std::unordered_map<unsigned int, fDiffusionMultAdd> call =
    {
       {0x20001,&kIntDiffusionMultAdd2D<1,2>},
@@ -188,4 +191,6 @@ void kIntDiffusionMultAdd(const int DIM,
 
    call[id](numElements, d_dofToQuad, d_dofToQuadD, d_quadToDof, d_quadToDofD,
             d_op, d_x, d_y);
+}
+
 }

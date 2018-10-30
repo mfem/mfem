@@ -21,8 +21,9 @@ NOTMAC := $(subst Darwin,,$(shell uname -s))
 CXX = g++
 MPICXX = mpicxx
 
-OPTIM_FLAGS = -O3 -std=c++11
-DEBUG_FLAGS = -g -Wall
+BASE_FLAGS  = -std=c++11
+OPTIM_FLAGS = -O3 $(BASE_FLAGS)
+DEBUG_FLAGS = -g -Wall $(BASE_FLAGS)
 
 # Destination location of make install
 # PREFIX = $(HOME)/mfem

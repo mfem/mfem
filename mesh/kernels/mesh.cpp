@@ -12,8 +12,8 @@
 #include "../../general/okina.hpp"
 using namespace std;
 
-// *****************************************************************************
-MFEM_NAMESPACE
+namespace mfem
+{
 
 // *****************************************************************************
 __device__ __constant__ double d_quad_children_init[2*4*4] =
@@ -48,5 +48,4 @@ void kQuadChildren(double *data)
    });
 }
 
-// *****************************************************************************
-MFEM_NAMESPACE_END
+}

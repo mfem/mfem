@@ -33,15 +33,7 @@
 #include <setjmp.h>
 
 // *****************************************************************************
-//#include "/home/camier1/home/stk/stk.hpp"
-
-// *****************************************************************************
-#define MFEM_NAMESPACE namespace mfem {
-#define MFEM_NAMESPACE_END }
-
-// *****************************************************************************
-#include "dbg.hpp"
-#include "memmng.hpp"
+#include "mm.hpp"
 #include "config.hpp"
 #include "kernels.hpp"
 

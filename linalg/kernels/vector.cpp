@@ -18,7 +18,7 @@ void kdot(const size_t N, const double *d_x, const double *d_y, double *d_dot)
    forall(k, 1,
    {
       double l_dot = 0.0;
-      for (int i=0; i<N; i+=1)
+      for (size_t i=0; i<N; i+=1)
       {
          l_dot += d_x[i] * d_y[i];
       }
@@ -26,8 +26,8 @@ void kdot(const size_t N, const double *d_x, const double *d_y, double *d_dot)
    });
 }
 
-// *****************************************************************************
-MFEM_NAMESPACE
+namespace mfem
+{
 
 // *****************************************************************************
 double kVectorDot(const size_t N, const double *x, const double *y)
@@ -35,9 +35,10 @@ double kVectorDot(const size_t N, const double *x, const double *y)
    GET_CUDA;
    GET_CONST_ADRS(x);
    GET_CONST_ADRS(y);
-#ifdef __NVCC__
+
    if (cuda)
    {
+#ifdef __NVCC__
       static double *h_dot = NULL;
       if (!h_dot)
       {
@@ -48,14 +49,15 @@ double kVectorDot(const size_t N, const double *x, const double *y)
       static double *d_dot = NULL;
       if (!d_dot)
       {
-         dbg("!d_dot");
+         // dbg("!d_dot");
          cuMemAlloc((CUdeviceptr*)&d_dot, sizeof(double));
       }
       kdot(N,d_x,d_y,d_dot);
       mfem::mm::D2H(h_dot,d_dot,sizeof(double));
       return *h_dot;
-   }
 #endif // __NVCC__
+   }
+
    double dot = 0.0;
    for (size_t i=0; i<N; i+=1)
    {
@@ -170,7 +172,7 @@ void kVectorAlphaAdd(double *vp, const double* v1p,
 void kVectorPrint(const size_t N, const double *data)
 {
    GET_CONST_ADRS(data); // Sequential printf
-   forall(k,1,for (int i=0; i<N; i+=1)printf("\n\t%f",d_data[i]););
+   forall(k,1,for (size_t i=0; i<N; i+=1)printf("\n\t%f",d_data[i]););
 }
 
 // *****************************************************************************
@@ -241,7 +243,7 @@ void kAddElementVector(const size_t n, const int *dofs,
    GET_ADRS(data);
    forall(k,1,
    {
-      for (int i = 0; i < n; i++)
+      for (size_t i = 0; i < n; i++)
       {
          const int j = d_dofs[i];
          if (j >= 0)
@@ -256,5 +258,4 @@ void kAddElementVector(const size_t n, const int *dofs,
    });
 }
 
-// *****************************************************************************
-MFEM_NAMESPACE_END
+}
