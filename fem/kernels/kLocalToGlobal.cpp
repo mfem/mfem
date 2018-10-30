@@ -16,6 +16,9 @@
 
 #include "../../general/okina.hpp"
 
+namespace mfem
+{
+
 // *****************************************************************************
 void kLocalToGlobal(const int NUM_VDIM,
                     const bool VDIM_ORDERING,
@@ -48,5 +51,7 @@ void kLocalToGlobal(const int NUM_VDIM,
          d_globalX[g_offset] = dofValue;
       }
    });
+
+}
 
 }

@@ -12,7 +12,8 @@
 #ifndef MFEM_SPARSEMAT_KERNELS
 #define MFEM_SPARSEMAT_KERNELS
 
-MFEM_NAMESPACE
+namespace mfem
+{
 
 // *****************************************************************************
 void kSparseMatrix(const int nrows, RowNode** Rows);
@@ -39,7 +40,6 @@ void kGauss_Seidel_back(const size_t s,
                         const double *xp,
                         double *yp);
 
-
-MFEM_NAMESPACE_END
+}
 
 #endif // MFEM_SPARSEMAT_KERNELS
