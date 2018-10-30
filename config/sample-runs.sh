@@ -30,7 +30,7 @@ groups_serial=(
 '"examples"
    "Examples:"
    "examples"
-   "ex{,1}[0-9].cpp"'
+   "ex{,1,2}[0-9].cpp"'
 #   "ex1.cpp"'
 '"sundials"
    "SUNDIALS examples:"
@@ -51,7 +51,7 @@ groups_parallel=(
 '"examples"
    "Examples:"
    "examples"
-   "ex{,1}[0-9]p.cpp"'
+   "ex{,1,2}[0-9]p.cpp"'
 #   "ex1p.cpp"'
 '"sundials"
    "SUNDIALS examples:"
@@ -81,7 +81,7 @@ groups_all=(
 '"examples"
    "Examples:"
    "examples"
-   "ex\"{,1}[0-9]\"{,p}.cpp"'
+   "ex\"{,1,2}[0-9]\"{,p}.cpp"'
 '"sundials"
    "SUNDIALS examples:"
    "examples/sundials"
