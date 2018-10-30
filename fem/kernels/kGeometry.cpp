@@ -48,11 +48,7 @@ void kGeom(const int DIM,
 {
    const unsigned int dofs1D = IROOT(DIM,NUM_DOFS);
    const unsigned int quad1D = IROOT(DIM,NUM_QUAD);
-   const unsigned int id = (DIM<<4)|(dofs1D-2);
-   // dbg("DIM=%d",DIM);
-   // dbg("quad1D=%d",quad1D);
-   // dbg("dofs1D=%d",dofs1D);
-   // dbg("id=%d",id);
+   const unsigned int id = (DIM<<8)|(dofs1D-2)<<4|(quad1D-2);
    assert(LOG2(DIM)<=4);
    assert(LOG2(dofs1D-2)<=4);
    assert(LOG2(quad1D-2)<=4);
@@ -66,7 +62,7 @@ void kGeom(const int DIM,
       {0x204,&kGeom2D<2,6>},
       {0x205,&kGeom2D<2,7>},
       {0x206,&kGeom2D<2,8>},
-      {0x207,&kGeom2D<2,9>},
+      {0x207,&kGeom2D<2,9>},/*
       {0x208,&kGeom2D<2,10>},
       {0x209,&kGeom2D<2,11>},
       {0x20A,&kGeom2D<2,12>},
@@ -74,8 +70,7 @@ void kGeom(const int DIM,
       {0x20C,&kGeom2D<2,14>},
       {0x20D,&kGeom2D<2,15>},
       {0x20E,&kGeom2D<2,16>},
-      {0x20F,&kGeom2D<2,17>},
-
+      {0x20F,&kGeom2D<2,17>},*/
       // 3D
       {0x300,&kGeom3D<2,2>},
       {0x301,&kGeom3D<2,3>},
@@ -84,7 +79,7 @@ void kGeom(const int DIM,
       {0x304,&kGeom3D<2,6>},
       {0x305,&kGeom3D<2,7>},
       {0x306,&kGeom3D<2,8>},
-      {0x307,&kGeom3D<2,9>},
+      {0x307,&kGeom3D<2,9>},/*
       {0x308,&kGeom3D<2,10>},
       {0x309,&kGeom3D<2,11>},
       {0x30A,&kGeom3D<2,12>},
@@ -92,7 +87,7 @@ void kGeom(const int DIM,
       {0x30C,&kGeom3D<2,14>},
       {0x30D,&kGeom3D<2,15>},
       {0x30E,&kGeom3D<2,16>},
-      {0x30F,&kGeom3D<2,17>},
+      {0x30F,&kGeom3D<2,17>},*/
    };
    if (!call[id])
    {

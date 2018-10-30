@@ -194,6 +194,8 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
 
    push(Assemble,Fuchsia);
+   tic_toc.Clear();
+   tic_toc.Start();
    a->Assemble(); // On piece here
    pop();
 
@@ -206,6 +208,12 @@ int main(int argc, char *argv[])
    push(FormLinearSystem,Fuchsia);
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
    pop();
+   
+   double my_rt = tic_toc.RealTime();
+   cout << "\nTotal BilinearForm time:    " << my_rt << " sec.";
+   cout << "\n\"DOFs/sec\" in assembly: "
+        << 1e-6*A->Height()/my_rt << " million.\n"
+        << endl;
 
    cout << "Size of linear system: " << A->Height() << endl;
 
@@ -230,7 +238,7 @@ int main(int argc, char *argv[])
    umf_solver.Mult(B, X);
 #endif
 
-   double my_rt = tic_toc.RealTime();
+   my_rt = tic_toc.RealTime();
    cout << "\nTotal CG time:    " << my_rt << " sec." << endl;
    cout << "Time per CG step: "
         << my_rt / cg->GetNumIterations() << " sec." << endl;
