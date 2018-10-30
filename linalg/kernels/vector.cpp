@@ -67,6 +67,7 @@ double cuVectorDot(const size_t N, const double *x, const double *y)
    for (size_t i=0; i<dot_sz; i+=1) { dot += h_dot[i]; }
    return dot;
 }
+#endif // __NVCC__
 
 // *****************************************************************************
 double kVectorDot(const size_t N, const double *x, const double *y)
@@ -78,22 +79,7 @@ double kVectorDot(const size_t N, const double *x, const double *y)
    if (cuda)
    {
 #ifdef __NVCC__
-      static double *h_dot = NULL;
-      if (!h_dot)
-      {
-         void *ptr;
-         cuMemHostAlloc(&ptr, sizeof(double), CU_MEMHOSTALLOC_PORTABLE);
-         h_dot=(double*)ptr;
-      }
-      static double *d_dot = NULL;
-      if (!d_dot)
-      {
-         // dbg("!d_dot");
-         cuMemAlloc((CUdeviceptr*)&d_dot, sizeof(double));
-      }
-      kdot(N,d_x,d_y,d_dot);
-      mfem::mm::D2H(h_dot,d_dot,sizeof(double));
-      return *h_dot;
+      return cuVectorDot(N, x, y);
 #endif // __NVCC__
    }
 

@@ -47,7 +47,7 @@ void kGeom(const int DIM,
            double* detJ)
 {
    const unsigned int dofs1D = IROOT(DIM,NUM_DOFS);
-   // const unsigned int quad1D = IROOT(DIM,NUM_QUAD);
+   const unsigned int quad1D = IROOT(DIM,NUM_QUAD);
    const unsigned int id = (DIM<<4)|(dofs1D-2);
    // dbg("DIM=%d",DIM);
    // dbg("quad1D=%d",quad1D);
@@ -234,7 +234,7 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
    if (!mesh->GetNodes())
    {
       // dbg("\033[7mGetNodes, SetCurvature");
-      mesh.SetCurvature(1, false, -1, Ordering::byVDIM);
+      // mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
    }
    const GridFunction *nodes = mesh->GetNodes();
 
@@ -244,7 +244,7 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
    const int elements = fespace->GetNE();
    const int numDofs  = fe->GetDof();
    const int numQuad  = ir.GetNPoints();
-   const bool orderedByNODES = (fespace.GetOrdering() == Ordering::byNODES);
+   const bool orderedByNODES = (fespace->GetOrdering() == Ordering::byNODES);
    // dbg("orderedByNODES: %s", orderedByNODES?"true":"false");
 
    if (orderedByNODES)

@@ -14,7 +14,8 @@
 #include "fe.hpp"
 
 // *****************************************************************************
-MFEM_NAMESPACE
+namespace mfem
+{
 
 // *****************************************************************************
 void kH1_TriangleElement(const size_t p,
@@ -143,4 +144,4 @@ void kLinear3DFiniteElementHeightEq4(double *A)
 }
 
 // *****************************************************************************
-MFEM_NAMESPACE_END
+} // mfem

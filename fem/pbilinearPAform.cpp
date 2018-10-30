@@ -23,7 +23,8 @@
 #include <cmath>
 
 // *****************************************************************************
-MFEM_NAMESPACE
+namespace mfem
+{
 
 // ***************************************************************************
 // * ParPABilinearForm
@@ -251,6 +252,6 @@ void ParPABilinearForm::RecoverFEMSolution(const Vector &X,
 }
 
 // *****************************************************************************
-MFEM_NAMESPACE_END
+} // mfem
 
 #endif // MFEM_USE_MPI

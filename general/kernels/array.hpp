@@ -16,8 +16,9 @@
 #ifndef MFEM_GENERAL_KERNELS_ARRAY
 #define MFEM_GENERAL_KERNELS_ARRAY
 
-MFEM_NAMESPACE
-
+// *****************************************************************************
+namespace mfem
+{
 
 // *****************************************************************************
 void kArrayInitVal(const size_t, const size_t, void*, size_t, void*);
@@ -44,10 +45,13 @@ T kArrayGetK(const T *data, const size_t k)
 
 // *****************************************************************************
 double* kArrayInitGet(const int, double**);
+
+// *****************************************************************************
 void* kArrayVoidGet(const int, void**);
 
+// *****************************************************************************
 void kArrayInitSet(double**, double*);
 
-MFEM_NAMESPACE_END
+} // mfem
 
 #endif // MFEM_GENERAL_KERNELS_ARRAY

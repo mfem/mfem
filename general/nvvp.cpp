@@ -12,7 +12,21 @@
 #include "../config/config.hpp"
 #include "okina.hpp"
 
+//*****************************************************************************
+__attribute__((unused))
+static uint8_t chk8(const char *bfr)
+{
+   unsigned int chk = 0;
+   size_t len = strlen(bfr);
+   for (; len; len--,bfr++)
+   {
+      chk += *bfr;
+   }
+   return (uint8_t) chk;
+}
+
 // *****************************************************************************
+__attribute__((unused))
 void push_flf(const char *file, const int line, const char *func)
 {
    static bool env_ini = false;

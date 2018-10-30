@@ -16,7 +16,9 @@
 #ifndef MFEM_FEM_KERNELS_FE
 #define MFEM_FEM_KERNELS_FE
 
-MFEM_NAMESPACE
+// *****************************************************************************
+namespace mfem
+{
 
 // *****************************************************************************
 void kH1_TriangleElement(const size_t p,
@@ -54,6 +56,7 @@ void kBasis(const size_t p, const double *x, double *w);
 // *****************************************************************************
 void kNodesAreIncreasing(const size_t p, const double *x);
 
-MFEM_NAMESPACE_END
+// *****************************************************************************
+} // mfem
 
 #endif // MFEM_FEM_KERNELS_FE

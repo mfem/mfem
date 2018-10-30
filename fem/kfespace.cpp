@@ -16,6 +16,7 @@
 #include "kernels/kGlobalToLocal.hpp"
 #include "kernels/kLocalToGlobal.hpp"
 
+// *****************************************************************************
 namespace mfem
 {
 
@@ -155,4 +156,4 @@ void kFiniteElementSpace::LocalToGlobal(const Vector& localVec,
    pop();
 }
 
-} // namespace mfem
+} // mfem
