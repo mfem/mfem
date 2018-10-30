@@ -46,12 +46,9 @@
 
 using namespace std;
 using namespace mfem;
-//#include "/home/camier1/home/stk/stk.hpp"
 
 int main(int argc, char *argv[])
 {
-   dbg("main\n");
-   //stkIni(argv[0]);
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
@@ -170,7 +167,7 @@ int main(int argc, char *argv[])
    if (gpu) { config::Get().Cuda(true); }
    if (pa)  { config::Get().PA(true);   }
 
-   dbg(" 7. Define the solution vector x");// as a finite element grid function
+   // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
    push(GridFunction,Fuchsia);
@@ -178,7 +175,7 @@ int main(int argc, char *argv[])
    x = 0.0;
    pop();
 
-   dbg(" 8. Set up the bilinear form a(.,.)");// on the finite element space
+   // 8. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
    push(BilinearForm,Fuchsia);
@@ -190,7 +187,7 @@ int main(int argc, char *argv[])
    else    { a->AddDomainIntegrator(new DiffusionIntegrator(one)); }
    pop();
 
-   dbg(" 9. Assemble the bilinear form");// and the corresponding linear system,
+   // 9. Assemble the bilinear form and the corresponding linear system,
    //    applying any necessary transformations such as: eliminating boundary
    //    conditions, applying conforming constraints for non-conforming AMR,
    //    static condensation, etc.

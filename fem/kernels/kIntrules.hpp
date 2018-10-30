@@ -16,7 +16,9 @@
 #ifndef MFEM_FEM_KERNELS_INTRULES
 #define MFEM_FEM_KERNELS_INTRULES
 
-MFEM_NAMESPACE
+// *****************************************************************************
+namespace mfem
+{
 
 // *****************************************************************************
 class IntegrationPoint;
@@ -54,6 +56,7 @@ void kIPPts(const IntegrationPoint*,const size_t, double*);
 void kCalcChebyshev(const int, const double, double*);
 void kCalcChebyshev(const int, const double, double*, double*);
 
-MFEM_NAMESPACE_END
+// *****************************************************************************
+} // mfem
 
 #endif // MFEM_FEM_KERNELS_INTRULES

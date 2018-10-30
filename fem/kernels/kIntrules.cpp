@@ -14,7 +14,8 @@
 #include "kIntrules.hpp"
 
 // *****************************************************************************
-MFEM_NAMESPACE
+namespace mfem
+{
 
 // *****************************************************************************
 void kIPPts(const IntegrationPoint *ip, const size_t N, double *pts)
@@ -294,6 +295,5 @@ void kCalcChebyshev(const int p, const double x, double *u, double *d)
    }
 }
 
-
 // *****************************************************************************
-MFEM_NAMESPACE_END
+} // mfem

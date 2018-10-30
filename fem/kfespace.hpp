@@ -33,12 +33,10 @@ private:
 public:
    kFiniteElementSpace(FiniteElementSpace*);
    ~kFiniteElementSpace();
-   // *************************************************************************
    void GlobalToLocal(const Vector&, Vector&) const;
    void LocalToGlobal(const Vector&, Vector&) const;
 };
 
-// *****************************************************************************
-MFEM_NAMESPACE_END
+} // mfem
 
 #endif // MFEM_KFESPACE_HPP

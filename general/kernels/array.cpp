@@ -13,12 +13,9 @@
 #include "array.hpp"
 
 // *****************************************************************************
-MFEM_NAMESPACE
+namespace mfem
+{
 
-// *****************************************************************************
-// for (int i = size; i < nsize; i++){
-//    ((T*)data)[i] = initval;
-// }
 // *****************************************************************************
 void kArrayInitVal(const size_t size, const size_t nsize,
                    void *data, size_t Tsizeof, void *initval)
@@ -60,4 +57,4 @@ void kArrayInitSet(double **d_pts, double *adrs)
 }
 
 // *****************************************************************************
-MFEM_NAMESPACE_END
+} // mfem
