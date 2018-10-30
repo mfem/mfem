@@ -16,6 +16,9 @@
 #ifndef MFEM_KERNELS_DIFFUSION
 #define MFEM_KERNELS_DIFFUSION
 
+namespace mfem
+{
+
 // *****************************************************************************
 void kIntDiffusionAssemble(const int dim,
                            const int NUM_QUAD_1D,
@@ -37,5 +40,7 @@ void kIntDiffusionMultAdd(const int dim,
                           const double* __restrict op,
                           const double* __restrict x,
                           double* __restrict y);
+
+}
 
 #endif // MFEM_KERNELS_DIFFUSION

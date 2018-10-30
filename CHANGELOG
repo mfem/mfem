@@ -11,6 +11,15 @@
 Version 3.4.1 (development)
 ===========================
 
+GPU support
+-----------
+- Several MFEM examples can now take advantage of GPU acceleration...
+
+- The GPU support is based on simple memory manager and (CUDA) kernel definition
+  + execution policy, see memmng.?pp and kernels.hpp in the general/ directory.
+
+- ...
+
 Support for wedge elements and meshes with mixed element types
 --------------------------------------------------------------
 - Added support for wedge shaped mesh elements of arbitrary order (with Geometry

@@ -11,8 +11,8 @@
 
 #include "../../general/okina.hpp"
 
-// *****************************************************************************
-MFEM_NAMESPACE
+namespace mfem
+{
 
 // *****************************************************************************
 class RowNode
@@ -48,7 +48,7 @@ void kGauss_Seidel_forw_A_NULL(const size_t s,
       RowNode *n_p;
       for (n_p = d_R[i]; n_p != NULL; n_p = n_p->Prev)
       {
-         if ((c = n_p->Column) == i)
+         if ((c = n_p->Column) == (int)i)
          {
             diag_p = n_p;
          }
@@ -169,5 +169,4 @@ void kAddMult(const size_t height,
    });
 }
 
-// *****************************************************************************
-MFEM_NAMESPACE_END
+}
