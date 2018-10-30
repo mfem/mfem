@@ -10496,6 +10496,166 @@ void RT_TetrahedronElement::CalcDivShape(const IntegrationPoint &ip,
    Ti.Mult(divu, divshape);
 }
 
+const double RT_WedgeElement::nk[15] =
+{ 0,0,-1, 0,0,1, 0,-1,0, 1,1,0, -1,0,0};
+
+RT_WedgeElement::RT_WedgeElement(const int p)
+   : VectorFiniteElement(3, Geometry::PRISM,
+                         (p + 2) * ((p + 1) * (p + 2)) / 2 +
+			 (p + 1) * (p + 1) * (p + 3), p + 1,
+                         H_DIV, FunctionSpace::Pk),
+     dof2nk(Dof),
+     t_dof(Dof),
+     s_dof(Dof),
+     L2TriangleFE(p),
+     RTTriangleFE(p),
+     H1SegmentFE(p + 1),
+     L2SegmentFE(p)
+{
+   MFEM_ASSERT(L2TriangleFE.GetDof() * H1SegmentFE.GetDof() +
+               RTTriangleFE.GetDof() * L2SegmentFE.GetDof() == Dof,
+               "Mismatch in number of degrees of freedom "
+               "when building RT_WedgeElement!");
+
+   const int pm1 = p - 1;
+   
+#ifndef MFEM_THREAD_SAFE
+   tl2_shape.SetSize(L2TriangleFE.GetDof());
+   sh1_shape.SetSize(H1SegmentFE.GetDof());
+   trt_shape.SetSize(RTTriangleFE.GetDof(), 2);
+   sl2_shape.SetSize(L2SegmentFE.GetDof());
+   sh1_dshape.SetSize(H1SegmentFE.GetDof(), 1);
+   trt_dshape.SetSize(RTTriangleFE.GetDof());
+#endif
+
+   // faces
+   int o = 0;
+   int l = 0;
+   // (0,2,1) -- bottom
+   for (int j = 0; j <= p; j++)
+      for (int i = 0; i + j <= p; i++)
+      {
+	 l = j + i * (2 * p + 3 - i) / 2;
+         t_dof[o] = l; s_dof[o] = 0; dof2nk[o] = 0; o++;
+      }
+   // (3,4,5) -- top
+   int m = 0;
+   for (int j = 0; j <= p; j++)
+      for (int i = 0; i + j <= p; i++)
+      {
+         t_dof[o] = m; s_dof[o] = 1; dof2nk[o] = 1; m++; o++;
+      }
+   // (0, 1, 4, 3) -- xz plane
+   for (int j = 0; j <= p; j++)
+      for (int i = 0; i <= p; i++)
+      {
+         t_dof[o] = i; s_dof[o] = j; dof2nk[o] = 2; o++;
+      }
+   // (1, 2, 5, 4) -- (y-x)z plane
+   for (int j = 0; j <= p; j++)
+      for (int i = 0; i <= p; i++)
+      {
+         t_dof[o] = p + 1 + i; s_dof[o] = j; dof2nk[o] = 3; o++;
+      }
+   // (2, 0, 3, 5) -- yz plane
+   for (int j = 0; j <= p; j++)
+      for (int i = 0; i <= p; i++)
+      {
+         t_dof[o] = 2 * p + 2 + i; s_dof[o] = j; dof2nk[o] = 4; o++;
+      }
+
+   // interior
+   for (int k = 0; k < L2SegmentFE.GetDof(); k++)
+   {
+      l = 0;
+      for (int j = 0; j <= pm1; j++)
+         for (int i = 0; i + j <= pm1; i++)
+         {
+ 	    t_dof[o] = 3 * (p + 1) + 2 * l;     s_dof[o] = k;
+	    dof2nk[o] = 2; o++;
+	    t_dof[o] = 3 * (p + 1) + 2 * l + 1; s_dof[o] = k;
+	    dof2nk[o] = 4; l++; o++;
+         }
+   }
+   for (int k = 1; k < H1SegmentFE.GetDof() - 1; k++)
+   {
+      l = 0;
+      for (int j = 0; j <= p; j++)
+         for (int i = 0; i + j <= p; i++)
+         {
+            t_dof[o] = l; s_dof[o] = k; dof2nk[o] = 1; l++; o++;
+         }
+   }
+   cout << "Dof " << Dof << ", o = " << o << endl;
+   cout << "t_dof = "; t_dof.Print(cout);
+   cout << "s_dof = "; s_dof.Print(cout);
+}
+  
+void RT_WedgeElement::CalcVShape(const IntegrationPoint &ip,
+				 DenseMatrix &shape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix trt_shape(RTTriangleFE.GetDof(), 2);
+   Vector tl2_shape(L2TriangleFE.GetDof());
+   Vector sh1_shape(H1SegmentFE.GetDof());
+   Vector sl2_shape(L2SegmentFE.GetDof());
+#endif
+   cout << "shape size: " << shape.Height() << " x " << shape.Width() << endl;
+   cout << "trt_shape size: " << trt_shape.Height() << " x " << trt_shape.Width() << endl;
+   IntegrationPoint ipz; ipz.x = ip.z; ipz.y = 0.0; ipz.z = 0.0;
+
+   L2TriangleFE.CalcShape(ip, tl2_shape);
+   RTTriangleFE.CalcVShape(ip, trt_shape);
+   H1SegmentFE.CalcShape(ipz, sh1_shape);
+   L2SegmentFE.CalcShape(ipz, sl2_shape);
+
+   for (int i=0; i<Dof; i++)
+   {
+      if ( dof2nk[i] >= 2 )
+      {
+         shape(i, 0) = trt_shape(t_dof[i], 0) * sl2_shape[s_dof[i]];
+         shape(i, 1) = trt_shape(t_dof[i], 1) * sl2_shape[s_dof[i]];
+         shape(i, 2) = 0.0;
+      }
+      else
+      {
+         shape(i, 0) = 0.0;
+         shape(i, 1) = 0.0;
+         shape(i, 2) = tl2_shape[t_dof[i]] * sh1_shape(s_dof[i]);
+      }
+   }
+}
+  
+void RT_WedgeElement::CalcDivShape(const IntegrationPoint &ip,
+				   Vector &divshape) const
+{
+#ifdef MFEM_THREAD_SAFE
+   Vector      trt_dshape(RTSegmentFE.GetDof());
+   Vector      tl2_shape(L2TriangleFE.GetDof());
+   Vector      sl2_shape(L2SegmentFE.GetDof());
+   DenseMatrix sh1_dshape(H1SegmentFE.GetDof(), 1);
+#endif
+
+   IntegrationPoint ipz; ipz.x = ip.z; ipz.y = 0.0; ipz.z = 0.0;
+
+   RTTriangleFE.CalcDivShape(ip, trt_dshape);
+   L2TriangleFE.CalcShape(ip, tl2_shape);
+
+   L2SegmentFE.CalcShape(ipz, sl2_shape);
+   H1SegmentFE.CalcDShape(ipz, sh1_dshape);
+
+   for (int i=0; i<Dof; i++)
+   {
+      if ( dof2nk[i] >= 2 )
+      {
+	divshape(i) = trt_dshape(t_dof[i]) * sl2_shape(s_dof[i]);
+      }
+      else
+      {
+	divshape(i) = tl2_shape(t_dof[i]) * sh1_dshape(s_dof[i], 0);
+}
+   }
+}
 
 const double ND_HexahedronElement::tk[18] =
 { 1.,0.,0.,  0.,1.,0.,  0.,0.,1., -1.,0.,0.,  0.,-1.,0.,  0.,0.,-1. };
@@ -11681,25 +11841,17 @@ void ND_WedgeElement::CalcVShape(const IntegrationPoint &ip,
    NDTriangleFE.CalcVShape(ip, tn_shape);
    H1SegmentFE.CalcShape(ipz, s1_shape);
    NDSegmentFE.CalcVShape(ipz, sn_shape);
-   /*
-   cout << "Dimensions:" << endl;
-   cout << "  H1Tri " << H1TriangleFE.GetDof() << endl;
-   cout << "  H1Seg " << H1SegmentFE.GetDof() << endl;
-   cout << "  NDTri " << NDTriangleFE.GetDof() << endl;
-   cout << "  NDSeg " << NDSegmentFE.GetDof() << endl;
-   */
+
    for (int i=0; i<Dof; i++)
    {
       if ( dof2tk[i] != 3 )
       {
-         //cout << i << " xy dof " << t_dof[i] << " " << s_dof[i] << endl;
          shape(i, 0) = tn_shape(t_dof[i], 0) * s1_shape[s_dof[i]];
          shape(i, 1) = tn_shape(t_dof[i], 1) * s1_shape[s_dof[i]];
          shape(i, 2) = 0.0;
       }
       else
       {
-         //cout << i << " z  dof " << t_dof[i] << " " << s_dof[i] << endl;
          shape(i, 0) = 0.0;
          shape(i, 1) = 0.0;
          shape(i, 2) = t1_shape[t_dof[i]] * sn_shape(s_dof[i], 0);
@@ -11710,7 +11862,6 @@ void ND_WedgeElement::CalcVShape(const IntegrationPoint &ip,
 void ND_WedgeElement::CalcCurlShape(const IntegrationPoint &ip,
                                     DenseMatrix &curl_shape) const
 {
-   // cout << "Entering CalcCurlShape" << endl << flush;
 #ifdef MFEM_THREAD_SAFE
    Vector s1_shape(H1SegmentFE.GetDof());
    DenseMatrix t1_dshape(H1TriangleFE.GetDof(), 2);
@@ -11728,16 +11879,7 @@ void ND_WedgeElement::CalcCurlShape(const IntegrationPoint &ip,
    NDTriangleFE.CalcVShape(ip, tn_shape);
    NDTriangleFE.CalcCurlShape(ip, tn_dshape);
    NDSegmentFE.CalcVShape(ipz, sn_shape);
-   /*
-   cout << "Dimensions:" << endl << flush;
-   cout << "  H1Tri dshape " << t1_dshape.Height() << "x" << t1_dshape.Width() << endl << flush;
-   cout << "  H1Seg  shape " << s1_shape.Size() << endl << flush;
-   cout << "  H1Seg dshape " << s1_dshape.Height() << "x" << s1_dshape.Width() << endl << flush;
-   cout << "  NDTri vshape " << tn_shape.Height() << "x" << tn_shape.Width() << endl << flush;
-   cout << "  NDTri dshape " << tn_dshape.Height() << "x" << tn_dshape.Width() << endl << flush;
-   cout << "  NDSeg vshape " << sn_shape.Height() << "x" << sn_shape.Width() << endl << flush;
-   cout << flush;
-   */
+
    for (int i=0; i<Dof; i++)
    {
       if ( dof2tk[i] != 3 )
@@ -11748,14 +11890,11 @@ void ND_WedgeElement::CalcCurlShape(const IntegrationPoint &ip,
       }
       else
       {
-         // cout << i << " z  dof " << t_dof[i] << " " << s_dof[i] << endl;
          curl_shape(i, 0) =  t1_dshape(t_dof[i], 1) * sn_shape(s_dof[i], 0);
          curl_shape(i, 1) = -t1_dshape(t_dof[i], 0) * sn_shape(s_dof[i], 0);
          curl_shape(i, 2) =  0.0;
       }
    }
-
-   // cout << "Leaving CalcCurlShape" << endl << flush;
 }
 
 void NURBS1DFiniteElement::SetOrder() const

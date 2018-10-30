@@ -1972,12 +1972,19 @@ RT_FECollection::RT_FECollection(const int p, const int dim,
    }
    else if (dim == 3)
    {
+      const int pm1 = p - 1;
+      const int pp2 = p + 2;
+
       // TODO: cb_type, ob_type for tets
       RT_Elements[Geometry::TETRAHEDRON] = new RT_TetrahedronElement(p);
       RT_dof[Geometry::TETRAHEDRON] = p*pp1*(p + 2)/2;
 
       RT_Elements[Geometry::CUBE] = new RT_HexahedronElement(p, cb_type, ob_type);
       RT_dof[Geometry::CUBE] = 3*p*pp1*pp1;
+
+      // TODO: cb_type, ob_type for wedges
+      RT_Elements[Geometry::PRISM] = new RT_WedgeElement(p);
+      RT_dof[Geometry::PRISM] = p*(pp1*pp2)/2 + pm1*p*pp1;
    }
    else
    {
