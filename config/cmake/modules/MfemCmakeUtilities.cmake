@@ -729,8 +729,7 @@ function(mfem_export_mk_files)
   set(MFEM_INCFLAGS "-I\$(MFEM_INC_DIR) \$(MFEM_TPLFLAGS)")
   set(MFEM_PICFLAG "")
   if (BUILD_SHARED_LIBS)
-    # TODO: How do we get the PIC from CMake?
-    set(MFEM_PICFLAG "-fPIC")
+    set(MFEM_PICFLAG "${CMAKE_SHARED_LIBRARY_CXX_FLAGS}")
   endif()
   set(MFEM_FLAGS "\$(MFEM_CPPFLAGS) \$(MFEM_CXXFLAGS) \$(MFEM_INCFLAGS)")
   # TPL link flags: set below
