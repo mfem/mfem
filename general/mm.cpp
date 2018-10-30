@@ -151,7 +151,6 @@ void* mm::Adrs(const void *adrs)
    }
 
    mm2dev_t &mm2dev = mng->operator[](adrs);
-   // const size_t bytes = mm2dev.bytes;
    // If we are asking a known host address, just return it
    if (mm2dev.host and not cuda)
    {
@@ -164,6 +163,7 @@ void* mm::Adrs(const void *adrs)
 #ifdef __NVCC__
       // dbg("\033[32;1mPushing new address to the GPU!\033[m");
       // allocate on the device
+      const size_t bytes = mm2dev.bytes;
       CUdeviceptr ptr = (CUdeviceptr) NULL;
       if (bytes>0)
       {
@@ -186,7 +186,7 @@ void* mm::Adrs(const void *adrs)
       // dbg("return \033[31;1mGPU\033[m d_adrs %p",mm2dev.d_adrs);
 #ifdef __NVCC__
       checkCudaErrors(cuMemcpyDtoH((void*)mm2dev.h_adrs,(CUdeviceptr)mm2dev.d_adrs,
-                                   bytes));
+                                   mm2dev.bytes));
 #else
       assert(false);
 #endif // __NVCC__
