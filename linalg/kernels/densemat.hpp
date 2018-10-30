@@ -12,7 +12,8 @@
 #ifndef MFEM_DENSEMAT_KERNELS
 #define MFEM_DENSEMAT_KERNELS
 
-MFEM_NAMESPACE
+namespace mfem
+{
 
 void kLSolve(const int m, const int n, const double *data, const int *ipiv,
              double *X);
@@ -76,6 +77,7 @@ T kDMGetK(const T *data, const size_t h, const size_t i, const size_t j)
    if (cuda) { assert(false); }
    return d_data[i+h*j];
 }
-MFEM_NAMESPACE_END
+
+} // mfem
 
 #endif // MFEM_DENSEMAT_KERNELS

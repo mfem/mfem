@@ -16,6 +16,9 @@
 #ifndef MFEM_FEM_KERNELS_GLOBAL_LOCAL_HPP
 #define MFEM_FEM_KERNELS_GLOBAL_LOCAL_HPP
 
+namespace mfem
+{
+
 // *****************************************************************************
 void kGlobalToLocal(const int NUM_VDIM,
                     const bool VDIM_ORDERING,
@@ -25,5 +28,7 @@ void kGlobalToLocal(const int NUM_VDIM,
                     const int* __restrict indices,
                     const double* __restrict globalX,
                     double* __restrict localX);
+
+}
 
 #endif // MFEM_FEM_KERNELS_GLOBAL_LOCAL_HPP

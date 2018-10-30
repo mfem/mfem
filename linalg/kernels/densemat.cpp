@@ -11,8 +11,8 @@
 
 #include "../../general/okina.hpp"
 
-// *****************************************************************************
-MFEM_NAMESPACE
+namespace mfem
+{
 
 // *****************************************************************************
 #ifdef MFEM_USE_LAPACK
@@ -148,7 +148,7 @@ void kFactor(const int m, int *ipiv, double *data)
             }
          }
          d_ipiv[i] = piv;
-         if (piv != i)
+         if (piv != (int) i)
          {
             // swap rows i and piv in both L and U parts
             for (int j = 0; j < m; j++)
@@ -398,5 +398,4 @@ void kCalcInverse3D(const double t, const double *a, double *inva)
    d_inva[2+3*2] = (d_a[0+3*0]*d_a[1+3*1]-d_a[0+3*1]*d_a[1+3*0])*t;
 }
 
-// *****************************************************************************
-MFEM_NAMESPACE_END
+}

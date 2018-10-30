@@ -16,8 +16,8 @@
 #include "kernels/kGlobalToLocal.hpp"
 #include "kernels/kLocalToGlobal.hpp"
 
-// *****************************************************************************
-MFEM_NAMESPACE
+namespace mfem
+{
 
 // **************************************************************************
 static void kArrayAssign(const int n, const int *src, int *dest)

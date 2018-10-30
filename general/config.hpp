@@ -12,8 +12,8 @@
 #ifndef MFEM_CONFIG_HPP
 #define MFEM_CONFIG_HPP
 
-// *****************************************************************************
-MFEM_NAMESPACE
+namespace mfem
+{
 
 #ifndef __NVCC__
 typedef int CUdevice;
@@ -78,7 +78,6 @@ public:
    inline CUstream *Stream() { return hStream; }
 };
 
-// *****************************************************************************
-MFEM_NAMESPACE_END
+}
 
 #endif // MFEM_CONFIG_HPP

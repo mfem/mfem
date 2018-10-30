@@ -15,8 +15,8 @@
 #include "../config/config.hpp"
 #include "doftoquad.hpp"
 
-// *****************************************************************************
-MFEM_NAMESPACE
+namespace mfem
+{
 
 // *****************************************************************************
 class KDiffusionIntegrator
@@ -32,7 +32,6 @@ public:
    void MultAdd(Vector &x, Vector &y);
 };
 
-// *****************************************************************************
-MFEM_NAMESPACE_END
+}
 
 #endif // MFEM_BILIN_INTEG_DIFFUSION_HPP

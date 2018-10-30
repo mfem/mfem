@@ -16,6 +16,10 @@
 
 #include "../../general/okina.hpp"
 
+// *****************************************************************************
+namespace mfem
+{
+
 // **************************************************************************
 static void kAssemble2D(const int NUM_QUAD_1D,
                         const int numElements,
@@ -78,20 +82,20 @@ static void kAssemble3D(const int NUM_QUAD_1D,
          const double A32 = (J13 * J21) - (J11 * J23);
          const double A33 = (J11 * J22) - (J12 * J21);
          // adj(J)^Tadj(J)
-         oper[ijkNM(0,q,e,6,NUM_QUAD)] = c_detJ * (A11*A11 + A21*A21 + A31*A31); // (1,1)
-         oper[ijkNM(1,q,e,6,NUM_QUAD)] = c_detJ * (A11*A12 + A21*A22 +
-                                                   A31*A32); // (1,2), (2,1)
-         oper[ijkNM(2,q,e,6,NUM_QUAD)] = c_detJ * (A11*A13 + A21*A23 +
-                                                   A31*A33); // (1,3), (3,1)
-         oper[ijkNM(3,q,e,6,NUM_QUAD)] = c_detJ * (A12*A12 + A22*A22 + A32*A32); // (2,2)
-         oper[ijkNM(4,q,e,6,NUM_QUAD)] = c_detJ * (A12*A13 + A22*A23 +
-                                                   A32*A33); // (2,3), (3,2)
-         oper[ijkNM(5,q,e,6,NUM_QUAD)] = c_detJ * (A13*A13 + A23*A23 + A33*A33); // (3,3)
-         //printf(" %e",oper[ijkNM(5,q,e,6,NUM_QUAD)]);
+         oper[ijkNM(0,q,e,6,NUM_QUAD)] = c_detJ *
+            (A11*A11 + A21*A21 + A31*A31); // (1,1)
+         oper[ijkNM(1,q,e,6,NUM_QUAD)] = c_detJ *
+            (A11*A12 + A21*A22 + A31*A32); // (1,2), (2,1)
+         oper[ijkNM(2,q,e,6,NUM_QUAD)] = c_detJ *
+            (A11*A13 + A21*A23 + A31*A33); // (1,3), (3,1)
+         oper[ijkNM(3,q,e,6,NUM_QUAD)] = c_detJ *
+            (A12*A12 + A22*A22 + A32*A32); // (2,2)
+         oper[ijkNM(4,q,e,6,NUM_QUAD)] = c_detJ *
+            (A12*A13 + A22*A23 + A32*A33); // (2,3), (3,2)
+         oper[ijkNM(5,q,e,6,NUM_QUAD)] = c_detJ *
+            (A13*A13 + A23*A23 + A33*A33); // (3,3)
       }
-   });/*
-   fflush(0);
-   assert(false);*/
+   });
 }
 
 // *****************************************************************************
@@ -109,4 +113,6 @@ void kIntDiffusionAssemble(const int dim,
    if (dim==1) { assert(false); }
    if (dim==2) { kAssemble2D(NUM_QUAD_1D, numElements, d_quadWeights, d_J, COEFF, d_oper); }
    if (dim==3) { kAssemble3D(NUM_QUAD_1D, numElements, d_quadWeights, d_J, COEFF, d_oper); }
+}
+
 }

@@ -13,7 +13,8 @@
 #include "vector.hpp"
 
 // *****************************************************************************
-MFEM_NAMESPACE
+namespace mfem
+{
 
 // *****************************************************************************
 #ifdef __NVCC__
@@ -66,7 +67,6 @@ double cuVectorDot(const size_t N, const double *x, const double *y)
    for (size_t i=0; i<dot_sz; i+=1) { dot += h_dot[i]; }
    return dot;
 }
-#endif // __NVCC__
 
 // *****************************************************************************
 double kVectorDot(const size_t N, const double *x, const double *y)
@@ -74,9 +74,29 @@ double kVectorDot(const size_t N, const double *x, const double *y)
    GET_CUDA;
    GET_CONST_ADRS(x);
    GET_CONST_ADRS(y);
+
+   if (cuda)
+   {
 #ifdef __NVCC__
-   if (cuda) { return cuVectorDot(N, d_x, d_y); }
+      static double *h_dot = NULL;
+      if (!h_dot)
+      {
+         void *ptr;
+         cuMemHostAlloc(&ptr, sizeof(double), CU_MEMHOSTALLOC_PORTABLE);
+         h_dot=(double*)ptr;
+      }
+      static double *d_dot = NULL;
+      if (!d_dot)
+      {
+         // dbg("!d_dot");
+         cuMemAlloc((CUdeviceptr*)&d_dot, sizeof(double));
+      }
+      kdot(N,d_x,d_y,d_dot);
+      mfem::mm::D2H(h_dot,d_dot,sizeof(double));
+      return *h_dot;
 #endif // __NVCC__
+   }
+
    double dot = 0.0;
    for (size_t i=0; i<N; i+=1) { dot += d_x[i] * d_y[i]; }
    return dot;
@@ -252,4 +272,4 @@ void kAddElementVector(const size_t n, const int *dofs,
 }
 
 // *****************************************************************************
-MFEM_NAMESPACE_END
+} // mfem

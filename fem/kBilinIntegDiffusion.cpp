@@ -14,8 +14,8 @@
 #include "kernels/kGeometry.hpp"
 #include "kernels/kIntDiffusion.hpp"
 
-// *****************************************************************************
-MFEM_NAMESPACE
+namespace mfem
+{
 
 // *****************************************************************************
 KDiffusionIntegrator::KDiffusionIntegrator(const FiniteElementSpace *f,
@@ -52,8 +52,6 @@ void KDiffusionIntegrator::Assemble()
                          geo->J,
                          1.0,//COEFF
                          vec);
-   //dbg("vec=");vec.Print();
-   //assert(false);
    pop();
 }
 
@@ -85,5 +83,4 @@ void KDiffusionIntegrator::MultAdd(Vector &x, Vector &y)
    pop();
 }
 
-// *****************************************************************************
-MFEM_NAMESPACE_END
+}
