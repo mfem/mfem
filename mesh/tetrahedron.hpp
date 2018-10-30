@@ -76,7 +76,10 @@ public:
        to vertex 1. If called it should be once from the mesh constructor,
        because the order may be used later for setting the edges. **/
    virtual void MarkEdge(const DSTable &v_to_v, const int *length);
-
+   
+   /// Mark the longest edge by assuming/changing the order of the vertices.
+   virtual void MarkEdge(DenseMatrix &pmat) { MFEM_ABORT("not implemented"); }
+   
    virtual void ResetTransform(int tr) { transform = tr; }
    virtual unsigned GetTransform() const { return transform; }
 
