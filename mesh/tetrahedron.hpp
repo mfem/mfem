@@ -76,7 +76,7 @@ public:
        to vertex 1. If called it should be once from the mesh constructor,
        because the order may be used later for setting the edges. **/
    virtual void MarkEdge(const DSTable &v_to_v, const int *length);
-   
+
    virtual void ResetTransform(int tr) { transform = tr; }
    virtual unsigned GetTransform() const { return transform; }
 
