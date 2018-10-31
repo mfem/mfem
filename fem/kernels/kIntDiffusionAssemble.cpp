@@ -29,7 +29,7 @@ static void kAssemble2D(const int NUM_QUAD_1D,
                         double* __restrict oper)
 {
    const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D;
-   forall(e,numElements,
+   MFEM_FORALL(e,numElements,
    {
       for (int q = 0; q < NUM_QUAD; ++q)
       {
@@ -54,7 +54,7 @@ static void kAssemble3D(const int NUM_QUAD_1D,
                         double* __restrict oper)
 {
    const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D*NUM_QUAD_1D;
-   forall(e,numElements,
+   MFEM_FORALL(e,numElements,
    {
       for (int q = 0; q < NUM_QUAD; ++q)
       {

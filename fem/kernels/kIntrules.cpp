@@ -20,16 +20,16 @@ namespace mfem
 // *****************************************************************************
 void kIPPts(const IntegrationPoint *ip, const size_t N, double *pts)
 {
-   GET_CUDA;
+   MFEM_GPU_CANNOT_PASS;
    GET_ADRS(pts);
    GET_ADRS_T(ip,IntegrationPoint);
-   if (cuda) { assert(false); }
-   forall(i, N, d_pts[i] = d_ip[i].x; );
+   MFEM_FORALL(i, N, d_pts[i] = d_ip[i].x; );
 }
 
 // *****************************************************************************
 double kIPGetX(const IntegrationPoint *ip, const size_t offset)
 {
+   MFEM_GPU_CANNOT_PASS;
    GET_ADRS_T(ip,IntegrationPoint);
    return d_ip[offset].x;
 }
@@ -37,6 +37,7 @@ double kIPGetX(const IntegrationPoint *ip, const size_t offset)
 // *****************************************************************************
 double kIPGetY(const IntegrationPoint *ip, const size_t offset)
 {
+   MFEM_GPU_CANNOT_PASS;
    GET_ADRS_T(ip,IntegrationPoint);
    return d_ip[offset].y;
 }
@@ -44,6 +45,7 @@ double kIPGetY(const IntegrationPoint *ip, const size_t offset)
 // *****************************************************************************
 double kIPGetZ(const IntegrationPoint *ip, const size_t offset)
 {
+   MFEM_GPU_CANNOT_PASS;
    GET_ADRS_T(ip,IntegrationPoint);
    return d_ip[offset].z;
 }
@@ -52,7 +54,7 @@ double kIPGetZ(const IntegrationPoint *ip, const size_t offset)
 void kIPSetX(const IntegrationPoint *ip, const double x, const size_t offset)
 {
    GET_ADRS_T(ip,IntegrationPoint);
-   forall(i, 1, d_ip[offset].x = x; );
+   MFEM_FORALL(i, 1, d_ip[offset].x = x; );
 }
 
 // *****************************************************************************
@@ -62,21 +64,21 @@ void kIPSetX(const IntegrationPoint *ip, const double *x, const int i,
 {
    GET_CONST_ADRS(x);
    GET_ADRS_T(ip, IntegrationPoint);
-   forall(i, 1, d_ip[offset].x = d_x[i]; );
+   MFEM_FORALL(i, 1, d_ip[offset].x = d_x[i]; );
 }
 
 // *****************************************************************************
 void kIPSetY(const IntegrationPoint *ip, const double y, const size_t offset)
 {
    GET_ADRS_T(ip,IntegrationPoint);
-   forall(i, 1, d_ip[offset].y = y; );
+   MFEM_FORALL(i, 1, d_ip[offset].y = y; );
 }
 
 // *****************************************************************************
 void kIPSetZ(const IntegrationPoint *ip, const double z, const size_t offset)
 {
    GET_ADRS_T(ip,IntegrationPoint);
-   forall(i, 1, d_ip[offset].z = z; );
+   MFEM_FORALL(i, 1, d_ip[offset].z = z; );
 }
 
 // *****************************************************************************
@@ -87,7 +89,7 @@ void kIPSetXY(const IntegrationPoint *ip,
    GET_ADRS_T(ip,IntegrationPoint);
    GET_CONST_ADRS(x);
    GET_CONST_ADRS(y);
-   forall(k, 1,
+   MFEM_FORALL(k, 1,
    {
       d_ip[offset].x = d_x[i];
       d_ip[offset].y = d_y[j];
@@ -104,7 +106,7 @@ void kIPSetIPXY(const int nx,
    GET_ADRS_T(ip,IntegrationPoint);
    GET_CONST_ADRS_T(ipx,IntegrationPoint);
    GET_CONST_ADRS_T(ipy,IntegrationPoint);
-   forall(k, 1,
+   MFEM_FORALL(k, 1,
    {
       d_ip[j*nx+i].x = d_ipx[i].x;
       d_ip[j*nx+i].y = d_ipy[j].x;
@@ -116,7 +118,7 @@ void kIPSetIPXY(const int nx,
 void kIPSetW(const IntegrationPoint *ip, const double w, const size_t offset)
 {
    GET_ADRS_T(ip,IntegrationPoint);
-   forall(i, 1, d_ip[offset].weight = w; );
+   MFEM_FORALL(i, 1, d_ip[offset].weight = w; );
 }
 
 // *****************************************************************************
@@ -124,7 +126,7 @@ void kIPSet1W(const IntegrationPoint *ip,
               const double x, const double w, const size_t offset)
 {
    GET_ADRS_T(ip,IntegrationPoint);
-   forall(i, 1,
+   MFEM_FORALL(i, 1,
    {
       d_ip[offset].x = x;
       d_ip[offset].weight = w;
@@ -135,7 +137,7 @@ void kIPSet1W(const IntegrationPoint *ip,
 void kIntRulesInit(const size_t N, IntegrationPoint *ip)
 {
    GET_ADRS_T(ip,IntegrationPoint);
-   forall(i, N,
+   MFEM_FORALL(i, N,
    {
       d_ip[i].x = d_ip[i].y = d_ip[i].z = d_ip[i].weight = 0.0;
    });
@@ -145,14 +147,14 @@ void kIntRulesInit(const size_t N, IntegrationPoint *ip)
 void kIntRulesPointIni(IntegrationPoint *ip)
 {
    GET_ADRS_T(ip,IntegrationPoint);
-   forall(i, 1, d_ip[0].x = 0.0; );
+   MFEM_FORALL(i, 1, d_ip[0].x = 0.0; );
 }
 
 // *****************************************************************************
 void kIntRulesLinear1DIni(IntegrationPoint *ip)
 {
    GET_ADRS_T(ip,IntegrationPoint);
-   forall(i, 1,
+   MFEM_FORALL(i, 1,
    {
       d_ip[0].x = 0.0;
       d_ip[1].x = 1.0;
@@ -163,7 +165,7 @@ void kIntRulesLinear1DIni(IntegrationPoint *ip)
 void kIntRulesLinear2DIni(IntegrationPoint *ip)
 {
    GET_ADRS_T(ip,IntegrationPoint);
-   forall(i, 1,
+   MFEM_FORALL(i, 1,
    {
       d_ip[0].x = 0.0;
       d_ip[0].y = 0.0;
@@ -178,7 +180,7 @@ void kIntRulesLinear2DIni(IntegrationPoint *ip)
 void kIntRulesLinear3DIni(IntegrationPoint *ip)
 {
    GET_ADRS_T(ip,IntegrationPoint);
-   forall(i, 1,
+   MFEM_FORALL(i, 1,
    {
       d_ip[0].x = 0.0;
       d_ip[0].y = 0.0;
@@ -199,7 +201,7 @@ void kIntRulesLinear3DIni(IntegrationPoint *ip)
 void kIntRulesBiLinear2DIni(IntegrationPoint *ip)
 {
    GET_ADRS_T(ip,IntegrationPoint);
-   forall(i, 1,
+   MFEM_FORALL(i, 1,
    {
       d_ip[0].x = 0.0;
       d_ip[0].y = 0.0;
@@ -216,7 +218,7 @@ void kIntRulesBiLinear2DIni(IntegrationPoint *ip)
 void kIntRulesTriLinear3DIni(IntegrationPoint *ip)
 {
    GET_ADRS_T(ip,IntegrationPoint);
-   forall(i, 1,
+   MFEM_FORALL(i, 1,
    {
       d_ip[0].x = 0.0;
       d_ip[0].y = 0.0;
@@ -255,11 +257,8 @@ void kIntRulesTriLinear3DIni(IntegrationPoint *ip)
 // *****************************************************************************
 void kCalcChebyshev(const int p, const double x, double *u)
 {
+   MFEM_GPU_CANNOT_PASS;
    GET_ADRS(u);
-
-   GET_CUDA;
-   if (cuda) { assert(false); }
-
    // recursive definition, z in [-1,1]
    // T_0(z) = 1,  T_1(z) = z
    // T_{n+1}(z) = 2*z*T_n(z) - T_{n-1}(z)
@@ -276,12 +275,9 @@ void kCalcChebyshev(const int p, const double x, double *u)
 // *****************************************************************************
 void kCalcChebyshev(const int p, const double x, double *u, double *d)
 {
+   MFEM_GPU_CANNOT_PASS;
    GET_ADRS(u);
    GET_ADRS(d);
-
-   GET_CUDA;
-   if (cuda) { assert(false); }
-
    double z;
    d_u[0] = 1.;
    d_d[0] = 0.;

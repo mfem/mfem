@@ -21,8 +21,7 @@ void kArrayInitVal(const size_t size, const size_t nsize,
                    void *data, size_t Tsizeof, void *initval)
 {
    GET_ADRS_T(data,void);
-
-   forall(k, nsize-size,
+   MFEM_FORALL(k, nsize-size,
    {
       const size_t i = k+size;
       size_t *xs = ((size_t*)d_data)+i;
@@ -33,26 +32,23 @@ void kArrayInitVal(const size_t size, const size_t nsize,
 // *****************************************************************************
 double *kArrayInitGet(const int p, double **pts)
 {
-   GET_CUDA;
+   MFEM_GPU_CANNOT_PASS;
    GET_ADRS_T(pts,double*);
-   if (cuda) { assert(false); }
    return d_pts[p];
 }
 
 // *****************************************************************************
 void* kArrayVoidGet(const int p, void **bases)
 {
-   GET_CUDA;
+   MFEM_GPU_CANNOT_PASS;
    GET_ADRS_T(bases,void*);
-   if (cuda) { assert(false); }
    return d_bases[p];
 }
 
 // *****************************************************************************
 void kArrayInitSet(double **d_pts, double *adrs)
 {
-   GET_CUDA;
-   if (cuda) { assert(false); }
+   MFEM_GPU_CANNOT_PASS;
    *d_pts = adrs;
 }
 

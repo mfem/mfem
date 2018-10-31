@@ -12,29 +12,67 @@
 #ifndef MFEM_OKINA_HPP
 #define MFEM_OKINA_HPP
 
+// *****************************************************************************
 #ifdef __NVCC__
-#define __kernel__
 #include <cuda.h>
 #else
 #define __host__
 #define __device__
-#define __kernel__
 #define __constant__
 #endif // __NVCC__
 
+// *****************************************************************************
+#define __kernel__
+
+// *****************************************************************************
 #include <cmath>
 #include <cassert>
 #include <iostream>
 #include <cstring>
-
-#include <stdarg.h>
-#include <signal.h>
-#include <setjmp.h>
+#include <unordered_map>
 
 // *****************************************************************************
 #include "mm.hpp"
 #include "config.hpp"
-#include "kernels.hpp"
+
+// *****************************************************************************
+// * GPU kernel launcher
+// *****************************************************************************
+#ifdef __NVCC__
+template <typename BODY> __global__
+void kernel(const size_t N, BODY body)
+{
+   const size_t k = blockDim.x*blockIdx.x + threadIdx.x;
+   if (k >= N) { return; }
+   body(k);
+}
+#endif // __NVCC__
+
+// *****************************************************************************
+// * GPU & HOST FOR_LOOP bodies wrapper
+// *****************************************************************************
+template <typename DBODY, typename HBODY>
+void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
+{
+#ifdef __NVCC__
+   const bool gpu = mfem::config::Get().Cuda();
+   if (gpu)
+   {
+      const size_t blockSize = 256;
+      const size_t gridSize = (N+blockSize-1)/blockSize;
+      kernel<<<gridSize, blockSize>>>(N,d_body);
+      return;
+   }
+#endif // __NVCC__
+   for (size_t k=0; k<N; k+=1) { h_body(k); }
+}
+
+// *****************************************************************************
+// * MFEM_FORALL splitter
+// *****************************************************************************
+#define MFEM_FORALL(i, N, body) wrap(N,                                 \
+                                     [=] __device__ (size_t i){body},   \
+                                     [=]            (size_t i){body})
 
 // *****************************************************************************
 #define LOG2(X) ((unsigned) (8*sizeof(unsigned long long)-__builtin_clzll((X))))
@@ -43,15 +81,16 @@
 #define IROOT(D,N) ((D==1)?N:(D==2)?ISQRT(N):(D==3)?ICBRT(N):0)
 
 // *****************************************************************************
-#define GET_CUDA const bool cuda = mfem::config::Get().Cuda();
-#define GET_ADRS(v) double *d_##v = (double*) mfem::mm::Get().Adrs(v)
-#define GET_ADRS_T(v,T) T *d_##v = (T*) mfem::mm::Get().Adrs(v)
-#define GET_CONST_ADRS(v) const double *d_##v = (const double*) mfem::mm::Get().Adrs(v)
-#define GET_CONST_ADRS_T(v,T) const T *d_##v = (const T*) mfem::mm::Get().Adrs(v)
+#define GET_CUDA const bool cuda = config::Get().Cuda();
+#define GET_ADRS(v) double *d_##v = (double*) mm::Get().Adrs(v)
+#define GET_ADRS_T(v,T) T *d_##v = (T*) mm::Get().Adrs(v)
+#define GET_CONST_ADRS(v) const double *d_##v = (const double*) mm::Get().Adrs(v)
+#define GET_CONST_ADRS_T(v,T) const T *d_##v = (const T*) mm::Get().Adrs(v)
 
 // *****************************************************************************
-#define OKINA_ASSERT_CPU {assert(__FILE__ and __LINE__ and false);}
-#define OKINA_ASSERT_GPU {assert(__FILE__ and __LINE__ and not config::Get().Cuda());}
+#define MFEM_FILE_AND_LINE __FILE__ and __LINE__
+//#define MFEM_CPU_CANNOT_PASS {assert(MFEM_FILE_AND_LINE and false);}
+#define MFEM_GPU_CANNOT_PASS {assert(MFEM_FILE_AND_LINE and not config::Get().Cuda());}
 
 // Offsets *********************************************************************
 #define   ijN(i,j,N) (i)+(N)*(j)
@@ -60,13 +99,6 @@
 
 #define    ijNMt(i,j,N,M,t) (t)?((i)+(N)*(j)):((j)+(M)*(i))
 #define    ijkNM(i,j,k,N,M) (i)+(N)*((j)+(M)*(k))
-#define   _ijkNM(i,j,k,N,M) (j)+(N)*((k)+(M)*(i))
 #define   ijklNM(i,j,k,l,N,M) (i)+(N)*((j)+(N)*((k)+(M)*(l)))
-#define  _ijklNM(i,j,k,l,N,M) (j)+(N)*((k)+(N)*((l)+(M)*(i)))
-#define   ijklmNM(i,j,k,l,m,N,M) (i)+(N)*((j)+(N)*((k)+(M)*((l)+(M)*(m))))
-#define __ijklmNM(i,j,k,l,m,N,M) (k)+(M)*((l)+(M)*((m)+(N*N)*((i)+(N)*j)))
-
-#define _ijklmNM(i,j,k,l,m,N,M) (j)+(N)*((k)+(N)*((l)+(N)*((m)+(M)*(i))))
-#define ijklmnNM(i,j,k,l,m,n,N,M) (i)+(N)*((j)+(N)*((k)+(M)*((l)+(M)*((m)+(M)*(n)))))
 
 #endif // MFEM_OKINA_HPP

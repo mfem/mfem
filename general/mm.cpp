@@ -16,19 +16,23 @@ namespace mfem
 {
 
 // *****************************************************************************
-static jmp_buf env;
 static size_t xs_shift = 0;
 static bool test_mem_xs = false;
+
+// *****************************************************************************
+static inline void *shiftBack(const void *adrs)
+{
+   if (!test_mem_xs) { return (void*) adrs; }
+   return ((size_t*) adrs) - xs_shift;
+}
 
 // *****************************************************************************
 void mm::Setup(void)
 {
    assert(!mng);
-   test_mem_xs = getenv("XS");
+   test_mem_xs = getenv("MFEM_XS");
    // Create our mapping h_adrs => (size, h_adrs, d_adrs)
    mng = new mm_t();
-   // Initialize our SIGSEGV handler
-   mm::iniHandler();
    // Initialize the CUDA device to be ready to allocate memory
    config::Get().Setup();
    // We can shift address accesses to trig SIGSEGV (experimental)
@@ -36,23 +40,11 @@ void mm::Setup(void)
 }
 
 // *****************************************************************************
-static inline void *shiftBack(const void *adrs)
-{
-   if (!test_mem_xs) { return (void*) adrs; }
-   void *shifted_address = ((size_t*) adrs) - xs_shift;
-   return  shifted_address;
-}
-
-// *****************************************************************************
 // * Add an address lazily only on the host
 // *****************************************************************************
 void* mm::add(const void *adrs, const size_t size, const size_t size_of_T)
 {
-   size_t *h_adrs = (size_t *) adrs;
-   if (test_mem_xs) // Shift host address to force a SIGSEGV
-   {
-      h_adrs += xs_shift;
-   }
+   const size_t *h_adrs = ((size_t *) adrs) + xs_shift;
    const size_t bytes = size*size_of_T;
    const auto search = mng->find(h_adrs);
    const bool present = search != mng->end();
@@ -271,30 +263,4 @@ void* mm::memcpy(void *dest, const void *src, size_t bytes)
    return D2D(dest, src, bytes, false);
 }
 
-// *****************************************************************************
-// *  SIGSEGV handler (not used anymore)
-// *****************************************************************************
-void mm::handler(int nSignum, siginfo_t* si, void* vcontext)
-{
-   printf("\n\033[31;7;1mSegmentation fault\033[m\n");
-   fflush(0);
-}
-
-// *****************************************************************************
-// *  SIGSEGV handler that longjmps
-// *****************************************************************************
-static void SIGSEGV_handler(int s)
-{
-   if (s==SIGSEGV) { longjmp(env, 1); }
-   assert(false);
-}
-
-// *****************************************************************************
-// *  SIGNALS actions
-// *****************************************************************************
-void mm::iniHandler()
-{
-   signal(SIGSEGV, SIGSEGV_handler);
-}
-
-}
+} // namespace mfem

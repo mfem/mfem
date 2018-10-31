@@ -36,4 +36,4 @@ void config::Setup()
    cuDeviceSetup(0);
 }
 
-}
+} // namespace mfem

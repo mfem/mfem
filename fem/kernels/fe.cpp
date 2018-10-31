@@ -30,7 +30,7 @@ void kH1_TriangleElement(const size_t p,
    GET_CONST_ADRS(shape_y);
    GET_CONST_ADRS(shape_l);
    GET_ADRS(T);
-   forall(_dummy_,1,
+   MFEM_FORALL(_dummy_,1,
    {
       int o = 0;
       for (size_t j = 0; j <= p; j++)
@@ -55,7 +55,7 @@ void kH1_TriangleElement_CalcShape(const size_t p,
    GET_CONST_ADRS(shape_y);
    GET_CONST_ADRS(shape_l);
    GET_ADRS(u);
-   forall(_dummy_,1,
+   MFEM_FORALL(_dummy_,1,
    {
       int o = 0;
       for (size_t j = 0; j <= p; j++)
@@ -86,7 +86,7 @@ void kH1_TriangleElement_CalcDShape(const size_t p,
    GET_CONST_ADRS(dshape_y);
    GET_CONST_ADRS(dshape_l);
    GET_ADRS(du);
-   forall(_dummy_,1,
+   MFEM_FORALL(_dummy_,1,
    {
       for (size_t o = 0, j = 0; j <= p; j++)
          for (size_t i = 0; i + j <= p; i++)
@@ -106,7 +106,7 @@ void kBasis(const size_t p, const double *x, double *w)
 {
    GET_CONST_ADRS(x);
    GET_ADRS(w);
-   forall(_dummy_,1,
+   MFEM_FORALL(_dummy_,1,
    {
       for (size_t i = 0; i <= p; i++)
       {
@@ -128,15 +128,14 @@ void kBasis(const size_t p, const double *x, double *w)
 void kNodesAreIncreasing(const size_t p, const double *x)
 {
    GET_CONST_ADRS(x);
-   forall(i, p, assert(d_x[i] < d_x[i+1]); );
+   MFEM_FORALL(i, p, assert(d_x[i] < d_x[i+1]); );
 }
 
 // *****************************************************************************
 void kLinear3DFiniteElementHeightEq4(double *A)
 {
+   MFEM_GPU_CANNOT_PASS;
    GET_ADRS(A);
-   GET_CUDA;
-   if (cuda) { assert(false); }
    d_A[0] = -1.; d_A[4] = -1.; d_A[8]  = -1.;
    d_A[1] =  1.; d_A[5] =  0.; d_A[9]  =  0.;
    d_A[2] =  0.; d_A[6] =  1.; d_A[10] =  0.;

@@ -142,7 +142,7 @@ static void kGeomFill(const int dims,
    GET_ADRS_T(eMap,int);
    GET_CONST_ADRS(nodes);
    GET_ADRS(meshNodes);
-   forall(e, elements,
+   MFEM_FORALL(e, elements,
    {
       for (size_t d = 0; d < numDofs; ++d)
       {
@@ -164,7 +164,7 @@ static void kArrayAssign(const int n, const int *src, int *dest)
 {
    GET_CONST_ADRS_T(src,int);
    GET_ADRS_T(dest,int);
-   forall(i, n, d_dest[i] = d_src[i];);
+   MFEM_FORALL(i, n, d_dest[i] = d_src[i];);
 }
 
 // *****************************************************************************
@@ -176,7 +176,7 @@ static void rNodeCopyByVDim(const int elements,
                             const double* Sx,
                             double* nodes)
 {
-   forall(e,elements,
+   MFEM_FORALL(e,elements,
    {
       for (int dof = 0; dof < numDofs; ++dof)
       {
