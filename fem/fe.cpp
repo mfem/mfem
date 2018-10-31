@@ -11808,7 +11808,7 @@ ND_WedgeElement::ND_WedgeElement(const int p,
             t_dof[o] = 3 * p + l; s_dof[o] = k; dof2tk[o] = 4; l++; o++;
          }
    }
-   for (int k = 0; k < pm1; k++)
+   for (int k = 0; k < p; k++)
    {
       l = 0;
       for (int j = 0; j < pm2; j++)
