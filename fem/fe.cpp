@@ -10586,9 +10586,6 @@ RT_WedgeElement::RT_WedgeElement(const int p)
             t_dof[o] = l; s_dof[o] = k; dof2nk[o] = 1; l++; o++;
          }
    }
-   cout << "Dof " << Dof << ", o = " << o << endl;
-   cout << "t_dof = "; t_dof.Print(cout);
-   cout << "s_dof = "; s_dof.Print(cout);
 }
   
 void RT_WedgeElement::CalcVShape(const IntegrationPoint &ip,
@@ -10600,8 +10597,7 @@ void RT_WedgeElement::CalcVShape(const IntegrationPoint &ip,
    Vector sh1_shape(H1SegmentFE.GetDof());
    Vector sl2_shape(L2SegmentFE.GetDof());
 #endif
-   cout << "shape size: " << shape.Height() << " x " << shape.Width() << endl;
-   cout << "trt_shape size: " << trt_shape.Height() << " x " << trt_shape.Width() << endl;
+
    IntegrationPoint ipz; ipz.x = ip.z; ipz.y = 0.0; ipz.z = 0.0;
 
    L2TriangleFE.CalcShape(ip, tl2_shape);
