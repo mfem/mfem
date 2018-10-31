@@ -71,8 +71,4 @@
 #define _ijklmNM(i,j,k,l,m,N,M) (j)+(N)*((k)+(N)*((l)+(N)*((m)+(M)*(i))))
 #define ijklmnNM(i,j,k,l,m,n,N,M) (i)+(N)*((j)+(N)*((k)+(M)*((l)+(M)*((m)+(M)*(n)))))
 
-// *****************************************************************************
-#define push(...)
-#define pop(...)
-
 #endif // MFEM_OKINA_HPP
