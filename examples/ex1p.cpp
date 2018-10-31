@@ -43,16 +43,13 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
-#include "/home/camier1/home/stk/stk.hpp"
 
 using namespace std;
 using namespace mfem;
 
 int main(int argc, char *argv[])
 {
-   stkIni(argv[0]);
-   stk(true);
-   dbg("1. Initialize MPI.");
+   // 1. Initialize MPI.
    int num_procs, myid;
    MPI_Init(&argc, &argv);
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
@@ -95,47 +92,44 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
-   dbg("3. Read the (serial) mesh");// from the given mesh file on all processors.  We
+   // 3. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
 
-   dbg("4. Refine the serial mesh on all processors");// to increase the resolution. In
+   // 4. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-      /*
-        int ref_levels =
-           (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
-        for (int l = 0; l < ref_levels; l++)
-        {
-           mesh->UniformRefinement();
-           }*/
+      int ref_levels =
+         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+      for (int l = 0; l < ref_levels; l++)
+      {
+         mesh->UniformRefinement();
+      }
    }
 
-   dbg("5. Define a parallel mesh"); //by a partitioning of the serial mesh. Refine
+   // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    {
-      /*
-        int par_ref_levels = 2;
-        for (int l = 0; l < par_ref_levels; l++)
-        {
-           pmesh->UniformRefinement();
-           }*/
+      int par_ref_levels = 2;
+      for (int l = 0; l < par_ref_levels; l++)
+      {
+         pmesh->UniformRefinement();
+      }
    }
 
-   dbg("6. Define a parallel finite element space");// on the parallel mesh. Here we
+   // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
    //    order < 1, we instead use an isoparametric/isogeometric space.
    FiniteElementCollection *fec;
    if (order > 0)
    {
-      dbg("order > 0, H1_FECollection");
       fec = new H1_FECollection(order, dim);
    }
    else if (pmesh->GetNodes())
@@ -148,10 +142,8 @@ int main(int argc, char *argv[])
    }
    else
    {
-      assert(false);
       fec = new H1_FECollection(order = 1, dim);
    }
-   dbg("ParFiniteElementSpace");
    ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
    HYPRE_Int size = fespace->GlobalTrueVSize();
    if (myid == 0)
@@ -159,20 +151,19 @@ int main(int argc, char *argv[])
       cout << "Number of finite element unknowns: " << size << endl;
    }
 
-   dbg("7. Determine the list");// of true (i.e. parallel conforming) essential
+   // 7. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, the boundary conditions are defined
    //    by marking all the boundary attributes from the mesh as essential
    //    (Dirichlet) and converting them to a list of true dofs.
    Array<int> ess_tdof_list;
    if (pmesh->bdr_attributes.Size())
    {
-      dbg("ess_bdr");
       Array<int> ess_bdr(pmesh->bdr_attributes.Max());
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
 
-   dbg("8. Set up the parallel linear form b(.)");// which corresponds to the
+   // 8. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is
    //    (1,phi_i) where phi_i are the basis functions in fespace.
    ParLinearForm *b = new ParLinearForm(fespace);
@@ -180,25 +171,25 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
-   dbg("mesh->SetCurvature");
    pmesh->SetCurvature(1, false, -1, Ordering::byVDIM);
    if (gpu) { config::Get().Cuda(true); }
    if (pa)  { config::Get().PA(true);   }
 
-   dbg("9. Define the solution vector x");// as a parallel finite element grid function
+
+   // 9. Define the solution vector x as a parallel finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
    ParGridFunction x(fespace);
    x = 0.0;
 
-   dbg("10. Set up the parallel bilinear form a(.,.)");// on the finite element space
+   // 10. Set up the parallel bilinear form a(.,.) on the finite element space
    //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //     domain integrator.
    ParBilinearForm *a = new ParBilinearForm(fespace);
    if (pa) { a->AddDomainIntegrator(new PADiffusionIntegrator(one)); }
    else    { a->AddDomainIntegrator(new DiffusionIntegrator(one)); }
 
-   dbg("11. Assemble the parallel bilinear form");// and the corresponding linear
+   // 11. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, static condensation, etc.

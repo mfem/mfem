@@ -498,17 +498,11 @@ double DenseMatrix::Det() const
       case 1:
          return data[0];
 
-      case 2: return kDMDet2(data);
-      //return data[0] * data[3] - data[1] * data[2];
+      case 2: return kDenseMatrixDet2(data);
 
       case 3:
       {
-         return kDMDet3(data);/*
-      const double *d = data;
-      return
-         d[0] * (d[4] * d[8] - d[5] * d[7]) +
-         d[3] * (d[2] * d[7] - d[1] * d[8]) +
-         d[6] * (d[1] * d[5] - d[2] * d[4]);*/
+         return kDenseMatrixDet3(data);
       }
       case 4:
       {
@@ -610,14 +604,7 @@ DenseMatrix &DenseMatrix::operator=(const DenseMatrix &m)
    SetSize(m.height, m.width);
 
    const int hw = height * width;
-
-   kOpEq(hw,m.GetData(),data);
-   /*
-   for (int i = 0; i < hw; i++)
-   {
-      data[i] = m.data[i];
-   }
-   */
+   kDenseMatrixOpEq(hw,m.GetData(),data);
    return *this;
 }
 
@@ -857,17 +844,8 @@ double DenseMatrix::MaxMaxNorm() const
 void DenseMatrix::FNorm(double &scale_factor, double &scaled_fnorm2) const
 {
    int hw = Height() * Width();
-   //double entry, fnorm2;
 
-   const double max_norm = kFNormMax(hw,data);/*
-   for (i = 0; i < hw; i++)
-   {
-      entry = fabs(data[i]);
-      if (entry > max_norm)
-      {
-         max_norm = entry;
-      }
-      }*/
+   const double max_norm = kDenseMatrixFNormMax(hw,data);
 
    if (max_norm == 0.0)
    {
@@ -875,14 +853,7 @@ void DenseMatrix::FNorm(double &scale_factor, double &scaled_fnorm2) const
       return;
    }
 
-   //fnorm2 = 0.0;
-   const double fnorm2 = kFNorm2(hw,max_norm,data);/*
-   for (i = 0; i < hw; i++)
-   {
-      entry = data[i] / max_norm;
-      fnorm2 += entry * entry;
-      }*/
-
+   const double fnorm2 = kDenseMatrixFNorm2(hw,max_norm,data);
    scale_factor = max_norm;
    scaled_fnorm2 = fnorm2;
 }
@@ -2471,7 +2442,7 @@ void DenseMatrix::Diag(double c, int n)
 {
    SetSize(n);
    const int N = n*n;
-   kDiag(n, N, c, data);
+   kDenseMatrixDiag(n, N, c, data);
 }
 
 void DenseMatrix::Diag(double *diag, int n)
@@ -3283,26 +3254,10 @@ void CalcInverse(const DenseMatrix &a, DenseMatrix &inva)
          inva(0,0) = t;
          break;
       case 2:
-         kCalcInverse2D(t,a.GetData(),inva.GetData());/*
-         inva(0,0) = a(1,1) * t ;
-         inva(0,1) = -a(0,1) * t ;
-         inva(1,0) = -a(1,0) * t ;
-         inva(1,1) = a(0,0) * t ;*/
+         kDenseMatCalcInverse2D(t,a.GetData(),inva.GetData());
          break;
       case 3:
-         kCalcInverse3D(t,a.GetData(),inva.GetData());/*
-         inva(0,0) = (a(1,1)*a(2,2)-a(1,2)*a(2,1))*t;
-         inva(0,1) = (a(0,2)*a(2,1)-a(0,1)*a(2,2))*t;
-         inva(0,2) = (a(0,1)*a(1,2)-a(0,2)*a(1,1))*t;
-
-         inva(1,0) = (a(1,2)*a(2,0)-a(1,0)*a(2,2))*t;
-         inva(1,1) = (a(0,0)*a(2,2)-a(0,2)*a(2,0))*t;
-         inva(1,2) = (a(0,2)*a(1,0)-a(0,0)*a(1,2))*t;
-
-         inva(2,0) = (a(1,0)*a(2,1)-a(1,1)*a(2,0))*t;
-         inva(2,1) = (a(0,1)*a(2,0)-a(0,0)*a(2,1))*t;
-         inva(2,2) = (a(0,0)*a(1,1)-a(0,1)*a(1,0))*t;
-                                                      */
+         kDenseMatCalcInverse3D(t,a.GetData(),inva.GetData());
          break;
    }
 }

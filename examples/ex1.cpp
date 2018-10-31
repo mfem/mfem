@@ -101,20 +101,17 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      push(Refine,Indigo);
       int ref_levels = level>=0 ? level :
-                       (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
-      pop();
    }
 
    // 4. Define a finite element space on the mesh. Here we use continuous
    //    Lagrange finite elements of the specified order. If order < 1, we
    //    instead use an isoparametric/isogeometric space.
-   push(FEC,LightSalmon);
    FiniteElementCollection *fec;
    if (order > 0)
    {
@@ -129,18 +126,14 @@ int main(int argc, char *argv[])
    {
       fec = new H1_FECollection(order = 1, dim);
    }
-   pop();
-   push(FES,Plum);
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
-   pop();
 
    // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
    //    the boundary attributes from the mesh as essential (Dirichlet) and
    //    converting them to a list of true dofs.
-   push(BC,Tomato);
    Array<int> ess_tdof_list;
    if (mesh->bdr_attributes.Size())
    {
@@ -148,66 +141,44 @@ int main(int argc, char *argv[])
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
-   pop();
 
    // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
-   push(b,DarkMagenta);
    LinearForm *b = new LinearForm(fespace);
    ConstantCoefficient one(1.0);
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
-   pop();
 
-   // **************************************************************************
-   push(SetCurvature,OliveDrab);
    mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
-   pop();
    if (gpu) { config::Get().Cuda(true); }
    if (pa)  { config::Get().PA(true);   }
 
    // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
-   push(GridFunction,Fuchsia);
    GridFunction x(fespace);
    x = 0.0;
-   pop();
 
    // 8. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
-   push(BilinearForm,Fuchsia);
-   BilinearForm *a = new BilinearForm(fespace); // On piece here
-   pop();
-
-   push(AddDomainIntegrator,Fuchsia);
+   BilinearForm *a = new BilinearForm(fespace);
    if (pa) { a->AddDomainIntegrator(new PADiffusionIntegrator(one)); }
    else    { a->AddDomainIntegrator(new DiffusionIntegrator(one)); }
-   pop();
 
    // 9. Assemble the bilinear form and the corresponding linear system,
    //    applying any necessary transformations such as: eliminating boundary
    //    conditions, applying conforming constraints for non-conforming AMR,
    //    static condensation, etc.
    if (static_cond) { a->EnableStaticCondensation(); }
-
-   push(Assemble,Fuchsia);
-   tic_toc.Clear();
-   tic_toc.Start();
-   a->Assemble(); // On piece here
-   pop();
+   a->Assemble();
 
    Vector B, X;
    Operator *A;
-   push(Operator,Fuchsia);
    if (pa) { A = new PABilinearForm(fespace); }
    else    { A = new SparseMatrix(); }
-   pop();
-   push(FormLinearSystem,Fuchsia);
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-   pop();
    
    double my_rt = tic_toc.RealTime();
    cout << "\nTotal BilinearForm time:    " << my_rt << " sec.";
@@ -227,9 +198,7 @@ int main(int argc, char *argv[])
    tic_toc.Clear();
    tic_toc.Start();
 #ifndef MFEM_USE_SUITESPARSE
-   push();
    cg->Mult(B, X);
-   pop();
 #else
    // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;
@@ -245,7 +214,6 @@ int main(int argc, char *argv[])
    cout << "\n\"DOFs/sec\" in CG: "
         << 1e-6*A->Height()*cg->GetNumIterations()/my_rt << " million.\n"
         << endl;
-
    delete cg;
 
    // 11. Recover the solution as a finite element grid function.

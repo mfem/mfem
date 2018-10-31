@@ -161,8 +161,7 @@ void kVectorSetSubvector(const int N,
       {
          d_data[j] = d_elemvect[i];
       }
-      else
-      {
+      else {
          assert(false);
          d_data[-1-j] = -d_elemvect[i];
       }

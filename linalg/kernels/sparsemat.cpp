@@ -65,8 +65,7 @@ void kGauss_Seidel_forw_A_NULL(const size_t s,
       {
          d_yp[i] = sum;
       }
-      else
-      {
+      else{
          assert(false);
       }
    });

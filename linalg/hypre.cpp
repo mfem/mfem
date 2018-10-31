@@ -3316,7 +3316,7 @@ HypreLOBPCG::SetOperator(Operator & A)
    }
    else
    {
-      part = new HYPRE_Int[numProcs+1];
+      part = mm::malloc<HYPRE_Int>(numProcs+1);
 
       MPI_Allgather(&locSize, 1, MPI_INT,
                     &part[1], 1, HYPRE_MPI_INT, comm);
