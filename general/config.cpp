@@ -19,7 +19,7 @@ void config::cuDeviceSetup(const int device)
 {
 #ifdef __NVCC__
    gpu_count=0;
-   checkCudaErrors(cudaGetDeviceCount(&gpu_count));
+   cudaGetDeviceCount(&gpu_count);
    assert(gpu_count>0);
    cuInit(0);
    dev = device; // findCudaDevice(argc, (const char **)argv);

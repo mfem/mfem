@@ -15,8 +15,6 @@
 #ifdef __NVCC__
 #define __kernel__
 #include <cuda.h>
-#include <helper_cuda.h>
-#include <helper_functions.h>
 #else
 #define __host__
 #define __device__

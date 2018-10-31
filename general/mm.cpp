@@ -120,16 +120,15 @@ void* mm::Adrs(const void *adrs)
       const size_t bytes = mm2dev.bytes;
       // dbg("\033[32;1mPushing new address to the GPU!\033[m");
       // allocate on the device
-      const size_t bytes = mm2dev.bytes;
       CUdeviceptr ptr = (CUdeviceptr) NULL;
       if (bytes>0)
       {
          // dbg(" \033[32;1m%ldo\033[m",bytes);
-         checkCudaErrors(cuMemAlloc(&ptr,bytes));
+         cuMemAlloc(&ptr,bytes);
       }
       mm2dev.d_adrs = (void*)ptr;
       const CUstream s = *config::Get().Stream();
-      checkCudaErrors(cuMemcpyHtoDAsync(ptr,mm2dev.h_adrs,bytes,s));
+      cuMemcpyHtoDAsync(ptr,mm2dev.h_adrs,bytes,s);
       // Now we are on the GPU
       mm2dev.host = false;
 #else
@@ -142,8 +141,8 @@ void* mm::Adrs(const void *adrs)
       // dbg("return \033[31;1mGPU\033[m h_adrs %p",mm2dev.h_adrs);
       // dbg("return \033[31;1mGPU\033[m d_adrs %p",mm2dev.d_adrs);
 #ifdef __NVCC__
-      checkCudaErrors(cuMemcpyDtoH((void*)mm2dev.h_adrs,(CUdeviceptr)mm2dev.d_adrs,
-                                   mm2dev.bytes));
+      cuMemcpyDtoH((void*)mm2dev.h_adrs,
+                   (CUdeviceptr)mm2dev.d_adrs, mm2dev.bytes);
 #else
       assert(false);
 #endif // __NVCC__
@@ -170,9 +169,8 @@ void mm::Rsync(const void *adrs)
 #ifdef __NVCC__
    // dbg("From GPU");
    const size_t bytes = mm2dev.bytes;
-   checkCudaErrors(cuMemcpyDtoH((void*)mm2dev.h_adrs,
-                                (CUdeviceptr)mm2dev.d_adrs,
-                                bytes));
+   cuMemcpyDtoH((void*)mm2dev.h_adrs,
+                (CUdeviceptr)mm2dev.d_adrs, bytes);
 #endif // __NVCC__
 }
 
@@ -191,14 +189,12 @@ void mm::Push(const void *adrs)
       CUdeviceptr ptr = (CUdeviceptr) NULL;
       if (bytes>0)
       {
-         dbg(" \033[32;1m%ldo\033[m",bytes);
-         checkCudaErrors(cuMemAlloc(&ptr,bytes));
+         cuMemAlloc(&ptr,bytes);
       }
       mm2dev.d_adrs = (void*)ptr;
    }
-   checkCudaErrors(cuMemcpyHtoD((CUdeviceptr)mm2dev.d_adrs,
-                                (void*)mm2dev.h_adrs,
-                                bytes));
+   cuMemcpyHtoD((CUdeviceptr)mm2dev.d_adrs,
+                (void*)mm2dev.h_adrs, bytes);
 #endif // __NVCC__
 }
 
@@ -220,9 +216,9 @@ void* mm::H2D(void *dest, const void *src, size_t bytes, const bool async)
 #ifdef __NVCC__
    if (!config::Get().Uvm())
    {
-      checkCudaErrors(cuMemcpyHtoD((CUdeviceptr)dest,src,bytes));
+      cuMemcpyHtoD((CUdeviceptr)dest,src,bytes);
    }
-   else { checkCudaErrors(cuMemcpy((CUdeviceptr)dest,(CUdeviceptr)src,bytes)); }
+   else { cuMemcpy((CUdeviceptr)dest,(CUdeviceptr)src,bytes); }
 #endif
    return dest;
 }
@@ -236,9 +232,9 @@ void* mm::D2H(void *dest, const void *src, size_t bytes, const bool async)
 #ifdef __NVCC__
    if (!config::Get().Uvm())
    {
-      checkCudaErrors(cuMemcpyDtoH(dest,(CUdeviceptr)src,bytes));
+      cuMemcpyDtoH(dest,(CUdeviceptr)src,bytes);
    }
-   else { checkCudaErrors(cuMemcpy((CUdeviceptr)dest,(CUdeviceptr)src,bytes)); }
+   else { cuMemcpy((CUdeviceptr)dest,(CUdeviceptr)src,bytes); }
 #endif
    return dest;
 }
@@ -256,15 +252,15 @@ void* mm::D2D(void *dest, const void *src, size_t bytes, const bool async)
       {
          GET_ADRS(src);
          GET_ADRS(dest);
-         checkCudaErrors(cuMemcpyDtoD((CUdeviceptr)d_dest,(CUdeviceptr)d_src,bytes));
+         cuMemcpyDtoD((CUdeviceptr)d_dest,(CUdeviceptr)d_src,bytes);
       }
       else
       {
          const CUstream s = *config::Get().Stream();
-         checkCudaErrors(cuMemcpyDtoDAsync((CUdeviceptr)dest,(CUdeviceptr)src,bytes,s));
+         cuMemcpyDtoDAsync((CUdeviceptr)dest,(CUdeviceptr)src,bytes,s);
       }
    }
-   else { checkCudaErrors(cuMemcpy((CUdeviceptr)dest,(CUdeviceptr)src,bytes)); }
+   else { cuMemcpy((CUdeviceptr)dest,(CUdeviceptr)src,bytes); }
 #endif
    return dest;
 }

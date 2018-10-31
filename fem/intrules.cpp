@@ -1064,8 +1064,8 @@ IntegrationRule *IntegrationRules::SegmentIntegrationRule(int Order)
    // Order is one of {RealOrder-1,RealOrder}
    AllocIntRule(SegmentIntRules, RealOrder);
 
-   IntegrationRule tmp, *ir;
-   ir = refined ? &tmp : new IntegrationRule;
+   static IntegrationRule tmp;
+   IntegrationRule *ir = refined ? &tmp : new IntegrationRule;
 
    int n = 0;
    // n is the number of points to achieve the exact integral of a

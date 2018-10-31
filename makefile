@@ -304,12 +304,10 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
    export VERBOSE
 endif
 
-# Kernels dirs
-KERNELS_SRC_DIRS := 	general/kernels linalg/kernels mesh/kernels fem/kernels
-
 # Source dirs in logical order
-DIRS = general linalg mesh fem $(KERNELS_SRC_DIRS)
-SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
+DIRS = general linalg mesh fem
+SOURCE_FILES  = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
+SOURCE_FILES += $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/kernels/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 
