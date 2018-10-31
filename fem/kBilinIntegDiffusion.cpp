@@ -28,7 +28,6 @@ KDiffusionIntegrator::KDiffusionIntegrator(const FiniteElementSpace *f,
 // *****************************************************************************
 void KDiffusionIntegrator::Assemble()
 {
-   push();
    const FiniteElement &fe = *(fes->GetFE(0));
    const Mesh *mesh = fes->GetMesh();
    const int dim = mesh->Dimension();
@@ -38,7 +37,7 @@ void KDiffusionIntegrator::Assemble()
    assert(elements==mesh->GetNE());
    const int quadraturePoints = ir->GetNPoints();
    const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
-   const int dofs1D = fes->GetFE(0)->GetOrder() + 1;
+   //const int dofs1D = fes->GetFE(0)->GetOrder() + 1;
    // dbg("dofs1D=%d",dofs1D);
    // dbg("quad1D=%d",quad1D);
    const int size = symmDims * quadraturePoints * elements;
@@ -52,13 +51,11 @@ void KDiffusionIntegrator::Assemble()
                          geo->J,
                          1.0,//COEFF
                          vec);
-   pop();
 }
 
 // *****************************************************************************
 void KDiffusionIntegrator::MultAdd(Vector &x, Vector &y)
 {
-   push();
    const Mesh *mesh = fes->GetMesh();
    const int dim = mesh->Dimension();
    const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
@@ -80,7 +77,6 @@ void KDiffusionIntegrator::MultAdd(Vector &x, Vector &y)
                         vec,
                         x,
                         y);
-   pop();
 }
 
-}
+} // namespace mfem

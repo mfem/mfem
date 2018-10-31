@@ -201,7 +201,6 @@ int main(int argc, char *argv[])
    if (pa) { A = new ParPABilinearForm(fespace); }
    else    { A = new HypreParMatrix(); }
 
-   dbg("a->FormLinearSystem");
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    if (myid == 0)

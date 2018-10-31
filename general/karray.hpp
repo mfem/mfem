@@ -19,7 +19,6 @@
 
 #include "../config/config.hpp"
 #include "array.hpp"
-#include "kmalloc.hpp"
 #include "okina.hpp"
 
 namespace mfem

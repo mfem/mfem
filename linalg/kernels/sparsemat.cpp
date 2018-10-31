@@ -42,7 +42,7 @@ void kGauss_Seidel_forw_A_NULL(const size_t s,
    assert(false);
    forall(i,s,
    {
-      size_t c;
+      int c;
       double sum = 0.0;
       RowNode *diag_p = NULL;
       RowNode *n_p;

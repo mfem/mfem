@@ -39,7 +39,6 @@ kFiniteElementSpace::kFiniteElementSpace(FiniteElementSpace *f)
     indices(localDofs, f->GetNE()),
     map(localDofs, f->GetNE())
 {
-   push();
    const FiniteElement *fe = f->GetFE(0);
    const TensorBasisElement* el = dynamic_cast<const TensorBasisElement*>(fe);
    const Array<int> &dof_map = el->GetDofMap();
@@ -99,16 +98,9 @@ kFiniteElementSpace::kFiniteElementSpace(FiniteElementSpace *f)
 
    const int leN = localDofs*elements;
    const int guN = globalDofs+1;
-
-   //offsets = h_offsets;
    kArrayAssign(guN,h_offsets,offsets);
-
-   //indices = h_indices;
    kArrayAssign(leN,h_indices,indices);
-
-   //map = h_map;
    kArrayAssign(leN,h_map,map);
-   pop();
 }
 
 // ***************************************************************************
@@ -121,7 +113,6 @@ kFiniteElementSpace::~kFiniteElementSpace()
 void kFiniteElementSpace::GlobalToLocal(const Vector& globalVec,
                                         Vector& localVec) const
 {
-   push();
    const int vdim = fes->GetVDim();
    const int localEntries = localDofs * fes->GetNE();
    const bool vdim_ordering = fes->GetOrdering() == Ordering::byVDIM;
@@ -133,7 +124,6 @@ void kFiniteElementSpace::GlobalToLocal(const Vector& globalVec,
                   indices,
                   globalVec,
                   localVec);
-   pop();
 }
 
 // ***************************************************************************
@@ -141,7 +131,6 @@ void kFiniteElementSpace::GlobalToLocal(const Vector& globalVec,
 void kFiniteElementSpace::LocalToGlobal(const Vector& localVec,
                                         Vector& globalVec) const
 {
-   push();
    const int vdim = fes->GetVDim();
    const int localEntries = localDofs * fes->GetNE();
    const bool vdim_ordering = fes->GetOrdering() == Ordering::byVDIM;
@@ -153,7 +142,6 @@ void kFiniteElementSpace::LocalToGlobal(const Vector& localVec,
                   indices,
                   localVec,
                   globalVec);
-   pop();
 }
 
 } // mfem

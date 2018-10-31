@@ -130,17 +130,15 @@ void kFactor(const int m, int *ipiv, double *data)
 {
    GET_ADRS_T(ipiv,int);
    GET_ADRS(data);
-   forall(i,m,
+   forall(i, m,
    {
       // pivoting
       {
-         size_t piv = i;
+         int piv = i;
          double a = fabs(d_data[piv+i*m]);
-         //printf("\n a=%f",a);
          for (int j = i+1; j < m; j++)
          {
             const double b = fabs(d_data[j+i*m]);
-            //printf("\n\t b=%f",b);
             if (b > a)
             {
                a = b;
@@ -162,7 +160,6 @@ void kFactor(const int m, int *ipiv, double *data)
          }
       }
       const double diim = d_data[i+i*m];
-      //printf("\n\t\033[32;7mdiim=%f\033[m",diim);
       assert(diim != 0.0);
       const double a_ii_inv = 1.0/d_data[i+i*m];
       for (int j = i+1; j < m; j++)
@@ -175,33 +172,6 @@ void kFactor(const int m, int *ipiv, double *data)
          for (int j = i+1; j < m; j++)
          {
             d_data[j+k*m] -= a_ik * d_data[j+i*m];
-         }
-      }
-      //}
-   });
-}
-
-// *****************************************************************************
-void kMult(const int ah, const int aw, const int bw,
-           const double *bd, const double *cd, double *ad)
-{
-   GET_CONST_ADRS(bd);
-   GET_CONST_ADRS(cd);
-   GET_ADRS(ad);
-   forall(k,1,
-   {
-      for (int i = 0; i < ah*aw; i++)
-      {
-         d_ad[i] = 0.0;
-      }
-      for (int j = 0; j < aw; j++)
-      {
-         for (int k = 0; k < bw; k++)
-         {
-            for (int i = 0; i < ah; i++)
-            {
-               d_ad[i+j*ah] += d_bd[i+k*ah] * d_cd[k+j*bw];
-            }
          }
       }
    });
@@ -282,7 +252,7 @@ void kAddMult_a_VVt(const size_t n, const double a, const double *v,
 }
 
 // *****************************************************************************
-void kMult0(const size_t height, double *y)
+void kMultWidth0(const size_t height, double *y)
 {
    GET_ADRS(y);
    forall(row, height, d_y[row] = 0.0;);
@@ -307,6 +277,26 @@ void kMult(const size_t height, const size_t width,
 }
 
 // *****************************************************************************
+void kMult(const size_t ah, const size_t aw, const size_t bw,
+           const double *bd, const double *cd, double *ad)
+{
+   GET_CONST_ADRS(bd);
+   GET_CONST_ADRS(cd);
+   GET_ADRS(ad);
+   forall(i, ah*aw, d_ad[i] = 0.0;);
+   forall(j, aw,
+   {
+      for (size_t k = 0; k < bw; k++)
+      {
+         for (size_t i = 0; i < ah; i++)
+         {
+            d_ad[i+j*ah] += d_bd[i+k*ah] * d_cd[k+j*bw];
+         }
+      }
+   });
+}
+
+// *****************************************************************************
 void kDiag(const size_t n, const size_t N, const double c, double *data)
 {
    GET_ADRS(data);
@@ -323,14 +313,14 @@ void kOpEq(const size_t hw, const double *m, double *data)
 }
 
 // *****************************************************************************
-double kDMDet2(const double *data)
+double kDet2(const double *data)
 {
    GET_ADRS(data);
    return d_data[0] * d_data[3] - d_data[1] * d_data[2];
 }
 
 // *****************************************************************************
-double kDMDet3(const double *d)
+double kDet3(const double *d)
 {
    GET_ADRS(d);
    return

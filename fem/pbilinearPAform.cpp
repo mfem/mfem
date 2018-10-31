@@ -9,7 +9,7 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-// Implementation of class BilinearForm
+#include "../config/config.hpp"
 
 #ifdef MFEM_USE_MPI
 
@@ -29,14 +29,14 @@ namespace mfem
 // ***************************************************************************
 // * ParPABilinearForm
 // ***************************************************************************
-ParPABilinearForm::ParPABilinearForm(ParFiniteElementSpace* fes) :
+ParPABilinearForm::ParPABilinearForm(ParFiniteElementSpace *fes) :
    PABilinearForm(fes),
    mesh(fes->GetMesh()),
    trialFes(fes),
    testFes(fes),
    localX(mesh->GetNE() * trialFes->GetFE(0)->GetDof() * trialFes->GetVDim()),
    localY(mesh->GetNE() * testFes->GetFE(0)->GetDof() * testFes->GetVDim()),
-   kfes(new kFiniteElementSpace(*fes)) { push(); }
+   kfes(new kFiniteElementSpace(static_cast<FiniteElementSpace*>(fes))) { }
 
 // ***************************************************************************
 ParPABilinearForm::~ParPABilinearForm() { /*delete kfes;*/}
@@ -48,7 +48,6 @@ void ParPABilinearForm::EnableStaticCondensation() { assert(false);}
 // Adds new Domain Integrator.
 void ParPABilinearForm::AddDomainIntegrator(AbstractBilinearFormIntegrator *i)
 {
-   dbg("\033[7mAddDomainIntegrator");
    integrators.Append(static_cast<BilinearPAFormIntegrator*>(i));
 }
 
@@ -101,7 +100,6 @@ static const IntegrationRule &DiffusionGetRule(const FiniteElement &trial_fe,
 // ***************************************************************************
 void ParPABilinearForm::Assemble(int skip_zeros)
 {
-   push();
    //const int nbi = integrators.Size();
    assert(integrators.Size()==1);
    const FiniteElement &fe = *fes->GetFE(0);
@@ -137,7 +135,6 @@ void ParPABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                                          Operator *&A, Vector &X, Vector &B,
                                          int copy_interior)
 {
-   push();
    const Operator* trialP = trialFes->GetProlongationMatrix();
    const Operator* testP  = testFes->GetProlongationMatrix();
    Operator *rap = this;
@@ -145,27 +142,20 @@ void ParPABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    const bool own_A = rap!=this;
    assert(rap);
 
-   dbg("new ConstrainedOperator");
    A = new ConstrainedOperator(rap, ess_tdof_list, own_A);
 
    const Operator* P = trialFes->GetProlongationMatrix();
    const Operator* R = trialFes->GetRestrictionMatrix();
    if (P)
    {
-      dbg("P");
       // Variational restriction with P
-      dbg("B.SetSize");
       B.SetSize(P->Width());
-      dbg("P->MultTranspose");
       P->MultTranspose(b, B);
-      dbg("X.SetSize");
       X.SetSize(R->Height());
-      dbg("R->Mult");
       R->Mult(x, X);
    }
    else
    {
-      dbg("else");
       // rap, X and B point to the same data as this, x and b
       X.SetSize(x.Size()); X = x;
       B.SetSize(b.Size()); B = b;
@@ -193,7 +183,6 @@ void ParPABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    assert(cA);
    if (cA)
    {
-      dbg("ConstrainedOperator");
       cA->EliminateRHS(X, B);
    }
    else
@@ -205,7 +194,6 @@ void ParPABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
 // ***************************************************************************
 void ParPABilinearForm::Mult(const Vector &x, Vector &y) const
 {
-   push();
    kfes->GlobalToLocal(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
@@ -220,7 +208,6 @@ void ParPABilinearForm::Mult(const Vector &x, Vector &y) const
 // ***************************************************************************
 void ParPABilinearForm::MultTranspose(const Vector &x, Vector &y) const
 {
-   push();
    assert(false);
    kfes->GlobalToLocal(x, localX);
    localY = 0.0;
@@ -238,7 +225,6 @@ void ParPABilinearForm::RecoverFEMSolution(const Vector &X,
                                            const Vector &b,
                                            Vector &x)
 {
-   push();
    const Operator *P = this->GetProlongation();
    if (P)
    {

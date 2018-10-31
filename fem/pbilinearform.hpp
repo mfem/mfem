@@ -295,9 +295,7 @@ public:
       FA(config::Get().PA()==false),
       ppabf(FA?NULL:new ParPABilinearForm(f)),
       pfabf(FA?new ParFABilinearForm(f):NULL)
-   {
-      dbg("\033[7mParBilinearForm %s",FA?"FA":"PA");
-   }
+   { }
    virtual ~ParBilinearForm() {}
    // **************************************************************************
    void EnableStaticCondensation() {assert(false);}
