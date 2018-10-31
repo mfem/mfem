@@ -215,7 +215,7 @@ void DenseMatrix::Mult(const double *x, double *y) const
 {
    if (width == 0)
    {
-      kMult0(height, y);
+      kMultWidth0(height, y);
       return;
    }
    kMult(height, width, data, x, y);
@@ -498,11 +498,11 @@ double DenseMatrix::Det() const
       case 1:
          return data[0];
 
-      case 2: return kDenseMatrixDet2(data);
+      case 2: return kDet2(data);
 
       case 3:
       {
-         return kDenseMatrixDet3(data);
+         return kDet3(data);
       }
       case 4:
       {
@@ -604,7 +604,7 @@ DenseMatrix &DenseMatrix::operator=(const DenseMatrix &m)
    SetSize(m.height, m.width);
 
    const int hw = height * width;
-   kDenseMatrixOpEq(hw,m.GetData(),data);
+   kOpEq(hw,m.GetData(),data);
    return *this;
 }
 
@@ -844,16 +844,13 @@ double DenseMatrix::MaxMaxNorm() const
 void DenseMatrix::FNorm(double &scale_factor, double &scaled_fnorm2) const
 {
    int hw = Height() * Width();
-
-   const double max_norm = kDenseMatrixFNormMax(hw,data);
-
+   const double max_norm = kFNormMax(hw,data);
    if (max_norm == 0.0)
    {
       scale_factor = scaled_fnorm2 = 0.0;
       return;
    }
-
-   const double fnorm2 = kDenseMatrixFNorm2(hw,max_norm,data);
+   const double fnorm2 = kFNorm2(hw,max_norm,data);
    scale_factor = max_norm;
    scaled_fnorm2 = fnorm2;
 }
@@ -2442,7 +2439,7 @@ void DenseMatrix::Diag(double c, int n)
 {
    SetSize(n);
    const int N = n*n;
-   kDenseMatrixDiag(n, N, c, data);
+   kDiag(n, N, c, data);
 }
 
 void DenseMatrix::Diag(double *diag, int n)
@@ -3042,13 +3039,13 @@ void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
    dgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
           c.Data(), &k, &beta, a.Data(), &m);
 #else
-   const int ah = a.Height();
-   const int aw = a.Width();
-   const int bw = b.Width();
+   const size_t ah = a.Height();
+   const size_t aw = a.Width();
+   const size_t bw = b.Width();
    double *ad = a.Data();
    const double *bd = b.Data();
    const double *cd = c.Data();
-   kMult(ah,aw,bw,bd,cd,ad);
+   kMult(ah, aw, bw, bd, cd, ad);
 #endif
 }
 
@@ -3254,10 +3251,10 @@ void CalcInverse(const DenseMatrix &a, DenseMatrix &inva)
          inva(0,0) = t;
          break;
       case 2:
-         kDenseMatCalcInverse2D(t,a.GetData(),inva.GetData());
+         kCalcInverse2D(t,a.GetData(),inva.GetData());
          break;
       case 3:
-         kDenseMatCalcInverse3D(t,a.GetData(),inva.GetData());
+         kCalcInverse3D(t,a.GetData(),inva.GetData());
          break;
    }
 }
