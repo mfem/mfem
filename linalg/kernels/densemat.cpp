@@ -15,13 +15,6 @@ namespace mfem
 {
 
 // *****************************************************************************
-#ifdef MFEM_USE_LAPACK
-#define ipiv_base 1
-#else
-#define ipiv_base 0
-#endif
-
-// *****************************************************************************
 template <class T> __device__ __host__
 inline void Swap(T &a, T &b)
 {
@@ -43,7 +36,7 @@ __kernel__ void LSolve(const int m,
       // X <- P X
       for (int i = 0; i < m; i++)
       {
-         Swap<double>(mx[i], mx[ipiv[i]-ipiv_base]);
+         Swap<double>(mx[i], mx[ipiv[i]]);
       }
       // X <- L^{-1} X
       for (int j = 0; j < m; j++)
@@ -71,7 +64,7 @@ void kLSolve( const int m,
       // X <- P X
       for (int i = 0; i < m; i++)
       {
-         Swap<double>(d_mx[i], d_mx[d_ipiv[i]-ipiv_base]);
+         Swap<double>(d_mx[i], d_mx[d_ipiv[i]]);
       }
       // X <- L^{-1} X
       for (int j = 0; j < m; j++)
@@ -388,4 +381,4 @@ void kCalcInverse3D(const double t, const double *a, double *inva)
    d_inva[2+3*2] = (d_a[0+3*0]*d_a[1+3*1]-d_a[0+3*1]*d_a[1+3*0])*t;
 }
 
-}
+} // namespace mfem

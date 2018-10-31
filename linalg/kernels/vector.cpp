@@ -60,9 +60,9 @@ double cuVectorDot(const size_t N, const double *x, const double *y)
    static double *h_dot = NULL;
    if (!h_dot) { h_dot = (double*)calloc(dot_sz,sizeof(double)); }
    static CUdeviceptr gdsr = (CUdeviceptr) NULL;
-   if (!gdsr) { checkCudaErrors(cuMemAlloc(&gdsr,bytes)); }
+   if (!gdsr) { cuMemAlloc(&gdsr,bytes); }
    cuKernelDot<<<gridSize,blockSize>>>(N, (double*)gdsr, x, y);
-   checkCudaErrors(cuMemcpy((CUdeviceptr)h_dot,(CUdeviceptr)gdsr,bytes));
+   cuMemcpy((CUdeviceptr)h_dot,(CUdeviceptr)gdsr,bytes);
    double dot = 0.0;
    for (size_t i=0; i<dot_sz; i+=1) { dot += h_dot[i]; }
    return dot;
@@ -79,7 +79,7 @@ double kVectorDot(const size_t N, const double *x, const double *y)
    if (cuda)
    {
 #ifdef __NVCC__
-      return cuVectorDot(N, x, y);
+      return cuVectorDot(N, d_x, d_y);
 #endif // __NVCC__
    }
 
