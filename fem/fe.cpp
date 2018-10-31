@@ -10502,7 +10502,7 @@ const double RT_WedgeElement::nk[15] =
 RT_WedgeElement::RT_WedgeElement(const int p)
    : VectorFiniteElement(3, Geometry::PRISM,
                          (p + 2) * ((p + 1) * (p + 2)) / 2 +
-			 (p + 1) * (p + 1) * (p + 3), p + 1,
+                         (p + 1) * (p + 1) * (p + 3), p + 1,
                          H_DIV, FunctionSpace::Pk),
      dof2nk(Dof),
      t_dof(Dof),
@@ -10518,7 +10518,7 @@ RT_WedgeElement::RT_WedgeElement(const int p)
                "when building RT_WedgeElement!");
 
    const int pm1 = p - 1;
-   
+
 #ifndef MFEM_THREAD_SAFE
    tl2_shape.SetSize(L2TriangleFE.GetDof());
    sh1_shape.SetSize(H1SegmentFE.GetDof());
@@ -10535,7 +10535,7 @@ RT_WedgeElement::RT_WedgeElement(const int p)
    for (int j = 0; j <= p; j++)
       for (int i = 0; i + j <= p; i++)
       {
-	 l = j + i * (2 * p + 3 - i) / 2;
+         l = j + i * (2 * p + 3 - i) / 2;
          t_dof[o] = l; s_dof[o] = 0; dof2nk[o] = 0; o++;
       }
    // (3,4,5) -- top
@@ -10571,10 +10571,10 @@ RT_WedgeElement::RT_WedgeElement(const int p)
       for (int j = 0; j <= pm1; j++)
          for (int i = 0; i + j <= pm1; i++)
          {
- 	    t_dof[o] = 3 * (p + 1) + 2 * l;     s_dof[o] = k;
-	    dof2nk[o] = 2; o++;
-	    t_dof[o] = 3 * (p + 1) + 2 * l + 1; s_dof[o] = k;
-	    dof2nk[o] = 4; l++; o++;
+            t_dof[o] = 3 * (p + 1) + 2 * l;     s_dof[o] = k;
+            dof2nk[o] = 2; o++;
+            t_dof[o] = 3 * (p + 1) + 2 * l + 1; s_dof[o] = k;
+            dof2nk[o] = 4; l++; o++;
          }
    }
    for (int k = 1; k < H1SegmentFE.GetDof() - 1; k++)
@@ -10585,9 +10585,9 @@ RT_WedgeElement::RT_WedgeElement(const int p)
       }
    }
 }
-  
+
 void RT_WedgeElement::CalcVShape(const IntegrationPoint &ip,
-				 DenseMatrix &shape) const
+                                 DenseMatrix &shape) const
 {
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix trt_shape(RTTriangleFE.GetDof(), 2);
@@ -10619,9 +10619,9 @@ void RT_WedgeElement::CalcVShape(const IntegrationPoint &ip,
       }
    }
 }
-  
+
 void RT_WedgeElement::CalcDivShape(const IntegrationPoint &ip,
-				   Vector &divshape) const
+                                   Vector &divshape) const
 {
 #ifdef MFEM_THREAD_SAFE
    Vector      trt_dshape(RTSegmentFE.GetDof());
@@ -10642,12 +10642,12 @@ void RT_WedgeElement::CalcDivShape(const IntegrationPoint &ip,
    {
       if ( dof2nk[i] >= 2 )
       {
-	divshape(i) = trt_dshape(t_dof[i]) * sl2_shape(s_dof[i]);
+         divshape(i) = trt_dshape(t_dof[i]) * sl2_shape(s_dof[i]);
       }
       else
       {
-	divshape(i) = tl2_shape(t_dof[i]) * sh1_dshape(s_dof[i], 0);
-}
+         divshape(i) = tl2_shape(t_dof[i]) * sh1_dshape(s_dof[i], 0);
+      }
    }
 }
 
