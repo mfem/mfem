@@ -10539,11 +10539,11 @@ RT_WedgeElement::RT_WedgeElement(const int p)
          t_dof[o] = l; s_dof[o] = 0; dof2nk[o] = 0; o++;
       }
    // (3,4,5) -- top
-   int m = 0;
+   l = 0;
    for (int j = 0; j <= p; j++)
       for (int i = 0; i + j <= p; i++)
       {
-         t_dof[o] = m; s_dof[o] = 1; dof2nk[o] = 1; m++; o++;
+         t_dof[o] = l; s_dof[o] = 1; dof2nk[o] = 1; l++; o++;
       }
    // (0, 1, 4, 3) -- xz plane
    for (int j = 0; j <= p; j++)
@@ -10579,12 +10579,10 @@ RT_WedgeElement::RT_WedgeElement(const int p)
    }
    for (int k = 1; k < H1SegmentFE.GetDof() - 1; k++)
    {
-      l = 0;
-      for (int j = 0; j <= p; j++)
-         for (int i = 0; i + j <= p; i++)
-         {
-            t_dof[o] = l; s_dof[o] = k; dof2nk[o] = 1; l++; o++;
-         }
+      for (l = 0; l < L2TriangleFE.GetDof(); l++)
+      {
+         t_dof[o] = l; s_dof[o] = k; dof2nk[o] = 1; o++;
+      }
    }
 }
   
