@@ -12,8 +12,6 @@
 #ifndef MFEM_MM_HPP
 #define MFEM_MM_HPP
 
-#include <unordered_map>
-
 namespace mfem
 {
 
@@ -27,10 +25,10 @@ typedef struct mm2dev
 } mm2dev_t;
 
 // *****************************************************************************
-typedef std::unordered_map<const void*,mm2dev_t> mm_t;
+typedef std::unordered_map<const void*, mm2dev_t> mm_t;
 
 // *****************************************************************************
-// * Memory manager singleton
+// * Memory Manager Singleton
 // *****************************************************************************
 class mm
 {
@@ -43,8 +41,8 @@ private:
 public:
    static mm& Get()
    {
-      static mm mm_singleton;
-      return mm_singleton;
+      static mm singleton;
+      return singleton;
    }
    // **************************************************************************
 private:
@@ -59,10 +57,7 @@ public:
    static inline T* malloc(size_t size, const size_t size_of_T = sizeof(T))
    {
       if (!mm::Get().mng) { mm::Get().Setup(); }
-      // alloc on host first
-      T *ptr = ::new T[size];
-      // add to the pool of registered adresses
-      return (T*) mm::Get().add((void*)ptr,size,size_of_T);
+      return (T*) mm::Get().add(::new T[size], size, size_of_T);
    }
 
    // **************************************************************************
@@ -88,8 +83,6 @@ public:
    void Push(const void*);
 
    // **************************************************************************
-public:
-   // **************************************************************************
    static void* H2H(void*, const void*, size_t, const bool =false);
 
    // **************************************************************************
@@ -103,13 +96,8 @@ public:
 
    // **************************************************************************
    static void* memcpy(void*, const void*, size_t);
-
-   // **************************************************************************
-private:
-   static void handler(int, siginfo_t*, void*);
-   static void iniHandler();
 };
 
-}
+} // namespace mfem
 
 #endif // MFEM_MM_HPP

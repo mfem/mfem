@@ -36,7 +36,7 @@ void kIntDiffusionMultAdd2D(const int numElements,
                             double* __restrict solOut)
 {
    const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D;
-   forall(e, numElements,
+   MFEM_FORALL(e, numElements,
    {
       double grad[NUM_QUAD_1D][NUM_QUAD_1D][2];
       for (int qy = 0; qy < NUM_QUAD_1D; ++qy)
@@ -147,7 +147,7 @@ void kIntDiffusionMultAdd3D(const int numElements,
                             double* __restrict solOut)
 {
    const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D*NUM_QUAD_1D;
-   forall(e, numElements,
+   MFEM_FORALL(e, numElements,
    {
       double grad[NUM_QUAD_1D][NUM_QUAD_1D][NUM_QUAD_1D][4];
       for (int qz = 0; qz < NUM_QUAD_1D; ++qz)

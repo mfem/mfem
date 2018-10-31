@@ -34,8 +34,7 @@ void kLocalToGlobal(const int NUM_VDIM,
    GET_CONST_ADRS_T(indices,int);
    GET_CONST_ADRS(localX);
    GET_ADRS(globalX);
-
-   forall(i, globalEntries,
+   MFEM_FORALL(i, globalEntries,
    {
       const int offset = d_offsets[i];
       const int nextOffset = d_offsets[i + 1];

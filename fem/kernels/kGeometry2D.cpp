@@ -31,7 +31,7 @@ void kGeom2D(const int numElements,
 {
    const int NUM_DOFS = NUM_DOFS_1D*NUM_DOFS_1D;
    const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D;
-   forall(e, numElements,
+   MFEM_FORALL(e, numElements,
    {
       double s_nodes[2 * NUM_DOFS];
       for (int q = 0; q < NUM_QUAD; ++q)
