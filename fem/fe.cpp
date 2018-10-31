@@ -10577,7 +10577,7 @@ RT_WedgeElement::RT_WedgeElement(const int p)
             dof2nk[o] = 4; l++; o++;
          }
    }
-   for (int k = 1; k < H1SegmentFE.GetDof() - 1; k++)
+   for (int k = 2; k < H1SegmentFE.GetDof(); k++)
    {
       for (l = 0; l < L2TriangleFE.GetDof(); l++)
       {
