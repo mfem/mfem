@@ -164,9 +164,7 @@ void ParPABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    if (!copy_interior and ess_tdof_list.Size()>0)
    {
       const int csz = ess_tdof_list.Size();
-      const int xsz = X.Size();
-      assert(xsz>=csz);
-      Vector subvec(xsz);
+      Vector subvec(csz);
       subvec = 0.0;
       kVectorGetSubvector(csz,
                           subvec.GetData(),
@@ -225,7 +223,9 @@ void ParPABilinearForm::RecoverFEMSolution(const Vector &X,
                                            const Vector &b,
                                            Vector &x)
 {
-   const Operator *P = this->GetProlongation();
+   //mm::Get().Rsync(X.GetData());
+   //mm::Get().Rsync(x.GetData());
+   const Operator *P = trialFes->GetProlongationMatrix();
    if (P)
    {
       // Apply conforming prolongation

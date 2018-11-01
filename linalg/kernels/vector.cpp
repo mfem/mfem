@@ -130,40 +130,40 @@ void kVectorSetDof(const int N, double *v0, const double alpha, const int *dof)
 
 // *****************************************************************************
 void kVectorGetSubvector(const int N,
-                         double* v0,
-                         const double* v1,
-                         const int* v2)
+                         double* y,
+                         const double* x,
+                         const int* dofs)
 {
-   GET_ADRS(v0);
-   GET_CONST_ADRS(v1);
-   GET_CONST_ADRS_T(v2,int);
+   GET_ADRS(y);
+   GET_CONST_ADRS(x);
+   GET_CONST_ADRS_T(dofs,int);
    MFEM_FORALL(i, N,
    {
-      const int dof_i = d_v2[i];
+      const int dof_i = d_dofs[i];
       assert(dof_i >= 0);
-      d_v0[i] = dof_i >= 0 ? d_v1[dof_i] : -d_v1[-dof_i-1];
+      d_y[i] = dof_i >= 0 ? d_x[dof_i] : -d_x[-dof_i-1];
    });
 }
 
 // *****************************************************************************
 void kVectorSetSubvector(const int N,
-                         double* data,
-                         const double* elemvect,
+                         double* x,
+                         const double* y,
                          const int* dofs)
 {
-   GET_ADRS(data);
-   GET_CONST_ADRS(elemvect);
+   GET_ADRS(x);
+   GET_CONST_ADRS(y);
    GET_CONST_ADRS_T(dofs,int);
-   MFEM_FORALL(i,N,
+   MFEM_FORALL(i, N,
    {
       const int j = d_dofs[i];
       if (j >= 0)
       {
-         d_data[j] = d_elemvect[i];
+         d_x[j] = d_y[i];
       }
       else {
          assert(false);
-         d_data[-1-j] = -d_elemvect[i];
+         d_x[-1-j] = -d_y[i];
       }
    });
 }

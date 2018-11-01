@@ -58,10 +58,12 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
+   int level = -1;
+   int max_iter = 2000;
    bool static_cond = false;
    bool pa = false;
    bool gpu = false;
-   bool visualization = 1;
+   bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -69,6 +71,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&level, "-l", "--level", "Refinement level");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
@@ -103,7 +106,7 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-      int ref_levels =
+      int ref_levels = level>=0 ? level :
          (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
@@ -181,6 +184,7 @@ int main(int argc, char *argv[])
    //    which satisfies the boundary conditions.
    ParGridFunction x(fespace);
    x = 0.0;
+   printf("\n\033[%dm[mpi #%d]x size=%d\033[m",32+myid,myid,x.Size());
 
    // 10. Set up the parallel bilinear form a(.,.) on the finite element space
    //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
@@ -194,6 +198,9 @@ int main(int argc, char *argv[])
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, static condensation, etc.
    if (static_cond) { a->EnableStaticCondensation(); }
+
+   tic_toc.Clear();
+   tic_toc.Start();
    a->Assemble();
 
    Vector B, X;
@@ -210,20 +217,27 @@ int main(int argc, char *argv[])
 
    // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
    //     preconditioner from hypre.
-   CG(*A, B, X, 3, 1000, 1e-12, 0.0);
+   CGSolver *cg = new CGSolver(MPI_COMM_WORLD);
+   cg->SetRelTol(1e-12);
+   cg->SetMaxIter(max_iter);
+   cg->SetPrintLevel(3);
+   cg->SetOperator(*A);
+   cg->Mult(B, X);
+   delete cg;
+   //CG(*A, B, X, 3, 1000, 1e-12, 0.0);
    /*
-     HypreSolver *amg = new HypreBoomerAMG(faA);
-     HyprePCG *pcg = new HyprePCG(faA);
-     pcg->SetTol(1e-12);
-     pcg->SetMaxIter(200);
-     pcg->SetPrintLevel(2);
-     pcg->SetPreconditioner(*amg);
-     pcg->Mult(B, X);
-     }*/
-
+   HypreSolver *amg = new HypreBoomerAMG(A);
+   HyprePCG *pcg = new HyprePCG(A);
+   pcg->SetTol(1e-12);
+   pcg->SetMaxIter(200);
+   pcg->SetPrintLevel(2);
+   pcg->SetPreconditioner(*amg);
+   pcg->Mult(B, X);
+   */
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(X, *b, x);
+   printf("\n\033[%dm[mpi #%d] solution size=%d\033[m",32+myid,myid,x.Size());
 
    // 14. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
