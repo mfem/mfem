@@ -758,7 +758,14 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
          if (z[i] == NULL) { z[i] = new Vector(b.Size()); }
          (*z[i]) = 0.0;
 
-         prec->Mult(*v[i], *z[i]);
+         if (prec)
+         {
+            prec->Mult(*v[i], *z[i]);
+         }
+         else
+         {
+            (*z[i]) = (*v[i]);
+         }
          oper->Mult(*z[i], r);
 
          for (k = 0; k <= i; k++)
