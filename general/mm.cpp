@@ -17,12 +17,13 @@ namespace mfem
 
 // *****************************************************************************
 static size_t xs_shift = 0;
-static bool test_mem_xs = false;
+static bool xs_shifted = false;
+#define MFEM_SIGSEGV_FOR_STACK {*(size_t*)NULL = 0;}
 
 // *****************************************************************************
-static inline void *shiftBack(const void *adrs)
+static inline void *xsShift(const void *adrs)
 {
-   if (!test_mem_xs) { return (void*) adrs; }
+   if (!xs_shifted) { return (void*) adrs; }
    return ((size_t*) adrs) - xs_shift;
 }
 
@@ -30,20 +31,20 @@ static inline void *shiftBack(const void *adrs)
 void mm::Setup(void)
 {
    assert(!mng);
-   test_mem_xs = getenv("MFEM_XS");
    // Create our mapping h_adrs => (size, h_adrs, d_adrs)
    mng = new mm_t();
    // Initialize the CUDA device to be ready to allocate memory
    config::Get().Setup();
-   // We can shift address accesses to trig SIGSEGV (experimental)
-   if (test_mem_xs) { xs_shift = 1ull << 48; }
+   // Shift address accesses to trig SIGSEGV
+   if ((xs_shifted=getenv("XS"))) { xs_shift = 1ull << 48; }
 }
 
 // *****************************************************************************
 // * Add an address lazily only on the host
 // *****************************************************************************
-void* mm::add(const void *adrs, const size_t size, const size_t size_of_T)
+void* mm::Insert(const void *adrs, const size_t size, const size_t size_of_T)
 {
+   if (!mm::Get().mng) { mm::Get().Setup(); }
    const size_t *h_adrs = ((size_t *) adrs) + xs_shift;
    const size_t bytes = size*size_of_T;
    const auto search = mng->find(h_adrs);
@@ -63,17 +64,18 @@ void* mm::add(const void *adrs, const size_t size, const size_t size_of_T)
 // *****************************************************************************
 // * Remove the address from the map
 // *****************************************************************************
-void *mm::del(const void *adrs)
+void *mm::Erase(const void *adrs)
 {
    const auto search = mng->find(adrs);
    const bool present = search != mng->end();
    if (not present)
    {
+      MFEM_SIGSEGV_FOR_STACK;
       mfem_error("[ERROR] Trying to remove an unknown address!");
    }
    // Remove element from the map
    mng->erase(adrs);
-   return shiftBack(adrs);
+   return xsShift(adrs);
 }
 
 // *****************************************************************************
@@ -89,49 +91,37 @@ bool mm::Known(const void *adrs)
 // *****************************************************************************
 void* mm::Adrs(const void *adrs)
 {
-   const auto search = mng->find(adrs);
-   const bool present = search != mng->end();
-
-   if (not present)
-   {
-      mfem_error("[ERROR] Trying to convert unknown address!");
-   }
-
+   const bool present = Known(adrs);
+   if (not present) MFEM_SIGSEGV_FOR_STACK;
+   MFEM_ASSERT(present, "[ERROR] Trying to convert unknown address!");
    const bool cuda = config::Get().Cuda();
    mm2dev_t &mm2dev = mng->operator[](adrs);
-   // If we are asking a known host address, just return it
+   // Just return asked known host address while not in CUDA mode
    if (mm2dev.host and not cuda)
    {
-      return shiftBack(mm2dev.h_adrs);
+      return xsShift(mm2dev.h_adrs);
    }
-
    // Otherwise push it to the device if it hasn't been seen
    if (not mm2dev.d_adrs)
    {
 #ifdef __NVCC__
       const size_t bytes = mm2dev.bytes;
-      // dbg("\033[32;1mPushing new address to the GPU!\033[m");
-      // allocate on the device
       CUdeviceptr ptr = (CUdeviceptr) NULL;
       if (bytes>0)
       {
-         // dbg(" \033[32;1m%ldo\033[m",bytes);
          cuMemAlloc(&ptr,bytes);
       }
       mm2dev.d_adrs = (void*)ptr;
-      const CUstream s = *config::Get().Stream();
-      cuMemcpyHtoDAsync(ptr,mm2dev.h_adrs,bytes,s);
-      // Now we are on the GPU
-      mm2dev.host = false;
+      const CUstream stream = *config::Get().Stream();
+      cuMemcpyHtoDAsync(ptr, mm2dev.h_adrs, bytes, stream);
+      mm2dev.host = false; // Now this address is GPU born
 #else
       mfem_error("[ERROR] Trying to run without CUDA support!");
 #endif // __NVCC__
    }
-
+   
    if (not cuda)
    {
-      // dbg("return \033[31;1mGPU\033[m h_adrs %p",mm2dev.h_adrs);
-      // dbg("return \033[31;1mGPU\033[m d_adrs %p",mm2dev.d_adrs);
 #ifdef __NVCC__
       cuMemcpyDtoH((void*)mm2dev.h_adrs,
                    (CUdeviceptr)mm2dev.d_adrs, mm2dev.bytes);
@@ -141,37 +131,26 @@ void* mm::Adrs(const void *adrs)
       mm2dev.host = true;
       return (void*)mm2dev.h_adrs;
    }
-
-   // dbg("return \033[32;1mGPU\033[m address %p",mm2dev.d_adrs);
    return (void*)mm2dev.d_adrs;
 }
 
 // *****************************************************************************
 void mm::Rsync(const void *adrs)
 {
-   const auto search = mng->find(adrs);
-   const bool present = search != mng->end();
-   assert(present);
+   const bool present = Known(adrs);
+   MFEM_ASSERT(present, "[ERROR] Trying to rsync from an unknown address!");
    const mm2dev_t &mm2dev = mng->operator[](adrs);
-   if (mm2dev.host)
-   {
-      // dbg("Already on host");
-      return;
-   }
+   if (mm2dev.host) { return; }
 #ifdef __NVCC__
-   // dbg("From GPU");
-   const size_t bytes = mm2dev.bytes;
-   cuMemcpyDtoH((void*)mm2dev.h_adrs,
-                (CUdeviceptr)mm2dev.d_adrs, bytes);
+   cuMemcpyDtoH((void*)mm2dev.h_adrs, (CUdeviceptr)mm2dev.d_adrs, mm2dev.bytes);
 #endif // __NVCC__
 }
 
 // *****************************************************************************
 void mm::Push(const void *adrs)
 {
-   const auto search = mng->find(adrs);
-   const bool present = search != mng->end();
-   assert(present);
+   const bool present = Known(adrs);
+   MFEM_ASSERT(present, "[ERROR] Trying to push an unknown address!");
    mm2dev_t &mm2dev = mng->operator[](adrs);
    if (mm2dev.host) { return; }
 #ifdef __NVCC__
@@ -188,15 +167,6 @@ void mm::Push(const void *adrs)
    cuMemcpyHtoD((CUdeviceptr)mm2dev.d_adrs,
                 (void*)mm2dev.h_adrs, bytes);
 #endif // __NVCC__
-}
-
-// *****************************************************************************
-void* mm::H2H(void *dest, const void *src, size_t bytes, const bool async)
-{
-   if (bytes==0) { return dest; }
-   assert(src); assert(dest);
-   std::memcpy(dest,src,bytes);
-   return dest;
 }
 
 // ******************************************************************************
