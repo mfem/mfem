@@ -16,6 +16,10 @@ namespace mfem
 {
 
 // *****************************************************************************
+// * Tyepdefs:
+// *   - mm2dev_t: Memory Manager Host_Address to Device_Address
+// *   - mm_t: mapping from one Host_Address to its mm2dev_t
+// *****************************************************************************
 typedef struct mm2dev
 {
    bool host = true;
@@ -47,25 +51,21 @@ public:
    // **************************************************************************
 private:
    void Setup();
-   void *add(const void*, const size_t, const size_t);
-   void *del(const void*);
-   void Cuda();
+   void *Insert(const void*, const size_t, const size_t);
+   void *Erase(const void*);
 
    // **************************************************************************
 public:
    template<class T>
    static inline T* malloc(size_t size, const size_t size_of_T = sizeof(T))
-   {
-      if (!mm::Get().mng) { mm::Get().Setup(); }
-      return (T*) mm::Get().add(::new T[size], size, size_of_T);
-   }
+   { return (T*) mm::Get().Insert(::new T[size], size, size_of_T); }
 
    // **************************************************************************
    template<class T>
    static inline void free(void *ptr)
    {
       if (!ptr) { return; }
-      void *back = mm::Get().del(ptr);
+      void *back = mm::Get().Erase(ptr);
       ::delete[] static_cast<T*>(back);
       back = nullptr;
    }
@@ -81,9 +81,6 @@ public:
 
    // **************************************************************************
    void Push(const void*);
-
-   // **************************************************************************
-   static void* H2H(void*, const void*, size_t, const bool =false);
 
    // **************************************************************************
    static void* H2D(void*, const void*, size_t, const bool =false);

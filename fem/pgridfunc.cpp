@@ -45,7 +45,7 @@ ParGridFunction::ParGridFunction(ParMesh *pmesh, const GridFunction *gf,
 
    if (partitioning)
    {
-      OKINA_ASSERT_CPU;
+      MFEM_CPU_CANNOT_PASS;
       // Assumption: the map "local element id" -> "global element id" is
       // increasing, i.e. the local numbering preserves the element order from
       // the global numbering.
@@ -101,7 +101,7 @@ void ParGridFunction::SetSpace(ParFiniteElementSpace *f)
 
 void ParGridFunction::MakeRef(FiniteElementSpace *f, double *v)
 {
-   OKINA_ASSERT_CPU;
+   MFEM_CPU_CANNOT_PASS;
    face_nbr_data.Destroy();
    GridFunction::MakeRef(f, v);
    pfes = dynamic_cast<ParFiniteElementSpace*>(f);
@@ -110,7 +110,7 @@ void ParGridFunction::MakeRef(FiniteElementSpace *f, double *v)
 
 void ParGridFunction::MakeRef(ParFiniteElementSpace *f, double *v)
 {
-   OKINA_ASSERT_CPU;
+   MFEM_CPU_CANNOT_PASS;
    face_nbr_data.Destroy();
    GridFunction::MakeRef(f, v);
    pfes = f;
@@ -118,7 +118,7 @@ void ParGridFunction::MakeRef(ParFiniteElementSpace *f, double *v)
 
 void ParGridFunction::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
 {
-   OKINA_ASSERT_CPU;
+   MFEM_CPU_CANNOT_PASS;
    face_nbr_data.Destroy();
    GridFunction::MakeRef(f, v, v_offset);
    pfes = dynamic_cast<ParFiniteElementSpace*>(f);
@@ -127,7 +127,7 @@ void ParGridFunction::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
 
 void ParGridFunction::MakeRef(ParFiniteElementSpace *f, Vector &v, int v_offset)
 {
-   OKINA_ASSERT_CPU;
+   MFEM_CPU_CANNOT_PASS;
    face_nbr_data.Destroy();
    GridFunction::MakeRef(f, v, v_offset);
    pfes = f;
@@ -135,19 +135,19 @@ void ParGridFunction::MakeRef(ParFiniteElementSpace *f, Vector &v, int v_offset)
 
 void ParGridFunction::Distribute(const Vector *tv)
 {
-   OKINA_ASSERT_CPU;
+   MFEM_CPU_CANNOT_PASS;
    pfes->GetProlongationMatrix()->Mult(*tv, *this);
 }
 
 void ParGridFunction::AddDistribute(double a, const Vector *tv)
 {
-   OKINA_ASSERT_CPU;
+   MFEM_CPU_CANNOT_PASS;
    pfes->Dof_TrueDof_Matrix()->Mult(a, *tv, 1.0, *this);
 }
 
 HypreParVector *ParGridFunction::GetTrueDofs() const
 {
-   OKINA_ASSERT_CPU;
+   MFEM_CPU_CANNOT_PASS;
    HypreParVector *tv = pfes->NewTrueDofVector();
    GetTrueDofs(*tv);
    return tv;

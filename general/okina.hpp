@@ -89,7 +89,7 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 
 // *****************************************************************************
 #define MFEM_FILE_AND_LINE __FILE__ and __LINE__
-//#define MFEM_CPU_CANNOT_PASS {assert(MFEM_FILE_AND_LINE and false);}
+#define MFEM_CPU_CANNOT_PASS {assert(MFEM_FILE_AND_LINE and false);}
 #define MFEM_GPU_CANNOT_PASS {assert(MFEM_FILE_AND_LINE and not config::Get().Cuda());}
 
 // Offsets *********************************************************************
