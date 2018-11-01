@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
    bool gpu = false;
    bool nvvp = false;
    bool sync = false;
-   bool visualization = 1;
+   bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -172,6 +172,9 @@ int main(int argc, char *argv[])
    //    conditions, applying conforming constraints for non-conforming AMR,
    //    static condensation, etc.
    if (static_cond) { a->EnableStaticCondensation(); }
+
+   tic_toc.Clear();
+   tic_toc.Start();
    a->Assemble();
 
    Vector B, X;
