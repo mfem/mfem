@@ -1852,7 +1852,7 @@ TEST_CASE("2D Bilinear Scalar Cross Product Integrators",
       }
       SECTION("Mapping RT to L2")
       {
-         L2_FECollection    fec_l2p(order , dim);
+         L2_FECollection    fec_l2p(order, dim);
          FiniteElementSpace fespace_l2p(&mesh, &fec_l2p);
 
          BilinearForm m_l2p(&fespace_l2p);
