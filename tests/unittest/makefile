@@ -9,7 +9,7 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
-MFEM_DIR = ../../
+MFEM_DIR = ../..
 CONFIG_MK = $(MFEM_DIR)/config/config.mk
 USER_CONFIG = $(MFEM_DIR)/config/user.mk
 
@@ -23,7 +23,7 @@ CCC = $(CC) $(CCOPTS)
 
 INCLUDES = -I. $(MFEM_FLAGS)
 
-DIRS = 	fem linalg mesh
+DIRS = 	fem linalg mesh general
 SOURCE_FILES = unit_test_main.cpp $(sort $(wildcard ./*/*.cpp))
 HEADER_FILES = catch.hpp
 OBJECT_FILES = $(SOURCE_FILES:.cpp=.o)
