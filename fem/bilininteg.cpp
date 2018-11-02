@@ -2272,7 +2272,7 @@ void ElasticityIntegrator::ComputeElementFlux(
 
    const IntegrationRule &ir = fluxelem.GetNodes();
    int fnd = ir.GetNPoints();
-   flux.SetSize( fnd * spaceDim );
+   flux.SetSize( fnd * spaceDim * spaceDim );
    flux = 0.0;
    double L, M, E, v;
    double e11, e22, e33, e12, e13, e23;
@@ -2332,12 +2332,64 @@ void ElasticityIntegrator::ComputeElementFlux(
       // The stress values at each integration point in the column selected by
       // flux_col_ are stored in a vector.  In principle, flux_col_ could be
       // selected by the user to give slightly different error estimators.
+      /*
       const int flux_col_ = 0;
       for (int si = 0; si < spaceDim; si++)
       {
          flux(fnd*si+i) = stress(si, flux_col_);
       }
+      */
+      for (int si = 0; si < spaceDim; si++)
+      {
+         for (int sj = 0; sj < spaceDim; sj++)
+         {
+            flux((fnd*si+i)*spaceDim+sj) = stress(si, sj);
+         }
+      }
    }
+}
+
+double ElasticityIntegrator::ComputeFluxEnergy(const FiniteElement &fluxelem,
+                                               ElementTransformation &Trans,
+                                               Vector &flux, Vector *d_energy)
+{
+   int nd = fluxelem.GetDof();
+   int dim = fluxelem.GetDim();
+   int spaceDim = Trans.GetSpaceDim();
+
+   shape.SetSize(nd);
+   pointflux.SetSize(spaceDim * spaceDim);
+
+   int order = 2 * fluxelem.GetOrder(); // <--
+   const IntegrationRule *ir = &IntRules.Get(fluxelem.GetGeomType(), order);
+
+   double energy = 0.0;
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      fluxelem.CalcShape(ip, shape);
+
+      pointflux = 0.0;
+      for (int l = 0; l < spaceDim; l++)
+      {
+         for (int k = 0; k < spaceDim; k++)
+         {
+            for (int j = 0; j < nd; j++)
+            {
+               pointflux(spaceDim*k+l) += flux((k*nd+j)*spaceDim+l)*shape(j);
+            }
+         }
+      }
+
+      Trans.SetIntPoint(&ip);
+      double w = Trans.Weight() * ip.weight;
+
+      double e = (pointflux * pointflux);
+      energy += w * e;
+   }
+
+   return energy;
 }
 
 void DGTraceIntegrator::AssembleFaceMatrix(const FiniteElement &el1,
