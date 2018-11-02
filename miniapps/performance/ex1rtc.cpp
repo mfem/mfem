@@ -32,6 +32,7 @@
 #include "mfem-performance.hpp"
 #include <fstream>
 #include <iostream>
+#include <cassert>
 
 using namespace std;
 using namespace mfem;
@@ -41,27 +42,22 @@ enum PCType { NONE, LOR, HO };
 // *****************************************************************************
 // * High-Performance Benchmark Open Kernel
 // *****************************************************************************
-void bp_kernel(const Geometry::Type geom,
-               const int msh_p,
-               const int sol_p,
-               const int dim,
-               const bool simd,
-               // **************************************************************
+void bp_kernel(const Mesh *mesh,
+               FiniteElementSpace *fespace,
+               FiniteElementSpace *fespace_lor,
                const bool perf,
-               const bool matrix_free,
-               const int pc_choice, // PCType
-               const bool static_cond,
-               const bool visualization,
-               // **************************************************************
-               const Mesh* __restrict mesh,
-               FiniteElementSpace* __restrict fespace,
-               FiniteElementSpace* __restrict fespace_lor){
-  
-  // Should be captured while parsing
-  using namespace std;
-  using namespace mfem;
-  enum PCType { NONE, LOR, HO };
-  // Hack to deal with runtime template instanciation
+               const int pc_choice,
+               const bool matrix_free = false,
+               const bool static_cond = false,
+               const bool visualization = false,
+               const int dim = 3,
+               const int msh_p = 1,
+               const int sol_p = 1,
+               const bool simd = true,
+               const int ir_order = 4,
+               const Geometry::Type geom = Geometry::CUBE,
+               const int __kernel = 0){
+   // Hack to deal with runtime template instanciation
 #ifndef __OKRTC__
 #define GEOM Geometry::CUBE
 #define MSH_P 1
@@ -81,7 +77,10 @@ void bp_kernel(const Geometry::Type geom,
 #undef SIMD
 #define SIMD simd
 #endif
-  
+   // Should be captured while parsing
+  using namespace std;
+  using namespace mfem;
+  enum PCType { NONE, LOR, HO };  
   typedef H1_FiniteElement<GEOM,MSH_P>          mesh_fe_t;
   typedef H1_FiniteElementSpace<mesh_fe_t>      mesh_fes_t;
   typedef TMesh<mesh_fes_t>                     mesh_t;
@@ -223,12 +222,13 @@ void bp_kernel(const Geometry::Type geom,
   tic_toc.Start();
   if (pc_choice != NONE)
   {
+     assert(false);
     GSSmoother M(A_pc);
     PCG(*a_oper, M, B, X, 1, 500, 1e-12, 0.0);
   }
   else
   {
-    CG(*a_oper, B, X, 1, 500, 1e-12, 0.0);
+    CG(*a_oper, B, X, 3, 2000, 1e-12, 0.0);
   }
   tic_toc.Stop();
   cout << "Solve time: " << tic_toc.RealTime() << "s." << endl;
@@ -276,10 +276,11 @@ void bp_kernel(const Geometry::Type geom,
 // *****************************************************************************
 int main(int argc, char *argv[]){
    // 1. Parse command-line options.
-   const char *mesh_file = "../../data/fichera.mesh";
-   const Geometry::Type geom = Geometry::CUBE;
+   const char *mesh_file = "../../data/star.mesh";
+   const Geometry::Type geom = Geometry::SQUARE;
    int ref_levels = -1;
-   int order = 2;
+   int order = 1;
+   int level = -1;
    const char *basis_type = "G"; // Gauss-Lobatto
    bool static_cond = false;
    const char *pc = "none";
@@ -296,6 +297,7 @@ int main(int argc, char *argv[]){
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&level, "-l", "--level", "Refinement level");
    args.AddOption(&basis_type, "-b", "--basis-type",
                   "Basis: G - Gauss-Lobatto, P - Positive, U - Uniform");
    args.AddOption(&perf, "-perf", "--hpc-version", "-std", "--standard-version",
@@ -361,7 +363,7 @@ int main(int argc, char *argv[]){
    //    elements, or as specified on the command line with the option
    //    '--refine'.
    {
-      ref_levels = (ref_levels != -1) ? ref_levels :
+      ref_levels = level>0 ? level ://(ref_levels != -1) ? ref_levels :
                    (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
@@ -418,10 +420,13 @@ int main(int argc, char *argv[]){
       fec_lor = new H1_FECollection(1, dim);
       fespace_lor = new FiniteElementSpace(mesh_lor, fec_lor);
    }
-   
-   bp_kernel(geom, order, order, dim, simd,
-             perf, matrix_free, pc_choice, static_cond,visualization,
-             mesh, fespace, fespace_lor);
+
+   // Launch kernel
+   bp_kernel(mesh, fespace, fespace_lor,
+             perf, pc_choice, matrix_free,
+             static_cond, visualization,
+             dim, order, order, simd,
+             2*order+dim-1, geom);
 
    // 16. Free the used memory.
    delete fespace;
