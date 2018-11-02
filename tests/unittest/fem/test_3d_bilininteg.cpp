@@ -2387,7 +2387,7 @@ TEST_CASE("3D Bilinear Vector Cross Product Integrators",
       }
       SECTION("Mapping RT to RT")
       {
-         RT_FECollection    fec_rtp(order , dim);
+         RT_FECollection    fec_rtp(order, dim);
          FiniteElementSpace fespace_rtp(&mesh, &fec_rtp);
 
          BilinearForm m_rtp(&fespace_rtp);

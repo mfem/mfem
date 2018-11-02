@@ -18,10 +18,10 @@ using namespace mfem;
 TEST_CASE("IntegrationRules of Different Types", "[IntegrationRules]")
 {
    //This code is automatically re-executed for all of the sections.
-   IntegrationRules gauss_intrules(0 , Quadrature1D::GaussLegendre);
-   IntegrationRules lobatto_intrules(0 , Quadrature1D::GaussLobatto);
-   IntegrationRules oes_intrules(0 , Quadrature1D::OpenUniform);
-   IntegrationRules ces_intrules(0 , Quadrature1D::ClosedUniform);
+   IntegrationRules gauss_intrules(0, Quadrature1D::GaussLegendre);
+   IntegrationRules lobatto_intrules(0, Quadrature1D::GaussLobatto);
+   IntegrationRules oes_intrules(0, Quadrature1D::OpenUniform);
+   IntegrationRules ces_intrules(0, Quadrature1D::ClosedUniform);
 
 
 
@@ -36,7 +36,7 @@ TEST_CASE("IntegrationRules of Different Types", "[IntegrationRules]")
       int pts_needed = 3;
 
       const IntegrationRule *ir;
-      ir = &gauss_intrules.Get(Geometry::SEGMENT , exact);
+      ir = &gauss_intrules.Get(Geometry::SEGMENT, exact);
       REQUIRE(ir->Size() == pts_needed);
    }
    SECTION("Expected Number of points for GaussLobatto exactness")
@@ -47,7 +47,7 @@ TEST_CASE("IntegrationRules of Different Types", "[IntegrationRules]")
       int pts_needed = 4;
 
       const IntegrationRule *ir;
-      ir = &lobatto_intrules.Get(Geometry::SEGMENT , exact);
+      ir = &lobatto_intrules.Get(Geometry::SEGMENT, exact);
       REQUIRE(ir->Size() == pts_needed);
    }
 }

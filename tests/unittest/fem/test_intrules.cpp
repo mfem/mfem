@@ -18,7 +18,7 @@ using namespace mfem;
 TEST_CASE("Integration rule container with no refinement", "[IntegrationRules]")
 {
    //This code is automatically re-executed for all of the sections.
-   IntegrationRules my_intrules(0 , Quadrature1D::GaussLegendre);
+   IntegrationRules my_intrules(0, Quadrature1D::GaussLegendre);
    IntegrationRule single_point_rule(1);
    const IntegrationRule *ir;
 
@@ -112,7 +112,7 @@ double poly3d(const IntegrationPoint &ip, int l, int m, int n)
 TEST_CASE("Simplex integration rules", "[SimplexRules]")
 {
    //This code is automatically re-executed for all of the sections.
-   IntegrationRules my_intrules(0 , Quadrature1D::GaussLegendre);
+   IntegrationRules my_intrules(0, Quadrature1D::GaussLegendre);
    IntegrationRule single_point_rule(1);
    const IntegrationRule *ir;
 

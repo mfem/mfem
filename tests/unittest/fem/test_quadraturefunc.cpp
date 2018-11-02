@@ -12,7 +12,7 @@
 #include "mfem.hpp"
 #include "catch.hpp"
 
-void Scale(std::vector<double>& x , std::vector<double>& w)
+void Scale(std::vector<double>& x, std::vector<double>& w)
 {
    const int n = x.size();
    for (int i = 0 ; i < n ; ++i)
@@ -24,7 +24,7 @@ void Scale(std::vector<double>& x , std::vector<double>& w)
 }
 
 
-void GaussTables(const int n , std::vector<double>& x , std::vector<double>& w)
+void GaussTables(const int n, std::vector<double>& x, std::vector<double>& w)
 {
    x.resize(n);
    w.resize(n);
@@ -533,7 +533,7 @@ void GaussTables(const int n , std::vector<double>& x , std::vector<double>& w)
    return;
 }
 
-void LobattoTables(const int n , std::vector<double>& x ,
+void LobattoTables(const int n, std::vector<double>& x,
                    std::vector<double>& w)
 {
    x.resize(n);
@@ -1040,7 +1040,7 @@ void LobattoTables(const int n , std::vector<double>& x ,
    Scale(x,w);
 }
 
-void ClosedNewtonCotesTables(const int n, std::vector<double>& x ,
+void ClosedNewtonCotesTables(const int n, std::vector<double>& x,
                              std::vector<double>& w)
 {
    x.resize(n);
@@ -1193,7 +1193,7 @@ void ClosedNewtonCotesTables(const int n, std::vector<double>& x ,
    return;
 }
 
-void OpenNewtonCotesTables(const int n, std::vector<double>& x ,
+void OpenNewtonCotesTables(const int n, std::vector<double>& x,
                            std::vector<double>& w)
 {
 
