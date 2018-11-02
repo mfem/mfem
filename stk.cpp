@@ -81,11 +81,12 @@ stk::~stk(){
   
   // now backtracing if initialized
   if (bt.stk(rip)!=0) return;
-  
+
   const int depth = bt.depth();
   assert(depth>0);
   const int frames = depth-(org_mode?-1:1);
   const uintptr_t address = bt.address();
+  printf("\033[33m[stk] address 0x%lx\033[m\n",address);fflush(0);
   const char *backtraced_function = bt.function();
   const char *filename = bt.filename();
   const int lineno = bt.lineno();
