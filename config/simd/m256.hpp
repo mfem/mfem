@@ -89,7 +89,9 @@ template <typename scalar_t> struct AutoSIMD<scalar_t,4,4>
   
    inline MFEM_ALWAYS_INLINE AutoSIMD operator-() const
    {
-      return _mm256_xor_pd(_mm256_set1_pd(-0.0), m256d);
+      AutoSIMD r;
+      r.m256d = _mm256_xor_pd(_mm256_set1_pd(-0.0), m256d);
+      return r;
    }
 
    inline MFEM_ALWAYS_INLINE AutoSIMD operator+(const AutoSIMD &v) const
