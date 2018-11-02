@@ -19,7 +19,7 @@
 //               ex1 -m ../../data/fichera-amr.mesh
 //               ex1 -m ../../data/mobius-strip.mesh
 //               ex1 -m ../../data/mobius-strip.mesh -o -1 -sc
-//               ex1 -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2y
+//               ex1 -m ../../data/beam-hex-nurbs.mesh -pm 1 -ps 2
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Laplace problem
