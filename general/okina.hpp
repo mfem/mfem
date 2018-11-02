@@ -101,4 +101,8 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 #define    ijkNM(i,j,k,N,M) (i)+(N)*((j)+(M)*(k))
 #define   ijklNM(i,j,k,l,N,M) (i)+(N)*((j)+(N)*((k)+(M)*(l)))
 
+// *****************************************************************************
+#define dbg(...) \
+ { printf("\n\033[32m"); printf(__VA_ARGS__); printf("\033[m"); fflush(0);}
+
 #endif // MFEM_OKINA_HPP

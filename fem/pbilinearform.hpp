@@ -73,10 +73,10 @@ public:
    // *************************************************************************
    virtual void Assemble(int skip_zeros = 1);
    virtual void FormOperator(const Array<int> &ess_tdof_list, Operator &A);
-   virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
-                                 Vector &x, Vector &b,
-                                 Operator *&A, Vector &X, Vector &B,
-                                 int copy_interior = 0);
+   void FormLinearSystem(const Array<int> &ess_tdof_list,
+                         Vector &x, Vector &b,
+                         Operator *&A, Vector &X, Vector &B,
+                         int copy_interior = 0);
    virtual void RecoverFEMSolution(const Vector &X, const Vector &b,
                                    Vector &x);
    virtual void Mult(const Vector &x, Vector &y) const;

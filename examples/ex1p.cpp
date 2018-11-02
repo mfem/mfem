@@ -72,6 +72,8 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
    args.AddOption(&level, "-l", "--level", "Refinement level");
+   args.AddOption(&max_iter, "-mi", "--max-iter",
+                  "Maximum number of CG iterations");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
@@ -184,7 +186,6 @@ int main(int argc, char *argv[])
    //    which satisfies the boundary conditions.
    ParGridFunction x(fespace);
    x = 0.0;
-   printf("\n\033[%dm[mpi #%d]x size=%d\033[m",32+myid,myid,x.Size());
 
    // 10. Set up the parallel bilinear form a(.,.) on the finite element space
    //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
@@ -237,7 +238,6 @@ int main(int argc, char *argv[])
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(X, *b, x);
-   printf("\n\033[%dm[mpi #%d] solution size=%d\033[m",32+myid,myid,x.Size());
 
    // 14. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
