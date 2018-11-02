@@ -371,14 +371,6 @@ public:
    /// Sets diagonal policy used upon construction of the linear system
    void SetDiagonalPolicy(DiagonalPolicy policy);
 
-   void DebugDump(std::ostream &os)
-   {
-      if (mat)
-      {
-         mat->Print(os, 80);
-      }
-   }
-
    /// Destroys bilinear form.
    virtual ~BilinearForm();
 };
