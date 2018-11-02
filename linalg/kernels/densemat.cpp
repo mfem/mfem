@@ -30,6 +30,7 @@ __kernel__ void LSolve(const int m,
                        const int *ipiv,
                        double *x)
 {
+   assert(false);
    for (int k=0; k<n; k+=1)
    {
       double *mx = &x[k*m];

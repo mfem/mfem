@@ -119,7 +119,7 @@ void kGauss_Seidel_back(const size_t height,
    GET_CONST_ADRS(Ap);
    GET_CONST_ADRS(xp);
    GET_ADRS(yp);
-   MFEM_FORALL(k,1,
+   MFEM_FORALL(k, 1,
    {
       for (int i = height-1; i >= 0; i--)
       {
@@ -156,7 +156,7 @@ void kAddMult(const size_t height,
    GET_CONST_ADRS(A);
    GET_CONST_ADRS(x);
    GET_ADRS(y);
-   MFEM_FORALL(i,height,
+   MFEM_FORALL(i, height,
    {
       double d = 0.0;
       const size_t end = d_I[i+1];

@@ -112,8 +112,9 @@ void* mm::Adrs(const void *adrs)
          cuMemAlloc(&ptr,bytes);
       }
       mm2dev.d_adrs = (void*)ptr;
-      const CUstream stream = *config::Get().Stream();
-      cuMemcpyHtoDAsync(ptr, mm2dev.h_adrs, bytes, stream);
+      //const CUstream stream = *config::Get().Stream();
+      //cuMemcpyHtoDAsync(ptr, mm2dev.h_adrs, bytes, stream);
+      cuMemcpyHtoD(ptr, mm2dev.h_adrs, bytes);
       mm2dev.host = false; // Now this address is GPU born
 #else
       mfem_error("[ERROR] Trying to run without CUDA support!");
@@ -168,6 +169,9 @@ void mm::Push(const void *adrs)
                 (void*)mm2dev.h_adrs, bytes);
 #endif // __NVCC__
 }
+
+// *****************************************************************************
+void mm::Pull(const void *adrs) { Rsync(adrs); }
 
 // ******************************************************************************
 void* mm::H2D(void *dest, const void *src, size_t bytes, const bool async)
