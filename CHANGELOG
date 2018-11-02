@@ -63,6 +63,8 @@ New and updated examples and miniapps
 
 Miscellaneous
 -------------
+- Altered the way FGMRES counts its iterations so that it matches GMRES.
+
 - Various other simplifications, extensions, and bugfixes in the code.
 
 API changes
