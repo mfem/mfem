@@ -2017,6 +2017,7 @@ private:
    double q_lambda, q_mu;
    Coefficient *lambda, *mu;
 
+   Vector shape, pointflux;
 #ifndef MFEM_THREAD_SAFE
    DenseMatrix dshape, Jinv, gshape, pelmat;
    Vector divshape;
@@ -2039,6 +2040,10 @@ public:
                                    Vector &u,
                                    const FiniteElement &fluxelem,
                                    Vector &flux, int with_coef = 1);
+
+   virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
+                                    ElementTransformation &Trans,
+                                    Vector &flux, Vector *d_energy = NULL);
 };
 
 /** Integrator for the DG form:
