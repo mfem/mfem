@@ -1,0 +1,35 @@
+{
+   MPI-related-write
+   Memcheck:Param
+   writev(vector[...])
+   fun:writev
+}
+
+{
+   MPI-related-syscall
+   Memcheck:Param
+   sched_setaffinity(mask)
+   fun:syscall
+}
+
+{
+   MPI_Init-memcpy
+   Memcheck:Overlap
+   fun:memcpy
+   fun:pmgr_allgather
+   fun:MPID_PSM_Init
+   fun:MPID_Init
+   fun:MPIR_Init
+   fun:main
+}
+
+{
+   hypre-BoomerAMG-GaussElimSetup
+   Memcheck:Overlap
+   fun:memcpy
+   fun:ompi_ddt_copy_content_same_ddt
+   fun:ompi_coll_tuned_allgather_intra_bruck
+   fun:PMPI_Allgather
+   fun:hypre_GaussElimSetup
+   fun:hypre_BoomerAMGSetup
+}

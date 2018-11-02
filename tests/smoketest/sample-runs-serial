@@ -1,0 +1,146 @@
+#!/bin/sh
+
+# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
+# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
+# See file COPYRIGHT for details.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability see http://mfem.googlecode.com.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the GNU Lesser General Public License (as published by the Free
+# Software Foundation) version 2.1 dated February 1999.
+
+# Echo usage information
+case $1 in
+   -h|-help)
+      cat <<EOF
+
+   $0 [-h|-help] {mfem_dir}
+
+   where: {mfem_dir}  is the MFEM source directory [default value: ../mfem]
+          -h|-help    prints this usage information and exits
+
+   This script tests all the sample runs listed in the begining comments of
+   MFEM's serial example codes. The list was generated and should be
+   periodically updated with the grep commands below.
+
+   Example usage: $0 ../..
+
+EOF
+      exit
+      ;;
+esac
+
+# Setup
+mfem_dir=$1
+if [ "$mfem_dir" = "" ]; then
+    mfem_dir="../.."
+fi
+shift
+cd $mfem_dir
+mfem_dir=`pwd`
+
+# Make sure serial examples are built
+cd $mfem_dir
+( make distclean; make serial -j
+  cd examples; make -j ) > /dev/null 2>&1
+
+# The list below was obtained with: grep -E "ex[0-9][0-9]? " ex*.cpp
+cd $mfem_dir/examples
+ex1  -h
+ex1  -no-vis
+ex1  -no-vis -m ../data/square-disc.mesh
+ex1  -no-vis -m ../data/star.mesh
+ex1  -no-vis -m ../data/escher.mesh
+ex1  -no-vis -m ../data/fichera.mesh
+ex1  -no-vis -m ../data/square-disc-p2.vtk -o 2
+ex1  -no-vis -m ../data/square-disc-p3.mesh -o 3
+ex1  -no-vis -m ../data/square-disc-nurbs.mesh -o -1
+ex1  -no-vis -m ../data/disc-nurbs.mesh -o -1
+ex1  -no-vis -m ../data/pipe-nurbs.mesh -o -1
+ex1  -no-vis -m ../data/star-surf.mesh
+ex1  -no-vis -m ../data/square-disc-surf.mesh
+ex2  -h
+ex2  -no-vis
+ex2  -no-vis -m ../data/beam-tri.mesh
+ex2  -no-vis -m ../data/beam-quad.mesh
+ex2  -no-vis -m ../data/beam-tet.mesh
+ex2  -no-vis -m ../data/beam-hex.mesh
+ex2  -no-vis -m ../data/beam-quad-nurbs.mesh
+ex2  -no-vis -m ../data/beam-hex-nurbs.mesh
+ex3  -h
+ex3  -no-vis
+ex3  -no-vis -m ../data/beam-tet.mesh
+ex3  -no-vis -m ../data/beam-hex.mesh
+ex3  -no-vis -m ../data/escher.mesh
+ex3  -no-vis -m ../data/fichera.mesh
+ex3  -no-vis -m ../data/fichera-q2.vtk
+ex3  -no-vis -m ../data/fichera-q3.mesh
+ex3  -no-vis -m ../data/beam-hex-nurbs.mesh
+ex4  -h
+ex4  -no-vis
+ex4  -no-vis -m ../data/square-disc.mesh
+ex4  -no-vis -m ../data/star.mesh
+ex4  -no-vis -m ../data/beam-tet.mesh
+ex4  -no-vis -m ../data/beam-hex.mesh
+ex4  -no-vis -m ../data/escher.mesh
+ex4  -no-vis -m ../data/fichera.mesh
+ex4  -no-vis -m ../data/fichera-q2.vtk
+ex4  -no-vis -m ../data/fichera-q3.mesh
+ex4  -no-vis -m ../data/square-disc-nurbs.mesh
+ex4  -no-vis -m ../data/beam-hex-nurbs.mesh
+ex4  -no-vis -m ../data/periodic-square.mesh -no-bc
+ex4  -no-vis -m ../data/periodic-cube.mesh -no-bc
+ex5  -h
+ex5  -no-vis
+ex5  -no-vis -m ../data/square-disc.mesh
+ex5  -no-vis -m ../data/star.mesh
+ex5  -no-vis -m ../data/beam-tet.mesh
+ex5  -no-vis -m ../data/beam-hex.mesh
+ex5  -no-vis -m ../data/escher.mesh
+ex5  -no-vis -m ../data/fichera.mesh
+ex6  -h
+ex6  -no-vis
+ex6  -no-vis -m ../data/square-disc.mesh -o 1
+ex6  -no-vis -m ../data/square-disc.mesh -o 2
+ex6  -no-vis -m ../data/square-disc-nurbs.mesh -o 2
+ex6  -no-vis -m ../data/star.mesh -o 3
+ex6  -no-vis -m ../data/escher.mesh -o 1
+ex6  -no-vis -m ../data/fichera.mesh -o 2
+ex6  -no-vis -m ../data/disc-nurbs.mesh -o 2
+ex6  -no-vis -m ../data/ball-nurbs.mesh
+ex6  -no-vis -m ../data/pipe-nurbs.mesh
+ex6  -no-vis -m ../data/star-surf.mesh -o 2
+ex6  -no-vis -m ../data/square-disc-surf.mesh -o 2
+ex7  -h
+ex7  -no-vis
+ex7  -no-vis -e 0 -o 2 -r 4
+ex7  -no-vis -e 1 -o 2 -r 4 -snap
+ex8  -h
+ex8  -no-vis
+ex8  -no-vis -m ../data/square-disc.mesh
+ex8  -no-vis -m ../data/star.mesh
+ex8  -no-vis -m ../data/escher.mesh
+ex8  -no-vis -m ../data/fichera.mesh
+ex8  -no-vis -m ../data/square-disc-p2.vtk
+ex8  -no-vis -m ../data/square-disc-p3.mesh
+ex8  -no-vis -m ../data/star-surf.mesh -o 2
+ex9  -h
+ex9  -no-vis
+ex9  -no-vis -m ../data/periodic-segment.mesh -p 0 -r 2 -dt 0.005
+ex9  -no-vis -m ../data/periodic-square.mesh -p 0 -r 2 -dt 0.01 -tf 10
+ex9  -no-vis -m ../data/periodic-hexagon.mesh -p 0 -r 2 -dt 0.01 -tf 10
+ex9  -no-vis -m ../data/periodic-square.mesh -p 1 -r 2 -dt 0.005 -tf 9
+ex9  -no-vis -m ../data/periodic-hexagon.mesh -p 1 -r 2 -dt 0.005 -tf 9
+ex9  -no-vis -m ../data/disc-nurbs.mesh -p 2 -r 3 -dt 0.005 -tf 9
+ex9  -no-vis -m ../data/periodic-square.mesh -p 3 -r 4 -dt 0.0025 -tf 9 -vs 20
+ex9  -no-vis -m ../data/periodic-cube.mesh -p 0 -r 2 -o 2 -dt 0.02 -tf 8
+ex10 -h
+ex10 -no-vis
+ex10 -no-vis -m ../data/beam-quad.mesh -s 3 -r 2 -o 2 -dt 3
+ex10 -no-vis -m ../data/beam-tri.mesh -s 3 -r 2 -o 2 -dt 3
+ex10 -no-vis -m ../data/beam-hex.mesh -s 2 -r 1 -o 2 -dt 3
+ex10 -no-vis -m ../data/beam-tet.mesh -s 2 -r 1 -o 2 -dt 3
+ex10 -no-vis -m ../data/beam-quad.mesh -s 14 -r 2 -o 2 -dt 0.03 -vs 20
+ex10 -no-vis -m ../data/beam-hex.mesh -s 14 -r 1 -o 2 -dt 0.05 -vs 20

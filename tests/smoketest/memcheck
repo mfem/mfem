@@ -1,0 +1,181 @@
+#!/bin/sh
+
+# Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at the
+# Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights reserved.
+# See file COPYRIGHT for details.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability see http://mfem.googlecode.com.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the GNU Lesser General Public License (as published by the Free
+# Software Foundation) version 2.1 dated February 1999.
+
+# Set the test directory
+test_dir=$( cd "$( dirname "$0" )" && pwd )
+build_np=${MFEM_TEST_NP:-4}
+
+# Determine current machine based on $SYS_TYPE or hostname
+if [ $SYS_TYPE ]; then
+   host="$SYS_TYPE"
+else
+   host=`hostname -s`
+fi
+
+# Echo usage information
+case $1 in
+   -h|-help)
+      cat <<EOF
+
+   $0 [-h|-help] {mfem_dir}
+
+   where: {mfem_dir}  is the MFEM source directory [default value: ../mfem]
+          -h|-help    prints this usage information and exits
+
+   This script runs the Valgrind memory checker on the serial and parallel
+   example codes in mfem_dir. The examples are run with no visualization and
+   (mostly) with their default parameters. Some MPI-related Valgrind errors are
+   suppressed with the memcheck.supp file in the test directory [1].
+
+   [1] test directory = $test_dir
+
+   Optional environment variables used by this script:
+     MFEM_TEST_NP - number of processors to use for building, default: 4
+
+   Example usage: $0 ../..
+
+EOF
+      exit
+      ;;
+esac
+
+# Setup
+mfem_dir=$1
+if [ "$mfem_dir" = "" ]; then
+    mfem_dir="../.."
+fi
+shift
+cd $mfem_dir
+mfem_dir=`pwd`
+
+# Make sure serial examples are built in debug mode
+cd $mfem_dir
+(
+   make distclean
+   make debug -j $build_np
+   make all -j $build_np
+) > /dev/null 2>&1
+
+export PATH=.:$PATH
+
+# Test serial examples
+cd $mfem_dir/examples
+valgrind -q ex1  -no-vis
+valgrind -q ex2  -no-vis
+valgrind -q ex3  -no-vis
+valgrind -q ex4  -no-vis
+valgrind -q ex5  -no-vis
+valgrind -q ex6  -no-vis
+valgrind -q ex7  -no-vis
+valgrind -q ex8  -no-vis
+valgrind -q ex9  -no-vis -tf 1
+valgrind -q ex10 -no-vis -tf 1
+valgrind -q ex14 -no-vis
+valgrind -q ex15 -no-vis -e 1
+valgrind -q ex16 -no-vis
+valgrind -q ex17 -no-vis
+valgrind -q ex18 -no-vis
+
+# Test serial meshing miniapps
+cd $mfem_dir/miniapps/meshing
+valgrind -q klein-bottle -no-vis
+valgrind -q mobius-strip -no-vis
+
+# Test serial HPC examples -- disabling since these problems are too big
+# cd $mfem_dir/miniapps/performance
+# valgrind -q ex1  -perf -no-vis
+# valgrind -q ex1  -std -no-vis
+
+# Test serial NURBS examples
+cd $mfem_dir/miniapps/nurbs
+valgrind -q ex1  -no-vis
+
+# Make sure parallel examples are built in debug mode
+
+# On tux374 use MPICH, since OpenMPI produces a lot of false positives with
+# Valgrind
+if [[ $host == tux374* ]]; then
+   OLD_PATH=$PATH
+   OLD_LD_LIBRARY_PATH=$LD_LIBRARY_PATH
+   export PATH=/usr/apps/mpich2/default/bin:$OLD_PATH
+   export LD_LIBRARY_PATH=/usr/apps/mpich2/default/lib:$OLD_LD_LIBRARY_PATH
+   cd $mfem_dir; cd ../hypre-2.10.0b/src
+   (
+      ./configure --disable-fortran --without-fei
+      make clean
+      make -j $build_np
+   ) > /dev/null 2>&1
+fi
+# Rebuild the library, examples, and miniapps in parallel debug mode:
+cd $mfem_dir
+(
+   make distclean
+   make pdebug -j $build_np
+   make all -j $build_np
+) > /dev/null 2>&1
+
+# Test parallel examples
+cd $mfem_dir/examples
+mpirun -np 7 valgrind -q --suppressions=$test_dir/memcheck.supp ex1p  -no-vis
+mpirun -np 7 valgrind -q --suppressions=$test_dir/memcheck.supp ex2p  -no-vis
+mpirun -np 7 valgrind -q --suppressions=$test_dir/memcheck.supp ex3p  -no-vis
+mpirun -np 7 valgrind -q --suppressions=$test_dir/memcheck.supp ex4p  -no-vis
+mpirun -np 7 valgrind -q --suppressions=$test_dir/memcheck.supp ex5p  -no-vis
+mpirun -np 7 valgrind -q --suppressions=$test_dir/memcheck.supp ex6p  -no-vis
+mpirun -np 7 valgrind -q --suppressions=$test_dir/memcheck.supp ex7p  -no-vis
+mpirun -np 7 valgrind -q --suppressions=$test_dir/memcheck.supp ex8p  -no-vis
+mpirun -np 7 valgrind -q --suppressions=$test_dir/memcheck.supp ex9p  -no-vis -tf 1
+mpirun -np 7 valgrind -q --suppressions=$test_dir/memcheck.supp ex10p -no-vis -tf 1
+mpirun -np 7 valgrind -q --suppressions=$test_dir/memcheck.supp ex11p -no-vis
+mpirun -np 7 valgrind -q --suppressions=$test_dir/memcheck.supp ex12p -no-vis
+mpirun -np 7 valgrind -q --suppressions=$test_dir/memcheck.supp ex13p -no-vis
+mpirun -np 7 valgrind -q --suppressions=$test_dir/memcheck.supp ex14p -no-vis
+mpirun -np 7 valgrind -q --suppressions=$test_dir/memcheck.supp ex15p -no-vis -e 1
+mpirun -np 7 valgrind -q --suppressions=$test_dir/memcheck.supp ex16p -no-vis
+mpirun -np 7 valgrind -q --suppressions=$test_dir/memcheck.supp ex17p -no-vis
+mpirun -np 7 valgrind -q --suppressions=$test_dir/memcheck.supp ex18p -rs 1 -no-vis
+
+# Test parallel electromagnetic miniapps
+cd $mfem_dir/miniapps/electromagnetics
+mpirun -np 7 valgrind -q --suppressions=$test_dir/memcheck.supp tesla -no-vis -maxit 2 -cr '0 0 -0.2 0 0 0.2 0.2 0.4 1'
+mpirun -np 7 valgrind -q --suppressions=$test_dir/memcheck.supp volta -no-vis -maxit 2 -dbcs 1 -dbcg -ds '0.0 0.0 0.0 0.2 8.0'
+mpirun -np 7 valgrind -q --suppressions=$test_dir/memcheck.supp maxwell -no-vis -abcs '-1' -dp '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5' -rs 2
+mpirun -np 7 valgrind -q --suppressions=$test_dir/memcheck.supp joule -no-vis -p rod -tf 3
+
+# Test parallel HPC examples -- disabling since these problems are too big
+# cd $mfem_dir/miniapps/performance
+# mpirun -np 7 valgrind -q --suppressions=$test_dir/memcheck.supp ex1p  -perf -no-vis
+# mpirun -np 7 valgrind -q --suppressions=$test_dir/memcheck.supp ex1p  -std -no-vis
+
+# Test parallel NURBS examples
+cd $mfem_dir/miniapps/nurbs
+mpirun -np 7 valgrind -q --suppressions=$test_dir/memcheck.supp ex1p  -no-vis
+mpirun -np 7 valgrind -q --suppressions=$test_dir/memcheck.supp ex11p -no-vis
+
+# On tux374, restore OpenMPI and rebuild hypre+MFEM for subsequent scripts
+if [[ $host == tux374* ]]; then
+   export PATH=$OLD_PATH
+   export LD_LIBRARY_PATH=$OLD_LD_LIBRARY_PATH
+   cd $mfem_dir; cd ../hypre-2.10.0b/src
+   (
+      ./configure --disable-fortran --without-fei
+      make clean
+      make -j $build_np
+   ) > /dev/null 2>&1
+   cd $mfem_dir
+   (
+      make distclean
+      make pdebug -j $build_np
+      make all -j $build_np
+   ) > /dev/null 2>&1
+fi
