@@ -1237,8 +1237,9 @@ private:
   HypreAMS *m_ams;
   HYPRE_Solver empty_ams;
   HypreParMatrix m_Pix, m_Piy, m_Piz, m_G;
+  HypreParMatrix *m_A;
   HypreSmoother smoother;
-  mutable HypreParVector z, w, r;
+  mutable HypreParVector z, w, r, v;
   
 public:
   HypreIAMS(HypreParMatrix &A, HypreAMS *ams, int argc, char *argv[]);
@@ -1249,6 +1250,9 @@ public:
   //virtual void Mult(const HypreParVector &b, HypreParVector &x) const;
   virtual void SetOperator(const Operator &op);
 
+  void MultAdditive(const Vector &x, Vector &y) const;
+  void MultMultiplicative(const Vector &x, Vector &y) const;
+  
   /*
   virtual operator HYPRE_Solver() const { return empty_ams; }
   //virtual operator HYPRE_Solver() const { return m_ams->HYPRE_Solver(); }

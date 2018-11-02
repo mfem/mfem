@@ -47,6 +47,8 @@ void f_exact(const Vector &, Vector &);
 double freq = 1.0, kappa;
 int dim;
 
+#define SIGMAVAL -1000.0
+
 int main(int argc, char *argv[])
 {
    // 1. Initialize MPI.
@@ -182,7 +184,7 @@ int main(int argc, char *argv[])
    //     operator curl muinv curl + sigma I, by adding the curl-curl and the
    //     mass domain integrators.
    Coefficient *muinv = new ConstantCoefficient(1.0);
-   Coefficient *sigma = new ConstantCoefficient(-1000.0);
+   Coefficient *sigma = new ConstantCoefficient(SIGMAVAL);
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
    a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
@@ -245,7 +247,7 @@ int main(int argc, char *argv[])
 	   }
 
 	   HypreIAMS *iams = new HypreIAMS(A, (HypreAMS*) ams, argc, argv);
-	   
+
 	   GMRESSolver *gmres = new GMRESSolver();
 	   gmres->SetOperator(A);
 	   gmres->SetRelTol(1e-12);
@@ -361,9 +363,9 @@ void f_exact(const Vector &x, Vector &f)
 {
    if (dim == 3)
    {
-      f(0) = (-1000. + kappa * kappa) * sin(kappa * x(1));
-      f(1) = (-1000. + kappa * kappa) * sin(kappa * x(2));
-      f(2) = (-1000. + kappa * kappa) * sin(kappa * x(0));
+      f(0) = (SIGMAVAL + kappa * kappa) * sin(kappa * x(1));
+      f(1) = (SIGMAVAL + kappa * kappa) * sin(kappa * x(2));
+      f(2) = (SIGMAVAL + kappa * kappa) * sin(kappa * x(0));
    }
    else
    {
