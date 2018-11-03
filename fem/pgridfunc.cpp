@@ -398,10 +398,10 @@ void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &vcoeff,
 }
 
 void ParGridFunction::ProjectBdrCoefficient(
-   Coefficient *coeff[], Array<int> &attr)
+   Coefficient *coeff[], VectorCoefficient *vcoeff, Array<int> &attr)
 {
    Array<int> values_counter;
-   AccumulateAndCountBdrValues(coeff, attr, values_counter);
+   AccumulateAndCountBdrValues(coeff, vcoeff, attr, values_counter);
    if (pfes->Conforming())
    {
       Vector values(Size());

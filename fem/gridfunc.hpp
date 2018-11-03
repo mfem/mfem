@@ -235,7 +235,8 @@ protected:
    void AccumulateAndCountZones(VectorCoefficient &vcoeff, AvgType type,
                                 Array<int> &zones_per_vdof);
 
-   void AccumulateAndCountBdrValues(Coefficient *coeff[], Array<int> &attr,
+   void AccumulateAndCountBdrValues(Coefficient *coeff[],
+                                    VectorCoefficient *vcoeff, Array<int> &attr,
                                     Array<int> &values_counter);
 
    void AccumulateAndCountBdrTangentValues(VectorCoefficient &vcoeff,
@@ -248,13 +249,19 @@ protected:
 
 public:
    /** @brief Project a Coefficient on the GridFunction, modifying only DOFs on
-       the boundary associated with the boundary attributed marked in the
+       the boundary associated with the boundary attributes marked in the
        @a attr array. */
    void ProjectBdrCoefficient(Coefficient &coeff, Array<int> &attr)
    {
       Coefficient *coeff_p = &coeff;
       ProjectBdrCoefficient(&coeff_p, attr);
    }
+
+   /** @brief Project a VectorCoefficient on the GridFunction, modifying only
+       DOFs on the boundary associated with the boundary attributes marked in
+       the @a attr array. */
+   virtual void ProjectBdrCoefficient(VectorCoefficient &vcoeff,
+                                      Array<int> &attr);
 
    /** @brief Project a set of Coefficient%s on the components of the
        GridFunction, modifying only DOFs on the boundary associated with the
