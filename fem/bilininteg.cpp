@@ -2180,11 +2180,12 @@ void ElasticityIntegrator::AssembleElementMatrix(
    int dim = el.GetDim();
    double w, L, M;
 
+   MFEM_ASSERT(dim == Trans.GetSpaceDim(), "");
+
 #ifdef MFEM_THREAD_SAFE
-   DenseMatrix dshape(dof, dim), Jinv(dim), gshape(dof, dim), pelmat(dof);
+   DenseMatrix dshape(dof, dim), gshape(dof, dim), pelmat(dof);
    Vector divshape(dim*dof);
 #else
-   Jinv.SetSize(dim);
    dshape.SetSize(dof, dim);
    gshape.SetSize(dof, dim);
    pelmat.SetSize(dof);
@@ -2210,8 +2211,7 @@ void ElasticityIntegrator::AssembleElementMatrix(
 
       Trans.SetIntPoint(&ip);
       w = ip.weight * Trans.Weight();
-      CalcInverse(Trans.Jacobian(), Jinv);
-      Mult(dshape, Jinv, gshape);
+      Mult(dshape, Trans.InverseJacobian(), gshape);
       MultAAt(gshape, pelmat);
       gshape.GradToDiv (divshape);
 
@@ -2246,9 +2246,10 @@ void ElasticityIntegrator::AssembleElementMatrix(
             {
                for (int k = 0; k < dof; k++)
                   for (int l = 0; l < dof; l++)
+                  {
                      elmat(dof*i+k, dof*j+l) +=
                         (M * w) * gshape(k, j) * gshape(l, i);
-               // + (L * w) * gshape(k, i) * gshape(l, j)
+                  }
             }
       }
    }
@@ -2259,26 +2260,32 @@ void ElasticityIntegrator::ComputeElementFlux(
    Vector &u, const mfem::FiniteElement &fluxelem, Vector &flux,
    int with_coef)
 {
-   int nd, dim, vdim, spaceDim;
-   nd       = el.GetDof();
-   dim      = el.GetDim();
-   vdim     = dim;
-   spaceDim = Trans.GetSpaceDim();
+   const int dof = el.GetDof();
+   const int dim = el.GetDim();
+   const int tdim = dim*(dim+1)/2; // num. entries in a symmetric tensor
+   double L, M;
 
-   DenseMatrix stress(spaceDim, spaceDim);
-   DenseMatrix gh(vdim,dim);
-   DenseMatrix grad;
-   DenseMatrix dshape(nd, dim);
+   MFEM_ASSERT(dim == 2 || dim == 3,
+               "dimension is not supported: dim = " << dim);
+   MFEM_ASSERT(dim == Trans.GetSpaceDim(), "");
+   MFEM_ASSERT(fluxelem.GetMapType() == FiniteElement::VALUE, "");
+   MFEM_ASSERT(dynamic_cast<const NodalFiniteElement*>(&fluxelem), "");
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix dshape(dof, dim);
+#else
+   dshape.SetSize(dof, dim);
+#endif
+
+   double gh_data[9], grad_data[9];
+   DenseMatrix gh(gh_data, dim, dim);
+   DenseMatrix grad(grad_data, dim, dim);
 
    const IntegrationRule &ir = fluxelem.GetNodes();
-   int fnd = ir.GetNPoints();
-   flux.SetSize( fnd * spaceDim * spaceDim );
-   flux = 0.0;
-   double L, M, E, v;
-   double e11, e22, e33, e12, e13, e23;
-   double s11, s22, s33, s12, s13, s23;
+   const int fnd = ir.GetNPoints();
+   flux.SetSize(fnd * tdim);
 
-   DenseMatrix loc_data_mat(u.GetData(), nd, vdim);
+   DenseMatrix loc_data_mat(u.GetData(), dof, dim);
    for (int i = 0; i < fnd; i++)
    {
       const IntegrationPoint &ip = ir.IntPoint(i);
@@ -2286,65 +2293,40 @@ void ElasticityIntegrator::ComputeElementFlux(
       MultAtB(loc_data_mat, dshape, gh);
 
       Trans.SetIntPoint(&ip);
-      const DenseMatrix &J = Trans.Jacobian();
-      DenseMatrix Jinv(J.Width(), J.Height());
-      CalcInverse(J, Jinv);
-      grad.SetSize(gh.Height(), Jinv.Width());
-      Mult(gh, Jinv, grad);
-      stress = 0.0;
-      L = lambda->Eval(Trans, ip);
+      Mult(gh, Trans.InverseJacobian(), grad);
+
       M = mu->Eval(Trans, ip);
-      E = M*(3*L+2*M)/(L+M);
-      v = L/(2*(L+M));
+      if (lambda)
+      {
+         L = lambda->Eval(Trans, ip);
+      }
+      else
+      {
+         L = q_lambda * M;
+         M = q_mu * M;
+      }
+
+      // stress = 2*M*e(u) + L*tr(e(u))*I, where
+      //   e(u) = (1/2)*(grad(u) + grad(u)^T)
+      const double M2 = 2.0*M;
       if (dim == 2)
       {
-         e11 = grad(0,0);
-         e22 = grad(1,1);
-         e12 = 0.5*(grad(0,1)+grad(1,0));
-         s11 = E/(1-pow(v,2)) * (1*e11+v*e22);
-         s22 = E/(1-pow(v,2)) * (v*e11+1*e22);
-         s12 = E/(1-pow(v,2)) * ((1-v)*e12);
-         stress(0,0) = s11;
-         stress(0,1) = s12;
-         stress(1,0) = s12;
-         stress(1,1) = s22;
+         L *= (grad(0,0) + grad(1,1));
+         // order of the stress entries: s_xx, s_yy, s_xy
+         flux(i+fnd*0) = M2*grad(0,0) + L;
+         flux(i+fnd*1) = M2*grad(1,1) + L;
+         flux(i+fnd*2) = M*(grad(0,1) + grad(1,0));
       }
       else if (dim == 3)
       {
-         double div_u = grad.Trace();
-         e11 = grad(0,0);
-         e22 = grad(1,1);
-         e33 = grad(2,2);
-         e12 = 0.5*(grad(0,1)+grad(1,0));
-         e13 = 0.5*(grad(0,2)+grad(2,0));
-         e23 = 0.5*(grad(1,2)+grad(2,1));
-         s11 = 2*M*e11 + L*div_u;
-         s22 = 2*M*e22 + L*div_u;
-         s33 = 2*M*e33 + L*div_u;
-         s12 = 2*M*e12;
-         s13 = 2*M*e13;
-         s23 = 2*M*e23;
-         stress(0,0) = s11; stress(0,1) = s12; stress(0,2) = s13;
-         stress(1,0) = s12; stress(1,1) = s22; stress(1,2) = s23;
-         stress(2,0) = s13; stress(2,1) = s23; stress(2,2) = s33;
-      }
-
-      // The stress values at each integration point in the column selected by
-      // flux_col_ are stored in a vector.  In principle, flux_col_ could be
-      // selected by the user to give slightly different error estimators.
-      /*
-      const int flux_col_ = 0;
-      for (int si = 0; si < spaceDim; si++)
-      {
-         flux(fnd*si+i) = stress(si, flux_col_);
-      }
-      */
-      for (int si = 0; si < spaceDim; si++)
-      {
-         for (int sj = 0; sj < spaceDim; sj++)
-         {
-            flux((fnd*si+i)*spaceDim+sj) = stress(si, sj);
-         }
+         L *= (grad(0,0) + grad(1,1) + grad(2,2));
+         // order of the stress entries: s_xx, s_yy, s_zz, s_xy, s_xz, s_yz
+         flux(i+fnd*0) = M2*grad(0,0) + L;
+         flux(i+fnd*1) = M2*grad(1,1) + L;
+         flux(i+fnd*2) = M2*grad(2,2) + L;
+         flux(i+fnd*3) = M*(grad(0,1) + grad(1,0));
+         flux(i+fnd*4) = M*(grad(0,2) + grad(2,0));
+         flux(i+fnd*5) = M*(grad(1,2) + grad(2,1));
       }
    }
 }
@@ -2353,15 +2335,36 @@ double ElasticityIntegrator::ComputeFluxEnergy(const FiniteElement &fluxelem,
                                                ElementTransformation &Trans,
                                                Vector &flux, Vector *d_energy)
 {
-   int nd = fluxelem.GetDof();
-   int dim = fluxelem.GetDim();
-   int spaceDim = Trans.GetSpaceDim();
+   const int dof = fluxelem.GetDof();
+   const int dim = fluxelem.GetDim();
+   const int tdim = dim*(dim+1)/2; // num. entries in a symmetric tensor
+   double L, M;
 
-   shape.SetSize(nd);
-   pointflux.SetSize(spaceDim * spaceDim);
+   // The MFEM_ASSERT constraints in ElasticityIntegrator::ComputeElementFlux
+   // are assumed here too.
+   MFEM_ASSERT(d_energy == NULL, "anisotropic estimates are not supported");
+   MFEM_ASSERT(flux.Size() == dof*tdim, "invalid 'flux' vector");
 
-   int order = 2 * fluxelem.GetOrder(); // <--
-   const IntegrationRule *ir = &IntRules.Get(fluxelem.GetGeomType(), order);
+#ifndef MFEM_THREAD_SAFE
+   shape.SetSize(dof);
+#else
+   Vector shape(dof);
+#endif
+   double pointstress_data[6];
+   Vector pointstress(pointstress_data, tdim);
+
+   // View of the 'flux' vector as a (dof x tdim) matrix
+   DenseMatrix flux_mat(flux.GetData(), dof, tdim);
+
+   // Use the same integration rule as in AssembleElementMatrix, replacing 'el'
+   // with 'fluxelem' when 'IntRule' is not set.
+   // Should we be using a different (more accurate) rule here?
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int order = 2 * Trans.OrderGrad(&fluxelem);
+      ir = &IntRules.Get(fluxelem.GetGeomType(), order);
+   }
 
    double energy = 0.0;
 
@@ -2370,23 +2373,52 @@ double ElasticityIntegrator::ComputeFluxEnergy(const FiniteElement &fluxelem,
       const IntegrationPoint &ip = ir->IntPoint(i);
       fluxelem.CalcShape(ip, shape);
 
-      pointflux = 0.0;
-      for (int l = 0; l < spaceDim; l++)
-      {
-         for (int k = 0; k < spaceDim; k++)
-         {
-            for (int j = 0; j < nd; j++)
-            {
-               pointflux(spaceDim*k+l) += flux((k*nd+j)*spaceDim+l)*shape(j);
-            }
-         }
-      }
+      flux_mat.MultTranspose(shape, pointstress);
 
       Trans.SetIntPoint(&ip);
       double w = Trans.Weight() * ip.weight;
 
-      double e = (pointflux * pointflux);
-      energy += w * e;
+      M = mu->Eval(Trans, ip);
+      if (lambda)
+      {
+         L = lambda->Eval(Trans, ip);
+      }
+      else
+      {
+         L = q_lambda * M;
+         M = q_mu * M;
+      }
+
+      // The strain energy density at a point is given by (1/2)*(s : e) where s
+      // and e are the stress and strain tensors, respectively. Since we only
+      // have the stress, we need to compute the strain from the stress:
+      //    s = 2*mu*e + lambda*tr(e)*I
+      // Taking trace on both sides we find:
+      //    tr(s) = 2*mu*tr(e) + lambda*tr(e)*dim = (2*mu + dim*lambda)*tr(e)
+      // which gives:
+      //    tr(e) = tr(s)/(2*mu + dim*lambda)
+      // Then from the first indentity above we can find the strain:
+      //    e = (1/(2*mu))*(s - lambda*tr(e)*I)
+
+      double pt_e; // point strain energy density
+      const double *s = pointstress_data;
+      if (dim == 2)
+      {
+         // s entries: s_xx, s_yy, s_xy
+         const double tr_e = (s[0] + s[1])/(2*(M + L));
+         L *= tr_e;
+         pt_e = (0.25/M)*(s[0]*(s[0] - L) + s[1]*(s[1] - L) + 2*s[2]*s[2]);
+      }
+      else // (dim == 3)
+      {
+         // s entries: s_xx, s_yy, s_zz, s_xy, s_xz, s_yz
+         const double tr_e = (s[0] + s[1] + s[2])/(2*M + 3*L);
+         L *= tr_e;
+         pt_e = (0.25/M)*(s[0]*(s[0] - L) + s[1]*(s[1] - L) + s[2]*(s[2] - L) +
+                          2*(s[3]*s[3] + s[4]*s[4] + s[5]*s[5]));
+      }
+
+      energy += w * pt_e;
    }
 
    return energy;
