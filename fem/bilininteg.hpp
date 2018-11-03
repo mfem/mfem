@@ -2017,9 +2017,9 @@ private:
    double q_lambda, q_mu;
    Coefficient *lambda, *mu;
 
-   Vector shape, pointflux;
 #ifndef MFEM_THREAD_SAFE
-   DenseMatrix dshape, Jinv, gshape, pelmat;
+   Vector shape;
+   DenseMatrix dshape, gshape, pelmat;
    Vector divshape;
 #endif
 
@@ -2035,12 +2035,29 @@ public:
                                       ElementTransformation &,
                                       DenseMatrix &);
 
+   /** Compute the stress corresponding to the local displacement @a u and
+       interpolate it at the nodes of the given @a fluxelem. Only the symmetric
+       part of the stress is stored, so that the size of @a flux is equal to
+       the number of DOFs in @a fluxelem times dim*(dim+1)/2. In 2D, the order
+       of the stress components is: s_xx, s_yy, s_xy. In 3D, it is: s_xx, s_yy,
+       s_zz, s_xy, s_xz, s_yz. In other words, @a flux is the local vector for
+       a FE space with dim*(dim+1)/2 vector components, based on the finite
+       element @a fluxelem. */
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
                                    Vector &u,
                                    const FiniteElement &fluxelem,
                                    Vector &flux, int with_coef = 1);
 
+   /** Compute the element energy (integral of the strain energy density)
+       corresponding to the stress represented by @a flux which is a vector of
+       coefficients multiplying the basis functions defined by @a fluxelem. In
+       other words, @a flux is the local vector for a FE space with
+       dim*(dim+1)/2 vector components, based on the finite element @a fluxelem.
+       The number of components, dim*(dim+1)/2 is such that it represents the
+       symmetric part of the (symmetric) stress tensor. The order of the
+       components is: s_xx, s_yy, s_xy in 2D, and s_xx, s_yy, s_zz, s_xy, s_xz,
+       s_yz in 3D. */
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL);

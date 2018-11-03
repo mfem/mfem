@@ -25,11 +25,12 @@
 //
 //               The example demonstrates MFEM's capability to work with both
 //               conforming and nonconforming refinements, in 2D and 3D, on
-//               linear, curved and surface meshes. Interpolation of functions
-//               from coarse to fine meshes, as well as persistent GLVis
+//               linear and curved meshes. Interpolation of functions from
+//               coarse to fine meshes, as well as persistent GLVis
 //               visualization are also illustrated.
 //
-//               We recommend viewing Example 2 before viewing this example.
+//               We recommend viewing Examples 2 and 6 before viewing this
+//               example.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -69,7 +70,7 @@ int main(int argc, char *argv[])
    //    the same code.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
-   int sdim = mesh.SpaceDimension();
+   MFEM_VERIFY(mesh.SpaceDimension() == dim, "invalid mesh");
 
    if (mesh.attributes.Max() < 2 || mesh.bdr_attributes.Max() < 2)
    {
@@ -94,7 +95,7 @@ int main(int argc, char *argv[])
    // 4. Define a finite element space on the mesh. The polynomial order is
    //    one (linear) by default, but this can be changed on the command line.
    H1_FECollection fec(order, dim);
-   FiniteElementSpace fespace(&mesh, &fec, sdim);
+   FiniteElementSpace fespace(&mesh, &fec, dim);
 
    // 5. As in Example 2, we set up the linear form b(.) which corresponds to
    //    the right-hand side of the FEM linear system. In this case, b_i equals
@@ -141,9 +142,9 @@ int main(int argc, char *argv[])
 
    // 7. The solution vector x and the associated finite element grid function
    //    will be maintained over the AMR iterations. We initialize it to zero.
-   ConstantCoefficient zero(0.0);
-   Coefficient ** zeroVec = new Coefficient*[sdim];
-   for (int i=0; i<sdim; i++) { zeroVec[i] = &zero; }
+   Vector zero_vec(dim);
+   zero_vec = 0.0;
+   VectorConstantCoefficient zero_vec_coeff(zero_vec);
    GridFunction x(&fespace);
    x = 0.0;
 
@@ -165,16 +166,19 @@ int main(int argc, char *argv[])
    if (visualization)
    {
       sol_sock.open(vishost, visport);
+      sol_sock.precision(8);
    }
 
    // 10. Set up an error estimator. Here we use the Zienkiewicz-Zhu estimator
-   //     that uses the ComputeElementFlux method of the DiffusionIntegrator to
-   //     recover a smoothed flux (gradient) that is subtracted from the element
+   //     that uses the ComputeElementFlux method of the ElasticityIntegrator to
+   //     recover a smoothed flux (stress) that is subtracted from the element
    //     flux to get an error indicator. We need to supply the space for the
-   //     smoothed flux: an (H1)^sdim (i.e., vector-valued) space is used here.
-   FiniteElementSpace flux_fespace(&mesh, &fec, sdim * sdim);
+   //     smoothed flux: an (H1)^tdim (i.e., vector-valued) space is used here.
+   //     Here, tdim represents the number of components for a symmetric (dim x
+   //     dim) tensor.
+   const int tdim = dim*(dim+1)/2;
+   FiniteElementSpace flux_fespace(&mesh, &fec, tdim);
    ZienkiewiczZhuEstimator estimator(*integ, x, flux_fespace);
-   estimator.SetAnisotropic();
 
    // 11. A refiner selects and refines elements based on a refinement strategy.
    //     The strategy here is to refine elements with errors larger than a
@@ -186,7 +190,8 @@ int main(int argc, char *argv[])
    // 12. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
    const int max_dofs = 50000;
-   for (int it = 0; ; it++)
+   const int max_amr_itr = 20;
+   for (int it = 0; it <= max_amr_itr; it++)
    {
       int cdofs = fespace.GetTrueVSize();
       cout << "\nAMR iteration " << it << endl;
@@ -199,7 +204,7 @@ int main(int argc, char *argv[])
       // 14. Set Dirichlet boundary values in the GridFunction x.
       //     Determine the list of Dirichlet true DOFs in the linear system.
       Array<int> ess_tdof_list;
-      x.ProjectBdrCoefficient(zeroVec, ess_bdr);
+      x.ProjectBdrCoefficient(zero_vec_coeff, ess_bdr);
       fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
       // 15. Create the linear system: eliminate boundary conditions, constrain
@@ -214,7 +219,7 @@ int main(int argc, char *argv[])
       // 16. Define a simple symmetric Gauss-Seidel preconditioner and use it to
       //     solve the linear system with PCG.
       GSSmoother M(A);
-      PCG(A, M, B, X, 1, 500, 1e-8, 0.0);
+      PCG(A, M, B, X, 3, 2000, 1e-12, 0.0);
 #else
       // 16. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the
       //     the linear system.
@@ -232,8 +237,23 @@ int main(int argc, char *argv[])
       // 18. Send solution by socket to the GLVis server.
       if (visualization && sol_sock.good())
       {
-         sol_sock.precision(8);
+         GridFunction nodes(&fespace), *nodes_p = &nodes;
+         mesh.GetNodes(nodes);
+         nodes += x;
+         int own_nodes = 0;
+         mesh.SwapNodes(nodes_p, own_nodes);
+         x.Neg();
          sol_sock << "solution\n" << mesh << x << flush;
+         x.Neg();
+         mesh.SwapNodes(nodes_p, own_nodes);
+         if (it == 0)
+         {
+            sol_sock << "keys '" << ((dim == 2) ? "Rjl" : "") << "m'" << endl;
+         }
+         sol_sock << "window_title 'AMR iteration: " << it << "'\n"
+                  << "pause" << endl;
+         cout << "Visualization paused. "
+              "Press <space> in the GLVis window to continue." << endl;
       }
 
       if (cdofs > max_dofs)
@@ -267,8 +287,6 @@ int main(int argc, char *argv[])
       a.Update();
       b.Update();
    }
-
-   delete [] zeroVec;
 
    return 0;
 }
