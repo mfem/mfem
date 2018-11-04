@@ -3697,6 +3697,32 @@ HypreAME::StealEigenvectors()
    return vecs;
 }
 
+
+
+HypreEuclid::HypreEuclid(HypreParMatrix &A) : HypreSolver(&A)
+{
+   MPI_Comm comm;
+
+   int    euc_level = 1; // We use ILU(1)
+   int    euc_stats = 0; // No logging 
+   int    euc_mem   = 0; // No memory logging
+
+   HYPRE_ParCSRMatrixGetComm(A, &comm);
+   
+   HYPRE_EuclidCreate(comm, &euc_precond);
+   HYPRE_EuclidSetLevel(euc_precond, euc_level);
+   HYPRE_EuclidSetStats(euc_precond, euc_stats);
+   HYPRE_EuclidSetMem(euc_precond, euc_mem);
+   
+}
+
+
+HypreEuclid::~HypreEuclid()
+{
+   HYPRE_EuclidDestroy(euc_precond);
+}
+
+
 }
 
 #endif
