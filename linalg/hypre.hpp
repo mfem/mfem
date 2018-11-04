@@ -1134,6 +1134,28 @@ public:
    HypreParVector ** StealEigenvectors();
 };
 
+
+/// The Euclid preconditioner in hypre
+class HypreEuclid : public HypreSolver
+{
+private:
+   HYPRE_Solver euc_precond;
+
+public:
+   HypreEuclid(HypreParMatrix &A);
+
+   /// The typecast to HYPRE_Solver returns the internal sai_precond
+   virtual operator HYPRE_Solver() const { return euc_precond; }
+
+   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   { return (HYPRE_PtrToParSolverFcn) HYPRE_EuclidSetup; }
+   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   { return (HYPRE_PtrToParSolverFcn) HYPRE_EuclidSolve; }
+
+   virtual ~HypreEuclid();
+};
+
+
 }
 
 #endif // MFEM_USE_MPI
