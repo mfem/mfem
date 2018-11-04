@@ -61,8 +61,8 @@ public:
 
    int findKnotSpan(double u) const;
 
-   void CalcShape (Vector &shape, int i, double xi);
-   void CalcDShape(Vector &grad,  int i, double xi);
+   void CalcShape (Vector &shape, int i, double xi) const;
+   void CalcDShape(Vector &grad,  int i, double xi) const;
 
    void Difference(const KnotVector &kv, Vector &diff) const;
    void UniformRefinement(Vector &newknots) const;
@@ -86,7 +86,7 @@ class NURBSPatch
 {
 protected:
    int     ni, nj, nk, Dim;
-   double *data;
+   double *data; // the layout of data is: (Dim x ni x nj x nk)
 
    Array<KnotVector *> kv;
 
@@ -104,14 +104,16 @@ protected:
    NURBSPatch(NURBSPatch *parent, int dir, int Order, int NCP);
 
 public:
+   NURBSPatch(const NURBSPatch &orig);
    NURBSPatch(std::istream &input);
-   NURBSPatch(KnotVector *kv0, KnotVector *kv1, int dim_);
-   NURBSPatch(KnotVector *kv0, KnotVector *kv1, KnotVector *kv2, int dim_);
-   NURBSPatch(Array<KnotVector *> &kv, int dim_);
+   NURBSPatch(const KnotVector *kv0, const KnotVector *kv1, int dim_);
+   NURBSPatch(const KnotVector *kv0, const KnotVector *kv1,
+              const KnotVector *kv2, int dim_);
+   NURBSPatch(Array<const KnotVector *> &kv, int dim_);
 
    ~NURBSPatch();
 
-   void Print(std::ostream &out);
+   void Print(std::ostream &out) const;
 
    void DegreeElevate(int dir, int t);
    void KnotInsert   (int dir, const KnotVector &knot);
@@ -121,6 +123,9 @@ public:
    void DegreeElevate(int t);
    void UniformRefinement();
 
+   // Return the number of components stored in the NURBSPatch
+   int GetNC() const { return Dim; }
+   int GetNKV() const { return kv.Size(); }
    KnotVector *GetKV(int i) { return kv[i]; }
 
    // Standard B-NET access functions
@@ -135,7 +140,7 @@ public:
    void FlipDirection(int dir);
    void SwapDirections(int dir1, int dir2);
    void Rotate3D(double normal[], double angle);
-   int MakeUniformDegree();
+   int MakeUniformDegree(int degree = -1);
    friend NURBSPatch *Interpolate(NURBSPatch &p1, NURBSPatch &p2);
    friend NURBSPatch *Revolve3D(NURBSPatch &patch, double n[], double ang,
                                 int times);
@@ -157,7 +162,8 @@ class NURBSExtension
    friend class NURBSPatchMap;
 
 protected:
-   int Order;
+   int mOrder; // see GetOrder() for description
+   Array<int> mOrders;
    int NumOfKnotVectors;
    // global entity counts
    int NumOfVertices, NumOfElements, NumOfBdrElements, NumOfDofs;
@@ -197,15 +203,21 @@ protected:
 
    Array<NURBSPatch *> patches;
 
-   inline int         KnotInd(int edge);
+   inline int         KnotInd(int edge) const;
    inline KnotVector *KnotVec(int edge);
-   inline KnotVector *KnotVec(int edge, int oedge, int *okv);
+   inline const KnotVector *KnotVec(int edge) const;
+   inline const KnotVector *KnotVec(int edge, int oedge, int *okv) const;
 
    void CheckPatches();
    void CheckBdrPatches();
 
    void GetPatchKnotVectors   (int p, Array<KnotVector *> &kv);
+   void GetPatchKnotVectors   (int p, Array<const KnotVector *> &kv) const;
    void GetBdrPatchKnotVectors(int p, Array<KnotVector *> &kv);
+   void GetBdrPatchKnotVectors(int p, Array<const KnotVector *> &kv) const;
+
+   void SetOrderFromOrders();
+   void SetOrdersFromKnotVectors();
 
    // also count the global NumOfVertices and the global NumOfDofs
    void GenerateOffsets();
@@ -215,12 +227,12 @@ protected:
    void CountBdrElements();
 
    // generate the mesh elements
-   void Get2DElementTopo(Array<Element *> &elements);
-   void Get3DElementTopo(Array<Element *> &elements);
+   void Get2DElementTopo(Array<Element *> &elements) const;
+   void Get3DElementTopo(Array<Element *> &elements) const;
 
    // generate the boundary mesh elements
-   void Get2DBdrElementTopo(Array<Element *> &boundary);
-   void Get3DBdrElementTopo(Array<Element *> &boundary);
+   void Get2DBdrElementTopo(Array<Element *> &boundary) const;
+   void Get3DBdrElementTopo(Array<Element *> &boundary) const;
 
 
    // FE space generation functions
@@ -242,14 +254,16 @@ protected:
    void Generate2DBdrElementDofTable();
    void Generate3DBdrElementDofTable();
 
-   // Patch <--> FE translation functions
-   void GetPatchNets  (const Vector &Nodes);
-   void Get2DPatchNets(const Vector &Nodes);
-   void Get3DPatchNets(const Vector &Nodes);
+   // FE --> Patch translation functions
+   void GetPatchNets  (const Vector &Nodes, int vdim);
+   void Get2DPatchNets(const Vector &Nodes, int vdim);
+   void Get3DPatchNets(const Vector &Nodes, int vdim);
 
-   void SetSolutionVector  (Vector &Nodes);
-   void Set2DSolutionVector(Vector &Nodes);
-   void Set3DSolutionVector(Vector &Nodes);
+   // Patch --> FE translation functions
+   // Side effects: delete the patches, update the weights from the patches
+   void SetSolutionVector  (Vector &Nodes, int vdim);
+   void Set2DSolutionVector(Vector &Nodes, int vdim);
+   void Set3DSolutionVector(Vector &Nodes, int vdim);
 
    // determine activeVert, NumOfActiveVertices from the activeElem array
    void GenerateActiveVertices();
@@ -263,11 +277,21 @@ protected:
    NURBSExtension() { }
 
 public:
+   /// Copy constructor: deep copy
+   NURBSExtension(const NURBSExtension &orig);
    /// Read-in a NURBSExtension
    NURBSExtension(std::istream &input);
-   /** Create a NURBSExtension with elevated order by repeating the endpoints
-       of the knot vectors and using uniform weights of 1. */
-   NURBSExtension(NURBSExtension *parent, int Order);
+   /** @brief Create a NURBSExtension with elevated order by repeating the
+       endpoints of the knot vectors and using uniform weights of 1. */
+   /** If a knot vector in @a parent already has order greater than or equal to
+       @a newOrder, it will be used unmodified. */
+   NURBSExtension(NURBSExtension *parent, int newOrder);
+   /** @brief Create a NURBSExtension with elevated knot vector orders (by
+       repeating the endpoints of the knot vectors and using uniform weights of
+       1) as given by the array @a newOrders. */
+   /** If a knot vector in @a parent already has order greater than or equal to
+       the corresponding entry in @a newOrder, it will be used unmodified. */
+   NURBSExtension(NURBSExtension *parent, const Array<int> &newOrders);
    /// Construct a NURBSExtension by merging a partitioned NURBS mesh
    NURBSExtension(Mesh *mesh_array[], int num_pieces);
 
@@ -279,33 +303,39 @@ public:
 
    // Print functions
    void Print(std::ostream &out) const;
-   void PrintCharacteristics(std::ostream &out);
+   void PrintCharacteristics(std::ostream &out) const;
 
    // Meta data functions
-   int Dimension() { return patchTopo->Dimension(); }
-   int GetNP()     { return patchTopo->GetNE(); }
-   int GetNBP()    { return patchTopo->GetNBE(); }
-   int GetOrder()  { return Order; }
-   int GetNKV()    { return NumOfKnotVectors; }
+   int Dimension() const { return patchTopo->Dimension(); }
+   int GetNP()     const { return patchTopo->GetNE(); }
+   int GetNBP()    const { return patchTopo->GetNBE(); }
 
-   int GetGNV()  { return NumOfVertices; }
-   int GetNV()   { return NumOfActiveVertices; }
-   int GetGNE()  { return NumOfElements; }
-   int GetNE()   { return NumOfActiveElems; }
-   int GetGNBE() { return NumOfBdrElements; }
-   int GetNBE()  { return NumOfActiveBdrElems; }
+   /// Read-only access to the orders of all knot vectors.
+   const Array<int> &GetOrders() const { return mOrders; }
+   /** @brief If all orders are identical, return that number. Otherwise, return
+       NURBSFECollection::VariableOrder. */
+   int GetOrder() const { return mOrder; }
 
-   int GetNTotalDof() { return NumOfDofs; }
-   int GetNDof()      { return NumOfActiveDofs; }
+   int GetNKV()  const { return NumOfKnotVectors; }
 
-   // Knotvector access function
+   int GetGNV()  const { return NumOfVertices; }
+   int GetNV()   const { return NumOfActiveVertices; }
+   int GetGNE()  const { return NumOfElements; }
+   int GetNE()   const { return NumOfActiveElems; }
+   int GetGNBE() const { return NumOfBdrElements; }
+   int GetNBE()  const { return NumOfActiveBdrElems; }
+
+   int GetNTotalDof() const { return NumOfDofs; }
+   int GetNDof()      const { return NumOfActiveDofs; }
+
+   // Knotvector read-only access function
    const KnotVector *GetKnotVector(int i) const { return knotVectors[i]; }
 
    // Mesh generation functions
-   void GetElementTopo   (Array<Element *> &elements);
-   void GetBdrElementTopo(Array<Element *> &boundary);
+   void GetElementTopo   (Array<Element *> &elements) const;
+   void GetBdrElementTopo(Array<Element *> &boundary) const;
 
-   bool HavePatches() { return (patches.Size() != 0); }
+   bool HavePatches() const { return (patches.Size() != 0); }
 
    Table *GetElementDofTable() { return el_dof; }
    Table *GetBdrElementDofTable() { return bel_dof; }
@@ -314,20 +344,26 @@ public:
    void GetElementLocalToGlobal(Array<int> &lelem_elem);
 
    // Load functions
-   void LoadFE(int i, const FiniteElement *FE);
-   void LoadBE(int i, const FiniteElement *BE);
+   void LoadFE(int i, const FiniteElement *FE) const;
+   void LoadBE(int i, const FiniteElement *BE) const;
 
    const Vector &GetWeights() const { return  weights; }
    Vector       &GetWeights()       { return  weights; }
 
-   // Translation functions: from FE coordinates into to IJK patch
+   // Translation functions: from FE coordinates to IJK patch
    // format and vice versa
    void ConvertToPatches(const Vector &Nodes);
    void SetKnotsFromPatches();
    void SetCoordsFromPatches(Vector &Nodes);
 
+   // Read a GridFunction written patch-by-patch, e.g. with PrintSolution().
+   void LoadSolution(std::istream &input, GridFunction &sol) const;
+   // Write a GridFunction patch-by-patch.
+   void PrintSolution(const GridFunction &sol, std::ostream &out) const;
+
    // Refinement methods
-   void DegreeElevate(int t);
+   // new_degree = max(old_degree, min(old_degree + rel_degree, degree))
+   void DegreeElevate(int rel_degree, int degree = 16);
    void UniformRefinement();
    void KnotInsert(Array<KnotVector *> &kv);
 };
@@ -343,20 +379,24 @@ private:
    Table *Get2DGlobalElementDofTable();
    Table *Get3DGlobalElementDofTable();
 
-   void SetActive(int *partitioning, const Array<bool> &active_bel);
-   void BuildGroups(int *partitioning, const Table &elem_dof);
+   void SetActive(const int *partitioning, const Array<bool> &active_bel);
+   void BuildGroups(const int *partitioning, const Table &elem_dof);
 
 public:
    GroupTopology gtopo;
 
    Array<int> ldof_group;
 
+   ParNURBSExtension(const ParNURBSExtension &orig);
+
    ParNURBSExtension(MPI_Comm comm, NURBSExtension *parent, int *partitioning,
                      const Array<bool> &active_bel);
 
-   // create a parallel version of 'parent' with partitioning as in
-   // 'par_parent'; the 'parent' object is destroyed
-   ParNURBSExtension(NURBSExtension *parent, ParNURBSExtension *par_parent);
+   // Create a parallel version of 'parent' with partitioning as in
+   // 'par_parent'; the 'parent' object is destroyed.
+   // The 'parent' can be either a local NURBSExtension or a global one.
+   ParNURBSExtension(NURBSExtension *parent,
+                     const ParNURBSExtension *par_parent);
 
    virtual ~ParNURBSExtension() { delete [] partitioning; }
 };
@@ -366,7 +406,7 @@ public:
 class NURBSPatchMap
 {
 private:
-   NURBSExtension *Ext;
+   const NURBSExtension *Ext;
 
    int I, J, K, pOffset, opatch;
    Array<int> verts, edges, faces, oedge, oface;
@@ -381,21 +421,21 @@ private:
                           const int N1, const int N2, const int Or);
 
    // also set verts, edges, faces, orientations etc
-   void GetPatchKnotVectors   (int p, KnotVector *kv[]);
-   void GetBdrPatchKnotVectors(int p, KnotVector *kv[], int *okv);
+   void GetPatchKnotVectors   (int p, const KnotVector *kv[]);
+   void GetBdrPatchKnotVectors(int p, const KnotVector *kv[], int *okv);
 
 public:
-   NURBSPatchMap(NURBSExtension *ext) { Ext = ext; }
+   NURBSPatchMap(const NURBSExtension *ext) { Ext = ext; }
 
    int nx() { return I + 1; }
    int ny() { return J + 1; }
    int nz() { return K + 1; }
 
-   void SetPatchVertexMap(int p, KnotVector *kv[]);
-   void SetPatchDofMap   (int p, KnotVector *kv[]);
+   void SetPatchVertexMap(int p, const KnotVector *kv[]);
+   void SetPatchDofMap   (int p, const KnotVector *kv[]);
 
-   void SetBdrPatchVertexMap(int p, KnotVector *kv[], int *okv);
-   void SetBdrPatchDofMap   (int p, KnotVector *kv[], int *okv);
+   void SetBdrPatchVertexMap(int p, const KnotVector *kv[], int *okv);
+   void SetBdrPatchDofMap   (int p, const KnotVector *kv[], int *okv);
 
    inline int operator()(const int i) const;
    inline int operator[](const int i) const { return (*this)(i); }
@@ -471,7 +511,7 @@ inline const double &NURBSPatch::operator()(int i, int j, int k, int l) const
 }
 
 
-inline int NURBSExtension::KnotInd(int edge)
+inline int NURBSExtension::KnotInd(int edge) const
 {
    int kv = edge_to_knot[edge];
    return (kv >= 0) ? kv : (-1-kv);
@@ -482,7 +522,13 @@ inline KnotVector *NURBSExtension::KnotVec(int edge)
    return knotVectors[KnotInd(edge)];
 }
 
-inline KnotVector *NURBSExtension::KnotVec(int edge, int oedge, int *okv)
+inline const KnotVector *NURBSExtension::KnotVec(int edge) const
+{
+   return knotVectors[KnotInd(edge)];
+}
+
+inline const KnotVector *NURBSExtension::KnotVec(int edge, int oedge, int *okv)
+const
 {
    int kv = edge_to_knot[edge];
    if (kv >= 0)
@@ -498,6 +544,7 @@ inline KnotVector *NURBSExtension::KnotVec(int edge, int oedge, int *okv)
 }
 
 
+// static method
 inline int NURBSPatchMap::Or2D(const int n1, const int n2,
                                const int N1, const int N2, const int Or)
 {
@@ -521,7 +568,7 @@ inline int NURBSPatchMap::Or2D(const int n1, const int n2,
 
 inline int NURBSPatchMap::operator()(const int i) const
 {
-   int i1 = i - 1;
+   const int i1 = i - 1;
    switch (F(i1, I))
    {
       case 0: return verts[0];
@@ -536,7 +583,7 @@ inline int NURBSPatchMap::operator()(const int i) const
 
 inline int NURBSPatchMap::operator()(const int i, const int j) const
 {
-   int i1 = i - 1, j1 = j - 1;
+   const int i1 = i - 1, j1 = j - 1;
    switch (3*F(j1, J) + F(i1, I))
    {
       case 0: return verts[0];
@@ -559,7 +606,7 @@ inline int NURBSPatchMap::operator()(const int i, const int j, const int k)
 const
 {
    // Needs testing
-   int i1 = i - 1, j1 = j - 1, k1 = k - 1;
+   const int i1 = i - 1, j1 = j - 1, k1 = k - 1;
    switch (3*(3*F(k1, K) + F(j1, J)) + F(i1, I))
    {
       case  0: return verts[0];

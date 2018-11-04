@@ -14,11 +14,13 @@
 # Colors used below:
 # green    '\033[0;32m'
 # red      '\033[0;31m'
+# yellow   '\033[0;33m'
 # no color '\033[0m'
 COLOR_PRINT = if [ -t 1 ]; then \
    printf $(1)$(2)'\033[0m'$(3); else printf $(2)$(3); fi
 PRINT_OK = $(call COLOR_PRINT,'\033[0;32m',OK,"  ($$1 $$2)\n")
 PRINT_FAILED = $(call COLOR_PRINT,'\033[0;31m',FAILED,"  ($$1 $$2)\n")
+PRINT_SKIP = $(call COLOR_PRINT,'\033[0;33m',SKIP,"\n")
 
 # Timing support
 define TIMECMD_detect
@@ -36,7 +38,7 @@ export TIME='%es %MkB %x'; \
 set -- $$($(1) $(SHELL) -c "$(2)" 2>&1); while [ "$$#" -gt 3 ]; do shift; done
 endef
 define TIMECMD.NOTGNU
-set -- $$($(1) -l $(SHELL) -c "$(2)" 2>&1; echo $$?); \
+set -- $$($(1) -l $(SHELL) -c "{ $(2); } > /dev/null 2>&1" 2>&1; echo $$?); \
 set -- "$$1"s "$$(($$7/1024))"kB "$${60}"
 endef
 define TIMECMD.BASH
@@ -71,7 +73,7 @@ mfem-test-file = \
    then $(PRINT_OK); else $(PRINT_FAILED); cat $(1).stderr; fi; \
    rm -f $(1).stderr; exit $$3
 
-.PHONY: test test-par-YES test-par-NO test-clean
+.PHONY: test test-par-YES test-par-NO test-ser test-par test-clean test-print
 
 # What sets of tests to run in serial and parallel
 test-par-YES: $(PAR_$(MFEM_TESTS):=-test-par) $(SEQ_$(MFEM_TESTS):=-test-seq)
@@ -80,5 +82,11 @@ test-ser:     test-par-NO
 test-par:     test-par-YES
 test:         all test-par-$(MFEM_USE_MPI) clean-exec
 test-clean: ; @rm -f *.stderr
+test-print: mfem-test=printf "   $(3) [$(2) ./$(1) -no-vis $(if $(4),$(4) )]\n"
+test-print: mfem-test-file=printf "   $(3) [$(2) ./$(1) -no-vis ]\n"
+test-print: test-par-$(MFEM_USE_MPI)
+ifeq ($(MAKECMDGOALS),test-print)
+.PHONY: $(PAR_$(MFEM_TESTS)) $(SEQ_$(MFEM_TESTS))
+endif
 
 clean-exec: test-clean

@@ -69,6 +69,20 @@ extern OutStream out;
 extern OutStream err;
 
 
+/** @brief Construct a string of the form "<prefix><myid><suffix>" where the
+    integer @a myid is padded with leading zeros to be at least @a width digits
+    long. */
+/** This is a convenience function, e.g. to redirect mfem::out to individual
+    files for each rank, one can use:
+    \code
+       std::ofstream out_file(MakeParFilename("app_out.", myid).c_str());
+       mfem::out.SetStream(out_file);
+    \endcode
+*/
+std::string MakeParFilename(const std::string &prefix, const int myid,
+                            const std::string suffix = "", const int width = 6);
+
+
 #ifdef MFEM_USE_MPI
 
 /** @name MFEM "global" communicator functions.

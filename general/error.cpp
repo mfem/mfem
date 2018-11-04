@@ -35,6 +35,45 @@
 namespace mfem
 {
 
+#ifdef MFEM_USE_EXCEPTIONS
+const char* ErrorException::what() const throw()
+{
+   return msg.c_str();
+}
+
+static ErrorAction mfem_error_action = MFEM_ERROR_THROW;
+#else
+static ErrorAction mfem_error_action = MFEM_ERROR_ABORT;
+#endif
+
+void set_error_action(ErrorAction action)
+{
+   // Check if 'action' is valid.
+   switch (action)
+   {
+      case MFEM_ERROR_ABORT: break;
+      case MFEM_ERROR_THROW:
+#ifdef MFEM_USE_EXCEPTIONS
+         break;
+#else
+         mfem_error("set_error_action: MFEM_ERROR_THROW requires the build "
+                    "option MFEM_USE_EXCEPTIONS=YES");
+         return;
+#endif
+      default:
+         mfem::err << "\n\nset_error_action: invalid action: " << action
+                   << '\n';
+         mfem_error();
+         return;
+   }
+   mfem_error_action = action;
+}
+
+ErrorAction get_error_action()
+{
+   return mfem_error_action;
+}
+
 void mfem_backtrace(int mode, int depth)
 {
 #ifdef MFEM_USE_LIBUNWIND
@@ -118,6 +157,13 @@ void mfem_error(const char *msg)
    mfem::err << "Backtrace:" << std::endl;
    mfem_backtrace(1, -1);
    mfem::err << std::endl;
+#endif
+
+#ifdef MFEM_USE_EXCEPTIONS
+   if (mfem_error_action == MFEM_ERROR_THROW)
+   {
+      throw ErrorException(msg);
+   }
 #endif
 
 #ifdef MFEM_USE_MPI

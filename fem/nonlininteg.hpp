@@ -29,7 +29,7 @@ protected:
    const IntegrationRule *IntRule;
 
    NonlinearFormIntegrator(const IntegrationRule *ir = NULL)
-      : IntRule(NULL) { }
+      : IntRule(ir) { }
 
 public:
    /** @brief Prescribe a fixed IntegrationRule to use (when @a ir != NULL) or
@@ -69,6 +69,44 @@ public:
                                    const Vector &elfun);
 
    virtual ~NonlinearFormIntegrator() { }
+};
+
+/** The abstract base class BlockNonlinearFormIntegrator is
+    a generalization of the NonlinearFormIntegrator class suitable
+    for block state vectors. */
+class BlockNonlinearFormIntegrator
+{
+public:
+   /// Compute the local energy
+   virtual double GetElementEnergy(const Array<const FiniteElement *>&el,
+                                   ElementTransformation &Tr,
+                                   const Array<const Vector *>&elfun);
+
+   /// Perform the local action of the BlockNonlinearFormIntegrator
+   virtual void AssembleElementVector(const Array<const FiniteElement *> &el,
+                                      ElementTransformation &Tr,
+                                      const Array<const Vector *> &elfun,
+                                      const Array<Vector *> &elvec);
+
+   virtual void AssembleFaceVector(const Array<const FiniteElement *> &el1,
+                                   const Array<const FiniteElement *> &el2,
+                                   FaceElementTransformations &Tr,
+                                   const Array<const Vector *> &elfun,
+                                   const Array<Vector *> &elvect);
+
+   /// Assemble the local gradient matrix
+   virtual void AssembleElementGrad(const Array<const FiniteElement*> &el,
+                                    ElementTransformation &Tr,
+                                    const Array<const Vector *> &elfun,
+                                    const Array2D<DenseMatrix *> &elmats);
+
+   virtual void AssembleFaceGrad(const Array<const FiniteElement *>&el1,
+                                 const Array<const FiniteElement *>&el2,
+                                 FaceElementTransformations &Tr,
+                                 const Array<const Vector *> &elfun,
+                                 const Array2D<DenseMatrix *> &elmats);
+
+   virtual ~BlockNonlinearFormIntegrator() { }
 };
 
 
@@ -214,6 +252,37 @@ public:
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &Ttr,
                                     const Vector &elfun, DenseMatrix &elmat);
+};
+
+/** Hyperelastic incompressible Neo-Hookean integrator with the PK1 stress
+    \f$P = \mu F - p F^{-T}\f$ where \f$\mu\f$ is the shear modulus,
+    \f$p\f$ is the pressure, and \f$F\f$ is the deformation gradient */
+class IncompressibleNeoHookeanIntegrator : public BlockNonlinearFormIntegrator
+{
+private:
+   Coefficient *c_mu;
+   DenseMatrix DSh_u, DS_u, J0i, J, J1, Finv, P, F, FinvT;
+   DenseMatrix PMatI_u, PMatO_u, PMatI_p, PMatO_p, Z, G, C;
+   Vector Sh_p;
+
+public:
+   IncompressibleNeoHookeanIntegrator(Coefficient &_mu) : c_mu(&_mu) { }
+
+   virtual double GetElementEnergy(const Array<const FiniteElement *>&el,
+                                   ElementTransformation &Tr,
+                                   const Array<const Vector *> &elfun);
+
+   /// Perform the local action of the NonlinearFormIntegrator
+   virtual void AssembleElementVector(const Array<const FiniteElement *> &el,
+                                      ElementTransformation &Tr,
+                                      const Array<const Vector *> &elfun,
+                                      const Array<Vector *> &elvec);
+
+   /// Assemble the local gradient matrix
+   virtual void AssembleElementGrad(const Array<const FiniteElement*> &el,
+                                    ElementTransformation &Tr,
+                                    const Array<const Vector *> &elfun,
+                                    const Array2D<DenseMatrix *> &elmats);
 };
 
 }

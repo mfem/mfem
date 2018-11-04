@@ -10,6 +10,7 @@
 //    mpirun -np 4 ex9p -m ../data/periodic-hexagon.mesh -p 1 -dt 0.005 -tf 9
 //    mpirun -np 4 ex9p -m ../data/amr-quad.mesh -p 1 -rp 1 -dt 0.002 -tf 9
 //    mpirun -np 4 ex9p -m ../data/star-q3.mesh -p 1 -rp 1 -dt 0.004 -tf 9
+//    mpirun -np 4 ex9p -m ../data/star-mixed.mesh -p 1 -rp 1 -dt 0.004 -tf 9
 //    mpirun -np 4 ex9p -m ../data/disc-nurbs.mesh -p 1 -rp 1 -dt 0.005 -tf 9
 //    mpirun -np 4 ex9p -m ../data/disc-nurbs.mesh -p 2 -rp 1 -dt 0.005 -tf 9
 //    mpirun -np 4 ex9p -m ../data/periodic-square.mesh -p 3 -rp 2 -dt 0.0025 -tf 9 -vs 20
@@ -164,6 +165,7 @@ int main(int argc, char *argv[])
          {
             cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          }
+         delete mesh;
          MPI_Finalize();
          return 3;
    }
@@ -270,6 +272,8 @@ int main(int argc, char *argv[])
       {
          dc = new VisItDataCollection("Example9-Parallel", pmesh);
          dc->SetPrecision(precision);
+         // To save the mesh using MFEM's parallel mesh format:
+         // dc->SetFormat(DataCollection::PARALLEL_FORMAT);
       }
       dc->RegisterField("solution", u);
       dc->SetCycle(0);

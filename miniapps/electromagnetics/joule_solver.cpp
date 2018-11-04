@@ -44,9 +44,9 @@ MagneticDiffusionEOperator::MagneticDiffusionEOperator(
      a0(NULL), a1(NULL), a2(NULL), m1(NULL), m2(NULL), m3(NULL),
      s1(NULL), s2(NULL), grad(NULL), curl(NULL), weakDiv(NULL), weakDivC(NULL),
      weakCurl(NULL),
-     A0(NULL), A1(NULL), A2(NULL), X0(NULL), X1(NULL), X2(NULL), B0(NULL),
-     B1(NULL), B2(NULL), B3(NULL),
-     v1(NULL), v2(NULL),
+     A0(NULL), A1(NULL), A2(NULL), M1(NULL), M2(NULL), M3(NULL),
+     X0(NULL), X1(NULL), X2(NULL), B0(NULL), B1(NULL), B2(NULL), B3(NULL),
+     v0(NULL), v1(NULL), v2(NULL),
      amg_a0(NULL), pcg_a0(NULL), ads_a2(NULL), pcg_a2(NULL), ams_a1(NULL),
      pcg_a1(NULL), dsp_m3(NULL),pcg_m3(NULL),
      dsp_m1(NULL), pcg_m1(NULL), dsp_m2(NULL), pcg_m2(NULL),
@@ -218,18 +218,7 @@ void MagneticDiffusionEOperator::Mult(const Vector &X, Vector &dX_dt) const
    // Phi_gf.ProjectBdrCoefficient(voltage,poisson_ess_bdr);
 
    // this is a hack to get around the above issue
-   {
-      Array<int> my_ess_dof_list;
-      HGradFESpace.GetEssentialVDofs(poisson_ess_bdr, my_ess_dof_list);
-      ParGridFunction homer(&HGradFESpace);
-      homer.ProjectCoefficient(voltage);
-      for (int i = 0; i < my_ess_dof_list.Size(); i++)
-      {
-         int dof = my_ess_dof_list[i];
-         if (dof < 0) { dof = -1 - dof; }
-         Phi_gf[i] = homer[i];
-      }
-   }
+   Phi_gf.ProjectCoefficient(voltage);
    // end of hack
 
    // apply essential BC's and apply static condensation, the new system to
@@ -474,18 +463,7 @@ void MagneticDiffusionEOperator::ImplicitSolve(const double dt,
    // Phi_gf.ProjectBdrCoefficient(voltage,poisson_ess_bdr);
 
    // this is a hack to get around the above issue
-   {
-      Array<int> my_ess_dof_list;
-      HGradFESpace.GetEssentialVDofs(poisson_ess_bdr, my_ess_dof_list);
-      ParGridFunction homer(&HGradFESpace);
-      homer.ProjectCoefficient(voltage);
-      for (int i = 0; i < my_ess_dof_list.Size(); i++)
-      {
-         int dof = my_ess_dof_list[i];
-         if (dof < 0) { dof = -1 - dof; }
-         Phi_gf[i] = homer[i];
-      }
-   }
+   Phi_gf.ProjectCoefficient(voltage);
    // end of hack
 
    // apply essential BC's and apply static condensation, the new system to
@@ -889,6 +867,19 @@ MagneticDiffusionEOperator::~MagneticDiffusionEOperator()
    if (Tcapacity != NULL) { delete Tcapacity; }
    if (InvTcap   != NULL) { delete InvTcap; }
    if (InvTcond  != NULL) { delete InvTcond; }
+
+   delete amg_a0;
+   delete pcg_a0;
+   delete pcg_a2;
+   delete ads_a2;
+   delete m3;
+   delete dsp_m3;
+   delete pcg_m3;
+   delete M1;
+   delete M2;
+   delete M3;
+   delete v0;
+   delete B3;
 }
 
 void MagneticDiffusionEOperator::Debug(const char *base, double)

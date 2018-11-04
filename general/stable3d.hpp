@@ -13,6 +13,7 @@
 #define MFEM_STABLE3D
 
 #include "mem_alloc.hpp"
+#include "../general/globals.hpp"
 
 namespace mfem
 {
@@ -49,6 +50,8 @@ public:
    int operator() (int r, int c, int f, int t) const;
 
    int NumberOfElements() { return NElem; }
+
+   void Print(std::ostream &out = mfem::out) const;
 
    ~STable3D ();
 };

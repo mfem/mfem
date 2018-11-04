@@ -13,12 +13,24 @@
 #include "../config/config.hpp"
 #include "globals.hpp"
 #include <iostream>
+#include <sstream>
+#include <iomanip>
 
 namespace mfem
 {
 
 OutStream out(std::cout);
 OutStream err(std::cerr);
+
+
+std::string MakeParFilename(const std::string &prefix, const int myid,
+                            const std::string suffix, const int width)
+{
+   std::stringstream fname;
+   fname << prefix << std::setw(width) << std::setfill('0') << myid << suffix;
+   return fname.str();
+}
+
 
 #ifdef MFEM_USE_MPI
 

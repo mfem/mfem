@@ -44,4 +44,8 @@
 #include "sidredatacollection.hpp"
 #endif
 
+#ifdef MFEM_USE_CONDUIT
+#include "conduitdatacollection.hpp"
+#endif
+
 #endif

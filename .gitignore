@@ -8,7 +8,7 @@
 
 # Object and library files
 *.o
-/libmfem.a
+/libmfem.*
 
 # CMake generated files
 CMakeCache.txt
@@ -24,6 +24,7 @@ CMakeFiles/
 /deps.mk
 config/_config.hpp
 config/config.mk
+config/sample-runs-build.log
 doc/CodeDocumentation.conf
 doc/CodeDocumentation.html
 doc/CodeDocumentation
@@ -42,8 +43,10 @@ doc/CodeDocumentation
 
 examples/ex[1-9]
 examples/ex[1-9]p
-examples/ex1[04-8]
-examples/ex1[0-8]p
+examples/ex1[04-9]
+examples/ex1[0-9]p
+examples/ex20
+examples/ex20p
 
 examples/refined.mesh
 examples/displaced.mesh
@@ -73,6 +76,12 @@ examples/vortex-mesh.*
 examples/vortex.mesh
 examples/vortex-?-init.*
 examples/vortex-?-final.*
+examples/deformation.*
+examples/pressure.*
+examples/ex20.dat
+examples/ex20p_?????.dat
+examples/gnuplot_ex20.inp
+examples/gnuplot_ex20p.inp
 
 examples/sundials/ex9
 examples/sundials/ex1[06]
@@ -109,26 +118,41 @@ examples/petsc/deformed.*
 examples/petsc/velocity.*
 examples/petsc/elastic_energy.*
 
+examples/pumi/ex1
+examples/pumi/ex[126]p
+
+examples/pumi/refined.mesh
+examples/pumi/sol.gf
+examples/pumi/mesh.*
+examples/pumi/sol.*
+examples/pumi/displaced.mesh
+
 miniapps/electromagnetics/volta
 miniapps/electromagnetics/tesla
+miniapps/electromagnetics/maxwell
 miniapps/electromagnetics/joule
 
 miniapps/electromagnetics/Volta-AMR*
 miniapps/electromagnetics/Tesla-AMR*
+miniapps/electromagnetics/Maxwell-Parallel*
 miniapps/electromagnetics/Joule_*
 
 miniapps/meshing/mobius-strip
 miniapps/meshing/klein-bottle
+miniapps/meshing/toroid
 miniapps/meshing/mesh-explorer
 miniapps/meshing/shaper
+miniapps/meshing/extruder
 miniapps/meshing/mesh-optimizer
 miniapps/meshing/pmesh-optimizer
 
 miniapps/meshing/mobius-strip.mesh
 miniapps/meshing/klein-bottle.mesh
+miniapps/meshing/toroid-*.mesh
 miniapps/meshing/mesh-explorer.mesh
 miniapps/meshing/partitioning.txt
 miniapps/meshing/shaper.mesh
+miniapps/meshing/extruder.mesh
 miniapps/meshing/optimized*
 miniapps/meshing/perturbed*
 
@@ -140,3 +164,14 @@ miniapps/performance/mesh.*
 miniapps/performance/sol.*
 
 miniapps/tools/display-basis
+miniapps/tools/load-dc
+miniapps/tools/convert-dc
+
+miniapps/nurbs/ex1
+miniapps/nurbs/ex1p
+miniapps/nurbs/ex11p
+miniapps/nurbs/refined.mesh
+miniapps/nurbs/mesh.*
+miniapps/nurbs/sol.*
+miniapps/nurbs/mode_*
+miniapps/nurbs/Example1*

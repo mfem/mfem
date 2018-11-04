@@ -28,6 +28,14 @@ class Matrix : public Operator
 {
    friend class MatrixInverse;
 public:
+   //// Defines matrix diagonal policy upon elimination of rows and/or columns.
+   enum DiagonalPolicy
+   {
+      DIAG_ZERO, ///< Set the diagonal value to zero
+      DIAG_ONE,  ///< Set the diagonal value to one
+      DIAG_KEEP  ///< Keep the diagonal value
+   };
+
    /// Creates a square matrix of size s.
    explicit Matrix(int s) : Operator(s) { }
 
@@ -78,17 +86,18 @@ public:
    /// Returns the number of non-zeros in a matrix
    virtual int NumNonZeroElems() const = 0;
 
-   /** Gets the columns indexes and values for row *row*.
-       Returns:
-       0 if cols and srow are copies of the values in the matrix.
-       1 if cols and srow are views of the values in the matrix. */
+   /// Gets the columns indexes and values for row *row*.
+   /** Returns:
+       - 0 if @a cols and @a srow are copies of the values in the matrix.
+       - 1 if @a cols and @a srow are views of the values in the matrix. */
    virtual int GetRow(const int row, Array<int> &cols, Vector &srow) const = 0;
 
-   /** If the matrix is square, it will place 1 on the diagonal (i,i) if row i
-       has "almost" zero l1-norm.
+   /** @brief If the matrix is square, this method will place 1 on the diagonal
+       (i,i) if row i has "almost" zero l1-norm.
+
        If entry (i,i) does not belong to the sparsity pattern of A, then an
        error will occur. */
-   virtual void EliminateZeroRows() = 0;
+   virtual void EliminateZeroRows(const double threshold = 1e-12) = 0;
 
    /// Matrix-Vector Multiplication y = A*x
    virtual void Mult(const Vector &x, Vector &y) const = 0;

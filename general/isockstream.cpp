@@ -98,7 +98,6 @@ int isockstream::read_data(int s, char *buf, int n)
    int br;                          // bytes read this pass
 
    bcount= 0;
-   br= 0;
    while (bcount < n)               // loop until full buffer
    {
       if ((br = recv(s, buf, n - bcount, 0)) > 0)

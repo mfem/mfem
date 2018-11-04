@@ -21,6 +21,7 @@
 #endif
 #include <cmath>
 #include <iostream>
+#include <limits>
 #if defined(_MSC_VER) && (_MSC_VER < 1800)
 #include <float.h>
 #define isfinite _finite
@@ -36,6 +37,12 @@ namespace mfem
 /** Count the number of entries in an array of doubles for which isfinite
     is false, i.e. the entry is a NaN or +/-Inf. */
 inline int CheckFinite(const double *v, const int n);
+
+/// Define a shortcut for std::numeric_limits<double>::infinity()
+inline double infinity()
+{
+   return std::numeric_limits<double>::infinity();
+}
 
 /// Vector data type.
 class Vector
@@ -116,8 +123,9 @@ public:
    /** It is always true that Capacity() >= Size(). */
    inline int Capacity() const { return abs(allocsize); }
 
-   // double *GetData() { return data; }
-
+   /// Return a pointer to the beginning of the Vector data.
+   /** @warning This method should be used with caution as it gives write access
+       to the data of const-qualified Vector%s. */
    inline double *GetData() const { return data; }
 
    /// Conversion to `double *`.

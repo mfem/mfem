@@ -143,7 +143,7 @@ void PCG(const Operator &A, Solver &B, const Vector &b, Vector &x,
 class GMRESSolver : public IterativeSolver
 {
 protected:
-   int m;
+   int m; // see SetKDim()
 
 public:
    GMRESSolver() { m = 50; }
@@ -152,6 +152,7 @@ public:
    GMRESSolver(MPI_Comm _comm) : IterativeSolver(_comm) { m = 50; }
 #endif
 
+   /// Set the number of iteration to perform between restarts, default is 50.
    void SetKDim(int dim) { m = dim; }
 
    virtual void Mult(const Vector &b, Vector &x) const;

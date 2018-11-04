@@ -14,9 +14,22 @@
 #   - CONDUIT_LIBRARIES
 #   - CONDUIT_INCLUDE_DIRS
 
+# check to see if relay requires hdf5, if so make sure to set HDF5
+# as a required dep
+if(EXISTS ${CONDUIT_DIR}/include/conduit/conduit_relay_hdf5.hpp)
+  message(STATUS "Conduit Relay HDF5 Support is ENABLED")
+  # we only need  HDF5 if Conduit was built with HDF5 support
+  set(Conduit_REQUIRED_PACKAGES "HDF5" CACHE STRING
+      "Additional packages required by Conduit.")
+  else()
+    message(STATUS "Conduit Relay HDF5 Support is DISABLED")
+endif()
+
 include(MfemCmakeUtilities)
 mfem_find_package(Conduit CONDUIT CONDUIT_DIR
   "include;include/conduit" conduit.hpp "lib" conduit
   "Paths to headers required by Conduit." "Libraries required by Conduit."
   ADD_COMPONENT relay
-    "include;include/conduit" conduit_relay.hpp "lib" conduit_relay)
+    "include;include/conduit" conduit_relay.hpp "lib" conduit_relay
+  ADD_COMPONENT blueprint
+      "include;include/conduit" conduit_blueprint.hpp "lib" conduit_blueprint)

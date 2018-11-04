@@ -10,17 +10,17 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 MFEM_DIR ?= ..
-DOXYGEN_CONG = CodeDocumentation.conf
+DOXYGEN_CONF = CodeDocumentation.conf
 
 # doxygen uses: graphviz, latex
-html: $(DOXYGEN_CONG)
-	doxygen $(DOXYGEN_CONG)
+html: $(DOXYGEN_CONF)
+	doxygen $(DOXYGEN_CONF)
 	rm -f CodeDocumentation.html
 	ln -s CodeDocumentation/html/index.html CodeDocumentation.html
 
 clean:
-	rm -rf $(DOXYGEN_CONG) CodeDocumentation CodeDocumentation.html *~
+	rm -rf $(DOXYGEN_CONF) CodeDocumentation CodeDocumentation.html *~
 
-$(DOXYGEN_CONG): $(MFEM_DIR)/doc/$(DOXYGEN_CONG).in
+$(DOXYGEN_CONF): $(MFEM_DIR)/doc/$(DOXYGEN_CONF).in
 	sed -e 's%@MFEM_SOURCE_DIR@%$(MFEM_DIR)%g' $(<) \
-	  > $(DOXYGEN_CONG)
+	  > $(DOXYGEN_CONF)

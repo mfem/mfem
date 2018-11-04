@@ -392,7 +392,7 @@ protected:
    Coefficient *lambda, *mu;
    double alpha, kappa;
 
-#ifndef MFEM_THRAED_SAFE
+#ifndef MFEM_THREAD_SAFE
    Vector shape;
    DenseMatrix dshape;
    DenseMatrix adjJ;

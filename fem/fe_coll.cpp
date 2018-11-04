@@ -22,12 +22,15 @@ namespace mfem
 
 using namespace std;
 
-int FiniteElementCollection::HasFaceDofs(int GeomType) const
+int FiniteElementCollection::HasFaceDofs(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
       case Geometry::TETRAHEDRON: return DofForGeometry (Geometry::TRIANGLE);
       case Geometry::CUBE:        return DofForGeometry (Geometry::SQUARE);
+      case Geometry::PRISM:
+         return max(DofForGeometry (Geometry::TRIANGLE),
+                    DofForGeometry (Geometry::SQUARE));
       default:
          mfem_error ("FiniteElementCollection::HasFaceDofs:"
                      " unknown geometry type.");
@@ -141,6 +144,11 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    {
       fec = new H1_Trace_FECollection(atoi(name + 13), atoi(name + 9));
    }
+   else if (!strncmp(name, "H1_Trace@", 9))
+   {
+      fec = new H1_Trace_FECollection(atoi(name + 15), atoi(name + 11),
+                                      BasisType::GetType(name[9]));
+   }
    else if (!strncmp(name, "H1_", 3))
    {
       fec = new H1_FECollection(atoi(name + 7), atoi(name + 3));
@@ -153,11 +161,6 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    else if (!strncmp(name, "H1Pos_", 6))
    {
       fec = new H1Pos_FECollection(atoi(name + 10), atoi(name + 6));
-   }
-   else if (!strncmp(name, "H1_Trace@", 9))
-   {
-      fec = new H1_Trace_FECollection(atoi(name + 15), atoi(name + 11),
-                                      BasisType::GetType(name[9]));
    }
    else if (!strncmp(name, "H1@", 3))
    {
@@ -238,15 +241,15 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    {
       fec = new ND_Trace_FECollection(atoi(name + 13), atoi(name + 9));
    }
-   else if (!strncmp(name, "ND_", 3))
-   {
-      fec = new ND_FECollection(atoi(name + 7), atoi(name + 3));
-   }
    else if (!strncmp(name, "ND_Trace@", 9))
    {
       fec = new ND_Trace_FECollection(atoi(name + 16), atoi(name + 12),
                                       BasisType::GetType(name[9]),
                                       BasisType::GetType(name[10]));
+   }
+   else if (!strncmp(name, "ND_", 3))
+   {
+      fec = new ND_FECollection(atoi(name + 7), atoi(name + 3));
    }
    else if (!strncmp(name, "ND@", 3))
    {
@@ -260,12 +263,20 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    }
    else if (!strncmp(name, "NURBS", 5))
    {
-      fec = new NURBSFECollection(atoi(name + 5));
+      if (name[5] != '\0')
+      {
+         // "NURBS" + "number" --> fixed order nurbs collection
+         fec = new NURBSFECollection(atoi(name + 5));
+      }
+      else
+      {
+         // "NURBS" --> variable order nurbs collection
+         fec = new NURBSFECollection();
+      }
    }
    else
    {
-      mfem_error("FiniteElementCollection::New : "
-                 "Unknown FiniteElementCollection!");
+      MFEM_ABORT("unknown FiniteElementCollection: " << name);
    }
    MFEM_VERIFY(!strcmp(fec->Name(), name), "input name: \"" << name
                << "\" does not match the created collection name: \""
@@ -306,7 +317,7 @@ template <Geometry::Type geom, Geometry::Type f_geom,
           typename v_t, typename e_t, typename eo_t>
 inline void FiniteElementCollection::
 GetFace(int &nv, v_t &v, int &ne, e_t &e, eo_t &eo,
-        int &nf, int &f, int &fg, int &fo, const int face_info)
+        int &nf, int &f, Geometry::Type &fg, int &fo, const int face_info)
 {
    typedef typename Geometry::Constants<  geom> g_consts;
    typedef typename Geometry::Constants<f_geom> f_consts;
@@ -350,7 +361,8 @@ GetFace(int &nv, v_t &v, int &ne, e_t &e, eo_t &eo,
    }
 }
 
-void FiniteElementCollection::SubDofOrder(int Geom, int SDim, int Info,
+void FiniteElementCollection::SubDofOrder(Geometry::Type Geom, int SDim,
+                                          int Info,
                                           Array<int> &dofs) const
 {
    // Info = 64 * SubIndex + SubOrientation
@@ -372,8 +384,9 @@ void FiniteElementCollection::SubDofOrder(int Geom, int SDim, int Info,
    }
    else
    {
-      int v[4], e[4], eo[4], f[1], fg[1], fo[1];
+      int v[4], e[4], eo[4], f[1], fo[1];
       int av = 0, nv = 0, ae = 0, ne = 0, nf = 0;
+      Geometry::Type fg[1];
 
       switch (Geom)
       {
@@ -520,7 +533,7 @@ not_supp:
 }
 
 const FiniteElement *
-LinearFECollection::FiniteElementForGeometry(int GeomType) const
+LinearFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -530,13 +543,14 @@ LinearFECollection::FiniteElementForGeometry(int GeomType) const
       case Geometry::SQUARE:      return &QuadrilateralFE;
       case Geometry::TETRAHEDRON: return &TetrahedronFE;
       case Geometry::CUBE:        return &ParallelepipedFE;
+      case Geometry::PRISM:       return &WedgeFE;
       default:
          mfem_error ("LinearFECollection: unknown geometry type.");
    }
    return &SegmentFE; // Make some compilers happy
 }
 
-int LinearFECollection::DofForGeometry(int GeomType) const
+int LinearFECollection::DofForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -546,20 +560,22 @@ int LinearFECollection::DofForGeometry(int GeomType) const
       case Geometry::SQUARE:      return 0;
       case Geometry::TETRAHEDRON: return 0;
       case Geometry::CUBE:        return 0;
+      case Geometry::PRISM:       return 0;
       default:
          mfem_error ("LinearFECollection: unknown geometry type.");
    }
    return 0; // Make some compilers happy
 }
 
-int * LinearFECollection::DofOrderForOrientation(int GeomType, int Or) const
+const int *LinearFECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                      int Or) const
 {
    return NULL;
 }
 
 
 const FiniteElement *
-QuadraticFECollection::FiniteElementForGeometry(int GeomType) const
+QuadraticFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -569,13 +585,14 @@ QuadraticFECollection::FiniteElementForGeometry(int GeomType) const
       case Geometry::SQUARE:      return &QuadrilateralFE;
       case Geometry::TETRAHEDRON: return &TetrahedronFE;
       case Geometry::CUBE:        return &ParallelepipedFE;
+      case Geometry::PRISM:       return &WedgeFE;
       default:
          mfem_error ("QuadraticFECollection: unknown geometry type.");
    }
    return &SegmentFE; // Make some compilers happy
 }
 
-int QuadraticFECollection::DofForGeometry(int GeomType) const
+int QuadraticFECollection::DofForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -585,13 +602,15 @@ int QuadraticFECollection::DofForGeometry(int GeomType) const
       case Geometry::SQUARE:      return 1;
       case Geometry::TETRAHEDRON: return 0;
       case Geometry::CUBE:        return 1;
+      case Geometry::PRISM:       return 0;
       default:
          mfem_error ("QuadraticFECollection: unknown geometry type.");
    }
    return 0; // Make some compilers happy
 }
 
-int * QuadraticFECollection::DofOrderForOrientation(int GeomType, int Or) const
+const int *QuadraticFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
 {
    static int indexes[] = { 0 };
 
@@ -600,7 +619,8 @@ int * QuadraticFECollection::DofOrderForOrientation(int GeomType, int Or) const
 
 
 const FiniteElement *
-QuadraticPosFECollection::FiniteElementForGeometry(int GeomType) const
+QuadraticPosFECollection::FiniteElementForGeometry(
+   Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -612,7 +632,7 @@ QuadraticPosFECollection::FiniteElementForGeometry(int GeomType) const
    return NULL; // Make some compilers happy
 }
 
-int QuadraticPosFECollection::DofForGeometry(int GeomType) const
+int QuadraticPosFECollection::DofForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -625,8 +645,8 @@ int QuadraticPosFECollection::DofForGeometry(int GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * QuadraticPosFECollection::DofOrderForOrientation(int GeomType, int Or)
-const
+const int *QuadraticPosFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
 {
    static int indexes[] = { 0 };
 
@@ -635,7 +655,7 @@ const
 
 
 const FiniteElement *
-CubicFECollection::FiniteElementForGeometry(int GeomType) const
+CubicFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -645,13 +665,14 @@ CubicFECollection::FiniteElementForGeometry(int GeomType) const
       case Geometry::SQUARE:      return &QuadrilateralFE;
       case Geometry::TETRAHEDRON: return &TetrahedronFE;
       case Geometry::CUBE:        return &ParallelepipedFE;
+      case Geometry::PRISM:       return &WedgeFE;
       default:
          mfem_error ("CubicFECollection: unknown geometry type.");
    }
    return &SegmentFE; // Make some compilers happy
 }
 
-int CubicFECollection::DofForGeometry(int GeomType) const
+int CubicFECollection::DofForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -661,13 +682,15 @@ int CubicFECollection::DofForGeometry(int GeomType) const
       case Geometry::SQUARE:      return 4;
       case Geometry::TETRAHEDRON: return 0;
       case Geometry::CUBE:        return 8;
+      case Geometry::PRISM:       return 2;
       default:
          mfem_error ("CubicFECollection: unknown geometry type.");
    }
    return 0; // Make some compilers happy
 }
 
-int * CubicFECollection::DofOrderForOrientation(int GeomType, int Or) const
+const int *CubicFECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                     int Or) const
 {
    if (GeomType == Geometry::SEGMENT)
    {
@@ -701,7 +724,8 @@ int * CubicFECollection::DofOrderForOrientation(int GeomType, int Or) const
 
 
 const FiniteElement *
-CrouzeixRaviartFECollection::FiniteElementForGeometry(int GeomType) const
+CrouzeixRaviartFECollection::FiniteElementForGeometry(
+   Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -714,7 +738,7 @@ CrouzeixRaviartFECollection::FiniteElementForGeometry(int GeomType) const
    return &SegmentFE; // Make some compilers happy
 }
 
-int CrouzeixRaviartFECollection::DofForGeometry(int GeomType) const
+int CrouzeixRaviartFECollection::DofForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -728,8 +752,8 @@ int CrouzeixRaviartFECollection::DofForGeometry(int GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * CrouzeixRaviartFECollection::DofOrderForOrientation(int GeomType, int Or)
-const
+const int *CrouzeixRaviartFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
 {
    static int indexes[] = { 0 };
 
@@ -738,7 +762,7 @@ const
 
 
 const FiniteElement *
-RT0_2DFECollection::FiniteElementForGeometry(int GeomType) const
+RT0_2DFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -751,7 +775,7 @@ RT0_2DFECollection::FiniteElementForGeometry(int GeomType) const
    return &SegmentFE; // Make some compilers happy
 }
 
-int RT0_2DFECollection::DofForGeometry(int GeomType) const
+int RT0_2DFECollection::DofForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -765,8 +789,8 @@ int RT0_2DFECollection::DofForGeometry(int GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * RT0_2DFECollection::DofOrderForOrientation(int GeomType, int Or)
-const
+const int * RT0_2DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                       int Or) const
 {
    static int ind_pos[] = { 0 };
    static int ind_neg[] = { -1 };
@@ -780,7 +804,7 @@ const
 
 
 const FiniteElement *
-RT1_2DFECollection::FiniteElementForGeometry(int GeomType) const
+RT1_2DFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -793,7 +817,7 @@ RT1_2DFECollection::FiniteElementForGeometry(int GeomType) const
    return &SegmentFE; // Make some compilers happy
 }
 
-int RT1_2DFECollection::DofForGeometry(int GeomType) const
+int RT1_2DFECollection::DofForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -807,8 +831,8 @@ int RT1_2DFECollection::DofForGeometry(int GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * RT1_2DFECollection::DofOrderForOrientation(int GeomType, int Or)
-const
+const int *RT1_2DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                      int Or) const
 {
    static int ind_pos[] = {  0,  1 };
    static int ind_neg[] = { -2, -1 };
@@ -821,7 +845,7 @@ const
 }
 
 const FiniteElement *
-RT2_2DFECollection::FiniteElementForGeometry(int GeomType) const
+RT2_2DFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -834,7 +858,7 @@ RT2_2DFECollection::FiniteElementForGeometry(int GeomType) const
    return &SegmentFE; // Make some compilers happy
 }
 
-int RT2_2DFECollection::DofForGeometry(int GeomType) const
+int RT2_2DFECollection::DofForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -848,8 +872,8 @@ int RT2_2DFECollection::DofForGeometry(int GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * RT2_2DFECollection::DofOrderForOrientation(int GeomType, int Or)
-const
+const int *RT2_2DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                      int Or) const
 {
    static int ind_pos[] = { 0, 1, 2 };
    static int ind_neg[] = { -3, -2, -1 };
@@ -863,7 +887,7 @@ const
 
 
 const FiniteElement *
-Const2DFECollection::FiniteElementForGeometry(int GeomType) const
+Const2DFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -875,7 +899,7 @@ Const2DFECollection::FiniteElementForGeometry(int GeomType) const
    return &TriangleFE; // Make some compilers happy
 }
 
-int Const2DFECollection::DofForGeometry(int GeomType) const
+int Const2DFECollection::DofForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -889,15 +913,16 @@ int Const2DFECollection::DofForGeometry(int GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * Const2DFECollection::DofOrderForOrientation(int GeomType, int Or)
-const
+const int *Const2DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                       int Or) const
 {
    return NULL;
 }
 
 
 const FiniteElement *
-LinearDiscont2DFECollection::FiniteElementForGeometry(int GeomType) const
+LinearDiscont2DFECollection::FiniteElementForGeometry(
+   Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -909,7 +934,7 @@ LinearDiscont2DFECollection::FiniteElementForGeometry(int GeomType) const
    return &TriangleFE; // Make some compilers happy
 }
 
-int LinearDiscont2DFECollection::DofForGeometry(int GeomType) const
+int LinearDiscont2DFECollection::DofForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -923,15 +948,16 @@ int LinearDiscont2DFECollection::DofForGeometry(int GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * LinearDiscont2DFECollection::DofOrderForOrientation(int GeomType, int Or)
-const
+const int * LinearDiscont2DFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
 {
    return NULL;
 }
 
 
 const FiniteElement *
-GaussLinearDiscont2DFECollection::FiniteElementForGeometry(int GeomType) const
+GaussLinearDiscont2DFECollection::FiniteElementForGeometry(
+   Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -944,7 +970,8 @@ GaussLinearDiscont2DFECollection::FiniteElementForGeometry(int GeomType) const
    return &TriangleFE; // Make some compilers happy
 }
 
-int GaussLinearDiscont2DFECollection::DofForGeometry(int GeomType) const
+int GaussLinearDiscont2DFECollection::DofForGeometry(Geometry::Type GeomType)
+const
 {
    switch (GeomType)
    {
@@ -959,15 +986,15 @@ int GaussLinearDiscont2DFECollection::DofForGeometry(int GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * GaussLinearDiscont2DFECollection::DofOrderForOrientation(
-   int GeomType, int Or) const
+const int *GaussLinearDiscont2DFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
 {
    return NULL;
 }
 
 
 const FiniteElement *
-P1OnQuadFECollection::FiniteElementForGeometry(int GeomType) const
+P1OnQuadFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
    if (GeomType != Geometry::SQUARE)
    {
@@ -976,7 +1003,7 @@ P1OnQuadFECollection::FiniteElementForGeometry(int GeomType) const
    return &QuadrilateralFE;
 }
 
-int P1OnQuadFECollection::DofForGeometry(int GeomType) const
+int P1OnQuadFECollection::DofForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -989,15 +1016,16 @@ int P1OnQuadFECollection::DofForGeometry(int GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * P1OnQuadFECollection::DofOrderForOrientation(
-   int GeomType, int Or) const
+const int *P1OnQuadFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
 {
    return NULL;
 }
 
 
 const FiniteElement *
-QuadraticDiscont2DFECollection::FiniteElementForGeometry(int GeomType) const
+QuadraticDiscont2DFECollection::FiniteElementForGeometry(
+   Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -1009,7 +1037,8 @@ QuadraticDiscont2DFECollection::FiniteElementForGeometry(int GeomType) const
    return &TriangleFE; // Make some compilers happy
 }
 
-int QuadraticDiscont2DFECollection::DofForGeometry(int GeomType) const
+int QuadraticDiscont2DFECollection::DofForGeometry(Geometry::Type GeomType)
+const
 {
    switch (GeomType)
    {
@@ -1023,15 +1052,16 @@ int QuadraticDiscont2DFECollection::DofForGeometry(int GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * QuadraticDiscont2DFECollection::DofOrderForOrientation(
-   int GeomType, int Or) const
+const int *QuadraticDiscont2DFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
 {
    return NULL;
 }
 
 
 const FiniteElement *
-QuadraticPosDiscont2DFECollection::FiniteElementForGeometry(int GeomType) const
+QuadraticPosDiscont2DFECollection::FiniteElementForGeometry(
+   Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -1042,7 +1072,8 @@ QuadraticPosDiscont2DFECollection::FiniteElementForGeometry(int GeomType) const
    return NULL; // Make some compilers happy
 }
 
-int QuadraticPosDiscont2DFECollection::DofForGeometry(int GeomType) const
+int QuadraticPosDiscont2DFECollection::DofForGeometry(Geometry::Type GeomType)
+const
 {
    switch (GeomType)
    {
@@ -1057,7 +1088,8 @@ int QuadraticPosDiscont2DFECollection::DofForGeometry(int GeomType) const
 
 
 const FiniteElement *
-GaussQuadraticDiscont2DFECollection::FiniteElementForGeometry(int GeomType)
+GaussQuadraticDiscont2DFECollection::FiniteElementForGeometry(
+   Geometry::Type GeomType)
 const
 {
    switch (GeomType)
@@ -1071,7 +1103,8 @@ const
    return &QuadrilateralFE; // Make some compilers happy
 }
 
-int GaussQuadraticDiscont2DFECollection::DofForGeometry(int GeomType) const
+int GaussQuadraticDiscont2DFECollection::DofForGeometry(
+   Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -1086,15 +1119,16 @@ int GaussQuadraticDiscont2DFECollection::DofForGeometry(int GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * GaussQuadraticDiscont2DFECollection::DofOrderForOrientation(
-   int GeomType, int Or) const
+const int *GaussQuadraticDiscont2DFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
 {
    return NULL;
 }
 
 
 const FiniteElement *
-CubicDiscont2DFECollection::FiniteElementForGeometry(int GeomType) const
+CubicDiscont2DFECollection::FiniteElementForGeometry(
+   Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -1106,7 +1140,7 @@ CubicDiscont2DFECollection::FiniteElementForGeometry(int GeomType) const
    return &TriangleFE; // Make some compilers happy
 }
 
-int CubicDiscont2DFECollection::DofForGeometry(int GeomType) const
+int CubicDiscont2DFECollection::DofForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -1120,15 +1154,16 @@ int CubicDiscont2DFECollection::DofForGeometry(int GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * CubicDiscont2DFECollection::DofOrderForOrientation(int GeomType, int Or)
-const
+const int *CubicDiscont2DFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
 {
    return NULL;
 }
 
 
 const FiniteElement *
-LinearNonConf3DFECollection::FiniteElementForGeometry(int GeomType) const
+LinearNonConf3DFECollection::FiniteElementForGeometry(
+   Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -1142,7 +1177,7 @@ LinearNonConf3DFECollection::FiniteElementForGeometry(int GeomType) const
    return &TriangleFE; // Make some compilers happy
 }
 
-int LinearNonConf3DFECollection::DofForGeometry(int GeomType) const
+int LinearNonConf3DFECollection::DofForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -1158,8 +1193,8 @@ int LinearNonConf3DFECollection::DofForGeometry(int GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * LinearNonConf3DFECollection::DofOrderForOrientation(int GeomType, int Or)
-const
+const int *LinearNonConf3DFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
 {
    static int indexes[] = { 0 };
 
@@ -1168,43 +1203,46 @@ const
 
 
 const FiniteElement *
-Const3DFECollection::FiniteElementForGeometry(int GeomType) const
+Const3DFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
       case Geometry::TETRAHEDRON: return &TetrahedronFE;
       case Geometry::CUBE:        return &ParallelepipedFE;
+      case Geometry::PRISM:       return &WedgeFE;
       default:
          mfem_error ("Const3DFECollection: unknown geometry type.");
    }
    return &TetrahedronFE; // Make some compilers happy
 }
 
-int Const3DFECollection::DofForGeometry(int GeomType) const
+int Const3DFECollection::DofForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
       case Geometry::POINT:       return 0;
       case Geometry::SEGMENT:     return 0;
       case Geometry::TRIANGLE:    return 0;
-      case Geometry::TETRAHEDRON: return 1;
       case Geometry::SQUARE:      return 0;
+      case Geometry::TETRAHEDRON: return 1;
       case Geometry::CUBE:        return 1;
+      case Geometry::PRISM:       return 1;
       default:
          mfem_error ("Const3DFECollection: unknown geometry type.");
    }
    return 0; // Make some compilers happy
 }
 
-int * Const3DFECollection::DofOrderForOrientation(int GeomType, int Or)
-const
+const int *Const3DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                       int Or) const
 {
    return NULL;
 }
 
 
 const FiniteElement *
-LinearDiscont3DFECollection::FiniteElementForGeometry(int GeomType) const
+LinearDiscont3DFECollection::FiniteElementForGeometry(
+   Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -1216,7 +1254,7 @@ LinearDiscont3DFECollection::FiniteElementForGeometry(int GeomType) const
    return &TetrahedronFE; // Make some compilers happy
 }
 
-int LinearDiscont3DFECollection::DofForGeometry(int GeomType) const
+int LinearDiscont3DFECollection::DofForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -1232,15 +1270,16 @@ int LinearDiscont3DFECollection::DofForGeometry(int GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * LinearDiscont3DFECollection::DofOrderForOrientation(int GeomType, int Or)
-const
+const int *LinearDiscont3DFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
 {
    return NULL;
 }
 
 
 const FiniteElement *
-QuadraticDiscont3DFECollection::FiniteElementForGeometry(int GeomType) const
+QuadraticDiscont3DFECollection::FiniteElementForGeometry(
+   Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -1252,7 +1291,8 @@ QuadraticDiscont3DFECollection::FiniteElementForGeometry(int GeomType) const
    return &TetrahedronFE; // Make some compilers happy
 }
 
-int QuadraticDiscont3DFECollection::DofForGeometry(int GeomType) const
+int QuadraticDiscont3DFECollection::DofForGeometry(Geometry::Type GeomType)
+const
 {
    switch (GeomType)
    {
@@ -1268,14 +1308,15 @@ int QuadraticDiscont3DFECollection::DofForGeometry(int GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * QuadraticDiscont3DFECollection::DofOrderForOrientation(
-   int GeomType, int Or) const
+const int *QuadraticDiscont3DFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
 {
    return NULL;
 }
 
 const FiniteElement *
-RefinedLinearFECollection::FiniteElementForGeometry(int GeomType) const
+RefinedLinearFECollection::FiniteElementForGeometry(
+   Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -1291,7 +1332,7 @@ RefinedLinearFECollection::FiniteElementForGeometry(int GeomType) const
    return &SegmentFE; // Make some compilers happy
 }
 
-int RefinedLinearFECollection::DofForGeometry(int GeomType) const
+int RefinedLinearFECollection::DofForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -1307,8 +1348,8 @@ int RefinedLinearFECollection::DofForGeometry(int GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * RefinedLinearFECollection::DofOrderForOrientation(int GeomType,
-                                                        int Or) const
+const int *RefinedLinearFECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
 {
    static int indexes[] = { 0 };
 
@@ -1317,7 +1358,7 @@ int * RefinedLinearFECollection::DofOrderForOrientation(int GeomType,
 
 
 const FiniteElement *
-ND1_3DFECollection::FiniteElementForGeometry(int GeomType) const
+ND1_3DFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -1329,7 +1370,7 @@ ND1_3DFECollection::FiniteElementForGeometry(int GeomType) const
    return &HexahedronFE; // Make some compilers happy
 }
 
-int ND1_3DFECollection::DofForGeometry(int GeomType) const
+int ND1_3DFECollection::DofForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -1345,8 +1386,8 @@ int ND1_3DFECollection::DofForGeometry(int GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * ND1_3DFECollection::DofOrderForOrientation(int GeomType, int Or)
-const
+const int *ND1_3DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                      int Or) const
 {
    static int ind_pos[] = { 0 };
    static int ind_neg[] = { -1 };
@@ -1360,7 +1401,7 @@ const
 
 
 const FiniteElement *
-RT0_3DFECollection::FiniteElementForGeometry(int GeomType) const
+RT0_3DFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -1374,7 +1415,7 @@ RT0_3DFECollection::FiniteElementForGeometry(int GeomType) const
    return &HexahedronFE; // Make some compilers happy
 }
 
-int RT0_3DFECollection::DofForGeometry(int GeomType) const
+int RT0_3DFECollection::DofForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -1390,8 +1431,8 @@ int RT0_3DFECollection::DofForGeometry(int GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * RT0_3DFECollection::DofOrderForOrientation(int GeomType, int Or)
-const
+const int *RT0_3DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                      int Or) const
 {
    static int ind_pos[] = { 0 };
    static int ind_neg[] = { -1 };
@@ -1408,7 +1449,7 @@ const
 }
 
 const FiniteElement *
-RT1_3DFECollection::FiniteElementForGeometry(int GeomType) const
+RT1_3DFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -1421,7 +1462,7 @@ RT1_3DFECollection::FiniteElementForGeometry(int GeomType) const
    return &HexahedronFE; // Make some compilers happy
 }
 
-int RT1_3DFECollection::DofForGeometry(int GeomType) const
+int RT1_3DFECollection::DofForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -1436,8 +1477,8 @@ int RT1_3DFECollection::DofForGeometry(int GeomType) const
    return 0; // Make some compilers happy
 }
 
-int * RT1_3DFECollection::DofOrderForOrientation(int GeomType, int Or)
-const
+const int *RT1_3DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                      int Or) const
 {
    if (GeomType == Geometry::SQUARE)
    {
@@ -1458,13 +1499,16 @@ const
 }
 
 
-H1_FECollection::H1_FECollection(const int p, const int dim, const int type)
+H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
 {
+   MFEM_VERIFY(p >= 1, "H1_FECollection requires order >= 1.");
+   MFEM_VERIFY(dim >= 0 && dim <= 3, "H1_FECollection requires 0 <= dim <= 3.");
+
    const int pm1 = p - 1, pm2 = pm1 - 1, pm3 = pm2 - 1;
 
-   int pt_type = BasisType::GetQuadrature1D(type);
-   m_type = BasisType::Check(type);
-   switch (type)
+   int pt_type = BasisType::GetQuadrature1D(btype);
+   b_type = BasisType::Check(btype);
+   switch (btype)
    {
       case BasisType::GaussLobatto:
       {
@@ -1480,10 +1524,10 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int type)
       {
          MFEM_VERIFY(Quadrature1D::CheckClosed(pt_type) !=
                      Quadrature1D::Invalid,
-                     "unsupported BasisType: " << BasisType::Name(type));
+                     "unsupported BasisType: " << BasisType::Name(btype));
 
          snprintf(h1_name, 32, "H1@%c_%dD_P%d",
-                  (int)BasisType::GetChar(type), dim, p);
+                  (int)BasisType::GetChar(btype), dim, p);
       }
    }
 
@@ -1511,13 +1555,13 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int type)
    if (dim >= 1)
    {
       H1_dof[Geometry::SEGMENT] = pm1;
-      if (m_type == BasisType::Positive)
+      if (b_type == BasisType::Positive)
       {
          H1_Elements[Geometry::SEGMENT] = new H1Pos_SegmentElement(p);
       }
       else
       {
-         H1_Elements[Geometry::SEGMENT] = new H1_SegmentElement(p, pt_type);
+         H1_Elements[Geometry::SEGMENT] = new H1_SegmentElement(p, btype);
       }
 
       SegDofOrd[0] = new int[2*pm1];
@@ -1533,15 +1577,15 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int type)
    {
       H1_dof[Geometry::TRIANGLE] = (pm1*pm2)/2;
       H1_dof[Geometry::SQUARE] = pm1*pm1;
-      if (m_type == BasisType::Positive)
+      if (b_type == BasisType::Positive)
       {
          H1_Elements[Geometry::TRIANGLE] = new H1Pos_TriangleElement(p);
          H1_Elements[Geometry::SQUARE] = new H1Pos_QuadrilateralElement(p);
       }
       else
       {
-         H1_Elements[Geometry::TRIANGLE] = new H1_TriangleElement(p, pt_type);
-         H1_Elements[Geometry::SQUARE] = new H1_QuadrilateralElement(p,pt_type);
+         H1_Elements[Geometry::TRIANGLE] = new H1_TriangleElement(p, btype);
+         H1_Elements[Geometry::SQUARE] = new H1_QuadrilateralElement(p, btype);
       }
 
       const int &TriDof = H1_dof[Geometry::TRIANGLE];
@@ -1593,22 +1637,26 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int type)
       {
          H1_dof[Geometry::TETRAHEDRON] = (TriDof*pm3)/3;
          H1_dof[Geometry::CUBE] = QuadDof*pm1;
-         if (m_type == BasisType::Positive)
+         H1_dof[Geometry::PRISM] = TriDof*pm1;
+         if (b_type == BasisType::Positive)
          {
             H1_Elements[Geometry::TETRAHEDRON] = new H1Pos_TetrahedronElement(p);
             H1_Elements[Geometry::CUBE] = new H1Pos_HexahedronElement(p);
+            H1_Elements[Geometry::PRISM] = new H1Pos_WedgeElement(p);
          }
          else
          {
             H1_Elements[Geometry::TETRAHEDRON] =
-               new H1_TetrahedronElement(p, pt_type);
-            H1_Elements[Geometry::CUBE] = new H1_HexahedronElement(p, pt_type);
+               new H1_TetrahedronElement(p, btype);
+            H1_Elements[Geometry::CUBE] = new H1_HexahedronElement(p, btype);
+            H1_Elements[Geometry::PRISM] = new H1_WedgeElement(p, btype);
          }
       }
    }
 }
 
-int *H1_FECollection::DofOrderForOrientation(int GeomType, int Or) const
+const int *H1_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                   int Or) const
 {
    if (GeomType == Geometry::SEGMENT)
    {
@@ -1641,31 +1689,26 @@ FiniteElementCollection *H1_FECollection::GetTraceCollection() const
    {
       dim = atoi(h1_name + 5);
    }
-   return (dim < 0) ? NULL : new H1_Trace_FECollection(p, dim, m_type);
+   return (dim < 0) ? NULL : new H1_Trace_FECollection(p, dim, b_type);
 }
 
-const int *H1_FECollection::GetDofMap(int GeomType) const
+const int *H1_FECollection::GetDofMap(Geometry::Type GeomType) const
 {
-   MFEM_ASSERT(m_type != BasisType::Positive, "");
    const int *dof_map = NULL;
    const FiniteElement *fe = H1_Elements[GeomType];
    switch (GeomType)
    {
       case Geometry::SEGMENT:
-         dof_map = dynamic_cast<const H1_SegmentElement *>(fe)
-                   ->GetDofMap().GetData();
-         break;
       case Geometry::SQUARE:
-         dof_map = dynamic_cast<const H1_QuadrilateralElement *>(fe)
-                   ->GetDofMap().GetData();
-         break;
       case Geometry::CUBE:
-         dof_map = dynamic_cast<const H1_HexahedronElement *>(fe)
+         dof_map = dynamic_cast<const TensorBasisElement *>(fe)
                    ->GetDofMap().GetData();
          break;
       default:
          MFEM_ABORT("Geometry type " << Geometry::Name[GeomType] << " is not "
                     "implemented");
+         // The "Cartesian" ordering for other geometries is defined by the
+         // class GeometryRefiner.
    }
    return dof_map;
 }
@@ -1683,33 +1726,31 @@ H1_FECollection::~H1_FECollection()
 
 
 H1_Trace_FECollection::H1_Trace_FECollection(const int p, const int dim,
-                                             const int type)
-   : H1_FECollection(p, dim-1, type)
+                                             const int btype)
+   : H1_FECollection(p, dim-1, btype)
 {
-   if (type == BasisType::GaussLobatto)
+   if (btype == BasisType::GaussLobatto)
    {
       snprintf(h1_name, 32, "H1_Trace_%dD_P%d", dim, p);
    }
-   else if (type == BasisType::Positive)
+   else if (btype == BasisType::Positive)
    {
       snprintf(h1_name, 32, "H1Pos_Trace_%dD_P%d", dim, p);
    }
    else // base class checks that type is closed
    {
       snprintf(h1_name, 32, "H1_Trace@%c_%dD_P%d",
-               (int)BasisType::GetChar(type), dim, p);
+               (int)BasisType::GetChar(btype), dim, p);
    }
 }
 
 
-L2_FECollection::L2_FECollection(const int p, const int dim, const int type,
+L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
                                  const int map_type)
 {
-   int pt_type = BasisType::GetQuadrature1D(type);
-   m_type = BasisType::Check(type);
-   MFEM_VERIFY(pt_type != Quadrature1D::Invalid ||
-               m_type == BasisType::Positive,
-               "unsupported L2 basis type = " << BasisType::Name(type));
+   MFEM_VERIFY(p >= 0, "L2_FECollection requires order >= 0.");
+
+   b_type = BasisType::Check(btype);
    const char *prefix = NULL;
    switch (map_type)
    {
@@ -1718,13 +1759,13 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int type,
       default:
          MFEM_ABORT("invalid map_type: " << map_type);
    }
-   switch (type)
+   switch (btype)
    {
       case BasisType::GaussLegendre:
          snprintf(d_name, 32, "%s_%dD_P%d", prefix, dim, p);
          break;
       default:
-         snprintf(d_name, 32, "%s_T%d_%dD_P%d", prefix, type, dim, p);
+         snprintf(d_name, 32, "%s_T%d_%dD_P%d", prefix, btype, dim, p);
    }
 
    for (int g = 0; g < Geometry::NumGeom; g++)
@@ -1742,15 +1783,19 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int type,
    }
    OtherDofOrd = NULL;
 
-   if (dim == 1)
+   if (dim == 0)
    {
-      if (m_type == BasisType::Positive)
+      L2_Elements[Geometry::POINT] = new PointFiniteElement;
+   }
+   else if (dim == 1)
+   {
+      if (b_type == BasisType::Positive)
       {
          L2_Elements[Geometry::SEGMENT] = new L2Pos_SegmentElement(p);
       }
       else
       {
-         L2_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p, pt_type);
+         L2_Elements[Geometry::SEGMENT] = new L2_SegmentElement(p, btype);
       }
       L2_Elements[Geometry::SEGMENT]->SetMapType(map_type);
 
@@ -1768,15 +1813,15 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int type,
    }
    else if (dim == 2)
    {
-      if (m_type == BasisType::Positive)
+      if (b_type == BasisType::Positive)
       {
          L2_Elements[Geometry::TRIANGLE] = new L2Pos_TriangleElement(p);
          L2_Elements[Geometry::SQUARE] = new L2Pos_QuadrilateralElement(p);
       }
       else
       {
-         L2_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p, pt_type);
-         L2_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p, pt_type);
+         L2_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p, btype);
+         L2_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p, btype);
       }
       L2_Elements[Geometry::TRIANGLE]->SetMapType(map_type);
       L2_Elements[Geometry::SQUARE]->SetMapType(map_type);
@@ -1813,26 +1858,30 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int type,
    }
    else if (dim == 3)
    {
-      if (m_type == BasisType::Positive)
+      if (b_type == BasisType::Positive)
       {
          L2_Elements[Geometry::TETRAHEDRON] = new L2Pos_TetrahedronElement(p);
          L2_Elements[Geometry::CUBE] = new L2Pos_HexahedronElement(p);
+         L2_Elements[Geometry::PRISM] = new L2Pos_WedgeElement(p);
       }
       else
       {
          L2_Elements[Geometry::TETRAHEDRON] =
-            new L2_TetrahedronElement(p, pt_type);
-         L2_Elements[Geometry::CUBE] = new L2_HexahedronElement(p, pt_type);
+            new L2_TetrahedronElement(p, btype);
+         L2_Elements[Geometry::CUBE] = new L2_HexahedronElement(p, btype);
+         L2_Elements[Geometry::PRISM] = new L2_WedgeElement(p, btype);
       }
       L2_Elements[Geometry::TETRAHEDRON]->SetMapType(map_type);
       L2_Elements[Geometry::CUBE]->SetMapType(map_type);
+      L2_Elements[Geometry::PRISM]->SetMapType(map_type);
       // All trace element use the default Gauss-Legendre nodal points
       Tr_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p);
       Tr_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p);
 
       const int TetDof = L2_Elements[Geometry::TETRAHEDRON]->GetDof();
       const int HexDof = L2_Elements[Geometry::CUBE]->GetDof();
-      const int MaxDof = std::max(TetDof, HexDof);
+      const int PriDof = L2_Elements[Geometry::PRISM]->GetDof();
+      const int MaxDof = std::max(TetDof, std::max(PriDof, HexDof));
       OtherDofOrd = new int[MaxDof];
       for (int j = 0; j < MaxDof; j++)
       {
@@ -1847,7 +1896,8 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int type,
    }
 }
 
-int *L2_FECollection::DofOrderForOrientation(int GeomType, int Or) const
+const int *L2_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                   int Or) const
 {
    switch (GeomType)
    {
@@ -1879,6 +1929,8 @@ RT_FECollection::RT_FECollection(const int p, const int dim,
                                  const int cb_type, const int ob_type)
    : ob_type(ob_type)
 {
+   MFEM_VERIFY(p >= 0, "RT_FECollection requires order >= 0.");
+
    int cp_type = BasisType::GetQuadrature1D(cb_type);
    int op_type = BasisType::GetQuadrature1D(ob_type);
 
@@ -1909,22 +1961,22 @@ RT_FECollection::RT_FECollection(const int p, const int dim,
    const int pp1 = p + 1;
    if (dim == 2)
    {
-      // TODO: cp_type, op_type for triangles
+      // TODO: cb_type, ob_type for triangles
       RT_Elements[Geometry::TRIANGLE] = new RT_TriangleElement(p);
       RT_dof[Geometry::TRIANGLE] = p*pp1;
 
-      RT_Elements[Geometry::SQUARE] = new RT_QuadrilateralElement(p, cp_type,
-                                                                  op_type);
+      RT_Elements[Geometry::SQUARE] = new RT_QuadrilateralElement(p, cb_type,
+                                                                  ob_type);
       // two vector components * n_unk_face *
       RT_dof[Geometry::SQUARE] = 2*p*pp1;
    }
    else if (dim == 3)
    {
-      // TODO: cp_type, op_type for tets
+      // TODO: cb_type, ob_type for tets
       RT_Elements[Geometry::TETRAHEDRON] = new RT_TetrahedronElement(p);
       RT_dof[Geometry::TETRAHEDRON] = p*pp1*(p + 2)/2;
 
-      RT_Elements[Geometry::CUBE] = new RT_HexahedronElement(p, cp_type, op_type);
+      RT_Elements[Geometry::CUBE] = new RT_HexahedronElement(p, cb_type, ob_type);
       RT_dof[Geometry::CUBE] = 3*p*pp1*pp1;
    }
    else
@@ -1979,7 +2031,7 @@ void RT_FECollection::InitFaces(const int p, const int dim, const int map_type,
 
    if (dim == 2)
    {
-      L2_SegmentElement *l2_seg = new L2_SegmentElement(p, op_type);
+      L2_SegmentElement *l2_seg = new L2_SegmentElement(p, ob_type);
       l2_seg->SetMapType(map_type);
       RT_Elements[Geometry::SEGMENT] = l2_seg;
       RT_dof[Geometry::SEGMENT] = pp1;
@@ -1994,12 +2046,12 @@ void RT_FECollection::InitFaces(const int p, const int dim, const int map_type,
    }
    else if (dim == 3)
    {
-      L2_TriangleElement *l2_tri = new L2_TriangleElement(p, op_type);
+      L2_TriangleElement *l2_tri = new L2_TriangleElement(p, ob_type);
       l2_tri->SetMapType(map_type);
       RT_Elements[Geometry::TRIANGLE] = l2_tri;
       RT_dof[Geometry::TRIANGLE] = pp1*pp2/2;
 
-      L2_QuadrilateralElement *l2_quad = new L2_QuadrilateralElement(p, op_type);
+      L2_QuadrilateralElement *l2_quad = new L2_QuadrilateralElement(p, ob_type);
       l2_quad->SetMapType(map_type);
       RT_Elements[Geometry::SQUARE] = l2_quad;
       RT_dof[Geometry::SQUARE] = pp1*pp1;
@@ -2066,7 +2118,8 @@ void RT_FECollection::InitFaces(const int p, const int dim, const int map_type,
    }
 }
 
-int *RT_FECollection::DofOrderForOrientation(int GeomType, int Or) const
+const int *RT_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                   int Or) const
 {
    if (GeomType == Geometry::SEGMENT)
    {
@@ -2154,6 +2207,9 @@ DG_Interface_FECollection::DG_Interface_FECollection(const int p, const int dim,
 ND_FECollection::ND_FECollection(const int p, const int dim,
                                  const int cb_type, const int ob_type)
 {
+   MFEM_VERIFY(p >= 1, "ND_FECollection requires order >= 1.");
+   MFEM_VERIFY(dim >= 1 && dim <= 3, "ND_FECollection requires 1 <= dim <= 3.");
+
    const int pm1 = p - 1, pm2 = p - 2;
 
    if (cb_type == BasisType::GaussLobatto &&
@@ -2202,7 +2258,7 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
 
    if (dim >= 1)
    {
-      ND_Elements[Geometry::SEGMENT] = new ND_SegmentElement(p, op_type);
+      ND_Elements[Geometry::SEGMENT] = new ND_SegmentElement(p, ob_type);
       ND_dof[Geometry::SEGMENT] = p;
 
       SegDofOrd[0] = new int[2*p];
@@ -2216,11 +2272,11 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
 
    if (dim >= 2)
    {
-      ND_Elements[Geometry::SQUARE] = new ND_QuadrilateralElement(p, cp_type,
-                                                                  op_type);
+      ND_Elements[Geometry::SQUARE] = new ND_QuadrilateralElement(p, cb_type,
+                                                                  ob_type);
       ND_dof[Geometry::SQUARE] = 2*p*pm1;
 
-      // TODO: cp_type and op_type for triangles
+      // TODO: cb_type and ob_type for triangles
       ND_Elements[Geometry::TRIANGLE] = new ND_TriangleElement(p);
       ND_dof[Geometry::TRIANGLE] = p*pm1;
 
@@ -2298,16 +2354,17 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
 
    if (dim >= 3)
    {
-      ND_Elements[Geometry::CUBE] = new ND_HexahedronElement(p, cp_type, op_type);
+      ND_Elements[Geometry::CUBE] = new ND_HexahedronElement(p, cb_type, ob_type);
       ND_dof[Geometry::CUBE] = 3*p*pm1*pm1;
 
-      // TODO: cp_type and op_type for tets
+      // TODO: cb_type and ob_type for tets
       ND_Elements[Geometry::TETRAHEDRON] = new ND_TetrahedronElement(p);
       ND_dof[Geometry::TETRAHEDRON] = p*pm1*pm2/2;
    }
 }
 
-int *ND_FECollection::DofOrderForOrientation(int GeomType, int Or) const
+const int *ND_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                   int Or) const
 {
    if (GeomType == Geometry::SEGMENT)
    {
@@ -2317,8 +2374,7 @@ int *ND_FECollection::DofOrderForOrientation(int GeomType, int Or) const
    {
       if (Or != 0 && Or != 5)
       {
-         MFEM_ABORT("ND_FECollection::DofOrderForOrientation: "
-                    "triangle face orientation " << Or << " is not supported! "
+         MFEM_ABORT("triangle face orientation " << Or << " is not supported! "
                     "Use Mesh::ReorientTetMesh to fix it.");
       }
       return TriDofOrd[Or%6];
@@ -2423,16 +2479,30 @@ Local_FECollection::Local_FECollection(const char *fe_name)
 }
 
 
-void NURBSFECollection::Allocate(int Order)
+NURBSFECollection::NURBSFECollection(int Order)
 {
-   SegmentFE        = new NURBS1DFiniteElement(Order);
-   QuadrilateralFE  = new NURBS2DFiniteElement(Order);
-   ParallelepipedFE = new NURBS3DFiniteElement(Order);
+   const int order = (Order == VariableOrder) ? 1 : Order;
+   SegmentFE        = new NURBS1DFiniteElement(order);
+   QuadrilateralFE  = new NURBS2DFiniteElement(order);
+   ParallelepipedFE = new NURBS3DFiniteElement(order);
 
-   snprintf(name, 16, "NURBS%i", Order);
+   SetOrder(Order);
 }
 
-void NURBSFECollection::Deallocate()
+void NURBSFECollection::SetOrder(int Order) const
+{
+   mOrder = Order;
+   if (Order != VariableOrder)
+   {
+      snprintf(name, 16, "NURBS%i", Order);
+   }
+   else
+   {
+      snprintf(name, 16, "NURBS");
+   }
+}
+
+NURBSFECollection::~NURBSFECollection()
 {
    delete ParallelepipedFE;
    delete QuadrilateralFE;
@@ -2440,7 +2510,7 @@ void NURBSFECollection::Deallocate()
 }
 
 const FiniteElement *
-NURBSFECollection::FiniteElementForGeometry(int GeomType) const
+NURBSFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
 {
    switch (GeomType)
    {
@@ -2453,13 +2523,14 @@ NURBSFECollection::FiniteElementForGeometry(int GeomType) const
    return SegmentFE; // Make some compilers happy
 }
 
-int NURBSFECollection::DofForGeometry(int GeomType) const
+int NURBSFECollection::DofForGeometry(Geometry::Type GeomType) const
 {
    mfem_error("NURBSFECollection::DofForGeometry");
    return 0; // Make some compilers happy
 }
 
-int *NURBSFECollection::DofOrderForOrientation(int GeomType, int Or) const
+const int *NURBSFECollection::DofOrderForOrientation(Geometry::Type GeomType,
+                                                     int Or) const
 {
    mfem_error("NURBSFECollection::DofOrderForOrientation");
    return NULL;

@@ -21,8 +21,8 @@ namespace mfem
 /** Data type for input socket stream class. The class is used as server
     to receive data from a client on specified port number. The user gets
     data from the stream as from any other input stream.
-    This class is DEPRECATED. New code should use class socketserver (see
-    "socketstream.hpp"). */
+    @deprecated This class is DEPRECATED. New code should use class
+    @ref socketserver (see socketstream.hpp). */
 class isockstream
 {
 private:
