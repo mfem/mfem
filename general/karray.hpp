@@ -114,9 +114,6 @@ public:
       }*/
    ~karray() {mm::free<T> (data);}
    inline size_t* dim() { return &d[0]; }
-   //inline T* ptr() { return data; }
-   //inline T* GetData() const { return data; }
-   //inline const T* ptr() const { return data; }
    inline operator T* () { return data; }
    inline operator const T* () const { return data; }
    double operator* (const karray& a) const { return vector_dot(sz, data, a.data); }
