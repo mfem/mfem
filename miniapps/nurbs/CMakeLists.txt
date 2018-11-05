@@ -22,7 +22,7 @@ if (MFEM_USE_MPI)
     LIBRARIES mfem)
 
   add_test(NAME nurbs_ex1p_np=4
-    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4
+    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
     ${MPIEXEC_PREFLAGS} $<TARGET_FILE:nurbs_ex1p> -no-vis
     ${MPIEXEC_POSTFLAGS})
 
@@ -31,7 +31,7 @@ if (MFEM_USE_MPI)
     LIBRARIES mfem)
 
   add_test(NAME nurbs_ex11p_np=4
-    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4
+    COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
     ${MPIEXEC_PREFLAGS} $<TARGET_FILE:nurbs_ex11p> -no-vis
     ${MPIEXEC_POSTFLAGS})
 endif()
