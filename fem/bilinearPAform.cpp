@@ -72,6 +72,7 @@ void PABilinearForm::AddBoundaryFaceIntegrator(AbstractBilinearFormIntegrator
 
 // *****************************************************************************
 // * WARNING DiffusionGetRule
+#warning DiffusionGetRule Q order
 // *****************************************************************************
 static const IntegrationRule &DiffusionGetRule(const FiniteElement &trial_fe,
                                                const FiniteElement &test_fe)
