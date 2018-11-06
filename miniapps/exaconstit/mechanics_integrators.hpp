@@ -15,10 +15,6 @@
 #include "mfem.hpp"
 #include "mechanics_coefficient.hpp"
 
-//#include "../config/config.hpp"
-//#include "fe.hpp"
-//#include "coefficient.hpp"
-
 namespace mfem
 {
 
@@ -26,7 +22,9 @@ namespace mfem
 // on a quadrature function
 void computeDefGrad(const QuadratureFunction *qf, const ParFiniteElementSpace *fes, 
                     const Vector &x0);
-
+void computeDefGradTest(const QuadratureFunction *qf,
+                        ParFiniteElementSpace *fes, const Vector &x0);
+   
 class ExaModel 
 {
 public:
@@ -36,7 +34,7 @@ public:
    bool debug;
    DenseMatrix currElemCoords; // local variable to store current configuration 
                                // element coordinates 
-   DenseMatrix P; // temporary PK1 stress for NLF integrator to populate/access 
+  // DenseMatrix P; // temporary PK1 stress for NLF integrator to populate/access 
 protected:
    ElementTransformation *Ttr; /**< Reference-element to target-element
                                     transformation. */
@@ -83,7 +81,8 @@ protected:
    // element (full deformation gradients) and material tangent.
    // All matrices are local to an integration point used 
    // for a given element level computation
-   DenseMatrix Jpt0, Jpt1, CMat; // note: these local copies are for convenience 
+   DenseMatrix Jpt0, Jpt1, CMat; // note: these local copies are for convenience
+   DenseMatrix P; // temporary PK1 stress for NLF integrator to populate/access
 
    //---------------------------------------------------------------------------
 
@@ -155,6 +154,9 @@ public:
    // return a pointer to the matProps vector
    Vector *GetMatProps() { return &matProps; }
 
+   //return a pointer to the PK1 stress densematrix
+   DenseMatrix *GetPK1Stress() {return &P;}
+  
    // routine to get element stress at ip point. These are the six components of 
    // the symmetric Cauchy stress
    void GetElementStress(const int elID, const int ipNum, bool beginStep, 
@@ -209,11 +211,33 @@ public:
 
    void SetCoords(const DenseMatrix &coords) { currElemCoords = coords; }
 
+   //Should we move this over to a protected function?
+   void CalcPolarDecompDefGrad(DenseMatrix& R, DenseMatrix& U,
+                               DenseMatrix& V, double err = 1e-12);
+   //Various Strain measures we can use
+   //Same as above should these be a protected function?
+   void CalcLagrangianStrain(DenseMatrix& E);
+   void CalcEulerianStrain(DenseMatrix& E);
+   void CalcBiotStrain(DenseMatrix& E);
+   void CalcLogStrain(DenseMatrix& E);
+   
+   //Some useful rotation functions that we can use
+   //Do we want to have these exposed publically or should they
+   //be protected?
+   //Also, do we want to think about moving these type of orientation
+   //conversions to their own class?
+   void Quat2RMat(Vector& quat, DenseMatrix& rmat);
+   void RMat2Quat(DenseMatrix& rmat, Vector& quat);
+   
    void CauchyToPK1();
 
    void PK1ToCauchy(const DenseMatrix &P, const DenseMatrix& J, double* sigma);
 
    void ComputeVonMises(const int elemID, const int ipID);
+   
+   void test_def_grad_func(ParFiniteElementSpace *fes, const Vector &x0){
+      computeDefGradTest(defGrad0.GetQuadFunction(), fes, x0);
+   }
 
 };
 
@@ -226,15 +250,15 @@ protected:
    double elemLength;
 
    // pointer to umat function
-   void (*umat)(double[6], double[], double[6][6], 
+   void (*umat)(double[6], double[], double[36], 
                 double*, double*, double*, double*,
                 double[6], double[6], double*,
                 double[6], double[6], double[2],
                 double*, double*, double*, double*,
                 double*, double*, int*, int*, int*,
                 int *, double[], int*, double[3],
-                double[3][3], double*, double*,
-                double[3][3], double[3][3], int*, int*, 
+                double[9], double*, double*,
+                double[9], double[9], int*, int*, 
                 int*, int*, int*, int*);
                  
 
@@ -254,9 +278,9 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A);
 
-   void CalcLogStrain(DenseMatrix &E);
-
    void CalcLogStrainIncrement(DenseMatrix &dE);
+   void CalcEulerianStrainIncr(DenseMatrix& dE);
+   void CalcLagrangianStrainIncr(DenseMatrix& dE);
 
    void CalcElemLength();
 
@@ -295,13 +319,14 @@ public:
               mu(0.0), K(0.0), g(1.0), c_mu(&_mu), 
               c_K(&_K), c_g(_g), have_coeffs(false) { }
 
+   virtual ~NeoHookean() { }
+
    // place original EvalP and AssembleH into Eval()
    virtual void EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
                           const double weight);
 
    virtual void AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A);
-
 };
 
 class ExaNLFIntegrator : public NonlinearFormIntegrator
@@ -312,6 +337,8 @@ private:
 public:
    ExaNLFIntegrator(ExaModel *m) : model(m) { }
 
+   virtual ~ExaNLFIntegrator() { }
+  
    virtual double GetElementEnergy(const FiniteElement &el,
                                    ElementTransformation &Ttr,
                                    const Vector &elfun);

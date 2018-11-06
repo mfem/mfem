@@ -22,7 +22,7 @@
 //                the purposes of testing and debugging. Right now, only the 
 //                NeoHookean model is functioning. Furthermore, the code uses 
 //                psuedo-time stepping and the simulation's "final time" and 
-//                "time step" size are fixed (i.e. no adaptive time stepping).
+//                "tim step" size are fixed (i.e. no adaptive time stepping).
 //
 //                To run this code, run the bash script mechanics.bash, found 
 //                in the ExaConstit directory. This script contains notes regarding 
@@ -136,13 +136,13 @@ public:
                          bool slu, 
                          bool hyperelastic,
                          bool umat,
-                         QuadratureFunction q_matVars0,
-                         QuadratureFunction q_matVars1,
-                         QuadratureFunction q_sigma0,
-                         QuadratureFunction q_sigma1,
-                         QuadratureFunction q_matGrad,
-                         QuadratureFunction q_kinVars0,
-                         Vector matProps, int numProps,
+                         QuadratureFunction &q_matVars0,
+                         QuadratureFunction &q_matVars1,
+                         QuadratureFunction &q_sigma0,
+                         QuadratureFunction &q_sigma1,
+                         QuadratureFunction &q_matGrad,
+                         QuadratureFunction &q_kinVars0,
+                         Vector &matProps, int numProps,
                          int nStateVars);
 
    /// Required to use the native newton solver
@@ -170,6 +170,7 @@ public:
    void SetModelDebugFlg(const bool dbg);
 
    void DebugPrintModelVars(int procID, double time);
+   void testFuncs(const Vector &x0, ParFiniteElementSpace *fes);
 
    virtual ~NonlinearMechOperator();
 };
@@ -213,6 +214,8 @@ void setBdrConditions(Mesh *mesh);
 // mesh constructor so that the ordering matches the element ordering 
 // in the input grain map (e.g. from CA calculation)
 void reorderMeshElements(Mesh *mesh, const int nx);
+
+void test_deformation_field_set(ParGridFunction *gf, Vector *vals, ParFiniteElementSpace *fes);
 
 int main(int argc, char *argv[])
 {
@@ -494,8 +497,9 @@ int main(int argc, char *argv[])
    int dim = pmesh->Dimension();
 
    // Define the finite element spaces for displacement field
-   H1_FECollection fe_coll(order, dim);
-   ParFiniteElementSpace fe_space(pmesh, &fe_coll, dim);
+   FiniteElementCollection *fe_coll = NULL;
+   fe_coll = new  H1_FECollection(order, dim);
+   ParFiniteElementSpace fe_space(pmesh, fe_coll, dim);
 
    // Define the finite element space for the stress field
    RT_FECollection hdiv_fe_coll(order, dim);
@@ -680,7 +684,8 @@ int main(int argc, char *argv[])
    // initialize x_cur, boundary condition, deformation, and 
    // incremental nodal displacment grid functions by projection the 
    // VectorFunctionCoefficient function onto them
-   x_cur.ProjectCoefficient(init_grid_func);
+   //   x_cur.ProjectCoefficient(init_grid_func);
+   x_cur.ProjectCoefficient(refconfig);
    x_bar.ProjectCoefficient(init_grid_func);
    x_def.ProjectCoefficient(init_grid_func);
    x_inc.ProjectCoefficient(init_grid_func);
@@ -767,7 +772,10 @@ int main(int argc, char *argv[])
    // declare incremental nodal displacement solution vector
    Vector x_sol(fe_space.TrueVSize()); // this sizing is correct
    x_sol = 0.0;
-
+   
+   //   test_deformation_field_set(&x_cur, &x_sol, &fe_space);
+   //   oper.testFuncs(x_sol, &fe_space);
+   
    // initialize visualization if requested 
    socketstream vis_u, vis_p;
    if (visualization) {
@@ -788,7 +796,7 @@ int main(int argc, char *argv[])
    oper.SetTime(t); 
 
    bool last_step = false;
-
+   
    // enter the time step loop. This was modeled after example 10p.
    for (int ti = 1; !last_step; ti++)
    {
@@ -881,7 +889,7 @@ int main(int argc, char *argv[])
       // This also updates the deformation gradient with the beginning step 
       // deformation gradient stored on an Exa model
       printf("before oper.UpdateModel. \n");
-//      oper.UpdateModel(x_sol);
+      oper.UpdateModel(x_sol);
       printf("after oper.UpdateModel. \n");
 
       last_step = (t >= t_final - 1e-8*dt);
@@ -903,6 +911,8 @@ int main(int argc, char *argv[])
          int owns_nodes = 0;
          pmesh->SwapNodes(nodes, owns_nodes); // pmesh has current configuration nodes
 
+	 nodes = NULL;
+	 
          ostringstream mesh_name, deformed_name;
          mesh_name << "mesh." << setfill('0') << setw(6) << myid << "_" << ti;
          deformed_name << "end_step_def." << setfill('0') << setw(6) << myid << "_" << ti;
@@ -979,7 +989,7 @@ int main(int argc, char *argv[])
       } // end output scope
 
    } // end loop over time steps
-      
+   
    // Free the used memory.
    delete pmesh;
 
@@ -997,13 +1007,13 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
                                              bool slu, 
                                              bool hyperelastic,
                                              bool umat,
-                                             QuadratureFunction q_matVars0,
-                                             QuadratureFunction q_matVars1,
-                                             QuadratureFunction q_sigma0,
-                                             QuadratureFunction q_sigma1,
-                                             QuadratureFunction q_matGrad,
-                                             QuadratureFunction q_kinVars0,
-                                             Vector matProps, int numProps,
+                                             QuadratureFunction &q_matVars0,
+                                             QuadratureFunction &q_matVars1,
+                                             QuadratureFunction &q_sigma0,
+                                             QuadratureFunction &q_sigma1,
+                                             QuadratureFunction &q_matGrad,
+                                             QuadratureFunction &q_kinVars0,
+                                             Vector &matProps, int numProps,
                                              int nStateVars)
    : TimeDependentOperator(fes.TrueVSize()), fe_space(fes),
      newton_solver(fes.GetComm())
@@ -1057,7 +1067,7 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
       J_gmres->SetPreconditioner(*J_prec);
       J_solver = J_gmres; 
 
-   } 
+   }/* 
    // retain super LU solver capabilities
    else if (slu) { 
       SuperLUSolver *superlu = NULL;
@@ -1068,7 +1078,7 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
       
       J_solver = superlu;
       J_prec = NULL;
-   }
+      }*/
    else {
       printf("using minres solver \n");
       HypreSmoother *J_hypreSmoother = new HypreSmoother;
@@ -1083,7 +1093,7 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
       J_minres->SetPrintLevel(-1);
       J_minres->SetPreconditioner(*J_prec);
       J_solver = J_minres;
-
+      
    }
 
    // Set the newton solve parameters
@@ -1129,7 +1139,7 @@ void NonlinearMechOperator::UpdateModel(const Vector &x)
    const ParFiniteElementSpace *fes = GetFESpace();
    const FiniteElement *fe;
    const IntegrationRule *ir;
-
+   /*
    // update state variables on a ExaModel
    for (int i = 0; i < fes->GetNE(); ++i)
    {
@@ -1152,11 +1162,15 @@ void NonlinearMechOperator::UpdateModel(const Vector &x)
          }
       }
    } 
-
+   */
    // update the model variables particular to the model class extension
    // NOTE: for an AbaqusUmatModel this updates the beginning step def grad, 
    model->UpdateModelVars(fes, x);
 
+   fes = NULL;
+   fe = NULL;
+   ir = NULL;
+   
 }
 
 void NonlinearMechOperator::ProjectModelStress(ParGridFunction &s)
@@ -1164,6 +1178,8 @@ void NonlinearMechOperator::ProjectModelStress(ParGridFunction &s)
    QuadratureVectorFunctionCoefficient *stress;
    stress = model->GetStress0();
    s.ProjectCoefficient(*stress);
+
+   stress = NULL;
    
    return;
 }
@@ -1174,6 +1190,8 @@ void NonlinearMechOperator::ProjectVonMisesStress(ParGridFunction &vm)
    vonMisesStress = model->GetVonMises();
    vm.ProjectCoefficient(*vonMisesStress);
 
+   vonMisesStress = NULL;
+   
    return;
 }
 
@@ -1216,8 +1234,15 @@ void NonlinearMechOperator::DebugPrintModelVars(int procID, double time)
    QuadratureFunction *matVars0 = mv0->GetQuadFunction();
    matVars0->Print(mv_ofs);
 
+   matVars0 = NULL;
+   props = NULL;
+   
    return;
   
+}
+//A generic test function that we can add whatever unit tests to and then have them be tested
+void NonlinearMechOperator::testFuncs(const Vector &x0, ParFiniteElementSpace *fes){
+   model->test_def_grad_func(fes, x0);
 }
 
 NonlinearMechOperator::~NonlinearMechOperator()
@@ -1227,6 +1252,7 @@ NonlinearMechOperator::~NonlinearMechOperator()
       delete J_prec;
    }
    delete model;
+   delete Hform;
 }
 
 // In line visualization
@@ -1262,6 +1288,7 @@ void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
       out << "pause\n";
    }
    out << flush;
+   nodes = NULL;
 }
 
 void ReferenceConfiguration(const Vector &x, Vector &y)
@@ -1483,6 +1510,15 @@ void setStateVarData(Vector* sVars, Vector* orient, ParFiniteElementSpace *fes,
          } // end loop over material state variables
       } // end loop over quadrature points
    } // end loop over elements
+
+   //Set the pointers to null after using them to hopefully stop any weirdness from happening
+   fe = NULL;
+   qf_data = NULL;
+   ir = NULL;
+   qspace = NULL;
+   grain_data = NULL;
+   sVars_data = NULL;
+   
 }
 
 void initQuadFunc(QuadratureFunction *qf, double val, ParFiniteElementSpace *fes)
@@ -1491,71 +1527,49 @@ void initQuadFunc(QuadratureFunction *qf, double val, ParFiniteElementSpace *fes
    const IntegrationRule *ir;
    double* qf_data = qf->GetData();
    int vdim = qf->GetVDim();
-   QuadratureSpace* qspace = qf->GetSpace();
+   int counter = 0;
+   //QuadratureSpace* qspace = qf->GetSpace();
 
    printf("qf data size: %d \n", qf->Size());
    printf("qf vdim: %d \n", vdim);
+   
+   //The below should be exactly the same as what
+   //the other for loop is trying to accomplish
+   for (int i = 0; i < qf->Size(); ++i){
+     qf_data[i] = val;
+   }
 
-//   printf("qspace size: %d \n", qspace->GetSize()); 
+   qf_data = NULL;
+}
+//Routine to test the deformation gradient to make sure we're getting out the right values.
+//This applies the following displacement field to the nodal values:
+//u_vec = (2x + 3y + 4z)i + (4x + 2y + 3z)j + (3x + 4y + 2z)k
+void test_deformation_field_set(ParGridFunction *gf, Vector *vec, ParFiniteElementSpace *fes)
+{
+   
+   const IntegrationRule *ir;
+   HypreParVector* temp = gf->GetTrueDofs();
+   Vector* temp2 = temp->GlobalVector();
+   double* temp_vals = temp2->GetData();
+   double* vals = vec->GetData();
 
-   for (int i = 0; i < fes->GetNE(); ++i)
+   int dim = gf->Size()/3;
+   int dim2 = vec->Size()/3;
+   
+   printf("gf data size: %d vec data size %d\n", dim, dim2);
+   
+   for (int i = 0; i < dim; ++i)
    {
-//      fe = fes->GetFE(i);
-      ir = &(qspace->GetElementIntRule(i));
-//      ir = &(IntRules.Get(fe->GetGeomType(), 2*fe->GetOrder() + 3));
-
-//      int elem_offset = qspace->element_offsets[i];
-//      int slen = qspace->element_offset[i+1] - elem_offset;
-      int elem_offset = vdim * ir->GetNPoints();
-//      printf("element offset %d \n", elem_offset);
-//      printf("num ip: %d \n", ir->GetNPoints());
-//      printf("elemoffset: %d \n", elem_offset);
-
-      Vector vals;
-      qf->GetElementValues(i, vals);
-
-      // loop over element data at each quadrature point
-      for (int j = 0; j < ir->GetNPoints(); ++j)
-      {
-         for (int k = 0; k<vdim; ++k)
-         {
-            //
-            // RC, I initialize each quadrature function to its index 
-            // values, which for a given element, and a given integration 
-            // point, will simply be the integer id of each component in 
-            // the vector that lives at a given integration point. This 
-            // will repeat, and the pattern is obvious. The output of the 
-            // element stress quadrature function, post-initialization, in 
-            // mechanics_integrators.cpp in the Neohookean EvalModel is the 
-            // bug I was chasing down and the erroneous output will be clear. 
-            // (SRW).
-            //
-            vals[vdim*j + k] = k;
-//   
-//         KEEP THE FOLLOWING CODE
-//
-//         int k = i*elem_offset + j;
-//         qf_data[k] = val;
-         }
-      }
-
-      // debug print to test accessing the quadrature
-      // function
-      Vector newVals;
-      qf->GetElementValues(i, newVals);
-      for (int j = 0; j < ir->GetNPoints(); ++j)
-      {
-         for (int k = 0; k<vdim; ++k)
-         {
-            printf("newVals: %f \n", newVals[vdim*j + k]);
-         }
-      }
-
-      for (int j = 0; j<qf->Size(); ++j)
-      {
-         printf("full init qf_data %f \n", qf_data[j]);
-      }
-   } 
+      int i1 = i * 3;
+      double x1 = temp_vals[i];
+      double x2 = temp_vals[i + dim];
+      double x3 = temp_vals[i + 2 * dim];
+      
+      vals[i] = x1 + (2 * x1 + 3 * x2 + 4 * x3);
+      vals[i + dim] = x2 + (4 * x1 + 2 * x2 + 3 * x3);
+      vals[i + 2 * dim] = x3 + (3 * x1 + 4 * x2 + 2 * x3);
+      printf("x: %f, %f;\t y: %f, %f;\t z: %f, %f\n ", x1, vals[i], x2, vals[i + dim], x3, vals[i + 2 * dim]);
+   }
 }
 
 void setBCTimeStep(double dt, int nDBC)
@@ -1628,7 +1642,7 @@ void reorderMeshElements(Mesh *mesh, const int nx)
    }
 
    mesh->ReorderElements(order, true);
-
+   
    return;
 }
 

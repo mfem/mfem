@@ -13,10 +13,6 @@
 #define MECHANICS_COEF
 
 #include "mfem.hpp"
-//#include "../config/config.hpp"
-//#include "../linalg/linalg.hpp"
-//#include "intrules.hpp"
-//#include "eltrans.hpp"
 
 namespace mfem
 {
@@ -25,7 +21,7 @@ class QuadratureFunction;
 /// Quadrature function coefficient
 class QuadratureVectorFunctionCoefficient : public VectorCoefficient
 {
-public:
+private:
    QuadratureFunction *QuadF;
 
 public:

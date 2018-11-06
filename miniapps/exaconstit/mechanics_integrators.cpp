@@ -100,7 +100,7 @@ void computeDefGrad(const QuadratureFunction *qf, const ParFiniteElementSpace *f
          // set new F0 = F1
          F0 = F1;
   
-         // loop over element Jacobian data and populate 
+	 // loop over element Jacobian data and populate 
          // quadrature function with the new F0 in preparation for the next 
          // time step. Note: offset0 should be the 
          // number of true state variables. 
@@ -115,8 +115,106 @@ void computeDefGrad(const QuadratureFunction *qf, const ParFiniteElementSpace *f
             }
          }
       }
+      Ttr = NULL;
    }
 
+   fe = NULL;
+   ir = NULL;
+   qf_data = NULL;
+   qspace = NULL;
+   
+   return;
+}
+   
+void computeDefGradTest(const QuadratureFunction *qf, ParFiniteElementSpace *fes, const Vector &x0)
+{
+   const FiniteElement *fe;
+   const IntegrationRule *ir;
+   double* qf_data = qf->GetData();
+   int qf_offset = qf->GetVDim(); // offset at each integration point
+   QuadratureSpace* qspace = qf->GetSpace();
+   ParGridFunction x_gf;
+   
+   double* vals = x0.GetData();
+
+   const int NE = fes->GetNE();
+
+   int dim = x0.Size() / 3;
+
+   x_gf.MakeTRef(fes, vals);
+   x_gf.SetFromTrueVector();
+
+   // loop over elements
+   //Only going to test it for one element
+   for (int i = 0; i < NE; ++i)
+   {
+      // get element transformation for the ith element
+      ElementTransformation* Ttr = fes->GetElementTransformation(i);
+      fe = fes->GetFE(i);
+      
+      // declare data to store shape function gradients
+      // and element Jacobians
+      DenseMatrix Jrt, DSh, DS, PMatI, Jpt, F0, F1;
+      int dof = fe->GetDof(), dim = fe->GetDim();
+      
+      DSh.SetSize(dof,dim);
+      DS.SetSize(dof,dim);
+      Jrt.SetSize(dim);
+      Jpt.SetSize(dim);
+      F0.SetSize(dim);
+      F1.SetSize(dim);
+      PMatI.SetSize(dof, dim);
+      
+      // get element physical coordinates
+      Array<int> vdofs(dof * dim);
+      Vector el_x(PMatI.Data(), dof * dim);
+      fes->GetElementVDofs(i, vdofs);
+      
+      x_gf.GetSubVector(vdofs, el_x);
+      //PMatI.UseExternalData(el_x.GetData(), dof, dim);
+      
+      ir = &(qspace->GetElementIntRule(i));
+      int elem_offset = 0;
+      
+      // loop over integration points where the quadrature function is
+      // stored
+      for (int j = 0; j < ir->GetNPoints(); ++j)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         Ttr->SetIntPoint(&ip);
+         CalcInverse(Ttr->Jacobian(), Jrt);
+         
+         fe->CalcDShape(ip, DSh);
+         Mult(DSh, Jrt, DS);
+         MultAtB(PMatI, DS, Jpt);
+         
+         // store local beginning step deformation gradient for a given
+         // element and integration point from the quadrature function
+         // input argument. We want to set the new updated beginning
+         // step deformation gradient (prior to next time step) to the current
+         // end step deformation gradient associated with the converged
+         // incremental solution. The converged _incremental_ def grad is Jpt
+         // that we just computed above. We compute the updated beginning
+         // step def grad as F1 = Jpt*F0; F0 = F1; We do this because we
+         // are not storing F1.
+	 //         int k = 0;
+         for (int m = 0; m < dim; ++m)
+         {
+            for (int n = 0; n < dim; ++n)
+            {
+               F0(m,n) = 0.0;
+            }
+            F0(m,m) = 1.0;
+         }
+         
+         // compute F1 = Jpt*F0;
+         Mult(Jpt, F0, F1);
+         
+         // set new F0 = F1
+         F0 = F1;
+      }
+   }
+   
    return;
 }
 
@@ -125,6 +223,9 @@ int ExaModel::GetStressOffset()
 {
    QuadratureFunction* qf = stress0.GetQuadFunction();
    int qf_offset = qf->GetVDim();
+
+   qf = NULL;
+   
    return qf_offset;
 }
 
@@ -132,6 +233,9 @@ int ExaModel::GetMatGradOffset()
 {
    QuadratureFunction* qf = matGrad.GetQuadFunction();
    int qf_offset = qf->GetVDim();
+
+   qf = NULL;
+   
    return qf_offset;
 }
 
@@ -139,6 +243,9 @@ int ExaModel::GetMatVarsOffset()
 {
    QuadratureFunction* qf = matVars0.GetQuadFunction();
    int qf_offset = qf->GetVDim();
+
+   qf = NULL;
+
    return qf_offset;
 }
 
@@ -146,11 +253,11 @@ int ExaModel::GetMatVarsOffset()
 void ExaModel::GetElementStress(const int elID, const int ipNum,
                                 bool beginStep, double* stress, int numComps)
 {
-   const IntegrationRule *ir;
-   double* qf_data;
-   int qf_offset;
+   const IntegrationRule *ir = NULL;
+   double* qf_data = NULL;
+   int qf_offset = 0;
    QuadratureFunction* qf = NULL;
-   QuadratureSpace* qspace;
+   QuadratureSpace* qspace = NULL;
 
    if (beginStep)
    {
@@ -165,11 +272,12 @@ void ExaModel::GetElementStress(const int elID, const int ipNum,
    qf_offset = qf->GetVDim();
    qspace    = qf->GetSpace();
 
-   for (int i=0; i<qf->Size(); ++i)
+   /* for (int i=0; i<qf->Size(); ++i)
    {
       printf("GetStress1: %f \n", qf_data[i]);
    }
-
+   */
+   
    // check offset to input number of components
    if (qf_offset != numComps)
    {
@@ -180,8 +288,9 @@ void ExaModel::GetElementStress(const int elID, const int ipNum,
    ir = &(qspace->GetElementIntRule(elID));
    int elem_offset = qf_offset * ir->GetNPoints();
 
+   /*
    Vector vals;
-   qf->GetElementValues(elID, vals);
+   qf->GetElementValues(elID, &vals);
 
    for (int j = 0; j < ir->GetNPoints(); ++j)
    {
@@ -190,14 +299,20 @@ void ExaModel::GetElementStress(const int elID, const int ipNum,
          printf("element stress: %f \n", vals[numComps*j + k]);
       }
    }
+   */
 
-   printf("elID and ipNum: %d %d \n", elID, ipNum);
+   //printf("elID and ipNum: %d %d \n", elID, ipNum);
    for (int i=0; i<numComps; ++i)
    {
-//     stress[i] = qf_data[elID * elem_offset + ipNum * qf_offset + i];
-      stress[i] = vals[ipNum*qf_offset + i];
-      printf("stress from get routine: %f \n", stress[i]);
+     stress[i] = qf_data[elID * elem_offset + ipNum * qf_offset + i];
+     //stress[i] = vals[ipNum*qf_offset + i];
+     //printf("stress from get routine: %f \n", stress[i]);
    }
+
+   ir = NULL;
+   qf_data = NULL;
+   qf = NULL;
+   qspace = NULL;
 
    return;
 }
@@ -243,7 +358,7 @@ void ExaModel::SetElementStress(const int elID, const int ipNum,
    {
      int k = elID * elem_offset + ipNum * qf_offset + i;
      qf_data[k] = stress[i];
-     printf("qf_data[k]: %f \n", qf_data[k]);
+     //     printf("qf_data[k]: %f \n", qf_data[k]);
    }
    return;
 }
@@ -286,6 +401,11 @@ void ExaModel::GetElementStateVars(const int elID, const int ipNum,
      stateVars[i] = qf_data[elID * elem_offset + ipNum * qf_offset + i];
    }
 
+   ir = NULL;
+   qf_data = NULL;
+   qf = NULL;
+   qspace = NULL;
+
    return;
 }
 
@@ -326,6 +446,12 @@ void ExaModel::SetElementStateVars(const int elID, const int ipNum,
    {
      qf_data[elID * elem_offset + ipNum * qf_offset + i] = stateVars[i];
    }
+
+   ir = NULL;
+   qf_data = NULL;
+   qf = NULL;
+   qspace = NULL;
+   
    return;
 }
 
@@ -344,10 +470,10 @@ void ExaModel::GetElementMatGrad(const int elID, const int ipNum, double* grad,
    qf_offset = qf->GetVDim();
    qspace    = qf->GetSpace();
 
-   for (int i=0; i<qf->Size(); ++i)
-   {
-      printf("mat grad: %f \n", qf_data[i]);   
-   }
+   //for (int i=0; i<qf->Size(); ++i)
+   //{
+   //   printf("mat grad: %f \n", qf_data[i]);   
+   //}
 
    // check offset to input number of components
    if (qf_offset != numComps)
@@ -363,6 +489,11 @@ void ExaModel::GetElementMatGrad(const int elID, const int ipNum, double* grad,
    {
      grad[i] = qf_data[elID * elem_offset + ipNum * qf_offset + i];
    }
+
+   ir =	NULL;
+   qf_data = NULL;
+   qf =	NULL;
+   qspace = NULL;
 
    return;
 }
@@ -395,9 +526,15 @@ void ExaModel::SetElementMatGrad(const int elID, const int ipNum,
    for (int i=0; i<qf_offset; ++i)
    {
      int k = elID * elem_offset + ipNum * qf_offset + i;
-     printf("SetElementMatGrad qf_data comp (k): %d %f \n", k, qf_data[k]);
+     //printf("SetElementMatGrad qf_data comp (k): %d %f \n", k, qf_data[k]);
      qf_data[k] = grad[i];
    }
+
+   ir =	NULL;
+   qf_data = NULL;
+   qf =	NULL;
+   qspace = NULL;
+   
    return;
 }
 
@@ -455,6 +592,11 @@ void ExaModel::GetElemDefGrad0()
       }
    }
 
+   ir =	NULL;
+   qf_data = NULL;
+   qf =	NULL;
+   qspace = NULL;
+   
    return;
 }
 void ExaModel::CalcElemDefGrad1(const DenseMatrix& Jpt)
@@ -463,7 +605,6 @@ void ExaModel::CalcElemDefGrad1(const DenseMatrix& Jpt)
    
    Jpt1.Clear();
    Jpt1.SetSize(dim);
-   Jpt1 = 0.0;
 
    // full end step def grad, F1 = F_hat*F0, where F_hat is the Jpt passed 
    // in and represents the incremental deformation gradient associated with 
@@ -501,6 +642,14 @@ void ExaModel::UpdateStress(int elID, int ipNum)
      qf0_data[elID * elem_offset + ipNum * qf_offset + i] =
         qf1_data[elID * elem_offset + ipNum * qf_offset + i];
    }
+
+   ir =	NULL;
+   qf0_data = NULL;
+   qf0 = NULL;
+   qf1_data = NULL;
+   qf1 = NULL;
+   qspace = NULL;
+   
    return;
 }
 
@@ -532,6 +681,14 @@ void ExaModel::UpdateStateVars(int elID, int ipNum)
      qf0_data[elID * elem_offset + ipNum * qf_offset + i] =
         qf1_data[elID * elem_offset + ipNum * qf_offset + i];
    }
+   
+   ir = NULL;
+   qf0_data = NULL;
+   qf0 = NULL;
+   qf1_data = NULL;
+   qf1 = NULL;
+   qspace = NULL;
+   
    return;
 }
 
@@ -541,6 +698,7 @@ void ExaModel::UpdateModelVars(const ParFiniteElementSpace *fes,
 // update the beginning step deformation gradient
    QuadratureFunction* defGrad = defGrad0.GetQuadFunction();
    computeDefGrad(defGrad, fes, x);
+   defGrad = NULL;
    return;
 }
 
@@ -588,7 +746,6 @@ void ExaModel::CauchyToPK1()
 
    // set size of local PK1 stress matrix stored on the model
    P.SetSize(size);
-   P = 0.0;
 
    // calculate the inverse transpose of the matrix
    CalcInverseTranspose(Jpt1, FinvT);
@@ -649,6 +806,9 @@ void ExaModel::ComputeVonMises(const int elemID, const int ipID)
       QuadratureSpace* qspace = qf_stress0->GetSpace();
       int vdim = 1; // scalar von Mises data at each IP
       vm_qf->SetSpace(qspace, vdim); // construct object
+
+      qf_stress0 = NULL;
+      qspace = NULL;
    }
 
    QuadratureSpace* qspace = vm_qf->GetSpace();
@@ -678,11 +838,254 @@ void ExaModel::ComputeVonMises(const int elemID, const int ipID)
 
    // set the von Mises quadrature function data
    vmData[elemID * elemVmOffset + ipID * vmOffset] = vm;
+
+   ir = NULL;
+   vm_qspace = NULL;
+   vm_qf = NULL;
+   qspace = NULL;
+   vmData = NULL;
    
    return;
 }
 
-void AbaqusUmatModel::CalcLogStrain(DenseMatrix& E)
+//A helper function that takes in a 3x3 rotation matrix and converts it over
+//to a unit quaternion.
+void ExaModel::RMat2Quat(DenseMatrix& rmat, Vector& quat){
+   double inv2 = 1.0/2.0;
+   double phi = 0.0;
+   static const double eps = numeric_limits<double>::epsilon();
+   double tr_r = 0.0;
+   double inv_sin = 0.0;
+   double s = 0.0;
+   
+   quat = 0.0;
+   
+   tr_r = rmat(0, 0) + rmat(1, 1) + rmat(2, 2);
+   phi = acos(inv2 * (tr_r - 1.0));
+   if (abs(phi) < eps){
+      quat[3] = 1.0;
+   }else{
+      inv_sin = 1.0 / sin(phi);
+      quat[0] = phi;
+      quat[1] = inv_sin * inv2 * (rmat(2, 1) - rmat(1, 2));
+      quat[2] = inv_sin * inv2 * (rmat(0, 2) - rmat(2, 0));
+      quat[3] = inv_sin * inv2 * (rmat(1, 0) - rmat(0, 1));
+   }
+   
+   s = sin(inv2 * quat[0]);
+   quat[0] = cos(quat[0] * inv2);
+   quat[1] = s * quat[1];
+   quat[2] = s * quat[2];
+   quat[3] = s * quat[3];
+   
+   return;
+   
+}
+
+//A helper function that takes in a unit quaternion and and returns a 3x3 rotation
+//matrix.
+void ExaModel::Quat2RMat(Vector& quat, DenseMatrix& rmat){
+   double qbar = 0.0;
+   
+   qbar = quat[0] * quat[0] - (quat[1] * quat[1] + quat[2] * quat[2] + quat[3] * quat[3]);
+   
+   rmat(0, 0) = qbar + 2.0 * quat[1] * quat[1];
+   rmat(1, 0) = 2.0 * (quat[1] * quat[2] + quat[0] * quat[3]);
+   rmat(2, 0) = 2.0 * (quat[1] * quat[3] - quat[0] * quat[2]);
+   
+   rmat(0, 1) = 2.0 * (quat[1] * quat[2] - quat[0] * quat[3]);
+   rmat(1, 1) = qbar + 2.0 * quat[2] * quat[2];
+   rmat(2, 1) = 2.0 * (quat[2] * quat[3] + quat[0] * quat[1]);
+   
+   rmat(0, 2) = 2.0 * (quat[1] * quat[3] + quat[0] * quat[2]);
+   rmat(1, 2) = 2.0 * (quat[2] * quat[3] - quat[0] * quat[1]);
+   rmat(2, 2) = qbar + 2.0 * quat[3] * quat[3];
+   
+   return;
+}
+
+//The below method computes the polar decomposition of a 3x3 matrix using a method
+//proposed in: https://animation.rwth-aachen.de/media/papers/2016-MIG-StableRotation.pdf
+//The paper listed provides a fast and robust way to obtain the rotation portion
+//of a positive definite 3x3 matrix which then allows for the easy computation
+//of U and V.
+void ExaModel::CalcPolarDecompDefGrad(DenseMatrix& R, DenseMatrix& U,
+                                      DenseMatrix& V, double err){
+
+   DenseMatrix def_grad, omega_mat, temp;
+   
+   int dim = Ttr->GetDimension();
+   Vector quat;
+   
+   int max_iter = 500;
+   
+   double norm, inv_norm;
+   
+   double ac1[3], ac2[3], ac3[3];
+   double w_top[3], w[3];
+   double w_bot, w_norm, w_norm_inv2, w_norm_inv;
+   double cth, sth;
+   double r1da1, r2da2, r3da3;
+   
+   quat.SetSize(4);
+   omega_mat.SetSize(dim);
+   temp.SetSize(dim);
+   
+   Mult(Jpt1, Jpt0, def_grad);
+   
+   RMat2Quat(def_grad, quat);
+   
+   norm = quat.Norml2();
+   inv_norm = 1.0 / norm;
+   
+   quat *= inv_norm;
+   
+   Quat2RMat(quat, R);
+   
+   ac1[0] = def_grad(0,0); ac1[1] = def_grad(1,0); ac1[2] = def_grad(2,0);
+   ac2[0] = def_grad(0,1); ac2[1] = def_grad(1,1); ac2[2] = def_grad(2,1);
+   ac3[0] = def_grad(0,2); ac3[1] = def_grad(1,2); ac3[2] = def_grad(2,2);
+   
+   for (int i = 0; i < max_iter; i++) {
+      //The dot products that show up in the paper
+      r1da1 = R(0, 0) * ac1[0] + R(1, 0) * ac1[1] + R(2, 0) * ac1[2];
+      r2da2 = R(0, 1) * ac2[0] + R(1, 1) * ac2[1] + R(2, 1) * ac2[2];
+      r3da3 = R(0, 2) * ac3[0] + R(1, 2) * ac3[1] + R(2, 2) * ac3[2];
+      
+      //The summed cross products that show up in the paper
+      w_top[0] = (-R(2, 0) * ac1[1] + R(1, 0) * ac1[2]) +
+                 (-R(2, 1) * ac2[1] + R(1, 1) * ac2[2]) +
+                 (-R(2, 2) * ac3[1] + R(1, 2) * ac3[2]);
+      
+      w_top[1] = (R(2, 0) * ac1[0] - R(0, 0) * ac1[2]) +
+                 (R(2, 1) * ac2[0] - R(0, 1) * ac2[2]) +
+                 (R(2, 2) * ac3[0] - R(0, 2) * ac3[2]);
+      
+      w_top[2] = (-R(1, 0) * ac1[0] + R(0, 0) * ac1[1]) +
+                 (-R(1, 1) * ac2[0] + R(0, 1) * ac2[1]) +
+                 (-R(1, 2) * ac3[0] + R(0, 2) * ac3[1]);
+      
+      w_bot = (1.0 / (abs(r1da1 + r2da2 + r3da3) + err));
+      //The axial vector that shows up in the paper
+      w[0] = w_top[0] * w_bot; w[1] = w_top[1] * w_bot; w[2] = w_top[2] * w_bot;
+      //The norm of the axial vector
+      w_norm = sqrt(w[0] * w[0] + w[1] * w[1] + w[2] * w[2]);
+      //If the norm is below our desired error we've gotten our solution
+      //So we can break out of the loop
+      if(w_norm < err) break;
+      //The exponential mapping for an axial vector
+      //The 3x3 case has been explicitly unrolled here
+      w_norm_inv2 = 1.0/(w_norm * w_norm);
+      w_norm_inv = 1.0/w_norm;
+      
+      sth = sin(w_norm) * w_norm_inv;
+      cth = (1.0 - cos(w_norm)) * w_norm_inv2;
+      
+      omega_mat(0, 0) = 1.0 - cth * (w[2] * w[2] + w[1] * w[1]);
+      omega_mat(1, 1) = 1.0 - cth * (w[2] * w[2] + w[0] * w[0]);
+      omega_mat(2, 2) = 1.0 - cth * (w[1] * w[1] + w[0] * w[0]);
+      
+      omega_mat(0, 1) = -sth * w[2] + cth * w[1] * w[0];
+      omega_mat(0, 2) = sth  * w[1] + cth * w[2] * w[0];
+      
+      omega_mat(1, 0) = sth  * w[2] + cth * w[0] * w[1];
+      omega_mat(1, 2) = -sth * w[0] + cth * w[2] * w[1];
+      
+      omega_mat(2, 0) = -sth * w[1] + cth * w[0] * w[2];
+      omega_mat(2, 1) = sth  * w[0] + cth * w[2] * w[1];
+      
+      Mult(omega_mat, R, temp);
+      R = temp;
+   }
+   
+   MultAtB(R, def_grad, U);
+   MultABt(def_grad, R, V);
+   
+   return;
+}
+
+//This method calculates the Eulerian strain which is given as:
+//e = 1/2 (I - B^(-1)) = 1/2 (I - F(^-T)F^(-1))
+void ExaModel::CalcEulerianStrain(DenseMatrix& E){
+
+   DenseMatrix F, Finv, Binv;
+   
+   int dim = Ttr->GetDimension();
+   
+   double half = 1.0/2.0;
+   
+   Finv.SetSize(dim);
+   Binv.SetSize(dim);
+   
+   Mult(Jpt1, Jpt0, F);
+   
+   CalcInverse(F, Finv);
+   
+   MultAtB(Finv, Finv, Binv);
+   
+   E = 0.0;
+   
+   for (int j = 0; j < dim; j++) {
+      for (int i = 0; i < dim; i++) {
+         E(i, j) -= half * Binv(i, j);
+      }
+      E(j, j) += 1.0;
+   }
+   
+   return;
+}
+   
+//This method calculates the Lagrangian strain which is given as:
+//E = 1/2 (C - I) = 1/2 (F^(T)F - I)
+void ExaModel::CalcLagrangianStrain(DenseMatrix& E){
+
+   DenseMatrix F, C;
+   
+   int dim = Ttr->GetDimension();
+   
+   double half = 1.0/2.0;
+   
+   C.SetSize(dim);
+   
+   Mult(Jpt1, Jpt0, F);
+   
+   MultAtB(F, F, C);
+   
+   E = 0.0;
+   
+   for (int j = 0; j < dim; j++) {
+      for (int i = 0; i < dim; i++) {
+         E(i, j) += half * C(i, j);
+      }
+      E(j, j) -= 1.0;
+   }
+   
+   return;
+}
+   
+//This method calculates the Biot strain which is given as:
+//E = (U - I)
+void ExaModel::CalcBiotStrain(DenseMatrix& E){
+   
+   DenseMatrix rmat, umat, vmat;
+   
+   int dim = Ttr->GetDimension();
+   
+   rmat.SetSize(dim);
+   umat.SetSize(dim);
+   vmat.SetSize(dim);
+   
+   CalcPolarDecompDefGrad(rmat, umat, vmat);
+   
+   E = umat;
+   E(0, 0) -= 1.0;
+   E(1, 1) -= 1.0;
+   E(2, 2) -= 1.0;
+   
+   return;
+}
+
+void ExaModel::CalcLogStrain(DenseMatrix& E)
 {
    // calculate current end step logorithmic strain (Hencky Strain) 
    // which is taken to be E = ln(U) = 1/2 ln(C), where C = (F_T)F. 
@@ -714,7 +1117,9 @@ void AbaqusUmatModel::CalcLogStrain(DenseMatrix& E)
       {
          for (int k=0; k<dim; ++k)
          {
-            E(j,k) += 0.5 * log(lambda[i]) * vec[i*dim+j] * vec[i*dim+k];
+            //Dense matrices are col. maj. representation, so the indices were
+            //reversed for it to be more cache friendly.
+            E(k,j) += 0.5 * log(lambda[i]) * vec[i*dim+j] * vec[i*dim+k];
          }
       }
    }
@@ -756,11 +1161,65 @@ void AbaqusUmatModel::CalcLogStrainIncrement(DenseMatrix& dE)
       {
          for (int k=0; k<dim; ++k)
          {
-            dE(j,k) += 0.5 * log(lambda[i]) * vec[i*dim+j] * vec[i*dim+k];
+            //Dense matrices are col. maj. representation, so the indices were
+            //reversed for it to be more cache friendly.
+            dE(k,j) += 0.5 * log(lambda[i]) * vec[i*dim+j] * vec[i*dim+k];
          }
       }
    }
 
+   return;
+}
+   
+//This method calculates the Eulerian strain which is given as:
+//e = 1/2 (I - B^(-1)) = 1/2 (I - F(^-T)F^(-1))
+void AbaqusUmatModel::CalcEulerianStrainIncr(DenseMatrix& dE){
+   
+   DenseMatrix Finv, Binv;
+   
+   int dim = Ttr->GetDimension();
+   
+   double half = 1.0/2.0;
+   
+   Finv.SetSize(dim);
+   Binv.SetSize(dim);
+   
+   CalcInverse(Jpt1, Finv);
+   
+   MultAtB(Finv, Finv, Binv);
+   
+   dE = 0.0;
+   
+   for (int j = 0; j < dim; j++) {
+      for (int i = 0; i < dim; i++) {
+         dE(i, j) -= half * Binv(i, j);
+      }
+      dE(j, j) += 1.0;
+   }
+}
+
+//This method calculates the Lagrangian strain which is given as:
+//E = 1/2 (C - I) = 1/2 (F^(T)F - I)
+void AbaqusUmatModel::CalcLagrangianStrainIncr(DenseMatrix& dE){
+   
+   DenseMatrix C;
+   
+   int dim = Ttr->GetDimension();
+   
+   double half = 1.0/2.0;
+   
+   C.SetSize(dim);
+   
+   MultAtB(Jpt1, Jpt1, C);
+   
+   dE = 0.0;
+   
+   for (int j = 0; j < dim; j++) {
+      for (int i = 0; i < dim; i++) {
+         dE(i, j) += half * C(i, j);
+      }
+      dE(j, j) -= 1.0;
+   }
    return;
 }
 
@@ -795,10 +1254,10 @@ void AbaqusUmatModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
 
    double rpl        = 0.0;   // volumetric heat generation per unit time, not considered
    double drpldt     = 0.0;   // variation of rpl wrt temperature set to 0.0
-   double temp       = 0.0;   // no thermal considered at this point
+   double tempk       = 0.0;   // no thermal considered at this point
    double dtemp      = 0.0;   // no increment in thermal considered at this point
-   double predef[1]  = {0.0}; // no interpolated values of predefined field variables at ip point
-   double dpred[1]   = {0.0}; // no array of increments of predefined field variables
+   double predef  = 0.0; // no interpolated values of predefined field variables at ip point
+   double dpred   = 0.0; // no array of increments of predefined field variables
    double sse        = 0.0;   // specific elastic strain energy, mainly for output
    double spd        = 0.0;   // specific plastic dissipation, mainly for output
    double scd        = 0.0;   // specific creep dissipation, mainly for output
@@ -830,7 +1289,7 @@ void AbaqusUmatModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
    time[1] = t; 
 
    double stress[6]; // Cauchy stress at ip 
-   double ddsddt[6]; // variation of the stress increments wrt to temperature, set to 0.0
+   double ddsdt[6]; // variation of the stress increments wrt to temperature, set to 0.0
    double drplde[6]; // variation of rpl wrt strain increments, set to 0.0
    double stran[6];  // array containing total strains at beginning of the increment
    double dstran[6]; // array of strain increments
@@ -838,41 +1297,38 @@ void AbaqusUmatModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
    // initialize 1d arrays
    for (int i=0; i<6; ++i) {
       stress[i] = 0.0;
-      ddsddt[i] = 0.0;
+      ddsdt[i] = 0.0;
       drplde[i] = 0.0;
       stran[i]  = 0.0;
       dstran[i] = 0.0;
    } 
 
-   double ddsdde[6][6]; // output Jacobian matrix of the constitutive model.
+   double ddsdde[36]; // output Jacobian matrix of the constitutive model.
                         // ddsdde(i,j) defines the change in the ith stress component 
                         // due to an incremental perturbation in the jth strain increment
 
    // initialize 6x6 2d arrays
    for (int i=0; i<6; ++i) {
       for (int j=0; j<6; ++j) {
-         ddsdde[i][j] = 0.0;
+         ddsdde[(i * 6) + j] = 0.0;
       }
    }
 
-   double drot[3][3];   // rotation matrix for finite deformations
-   double dfgrd0[3][3]; // deformation gradient at beginning of increment
-   double dfgrd1[3][3]; // defomration gradient at the end of the increment.
+   double drot[9];   // rotation matrix for finite deformations
+   double dfgrd0[9]; // deformation gradient at beginning of increment
+   double dfgrd1[9]; // defomration gradient at the end of the increment.
                         // set to zero if nonlinear geometric effects are not 
                         // included in the step as is the case for ExaConstit
    
    // initialize 3x3 2d arrays to identity
+   //drot is the only one that we need to do this for the
+   //other 3x3 are set a little bit further below.
    for (int i=0; i<3; ++i) {
       for (int j=0; j<3; ++j) {
-         drot[i][j]   = 0.0;
-         dfgrd0[i][j] = 0.0;
-         dfgrd1[i][j] = 0.0;
-   
+         drot[(i * 3) + j]   = 0.0;
          if (i == j)
          {
-            drot[i][j]   = 1.0;
-            dfgrd0[i][j] = 1.0;
-            dfgrd1[i][j] = 1.0;
+            drot[(i * 3) + j]   = 1.0;
          }
       }
    }
@@ -883,8 +1339,9 @@ void AbaqusUmatModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
    {
       for (int j=0; j<ndi; ++j)
       {
-         dfgrd0[i][j] = Jpt0(i,j);
-         dfgrd1[i][j] = Jpt1(i,j);
+         //Dense matrices have column major layout so the below is fine.
+         dfgrd0[(i * 3) + j] = Jpt0(i,j);
+         dfgrd1[(i * 3) + j] = Jpt1(i,j);
       }
    }
 
@@ -911,11 +1368,14 @@ void AbaqusUmatModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
    stress[4] = stressTemp[4];
    stress[5] = stressTemp[3];
 
-   // compute the logorithmic strain
+   //Abaqus does mention wanting to use a log strain for large strains
+   //It's also based on an updated lagrangian formulation so as long as
+   //we aren't generating any crazy strains do we really need to use the
+   //log strain?
    DenseMatrix LogStrain;
    LogStrain.SetSize(ndi); // ndi x ndi
 
-   CalcLogStrain(LogStrain);
+   CalcEulerianStrain(LogStrain);
 
    // populate STRAN (symmetric) 
    //------------------------------------------------------------------
@@ -950,13 +1410,16 @@ void AbaqusUmatModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
    dstran[3] = dLogStrain(0,1);
    dstran[4] = dLogStrain(0,2);
    dstran[5] = dLogStrain(1,2);
+   
+   
 
-   // call fortran umat routine
-   umat(stress, statev, ddsdde, &sse, &spd, &scd, &rpl, 
-        ddsddt, drplde, &drpldt, stran, dstran, time, &deltaTime,
-        &temp, &dtemp, &predef[0], &dpred[0], &cmname, &ndi, &nshr, &ntens,
-        &nstatv, props, &nprops, coords, drot, &pnewdt, &celent,
-        dfgrd0, dfgrd1, &noel, &npt, &layer, &kspt, &kstep, &kinc);
+   // call c++ wrapper of umat routine
+            umat(stress, statev, ddsdde, &sse, &spd, &scd, &rpl,
+                    ddsdt, drplde, &drpldt, stran, dstran, time,
+                    &deltaTime, &tempk, &dtemp, &predef,
+                    &dpred, &cmname, &ndi, &nshr, &ntens,
+                    &nstatv, props, &nprops, coords, drot, &pnewdt, &celent,
+                    dfgrd0, dfgrd1, &noel, &npt, &layer, &kspt, &kstep, &kinc);
 
    // restore the material Jacobian in a 1D array
    double mGrad[36];
@@ -966,7 +1429,7 @@ void AbaqusUmatModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
      for (int j=0; j<6; ++j)
      {
        // row-wise ordering of material Jacobian
-       mGrad[6*i+j] = ddsdde[i][j];
+       mGrad[(6 * i) + j] = ddsdde[(i * 6) + j];
      }
    }
 
@@ -1117,10 +1580,10 @@ void NeoHookean::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
    // the 6 unique components of the symmetric Cauchy stress tensor.
    // 
    // RC, uncomment to transform Cauchy to PK1 (SRW)
-//   double sigma[6];
-//   for (int i=0; i<6; ++i) sigma[i] = 0.0;
-//   printf("NeoHookean::EvalModel before PK1ToCauchy \n");
-//   PK1ToCauchy(P, J, sigma);
+   double sigma[6];
+   for (int i=0; i<6; ++i) sigma[i] = 0.0;
+   //printf("NeoHookean::EvalModel before PK1ToCauchy \n");
+   PK1ToCauchy(P, J, sigma);
 
    // update total stress; We store the Cauchy stress, so we have to update 
    // that, and then we want to also carry around a local full PK1 stress 
@@ -1129,34 +1592,35 @@ void NeoHookean::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
    // RC, uncomment to access end step stress at current element/IP 
    // in order to update stress. Getting stress here, if printed to 
    // screen, gives screwy values. (SRW)
-//   double sigma1[6];
-//   printf("NeoHookean::EvalModel before GetElementStress \n");
-//   GetElementStress(elemID, ipID, false, sigma1, 6);
-
+   double sigma1[6];
+   for (int i=0; i<6; ++i) sigma1[i] = 0.0;   
+   //printf("NeoHookean::EvalModel before GetElementStress \n");
+   GetElementStress(elemID, ipID, false, sigma1, 6);
+ 
    // update stress
    //
    // RC, uncomment to print the stress from the previous call to 
    // GetElementStress (SRW)
-//   printf("NeoHookean::EvalModel before stress update \n");
-//   for (int i=0; i<6; ++i)
-//   {
-//      printf("sigma1 prior to resetting to new stress %f \n", sigma1[i]);
-//      sigma1[i] = sigma[i];
-//   }
+   //printf("NeoHookean::EvalModel before stress update \n");
+   for (int i=0; i<6; ++i)
+   {
+     //printf("sigma1 prior to resetting to new stress %f with %f\n", sigma1[i], sigma[i]);
+      sigma1[i] = sigma[i];
+   }
 
    // set full updated stress on the quadrature function
-//   printf("NeoHookean::EvalModel before SetElementStress \n");
+   //printf("NeoHookean::EvalModel before SetElementStress \n");
 //
 //   RC, since the Getter didn't produce the correct initialized values of 
 //   stress, then there is no point in testing the setter yet (SRW)
-//   SetElementStress(elemID, ipID, false, sigma1, 6);
+   SetElementStress(elemID, ipID, false, sigma1, 6);
 
    /////////////////////////////////////////////////////////////////////////////
    // DEBUG CODE: remove later
    // place some dummy code here to test populating the material gradient 
    // quadrature function
 //   printf("NeoHookean::EvalModel before dummy matGrad code \n");
-   printf("elemID and ipID %d %d \n", elemID, ipID);
+//printf("elemID and ipID %d %d \n", elemID, ipID);
 //   {
 //      // set the material stiffness on the model. 
 //      CMat.Clear();
@@ -1248,14 +1712,20 @@ void NeoHookean::AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
 
    // 2.
    for (int i = 0; i < dof; i++)
+   {
       for (int j = 0; j < dim; j++)
+      {
          for (int k = 0; k < dof; k++)
+	 {
             for (int l = 0; l < dim; l++)
             {
                A(i+j*dof,k+l*dof) +=
                   a*(C(i,j)*G(k,l) + G(i,j)*C(k,l)) +
                   b*G(i,l)*G(k,j) + c*G(i,j)*G(k,l);
-            } // end all loops
+            }
+         }
+      }
+   }// end all loops
 
    // debug print
 //   for (int i=0; i<24; ++i)
@@ -1297,6 +1767,7 @@ void ExaNLFIntegrator::AssembleElementVector(
    DenseMatrix DSh, DS;
    DenseMatrix Jrt, Jpr, Jpt; 
    DenseMatrix PMatI, PMatO;
+   DenseMatrix *PMat;
 
    DSh.SetSize(dof, dim);
    DS.SetSize(dof, dim);
@@ -1321,6 +1792,9 @@ void ExaNLFIntegrator::AssembleElementVector(
    // set the incremental nodal displacements on the model for 
    // the current element
    model->SetCoords(PMatI);
+
+   //Get access to Pmat stored in the model
+   PMat = model->GetPK1Stress();
 
    // get the timestep off the boundary condition manager. This isn't 
    // ideal, but in main(), the time step is just a local variable. 
@@ -1379,21 +1853,22 @@ void ExaNLFIntegrator::AssembleElementVector(
       // determinant of the Jacobian of the transformation. Note that EvalModel
       // takes the weight input argument to conform to the old 
       // AssembleH where the weight was used in the NeoHookean model
-      model->P *= ip.weight * Ttr.Weight(); // Ttr.Weight is det() of Jacob. of 
+      *PMat *= ip.weight * Ttr.Weight(); // Ttr.Weight is det() of Jacob. of 
                                             // transformation from ref. config. to 
                                             // parent space.
-      AddMultABt(DS, model->P, PMatO);
+      AddMultABt(DS, *PMat, PMatO);
 
       // debug prints
       for (int i=0; i<3; ++i)
       {
          for (int j=0; j<3; ++j)
          {
-            printf("P after evalModel %f \n", model->P(i,j));
+	   printf("P after evalModel %f \n", (*PMat)(i,j));
          }
       }
    }
 
+   PMat = NULL;
    return;
 }
 
@@ -1493,7 +1968,11 @@ void ExaNLFIntegrator::AssembleElementGradFD(
          elmat(j,i) = (temp_out_1[j] - temp_out_2[j]) / (2.0*diff_step);
       }
       temps[i] = elfun[i];
-   } 
+   }
+
+   temps = NULL;
+   temp_out_1 = NULL;
+   temp_out_2 = NULL;
 
    return;
 }
