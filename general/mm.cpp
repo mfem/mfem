@@ -11,6 +11,7 @@
 
 #include "../general/error.hpp"
 #include "../general/okina.hpp"
+#include "kernels/mm.hpp"
 
 namespace mfem
 {
@@ -45,7 +46,7 @@ void mm::Setup(void)
 void* mm::Insert(const void *adrs, const size_t size, const size_t size_of_T)
 {
    if (!mm::Get().mng) { mm::Get().Setup(); }
-   const size_t *h_adrs = ((size_t *) adrs) + xs_shift;
+   size_t *h_adrs = ((size_t *) adrs) + xs_shift;
    const size_t bytes = size*size_of_T;
    const auto search = mng->find(h_adrs);
    const bool present = search != mng->end();
@@ -95,6 +96,7 @@ void* mm::Adrs(const void *adrs)
    if (not present) MFEM_SIGSEGV_FOR_STACK;
    MFEM_ASSERT(present, "[ERROR] Trying to convert unknown address!");
    const bool cuda = config::Get().Cuda();
+   const bool nvcc = config::nvcc();
    mm2dev_t &mm2dev = mng->operator[](adrs);
    // Just return asked known host address while not in CUDA mode
    if (mm2dev.host and not cuda)
@@ -104,6 +106,8 @@ void* mm::Adrs(const void *adrs)
    // Otherwise push it to the device if it hasn't been seen
    if (not mm2dev.d_adrs)
    {
+      if (not nvcc)
+         mfem_error("[ERROR] Trying to run without CUDA support!");
 #ifdef __NVCC__
       const size_t bytes = mm2dev.bytes;
       CUdeviceptr ptr = (CUdeviceptr) NULL;
@@ -112,22 +116,19 @@ void* mm::Adrs(const void *adrs)
          cuMemAlloc(&ptr,bytes);
       }
       mm2dev.d_adrs = (void*)ptr;
-      //const CUstream stream = *config::Get().Stream();
-      //cuMemcpyHtoDAsync(ptr, mm2dev.h_adrs, bytes, stream);
-      cuMemcpyHtoD(ptr, mm2dev.h_adrs, bytes);
+      const CUstream stream = config::Get().Stream();
+      cuMemcpyHtoDAsync(ptr, mm2dev.h_adrs, bytes, stream);
+      //cuMemcpyHtoD(ptr, mm2dev.h_adrs, bytes);
       mm2dev.host = false; // Now this address is GPU born
-#else
-      mfem_error("[ERROR] Trying to run without CUDA support!");
 #endif // __NVCC__
    }
    
    if (not cuda)
    {
+      if (not nvcc)
+         mfem_error("[ERROR] Trying to run without CUDA support!");
 #ifdef __NVCC__
-      cuMemcpyDtoH((void*)mm2dev.h_adrs,
-                   (CUdeviceptr)mm2dev.d_adrs, mm2dev.bytes);
-#else
-      assert(false);
+      cuMemcpyDtoH(mm2dev.h_adrs, (CUdeviceptr)mm2dev.d_adrs, mm2dev.bytes);
 #endif // __NVCC__
       mm2dev.host = true;
       return (void*)mm2dev.h_adrs;
@@ -138,20 +139,18 @@ void* mm::Adrs(const void *adrs)
 // *****************************************************************************
 void mm::Rsync(const void *adrs)
 {
-   const bool present = Known(adrs);
-   MFEM_ASSERT(present, "[ERROR] Trying to rsync from an unknown address!");
+   MFEM_ASSERT(Known(adrs), "[ERROR] Trying to rsync from an unknown address!");
    const mm2dev_t &mm2dev = mng->operator[](adrs);
    if (mm2dev.host) { return; }
 #ifdef __NVCC__
-   cuMemcpyDtoH((void*)mm2dev.h_adrs, (CUdeviceptr)mm2dev.d_adrs, mm2dev.bytes);
+   cuMemcpyDtoH(mm2dev.h_adrs, (CUdeviceptr)mm2dev.d_adrs, mm2dev.bytes);
 #endif // __NVCC__
 }
 
 // *****************************************************************************
 void mm::Push(const void *adrs)
 {
-   const bool present = Known(adrs);
-   MFEM_ASSERT(present, "[ERROR] Trying to push an unknown address!");
+   MFEM_ASSERT(Known(adrs), "[ERROR] Trying to push an unknown address!");
    mm2dev_t &mm2dev = mng->operator[](adrs);
    if (mm2dev.host) { return; }
 #ifdef __NVCC__
@@ -173,68 +172,38 @@ void mm::Push(const void *adrs)
 // *****************************************************************************
 void mm::Pull(const void *adrs) { Rsync(adrs); }
 
+// *****************************************************************************
+void* mm::memcpy(void *dest, const void *src, size_t bytes)
+{
+   return mm::D2D(dest, src, bytes, false);
+}
+
 // ******************************************************************************
 void* mm::H2D(void *dest, const void *src, size_t bytes, const bool async)
 {
    if (bytes==0) { return dest; }
-   assert(src); assert(dest);
-   if (!config::Get().Cuda()) { return memcpy(dest,src,bytes); }
-#ifdef __NVCC__
-   if (!config::Get().Uvm())
-   {
-      cuMemcpyHtoD((CUdeviceptr)dest,src,bytes);
-   }
-   else { cuMemcpy((CUdeviceptr)dest,(CUdeviceptr)src,bytes); }
-#endif
-   return dest;
+   const bool cuda = config::Get().Cuda();
+   if (not cuda) { return std::memcpy(dest, src, bytes); }
+   return mfem::kH2D(dest, src, bytes, async);
 }
 
 // *****************************************************************************
 void* mm::D2H(void *dest, const void *src, size_t bytes, const bool async)
 {
    if (bytes==0) { return dest; }
-   assert(src); assert(dest);
-   if (!config::Get().Cuda()) { return memcpy(dest,src,bytes); }
-#ifdef __NVCC__
-   if (!config::Get().Uvm())
-   {
-      cuMemcpyDtoH(dest,(CUdeviceptr)src,bytes);
-   }
-   else { cuMemcpy((CUdeviceptr)dest,(CUdeviceptr)src,bytes); }
-#endif
-   return dest;
+   const bool cuda = config::Get().Cuda();
+   if (not cuda) { return std::memcpy(dest, src, bytes); }
+   return mfem::kD2H(dest, src, bytes, async);
 }
 
 // *****************************************************************************
 void* mm::D2D(void *dest, const void *src, size_t bytes, const bool async)
 {
    if (bytes==0) { return dest; }
-   assert(src); assert(dest);
-   if (!config::Get().Cuda()) { return std::memcpy(dest,src,bytes); }
-#ifdef __NVCC__
-   if (!config::Get().Uvm())
-   {
-      if (!async)
-      {
-         GET_ADRS(src);
-         GET_ADRS(dest);
-         cuMemcpyDtoD((CUdeviceptr)d_dest,(CUdeviceptr)d_src,bytes);
-      }
-      else
-      {
-         const CUstream s = *config::Get().Stream();
-         cuMemcpyDtoDAsync((CUdeviceptr)dest,(CUdeviceptr)src,bytes,s);
-      }
-   }
-   else { cuMemcpy((CUdeviceptr)dest,(CUdeviceptr)src,bytes); }
-#endif
-   return dest;
+   const bool cuda = config::Get().Cuda();
+   if (not cuda) { return std::memcpy(dest, src, bytes); }
+   return mfem::kD2D(dest, src, bytes, async);
 }
 
 // *****************************************************************************
-void* mm::memcpy(void *dest, const void *src, size_t bytes)
-{
-   return D2D(dest, src, bytes, false);
-}
-
 } // namespace mfem

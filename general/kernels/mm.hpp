@@ -9,27 +9,21 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "../general/okina.hpp"
+#ifndef MFEM_MM_KERNELS
+#define MFEM_MM_KERNELS
 
 namespace mfem
 {
 
 // *****************************************************************************
-// * cuDeviceSetup will set: gpu_count, dev, cuDevice, cuContext & cuStream
+void* kH2D(void*, const void*, size_t, const bool =false);
+
 // *****************************************************************************
-void config::cuDeviceSetup(const int device)
-{
-#ifdef __NVCC__
-   gpu_count=0;
-   cudaGetDeviceCount(&gpu_count);
-   assert(gpu_count>0);
-   cuInit(0);
-   dev = device; // findCudaDevice(argc, (const char **)argv);
-   cuDeviceGet(&cuDevice,dev);
-   cuCtxCreate(&cuContext, CU_CTX_SCHED_AUTO, cuDevice);
-   cuStream = new CUstream;
-   cuStreamCreate(cuStream, CU_STREAM_DEFAULT);
-#endif
-}
+void* kD2H(void*, const void*, size_t, const bool =false);
+
+// *****************************************************************************
+void* kD2D(void*, const void*, size_t, const bool =false);
 
 } // namespace mfem
+
+#endif // MFEM_MM_KERNELS

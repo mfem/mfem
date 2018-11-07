@@ -28,7 +28,6 @@ class config
 {
 private:
    bool cuda = false;
-   bool uvm = false;
    bool pa = false;
    bool sync = false;
    bool nvvp = false;
@@ -36,7 +35,7 @@ private:
    int gpu_count;
    CUdevice cuDevice;
    CUcontext cuContext;
-   CUstream *hStream;
+   CUstream *cuStream;
 private:
    config() {}
    config(config const&);
@@ -53,17 +52,21 @@ private:
 
 public:
    // **************************************************************************
-   inline bool Cuda() { return cuda; }
-
+   static inline constexpr bool nvcc() {
+#ifdef __NVCC__
+      return true;
+#else
+      return false;
+#endif
+   }
+   
    // **************************************************************************
-   inline void Cuda(const bool flag) { cuda = flag; }
+   inline bool Cuda() { return cuda; }
+   inline void Cuda(const bool mode) { cuda = mode; }
 
    // **************************************************************************
    inline bool PA() { return pa; }
    inline void PA(const int mode) { pa = mode; }
-
-   // **************************************************************************
-   inline bool Uvm() { return uvm; }
 
    // **************************************************************************
    inline bool Sync(bool toggle=false) { return toggle?sync=!sync:sync; }
@@ -72,10 +75,10 @@ public:
    inline bool Nvvp(bool toggle=false) { return toggle?nvvp=!nvvp:nvvp; }
 
    // **************************************************************************
-   void Setup();
+   void Setup() { cuDeviceSetup(); }
 
    // **************************************************************************
-   inline CUstream *Stream() { return hStream; }
+   inline CUstream Stream() { return *cuStream; }
 };
 
 }
