@@ -751,7 +751,10 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
    coeff0 = &w0;
 
    delete lim_func;
-   if (lfunc) { lim_func = lfunc; }
+   if (lfunc)
+   {
+      lim_func = lfunc;
+   }
    else
    {
       lim_func =
