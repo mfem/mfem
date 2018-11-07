@@ -14,8 +14,8 @@
 #include "fe.hpp"
 #include "fe_coll.hpp"
 #include "../mesh/nurbs.hpp"
-#include "../linalg/kernels/vector.hpp"
 #include "bilininteg.hpp"
+#include "../linalg/kernels/vector.hpp"
 #include <cmath>
 
 namespace mfem
