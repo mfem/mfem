@@ -744,6 +744,20 @@ void TargetConstructor::ComputeElementTargets(int e_id, const FiniteElement &fe,
    }
 }
 
+void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
+                                     TMOP_LimiterFunction *lfunc)
+{
+   nodes0 = &n0;
+   coeff0 = &w0;
+
+   delete lim_func;
+   if (lfunc) { lim_func = lfunc; }
+   else
+   {
+      lim_func =
+         new TMOP_QuadraticLimiter(nodes0->FESpace()->GetMesh()->Dimension());
+   }
+}
 
 double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
                                          ElementTransformation &T,
@@ -814,7 +828,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
          el.CalcShape(ip, shape);
          PMatI.MultTranspose(shape, p);
          pos0.MultTranspose(shape, p0);
-         val += 0.5*p.DistanceSquaredTo(p0)*coeff0->Eval(*Tpr, ip);
+         val += lim_func->Eval(p, p0) * coeff0->Eval(*Tpr, ip);
       }
       energy += weight * val;
    }
@@ -898,14 +912,14 @@ void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
          el.CalcShape(ip, shape);
          PMatI.MultTranspose(shape, p);
          pos0.MultTranspose(shape, p0);
-         weight_m = weight * coeff0->Eval(*Tpr, ip);
-         subtract(weight_m, p, p0, p); // p = weight_m * (p - p0)
-         AddMultVWt(shape, p, PMatO);
+         Vector grad;
+         lim_func->Eval_d1(p, p0, grad);
+         grad *= weight * coeff0->Eval(*Tpr, ip);
+         AddMultVWt(shape, grad, PMatO);
       }
    }
    delete Tpr;
 }
-
 
 void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
                                           ElementTransformation &T,
@@ -931,6 +945,21 @@ void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
    DenseTensor Jtr(dim, dim, ir->GetNPoints());
    targetC->ComputeElementTargets(T.ElementNo, el, *ir, Jtr);
 
+   // Limited case.
+   DenseMatrix pos0;
+   Vector shape, p, p0;
+   if (coeff0)
+   {
+      shape.SetSize(dof);
+      p.SetSize(dim);
+      p0.SetSize(dim);
+      pos0.SetSize(dof, dim);
+      Vector pos0V(pos0.Data(), dof * dim);
+      Array<int> pos_dofs;
+      nodes0->FESpace()->GetElementVDofs(T.ElementNo, pos_dofs);
+      nodes0->GetSubVector(pos_dofs, pos0V);
+   }
+
    // Define ref->physical transformation, when a Coefficient is specified.
    IsoparametricTransformation *Tpr = NULL;
    if (coeff1 || coeff0)
@@ -941,8 +970,6 @@ void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
       Tpr->Attribute = T.Attribute;
       Tpr->GetPointMat().Transpose(PMatI);
    }
-
-   Vector shape(coeff0 ? dof : 0);
 
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -964,17 +991,23 @@ void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
       if (coeff0)
       {
          el.CalcShape(ip, shape);
+         PMatI.MultTranspose(shape, p);
+         pos0.MultTranspose(shape, p0);
          weight_m = weight * coeff0->Eval(*Tpr, ip);
+         DenseMatrix grad_grad;
+         lim_func->Eval_d2(p, p0, grad_grad);
          for (int i = 0; i < dof; i++)
          {
             const double w_shape_i = weight_m * shape(i);
-            for (int j = 0; j <= i; j++)
+            for (int j = 0; j < dof; j++)
             {
-               const double a = w_shape_i * shape(j);
-               for (int d = 0; d < dim; d++)
+               const double w = w_shape_i * shape(j);
+               for (int d1 = 0; d1 < dim; d1++)
                {
-                  elmat(i+d*dof, j+d*dof) += a;
-                  if (i != j) { elmat(j+d*dof, i+d*dof) += a; }
+                  for (int d2 = 0; d2 < dim; d2++)
+                  {
+                     elmat(d1*dof + i, d2*dof + j) += w * grad_grad(d1, d2);
+                  }
                }
             }
          }

@@ -398,6 +398,63 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
+/** @brief Defines a scalar function f(x, xo) that is used in the limiting term
+    of a TMOP_Integrator, where x and x0 are positions in physical space. */
+class TMOP_LimiterFunction
+{
+protected:
+   const int dim;
+
+public:
+   TMOP_LimiterFunction(int space_dim) : dim(space_dim) { }
+
+   /** Returns f(x, x0). Assumes x and x0 have Size = space_dimension. */
+   virtual double Eval(const Vector &x, const Vector &x0) const = 0;
+
+   /** Returns grad of f(x, x0) with respect to x.
+       Assumes that x and x0 have Size = space dimension. */
+   virtual void Eval_d1(const Vector &x, const Vector &x0,
+                        Vector &d1) const
+   { MFEM_ABORT("1st derivative of the limiting function isn't implemented."); }
+
+   /** Returns grad(grad) of f(x, x0) with respect to x.
+       Assumes that x and x0 have Size = space dimension. */
+   virtual void Eval_d2(const Vector &x, const Vector &x0,
+                        DenseMatrix &d2) const
+   { MFEM_ABORT("2nd derivative of the limiting function isn't implemented."); }
+};
+
+/// Default limiter function in TMOP_Integrator.
+class TMOP_QuadraticLimiter : public TMOP_LimiterFunction
+{
+public:
+   TMOP_QuadraticLimiter(int space_dim) : TMOP_LimiterFunction(space_dim) { }
+
+   virtual double Eval(const Vector &x, const Vector &x0) const
+   {
+      MFEM_ASSERT(x.Size() == dim && x0.Size() == dim, "Bad input.");
+
+      return 0.5 * x.DistanceSquaredTo(x0);
+   }
+
+   virtual void Eval_d1(const Vector &x, const Vector &x0, Vector &d1) const
+   {
+      MFEM_ASSERT(x.Size() == dim && x0.Size() == dim, "Bad input.");
+
+      d1.SetSize(dim);
+      subtract(1.0, x, x0, d1);
+   }
+
+   virtual void Eval_d2(const Vector &x,
+                        const Vector &x0, DenseMatrix &d2) const
+   {
+      MFEM_ASSERT(x.Size() == dim && x0.Size() == dim, "Bad input.");
+
+      d2.SetSize(dim, dim);
+      d2 = 0.0;
+      for (int d = 0; d < dim; d++) { d2(d, d) = 1.0; }
+   }
+};
 
 /** @brief Base class representing target-matrix construction algorithms for
     mesh optimization via the target-matrix optimization paradigm (TMOP). */
@@ -497,8 +554,11 @@ protected:
    Coefficient *coeff1; // not owned, if NULL -> coeff1 is 1.
 
    // Nodes and weight Coefficient used for "limiting" the TMOP_Integrator.
-   const GridFunction *nodes0; // not owned
-   Coefficient *coeff0; // not owned, if NULL -> coeff0 is 0, i.e. no limiting
+   // These are all NULL when there is no limiting.
+   // The class doesn't own nodes0 and coeff0. It owns lim_func.
+   const GridFunction *nodes0;
+   Coefficient *coeff0;
+   TMOP_LimiterFunction *lim_func;
 
    //   Jrt: the inverse of the ref->target Jacobian, Jrt = Jtr^{-1}.
    //   Jpr: the ref->physical transformation Jacobian, Jpr = PMatI^t DS.
@@ -517,7 +577,9 @@ public:
        @param[in] tc Target-matrix construction algorithm to use (not owned). */
    TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc)
       : metric(m), targetC(tc),
-        coeff1(NULL), nodes0(NULL), coeff0(NULL) { }
+        coeff1(NULL), nodes0(NULL), coeff0(NULL), lim_func(NULL) { }
+
+   ~TMOP_Integrator() { delete lim_func; }
 
    /// Sets a scaling Coefficient for the quality metric term of the integrator.
    /** With this addition, the integrator becomes
@@ -533,12 +595,10 @@ public:
        where the second term measures the change with respect to the original
        physical positions, @a n0.
        @param[in] n0  Original mesh node coordinates.
-       @param[in] w0  Coefficient scaling the limiting term. */
-   void EnableLimiting(const GridFunction &n0, Coefficient &w0)
-   {
-      nodes0 = &n0;
-      coeff0 =&w0;
-   }
+       @param[in] w0  Coefficient scaling the limiting term.
+       @param[in] lf  TMOP_LimiterFunction defining the limiting term. */
+   void EnableLimiting(const GridFunction &n0, Coefficient &w0,
+                       TMOP_LimiterFunction *lfunc = NULL);
 
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0) { nodes0 = &n0; }
