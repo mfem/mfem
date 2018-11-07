@@ -35,7 +35,7 @@ PABilinearForm::PABilinearForm(FiniteElementSpace* fes) :
    kfes(new kFiniteElementSpace(fes)) { }
 
 // ***************************************************************************
-PABilinearForm::~PABilinearForm() { /*delete kfes;*/ }
+PABilinearForm::~PABilinearForm() { delete kfes; }
 
 // *****************************************************************************
 void PABilinearForm::EnableStaticCondensation() { assert(false);}
@@ -71,8 +71,7 @@ void PABilinearForm::AddBoundaryFaceIntegrator(AbstractBilinearFormIntegrator
 }
 
 // *****************************************************************************
-// * WARNING DiffusionGetRule
-#warning DiffusionGetRule Q order
+// * WARNING DiffusionGetRule Q order
 // *****************************************************************************
 static const IntegrationRule &DiffusionGetRule(const FiniteElement &trial_fe,
                                                const FiniteElement &test_fe)

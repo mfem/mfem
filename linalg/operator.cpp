@@ -167,6 +167,7 @@ void ConstrainedOperator::EliminateRHS(const Vector &x, Vector &b) const
    const int csz = constraint_list.Size();
    kVectorMapDof(csz, w, x, constraint_list);
    A->Mult(w, z);
+
    b -= z;
    kVectorMapDof(csz, b, x, constraint_list);
 }
@@ -178,6 +179,7 @@ void ConstrainedOperator::Mult(const Vector &x, Vector &y) const
       A->Mult(x, y);
       return;
    }
+
    z = x;
    const int csz = constraint_list.Size();
    kVectorSetDof(csz, z, 0.0, constraint_list);

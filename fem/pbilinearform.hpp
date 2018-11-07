@@ -231,11 +231,7 @@ public:
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
                          OperatorHandle &A, Vector &X, Vector &B,
                          int copy_interior = 0);
-   /*
-   void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
-                         Operator *&A, Vector &X, Vector &B,
-                         int copy_interior = 0);
-   */
+
    /** Version of the method FormLinearSystem() where the system matrix is
        returned in the variable @a A, of type OpType, holding a *reference* to
        the system matrix (created with the method OpType::MakeRef()). The

@@ -37,6 +37,6 @@ public:
    void LocalToGlobal(const Vector&, Vector&) const;
 };
 
-} // mfem
+} // namespace mfem
 
 #endif // MFEM_KFESPACE_HPP
