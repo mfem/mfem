@@ -24,8 +24,8 @@ typedef struct mm2dev
 {
    bool host = true;
    size_t bytes = 0;
-   const void *h_adrs = NULL;
-   const void *d_adrs = NULL;
+   void *h_adrs = NULL;
+   void *d_adrs = NULL;
 } mm2dev_t;
 
 // *****************************************************************************
