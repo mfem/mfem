@@ -119,3 +119,4 @@ clean-exec:
 	@rm -f vortex-mesh.* vortex.mesh vortex-?-init.* vortex-?-final.*
 	@rm -f deformation.* pressure.*
 	@rm -f ex20.dat ex20p_?????.dat gnuplot_ex20.inp gnuplot_ex20p.inp
+	@rm -f ex22*.mesh ex22*.sol

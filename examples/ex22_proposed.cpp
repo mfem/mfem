@@ -45,6 +45,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/beam-tri.mesh";
    int order = 1;
    bool static_cond = false;
+   int flux_averaging = 0;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -54,6 +55,8 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
+   args.AddOption(&flux_averaging, "-f", "--flux-averaging",
+                  "Flux averaging: 0 - global, 1 - by mesh attribute.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -179,6 +182,7 @@ int main(int argc, char *argv[])
    const int tdim = dim*(dim+1)/2;
    FiniteElementSpace flux_fespace(&mesh, &fec, tdim);
    ZienkiewiczZhuEstimator estimator(*integ, x, flux_fespace);
+   estimator.SetFluxAveraging(flux_averaging);
 
    // 11. A refiner selects and refines elements based on a refinement strategy.
    //     The strategy here is to refine elements with errors larger than a
@@ -286,6 +290,26 @@ int main(int argc, char *argv[])
       //     changed.
       a.Update();
       b.Update();
+   }
+
+   {
+      ofstream mesh_ref_out("ex22_reference.mesh");
+      mesh_ref_out.precision(16);
+      mesh.Print(mesh_ref_out);
+
+      ofstream mesh_out("ex22_deformed.mesh");
+      mesh_out.precision(16);
+      GridFunction nodes(&fespace), *nodes_p = &nodes;
+      mesh.GetNodes(nodes);
+      nodes += x;
+      int own_nodes = 0;
+      mesh.SwapNodes(nodes_p, own_nodes);
+      mesh.Print(mesh_out);
+      mesh.SwapNodes(nodes_p, own_nodes);
+
+      ofstream x_out("ex22_displacement.sol");
+      x_out.precision(16);
+      x.Save(x_out);
    }
 
    return 0;
