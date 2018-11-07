@@ -40,7 +40,6 @@ void PADiffusionIntegrator::MultAdd(Vector &x, Vector &y)
 {
    diffusion->MultAdd(x,y);
 }
-// *****************************************************************************
 
 void BilinearFormIntegrator::AssembleElementMatrix (
    const FiniteElement &el, ElementTransformation &Trans,

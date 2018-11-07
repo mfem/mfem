@@ -13,8 +13,6 @@
 #define MFEM_ARRAY
 
 #include "../config/config.hpp"
-#include "okina.hpp"
-#include "kernels/array.hpp"
 #include "error.hpp"
 #include "globals.hpp"
 
@@ -591,12 +589,10 @@ inline void Array<T>::SetSize(int nsize, const T &initval)
       {
          GrowSize(nsize, sizeof(T));
       }
-      kArrayInitVal(size, nsize, data, sizeof(T), (void*)&initval);
-      /*
-            for (int i = size; i < nsize; i++)
-            {
-               ((T*)data)[i] = initval;
-               }*/
+      for (int i = size; i < nsize; i++)
+      {
+         ((T*)data)[i] = initval;
+      }
    }
    size = nsize;
 }

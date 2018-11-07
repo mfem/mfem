@@ -12,12 +12,9 @@
 // Finite Element classes
 
 #include "fe.hpp"
-#include "kernels/fe.hpp"
-#include "../linalg/kernels/vector.hpp"
-#include "../linalg/kernels/densemat.hpp"
-
 #include "fe_coll.hpp"
 #include "../mesh/nurbs.hpp"
+#include "../linalg/kernels/vector.hpp"
 #include "bilininteg.hpp"
 #include <cmath>
 
@@ -960,8 +957,7 @@ void VectorFiniteElement::LocalInterpolation_ND(
 PointFiniteElement::PointFiniteElement()
    : NodalFiniteElement(0, Geometry::POINT, 1, 0)
 {
-   kIntRulesPointIni(Nodes.GetData());
-   //Nodes.IntPoint(0).x = 0.0;
+   Nodes.IntPoint(0).x = 0.0;
 }
 
 void PointFiniteElement::CalcShape(const IntegrationPoint &ip,
@@ -979,9 +975,8 @@ void PointFiniteElement::CalcDShape(const IntegrationPoint &ip,
 Linear1DFiniteElement::Linear1DFiniteElement()
    : NodalFiniteElement(1, Geometry::SEGMENT, 2, 1)
 {
-   kIntRulesLinear1DIni(Nodes.GetData());
-   //Nodes.IntPoint(0).x = 0.0;
-   //Nodes.IntPoint(1).x = 1.0;
+   Nodes.IntPoint(0).x = 0.0;
+   Nodes.IntPoint(1).x = 1.0;
 }
 
 void Linear1DFiniteElement::CalcShape(const IntegrationPoint &ip,
@@ -1001,15 +996,12 @@ void Linear1DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 Linear2DFiniteElement::Linear2DFiniteElement()
    : NodalFiniteElement(2, Geometry::TRIANGLE, 3, 1)
 {
-   kIntRulesLinear2DIni(Nodes.GetData());
-   /*
    Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(0).y = 0.0;
    Nodes.IntPoint(1).x = 1.0;
    Nodes.IntPoint(1).y = 0.0;
    Nodes.IntPoint(2).x = 0.0;
    Nodes.IntPoint(2).y = 1.0;
-   */
 }
 
 void Linear2DFiniteElement::CalcShape(const IntegrationPoint &ip,
@@ -1023,28 +1015,22 @@ void Linear2DFiniteElement::CalcShape(const IntegrationPoint &ip,
 void Linear2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
                                        DenseMatrix &dshape) const
 {
-   double *d = dshape.GetData();
-   const size_t h = dshape.Height();
-   //dshape(0,0) = -1.; dshape(0,1) = -1.;
-   kDMSetK(d,h,0,0,-1.); kDMSetK(d,h,0,1,-1.);
-   //dshape(1,0) =  1.; dshape(1,1) =  0.;
-   kDMSetK(d,h,1,0, 1.); kDMSetK(d,h,1,1,0.);
-   //dshape(2,0) =  0.; dshape(2,1) =  1.;
-   kDMSetK(d,h,2,0, 0.); kDMSetK(d,h,2,1,1.);
+   dshape(0,0) = -1.; dshape(0,1) = -1.;
+   dshape(1,0) =  1.; dshape(1,1) =  0.;
+   dshape(2,0) =  0.; dshape(2,1) =  1.;
 }
 
 BiLinear2DFiniteElement::BiLinear2DFiniteElement()
    : NodalFiniteElement(2, Geometry::SQUARE, 4, 1, FunctionSpace::Qk)
 {
-   kIntRulesBiLinear2DIni(Nodes.GetData());
-   /*Nodes.IntPoint(0).x = 0.0;
+   Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(0).y = 0.0;
    Nodes.IntPoint(1).x = 1.0;
    Nodes.IntPoint(1).y = 0.0;
    Nodes.IntPoint(2).x = 1.0;
    Nodes.IntPoint(2).y = 1.0;
    Nodes.IntPoint(3).x = 0.0;
-   Nodes.IntPoint(3).y = 1.0;*/
+   Nodes.IntPoint(3).y = 1.0;
 }
 
 void BiLinear2DFiniteElement::CalcShape(const IntegrationPoint &ip,
@@ -2361,7 +2347,6 @@ void P0QuadFiniteElement::CalcDShape(const IntegrationPoint &ip,
 Linear3DFiniteElement::Linear3DFiniteElement()
    : NodalFiniteElement(3, Geometry::TETRAHEDRON, 4, 1)
 {
-   kIntRulesLinear3DIni(Nodes.GetData());/*
    Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(0).y = 0.0;
    Nodes.IntPoint(0).z = 0.0;
@@ -2373,7 +2358,7 @@ Linear3DFiniteElement::Linear3DFiniteElement()
    Nodes.IntPoint(2).z = 0.0;
    Nodes.IntPoint(3).x = 0.0;
    Nodes.IntPoint(3).y = 0.0;
-   Nodes.IntPoint(3).z = 1.0;*/
+   Nodes.IntPoint(3).z = 1.0;
 }
 
 void Linear3DFiniteElement::CalcShape(const IntegrationPoint &ip,
@@ -2390,14 +2375,11 @@ void Linear3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 {
    if (dshape.Height() == 4)
    {
-      /*
-        double *A = &dshape(0,0);
-        A[0] = -1.; A[4] = -1.; A[8]  = -1.;
-        A[1] =  1.; A[5] =  0.; A[9]  =  0.;
-        A[2] =  0.; A[6] =  1.; A[10] =  0.;
-        A[3] =  0.; A[7] =  0.; A[11] =  1.;*/
-      kLinear3DFiniteElementHeightEq4(dshape.GetData());
-
+      double *A = &dshape(0,0);
+      A[0] = -1.; A[4] = -1.; A[8]  = -1.;
+      A[1] =  1.; A[5] =  0.; A[9]  =  0.;
+      A[2] =  0.; A[6] =  1.; A[10] =  0.;
+      A[3] =  0.; A[7] =  0.; A[11] =  1.;
    }
    else
    {
@@ -2500,7 +2482,6 @@ void Quadratic3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
 TriLinear3DFiniteElement::TriLinear3DFiniteElement()
    : NodalFiniteElement(3, Geometry::CUBE, 8, 1, FunctionSpace::Qk)
 {
-   kIntRulesTriLinear3DIni(Nodes.GetData());/*
    Nodes.IntPoint(0).x = 0.0;
    Nodes.IntPoint(0).y = 0.0;
    Nodes.IntPoint(0).z = 0.0;
@@ -2531,7 +2512,7 @@ TriLinear3DFiniteElement::TriLinear3DFiniteElement()
 
    Nodes.IntPoint(7).x = 0.0;
    Nodes.IntPoint(7).y = 1.0;
-   Nodes.IntPoint(7).z = 1.0;*/
+   Nodes.IntPoint(7).z = 1.0;
 }
 
 void TriLinear3DFiniteElement::CalcShape(const IntegrationPoint &ip,
@@ -3964,11 +3945,8 @@ LagrangeHexFiniteElement::LagrangeHexFiniteElement (int degree)
 {
    if (degree == 2)
    {
-      //I = new int[Dof];
       I = mm::malloc<int>(Dof);
-      //J = new int[Dof];
       J = mm::malloc<int>(Dof);
-      //K = new int[Dof];
       K = mm::malloc<int>(Dof);
       // nodes
       I[ 0] = 0; J[ 0] = 0; K[ 0] = 0;
@@ -4004,11 +3982,8 @@ LagrangeHexFiniteElement::LagrangeHexFiniteElement (int degree)
    }
    else if (degree == 3)
    {
-      //I = new int[Dof];
       I = mm::malloc<int>(Dof);
-      //J = new int[Dof];
       J = mm::malloc<int>(Dof);
-      //K = new int[Dof];
       K = mm::malloc<int>(Dof);
       // nodes
       I[ 0] = 0; J[ 0] = 0; K[ 0] = 0;
@@ -6261,35 +6236,30 @@ Poly_1D::Basis::Basis(const int p, const double *nodes, EvalType etype)
          x.SetSize(p + 1);
          w.SetSize(p + 1);
          x = nodes;
-         //dbg("nodes:"); for(int k=0;k<p+1;k+=1) {printf(" %f",nodes[k]);}
-         //dbg("x:"); x.Print();
          w = 1.0;
-         //dbg("w:"); w.Print();
-         kBasis(p,x.GetData(),w.GetData());/*
-      for (int i = 0; i <= p; i++)
-      {
-         for (int j = 0; j < i; j++)
+         for (int i = 0; i <= p; i++)
          {
-            double xij = x(i) - x(j);
-            w(i) *=  xij;
-            w(j) *= -xij;
+            for (int j = 0; j < i; j++)
+            {
+               double xij = x(i) - x(j);
+               w(i) *=  xij;
+               w(j) *= -xij;
+            }
          }
-      }
-      for (int i = 0; i <= p; i++)
-      {
-         w(i) = 1.0/w(i);
-         }*/
+         for (int i = 0; i <= p; i++)
+         {
+            w(i) = 1.0/w(i);
+         }
 
 #ifdef MFEM_DEBUG
          // Make sure the nodes are increasing
-         kNodesAreIncreasing(p,x.GetData());/*
-      for (int i = 0; i < p; i++)
-      {
-         if (x(i) >= x(i+1))
+         for (int i = 0; i < p; i++)
          {
-            mfem_error("Poly_1D::Basis::Basis : nodes are not increasing!");
+            if (x(i) >= x(i+1))
+            {
+               mfem_error("Poly_1D::Basis::Basis : nodes are not increasing!");
+            }
          }
-         }*/
 #endif
          break;
       }
@@ -6616,16 +6586,14 @@ void Poly_1D::CalcChebyshev(const int p, const double x, double *u)
    // recursive definition, z in [-1,1]
    // T_0(z) = 1,  T_1(z) = z
    // T_{n+1}(z) = 2*z*T_n(z) - T_{n-1}(z)
-   kCalcChebyshev(p,x,u);
-   /*
-      double z;
-      u[0] = 1.;
-      if (p == 0) { return; }
-      u[1] = z = 2.*x - 1.;
-      for (int n = 1; n < p; n++)
-      {
-         u[n+1] = 2*z*u[n] - u[n-1];
-         }*/
+   double z;
+   u[0] = 1.;
+   if (p == 0) { return; }
+   u[1] = z = 2.*x - 1.;
+   for (int n = 1; n < p; n++)
+   {
+      u[n+1] = 2*z*u[n] - u[n-1];
+   }
 }
 
 void Poly_1D::CalcChebyshev(const int p, const double x, double *u, double *d)
@@ -6638,7 +6606,6 @@ void Poly_1D::CalcChebyshev(const int p, const double x, double *u, double *d)
    // U_{n+1}(z) = 2*z*U_n(z) - U_{n-1}(z)
    // U_n(z) = z*U_{n-1}(z) + T_n(z) = z*T'_n(z)/n + T_n(z)
    // T'_{n+1}(z) = (n + 1)*(z*T'_n(z)/n + T_n(z))
-   kCalcChebyshev(p,x,u,d);/*
    double z;
    u[0] = 1.;
    d[0] = 0.;
@@ -6649,7 +6616,7 @@ void Poly_1D::CalcChebyshev(const int p, const double x, double *u, double *d)
    {
       u[n+1] = 2*z*u[n] - u[n-1];
       d[n+1] = (n + 1)*(z*d[n]/n + 2*u[n]);
-      }*/
+   }
 }
 
 void Poly_1D::CalcChebyshev(const int p, const double x, double *u, double *d,
@@ -6696,14 +6663,12 @@ const double *Poly_1D::GetPoints(const int p, const int btype)
    {
       pts.SetSize(p + 1, NULL);
    }
-   double *pts_p = kArrayInitGet(p,pts.GetData());
-   if (pts_p == NULL)
+   if (pts[p] == NULL)
    {
-      double *adrs = mm::malloc<double>(p + 1);
-      kArrayInitSet(&pts_p, adrs);
-      quad_func.GivePolyPoints(p+1, pts_p, qtype);
+      pts[p] = mm::malloc<double>(p + 1);
+      quad_func.GivePolyPoints(p+1, pts[p], qtype);
    }
-   return pts_p;
+   return pts[p];
 }
 
 Poly_1D::Basis &Poly_1D::GetBasis(const int p, const int btype)
@@ -6720,13 +6685,12 @@ Poly_1D::Basis &Poly_1D::GetBasis(const int p, const int btype)
    {
       bases.SetSize(p + 1, NULL);
    }
-   Basis *bases_p = (Basis *)kArrayVoidGet(p,(void**)bases.GetData());
-   if (bases_p == NULL)
+   if (bases[p] == NULL)
    {
       EvalType etype = (btype == BasisType::Positive) ? Positive : Barycentric;
-      bases_p = new Basis(p, GetPoints(p, btype), etype);
+      bases[p] = new Basis(p, GetPoints(p, btype), etype);
    }
-   return *bases_p;
+   return *bases[p];
 }
 
 Poly_1D::~Poly_1D()
@@ -6737,7 +6701,6 @@ Poly_1D::~Poly_1D()
       Array<double*>& pts = *it->second;
       for ( int i = 0 ; i < pts.Size() ; ++i )
       {
-         //delete [] pts[i];
          mm::free<double>(pts[i]);
       }
       delete it->second;
@@ -6771,10 +6734,8 @@ TensorBasisElement::TensorBasisElement(const int dims, const int p,
          case 1:
          {
             dof_map.SetSize(p + 1);
-            //dof_map[0] = 0;
-            kArraySetK(dof_map.GetData(),0,0);
-            //dof_map[p] = 1;
-            kArraySetK(dof_map.GetData(),p,1);
+            dof_map[0] = 0;
+            dof_map[p] = 1;
             for (int i = 1; i < p; i++)
             {
                dof_map[i] = i+1;
@@ -6988,11 +6949,8 @@ H1_SegmentElement::H1_SegmentElement(const int p, const int btype)
    dshape_x.SetSize(p+1);
 #endif
 
-   //Nodes.IntPoint(0).x = cp[0];
-   const IntegrationPoint *ip = &Nodes.IntPoint(0);
-   kIPSetX(ip, cp, 0,0);
-   //Nodes.IntPoint(1).x = cp[p];
-   kIPSetX(ip, cp, p,1);
+   Nodes.IntPoint(0).x = cp[0];
+   Nodes.IntPoint(1).x = cp[p];
    for (int i = 1; i < p; i++)
    {
       Nodes.IntPoint(i+1).x = cp[i];
@@ -7565,15 +7523,9 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
 #endif
 
    // vertices
-   const IntegrationPoint *ip = &Nodes.IntPoint(0);
-   //Nodes.IntPoint(0).Set2(cp[0], cp[0]);
-   kIPSetXY(ip,cp,0,cp,0,0);
-   //Nodes.IntPoint(1).Set2(cp[p], cp[0]);
-   kIPSetXY(ip,cp,p,cp,0,1);
-   //Nodes.IntPoint(2).Set2(cp[0], cp[p]);
-   kIPSetXY(ip,cp,0,cp,p,2);
-
-   //assert(p==1);
+   Nodes.IntPoint(0).Set2(cp[0], cp[0]);
+   Nodes.IntPoint(1).Set2(cp[p], cp[0]);
+   Nodes.IntPoint(2).Set2(cp[0], cp[p]);
 
    // edges
    int o = 3;
@@ -7594,7 +7546,6 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
    for (int j = 1; j < p; j++)
       for (int i = 1; i + j < p; i++)
       {
-         //assert(false);
          const double w = cp[i] + cp[j] + cp[p-i-j];
          Nodes.IntPoint(o++).Set2(cp[i]/w, cp[j]/w);
       }
@@ -7602,34 +7553,20 @@ H1_TriangleElement::H1_TriangleElement(const int p, const int btype)
    DenseMatrix T(Dof);
    for (int k = 0; k < Dof; k++)
    {
-      //IntegrationPoint &ip = Nodes.IntPoint(k);
-      IntegrationPoint *ip = &Nodes.IntPoint(0);
-      double ip_x = kIPGetX(ip, k);//dbg("ip_x=%f",ip_x);
-      //printf("\n\tip.x=%f",ip_x);
-      poly1d.CalcBasis(p, ip_x, shape_x);
-      double ip_y = kIPGetY(ip, k);//dbg("ip_y=%f",ip_y);
-      poly1d.CalcBasis(p, ip_y, shape_y);
-      //printf("\n\tip.y=%f",ip_y);
-      poly1d.CalcBasis(p, 1. - ip_x - ip_y, shape_l);
-      /*
+      IntegrationPoint &ip = Nodes.IntPoint(k);
+      poly1d.CalcBasis(p, ip.x, shape_x);
+      poly1d.CalcBasis(p, ip.y, shape_y);
+      poly1d.CalcBasis(p, 1. - ip.x - ip.y, shape_l);
+
       o = 0;
-      for (int j = 0; j <= p; j++){
+      for (int j = 0; j <= p; j++)
          for (int i = 0; i + j <= p; i++)
          {
             T(o++, k) = shape_x(i)*shape_y(j)*shape_l(p-i-j);
          }
-      }
-      */
-      kH1_TriangleElement(p, k, T.Height(),
-                          shape_x.GetData(),
-                          shape_y.GetData(),
-                          shape_l.GetData(),
-                          T.GetData());
-
    }
-   //T.Print();
+
    Ti.Factor(T);
-   //assert(false);
    // mfem::out << "H1_TriangleElement(" << p << ") : "; Ti.TestInversion();
 }
 
@@ -7645,18 +7582,12 @@ void H1_TriangleElement::CalcShape(const IntegrationPoint &ip,
    poly1d.CalcBasis(p, ip.x, shape_x);
    poly1d.CalcBasis(p, ip.y, shape_y);
    poly1d.CalcBasis(p, 1. - ip.x - ip.y, shape_l);
-   /*
-      for (int o = 0, j = 0; j <= p; j++)
-         for (int i = 0; i + j <= p; i++)
-         {
-            u(o++) = shape_x(i)*shape_y(j)*shape_l(p-i-j);
-         }
-   */
-   kH1_TriangleElement_CalcShape(p,
-                                 shape_x.GetData(),
-                                 shape_y.GetData(),
-                                 shape_l.GetData(),
-                                 u.GetData());
+
+   for (int o = 0, j = 0; j <= p; j++)
+      for (int i = 0; i + j <= p; i++)
+      {
+         u(o++) = shape_x(i)*shape_y(j)*shape_l(p-i-j);
+      }
 
    Ti.Mult(u, shape);
 }
@@ -7676,26 +7607,16 @@ void H1_TriangleElement::CalcDShape(const IntegrationPoint &ip,
    poly1d.CalcBasis(p, ip.y, shape_y, dshape_y);
    poly1d.CalcBasis(p, 1. - ip.x - ip.y, shape_l, dshape_l);
 
-   /*
-      for (int o = 0, j = 0; j <= p; j++)
-         for (int i = 0; i + j <= p; i++)
-         {
-            int k = p - i - j;
-            du(o,0) = ((dshape_x(i)* shape_l(k)) -
-                       ( shape_x(i)*dshape_l(k)))*shape_y(j);
-            du(o,1) = ((dshape_y(j)* shape_l(k)) -
-                       ( shape_y(j)*dshape_l(k)))*shape_x(i);
-            o++;
-            }
-   */
-   kH1_TriangleElement_CalcDShape(p, du.Height(),
-                                  shape_x.GetData(),
-                                  shape_y.GetData(),
-                                  shape_l.GetData(),
-                                  dshape_x.GetData(),
-                                  dshape_y.GetData(),
-                                  dshape_l.GetData(),
-                                  du.GetData());
+   for (int o = 0, j = 0; j <= p; j++)
+      for (int i = 0; i + j <= p; i++)
+      {
+         int k = p - i - j;
+         du(o,0) = ((dshape_x(i)* shape_l(k)) -
+                    ( shape_x(i)*dshape_l(k)))*shape_y(j);
+         du(o,1) = ((dshape_y(j)* shape_l(k)) -
+                    ( shape_y(j)*dshape_l(k)))*shape_x(i);
+         o++;
+      }
 
    Ti.Mult(du, dshape);
 }
@@ -8368,20 +8289,12 @@ H1_WedgeElement::H1_WedgeElement(const int p,
    s_dof.SetSize(Dof);
 
    // Nodal DoFs
-   int *t_dof_p = t_dof.GetData();
-   int *s_dof_p = s_dof.GetData();
-   //t_dof[0] = 0; s_dof[0] = 0;
-   kArraySetK(t_dof_p, 0, 0); kArraySetK(s_dof_p, 0, 0);
-   //t_dof[1] = 1; s_dof[1] = 0;
-   kArraySetK(t_dof_p, 1, 1); kArraySetK(s_dof_p, 1, 0);
-   //t_dof[2] = 2; s_dof[2] = 0;
-   kArraySetK(t_dof_p, 2, 2); kArraySetK(s_dof_p, 2, 0);
-   //t_dof[3] = 0; s_dof[3] = 1;
-   kArraySetK(t_dof_p, 3, 0); kArraySetK(s_dof_p, 3, 1);
-   //t_dof[4] = 1; s_dof[4] = 1;
-   kArraySetK(t_dof_p, 4, 1); kArraySetK(s_dof_p, 4, 0);
-   //t_dof[5] = 2; s_dof[5] = 1;
-   kArraySetK(t_dof_p, 5, 2); kArraySetK(s_dof_p, 5, 1);
+   t_dof[0] = 0; s_dof[0] = 0;
+   t_dof[1] = 1; s_dof[1] = 0;
+   t_dof[2] = 2; s_dof[2] = 0;
+   t_dof[3] = 0; s_dof[3] = 1;
+   t_dof[4] = 1; s_dof[4] = 1;
+   t_dof[5] = 2; s_dof[5] = 1;
 
    // Edge DoFs
    int ne = p-1;
@@ -8449,21 +8362,12 @@ H1_WedgeElement::H1_WedgeElement(const int p,
 
    // Define Nodes
    const IntegrationRule & t_Nodes = TriangleFE.GetNodes();
-   //const IntegrationRule & s_Nodes = SegmentFE.GetNodes();
+   const IntegrationRule & s_Nodes = SegmentFE.GetNodes();
    for (int i=0; i<Dof; i++)
    {
-      //Nodes.IntPoint(i).x = t_Nodes.IntPoint(t_dof[i]).x;
-      const int k = kArrayGetK(t_dof_p,i);
-      const double x = kIPGetX(&t_Nodes.IntPoint(0),k);
-      kIPSetX(&Nodes.IntPoint(0),x,i);
-
-      const double y = kIPGetY(&t_Nodes.IntPoint(0),k);
-      kIPSetY(&Nodes.IntPoint(0),y,i);
-      //Nodes.IntPoint(i).y = t_Nodes.IntPoint(t_dof[i]).y;
-
-      const double z = kIPGetZ(&t_Nodes.IntPoint(0),k);
-      kIPSetZ(&Nodes.IntPoint(0),z,i);
-      //Nodes.IntPoint(i).z = s_Nodes.IntPoint(s_dof[i]).x;
+      Nodes.IntPoint(i).x = t_Nodes.IntPoint(t_dof[i]).x;
+      Nodes.IntPoint(i).y = t_Nodes.IntPoint(t_dof[i]).y;
+      Nodes.IntPoint(i).z = s_Nodes.IntPoint(s_dof[i]).x;
    }
 }
 

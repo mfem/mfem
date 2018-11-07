@@ -16,7 +16,6 @@
 // Formulas at http://nines.cs.kuleuven.be/research/ecf/ecf.html
 
 #include "fem.hpp"
-#include "kernels/kIntrules.hpp"
 #include <cmath>
 
 #ifdef MFEM_USE_MPFR
@@ -28,16 +27,8 @@ using namespace std;
 namespace mfem
 {
 
-IntegrationRule::IntegrationRule(int NP) :
-   Array<IntegrationPoint>(NP), Order(0)
-{
-   const size_t N = this->Size();
-   kIntRulesInit(N,GetData());
-}
-
 IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry)
 {
-   MFEM_GPU_CANNOT_PASS;
    int i, j, nx, ny;
 
    nx = irx.GetNPoints();
@@ -46,20 +37,15 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry)
 
    for (j = 0; j < ny; j++)
    {
-      //IntegrationPoint &ipy = iry.IntPoint(j);
-      IntegrationPoint *ipy = &iry.IntPoint(0); // j
+      IntegrationPoint &ipy = iry.IntPoint(j);
       for (i = 0; i < nx; i++)
       {
-         IntegrationPoint *ipx = &irx.IntPoint(0); // i
-         IntegrationPoint *ip  = &IntPoint(0); // j*nx+i
-         kIPSetIPXY(nx, ip, ipx, ipy, j, i);
-         /*
          IntegrationPoint &ipx = irx.IntPoint(i);
          IntegrationPoint &ip  = IntPoint(j*nx+i);
+
          ip.x = ipx.x;
          ip.y = ipy.x;
          ip.weight = ipx.weight * ipy.weight;
-         */
       }
    }
 }
@@ -67,7 +53,6 @@ IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry)
 IntegrationRule::IntegrationRule(IntegrationRule &irx, IntegrationRule &iry,
                                  IntegrationRule &irz)
 {
-   //OKINA_ASSERT_CPU;
    const int nx = irx.GetNPoints();
    const int ny = iry.GetNPoints();
    const int nz = irz.GetNPoints();
@@ -198,7 +183,6 @@ public:
    // see also: QuadratureFunctions1D::GaussLegendre
    void ComputeGaussLegendrePoint(const int n, const int k)
    {
-      MFEM_CPU_CANNOT_PASS;
       MFEM_ASSERT(n > 0 && 0 <= k && k < n, "invalid n = " << n
                   << " and/or k = " << k);
 
@@ -274,7 +258,6 @@ public:
    // see also: QuadratureFunctions1D::GaussLobatto
    void ComputeGaussLobattoPoint(const int n, const int k)
    {
-      MFEM_CPU_CANNOT_PASS;
       MFEM_ASSERT(n > 1 && 0 <= k && k < n, "invalid n = " << n
                   << " and/or k = " << k);
 
@@ -374,12 +357,9 @@ void QuadratureFunctions1D::GaussLegendre(const int np, IntegrationRule* ir)
          ir->IntPoint(0).Set1w(0.5, 1.0);
          return;
       case 2:
-      {
-         const IntegrationPoint *ip = &ir->IntPoint(0);
-         kIPSet1W(ip, 0.21132486540518711775, 0.5, 0);
-         kIPSet1W(ip, 0.78867513459481288225, 0.5, 1);
+         ir->IntPoint(0).Set1w(0.21132486540518711775, 0.5);
+         ir->IntPoint(1).Set1w(0.78867513459481288225, 0.5);
          return;
-      }
       case 3:
          ir->IntPoint(0).Set1w(0.11270166537925831148, 5./18.);
          ir->IntPoint(1).Set1w(0.5, 4./9.);
@@ -448,7 +428,6 @@ void QuadratureFunctions1D::GaussLegendre(const int np, IntegrationRule* ir)
 
 void QuadratureFunctions1D::GaussLobatto(const int np, IntegrationRule* ir)
 {
-   MFEM_GPU_CANNOT_PASS;
    /* An np point Gauss-Lobatto quadrature has (np - 2) free abscissa the other
       (2) abscissa are the interval endpoints.
 
@@ -475,7 +454,6 @@ void QuadratureFunctions1D::GaussLobatto(const int np, IntegrationRule* ir)
    ir->SetSize(np);
    if ( np == 1 )
    {
-      assert(false);
       ir->IntPoint(0).Set1w(0.5, 1.0);
    }
    else
@@ -484,17 +462,9 @@ void QuadratureFunctions1D::GaussLobatto(const int np, IntegrationRule* ir)
 #ifndef MFEM_USE_MPFR
 
       // endpoints and respective weights
-      //ir->IntPoint(0).x = 0.0;
-      //ir->IntPoint(np-1).x = 1.0;
-
-      const IntegrationPoint *ip = &ir->IntPoint(0);
-      kIPSetX(ip, 0.0, 0);
-      kIPSetX(ip, 1.0, np-1);
-
-      //ir->IntPoint(0).weight = ir->IntPoint(np-1).weight = 1.0/(np*(np-1));
-      const double weight = 1.0/(np*(np-1));
-      kIPSetW(ip, weight, 0);
-      kIPSetW(ip, weight, np-1);
+      ir->IntPoint(0).x = 0.0;
+      ir->IntPoint(np-1).x = 1.0;
+      ir->IntPoint(0).weight = ir->IntPoint(np-1).weight = 1.0/(np*(np-1));
 
       // interior points and weights
       // use symmetry and compute just half of the points
@@ -549,25 +519,19 @@ void QuadratureFunctions1D::GaussLobatto(const int np, IntegrationRule* ir)
             x_i -= dx;
          }
          // Map to the interval [0,1] and scale the weights
-         //IntegrationPoint &ip = ir->IntPoint(i);
-         IntegrationPoint *ip = &ir->IntPoint(0);
-         //ip.x = z_i;
-         kIPSetX(ip,z_i,i);
+         IntegrationPoint &ip = ir->IntPoint(i);
+         ip.x = z_i;
          // w_i = (2/[ n*(n-1)*[P_{n-1}(x_i)]^2 ]) / 2
-         //ip.weight = (double)(1.0 / (np*(np-1)*p_l*p_l));
-         double w_i = (double)(1.0 / (np*(np-1)*p_l*p_l));
-         kIPSetW(ip, w_i, i);
+         ip.weight = (double)(1.0 / (np*(np-1)*p_l*p_l));
 
          // set the symmetric point
-         //IntegrationPoint &symm_ip = ir->IntPoint(np-1-i);
-         //symm_ip.x = 1.0 - z_i;
-         kIPSetX(ip, 1.0-z_i, np-1-i);
-         //symm_ip.weight = ip.weight;
-         kIPSetW(ip, w_i, np-1-i);
+         IntegrationPoint &symm_ip = ir->IntPoint(np-1-i);
+         symm_ip.x = 1.0 - z_i;
+         symm_ip.weight = ip.weight;
       }
 
 #else // MFEM_USE_MPFR is defined
-      MFEM_CPU_CANNOT_PASS;
+
       HP_Quadrature1D hp_quad;
       // use symmetry and compute just half of the points
       for (int i = 0 ; i <= (np-1)/2 ; ++i)
@@ -632,7 +596,6 @@ void QuadratureFunctions1D::OpenHalfUniform(const int np, IntegrationRule* ir)
 void QuadratureFunctions1D::GivePolyPoints(const int np, double *pts,
                                            const int type)
 {
-   MFEM_GPU_CANNOT_PASS;
    IntegrationRule ir(np);
 
    switch (type)
@@ -668,8 +631,11 @@ void QuadratureFunctions1D::GivePolyPoints(const int np, double *pts,
                     "type = " << type);
       }
    }
-   const IntegrationPoint *ip = &ir.IntPoint(0);
-   kIPPts(ip, np, pts);
+
+   for (int i = 0 ; i < np ; ++i)
+   {
+      pts[i] = ir.IntPoint(i).x;
+   }
 }
 
 void QuadratureFunctions1D::CalculateUniformWeights(IntegrationRule *ir,
@@ -865,7 +831,6 @@ IntegrationRules RefinedIntRules(1, Quadrature1D::GaussLegendre);
 IntegrationRules::IntegrationRules(int Ref, int _type):
    quad_type(_type)
 {
-   MFEM_GPU_CANNOT_PASS;
    refined = Ref;
 
    if (refined < 0) { own_rules = 0; return; }
@@ -930,7 +895,7 @@ const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
             IntegrationRule *ir = GenerateIntegrationRule(GeomType, Order);
             int RealOrder = Order;
             while (RealOrder+1 < ir_array->Size() &&
-                   /*  */ (*ir_array)[RealOrder+1] == ir)
+            /*  */ (*ir_array)[RealOrder+1] == ir)
             {
                RealOrder++;
             }
@@ -1052,8 +1017,8 @@ IntegrationRule *IntegrationRules::SegmentIntegrationRule(int Order)
    // Order is one of {RealOrder-1,RealOrder}
    AllocIntRule(SegmentIntRules, RealOrder);
 
-   static IntegrationRule tmp;
-   IntegrationRule *ir = refined ? &tmp : new IntegrationRule;
+   IntegrationRule tmp, *ir;
+   ir = refined ? &tmp : new IntegrationRule;
 
    int n = 0;
    // n is the number of points to achieve the exact integral of a
@@ -1504,7 +1469,6 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
 // Integration rules for unit square
 IntegrationRule *IntegrationRules::SquareIntegrationRule(int Order)
 {
-   MFEM_GPU_CANNOT_PASS;
    int RealOrder = GetSegmentRealOrder(Order);
    // Order is one of {RealOrder-1,RealOrder}
    if (!HaveIntRule(SegmentIntRules, RealOrder))
@@ -1539,6 +1503,7 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
 
       case 2:  // 4 points - degree 2
          ir = new IntegrationRule(4);
+         // ir->AddTetPoints4(0, 0.13819660112501051518, 1./24.);
          ir->AddTetPoints4b(0, 0.58541019662496845446, 1./24.);
          TetrahedronIntRules[2] = ir;
          return ir;
