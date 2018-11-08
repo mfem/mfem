@@ -12,7 +12,6 @@
 // Implementation of class BilinearForm
 
 #include "fem.hpp"
-//#include "kBilinIntegDiffusion.hpp"
 
 #include <cmath>
 
