@@ -93,13 +93,13 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 #define MFEM_GPU_CANNOT_PASS {assert(MFEM_FILE_AND_LINE and not config::Get().Cuda());}
 
 // Offsets *********************************************************************
-#define   ijN(i,j,N) (i)+(N)*(j)
-#define  ijkN(i,j,k,N) (i)+(N)*((j)+(N)*(k))
+#define ijN(i,j,N) (i)+(N)*(j)
+#define ijkN(i,j,k,N) (i)+(N)*((j)+(N)*(k))
 #define ijklN(i,j,k,l,N) (i)+(N)*((j)+(N)*((k)+(N)*(l)))
 
-#define    ijNMt(i,j,N,M,t) (t)?((i)+(N)*(j)):((j)+(M)*(i))
-#define    ijkNM(i,j,k,N,M) (i)+(N)*((j)+(M)*(k))
-#define   ijklNM(i,j,k,l,N,M) (i)+(N)*((j)+(N)*((k)+(M)*(l)))
+#define ijNMt(i,j,N,M,t) (t)?((i)+(N)*(j)):((j)+(M)*(i))
+#define ijkNM(i,j,k,N,M) (i)+(N)*((j)+(M)*(k))
+#define ijklNM(i,j,k,l,N,M) (i)+(N)*((j)+(N)*((k)+(M)*(l)))
 
 // *****************************************************************************
 #define dbg(...) \

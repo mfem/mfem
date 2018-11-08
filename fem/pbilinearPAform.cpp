@@ -223,8 +223,6 @@ void ParPABilinearForm::RecoverFEMSolution(const Vector &X,
                                            const Vector &b,
                                            Vector &x)
 {
-   //mm::Get().Rsync(X.GetData());
-   //mm::Get().Rsync(x.GetData());
    const Operator *P = trialFes->GetProlongationMatrix();
    if (P)
    {
