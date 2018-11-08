@@ -2467,7 +2467,6 @@ HypreEuclid::HypreEuclid(HypreParMatrix &A) : HypreSolver(&A)
 
 }
 
-
 HypreEuclid::~HypreEuclid()
 {
    HYPRE_EuclidDestroy(euc_precond);

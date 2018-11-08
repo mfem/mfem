@@ -792,7 +792,6 @@ public:
    virtual ~HypreParaSails();
 };
 
-
 /**
   The Euclid preconditioner in Hypre
 
@@ -802,8 +801,7 @@ public:
 
   David Hysom and Alex Pothen
   https://doi.org/10.1137/S1064827500376193
-
-  */
+*/
 class HypreEuclid : public HypreSolver
 {
 private:
@@ -822,7 +820,6 @@ public:
 
    virtual ~HypreEuclid();
 };
-
 
 /// The BoomerAMG solver in hypre
 class HypreBoomerAMG : public HypreSolver

@@ -49,6 +49,10 @@ Other meshing improvements
 - Added support for reading linear and quadratic 2D quadrilateral and triangular
   Cubit meshes.
 
+New and improved solvers and preconditioners
+--------------------------------------------
+- Added support for parallel ILU preconditioning via hypre's Euclid solver.
+
 New and updated examples and miniapps
 -------------------------------------
 - Added a new meshing miniapp, Toroid, which can produce a variety of torus
