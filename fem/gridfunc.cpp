@@ -1404,13 +1404,14 @@ void GridFunction::AccumulateAndCountBdrValues(
             fe->Project(*vcoeff, *transf, vals);
             for (int k = 0; k < vals.Size(); k++)
             {
+               ind = vdofs[k];
                if (++values_counter[ind] == 1)
                {
-                  (*this)(vdofs[k]) = vals(k);
+                  (*this)(ind) = vals(k);
                }
                else
                {
-                  (*this)(vdofs[k]) += vals(k);
+                  (*this)(ind) += vals(k);
                }
             }
          }
