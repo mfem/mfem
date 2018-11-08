@@ -23,34 +23,8 @@
 
 namespace mfem
 {
-/*
-// *****************************************************************************
-// * ParAbstractBilinearForm
-// *****************************************************************************
-class AbstractParBilinearForm : public Operator
-{
-public:
-   const ParFiniteElementSpace *pfes;
-public:
-   AbstractParBilinearForm(ParFiniteElementSpace *f) : Operator(f?f->GetVSize():0),
-      pfes(f) { }
-   virtual ~AbstractParBilinearForm() { }
-   virtual void AddDomainIntegrator(AbstractBilinearFormIntegrator*) = 0;
-   virtual void Assemble(int skip_zeros = 1) = 0;
-   virtual void FormOperator(const Array<int> &ess_tdof_list,
-                             Operator &A) = 0;
-   virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
-                                 Vector &x, Vector &b,
-                                 Operator *&A, Vector &X, Vector &B,
-                                 int copy_interior=0) = 0;
-   virtual void RecoverFEMSolution(const Vector &X, const Vector &b,
-                                   Vector &x) = 0;
-   virtual void EnableStaticCondensation() =0;
-   virtual void Mult(const Vector &x, Vector &y) const = 0;
-   };*/
-
 // ***************************************************************************
-// * Par PA BilinearForm
+// * ParPABilinearForm
 // ***************************************************************************
 class ParPABilinearForm : public PABilinearForm
 {
@@ -65,22 +39,28 @@ public:
    ParPABilinearForm(ParFiniteElementSpace*);
    ~ParPABilinearForm();
    // *************************************************************************
-   virtual void EnableStaticCondensation();
-   virtual void AddDomainIntegrator(AbstractBilinearFormIntegrator*);
+   void EnableStaticCondensation();
+   void AddDomainIntegrator(AbstractBilinearFormIntegrator*);
    void AddBoundaryIntegrator(AbstractBilinearFormIntegrator*);
    void AddInteriorFaceIntegrator(AbstractBilinearFormIntegrator*);
    void AddBoundaryFaceIntegrator(AbstractBilinearFormIntegrator*);
    // *************************************************************************
-   virtual void Assemble(int skip_zeros = 1);
-   virtual void FormOperator(const Array<int> &ess_tdof_list, Operator &A);
+   void Assemble(int skip_zeros = 1);
+   void FormOperator(const Array<int> &ess_tdof_list, Operator &A);
    void FormLinearSystem(const Array<int> &ess_tdof_list,
                          Vector &x, Vector &b,
                          Operator *&A, Vector &X, Vector &B,
                          int copy_interior = 0);
-   virtual void RecoverFEMSolution(const Vector &X, const Vector &b,
+   void FormLinearSystem(const Array<int> &ess_tdof_list,
+                         Vector &x, Vector &b,
+                         OperatorHandle &A,
+                         Vector &X, Vector &B,
+                         int copy_interior = 0)
+   { mfem_error("ParPABilinearForm::FormLinearSystem(OperatorHandle)"); }
+   void RecoverFEMSolution(const Vector &X, const Vector &b,
                                    Vector &x);
-   virtual void Mult(const Vector &x, Vector &y) const;
-   virtual void MultTranspose(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const;
 };
 
 // *****************************************************************************
@@ -228,10 +208,17 @@ public:
        After solving the linear system, the finite element solution x can be
        recovered by calling RecoverFEMSolution (with the same vectors X, b, and
        x). */
-   void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
-                         OperatorHandle &A, Vector &X, Vector &B,
+   void FormLinearSystem(const Array<int> &ess_tdof_list,
+                         Vector &x, Vector &b,
+                         Operator *&A, Vector &X, Vector &B,
+                         int copy_interior = 0)
+   { mfem_error("ParFABilinearForm::FormLinearSystem(OperatorHandle)"); }
+   
+   void FormLinearSystem(const Array<int> &ess_tdof_list,
+                         Vector &x, Vector &b,
+                         OperatorHandle &A,
+                         Vector &X, Vector &B,
                          int copy_interior = 0);
-
    /** Version of the method FormLinearSystem() where the system matrix is
        returned in the variable @a A, of type OpType, holding a *reference* to
        the system matrix (created with the method OpType::MakeRef()). The
