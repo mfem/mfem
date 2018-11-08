@@ -58,8 +58,6 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
-   int level = -1;
-   int max_iter = 2000;
    bool static_cond = false;
    bool pa = false;
    bool gpu = false;
@@ -71,9 +69,6 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&level, "-l", "--level", "Refinement level");
-   args.AddOption(&max_iter, "-mi", "--max-iter",
-                  "Maximum number of CG iterations");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
@@ -108,7 +103,7 @@ int main(int argc, char *argv[])
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
    {
-      int ref_levels = level>=0 ? level :
+      int ref_levels =
          (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
@@ -199,9 +194,6 @@ int main(int argc, char *argv[])
    //     assembly, eliminating boundary conditions, applying conforming
    //     constraints for non-conforming AMR, static condensation, etc.
    if (static_cond) { a->EnableStaticCondensation(); }
-
-   tic_toc.Clear();
-   tic_toc.Start();
    a->Assemble();
 
    Vector B, X;
