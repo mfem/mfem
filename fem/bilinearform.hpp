@@ -43,6 +43,11 @@ public:
                                  Vector &x, Vector &b,
                                  Operator *&A, Vector &X, Vector &B,
                                  int copy_interior=0) = 0;
+   virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
+                                 Vector &x, Vector &b,
+                                 OperatorHandle &A,
+                                 Vector &X, Vector &B,
+                                 int copy_interior = 0) =0;
    virtual void RecoverFEMSolution(const Vector &X, const Vector &b,
                                    Vector &x) = 0;
    virtual void EnableStaticCondensation() =0;
@@ -77,6 +82,12 @@ public:
                                  Vector &x, Vector &b,
                                  Operator *&A, Vector &X, Vector &B,
                                  int copy_interior = 0);
+   virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
+                                 Vector &x, Vector &b,
+                                 OperatorHandle &A,
+                                 Vector &X, Vector &B,
+                                 int copy_interior = 0)
+   { mfem_error("PABilinearForm::FormLinearSystem(OperatorHandle)"); }
    virtual void RecoverFEMSolution(const Vector &X, const Vector &b,
                                    Vector &x);
    virtual void Mult(const Vector &x, Vector &y) const;
@@ -341,10 +352,17 @@ public:
 
        NOTE: If there are no transformations, @a X simply reuses the data of
              @a x. */
-   void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
-                         Operator *&A, Vector &X, Vector &B,
-                         int copy_interior = 0);
+   virtual void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
+                                 Operator *&A, Vector &X, Vector &B,
+                                 int copy_interior = 0);
 
+   virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
+                                 Vector &x, Vector &b,
+                                 OperatorHandle &A,
+                                 Vector &X, Vector &B,
+                                 int copy_interior = 0)
+   { mfem_error("FABilinearForm::FormLinearSystem(OperatorHandle)"); }
+   
    /// Form the linear system matrix A, see FormLinearSystem() for details.
    void FormSystemMatrix(const Array<int> &ess_tdof_list, SparseMatrix &A);
    virtual void FormOperator(const Array<int> &ess_tdof_list, Operator &A) {assert(false);}
@@ -454,7 +472,7 @@ public:
           static_cast<AbstractBilinearForm*>(new FABilinearForm(f)):
           static_cast<AbstractBilinearForm*>(new PABilinearForm(f)))
    { }
-   virtual ~BilinearForm() {}
+   ~BilinearForm() {}
    // **************************************************************************
    void EnableStaticCondensation() {assert(false);}
    void AddDomainIntegrator(AbstractBilinearFormIntegrator *i)
@@ -462,26 +480,26 @@ public:
       abf->AddDomainIntegrator(i);
    }
    // **************************************************************************
-   virtual void Assemble() { abf->Assemble(); }
-   virtual void FormOperator(const Array<int> &ess_tdof_list,
+   void Assemble() { abf->Assemble(); }
+   void FormOperator(const Array<int> &ess_tdof_list,
                              Operator &A)
    {
       abf->FormOperator(ess_tdof_list,A);
    }
-   virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
-                                 Vector &x, Vector &b,
-                                 Operator *&A, Vector &X, Vector &B,
-                                 int copy_interior =0)
+   void FormLinearSystem(const Array<int> &ess_tdof_list,
+                         Vector &x, Vector &b,
+                         Operator *&A, Vector &X, Vector &B,
+                         int copy_interior =0)
    {
       abf->FormLinearSystem(ess_tdof_list,x,b,A,X,B,copy_interior);
    }
-   virtual void RecoverFEMSolution(const Vector &X, const Vector &b,
+   void RecoverFEMSolution(const Vector &X, const Vector &b,
                                    Vector &x)
    {
       abf->RecoverFEMSolution(X,b,x);
    }
-   virtual void Mult(const Vector &x, Vector &y) const {assert(false);}
-   virtual void MultTranspose(const Vector &x, Vector &y) const {assert(false);}
+   void Mult(const Vector &x, Vector &y) const {assert(false);}
+   void MultTranspose(const Vector &x, Vector &y) const {assert(false);}
 };
 
 /**
