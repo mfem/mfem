@@ -208,14 +208,9 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
 {
    Mesh *mesh = fes.GetMesh();
    const bool geom_to_allocate = !geom;
-   if (geom_to_allocate)
-   {
-      // dbg("geom_to_allocate: new kGeometry");
-      geom = new kGeometry();
-   }
+   if (geom_to_allocate) { geom = new kGeometry(); }
    if (!mesh->GetNodes())
    {
-      // dbg("\033[7mGetNodes, SetCurvature");
       // mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
    }
    const GridFunction *nodes = mesh->GetNodes();
@@ -227,21 +222,12 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
    const int numDofs  = fe->GetDof();
    const int numQuad  = ir.GetNPoints();
    const bool orderedByNODES = (fespace->GetOrdering() == Ordering::byNODES);
-   // dbg("orderedByNODES: %s", orderedByNODES?"true":"false");
-
-   if (orderedByNODES)
-   {
-      // dbg("orderedByNODES => ReorderByVDim");
-      ReorderByVDim(nodes);
-   }
+   if (orderedByNODES) { ReorderByVDim(nodes); }
    const int asize = dims*numDofs*elements;
-   // dbg("meshNodes(%d)",asize);
    mfem::Array<double> meshNodes(asize);
    const Table& e2dTable = fespace->GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
    mfem::Array<int> eMap(numDofs*elements);
-
-   // dbg("kGeomFill");
    kGeomFill(dims,
              elements,
              numDofs,
@@ -252,46 +238,21 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
 
    if (geom_to_allocate)
    {
-      // dbg("geom_to_allocate");
-      // dbg("meshNodes: asize=%d", asize);
       geom->meshNodes.allocate(dims, numDofs, elements);
       geom->eMap.allocate(numDofs, elements);
    }
-   {
-      //geom->meshNodes = meshNodes;
-      kVectorAssign(asize, meshNodes.GetData(), geom->meshNodes);
-
-      //geom->eMap = eMap;
-      kArrayAssign(numDofs*elements, eMap.GetData(), geom->eMap);
-   }
-
+   kVectorAssign(asize, meshNodes.GetData(), geom->meshNodes);
+   kArrayAssign(numDofs*elements, eMap.GetData(), geom->eMap);
    // Reorder the original gf back
-   if (orderedByNODES)
-   {
-      // dbg("Reorder the original gf back");
-      ReorderByNodes(nodes);
-   }
-
+   if (orderedByNODES) { ReorderByNodes(nodes); }
    if (geom_to_allocate)
    {
-      // dbg("dims=%d",dims);
-      // dbg("numQuad=%d",numQuad);
-      // dbg("elements=%d",elements);
-      // dbg("geom_to_allocate: J, invJ & detJ: %ld", dims*dims*numQuad*elements);
       geom->J.allocate(dims, dims, numQuad, elements);
       geom->invJ.allocate(dims, dims, numQuad, elements);
       geom->detJ.allocate(numQuad, elements);
    }
-
    const kDofQuadMaps* maps = kDofQuadMaps::GetSimplexMaps(*fe, ir);
-   assert(maps);
-
-   // dbg("dims=%d",dims);
-   // dbg("numDofs=%d",numDofs);
-   // dbg("numQuad=%d",numQuad);
-   // dbg("elements=%d",elements);
-   kGeom(dims, numDofs, numQuad, elements,
-         maps->dofToQuadD,
+   kGeom(dims, numDofs, numQuad, elements, maps->dofToQuadD,
          geom->meshNodes, geom->J, geom->invJ, geom->detJ);
    return geom;
 }
