@@ -143,7 +143,7 @@ void ParFiniteElementSpace::Construct()
       // Initialize 'gcomm' for the cut (aka "partially conforming") space.
       // In the process, the array 'ldof_ltdof' is also initialized (for the cut
       // space) and used; however, it will be overwritten below with the real
-      // true dofs. Also, 'ldof_sign' and 'ldof_group' are contructed for the
+      // true dofs. Also, 'ldof_sign' and 'ldof_group' are constructed for the
       // cut space.
       ConstructTrueDofs();
 
@@ -1756,7 +1756,7 @@ ParFiniteElementSpace::ScheduleSendRow(const PMatrixRow &row, int dof,
          msg.AddRow(ent, idx, edof, group_id, row);
          msg.SetNCMesh(pncmesh);
          msg.SetFEC(fec);
-#ifdef PMATRIX_STATS
+#ifdef MFEM_PMATRIX_STATS
          n_rows_sent++;
 #endif
       }
@@ -1781,7 +1781,7 @@ void ParFiniteElementSpace::ForwardRow(const PMatrixRow &row, int dof,
          msg.AddRow(ent, idx, edof, invalid, row);
          msg.SetNCMesh(pncmesh);
          msg.SetFEC(fec);
-#ifdef PMATRIX_STATS
+#ifdef MFEM_PMATRIX_STATS
          n_rows_fwd++;
 #endif
 #ifdef MFEM_DEBUG_PMATRIX
@@ -1865,7 +1865,7 @@ int ParFiniteElementSpace
 {
    bool dg = (nvdofs == 0 && nedofs == 0 && nfdofs == 0);
 
-#ifdef PMATRIX_STATS
+#ifdef MFEM_PMATRIX_STATS
    n_msgs_sent = n_msgs_recv = 0;
    n_rows_sent = n_rows_recv = n_rows_fwd = 0;
 #endif
@@ -2048,7 +2048,7 @@ int ParFiniteElementSpace
 
    // send identity rows
    NeighborRowMessage::IsendAll(send_msg.back(), MyComm);
-#ifdef PMATRIX_STATS
+#ifdef MFEM_PMATRIX_STATS
    n_msgs_sent += send_msg.back().size();
 #endif
 
@@ -2078,7 +2078,7 @@ int ParFiniteElementSpace
       while (NeighborRowMessage::IProbe(rank, size, MyComm))
       {
          recv_msg.Recv(rank, size, MyComm);
-#ifdef PMATRIX_STATS
+#ifdef MFEM_PMATRIX_STATS
          n_msgs_recv++;
          n_rows_recv += recv_msg.GetRows().size();
 #endif
@@ -2156,7 +2156,7 @@ int ParFiniteElementSpace
 
       // send current batch of messages
       NeighborRowMessage::IsendAll(send_msg.back(), MyComm);
-#ifdef PMATRIX_STATS
+#ifdef MFEM_PMATRIX_STATS
       n_msgs_sent += send_msg.back().size();
 #endif
    }
@@ -2182,7 +2182,7 @@ int ParFiniteElementSpace
       NeighborRowMessage::WaitAllSent(*it);
    }
 
-#ifdef PMATRIX_STATS
+#ifdef MFEM_PMATRIX_STATS
    int n_rounds = send_msg.size();
    int glob_rounds, glob_msgs_sent, glob_msgs_recv;
    int glob_rows_sent, glob_rows_recv, glob_rows_fwd;
