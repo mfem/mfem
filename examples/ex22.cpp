@@ -2,18 +2,15 @@
 //
 // Compile with: make ex22
 //
-// Sample runs:  ex22_proposed -m ../data/square-disc.mesh -o 1
-//               ex22_proposed -m ../data/square-disc.mesh -o 2
-//               ex22_proposed -m ../data/square-disc-nurbs.mesh -o 2
-//               ex22_proposed -m ../data/star.mesh -o 3
-//               ex22_proposed -m ../data/escher.mesh -o 2
-//               ex22_proposed -m ../data/fichera.mesh -o 2
-//               ex22_proposed -m ../data/disc-nurbs.mesh -o 2
-//               ex22_proposed -m ../data/ball-nurbs.mesh
-//               ex22_proposed -m ../data/pipe-nurbs.mesh
-//               ex22_proposed -m ../data/star-surf.mesh -o 2
-//               ex22_proposed -m ../data/square-disc-surf.mesh -o 2
-//               ex22_proposed -m ../data/amr-quad.mesh
+// Sample runs:  ex22
+//               ex22 -o 3
+//               ex22 -m ../data/beam-quad.mesh
+//               ex22 -m ../data/beam-quad.mesh -o 3
+//               ex22 -m ../data/beam-quad.mesh -o 3 -f 1
+//               ex22 -m ../data/beam-tet.mesh
+//               ex22 -m ../data/beam-tet.mesh -o 2
+//               ex22 -m ../data/beam-hex.mesh
+//               ex22 -m ../data/beam-hex.mesh -o 2
 //
 // Description:  This is a version of Example 2 with a simple adaptive mesh
 //               refinement loop. The problem being solved is again the linear
@@ -69,8 +66,7 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
-   //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
-   //    the same code.
+   //    quadrilateral, tetrahedral, and hexahedral meshes with the same code.
    Mesh mesh(mesh_file, 1, 1);
    int dim = mesh.Dimension();
    MFEM_VERIFY(mesh.SpaceDimension() == dim, "invalid mesh");
@@ -156,8 +152,6 @@ int main(int argc, char *argv[])
    //    boundary attribute 1 from the mesh as essential and converting it to a
    //    list of true dofs.  The conversion to true dofs will be done in the
    //    main loop.
-   MFEM_VERIFY(mesh.bdr_attributes.Size() > 0,
-               "Boundary attributes required in the mesh.");
    Array<int> ess_bdr(mesh.bdr_attributes.Max());
    ess_bdr = 0;
    ess_bdr[0] = 1;
@@ -246,7 +240,7 @@ int main(int argc, char *argv[])
          nodes += x;
          int own_nodes = 0;
          mesh.SwapNodes(nodes_p, own_nodes);
-         x.Neg();
+         x.Neg(); // visualize the backward displacement
          sol_sock << "solution\n" << mesh << x << flush;
          x.Neg();
          mesh.SwapNodes(nodes_p, own_nodes);

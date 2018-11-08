@@ -84,6 +84,7 @@ examples/gnuplot_ex20.inp
 examples/gnuplot_ex20p.inp
 examples/ex22*.mesh
 examples/ex22*.sol
+examples/ex22p_*.*
 
 examples/sundials/ex9
 examples/sundials/ex1[06]

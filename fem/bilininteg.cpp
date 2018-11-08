@@ -962,8 +962,8 @@ void VectorMassIntegrator::AssembleElementMatrix
 
    double norm;
 
-   // Get vdim from VQ, MQ, or the space dimension
-   int vdim = (VQ) ? (VQ -> GetVDim()) : ((MQ) ? (MQ -> GetVDim()) : spaceDim);
+   // If vdim is not set, set it to the space dimension
+   vdim = (vdim == -1) ? spaceDim : vdim;
 
    elmat.SetSize(nd*vdim);
    shape.SetSize(nd);
@@ -1041,13 +1041,11 @@ void VectorMassIntegrator::AssembleElementMatrix2(
 {
    int tr_nd = trial_fe.GetDof();
    int te_nd = test_fe.GetDof();
-   int dim   = trial_fe.GetDim();
-   int vdim;
 
    double norm;
 
-   // Get vdim from the ElementTransformation Trans ?
-   vdim = (VQ) ? (VQ -> GetVDim()) : ((MQ) ? (MQ -> GetVDim()) : (dim));
+   // If vdim is not set, set it to the space dimension
+   vdim = (vdim == -1) ? Trans.GetSpaceDim() : vdim;
 
    elmat.SetSize(te_nd*vdim, tr_nd*vdim);
    shape.SetSize(tr_nd);

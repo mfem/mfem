@@ -751,7 +751,9 @@ double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
 
    if (smooth_flux_fes.GetFE(0)->GetRangeType() == FiniteElement::SCALAR)
    {
-      a->AddDomainIntegrator(new VectorMassIntegrator);
+      VectorMassIntegrator *vmass = new VectorMassIntegrator;
+      vmass->SetVDim(smooth_flux_fes.GetVDim());
+      a->AddDomainIntegrator(vmass);
       b->AddDomainIntegrator(new VectorDomainLFIntegrator(f));
    }
    else

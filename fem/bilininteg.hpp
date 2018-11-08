@@ -1706,6 +1706,7 @@ public:
 class VectorMassIntegrator: public BilinearFormIntegrator
 {
 private:
+   int vdim;
    Vector shape, te_shape, vec;
    DenseMatrix partelmat;
    DenseMatrix mcoeff;
@@ -1718,22 +1719,25 @@ private:
 public:
    /// Construct an integrator with coefficient 1.0
    VectorMassIntegrator()
-   { Q = NULL; VQ = NULL; MQ = NULL; Q_order = 0; }
+      : vdim(-1), Q(NULL), VQ(NULL), MQ(NULL), Q_order(0) { }
    /** Construct an integrator with scalar coefficient q.
        If possible, save memory by using a scalar integrator since
        the resulting matrix is block diagonal with the same diagonal
        block repeated. */
    VectorMassIntegrator(Coefficient &q, int qo = 0)
-      : Q(&q) { VQ = NULL; MQ = NULL; Q_order = qo; }
+      : vdim(-1), Q(&q) { VQ = NULL; MQ = NULL; Q_order = qo; }
    VectorMassIntegrator(Coefficient &q, const IntegrationRule *ir)
-      : BilinearFormIntegrator(ir), Q(&q)
+      : BilinearFormIntegrator(ir), vdim(-1), Q(&q)
    { VQ = NULL; MQ = NULL; Q_order = 0; }
    /// Construct an integrator with diagonal coefficient q
    VectorMassIntegrator(VectorCoefficient &q, int qo = 0)
-      : VQ(&q) { Q = NULL; MQ = NULL; Q_order = qo; }
+      : vdim(q.GetVDim()), VQ(&q) { Q = NULL; MQ = NULL; Q_order = qo; }
    /// Construct an integrator with matrix coefficient q
    VectorMassIntegrator(MatrixCoefficient &q, int qo = 0)
-      : MQ(&q) { Q = NULL; VQ = NULL; Q_order = qo; }
+      : vdim(q.GetVDim()), MQ(&q) { Q = NULL; VQ = NULL; Q_order = qo; }
+
+   int GetVDim() const { return vdim; }
+   void SetVDim(int vdim) { this->vdim = vdim; }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
