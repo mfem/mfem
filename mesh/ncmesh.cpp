@@ -2672,8 +2672,8 @@ void NCMesh::TraversePlanar(int vn0, int vn1, int vn2, const PointMatrix& pm,
       TraversePlanar(mid[2], mid[1], vn2,
                      PointMatrix(mid2, mid1, pm(2)), level+1);
    if (mid[0] != -1 && mid[1] != -1 && mid[2] != -1)
-      TraversePlanar(mid[0], mid[1], mid[2],
-                     PointMatrix(mid0, mid1, mid2), level+1);
+      TraversePlanar(mid[0], mid[2], mid[1],
+                     PointMatrix(mid0, mid2, mid1), level+1);
 }
 
 void NCMesh::BuildPlanarList() // TODO
