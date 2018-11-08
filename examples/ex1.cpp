@@ -52,14 +52,10 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
-   int level = -1;
-   int max_iter = 2000;
    bool static_cond = false;
    bool pa = false;
    bool gpu = false;
-   bool nvvp = false;
-   bool sync = false;
-   bool visualization = true;
+   bool visualization = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -67,16 +63,11 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&level, "-l", "--level", "Refinement level");
-   args.AddOption(&max_iter, "-mi", "--max-iter",
-                  "Maximum number of CG iterations");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
                   "Enable Partial Assembly.");
    args.AddOption(&gpu, "-g", "--gpu", "-no-g", "--no-gpu", "Enable GPU.");
-   args.AddOption(&nvvp, "-n", "--nvvp", "-no-n", "--no-nvvp", "Enable NVVP.");
-   args.AddOption(&sync, "-s", "--sync", "-no-s", "--no-sync", "Enable SYNC.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -87,8 +78,6 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
-   if (nvvp) { config::Get().Nvvp(true); }
-   if (sync) { config::Get().Sync(true); }
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
@@ -101,7 +90,7 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels = level>=0 ? level :
+      int ref_levels =
          (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
@@ -172,9 +161,6 @@ int main(int argc, char *argv[])
    //    conditions, applying conforming constraints for non-conforming AMR,
    //    static condensation, etc.
    if (static_cond) { a->EnableStaticCondensation(); }
-
-   tic_toc.Clear();
-   tic_toc.Start();
    a->Assemble();
 
    Vector B, X;
@@ -182,26 +168,11 @@ int main(int argc, char *argv[])
    if (pa) { A = new PABilinearForm(fespace); }
    else    { A = new SparseMatrix(); }
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
-   
-   double my_rt = tic_toc.RealTime();
-   cout << "\nTotal BilinearForm time:    " << my_rt << " sec.";
-   cout << "\n\"DOFs/sec\" in assembly: "
-        << 1e-6*A->Height()/my_rt << " million.\n"
-        << endl;
 
    cout << "Size of linear system: " << A->Height() << endl;
 
-   CGSolver *cg;
-   cg = new CGSolver;
-   cg->SetRelTol(1e-6);
-   cg->SetMaxIter(max_iter);
-   cg->SetPrintLevel(3);
-   cg->SetOperator(*A);
-
-   tic_toc.Clear();
-   tic_toc.Start();
 #ifndef MFEM_USE_SUITESPARSE
-   cg->Mult(B, X);
+   CG(*A, B, X, 3, 2000, 1e-12, 0.0);
 #else
    // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;
@@ -209,15 +180,6 @@ int main(int argc, char *argv[])
    umf_solver.SetOperator(A);
    umf_solver.Mult(B, X);
 #endif
-
-   my_rt = tic_toc.RealTime();
-   cout << "\nTotal CG time:    " << my_rt << " sec." << endl;
-   cout << "Time per CG step: "
-        << my_rt / cg->GetNumIterations() << " sec." << endl;
-   cout << "\n\"DOFs/sec\" in CG: "
-        << 1e-6*A->Height()*cg->GetNumIterations()/my_rt << " million.\n"
-        << endl;
-   delete cg;
 
    // 11. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
@@ -242,13 +204,12 @@ int main(int argc, char *argv[])
    }
 
    // 14. Free the used memory.
+   delete A;
    delete a;
    delete b;
    delete fespace;
    if (order > 0) { delete fec; }
    delete mesh;
-
-   delete A;
 
    return 0;
 }
