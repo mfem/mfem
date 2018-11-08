@@ -212,7 +212,7 @@ int main(int argc, char *argv[])
    //     preconditioner from hypre.
    CGSolver cg(MPI_COMM_WORLD);
    cg.SetRelTol(1e-12);
-   cg.SetMaxIter(max_iter);
+   cg.SetMaxIter(2000);
    cg.SetPrintLevel(3);
    cg.SetOperator(*A);
    cg.Mult(B, X);
