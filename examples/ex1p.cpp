@@ -218,14 +218,12 @@ int main(int argc, char *argv[])
 
    // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
    //     preconditioner from hypre.
-   CGSolver *cg = new CGSolver(MPI_COMM_WORLD);
-   cg->SetRelTol(1e-12);
-   cg->SetMaxIter(max_iter);
-   cg->SetPrintLevel(3);
-   cg->SetOperator(*A);
-   cg->Mult(B, X);
-   delete cg;
-   //CG(*A, B, X, 3, 1000, 1e-12, 0.0);
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetRelTol(1e-12);
+   cg.SetMaxIter(max_iter);
+   cg.SetPrintLevel(3);
+   cg.SetOperator(*A);
+   cg.Mult(B, X);
    /*
    HypreSolver *amg = new HypreBoomerAMG(A);
    HyprePCG *pcg = new HyprePCG(A);
