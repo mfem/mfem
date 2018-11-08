@@ -199,9 +199,13 @@ int main(int argc, char *argv[])
    //     preconditioner from hypre.
    HypreSolver *prc;
    if (prec == 1)
-       prc = new HypreBoomerAMG(A);
+   {
+      prc = new HypreBoomerAMG(A);
+   }
    else if (prec == 2)
-       prc = new HypreEuclid(A);
+   {
+      prc = new HypreEuclid(A);
+   }
 
    HyprePCG *pcg = new HyprePCG(A);
    pcg->SetTol(1e-12);
