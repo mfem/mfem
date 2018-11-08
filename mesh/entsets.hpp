@@ -91,6 +91,12 @@ protected:
    /// Refine hexahedral mesh.
    virtual void HexUniformRefinement();
 
+   /// Refine 2D mesh.
+   virtual void UniformRefinement2D();
+
+   /// Refine 3D mesh.
+   virtual void UniformRefinement3D();
+
 private:
 
    static void skip_comment_lines(std::istream &is, const char comment_char)

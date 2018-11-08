@@ -830,6 +830,176 @@ EntitySets::HexUniformRefinement()
 
    this->CopyMeshTables();
 }
+void
+EntitySets::UniformRefinement2D()
+{
+   // VERTEX Sets will be unchanged
+
+   // EDGE Sets will need to be augmented
+   if ( this->GetNumSets(EDGE) > 0 )
+   {
+      EntityType t = EDGE;
+      DSTable * v_to_v = new DSTable(mesh_->GetNV());
+      mesh_->GetVertexToVertexTable(*v_to_v);
+
+      int oedge = NumOfVertices_;
+      for (unsigned int s=0; s<this->GetNumSets(t); s++)
+      {
+         set<int>::iterator it;
+         set<int> new_set;
+         for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++)
+         {
+            int old_edge = *it;
+            int *v = edge_vertex_->GetRow(old_edge);
+            new_set.insert((*v_to_v)(v[0], oedge + old_edge));
+            new_set.insert((*v_to_v)(v[1], oedge + old_edge));
+         }
+         sets_[t][s].clear();
+         for (it=new_set.begin(); it!=new_set.end(); it++)
+         {
+            sets_[t][s].insert(*it);
+         }
+      }
+      delete v_to_v;
+   }
+
+   // FACE Sets do not exist in 2D
+
+   // ELEMENT Sets will need to be augmented
+   EntityType t = ELEMENT;
+   for (unsigned int s=0; s<this->GetNumSets(t); s++)
+   {
+      set<int>::iterator it;
+      set<int> new_elems;
+      for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++)
+      {
+         int e = *it;
+         int j = NumOfElements_ + 3 * e;
+         new_elems.insert(j + 0);
+         new_elems.insert(j + 1);
+         new_elems.insert(j + 2);
+      }
+      for (it=new_elems.begin(); it!=new_elems.end(); it++)
+      {
+         sets_[t][s].insert(*it);
+      }
+   }
+
+   this->CopyMeshTables();
+}
+
+void
+EntitySets::UniformRefinement3D()
+{
+   // VERTEX Sets will be unchanged
+
+   // EDGE Sets will need to be augmented
+   DSTable * v_to_v = NULL;
+   if ( this->GetNumSets(EDGE) > 0 ||
+        this->GetNumSets(FACE) > 0 )
+   {
+      v_to_v = new DSTable(mesh_->GetNV());
+      mesh_->GetVertexToVertexTable(*v_to_v);
+   }
+   if ( this->GetNumSets(EDGE) > 0 )
+   {
+      EntityType t = EDGE;
+      int oedge = NumOfVertices_;
+      for (unsigned int s=0; s<this->GetNumSets(t); s++)
+      {
+         set<int>::iterator it;
+         set<int> new_set;
+         for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++)
+         {
+            int old_edge = *it;
+            int *v = edge_vertex_->GetRow(old_edge);
+            new_set.insert((*v_to_v)(v[0], oedge + old_edge));
+            new_set.insert((*v_to_v)(v[1], oedge + old_edge));
+         }
+         sets_[t][s].clear();
+         for (it=new_set.begin(); it!=new_set.end(); it++)
+         {
+            sets_[t][s].insert(*it);
+         }
+      }
+   }
+   delete v_to_v;
+
+   // FACE Sets will need to be augmented
+   if ( this->GetNumSets(FACE) > 0 )
+   {
+      EntityType t = FACE;
+      STable3D * faces_tbl = mesh_->GetFacesTable();
+
+      int oedge = NumOfVertices_;
+      int oface = oedge + NumOfEdges_;
+
+      for (unsigned int s=0; s<this->GetNumSets(t); s++)
+      {
+         set<int>::iterator it;
+         set<int> new_set;
+         for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++)
+         {
+            int old_face = *it;
+            int * v = face_vertex_->GetRow(old_face);
+            int * e = face_edge_->GetRow(old_face);
+
+            for (int j=0; j<4; j++)
+            {
+               int v0 = v[j];
+               int v3 = oface + old_face;
+               for (int k=0; k<4; k++)
+               {
+                  int v1 = oedge + e[k];
+                  int new_face = -1;
+                  for (int l=1; l<4; l++)
+                  {
+                     int v2 = oedge + e[(k+l)%4];
+                     new_face = (*faces_tbl)(v0,v1,v2,v3);
+                     if ( new_face >= 0 )
+                     {
+                        new_set.insert(new_face);
+                        break;
+                     }
+                  }
+                  if ( new_face >= 0 )
+                  {
+                     break;
+                  }
+               }
+            }
+         }
+         sets_[t][s].clear();
+         for (it=new_set.begin(); it!=new_set.end(); it++)
+         {
+            sets_[t][s].insert(*it);
+         }
+      }
+      delete faces_tbl;
+   }
+
+   // ELEMENT Sets will need to be augmented
+   EntityType t = ELEMENT;
+   for (unsigned int s=0; s<this->GetNumSets(t); s++)
+   {
+      set<int>::iterator it;
+      set<int> new_elems;
+      for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++)
+      {
+         int e = *it;
+         for (int j=NumOfElements_ + 7 * e; j<NumOfElements_ + 7 * e + 7; j++)
+         {
+            new_elems.insert(j);
+         }
+      }
+      for (it=new_elems.begin(); it!=new_elems.end(); it++)
+      {
+         sets_[t][s].insert(*it);
+      }
+   }
+
+   this->CopyMeshTables();
+}
 /*
 void
 EntitySets::Prune(int nelems)

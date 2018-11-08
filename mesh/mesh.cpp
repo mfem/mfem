@@ -5919,6 +5919,11 @@ void Mesh::UniformRefinement2D()
 
    UpdateNodes();
 
+   if ( ent_sets )
+   {
+      ent_sets->UniformRefinement2D();
+   }
+
 #ifdef MFEM_DEBUG
    CheckElementOrientation(false);
    CheckBdrElementOrientation(false);
@@ -5943,6 +5948,11 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
    if (el_to_face == NULL)
    {
       GetElementToFaceTable();
+   }
+
+   if ( ent_sets )
+   {
+      ent_sets->CopyMeshTables();
    }
 
    Array<int> f2qf_loc;
@@ -6503,7 +6513,7 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
 
    if ( ent_sets )
    {
-      ent_sets->HexUniformRefinement();
+      ent_sets->UniformRefinement3D();
    }
 }
 
