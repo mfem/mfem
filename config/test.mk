@@ -14,11 +14,13 @@
 # Colors used below:
 # green    '\033[0;32m'
 # red      '\033[0;31m'
+# yellow   '\033[0;33m'
 # no color '\033[0m'
 COLOR_PRINT = if [ -t 1 ]; then \
    printf $(1)$(2)'\033[0m'$(3); else printf $(2)$(3); fi
 PRINT_OK = $(call COLOR_PRINT,'\033[0;32m',OK,"  ($$1 $$2)\n")
 PRINT_FAILED = $(call COLOR_PRINT,'\033[0;31m',FAILED,"  ($$1 $$2)\n")
+PRINT_SKIP = $(call COLOR_PRINT,'\033[0;33m',SKIP,"\n")
 
 # Timing support
 define TIMECMD_detect
@@ -36,7 +38,7 @@ export TIME='%es %MkB %x'; \
 set -- $$($(1) $(SHELL) -c "$(2)" 2>&1); while [ "$$#" -gt 3 ]; do shift; done
 endef
 define TIMECMD.NOTGNU
-set -- $$($(1) -l $(SHELL) -c "$(2)" 2>&1; echo $$?); \
+set -- $$($(1) -l $(SHELL) -c "{ $(2); } > /dev/null 2>&1" 2>&1; echo $$?); \
 set -- "$$1"s "$$(($$7/1024))"kB "$${60}"
 endef
 define TIMECMD.BASH
