@@ -139,8 +139,8 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
       GenerateNCFaceInfo();
 
       if (mesh.ent_sets)
-	NumOfVertices = BuildLocalVertices(mesh, partitioning,
-					   vert_global_local);
+         NumOfVertices = BuildLocalVertices(mesh, partitioning,
+                                            vert_global_local);
    }
    else // mesh.Conforming()
    {
@@ -279,9 +279,9 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
    }
 
    ent_sets = pent_sets =
-     (mesh.ent_sets) ? new ParEntitySets(*this, *mesh.ent_sets,
-					 partitioning,
-					 vert_global_local) : NULL;
+                 (mesh.ent_sets) ? new ParEntitySets(*this, *mesh.ent_sets,
+                                                     partitioning,
+                                                     vert_global_local) : NULL;
 
    if (partitioning != partitioning_)
    {
