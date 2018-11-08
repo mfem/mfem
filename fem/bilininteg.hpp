@@ -69,12 +69,60 @@ public:
                                  const Vector &elfun, DenseMatrix &elmat)
    { AssembleFaceMatrix(el1, el2, Tr, elmat); }
 
+   /** @brief Virtual method required for Zienkiewicz-Zhu type error estimators.
+
+       The purpose of the method is to compute a local "flux" finite element
+       function given a local finite element solution. The "flux" function has
+       to be computed in terms of its coefficients (represented by the Vector
+       @a flux) which multiply the basis functions defined by the FiniteElement
+       @a fluxelem. Typically, the "flux" function will have more than one
+       component and consequently @a flux should be store the coefficients of
+       all components: first all coefficient for component 0, then all
+       coefficients for component 1, etc. What the "flux" function represents
+       depends on the specific integrator. For example, in the case of
+       DiffusionIntegrator, the flux is the gradient of the solution multiplied
+       by the diffusion coefficient.
+
+       @param[in] el     FiniteElement of the solution.
+       @param[in] Trans  The ElementTransformation describing the physical
+                         position of the mesh element.
+       @param[in] u      Solution coefficients representing the expansion of the
+                         solution function in the basis of @a el.
+       @param[in] fluxelem  FiniteElement of the "flux".
+       @param[out] flux  "Flux" coefficients representing the expansion of the
+                         "flux" function in the basis of @a fluxelem. The size
+                         of @a flux as a Vector has to be set by this method,
+                         e.g. using Vector::SetSize().
+       @param[in] with_coef  If zero (the default value is 1) the implementation
+                             of the method may choose not to scale the "flux"
+                             function by any coefficients describing the
+                             integrator.
+    */
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
                                    Vector &u,
                                    const FiniteElement &fluxelem,
                                    Vector &flux, int with_coef = 1) { }
 
+   /** @brief Virtual method required for Zienkiewicz-Zhu type error estimators.
+
+       The purpose of this method is to compute a local number that measures the
+       energy of a given "flux" function (see ComputeElementFlux() for a
+       description of the "flux" function). Typically, the enegy of a "flux"
+       function should be equal to a_local(u,u), if the "flux" is defined from
+       a solution u; here a_local(.,.) denotes the element-local bilinear
+       form represented by the integrator.
+
+       @param[in] fluxelem  FiniteElement of the "flux".
+       @param[in] Trans  The ElementTransformation describing the physical
+                         position of the mesh element.
+       @param[in] flux   "Flux" coefficients representing the expansion of the
+                         "flux" function in the basis of @a fluxelem.
+       @param[out] d_energy  If not NULL, the given Vector should be set to
+                             represent directional energy split that can be used
+                             for anisotropic error estimation.
+       @returns The computed energy.
+    */
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL)
