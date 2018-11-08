@@ -871,7 +871,7 @@ public:
        As with SetSystemsOptions(), this solver assumes Ordering::byVDIM. */
    void SetElasticityOptions(ParFiniteElementSpace *fespace);
 
-   void SetAIROptions(int distance=2,  std::string prerelax="",
+   void SetAIROptions(float distance=2,  std::string prerelax="",
                       std::string postrelax="FFC", double strength_tol=0.1,
                       double strength_tolR=0.01, double filter_tolR=0.0,
                       int interp_type=100, int relax_type=0, double filterA_tol=0.0, 
@@ -903,7 +903,7 @@ public:
    void SetInterpolation(int interp_type)
    { HYPRE_BoomerAMGSetInterpType(amg_precond, interp_type); }
 
-   void SetRestriction(int restrict_type)
+   void SetRestriction(float restrict_type)
    { HYPRE_BoomerAMGSetRestriction(amg_precond, restrict_type); }
 
    void SetCoarsening(int coarsen_type)

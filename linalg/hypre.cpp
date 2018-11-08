@@ -2845,7 +2845,7 @@ void HypreBoomerAMG::SetCoord(int coord_dim, float *coord)
    HYPRE_BoomerAMGSetCoordinates (amg_precond, coord);
 }
 
-void HypreBoomerAMG::SetAIROptions(int distance,
+void HypreBoomerAMG::SetAIROptions(float distance,
                                    std::string prerelax,
                                    std::string postrelax, 
                                    double strength_tolC,
