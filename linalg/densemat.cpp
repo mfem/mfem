@@ -137,45 +137,8 @@ DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
 DenseMatrix::DenseMatrix(double *d, int h, int w)
    : Matrix(h, w)
 {
-   if (mm::Get().Known(d))
-   {
-      data = d;
-      capacity = -h*w;
-   }
-   else
-   {
-      assert(false);
-      data = mm::malloc<double>(h*w);
-      data = d;
-      capacity = -h*w;
-   }
-}
-
-void DenseMatrix::UseExternalData(double *d, int h, int w)
-{
-   if (mm::Get().Known(d))
-   {
-      data = d;
-      height = h;
-      width = w;
-      capacity = -h*w;
-   }
-   else
-   {
-      if (!d and h==0 and w==0)
-      {
-         // mesh, ncmesh, DenseTensor point_matrices Clear
-         data = NULL;
-         height = width = capacity = 0;
-      }
-      else   // d = NULL and h!=0, w!=0
-      {
-         data = d;
-         height = h;
-         width = w;
-         capacity = -h*w;
-      }
-   }
+   data = d;
+   capacity = -h*w;
 }
 
 void DenseMatrix::SetSize(int h, int w)
