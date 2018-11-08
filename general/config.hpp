@@ -18,7 +18,7 @@ namespace mfem
 #ifndef __NVCC__
 typedef int CUdevice;
 typedef int CUcontext;
-typedef int CUstream;
+typedef void* CUstream;
 #endif // __NVCC__
 
 // *****************************************************************************
@@ -52,7 +52,7 @@ private:
 
 public:
    // **************************************************************************
-   static inline constexpr bool nvcc() {
+   constexpr static inline bool nvcc() {
 #ifdef __NVCC__
       return true;
 #else

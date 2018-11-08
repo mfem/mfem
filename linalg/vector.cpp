@@ -50,7 +50,6 @@ Vector::Vector(const Vector &v)
 
 Vector::Vector(double *_data, int _size)
 {
-   if (not mm::Get().Known(_data)) { assert(false); }
    data = _data;
    size = _size;
    allocsize = -size;
@@ -58,13 +57,11 @@ Vector::Vector(double *_data, int _size)
 
 void Vector::SetData(double *d)
 {
-   assert(mm::Get().Known(d));
    data = d;
 }
 
 void Vector::SetDataAndSize(double *d, int s)
 {
-   assert(mm::Get().Known(d));
    data = d;
    size = s;
    allocsize = -s;
@@ -581,7 +578,7 @@ void Vector::SetSubVectorComplement(const Array<int> &dofs, const double val)
 void Vector::Print(std::ostream &out, int width) const
 {
    if (!size) { return; }
-   mm::Get().Rsync(data);
+   mm::Get().Pull(data);
    for (int i = 0; 1; )
    {
       out << data[i];

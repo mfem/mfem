@@ -11,22 +11,19 @@
 
 #include "../okina.hpp"
 #include "mm.hpp"
+#include "../custub.hpp"
 
 // *****************************************************************************
 namespace mfem
 {
 
-// *****************************************************************************
-#ifdef __NVCC__
-
 // ******************************************************************************
 void* kH2D(void *dest, const void *src, size_t bytes, const bool async)
 {
    GET_ADRS(src);
    GET_ADRS(dest);
-   if (not async) { cuMemcpyHtoD((CUdeviceptr)d_dest, d_src, bytes); }
-   else { cuMemcpyHtoDAsync((CUdeviceptr)d_dest, d_src, bytes,
-                            config::Get().Stream()); }
+   if (not async) { okMemcpyHtoD(d_dest, d_src, bytes); }
+   else { okMemcpyHtoDAsync(d_dest, d_src, bytes, config::Get().Stream()); }
    return dest;
 }
 
@@ -35,9 +32,8 @@ void* kD2H(void *dest, const void *src, size_t bytes, const bool async)
 {
    GET_ADRS(src);
    GET_ADRS(dest);
-   if (not async) { cuMemcpyDtoH(d_dest, (CUdeviceptr)d_src, bytes); }
-   else { cuMemcpyDtoHAsync(d_dest, (CUdeviceptr)d_src, bytes,
-                            config::Get().Stream());}
+   if (not async) { okMemcpyDtoH(d_dest, d_src, bytes); }
+   else { okMemcpyDtoHAsync(d_dest, d_src, bytes, config::Get().Stream()); }
    return dest;
 }
 
@@ -46,33 +42,10 @@ void* kD2D(void *dest, const void *src, size_t bytes, const bool async)
 {
    GET_ADRS(src);
    GET_ADRS(dest);
-   if (not async) { cuMemcpyDtoD((CUdeviceptr)d_dest,
-                                 (CUdeviceptr)d_src,
-                                 bytes); }
-   else {
-      cuMemcpyDtoDAsync((CUdeviceptr)d_dest,
-                        (CUdeviceptr)d_src,
-                        bytes,
-                        config::Get().Stream());
-   }
+   if (not async) { okMemcpyDtoD(d_dest, d_src, bytes); }
+   else { okMemcpyDtoDAsync(d_dest, d_src, bytes, config::Get().Stream()); }
    return dest;
 }
-
-#else // __NVCC__
- 
-// ******************************************************************************
-void* kH2D(void *dest, const void *src, size_t bytes, const bool async)
-{ return dest; }
-
-// *****************************************************************************
-void* kD2H(void *dest, const void *src, size_t bytes, const bool async)
-{ return dest; }
-
-// *****************************************************************************
-void* kD2D(void *dest, const void *src, size_t bytes, const bool async)
-{ return dest; }
-
-#endif // __NVCC__
 
 // *****************************************************************************
 } // namespace mfem

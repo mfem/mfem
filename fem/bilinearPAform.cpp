@@ -223,10 +223,12 @@ void PABilinearForm::RecoverFEMSolution(const Vector &X,
       // Apply conforming prolongation
       x.SetSize(P->Height());
       P->Mult(X, x);
+      mm::Get().Pull(x.GetData());
       return;
    }
    // Otherwise X and x point to the same data
    x = X;
+   mm::Get().Pull(x.GetData());
 }
 
 }

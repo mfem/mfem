@@ -12,6 +12,7 @@
 #include "../general/error.hpp"
 #include "../general/okina.hpp"
 #include "kernels/mm.hpp"
+#include "custub.hpp"
 
 namespace mfem
 {
@@ -19,7 +20,7 @@ namespace mfem
 // *****************************************************************************
 static size_t xs_shift = 0;
 static bool xs_shifted = false;
-#define MFEM_SIGSEGV_FOR_STACK {*(size_t*)NULL = 0;}
+#define MFEM_SIGSEGV_FOR_STACK __builtin_trap()
 
 // *****************************************************************************
 static inline void *xsShift(const void *adrs)
@@ -41,45 +42,6 @@ void mm::Setup(void)
 }
 
 // *****************************************************************************
-// * Add an address lazily only on the host
-// *****************************************************************************
-void* mm::Insert(const void *adrs, const size_t size, const size_t size_of_T)
-{
-   if (!mm::Get().mng) { mm::Get().Setup(); }
-   size_t *h_adrs = ((size_t *) adrs) + xs_shift;
-   const size_t bytes = size*size_of_T;
-   const auto search = mng->find(h_adrs);
-   const bool present = search != mng->end();
-   if (present)
-   {
-      mfem_error("[ERROR] Trying to add already present address!");
-   }
-   mm2dev_t &mm2dev = mng->operator[](h_adrs);
-   mm2dev.host = true;
-   mm2dev.bytes = bytes;
-   mm2dev.h_adrs = h_adrs;
-   mm2dev.d_adrs = NULL;
-   return (void*) mm2dev.h_adrs;
-}
-
-// *****************************************************************************
-// * Remove the address from the map
-// *****************************************************************************
-void *mm::Erase(const void *adrs)
-{
-   const auto search = mng->find(adrs);
-   const bool present = search != mng->end();
-   if (not present)
-   {
-      MFEM_SIGSEGV_FOR_STACK;
-      mfem_error("[ERROR] Trying to remove an unknown address!");
-   }
-   // Remove element from the map
-   mng->erase(adrs);
-   return xsShift(adrs);
-}
-
-// *****************************************************************************
 bool mm::Known(const void *adrs)
 {
    const auto search = mng->find(adrs);
@@ -88,7 +50,37 @@ bool mm::Known(const void *adrs)
 }
 
 // *****************************************************************************
-// *
+// * Add an address only on the host
+// *****************************************************************************
+void* mm::Insert(const void *adrs, const size_t size, const size_t size_of_T)
+{
+   if (!mm::Get().mng) { mm::Get().Setup(); }
+   size_t *h_adrs = ((size_t *) adrs) + xs_shift;
+   const bool present = Known(h_adrs);
+   if (present) MFEM_SIGSEGV_FOR_STACK;
+   MFEM_ASSERT(not present, "[ERROR] Trying to add already present address!");
+   mm2dev_t &mm2dev = mng->operator[](h_adrs);
+   mm2dev.host = true;
+   mm2dev.bytes = size*size_of_T;
+   mm2dev.h_adrs = h_adrs;
+   mm2dev.d_adrs = NULL;
+   return mm2dev.h_adrs;
+}
+
+// *****************************************************************************
+// * Remove the address from the map
+// *****************************************************************************
+void *mm::Erase(const void *adrs)
+{
+   const bool present = Known(adrs);
+   if (not present) MFEM_SIGSEGV_FOR_STACK;
+   MFEM_ASSERT(present, "[ERROR] Trying to remove an unknown address!");
+   mng->erase(adrs);
+   return xsShift(adrs);
+}
+
+// *****************************************************************************
+// * Get an address from host or device
 // *****************************************************************************
 void* mm::Adrs(const void *adrs)
 {
@@ -98,79 +90,38 @@ void* mm::Adrs(const void *adrs)
    const bool cuda = config::Get().Cuda();
    const bool nvcc = config::nvcc();
    mm2dev_t &mm2dev = mng->operator[](adrs);
-   // Just return asked known host address while not in CUDA mode
-   if (mm2dev.host and not cuda)
-   {
-      return xsShift(mm2dev.h_adrs);
-   }
-   // Otherwise push it to the device if it hasn't been seen
-   if (not mm2dev.d_adrs)
+   // Just return asked known host address if not in CUDA mode
+   if (mm2dev.host and not cuda) { return xsShift(mm2dev.h_adrs); }
+   // If it hasn't been seen, alloc it in the device
+   if (not mm2dev.d_adrs) 
    {
       if (not nvcc)
          mfem_error("[ERROR] Trying to run without CUDA support!");
-#ifdef __NVCC__
       const size_t bytes = mm2dev.bytes;
-      CUdeviceptr ptr = (CUdeviceptr) NULL;
-      if (bytes>0)
-      {
-         cuMemAlloc(&ptr,bytes);
-      }
-      mm2dev.d_adrs = (void*)ptr;
-      const CUstream stream = config::Get().Stream();
-      cuMemcpyHtoDAsync(ptr, mm2dev.h_adrs, bytes, stream);
-      //cuMemcpyHtoD(ptr, mm2dev.h_adrs, bytes);
+      if (bytes>0) { okMemAlloc(&mm2dev.d_adrs, bytes); }
+      void *stream = config::Get().Stream();
+      okMemcpyHtoDAsync(mm2dev.d_adrs, mm2dev.h_adrs, bytes, stream);
       mm2dev.host = false; // Now this address is GPU born
-#endif // __NVCC__
    }
-   
-   if (not cuda)
-   {
-      if (not nvcc)
-         mfem_error("[ERROR] Trying to run without CUDA support!");
-#ifdef __NVCC__
-      cuMemcpyDtoH(mm2dev.h_adrs, (CUdeviceptr)mm2dev.d_adrs, mm2dev.bytes);
-#endif // __NVCC__
-      mm2dev.host = true;
-      return (void*)mm2dev.h_adrs;
-   }
-   return (void*)mm2dev.d_adrs;
-}
-
-// *****************************************************************************
-void mm::Rsync(const void *adrs)
-{
-   MFEM_ASSERT(Known(adrs), "[ERROR] Trying to rsync from an unknown address!");
-   const mm2dev_t &mm2dev = mng->operator[](adrs);
-   if (mm2dev.host) { return; }
-#ifdef __NVCC__
-   cuMemcpyDtoH(mm2dev.h_adrs, (CUdeviceptr)mm2dev.d_adrs, mm2dev.bytes);
-#endif // __NVCC__
+   return mm2dev.d_adrs;
 }
 
 // *****************************************************************************
 void mm::Push(const void *adrs)
 {
    MFEM_ASSERT(Known(adrs), "[ERROR] Trying to push an unknown address!");
-   mm2dev_t &mm2dev = mng->operator[](adrs);
+   const mm2dev_t &mm2dev = mng->operator[](adrs);
    if (mm2dev.host) { return; }
-#ifdef __NVCC__
-   const size_t bytes = mm2dev.bytes;
-   if (not mm2dev.d_adrs)
-   {
-      CUdeviceptr ptr = (CUdeviceptr) NULL;
-      if (bytes>0)
-      {
-         cuMemAlloc(&ptr,bytes);
-      }
-      mm2dev.d_adrs = (void*)ptr;
-   }
-   cuMemcpyHtoD((CUdeviceptr)mm2dev.d_adrs,
-                (void*)mm2dev.h_adrs, bytes);
-#endif // __NVCC__
+   okMemcpyHtoD(mm2dev.d_adrs, mm2dev.h_adrs, mm2dev.bytes);
 }
 
 // *****************************************************************************
-void mm::Pull(const void *adrs) { Rsync(adrs); }
+void mm::Pull(const void *adrs) {
+   MFEM_ASSERT(Known(adrs), "[ERROR] Trying to pull an unknown address!");
+   const mm2dev_t &mm2dev = mng->operator[](adrs);
+   if (mm2dev.host) { return; }
+   okMemcpyDtoH(mm2dev.h_adrs, mm2dev.d_adrs, mm2dev.bytes);
+}
 
 // *****************************************************************************
 void* mm::memcpy(void *dest, const void *src, size_t bytes)
@@ -205,5 +156,4 @@ void* mm::D2D(void *dest, const void *src, size_t bytes, const bool async)
    return mfem::kD2D(dest, src, bytes, async);
 }
 
-// *****************************************************************************
 } // namespace mfem
