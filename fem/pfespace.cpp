@@ -201,14 +201,14 @@ void ParFiniteElementSpace::PrintPartitionStats()
    {
       if (MyRank == 0)
       {
-         std::cout << "True DOFs by rank: " << ltdofs;
+         mfem::out << "True DOFs by rank: " << ltdofs;
          for (int i = 1; i < NRanks; i++)
          {
             MPI_Status status;
             MPI_Recv(&ltdofs, 1, MPI_LONG, i, 123, MyComm, &status);
-            std::cout << " " << ltdofs;
+            mfem::out << " " << ltdofs;
          }
-         std::cout << "\n";
+         mfem::out << "\n";
       }
       else
       {
@@ -2196,7 +2196,7 @@ int ParFiniteElementSpace
 
    if (MyRank == 0)
    {
-      std::cout << "P matrix stats (avg per rank): "
+      mfem::out << "P matrix stats (avg per rank): "
                 << double(glob_rounds)/NRanks << " rounds, "
                 << double(glob_msgs_sent)/NRanks << " msgs sent, "
                 << double(glob_msgs_recv)/NRanks << " msgs recv, "
