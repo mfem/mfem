@@ -318,7 +318,19 @@ int main(int argc, char *argv[])
       fespace.Update();
       x.Update();
 
-      // 21. Inform also the bilinear and linear forms that the space has
+      // 21. Load balance the mesh, and update the space and solution. Currently
+      //     available only for nonconforming meshes.
+      if (pmesh.Nonconforming())
+      {
+         pmesh.Rebalance();
+
+         // Update the space and the GridFunction. This time the update matrix
+         // redistributes the GridFunction among the processors.
+         fespace.Update();
+         x.Update();
+      }
+
+      // 22. Inform also the bilinear and linear forms that the space has
       //     changed.
       a.Update();
       b.Update();
