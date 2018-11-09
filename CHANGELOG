@@ -53,7 +53,7 @@ Discretization improvements
 ---------------------------
 - Added element flux, and flux energy computation in class ElasticityIntegrator,
   allowing for the use of Zienkiewicz-Zhu type error estimators with the
-  integrator. For an illustration of this addition, see the new example 22.
+  integrator. For an illustration of this addition, see the new Example 22.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -69,10 +69,6 @@ New and updated examples and miniapps
 
 - Added a new example, Example 22/22p, that illustrates the use of AMR to solve
   a linear elasticity problem. This is an extension of Example 2/2p.
-
-Discretization improvements
----------------------------
-- Added element flux computation in ElasticityIntegrator.
 
 Miscellaneous
 -------------
