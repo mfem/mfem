@@ -50,7 +50,7 @@ public:
    /** Reorder the vertices so that the longest edge is from vertex 0
        to vertex 1. If called it should be once from the mesh constructor,
        because the order may be used later for setting the edges. **/
-   virtual void MarkEdge(DenseMatrix & pmat);
+   void MarkEdge(DenseMatrix & pmat);
 
    static void MarkEdge(int *indices, const DSTable &v_to_v, const int *length);
 
