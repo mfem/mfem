@@ -31,9 +31,6 @@ class ParPumiMesh;
 /// Class for parallel meshes
 class ParMesh : public Mesh
 {
-#ifdef MFEM_USE_PUMI
-   friend class ParPumiMesh;
-#endif
 protected:
    ParMesh() : MyComm(0), NRanks(0), MyRank(-1),
       have_face_nbr_data(false), pncmesh(NULL) {}
@@ -147,6 +144,52 @@ protected:
    void DeleteFaceNbrData();
 
    bool WantSkipSharedMaster(const NCMesh::Master &master) const;
+
+   /// Fills out partitioned Mesh::vertices
+   int BuildLocalVertices(const Mesh& global_mesh, const int *partitioning,
+                          Array<int> &vert_global_local);
+
+   /// Fills out partitioned Mesh::elements
+   int BuildLocalElements(const Mesh& global_mesh, const int *partitioning,
+                          const Array<int> &vert_global_local);
+
+   /// Fills out partitioned Mesh::boundary
+   int BuildLocalBoundary(const Mesh& global_mesh, const int *partitioning,
+                          const Array<int> &vert_global_local,
+                          Array<bool>& activeBdrElem,
+                          Table* &edge_element);
+
+   void FindSharedFaces(const Mesh &mesh, const int* partition,
+                        Array<int>& face_group,
+                        ListOfIntegerSets& groups);
+
+   int FindSharedEdges(const Mesh &mesh, const int* partition,
+                       Table* &edge_element, ListOfIntegerSets& groups);
+
+   int FindSharedVertices(const int *partition, Table* vertex_element,
+                          ListOfIntegerSets& groups);
+
+   void BuildFaceGroup(int ngroups, const Mesh &mesh,
+                       const Array<int>& face_group,
+                       int &nstria, int &nsquad);
+
+   void BuildEdgeGroup(int ngroups, const Table& edge_element);
+
+   void BuildVertexGroup(int ngroups, const Table& vert_element);
+
+   void BuildSharedFaceElems(int ntri_faces, int nquad_faces,
+                             const Mesh &mesh, int *partitioning,
+                             const STable3D *faces_tbl,
+                             const Array<int> &face_group,
+                             const Array<int> &vert_global_local);
+
+   void BuildSharedEdgeElems(int nedges, Mesh &mesh,
+                             const Array<int> &vert_global_local,
+                             const Table *edge_element);
+
+   void BuildSharedVertMapping(int nvert, const Table* vert_element,
+                               const Array<int> &vert_global_local);
+
 
 public:
    /** Copy constructor. Performs a deep copy of (almost) all data, so that the
@@ -281,6 +324,11 @@ public:
                           InverseElementTransformation *inv_trans = NULL);
 
    virtual ~ParMesh();
+
+   friend class ParNCMesh;
+#ifdef MFEM_USE_PUMI
+   friend class ParPumiMesh;
+#endif
 };
 
 }
