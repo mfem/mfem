@@ -29,13 +29,13 @@ namespace mfem
 class BilinearForm : public Matrix
 {
 protected:
-   /// Sparse matrix to be associated with the form.
+   /// Sparse matrix to be associated with the form. Owned.
    SparseMatrix *mat;
 
-   /// Matrix used to eliminate b.c.
+   /// Matrix used to eliminate b.c. Owned.
    SparseMatrix *mat_e;
 
-   /// FE space on which the form lives.
+   /// FE space on which the form lives. Not owned.
    FiniteElementSpace *fes;
 
    /// Indicates the Mesh::sequence corresponding to the current state of the
@@ -50,22 +50,22 @@ protected:
 
    /// Set of Boundary Integrators to be applied.
    Array<BilinearFormIntegrator*> bbfi;
-   Array<Array<int>*>             bbfi_marker;
+   Array<Array<int>*>             bbfi_marker; ///< Now owned.
 
    /// Set of interior face Integrators to be applied.
    Array<BilinearFormIntegrator*> fbfi;
 
    /// Set of boundary face Integrators to be applied.
    Array<BilinearFormIntegrator*> bfbfi;
-   Array<Array<int>*>             bfbfi_marker;
+   Array<Array<int>*>             bfbfi_marker; ///< Not owned.
 
    DenseMatrix elemmat;
    Array<int>  vdofs;
 
-   DenseTensor *element_matrices;
+   DenseTensor *element_matrices; ///< Owned.
 
-   StaticCondensation *static_cond;
-   Hybridization *hybridization;
+   StaticCondensation *static_cond; ///< Owned.
+   Hybridization *hybridization; ///< Owned.
 
    /**
     * This member allows one to specify what should be done
@@ -94,6 +94,14 @@ public:
    /// Creates bilinear form associated with FE space @a *f.
    BilinearForm(FiniteElementSpace *f);
 
+   /** @brief Create a BilinearForm on the FiniteElementSpace @a f, using the
+       same integrators as the BilinearForm @a bf.
+
+       The integrators in @a bf are copied as pointers and they are not owned by
+       the newly constructed BilinearForm.
+
+       The optional parameter @a ps is used to initialize the internal flag
+       #precompute_sparsity, see UsePrecomputedSparsity() for details. */
    BilinearForm(FiniteElementSpace *f, BilinearForm *bf, int ps = 0);
 
    /// Get the size of the BilinearForm as a square matrix.
@@ -144,14 +152,24 @@ public:
        finalized) and the entries are initialized with zeros. */
    void AllocateMatrix() { if (mat == NULL) { AllocMat(); } }
 
+   /// Access all integrators added with AddDomainIntegrator().
    Array<BilinearFormIntegrator*> *GetDBFI() { return &dbfi; }
 
+   /// Access all integrators added with AddBoundaryIntegrator().
    Array<BilinearFormIntegrator*> *GetBBFI() { return &bbfi; }
+   /** @brief Access all boundary markers added with AddBoundaryIntegrator().
+       If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
    Array<Array<int>*> *GetBBFI_Marker() { return &bbfi_marker; }
 
+   /// Access all integrators added with AddInteriorFaceIntegrator().
    Array<BilinearFormIntegrator*> *GetFBFI() { return &fbfi; }
 
+   /// Access all integrators added with AddBdrFaceIntegrator().
    Array<BilinearFormIntegrator*> *GetBFBFI() { return &bfbfi; }
+   /** @brief Access all boundary markers added with AddBdrFaceIntegrator().
+       If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
    Array<Array<int>*> *GetBFBFI_Marker() { return &bfbfi_marker; }
 
    const double &operator()(int i, int j) { return (*mat)(i,j); }
@@ -178,10 +196,10 @@ public:
                                  const double a = 1.0) const
    { mat->AddMultTranspose(x, y, a); }
 
-   void FullAddMultTranspose (const Vector & x, Vector & y) const
+   void FullAddMultTranspose(const Vector & x, Vector & y) const
    { mat->AddMultTranspose(x, y); mat_e->AddMultTranspose(x, y); }
 
-   virtual void MultTranspose (const Vector & x, Vector & y) const
+   virtual void MultTranspose(const Vector & x, Vector & y) const
    { y = 0.0; AddMultTranspose (x, y); }
 
    double InnerProduct(const Vector &x, const Vector &y) const
@@ -218,25 +236,31 @@ public:
       return *mat_e;
    }
 
-   /// Adds new Domain Integrator.
+   /// Adds new Domain Integrator. Assumes ownership of @a bfi.
    void AddDomainIntegrator(BilinearFormIntegrator *bfi);
 
-   /// Adds new Boundary Integrator.
+   /// Adds new Boundary Integrator. Assumes ownership of @a bfi.
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi);
 
    /** @brief Adds new Boundary Integrator, restricted to specific boundary
-       attributes. */
-   void AddBoundaryIntegrator(BilinearFormIntegrator * bfi,
+       attributes.
+
+       Assumes ownership of @a bfi. The array @a bdr_marker is stored internally
+       as a pointer to the given Array<int> object. */
+   void AddBoundaryIntegrator(BilinearFormIntegrator *bfi,
                               Array<int> &bdr_marker);
 
-   /// Adds new interior Face Integrator.
+   /// Adds new interior Face Integrator. Assumes ownership of @a bfi.
    void AddInteriorFaceIntegrator(BilinearFormIntegrator *bfi);
 
-   /// Adds new boundary Face Integrator.
+   /// Adds new boundary Face Integrator. Assumes ownership of @a bfi.
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi);
 
    /** @brief Adds new boundary Face Integrator, restricted to specific boundary
-       attributes. */
+       attributes.
+
+       Assumes ownership of @a bfi. The array @a bdr_marker is stored internally
+       as a pointer to the given Array<int> object. */
    void AddBdrFaceIntegrator(BilinearFormIntegrator *bfi,
                              Array<int> &bdr_marker);
 
@@ -396,43 +420,55 @@ public:
 class MixedBilinearForm : public Matrix
 {
 protected:
-   SparseMatrix *mat;
+   SparseMatrix *mat; ///< Owned.
 
+   /// Not owned.
    FiniteElementSpace *trial_fes, *test_fes;
 
    /// Indicates the BilinerFormIntegrators are owned by another BilinearForm
    int extern_bfs;
 
+   /// Domain integrators.
    Array<BilinearFormIntegrator*> dom;
+   /// Boundary integrators.
    Array<BilinearFormIntegrator*> bdr;
-   Array<BilinearFormIntegrator*> skt; // trace face integrators
+   /// Trace face (skeleton) integrators.
+   Array<BilinearFormIntegrator*> skt;
 
 public:
-   MixedBilinearForm (FiniteElementSpace *tr_fes,
-                      FiniteElementSpace *te_fes);
+   /** @brief Construct a MixedBilinearForm on the given trial, @a tr_fes, and
+       test, @a te_fes, FiniteElementSpace%s. */
+   MixedBilinearForm(FiniteElementSpace *tr_fes,
+                     FiniteElementSpace *te_fes);
 
-   MixedBilinearForm (FiniteElementSpace *tr_fes,
-                      FiniteElementSpace *te_fes,
-                      MixedBilinearForm * mbf);
+   /** @brief Create a MixedBilinearForm on the given trial, @a tr_fes, and
+       test, @a te_fes, FiniteElementSpace%s, using the same integrators as the
+       MixedBilinearForm @a mbf.
 
-   virtual double& Elem (int i, int j);
+       The integrators in @a mbf are copied as pointers and they are not owned
+       by the newly constructed MixedBilinearForm. */
+   MixedBilinearForm(FiniteElementSpace *tr_fes,
+                     FiniteElementSpace *te_fes,
+                     MixedBilinearForm *mbf);
 
-   virtual const double& Elem (int i, int j) const;
+   virtual double &Elem(int i, int j);
 
-   virtual void Mult (const Vector & x, Vector & y) const;
+   virtual const double &Elem(int i, int j) const;
 
-   virtual void AddMult (const Vector & x, Vector & y,
-                         const double a = 1.0) const;
+   virtual void Mult(const Vector & x, Vector & y) const;
 
-   virtual void AddMultTranspose (const Vector & x, Vector & y,
-                                  const double a = 1.0) const;
+   virtual void AddMult(const Vector & x, Vector & y,
+                        const double a = 1.0) const;
 
-   virtual void MultTranspose (const Vector & x, Vector & y) const
+   virtual void AddMultTranspose(const Vector & x, Vector & y,
+                                 const double a = 1.0) const;
+
+   virtual void MultTranspose(const Vector & x, Vector & y) const
    { y = 0.0; AddMultTranspose (x, y); }
 
-   virtual MatrixInverse * Inverse() const;
+   virtual MatrixInverse *Inverse() const;
 
-   virtual void Finalize (int skip_zeros = 1);
+   virtual void Finalize(int skip_zeros = 1);
 
    /** Extract the associated matrix as SparseMatrix blocks. The number of
        block rows and columns is given by the vector dimensions (vdim) of the
@@ -443,24 +479,31 @@ public:
    SparseMatrix &SpMat() { return *mat; }
    SparseMatrix *LoseMat() { SparseMatrix *tmp = mat; mat = NULL; return tmp; }
 
-   void AddDomainIntegrator (BilinearFormIntegrator * bfi);
+   /// Adds a domain integrator. Assumes ownership of @a bfi.
+   void AddDomainIntegrator(BilinearFormIntegrator *bfi);
 
-   void AddBoundaryIntegrator (BilinearFormIntegrator * bfi);
+   /// Adds a boundary integrator. Assumes ownership of @a bfi.
+   void AddBoundaryIntegrator(BilinearFormIntegrator *bfi);
 
-   /** Add a trace face integrator. This type of integrator assembles terms
-       over all faces of the mesh using the face FE from the trial space and the
-       two adjacent volume FEs from the test space. */
-   void AddTraceFaceIntegrator (BilinearFormIntegrator * bfi);
+   /** @brief Add a trace face integrator. Assumes ownership of @a bfi.
 
+       This type of integrator assembles terms over all faces of the mesh using
+       the face FE from the trial space and the two adjacent volume FEs from the
+       test space. */
+   void AddTraceFaceIntegrator(BilinearFormIntegrator *bfi);
+
+   /// Access all integrators added with AddDomainIntegrator().
    Array<BilinearFormIntegrator*> *GetDBFI() { return &dom; }
 
+   /// Access all integrators added with AddBoundaryIntegrator().
    Array<BilinearFormIntegrator*> *GetBBFI() { return &bdr; }
 
+   /// Access all integrators added with AddTraceFaceIntegrator().
    Array<BilinearFormIntegrator*> *GetTFBFI() { return &skt; }
 
-   void operator= (const double a) { *mat = a; }
+   void operator=(const double a) { *mat = a; }
 
-   void Assemble (int skip_zeros = 1);
+   void Assemble(int skip_zeros = 1);
 
    /** For partially conforming trial and/or test FE spaces, complete the
        assembly process by performing A := P2^t A P1 where A is the internal
