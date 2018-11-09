@@ -49,6 +49,12 @@ Other meshing improvements
 - Added support for reading linear and quadratic 2D quadrilateral and triangular
   Cubit meshes.
 
+Discretization improvements
+---------------------------
+- Added element flux, and flux energy computation in class ElasticityIntegrator,
+  allowing for the use of Zienkiewicz-Zhu type error estimators with the
+  integrator. For an illustration of this addition, see the new example 22.
+
 New and updated examples and miniapps
 -------------------------------------
 - Added a new meshing miniapp, Toroid, which can produce a variety of torus
@@ -61,9 +67,8 @@ New and updated examples and miniapps
   a Hamiltonian. The example demonstrates the use of the variable order,
   symplectic integration algorithm implemented in class SIAVSolver.
 
-Discretization improvements
----------------------------
-- Added element flux computation in ElasticityIntegrator.
+- Added a new example, Example 22/22p, that illustrates the use of AMR to solve
+  a linear elasticity problem - this is an extension of Exmaple 2/2p.
 
 Miscellaneous
 -------------
