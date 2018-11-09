@@ -25,40 +25,45 @@ namespace mfem
 // *****************************************************************************
 // * Allocates device memory
 // *****************************************************************************
-int okMemAlloc(void** dptr, size_t bytes){
+int okMemAlloc(void** dptr, size_t bytes)
+{
    return CU_STUB(cuMemAlloc((CUdeviceptr*)dptr, bytes));
 }
 
 // *****************************************************************************
 // * Frees device memory
 // *****************************************************************************
-int okMemFree(void *dptr){ return CU_STUB(cuMemFree((CUdeviceptr)dptr)); }
-   
+int okMemFree(void *dptr) { return CU_STUB(cuMemFree((CUdeviceptr)dptr)); }
+
 // *****************************************************************************
 // * Copies memory from Host to Device
 // *****************************************************************************
-int okMemcpyHtoD(void* dst, const void* src, size_t bytes){
+int okMemcpyHtoD(void* dst, const void* src, size_t bytes)
+{
    return CU_STUB(cuMemcpyHtoD((CUdeviceptr)dst, src, bytes));
 }
 
 // *****************************************************************************
 // * Copies memory from Host to Device
 // *****************************************************************************
-int okMemcpyHtoDAsync(void* dst, const void* src, size_t bytes, void *s){
+int okMemcpyHtoDAsync(void* dst, const void* src, size_t bytes, void *s)
+{
    return CU_STUB(cuMemcpyHtoDAsync((CUdeviceptr)dst, src, bytes, (CUstream)s));
 }
 
 // *****************************************************************************
 // * Copies memory from Device to Device
 // *****************************************************************************
-int okMemcpyDtoD(void* dst, void* src, size_t bytes){
+int okMemcpyDtoD(void* dst, void* src, size_t bytes)
+{
    return CU_STUB(cuMemcpyDtoD((CUdeviceptr)dst, (CUdeviceptr)src, bytes));
 }
-   
+
 // *****************************************************************************
 // * Copies memory from Device to Device
 // *****************************************************************************
-int okMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s){
+int okMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s)
+{
    return CU_STUB(cuMemcpyDtoDAsync((CUdeviceptr)dst,
                                     (CUdeviceptr)src, bytes, (CUstream)s));
 }
@@ -66,14 +71,16 @@ int okMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s){
 // *****************************************************************************
 // * Copies memory from Device to Host
 // *****************************************************************************
-int okMemcpyDtoH(void* dst, void* src, size_t bytes){
+int okMemcpyDtoH(void* dst, void* src, size_t bytes)
+{
    return CU_STUB(cuMemcpyDtoH(dst, (CUdeviceptr)src, bytes));
 }
 
 // *****************************************************************************
 // * Copies memory from Device to Host
 // *****************************************************************************
-int okMemcpyDtoHAsync(void* dst, void* src, size_t bytes, void *s){
+int okMemcpyDtoHAsync(void* dst, void* src, size_t bytes, void *s)
+{
    return CU_STUB(cuMemcpyDtoHAsync(dst, (CUdeviceptr)src, bytes, (CUstream)s));
 }
 
