@@ -58,7 +58,6 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
-   int prec  = 2; // 1: BoomerAMG 2: Euclid
    bool static_cond = false;
    bool visualization = 1;
 
@@ -197,21 +196,12 @@ int main(int argc, char *argv[])
 
    // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
    //     preconditioner from hypre.
-   HypreSolver *prc;
-   if (prec == 1)
-   {
-      prc = new HypreBoomerAMG(A);
-   }
-   else if (prec == 2)
-   {
-      prc = new HypreEuclid(A);
-   }
-
+   HypreSolver *amg = new HypreBoomerAMG(A);
    HyprePCG *pcg = new HyprePCG(A);
    pcg->SetTol(1e-12);
    pcg->SetMaxIter(200);
    pcg->SetPrintLevel(2);
-   pcg->SetPreconditioner(*prc);
+   pcg->SetPreconditioner(*amg);
    pcg->Mult(B, X);
 
    // 13. Recover the parallel grid function corresponding to X. This is the
@@ -247,7 +237,7 @@ int main(int argc, char *argv[])
 
    // 16. Free the used memory.
    delete pcg;
-   delete prc;
+   delete amg;
    delete a;
    delete b;
    delete fespace;

@@ -3724,7 +3724,6 @@ HypreAME::StealEigenvectors()
    return vecs;
 }
 
-
 }
 
 #endif
