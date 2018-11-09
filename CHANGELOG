@@ -63,6 +63,10 @@ New and updated examples and miniapps
 
 Miscellaneous
 -------------
+- Added a variety of coefficients which are sums or products of existing
+  coefficients as well as grid function coefficients which return the
+  divergence, gradient, or curl of their GridFunctions.
+
 - Altered the way FGMRES counts its iterations so that it matches GMRES.
 
 - Various other simplifications, extensions, and bugfixes in the code.
