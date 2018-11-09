@@ -63,12 +63,16 @@ New and updated examples and miniapps
 - Added a new meshing miniapp, Extruder, that demonstrates the capability to
   produce 3D meshes by extruding 2D meshes.
 
-- Added a new example, Example 20, that solves a system of 1D ODEs derived from
-  a Hamiltonian. The example demonstrates the use of the variable order,
+- Added a new example, Example 20/20p, that solves a system of 1D ODEs derived
+  from a Hamiltonian. The example demonstrates the use of the variable order,
   symplectic integration algorithm implemented in class SIAVSolver.
 
 - Added a new example, Example 22/22p, that illustrates the use of AMR to solve
-  a linear elasticity problem - this is an extension of Exmaple 2/2p.
+  a linear elasticity problem. This is an extension of Example 2/2p.
+
+Discretization improvements
+---------------------------
+- Added element flux computation in ElasticityIntegrator.
 
 Miscellaneous
 -------------
