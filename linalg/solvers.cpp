@@ -752,13 +752,20 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       v[0] -> Add (1.0/beta, r);   // v[0] = r / ||r||
       s = 0.0; s(0) = beta;
 
-      for (i = 0; i < m && j <= max_iter; i++)
+      for (i = 0; i < m && j <= max_iter; i++, j++)
       {
 
          if (z[i] == NULL) { z[i] = new Vector(b.Size()); }
          (*z[i]) = 0.0;
 
-         prec->Mult(*v[i], *z[i]);
+         if (prec)
+         {
+            prec->Mult(*v[i], *z[i]);
+         }
+         else
+         {
+            (*z[i]) = (*v[i]);
+         }
          oper->Mult(*z[i], r);
 
          for (k = 0; k <= i; k++)
@@ -784,15 +791,15 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
          double resid = fabs(s(i+1));
          MFEM_ASSERT(IsFinite(resid), "resid = " << resid);
          if (print_level >= 0)
-            mfem::out << "   Pass : " << setw(2) << j
-                      << "   Iteration : " << setw(3) << i+1
+            mfem::out << "   Pass : " << setw(2) << (j-1)/m+1
+                      << "   Iteration : " << setw(3) << j
                       << "  || r || = " << resid << endl;
 
          if ( resid <= final_norm)
          {
             Update(x, i, H, s, z);
             final_norm = resid;
-            final_iter = (j-1)*m + i;
+            final_iter = j;
             converged = 1;
             for (i= 0; i<=m; i++)
             {
@@ -817,7 +824,7 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
       if ( beta <= final_norm)
       {
          final_norm = beta;
-         final_iter = j*m;
+         final_iter = j;
          converged = 1;
          for (i= 0; i<=m; i++)
          {
@@ -826,8 +833,6 @@ void FGMRESSolver::Mult(const Vector &b, Vector &x) const
          }
          return;
       }
-
-      j++;
    }
 
    for (i = 0; i <= m; i++)
