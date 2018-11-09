@@ -540,3 +540,10 @@ install(FILES
 # Install the export set for use with the install-tree
 install(EXPORT ${PROJECT_NAME_UC}Targets
     DESTINATION ${INSTALL_CMAKE_DIR})
+
+#-------------------------------------------------------------------------------
+# Create 'config.mk' from 'config.mk.in' for the build and install locations and
+# define install rules for 'config.mk' and 'test.mk'
+#-------------------------------------------------------------------------------
+
+mfem_export_mk_files()
