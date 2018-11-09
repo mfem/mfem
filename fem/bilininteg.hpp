@@ -108,7 +108,7 @@ public:
 
        The purpose of this method is to compute a local number that measures the
        energy of a given "flux" function (see ComputeElementFlux() for a
-       description of the "flux" function). Typically, the enegy of a "flux"
+       description of the "flux" function). Typically, the energy of a "flux"
        function should be equal to a_local(u,u), if the "flux" is defined from
        a solution u; here a_local(.,.) denotes the element-local bilinear
        form represented by the integrator.

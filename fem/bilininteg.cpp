@@ -2395,7 +2395,7 @@ double ElasticityIntegrator::ComputeFluxEnergy(const FiniteElement &fluxelem,
       //    tr(s) = 2*mu*tr(e) + lambda*tr(e)*dim = (2*mu + dim*lambda)*tr(e)
       // which gives:
       //    tr(e) = tr(s)/(2*mu + dim*lambda)
-      // Then from the first indentity above we can find the strain:
+      // Then from the first identity above we can find the strain:
       //    e = (1/(2*mu))*(s - lambda*tr(e)*I)
 
       double pt_e; // point strain energy density
