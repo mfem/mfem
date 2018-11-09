@@ -1503,7 +1503,7 @@ void Mesh::MarkTriMeshForRefinement()
       if (elements[i]->GetType() == Element::TRIANGLE)
       {
          GetPointMatrix(i, pmat);
-         elements[i]->MarkEdge(pmat);
+         static_cast<Triangle*>(elements[i])->MarkEdge(pmat);
       }
    }
 }
