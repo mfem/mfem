@@ -57,7 +57,7 @@ void* mm::Insert(const void *adrs, const size_t size, const size_t size_of_T)
    if (!mm::Get().mng) { mm::Get().Setup(); }
    size_t *h_adrs = ((size_t *) adrs) + xs_shift;
    const bool present = Known(h_adrs);
-   if (present) MFEM_SIGSEGV_FOR_STACK;
+   if (present) { MFEM_SIGSEGV_FOR_STACK; }
    MFEM_ASSERT(not present, "[ERROR] Trying to add already present address!");
    mm2dev_t &mm2dev = mng->operator[](h_adrs);
    mm2dev.host = true;
@@ -73,7 +73,7 @@ void* mm::Insert(const void *adrs, const size_t size, const size_t size_of_T)
 void *mm::Erase(const void *adrs)
 {
    const bool present = Known(adrs);
-   if (not present) MFEM_SIGSEGV_FOR_STACK;
+   if (not present) { MFEM_SIGSEGV_FOR_STACK; }
    MFEM_ASSERT(present, "[ERROR] Trying to remove an unknown address!");
    mng->erase(adrs);
    return xsShift(adrs);
@@ -85,7 +85,7 @@ void *mm::Erase(const void *adrs)
 void* mm::Adrs(const void *adrs)
 {
    const bool present = Known(adrs);
-   if (not present) MFEM_SIGSEGV_FOR_STACK;
+   if (not present) { MFEM_SIGSEGV_FOR_STACK; }
    MFEM_ASSERT(present, "[ERROR] Trying to convert unknown address!");
    const bool cuda = config::Get().Cuda();
    const bool nvcc = config::nvcc();
@@ -93,10 +93,12 @@ void* mm::Adrs(const void *adrs)
    // Just return asked known host address if not in CUDA mode
    if (mm2dev.host and not cuda) { return xsShift(mm2dev.h_adrs); }
    // If it hasn't been seen, alloc it in the device
-   if (not mm2dev.d_adrs) 
+   if (not mm2dev.d_adrs)
    {
       if (not nvcc)
+      {
          mfem_error("[ERROR] Trying to run without CUDA support!");
+      }
       const size_t bytes = mm2dev.bytes;
       if (bytes>0) { okMemAlloc(&mm2dev.d_adrs, bytes); }
       void *stream = config::Get().Stream();
@@ -116,7 +118,8 @@ void mm::Push(const void *adrs)
 }
 
 // *****************************************************************************
-void mm::Pull(const void *adrs) {
+void mm::Pull(const void *adrs)
+{
    MFEM_ASSERT(Known(adrs), "[ERROR] Trying to pull an unknown address!");
    const mm2dev_t &mm2dev = mng->operator[](adrs);
    if (mm2dev.host) { return; }

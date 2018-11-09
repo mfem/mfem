@@ -58,7 +58,7 @@ public:
                          int copy_interior = 0)
    { mfem_error("ParPABilinearForm::FormLinearSystem(OperatorHandle)"); }
    void RecoverFEMSolution(const Vector &X, const Vector &b,
-                                   Vector &x);
+                           Vector &x);
    void Mult(const Vector &x, Vector &y) const;
    void MultTranspose(const Vector &x, Vector &y) const;
 };
@@ -213,7 +213,7 @@ public:
                          Operator *&A, Vector &X, Vector &B,
                          int copy_interior = 0)
    { mfem_error("ParFABilinearForm::FormLinearSystem(OperatorHandle)"); }
-   
+
    void FormLinearSystem(const Array<int> &ess_tdof_list,
                          Vector &x, Vector &b,
                          OperatorHandle &A,

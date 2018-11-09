@@ -52,14 +52,15 @@ private:
 
 public:
    // **************************************************************************
-   constexpr static inline bool nvcc() {
+   constexpr static inline bool nvcc()
+   {
 #ifdef __NVCC__
       return true;
 #else
       return false;
 #endif
    }
-   
+
    // **************************************************************************
    inline bool Cuda() { return cuda; }
    inline void Cuda(const bool mode) { cuda = mode; }

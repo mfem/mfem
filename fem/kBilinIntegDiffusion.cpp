@@ -56,7 +56,7 @@ void KDiffusionIntegrator::MultAdd(Vector &x, Vector &y)
    const Mesh *mesh = fes->GetMesh();
    const int dim = mesh->Dimension();
    const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
-    const FiniteElementSpace *f = fes;
+   const FiniteElementSpace *f = fes;
    const FiniteElement *fe = f->GetFE(0);
    const int dofs1D = fe->GetOrder() + 1;
    kIntDiffusionMultAdd(dim,

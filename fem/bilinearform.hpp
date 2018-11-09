@@ -352,7 +352,8 @@ public:
 
        NOTE: If there are no transformations, @a X simply reuses the data of
              @a x. */
-   virtual void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
+   virtual void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
+                                 Vector &b,
                                  Operator *&A, Vector &X, Vector &B,
                                  int copy_interior = 0);
 
@@ -362,7 +363,7 @@ public:
                                  Vector &X, Vector &B,
                                  int copy_interior = 0)
    { mfem_error("FABilinearForm::FormLinearSystem(OperatorHandle)"); }
-   
+
    /// Form the linear system matrix A, see FormLinearSystem() for details.
    void FormSystemMatrix(const Array<int> &ess_tdof_list, SparseMatrix &A);
    virtual void FormOperator(const Array<int> &ess_tdof_list, Operator &A) {assert(false);}
@@ -482,7 +483,7 @@ public:
    // **************************************************************************
    void Assemble() { abf->Assemble(); }
    void FormOperator(const Array<int> &ess_tdof_list,
-                             Operator &A)
+                     Operator &A)
    {
       abf->FormOperator(ess_tdof_list,A);
    }
@@ -494,7 +495,7 @@ public:
       abf->FormLinearSystem(ess_tdof_list,x,b,A,X,B,copy_interior);
    }
    void RecoverFEMSolution(const Vector &X, const Vector &b,
-                                   Vector &x)
+                           Vector &x)
    {
       abf->RecoverFEMSolution(X,b,x);
    }
