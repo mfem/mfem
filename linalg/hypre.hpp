@@ -1163,8 +1163,6 @@ public:
    HypreParVector ** StealEigenvectors();
 };
 
-
-
 }
 
 #endif // MFEM_USE_MPI
