@@ -79,10 +79,6 @@ BilinearForm::BilinearForm (FiniteElementSpace * f)
 BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
    : Matrix (f->GetVSize())
 {
-   int i;
-   Array<BilinearFormIntegrator*> *bfi;
-   Array<Array<int>*> *mkr;
-
    fes = f;
    sequence = f->GetSequence();
    mat_e = NULL;
@@ -93,49 +89,16 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
    precompute_sparsity = ps;
    diag_policy = DIAG_KEEP;
 
-   bfi = bf->GetDBFI();
-   dbfi.SetSize (bfi->Size());
-   for (i = 0; i < bfi->Size(); i++)
-   {
-      dbfi[i] = (*bfi)[i];
-   }
+   // Copy the pointers to the integrators
+   dbfi = bf->dbfi;
 
-   bfi = bf->GetBBFI();
-   bbfi.SetSize (bfi->Size());
-   bbfi_marker.SetSize (bfi->Size());
-   for (i = 0; i < bfi->Size(); i++)
-   {
-      bbfi[i] = (*bfi)[i];
-      bbfi_marker[i] = NULL;
-   }
+   bbfi = bf->bbfi;
+   bbfi_marker = bf->bbfi_marker;
 
-   bfi = bf->GetFBFI();
-   fbfi.SetSize (bfi->Size());
-   for (i = 0; i < bfi->Size(); i++)
-   {
-      fbfi[i] = (*bfi)[i];
-   }
+   fbfi = bf->fbfi;
 
-   bfi = bf->GetBFBFI();
-   bfbfi.SetSize (bfi->Size());
-   bfbfi_marker.SetSize(bfi->Size());
-   for (i = 0; i < bfi->Size(); i++)
-   {
-      bfbfi[i] = (*bfi)[i];
-      bfbfi_marker[i] = NULL;
-   }
-
-   mkr = bf->GetBBFI_Marker();
-   for (i=0; i<mkr->Size(); i++)
-   {
-      bbfi_marker[i] = (*mkr)[i];
-   }
-
-   mkr = bf->GetBFBFI_Marker();
-   for (i=0; i<mkr->Size(); i++)
-   {
-      bfbfi_marker[i] = (*mkr)[i];
-   }
+   bfbfi = bf->bfbfi;
+   bfbfi_marker = bf->bfbfi_marker;
 
    AllocMat();
 }
@@ -966,34 +929,15 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
                                       MixedBilinearForm * mbf)
    : Matrix(te_fes->GetVSize(), tr_fes->GetVSize())
 {
-   int i;
-   Array<BilinearFormIntegrator*> *bfi;
-
    trial_fes = tr_fes;
    test_fes = te_fes;
    mat = NULL;
    extern_bfs = 1;
 
-   bfi = mbf->GetDBFI();
-   dom.SetSize (bfi->Size());
-   for (i = 0; i < bfi->Size(); i++)
-   {
-      dom[i] = (*bfi)[i];
-   }
-
-   bfi = mbf->GetBBFI();
-   bdr.SetSize (bfi->Size());
-   for (i = 0; i < bfi->Size(); i++)
-   {
-      bdr[i] = (*bfi)[i];
-   }
-
-   bfi = mbf->GetTFBFI();
-   skt.SetSize (bfi->Size());
-   for (i = 0; i < bfi->Size(); i++)
-   {
-      skt[i] = (*bfi)[i];
-   }
+   // Copy the pointers to the integrators
+   dom = mbf->dom;
+   bdr = mbf->bdr;
+   skt = mbf->skt;
 }
 
 double & MixedBilinearForm::Elem (int i, int j)
