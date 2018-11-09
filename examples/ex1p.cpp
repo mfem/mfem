@@ -175,7 +175,6 @@ int main(int argc, char *argv[])
    if (gpu) { config::Get().Cuda(true); }
    if (pa)  { config::Get().PA(true);   }
 
-
    // 9. Define the solution vector x as a parallel finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
@@ -216,15 +215,15 @@ int main(int argc, char *argv[])
    cg.SetPrintLevel(3);
    cg.SetOperator(*A);
    cg.Mult(B, X);
-   /*
-   HypreSolver *amg = new HypreBoomerAMG(A);
-   HyprePCG *pcg = new HyprePCG(A);
-   pcg->SetTol(1e-12);
-   pcg->SetMaxIter(200);
-   pcg->SetPrintLevel(2);
-   pcg->SetPreconditioner(*amg);
-   pcg->Mult(B, X);
-   */
+
+   // HypreSolver *amg = new HypreBoomerAMG(A);
+   // HyprePCG *pcg = new HyprePCG(A);
+   // pcg->SetTol(1e-12);
+   // pcg->SetMaxIter(200);
+   // pcg->SetPrintLevel(2);
+   // pcg->SetPreconditioner(*amg);
+   // pcg->Mult(B, X);
+
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
    a->RecoverFEMSolution(X, *b, x);
@@ -257,8 +256,8 @@ int main(int argc, char *argv[])
    }
 
    // 16. Free the used memory.
-   //delete pcg;
-   //delete amg;
+   // delete pcg;
+   // delete amg;
    delete A;
    delete a;
    delete b;
