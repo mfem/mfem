@@ -97,12 +97,11 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   │   ├── nurbs
   │   ├── performance
   │   └── tools
-  └── test
-      └── unittest
-          ├── data
-          ├── fem
-          ├── linalg
-          └── mesh
+  └── tests
+      ├── unit
+      │   ├── ...
+      └── smoke
+
   ```
 
 - The main directories are `fem/`, `mesh/` and `linalg/` containing the C++
@@ -157,8 +156,8 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   in the simple example codes and more fully-featured mini applications in the
   `examples/` and `miniapps/` directories.
 
-- The `test/` directory contains a collection of tests currently consisting of a
-  unit test suite.  Baseline and performance testing may live here later.
+- The `tests/` directory contains a collection of tests currently consisting of a
+  unit test suite and some smoke tests that run some example codes.
 
 - See also the [code overview](http://mfem.org/code-overview/) section on the
   MFEM website.
