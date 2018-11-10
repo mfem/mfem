@@ -39,6 +39,50 @@ void TMOP_Metric_001::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI1(weight, A.GetData());
 }
 
+double TMOP_Metric_skew2D::EvalW(const DenseMatrix &Jpt) const
+{
+   MFEM_VERIFY(Jtr != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   DenseMatrix Jpr(2, 2);
+   Mult(Jpt, *Jtr, Jpr);
+
+   Vector col1, col2;
+   Jpr.GetColumn(0, col1);
+   Jpr.GetColumn(1, col2);
+   double norm_prod = col1.Norml2() * col2.Norml2();
+   const double cos_Jpt = (col1 * col2) / norm_prod,
+                sin_Jpt = Jpr.Det() / norm_prod;
+
+   Jtr->GetColumn(0, col1);
+   Jtr->GetColumn(1, col2);
+   norm_prod = col1.Norml2() * col2.Norml2();
+   const double cos_Jtr = (col1 * col2) / norm_prod,
+                sin_Jtr = Jtr->Det() / norm_prod;
+
+   return 0.5 * (1.0 - cos_Jpt * cos_Jtr - sin_Jpt * sin_Jtr);
+}
+
+double TMOP_Metric_aspratio2D::EvalW(const DenseMatrix &Jpt) const
+{
+   MFEM_VERIFY(Jtr != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   DenseMatrix Jpr(2, 2);
+   Mult(Jpt, *Jtr, Jpr);
+
+   Vector col1, col2;
+   Jpr.GetColumn(0, col1);
+   Jpr.GetColumn(1, col2);
+   const double ratio_Jpt = col2.Norml2() / col1.Norml2();
+
+   Jtr->GetColumn(0, col1);
+   Jtr->GetColumn(1, col2);
+   const double ratio_Jtr = col2.Norml2() / col1.Norml2();
+
+   return 0.5 * (ratio_Jpt / ratio_Jtr + ratio_Jtr / ratio_Jpt) - 1.0;
+}
+
 double TMOP_Metric_002::EvalW(const DenseMatrix &Jpt) const
 {
    ie.SetJacobian(Jpt.GetData());
