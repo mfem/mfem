@@ -177,5 +177,5 @@ miniapps/nurbs/mode_*
 miniapps/nurbs/Example1*
 
 # Unit test binary and outputs
-test/unittest/output_meshes
-test/unittest/test
+tests/unit/output_meshes
+tests/unit/test

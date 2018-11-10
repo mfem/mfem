@@ -314,7 +314,7 @@ RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 
 .PHONY: lib all clean distclean install config status info deps serial parallel\
- debug pdebug style check tests unittest
+ debug pdebug style check test unittest alltest
 
 .SUFFIXES:
 .SUFFIXES: .cpp .o
@@ -398,7 +398,7 @@ test:
 unittest: lib
 	@echo "Unit testing the MFEM library. This may take a while..."
 	@echo "Building the unit tests..."
-	cd $(MFEM_DIR)/tests/unittest; \
+	cd $(MFEM_DIR)/tests/unit; \
 		make || (echo "Build of unit tests failed"; exit 1); \
 		./test || (echo "Unit tests failed."; exit 1)
 
@@ -542,7 +542,7 @@ status info:
 	@true
 
 ASTYLE = astyle --options=$(SRC)config/mfem.astylerc
-FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp") $(foreach dir,$(DIRS),"tests/unittest/$(dir)/*.?pp")
+FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp") $(foreach dir,$(DIRS),"tests/unit/$(dir)/*.?pp")
 
 style:
 	@if ! $(ASTYLE) $(FORMAT_FILES) | grep Formatted; then\
