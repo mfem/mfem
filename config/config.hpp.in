@@ -33,6 +33,9 @@
 // Description of the git commit used to build MFEM.
 // #define MFEM_GIT_STRING "@MFEM_GIT_STRING@"
 
+// Installation directory
+// #define MFEM_INSTALL_DIR "@MFEM_INSTALL_DIR@"
+
 // Build the parallel MFEM library.
 // Requires an MPI compiler, and the libraries HYPRE and METIS.
 // #define MFEM_USE_MPI

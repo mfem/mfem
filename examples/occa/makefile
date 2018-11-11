@@ -38,7 +38,7 @@ endif
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
-all: $(EXAMPLES) cache-kernels
+all: $(EXAMPLES)
 
 ifeq ($(MFEM_USE_OCCA),NO)
 $(EXAMPLES):
@@ -65,31 +65,3 @@ clean: clean-build clean-exec
 clean-build:
 	rm -f *.o *~ $(SEQ_EXAMPLES) $(PAR_EXAMPLES)
 	rm -rf *.dSYM *.TVD.*breakpoints
-
-#---[ OCCA ]----------------------------
-MFEM_REAL_DIR      := $(realpath $(MFEM_DIR))
-OCCA_CACHE_DIR     ?= ${HOME}/.occa
-OCCA_LIB_CACHE_DIR := $(OCCA_CACHE_DIR)/libraries
-
-OKL_KERNELS        := $(realpath $(shell find $(MFEM_REAL_DIR) -type f -name '*.okl'))
-OKL_CACHED_KERNELS := $(subst kernels/,,$(subst $(MFEM_REAL_DIR)/,$(OCCA_LIB_CACHE_DIR)/mfem/,$(OKL_KERNELS)))
-
-# Cache kernels in the OCCA cache directory
-.PHONY: cache-kernels
-cache-kernels: $(OKL_CACHED_KERNELS)
-
-.PHONY: clear-cache
-clear-kernels: clear-mfem-kernels $(OKL_CACHED_KERNELS)
-
-.PHONY: clear-cache
-clear-mfem-kernels:
-	@echo y | occa clear -l mfem
-
-$(OCCA_LIB_CACHE_DIR)/mfem/fem/%.okl: $(MFEM_REAL_DIR)/fem/kernels/%.okl
-	@echo "Caching: $(subst $(MFEM_REAL_DIR)/,,$<)"
-	@occa cache mfem/$(subst $(OCCA_LIB_CACHE_DIR)/mfem/,,$(dir $@)) $<
-
-$(OCCA_LIB_CACHE_DIR)/mfem/linalg/%.okl: $(MFEM_REAL_DIR)/linalg/kernels/%.okl
-	@echo "Caching: $(subst $(MFEM_REAL_DIR)/,,$<)"
-	@occa cache mfem/$(subst $(OCCA_LIB_CACHE_DIR)/mfem/,,$(dir $@)) $<
-#=======================================

@@ -107,6 +107,8 @@ int main(int argc, char *argv[])
   }
 #endif
 
+   mfem::Init();
+
    // Set the OCCA device to run example in
    occa::setDevice(device_info);
 

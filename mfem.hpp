@@ -23,6 +23,7 @@
 #include "general/stable3d.hpp"
 #include "general/table.hpp"
 #include "general/tic_toc.hpp"
+#include "general/init.hpp"
 #include "general/isockstream.hpp"
 #include "general/osockstream.hpp"
 #include "general/socketstream.hpp"

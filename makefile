@@ -80,8 +80,11 @@ MAKEOVERRIDES =
 # Path to the mfem source directory, defaults to this makefile's directory:
 THIS_MK := $(lastword $(MAKEFILE_LIST))
 $(if $(wildcard $(THIS_MK)),,$(error Makefile not found "$(THIS_MK)"))
+
 MFEM_DIR ?= $(patsubst %/,%,$(dir $(THIS_MK)))
 MFEM_REAL_DIR := $(realpath $(MFEM_DIR))
+MFEM_INSTALL_DIR := $(MFEM_REAL_DIR)
+
 $(if $(MFEM_REAL_DIR),,$(error Source directory "$(MFEM_DIR)" is not valid))
 SRC := $(if $(MFEM_REAL_DIR:$(CURDIR)=),$(MFEM_DIR)/,)
 $(if $(word 2,$(SRC)),$(error Spaces in SRC = "$(SRC)" are not supported))
@@ -239,7 +242,7 @@ ifeq ($(MFEM_USE_GZSTREAM),YES)
 endif
 
 # List of all defines that may be enabled in config.hpp and config.mk:
-MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
+MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_INSTALL_DIR MFEM_USE_MPI\
  MFEM_USE_METIS MFEM_USE_METIS_5 MFEM_DEBUG MFEM_USE_EXCEPTIONS\
  MFEM_USE_GZSTREAM MFEM_USE_LIBUNWIND MFEM_USE_LAPACK MFEM_THREAD_SAFE\
  MFEM_USE_OPENMP MFEM_USE_MEMALLOC MFEM_TIMER_TYPE MFEM_USE_SUNDIALS\
@@ -311,9 +314,6 @@ RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 
 LIB_DEPS =
-ifeq ($(MFEM_USE_OCCA),YES)
-  LIB_DEPS += cache-kernels
-endif
 
 .PHONY: lib all clean distclean install config status info deps serial parallel\
  debug pdebug style check test
@@ -488,6 +488,7 @@ help:
 status info:
 	$(info MFEM_VERSION         = $(MFEM_VERSION) [v$(MFEM_VERSION_STRING)])
 	$(info MFEM_GIT_STRING      = $(MFEM_GIT_STRING))
+	$(info MFEM_INSTALL_DIR     = $(MFEM_INSTALL_DIR))
 	$(info MFEM_USE_MPI         = $(MFEM_USE_MPI))
 	$(info MFEM_USE_METIS       = $(MFEM_USE_METIS))
 	$(info MFEM_USE_METIS_5     = $(MFEM_USE_METIS_5))
@@ -557,29 +558,3 @@ print-%:
 .PHONY: printall
 printall: $(subst :,\:,$(foreach var,$(.VARIABLES),print-$(var)))
 	@true
-
-#---[ OCCA ]----------------------------
-OCCA_CACHE_DIR     ?= ${HOME}/.occa
-OCCA_LIB_CACHE_DIR := $(OCCA_CACHE_DIR)/libraries
-
-OKL_KERNELS        := $(realpath $(shell find $(MFEM_REAL_DIR) -type f -name '*.okl'))
-OKL_CACHED_KERNELS := $(subst kernels/,,$(subst $(MFEM_REAL_DIR)/,$(OCCA_LIB_CACHE_DIR)/mfem/,$(OKL_KERNELS)))
-
-# Cache kernels in the OCCA cache directory
-.PHONY: cache-kernels
-cache-kernels: $(OKL_CACHED_KERNELS)
-
-.PHONY: clear-kernels
-clear-kernels: clear-mfem-kernels
-
-clear-mfem-kernels:
-	@occa clear -y -l mfem
-
-$(OCCA_LIB_CACHE_DIR)/mfem/fem/%.okl: $(MFEM_REAL_DIR)/fem/kernels/%.okl
-	@echo "Caching: $(subst $(MFEM_REAL_DIR)/,,$<)"
-	@occa cache mfem/$(subst $(OCCA_LIB_CACHE_DIR)/mfem/,,$(dir $@)) $<
-
-$(OCCA_LIB_CACHE_DIR)/mfem/linalg/%.okl: $(MFEM_REAL_DIR)/linalg/kernels/%.okl
-	@echo "Caching: $(subst $(MFEM_REAL_DIR)/,,$<)"
-	@occa cache mfem/$(subst $(OCCA_LIB_CACHE_DIR)/mfem/,,$(dir $@)) $<
-#=======================================
