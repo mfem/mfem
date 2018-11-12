@@ -85,9 +85,9 @@ void computeDefGrad(const QuadratureFunction *qf, const ParFiniteElementSpace *f
          // step def grad as F1 = Jpt*F0; F0 = F1; We do this because we 
          // are not storing F1.
          int k = 0; 
-         for (int m = 0; m < dim; ++m)
+         for (int n = 0; n < dim; ++n)
          {
-            for (int n = 0; n < dim; ++n)
+            for (int m = 0; m < dim; ++m)
             {
                F0(m,n) = qf_data[i * elem_offset + j * qf_offset + k];
                ++k;
@@ -110,10 +110,20 @@ void computeDefGrad(const QuadratureFunction *qf, const ParFiniteElementSpace *f
             for (int n = 0; n < dim; ++n)
             {
                qf_data[i * elem_offset + j * qf_offset + k] = 
-                  F0(m,n);
+                  F0(n,m);
                ++k;
             }
          }
+	 //Temporary method to check and see what's being outputted
+	 /*if( j == 0 && i == 45){
+	   printf("Def Grad at elem 1 and ip 1:\n");
+	   for (int m = 0; m < dim; ++m){
+            for (int n = 0; n < dim; ++n){
+	      printf("%lf ", F0(n,m));
+            }
+	   }
+	   printf("\n");
+	   }*/
       }
       Ttr = NULL;
    }
@@ -320,7 +330,7 @@ void ExaModel::GetElementStress(const int elID, const int ipNum,
 void ExaModel::SetElementStress(const int elID, const int ipNum, 
                                 bool beginStep, double* stress, int numComps)
 {
-   printf("inside ExaModel::SetElementStress, elID, ipNum %d %d \n", elID, ipNum);
+  //printf("inside ExaModel::SetElementStress, elID, ipNum %d %d \n", elID, ipNum);
    const IntegrationRule *ir;
    double* qf_data;
    int qf_offset;
@@ -333,7 +343,7 @@ void ExaModel::SetElementStress(const int elID, const int ipNum,
    }
    else
    {
-     printf("getting stress1 \n");
+     //printf("getting stress1 \n");
      qf = stress1.GetQuadFunction();
    }
 
@@ -348,12 +358,12 @@ void ExaModel::SetElementStress(const int elID, const int ipNum,
            << endl;
    }
 
-   printf("before setting ir \n");
+   //printf("before setting ir \n");
    ir = &(qspace->GetElementIntRule(elID));
-   printf("after setting ir \n");
+   //printf("after setting ir \n");
    int elem_offset = qf_offset * ir->GetNPoints();
 
-   printf("entering offset loop \n");
+   //printf("entering offset loop \n");
    for (int i=0; i<qf_offset; ++i)
    {
      int k = elID * elem_offset + ipNum * qf_offset + i;
@@ -586,7 +596,7 @@ void ExaModel::GetElemDefGrad0()
    {
       for (int n=0; n<dim; ++n)
       {
-         Jpt0(m,n) = 
+         Jpt0(n,m) = 
            qf_data[elemID * elem_offset + ipID * qf_offset + k];
          ++k;
       }
@@ -616,7 +626,7 @@ void ExaModel::CalcElemDefGrad1(const DenseMatrix& Jpt)
 
 void ExaModel::UpdateStress(int elID, int ipNum)
 {
-   printf("inside UdpateStress \n");
+  //printf("inside UdpateStress \n");
    const IntegrationRule *ir;
    double* qf0_data;
    double* qf1_data;
@@ -655,7 +665,7 @@ void ExaModel::UpdateStress(int elID, int ipNum)
 
 void ExaModel::UpdateStateVars(int elID, int ipNum)
 {
-   printf("inside UpdateStateVars \n");
+  //printf("inside UpdateStateVars \n");
    const IntegrationRule *ir;
    double* qf0_data;
    double* qf1_data;
@@ -692,12 +702,73 @@ void ExaModel::UpdateStateVars(int elID, int ipNum)
    return;
 }
 
-void ExaModel::UpdateModelVars(const ParFiniteElementSpace *fes, 
-                               const Vector &x)
+void AbaqusUmatModel::UpdateModelVars(
+                              const ParFiniteElementSpace *fes,
+                              const Vector &x)
 {
 // update the beginning step deformation gradient
    QuadratureFunction* defGrad = defGrad0.GetQuadFunction();
    computeDefGrad(defGrad, fes, x);
+   defGrad = NULL;
+   return;
+}
+   
+void NeoHookean::UpdateModelVars(const ParFiniteElementSpace *fes,
+                                 const Vector &x)
+{
+   const FiniteElement *fe;
+   const IntegrationRule *ir;
+   QuadratureFunction* defGrad = defGrad0.GetQuadFunction();
+   
+   // update the beginning step deformation gradient
+   computeDefGrad(defGrad, fes, x);
+
+   double* qf_data = defGrad->GetData();
+   int qf_offset = defGrad->GetVDim(); // offset at each integration point                                   
+   QuadratureSpace* qspace = defGrad->GetSpace();
+   
+   // loop over elements
+   for (int i = 0; i < fes->GetNE(); ++i){
+      // get element transformation for the ith element
+      ElementTransformation* Ttr = fes->GetElementTransformation(i);
+      fe = fes->GetFE(i);
+      
+      // set element id and attribute
+      //SetTransformation(*Ttr);
+      SetElementID(Ttr->ElementNo, Ttr->Attribute);
+      
+      // declare data to store shape function gradients
+      // and element Jacobians
+      DenseMatrix F0;
+      int dof = fe->GetDof(), dim = fe->GetDim();
+      F0.SetSize(dim);
+      
+      ir = &(qspace->GetElementIntRule(i));
+      int elem_offset = qf_offset * ir->GetNPoints();
+      
+      // loop over integration points where the quadrature function
+      // is stored
+      for (int j = 0; j < ir->GetNPoints(); ++j){
+         //We need to let the model know what IP we're currently at
+         SetIpID(j);
+
+	 //const IntegrationPoint &ip = ir->IntPoint(i);
+	 //Ttr->SetIntPoint(&ip);
+
+	 // get integration point coordinates
+	 //SetIPCoords(ip.x, ip.y, ip.z);
+         
+         int k = 0;
+         for (int n = 0; n < dim; ++n){
+            for (int m = 0; m < dim; ++m){
+               F0(m,n) = qf_data[i * elem_offset + j * qf_offset + k];
+               ++k;
+            }
+         }
+         EvalModel(F0);
+      }
+   }
+   
    defGrad = NULL;
    return;
 }
@@ -1431,6 +1502,7 @@ void AbaqusUmatModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
        // row-wise ordering of material Jacobian
        mGrad[(6 * i) + j] = ddsdde[(i * 6) + j];
      }
+     //      mGrad[(6 * i) + j] = 1.0;
    }
 
    // set the material stiffness on the model
@@ -1527,13 +1599,17 @@ inline void NeoHookean::EvalCoeffs() const
 }
 
 void NeoHookean::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
-                           const double weight)
+                           const double weight){
+   EvalModel(J);
+}
+   
+void NeoHookean::EvalModel(const DenseMatrix &J)
 {
    // note: the J passed in is associated with the incremental 
    // nodal solution, so this is the incremental deformation 
    // gradient. 
 
-   printf("inside EvalModel \n");
+   //printf("inside EvalModel \n");
 
    if (have_coeffs)
    {
@@ -1553,7 +1629,7 @@ void NeoHookean::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
    double a  = mu*pow(dJ, -2.0/dim);
    double b  = K*(dJ/g - 1.0)/g - a*(J*J)/(dim*dJ);
 
-   printf("dJ: %f \n", dJ);
+   //printf("dJ: %f \n", dJ);
 
    P.SetSize(dim);
    P = 0.0;
@@ -1592,28 +1668,28 @@ void NeoHookean::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
    // RC, uncomment to access end step stress at current element/IP 
    // in order to update stress. Getting stress here, if printed to 
    // screen, gives screwy values. (SRW)
-   double sigma1[6];
-   for (int i=0; i<6; ++i) sigma1[i] = 0.0;   
+   //double sigma1[6];
+   //for (int i=0; i<6; ++i) sigma1[i] = 0.0;   
    //printf("NeoHookean::EvalModel before GetElementStress \n");
-   GetElementStress(elemID, ipID, false, sigma1, 6);
+   //   GetElementStress(elemID, ipID, false, sigma1, 6);
  
    // update stress
    //
    // RC, uncomment to print the stress from the previous call to 
    // GetElementStress (SRW)
    //printf("NeoHookean::EvalModel before stress update \n");
-   for (int i=0; i<6; ++i)
-   {
+   //for (int i=0; i<6; ++i)
+   //{
      //printf("sigma1 prior to resetting to new stress %f with %f\n", sigma1[i], sigma[i]);
-      sigma1[i] = sigma[i];
-   }
+   //   sigma1[i] = sigma[i];
+   //}
 
    // set full updated stress on the quadrature function
    //printf("NeoHookean::EvalModel before SetElementStress \n");
 //
 //   RC, since the Getter didn't produce the correct initialized values of 
 //   stress, then there is no point in testing the setter yet (SRW)
-   SetElementStress(elemID, ipID, false, sigma1, 6);
+   SetElementStress(elemID, ipID, false, sigma, 6);
 
    /////////////////////////////////////////////////////////////////////////////
    // DEBUG CODE: remove later
@@ -1655,7 +1731,7 @@ void NeoHookean::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
 void NeoHookean::AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
                            const double weight, DenseMatrix &A)
 {  
-   printf("NeoHookean::AssembleH before old AssembleH code \n");
+  //printf("NeoHookean::AssembleH before old AssembleH code \n");
    
    int dof = DS.Height(), dim = DS.Width();
 
@@ -1759,7 +1835,7 @@ void ExaNLFIntegrator::AssembleElementVector(
    const Vector &elfun, Vector &elvect)
 {
    // this subroutine is modeled after HyperelasticNLFIntegretor version
-   printf("inside ExaNLFIntegrator::AssembleElementVector. \n");
+   //printf("inside ExaNLFIntegrator::AssembleElementVector. \n");
 
    int dof = el.GetDof(), dim = el.GetDim(); 
 
@@ -1808,7 +1884,7 @@ void ExaNLFIntegrator::AssembleElementVector(
    // TODO fix a mismatch in integration points. This print statement 
    // shows a 3x3x3 Gauss rule, not a 2x2x2. Check where these are set
    // loop over integration points for current element
-   printf("AssembleElementVector GetNPoints() %d \n", ir->GetNPoints());
+   //printf("AssembleElementVector GetNPoints() %d \n", ir->GetNPoints());
    for (int i=0; i<ir->GetNPoints(); i++)
    {
       // set integration point number on model
@@ -1829,25 +1905,24 @@ void ExaNLFIntegrator::AssembleElementVector(
       MultAtB(PMatI, DS, Jpt); // Jpt = F = dx/dX, PMatI = current config. coords.
 
       // get the beginning step deformation gradient. 
-//      model->GetElemDefGrad0(); 
+      model->GetElemDefGrad0(); 
 
       // get the TOTAL end-step (at a given NR iteration) deformation 
       // gradient
-//      model->CalcElemDefGrad1(Jpt); 
+      model->CalcElemDefGrad1(Jpt); 
 
       // debug print
-      for (int i=0; i<3; ++i)
+      /*for (int i=0; i<3; ++i)
       {
          for (int j=0; j<3; ++j)
          {
             printf("PMatI: %f \n", PMatI(i,j));
          }          
-      }
-
+      }*/
       // get the stress update, set on the model (model->P)
-      printf("inside ExaNLFIntegrator::AssembleElementVector BEFORE EvalModel. \n");
-      model->EvalModel(Jpt, DS, ip.weight * Ttr.Weight());
-      printf("inside ExaNLFIntegrator::AssembleElementVector AFTER EvalModel. \n");
+      //printf("inside ExaNLFIntegrator::AssembleElementVector BEFORE EvalModel. \n");
+      model->EvalModel(model->CopyOfJpt1(), DS, ip.weight * Ttr.Weight());
+      //printf("inside ExaNLFIntegrator::AssembleElementVector AFTER EvalModel. \n");
 
       // multiply PK1 stress by integration point weight and 
       // determinant of the Jacobian of the transformation. Note that EvalModel
@@ -1859,13 +1934,13 @@ void ExaNLFIntegrator::AssembleElementVector(
       AddMultABt(DS, *PMat, PMatO);
 
       // debug prints
-      for (int i=0; i<3; ++i)
+      /*for (int i=0; i<3; ++i)
       {
          for (int j=0; j<3; ++j)
          {
-	   printf("P after evalModel %f \n", (*PMat)(i,j));
+	   printf("P after evalModel %f \n", (*PMatO)(i,j));
          }
-      }
+      }*/
    }
 
    PMat = NULL;
@@ -1878,15 +1953,15 @@ void ExaNLFIntegrator::AssembleElementGrad(
    const Vector &elfun, DenseMatrix &elmat)
 {
 
-   printf("inside ExaNLFIntegrator::AssembleElementGrad. \n");
+   // printf("inside ExaNLFIntegrator::AssembleElementGrad. \n");
   
    // if debug is true on the model, then we are using the finite difference 
    // approximation to the element tangent stiffness contribution
    if (model->debug)
    {
-      printf("inside ExaNLFIntegrator::AssembleElementGrad BEFORE FD routine. \n");
+     //  printf("inside ExaNLFIntegrator::AssembleElementGrad BEFORE FD routine. \n");
       AssembleElementGradFD(el, Ttr, elfun, elmat);
-      printf("inside ExaNLFIntegrator::AssembleElementGrad AFTER FD routine. \n");
+     //  printf("inside ExaNLFIntegrator::AssembleElementGrad AFTER FD routine. \n");
       return;
    }
    
@@ -1929,9 +2004,10 @@ void ExaNLFIntegrator::AssembleElementGrad(
 
       // call the assembly routine. This may perform chain rule as necessary 
       // for a UMAT model
-      printf("inside ExaNLFIntegrator::AssembleElementGrad BEFORE AssembleH. \n");
-      model->AssembleH(Jpt, DS, ip.weight * Ttr.Weight(), elmat);
-      printf("inside ExaNLFIntegrator::AssembleElementGrad AFTER AssembleH. \n");
+      //printf("inside ExaNLFIntegrator::AssembleElementGrad BEFORE AssembleH. \n");
+      model->CalcElemDefGrad1(Jpt); 
+      model->AssembleH(model->CopyOfJpt1(), DS, ip.weight * Ttr.Weight(), elmat);
+      //      printf("inside ExaNLFIntegrator::AssembleElementGrad AFTER AssembleH. \n");
    }
    return;
 }
@@ -1942,7 +2018,7 @@ void ExaNLFIntegrator::AssembleElementGradFD(
    const Vector &elfun, DenseMatrix &elmat)
 {
 
-   printf("inside ExaNLFIntegrator::AssembleElementGradFD. \n");
+  //printf("inside ExaNLFIntegrator::AssembleElementGradFD. \n");
 
    double diff_step = 1.0e-8;
    Vector* temps;

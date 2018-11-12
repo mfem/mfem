@@ -118,11 +118,11 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) = 0;
 
-   // routine to update the beginning step deformation gradient. This can 
-   // be overwritten by a model class extension to update whatever else 
+   // routine to update the beginning step deformation gradient. This must
+   // be written by a model class extension to update whatever else
    // may be required for that particular model
    virtual void UpdateModelVars(const ParFiniteElementSpace *fes, 
-                                const Vector &x);
+                                const Vector &x) = 0;
 
    // routine to set the element id and integration point number for 
    // the current element
@@ -145,6 +145,12 @@ public:
    // return a pointer to beginning step stress. This is used for output visualization
    QuadratureVectorFunctionCoefficient *GetStress0() { return &stress0; }
 
+   // return a pointer to beginning step stress. This is used for output visualization
+   QuadratureVectorFunctionCoefficient *GetStress1() { return &stress1; }
+
+   // return a pointer to the deformation gradient.
+   QuadratureVectorFunctionCoefficient *GetDefGrad0() { return &defGrad0; }
+  
    // return a pointer to von Mises stress quadrature vector function coefficient for visualization
    QuadratureVectorFunctionCoefficient *GetVonMises() { return &vonMises; }
 
@@ -156,6 +162,8 @@ public:
 
    //return a pointer to the PK1 stress densematrix
    DenseMatrix *GetPK1Stress() {return &P;}
+
+  DenseMatrix CopyOfJpt1() {DenseMatrix temp(Jpt1); return temp;}
   
    // routine to get element stress at ip point. These are the six components of 
    // the symmetric Cauchy stress
@@ -277,6 +285,9 @@ public:
 
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A);
+   
+   virtual void UpdateModelVars(const ParFiniteElementSpace *fes,
+                                const Vector &x);
 
    void CalcLogStrainIncrement(DenseMatrix &dE);
    void CalcEulerianStrainIncr(DenseMatrix& dE);
@@ -325,8 +336,13 @@ public:
    virtual void EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
                           const double weight);
 
+  virtual void EvalModel(const DenseMatrix &J);
+  
    virtual void AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A);
+   
+   virtual void UpdateModelVars(const ParFiniteElementSpace *fes,
+                                const Vector &x);
 };
 
 class ExaNLFIntegrator : public NonlinearFormIntegrator

@@ -162,6 +162,11 @@ public:
    /// step values
    void UpdateModel(const Vector &x);
 
+   void ComputeVolAvgTensor(const ParFiniteElementSpace* fes,
+                            const QuadratureFunction* qf,
+			    Vector& tensor,
+			    int size);
+  
    void ProjectModelStress(ParGridFunction &s);
    void ProjectVonMisesStress(ParGridFunction &vm);
 
@@ -198,7 +203,9 @@ void setStateVarData(Vector* sVars, Vector* orient, ParFiniteElementSpace *fes,
 
 // initialize a quadrature function with a single input value, val.
 void initQuadFunc(QuadratureFunction *qf, double val, ParFiniteElementSpace *fes);
-
+//initialize a quadrature function that is really a tensor with the identity matrix.
+//currently only works for 3x3 tensors.
+void initQuadFuncTensorIdentity(QuadratureFunction *qf, ParFiniteElementSpace *fes);
 // set the time step on the boundary condition objects
 void setBCTimeStep(double dt, int nDBC);
 
@@ -650,7 +657,7 @@ int main(int argc, char *argv[])
    // step deformation gradient on the model.
    int kinDim = 9;
    QuadratureFunction kinVars0(&qspace, kinDim);
-   initQuadFunc(&kinVars0, 0.0, &fe_space);
+   initQuadFuncTensorIdentity(&kinVars0, &fe_space);
 
    // Define a grid function for the global reference configuration, the beginning 
    // step configuration, the global deformation, the current configuration/solution 
@@ -875,7 +882,7 @@ int main(int argc, char *argv[])
       subtract(x_cur, x_ref, x_def);
 
       // update beginning step solution
-      x_beg = x_cur;
+      //      x_beg = x_cur;
 
       // initialize x_bar = 0.0 and set x_cur_bar = x_cur / dt, which sets 
       // x_bar to the previous incremental velocity. This is done in order to 
@@ -892,6 +899,8 @@ int main(int argc, char *argv[])
       oper.UpdateModel(x_sol);
       printf("after oper.UpdateModel. \n");
 
+      x_beg = x_cur;
+      
       last_step = (t >= t_final - 1e-8*dt);
 
       if (last_step || (ti % vis_steps) == 0)
@@ -987,7 +996,11 @@ int main(int argc, char *argv[])
 //         printf("after debug print of model vars. \n");
 
       } // end output scope
+      //      GridFunction *nodes = &x_beg; // set a nodes grid function to global current configuration                                                 
+      //int owns_nodes = 0;
+      //pmesh->SwapNodes(nodes, owns_nodes); // pmesh has current configuration nodes                                                              
 
+      //nodes = NULL;
    } // end loop over time steps
    
    // Free the used memory.
@@ -1027,12 +1040,6 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
    // Set the essential boundary conditions
    Hform->SetEssentialBCPartial(ess_bdr, rhs); 
 //   Hform->SetEssentialBC(ess_bdr, rhs);
-
-   double *qf_data = q_sigma1.GetData();
-   for (int i=0; i<q_sigma1.Size(); ++i)
-   {
-      printf("q_sigma1: %f \n", qf_data[i]);
-   }
 
    if (umat) {
       model = new AbaqusUmatModel(&q_sigma0, &q_sigma1, &q_matGrad, &q_matVars0, &q_matVars1,
@@ -1134,12 +1141,65 @@ Operator &NonlinearMechOperator::GetGradient(const Vector &x) const
    return *Jacobian;
 }
 
+void NonlinearMechOperator::ComputeVolAvgTensor(const ParFiniteElementSpace* fes,
+                                                const QuadratureFunction* qf,
+                                                Vector& tensor, int size){
+
+   const FiniteElement *fe;
+   const IntegrationRule *ir;
+   double* qf_data = qf->GetData();
+   int qf_offset = qf->GetVDim(); // offset at each integration point
+   QuadratureSpace* qspace = qf->GetSpace();
+   
+   double el_vol = 0.0;
+   double temp_wts = 0.0;
+   double incr = 0.0;
+   
+   // loop over elements
+   for (int i = 0; i < fes->GetNE(); ++i)
+   {
+      // get element transformation for the ith element
+      ElementTransformation* Ttr = fes->GetElementTransformation(i);
+      fe = fes->GetFE(i);
+      ir = &(qspace->GetElementIntRule(i));
+      int elem_offset = qf_offset * ir->GetNPoints();
+      // loop over element quadrature points
+      for (int j = 0; j < ir->GetNPoints(); ++j)
+      {
+	const IntegrationPoint &ip = ir->IntPoint(j);
+	Ttr->SetIntPoint(&ip);
+
+         temp_wts = ip.weight * Ttr->Weight();
+         el_vol += temp_wts;
+	 incr += 1.0;
+         int k = 0;
+         for (int m = 0; m < size; ++m)
+         {
+            tensor[m] += temp_wts * qf_data[i * elem_offset + j * qf_offset + k];
+            ++k;
+         }
+      }
+   }
+   
+   double inv_vol = 1.0/el_vol;
+   
+   printf("Average tensor values:\n");
+   for (int m = 0; m < size; m++) {
+      tensor[m] *= inv_vol;
+      printf("%lf ", tensor[m]);
+   }
+   printf("\n");
+   
+}
+
 void NonlinearMechOperator::UpdateModel(const Vector &x)
 {
    const ParFiniteElementSpace *fes = GetFESpace();
    const FiniteElement *fe;
    const IntegrationRule *ir;
-   /*
+
+   model->UpdateModelVars(fes, x);
+   
    // update state variables on a ExaModel
    for (int i = 0; i < fes->GetNE(); ++i)
    {
@@ -1153,7 +1213,7 @@ void NonlinearMechOperator::UpdateModel(const Vector &x)
          model->UpdateStress(i, j);
 
          // compute von Mises stress
-         model->ComputeVonMises(i, j);
+	 //        model->ComputeVonMises(i, j);
 
          // update the beginning step state variables
          if (model->numStateVars > 0)
@@ -1162,11 +1222,42 @@ void NonlinearMechOperator::UpdateModel(const Vector &x)
          }
       }
    } 
-   */
    // update the model variables particular to the model class extension
    // NOTE: for an AbaqusUmatModel this updates the beginning step def grad, 
-   model->UpdateModelVars(fes, x);
+   //model->UpdateModelVars(fes, x);
 
+   Vector stress;
+   int size = 6;
+   
+   stress.SetSize(size);
+   
+   stress = 0.0;
+   
+   QuadratureVectorFunctionCoefficient* qstress = model->GetStress1();
+   
+   const QuadratureFunction* qf = qstress->GetQuadFunction();
+   
+   ComputeVolAvgTensor(fes, qf, stress, size);
+
+   qstress = NULL;
+   qf = NULL;
+
+   Vector defgrad;
+   size = 9;
+
+   defgrad.SetSize(size);
+
+   defgrad = 0.0;
+
+   QuadratureVectorFunctionCoefficient* qdefgrad = model->GetDefGrad0();
+
+   const QuadratureFunction* qf1 = qdefgrad->GetQuadFunction();
+
+   ComputeVolAvgTensor(fes, qf1, defgrad, size);
+
+   qf1 = NULL;
+   qdefgrad = NULL;
+   
    fes = NULL;
    fe = NULL;
    ir = NULL;
@@ -1541,6 +1632,34 @@ void initQuadFunc(QuadratureFunction *qf, double val, ParFiniteElementSpace *fes
 
    qf_data = NULL;
 }
+
+void initQuadFuncTensorIdentity(QuadratureFunction *qf, ParFiniteElementSpace *fes){
+   
+   const FiniteElement *fe;
+   const IntegrationRule *ir;
+   double* qf_data = qf->GetData();
+   int qf_offset = qf->GetVDim(); // offset at each integration point
+   QuadratureSpace* qspace = qf->GetSpace();
+   
+   // loop over elements
+   for (int i = 0; i < fes->GetNE(); ++i){
+      // get element transformation for the ith element
+      ElementTransformation* Ttr = fes->GetElementTransformation(i);
+      fe = fes->GetFE(i);
+      ir = &(qspace->GetElementIntRule(i));
+      int elem_offset = qf_offset * ir->GetNPoints();
+      //Hard coded this for now for a 3x3 matrix
+      //Fix later if we update 
+      for (int j = 0; j < ir->GetNPoints(); ++j){
+         qf_data[i * elem_offset + j * qf_offset] = 1.0;
+         qf_data[i * elem_offset + j * qf_offset + 4] = 1.0;
+         qf_data[i * elem_offset + j * qf_offset + 8] = 1.0;
+      }
+   }
+   
+   qf_data = NULL;
+}
+
 //Routine to test the deformation gradient to make sure we're getting out the right values.
 //This applies the following displacement field to the nodal values:
 //u_vec = (2x + 3y + 4z)i + (4x + 2y + 3z)j + (3x + 4y + 2z)k
