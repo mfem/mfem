@@ -2464,7 +2464,6 @@ HypreEuclid::HypreEuclid(HypreParMatrix &A) : HypreSolver(&A)
    HYPRE_EuclidSetMem(euc_precond, euc_mem);
    HYPRE_EuclidSetBJ(euc_precond, euc_bj);
    HYPRE_EuclidSetRowScale(euc_precond, euc_ro_sc);
-
 }
 
 HypreEuclid::~HypreEuclid()
