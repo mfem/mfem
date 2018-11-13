@@ -138,9 +138,9 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
       GenerateNCFaceInfo();
 
-      if (mesh.ent_sets)
-         NumOfVertices = BuildLocalVertices(mesh, partitioning,
-                                            vert_global_local);
+      //      if (mesh.ent_sets)
+      // NumOfVertices = BuildLocalVertices(mesh, partitioning,
+      //                                    vert_global_local);
    }
    else // mesh.Conforming()
    {
@@ -232,6 +232,11 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
       SetMeshGen();
       meshgen = mesh.meshgen; // copy the global 'meshgen'
+
+      ent_sets = pent_sets =
+	(mesh.ent_sets) ? new ParEntitySets(*this, *mesh.ent_sets,
+					    partitioning,
+					    vert_global_local) : NULL;
    }
 
    if (mesh.NURBSext)
@@ -277,12 +282,12 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
          }
       }
    }
-
+   /*
    ent_sets = pent_sets =
                  (mesh.ent_sets) ? new ParEntitySets(*this, *mesh.ent_sets,
                                                      partitioning,
                                                      vert_global_local) : NULL;
-
+   */
    if (partitioning != partitioning_)
    {
       delete [] partitioning;
