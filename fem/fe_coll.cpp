@@ -2337,10 +2337,10 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
          for (int i = 0; i + j <= pm2; i++)
          {
             int k0 = p*pm1 - (p - j)*(pm1 - j) + 2*i;
-	    int k1 = 2*pm1 - 2*i + ((2*p-3)-j)*j;
-	    int k2 = 2*pm1 - 2*j + ((2*p-3)-i)*i;
-	    int k3 = p*pm1 - 2 - 3*j - i - (i+j)*(i+j);
-	    int k4 = p*pm1 - 2 - 3*i - j - (i+j)*(i+j);
+            int k1 = 2*pm1 - 2*i + ((2*p-3)-j)*j;
+            int k2 = 2*pm1 - 2*j + ((2*p-3)-i)*i;
+            int k3 = p*pm1 - 2 - 3*j - i - (i+j)*(i+j);
+            int k4 = p*pm1 - 2 - 3*i - j - (i+j)*(i+j);
             int k5 = p*pm1 - (p - i)*(pm1 - i) + 2*j;
             // (0,1,2)
             TriDofOrd[0][k0  ] = k0;
