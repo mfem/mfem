@@ -49,6 +49,16 @@ Other meshing improvements
 - Added support for reading linear and quadratic 2D quadrilateral and triangular
   Cubit meshes.
 
+Discretization improvements
+---------------------------
+- Added element flux, and flux energy computation in class ElasticityIntegrator,
+  allowing for the use of Zienkiewicz-Zhu type error estimators with the
+  integrator. For an illustration of this addition, see the new Example 22.
+
+- Added a variety of coefficients which are sums or products of existing
+  coefficients as well as grid function coefficients which return the
+  divergence, gradient, or curl of their GridFunctions.
+
 New and improved solvers and preconditioners
 --------------------------------------------
 - Added support for parallel ILU preconditioning via hypre's Euclid solver.
@@ -61,16 +71,15 @@ New and updated examples and miniapps
 - Added a new meshing miniapp, Extruder, that demonstrates the capability to
   produce 3D meshes by extruding 2D meshes.
 
-- Added a new example, Example 20, that solves a system of 1D ODEs derived from
-  a Hamiltonian. The example demonstrates the use of the variable order,
+- Added a new example, Example 20/20p, that solves a system of 1D ODEs derived
+  from a Hamiltonian. The example demonstrates the use of the variable order,
   symplectic integration algorithm implemented in class SIAVSolver.
+
+- Added a new example, Example 22/22p, that illustrates the use of AMR to solve
+  a linear elasticity problem. This is an extension of Example 2/2p.
 
 Miscellaneous
 -------------
-- Added a variety of coefficients which are sums or products of existing
-  coefficients as well as grid function coefficients which return the
-  divergence, gradient, or curl of their GridFunctions.
-
 - Altered the way FGMRES counts its iterations so that it matches GMRES.
 
 - Various other simplifications, extensions, and bugfixes in the code.
