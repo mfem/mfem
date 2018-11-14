@@ -21,9 +21,9 @@
 #  define GPU_ORDER_3(I0, I1, I2)     @dimOrder(I0, I1, I2)
 #  define GPU_ORDER_4(I0, I1, I2, I3) @dimOrder(I0, I1, I2, I3)
 #else
-#  define GPU_ORDER_2(I0, I1)         @dimOrder(0, 1)
-#  define GPU_ORDER_3(I0, I1, I2)     @dimOrder(0, 1, 2)
-#  define GPU_ORDER_4(I0, I1, I2, I3) @dimOrder(0, 1, 2, 3)
+#  define GPU_ORDER_2(I0, I1)         @dimOrder(0,1)
+#  define GPU_ORDER_3(I0, I1, I2)     @dimOrder(0,1,2)
+#  define GPU_ORDER_4(I0, I1, I2, I3) @dimOrder(0,1,2,3)
 #endif
 
 #ifndef COEFF
