@@ -16,6 +16,7 @@
 #include "../linalg/sparsemat.hpp"
 #include "../mesh/mesh.hpp"
 #include "fe_coll.hpp"
+#include "doftrans.hpp"
 #include <iostream>
 
 namespace mfem
@@ -93,6 +94,9 @@ protected:
 
    NURBSExtension *NURBSext;
    int own_ext;
+
+   Array<DofTransformation*> DoFTrans;
+   mutable VDofTransformation VDoFTrans;
 
    /** Matrix representing the prolongation from the global conforming dofs to
        a set of intermediate partially conforming dofs, e.g. the dofs associated
@@ -321,7 +325,7 @@ public:
    int GetBdrAttribute(int i) const { return mesh->GetBdrAttribute(i); }
 
    /// Returns indexes of degrees of freedom in array dofs for i'th element.
-   virtual void GetElementDofs(int i, Array<int> &dofs) const;
+   virtual DofTransformation * GetElementDofs(int i, Array<int> &dofs) const;
 
    /// Returns indexes of degrees of freedom for i'th boundary element.
    virtual void GetBdrElementDofs(int i, Array<int> &dofs) const;
@@ -357,7 +361,7 @@ public:
    static void AdjustVDofs(Array<int> &vdofs);
 
    /// Returns indexes of degrees of freedom in array dofs for i'th element.
-   void GetElementVDofs(int i, Array<int> &vdofs) const;
+   DofTransformation * GetElementVDofs(int i, Array<int> &vdofs) const;
 
    /// Returns indexes of degrees of freedom for i'th boundary element.
    void GetBdrElementVDofs(int i, Array<int> &vdofs) const;

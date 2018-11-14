@@ -310,8 +310,9 @@ void BilinearForm::AssembleBdrElementMatrix(
 void BilinearForm::Assemble (int skip_zeros)
 {
    ElementTransformation *eltrans;
+   DofTransformation * doftrans;
    Mesh *mesh = fes -> GetMesh();
-   DenseMatrix elmat, *elmat_p;
+   DenseMatrix elmat, elmat_t, *elmat_p;
 
    int i;
 
@@ -333,7 +334,7 @@ void BilinearForm::Assemble (int skip_zeros)
    {
       for (i = 0; i < fes -> GetNE(); i++)
       {
-         fes->GetElementVDofs(i, vdofs);
+         doftrans = fes->GetElementVDofs(i, vdofs);
          if (element_matrices)
          {
             elmat_p = &(*element_matrices)(i);
@@ -348,7 +349,15 @@ void BilinearForm::Assemble (int skip_zeros)
                dbfi[k]->AssembleElementMatrix(fe, *eltrans, elemmat);
                elmat += elemmat;
             }
-            elmat_p = &elmat;
+            if ( doftrans )
+            {
+               doftrans->Transform(elmat, elmat_t);
+               elmat_p = &elmat_t;
+            }
+            else
+            {
+               elmat_p = &elmat;
+            }
          }
          if (static_cond)
          {

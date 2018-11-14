@@ -414,18 +414,20 @@ void ParFiniteElementSpace::ApplyLDofSigns(Table &el_dof) const
    ApplyLDofSigns(all_dofs);
 }
 
-void ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs) const
+DofTransformation *
+ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs) const
 {
    if (elem_dof)
    {
       elem_dof->GetRow(i, dofs);
-      return;
+      return NULL;
    }
-   FiniteElementSpace::GetElementDofs(i, dofs);
+   DofTransformation * doftrans = FiniteElementSpace::GetElementDofs(i, dofs);
    if (Conforming())
    {
       ApplyLDofSigns(dofs);
    }
+   return doftrans;
 }
 
 void ParFiniteElementSpace::GetBdrElementDofs(int i, Array<int> &dofs) const

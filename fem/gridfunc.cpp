@@ -521,9 +521,17 @@ void GridFunction::GetVectorValues(ElementTransformation &T,
    const FiniteElement *FElem = fes->GetFE(T.ElementNo);
    int dof = FElem->GetDof();
    Array<int> vdofs;
-   fes->GetElementVDofs(T.ElementNo, vdofs);
-   Vector loc_data;
-   GetSubVector(vdofs, loc_data);
+   DofTransformation * doftrans = fes->GetElementVDofs(T.ElementNo, vdofs);
+   Vector loc_data, loc_data_t;
+   if (doftrans)
+   {
+      GetSubVector(vdofs, loc_data_t);
+      doftrans->TransformBack(loc_data_t, loc_data);
+   }
+   else
+   {
+      GetSubVector(vdofs, loc_data);
+   }
    int nip = ir.GetNPoints();
    if (FElem->GetRangeType() == FiniteElement::SCALAR)
    {
@@ -1555,18 +1563,27 @@ void GridFunction::ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
 void GridFunction::ProjectCoefficient(Coefficient &coeff)
 {
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
+   DofTransformation * doftrans;
 
    if (delta_c == NULL)
    {
       Array<int> vdofs;
-      Vector vals;
+      Vector vals, vals_t;
 
       for (int i = 0; i < fes->GetNE(); i++)
       {
-         fes->GetElementVDofs(i, vdofs);
+         doftrans = fes->GetElementVDofs(i, vdofs);
          vals.SetSize(vdofs.Size());
          fes->GetFE(i)->Project(coeff, *fes->GetElementTransformation(i), vals);
-         SetSubVector(vdofs, vals);
+         if (doftrans)
+         {
+            doftrans->Transform(vals, vals_t);
+            SetSubVector(vdofs, vals_t);
+         }
+         else
+         {
+            SetSubVector(vdofs, vals);
+         }
       }
    }
    else
@@ -1607,14 +1624,24 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
 {
    int i;
    Array<int> vdofs;
-   Vector vals;
+   Vector vals, vals_t;
+
+   DofTransformation * doftrans;
 
    for (i = 0; i < fes->GetNE(); i++)
    {
-      fes->GetElementVDofs(i, vdofs);
+      doftrans = fes->GetElementVDofs(i, vdofs);
       vals.SetSize(vdofs.Size());
       fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
-      SetSubVector(vdofs, vals);
+      if (doftrans)
+      {
+         doftrans->Transform(vals, vals_t);
+         SetSubVector(vdofs, vals_t);
+      }
+      else
+      {
+         SetSubVector(vdofs, vals);
+      }
    }
 }
 

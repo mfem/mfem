@@ -61,6 +61,7 @@ FiniteElementSpace::FiniteElementSpace()
      fdofs(NULL), bdofs(NULL),
      elem_dof(NULL), bdrElem_dof(NULL),
      NURBSext(NULL), own_ext(false),
+     VDoFTrans(vdim, ordering),
      cP(NULL), cR(NULL), cP_is_set(false),
      Th(Operator::ANY_TYPE),
      sequence(0)
@@ -69,6 +70,8 @@ FiniteElementSpace::FiniteElementSpace()
 FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
                                        Mesh *mesh,
                                        const FiniteElementCollection *fec)
+   :
+   VDoFTrans(orig.vdim, orig.ordering)
 {
    mesh = mesh ? mesh : orig.mesh;
    fec = fec ? fec : orig.fec;
@@ -168,10 +171,13 @@ void FiniteElementSpace::AdjustVDofs (Array<int> &vdofs)
    }
 }
 
-void FiniteElementSpace::GetElementVDofs(int i, Array<int> &vdofs) const
+DofTransformation *
+FiniteElementSpace::GetElementVDofs(int i, Array<int> &vdofs) const
 {
-   GetElementDofs(i, vdofs);
+   DofTransformation * doftrans = GetElementDofs(i, vdofs);
+   VDoFTrans.SetDofTransformation(*doftrans);
    DofsToVDofs(vdofs);
+   return &VDoFTrans;
 }
 
 void FiniteElementSpace::GetBdrElementVDofs(int i, Array<int> &vdofs) const
@@ -1287,7 +1293,8 @@ void FiniteElementSpace::Construct()
    // later.
 }
 
-void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
+DofTransformation *
+FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
 {
    if (elem_dof)
    {
@@ -1387,6 +1394,7 @@ void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
          }
       }
    }
+   return NULL;
 }
 
 const FiniteElement *FiniteElementSpace::GetFE(int i) const
