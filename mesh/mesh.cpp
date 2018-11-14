@@ -4768,7 +4768,7 @@ STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)
    delete faces_tbl;
    return NULL;
 }
-
+/*
 void Mesh::ReorientTetMesh()
 {
    int *v;
@@ -4830,7 +4830,7 @@ void Mesh::ReorientTetMesh()
       delete old_v_to_v;
    }
 }
-
+*/
 int *Mesh::CartesianPartitioning(int nxyz[])
 {
    int *partitioning;
