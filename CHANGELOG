@@ -55,6 +55,14 @@ Discretization improvements
   allowing for the use of Zienkiewicz-Zhu type error estimators with the
   integrator. For an illustration of this addition, see the new Example 22.
 
+- Added a variety of coefficients which are sums or products of existing
+  coefficients as well as grid function coefficients which return the
+  divergence, gradient, or curl of their GridFunctions.
+
+New and improved solvers and preconditioners
+--------------------------------------------
+- Added support for parallel ILU preconditioning via hypre's Euclid solver.
+
 New and updated examples and miniapps
 -------------------------------------
 - Added a new meshing miniapp, Toroid, which can produce a variety of torus
