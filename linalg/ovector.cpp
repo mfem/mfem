@@ -259,7 +259,8 @@ namespace mfem {
   OccaVectorRef OccaVector::GetRange(const uint64_t offset, const uint64_t entries) const {
     OccaVectorRef ret;
     OccaVector &v = ret.v;
-    v.buffer = data + (offset * sizeof(double));
+    v.buffer = data.slice(offset * sizeof(double),
+                          entries * sizeof(double));
     v.data = v.buffer;
     return ret;
   }
