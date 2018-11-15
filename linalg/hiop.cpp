@@ -293,9 +293,9 @@ void HiopNlpOptimizer::Mult(const Vector &xt, Vector &x) const
 
    hiop::hiopNlpDenseConstraints hiopInstance(*hiop_problem);
 
-   // TODO set max_iter.
    // TODO how to use rel_tol?
    hiopInstance.options->SetNumericValue("tolerance", abs_tol);
+   hiopInstance.options->SetNumericValue("max_iter", max_iter);
    hiopInstance.options->SetStringValue("fixed_var", "relax");
    // 0: no output; 3: not too much
    hiopInstance.options->SetIntegerValue("verbosity_level", print_level);
@@ -304,9 +304,7 @@ void HiopNlpOptimizer::Mult(const Vector &xt, Vector &x) const
    hiop::hiopAlgFilterIPM solver(&hiopInstance);
    const hiop::hiopSolveStatus status = solver.run();
    final_norm = solver.getObjective();
-
-   // TODO extract the final_iter from HiOp.
-   final_iter = 1;
+   final_iter = solver.getNumIterations();
 
    if (status != hiop::Solve_Success)
    {
