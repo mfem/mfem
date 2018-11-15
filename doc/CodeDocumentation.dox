@@ -71,6 +71,10 @@ namespace mfem {
  * - <a class="el" href="ex18p_8cpp_source.html">Example 18p</a>: parallel Discontinuous Galerkin (DG) for the Euler equations
  * - <a class="el" href="ex19_8cpp_source.html">Example 19</a>: incompressible nonlinear elasticity
  * - <a class="el" href="ex19p_8cpp_source.html">Example 19p</a>: parallel incompressible nonlinear elasticity
+ * - <a class="el" href="ex20_8cpp_source.html">Example 20</a>: symplectic ODE integration
+ * - <a class="el" href="ex20p_8cpp_source.html">Example 20p</a>: parallel symplectic ODE integration
+ * - <a class="el" href="ex22_8cpp_source.html">Example 22</a>: adaptive mesh refinement for linear elasticity
+ * - <a class="el" href="ex22p_8cpp_source.html">Example 22p</a>: parallel adaptive mesh refinement for linear elasticity
  *
  * <H4>SUNDIALS Examples</H4>
  * - Variants of Examples

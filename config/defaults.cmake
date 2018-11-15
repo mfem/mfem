@@ -43,6 +43,8 @@ option(MFEM_USE_CONDUIT "Enable Conduit usage" OFF)
 option(MFEM_USE_PUMI "Enable PUMI" OFF)
 option(MFEM_USE_HIOP "Enable HiOp" OFF)
 
+set(MFEM_MPI_NP 4 CACHE STRING "Number of processes used for MPI tests")
+
 # Allow a user to disable testing, examples, and/or miniapps at CONFIGURE TIME
 # if they don't want/need them (e.g. if MFEM is "just a dependency" and all they
 # need is the library, building all that stuff adds unnecessary overhead). Note
