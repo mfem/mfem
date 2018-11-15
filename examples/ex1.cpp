@@ -172,7 +172,7 @@ int main(int argc, char *argv[])
    cout << "Size of linear system: " << A->Height() << endl;
 
 #ifndef MFEM_USE_SUITESPARSE
-   CG(*A, B, X, 3, 200, 1e-12, 0.0);
+   CG(*A, B, X, 3, 2000, 1e-12, 0.0);
 #else
    // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;
@@ -204,13 +204,12 @@ int main(int argc, char *argv[])
    }
 
    // 14. Free the used memory.
+   delete A;
    delete a;
    delete b;
    delete fespace;
    if (order > 0) { delete fec; }
    delete mesh;
-
-   delete A;
 
    return 0;
 }

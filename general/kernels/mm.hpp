@@ -9,22 +9,21 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_FEM_KERNELS_LOCAL_GLOBAL_HPP
-#define MFEM_FEM_KERNELS_LOCAL_GLOBAL_HPP
+#ifndef MFEM_MM_KERNELS
+#define MFEM_MM_KERNELS
 
 namespace mfem
 {
 
 // *****************************************************************************
-void kLocalToGlobal(const int NUM_VDIM,
-                    const bool VDIM_ORDERING,
-                    const int globalEntries,
-                    const int localEntries,
-                    const int* __restrict offsets,
-                    const int* __restrict indices,
-                    const double* __restrict localX,
-                    double* __restrict globalX);
+void* kH2D(void*, const void*, size_t, const bool =false);
 
-}
+// *****************************************************************************
+void* kD2H(void*, const void*, size_t, const bool =false);
 
-#endif // MFEM_FEM_KERNELS_LOCAL_GLOBAL_HPP
+// *****************************************************************************
+void* kD2D(void*, const void*, size_t, const bool =false);
+
+} // namespace mfem
+
+#endif // MFEM_MM_KERNELS

@@ -28,26 +28,19 @@ KDiffusionIntegrator::KDiffusionIntegrator(const FiniteElementSpace *f,
 // *****************************************************************************
 void KDiffusionIntegrator::Assemble()
 {
-   assert(fes);
    const FiniteElement &fe = *(fes->GetFE(0));
    const Mesh *mesh = fes->GetMesh();
    const int dim = mesh->Dimension();
    const int dims = fe.GetDim();
-   assert(dim==dims);
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
    const int elements = fes->GetNE();
    assert(elements==mesh->GetNE());
    const int quadraturePoints = ir->GetNPoints();
-   // dbg("quadraturePoints=%d",quadraturePoints);//assert(false);
    const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
-   //assert(quad1D==2);
    const int size = symmDims * quadraturePoints * elements;
-   // dbg("vec.SetSize(%d)",size);
    vec.SetSize(size);
    kGeometry *geo = kGeometry::Get(*fes, *ir);
    maps = kDofQuadMaps::Get(*fes, *fes, *ir);
-   assert(geo);
-   assert(fes);
    kIntDiffusionAssemble(dim,
                          quad1D,
                          elements,
@@ -55,18 +48,17 @@ void KDiffusionIntegrator::Assemble()
                          geo->J,
                          1.0,//COEFF
                          vec);
-   // dbg("vec=");vec.Print();
 }
 
 // *****************************************************************************
 void KDiffusionIntegrator::MultAdd(Vector &x, Vector &y)
 {
-   assert(fes);
-   const Mesh *mesh = fes->GetMesh(); assert(mesh);
+   const Mesh *mesh = fes->GetMesh();
    const int dim = mesh->Dimension();
    const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
-   //assert(quad1D==2);
-   const int dofs1D = fes->GetFE(0)->GetOrder() + 1;
+   const FiniteElementSpace *f = fes;
+   const FiniteElement *fe = f->GetFE(0);
+   const int dofs1D = fe->GetOrder() + 1;
    kIntDiffusionMultAdd(dim,
                         dofs1D,
                         quad1D,
@@ -80,4 +72,4 @@ void KDiffusionIntegrator::MultAdd(Vector &x, Vector &y)
                         y);
 }
 
-}
+} // namespace mfem

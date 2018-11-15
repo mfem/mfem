@@ -12,25 +12,27 @@
 #ifndef MFEM_MM_HPP
 #define MFEM_MM_HPP
 
-#include <unordered_map>
-
 namespace mfem
 {
 
+// *****************************************************************************
+// * Tyepdefs:
+// *   - mm2dev_t: Memory Manager Host_Address to Device_Address
+// *   - mm_t: mapping from one Host_Address to its mm2dev_t
 // *****************************************************************************
 typedef struct mm2dev
 {
    bool host = true;
    size_t bytes = 0;
-   const void *h_adrs = NULL;
-   const void *d_adrs = NULL;
+   void *h_adrs = NULL;
+   void *d_adrs = NULL;
 } mm2dev_t;
 
 // *****************************************************************************
-typedef std::unordered_map<const void*,mm2dev_t> mm_t;
+typedef std::unordered_map<const void*, mm2dev_t> mm_t;
 
 // *****************************************************************************
-// * Memory manager singleton
+// * Memory Manager Singleton
 // *****************************************************************************
 class mm
 {
@@ -43,54 +45,40 @@ private:
 public:
    static mm& Get()
    {
-      static mm mm_singleton;
-      return mm_singleton;
+      static mm singleton;
+      return singleton;
    }
    // **************************************************************************
 private:
    void Setup();
-   void *add(const void*, const size_t, const size_t);
-   void del(const void*);
-   void Cuda();
+   void *Insert(const void*, const size_t, const size_t);
+   void *Erase(const void*);
+   bool Known(const void*);
 
-   // **************************************************************************
 public:
+   // **************************************************************************
    template<class T>
    static inline T* malloc(size_t size, const size_t size_of_T = sizeof(T))
-   {
-      if (!mm::Get().mng) { mm::Get().Setup(); }
-      // alloc on host first
-      T *ptr = ::new T[size];
-      // add to the pool of registered adresses
-      return (T*) mm::Get().add((void*)ptr,size,size_of_T);
-   }
+   { return (T*) mm::Get().Insert(::new T[size], size, size_of_T); }
 
    // **************************************************************************
    template<class T>
    static inline void free(void *ptr)
    {
       if (!ptr) { return; }
-      mm::Get().del(ptr);
-      ::delete[] static_cast<T*>(ptr);
-      ptr = nullptr;
+      void *back = mm::Get().Erase(ptr);
+      ::delete[] static_cast<T*>(back);
+      back = nullptr;
    }
 
    // **************************************************************************
    void* Adrs(const void*);
 
    // **************************************************************************
-   bool Known(const void*);
-
-   // **************************************************************************
-   void Rsync(const void*);
-
-   // **************************************************************************
    void Push(const void*);
 
    // **************************************************************************
-public:
-   // **************************************************************************
-   static void* H2H(void*, const void*, size_t, const bool =false);
+   void Pull(const void*);
 
    // **************************************************************************
    static void* H2D(void*, const void*, size_t, const bool =false);
@@ -103,13 +91,8 @@ public:
 
    // **************************************************************************
    static void* memcpy(void*, const void*, size_t);
-
-   // **************************************************************************
-private:
-   static void handler(int, siginfo_t*, void*);
-   static void iniHandler();
 };
 
-}
+} // namespace mfem
 
 #endif // MFEM_MM_HPP

@@ -59,7 +59,9 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
    bool static_cond = false;
-   bool visualization = 1;
+   bool pa = false;
+   bool gpu = false;
+   bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -69,6 +71,9 @@ int main(int argc, char *argv[])
                   " isoparametric space.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
+   args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
+                  "Enable Partial Assembly.");
+   args.AddOption(&gpu, "-g", "--gpu", "-no-g", "--no-gpu", "Enable GPU.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -166,6 +171,10 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
+   pmesh->SetCurvature(1, false, -1, Ordering::byVDIM);
+   if (gpu) { config::Get().Cuda(true); }
+   if (pa)  { config::Get().PA(true);   }
+
    // 9. Define the solution vector x as a parallel finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
@@ -176,7 +185,8 @@ int main(int argc, char *argv[])
    //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //     domain integrator.
    ParBilinearForm *a = new ParBilinearForm(fespace);
-   a->AddDomainIntegrator(new DiffusionIntegrator(one));
+   if (pa) { a->AddDomainIntegrator(new PADiffusionIntegrator(one)); }
+   else    { a->AddDomainIntegrator(new DiffusionIntegrator(one)); }
 
    // 11. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
@@ -185,24 +195,34 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
-   HypreParMatrix A;
    Vector B, X;
+   Operator *A;
+   if (pa) { A = new ParPABilinearForm(fespace); }
+   else    { A = new HypreParMatrix(); }
+
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    if (myid == 0)
    {
-      cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
+      cout << "Size of linear system: " << A->Height() << endl;
    }
 
    // 12. Define and apply a parallel PCG solver for AX=B with the BoomerAMG
    //     preconditioner from hypre.
-   HypreSolver *amg = new HypreBoomerAMG(A);
-   HyprePCG *pcg = new HyprePCG(A);
-   pcg->SetTol(1e-12);
-   pcg->SetMaxIter(200);
-   pcg->SetPrintLevel(2);
-   pcg->SetPreconditioner(*amg);
-   pcg->Mult(B, X);
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetRelTol(1e-12);
+   cg.SetMaxIter(2000);
+   cg.SetPrintLevel(3);
+   cg.SetOperator(*A);
+   cg.Mult(B, X);
+
+   // HypreSolver *amg = new HypreBoomerAMG(A);
+   // HyprePCG *pcg = new HyprePCG(A);
+   // pcg->SetTol(1e-12);
+   // pcg->SetMaxIter(200);
+   // pcg->SetPrintLevel(2);
+   // pcg->SetPreconditioner(*amg);
+   // pcg->Mult(B, X);
 
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
@@ -236,8 +256,9 @@ int main(int argc, char *argv[])
    }
 
    // 16. Free the used memory.
-   delete pcg;
-   delete amg;
+   // delete pcg;
+   // delete amg;
+   delete A;
    delete a;
    delete b;
    delete fespace;

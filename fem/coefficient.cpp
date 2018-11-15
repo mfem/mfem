@@ -114,9 +114,6 @@ void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
    if (Function)
    {
       (*Function)(transip, V);
-      //assert(transip.Size() == V.Size());
-      //V = transip;
-      //dbg("V:");V.Print();
    }
    else
    {

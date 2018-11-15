@@ -22,17 +22,17 @@ namespace mfem
 // ***************************************************************************
 // * kFiniteElementSpace
 //  **************************************************************************
-class kFiniteElementSpace : public FiniteElementSpace
+class kFiniteElementSpace
 {
 private:
+   FiniteElementSpace *fes;
    int globalDofs, localDofs;
    karray<int> offsets;
    karray<int> indices, *reorderIndices;
    karray<int> map;
 public:
-   kFiniteElementSpace(FiniteElementSpace&);
+   kFiniteElementSpace(FiniteElementSpace*);
    ~kFiniteElementSpace();
-   // *************************************************************************
    void GlobalToLocal(const Vector&, Vector&) const;
    void LocalToGlobal(const Vector&, Vector&) const;
 };

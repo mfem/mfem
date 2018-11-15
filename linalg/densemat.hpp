@@ -62,7 +62,8 @@ public:
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will
        not delete the data array @a d. This method should not be used with
        DenseMatrix that owns its current data array. */
-   void UseExternalData(double *d, int h, int w);
+   void UseExternalData(double *d, int h, int w)
+   { data = d; height = h; width = w; capacity = -h*w; }
 
    /// Change the data array and the size of the DenseMatrix.
    /** The DenseMatrix does not assume ownership of the data array, i.e. it will
