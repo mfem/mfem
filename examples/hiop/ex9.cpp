@@ -160,6 +160,7 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    problem = 0;
+   optimizer_type = 1;
    const char *mesh_file = "../../data/periodic-hexagon.mesh";
    int ref_levels = 2;
    int order = 3;
@@ -485,8 +486,8 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    z += b;
    M_solver.Mult(z, y);
 
-   // Compute total mass.
-   const double tot_mass = M_rowsums * y;
+   // The solution y is an increment; it should not introduce new mass.
+   const double mass_y = 0.0;
 
    // Perform optimization.
    Vector y_out(dofs);
@@ -504,12 +505,15 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    {
       SLBQPOptimizer *slbqp = new SLBQPOptimizer();
       slbqp->SetBounds(y_min, y_max);
-      slbqp->SetLinearConstraint(M_rowsums, tot_mass);
+      slbqp->SetLinearConstraint(M_rowsums, mass_y);
       atol = 1.e-15;
       optsolver = slbqp;
    }
 
-   OptimizedTransportProblem ot_prob(y, M_rowsums, tot_mass, y_min, y_max);
+   // TODO there is still some instability with this.
+   y_min -= 1e-9;
+   y_max -= (-1e-9);
+   OptimizedTransportProblem ot_prob(y, M_rowsums, mass_y, y_min, y_max);
    optsolver->SetOptimizationProblem(ot_prob);
 
    optsolver->SetMaxIter(max_iter);
