@@ -55,7 +55,7 @@ double inflow_function(const Vector &x);
 // Mesh bounding box
 Vector bb_min, bb_max;
 
-enum MONOTYPE { None, AlgUpw, AlgUpw_FS, MaxMax, MaxMax_FS, AlphaBeta, AlphaBeta_FS };
+enum MONOTYPE { None, AlgUpw, AlgUpw_FS, Rusanov, Rusanov_FS, AlphaBeta, AlphaBeta_FS, Develop };
 enum STENCIL  { Full, Local, LocalAndDiag };
 
 class SolutionBounds {
@@ -477,7 +477,7 @@ public:
          return;
       else if ((_monoType == AlgUpw) || (_monoType == AlgUpw_FS))
       {
-         ComputeDiffusionMatrix(K, KpD);
+         ComputeDiscreteUpwindingMatrix(K, KpD);
          KpD += K;
          
          // Compute the lumped mass matrix in an algebraic way
@@ -487,13 +487,13 @@ public:
          m.Finalize();
          m.SpMat().GetDiag(lumpedM);
       }
-      else if ((_monoType == MaxMax) || (_monoType == MaxMax_FS))
+      else if ((_monoType == Rusanov) || (_monoType == Rusanov_FS))
       {
-         ComputeDiffusionCoefficient(fes, coef, _monoType, elDiff, bdrDiff, lumpedM, dofs);
+         ComputeDiffusionCoefficient(fes, coef);
       }
       else if ((_monoType == AlphaBeta) || (_monoType == AlphaBeta_FS))
       {
-         ComputeDiffusionVectors(fes, coef, _monoType, alpha, beta, sortArray, lumpedM, dofs);
+         ComputeDiffusionVectors(fes, coef);
       }
    }
    
@@ -527,7 +527,7 @@ public:
       return smap;
    }
    
-   void ComputeDiffusionMatrix(const SparseMatrix& K, SparseMatrix& D)
+   void ComputeDiscreteUpwindingMatrix(const SparseMatrix& K, SparseMatrix& D)
    {
       const int s1 = K.Size();
       int* Ip = K.GetI();
@@ -554,8 +554,7 @@ public:
       }
    }
    
-   void ComputeDiffusionCoefficient(FiniteElementSpace* fes, VectorFunctionCoefficient &coef, MONOTYPE monoType, 
-                                    Vector &elDiff, DenseMatrix &bdrDiff, Vector &lumpedM, DenseMatrix &dofs)
+   void ComputeDiffusionCoefficient(FiniteElementSpace* fes, VectorFunctionCoefficient &coef)
    {
       enum ESTIMATE { Schwarz, Hoelder1Inf, Hoelder1Inf_Exact, HoelderInf1, HoelderInf1_Exact };
       ESTIMATE est = Schwarz;
@@ -718,8 +717,7 @@ public:
       }
    }
    
-   void ComputeDiffusionVectors(FiniteElementSpace* fes, VectorFunctionCoefficient &coef, MONOTYPE monoType, 
-                                Vector &alpha, Vector &beta, Array<int> &sortArray, Vector &LumpedM, DenseMatrix &dofs)
+   void ComputeDiffusionVectors(FiniteElementSpace* fes, VectorFunctionCoefficient &coef)
    {
       Mesh *mesh = fes->GetMesh();
       int i, j, k, p, dofInd, qOrdE, numPtsE, qOrdF, numPtsF, nd, numBdrs, dim = mesh->Dimension(), ne = mesh->GetNE();
@@ -733,7 +731,7 @@ public:
       // fill the dofs array to access the correct dofs for boundaries later; dofs is not needed here
       dummy.ExtractBdrDofs(dofs);
       numBdrs = dofs.Width();
-            
+
       // use the first mesh element as indicator
       ElementTransformation *tr = mesh->GetElementTransformation(0);
       // Assuming order(u)==order(mesh)
@@ -752,7 +750,7 @@ public:
       alpha.SetSize(ne*nd); alpha = 0.;
       beta.SetSize(ne*nd); beta = 0.;
       bdrDiff.SetSize(ne, numBdrs); bdrDiff = 0.;
-      LumpedM.SetSize(ne*nd); LumpedM = 0.;
+      lumpedM.SetSize(ne*nd); lumpedM = 0.;
       locDofs.SetSize(nd); sortArray.SetSize(ne*nd);
       
       // use the first mesh boundary with a neighbor as indicator
@@ -831,7 +829,7 @@ public:
          }
          
          B1.Mult(D_M, vec2);
-         LumpedM.SetSubVector(locDofs, vec2);
+         lumpedM.SetSubVector(locDofs, vec2);
          
          MultADAt(B1, D_M, B1tDMB1);
          
@@ -976,19 +974,19 @@ public:
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   problem = 0;
+   problem = 4;
    const char *mesh_file = "../data/periodic-hexagon.mesh";
    int ref_levels = 2;
    int order = 3;
-   int ode_solver_type = 4;
+   int ode_solver_type = 3;
    MONOTYPE monoType = MaxMax_FS;
    STENCIL stencil = Local;
-   double t_final = 10.0;
+   double t_final = 4.0;
    double dt = 0.01;
    bool visualization = true;
    bool visit = false;
    bool binary = false;
-   int vis_steps = 5;
+   int vis_steps = 100;
 
    int precision = 8;
    cout.precision(precision);
