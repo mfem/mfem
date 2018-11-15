@@ -227,7 +227,6 @@ void test_deformation_field_set(ParGridFunction *gf, Vector *vals, ParFiniteElem
 int main(int argc, char *argv[])
 {
    // print the version of the code being run
-   printf("MFEM Version: %d \n", GetVersion());
 
    // Initialize MPI.
    int num_procs, myid;
@@ -235,6 +234,9 @@ int main(int argc, char *argv[])
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
+   
+   if(myid == 0) printf("MFEM Version: %d \n", GetVersion());
+   
    // Parse command-line options.
 
    // mesh
@@ -402,7 +404,7 @@ int main(int argc, char *argv[])
    }
 
    // Check material model argument input parameters for valid combinations
-   printf("after input before checkMaterialArgs. \n");
+   if(myid == 0) printf("after input before checkMaterialArgs. \n");
    bool err = checkMaterialArgs(hyperelastic, umat, cp, grain_euler, grain_q, grain_custom, 
               ngrains, nProps, numStateVars);
    if (!err && myid == 0) 
@@ -417,7 +419,7 @@ int main(int argc, char *argv[])
    }
 
    // Open the mesh
-   printf("before reading the mesh. \n");
+   if(myid == 0) printf("before reading the mesh. \n");
    Mesh *mesh;
    if (cubit) 
    {
@@ -436,10 +438,10 @@ int main(int argc, char *argv[])
    }
    else // read in mesh file
    {
-      printf("opening mesh file \n");
+      if(myid == 0) printf("opening mesh file \n");
 
       ifstream imesh(mesh_file);
-      printf("after declaring imesh \n");
+      if(myid == 0) printf("after declaring imesh \n");
       if (!imesh)
       {
          if (myid == 0)
@@ -450,9 +452,9 @@ int main(int argc, char *argv[])
          return 2;
       }
   
-      printf("before declaring new mesh \n");
+      if(myid == 0) printf("before declaring new mesh \n");
       mesh = new Mesh(imesh, 1, 1, true);
-      printf("after declaring new mesh \n");
+      if(myid == 0) printf("after declaring new mesh \n");
       imesh.close();
    }
 
@@ -460,7 +462,7 @@ int main(int argc, char *argv[])
    Vector g_map;
    if (hex_mesh_gen)
    {
-      printf("using mfem hex mesh generator \n");
+      if(myid == 0) printf("using mfem hex mesh generator \n");
 
       ifstream igmap(grain_map);
       if (!igmap && myid == 0)
@@ -499,7 +501,7 @@ int main(int argc, char *argv[])
 
    delete mesh;
 
-   printf("after mesh section. \n");
+   if(myid == 0) printf("after mesh section. \n");
 
    int dim = pmesh->Dimension();
 
@@ -568,7 +570,7 @@ int main(int argc, char *argv[])
    // There is not a separate initialization file for each quadrature point
    Vector matProps;
    Vector stateVars;
-   printf("before reading in matProps and stateVars. \n");
+   if(myid == 0) printf("before reading in matProps and stateVars. \n");
    { // read in props, material state vars and grains if crystal plasticity
       ifstream iprops(props_file);
       if (!iprops && myid == 0)
@@ -579,7 +581,7 @@ int main(int argc, char *argv[])
       // load material properties
       matProps.Load(iprops, nProps);
       iprops.close();
-      printf("after loading matProps. \n");
+      if(myid == 0) printf("after loading matProps. \n");
       
       // read in state variables file
       ifstream istateVars(state_file);
@@ -591,13 +593,13 @@ int main(int argc, char *argv[])
       // load state variables
       stateVars.Load(istateVars, numStateVars);
       istateVars.close();
-      printf("after loading stateVars. \n");
+      if(myid == 0) printf("after loading stateVars. \n");
 
       // if using a crystal plasticity model then get grain orientation data
       // declare a vector to hold the grain orientation input data. This data is per grain 
       // with a stride set previously as grain_offset
       Vector g_orient;
-      printf("before loading g_orient. \n");
+      if(myid == 0) printf("before loading g_orient. \n");
       if (cp)
       {
          // set the grain orientation vector from the input grain file
@@ -610,15 +612,15 @@ int main(int argc, char *argv[])
          int gsize = grain_offset * ngrains;
          g_orient.Load(igrain, gsize);
          igrain.close();
-         printf("after loading g_orient. \n");
+         if(myid == 0) printf("after loading g_orient. \n");
 
       } // end if (cp)
      
       // set the state var data on the quadrature function
-      printf("before setStateVarData. \n");
+      if(myid == 0) printf("before setStateVarData. \n");
       setStateVarData(&stateVars, &g_orient, &fe_space, pmesh, grain_offset, 
                       grain_statevar_offset, matVarsOffset, &matVars0);
-      printf("after setStateVarData. \n");
+      if(myid == 0) printf("after setStateVarData. \n");
 
    } // end read of mat props, state vars and grains
 
@@ -737,12 +739,12 @@ int main(int argc, char *argv[])
       // set the active boundary attributes
       if (bc.compID != 0) {
          ess_bdr[i] = 1;
-         printf("active ess_bdr: %d \n", i+1);
-         printf("bc comp id: %d \n", bc.compID);
-         printf("component vals %f %f %f \n", bc.essDisp[0], bc.essDisp[1], bc.essDisp[2]);
+         //printf("active ess_bdr: %d \n", i+1);
+         //printf("bc comp id: %d \n", bc.compID);
+         //printf("component vals %f %f %f \n", bc.essDisp[0], bc.essDisp[1], bc.essDisp[2]);
       }
       ++numDirBCs;
-//      printf("bcid, dirDisp: %d %f %f %f \n", bcID, bc.essDisp[0], bc.essDisp[1], bc.essDisp[2]);
+      //printf("bcid, dirDisp: %d %f %f %f \n", bcID, bc.essDisp[0], bc.essDisp[1], bc.essDisp[2]);
    }
 
    // declare a VectorFunctionRestrictedCoefficient over the boundaries that have attributes
@@ -755,18 +757,18 @@ int main(int argc, char *argv[])
    // this where the grain info is a possible subset only of some 
    // material history variable quadrature function. Also handle the 
    // case where there is no grain data.
-   printf("before NonlinearMechOperator constructor. \n");
+   if(myid == 0) printf("before NonlinearMechOperator constructor. \n");
    NonlinearMechOperator oper(fe_space, ess_bdr, 
                               newton_rel_tol, newton_abs_tol, 
                               newton_iter, gmres_solver, slu_solver,
                               hyperelastic, umat, matVars0, 
                               matVars1, sigma0, sigma1, matGrd,
                               kinVars0, matProps, nProps, numStateVars);
-   printf("after NonlinearMechOperator constructor. \n");
+   if(myid == 0) printf("after NonlinearMechOperator constructor. \n");
 
    oper.SetModelDebugFlg(grad_debug);
 
-   printf("after SetModelDebugFlg \n");
+   if(myid == 0) printf("after SetModelDebugFlg \n");
    
    // get the essential true dof list. This may not be used.
    const Array<int> ess_tdof_list = oper.GetEssTDofList();
@@ -796,7 +798,7 @@ int main(int argc, char *argv[])
       MPI_Barrier(pmesh->GetComm());
    }
 
-   printf("after visualization if-block \n");
+   if(myid == 0) printf("after visualization if-block \n");
 
    // initialize/set the time
    double t = 0.0;
@@ -808,7 +810,7 @@ int main(int argc, char *argv[])
    for (int ti = 1; !last_step; ti++)
    {
 
-      printf("inside timestep loop %d \n", ti);
+      if(myid == 0) printf("inside timestep loop %d \n", ti);
 
       // compute time step (this calculation is pulled from ex10p.cpp)
       double dt_real = min(dt, t_final - t);
@@ -816,7 +818,7 @@ int main(int argc, char *argv[])
       // set the time step on the boundary conditions
       setBCTimeStep(dt_real, numDirBCs);
 
-      printf("after setBCTimeStep \n");
+      //printf("after setBCTimeStep \n");
 
       // compute current time
       t = t + dt_real;
@@ -838,14 +840,14 @@ int main(int argc, char *argv[])
       // the previous time step, so that the velocity projection produces a 
       // guess to the incremental nodal displacement equal to the last estimate
       // of the incremental nodal velocity times the current time step
-      printf("before x_bar.ProjectCoefficient \n");
+      //printf("before x_bar.ProjectCoefficient \n");
 //      x_bar.ProjectCoefficient(velProj);
 
       // overwrite entries in x_bar for dofs with Dirichlet 
       // boundary conditions (note, this routine overwrites, not adds).
       // Note: these are prescribed incremental nodal displacements at 
       // Dirichlet BC dofs.
-      printf("before x_bar.ProjectBdrCoefficient \n");
+      //printf("before x_bar.ProjectBdrCoefficient \n");
       x_bar.ProjectBdrCoefficient(ess_bdr_func); // don't need attr list as input
                                                  // pulled off the 
                                                  // VectorFunctionRestrictedCoefficient
@@ -858,7 +860,7 @@ int main(int argc, char *argv[])
       // At this point we initialized x_bar, performed a velocity projection for 
       // all dofs, and then over-wrote the Dirichlet BC dofs with the boundary condition 
       // function.
-      printf("before x_cur.GetTrueDofs \n");
+      //printf("before x_cur.GetTrueDofs \n");
       x_cur.GetTrueDofs(x_sol);
 
       // debug print
@@ -868,9 +870,9 @@ int main(int argc, char *argv[])
 //      }
 
       // Solve the Newton system 
-      printf("before oper.Solve. \n");
+      //printf("before oper.Solve. \n");
       oper.Solve(x_sol);
-      printf("after oper.Solve. \n");
+      //printf("after oper.Solve. \n");
 
       // distribute the solution vector to x_cur
       x_cur.Distribute(x_sol);
@@ -895,9 +897,9 @@ int main(int argc, char *argv[])
       // prior to the next time step for all Exa material models
       // This also updates the deformation gradient with the beginning step 
       // deformation gradient stored on an Exa model
-      printf("before oper.UpdateModel. \n");
+      //printf("before oper.UpdateModel. \n");
       oper.UpdateModel(x_sol);
-      printf("after oper.UpdateModel. \n");
+      //printf("after oper.UpdateModel. \n");
 
       x_beg = x_cur;
       
@@ -929,7 +931,7 @@ int main(int argc, char *argv[])
          // saving mesh for plotting. pmesh has global current configuration nodal coordinates
          ofstream mesh_ofs(mesh_name.str().c_str());
          mesh_ofs.precision(8);
-         pmesh->Print(mesh_ofs); 
+         pmesh->PrintAsOne(mesh_ofs); 
        
          // save each current configuration as this data will match the mesh output.
          ofstream deformation_ofs(deformed_name.str().c_str());
@@ -1002,6 +1004,8 @@ int main(int argc, char *argv[])
 
       //nodes = NULL;
    } // end loop over time steps
+
+   // test_deformation_field_set(&x_cur, &x_sol, &fe_space);
    
    // Free the used memory.
    delete pmesh;
@@ -1154,6 +1158,9 @@ void NonlinearMechOperator::ComputeVolAvgTensor(const ParFiniteElementSpace* fes
    double el_vol = 0.0;
    double temp_wts = 0.0;
    double incr = 0.0;
+
+   int my_id;
+   MPI_Comm_rank(MPI_COMM_WORLD, &my_id);
    
    // loop over elements
    for (int i = 0; i < fes->GetNE(); ++i)
@@ -1180,15 +1187,28 @@ void NonlinearMechOperator::ComputeVolAvgTensor(const ParFiniteElementSpace* fes
          }
       }
    }
+
+   double data[size];
+
+   for(int i = 0; i < size; i++){
+     data[i] = tensor[i];
+   }
+
+   MPI_Allreduce(&data, tensor.GetData(), size, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
    
+   double temp = el_vol;
+
+   MPI_Allreduce(&temp, &el_vol, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
    double inv_vol = 1.0/el_vol;
+
    
-   printf("Average tensor values:\n");
+   if(my_id == 0) printf("Average tensor values:\n");
    for (int m = 0; m < size; m++) {
       tensor[m] *= inv_vol;
-      printf("%lf ", tensor[m]);
+      if(my_id == 0) printf("%lf ", tensor[m]);
    }
-   printf("\n");
+   if(my_id == 0) printf("\n");
    
 }
 
@@ -1197,8 +1217,8 @@ void NonlinearMechOperator::UpdateModel(const Vector &x)
    const ParFiniteElementSpace *fes = GetFESpace();
    const FiniteElement *fe;
    const IntegrationRule *ir;
-
-   model->UpdateModelVars(fes, x);
+   
+   model->UpdateModelVars(&fe_space, x);
    
    // update state variables on a ExaModel
    for (int i = 0; i < fes->GetNE(); ++i)
@@ -1565,7 +1585,7 @@ void setStateVarData(Vector* sVars, Vector* orient, ParFiniteElementSpace *fes,
       // for all elements in the mesh corresponding to the grain id to which the element 
       // belongs.
       elem_atr = pmesh->attributes[fes->GetAttribute(i)-1]; 
-      printf("setGrainData: element attr %d \n", elem_atr);
+      //printf("setGrainData: element attr %d \n", elem_atr);
 
       // loop over quadrature points
       for (int j = 0; j < ir->GetNPoints(); ++j)
@@ -1621,8 +1641,8 @@ void initQuadFunc(QuadratureFunction *qf, double val, ParFiniteElementSpace *fes
    int counter = 0;
    //QuadratureSpace* qspace = qf->GetSpace();
 
-   printf("qf data size: %d \n", qf->Size());
-   printf("qf vdim: %d \n", vdim);
+   //printf("qf data size: %d \n", qf->Size());
+   //printf("qf vdim: %d \n", vdim);
    
    //The below should be exactly the same as what
    //the other for loop is trying to accomplish
@@ -1667,13 +1687,16 @@ void test_deformation_field_set(ParGridFunction *gf, Vector *vec, ParFiniteEleme
 {
    
    const IntegrationRule *ir;
-   HypreParVector* temp = gf->GetTrueDofs();
-   Vector* temp2 = temp->GlobalVector();
-   double* temp_vals = temp2->GetData();
+   //HypreParVector* temp = gf->GetTrueDofs();
+   //Vector* temp2 = temp->GlobalVector();
+   double* temp_vals = gf->GetData();
    double* vals = vec->GetData();
 
    int dim = gf->Size()/3;
    int dim2 = vec->Size()/3;
+   int  myid;
+
+   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
    
    printf("gf data size: %d vec data size %d\n", dim, dim2);
    
@@ -1684,10 +1707,10 @@ void test_deformation_field_set(ParGridFunction *gf, Vector *vec, ParFiniteEleme
       double x2 = temp_vals[i + dim];
       double x3 = temp_vals[i + 2 * dim];
       
-      vals[i] = x1 + (2 * x1 + 3 * x2 + 4 * x3);
-      vals[i + dim] = x2 + (4 * x1 + 2 * x2 + 3 * x3);
-      vals[i + 2 * dim] = x3 + (3 * x1 + 4 * x2 + 2 * x3);
-      printf("x: %f, %f;\t y: %f, %f;\t z: %f, %f\n ", x1, vals[i], x2, vals[i + dim], x3, vals[i + 2 * dim]);
+      //vals[i] = x1;// + (2 * x1 + 3 * x2 + 4 * x3);
+      //vals[i + dim] = x2;// + (4 * x1 + 2 * x2 + 3 * x3);
+      //vals[i + 2 * dim] = x3;// + (3 * x1 + 4 * x2 + 2 * x3);
+      printf("vertex_num: %d my_id: %d\t x: %f;\t y: %f;\t z: %f\n ",i, myid, x1, x2, x3);
    }
 }
 

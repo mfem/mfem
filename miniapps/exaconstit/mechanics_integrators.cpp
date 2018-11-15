@@ -20,7 +20,7 @@ namespace mfem
 
 using namespace std;
 
-void computeDefGrad(const QuadratureFunction *qf, const ParFiniteElementSpace *fes, 
+void computeDefGrad(const QuadratureFunction *qf, ParFiniteElementSpace *fes, 
                     const Vector &x0)
 {
    const FiniteElement *fe;
@@ -29,8 +29,20 @@ void computeDefGrad(const QuadratureFunction *qf, const ParFiniteElementSpace *f
    int qf_offset = qf->GetVDim(); // offset at each integration point
    QuadratureSpace* qspace = qf->GetSpace();
 
+   ParGridFunction x_gf;
+   
+   double* vals = x0.GetData();
+
+   const int NE = fes->GetNE();
+
+   int dim = x0.Size() / 3;
+
+   x_gf.MakeTRef(fes, vals);
+   x_gf.SetFromTrueVector();
+
+   
    // loop over elements
-   for (int i = 0; i < fes->GetNE(); ++i)
+   for (int i = 0; i < NE; ++i)
    {
       // get element transformation for the ith element
       ElementTransformation* Ttr = fes->GetElementTransformation(i);
@@ -52,13 +64,21 @@ void computeDefGrad(const QuadratureFunction *qf, const ParFiniteElementSpace *f
       Jpt.SetSize(dim);
       F0.SetSize(dim);
       F1.SetSize(dim);
+      PMatI.SetSize(dof, dim);
+      
+      // get element physical coordinates
+      //Array<int> vdofs;
+      //Vector el_x;
+      //fes->GetElementVDofs(i, vdofs);
+      //x0.GetSubVector(vdofs, el_x);
+      //PMatI.UseExternalData(el_x.GetData(), dof, dim);
 
       // get element physical coordinates
-      Array<int> vdofs;
-      Vector el_x;
+      Array<int> vdofs(dof * dim);
+      Vector el_x(PMatI.Data(), dof * dim);
       fes->GetElementVDofs(i, vdofs);
-      x0.GetSubVector(vdofs, el_x);
-      PMatI.UseExternalData(el_x.GetData(), dof, dim);
+      
+      x_gf.GetSubVector(vdofs, el_x);
       
       ir = &(qspace->GetElementIntRule(i));
       int elem_offset = qf_offset * ir->GetNPoints();
@@ -702,8 +722,7 @@ void ExaModel::UpdateStateVars(int elID, int ipNum)
    return;
 }
 
-void AbaqusUmatModel::UpdateModelVars(
-                              const ParFiniteElementSpace *fes,
+void AbaqusUmatModel::UpdateModelVars( ParFiniteElementSpace *fes,
                               const Vector &x)
 {
 // update the beginning step deformation gradient
@@ -713,7 +732,7 @@ void AbaqusUmatModel::UpdateModelVars(
    return;
 }
    
-void NeoHookean::UpdateModelVars(const ParFiniteElementSpace *fes,
+void NeoHookean::UpdateModelVars(ParFiniteElementSpace *fes,
                                  const Vector &x)
 {
    const FiniteElement *fe;

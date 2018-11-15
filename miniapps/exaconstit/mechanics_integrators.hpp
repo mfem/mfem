@@ -20,7 +20,7 @@ namespace mfem
 
 // free function to compute the beginning step deformation gradient to store 
 // on a quadrature function
-void computeDefGrad(const QuadratureFunction *qf, const ParFiniteElementSpace *fes, 
+void computeDefGrad(const QuadratureFunction *qf, ParFiniteElementSpace *fes, 
                     const Vector &x0);
 void computeDefGradTest(const QuadratureFunction *qf,
                         ParFiniteElementSpace *fes, const Vector &x0);
@@ -121,7 +121,7 @@ public:
    // routine to update the beginning step deformation gradient. This must
    // be written by a model class extension to update whatever else
    // may be required for that particular model
-   virtual void UpdateModelVars(const ParFiniteElementSpace *fes, 
+   virtual void UpdateModelVars(ParFiniteElementSpace *fes, 
                                 const Vector &x) = 0;
 
    // routine to set the element id and integration point number for 
@@ -286,7 +286,7 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A);
    
-   virtual void UpdateModelVars(const ParFiniteElementSpace *fes,
+  virtual void UpdateModelVars(ParFiniteElementSpace *fes,
                                 const Vector &x);
 
    void CalcLogStrainIncrement(DenseMatrix &dE);
@@ -341,7 +341,7 @@ public:
    virtual void AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A);
    
-   virtual void UpdateModelVars(const ParFiniteElementSpace *fes,
+   virtual void UpdateModelVars(ParFiniteElementSpace *fes,
                                 const Vector &x);
 };
 
