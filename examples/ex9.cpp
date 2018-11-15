@@ -975,11 +975,11 @@ int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
    problem = 4;
-   const char *mesh_file = "../data/periodic-hexagon.mesh";
+   const char *mesh_file = "../data/periodic-square.mesh";
    int ref_levels = 2;
    int order = 3;
    int ode_solver_type = 3;
-   MONOTYPE monoType = MaxMax_FS;
+   MONOTYPE monoType = Rusanov;
    STENCIL stencil = Local;
    double t_final = 4.0;
    double dt = 0.01;
@@ -1007,8 +1007,8 @@ int main(int argc, char *argv[])
                   "Type of monotonicity treatment: 0 - no monotonicity treatment,\n\t"
                   "                                1 - algebraic upwinding - low order,\n\t"
                   "                                2 - algebraic upwinding - FCT,\n\t"
-                  "                                3 - MaxMax scheme (matrix-free Rusanov) - low order,\n\t"
-                  "                                4 - MaxMax scheme (matrix-free Rusanov) - FCT,\n\t"
+                  "                                3 - Rusanov - low order,\n\t"
+                  "                                4 - Rusanov - FCT,\n\t"
                   "                                5 - AlphaBeta scheme (matrix-free) - low order,\n\t"
                   "                                6 - AlphaBeta scheme (matrix-free) - FCT.");
    args.AddOption((int*)(&stencil), "-st", "--stencil",
