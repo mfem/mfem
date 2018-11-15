@@ -36,7 +36,6 @@ void kGauss_Seidel_forw_A_NULL(const size_t s,
                                const double *xp,
                                double *yp)
 {
-   assert(false);
    GET_ADRS_T(R,RowNode*);
    GET_CONST_ADRS(xp);
    GET_ADRS(yp);
