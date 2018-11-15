@@ -1257,7 +1257,7 @@ int main(int argc, char *argv[])
 
 void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
 {
-    if ((fct.monoType == AlgUpw) || (fct.monoType == AlgUpw_FS))
+   if ((fct.monoType == AlgUpw) || (fct.monoType == AlgUpw_FS))
    {
       // Discretization AND monotonicity terms
       fct.KpD.Mult(x, z);
@@ -1273,7 +1273,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          }
       }
    }
-   else if ((fct.monoType == MaxMax) || (fct.monoType == MaxMax_FS))
+   else if ((fct.monoType == Rusanov) || (fct.monoType == Rusanov_FS))
    {
       Mesh *mesh = fes->GetMesh();
       int i, j, k, nd, numBdrs, dofInd, dim(mesh->Dimension()), numDofs(fct.dofs.Width());
@@ -1468,8 +1468,7 @@ void FE_Evolution::ComputeFCTSolution(const Vector &x, const Vector &yH, const V
       for (j = 0; j < nd; j++)
       {
          dofInd = k*nd+j;
-         uClipped(j) = std::min(fct.bnds.x_max(dofInd), 
-                                std::max(x(dofInd) + dt * yH(dofInd), fct.bnds.x_min(dofInd)));
+         uClipped(j) = min(fct.bnds.x_max(dofInd), max(x(dofInd) + dt * yH(dofInd), fct.bnds.x_min(dofInd)));
          // compute coefficients for the high-order corrections
          // NOTE: The multiplication and inversion of the lumped mass matrix is 
          //       avoided here, this is only possible due to its positive diagonal 
@@ -1509,7 +1508,7 @@ FE_Evolution::FE_Evolution(FiniteElementSpace* _fes, SparseMatrix &_M, SparseMat
    M_solver.iterative_mode = false;
    M_solver.SetRelTol(1e-9);
    M_solver.SetAbsTol(0.0);
-   M_solver.SetMaxIter(100);
+   M_solver.SetMaxIter(200);
    M_solver.SetPrintLevel(0);
 }
 
