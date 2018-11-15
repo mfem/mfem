@@ -273,6 +273,7 @@ HiopNlpOptimizer::~HiopNlpOptimizer()
 void HiopNlpOptimizer::SetOptimizationProblem(OptimizationProblem &prob)
 {
    problem = &prob;
+   height = width = problem->input_size;
 
    if (hiop_problem) { delete hiop_problem; }
 
@@ -285,11 +286,15 @@ void HiopNlpOptimizer::SetOptimizationProblem(OptimizationProblem &prob)
 
 void HiopNlpOptimizer::Mult(const Vector &xt, Vector &x) const
 {
-   if (iterative_mode) { hiop_problem->setStartingPoint(xt); }
+   MFEM_ASSERT(hiop_problem != NULL,
+               "Unspecified OptimizationProblem that must be solved.");
+
+   hiop_problem->setStartingPoint(xt);
 
    hiop::hiopNlpDenseConstraints hiopInstance(*hiop_problem);
 
-   // Set tolerance:
+   // TODO set max_iter.
+   // TODO how to use rel_tol?
    hiopInstance.options->SetNumericValue("tolerance", abs_tol);
    hiopInstance.options->SetStringValue("fixed_var", "relax");
    // 0: no output; 3: not too much
@@ -300,7 +305,7 @@ void HiopNlpOptimizer::Mult(const Vector &xt, Vector &x) const
    const hiop::hiopSolveStatus status = solver.run();
    final_norm = solver.getObjective();
 
-   // TODO extract the final iter_num from HiOp.
+   // TODO extract the final_iter from HiOp.
    final_iter = 1;
 
    if (status != hiop::Solve_Success)
