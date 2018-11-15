@@ -89,11 +89,6 @@ bool HiopOptimizationProblem::eval_f(const long long &n, const double *x,
    x_vec = x;
    obj_value = problem.CalcObjective(x_vec);
 
-#ifdef MFEM_USE_MPI
-   const double loc_obj = obj_value;
-   MPI_Allreduce(&loc_obj, &obj_value, 1, MPI_DOUBLE, MPI_SUM, comm_);
-#endif
-
    return true;
 }
 

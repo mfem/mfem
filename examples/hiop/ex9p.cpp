@@ -93,10 +93,9 @@ public:
 };
 
 /** Monotone and conservative a-posteriori correction for transport solutions:
- *  Find x that minimizes 0.5 || x - x_HO ||^2, subject to
- *  sum w_i x_i = mass,
- *  x_min <= x <= x_max.
- */
+    Find x that minimizes 0.5 || x - x_HO ||^2, subject to
+    sum w_i x_i = mass,
+    x_min <= x <= x_max. */
 class OptimizedTransportProblem : public OptimizationProblem
 {
 private:
@@ -119,13 +118,16 @@ public:
 
    virtual double CalcObjective(const Vector &x) const
    {
-      double res = 0.0;
+      double loc_res = 0.0;
       for (int i = 0; i < input_size; i++)
       {
          const double d = x(i) - x_HO(i);
-         res += d * d;
+         loc_res += d * d;
       }
-      return 0.5 * res;
+      loc_res *= 0.5;
+      double res;
+      MPI_Allreduce(&loc_res, &res, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      return res;
    }
 
    virtual void CalcObjectiveGrad(const Vector &x, Vector &grad) const
