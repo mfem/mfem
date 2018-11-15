@@ -140,7 +140,6 @@ void kVectorGetSubvector(const int N,
    MFEM_FORALL(i, N,
    {
       const int dof_i = d_dofs[i];
-      assert(dof_i >= 0);
       d_y[i] = dof_i >= 0 ? d_x[dof_i] : -d_x[-dof_i-1];
    });
 }
@@ -162,7 +161,6 @@ void kVectorSetSubvector(const int N,
          d_x[j] = d_y[i];
       }
       else {
-         assert(false);
          d_x[-1-j] = -d_y[i];
       }
    });
