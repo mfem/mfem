@@ -479,13 +479,6 @@ public:
       {
          ComputeDiscreteUpwindingMatrix(K, KpD);
          KpD += K;
-         
-         // Compute the lumped mass matrix algebraicly
-         BilinearForm m(fes);
-         m.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
-         m.Assemble();
-         m.Finalize();
-         m.SpMat().GetDiag(lumpedM);
       }
       else if ((_monoType == Rusanov) || (_monoType == Rusanov_FS))
       {
@@ -495,6 +488,12 @@ public:
       {
          ComputeDiffusionVectors(fes, coef);
       }
+      // Compute the lumped mass matrix algebraicly
+      BilinearForm m(fes);
+      m.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
+      m.Assemble();
+      m.Finalize();
+      m.SpMat().GetDiag(lumpedM);
    }
    
    // Utility function to build a map to the offset of the symmetric entry in a sparse matrix
@@ -577,7 +576,6 @@ public:
 
       elDiff.SetSize(ne); elDiff = 0.;
       bdrDiff.SetSize(ne, numBdrs); bdrDiff = 0.;
-      lumpedM.SetSize(ne*nd); lumpedM = 0.;
       
       // use the first mesh element as indicator
       ElementTransformation *tr = mesh->GetElementTransformation(0);
@@ -659,7 +657,6 @@ public:
                   otherwise:
                      mfem_error("Unsupported estimate option.");
                }
-               lumpedM(k*nd+j) += ip.weight * tr->Weight() * shape(j);
             }
          }
          elDiff(k) = std::sqrt(alpha.Max() * beta.Max());
@@ -750,7 +747,6 @@ public:
       alpha.SetSize(ne*nd); alpha = 0.;
       beta.SetSize(ne*nd); beta = 0.;
       bdrDiff.SetSize(ne, numBdrs); bdrDiff = 0.;
-      lumpedM.SetSize(ne*nd); lumpedM = 0.;
       locDofs.SetSize(nd); sortArray.SetSize(ne*nd);
       
       // use the first mesh boundary with a neighbor as indicator
@@ -829,7 +825,6 @@ public:
          }
          
          B1.Mult(D_M, vec2);
-         lumpedM.SetSubVector(locDofs, vec2);
          
          MultADAt(B1, D_M, B1tDMB1);
          
@@ -979,7 +974,7 @@ int main(int argc, char *argv[])
    int ref_levels = 2;
    int order = 3;
    int ode_solver_type = 3;
-   MONOTYPE monoType = Rusanov;
+   MONOTYPE monoType = ResDist;
    STENCIL stencil = Local;
    double t_final = 4.0;
    double dt = 0.01;
