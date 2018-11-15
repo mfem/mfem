@@ -45,7 +45,9 @@ public:
 
    virtual void TransformCols(const DenseMatrix &, DenseMatrix &) const;
 
-   virtual void TransformBack(const Vector &, Vector &) const = 0;
+   virtual void TransformBack(const double *, double *) const = 0;
+
+   virtual void TransformBack(const Vector &, Vector &) const;
 
    virtual ~DofTransformation() {}
 };
@@ -77,17 +79,27 @@ public:
    }
 
    void Transform(const double *, double *) const;
-   void TransformBack(const Vector &, Vector &) const;
+   void TransformBack(const double *, double *) const;
 };
 
 class ND_TetDofTransformation : public DofTransformation
 {
+private:
+   static const double T_data[24];
+   static const double TInv_data[24];
+   const DenseTensor T, TInv;
+   Array<int> Fo;
+   int order;
+  
 public:
-   ND_TetDofTransformation();
+   ND_TetDofTransformation(int order);
 
-   virtual void Transform(const double *, double *) const;
+   inline void SetFaceOrientation(const Array<int> & face_orientation)
+   { Fo = face_orientation; }
+  
+   void Transform(const double *, double *) const;
 
-   virtual void TransformBack(const Vector &, Vector &) const;
+   void TransformBack(const double *, double *) const;
 };
 
 class ND_WedgeDofTransformation : public DofTransformation
@@ -95,9 +107,9 @@ class ND_WedgeDofTransformation : public DofTransformation
 public:
    ND_WedgeDofTransformation();
 
-   virtual void Transform(const double *, double *) const;
+   void Transform(const double *, double *) const;
 
-   virtual void TransformBack(const Vector &, Vector &) const;
+   void TransformBack(const double *, double *) const;
 };
 
 } // namespace mfem
