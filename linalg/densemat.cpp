@@ -137,45 +137,8 @@ DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
 DenseMatrix::DenseMatrix(double *d, int h, int w)
    : Matrix(h, w)
 {
-   if (mm::Get().Known(d))
-   {
-      data = d;
-      capacity = -h*w;
-   }
-   else
-   {
-      assert(false);
-      data = mm::malloc<double>(h*w);
-      data = d;
-      capacity = -h*w;
-   }
-}
-
-void DenseMatrix::UseExternalData(double *d, int h, int w)
-{
-   if (mm::Get().Known(d))
-   {
-      data = d;
-      height = h;
-      width = w;
-      capacity = -h*w;
-   }
-   else
-   {
-      if (!d and h==0 and w==0)
-      {
-         // mesh, ncmesh, DenseTensor point_matrices Clear
-         data = NULL;
-         height = width = capacity = 0;
-      }
-      else   // d = NULL and h!=0, w!=0
-      {
-         data = d;
-         height = h;
-         width = w;
-         capacity = -h*w;
-      }
-   }
+   data = d;
+   capacity = -h*w;
 }
 
 void DenseMatrix::SetSize(int h, int w)
@@ -215,7 +178,7 @@ void DenseMatrix::Mult(const double *x, double *y) const
 {
    if (width == 0)
    {
-      kMult0(height, y);
+      kMultWidth0(height, y);
       return;
    }
    kMult(height, width, data, x, y);
@@ -498,16 +461,11 @@ double DenseMatrix::Det() const
       case 1:
          return data[0];
 
-      case 2:
-         return data[0] * data[3] - data[1] * data[2];
+      case 2: return kDet2(data);
 
       case 3:
       {
-         const double *d = data;
-         return
-            d[0] * (d[4] * d[8] - d[5] * d[7]) +
-            d[3] * (d[2] * d[7] - d[1] * d[8]) +
-            d[6] * (d[1] * d[5] - d[2] * d[4]);
+         return kDet3(data);
       }
       case 4:
       {
@@ -609,11 +567,7 @@ DenseMatrix &DenseMatrix::operator=(const DenseMatrix &m)
    SetSize(m.height, m.width);
 
    const int hw = height * width;
-   for (int i = 0; i < hw; i++)
-   {
-      data[i] = m.data[i];
-   }
-
+   kOpEq(hw,m.GetData(),data);
    return *this;
 }
 
@@ -852,31 +806,14 @@ double DenseMatrix::MaxMaxNorm() const
 
 void DenseMatrix::FNorm(double &scale_factor, double &scaled_fnorm2) const
 {
-   int i, hw = Height() * Width();
-   double max_norm = 0.0, entry, fnorm2;
-
-   for (i = 0; i < hw; i++)
-   {
-      entry = fabs(data[i]);
-      if (entry > max_norm)
-      {
-         max_norm = entry;
-      }
-   }
-
+   int hw = Height() * Width();
+   const double max_norm = kFNormMax(hw,data);
    if (max_norm == 0.0)
    {
       scale_factor = scaled_fnorm2 = 0.0;
       return;
    }
-
-   fnorm2 = 0.0;
-   for (i = 0; i < hw; i++)
-   {
-      entry = data[i] / max_norm;
-      fnorm2 += entry * entry;
-   }
-
+   const double fnorm2 = kFNorm2(hw,max_norm,data);
    scale_factor = max_norm;
    scaled_fnorm2 = fnorm2;
 }
@@ -2464,16 +2401,8 @@ void DenseMatrix::GetRowSums(Vector &l) const
 void DenseMatrix::Diag(double c, int n)
 {
    SetSize(n);
-
-   int i, N = n*n;
-   for (i = 0; i < N; i++)
-   {
-      data[i] = 0.0;
-   }
-   for (i = 0; i < n; i++)
-   {
-      data[i*(n+1)] = c;
-   }
+   const int N = n*n;
+   kDiag(n, N, c, data);
 }
 
 void DenseMatrix::Diag(double *diag, int n)
@@ -3073,13 +3002,13 @@ void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
    dgemm_(&transa, &transb, &m, &n, &k, &alpha, b.Data(), &m,
           c.Data(), &k, &beta, a.Data(), &m);
 #else
-   const int ah = a.Height();
-   const int aw = a.Width();
-   const int bw = b.Width();
+   const size_t ah = a.Height();
+   const size_t aw = a.Width();
+   const size_t bw = b.Width();
    double *ad = a.Data();
    const double *bd = b.Data();
    const double *cd = c.Data();
-   kMult(ah,aw,bw,bd,cd,ad);
+   kMult(ah, aw, bw, bd, cd, ad);
 #endif
 }
 
@@ -3285,23 +3214,10 @@ void CalcInverse(const DenseMatrix &a, DenseMatrix &inva)
          inva(0,0) = t;
          break;
       case 2:
-         inva(0,0) = a(1,1) * t ;
-         inva(0,1) = -a(0,1) * t ;
-         inva(1,0) = -a(1,0) * t ;
-         inva(1,1) = a(0,0) * t ;
+         kCalcInverse2D(t,a.GetData(),inva.GetData());
          break;
       case 3:
-         inva(0,0) = (a(1,1)*a(2,2)-a(1,2)*a(2,1))*t;
-         inva(0,1) = (a(0,2)*a(2,1)-a(0,1)*a(2,2))*t;
-         inva(0,2) = (a(0,1)*a(1,2)-a(0,2)*a(1,1))*t;
-
-         inva(1,0) = (a(1,2)*a(2,0)-a(1,0)*a(2,2))*t;
-         inva(1,1) = (a(0,0)*a(2,2)-a(0,2)*a(2,0))*t;
-         inva(1,2) = (a(0,2)*a(1,0)-a(0,0)*a(1,2))*t;
-
-         inva(2,0) = (a(1,0)*a(2,1)-a(1,1)*a(2,0))*t;
-         inva(2,1) = (a(0,1)*a(2,0)-a(0,0)*a(2,1))*t;
-         inva(2,2) = (a(0,0)*a(1,1)-a(0,1)*a(1,0))*t;
+         kCalcInverse3D(t,a.GetData(),inva.GetData());
          break;
    }
 }

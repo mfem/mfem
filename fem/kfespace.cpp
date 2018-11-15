@@ -16,6 +16,7 @@
 #include "kernels/kGlobalToLocal.hpp"
 #include "kernels/kLocalToGlobal.hpp"
 
+// *****************************************************************************
 namespace mfem
 {
 
@@ -24,28 +25,28 @@ static void kArrayAssign(const int n, const int *src, int *dest)
 {
    GET_CONST_ADRS_T(src,int);
    GET_ADRS_T(dest,int);
-   forall(i, n, d_dest[i] = d_src[i];);
+   MFEM_FORALL(i, n, d_dest[i] = d_src[i];);
 }
 
 // *****************************************************************************
 // * kFiniteElementSpace
 // *****************************************************************************
-kFiniteElementSpace::kFiniteElementSpace(FiniteElementSpace &fes)
-   :FiniteElementSpace(fes),
-    globalDofs(GetNDofs()),
-    localDofs(GetFE(0)->GetDof()),
+kFiniteElementSpace::kFiniteElementSpace(FiniteElementSpace *f)
+   :fes(f),
+    globalDofs(f->GetNDofs()),
+    localDofs(f->GetFE(0)->GetDof()),
     offsets(globalDofs+1),
-    indices(localDofs, GetNE()),
-    map(localDofs, GetNE())
+    indices(localDofs, f->GetNE()),
+    map(localDofs, f->GetNE())
 {
-   const FiniteElement *fe = GetFE(0);
+   const FiniteElement *fe = f->GetFE(0);
    const TensorBasisElement* el = dynamic_cast<const TensorBasisElement*>(fe);
    const Array<int> &dof_map = el->GetDofMap();
    const bool dof_map_is_identity = (dof_map.Size()==0);
 
-   const Table& e2dTable = GetElementToDofTable();
+   const Table& e2dTable = f->GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
-   const int elements = GetNE();
+   const int elements = f->GetNE();
    Array<int> h_offsets(globalDofs+1);
 
    // We'll be keeping a count of how many local nodes point to its global dof
@@ -97,14 +98,8 @@ kFiniteElementSpace::kFiniteElementSpace(FiniteElementSpace &fes)
 
    const int leN = localDofs*elements;
    const int guN = globalDofs+1;
-
-   //offsets = h_offsets;
    kArrayAssign(guN,h_offsets,offsets);
-
-   //indices = h_indices;
    kArrayAssign(leN,h_indices,indices);
-
-   //map = h_map;
    kArrayAssign(leN,h_map,map);
 }
 
@@ -118,9 +113,9 @@ kFiniteElementSpace::~kFiniteElementSpace()
 void kFiniteElementSpace::GlobalToLocal(const Vector& globalVec,
                                         Vector& localVec) const
 {
-   const int vdim = GetVDim();
-   const int localEntries = localDofs * GetNE();
-   const bool vdim_ordering = ordering == Ordering::byVDIM;
+   const int vdim = fes->GetVDim();
+   const int localEntries = localDofs * fes->GetNE();
+   const bool vdim_ordering = fes->GetOrdering() == Ordering::byVDIM;
    kGlobalToLocal(vdim,
                   vdim_ordering,
                   globalDofs,
@@ -136,9 +131,9 @@ void kFiniteElementSpace::GlobalToLocal(const Vector& globalVec,
 void kFiniteElementSpace::LocalToGlobal(const Vector& localVec,
                                         Vector& globalVec) const
 {
-   const int vdim = GetVDim();
-   const int localEntries = localDofs * GetNE();
-   const bool vdim_ordering = ordering == Ordering::byVDIM;
+   const int vdim = fes->GetVDim();
+   const int localEntries = localDofs * fes->GetNE();
+   const bool vdim_ordering = fes->GetOrdering() == Ordering::byVDIM;
    kLocalToGlobal(vdim,
                   vdim_ordering,
                   globalDofs,
@@ -149,4 +144,4 @@ void kFiniteElementSpace::LocalToGlobal(const Vector& localVec,
                   globalVec);
 }
 
-} // namespace mfem
+} // mfem

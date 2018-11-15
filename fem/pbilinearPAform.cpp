@@ -9,69 +9,73 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-// Implementation of class BilinearForm
+#include "../config/config.hpp"
+
+#ifdef MFEM_USE_MPI
 
 #include "fem.hpp"
 #include "bilininteg.hpp"
+#include "pbilinearform.hpp"
 #include "kBilinIntegDiffusion.hpp"
 #include "kfespace.hpp"
 #include "../linalg/kernels/vector.hpp"
 
 #include <cmath>
 
+// *****************************************************************************
 namespace mfem
 {
 
 // ***************************************************************************
-// * PABilinearForm
+// * ParPABilinearForm
 // ***************************************************************************
-PABilinearForm::PABilinearForm(FiniteElementSpace* fes) :
-   AbstractBilinearForm(fes),
+ParPABilinearForm::ParPABilinearForm(ParFiniteElementSpace *fes) :
+   PABilinearForm(fes),
    mesh(fes->GetMesh()),
    trialFes(fes),
    testFes(fes),
    localX(mesh->GetNE() * trialFes->GetFE(0)->GetDof() * trialFes->GetVDim()),
    localY(mesh->GetNE() * testFes->GetFE(0)->GetDof() * testFes->GetVDim()),
-   kfes(new kFiniteElementSpace(fes)) { }
+   kfes(new kFiniteElementSpace(static_cast<FiniteElementSpace*>(fes))) { }
 
 // ***************************************************************************
-PABilinearForm::~PABilinearForm() { delete kfes; }
+ParPABilinearForm::~ParPABilinearForm() { /*delete kfes;*/}
 
 // *****************************************************************************
-void PABilinearForm::EnableStaticCondensation() { assert(false);}
+void ParPABilinearForm::EnableStaticCondensation() { assert(false);}
 
 // ***************************************************************************
 // Adds new Domain Integrator.
-void PABilinearForm::AddDomainIntegrator(AbstractBilinearFormIntegrator *i)
+void ParPABilinearForm::AddDomainIntegrator(AbstractBilinearFormIntegrator *i)
 {
    integrators.Append(static_cast<BilinearPAFormIntegrator*>(i));
 }
 
 // Adds new Boundary Integrator.
-void PABilinearForm::AddBoundaryIntegrator(AbstractBilinearFormIntegrator *i)
+void ParPABilinearForm::AddBoundaryIntegrator(AbstractBilinearFormIntegrator *i)
 {
    assert(false);
    //AddIntegrator(i, BoundaryIntegrator);
 }
 
 // Adds new interior Face Integrator.
-void PABilinearForm::AddInteriorFaceIntegrator(AbstractBilinearFormIntegrator
-                                               *i)
+void ParPABilinearForm::AddInteriorFaceIntegrator(AbstractBilinearFormIntegrator
+                                                  *i)
 {
    assert(false);
    //AddIntegrator(i, InteriorFaceIntegrator);
 }
 
 // Adds new boundary Face Integrator.
-void PABilinearForm::AddBoundaryFaceIntegrator(AbstractBilinearFormIntegrator
-                                               *i)
+void ParPABilinearForm::AddBoundaryFaceIntegrator(AbstractBilinearFormIntegrator
+                                                  *i)
 {
    assert(false);
    //AddIntegrator(i, BoundaryFaceIntegrator);
 }
 
 // *****************************************************************************
-// * WARNING DiffusionGetRule Q order
+// * WARNING DiffusionGetRule
 // *****************************************************************************
 static const IntegrationRule &DiffusionGetRule(const FiniteElement &trial_fe,
                                                const FiniteElement &test_fe)
@@ -94,11 +98,13 @@ static const IntegrationRule &DiffusionGetRule(const FiniteElement &trial_fe,
 }
 
 // ***************************************************************************
-void PABilinearForm::Assemble(int skip_zeros)
+void ParPABilinearForm::Assemble(int skip_zeros)
 {
+   //const int nbi = integrators.Size();
    assert(integrators.Size()==1);
    const FiniteElement &fe = *fes->GetFE(0);
    const IntegrationRule *ir = &DiffusionGetRule(fe,fe);
+   //const int order = ir->GetOrder();
    assert(ir);
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
@@ -109,9 +115,10 @@ void PABilinearForm::Assemble(int skip_zeros)
 }
 
 // ***************************************************************************
-void PABilinearForm::FormOperator(const Array<int> &ess_tdof_list,
-                                  Operator &A)
+void ParPABilinearForm::FormOperator(const Array<int> &ess_tdof_list,
+                                     Operator &A)
 {
+   assert(false);
    const Operator* trialP = trialFes->GetProlongationMatrix();
    const Operator* testP  = testFes->GetProlongationMatrix();
    Operator *rap = this;
@@ -123,10 +130,10 @@ void PABilinearForm::FormOperator(const Array<int> &ess_tdof_list,
 }
 
 // ***************************************************************************
-void PABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
-                                      Vector &x, Vector &b,
-                                      Operator *&A, Vector &X, Vector &B,
-                                      int copy_interior)
+void ParPABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
+                                         Vector &x, Vector &b,
+                                         Operator *&A, Vector &X, Vector &B,
+                                         int copy_interior)
 {
    const Operator* trialP = trialFes->GetProlongationMatrix();
    const Operator* testP  = testFes->GetProlongationMatrix();
@@ -157,9 +164,7 @@ void PABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    if (!copy_interior and ess_tdof_list.Size()>0)
    {
       const int csz = ess_tdof_list.Size();
-      const int xsz = X.Size();
-      assert(xsz>=csz);
-      Vector subvec(xsz);
+      Vector subvec(csz);
       subvec = 0.0;
       kVectorGetSubvector(csz,
                           subvec.GetData(),
@@ -185,7 +190,7 @@ void PABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
 }
 
 // ***************************************************************************
-void PABilinearForm::Mult(const Vector &x, Vector &y) const
+void ParPABilinearForm::Mult(const Vector &x, Vector &y) const
 {
    kfes->GlobalToLocal(x, localX);
    localY = 0.0;
@@ -199,8 +204,9 @@ void PABilinearForm::Mult(const Vector &x, Vector &y) const
 }
 
 // ***************************************************************************
-void PABilinearForm::MultTranspose(const Vector &x, Vector &y) const
+void ParPABilinearForm::MultTranspose(const Vector &x, Vector &y) const
 {
+   assert(false);
    kfes->GlobalToLocal(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
@@ -213,11 +219,11 @@ void PABilinearForm::MultTranspose(const Vector &x, Vector &y) const
 }
 
 // ***************************************************************************
-void PABilinearForm::RecoverFEMSolution(const Vector &X,
-                                        const Vector &b,
-                                        Vector &x)
+void ParPABilinearForm::RecoverFEMSolution(const Vector &X,
+                                           const Vector &b,
+                                           Vector &x)
 {
-   const Operator *P = this->GetProlongation();
+   const Operator *P = trialFes->GetProlongationMatrix();
    if (P)
    {
       // Apply conforming prolongation
@@ -229,4 +235,7 @@ void PABilinearForm::RecoverFEMSolution(const Vector &X,
    x = X;
 }
 
-}
+// *****************************************************************************
+} // mfem
+
+#endif // MFEM_USE_MPI

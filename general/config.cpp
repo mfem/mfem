@@ -15,25 +15,21 @@ namespace mfem
 {
 
 // *****************************************************************************
+// * cuDeviceSetup will set: gpu_count, dev, cuDevice, cuContext & cuStream
+// *****************************************************************************
 void config::cuDeviceSetup(const int device)
 {
 #ifdef __NVCC__
    gpu_count=0;
-   checkCudaErrors(cudaGetDeviceCount(&gpu_count));
+   cudaGetDeviceCount(&gpu_count);
    assert(gpu_count>0);
    cuInit(0);
    dev = device; // findCudaDevice(argc, (const char **)argv);
    cuDeviceGet(&cuDevice,dev);
    cuCtxCreate(&cuContext, CU_CTX_SCHED_AUTO, cuDevice);
-   hStream=new CUstream;
-   cuStreamCreate(hStream, CU_STREAM_DEFAULT);
+   cuStream = new CUstream;
+   cuStreamCreate(cuStream, CU_STREAM_DEFAULT);
 #endif
 }
 
-// *****************************************************************************
-void config::Setup()
-{
-   cuDeviceSetup(0);
-}
-
-}
+} // namespace mfem

@@ -27,7 +27,7 @@ public:
 void kSparseMatrix(const int nrows, RowNode** Rows)
 {
    GET_ADRS_T(Rows,RowNode*);
-   forall(i, nrows, d_Rows[i] = NULL;);
+   MFEM_FORALL(i, nrows, d_Rows[i] = NULL;);
 }
 
 // *****************************************************************************
@@ -39,8 +39,7 @@ void kGauss_Seidel_forw_A_NULL(const size_t s,
    GET_ADRS_T(R,RowNode*);
    GET_CONST_ADRS(xp);
    GET_ADRS(yp);
-   assert(false);
-   forall(i,s,
+   MFEM_FORALL(i,s,
    {
       int c;
       double sum = 0.0;
@@ -82,7 +81,7 @@ void kGauss_Seidel_forw(const size_t height,
    GET_CONST_ADRS(Ap);
    GET_CONST_ADRS(xp);
    GET_ADRS(yp);
-   forall(k,1,
+   MFEM_FORALL(k,1,
    {
       for (size_t i=0; i<height; i+=1)
       {
@@ -91,8 +90,8 @@ void kGauss_Seidel_forw(const size_t height,
          double sum = 0.0;
          for (int j = d_Ip[i]; j < end; j+=1)
          {
-            const int c = d_Jp[j];
-            const bool c_eq_i = (c == (int)i);
+            const size_t c = d_Jp[j];
+            const bool c_eq_i = c == i;
             d = c_eq_i ? j : d;
             const double Ay = d_Ap[j] * d_yp[c];
             sum += c_eq_i ? 0.0 : Ay;
@@ -119,7 +118,7 @@ void kGauss_Seidel_back(const size_t height,
    GET_CONST_ADRS(Ap);
    GET_CONST_ADRS(xp);
    GET_ADRS(yp);
-   forall(k,1,
+   MFEM_FORALL(k, 1,
    {
       for (int i = height-1; i >= 0; i--)
       {
@@ -156,7 +155,7 @@ void kAddMult(const size_t height,
    GET_CONST_ADRS(A);
    GET_CONST_ADRS(x);
    GET_ADRS(y);
-   forall(i,height,
+   MFEM_FORALL(i, height,
    {
       double d = 0.0;
       const size_t end = d_I[i+1];

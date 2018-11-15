@@ -3945,9 +3945,9 @@ LagrangeHexFiniteElement::LagrangeHexFiniteElement (int degree)
 {
    if (degree == 2)
    {
-      I = new int[Dof];
-      J = new int[Dof];
-      K = new int[Dof];
+      I = mm::malloc<int>(Dof);
+      J = mm::malloc<int>(Dof);
+      K = mm::malloc<int>(Dof);
       // nodes
       I[ 0] = 0; J[ 0] = 0; K[ 0] = 0;
       I[ 1] = 1; J[ 1] = 0; K[ 1] = 0;
@@ -3982,9 +3982,9 @@ LagrangeHexFiniteElement::LagrangeHexFiniteElement (int degree)
    }
    else if (degree == 3)
    {
-      I = new int[Dof];
-      J = new int[Dof];
-      K = new int[Dof];
+      I = mm::malloc<int>(Dof);
+      J = mm::malloc<int>(Dof);
+      K = mm::malloc<int>(Dof);
       // nodes
       I[ 0] = 0; J[ 0] = 0; K[ 0] = 0;
       I[ 1] = 1; J[ 1] = 0; K[ 1] = 0;
@@ -6701,7 +6701,7 @@ Poly_1D::~Poly_1D()
       Array<double*>& pts = *it->second;
       for ( int i = 0 ; i < pts.Size() ; ++i )
       {
-         delete [] pts[i];
+         mm::free<double>(pts[i]);
       }
       delete it->second;
    }

@@ -19,7 +19,7 @@
 namespace mfem
 {
 
-void ParBilinearForm::pAllocMat()
+void ParFABilinearForm::pAllocMat()
 {
    int nbr_size = pfes->GetFaceNbrVSize();
 
@@ -121,7 +121,8 @@ void ParBilinearForm::pAllocMat()
    dof_dof.LoseData();
 }
 
-void ParBilinearForm::ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local)
+void ParFABilinearForm::ParallelAssemble(OperatorHandle &A,
+                                         SparseMatrix *A_local)
 {
    A.Clear();
 
@@ -179,7 +180,7 @@ void ParBilinearForm::ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local)
    A.MakePtAP(dA, Ph);
 }
 
-HypreParMatrix *ParBilinearForm::ParallelAssemble(SparseMatrix *m)
+HypreParMatrix *ParFABilinearForm::ParallelAssemble(SparseMatrix *m)
 {
    OperatorHandle Mh(Operator::Hypre_ParCSR);
    ParallelAssemble(Mh, m);
@@ -187,7 +188,7 @@ HypreParMatrix *ParBilinearForm::ParallelAssemble(SparseMatrix *m)
    return Mh.As<HypreParMatrix>();
 }
 
-void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
+void ParFABilinearForm::AssembleSharedFaces(int skip_zeros)
 {
    ParMesh *pmesh = pfes->GetParMesh();
    FaceElementTransformations *T;
@@ -223,7 +224,7 @@ void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
    }
 }
 
-void ParBilinearForm::Assemble(int skip_zeros)
+void ParFABilinearForm::Assemble(int skip_zeros)
 {
    if (mat == NULL && fbfi.Size() > 0)
    {
@@ -231,7 +232,7 @@ void ParBilinearForm::Assemble(int skip_zeros)
       pAllocMat();
    }
 
-   BilinearForm::Assemble(skip_zeros);
+   FABilinearForm::Assemble(skip_zeros);
 
    if (fbfi.Size() > 0)
    {
@@ -239,7 +240,7 @@ void ParBilinearForm::Assemble(int skip_zeros)
    }
 }
 
-void ParBilinearForm
+void ParFABilinearForm
 ::ParallelEliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
                                HypreParMatrix &A, const HypreParVector &X,
                                HypreParVector &B) const
@@ -252,7 +253,7 @@ void ParBilinearForm
    A.EliminateRowsCols(dof_list, X, B);
 }
 
-HypreParMatrix *ParBilinearForm::
+HypreParMatrix *ParFABilinearForm::
 ParallelEliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
                              HypreParMatrix &A) const
 {
@@ -263,7 +264,7 @@ ParallelEliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
    return A.EliminateRowsCols(dof_list);
 }
 
-void ParBilinearForm::TrueAddMult(const Vector &x, Vector &y, const double a)
+void ParFABilinearForm::TrueAddMult(const Vector &x, Vector &y, const double a)
 const
 {
    MFEM_VERIFY(fbfi.Size() == 0, "the case of interior face integrators is not"
@@ -280,7 +281,7 @@ const
    pfes->Dof_TrueDof_Matrix()->MultTranspose(a, Y, 1.0, y);
 }
 
-void ParBilinearForm::FormLinearSystem(
+void ParFABilinearForm::FormLinearSystem(
    const Array<int> &ess_tdof_list, Vector &x, Vector &b,
    OperatorHandle &A, Vector &X, Vector &B, int copy_interior)
 {
@@ -324,8 +325,8 @@ void ParBilinearForm::FormLinearSystem(
    }
 }
 
-void ParBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
-                                       OperatorHandle &A)
+void ParFABilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
+                                         OperatorHandle &A)
 {
    // Finish the matrix assembly and perform BC elimination, storing the
    // eliminated part of the matrix.
@@ -346,8 +347,8 @@ void ParBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
          const int remove_zeros = 0;
          Finalize(remove_zeros);
          MFEM_VERIFY(p_mat.Ptr() == NULL && p_mat_e.Ptr() == NULL,
-                     "The ParBilinearForm must be updated with Update() before "
-                     "re-assembling the ParBilinearForm.");
+                     "The ParFABilinearForm must be updated with Update() before "
+                     "re-assembling the ParFABilinearForm.");
          ParallelAssemble(p_mat, mat);
          delete mat;
          mat = NULL;
@@ -366,7 +367,7 @@ void ParBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
    }
 }
 
-void ParBilinearForm::RecoverFEMSolution(
+void ParFABilinearForm::RecoverFEMSolution(
    const Vector &X, const Vector &b, Vector &x)
 {
    const Operator &P = *pfes->GetProlongationMatrix();
@@ -395,9 +396,9 @@ void ParBilinearForm::RecoverFEMSolution(
    }
 }
 
-void ParBilinearForm::Update(FiniteElementSpace *nfes)
+void ParFABilinearForm::Update(FiniteElementSpace *nfes)
 {
-   BilinearForm::Update(nfes);
+   ParFABilinearForm::Update(nfes);
 
    if (nfes)
    {

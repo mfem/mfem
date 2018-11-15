@@ -18,7 +18,7 @@ namespace mfem
 #ifndef __NVCC__
 typedef int CUdevice;
 typedef int CUcontext;
-typedef int CUstream;
+typedef void* CUstream;
 #endif // __NVCC__
 
 // *****************************************************************************
@@ -28,13 +28,14 @@ class config
 {
 private:
    bool cuda = false;
-   bool uvm = false;
    bool pa = false;
+   bool sync = false;
+   bool nvvp = false;
    int dev;
    int gpu_count;
    CUdevice cuDevice;
    CUcontext cuContext;
-   CUstream *hStream;
+   CUstream *cuStream;
 private:
    config() {}
    config(config const&);
@@ -51,23 +52,34 @@ private:
 
 public:
    // **************************************************************************
-   inline bool Cuda() { return cuda; }
+   constexpr static inline bool nvcc()
+   {
+#ifdef __NVCC__
+      return true;
+#else
+      return false;
+#endif
+   }
 
    // **************************************************************************
-   inline void Cuda(const bool flag) { cuda = flag; }
+   inline bool Cuda() { return cuda; }
+   inline void Cuda(const bool mode) { cuda = mode; }
 
    // **************************************************************************
    inline bool PA() { return pa; }
    inline void PA(const int mode) { pa = mode; }
 
    // **************************************************************************
-   inline bool Uvm() { return uvm; }
+   inline bool Sync(bool toggle=false) { return toggle?sync=!sync:sync; }
 
    // **************************************************************************
-   void Setup();
+   inline bool Nvvp(bool toggle=false) { return toggle?nvvp=!nvvp:nvvp; }
 
    // **************************************************************************
-   inline CUstream *Stream() { return hStream; }
+   void Setup() { cuDeviceSetup(); }
+
+   // **************************************************************************
+   inline CUstream Stream() { return *cuStream; }
 };
 
 }
