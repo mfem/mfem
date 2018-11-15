@@ -24,9 +24,9 @@ KernelsSparseMatrix::KernelsSparseMatrix(Layout &in_layout, Layout &out_layout,
                                          const mfem::SparseMatrix &m) :
    Operator(in_layout, out_layout)
 {
-   push();
+   nvtx_push();
    Setup(in_layout.KernelsEngine().GetDevice(), m);
-   pop();
+   nvtx_pop();
 }
 
 KernelsSparseMatrix::KernelsSparseMatrix(Layout &in_layout, Layout &out_layout,
@@ -35,10 +35,10 @@ KernelsSparseMatrix::KernelsSparseMatrix(Layout &in_layout, Layout &out_layout,
                                          kernels::array<int> mappedIndices_) :
    Operator(in_layout, out_layout)
 {
-   push();
+   nvtx_push();
    Setup(in_layout.KernelsEngine().GetDevice(), m,
          reorderIndices, mappedIndices_);
-   pop();
+   nvtx_pop();
 }
 
 KernelsSparseMatrix::KernelsSparseMatrix(Layout &in_layout, Layout &out_layout,
@@ -50,9 +50,9 @@ KernelsSparseMatrix::KernelsSparseMatrix(Layout &in_layout, Layout &out_layout,
    indices(indices_),
    weights(weights_)
 {
-   push();
+   nvtx_push();
    SetupKernel(in_layout.KernelsEngine().GetDevice());
-   pop();
+   nvtx_pop();
 }
 
 KernelsSparseMatrix::KernelsSparseMatrix(Layout &in_layout, Layout &out_layout,
@@ -68,40 +68,40 @@ KernelsSparseMatrix::KernelsSparseMatrix(Layout &in_layout, Layout &out_layout,
    reorderIndices(reorderIndices_),
    mappedIndices(mappedIndices_)
 {
-   push();
+   nvtx_push();
    SetupKernel(in_layout.KernelsEngine().GetDevice());
-   pop();
+   nvtx_pop();
 }
 
 void KernelsSparseMatrix::Setup(kernels::device device,
                                 const mfem::SparseMatrix &m)
 {
-   push();
+   nvtx_push();
    Setup(device, m, kernels::array<int>(), kernels::array<int>());
-   pop();
+   nvtx_pop();
 }
 
 void KernelsSparseMatrix::Setup(kernels::device device, const SparseMatrix &m,
                                 kernels::array<int> reorderIndices_,
                                 kernels::array<int> mappedIndices_)
 {
-   push();
+   nvtx_push();
    assert(false);
    reorderIndices = reorderIndices_;
    mappedIndices  = mappedIndices_;
    SetupKernel(device);
-   pop();
+   nvtx_pop();
 }
 
 void KernelsSparseMatrix::SetupKernel(kernels::device device)
 {
-   push();
-   pop();
+   nvtx_push();
+   nvtx_pop();
 }
 
 void KernelsSparseMatrix::Mult_(const Vector &x, Vector &y) const
 {
-   push();
+   nvtx_push();
    assert(false);
    if (reorderIndices.isInitialized() ||
        mappedIndices.isInitialized())
@@ -129,7 +129,7 @@ void KernelsSparseMatrix::Mult_(const Vector &x, Vector &y) const
                  offsets, indices, weights,
                  x.KernelsMem(), y.KernelsMem());*/
    }
-   pop();
+   nvtx_pop();
 }
 
 
@@ -137,7 +137,7 @@ KernelsSparseMatrix* CreateMappedSparseMatrix(Layout &in_layout,
                                               Layout &out_layout,
                                               const mfem::SparseMatrix &m)
 {
-   push();
+   nvtx_push();
    const int mHeight = m.Height();
    // const int mWidth  = m.Width();
 
@@ -215,7 +215,7 @@ KernelsSparseMatrix* CreateMappedSparseMatrix(Layout &in_layout,
    KernelsSparseMatrix *nRSM = new KernelsSparseMatrix(in_layout, out_layout,
                                                        offsets, indices, weights,
                                                        reorderIndices, mappedIndices);
-   pop();
+   nvtx_pop();
    return nRSM;
 }
 

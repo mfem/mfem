@@ -31,7 +31,7 @@ void rNodeCopyByVDim0(const int elements,
    const int e = blockDim.x * blockIdx.x + threadIdx.x;
    if (e < elements)
 #else
-   push();
+   nvtx_push();
    forall(e,elements,
 #endif
    {
@@ -49,7 +49,7 @@ void rNodeCopyByVDim0(const int elements,
    }
 #ifndef __NVCC__
    );
-   pop();
+   nvtx_pop();
 #endif
 }
 

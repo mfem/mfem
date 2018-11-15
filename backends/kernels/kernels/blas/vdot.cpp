@@ -50,12 +50,12 @@ double vector_dot(const int N,
                   const double* __restrict vec1,
                   const double* __restrict vec2)
 {
-   push();
+   nvtx_push();
 #ifdef __NVCC__
    if (mfem::kernels::config::Get().Cuda())
    {
       const double result = cub_vector_dot(N,vec1,vec2);
-      pop();
+      nvtx_pop();
       return result;
    }
 #endif
@@ -64,6 +64,6 @@ double vector_dot(const int N,
    {
       dot += vec1[i]*vec2[i];
    }
-   pop();
+   nvtx_pop();
    return dot;
 }

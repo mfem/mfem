@@ -24,7 +24,7 @@ namespace kernels
 PArray *Array::DoClone(bool copy_data, void **buffer,
                        std::size_t item_size) const
 {
-   push();
+   nvtx_push();
    Array *new_array = new Array(KernelsLayout(), item_size);
    if (copy_data)
    {
@@ -34,7 +34,7 @@ PArray *Array::DoClone(bool copy_data, void **buffer,
    {
       *buffer = new_array->GetBuffer();
    }
-   pop();
+   nvtx_pop();
    return new_array;
 }
 
@@ -42,7 +42,7 @@ PArray *Array::DoClone(bool copy_data, void **buffer,
 int Array::DoResize(PLayout &new_layout, void **buffer,
                     std::size_t item_size)
 {
-   push();
+   nvtx_push();
    MFEM_ASSERT(dynamic_cast<Layout *>(&new_layout) != NULL,
                "new_layout is not an KERNELS Layout");
    Layout *lt = static_cast<Layout *>(&new_layout);
@@ -52,14 +52,14 @@ int Array::DoResize(PLayout &new_layout, void **buffer,
    {
       *buffer = GetBuffer();
    }
-   pop();
+   nvtx_pop();
    return err;
 }
 
 // *****************************************************************************
 int Array::ResizeData(const Layout *lt, std::size_t item_size)
 {
-   push();
+   nvtx_push();
    const std::size_t new_bytes = lt->Size()*item_size;
    dbg("data.size()=%d, slice.size()=%d & new_bytes=%d", data.size(), slice.size(),
        new_bytes);
@@ -75,31 +75,31 @@ int Array::ResizeData(const Layout *lt, std::size_t item_size)
       dbg("Slice");
       slice = data.slice(0, new_bytes);
    }
-   pop();
+   nvtx_pop();
    return 0;
 }
 
 // *****************************************************************************
 void *Array::DoPullData(void *buffer, std::size_t item_size)
 {
-   push();
+   nvtx_push();
    if (!slice.getDevice().hasSeparateMemorySpace())
    {
-      pop();
+      nvtx_pop();
       return slice.ptr();
    }
    if (buffer)
    {
       slice.copyTo(buffer);
    }
-   pop();
+   nvtx_pop();
    return buffer;
 }
 
 // *****************************************************************************
 void Array::DoFill(const void *value_ptr, std::size_t item_size)
 {
-   push();
+   nvtx_push();
    switch (item_size)
    {
       case sizeof(int8_t):
@@ -117,29 +117,29 @@ void Array::DoFill(const void *value_ptr, std::size_t item_size)
       default:
          MFEM_ABORT("item_size = " << item_size << " is not supported");
    }
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************
 void Array::DoPushData(const void *src_buffer, std::size_t item_size)
 {
-   push();
+   nvtx_push();
    if (slice.getDevice().hasSeparateMemorySpace() || slice.ptr() != src_buffer)
    {
       slice.copyFrom(src_buffer);
    }
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************
 void Array::DoAssign(const PArray &src, std::size_t item_size)
 {
-   push();
+   nvtx_push();
    const kernels::Array *source = dynamic_cast<const kernels::Array*>(&src);
    MFEM_ASSERT(source != NULL, "invalid source Array type");
    MFEM_ASSERT(Size() == source->Size(), "");
    slice.copyFrom(source->slice);
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************
@@ -148,14 +148,14 @@ void Array::DoMakeRefOffset(const PArray &src,
                             const std::size_t size,
                             const std::size_t item_size)
 {
-   push();
+   nvtx_push();
    layout->Resize(size);
    const kernels::Array &ksrc = src.As<const kernels::Array>();
    const std::size_t bytes_size = size * item_size;
    const std::size_t bytes_offset = offset * item_size;
    memory m = memory(bytes_size,ksrc.data[bytes_offset]);
    data = slice = m;
-   pop();
+   nvtx_pop();
 }
 
 } // namespace mfem::kernels

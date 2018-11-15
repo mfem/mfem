@@ -23,10 +23,10 @@ namespace kernels
 // *****************************************************************************
 bool BilinearForm::Assemble()
 {
-   push();
+   nvtx_push();
    if (kbform == NULL) { InitKBilinearForm(); }
    kbform->Assemble();
-   pop();
+   nvtx_pop();
    return true; // --> host assembly is not needed
 }
 
@@ -34,7 +34,7 @@ bool BilinearForm::Assemble()
 void BilinearForm::FormSystemMatrix(const mfem::Array<int> &ess_tdof_list,
                                     mfem::OperatorHandle &A)
 {
-   push();//assert(false);// ex1pd comes here, Laghos dont
+   nvtx_push();//assert(false);// ex1pd comes here, Laghos dont
    if (A.Type() == mfem::Operator::ANY_TYPE)
    {
       mfem::Operator *Aout = NULL;
@@ -45,7 +45,7 @@ void BilinearForm::FormSystemMatrix(const mfem::Array<int> &ess_tdof_list,
    {
       MFEM_ABORT("Operator::Type is not supported, type = " << A.Type());
    }
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************
@@ -55,10 +55,10 @@ void BilinearForm::FormLinearSystem(const mfem::Array<int> &ess_tdof_list,
                                     mfem::Vector &X, mfem::Vector &B,
                                     int copy_interior)
 {
-   push();//assert(false); // ex1pd comes here, Laghos does not
+   nvtx_push();//assert(false); // ex1pd comes here, Laghos does not
    FormSystemMatrix(ess_tdof_list, A);
    kbform->InitRHS(ess_tdof_list, x, b, A.Ptr(), X, B, copy_interior);
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************
@@ -66,15 +66,15 @@ void BilinearForm::RecoverFEMSolution(const mfem::Vector &X,
                                       const mfem::Vector &b,
                                       mfem::Vector &x)
 {
-   push();
+   nvtx_push();
    kbform->KernelsRecoverFEMSolution(X, b, x);
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************
 void BilinearForm::InitKBilinearForm()
 {
-   push();
+   nvtx_push();
    // Init 'kbform' using 'bform'
    MFEM_ASSERT(bform != NULL, "");
    MFEM_ASSERT(kbform == NULL, "");
@@ -118,7 +118,7 @@ void BilinearForm::InitKBilinearForm()
 
       kbform->AddDomainIntegrator(integ);
    }
-   pop();
+   nvtx_pop();
    // TODO: other types of integrators ...
 }
 

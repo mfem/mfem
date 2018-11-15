@@ -157,7 +157,7 @@ void rDiffusionMultAdd(const int DIM,
                        const double* x,
                        double* __restrict y)
 {
-   push();
+   nvtx_push();
 #ifdef __NVCC__
    const int blck = 256;
    const int grid = (numElements+blck-1)/blck;
@@ -178,5 +178,5 @@ void rDiffusionMultAdd(const int DIM,
    call0(dummy,id,grid,blck,
          numElements,dofToQuad,dofToQuadD,quadToDof,quadToDofD,op,x,y);
   
-   pop();
+   nvtx_pop();
 }

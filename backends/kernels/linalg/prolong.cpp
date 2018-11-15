@@ -30,8 +30,8 @@ ProlongationOperator::ProlongationOperator(const
    dbg("\033[7m P->InLayout_().Size()=%d, P->OutLayout_()=%d\033[m",
        P->InLayout()->Size(), P->OutLayout()->Size());
    dbg("\033[7m Height()=%d, Width()=%d\033[m",Height(),Width());
-   push();
-   pop();
+   nvtx_push();
+   nvtx_pop();
 }
 
 
@@ -39,12 +39,12 @@ ProlongationOperator::ProlongationOperator(const
 void ProlongationOperator::Mult_(const kernels::Vector &x,
                                  kernels::Vector &y) const
 {
-   push();
+   nvtx_push();
    if (kernels::config::Get().IAmAlone())
    {
       const int N = y.Size();
       vector_op_set(N, x.GetData(), y.GetData());
-      pop();
+      nvtx_pop();
       return;
    }
 
@@ -54,7 +54,7 @@ void ProlongationOperator::Mult_(const kernels::Vector &x,
       dbg("\n\033[35m[DEVICE::Mult] x.Size()=%d & y.Size()=%d\033[m",x.Size(),
           y.Size());
       pmat->d_Mult(x, y);
-      pop();
+      nvtx_pop();
       return;
    }
    else
@@ -63,7 +63,7 @@ void ProlongationOperator::Mult_(const kernels::Vector &x,
       mfem::Vector my(y);
       pmat->Mult(x.Wrap(), my);
    }
-   pop();
+   nvtx_pop();
 }
 
 
@@ -71,12 +71,12 @@ void ProlongationOperator::Mult_(const kernels::Vector &x,
 void ProlongationOperator::MultTranspose_(const kernels::Vector &x,
                                           kernels::Vector &y) const
 {
-   push();
+   nvtx_push();
    if (kernels::config::Get().IAmAlone())
    {
       const int N = y.Size();
       vector_op_set(N, x.GetData(), y.GetData());
-      pop();
+      nvtx_pop();
       return;
    }
 
@@ -86,7 +86,7 @@ void ProlongationOperator::MultTranspose_(const kernels::Vector &x,
       dbg("\n\033[35m[DEVICE::MultTranspose] x.Size()=%d & y.Size()=%d\033[m",
           x.Size(),y.Size());
       pmat->d_MultTranspose(x, y);
-      pop();
+      nvtx_pop();
       return;
    }
    else
@@ -95,7 +95,7 @@ void ProlongationOperator::MultTranspose_(const kernels::Vector &x,
       mfem::Vector my(y);
       pmat->MultTranspose(x.Wrap(), my);
    }
-   pop();
+   nvtx_pop();
 }
 
 } // namespace mfem::kernels

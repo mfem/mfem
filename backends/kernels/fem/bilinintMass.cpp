@@ -26,8 +26,8 @@ KernelsMassIntegrator::KernelsMassIntegrator(const mfem::Engine &ng) :
    engine(ng),
    coeff(ng.As<kernels::Engine>(),1.0)
 {
-   push();
-   pop();
+   nvtx_push();
+   nvtx_pop();
 }
 
 // *****************************************************************************
@@ -36,9 +36,9 @@ KernelsMassIntegrator::KernelsMassIntegrator(const KernelsCoefficient &coeff_) :
    engine(coeff_.KernelsEngine()),
    coeff(coeff_)
 {
-   push();
+   nvtx_push();
    coeff.SetName("COEFF");
-   pop();
+   nvtx_pop();
 }
 
 KernelsMassIntegrator::~KernelsMassIntegrator() {}
@@ -60,32 +60,32 @@ void KernelsMassIntegrator::SetupIntegrationRule()
 // *****************************************************************************
 void KernelsMassIntegrator::Setup()
 {
-   push();
-   pop();
+   nvtx_push();
+   nvtx_pop();
 }
 
 // *****************************************************************************
 void KernelsMassIntegrator::Assemble()
 {
-   push();
-   pop();
+   nvtx_push();
+   nvtx_pop();
 }
 
 // *****************************************************************************
 void KernelsMassIntegrator::SetOperator(mfem::Vector &v)
 {
-   push();
+   nvtx_push();
    op = v;
    op.Resize(engine.MakeLayout(v.Size()));
    op.PushData(v.GetData());
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************
 void KernelsMassIntegrator::MultAdd(kernels::Vector &x,
                                     kernels::Vector &y)
 {
-   push();
+   nvtx_push();
    const int dim = mesh->Dimension();
    const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
    const int dofs1D = trialFESpace->GetFE(0)->GetOrder() + 1;
@@ -101,7 +101,7 @@ void KernelsMassIntegrator::MultAdd(kernels::Vector &x,
                 (const double*)kop.KernelsMem().ptr(),
                 (const double*)x.KernelsMem().ptr(),
                 (double*)y.KernelsMem().ptr());
-   pop();
+   nvtx_pop();
 }
 
 } // namespace mfem::kernels

@@ -198,7 +198,7 @@ void rMassMultAddS(const int DIM,
                    const double* x,
                    double* __restrict__ y)
 {
-   push(Green);
+   nvtx_push(Green);
 #ifdef __NVCC__
    const int NUM_MAX_1D = (NUM_QUAD_1D<NUM_DOFS_1D)?NUM_DOFS_1D:NUM_QUAD_1D;
    const int grid = ((numElements+M2_ELEMENT_BATCH-1)/M2_ELEMENT_BATCH);
@@ -256,5 +256,5 @@ void rMassMultAddS(const int DIM,
    assert(call[id]);
    call0(rMassMultAdd2S,id,grid,blck,
          numElements,dofToQuad,dofToQuadD,quadToDof,quadToDofD,op,x,y);
-   pop();
+   nvtx_pop();
 }

@@ -205,8 +205,8 @@ public:
 
    /** @brief Copy constructor. Create a Vector of the same size/layout as
        @a orig and if @a copy_data == true, copy the contents from @a orig. */
-   Vector(const Vector &orig, bool copy_data = true)
-      : Vector_<double>(orig, copy_data) { }
+//   Vector(const Vector &orig, bool copy_data = true)
+//      : Vector_<double>(orig, copy_data) { }
 
    /// @brief Creates vector of size s.
    /// @warning Entries are not initialized to zero!
@@ -463,11 +463,12 @@ template <typename scalar_t>
 inline void Vector_<scalar_t>::Axpby(const scalar_t &a, const Vector_ &x,
                                      const scalar_t &b, const Vector_ &y)
 {
-#ifdef MFEM_USE_BACKENDS
-   dev_ext ? dev_ext->Axpby(a, *x.dev_ext, b, *y.dev_ext) : Sum(a, x, b, y);
-#else
+//RYAN -- getting into Axpby and Y is invalid
+//#ifdef MFEM_USE_BACKENDS
+//   dev_ext ? dev_ext->Axpby(a, *x.dev_ext, b, *y.dev_ext) : Sum(a, x, b, y);
+//#else
    Sum(a, x, b, y);
-#endif
+//#endif
 }
 
 template <typename scalar_t>

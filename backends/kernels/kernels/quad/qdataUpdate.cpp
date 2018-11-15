@@ -537,7 +537,7 @@ void rUpdateQuadratureData(const double GAMMA,
                            const double* restrict detJ,
                            double* restrict stressJinvT,
                            double* restrict dtEst){
-  push(Lime);
+  nvtx_push(Lime);
 #ifdef __NVCC__
   const int blck = CUDA_BLOCK_SIZE;
   const int grid = (nzones+blck-1)/blck;
@@ -593,5 +593,5 @@ void rUpdateQuadratureData(const double GAMMA,
         nzones,dofToQuad,dofToQuadD,quadWeights,
         v,e,rho0DetJ0w,invJ0,J,invJ,detJ,
         stressJinvT,dtEst);
-  pop();
+  nvtx_pop();
 }

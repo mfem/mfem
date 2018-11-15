@@ -26,30 +26,30 @@ RestrictionOperator::RestrictionOperator(kernels::Layout &in_layout,
                                          const kernels::array<int> *indices) :
    kernels::Operator(in_layout, out_layout)
 {
-   push();
+   nvtx_push();
    entries = indices->size() >> 1;
    trueIndices = indices;
-   pop();
+   nvtx_pop();
 }
 
 // **************************************************************************
 void RestrictionOperator::Mult_(const kernels::Vector &x,
                                 kernels::Vector &y) const
 {
-   push();
+   nvtx_push();
    rExtractSubVector(entries, trueIndices->ptr(), x.GetData(), y.GetData());
-   pop();
+   nvtx_pop();
 }
 
 // **************************************************************************
 void RestrictionOperator::MultTranspose_(const kernels::Vector &x,
                                          kernels::Vector &y) const
 {
-   push();
+   nvtx_push();
    assert(false);
    y.Fill<double>(0.0);
    rMapSubVector(entries, trueIndices->ptr(), x.GetData(), y.GetData());
-   pop();
+   nvtx_pop();
 }
 
 } // namespace mfem::kernels

@@ -40,7 +40,7 @@ template<class T> struct kmalloc: public kmemcpy
       }
 #ifdef __NVCC__
       void *ptr = NULL;
-      push(new,Purple);
+      nvtx_push(new,Purple);
       if (!config::Get().Uvm())
       {
          //dbg("\033[31;1m>cuMemAlloc");
@@ -58,7 +58,7 @@ template<class T> struct kmalloc: public kmemcpy
          checkCudaErrors(cuMemAllocManaged((CUdeviceptr*)&ptr, n*sizeof(T),
                                            CU_MEM_ATTACH_GLOBAL));
       }
-      pop();
+      nvtx_pop();
       return ptr;
 #else
       // We come here when the user requests a manager,
@@ -82,9 +82,9 @@ template<class T> struct kmalloc: public kmemcpy
 #ifdef __NVCC__
       else
       {
-         push(delete,Fuchsia);
+         nvtx_push(delete,Fuchsia);
          cuMemFree((CUdeviceptr)ptr); // or cuMemFreeHost if page_locked was used
-         pop();
+         nvtx_pop();
       }
 #endif // __NVCC__
       ptr = nullptr;

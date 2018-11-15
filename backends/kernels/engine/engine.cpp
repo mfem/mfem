@@ -23,7 +23,7 @@ namespace kernels
 // *****************************************************************************
 void Engine::Init(const std::string &engine_spec)
 {
-   push();
+   nvtx_push();
    memory_resources[0] = NULL;
    workers_weights[0] = 1.0;
    workers_mem_res[0] = 0;
@@ -56,15 +56,15 @@ void Engine::Init(const std::string &engine_spec)
                                 false, // dot
                                 0); // rp_levels
 
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************
 Engine::Engine(const std::string &engine_spec) : mfem::Engine(NULL, 1, 1)
 {
-   push();
+   nvtx_push();
    Init(engine_spec);
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************
@@ -74,9 +74,9 @@ Engine::Engine(MPI_Comm _comm,
    : mfem::Engine(NULL, 1, 1),
      comm(_comm)
 {
-   push();
+   nvtx_push();
    Init(engine_spec);
-   pop();
+   nvtx_pop();
 }
 
 Engine::Engine(const MPI_Session *_mpi,
@@ -87,47 +87,47 @@ Engine::Engine(const MPI_Session *_mpi,
      world_rank(mpi->WorldRank()),
      world_size(mpi->WorldSize())
 {
-   push();
+   nvtx_push();
    Init(engine_spec);
-   pop();
+   nvtx_pop();
 }
 #endif
 
 // *****************************************************************************
 DLayout Engine::MakeLayout(std::size_t size) const
 {
-   push();
+   nvtx_push();
    const DLayout layout = DLayout(new kernels::Layout(*this, size));
-   pop();
+   nvtx_pop();
    return layout;
 }
 
 // *****************************************************************************
 DLayout Engine::MakeLayout(const mfem::Array<std::size_t> &offsets) const
 {
-   push();
+   nvtx_push();
    MFEM_ASSERT(offsets.Size() == 2,
                "multiple workers are not supported yet");
    const DLayout layout = DLayout(new kernels::Layout(*this, offsets.Last()));
-   pop();
+   nvtx_pop();
    return layout;
 }
 
 // *****************************************************************************
 DArray Engine::MakeArray(PLayout &layout, std::size_t item_size) const
 {
-   push();
+   nvtx_push();
    const DArray array = DArray(new kernels::Array(layout.As<Layout>(), item_size));
-   pop();
+   nvtx_pop();
    return array;
 }
 
 // *****************************************************************************
 DVector Engine::MakeVector(PLayout &layout, int type_id) const
 {
-   push();
+   nvtx_push();
    const DVector vector(new kernels::Vector(layout.As<Layout>()));
-   pop();
+   nvtx_pop();
    return vector;
 }
 
@@ -135,9 +135,9 @@ DVector Engine::MakeVector(PLayout &layout, int type_id) const
 #ifdef MFEM_USE_MPI
 DFiniteElementSpace Engine::MakeFESpace(mfem::ParFiniteElementSpace &pfes) const
 {
-   push();
+   nvtx_push();
    const DFiniteElementSpace dfes(new kFiniteElementSpace(*this, pfes));
-   pop();
+   nvtx_pop();
    return dfes;
 }
 #endif
@@ -145,18 +145,18 @@ DFiniteElementSpace Engine::MakeFESpace(mfem::ParFiniteElementSpace &pfes) const
 // *****************************************************************************
 DFiniteElementSpace Engine::MakeFESpace(mfem::FiniteElementSpace &fes) const
 {
-   push();
+   nvtx_push();
    DFiniteElementSpace dfes(new kFiniteElementSpace(*this, fes));
-   pop();
+   nvtx_pop();
    return dfes;
 }
 
 // *****************************************************************************
 DBilinearForm Engine::MakeBilinearForm(mfem::BilinearForm &bf) const
 {
-   push();
+   nvtx_push();
    const DBilinearForm dbf(new BilinearForm(*this, bf));
-   pop();
+   nvtx_pop();
    return dbf;
 }
 

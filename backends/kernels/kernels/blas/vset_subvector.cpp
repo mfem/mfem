@@ -41,7 +41,7 @@ void vector_set_subvector(const int N,
                           const double* __restrict v1,
                           const int* __restrict v2)
 {
-   push();
+   nvtx_push();
 #ifdef __NVCC__
    cuKer(vector_set_subvector,N,v0,v1,v2);
 #else
@@ -54,5 +54,5 @@ void vector_set_subvector(const int N,
       v0[idx]=value;
    });
 #endif
-   pop();
+   nvtx_pop();
 }

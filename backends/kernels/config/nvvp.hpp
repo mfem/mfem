@@ -70,7 +70,7 @@ NVTX_DECLSPEC int NVTX_API rNvtxRangePushEx(const char*, const int);
 NVTX_DECLSPEC int NVTX_API rNvtxSyncPop(void);
 
 // *****************************************************************************
-#define pop(...) (mfem::rconfig::Get().Sync())?rNvtxSyncPop():nvtxRangePop();
+#define nvtx_pop(...) (mfem::rconfig::Get().Sync())?rNvtxSyncPop():nvtxRangePop();
 
 // *****************************************************************************
 #define PUSH2(ascii,color) rNvtxRangePushEx(#ascii,color);
@@ -86,7 +86,7 @@ NVTX_DECLSPEC int NVTX_API rNvtxSyncPop(void);
       __VA_ARGS__ COMMA_IF_PARENS \
       __VA_ARGS__ COMMA_IF_PARENS __VA_ARGS__ (),  \
       PUSH2, impossible, PUSH2, PUSH1, PUSH0, PUSH1, ))
-#define push(...) CHOOSE(__VA_ARGS__)(__VA_ARGS__)
+#define nvtx_push(...) CHOOSE(__VA_ARGS__)(__VA_ARGS__)
 
 #else // __NVCC__ && _NVVP__ ***************************************************
 
@@ -94,8 +94,8 @@ NVTX_DECLSPEC int NVTX_API rNvtxSyncPop(void);
 void push_flf(const char *file, const int line, const char *func);
 
 // *****************************************************************************
-#define pop(...)
-#define push(...) mfem::kernels::push_flf(__FILENAME__,__LINE__,__FUNCTION__)
+#define nvtx_pop(...)
+#define nvtx_push(...) mfem::kernels::push_flf(__FILENAME__,__LINE__,__FUNCTION__)
 #define cuProfilerStart(...)
 #define cuProfilerStop(...)
 

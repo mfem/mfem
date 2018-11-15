@@ -45,18 +45,18 @@ static double cub_vector_min(const int N,
 double vector_min(const int N,
                   const double* __restrict vec)
 {
-   push();
+   nvtx_push();
 #ifdef __NVCC__
    if (mfem::kernels::config::Get().Cuda())
    {
       const double result = cub_vector_min(N,vec);
-      pop();
+      nvtx_pop();
       return result;
    }
 #endif
    ReduceDecl(Min,red,vec[0]);
    ReduceForall(i,N,red.min(vec[i]););
-   pop();
+   nvtx_pop();
    return red;
 }
 

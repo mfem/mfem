@@ -35,7 +35,7 @@ kConstrainedOperator::kConstrainedOperator(mfem::Operator *_A,
      mfem_z((kz.DontDelete(), kz)),
      mfem_w((kw.DontDelete(), kw))
 {
-   push();
+   nvtx_push();
    if (constraintIndices>0)
    {
       constraintList.Resize(engine.MakeLayout(constraintIndices));
@@ -44,7 +44,7 @@ kConstrainedOperator::kConstrainedOperator(mfem::Operator *_A,
       assert(constraintList.Get_PArray());
    }
    dbg("done");
-   pop();
+   nvtx_pop();
 }
 
 
@@ -52,7 +52,7 @@ kConstrainedOperator::kConstrainedOperator(mfem::Operator *_A,
 void kConstrainedOperator::EliminateRHS(const kernels::Vector &x,
                                         kernels::Vector &b) const
 {
-   push();
+   nvtx_push();
 
    kw.Fill<double>(0.0);
 
@@ -74,14 +74,14 @@ void kConstrainedOperator::EliminateRHS(const kernels::Vector &x,
       vector_map_dofs(constraintIndices, b.GetData(), x.GetData(),
                       (const int*) constraints_list.KernelsMem().ptr());
    }
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************
 void kConstrainedOperator::Mult_(const kernels::Vector &x,
                                  kernels::Vector &y) const
 {
-   push();
+   nvtx_push();
 
    if (constraintIndices == 0)
    {

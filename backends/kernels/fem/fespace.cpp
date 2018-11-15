@@ -35,11 +35,12 @@ kFiniteElementSpace(const Engine& e,
      indices(localDofs, GetNE()),
      map(localDofs, GetNE())
 {
-   push(PowderBlue);
+   nvtx_push(PowderBlue);
    dbg("\033[7m[kFiniteElementSpace]");
    const mfem::FiniteElement& fe = *(fes->GetFE(0));
    const mfem::TensorBasisElement* el =
       dynamic_cast<const mfem::TensorBasisElement*>(&fe);
+   if( !el ) return; //RYAN -- engines does not support non-tensor basis yet
    const mfem::Array<int>& dof_map = el->GetDofMap();
    const bool dof_map_is_identity = (dof_map.Size()==0);
 
@@ -104,7 +105,7 @@ kFiniteElementSpace(const Engine& e,
       dbg("\033[7mIAmAlone: Switching to IdentityOperator!");
       restrictionOp = new IdentityOperator(KernelsTrueVLayout());
       prolongationOp = new IdentityOperator(KernelsTrueVLayout());
-      pop();
+      nvtx_pop();
       return;
    }
 
@@ -165,7 +166,7 @@ kFiniteElementSpace(const Engine& e,
    dbg("\033[7mProlongationOperator");
    prolongationOp = new kernels::ProlongationOperator(P);
    dbg("done");
-   pop();
+   nvtx_pop();
 }
 
 // **************************************************************************
@@ -179,7 +180,7 @@ kFiniteElementSpace::~kFiniteElementSpace()
 void kFiniteElementSpace::GlobalToLocal(const Vector& globalVec,
                                         Vector& localVec) const
 {
-   push(PowderBlue);
+   nvtx_push(PowderBlue);
    const int vdim = GetVDim();
    const int localEntries = localDofs * GetNE();
    const bool vdim_ordering = ordering == Ordering::byVDIM;
@@ -191,14 +192,14 @@ void kFiniteElementSpace::GlobalToLocal(const Vector& globalVec,
                   indices,
                   (const double*)globalVec.KernelsMem().ptr(),
                   (double*)localVec.KernelsMem().ptr());
-   pop();
+   nvtx_pop();
 }
 
 // **************************************************************************
 void kFiniteElementSpace::LocalToGlobal(const Vector& localVec,
                                         Vector& globalVec) const
 {
-   push(PowderBlue);
+   nvtx_push(PowderBlue);
    const int vdim = GetVDim();
    const int localEntries = localDofs * GetNE();
    const bool vdim_ordering = ordering == Ordering::byVDIM;
@@ -210,7 +211,7 @@ void kFiniteElementSpace::LocalToGlobal(const Vector& localVec,
                   indices,
                   (const double*)localVec.KernelsMem().ptr(),
                   (double*)globalVec.KernelsMem().ptr());
-   pop();
+   nvtx_pop();
 }
 
 

@@ -26,9 +26,9 @@ namespace linalg
 // ***************************************************************************
 double dot(const kernels::memory vec1, const kernels::memory vec2)
 {
-   push();
+   nvtx_push();
    const double d = vector_dot(vec1.size()/sizeof(double),vec1,vec2);
-   pop();
+   nvtx_pop();
    return d;
 }
 

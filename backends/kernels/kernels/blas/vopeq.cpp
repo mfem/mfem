@@ -31,11 +31,11 @@ void vector_op_eq(const int N,
                   const double c0,
                   double* __restrict v0)
 {
-   push();
+   nvtx_push();
 #ifdef __NVCC__
    cuKer(vector_op_eq,N,c0,v0);
 #else
    forall(i,N,v0[i] = c0;);
 #endif
-   pop();
+   nvtx_pop();
 }

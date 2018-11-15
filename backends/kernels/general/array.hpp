@@ -56,9 +56,9 @@ protected:
    template <typename T>
    inline void KernelsFill(const T *val_ptr)
    {
-      push();
+      nvtx_push();
       kernels::linalg::operator_eq<T>(slice, *val_ptr);
-      pop();
+      nvtx_pop();
    }
 
 public:

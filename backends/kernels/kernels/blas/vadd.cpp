@@ -31,11 +31,11 @@ void vector_vec_add(const int N,
                     double* __restrict v0,
                     const double* __restrict v1)
 {
-   push();
+   nvtx_push();
 #ifdef __NVCC__
    cuKer(vector_vec_add,N,v0,v1);
 #else
    forall(i,N,v0[i] += v1[i];);
 #endif
-   pop();
+   nvtx_pop();
 }

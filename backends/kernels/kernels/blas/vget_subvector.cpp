@@ -37,7 +37,7 @@ void vector_get_subvector(const int N,
                           const double* __restrict v1,
                           const int* __restrict v2)
 {
-   push();
+   nvtx_push();
 #ifdef __NVCC__
    cuKer(vector_get_subvector,N,v0,v1,v2);
 #else
@@ -47,6 +47,6 @@ void vector_get_subvector(const int N,
       v0[i] = dof_i >= 0 ? v1[dof_i] : -v1[-dof_i-1];
    });
 #endif
-   pop();
+   nvtx_pop();
 }
 

@@ -41,33 +41,33 @@ public:
    array(const size_t x,const size_t y) {allocate(x,y);}
    array(const array<T,true> &r)
    {
-      push();
+      nvtx_push();
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
       //memcpy(data,r.GetData(),r.bytes());
       kmemcpy::rDtoD(data,r.GetData(),r.bytes());
-      pop();
+      nvtx_pop();
    }
    array& operator=(const array<T,true> &r)
    {
-      push();
+      nvtx_push();
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
       //memcpy(data,r.GetData(),r.bytes());
       kmemcpy::rDtoD(data,r.GetData(),r.bytes());
-      pop();
+      nvtx_pop();
       return *this;
    }
    array& operator=(mfem::Array<T> &a)
    {
-      push();
+      nvtx_push();
       kmemcpy::rHtoD(data,a.GetData(),a.Size()*sizeof(T));
-      pop();
+      nvtx_pop();
       return *this;
    }
    array& operator=(const mfem::Array<T> &a)
    {
-      push();
+      nvtx_push();
       kmemcpy::rHtoD(data,a.GetData(),a.Size()*sizeof(T));
-      pop();
+      nvtx_pop();
       return *this;
    }
    ~array() {/*dbp("\033[32m[~i");*/ kmalloc<T>::operator delete (data);}
@@ -85,12 +85,12 @@ public:
                  const size_t Z =1, const size_t D =1,
                  const bool transposed = false)
    {
-      push();
+      nvtx_push();
       d[0]=X; d[1]=Y; d[2]=Z; d[3]=D;
       sz=d[0]*d[1]*d[2]*d[3];
       dbp("\033[32m[i");
       data=(T*) kmalloc<T>::operator new (sz);
-      pop();
+      nvtx_pop();
    }
    inline bool isInitialized(void)const {return true;}
    inline T& operator[](const size_t x) { return data[x]; }
@@ -126,26 +126,26 @@ public:
    array(const size_t d0) {allocate(d0);}
    array(const array<T,false> &r)
    {
-      push();
+      nvtx_push();
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
       //memcpy(data,r.GetData(),r.bytes());
       kmemcpy::rDtoD(data,r.GetData(),r.bytes());
-      pop();
+      nvtx_pop();
    }
    array& operator=(const array<T,true> &r)
    {
-      push();
+      nvtx_push();
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
       //memcpy(data,r.GetData(),r.bytes());
       kmemcpy::rDtoD(data,r.GetData(),r.bytes());
-      pop();
+      nvtx_pop();
       return *this;
    }
    array& operator=(mfem::Array<T> &a)
    {
-      push();
+      nvtx_push();
       kmemcpy::rHtoD(data,a.GetData(),a.Size()*sizeof(T));
-      pop();
+      nvtx_pop();
       return *this;
    }
    ~array() {dbp("\033[32m[~I"); kmalloc<T>::operator delete (data);}
@@ -163,7 +163,7 @@ public:
                  const size_t Z =1, const size_t D =1,
                  const bool transposed = false)
    {
-      push();
+      nvtx_push();
       d[0]=X; d[1]=Y; d[2]=Z; d[3]=D;
       sz=d[0]*d[1]*d[2]*d[3];
       dbp("\033[32m[I");
@@ -176,7 +176,7 @@ public:
       }
       d[0]=1;
       if (transposed) { std::swap(d[0],d[1]); }
-      pop();
+      nvtx_pop();
    }
    inline bool isInitialized(void)const {return true;}
    inline T& operator[](const size_t x) { return data[x]; }

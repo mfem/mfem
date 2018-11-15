@@ -37,11 +37,11 @@ void vector_axpby(const int N,
                   double* __restrict v0,
                   const double* __restrict v1)
 {
-   push();
+   nvtx_push();
 #ifdef __NVCC__
    cuKer(vector_axpby,N,alpha,beta,v0,v1);
 #else
    forall(i,N,v0[i] = alpha * v0[i] + beta * v1[i];);
 #endif
-   pop();
+   nvtx_pop();
 }

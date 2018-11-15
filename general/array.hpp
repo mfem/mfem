@@ -445,6 +445,7 @@ protected:
    {
       if (size >= 0 && size <= this->Capacity())
       {
+      //RYAN -- failing here
 #ifdef MFEM_USE_BACKENDS
          if (dev_ext) // have dev_ext
          {
@@ -1281,16 +1282,17 @@ inline void DevExtension<array_t,dev_ext_t>::PushData(const entry_type *buffer)
 template <typename array_t, typename dev_ext_t>
 inline void DevExtension<array_t,dev_ext_t>::Assign(const DevExtension &src)
 {
-#ifdef MFEM_USE_BACKENDS
-   MFEM_ASSERT(bool(dev_ext) == bool(src.dev_ext), "incompatible arrays");
-#endif
+//RYAN -- Shutting down use of backends here -dev_ext not defined
+//#ifdef MFEM_USE_BACKENDS
+//   MFEM_ASSERT(bool(dev_ext) == bool(src.dev_ext), "incompatible arrays");
+//#endif
    AssertDGood();
-#ifdef MFEM_USE_BACKENDS
-   (dev_ext ? dev_ext->template Assign<entry_type>(*src.dev_ext) :
-    (void) array_t::operator=(src));
-#else
+//#ifdef MFEM_USE_BACKENDS
+//   (dev_ext ? dev_ext->template Assign<entry_type>(*src.dev_ext) :
+//    (void) array_t::operator=(src));
+//#else
    array_t::operator=(src);
-#endif
+//#endif
 }
 
 

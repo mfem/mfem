@@ -32,13 +32,13 @@ void rSetSubVector(const int N,
                    const double* in,
                    double* out)
 {
-   push();
+   nvtx_push();
 #ifdef __NVCC__
    cuKer(rSetSubVector,N,indices,in,out);
 #else
    forall(i,N,out[indices[i]] = in[i];);
 #endif
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************
@@ -63,7 +63,7 @@ void rMapSubVector(const int N,
                    const double* in,
                    double* out)
 {
-   push();
+   nvtx_push();
 #ifdef __NVCC__
    cuKer(rMapSubVector,N,indices,in,out);
 #else
@@ -74,7 +74,7 @@ void rMapSubVector(const int N,
       out[toIdx] = in[fromIdx];
    });
 #endif
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************
@@ -94,11 +94,11 @@ void rExtractSubVector(const int N,
                        const double* in,
                        double* out)
 {
-   push();
+   nvtx_push();
 #ifdef __NVCC__
    cuKer(rExtractSubVector,N,indices,in,out);
 #else
    forall(i,N,out[i] = in[indices[i]];);
 #endif
-   pop();
+   nvtx_pop();
 }

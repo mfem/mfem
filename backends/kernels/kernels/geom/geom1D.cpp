@@ -13,6 +13,7 @@
 // the planning and preparation of a capable exascale ecosystem, including
 // software, applications, hardware, advanced system engineering and early
 // testbed platforms, in support of the nation's exascale computing imperative.
+#if 0
 #include "../kernels.hpp"
 
 // *****************************************************************************
@@ -57,3 +58,4 @@ void rIniGeom1D(const int NUM_DOFS,
 #endif
 }
 
+#endif

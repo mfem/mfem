@@ -22,7 +22,7 @@ CXX = g++
 MPICXX = mpicxx
 
 OPTIM_FLAGS = -O2
-DEBUG_FLAGS = -g -Wall
+DEBUG_FLAGS = -g -G
 
 # Destination location of make install
 # PREFIX = $(HOME)/mfem

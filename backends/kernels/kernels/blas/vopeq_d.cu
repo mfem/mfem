@@ -16,7 +16,7 @@
 #include "../kernels.hpp"
 
 // *****************************************************************************
-static __global__ void d_vector_op_eq0(const int N,
+extern "C" static __global__ void d_vector_op_eq0(const int N,
                                        const double c0,
                                        double* __restrict v0){
   const int i = blockDim.x * blockIdx.x + threadIdx.x;

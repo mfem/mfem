@@ -30,10 +30,10 @@ void rMassAssemble(const int dim,
                    const double COEFF,
                    double* oper)
 {
-   push(Lime);
+   nvtx_push(Lime);
    //assert(false);
    if (dim==1) { assert(false); }
    if (dim==2) { rMassAssemble2D(numElements,NUM_QUAD,COEFF,quadWeights,J,oper); }
    if (dim==3) { rMassAssemble3D(numElements,NUM_QUAD,COEFF,quadWeights,J,oper); }
-   pop();
+   nvtx_pop();
 }

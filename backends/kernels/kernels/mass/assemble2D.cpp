@@ -55,7 +55,7 @@ void rMassAssemble2D(const int numElements,
                      const double* J,
                      double* oper)
 {
-   push(Lime);
+   nvtx_push(Lime);
    cuKer(rMassAssemble2D,numElements,NUM_QUAD_2D,COEFF,quadWeights,J,oper);
-   pop();
+   nvtx_pop();
 }

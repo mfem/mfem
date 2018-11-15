@@ -58,9 +58,9 @@ static void rDiffusionAssemble2D(const int numElements,
                                  const double* J,
                                  double* __restrict oper)
 {
-   push();
+   nvtx_push();
    cuKer(rDiffusionAssemble2D,numElements,NUM_QUAD_2D,COEFF,quadWeights,J,oper);
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************
@@ -72,7 +72,7 @@ void rDiffusionAssemble(const int dim,
                         const double COEFF,
                         double* __restrict oper)
 {
-   push();
+   nvtx_push();
    if (dim==1) { assert(false); }
    if (dim==2) { rDiffusionAssemble2D(numElements,
                                       NUM_QUAD_1D*NUM_QUAD_1D,
@@ -81,5 +81,5 @@ void rDiffusionAssemble(const int dim,
                                       J,
                                       oper); }
    if (dim==3) { assert(false); }
-   pop();
+   nvtx_pop();
 }

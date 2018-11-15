@@ -30,11 +30,11 @@ void vector_clear_dofs(const int N,
                        double* __restrict v0,
                        const int* __restrict v1)
 {
-   push();
+   nvtx_push();
 #ifdef __NVCC__
    cuKer(vector_clear_dofs,N,v0,v1);
 #else
    forall(i,N,v0[v1[i]] = 0.0;);
 #endif
-   pop();
+   nvtx_pop();
 }

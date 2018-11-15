@@ -33,7 +33,7 @@ PVector *Vector::DoVectorClone(bool copy_data,
                                void **buffer,
                                int buffer_type_id) const
 {
-   push();
+   nvtx_push();
    MFEM_ASSERT(buffer_type_id == ScalarId<double>::value, "");
    Vector *new_vector = new Vector(KernelsLayout());
    if (copy_data)
@@ -44,7 +44,7 @@ PVector *Vector::DoVectorClone(bool copy_data,
    {
       *buffer = new_vector->GetBuffer();
    }
-   pop();
+   nvtx_pop();
    return new_vector;
 }
 
@@ -53,7 +53,7 @@ void Vector::DoDotProduct(const mfem::PVector &x,
                           void *result,
                           int result_type_id) const
 {
-   push();
+   nvtx_push();
    // called only when Size() != 0
    MFEM_ASSERT(result_type_id == ScalarId<double>::value, "");
    double *res = (double *)result;
@@ -69,7 +69,7 @@ void Vector::DoDotProduct(const mfem::PVector &x,
       MPI_Allreduce(&local_dot, res, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
       dbg("MPI_Allreduce done");
    }
-   pop();
+   nvtx_pop();
 #endif
 }
 
@@ -78,7 +78,7 @@ void Vector::DoAxpby(const void *a, const mfem::PVector &x,
                      const void *b, const mfem::PVector &y,
                      int ab_type_id)
 {
-   push();
+   nvtx_push();
    MFEM_ASSERT(ab_type_id == ScalarId<double>::value, "");
    const double da = *static_cast<const double *>(a);
    const double db = *static_cast<const double *>(b);
@@ -150,7 +150,7 @@ void Vector::DoAxpby(const void *a, const mfem::PVector &x,
          }
       }
    }
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************
@@ -179,12 +179,12 @@ void Vector::SetSubVector(const mfem::Array<int> &ess_tdofs,
                           const double value,
                           const int N)
 {
-   push();
+   nvtx_push();
    const kernels::Array &k_ess_tdofs =
       ess_tdofs.Get_PArray()->As<kernels::Array>();
    vector_set_subvector_const(N, value, data,
                               (int*) k_ess_tdofs.KernelsMem().ptr());
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************
@@ -192,12 +192,12 @@ void Vector::MapSubVector(const mfem::Array<int> &ess_tdofs,
                           const kernels::Vector &v,
                           const int N)
 {
-   push();
+   nvtx_push();
    const kernels::Array &k_ess_tdofs =
       ess_tdofs.Get_PArray()->As<kernels::Array>();
    vector_map_dofs(N, data, v.data,
                    (int*) k_ess_tdofs.KernelsMem().ptr());
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************

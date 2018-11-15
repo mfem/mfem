@@ -25,14 +25,14 @@ KernelsGridFunction::KernelsGridFunction(kFiniteElementSpace &f)
      Array(f.KernelsVLayout(), sizeof(double)),
      Vector(f.KernelsVLayout()),
      fes(f),
-     sequence(0) {push(); pop();}
+     sequence(0) {nvtx_push(); nvtx_pop();}
 
 KernelsGridFunction::KernelsGridFunction(const KernelsGridFunction &v)
    : PArray(v),
      Array(v),
      Vector(v),
      fes(v.fes),
-     sequence(v.sequence) {push(); pop();}
+     sequence(v.sequence) {nvtx_push(); nvtx_pop();}
 
 KernelsGridFunction& KernelsGridFunction::operator = (double value)
 {
@@ -55,7 +55,7 @@ KernelsGridFunction& KernelsGridFunction::operator = (const KernelsGridFunction
 
 void KernelsGridFunction::GetTrueDofs(Vector &v)
 {
-   push();
+   nvtx_push();
    const mfem::Operator *R = fes.GetRestrictionOperator();
    if (!R)
    {
@@ -67,12 +67,12 @@ void KernelsGridFunction::GetTrueDofs(Vector &v)
       mfem::Vector mfem_v(v);
       R->Mult(this->Wrap(), mfem_v);
    }
-   pop();
+   nvtx_pop();
 }
 
 void KernelsGridFunction::SetFromTrueDofs(Vector &v)
 {
-   push();
+   nvtx_push();
    const mfem::Operator *P = fes.GetProlongationOperator();
    if (!P)
    {
@@ -84,7 +84,7 @@ void KernelsGridFunction::SetFromTrueDofs(Vector &v)
       mfem::Vector mfem_this(*this);
       P->Mult(v.Wrap(), mfem_this);
    }
-   pop();
+   nvtx_pop();
 }
 
 mfem::FiniteElementSpace* KernelsGridFunction::GetFESpace()
@@ -99,7 +99,7 @@ const mfem::FiniteElementSpace* KernelsGridFunction::GetFESpace() const
 
 void KernelsGridFunction::ToQuad(const IntegrationRule &ir, Vector &quadValues)
 {
-   push();
+   nvtx_push();
    const Engine &engine = KernelsLayout().KernelsEngine();
    kernels::device device = engine.GetDevice();
 
@@ -107,12 +107,12 @@ void KernelsGridFunction::ToQuad(const IntegrationRule &ir, Vector &quadValues)
    const int numQuad  = ir.GetNPoints();
    quadValues.Resize<double>(*(new Layout(engine, numQuad * elements)), NULL);
    assert(false);
-   pop();
+   nvtx_pop();
 }
 
 void KernelsGridFunction::Distribute(const Vector &v)
 {
-   push();
+   nvtx_push();
    if (fes.isDistributed())
    {
       mfem::Vector mfem_this(*this);
@@ -122,7 +122,7 @@ void KernelsGridFunction::Distribute(const Vector &v)
    {
       *this = v;
    }
-   pop();
+   nvtx_pop();
 }
 
 } // namespace mfem::kernels

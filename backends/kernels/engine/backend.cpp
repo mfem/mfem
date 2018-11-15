@@ -23,16 +23,16 @@ namespace kernels
 // *****************************************************************************
 bool Backend::Supports(const std::string &engine_spec) const
 {
-   push();
-   pop();
+   nvtx_push();
+   nvtx_pop();
    return true;
 }
 
 // *****************************************************************************
 mfem::Engine *Create(const std::string &engine_spec)
 {
-   push();
-   pop();
+   nvtx_push();
+   nvtx_pop();
    return new Engine(engine_spec);
 }
 
@@ -40,8 +40,8 @@ mfem::Engine *Create(const std::string &engine_spec)
 #ifdef MFEM_USE_MPI
 mfem::Engine *Create(MPI_Comm comm, const std::string &engine_spec)
 {
-   push();
-   pop();
+   nvtx_push();
+   nvtx_pop();
    return new Engine(comm, engine_spec);
 }
 #endif

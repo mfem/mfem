@@ -61,7 +61,7 @@ void rMassAssemble3D(const int NUM_QUAD_3D,
                      const double* J,
                      double* __restrict oper)
 {
-  push(Lime);
+  nvtx_push(Lime);
   cuKer(rMassAssemble3D,numElements,NUM_QUAD_3D,COEFF,quadWeights,J,oper);
-  pop();
+  nvtx_pop();
 }

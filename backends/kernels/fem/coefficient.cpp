@@ -23,7 +23,7 @@ namespace kernels
 //---[ Parameter ]------------
 KernelsParameter::~KernelsParameter() {}
 
-void KernelsParameter::Setup(KernelsIntegrator &integ) {push(); pop();}
+void KernelsParameter::Setup(KernelsIntegrator &integ) {nvtx_push(); nvtx_pop();}
 
 //====================================
 
@@ -107,8 +107,8 @@ KernelsParameter* KernelsGridFunctionParameter::Clone()
 
 void KernelsGridFunctionParameter::Setup(KernelsIntegrator &integ)
 {
-   push();
-   pop();
+   nvtx_push();
+   nvtx_pop();
 }
 //====================================
 
@@ -119,8 +119,8 @@ KernelsCoefficient::KernelsCoefficient(const double value) :
    integ(NULL),
    name("COEFF")
 {
-   push();
-   pop();
+   nvtx_push();
+   nvtx_pop();
 }
 //---[ Coefficient ]------------------
 KernelsCoefficient::KernelsCoefficient(const Engine &e, const double value) :
@@ -128,8 +128,8 @@ KernelsCoefficient::KernelsCoefficient(const Engine &e, const double value) :
    integ(NULL),
    name("COEFF")
 {
-   push();
-   pop();
+   nvtx_push();
+   nvtx_pop();
 }
 
 KernelsCoefficient::KernelsCoefficient(const Engine &e,
@@ -138,8 +138,8 @@ KernelsCoefficient::KernelsCoefficient(const Engine &e,
    integ(NULL),
    name("COEFF")
 {
-   push();
-   pop();
+   nvtx_push();
+   nvtx_pop();
 }
 
 KernelsCoefficient::KernelsCoefficient(const Engine &e, const char *source) :
@@ -147,8 +147,8 @@ KernelsCoefficient::KernelsCoefficient(const Engine &e, const char *source) :
    integ(NULL),
    name("COEFF")
 {
-   push();
-   pop();
+   nvtx_push();
+   nvtx_pop();
 }
 
 KernelsCoefficient::KernelsCoefficient(const KernelsCoefficient &coeff) :
@@ -156,13 +156,13 @@ KernelsCoefficient::KernelsCoefficient(const KernelsCoefficient &coeff) :
    integ(NULL),
    name(coeff.name)
 {
-   push();
+   nvtx_push();
    const int paramCount = (int) coeff.params.size();
    for (int i = 0; i < paramCount; ++i)
    {
       params.push_back(coeff.params[i]->Clone());
    }
-   pop();
+   nvtx_pop();
 }
 
 KernelsCoefficient::~KernelsCoefficient()
@@ -182,16 +182,16 @@ KernelsCoefficient& KernelsCoefficient::SetName(const std::string &name_)
 
 void KernelsCoefficient::Setup(KernelsIntegrator &integ_)
 {
-   push();
+   nvtx_push();
    integ = &integ_;
-   pop();
+   nvtx_pop();
 }
 
 KernelsCoefficient& KernelsCoefficient::Add(KernelsParameter *param)
 {
-   push();
+   nvtx_push();
    params.push_back(param);
-   pop();
+   nvtx_pop();
    return *this;
 }
 

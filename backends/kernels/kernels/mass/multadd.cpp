@@ -330,5 +330,5 @@ void rMassMultAdd(const int DIM,
           NUM_DOFS_1D,NUM_QUAD_1D,
           numElements,dofToQuad,dofToQuadD,quadToDof,quadToDofD,op,x,y);
           #endif*/
-  pop();
+  nvtx_pop();
 }

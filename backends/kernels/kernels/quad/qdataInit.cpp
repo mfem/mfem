@@ -46,7 +46,7 @@ void rInitQuadratureData(const int NUM_QUAD,
                          const double* restrict detJ,
                          const double* restrict quadWeights,
                          double* restrict rho0DetJ0w) {
-  push(Lime);
+  nvtx_push(Lime);
 #ifdef __NVCC__
   const int blck = CUDA_BLOCK_SIZE;
   const int grid = (numElements+blck-1)/blck;
@@ -97,5 +97,5 @@ void rInitQuadratureData(const int NUM_QUAD,
   assert(call[id]);
   call0(rInitQuadData,id,grid,blck,
         numElements,rho0,detJ,quadWeights,rho0DetJ0w);
-  pop();
+  nvtx_pop();
 }

@@ -35,7 +35,7 @@ kConformingProlongationOperator::kConformingProlongationOperator
    gc(new kCommD(pfes)),
    kMaxTh(0)
 {
-   push();
+   nvtx_push();
    mfem::Array<int> ldofs;
    //assert((std::size_t)pfes.GetTrueVSize()==pfes.GetTrueVLayout()->Size());
    //dbg("\033[32;7m GetVSize()=%d, GetTrueVSize()=%d",pfes.GetVSize(), pfes.GetTrueVSize());
@@ -82,7 +82,7 @@ kConformingProlongationOperator::kConformingProlongationOperator
    //printf("\n[kConformingProlongationOperator] kMaxTh=%d",kMaxTh);fflush(stdout);
    //gc->PrintInfo();
    //pfes.Dof_TrueDof_Matrix()->PrintCommPkg();
-   pop();
+   nvtx_pop();
 }
 
 // ***************************************************************************
@@ -108,7 +108,8 @@ void cuLastCheck()
 // ***************************************************************************
 // * k_Mult
 // ***************************************************************************
-static __global__
+
+extern "C" static  __global__
 void k_Mult(double *y,const double *x,const int *external_ldofs,const int m)
 {
    const int i = blockDim.x * blockIdx.x + threadIdx.x;
@@ -120,7 +121,7 @@ void k_Mult(double *y,const double *x,const int *external_ldofs,const int m)
       y[j+k]=x[j-i+k];
    }
 }
-static __global__
+extern "C" static  __global__
 void k_Mult2(double *y,const double *x,const int *external_ldofs,
              const int m, const int base)
 {
@@ -139,7 +140,7 @@ void k_Mult2(double *y,const double *x,const int *external_ldofs,
 void kConformingProlongationOperator::d_Mult(const kernels::Vector &x,
                                              kernels::Vector &y) const
 {
-   push(Coral);
+   nvtx_push(Coral);
    //#warning while(true)     while(true);
    MFEM_ASSERT(x.Size() == (std::size_t)Width(),
                "x.Size()=" << x.Size()<<", Width()="<<Width());
@@ -147,17 +148,17 @@ void kConformingProlongationOperator::d_Mult(const kernels::Vector &x,
    const double *d_xdata = x.GetData();
    const int in_layout = 2; // 2 - input is ltdofs array
 
-   push(d_BcastBegin,Coral);
+   nvtx_push(d_BcastBegin,Coral);
    gc->d_BcastBegin(const_cast<double*>(d_xdata), in_layout);
-   pop();
+   nvtx_pop();
 
-   push(d_Mult_Work,Coral);
+   nvtx_push(d_Mult_Work,Coral);
    double *d_ydata = y.GetData();
 #ifdef __NVCC__
    int j = 0;
    const int m = external_ldofs.Size();
    /* // Test with async rDtoD
-      push(k_DtoDAsync,Coral);
+      nvtx_push(k_DtoDAsync,Coral);
       for (int i = 0; i < m; i++){
       const int end = external_ldofs[i];
       //printf("\n[k_Mult] rDtoD async size %d",end-j);
@@ -165,7 +166,7 @@ void kConformingProlongationOperator::d_Mult(const kernels::Vector &x,
       j = end+1;
       }
       cudaDeviceSynchronize();
-      pop();*/
+      nvtx_pop();*/
 
    if (m>0)
    {
@@ -201,13 +202,13 @@ void kConformingProlongationOperator::d_Mult(const kernels::Vector &x,
    mfem::kernels::kmemcpy::rDtoD(d_ydata+j,d_xdata+j-m,
                                  (Width()+m-j)*sizeof(double));
 #endif
-   pop();
+   nvtx_pop();
 
-   push(d_BcastEnd,Coral);
+   nvtx_push(d_BcastEnd,Coral);
    const int out_layout = 0; // 0 - output is ldofs array
    gc->d_BcastEnd(d_ydata, out_layout);
-   pop();
-   pop();
+   nvtx_pop();
+   nvtx_pop();
 }
 
 
@@ -215,7 +216,7 @@ void kConformingProlongationOperator::d_Mult(const kernels::Vector &x,
 // * k_Mult
 // ***************************************************************************
 #ifdef __NVCC__
-static __global__
+extern "C" static  __global__
 void k_MultTranspose(double *y,const double *x,const int *external_ldofs,
                      const int m)
 {
@@ -229,7 +230,7 @@ void k_MultTranspose(double *y,const double *x,const int *external_ldofs,
    }
 }
 
-static __global__
+extern "C" static  __global__
 void k_MultTranspose2(double *y,const double *x,const int *external_ldofs,
                       const int m, const int base)
 {
@@ -248,25 +249,25 @@ void k_MultTranspose2(double *y,const double *x,const int *external_ldofs,
 void kConformingProlongationOperator::d_MultTranspose(const kernels::Vector &x,
                                                       kernels::Vector &y) const
 {
-   push(Coral);
+   nvtx_push(Coral);
    const double *d_xdata = x.GetData();
 
-   push(d_ReduceBegin,Coral);
+   nvtx_push(d_ReduceBegin,Coral);
    gc->d_ReduceBegin(d_xdata);
-   pop();
+   nvtx_pop();
 
-   push(d_MultTranspose_Work,Coral);
+   nvtx_push(d_MultTranspose_Work,Coral);
    double *d_ydata = y.GetData();
 #ifdef __NVCC__
    int j = 0;
    const int m = external_ldofs.Size();
-   /*push(k_DtoDT,Coral);
+   /*nvtx_push(k_DtoDT,Coral);
    for (int i = 0; i < m; i++)   {
      const int end = external_ldofs[i];
      rmemcpy::rDtoD(d_ydata+j-i,d_xdata+j,(end-j)*sizeof(double));
      j = end+1;
    }
-   pop();*/
+   nvtx_pop();*/
    if (m>0)
    {
       const int maxXThDim = mfem::kernels::config::Get().MaxXThreadsDim();
@@ -294,12 +295,12 @@ void kConformingProlongationOperator::d_MultTranspose(const kernels::Vector &x,
    mfem::kernels::kmemcpy::rDtoD(d_ydata+j-m,d_xdata+j,
                                  (Height()-j)*sizeof(double));
 #endif
-   pop();
-   push(d_ReduceEnd,Coral);
+   nvtx_pop();
+   nvtx_push(d_ReduceEnd,Coral);
    const int out_layout = 2; // 2 - output is an array on all ltdofs
    gc->d_ReduceEnd<double>(d_ydata, out_layout, GroupCommunicator::Sum);
-   pop();
-   pop();
+   nvtx_pop();
+   nvtx_pop();
 }
 
 // ***************************************************************************
@@ -324,14 +325,14 @@ void kConformingProlongationOperator::MultTranspose_(const kernels::Vector &x,
 void kConformingProlongationOperator::Mult(const mfem::Vector &x,
                                            mfem::Vector &y) const
 {
-   push(Coral);
+   nvtx_push(Coral);
    const double *xdata = x.GetData();
    double *ydata = y.GetData();
    const int m = external_ldofs.Size();
    const int in_layout = 2; // 2 - input is ltdofs array
-   push(BcastBegin,Moccasin);
+   nvtx_push(BcastBegin,Moccasin);
    gc->BcastBegin(const_cast<double*>(xdata), in_layout);
-   pop();
+   nvtx_pop();
    int j = 0;
    for (int i = 0; i < m; i++)
    {
@@ -341,10 +342,10 @@ void kConformingProlongationOperator::Mult(const mfem::Vector &x,
    }
    std::copy(xdata+j-m, xdata+Width(), ydata+j);
    const int out_layout = 0; // 0 - output is ldofs array
-   push(BcastEnd,PeachPuff);
+   nvtx_push(BcastEnd,PeachPuff);
    gc->BcastEnd(ydata, out_layout);
-   pop();
-   pop();
+   nvtx_pop();
+   nvtx_pop();
 }
 
 // ***************************************************************************
@@ -353,13 +354,13 @@ void kConformingProlongationOperator::Mult(const mfem::Vector &x,
 void kConformingProlongationOperator::MultTranspose(const mfem::Vector &x,
                                                     mfem::Vector &y) const
 {
-   push(Coral);
+   nvtx_push(Coral);
    const double *xdata = x.GetData();
    double *ydata = y.GetData();
    const int m = external_ldofs.Size();
-   push(ReduceBegin,PapayaWhip);
+   nvtx_push(ReduceBegin,PapayaWhip);
    gc->ReduceBegin(xdata);
-   pop();
+   nvtx_pop();
    int j = 0;
    for (int i = 0; i < m; i++)
    {
@@ -369,10 +370,10 @@ void kConformingProlongationOperator::MultTranspose(const mfem::Vector &x,
    }
    std::copy(xdata+j, xdata+Height(), ydata+j-m);
    const int out_layout = 2; // 2 - output is an array on all ltdofs
-   push(ReduceEnd,LavenderBlush);
+   nvtx_push(ReduceEnd,LavenderBlush);
    gc->ReduceEnd<double>(ydata, out_layout, GroupCommunicator::Sum);
-   pop();
-   pop();
+   nvtx_pop();
+   nvtx_pop();
 }
 
 #endif

@@ -91,7 +91,7 @@ kDofQuadMaps* kDofQuadMaps::GetTensorMaps(const FiniteElement& trialFE,
    kDofQuadMaps *maps = new kDofQuadMaps();
    AllDofQuadMaps[hash]=maps;
    maps->hash = hash;
-   push();
+   nvtx_push();
    const kDofQuadMaps* trialMaps = GetD2QTensorMaps(trialFE, ir);
    const kDofQuadMaps* testMaps  = GetD2QTensorMaps(testFE, ir, true);
    maps->dofToQuad   = trialMaps->dofToQuad;
@@ -99,7 +99,7 @@ kDofQuadMaps* kDofQuadMaps::GetTensorMaps(const FiniteElement& trialFE,
    maps->quadToDof   = testMaps->dofToQuad;
    maps->quadToDofD  = testMaps->dofToQuadD;
    maps->quadWeights = testMaps->quadWeights;
-   pop();
+   nvtx_pop();
    return maps;
 }
 
@@ -139,7 +139,7 @@ kDofQuadMaps* kDofQuadMaps::GetD2QTensorMaps(const FiniteElement& fe,
    kDofQuadMaps *maps = new kDofQuadMaps();
    AllDofQuadMaps[hash]=maps;
    maps->hash = hash;
-   push();
+   nvtx_push();
 
    maps->dofToQuad.allocate( numQuad1D, numDofs, 1, 1, transpose);
    maps->dofToQuadD.allocate(numQuad1D, numDofs, 1, 1, transpose);
@@ -192,7 +192,7 @@ kDofQuadMaps* kDofQuadMaps::GetD2QTensorMaps(const FiniteElement& fe,
    }
    maps->dofToQuad = dofToQuad;
    maps->dofToQuadD = dofToQuadD;
-   pop();
+   nvtx_pop();
    return maps;
 }
 
@@ -221,7 +221,7 @@ kDofQuadMaps* kDofQuadMaps::GetSimplexMaps(const FiniteElement& trialFE,
    {
       return AllDofQuadMaps[hash];
    }
-   push();
+   nvtx_push();
    kDofQuadMaps *maps = new kDofQuadMaps();
    AllDofQuadMaps[hash]=maps;
    maps->hash = hash;
@@ -232,7 +232,7 @@ kDofQuadMaps* kDofQuadMaps::GetSimplexMaps(const FiniteElement& trialFE,
    maps->quadToDof   = testMaps->dofToQuad;
    maps->quadToDofD  = testMaps->dofToQuadD;
    maps->quadWeights = testMaps->quadWeights;
-   pop();
+   nvtx_pop();
    return maps;
 }
 
@@ -261,7 +261,7 @@ kDofQuadMaps* kDofQuadMaps::GetD2QSimplexMaps(const FiniteElement& fe,
    kDofQuadMaps* maps = new kDofQuadMaps();
    AllDofQuadMaps[hash]=maps;
    maps->hash = hash;
-   push();
+   nvtx_push();
 
    maps->dofToQuad.allocate( numQuad, numDofs,       1, 1, transpose);
    maps->dofToQuadD.allocate(   dims, numQuad, numDofs, 1, transpose);
@@ -309,7 +309,7 @@ kDofQuadMaps* kDofQuadMaps::GetD2QSimplexMaps(const FiniteElement& fe,
    }
    maps->dofToQuad = dofToQuad;
    maps->dofToQuadD = dofToQuadD;
-   pop();
+   nvtx_pop();
    return maps;
 }
 

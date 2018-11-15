@@ -27,13 +27,13 @@ static kGeometry *geom=NULL;
 // ***************************************************************************
 kGeometry::~kGeometry()
 {
-   push();
+   nvtx_push();
    free(geom->meshNodes);
    free(geom->J);
    free(geom->invJ);
    free(geom->detJ);
    delete[] geom;
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************
@@ -43,7 +43,7 @@ kGeometry* kGeometry::Get(kFiniteElementSpace& fes,
                           const IntegrationRule& ir,
                           const kvector& Sx)
 {
-   push();
+   nvtx_push();
    const Mesh *mesh = fes.GetFESpace()->GetMesh();
    const GridFunction *nodes = mesh->GetNodes();
    const mfem::FiniteElementSpace *fespace = nodes->FESpace();
@@ -54,18 +54,18 @@ kGeometry* kGeometry::Get(kFiniteElementSpace& fes,
    const int elements = fespace->GetNE();
    const int ndofs    = fespace->GetNDofs();
    const kDofQuadMaps* maps = kDofQuadMaps::GetSimplexMaps(*fe, ir);
-   push();
+   nvtx_push();
    rNodeCopyByVDim(elements,numDofs,ndofs,dims,geom->eMap,Sx,geom->meshNodes);
-   pop();
-   push();
+   nvtx_pop();
+   nvtx_push();
    rIniGeom(dims,numDofs,numQuad,elements,
             maps->dofToQuadD,
             geom->meshNodes,
             geom->J,
             geom->invJ,
             geom->detJ);
-   pop();
-   pop();
+   nvtx_pop();
+   nvtx_pop();
    return geom;
 }
 
@@ -74,7 +74,7 @@ kGeometry* kGeometry::Get(kFiniteElementSpace& fes,
 kGeometry* kGeometry::Get(kFiniteElementSpace& fes,
                           const IntegrationRule& ir)
 {
-   push();
+   nvtx_push();
    Mesh& mesh = *(fes.GetFESpace()->GetMesh());
    const bool geom_to_allocate =
       (!geom) || config::Get().GeomNeedsUpdate(mesh.GetSequence());
@@ -105,7 +105,7 @@ kGeometry* kGeometry::Get(kFiniteElementSpace& fes,
    const int* elementMap = e2dTable.GetJ();
    mfem::Array<int> eMap(numDofs*elements);
    {
-      push();
+      nvtx_push();
       for (int e = 0; e < elements; ++e)
       {
          for (int d = 0; d < numDofs; ++d)
@@ -121,7 +121,7 @@ kGeometry* kGeometry::Get(kFiniteElementSpace& fes,
             }
          }
       }
-      pop();
+      nvtx_pop();
    }
    if (geom_to_allocate)
    {
@@ -129,10 +129,10 @@ kGeometry* kGeometry::Get(kFiniteElementSpace& fes,
       geom->eMap.allocate(numDofs, elements);
    }
    {
-      push();
+      nvtx_push();
       geom->meshNodes = meshNodes;
       geom->eMap = eMap;
-      pop();
+      nvtx_pop();
    }
 
    // Reorder the original gf back
@@ -155,23 +155,23 @@ kGeometry* kGeometry::Get(kFiniteElementSpace& fes,
    {
       dbg("dims=%d, numDofs=%d, numQuad=%d, elements=%d",dims,numDofs,numQuad,
           elements);
-      push(rIniGeom,SteelBlue);
+      nvtx_push(rIniGeom,SteelBlue);
       rIniGeom(dims,numDofs,numQuad,elements,
                maps->dofToQuadD,
                geom->meshNodes,
                geom->J,
                geom->invJ,
                geom->detJ);
-      pop();
+      nvtx_pop();
    }
-   pop();
+   nvtx_pop();
    return geom;
 }
 
 // ***************************************************************************
 void kGeometry::ReorderByVDim(GridFunction& nodes)
 {
-   push();
+   nvtx_push();
    const mfem::FiniteElementSpace *fes=nodes.FESpace();
    const int size = nodes.Size();
    const int vdim = fes->GetVDim();
@@ -189,13 +189,13 @@ void kGeometry::ReorderByVDim(GridFunction& nodes)
       data[i] = temp[i];
    }
    delete [] temp;
-   pop();
+   nvtx_pop();
 }
 
 // ***************************************************************************
 void kGeometry::ReorderByNodes(GridFunction& nodes)
 {
-   push();
+   nvtx_push();
    const mfem::FiniteElementSpace *fes=nodes.FESpace();
    const int size = nodes.Size();
    const int vdim = fes->GetVDim();
@@ -213,7 +213,7 @@ void kGeometry::ReorderByNodes(GridFunction& nodes)
       data[i] = temp[i];
    }
    delete [] temp;
-   pop();
+   nvtx_pop();
 }
 
 } // namespace mfem::kernels

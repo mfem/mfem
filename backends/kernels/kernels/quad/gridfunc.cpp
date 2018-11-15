@@ -223,7 +223,7 @@ void rGridFuncToQuad(const int DIM,
                      const int* l2gMap,
                      const double* gf,
                      double* __restrict out) {
-  push(Lime);
+  nvtx_push(Lime);
 #ifdef __NVCC__
   const int blck = CUDA_BLOCK_SIZE;
   const int grid = (numElements+blck-1)/blck;
@@ -279,5 +279,5 @@ void rGridFuncToQuad(const int DIM,
   assert(call[id]);
   call0(rGridFuncToQuad,id,grid,blck,
         numElements,dofToQuad,l2gMap,gf,out);
-  pop();
+  nvtx_pop();
 }

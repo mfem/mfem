@@ -32,11 +32,11 @@ void vector_vec_mul(const int N,
                     double* __restrict v0,
                     const double d)
 {
-   push();
+   nvtx_push();
 #ifdef __NVCC__
    cuKer(vector_vec_mul,N,v0,d);
 #else
    forall(i,N,v0[i]*=d;);
 #endif
-   pop();
+   nvtx_pop();
 }

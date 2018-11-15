@@ -28,9 +28,9 @@ KernelsDiffusionIntegrator::KernelsDiffusionIntegrator(const KernelsCoefficient
    coeff(coeff_),
    assembledOperator(*(new Layout(coeff_.KernelsEngine(), 0)))
 {
-   push();
+   nvtx_push();
    coeff.SetName("COEFF");
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************
@@ -45,24 +45,24 @@ std::string KernelsDiffusionIntegrator::GetName()
 // *****************************************************************************
 void KernelsDiffusionIntegrator::SetupIntegrationRule()
 {
-   push();
+   nvtx_push();
    const FiniteElement &trialFE = *(trialFESpace->GetFE(0));
    const FiniteElement &testFE  = *(testFESpace->GetFE(0));
    ir = &mfem::DiffusionIntegrator::GetRule(trialFE, testFE);
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************
 void KernelsDiffusionIntegrator::Setup()
 {
-   push();
-   pop();
+   nvtx_push();
+   nvtx_pop();
 }
 
 // *****************************************************************************
 void KernelsDiffusionIntegrator::Assemble()
 {
-   push();
+   nvtx_push();
    const mfem::FiniteElement &fe = *(trialFESpace->GetFE(0));
    const int dim = mesh->Dimension();
    const int dims = fe.GetDim();
@@ -86,13 +86,13 @@ void KernelsDiffusionIntegrator::Assemble()
                       geo->J,
                       1.0,//COEFF
                       (double*)assembledOperator.KernelsMem().ptr());
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************
 void KernelsDiffusionIntegrator::MultAdd(Vector &x, Vector &y)
 {
-   push();
+   nvtx_push();
    const int dim = mesh->Dimension();
    const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
    const int dofs1D = trialFESpace->GetFE(0)->GetOrder() + 1;
@@ -107,7 +107,7 @@ void KernelsDiffusionIntegrator::MultAdd(Vector &x, Vector &y)
                      (double*)assembledOperator.KernelsMem().ptr(),
                      (const double*)x.KernelsMem().ptr(),
                      (double*)y.KernelsMem().ptr());
-   pop();
+   nvtx_pop();
 }
 
 } // namespace mfem::kernels

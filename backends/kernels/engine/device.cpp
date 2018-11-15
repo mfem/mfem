@@ -40,10 +40,10 @@ bool device::hasSeparateMemorySpace()
 memory device::malloc(const std::size_t bytes,
                       const void *src)
 {
-   push();
+   nvtx_push();
    assert(src==NULL);
    dbg("bytes=%d",bytes);
-   pop();
+   nvtx_pop();
    return memory(bytes,src);
 }
 

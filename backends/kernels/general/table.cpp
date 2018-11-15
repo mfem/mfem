@@ -23,7 +23,7 @@ namespace kernels
 // ***************************************************************************
 ktable::ktable(const mfem::Table &table)
 {
-   push();
+   nvtx_push();
    size = table.Size();
    assert(size > 0);
    const int nnz = table.GetI()[size];
@@ -35,7 +35,7 @@ ktable::ktable(const mfem::Table &table)
       assert(table.GetJ());
       rHtoD(J,table.GetJ(),sizeof(int)*nnz);
    }
-   pop();
+   nvtx_pop();
 }
 
 } // kernels

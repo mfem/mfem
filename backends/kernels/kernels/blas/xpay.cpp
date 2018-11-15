@@ -36,11 +36,11 @@ void vector_xpay(const int N,
                  const double* __restrict v1,
                  const double* __restrict v2)
 {
-   push(xpay,Cyan);
+   nvtx_push(xpay,Cyan);
 #ifdef __NVCC__
    cuKer(vector_xpay,N,c0,v0,v1,v2);
 #else
    forall(i,N, { v0[i] = v1[i] + (c0 * v2[i]); });
 #endif
-   pop();
+   nvtx_pop();
 }

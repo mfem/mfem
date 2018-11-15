@@ -53,9 +53,9 @@ kvector::kvector(const size_t sz,double value):
    size(sz),data(alloc(sz)),own(true)
 {
    assert(false);
-   push(SkyBlue);
+   nvtx_push(SkyBlue);
    *this=value;
-   pop();
+   nvtx_pop();
 }
 
 kvector::kvector(const kvector& v):

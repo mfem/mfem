@@ -157,7 +157,7 @@ endif
 # Compile flags used by MFEM: CPPFLAGS, CXXFLAGS, plus library flags
 INCFLAGS =
 # Link flags used by MFEM: library link flags plus LDFLAGS (added last)
-ALL_LIBS =
+ALL_LIBS = -L/usr/tce/packages/cuda/cuda-9.2.88/lib64 -lcuda -lcudart
 
 # Building static and/or shared libraries:
 MFEM_STATIC ?= $(STATIC)
@@ -259,7 +259,7 @@ MFEM_CPPFLAGS  ?= $(CPPFLAGS)
 MFEM_CXXFLAGS  ?= $(CXXFLAGS)
 MFEM_TPLFLAGS  ?= $(INCFLAGS)
 MFEM_INCFLAGS  ?= -I@MFEM_INC_DIR@ @MFEM_TPLFLAGS@
-MFEM_PICFLAG   ?= $(if $(shared),$(PICFLAG))
+MFEM_PICFLAG   ?= $(if $(shared),-Xcompiler=$(PICFLAG))
 MFEM_FLAGS     ?= @MFEM_CPPFLAGS@ @MFEM_CXXFLAGS@ @MFEM_INCFLAGS@
 MFEM_EXT_LIBS  ?= $(ALL_LIBS) $(LDFLAGS)
 MFEM_LIBS      ?= $(if $(shared),$(BUILD_RPATH)) -L@MFEM_LIB_DIR@ -lmfem\
@@ -308,8 +308,7 @@ ifneq (,$(filter install,$(MAKECMDGOALS)))
 endif
 
 # KERNELS dirs
-MAKEFILE_DIR = $(dir $(abspath $(firstword $(MAKEFILE_LIST))))
-KERNELS_BACKEND_DIR = $(patsubst %/,%,$(MAKEFILE_DIR))/backends/kernels
+KERNELS_BACKEND_DIR = backends/kernels
 KERNELS_SRC_DIRS := 	\
 	$(KERNELS_BACKEND_DIR)/config \
 	$(KERNELS_BACKEND_DIR)/engine \
@@ -325,11 +324,11 @@ KERNELS_RTC_DIRS = 	\
 	$(KERNELS_BACKEND_DIR)/kernels/mass \
 	$(KERNELS_BACKEND_DIR)/kernels/geom \
 	$(KERNELS_BACKEND_DIR)/kernels/mapping
-KERNELS_RTC_SRC_FILES = $(foreach dir,$(KERNELS_RTC_DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
+#KERNELS_RTC_SRC_FILES = $(foreach dir,$(KERNELS_RTC_DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 
 # Source dirs in logical order
 ALL_SRC_DIRS := general linalg mesh fem \
-	backends/base backends/occa $(KERNELS_SRC_DIRS)
+	backends/base backends/occa $(KERNELS_SRC_DIRS) $(KERNELS_RTC_DIRS)
 DIRS := $(ALL_SRC_DIRS)
 ifeq ($(MFEM_USE_BACKENDS),NO)
    DIRS := $(filter-out backends/%,$(DIRS))
@@ -344,7 +343,7 @@ endif
 SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
-OBJECT_FILES += $(patsubst $(SRC)%,$(BLD)%,$(KERNELS_RTC_SRC_FILES:.cpp=.o))
+#OBJECT_FILES += $(patsubst $(SRC)%,$(BLD)%,$(KERNELS_RTC_SRC_FILES:.cpp=.o))
 #OBJECT_RTC_FILES = $(patsubst $(SRC)%,$(BLD)%,$(KERNELS_RTC_SRC_FILES:.cpp=.o))
 
 #rtc:$(OBJECT_RTC_FILES);@echo OBJECT_RTC_FILES=$(OBJECT_RTC_FILES)
@@ -366,14 +365,16 @@ lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
  $(MFEM_TPLFLAGS) $(BUILD_DIR_DEF)
 
+ MFEM_BUILD_FLAGS2 = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS)
+
 # Rules for compiling all source files.
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -dc -c $(<) -o $(@)
 
 # Rules for compiling all RTC source files.
 # WARNING: the input file needs to be in last position
-$(OBJECT_RTC_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c -o $(@) -I$(realpath $(dir $(<))) $(<)
+#$(OBJECT_RTC_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
+#	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c -o $(@) -I$(realpath $(dir $(<))) $(<)
 #okrtc
 all: examples miniapps
 
@@ -391,7 +392,8 @@ doc:
 
 $(BLD)libmfem.a: $(OBJECT_FILES) $(OBJECT_RTC_FILES)
 	[ ! -e $(@) ] || rm -f $(@)
-	$(AR) $(ARFLAGS) $(@) $(OBJECT_FILES) $(OBJECT_RTC_FILES)
+	nvcc --device-link $(OBJECT_FILES) $(OBJECT_RTC_FILES) --output-file libmfemGPU.o
+	nvcc --lib $(OBJECT_FILES) $(OBJECT_RTC_FILES) libmfemGPU.o --output-file libmfem.a
 	$(RANLIB) $(@)
 
 $(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER)
@@ -399,10 +401,14 @@ $(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER)
 
 # If some of the external libraries are build without -fPIC, linking shared MFEM
 # library may fail. In such cases, one may set EXT_LIBS on the command line.
+#EXT_LIBS = $(shell echo $(MFEM_EXT_LIBS) | sed -e "s/-Wl,/-Xlinker=/g")
 EXT_LIBS = $(MFEM_EXT_LIBS)
+#BUILD_SOFLAGS="-shared -Wl,soname,libmfem.so.3.4.1"
+EXT_LIBS+="-lcuda -lcudart -L/usr/tce/packages/cuda/cuda-9.2.88/lib64/ -I/usr/tce/packages/cuda/cuda-9.2.88/include -lib"
+	#$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(BUILD_SOFLAGS) $(OBJECT_FILES)
+	#--output-file 'libmfem.so.3.4.1'
 $(BLD)libmfem.$(SO_VER): $(OBJECT_FILES)
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(BUILD_SOFLAGS) $(OBJECT_FILES) \
-	   $(EXT_LIBS) -o $(@)
+	$(MPI_CXX) -shared $(OBJECT_FILES) -o libmfem.so.3.4.1 -L/usr/tce/packages/cuda/cuda-9.2.88/lib64/ -lcuda -lcudart -lcudadevrt 
 
 serial debug:    M_MPI=NO
 parallel pdebug: M_MPI=YES

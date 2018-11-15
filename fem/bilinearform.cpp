@@ -335,16 +335,16 @@ void BilinearForm::Assemble (int skip_zeros)
    ElementTransformation *eltrans;
    Mesh *mesh = fes -> GetMesh();
    DenseMatrix elmat, *elmat_p;
-
-#ifdef MFEM_USE_BACKENDS
-   if (dev_ext)
-   {
-      // TODO: push the 'skip_zeros' as a parameter to 'dev_ext'
-
-      const bool assembly_done = dev_ext->Assemble();
-      if (assembly_done) { return; }
-   }
-#endif
+//RYAN - not allocating sparse matrix so i am bypassing this
+//#ifdef MFEM_USE_BACKENDS
+//   if (dev_ext)
+//   {
+//      // TODO: push the 'skip_zeros' as a parameter to 'dev_ext'
+//
+//      const bool assembly_done = dev_ext->Assemble();
+//      if (assembly_done) { return; }
+//   }
+//#endif
 
    if (mat == NULL)
    {

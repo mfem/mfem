@@ -108,7 +108,7 @@ void rGridFuncToQuadS(const int DIM,
                      const int* l2gMap,
                      const double* gf,
                      double* __restrict out) {
-  push(Green);
+  nvtx_push(Green);
 #ifdef __NVCC__
   const int grid = ((numElements+M2_ELEMENT_BATCH-1)/M2_ELEMENT_BATCH);
   const int blck = (NUM_QUAD_1D<NUM_DOFS_1D)?NUM_DOFS_1D:NUM_QUAD_1D;
@@ -164,5 +164,5 @@ void rGridFuncToQuadS(const int DIM,
   assert(call[id]);
   call0(rGridFuncToQuadS,id,grid,blck,
         numElements,dofToQuad,l2gMap,gf,out);
-  pop();
+  nvtx_pop();
 }

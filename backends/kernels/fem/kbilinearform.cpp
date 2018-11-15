@@ -26,9 +26,9 @@ kBilinearForm::kBilinearForm(kFiniteElementSpace *kfes) :
    localX(kfes->KernelsEVLayout()),
    localY(kfes->KernelsEVLayout())
 {
-   push();
+   nvtx_push();
    Init(kfes->KernelsEngine(), kfes, kfes);
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************
@@ -38,9 +38,9 @@ kBilinearForm::kBilinearForm(kFiniteElementSpace *kTrialFes_,
    localX(kTrialFes_->KernelsEVLayout()),
    localY(kTestFes_->KernelsEVLayout())
 {
-   push();
+   nvtx_push();
    Init(kTrialFes_->KernelsEngine(), kTrialFes_, kTestFes_);
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************
@@ -48,7 +48,7 @@ void kBilinearForm::Init(const Engine &e,
                          kFiniteElementSpace *kTrialFes_,
                          kFiniteElementSpace *kTestFes_)
 {
-   push();
+   nvtx_push();
    ng.Reset(&e);
    kTrialFes = kTrialFes_;
    mTrialFes  = kTrialFes_->GetFESpace();
@@ -57,48 +57,48 @@ void kBilinearForm::Init(const Engine &e,
    mTestFes  = kTestFes_->GetFESpace();
 
    mesh = mTrialFes->GetMesh();
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************
 kFiniteElementSpace& kBilinearForm::GetTrialKernelsFESpace() const
 {
-   push();
+   nvtx_push();
    assert(kTrialFes);
-   pop();
+   nvtx_pop();
    return *kTrialFes;
 }
 
 // *****************************************************************************
 kFiniteElementSpace& kBilinearForm::GetTestKernelsFESpace() const
 {
-   push();
+   nvtx_push();
    assert(kTestFes);
-   pop();
+   nvtx_pop();
    return *kTestFes;
 }
 
 // *****************************************************************************
 mfem::FiniteElementSpace& kBilinearForm::GetTrialFESpace() const
 {
-   push();
+   nvtx_push();
    assert(mTrialFes);
-   pop();
+   nvtx_pop();
    return *mTrialFes;
 }
 
 // *****************************************************************************
 mfem::FiniteElementSpace& kBilinearForm::GetTestFESpace() const
 {
-   push();
+   nvtx_push();
    assert(mTestFes);
-   pop();
+   nvtx_pop();
    return *mTestFes;
 }
 
 int64_t kBilinearForm::GetTrialNDofs() const
 {
-   push(); pop();
+   nvtx_push(); nvtx_pop();
    return mTrialFes->GetNDofs();
 }
 
@@ -130,42 +130,42 @@ const FiniteElement& kBilinearForm::GetTestFE(const int i) const
 // Adds new Domain Integrator.
 void kBilinearForm::AddDomainIntegrator(KernelsIntegrator *integrator)
 {
-   push();
+   nvtx_push();
    AddIntegrator(integrator, DomainIntegrator);
-   pop();
+   nvtx_pop();
 }
 
 // Adds new Boundary Integrator.
 void kBilinearForm::AddBoundaryIntegrator(KernelsIntegrator *integrator)
 {
-   push();
+   nvtx_push();
    AddIntegrator(integrator, BoundaryIntegrator);
-   pop();
+   nvtx_pop();
 }
 
 // Adds new interior Face Integrator.
 void kBilinearForm::AddInteriorFaceIntegrator(KernelsIntegrator
                                               *integrator)
 {
-   push();
+   nvtx_push();
    AddIntegrator(integrator, InteriorFaceIntegrator);
-   pop();
+   nvtx_pop();
 }
 
 // Adds new boundary Face Integrator.
 void kBilinearForm::AddBoundaryFaceIntegrator(KernelsIntegrator
                                               *integrator)
 {
-   push();
+   nvtx_push();
    AddIntegrator(integrator, BoundaryFaceIntegrator);
-   pop();
+   nvtx_pop();
 }
 
 // Adds Integrator based on KernelsIntegratorType
 void kBilinearForm::AddIntegrator(KernelsIntegrator *integrator,
                                   const KernelsIntegratorType itype)
 {
-   push();
+   nvtx_push();
    if (integrator == NULL)
    {
       std::stringstream error_ss;
@@ -184,7 +184,7 @@ void kBilinearForm::AddIntegrator(KernelsIntegrator *integrator,
    }
    integrator->SetupIntegrator(*this, itype);
    integrators.push_back(integrator);
-   pop();
+   nvtx_pop();
 }
 
 const mfem::Operator* kBilinearForm::GetTrialProlongation() const
@@ -210,13 +210,13 @@ const mfem::Operator* kBilinearForm::GetTestRestriction() const
 // *****************************************************************************
 void kBilinearForm::Assemble()
 {
-   push();
+   nvtx_push();
    const int integratorCount = (int) integrators.size();
    for (int i = 0; i < integratorCount; ++i)
    {
       integrators[i]->Assemble();
    }
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************
@@ -227,20 +227,20 @@ void kBilinearForm::FormLinearSystem(const mfem::Array<int>
                                      mfem::Vector &X, mfem::Vector &B,
                                      int copy_interior)
 {
-   push();
+   nvtx_push();
    assert(false);
    /*
    FormOperator(constraintList, Aout);
    InitRHS(constraintList, x, b, Aout, X, B, copy_interior);
    */
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************
 void kBilinearForm::FormOperator(const mfem::Array<int> &constraintList,
                                  mfem::Operator *&Aout)
 {
-   push();
+   nvtx_push();
    const mfem::Operator *trialP = GetTrialProlongation();
    const mfem::Operator *testP  = GetTestProlongation();
    mfem::Operator *rap = this;
@@ -255,7 +255,7 @@ void kBilinearForm::FormOperator(const mfem::Array<int> &constraintList,
    Aout = new kConstrainedOperator(rap, constraintList, rap != this);
    dbg("\033[7mdone");
    //assert(false);
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************
@@ -265,7 +265,7 @@ void kBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
                             mfem::Vector &X, mfem::Vector &B,
                             int copy_interior)
 {
-   push(); //assert(false);// ex1pd comes here, Laghos dont
+   nvtx_push(); //assert(false);// ex1pd comes here, Laghos dont
 
    const mfem::Operator *P = GetTrialProlongation();
    const mfem::Operator *R = GetTrialRestriction();
@@ -311,7 +311,7 @@ void kBilinearForm::InitRHS(const mfem::Array<int> &constraintList,
    {
       mfem_error("kBilinearForm::InitRHS expects an kConstrainedOperator");
    }
-   pop();
+   nvtx_pop();
 }
 
 
@@ -328,14 +328,14 @@ void kBilinearForm::Mult_(const kernels::Vector &x,
       integrators[i]->MultAdd(localX, localY);
    }
    kTestFes->LocalToGlobal(localY, y);
-   pop();
+   nvtx_pop();
 }
 
 // Matrix transpose vector multiplication **************************************
 void kBilinearForm::MultTranspose_(const kernels::Vector &x,
                                    kernels::Vector &y) const
 {
-   push();
+   nvtx_push();
    kTestFes->GlobalToLocal(x, localX);
    localY.Fill<double>(0.0);
    const int integratorCount = (int) integrators.size();
@@ -344,7 +344,7 @@ void kBilinearForm::MultTranspose_(const kernels::Vector &x,
       integrators[i]->MultTransposeAdd(localX, localY);
    }
    kTrialFes->LocalToGlobal(localY, y);
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************
@@ -352,7 +352,7 @@ void kBilinearForm::KernelsRecoverFEMSolution(const mfem::Vector &X,
                                               const mfem::Vector &b,
                                               mfem::Vector &x)
 {
-   push();
+   nvtx_push();
    const mfem::Operator *P = this->GetTrialProlongation();
    if (P)
    {
@@ -361,7 +361,7 @@ void kBilinearForm::KernelsRecoverFEMSolution(const mfem::Vector &X,
       P->Mult(X, x);
    }
    // Otherwise X and x point to the same data
-   pop();
+   nvtx_pop();
 }
 
 // Frees memory bilinear form **************************************************

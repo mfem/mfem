@@ -31,7 +31,7 @@ KernelsIntegrator::KernelsIntegrator(const kernels::Engine &e)
      testFESpace(),
      itype(DomainIntegrator),
      ir(NULL),
-     hasTensorBasis(false) { push(); pop();}
+     hasTensorBasis(false) { nvtx_push(); nvtx_pop();}
 
 // *****************************************************************************
 KernelsIntegrator::~KernelsIntegrator() {}
@@ -39,7 +39,7 @@ KernelsIntegrator::~KernelsIntegrator() {}
 // *****************************************************************************
 void KernelsIntegrator::SetupMaps()
 {
-   push();
+   nvtx_push();
    maps = kDofQuadMaps::Get(*rtrialFESpace->GetFESpace(),
                             *rtestFESpace->GetFESpace(),
                             *ir);
@@ -47,7 +47,7 @@ void KernelsIntegrator::SetupMaps()
    mapsTranspose = kDofQuadMaps::Get(*rtestFESpace->GetFESpace(),
                                      *rtrialFESpace->GetFESpace(),
                                      *ir);
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************
@@ -91,7 +91,7 @@ kDofQuadMaps *KernelsIntegrator::GetDofQuadMaps()
 void KernelsIntegrator::SetupIntegrator(kBilinearForm &bform_,
                                         const KernelsIntegratorType itype_)
 {
-   push();
+   nvtx_push();
    //MFEM_ASSERT(engine == &bform_.KernelsEngine(), "");
    bform     = &bform_;
    mesh      = &(bform_.GetMesh());
@@ -112,7 +112,7 @@ void KernelsIntegrator::SetupIntegrator(kBilinearForm &bform_,
    }
    SetupMaps();
    Setup();
-   pop();
+   nvtx_pop();
 }
 
 // *****************************************************************************

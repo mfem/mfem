@@ -43,7 +43,7 @@ void rIniGeom(const int DIM,
               double* J,
               double* invJ,
               double* detJ){
-   push();
+   nvtx_push();
 #ifdef __NVCC__
    const int blck = CUDA_BLOCK_SIZE;
    const int grid = (numElements+blck-1)/blck;
@@ -97,5 +97,5 @@ void rIniGeom(const int DIM,
    assert(call[id]);
    call0(dummy,id,grid,blck,
         numElements,dofToQuadD,nodes,J,invJ,detJ);
-   pop();
+   nvtx_pop();
 }
