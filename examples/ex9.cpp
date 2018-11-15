@@ -55,7 +55,7 @@ double inflow_function(const Vector &x);
 // Mesh bounding box
 Vector bb_min, bb_max;
 
-enum MONOTYPE { None, AlgUpw, AlgUpw_FS, Rusanov, Rusanov_FS, AlphaBeta, AlphaBeta_FS, Develop };
+enum MONOTYPE { None, DiscUpw, DiscUpw_FS, Rusanov, Rusanov_FS, ResDist, ResDist_FS };
 enum STENCIL  { Full, Local, LocalAndDiag };
 
 class SolutionBounds {
@@ -475,12 +475,12 @@ public:
    {
       if (_monoType == None)
          return;
-      else if ((_monoType == AlgUpw) || (_monoType == AlgUpw_FS))
+      else if ((_monoType == DiscUpw) || (_monoType == DiscUpw_FS))
       {
          ComputeDiscreteUpwindingMatrix(K, KpD);
          KpD += K;
          
-         // Compute the lumped mass matrix in an algebraic way
+         // Compute the lumped mass matrix algebraicly
          BilinearForm m(fes);
          m.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
          m.Assemble();
@@ -491,7 +491,7 @@ public:
       {
          ComputeDiffusionCoefficient(fes, coef);
       }
-      else if ((_monoType == AlphaBeta) || (_monoType == AlphaBeta_FS))
+      else if ((_monoType == ResDist) || (_monoType == ResDist_FS))
       {
          ComputeDiffusionVectors(fes, coef);
       }
@@ -1005,12 +1005,12 @@ int main(int argc, char *argv[])
                   "            2 - RK2 SSP, 3 - RK3 SSP, 4 - RK4, 6 - RK6.");
    args.AddOption((int*)(&monoType), "-mt", "--monoType",
                   "Type of monotonicity treatment: 0 - no monotonicity treatment,\n\t"
-                  "                                1 - algebraic upwinding - low order,\n\t"
-                  "                                2 - algebraic upwinding - FCT,\n\t"
+                  "                                1 - discrete upwinding - low order,\n\t"
+                  "                                2 - discrete upwinding - FCT,\n\t"
                   "                                3 - Rusanov - low order,\n\t"
                   "                                4 - Rusanov - FCT,\n\t"
-                  "                                5 - AlphaBeta scheme (matrix-free) - low order,\n\t"
-                  "                                6 - AlphaBeta scheme (matrix-free) - FCT.");
+                  "                                5 - residual distribution scheme (matrix-free) - low order,\n\t"
+                  "                                6 - residual distribution scheme (matrix-free) - FCT.");
    args.AddOption((int*)(&stencil), "-st", "--stencil",
                   "Type of stencil for high order scheme: 0 - all neighbors,\n\t"
                   "                                       1 - closest neighbors,\n\t"
@@ -1255,7 +1255,7 @@ int main(int argc, char *argv[])
 
 void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
 {
-   if ((fct.monoType == AlgUpw) || (fct.monoType == AlgUpw_FS))
+   if ((fct.monoType == DiscUpw) || (fct.monoType == DiscUpw_FS))
    {
       // Discretization AND monotonicity terms
       fct.KpD.Mult(x, z);
@@ -1325,7 +1325,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          }
       }
    }
-   else if ((fct.monoType == AlphaBeta) || (fct.monoType == AlphaBeta_FS))
+   else if ((fct.monoType == ResDist) || (fct.monoType == ResDist_FS))
    {
       Mesh *mesh = fes->GetMesh();
       int i, j, k, dofInd, numBdrs, dim(mesh->Dimension()), numDofs(fct.dofs.Width());
