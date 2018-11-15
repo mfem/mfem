@@ -58,6 +58,82 @@ double inflow_function(const Vector &x);
 // Mesh bounding box
 Vector bb_min, bb_max;
 
+/// Computes C(x) = sum w_i x_i, where w is a given Vector.
+class LinearScaleOperator : public Operator
+{
+private:
+   ParFiniteElementSpace &pfes;
+   // Local weights.
+   const Vector &w;
+   // Gradient for the tdofs.
+   mutable DenseMatrix grad;
+
+public:
+   LinearScaleOperator(ParFiniteElementSpace &space, const Vector &weight)
+      : Operator(1, space.TrueVSize()),
+        pfes(space), w(weight), grad(1, width)
+   {
+      Vector w_glob(width);
+      pfes.Dof_TrueDof_Matrix()->MultTranspose(w, w_glob);
+      for (int i = 0; i < width; i++) { grad(0, i) = w_glob(i); }
+   }
+
+   virtual void Mult(const Vector &x, Vector &y) const
+   {
+      Vector x_loc(w.Size());
+      pfes.GetProlongationMatrix()->Mult(x, x_loc);
+      const double loc_res = w * x_loc;
+      MPI_Allreduce(&loc_res, &y(0), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+   }
+
+   virtual Operator &GetGradient(const Vector &x) const
+   {
+      return grad;
+   }
+};
+
+/** Monotone and conservative a-posteriori correction for transport solutions:
+ *  Find x that minimizes 0.5 || x - x_HO ||^2, subject to
+ *  sum w_i x_i = mass,
+ *  x_min <= x <= x_max.
+ */
+class OptimizedTransportProblem : public OptimizationProblem
+{
+private:
+   const Vector &x_HO;
+   Vector massvec;
+   const LinearScaleOperator LSoper;
+
+public:
+   OptimizedTransportProblem(ParFiniteElementSpace &space,
+                             const Vector &xho, const Vector &w, double mass,
+                             const Vector &xmin, const Vector &xmax)
+      : OptimizationProblem(xho.Size(), NULL, NULL),
+        x_HO(xho), massvec(1), LSoper(space, w)
+   {
+      C = &LSoper;
+      massvec(0) = mass;
+      SetEqualityConstraint(massvec);
+      SetSolutionBounds(xmin, xmax);
+   }
+
+   virtual double CalcObjective(const Vector &x) const
+   {
+      double res = 0.0;
+      for (int i = 0; i < input_size; i++)
+      {
+         const double d = x(i) - x_HO(i);
+         res += d * d;
+      }
+      return 0.5 * res;
+   }
+
+   virtual void CalcObjectiveGrad(const Vector &x, Vector &grad) const
+   {
+      for (int i = 0; i < input_size; i++) { grad(i) = x(i) - x_HO(i); }
+   }
+};
+
 
 /** A time-dependent operator for the right-hand side of the ODE. The DG weak
     form of du/dt = -v.grad(u) is M du/dt = K u + b, where M and K are the mass
@@ -508,63 +584,56 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
       y_min(i) = (y_min(i) - x_gf(i) ) / dt;
       y_max(i) = (y_max(i) - x_gf(i) ) / dt;
    }
-
-   // TODO still an issue without this.
-   y_min -= 1e-6;
-   y_max -= (-1e-6);
+   Vector y_min_tdofs(y.Size()), y_max_tdofs(y.Size());
+   // Move the bounds to the tdofs.
+   pfes->GetRestrictionMatrix()->Mult(y_min, y_min_tdofs);
+   pfes->GetRestrictionMatrix()->Mult(y_max, y_max_tdofs);
 
    // Compute the high-order solution y = M^{-1} (K x + b) on the tdofs.
    K.Mult(x, z);
    z += b;
    M_solver.Mult(z, y);
-   Vector y_loc(ldofs);
-   // Get the HO solution on the ldofs.
-   pfes->GetProlongationMatrix()->Mult(y, y_loc);
 
-   // Compute total mass.
-   const double loc_mass = M_rowsums * y_loc;
-   double tot_mass;
-   MPI_Allreduce(&loc_mass, &tot_mass, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+   // The solution y is an increment; it should not introduce new mass.
+   const double mass_y = 0.0;
 
-   // Perform optimization on the ldofs.
-   Vector y_out(ldofs);
+   // Perform optimization on the tdofs.
+   Vector y_out(y.Size());
    const int max_iter = 50;
    const double rtol = 1.e-12;
    double atol = 1.e-7;
 
    OptimizationSolver* optsolver = NULL;
-   HiopNlpOptimizer *tmp_opt_ptr = NULL;
-   if (optimizer_type == 3)
+   if (optimizer_type == 2)
    {
-      tmp_opt_ptr = new HiopNlpOptimizer(MPI_COMM_WORLD);
-      DenseMatrix A;
-      A.Diag(1.0, ldofs);
-      Vector xt_neg(y_loc);
-      xt_neg.Neg();
-      tmp_opt_ptr->SetObjectiveFunction(A, xt_neg);
+      HiopNlpOptimizer *tmp_opt_ptr = new HiopNlpOptimizer(MPI_COMM_WORLD);
       optsolver = tmp_opt_ptr;
-   }
-   else if (optimizer_type == 2)
-   {
-      optsolver = new HiopNlpOptimizer_Simple(MPI_COMM_WORLD);
    }
    else
    {
-      optsolver = new SLBQPOptimizer(MPI_COMM_WORLD);
+      SLBQPOptimizer *slbqp = new SLBQPOptimizer(MPI_COMM_WORLD);
+      slbqp->SetBounds(y_min_tdofs, y_max_tdofs);
+      slbqp->SetLinearConstraint(M_rowsums, mass_y);
       atol = 1.e-15;
+      optsolver = slbqp;
    }
+
+   // TODO there is still some instability with this.
+   y_min_tdofs -= 1e-9;
+   y_max_tdofs -= (-1e-9);
+   OptimizedTransportProblem ot_prob(*pfes, y, M_rowsums, mass_y,
+                                     y_min_tdofs, y_max_tdofs);
+   optsolver->SetOptimizationProblem(ot_prob);
+
    optsolver->SetMaxIter(max_iter);
    optsolver->SetAbsTol(atol);
    optsolver->SetRelTol(rtol);
-   optsolver->SetBounds(y_min, y_max);
-   optsolver->SetLinearConstraint(M_rowsums, tot_mass);
    optsolver->SetPrintLevel(0);
-   optsolver->Mult(y_loc, y_out);
+   optsolver->Mult(y, y_out);
+
+   y = y_out;
 
    delete optsolver;
-
-   // Write the solution on the tdofs.
-   pfes->GetRestrictionMatrix()->Mult(y_out, y);
 }
 
 

@@ -196,6 +196,9 @@ void HiopOptimizationProblem::UpdateConstrValsGrads(const Vector x)
 {
    if (constr_info_is_current) { return; }
 
+   // If needed (e.g. for CG spaces), communication should be handled by the
+   // operators' Mult() and GetGradient() methods.
+
    int cheight = 0;
    if (problem.C)
    {
@@ -242,15 +245,6 @@ void HiopOptimizationProblem::UpdateConstrValsGrads(const Vector x)
          }
       }
    }
-
-#ifdef MFEM_USE_MPI
-   Vector loc_vals(constr_vals);
-   MPI_Allreduce(loc_vals.GetData(), constr_vals.GetData(), m_total,
-                 MPI_DOUBLE, MPI_SUM, comm_);
-   // The gradients don't need parallel communication as here we're working on
-   // the true dofs. If needed (e.g. for CG spaces), communication should be
-   // handled by the operators' GetGradient() methods.
-#endif
 
    constr_info_is_current = true;
 }
@@ -302,7 +296,6 @@ void HiopNlpOptimizer::Mult(const Vector &xt, Vector &x) const
 
    // Set tolerance:
    hiopInstance.options->SetNumericValue("tolerance", abs_tol);
-   // TODO move this somehow before the constructor of hiopInstance.
    hiopInstance.options->SetStringValue("fixed_var", "relax");
    // 0: no output; 3: not too much
    hiopInstance.options->SetIntegerValue("verbosity_level", print_level);
@@ -320,6 +313,7 @@ void HiopNlpOptimizer::Mult(const Vector &xt, Vector &x) const
       converged = false;
       MFEM_WARNING("HIOP returned with a non-success status: " << status);
    }
+   else { converged = true; }
 
    // Copy the final solution in x.
    solver.getSolution(x.GetData());
