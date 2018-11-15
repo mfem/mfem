@@ -185,7 +185,7 @@ public:
 
    virtual void SetOptimizationProblem(OptimizationProblem &prob);
 
-   /// When iterative_mode is true, xt plays the role of an initial guess.
+   /// Solves the optimization problem with xt as initial guess.
    virtual void Mult(const Vector &xt, Vector &x) const;
 };
 

@@ -297,7 +297,7 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
 
 /** Defines operators and constraints for the following optimization problem:
  *
- *    Minimize the objective function F(x), subject to
+ *    Find x that minimizes the objective function F(x), subject to
  *    C(x) = c_e,
  *    d_lo <= D(x) <= d_hi,
  *    x_lo <= x <= x_hi.
