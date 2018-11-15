@@ -486,7 +486,7 @@ public:
       }
       else if ((_monoType == ResDist) || (_monoType == ResDist_FS))
       {
-         ComputeDiffusionVectors(fes, coef);
+         ComputeResidualWeights(fes, coef);
       }
       // Compute the lumped mass matrix algebraicly
       BilinearForm m(fes);
@@ -714,7 +714,7 @@ public:
       }
    }
    
-   void ComputeDiffusionVectors(FiniteElementSpace* fes, VectorFunctionCoefficient &coef)
+   void ComputeResidualWeights(FiniteElementSpace* fes, VectorFunctionCoefficient &coef)
    {
       Mesh *mesh = fes->GetMesh();
       int i, j, k, p, dofInd, qOrdE, numPtsE, qOrdF, numPtsF, nd, numBdrs, dim = mesh->Dimension(), ne = mesh->GetNE();
@@ -977,7 +977,7 @@ int main(int argc, char *argv[])
    MONOTYPE monoType = ResDist;
    STENCIL stencil = Local;
    double t_final = 4.0;
-   double dt = 0.01;
+   double dt = 0.005;
    bool visualization = true;
    bool visit = false;
    bool binary = false;
