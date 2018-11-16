@@ -1430,8 +1430,8 @@ void AbaqusUmatModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
       for (int j=0; j<ndi; ++j)
       {
          //Dense matrices have column major layout so the below is fine.
-         dfgrd0[(i * 3) + j] = Jpt0(i,j);
-         dfgrd1[(i * 3) + j] = Jpt1(i,j);
+         dfgrd0[(i * 3) + j] = Jpt0(j,i);
+         dfgrd1[(i * 3) + j] = Jpt1(j,i);
       }
    }
 
@@ -1518,7 +1518,7 @@ void AbaqusUmatModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
    {
      for (int j=0; j<6; ++j)
      {
-       // row-wise ordering of material Jacobian
+       // column-wise ordering of material Jacobian
        mGrad[(6 * i) + j] = ddsdde[(i * 6) + j];
      }
      //      mGrad[(6 * i) + j] = 1.0;
