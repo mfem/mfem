@@ -547,9 +547,9 @@ protected: // implementation
    virtual void BuildEdgeList();
    virtual void BuildVertexList();
 
-   virtual void ElementSharesFace(int elem, int face) {} // ParNCMesh
-   virtual void ElementSharesEdge(int elem, int enode) {} // ParNCMesh
-   virtual void ElementSharesVertex(int elem, int vnode) {} // ParNCMesh
+   virtual void ElementSharesFace(int elem, int local, int face) {} // ParNCMesh
+   virtual void ElementSharesEdge(int elem, int local, int enode) {} // ParNCMesh
+   virtual void ElementSharesVertex(int elem, int local, int vnode) {} // ParNCMesh
 
 
    // neighbors / element_vertex table
