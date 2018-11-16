@@ -77,18 +77,21 @@ void BlockVector::Update(double *data, const Array<int> & bOffsets)
    SetBlocks();
 }
 
-void BlockVector::Update(const Array<int> &bOffsets)
+void BlockVector::Update(const Array<int> &bOffsets, bool force)
 {
    if (OwnsData())
    {
-      // check if 'bOffsets' are the same as 'blockOffsets'
-      if (bOffsets.Size() == numBlocks+1)
+      if (!force)
       {
-         if (bOffsets.GetData() == blockOffsets || numBlocks == 0) { return; }
-         for (int i = 0; true; i++)
+         // check if 'bOffsets' are the same as 'blockOffsets'
+         if (bOffsets.Size() == numBlocks+1)
          {
-            if (blockOffsets[i] != bOffsets[i]) { break; }
-            if (i == numBlocks) { return; }
+            if (bOffsets.GetData() == blockOffsets || numBlocks == 0) { return; }
+            for (int i = 0; true; i++)
+            {
+               if (blockOffsets[i] != bOffsets[i]) { break; }
+               if (i == numBlocks) { return; }
+            }
          }
       }
    }

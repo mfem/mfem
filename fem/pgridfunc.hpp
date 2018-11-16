@@ -36,6 +36,9 @@ protected:
 
    Vector face_nbr_data;
 
+   void ProjectBdrCoefficient(Coefficient *coeff[], VectorCoefficient *vcoeff,
+                              Array<int> &attr);
+
 public:
    ParGridFunction() { pfes = NULL; }
 
@@ -200,7 +203,13 @@ public:
    using GridFunction::ProjectBdrCoefficient;
 
    // Only the values in the master are guaranteed to be correct!
-   virtual void ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr);
+   virtual void ProjectBdrCoefficient(VectorCoefficient &vcoeff,
+                                      Array<int> &attr)
+   { ProjectBdrCoefficient(NULL, &vcoeff, attr); }
+
+   // Only the values in the master are guaranteed to be correct!
+   virtual void ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
+   { ProjectBdrCoefficient(coeff, NULL, attr); }
 
    // Only the values in the master are guaranteed to be correct!
    virtual void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
