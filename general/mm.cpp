@@ -12,7 +12,7 @@
 #include "../general/error.hpp"
 #include "../general/okina.hpp"
 #include "kernels/mm.hpp"
-#include "custub.hpp"
+#include "cuda.hpp"
 
 namespace mfem
 {
