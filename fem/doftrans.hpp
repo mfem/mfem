@@ -45,6 +45,12 @@ public:
 
    virtual void TransformCols(const DenseMatrix &, DenseMatrix &) const;
 
+   // virtual void TransformRow(const Vector &, Vector &) const;
+
+   // virtual void TransformCol(const Vector &, Vector &) const;
+
+   virtual void TransformRowCol(const double *, double *) const = 0;
+
    virtual void TransformBack(const double *, double *) const = 0;
 
    virtual void TransformBack(const Vector &, Vector &) const;
@@ -80,6 +86,7 @@ public:
 
    void Transform(const double *, double *) const;
    void TransformBack(const double *, double *) const;
+   void TransformRowCol(const double *, double *) const;
 };
 
 class ND_TetDofTransformation : public DofTransformation
@@ -90,16 +97,18 @@ private:
    const DenseTensor T, TInv;
    Array<int> Fo;
    int order;
-  
+
 public:
    ND_TetDofTransformation(int order);
 
    inline void SetFaceOrientation(const Array<int> & face_orientation)
    { Fo = face_orientation; }
-  
+
    void Transform(const double *, double *) const;
 
    void TransformBack(const double *, double *) const;
+
+   void TransformRowCol(const double *, double *) const;
 };
 
 class ND_WedgeDofTransformation : public DofTransformation
