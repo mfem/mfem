@@ -324,6 +324,8 @@ public:
 
    int GetBdrAttribute(int i) const { return mesh->GetBdrAttribute(i); }
 
+   // DofTransformation * GetDofTransformation(int i) const;
+
    /// Returns indexes of degrees of freedom in array dofs for i'th element.
    virtual DofTransformation * GetElementDofs(int i, Array<int> &dofs) const;
 
