@@ -1199,6 +1199,8 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
 {
    Array<int> dom_vdofs, ran_vdofs;
    ElementTransformation *T;
+   DofTransformation * dom_dof_trans;
+   DofTransformation * ran_dof_trans;
    const FiniteElement *dom_fe, *ran_fe;
    DenseMatrix totelmat, elmat;
 
@@ -1211,8 +1213,8 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
    {
       for (int i = 0; i < test_fes->GetNE(); i++)
       {
-         trial_fes->GetElementVDofs(i, dom_vdofs);
-         test_fes->GetElementVDofs(i, ran_vdofs);
+         dom_dof_trans = trial_fes->GetElementVDofs(i, dom_vdofs);
+         ran_dof_trans = test_fes->GetElementVDofs(i, ran_vdofs);
          T = test_fes->GetElementTransformation(i);
          dom_fe = trial_fes->GetFE(i);
          ran_fe = test_fes->GetFE(i);
@@ -1223,7 +1225,20 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
             dom[j]->AssembleElementMatrix2(*dom_fe, *ran_fe, *T, elmat);
             totelmat += elmat;
          }
-         mat->SetSubMatrix(ran_vdofs, dom_vdofs, totelmat, skip_zeros);
+         if (ran_dof_trans)
+         {
+            elmat.SetSize(totelmat.Height(), totelmat.Width());
+            for (int c=0; c<totelmat.Width(); c++)
+            {
+               ran_dof_trans->Transform(totelmat.GetColumn(c),
+                                        elmat.GetColumn(c));
+            }
+            mat->SetSubMatrix(ran_vdofs, dom_vdofs, elmat, skip_zeros);
+         }
+         else
+         {
+            mat->SetSubMatrix(ran_vdofs, dom_vdofs, totelmat, skip_zeros);
+         }
       }
    }
 
