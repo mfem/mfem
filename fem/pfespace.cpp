@@ -417,10 +417,10 @@ void ParFiniteElementSpace::ApplyLDofSigns(Table &el_dof) const
 DofTransformation *
 ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs) const
 {
-   if (elem_dof)
+   if (elem_dof && false)
    {
       elem_dof->GetRow(i, dofs);
-      return NULL;
+      return NULL; //FiniteElementSpace::GetDofTransformation(i);
    }
    DofTransformation * doftrans = FiniteElementSpace::GetElementDofs(i, dofs);
    if (Conforming())
