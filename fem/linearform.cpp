@@ -78,7 +78,8 @@ void LinearForm::Assemble()
             dlfi[k]->AssembleRHSElementVect(*fes->GetFE(i), *eltrans, elemvect);
             if (doftrans)
             {
-               doftrans->Transform(elemvect, elemvect_t);
+               elemvect_t.SetSize(elemvect.Size());
+               doftrans->TransformRowCol(elemvect, elemvect_t);
                AddElementVector (vdofs, elemvect_t);
             }
             else
