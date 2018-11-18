@@ -11,7 +11,7 @@
 
 #include "../okina.hpp"
 #include "mm.hpp"
-#include "../custub.hpp"
+#include "../cuda.hpp"
 
 // *****************************************************************************
 namespace mfem
