@@ -10,10 +10,40 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "../../general/okina.hpp"
+#include "occa.hpp"
 
 // *****************************************************************************
 namespace mfem
 {
+
+// **************************************************************************
+static void oAssemble2D(const int NUM_QUAD_1D,
+                        const int numElements,
+                        const double* __restrict quadWeights,
+                        const double* __restrict J,
+                        const double COEFF,
+                        double* __restrict oper)
+{
+  static bool setup = false;
+  static occa::kernel assemble2D;
+  static occa::memory o_quadWeights, o_J, o_oper;
+  if (not setup){
+    static occa::device device;
+    device.setup("mode: 'Serial'");
+    const size_t W_SZ = 4;
+    const size_t J_SZ = 327680;
+    const size_t O_SZ = 245760;
+    o_quadWeights = device.malloc(W_SZ*sizeof(double));
+    o_J = device.malloc(J_SZ*sizeof(double));
+    o_oper = device.malloc(O_SZ*sizeof(double));
+    assemble2D =
+      device.buildKernel("/Users/camier1/home/mfem/okina-occa/fem/kernels/oIntDiffusionAssemble.okl", "Assemble2D");
+  }
+  o_quadWeights.copyFrom(quadWeights);
+  o_J.copyFrom(J);  
+  assemble2D(NUM_QUAD_1D, numElements, o_quadWeights, o_J, COEFF, o_oper);
+  o_oper.copyTo(oper);
+}
 
 // **************************************************************************
 static void kAssemble2D(const int NUM_QUAD_1D,
@@ -106,7 +136,12 @@ void kIntDiffusionAssemble(const int dim,
    GET_CONST_ADRS(J);
    GET_ADRS(oper);
    if (dim==1) { assert(false); }
-   if (dim==2) { kAssemble2D(NUM_QUAD_1D, numElements, d_quadWeights, d_J, COEFF, d_oper); }
+   if (dim==2){
+     if (config::Get().occa())
+       oAssemble2D(NUM_QUAD_1D, numElements, d_quadWeights, d_J, COEFF, d_oper);
+     else
+       kAssemble2D(NUM_QUAD_1D, numElements, d_quadWeights, d_J, COEFF, d_oper);
+   }
    if (dim==3) { kAssemble3D(NUM_QUAD_1D, numElements, d_quadWeights, d_J, COEFF, d_oper); }
 }
 

@@ -41,6 +41,10 @@ void KDiffusionIntegrator::Assemble()
    vec.SetSize(size);
    kGeometry *geo = kGeometry::Get(*fes, *ir);
    maps = kDofQuadMaps::Get(*fes, *fes, *ir);
+   printf("\n[ASSEMBLE SIZE] %ld %ld %d\n",
+          maps->quadWeights.Size(),
+          geo->J.Size(),
+          size);
    kIntDiffusionAssemble(dim,
                          quad1D,
                          elements,
