@@ -152,7 +152,8 @@ using namespace std;
 namespace mfem
 {
 
-void MFEMInitializePetsc(int *argc,char ***argv,const char rc_file[],const char help[])
+void MFEMInitializePetsc(int *argc,char ***argv,const char rc_file[],
+                         const char help[])
 {
    ierr = PetscInitialize(argc,argv,rc_file,help);
    MFEM_VERIFY(!ierr,"Unable to initialize PETSc");
@@ -1117,11 +1118,13 @@ void PetscParMatrix::ConvertOperator(MPI_Comm comm, const Operator &op, Mat* A,
             }
             if (!issorted)
             {
-               ierr = PetscSortIntWithScalarArray(pii[i+1]-pii[i],pjj,pdata); CCHKERRQ(comm,ierr);
+               ierr = PetscSortIntWithScalarArray(pii[i+1]-pii[i],pjj,pdata);
+               CCHKERRQ(comm,ierr);
             }
          }
 
-         ierr = MatCreateSeqAIJWithArrays(PETSC_COMM_SELF,m,n,pii,pjj,pdata,&B); CCHKERRQ(comm,ierr);
+         ierr = MatCreateSeqAIJWithArrays(PETSC_COMM_SELF,m,n,pii,pjj,pdata,&B);
+         CCHKERRQ(comm,ierr);
 
          void *ptrs[3] = {pii,pjj,pdata};
          const char *names[3] = {"_mfem_csr_pii",
