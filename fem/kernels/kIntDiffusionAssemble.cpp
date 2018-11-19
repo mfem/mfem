@@ -24,9 +24,12 @@ static void oAssemble2D(const int NUM_QUAD_1D,
                         const double COEFF,
                         double* __restrict oper)
 {
+  GET_OCCA_CONST_MEMORY(quadWeights);
+  GET_OCCA_CONST_MEMORY(J);
+  GET_OCCA_MEMORY(oper);
   static bool setup = false;
-  static occa::kernel assemble2D;
-  static occa::memory o_quadWeights, o_J, o_oper;
+  static occa::kernel assemble2D = NULL;
+  //static occa::memory o_quadWeights, o_J, o_oper;
   if (not setup){
     static occa::device device;
     device.setup("mode: 'Serial'");
@@ -52,7 +55,10 @@ static void kAssemble2D(const int NUM_QUAD_1D,
                         const double* __restrict J,
                         const double COEFF,
                         double* __restrict oper)
-{
+{ 
+   GET_CONST_ADRS(quadWeights);
+   GET_CONST_ADRS(J);
+   GET_ADRS(oper);
    const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D;
    MFEM_FORALL(e,numElements,
    {
@@ -62,7 +68,7 @@ static void kAssemble2D(const int NUM_QUAD_1D,
          const double J12 = J[ijklNM(1,0,q,e,2,NUM_QUAD)];
          const double J21 = J[ijklNM(0,1,q,e,2,NUM_QUAD)];
          const double J22 = J[ijklNM(1,1,q,e,2,NUM_QUAD)];
-         const double c_detJ = quadWeights[q] * COEFF / ((J11*J22)-(J21*J12));
+         const double c_detJ = d_quadWeights[q] * COEFF / ((J11*J22)-(J21*J12));
          oper[ijkNM(0,q,e,3,NUM_QUAD)] =  c_detJ * (J21*J21 + J22*J22);
          oper[ijkNM(1,q,e,3,NUM_QUAD)] = -c_detJ * (J21*J11 + J22*J12);
          oper[ijkNM(2,q,e,3,NUM_QUAD)] =  c_detJ * (J11*J11 + J12*J12);
@@ -78,6 +84,9 @@ static void kAssemble3D(const int NUM_QUAD_1D,
                         const double COEFF,
                         double* __restrict oper)
 {
+   GET_CONST_ADRS(quadWeights);
+   GET_CONST_ADRS(J);
+   GET_ADRS(oper);
    const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D*NUM_QUAD_1D;
    MFEM_FORALL(e,numElements,
    {
@@ -95,7 +104,7 @@ static void kAssemble3D(const int NUM_QUAD_1D,
          const double detJ = ((J11 * J22 * J33) + (J12 * J23 * J31) +
                               (J13 * J21 * J32) - (J13 * J22 * J31) -
                               (J12 * J21 * J33) - (J11 * J23 * J32));
-         const double c_detJ = quadWeights[q] * COEFF / detJ;
+         const double c_detJ = d_quadWeights[q] * COEFF / detJ;
          // adj(J)
          const double A11 = (J22 * J33) - (J23 * J32);
          const double A12 = (J23 * J31) - (J21 * J33);
@@ -132,17 +141,14 @@ void kIntDiffusionAssemble(const int dim,
                            const double COEFF,
                            double* __restrict oper)
 {
-   GET_CONST_ADRS(quadWeights);
-   GET_CONST_ADRS(J);
-   GET_ADRS(oper);
-   if (dim==1) { assert(false); }
-   if (dim==2){
-     if (config::Get().occa())
-       oAssemble2D(NUM_QUAD_1D, numElements, d_quadWeights, d_J, COEFF, d_oper);
-     else
-       kAssemble2D(NUM_QUAD_1D, numElements, d_quadWeights, d_J, COEFF, d_oper);
-   }
-   if (dim==3) { kAssemble3D(NUM_QUAD_1D, numElements, d_quadWeights, d_J, COEFF, d_oper); }
+  if (dim==1) { assert(false); }
+  if (dim==2){
+    if (config::Get().occa())
+      oAssemble2D(NUM_QUAD_1D, numElements, quadWeights, J, COEFF, oper);
+    else
+      kAssemble2D(NUM_QUAD_1D, numElements, quadWeights, J, COEFF, oper);
+  }
+  if (dim==3) { kAssemble3D(NUM_QUAD_1D, numElements, quadWeights, J, COEFF, oper); }
 }
 
 }
