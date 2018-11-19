@@ -15,9 +15,9 @@ namespace mfem
 {
 
 // *****************************************************************************
-// * cuDeviceSetup will set: gpu_count, dev, cuDevice, cuContext & cuStream
+// * cudaDeviceSetup will set: gpu_count, dev, cuDevice, cuContext & cuStream
 // *****************************************************************************
-void config::cuDeviceSetup(const int device)
+void config::cudaDeviceSetup(const int device)
 {
 #ifdef __NVCC__
    gpu_count=0;
@@ -30,6 +30,30 @@ void config::cuDeviceSetup(const int device)
    cuStream = new CUstream;
    cuStreamCreate(cuStream, CU_STREAM_DEFAULT);
 #endif
+}
+
+// *****************************************************************************
+// * Setting device, paths & kernels
+// *****************************************************************************
+void config::occaDeviceSetup(){
+#ifdef __OCCA__
+   occaDevice.setup("mode: 'Serial'");
+   occa::io::addLibraryPath("fem", occa::io::dirname(__FILE__) + "../fem/kernels");
+   occa::io::addLibraryPath("general", occa::io::dirname(__FILE__) + "./kernels");
+   occa::io::addLibraryPath("linalg", occa::io::dirname(__FILE__) + "../linalg/kernels");
+   occa::io::addLibraryPath("mesh", occa::io::dirname(__FILE__) + "../mesh/kernels");
+   occa::loadKernels();
+   occa::loadKernels("fem");
+   occa::loadKernels("general");
+   occa::loadKernels("linalg");
+   occa::loadKernels("mesh");
+#endif
+}
+
+// *****************************************************************************
+void config::Setup() {
+   cudaDeviceSetup();
+   occaDeviceSetup();
 }
 
 } // namespace mfem
