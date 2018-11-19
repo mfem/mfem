@@ -79,7 +79,7 @@ void LinearForm::Assemble()
             if (doftrans)
             {
                elemvect_t.SetSize(elemvect.Size());
-               doftrans->TransformRowCol(elemvect, elemvect_t);
+               doftrans->TransformDual(elemvect, elemvect_t);
                AddElementVector (vdofs, elemvect_t);
             }
             else

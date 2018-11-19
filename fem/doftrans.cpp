@@ -14,22 +14,22 @@
 namespace mfem
 {
 
-void DofTransformation::Transform(const Vector &v, Vector &v_trans) const
+void DofTransformation::TransformPrimal(const Vector &v, Vector &v_trans) const
 {
    v_trans.SetSize(height_);
-   Transform(v.GetData(), v_trans.GetData());
+   TransformPrimal(v.GetData(), v_trans.GetData());
 }
 
-void DofTransformation::Transform(const DenseMatrix &A,
-                                  DenseMatrix &A_trans) const
+void DofTransformation::TransformDual(const DenseMatrix &A,
+                                      DenseMatrix &A_trans) const
 {
    DenseMatrix A_col_trans;
-   TransformCols(A, A_col_trans);
-   TransformRows(A_col_trans, A_trans);
+   TransformDualCols(A, A_col_trans);
+   TransformDualRows(A_col_trans, A_trans);
 }
 
-void DofTransformation::TransformRows(const DenseMatrix &A,
-                                      DenseMatrix &A_trans) const
+void DofTransformation::TransformDualRows(const DenseMatrix &A,
+                                          DenseMatrix &A_trans) const
 {
    A_trans.SetSize(A.Height(), width_);
    Vector row;
@@ -37,30 +37,31 @@ void DofTransformation::TransformRows(const DenseMatrix &A,
    for (int r=0; r<A.Height(); r++)
    {
       A.GetRow(r, row);
-      TransformRowCol(row, row_trans);
+      TransformDual(row, row_trans);
       A_trans.SetRow(r, row_trans);
    }
 }
 
-void DofTransformation::TransformCols(const DenseMatrix &A,
-                                      DenseMatrix &A_trans) const
+void DofTransformation::TransformDualCols(const DenseMatrix &A,
+                                          DenseMatrix &A_trans) const
 {
    A_trans.SetSize(height_, A.Width());
    Vector col_trans;
    for (int c=0; c<A.Width(); c++)
    {
       A_trans.GetColumnReference(c, col_trans);
-      TransformRowCol(A.GetColumn(c), col_trans);
+      TransformDual(A.GetColumn(c), col_trans);
    }
 }
 
-void DofTransformation::TransformBack(const Vector &v_trans, Vector &v) const
+void DofTransformation::InvTransformPrimal(const Vector &v_trans,
+                                           Vector &v) const
 {
    v.SetSize(width_);
-   TransformBack(v_trans.GetData(), v.GetData());
+   InvTransformPrimal(v_trans.GetData(), v.GetData());
 }
 
-void VDofTransformation::Transform(const double *v, double *v_trans) const
+void VDofTransformation::TransformPrimal(const double *v, double *v_trans) const
 {
    int height = doftrans_->Height();
    int width  = doftrans_->Width();
@@ -69,7 +70,7 @@ void VDofTransformation::Transform(const double *v, double *v_trans) const
    {
       for (int i=0; i<vdim_; i++)
       {
-         doftrans_->Transform(&v[i*width], &v_trans[i*height]);
+         doftrans_->TransformPrimal(&v[i*width], &v_trans[i*height]);
       }
    }
    else
@@ -82,7 +83,7 @@ void VDofTransformation::Transform(const double *v, double *v_trans) const
          {
             vec(j) = v[j*vdim_+i];
          }
-         doftrans_->Transform(vec, vec_trans);
+         doftrans_->TransformPrimal(vec, vec_trans);
          for (int j=0; j<height; j++)
          {
             v_trans[j*vdim_+i] = vec_trans(j);
@@ -91,7 +92,8 @@ void VDofTransformation::Transform(const double *v, double *v_trans) const
    }
 }
 
-void VDofTransformation::TransformBack(const double *v_trans, double *v) const
+void VDofTransformation::InvTransformPrimal(const double *v_trans,
+                                            double *v) const
 {
    int height = doftrans_->Height();
    int width  = doftrans_->Width();
@@ -100,7 +102,7 @@ void VDofTransformation::TransformBack(const double *v_trans, double *v) const
    {
       for (int i=0; i<vdim_; i++)
       {
-         doftrans_->TransformBack(&v_trans[i*height], &v[i*width]);
+         doftrans_->InvTransformPrimal(&v_trans[i*height], &v[i*width]);
       }
    }
    else
@@ -113,7 +115,7 @@ void VDofTransformation::TransformBack(const double *v_trans, double *v) const
          {
             vec_trans(j) = v_trans[j*vdim_+i];
          }
-         doftrans_->TransformBack(vec_trans, vec);
+         doftrans_->InvTransformPrimal(vec_trans, vec);
          for (int j=0; j<width; j++)
          {
             v[j*vdim_+i] = vec(j);
@@ -122,7 +124,7 @@ void VDofTransformation::TransformBack(const double *v_trans, double *v) const
    }
 }
 
-void VDofTransformation::TransformRowCol(const double *v, double *v_trans) const
+void VDofTransformation::TransformDual(const double *v, double *v_trans) const
 {
    int height = doftrans_->Height();
    int width  = doftrans_->Width();
@@ -131,7 +133,7 @@ void VDofTransformation::TransformRowCol(const double *v, double *v_trans) const
    {
       for (int i=0; i<vdim_; i++)
       {
-         doftrans_->TransformRowCol(&v[i*height], &v_trans[i*width]);
+         doftrans_->TransformDual(&v[i*height], &v_trans[i*width]);
       }
    }
    else
@@ -144,7 +146,7 @@ void VDofTransformation::TransformRowCol(const double *v, double *v_trans) const
          {
             vec(j) = v[j*vdim_+i];
          }
-         doftrans_->TransformRowCol(vec, vec_trans);
+         doftrans_->TransformDual(vec, vec_trans);
          for (int j=0; j<height; j++)
          {
             v_trans[j*vdim_+i] = vec_trans(j);
@@ -181,7 +183,8 @@ ND_TetDofTransformation::ND_TetDofTransformation(int p)
 {
 }
 
-void ND_TetDofTransformation::Transform(const double *v, double *v_trans) const
+void ND_TetDofTransformation::TransformPrimal(const double *v,
+                                              double *v_trans) const
 {
    int nedofs = order; // number of DoFs per edge
    int nfdofs = order*(order-1); // number of DoFs per face
@@ -211,7 +214,8 @@ void ND_TetDofTransformation::Transform(const double *v, double *v_trans) const
 }
 
 void
-ND_TetDofTransformation::TransformBack(const double *v_trans, double *v) const
+ND_TetDofTransformation::InvTransformPrimal(const double *v_trans,
+                                            double *v) const
 {
    int nedofs = order; // number of DoFs per edge
    int nfdofs = order*(order-1); // number of DoFs per face
@@ -241,7 +245,7 @@ ND_TetDofTransformation::TransformBack(const double *v_trans, double *v) const
 }
 
 void
-ND_TetDofTransformation::TransformRowCol(const double *v, double *v_trans) const
+ND_TetDofTransformation::TransformDual(const double *v, double *v_trans) const
 {
    int nedofs = order; // number of DoFs per edge
    int nfdofs = order*(order-1); // number of DoFs per face
