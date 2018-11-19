@@ -351,7 +351,7 @@ void BilinearForm::Assemble (int skip_zeros)
             }
             if ( doftrans )
             {
-               doftrans->Transform(elmat, elmat_t);
+               doftrans->TransformDual(elmat, elmat_t);
                elmat_p = &elmat_t;
             }
             else
@@ -1230,8 +1230,8 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
             elmat.SetSize(totelmat.Height(), totelmat.Width());
             for (int c=0; c<totelmat.Width(); c++)
             {
-               ran_dof_trans->Transform(totelmat.GetColumn(c),
-                                        elmat.GetColumn(c));
+               ran_dof_trans->TransformPrimal(totelmat.GetColumn(c),
+                                              elmat.GetColumn(c));
             }
             mat->SetSubMatrix(ran_vdofs, dom_vdofs, elmat, skip_zeros);
          }

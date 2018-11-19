@@ -26,6 +26,8 @@ protected:
    int height_;
    int width_;
 
+   Array<int> Fo;
+
 public:
    DofTransformation(int height, int width)
       : height_(height), width_(width) {}
@@ -35,25 +37,24 @@ public:
    inline int Width() const { return width_; }
    inline int NumCols() const { return width_; }
 
-   virtual void Transform(const double *, double *) const = 0;
+   inline void SetFaceOrientations(const Array<int> & face_orientation)
+   { Fo = face_orientation; }
 
-   virtual void Transform(const Vector &, Vector &) const;
+   virtual void TransformPrimal(const double *, double *) const = 0;
 
-   virtual void Transform(const DenseMatrix &, DenseMatrix &) const;
+   virtual void TransformPrimal(const Vector &, Vector &) const;
 
-   virtual void TransformRows(const DenseMatrix &, DenseMatrix &) const;
+   virtual void InvTransformPrimal(const double *, double *) const = 0;
 
-   virtual void TransformCols(const DenseMatrix &, DenseMatrix &) const;
+   virtual void InvTransformPrimal(const Vector &, Vector &) const;
 
-   // virtual void TransformRow(const Vector &, Vector &) const;
+   virtual void TransformDual(const double *, double *) const = 0;
 
-   // virtual void TransformCol(const Vector &, Vector &) const;
+   virtual void TransformDual(const DenseMatrix &, DenseMatrix &) const;
 
-   virtual void TransformRowCol(const double *, double *) const = 0;
+   virtual void TransformDualRows(const DenseMatrix &, DenseMatrix &) const;
 
-   virtual void TransformBack(const double *, double *) const = 0;
-
-   virtual void TransformBack(const Vector &, Vector &) const;
+   virtual void TransformDualCols(const DenseMatrix &, DenseMatrix &) const;
 
    virtual ~DofTransformation() {}
 };
@@ -84,9 +85,12 @@ public:
       doftrans_ = &doftrans;
    }
 
-   void Transform(const double *, double *) const;
-   void TransformBack(const double *, double *) const;
-   void TransformRowCol(const double *, double *) const;
+   inline void SetFaceOrientation(const Array<int> & face_orientation)
+   { Fo = face_orientation; doftrans_->SetFaceOrientations(face_orientation);}
+
+   void TransformPrimal(const double *, double *) const;
+   void InvTransformPrimal(const double *, double *) const;
+   void TransformDual(const double *, double *) const;
 };
 
 class ND_TetDofTransformation : public DofTransformation
@@ -95,30 +99,34 @@ private:
    static const double T_data[24];
    static const double TInv_data[24];
    const DenseTensor T, TInv;
-   Array<int> Fo;
    int order;
 
 public:
    ND_TetDofTransformation(int order);
 
-   inline void SetFaceOrientation(const Array<int> & face_orientation)
-   { Fo = face_orientation; }
+   void TransformPrimal(const double *, double *) const;
 
-   void Transform(const double *, double *) const;
+   void InvTransformPrimal(const double *, double *) const;
 
-   void TransformBack(const double *, double *) const;
-
-   void TransformRowCol(const double *, double *) const;
+   void TransformDual(const double *, double *) const;
 };
 
 class ND_WedgeDofTransformation : public DofTransformation
 {
+private:
+   static const double T_data[24];
+   static const double TInv_data[24];
+   const DenseTensor T, TInv;
+   int order;
+
 public:
-   ND_WedgeDofTransformation();
+   ND_WedgeDofTransformation(int order);
 
-   void Transform(const double *, double *) const;
+   void TransformPrimal(const double *, double *) const;
 
-   void TransformBack(const double *, double *) const;
+   void InvTransformPrimal(const double *, double *) const;
+
+   void TransformDual(const double *, double *) const;
 };
 
 } // namespace mfem

@@ -1359,7 +1359,7 @@ FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
                                                        (DoFTrans[mesh->GetElementBaseGeometry(i)]);
                if ( nd_doftrans )
                {
-                  nd_doftrans->SetFaceOrientation(Fo);
+                  nd_doftrans->SetFaceOrientations(Fo);
                }
             }
          }

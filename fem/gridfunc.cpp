@@ -359,7 +359,7 @@ void GridFunction::GetNodalValues(int i, Array<double> &nval, int vdim) const
    if (doftrans)
    {
       GetSubVector(vdofs, loc_data_t);
-      doftrans->TransformBack(loc_data_t, loc_data);
+      doftrans->InvTransformPrimal(loc_data_t, loc_data);
    }
    else
    {
@@ -456,7 +456,7 @@ const
    if (doftrans)
    {
       GetSubVector(dofs, loc_data_t);
-      doftrans->TransformBack(loc_data_t, loc_data);
+      doftrans->InvTransformPrimal(loc_data_t, loc_data);
    }
    else
    {
@@ -542,7 +542,7 @@ void GridFunction::GetVectorValues(ElementTransformation &T,
    if (doftrans)
    {
       GetSubVector(vdofs, loc_data_t);
-      doftrans->TransformBack(loc_data_t, loc_data);
+      doftrans->InvTransformPrimal(loc_data_t, loc_data);
    }
    else
    {
@@ -732,7 +732,7 @@ void GridFunction::GetVectorFieldValues(
    if (doftrans)
    {
       GetSubVector(vdofs, loc_data_t);
-      doftrans->TransformBack(loc_data_t, loc_data);
+      doftrans->InvTransformPrimal(loc_data_t, loc_data);
    }
    else
    {
@@ -1593,7 +1593,7 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff)
          fes->GetFE(i)->Project(coeff, *fes->GetElementTransformation(i), vals);
          if (doftrans)
          {
-            doftrans->Transform(vals, vals_t);
+            doftrans->TransformPrimal(vals, vals_t);
             SetSubVector(vdofs, vals_t);
          }
          else
@@ -1651,7 +1651,7 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff)
       fes->GetFE(i)->Project(vcoeff, *fes->GetElementTransformation(i), vals);
       if (doftrans)
       {
-         doftrans->Transform(vals, vals_t);
+         doftrans->TransformPrimal(vals, vals_t);
          SetSubVector(vdofs, vals_t);
       }
       else
