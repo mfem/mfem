@@ -580,7 +580,7 @@ public:
        16   = Chebyshev
        1001 = Taubin polynomial smoother
        1002 = FIR polynomial smoother. */
-   enum Type { Jacobi = 0, l1Jacobi = 1, l1GS = 2, l1GStr = 4, lumpedJacobi = 5,
+  enum Type { Jacobi = 0, l1Jacobi = 1, l1GS = 2, Kaczmarz = 3, l1GStr = 4, lumpedJacobi = 5,
                GS = 6, Chebyshev = 16, Taubin = 1001, FIR = 1002
              };
 
@@ -694,6 +694,11 @@ public:
   }
   
   virtual HYPRE_ParCSRMatrix Get_A_G() const
+  {
+    return 0;
+  }
+
+  virtual HYPRE_ParCSRMatrix* Get_Restriction() const
   {
     return 0;
   }
@@ -895,6 +900,15 @@ public:
    virtual HYPRE_PtrToParSolverFcn SolveFcn() const
    { return (HYPRE_PtrToParSolverFcn) HYPRE_BoomerAMGSolve; }
 
+  virtual HYPRE_ParCSRMatrix* Get_Restriction() const
+  {
+    //int m = hypre_ParAMGData_GetMaxLevels(amg_precond);
+    //int n = hypre_ParAMGData_GetNumLevels(amg_precond);
+    return hypre_AMGGetRestriction(amg_precond);
+    //hypre_ParCSRMatrix** hypre_AMGGetRestriction(void *solver);
+    //return (HYPRE_ParCSRMatrix) hypre_ParAMGDataRArray(amg_precond);  // See hypre/src/parcsr_ls/par_amg.h
+  }
+  
    virtual ~HypreBoomerAMG();
 };
 

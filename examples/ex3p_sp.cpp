@@ -48,6 +48,8 @@ double freq = 1.0, kappa;
 int dim;
 
 #define SIGMAVAL -1000.0
+//#define FORM_DEFINITE
+//#define SOLVE_A2
 
 int main(int argc, char *argv[])
 {
@@ -113,7 +115,7 @@ int main(int argc, char *argv[])
    //    more than 1,000 elements.
    {
       int ref_levels =
-         (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -136,8 +138,19 @@ int main(int argc, char *argv[])
    }
    pmesh->ReorientTetMesh();
 
+   {
+     double minsize = pmesh->GetElementSize(0);
+     double maxsize = minsize;
+     for (int i=1; i<pmesh->GetNE(); ++i)
+       {
+	 const double size_i = pmesh->GetElementSize(i);
+	 minsize = std::min(minsize, size_i);
+	 maxsize = std::max(maxsize, size_i);
+       }
 
-
+     cout << myid << ": Element size range: (" << minsize << ", " << maxsize << ")" << endl;
+   }
+   
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use the Nedelec finite elements of the specified order.
    FiniteElementCollection *fec = new ND_FECollection(order, dim);
@@ -185,10 +198,24 @@ int main(int argc, char *argv[])
    //     mass domain integrators.
    Coefficient *muinv = new ConstantCoefficient(1.0);
    Coefficient *sigma = new ConstantCoefficient(SIGMAVAL);
+   Coefficient *sigmaAbs = new ConstantCoefficient(fabs(SIGMAVAL));
    ParBilinearForm *a = new ParBilinearForm(fespace);
    a->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
    a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
 
+#ifdef FORM_DEFINITE
+   ParBilinearForm *adef = new ParBilinearForm(fespace);
+   adef->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
+   adef->AddDomainIntegrator(new VectorFEMassIntegrator(*sigmaAbs));
+
+   if (static_cond) { adef->EnableStaticCondensation(); }
+   adef->Assemble();
+
+   HypreParMatrix Adef;
+   Vector Bdef, Xdef;
+   adef->FormLinearSystem(ess_tdof_list, x, *b, Adef, Xdef, Bdef);
+#endif
+   
    // 11. Assemble the parallel bilinear form and the corresponding linear
    //     system, applying any necessary transformations such as: parallel
    //     assembly, eliminating boundary conditions, applying conforming
@@ -196,10 +223,15 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
-   HypreParMatrix A;
+   HypreParMatrix A, Acopy;
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
+   {
+     Vector Bdum, Xdum;
+     a->FormLinearSystem(ess_tdof_list, x, *b, Acopy, Xdum, Bdum);
+   }
+   
    if (myid == 0)
    {
       cout << "Size of linear system: " << A.GetGlobalNumRows() << endl;
@@ -208,6 +240,8 @@ int main(int argc, char *argv[])
    StopWatch chrono;
    chrono.Clear();
    chrono.Start();
+
+   //A.Print("maxwell1000_2");
    
 #ifdef MFEM_USE_STRUMPACK
    if (use_strumpack)
@@ -254,15 +288,52 @@ int main(int argc, char *argv[])
 	   gmres->SetMaxIter(100);
 	   gmres->SetPrintLevel(1);
 
+#ifdef SOLVE_A2
+	   {
+	     StopWatch chronoA2;
+	     chronoA2.Clear();
+	     chronoA2.Start();
+
+	     HypreParMatrix * A2 = ParMult(&A, &Acopy);
+
+	     chronoA2.Stop();
+	     cout << "A2 setup time " << chronoA2.RealTime() << endl;
+	     
+	     Vector AB(B);
+	     A.Mult(B, AB);
+	     gmres->SetOperator(*A2);
+
+	     HypreSolver *ams2 = new HypreAMS(A, prec_fespace);
+	     {
+	       Vector Xtmp(X);
+	       ams2->Mult(B, Xtmp);  // Just a hack to get ams to run its setup function. There should be a better way.
+	     }
+
+	     HypreIAMS *iams2 = new HypreIAMS(*A2, (HypreAMS*) ams2, argc, argv);
+	     gmres->SetPreconditioner(*iams2);
+	     gmres->Mult(AB, X);
+	   }
+#else
 	   gmres->SetPreconditioner(*iams);
-#else	   
+	   gmres->Mult(B, X);
+#endif
+#else
+	   HypreGMRES *gmres = new HypreGMRES(A);
+	   gmres->SetTol(1e-12);
+	   gmres->SetMaxIter(100);
+	   gmres->SetPrintLevel(10);
+
+#ifdef FORM_DEFINITE
+	   HypreSolver *amsdef = new HypreAMS(Adef, prec_fespace);
+	   gmres->SetPreconditioner(*amsdef);
+#else
 	   gmres->SetPreconditioner(*ams);
 #endif
-
 	   gmres->Mult(B, X);
+#endif
 
 	   delete gmres;
-	   delete iams;
+	   //delete iams;
 	   //delete ams;
 	 }
      }
@@ -295,9 +366,18 @@ int main(int argc, char *argv[])
    // 14. Compute and print the L^2 norm of the error.
    {
       double err = x.ComputeL2Error(E);
+      Vector zeroVec(3);
+      zeroVec = 0.0;
+      VectorConstantCoefficient vzero(zeroVec);
+      ParGridFunction zerogf(fespace);
+      zerogf = 0.0;
+      double normE = zerogf.ComputeL2Error(E);
+      double normX = x.ComputeL2Error(vzero);
       if (myid == 0)
       {
          cout << "\n|| E_h - E ||_{L^2} = " << err << '\n' << endl;
+	 cout << "\n|| E_h ||_{L^2} = " << normX << '\n' << endl;
+	 cout << "\n|| E ||_{L^2} = " << normE << '\n' << endl;
       }
    }
 
