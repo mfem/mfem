@@ -25,6 +25,11 @@
 #define __kernel__
 
 // *****************************************************************************
+#ifdef __OCCA__
+#include <occa.hpp>
+#endif
+
+// *****************************************************************************
 #include <cmath>
 #include <cassert>
 #include <iostream>
@@ -40,7 +45,7 @@
 // *****************************************************************************
 #ifdef __NVCC__
 template <typename BODY> __global__
-void kernel(const size_t N, BODY body)
+void cudaKernel(const size_t N, BODY body)
 {
    const size_t k = blockDim.x*blockIdx.x + threadIdx.x;
    if (k >= N) { return; }
@@ -55,16 +60,15 @@ template <typename DBODY, typename HBODY>
 void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 {
 #ifdef __NVCC__
-   const bool gpu = mfem::config::Get().Cuda();
-   if (gpu)
+   if (mfem::config::Get().Cuda())
    {
       const size_t blockSize = 256;
       const size_t gridSize = (N+blockSize-1)/blockSize;
-      kernel<<<gridSize, blockSize>>>(N,d_body);
+      cudaKernel<<<gridSize, blockSize>>>(N,d_body);
       return;
    }
 #endif // __NVCC__
-   for (size_t k=0; k<N; k+=1) { h_body(k); }
+  for (size_t k=0; k<N; k+=1) { h_body(k); }
 }
 
 // *****************************************************************************

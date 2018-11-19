@@ -54,7 +54,8 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool pa = false;
-   bool gpu = false;
+   bool cuda = false;
+   bool occa = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -67,7 +68,9 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
                   "Enable Partial Assembly.");
-   args.AddOption(&gpu, "-g", "--gpu", "-no-g", "--no-gpu", "Enable GPU.");
+   args.AddOption(&cuda, "-g", "--gpu", "-no-g", "--no-gpu", "Enable GPU.");
+   args.AddOption(&cuda, "-u", "--cuda", "-no-u", "--no-cuda", "Enable CUDA.");
+   args.AddOption(&occa, "-c", "--occa", "-no-c", "--no-occa", "Enable OCCA.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -140,7 +143,8 @@ int main(int argc, char *argv[])
    b->Assemble();
 
    mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
-   if (gpu) { config::Get().Cuda(true); }
+   if (cuda) { config::Get().Cuda(true); }
+   if (occa) { config::Get().Occa(true); }
    if (pa)  { config::Get().PA(true);   }
 
    // 7. Define the solution vector x as a finite element grid function

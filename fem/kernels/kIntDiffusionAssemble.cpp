@@ -29,18 +29,20 @@ static void oAssemble2D(const int NUM_QUAD_1D,
   GET_OCCA_MEMORY(oper);
   static bool setup = false;
   static occa::kernel assemble2D = NULL;
-  //static occa::memory o_quadWeights, o_J, o_oper;
   if (not setup){
-    static occa::device device;
-    device.setup("mode: 'Serial'");
     const size_t W_SZ = 4;
     const size_t J_SZ = 327680;
     const size_t O_SZ = 245760;
+    OCCAdevice device = config::Get().OccaDevice();
     o_quadWeights = device.malloc(W_SZ*sizeof(double));
     o_J = device.malloc(J_SZ*sizeof(double));
     o_oper = device.malloc(O_SZ*sizeof(double));
+    occa::io::occaFileOpener occaOpener;
+    assert(occaOpener.handles("occa://fem/oIntDiffusionAssemble.okl"));
+    
+    std::string diffusion = occaOpener.expand("occa://fem/oIntDiffusionAssemble.okl");
     assemble2D =
-      device.buildKernel("/Users/camier1/home/mfem/okina-occa/fem/kernels/oIntDiffusionAssemble.okl", "Assemble2D");
+       device.buildKernel(diffusion, "Assemble2D");
   }
   o_quadWeights.copyFrom(quadWeights);
   o_J.copyFrom(J);  
@@ -143,7 +145,7 @@ void kIntDiffusionAssemble(const int dim,
 {
   if (dim==1) { assert(false); }
   if (dim==2){
-    if (config::Get().occa())
+    if (config::Get().Occa())
       oAssemble2D(NUM_QUAD_1D, numElements, quadWeights, J, COEFF, oper);
     else
       kAssemble2D(NUM_QUAD_1D, numElements, quadWeights, J, COEFF, oper);

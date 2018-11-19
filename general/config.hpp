@@ -15,11 +15,19 @@
 namespace mfem
 {
 
+// *****************************************************************************
 #ifndef __NVCC__
 typedef int CUdevice;
 typedef int CUcontext;
 typedef void* CUstream;
-#endif // __NVCC__
+#endif
+
+// *****************************************************************************
+#ifdef __OCCA__
+typedef occa::device OCCAdevice;
+#else
+typedef void *OCCAdevice;
+#endif
 
 // *****************************************************************************
 // * Config
@@ -28,6 +36,7 @@ class config
 {
 private:
    bool cuda = false;
+   bool occa = false;
    bool pa = false;
    bool sync = false;
    bool nvvp = false;
@@ -36,6 +45,7 @@ private:
    CUdevice cuDevice;
    CUcontext cuContext;
    CUstream *cuStream;
+   OCCAdevice occaDevice;
 private:
    config() {}
    config(config const&);
@@ -48,7 +58,8 @@ public:
    }
    // **************************************************************************
 private:
-   void cuDeviceSetup(const int dev =0);
+   void cudaDeviceSetup(const int dev =0);
+   void occaDeviceSetup();
 
 public:
    // **************************************************************************
@@ -62,14 +73,9 @@ public:
    }
 
    // **************************************************************************
-   constexpr static inline bool occa()
-   {
-#ifdef __OCCA__
-      return true;
-#else
-      return false;
-#endif
-   }
+   inline bool Occa() { return occa; }
+   inline void Occa(const bool mode) { occa = mode; }
+   inline OCCAdevice OccaDevice() { return occaDevice; }
 
    // **************************************************************************
    inline bool Cuda() { return cuda; }
@@ -86,7 +92,7 @@ public:
    inline bool Nvvp(bool toggle=false) { return toggle?nvvp=!nvvp:nvvp; }
 
    // **************************************************************************
-   void Setup() { cuDeviceSetup(); }
+   void Setup();
 
    // **************************************************************************
    inline CUstream Stream() { return *cuStream; }
