@@ -20,6 +20,32 @@ void DofTransformation::TransformPrimal(const Vector &v, Vector &v_trans) const
    TransformPrimal(v.GetData(), v_trans.GetData());
 }
 
+void DofTransformation::TransformPrimalRows(const DenseMatrix &A,
+                                            DenseMatrix &A_trans) const
+{
+   A_trans.SetSize(A.Height(), width_);
+   Vector row;
+   Vector row_trans(width_);
+   for (int r=0; r<A.Height(); r++)
+   {
+      A.GetRow(r, row);
+      TransformPrimal(row, row_trans);
+      A_trans.SetRow(r, row_trans);
+   }
+}
+
+void DofTransformation::TransformPrimalCols(const DenseMatrix &A,
+                                            DenseMatrix &A_trans) const
+{
+   A_trans.SetSize(height_, A.Width());
+   Vector col_trans;
+   for (int c=0; c<A.Width(); c++)
+   {
+      A_trans.GetColumnReference(c, col_trans);
+      TransformPrimal(A.GetColumn(c), col_trans);
+   }
+}
+
 void DofTransformation::TransformDual(const DenseMatrix &A,
                                       DenseMatrix &A_trans) const
 {
@@ -59,6 +85,56 @@ void DofTransformation::InvTransformPrimal(const Vector &v_trans,
 {
    v.SetSize(width_);
    InvTransformPrimal(v_trans.GetData(), v.GetData());
+}
+
+void TransformPrimal(const DofTransformation *ran_dof_trans,
+                     const DofTransformation *dom_dof_trans,
+                     const DenseMatrix &elmat, DenseMatrix &elmat_trans)
+{
+   if (ran_dof_trans && dom_dof_trans)
+   {
+      DenseMatrix elmat_tmp;
+      ran_dof_trans->TransformPrimalCols(elmat, elmat_tmp);
+      dom_dof_trans->TransformPrimalRows(elmat_tmp, elmat_trans);
+   }
+   else if (ran_dof_trans)
+   {
+      ran_dof_trans->TransformPrimalCols(elmat, elmat_trans);
+   }
+   else if (dom_dof_trans)
+   {
+      dom_dof_trans->TransformPrimalRows(elmat, elmat_trans);
+   }
+   else
+   {
+      // If both transformations are NULL this function should not be called
+      elmat_trans = elmat;
+   }
+}
+
+void TransformDual(const DofTransformation *ran_dof_trans,
+                   const DofTransformation *dom_dof_trans,
+                   const DenseMatrix &elmat, DenseMatrix &elmat_trans)
+{
+   if (ran_dof_trans && dom_dof_trans)
+   {
+      DenseMatrix elmat_tmp;
+      ran_dof_trans->TransformDualCols(elmat, elmat_tmp);
+      dom_dof_trans->TransformDualRows(elmat_tmp, elmat_trans);
+   }
+   else if (ran_dof_trans)
+   {
+      ran_dof_trans->TransformDualCols(elmat, elmat_trans);
+   }
+   else if (dom_dof_trans)
+   {
+      dom_dof_trans->TransformDualRows(elmat, elmat_trans);
+   }
+   else
+   {
+      // If both transformations are NULL this function should not be called
+      elmat_trans = elmat;
+   }
 }
 
 void VDofTransformation::TransformPrimal(const double *v, double *v_trans) const

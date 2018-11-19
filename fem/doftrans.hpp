@@ -44,6 +44,10 @@ public:
 
    virtual void TransformPrimal(const Vector &, Vector &) const;
 
+   virtual void TransformPrimalRows(const DenseMatrix &, DenseMatrix &) const;
+
+   virtual void TransformPrimalCols(const DenseMatrix &, DenseMatrix &) const;
+
    virtual void InvTransformPrimal(const double *, double *) const = 0;
 
    virtual void InvTransformPrimal(const Vector &, Vector &) const;
@@ -58,6 +62,12 @@ public:
 
    virtual ~DofTransformation() {}
 };
+
+void TransformPrimal(const DofTransformation *, const DofTransformation *,
+                     const DenseMatrix &, DenseMatrix &);
+
+void TransformDual(const DofTransformation *, const DofTransformation *,
+                   const DenseMatrix &, DenseMatrix &);
 
 class VDofTransformation : public DofTransformation
 {
