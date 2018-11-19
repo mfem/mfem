@@ -27,26 +27,26 @@ static void oAssemble2D(const int NUM_QUAD_1D,
   GET_OCCA_CONST_MEMORY(quadWeights);
   GET_OCCA_CONST_MEMORY(J);
   GET_OCCA_MEMORY(oper);
+  
   static bool setup = false;
-  static occa::kernel assemble2D = NULL;
+  static occa::kernel Assemble2D;
   if (not setup){
+    OCCAdevice device = config::Get().OccaDevice();
+    const std::string fdk = "occa://fem/oIntDiffusionAssemble.okl";
+    const std::string odk = occa::io::occaFileOpener().expand(fdk);
+    Assemble2D = device.buildKernel(odk, "Assemble2D");
+    
     const size_t W_SZ = 4;
     const size_t J_SZ = 327680;
     const size_t O_SZ = 245760;
-    OCCAdevice device = config::Get().OccaDevice();
     o_quadWeights = device.malloc(W_SZ*sizeof(double));
     o_J = device.malloc(J_SZ*sizeof(double));
     o_oper = device.malloc(O_SZ*sizeof(double));
-    occa::io::occaFileOpener occaOpener;
-    assert(occaOpener.handles("occa://fem/oIntDiffusionAssemble.okl"));
     
-    std::string diffusion = occaOpener.expand("occa://fem/oIntDiffusionAssemble.okl");
-    assemble2D =
-       device.buildKernel(diffusion, "Assemble2D");
   }
   o_quadWeights.copyFrom(quadWeights);
   o_J.copyFrom(J);  
-  assemble2D(NUM_QUAD_1D, numElements, o_quadWeights, o_J, COEFF, o_oper);
+  Assemble2D(NUM_QUAD_1D, numElements, o_quadWeights, o_J, COEFF, o_oper);
   o_oper.copyTo(oper);
 }
 
