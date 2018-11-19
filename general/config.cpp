@@ -38,10 +38,11 @@ void config::cudaDeviceSetup(const int device)
 void config::occaDeviceSetup(){
 #ifdef __OCCA__
    occaDevice.setup("mode: 'Serial'");
-   occa::io::addLibraryPath("fem", occa::io::dirname(__FILE__) + "../fem/kernels");
-   occa::io::addLibraryPath("general", occa::io::dirname(__FILE__) + "./kernels");
-   occa::io::addLibraryPath("linalg", occa::io::dirname(__FILE__) + "../linalg/kernels");
-   occa::io::addLibraryPath("mesh", occa::io::dirname(__FILE__) + "../mesh/kernels");
+   const std::string pwd = occa::io::dirname(__FILE__) + "../";
+   occa::io::addLibraryPath("fem",     pwd + "fem/kernels");
+   occa::io::addLibraryPath("general", pwd + "general/kernels");
+   occa::io::addLibraryPath("linalg",  pwd + "linalg/kernels");
+   occa::io::addLibraryPath("mesh",    pwd + "mesh/kernels");
    occa::loadKernels();
    occa::loadKernels("fem");
    occa::loadKernels("general");

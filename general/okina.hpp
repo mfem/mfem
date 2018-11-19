@@ -92,11 +92,8 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 #define GET_CONST_ADRS_T(v,T) const T *d_##v = (const T*) mm::Get().Adrs(v)
 
 // *****************************************************************************
-#define GET_OCCA const bool occa = config::Get().occa();
-#define GET_OCCA_MEMORY(v) \
-  static occa::memory o_##v ;//= (occa::memory) mm::Get().Memory(v)
-#define GET_OCCA_CONST_MEMORY(v) \
-  static /*const*/ occa::memory o_##v ;//= (const occa::memory) mm::Get().Memory(v)
+#define GET_OCCA_MEMORY(v) static occa::memory o_##v;
+#define GET_OCCA_CONST_MEMORY(v) GET_OCCA_MEMORY(v)
 
 // *****************************************************************************
 #define MFEM_FILE_AND_LINE __FILE__ and __LINE__
