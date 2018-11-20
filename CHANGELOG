@@ -49,6 +49,9 @@ Other meshing improvements
 - Added support for reading linear and quadratic 2D quadrilateral and triangular
   Cubit meshes.
 
+- The TMOP mesh optimization algorithms were extended to support user-defined
+  limiting terms.
+
 New and updated examples and miniapps
 -------------------------------------
 - Added a new meshing miniapp, Toroid, which can produce a variety of torus
