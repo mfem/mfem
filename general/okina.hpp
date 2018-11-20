@@ -93,8 +93,7 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 #define GET_CONST_ADRS_T(v,T) const T *d_##v = (const T*) mm::Get().Adrs(v)
 
 // *****************************************************************************
-#define GET_OCCA_MEMORY(v) static occa::memory o_##v;
-//#define GET_OCCA_MEMORY(v) occa::memory o_##v = (occa::memory) mm::Get().Adrs(v)
+#define GET_OCCA_MEMORY(v) occa::memory o_##v = mm::Get().Memory(v)
 #define GET_OCCA_CONST_MEMORY(v) GET_OCCA_MEMORY(v)
 #define NEW_OCCA_KERNEL(ker,libray,filename)                            \
    static occa::kernel ker = NULL;                                      \
@@ -103,12 +102,6 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
       const std::string fdk = "occa://" #libray "/" #filename;          \
       const std::string odk = occa::io::occaFileOpener().expand(fdk);   \
       ker = device.buildKernel(odk, #ker);                              \
-      const size_t W_SZ = 4;                                            \
-      const size_t J_SZ = 327680;                                       \
-      const size_t O_SZ = 245760;                                       \
-      o_quadWeights = device.malloc(W_SZ*sizeof(double));               \
-      o_J = device.malloc(J_SZ*sizeof(double));                         \
-      o_oper = device.malloc(O_SZ*sizeof(double));                      \
    }
 
 // *****************************************************************************

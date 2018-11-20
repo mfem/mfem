@@ -27,13 +27,8 @@ static void oAssemble2D(const int NUM_QUAD_1D,
   GET_OCCA_CONST_MEMORY(quadWeights);
   GET_OCCA_CONST_MEMORY(J);
   GET_OCCA_MEMORY(oper);
-  
   NEW_OCCA_KERNEL(Assemble2D,fem,oIntDiffusionAssemble.okl);
-  
-  o_quadWeights.copyFrom(quadWeights);
-  o_J.copyFrom(J);  
   Assemble2D(NUM_QUAD_1D, numElements, o_quadWeights, o_J, COEFF, o_oper);
-  o_oper.copyTo(oper);
 }
 
 // **************************************************************************
