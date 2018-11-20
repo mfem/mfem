@@ -26,6 +26,9 @@ typedef struct mm2dev
    size_t bytes = 0;
    void *h_adrs = NULL;
    void *d_adrs = NULL;
+#ifdef __OCCA__
+   occa::memory o_adrs;
+#endif
 } mm2dev_t;
 
 // *****************************************************************************
@@ -73,7 +76,8 @@ public:
 
    // **************************************************************************
    void* Adrs(const void*);
-
+   occa::memory Memory(const void*);
+   
    // **************************************************************************
    void Push(const void*);
 
