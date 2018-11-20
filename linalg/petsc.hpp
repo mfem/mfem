@@ -15,10 +15,15 @@
 #define MFEM_PETSC
 
 #include "../config/config.hpp"
-#include "linalg.hpp"
 
 #ifdef MFEM_USE_PETSC
 #ifdef MFEM_USE_MPI
+
+#include <limits>
+
+#include "handle.hpp"
+#include "hypre.hpp"
+#include "ode.hpp"
 
 #include "petscconf.h"
 #if !defined(PETSC_USE_REAL_DOUBLE)
@@ -53,7 +58,6 @@ typedef struct _p_PC *PC;
 typedef struct _p_SNES *SNES;
 typedef struct _p_TS *TS;
 
-#include <limits>
 
 namespace mfem
 {
