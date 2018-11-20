@@ -37,7 +37,13 @@ void config::cudaDeviceSetup(const int device)
 // *****************************************************************************
 void config::occaDeviceSetup(){
 #ifdef __OCCA__
-   occaDevice.setup("mode: 'Serial'");
+   if (not this->Cuda()){
+      dbg("[occa] Serial");
+      occaDevice.setup("mode: 'Serial'");
+   }else{
+      dbg("[occa] CUDA");
+      occaDevice.setup("mode: 'CUDA', device_id: 0");
+   }
    const std::string pwd = occa::io::dirname(__FILE__) + "../";
    occa::io::addLibraryPath("fem",     pwd + "fem/kernels");
    occa::io::addLibraryPath("general", pwd + "general/kernels");
@@ -53,8 +59,8 @@ void config::occaDeviceSetup(){
 
 // *****************************************************************************
 void config::Setup() {
-   cudaDeviceSetup();
    occaDeviceSetup();
+   cudaDeviceSetup();
 }
 
 } // namespace mfem

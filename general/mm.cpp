@@ -96,24 +96,14 @@ void* mm::Adrs(const void *adrs)
    // If it hasn't been seen, alloc it in the device
    if (not mm2dev.d_adrs)
    {
-      if (not nvcc and not occa)
+      if (not nvcc)
       {
          mfem_error("[ERROR] Trying to run without CUDA support!");
       }
       const size_t bytes = mm2dev.bytes;
-      if (cuda){
-         if (bytes>0) { okMemAlloc(&mm2dev.d_adrs, bytes); }
-         void *stream = config::Get().Stream();
-         okMemcpyHtoDAsync(mm2dev.d_adrs, mm2dev.h_adrs, bytes, stream);
-      }
-      if (occa){
-         dbg("sz %ld", mm2dev.bytes/sizeof(double));
-         OCCAdevice device = config::Get().OccaDevice();
-         occa::memory mem = device.malloc(bytes);
-         assert(mem.ptr());
-         mm2dev.d_adrs = mem.ptr();
-         mem.copyFrom(mm2dev.h_adrs);
-      }
+      if (bytes>0) { okMemAlloc(&mm2dev.d_adrs, bytes); }
+      void *stream = config::Get().Stream();
+      okMemcpyHtoDAsync(mm2dev.d_adrs, mm2dev.h_adrs, bytes, stream);
       mm2dev.host = false; // This address is no more on the host
    }
    return mm2dev.d_adrs;
@@ -125,18 +115,16 @@ occa::memory mm::Memory(const void *adrs)
    const bool present = Known(adrs);
    if (not present) { MFEM_SIGSEGV_FOR_STACK; }
    MFEM_ASSERT(present, "[ERROR] Trying to convert unknown address!");
-   const bool occa = config::Get().Occa();
-   assert(occa);
+   MFEM_ASSERT(config::Get().Occa(), "[ERROR] Trying to get OCCA memory!");
    mm2dev_t &mm2dev = mng->operator[](adrs);
    if (not mm2dev.d_adrs){
       const size_t bytes = mm2dev.bytes;
       OCCAdevice device = config::Get().OccaDevice();
       mm2dev.o_adrs = device.malloc(bytes);
       mm2dev.d_adrs = mm2dev.o_adrs.ptr();
-      assert(mm2dev.d_adrs);
       dbg("sz %ld", mm2dev.bytes/sizeof(double));
       mm2dev.o_adrs.copyFrom(mm2dev.h_adrs);
-      mm2dev.host = false; // This address is still on the host
+      mm2dev.host = false; // This address is no more on the host
    }
    return mm2dev.o_adrs;
 }

@@ -18,18 +18,19 @@
                         @restrict const double * quadWeights,
                         @restrict const double * J,
                         const double COEFF,
-                        @restrict double * oper) {  
-  const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D;
-  for (int e = 0; e < numElements; ++e; @outer) {
-    for (int q = 0; q < NUM_QUAD; ++q; @inner) {
-      const double J11 = J[ijklNM(0,0,q,e,2,NUM_QUAD)];
-      const double J12 = J[ijklNM(1,0,q,e,2,NUM_QUAD)];
-      const double J21 = J[ijklNM(0,1,q,e,2,NUM_QUAD)];
-      const double J22 = J[ijklNM(1,1,q,e,2,NUM_QUAD)];
-      const double c_detJ = quadWeights[q] * COEFF / ((J11*J22)-(J21*J12));
-      oper[ijkNM(0,q,e,3,NUM_QUAD)] =  c_detJ * (J21*J21 + J22*J22);
-      oper[ijkNM(1,q,e,3,NUM_QUAD)] = -c_detJ * (J21*J11 + J22*J12);
-      oper[ijkNM(2,q,e,3,NUM_QUAD)] =  c_detJ * (J11*J11 + J12*J12);
-    }
-  }
+                        @restrict double * oper) {
+   const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D;
+   for (int e = 0; e < numElements; ++e; @outer) {
+      for (int q = 0; q < NUM_QUAD; ++q; @inner) {
+         const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D;
+         const double J11 = J[ijklNM(0,0,q,e,2,NUM_QUAD)];
+         const double J12 = J[ijklNM(1,0,q,e,2,NUM_QUAD)];
+         const double J21 = J[ijklNM(0,1,q,e,2,NUM_QUAD)];
+         const double J22 = J[ijklNM(1,1,q,e,2,NUM_QUAD)];
+         const double c_detJ = quadWeights[q] * COEFF / ((J11*J22)-(J21*J12));
+         oper[ijkNM(0,q,e,3,NUM_QUAD)] =  c_detJ * (J21*J21 + J22*J22);
+         oper[ijkNM(1,q,e,3,NUM_QUAD)] = -c_detJ * (J21*J11 + J22*J12);
+         oper[ijkNM(2,q,e,3,NUM_QUAD)] =  c_detJ * (J11*J11 + J12*J12);
+      }
+   }
 }
