@@ -290,6 +290,7 @@ int main (int argc, char *argv[])
    int max_lin_iter      = 100;
    bool move_bnd         = true;
    bool combomet         = 0;
+   bool normalization    = false;
    bool visualization    = true;
    int verbosity_level   = 0;
 
@@ -352,6 +353,9 @@ int main (int argc, char *argv[])
                   "Enable motion along horizontal and vertical boundaries.");
    args.AddOption(&combomet, "-cmb", "--combo-met", "-no-cmb", "--no-combo-met",
                   "Combination of metrics.");
+   args.AddOption(&normalization, "-nor", "--normalization", "-no-nor",
+                  "--no-normalization",
+                  "Make all terms in the optimization functional unitless.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -409,9 +413,12 @@ int main (int argc, char *argv[])
 
    // 8. Define a vector representing the minimal local mesh size in the mesh
    //    nodes. We index the nodes using the scalar version of the degrees of
-   //    freedom in pfespace.
+   //    freedom in pfespace. Note: this is partition-dependent.
+   //
+   //    In addition, compute average mesh size and total volume.
    Vector h0(pfespace->GetNDofs());
    h0 = infinity();
+   double vol_loc = 0.0;
    Array<int> dofs;
    for (int i = 0; i < pmesh->GetNE(); i++)
    {
@@ -422,7 +429,12 @@ int main (int argc, char *argv[])
       {
          h0(dofs[j]) = min(h0(dofs[j]), pmesh->GetElementSize(i));
       }
+      vol_loc += pmesh->GetElementVolume(i);
    }
+   double volume;
+   MPI_Allreduce(&vol_loc, &volume, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+   const double small_phys_size = pow(volume, 1.0 / dim) / 100.0,
+                avg_volume = volume / pmesh->GetGlobalNE();
 
    // 9. Add a random perturbation to the nodes in the interior of the domain.
    //    We define a random grid function of fespace and make sure that it is
@@ -498,11 +510,15 @@ int main (int argc, char *argv[])
          return 3;
    }
    TargetConstructor::TargetType target_t;
+   bool volumetric_target = false;
    switch (target_id)
    {
-      case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
-      case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
-      case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
+      case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
+         volumetric_target = false; break;
+      case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE;
+         volumetric_target = true; break;
+      case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
+         volumetric_target = true; break;
       default:
          if (myid == 0) { cout << "Unknown target_id: " << target_id << endl; }
          return 3;
@@ -530,6 +546,11 @@ int main (int argc, char *argv[])
    he_nlf_integ->SetIntegrationRule(*ir);
 
    // 14. Limit the node movement.
+   if (normalization)
+   {
+      lim_const /= (pmesh->GetGlobalNE() * small_phys_size * small_phys_size);
+      if (volumetric_target) { lim_const /= avg_volume; }
+   }
    ConstantCoefficient lim_coeff(lim_const);
    if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, lim_coeff); }
 
@@ -540,18 +561,22 @@ int main (int argc, char *argv[])
    //     no command-line options for the weights and the type of the second
    //     metric; one should update those in the code.
    ParNonlinearForm a(pfespace);
-   Coefficient *coeff1 = NULL;
+   ConstantCoefficient *coeff1 = NULL;
    TMOP_QualityMetric *metric2 = NULL;
    TargetConstructor *target_c2 = NULL;
    FunctionCoefficient coeff2(weight_fun);
 
    if (combomet)
    {
-      // Weight of the original metric.
+      // TODO normalization of combinations.
+      if (normalization) { MFEM_ABORT("Not implemented"); }
+
+      // First metric.
       coeff1 = new ConstantCoefficient(1.0);
       he_nlf_integ->SetCoefficient(*coeff1);
       a.AddDomainIntegrator(he_nlf_integ);
 
+      // Second metric.
       metric2 = new TMOP_Metric_077;
       target_c2 = new TargetConstructor(
          TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE, MPI_COMM_WORLD);
@@ -565,9 +590,21 @@ int main (int argc, char *argv[])
       he_nlf_integ2->SetCoefficient(coeff2);
       a.AddDomainIntegrator(he_nlf_integ2);
    }
-   else { a.AddDomainIntegrator(he_nlf_integ); }
-   const double init_en = a.GetParGridFunctionEnergy(x);
-   if (myid == 0) { cout << "Initial strain energy: " << init_en << endl; }
+   else
+   {
+      a.AddDomainIntegrator(he_nlf_integ);
+      if (normalization)
+      {
+         const double init_energy = a.GetParGridFunctionEnergy(x);
+         coeff1 = new ConstantCoefficient;
+         coeff1->constant = (init_energy > 0) ? 1.0 / init_energy : 1.0;
+         he_nlf_integ->SetCoefficient(*coeff1);
+      }
+   }
+
+   const double init_energy = a.GetParGridFunctionEnergy(x);
+   if (myid == 0) { cout << "Initial strain energy: " << init_energy << endl; }
+
 
    // 16. Visualize the starting mesh and metric values.
    if (visualization)
@@ -727,12 +764,21 @@ int main (int argc, char *argv[])
    }
 
    // 22. Compute the amount of energy decrease.
-   const double fin_en = a.GetParGridFunctionEnergy(x);
-   if (myid == 0)
+   const double fin_energy = a.GetParGridFunctionEnergy(x);
+   double metric_part = fin_energy;
+   if (lim_const != 0.0)
    {
-      cout << "Final strain energy : " << fin_en << endl;
+      lim_coeff.constant = 0.0;
+      metric_part = a.GetParGridFunctionEnergy(x);
+   }
+   if (myid == 0 && verbosity_level >= 1)
+   {
+      cout << "Initial strain energy: " << init_energy << endl;
+      cout << "Final strain energy : " << fin_energy
+           << " metrics: " << metric_part
+           << " liming term: " << fin_energy - metric_part << endl;
       cout << "The strain energy decreased by: " << setprecision(12)
-           << (init_en - fin_en) * 100.0 / init_en << " %." << endl;
+           << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
    }
 
    // 23. Visualize the final mesh and metric values.
