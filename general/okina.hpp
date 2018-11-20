@@ -27,8 +27,10 @@
 // *****************************************************************************
 #ifdef __OCCA__
 #include <occa.hpp>
-//#include <occa/mode/cuda/utils.hpp>
-#endif
+#ifdef __NVCC__
+#include <occa/mode/cuda/utils.hpp>
+#endif // __NVCC__
+#endif // __OCCA__
 
 // *****************************************************************************
 #include <cmath>

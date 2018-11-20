@@ -24,7 +24,7 @@ void config::cudaDeviceSetup(const int device)
    cudaGetDeviceCount(&gpu_count);
    assert(gpu_count>0);
    cuInit(0);
-   dev = device; // findCudaDevice(argc, (const char **)argv);
+   dev = device;
    cuDeviceGet(&cuDevice,dev);
    cuCtxCreate(&cuContext, CU_CTX_SCHED_AUTO, cuDevice);
    cuStream = new CUstream;
@@ -36,14 +36,16 @@ void config::cudaDeviceSetup(const int device)
 // * Setting device, paths & kernels
 // *****************************************************************************
 void config::occaDeviceSetup(){
+#warning Should be done later, once the mode is set
 #ifdef __OCCA__
-   if (not this->Cuda()){
-      dbg("[occa] Serial");
-      occaDevice.setup("mode: 'Serial'");
-   }else{
-      dbg("[occa] CUDA");
-      occaDevice.setup("mode: 'CUDA', device_id: 0");
-   }
+#ifdef __NVCC__
+   dbg("[occa] CUDA");
+   //occaDevice.setup("mode: 'CUDA', device_id: 0");
+   occaDevice = occa::cuda::wrapDevice(cuDevice, cuContext);
+#else
+   dbg("[occa] Serial");
+   occaDevice.setup("mode: 'Serial'");
+#endif
    const std::string pwd = occa::io::dirname(__FILE__) + "../";
    occa::io::addLibraryPath("fem",     pwd + "fem/kernels");
    occa::io::addLibraryPath("general", pwd + "general/kernels");
@@ -59,8 +61,8 @@ void config::occaDeviceSetup(){
 
 // *****************************************************************************
 void config::Setup() {
-   occaDeviceSetup();
    cudaDeviceSetup();
+   occaDeviceSetup();
 }
 
 } // namespace mfem

@@ -117,14 +117,21 @@ occa::memory mm::Memory(const void *adrs)
    MFEM_ASSERT(present, "[ERROR] Trying to convert unknown address!");
    MFEM_ASSERT(config::Get().Occa(), "[ERROR] Trying to get OCCA memory!");
    mm2dev_t &mm2dev = mng->operator[](adrs);
+   const size_t bytes = mm2dev.bytes;
+   OCCAdevice device = config::Get().OccaDevice();
    if (not mm2dev.d_adrs){
-      const size_t bytes = mm2dev.bytes;
-      OCCAdevice device = config::Get().OccaDevice();
       mm2dev.o_adrs = device.malloc(bytes);
       mm2dev.d_adrs = mm2dev.o_adrs.ptr();
-      dbg("sz %ld", mm2dev.bytes/sizeof(double));
+      dbg("\033[33msz %ld", mm2dev.bytes/sizeof(double));
       mm2dev.o_adrs.copyFrom(mm2dev.h_adrs);
       mm2dev.host = false; // This address is no more on the host
+   }else{
+      dbg("\033[31msz %ld", mm2dev.bytes/sizeof(double));
+#ifdef __NVCC__
+      mm2dev.o_adrs = occa::cuda::wrapMemory(device, mm2dev.d_adrs, bytes);
+#else
+      MFEM_ASSERT(false, "[ERROR] Should not be there!");
+#endif
    }
    return mm2dev.o_adrs;
 }
