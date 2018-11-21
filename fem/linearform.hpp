@@ -79,7 +79,7 @@ public:
    /** The associated FiniteElementSpace can be set later using one of the
        methods: Update(FiniteElementSpace *) or
        Update(FiniteElementSpace *, Vector &, int). */
-   LinearForm() { fes = NULL; }
+   LinearForm() { fes = NULL; extern_lfs = 0; }
 
    /// Copy assignment. Only the data of the base class Vector is copied.
    /** It is assumed that this object and @a rhs use FiniteElementSpace%s that
