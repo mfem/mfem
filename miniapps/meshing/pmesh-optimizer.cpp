@@ -546,13 +546,15 @@ int main (int argc, char *argv[])
    he_nlf_integ->SetIntegrationRule(*ir);
 
    // 14. Limit the node movement.
+   ParGridFunction dist(pfespace);
+   dist = small_phys_size;
    if (normalization)
    {
-      lim_const /= (pmesh->GetGlobalNE() * small_phys_size * small_phys_size);
+      lim_const /= pmesh->GetGlobalNE();
       if (volumetric_target) { lim_const /= avg_volume; }
    }
    ConstantCoefficient lim_coeff(lim_const);
-   if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, lim_coeff); }
+   if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
 
    // 15. Setup the final NonlinearForm (which defines the integral of interest,
    //     its first and second derivatives). Here we can use a combination of
