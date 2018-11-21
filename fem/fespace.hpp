@@ -88,6 +88,7 @@ protected:
    int *fdofs, *bdofs;
 
    mutable Table *elem_dof; // if NURBS FE space, not owned; otherwise, owned.
+   mutable Table *elem_fos; // face orientations by element index
    Table *bdrElem_dof; // used only with NURBS FE spaces; not owned.
 
    Array<int> dof_elem_array, dof_ldof_array;
@@ -323,8 +324,6 @@ public:
    int GetAttribute(int i) const { return mesh->GetAttribute(i); }
 
    int GetBdrAttribute(int i) const { return mesh->GetBdrAttribute(i); }
-
-   // DofTransformation * GetDofTransformation(int i) const;
 
    /// Returns indexes of degrees of freedom in array dofs for i'th element.
    virtual DofTransformation * GetElementDofs(int i, Array<int> &dofs) const;

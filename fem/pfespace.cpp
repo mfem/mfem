@@ -417,10 +417,17 @@ void ParFiniteElementSpace::ApplyLDofSigns(Table &el_dof) const
 DofTransformation *
 ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs) const
 {
-   if (elem_dof && false)
+   if (elem_dof)
    {
       elem_dof->GetRow(i, dofs);
-      return NULL; //FiniteElementSpace::GetDofTransformation(i);
+
+      if (DoFTrans[pmesh->GetElementBaseGeometry(i)])
+      {
+         Array<int> Fo;
+         elem_fos -> GetRow (i, Fo);
+         DoFTrans[pmesh->GetElementBaseGeometry(i)]->SetFaceOrientations(Fo);
+      }
+      return DoFTrans[pmesh->GetElementBaseGeometry(i)];
    }
    DofTransformation * doftrans = FiniteElementSpace::GetElementDofs(i, dofs);
    if (Conforming())

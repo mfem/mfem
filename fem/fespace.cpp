@@ -59,7 +59,7 @@ FiniteElementSpace::FiniteElementSpace()
    : mesh(NULL), fec(NULL), vdim(0), ordering(Ordering::byNODES),
      ndofs(0), nvdofs(0), nedofs(0), nfdofs(0), nbdofs(0),
      fdofs(NULL), bdofs(NULL),
-     elem_dof(NULL), bdrElem_dof(NULL),
+     elem_dof(NULL), elem_fos(NULL), bdrElem_dof(NULL),
      NURBSext(NULL), own_ext(false),
      DoFTrans(0),
      VDoFTrans(vdim, ordering),
@@ -228,27 +228,41 @@ void FiniteElementSpace::BuildElementToDofTable() const
    if (elem_dof) { return; }
 
    Table *el_dof = new Table;
+   Table *el_fos = new Table;
    Array<int> dofs;
+   Array<int> F, Fo;
    el_dof -> MakeI (mesh -> GetNE());
+   el_fos -> MakeI (mesh -> GetNE());
    for (int i = 0; i < mesh -> GetNE(); i++)
    {
       GetElementDofs (i, dofs);
       el_dof -> AddColumnsInRow (i, dofs.Size());
+
+      mesh->GetElementFaces(i, F, Fo);
+      el_fos -> AddColumnsInRow (i, Fo.Size());
    }
    el_dof -> MakeJ();
+   el_fos -> MakeJ();
    for (int i = 0; i < mesh -> GetNE(); i++)
    {
       GetElementDofs (i, dofs);
       el_dof -> AddConnections (i, (int *)dofs, dofs.Size());
+
+      mesh->GetElementFaces(i, F, Fo);
+      el_fos -> AddConnections (i, (int *)Fo, Fo.Size());
    }
    el_dof -> ShiftUpI();
+   el_fos -> ShiftUpI();
    elem_dof = el_dof;
+   elem_fos = el_fos;
 }
 
 void FiniteElementSpace::RebuildElementToDofTable()
 {
    delete elem_dof;
+   delete elem_fos;
    elem_dof = NULL;
+   elem_fos = NULL;
    BuildElementToDofTable();
 }
 
@@ -1166,6 +1180,7 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
    this->ordering = (Ordering::Type) ordering;
 
    elem_dof = NULL;
+   elem_fos = NULL;
    sequence = mesh->GetSequence();
    Th.SetType(Operator::ANY_TYPE);
 
@@ -1252,6 +1267,7 @@ void FiniteElementSpace::Construct()
    MFEM_ASSERT(!NURBSext, "internal error");
 
    elem_dof = NULL;
+   elem_fos = NULL;
    bdrElem_dof = NULL;
 
    nvdofs = mesh->GetNV() * fec->DofForGeometry(Geometry::POINT);
@@ -1320,9 +1336,16 @@ void FiniteElementSpace::Construct()
 DofTransformation *
 FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
 {
-   if (elem_dof && false)
+   if (elem_dof)
    {
       elem_dof -> GetRow (i, dofs);
+
+      if (DoFTrans[mesh->GetElementBaseGeometry(i)])
+      {
+         Array<int> Fo;
+         elem_fos -> GetRow (i, Fo);
+         DoFTrans[mesh->GetElementBaseGeometry(i)]->SetFaceOrientations(Fo);
+      }
    }
    else
    {
@@ -1351,16 +1374,11 @@ FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
             for (k = 0; k < F.Size(); k++)
             {
                nfd += fec->DofForGeometry(mesh->GetFaceBaseGeometry(F[k]));
-               // cout << "elem " << i << ", local face " << k << ", orientation " << Fo[k] << endl;
             }
-            if ( DoFTrans[mesh->GetElementBaseGeometry(i)])
+            if (DoFTrans[mesh->GetElementBaseGeometry(i)])
             {
-               ND_TetDofTransformation * nd_doftrans = dynamic_cast<ND_TetDofTransformation *>
-                                                       (DoFTrans[mesh->GetElementBaseGeometry(i)]);
-               if ( nd_doftrans )
-               {
-                  nd_doftrans->SetFaceOrientations(Fo);
-               }
+               DoFTrans[mesh->GetElementBaseGeometry(i)]
+               -> SetFaceOrientations(Fo);
             }
          }
       }
@@ -1754,6 +1772,7 @@ void FiniteElementSpace::Destroy()
    else
    {
       delete elem_dof;
+      delete elem_fos;
       delete bdrElem_dof;
 
       delete [] bdofs;
