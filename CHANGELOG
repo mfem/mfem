@@ -53,7 +53,6 @@ Other meshing improvements
   space-dependent limiting terms. Improved the TMOP objective functions by
   more accurate normalization of the different terms.
   
-=======
 Discretization improvements
 ---------------------------
 - Added element flux, and flux energy computation in class ElasticityIntegrator,
