@@ -16,52 +16,21 @@
 namespace mfem
 {
 
-LinearForm::LinearForm (FiniteElementSpace * f, LinearForm *lf)
-   : Vector(f -> GetVSize())
+LinearForm::LinearForm(FiniteElementSpace *f, LinearForm *lf)
+   : Vector(f->GetVSize())
 {
-   int i;
-   Array<LinearFormIntegrator*> *lfi;
-   Array<DeltaLFIntegrator*> *lfi_delta;
-   Array<Array<int>*> *mkr;
-
    fes = f;
    extern_lfs = 1;
 
-   lfi = lf->GetDLFI();
-   dlfi.SetSize (lfi->Size());
-   for (i = 0; i < lfi->Size(); i++)
-   {
-      dlfi[i] = (*lfi)[i];
-   }
+   // Copy the pointers to the integrators
+   dlfi = lf->dlfi;
 
-   lfi_delta = lf->GetDLFI_Delta();
-   dlfi_delta.SetSize (lfi_delta->Size());
-   for (i = 0; i < lfi_delta->Size(); i++)
-   {
-      dlfi_delta[i] = (*lfi_delta)[i];
-   }
+   dlfi_delta = lf->dlfi_delta;
 
-   lfi = lf->GetBLFI();
-   blfi.SetSize (lfi->Size());
-   for (i = 0; i < lfi->Size(); i++)
-   {
-      blfi[i] = (*lfi)[i];
-   }
+   blfi = lf->blfi;
 
-   lfi = lf->GetFLFI();
-   flfi.SetSize (lfi->Size());
-   flfi_marker.SetSize(lfi->Size());
-   for (i = 0; i < lfi->Size(); i++)
-   {
-      flfi[i] = (*lfi)[i];
-      flfi_marker[i] = NULL;
-   }
-
-   mkr = lf->GetFLFI_Marker();
-   for (i=0; i<mkr->Size(); i++)
-   {
-      flfi_marker[i] = (*mkr)[i];
-   }
+   flfi = lf->flfi;
+   flfi_marker = lf->flfi_marker;
 }
 
 void LinearForm::AddDomainIntegrator(LinearFormIntegrator *lfi)
