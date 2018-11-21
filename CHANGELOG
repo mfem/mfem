@@ -50,7 +50,8 @@ Other meshing improvements
   Cubit meshes.
 
 - The TMOP mesh optimization algorithms were extended to support user-defined
-  limiting terms.
+  space-dependent limiting terms. Improved the TMOP objective functions by
+  more accurate normalization of the different terms.
 
 New and updated examples and miniapps
 -------------------------------------
