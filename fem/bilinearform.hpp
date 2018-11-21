@@ -42,7 +42,8 @@ protected:
    /// BilinearForm.
    long sequence;
 
-   /// Indicates the BilinerFormIntegrators are owned by another BilinearForm
+   /** @brief Indicates the BilinearFormIntegrator%s stored in #dbfi, #bbfi,
+       #fbfi, and #bfbfi are owned by another BilinearForm. */
    int extern_bfs;
 
    /// Set of Domain Integrators to be applied.
@@ -50,14 +51,14 @@ protected:
 
    /// Set of Boundary Integrators to be applied.
    Array<BilinearFormIntegrator*> bbfi;
-   Array<Array<int>*>             bbfi_marker; ///< Now owned.
+   Array<Array<int>*>             bbfi_marker; ///< Entries are not owned.
 
    /// Set of interior face Integrators to be applied.
    Array<BilinearFormIntegrator*> fbfi;
 
    /// Set of boundary face Integrators to be applied.
    Array<BilinearFormIntegrator*> bfbfi;
-   Array<Array<int>*>             bfbfi_marker; ///< Not owned.
+   Array<Array<int>*>             bfbfi_marker; ///< Entries are not owned.
 
    DenseMatrix elemmat;
    Array<int>  vdofs;
@@ -90,12 +91,22 @@ protected:
       diag_policy = DIAG_KEEP;
    }
 
+private:
+   /// Copy construction is not supported; body is undefined.
+   BilinearForm(const BilinearForm &);
+
+   /// Copy assignment is not supported; body is undefined.
+   BilinearForm &operator=(const BilinearForm &);
+
 public:
    /// Creates bilinear form associated with FE space @a *f.
+   /** The pointer @a f is not owned by the newly constructed object. */
    BilinearForm(FiniteElementSpace *f);
 
    /** @brief Create a BilinearForm on the FiniteElementSpace @a f, using the
        same integrators as the BilinearForm @a bf.
+
+       The pointer @a f is not owned by the newly constructed object.
 
        The integrators in @a bf are copied as pointers and they are not owned by
        the newly constructed BilinearForm.
@@ -422,10 +433,11 @@ class MixedBilinearForm : public Matrix
 protected:
    SparseMatrix *mat; ///< Owned.
 
-   /// Not owned.
-   FiniteElementSpace *trial_fes, *test_fes;
+   FiniteElementSpace *trial_fes, ///< Not owned
+                      *test_fes;  ///< Not owned
 
-   /// Indicates the BilinerFormIntegrators are owned by another BilinearForm
+   /** @brief Indicates the BilinearFormIntegrator%s stored in #dom, #bdr, and
+       #skt are owned by another MixedBilinearForm. */
    int extern_bfs;
 
    /// Domain integrators.
@@ -435,15 +447,27 @@ protected:
    /// Trace face (skeleton) integrators.
    Array<BilinearFormIntegrator*> skt;
 
+private:
+   /// Copy construction is not supported; body is undefined.
+   MixedBilinearForm(const MixedBilinearForm &);
+
+   /// Copy assignment is not supported; body is undefined.
+   MixedBilinearForm &operator=(const MixedBilinearForm &);
+
 public:
    /** @brief Construct a MixedBilinearForm on the given trial, @a tr_fes, and
        test, @a te_fes, FiniteElementSpace%s. */
+   /** The pointers @a tr_fes and @a te_fes are not owned by the newly
+       constructed object. */
    MixedBilinearForm(FiniteElementSpace *tr_fes,
                      FiniteElementSpace *te_fes);
 
    /** @brief Create a MixedBilinearForm on the given trial, @a tr_fes, and
        test, @a te_fes, FiniteElementSpace%s, using the same integrators as the
        MixedBilinearForm @a mbf.
+
+       The pointers @a tr_fes and @a te_fes are not owned by the newly
+       constructed object.
 
        The integrators in @a mbf are copied as pointers and they are not owned
        by the newly constructed MixedBilinearForm. */
@@ -558,19 +582,35 @@ public:
 */
 class DiscreteLinearOperator : public MixedBilinearForm
 {
+private:
+   /// Copy construction is not supported; body is undefined.
+   DiscreteLinearOperator(const DiscreteLinearOperator &);
+
+   /// Copy assignment is not supported; body is undefined.
+   DiscreteLinearOperator &operator=(const DiscreteLinearOperator &);
+
 public:
+   /** @brief Construct a DiscreteLinearOperator on the given
+       FiniteElementSpace%s @a domain_fes and @a range_fes. */
+   /** The pointers @a domain_fes and @a range_fes are not owned by the newly
+       constructed object. */
    DiscreteLinearOperator(FiniteElementSpace *domain_fes,
                           FiniteElementSpace *range_fes)
       : MixedBilinearForm(domain_fes, range_fes) { }
 
+   /// Adds a domain interpolator. Assumes ownership of @a di.
    void AddDomainInterpolator(DiscreteInterpolator *di)
    { AddDomainIntegrator(di); }
 
+   /// Adds a trace face interpolator. Assumes ownership of @a di.
    void AddTraceFaceInterpolator(DiscreteInterpolator *di)
    { AddTraceFaceIntegrator(di); }
 
+   /// Access all interpolators added with AddDomainInterpolator().
    Array<BilinearFormIntegrator*> *GetDI() { return &dom; }
 
+   /** @brief Construct the internal matrix representation of the discrete
+       linear operator. */
    virtual void Assemble(int skip_zeros = 1);
 };
 
