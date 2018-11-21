@@ -26,8 +26,8 @@ protected:
    /// FE space on which the LinearForm lives. Not owned.
    FiniteElementSpace *fes;
 
-   /** Indicates the LinerFormIntegrator%s stored in #dlfi, #dlfi_delta, #blfi,
-       and #flfi are owned by another LinearForm. */
+   /** @brief Indicates the LinerFormIntegrator%s stored in #dlfi, #dlfi_delta,
+       #blfi, and #flfi are owned by another LinearForm. */
    int extern_lfs;
 
    /// Set of Domain Integrators to be applied.
@@ -124,12 +124,12 @@ public:
    void AddBdrFaceIntegrator(LinearFormIntegrator *lfi,
                              Array<int> &bdr_attr_marker);
 
-   /** Access all integrators added with AddDomainIntegrator() which are not
-       DeltaLFIntegrator%s or they are DeltaLFIntegrator%s with non-delta
+   /** @brief Access all integrators added with AddDomainIntegrator() which are
+       not DeltaLFIntegrator%s or they are DeltaLFIntegrator%s with non-delta
        coefficients. */
    Array<LinearFormIntegrator*> *GetDLFI() { return &dlfi; }
 
-   /** Access all integrators added with AddDomainIntegrator() which are
+   /** @brief Access all integrators added with AddDomainIntegrator() which are
        DeltaLFIntegrator%s with delta coefficients. */
    Array<DeltaLFIntegrator*> *GetDLFI_Delta() { return &dlfi_delta; }
 
