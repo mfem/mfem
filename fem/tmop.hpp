@@ -398,8 +398,9 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/** @brief Defines a scalar function f(x, xo) that is used in the limiting term
-    of a TMOP_Integrator, where x and x0 are positions in physical space. */
+/** @brief Defines a scalar function f(x - x0, d) that is used in the limiting
+    term of a TMOP_Integrator, where x and x0 are positions in physical space,
+    and d is physical distance.  */
 class TMOP_LimiterFunction
 {
 protected:
@@ -409,17 +410,17 @@ public:
    TMOP_LimiterFunction(int space_dim) : dim(space_dim) { }
 
    /** Returns f(x, x0). Assumes x and x0 have Size = space_dimension. */
-   virtual double Eval(const Vector &x, const Vector &x0) const = 0;
+   virtual double Eval(const Vector &x, const Vector &x0, double d) const = 0;
 
    /** Returns grad of f(x, x0) with respect to x.
        Assumes that x and x0 have Size = space dimension. */
-   virtual void Eval_d1(const Vector &x, const Vector &x0,
+   virtual void Eval_d1(const Vector &x, const Vector &x0, double dist,
                         Vector &d1) const
    { MFEM_ABORT("1st derivative of the limiting function isn't implemented."); }
 
    /** Returns grad(grad) of f(x, x0) with respect to x.
        Assumes that x and x0 have Size = space dimension. */
-   virtual void Eval_d2(const Vector &x, const Vector &x0,
+   virtual void Eval_d2(const Vector &x, const Vector &x0, double dist,
                         DenseMatrix &d2) const
    { MFEM_ABORT("2nd derivative of the limiting function isn't implemented."); }
 };
@@ -430,29 +431,31 @@ class TMOP_QuadraticLimiter : public TMOP_LimiterFunction
 public:
    TMOP_QuadraticLimiter(int space_dim) : TMOP_LimiterFunction(space_dim) { }
 
-   virtual double Eval(const Vector &x, const Vector &x0) const
+   virtual double Eval(const Vector &x, const Vector &x0, double dist) const
    {
       MFEM_ASSERT(x.Size() == dim && x0.Size() == dim, "Bad input.");
 
-      return 0.5 * x.DistanceSquaredTo(x0);
+      return 0.5 * x.DistanceSquaredTo(x0) / (dist * dist);
    }
 
-   virtual void Eval_d1(const Vector &x, const Vector &x0, Vector &d1) const
+   virtual void Eval_d1(const Vector &x, const Vector &x0, double dist,
+                        Vector &d1) const
    {
       MFEM_ASSERT(x.Size() == dim && x0.Size() == dim, "Bad input.");
 
       d1.SetSize(dim);
       subtract(1.0, x, x0, d1);
+      d1 /= dist * dist;
    }
 
-   virtual void Eval_d2(const Vector &x,
-                        const Vector &x0, DenseMatrix &d2) const
+   virtual void Eval_d2(const Vector &x, const Vector &x0, double dist,
+                        DenseMatrix &d2) const
    {
       MFEM_ASSERT(x.Size() == dim && x0.Size() == dim, "Bad input.");
 
       d2.SetSize(dim, dim);
       d2 = 0.0;
-      for (int d = 0; d < dim; d++) { d2(d, d) = 1.0; }
+      for (int d = 0; d < dim; d++) { d2(d, d) = 1.0 / (dist * dist); }
    }
 };
 
@@ -556,7 +559,7 @@ protected:
    // Nodes and weight Coefficient used for "limiting" the TMOP_Integrator.
    // These are all NULL when there is no limiting.
    // The class doesn't own nodes0 and coeff0. It owns lim_func.
-   const GridFunction *nodes0;
+   const GridFunction *nodes0, *lim_dist;
    Coefficient *coeff0;
    TMOP_LimiterFunction *lim_func;
 
@@ -594,11 +597,12 @@ public:
           @f$ \int w1 W(Jpt) + w0/2 (x - x_0)^2 dx @f$,
        where the second term measures the change with respect to the original
        physical positions, @a n0.
-       @param[in] n0  Original mesh node coordinates.
-       @param[in] w0  Coefficient scaling the limiting term.
-       @param[in] lf  TMOP_LimiterFunction defining the limiting term. */
-   void EnableLimiting(const GridFunction &n0, Coefficient &w0,
-                       TMOP_LimiterFunction *lfunc = NULL);
+       @param[in] n0   Original mesh node coordinates.
+       @param[in] dist Limiting physical distances.
+       @param[in] w0   Coefficient scaling the limiting term.
+       @param[in] lf   TMOP_LimiterFunction defining the limiting term. */
+   void EnableLimiting(const GridFunction &n0, const GridFunction &dist,
+                       Coefficient &w0, TMOP_LimiterFunction *lfunc = NULL);
 
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0) { nodes0 = &n0; }

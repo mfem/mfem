@@ -744,10 +744,12 @@ void TargetConstructor::ComputeElementTargets(int e_id, const FiniteElement &fe,
    }
 }
 
-void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
+void TMOP_Integrator::EnableLimiting(const GridFunction &n0,
+                                     const GridFunction &dist, Coefficient &w0,
                                      TMOP_LimiterFunction *lfunc)
 {
    nodes0 = &n0;
+   lim_dist = &dist;
    coeff0 = &w0;
 
    delete lim_func;
@@ -786,7 +788,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    targetC->ComputeElementTargets(T.ElementNo, el, *ir, Jtr);
 
    // Limited case.
-   Vector shape, p, p0;
+   Vector shape, p, p0, d_vals;
    DenseMatrix pos0;
    if (coeff0)
    {
@@ -798,6 +800,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       Array<int> pos_dofs;
       nodes0->FESpace()->GetElementVDofs(T.ElementNo, pos_dofs);
       nodes0->GetSubVector(pos_dofs, pos0V);
+      lim_dist->GetValues(T.ElementNo, *ir, d_vals);
    }
 
    // Define ref->physical transformation, when a Coefficient is specified.
@@ -831,7 +834,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
          el.CalcShape(ip, shape);
          PMatI.MultTranspose(shape, p);
          pos0.MultTranspose(shape, p0);
-         val += lim_func->Eval(p, p0) * coeff0->Eval(*Tpr, ip);
+         val += lim_func->Eval(p, p0, d_vals(i)) * coeff0->Eval(*Tpr, ip);
       }
       energy += weight * val;
    }
@@ -866,7 +869,7 @@ void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
 
    // Limited case.
    DenseMatrix pos0;
-   Vector shape, p, p0;
+   Vector shape, p, p0, d_vals;
    if (coeff0)
    {
       shape.SetSize(dof);
@@ -877,6 +880,7 @@ void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
       Array<int> pos_dofs;
       nodes0->FESpace()->GetElementVDofs(T.ElementNo, pos_dofs);
       nodes0->GetSubVector(pos_dofs, pos0V);
+      lim_dist->GetValues(T.ElementNo, *ir, d_vals);
    }
 
    // Define ref->physical transformation, when a Coefficient is specified.
@@ -916,7 +920,7 @@ void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
          PMatI.MultTranspose(shape, p);
          pos0.MultTranspose(shape, p0);
          Vector grad;
-         lim_func->Eval_d1(p, p0, grad);
+         lim_func->Eval_d1(p, p0, d_vals(i), grad);
          grad *= weight * coeff0->Eval(*Tpr, ip);
          AddMultVWt(shape, grad, PMatO);
       }
@@ -950,7 +954,7 @@ void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
 
    // Limited case.
    DenseMatrix pos0;
-   Vector shape, p, p0;
+   Vector shape, p, p0, d_vals;
    if (coeff0)
    {
       shape.SetSize(dof);
@@ -961,6 +965,7 @@ void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
       Array<int> pos_dofs;
       nodes0->FESpace()->GetElementVDofs(T.ElementNo, pos_dofs);
       nodes0->GetSubVector(pos_dofs, pos0V);
+      lim_dist->GetValues(T.ElementNo, *ir, d_vals);
    }
 
    // Define ref->physical transformation, when a Coefficient is specified.
@@ -998,7 +1003,7 @@ void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
          pos0.MultTranspose(shape, p0);
          weight_m = weight * coeff0->Eval(*Tpr, ip);
          DenseMatrix grad_grad;
-         lim_func->Eval_d2(p, p0, grad_grad);
+         lim_func->Eval_d2(p, p0, d_vals(i), grad_grad);
          for (int i = 0; i < dof; i++)
          {
             const double w_shape_i = weight_m * shape(i);
