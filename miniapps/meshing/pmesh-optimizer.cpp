@@ -546,6 +546,7 @@ int main (int argc, char *argv[])
    he_nlf_integ->SetIntegrationRule(*ir);
 
    // 14. Limit the node movement.
+   // The limiting distances can be given by a general function of space.
    ParGridFunction dist(pfespace);
    dist = small_phys_size;
    if (normalization)
@@ -568,10 +569,11 @@ int main (int argc, char *argv[])
    TargetConstructor *target_c2 = NULL;
    FunctionCoefficient coeff2(weight_fun);
 
-   if (combomet)
+   if (combomet == 1)
    {
       // TODO normalization of combinations.
-      if (normalization) { MFEM_ABORT("Not implemented"); }
+      // We will probably drop this example and replace it with adaptivity.
+      if (normalization) { MFEM_ABORT("Not implemented."); }
 
       // First metric.
       coeff1 = new ConstantCoefficient(1.0);
