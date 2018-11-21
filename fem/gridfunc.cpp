@@ -915,9 +915,7 @@ double GridFunction::GetDivergence(ElementTransformation &tr) const
                   "invalid FE map type");
       DenseMatrix grad_hat;
       GetVectorGradientHat(tr, grad_hat);
-      const DenseMatrix &J = tr.Jacobian();
-      DenseMatrix Jinv(J.Width(), J.Height());
-      CalcInverse(J, Jinv);
+      const DenseMatrix &Jinv = tr.InverseJacobian();
       div_v = 0.0;
       for (int i = 0; i < Jinv.Width(); i++)
       {
@@ -950,9 +948,7 @@ void GridFunction::GetCurl(ElementTransformation &tr, Vector &curl) const
                   "invalid FE map type");
       DenseMatrix grad_hat;
       GetVectorGradientHat(tr, grad_hat);
-      const DenseMatrix &J = tr.Jacobian();
-      DenseMatrix Jinv(J.Width(), J.Height());
-      CalcInverse(J, Jinv);
+      const DenseMatrix &Jinv = tr.InverseJacobian();
       DenseMatrix grad(grad_hat.Height(), Jinv.Width()); // vdim x FElem->Dim
       Mult(grad_hat, Jinv, grad);
       MFEM_ASSERT(grad.Height() == grad.Width(), "");
@@ -999,7 +995,7 @@ void GridFunction::GetGradient(ElementTransformation &tr, Vector &grad) const
    const FiniteElement *fe = fes->GetFE(elNo);
    MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE, "invalid FE map type");
    int dim = fe->GetDim(), dof = fe->GetDof();
-   DenseMatrix dshape(dof, dim), Jinv(dim);
+   DenseMatrix dshape(dof, dim);
    Vector lval, gh(dim);
    Array<int> dofs;
 
@@ -1008,21 +1004,20 @@ void GridFunction::GetGradient(ElementTransformation &tr, Vector &grad) const
    GetSubVector(dofs, lval);
    fe->CalcDShape(tr.GetIntPoint(), dshape);
    dshape.MultTranspose(lval, gh);
-   CalcInverse(tr.Jacobian(), Jinv);
-   Jinv.MultTranspose(gh, grad);
+   tr.InverseJacobian().MultTranspose(gh, grad);
 }
 
-void GridFunction::GetGradients(const int elem, const IntegrationRule &ir,
+void GridFunction::GetGradients(ElementTransformation &tr,
+                                const IntegrationRule &ir,
                                 DenseMatrix &grad) const
 {
-   const FiniteElement *fe = fes->GetFE(elem);
+   int elNo = tr.ElementNo;
+   const FiniteElement *fe = fes->GetFE(elNo);
    MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE, "invalid FE map type");
-   ElementTransformation *Tr = fes->GetElementTransformation(elem);
    DenseMatrix dshape(fe->GetDof(), fe->GetDim());
-   DenseMatrix Jinv(fe->GetDim());
    Vector lval, gh(fe->GetDim()), gcol;
    Array<int> dofs;
-   fes->GetElementDofs(elem, dofs);
+   fes->GetElementDofs(elNo, dofs);
    GetSubVector(dofs, lval);
    grad.SetSize(fe->GetDim(), ir.GetNPoints());
    for (int i = 0; i < ir.GetNPoints(); i++)
@@ -1030,9 +1025,9 @@ void GridFunction::GetGradients(const int elem, const IntegrationRule &ir,
       const IntegrationPoint &ip = ir.IntPoint(i);
       fe->CalcDShape(ip, dshape);
       dshape.MultTranspose(lval, gh);
-      Tr->SetIntPoint(&ip);
+      tr.SetIntPoint(&ip);
       grad.GetColumnReference(i, gcol);
-      CalcInverse(Tr->Jacobian(), Jinv);
+      const DenseMatrix &Jinv = tr.InverseJacobian();
       Jinv.MultTranspose(gh, gcol);
    }
 }
@@ -1044,9 +1039,7 @@ void GridFunction::GetVectorGradient(
                "invalid FE map type");
    DenseMatrix grad_hat;
    GetVectorGradientHat(tr, grad_hat);
-   const DenseMatrix &J = tr.Jacobian();
-   DenseMatrix Jinv(J.Width(), J.Height());
-   CalcInverse(J, Jinv);
+   const DenseMatrix &Jinv = tr.InverseJacobian();
    grad.SetSize(grad_hat.Height(), Jinv.Width());
    Mult(grad_hat, Jinv, grad);
 }
@@ -1300,13 +1293,15 @@ void GridFunction::AccumulateAndCountZones(VectorCoefficient &vcoeff,
 }
 
 void GridFunction::AccumulateAndCountBdrValues(
-   Coefficient *coeff[], Array<int> &attr, Array<int> &values_counter)
+   Coefficient *coeff[], VectorCoefficient *vcoeff, Array<int> &attr,
+   Array<int> &values_counter)
 {
    int i, j, fdof, d, ind, vdim;
    double val;
    const FiniteElement *fe;
    ElementTransformation *transf;
    Array<int> vdofs;
+   Vector vc;
 
    values_counter.SetSize(Size());
    values_counter = 0;
@@ -1326,11 +1321,12 @@ void GridFunction::AccumulateAndCountBdrValues(
       {
          const IntegrationPoint &ip = ir.IntPoint(j);
          transf->SetIntPoint(&ip);
+         if (vcoeff) { vcoeff->Eval(vc, *transf, ip); }
          for (d = 0; d < vdim; d++)
          {
-            if (!coeff[d]) { continue; }
+            if (!vcoeff && !coeff[d]) { continue; }
 
-            val = coeff[d]->Eval(*transf, ip);
+            val = vcoeff ? vc(d) : coeff[d]->Eval(*transf, ip);
             if ( (ind = vdofs[fdof*d+j]) < 0 )
             {
                val = -val, ind = -1-ind;
@@ -1373,15 +1369,35 @@ void GridFunction::AccumulateAndCountBdrValues(
          transf = mesh->GetEdgeTransformation(edge);
          transf->Attribute = -1; // FIXME: set the boundary attribute
          fe = fes->GetEdgeElement(edge);
-         vals.SetSize(fe->GetDof());
-         for (d = 0; d < vdim; d++)
+         if (!vcoeff)
          {
-            if (!coeff[d]) { continue; }
+            vals.SetSize(fe->GetDof());
+            for (d = 0; d < vdim; d++)
+            {
+               if (!coeff[d]) { continue; }
 
-            fe->Project(*coeff[d], *transf, vals);
+               fe->Project(*coeff[d], *transf, vals);
+               for (int k = 0; k < vals.Size(); k++)
+               {
+                  ind = vdofs[d*vals.Size()+k];
+                  if (++values_counter[ind] == 1)
+                  {
+                     (*this)(ind) = vals(k);
+                  }
+                  else
+                  {
+                     (*this)(ind) += vals(k);
+                  }
+               }
+            }
+         }
+         else // vcoeff != NULL
+         {
+            vals.SetSize(vdim*fe->GetDof());
+            fe->Project(*vcoeff, *transf, vals);
             for (int k = 0; k < vals.Size(); k++)
             {
-               ind = vdofs[d*vals.Size()+k];
+               ind = vdofs[k];
                if (++values_counter[ind] == 1)
                {
                   (*this)(ind) = vals(k);
@@ -1740,10 +1756,27 @@ void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff,
    ComputeMeans(type, zones_per_vdof);
 }
 
+void GridFunction::ProjectBdrCoefficient(VectorCoefficient &vcoeff,
+                                         Array<int> &attr)
+{
+   Array<int> values_counter;
+   AccumulateAndCountBdrValues(NULL, &vcoeff, attr, values_counter);
+   ComputeMeans(ARITHMETIC, values_counter);
+#ifdef MFEM_DEBUG
+   Array<int> ess_vdofs_marker;
+   fes->GetEssentialVDofs(attr, ess_vdofs_marker);
+   for (int i = 0; i < values_counter.Size(); i++)
+   {
+      MFEM_ASSERT(bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
+                  "internal error");
+   }
+#endif
+}
+
 void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
 {
    Array<int> values_counter;
-   AccumulateAndCountBdrValues(coeff, attr, values_counter);
+   AccumulateAndCountBdrValues(coeff, NULL, attr, values_counter);
    ComputeMeans(ARITHMETIC, values_counter);
 #ifdef MFEM_DEBUG
    Array<int> ess_vdofs_marker;
