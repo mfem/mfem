@@ -412,13 +412,13 @@ public:
    /** Returns f(x, x0). Assumes x and x0 have Size = space_dimension. */
    virtual double Eval(const Vector &x, const Vector &x0, double d) const = 0;
 
-   /** Returns grad of f(x, x0) with respect to x.
+   /** Returns grad of f(x - x0, d) with respect to x.
        Assumes that x and x0 have Size = space dimension. */
    virtual void Eval_d1(const Vector &x, const Vector &x0, double dist,
                         Vector &d1) const
    { MFEM_ABORT("1st derivative of the limiting function isn't implemented."); }
 
-   /** Returns grad(grad) of f(x, x0) with respect to x.
+   /** Returns grad(grad) of f(x - x0, d) with respect to x.
        Assumes that x and x0 have Size = space dimension. */
    virtual void Eval_d2(const Vector &x, const Vector &x0, double dist,
                         DenseMatrix &d2) const
