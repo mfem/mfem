@@ -90,7 +90,11 @@ void BlockVector::Update(const Array<int> &bOffsets, bool force)
             for (int i = 0; true; i++)
             {
                if (blockOffsets[i] != bOffsets[i]) { break; }
-               if (i == numBlocks) { return; }
+               if (i == numBlocks)
+               {
+                  blockOffsets = bOffsets.GetData();
+                  return;
+               }
             }
          }
       }
