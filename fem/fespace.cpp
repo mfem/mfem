@@ -228,31 +228,37 @@ void FiniteElementSpace::BuildElementToDofTable() const
    if (elem_dof) { return; }
 
    Table *el_dof = new Table;
-   Table *el_fos = new Table;
+   Table *el_fos = (mesh->Dimension() > 2) ? (new Table) : NULL;
    Array<int> dofs;
    Array<int> F, Fo;
    el_dof -> MakeI (mesh -> GetNE());
-   el_fos -> MakeI (mesh -> GetNE());
+   if (el_fos) { el_fos -> MakeI (mesh -> GetNE()); }
    for (int i = 0; i < mesh -> GetNE(); i++)
    {
       GetElementDofs (i, dofs);
       el_dof -> AddColumnsInRow (i, dofs.Size());
 
-      mesh->GetElementFaces(i, F, Fo);
-      el_fos -> AddColumnsInRow (i, Fo.Size());
+      if (el_fos)
+      {
+         mesh->GetElementFaces(i, F, Fo);
+         el_fos -> AddColumnsInRow (i, Fo.Size());
+      }
    }
    el_dof -> MakeJ();
-   el_fos -> MakeJ();
+   if (el_fos) { el_fos -> MakeJ(); }
    for (int i = 0; i < mesh -> GetNE(); i++)
    {
       GetElementDofs (i, dofs);
       el_dof -> AddConnections (i, (int *)dofs, dofs.Size());
 
-      mesh->GetElementFaces(i, F, Fo);
-      el_fos -> AddConnections (i, (int *)Fo, Fo.Size());
+      if (el_fos)
+      {
+         mesh->GetElementFaces(i, F, Fo);
+         el_fos -> AddConnections (i, (int *)Fo, Fo.Size());
+      }
    }
    el_dof -> ShiftUpI();
-   el_fos -> ShiftUpI();
+   if (el_fos) { el_fos -> ShiftUpI(); }
    elem_dof = el_dof;
    elem_fos = el_fos;
 }
