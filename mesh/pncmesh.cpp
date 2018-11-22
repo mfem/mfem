@@ -852,13 +852,7 @@ void ParNCMesh::MakeSharedTable(int ngroups, int ent, Array<int> &shared_local,
       int *row = group_shared.GetRow(i);
 
       Array<int> ref_row(row, size);
-      //mfem::out << "Rank " << MyRank << ": ent_glob_order: ";
-      //entity_glob_order[ent].Print(mfem::out, 100);
-      //mfem::out << "Rank " << MyRank << ": before: ";
-      //ref_row.Print(mfem::out, 100);
       ref_row.Sort(CompareShared(entity_glob_order[ent], shared_local));
-      //mfem::out << "Rank " << MyRank << ":  after: ";
-      //ref_row.Print(mfem::out, 100);
    }
 }
 
@@ -2698,6 +2692,9 @@ long ParNCMesh::MemoryUsage(bool with_base) const
           GroupsMemoryUsage() +
           arrays_memory_usage(entity_owner) +
           arrays_memory_usage(entity_pmat_group) +
+          arrays_memory_usage(entity_conf_group) +
+          leaf_glob_order.MemoryUsage() +
+          arrays_memory_usage(entity_glob_order) +
           shared_vertices.MemoryUsage() +
           shared_edges.MemoryUsage() +
           shared_faces.MemoryUsage() +
@@ -2723,6 +2720,9 @@ int ParNCMesh::PrintMemoryDetail(bool with_base) const
    mfem::out << GroupsMemoryUsage() << " groups\n"
              << arrays_memory_usage(entity_owner) << " entity_owner\n"
              << arrays_memory_usage(entity_pmat_group) << " entity_pmat_group\n"
+             << arrays_memory_usage(entity_conf_group) << " entity_conf_group\n"
+             << leaf_glob_order.MemoryUsage() << " leaf_glob_order\n"
+             << arrays_memory_usage(entity_glob_order) << " entity_glob_order\n"
              << shared_vertices.MemoryUsage() << " shared_vertices\n"
              << shared_edges.MemoryUsage() << " shared_edges\n"
              << shared_faces.MemoryUsage() << " shared_faces\n"
