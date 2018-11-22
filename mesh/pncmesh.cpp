@@ -936,9 +936,11 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
    pmesh.shared_quads.SetSize(pmesh.sface_lface.Size());
    for (int i = 0; i < pmesh.shared_quads.Size(); i++)
    {
+      int el_loc = entity_elem_local[2][pmesh.sface_lface[i]];
+      MeshId face_id(-1, leaf_elements[(el_loc >> 4)], (el_loc & 0xf));
+
       int e[4], eo[4];
-      GetFaceVerticesEdges(face_list.LookUp(pmesh.sface_lface[i]),
-                           pmesh.shared_quads[i].v, e, eo);
+      GetFaceVerticesEdges(face_id, pmesh.shared_quads[i].v, e, eo);
    }
 
    // free the arrays, they're not needed anymore (until next mesh update)
