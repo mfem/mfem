@@ -2989,7 +2989,8 @@ void NCMesh::ClearTransforms()
 
 //// Utility ///////////////////////////////////////////////////////////////////
 
-void NCMesh::GetEdgeVertices(const MeshId &edge_id, int vert_index[2]) const
+void NCMesh::GetEdgeVertices(const MeshId &edge_id, int vert_index[2],
+                             bool oriented) const
 {
    const Element &el = elements[edge_id.element];
    const GeomInfo& gi = GI[(int) el.geom];
@@ -3001,7 +3002,7 @@ void NCMesh::GetEdgeVertices(const MeshId &edge_id, int vert_index[2]) const
    vert_index[0] = nodes[n0].vert_index;
    vert_index[1] = nodes[n1].vert_index;
 
-   if (vert_index[0] > vert_index[1])
+   if (oriented && vert_index[0] > vert_index[1])
    {
       std::swap(vert_index[0], vert_index[1]);
    }

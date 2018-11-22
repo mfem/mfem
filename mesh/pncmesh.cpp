@@ -93,8 +93,7 @@ void ParNCMesh::AssignLeafIndices()
 {
    // This is an override of NCMesh::AssignLeafIndices(). The difference is
    // that we shift all elements we own to the beginning of the array
-   // 'leaf_elements' and assign all ghost elements indices >= NElements. This
-   // will make the ghosts skipped in NCMesh::GetMeshComponents.
+   // 'leaf_elements' and assign all ghost elements indices >= NElements.
 
    // Also note that the ordering of ghosts and non-ghosts is preserved here,
    // which is important for ParNCMesh::GetFaceNeighbors.
@@ -245,10 +244,12 @@ void ParNCMesh::ElementSharesFace(int elem, int local, int face)
 
    entity_index_rank[2].Append(Connection(f_index, el.rank));
 
-   // derive global face ordering from the global element sequence
-   int &fo = entity_glob_order[2][f_index];
-   int lo = leaf_glob_order[el.index];
-   if (fo < 0 || lo < (fo >> 4)) { fo = (lo << 4) | local; }
+   // derive globally consistent face ID from the global element sequence
+   int &el_loc = entity_elem_local[2][f_index];
+   if (el_loc < 0 || leaf_glob_order[el.index] < leaf_glob_order[(el_loc >> 4)])
+   {
+      el_loc = (el.index << 4) | local;
+   }
 }
 
 void ParNCMesh::BuildFaceList()
@@ -267,8 +268,8 @@ void ParNCMesh::BuildFaceList()
    entity_index_rank[2].SetSize(6*leaf_elements.Size() * 3/2);
    entity_index_rank[2].SetSize(0);
 
-   entity_glob_order[2].SetSize(nfaces);
-   entity_glob_order[2] = -1;
+   entity_elem_local[2].SetSize(nfaces);
+   entity_elem_local[2] = -1;
 
    NCMesh::BuildFaceList();
 
@@ -302,10 +303,12 @@ void ParNCMesh::ElementSharesEdge(int elem, int local, int enode)
 
    entity_index_rank[1].Append(Connection(e_index, el.rank));
 
-   // derive global edge ordering from the global element sequence
-   int &eo = entity_glob_order[1][e_index];
-   int lo = leaf_glob_order[el.index];
-   if (eo < 0 || lo < (eo >> 4)) { eo = (lo << 4) | local; }
+   // derive globally consistent edge ID from the global element sequence
+   int &el_loc = entity_elem_local[1][e_index];
+   if (el_loc < 0 || leaf_glob_order[el.index] < leaf_glob_order[(el_loc >> 4)])
+   {
+      el_loc = (el.index << 4) | local;
+   }
 }
 
 void ParNCMesh::BuildEdgeList()
@@ -324,8 +327,8 @@ void ParNCMesh::BuildEdgeList()
    entity_index_rank[1].SetSize(12*leaf_elements.Size() * 3/2);
    entity_index_rank[1].SetSize(0);
 
-   entity_glob_order[1].SetSize(nedges);
-   entity_glob_order[1] = -1;
+   entity_elem_local[1].SetSize(nedges);
+   entity_elem_local[1] = -1;
 
    NCMesh::BuildEdgeList();
 
@@ -355,10 +358,12 @@ void ParNCMesh::ElementSharesVertex(int elem, int local, int vnode)
 
    entity_index_rank[0].Append(Connection(v_index, el.rank));
 
-   // derive global vertex ordering from the global element sequence
-   int &vo = entity_glob_order[0][v_index];
-   int lo = leaf_glob_order[el.index];
-   if (vo < 0 || lo < (vo >> 4)) { vo = (lo << 4) | local; }
+   // derive globally consistent vertex ID from the global element sequence
+   int &el_loc = entity_elem_local[0][v_index];
+   if (el_loc < 0 || leaf_glob_order[el.index] < leaf_glob_order[(el_loc >> 4)])
+   {
+      el_loc = (el.index << 4) | local;
+   }
 }
 
 void ParNCMesh::BuildVertexList()
@@ -377,8 +382,8 @@ void ParNCMesh::BuildVertexList()
    entity_index_rank[0].SetSize(8*leaf_elements.Size());
    entity_index_rank[0].SetSize(0);
 
-   entity_glob_order[0].SetSize(nvertices);
-   entity_glob_order[0] = -1;
+   entity_elem_local[0].SetSize(nvertices);
+   entity_elem_local[0] = -1;
 
    NCMesh::BuildVertexList();
 
@@ -801,14 +806,23 @@ void ParNCMesh::NeighborProcessors(Array<int> &neighbors)
 
 struct CompareShared // TODO: use lambda when C++11 available
 {
-   const Array<int> &ent_glob_order, &shared_local;
+   const Array<int> &elem_local, &leaf_glob_order, &shared_local;
 
-   CompareShared(const Array<int> &ego, const Array<int> &sl)
-      : ent_glob_order(ego), shared_local(sl) {}
+   CompareShared
+      (const Array<int> &el, const Array<int> &lgo, const Array<int> &sl)
+      : elem_local(el), leaf_glob_order(lgo), shared_local(sl) {}
 
    inline bool operator()(const int a, const int b)
    {
-      return ent_glob_order[shared_local[a]] < ent_glob_order[shared_local[b]];
+      int el_loc_a = elem_local[shared_local[a]];
+      int el_loc_b = elem_local[shared_local[b]];
+
+      int lgo_a = leaf_glob_order[el_loc_a >> 4];
+      int lgo_b = leaf_glob_order[el_loc_b >> 4];
+
+      if (lgo_a != lgo_b) { return lgo_a < lgo_b; }
+
+      return (el_loc_a & 0xf) < (el_loc_b & 0xf);
    }
 };
 
@@ -852,7 +866,8 @@ void ParNCMesh::MakeSharedTable(int ngroups, int ent, Array<int> &shared_local,
       int *row = group_shared.GetRow(i);
 
       Array<int> ref_row(row, size);
-      ref_row.Sort(CompareShared(entity_glob_order[ent], shared_local));
+      ref_row.Sort(
+         CompareShared(entity_elem_local[ent], leaf_glob_order, shared_local));
    }
 }
 
@@ -863,7 +878,7 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
    {
       GetSharedList(ent);
       MFEM_VERIFY(entity_conf_group[ent].Size(), "internal error");
-      MFEM_VERIFY(entity_glob_order[ent].Size(), "internal error");
+      MFEM_VERIFY(entity_elem_local[ent].Size(), "internal error");
    }
    MFEM_VERIFY(leaf_glob_order.Size(), "internal error");
 
@@ -909,8 +924,11 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
    pmesh.shared_edges.SetSize(pmesh.sedge_ledge.Size());
    for (int i = 0; i < pmesh.shared_edges.Size(); i++)
    {
+      int el_loc = entity_elem_local[1][pmesh.sedge_ledge[i]];
+      MeshId edge_id(-1, leaf_elements[(el_loc >> 4)], (el_loc & 0xf));
+
       int v[2];
-      GetEdgeVertices(edge_list.LookUp(pmesh.sedge_ledge[i]), v);
+      GetEdgeVertices(edge_id, v, false);
       pmesh.shared_edges[i] = new Segment(v, 1);
    }
 
@@ -927,7 +945,7 @@ void ParNCMesh::GetConformingSharedStructures(ParMesh &pmesh)
    for (int ent = 0; ent < Dim; ent++)
    {
       entity_conf_group[ent].DeleteAll();
-      entity_glob_order[ent].DeleteAll();
+      entity_elem_local[ent].DeleteAll();
    }
    leaf_glob_order.DeleteAll();
 }
@@ -2694,7 +2712,7 @@ long ParNCMesh::MemoryUsage(bool with_base) const
           arrays_memory_usage(entity_pmat_group) +
           arrays_memory_usage(entity_conf_group) +
           leaf_glob_order.MemoryUsage() +
-          arrays_memory_usage(entity_glob_order) +
+          arrays_memory_usage(entity_elem_local) +
           shared_vertices.MemoryUsage() +
           shared_edges.MemoryUsage() +
           shared_faces.MemoryUsage() +
@@ -2722,7 +2740,7 @@ int ParNCMesh::PrintMemoryDetail(bool with_base) const
              << arrays_memory_usage(entity_pmat_group) << " entity_pmat_group\n"
              << arrays_memory_usage(entity_conf_group) << " entity_conf_group\n"
              << leaf_glob_order.MemoryUsage() << " leaf_glob_order\n"
-             << arrays_memory_usage(entity_glob_order) << " entity_glob_order\n"
+             << arrays_memory_usage(entity_elem_local) << " entity_elem_local\n"
              << shared_vertices.MemoryUsage() << " shared_vertices\n"
              << shared_edges.MemoryUsage() << " shared_edges\n"
              << shared_faces.MemoryUsage() << " shared_faces\n"

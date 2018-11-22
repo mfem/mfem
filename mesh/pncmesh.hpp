@@ -264,7 +264,7 @@ protected: // implementation
    // ParMesh-compatible (conforming) groups for each vertex/edge/face (0/1/2)
    Array<GroupId> entity_conf_group[3];
    // ParMesh compatibility helper arrays to order groups, also temporary
-   Array<int> leaf_glob_order, entity_glob_order[3];
+   Array<int> leaf_glob_order, entity_elem_local[3];
 
    // lists of vertices/edges/faces shared by us and at least one more processor
    NCList shared_vertices, shared_edges, shared_faces;
