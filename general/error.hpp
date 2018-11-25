@@ -74,7 +74,7 @@ void mfem_warning(const char *msg = NULL);
 
 #define MFEM_LOCATION \
    "\n ... in function: " << _MFEM_FUNC_NAME << \
-   "\n ... at line " << __LINE__ << " of file: " << __FILE__ << '\n'
+   "\n ... in file: " << __FILE__ << ':' << __LINE__ << '\n'
 
 // Common error message and abort macro
 #define _MFEM_MESSAGE(msg, warn)                                        \

@@ -112,12 +112,6 @@
 // Enable MFEM functionality based on the PUMI library
 // #define MFEM_USE_PUMI
 
-// Windows specific options
-#ifdef _WIN32
-// Macro needed to get defines like M_PI from <cmath>. (Visual Studio C++ only?)
-#define _USE_MATH_DEFINES
-#endif
-
 // Version of HYPRE used for building MFEM.
 // #define MFEM_HYPRE_VERSION @MFEM_HYPRE_VERSION@
 
