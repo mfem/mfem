@@ -1992,6 +1992,16 @@ public:
                            DenseMatrix &dshape) const;
 };
 
+class H1_PyramidElement : public NodalFiniteElement
+{
+public:
+   H1_PyramidElement(const int p,
+                     const int btype = BasisType::GaussLobatto);
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+};
+
 
 class L2_SegmentElement : public NodalTensorFiniteElement
 {

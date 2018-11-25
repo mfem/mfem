@@ -8556,6 +8556,66 @@ void H1Pos_WedgeElement::CalcDShape(const IntegrationPoint &ip,
    }
 }
 
+H1_PyramidElement::H1_PyramidElement(const int p, const int btype)
+   : NodalFiniteElement(3, Geometry::PYRAMID,
+                        p * (p * p + 3) + 1, p, FunctionSpace::Qk)
+{
+   MFEM_ASSERT(p==1, "H1_PyramidElement only implemented for p=1.");
+
+   std::cout << "Constructing H1_PyramidElement with " << Dof << " " << Order <<
+             std::endl;
+
+   Nodes.IntPoint(0).Set3(0.0,0.0,0.0);
+   Nodes.IntPoint(1).Set3(1.0,0.0,0.0);
+   Nodes.IntPoint(2).Set3(1.0,1.0,0.0);
+   Nodes.IntPoint(3).Set3(0.0,1.0,0.0);
+   Nodes.IntPoint(4).Set3(0.0,0.0,1.0);
+}
+
+void H1_PyramidElement::CalcShape(const IntegrationPoint &ip,
+                                  Vector &shape) const
+{
+   double x = ip.x;
+   double y = ip.y;
+   double z = ip.z;
+
+   shape.SetSize(5);
+   shape[0] = (z<1.0) ? ((1.0 - x - z) * (1.0 - y - z) / (1 - z)) : 0.0;
+   shape[1] = (z<1.0) ? (x * (1.0 - y - z) / (1 - z)) : 0.0;
+   shape[2] = (z<1.0) ? (x * y / (1 - z)) : 0.0;
+   shape[3] = (z<1.0) ? ((1.0 - x - z) * y / (1 - z)) : 0.0;
+   shape[4] = z;
+}
+
+void H1_PyramidElement::CalcDShape(const IntegrationPoint &ip,
+                                   DenseMatrix &dshape) const
+{
+   double x = ip.x;
+   double y = ip.y;
+   double z = ip.z;
+
+   dshape.SetSize(5, 3);
+   dshape(0,0) = -1.0 + (z<1.0) ? (y / (1.0 - z)) : 0.0;
+   dshape(0,1) = -1.0 + (z<1.0) ? (x / (1.0 - z)) : 0.0;
+   dshape(0,2) = -1.0 + (z<1.0) ? (x * y / pow(1.0 - z, 2)) : 0.0;
+
+   dshape(1,0) = -1.0 + (z<1.0) ? (y / (1.0 - z)) : 0.0;
+   dshape(1,1) = (z<1.0) ? (-x / (1.0 - z)) : 0.0;
+   dshape(1,2) = (z<1.0) ? (-x * y / pow(1.0 - z, 2)) : 0.0;
+
+   dshape(2,0) = (z<1.0) ? (y / (1.0 - z)) : 0.0;
+   dshape(2,1) = (z<1.0) ? (x / (1.0 - z)) : 0.0;
+   dshape(2,2) = (z<1.0) ? (x * y / pow(1.0 - z, 2)) : 0.0;
+
+   dshape(3,0) = (z<1.0) ? (-y / (1.0 - z)) : 0.0;
+   dshape(3,1) = 1.0 - (z<1.0) ? (x / (1.0 - z)) : 0.0;
+   dshape(3,2) = (z<1.0) ? (-x * y / pow(1.0 - z, 2)) : 0.0;
+
+   dshape(4,0) = 0.0;
+   dshape(4,1) = 0.0;
+   dshape(4,2) = 1.0;
+}
+
 
 L2_SegmentElement::L2_SegmentElement(const int p, const int btype)
    : NodalTensorFiniteElement(1, p, VerifyOpen(btype), L2_DOF_MAP)
@@ -11722,10 +11782,11 @@ Linear2DFiniteElement TriangleFE;
 // Defined here to ensure it is constructed before 'Geometries'.
 Linear3DFiniteElement TetrahedronFE;
 
-// Object declared in mesh/wedge.hpp.
-// Defined here to ensure it is constructed after 'poly1d' and before
+// Objects declared in mesh/wedge.hpp and mesh/pyramid.hpp.
+// Defined here to ensure they are constructed after 'poly1d' and before
 // 'Geometries'.
 H1_WedgeElement WedgeFE(1);
+H1_WedgeElement PyramidFE(1);
 
 // Object declared in geom.hpp.
 // Construct 'Geometries' after 'TriangleFE', 'TetrahedronFE', and 'WedgeFE'.
