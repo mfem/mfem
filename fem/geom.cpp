@@ -894,7 +894,7 @@ const int Geometry::
 Constants<Geometry::PYRAMID>::FaceVert[5][4] =
   {{3, 2, 1, 0}, {0, 1, 4, -1}, {1, 2, 4, -1}, {2, 3, 4, -1}, {3, 0, 4, -1}};
 const int Geometry::
-Constants<Geometry::PYRAMID>::VertToVert::I[5] = {0, 3, 5, 6, 8, 9};
+Constants<Geometry::PYRAMID>::VertToVert::I[5] = {0, 3, 5, 7, 8};
 const int Geometry::
 Constants<Geometry::PYRAMID>::VertToVert::J[8][2] =
 {
