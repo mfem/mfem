@@ -880,6 +880,30 @@ Constants<Geometry::PRISM>::VertToVert::J[9][2] =
    {5, 4}                   // 4,5:4
 };
 
+const int Geometry::
+Constants<Geometry::PYRAMID>::Edges[8][2] =
+{{0, 1}, {1, 2}, {3, 2}, {0, 3}, {0, 4}, {1, 5}, {2, 4}, {3, 4}};
+const int Geometry::
+Constants<Geometry::PYRAMID>::FaceTypes[5] =
+{
+   Geometry::SQUARE,
+   Geometry::TRIANGLE, Geometry::TRIANGLE,
+   Geometry::TRIANGLE, Geometry::TRIANGLE
+};
+const int Geometry::
+Constants<Geometry::PYRAMID>::FaceVert[5][4] =
+  {{3, 2, 1, 0}, {0, 1, 4, -1}, {1, 2, 4, -1}, {2, 3, 4, -1}, {3, 0, 4, -1}};
+const int Geometry::
+Constants<Geometry::PYRAMID>::VertToVert::I[5] = {0, 3, 5, 6, 8, 9};
+const int Geometry::
+Constants<Geometry::PYRAMID>::VertToVert::J[8][2] =
+{
+   {1, 0}, {3, 3}, {4, 4}, // 0,1:0   0,3:3  0,4:4
+   {2, 1}, {4, 5},         // 1,2:1   1,4:5
+   {3,-3}, {4, 6},         // 2,3:-3  2,4:6
+   {4, 7}                  // 3,4:7
+};
+
 
 GeometryRefiner::GeometryRefiner()
 {
