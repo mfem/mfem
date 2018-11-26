@@ -170,7 +170,9 @@ public:
    /// Copy Size() entries from @a v.
    Vector & operator=(const double *v);
 
-   /// Redefine '=' for vector = vector.
+   /// Copy assignment.
+   /** @note Defining this method overwrites the implicitly defined copy
+       assignemnt operator. */
    Vector & operator=(const Vector &v);
 
    /// Redefine '=' for vector = constant.

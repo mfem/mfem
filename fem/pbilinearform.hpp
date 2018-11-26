@@ -28,8 +28,10 @@ namespace mfem
 class ParBilinearForm : public BilinearForm
 {
 protected:
-   ParFiniteElementSpace *pfes;
-   mutable ParGridFunction X, Y; // used in TrueAddMult
+   ParFiniteElementSpace *pfes; ///< Points to the same object as #fes
+
+   /// Auxiliary objects used in TrueAddMult().
+   mutable ParGridFunction X, Y;
 
    OperatorHandle p_mat, p_mat_e;
 
@@ -40,12 +42,28 @@ protected:
 
    void AssembleSharedFaces(int skip_zeros = 1);
 
+private:
+   /// Copy construction is not supported; body is undefined.
+   ParBilinearForm(const ParBilinearForm &);
+
+   /// Copy assignment is not supported; body is undefined.
+   ParBilinearForm &operator=(const ParBilinearForm &);
+
 public:
+   /// Creates parallel bilinear form associated with the FE space @a *pf.
+   /** The pointer @a pf is not owned by the newly constructed object. */
    ParBilinearForm(ParFiniteElementSpace *pf)
       : BilinearForm(pf), pfes(pf),
         p_mat(Operator::Hypre_ParCSR), p_mat_e(Operator::Hypre_ParCSR)
    { keep_nbr_block = false; }
 
+   /** @brief Create a ParBilinearForm on the ParFiniteElementSpace @a *pf,
+       using the same integrators as the ParBilinearForm @a *bf.
+
+       The pointer @a pf is not owned by the newly constructed object.
+
+       The integrators in @a bf are copied as pointers and they are not owned by
+       the newly constructed ParBilinearForm. */
    ParBilinearForm(ParFiniteElementSpace *pf, ParBilinearForm *bf)
       : BilinearForm(pf, bf), pfes(pf),
         p_mat(Operator::Hypre_ParCSR), p_mat_e(Operator::Hypre_ParCSR)
@@ -219,14 +237,46 @@ public:
 class ParMixedBilinearForm : public MixedBilinearForm
 {
 protected:
+   /// Points to the same object as #trial_fes
    ParFiniteElementSpace *trial_pfes;
+   /// Points to the same object as #test_fes
    ParFiniteElementSpace *test_pfes;
-   mutable ParGridFunction X, Y; // used in TrueAddMult
+   /// Auxiliary objects used in TrueAddMult().
+   mutable ParGridFunction X, Y;
+
+private:
+   /// Copy construction is not supported; body is undefined.
+   ParMixedBilinearForm(const ParMixedBilinearForm &);
+
+   /// Copy assignment is not supported; body is undefined.
+   ParMixedBilinearForm &operator=(const ParMixedBilinearForm &);
 
 public:
+   /** @brief Construct a ParMixedBilinearForm on the given FiniteElementSpace%s
+       @a trial_fes and @a test_fes. */
+   /** The pointers @a trial_fes and @a test_fes are not owned by the newly
+       constructed object. */
    ParMixedBilinearForm(ParFiniteElementSpace *trial_fes,
                         ParFiniteElementSpace *test_fes)
       : MixedBilinearForm(trial_fes, test_fes)
+   {
+      trial_pfes = trial_fes;
+      test_pfes  = test_fes;
+   }
+
+   /** @brief Create a ParMixedBilinearForm on the given FiniteElementSpace%s
+       @a trial_fes and @a test_fes, using the same integrators as the
+       ParMixedBilinearForm @a mbf.
+
+       The pointers @a trial_fes and @a test_fes are not owned by the newly
+       constructed object.
+
+       The integrators in @a mbf are copied as pointers and they are not owned
+       by the newly constructed ParMixedBilinearForm. */
+   ParMixedBilinearForm(ParFiniteElementSpace *trial_fes,
+                        ParFiniteElementSpace *test_fes,
+                        ParMixedBilinearForm * mbf)
+      : MixedBilinearForm(trial_fes, test_fes, mbf)
    {
       trial_pfes = trial_fes;
       test_pfes  = test_fes;
@@ -251,10 +301,24 @@ public:
 class ParDiscreteLinearOperator : public DiscreteLinearOperator
 {
 protected:
+   /// Points to the same object as #trial_fes
    ParFiniteElementSpace *domain_fes;
+   /// Points to the same object as #test_fes
    ParFiniteElementSpace *range_fes;
 
+private:
+   /// Copy construction is not supported; body is undefined.
+   ParDiscreteLinearOperator(const ParDiscreteLinearOperator &);
+
+   /// Copy assignment is not supported; body is undefined.
+   ParDiscreteLinearOperator &operator=(const ParDiscreteLinearOperator &);
+
 public:
+   /** @brief Construct a ParDiscreteLinearOperator on the given
+       FiniteElementSpace%s @a dfes (domain FE space) and @a rfes (range FE
+       space). */
+   /** The pointers @a dfes and @a rfes are not owned by the newly constructed
+       object. */
    ParDiscreteLinearOperator(ParFiniteElementSpace *dfes,
                              ParFiniteElementSpace *rfes)
       : DiscreteLinearOperator(dfes, rfes) { domain_fes=dfes; range_fes=rfes; }

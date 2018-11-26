@@ -27,10 +27,13 @@ namespace mfem
 class GridFunction : public Vector
 {
 protected:
-   /// FE space on which grid function lives.
+   /// FE space on which the grid function lives. Owned if #fec is not NULL.
    FiniteElementSpace *fes;
 
-   /// Used when the grid function is read from a file
+   /** @brief Used when the grid function is read from a file. It can also be
+       set explicitly, see MakeOwner().
+
+       If not NULL, this pointer is owned by the GridFunction. */
    FiniteElementCollection *fec;
 
    long sequence; // see FiniteElementSpace::sequence, Mesh::sequence
@@ -67,7 +70,7 @@ public:
 
    GridFunction() { fes = NULL; fec = NULL; sequence = 0; }
 
-   /// Copy constructor.
+   /// Copy constructor. The internal true-dof vector #t_vec is not copied.
    GridFunction(const GridFunction &orig)
       : Vector(orig), fes(orig.fes), fec(NULL), sequence(orig.sequence) { }
 
@@ -91,6 +94,15 @@ public:
    GridFunction(Mesh *m, std::istream &input);
 
    GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces);
+
+   /// Copy assignment. Only the data of the base class Vector is copied.
+   /** It is assumed that this object and @a rhs use FiniteElementSpace%s that
+       have the same size.
+
+       @note Defining this method overwrites the implicitly defined copy
+       assignemnt operator. */
+   GridFunction &operator=(const GridFunction &rhs)
+   { return operator=((const Vector &)rhs); }
 
    /// Make the GridFunction the owner of 'fec' and 'fes'
    void MakeOwner(FiniteElementCollection *_fec) { fec = _fec; }
@@ -403,8 +415,8 @@ public:
    GridFunction &operator=(double value);
 
    /// Copy the data from @a v.
-   /** The size of @a v must be equal to the size of the FiniteElementSpace
-       @a fes. */
+   /** The size of @a v must be equal to the size of the associated
+       FiniteElementSpace #fes. */
    GridFunction &operator=(const Vector &v);
 
    /// Transform by the Space UpdateMatrix (e.g., on Mesh change).
@@ -487,6 +499,12 @@ public:
    QuadratureFunction()
       : qspace(NULL), vdim(0), own_qspace(false) { }
 
+   /** @brief Copy constructor. The QuadratureSpace ownership flag, #own_qspace,
+       in the new object is set to false. */
+   QuadratureFunction(const QuadratureFunction &orig)
+      : Vector(orig),
+        qspace(orig.qspace), vdim(orig.vdim), own_qspace(false) { }
+
    /// Create a QuadratureFunction based on the given QuadratureSpace.
    /** The QuadratureFunction does not assume ownership of the QuadratureSpace.
        @note The Vector data is not initialized. */
@@ -552,13 +570,16 @@ public:
    QuadratureFunction &operator=(double value);
 
    /// Copy the data from @a v.
-   /** The size of @a v must be equal to the size of the QuadratureSpace
-       @a qspace. */
+   /** The size of @a v must be equal to the size of the associated
+       QuadratureSpace #qspace. */
    QuadratureFunction &operator=(const Vector &v);
 
-   /// Copy the data from @a v.
+   /// Copy assignment. Only the data of the base class Vector is copied.
    /** The QuadratureFunctions @a v and @a *this must have QuadratureSpaces with
-       the same size. */
+       the same size.
+
+       @note Defining this method overwrites the implicitly defined copy
+       assignemnt operator. */
    QuadratureFunction &operator=(const QuadratureFunction &v);
 
    /// Get the IntegrationRule associated with mesh element @a idx.
