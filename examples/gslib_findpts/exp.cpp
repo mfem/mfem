@@ -152,10 +152,17 @@ int main (int argc, char *argv[])
 
    findpts_gslib *gsfl=NULL;
    gsfl = new findpts_gslib(MPI_COMM_WORLD);
+   MPI_Barrier(MPI_COMM_WORLD);
+   int start_s=clock();
    gsfl->gslib_findpts_setup(pfespace,pmesh,quad_order);
+   MPI_Barrier(MPI_COMM_WORLD);
+   int stop_s=clock();
+   if (myid==0) {cout << "findpts order: " << NR << " \n";}
+   if (myid==0) {cout << "findpts setup time (sec): " << (stop_s-start_s)/1000000. << endl;
+}
 
 // generate random points by r,s,t
-   int llim = 100;
+   int llim = 10;
    int nlim = NE*llim;
    double xmn = 0,xmx=1,ymn=0,ymx=1,zmn=0,zmx=1; //Domain extent
    double mnv,mxv,dlv;
@@ -192,11 +199,11 @@ int main (int argc, char *argv[])
    Array<uint> pproc(nxyz);
    Vector pr(nxyz*dim);
    Vector pd(nxyz);
-   int start_s=clock();
+   MPI_Barrier(MPI_COMM_WORLD);
+   start_s=clock();
    gsfl->gslib_findpts(&pcode,&pproc,&pel,&pr,&pd,&vxyz,nxyz);
    MPI_Barrier(MPI_COMM_WORLD);
-   int stop_s=clock();
-   if (myid==0) {cout << "findpts order: " << NR << " \n";}
+   stop_s=clock();
    if (myid==0) {cout << "findpts time (sec): " << (stop_s-start_s)/1000000. << endl;}
  
 // FINDPTS_EVAL

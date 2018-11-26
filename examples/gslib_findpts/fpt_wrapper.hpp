@@ -102,19 +102,21 @@ void findpts_gslib::gslib_findpts_setup(FiniteElementSpace *pfes, Mesh *pmesh, i
 #endif
    pmesh->GetNodes(nodes);
 
-   int np = 0; 
+   int np = 0;
+   DenseMatrix gllvals;
+   DenseMatrix tr;
    for (int i = 0; i < nel; i++)
-   {  
+   {
+      nodes.GetVectorValues(i,this->ir,gllvals,tr);
       for (int j = 0; j < nsp; j++)
       { 
-        const IntegrationPoint &ip = this->ir.IntPoint(j);
         for (int k = 0; k < dim; k++)
         {
-         gllmesh[k*npt+np] = nodes.GetValue(i, ip, k+1);
+         gllmesh[k*npt+np] = *(gllvals.GetData()+k+j*dim);
         }
         np = np+1;
       }
-   }
+    }
 
    const int NE = nel, NR = qo;
    int ntot = pow(NR,dim)*NE;
