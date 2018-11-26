@@ -30,11 +30,14 @@
 //
 
 #include "mfem.hpp"
+#include "mfem4/mfem4.hpp"
 #include <fstream>
 #include <iostream>
 
 using namespace std;
 using namespace mfem;
+using namespace mfem4;
+
 
 int main(int argc, char *argv[])
 {
@@ -141,7 +144,7 @@ int main(int argc, char *argv[])
    //    constraints for non-conforming AMR, static condensation, etc.
    //    NOTE: LinearSystem is a new class that holds (owns) A, X, B and knows
    //    how to form them.
-   LinearSystem ls(a, x, b); // NOTE: ParLinearSystem in parallel
+   LinearSystem ls(a, b); // NOTE: ParLinearSystem in parallel
    ls.SetEssentialDofs(ess_dof_list, x); // NOTE: regular DOFs; values taken from x
    ls.SetOperatorType(Operator::MFEM_SPARSEMAT); // or PETSC_xxx...
    ls.EnableStaticCondensation(static_cond); // NOTE: similar for hybridization; does nothing for PA
