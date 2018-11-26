@@ -69,12 +69,60 @@ public:
                                  const Vector &elfun, DenseMatrix &elmat)
    { AssembleFaceMatrix(el1, el2, Tr, elmat); }
 
+   /** @brief Virtual method required for Zienkiewicz-Zhu type error estimators.
+
+       The purpose of the method is to compute a local "flux" finite element
+       function given a local finite element solution. The "flux" function has
+       to be computed in terms of its coefficients (represented by the Vector
+       @a flux) which multiply the basis functions defined by the FiniteElement
+       @a fluxelem. Typically, the "flux" function will have more than one
+       component and consequently @a flux should be store the coefficients of
+       all components: first all coefficient for component 0, then all
+       coefficients for component 1, etc. What the "flux" function represents
+       depends on the specific integrator. For example, in the case of
+       DiffusionIntegrator, the flux is the gradient of the solution multiplied
+       by the diffusion coefficient.
+
+       @param[in] el     FiniteElement of the solution.
+       @param[in] Trans  The ElementTransformation describing the physical
+                         position of the mesh element.
+       @param[in] u      Solution coefficients representing the expansion of the
+                         solution function in the basis of @a el.
+       @param[in] fluxelem  FiniteElement of the "flux".
+       @param[out] flux  "Flux" coefficients representing the expansion of the
+                         "flux" function in the basis of @a fluxelem. The size
+                         of @a flux as a Vector has to be set by this method,
+                         e.g. using Vector::SetSize().
+       @param[in] with_coef  If zero (the default value is 1) the implementation
+                             of the method may choose not to scale the "flux"
+                             function by any coefficients describing the
+                             integrator.
+    */
    virtual void ComputeElementFlux(const FiniteElement &el,
                                    ElementTransformation &Trans,
                                    Vector &u,
                                    const FiniteElement &fluxelem,
                                    Vector &flux, int with_coef = 1) { }
 
+   /** @brief Virtual method required for Zienkiewicz-Zhu type error estimators.
+
+       The purpose of this method is to compute a local number that measures the
+       energy of a given "flux" function (see ComputeElementFlux() for a
+       description of the "flux" function). Typically, the energy of a "flux"
+       function should be equal to a_local(u,u), if the "flux" is defined from
+       a solution u; here a_local(.,.) denotes the element-local bilinear
+       form represented by the integrator.
+
+       @param[in] fluxelem  FiniteElement of the "flux".
+       @param[in] Trans  The ElementTransformation describing the physical
+                         position of the mesh element.
+       @param[in] flux   "Flux" coefficients representing the expansion of the
+                         "flux" function in the basis of @a fluxelem.
+       @param[out] d_energy  If not NULL, the given Vector should be set to
+                             represent directional energy split that can be used
+                             for anisotropic error estimation.
+       @returns The computed energy.
+    */
    virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
                                     ElementTransformation &Trans,
                                     Vector &flux, Vector *d_energy = NULL)
@@ -1706,6 +1754,7 @@ public:
 class VectorMassIntegrator: public BilinearFormIntegrator
 {
 private:
+   int vdim;
    Vector shape, te_shape, vec;
    DenseMatrix partelmat;
    DenseMatrix mcoeff;
@@ -1718,22 +1767,25 @@ private:
 public:
    /// Construct an integrator with coefficient 1.0
    VectorMassIntegrator()
-   { Q = NULL; VQ = NULL; MQ = NULL; Q_order = 0; }
+      : vdim(-1), Q(NULL), VQ(NULL), MQ(NULL), Q_order(0) { }
    /** Construct an integrator with scalar coefficient q.
        If possible, save memory by using a scalar integrator since
        the resulting matrix is block diagonal with the same diagonal
        block repeated. */
    VectorMassIntegrator(Coefficient &q, int qo = 0)
-      : Q(&q) { VQ = NULL; MQ = NULL; Q_order = qo; }
+      : vdim(-1), Q(&q) { VQ = NULL; MQ = NULL; Q_order = qo; }
    VectorMassIntegrator(Coefficient &q, const IntegrationRule *ir)
-      : BilinearFormIntegrator(ir), Q(&q)
+      : BilinearFormIntegrator(ir), vdim(-1), Q(&q)
    { VQ = NULL; MQ = NULL; Q_order = 0; }
    /// Construct an integrator with diagonal coefficient q
    VectorMassIntegrator(VectorCoefficient &q, int qo = 0)
-      : VQ(&q) { Q = NULL; MQ = NULL; Q_order = qo; }
+      : vdim(q.GetVDim()), VQ(&q) { Q = NULL; MQ = NULL; Q_order = qo; }
    /// Construct an integrator with matrix coefficient q
    VectorMassIntegrator(MatrixCoefficient &q, int qo = 0)
-      : MQ(&q) { Q = NULL; VQ = NULL; Q_order = qo; }
+      : vdim(q.GetVDim()), MQ(&q) { Q = NULL; VQ = NULL; Q_order = qo; }
+
+   int GetVDim() const { return vdim; }
+   void SetVDim(int vdim) { this->vdim = vdim; }
 
    virtual void AssembleElementMatrix(const FiniteElement &el,
                                       ElementTransformation &Trans,
@@ -2018,7 +2070,8 @@ private:
    Coefficient *lambda, *mu;
 
 #ifndef MFEM_THREAD_SAFE
-   DenseMatrix dshape, Jinv, gshape, pelmat;
+   Vector shape;
+   DenseMatrix dshape, gshape, pelmat;
    Vector divshape;
 #endif
 
@@ -2033,6 +2086,33 @@ public:
    virtual void AssembleElementMatrix(const FiniteElement &,
                                       ElementTransformation &,
                                       DenseMatrix &);
+
+   /** Compute the stress corresponding to the local displacement @a u and
+       interpolate it at the nodes of the given @a fluxelem. Only the symmetric
+       part of the stress is stored, so that the size of @a flux is equal to
+       the number of DOFs in @a fluxelem times dim*(dim+1)/2. In 2D, the order
+       of the stress components is: s_xx, s_yy, s_xy. In 3D, it is: s_xx, s_yy,
+       s_zz, s_xy, s_xz, s_yz. In other words, @a flux is the local vector for
+       a FE space with dim*(dim+1)/2 vector components, based on the finite
+       element @a fluxelem. */
+   virtual void ComputeElementFlux(const FiniteElement &el,
+                                   ElementTransformation &Trans,
+                                   Vector &u,
+                                   const FiniteElement &fluxelem,
+                                   Vector &flux, int with_coef = 1);
+
+   /** Compute the element energy (integral of the strain energy density)
+       corresponding to the stress represented by @a flux which is a vector of
+       coefficients multiplying the basis functions defined by @a fluxelem. In
+       other words, @a flux is the local vector for a FE space with
+       dim*(dim+1)/2 vector components, based on the finite element @a fluxelem.
+       The number of components, dim*(dim+1)/2 is such that it represents the
+       symmetric part of the (symmetric) stress tensor. The order of the
+       components is: s_xx, s_yy, s_xy in 2D, and s_xx, s_yy, s_zz, s_xy, s_xz,
+       s_yz in 3D. */
+   virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
+                                    ElementTransformation &Trans,
+                                    Vector &flux, Vector *d_energy = NULL);
 };
 
 /** Integrator for the DG form:
