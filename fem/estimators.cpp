@@ -20,10 +20,9 @@ void ZienkiewiczZhuEstimator::ComputeEstimates()
    GridFunction flux(flux_space);
 
    if (!anisotropic) { aniso_flags.SetSize(0); }
-   const int with_subdomains = 1;
    total_error = ZZErrorEstimator(*integ, *solution, flux, error_estimates,
                                   anisotropic ? &aniso_flags : NULL,
-                                  with_subdomains);
+                                  flux_averaging);
 
    current_sequence = solution->FESpace()->GetMesh()->GetSequence();
 }
