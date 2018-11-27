@@ -104,6 +104,7 @@ public:
    PetscParVector(const PetscParVector &y);
 
    /** @brief Creates a PetscParVector from a Vector
+       @param[in] comm  MPI communicator on which the new object lives
        @param[in] _x    The mfem Vector (data is not shared)
        @param[in] copy  Whether to copy the data in _x or not */
    PetscParVector(MPI_Comm comm, const Vector &_x, bool copy = false);
