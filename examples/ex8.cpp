@@ -4,8 +4,10 @@
 //
 // Sample runs:  ex8 -m ../data/square-disc.mesh
 //               ex8 -m ../data/star.mesh
+//               ex8 -m ../data/star-mixed.mesh
 //               ex8 -m ../data/escher.mesh
 //               ex8 -m ../data/fichera.mesh
+//               ex8 -m ../data/fichera-mixed.mesh
 //               ex8 -m ../data/square-disc-p2.vtk
 //               ex8 -m ../data/square-disc-p3.mesh
 //               ex8 -m ../data/star-surf.mesh -o 2
