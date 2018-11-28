@@ -63,7 +63,7 @@ New and updated examples and miniapps
 
 Miscellaneous
 -------------
-- Added unit tests based on the Catch++ library, and a suite of other test scripts.
+- Added unit tests based on the Catch++ library.
 
 - Altered the way FGMRES counts its iterations so that it matches GMRES.
 
