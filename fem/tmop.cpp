@@ -763,6 +763,24 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0,
          new TMOP_QuadraticLimiter(nodes0->FESpace()->GetMesh()->Dimension());
    }
 }
+void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
+                                     TMOP_LimiterFunction *lfunc)
+{
+   nodes0 = &n0;
+   lim_dist = NULL;
+   coeff0 = &w0;
+
+   delete lim_func;
+   if (lfunc)
+   {
+      lim_func = lfunc;
+   }
+   else
+   {
+      lim_func =
+         new TMOP_QuadraticLimiter(nodes0->FESpace()->GetMesh()->Dimension());
+   }
+}
 
 double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
                                          ElementTransformation &T,
@@ -800,7 +818,14 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       Array<int> pos_dofs;
       nodes0->FESpace()->GetElementVDofs(T.ElementNo, pos_dofs);
       nodes0->GetSubVector(pos_dofs, pos0V);
-      lim_dist->GetValues(T.ElementNo, *ir, d_vals);
+      if (lim_dist)
+      {
+         lim_dist->GetValues(T.ElementNo, *ir, d_vals);
+      }
+      else
+      {
+         d_vals.SetSize(ir->GetNPoints()); d_vals = 1.0;
+      }
    }
 
    // Define ref->physical transformation, when a Coefficient is specified.
@@ -880,7 +905,14 @@ void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
       Array<int> pos_dofs;
       nodes0->FESpace()->GetElementVDofs(T.ElementNo, pos_dofs);
       nodes0->GetSubVector(pos_dofs, pos0V);
-      lim_dist->GetValues(T.ElementNo, *ir, d_vals);
+      if (lim_dist)
+      {
+         lim_dist->GetValues(T.ElementNo, *ir, d_vals);
+      }
+      else
+      {
+         d_vals.SetSize(ir->GetNPoints()); d_vals = 1.0;
+      }
    }
 
    // Define ref->physical transformation, when a Coefficient is specified.
@@ -965,7 +997,14 @@ void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
       Array<int> pos_dofs;
       nodes0->FESpace()->GetElementVDofs(T.ElementNo, pos_dofs);
       nodes0->GetSubVector(pos_dofs, pos0V);
-      lim_dist->GetValues(T.ElementNo, *ir, d_vals);
+      if (lim_dist)
+      {
+         lim_dist->GetValues(T.ElementNo, *ir, d_vals);
+      }
+      else
+      {
+         d_vals.SetSize(ir->GetNPoints()); d_vals = 1.0;
+      }
    }
 
    // Define ref->physical transformation, when a Coefficient is specified.

@@ -607,6 +607,9 @@ public:
        @param[in] lf   TMOP_LimiterFunction defining the limiting term f. */
    void EnableLimiting(const GridFunction &n0, const GridFunction &dist,
                        Coefficient &w0, TMOP_LimiterFunction *lfunc = NULL);
+   /// Legacy version, it will be removed.
+   void EnableLimiting(const GridFunction &n0,
+                       Coefficient &w0, TMOP_LimiterFunction *lfunc = NULL);
 
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0) { nodes0 = &n0; }
