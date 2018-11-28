@@ -423,6 +423,8 @@ public:
    virtual void Eval_d2(const Vector &x, const Vector &x0, double dist,
                         DenseMatrix &d2) const
    { MFEM_ABORT("2nd derivative of the limiting function isn't implemented."); }
+
+   virtual ~TMOP_LimiterFunction() { }
 };
 
 /// Default limiter function in TMOP_Integrator.
@@ -457,6 +459,8 @@ public:
       d2 = 0.0;
       for (int d = 0; d < dim; d++) { d2(d, d) = 1.0 / (dist * dist); }
    }
+
+   virtual ~TMOP_QuadraticLimiter() { }
 };
 
 /** @brief Base class representing target-matrix construction algorithms for
@@ -582,7 +586,7 @@ public:
       : metric(m), targetC(tc),
         coeff1(NULL), nodes0(NULL), coeff0(NULL), lim_func(NULL) { }
 
-   virtual ~TMOP_Integrator() { delete lim_func; }
+   ~TMOP_Integrator() { delete lim_func; }
 
    /// Sets a scaling Coefficient for the quality metric term of the integrator.
    /** With this addition, the integrator becomes
