@@ -582,7 +582,7 @@ public:
       : metric(m), targetC(tc),
         coeff1(NULL), nodes0(NULL), coeff0(NULL), lim_func(NULL) { }
 
-   ~TMOP_Integrator() { delete lim_func; }
+   virtual ~TMOP_Integrator() { delete lim_func; }
 
    /// Sets a scaling Coefficient for the quality metric term of the integrator.
    /** With this addition, the integrator becomes
@@ -594,13 +594,13 @@ public:
 
    /// Adds a limiting term to the integrator.
    /** With this addition, the integrator becomes
-          @f$ \int w1 W(Jpt) + w0/2 (x - x_0)^2 dx @f$,
+          @f$ \int w1 W(Jpt) + w0  f(x - x_0, d) dx @f$,
        where the second term measures the change with respect to the original
        physical positions, @a n0.
        @param[in] n0   Original mesh node coordinates.
        @param[in] dist Limiting physical distances.
        @param[in] w0   Coefficient scaling the limiting term.
-       @param[in] lf   TMOP_LimiterFunction defining the limiting term. */
+       @param[in] lf   TMOP_LimiterFunction defining the limiting term f. */
    void EnableLimiting(const GridFunction &n0, const GridFunction &dist,
                        Coefficient &w0, TMOP_LimiterFunction *lfunc = NULL);
 
