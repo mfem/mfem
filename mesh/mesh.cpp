@@ -4886,6 +4886,13 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
          partitioning[i] = 0;
       }
    }
+   else if (NumOfElements <= nparts)
+   {
+      for (i = 0; i < NumOfElements; i++)
+      {
+         partitioning[i] = i;
+      }
+   }
    else
    {
       int *I, *J, n;
