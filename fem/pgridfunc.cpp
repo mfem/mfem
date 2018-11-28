@@ -398,10 +398,10 @@ void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &vcoeff,
 }
 
 void ParGridFunction::ProjectBdrCoefficient(
-   Coefficient *coeff[], Array<int> &attr)
+   Coefficient *coeff[], VectorCoefficient *vcoeff, Array<int> &attr)
 {
    Array<int> values_counter;
-   AccumulateAndCountBdrValues(coeff, attr, values_counter);
+   AccumulateAndCountBdrValues(coeff, vcoeff, attr, values_counter);
    if (pfes->Conforming())
    {
       Vector values(Size());
@@ -749,15 +749,20 @@ double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
    ParLinearForm *b = new ParLinearForm(&smooth_flux_fes);
    VectorGridFunctionCoefficient f(&flux);
 
-   if (smooth_flux_fes.GetFE(0)->GetRangeType() == FiniteElement::SCALAR)
+   if (xfes->GetNE())
    {
-      a->AddDomainIntegrator(new VectorMassIntegrator);
-      b->AddDomainIntegrator(new VectorDomainLFIntegrator(f));
-   }
-   else
-   {
-      a->AddDomainIntegrator(new VectorFEMassIntegrator);
-      b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
+      if (smooth_flux_fes.GetFE(0)->GetRangeType() == FiniteElement::SCALAR)
+      {
+         VectorMassIntegrator *vmass = new VectorMassIntegrator;
+         vmass->SetVDim(smooth_flux_fes.GetVDim());
+         a->AddDomainIntegrator(vmass);
+         b->AddDomainIntegrator(new VectorDomainLFIntegrator(f));
+      }
+      else
+      {
+         a->AddDomainIntegrator(new VectorFEMassIntegrator);
+         b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
+      }
    }
 
    b->Assemble();
