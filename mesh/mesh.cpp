@@ -1463,7 +1463,11 @@ void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
    // Build the nodes from the saved locations if they were around before
    if (Nodes)
    {
-      nodes_fes->Update();
+      // To force FE space update, we need to increase 'sequence':
+      sequence++;
+      last_operation = Mesh::NONE;
+      nodes_fes->Update(false); // want_transform = false
+      Nodes->Update(); // just needed to update Nodes->sequence
       Array<int> new_dofs;
       for (int old_elid = 0; old_elid < GetNE(); ++old_elid)
       {
