@@ -312,9 +312,6 @@ message(STATUS "MFEM build type: CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 message(STATUS "MFEM version: v${MFEM_VERSION_STRING}")
 message(STATUS "MFEM git string: ${MFEM_GIT_STRING}")
 
-# Windows specific
-set(_USE_MATH_DEFINES ${WIN32})
-
 #-------------------------------------------------------------------------------
 # Define and configure the MFEM library
 #-------------------------------------------------------------------------------
@@ -543,3 +540,10 @@ install(FILES
 # Install the export set for use with the install-tree
 install(EXPORT ${PROJECT_NAME_UC}Targets
     DESTINATION ${INSTALL_CMAKE_DIR})
+
+#-------------------------------------------------------------------------------
+# Create 'config.mk' from 'config.mk.in' for the build and install locations and
+# define install rules for 'config.mk' and 'test.mk'
+#-------------------------------------------------------------------------------
+
+mfem_export_mk_files()
