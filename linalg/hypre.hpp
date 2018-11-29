@@ -85,12 +85,22 @@ private:
 
 public:
    /** Creates vector with given global size and partitioning of the columns.
-       Processor P owns columns [col[P],col[P+1]) */
+       The column partitioning may need to be defined in one of two ways
+       depending on the configuration of HYPRE;
+       1) If Hypre_AssumedPartitionCheck() returns true (the default),
+          then col is of length 2 and the local processor owns columns
+          [col[0],col[1]).
+       2) If Hypre_AssumedPartitionCheck() returns false, then col is of
+          length (number of processors + 1) and processor P owns columns
+          [col[P],col[P+1]) i.e. each processor has a copy of the same col
+          array.
+   */
    HypreParVector(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *col);
    /** Creates vector with given global size, partitioning of the columns,
        and data. The data must be allocated and destroyed outside.
        If _data is NULL, a dummy vector without a valid data array will
-       be created. */
+       be created. Note: see the comment above for a descriptiojn of the
+       col array. */
    HypreParVector(MPI_Comm comm, HYPRE_Int glob_size, double *_data,
                   HYPRE_Int *col);
    /// Creates vector compatible with y
@@ -106,6 +116,10 @@ public:
    MPI_Comm GetComm() { return x->comm; }
 
    /// Returns the row partitioning
+   /** See the comment for the
+       HypreParVector(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *col);
+       constructor for a description of the partitioning array.
+    */
    inline HYPRE_Int *Partitioning() { return x->partitioning; }
 
    /// Returns the global number of rows
@@ -239,27 +253,43 @@ public:
        take ownership of any of the input arrays.
        @warning The ordering of the columns in each row in @a *diag may be
        changed by this constructor to ensure that the first entry in each row is
-       the diagonal one. This is expected by most hypre functions. */
+       the diagonal one. This is expected by most hypre functions.
+       Note: See the comment for the
+       HypreParVector(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *col);
+       constructor for a description of the partitioning array.
+    */
    HypreParMatrix(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *row_starts,
                   SparseMatrix *diag); // constructor with 4 arguments, v1
 
    /** Creates block-diagonal rectangular parallel matrix. Diagonal is given by
        diag which must be in CSR format (finalized). The new HypreParMatrix does
-       not take ownership of any of the input arrays. */
+       not take ownership of any of the input arrays.
+       Note: See the comment for the
+       HypreParVector(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *col);
+       constructor for a description of the partitioning arrays.
+   */
    HypreParMatrix(MPI_Comm comm, HYPRE_Int global_num_rows,
                   HYPRE_Int global_num_cols, HYPRE_Int *row_starts,
                   HYPRE_Int *col_starts,
                   SparseMatrix *diag); // constructor with 6 arguments, v1
 
    /** Creates general (rectangular) parallel matrix. The new HypreParMatrix
-       does not take ownership of any of the input arrays. */
+       does not take ownership of any of the input arrays.
+       Note: See the comment for the
+       HypreParVector(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *col);
+       constructor for a description of the partitioning arrays.
+   */
    HypreParMatrix(MPI_Comm comm, HYPRE_Int global_num_rows,
                   HYPRE_Int global_num_cols, HYPRE_Int *row_starts,
                   HYPRE_Int *col_starts, SparseMatrix *diag, SparseMatrix *offd,
                   HYPRE_Int *cmap); // constructor with 8 arguments
 
    /** Creates general (rectangular) parallel matrix. The new HypreParMatrix
-       takes ownership of all input arrays, except col_starts and row_starts. */
+       takes ownership of all input arrays, except col_starts and row_starts.
+       Note: See the comment for the
+       HypreParVector(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *col);
+       constructor for a description of the partitioning arrays.
+   */
    HypreParMatrix(MPI_Comm comm,
                   HYPRE_Int global_num_rows, HYPRE_Int global_num_cols,
                   HYPRE_Int *row_starts, HYPRE_Int *col_starts,
@@ -269,11 +299,19 @@ public:
                   HYPRE_Int *offd_col_map); // constructor with 13 arguments
 
    /// Creates a parallel matrix from SparseMatrix on processor 0.
+   /** See the comment for the
+       HypreParVector(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *col);
+       constructor for a description of the partitioning arrays.
+    */
    HypreParMatrix(MPI_Comm comm, HYPRE_Int *row_starts, HYPRE_Int *col_starts,
                   SparseMatrix *a); // constructor with 4 arguments, v2
 
    /** Creates boolean block-diagonal rectangular parallel matrix. The new
-       HypreParMatrix does not take ownership of any of the input arrays. */
+       HypreParMatrix does not take ownership of any of the input arrays.
+       Note: See the comment for the
+       HypreParVector(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *col);
+       constructor for a description of the partitioning arrays.
+   */
    HypreParMatrix(MPI_Comm comm, HYPRE_Int global_num_rows,
                   HYPRE_Int global_num_cols, HYPRE_Int *row_starts,
                   HYPRE_Int *col_starts,
@@ -281,7 +319,11 @@ public:
 
    /** Creates boolean rectangular parallel matrix. The new HypreParMatrix takes
        ownership of the arrays i_diag, j_diag, i_offd, j_offd, and cmap; does
-       not take ownership of the arrays row and col. */
+       not take ownership of the arrays row and col.
+       Note: See the comment for the
+       HypreParVector(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *col);
+       constructor for a description of the partitioning arrays.
+   */
    HypreParMatrix(MPI_Comm comm, int id, int np, HYPRE_Int *row, HYPRE_Int *col,
                   HYPRE_Int *i_diag, HYPRE_Int *j_diag, HYPRE_Int *i_offd,
                   HYPRE_Int *j_offd, HYPRE_Int *cmap,
@@ -290,7 +332,11 @@ public:
    /** Creates a general parallel matrix from a local CSR matrix on each
        processor described by the I, J and data arrays. The local matrix should
        be of size (local) nrows by (global) glob_ncols. The new parallel matrix
-       contains copies of all input arrays (so they can be deleted). */
+       contains copies of all input arrays (so they can be deleted).
+       Note: See the comment for the
+       HypreParVector(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *col);
+       constructor for a description of the partitioning arrays.
+   */
    HypreParMatrix(MPI_Comm comm, int nrows, HYPRE_Int glob_nrows,
                   HYPRE_Int glob_ncols, int *I, HYPRE_Int *J,
                   double *data, HYPRE_Int *rows,
@@ -334,12 +380,28 @@ public:
    /// Returns the global number of nonzeros
    inline HYPRE_Int NNZ() const { return A->num_nonzeros; }
    /// Returns the row partitioning
+   /** See the comment for the
+       HypreParVector(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *col);
+       constructor for a description of the partitioning array.
+    */
    inline HYPRE_Int *RowPart() { return A->row_starts; }
    /// Returns the column partitioning
+   /** See the comment for the
+       HypreParVector(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *col);
+       constructor for a description of the partitioning array.
+    */
    inline HYPRE_Int *ColPart() { return A->col_starts; }
    /// Returns the row partitioning (const version)
+   /** See the comment for the
+       HypreParVector(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *col);
+       constructor for a description of the partitioning array.
+    */
    inline const HYPRE_Int *RowPart() const { return A->row_starts; }
    /// Returns the column partitioning (const version)
+   /** See the comment for the
+       HypreParVector(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *col);
+       constructor for a description of the partitioning array.
+    */
    inline const HYPRE_Int *ColPart() const { return A->col_starts; }
    /// Returns the global number of rows
    inline HYPRE_Int M() const { return A->global_num_rows; }
@@ -382,8 +444,16 @@ public:
    HYPRE_Int GetGlobalNumCols() const
    { return hypre_ParCSRMatrixGlobalNumCols(A); }
 
+   /** See the comment for the
+       HypreParVector(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *col);
+       constructor for a description of the partitioning array.
+    */
    HYPRE_Int *GetRowStarts() const { return hypre_ParCSRMatrixRowStarts(A); }
 
+   /** See the comment for the
+       HypreParVector(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *col);
+       constructor for a description of the partitioning array.
+    */
    HYPRE_Int *GetColStarts() const { return hypre_ParCSRMatrixColStarts(A); }
 
    /// Computes y = alpha * A * x + beta * y
