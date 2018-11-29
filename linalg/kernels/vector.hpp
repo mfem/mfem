@@ -39,6 +39,7 @@ void kVectorSubtract(double *zp, const double *xp, const double *yp,
                      const size_t N);
 
 double kVectorDot(const size_t N, const double *x, const double *y);
+double kVectorMin(const size_t, const double*);
 
 void kVectorDotOpPlusEQ(const size_t size, const double *v, double *data);
 

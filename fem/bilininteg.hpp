@@ -56,6 +56,27 @@ public:
 };
 
 // *****************************************************************************
+// * PA Mass Integrator
+// *****************************************************************************
+class PAMassIntegrator: public BilinearPAFormIntegrator
+{
+private:
+   //Coefficient *Q;
+   //KMassIntegrator *mass;
+public:
+   PAMassIntegrator (/*Coefficient &q*/) : BilinearPAFormIntegrator(){}
+   //Q(&q){}
+   //mass(NULL) {}
+   void Setup(const FiniteElementSpace*, const IntegrationRule*);
+   void Assemble();
+   void MultAdd(Vector&, Vector&);
+   void MultTransposeAdd(Vector&, Vector&) {assert(false);}
+   void AssembleElementMatrix(const FiniteElement&,
+                              ElementTransformation&,
+                              DenseMatrix&) {assert(false);}
+};
+
+// *****************************************************************************
 // * PA Diffusion Integrator
 // *****************************************************************************
 class PADiffusionIntegrator: public BilinearPAFormIntegrator
