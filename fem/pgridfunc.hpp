@@ -197,6 +197,15 @@ public:
 
    virtual void ProjectDiscCoefficient(VectorCoefficient &vcoeff, AvgType type);
 
+   using GridFunction::ProjectBdrCoefficient;
+
+   // Only the values in the master are guaranteed to be correct!
+   virtual void ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr);
+
+   // Only the values in the master are guaranteed to be correct!
+   virtual void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
+                                             Array<int> &bdr_attr);
+
    virtual double ComputeL1Error(Coefficient *exsol[],
                                  const IntegrationRule *irs[] = NULL) const
    {

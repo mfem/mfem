@@ -770,6 +770,9 @@ public:
    /// Copy data from a pointer. Size() elements are copied.
    void Assign(const T *src) {base_class::operator=(src); }
 
+   template <typename U>
+   inline void CopyTo(U *dest) { std::copy(begin(), end(), dest); }
+
    // STL-like begin/end
    inline T* begin() const { return (T*) data; }
    inline T* end() const { return (T*) data + size; }
