@@ -809,7 +809,7 @@ struct CompareShared // TODO: use lambda when C++11 available
    const Array<int> &elem_local, &leaf_glob_order, &shared_local;
 
    CompareShared
-      (const Array<int> &el, const Array<int> &lgo, const Array<int> &sl)
+   (const Array<int> &el, const Array<int> &lgo, const Array<int> &sl)
       : elem_local(el), leaf_glob_order(lgo), shared_local(sl) {}
 
    inline bool operator()(const int a, const int b)
