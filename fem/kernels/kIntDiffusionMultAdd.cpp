@@ -15,6 +15,40 @@ namespace mfem
 {
 
 // *****************************************************************************
+void oIntDiffusionMultAdd2D(const int NUM_DOFS_1D,
+                            const int NUM_QUAD_1D,
+                            const int numElements,
+                            const double* __restrict dofToQuad,
+                            const double* __restrict dofToQuadD,
+                            const double* __restrict quadToDof,
+                            const double* __restrict quadToDofD,
+                            const double* __restrict oper,
+                            const double* __restrict solIn,
+                            double* __restrict solOut)
+{
+   GET_OCCA_CONST_MEMORY(dofToQuad);
+   GET_OCCA_CONST_MEMORY(dofToQuadD);
+   GET_OCCA_CONST_MEMORY(quadToDof);
+   GET_OCCA_CONST_MEMORY(quadToDofD);
+   GET_OCCA_CONST_MEMORY(oper);
+   GET_OCCA_CONST_MEMORY(solIn);
+   GET_OCCA_MEMORY(solOut);
+   
+   NEW_OCCA_PROPERTY(props);
+   SET_OCCA_PROPERTY(props, NUM_DOFS_1D);
+   SET_OCCA_PROPERTY(props, NUM_QUAD_1D);
+   const int NUM_QUAD_2D = NUM_QUAD_1D*NUM_QUAD_1D;
+   SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
+   
+   NEW_OCCA_KERNEL(MultAdd2D, fem, oIntDiffusionMultAdd.okl, props);
+   MultAdd2D(numElements,
+             o_dofToQuad, o_dofToQuadD,
+             o_quadToDof, o_quadToDofD,
+             o_oper, o_solIn,
+             o_oper);
+}
+
+// *****************************************************************************
 #define QUAD_2D_ID(X, Y) (X + ((Y) * NUM_QUAD_1D))
 #define QUAD_3D_ID(X, Y, Z) (X + ((Y) * NUM_QUAD_1D) + ((Z) * NUM_QUAD_1D*NUM_QUAD_1D))
 
@@ -335,6 +369,15 @@ void kIntDiffusionMultAdd(const int DIM,
                           const double* __restrict x,
                           double* __restrict y)
 {
+   if (config::Get().Occa()){
+      assert(DIM==2);
+      oIntDiffusionMultAdd2D(NUM_DOFS_1D, NUM_QUAD_1D,
+                             numElements,
+                             dofToQuad, dofToQuadD,
+                             quadToDof, quadToDofD,
+                             op, x, y);
+   }
+      
    const unsigned int id = (DIM<<16)|(NUM_DOFS_1D<<8)|(NUM_QUAD_1D);
    assert(LOG2(NUM_DOFS_1D)<=8);
    assert(LOG2(NUM_QUAD_1D)<=8);
@@ -392,7 +435,7 @@ void kIntDiffusionMultAdd(const int DIM,
    GET_CONST_ADRS(op);
    GET_CONST_ADRS(x);
    GET_ADRS(y);
-
+   
    call[id](numElements,
             d_dofToQuad, d_dofToQuadD, d_quadToDof, d_quadToDofD,
             d_op, d_x, d_y);
