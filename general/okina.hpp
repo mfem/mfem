@@ -97,13 +97,15 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 // *****************************************************************************
 #define GET_OCCA_MEMORY(v) occa::memory o_##v = mm::Get().Memory(v)
 #define GET_OCCA_CONST_MEMORY(v) GET_OCCA_MEMORY(v)
-#define NEW_OCCA_KERNEL(ker,libray,filename)                            \
+#define NEW_OCCA_PROPERTY(props) occa::properties props;
+#define SET_OCCA_PROPERTY(props,name) props["defines/" #name] = name;   
+#define NEW_OCCA_KERNEL(ker,libray,filename,props)                      \
    static occa::kernel ker = NULL;                                      \
    if (ker==NULL) {                                                     \
       OCCAdevice device = config::Get().OccaDevice();                   \
       const std::string fdk = "occa://" #libray "/" #filename;          \
       const std::string odk = occa::io::occaFileOpener().expand(fdk);   \
-      ker = device.buildKernel(odk, #ker);                              \
+      ker = device.buildKernel(odk, #ker, props);                        \
    }
 
 // *****************************************************************************

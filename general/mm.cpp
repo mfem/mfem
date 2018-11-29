@@ -122,11 +122,11 @@ occa::memory mm::Memory(const void *adrs)
    if (not mm2dev.d_adrs){
       mm2dev.o_adrs = device.malloc(bytes);
       mm2dev.d_adrs = mm2dev.o_adrs.ptr();
-      dbg("\033[33msz %ld", mm2dev.bytes/sizeof(double));
+      //dbg("\033[33msz %ld", mm2dev.bytes/sizeof(double));
       mm2dev.o_adrs.copyFrom(mm2dev.h_adrs);
       mm2dev.host = false; // This address is no more on the host
    }else{
-      dbg("\033[31msz %ld", mm2dev.bytes/sizeof(double));
+      //dbg("\033[31msz %ld", mm2dev.bytes/sizeof(double));
 #ifdef __NVCC__
       mm2dev.o_adrs = occa::cuda::wrapMemory(device, mm2dev.d_adrs, bytes);
 #else

@@ -9,28 +9,26 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#define ijkNM(i,j,k,N,M) (i)+(N)*((j)+(M)*(k))
-#define ijklNM(i,j,k,l,N,M) (i)+(N)*((j)+(N)*((k)+(M)*(l)))
+// *****************************************************************************
+typedef double* Jacobian2D_t @dim(2, 2, NUM_QUAD_2D, numElements);
+typedef double* SymmOperator2D_t @dim(3, NUM_QUAD_2D, numElements);
 
-//---[ 2D ]-----------------------------
-@kernel void Assemble2D(const int NUM_QUAD_1D,
-                        const int numElements,
+// *****************************************************************************
+@kernel void Assemble2D(const int numElements,
                         @restrict const double * quadWeights,
-                        @restrict const double * J,
+                        @restrict const Jacobian2D_t J,
                         const double COEFF,
-                        @restrict double * oper) {
-   const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D;
-   for (int e = 0; e < numElements; ++e; @outer) {
-      for (int q = 0; q < NUM_QUAD; ++q; @inner) {
-         const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D;
-         const double J11 = J[ijklNM(0,0,q,e,2,NUM_QUAD)];
-         const double J12 = J[ijklNM(1,0,q,e,2,NUM_QUAD)];
-         const double J21 = J[ijklNM(0,1,q,e,2,NUM_QUAD)];
-         const double J22 = J[ijklNM(1,1,q,e,2,NUM_QUAD)];
-         const double c_detJ = quadWeights[q] * COEFF / ((J11*J22)-(J21*J12));
-         oper[ijkNM(0,q,e,3,NUM_QUAD)] =  c_detJ * (J21*J21 + J22*J22);
-         oper[ijkNM(1,q,e,3,NUM_QUAD)] = -c_detJ * (J21*J11 + J22*J12);
-         oper[ijkNM(2,q,e,3,NUM_QUAD)] =  c_detJ * (J11*J11 + J12*J12);
-      }
-   }
+                        @restrict SymmOperator2D_t oper) {
+  for (int e = 0; e < numElements; ++e; @outer) {
+    for (int q = 0; q < NUM_QUAD_2D; ++q; @inner) {
+      const double J11 = J(0, 0, q, e), J12 = J(1, 0, q, e);
+      const double J21 = J(0, 1, q, e), J22 = J(1, 1, q, e);
+
+      const double c_detJ = quadWeights[q] * COEFF / ((J11 * J22) - (J21 * J12));
+
+      oper(0, q, e) =  c_detJ * (J21*J21 + J22*J22); // (1,1)
+      oper(1, q, e) = -c_detJ * (J21*J11 + J22*J12); // (1,2), (2,1)
+      oper(2, q, e) =  c_detJ * (J11*J11 + J12*J12); // (2,2)
+    }
+  }
 }

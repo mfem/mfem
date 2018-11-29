@@ -27,8 +27,14 @@ static void oAssemble2D(const int NUM_QUAD_1D,
    GET_OCCA_CONST_MEMORY(quadWeights);
    GET_OCCA_CONST_MEMORY(J);
    GET_OCCA_MEMORY(oper);
-   NEW_OCCA_KERNEL(Assemble2D,fem,oIntDiffusionAssemble.okl);
-   Assemble2D(NUM_QUAD_1D, numElements, o_quadWeights, o_J, COEFF, o_oper);
+   
+   NEW_OCCA_PROPERTY(props);
+   SET_OCCA_PROPERTY(props, NUM_QUAD_1D);
+   const int NUM_QUAD_2D = NUM_QUAD_1D*NUM_QUAD_1D;
+   SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
+   
+   NEW_OCCA_KERNEL(Assemble2D, fem, oIntDiffusionAssemble.okl, props);
+   Assemble2D(numElements, o_quadWeights, o_J, COEFF, o_oper);
 }
 
 // **************************************************************************
