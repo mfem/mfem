@@ -29,10 +29,10 @@ public:
    DiffusionIntegrator() : Q(NULL), MQ(NULL) {}
 
    /// Construct a diffusion integrator with a scalar coefficient q
-   DiffusionIntegrator (Coefficient &q) : Q(&q), MQ(NULL) {}
+   DiffusionIntegrator(Coefficient &q) : Q(&q), MQ(NULL) {}
 
    /// Construct a diffusion integrator with a matrix coefficient q
-   DiffusionIntegrator (MatrixCoefficient &q) : Q(NULL), MQ(&q) {}
+   DiffusionIntegrator(MatrixCoefficient &q) : Q(NULL), MQ(&q) {}
 
 
    /** Given a batch of elements, the trial and test FiniteElements,
@@ -40,6 +40,8 @@ public:
    virtual void AssembleElements(const Array<int> &batch,
                                  const FiniteElement &trial_fe,
                                  const FiniteElement &test_fe,
+                                 // FIXME: a list of transformations or a
+                                 // new "Geometry" class needs to be passed
                                  ElementTransformation &trans,
                                  DenseTensor &matrices);
 
@@ -49,7 +51,7 @@ public:
    virtual void PartialAssemble(const Array<int> &batch,
                                 const FiniteElement &trial_fe,
                                 const FiniteElement &test_fe,
-                                ElementTransformation &trans,
+                                ElementTransformation &trans, // FIXME
                                 Tensor &dof_quad,
                                 Tensor &quad_data);
 

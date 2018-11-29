@@ -22,7 +22,7 @@ using namespace mfem;
 
 enum class AssemblyLevel
 {
-   PARTIAL, FULL
+   NONE, PARTIAL, LOCAL, FULL
 };
 
 ///
