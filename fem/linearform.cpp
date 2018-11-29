@@ -70,7 +70,7 @@ void LinearForm::Assemble()
 
    if (dlfi.Size())
    {
-      for (i = 0; i < fes -> GetNE(); i++)
+      for (int i = 0; i < fes -> GetNE(); i++)
       {
          fes -> GetElementVDofs (i, vdofs);
          eltrans = fes -> GetElementTransformation (i);
@@ -108,7 +108,7 @@ void LinearForm::Assemble()
          }
       }
 
-      for (i = 0; i < fes -> GetNBE(); i++)
+      for (int i = 0; i < fes -> GetNBE(); i++)
       {
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }

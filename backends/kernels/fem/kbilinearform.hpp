@@ -60,7 +60,7 @@ public:
    device GetDevice(int idx = 0) const { return ng->GetDevice(idx); }
 
    // Useful mesh Information
-   int BaseGeom() const { return mesh->GetElementBaseGeometry(); }
+   int BaseGeom() const { return mesh->GetElementBaseGeometry(0); }
    int GetDim() const { return mesh->Dimension(); }
    int64_t GetNE() const { return mesh->GetNE(); }
    mfem::Mesh& GetMesh() const { return *mesh; }
