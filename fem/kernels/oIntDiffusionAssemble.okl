@@ -9,9 +9,7 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-// *****************************************************************************
-typedef double* Jacobian2D_t @dim(2, 2, NUM_QUAD_2D, numElements);
-typedef double* SymmOperator2D_t @dim(3, NUM_QUAD_2D, numElements);
+#include "occa://fem/defines.okl"
 
 // *****************************************************************************
 @kernel void Assemble2D(const int numElements,
@@ -23,9 +21,7 @@ typedef double* SymmOperator2D_t @dim(3, NUM_QUAD_2D, numElements);
     for (int q = 0; q < NUM_QUAD_2D; ++q; @inner) {
       const double J11 = J(0, 0, q, e), J12 = J(1, 0, q, e);
       const double J21 = J(0, 1, q, e), J22 = J(1, 1, q, e);
-
       const double c_detJ = quadWeights[q] * COEFF / ((J11 * J22) - (J21 * J12));
-
       oper(0, q, e) =  c_detJ * (J21*J21 + J22*J22); // (1,1)
       oper(1, q, e) = -c_detJ * (J21*J11 + J22*J12); // (1,2), (2,1)
       oper(2, q, e) =  c_detJ * (J11*J11 + J12*J12); // (2,2)

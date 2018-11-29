@@ -26,6 +26,8 @@ void oIntDiffusionMultAdd2D(const int NUM_DOFS_1D,
                             const double* __restrict solIn,
                             double* __restrict solOut)
 {
+   const int NUM_QUAD_2D = NUM_QUAD_1D*NUM_QUAD_1D;
+   
    GET_OCCA_CONST_MEMORY(dofToQuad);
    GET_OCCA_CONST_MEMORY(dofToQuadD);
    GET_OCCA_CONST_MEMORY(quadToDof);
@@ -37,15 +39,23 @@ void oIntDiffusionMultAdd2D(const int NUM_DOFS_1D,
    NEW_OCCA_PROPERTY(props);
    SET_OCCA_PROPERTY(props, NUM_DOFS_1D);
    SET_OCCA_PROPERTY(props, NUM_QUAD_1D);
-   const int NUM_QUAD_2D = NUM_QUAD_1D*NUM_QUAD_1D;
    SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
-   
-   NEW_OCCA_KERNEL(MultAdd2D, fem, oIntDiffusionMultAdd.okl, props);
-   MultAdd2D(numElements,
-             o_dofToQuad, o_dofToQuadD,
-             o_quadToDof, o_quadToDofD,
-             o_oper, o_solIn,
-             o_oper);
+
+   if (not config::Get().Cuda()){
+      NEW_OCCA_KERNEL(MultAdd2D_CPU, fem, oIntDiffusionMultAdd.okl, props);
+      MultAdd2D_CPU(numElements,
+                    o_dofToQuad, o_dofToQuadD,
+                    o_quadToDof, o_quadToDofD,
+                    o_oper, o_solIn,
+                    o_oper);
+   }else{
+      NEW_OCCA_KERNEL(MultAdd2D_GPU, fem, oIntDiffusionMultAdd.okl, props);
+      MultAdd2D_GPU(numElements,
+                    o_dofToQuad, o_dofToQuadD,
+                    o_quadToDof, o_quadToDofD,
+                    o_oper, o_solIn,
+                    o_oper);
+   }
 }
 
 // *****************************************************************************

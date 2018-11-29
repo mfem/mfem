@@ -36,11 +36,9 @@ void config::cudaDeviceSetup(const int device)
 // * Setting device, paths & kernels
 // *****************************************************************************
 void config::occaDeviceSetup(){
-#warning Should be done later, once the mode is set
 #ifdef __OCCA__
 #ifdef __NVCC__
    dbg("[occa] CUDA");
-   //occaDevice.setup("mode: 'CUDA', device_id: 0");
    occaDevice = occa::cuda::wrapDevice(cuDevice, cuContext);
 #else
    dbg("[occa] Serial");

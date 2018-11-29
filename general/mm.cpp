@@ -101,6 +101,7 @@ void* mm::Adrs(const void *adrs)
          mfem_error("[ERROR] Trying to run without CUDA support!");
       }
       const size_t bytes = mm2dev.bytes;
+      //dbg("\033[32mmalloc cuda memory of size %ld", bytes/sizeof(double));
       if (bytes>0) { okMemAlloc(&mm2dev.d_adrs, bytes); }
       void *stream = config::Get().Stream();
       okMemcpyHtoDAsync(mm2dev.d_adrs, mm2dev.h_adrs, bytes, stream);
@@ -120,13 +121,20 @@ occa::memory mm::Memory(const void *adrs)
    const size_t bytes = mm2dev.bytes;
    OCCAdevice device = config::Get().OccaDevice();
    if (not mm2dev.d_adrs){
+#ifdef __NVCC__
+      okMemAlloc(&mm2dev.d_adrs, bytes);
+      void *stream = config::Get().Stream();
+      okMemcpyHtoDAsync(mm2dev.d_adrs, mm2dev.h_adrs, bytes, stream);
+      mm2dev.o_adrs = occa::cuda::wrapMemory(device, mm2dev.d_adrs, bytes);
+#else
       mm2dev.o_adrs = device.malloc(bytes);
       mm2dev.d_adrs = mm2dev.o_adrs.ptr();
       //dbg("\033[33msz %ld", mm2dev.bytes/sizeof(double));
       mm2dev.o_adrs.copyFrom(mm2dev.h_adrs);
+#endif
       mm2dev.host = false; // This address is no more on the host
    }else{
-      //dbg("\033[31msz %ld", mm2dev.bytes/sizeof(double));
+      //dbg("\033[33m wrap  \033[32mcuda memory of size %ld", mm2dev.bytes/sizeof(double));
 #ifdef __NVCC__
       mm2dev.o_adrs = occa::cuda::wrapMemory(device, mm2dev.d_adrs, bytes);
 #else
