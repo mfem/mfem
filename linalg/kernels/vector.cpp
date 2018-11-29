@@ -23,6 +23,51 @@ namespace mfem
 #define CUDA_BLOCKSIZE 256
 
 // *****************************************************************************
+__global__ void cuKernelMin(const size_t N, double *gdsr, const double *x)
+{
+   __shared__ double s_min[CUDA_BLOCKSIZE];
+   const size_t n = blockDim.x*blockIdx.x + threadIdx.x;
+   if (n>=N) { return; }
+   const size_t bid = blockIdx.x;
+   const size_t tid = threadIdx.x;
+   const size_t bbd = bid*blockDim.x;
+   const size_t rid = bbd+tid;
+   s_min[tid] = x[n];
+   for (size_t workers=blockDim.x>>1; workers>0; workers>>=1)
+   {
+      __syncthreads();
+      if (tid >= workers) { continue; }
+      if (rid >= N) { continue; }
+      const size_t dualTid = tid + workers;
+      if (dualTid >= N) { continue; }
+      const size_t rdd = bbd+dualTid;
+      if (rdd >= N) { continue; }
+      if (dualTid >= blockDim.x) { continue; }
+      s_min[tid] = fmin(s_min[tid], s_min[dualTid]);
+   }
+   if (tid==0) { gdsr[bid] = s_min[0]; }
+}
+
+// *****************************************************************************
+double cuVectorMin(const size_t N, const double *x)
+{
+   const size_t tpb = CUDA_BLOCKSIZE;
+   const size_t blockSize = CUDA_BLOCKSIZE;
+   const size_t gridSize = (N+blockSize-1)/blockSize;
+   const size_t min_sz = (N%tpb)==0? (N/tpb) : (1+N/tpb);
+   const size_t bytes = min_sz*sizeof(double);
+   static double *h_min = NULL;
+   if (!h_min) { h_min = (double*)calloc(min_sz,sizeof(double)); }
+   static CUdeviceptr gdsr = (CUdeviceptr) NULL;
+   if (!gdsr) { cuMemAlloc(&gdsr,bytes); }
+   cuKernelMin<<<gridSize,blockSize>>>(N, (double*)gdsr, x);
+   cuMemcpy((CUdeviceptr)h_min,(CUdeviceptr)gdsr,bytes);
+   double min = 1.e300;
+   for (size_t i=0; i<min_sz; i+=1) { min = fmin(min, h_min[i]); }
+   return min;
+}
+
+// *****************************************************************************
 __global__ void cuKernelDot(const size_t N, double *gdsr,
                             const double *x, const double *y)
 {
@@ -68,6 +113,24 @@ double cuVectorDot(const size_t N, const double *x, const double *y)
    return dot;
 }
 #endif // __NVCC__
+
+// *****************************************************************************
+double kVectorMin(const size_t N, const double *x)
+{
+   GET_CUDA;
+   GET_CONST_ADRS(x);
+
+   if (cuda)
+   {
+#ifdef __NVCC__
+      return cuVectorMin(N, d_x);
+#endif // __NVCC__
+   }
+
+   double min = 1.e300;
+   for (size_t i=0; i<N; i+=1) { min = fmin(min, d_x[i]); }
+   return min;
+}
 
 // *****************************************************************************
 double kVectorDot(const size_t N, const double *x, const double *y)
