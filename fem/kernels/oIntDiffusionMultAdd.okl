@@ -9,14 +9,7 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-// *****************************************************************************
-typedef double* DofToQuad_t @dim(NUM_QUAD_1D, NUM_DOFS_1D);
-typedef double* QuadToDof_t @dim(NUM_DOFS_1D, NUM_QUAD_1D);
-typedef double* SymmOperator2D_t @dim(3, NUM_QUAD_2D, numElements);
-typedef double* DLocal2D_t @dim(NUM_DOFS_1D, NUM_DOFS_1D, numElements);
-
-// *****************************************************************************
-#define QUAD_2D_ID(X, Y) (X + ((Y) * NUM_QUAD_1D))
+#include "occa://fem/defines.okl"
 
 // *****************************************************************************
 @kernel void MultAdd2D_CPU(const int numElements,
