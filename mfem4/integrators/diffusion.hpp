@@ -12,11 +12,72 @@
 #ifndef MFEM4_INTEGRATORS_DIFFUSION_HPP
 #define MFEM4_INTEGRATORS_DIFFUSION_HPP
 
+#include "fem/bilininteg.hpp"
+
 namespace mfem4
 {
 
+using namespace mfem;
 
 
+/** Class for integrating the bilinear form a(u,v) := (Q grad u, grad v) where Q
+    can be a scalar or a matrix coefficient. */
+class DiffusionIntegrator: public BilinearFormIntegrator
+{
+public:
+   /// Construct a diffusion integrator with coefficient Q = 1
+   DiffusionIntegrator() : Q(NULL), MQ(NULL) {}
+
+   /// Construct a diffusion integrator with a scalar coefficient q
+   DiffusionIntegrator (Coefficient &q) : Q(&q), MQ(NULL) {}
+
+   /// Construct a diffusion integrator with a matrix coefficient q
+   DiffusionIntegrator (MatrixCoefficient &q) : Q(NULL), MQ(&q) {}
+
+
+   /** Given a batch of elements, the trial and test FiniteElements,
+       compute the element stiffness matrices. */
+   virtual void AssembleElements(const Array<int> &batch,
+                                 const FiniteElement &trial_fe,
+                                 const FiniteElement &test_fe,
+                                 ElementTransformation &trans,
+                                 DenseTensor &matrices);
+
+   /** Given a batch of elements, the trial and test FiniteElements,
+       partial assemble dof<->quad maps, and geometry and coefficient data
+       at quadrature points. */
+   virtual void PartialAssemble(const Array<int> &batch,
+                                const FiniteElement &trial_fe,
+                                const FiniteElement &test_fe,
+                                ElementTransformation &trans,
+                                Tensor &dof_quad,
+                                Tensor &quad_data);
+
+   // TODO maybe it will be necessary to wrap all partial assembly results into
+   // a struct... in any case these shouldn't be stored in the integrator.
+   // All integrators should remain stateless.
+
+   /** Giver partially assembled data from PartialAssemble, apply
+       element-wise operators on vector @a x and return @a y. */
+   virtual void MultAdd(const Tensor &dof_quad,
+                        const Tensor &quad_data,
+                        const Vector &x,
+                        Vector &y);
+
+
+   virtual void ComputeElementFlux(const FiniteElement &el,
+                                   ElementTransformation &Trans,
+                                   Vector &u, const FiniteElement &fluxelem,
+                                   Vector &flux, int with_coef = 1);
+
+   virtual double ComputeFluxEnergy(const FiniteElement &fluxelem,
+                                    ElementTransformation &Trans,
+                                    Vector &flux, Vector *d_energy = NULL);
+
+protected:
+   Coefficient *Q;
+   MatrixCoefficient *MQ;
+};
 
 
 } // namespace mfem4

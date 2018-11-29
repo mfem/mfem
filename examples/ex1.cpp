@@ -136,9 +136,10 @@ int main(int argc, char *argv[])
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
    mfem4::BilinearForm *a = new mfem4::BilinearForm(fespace);
-   a->AddDomainIntegrator(new DiffusionIntegrator(one)); // NOTE: integrators can MultAdd (if implemented)
-   a->SetAssemblyLevel(mfem4::AssemblyLevel::PARTIAL);
-   a->Assemble(); // NOTE: BilinearForm is simple as before, no FormLinearSystem
+   a->AddDomainIntegrator(new mfem4::DiffusionIntegrator(one)); // NOTE: integrators can MultAdd (if implemented)
+   a->SetAssemblyLevel(partial ? AssemblyLevel::PARTIAL
+                               : AssemblyLevel::FULL);
+   a->Assemble(); // NOTE: BilinearForm is as simple as before, no FormLinearSystem
 
    // 9. Create the linear system, applying any necessary transformations
    //    such as: eliminating boundary conditions, applying conforming
@@ -150,7 +151,7 @@ int main(int argc, char *argv[])
    ls.SetOperatorType(Operator::MFEM_SPARSEMAT); // or PETSC_xxx...
    ls.EnableStaticCondensation(static_cond); // NOTE: does nothing for PA
    ls.Assemble(); // NOTE: this is like FormLinearSystem
-   // NOTE: if level==PARTIAL, Assemble() constructs the constrained operator
+   // NOTE: if the BF has partial assembly, ls.Assemble() constructs the constrained operator
 
    // 10. Solve the linear system with the supplied solver and optionally
    //     a preconditioner too.
@@ -159,13 +160,13 @@ int main(int argc, char *argv[])
    cg.SetAbsTol(1e-12);
    cg.SetMaxIter(200);
    cg.SetPrintLevel(1);
-   ls.Solve(cg, prec, x); // NOTE: this just calls the solver and recovers 'x'
+   ls.Solve(prec, cg, x); // NOTE: this just calls the solver and recovers 'x'
 
    // 11. Alternatively, one can still access the system matrix and RHS if
    //     necessary (after LinearSystem::Assemble()).
-   const Operator &A = ls.SystemMatrix(); // NOTE: this fails if partial==true
-   const Operator &A = ls.SystemOperator(); // NOTE: this always works
-   const Vector &B = ls.RHS(); // NOTE: this always works
+   const Operator &A = ls.GetMatrix(); // NOTE: this fails if partial==true
+   const Operator &A = ls.GetOperator(); // NOTE: this always works
+   const Vector &B = ls.GetRHS(); // NOTE: this always works
    cout << "Size of linear system: " << A.Height() << endl;
    // NOTE: you can do ls.RecoverFEMSolution(X, x); if you obtain X your way
 
