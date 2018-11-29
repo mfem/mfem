@@ -20,12 +20,18 @@ namespace mfem4
 
 using namespace mfem;
 
+enum class AssemblyLevel
+{
+   PARTIAL, FULL
+};
+
 ///
 class BilinearForm : public Matrix
 {
 public:
    /// Creates bilinear form associated with FE space @a *fes.
-   BilinearForm(const FiniteElementSpace *fes);
+   BilinearForm(const FiniteElementSpace *fes,
+                AssemblyLevel level = AssemblyLevel::FULL);
 
    /// Adds new Domain Integrator.
    void AddDomainIntegrator(const BilinearFormIntegrator *bfi);
@@ -48,6 +54,8 @@ public:
        attributes. */
    void AddBdrFaceIntegrator(const BilinearFormIntegrator *bfi,
                              const Array<int> &attr_list);
+
+   void SetAssemblyLevel(AssemblyLevel level);
 
    /// Assembles the form i.e. sums over all domain/bdr integrators.
    void Assemble();

@@ -135,9 +135,10 @@ int main(int argc, char *argv[])
    // 8. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
-   BilinearForm *a = new BilinearForm(fespace);
+   mfem4::BilinearForm *a = new mfem4::BilinearForm(fespace);
    a->AddDomainIntegrator(new DiffusionIntegrator(one)); // NOTE: integrators can MultAdd (if implemented)
-   a->Assemble(partial); // NOTE: BilinearForm is simple as before, no FormLinearSystem
+   a->SetAssemblyLevel(mfem4::AssemblyLevel::PARTIAL);
+   a->Assemble(); // NOTE: BilinearForm is simple as before, no FormLinearSystem
 
    // 9. Create the linear system, applying any necessary transformations
    //    such as: eliminating boundary conditions, applying conforming
@@ -147,9 +148,9 @@ int main(int argc, char *argv[])
    LinearSystem ls(a, b); // NOTE: ParLinearSystem in parallel
    ls.SetEssentialDofs(ess_dof_list, x); // NOTE: regular DOFs; values taken from x
    ls.SetOperatorType(Operator::MFEM_SPARSEMAT); // or PETSC_xxx...
-   ls.EnableStaticCondensation(static_cond); // NOTE: similar for hybridization; does nothing for PA
-   ls.Assemble(partial); // NOTE: this is like FormLinearSystem
-   // NOTE: if partial==true, Assemble() constructs the constrained operator
+   ls.EnableStaticCondensation(static_cond); // NOTE: does nothing for PA
+   ls.Assemble(); // NOTE: this is like FormLinearSystem
+   // NOTE: if level==PARTIAL, Assemble() constructs the constrained operator
 
    // 10. Solve the linear system with the supplied solver and optionally
    //     a preconditioner too.
