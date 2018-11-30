@@ -36,7 +36,7 @@
 
 using namespace std;
 using namespace mfem;
-using namespace mfem4;
+using namespace mfem4; // NOTE: this is a temporary namespace, only to avoid name conflicts
 
 
 int main(int argc, char *argv[])

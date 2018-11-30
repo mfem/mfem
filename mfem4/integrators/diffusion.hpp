@@ -20,6 +20,24 @@ namespace mfem4
 using namespace mfem;
 
 
+struct ElementGeometries
+{
+   Tensor nodes;
+   Tensor J, invJ, detJ;
+
+   int GetNE() const;
+};
+
+
+struct ElementAssembly
+{
+   Tensor dof_quad, quad_dof;
+   Tensor quad_data;
+
+   int GetNE() const;
+};
+
+
 /** Class for integrating the bilinear form a(u,v) := (Q grad u, grad v) where Q
     can be a scalar or a matrix coefficient. */
 class DiffusionIntegrator: public BilinearFormIntegrator
@@ -40,9 +58,7 @@ public:
    virtual void AssembleElements(const Array<int> &batch,
                                  const FiniteElement &trial_fe,
                                  const FiniteElement &test_fe,
-                                 // FIXME: a list of transformations or a
-                                 // new "Geometry" class needs to be passed
-                                 ElementTransformation &trans,
+                                 const ElementGeometries &geoms,
                                  DenseTensor &matrices);
 
    /** Given a batch of elements, the trial and test FiniteElements,
@@ -51,20 +67,13 @@ public:
    virtual void PartialAssemble(const Array<int> &batch,
                                 const FiniteElement &trial_fe,
                                 const FiniteElement &test_fe,
-                                ElementTransformation &trans, // FIXME
-                                Tensor &dof_quad,
-                                Tensor &quad_data);
+                                const ElementGeometries &geoms,
+                                ElementAssembly &easm);
 
-   // TODO maybe it will be necessary to wrap all partial assembly results into
-   // a struct... in any case these shouldn't be stored in the integrator.
-   // All integrators should remain stateless.
-
-   /** Giver partially assembled data from PartialAssemble, apply
+   /** Given partially assembled data from PartialAssemble, apply
        element-wise operators on vector @a x and return @a y. */
-   virtual void MultAdd(const Tensor &dof_quad,
-                        const Tensor &quad_data,
-                        const Vector &x,
-                        Vector &y);
+   virtual void MultAdd(const ElementAssembly &easm,
+                        const Vector &x, Vector &y);
 
 
    virtual void ComputeElementFlux(const FiniteElement &el,
