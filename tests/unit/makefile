@@ -9,48 +9,42 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
-MFEM_DIR = ../..
-CONFIG_MK = $(MFEM_DIR)/config/config.mk
-USER_CONFIG = $(MFEM_DIR)/config/user.mk
+MFEM_DIR ?= ../..
+MFEM_BUILD_DIR ?= ../..
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/tests/unit/,)
+CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
--include $(USER_MK)
 
 CC = $(MFEM_CXX)
-CCOPTS     = -g
+CCOPTS = -g
 CCC = $(CC) $(CCOPTS)
 
-INCLUDES = -I. $(MFEM_FLAGS)
+# -I$(MFEM_DIR) is needed by some tests, e.g. to #include "general/text.hpp"
+INCLUDES = $(MFEM_FLAGS) -I$(or $(SRC:%/=%),.) -I$(MFEM_DIR)
 
-DIRS = 	fem linalg mesh general
-SOURCE_FILES = unit_test_main.cpp $(sort $(wildcard ./*/*.cpp))
-HEADER_FILES = catch.hpp
-OBJECT_FILES = $(SOURCE_FILES:.cpp=.o)
+SOURCE_FILES = $(SRC)unit_test_main.cpp $(sort $(wildcard $(SRC)*/*.cpp))
+HEADER_FILES = $(SRC)catch.hpp
+OBJECT_FILES = $(SOURCE_FILES:$(SRC)%.cpp=%.o)
+DATA_DIR = data
 
 .SUFFIXES: .cpp .o
-.cpp.o:
+
+test: $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(OBJECT_FILES) $(INCLUDES) $(MFEM_LIBS) -o $(@)
+
+$(OBJECT_FILES): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
+	@mkdir -p $(@D)
 	$(CCC) -c $(<) $(INCLUDES) -o $(@)
 
-test: $(OBJECT_FILES) $(MFEM_LIB_FILE)
-	$(CCC) $(OBJECT_FILES) $(INCLUDES) $(MFEM_LIBS) $(EXT_LIBDIRS) $(EXT_LIBS) -o test
-
-$(OBJECT_FILES): $(HEADER_FILES)
+$(DATA_DIR):
+	ln -s $(SRC)$(DATA_DIR) .
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
 
 clean:
-	rm -f *.o */*.o */*~ *~
-
-distclean: clean
-	rm -rf test test.dSYM output_meshes
-
-ASTYLE = astyle --options=$(MFEM_DIR)/config/mfem.astylerc
-FORMAT_FILES = $(foreach dir,$(DIRS),"$(dir)/*.?pp")
-
-style:
-	@if ! $(ASTYLE) $(FORMAT_FILES) | grep Formatted; then\
-	   echo "No source files were changed.";\
-	fi
+	rm -f test *.o */*.o */*~ *~
+	rm -rf test.dSYM output_meshes
