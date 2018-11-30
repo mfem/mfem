@@ -4851,7 +4851,7 @@ int *Mesh::CartesianPartitioning(int nxyz[])
    partitioning = new int[NumOfElements];
 
    // determine the partitioning using the centers of the elements
-   double ppt[3];
+   static double *ppt = mm::malloc<double>(3);
    Vector pt(ppt, spaceDim);
    for (int el = 0; el < NumOfElements; el++)
    {

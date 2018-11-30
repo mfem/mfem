@@ -31,7 +31,7 @@ double PWConstCoefficient::Eval(ElementTransformation & T,
 double FunctionCoefficient::Eval(ElementTransformation & T,
                                  const IntegrationPoint & ip)
 {
-   double x[3];
+   static double *x = mm::malloc<double>(3);
    Vector transip(x, 3);
 
    T.Transform(ip, transip);

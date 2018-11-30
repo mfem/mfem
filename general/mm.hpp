@@ -26,6 +26,7 @@ typedef struct mm2dev
    size_t bytes = 0;
    void *h_adrs = NULL;
    void *d_adrs = NULL;
+   bool ranged = false;
 } mm2dev_t;
 
 // *****************************************************************************
@@ -51,17 +52,25 @@ public:
    // **************************************************************************
 private:
    void Setup();
-   void *Insert(const void*, const size_t, const size_t);
+   void *Insert(const void*, const size_t, const size_t,
+                const char* file, const int line, const bool = false);
    void *Erase(const void*);
-   bool Known(const void*);
-   bool Range(const void*);
+   void *Range(const void*);
+   bool Known(const void*, const bool = false);
 
 public:
    // **************************************************************************
    template<class T>
-   static inline T* malloc(size_t size, const size_t size_of_T = sizeof(T))
-   { return (T*) mm::Get().Insert(::new T[size], size, size_of_T); }
+   static inline T* malloc(size_t size,
+                           const size_t size_of_T = sizeof(T),
+                           const char* file = __FILE__,
+                           const int line = __LINE__)
+   { return (T*) mm::Get().Insert(::new T[size], size, size_of_T, file, line); }
 
+   // **************************************************************************
+#define mm_malloc(T,bytes) mm::malloc<T>(bytes,sizeof(T),__FILE__,__LINE__)
+
+   
    // **************************************************************************
    template<class T>
    static inline void free(void *ptr)

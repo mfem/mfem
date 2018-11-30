@@ -42,48 +42,76 @@ void mm::Setup(void)
 }
 
 // *****************************************************************************
-bool mm::Known(const void *adrs)
-{
-   const auto search = mng->find(adrs);
-   const bool known = search != mng->end();
-   return known;
-}
-
-// *****************************************************************************
-bool mm::Range(const void *adrs)
+void *mm::Range(const void *adrs)
 {
    const auto search = mng->find(adrs);
    const bool known = search != mng->end();
    assert(not known);
    for(mm_t::iterator address = mng->begin(); address != mng->end(); address++) {
-      const void *base = address->second.h_adrs;
-      if (base > adrs) continue;
+      void *h_adrs = address->second.h_adrs;
+      if (h_adrs > adrs) continue;
       const size_t bytes = address->second.bytes;
-      const size_t *end = (size_t*)base + bytes;
-      if (adrs < end){
-         dbg("[Range] found %p < adrs:%p <= %p\n",base,adrs,end);
-        return true;
-      }
-      std::cout << address->first << " :: " << address->second.bytes << std::endl;
+      const size_t *end = (size_t*)h_adrs + bytes;
+      if (adrs <= end) return h_adrs;
    }
-   return false;
+   return NULL;
+}
+
+// *****************************************************************************
+bool mm::Known(const void *adrs, const bool insert_if_in_range)
+{
+   const auto search = mng->find(adrs);
+   const bool known = search != mng->end();
+   if (known) return true;
+   if (not insert_if_in_range) return false;
+   // Now inserting this adrs if it is in range
+   const void *base = Range(adrs);
+   if (not base) return false;
+   mm2dev_t &mm2dev = mng->operator[](base);
+   const size_t bytes = mm2dev.bytes;
+   assert(0 < bytes);
+   assert(base < adrs);
+   const size_t offset = (size_t*) adrs - (size_t*) base;
+   dbg("[Known] Insert %p < %p", base, adrs);
+   Insert(adrs,bytes-offset,1,__FILE__,__LINE__);
+   return true;
 }
 
 // *****************************************************************************
 // * Add an address only on the host
+// * Warning:
+// *   - size can be 0: from mfem::GroupTopology::Create
 // *****************************************************************************
-void* mm::Insert(const void *adrs, const size_t size, const size_t size_of_T)
+void* mm::Insert(const void *adrs,
+                 const size_t size, const size_t size_of_T,
+                 const char *file, const int line,
+                 const bool ranged)
 {
+   dbg("[Insert] %s:%d",file,line);
    if (!mm::Get().mng) { mm::Get().Setup(); }
    size_t *h_adrs = ((size_t *) adrs) + xs_shift;
-   const bool present = Known(h_adrs);
-   if (present) { MFEM_SIGSEGV_FOR_STACK; }
-   MFEM_ASSERT(not present, "[ERROR] Trying to add already present address!");
+   const bool known = Known(h_adrs);
+   if (size==0) {
+      //return h_adrs;
+      //MFEM_SIGSEGV_FOR_STACK;
+   }
+   if (known) {
+      dbg("[Insert] Known %p",h_adrs);
+      mm2dev_t &mm2dev = mng->operator[](h_adrs);
+      if (not mm2dev.ranged){
+         MFEM_SIGSEGV_FOR_STACK;
+         MFEM_ASSERT(false, "[ERROR] Trying to add already present address!");
+      }else{
+         MFEM_ASSERT(false, "[ERROR] Trying to add already RANGED address!");
+      }
+   }
    mm2dev_t &mm2dev = mng->operator[](h_adrs);
    mm2dev.host = true;
    mm2dev.bytes = size*size_of_T;
+   dbg("[Insert] Add %p, bytes: %ld",h_adrs,mm2dev.bytes);
    mm2dev.h_adrs = h_adrs;
    mm2dev.d_adrs = NULL;
+   mm2dev.ranged = ranged;
    return mm2dev.h_adrs;
 }
 
@@ -105,14 +133,13 @@ void *mm::Erase(const void *adrs)
 void* mm::Adrs(const void *adrs)
 {
    const bool cuda = config::Get().Cuda();
-   const bool known = Known(adrs);
-   const bool range = not known?Range(adrs):true;
-   if (not known and not range) { MFEM_SIGSEGV_FOR_STACK; }
-   //MFEM_ASSERT(known, "[ERROR] Trying to convert unknown address!");
-   if (not cuda and range) { return xsShift(adrs); }
+   const bool insert_if_in_range = true;
+   const bool known = Known(adrs, insert_if_in_range);
+   if (not known) { MFEM_SIGSEGV_FOR_STACK; }
+   MFEM_ASSERT(known, "[ERROR] Trying to convert unknown address!");
    mm2dev_t &mm2dev = mng->operator[](adrs);
    // Just return asked known host address if not in CUDA mode
-   if (mm2dev.host and not cuda and known) { return xsShift(mm2dev.h_adrs); }
+   if (mm2dev.host and not cuda) { return xsShift(mm2dev.h_adrs); }
    // If it hasn't been seen, alloc it in the device
    if (not mm2dev.d_adrs)
    {
