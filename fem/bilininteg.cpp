@@ -900,6 +900,58 @@ void ConvectionIntegrator::AssembleElementMatrix(
 }
 
 
+void MixedConvectionIntegrator::AssembleElementMatrix2(
+   const FiniteElement &tr_el, const FiniteElement &te_el, 
+	ElementTransformation &Trans, DenseMatrix &elmat)
+{
+	int tr_nd = tr_el.GetDof();
+   int te_nd = te_el.GetDof();
+   int dim = te_el.GetDim(); // using test geometry
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix dshape, adjJ, Q_ir;
+   Vector shape, vec2, BdFidxT;
+#endif
+   elmat.SetSize(te_nd, tr_nd);
+   dshape.SetSize(tr_nd,dim);
+   adjJ.SetSize(dim);
+   shape.SetSize(te_nd);
+   vec2.SetSize(dim);
+   BdFidxT.SetSize(tr_nd);
+
+   Vector vec1;
+
+   const IntegrationRule *ir = &IntRules.Get(te_el.GetGeomType(), 1); // using midpoin rule and test geometry
+   /*if (ir == NULL)
+   {
+		// OrderGrad does not work for RefinedLinearFECollection elements
+      //int order = Trans.OrderGrad(&tr_el) + Trans.Order() + te_el.GetOrder();
+		int order = 1;
+      ir = &IntRules.Get(te_el.GetGeomType(), order); // using test geometry
+   }*/
+
+   Q.Eval(Q_ir, Trans, *ir);
+
+   elmat = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      tr_el.CalcDShape(ip, dshape);
+      te_el.CalcShape(ip, shape);
+
+      Trans.SetIntPoint(&ip);
+      CalcAdjugate(Trans.Jacobian(), adjJ);
+      Q_ir.GetColumnReference(i, vec1);
+      vec1 *= alpha * ip.weight;
+
+      adjJ.Mult(vec1, vec2);
+      dshape.Mult(vec2, BdFidxT);
+
+      AddMultVWt(shape, BdFidxT, elmat);
+   }
+}
+
+
 void GroupConvectionIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
 {

@@ -1683,6 +1683,26 @@ public:
                                       DenseMatrix &);
 };
 
+/// alpha (q . grad u, v)
+class MixedConvectionIntegrator : public BilinearFormIntegrator
+{
+private:
+#ifndef MFEM_THREAD_SAFE
+   DenseMatrix dshape, adjJ, Q_ir;
+   Vector shape, vec2, BdFidxT;
+#endif
+   VectorCoefficient &Q;
+   double alpha;
+
+public:
+   MixedConvectionIntegrator(VectorCoefficient &q, double a = 1.0)
+      : Q(q) { alpha = a; }
+   virtual void AssembleElementMatrix2(const FiniteElement &,
+													const FiniteElement &,
+                                       ElementTransformation &,
+                                       DenseMatrix &);
+};
+
 /// alpha (q . grad u, v) using the "group" FE discretization
 class GroupConvectionIntegrator : public BilinearFormIntegrator
 {
