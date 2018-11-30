@@ -14,8 +14,6 @@
 #include <stdio.h>
 #include <unistd.h>  // rmdir
 
-#include "fem/datacollection.cpp"       //To get the hidden RootData object
-
 using namespace mfem;
 
 TEST_CASE("Visit data collection for input and output", "[VisItDataCollection]")

@@ -62,7 +62,7 @@ make check
 make unittest
    Verify the build against the unit tests.
 make alltest
-   Verify the build by running all the unittests, examples, and miniapps.
+   Verify the build by running all the unit tests, examples, and miniapps.
 make install PREFIX=<dir>
    Install the library and headers in <dir>/lib and <dir>/include.
 make clean
@@ -106,13 +106,16 @@ EM_DIRS = $(EXAMPLE_DIRS) $(MINIAPP_DIRS)
 EM_TEST_DIRS = $(filter-out\
    $(SKIP_TEST_DIRS),$(EXAMPLE_TEST_DIRS) $(MINIAPP_TEST_DIRS))
 
+TEST_SUBDIRS = unit
+TEST_DIRS := $(addprefix tests/,$(TEST_SUBDIRS))
+
 # Use BUILD_DIR on the command line; set MFEM_BUILD_DIR before including this
 # makefile or config/config.mk from a separate $(BUILD_DIR).
 MFEM_BUILD_DIR ?= .
 BUILD_DIR := $(MFEM_BUILD_DIR)
 BUILD_REAL_DIR := $(abspath $(BUILD_DIR))
 ifneq ($(BUILD_REAL_DIR),$(MFEM_REAL_DIR))
-   BUILD_SUBDIRS = $(DIRS) config $(EM_DIRS) doc
+   BUILD_SUBDIRS = $(DIRS) config $(EM_DIRS) doc $(TEST_DIRS)
    BUILD_DIR_DEF = -DMFEM_BUILD_DIR="$(BUILD_REAL_DIR)"
    BLD := $(if $(BUILD_REAL_DIR:$(CURDIR)=),$(BUILD_DIR)/,)
    $(if $(word 2,$(BLD)),$(error Spaces in BLD = "$(BLD)" are not supported))
@@ -398,9 +401,11 @@ test:
 unittest: lib
 	@echo "Unit testing the MFEM library. This may take a while..."
 	@echo "Building the unit tests..."
-	cd $(MFEM_DIR)/tests/unit; \
-		make || (echo "Build of unit tests failed"; exit 1); \
-		./test || (echo "Unit tests failed."; exit 1)
+	$(MAKE) -C $(BLD)tests/unit
+	@echo "Running the unit tests..."
+	@cd $(BLD)tests/unit && { \
+	   ./test && echo "All unit tests passed." || \
+	   { echo "Some unit tests failed."; exit 1; } }
 
 alltest: unittest test
 
@@ -410,13 +415,13 @@ test-print:
 	@for dir in $(EM_TEST_DIRS); do \
 	   $(MAKE) -j1 -C $(BLD)$${dir} test-print; done
 
-ALL_CLEAN_SUBDIRS = $(addsuffix /clean,config $(EM_DIRS) doc)
+ALL_CLEAN_SUBDIRS = $(addsuffix /clean,config $(EM_DIRS) doc $(TEST_DIRS))
 .PHONY: $(ALL_CLEAN_SUBDIRS) miniapps/clean
 miniapps/clean: $(addsuffix /clean,$(MINIAPP_DIRS))
 $(ALL_CLEAN_SUBDIRS):
 	$(MAKE) -C $(BLD)$(@D) $(@F)
 
-clean: $(addsuffix /clean,$(EM_DIRS))
+clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
 	rm -f $(addprefix $(BLD),*/*.o */*~ *~ libmfem.* deps.mk)
 
 distclean: clean config/clean doc/clean
@@ -475,7 +480,7 @@ local-config:
 .PHONY: build-config
 build-config:
 	for d in $(BUILD_SUBDIRS); do mkdir -p $(BLD)$${d}; done
-	for dir in "" $(addsuffix /,config $(EM_DIRS) doc); do \
+	for dir in "" $(addsuffix /,config $(EM_DIRS) doc $(TEST_DIRS)); do \
 	   printf "# Auto-generated file.\n%s\n%s\n" \
 	      "MFEM_DIR = $(MFEM_REAL_DIR)" \
 	      "include \$$(MFEM_DIR)/$${dir}makefile" \
@@ -542,7 +547,9 @@ status info:
 	@true
 
 ASTYLE = astyle --options=$(SRC)config/mfem.astylerc
-FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp") $(foreach dir,$(DIRS),"tests/unit/$(dir)/*.?pp")
+FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_DIRS) config,"$(dir)/*.?pp")
+FORMAT_FILES += "tests/unit/*.cpp"
+FORMAT_FILES += $(foreach dir,$(DIRS),"tests/unit/$(dir)/*.?pp")
 
 style:
 	@if ! $(ASTYLE) $(FORMAT_FILES) | grep Formatted; then\
