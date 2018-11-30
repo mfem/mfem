@@ -54,6 +54,7 @@ private:
    void *Insert(const void*, const size_t, const size_t);
    void *Erase(const void*);
    bool Known(const void*);
+   bool Range(const void*);
 
 public:
    // **************************************************************************

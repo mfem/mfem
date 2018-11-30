@@ -45,8 +45,28 @@ void mm::Setup(void)
 bool mm::Known(const void *adrs)
 {
    const auto search = mng->find(adrs);
-   const bool present = search != mng->end();
-   return present;
+   const bool known = search != mng->end();
+   return known;
+}
+
+// *****************************************************************************
+bool mm::Range(const void *adrs)
+{
+   const auto search = mng->find(adrs);
+   const bool known = search != mng->end();
+   assert(not known);
+   for(mm_t::iterator address = mng->begin(); address != mng->end(); address++) {
+      const void *base = address->second.h_adrs;
+      if (base > adrs) continue;
+      const size_t bytes = address->second.bytes;
+      const size_t *end = (size_t*)base + bytes;
+      if (adrs < end){
+         dbg("[Range] found %p < adrs:%p <= %p\n",base,adrs,end);
+        return true;
+      }
+      std::cout << address->first << " :: " << address->second.bytes << std::endl;
+   }
+   return false;
 }
 
 // *****************************************************************************
@@ -72,9 +92,9 @@ void* mm::Insert(const void *adrs, const size_t size, const size_t size_of_T)
 // *****************************************************************************
 void *mm::Erase(const void *adrs)
 {
-   const bool present = Known(adrs);
-   if (not present) { MFEM_SIGSEGV_FOR_STACK; }
-   MFEM_ASSERT(present, "[ERROR] Trying to remove an unknown address!");
+   const bool known = Known(adrs);
+   if (not known) { MFEM_SIGSEGV_FOR_STACK; }
+   MFEM_ASSERT(known, "[ERROR] Trying to remove an unknown address!");
    mng->erase(adrs);
    return xsShift(adrs);
 }
@@ -84,17 +104,19 @@ void *mm::Erase(const void *adrs)
 // *****************************************************************************
 void* mm::Adrs(const void *adrs)
 {
-   const bool present = Known(adrs);
-   if (not present) { MFEM_SIGSEGV_FOR_STACK; }
-   MFEM_ASSERT(present, "[ERROR] Trying to convert unknown address!");
    const bool cuda = config::Get().Cuda();
-   const bool nvcc = config::nvcc();
+   const bool known = Known(adrs);
+   const bool range = not known?Range(adrs):true;
+   if (not known and not range) { MFEM_SIGSEGV_FOR_STACK; }
+   //MFEM_ASSERT(known, "[ERROR] Trying to convert unknown address!");
+   if (not cuda and range) { return xsShift(adrs); }
    mm2dev_t &mm2dev = mng->operator[](adrs);
    // Just return asked known host address if not in CUDA mode
-   if (mm2dev.host and not cuda) { return xsShift(mm2dev.h_adrs); }
+   if (mm2dev.host and not cuda and known) { return xsShift(mm2dev.h_adrs); }
    // If it hasn't been seen, alloc it in the device
    if (not mm2dev.d_adrs)
    {
+      const bool nvcc = config::nvcc();
       if (not nvcc)
       {
          mfem_error("[ERROR] Trying to run without CUDA support!");
