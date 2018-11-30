@@ -451,43 +451,15 @@ void Vector::median(const Vector &lo, const Vector &hi)
 
 void Vector::GetSubVector(const Array<int> &dofs, Vector &elemvect) const
 {
-   //assert(false);
-   dbg("[Vector::GetSubVector]");
-   //int i, j, n = dofs.Size();
    const int n = dofs.Size();
    elemvect.SetSize(n);
    kVectorGetSubvector(n,elemvect,data,dofs);
-   /*
-   for (i = 0; i < n; i++)
-   {
-      if ((j=dofs[i]) >= 0)
-      {
-         elemvect(i) = data[j];
-      }
-      else
-      {
-         elemvect(i) = -data[-1-j];
-      }
-      }*/
 }
 
 void Vector::GetSubVector(const Array<int> &dofs, double *elem_data) const
 {
-   //int i, j, n = dofs.Size();
    const int n = dofs.Size();
    kVectorGetSubvector(n,elem_data,data,dofs);
-   /*
-   for (i = 0; i < n; i++)
-   {
-      if ((j=dofs[i]) >= 0)
-      {
-         elem_data[i] = data[j];
-      }
-      else
-      {
-         elem_data[i] = -data[-1-j];
-      }
-      }*/
 }
 
 void Vector::SetSubVector(const Array<int> &dofs, const double value)

@@ -23,7 +23,7 @@ BaseArray::BaseArray(int asize, int ainc, int elementsize)
 {
    if (asize > 0)
    {
-      data = mfem::mm::malloc<char>(asize * elementsize);
+      data = mm::malloc<char>(asize * elementsize);
       size = allocsize = asize;
    }
    else
