@@ -19,10 +19,47 @@ using namespace std;
 
 namespace mfem
 {
+
+// *****************************************************************************
+// *****************************************************************************
+void PAMassIntegrator::Setup(const FiniteElementSpace *fes,
+                             const IntegrationRule *ir)
+{
+   push();
+   assert(mass==NULL);
+   mass = new KMassIntegrator(fes,ir);
+}
+
+// *****************************************************************************
+void PAMassIntegrator::Assemble()
+{
+   push();
+   assert(mass);
+   mass->Assemble();
+}
+
+// *****************************************************************************
+void PAMassIntegrator::SetOperator(Vector &op)
+{
+   push();
+   assert(mass);
+   mass->SetOperator(op);
+}
+
+// *****************************************************************************
+void PAMassIntegrator::MultAdd(Vector &x, Vector &y)
+{
+   push();
+   assert(mass);
+   mass->MultAdd(x,y);
+}
+
+// *****************************************************************************
 // *****************************************************************************
 void PADiffusionIntegrator::Setup(const FiniteElementSpace *fes,
                                   const IntegrationRule *ir)
 {
+   push();
    assert(diffusion==NULL);
    diffusion = new KDiffusionIntegrator(fes,ir);
 }
@@ -39,6 +76,9 @@ void PADiffusionIntegrator::MultAdd(Vector &x, Vector &y)
 {
    diffusion->MultAdd(x,y);
 }
+
+// *****************************************************************************
+// *****************************************************************************
 
 void BilinearFormIntegrator::AssembleElementMatrix (
    const FiniteElement &el, ElementTransformation &Trans,
