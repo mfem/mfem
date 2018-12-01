@@ -67,5 +67,5 @@ $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
 
 clean:
-	rm -f test *.o */*.o */*~ *~
-	rm -rf test.dSYM output_meshes
+	rm -f $(SEQ_UNIT_TESTS) $(PAR_UNIT_TESTS) *.o */*.o */*~ *~
+	rm -rf *.dSYM output_meshes
