@@ -181,4 +181,4 @@ miniapps/nurbs/Example1*
 
 # Unit test binary and outputs
 tests/unit/output_meshes
-tests/unit/test
+tests/unit/unit_tests
