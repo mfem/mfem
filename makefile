@@ -388,7 +388,7 @@ check: lib
 
 test:
 	@echo "Testing the MFEM library. This may take a while..."
-	@echo "Building all examples and miniapps..."
+	@echo "Building all examples, miniapps, and tests..."
 	@$(MAKE) $(MAKEOVERRIDES_SAVE) all
 	@echo "Running tests in: [ $(ALL_TEST_DIRS) ] ..."
 	@ERR=0; for dir in $(ALL_TEST_DIRS); do \
