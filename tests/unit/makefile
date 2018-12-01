@@ -46,9 +46,11 @@ all: $(UNIT_TESTS)
 unit_tests: $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(OBJECT_FILES) $(INCLUDES) $(MFEM_LIBS) -o $(@)
 
+# Note: in this rule, we always use the full path to the source file as a
+# workaround for an issue with coveralls.
 $(OBJECT_FILES): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 	@mkdir -p $(@D)
-	$(CCC) -c $(<) $(INCLUDES) -o $(@)
+	$(CCC) -c $(abspath $(<)) $(INCLUDES) -o $(@)
 
 $(DATA_DIR):
 	ln -s $(SRC)$(DATA_DIR) .
