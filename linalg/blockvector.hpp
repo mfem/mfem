@@ -99,9 +99,8 @@ public:
    /// Update a BlockVector with new @a bOffsets and make sure it owns its data.
    /** The block-vector will be re-allocated if either:
        - the offsets @a bOffsets are different from the current offsets, or
-       - currently, the block-vector does not own its data, or
-       - @a force is set to true. */
-   void Update(const Array<int> &bOffsets, bool force = false);
+       - currently, the block-vector does not own its data. */
+   void Update(const Array<int> &bOffsets);
 };
 
 }
