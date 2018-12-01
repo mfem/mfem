@@ -23,13 +23,6 @@ matrix:
     #
     - os: linux
       compiler: gcc
-      env: DEBUG=NO
-           MPI=NO
-           CODECOV=NO
-           MFEM_TEST_TARGET=unittest
-    #    
-    - os: linux
-      compiler: gcc
       addons:
         apt:
           # sources:

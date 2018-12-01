@@ -29,9 +29,21 @@ HEADER_FILES = $(SRC)catch.hpp
 OBJECT_FILES = $(SOURCE_FILES:$(SRC)%.cpp=%.o)
 DATA_DIR = data
 
-.SUFFIXES: .cpp .o
+SEQ_UNIT_TESTS = unit_tests
+PAR_UNIT_TESTS =
+ifeq ($(MFEM_USE_MPI),NO)
+   UNIT_TESTS = $(SEQ_UNIT_TESTS)
+else
+   UNIT_TESTS = $(PAR_UNIT_TESTS) $(SEQ_UNIT_TESTS)
+endif
 
-test: $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+all: $(UNIT_TESTS)
+
+.SUFFIXES:
+.SUFFIXES: .cpp .o
+.PHONY: all clean
+
+unit_tests: $(OBJECT_FILES) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(OBJECT_FILES) $(INCLUDES) $(MFEM_LIBS) -o $(@)
 
 $(OBJECT_FILES): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
@@ -40,6 +52,13 @@ $(OBJECT_FILES): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 
 $(DATA_DIR):
 	ln -s $(SRC)$(DATA_DIR) .
+
+# Testing
+MFEM_TESTS = UNIT_TESTS
+include $(MFEM_TEST_MK)
+
+%-test-seq: %
+	@$(call mfem-test,$<,, Unit tests,,SKIP-NO-VIS)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
