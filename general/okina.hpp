@@ -102,7 +102,21 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 #define ijklNM(i,j,k,l,N,M) (i)+(N)*((j)+(N)*((k)+(M)*(l)))
 
 // *****************************************************************************
-#define dbg(...) \
- { printf("\n\033[32m"); printf(__VA_ARGS__); printf("\033[m"); fflush(0);}
+const char *strrnchr(const char*, const unsigned char, const int);
+void dbg_F_L_F_N_A(const char*, const int, const char*, const int, ...);
+
+// *****************************************************************************
+#define X_ARGS(z,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,X,...) X
+#define N_ARGS(...) X_ARGS(,##__VA_ARGS__,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0)
+#define __FILENAME__ ({const char *f=strrnchr(__FILE__,'/',2);f?f+1:__FILE__;})
+#define _F_L_F_ __FILENAME__,__LINE__,__FUNCTION__
+#define dbg(...) dbg_F_L_F_N_A(_F_L_F_, N_ARGS(__VA_ARGS__),__VA_ARGS__)
+
+// *****************************************************************************
+#define pop(...)
+#define push(...) dbg_F_L_F_N_A(_F_L_F_,0)
+
+// *****************************************************************************
+//y#define stop(...) assert(false)
 
 #endif // MFEM_OKINA_HPP

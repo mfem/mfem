@@ -27,6 +27,8 @@ typedef struct mm2dev
    void *h_adrs = NULL;
    void *d_adrs = NULL;
    bool ranged = false;
+   size_t n_rangers = 0;
+   void **rangers = NULL;
 } mm2dev_t;
 
 // *****************************************************************************

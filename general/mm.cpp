@@ -67,13 +67,22 @@ bool mm::Known(const void *adrs, const bool insert_if_in_range)
    // Now inserting this adrs if it is in range
    const void *base = Range(adrs);
    if (not base) return false;
-   mm2dev_t &mm2dev = mng->operator[](base);
-   const size_t bytes = mm2dev.bytes;
+   mm2dev_t &mm2dev_base = mng->operator[](base);
+   const size_t bytes = mm2dev_base.bytes;
    assert(0 < bytes);
    assert(base < adrs);
    const size_t offset = (size_t*) adrs - (size_t*) base;
-   dbg("[Known] Insert %p < %p", base, adrs);
-   Insert(adrs,bytes-offset,1,__FILE__,__LINE__);
+   //dbg("\033[32m[Known] Insert %p < %p", base, adrs);
+   Insert(adrs,bytes-offset,1,__FILE__,__LINE__,true);
+   // Let's catch back our new inserted adrs
+   mm2dev_t &mm2dev_adrs = mng->operator[](adrs);
+   // Make sure he's available, no insertion there
+   assert(Known(adrs,false));
+   // Set it as a 'ranged' key
+   //mm2dev_adrs.ranged = true;
+   // Tell the base we have one more ranger
+   mm2dev_base.rangers[mm2dev_base.n_rangers++] = mm2dev_adrs.h_adrs;
+   //mm2dev_base.n_rangers+=1;
    return true;
 }
 
@@ -87,14 +96,10 @@ void* mm::Insert(const void *adrs,
                  const char *file, const int line,
                  const bool ranged)
 {
-   dbg("[Insert] %s:%d",file,line);
+   //dbg("[Insert] %s:%d",file,line);
    if (!mm::Get().mng) { mm::Get().Setup(); }
    size_t *h_adrs = ((size_t *) adrs) + xs_shift;
    const bool known = Known(h_adrs);
-   if (size==0) {
-      //return h_adrs;
-      //MFEM_SIGSEGV_FOR_STACK;
-   }
    if (known) {
       dbg("[Insert] Known %p",h_adrs);
       mm2dev_t &mm2dev = mng->operator[](h_adrs);
@@ -108,10 +113,12 @@ void* mm::Insert(const void *adrs,
    mm2dev_t &mm2dev = mng->operator[](h_adrs);
    mm2dev.host = true;
    mm2dev.bytes = size*size_of_T;
-   dbg("[Insert] Add %p, bytes: %ld",h_adrs,mm2dev.bytes);
+   //dbg("[Insert] Add %p (%ldb): %s:%d",h_adrs,mm2dev.bytes,file,line);
    mm2dev.h_adrs = h_adrs;
    mm2dev.d_adrs = NULL;
    mm2dev.ranged = ranged;
+   mm2dev.n_rangers = 0;
+   mm2dev.rangers = (void**)calloc(1024,sizeof(void*));
    return mm2dev.h_adrs;
 }
 
@@ -120,9 +127,19 @@ void* mm::Insert(const void *adrs,
 // *****************************************************************************
 void *mm::Erase(const void *adrs)
 {
+   //push();
    const bool known = Known(adrs);
    if (not known) { MFEM_SIGSEGV_FOR_STACK; }
    MFEM_ASSERT(known, "[ERROR] Trying to remove an unknown address!");
+   mm2dev_t &m2d = mng->operator[](adrs);
+   if (m2d.n_rangers!=0){
+      const size_t n = m2d.n_rangers;
+      //dbg("%d ranger(s) ahead!",n);
+      for(size_t k=0;k<n;k+=1){
+         //dbg("\t%d",k);
+         Erase(m2d.rangers[k]);
+      }
+   }
    mng->erase(adrs);
    return xsShift(adrs);
 }
@@ -137,24 +154,24 @@ void* mm::Adrs(const void *adrs)
    const bool known = Known(adrs, insert_if_in_range);
    if (not known) { MFEM_SIGSEGV_FOR_STACK; }
    MFEM_ASSERT(known, "[ERROR] Trying to convert unknown address!");
-   mm2dev_t &mm2dev = mng->operator[](adrs);
+   mm2dev_t &m2d = mng->operator[](adrs);
    // Just return asked known host address if not in CUDA mode
-   if (mm2dev.host and not cuda) { return xsShift(mm2dev.h_adrs); }
+   if (m2d.host and not cuda) { return xsShift(m2d.h_adrs); }
    // If it hasn't been seen, alloc it in the device
-   if (not mm2dev.d_adrs)
+   if (not m2d.d_adrs)
    {
       const bool nvcc = config::nvcc();
       if (not nvcc)
       {
          mfem_error("[ERROR] Trying to run without CUDA support!");
       }
-      const size_t bytes = mm2dev.bytes;
-      if (bytes>0) { okMemAlloc(&mm2dev.d_adrs, bytes); }
+      const size_t bytes = m2d.bytes;
+      if (bytes>0) { okMemAlloc(&m2d.d_adrs, bytes); }
       void *stream = config::Get().Stream();
-      okMemcpyHtoDAsync(mm2dev.d_adrs, mm2dev.h_adrs, bytes, stream);
-      mm2dev.host = false; // Now this address is GPU born
+      okMemcpyHtoDAsync(m2d.d_adrs, m2d.h_adrs, bytes, stream);
+      m2d.host = false; // Now this address is GPU born
    }
-   return mm2dev.d_adrs;
+   return m2d.d_adrs;
 }
 
 // *****************************************************************************
