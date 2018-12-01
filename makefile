@@ -56,13 +56,12 @@ make debug
 make pdebug
    A shortcut to configure and build the parallel debug version of the library.
 make test
-   Verify the build by checking the results from running all examples and miniapps.
+   Verify the build by checking the results from running all examples, miniapps,
+   and tests.
 make check
    Quick-check the build by compiling and running Example 1/1p.
 make unittest
    Verify the build against the unit tests.
-make alltest
-   Verify the build by running all the unit tests, examples, and miniapps.
 make install PREFIX=<dir>
    Install the library and headers in <dir>/lib and <dir>/include.
 make clean
@@ -103,11 +102,12 @@ MINIAPP_TEST_DIRS := $(filter-out %/common,$(MINIAPP_DIRS))
 MINIAPP_USE_COMMON := $(addprefix miniapps/,electromagnetics tools)
 
 EM_DIRS = $(EXAMPLE_DIRS) $(MINIAPP_DIRS)
-EM_TEST_DIRS = $(filter-out\
-   $(SKIP_TEST_DIRS),$(EXAMPLE_TEST_DIRS) $(MINIAPP_TEST_DIRS))
 
 TEST_SUBDIRS = unit
 TEST_DIRS := $(addprefix tests/,$(TEST_SUBDIRS))
+
+ALL_TEST_DIRS = $(filter-out\
+   $(SKIP_TEST_DIRS),$(TEST_DIRS) $(EXAMPLE_TEST_DIRS) $(MINIAPP_TEST_DIRS))
 
 # Use BUILD_DIR on the command line; set MFEM_BUILD_DIR before including this
 # makefile or config/config.mk from a separate $(BUILD_DIR).
@@ -317,7 +317,7 @@ RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 
 .PHONY: lib all clean distclean install config status info deps serial parallel\
- debug pdebug style check test unittest alltest
+ debug pdebug style check test unittest
 
 .SUFFIXES:
 .SUFFIXES: .cpp .o
@@ -337,12 +337,12 @@ MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
-all: examples miniapps
+all: examples miniapps $(TEST_DIRS)
 
-.PHONY: miniapps $(EM_DIRS)
+.PHONY: miniapps $(EM_DIRS) $(TEST_DIRS)
 miniapps: $(MINIAPP_DIRS)
 $(MINIAPP_USE_COMMON): miniapps/common
-$(EM_DIRS): lib
+$(EM_DIRS) $(TEST_DIRS): lib
 	$(MAKE) -C $(BLD)$(@)
 
 .PHONY: doc
@@ -390,8 +390,8 @@ test:
 	@echo "Testing the MFEM library. This may take a while..."
 	@echo "Building all examples and miniapps..."
 	@$(MAKE) $(MAKEOVERRIDES_SAVE) all
-	@echo "Running tests in: [ $(EM_TEST_DIRS) ] ..."
-	@ERR=0; for dir in $(EM_TEST_DIRS); do \
+	@echo "Running tests in: [ $(ALL_TEST_DIRS) ] ..."
+	@ERR=0; for dir in $(ALL_TEST_DIRS); do \
 	   echo "Running tests in $${dir} ..."; \
 	   if ! $(MAKE) -j1 -C $(BLD)$${dir} test; then \
 	   ERR=1; fi; done; \
@@ -399,20 +399,12 @@ test:
 	   else echo "All tests passed."; fi
 
 unittest: lib
-	@echo "Unit testing the MFEM library. This may take a while..."
-	@echo "Building the unit tests..."
-	$(MAKE) -C $(BLD)tests/unit
-	@echo "Running the unit tests..."
-	@cd $(BLD)tests/unit && { \
-	   ./test && echo "All unit tests passed." || \
-	   { echo "Some unit tests failed."; exit 1; } }
-
-alltest: unittest test
+	$(MAKE) -C $(BLD)tests/unit test
 
 .PHONY: test-print
 test-print:
-	@echo "Printing tests in: [ $(EM_TEST_DIRS) ] ..."
-	@for dir in $(EM_TEST_DIRS); do \
+	@echo "Printing tests in: [ $(ALL_TEST_DIRS) ] ..."
+	@for dir in $(ALL_TEST_DIRS); do \
 	   $(MAKE) -j1 -C $(BLD)$${dir} test-print; done
 
 ALL_CLEAN_SUBDIRS = $(addsuffix /clean,config $(EM_DIRS) doc $(TEST_DIRS))
