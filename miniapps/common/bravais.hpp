@@ -26,6 +26,8 @@ namespace bravais
 enum BRAVAIS_LATTICE_TYPE
 {
    INVALID_TYPE = 0,
+   // 1D Bravais Lattices (1 types)
+   PRIMITIVE_SEGMENT,
    // 2D Bravais Lattices (5 types)
    PRIMITIVE_SQUARE,
    PRIMITIVE_HEXAGONAL,
@@ -151,6 +153,29 @@ protected:
    double bz_vol_;
 };
 
+/**  Bravais Lattices in 1D are parameterized by a single length (a).
+
+   *-------------*
+           a
+
+     In 1D there is only one centering type: Primitive.
+
+  | Name        |  a  |
+  |-------------|-----|
+  | Segment     | > 0 |
+
+ */
+class BravaisLattice1D : public BravaisLattice
+{
+public:
+   BravaisLattice1D(double a);
+
+   void GetAxialLength(double &a);
+
+protected:
+   double a_;
+};
+
 /**  Bravais Lattices in 2D are parameterized by two lengths (a and b)
      and an angle (gamma).
 
@@ -240,6 +265,31 @@ protected:
    double alpha_;
    double beta_;
    double gamma_;
+};
+
+class LinearLattice : public BravaisLattice1D
+{
+public:
+   LinearLattice(double a = 1.0);
+
+   virtual bool MapToFundamentalDomain(const Vector & pt,
+                                       Vector & ipt) const;
+
+   virtual unsigned int GetNumberSymmetryPoints()     { return 2; }
+   virtual unsigned int GetNumberIntermediatePoints() { return 1; }
+   virtual unsigned int GetNumberPaths()              { return 1; }
+   virtual unsigned int GetNumberPathSegments(int i)  { return 1; }
+
+   mfem::Mesh * GetWignerSeitzMesh(bool triMesh = false) const;
+   mfem::Mesh * GetPeriodicWignerSeitzMesh(bool triMesh = false) const;
+
+private:
+   // Data for mesh of the corresponding Wigner-Setiz Cell
+   double ws_vert_[6];  // Vertex coordinates
+   int ws_e2v_[2];       // Element to vertex connectivity
+   int ws_elem_att_[1];  // Element Attributes
+   int ws_be2v_[2];      // Boundary Element to vertex connectivity
+   int ws_belem_att_[2]; // Boundary element Attributes
 };
 
 class SquareLattice : public BravaisLattice2D

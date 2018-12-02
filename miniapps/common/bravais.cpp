@@ -85,6 +85,10 @@ BravaisLattice::ComputeCellVolume(const vector<Vector> & vecs)
    double vol = 0.0;
    switch (dim_)
    {
+      case 1:
+         // Compute the vector norm in 1D
+ 	 vol = vecs[0][0]; // assuming displacement vector is positive
+         break;
       case 2:
          // Compute the scalar cross product in 2D
          vol = vecs[0][0]*vecs[1][1] - vecs[0][1]*vecs[1][0];
@@ -241,6 +245,15 @@ BravaisLattice::GetPathSegmentEndPointIndices(int p, int s,
    e1 = path_[p][s+1];
 }
 
+BravaisLattice1D::BravaisLattice1D(double a)
+   : BravaisLattice(1)
+   , a_(a)
+{}
+
+void
+BravaisLattice1D::GetAxialLength(double &a)
+{ a = a_; }
+
 BravaisLattice2D::BravaisLattice2D(double a, double b, double gamma)
    : BravaisLattice(2)
    , a_(a)
@@ -277,6 +290,118 @@ BravaisLattice3D::GetInteraxialAngles(double &alpha,
                                       double &gamma)
 { alpha = alpha_; beta = beta_; gamma = gamma_; }
 
+
+LinearLattice::LinearLattice(double a)
+   : BravaisLattice1D(a)
+{
+   label_ = "LIN";
+   type_  = PRIMITIVE_SEGMENT;
+
+   // Set Lattice Vectors
+   lat_vecs_[0][0] = 1.0;
+   
+   // Set Reciprocal Lattice Vectors
+   rec_vecs_[0][0] = 1.0;
+
+   // Set Translation Vectors
+   trn_vecs_.resize(1);
+   for (unsigned int i=0; i<trn_vecs_.size(); i++)
+   {
+      trn_vecs_[i].SetSize(1);
+   }
+   trn_vecs_[0][0] = 1.0;
+
+   for (unsigned int i=0; i<lat_vecs_.size(); i++)
+   {
+      lat_vecs_[i] *= a_;
+      rec_vecs_[i] *= 1.0/a_;
+      trn_vecs_[i] *= a_;
+   }
+
+   // Set the face radii
+   face_radii_.resize(1);
+   for (int i=0; i<1; i++) { face_radii_[i] = 0.0; }
+
+   this->SetCellVolumes();
+
+   // Allocate sl_, sp_, and path_ vectors
+   this->SetVectorSizes();
+
+   // Set Symmetry Points and Labels
+   sl_[0] = "Gamma";
+   sp_[0] = 0.0;
+
+   sl_[1] = "X";
+   sp_[1].Set(0.5,rec_vecs_[0]);
+
+   for (unsigned int i=0; i<sl_.size(); i++)
+   {
+      si_[sl_[i]] = i;
+   }
+
+   // Define Paths
+   path_[0][0] = 0;
+   path_[0][1] = 1;
+
+   // Set Intermediate Symmetry Points
+   this->SetIntermediatePoints();
+
+   // Set Intermediate Symmetry Point Labels
+   il_[0][0] = "Delta";  // Gamma -> X
+
+   // Set Mesh data
+   ws_vert_[0] = -0.5 * a_; ws_vert_[ 1] = 0.0; ws_vert_[ 2] = 0.0;
+   ws_vert_[3] =  0.5 * a_; ws_vert_[ 4] = 0.0; ws_vert_[ 5] = 0.0;
+
+   ws_e2v_[0] = 0; ws_e2v_[1] = 1;
+   ws_elem_att_[0] = 1;
+
+   ws_be2v_[0] = 0; ws_be2v_[1] = 1;
+
+   ws_belem_att_[0] = 1; ws_belem_att_[1] = 1;
+}
+
+bool
+LinearLattice::MapToFundamentalDomain(const Vector & pt, Vector & ipt) const
+{
+   bool map = false;
+   ipt = pt;
+   if ( ipt[0] < 0.0 )
+   {
+      ipt[0] *= -1.0;
+      map = true;
+   }
+   return map;
+}
+
+Mesh *
+LinearLattice::GetWignerSeitzMesh(bool triMesh) const
+{
+   Mesh * mesh = new Mesh((double*)ws_vert_, 2,
+                          (int*)ws_e2v_, Geometry::SEGMENT,
+                          (int*)ws_elem_att_, 1,
+                          (int*)ws_be2v_, Geometry::POINT,
+                          (int*)ws_belem_att_, 2,
+                          1, 1);
+   mesh->Finalize();
+
+   return mesh;
+}
+
+Mesh *
+LinearLattice::GetPeriodicWignerSeitzMesh(bool triMesh) const
+{
+   Mesh * mesh = this->GetWignerSeitzMesh(triMesh);
+
+   mesh->UniformRefinement();
+   mesh->UniformRefinement();
+
+   Mesh * per_mesh = MakePeriodicMesh(mesh, trn_vecs_);
+
+   delete mesh;
+
+   return per_mesh;
+}
 
 SquareLattice::SquareLattice(double a)
    : BravaisLattice2D(a, a, 0.5 * M_PI)
@@ -6298,6 +6423,16 @@ BravaisLatticeFactory(BRAVAIS_LATTICE_TYPE lattice_type,
          // Oblique Lattice
          // lattice_label = "OBL";
          if ( a <= 0.0 ) { a = 1.0; }
+         break;
+      case PRIMITIVE_SEGMENT:
+         // Primitive Linear Lattice
+         // lattice_label = "SQR";
+         if ( a <= 0.0 ) { a = 1.0; }
+         if ( logging > 0 )
+         {
+            cout << "Calling LinearLattice(" << a << ")" << endl;
+         }
+         bravais = new LinearLattice(a);
          break;
       default:
 
