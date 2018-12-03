@@ -27,7 +27,8 @@ void PAMassIntegrator::Setup(const FiniteElementSpace *fes,
                              const IntegrationRule *ir)
 {
    push();
-   assert(mass==NULL);
+   assert(ir);
+   assert(not mass);
    mass = new KMassIntegrator(fes,ir);
 }
 
@@ -62,13 +63,15 @@ void PADiffusionIntegrator::Setup(const FiniteElementSpace *fes,
                                   const IntegrationRule *ir)
 {
    push();
-   assert(diffusion==NULL);
+   assert(ir);
+   assert(not diffusion);
    diffusion = new KDiffusionIntegrator(fes,ir);
 }
 
 // *****************************************************************************
 void PADiffusionIntegrator::Assemble()
 {
+   push();
    assert(diffusion);
    diffusion->Assemble();
 }
@@ -76,6 +79,8 @@ void PADiffusionIntegrator::Assemble()
 // *****************************************************************************
 void PADiffusionIntegrator::MultAdd(Vector &x, Vector &y)
 {
+   push();
+   assert(diffusion);
    diffusion->MultAdd(x,y);
 }
 
