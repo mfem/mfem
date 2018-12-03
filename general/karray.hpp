@@ -71,11 +71,12 @@ public:
    }
    void Print(std::ostream& out= std::cout, int width = 8) const
    {
-      T *h_data = (double*) ::malloc(bytes());
+      T *h_data = (T*) ::malloc(bytes());
       mm::D2H(h_data,data,bytes());
       for (size_t i=0; i<sz; i+=1)
-         if (sizeof(T)==8) { printf("\n\t[%ld] %.15e",i,h_data[i]); }
-         else { printf("\n\t[%ld] %d",i,h_data[i]); }
+         //if (sizeof(T)==8) {
+         printf("\n\t[%ld] %.15e",i,h_data[i]); //}
+   //else { printf("\n\t[%ld] %d",i,h_data[i]); }
       free(h_data);
    }
 };
@@ -143,11 +144,12 @@ public:
    }
    void Print(std::ostream& out= std::cout, int width = 8) const
    {
-      T *h_data = (double*) ::malloc(bytes());
+      T *h_data = (T*) ::malloc(bytes());
       mm::D2H(h_data,data,bytes());
       for (size_t i=0; i<sz; i+=1)
-         if (sizeof(T)==8) { printf("\n\t[%ld] %.15e",i,h_data[i]); }
-         else { printf("\n\t[%ld] %d",i,h_data[i]); }
+         //if (sizeof(T)==8) {
+         printf("\n\t[%ld] %.15e",i,h_data[i]); //}
+   //else { printf("\n\t[%ld] %d",i,h_data[i]); }
       free(h_data);
    }
 };

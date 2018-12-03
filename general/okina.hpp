@@ -82,6 +82,7 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 
 // *****************************************************************************
 #define GET_CUDA const bool cuda = config::Get().Cuda();
+#define TRY_ADRS(v) mm::Get().Adrs(v)
 #define GET_ADRS(v) double *d_##v = (double*) mm::Get().Adrs(v)
 #define GET_ADRS_T(v,T) T *d_##v = (T*) mm::Get().Adrs(v)
 #define GET_CONST_ADRS(v) const double *d_##v = (const double*) mm::Get().Adrs(v)
@@ -117,6 +118,9 @@ void dbg_F_L_F_N_A(const char*, const int, const char*, const int, ...);
 #define push(...) dbg_F_L_F_N_A(_F_L_F_,0)
 
 // *****************************************************************************
-//y#define stop(...) assert(false)
+//#define stop(...) assert(false)
+
+// *****************************************************************************
+#define ok(...) assert(__FILE__ and __LINE__ and __VA_ARGS__);
 
 #endif // MFEM_OKINA_HPP

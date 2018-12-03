@@ -21,6 +21,7 @@ namespace mfem
 {
 
 // *****************************************************************************
+// * PAMassIntegrator
 // *****************************************************************************
 void PAMassIntegrator::Setup(const FiniteElementSpace *fes,
                              const IntegrationRule *ir)
@@ -55,6 +56,7 @@ void PAMassIntegrator::MultAdd(Vector &x, Vector &y)
 }
 
 // *****************************************************************************
+// * PADiffusionIntegrator
 // *****************************************************************************
 void PADiffusionIntegrator::Setup(const FiniteElementSpace *fes,
                                   const IntegrationRule *ir)
