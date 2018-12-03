@@ -121,6 +121,8 @@ public:
 
    void GetPathSegmentEndPointIndices(int p, int s, int & e0, int & e1);
 
+   virtual mfem::Mesh * GetFundamentalDomainMesh() const = 0;
+
    virtual mfem::Mesh * GetWignerSeitzMesh(bool tetMesh = false) const = 0;
    virtual mfem::Mesh *
    GetPeriodicWignerSeitzMesh(bool tetMesh = false) const = 0;
@@ -258,6 +260,8 @@ public:
    void GetAxialLengths(double &a, double &b, double &c);
    void GetInteraxialAngles(double &alpha, double &beta, double &gamma);
 
+   virtual mfem::Mesh * GetFundamentalDomainMesh() const { return NULL; }
+
 protected:
    double a_;
    double b_;
@@ -280,12 +284,21 @@ public:
    virtual unsigned int GetNumberPaths()              { return 1; }
    virtual unsigned int GetNumberPathSegments(int i)  { return 1; }
 
+   virtual mfem::Mesh * GetFundamentalDomainMesh() const;
+
    mfem::Mesh * GetWignerSeitzMesh(bool triMesh = false) const;
    mfem::Mesh * GetPeriodicWignerSeitzMesh(bool triMesh = false) const;
 
 private:
+   // Data for mesh of the fundamental domain
+   double fd_vert_[6];   // Vertex coordinates
+   int fd_e2v_[2];       // Element to vertex connectivity
+   int fd_elem_att_[1];  // Element Attributes
+   int fd_be2v_[2];      // Boundary Element to vertex connectivity
+   int fd_belem_att_[2]; // Boundary element Attributes
+
    // Data for mesh of the corresponding Wigner-Setiz Cell
-   double ws_vert_[6];  // Vertex coordinates
+   double ws_vert_[6];   // Vertex coordinates
    int ws_e2v_[2];       // Element to vertex connectivity
    int ws_elem_att_[1];  // Element Attributes
    int ws_be2v_[2];      // Boundary Element to vertex connectivity
@@ -305,11 +318,18 @@ public:
    virtual unsigned int GetNumberPaths()              { return 1; }
    virtual unsigned int GetNumberPathSegments(int i)  { return 3; }
 
+   virtual mfem::Mesh * GetFundamentalDomainMesh() const;
+
    mfem::Mesh * GetWignerSeitzMesh(bool triMesh = false) const;
    mfem::Mesh * GetPeriodicWignerSeitzMesh(bool triMesh = false) const;
 
 private:
-   // double a_;
+   // Data for mesh of the fundamental domain
+   double fd_vert_[9];   // Vertex coordinates
+   int fd_e2v_[3];       // Element to vertex connectivity
+   int fd_elem_att_[1];  // Element Attributes
+   int fd_be2v_[6];      // Boundary Element to vertex connectivity
+   int fd_belem_att_[3]; // Boundary element Attributes
 
    // Data for mesh of the corresponding Wigner-Setiz Cell
    double ws_vert_[12];  // Vertex coordinates
@@ -332,11 +352,18 @@ public:
    virtual unsigned int GetNumberPaths()              { return 1; }
    virtual unsigned int GetNumberPathSegments(int i)  { return 3; }
 
+   virtual mfem::Mesh * GetFundamentalDomainMesh() const;
+
    mfem::Mesh * GetWignerSeitzMesh(bool triMesh = false) const;
    mfem::Mesh * GetPeriodicWignerSeitzMesh(bool triMesh = false) const;
 
 private:
-   // double a_;
+   // Data for mesh of the fundamental domain
+   double fd_vert_[9];   // Vertex coordinates
+   int fd_e2v_[3];       // Element to vertex connectivity
+   int fd_elem_att_[1];  // Element Attributes
+   int fd_be2v_[6];      // Boundary Element to vertex connectivity
+   int fd_belem_att_[3]; // Boundary element Attributes
 
    // Data for mesh of the corresponding Wigner-Setiz Cell
    double ws_vert_[21];  // Vertex coordinates
@@ -359,10 +386,18 @@ public:
    virtual unsigned int GetNumberPaths()              { return 2; }
    virtual unsigned int GetNumberPathSegments(int i)  { return (i==0)?5:1; }
 
+   virtual mfem::Mesh * GetFundamentalDomainMesh() const;
+
    mfem::Mesh * GetWignerSeitzMesh(bool tetMesh = false) const;
    mfem::Mesh * GetPeriodicWignerSeitzMesh(bool tetMesh = false) const;
 
 private:
+   // Data for mesh of the fundamental domain
+   double fd_vert_[12];  // Vertex coordinates
+   int fd_e2v_[4];       // Element to vertex connectivity
+   int fd_elem_att_[1];  // Element Attributes
+   int fd_be2v_[12];     // Boundary Element to vertex connectivity
+   int fd_belem_att_[4]; // Boundary element Attributes
 
    // Data for mesh of the corresponding Wigner-Setiz Cell
    double ws_vert_[24];  // Vertex coordinates

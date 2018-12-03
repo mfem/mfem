@@ -350,6 +350,16 @@ LinearLattice::LinearLattice(double a)
    il_[0][0] = "Delta";  // Gamma -> X
 
    // Set Mesh data
+   fd_vert_[0] =  0.0;      fd_vert_[ 1] = 0.0; fd_vert_[ 2] = 0.0;
+   fd_vert_[3] =  0.5 * a_; fd_vert_[ 4] = 0.0; fd_vert_[ 5] = 0.0;
+
+   fd_e2v_[0] = 0; fd_e2v_[1] = 1;
+   fd_elem_att_[0] = 1;
+
+   fd_be2v_[0] = 0; fd_be2v_[1] = 1;
+
+   fd_belem_att_[0] = 10; fd_belem_att_[1] = 1;
+
    ws_vert_[0] = -0.5 * a_; ws_vert_[ 1] = 0.0; ws_vert_[ 2] = 0.0;
    ws_vert_[3] =  0.5 * a_; ws_vert_[ 4] = 0.0; ws_vert_[ 5] = 0.0;
 
@@ -372,6 +382,20 @@ LinearLattice::MapToFundamentalDomain(const Vector & pt, Vector & ipt) const
       map = true;
    }
    return map;
+}
+
+Mesh *
+LinearLattice::GetFundamentalDomainMesh() const
+{
+   Mesh * mesh = new Mesh((double*)fd_vert_, 2,
+                          (int*)fd_e2v_, Geometry::SEGMENT,
+                          (int*)fd_elem_att_, 1,
+                          (int*)fd_be2v_, Geometry::POINT,
+                          (int*)fd_belem_att_, 2,
+                          1, 1);
+   mesh->Finalize();
+
+   return mesh;
 }
 
 Mesh *
@@ -472,6 +496,20 @@ SquareLattice::SquareLattice(double a)
    il_[0][2] = "Sigma";  // M     -> Gamma
 
    // Set Mesh data
+   fd_vert_[0] = 0.0;      fd_vert_[ 1] = 0.0;      fd_vert_[ 2] = 0.0;
+   fd_vert_[3] = 0.5 * a_; fd_vert_[ 4] = 0.0;      fd_vert_[ 5] = 0.0;
+   fd_vert_[6] = 0.5 * a_; fd_vert_[ 7] = 0.5 * a_; fd_vert_[ 8] = 0.0;
+
+   fd_e2v_[0] = 0; fd_e2v_[1] = 1; fd_e2v_[2] = 2;
+   fd_elem_att_[0] = 1;
+
+   fd_be2v_[0] = 0; fd_be2v_[1] = 1;
+   fd_be2v_[2] = 1; fd_be2v_[3] = 2;
+   fd_be2v_[4] = 2; fd_be2v_[5] = 0;
+
+   fd_belem_att_[0] = 10; fd_belem_att_[1] = 1;
+   fd_belem_att_[2] = 10;
+
    ws_vert_[0] = -0.5 * a_; ws_vert_[ 1] = -0.5 * a_; ws_vert_[ 2] = 0.0;
    ws_vert_[3] =  0.5 * a_; ws_vert_[ 4] = -0.5 * a_; ws_vert_[ 5] = 0.0;
    ws_vert_[6] =  0.5 * a_; ws_vert_[ 7] =  0.5 * a_; ws_vert_[ 8] = 0.0;
@@ -512,6 +550,20 @@ SquareLattice::MapToFundamentalDomain(const Vector & pt, Vector & ipt) const
       map = true;
    }
    return map;
+}
+
+Mesh *
+SquareLattice::GetFundamentalDomainMesh() const
+{
+   Mesh * mesh = new Mesh((double*)fd_vert_, 3,
+                          (int*)fd_e2v_, Geometry::TRIANGLE,
+                          (int*)fd_elem_att_, 1,
+                          (int*)fd_be2v_, Geometry::SEGMENT,
+                          (int*)fd_belem_att_, 3,
+                          2, 2);
+   mesh->Finalize();
+
+   return mesh;
 }
 
 Mesh *
@@ -607,6 +659,21 @@ HexagonalLattice::HexagonalLattice(double a)
    il_[0][2] = "GammaK"; // K     -> Gamma
 
    // Set Mesh data
+   fd_vert_[0] = 0.0;      fd_vert_[ 1] = 0.0;      fd_vert_[ 2] = 0.0;
+   fd_vert_[3] = 0.5 * a_; fd_vert_[ 4] = 0.0;      fd_vert_[ 5] = 0.0;
+   fd_vert_[6] = 0.5 * a_; fd_vert_[ 7] = 0.5 * sqrt(1.0/3.0) * a_;
+   fd_vert_[ 8] = 0.0;
+
+   fd_e2v_[0] = 0; fd_e2v_[1] = 1; fd_e2v_[2] = 2;
+   fd_elem_att_[0] = 1;
+
+   fd_be2v_[0] = 0; fd_be2v_[1] = 1;
+   fd_be2v_[2] = 1; fd_be2v_[3] = 2;
+   fd_be2v_[4] = 2; fd_be2v_[5] = 0;
+
+   fd_belem_att_[0] = 10; fd_belem_att_[1] = 1;
+   fd_belem_att_[2] = 10;
+
    for (int i=0; i<21; i++) { ws_vert_[i] = 0.0; }
    ws_vert_[ 0] =  0.0;      ws_vert_[ 1] =  0.0;
    ws_vert_[ 3] =  0.0;      ws_vert_[ 4] = -sqrt(1.0/3.0) * a_;
@@ -665,6 +732,20 @@ HexagonalLattice::MapToFundamentalDomain(const Vector & pt,
       map = true;
    }
    return map;
+}
+
+Mesh *
+HexagonalLattice::GetFundamentalDomainMesh() const
+{
+   Mesh * mesh = new Mesh((double*)fd_vert_, 3,
+                          (int*)fd_e2v_, Geometry::TRIANGLE,
+                          (int*)fd_elem_att_, 1,
+                          (int*)fd_be2v_, Geometry::SEGMENT,
+                          (int*)fd_belem_att_, 3,
+                          2, 2);
+   mesh->Finalize();
+
+   return mesh;
 }
 
 Mesh *
@@ -779,6 +860,22 @@ CubicLattice::CubicLattice(double a)
    il_[1][0] = "T";      // M     -> R
 
    // Set Mesh data
+   fd_vert_[0] = 0.0;      fd_vert_[ 1] = 0.0;      fd_vert_[ 2] = 0.0;
+   fd_vert_[3] = 0.5 * a_; fd_vert_[ 4] = 0.0;      fd_vert_[ 5] = 0.0;
+   fd_vert_[6] = 0.5 * a_; fd_vert_[ 7] = 0.5 * a_; fd_vert_[ 8] = 0.0;
+   fd_vert_[9] = 0.5 * a_; fd_vert_[10] = 0.5 * a_; fd_vert_[11] = 0.5 * a_;
+
+   fd_e2v_[0] = 0; fd_e2v_[1] = 1; fd_e2v_[2] = 2; fd_e2v_[3] = 3;
+   fd_elem_att_[0] = 1;
+
+   fd_be2v_[0] = 0; fd_be2v_[ 1] = 2; fd_be2v_[ 2] = 1;
+   fd_be2v_[3] = 0; fd_be2v_[ 4] = 1; fd_be2v_[ 5] = 3;
+   fd_be2v_[6] = 1; fd_be2v_[ 7] = 2; fd_be2v_[ 8] = 3;
+   fd_be2v_[9] = 2; fd_be2v_[10] = 0; fd_be2v_[11] = 3;
+
+   fd_belem_att_[0] = 10; fd_belem_att_[1] = 10;
+   fd_belem_att_[2] =  1; fd_belem_att_[3] = 10;
+
    ws_vert_[ 0] = -0.5 * a_; ws_vert_[ 1] = -0.5 * a_; ws_vert_[ 2] = -0.5 * a_;
    ws_vert_[ 3] =  0.5 * a_; ws_vert_[ 4] = -0.5 * a_; ws_vert_[ 5] = -0.5 * a_;
    ws_vert_[ 6] =  0.5 * a_; ws_vert_[ 7] =  0.5 * a_; ws_vert_[ 8] = -0.5 * a_;
@@ -1016,6 +1113,20 @@ CubicLattice::MapToFundamentalDomain(const Vector & pt, Vector & ipt) const
       map = true;
    }
    return map;
+}
+
+Mesh *
+CubicLattice::GetFundamentalDomainMesh() const
+{
+   Mesh * mesh = new Mesh((double*)fd_vert_, 4,
+                          (int*)fd_e2v_, Geometry::TETRAHEDRON,
+                          (int*)fd_elem_att_, 1,
+                          (int*)fd_be2v_, Geometry::TRIANGLE,
+                          (int*)fd_belem_att_, 4,
+                          3, 3);
+   mesh->Finalize();
+
+   return mesh;
 }
 
 Mesh *
