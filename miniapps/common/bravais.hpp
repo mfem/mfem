@@ -197,7 +197,7 @@ protected:
   | Name        |  a  |  b  |  gamma  |
   |-------------|-----|-----|---------|
   | Square      | > 0 | = a |  = pi/2 |
-  | Rectangular | > 0 |!= a |  = pi/2 |
+  | Rectangular | > 0 | > a |  = pi/2 |
   | Hexagonal   | > 0 | = a | = 2pi/3 |
   | Oblique     | > 0 |!= a | != pi/2 |
 
@@ -371,6 +371,74 @@ private:
    int ws_elem_att_[3];  // Element Attributes
    int ws_be2v_[12];     // Boundary Element to vertex connectivity
    int ws_belem_att_[6]; // Boundary element Attributes
+};
+
+class RectangularLattice : public BravaisLattice2D
+{
+public:
+   RectangularLattice(double a = 0.5, double b = 1.0);
+
+   virtual bool MapToFundamentalDomain(const Vector & pt,
+                                       Vector & ipt) const;
+
+   virtual unsigned int GetNumberSymmetryPoints()     { return 4; }
+   virtual unsigned int GetNumberIntermediatePoints() { return 4; }
+   virtual unsigned int GetNumberPaths()              { return 1; }
+   virtual unsigned int GetNumberPathSegments(int i)  { return 4; }
+
+   virtual mfem::Mesh * GetFundamentalDomainMesh() const;
+
+   mfem::Mesh * GetWignerSeitzMesh(bool triMesh = false) const;
+   mfem::Mesh * GetPeriodicWignerSeitzMesh(bool triMesh = false) const;
+
+private:
+   // Data for mesh of the fundamental domain
+   double fd_vert_[12];  // Vertex coordinates
+   int fd_e2v_[4];       // Element to vertex connectivity
+   int fd_elem_att_[1];  // Element Attributes
+   int fd_be2v_[8];      // Boundary Element to vertex connectivity
+   int fd_belem_att_[4]; // Boundary element Attributes
+
+   // Data for mesh of the corresponding Wigner-Setiz Cell
+   double ws_vert_[12];  // Vertex coordinates
+   int ws_e2v_[4];       // Element to vertex connectivity
+   int ws_elem_att_[1];  // Element Attributes
+   int ws_be2v_[8];      // Boundary Element to vertex connectivity
+   int ws_belem_att_[4]; // Boundary element Attributes
+};
+
+class CenteredRectangularLattice : public BravaisLattice2D
+{
+public:
+   CenteredRectangularLattice(double a = 0.5, double b = 1.0);
+
+   virtual bool MapToFundamentalDomain(const Vector & pt,
+                                       Vector & ipt) const;
+
+   virtual unsigned int GetNumberSymmetryPoints()     { return 4; }
+   virtual unsigned int GetNumberIntermediatePoints() { return 4; }
+   virtual unsigned int GetNumberPaths()              { return 1; }
+   virtual unsigned int GetNumberPathSegments(int i)  { return 4; }
+
+   virtual mfem::Mesh * GetFundamentalDomainMesh() const;
+
+   mfem::Mesh * GetWignerSeitzMesh(bool triMesh = false) const;
+   mfem::Mesh * GetPeriodicWignerSeitzMesh(bool triMesh = false) const;
+
+private:
+   // Data for mesh of the fundamental domain
+   double fd_vert_[12];  // Vertex coordinates
+   int fd_e2v_[4];       // Element to vertex connectivity
+   int fd_elem_att_[1];  // Element Attributes
+   int fd_be2v_[8];      // Boundary Element to vertex connectivity
+   int fd_belem_att_[4]; // Boundary element Attributes
+
+   // Data for mesh of the corresponding Wigner-Setiz Cell
+   double ws_vert_[12];  // Vertex coordinates
+   int ws_e2v_[4];       // Element to vertex connectivity
+   int ws_elem_att_[1];  // Element Attributes
+   int ws_be2v_[8];      // Boundary Element to vertex connectivity
+   int ws_belem_att_[4]; // Boundary element Attributes
 };
 
 class CubicLattice : public BravaisLattice3D
