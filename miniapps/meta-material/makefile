@@ -39,7 +39,7 @@ COMMON_O=../common/bravais.o ../common/pfem_extras.o
 %: %.cpp
 
 # Replace the default implicit rule for *.cpp files
-%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) $(COMMON_O)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ \
 	$(COMMON_O) $(MFEM_LIBS)
 

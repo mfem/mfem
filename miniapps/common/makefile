@@ -22,7 +22,7 @@ ifneq (clean,$(MAKECMDGOALS))
    -include $(CONFIG_MK)
 endif
 
-SEQ_MINIOBJS = mesh_extras.o fem_extras.o
+SEQ_MINIOBJS = mesh_extras.o fem_extras.o bravais.o
 ifeq ($(MFEM_USE_MPI),NO)
    MINIOBJS = $(SEQ_MINIOBJS)
 else
