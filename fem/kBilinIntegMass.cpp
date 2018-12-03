@@ -21,7 +21,12 @@ KMassIntegrator::KMassIntegrator(const FiniteElementSpace *f,
    :op(),
     maps(NULL),
     fes(f),
-    ir(i) {push();assert(i); assert(fes);}
+    ir(i)
+{
+   push();
+   assert(i);
+   assert(fes);
+}
 
 // *****************************************************************************
 void KMassIntegrator::Assemble()
