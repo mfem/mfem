@@ -62,7 +62,7 @@ public:
 class PAMassIntegrator: public BilinearPAFormIntegrator
 {
 private:
-   KMassIntegrator *mass;
+   KMassIntegrator *mass = NULL;
 public:
    PAMassIntegrator () : BilinearPAFormIntegrator(), mass(NULL) {push();}
    void Setup(const FiniteElementSpace*, const IntegrationRule*);

@@ -29,6 +29,19 @@ KMassIntegrator::KMassIntegrator(const FiniteElementSpace *f,
 void KMassIntegrator::Assemble()
 {
    push();
+   //const FiniteElement &fe = *(fes->GetFE(0));
+   //const Mesh *mesh = fes->GetMesh();
+   //const int dim = mesh->Dimension();
+   //const int dims = fe.GetDim();
+   //const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
+   //const int elements = fes->GetNE();
+   //assert(elements==mesh->GetNE());
+   //const int quadraturePoints = ir->GetNPoints();
+   //const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
+   //const int size = symmDims * quadraturePoints * elements;
+   //vec.SetSize(size);
+   //kGeometry *geo = kGeometry::Get(*fes, *ir);
+   maps = kDofQuadMaps::Get(*fes, *fes, *ir);
    pop();
 }
 
@@ -45,12 +58,15 @@ void KMassIntegrator::SetOperator(Vector &v)
 void KMassIntegrator::MultAdd(Vector &x, Vector &y)
 {
    push();
-   assert(maps);
-   #warning here
+   ok(maps);
    Mesh *mesh = fes->GetMesh();
    const int dim = mesh->Dimension();
    const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
    const int dofs1D = fes->GetFE(0)->GetOrder() + 1;
+   dbg("dim=%d",dim);
+   dbg("quad1D=%d",quad1D);
+   dbg("dofs1D=%d",dofs1D);
+   dbg("NE=%d",mesh->GetNE());
    kMassMultAdd(dim,
                 dofs1D,
                 quad1D,

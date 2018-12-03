@@ -247,17 +247,21 @@ void kMassMultAdd(const int DIM,
                   const double* x,
                   double* y)
 {
-   dbg("kMassMultAdd");
+   push();
    assert(LOG2(DIM)<=4);
-   assert((NUM_QUAD_1D&1)==0);
-   assert(LOG2(NUM_DOFS_1D-1)<=8);
-   assert(LOG2(NUM_QUAD_1D>>1)<=8);
-   const unsigned int id = (DIM<<16)|((NUM_DOFS_1D-1)<<8)|(NUM_QUAD_1D>>1);
+   //assert((NUM_QUAD_1D&1)==0);
+   assert(LOG2(NUM_DOFS_1D)<=8);
+   assert(LOG2(NUM_QUAD_1D)<=8);
+   const unsigned int id = (DIM<<16)|((NUM_DOFS_1D)<<8)|(NUM_QUAD_1D);
    static std::unordered_map<unsigned int, fMassMultAdd> call = {
       // 2D
-      {0x20001,&kMassMultAdd2D<1,2>},    {0x20101,&kMassMultAdd2D<2,2>},
-      {0x20102,&kMassMultAdd2D<2,4>},    {0x20202,&kMassMultAdd2D<3,4>},
-      {0x20203,&kMassMultAdd2D<3,6>},    {0x20303,&kMassMultAdd2D<4,6>},
+      {0x20101,&kMassMultAdd2D<1,1>},
+      {0x20201,&kMassMultAdd2D<2,1>},
+      {0x20202,&kMassMultAdd2D<2,2>},
+      {0x20302,&kMassMultAdd2D<3,2>},
+      {0x20302,&kMassMultAdd2D<3,2>},
+      {0x20303,&kMassMultAdd2D<3,3>},
+      {0x20403,&kMassMultAdd2D<4,3>},
 /*
   {0x20304,&kMassMultAdd2D<4,8>},    {0x20404,&kMassMultAdd2D<5,8>},
   {0x20405,&kMassMultAdd2D<5,10>},   {0x20505,&kMassMultAdd2D<6,10>},
@@ -274,8 +278,8 @@ void kMassMultAdd(const int DIM,
   {0x20F10,&kMassMultAdd2D<16,32>},  {0x21010,&kMassMultAdd2D<17,32>},
 */
       // 3D
-      {0x30001,&kMassMultAdd3D<1,2>},    {0x30101,&kMassMultAdd3D<2,2>},
-      {0x30102,&kMassMultAdd3D<2,4>},    {0x30202,&kMassMultAdd3D<3,4>},
+//      {0x30001,&kMassMultAdd3D<1,2>},    {0x30101,&kMassMultAdd3D<2,2>},
+//      {0x30102,&kMassMultAdd3D<2,4>},    {0x30202,&kMassMultAdd3D<3,4>},
 /*
   {0x30203,&kMassMultAdd3D<3,6>},    {0x30303,&kMassMultAdd3D<4,6>},
   {0x30304,&kMassMultAdd3D<4,8>},    {0x30404,&kMassMultAdd3D<5,8>},
@@ -298,18 +302,24 @@ void kMassMultAdd(const int DIM,
       fflush(0);
    }
    assert(call[id]);
-  
+
+   dbg("dofToQuad");
    GET_CONST_ADRS(dofToQuad);
    GET_CONST_ADRS(dofToQuadD);
    GET_CONST_ADRS(quadToDof);
    GET_CONST_ADRS(quadToDofD);
+   dbg("op");
    GET_CONST_ADRS(op);
+   dbg("x");
    GET_CONST_ADRS(x);
+   dbg("y");
    GET_ADRS(y);
    
+   dbg("call");
    call[id](numElements,
             d_dofToQuad, d_dofToQuadD, d_quadToDof, d_quadToDofD,
             d_op, d_x, d_y);
+   dbg("done");
    pop();
 }
 

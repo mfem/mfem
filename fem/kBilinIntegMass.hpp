@@ -30,8 +30,6 @@ public:
    void Assemble();
    void SetOperator(Vector&);
    void MultAdd(Vector&, Vector&);
-
-
 };
 
 }
