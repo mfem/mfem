@@ -10,8 +10,6 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "fem.hpp"
-#include "kBilinIntegMass.hpp"
-#include "kernels/kGeometry.hpp"
 #include "kernels/kIntMass.hpp"
 
 namespace mfem
@@ -29,21 +27,8 @@ KMassIntegrator::KMassIntegrator(const FiniteElementSpace *f,
 void KMassIntegrator::Assemble()
 {
    push();
-   //const FiniteElement &fe = *(fes->GetFE(0));
-   //const Mesh *mesh = fes->GetMesh();
-   //const int dim = mesh->Dimension();
-   //const int dims = fe.GetDim();
-   //const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
-   //const int elements = fes->GetNE();
-   //assert(elements==mesh->GetNE());
-   //const int quadraturePoints = ir->GetNPoints();
-   //const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
-   //const int size = symmDims * quadraturePoints * elements;
-   //vec.SetSize(size);
-   //kGeometry *geo = kGeometry::Get(*fes, *ir);
    assert(ir);
    maps = kDofQuadMaps::Get(*fes, *fes, *ir);
-   pop();
 }
 
 // *****************************************************************************
@@ -52,26 +37,16 @@ void KMassIntegrator::SetOperator(Vector &v)
    push();
    op.SetSize(v.Size());
    op = v;
-   pop();
 }
 
 // *****************************************************************************
 void KMassIntegrator::MultAdd(Vector &x, Vector &y)
 {
    push();
-   ok(maps);
    Mesh *mesh = fes->GetMesh();
    const int dim = mesh->Dimension();
    const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
    const int dofs1D = fes->GetFE(0)->GetOrder() + 1;
-   
-   //dbg("dim=%d",dim);
-   //dbg("quad1D=%d",quad1D);
-   //dbg("dofs1D=%d",dofs1D);
-   //dbg("NE=%d",mesh->GetNE());
-   
-   //dbg("op:"); op.Print();
-   //dbg("x:"); x.Print();
    kMassMultAdd(dim,
                 dofs1D,
                 quad1D,
@@ -81,9 +56,6 @@ void KMassIntegrator::MultAdd(Vector &x, Vector &y)
                 maps->quadToDof,
                 maps->quadToDofD,
                 op, x, y);
-   //dbg("y:"); y.Print();
-   //assert(false);
-   pop();
 }
 
 } // namespace mfem
