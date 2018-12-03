@@ -186,7 +186,10 @@ void mm::Push(const void *adrs)
 // *****************************************************************************
 void mm::Pull(const void *adrs)
 {
-   MFEM_ASSERT(Known(adrs), "[ERROR] Trying to pull an unknown address!");
+   const bool insert_if_in_range = true;
+   const bool known = Known(adrs, insert_if_in_range);
+   if (not known) { MFEM_SIGSEGV_FOR_STACK; }
+   MFEM_ASSERT(known, "[ERROR] Trying to pull an unknown address!");
    const mm2dev_t &mm2dev = mng->operator[](adrs);
    if (mm2dev.host) { return; }
    okMemcpyDtoH(mm2dev.h_adrs, mm2dev.d_adrs, mm2dev.bytes);

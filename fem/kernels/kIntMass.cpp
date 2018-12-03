@@ -260,6 +260,7 @@ void kMassMultAdd(const int DIM,
       {0x20202,&kMassMultAdd2D<2,2>},
       {0x20302,&kMassMultAdd2D<3,2>},
       {0x20302,&kMassMultAdd2D<3,2>},
+      {0x20304,&kMassMultAdd2D<3,4>},
       {0x20303,&kMassMultAdd2D<3,3>},
       {0x20403,&kMassMultAdd2D<4,3>},
 /*
@@ -303,23 +304,23 @@ void kMassMultAdd(const int DIM,
    }
    assert(call[id]);
 
-   dbg("dofToQuad");
+   //dbg("dofToQuad");
    GET_CONST_ADRS(dofToQuad);
    GET_CONST_ADRS(dofToQuadD);
    GET_CONST_ADRS(quadToDof);
    GET_CONST_ADRS(quadToDofD);
-   dbg("op");
+   //dbg("op");
    GET_CONST_ADRS(op);
-   dbg("x");
+   //dbg("x");
    GET_CONST_ADRS(x);
-   dbg("y");
+   //dbg("y");
    GET_ADRS(y);
    
-   dbg("call");
+   //dbg("call");
    call[id](numElements,
             d_dofToQuad, d_dofToQuadD, d_quadToDof, d_quadToDofD,
             d_op, d_x, d_y);
-   dbg("done");
+   //dbg("done");
    pop();
 }
 

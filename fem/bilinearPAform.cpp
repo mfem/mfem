@@ -75,7 +75,7 @@ void PABilinearForm::AddBoundaryFaceIntegrator(AbstractBilinearFormIntegrator
 // *****************************************************************************
 // * WARNING DiffusionGetRule Q order
 // *****************************************************************************
-static const IntegrationRule &WARNING_GetRule(const FiniteElement &trial_fe,
+/*static const IntegrationRule &WARNING_GetRule(const FiniteElement &trial_fe,
                                               const FiniteElement &test_fe)
 {
    int order;
@@ -93,19 +93,23 @@ static const IntegrationRule &WARNING_GetRule(const FiniteElement &trial_fe,
       return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
    }
    return IntRules.Get(trial_fe.GetGeomType(), order);
-}
+   }*/
 
 // ***************************************************************************
 void PABilinearForm::Assemble(int skip_zeros)
 {
    push();
    assert(integrators.Size()==1);
-   const FiniteElement &fe = *fes->GetFE(0);
-   const IntegrationRule *ir = &WARNING_GetRule(fe,fe);
-   assert(ir);
+   //const FiniteElement &fe = *fes->GetFE(0);
+//#warning WARNING_GetRule
+   //dbg("\033[31;1m[WARNING_GetRule] !!!!");assert(false);
+   //const IntegrationRule *ir = &WARNING_GetRule(fe,fe);
+   //assert(ir);
+   //mfem::Array<mfem::BilinearFormIntegrator*> &dbfi = *bform->GetDBFI();
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
    {
+      const mfem::IntegrationRule *ir = integrators[i]->GetIntRule();
       integrators[i]->Setup(fes,ir);
       integrators[i]->Assemble();
    }
