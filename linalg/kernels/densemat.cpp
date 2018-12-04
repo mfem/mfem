@@ -24,7 +24,7 @@ inline void Swap(T &a, T &b)
 }
 
 // *****************************************************************************
-__kernel__ void LSolve(const int m,
+/*__kernel__ void LSolve(const int m,
                        const int n,
                        const double *data,
                        const int *ipiv,
@@ -48,6 +48,75 @@ __kernel__ void LSolve(const int m,
          }
       }
    }
+   }*/
+
+
+// *****************************************************************************
+void kGetInverseMatrix(const int m,
+                       const int *ipiv,
+                       const double *data,
+                       double *x){
+   GET_CONST_ADRS(data);
+   GET_CONST_ADRS_T(ipiv,int);
+   GET_ADRS(x);
+   
+   MFEM_FORALL(_k_, 1,
+   //for(int _k_=0;_k_<1;_k_+=1){
+      for (int k = 0; k < m; k++)
+      {
+         double *d_mx = &d_x[k*m];
+         const double minus_x_k = -( d_mx[k] = 1.0/d_data[k+k*m] );
+         for (int i = 0; i < k; i++)
+         {
+            d_mx[i] = d_data[i+k*m] * minus_x_k;
+         }
+         for (int j = k-1; j >= 0; j--)
+         {
+            const double x_j = ( d_mx[j] /= d_data[j+j*m] );
+            for (int i = 0; i < j; i++)
+            {
+               d_mx[i] -= d_data[i+j*m] * x_j;
+            }
+         }
+         //d_x += m;
+      }
+      // X <- X L^{-1} (use input only from the upper triangular part of X)
+      {
+         int k = m-1;
+         for (int j = 0; j < k; j++)
+         {
+            const double minus_L_kj = -d_data[k+j*m];
+            for (int i = 0; i <= j; i++)
+            {
+               d_x[i+j*m] += d_x[i+k*m] * minus_L_kj;
+            }
+            for (int i = j+1; i < m; i++)
+            {
+               d_x[i+j*m] = d_x[i+k*m] * minus_L_kj;
+            }
+         }
+      }
+      for (int k = m-2; k >= 0; k--)
+      {
+         for (int j = 0; j < k; j++)
+         {
+            const double L_kj = d_data[k+j*m];
+            for (int i = 0; i < m; i++)
+            {
+               d_x[i+j*m] -= d_x[i+k*m] * L_kj;
+            }
+         }
+      }
+      // X <- X P
+      for (int k = m-1; k >= 0; k--) {
+         const int piv_k = d_ipiv[k];
+         if (k != piv_k) {
+            for (int i = 0; i < m; i++) {
+               Swap<double>(d_x[i+k*m], d_x[i+piv_k*m]);
+            }
+         }
+      }
+   );
 }
 
 // *****************************************************************************
@@ -304,9 +373,14 @@ void kOpEq(const size_t hw, const double *m, double *data)
 // *****************************************************************************
 double kDet2(const double *data)
 {
-   MFEM_GPU_CANNOT_PASS;
-   GET_ADRS(data);
-   return d_data[0] * d_data[3] - d_data[1] * d_data[2];
+   static double *result = mm::malloc<double>(1);
+   GET_CONST_ADRS(data);
+   GET_ADRS(result);
+   MFEM_FORALL(k, 1,
+               d_result[0] = d_data[0] * d_data[3] - d_data[1] * d_data[2];
+               );
+   mm::Get().Pull(d_result);
+   return result[0];
 }
 
 // *****************************************************************************

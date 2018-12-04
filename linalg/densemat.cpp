@@ -3833,6 +3833,7 @@ void LUFactors::Factor(int m)
 
 double LUFactors::Det(int m) const
 {
+   MFEM_GPU_CANNOT_PASS;
    double det = 1.0;
    for (int i=0; i<m; i++)
    {
@@ -3850,6 +3851,7 @@ double LUFactors::Det(int m) const
 
 void LUFactors::Mult(int m, int n, double *X) const
 {
+   MFEM_GPU_CANNOT_PASS;
    const double *data = this->data;
    const int *ipiv = this->ipiv;
    double *x = X;
@@ -3921,67 +3923,13 @@ void LUFactors::GetInverseMatrix(int m, double *X) const
    const int *ipiv = this->ipiv;
    // X <- U^{-1} (set only the upper triangular part of X)
    double *x = X;
-   for (int k = 0; k < m; k++)
-   {
-      const double minus_x_k = -( x[k] = 1.0/data[k+k*m] );
-      for (int i = 0; i < k; i++)
-      {
-         x[i] = data[i+k*m] * minus_x_k;
-      }
-      for (int j = k-1; j >= 0; j--)
-      {
-         const double x_j = ( x[j] /= data[j+j*m] );
-         for (int i = 0; i < j; i++)
-         {
-            x[i] -= data[i+j*m] * x_j;
-         }
-      }
-      x += m;
-   }
-   // X <- X L^{-1} (use input only from the upper triangular part of X)
-   {
-      int k = m-1;
-      for (int j = 0; j < k; j++)
-      {
-         const double minus_L_kj = -data[k+j*m];
-         for (int i = 0; i <= j; i++)
-         {
-            X[i+j*m] += X[i+k*m] * minus_L_kj;
-         }
-         for (int i = j+1; i < m; i++)
-         {
-            X[i+j*m] = X[i+k*m] * minus_L_kj;
-         }
-      }
-   }
-   for (int k = m-2; k >= 0; k--)
-   {
-      for (int j = 0; j < k; j++)
-      {
-         const double L_kj = data[k+j*m];
-         for (int i = 0; i < m; i++)
-         {
-            X[i+j*m] -= X[i+k*m] * L_kj;
-         }
-      }
-   }
-   // X <- X P
-   for (int k = m-1; k >= 0; k--)
-   {
-      const int piv_k = ipiv[k]-ipiv_base;
-      if (k != piv_k)
-      {
-         for (int i = 0; i < m; i++)
-         {
-            Swap<double>(X[i+k*m], X[i+piv_k*m]);
-         }
-      }
-   }
+   kGetInverseMatrix(m, ipiv, data, x);
 }
 
 void LUFactors::SubMult(int m, int n, int r, const double *A21,
                         const double *X1, double *X2)
 {
+   MFEM_GPU_CANNOT_PASS;
    // X2 <- X2 - A21 X1
    for (int k = 0; k < r; k++)
    {
@@ -3999,6 +3947,7 @@ void LUFactors::SubMult(int m, int n, int r, const double *A21,
 void LUFactors::BlockFactor(
    int m, int n, double *A12, double *A21, double *A22) const
 {
+   MFEM_GPU_CANNOT_PASS;
    const double *data = this->data;
    // A12 <- L^{-1} P A12
    LSolve(m, n, A12);

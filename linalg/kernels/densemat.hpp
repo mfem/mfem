@@ -15,6 +15,8 @@
 namespace mfem
 {
 
+void kGetInverseMatrix(const int, const int*, const double*, double*);
+
 void kLSolve(const int, const int, const double*, const int*, double*);
 
 void kUSolve(const int, const int, const double*, double*);

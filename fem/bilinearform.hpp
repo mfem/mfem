@@ -37,8 +37,8 @@ public:
       fes(f) { }
    virtual void AddDomainIntegrator(AbstractBilinearFormIntegrator*) = 0;
    virtual void Assemble(int skip_zeros = 1) = 0;
-   virtual void FormOperator(const Array<int> &ess_tdof_list,
-                             Operator &A) = 0;
+   virtual void FormOperator(const Array<int>&, Operator&) = 0;
+   virtual void FormOperator(const Array<int>&, Operator*&) = 0;
    virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
                                  Vector &x, Vector &b,
                                  Operator *&A, Vector &X, Vector &B,
@@ -368,7 +368,8 @@ public:
    /// Form the linear system matrix A, see FormLinearSystem() for details.
    void FormSystemMatrix(const Array<int> &ess_tdof_list, SparseMatrix &A);
    virtual void FormOperator(const Array<int> &ess_tdof_list, Operator &A) {assert(false);}
-
+   virtual void FormOperator(const Array<int> &ess_tdof_list, Operator *&A) {assert(false);}
+   
    /// Recover the solution of a linear system formed with FormLinearSystem().
    /** Call this method after solving a linear system constructed using the
        FormLinearSystem() method to recover the solution as a GridFunction-size
