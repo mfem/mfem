@@ -249,7 +249,7 @@ void kMassMultAdd(const int DIM,
 {
    push();
    assert(LOG2(DIM)<=4);
-   //assert((NUM_QUAD_1D&1)==0);
+   assert((NUM_QUAD_1D&1)==0);
    assert(LOG2(NUM_DOFS_1D)<=8);
    assert(LOG2(NUM_QUAD_1D)<=8);
    const unsigned int id = (DIM<<16)|((NUM_DOFS_1D)<<8)|(NUM_QUAD_1D);
@@ -279,8 +279,10 @@ void kMassMultAdd(const int DIM,
   {0x20F10,&kMassMultAdd2D<16,32>},  {0x21010,&kMassMultAdd2D<17,32>},
 */
       // 3D
-//      {0x30001,&kMassMultAdd3D<1,2>},    {0x30101,&kMassMultAdd3D<2,2>},
-//      {0x30102,&kMassMultAdd3D<2,4>},    {0x30202,&kMassMultAdd3D<3,4>},
+      {0x30102,&kMassMultAdd3D<1,2>},
+      {0x30202,&kMassMultAdd3D<2,2>},
+      {0x30204,&kMassMultAdd3D<2,4>},
+      {0x30304,&kMassMultAdd3D<3,4>},
 /*
   {0x30203,&kMassMultAdd3D<3,6>},    {0x30303,&kMassMultAdd3D<4,6>},
   {0x30304,&kMassMultAdd3D<4,8>},    {0x30404,&kMassMultAdd3D<5,8>},

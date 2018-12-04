@@ -46,7 +46,8 @@ public:
    void AddBoundaryFaceIntegrator(AbstractBilinearFormIntegrator*);
    // *************************************************************************
    void Assemble(int skip_zeros = 1);
-   void FormOperator(const Array<int> &ess_tdof_list, Operator &A);
+   void FormOperator(const Array<int>&, Operator&);
+   void FormOperator(const Array<int>&, Operator*&){assert(false);}
    void FormLinearSystem(const Array<int> &ess_tdof_list,
                          Vector &x, Vector &b,
                          Operator *&A, Vector &X, Vector &B,
