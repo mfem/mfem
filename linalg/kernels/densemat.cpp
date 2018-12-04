@@ -59,7 +59,8 @@ void kGetInverseMatrix(const int m,
    GET_CONST_ADRS(data);
    GET_CONST_ADRS_T(ipiv,int);
    GET_ADRS(x);
-   
+
+#warning kGetInverseMatrix
    MFEM_FORALL(_k_, 1,
    //for(int _k_=0;_k_<1;_k_+=1){
       for (int k = 0; k < m; k++)

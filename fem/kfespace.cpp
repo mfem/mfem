@@ -113,6 +113,7 @@ kFiniteElementSpace::~kFiniteElementSpace()
 void kFiniteElementSpace::GlobalToLocal(const Vector& globalVec,
                                         Vector& localVec) const
 {
+   push();
    const int vdim = fes->GetVDim();
    const int localEntries = localDofs * fes->GetNE();
    const bool vdim_ordering = fes->GetOrdering() == Ordering::byVDIM;
@@ -131,6 +132,7 @@ void kFiniteElementSpace::GlobalToLocal(const Vector& globalVec,
 void kFiniteElementSpace::LocalToGlobal(const Vector& localVec,
                                         Vector& globalVec) const
 {
+   push();
    const int vdim = fes->GetVDim();
    const int localEntries = localDofs * fes->GetNE();
    const bool vdim_ordering = fes->GetOrdering() == Ordering::byVDIM;

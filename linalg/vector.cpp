@@ -69,6 +69,7 @@ void Vector::SetDataAndSize(double *d, int s)
 
 void Vector::Load(std::istream **in, int np, int *dim)
 {
+   MFEM_GPU_CANNOT_PASS;
    int i, j, s;
 
    s = 0;
@@ -89,6 +90,7 @@ void Vector::Load(std::istream **in, int np, int *dim)
 
 void Vector::Load(std::istream &in, int Size)
 {
+   MFEM_GPU_CANNOT_PASS;
    SetSize(Size);
 
    for (int i = 0; i < size; i++)
@@ -156,6 +158,7 @@ Vector &Vector::operator*=(double c)
 
 Vector &Vector::operator/=(double c)
 {
+   MFEM_GPU_CANNOT_PASS;
    double m = 1.0/c;
    for (int i = 0; i < size; i++)
    {
@@ -166,6 +169,7 @@ Vector &Vector::operator/=(double c)
 
 Vector &Vector::operator-=(double c)
 {
+   MFEM_GPU_CANNOT_PASS;
    for (int i = 0; i < size; i++)
    {
       data[i] -= c;
@@ -205,18 +209,22 @@ Vector &Vector::Add(const double a, const Vector &Va)
       mfem_error("Vector::Add(const double, const Vector &)");
    }
 #endif
-   if (a != 0.0)
+   if (a != 0.0){
+      kVectorOpAdd(size, a, Va, data);
+   }
+   /* if (a != 0.0)
    {
       for (int i = 0; i < size; i++)
       {
          data[i] += a * Va(i);
       }
-   }
+      }*/
    return *this;
 }
 
 Vector &Vector::Set(const double a, const Vector &Va)
 {
+   MFEM_GPU_CANNOT_PASS;
 #ifdef MFEM_DEBUG
    if (size != Va.size)
    {
@@ -232,6 +240,7 @@ Vector &Vector::Set(const double a, const Vector &Va)
 
 void Vector::SetVector(const Vector &v, int offset)
 {
+   MFEM_GPU_CANNOT_PASS;
    int vs = v.Size();
    double *vp = v.data, *p = data + offset;
 
@@ -250,6 +259,7 @@ void Vector::SetVector(const Vector &v, int offset)
 
 void Vector::Neg()
 {
+   MFEM_GPU_CANNOT_PASS;
    for (int i = 0; i < size; i++)
    {
       data[i] = -data[i];
@@ -258,6 +268,7 @@ void Vector::Neg()
 
 void add(const Vector &v1, const Vector &v2, Vector &v)
 {
+   MFEM_GPU_CANNOT_PASS;
 #ifdef MFEM_DEBUG
    if (v.size != v1.size || v.size != v2.size)
    {
@@ -305,6 +316,7 @@ void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
 
 void add(const double a, const Vector &x, const Vector &y, Vector &z)
 {
+   MFEM_GPU_CANNOT_PASS;
 #ifdef MFEM_DEBUG
    if (x.size != y.size || x.size != z.size)
       mfem_error ("add(const double a, const Vector &x, const Vector &y,"
@@ -338,6 +350,7 @@ void add(const double a, const Vector &x, const Vector &y, Vector &z)
 void add(const double a, const Vector &x,
          const double b, const Vector &y, Vector &z)
 {
+   MFEM_GPU_CANNOT_PASS;
 #ifdef MFEM_DEBUG
    if (x.size != y.size || x.size != z.size)
       mfem_error("add(const double a, const Vector &x,\n"
@@ -401,6 +414,7 @@ void subtract(const Vector &x, const Vector &y, Vector &z)
 
 void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
 {
+   MFEM_GPU_CANNOT_PASS;
 #ifdef MFEM_DEBUG
    if (x.size != y.size || x.size != z.size)
       mfem_error("subtract(const double a, const Vector &x,"
@@ -434,6 +448,7 @@ void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
 
 void Vector::median(const Vector &lo, const Vector &hi)
 {
+   MFEM_GPU_CANNOT_PASS;
    double *v = data;
 
    for (int i = 0; i < size; i++)
@@ -465,19 +480,7 @@ void Vector::GetSubVector(const Array<int> &dofs, double *elem_data) const
 void Vector::SetSubVector(const Array<int> &dofs, const double value)
 {
    const int n = dofs.Size();
-
-   for (int i = 0; i < n; i++)
-   {
-      const int j = dofs[i];
-      if (j >= 0)
-      {
-         data[j] = value;
-      }
-      else
-      {
-         data[-1-j] = -value;
-      }
-   }
+   kVectorSetSubvector(n,data,value,dofs);
 }
 
 void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
@@ -487,6 +490,7 @@ void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
 
 void Vector::SetSubVector(const Array<int> &dofs, double *elem_data)
 {
+   MFEM_GPU_CANNOT_PASS;
    int i, j, n = dofs.Size();
 
    for (i = 0; i < n; i++)
@@ -504,6 +508,7 @@ void Vector::SetSubVector(const Array<int> &dofs, double *elem_data)
 
 void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
 {
+   MFEM_GPU_CANNOT_PASS;
    MFEM_ASSERT(dofs.Size() == elemvect.Size(), "Size mismatch: "
                "length of dofs is " << dofs.Size() <<
                ", length of elemvect is " << elemvect.Size());
@@ -531,6 +536,7 @@ void Vector::AddElementVector(const Array<int> &dofs, double *elem_data)
 void Vector::AddElementVector(const Array<int> &dofs, const double a,
                               const Vector &elemvect)
 {
+   MFEM_GPU_CANNOT_PASS;
    int i, j, n = dofs.Size();
 
    for (i = 0; i < n; i++)
@@ -558,22 +564,23 @@ void Vector::Print(std::ostream &out, int width) const
    mm::Get().Pull(data);
    for (int i = 0; 1; )
    {
-      out << data[i];
+      //out << data[i];
+      printf("\n\t[%d] %.15e",i,data[i]);
       i++;
       if (i == size)
       {
          break;
       }
-      if ( i % width == 0 )
+      /*if ( i % width == 0 )
       {
          out << '\n';
       }
       else
       {
          out << ' ';
-      }
+         }*/
    }
-   out << '\n';
+   // out << '\n';
 }
 
 void Vector::Print_HYPRE(std::ostream &out) const
@@ -596,6 +603,7 @@ void Vector::Print_HYPRE(std::ostream &out) const
 
 void Vector::Randomize(int seed)
 {
+   MFEM_GPU_CANNOT_PASS;
    // static unsigned int seed = time(0);
    const double max = (double)(RAND_MAX) + 1.;
 
@@ -615,6 +623,7 @@ void Vector::Randomize(int seed)
 
 double Vector::Norml2() const
 {
+   MFEM_GPU_CANNOT_PASS;
    // Scale entries of Vector on the fly, using algorithms from
    // std::hypot() and LAPACK's drm2. This scaling ensures that the
    // argument of each call to std::pow is <= 1 to avoid overflow.
@@ -652,6 +661,7 @@ double Vector::Norml2() const
 
 double Vector::Normlinf() const
 {
+   MFEM_GPU_CANNOT_PASS;
    double max = 0.0;
    for (int i = 0; i < size; i++)
    {
@@ -662,6 +672,7 @@ double Vector::Normlinf() const
 
 double Vector::Norml1() const
 {
+   MFEM_GPU_CANNOT_PASS;
    double sum = 0.0;
    for (int i = 0; i < size; i++)
    {
@@ -672,6 +683,7 @@ double Vector::Norml1() const
 
 double Vector::Normlp(double p) const
 {
+   MFEM_GPU_CANNOT_PASS;
    MFEM_ASSERT(p > 0.0, "Vector::Normlp");
    if (p == 1.0)
    {
@@ -721,6 +733,7 @@ double Vector::Normlp(double p) const
 
 double Vector::Max() const
 {
+   MFEM_GPU_CANNOT_PASS;
    double max = data[0];
 
    for (int i = 1; i < size; i++)
@@ -734,6 +747,7 @@ double Vector::Max() const
 
 double Vector::Min() const
 {
+   MFEM_GPU_CANNOT_PASS;
    double min = data[0];
 
    for (int i = 1; i < size; i++)
@@ -747,6 +761,7 @@ double Vector::Min() const
 
 double Vector::Sum() const
 {
+   MFEM_GPU_CANNOT_PASS;
    double sum = 0.0;
 
    for (int i = 0; i < size; i++)

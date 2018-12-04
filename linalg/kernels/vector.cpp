@@ -11,6 +11,7 @@
 
 #include "../../general/okina.hpp"
 #include "vector.hpp"
+#include <limits>
 
 // *****************************************************************************
 namespace mfem
@@ -62,7 +63,7 @@ double cuVectorMin(const size_t N, const double *x)
    if (!gdsr) { cuMemAlloc(&gdsr,bytes); }
    cuKernelMin<<<gridSize,blockSize>>>(N, (double*)gdsr, x);
    cuMemcpy((CUdeviceptr)h_min,(CUdeviceptr)gdsr,bytes);
-   double min = 1.e300;
+   double min = std::numeric_limits<double>::infinity();
    for (size_t i=0; i<min_sz; i+=1) { min = fmin(min, h_min[i]); }
    return min;
 }
@@ -230,6 +231,27 @@ void kVectorSetSubvector(const int N,
 }
 
 // *****************************************************************************
+void kVectorSetSubvector(const int N,
+                         double* x,
+                         const double value,
+                         const int* dofs)
+{
+   GET_ADRS(x);
+   GET_CONST_ADRS_T(dofs,int);
+   MFEM_FORALL(i, N,
+   {
+      const int j = d_dofs[i];
+      if (j >= 0)
+      {
+         d_x[j] = value;
+      }
+      else {
+         d_x[-1-j] = -value;
+      }
+   });
+}
+
+// *****************************************************************************
 void kVectorSubtract(double *zp, const double *xp, const double *yp,
                      const size_t N)
 {
@@ -294,6 +316,14 @@ void kVectorDotOpPlusEQ(const size_t size, const double *v, double *data)
    GET_CONST_ADRS(v);
    GET_ADRS(data);
    MFEM_FORALL(i, size, d_data[i] += d_v[i];);
+}
+
+// *****************************************************************************
+void kVectorOpAdd(const size_t size, const double a, const double *Va, double *data)
+{
+   GET_CONST_ADRS(Va);
+   GET_ADRS(data);
+   MFEM_FORALL(i, size, d_data[i] += a * d_Va[i];);
 }
 
 // *****************************************************************************
