@@ -36,6 +36,53 @@
 using namespace std;
 using namespace mfem;
 
+
+class ElasticityResidualErrorEstimator : public ErrorEstimator
+{
+protected:
+   long current_sequence;
+   Vector error_estimates;
+   double total_error;
+
+   Coefficient *lambda, *mu; // Lame coefficients. Not owned.
+   GridFunction *solution;   // Displacement. Not owned.
+   Coefficient *force;       // Volume force. Not owned.
+
+   bool MeshIsModified()
+   {
+      long mesh_sequence = solution->FESpace()->GetMesh()->GetSequence();
+      MFEM_ASSERT(mesh_sequence >= current_sequence, "");
+      return (mesh_sequence > current_sequence);
+   }
+
+   void ComputeEstimates();
+
+public:
+   ElasticityResidualErrorEstimator(Coefficient &lambda, Coefficient &mu,
+                                    GridFunction &sol)
+      : current_sequence(-1),
+        error_estimates(),
+        total_error(0.0),
+        lambda(&lambda),
+        mu(&mu),
+        solution(&sol),
+        force(NULL)
+   { }
+
+   void SetVolumeForce(Coefficient &f) { force = &f; }
+
+   virtual const Vector &GetLocalErrors()
+   {
+      if (MeshIsModified()) { ComputeEstimates(); }
+      return error_estimates;
+   }
+
+   virtual void Reset() { current_sequence = -1; }
+
+   virtual ~ElasticityResidualErrorEstimator() { }
+};
+
+
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
@@ -173,16 +220,30 @@ int main(int argc, char *argv[])
    //     smoothed flux: an (H1)^tdim (i.e., vector-valued) space is used here.
    //     Here, tdim represents the number of components for a symmetric (dim x
    //     dim) tensor.
-   const int tdim = dim*(dim+1)/2;
-   FiniteElementSpace flux_fespace(&mesh, &fec, tdim);
-   ZienkiewiczZhuEstimator estimator(*integ, x, flux_fespace);
-   estimator.SetFluxAveraging(flux_averaging);
+   ErrorEstimator *estimator;
+   FiniteElementSpace *flux_fespace = NULL;
+   if (0)
+   {
+      const int tdim = dim*(dim+1)/2;
+      flux_fespace = new FiniteElementSpace(&mesh, &fec, tdim);
+      ZienkiewiczZhuEstimator *zz_estimator =
+         new ZienkiewiczZhuEstimator(*integ, x, flux_fespace);
+      // Note: 'flux_fespace' is owned by 'zz_estimator'.
+      zz_estimator->SetFluxAveraging(flux_averaging);
+      estimator = zz_estimator;
+   }
+   else
+   {
+      ElasticityResidualErrorEstimator *rb_estimator =
+         new ElasticityResidualErrorEstimator(lambda_func, mu_func, x);
+      estimator = rb_estimator;
+   }
 
    // 11. A refiner selects and refines elements based on a refinement strategy.
    //     The strategy here is to refine elements with errors larger than a
    //     fraction of the maximum element error. Other strategies are possible.
    //     The refiner will call the given error estimator.
-   ThresholdRefiner refiner(estimator);
+   ThresholdRefiner refiner(*estimator);
    refiner.SetTotalErrorFraction(0.7);
 
    // 12. The main AMR loop. In each iteration we solve the problem on the
@@ -286,6 +347,8 @@ int main(int argc, char *argv[])
       b.Update();
    }
 
+   delete estimator;
+
    {
       ofstream mesh_ref_out("ex22_reference.mesh");
       mesh_ref_out.precision(16);
@@ -307,4 +370,116 @@ int main(int argc, char *argv[])
    }
 
    return 0;
+}
+
+
+void ElasticityResidualErrorEstimator::ComputeEstimates()
+{
+   FiniteElementSpace *fes = solution->FESpace();
+   Mesh *mesh = fes->GetMesh();
+
+   error_estimates.SetSize(mesh->GetNE());
+   error_estimates = 0.0;
+   total_error = 0.0;
+
+   // Element (volume) terms.
+   // TODO
+
+   // Interior face terms: jumps of the normal stess component across all
+   // internal faces.
+   const int dim = mesh->Dimension();
+   Array<int> vdofs1, vdofs2;
+   Vector u1, u2;
+   const FiniteElement *fe1, *fe2;
+   Vector n_w(dim);
+   DenseMatrix u1_mat, u2_mat;
+   DenseMatrix dshape1, dshape2;
+   DenseMatrix grad1_ref(dim), grad2_ref(dim);
+   DenseMatrix grad1(dim), grad2(dim);
+   Vector sn1(dim), sn2(dim);
+
+   const int num_faces = mesh->GetNumFaces();
+   for (int i = 0; i < num_faces; i++)
+   {
+      FaceElementTransformations *FTr = mesh->GetInteriorFaceTransformations(i);
+      if (FTr == NULL) { continue; }
+
+      fes->GetElementVDofs(FTr->Elem1No, vdofs1);
+      fes->GetElementVDofs(FTr->Elem2No, vdofs2);
+      solution->GetSubVector(vdofs1, u1);
+      solution->GetSubVector(vdofs2, u2);
+      fe1 = fes->GetFE(FTr->Elem1No);
+      fe2 = fes->GetFE(FTr->Elem2No);
+      dshape1.SetSize(fe1->GetDof(), dim);
+      dshape2.SetSize(fe2->GetDof(), dim);
+      u1_mat.UseExternalData(u1.GetData(), fe1->GetDof(), dim);
+      u2_mat.UseExternalData(u2.GetData(), fe2->GetDof(), dim);
+
+      const int ir_order = fe1->GetOrder() + fe2->GetOrder() + 1;
+      const IntegrationRule &ir = IntRules.Get(FTr->FaceGeom, ir_order);
+      double face_error = 0.0;
+      // The face error on a face F is computed as
+      //    \int_F | \sigma_1.n - \sigma_2.n | ds,
+      // where |.| denotes the length of a vector, \sigma_k, k=1,2 denote the
+      // stresses on both sides of the face F, and n is the unit normal vector
+      // to the face.
+      for (int j = 0; j < ir.GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(j);
+
+         FTr->Face->SetIntPoint(&ip);
+         CalcOrtho(FTr->Face->Jacobian(), n_w); // Works in 2D and 3D only
+
+         IntegrationPoint eip1, eip2;
+         FTr->Loc1.Transform(ip, eip1);
+         FTr->Loc2.Transform(ip, eip2);
+
+         FTr->Elem1->SetIntPoint(&eip1);
+         FTr->Elem2->SetIntPoint(&eip2);
+         double L1 = lambda->Eval(*FTr->Elem1, eip1);
+         double L2 = lambda->Eval(*FTr->Elem2, eip2);
+         const double M1 = mu->Eval(*FTr->Elem1, eip1);
+         const double M2 = mu->Eval(*FTr->Elem2, eip2);
+
+         fe1->CalcDShape(eip1, dshape1);
+         fe2->CalcDShape(eip2, dshape2);
+         MultAtB(u1_mat, dshape1, grad1_ref);
+         MultAtB(u2_mat, dshape2, grad2_ref);
+         Mult(grad1_ref, FTr->Elem1->InverseJacobian(), grad1);
+         Mult(grad2_ref, FTr->Elem2->InverseJacobian(), grad2);
+
+         // stress = 2*M*e(u) + L*tr(e(u))*I, where
+         //   e(u) = (1/2)*(grad(u) + grad(u)^T)
+         // grad1 <- stress1
+         // grad2 <- stress2
+         grad1.Symmetrize();
+         grad2.Symmetrize();
+         L1 *= grad1.Trace();
+         L2 *= grad2.Trace();
+         grad1 *= 2*M1;
+         grad2 *= 2*M2;
+         for (int d = 0; d < dim; d++)
+         {
+            grad1(d,d) += L1;
+            grad2(d,d) += L2;
+         }
+         grad1.Mult(n_w, sn1);
+         grad2.Mult(n_w, sn2);
+         sn1 -= sn2;
+
+         face_error += ip.weight * sn1.Norml2();
+      }
+
+      // Due to negative quadrature weights (on triangular faces, for certain
+      // quadrature orders), 'face_error' may be negative.
+      face_error = std::abs(face_error);
+
+      error_estimates(FTr->Elem1No) += 0.5*face_error;
+      error_estimates(FTr->Elem2No) += 0.5*face_error;
+
+      total_error += face_error;
+   }
+
+   // Boundary face terms (from traction b.c., if any)
+   // TODO
 }

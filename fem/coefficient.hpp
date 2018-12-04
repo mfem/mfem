@@ -367,6 +367,7 @@ public:
 class VectorArrayCoefficient : public VectorCoefficient
 {
 private:
+   /// Each component is a scalar Coefficient. All entries are owned.
    Array<Coefficient*> Coeff;
 
 public:
