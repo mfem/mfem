@@ -22,7 +22,9 @@ void kVectorSetDof(const int, double*, const double, const int*);
 void kVectorSetDof(double*, const double, const int);
 
 void kVectorGetSubvector(const int, double*, const double*, const int*);
+
 void kVectorSetSubvector(const int, double*, const double*, const int*);
+void kVectorSetSubvector(const int, double*, const double, const int*);
 
 void kVectorAlphaAdd(double *vp, const double* v1p,
                      const double alpha, const double *v2p, const size_t N);
@@ -41,10 +43,9 @@ void kVectorSubtract(double *zp, const double *xp, const double *yp,
 double kVectorDot(const size_t N, const double *x, const double *y);
 double kVectorMin(const size_t, const double*);
 
-void kVectorDotOpPlusEQ(const size_t size, const double *v, double *data);
+void kVectorDotOpPlusEQ(const size_t, const double*, double*);
 
-// void kSetSubVector(const size_t, const int*, const double*, double*);
-
+void kVectorOpAdd(const size_t, const double, const double*, double*);
 void kVectorOpSubtract(const size_t, const double*, double*);
 
 void kAddElementVector(const size_t, const int*, const double*, double*);

@@ -108,7 +108,7 @@ public:
        @sa SetDataAndSize(). */
    void NewDataAndSize(double *d, int s)
    {
-      if (allocsize > 0) { mm::free<double>(data); }
+      if (allocsize > 0) { dbg("\033[31;7mallocsize > 0, freeing!"); mm::free<double>(data); }
       SetDataAndSize(d, s);
    }
 

@@ -27,6 +27,7 @@ typedef struct mm2dev
    void *h_adrs = NULL;
    void *d_adrs = NULL;
    bool ranged = false;
+   const void *b_adrs = NULL;
    size_t n_rangers = 0;
    void **rangers = NULL;
 } mm2dev_t;
@@ -55,7 +56,7 @@ public:
 private:
    void Setup();
    void *Insert(const void*, const size_t, const size_t,
-                const char* file, const int line, const bool = false);
+                const char* file, const int line, const void* = NULL);
    void *Erase(const void*);
    void *Range(const void*);
    bool Known(const void*, const bool = false);

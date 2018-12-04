@@ -80,11 +80,11 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 
 // *****************************************************************************
 #define GET_CUDA const bool cuda = config::Get().Cuda();
-#define TRY_ADRS(v) mm::Get().Adrs(v)
-#define GET_ADRS(v) double *d_##v = (double*) mm::Get().Adrs(v)
-#define GET_ADRS_T(v,T) T *d_##v = (T*) mm::Get().Adrs(v)
-#define GET_CONST_ADRS(v) const double *d_##v = (const double*) mm::Get().Adrs(v)
-#define GET_CONST_ADRS_T(v,T) const T *d_##v = (const T*) mm::Get().Adrs(v)
+#define TRY_ADRS(v) mfem::mm::Get().Adrs(v)
+#define GET_ADRS(v) double *d_##v = (double*) mfem::mm::Get().Adrs(v)
+#define GET_ADRS_T(v,T) T *d_##v = (T*) mfem::mm::Get().Adrs(v)
+#define GET_CONST_ADRS(v) const double *d_##v = (const double*) mfem::mm::Get().Adrs(v)
+#define GET_CONST_ADRS_T(v,T) const T *d_##v = (const T*) mfem::mm::Get().Adrs(v)
 
 // *****************************************************************************
 #define MFEM_FILE_AND_LINE __FILE__ and __LINE__
