@@ -60,6 +60,7 @@ memory okDeviceMalloc(OCCAdevice, const size_t);
 memory okWrapMemory(const OCCAdevice, void*, const size_t);
 void *okMemoryPtr(memory);
 void okCopyFrom(memory, const void*);
+void okCopyTo(memory, void*);
 
 } // mfem
 
