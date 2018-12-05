@@ -14,20 +14,21 @@
 namespace mfem
 {
 
+#ifdef __OCCA__
 // *****************************************************************************
-void oIntDiffusionMultAdd2D(const int NUM_DOFS_1D,
-                            const int NUM_QUAD_1D,
-                            const int numElements,
-                            const double* __restrict dofToQuad,
-                            const double* __restrict dofToQuadD,
-                            const double* __restrict quadToDof,
-                            const double* __restrict quadToDofD,
-                            const double* __restrict oper,
-                            const double* __restrict solIn,
-                            double* __restrict solOut)
+static void oIntDiffusionMultAdd2D(const int NUM_DOFS_1D,
+                                   const int NUM_QUAD_1D,
+                                   const int numElements,
+                                   const double* __restrict dofToQuad,
+                                   const double* __restrict dofToQuadD,
+                                   const double* __restrict quadToDof,
+                                   const double* __restrict quadToDofD,
+                                   const double* __restrict oper,
+                                   const double* __restrict solIn,
+                                   double* __restrict solOut)
 {
    const int NUM_QUAD_2D = NUM_QUAD_1D*NUM_QUAD_1D;
-   
+   //assert(false);
    GET_OCCA_CONST_MEMORY(dofToQuad);
    GET_OCCA_CONST_MEMORY(dofToQuadD);
    GET_OCCA_CONST_MEMORY(quadToDof);
@@ -41,7 +42,7 @@ void oIntDiffusionMultAdd2D(const int NUM_DOFS_1D,
    SET_OCCA_PROPERTY(props, NUM_QUAD_1D);
    SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
 
-   if (not config::Get().Cuda()){
+   if (not config::Cuda()){
       NEW_OCCA_KERNEL(MultAdd2D_CPU, fem, oIntDiffusionMultAdd.okl, props);
       MultAdd2D_CPU(numElements,
                     o_dofToQuad, o_dofToQuadD,
@@ -57,6 +58,7 @@ void oIntDiffusionMultAdd2D(const int NUM_DOFS_1D,
                     o_oper);
    }
 }
+#endif // __OCCA__
 
 // *****************************************************************************
 #define QUAD_2D_ID(X, Y) (X + ((Y) * NUM_QUAD_1D))
@@ -379,7 +381,9 @@ void kIntDiffusionMultAdd(const int DIM,
                           const double* __restrict x,
                           double* __restrict y)
 {
-   if (config::Get().Occa()){
+
+#ifdef __OCCA__
+   if (config::Occa()){
       assert(DIM==2);
       oIntDiffusionMultAdd2D(NUM_DOFS_1D, NUM_QUAD_1D,
                              numElements,
@@ -387,7 +391,8 @@ void kIntDiffusionMultAdd(const int DIM,
                              quadToDof, quadToDofD,
                              op, x, y);
    }
-      
+#endif // __OCCA__
+   
    const unsigned int id = (DIM<<16)|(NUM_DOFS_1D<<8)|(NUM_QUAD_1D);
    assert(LOG2(NUM_DOFS_1D)<=8);
    assert(LOG2(NUM_QUAD_1D)<=8);

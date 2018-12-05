@@ -37,13 +37,15 @@ void config::cudaDeviceSetup(const int device)
 // *****************************************************************************
 void config::occaDeviceSetup(){
 #ifdef __OCCA__
-#ifdef __NVCC__
-   dbg("[occa] CUDA");
-   occaDevice = occa::cuda::wrapDevice(cuDevice, cuContext);
-#else
-   dbg("[occa] Serial");
-   occaDevice.setup("mode: 'Serial'");
-#endif
+   dbg("[occa] cuda is %s",cuda?"true":"false");
+   dbg("[occa] occa is %s",occa?"true":"false");
+   if (cuda){
+      dbg("[occa] Wrapping CUDA device");
+      occaDevice = okWrapDevice(cuDevice, cuContext);
+   }else{
+      dbg("[occa] Using OCCA Serial device");
+      occaDevice.setup("mode: 'Serial'");
+   }
    const std::string pwd = occa::io::dirname(__FILE__) + "../";
    occa::io::addLibraryPath("fem",     pwd + "fem/kernels");
    occa::io::addLibraryPath("general", pwd + "general/kernels");
@@ -58,8 +60,8 @@ void config::occaDeviceSetup(){
 }
 
 // *****************************************************************************
-void config::Setup() {
-   cudaDeviceSetup();
+void config::devSetup(const int device) {
+   cudaDeviceSetup(device);
    occaDeviceSetup();
 }
 

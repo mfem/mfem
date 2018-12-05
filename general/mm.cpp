@@ -36,7 +36,8 @@ void mm::Setup(void)
    // Create our mapping h_adrs => (size, h_adrs, d_adrs)
    mng = new mm_t();
    // Initialize the CUDA device to be ready to allocate memory
-   config::Get().Setup();
+   // Delaying and delegating to the user, after command line options have been read
+   //config::Get().Setup();
    // Shift address accesses to trig SIGSEGV
    if ((xs_shifted=getenv("XS"))) { xs_shift = 1ull << 48; }
 }
@@ -87,23 +88,20 @@ void* mm::Adrs(const void *adrs)
    const bool present = Known(adrs);
    if (not present) { MFEM_SIGSEGV_FOR_STACK; }
    MFEM_ASSERT(present, "[ERROR] Trying to convert unknown address!");
-   const bool cuda = config::Get().Cuda();
-   const bool occa = config::Get().Occa();
-   const bool nvcc = config::nvcc();
+   const bool cuda = config::Cuda();
+   //const bool occa = config::Occa();
+   const bool nvcc = config::Nvcc();
    mm2dev_t &mm2dev = mng->operator[](adrs);
    // Just return asked known host address if not in CUDA mode
    if (mm2dev.host and not cuda) { return xsShift(mm2dev.h_adrs); }
    // If it hasn't been seen, alloc it in the device
    if (not mm2dev.d_adrs)
    {
-      if (not nvcc)
-      {
-         mfem_error("[ERROR] Trying to run without CUDA support!");
-      }
+      MFEM_ASSERT(nvcc,"[ERROR] Trying to run without CUDA support!");
       const size_t bytes = mm2dev.bytes;
       //dbg("\033[32mmalloc cuda memory of size %ld", bytes/sizeof(double));
       if (bytes>0) { okMemAlloc(&mm2dev.d_adrs, bytes); }
-      void *stream = config::Get().Stream();
+      void *stream = config::Stream();
       okMemcpyHtoDAsync(mm2dev.d_adrs, mm2dev.h_adrs, bytes, stream);
       mm2dev.host = false; // This address is no more on the host
    }
@@ -111,35 +109,32 @@ void* mm::Adrs(const void *adrs)
 }
 
 // *****************************************************************************
-occa::memory mm::Memory(const void *adrs)
+memory mm::Memory(const void *adrs)
 {
    const bool present = Known(adrs);
    if (not present) { MFEM_SIGSEGV_FOR_STACK; }
    MFEM_ASSERT(present, "[ERROR] Trying to convert unknown address!");
-   MFEM_ASSERT(config::Get().Occa(), "[ERROR] Trying to get OCCA memory!");
+   MFEM_ASSERT(config::Occa(), "[ERROR] Trying to get OCCA memory!");
    mm2dev_t &mm2dev = mng->operator[](adrs);
    const size_t bytes = mm2dev.bytes;
-   OCCAdevice device = config::Get().OccaDevice();
+   OCCAdevice device = config::OccaDevice();
+   const bool cuda = config::Cuda();
+   const bool occa = config::Occa();
    if (not mm2dev.d_adrs){
-#ifdef __NVCC__
-      okMemAlloc(&mm2dev.d_adrs, bytes);
-      void *stream = config::Get().Stream();
-      okMemcpyHtoDAsync(mm2dev.d_adrs, mm2dev.h_adrs, bytes, stream);
-      mm2dev.o_adrs = occa::cuda::wrapMemory(device, mm2dev.d_adrs, bytes);
-#else
-      mm2dev.o_adrs = device.malloc(bytes);
-      mm2dev.d_adrs = mm2dev.o_adrs.ptr();
-      //dbg("\033[33msz %ld", mm2dev.bytes/sizeof(double));
-      mm2dev.o_adrs.copyFrom(mm2dev.h_adrs);
-#endif
+      if (cuda and occa){
+         okMemAlloc(&mm2dev.d_adrs, bytes);
+         void *stream = config::Stream();
+         okMemcpyHtoDAsync(mm2dev.d_adrs, mm2dev.h_adrs, bytes, stream);
+         mm2dev.o_adrs = okWrapMemory(device, mm2dev.d_adrs, bytes);
+      }else{
+         mm2dev.o_adrs = okDeviceMalloc(device, bytes);
+         mm2dev.d_adrs = okMemoryPtr(mm2dev.o_adrs);
+         okCopyFrom(mm2dev.o_adrs, mm2dev.h_adrs);
+      }
       mm2dev.host = false; // This address is no more on the host
-   }else{
-      //dbg("\033[33m wrap  \033[32mcuda memory of size %ld", mm2dev.bytes/sizeof(double));
-#ifdef __NVCC__
-      mm2dev.o_adrs = occa::cuda::wrapMemory(device, mm2dev.d_adrs, bytes);
-#else
-      MFEM_ASSERT(false, "[ERROR] Should not be there!");
-#endif
+   }
+   if (cuda and occa){
+      return mm2dev.o_adrs = okWrapMemory(device, mm2dev.d_adrs, bytes);
    }
    return mm2dev.o_adrs;
 }
@@ -159,16 +154,18 @@ void mm::Pull(const void *adrs)
    MFEM_ASSERT(Known(adrs), "[ERROR] Trying to pull an unknown address!");
    const mm2dev_t &mm2dev = mng->operator[](adrs);
    if (mm2dev.host) { return; }
-   const bool cuda = config::Get().Cuda();
-   const bool occa = config::Get().Occa();
+   const bool cuda = config::Cuda();
    if (cuda) {
       okMemcpyDtoH(mm2dev.h_adrs, mm2dev.d_adrs, mm2dev.bytes);
       return;
    }
+#ifdef __OCCA__
+   const bool occa = config::Occa();
    if (occa) {
       this->Memory(adrs).copyTo(mm2dev.h_adrs);
       return;
    }
+#endif // __OCCA__
    assert(false);
 }
 
@@ -182,7 +179,7 @@ void* mm::memcpy(void *dest, const void *src, size_t bytes)
 void* mm::H2D(void *dest, const void *src, size_t bytes, const bool async)
 {
    if (bytes==0) { return dest; }
-   const bool cuda = config::Get().Cuda();
+   const bool cuda = config::Cuda();
    if (not cuda) { return std::memcpy(dest, src, bytes); }
    return mfem::kH2D(dest, src, bytes, async);
 }
@@ -191,7 +188,7 @@ void* mm::H2D(void *dest, const void *src, size_t bytes, const bool async)
 void* mm::D2H(void *dest, const void *src, size_t bytes, const bool async)
 {
    if (bytes==0) { return dest; }
-   const bool cuda = config::Get().Cuda();
+   const bool cuda = config::Cuda();
    if (not cuda) { return std::memcpy(dest, src, bytes); }
    return mfem::kD2H(dest, src, bytes, async);
 }
@@ -200,7 +197,7 @@ void* mm::D2H(void *dest, const void *src, size_t bytes, const bool async)
 void* mm::D2D(void *dest, const void *src, size_t bytes, const bool async)
 {
    if (bytes==0) { return dest; }
-   const bool cuda = config::Get().Cuda();
+   const bool cuda = config::Cuda();
    if (not cuda) { return std::memcpy(dest, src, bytes); }
    return mfem::kD2D(dest, src, bytes, async);
 }
