@@ -11,6 +11,7 @@
 
 #include "okina.hpp"
 
+// *****************************************************************************
 namespace mfem
 {
 
@@ -83,4 +84,5 @@ int okMemcpyDtoHAsync(void* dst, void* src, size_t bytes, void *s)
    return CU_STUB(cuMemcpyDtoHAsync(dst, (CUdeviceptr)src, bytes, (CUstream)s));
 }
 
+// *****************************************************************************
 } // namespace mfem

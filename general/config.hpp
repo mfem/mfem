@@ -12,18 +12,19 @@
 #ifndef MFEM_CONFIG_HPP
 #define MFEM_CONFIG_HPP
 
+// *****************************************************************************
 namespace mfem
 {
 
 // *****************************************************************************
-// * Config
+// * MFEM config class
 // *****************************************************************************
 class config
 {
 private:
+   bool pa = false;
    bool cuda = false;
    bool occa = false;
-   bool pa = false;
    bool sync = false;
    bool nvvp = false;
    int dev;
@@ -34,11 +35,13 @@ private:
    OCCAdevice occaDevice;
 
 private:
+   // **************************************************************************
    config() {}
    config(config const&);
    void operator=(config const&);
 
 public:
+   // **************************************************************************
    static config& _Get()
    {
       static config singleton;
@@ -91,6 +94,7 @@ public:
    static inline OCCAdevice OccaDevice() { return _Get().GetOccaDevice(); }
 };
 
-}
+// *****************************************************************************
+} // mfem
 
 #endif // MFEM_CONFIG_HPP

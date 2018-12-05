@@ -9,18 +9,15 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include "../general/error.hpp"
 #include "../general/okina.hpp"
-#include "kernels/mm.hpp"
-#include "cuda.hpp"
 
+// *****************************************************************************
 namespace mfem
 {
 
 // *****************************************************************************
 static size_t xs_shift = 0;
 static bool xs_shifted = false;
-#define MFEM_SIGSEGV_FOR_STACK __builtin_trap()
 
 // *****************************************************************************
 static inline void *xsShift(const void *adrs)
@@ -35,9 +32,6 @@ void mm::Setup(void)
    assert(!mng);
    // Create our mapping h_adrs => (size, h_adrs, d_adrs)
    mng = new mm_t();
-   // Initialize the CUDA device to be ready to allocate memory
-   // Delaying and delegating to the user, after command line options have been read
-   //config::Get().Setup();
    // Shift address accesses to trig SIGSEGV
    if ((xs_shifted=getenv("XS"))) { xs_shift = 1ull << 48; }
 }
@@ -202,4 +196,5 @@ void* mm::D2D(void *dest, const void *src, size_t bytes, const bool async)
    return mfem::kD2D(dest, src, bytes, async);
 }
 
+// *****************************************************************************
 } // namespace mfem

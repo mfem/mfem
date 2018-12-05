@@ -11,6 +11,7 @@
 
 #include "../general/okina.hpp"
 
+// *****************************************************************************
 namespace mfem
 {
 
@@ -65,4 +66,5 @@ void config::devSetup(const int device) {
    occaDeviceSetup();
 }
 
-} // namespace mfem
+// *****************************************************************************
+} // mfem
