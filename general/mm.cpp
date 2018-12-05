@@ -16,27 +16,6 @@ namespace mfem
 {
 
 // *****************************************************************************
-static size_t xs_shift = 0;
-static bool xs_shifted = false;
-
-// *****************************************************************************
-static inline void *xsShift(const void *adrs)
-{
-   if (!xs_shifted) { return (void*) adrs; }
-   return ((size_t*) adrs) - xs_shift;
-}
-
-// *****************************************************************************
-void mm::Setup(void)
-{
-   assert(!mng);
-   // Create our mapping h_adrs => (size, h_adrs, d_adrs)
-   mng = new mm_t();
-   // Shift address accesses to trig SIGSEGV
-   if ((xs_shifted=getenv("XS"))) { xs_shift = 1ull << 48; }
-}
-
-// *****************************************************************************
 bool mm::Known(const void *adrs)
 {
    const auto search = mng->find(adrs);
@@ -47,12 +26,11 @@ bool mm::Known(const void *adrs)
 // *****************************************************************************
 // * Add an address only on the host
 // *****************************************************************************
-void* mm::Insert(const void *adrs, const size_t size, const size_t size_of_T)
+void* mm::Insert(void *h_adrs, const size_t size, const size_t size_of_T)
 {
-   if (!mm::Get().mng) { mm::Get().Setup(); }
-   size_t *h_adrs = ((size_t *) adrs) + xs_shift;
+   if (not mng) { mng = new mm_t(); }
    const bool present = Known(h_adrs);
-   if (present) { MFEM_SIGSEGV_FOR_STACK; }
+   if (present) { BUILTIN_TRAP; }
    MFEM_ASSERT(not present, "[ERROR] Trying to add already present address!");
    mm2dev_t &mm2dev = mng->operator[](h_adrs);
    mm2dev.host = true;
@@ -65,13 +43,13 @@ void* mm::Insert(const void *adrs, const size_t size, const size_t size_of_T)
 // *****************************************************************************
 // * Remove the address from the map
 // *****************************************************************************
-void *mm::Erase(const void *adrs)
+void *mm::Erase(void *adrs)
 {
    const bool present = Known(adrs);
-   if (not present) { MFEM_SIGSEGV_FOR_STACK; }
+   if (not present) { BUILTIN_TRAP; }
    MFEM_ASSERT(present, "[ERROR] Trying to remove an unknown address!");
    mng->erase(adrs);
-   return xsShift(adrs);
+   return adrs;
 }
 
 // *****************************************************************************
@@ -80,14 +58,14 @@ void *mm::Erase(const void *adrs)
 void* mm::Adrs(const void *adrs)
 {
    const bool present = Known(adrs);
-   if (not present) { MFEM_SIGSEGV_FOR_STACK; }
+   if (not present) { BUILTIN_TRAP; }
    MFEM_ASSERT(present, "[ERROR] Trying to convert unknown address!");
    const bool cuda = config::Cuda();
    //const bool occa = config::Occa();
    const bool nvcc = config::Nvcc();
    mm2dev_t &mm2dev = mng->operator[](adrs);
    // Just return asked known host address if not in CUDA mode
-   if (mm2dev.host and not cuda) { return xsShift(mm2dev.h_adrs); }
+   if (mm2dev.host and not cuda) { return (void*) mm2dev.h_adrs; }
    // If it hasn't been seen, alloc it in the device
    if (not mm2dev.d_adrs)
    {
@@ -106,7 +84,7 @@ void* mm::Adrs(const void *adrs)
 memory mm::Memory(const void *adrs)
 {
    const bool present = Known(adrs);
-   if (not present) { MFEM_SIGSEGV_FOR_STACK; }
+   if (not present) { BUILTIN_TRAP; }
    MFEM_ASSERT(present, "[ERROR] Trying to convert unknown address!");
    MFEM_ASSERT(config::Occa(), "[ERROR] Trying to get OCCA memory!");
    mm2dev_t &mm2dev = mng->operator[](adrs);
@@ -155,12 +133,12 @@ void mm::Pull(const void *adrs)
    if (mm2dev.host) { return; }
    if (config::Cuda())
    {
-      okMemcpyDtoH(mm2dev.h_adrs, mm2dev.d_adrs, mm2dev.bytes);
+      okMemcpyDtoH((void*)mm2dev.h_adrs, mm2dev.d_adrs, mm2dev.bytes);
       return;
    }
    if (config::Occa())
    {
-      okCopyTo(Memory(adrs), mm2dev.h_adrs);
+      okCopyTo(Memory(adrs), (void*)mm2dev.h_adrs);
       return;
    }
    MFEM_ASSERT(false, "[ERROR] Should not be there!");

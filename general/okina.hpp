@@ -69,10 +69,10 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 #define GET_CONST_ADRS_T(v,T) const T *d_##v = (const T*) mm::Get().Adrs(v)
 
 // *****************************************************************************
-#define MFEM_SIGSEGV_FOR_STACK __builtin_trap()
-#define MFEM_FILE_AND_LINE __FILE__ and __LINE__
-#define MFEM_CPU_CANNOT_PASS {assert(MFEM_FILE_AND_LINE and false);}
-#define MFEM_GPU_CANNOT_PASS {assert(MFEM_FILE_AND_LINE and not config::Cuda());}
+#define BUILTIN_TRAP __builtin_trap()
+#define FILE_AND_LINE __FILE__ and __LINE__
+#define MFEM_CPU_CANNOT_PASS {assert(FILE_AND_LINE and false);}
+#define MFEM_GPU_CANNOT_PASS {assert(FILE_AND_LINE and not config::Cuda());}
 
 // Offsets *********************************************************************
 #define ijN(i,j,N) (i)+(N)*(j)
