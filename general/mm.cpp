@@ -153,21 +153,17 @@ void mm::Pull(const void *adrs)
    MFEM_ASSERT(Known(adrs), "[ERROR] Trying to pull an unknown address!");
    const mm2dev_t &mm2dev = mng->operator[](adrs);
    if (mm2dev.host) { return; }
-   const bool cuda = config::Cuda();
-   if (cuda)
+   if (config::Cuda())
    {
       okMemcpyDtoH(mm2dev.h_adrs, mm2dev.d_adrs, mm2dev.bytes);
       return;
    }
-#ifdef __OCCA__
-   const bool occa = config::Occa();
-   if (occa)
+   if (config::Occa())
    {
-      this->Memory(adrs).copyTo(mm2dev.h_adrs);
+      okCopyTo(Memory(adrs), mm2dev.h_adrs);
       return;
    }
-#endif // __OCCA__
-   assert(false);
+   MFEM_ASSERT(false, "[ERROR] Should not be there!");
 }
 
 // *****************************************************************************

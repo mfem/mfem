@@ -66,4 +66,12 @@ void okCopyFrom(memory o_adrs, const void *h_adrs)
 }
 
 // *****************************************************************************
+void okCopyTo(memory o_adrs, void *h_adrs)
+{
+#ifdef __OCCA__
+   o_adrs.copyTo(h_adrs);
+#endif
+}
+
+// *****************************************************************************
 } // namespace mfem
