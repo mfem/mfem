@@ -114,20 +114,25 @@ memory mm::Memory(const void *adrs)
    OCCAdevice device = config::OccaDevice();
    const bool cuda = config::Cuda();
    const bool occa = config::Occa();
-   if (not mm2dev.d_adrs){
-      if (cuda and occa){
+   if (not mm2dev.d_adrs)
+   {
+      if (cuda and occa)
+      {
          okMemAlloc(&mm2dev.d_adrs, bytes);
          void *stream = config::Stream();
          okMemcpyHtoDAsync(mm2dev.d_adrs, mm2dev.h_adrs, bytes, stream);
          mm2dev.o_adrs = okWrapMemory(device, mm2dev.d_adrs, bytes);
-      }else{
+      }
+      else
+      {
          mm2dev.o_adrs = okDeviceMalloc(device, bytes);
          mm2dev.d_adrs = okMemoryPtr(mm2dev.o_adrs);
          okCopyFrom(mm2dev.o_adrs, mm2dev.h_adrs);
       }
       mm2dev.host = false; // This address is no more on the host
    }
-   if (cuda and occa){
+   if (cuda and occa)
+   {
       return mm2dev.o_adrs = okWrapMemory(device, mm2dev.d_adrs, bytes);
    }
    return mm2dev.o_adrs;
@@ -149,13 +154,15 @@ void mm::Pull(const void *adrs)
    const mm2dev_t &mm2dev = mng->operator[](adrs);
    if (mm2dev.host) { return; }
    const bool cuda = config::Cuda();
-   if (cuda) {
+   if (cuda)
+   {
       okMemcpyDtoH(mm2dev.h_adrs, mm2dev.d_adrs, mm2dev.bytes);
       return;
    }
 #ifdef __OCCA__
    const bool occa = config::Occa();
-   if (occa) {
+   if (occa)
+   {
       this->Memory(adrs).copyTo(mm2dev.h_adrs);
       return;
    }

@@ -41,7 +41,9 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
    constexpr bool nvcc = cuNvcc();
    const bool cuda = mfem::config::Cuda();
    if (nvcc and cuda)
+   {
       return cuWrap<BLOCK_SZ>(N,d_body);
+   }
    for (size_t k=0; k<N; k+=1) { h_body(k); }
 }
 
