@@ -142,9 +142,9 @@ int main(int argc, char *argv[])
    b->Assemble();
 
    mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
-   if (cuda) { dbg("CUDA"); config::Cuda(true);}
-   if (occa) { dbg("OCCA"); config::Occa(true); }
-   if (pa) { dbg("PA"); config::PA(true);   }
+   if (cuda) { config::Cuda(true);}
+   if (occa) { config::Occa(true); }
+   if (pa) { config::PA(true);   }
    config::Setup();
 
    // 7. Define the solution vector x as a finite element grid function

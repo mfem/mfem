@@ -39,16 +39,16 @@ void config::cudaDeviceSetup(const int device)
 void config::occaDeviceSetup()
 {
 #ifdef __OCCA__
-   dbg("[occa] cuda is %s",cuda?"true":"false");
-   dbg("[occa] occa is %s",occa?"true":"false");
+   //dbg("[occa] cuda is %s",cuda?"true":"false");
+   //dbg("[occa] occa is %s",occa?"true":"false");
    if (cuda)
    {
-      dbg("[occa] Wrapping CUDA device");
+      //dbg("[occa] Wrapping CUDA device");
       occaDevice = okWrapDevice(cuDevice, cuContext);
    }
    else
    {
-      dbg("[occa] Using OCCA Serial device");
+      //dbg("[occa] Using OCCA Serial device");
       occaDevice.setup("mode: 'Serial'");
    }
    const std::string pwd = occa::io::dirname(__FILE__) + "../";
