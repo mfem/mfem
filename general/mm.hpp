@@ -12,6 +12,7 @@
 #ifndef MFEM_MM_HPP
 #define MFEM_MM_HPP
 
+// *****************************************************************************
 namespace mfem
 {
 
@@ -95,6 +96,7 @@ public:
    static void* memcpy(void*, const void*, size_t);
 };
 
-} // namespace mfem
+// *****************************************************************************
+} // mfem
 
 #endif // MFEM_MM_HPP

@@ -151,4 +151,5 @@ void kIntDiffusionAssemble(const int dim,
   if (dim==3) { kAssemble3D(NUM_QUAD_1D, numElements, quadWeights, J, COEFF, oper); }
 }
 
-}
+// *****************************************************************************
+} // mfem

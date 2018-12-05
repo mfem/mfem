@@ -10,8 +10,6 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "../okina.hpp"
-#include "mm.hpp"
-#include "../cuda.hpp"
 
 // *****************************************************************************
 namespace mfem
