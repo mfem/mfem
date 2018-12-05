@@ -71,7 +71,7 @@ int okMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s)
 // *****************************************************************************
 // * Copies memory from Device to Host
 // *****************************************************************************
-int okMemcpyDtoH(void* dst, void* src, size_t bytes)
+int okMemcpyDtoH(void* dst, const void* src, size_t bytes)
 {
    return CU_STUB(cuMemcpyDtoH(dst, (CUdeviceptr)src, bytes));
 }

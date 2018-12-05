@@ -78,7 +78,7 @@ int okMemcpyDtoDAsync(void*, void*, size_t, void*);
 // *****************************************************************************
 // * Copies memory from Device to Host
 // *****************************************************************************
-int okMemcpyDtoH(void*, void*, size_t);
+int okMemcpyDtoH(void*, const void*, size_t);
 
 // *****************************************************************************
 // * Copies memory from Device to Host
