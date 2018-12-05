@@ -78,19 +78,19 @@ private:
 public:
    // **************************************************************************
    // * Shortcuts
-   // ************************************************************************** 
+   // **************************************************************************
    static inline void Setup() { _Get().devSetup(); }
    constexpr static inline bool Nvcc() { return cuNvcc(); }
-   
-   static inline bool PA(){ return _Get().GetPA(); }
-   static inline void PA(const bool b){ _Get().SetPA(b); }
-   
-   static inline bool Cuda(){ return _Get().GetCuda(); }
-   static inline void Cuda(const bool b){ _Get().SetCuda(b); }
-   static inline CUstream Stream(){ return _Get().GetStream(); }
-   
-   static inline bool Occa(){ return _Get().GetOcca(); }
-   static inline void Occa(const bool b){ _Get().SetOcca(b); }
+
+   static inline bool PA() { return _Get().GetPA(); }
+   static inline void PA(const bool b) { _Get().SetPA(b); }
+
+   static inline bool Cuda() { return _Get().GetCuda(); }
+   static inline void Cuda(const bool b) { _Get().SetCuda(b); }
+   static inline CUstream Stream() { return _Get().GetStream(); }
+
+   static inline bool Occa() { return _Get().GetOcca(); }
+   static inline void Occa(const bool b) { _Get().SetOcca(b); }
    static inline OCCAdevice OccaDevice() { return _Get().GetOccaDevice(); }
 };
 

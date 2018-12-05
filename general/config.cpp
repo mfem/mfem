@@ -36,14 +36,18 @@ void config::cudaDeviceSetup(const int device)
 // *****************************************************************************
 // * Setting device, paths & kernels
 // *****************************************************************************
-void config::occaDeviceSetup(){
+void config::occaDeviceSetup()
+{
 #ifdef __OCCA__
    dbg("[occa] cuda is %s",cuda?"true":"false");
    dbg("[occa] occa is %s",occa?"true":"false");
-   if (cuda){
+   if (cuda)
+   {
       dbg("[occa] Wrapping CUDA device");
       occaDevice = okWrapDevice(cuDevice, cuContext);
-   }else{
+   }
+   else
+   {
       dbg("[occa] Using OCCA Serial device");
       occaDevice.setup("mode: 'Serial'");
    }
@@ -61,7 +65,8 @@ void config::occaDeviceSetup(){
 }
 
 // *****************************************************************************
-void config::devSetup(const int device) {
+void config::devSetup(const int device)
+{
    cudaDeviceSetup(device);
    occaDeviceSetup();
 }

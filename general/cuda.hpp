@@ -19,7 +19,7 @@ template <typename BODY> __global__ static
 void cuKernel(const size_t N, BODY body)
 {
    const size_t k = blockDim.x*blockIdx.x + threadIdx.x;
-   if (k >= N) return;
+   if (k >= N) { return; }
    body(k);
 }
 template <size_t BLOCK_SZ, typename DBODY>
@@ -37,7 +37,7 @@ typedef int CUdevice;
 typedef int CUcontext;
 typedef void* CUstream;
 template <size_t BLOCK_SIZE, typename DBODY>
-void cuWrap(const size_t N, DBODY &&d_body){}
+void cuWrap(const size_t N, DBODY &&d_body) {}
 constexpr static inline bool cuNvcc() { return false; }
 #endif // __NVCC__
 
