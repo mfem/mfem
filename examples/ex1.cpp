@@ -68,7 +68,6 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
                   "Enable Partial Assembly.");
-   args.AddOption(&cuda, "-g", "--gpu", "-no-g", "--no-gpu", "Enable GPU.");
    args.AddOption(&cuda, "-u", "--cuda", "-no-u", "--no-cuda", "Enable CUDA.");
    args.AddOption(&occa, "-c", "--occa", "-no-c", "--no-occa", "Enable OCCA.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -143,9 +142,10 @@ int main(int argc, char *argv[])
    b->Assemble();
 
    mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
-   if (cuda) { config::Get().Cuda(true); }
-   if (occa) { config::Get().Occa(true); }
-   if (pa)  { config::Get().PA(true);   }
+   if (cuda) { dbg("CUDA"); config::Cuda(true);}
+   if (occa) { dbg("OCCA"); config::Occa(true); }
+   if (pa) { dbg("PA"); config::PA(true);   }
+   config::Setup();
 
    // 7. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,

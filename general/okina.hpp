@@ -13,73 +13,43 @@
 #define MFEM_OKINA_HPP
 
 // *****************************************************************************
-#ifdef __NVCC__
-#include <cuda.h>
-#else
-#define __host__
-#define __device__
-#define __constant__
-#endif // __NVCC__
-
-// *****************************************************************************
-#define __kernel__
-
-// *****************************************************************************
-#ifdef __OCCA__
-#include <occa.hpp>
-#ifdef __NVCC__
-#include <occa/mode/cuda/utils.hpp>
-#endif // __NVCC__
-#endif // __OCCA__
+#include "../config/config.hpp"
 
 // *****************************************************************************
 #include <cmath>
 #include <cassert>
-#include <iostream>
 #include <cstring>
+#include <iostream>
 #include <unordered_map>
+
+// *****************************************************************************
+#include "./cuda.hpp"
+#include "./occa.hpp"
 
 // *****************************************************************************
 #include "mm.hpp"
 #include "config.hpp"
 
 // *****************************************************************************
-// * GPU kernel launcher
-// *****************************************************************************
-#ifdef __NVCC__
-template <typename BODY> __global__
-void cudaKernel(const size_t N, BODY body)
-{
-   const size_t k = blockDim.x*blockIdx.x + threadIdx.x;
-   if (k >= N) { return; }
-   body(k);
-}
-#endif // __NVCC__
-
-// *****************************************************************************
 // * GPU & HOST FOR_LOOP bodies wrapper
 // *****************************************************************************
-template <typename DBODY, typename HBODY>
+template <size_t BLOCK_SZ, typename DBODY, typename HBODY>
 void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 {
-#ifdef __NVCC__
-   if (mfem::config::Get().Cuda())
-   {
-      const size_t blockSize = 256;
-      const size_t gridSize = (N+blockSize-1)/blockSize;
-      cudaKernel<<<gridSize, blockSize>>>(N,d_body);
-      return;
-   }
-#endif // __NVCC__
-  for (size_t k=0; k<N; k+=1) { h_body(k); }
+   constexpr bool nvcc = cuNvcc();
+   const bool cuda = mfem::config::Cuda();
+   if (nvcc and cuda)
+      return cuWrap<BLOCK_SZ>(N,d_body);
+   for (size_t k=0; k<N; k+=1) { h_body(k); }
 }
 
 // *****************************************************************************
 // * MFEM_FORALL splitter
 // *****************************************************************************
-#define MFEM_FORALL(i, N, body) wrap(N,                                 \
-                                     [=] __device__ (size_t i){body},   \
-                                     [=]            (size_t i){body})
+#define MFEM_FORALL(i, N, B)                                            \
+   wrap<256>(N, [=] __device__ (size_t i){B}, [=] (size_t i){B})
+#define MFEM_FORALL_BLOCK(i,N,B,K)                                      \
+   wrap<K>(N, [=] __device__ (size_t i){B}, [=] (size_t i){B})
 
 // *****************************************************************************
 #define LOG2(X) ((unsigned) (8*sizeof(unsigned long long)-__builtin_clzll((X))))
@@ -88,30 +58,16 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 #define IROOT(D,N) ((D==1)?N:(D==2)?ISQRT(N):(D==3)?ICBRT(N):0)
 
 // *****************************************************************************
-#define GET_CUDA const bool cuda = config::Get().Cuda();
+#define GET_CUDA const bool cuda = config::Cuda();
 #define GET_ADRS(v) double *d_##v = (double*) mm::Get().Adrs(v)
 #define GET_ADRS_T(v,T) T *d_##v = (T*) mm::Get().Adrs(v)
 #define GET_CONST_ADRS(v) const double *d_##v = (const double*) mm::Get().Adrs(v)
 #define GET_CONST_ADRS_T(v,T) const T *d_##v = (const T*) mm::Get().Adrs(v)
 
 // *****************************************************************************
-#define GET_OCCA_MEMORY(v) occa::memory o_##v = mm::Get().Memory(v)
-#define GET_OCCA_CONST_MEMORY(v) GET_OCCA_MEMORY(v)
-#define NEW_OCCA_PROPERTY(props) occa::properties props;
-#define SET_OCCA_PROPERTY(props,name) props["defines/" #name] = name;   
-#define NEW_OCCA_KERNEL(ker,libray,filename,props)                      \
-   static occa::kernel ker = NULL;                                      \
-   if (ker==NULL) {                                                     \
-      OCCAdevice device = config::Get().OccaDevice();                   \
-      const std::string fdk = "occa://" #libray "/" #filename;          \
-      const std::string odk = occa::io::occaFileOpener().expand(fdk);   \
-      ker = device.buildKernel(odk, #ker, props);                        \
-   }
-
-// *****************************************************************************
 #define MFEM_FILE_AND_LINE __FILE__ and __LINE__
 #define MFEM_CPU_CANNOT_PASS {assert(MFEM_FILE_AND_LINE and false);}
-#define MFEM_GPU_CANNOT_PASS {assert(MFEM_FILE_AND_LINE and not config::Get().Cuda());}
+#define MFEM_GPU_CANNOT_PASS {assert(MFEM_FILE_AND_LINE and not config::Cuda());}
 
 // Offsets *********************************************************************
 #define ijN(i,j,N) (i)+(N)*(j)

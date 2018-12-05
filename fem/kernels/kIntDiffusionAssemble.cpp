@@ -10,13 +10,15 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "../../general/okina.hpp"
-#include "occa.hpp"
 
 // *****************************************************************************
 namespace mfem
 {
 
-// **************************************************************************
+// ****************************************************************************
+// * OCCA 2D Assemble kernel
+// *****************************************************************************
+#ifdef __OCCA__
 static void oAssemble2D(const int NUM_QUAD_1D,
                         const int numElements,
                         const double* __restrict quadWeights,
@@ -37,8 +39,11 @@ static void oAssemble2D(const int NUM_QUAD_1D,
    NEW_OCCA_KERNEL(Assemble2D, fem, oIntDiffusionAssemble.okl, props);
    Assemble2D(numElements, o_quadWeights, o_J, COEFF, o_oper);
 }
+#endif // __OCCA__
 
-// **************************************************************************
+// *****************************************************************************
+// * OKINA 2D kernel
+// *****************************************************************************
 static void kAssemble2D(const int NUM_QUAD_1D,
                         const int numElements,
                         const double* __restrict quadWeights,
@@ -66,7 +71,9 @@ static void kAssemble2D(const int NUM_QUAD_1D,
    });
 }
 
-// **************************************************************************
+// *****************************************************************************
+// * OKINA 3D kernel
+// *****************************************************************************
 static void kAssemble3D(const int NUM_QUAD_1D,
                         const int numElements,
                         const double* __restrict quadWeights,
@@ -133,11 +140,13 @@ void kIntDiffusionAssemble(const int dim,
 {
   if (dim==1) { assert(false); }
   if (dim==2){
-     if (config::Get().Occa()){
+#ifdef __OCCA__
+     if (config::Occa()){
         oAssemble2D(NUM_QUAD_1D, numElements, quadWeights, J, COEFF, oper);
-     }else{
-        kAssemble2D(NUM_QUAD_1D, numElements, quadWeights, J, COEFF, oper);
+        return;
      }
+#endif // __OCCA__
+     kAssemble2D(NUM_QUAD_1D, numElements, quadWeights, J, COEFF, oper);
   }
   if (dim==3) { kAssemble3D(NUM_QUAD_1D, numElements, quadWeights, J, COEFF, oper); }
 }
