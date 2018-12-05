@@ -32,12 +32,12 @@ void* mm::Insert(void *h_adrs, const size_t size, const size_t size_of_T)
    const bool present = Known(h_adrs);
    if (present) { BUILTIN_TRAP; }
    MFEM_ASSERT(not present, "[ERROR] Trying to add already present address!");
-   mm2dev_t &mm2dev = mng->operator[](h_adrs);
-   mm2dev.host = true;
-   mm2dev.bytes = size*size_of_T;
-   mm2dev.h_adrs = h_adrs;
-   mm2dev.d_adrs = NULL;
-   return mm2dev.h_adrs;
+   mm2dev_t &mm = mng->operator[](h_adrs);
+   mm.host = true;
+   mm.bytes = size*size_of_T;
+   mm.h_adrs = h_adrs;
+   mm.d_adrs = NULL;
+   return mm.h_adrs;
 }
 
 // *****************************************************************************
@@ -61,23 +61,20 @@ void* mm::Adrs(const void *adrs)
    if (not present) { BUILTIN_TRAP; }
    MFEM_ASSERT(present, "[ERROR] Trying to convert unknown address!");
    const bool cuda = config::Cuda();
-   //const bool occa = config::Occa();
-   const bool nvcc = config::Nvcc();
-   mm2dev_t &mm2dev = mng->operator[](adrs);
+   mm2dev_t &mm = mng->operator[](adrs);
    // Just return asked known host address if not in CUDA mode
-   if (mm2dev.host and not cuda) { return (void*) mm2dev.h_adrs; }
+   if (mm.host and not cuda) { return (void*) mm.h_adrs; }
    // If it hasn't been seen, alloc it in the device
-   if (not mm2dev.d_adrs)
+   if (not mm.d_adrs)
    {
-      MFEM_ASSERT(nvcc,"[ERROR] Trying to run without CUDA support!");
-      const size_t bytes = mm2dev.bytes;
-      //dbg("\033[32mmalloc cuda memory of size %ld", bytes/sizeof(double));
-      if (bytes>0) { okMemAlloc(&mm2dev.d_adrs, bytes); }
+      MFEM_ASSERT(config::Nvcc(),"[ERROR] Trying to run without CUDA support!");
+      const size_t bytes = mm.bytes;
+      if (bytes>0) { okMemAlloc(&mm.d_adrs, bytes); }
       void *stream = config::Stream();
-      okMemcpyHtoDAsync(mm2dev.d_adrs, mm2dev.h_adrs, bytes, stream);
-      mm2dev.host = false; // This address is no more on the host
+      okMemcpyHtoDAsync(mm.d_adrs, mm.h_adrs, bytes, stream);
+      mm.host = false; // This address is no more on the host
    }
-   return mm2dev.d_adrs;
+   return mm.d_adrs;
 }
 
 // *****************************************************************************
@@ -86,59 +83,58 @@ memory mm::Memory(const void *adrs)
    const bool present = Known(adrs);
    if (not present) { BUILTIN_TRAP; }
    MFEM_ASSERT(present, "[ERROR] Trying to convert unknown address!");
-   MFEM_ASSERT(config::Occa(), "[ERROR] Trying to get OCCA memory!");
-   mm2dev_t &mm2dev = mng->operator[](adrs);
-   const size_t bytes = mm2dev.bytes;
-   OCCAdevice device = config::OccaDevice();
-   const bool cuda = config::Cuda();
    const bool occa = config::Occa();
-   if (not mm2dev.d_adrs)
+   MFEM_ASSERT(occa, "[ERROR] Using OCCA memory without OCCA mode!");
+   mm2dev_t &mm = mng->operator[](adrs);
+   const bool cuda = config::Cuda();
+   const size_t bytes = mm.bytes;
+   OCCAdevice device = config::OccaDevice();
+   if (not mm.d_adrs)
    {
-      if (cuda and occa)
+      mm.host = false; // This address is no more on the host
+      if (cuda)
       {
-         okMemAlloc(&mm2dev.d_adrs, bytes);
+         okMemAlloc(&mm.d_adrs, bytes);
          void *stream = config::Stream();
-         okMemcpyHtoDAsync(mm2dev.d_adrs, mm2dev.h_adrs, bytes, stream);
-         mm2dev.o_adrs = okWrapMemory(device, mm2dev.d_adrs, bytes);
+         okMemcpyHtoDAsync(mm.d_adrs, mm.h_adrs, bytes, stream);
       }
       else
       {
-         mm2dev.o_adrs = okDeviceMalloc(device, bytes);
-         mm2dev.d_adrs = okMemoryPtr(mm2dev.o_adrs);
-         okCopyFrom(mm2dev.o_adrs, mm2dev.h_adrs);
+         mm.o_adrs = okDeviceMalloc(device, bytes);
+         mm.d_adrs = okMemoryPtr(mm.o_adrs);
+         okCopyFrom(mm.o_adrs, mm.h_adrs);
       }
-      mm2dev.host = false; // This address is no more on the host
    }
-   if (cuda and occa)
+   if (cuda)
    {
-      return mm2dev.o_adrs = okWrapMemory(device, mm2dev.d_adrs, bytes);
+      return okWrapMemory(device, mm.d_adrs, bytes);
    }
-   return mm2dev.o_adrs;
+   return mm.o_adrs;
 }
 
 // *****************************************************************************
 void mm::Push(const void *adrs)
 {
    MFEM_ASSERT(Known(adrs), "[ERROR] Trying to push an unknown address!");
-   const mm2dev_t &mm2dev = mng->operator[](adrs);
-   if (mm2dev.host) { return; }
-   okMemcpyHtoD(mm2dev.d_adrs, mm2dev.h_adrs, mm2dev.bytes);
+   const mm2dev_t &mm = mng->operator[](adrs);
+   if (mm.host) { return; }
+   okMemcpyHtoD(mm.d_adrs, mm.h_adrs, mm.bytes);
 }
 
 // *****************************************************************************
 void mm::Pull(const void *adrs)
 {
    MFEM_ASSERT(Known(adrs), "[ERROR] Trying to pull an unknown address!");
-   const mm2dev_t &mm2dev = mng->operator[](adrs);
-   if (mm2dev.host) { return; }
+   const mm2dev_t &mm = mng->operator[](adrs);
+   if (mm.host) { return; }
    if (config::Cuda())
    {
-      okMemcpyDtoH((void*)mm2dev.h_adrs, mm2dev.d_adrs, mm2dev.bytes);
+      okMemcpyDtoH((void*)mm.h_adrs, mm.d_adrs, mm.bytes);
       return;
    }
    if (config::Occa())
    {
-      okCopyTo(Memory(adrs), (void*)mm2dev.h_adrs);
+      okCopyTo(Memory(adrs), (void*)mm.h_adrs);
       return;
    }
    MFEM_ASSERT(false, "[ERROR] Should not be there!");

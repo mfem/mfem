@@ -29,7 +29,7 @@ static void oIntDiffusionMultAdd2D(const int NUM_DOFS_1D,
                                    double* __restrict solOut)
 {
    const int NUM_QUAD_2D = NUM_QUAD_1D*NUM_QUAD_1D;
-   //assert(false);
+   
    GET_OCCA_CONST_MEMORY(dofToQuad);
    GET_OCCA_CONST_MEMORY(dofToQuadD);
    GET_OCCA_CONST_MEMORY(quadToDof);
@@ -43,20 +43,20 @@ static void oIntDiffusionMultAdd2D(const int NUM_DOFS_1D,
    SET_OCCA_PROPERTY(props, NUM_QUAD_1D);
    SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
 
-   if (not config::Cuda()){
+   if (not config::Cuda()){      
       NEW_OCCA_KERNEL(MultAdd2D_CPU, fem, oIntDiffusionMultAdd.okl, props);
       MultAdd2D_CPU(numElements,
                     o_dofToQuad, o_dofToQuadD,
                     o_quadToDof, o_quadToDofD,
                     o_oper, o_solIn,
-                    o_oper);
+                    o_solOut);
    }else{
       NEW_OCCA_KERNEL(MultAdd2D_GPU, fem, oIntDiffusionMultAdd.okl, props);
       MultAdd2D_GPU(numElements,
                     o_dofToQuad, o_dofToQuadD,
                     o_quadToDof, o_quadToDofD,
                     o_oper, o_solIn,
-                    o_oper);
+                    o_solOut);
    }
 }
 #endif // __OCCA__
@@ -391,9 +391,10 @@ void kIntDiffusionMultAdd(const int DIM,
                              dofToQuad, dofToQuadD,
                              quadToDof, quadToDofD,
                              op, x, y);
+      return;
    }
 #endif // __OCCA__
-   
+
    const unsigned int id = (DIM<<16)|(NUM_DOFS_1D<<8)|(NUM_QUAD_1D);
    assert(LOG2(NUM_DOFS_1D)<=8);
    assert(LOG2(NUM_QUAD_1D)<=8);

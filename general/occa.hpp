@@ -36,7 +36,7 @@ typedef occa::memory memory;
 #define NEW_OCCA_KERNEL(ker,libray,filename,props)                      \
    static occa::kernel ker = NULL;                                      \
    if (ker==NULL) {                                                     \
-      OCCAdevice device = config::OccaDevice();                   \
+      OCCAdevice device = config::OccaDevice();                         \
       const std::string fdk = "occa://" #libray "/" #filename;          \
       const std::string odk = occa::io::occaFileOpener().expand(fdk);   \
       ker = device.buildKernel(odk, #ker, props);                       \
