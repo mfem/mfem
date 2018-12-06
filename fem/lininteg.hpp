@@ -24,8 +24,7 @@ class LinearFormIntegrator
 protected:
    const IntegrationRule *IntRule;
 
-   LinearFormIntegrator(const IntegrationRule *ir = NULL)
-   { IntRule = ir; }
+   LinearFormIntegrator(const IntegrationRule *ir = NULL) { IntRule = ir; }
 
 public:
    /** Given a particular Finite Element and a transformation (Tr)
@@ -38,13 +37,60 @@ public:
                                        Vector &elvect);
 
    void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
+   const IntegrationRule* GetIntRule() { return IntRule; }
 
    virtual ~LinearFormIntegrator() { }
 };
 
 
+/// Abstract class for integrators that support delta coefficients
+class DeltaLFIntegrator : public LinearFormIntegrator
+{
+protected:
+   DeltaCoefficient *delta;
+   VectorDeltaCoefficient *vec_delta;
+
+   /** @brief This constructor should be used by derived classes that use a
+       scalar DeltaCoefficient. */
+   DeltaLFIntegrator(Coefficient &q, const IntegrationRule *ir = NULL)
+      : LinearFormIntegrator(ir),
+        delta(dynamic_cast<DeltaCoefficient*>(&q)),
+        vec_delta(NULL) { }
+
+   /** @brief This constructor should be used by derived classes that use a
+       VectorDeltaCoefficient. */
+   DeltaLFIntegrator(VectorCoefficient &vq,
+                     const IntegrationRule *ir = NULL)
+      : LinearFormIntegrator(ir),
+        delta(NULL),
+        vec_delta(dynamic_cast<VectorDeltaCoefficient*>(&vq)) { }
+
+public:
+   /// Returns true if the derived class instance uses a delta coefficient.
+   bool IsDelta() const { return (delta || vec_delta); }
+
+   /// Returns the center of the delta coefficient.
+   void GetDeltaCenter(Vector &center)
+   {
+      if (delta) { delta->GetDeltaCenter(center); return; }
+      if (vec_delta) { vec_delta->GetDeltaCenter(center); return; }
+      center.SetSize(0);
+   }
+
+   /** @brief Assemble the delta coefficient at the IntegrationPoint set in
+       @a Trans which is assumed to map to the delta coefficient center.
+
+       @note This method should be called for one mesh element only, including
+       in parallel, even when the center of the delta coefficient is shared by
+       multiple elements. */
+   virtual void AssembleDeltaElementVect(const FiniteElement &fe,
+                                         ElementTransformation &Trans,
+                                         Vector &elvect) = 0;
+};
+
+
 /// Class for domain integration L(v) := (f, v)
-class DomainLFIntegrator : public LinearFormIntegrator
+class DomainLFIntegrator : public DeltaLFIntegrator
 {
    Vector shape;
    Coefficient &Q;
@@ -53,18 +99,22 @@ public:
    /// Constructs a domain integrator with a given Coefficient
    DomainLFIntegrator(Coefficient &QF, int a = 2, int b = 0)
    // the old default was a = 1, b = 1
-   // for simple elliptic problems a = 2, b = -2 is ok
-      : Q(QF), oa(a), ob(b) { }
+   // for simple elliptic problems a = 2, b = -2 is OK
+      : DeltaLFIntegrator(QF), Q(QF), oa(a), ob(b) { }
 
    /// Constructs a domain integrator with a given Coefficient
    DomainLFIntegrator(Coefficient &QF, const IntegrationRule *ir)
-      : LinearFormIntegrator(ir), Q(QF), oa(1), ob(1) { }
+      : DeltaLFIntegrator(QF, ir), Q(QF), oa(1), ob(1) { }
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
                                        Vector &elvect);
+
+   virtual void AssembleDeltaElementVect(const FiniteElement &fe,
+                                         ElementTransformation &Trans,
+                                         Vector &elvect);
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
@@ -127,7 +177,7 @@ public:
 
 /** Class for domain integration of L(v) := (f, v), where
     f=(f1,...,fn) and v=(v1,...,vn). */
-class VectorDomainLFIntegrator : public LinearFormIntegrator
+class VectorDomainLFIntegrator : public DeltaLFIntegrator
 {
 private:
    Vector shape, Qvec;
@@ -135,13 +185,18 @@ private:
 
 public:
    /// Constructs a domain integrator with a given VectorCoefficient
-   VectorDomainLFIntegrator(VectorCoefficient &QF) : Q(QF) { }
+   VectorDomainLFIntegrator(VectorCoefficient &QF)
+      : DeltaLFIntegrator(QF), Q(QF) { }
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
                                        Vector &elvect);
+
+   virtual void AssembleDeltaElementVect(const FiniteElement &fe,
+                                         ElementTransformation &Trans,
+                                         Vector &elvect);
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
@@ -173,7 +228,7 @@ public:
 };
 
 /// \f$ (f, v)_{\Omega} \f$ for VectorFiniteElements (Nedelec, Raviart-Thomas)
-class VectorFEDomainLFIntegrator : public LinearFormIntegrator
+class VectorFEDomainLFIntegrator : public DeltaLFIntegrator
 {
 private:
    VectorCoefficient &QF;
@@ -181,11 +236,16 @@ private:
    Vector vec;
 
 public:
-   VectorFEDomainLFIntegrator (VectorCoefficient &F) : QF(F) { }
+   VectorFEDomainLFIntegrator(VectorCoefficient &F)
+      : DeltaLFIntegrator(F), QF(F) { }
 
    virtual void AssembleRHSElementVect(const FiniteElement &el,
                                        ElementTransformation &Tr,
                                        Vector &elvect);
+
+   virtual void AssembleDeltaElementVect(const FiniteElement &fe,
+                                         ElementTransformation &Trans,
+                                         Vector &elvect);
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
@@ -332,7 +392,7 @@ protected:
    Coefficient *lambda, *mu;
    double alpha, kappa;
 
-#ifndef MFEM_THRAED_SAFE
+#ifndef MFEM_THREAD_SAFE
    Vector shape;
    DenseMatrix dshape;
    DenseMatrix adjJ;

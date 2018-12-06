@@ -13,14 +13,16 @@
 #define MFEM_SOCKETSTREAM
 
 #include "../config/config.hpp"
-#include "../general/error.hpp"
-#include <iostream>
+#include "error.hpp"
+#include "globals.hpp"
 
 #ifdef MFEM_USE_GNUTLS
 #include <gnutls/gnutls.h>
 #if GNUTLS_VERSION_NUMBER < 0x020800
 #error "MFEM requires GnuTLS version >= 2.8.0"
 #endif
+// Use X.509 certificates: (comment out to use OpenPGP keys)
+#define MFEM_USE_GNUTLS_X509
 #endif
 
 namespace mfem
@@ -99,7 +101,7 @@ public:
    void print_on_error(const char *msg) const
    {
       if (good()) { return; }
-      std::cout << "Error in " << msg << ": " << gnutls_strerror(res)
+      mfem::out << "Error in " << msg << ": " << gnutls_strerror(res)
                 << std::endl;
    }
 };

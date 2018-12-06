@@ -9,11 +9,11 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#include <iostream>
-#include <iomanip>
-
 #include "vector.hpp"
 #include "operator.hpp"
+
+#include <iostream>
+#include <iomanip>
 
 namespace mfem
 {
@@ -93,6 +93,62 @@ void Operator::PrintMatlab(std::ostream & out, int n, int m) const
       x(i) = 0.0;
    }
 }
+
+
+ProductOperator::ProductOperator(const Operator *A, const Operator *B,
+                                 bool ownA, bool ownB)
+   : Operator(A->Height(), B->Width()),
+     A(A), B(B), ownA(ownA), ownB(ownB), z(A->Width())
+{
+   MFEM_VERIFY(A->Width() == B->Height(),
+               "incompatible Operators: A->Width() = " << A->Width()
+               << ", B->Height() = " << B->Height());
+}
+
+ProductOperator::~ProductOperator()
+{
+   if (ownA) { delete A; }
+   if (ownB) { delete B; }
+}
+
+
+RAPOperator::RAPOperator(const Operator &Rt_, const Operator &A_,
+                         const Operator &P_)
+   : Operator(Rt_.Width(), P_.Width()), Rt(Rt_), A(A_), P(P_),
+     Px(P.Height()), APx(A.Height())
+{
+   MFEM_VERIFY(Rt.Height() == A.Height(),
+               "incompatible Operators: Rt.Height() = " << Rt.Height()
+               << ", A.Height() = " << A.Height());
+   MFEM_VERIFY(A.Width() == P.Height(),
+               "incompatible Operators: A.Width() = " << A.Width()
+               << ", P.Height() = " << P.Height());
+}
+
+
+TripleProductOperator::TripleProductOperator(
+   const Operator *A, const Operator *B, const Operator *C,
+   bool ownA, bool ownB, bool ownC)
+   : Operator(A->Height(), C->Width())
+   , A(A), B(B), C(C)
+   , ownA(ownA), ownB(ownB), ownC(ownC)
+   , t1(C->Height()), t2(B->Height())
+{
+   MFEM_VERIFY(A->Width() == B->Height(),
+               "incompatible Operators: A->Width() = " << A->Width()
+               << ", B->Height() = " << B->Height());
+   MFEM_VERIFY(B->Width() == C->Height(),
+               "incompatible Operators: B->Width() = " << B->Width()
+               << ", C->Height() = " << C->Height());
+}
+
+TripleProductOperator::~TripleProductOperator()
+{
+   if (ownA) { delete A; }
+   if (ownB) { delete B; }
+   if (ownC) { delete C; }
+}
+
 
 
 ConstrainedOperator::ConstrainedOperator(Operator *A, const Array<int> &list,

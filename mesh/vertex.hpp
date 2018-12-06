@@ -26,6 +26,8 @@ protected:
 public:
    Vertex() { }
 
+   // Trivial copy constructor and trivial copy assignment operator
+
    Vertex (double *xx, int dim);
    Vertex( double x, double y) { coord[0] = x; coord[1] = y; coord[2] = 0.; }
    Vertex( double x, double y, double z)
@@ -40,7 +42,8 @@ public:
    /// Returns the i'th coordinate of the vertex.
    inline const double & operator() (int i) const { return coord[i]; }
 
-   /// @deprecated old version of SetCoords is not always memory safe
+   /// (DEPRECATED) Set the coordinates of the Vertex.
+   /** @deprecated This old version of SetCoords is not always memory safe. */
    void SetCoords(const double *p)
    { coord[0] = p[0]; coord[1] = p[1]; coord[2] = p[2]; }
 
@@ -48,7 +51,7 @@ public:
    void SetCoords(int dim, const double *p)
    { for (int i = 0; i < dim; i++) { coord[i] = p[i]; } }
 
-   ~Vertex() { }
+   // Trivial destructor
 };
 
 }

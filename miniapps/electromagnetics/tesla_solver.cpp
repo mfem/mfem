@@ -536,7 +536,7 @@ TeslaSolver::DisplayToGLVis()
    {
       VisualizeField(*socks_["M"], vishost, visport,
                      *m_, "Magnetization (M)", Wx, Wy, Ww, Wh);
-      Wx += offx;
+      // Wx += offx; // not used
    }
    if (myid_ == 0) { cout << " done." << endl; }
 }

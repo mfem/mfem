@@ -16,6 +16,7 @@
 
 #ifdef MFEM_USE_MPI
 
+#include "../general/globals.hpp"
 #include "pfespace.hpp"
 #include "gridfunc.hpp"
 #include <iostream>
@@ -31,12 +32,21 @@ double GlobalLpNorm(const double p, double loc_norm, MPI_Comm comm);
 class ParGridFunction : public GridFunction
 {
 protected:
-   ParFiniteElementSpace *pfes;
+   ParFiniteElementSpace *pfes; ///< Points to the same object as #fes
 
+   /** @brief Vector used to store data from face-neighbor processors,
+       initialized by ExchangeFaceNbrData(). */
    Vector face_nbr_data;
+
+   void ProjectBdrCoefficient(Coefficient *coeff[], VectorCoefficient *vcoeff,
+                              Array<int> &attr);
 
 public:
    ParGridFunction() { pfes = NULL; }
+
+   /// Copy constructor. The internal vector #face_nbr_data is not copied.
+   ParGridFunction(const ParGridFunction &orig)
+      : GridFunction(orig), pfes(orig.pfes) { }
 
    ParGridFunction(ParFiniteElementSpace *pf) : GridFunction(pf), pfes(pf) { }
 
@@ -56,13 +66,31 @@ public:
        processor. The ParGridFunction does not assume ownership of the data. */
    ParGridFunction(ParFiniteElementSpace *pf, GridFunction *gf);
 
-   /** Creates grid function on (all) dofs from a given vector on the true dofs,
-       i.e. P tv. */
+   /** @brief Creates grid function on (all) dofs from a given vector on the
+       true dofs, i.e. P tv. */
    ParGridFunction(ParFiniteElementSpace *pf, HypreParVector *tv);
 
-   /** Construct a ParGridFunction from the given serial GridFunction.
-       If partitioning == NULL (default), the data from 'gf' is NOT copied. */
-   ParGridFunction(ParMesh *pmesh, GridFunction *gf, int * partitioning = NULL);
+   /** @brief Construct a local ParGridFunction from the given *global*
+       GridFunction. If @a partitioning is NULL (default), the data from @a gf
+       is NOT copied. */
+   ParGridFunction(ParMesh *pmesh, const GridFunction *gf,
+                   const int *partitioning = NULL);
+
+   /** @brief Construct a ParGridFunction on a given ParMesh, @a pmesh, reading
+       from an std::istream.
+
+       In the process, a ParFiniteElementSpace and a FiniteElementCollection are
+       constructed. The new ParGridFunction assumes ownership of both. */
+   ParGridFunction(ParMesh *pmesh, std::istream &input);
+
+   /// Copy assignment. Only the data of the base class Vector is copied.
+   /** It is assumed that this object and @a rhs use ParFiniteElementSpace%s
+       that have the same size.
+
+       @note Defining this method overwrites the implicitly defined copy
+       assignemnt operator. */
+   ParGridFunction &operator=(const ParGridFunction &rhs)
+   { return operator=((const Vector &)rhs); }
 
    /// Assign constant values to the ParGridFunction data.
    ParGridFunction &operator=(double value)
@@ -128,7 +156,7 @@ public:
    /// Set the GridFunction from the given true-dof vector.
    virtual void SetFromTrueDofs(const Vector &tv) { Distribute(tv); }
 
-   /// Short semantic for Distribute
+   /// Short semantic for Distribute()
    ParGridFunction &operator=(const HypreParVector &tv)
    { Distribute(&tv); return (*this); }
 
@@ -185,6 +213,23 @@ public:
 
    virtual void ProjectDiscCoefficient(Coefficient &coeff, AvgType type);
 
+   virtual void ProjectDiscCoefficient(VectorCoefficient &vcoeff, AvgType type);
+
+   using GridFunction::ProjectBdrCoefficient;
+
+   // Only the values in the master are guaranteed to be correct!
+   virtual void ProjectBdrCoefficient(VectorCoefficient &vcoeff,
+                                      Array<int> &attr)
+   { ProjectBdrCoefficient(NULL, &vcoeff, attr); }
+
+   // Only the values in the master are guaranteed to be correct!
+   virtual void ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
+   { ProjectBdrCoefficient(coeff, NULL, attr); }
+
+   // Only the values in the master are guaranteed to be correct!
+   virtual void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
+                                             Array<int> &bdr_attr);
+
    virtual double ComputeL1Error(Coefficient *exsol[],
                                  const IntegrationRule *irs[] = NULL) const
    {
@@ -222,7 +267,7 @@ public:
    virtual double ComputeMaxError(Coefficient *exsol[],
                                   const IntegrationRule *irs[] = NULL) const
    {
-      return GlobalLpNorm(std::numeric_limits<double>::infinity(),
+      return GlobalLpNorm(infinity(),
                           GridFunction::ComputeMaxError(exsol, irs),
                           pfes->GetComm());
    }
@@ -230,15 +275,13 @@ public:
    virtual double ComputeMaxError(Coefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const
    {
-      return ComputeLpError(std::numeric_limits<double>::infinity(),
-                            exsol, NULL, irs);
+      return ComputeLpError(infinity(), exsol, NULL, irs);
    }
 
    virtual double ComputeMaxError(VectorCoefficient &exsol,
                                   const IntegrationRule *irs[] = NULL) const
    {
-      return ComputeLpError(std::numeric_limits<double>::infinity(),
-                            exsol, NULL, NULL, irs);
+      return ComputeLpError(infinity(), exsol, NULL, NULL, irs);
    }
 
    virtual double ComputeLpError(const double p, Coefficient &exsol,
@@ -271,7 +314,7 @@ public:
    virtual void Save(std::ostream &out) const;
 
    /// Merge the local grid functions
-   void SaveAsOne(std::ostream &out = std::cout);
+   void SaveAsOne(std::ostream &out = mfem::out);
 
    virtual ~ParGridFunction() { }
 };

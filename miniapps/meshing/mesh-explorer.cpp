@@ -39,13 +39,37 @@
 using namespace mfem;
 using namespace std;
 
+// This tranformation can be applied to a mesh with the 't' menu option.
 void transformation(const Vector &p, Vector &v)
 {
    // simple shear transformation
    double s = 0.1;
-   v(0) = p(0) + s*p(1) + s*p(2);
-   v(1) = p(1) + s*p(2) + s*p(0);
-   v(2) = p(2);
+
+   if (p.Size() == 3)
+   {
+      v(0) = p(0) + s*p(1) + s*p(2);
+      v(1) = p(1) + s*p(2) + s*p(0);
+      v(2) = p(2);
+   }
+   else if (p.Size() == 2)
+   {
+      v(0) = p(0) + s*p(1);
+      v(1) = p(1) + s*p(0);
+   }
+   else
+   {
+      v = p;
+   }
+}
+
+// This function is used with the 'r' menu option, sub-option 'l' to refine a
+// mesh locally in a region, defined by return values <= region_eps.
+double region_eps = 1e-8;
+double region(const Vector &p)
+{
+   const double x = p(0), y = p(1);
+   // here we describe the region: (x <= 1/4) && (y >= 0) && (y <= 1)
+   return std::max(std::max(x - 0.25, -y), y - 1.0);
 }
 
 Mesh *read_par_mesh(int np, const char *mesh_prefix)
@@ -98,12 +122,15 @@ int main (int argc, char *argv[])
 {
    int np = 0;
    const char *mesh_file = "../../data/beam-hex.mesh";
+   bool refine = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to visualize.");
    args.AddOption(&np, "-np", "--num-proc",
                   "Load mesh from multiple processors.");
+   args.AddOption(&refine, "-ref", "--refinement", "-no-ref", "--no-refinement",
+                  "Prepare the mesh for refinement or not.");
    args.Parse();
    if (!args.Good())
    {
@@ -125,7 +152,7 @@ int main (int argc, char *argv[])
    Mesh *mesh;
    if (np <= 0)
    {
-      mesh = new Mesh(mesh_file, 1, 1);
+      mesh = new Mesh(mesh_file, 1, refine);
    }
    else
    {
@@ -192,11 +219,17 @@ int main (int argc, char *argv[])
            "h) View element sizes, h\n"
            "k) View element ratios, kappa\n"
            "x) Print sub-element stats\n"
+           "f) Find physical point in reference space\n"
            "p) Generate a partitioning\n"
-           "S) Save\n"
+           "S) Save in MFEM format\n"
+           "V) Save in VTK format (only linear and quadratic meshes)\n"
+#ifdef MFEM_USE_GZSTREAM
+           "Z) Save in MFEM format with compression\n"
+#endif
            "--> " << flush;
       char mk;
       cin >> mk;
+      if (!cin) { break; }
 
       if (mk == 'q')
       {
@@ -208,8 +241,10 @@ int main (int argc, char *argv[])
          cout <<
               "Choose type of refinement:\n"
               "s) standard refinement with Mesh::UniformRefinement()\n"
+              "b) Mesh::UniformRefinement() (bisection for tet meshes)\n"
               "u) uniform refinement with a factor\n"
               "g) non-uniform refinement (Gauss-Lobatto) with a factor\n"
+              "l) refine locally using the region() function\n"
               "--> " << flush;
          char sk;
          cin >> sk;
@@ -217,6 +252,11 @@ int main (int argc, char *argv[])
          {
             case 's':
                mesh->UniformRefinement();
+               // Make sure tet-only meshes are marked for local refinement.
+               mesh->Finalize(true);
+               break;
+            case 'b':
+               mesh->UniformRefinement(1); // ref_algo = 1
                break;
             case 'u':
             case 'g':
@@ -232,6 +272,28 @@ int main (int argc, char *argv[])
                mesh = rmesh;
                break;
             }
+            case 'l':
+            {
+               Vector pt;
+               Array<int> marked_elements;
+               for (int i = 0; i < mesh->GetNE(); i++)
+               {
+                  // check all nodes of the element
+                  IsoparametricTransformation T;
+                  mesh->GetElementTransformation(i, &T);
+                  for (int j = 0; j < T.GetPointMat().Width(); j++)
+                  {
+                     T.GetPointMat().GetColumnReference(j, pt);
+                     if (region(pt) <= region_eps)
+                     {
+                        marked_elements.Append(i);
+                        break;
+                     }
+                  }
+               }
+               mesh->GeneralRefinement(marked_elements);
+               break;
+            }
          }
          print_char = 1;
       }
@@ -241,7 +303,7 @@ int main (int argc, char *argv[])
          int p;
          cout << "enter new order for mesh curvature --> " << flush;
          cin >> p;
-         mesh->SetCurvature(p);
+         mesh->SetCurvature(p > 0 ? p : -p, p <= 0);
          print_char = 1;
       }
 
@@ -302,7 +364,7 @@ int main (int argc, char *argv[])
 
             // compute minimal local mesh size
             Vector h0(fespace->GetNDofs());
-            h0 = std::numeric_limits<double>::infinity();
+            h0 = infinity();
             {
                Array<int> dofs;
                for (int i = 0; i < fespace->GetNE(); i++)
@@ -324,9 +386,12 @@ int main (int argc, char *argv[])
                }
             }
 
-            int bdr = 0;
+            char move_bdr = 'n';
+            cout << "move boundary nodes? [y/n] ---> " << flush;
+            cin >> move_bdr;
+
             // don't perturb the boundary
-            if (!bdr)
+            if (move_bdr == 'n')
             {
                Array<int> vdofs;
                for (int i = 0; i < fespace->GetNBE(); i++)
@@ -351,20 +416,22 @@ int main (int argc, char *argv[])
          DenseMatrix J(dim);
          double min_det_J, max_det_J, min_det_J_z, max_det_J_z;
          double min_kappa, max_kappa, max_ratio_det_J_z;
-         min_det_J = min_kappa = numeric_limits<double>::infinity();
-         max_det_J = max_kappa = max_ratio_det_J_z = -min_det_J;
+         min_det_J = min_kappa = infinity();
+         max_det_J = max_kappa = max_ratio_det_J_z = -infinity();
          cout << "subdivision factor ---> " << flush;
          cin >> sd;
+         Array<int> bad_elems_by_geom(Geometry::NumGeom);
+         bad_elems_by_geom = 0;
          for (int i = 0; i < mesh->GetNE(); i++)
          {
-            int geom = mesh->GetElementBaseGeometry(i);
+            Geometry::Type geom = mesh->GetElementBaseGeometry(i);
             ElementTransformation *T = mesh->GetElementTransformation(i);
 
             RefinedGeometry *RefG = GlobGeometryRefiner.Refine(geom, sd, 1);
             IntegrationRule &ir = RefG->RefPts;
 
-            min_det_J_z = numeric_limits<double>::infinity();
-            max_det_J_z = -min_det_J_z;
+            min_det_J_z = infinity();
+            max_det_J_z = -infinity();
             for (int j = 0; j < ir.GetNPoints(); j++)
             {
                T->SetIntPoint(&ir.IntPoint(j));
@@ -387,18 +454,59 @@ int main (int argc, char *argv[])
             if (min_det_J_z <= 0.0)
             {
                nz++;
+               bad_elems_by_geom[geom]++;
             }
          }
-         cout
-               << "\nbad elements = " << nz
-               << "\nmin det(J)   = " << min_det_J
-               << "\nmax det(J)   = " << max_det_J
-               << "\nglobal ratio = " << max_det_J/min_det_J
-               << "\nmax el ratio = " << max_ratio_det_J_z
-               << "\nmin kappa    = " << min_kappa
-               << "\nmax kappa    = " << max_kappa << endl;
+         cout << "\nbad elements = " << nz;
+         if (nz)
+         {
+            cout << "  --  ";
+            Mesh::PrintElementsByGeometry(dim, bad_elems_by_geom, cout);
+         }
+         cout << "\nmin det(J)   = " << min_det_J
+              << "\nmax det(J)   = " << max_det_J
+              << "\nglobal ratio = " << max_det_J/min_det_J
+              << "\nmax el ratio = " << max_ratio_det_J_z
+              << "\nmin kappa    = " << min_kappa
+              << "\nmax kappa    = " << max_kappa << endl;
       }
 
+      if (mk == 'f')
+      {
+         DenseMatrix point_mat(sdim,1);
+         cout << "\npoint in physical space ---> " << flush;
+         for (int i = 0; i < sdim; i++)
+         {
+            cin >> point_mat(i,0);
+         }
+         Array<int> elem_ids;
+         Array<IntegrationPoint> ips;
+
+         // physical -> reference space
+         mesh->FindPoints(point_mat, elem_ids, ips);
+
+         cout << "point in reference space:";
+         if (elem_ids[0] == -1)
+         {
+            cout << " NOT FOUND!\n";
+         }
+         else
+         {
+            cout << " element " << elem_ids[0] << ", ip =";
+            cout << " " << ips[0].x;
+            if (sdim > 1)
+            {
+               cout << " " << ips[0].y;
+               if (sdim > 2)
+               {
+                  cout << " " << ips[0].z;
+               }
+            }
+            cout << endl;
+         }
+      }
+
+      // These are the cases that open a new GLVis window
       if (mk == 'm' || mk == 'b' || mk == 'e' || mk == 'v' || mk == 'h' ||
           mk == 'k' || mk == 'p')
       {
@@ -443,7 +551,7 @@ int main (int argc, char *argv[])
          {
             DenseMatrix J(dim);
             double h_min, h_max;
-            h_min = numeric_limits<double>::infinity();
+            h_min = infinity();
             h_max = -h_min;
             for (int i = 0; i < mesh->GetNE(); i++)
             {
@@ -486,7 +594,8 @@ int main (int argc, char *argv[])
             cout << "What type of partitioning?\n"
                  "c) Cartesian\n"
                  "0) METIS_PartGraphRecursive (sorted neighbor lists)\n"
-                 "1) METIS_PartGraphKway      (sorted neighbor lists)\n"
+                 "1) METIS_PartGraphKway      (sorted neighbor lists)"
+                 " (default)\n"
                  "2) METIS_PartGraphVKway     (sorted neighbor lists)\n"
                  "3) METIS_PartGraphRecursive\n"
                  "4) METIS_PartGraphKway\n"
@@ -664,14 +773,34 @@ int main (int argc, char *argv[])
       {
          const char mesh_file[] = "mesh-explorer.mesh";
          ofstream omesh(mesh_file);
-         // Save gzip-ed mesh, requires MFEM_USE_GZSTREAM = YES
-         // ofgzstream omesh(mesh_file, "zwb9");
          omesh.precision(14);
          mesh->Print(omesh);
          cout << "New mesh file: " << mesh_file << endl;
       }
+
+      if (mk == 'V')
+      {
+         const char mesh_file[] = "mesh-explorer.vtk";
+         ofstream omesh(mesh_file);
+         omesh.precision(14);
+         mesh->PrintVTK(omesh);
+         cout << "New VTK mesh file: " << mesh_file << endl;
+      }
+
+#ifdef MFEM_USE_GZSTREAM
+      if (mk == 'Z')
+      {
+         const char mesh_file[] = "mesh-explorer.mesh.gz";
+         ofgzstream omesh(mesh_file, "zwb9");
+         omesh.precision(14);
+         mesh->Print(omesh);
+         cout << "New mesh file: " << mesh_file << endl;
+      }
+#endif
+
    }
 
    delete attr_fec;
    delete mesh;
+   return 0;
 }

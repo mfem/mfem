@@ -33,33 +33,48 @@ ParGridFunction::ParGridFunction(ParFiniteElementSpace *pf, HypreParVector *tv)
    Distribute(tv);
 }
 
-ParGridFunction::ParGridFunction(ParMesh *pmesh, GridFunction *gf,
-                                 int * partitioning)
+ParGridFunction::ParGridFunction(ParMesh *pmesh, const GridFunction *gf,
+                                 const int *partitioning)
 {
+   const FiniteElementSpace *glob_fes = gf->FESpace();
    // duplicate the FiniteElementCollection from 'gf'
-   fec = FiniteElementCollection::New(gf->FESpace()->FEColl()->Name());
-   fes = pfes = new ParFiniteElementSpace(pmesh, fec, gf->FESpace()->GetVDim(),
-                                          gf->FESpace()->GetOrdering());
+   fec = FiniteElementCollection::New(glob_fes->FEColl()->Name());
+   // create a local ParFiniteElementSpace from the global one:
+   fes = pfes = new ParFiniteElementSpace(pmesh, glob_fes, partitioning, fec);
    SetSize(pfes->GetVSize());
 
    if (partitioning)
    {
+      // Assumption: the map "local element id" -> "global element id" is
+      // increasing, i.e. the local numbering preserves the element order from
+      // the global numbering.
       Array<int> gvdofs, lvdofs;
       Vector lnodes;
       int element_counter = 0;
-      Mesh & mesh(*gf->FESpace()->GetMesh());
-      int MyRank;
-      MPI_Comm_rank(pfes->GetComm(), &MyRank);
-      for (int i = 0; i < mesh.GetNE(); i++)
+      const int MyRank = pfes->GetMyRank();
+      const int glob_ne = glob_fes->GetNE();
+      for (int i = 0; i < glob_ne; i++)
+      {
          if (partitioning[i] == MyRank)
          {
             pfes->GetElementVDofs(element_counter, lvdofs);
-            gf->FESpace()->GetElementVDofs(i, gvdofs);
+            glob_fes->GetElementVDofs(i, gvdofs);
             gf->GetSubVector(gvdofs, lnodes);
             SetSubVector(lvdofs, lnodes);
             element_counter++;
          }
+      }
    }
+}
+
+ParGridFunction::ParGridFunction(ParMesh *pmesh, std::istream &input)
+   : GridFunction(pmesh, input)
+{
+   // Convert the FiniteElementSpace, fes, to a ParFiniteElementSpace:
+   pfes = new ParFiniteElementSpace(pmesh, fec, fes->GetVDim(),
+                                    fes->GetOrdering());
+   delete fes;
+   fes = pfes;
 }
 
 void ParGridFunction::Update()
@@ -115,7 +130,7 @@ void ParGridFunction::MakeRef(ParFiniteElementSpace *f, Vector &v, int v_offset)
 
 void ParGridFunction::Distribute(const Vector *tv)
 {
-   pfes->Dof_TrueDof_Matrix()->Mult(*tv, *this);
+   pfes->GetProlongationMatrix()->Mult(*tv, *this);
 }
 
 void ParGridFunction::AddDistribute(double a, const Vector *tv)
@@ -132,13 +147,15 @@ HypreParVector *ParGridFunction::GetTrueDofs() const
 
 void ParGridFunction::ParallelAverage(Vector &tv) const
 {
-   pfes->Dof_TrueDof_Matrix()->MultTranspose(*this, tv);
+   MFEM_VERIFY(pfes->Conforming(), "not implemented for NC meshes");
+   pfes->GetProlongationMatrix()->MultTranspose(*this, tv);
    pfes->DivideByGroupSize(tv);
 }
 
 void ParGridFunction::ParallelAverage(HypreParVector &tv) const
 {
-   pfes->Dof_TrueDof_Matrix()->MultTranspose(*this, tv);
+   MFEM_VERIFY(pfes->Conforming(), "not implemented for NC meshes");
+   pfes->GetProlongationMatrix()->MultTranspose(*this, tv);
    pfes->DivideByGroupSize(tv);
 }
 
@@ -168,12 +185,12 @@ HypreParVector *ParGridFunction::ParallelProject() const
 
 void ParGridFunction::ParallelAssemble(Vector &tv) const
 {
-   pfes->Dof_TrueDof_Matrix()->MultTranspose(*this, tv);
+   pfes->GetProlongationMatrix()->MultTranspose(*this, tv);
 }
 
 void ParGridFunction::ParallelAssemble(HypreParVector &tv) const
 {
-   pfes->Dof_TrueDof_Matrix()->MultTranspose(*this, tv);
+   pfes->GetProlongationMatrix()->MultTranspose(*this, tv);
 }
 
 HypreParVector *ParGridFunction::ParallelAssemble() const
@@ -263,7 +280,9 @@ const
       fes->GetElementDofs(i, dofs);
       fes->DofsToVDofs(vdim-1, dofs);
       DofVal.SetSize(dofs.Size());
-      fes->GetFE(i)->CalcShape(ip, DofVal);
+      const FiniteElement *fe = fes->GetFE(i);
+      MFEM_ASSERT(fe->GetMapType() == FiniteElement::VALUE, "invalid FE map type");
+      fe->CalcShape(ip, DofVal);
       GetSubVector(dofs, LocVec);
    }
 
@@ -354,6 +373,116 @@ void ParGridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
    delete tv;
 
    ComputeMeans(type, zones_per_vdof);
+}
+
+void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &vcoeff,
+                                             AvgType type)
+{
+   // Harmonic  (x1 ... xn) = [ (1/x1 + ... + 1/xn) / n ]^-1.
+   // Arithmetic(x1 ... xn) = (x1 + ... + xn) / n.
+
+   // Number of zones that contain a given dof.
+   Array<int> zones_per_vdof;
+   AccumulateAndCountZones(vcoeff, type, zones_per_vdof);
+
+   // Count the zones globally.
+   GroupCommunicator &gcomm = pfes->GroupComm();
+   gcomm.Reduce<int>(zones_per_vdof, GroupCommunicator::Sum);
+   gcomm.Bcast(zones_per_vdof);
+   // Accumulate for all tdofs.
+   HypreParVector *tv = this->ParallelAssemble();
+   this->Distribute(tv);
+   delete tv;
+
+   ComputeMeans(type, zones_per_vdof);
+}
+
+void ParGridFunction::ProjectBdrCoefficient(
+   Coefficient *coeff[], VectorCoefficient *vcoeff, Array<int> &attr)
+{
+   Array<int> values_counter;
+   AccumulateAndCountBdrValues(coeff, vcoeff, attr, values_counter);
+   if (pfes->Conforming())
+   {
+      Vector values(Size());
+      for (int i = 0; i < values.Size(); i++)
+      {
+         values(i) = values_counter[i] ? (*this)(i) : 0.0;
+      }
+      // Count the values globally.
+      GroupCommunicator &gcomm = pfes->GroupComm();
+      gcomm.Reduce<int>(values_counter, GroupCommunicator::Sum);
+      // Accumulate the values globally.
+      gcomm.Reduce<double>(values, GroupCommunicator::Sum);
+      // Only the values in the master are guaranteed to be correct!
+      for (int i = 0; i < values.Size(); i++)
+      {
+         if (values_counter[i])
+         {
+            (*this)(i) = values(i)/values_counter[i];
+         }
+      }
+   }
+   else
+   {
+      // FIXME: same as the conforming case after 'cut-mesh-groups-dev-*' is
+      //        merged?
+      ComputeMeans(ARITHMETIC, values_counter);
+   }
+#ifdef MFEM_DEBUG
+   Array<int> ess_vdofs_marker;
+   pfes->GetEssentialVDofs(attr, ess_vdofs_marker);
+   for (int i = 0; i < values_counter.Size(); i++)
+   {
+      MFEM_ASSERT(pfes->GetLocalTDofNumber(i) == -1 ||
+                  bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
+                  "internal error");
+   }
+#endif
+}
+
+void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
+                                                   Array<int> &bdr_attr)
+{
+   Array<int> values_counter;
+   AccumulateAndCountBdrTangentValues(vcoeff, bdr_attr, values_counter);
+   if (pfes->Conforming())
+   {
+      Vector values(Size());
+      for (int i = 0; i < values.Size(); i++)
+      {
+         values(i) = values_counter[i] ? (*this)(i) : 0.0;
+      }
+      // Count the values globally.
+      GroupCommunicator &gcomm = pfes->GroupComm();
+      gcomm.Reduce<int>(values_counter, GroupCommunicator::Sum);
+      // Accumulate the values globally.
+      gcomm.Reduce<double>(values, GroupCommunicator::Sum);
+      // Only the values in the master are guaranteed to be correct!
+      for (int i = 0; i < values.Size(); i++)
+      {
+         if (values_counter[i])
+         {
+            (*this)(i) = values(i)/values_counter[i];
+         }
+      }
+   }
+   else
+   {
+      // FIXME: same as the conforming case after 'cut-mesh-groups-dev-*' is
+      //        merged?
+      ComputeMeans(ARITHMETIC, values_counter);
+   }
+#ifdef MFEM_DEBUG
+   Array<int> ess_vdofs_marker;
+   pfes->GetEssentialVDofs(bdr_attr, ess_vdofs_marker);
+   for (int i = 0; i < values_counter.Size(); i++)
+   {
+      MFEM_ASSERT(pfes->GetLocalTDofNumber(i) == -1 ||
+                  bool(values_counter[i]) == bool(ess_vdofs_marker[i]),
+                  "internal error");
+   }
+#endif
 }
 
 void ParGridFunction::Save(std::ostream &out) const
@@ -507,7 +636,7 @@ double GlobalLpNorm(const double p, double loc_norm, MPI_Comm comm)
 {
    double glob_norm;
 
-   if (p < numeric_limits<double>::infinity())
+   if (p < infinity())
    {
       // negative quadrature weights may cause the error to be negative
       if (loc_norm < 0.0)
@@ -550,7 +679,7 @@ void ParGridFunction::ComputeFlux(
    Array<int> count(flux.Size());
    SumFluxAndCount(blfi, flux, count, wcoef, subdomain);
 
-   if (ffes->Conforming()) // FIXME: nonconforming
+   if (ffes->Conforming())
    {
       // Accumulate flux and counts in parallel
 
@@ -562,6 +691,7 @@ void ParGridFunction::ComputeFlux(
    }
    else
    {
+      // FIXME: nonconforming mesh case
       MFEM_ABORT("Averaging on processor boundaries not implemented for "
                  "NC meshes yet.\n"
                  "Use L2ZZErrorEstimator() instead of ZZErrorEstimator().");
@@ -619,15 +749,20 @@ double L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
    ParLinearForm *b = new ParLinearForm(&smooth_flux_fes);
    VectorGridFunctionCoefficient f(&flux);
 
-   if (smooth_flux_fes.GetFE(0)->GetRangeType() == FiniteElement::SCALAR)
+   if (xfes->GetNE())
    {
-      a->AddDomainIntegrator(new VectorMassIntegrator);
-      b->AddDomainIntegrator(new VectorDomainLFIntegrator(f));
-   }
-   else
-   {
-      a->AddDomainIntegrator(new VectorFEMassIntegrator);
-      b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
+      if (smooth_flux_fes.GetFE(0)->GetRangeType() == FiniteElement::SCALAR)
+      {
+         VectorMassIntegrator *vmass = new VectorMassIntegrator;
+         vmass->SetVDim(smooth_flux_fes.GetVDim());
+         a->AddDomainIntegrator(vmass);
+         b->AddDomainIntegrator(new VectorDomainLFIntegrator(f));
+      }
+      else
+      {
+         a->AddDomainIntegrator(new VectorFEMassIntegrator);
+         b->AddDomainIntegrator(new VectorFEDomainLFIntegrator(f));
+      }
    }
 
    b->Assemble();

@@ -65,10 +65,6 @@ using namespace std;
 using namespace mfem;
 using namespace mfem::electromagnetics;
 
-// Physical Constants
-// Permittivity of Free Space (units F/m)
-static double epsilon0_ = 8.8541878176e-12;
-
 // Permittivity Functions
 Coefficient * SetupPermittivityCoefficient();
 
@@ -213,6 +209,8 @@ int main(int argc, char *argv[])
    {
       pmesh.UniformRefinement();
    }
+   // Make sure tet-only meshes are marked for local refinement.
+   pmesh.Finalize(true);
 
    // If the gradient bc was selected but the E field was not specified
    // set a default vector value.

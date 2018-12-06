@@ -16,8 +16,8 @@
 
 #include "../general/mem_alloc.hpp"
 #include "../general/table.hpp"
+#include "../general/globals.hpp"
 #include "densemat.hpp"
-#include <iostream>
 
 namespace mfem
 {
@@ -112,6 +112,13 @@ public:
        ownership. */
    SparseMatrix(const SparseMatrix &mat, bool copy_graph = true);
 
+   /// Create a SparseMatrix with diagonal v, i.e. A = Diag(v)
+   SparseMatrix(const Vector & v);
+
+
+   /// Assignment operator: deep copy
+   SparseMatrix& operator=(const SparseMatrix &rhs);
+
    /** @brief Clear the contents of the SparseMatrix and make it a reference to
        @a master */
    /** After this call, the matrix will point to the same data as @a master but
@@ -180,6 +187,12 @@ public:
    /// Returns the Diagonal of A
    void GetDiag(Vector & d) const;
 
+   /// Produces a DenseMatrix from a SparseMatrix
+   DenseMatrix *ToDenseMatrix() const;
+
+   /// Produces a DenseMatrix from a SparseMatrix
+   void ToDenseMatrix(DenseMatrix & B) const;
+
    /// Matrix vector multiplication.
    virtual void Mult(const Vector &x, Vector &y) const;
 
@@ -210,45 +223,69 @@ public:
    /// For i = irow compute \f$ x_i = \sum_j | A_{i, j} | \f$
    double GetRowNorml1(int irow) const;
 
-   /// Returns a pointer to approximation of the matrix inverse.
+   /// This virtual method is not supported: it always returns NULL.
    virtual MatrixInverse *Inverse() const;
 
    /// Eliminates a column from the transpose matrix.
    void EliminateRow(int row, const double sol, Vector &rhs);
+
    /// Eliminates a row from the matrix.
    /*!
-    * If setOneDiagonal = 0, all the entries in the row will be set to 0.
-    * If setOneDiagonal = 1 (matrix must be square),
-    *    the diagonal entry will be set equal to 1
-    *    and all the others entries to 0.
+    * - If @a dpolicy = #DIAG_ZERO, all the entries in the row will be set to 0.
+    * - If @a dpolicy = #DIAG_ONE (matrix must be square), the diagonal entry
+    *   will be set equal to 1 and all other entries in the row to 0.
+    * - The policy #DIAG_KEEP is not supported.
     */
-   void EliminateRow(int row, int setOneDiagonal = 0);
-   void EliminateCol(int col);
-   /// Eliminate all columns 'i' for which cols[i] != 0
-   void EliminateCols(Array<int> &cols, Vector *x = NULL, Vector *b = NULL);
+   void EliminateRow(int row, DiagonalPolicy dpolicy = DIAG_ZERO);
 
-   /** Eliminates the column 'rc' to the 'rhs', deletes the row 'rc' and
+   /// Eliminates the column @a col from the matrix.
+   /** - If @a dpolicy = #DIAG_ZERO, all entries in the column will be set to 0.
+       - If @a dpolicy = #DIAG_ONE (matrix must be square), the diagonal entry
+         will be set equal to 1 and all other entries in the column to 0.
+       - The policy #DIAG_KEEP is not supported. */
+   void EliminateCol(int col, DiagonalPolicy dpolicy = DIAG_ZERO);
+
+   /// Eliminate all columns i for which @a cols[i] != 0.
+   /** Elimination of a column means that all entries in the column are set to
+       zero. In addition, if the pointers @a x and @a b are not NULL, the
+       eliminated matrix entries are multiplied by the corresponding solution
+       value in @a *x and subtracted from the r.h.s. vector, @a *b. */
+   void EliminateCols(const Array<int> &cols, const Vector *x = NULL,
+                      Vector *b = NULL);
+
+   /// Eliminate row @a rc and column @a rc and modify the @a rhs using @a sol.
+   /** Eliminates the column @a rc to the @a rhs, deletes the row @a rc and
        replaces the element (rc,rc) with 1.0; assumes that element (i,rc)
        is assembled if and only if the element (rc,i) is assembled.
-       If d != 0 then the element (rc,rc) remains the same. */
-   void EliminateRowCol(int rc, const double sol, Vector &rhs, int d = 0);
+       By default, elements (rc,rc) are set to 1.0, although this behavior
+       can be adjusted by changing the @a dpolicy parameter. */
+   void EliminateRowCol(int rc, const double sol, Vector &rhs,
+                        DiagonalPolicy dpolicy = DIAG_ONE);
 
-   /** Like previous one, but multiple values for eliminated unknowns are
-       accepted, and accordingly multiple right-hand-sides are used. */
+   /** @brief Similar to
+       EliminateRowCol(int, const double, Vector &, DiagonalPolicy), but
+       multiple values for eliminated unknowns are accepted, and accordingly
+       multiple right-hand-sides are used. */
    void EliminateRowColMultipleRHS(int rc, const Vector &sol,
-                                   DenseMatrix &rhs, int d = 0);
+                                   DenseMatrix &rhs,
+                                   DiagonalPolicy dpolicy = DIAG_ONE);
 
-   void EliminateRowCol(int rc, int d = 0);
    /// Perform elimination and set the diagonal entry to the given value
    void EliminateRowColDiag(int rc, double value);
-   // Same as above + save the eliminated entries in Ae so that
-   // (*this) + Ae is the original matrix
-   void EliminateRowCol(int rc, SparseMatrix &Ae, int d = 0);
+
+   /// Eliminate row @a rc and column @a rc.
+   void EliminateRowCol(int rc, DiagonalPolicy dpolicy = DIAG_ONE);
+
+   /** @brief Similar to EliminateRowCol(int, DiagonalPolicy) + save the
+       eliminated entries into @a Ae so that (*this) + Ae is equal to the
+       original matrix */
+   void EliminateRowCol(int rc, SparseMatrix &Ae,
+                        DiagonalPolicy dpolicy = DIAG_ONE);
 
    /// If a row contains only one diag entry of zero, set it to 1.
    void SetDiagIdentity();
    /// If a row contains only zeros, set its diagonal to 1.
-   void EliminateZeroRows();
+   virtual void EliminateZeroRows(const double threshold = 1e-12);
 
    /// Gauss-Seidel forward and backward iterations over a vector x.
    void Gauss_Seidel_forw(const Vector &x, Vector &y) const;
@@ -289,7 +326,7 @@ public:
    void GetBlocks(Array2D<SparseMatrix *> &blocks) const;
 
    void GetSubMatrix(const Array<int> &rows, const Array<int> &cols,
-                     DenseMatrix &subm);
+                     DenseMatrix &subm) const;
 
    inline void SetColPtr(const int row) const;
    inline void ClearColPtr() const;
@@ -352,13 +389,13 @@ public:
    SparseMatrix &operator*=(double a);
 
    /// Prints matrix to stream out.
-   void Print(std::ostream &out = std::cout, int width_ = 4) const;
+   void Print(std::ostream &out = mfem::out, int width_ = 4) const;
 
    /// Prints matrix in matlab format.
-   void PrintMatlab(std::ostream &out = std::cout) const;
+   void PrintMatlab(std::ostream &out = mfem::out) const;
 
    /// Prints matrix in Matrix Market sparse format.
-   void PrintMM(std::ostream &out = std::cout) const;
+   void PrintMM(std::ostream &out = mfem::out) const;
 
    /// Prints matrix to stream out in hypre_CSRMatrix format.
    void PrintCSR(std::ostream &out) const;
@@ -368,9 +405,6 @@ public:
 
    /// Print various sparse matrix staticstics.
    void PrintInfo(std::ostream &out) const;
-
-   /// Walks the sparse matrix
-   int Walk(int &i, int &j, double &a);
 
    /// Returns max_{i,j} |(i,j)-(j,i)| for a finalized matrix
    double IsSymmetric() const;
@@ -427,6 +461,9 @@ SparseMatrix *TransposeAbstractSparseMatrix (const AbstractSparseMatrix &A,
 SparseMatrix *Mult(const SparseMatrix &A, const SparseMatrix &B,
                    SparseMatrix *OAB = NULL);
 
+/// C = A^T B
+SparseMatrix *TransposeMult(const SparseMatrix &A, const SparseMatrix &B);
+
 /// Matrix product of sparse matrices. A and B do not need to be CSR matrices
 SparseMatrix *MultAbstractSparseMatrix (const AbstractSparseMatrix &A,
                                         const AbstractSparseMatrix &B);
@@ -436,6 +473,9 @@ DenseMatrix *Mult(const SparseMatrix &A, DenseMatrix &B);
 
 /// RAP matrix product (with R=P^T)
 DenseMatrix *RAP(const SparseMatrix &A, DenseMatrix &P);
+
+/// RAP matrix product (with R=P^T)
+DenseMatrix *RAP(DenseMatrix &A, const SparseMatrix &P);
 
 /** RAP matrix product (with P=R^T). ORAP is like OAB above.
     All matrices must be finalized. */
@@ -458,6 +498,21 @@ SparseMatrix * Add(double a, const SparseMatrix & A, double b,
                    const SparseMatrix & B);
 /// Matrix addition result = sum_i A_i
 SparseMatrix * Add(Array<SparseMatrix *> & Ai);
+
+/// B += alpha * A
+void Add(const SparseMatrix &A, double alpha, DenseMatrix &B);
+
+/// Produces a block matrix with blocks A_{ij}*B
+DenseMatrix *OuterProduct(const DenseMatrix &A, const DenseMatrix &B);
+
+/// Produces a block matrix with blocks A_{ij}*B
+SparseMatrix *OuterProduct(const DenseMatrix &A, const SparseMatrix &B);
+
+/// Produces a block matrix with blocks A_{ij}*B
+SparseMatrix *OuterProduct(const SparseMatrix &A, const DenseMatrix &B);
+
+/// Produces a block matrix with blocks A_{ij}*B
+SparseMatrix *OuterProduct(const SparseMatrix &A, const SparseMatrix &B);
 
 
 // Inline methods

@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "array.hpp"
+#include "globals.hpp"
 
 namespace mfem
 {
@@ -32,7 +33,7 @@ struct Hashed2
  */
 struct Hashed4
 {
-   int p1, p2, p3; // NOTE: p4 is not hashed nor stored
+   int p1, p2, p3; // NOTE: p4 is neither hashed nor stored
    int next;
 };
 
@@ -412,7 +413,7 @@ void HashTable<T>::DoRehash()
    mask = new_table_size-1;
 
 #if defined(MFEM_DEBUG) && !defined(MFEM_USE_MPI)
-   std::cout << _MFEM_FUNC_NAME << ": rehashing to size " << new_table_size
+   mfem::out << _MFEM_FUNC_NAME << ": rehashing to size " << new_table_size
              << std::endl;
 #endif
 
@@ -499,7 +500,7 @@ long HashTable<T>::MemoryUsage() const
 template<typename T>
 void HashTable<T>::PrintMemoryDetail() const
 {
-   std::cout << Base::MemoryUsage() << " + " << (mask+1) * sizeof(int)
+   mfem::out << Base::MemoryUsage() << " + " << (mask+1) * sizeof(int)
              << " + " << unused.MemoryUsage();
 }
 

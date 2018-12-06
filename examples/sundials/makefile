@@ -51,7 +51,7 @@ MFEM_TESTS = EXAMPLES
 include $(MFEM_TEST_MK)
 
 # Testing: Parallel vs. serial runs
-RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) 4
+RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 SERIAL_NAME := Serial SUNDIALS example
 PARALLEL_NAME := Parallel SUNDIALS example
 %-test-par: %
@@ -69,7 +69,7 @@ ex9-test-seq: ex9
 ex9p-test-par: ex9p
 	@$(call mfem-test,$<, $(RUN_MPI), $(PARALLEL_NAME),$(EX9P_ARGS))
 # Example 10: test implicit CVODE time stepping
-EX10_COMMON_ARGS := -m ../../data/beam-quad.mesh -o 2 -s 5 -dt 0.15 -vs 10
+EX10_COMMON_ARGS := -m ../../data/beam-quad.mesh -o 2 -s 5 -dt 0.15 -tf 6 -vs 10
 EX10_ARGS  := $(EX10_COMMON_ARGS) -r  2
 EX10P_ARGS := $(EX10_COMMON_ARGS) -rp 1
 ex10-test-seq: ex10
@@ -92,3 +92,4 @@ clean-build:
 clean-exec:
 	@rm -f ex9.mesh ex9-mesh.* ex9-init.* ex9-final.* Example9*
 	@rm -f deformed.* velocity.* elastic_energy.*
+	@rm -f ex16.mesh ex16-mesh.* ex16-init.* ex16-final.* Example16*

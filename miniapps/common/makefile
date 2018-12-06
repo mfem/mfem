@@ -18,6 +18,7 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 # MFEM_INSTALL_DIR = ../../mfem
 # CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
 
+MFEM_LIB_FILE = mfem_is_not_built
 ifneq (clean,$(MAKECMDGOALS))
    -include $(CONFIG_MK)
 endif
@@ -46,6 +47,9 @@ all: $(MINIOBJS)
 $(CONFIG_MK):
 	$(error The MFEM library is not configured)
 
+# Generate an error message if the MFEM library is not built and exit
+$(MFEM_LIB_FILE):
+	$(error The MFEM library is not built)
 clean:
 	rm -f *.o *~
 	rm -rf *.dSYM *.TVD.*breakpoints

@@ -55,7 +55,7 @@ ThresholdRefiner::ThresholdRefiner(ErrorEstimator &est)
    : estimator(est)
 {
    aniso_estimator = dynamic_cast<AnisotropicErrorEstimator*>(&estimator);
-   total_norm_p = std::numeric_limits<double>::infinity();
+   total_norm_p = infinity();
    total_err_goal = 0.0;
    total_fraction = 0.5;
    local_err_goal = 0.0;

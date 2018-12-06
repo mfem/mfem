@@ -12,6 +12,7 @@
 list(APPEND SRCS
   array.cpp
   error.cpp
+  globals.cpp
   gzstream.cpp
   isockstream.cpp
   optparser.cpp
@@ -21,11 +22,13 @@ list(APPEND SRCS
   stable3d.cpp
   table.cpp
   tic_toc.cpp
+  version.cpp
   )
 
 list(APPEND HDRS
   array.hpp
   error.hpp
+  globals.hpp
   gzstream.hpp
   hash.hpp
   isockstream.hpp
@@ -40,6 +43,7 @@ list(APPEND HDRS
   tassign.hpp
   tic_toc.hpp
   text.hpp
+  version.hpp
   )
 
 if (MFEM_USE_MPI)

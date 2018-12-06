@@ -18,24 +18,50 @@
 #include "hypre.hpp"
 #endif
 
+#include <sundials/sundials_config.h>
+// Determine the version of SUNDIALS
+#ifndef SUNDIALS_VERSION_MAJOR
+// Assume v2.7.0 or compatible version
+#define MFEM_SUNDIALS_VERSION 20700
+#define SUNTRUE TRUE
+#define SUNFALSE FALSE
+#else
+#define MFEM_SUNDIALS_VERSION \
+   ((SUNDIALS_VERSION_MAJOR)*10000 + \
+    (SUNDIALS_VERSION_MINOR)*100 + \
+    (SUNDIALS_VERSION_PATCH))
+#endif
+
 #include <nvector/nvector_serial.h>
 #ifdef MFEM_USE_MPI
 #include <nvector/nvector_parallel.h>
 #endif
 
 #include <cvode/cvode_impl.h>
-#include <cvode/cvode_spgmr.h>
 
 // This just hides a warning (to be removed after it's fixed in SUNDIALS).
+// The macro MSG_TIME_INT is defined in <cvode/cvode_impl.h> and then redefined
+// in <arkode/arkode_impl.h>.
 #ifdef MSG_TIME_INT
 #undef MSG_TIME_INT
 #endif
 
 #include <arkode/arkode_impl.h>
-#include <arkode/arkode_spgmr.h>
-
 #include <kinsol/kinsol_impl.h>
+
+// Header includes based on the SUNDIALS version:
+#if MFEM_SUNDIALS_VERSION < 30000
+// **************** v2.7.0 ****************
+#include <cvode/cvode_spgmr.h>
+#include <arkode/arkode_spgmr.h>
 #include <kinsol/kinsol_spgmr.h>
+#else
+// **************** v3.0.0 ****************
+#include <sunlinsol/sunlinsol_spgmr.h>
+#include <cvode/cvode_spils.h>
+#include <arkode/arkode_spils.h>
+#include <kinsol/kinsol_spils.h>
+#endif
 
 using namespace std;
 
@@ -103,12 +129,21 @@ static int arkLinSysSetup(ARKodeMem ark_mem, int convfail,
                                                     *jcurPtr, vt1, vt2, vt3);
 }
 
+#if MFEM_SUNDIALS_VERSION < 30000
 static int arkLinSysSolve(ARKodeMem ark_mem, N_Vector b, N_Vector weight,
                           N_Vector ycur, N_Vector fcur)
 {
    Vector bb(b), w(weight), yc(ycur), fc(fcur);
    return to_solver(ark_mem->ark_lmem)->SolveSystem(ark_mem, bb, w, yc, fc);
 }
+#else
+static int arkLinSysSolve(ARKodeMem ark_mem, N_Vector b,
+                          N_Vector ycur, N_Vector fcur)
+{
+   Vector bb(b), w(ark_mem->ark_rwt), yc(ycur), fc(fcur);
+   return to_solver(ark_mem->ark_lmem)->SolveSystem(ark_mem, bb, w, yc, fc);
+}
+#endif
 
 static int arkLinSysFree(ARKodeMem ark_mem)
 {
@@ -210,7 +245,9 @@ void CVODESolver::SetLinearSolver(SundialsODELinearSolver &ls_spec)
    mem->cv_lsolve = cvLinSysSolve;
    mem->cv_lfree  = cvLinSysFree;
    mem->cv_lmem   = &ls_spec;
+#if MFEM_SUNDIALS_VERSION < 30000
    mem->cv_setupNonNull = TRUE;
+#endif
    ls_spec.type = SundialsODELinearSolver::CVODE;
 }
 
@@ -239,7 +276,9 @@ static inline void cvCopyInit(CVodeMem src, CVodeMem dest)
    dest->cv_lsolve = src->cv_lsolve;
    dest->cv_lfree  = src->cv_lfree;
    dest->cv_lmem   = src->cv_lmem;
+#if MFEM_SUNDIALS_VERSION < 30000
    dest->cv_setupNonNull = src->cv_setupNonNull;
+#endif
 
    dest->cv_reltol  = src->cv_reltol;
    dest->cv_Sabstol = src->cv_Sabstol;
@@ -255,7 +294,7 @@ void CVODESolver::Init(TimeDependentOperator &f_)
    CVodeMem mem = Mem(this);
    CVodeMemRec backup;
 
-   if (mem->cv_MallocDone == TRUE)
+   if (mem->cv_MallocDone == SUNTRUE)
    {
       // TODO: preserve more options.
       cvCopyInit(mem, &backup);
@@ -336,7 +375,13 @@ void CVODESolver::Step(Vector &x, double &t, double &dt)
       // Set default linear solver, if not already set.
       if (mem->cv_iter == CV_NEWTON && mem->cv_lsolve == NULL)
       {
+#if MFEM_SUNDIALS_VERSION < 30000
          flag = CVSpgmr(sundials_mem, PREC_NONE, 0);
+#else
+         SUNLinearSolver LS;
+         LS = SUNSPGMR(y, PREC_NONE, 0);
+         flag = CVSpilsSetLinearSolver(sundials_mem, LS);
+#endif
       }
       // Set the actual t0 and y0.
       mem->cv_tn = t;
@@ -356,17 +401,17 @@ void CVODESolver::PrintInfo() const
 {
    CVodeMem mem = Mem(this);
 
-   cout <<
-        "CVODE:\n  "
-        "num steps: " << mem->cv_nst << ", "
-        "num evals: " << mem->cv_nfe << ", "
-        "num lin setups: " << mem->cv_nsetups << ", "
-        "num nonlin sol iters: " << mem->cv_nni << "\n  "
-        "last order: " << mem->cv_qu << ", "
-        "next order: " << mem->cv_next_q << ", "
-        "last dt: " << mem->cv_hu << ", "
-        "next dt: " << mem->cv_next_h
-        << endl;
+   mfem::out <<
+             "CVODE:\n  "
+             "num steps: " << mem->cv_nst << ", "
+             "num evals: " << mem->cv_nfe << ", "
+             "num lin setups: " << mem->cv_nsetups << ", "
+             "num nonlin sol iters: " << mem->cv_nni << "\n  "
+             "last order: " << mem->cv_qu << ", "
+             "next order: " << mem->cv_next_q << ", "
+             "last dt: " << mem->cv_hu << ", "
+             "next dt: " << mem->cv_next_h
+             << endl;
 }
 
 CVODESolver::~CVODESolver()
@@ -455,7 +500,9 @@ void ARKODESolver::SetLinearSolver(SundialsODELinearSolver &ls_spec)
    mem->ark_lsolve = arkLinSysSolve;
    mem->ark_lfree  = arkLinSysFree;
    mem->ark_lmem   = &ls_spec;
+#if MFEM_SUNDIALS_VERSION < 30000
    mem->ark_setupNonNull = TRUE;
+#endif
    ls_spec.type = SundialsODELinearSolver::ARKODE;
 }
 
@@ -499,7 +546,9 @@ static inline void arkCopyInit(ARKodeMem src, ARKodeMem dest)
    dest->ark_lsolve       = src->ark_lsolve;
    dest->ark_lfree        = src->ark_lfree;
    dest->ark_lmem         = src->ark_lmem;
+#if MFEM_SUNDIALS_VERSION < 30000
    dest->ark_setupNonNull = src->ark_setupNonNull;
+#endif
 
    dest->ark_reltol  = src->ark_reltol;
    dest->ark_Sabstol = src->ark_Sabstol;
@@ -516,7 +565,7 @@ void ARKODESolver::Init(TimeDependentOperator &f_)
    ARKodeMemRec backup;
 
    // Check if ARKodeInit() has already been called.
-   if (mem->ark_MallocDone == TRUE)
+   if (mem->ark_MallocDone == SUNTRUE)
    {
       // TODO: preserve more options.
       arkCopyInit(mem, &backup);
@@ -615,7 +664,13 @@ void ARKODESolver::Step(Vector &x, double &t, double &dt)
       // Set default linear solver, if not already set.
       if (mem->ark_implicit && mem->ark_linit == NULL)
       {
+#if MFEM_SUNDIALS_VERSION < 30000
          flag = ARKSpgmr(sundials_mem, PREC_NONE, 0);
+#else
+         SUNLinearSolver LS;
+         LS = SUNSPGMR(y, PREC_NONE, 0);
+         flag = ARKSpilsSetLinearSolver(sundials_mem, LS);
+#endif
       }
       // Set the actual t0 and y0.
       mem->ark_tn = t;
@@ -637,16 +692,16 @@ void ARKODESolver::PrintInfo() const
 {
    ARKodeMem mem = Mem(this);
 
-   cout <<
-        "ARKODE:\n  "
-        "num steps: " << mem->ark_nst << ", "
-        "num evals: " << mem->ark_nfe << ", "
-        "num lin setups: " << mem->ark_nsetups << ", "
-        "num nonlin sol iters: " << mem->ark_nni << "\n  "
-        "method order: " << mem->ark_q << ", "
-        "last dt: " << mem->ark_h << ", "
-        "next dt: " << mem->ark_next_h
-        << endl;
+   mfem::out <<
+             "ARKODE:\n  "
+             "num steps: " << mem->ark_nst << ", "
+             "num evals: " << mem->ark_nfe << ", "
+             "num lin setups: " << mem->ark_nsetups << ", "
+             "num nonlin sol iters: " << mem->ark_nni << "\n  "
+             "method order: " << mem->ark_q << ", "
+             "last dt: " << mem->ark_h << ", "
+             "next dt: " << mem->ark_next_h
+             << endl;
 }
 
 ARKODESolver::~ARKODESolver()
@@ -683,7 +738,7 @@ int KinSolver::GradientMult(N_Vector v, N_Vector Jv, N_Vector u,
    {
       const Vector mfem_u(u);
       self->jacobian = &self->oper->GetGradient(mfem_u);
-      *new_u = FALSE;
+      *new_u = SUNFALSE;
    }
    self->jacobian->Mult(mfem_v, mfem_Jv);
    return 0;
@@ -793,7 +848,9 @@ static inline void kinCopyInit(KINMem src, KINMem dest)
    dest->kin_lsolve       = src->kin_lsolve;
    dest->kin_lfree        = src->kin_lfree;
    dest->kin_lmem         = src->kin_lmem;
+#if MFEM_SUNDIALS_VERSION < 30000
    dest->kin_setupNonNull = src->kin_setupNonNull;
+#endif
    dest->kin_msbset       = src->kin_msbset;
 
    dest->kin_globalstrategy = src->kin_globalstrategy;
@@ -809,7 +866,7 @@ void KinSolver::SetOperator(const Operator &op)
    KINMemRec backup;
 
    // Check if SetOperator() has already been called.
-   if (mem->kin_MallocDone == TRUE)
+   if (mem->kin_MallocDone == SUNTRUE)
    {
       // TODO: preserve more options.
       kinCopyInit(mem, &backup);
@@ -880,8 +937,15 @@ void KinSolver::SetOperator(const Operator &op)
    if (!prec)
    {
       // Set scaled preconditioned GMRES linear solver.
+#if MFEM_SUNDIALS_VERSION < 30000
       flag = KINSpgmr(sundials_mem, 0);
       MFEM_ASSERT(flag >= 0, "KINSpgmr() failed!");
+#else
+      SUNLinearSolver LS = NULL;
+      LS = SUNSPGMR(y, PREC_NONE, 0);
+      flag = KINSpilsSetLinearSolver(sundials_mem, LS);
+      MFEM_ASSERT(flag >= 0, "KINSpilsSetLinearSolver() failed!");
+#endif
       if (use_oper_grad)
       {
          // Define the Jacobian action.
@@ -902,7 +966,9 @@ void KinSolver::SetSolver(Solver &solver)
    mem->kin_lsolve = KinSolver::LinSysSolve;
    mem->kin_lfree  = NULL;
    mem->kin_lmem   = this;
+#if MFEM_SUNDIALS_VERSION < 30000
    mem->kin_setupNonNull = TRUE;
+#endif
    // Set mem->kin_inexact_ls? How?
 }
 
