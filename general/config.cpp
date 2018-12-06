@@ -11,20 +11,22 @@
 
 #include "../general/okina.hpp"
 
+// *****************************************************************************
 namespace mfem
 {
 
 // *****************************************************************************
-// * cuDeviceSetup will set: gpu_count, dev, cuDevice, cuContext & cuStream
+// * cudaDeviceSetup will set: gpu_count, dev, cuDevice, cuContext & cuStream
 // *****************************************************************************
-void config::cuDeviceSetup(const int device)
+void config::cudaDeviceSetup(const int device)
 {
 #ifdef __NVCC__
+   dbg("CUDA device");
    gpu_count=0;
    cudaGetDeviceCount(&gpu_count);
    assert(gpu_count>0);
    cuInit(0);
-   dev = device; // findCudaDevice(argc, (const char **)argv);
+   dev = device;
    cuDeviceGet(&cuDevice,dev);
    cuCtxCreate(&cuContext, CU_CTX_SCHED_AUTO, cuDevice);
    cuStream = new CUstream;
@@ -32,4 +34,44 @@ void config::cuDeviceSetup(const int device)
 #endif
 }
 
-} // namespace mfem
+// *****************************************************************************
+// * Setting device, paths & kernels
+// *****************************************************************************
+void config::occaDeviceSetup()
+{
+#ifdef __OCCA__
+   dbg("[occa] cuda is %s",cuda?"true":"false");
+   dbg("[occa] occa is %s",occa?"true":"false");
+   if (cuda)
+   {
+      dbg("[occa] Wrapping CUDA device");
+      occaDevice = okWrapDevice(cuDevice, cuContext);
+   }
+   else
+   {
+      dbg("[occa] Using OCCA Serial device");
+      occaDevice.setup("mode: 'Serial'");
+   }
+   const std::string pwd = occa::io::dirname(__FILE__) + "../";
+   occa::io::addLibraryPath("fem",     pwd + "fem/kernels");
+   occa::io::addLibraryPath("general", pwd + "general/kernels");
+   occa::io::addLibraryPath("linalg",  pwd + "linalg/kernels");
+   occa::io::addLibraryPath("mesh",    pwd + "mesh/kernels");
+   occa::loadKernels();
+   occa::loadKernels("fem");
+   occa::loadKernels("general");
+   occa::loadKernels("linalg");
+   occa::loadKernels("mesh");
+#endif
+}
+
+// *****************************************************************************
+void config::devSetup(const int device)
+{
+   push();
+   cudaDeviceSetup(device);
+   occaDeviceSetup();
+}
+
+// *****************************************************************************
+} // mfem

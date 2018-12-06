@@ -318,7 +318,6 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       d = r;
    }
    nom0 = nom = Dot(d, r);
-   //printf("\n\033[33;7mnom=%e\033[m",nom);fflush(0);//assert(false);
    MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
 
    if (print_level == 1 || print_level == 3)
@@ -338,7 +337,6 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
 
    oper->Mult(d, z);  // z = A d
    den = Dot(z, d);
-   //printf("\n\033[33;7m den=%e\033[m",den);fflush(0);//assert(false);
    MFEM_ASSERT(IsFinite(den), "den = " << den);
 
    if (print_level >= 0 && den < 0.0)
@@ -360,7 +358,6 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    for (i = 1; true; )
    {
       alpha = nom/den;
-      //printf("\n\033[33;7m alpha=%e\033[m",alpha);fflush(0);//assert(false);
       add(x,  alpha, d, x);     //  x = x + alpha d
       add(r, -alpha, z, r);     //  r = r - alpha A d
 
@@ -411,11 +408,8 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       {
          add(r, beta, d, d);
       }
-      //printf("\n\033[33;7m d:\033[m"); d.Print();fflush(0);//assert(false);
       oper->Mult(d, z);       //  z = A d
-      //printf("\n\033[33;7m z:\033[m"); z.Print();fflush(0);//assert(false);
       den = Dot(d, z);
-      //printf("\n\033[33;7m den=%e\033[m",den);fflush(0);//assert(false);
       MFEM_ASSERT(IsFinite(den), "den = " << den);
       if (den <= 0.0)
       {

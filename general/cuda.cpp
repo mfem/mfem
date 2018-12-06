@@ -10,8 +10,8 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "okina.hpp"
-#include "custub.hpp"
 
+// *****************************************************************************
 namespace mfem
 {
 
@@ -71,7 +71,7 @@ int okMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s)
 // *****************************************************************************
 // * Copies memory from Device to Host
 // *****************************************************************************
-int okMemcpyDtoH(void* dst, void* src, size_t bytes)
+int okMemcpyDtoH(void* dst, const void* src, size_t bytes)
 {
    return CU_STUB(cuMemcpyDtoH(dst, (CUdeviceptr)src, bytes));
 }
@@ -84,4 +84,5 @@ int okMemcpyDtoHAsync(void* dst, void* src, size_t bytes, void *s)
    return CU_STUB(cuMemcpyDtoHAsync(dst, (CUdeviceptr)src, bytes, (CUstream)s));
 }
 
+// *****************************************************************************
 } // namespace mfem

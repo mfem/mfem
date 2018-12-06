@@ -13,64 +13,47 @@
 #define MFEM_OKINA_HPP
 
 // *****************************************************************************
-#ifdef __NVCC__
-#include <cuda.h>
-#else
-#define __host__
-#define __device__
-#define __constant__
-#define __kernel__
-#endif // __NVCC__
+#include "../config/config.hpp"
+#include "../general/error.hpp"
 
 // *****************************************************************************
 #include <cmath>
 #include <cassert>
-#include <iostream>
 #include <cstring>
+#include <iostream>
 #include <unordered_map>
 
 // *****************************************************************************
-#include "mm.hpp"
-#include "config.hpp"
+#include "./cuda.hpp"
+#include "./occa.hpp"
 
 // *****************************************************************************
-// * GPU kernel launcher
-// *****************************************************************************
-#ifdef __NVCC__
-template <typename BODY> __global__
-void kernel(const size_t N, BODY body)
-{
-   const size_t k = blockDim.x*blockIdx.x + threadIdx.x;
-   if (k >= N) { return; }
-   body(k);
-}
-#endif // __NVCC__
+#include "mm.hpp"
+#include "kernels/mm.hpp"
+#include "config.hpp"
 
 // *****************************************************************************
 // * GPU & HOST FOR_LOOP bodies wrapper
 // *****************************************************************************
-template <typename DBODY, typename HBODY>
+template <size_t BLOCK_SZ, typename DBODY, typename HBODY>
 void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 {
-#ifdef __NVCC__
-   const bool gpu = mfem::config::Get().Cuda();
-   if (gpu)
+   constexpr bool nvcc = cuNvcc();
+   const bool cuda = mfem::config::Cuda();
+   if (nvcc and cuda)
    {
-      const size_t blockSize = 256;
-      const size_t gridSize = (N+blockSize-1)/blockSize;
-      kernel<<<gridSize, blockSize>>>(N,d_body);
-      return;
+      return cuWrap<BLOCK_SZ>(N,d_body);
    }
-#endif // __NVCC__
    for (size_t k=0; k<N; k+=1) { h_body(k); }
 }
 
 // *****************************************************************************
 // * MFEM_FORALL splitter
 // *****************************************************************************
-#define MFEM_FORALL(i, N, body) wrap(N,                                 \
-                                     [=] __device__ (size_t i){body},   \
-                                     [=]            (size_t i){body})
+#define MFEM_FORALL(i, N, B)                                            \
+   wrap<256>(N, [=] __device__ (size_t i){B}, [=] (size_t i){B})
+#define MFEM_FORALL_BLOCK(i,N,B,K)                                      \
+   wrap<K>(N, [=] __device__ (size_t i){B}, [=] (size_t i){B})
 
 // *****************************************************************************
 #define LOG2(X) ((unsigned) (8*sizeof(unsigned long long)-__builtin_clzll((X))))
@@ -79,17 +62,17 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 #define IROOT(D,N) ((D==1)?N:(D==2)?ISQRT(N):(D==3)?ICBRT(N):0)
 
 // *****************************************************************************
-#define GET_CUDA const bool cuda = config::Get().Cuda();
-#define TRY_ADRS(v) mfem::mm::Get().Adrs(v)
+#define GET_CUDA const bool cuda = config::Cuda();
 #define GET_ADRS(v) double *d_##v = (double*) mfem::mm::Get().Adrs(v)
 #define GET_ADRS_T(v,T) T *d_##v = (T*) mfem::mm::Get().Adrs(v)
 #define GET_CONST_ADRS(v) const double *d_##v = (const double*) mfem::mm::Get().Adrs(v)
 #define GET_CONST_ADRS_T(v,T) const T *d_##v = (const T*) mfem::mm::Get().Adrs(v)
 
 // *****************************************************************************
-#define MFEM_FILE_AND_LINE __FILE__ and __LINE__
-#define MFEM_CPU_CANNOT_PASS {assert(MFEM_FILE_AND_LINE and false);}
-#define MFEM_GPU_CANNOT_PASS {assert(MFEM_FILE_AND_LINE and not config::Get().Cuda());}
+#define BUILTIN_TRAP __builtin_trap()
+#define FILE_AND_LINE __FILE__ and __LINE__
+#define MFEM_CPU_CANNOT_PASS {assert(FILE_AND_LINE and false);}
+#define MFEM_GPU_CANNOT_PASS {assert(FILE_AND_LINE and not config::Cuda());}
 
 // Offsets *********************************************************************
 #define ijN(i,j,N) (i)+(N)*(j)

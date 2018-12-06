@@ -564,21 +564,20 @@ void Vector::Print(std::ostream &out, int width) const
    mm::Get().Pull(data);
    for (int i = 0; 1; )
    {
-      //out << data[i];
-      printf("\n\t[%d] %.15e",i,data[i]);
+      out << data[i];
       i++;
       if (i == size)
       {
          break;
       }
-      /*if ( i % width == 0 )
+      if ( i % width == 0 )
       {
          out << '\n';
       }
       else
       {
          out << ' ';
-         }*/
+      }
    }
    // out << '\n';
 }

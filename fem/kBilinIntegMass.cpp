@@ -52,14 +52,6 @@ void KMassIntegrator::MultAdd(Vector &x, Vector &y)
    const int dim = mesh->Dimension();
    const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
    const int dofs1D = fes->GetFE(0)->GetOrder() + 1;
-   //dbg("x:"); x.Print(); fflush(0); //assert(false);
-   //dbg("dofs1D=%d",dofs1D);
-   //dbg("quad1D=%d",quad1D);
-   //dbg("dofToQuad:"); maps->dofToQuad.Print();
-   //dbg("dofToQuadD:"); maps->dofToQuadD.Print();
-   //dbg("quadToDof:"); maps->quadToDof.Print();
-   //dbg("quadToDofD:"); maps->quadToDofD.Print();
-   //dbg("op:"); op.Print();
    kMassMultAdd(dim,
                 dofs1D,
                 quad1D,
@@ -69,7 +61,6 @@ void KMassIntegrator::MultAdd(Vector &x, Vector &y)
                 maps->quadToDof,
                 maps->quadToDofD,
                 op, x, y);
-   //dbg("y:"); y.Print(); fflush(0); //assert(false);
 }
 
 } // namespace mfem

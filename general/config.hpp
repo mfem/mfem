@@ -12,23 +12,19 @@
 #ifndef MFEM_CONFIG_HPP
 #define MFEM_CONFIG_HPP
 
+// *****************************************************************************
 namespace mfem
 {
 
-#ifndef __NVCC__
-typedef int CUdevice;
-typedef int CUcontext;
-typedef void* CUstream;
-#endif // __NVCC__
-
 // *****************************************************************************
-// * Config
+// * MFEM config class
 // *****************************************************************************
 class config
 {
 private:
-   bool cuda = false;
    bool pa = false;
+   bool cuda = false;
+   bool occa = false;
    bool sync = false;
    bool nvvp = false;
    int dev;
@@ -36,52 +32,69 @@ private:
    CUdevice cuDevice;
    CUcontext cuContext;
    CUstream *cuStream;
+   OCCAdevice occaDevice;
+
 private:
+   // **************************************************************************
    config() {}
    config(config const&);
    void operator=(config const&);
+
 public:
-   static config& Get()
+   // **************************************************************************
+   static config& _Get()
    {
       static config singleton;
       return singleton;
    }
-   // **************************************************************************
+
 private:
-   void cuDeviceSetup(const int dev =0);
-
-public:
    // **************************************************************************
-   constexpr static inline bool nvcc()
-   {
-#ifdef __NVCC__
-      return true;
-#else
-      return false;
-#endif
-   }
+   void cudaDeviceSetup(const int =0);
+   void occaDeviceSetup();
+   void devSetup(const int =0);
+
+private:
+   // **************************************************************************
+   inline bool GetOcca() { return occa; }
+   inline void SetOcca(const bool mode) { occa = mode; }
+   inline OCCAdevice GetOccaDevice() { return occaDevice; }
 
    // **************************************************************************
-   inline bool Cuda() { return cuda; }
-   inline void Cuda(const bool mode) { cuda = mode; }
+   inline bool GetCuda() { return cuda; }
+   inline void SetCuda(const bool mode) { cuda = mode;}
 
    // **************************************************************************
-   inline bool PA() { return pa; }
-   inline void PA(const int mode) { pa = mode; }
+   inline bool GetPA() { return pa; }
+   inline void SetPA(const int mode) { pa = mode; }
 
    // **************************************************************************
    inline bool Sync(bool toggle=false) { return toggle?sync=!sync:sync; }
-
-   // **************************************************************************
    inline bool Nvvp(bool toggle=false) { return toggle?nvvp=!nvvp:nvvp; }
 
    // **************************************************************************
-   void Setup() { cuDeviceSetup(); }
+   inline CUstream GetStream() { return *cuStream; }
 
+public:
    // **************************************************************************
-   inline CUstream Stream() { return *cuStream; }
+   // * Shortcuts
+   // **************************************************************************
+   static inline void Setup() { _Get().devSetup(); }
+   constexpr static inline bool Nvcc() { return cuNvcc(); }
+
+   static inline bool PA() { return _Get().GetPA(); }
+   static inline void PA(const bool b) { _Get().SetPA(b); }
+
+   static inline bool Cuda() { return _Get().GetCuda(); }
+   static inline void Cuda(const bool b) { _Get().SetCuda(b); }
+   static inline CUstream Stream() { return _Get().GetStream(); }
+
+   static inline bool Occa() { return _Get().GetOcca(); }
+   static inline void Occa(const bool b) { _Get().SetOcca(b); }
+   static inline OCCAdevice OccaDevice() { return _Get().GetOccaDevice(); }
 };
 
-}
+// *****************************************************************************
+} // mfem
 
 #endif // MFEM_CONFIG_HPP

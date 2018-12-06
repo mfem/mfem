@@ -470,7 +470,7 @@ private:
    AbstractBilinearForm *abf;
 public:
    BilinearForm(FiniteElementSpace *f):
-      FA(config::Get().PA()==false),
+      FA(config::PA()==false),
       abf(FA?
           static_cast<AbstractBilinearForm*>(new FABilinearForm(f)):
           static_cast<AbstractBilinearForm*>(new PABilinearForm(f)))
