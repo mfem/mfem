@@ -80,7 +80,8 @@ public:
 
    // These vectors give the location of the nearest neighbors of the
    // fundamental domain.  They also can be used to map nodes between
-   // opposite faces of the unit cell.
+   // opposite faces of the unit cell.  There will be one translation
+   // vector for each pair of opposing faces.
    void GetTranslationVectors(std::vector<Vector> & t) const;
 
    // These are the radii of circles which can be inscribed within each
@@ -98,10 +99,18 @@ public:
 
    // The Fundamental Domain is a connected subset of the Primitive
    // Cell which can generate the entire Primitive Cell under the
-   // action of a set of reflection symmetries.  Returns true if the
-   // point required mapping i.e. returns (ipt != pt).
+   // action of a set of rotation and reflection symmetries.  Returns
+   // true if the point required mapping i.e. returns (ipt != pt).
    virtual bool MapToFundamentalDomain(const Vector & pt,
                                        Vector & ipt) const = 0;
+
+   // The number of proper and improper rotations needed to fill the
+   // primitive cell with transformed copies of the fundamental domain.
+   virtual unsigned int GetNumberTransformations() const = 0;
+
+   // Return the linear operator which transforms points in the fundamental
+   // domain into corresponding points elsewhere in the primitive cell.
+   virtual const DenseMatrix & GetTransformation(int i) const = 0;
 
    // In this context "Symmetry Points" are points in the
    // reciprocal space.  They are sometimes called "High-Symmetry
@@ -123,9 +132,9 @@ public:
 
    virtual mfem::Mesh * GetFundamentalDomainMesh() const = 0;
 
-   virtual mfem::Mesh * GetWignerSeitzMesh(bool tetMesh = false) const = 0;
+   virtual mfem::Mesh * GetWignerSeitzMesh(bool tetMesh = false) const;
    virtual mfem::Mesh *
-   GetPeriodicWignerSeitzMesh(bool tetMesh = false) const = 0;
+   GetPeriodicWignerSeitzMesh(bool tetMesh = false) const;
 
 protected:
    BravaisLattice(unsigned int dim);
@@ -149,6 +158,8 @@ protected:
 
    std::string label_;
    BRAVAIS_LATTICE_TYPE type_;
+
+   mutable DenseMatrix T_;
 
    unsigned int dim_;
    double vol_;
@@ -196,10 +207,10 @@ protected:
 
   | Name        |  a  |  b  |  gamma  |
   |-------------|-----|-----|---------|
-  | Square      | > 0 | = a |  = pi/2 |
-  | Rectangular | > 0 | > a |  = pi/2 |
+  | Square      | > 0 | = a | =  pi/2 |
+  | Rectangular | > 0 | > a | =  pi/2 |
   | Hexagonal   | > 0 | = a | = 2pi/3 |
-  | Oblique     | > 0 |!= a | != pi/2 |
+  | Oblique     | > 0 | > a | <  pi/2 |
 
  */
 class BravaisLattice2D : public BravaisLattice
@@ -209,6 +220,12 @@ public:
 
    void GetAxialLengths(double &a, double &b);
    void GetInteraxialAngle(double &gamma);
+
+   unsigned int GetNumberTransformations() const { return 0; }
+
+   const DenseMatrix & GetTransformation(int i) const { return T_; }
+
+   virtual mfem::Mesh * GetFundamentalDomainMesh() const { return NULL; }
 
 protected:
    double a_;
@@ -260,6 +277,10 @@ public:
    void GetAxialLengths(double &a, double &b, double &c);
    void GetInteraxialAngles(double &alpha, double &beta, double &gamma);
 
+   unsigned int GetNumberTransformations() const { return 0; }
+
+   const DenseMatrix & GetTransformation(int i) const { return T_; }
+
    virtual mfem::Mesh * GetFundamentalDomainMesh() const { return NULL; }
 
 protected:
@@ -284,10 +305,14 @@ public:
    virtual unsigned int GetNumberPaths()              { return 1; }
    virtual unsigned int GetNumberPathSegments(int i)  { return 1; }
 
+   unsigned int GetNumberTransformations() const { return 1; }
+
+   const DenseMatrix & GetTransformation(int i) const;
+
    virtual mfem::Mesh * GetFundamentalDomainMesh() const;
 
-   mfem::Mesh * GetWignerSeitzMesh(bool triMesh = false) const;
-   mfem::Mesh * GetPeriodicWignerSeitzMesh(bool triMesh = false) const;
+   // mfem::Mesh * GetWignerSeitzMesh(bool triMesh = false) const;
+   // mfem::Mesh * GetPeriodicWignerSeitzMesh(bool triMesh = false) const;
 
 private:
    // Data for mesh of the fundamental domain
@@ -386,10 +411,13 @@ public:
    virtual unsigned int GetNumberPaths()              { return 1; }
    virtual unsigned int GetNumberPathSegments(int i)  { return 4; }
 
+   virtual unsigned int GetNumberTransformations() const { return 4; }
+   virtual const DenseMatrix & GetTransformation(int i) const;
+
    virtual mfem::Mesh * GetFundamentalDomainMesh() const;
 
-   mfem::Mesh * GetWignerSeitzMesh(bool triMesh = false) const;
-   mfem::Mesh * GetPeriodicWignerSeitzMesh(bool triMesh = false) const;
+   // mfem::Mesh * GetWignerSeitzMesh(bool triMesh = false) const;
+   // mfem::Mesh * GetPeriodicWignerSeitzMesh(bool triMesh = false) const;
 
 private:
    // Data for mesh of the fundamental domain

@@ -22,7 +22,8 @@ namespace bravais
 {
 
 BravaisLattice::BravaisLattice(unsigned int dim)
-   : dim_(dim),
+   : T_(dim),
+     dim_(dim),
      vol_(0.0),
      bz_vol_(0.0)
 {
@@ -87,7 +88,7 @@ BravaisLattice::ComputeCellVolume(const vector<Vector> & vecs)
    {
       case 1:
          // Compute the vector norm in 1D
- 	 vol = vecs[0][0]; // assuming displacement vector is positive
+         vol = vecs[0][0]; // assuming displacement vector is positive
          break;
       case 2:
          // Compute the scalar cross product in 2D
@@ -245,6 +246,88 @@ BravaisLattice::GetPathSegmentEndPointIndices(int p, int s,
    e1 = path_[p][s+1];
 }
 
+mfem::Mesh * BravaisLattice::GetWignerSeitzMesh(bool) const
+{
+   unsigned int ntrans = this->GetNumberTransformations();
+
+   Mesh * fd_mesh = this->GetFundamentalDomainMesh();
+
+   int nverts = fd_mesh->GetNV();
+   int nelems = fd_mesh->GetNE();
+
+   Array<int> vi0;
+   Array<int> vi1;
+   double vdata[3];
+   Vector v1(vdata, dim_);
+
+   Mesh * mesh = new Mesh(dim_, nverts * ntrans, nelems * ntrans);
+
+   for (unsigned int i=0; i<ntrans; i++)
+   {
+      const DenseMatrix & T = this->GetTransformation(i);
+
+      double detT = T.Det();
+
+      for (int j=0; j<nverts; j++)
+      {
+         Vector v0(fd_mesh->GetVertex(j), dim_);
+         T.Mult(v0, v1);
+
+         mesh->AddVertex(v1);
+      }
+
+      for (int j=0; j<nelems; j++)
+      {
+         const Element * el = fd_mesh->GetElement(j);
+         int geom = el->GetGeometryType();
+
+         el->GetVertices(vi0);
+
+         vi1.SetSize(vi0.Size());
+         for (int k=0; k<vi0.Size(); k++)
+         {
+            vi1[k] = vi0[k] + i * nverts;
+         }
+
+         if ( detT < 0.0 )
+         {
+            switch (geom)
+            {
+               case Geometry::TRIANGLE:
+                  std::swap(vi1[1], vi1[2]);
+                  break;
+               case Geometry::SQUARE:
+                  std::swap(vi1[1], vi1[3]);
+                  break;
+            }
+         }
+
+         Element * new_elem = mesh->NewElement(geom);
+         new_elem->SetVertices(vi1);
+         new_elem->SetAttribute(i+1);
+         mesh->AddElement(new_elem);
+      }
+   }
+   mesh->GenerateBoundaryElements();
+   mesh->Finalize();
+
+   return mesh;
+}
+
+Mesh *
+BravaisLattice::GetPeriodicWignerSeitzMesh(bool triMesh) const
+{
+   Mesh * mesh = this->GetWignerSeitzMesh(triMesh);
+
+   mesh->UniformRefinement();
+
+   Mesh * per_mesh = MakePeriodicMesh(mesh, trn_vecs_);
+
+   delete mesh;
+
+   return per_mesh;
+}
+
 BravaisLattice1D::BravaisLattice1D(double a)
    : BravaisLattice(1)
    , a_(a)
@@ -299,7 +382,7 @@ LinearLattice::LinearLattice(double a)
 
    // Set Lattice Vectors
    lat_vecs_[0][0] = 1.0;
-   
+
    // Set Reciprocal Lattice Vectors
    rec_vecs_[0][0] = 1.0;
 
@@ -384,6 +467,12 @@ LinearLattice::MapToFundamentalDomain(const Vector & pt, Vector & ipt) const
    return map;
 }
 
+const DenseMatrix & LinearLattice::GetTransformation(int i) const
+{
+   T_(0,0) = (i == 0) ? 1.0 : -1.0;
+   return T_;
+}
+
 Mesh *
 LinearLattice::GetFundamentalDomainMesh() const
 {
@@ -397,7 +486,7 @@ LinearLattice::GetFundamentalDomainMesh() const
 
    return mesh;
 }
-
+/*
 Mesh *
 LinearLattice::GetWignerSeitzMesh(bool triMesh) const
 {
@@ -426,7 +515,7 @@ LinearLattice::GetPeriodicWignerSeitzMesh(bool triMesh) const
 
    return per_mesh;
 }
-
+*/
 SquareLattice::SquareLattice(double a)
    : BravaisLattice2D(a, a, 0.5 * M_PI)
 {
@@ -801,7 +890,8 @@ RectangularLattice::RectangularLattice(double a, double b)
 
    // Set the face radii
    face_radii_.resize(2);
-   for (int i=0; i<2; i++) { face_radii_[i] = 0.5 * a_; }
+   face_radii_[0] = 0.5 * b_;
+   face_radii_[1] = 0.5 * a_;
 
    this->SetCellVolumes();
 
@@ -854,7 +944,7 @@ RectangularLattice::RectangularLattice(double a, double b)
    fd_be2v_[0] = 0; fd_be2v_[1] = 1;
    fd_be2v_[2] = 1; fd_be2v_[3] = 2;
    fd_be2v_[4] = 2; fd_be2v_[5] = 3;
-   fd_be2v_[5] = 3; fd_be2v_[6] = 0;
+   fd_be2v_[6] = 3; fd_be2v_[7] = 0;
 
    fd_belem_att_[0] = 10; fd_belem_att_[1] = 1;
    fd_belem_att_[2] =  1; fd_belem_att_[3] = 10;
@@ -877,7 +967,8 @@ RectangularLattice::RectangularLattice(double a, double b)
 }
 
 bool
-RectangularLattice::MapToFundamentalDomain(const Vector & pt, Vector & ipt) const
+RectangularLattice::MapToFundamentalDomain(const Vector & pt,
+                                           Vector & ipt) const
 {
    bool map = false;
    ipt = pt;
@@ -894,6 +985,30 @@ RectangularLattice::MapToFundamentalDomain(const Vector & pt, Vector & ipt) cons
    return map;
 }
 
+const DenseMatrix & RectangularLattice::GetTransformation(int i) const
+{
+   switch (i)
+   {
+      case 0:
+         T_(0,0) =  1.0; T_(0,1) =  0.0;
+         T_(1,0) =  0.0; T_(1,1) =  1.0;
+         break;
+      case 1:
+         T_(0,0) = -1.0; T_(0,1) =  0.0;
+         T_(1,0) =  0.0; T_(1,1) =  1.0;
+         break;
+      case 2:
+         T_(0,0) = -1.0; T_(0,1) =  0.0;
+         T_(1,0) =  0.0; T_(1,1) = -1.0;
+         break;
+      case 3:
+         T_(0,0) =  1.0; T_(0,1) =  0.0;
+         T_(1,0) =  0.0; T_(1,1) = -1.0;
+         break;
+   }
+   return T_;
+}
+
 Mesh *
 RectangularLattice::GetFundamentalDomainMesh() const
 {
@@ -907,7 +1022,7 @@ RectangularLattice::GetFundamentalDomainMesh() const
 
    return mesh;
 }
-
+/*
 Mesh *
 RectangularLattice::GetWignerSeitzMesh(bool triMesh) const
 {
@@ -936,7 +1051,7 @@ RectangularLattice::GetPeriodicWignerSeitzMesh(bool triMesh) const
 
    return per_mesh;
 }
-
+*/
 CenteredRectangularLattice::CenteredRectangularLattice(double a, double b)
    : BravaisLattice2D(a, b, 0.5 * M_PI)
 {
@@ -1050,7 +1165,7 @@ CenteredRectangularLattice::CenteredRectangularLattice(double a, double b)
 
 bool
 CenteredRectangularLattice::MapToFundamentalDomain(const Vector & pt,
-						   Vector & ipt) const
+                                                   Vector & ipt) const
 {
    bool map = false;
    ipt = pt;
@@ -1084,11 +1199,38 @@ CenteredRectangularLattice::GetFundamentalDomainMesh() const
 Mesh *
 CenteredRectangularLattice::GetWignerSeitzMesh(bool triMesh) const
 {
-   Mesh * mesh = new Mesh((double*)ws_vert_, 4,
-                          (int*)ws_e2v_, Geometry::SQUARE,
-                          (int*)ws_elem_att_, 1,
-                          (int*)ws_be2v_, Geometry::SEGMENT,
-                          (int*)ws_belem_att_, 4,
+   /*
+    Mesh * mesh = new Mesh((double*)ws_vert_, 4,
+                           (int*)ws_e2v_, Geometry::SQUARE,
+                           (int*)ws_elem_att_, 1,
+                           (int*)ws_be2v_, Geometry::SEGMENT,
+                           (int*)ws_belem_att_, 4,
+                           2, 2);
+    mesh->Finalize();
+
+    return mesh;
+   */
+   return NULL;
+}
+
+Mesh *
+CenteredRectangularLattice::GetPeriodicWignerSeitzMesh(bool triMesh) const
+{
+   /*
+   Mesh * mesh = this->GetWignerSeitzMesh(triMesh);
+
+   mesh->UniformRefinement();
+   mesh->UniformRefinement();
+
+   Mesh * per_mesh = MakePeriodicMesh(mesh, trn_vecs_);
+
+   delete mesh;
+
+   return per_mesh;
+   */
+   return NULL;
+}
+
 ObliqueLattice::ObliqueLattice(double a, double b, double gamma)
    : BravaisLattice2D(a, b, gamma)
 {
@@ -1306,7 +1448,7 @@ ObliqueLattice::GetWignerSeitzMesh(bool triMesh) const
 }
 
 Mesh *
-CenteredRectangularLattice::GetPeriodicWignerSeitzMesh(bool triMesh) const
+ObliqueLattice::GetPeriodicWignerSeitzMesh(bool triMesh) const
 {
    Mesh * mesh = this->GetWignerSeitzMesh(triMesh);
 
@@ -1319,7 +1461,7 @@ CenteredRectangularLattice::GetPeriodicWignerSeitzMesh(bool triMesh) const
 
    return per_mesh;
 }
-
+*/
 CubicLattice::CubicLattice(double a)
    : BravaisLattice3D(a, a, a, 0.5 * M_PI, 0.5 * M_PI, 0.5 * M_PI)
 {
