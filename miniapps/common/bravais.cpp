@@ -1089,10 +1089,220 @@ CenteredRectangularLattice::GetWignerSeitzMesh(bool triMesh) const
                           (int*)ws_elem_att_, 1,
                           (int*)ws_be2v_, Geometry::SEGMENT,
                           (int*)ws_belem_att_, 4,
+ObliqueLattice::ObliqueLattice(double a, double b, double gamma)
+   : BravaisLattice2D(a, b, gamma)
+{
+   label_ = "OBL";
+   type_  = PRIMITIVE_OBLIQUE;
+
+   // Set Lattice Vectors
+   lat_vecs_[0][0] = a_; lat_vecs_[0][1] = 0.0;
+   lat_vecs_[1][0] = b_ * cos(gamma_); lat_vecs_[1][1] = b_ * sin(gamma_);
+
+   // Set Reciprocal Lattice Vectors
+   rec_vecs_[0][0] = 1.0 / a_; rec_vecs_[0][1] = -1.0 / (a_ * tan(gamma_));
+   rec_vecs_[1][0] = 0.0; rec_vecs_[1][1] = 1.0 / (b_ * sin(gamma_));
+
+   // Set Translation Vectors
+   trn_vecs_.resize(3);
+   for (unsigned int i=0; i<trn_vecs_.size(); i++)
+   {
+      trn_vecs_[i].SetSize(2);
+   }
+   trn_vecs_[0] =  lat_vecs_[0];
+   trn_vecs_[1] =  lat_vecs_[1];
+   trn_vecs_[2] =  lat_vecs_[0]; trn_vecs_[2] -= lat_vecs_[1];
+
+   // Set the face radii
+   double cosg = cos(gamma_);
+   double sing = sin(gamma_);
+   double cscg = 1.0 / sing;
+   face_radii_.resize(3);
+   face_radii_[0] = 0.5 * (b_ - a_ * cosg) * cscg;
+   face_radii_[1] = 0.5 * (a_ - b_ * cosg) * cscg;
+   face_radii_[2] = 0.5 * sqrt(a_ * a_ + b_ * b_ - 2.0 * a_ * b_ * cosg)
+                    * cosg * cscg;
+
+   this->SetCellVolumes();
+
+   // Allocate sl_, sp_, and path_ vectors
+   this->SetVectorSizes();
+
+   // Set Symmetry Points and Labels
+   double sing2 = pow(sing, 2.0);
+   double eta = 0.5 * (1.0 - a_ * cosg / b_) / sing2;
+   double nu = 0.5 - eta * b_ * cosg / a_;
+
+   sl_[0] = "Gamma";
+   sp_[0] = 0.0;
+
+   sl_[1] = "Y";
+   sp_[1].Set(0.5, rec_vecs_[1]);
+
+   sl_[2] = "H";
+   add(eta, rec_vecs_[0], 1.0-nu, rec_vecs_[1], sp_[2]);
+
+   sl_[3] = "C";
+   add(0.5, rec_vecs_[0], 0.5, rec_vecs_[1], sp_[3]);
+
+   sl_[4] = "H1";
+   add(1.0-eta, rec_vecs_[0], nu, rec_vecs_[1], sp_[4]);
+
+   sl_[5] = "X";
+   sp_[5].Set(0.5, rec_vecs_[0]);
+
+   sl_[6] = "H2";
+   add(eta, rec_vecs_[0], -nu, rec_vecs_[1], sp_[6]);
+
+   sl_[7] = "Y1";
+   sp_[7].Set(-0.5, rec_vecs_[1]);
+
+   for (unsigned int i=0; i<sl_.size(); i++)
+   {
+      si_[sl_[i]] = i;
+   }
+
+   // Define Paths
+   path_[0][0] = 0;
+   path_[0][1] = 1;
+   path_[0][2] = 2;
+   path_[0][3] = 3;
+   path_[0][4] = 4;
+   path_[0][5] = 5;
+   path_[0][6] = 6;
+   path_[0][7] = 7;
+   path_[0][8] = 0;
+
+   // Set Intermediate Symmetry Points
+   this->SetIntermediatePoints();
+
+   // Set Intermediate Symmetry Point Labels
+   il_[0][0] = "GammaY";  // Gamma -> Y
+   il_[0][1] = "YH";      // Y     -> H
+   il_[0][2] = "HC";      // H     -> C
+   il_[0][3] = "CH1";     // C     -> H1
+   il_[0][4] = "H1X";     // H1    -> X
+   il_[0][5] = "XH2";     // X     -> H2
+   il_[0][6] = "H2Y1";    // H2    -> Y1
+   il_[0][7] = "Y1Gamma"; // Y1     -> Gamma
+
+   // Set Mesh data
+   double cos2g = cos(2.0 * gamma_);
+
+   fd_vert_[ 0] =  0.0;
+   fd_vert_[ 1] =  0.0;
+   fd_vert_[ 2] =  0.0;
+
+   fd_vert_[ 3] = -0.5 * b_ * cosg;
+   fd_vert_[ 4] = -0.5 * b_ * sing;
+   fd_vert_[ 5] =  0.0;
+
+   fd_vert_[ 6] =  0.5 * a_ - b_ * cosg;
+   fd_vert_[ 7] = -0.5 * (a_ * cosg - b_ * cos2g) * cscg;
+   fd_vert_[ 8] =  0.0;
+
+   fd_vert_[ 9] =  0.5 * (a_ - b_ * cosg);
+   fd_vert_[10] = -0.5 * b_ * sing;
+   fd_vert_[11] =  0.0;
+
+   fd_vert_[12] =  0.5 * a_;
+   fd_vert_[13] =  0.5 * (a_ * cosg - b_) * cscg;
+   fd_vert_[14] =  0.0;
+
+   fd_vert_[15] =  0.5 * a_;
+   fd_vert_[16] =  0.0;
+   fd_vert_[17] =  0.0;
+
+   fd_vert_[18] =  0.5 * a_;
+   fd_vert_[19] =  0.5 * (b_ - a_ * cosg) * cscg;
+   fd_vert_[20] =  0.0;
+
+   fd_vert_[21] =  0.5 * b_ * cosg;
+   fd_vert_[22] =  0.5 * b_ * sing;
+   fd_vert_[23] =  0.0;
+
+   fd_e2v_[ 0] = 0; fd_e2v_[ 1] = 1; fd_e2v_[ 2] = 2;
+   fd_e2v_[ 3] = 0; fd_e2v_[ 4] = 2; fd_e2v_[ 5] = 3;
+   fd_e2v_[ 6] = 0; fd_e2v_[ 7] = 3; fd_e2v_[ 8] = 4;
+   fd_e2v_[ 9] = 0; fd_e2v_[10] = 4; fd_e2v_[11] = 5;
+   fd_e2v_[12] = 0; fd_e2v_[13] = 5; fd_e2v_[14] = 6;
+   fd_e2v_[15] = 0; fd_e2v_[16] = 6; fd_e2v_[17] = 7;
+   fd_elem_att_[0] = 1; fd_elem_att_[1] = 1; fd_elem_att_[2] = 1;
+   fd_elem_att_[3] = 1; fd_elem_att_[4] = 1; fd_elem_att_[5] = 1;
+
+   fd_be2v_[ 0] = 0; fd_be2v_[ 1] = 1;
+   fd_be2v_[ 2] = 1; fd_be2v_[ 3] = 2;
+   fd_be2v_[ 4] = 2; fd_be2v_[ 5] = 3;
+   fd_be2v_[ 6] = 3; fd_be2v_[ 7] = 4;
+   fd_be2v_[ 8] = 4; fd_be2v_[ 9] = 5;
+   fd_be2v_[10] = 5; fd_be2v_[11] = 6;
+   fd_be2v_[12] = 6; fd_be2v_[13] = 7;
+   fd_be2v_[14] = 7; fd_be2v_[15] = 0;
+
+   fd_belem_att_[0] = 10; fd_belem_att_[1] = 1;
+   fd_belem_att_[2] =  1; fd_belem_att_[3] = 1;
+   fd_belem_att_[4] =  1; fd_belem_att_[5] = 1;
+   fd_belem_att_[6] =  1; fd_belem_att_[7] = 10;
+   /*
+   ws_vert_[0] = -0.5 * a_; ws_vert_[ 1] = -0.5 * b_; ws_vert_[ 2] = 0.0;
+   ws_vert_[3] =  0.5 * a_; ws_vert_[ 4] = -0.5 * b_; ws_vert_[ 5] = 0.0;
+   ws_vert_[6] =  0.5 * a_; ws_vert_[ 7] =  0.5 * b_; ws_vert_[ 8] = 0.0;
+   ws_vert_[9] = -0.5 * a_; ws_vert_[10] =  0.5 * b_; ws_vert_[11] = 0.0;
+
+   ws_e2v_[0] = 0; ws_e2v_[1] = 1; ws_e2v_[2] = 2; ws_e2v_[3] = 3;
+   ws_elem_att_[0] = 1;
+
+   ws_be2v_[0] = 0; ws_be2v_[1] = 1;
+   ws_be2v_[2] = 1; ws_be2v_[3] = 2;
+   ws_be2v_[4] = 2; ws_be2v_[5] = 3;
+   ws_be2v_[6] = 3; ws_be2v_[7] = 0;
+
+   ws_belem_att_[0] = 1; ws_belem_att_[1] = 1;
+   ws_belem_att_[2] = 1; ws_belem_att_[3] = 1;
+   */
+}
+
+bool
+ObliqueLattice::MapToFundamentalDomain(const Vector & pt,
+                                       Vector & ipt) const
+{
+   bool map = false;
+   ipt = pt;
+   if ( tan(gamma_) * ipt[0] < ipt[1] )
+   {
+      ipt[0] *= -1.0;
+      ipt[1] *= -1.0;
+      map = true;
+   }
+   return map;
+}
+
+Mesh *
+ObliqueLattice::GetFundamentalDomainMesh() const
+{
+   Mesh * mesh = new Mesh((double*)fd_vert_, 8,
+                          (int*)fd_e2v_, Geometry::TRIANGLE,
+                          (int*)fd_elem_att_, 6,
+                          (int*)fd_be2v_, Geometry::SEGMENT,
+                          (int*)fd_belem_att_, 8,
                           2, 2);
    mesh->Finalize();
 
    return mesh;
+}
+/*
+Mesh *
+ObliqueLattice::GetWignerSeitzMesh(bool triMesh) const
+{
+    Mesh * mesh = new Mesh((double*)ws_vert_, 4,
+                           (int*)ws_e2v_, Geometry::SQUARE,
+                           (int*)ws_elem_att_, 1,
+                           (int*)ws_be2v_, Geometry::SEGMENT,
+                           (int*)ws_belem_att_, 4,
+                           2, 2);
+    mesh->Finalize();
+
+    return mesh;
 }
 
 Mesh *
@@ -6711,7 +6921,10 @@ BravaisLatticeFactory(BRAVAIS_LATTICE_TYPE lattice_type,
       case PRIMITIVE_OBLIQUE:
          // Oblique Lattice
          // lattice_label = "OBL";
-         if ( a <= 0.0 ) { a = 1.0; }
+         if ( a <= 0.0 ) { a = 0.5; }
+         if ( b <= 0.0 ) { b = 1.0; }
+         if ( gamma <= 0.0 ) { gamma = 0.25 * M_PI; }
+         bravais = new ObliqueLattice(a, b, gamma);
          break;
       case PRIMITIVE_CUBIC:
          // Cubic Lattice

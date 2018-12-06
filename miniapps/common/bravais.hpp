@@ -441,6 +441,42 @@ private:
    int ws_belem_att_[4]; // Boundary element Attributes
 };
 
+class ObliqueLattice : public BravaisLattice2D
+{
+public:
+   ObliqueLattice(double a = 0.5, double b = 1.0, double gamma = 0.4 * M_PI);
+
+   virtual bool MapToFundamentalDomain(const Vector & pt,
+                                       Vector & ipt) const;
+
+   virtual unsigned int GetNumberSymmetryPoints()     { return 8; }
+   virtual unsigned int GetNumberIntermediatePoints() { return 8; }
+   virtual unsigned int GetNumberPaths()              { return 1; }
+   virtual unsigned int GetNumberPathSegments(int i)  { return 8; }
+
+   virtual mfem::Mesh * GetFundamentalDomainMesh() const;
+
+   // mfem::Mesh * GetWignerSeitzMesh(bool triMesh = false) const;
+   // mfem::Mesh * GetPeriodicWignerSeitzMesh(bool triMesh = false) const;
+
+private:
+   // Data for mesh of the fundamental domain
+   double fd_vert_[24];  // Vertex coordinates
+   int fd_e2v_[18];      // Element to vertex connectivity
+   int fd_elem_att_[6];  // Element Attributes
+   int fd_be2v_[16];     // Boundary Element to vertex connectivity
+   int fd_belem_att_[8]; // Boundary element Attributes
+
+   // Data for mesh of the corresponding Wigner-Setiz Cell
+   /*
+    double ws_vert_[12];  // Vertex coordinates
+    int ws_e2v_[4];       // Element to vertex connectivity
+    int ws_elem_att_[1];  // Element Attributes
+    int ws_be2v_[8];      // Boundary Element to vertex connectivity
+    int ws_belem_att_[4]; // Boundary element Attributes
+   */
+};
+
 class CubicLattice : public BravaisLattice3D
 {
 public:
