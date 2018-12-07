@@ -42,9 +42,13 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
    const bool cuda = mfem::config::Cuda();
    if (nvcc and cuda)
    {
-      return cuWrap<BLOCK_SZ>(N,d_body);
+      printf("\033[32mCUDA cuWrap\033[m"); fflush(0);
+      cuWrap<BLOCK_SZ>(N,d_body);
+      return;
    }
+   printf("\n\033[33mHOST for\033[m"); fflush(0);
    for (size_t k=0; k<N; k+=1) { h_body(k); }
+   printf("\n\033[33mdone\033[m"); fflush(0);
 }
 
 // *****************************************************************************
@@ -102,6 +106,6 @@ void dbg_F_L_F_N_A(const char*, const int, const char*, const int, ...);
 //#define stop(...) assert(false)
 
 // *****************************************************************************
-#define ok(...) assert(__FILE__ and __LINE__ and __VA_ARGS__);
+//#define ok(...) assert(__FILE__ and __LINE__ and __VA_ARGS__);
 
 #endif // MFEM_OKINA_HPP

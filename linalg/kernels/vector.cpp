@@ -118,6 +118,7 @@ double cuVectorDot(const size_t N, const double *x, const double *y)
 // *****************************************************************************
 double kVectorMin(const size_t N, const double *x)
 {
+   push();
    GET_CUDA;
    GET_CONST_ADRS(x);
 
@@ -128,7 +129,7 @@ double kVectorMin(const size_t N, const double *x)
 #endif // __NVCC__
    }
 
-   double min = 1.e300;
+   double min = std::numeric_limits<double>::infinity();
    for (size_t i=0; i<N; i+=1) { min = fmin(min, d_x[i]); }
    return min;
 }
