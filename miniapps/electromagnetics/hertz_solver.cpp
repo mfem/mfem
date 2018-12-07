@@ -638,13 +638,14 @@ HertzSolver::Solve()
          solver.SetOperator(A_SuperLU);
          solver.Mult(RHS, E);
          delete A1C;
-         delete A1Z;
+         // delete A1Z;
       }
       break;
 #endif
 #ifdef MFEM_USE_STRUMPACK
       case STRUMPACK:
       {
+         //A1.SetOperatorOwner(false);
          ComplexHypreParMatrix * A1Z = A1.As<ComplexHypreParMatrix>();
          HypreParMatrix * A1C = A1Z->GetSystemMatrix();
          STRUMPACKRowLocMatrix A_STRUMPACK(*A1C);
@@ -652,7 +653,7 @@ HertzSolver::Solve()
          solver.SetOperator(A_STRUMPACK);
          solver.Mult(RHS, E);
          delete A1C;
-         delete A1Z;
+         // delete A1Z;
       }
       break;
 #endif
