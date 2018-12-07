@@ -2408,6 +2408,68 @@ void ParNCMesh::RebalanceDofMessage::Decode(int)
 }
 
 
+//// SFC Ordering //////////////////////////////////////////////////////////////
+
+static int sgn(int x)
+{
+   return (x < 0) ? -1 : (x > 0) ? 1 : 0;
+}
+
+static void HilbertSfc(int x, int y, int ax, int ay, int bx, int by,
+                       Array<int> &coords)
+{
+   int w = std::abs(ax + ay);
+   int h = std::abs(bx + by);
+
+   if (w == 1 || h == 1)
+   {
+      coords.Append(x);
+      coords.Append(y);
+      return;
+   }
+
+   int ax2 = ax/2, ay2 = ay/2;
+   int bx2 = bx/2, by2 = by/2;
+
+   if (2*w > 3*h)
+   {
+      HilbertSfc(x, y, ax2, ay2, bx, by, coords);
+      HilbertSfc(x+ax2, y+ay2, ax2, ay2, bx, by, coords);
+      return;
+   }
+
+   MFEM_VERIFY(!(w & 0x1), "w not even");
+   MFEM_VERIFY(!(h & 0x1), "h not even");
+
+   HilbertSfc(x, y, bx2, by2, ax2, ay2, coords);
+   HilbertSfc(x+bx2, y+by2, ax2, ay2, bx2, by2, coords);
+   HilbertSfc(x+ax2+bx2, y+ay2+by2, ax2, ay2, bx2, by2, coords);
+   x = x - sgn(ax) - sgn(bx);
+   y = y - sgn(ay) - sgn(by);
+   HilbertSfc(x+ax+bx2, y+ay+by2, -bx2, -by2, -ax2, -ay2, coords);
+}
+
+
+void ParNCMesh::GridSfcOrdering(int width, int height, Array<int> &ordering)
+{
+   Array<int> coords;
+   if (width > height)
+   {
+      HilbertSfc(0, 0, width, 0, 0, height, coords);
+   }
+   else
+   {
+      HilbertSfc(0, 0, 0, height, width, 0, coords);
+   }
+   coords.Print(mfem::out, 2);
+}
+
+void ParNCMesh::GridSfcOrdering3D(int dims[3], Array<int> &ordering)
+{
+   // TODO
+}
+
+
 //// Utility ///////////////////////////////////////////////////////////////////
 
 void ParNCMesh::GetDebugMesh(Mesh &debug_mesh) const
