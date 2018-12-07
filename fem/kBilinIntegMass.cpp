@@ -47,7 +47,7 @@ void KMassIntegrator::SetOperator(Vector &v)
 // *****************************************************************************
 void KMassIntegrator::MultAdd(Vector &x, Vector &y)
 {
-   push();
+   //push();
    Mesh *mesh = fes->GetMesh();
    const int dim = mesh->Dimension();
    const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();

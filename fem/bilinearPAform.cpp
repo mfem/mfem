@@ -209,7 +209,7 @@ void PABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
 // ***************************************************************************
 void PABilinearForm::Mult(const Vector &x, Vector &y) const
 {
-   push();
+   //push();
    kfes->GlobalToLocal(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
@@ -224,7 +224,7 @@ void PABilinearForm::Mult(const Vector &x, Vector &y) const
 // ***************************************************************************
 void PABilinearForm::MultTranspose(const Vector &x, Vector &y) const
 {
-   push();
+   //push();
    kfes->GlobalToLocal(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();

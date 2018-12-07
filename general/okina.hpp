@@ -42,13 +42,10 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
    const bool cuda = mfem::config::Cuda();
    if (nvcc and cuda)
    {
-      printf("\033[32mCUDA cuWrap\033[m"); fflush(0);
       cuWrap<BLOCK_SZ>(N,d_body);
       return;
    }
-   printf("\n\033[33mHOST for\033[m"); fflush(0);
    for (size_t k=0; k<N; k+=1) { h_body(k); }
-   printf("\n\033[33mdone\033[m"); fflush(0);
 }
 
 // *****************************************************************************

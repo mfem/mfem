@@ -247,7 +247,7 @@ void kMassMultAdd(const int DIM,
                   const double* x,
                   double* y)
 {
-   push();
+   //push();
    assert(LOG2(DIM)<=4);
    assert((NUM_QUAD_1D&1)==0);
    assert(LOG2(NUM_DOFS_1D)<=8);
