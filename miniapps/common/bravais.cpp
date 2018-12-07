@@ -301,6 +301,17 @@ mfem::Mesh * BravaisLattice::GetWignerSeitzMesh(bool) const
                case Geometry::SQUARE:
                   std::swap(vi1[1], vi1[3]);
                   break;
+               case Geometry::TETRAHEDRON:
+                  std::swap(vi1[1], vi1[2]);
+                  break;
+               case Geometry::CUBE:
+                  std::swap(vi1[1], vi1[3]);
+                  std::swap(vi1[5], vi1[7]);
+                  break;
+               case Geometry::PRISM:
+                  std::swap(vi1[1], vi1[2]);
+                  std::swap(vi1[4], vi1[5]);
+                  break;
             }
          }
 
@@ -311,8 +322,12 @@ mfem::Mesh * BravaisLattice::GetWignerSeitzMesh(bool) const
       }
    }
    mesh->GenerateBoundaryElements();
-   mesh->FinalizeMesh();
+   mesh->FinalizeMesh(true);
 
+   MergeMeshNodes(mesh);
+
+   delete fd_mesh;
+   
    return mesh;
 }
 
@@ -444,7 +459,7 @@ LinearLattice::LinearLattice(double a)
    fd_be2v_[0] = 0; fd_be2v_[1] = 1;
 
    fd_belem_att_[0] = 10; fd_belem_att_[1] = 1;
-
+   /*
    ws_vert_[0] = -0.5 * a_; ws_vert_[ 1] = 0.0; ws_vert_[ 2] = 0.0;
    ws_vert_[3] =  0.5 * a_; ws_vert_[ 4] = 0.0; ws_vert_[ 5] = 0.0;
 
@@ -454,6 +469,7 @@ LinearLattice::LinearLattice(double a)
    ws_be2v_[0] = 0; ws_be2v_[1] = 1;
 
    ws_belem_att_[0] = 1; ws_belem_att_[1] = 1;
+   */
 }
 
 bool
@@ -816,7 +832,7 @@ HexagonalLattice::HexagonalLattice(double a)
 
    fd_belem_att_[0] = 10; fd_belem_att_[1] = 1;
    fd_belem_att_[2] = 10;
-
+   /*
    for (int i=0; i<21; i++) { ws_vert_[i] = 0.0; }
    ws_vert_[ 0] =  0.0;      ws_vert_[ 1] =  0.0;
    ws_vert_[ 3] =  0.0;      ws_vert_[ 4] = -sqrt(1.0/3.0) * a_;
@@ -842,6 +858,7 @@ HexagonalLattice::HexagonalLattice(double a)
    ws_be2v_[10] = 6; ws_be2v_[11] = 1;
 
    for (int i=0; i<6; i++) { ws_belem_att_[i] = 1; }
+   */
 }
 
 bool
@@ -1182,17 +1199,38 @@ CenteredRectangularLattice::CenteredRectangularLattice(double a, double b)
    rec_vecs_[1][0] = 1.0 / a_; rec_vecs_[1][1] =  1.0 / b_;
 
    // Set Translation Vectors
-   trn_vecs_.resize(2);
+   trn_vecs_.resize(3);
    for (unsigned int i=0; i<trn_vecs_.size(); i++)
    {
       trn_vecs_[i].SetSize(2);
    }
-   trn_vecs_[0][0] = 0.5 * a_; trn_vecs_[0][1] = -0.5 * b_;
-   trn_vecs_[1][0] = 0.5 * a_; trn_vecs_[1][1] =  0.5 * b_;
+   if ( b_ < a_ )
+     {
+       trn_vecs_[0][0] = 0.5 * a_; trn_vecs_[0][1] = -0.5 * b_;
+       trn_vecs_[1][0] = 0.5 * a_; trn_vecs_[1][1] =  0.5 * b_;
+       trn_vecs_[2][0] = 0.0;      trn_vecs_[2][1] = b_;
+     }
+   else
+     {
+       trn_vecs_[0][0] =  a_;       trn_vecs_[0][1] =  0.0;
+       trn_vecs_[1][0] =  0.5 * a_; trn_vecs_[1][1] =  0.5 * b_;
+       trn_vecs_[2][0] = -0.5 * a_; trn_vecs_[2][1] =  0.5 * b_;
+     }
 
    // Set the face radii
-   face_radii_.resize(2);
-   for (int i=0; i<2; i++) { face_radii_[i] = 0.5 * a_; }
+   face_radii_.resize(3);
+   if ( b_ < a_ )
+     {
+       face_radii_[0] = 0.25 * b_ * sqrt(1.0 + b_ * b_  / (a_ * a_));
+       face_radii_[1] = 0.25 * b_ * sqrt(1.0 + b_ * b_  / (a_ * a_));
+       face_radii_[2] = 0.25 * (a_ - b_ * b_ / a_);
+     }
+   else
+     {
+       face_radii_[0] = 0.25 * (b_ - a_ * a_ / b_);
+       face_radii_[1] = 0.25 * a_ * sqrt(1.0 + a_ * a_  / (b_ * b_));
+       face_radii_[2] = 0.25 * a_ * sqrt(1.0 + a_ * a_  / (b_ * b_));
+     }
 
    this->SetCellVolumes();
 
@@ -1256,11 +1294,11 @@ CenteredRectangularLattice::CenteredRectangularLattice(double a, double b)
    fd_be2v_[0] = 0; fd_be2v_[1] = 1;
    fd_be2v_[2] = 1; fd_be2v_[3] = 2;
    fd_be2v_[4] = 2; fd_be2v_[5] = 3;
-   fd_be2v_[5] = 3; fd_be2v_[6] = 0;
+   fd_be2v_[6] = 3; fd_be2v_[7] = 0;
 
    fd_belem_att_[0] = 10; fd_belem_att_[1] = 1;
    fd_belem_att_[2] =  1; fd_belem_att_[3] = 10;
-
+   /*
    ws_vert_[0] = -0.5 * a_; ws_vert_[ 1] = -0.5 * b_; ws_vert_[ 2] = 0.0;
    ws_vert_[3] =  0.5 * a_; ws_vert_[ 4] = -0.5 * b_; ws_vert_[ 5] = 0.0;
    ws_vert_[6] =  0.5 * a_; ws_vert_[ 7] =  0.5 * b_; ws_vert_[ 8] = 0.0;
@@ -1276,6 +1314,7 @@ CenteredRectangularLattice::CenteredRectangularLattice(double a, double b)
 
    ws_belem_att_[0] = 1; ws_belem_att_[1] = 1;
    ws_belem_att_[2] = 1; ws_belem_att_[3] = 1;
+   */
 }
 
 bool
@@ -1299,6 +1338,10 @@ CenteredRectangularLattice::MapToFundamentalDomain(const Vector & pt,
 
 const DenseMatrix & CenteredRectangularLattice::GetTransformation(int i) const
 {
+  T_(0,0) = (i > 0 && i < 3) ? 1.0 : -1.0;
+  T_(0,1) = 0.0;
+  T_(1,0) = 0.0;
+  T_(1,1) = (i < 2) ? 1.0 : -1.0;
   return T_;
 }
   
@@ -1315,11 +1358,10 @@ CenteredRectangularLattice::GetFundamentalDomainMesh() const
 
    return mesh;
 }
-
+/*
 Mesh *
 CenteredRectangularLattice::GetWignerSeitzMesh(bool triMesh) const
 {
-   /*
     Mesh * mesh = new Mesh((double*)ws_vert_, 4,
                            (int*)ws_e2v_, Geometry::SQUARE,
                            (int*)ws_elem_att_, 1,
@@ -1329,14 +1371,11 @@ CenteredRectangularLattice::GetWignerSeitzMesh(bool triMesh) const
     mesh->Finalize();
 
     return mesh;
-   */
-   return NULL;
 }
 
 Mesh *
 CenteredRectangularLattice::GetPeriodicWignerSeitzMesh(bool triMesh) const
 {
-   /*
    Mesh * mesh = this->GetWignerSeitzMesh(triMesh);
 
    mesh->UniformRefinement();
@@ -1347,10 +1386,8 @@ CenteredRectangularLattice::GetPeriodicWignerSeitzMesh(bool triMesh) const
    delete mesh;
 
    return per_mesh;
-   */
-   return NULL;
 }
-
+*/
 ObliqueLattice::ObliqueLattice(double a, double b, double gamma)
    : BravaisLattice2D(a, b, gamma)
 {
@@ -1690,7 +1727,7 @@ CubicLattice::CubicLattice(double a)
 
    fd_belem_att_[0] = 10; fd_belem_att_[1] = 10;
    fd_belem_att_[2] =  1; fd_belem_att_[3] = 10;
-
+   /*
    ws_vert_[ 0] = -0.5 * a_; ws_vert_[ 1] = -0.5 * a_; ws_vert_[ 2] = -0.5 * a_;
    ws_vert_[ 3] =  0.5 * a_; ws_vert_[ 4] = -0.5 * a_; ws_vert_[ 5] = -0.5 * a_;
    ws_vert_[ 6] =  0.5 * a_; ws_vert_[ 7] =  0.5 * a_; ws_vert_[ 8] = -0.5 * a_;
@@ -1712,7 +1749,7 @@ CubicLattice::CubicLattice(double a)
    ws_be2v_[20] = 3; ws_be2v_[21] = 0; ws_be2v_[22] = 4; ws_be2v_[23] = 7;
 
    for (int i=0; i<6; i++) { ws_belem_att_[i] = 1; }
-
+   */
    // Tetrahedral Mesh Data
    /*
    for (int k=0; k<3; k++)
@@ -1728,6 +1765,7 @@ CubicLattice::CubicLattice(double a)
       }
    }
    */
+   /*
    ws_tet_vert_[ 0] =  0.0;
    ws_tet_vert_[ 1] =  0.0;
    ws_tet_vert_[ 2] =  0.0;
@@ -1763,6 +1801,7 @@ CubicLattice::CubicLattice(double a)
       }
       vtx += 4;
    }
+   */
    /*
    for (int k=0; k<4; k++)
    {
@@ -1792,6 +1831,7 @@ CubicLattice::CubicLattice(double a)
      }
    }
    */
+   /*
    int elm = 0;
    // Elements touching plane at x = -a/2
    for (int i=0; i<8; i++)
@@ -1884,6 +1924,7 @@ CubicLattice::CubicLattice(double a)
 
    for (int i=0; i<48; i++) { ws_tet_elem_att_[i]  = 1; }
    for (int i=0; i<48; i++) { ws_tet_belem_att_[i] = 1; }
+   */
 }
 
 bool
@@ -1930,6 +1971,41 @@ CubicLattice::MapToFundamentalDomain(const Vector & pt, Vector & ipt) const
    return map;
 }
 
+const DenseMatrix & CubicLattice::GetTransformation(int i) const
+{
+  int ir = i % 6;
+  int iq = i / 6;
+
+  T_ = 0.0;
+
+  if ( ir % 2 == 0 )
+  {
+    for (int i=0; i<3; i++)
+    {
+      T_(i, (i + (ir / 2)) % 3) = 1.0;
+    }
+  }
+  else
+  {
+    for (int i=0; i<3; i++)
+    {
+      T_(i, (3 - i + (ir / 2)) % 3) = 1.0;
+    }
+  }
+  
+  for (int i=0; i<3; i++)
+  {
+    if ( iq & (int)pow(2, i) )
+    {
+      T_(i,0) *= -1.0;
+      T_(i,1) *= -1.0;
+      T_(i,2) *= -1.0;
+    }
+  }
+  
+  return T_;
+}
+  
 Mesh *
 CubicLattice::GetFundamentalDomainMesh() const
 {
@@ -1943,7 +2019,7 @@ CubicLattice::GetFundamentalDomainMesh() const
 
    return mesh;
 }
-
+/*
 Mesh *
 CubicLattice::GetWignerSeitzMesh(bool tetMesh) const
 {
@@ -1989,7 +2065,7 @@ CubicLattice::GetPeriodicWignerSeitzMesh(bool tetMesh) const
 
    return per_mesh;
 }
-
+*/
 FaceCenteredCubicLattice::FaceCenteredCubicLattice(double a)
    : BravaisLattice3D(a, a, a, 0.5 * M_PI, 0.5 * M_PI, 0.5 * M_PI)
 {

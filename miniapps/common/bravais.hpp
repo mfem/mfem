@@ -403,13 +403,14 @@ private:
    int fd_elem_att_[1];  // Element Attributes
    int fd_be2v_[6];      // Boundary Element to vertex connectivity
    int fd_belem_att_[3]; // Boundary element Attributes
-
+  /*
    // Data for mesh of the corresponding Wigner-Setiz Cell
    double ws_vert_[21];  // Vertex coordinates
    int ws_e2v_[12];      // Element to vertex connectivity
    int ws_elem_att_[3];  // Element Attributes
    int ws_be2v_[12];     // Boundary Element to vertex connectivity
    int ws_belem_att_[6]; // Boundary element Attributes
+  */
 };
 
 class RectangularLattice : public BravaisLattice2D
@@ -467,8 +468,8 @@ public:
 
    virtual mfem::Mesh * GetFundamentalDomainMesh() const;
 
-   mfem::Mesh * GetWignerSeitzMesh(bool triMesh = false) const;
-   mfem::Mesh * GetPeriodicWignerSeitzMesh(bool triMesh = false) const;
+  // mfem::Mesh * GetWignerSeitzMesh(bool triMesh = false) const;
+  // mfem::Mesh * GetPeriodicWignerSeitzMesh(bool triMesh = false) const;
 
 private:
    // Data for mesh of the fundamental domain
@@ -477,13 +478,14 @@ private:
    int fd_elem_att_[1];  // Element Attributes
    int fd_be2v_[8];      // Boundary Element to vertex connectivity
    int fd_belem_att_[4]; // Boundary element Attributes
-
+  /*
    // Data for mesh of the corresponding Wigner-Setiz Cell
    double ws_vert_[12];  // Vertex coordinates
    int ws_e2v_[4];       // Element to vertex connectivity
    int ws_elem_att_[1];  // Element Attributes
    int ws_be2v_[8];      // Boundary Element to vertex connectivity
    int ws_belem_att_[4]; // Boundary element Attributes
+  */
 };
 
 class ObliqueLattice : public BravaisLattice2D
@@ -538,10 +540,13 @@ public:
    virtual unsigned int GetNumberPaths()              { return 2; }
    virtual unsigned int GetNumberPathSegments(int i)  { return (i==0)?5:1; }
 
+   unsigned int GetNumberTransformations() const { return 48; }
+   const DenseMatrix & GetTransformation(int i) const;
+
    virtual mfem::Mesh * GetFundamentalDomainMesh() const;
 
-   mfem::Mesh * GetWignerSeitzMesh(bool tetMesh = false) const;
-   mfem::Mesh * GetPeriodicWignerSeitzMesh(bool tetMesh = false) const;
+  // mfem::Mesh * GetWignerSeitzMesh(bool tetMesh = false) const;
+  // mfem::Mesh * GetPeriodicWignerSeitzMesh(bool tetMesh = false) const;
 
 private:
    // Data for mesh of the fundamental domain
@@ -550,7 +555,7 @@ private:
    int fd_elem_att_[1];  // Element Attributes
    int fd_be2v_[12];     // Boundary Element to vertex connectivity
    int fd_belem_att_[4]; // Boundary element Attributes
-
+  /*
    // Data for mesh of the corresponding Wigner-Setiz Cell
    double ws_vert_[24];  // Vertex coordinates
    int ws_e2v_[8];       // Element to vertex connectivity
@@ -563,6 +568,7 @@ private:
    int ws_tet_elem_att_[48];  // Element Attributes
    int ws_tet_be2v_[144];     // Boundary Element to vertex connectivity
    int ws_tet_belem_att_[48]; // Boundary element Attributes
+  */
 };
 
 class FaceCenteredCubicLattice : public BravaisLattice3D
