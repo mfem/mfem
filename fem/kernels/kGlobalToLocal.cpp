@@ -24,7 +24,7 @@ void kGlobalToLocal(const int NUM_VDIM,
                     const double* __restrict globalX,
                     double* __restrict localX)
 {
-   //push();
+   push();
    GET_CONST_ADRS_T(offsets,int);
    GET_CONST_ADRS_T(indices,int);
    GET_CONST_ADRS(globalX);

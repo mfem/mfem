@@ -247,7 +247,7 @@ void kMassMultAdd(const int DIM,
                   const double* x,
                   double* y)
 {
-   //push();
+   push();
    assert(LOG2(DIM)<=4);
    assert((NUM_QUAD_1D&1)==0);
    assert(LOG2(NUM_DOFS_1D)<=8);
@@ -305,24 +305,16 @@ void kMassMultAdd(const int DIM,
    }
    assert(call[id]);
 
-   //dbg("dofToQuad");
    GET_CONST_ADRS(dofToQuad);
    GET_CONST_ADRS(dofToQuadD);
    GET_CONST_ADRS(quadToDof);
    GET_CONST_ADRS(quadToDofD);
-   //dbg("op");
    GET_CONST_ADRS(op);
-   //dbg("x");
    GET_CONST_ADRS(x);
-   //dbg("y");
    GET_ADRS(y);
-   
-   //dbg("call");
    call[id](numElements,
             d_dofToQuad, d_dofToQuadD, d_quadToDof, d_quadToDofD,
             d_op, d_x, d_y);
-   //dbg("done");
-   pop();
 }
 
 } // mfem

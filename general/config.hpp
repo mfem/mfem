@@ -62,7 +62,7 @@ private:
 
    // **************************************************************************
    inline bool GetCuda() { return cuda; }
-   inline void SetCuda(const bool mode) { cuda = mode;}
+   void SetCuda(const bool);
 
    // **************************************************************************
    inline bool GetPA() { return pa; }

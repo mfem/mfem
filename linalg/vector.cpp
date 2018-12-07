@@ -561,7 +561,6 @@ void Vector::SetSubVectorComplement(const Array<int> &dofs, const double val)
 void Vector::Print(std::ostream &out, int width) const
 {
    if (!size) { return; }
-   mm::Get().Pull(data);
    for (int i = 0; 1; )
    {
       out << data[i];

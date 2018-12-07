@@ -134,6 +134,7 @@ void* mm::Adrs(const void *adrs)
       //dbg("Returning HOST_@");
       return mm.h_adrs;
    }
+   assert(false);
    
    // If it hasn't been seen, and we are a ranger,
    // the base should be alloc'ed!
@@ -250,25 +251,39 @@ memory mm::Memory(const void *adrs)
 }
 
 // *****************************************************************************
+// * Sync:        !cuda  | cuda
+// *        host | Push  | Push
+// *       !host | Pull  | Pull
+// *****************************************************************************
+void mm::Sync_p(const void *adrs)
+{
+   push();
+   MFEM_ASSERT(Known(adrs), "[ERROR] Trying to SYNC an unknown address!");
+   const mm2dev_t &m = mng->operator[](adrs);
+   if (m.host) { Push(adrs); return; }
+   Pull(adrs);
+}
+
+// *****************************************************************************
 void mm::Push(const void *adrs)
 {
-   //push();
-   MFEM_ASSERT(Known(adrs), "[ERROR] Trying to push an unknown address!");
+   push(); BUILTIN_TRAP;
+   MFEM_ASSERT(Known(adrs), "[ERROR] Trying to PUSH an unknown address!");
    mm2dev_t &mm = mng->operator[](adrs);
    if (not mm.host) {
-      //dbg("\033[33;1mAlready on device!");
+      dbg("\033[33;1mAlready on device!");
       return;
    }
    const bool cuda = config::Cuda();
    if (not cuda){
-      //dbg("\033[33;1mNo device ready!");
+      dbg("\033[33;1mNo device ready!");
       return;
    }
-   //dbg("\033[31;1mHtoD");
+   dbg("\033[31;1mHtoD");
    if (not mm.d_adrs){
-      //assert(mm.d_adrs);
-      //dbg("\033[31;1mNO @, getting one for you!");
-      volatile GET_ADRS(adrs);
+      dbg("\033[31;1mNO @, getting one for you!");
+      assert(mm.d_adrs);
+      //volatile GET_ADRS(adrs);
    }
    okMemcpyHtoD(mm.d_adrs, mm.h_adrs, mm.bytes);
    mm.host = false;
@@ -277,25 +292,29 @@ void mm::Push(const void *adrs)
 // *****************************************************************************
 void mm::Pull(const void *adrs)
 {
-   //push();
+   push(); BUILTIN_TRAP;
    const bool insert_if_in_range = true;
    const bool known = Known(adrs, insert_if_in_range);
    if (not known) { BUILTIN_TRAP; }
-   MFEM_ASSERT(known, "[ERROR] Trying to pull an unknown address!");
+   MFEM_ASSERT(known, "[ERROR] Trying to PULL an unknown address!");
    mm2dev_t &mm = mng->operator[](adrs);
    if (mm.host) {
-      //dbg("Already on host!");
+      dbg("Already on host!");
       return;
    }
    const bool cuda = config::Cuda();
    if (not cuda){
-      //dbg("\033[33;1mNo device ready!");
+      dbg("\033[33;1mNo device ready!");
       return;
    }
-   mm.host = true;
-   //dbg("\033[31;1mDtoH");
-   assert(mm.d_adrs);
+   dbg("\033[31;1mDtoH");
+   if (not mm.d_adrs){
+      dbg("\033[31;1mNO @, getting one for you!");
+      assert(mm.d_adrs);
+      //volatile GET_ADRS(adrs);
+   }
    okMemcpyDtoH(mm.h_adrs, mm.d_adrs, mm.bytes);
+   mm.host = true;
    return;/*
    if (config::Cuda())
    {

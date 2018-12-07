@@ -352,7 +352,6 @@ double kDet2(const double *data)
    MFEM_FORALL(k, 1,
                d_result[0] = d_data[0] * d_data[3] - d_data[1] * d_data[2];
                );
-   //mm::Get().Pull(d_result);
    return result[0];
 }
 
