@@ -275,7 +275,7 @@ private:
    ParFABilinearForm *pfabf;
 public:
    ParBilinearForm(ParFiniteElementSpace *f):
-      FA(config::Get().PA()==false),
+      FA(config::PA()==false),
       ppabf(FA?NULL:new ParPABilinearForm(f)),
       pfabf(FA?new ParFABilinearForm(f):NULL)
    { }
