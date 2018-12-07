@@ -812,22 +812,84 @@ public:
       bdrIntNeighbor.SetSize(ne*nd, nd*numBdrs); bdrIntNeighbor = 0.;
       neighborDof.SetSize(ne*numDofs, numBdrs);
       
+      double dist = 1. / double(p);
+      Vector velEval;
+      
       for (k = 0; k < ne; k++)
       {
          ///////////////////////////
          // Element contributions //
          ///////////////////////////
-         for (i = 0; i < numSubcells; i++)
+         const FiniteElement &el = *fes->GetFE(k);
+         tr = mesh->GetElementTransformation(k);
+         const IntegrationRule ir = el.GetNodes();
+         double hx, hy, hz; // NOTE: right now only working for structured, equidistant meshes, no curvature
+         IntegrationPoint ip1 = el.GetNodes().IntPoint(ir.GetNPoints()-1);
+         IntegrationPoint ip0 = el.GetNodes().IntPoint(0);
+         IntegrationPoint ip; // TODO clean up
+         
+         double mid[dim];
+         
+         if (dim==1)
          {
-            dofInd = numSubcells*k+i;
-            const FiniteElement *el0 = SubFes0.GetFE(dofInd);
-            const FiniteElement *el1 = SubFes1.GetFE(dofInd);
-            tr = ref_mesh->GetElementTransformation(dofInd);
-            
-            fluct->AssembleElementMatrix2(*el1, *el0, *tr, elmat);
-            
-            for (j = 0; j < numDofsSubcell; j++)
-               fluctSub(dofInd, j) = elmat(0,j);
+            for (i = 0; i < p; i++)
+            {
+               dofInd = numSubcells*k + i;
+               mid[0] = (0.5 + double(i)) * dist;
+               ip.Set(mid, dim);
+               coef.Eval(velEval, *tr, ip);
+               
+               fluctSub(dofInd, 0) =  velEval(0);
+               fluctSub(dofInd, 1) = -velEval(0);
+            }
+         }
+         else if (dim==2)
+         {
+            hx = hy = sqrt(4. / double(ne*numSubcells));
+            for (j = 0; j < p; j++)
+            {
+               mid[1] = (0.5 + double(j)) * dist;
+               for (i = 0; i < p; i++)
+               {
+                  dofInd = numSubcells*k + p*j + i;
+                  mid[0] = (0.5 + double(i)) * dist;
+                  ip.Set(mid, dim);
+                  coef.Eval(velEval, *tr, ip);
+                  
+                  fluctSub(dofInd, 0) =  hx/2. * velEval(0) + hy/2. * velEval(1);
+                  fluctSub(dofInd, 1) = -hx/2. * velEval(0) + hy/2. * velEval(1);
+                  fluctSub(dofInd, 2) =  hx/2. * velEval(0) - hy/2. * velEval(1);
+                  fluctSub(dofInd, 3) = -hx/2. * velEval(0) - hy/2. * velEval(1);
+               }
+            }
+         }
+         else // dim==3
+         {
+            hx = hy = pow(8. / double(ne*numSubcells), 1./3.);
+            for (m = 0; m < p; m++)
+            {
+               mid[2] = (0.5 + double(m)) * dist;
+               for (j = 0; j < p; j++)
+               {
+                  mid[1] = (0.5 + double(j)) * dist;
+                  for (i = 0; i < p; i++)
+                  {
+                     dofInd = numSubcells*k + p*p*m + p*j + i;
+                     mid[0] = (0.5 + double(i)) * dist;
+                     ip.Set(mid, dim);
+                     coef.Eval(velEval, *tr, ip);
+                     
+                     fluctSub(dofInd, 0) =  hx/4. * velEval(0) + hy/4. * velEval(1) + hz/4. * velEval(2);
+                     fluctSub(dofInd, 1) = -hx/4. * velEval(0) + hy/4. * velEval(1) + hz/4. * velEval(2);
+                     fluctSub(dofInd, 2) =  hx/4. * velEval(0) - hy/4. * velEval(1) + hz/4. * velEval(2);
+                     fluctSub(dofInd, 3) = -hx/4. * velEval(0) - hy/4. * velEval(1) + hz/4. * velEval(2);
+                     fluctSub(dofInd, 4) =  hx/4. * velEval(0) + hy/4. * velEval(1) - hz/4. * velEval(2);
+                     fluctSub(dofInd, 5) = -hx/4. * velEval(0) + hy/4. * velEval(1) - hz/4. * velEval(2);
+                     fluctSub(dofInd, 6) =  hx/4. * velEval(0) - hy/4. * velEval(1) - hz/4. * velEval(2);
+                     fluctSub(dofInd, 7) = -hx/4. * velEval(0) - hy/4. * velEval(1) - hz/4. * velEval(2);
+                  }
+               }
+            }
          }
 
          ////////////////////////////
@@ -840,7 +902,6 @@ public:
          else if (dim==3)
             mesh->GetElementFaces(k, bdrs, orientation);
          
-         const FiniteElement &el = *fes->GetFE(k);
          FillNeighborDofs(mesh, numDofs, k, nd, p, dim, bdrs);
          
          for (i = 0; i < numBdrs; i++)
@@ -1450,6 +1511,9 @@ int main(int argc, char *argv[])
               << " Press space (in the GLVis window) to resume it.\n";
       }
    }
+   
+   // check for conservation TODO
+   double mass = fct.lumpedM * u;
 
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
@@ -1498,6 +1562,9 @@ int main(int argc, char *argv[])
       osol.precision(precision);
       u.Save(osol);
    }
+   
+   // check for conservation TODO
+   cout << "initial mass: " << mass << ", final mass: " << fct.lumpedM * u << ", mass loss: " << mass - fct.lumpedM * u << endl;
 
    // 10. Free the used memory.
    delete mesh;
@@ -1586,6 +1653,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       {
          K.AddMult(x, y);
          y -= z;
+         numBdrs = 0; // Nothing needs to be done for 1D boundaries (due to Bernstein basis)
       }
 
       // Monotonicity terms
@@ -1598,8 +1666,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          if (dim==1)
          {
             numSubcells = p;
-            numDofsSubcell = 2;
-            numBdrs = 0; // Nothing needs to be done for 1D boundaries (due to Bernstein basis)
+            numDofsSubcell = 2; // TODO put into fct
          }
          else if (dim==2)
          {
