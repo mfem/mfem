@@ -7927,6 +7927,80 @@ OldMakePeriodicMesh(Mesh * mesh, const vector<Vector> & trans_vecs, int logging)
    return per_mesh;
 }
 
+void
+MergeMeshNodes(Mesh * mesh, int logging)
+{
+   int dim  = mesh->Dimension();
+   int sdim = mesh->SpaceDimension();
+
+   double tol = 1.0e-8;
+   // double dia = -1.0;
+
+   if ( logging > 0 )
+      cout << "Euler Number of Initial Mesh:  "
+           << ((dim==3)?mesh->EulerNumber() :
+	       ((dim==2)?mesh->EulerNumber2D() :
+		mesh->GetNV() - mesh->GetNE())) << endl;
+
+   vector<int> v2v(mesh->GetNV());
+
+   Vector vd(sdim);
+   
+   for (int i = 0; i < mesh->GetNV(); i++)
+   {
+     Vector vi(mesh->GetVertex(i), sdim);
+
+     v2v[i] = -1;
+     
+     for (int j = 0; j < i; j++)
+     {
+       Vector vj(mesh->GetVertex(j), sdim);
+       add(vi, -1.0, vj, vd);
+
+       if ( vd.Norml2() < tol )
+       {
+	 v2v[i] = j;
+	 break;
+       }
+     }
+     if ( v2v[i] < 0 ) v2v[i] = i;
+   }
+   
+   // renumber elements
+   for (int i = 0; i < mesh->GetNE(); i++)
+   {
+      Element *el = mesh->GetElement(i);
+      int *v = el->GetVertices();
+      int nv = el->GetNVertices();
+      for (int j = 0; j < nv; j++)
+      {
+         v[j] = v2v[v[j]];
+      }
+   }
+   // renumber boundary elements
+   for (int i = 0; i < mesh->GetNBE(); i++)
+   {
+      Element *el = mesh->GetBdrElement(i);
+      int *v = el->GetVertices();
+      int nv = el->GetNVertices();
+      for (int j = 0; j < nv; j++)
+      {
+         v[j] = v2v[v[j]];
+      }
+   }
+
+   mesh->RemoveUnusedVertices();
+
+   if ( logging > 0 )
+   {
+      cout << "Euler Number of Final Mesh:    "
+           << ((dim==3) ? mesh->EulerNumber() :
+	       ((dim==2) ? mesh->EulerNumber2D() :
+		mesh->GetNV() - mesh->GetNE()))
+           << endl;
+   }
+}
+
 Mesh *
 MakePeriodicMesh(Mesh * mesh, const vector<Vector> & trans_vecs, int logging)
 {
