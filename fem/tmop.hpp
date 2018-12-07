@@ -92,7 +92,7 @@ public:
 class TMOP_Metric_skew2D : public TMOP_QualityMetric
 {
 public:
-   // W = 0.5 (1 - cos(skew_Jpr - skew_Jtr)).
+   // W = 0.5 (1 - cos(angle_Jpr - angle_Jtr)).
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
@@ -107,7 +107,7 @@ public:
 class TMOP_Metric_skew3D : public TMOP_QualityMetric
 {
 public:
-   // W = 1/6 (3 - sum_i cos(skew_Jpr_i - skew_Jtr_i)), i = 1..3.
+   // W = 1/6 (3 - sum_i cos(angle_Jpr_i - angle_Jtr_i)), i = 1..3.
    virtual double EvalW(const DenseMatrix &Jpt) const;
 
    virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const

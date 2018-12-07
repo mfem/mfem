@@ -52,13 +52,13 @@ double TMOP_Metric_skew2D::EvalW(const DenseMatrix &Jpt) const
    Jpr.GetColumn(1, col2);
    double norm_prod = col1.Norml2() * col2.Norml2();
    const double cos_Jpr = (col1 * col2) / norm_prod,
-                sin_Jpr = std::sqrt(1.0 - cos_Jpr * cos_Jpr);
+                sin_Jpr = fabs(Jpr.Det()) / norm_prod;
 
    Jtr->GetColumn(0, col1);
    Jtr->GetColumn(1, col2);
    norm_prod = col1.Norml2() * col2.Norml2();
    const double cos_Jtr = (col1 * col2) / norm_prod,
-                sin_Jtr = Jtr->Det() / norm_prod;
+                sin_Jtr = fabs(Jtr->Det()) / norm_prod;
 
    return 0.5 * (1.0 - cos_Jpr * cos_Jtr - sin_Jpr * sin_Jtr);
 }
