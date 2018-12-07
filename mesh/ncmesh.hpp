@@ -245,6 +245,17 @@ public:
    void ClearTransforms();
 
 
+   // SFC ordering
+
+   /** Return a space filling ordering of a rectangular grid of elements.
+       Implemented is a generalized Hilbert curve for arbitrary grid dimensions.
+       The grid elements are assumed to have row-major, zero-based indices. */
+   static void GridSfcOrdering(int width, int height, Array<int> &ordering);
+
+   /** TODO */
+   static void GridSfcOrdering3D(int dims[3], Array<int> &ordering);
+
+
    // utility
 
    /// Return Mesh vertex indices of an edge identified by 'edge_id'.
