@@ -49,6 +49,12 @@ using namespace mfem;
 
 int main(int argc, char *argv[])
 {
+   Array<int> ord;
+   NCMesh::GridSfcOrdering(atol(argv[1]), atol(argv[2]), ord);
+   mfem::out << std::flush;
+   exit(1);
+
+
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
@@ -101,7 +107,7 @@ int main(int argc, char *argv[])
    }
 
    Array<int> ordering;
-   mesh->GetGeckoElementReordering(ordering, 1, 8);
+   //mesh->GetGeckoElementReordering(ordering, 1, 8);
    //mesh->GetMetisElementReordering(ordering);
    //mesh->Triangularize(1); mesh->GetForsythElementReordering(ordering);
    mesh->ReorderElements(ordering);

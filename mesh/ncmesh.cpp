@@ -3055,6 +3055,96 @@ void NCMesh::ClearTransforms()
 }
 
 
+//// SFC Ordering //////////////////////////////////////////////////////////////
+
+static int sgn(int x)
+{
+   return (x < 0) ? -1 : (x > 0) ? 1 : 0;
+}
+
+static void HilbertSfc(int x, int y, int ax, int ay, int bx, int by,
+                       Array<int> &coords)
+{
+   int w = std::abs(ax + ay);
+   int h = std::abs(bx + by);
+
+   int dax = sgn(ax), day = sgn(ay);
+   int dbx = sgn(bx), dby = sgn(by);
+
+   if (w == 1 || h == 1)
+   {
+      if (w >= h)
+      {
+         for (int i = 0; i < w; i++, x += dax, y += day)
+         {
+            coords.Append(x);
+            coords.Append(y);
+         }
+      }
+      else
+      {
+         for (int i = 0; i < h; i++, x += dbx, y += dby)
+         {
+            coords.Append(x);
+            coords.Append(y);
+         }
+      }
+      return;
+   }
+
+   int ax2 = ax/2, ay2 = ay/2;
+   int bx2 = bx/2, by2 = by/2;
+
+   int w2 = std::abs(ax2 + ay2);
+   int h2 = std::abs(bx2 + by2);
+
+   int ax3 = ax2, ay3 = ay2;
+   int bx3 = bx2, by3 = by2;
+
+   if ((w > 3) && (w2 & 0x1))
+   {
+      ax3 += dax, ay3 += day; // prefer even steps
+   }
+
+   if (2*w > 3*h) // long case, split in just two
+   {
+      HilbertSfc(x, y, ax3, ay3, bx, by, coords);
+      HilbertSfc(x+ax3, y+ay3, ax-ax3, ay-ay3, bx, by, coords);
+      return;
+   }
+
+   if ((h >= 3) && (h2 & 0x1))
+   {
+      bx3 += dbx, by3 += dby; // prefer even steps
+   }
+
+   HilbertSfc(x, y, bx3, by3, ax2, ay2, coords);
+   HilbertSfc(x+bx3, y+by3, ax, ay, bx-bx3, by-by3, coords); // just one long
+   HilbertSfc(x+(ax-dax)+(bx3-dbx), y+(ay-day)+(by3-dby),
+              -bx3, -by3, -(ax-ax2), -(ay-ay2), coords);
+}
+
+void NCMesh::GridSfcOrdering(int width, int height, Array<int> &ordering)
+{
+   Array<int> coords;
+   if (width >= height)
+   {
+      HilbertSfc(0, 0, width, 0, 0, height, coords);
+   }
+   else
+   {
+      HilbertSfc(0, 0, 0, height, width, 0, coords);
+   }
+   coords.Print(mfem::out, 2);
+}
+
+
+void NCMesh::GridSfcOrdering3D(int dims[3], Array<int> &ordering)
+{
+   // TODO
+}
+
+
 //// Utility ///////////////////////////////////////////////////////////////////
 
 void NCMesh::GetEdgeVertices(const MeshId &edge_id, int vert_index[2]) const

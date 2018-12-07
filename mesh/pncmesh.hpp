@@ -222,16 +222,6 @@ public:
    /// Save memory by releasing all non-essential and cached data.
    virtual void Trim();
 
-   /** Return a space filling ordering of a rectangular grid of elements.
-       The resulting sequence is a combination of the Hilbert and Peano curves.
-       The grid elements are assumed to have row-major, zero-based indices. */
-   static void GridSfcOrdering(int width, int height, Array<int> &ordering);
-
-   /** A less general 3D version of the space filling grid ordering algorithm.
-       The Hilbert curve (or a section of it) is used. The dimensions should be
-       powers of two, otherwise the curve is not guaranteed to be continuous. */
-   static void GridSfcOrdering3D(int dims[3], Array<int> &ordering);
-
    /// Return total number of bytes allocated.
    long MemoryUsage(bool with_base = true) const;
 
