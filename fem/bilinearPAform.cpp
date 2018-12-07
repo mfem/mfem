@@ -224,7 +224,7 @@ void PABilinearForm::Mult(const Vector &x, Vector &y) const
 // ***************************************************************************
 void PABilinearForm::MultTranspose(const Vector &x, Vector &y) const
 {
-   //push();
+   push();
    kfes->GlobalToLocal(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();

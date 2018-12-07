@@ -195,11 +195,8 @@ void GridFunction::MakeRef(FiniteElementSpace *f, Vector &v, int v_offset)
    MFEM_ASSERT(v.Size() >= v_offset + f->GetVSize(), "");
    if (f != fes) { Destroy(); }
    fes = f;
-   dbg("NewDataAndSize");
    NewDataAndSize((double *)v + v_offset, fes->GetVSize());
-   dbg("fes->GetSequence");
    sequence = fes->GetSequence();
-   dbg("done");
 }
 
 void GridFunction::MakeTRef(FiniteElementSpace *f, double *tv)

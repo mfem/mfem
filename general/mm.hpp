@@ -54,18 +54,17 @@ public:
       static mm singleton;
       return singleton;
    }
-   // **************************************************************************
 private:
    void *Insert(const void*, const size_t, const size_t,
                 const char* file, const int line, const void* = NULL);
    void *Erase(void*);
    void *Range(const void*);
    bool Known(const void*, const bool = false);
-
+   void Sync_p(const void*);
 public:
    // **************************************************************************
    template<class T>
-   static inline T* malloc(size_t size,
+   static inline T* malloc(const size_t size,
                            const size_t size_of_T = sizeof(T),
                            const char* file = __FILE__,
                            const int line = __LINE__)
@@ -89,6 +88,9 @@ public:
    void* Adrs(const void*);
    memory Memory(const void*);
 
+   // **************************************************************************
+   static void Sync(const void *adrs) { mm::Get().Sync_p(adrs); }
+   
    // **************************************************************************
    void Push(const void*);
 
