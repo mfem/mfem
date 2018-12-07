@@ -99,8 +99,8 @@ double TMOP_Metric_skew3D::EvalW(const DenseMatrix &Jpt) const
           sin_Jtr_23 = std::sqrt(1.0 - cos_Jtr_23 * cos_Jtr_23);
 
    return (3.0 - cos_Jpr_12 * cos_Jtr_12 - sin_Jpr_12 * sin_Jtr_12
-               - cos_Jpr_13 * cos_Jtr_13 - sin_Jpr_13 * sin_Jtr_13
-               - cos_Jpr_23 * cos_Jtr_23 - sin_Jpr_23 * sin_Jtr_23) / 6.0;
+           - cos_Jpr_13 * cos_Jtr_13 - sin_Jpr_13 * sin_Jtr_13
+           - cos_Jpr_23 * cos_Jtr_23 - sin_Jpr_23 * sin_Jtr_23) / 6.0;
 }
 
 double TMOP_Metric_aspratio2D::EvalW(const DenseMatrix &Jpt) const
