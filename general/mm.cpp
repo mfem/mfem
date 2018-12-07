@@ -109,11 +109,7 @@ void *mm::Erase(void *adrs)
    mm2dev_t &m2d = mng->operator[](adrs);
    if (m2d.n_rangers!=0){
       const size_t n = m2d.n_rangers;
-      //dbg("%d ranger(s) ahead!",n);
-      for(size_t k=0;k<n;k+=1){
-         //dbg("\t%d",k);
-         Erase(m2d.rangers[k]);
-      }
+      for(size_t k=0;k<n;k+=1) { Erase(m2d.rangers[k]); }
    }
    mng->erase(adrs);
    return adrs;
@@ -124,6 +120,7 @@ void *mm::Erase(void *adrs)
 // *****************************************************************************
 void* mm::Adrs(const void *adrs)
 {
+   push();
    const bool cuda = config::Cuda();
    const bool occa = config::Occa();
    const bool insert_if_in_range = true;
@@ -133,7 +130,10 @@ void* mm::Adrs(const void *adrs)
    mm2dev_t &mm = mng->operator[](adrs);
    
    // Just return asked known host address if not in CUDA mode
-   if (mm.host and not cuda) { return mm.h_adrs; }
+   if (mm.host /*and not cuda*/) {
+      dbg("Returning HOST_@");
+      return mm.h_adrs;
+   }
    
    // If it hasn't been seen, and we are a ranger,
    // the base should be alloc'ed!
@@ -164,8 +164,8 @@ void* mm::Adrs(const void *adrs)
       // update our address range in device space
       mm.d_adrs = (char*)base.d_adrs + offset;
       // Continue by pushing what we are working on
-      void *stream = config::Stream();
-      okMemcpyHtoDAsync(mm.d_adrs, mm.h_adrs, mm.bytes, stream);
+      //void *stream = config::Stream();
+      okMemcpyHtoD/*Async*/(mm.d_adrs, mm.h_adrs, mm.bytes);//, stream);
       mm.host = false; // Now this address is GPU born
       return mm.d_adrs;
    }
@@ -174,13 +174,14 @@ void* mm::Adrs(const void *adrs)
    const bool is_not_device_ready = mm.d_adrs == NULL;
    if (is_not_device_ready)
    {
+      dbg("is_not_device_ready");
       MFEM_ASSERT(config::Nvcc(),"[ERROR] Trying to run without CUDA support!");
       const size_t bytes = mm.bytes;
       dbg("bytes=%ld",bytes);
       if (bytes>0) { okMemAlloc(&mm.d_adrs, bytes); }
       assert(mm.d_adrs);
-      void *stream = config::Stream();
-      okMemcpyHtoDAsync(mm.d_adrs, mm.h_adrs, bytes, stream);
+      //void *stream = config::Stream();
+      okMemcpyHtoD/*Async*/(mm.d_adrs, mm.h_adrs, bytes);//, stream);
       mm.host = false; // Now this address is GPU born
       if (mm.n_rangers!=0){
          const size_t n = mm.n_rangers;
@@ -203,12 +204,13 @@ void* mm::Adrs(const void *adrs)
       dbg("is_not_device_ready and OCCA");
       const size_t bytes = mm.bytes;
       if (bytes>0) { okMemAlloc(&mm.d_adrs, bytes); }
-      void *stream = config::Stream();
-      okMemcpyHtoDAsync(mm.d_adrs, mm.h_adrs, bytes, stream);
+      //void *stream = config::Stream();
+      okMemcpyHtoD/*Async*/(mm.d_adrs, mm.h_adrs, bytes);//, stream);
       mm.host = false; // This address is no more on the host
    }
 
    // Otherwise, just return known device pointer
+   dbg("Returning DEV_@");
    return mm.d_adrs;
 }
 
@@ -250,10 +252,21 @@ memory mm::Memory(const void *adrs)
 // *****************************************************************************
 void mm::Push(const void *adrs)
 {
+   push();
    MFEM_ASSERT(Known(adrs), "[ERROR] Trying to push an unknown address!");
-   const mm2dev_t &mm = mng->operator[](adrs);
-   if (mm.host) { return; }
+   mm2dev_t &mm = mng->operator[](adrs);
+   if (not mm.host) {
+      dbg("\033[33;1mAlready on device!");
+      return;
+   }
+   const bool cuda = config::Cuda();
+   if (not cuda){
+      dbg("\033[33;1mNo device ready!");
+      return;
+   }
+   dbg("\033[31;1mHtoD");
    okMemcpyHtoD(mm.d_adrs, mm.h_adrs, mm.bytes);
+   mm.host = false;
 }
 
 // *****************************************************************************
@@ -263,9 +276,15 @@ void mm::Pull(const void *adrs)
    const bool known = Known(adrs, insert_if_in_range);
    if (not known) { BUILTIN_TRAP; }
    MFEM_ASSERT(known, "[ERROR] Trying to pull an unknown address!");
-   const mm2dev_t &mm = mng->operator[](adrs);
-   if (mm.host) { return; }
+   mm2dev_t &mm = mng->operator[](adrs);
+   if (mm.host) {
+      dbg("Already on host!");
+      return;
+   }
+   mm.host = true;
+   dbg("\033[31;1mDtoH");
    okMemcpyDtoH(mm.h_adrs, mm.d_adrs, mm.bytes);
+   return;/*
    if (config::Cuda())
    {
       okMemcpyDtoH((void*)mm.h_adrs, mm.d_adrs, mm.bytes);
@@ -275,8 +294,9 @@ void mm::Pull(const void *adrs)
    {
       okCopyTo(Memory(adrs), (void*)mm.h_adrs);
       return;
-   }
+      }
    MFEM_ASSERT(false, "[ERROR] Should not be there!");
+          */
 }
 
 // *****************************************************************************

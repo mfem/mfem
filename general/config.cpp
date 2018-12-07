@@ -21,7 +21,6 @@ namespace mfem
 void config::cudaDeviceSetup(const int device)
 {
 #ifdef __NVCC__
-   dbg("CUDA device");
    gpu_count=0;
    cudaGetDeviceCount(&gpu_count);
    assert(gpu_count>0);
@@ -31,6 +30,7 @@ void config::cudaDeviceSetup(const int device)
    cuCtxCreate(&cuContext, CU_CTX_SCHED_AUTO, cuDevice);
    cuStream = new CUstream;
    cuStreamCreate(cuStream, CU_STREAM_DEFAULT);
+   dbg("\n\033[32;1m[cudaDeviceSetup] CUDA initialized\033[m\n");
 #endif
 }
 
@@ -40,16 +40,17 @@ void config::cudaDeviceSetup(const int device)
 void config::occaDeviceSetup()
 {
 #ifdef __OCCA__
-   dbg("[occa] cuda is %s",cuda?"true":"false");
-   dbg("[occa] occa is %s",occa?"true":"false");
+   assert(false);
+   //dbg("[occa] cuda is %s",cuda?"true":"false");
+   //dbg("[occa] occa is %s",occa?"true":"false");
    if (cuda)
    {
-      dbg("[occa] Wrapping CUDA device");
+      //dbg("[occa] Wrapping CUDA device");
       occaDevice = okWrapDevice(cuDevice, cuContext);
    }
    else
    {
-      dbg("[occa] Using OCCA Serial device");
+      //dbg("[occa] Using OCCA Serial device");
       occaDevice.setup("mode: 'Serial'");
    }
    const std::string pwd = occa::io::dirname(__FILE__) + "../";
