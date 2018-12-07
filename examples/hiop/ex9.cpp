@@ -83,27 +83,56 @@ public:
    }
 };
 
+/// Computes D(x) = |x|^2.
+class NormOperator : public Operator
+{
+private:
+   mutable DenseMatrix grad;
+
+public:
+   NormOperator(int size) : Operator(1, size), grad(1, width) { }
+
+   virtual void Mult(const Vector &x, Vector &y) const
+   {
+      y(0) = x * x;
+   }
+
+   virtual Operator &GetGradient(const Vector &x) const
+   {
+      for (int i = 0; i < width; i++) { grad(0, i) = 2.0 * x(i); }
+      return grad;
+   }
+};
+
 /** Monotone and conservative a-posteriori correction for transport solutions:
  *  Find x that minimizes 0.5 || x - x_HO ||^2, subject to
  *  sum w_i x_i = mass,
- *  x_min <= x <= x_max.
+ *  |x_min|^2 <= |x|^2 <= |x_max|^2,
+ *  x_min <= x <= x_max,
  */
 class OptimizedTransportProblem : public OptimizationProblem
 {
 private:
    const Vector &x_HO;
-   Vector massvec;
+   Vector massvec, d_lo, d_hi;
    const LinearScaleOperator LSoper;
+   const NormOperator Noper;
 
 public:
    OptimizedTransportProblem(const Vector &xho, const Vector &w, double mass,
                              const Vector &xmin, const Vector &xmax)
       : OptimizationProblem(xho.Size(), NULL, NULL),
-        x_HO(xho), massvec(1), LSoper(w)
+        x_HO(xho), massvec(1), d_lo(1), d_hi(1), LSoper(w), Noper(w.Size())
    {
       C = &LSoper;
       massvec(0) = mass;
       SetEqualityConstraint(massvec);
+
+      D = &Noper;
+      d_lo(0) = xmin * xmin;
+      d_hi(0) = xmax * xmax;
+      SetInequalityConstraint(d_lo, d_hi);
+
       SetSolutionBounds(xmin, xmax);
    }
 
@@ -458,7 +487,7 @@ FE_Evolution::FE_Evolution(SparseMatrix &_M, SparseMatrix &_K,
 
 void FE_Evolution::Mult(const Vector &x, Vector &y) const
 {
-   // Compute bounds y_min, y_max for y from from x on the ldofs.
+   // Compute bounds y_min, y_max for y from x on the ldofs.
    const int dofs = x.Size();
    Vector y_min(dofs), y_max(dofs);
    const int *In = bf.SpMat().GetI(), *Jn = bf.SpMat().GetJ();
