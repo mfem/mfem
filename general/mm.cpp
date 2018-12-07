@@ -120,7 +120,7 @@ void *mm::Erase(void *adrs)
 // *****************************************************************************
 void* mm::Adrs(const void *adrs)
 {
-   push();
+   //push();
    const bool cuda = config::Cuda();
    const bool occa = config::Occa();
    const bool insert_if_in_range = true;
@@ -130,15 +130,15 @@ void* mm::Adrs(const void *adrs)
    mm2dev_t &mm = mng->operator[](adrs);
    
    // Just return asked known host address if not in CUDA mode
-   if (mm.host /*and not cuda*/) {
-      dbg("Returning HOST_@");
+   if (mm.host and not cuda) {
+      //dbg("Returning HOST_@");
       return mm.h_adrs;
    }
    
    // If it hasn't been seen, and we are a ranger,
    // the base should be alloc'ed!
    if (not mm.d_adrs and mm.ranged){
-      dbg("\033[7mDevice Ranger: @%p < @%p", mm.b_adrs, mm.h_adrs);
+      //dbg("\033[7mDevice Ranger: @%p < @%p", mm.b_adrs, mm.h_adrs);
       // NVCC sanity check
       MFEM_ASSERT(config::Nvcc(),"[ERROR] Trying to run without CUDA support!");
       const void *b_adrs = mm.b_adrs;
@@ -152,7 +152,7 @@ void* mm::Adrs(const void *adrs)
       const size_t range_bytes = mm.bytes;
       assert(base_bytes >= range_bytes);
       const size_t offset = base_bytes - range_bytes;
-      dbg("offset=%ld", offset);
+      //dbg("offset=%ld", offset);
       // base should at least already be on GPU!
       //assert(base.d_adrs);
       // Treat the case base is *NOT* on GPU
@@ -174,10 +174,10 @@ void* mm::Adrs(const void *adrs)
    const bool is_not_device_ready = mm.d_adrs == NULL;
    if (is_not_device_ready)
    {
-      dbg("is_not_device_ready");
+      //dbg("is_not_device_ready");
       MFEM_ASSERT(config::Nvcc(),"[ERROR] Trying to run without CUDA support!");
       const size_t bytes = mm.bytes;
-      dbg("bytes=%ld",bytes);
+      //dbg("bytes=%ld",bytes);
       if (bytes>0) { okMemAlloc(&mm.d_adrs, bytes); }
       assert(mm.d_adrs);
       //void *stream = config::Stream();
@@ -185,9 +185,9 @@ void* mm::Adrs(const void *adrs)
       mm.host = false; // Now this address is GPU born
       if (mm.n_rangers!=0){
          const size_t n = mm.n_rangers;
-         dbg("\033[31;7m%d ranger(s) ahead!\033[m",n);
+         //dbg("\033[31;7m%d ranger(s) ahead!\033[m",n);
          for(size_t k=0;k<n;k+=1){
-            dbg("\t%d",k);
+            //dbg("   Updating ranger %d/%d",k+1,n);
             assert(Known(mm.rangers[k],false));
             mm2dev_t &rng = mng->operator[](mm.rangers[k]);
             const size_t offset = mm.bytes - rng.bytes;
@@ -210,7 +210,7 @@ void* mm::Adrs(const void *adrs)
    }
 
    // Otherwise, just return known device pointer
-   dbg("Returning DEV_@");
+   //dbg("Returning DEV_@");
    return mm.d_adrs;
 }
 
@@ -252,19 +252,24 @@ memory mm::Memory(const void *adrs)
 // *****************************************************************************
 void mm::Push(const void *adrs)
 {
-   push();
+   //push();
    MFEM_ASSERT(Known(adrs), "[ERROR] Trying to push an unknown address!");
    mm2dev_t &mm = mng->operator[](adrs);
    if (not mm.host) {
-      dbg("\033[33;1mAlready on device!");
+      //dbg("\033[33;1mAlready on device!");
       return;
    }
    const bool cuda = config::Cuda();
    if (not cuda){
-      dbg("\033[33;1mNo device ready!");
+      //dbg("\033[33;1mNo device ready!");
       return;
    }
-   dbg("\033[31;1mHtoD");
+   //dbg("\033[31;1mHtoD");
+   if (not mm.d_adrs){
+      //assert(mm.d_adrs);
+      //dbg("\033[31;1mNO @, getting one for you!");
+      volatile GET_ADRS(adrs);
+   }
    okMemcpyHtoD(mm.d_adrs, mm.h_adrs, mm.bytes);
    mm.host = false;
 }
@@ -272,17 +277,24 @@ void mm::Push(const void *adrs)
 // *****************************************************************************
 void mm::Pull(const void *adrs)
 {
+   //push();
    const bool insert_if_in_range = true;
    const bool known = Known(adrs, insert_if_in_range);
    if (not known) { BUILTIN_TRAP; }
    MFEM_ASSERT(known, "[ERROR] Trying to pull an unknown address!");
    mm2dev_t &mm = mng->operator[](adrs);
    if (mm.host) {
-      dbg("Already on host!");
+      //dbg("Already on host!");
+      return;
+   }
+   const bool cuda = config::Cuda();
+   if (not cuda){
+      //dbg("\033[33;1mNo device ready!");
       return;
    }
    mm.host = true;
-   dbg("\033[31;1mDtoH");
+   //dbg("\033[31;1mDtoH");
+   assert(mm.d_adrs);
    okMemcpyDtoH(mm.h_adrs, mm.d_adrs, mm.bytes);
    return;/*
    if (config::Cuda())

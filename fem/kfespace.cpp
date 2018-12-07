@@ -92,9 +92,9 @@ kFiniteElementSpace::kFiniteElementSpace(FiniteElementSpace *f)
    h_offsets[0] = 0;
 
    // Pushing because the kernels above are still on CPU
-   mm::Get().Push(h_offsets);
-   mm::Get().Push(h_indices);
-   mm::Get().Push(h_map);
+   //mm::Get().Push(h_offsets);
+   //mm::Get().Push(h_indices);
+   //mm::Get().Push(h_map);
 
    const int leN = localDofs*elements;
    const int guN = globalDofs+1;
@@ -113,7 +113,7 @@ kFiniteElementSpace::~kFiniteElementSpace()
 void kFiniteElementSpace::GlobalToLocal(const Vector& globalVec,
                                         Vector& localVec) const
 {
-   push();
+   //push();
    const int vdim = fes->GetVDim();
    const int localEntries = localDofs * fes->GetNE();
    const bool vdim_ordering = fes->GetOrdering() == Ordering::byVDIM;
@@ -132,7 +132,7 @@ void kFiniteElementSpace::GlobalToLocal(const Vector& globalVec,
 void kFiniteElementSpace::LocalToGlobal(const Vector& localVec,
                                         Vector& globalVec) const
 {
-   push();
+   //push();
    const int vdim = fes->GetVDim();
    const int localEntries = localDofs * fes->GetNE();
    const bool vdim_ordering = fes->GetOrdering() == Ordering::byVDIM;
