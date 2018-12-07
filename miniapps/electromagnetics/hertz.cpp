@@ -420,7 +420,7 @@ int main(int argc, char *argv[])
       // Update the magnetostatic solver to reflect the new state of the mesh.
       Hertz.Update();
 
-      if (pmesh.Nonconforming() && mpi.WorldSize() > 1)
+      if (pmesh.Nonconforming() && mpi.WorldSize() > 1 && false)
       {
          if (mpi.Root()) { cout << "Rebalancing ..." << endl; }
          pmesh.Rebalance();
