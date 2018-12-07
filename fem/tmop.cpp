@@ -749,8 +749,8 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0,
                                      TMOP_LimiterFunction *lfunc)
 {
    nodes0 = &n0;
-   lim_dist = &dist;
    coeff0 = &w0;
+   lim_dist = &dist;
 
    delete lim_func;
    if (lfunc)
@@ -759,16 +759,15 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0,
    }
    else
    {
-      lim_func =
-         new TMOP_QuadraticLimiter(nodes0->FESpace()->GetMesh()->Dimension());
+      lim_func = new TMOP_QuadraticLimiter;
    }
 }
 void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
                                      TMOP_LimiterFunction *lfunc)
 {
    nodes0 = &n0;
-   lim_dist = NULL;
    coeff0 = &w0;
+   lim_dist = NULL;
 
    delete lim_func;
    if (lfunc)
@@ -777,8 +776,7 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
    }
    else
    {
-      lim_func =
-         new TMOP_QuadraticLimiter(nodes0->FESpace()->GetMesh()->Dimension());
+      lim_func = new TMOP_QuadraticLimiter;
    }
 }
 
@@ -838,6 +836,13 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       Tpr->Attribute = T.Attribute;
       Tpr->GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
    }
+   // FIXME: computing the coefficients 'coeff1' and 'coeff0' in physical
+   //        coordinates means that, generally, the gradient and Hessian of the
+   //        TMOP_Integrator will depend on the derivatives of the coefficients.
+   //
+   //        In some cases the coefficients are independent of any movement of
+   //        the physical coordinates (i.e. changes in 'elfun'), e.g. when the
+   //        coefficient is a ConstantCoefficient or a GridFunctionCoefficient.
 
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -894,7 +899,7 @@ void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
 
    // Limited case.
    DenseMatrix pos0;
-   Vector shape, p, p0, d_vals;
+   Vector shape, p, p0, d_vals, grad;
    if (coeff0)
    {
       shape.SetSize(dof);
@@ -951,7 +956,6 @@ void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
          el.CalcShape(ip, shape);
          PMatI.MultTranspose(shape, p);
          pos0.MultTranspose(shape, p0);
-         Vector grad;
          lim_func->Eval_d1(p, p0, d_vals(i), grad);
          grad *= weight * coeff0->Eval(*Tpr, ip);
          AddMultVWt(shape, grad, PMatO);
@@ -985,7 +989,7 @@ void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
    targetC->ComputeElementTargets(T.ElementNo, el, *ir, Jtr);
 
    // Limited case.
-   DenseMatrix pos0;
+   DenseMatrix pos0, grad_grad;
    Vector shape, p, p0, d_vals;
    if (coeff0)
    {
@@ -1041,7 +1045,6 @@ void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
          PMatI.MultTranspose(shape, p);
          pos0.MultTranspose(shape, p0);
          weight_m = weight * coeff0->Eval(*Tpr, ip);
-         DenseMatrix grad_grad;
          lim_func->Eval_d2(p, p0, d_vals(i), grad_grad);
          for (int i = 0; i < dof; i++)
          {
