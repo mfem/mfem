@@ -803,7 +803,6 @@ public:
       FiniteElementSpace SubFes0(ref_mesh, &fec0);
       FiniteElementSpace SubFes1(ref_mesh, &fec1);
       
-      FillSubCellsForNode(nd, p, dim);
       FillSubcell2CellDof(p, dim);
       
       fluctSub.SetSize(ne*numSubcells, numDofsSubcell);
@@ -972,111 +971,6 @@ public:
       if (p!=1)
          delete ref_mesh;
       delete fluct;
-   }
-   
-   void FillSubCellsForNode(int nd, int p, int dim)
-   {
-      int i, j, node;
-      subCellsForNode = new int*[nd];
-      numSubCellsForNode.SetSize(nd); // TODO maybe assert, s.t. no out of bounds
-      
-      if (dim == 1)
-      {
-         node = 0;
-         numSubCellsForNode[node] = 1;
-         subCellsForNode[node] = new int[numSubCellsForNode[node]];
-         subCellsForNode[node][0] = 0;
-         
-         for (i = 1; i < p; i++)
-         {
-            node = i;
-            numSubCellsForNode[node] = 2;
-            subCellsForNode[node] = new int[numSubCellsForNode[node]];
-            subCellsForNode[node][0] = i-1;
-            subCellsForNode[node][1] = i;
-         }
-         
-         node = p;
-         numSubCellsForNode[node] = 1;
-         subCellsForNode[node] = new int[numSubCellsForNode[node]];
-         subCellsForNode[node][0] = p-1;
-      }
-      
-      else if (dim == 2)
-      {
-         for (i = 0; i <= p; i++)
-         {
-            for (j = 0; j <= p; j++)
-            {
-               node = j*(p+1)+i;
-               if ((i == 0) && (j == 0))
-               {
-                  numSubCellsForNode[node] = 1;
-                  subCellsForNode[node] = new int[numSubCellsForNode[node]];
-                  subCellsForNode[node][0] = 0;
-               }
-               else if ((i == 0) && (j == p))
-               {
-                  numSubCellsForNode[node] = 1;
-                  subCellsForNode[node] = new int[numSubCellsForNode[node]];
-                  subCellsForNode[node][0] = p*(p-1);
-               }
-               else if ((i == p) && (j == 0))
-               {
-                  numSubCellsForNode[node] = 1;
-                  subCellsForNode[node] = new int[numSubCellsForNode[node]];
-                  subCellsForNode[node][0] = p-1;
-               }
-               else if ((i == p) && (j == p))
-               {
-                  numSubCellsForNode[node] = 1;
-                  subCellsForNode[node] = new int[numSubCellsForNode[node]];
-                  subCellsForNode[node][0] = p*p-1;
-               }
-               else if (i == 0)
-               {
-                  numSubCellsForNode[node] = 2;
-                  subCellsForNode[node] = new int[numSubCellsForNode[node]];
-                  subCellsForNode[node][0] = (j-1)*p;
-                  subCellsForNode[node][1] = j*p;
-               }
-               else if (i == p)
-               {
-                  numSubCellsForNode[node] = 2;
-                  subCellsForNode[node] = new int[numSubCellsForNode[node]];
-                  subCellsForNode[node][0] = j*p-1;
-                  subCellsForNode[node][1] = (j+1)*p-1;
-               }
-               else if (j == 0)
-               {
-                  numSubCellsForNode[node] = 2;
-                  subCellsForNode[node] = new int[numSubCellsForNode[node]];
-                  subCellsForNode[node][0] = i-1;
-                  subCellsForNode[node][1] = i;
-               }
-               else if (j == p)
-               {
-                  numSubCellsForNode[node] = 2;
-                  subCellsForNode[node] = new int[numSubCellsForNode[node]];
-                  subCellsForNode[node][0] = i+(p-1)*p-1;
-                  subCellsForNode[node][1] = i+(p-1)*p;
-               }
-               else
-               {
-                  numSubCellsForNode[node] = 4;
-                  subCellsForNode[node] = new int[numSubCellsForNode[node]];
-                  subCellsForNode[node][0] = i-1+(j-1)*p;
-                  subCellsForNode[node][1] = i+(j-1)*p;
-                  subCellsForNode[node][2] = i+j*p-1;
-                  subCellsForNode[node][3] = i+j*p;
-               }
-            }
-         }
-      }
-      else // dim == 3
-      {
-         // TODO
-      }
    }
    
    // Computes the element-global indices from the indices of the subcell and the indices
@@ -1728,8 +1622,17 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          
          sumWeightsP = nd*xMax - xSum + eps;
          sumWeightsN = nd*xMin - xSum - eps;
-
-         if (fct.isSubCell)
+         
+         if (!fct.isSubCell)
+         {
+            for (j = 0; j < nd; j++)
+            {
+               dofInd = k*nd+j;
+               y(dofInd) = ( y(dofInd) + rhoP * (xMax - x(dofInd)) / sumWeightsP 
+                                       + rhoN * (xMin - x(dofInd)) / sumWeightsN ) / fct.lumpedM(dofInd);
+            }
+         }
+         else
          {
             rhoSubcellP.SetSize(numSubcells);
             rhoSubcellN.SetSize(numSubcells);
@@ -1761,30 +1664,24 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
             
             gammaP = rhoP / (sumRhoSubcellP + eps);
             gammaN = rhoN / (sumRhoSubcellN - eps);
-         }
+            minGammaP = min(gamma, gammaP); // TODO maybe optimize
+            minGammaN = min(gamma, gammaN);
          
-         for (j = 0; j < nd; j++)
-         {
-            dofInd = k*nd+j;
-            if (fct.isSubCell)
+            for (m = 0; m < numSubcells; m++)
             {
-               fluctSubcellP = fluctSubcellN = 0.;
-               for (i = 0; i < fct.numSubCellsForNode[j]; i++)
+               for (i = 0; i < numDofsSubcell; i++) // compute min-/max-values and the fluctuation for subcells
                {
-                  m = fct.subCellsForNode[j][i];
-                  fluctSubcellP += rhoSubcellP(m) * (xMaxSubcell(m) - x(dofInd)) / sumWeightsSubcellP(m);
-                  fluctSubcellN += rhoSubcellN(m) * (xMinSubcell(m) - x(dofInd)) / sumWeightsSubcellN(m);
+                  dofInd = k*nd + fct.subcell2CellDof(m, i);
+                  y(dofInd) += minGammaP * rhoSubcellP(m) * (xMaxSubcell(m) - x(dofInd)) / sumWeightsSubcellP(m)
+                             + minGammaN * rhoSubcellN(m) * (xMinSubcell(m) - x(dofInd)) / sumWeightsSubcellN(m); //TODO optimization possible
                }
-               minGammaP = min(gamma, gammaP);
-               minGammaN = min(gamma, gammaN);
-               y(dofInd) = ( y(dofInd) + minGammaP * fluctSubcellP + (gammaP - minGammaP) * sumRhoSubcellP * (xMax - x(dofInd)) / sumWeightsP
-                                       + minGammaN * fluctSubcellN + (gammaN - minGammaN) * sumRhoSubcellN * (xMin - x(dofInd)) / sumWeightsN ) 
-                           / fct.lumpedM(dofInd);
             }
-            else
+            
+            for (j = 0; j < nd; j++)
             {
-               y(dofInd) = ( y(dofInd) + rhoP * (xMax - x(dofInd)) / sumWeightsP + 
-                                         rhoN * (xMin - x(dofInd)) / sumWeightsN ) / fct.lumpedM(dofInd);
+               dofInd = k*nd+j;
+               y(dofInd) = ( y(dofInd) + (rhoP - min(gamma*sumRhoSubcellP, rhoP)) * (xMax - x(dofInd)) / sumWeightsP
+                                       + (rhoN - max(gamma*sumRhoSubcellN, rhoN)) * (xMin - x(dofInd)) / sumWeightsN ) / fct.lumpedM(dofInd);
             }
          }
       }
