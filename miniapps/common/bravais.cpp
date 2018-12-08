@@ -535,7 +535,7 @@ LinearLattice::GetPeriodicWignerSeitzMesh(bool triMesh) const
 }
 */
 SquareLattice::SquareLattice(double a)
-  : BravaisLattice2D(a, a, 0.5 * M_PI), R90_(2), RX_(2), TTmp_(2)
+  : BravaisLattice2D(a, a, 0.5 * M_PI)
 {
    label_ = "SQR";
    type_  = PRIMITIVE_SQUARE;
@@ -602,13 +602,6 @@ SquareLattice::SquareLattice(double a)
    il_[0][1] = "Z";      // X     -> M
    il_[0][2] = "Sigma";  // M     -> Gamma
 
-   // Create transformation generators
-   R90_(0,0) =  0.0; R90_(0,1) = -1.0;
-   R90_(1,0) =  1.0; R90_(1,1) =  0.0;
-
-   RX_(0,0)  =  1.0; RX_(0,1) =  0.0;
-   RX_(1,0)  =  0.0; RX_(1,1) = -1.0;
-   
    // Set Mesh data
    fd_vert_[0] = 0.0;      fd_vert_[ 1] = 0.0;      fd_vert_[ 2] = 0.0;
    fd_vert_[3] = 0.5 * a_; fd_vert_[ 4] = 0.0;      fd_vert_[ 5] = 0.0;
@@ -667,40 +660,33 @@ SquareLattice::MapToFundamentalDomain(const Vector & pt, Vector & ipt) const
    return map;
 }
 
-const DenseMatrix & SquareLattice::GetTransformation(int i) const
+const DenseMatrix & SquareLattice::GetTransformation(int ti) const
 {
-  switch(i)
+  int ir = ti % 2;
+  int iq = ti / 2;
+  
+  T_ = 0.0;
+  
+  if ( ir % 2 == 0 )
   {
-  case 0:
-    T_(0,0) = 1.0; T_(0,1) = 0.0;
-    T_(1,0) = 0.0; T_(1,1) = 1.0;
-    break;
-  case 1:
-    Mult(R90_, RX_, T_);
-    break;
-  case 2:
-    T_ = R90_;
-    break;
-  case 3:
-    Mult(R90_, RX_, TTmp_);
-    Mult(R90_, TTmp_, T_);
-    break;
-  case 4:
-    Mult(R90_, R90_, T_);
-    break;
-  case 5:
-    Mult(R90_, RX_, T_);
-    Mult(R90_, T_, TTmp_);
-    Mult(R90_, TTmp_, T_);
-    break;
-  case 6:
-    Mult(R90_, R90_, TTmp_);
-    Mult(R90_, TTmp_, T_);
-    break;
-  case 7:
-    T_ = RX_;
-    break;
+    T_(0, 0) = 1.0;
+    T_(1, 1) = 1.0;
   }
+  else
+  {
+    T_(0, 1) = 1.0;
+    T_(1, 0) = 1.0;
+  }
+  
+  for (int i=0; i<2; i++)
+  {
+    if ( iq & (int)pow(2, i) )
+    {
+      T_(i,0) *= -1.0;
+      T_(i,1) *= -1.0;
+    }
+  }
+
   return T_;
 }
   
@@ -748,7 +734,7 @@ SquareLattice::GetPeriodicWignerSeitzMesh(bool triMesh) const
 }
   */
 HexagonalLattice::HexagonalLattice(double a)
-   : BravaisLattice2D(a, a, 2.0 * M_PI / 3.0), R60_(2), RX_(2), TTmp_(2)
+  : BravaisLattice2D(a, a, 2.0 * M_PI / 3.0)//, R60_(2), RX_(2), TTmp_(2)
 {
    label_ = "HEX2D";
    type_  = PRIMITIVE_HEXAGONAL;
@@ -811,11 +797,11 @@ HexagonalLattice::HexagonalLattice(double a)
    il_[0][2] = "GammaK"; // K     -> Gamma
 
    // Create transformation generators
-   R60_(0,0) =  0.5; R60_(0,1) = -sqrt(0.75);
-   R60_(1,0) =  sqrt(0.75); R60_(1,1) =  0.5;
+   // R60_(0,0) =  0.5; R60_(0,1) = -sqrt(0.75);
+   // R60_(1,0) =  sqrt(0.75); R60_(1,1) =  0.5;
 
-   RX_(0,0)  =  1.0; RX_(0,1) =  0.0;
-   RX_(1,0)  =  0.0; RX_(1,1) = -1.0;
+   // RX_(0,0)  =  1.0; RX_(0,1) =  0.0;
+   // RX_(1,0)  =  0.0; RX_(1,1) = -1.0;
    
    // Set Mesh data
    fd_vert_[0] = 0.0;      fd_vert_[ 1] = 0.0;      fd_vert_[ 2] = 0.0;
@@ -894,64 +880,42 @@ HexagonalLattice::MapToFundamentalDomain(const Vector & pt,
    return map;
 }
 
-const DenseMatrix & HexagonalLattice::GetTransformation(int i) const
+const DenseMatrix & HexagonalLattice::GetTransformation(int ti) const
 {
-  switch(i)
+  int ir = ti % 3;
+  int iq = ti / 3;
+
+  T_ = 0.0;
+
+  switch (ir)
+    {
+    case 0:
+      T_(0, 0) =  1.0;
+      T_(1, 1) =  1.0;
+      break;
+    case 1:
+      T_(0, 0) =  0.5;
+      T_(0, 1) =  sqrt(0.75);
+      T_(1, 0) =  sqrt(0.75);
+      T_(1, 1) = -0.5;
+      break;
+    case 2:
+      T_(0, 0) =  0.5;
+      T_(0, 1) = -sqrt(0.75);
+      T_(1, 0) =  sqrt(0.75);
+      T_(1, 1) =  0.5;
+      break;
+    }
+
+  for (int i=0; i<2; i++)
   {
-  case 0:
-    T_(0,0) = 1.0; T_(0,1) = 0.0;
-    T_(1,0) = 0.0; T_(1,1) = 1.0;
-    break;
-  case 1:
-    Mult(R60_, RX_, T_);
-    break;
-  case 2:
-    T_ = R60_;
-    break;
-  case 3:
-    Mult(R60_, RX_, TTmp_);
-    Mult(R60_, TTmp_, T_);
-    break;
-  case 4:
-    Mult(R60_, R60_, T_);
-    break;
-  case 5:
-    Mult(R60_, RX_, T_);
-    Mult(R60_, T_, TTmp_);
-    Mult(R60_, TTmp_, T_);
-    break;
-  case 6:
-    Mult(R60_, R60_, TTmp_);
-    Mult(R60_, TTmp_, T_);
-    break;
-  case 7:
-    Mult(R60_, RX_, TTmp_);
-    Mult(R60_, TTmp_, T_);
-    Mult(R60_, T_, TTmp_);
-    Mult(R60_, TTmp_, T_);
-    break;
-  case 8:
-    Mult(R60_, R60_, T_);
-    Mult(R60_, T_, TTmp_);
-    Mult(R60_, TTmp_, T_);
-    break;
-  case 9:
-    Mult(R60_, RX_, T_);
-    Mult(R60_, T_, TTmp_);
-    Mult(R60_, TTmp_, T_);
-    Mult(R60_, T_, TTmp_);
-    Mult(R60_, TTmp_, T_);
-    break;
-  case 10:
-    Mult(R60_, R60_, TTmp_);
-    Mult(R60_, TTmp_, T_);
-    Mult(R60_, T_, TTmp_);
-    Mult(R60_, TTmp_, T_);
-    break;
-  case 11:
-    T_ = RX_;
-    break;
+    if ( iq & (int)pow(2, i) )
+    {
+      T_(i,0) *= -1.0;
+      T_(i,1) *= -1.0;
+    }
   }
+
   return T_;
 }
 
@@ -1080,7 +1044,7 @@ RectangularLattice::RectangularLattice(double a, double b)
 
    fd_belem_att_[0] = 10; fd_belem_att_[1] = 1;
    fd_belem_att_[2] =  1; fd_belem_att_[3] = 10;
-
+   /*
    ws_vert_[0] = -0.5 * a_; ws_vert_[ 1] = -0.5 * b_; ws_vert_[ 2] = 0.0;
    ws_vert_[3] =  0.5 * a_; ws_vert_[ 4] = -0.5 * b_; ws_vert_[ 5] = 0.0;
    ws_vert_[6] =  0.5 * a_; ws_vert_[ 7] =  0.5 * b_; ws_vert_[ 8] = 0.0;
@@ -1096,6 +1060,7 @@ RectangularLattice::RectangularLattice(double a, double b)
 
    ws_belem_att_[0] = 1; ws_belem_att_[1] = 1;
    ws_belem_att_[2] = 1; ws_belem_att_[3] = 1;
+   */
 }
 
 bool
@@ -1391,6 +1356,11 @@ CenteredRectangularLattice::GetPeriodicWignerSeitzMesh(bool triMesh) const
 ObliqueLattice::ObliqueLattice(double a, double b, double gamma)
    : BravaisLattice2D(a, b, gamma)
 {
+   MFEM_ASSERT( a_ <= b_,
+                "Monoclinic unit cells must have a <= b!");
+   MFEM_ASSERT( b_ * cos(gamma_) < a_ && gamma_ < 0.5 * M_PI,
+                "Oblique unit cells must have arccos(a/b) < gamma < pi/2!");
+
    label_ = "OBL";
    type_  = PRIMITIVE_OBLIQUE;
 
@@ -1519,7 +1489,7 @@ ObliqueLattice::ObliqueLattice(double a, double b, double gamma)
    fd_vert_[21] =  0.5 * b_ * cosg;
    fd_vert_[22] =  0.5 * b_ * sing;
    fd_vert_[23] =  0.0;
-
+   /*
    fd_e2v_[ 0] = 0; fd_e2v_[ 1] = 1; fd_e2v_[ 2] = 2;
    fd_e2v_[ 3] = 0; fd_e2v_[ 4] = 2; fd_e2v_[ 5] = 3;
    fd_e2v_[ 6] = 0; fd_e2v_[ 7] = 3; fd_e2v_[ 8] = 4;
@@ -1528,6 +1498,11 @@ ObliqueLattice::ObliqueLattice(double a, double b, double gamma)
    fd_e2v_[15] = 0; fd_e2v_[16] = 6; fd_e2v_[17] = 7;
    fd_elem_att_[0] = 1; fd_elem_att_[1] = 1; fd_elem_att_[2] = 1;
    fd_elem_att_[3] = 1; fd_elem_att_[4] = 1; fd_elem_att_[5] = 1;
+   */
+   fd_e2v_[ 0] = 0; fd_e2v_[ 1] = 1; fd_e2v_[ 2] = 2; fd_e2v_[ 3] = 3;
+   fd_e2v_[ 4] = 0; fd_e2v_[ 5] = 3; fd_e2v_[ 6] = 4; fd_e2v_[ 7] = 5;
+   fd_e2v_[ 8] = 0; fd_e2v_[ 9] = 5; fd_e2v_[10] = 6; fd_e2v_[11] = 7;
+   fd_elem_att_[0] = 1; fd_elem_att_[1] = 1; fd_elem_att_[2] = 1;
 
    fd_be2v_[ 0] = 0; fd_be2v_[ 1] = 1;
    fd_be2v_[ 2] = 1; fd_be2v_[ 3] = 2;
@@ -1588,12 +1563,21 @@ const DenseMatrix & ObliqueLattice::GetTransformation(int i) const
 Mesh *
 ObliqueLattice::GetFundamentalDomainMesh() const
 {
+   /*
    Mesh * mesh = new Mesh((double*)fd_vert_, 8,
                           (int*)fd_e2v_, Geometry::TRIANGLE,
                           (int*)fd_elem_att_, 6,
                           (int*)fd_be2v_, Geometry::SEGMENT,
                           (int*)fd_belem_att_, 8,
                           2, 2);
+   */   
+   Mesh * mesh = new Mesh((double*)fd_vert_, 8,
+                          (int*)fd_e2v_, Geometry::SQUARE,
+                          (int*)fd_elem_att_, 3,
+                          (int*)fd_be2v_, Geometry::SEGMENT,
+                          (int*)fd_belem_att_, 8,
+                          2, 2);
+
    mesh->Finalize();
 
    return mesh;
@@ -1971,10 +1955,10 @@ CubicLattice::MapToFundamentalDomain(const Vector & pt, Vector & ipt) const
    return map;
 }
 
-const DenseMatrix & CubicLattice::GetTransformation(int i) const
+const DenseMatrix & CubicLattice::GetTransformation(int ti) const
 {
-  int ir = i % 6;
-  int iq = i / 6;
+  int ir = ti % 6;
+  int iq = ti / 6;
 
   T_ = 0.0;
 
@@ -6214,6 +6198,83 @@ MonoclinicLattice::MonoclinicLattice(double a, double b, double c,
    il_[2][0] = "YD";     // Y     -> D
 
    // Set Mesh data
+   double cos2a = cos(2.0 * alpha_);
+
+   fd_vert_[ 0] =  0.0;
+   fd_vert_[ 1] =  0.0;
+   fd_vert_[ 2] =  0.0;
+
+   fd_vert_[ 3] =  0.0;
+   fd_vert_[ 4] = -0.5 * c_ * cosa;
+   fd_vert_[ 5] = -0.5 * c_ * sina;
+
+   fd_vert_[ 6] =  0.0;
+   fd_vert_[ 7] =  0.5 * b_ - c_ * cosa;
+   fd_vert_[ 8] = -0.5 * (b_ * cosa - c_ * cos2a) * csca;
+
+   fd_vert_[ 9] =  0.0;
+   fd_vert_[10] =  0.5 * (b_ - c_ * cosa);
+   fd_vert_[11] = -0.5 * c_ * sina;
+
+   fd_vert_[12] =  0.0;
+   fd_vert_[13] =  0.5 * b_;
+   fd_vert_[14] =  0.5 * (b_ * cosa - c_) * csca;
+
+   fd_vert_[15] =  0.0;
+   fd_vert_[16] =  0.5 * b_;
+   fd_vert_[17] =  0.0;
+
+   fd_vert_[18] =  0.0;
+   fd_vert_[19] =  0.5 * b_;
+   fd_vert_[20] =  0.5 * (c_ - b_ * cosa) * csca;
+
+   fd_vert_[21] =  0.0;
+   fd_vert_[22] =  0.5 * c_ * cosa;
+   fd_vert_[23] =  0.5 * c_ * sina;
+
+   for (int i=0; i<8; i++)
+   {
+     fd_vert_[3*i+24] = 0.5 * a_;
+     fd_vert_[3*i+25] = fd_vert_[3*i+1];
+     fd_vert_[3*i+26] = fd_vert_[3*i+2];
+   }
+
+   fd_e2v_[ 0] =  0; fd_e2v_[ 1] =  1; fd_e2v_[ 2] =  2; fd_e2v_[ 3] =  3;
+   fd_e2v_[ 4] =  8; fd_e2v_[ 5] =  9; fd_e2v_[ 6] = 10; fd_e2v_[ 7] = 11;
+
+   fd_e2v_[ 8] =  0; fd_e2v_[ 9] =  3; fd_e2v_[10] =  4; fd_e2v_[11] =  5;
+   fd_e2v_[12] =  8; fd_e2v_[13] = 11; fd_e2v_[14] = 12; fd_e2v_[15] = 13;
+
+   fd_e2v_[16] =  0; fd_e2v_[17] =  5; fd_e2v_[18] =  6; fd_e2v_[19] =  7;
+   fd_e2v_[20] =  8; fd_e2v_[21] = 13; fd_e2v_[22] = 14; fd_e2v_[23] = 15;
+
+   fd_elem_att_[0] = 1; fd_elem_att_[1] = 1; fd_elem_att_[2] = 1;
+   fd_elem_att_[3] = 1; fd_elem_att_[4] = 1; fd_elem_att_[5] = 1;
+
+   fd_be2v_[ 0] = 0; fd_be2v_[ 1] = 1; fd_be2v_[ 2] =  9; fd_be2v_[ 3] =  8;
+   fd_be2v_[ 4] = 1; fd_be2v_[ 5] = 2; fd_be2v_[ 6] = 10; fd_be2v_[ 7] =  9;
+   fd_be2v_[ 8] = 2; fd_be2v_[ 9] = 3; fd_be2v_[10] = 11; fd_be2v_[11] = 10;
+   fd_be2v_[12] = 3; fd_be2v_[13] = 4; fd_be2v_[14] = 12; fd_be2v_[15] = 11;
+   fd_be2v_[16] = 4; fd_be2v_[17] = 5; fd_be2v_[18] = 13; fd_be2v_[19] = 12;
+   fd_be2v_[20] = 5; fd_be2v_[21] = 6; fd_be2v_[22] = 14; fd_be2v_[23] = 13;
+   fd_be2v_[24] = 6; fd_be2v_[25] = 7; fd_be2v_[26] = 15; fd_be2v_[27] = 14;
+   fd_be2v_[28] = 7; fd_be2v_[29] = 0; fd_be2v_[30] =  8; fd_be2v_[31] = 15;
+
+   fd_be2v_[32] = 3; fd_be2v_[33] = 2; fd_be2v_[34] =  1; fd_be2v_[35] =  0;
+   fd_be2v_[36] = 5; fd_be2v_[37] = 4; fd_be2v_[38] =  3; fd_be2v_[39] =  0;
+   fd_be2v_[40] = 7; fd_be2v_[41] = 6; fd_be2v_[42] =  5; fd_be2v_[43] =  0;
+   
+   fd_be2v_[44] = 8; fd_be2v_[45] =  9; fd_be2v_[46] = 10; fd_be2v_[47] = 11;
+   fd_be2v_[48] = 8; fd_be2v_[49] = 11; fd_be2v_[50] = 12; fd_be2v_[51] = 13;
+   fd_be2v_[52] = 8; fd_be2v_[53] = 13; fd_be2v_[54] = 14; fd_be2v_[55] = 15;
+   
+   fd_belem_att_[ 0] = 10; fd_belem_att_[ 1] =  1;
+   fd_belem_att_[ 2] =  1; fd_belem_att_[ 3] =  1;
+   fd_belem_att_[ 4] =  1; fd_belem_att_[ 5] =  1;
+   fd_belem_att_[ 6] =  1; fd_belem_att_[ 7] = 10;
+   fd_belem_att_[ 8] = 10; fd_belem_att_[ 9] = 10; fd_belem_att_[10] = 10;
+   fd_belem_att_[11] =  1; fd_belem_att_[12] =  1; fd_belem_att_[13] =  1;
+ 
    for (int i=0; i<63; i++) { ws_vert_[i] = 0.0; }
    for (int i=0; i<3; i++)
    {
@@ -6328,6 +6389,51 @@ MonoclinicLattice::MapToFundamentalDomain(const Vector & pt,
    return map;
 }
 
+const DenseMatrix & MonoclinicLattice::GetTransformation(int ti) const
+{
+   T_ = 0.0;
+
+   for (int i=0; i<3; i++)
+   {
+     T_(i,i) = 1.0;
+   }
+
+   if (ti == 1 || ti == 2)
+     {
+       T_(1,1) *= -1.0;
+       T_(2,2) *= -1.0;
+     }
+   if ( ti >= 2 )
+     {
+       T_(0,0) *= -1.0;
+     }
+   
+   return T_;
+}
+
+Mesh *
+MonoclinicLattice::GetFundamentalDomainMesh() const
+{
+   /*
+   Mesh * mesh = new Mesh((double*)fd_vert_, 8,
+                          (int*)fd_e2v_, Geometry::TRIANGLE,
+                          (int*)fd_elem_att_, 6,
+                          (int*)fd_be2v_, Geometry::SEGMENT,
+                          (int*)fd_belem_att_, 8,
+                          2, 2);
+   */   
+  Mesh * mesh = new Mesh((double*)fd_vert_, 16,
+                          (int*)fd_e2v_, Geometry::CUBE,
+                          (int*)fd_elem_att_, 3,
+                          (int*)fd_be2v_, Geometry::SQUARE,
+                          (int*)fd_belem_att_, 14,
+                          3, 3);
+
+   mesh->Finalize();
+   
+   return mesh;
+}
+  /*
 Mesh *
 MonoclinicLattice::GetWignerSeitzMesh(bool tetMesh) const
 {
@@ -6367,7 +6473,7 @@ MonoclinicLattice::GetPeriodicWignerSeitzMesh(bool tetMesh) const
 
    return per_mesh;
 }
-
+  */
 BaseCenteredMonoclinicLattice::BaseCenteredMonoclinicLattice(double a,
                                                              double b,
                                                              double c,
@@ -7270,7 +7376,7 @@ BravaisLatticeFactory(BRAVAIS_LATTICE_TYPE lattice_type,
          // lattice_label = "OBL";
          if ( a <= 0.0 ) { a = 0.5; }
          if ( b <= 0.0 ) { b = 1.0; }
-         if ( gamma <= 0.0 ) { gamma = 0.25 * M_PI; }
+         if ( gamma <= 0.0 ) { gamma = 0.4 * M_PI; }
          bravais = new ObliqueLattice(a, b, gamma);
          break;
       case PRIMITIVE_CUBIC:
