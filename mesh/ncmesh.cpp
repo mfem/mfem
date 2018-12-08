@@ -3068,26 +3068,24 @@ static void HilbertSfc(int x, int y, int ax, int ay, int bx, int by,
    int w = std::abs(ax + ay);
    int h = std::abs(bx + by);
 
-   int dax = sgn(ax), day = sgn(ay);
-   int dbx = sgn(bx), dby = sgn(by);
+   int dax = sgn(ax), day = sgn(ay); // unit major direction
+   int dbx = sgn(bx), dby = sgn(by); // unit orthogonal direction
 
-   if (w == 1 || h == 1)
+   if (h == 1) // trivial row fill
    {
-      if (w >= h)
+      for (int i = 0; i < w; i++, x += dax, y += day)
       {
-         for (int i = 0; i < w; i++, x += dax, y += day)
-         {
-            coords.Append(x);
-            coords.Append(y);
-         }
+         coords.Append(x);
+         coords.Append(y);
       }
-      else
+      return;
+   }
+   if (w == 1) // trivial column fill
+   {
+      for (int i = 0; i < h; i++, x += dbx, y += dby)
       {
-         for (int i = 0; i < h; i++, x += dbx, y += dby)
-         {
-            coords.Append(x);
-            coords.Append(y);
-         }
+         coords.Append(x);
+         coords.Append(y);
       }
       return;
    }
@@ -3098,30 +3096,28 @@ static void HilbertSfc(int x, int y, int ax, int ay, int bx, int by,
    int w2 = std::abs(ax2 + ay2);
    int h2 = std::abs(bx2 + by2);
 
-   int ax3 = ax2, ay3 = ay2;
-   int bx3 = bx2, by3 = by2;
-
-   if ((w > 3) && (w2 & 0x1))
+   if (2*w > 3*h) // long case: split in two parts only
    {
-      ax3 += dax, ay3 += day; // prefer even steps
-   }
+      if ((w > 3) && (w2 & 0x1))
+      {
+         ax2 += dax, ay2 += day; // prefer even steps
+      }
 
-   if (2*w > 3*h) // long case, split in just two
+      HilbertSfc(x, y, ax2, ay2, bx, by, coords);
+      HilbertSfc(x+ax2, y+ay2, ax-ax2, ay-ay2, bx, by, coords);
+   }
+   else // standard case: one step up, one long horizontal step, one step down
    {
-      HilbertSfc(x, y, ax3, ay3, bx, by, coords);
-      HilbertSfc(x+ax3, y+ay3, ax-ax3, ay-ay3, bx, by, coords);
-      return;
-   }
+      if ((h >= 3) && (h2 & 0x1))
+      {
+         bx2 += dbx, by2 += dby; // prefer even steps
+      }
 
-   if ((h >= 3) && (h2 & 0x1))
-   {
-      bx3 += dbx, by3 += dby; // prefer even steps
+      HilbertSfc(x, y, bx2, by2, ax2, ay2, coords);
+      HilbertSfc(x+bx2, y+by2, ax, ay, bx-bx2, by-by2, coords);
+      HilbertSfc(x+(ax-dax)+(bx2-dbx), y+(ay-day)+(by2-dby),
+                 -bx2, -by2, -(ax-ax2), -(ay-ay2), coords);
    }
-
-   HilbertSfc(x, y, bx3, by3, ax2, ay2, coords);
-   HilbertSfc(x+bx3, y+by3, ax, ay, bx-bx3, by-by3, coords); // just one long
-   HilbertSfc(x+(ax-dax)+(bx3-dbx), y+(ay-day)+(by3-dby),
-              -bx3, -by3, -(ax-ax2), -(ay-ay2), coords);
 }
 
 void NCMesh::GridSfcOrdering(int width, int height, Array<int> &ordering)
