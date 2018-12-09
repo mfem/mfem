@@ -327,7 +327,7 @@ mfem::Mesh * BravaisLattice::GetWignerSeitzMesh(bool) const
    MergeMeshNodes(mesh);
 
    delete fd_mesh;
-   
+
    return mesh;
 }
 
@@ -535,7 +535,7 @@ LinearLattice::GetPeriodicWignerSeitzMesh(bool triMesh) const
 }
 */
 SquareLattice::SquareLattice(double a)
-  : BravaisLattice2D(a, a, 0.5 * M_PI)
+   : BravaisLattice2D(a, a, 0.5 * M_PI)
 {
    label_ = "SQR";
    type_  = PRIMITIVE_SQUARE;
@@ -662,34 +662,34 @@ SquareLattice::MapToFundamentalDomain(const Vector & pt, Vector & ipt) const
 
 const DenseMatrix & SquareLattice::GetTransformation(int ti) const
 {
-  int ir = ti % 2;
-  int iq = ti / 2;
-  
-  T_ = 0.0;
-  
-  if ( ir % 2 == 0 )
-  {
-    T_(0, 0) = 1.0;
-    T_(1, 1) = 1.0;
-  }
-  else
-  {
-    T_(0, 1) = 1.0;
-    T_(1, 0) = 1.0;
-  }
-  
-  for (int i=0; i<2; i++)
-  {
-    if ( iq & (int)pow(2, i) )
-    {
-      T_(i,0) *= -1.0;
-      T_(i,1) *= -1.0;
-    }
-  }
+   int ir = ti % 2;
+   int iq = ti / 2;
 
-  return T_;
+   T_ = 0.0;
+
+   if ( ir % 2 == 0 )
+   {
+      T_(0, 0) = 1.0;
+      T_(1, 1) = 1.0;
+   }
+   else
+   {
+      T_(0, 1) = 1.0;
+      T_(1, 0) = 1.0;
+   }
+
+   for (int i=0; i<2; i++)
+   {
+      if ( iq & (int)pow(2, i) )
+      {
+         T_(i,0) *= -1.0;
+         T_(i,1) *= -1.0;
+      }
+   }
+
+   return T_;
 }
-  
+
 Mesh *
 SquareLattice::GetFundamentalDomainMesh() const
 {
@@ -703,38 +703,38 @@ SquareLattice::GetFundamentalDomainMesh() const
 
    return mesh;
 }
-  /*
+/*
 Mesh *
 SquareLattice::GetWignerSeitzMesh(bool triMesh) const
 {
-   Mesh * mesh = new Mesh((double*)ws_vert_, 4,
-                          (int*)ws_e2v_, Geometry::SQUARE,
-                          (int*)ws_elem_att_, 1,
-                          (int*)ws_be2v_, Geometry::SEGMENT,
-                          (int*)ws_belem_att_, 4,
-                          2, 2);
-   mesh->Finalize();
+ Mesh * mesh = new Mesh((double*)ws_vert_, 4,
+                        (int*)ws_e2v_, Geometry::SQUARE,
+                        (int*)ws_elem_att_, 1,
+                        (int*)ws_be2v_, Geometry::SEGMENT,
+                        (int*)ws_belem_att_, 4,
+                        2, 2);
+ mesh->Finalize();
 
-   return mesh;
+ return mesh;
 }
 
 Mesh *
 SquareLattice::GetPeriodicWignerSeitzMesh(bool triMesh) const
 {
-   Mesh * mesh = this->GetWignerSeitzMesh(triMesh);
+ Mesh * mesh = this->GetWignerSeitzMesh(triMesh);
 
-   mesh->UniformRefinement();
-   mesh->UniformRefinement();
+ mesh->UniformRefinement();
+ mesh->UniformRefinement();
 
-   Mesh * per_mesh = MakePeriodicMesh(mesh, trn_vecs_);
+ Mesh * per_mesh = MakePeriodicMesh(mesh, trn_vecs_);
 
-   delete mesh;
+ delete mesh;
 
-   return per_mesh;
+ return per_mesh;
 }
-  */
+*/
 HexagonalLattice::HexagonalLattice(double a)
-  : BravaisLattice2D(a, a, 2.0 * M_PI / 3.0)//, R60_(2), RX_(2), TTmp_(2)
+   : BravaisLattice2D(a, a, 2.0 * M_PI / 3.0)//, R60_(2), RX_(2), TTmp_(2)
 {
    label_ = "HEX2D";
    type_  = PRIMITIVE_HEXAGONAL;
@@ -802,7 +802,7 @@ HexagonalLattice::HexagonalLattice(double a)
 
    // RX_(0,0)  =  1.0; RX_(0,1) =  0.0;
    // RX_(1,0)  =  0.0; RX_(1,1) = -1.0;
-   
+
    // Set Mesh data
    fd_vert_[0] = 0.0;      fd_vert_[ 1] = 0.0;      fd_vert_[ 2] = 0.0;
    fd_vert_[3] = 0.5 * a_; fd_vert_[ 4] = 0.0;      fd_vert_[ 5] = 0.0;
@@ -882,41 +882,41 @@ HexagonalLattice::MapToFundamentalDomain(const Vector & pt,
 
 const DenseMatrix & HexagonalLattice::GetTransformation(int ti) const
 {
-  int ir = ti % 3;
-  int iq = ti / 3;
+   int ir = ti % 3;
+   int iq = ti / 3;
 
-  T_ = 0.0;
+   T_ = 0.0;
 
-  switch (ir)
-    {
-    case 0:
-      T_(0, 0) =  1.0;
-      T_(1, 1) =  1.0;
-      break;
-    case 1:
-      T_(0, 0) =  0.5;
-      T_(0, 1) =  sqrt(0.75);
-      T_(1, 0) =  sqrt(0.75);
-      T_(1, 1) = -0.5;
-      break;
-    case 2:
-      T_(0, 0) =  0.5;
-      T_(0, 1) = -sqrt(0.75);
-      T_(1, 0) =  sqrt(0.75);
-      T_(1, 1) =  0.5;
-      break;
-    }
+   switch (ir)
+   {
+      case 0:
+         T_(0, 0) =  1.0;
+         T_(1, 1) =  1.0;
+         break;
+      case 1:
+         T_(0, 0) =  0.5;
+         T_(0, 1) =  sqrt(0.75);
+         T_(1, 0) =  sqrt(0.75);
+         T_(1, 1) = -0.5;
+         break;
+      case 2:
+         T_(0, 0) =  0.5;
+         T_(0, 1) = -sqrt(0.75);
+         T_(1, 0) =  sqrt(0.75);
+         T_(1, 1) =  0.5;
+         break;
+   }
 
-  for (int i=0; i<2; i++)
-  {
-    if ( iq & (int)pow(2, i) )
-    {
-      T_(i,0) *= -1.0;
-      T_(i,1) *= -1.0;
-    }
-  }
+   for (int i=0; i<2; i++)
+   {
+      if ( iq & (int)pow(2, i) )
+      {
+         T_(i,0) *= -1.0;
+         T_(i,1) *= -1.0;
+      }
+   }
 
-  return T_;
+   return T_;
 }
 
 Mesh *
@@ -933,35 +933,35 @@ HexagonalLattice::GetFundamentalDomainMesh() const
 
    return mesh;
 }
-  /*
+/*
 Mesh *
 HexagonalLattice::GetWignerSeitzMesh(bool triMesh) const
 {
-   Mesh * mesh = new Mesh((double*)ws_vert_, 7,
-                          (int*)ws_e2v_, Geometry::SQUARE,
-                          (int*)ws_elem_att_, 3,
-                          (int*)ws_be2v_, Geometry::SEGMENT,
-                          (int*)ws_belem_att_, 6,
-                          2, 2);
-   mesh->Finalize();
+ Mesh * mesh = new Mesh((double*)ws_vert_, 7,
+                        (int*)ws_e2v_, Geometry::SQUARE,
+                        (int*)ws_elem_att_, 3,
+                        (int*)ws_be2v_, Geometry::SEGMENT,
+                        (int*)ws_belem_att_, 6,
+                        2, 2);
+ mesh->Finalize();
 
-   return mesh;
+ return mesh;
 }
 
 Mesh *
 HexagonalLattice::GetPeriodicWignerSeitzMesh(bool triMesh) const
 {
-   Mesh * mesh = this->GetWignerSeitzMesh(triMesh);
+ Mesh * mesh = this->GetWignerSeitzMesh(triMesh);
 
-   mesh->UniformRefinement();
+ mesh->UniformRefinement();
 
-   Mesh * per_mesh = MakePeriodicMesh(mesh, trn_vecs_);
+ Mesh * per_mesh = MakePeriodicMesh(mesh, trn_vecs_);
 
-   delete mesh;
+ delete mesh;
 
-   return per_mesh;
+ return per_mesh;
 }
-  */
+*/
 RectangularLattice::RectangularLattice(double a, double b)
    : BravaisLattice2D(a, b, 0.5 * M_PI)
 {
@@ -1171,32 +1171,32 @@ CenteredRectangularLattice::CenteredRectangularLattice(double a, double b)
       trn_vecs_[i].SetSize(2);
    }
    if ( b_ < a_ )
-     {
-       trn_vecs_[0][0] = 0.5 * a_; trn_vecs_[0][1] = -0.5 * b_;
-       trn_vecs_[1][0] = 0.5 * a_; trn_vecs_[1][1] =  0.5 * b_;
-       trn_vecs_[2][0] = 0.0;      trn_vecs_[2][1] = b_;
-     }
+   {
+      trn_vecs_[0][0] = 0.5 * a_; trn_vecs_[0][1] = -0.5 * b_;
+      trn_vecs_[1][0] = 0.5 * a_; trn_vecs_[1][1] =  0.5 * b_;
+      trn_vecs_[2][0] = 0.0;      trn_vecs_[2][1] = b_;
+   }
    else
-     {
-       trn_vecs_[0][0] =  a_;       trn_vecs_[0][1] =  0.0;
-       trn_vecs_[1][0] =  0.5 * a_; trn_vecs_[1][1] =  0.5 * b_;
-       trn_vecs_[2][0] = -0.5 * a_; trn_vecs_[2][1] =  0.5 * b_;
-     }
+   {
+      trn_vecs_[0][0] =  a_;       trn_vecs_[0][1] =  0.0;
+      trn_vecs_[1][0] =  0.5 * a_; trn_vecs_[1][1] =  0.5 * b_;
+      trn_vecs_[2][0] = -0.5 * a_; trn_vecs_[2][1] =  0.5 * b_;
+   }
 
    // Set the face radii
    face_radii_.resize(3);
    if ( b_ < a_ )
-     {
-       face_radii_[0] = 0.25 * b_ * sqrt(1.0 + b_ * b_  / (a_ * a_));
-       face_radii_[1] = 0.25 * b_ * sqrt(1.0 + b_ * b_  / (a_ * a_));
-       face_radii_[2] = 0.25 * (a_ - b_ * b_ / a_);
-     }
+   {
+      face_radii_[0] = 0.25 * b_ * sqrt(1.0 + b_ * b_  / (a_ * a_));
+      face_radii_[1] = 0.25 * b_ * sqrt(1.0 + b_ * b_  / (a_ * a_));
+      face_radii_[2] = 0.25 * (a_ - b_ * b_ / a_);
+   }
    else
-     {
-       face_radii_[0] = 0.25 * (b_ - a_ * a_ / b_);
-       face_radii_[1] = 0.25 * a_ * sqrt(1.0 + a_ * a_  / (b_ * b_));
-       face_radii_[2] = 0.25 * a_ * sqrt(1.0 + a_ * a_  / (b_ * b_));
-     }
+   {
+      face_radii_[0] = 0.25 * (b_ - a_ * a_ / b_);
+      face_radii_[1] = 0.25 * a_ * sqrt(1.0 + a_ * a_  / (b_ * b_));
+      face_radii_[2] = 0.25 * a_ * sqrt(1.0 + a_ * a_  / (b_ * b_));
+   }
 
    this->SetCellVolumes();
 
@@ -1304,13 +1304,13 @@ CenteredRectangularLattice::MapToFundamentalDomain(const Vector & pt,
 
 const DenseMatrix & CenteredRectangularLattice::GetTransformation(int ti) const
 {
-  T_(0,0) = (ti > 0 && ti < 3) ? 1.0 : -1.0;
-  T_(0,1) = 0.0;
-  T_(1,0) = 0.0;
-  T_(1,1) = (ti < 2) ? 1.0 : -1.0;
-  return T_;
+   T_(0,0) = (ti > 0 && ti < 3) ? 1.0 : -1.0;
+   T_(0,1) = 0.0;
+   T_(1,0) = 0.0;
+   T_(1,1) = (ti < 2) ? 1.0 : -1.0;
+   return T_;
 }
-  
+
 Mesh *
 CenteredRectangularLattice::GetFundamentalDomainMesh() const
 {
@@ -1571,7 +1571,7 @@ ObliqueLattice::GetFundamentalDomainMesh() const
                           (int*)fd_be2v_, Geometry::SEGMENT,
                           (int*)fd_belem_att_, 8,
                           2, 2);
-   */   
+   */
    Mesh * mesh = new Mesh((double*)fd_vert_, 8,
                           (int*)fd_e2v_, Geometry::SQUARE,
                           (int*)fd_elem_att_, 3,
@@ -1958,39 +1958,39 @@ CubicLattice::MapToFundamentalDomain(const Vector & pt, Vector & ipt) const
 
 const DenseMatrix & CubicLattice::GetTransformation(int ti) const
 {
-  int ir = ti % 6;
-  int iq = ti / 6;
+   int ir = ti % 6;
+   int iq = ti / 6;
 
-  T_ = 0.0;
+   T_ = 0.0;
 
-  if ( ir % 2 == 0 )
-  {
-    for (int i=0; i<3; i++)
-    {
-      T_(i, (i + (ir / 2)) % 3) = 1.0;
-    }
-  }
-  else
-  {
-    for (int i=0; i<3; i++)
-    {
-      T_(i, (3 - i + (ir / 2)) % 3) = 1.0;
-    }
-  }
-  
-  for (int i=0; i<3; i++)
-  {
-    if ( iq & (int)pow(2, i) )
-    {
-      T_(i,0) *= -1.0;
-      T_(i,1) *= -1.0;
-      T_(i,2) *= -1.0;
-    }
-  }
-  
-  return T_;
+   if ( ir % 2 == 0 )
+   {
+      for (int i=0; i<3; i++)
+      {
+         T_(i, (i + (ir / 2)) % 3) = 1.0;
+      }
+   }
+   else
+   {
+      for (int i=0; i<3; i++)
+      {
+         T_(i, (3 - i + (ir / 2)) % 3) = 1.0;
+      }
+   }
+
+   for (int i=0; i<3; i++)
+   {
+      if ( iq & (int)pow(2, i) )
+      {
+         T_(i,0) *= -1.0;
+         T_(i,1) *= -1.0;
+         T_(i,2) *= -1.0;
+      }
+   }
+
+   return T_;
 }
-  
+
 Mesh *
 CubicLattice::GetFundamentalDomainMesh() const
 {
@@ -5172,12 +5172,12 @@ HexagonalPrismLattice::HexagonalPrismLattice(double a, double c)
    fd_vert_[ 6] = 0.5 * a_; fd_vert_[ 7] = 0.5 * sqrt(1.0/3.0) * a_;
    fd_vert_[ 8] = 0.0;
    for (int i=0; i<3; i++)
-     {
-       fd_vert_[3 * i +  9] = fd_vert_[3 * i + 0];
-       fd_vert_[3 * i + 10] = fd_vert_[3 * i + 1];
-       fd_vert_[3 * i + 11] = 0.5 * c_;
-     }
-   
+   {
+      fd_vert_[3 * i +  9] = fd_vert_[3 * i + 0];
+      fd_vert_[3 * i + 10] = fd_vert_[3 * i + 1];
+      fd_vert_[3 * i + 11] = 0.5 * c_;
+   }
+
    fd_e2v_[0] = 0; fd_e2v_[1] = 1; fd_e2v_[2] = 2;
    fd_e2v_[3] = 3; fd_e2v_[4] = 4; fd_e2v_[5] = 5;
    fd_elem_att_[0] = 1;
@@ -5291,57 +5291,63 @@ HexagonalPrismLattice::MapToFundamentalDomain(const Vector & pt,
 const DenseMatrix &
 HexagonalPrismLattice::GetTransformation(int ti) const
 {
-  int ir = ti % 3;
-  int iq = ti / 3;
+   int ir = ti % 3;
+   int iq = ti / 3;
 
-  T_ = 0.0;
+   T_ = 0.0;
 
-  T_(2, 2) =  1.0;
+   T_(2, 2) =  1.0;
 
-  switch (ir)
-    {
-    case 0:
-      T_(0, 0) =  1.0;
-      T_(1, 1) =  1.0;
-      break;
-    case 1:
-      T_(0, 0) =  0.5;
-      T_(0, 1) =  sqrt(0.75);
-      T_(1, 0) =  sqrt(0.75);
-      T_(1, 1) = -0.5;
-      break;
-    case 2:
-      T_(0, 0) =  0.5;
-      T_(0, 1) = -sqrt(0.75);
-      T_(1, 0) =  sqrt(0.75);
-      T_(1, 1) =  0.5;
-      break;
-    }
+   switch (ir)
+   {
+      case 0:
+         T_(0, 0) =  1.0;
+         T_(1, 1) =  1.0;
+         break;
+      case 1:
+         T_(0, 0) =  0.5;
+         T_(0, 1) =  sqrt(0.75);
+         T_(1, 0) =  sqrt(0.75);
+         T_(1, 1) = -0.5;
+         break;
+      case 2:
+         T_(0, 0) =  0.5;
+         T_(0, 1) = -sqrt(0.75);
+         T_(1, 0) =  sqrt(0.75);
+         T_(1, 1) =  0.5;
+         break;
+   }
 
-  for (int i=0; i<3; i++)
-  {
-    if ( iq & (int)pow(2, i) )
-    {
-      T_(i,0) *= -1.0;
-      T_(i,1) *= -1.0;
-      T_(i,2) *= -1.0;
-    }
-  }
+   for (int i=0; i<3; i++)
+   {
+      if ( iq & (int)pow(2, i) )
+      {
+         T_(i,0) *= -1.0;
+         T_(i,1) *= -1.0;
+         T_(i,2) *= -1.0;
+      }
+   }
 
-  return T_;
+   return T_;
 }
-  
+
 Mesh *
 HexagonalPrismLattice::GetFundamentalDomainMesh() const
 {
    Mesh * mesh = new Mesh(3, 6, 1, 5, 3);
    mesh->AddWedge((const int*)fd_e2v_, fd_elem_att_[0]);
    for (int i=0; i<3; i++)
+   {
       mesh->AddBdrQuad((const int*)&fd_be2v_[4*i], fd_belem_att_[i]);
+   }
    for (int i=3; i<5; i++)
+   {
       mesh->AddBdrTriangle((const int*)&fd_be2v_[4*i], fd_belem_att_[i]);
+   }
    for (int i=0; i<6; i++)
+   {
       mesh->AddVertex((const double *)&fd_vert_[3*i]);
+   }
 
    mesh->FinalizeMesh(true);
 
@@ -6322,9 +6328,9 @@ MonoclinicLattice::MonoclinicLattice(double a, double b, double c,
 
    for (int i=0; i<8; i++)
    {
-     fd_vert_[3*i+24] = 0.5 * a_;
-     fd_vert_[3*i+25] = fd_vert_[3*i+1];
-     fd_vert_[3*i+26] = fd_vert_[3*i+2];
+      fd_vert_[3*i+24] = 0.5 * a_;
+      fd_vert_[3*i+25] = fd_vert_[3*i+1];
+      fd_vert_[3*i+26] = fd_vert_[3*i+2];
    }
 
    fd_e2v_[ 0] =  0; fd_e2v_[ 1] =  1; fd_e2v_[ 2] =  2; fd_e2v_[ 3] =  3;
@@ -6351,18 +6357,18 @@ MonoclinicLattice::MonoclinicLattice(double a, double b, double c,
    fd_be2v_[32] = 3; fd_be2v_[33] = 2; fd_be2v_[34] =  1; fd_be2v_[35] =  0;
    fd_be2v_[36] = 5; fd_be2v_[37] = 4; fd_be2v_[38] =  3; fd_be2v_[39] =  0;
    fd_be2v_[40] = 7; fd_be2v_[41] = 6; fd_be2v_[42] =  5; fd_be2v_[43] =  0;
-   
+
    fd_be2v_[44] = 8; fd_be2v_[45] =  9; fd_be2v_[46] = 10; fd_be2v_[47] = 11;
    fd_be2v_[48] = 8; fd_be2v_[49] = 11; fd_be2v_[50] = 12; fd_be2v_[51] = 13;
    fd_be2v_[52] = 8; fd_be2v_[53] = 13; fd_be2v_[54] = 14; fd_be2v_[55] = 15;
-   
+
    fd_belem_att_[ 0] = 10; fd_belem_att_[ 1] =  1;
    fd_belem_att_[ 2] =  1; fd_belem_att_[ 3] =  1;
    fd_belem_att_[ 4] =  1; fd_belem_att_[ 5] =  1;
    fd_belem_att_[ 6] =  1; fd_belem_att_[ 7] = 10;
    fd_belem_att_[ 8] = 10; fd_belem_att_[ 9] = 10; fd_belem_att_[10] = 10;
    fd_belem_att_[11] =  1; fd_belem_att_[12] =  1; fd_belem_att_[13] =  1;
- 
+
    for (int i=0; i<63; i++) { ws_vert_[i] = 0.0; }
    for (int i=0; i<3; i++)
    {
@@ -6483,19 +6489,19 @@ const DenseMatrix & MonoclinicLattice::GetTransformation(int ti) const
 
    for (int i=0; i<3; i++)
    {
-     T_(i,i) = 1.0;
+      T_(i,i) = 1.0;
    }
 
    if (ti == 1 || ti == 2)
-     {
-       T_(1,1) *= -1.0;
-       T_(2,2) *= -1.0;
-     }
+   {
+      T_(1,1) *= -1.0;
+      T_(2,2) *= -1.0;
+   }
    if ( ti >= 2 )
-     {
-       T_(0,0) *= -1.0;
-     }
-   
+   {
+      T_(0,0) *= -1.0;
+   }
+
    return T_;
 }
 
@@ -6509,8 +6515,8 @@ MonoclinicLattice::GetFundamentalDomainMesh() const
                           (int*)fd_be2v_, Geometry::SEGMENT,
                           (int*)fd_belem_att_, 8,
                           2, 2);
-   */   
-  Mesh * mesh = new Mesh((double*)fd_vert_, 16,
+   */
+   Mesh * mesh = new Mesh((double*)fd_vert_, 16,
                           (int*)fd_e2v_, Geometry::CUBE,
                           (int*)fd_elem_att_, 3,
                           (int*)fd_be2v_, Geometry::SQUARE,
@@ -6518,50 +6524,50 @@ MonoclinicLattice::GetFundamentalDomainMesh() const
                           3, 3);
 
    mesh->Finalize();
-   
+
    return mesh;
 }
-  /*
+/*
 Mesh *
 MonoclinicLattice::GetWignerSeitzMesh(bool tetMesh) const
 {
-   Mesh * mesh = new Mesh((double*)ws_vert_, 21,
-                          (int*)ws_e2v_, Geometry::CUBE,
-                          (int*)ws_elem_att_, 6,
-                          (int*)ws_be2v_, Geometry::SQUARE,
-                          (int*)ws_belem_att_, 18,
-                          3, 3);
-   mesh->Finalize();
+ Mesh * mesh = new Mesh((double*)ws_vert_, 21,
+                        (int*)ws_e2v_, Geometry::CUBE,
+                        (int*)ws_elem_att_, 6,
+                        (int*)ws_be2v_, Geometry::SQUARE,
+                        (int*)ws_belem_att_, 18,
+                        3, 3);
+ mesh->Finalize();
 
-   return mesh;
+ return mesh;
 }
 
 Mesh *
 MonoclinicLattice::GetPeriodicWignerSeitzMesh(bool tetMesh) const
 {
-   Mesh * mesh = this->GetWignerSeitzMesh(tetMesh);
+ Mesh * mesh = this->GetWignerSeitzMesh(tetMesh);
 
-   {
-      std::ofstream ofs("mcl.mesh");
-      mesh->Print(ofs);
-      ofs.close();
-   }
+ {
+    std::ofstream ofs("mcl.mesh");
+    mesh->Print(ofs);
+    ofs.close();
+ }
 
-   mesh->UniformRefinement();
+ mesh->UniformRefinement();
 
-   Mesh * per_mesh = MakePeriodicMesh(mesh, trn_vecs_, 1);
+ Mesh * per_mesh = MakePeriodicMesh(mesh, trn_vecs_, 1);
 
-   delete mesh;
+ delete mesh;
 
-   {
-      std::ofstream ofs("per-mcl.mesh");
-      per_mesh->Print(ofs);
-      ofs.close();
-   }
+ {
+    std::ofstream ofs("per-mcl.mesh");
+    per_mesh->Print(ofs);
+    ofs.close();
+ }
 
-   return per_mesh;
+ return per_mesh;
 }
-  */
+*/
 BaseCenteredMonoclinicLattice::BaseCenteredMonoclinicLattice(double a,
                                                              double b,
                                                              double c,
@@ -8209,33 +8215,33 @@ MergeMeshNodes(Mesh * mesh, int logging)
    if ( logging > 0 )
       cout << "Euler Number of Initial Mesh:  "
            << ((dim==3)?mesh->EulerNumber() :
-	       ((dim==2)?mesh->EulerNumber2D() :
-		mesh->GetNV() - mesh->GetNE())) << endl;
+               ((dim==2)?mesh->EulerNumber2D() :
+                mesh->GetNV() - mesh->GetNE())) << endl;
 
    vector<int> v2v(mesh->GetNV());
 
    Vector vd(sdim);
-   
+
    for (int i = 0; i < mesh->GetNV(); i++)
    {
-     Vector vi(mesh->GetVertex(i), sdim);
+      Vector vi(mesh->GetVertex(i), sdim);
 
-     v2v[i] = -1;
-     
-     for (int j = 0; j < i; j++)
-     {
-       Vector vj(mesh->GetVertex(j), sdim);
-       add(vi, -1.0, vj, vd);
+      v2v[i] = -1;
 
-       if ( vd.Norml2() < tol )
-       {
-	 v2v[i] = j;
-	 break;
-       }
-     }
-     if ( v2v[i] < 0 ) v2v[i] = i;
+      for (int j = 0; j < i; j++)
+      {
+         Vector vj(mesh->GetVertex(j), sdim);
+         add(vi, -1.0, vj, vd);
+
+         if ( vd.Norml2() < tol )
+         {
+            v2v[i] = j;
+            break;
+         }
+      }
+      if ( v2v[i] < 0 ) { v2v[i] = i; }
    }
-   
+
    // renumber elements
    for (int i = 0; i < mesh->GetNE(); i++)
    {
@@ -8265,8 +8271,8 @@ MergeMeshNodes(Mesh * mesh, int logging)
    {
       cout << "Euler Number of Final Mesh:    "
            << ((dim==3) ? mesh->EulerNumber() :
-	       ((dim==2) ? mesh->EulerNumber2D() :
-		mesh->GetNV() - mesh->GetNE()))
+               ((dim==2) ? mesh->EulerNumber2D() :
+                mesh->GetNV() - mesh->GetNE()))
            << endl;
    }
 }
