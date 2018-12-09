@@ -50,7 +50,8 @@ using namespace mfem;
 int main(int argc, char *argv[])
 {
    Array<int> ord;
-   NCMesh::GridSfcOrdering(atol(argv[1]), atol(argv[2]), ord);
+   //NCMesh::GridSfcOrdering2D(atol(argv[1]), atol(argv[2]), ord);
+   NCMesh::GridSfcOrdering3D(atol(argv[1]), atol(argv[2]), atol(argv[3]), ord);
    mfem::out << std::flush;
    exit(1);
 

@@ -247,13 +247,18 @@ public:
 
    // SFC ordering
 
-   /** Return a space filling ordering of a rectangular grid of elements.
+   /** Return a space filling ordering for a rectangular grid of elements.
        Implemented is a generalized Hilbert curve for arbitrary grid dimensions.
+       If the width is odd, height should be odd too, otherwise one diagonal
+       step cannot be avoided in the curve. Otherwise, the curve is guaranteed
+       to contain orthogonal (face-neighbor) steps only.
        The grid elements are assumed to have row-major, zero-based indices. */
-   static void GridSfcOrdering(int width, int height, Array<int> &ordering);
+   static void GridSfcOrdering2D(int width, int height,
+                                 Array<int> &ordering);
 
    /** TODO */
-   static void GridSfcOrdering3D(int dims[3], Array<int> &ordering);
+   static void GridSfcOrdering3D(int width, int height, int depth,
+                                 Array<int> &ordering);
 
 
    // utility
