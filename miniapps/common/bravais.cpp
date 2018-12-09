@@ -485,9 +485,9 @@ LinearLattice::MapToFundamentalDomain(const Vector & pt, Vector & ipt) const
    return map;
 }
 
-const DenseMatrix & LinearLattice::GetTransformation(int i) const
+const DenseMatrix & LinearLattice::GetTransformation(int ti) const
 {
-   T_(0,0) = (i == 0) ? 1.0 : -1.0;
+   T_(0,0) = (ti == 0) ? 1.0 : -1.0;
    return T_;
 }
 
@@ -928,6 +928,7 @@ HexagonalLattice::GetFundamentalDomainMesh() const
                           (int*)fd_be2v_, Geometry::SEGMENT,
                           (int*)fd_belem_att_, 3,
                           2, 2);
+
    mesh->Finalize();
 
    return mesh;
@@ -1082,9 +1083,9 @@ RectangularLattice::MapToFundamentalDomain(const Vector & pt,
    return map;
 }
 
-const DenseMatrix & RectangularLattice::GetTransformation(int i) const
+const DenseMatrix & RectangularLattice::GetTransformation(int ti) const
 {
-   switch (i)
+   switch (ti)
    {
       case 0:
          T_(0,0) =  1.0; T_(0,1) =  0.0;
@@ -1301,12 +1302,12 @@ CenteredRectangularLattice::MapToFundamentalDomain(const Vector & pt,
    return map;
 }
 
-const DenseMatrix & CenteredRectangularLattice::GetTransformation(int i) const
+const DenseMatrix & CenteredRectangularLattice::GetTransformation(int ti) const
 {
-  T_(0,0) = (i > 0 && i < 3) ? 1.0 : -1.0;
+  T_(0,0) = (ti > 0 && ti < 3) ? 1.0 : -1.0;
   T_(0,1) = 0.0;
   T_(1,0) = 0.0;
-  T_(1,1) = (i < 2) ? 1.0 : -1.0;
+  T_(1,1) = (ti < 2) ? 1.0 : -1.0;
   return T_;
 }
   
@@ -1551,12 +1552,12 @@ ObliqueLattice::MapToFundamentalDomain(const Vector & pt,
    return map;
 }
 
-const DenseMatrix & ObliqueLattice::GetTransformation(int i) const
+const DenseMatrix & ObliqueLattice::GetTransformation(int ti) const
 {
-   T_(0,0) = (i == 0) ? 1.0 : -1.0;
+   T_(0,0) = (ti == 0) ? 1.0 : -1.0;
    T_(0,1) = 0.0;
    T_(1,0) = 0.0;
-   T_(1,1) = (i == 0) ? 1.0 : -1.0;
+   T_(1,1) = (ti == 0) ? 1.0 : -1.0;
    return T_;
 }
 
@@ -5166,6 +5167,32 @@ HexagonalPrismLattice::HexagonalPrismLattice(double a, double c)
    il_[2][0] = "HK";     // K     -> H
 
    // Set Mesh data
+   fd_vert_[ 0] = 0.0;      fd_vert_[ 1] = 0.0;      fd_vert_[ 2] = 0.0;
+   fd_vert_[ 3] = 0.5 * a_; fd_vert_[ 4] = 0.0;      fd_vert_[ 5] = 0.0;
+   fd_vert_[ 6] = 0.5 * a_; fd_vert_[ 7] = 0.5 * sqrt(1.0/3.0) * a_;
+   fd_vert_[ 8] = 0.0;
+   for (int i=0; i<3; i++)
+     {
+       fd_vert_[3 * i +  9] = fd_vert_[3 * i + 0];
+       fd_vert_[3 * i + 10] = fd_vert_[3 * i + 1];
+       fd_vert_[3 * i + 11] = 0.5 * c_;
+     }
+   
+   fd_e2v_[0] = 0; fd_e2v_[1] = 1; fd_e2v_[2] = 2;
+   fd_e2v_[3] = 3; fd_e2v_[4] = 4; fd_e2v_[5] = 5;
+   fd_elem_att_[0] = 1;
+
+   fd_be2v_[ 0] = 0; fd_be2v_[ 1] = 1; fd_be2v_[ 2] = 4; fd_be2v_[ 3] = 3;
+   fd_be2v_[ 4] = 1; fd_be2v_[ 5] = 2; fd_be2v_[ 6] = 5; fd_be2v_[ 7] = 4;
+   fd_be2v_[ 8] = 2; fd_be2v_[ 9] = 0; fd_be2v_[10] = 3; fd_be2v_[11] = 5;
+
+   fd_be2v_[12] = 2; fd_be2v_[13] = 1; fd_be2v_[14] = 0; fd_be2v_[15] = -1;
+   fd_be2v_[16] = 3; fd_be2v_[17] = 4; fd_be2v_[18] = 5; fd_be2v_[19] = -1;
+
+   fd_belem_att_[0] = 10; fd_belem_att_[1] = 1;
+   fd_belem_att_[2] = 10;
+   fd_belem_att_[3] = 10; fd_belem_att_[4] = 1;
+   /*
    for (int i=0; i<63; i++) { ws_vert_[i] = 0.0; }
    for (int i=0; i<3; i++)
    {
@@ -5220,6 +5247,7 @@ HexagonalPrismLattice::HexagonalPrismLattice(double a, double c)
    ws_be2v_[68] = 14; ws_be2v_[69] = 19; ws_be2v_[70] = 20; ws_be2v_[71] = 15;
 
    for (int i=0; i<18; i++) { ws_belem_att_[i] = 1; }
+   */
 }
 
 bool
@@ -5260,6 +5288,66 @@ HexagonalPrismLattice::MapToFundamentalDomain(const Vector & pt,
    return map;
 }
 
+const DenseMatrix &
+HexagonalPrismLattice::GetTransformation(int ti) const
+{
+  int ir = ti % 3;
+  int iq = ti / 3;
+
+  T_ = 0.0;
+
+  T_(2, 2) =  1.0;
+
+  switch (ir)
+    {
+    case 0:
+      T_(0, 0) =  1.0;
+      T_(1, 1) =  1.0;
+      break;
+    case 1:
+      T_(0, 0) =  0.5;
+      T_(0, 1) =  sqrt(0.75);
+      T_(1, 0) =  sqrt(0.75);
+      T_(1, 1) = -0.5;
+      break;
+    case 2:
+      T_(0, 0) =  0.5;
+      T_(0, 1) = -sqrt(0.75);
+      T_(1, 0) =  sqrt(0.75);
+      T_(1, 1) =  0.5;
+      break;
+    }
+
+  for (int i=0; i<3; i++)
+  {
+    if ( iq & (int)pow(2, i) )
+    {
+      T_(i,0) *= -1.0;
+      T_(i,1) *= -1.0;
+      T_(i,2) *= -1.0;
+    }
+  }
+
+  return T_;
+}
+  
+Mesh *
+HexagonalPrismLattice::GetFundamentalDomainMesh() const
+{
+   Mesh * mesh = new Mesh(3, 6, 1, 5, 3);
+   mesh->AddWedge((const int*)fd_e2v_, fd_elem_att_[0]);
+   for (int i=0; i<3; i++)
+      mesh->AddBdrQuad((const int*)&fd_be2v_[4*i], fd_belem_att_[i]);
+   for (int i=3; i<5; i++)
+      mesh->AddBdrTriangle((const int*)&fd_be2v_[4*i], fd_belem_att_[i]);
+   for (int i=0; i<6; i++)
+      mesh->AddVertex((const double *)&fd_vert_[3*i]);
+
+   mesh->FinalizeMesh(true);
+
+   return mesh;
+}
+/*
 Mesh *
 HexagonalPrismLattice::GetWignerSeitzMesh(bool tetMesh) const
 {
@@ -5299,7 +5387,7 @@ HexagonalPrismLattice::GetPeriodicWignerSeitzMesh(bool tetMesh) const
 
    return per_mesh;
 }
-
+*/
 RhombohedralLattice::RhombohedralLattice(double a, double alpha)
    : BravaisLattice3D(a, a, a, alpha, alpha, alpha)
 {
