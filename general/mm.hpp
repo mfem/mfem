@@ -19,23 +19,27 @@ namespace mfem
 // *****************************************************************************
 // * mm2dev_t: memory manager host_@ to device_@
 // *****************************************************************************
-typedef struct mm2dev
+typedef struct
 {
    bool host = true;
    size_t bytes = 0;
    void *h_adrs = NULL;
    void *d_adrs = NULL;
    OccaMemory o_adrs;
-   bool ranged = false;
-   void *b_adrs = NULL;
-   size_t n_rangers = 0;
-   void **rangers = NULL;
-} mm2dev_t;
+} memory_t;
+
+// *****************************************************************************
+typedef struct
+{
+   void *base = NULL;
+   void *adrs = NULL;
+} alias_t;
 
 // *****************************************************************************
 // * Mapping from one host_@ to its mm2dev_t
 // *****************************************************************************
-typedef std::unordered_map<const void*, mm2dev_t> mm_t;
+typedef std::unordered_map<const void*, memory_t> memory_map_t;
+typedef std::unordered_map<const void*, alias_t> alias_map_t;
 
 // *****************************************************************************
 // * Memory Manager Singleton
@@ -43,8 +47,8 @@ typedef std::unordered_map<const void*, mm2dev_t> mm_t;
 class mm
 {
 protected:
-   mm_t *memory = NULL;
-   mm_t *alias = NULL;
+   memory_map_t *memories = NULL;
+   alias_map_t  *aliases = NULL;
 private:
    mm() {}
    mm(mm const&);
@@ -57,11 +61,13 @@ public:
    }
 private:
    void Setup();
+   const void* InsertAlias(const void*, const void*);
    void *Insert(const void*, const size_t, const size_t,
                 const char* file, const int line, const void* = NULL);
    void *Erase(void*);
    void *Range(const void*);
-   bool Known(const void*, const bool = false);
+   bool Alias(const void*, const bool = false);
+   bool Known(const void*);
    void Sync_p(const void*);
 public:
    // **************************************************************************

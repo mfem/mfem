@@ -39,10 +39,8 @@ private:
    config() {}
    config(config const&);
    void operator=(config const&);
-
-public:
    // **************************************************************************
-   static config& _Get()
+   static config& Singleton()
    {
       static config singleton;
       return singleton;
@@ -58,7 +56,7 @@ private:
    // **************************************************************************
    inline bool GetOcca() { return occa; }
    inline void SetOcca(const bool mode) { occa = mode; }
-   inline OccaDevice GetOccaDevice() { return occaDevice; }
+   inline OccaDevice Device() { return occaDevice; }
 
    // **************************************************************************
    inline bool GetCuda() { return cuda; }
@@ -79,19 +77,19 @@ public:
    // **************************************************************************
    // * Shortcuts
    // **************************************************************************
-   static inline void Setup() { _Get().devSetup(); }
+   static inline void Setup() { Singleton().devSetup(); }
    constexpr static inline bool Nvcc() { return cuNvcc(); }
 
-   static inline bool PA() { return _Get().GetPA(); }
-   static inline void PA(const bool b) { _Get().SetPA(b); }
+   static inline bool PA() { return Singleton().GetPA(); }
+   static inline void PA(const bool b) { Singleton().SetPA(b); }
 
-   static inline bool Cuda() { return _Get().GetCuda(); }
-   static inline void Cuda(const bool b) { _Get().SetCuda(b); }
-   static inline CUstream Stream() { return _Get().GetStream(); }
+   static inline bool Cuda() { return Singleton().GetCuda(); }
+   static inline void Cuda(const bool b) { Singleton().SetCuda(b); }
+   static inline CUstream Stream() { return Singleton().GetStream(); }
 
-   static inline bool Occa() { return _Get().GetOcca(); }
-   static inline void Occa(const bool b) { _Get().SetOcca(b); }
-   static inline OccaDevice OccaDevice() { return _Get().GetOccaDevice(); }
+   static inline bool Occa() { return Singleton().GetOcca(); }
+   static inline void Occa(const bool b) { Singleton().SetOcca(b); }
+   static inline OccaDevice OccaGetDevice() { return Singleton().Device(); }
 };
 
 // *****************************************************************************
