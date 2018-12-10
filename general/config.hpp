@@ -32,7 +32,7 @@ private:
    CUdevice cuDevice;
    CUcontext cuContext;
    CUstream *cuStream;
-   OCCAdevice occaDevice;
+   OccaDevice occaDevice;
 
 private:
    // **************************************************************************
@@ -58,7 +58,7 @@ private:
    // **************************************************************************
    inline bool GetOcca() { return occa; }
    inline void SetOcca(const bool mode) { occa = mode; }
-   inline OCCAdevice GetOccaDevice() { return occaDevice; }
+   inline OccaDevice GetOccaDevice() { return occaDevice; }
 
    // **************************************************************************
    inline bool GetCuda() { return cuda; }
@@ -91,7 +91,7 @@ public:
 
    static inline bool Occa() { return _Get().GetOcca(); }
    static inline void Occa(const bool b) { _Get().SetOcca(b); }
-   static inline OCCAdevice OccaDevice() { return _Get().GetOccaDevice(); }
+   static inline OccaDevice OccaDevice() { return _Get().GetOccaDevice(); }
 };
 
 // *****************************************************************************

@@ -25,7 +25,7 @@ typedef struct mm2dev
    size_t bytes = 0;
    void *h_adrs = NULL;
    void *d_adrs = NULL;
-   memory o_adrs;
+   OccaMemory o_adrs;
    bool ranged = false;
    void *b_adrs = NULL;
    size_t n_rangers = 0;
@@ -43,7 +43,8 @@ typedef std::unordered_map<const void*, mm2dev_t> mm_t;
 class mm
 {
 protected:
-   mm_t *mng = NULL;
+   mm_t *memory = NULL;
+   mm_t *alias = NULL;
 private:
    mm() {}
    mm(mm const&);
@@ -55,6 +56,7 @@ public:
       return singleton;
    }
 private:
+   void Setup();
    void *Insert(const void*, const size_t, const size_t,
                 const char* file, const int line, const void* = NULL);
    void *Erase(void*);
@@ -86,7 +88,7 @@ public:
 
    // **************************************************************************
    void* Adrs(const void*);
-   memory Memory(const void*);
+   OccaMemory Memory(const void*);
 
    // **************************************************************************
    static void Sync(const void *adrs) { mm::Get().Sync_p(adrs); }

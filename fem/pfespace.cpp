@@ -2785,9 +2785,9 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    
    const bool cuda = config::Cuda();
    if (cuda){
-      assert(false);
-      config::Cuda(false);
+      //config::Cuda(false);
       mm::Sync(xdata);
+      //mm::Sync(ydata);
    }
    const int m = external_ldofs.Size();
 
@@ -2806,8 +2806,9 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    const int out_layout = 0; // 0 - output is ldofs array
    gc.BcastEnd(ydata, out_layout);
    if (cuda){
-      config::Cuda(true);
-      mm::Sync(ydata);
+      //mm::Sync(xdata);
+      //mm::Sync(ydata);
+      //config::Cuda(true);
    }
 }
 
@@ -2823,9 +2824,9 @@ void ConformingProlongationOperator::MultTranspose(
    
    const bool cuda = config::Cuda();
    if (cuda){
-      assert(false);
-      config::Cuda(false);
+      //config::Cuda(false);
       mm::Sync(xdata);
+      //mm::Sync(ydata);
    }
    
    const int m = external_ldofs.Size();
@@ -2844,8 +2845,9 @@ void ConformingProlongationOperator::MultTranspose(
    const int out_layout = 2; // 2 - output is an array on all ltdofs
    gc.ReduceEnd<double>(ydata, out_layout, GroupCommunicator::Sum);
    if (cuda){
-      config::Cuda(true);
-      mm::Sync(ydata);
+      //mm::Sync(xdata);
+      //mm::Sync(ydata);
+      //config::Cuda(true);
    }
 }
 

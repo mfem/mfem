@@ -15,19 +15,20 @@
 namespace mfem
 {
 
+
 // *****************************************************************************
 // * Looks if adrs is in one mapping's range
 // * Returns base address if it is a hit, NULL otherwise
 // *****************************************************************************
 void *mm::Range(const void *adrs)
 {
-   const auto search = mng->find(adrs);
-   const bool known = search != mng->end();
+   const auto search = memory->find(adrs);
+   const bool known = search != memory->end();
    assert(not known);
-   for(mm_t::iterator address = mng->begin(); address != mng->end(); address++) {
-      void *h_adrs = address->second.h_adrs;
+   for(mm_t::iterator a = memory->begin(); a != memory->end(); a++) {
+      void *h_adrs = a->second.h_adrs;
       if (h_adrs > adrs) continue;
-      const size_t bytes = address->second.bytes;
+      const size_t bytes = a->second.bytes;
       const void *end = (char*)h_adrs + bytes;
       if (adrs <= end) return h_adrs;
    }
@@ -40,29 +41,43 @@ void *mm::Range(const void *adrs)
 // *****************************************************************************
 bool mm::Known(const void *adrs, const bool insert_if_in_range)
 {
-   const auto search = mng->find(adrs);
-   const bool known = search != mng->end();
+   const auto search = memory->find(adrs);
+   const bool known = search != memory->end();
    if (known) return true;
    if (not insert_if_in_range) return false;
-   // Now inserting this adrs if it is in range
    const void *base = Range(adrs);
-   if (not base) return false;
-   mm2dev_t &mm2dev_base = mng->operator[](base);
-   const size_t bytes = mm2dev_base.bytes;
-   assert(0 < bytes);
+   if (not base) {
+      dbg("\033[32m[Known] UNKNOWN");
+      return false;
+   }
+   mm2dev_t &mm2dev_base = memory->operator[](base);
+   dbg("\033[32m[Known] New ranger: %p < \033[7m%p", base, adrs);
+   const size_t b_bytes = mm2dev_base.bytes;
+   dbg("\033[32m[Known] Base of length %ld (0x%x)", b_bytes, b_bytes);
+   assert(0 < b_bytes);
    assert(base < adrs);
    const size_t offset = (char*) adrs - (char*) base;
-   //dbg("\033[32m[Known] Insert %p < %p", base, adrs);
-   Insert(adrs,bytes-offset,1,__FILE__,__LINE__,base);
+   assert(b_bytes >= offset);
+   const size_t rng_sz = b_bytes-offset;
+   dbg("\033[32m[Known] Insert at offset: %ld (0x%x), size %ld (0x%x)", offset,offset, rng_sz,rng_sz);
+   Insert(adrs, rng_sz, 1, __FILE__, __LINE__, base);
    // Let's grab this new inserted adrs
-   mm2dev_t &mm2dev_adrs = mng->operator[](adrs);
+   mm2dev_t &mm2dev_range = memory->operator[](adrs);
    // Double-check he's available, no insertion there
    assert(Known(adrs,false));
    // Adds to the base this new ranger
-   mm2dev_base.rangers[mm2dev_base.n_rangers++] = mm2dev_adrs.h_adrs;
+   mm2dev_base.rangers[mm2dev_base.n_rangers++] = mm2dev_range.h_adrs;
    return true;
 }
 
+// *****************************************************************************
+// * Memory & Alias setup
+// *****************************************************************************
+void mm::Setup(){
+   if (memory) return;
+   memory = new mm_t();
+   alias = new mm_t();
+}
 // *****************************************************************************
 // * Adds an address 
 // * Warning: size can be 0 like from mfem::GroupTopology::Create
@@ -72,11 +87,11 @@ void* mm::Insert(const void *h_adrs,
                  const char *file, const int line,
                  const void *base)
 {
-   if (not mng) { mng = new mm_t(); }
+   if (not memory or not alias) { Setup(); }
    const bool known = Known(h_adrs);
    if (known) {
       dbg("[Insert] Known %p",h_adrs);
-      mm2dev_t &mm = mng->operator[](h_adrs);
+      mm2dev_t &mm = memory->operator[](h_adrs);
       if (not mm.ranged){
          BUILTIN_TRAP;
          MFEM_ASSERT(false, "[ERROR] Trying to add already present address!");
@@ -84,13 +99,15 @@ void* mm::Insert(const void *h_adrs,
          MFEM_ASSERT(false, "[ERROR] Trying to add already RANGED address!");
       }
    }
-   mm2dev_t &mm = mng->operator[](h_adrs);
+   mm2dev_t &mm = memory->operator[](h_adrs);
    mm.host = true;
    mm.bytes = size*size_of_T;
-   //dbg("[Insert] Add %p (%ldb): %s:%d",h_adrs,mm2dev.bytes,file,line);
+   const bool ranger = (base != NULL);
+   dbg("%s[Insert] Add %p (%ldb)", ranger?"\033[32m":"",h_adrs, mm.bytes);
+   if (ranger) dbg("\033[32m[Insert] RANGER, base @ %p", base);
    mm.h_adrs = (void*) h_adrs;
    mm.d_adrs = NULL;
-   mm.ranged = (base != NULL);
+   mm.ranged = ranger;
    mm.b_adrs = (void*) base;
    mm.n_rangers = 0;
 #warning 1024 ranger max
@@ -106,12 +123,16 @@ void *mm::Erase(void *adrs)
    const bool known = Known(adrs);
    if (not known) { BUILTIN_TRAP; }
    MFEM_ASSERT(known, "[ERROR] Trying to remove an unknown address!");
-   mm2dev_t &m2d = mng->operator[](adrs);
+   mm2dev_t &m2d = memory->operator[](adrs);
+   dbg("\033[31m@ %p", m2d.h_adrs);
    if (m2d.n_rangers!=0){
       const size_t n = m2d.n_rangers;
-      for(size_t k=0;k<n;k+=1) { Erase(m2d.rangers[k]); }
+      for(size_t k=0;k<n;k+=1) {
+         dbg("\t\033[31mRanger @ %p", m2d.rangers[k]);
+         Erase(m2d.rangers[k]);
+      }
    }
-   mng->erase(adrs);
+   memory->erase(adrs);
    return adrs;
 }
 
@@ -127,58 +148,83 @@ void* mm::Adrs(const void *adrs)
    const bool known = Known(adrs, insert_if_in_range);
    if (not known) { BUILTIN_TRAP; }
    MFEM_ASSERT(known, "[ERROR] Trying to convert unknown address!");
-   mm2dev_t &mm = mng->operator[](adrs);
+   mm2dev_t &mm = memory->operator[](adrs);
    
    // Just return asked known host address if not in CUDA mode
    if (mm.host and not cuda) {
-      //dbg("Returning HOST_@");
+      dbg("[H,!C] Returning HOST_@");
       return mm.h_adrs;
    }
-   assert(false);
+   
+   if (not mm.host and not cuda and mm.d_adrs) {
+      dbg("[!H,!C,D] Returning HOST_@");
+      Pull(adrs);
+      return mm.h_adrs;
+   }
+   
+   if (not mm.host and cuda and mm.d_adrs) {
+      dbg("[!H,C,D] Returning CUDA_@");
+      return mm.d_adrs;
+   }
+   
+   if (mm.host and cuda and mm.d_adrs) {
+      dbg("[H,C,D] Push & Returning CUDA_@");
+      Push(adrs);
+      return mm.d_adrs;
+   }
    
    // If it hasn't been seen, and we are a ranger,
-   // the base should be alloc'ed!
+   // the base should be alloc'ed and pushed!
    if (not mm.d_adrs and mm.ranged){
-      //dbg("\033[7mDevice Ranger: @%p < @%p", mm.b_adrs, mm.h_adrs);
+      dbg("[!D,R] Base Alloc + CPY");
+      dbg("\033[7mDevice Ranger: @%p < @%p", mm.b_adrs, mm.h_adrs);
       // NVCC sanity check
       MFEM_ASSERT(config::Nvcc(),"[ERROR] Trying to run without CUDA support!");
       const void *b_adrs = mm.b_adrs;
       // First, make sure we have an existing base address
-      assert(b_adrs!=NULL); // redondant with if's mm.ranged test
+      assert(b_adrs); // redondant with if's mm.ranged test
       // then, make sure base is known, without inserting it
       assert(Known(b_adrs));
       // Let's grab our base map item
-      mm2dev_t &base = mng->operator[](b_adrs);
+      mm2dev_t &base = memory->operator[](b_adrs);
       const size_t base_bytes = base.bytes;
       const size_t range_bytes = mm.bytes;
       assert(base_bytes >= range_bytes);
       const size_t offset = base_bytes - range_bytes;
-      //dbg("offset=%ld", offset);
+      dbg("offset: %ld, 0x%x", offset, offset);
       // base should at least already be on GPU!
       //assert(base.d_adrs);
       // Treat the case base is *NOT* on GPU
       if (not base.d_adrs){
+         dbg("Base is \033[7mNOT on GPU");
          assert(base_bytes>0);
          okMemAlloc(&base.d_adrs, base_bytes);
-         base.host = false;
+         base.host = false; // Tell base is on GPU
+         // We are the only ranger of this base
+         assert(base.n_rangers==1);
+         dbg("Base is now on GPU h_%p => d_%p",base.h_adrs, base.d_adrs);
+      }else{
+         dbg("Base is \033[7malready on GPU @%p", base.d_adrs);
       }
       // update our address range in device space
       mm.d_adrs = (char*)base.d_adrs + offset;
+      dbg("Ranger is now on GPU %p",mm.d_adrs);
       // Continue by pushing what we are working on
       //void *stream = config::Stream();
       okMemcpyHtoD/*Async*/(mm.d_adrs, mm.h_adrs, mm.bytes);//, stream);
-      mm.host = false; // Now this address is GPU born
+      mm.host = false; // Now this ranger is also on GPU
       return mm.d_adrs;
    }
    
    // If it hasn't been seen, alloc it in the device
    const bool is_not_device_ready = mm.d_adrs == NULL;
-   if (is_not_device_ready)
+   //if (is_not_device_ready)
+   if (not mm.d_adrs and not mm.ranged)
    {
-      //dbg("is_not_device_ready");
+      dbg("[!D] Alloc + CPY, h_adrs \033[7m%p", mm.h_adrs);
       MFEM_ASSERT(config::Nvcc(),"[ERROR] Trying to run without CUDA support!");
       const size_t bytes = mm.bytes;
-      //dbg("bytes=%ld",bytes);
+      dbg("bytes=%ld",bytes);
       if (bytes>0) { okMemAlloc(&mm.d_adrs, bytes); }
       assert(mm.d_adrs);
       //void *stream = config::Stream();
@@ -186,16 +232,32 @@ void* mm::Adrs(const void *adrs)
       mm.host = false; // Now this address is GPU born
       if (mm.n_rangers!=0){
          const size_t n = mm.n_rangers;
-         //dbg("\033[31;7m%d ranger(s) ahead!\033[m",n);
+         dbg("\033[31;7m%d ranger(s) ahead!\033[m",n);
          for(size_t k=0;k<n;k+=1){
-            //dbg("   Updating ranger %d/%d",k+1,n);
-            assert(Known(mm.rangers[k],false));
-            mm2dev_t &rng = mng->operator[](mm.rangers[k]);
+            dbg("   Updating ranger %d/%d",k+1,n);
+            assert(Known(mm.rangers[k]));
+            mm2dev_t &rng = memory->operator[](mm.rangers[k]);
+            dbg("ranger %p", rng.h_adrs);
+            assert(mm.h_adrs == adrs);
+            assert(rng.h_adrs >= mm.h_adrs);
+            assert(rng.d_adrs >= mm.d_adrs);
+            assert(mm.bytes >= rng.bytes);
             const size_t offset = mm.bytes - rng.bytes;
-            rng.d_adrs = (char*) mm.d_adrs + offset;
+            dbg("offset: %ld, 0x%x", offset, offset);
+            // If this ranger is already on GPU
+            // check that we are good
+            void *n_adrs = (char*) mm.d_adrs + offset;
+            if (rng.d_adrs){
+               dbg("Ranger is  already on GPU @%p", rng.d_adrs);
+               dbg("  Base is          on GPU @%p", mm.d_adrs);
+               dbg("  mm.d_adrs + offset is   @%p", n_adrs);
+               assert(rng.d_adrs == n_adrs);
+            }
+            rng.d_adrs = n_adrs;
             rng.host = false;
          }
       }
+      return mm.d_adrs;
    }
 
    // If it hasn't been seen, alloc it in the device
@@ -211,22 +273,22 @@ void* mm::Adrs(const void *adrs)
    }
 
    // Otherwise, just return known device pointer
-   //dbg("Returning DEV_@");
+   dbg("Returning DEV_@");
    return mm.d_adrs;
 }
 
 // *****************************************************************************
-memory mm::Memory(const void *adrs)
+OccaMemory mm::Memory(const void *adrs)
 {
    const bool present = Known(adrs);
    if (not present) { BUILTIN_TRAP; }
    MFEM_ASSERT(present, "[ERROR] Trying to convert unknown address!");
    const bool occa = config::Occa();
    MFEM_ASSERT(occa, "[ERROR] Using OCCA memory without OCCA mode!");
-   mm2dev_t &mm = mng->operator[](adrs);
+   mm2dev_t &mm = memory->operator[](adrs);
    const bool cuda = config::Cuda();
    const size_t bytes = mm.bytes;
-   OCCAdevice device = config::OccaDevice();
+   OccaDevice device = config::OccaDevice();
    if (not mm.d_adrs)
    {
       mm.host = false; // This address is no more on the host
@@ -258,8 +320,12 @@ memory mm::Memory(const void *adrs)
 void mm::Sync_p(const void *adrs)
 {
    push();
-   MFEM_ASSERT(Known(adrs), "[ERROR] Trying to SYNC an unknown address!");
-   const mm2dev_t &m = mng->operator[](adrs);
+   const bool cuda = config::Cuda();
+   if (not cuda) return;
+   const bool known = Known(adrs,true);
+   if (not known) { BUILTIN_TRAP; }
+   MFEM_ASSERT(known, "[ERROR] Trying to SYNC an unknown address!");
+   const mm2dev_t &m = memory->operator[](adrs);
    if (m.host) { Push(adrs); return; }
    Pull(adrs);
 }
@@ -267,10 +333,14 @@ void mm::Sync_p(const void *adrs)
 // *****************************************************************************
 void mm::Push(const void *adrs)
 {
-   push(); BUILTIN_TRAP;
-   MFEM_ASSERT(Known(adrs), "[ERROR] Trying to PUSH an unknown address!");
-   mm2dev_t &mm = mng->operator[](adrs);
-   if (not mm.host) {
+   push();
+   const bool known = Known(adrs,true);
+   if (not known) { BUILTIN_TRAP; }
+   MFEM_ASSERT(known, "[ERROR] Trying to PUSH an unknown address!");
+   mm2dev_t &mm = memory->operator[](adrs);
+   okMemcpyHtoD(mm.d_adrs, mm.h_adrs, mm.bytes);
+   mm.host = false;
+/*   if (not mm.host) {
       dbg("\033[33;1mAlready on device!");
       return;
    }
@@ -282,40 +352,36 @@ void mm::Push(const void *adrs)
    dbg("\033[31;1mHtoD");
    if (not mm.d_adrs){
       dbg("\033[31;1mNO @, getting one for you!");
-      assert(mm.d_adrs);
-      //volatile GET_ADRS(adrs);
-   }
-   okMemcpyHtoD(mm.d_adrs, mm.h_adrs, mm.bytes);
-   mm.host = false;
+      const void *d_adrs = Adrs(adrs);
+      assert(d_adrs);
+      MFEM_ASSERT(Known(adrs), "[ERROR] PUSH address!");
+      mm = memory->operator[](adrs);
+      }
+*/
 }
 
 // *****************************************************************************
 void mm::Pull(const void *adrs)
 {
-   push(); BUILTIN_TRAP;
-   const bool insert_if_in_range = true;
-   const bool known = Known(adrs, insert_if_in_range);
+   push();
+   const bool known = Known(adrs,true);
    if (not known) { BUILTIN_TRAP; }
    MFEM_ASSERT(known, "[ERROR] Trying to PULL an unknown address!");
-   mm2dev_t &mm = mng->operator[](adrs);
-   if (mm.host) {
-      dbg("Already on host!");
-      return;
-   }
-   const bool cuda = config::Cuda();
-   if (not cuda){
-      dbg("\033[33;1mNo device ready!");
-      return;
-   }
+   mm2dev_t &mm = memory->operator[](adrs);
+   okMemcpyDtoH(mm.h_adrs, mm.d_adrs, mm.bytes);
+   mm.host = true;
+/*
    dbg("\033[31;1mDtoH");
    if (not mm.d_adrs){
       dbg("\033[31;1mNO @, getting one for you!");
-      assert(mm.d_adrs);
-      //volatile GET_ADRS(adrs);
-   }
-   okMemcpyDtoH(mm.h_adrs, mm.d_adrs, mm.bytes);
-   mm.host = true;
-   return;/*
+      const void *d_adrs = Adrs(adrs);
+      assert(d_adrs);
+      MFEM_ASSERT(Known(adrs), "[ERROR] PULL address!");
+      mm = memory->operator[](adrs);
+      }
+*/
+
+/*
    if (config::Cuda())
    {
       okMemcpyDtoH((void*)mm.h_adrs, mm.d_adrs, mm.bytes);
@@ -327,7 +393,7 @@ void mm::Pull(const void *adrs)
       return;
       }
    MFEM_ASSERT(false, "[ERROR] Should not be there!");
-          */
+*/
 }
 
 // *****************************************************************************
