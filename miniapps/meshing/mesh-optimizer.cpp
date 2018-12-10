@@ -471,12 +471,12 @@ int main (int argc, char *argv[])
    bool volumetric_target = false;
    switch (target_id)
    {
-   case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
-      volumetric_target = false; break;
-   case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE;
-      volumetric_target = true; break;
-   case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
-      volumetric_target = true; break;
+      case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
+         volumetric_target = false; break;
+      case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE;
+         volumetric_target = true; break;
+      case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
+         volumetric_target = true; break;
       default: cout << "Unknown target_id: " << target_id << endl;
          delete metric; return 3;
    }

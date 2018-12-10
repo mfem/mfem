@@ -398,32 +398,28 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
-/** @brief Defines a scalar function f(x - x0, d) that is used in the limiting
-    term of a TMOP_Integrator, where x and x0 are positions in physical space,
-    and d is physical distance.  */
+
+/// Base class for limiting functions to be used in class TMOP_Integrator.
+/** This class represents a scalar function f(x, x0, d), where x and x0 are
+    positions in physical space, and d is a reference physical distance
+    associated with the point x0. */
 class TMOP_LimiterFunction
 {
-protected:
-   const int dim;
-
 public:
-   TMOP_LimiterFunction(int space_dim) : dim(space_dim) { }
-
-   /** Returns f(x, x0). Assumes x and x0 have Size = space_dimension. */
+   /// Returns the limiting function, f(x, x0, d).
    virtual double Eval(const Vector &x, const Vector &x0, double d) const = 0;
 
-   /** Returns grad of f(x - x0, d) with respect to x.
-       Assumes that x and x0 have Size = space dimension. */
+   /** @brief Returns the gradient of the limiting function f(x, x0, d) with
+       respect to x. */
    virtual void Eval_d1(const Vector &x, const Vector &x0, double dist,
-                        Vector &d1) const
-   { MFEM_ABORT("1st derivative of the limiting function isn't implemented."); }
+                        Vector &d1) const = 0;
 
-   /** Returns grad(grad) of f(x - x0, d) with respect to x.
-       Assumes that x and x0 have Size = space dimension. */
+   /** @brief Returns the Hessian of the limiting function f(x, x0, d) with
+       respect to x. */
    virtual void Eval_d2(const Vector &x, const Vector &x0, double dist,
-                        DenseMatrix &d2) const
-   { MFEM_ABORT("2nd derivative of the limiting function isn't implemented."); }
+                        DenseMatrix &d2) const = 0;
 
+   /// Virtual destructor.
    virtual ~TMOP_LimiterFunction() { }
 };
 
@@ -431,11 +427,9 @@ public:
 class TMOP_QuadraticLimiter : public TMOP_LimiterFunction
 {
 public:
-   TMOP_QuadraticLimiter(int space_dim) : TMOP_LimiterFunction(space_dim) { }
-
    virtual double Eval(const Vector &x, const Vector &x0, double dist) const
    {
-      MFEM_ASSERT(x.Size() == dim && x0.Size() == dim, "Bad input.");
+      MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
 
       return 0.5 * x.DistanceSquaredTo(x0) / (dist * dist);
    }
@@ -443,25 +437,23 @@ public:
    virtual void Eval_d1(const Vector &x, const Vector &x0, double dist,
                         Vector &d1) const
    {
-      MFEM_ASSERT(x.Size() == dim && x0.Size() == dim, "Bad input.");
+      MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
 
-      d1.SetSize(dim);
-      subtract(1.0, x, x0, d1);
-      d1 /= dist * dist;
+      d1.SetSize(x.Size());
+      subtract(1.0 / (dist * dist), x, x0, d1);
    }
 
    virtual void Eval_d2(const Vector &x, const Vector &x0, double dist,
                         DenseMatrix &d2) const
    {
-      MFEM_ASSERT(x.Size() == dim && x0.Size() == dim, "Bad input.");
+      MFEM_ASSERT(x.Size() == x0.Size(), "Bad input.");
 
-      d2.SetSize(dim, dim);
-      d2 = 0.0;
-      for (int d = 0; d < dim; d++) { d2(d, d) = 1.0 / (dist * dist); }
+      d2.Diag(1.0 / (dist * dist), x.Size());
    }
 
    virtual ~TMOP_QuadraticLimiter() { }
 };
+
 
 /** @brief Base class representing target-matrix construction algorithms for
     mesh optimization via the target-matrix optimization paradigm (TMOP). */
@@ -561,10 +553,13 @@ protected:
    Coefficient *coeff1; // not owned, if NULL -> coeff1 is 1.
 
    // Nodes and weight Coefficient used for "limiting" the TMOP_Integrator.
-   // These are all NULL when there is no limiting.
-   // The class doesn't own nodes0 and coeff0. It owns lim_func.
-   const GridFunction *nodes0, *lim_dist;
+   // These are both NULL when there is no limiting.
+   // The class doesn't own nodes0 and coeff0.
+   const GridFunction *nodes0;
    Coefficient *coeff0;
+   // Limiting reference distance. Not owned.
+   const GridFunction *lim_dist;
+   // Limiting function. Owned.
    TMOP_LimiterFunction *lim_func;
 
    //   Jrt: the inverse of the ref->target Jacobian, Jrt = Jtr^{-1}.
@@ -584,7 +579,8 @@ public:
        @param[in] tc Target-matrix construction algorithm to use (not owned). */
    TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc)
       : metric(m), targetC(tc),
-        coeff1(NULL), nodes0(NULL), coeff0(NULL), lim_func(NULL) { }
+        coeff1(NULL), nodes0(NULL), coeff0(NULL), lim_dist(NULL), lim_func(NULL)
+   { }
 
    ~TMOP_Integrator() { delete lim_func; }
 
@@ -596,18 +592,22 @@ public:
        not in the target configuration which may be undefined. */
    void SetCoefficient(Coefficient &w1) { coeff1 = &w1; }
 
-   /// Adds a limiting term to the integrator.
+   /// Adds a limiting term to the integrator (general version).
    /** With this addition, the integrator becomes
-          @f$ \int w1 W(Jpt) + w0  f(x - x_0, d) dx @f$,
+          @f$ \int w1 W(Jpt) + w0 f(x, x_0, d) dx @f$,
        where the second term measures the change with respect to the original
        physical positions, @a n0.
-       @param[in] n0   Original mesh node coordinates.
-       @param[in] dist Limiting physical distances.
-       @param[in] w0   Coefficient scaling the limiting term.
-       @param[in] lf   TMOP_LimiterFunction defining the limiting term f. */
+       @param[in] n0     Original mesh node coordinates.
+       @param[in] dist   Limiting physical distances.
+       @param[in] w0     Coefficient scaling the limiting term.
+       @param[in] lfunc  TMOP_LimiterFunction defining the limiting term f. If
+                         NULL, a TMOP_QuadraticLimiter will be used. The
+                         TMOP_Integrator assumes ownership of this pointer. */
    void EnableLimiting(const GridFunction &n0, const GridFunction &dist,
                        Coefficient &w0, TMOP_LimiterFunction *lfunc = NULL);
-   /// Legacy version, it will be removed.
+
+   /** @brief Adds a limiting term to the integrator with limiting distance
+       function (@a dist in the general version of the method) equal to 1. */
    void EnableLimiting(const GridFunction &n0,
                        Coefficient &w0, TMOP_LimiterFunction *lfunc = NULL);
 
