@@ -790,10 +790,14 @@ public:
       if (p==1)
          ref_mesh = mesh;
       else if (dim > 1)
+      {
          ref_mesh = new Mesh(mesh, p, basis_lor); // TODO delete all news
+         ref_mesh->SetCurvature(1);
+      }
       else
       {
          ref_mesh = new Mesh(ne*p, 1.); // TODO generalize to segments with different length than 1
+         ref_mesh->SetCurvature(1);
       }
       
       const int btype = BasisType::Positive;
@@ -812,13 +816,26 @@ public:
       neighborDof.SetSize(ne*numDofs, numBdrs);
       
       double dist = 1. / double(p);
-      Vector velEval;
+      Vector velEval; // TODO rm
       
       for (k = 0; k < ne; k++)
       {
          ///////////////////////////
          // Element contributions //
          ///////////////////////////
+         /*for (m = 0; m < numSubcells; m++)
+         {
+            dofInd = numSubcells*k+m;
+            const FiniteElement *el0 = SubFes0.GetFE(dofInd);
+            const FiniteElement *el1 = SubFes1.GetFE(dofInd);
+            tr = ref_mesh->GetElementTransformation(dofInd);
+            //tr->Jacobian().Print();
+            fluct->AssembleElementMatrix2(*el1, *el0, *tr, elmat);
+            
+            for (j = 0; j < numDofsSubcell; j++)
+               fluctSub(dofInd, j) = elmat(0,j);
+         }*/
+
          const FiniteElement &el = *fes->GetFE(k);
          tr = mesh->GetElementTransformation(k);
          const IntegrationRule ir = el.GetNodes();
