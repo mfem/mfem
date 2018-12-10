@@ -1698,7 +1698,7 @@ public:
    MixedConvectionIntegrator(VectorCoefficient &q, double a = 1.0)
       : Q(q) { alpha = a; }
    virtual void AssembleElementMatrix2(const FiniteElement &,
-													const FiniteElement &,
+                                       const FiniteElement &,
                                        ElementTransformation &,
                                        DenseMatrix &);
 };

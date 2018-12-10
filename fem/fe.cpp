@@ -198,7 +198,7 @@ void FiniteElement::CalcPhysDShape(ElementTransformation &Trans,
 }
 
 void FiniteElement::ExtractBdrDofs(DenseMatrix &dofs) const
-{ 
+{
    mfem_error ("Error: Cannot use ExtractBdrDofs(...) function with\n"
                "   FiniteElements!");
 }
@@ -279,7 +279,7 @@ void ScalarFiniteElement::ScalarLocalInterpolation(
 }
 
 void ScalarFiniteElement::ExtractBdrDofs(DenseMatrix &dofs) const
-{ 
+{
    mfem_error ("Error: Cannot use ExtractBdrDofs(...) function with\n"
                "   ScalarFiniteElements!");
 }
@@ -467,7 +467,7 @@ void NodalFiniteElement::ProjectDiv(
 }
 
 void NodalFiniteElement::ExtractBdrDofs(DenseMatrix &dofs) const
-{ 
+{
    mfem_error ("Error: Cannot use ExtractBdrDofs(...) function with\n"
                "   NodalFiniteElements!");
 }
@@ -511,7 +511,7 @@ void PositiveFiniteElement::Project(
 }
 
 void PositiveFiniteElement::ExtractBdrDofs(DenseMatrix &dofs) const
-{ 
+{
    mfem_error ("Error: Cannot use ExtractBdrDofs(...) function with\n"
                "   PositiveFiniteElements!");
 }
@@ -957,7 +957,7 @@ void VectorFiniteElement::LocalInterpolation_ND(
 }
 
 void VectorFiniteElement::ExtractBdrDofs(DenseMatrix &dofs) const
-{ 
+{
    mfem_error ("Error: Cannot use ExtractBdrDofs(...) function with\n"
                "   VectorFiniteElements!");
 }
@@ -6936,7 +6936,7 @@ PositiveTensorFiniteElement::PositiveTensorFiniteElement(
      TensorBasisElement(dims, p, BasisType::Positive, dmtype) { }
 
 void PositiveTensorFiniteElement::ExtractBdrDofs(DenseMatrix &dofs) const
-{ 
+{
    mfem_error ("Error: Cannot use ExtractBdrDofs(...) function with\n"
                "   PositiveTensorFiniteElements!");
 }
@@ -7532,29 +7532,41 @@ void H1Pos_HexahedronElement::ExtractBdrDofs(DenseMatrix &dofs) const
       {
          case 0:
             for (int i = 0; i < (p+1)*(p+1); i++)
+            {
                dofs(o++,bdrID) = i;
+            }
             break;
          case 1:
             for (int i = 0; i <= p*(p+1)*(p+1); i+=(p+1)*(p+1))
                for (int j = 0; j < p+1; j++)
+               {
                   dofs(o++,bdrID) = i+j;
-               break;
+               }
+            break;
          case 2:
             for (int i = p; i < (p+1)*(p+1)*(p+1); i+=p+1)
+            {
                dofs(o++,bdrID) = i;
+            }
             break;
          case 3:
             for (int i = 0; i <= p*(p+1)*(p+1); i+=(p+1)*(p+1))
                for (int j = p*(p+1); j < (p+1)*(p+1); j++)
+               {
                   dofs(o++,bdrID) = i+j;
-               break;
+               }
+            break;
          case 4:
             for (int i = 0; i <= (p+1)*((p+1)*(p+1)-1); i+=p+1)
+            {
                dofs(o++,bdrID) = i;
+            }
             break;
          case 5:
             for (int i = p*(p+1)*(p+1); i < (p+1)*(p+1)*(p+1); i++)
+            {
                dofs(o++,bdrID) = i;
+            }
             break;
       }
    }
@@ -8296,13 +8308,17 @@ void H1Pos_TetrahedronElement::ExtractBdrDofs(DenseMatrix &dofs) const
             for (int i = 0; i <= p; i++)
             {
                for (int j = 0; j <= p - i; j++)
+               {
                   dofs(o++,bdrID) = ctr++;
+               }
                ctr += - p + i - 1 + (p-i+1)*(p-i+2)/2;
             }
             break;
          case 3:
             for (int i = 0; i < (p+1)*(p+2)/2; i++)
+            {
                dofs(o++,bdrID) = i;
+            }
             break;
       }
    }
@@ -8869,29 +8885,41 @@ void L2Pos_HexahedronElement::ExtractBdrDofs(DenseMatrix &dofs) const
       {
          case 0:
             for (int i = 0; i < (p+1)*(p+1); i++)
+            {
                dofs(o++,bdrID) = i;
+            }
             break;
          case 1:
             for (int i = 0; i <= p*(p+1)*(p+1); i+=(p+1)*(p+1))
                for (int j = 0; j < p+1; j++)
+               {
                   dofs(o++,bdrID) = i+j;
-               break;
+               }
+            break;
          case 2:
             for (int i = p; i < (p+1)*(p+1)*(p+1); i+=p+1)
+            {
                dofs(o++,bdrID) = i;
+            }
             break;
          case 3:
             for (int i = 0; i <= p*(p+1)*(p+1); i+=(p+1)*(p+1))
                for (int j = p*(p+1); j < (p+1)*(p+1); j++)
+               {
                   dofs(o++,bdrID) = i+j;
-               break;
+               }
+            break;
          case 4:
             for (int i = 0; i <= (p+1)*((p+1)*(p+1)-1); i+=p+1)
+            {
                dofs(o++,bdrID) = i;
+            }
             break;
          case 5:
             for (int i = p*(p+1)*(p+1); i < (p+1)*(p+1)*(p+1); i++)
+            {
                dofs(o++,bdrID) = i;
+            }
             break;
       }
    }
@@ -9320,13 +9348,17 @@ void L2Pos_TetrahedronElement::ExtractBdrDofs(DenseMatrix &dofs) const
             for (int i = 0; i <= p; i++)
             {
                for (int j = 0; j <= p - i; j++)
+               {
                   dofs(o++,bdrID) = ctr++;
+               }
                ctr += - p + i - 1 + (p-i+1)*(p-i+2)/2;
             }
             break;
          case 3:
             for (int i = 0; i < (p+1)*(p+2)/2; i++)
+            {
                dofs(o++,bdrID) = i;
+            }
             break;
       }
    }
@@ -11208,7 +11240,7 @@ void ND_SegmentElement::CalcVShape(const IntegrationPoint &ip,
 
 
 void NURBSFiniteElement::ExtractBdrDofs(DenseMatrix &dofs) const
-{ 
+{
    mfem_error ("Error: Cannot use ExtractBdrDofs(...) function with\n"
                "   NURBSFiniteElements!");
 }

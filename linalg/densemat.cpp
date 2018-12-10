@@ -3846,19 +3846,22 @@ void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt)
    }
 }
 
-void KroneckerProduct(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &C)
+void KroneckerProduct(const DenseMatrix &A, const DenseMatrix &B,
+                      DenseMatrix &C)
 {
-	int i, j, k, l, I = A.Height(), J = A.Width(), K = B.Height(), L = B.Width();
-	C.SetSize(I*K, J*L);
-	double a;
-	for (i = 0; i < I; i++)
-		for(j = 0; j < J; j++)
-		{
-			a = A(i,j);
-			for (k = 0; k < K; k++)
-				for(l = 0; l < L; l++)
-					C(i*K+k,j*L+l) = a*B(k,l);
-		}
+   int i, j, k, l, I = A.Height(), J = A.Width(), K = B.Height(), L = B.Width();
+   C.SetSize(I*K, J*L);
+   double a;
+   for (i = 0; i < I; i++)
+      for (j = 0; j < J; j++)
+      {
+         a = A(i,j);
+         for (k = 0; k < K; k++)
+            for (l = 0; l < L; l++)
+            {
+               C(i*K+k,j*L+l) = a*B(k,l);
+            }
+      }
 }
 
 

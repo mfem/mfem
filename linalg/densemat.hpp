@@ -432,7 +432,8 @@ void AddMult_a_VWt(const double a, const Vector &v, const Vector &w,
 void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt);
 
 /// C = (a_11 B, ..., a_1N B; ... a_N1 B, ..., a_NN B)
-void KroneckerProduct(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &C);
+void KroneckerProduct(const DenseMatrix &A, const DenseMatrix &B,
+                      DenseMatrix &C);
 
 
 /** Class that can compute LU factorization of external data and perform various
