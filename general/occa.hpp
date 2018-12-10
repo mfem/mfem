@@ -45,8 +45,8 @@ typedef occa::memory memory;
 #else // MFEM_USE_OCCA ********************************************************
 
 // Typedefs ********************************************************************
-typedef void *OCCAdevice;
-typedef void *memory;
+typedef void *OccaDevice;
+typedef void *OccaMemory;
 
 #endif // MFEM_USE_OCCA
 
@@ -55,12 +55,12 @@ namespace mfem
 {
 
 // *****************************************************************************
-OCCAdevice okWrapDevice(CUdevice,CUcontext);
-memory okDeviceMalloc(OCCAdevice, const size_t);
-memory okWrapMemory(const OCCAdevice, void*, const size_t);
-void *okMemoryPtr(memory);
-void okCopyFrom(memory, const void*);
-void okCopyTo(memory, void*);
+OccaDevice okWrapDevice(CUdevice,CUcontext);
+OccaMemory okDeviceMalloc(OccaDevice, const size_t);
+OccaMemory okWrapMemory(const OccaDevice, void*, const size_t);
+void *okMemoryPtr(OccaMemory);
+void okCopyFrom(OccaMemory, const void*);
+void okCopyTo(OccaMemory, void*);
 
 } // mfem
 
