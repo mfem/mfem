@@ -107,7 +107,7 @@ public:
          case 2:
             ComputeLocalBounds(x);
             break;
-         defualt:
+         default:
             mfem_error("Unsupported stencil.");
       }
    }
@@ -148,7 +148,7 @@ public:
       {
          double x_i_min = +numeric_limits<double>::infinity();
          double x_i_max = -x_i_min;
-         for (int j = 0; j < map_for_bounds[i].size(); j++)
+         for (int j = 0; j < (int)map_for_bounds[i].size(); j++)
          {
             const int dof_id = map_for_bounds[i][j];
             double x_j = x(map_for_bounds[i][j]);
@@ -321,7 +321,7 @@ private:
             }
             if (ldofs[i] == DOF_ID)
             {
-               for (int j = 0; j < map_for_bounds[DOF_ID].size(); j++)
+               for (int j = 0; j < (int)map_for_bounds[DOF_ID].size(); j++)
                {
                   cout << map_for_bounds[DOF_ID][j] << endl;
                }
@@ -398,7 +398,7 @@ private:
                   for (int jj = I[d]; jj < I[d+1]; jj++)
                   {
                      if (J[jj] == ldofs[i]) { continue; }
-                     for (int dd = 0; dd < DOFs_at_ith_location.size(); dd++)
+                     for (int dd = 0; dd < (int)DOFs_at_ith_location.size(); dd++)
                      {
                         if (J[jj] == DOFs_at_ith_location[dd])
                         { is_new = false; break; }
@@ -415,7 +415,7 @@ private:
             // Loop over the dofs at i-th location; for each, loop over DOFs
             // local on its cell to find those within dist(1).
             // Note that distance has to be measured on the reference element.
-            for (int it = 0; it < DOFs_at_ith_location.size(); it++)
+            for (int it = 0; it < (int) DOFs_at_ith_location.size(); it++)
             {
                int dof = DOFs_at_ith_location[it];
                if (dof < NDOFs)
@@ -441,7 +441,7 @@ private:
                for (int j = 0; j < n_dofs_external; j++) // here j is local
                {
                   bool is_new = true;
-                  for (int dd = 0; dd < map_for_bounds[ldofs[i]].size(); dd++)
+                  for (int dd = 0; dd < (int)map_for_bounds[ldofs[i]].size(); dd++)
                   {
                      if (ldofs_external[j] == map_for_bounds[ldofs[i]][dd])
                      { is_new = false; break; }
@@ -459,7 +459,7 @@ private:
             if (ldofs[i] == DOF_ID)
             {
                cout << " --- " << endl;
-               for (int j = 0; j < map_for_bounds[DOF_ID].size(); j++)
+               for (int j = 0; j < (int)map_for_bounds[DOF_ID].size(); j++)
                {
                   cout << map_for_bounds[DOF_ID][j] << endl;
                }
@@ -479,7 +479,7 @@ public:
    FluxCorrectedTransport(const MONOTYPE _monoType, bool &_isSubCell,
                           FiniteElementSpace* _fes,
                           const SparseMatrix &K, VectorFunctionCoefficient &coef, SolutionBounds &_bnds) :
-      monoType(_monoType), fes(_fes), KpD(K), bnds(_bnds)
+      fes(_fes), monoType(_monoType), KpD(K), bnds(_bnds)
    {
       if (_monoType == None)
       {
@@ -679,7 +679,7 @@ public:
                      beta(j) += ip.weight * std::max(0., -vec2(j));
                      alpha(j) = std::max(alpha(j), shape(j));
                      break;
-                  otherwise:
+                  default:
                      mfem_error("Unsupported estimate option.");
                }
             }
@@ -2068,7 +2068,7 @@ double u0_function(const Vector &x)
          double G2 = (1./sqrt(scale)) * sqrt(pow(X(0) - 0.5,2.) + pow(X(1), 2.));
 
          return ((pow(X(0),2.) + pow(X(1) - 0.5,2.) <= scale) &
-                 (X(0) <= -0.05 | X(0) >= 0.05 | X(1) >= 0.7)) ? 1. : 0. +
+                 ((X(0) <= -0.05) | (X(0) >= 0.05) | (X(1) >= 0.7))) ? 1. : 0. +
                 (1-G1) * (pow(X(0),2.) + pow(X(1) + 0.5,2.) <= scale) +
                 0.25*(1.+cos(M_PI*G2))*(pow(X(0) - 0.5,2.) + pow(X(1),2.) <= scale);
       }
