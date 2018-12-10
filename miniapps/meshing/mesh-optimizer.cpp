@@ -501,11 +501,14 @@ int main (int argc, char *argv[])
    // 13. Limit the node movement.
    // The limiting distances can be given by a general function of space.
    GridFunction dist(fespace);
-   dist = small_phys_size;
+   dist = 1.0;
    if (normalization)
    {
       lim_const /= mesh->GetNE();
       if (volumetric_target) { lim_const /= avg_volume; }
+
+      // The small_phys_size is relevant only with proper normalization.
+      dist = small_phys_size;
    }
    ConstantCoefficient lim_coeff(lim_const);
    if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
