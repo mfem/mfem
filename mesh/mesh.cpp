@@ -760,7 +760,7 @@ void Mesh::GetLocalQuadToPyrTransformation(
 
    Transf.SetFE(&QuadrilateralFE);
    //  (i/64) is the local face no. in the pri
-   MFEM_VERIFY(i >= 64, "Local face index " << i/64
+   MFEM_VERIFY(i < 64, "Local face index " << i/64
                << " is not a quadrilateral face of a pyramid.");
    const int *pv = pyr_t::FaceVert[i/64];
    //  (i%64) is the orientation of the quad
@@ -7931,6 +7931,7 @@ void Mesh::Printer(std::ostream &out, std::string section_delimiter) const
        "# TETRAHEDRON = 4\n"
        "# CUBE        = 5\n"
        "# PRISM       = 6\n"
+       "# PYRAMID     = 7\n"
        "#\n";
 
    out << "\ndimension\n" << Dim
@@ -8185,6 +8186,7 @@ void Mesh::PrintVTK(std::ostream &out)
             case Geometry::TETRAHEDRON:  vtk_cell_type = 10;  break;
             case Geometry::CUBE:         vtk_cell_type = 12;  break;
             case Geometry::PRISM:        vtk_cell_type = 13;  break;
+            case Geometry::PYRAMID:      vtk_cell_type = 14;  break;
             default: break;
          }
       }
@@ -8198,6 +8200,7 @@ void Mesh::PrintVTK(std::ostream &out)
             case Geometry::TETRAHEDRON:  vtk_cell_type = 24;  break;
             case Geometry::CUBE:         vtk_cell_type = 29;  break;
             case Geometry::PRISM:        vtk_cell_type = 32;  break;
+            case Geometry::PYRAMID:      vtk_cell_type = 27;  break;
             default: break;
          }
       }
@@ -8322,6 +8325,7 @@ void Mesh::PrintVTK(std::ostream &out, int ref, int field_data)
          case Geometry::TETRAHEDRON:  vtk_cell_type = 10;  break;
          case Geometry::CUBE:         vtk_cell_type = 12;  break;
          case Geometry::PRISM:        vtk_cell_type = 13;  break;
+         case Geometry::PYRAMID:      vtk_cell_type = 14;  break;
          default:
             MFEM_ABORT("Unrecognized VTK element type \"" << geom << "\"");
             break;
@@ -8467,6 +8471,7 @@ void Mesh::PrintWithPartitioning(int *partitioning, std::ostream &out,
        "# TETRAHEDRON = 4\n"
        "# CUBE        = 5\n"
        "# PRISM       = 6\n"
+       "# PYRAMID     = 7\n"
        "#\n";
 
    out << "\ndimension\n" << Dim
@@ -8962,6 +8967,7 @@ void Mesh::PrintSurfaces(const Table & Aface_face, std::ostream &out) const
        "# TETRAHEDRON = 4\n"
        "# CUBE        = 5\n"
        "# PRISM       = 6\n"
+       "# PYRAMID     = 7\n"
        "#\n";
 
    out << "\ndimension\n" << Dim
