@@ -854,6 +854,9 @@ IntegrationRules::IntegrationRules(int Ref, int _type):
    TetrahedronIntRules.SetSize(32);
    TetrahedronIntRules = NULL;
 
+   PyramidIntRules.SetSize(32);
+   PyramidIntRules = NULL;
+
    PrismIntRules.SetSize(32);
    PrismIntRules = NULL;
 
@@ -874,6 +877,7 @@ const IntegrationRule &IntegrationRules::Get(int GeomType, int Order)
       case Geometry::TETRAHEDRON: ir_array = &TetrahedronIntRules; break;
       case Geometry::CUBE:        ir_array = &CubeIntRules; break;
       case Geometry::PRISM:       ir_array = &PrismIntRules; break;
+      case Geometry::PYRAMID:     ir_array = &PyramidIntRules; break;
       default:
          mfem_error("IntegrationRules::Get(...) : Unknown geometry type!");
          ir_array = NULL;
@@ -920,6 +924,7 @@ void IntegrationRules::Set(int GeomType, int Order, IntegrationRule &IntRule)
       case Geometry::TETRAHEDRON: ir_array = &TetrahedronIntRules; break;
       case Geometry::CUBE:        ir_array = &CubeIntRules; break;
       case Geometry::PRISM:       ir_array = &PrismIntRules; break;
+      case Geometry::PYRAMID:     ir_array = &PyramidIntRules; break;
       default:
          mfem_error("IntegrationRules::Set(...) : Unknown geometry type!");
          ir_array = NULL;
@@ -963,6 +968,7 @@ IntegrationRules::~IntegrationRules()
    DeleteIntRuleArray(TetrahedronIntRules);
    DeleteIntRuleArray(CubeIntRules);
    DeleteIntRuleArray(PrismIntRules);
+   DeleteIntRuleArray(PyramidIntRules);
 }
 
 
@@ -985,6 +991,8 @@ IntegrationRule *IntegrationRules::GenerateIntegrationRule(int GeomType,
          return CubeIntegrationRule(Order);
       case Geometry::PRISM:
          return PrismIntegrationRule(Order);
+      case Geometry::PYRAMID:
+         return PyramidIntegrationRule(Order);
       default:
          mfem_error("IntegrationRules::Set(...) : Unknown geometry type!");
          return NULL;
@@ -1590,6 +1598,26 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
          TetrahedronIntRules[i-1] = TetrahedronIntRules[i] = ir;
          return ir;
    }
+}
+
+// Integration rules for reference pyramid
+IntegrationRule *IntegrationRules::PyramidIntegrationRule(int Order)
+{
+   IntegrationRule * irc = GenerateIntegrationRule(Geometry::CUBE, Order);
+   int npts = irc->GetNPoints();
+   AllocIntRule(PyramidIntRules, Order);
+   PyramidIntRules[Order] = new IntegrationRule(npts);
+
+   for (int k=0; k<npts; k++)
+   {
+      const IntegrationPoint & ipc = irc->IntPoint(k);
+      IntegrationPoint & ipp = PyramidIntRules[Order]->IntPoint(k);
+      ipp.x = ipc.x * (1.0 - ipc.z);
+      ipp.y = ipc.y * (1.0 - ipc.z);
+      ipp.z = ipc.z;
+      ipp.weight = ipc.weight;
+   }
+   return PyramidIntRules[Order];
 }
 
 // Integration rules for reference prism
