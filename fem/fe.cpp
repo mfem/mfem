@@ -3937,6 +3937,27 @@ void P0HexFiniteElement::CalcDShape(const IntegrationPoint &ip,
 }
 
 
+P0PyrFiniteElement::P0PyrFiniteElement()
+   : NodalFiniteElement(3, Geometry::PYRAMID, 1, 0, FunctionSpace::Pk)
+{
+   Nodes.IntPoint(0).x = 0.375;
+   Nodes.IntPoint(0).y = 0.375;
+   Nodes.IntPoint(0).z = 0.25;
+}
+
+void P0PyrFiniteElement::CalcShape(const IntegrationPoint &ip,
+                                   Vector &shape) const
+{
+   shape(0) = 1.0;
+}
+
+void P0PyrFiniteElement::CalcDShape(const IntegrationPoint &ip,
+                                    DenseMatrix &dshape) const
+{
+   dshape(0,0) =  0.0; dshape(0,1) =  0.0; dshape(0,2) = 0.0;
+}
+
+
 LagrangeHexFiniteElement::LagrangeHexFiniteElement (int degree)
    : NodalFiniteElement(3, Geometry::CUBE, (degree+1)*(degree+1)*(degree+1),
                         degree, FunctionSpace::Qk)
@@ -11786,7 +11807,7 @@ Linear3DFiniteElement TetrahedronFE;
 // Defined here to ensure they are constructed after 'poly1d' and before
 // 'Geometries'.
 H1_WedgeElement WedgeFE(1);
-H1_WedgeElement PyramidFE(1);
+H1_PyramidElement PyramidFE(1);
 
 // Object declared in geom.hpp.
 // Construct 'Geometries' after 'TriangleFE', 'TetrahedronFE', and 'WedgeFE'.
