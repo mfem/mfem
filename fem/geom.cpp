@@ -16,10 +16,11 @@ namespace mfem
 {
 
 const char *Geometry::Name[NumGeom] =
-{ "Point", "Segment", "Triangle", "Square", "Tetrahedron", "Cube", "Prism" };
+{ "Point", "Segment", "Triangle", "Square", "Tetrahedron", "Cube", "Prism",
+  "Pyramid" };
 
 const double Geometry::Volume[NumGeom] =
-{ 1.0, 1.0, 0.5, 1.0, 1./6, 1.0, 0.5 };
+  { 1.0, 1.0, 0.5, 1.0, 1./6, 1.0, 0.5, 1./3 };
 
 Geometry::Geometry()
 {
@@ -139,6 +140,28 @@ Geometry::Geometry()
    GeomVert[6]->IntPoint(5).y = 1.0;
    GeomVert[6]->IntPoint(5).z = 1.0;
 
+   // Vertices for Geometry::PRISM
+   GeomVert[7] = new IntegrationRule(5);
+   GeomVert[7]->IntPoint(0).x = 0.0;
+   GeomVert[7]->IntPoint(0).y = 0.0;
+   GeomVert[7]->IntPoint(0).z = 0.0;
+
+   GeomVert[7]->IntPoint(1).x = 1.0;
+   GeomVert[7]->IntPoint(1).y = 0.0;
+   GeomVert[7]->IntPoint(1).z = 0.0;
+
+   GeomVert[7]->IntPoint(2).x = 1.0;
+   GeomVert[7]->IntPoint(2).y = 1.0;
+   GeomVert[7]->IntPoint(2).z = 0.0;
+
+   GeomVert[7]->IntPoint(3).x = 0.0;
+   GeomVert[7]->IntPoint(3).y = 1.0;
+   GeomVert[7]->IntPoint(3).z = 0.0;
+
+   GeomVert[7]->IntPoint(4).x = 0.0;
+   GeomVert[7]->IntPoint(4).y = 0.0;
+   GeomVert[7]->IntPoint(4).z = 1.0;
+
    GeomCenter[POINT].x = 0.0;
    GeomCenter[POINT].y = 0.0;
    GeomCenter[POINT].z = 0.0;
@@ -167,6 +190,10 @@ Geometry::Geometry()
    GeomCenter[PRISM].y = 1.0 / 3.0;
    GeomCenter[PRISM].z = 0.5;
 
+   GeomCenter[PYRAMID].x = 0.375;
+   GeomCenter[PYRAMID].y = 0.375;
+   GeomCenter[PYRAMID].z = 0.25;
+
    GeomToPerfGeomJac[POINT]       = NULL;
    GeomToPerfGeomJac[SEGMENT]     = new DenseMatrix(1);
    GeomToPerfGeomJac[TRIANGLE]    = new DenseMatrix(2);
@@ -174,6 +201,7 @@ Geometry::Geometry()
    GeomToPerfGeomJac[TETRAHEDRON] = new DenseMatrix(3);
    GeomToPerfGeomJac[CUBE]        = new DenseMatrix(3);
    GeomToPerfGeomJac[PRISM]       = new DenseMatrix(3);
+   GeomToPerfGeomJac[PYRAMID]     = new DenseMatrix(3);
 
    PerfGeomToGeomJac[POINT]       = NULL;
    PerfGeomToGeomJac[SEGMENT]     = NULL;
@@ -182,6 +210,7 @@ Geometry::Geometry()
    PerfGeomToGeomJac[TETRAHEDRON] = new DenseMatrix(3);
    PerfGeomToGeomJac[CUBE]        = NULL;
    PerfGeomToGeomJac[PRISM]       = new DenseMatrix(3);
+   PerfGeomToGeomJac[PYRAMID]     = new DenseMatrix(3);
 
    GeomToPerfGeomJac[SEGMENT]->Diag(1.0, 1);
    {
@@ -236,6 +265,7 @@ const IntegrationRule * Geometry::GetVertices(int GeomType)
       case Geometry::TETRAHEDRON: return GeomVert[4];
       case Geometry::CUBE:        return GeomVert[5];
       case Geometry::PRISM:       return GeomVert[6];
+      case Geometry::PYRAMID:     return GeomVert[7];
       default:
          mfem_error ("Geometry::GetVertices(...)");
    }
@@ -313,6 +343,25 @@ void Geometry::GetRandomPoint(int GeomType, IntegrationPoint &ip)
             ip.y = 1.0 - ip.y;
          }
          break;
+      case Geometry::PYRAMID:
+         ip.x = double(rand()) / RAND_MAX;
+         ip.y = double(rand()) / RAND_MAX;
+         ip.z = double(rand()) / RAND_MAX;
+         if (ip.x + ip.z > 1.0 && ip.y < ip.x)
+         {
+	   double x = ip.x;
+	   ip.x = ip.y;
+	   ip.y = 1.0 - ip.z;
+	   ip.z = 1.0 - x;
+         }
+	 else if (ip.y + ip.z > 1.0)
+	 {
+	   double z = ip.z;
+	   ip.z = 1.0 - ip.y;
+	   ip.y = ip.x;
+	   ip.x = 1.0 - z;
+	 }
+         break;
       default:
          MFEM_ABORT("Unknown type of reference element!");
    }
@@ -372,6 +421,10 @@ bool Geometry::CheckPoint(int GeomType, const IntegrationPoint &ip)
          break;
       case Geometry::PRISM:
          if (ip.x < 0.0 || ip.y < 0.0 || ip.x+ip.y > 1.0 ||
+             ip.z < 0.0 || ip.z > 1.0) { return false; }
+         break;
+      case Geometry::PYRAMID:
+         if (ip.x < 0.0 || ip.y < 0.0 || ip.x+ip.z > 1.0 || ip.y+ip.z > 1.0 ||
              ip.z < 0.0 || ip.z > 1.0) { return false; }
          break;
       default:
@@ -443,6 +496,17 @@ bool Geometry::CheckPoint(int GeomType, const IntegrationPoint &ip, double eps)
          {
             return false;
          }
+         break;
+      case Geometry::PYRAMID:
+	 if (internal::FuzzyLT(ip.x, 0.0, eps)
+	     || internal::FuzzyLT(ip.y, 0.0, eps)
+	     || internal::FuzzyGT(ip.x+ip.z, 1.0, eps)
+	     || internal::FuzzyGT(ip.y+ip.z, 1.0, eps)
+	     || internal::FuzzyLT(ip.z, 0.0, eps)
+	     || internal::FuzzyGT(ip.z, 1.0, eps) )
+	 {
+	    return false;
+	 }
          break;
       default:
          MFEM_ABORT("Unknown type of reference element!");
@@ -558,6 +622,14 @@ bool Geometry::ProjectPoint(int GeomType, const IntegrationPoint &beg,
          double lbeg[5] = { beg.x, beg.y, beg.z, 1.0-beg.x-beg.y, 1.0-beg.z };
          return internal::IntersectSegment<5,3>(lbeg, lend, end);
       }
+      case Geometry::PYRAMID:
+      {
+         double lend[6] = { end.x, end.y, end.z,
+			    1.0-end.x-end.z, 1.0-end.y-end.z, 1.0-end.z };
+         double lbeg[6] = { beg.x, beg.y, beg.z,
+			    1.0-beg.x-beg.z, 1.0-beg.y-beg.z, 1.0-beg.z };
+         return internal::IntersectSegment<6,3>(lbeg, lend, end);
+      }
       default:
          MFEM_ABORT("Unknown type of reference element!");
    }
@@ -655,6 +727,43 @@ bool Geometry::ProjectPoint(int GeomType, IntegrationPoint &ip)
          return in_tri && in_z;
       }
 
+      case PYRAMID:
+      {
+	 if (ip.x < 0.0)
+	 {
+	   ip.x = 0.0;
+	   internal::ProjectTriangle(ip.y, ip.z);
+	   return false;
+	 }
+	 if (ip.y < 0.0)
+	 {
+	   ip.y = 0.0;
+	   internal::ProjectTriangle(ip.x, ip.z);
+	   return false;
+	 }
+	 if (ip.z < 0.0)
+	 {
+	   ip.z = 0.0;
+	   if (ip.x > 1.0) ip.x = 1.0;
+	   if (ip.y > 1.0) ip.y = 1.0;
+	   return false;
+	 }
+	 if (ip.x >= ip.y)
+	 {
+	   bool in_y = true;
+	   bool in_tri = internal::ProjectTriangle(ip.x, ip.z);
+	   if (ip.y > ip.z) { in_y = false; ip.y = ip.z; }
+	   return in_tri && in_y;
+	 }
+	 else
+	 {
+	   bool in_x = true;
+	   bool in_tri = internal::ProjectTriangle(ip.y, ip.z);
+	   if (ip.x > ip.z) { in_x = false; ip.x = ip.z; }
+	   return in_tri && in_x;
+	 }
+      }
+
       default:
          MFEM_ABORT("Reference element type is not supported!");
    }
@@ -729,6 +838,17 @@ void Geometry::GetPerfPointMat(int GeomType, DenseMatrix &pm)
       }
       break;
 
+      case Geometry::PYRAMID:
+      {
+         pm.SetSize (3, 5);
+         pm(0,0) = 0.0;  pm(1,0) = 0.0;  pm(2,0) = 0.0;
+         pm(0,1) = 1.0;  pm(1,1) = 0.0;  pm(2,1) = 0.0;
+         pm(0,2) = 1.0;  pm(1,2) = 1.0;  pm(2,2) = 0.0;
+         pm(0,3) = 0.0;  pm(1,3) = 1.0;  pm(2,3) = 0.0;
+         pm(0,4) = 0.5;  pm(1,4) = 0.5;  pm(2,4) = 0.7071067811865475;
+      }
+      break;
+
       default:
          mfem_error ("Geometry::GetPerfPointMat (...)");
    }
@@ -747,13 +867,13 @@ void Geometry::JacToPerfJac(int GeomType, const DenseMatrix &J,
    }
 }
 
-const int Geometry::NumBdrArray[NumGeom] = { 0, 2, 3, 4, 4, 6, 5 };
-const int Geometry::Dimension[NumGeom] = { 0, 1, 2, 2, 3, 3, 3 };
+const int Geometry::NumBdrArray[NumGeom] = { 0, 2, 3, 4, 4, 6, 5, 5 };
+const int Geometry::Dimension[NumGeom] = { 0, 1, 2, 2, 3, 3, 3, 3 };
 const int Geometry::DimStart[MaxDim+2] =
 { POINT, SEGMENT, TRIANGLE, TETRAHEDRON, NUM_GEOMETRIES };
-const int Geometry::NumVerts[NumGeom] = { 1, 2, 3, 4, 4, 8, 6 };
-const int Geometry::NumEdges[NumGeom] = { 0, 1, 3, 4, 6, 12, 9 };
-const int Geometry::NumFaces[NumGeom] = { 0, 0, 1, 1, 4, 6, 5 };
+const int Geometry::NumVerts[NumGeom] = { 1, 2, 3, 4, 4, 8, 6, 5 };
+const int Geometry::NumEdges[NumGeom] = { 0, 1, 3, 4, 6, 12, 9, 8 };
+const int Geometry::NumFaces[NumGeom] = { 0, 0, 1, 1, 4, 6, 5, 5 };
 
 const int Geometry::
 Constants<Geometry::POINT>::Orient[1][1] = {{0}};
