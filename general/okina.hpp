@@ -38,7 +38,7 @@
 template <size_t BLOCK_SZ, typename DBODY, typename HBODY>
 void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 {
-   constexpr bool nvcc = cuNvcc();
+   constexpr bool nvcc = NvccCompilerUsed();
    const bool cuda = mfem::config::Cuda();
    if (nvcc and cuda)
    {

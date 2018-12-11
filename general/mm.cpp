@@ -69,9 +69,9 @@ void* mm::Adrs(const void *adrs)
    {
       MFEM_ASSERT(config::Nvcc(),"[ERROR] Trying to run without CUDA support!");
       const size_t bytes = mm.bytes;
-      if (bytes>0) { okMemAlloc(&mm.d_adrs, bytes); }
+      if (bytes>0) { cuMemAlloc(&mm.d_adrs, bytes); }
       void *stream = config::Stream();
-      okMemcpyHtoDAsync(mm.d_adrs, mm.h_adrs, bytes, stream);
+      cuMemcpyHtoDAsync(mm.d_adrs, mm.h_adrs, bytes, stream);
       mm.host = false; // This address is no more on the host
    }
    return mm.d_adrs;
@@ -88,26 +88,26 @@ memory mm::Memory(const void *adrs)
    mm2dev_t &mm = mng->operator[](adrs);
    const bool cuda = config::Cuda();
    const size_t bytes = mm.bytes;
-   OCCAdevice device = config::OccaDevice();
+   OccaDevice device = config::OccaDevice();
    if (not mm.d_adrs)
    {
       mm.host = false; // This address is no more on the host
       if (cuda)
       {
-         okMemAlloc(&mm.d_adrs, bytes);
+         cuMemAlloc(&mm.d_adrs, bytes);
          void *stream = config::Stream();
-         okMemcpyHtoDAsync(mm.d_adrs, mm.h_adrs, bytes, stream);
+         cuMemcpyHtoDAsync(mm.d_adrs, mm.h_adrs, bytes, stream);
       }
       else
       {
-         mm.o_adrs = okDeviceMalloc(device, bytes);
-         mm.d_adrs = okMemoryPtr(mm.o_adrs);
-         okCopyFrom(mm.o_adrs, mm.h_adrs);
+         mm.o_adrs = occaDeviceMalloc(device, bytes);
+         mm.d_adrs = occaMemoryPtr(mm.o_adrs);
+         occaCopyFrom(mm.o_adrs, mm.h_adrs);
       }
    }
    if (cuda)
    {
-      return okWrapMemory(device, mm.d_adrs, bytes);
+      return occaWrapMemory(device, mm.d_adrs, bytes);
    }
    return mm.o_adrs;
 }
@@ -118,7 +118,7 @@ void mm::Push(const void *adrs)
    MFEM_ASSERT(Known(adrs), "[ERROR] Trying to push an unknown address!");
    const mm2dev_t &mm = mng->operator[](adrs);
    if (mm.host) { return; }
-   okMemcpyHtoD(mm.d_adrs, mm.h_adrs, mm.bytes);
+   cuMemcpyHtoD(mm.d_adrs, mm.h_adrs, mm.bytes);
 }
 
 // *****************************************************************************
@@ -129,12 +129,12 @@ void mm::Pull(const void *adrs)
    if (mm.host) { return; }
    if (config::Cuda())
    {
-      okMemcpyDtoH((void*)mm.h_adrs, mm.d_adrs, mm.bytes);
+      cuMemcpyDtoH((void*)mm.h_adrs, mm.d_adrs, mm.bytes);
       return;
    }
    if (config::Occa())
    {
-      okCopyTo(Memory(adrs), (void*)mm.h_adrs);
+      occaCopyTo(Memory(adrs), (void*)mm.h_adrs);
       return;
    }
    MFEM_ASSERT(false, "[ERROR] Should not be there!");
