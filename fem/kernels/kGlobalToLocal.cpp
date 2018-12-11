@@ -25,9 +25,13 @@ void kGlobalToLocal(const int NUM_VDIM,
                     double* __restrict localX)
 {
    push();
+   dbg("offsets");
    GET_CONST_ADRS_T(offsets,int);
+   dbg("indices");
    GET_CONST_ADRS_T(indices,int);
+   dbg("globalX");
    GET_CONST_ADRS(globalX);
+   dbg("localX");
    GET_ADRS(localX);
    MFEM_FORALL(i, globalEntries,
    {

@@ -30,6 +30,14 @@
 namespace mfem
 {
 
+void Vector::vH2D() const {
+   mm::Get().Push(data,size*sizeof(double));
+}
+
+void Vector::vD2H() const {
+   mm::Get().Pull(data,size*sizeof(double));
+}
+
 Vector::Vector(const Vector &v)
 {
    int s = v.Size();
@@ -480,12 +488,13 @@ void Vector::GetSubVector(const Array<int> &dofs, double *elem_data) const
 void Vector::SetSubVector(const Array<int> &dofs, const double value)
 {
    const int n = dofs.Size();
-   kVectorSetSubvector(n,data,value,dofs);
+   kVectorSetSubvector(n, data, value, dofs);
 }
 
 void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
 {
-   kVectorSetSubvector(dofs.Size(), GetData(), elemvect.GetData(), dofs.GetData());
+   const int n = dofs.Size();
+   kVectorSetSubvector(n, data, elemvect, dofs);
 }
 
 void Vector::SetSubVector(const Array<int> &dofs, double *elem_data)
@@ -561,6 +570,7 @@ void Vector::SetSubVectorComplement(const Array<int> &dofs, const double val)
 void Vector::Print(std::ostream &out, int width) const
 {
    if (!size) { return; }
+   this->vD2H();
    for (int i = 0; 1; )
    {
       out << data[i];

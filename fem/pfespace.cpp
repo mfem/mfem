@@ -2784,10 +2784,11 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    double *ydata = y.GetData();
    
    const bool cuda = config::Cuda();
+   //dbg("x:");x.Print();fflush(0);//assert(false);
    if (cuda){
-      //config::Cuda(false);
-      mm::Sync(xdata);
-      //mm::Sync(ydata);
+      x.vD2H();
+      y.vD2H();
+      config::Cuda(false);
    }
    const int m = external_ldofs.Size();
 
@@ -2806,10 +2807,11 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    const int out_layout = 0; // 0 - output is ldofs array
    gc.BcastEnd(ydata, out_layout);
    if (cuda){
-      //mm::Sync(xdata);
-      //mm::Sync(ydata);
-      //config::Cuda(true);
+      x.vH2D();
+      y.vH2D();
+      config::Cuda(true);
    }
+   //dbg("y:");y.Print();fflush(0);//assert(false);
 }
 
 void ConformingProlongationOperator::MultTranspose(
@@ -2823,10 +2825,11 @@ void ConformingProlongationOperator::MultTranspose(
    double *ydata = y.GetData();
    
    const bool cuda = config::Cuda();
+   //dbg("x:");x.Print();fflush(0);//assert(false);
    if (cuda){
-      //config::Cuda(false);
-      mm::Sync(xdata);
-      //mm::Sync(ydata);
+      x.vD2H();
+      y.vD2H();
+      config::Cuda(false);
    }
    
    const int m = external_ldofs.Size();
@@ -2845,10 +2848,11 @@ void ConformingProlongationOperator::MultTranspose(
    const int out_layout = 2; // 2 - output is an array on all ltdofs
    gc.ReduceEnd<double>(ydata, out_layout, GroupCommunicator::Sum);
    if (cuda){
-      //mm::Sync(xdata);
-      //mm::Sync(ydata);
-      //config::Cuda(true);
+      x.vH2D();
+      y.vH2D();
+      config::Cuda(true);
    }
+   //dbg("y:");y.Print();fflush(0);//assert(false);
 }
 
 } // namespace mfem

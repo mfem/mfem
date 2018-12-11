@@ -18,6 +18,8 @@ namespace mfem
 // ******************************************************************************
 void* kH2D(void *dest, const void *src, size_t bytes, const bool async)
 {
+   BUILTIN_TRAP;
+   assert(false);
    GET_ADRS(src);
    GET_ADRS(dest);
    if (not async) { okMemcpyHtoD(d_dest, d_src, bytes); }
@@ -28,6 +30,8 @@ void* kH2D(void *dest, const void *src, size_t bytes, const bool async)
 // *****************************************************************************
 void* kD2H(void *dest, const void *src, size_t bytes, const bool async)
 {
+   BUILTIN_TRAP;
+   assert(false);
    GET_ADRS(src);
    GET_ADRS(dest);
    if (not async) { okMemcpyDtoH(d_dest, d_src, bytes); }
@@ -38,10 +42,12 @@ void* kD2H(void *dest, const void *src, size_t bytes, const bool async)
 // *****************************************************************************
 void* kD2D(void *dest, const void *src, size_t bytes, const bool async)
 {
+   BUILTIN_TRAP;
+   assert(false);
    GET_ADRS(src);
    GET_ADRS(dest);
-   if (not async) { okMemcpyDtoD(d_dest, d_src, bytes); }
-   else { okMemcpyDtoDAsync(d_dest, d_src, bytes, config::Stream()); }
+   if (not async) { okMemcpyDtoD(dest, (void*)src, bytes); }
+   else { okMemcpyDtoDAsync(dest, (void*)src, bytes, config::Stream()); }
    return dest;
 }
 

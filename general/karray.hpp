@@ -69,11 +69,14 @@ public:
    {
       return data[x + d[0]*(y + d[1]*z)];
    }
-   void Print(std::ostream& out= std::cout, int width = 8) const
+   void Print(std::ostream& out= std::cout, int width = sizeof(T)) const
    {
-      mm::Get().Pull(data);
-      for (size_t i=0; i<sz; i+=1)
-         printf("\n\t[%ld] %.15e",i,data[i]);
+      mm::Get().Pull(data,bytes());
+      for (size_t i=0; i<sz; i+=1){
+         assert(width==4 or width==8);
+         if (width==4) printf("\n\t[%ld] %d",i,data[i]);
+         if (width==8) printf("\n\t[%ld] %.15e",i,data[i]);
+      }
    }
 };
 
@@ -133,11 +136,14 @@ public:
    {
       return data[d[0]*x + d[1]*y + d[2]*z];
    }
-   void Print(std::ostream& out= std::cout, int width = 8) const
+   void Print(std::ostream& out= std::cout, int width = sizeof(T)) const
    {
-      mm::Get().Pull(data);
-      for (size_t i=0; i<sz; i+=1)
-         printf("\n\t[%ld] %.15e",i,data[i]);
+      mm::Get().Pull(data,bytes());
+      for (size_t i=0; i<sz; i+=1){
+         assert(width==4 or width==8);
+         if (width==4) printf("\n\t[%ld] %d",i,data[i]);
+         if (width==8) printf("\n\t[%ld] %.15e",i,data[i]);
+      }
    }
 };
 

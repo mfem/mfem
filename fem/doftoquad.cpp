@@ -99,7 +99,7 @@ kDofQuadMaps* kDofQuadMaps::GetTensorMaps(const FiniteElement& trialFE,
    maps->dofToQuad   = trialMaps->dofToQuad;
    maps->dofToQuadD  = trialMaps->dofToQuadD;
    maps->quadToDof   = testMaps->dofToQuad;
-   maps->quadToDofD  = testMaps->dofToQuadD;
+   maps->quadToDofD  = testMaps->dofToQuadD;   
    maps->quadWeights = testMaps->quadWeights;
    return maps;
 }

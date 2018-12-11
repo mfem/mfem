@@ -26,22 +26,28 @@ void mm::Setup(){
 }
 
 // *****************************************************************************
+// * Tests if adrs is a known address
+// * If insert_if_in_range is set, it will insert this knew range
+// *****************************************************************************
+bool mm::Known(const void *adrs)
+{
+   const bool known = memories->find(adrs) != memories->end();
+   if (known) return true;
+   return false;
+}
+
+// *****************************************************************************
 // * Looks if adrs is in one mapping's range
 // * Returns base address if it is a hit, NULL otherwise
 // *****************************************************************************
-void *mm::Range(const void *adrs)
+const void *mm::Range(const void *adrs)
 {
-   {
-      const auto found = memories->find(adrs);
-      const bool known = found != memories->end();
-      assert(not known);
-   }
-   for(memory_map_t::iterator a = memories->begin(); a != memories->end(); a++) {
-      const void *h_adrs = a->first;
-      if (h_adrs > adrs) continue;
-      const size_t bytes = a->second.bytes;
-      const void *end = (char*)h_adrs + bytes;
-      if (adrs <= end) return a->second.h_adrs;
+   if (Known(adrs)) return NULL;
+   for(memory_map_t::iterator m = memories->begin(); m != memories->end(); m++) {
+      const void *b_adrs = m->first;
+      if (b_adrs > adrs) continue;
+      const void *end = (char*)b_adrs + m->second.bytes;
+      if (adrs < end) return b_adrs;
    }
    return NULL;
 }
@@ -49,42 +55,28 @@ void *mm::Range(const void *adrs)
 // *****************************************************************************
 // * Tests if adrs is an alias address
 // *****************************************************************************
-bool mm::Alias(const void *adrs, const bool insert_if_is_alias){
-   push();
+bool mm::Alias(const void *adrs)
+{
    // Look for an alias
    const bool alias =  aliases->find(adrs) != aliases->end();
    if (alias) return true;
-   // If we are not asked to add it, just return we don't know this address
-   if (not insert_if_is_alias) return false;
-   // Add this alias
+   // Test if it is in a memory range
    const void *base = Range(adrs);
-   // Its base address should be valid
-   assert(base);
-   dbg("\033[32m[Known] Found new alias: %p < \033[7m%p", base, adrs);
-   assert(base <= adrs);
+   if (not base) return false;
+   assert(base != adrs);
    InsertAlias(base, adrs);
    return true;   
 }
 
 // *****************************************************************************
-// * Tests if adrs is a known address
-// * If insert_if_in_range is set, it will insert this knew range
-// *****************************************************************************
-bool mm::Known(const void *adrs)
+const void* mm::InsertAlias(const void *base, const void *adrs)
 {
-   push();
-   const bool known = memories->find(adrs) != memories->end();
-   if (known) return true;
-   return false;
-}
-
-// *****************************************************************************
-const void* mm::InsertAlias(const void *base, const void *adrs){
-   push();
    alias_t &alias = aliases->operator[](adrs);
-   dbg("New alias @ %p", adrs);
+   //dbg("\033[32m[Known] Insert new alias: %p < \033[7m%p", base, adrs);
    alias.base = (void*) base;
    alias.adrs = (void*) adrs;
+   assert(adrs > base);
+   alias.offset = (char*)adrs - (char*)base;
    return adrs;
 }
 
@@ -94,15 +86,10 @@ const void* mm::InsertAlias(const void *base, const void *adrs){
 // *****************************************************************************
 void* mm::Insert(const void *h_adrs,
                  const size_t size, const size_t size_of_T,
-                 const char *file, const int line,
                  const void *h_base)
 {
-   push();
    if (not memories or not aliases) { Setup(); }
-   if (h_base) {
-      dbg("=> InsertAlias");
-      return (void*) InsertAlias(h_adrs, h_base);
-   }
+   assert(not Alias(h_adrs));
    const bool known = Known(h_adrs);
    if (known) {
       BUILTIN_TRAP;
@@ -111,7 +98,8 @@ void* mm::Insert(const void *h_adrs,
    memory_t &mem = memories->operator[](h_adrs);
    mem.host = true;
    mem.bytes = size*size_of_T;
-   dbg("New %p (%ldb)", h_adrs, mem.bytes);
+   //dbg("New %p (%ldb)", h_adrs, mem.bytes);
+   assert(mem.bytes < 0x1000l);
    mem.h_adrs = (void*) h_adrs;
    mem.d_adrs = NULL;
    return mem.h_adrs;
@@ -122,12 +110,12 @@ void* mm::Insert(const void *h_adrs,
 // *****************************************************************************
 void *mm::Erase(void *adrs)
 {
-   push();
+   //push();
    const bool known = Known(adrs);
    if (not known) { BUILTIN_TRAP; }
    MFEM_ASSERT(known, "[ERROR] Trying to remove an unknown address!");
    memory_t &mem = memories->operator[](adrs);
-   dbg("\033[31m@ %p", mem.h_adrs);
+   //dbg("\033[31mMemory @ %p", mem.h_adrs);
    {  // Scanning aliases to remove the ones using this base
       std::list<void*> aliases_to_remove;
       for(alias_map_t::iterator a = aliases->begin(); a != aliases->end(); a++) {
@@ -136,7 +124,8 @@ void *mm::Erase(void *adrs)
          aliases_to_remove.push_back(a->second.adrs);
       }
       for (void *a : aliases_to_remove) {
-        aliases->erase(a);
+         //dbg("\033[31;7mAlias @ %p", a);
+         aliases->erase(a);
       }
    }   
    memories->erase(adrs);
@@ -148,141 +137,107 @@ void *mm::Erase(void *adrs)
 // *****************************************************************************
 void* mm::Adrs(const void *adrs)
 {
-   push();
    const bool cuda = config::Cuda();
    //const bool occa = config::Occa();
    const bool known = Known(adrs);
-   const bool alias = known ? false : Alias(adrs,true);
+   const bool alias = Alias(adrs);
+   const bool unknown = not known and not alias;
+   if (unknown) { BUILTIN_TRAP; }
+   MFEM_ASSERT(not unknown, "[ERROR] Trying to convert unknown address!");
    
-   if (not known and not alias) { BUILTIN_TRAP; }
-   MFEM_ASSERT(known or alias, "[ERROR] Trying to convert unknown address!");
- 
    const bool host = known ?
       memories->operator[](adrs).host :
-      memories->operator[](aliases->operator[](adrs).base).host ;
+      memories->operator[](aliases->operator[](adrs).base).host;
    
    void *h_adrs = (void*) adrs;
-   
-   void *d_adrs = known ?
-      memories->operator[](adrs).d_adrs :
-      memories->operator[](aliases->operator[](adrs).base).d_adrs ;
+
+   void *b_d_adrs = known ?
+      memories->operator[](adrs).d_adrs : 
+      memories->operator[](aliases->operator[](adrs).base).d_adrs;
    
    // Just return asked known host address if not in CUDA mode
    if (host and not cuda) {
-      dbg("[H,!C] Returning HOST_@");
+      //dbg("[H,!C] Returning HOST_@");
+      return h_adrs;
+   }   
+   
+   if (not host and cuda and b_d_adrs and known and not alias) {
+      //dbg("[!H,C,D] Returning CUDA_@");
+      //dbg("[!H,C,D] %p ", b_d_adrs);
+      return b_d_adrs;
+   }
+
+   if (not host and not cuda and b_d_adrs and known) {
+      //dbg("[!H,!C,D] \033[7mPulling & Returning HOST_@");
+      //Pull(adrs);yy
+      assert(false);
       return h_adrs;
    }
    
-   
-   if (not host and not cuda and d_adrs) {
-      dbg("[!H,!C,D] Returning HOST_@");
-      Pull(adrs);
-      return h_adrs;
+   if (host and cuda and b_d_adrs and known) {
+      const size_t bytes = memories->operator[](adrs).bytes;
+      //dbg("[H,C,D] \033[7mPushing & Returning CUDA_@");
+      //dbg("[H,C,D] %p => %p %ld", h_adrs, b_d_adrs, bytes);
+      okMemcpyHtoD(b_d_adrs, h_adrs, bytes);
+      memories->operator[](adrs).host = false; // Tell base is on GPU
+      return b_d_adrs;
    }
    
-   
-   if (not host and cuda and d_adrs) {
-      dbg("[!H,C,D] Returning CUDA_@");
-      return d_adrs;
-   }
-   /*
-   if (mm.host and cuda and mm.d_adrs) {
-      dbg("[H,C,D] Push & Returning CUDA_@");
-      Push(adrs);
-      return mm.d_adrs;
-   }
-   */
-   
-   // If it hasn't been seen, and we are a ranger,
+   // If it hasn't been seen, and we are a alias,
    // the base should be alloc'ed and pushed!
-   /*if (not mm.d_adrs and mm.ranged){
-      dbg("[!D,R] Base Alloc + CPY");
-      dbg("\033[7mDevice Ranger: @%p < @%p", mm.b_adrs, mm.h_adrs);
+   if (not b_d_adrs and alias){
+      dbg("[!D,R]");
+      assert(false);
       // NVCC sanity check
       MFEM_ASSERT(config::Nvcc(),"[ERROR] Trying to run without CUDA support!");
-      const void *b_adrs = mm.b_adrs;
+      alias_t &alias = aliases->operator[](adrs);
+      dbg("\033[7mDevice Alias: @%p < @%p", alias.base, alias.adrs);
+       
+      const void *b_adrs = alias.base;
       // First, make sure we have an existing base address
-      assert(b_adrs); // redondant with if's mm.ranged test
+      assert(b_adrs);
       // then, make sure base is known, without inserting it
       assert(Known(b_adrs));
       // Let's grab our base map item
-      memory_t &base = memory->operator[](b_adrs);
+      memory_t &base = memories->operator[](b_adrs);
       const size_t base_bytes = base.bytes;
-      const size_t range_bytes = mm.bytes;
-      assert(base_bytes >= range_bytes);
-      const size_t offset = base_bytes - range_bytes;
-      dbg("offset: %ld, 0x%x", offset, offset);
-      // base should at least already be on GPU!
-      //assert(base.d_adrs);
       // Treat the case base is *NOT* on GPU
       if (not base.d_adrs){
          dbg("Base is \033[7mNOT on GPU");
          assert(base_bytes>0);
          okMemAlloc(&base.d_adrs, base_bytes);
          base.host = false; // Tell base is on GPU
-         // We are the only ranger of this base
-         assert(base.n_rangers==1);
          dbg("Base is now on GPU h_%p => d_%p",base.h_adrs, base.d_adrs);
+         okMemcpyHtoD(base.d_adrs, base.h_adrs, base.bytes);
+         //Push(h_adrs);
       }else{
          dbg("Base is \033[7malready on GPU @%p", base.d_adrs);
       }
-      // update our address range in device space
-      mm.d_adrs = (char*)base.d_adrs + offset;
-      dbg("Ranger is now on GPU %p",mm.d_adrs);
-      // Continue by pushing what we are working on
-      void *stream = config::Stream();
-      okMemcpyHtoDAsync(mm.d_adrs, mm.h_adrs, mm.bytes, stream);
-      mm.host = false; // Now this ranger is also on GPU
-      return mm.d_adrs;
-   }*/
-
-   /*
-   // If it hasn't been seen, alloc it in the device
-   const bool is_not_device_ready = mm.d_adrs == NULL;
-   //if (is_not_device_ready)
-   if (not mm.d_adrs// and not mm.ranged)
-   {
-      dbg("[!D] Alloc + CPY, h_adrs \033[7m%p", mm.h_adrs);
-      MFEM_ASSERT(config::Nvcc(),"[ERROR] Trying to run without CUDA support!");
-      const size_t bytes = mm.bytes;
-      dbg("bytes=%ld",bytes);
-      if (bytes>0) { okMemAlloc(&mm.d_adrs, bytes); }
-      assert(mm.d_adrs);
-      void *stream = config::Stream();
-      okMemcpyHtoDAsync(mm.d_adrs, mm.h_adrs, bytes, stream);
-      mm.host = false; // Now this address is GPU born
-      if (mm.n_rangers!=0){
-         const size_t n = mm.n_rangers;
-         dbg("\033[31;7m%d ranger(s) ahead!\033[m",n);
-         for(size_t k=0;k<n;k+=1){
-            dbg("   Updating ranger %d/%d",k+1,n);
-            assert(Known(mm.rangers[k]));
-            memory_t &rng = memory->operator[](mm.rangers[k]);
-            dbg("ranger %p", rng.h_adrs);
-            assert(mm.h_adrs == adrs);
-            assert(rng.h_adrs >= mm.h_adrs);
-            assert(rng.d_adrs >= mm.d_adrs);
-            assert(mm.bytes >= rng.bytes);
-            const size_t offset = mm.bytes - rng.bytes;
-            dbg("offset: %ld, 0x%x", offset, offset);
-            // If this ranger is already on GPU
-            // check that we are good
-            void *n_adrs = (char*) mm.d_adrs + offset;
-            if (rng.d_adrs){
-               dbg("Ranger is  already on GPU @%p", rng.d_adrs);
-               dbg("  Base is          on GPU @%p", mm.d_adrs);
-               dbg("  mm.d_adrs + offset is   @%p", n_adrs);
-               assert(rng.d_adrs == n_adrs);
-            }
-            rng.d_adrs = n_adrs;
-            rng.host = false;
-         }
-         }
-         return mm.d_adrs;
+      const size_t offset = (char*)alias.adrs - (char*)alias.base;
+      void *result = (void*) ((char*)base.d_adrs + offset);
+      dbg("offset %ld (0x%x), returning  @ %p", offset, offset, result);
+      return result;
    }
-   */
    
-   /*
+   // If it hasn't been seen, alloc it in the device
+   const bool device_not_ready = b_d_adrs == NULL;
+   if (device_not_ready)
+   {
+      MFEM_ASSERT(config::Nvcc(),"[ERROR] Trying to run without CUDA support!");
+      memory_t &m = memories->operator[](adrs);
+      const size_t bytes = m.bytes;
+      // Allocate on device
+      if (bytes>0) { okMemAlloc(&m.d_adrs, bytes); }
+      //dbg("[!D] %p, bytes=%ld => %p",m.h_adrs,bytes,m.d_adrs);
+      assert(m.d_adrs);
+      //dbg("[!D] okMemcpyHtoD(%p, %p, %ld)",m.d_adrs, m.h_adrs, m.bytes);
+      assert(m.bytes==bytes);
+      okMemcpyHtoD(m.d_adrs, m.h_adrs, m.bytes);
+      m.host = false; // Now this address is on GPU
+      return m.d_adrs;
+   }
+   
+      /*
    // If it hasn't been seen, alloc it in the device
    if (is_not_device_ready and occa)
    {
@@ -297,8 +252,158 @@ void* mm::Adrs(const void *adrs)
    */
    
    // Otherwise, just return known device pointer
-   dbg("Returning DEV_@");
-   return d_adrs;
+   if (known) {
+      dbg("Returning base DEV_@");
+      return b_d_adrs;
+   }
+   dbg("Returning alias DEV_@");
+   assert(alias);
+   const alias_t &a = aliases->operator[](adrs);
+   assert(a.base);
+   assert(a.adrs);
+   const size_t offset = (char*)a.adrs - (char*)a.base;
+   void *alias_result = (void*) ((char*)b_d_adrs + offset);
+   dbg("Returning alias DEV_@ %p",alias_result);
+   return alias_result;
+}
+
+// *****************************************************************************
+void mm::Push(const void *adrs, const size_t given_bytes)
+{
+   const bool cuda = config::Cuda();
+   const bool alias = Alias(adrs);
+   const bool known = Known(adrs);
+   const bool unknown = not known and not alias;
+   if (unknown) { BUILTIN_TRAP; }
+   MFEM_ASSERT(not unknown, "[ERROR] Trying to PUSH an unknown address!");
+   
+   if (known and not alias){
+      if (not cuda) {
+         //dbg("known, not CUDA, return");
+         return;
+      }
+      memory_t &base = memories->operator[](adrs);
+      if (not base.d_adrs){
+         //dbg("Allocating base on GPU");
+         const size_t base_bytes = base.bytes;
+         assert(base_bytes>0);
+         okMemAlloc(&base.d_adrs, base_bytes);
+      }
+      assert(base.d_adrs);
+      if (given_bytes==0){
+         const size_t bytes = base.bytes;
+         okMemcpyHtoD(base.d_adrs, base.h_adrs, bytes);
+      }else{
+         okMemcpyHtoD(base.d_adrs, base.h_adrs, given_bytes);
+      }
+      base.host = false; // Tell base is on GPU
+      return;
+   }
+   
+   if (alias){
+      if (not cuda) { return; }
+      assert(given_bytes > 0);
+      const alias_t &a = aliases->operator[](adrs);
+      void *b_d_adrs = memories->operator[](a.base).d_adrs;
+      assert(b_d_adrs);
+      void *a_d_adrs = (void*) ((char*)b_d_adrs + a.offset);
+      okMemcpyHtoD(a_d_adrs, a.adrs, given_bytes);
+      return;
+   }
+   
+   MFEM_ASSERT(false, "[ERROR] Should not be there!");
+/*   if (not mm.host) {
+      dbg("\033[33;1mAlready on device!");
+      return;
+   }
+   const bool cuda = config::Cuda();
+   if (not cuda){
+      dbg("\033[33;1mNo device ready!");
+      return;
+   }
+   dbg("\033[31;1mHtoD");
+   if (not mm.d_adrs){
+      dbg("\033[31;1mNO @, getting one for you!");
+      const void *d_adrs = Adrs(adrs);
+      assert(d_adrs);
+      MFEM_ASSERT(Known(adrs), "[ERROR] PUSH address!");
+      mm = memory->operator[](adrs);
+      }
+*/
+}
+
+// *****************************************************************************
+void mm::Pull(const void *adrs, const size_t given_bytes)
+{
+   const bool cuda = config::Cuda();
+   const bool alias = Alias(adrs);
+   const bool known = Known(adrs);
+   const bool unknown = not known and not alias;
+   if (unknown) { BUILTIN_TRAP; }
+   MFEM_ASSERT(not unknown, "[ERROR] Trying to PULL an unknown address!");
+      
+   if (known and not alias){
+      if (not cuda) {
+         // dbg("known, not CUDA, return");
+         return;
+      }
+      memory_t &base = memories->operator[](adrs);      
+      const size_t bytes = given_bytes >0 ? given_bytes :base.bytes;
+      const bool host = base.host;
+      if (host and not base.d_adrs){
+         //dbg("host, known, not base.d_adrs, return");
+         return;
+      }
+      if (not host){
+         //dbg("known, not host, okMemcpyDtoH & return");
+         assert(base.d_adrs);
+         okMemcpyDtoH(base.h_adrs, base.d_adrs, bytes);
+         base.host = true;
+         return;
+      }else{
+         //dbg("known, base.d_adrs, but in host, Nothing to do...");
+         //assert(false);
+         return;
+      }
+   }
+
+   if (alias){
+      if (not cuda) { return; }
+      assert(given_bytes > 0);
+      const alias_t &a = aliases->operator[](adrs);
+      void *b_d_adrs = memories->operator[](a.base).d_adrs;
+      assert(b_d_adrs);
+      void *a_d_adrs = (void*) ((char*)b_d_adrs + a.offset);
+      //dbg("alias, cuda, okMemcpyDtoH & return");
+      okMemcpyDtoH(a.adrs, a_d_adrs, given_bytes);
+      return;
+   }
+   
+   MFEM_ASSERT(false, "[ERROR] Should not be there!");
+/*
+   dbg("\033[31;1mDtoH");
+   if (not mm.d_adrs){
+      dbg("\033[31;1mNO @, getting one for you!");
+      const void *d_adrs = Adrs(adrs);
+      assert(d_adrs);
+      MFEM_ASSERT(Known(adrs), "[ERROR] PULL address!");
+      mm = memory->operator[](adrs);
+      }
+*/
+
+/*
+   if (config::Cuda())
+   {
+      okMemcpyDtoH((void*)mm.h_adrs, mm.d_adrs, mm.bytes);
+      return;
+   }
+   if (config::Occa())
+   {
+      okCopyTo(Memory(adrs), (void*)mm.h_adrs);
+      return;
+      }
+   MFEM_ASSERT(false, "[ERROR] Should not be there!");
+*/
 }
 
 // *****************************************************************************
@@ -344,118 +449,34 @@ OccaMemory mm::Memory(const void *adrs)
 void mm::Sync_p(const void *adrs)
 {
    push();
-   const bool cuda = config::Cuda();
-   if (not cuda) return;
    const bool known = Known(adrs);
-   if (not known) { BUILTIN_TRAP; }
-   MFEM_ASSERT(known, "[ERROR] Trying to SYNC an unknown address!");
-   const memory_t &m = memories->operator[](adrs);
-   if (m.host) { Push(adrs); return; }
-   Pull(adrs);
-}
-
-// *****************************************************************************
-void mm::Push(const void *adrs)
-{
-   push();
-   const bool known = Known(adrs);
-   const bool alias = known ? false : Alias(adrs,true);
+   const bool alias = Alias(adrs);
    const bool unknown = not known and not alias;
    if (unknown) { BUILTIN_TRAP; }
-   MFEM_ASSERT(not unknown, "[ERROR] Trying to PUSH an unknown address!");
+   MFEM_ASSERT(not unknown, "[ERROR] Trying to SYNC an unknown address!");
    if (known){
-      memory_t &mem = memories->operator[](adrs);
-      const bool host = mem.host;
-      if (not host /*and cuda*/){
-         okMemcpyHtoD(mem.d_adrs, mem.h_adrs, mem.bytes);
-         mem.host = false;
-      }
+      const memory_t &m = memories->operator[](adrs);
+      if (m.host) { Push(adrs); return; }
+      Pull(adrs);
       return;
    }
-   if (alias){
-      assert(false);
-      return;
-   }
-   MFEM_ASSERT(false, "[ERROR] Should not be there!");
-/*   if (not mm.host) {
-      dbg("\033[33;1mAlready on device!");
-      return;
-   }
-   const bool cuda = config::Cuda();
-   if (not cuda){
-      dbg("\033[33;1mNo device ready!");
-      return;
-   }
-   dbg("\033[31;1mHtoD");
-   if (not mm.d_adrs){
-      dbg("\033[31;1mNO @, getting one for you!");
-      const void *d_adrs = Adrs(adrs);
-      assert(d_adrs);
-      MFEM_ASSERT(Known(adrs), "[ERROR] PUSH address!");
-      mm = memory->operator[](adrs);
-      }
-*/
-}
-
-// *****************************************************************************
-void mm::Pull(const void *adrs)
-{
-   push();
-   //const bool cuda = config::Cuda();
-   const bool known = Known(adrs);
-   const bool alias = known ? false : Alias(adrs,true);
-   const bool unknown = not known and not alias;
-   if (unknown) { BUILTIN_TRAP; }
-   MFEM_ASSERT(not unknown, "[ERROR] Trying to PULL an unknown address!");
-   if (known){
-      memory_t &mem = memories->operator[](adrs);
-      const bool host = mem.host;
-      if (not host /*and cuda*/){
-         okMemcpyDtoH(mem.h_adrs, mem.d_adrs, mem.bytes);
-         mem.host = true;
-      }
-      return;
-   }
-   if (alias){
-      assert(false);
-      return;
-   }
-   MFEM_ASSERT(false, "[ERROR] Should not be there!");
-/*
-   dbg("\033[31;1mDtoH");
-   if (not mm.d_adrs){
-      dbg("\033[31;1mNO @, getting one for you!");
-      const void *d_adrs = Adrs(adrs);
-      assert(d_adrs);
-      MFEM_ASSERT(Known(adrs), "[ERROR] PULL address!");
-      mm = memory->operator[](adrs);
-      }
-*/
-
-/*
-   if (config::Cuda())
-   {
-      okMemcpyDtoH((void*)mm.h_adrs, mm.d_adrs, mm.bytes);
-      return;
-   }
-   if (config::Occa())
-   {
-      okCopyTo(Memory(adrs), (void*)mm.h_adrs);
-      return;
-      }
-   MFEM_ASSERT(false, "[ERROR] Should not be there!");
-*/
+   assert(alias);
+   assert(false);
 }
 
 // *****************************************************************************
 void* mm::memcpy(void *dest, const void *src, size_t bytes)
 {
+   //BUILTIN_TRAP;
+   //assert(false);
    return mm::D2D(dest, src, bytes, false);
 }
 
 // ******************************************************************************
 void* mm::H2D(void *dest, const void *src, size_t bytes, const bool async)
 {
+   BUILTIN_TRAP;
+   assert(false);
    if (bytes==0) { return dest; }
    const bool cuda = config::Cuda();
    if (not cuda) { return std::memcpy(dest, src, bytes); }
@@ -465,6 +486,8 @@ void* mm::H2D(void *dest, const void *src, size_t bytes, const bool async)
 // *****************************************************************************
 void* mm::D2H(void *dest, const void *src, size_t bytes, const bool async)
 {
+   BUILTIN_TRAP;
+   assert(false);
    if (bytes==0) { return dest; }
    const bool cuda = config::Cuda();
    if (not cuda) { return std::memcpy(dest, src, bytes); }
@@ -474,9 +497,12 @@ void* mm::D2H(void *dest, const void *src, size_t bytes, const bool async)
 // *****************************************************************************
 void* mm::D2D(void *dest, const void *src, size_t bytes, const bool async)
 {
+   //BUILTIN_TRAP;
+   //assert(false);
    if (bytes==0) { return dest; }
    const bool cuda = config::Cuda();
    if (not cuda) { return std::memcpy(dest, src, bytes); }
+   assert(false);
    return mfem::kD2D(dest, src, bytes, async);
 }
 
