@@ -1207,11 +1207,18 @@ void Mesh::AddHexAsWedges(const int *vi, int attr)
    }
 }
 
-void Mesh::AddHexAsPyramids(const int *vi, int attr)
+void Mesh::AddHexAsPyramids(const int *vi, int ornt, int attr)
 {
-   static const int hex_to_pyr[3][5] =
+   static const int hex_to_pyr[8][3][5] =
    {
-      { 7, 4, 0, 3, 6}, { 5, 1, 0, 4, 6}, { 2, 3, 0, 1, 6}
+      {{ 7, 4, 0, 3, 6}, { 5, 1, 0, 4, 6}, { 2, 3, 0, 1, 6}},
+      {{ 6, 2, 1, 5, 7}, { 4, 5, 1, 0, 7}, { 3, 0, 1, 2, 7}},
+      {{ 4, 0, 3, 7, 5}, { 6, 7, 3, 2, 5}, { 1, 2, 3, 0, 5}},
+      {{ 5, 6, 2, 1, 4}, { 7, 3, 2, 6, 4}, { 0, 1, 2, 3, 4}},
+      {{ 3, 7, 4, 0, 2}, { 1, 0, 4, 5, 2}, { 6, 5, 4, 7, 2}},
+      {{ 2, 1, 5, 6, 3}, { 0, 4, 5, 1, 3}, { 7, 6, 5, 4, 3}},
+      {{ 0, 3, 7, 4, 1}, { 2, 6, 7, 3, 1}, { 5, 4, 7, 6, 1}},
+      {{ 1, 5, 6, 2, 0}, { 3, 2, 6, 7, 0}, { 4, 7, 6, 5, 0}}
    };
    int ti[5];
 
@@ -1219,7 +1226,7 @@ void Mesh::AddHexAsPyramids(const int *vi, int attr)
    {
       for (int j = 0; j < 5; j++)
       {
-         ti[j] = vi[hex_to_pyr[i][j]];
+         ti[j] = vi[hex_to_pyr[ornt][i][j]];
       }
       AddPyramid(ti, attr);
    }
@@ -2212,6 +2219,11 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
       NElem *= 2;
       NBdrElem += 2*nx*ny;
    }
+   else if (type == Element::PYRAMID)
+   {
+      NElem *= 3;
+      NBdrElem += (nx%2)*ny*nz+nx*(ny%2)*nz+nx*ny*(nz%2);
+   }
 
    InitMesh(3, 3, NVert, NElem, NBdrElem);
 
@@ -2257,6 +2269,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
             else if (type == Element::WEDGE)
             {
                AddHexAsWedges(ind, 1);
+            }
+            else if (type == Element::PYRAMID)
+            {
+               AddHexAsPyramids(ind, (x%2)+(y%2)*2+(z%2)*4, 1);
             }
             else
             {
@@ -2304,6 +2320,18 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
          {
             AddBdrQuadAsTriangles(ind, 1);
          }
+         else if (type == Element::PYRAMID && (nz%2 == 1))
+         {
+            if (x%2 != y%2)
+            {
+               int ind0 = ind[0];
+               ind[0] = ind[1];
+               ind[1] = ind[2];
+               ind[2] = ind[3];
+               ind[3] = ind0;
+            }
+            AddBdrQuadAsTriangles(ind, 1);
+         }
          else
          {
             AddBdrQuad(ind, 6);
@@ -2338,6 +2366,18 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
          {
             AddBdrQuadAsTriangles(ind, 3);
          }
+         else if (type == Element::PYRAMID && (nx%2 == 1))
+         {
+            if (y%2 != z%2)
+            {
+               int ind0 = ind[0];
+               ind[0] = ind[1];
+               ind[1] = ind[2];
+               ind[2] = ind[3];
+               ind[3] = ind0;
+            }
+            AddBdrQuadAsTriangles(ind, 1);
+         }
          else
          {
             AddBdrQuad(ind, 3);
@@ -2371,6 +2411,18 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
          if (type == Element::TETRAHEDRON)
          {
             AddBdrQuadAsTriangles(ind, 4);
+         }
+         else if (type == Element::PYRAMID && (ny%2 == 1))
+         {
+            if (x%2 != z%2)
+            {
+               int ind0 = ind[0];
+               ind[0] = ind[1];
+               ind[1] = ind[2];
+               ind[2] = ind[3];
+               ind[3] = ind0;
+            }
+            AddBdrQuadAsTriangles(ind, 1);
          }
          else
          {
