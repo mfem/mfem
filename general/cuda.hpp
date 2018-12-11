@@ -28,7 +28,7 @@ void cuWrap(const size_t N, DBODY &&d_body)
    const size_t gridSize = (N+BLOCK_SZ-1)/BLOCK_SZ;
    cuKernel<<<gridSize, BLOCK_SZ>>>(N,d_body);
 }
-constexpr static inline bool cuNvcc() { return true; }
+constexpr static inline bool NvccCompilerUsed() { return true; }
 #else // ***********************************************************************
 #define __host__
 #define __device__
@@ -38,7 +38,7 @@ typedef int CUcontext;
 typedef void* CUstream;
 template <size_t BLOCK_SIZE, typename DBODY>
 void cuWrap(const size_t N, DBODY &&d_body) {}
-constexpr static inline bool cuNvcc() { return false; }
+constexpr static inline bool NvccCompilerUsed() { return false; }
 #endif // __NVCC__
 
 // *****************************************************************************
@@ -48,42 +48,43 @@ namespace mfem
 // *****************************************************************************
 // * Allocates device memory
 // *****************************************************************************
-int okMemAlloc(void**, size_t);
+int cuMemAlloc(void **d_ptr, size_t bytes);
 
 // *****************************************************************************
 // * Frees device memory
 // *****************************************************************************
-int okMemFree(void*);
+int cuMemFree(void *d_ptr);
 
 // *****************************************************************************
 // * Copies memory from Host to Device
 // *****************************************************************************
-int okMemcpyHtoD(void*, const void*, size_t);
+int cuMemcpyHtoD(void *d_dst, const void *h_src, size_t bytes);
 
 // *****************************************************************************
 // * Copies memory from Host to Device
 // *****************************************************************************
-int okMemcpyHtoDAsync(void*, const void*, size_t, void*);
+int cuMemcpyHtoDAsync(void *d_dst, const void *h_src,
+                      size_t bytes, void *stream);
 
 // *****************************************************************************
 // * Copies memory from Device to Device
 // *****************************************************************************
-int okMemcpyDtoD(void*, void*, size_t);
+int cuMemcpyDtoD(void *d_dst, void *d_src, size_t bytes);
 
 // *****************************************************************************
 // * Copies memory from Device to Device
 // *****************************************************************************
-int okMemcpyDtoDAsync(void*, void*, size_t, void*);
+int cuMemcpyDtoDAsync(void *d_dst, void *d_src, size_t bytes, void *stream);
 
 // *****************************************************************************
 // * Copies memory from Device to Host
 // *****************************************************************************
-int okMemcpyDtoH(void*, const void*, size_t);
+int cuMemcpyDtoH(void *h_dst, const void *d_src, size_t bytes);
 
 // *****************************************************************************
 // * Copies memory from Device to Host
 // *****************************************************************************
-int okMemcpyDtoHAsync(void*, void*, size_t, void*);
+int cuMemcpyDtoHAsync(void *h_dst, void *d_src, size_t bytes, void *stream);
 
 } // namespace mfem
 

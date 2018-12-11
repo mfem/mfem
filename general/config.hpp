@@ -31,8 +31,8 @@ private:
    int gpu_count;
    CUdevice cuDevice;
    CUcontext cuContext;
-   CUstream *cuStream;
-   OCCAdevice occaDevice;
+   CUstream *cuStream = NULL;
+   OccaDevice occaDevice;
 
 private:
    // **************************************************************************
@@ -40,9 +40,9 @@ private:
    config(config const&);
    void operator=(config const&);
 
-public:
+private:
    // **************************************************************************
-   static config& _Get()
+   static config& Get()
    {
       static config singleton;
       return singleton;
@@ -50,48 +50,25 @@ public:
 
 private:
    // **************************************************************************
-   void cudaDeviceSetup(const int =0);
-   void occaDeviceSetup();
-   void devSetup(const int =0);
-
-private:
-   // **************************************************************************
-   inline bool GetOcca() { return occa; }
-   inline void SetOcca(const bool mode) { occa = mode; }
-   inline OCCAdevice GetOccaDevice() { return occaDevice; }
-
-   // **************************************************************************
-   inline bool GetCuda() { return cuda; }
-   inline void SetCuda(const bool mode) { cuda = mode;}
-
-   // **************************************************************************
-   inline bool GetPA() { return pa; }
-   inline void SetPA(const int mode) { pa = mode; }
-
-   // **************************************************************************
-   inline bool Sync(bool toggle=false) { return toggle?sync=!sync:sync; }
-   inline bool Nvvp(bool toggle=false) { return toggle?nvvp=!nvvp:nvvp; }
-
-   // **************************************************************************
-   inline CUstream GetStream() { return *cuStream; }
+   void MfemDeviceSetup(const int device =0);
+   void CudaDeviceSetup(const int device =0);
+   void OccaDeviceSetup(const CUdevice cu_dev, const CUcontext cu_ctx);
 
 public:
    // **************************************************************************
-   // * Shortcuts
-   // **************************************************************************
-   static inline void Setup() { _Get().devSetup(); }
-   constexpr static inline bool Nvcc() { return cuNvcc(); }
+   static inline void DeviceSetup() { Get().MfemDeviceSetup(); }
+   constexpr static inline bool Nvcc() { return NvccCompilerUsed(); }
 
-   static inline bool PA() { return _Get().GetPA(); }
-   static inline void PA(const bool b) { _Get().SetPA(b); }
+   static inline bool PA() { return Get().pa; }
+   static inline void SetPA(const bool mode) { Get().pa = mode; }
 
-   static inline bool Cuda() { return _Get().GetCuda(); }
-   static inline void Cuda(const bool b) { _Get().SetCuda(b); }
-   static inline CUstream Stream() { return _Get().GetStream(); }
+   static inline bool Cuda() { return Get().cuda; }
+   static inline void SetCuda(const bool mode) { Get().cuda = mode; }
+   static inline CUstream Stream() { return *Get().cuStream; }
 
-   static inline bool Occa() { return _Get().GetOcca(); }
-   static inline void Occa(const bool b) { _Get().SetOcca(b); }
-   static inline OCCAdevice OccaDevice() { return _Get().GetOccaDevice(); }
+   static inline bool Occa() { return Get().occa; }
+   static inline void SetOcca(const bool mode) { Get().occa = mode; }
+   static inline OccaDevice OccaDevice() { return Get().occaDevice; }
 };
 
 // *****************************************************************************
