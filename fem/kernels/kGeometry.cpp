@@ -149,6 +149,7 @@ static void kGeomFill(const int dims,
 // *****************************************************************************
 static void kArrayAssign(const int n, const int *src, int *dest)
 {
+   push();
    GET_CONST_ADRS_T(src,int);
    GET_ADRS_T(dest,int);
    MFEM_FORALL(i, n, d_dest[i] = d_src[i];);

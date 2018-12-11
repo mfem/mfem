@@ -21,11 +21,16 @@ namespace mfem
 {
 
 // **************************************************************************
-static void kArrayAssign(const int n, const int *src, int *dest)
+static void kFESArrayAssign(const int n, const int *src, int *dest)
 {
+   push();
    GET_CONST_ADRS_T(src,int);
    GET_ADRS_T(dest,int);
-   MFEM_FORALL(i, n, d_dest[i] = d_src[i];);
+   MFEM_FORALL(i, n, {
+         //printf("\033[1m[%ld:%d]\033[m ",i, d_src[i]);
+         d_dest[i] = d_src[i];
+      });
+   //cudaDeviceSynchronize();
 }
 
 // *****************************************************************************
@@ -39,6 +44,7 @@ kFiniteElementSpace::kFiniteElementSpace(FiniteElementSpace *f)
     indices(localDofs, f->GetNE()),
     map(localDofs, f->GetNE())
 {
+   push();
    const FiniteElement *fe = f->GetFE(0);
    const TensorBasisElement* el = dynamic_cast<const TensorBasisElement*>(fe);
    const Array<int> &dof_map = el->GetDofMap();
@@ -47,6 +53,7 @@ kFiniteElementSpace::kFiniteElementSpace(FiniteElementSpace *f)
    const Table& e2dTable = f->GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
    const int elements = f->GetNE();
+   //dbg("h_offsets");
    Array<int> h_offsets(globalDofs+1);
 
    // We'll be keeping a count of how many local nodes point to its global dof
@@ -67,8 +74,9 @@ kFiniteElementSpace::kFiniteElementSpace(FiniteElementSpace *f)
    {
       h_offsets[i] += h_offsets[i - 1];
    }
-
+   //dbg("h_indices");
    Array<int> h_indices(localDofs*elements);
+   //dbg("h_map");
    Array<int> h_map(localDofs*elements);
    // For each global dof, fill in all local nodes that point   to it
    for (int e = 0; e < elements; ++e)
@@ -93,9 +101,19 @@ kFiniteElementSpace::kFiniteElementSpace(FiniteElementSpace *f)
 
    const int leN = localDofs*elements;
    const int guN = globalDofs+1;
-   kArrayAssign(guN,h_offsets,offsets);
-   kArrayAssign(leN,h_indices,indices);
-   kArrayAssign(leN,h_map,map);
+   
+   //dbg("offsets kArrayAssign guN=%d:",guN);h_offsets.Print();
+   kFESArrayAssign(guN,h_offsets,offsets);
+   //dbg("offsets:"); offsets.Print(); fflush(0); //assert(false);
+   
+   //dbg("indices kArrayAssign leN=%d:", leN);h_indices.Print();
+   kFESArrayAssign(leN,h_indices,indices);
+   //dbg("indices:");indices.Print();fflush(0);
+   
+   //dbg("map kArrayAssign:");h_map.Print();
+   kFESArrayAssign(leN,h_map,map);
+   //dbg("map:");map.Print();fflush(0);
+   //assert(false);
 }
 
 // ***************************************************************************
@@ -108,10 +126,14 @@ kFiniteElementSpace::~kFiniteElementSpace()
 void kFiniteElementSpace::GlobalToLocal(const Vector& globalVec,
                                         Vector& localVec) const
 {
-   //push();
+   push();
    const int vdim = fes->GetVDim();
    const int localEntries = localDofs * fes->GetNE();
    const bool vdim_ordering = fes->GetOrdering() == Ordering::byVDIM;
+   
+   //dbg("globalVec:");globalVec.Print();fflush(0);//assert(false);
+   //dbg("offsets:");offsets.Print();fflush(0);//assert(false);
+   //dbg("indices:");indices.Print();fflush(0);//assert(false);
    kGlobalToLocal(vdim,
                   vdim_ordering,
                   globalDofs,
@@ -120,6 +142,7 @@ void kFiniteElementSpace::GlobalToLocal(const Vector& globalVec,
                   indices,
                   globalVec,
                   localVec);
+   //dbg("localVec:");localVec.Print();fflush(0);//assert(false);
 }
 
 // ***************************************************************************
@@ -127,7 +150,7 @@ void kFiniteElementSpace::GlobalToLocal(const Vector& globalVec,
 void kFiniteElementSpace::LocalToGlobal(const Vector& localVec,
                                         Vector& globalVec) const
 {
-   //push();
+   push();
    const int vdim = fes->GetVDim();
    const int localEntries = localDofs * fes->GetNE();
    const bool vdim_ordering = fes->GetOrdering() == Ordering::byVDIM;
@@ -139,6 +162,8 @@ void kFiniteElementSpace::LocalToGlobal(const Vector& localVec,
                   indices,
                   localVec,
                   globalVec);
+   //dbg("\033[7mglobalVec:");globalVec.Print();fflush(0);//assert(false);
+
 }
 
 } // mfem

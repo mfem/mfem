@@ -215,6 +215,7 @@ void kVectorSetSubvector(const int N,
                          const double* y,
                          const int* dofs)
 {
+   push();
    GET_ADRS(x);
    GET_CONST_ADRS(y);
    GET_CONST_ADRS_T(dofs,int);
@@ -237,6 +238,7 @@ void kVectorSetSubvector(const int N,
                          const double value,
                          const int* dofs)
 {
+   push();
    GET_ADRS(x);
    GET_CONST_ADRS_T(dofs,int);
    MFEM_FORALL(i, N,

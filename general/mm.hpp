@@ -33,6 +33,7 @@ typedef struct
 {
    void *base = NULL;
    void *adrs = NULL;
+   size_t offset = 0;
 } alias_t;
 
 // *****************************************************************************
@@ -62,25 +63,17 @@ public:
 private:
    void Setup();
    const void* InsertAlias(const void*, const void*);
-   void *Insert(const void*, const size_t, const size_t,
-                const char* file, const int line, const void* = NULL);
+   void *Insert(const void*, const size_t, const size_t, const void* = NULL);
    void *Erase(void*);
-   void *Range(const void*);
-   bool Alias(const void*, const bool = false);
+   const void *Range(const void*);
+   bool Alias(const void*);
    bool Known(const void*);
    void Sync_p(const void*);
 public:
    // **************************************************************************
    template<class T>
-   static inline T* malloc(const size_t size,
-                           const size_t size_of_T = sizeof(T),
-                           const char* file = __FILE__,
-                           const int line = __LINE__)
-   { return (T*) mm::Get().Insert(::new T[size], size, size_of_T, file, line); }
-
-   // **************************************************************************
-#define mm_malloc(T,bytes) mm::malloc<T>(bytes,sizeof(T),__FILE__,__LINE__)
-
+   static inline T* malloc(const size_t size, const size_t size_of_T = sizeof(T))
+   { return (T*) mm::Get().Insert(::new T[size], size, size_of_T); }
    
    // **************************************************************************
    template<class T>
@@ -100,10 +93,10 @@ public:
    static void Sync(const void *adrs) { mm::Get().Sync_p(adrs); }
    
    // **************************************************************************
-   void Push(const void*);
+   void Push(const void*, const size_t =0);
 
    // **************************************************************************
-   void Pull(const void*);
+   void Pull(const void*, const size_t =0);
 
    // **************************************************************************
    static void* H2D(void*, const void*, size_t, const bool =false);
