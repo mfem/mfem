@@ -16,11 +16,13 @@ namespace mfem
 {
 
 const char *Geometry::Name[NumGeom] =
-{ "Point", "Segment", "Triangle", "Square", "Tetrahedron", "Cube", "Prism",
-  "Pyramid" };
+{
+   "Point", "Segment", "Triangle", "Square", "Tetrahedron", "Cube", "Prism",
+   "Pyramid"
+};
 
 const double Geometry::Volume[NumGeom] =
-  { 1.0, 1.0, 0.5, 1.0, 1./6, 1.0, 0.5, 1./3 };
+{ 1.0, 1.0, 0.5, 1.0, 1./6, 1.0, 0.5, 1./3 };
 
 Geometry::Geometry()
 {
@@ -349,18 +351,18 @@ void Geometry::GetRandomPoint(int GeomType, IntegrationPoint &ip)
          ip.z = double(rand()) / RAND_MAX;
          if (ip.x + ip.z > 1.0 && ip.y < ip.x)
          {
-	   double x = ip.x;
-	   ip.x = ip.y;
-	   ip.y = 1.0 - ip.z;
-	   ip.z = 1.0 - x;
+            double x = ip.x;
+            ip.x = ip.y;
+            ip.y = 1.0 - ip.z;
+            ip.z = 1.0 - x;
          }
-	 else if (ip.y + ip.z > 1.0)
-	 {
-	   double z = ip.z;
-	   ip.z = 1.0 - ip.y;
-	   ip.y = ip.x;
-	   ip.x = 1.0 - z;
-	 }
+         else if (ip.y + ip.z > 1.0)
+         {
+            double z = ip.z;
+            ip.z = 1.0 - ip.y;
+            ip.y = ip.x;
+            ip.x = 1.0 - z;
+         }
          break;
       default:
          MFEM_ABORT("Unknown type of reference element!");
@@ -498,15 +500,15 @@ bool Geometry::CheckPoint(int GeomType, const IntegrationPoint &ip, double eps)
          }
          break;
       case Geometry::PYRAMID:
-	 if (internal::FuzzyLT(ip.x, 0.0, eps)
-	     || internal::FuzzyLT(ip.y, 0.0, eps)
-	     || internal::FuzzyGT(ip.x+ip.z, 1.0, eps)
-	     || internal::FuzzyGT(ip.y+ip.z, 1.0, eps)
-	     || internal::FuzzyLT(ip.z, 0.0, eps)
-	     || internal::FuzzyGT(ip.z, 1.0, eps) )
-	 {
-	    return false;
-	 }
+         if (internal::FuzzyLT(ip.x, 0.0, eps)
+             || internal::FuzzyLT(ip.y, 0.0, eps)
+             || internal::FuzzyGT(ip.x+ip.z, 1.0, eps)
+             || internal::FuzzyGT(ip.y+ip.z, 1.0, eps)
+             || internal::FuzzyLT(ip.z, 0.0, eps)
+             || internal::FuzzyGT(ip.z, 1.0, eps) )
+         {
+            return false;
+         }
          break;
       default:
          MFEM_ABORT("Unknown type of reference element!");
@@ -625,9 +627,11 @@ bool Geometry::ProjectPoint(int GeomType, const IntegrationPoint &beg,
       case Geometry::PYRAMID:
       {
          double lend[6] = { end.x, end.y, end.z,
-			    1.0-end.x-end.z, 1.0-end.y-end.z, 1.0-end.z };
+                            1.0-end.x-end.z, 1.0-end.y-end.z, 1.0-end.z
+                          };
          double lbeg[6] = { beg.x, beg.y, beg.z,
-			    1.0-beg.x-beg.z, 1.0-beg.y-beg.z, 1.0-beg.z };
+                            1.0-beg.x-beg.z, 1.0-beg.y-beg.z, 1.0-beg.z
+                          };
          return internal::IntersectSegment<6,3>(lbeg, lend, end);
       }
       default:
@@ -729,39 +733,39 @@ bool Geometry::ProjectPoint(int GeomType, IntegrationPoint &ip)
 
       case PYRAMID:
       {
-	 if (ip.x < 0.0)
-	 {
-	   ip.x = 0.0;
-	   internal::ProjectTriangle(ip.y, ip.z);
-	   return false;
-	 }
-	 if (ip.y < 0.0)
-	 {
-	   ip.y = 0.0;
-	   internal::ProjectTriangle(ip.x, ip.z);
-	   return false;
-	 }
-	 if (ip.z < 0.0)
-	 {
-	   ip.z = 0.0;
-	   if (ip.x > 1.0) ip.x = 1.0;
-	   if (ip.y > 1.0) ip.y = 1.0;
-	   return false;
-	 }
-	 if (ip.x >= ip.y)
-	 {
-	   bool in_y = true;
-	   bool in_tri = internal::ProjectTriangle(ip.x, ip.z);
-	   if (ip.y > ip.z) { in_y = false; ip.y = ip.z; }
-	   return in_tri && in_y;
-	 }
-	 else
-	 {
-	   bool in_x = true;
-	   bool in_tri = internal::ProjectTriangle(ip.y, ip.z);
-	   if (ip.x > ip.z) { in_x = false; ip.x = ip.z; }
-	   return in_tri && in_x;
-	 }
+         if (ip.x < 0.0)
+         {
+            ip.x = 0.0;
+            internal::ProjectTriangle(ip.y, ip.z);
+            return false;
+         }
+         if (ip.y < 0.0)
+         {
+            ip.y = 0.0;
+            internal::ProjectTriangle(ip.x, ip.z);
+            return false;
+         }
+         if (ip.z < 0.0)
+         {
+            ip.z = 0.0;
+            if (ip.x > 1.0) { ip.x = 1.0; }
+            if (ip.y > 1.0) { ip.y = 1.0; }
+            return false;
+         }
+         if (ip.x >= ip.y)
+         {
+            bool in_y = true;
+            bool in_tri = internal::ProjectTriangle(ip.x, ip.z);
+            if (ip.y > ip.z) { in_y = false; ip.y = ip.z; }
+            return in_tri && in_y;
+         }
+         else
+         {
+            bool in_x = true;
+            bool in_tri = internal::ProjectTriangle(ip.y, ip.z);
+            if (ip.x > ip.z) { in_x = false; ip.x = ip.z; }
+            return in_tri && in_x;
+         }
       }
 
       default:
