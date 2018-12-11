@@ -679,23 +679,12 @@ void ParGridFunction::ComputeFlux(
    Array<int> count(flux.Size());
    SumFluxAndCount(blfi, flux, count, wcoef, subdomain);
 
-   if (ffes->Conforming())
-   {
-      // Accumulate flux and counts in parallel
+   // Accumulate flux and counts in parallel
+   ffes->GroupComm().Reduce<double>(flux, GroupCommunicator::Sum);
+   ffes->GroupComm().Bcast<double>(flux);
 
-      ffes->GroupComm().Reduce<double>(flux, GroupCommunicator::Sum);
-      ffes->GroupComm().Bcast<double>(flux);
-
-      ffes->GroupComm().Reduce<int>(count, GroupCommunicator::Sum);
-      ffes->GroupComm().Bcast<int>(count);
-   }
-   else
-   {
-      // FIXME: nonconforming mesh case
-      MFEM_ABORT("Averaging on processor boundaries not implemented for "
-                 "NC meshes yet.\n"
-                 "Use L2ZZErrorEstimator() instead of ZZErrorEstimator().");
-   }
+   ffes->GroupComm().Reduce<int>(count, GroupCommunicator::Sum);
+   ffes->GroupComm().Bcast<int>(count);
 
    // complete averaging
    for (int i = 0; i < count.Size(); i++)
