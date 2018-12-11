@@ -708,6 +708,7 @@ class Const3DFECollection : public FiniteElementCollection
 private:
    const P0TetFiniteElement TetrahedronFE;
    const P0HexFiniteElement ParallelepipedFE;
+   const P0PyrFiniteElement PyramidFE;
    const L2_WedgeElement WedgeFE;
 
 public:
