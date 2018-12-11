@@ -8616,11 +8616,11 @@ void H1_PyramidElement::CalcDShape(const IntegrationPoint &ip,
    double z = ip.z;
 
    dshape.SetSize(5, 3);
-   dshape(0,0) = -1.0 + (z<1.0) ? (y / (1.0 - z)) : 0.0;
-   dshape(0,1) = -1.0 + (z<1.0) ? (x / (1.0 - z)) : 0.0;
-   dshape(0,2) = -1.0 + (z<1.0) ? (x * y / pow(1.0 - z, 2)) : 0.0;
+   dshape(0,0) = -1.0 + ((z<1.0) ? (y / (1.0 - z)) : 0.0);
+   dshape(0,1) = -1.0 + ((z<1.0) ? (x / (1.0 - z)) : 0.0);
+   dshape(0,2) = -1.0 + ((z<1.0) ? (x * y / pow(1.0 - z, 2)) : 0.0);
 
-   dshape(1,0) = -1.0 + (z<1.0) ? (y / (1.0 - z)) : 0.0;
+   dshape(1,0) = 1.0 - ((z<1.0) ? (y / (1.0 - z)) : 0.0);
    dshape(1,1) = (z<1.0) ? (-x / (1.0 - z)) : 0.0;
    dshape(1,2) = (z<1.0) ? (-x * y / pow(1.0 - z, 2)) : 0.0;
 
@@ -8629,7 +8629,7 @@ void H1_PyramidElement::CalcDShape(const IntegrationPoint &ip,
    dshape(2,2) = (z<1.0) ? (x * y / pow(1.0 - z, 2)) : 0.0;
 
    dshape(3,0) = (z<1.0) ? (-y / (1.0 - z)) : 0.0;
-   dshape(3,1) = 1.0 - (z<1.0) ? (x / (1.0 - z)) : 0.0;
+   dshape(3,1) = 1.0 - ((z<1.0) ? (x / (1.0 - z)) : 0.0);
    dshape(3,2) = (z<1.0) ? (-x * y / pow(1.0 - z, 2)) : 0.0;
 
    dshape(4,0) = 0.0;
