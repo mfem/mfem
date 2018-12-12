@@ -16,12 +16,13 @@ namespace mfem
 {
 
 // *****************************************************************************
-void config::SetCuda(const bool mode) { 
+void config::SetCuda(const bool mode) {
+   /*
    if (mode){
       dbg("\033[7;1;32m[CUDA]\033[m");
    }else{
       dbg("\033[7;1;31m[CUDA]\033[m");
-   }
+      }*/
    cuda = mode;
 }
 

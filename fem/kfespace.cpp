@@ -23,14 +23,9 @@ namespace mfem
 // **************************************************************************
 static void kFESArrayAssign(const int n, const int *src, int *dest)
 {
-   push();
    GET_CONST_ADRS_T(src,int);
    GET_ADRS_T(dest,int);
-   MFEM_FORALL(i, n, {
-         //printf("\033[1m[%ld:%d]\033[m ",i, d_src[i]);
-         d_dest[i] = d_src[i];
-      });
-   //cudaDeviceSynchronize();
+   MFEM_FORALL(i, n, d_dest[i] = d_src[i];);
 }
 
 // *****************************************************************************
@@ -102,18 +97,9 @@ kFiniteElementSpace::kFiniteElementSpace(FiniteElementSpace *f)
    const int leN = localDofs*elements;
    const int guN = globalDofs+1;
    
-   //dbg("offsets kArrayAssign guN=%d:",guN);h_offsets.Print();
-   kFESArrayAssign(guN,h_offsets,offsets);
-   //dbg("offsets:"); offsets.Print(); fflush(0); //assert(false);
-   
-   //dbg("indices kArrayAssign leN=%d:", leN);h_indices.Print();
-   kFESArrayAssign(leN,h_indices,indices);
-   //dbg("indices:");indices.Print();fflush(0);
-   
-   //dbg("map kArrayAssign:");h_map.Print();
+   kFESArrayAssign(guN,h_offsets,offsets);   
+   kFESArrayAssign(leN,h_indices,indices);   
    kFESArrayAssign(leN,h_map,map);
-   //dbg("map:");map.Print();fflush(0);
-   //assert(false);
 }
 
 // ***************************************************************************
@@ -126,14 +112,9 @@ kFiniteElementSpace::~kFiniteElementSpace()
 void kFiniteElementSpace::GlobalToLocal(const Vector& globalVec,
                                         Vector& localVec) const
 {
-   push();
    const int vdim = fes->GetVDim();
    const int localEntries = localDofs * fes->GetNE();
    const bool vdim_ordering = fes->GetOrdering() == Ordering::byVDIM;
-   
-   //dbg("globalVec:");globalVec.Print();fflush(0);//assert(false);
-   //dbg("offsets:");offsets.Print();fflush(0);//assert(false);
-   //dbg("indices:");indices.Print();fflush(0);//assert(false);
    kGlobalToLocal(vdim,
                   vdim_ordering,
                   globalDofs,
@@ -142,7 +123,6 @@ void kFiniteElementSpace::GlobalToLocal(const Vector& globalVec,
                   indices,
                   globalVec,
                   localVec);
-   //dbg("localVec:");localVec.Print();fflush(0);//assert(false);
 }
 
 // ***************************************************************************
@@ -150,7 +130,6 @@ void kFiniteElementSpace::GlobalToLocal(const Vector& globalVec,
 void kFiniteElementSpace::LocalToGlobal(const Vector& localVec,
                                         Vector& globalVec) const
 {
-   push();
    const int vdim = fes->GetVDim();
    const int localEntries = localDofs * fes->GetNE();
    const bool vdim_ordering = fes->GetOrdering() == Ordering::byVDIM;
@@ -162,8 +141,6 @@ void kFiniteElementSpace::LocalToGlobal(const Vector& localVec,
                   indices,
                   localVec,
                   globalVec);
-   //dbg("\033[7mglobalVec:");globalVec.Print();fflush(0);//assert(false);
-
 }
 
 } // mfem
