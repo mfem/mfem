@@ -479,21 +479,97 @@ public:
    FluxCorrectedTransport(const MONOTYPE _monoType, bool &_isSubCell,
                           FiniteElementSpace* _fes,
                           const SparseMatrix &K, VectorFunctionCoefficient &coef, SolutionBounds &_bnds) :
-      fes(_fes), monoType(_monoType), KpD(K), bnds(_bnds)
+      fes(_fes), monoType(_monoType), bnds(_bnds) // TODO initialize KpD überlegen
    {
       if (_monoType == None)
       {
          return;
       }
-      else if ((_monoType == DiscUpw) || (_monoType == DiscUpw_FS))
+      
+      // Compute the lumped mass matrix algebraicly
+      BilinearForm m(fes);
+      m.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
+      m.Assemble();
+      m.Finalize();
+      m.SpMat().GetDiag(lumpedM);
+      
+      if ((_monoType == DiscUpw) || (_monoType == DiscUpw_FS))
       {
-         if (isSubCell)
+         Mesh *mesh = fes->GetMesh();
+         const FiniteElement &dummy = *fes->GetFE(0);
+         int dim = mesh->Dimension(), ne = mesh->GetNE(), nd = dummy.GetDof();
+         
+         // fill the dofs array to access the correct dofs for boundaries later
+         dummy.ExtractBdrDofs(dofs);
+         int numBdrs = dofs.Width();
+         int numDofs = dofs.Height();
+         
+         bdrIntLumped.SetSize(ne*nd, numBdrs); bdrIntLumped = 0.;
+         bdrInt.SetSize(ne*nd, nd*numBdrs); bdrInt = 0.;
+         bdrIntNeighbor.SetSize(ne*nd, nd*numBdrs); bdrIntNeighbor = 0.;
+         neighborDof.SetSize(ne*numDofs, numBdrs);
+         
+         ////////////////////////////
+         // Boundary contributions //
+         ////////////////////////////
+         FaceElementTransformations *Trans;
+         // use the first mesh boundary with a neighbor as indicator
+         for (int i = 0; i < mesh->GetNumFaces(); i++)
          {
-            mfem_warning("Subcell option not possible for discrete upwinding.");
+            Trans = mesh->GetFaceElementTransformations(i);
+            if (Trans->Elem2No >= 0)
+               break;
+            // NOTE: The case that the simulation is performed on a single element 
+            //       and all boundaries are non-periodic is not covered
          }
+         // qOrdF is chosen such that L2-norm of basis functions is computed accurately. TODO this is repeating!
+         int qOrdF = std::max(Trans->Elem1->OrderW(), Trans->Elem2->OrderW()) + 2* dummy.GetOrder();
+         const IntegrationRule *irF1 = &IntRules.Get(Trans->FaceGeom, qOrdF);
+         
+         for (int k = 0; k < ne; k++)
+            preprocessFluxLumping(fes, coef, k, irF1);
+         
+         if (_isSubCell) // TODO rename
+         {
+            BilinearForm prec(fes);
+            prec.AddDomainIntegrator(new PrecondConvectionIntegrator(coef, -1.0));
+            prec.Assemble(0);
+            prec.Finalize(0);
 
-         ComputeDiscreteUpwindingMatrix(K, KpD);
-         KpD += K;
+            SparseMatrix kPrec(prec.SpMat());
+            
+            if (dim==1)
+            {
+               BilinearForm bdrTerms(fes);
+               bdrTerms.AddInteriorFaceIntegrator(
+                  new TransposeIntegrator(new DGTraceIntegrator(coef, 1.0, -0.5)));
+               bdrTerms.AddBdrFaceIntegrator(
+                  new TransposeIntegrator(new DGTraceIntegrator(coef, 1.0, -0.5)));
+               bdrTerms.Assemble(0);
+               bdrTerms.Finalize(0);
+            
+               KpD = bdrTerms.SpMat();
+            }
+            else
+               KpD = kPrec;
+            
+            ComputeDiscreteUpwindingMatrix(prec.SpMat(), kPrec);
+            
+            if (dim==1)
+               KpD += prec.SpMat();
+
+            KpD += kPrec;
+         }
+         else
+         {
+            BilinearForm Rho(fes);
+            Rho.AddDomainIntegrator(new ConvectionIntegrator(coef, -1.0));
+            Rho.Assemble(0); // TODO find a way to avoid if (dim==1)
+            Rho.Finalize(0); // TODO repeating
+            KpD = Rho.SpMat();
+            ComputeDiscreteUpwindingMatrix(Rho.SpMat(), KpD);
+            KpD += Rho.SpMat();
+         }
       }
       else if ((_monoType == Rusanov) || (_monoType == Rusanov_FS))
       {
@@ -502,14 +578,8 @@ public:
       else if ((_monoType == ResDist) || (_monoType == ResDist_FS))
       {
          ComputeResidualWeights(fes, coef, _isSubCell);
-         isSubCell = _isSubCell;
+         isSubCell = _isSubCell; // TODO begruenden
       }
-      // Compute the lumped mass matrix algebraicly
-      BilinearForm m(fes);
-      m.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
-      m.Assemble();
-      m.Finalize();
-      m.SpMat().GetDiag(lumpedM);
    }
 
    // Utility function to build a map to the offset of the symmetric entry in a sparse matrix
@@ -755,10 +825,8 @@ public:
                                VectorFunctionCoefficient &coef, bool &isSubCell)
    {
       Mesh *mesh = fes->GetMesh();
-      int i, j, k, l, m, idx, p, nd, dofInd, qOrdF, neighborElem, numBdrs, numDofs,
+      int i, j, k, m, p, nd, dofInd, qOrdF, numBdrs, numDofs,
           numSubcells, numDofsSubcell, dim = mesh->Dimension(), ne = mesh->GetNE();
-      double vn ;
-      Array <int> bdrs, orientation;
       DenseMatrix elmat;
       ElementTransformation *tr;
       FaceElementTransformations *Trans;
@@ -794,9 +862,7 @@ public:
       dummy.ExtractBdrDofs(dofs);
       numBdrs = dofs.Width();
       numDofs = dofs.Height();
-
-      Vector vval, nor(dim), shape(nd), shapeNeighbor(nd);
-
+      
       // use the first mesh boundary with a neighbor as indicator
       for (i = 0; i < mesh->GetNumFaces(); i++)
       {
@@ -843,7 +909,7 @@ public:
       const int btype = BasisType::Positive;
       DG_FECollection fec0(0, dim, btype);
       DG_FECollection fec1(1, dim,
-                           btype); // maybe use RefinedLinearFECollection fec1(dim)?
+                           btype);
 
       FiniteElementSpace SubFes0(ref_mesh, &fec0);
       FiniteElementSpace SubFes1(ref_mesh, &fec1);
@@ -861,199 +927,126 @@ public:
 
       for (k = 0; k < ne; k++)
       {
+         ////////////////////////////
+         // Boundary contributions //
+         ////////////////////////////
+         preprocessFluxLumping(fes, coef, k, irF1);
+
          ///////////////////////////
          // Element contributions //
          ///////////////////////////
-         /*for (m = 0; m < numSubcells; m++)
+         const FiniteElement &el = *fes->GetFE(k);
+         const IntegrationRule ir = el.GetNodes();
+         for (m = 0; m < numSubcells; m++)
          {
             dofInd = numSubcells*k+m;
             const FiniteElement *el0 = SubFes0.GetFE(dofInd);
             const FiniteElement *el1 = SubFes1.GetFE(dofInd);
             tr = ref_mesh->GetElementTransformation(dofInd);
-            //tr->Jacobian().Print();
             fluct->AssembleElementMatrix2(*el1, *el0, *tr, elmat);
 
             for (j = 0; j < numDofsSubcell; j++)
                fluctSub(dofInd, j) = elmat(0,j);
-         }*/
+         }
 
-         const FiniteElement &el = *fes->GetFE(k);
          tr = mesh->GetElementTransformation(k);
-         const IntegrationRule ir = el.GetNodes();
-         double hx, hy,
-                hz; // NOTE: right now only working for structured, equidistant meshes, no curvature
-         IntegrationPoint ip1 = el.GetNodes().IntPoint(ir.GetNPoints()-1);
-         IntegrationPoint ip0 = el.GetNodes().IntPoint(0);
-         IntegrationPoint ip; // TODO clean up
+         
 
-         double mid[dim];
-
-         if (dim==1)
-         {
-            for (i = 0; i < p; i++)
-            {
-               dofInd = numSubcells*k + i;
-               mid[0] = (0.5 + double(i)) * dist;
-               ip.Set(mid, dim);
-               coef.Eval(velEval, *tr, ip);
-
-               fluctSub(dofInd, 0) =  velEval(0);
-               fluctSub(dofInd, 1) = -velEval(0);
-            }
-         }
-         else if (dim==2)
-         {
-            hx = hy = sqrt(4. / double(ne*numSubcells));
-            for (j = 0; j < p; j++)
-            {
-               mid[1] = (0.5 + double(j)) * dist;
-               for (i = 0; i < p; i++)
-               {
-                  dofInd = numSubcells*k + p*j + i;
-                  mid[0] = (0.5 + double(i)) * dist;
-                  ip.Set(mid, dim);
-                  coef.Eval(velEval, *tr, ip);
-
-                  fluctSub(dofInd, 0) =  hx/2. * velEval(0) + hy/2. * velEval(1);
-                  fluctSub(dofInd, 1) = -hx/2. * velEval(0) + hy/2. * velEval(1);
-                  fluctSub(dofInd, 2) =  hx/2. * velEval(0) - hy/2. * velEval(1);
-                  fluctSub(dofInd, 3) = -hx/2. * velEval(0) - hy/2. * velEval(1);
-               }
-            }
-         }
-         else // dim==3
-         {
-            hx = hy = pow(8. / double(ne*numSubcells), 1./3.);
-            for (m = 0; m < p; m++)
-            {
-               mid[2] = (0.5 + double(m)) * dist;
-               for (j = 0; j < p; j++)
-               {
-                  mid[1] = (0.5 + double(j)) * dist;
-                  for (i = 0; i < p; i++)
-                  {
-                     dofInd = numSubcells*k + p*p*m + p*j + i;
-                     mid[0] = (0.5 + double(i)) * dist;
-                     ip.Set(mid, dim);
-                     coef.Eval(velEval, *tr, ip);
-
-                     fluctSub(dofInd, 0) =  hx/4. * velEval(0) + hy/4. * velEval(
-                                               1) + hz/4. * velEval(2);
-                     fluctSub(dofInd, 1) = -hx/4. * velEval(0) + hy/4. * velEval(
-                                              1) + hz/4. * velEval(2);
-                     fluctSub(dofInd, 2) =  hx/4. * velEval(0) - hy/4. * velEval(
-                                               1) + hz/4. * velEval(2);
-                     fluctSub(dofInd, 3) = -hx/4. * velEval(0) - hy/4. * velEval(
-                                              1) + hz/4. * velEval(2);
-                     fluctSub(dofInd, 4) =  hx/4. * velEval(0) + hy/4. * velEval(
-                                               1) - hz/4. * velEval(2);
-                     fluctSub(dofInd, 5) = -hx/4. * velEval(0) + hy/4. * velEval(
-                                              1) - hz/4. * velEval(2);
-                     fluctSub(dofInd, 6) =  hx/4. * velEval(0) - hy/4. * velEval(
-                                               1) - hz/4. * velEval(2);
-                     fluctSub(dofInd, 7) = -hx/4. * velEval(0) - hy/4. * velEval(
-                                              1) - hz/4. * velEval(2);
-                  }
-               }
-            }
-         }
-
-         ////////////////////////////
-         // Boundary contributions //
-         ////////////////////////////
-         if (dim==1)
-         {
-            numBdrs = 0;   // Nothing needs to be done for 1D boundaries
-         }
-         else if (dim==2)
-         {
-            mesh->GetElementEdges(k, bdrs, orientation);
-         }
-         else if (dim==3)
-         {
-            mesh->GetElementFaces(k, bdrs, orientation);
-         }
-
-         FillNeighborDofs(mesh, numDofs, k, nd, p, dim, bdrs);
-
-         for (i = 0; i < numBdrs; i++)
-         {
-            Trans = mesh->GetFaceElementTransformations(bdrs[i]);
-            vn = 0.;
-
-            for (l = 0; l < irF1->GetNPoints(); l++)
-            {
-               const IntegrationPoint &ip = irF1->IntPoint(l);
-               IntegrationPoint eip1;
-               Trans->Face->SetIntPoint(&ip);
-
-               if (dim == 1)
-               {
-                  nor(0) = 2.*eip1.x - 1.0;
-               }
-               else
-               {
-                  CalcOrtho(Trans->Face->Jacobian(), nor);
-               }
-
-               if (Trans->Elem1No != k)
-               {
-                  Trans->Loc2.Transform(ip, eip1);
-                  el.CalcShape(eip1, shape);
-                  Trans->Elem2->SetIntPoint(&eip1);
-                  coef.Eval(vval, *Trans->Elem2, eip1);
-                  nor *= -1.;
-                  Trans->Loc1.Transform(ip, eip1);
-                  el.CalcShape(eip1, shapeNeighbor);
-
-                  neighborElem = Trans->Elem1No;
-               }
-               else
-               {
-                  Trans->Loc1.Transform(ip, eip1);
-                  el.CalcShape(eip1, shape);
-                  Trans->Elem1->SetIntPoint(&eip1);
-                  coef.Eval(vval, *Trans->Elem1, eip1);
-                  Trans->Loc2.Transform(ip, eip1);
-                  el.CalcShape(eip1, shapeNeighbor);
-
-                  neighborElem = Trans->Elem2No;
-               }
-
-               nor /= nor.Norml2();
-               vn = min(0., vval * nor);
-
-               for (j = 0; j < numDofs; j++)
-               {
-                  bdrIntLumped(k*nd+dofs(j,i),i) -= ip.weight *
-                                                    Trans->Face->Weight() * shape(dofs(j,i)) * vn;
-
-                  for (m = 0; m < numDofs; m++)
-                  {
-                     bdrInt(k*nd+dofs(j,i),i*nd+dofs(m,i)) += ip.weight *
-                                                              Trans->Face->Weight() * shape(dofs(j,i)) * shape(dofs(m,i)) * vn;
-
-                     if (neighborElem != 0)
-                     {
-                        idx = ((int)(neighborDof(k*numDofs+m,i))) % (neighborElem*nd);
-                     }
-                     else
-                     {
-                        idx = neighborDof(k*numDofs+m,i);
-                     }
-
-                     bdrIntNeighbor(k*nd+dofs(j,i),i*nd+dofs(m,i)) += ip.weight *
-                                                                      Trans->Face->Weight() * shape(dofs(j,i)) * shapeNeighbor(idx) * vn;
-                  }
-               }
-            }
-         }
       }
       if (p!=1)
       {
          delete ref_mesh;
       }
       delete fluct;
+   }
+   
+   void preprocessFluxLumping(FiniteElementSpace* fes, VectorFunctionCoefficient &coef, const int k, 
+                              const IntegrationRule *irF1)
+   {
+      const FiniteElement &el = *fes->GetFE(k);
+      Mesh *mesh = fes->GetMesh();
+      
+      int i, j, l, m, idx, neighborElem, numBdrs = dofs.Width(), numDofs = dofs.Height(), 
+            nd = el.GetDof(), p = el.GetOrder(), dim = mesh->Dimension();
+      double vn;
+      Array <int> bdrs, orientation;
+      FaceElementTransformations *Trans;
+      
+      Vector vval, nor(dim), shape(nd), shapeNeighbor(nd);
+      
+      if (dim==1)
+         numBdrs = 0; // Nothing needs to be done for 1D boundaries
+      else if (dim==2)
+         mesh->GetElementEdges(k, bdrs, orientation);
+      else if (dim==3)
+         mesh->GetElementFaces(k, bdrs, orientation);
+      
+      FillNeighborDofs(mesh, numDofs, k, nd, p, dim, bdrs);
+      
+      for (i = 0; i < numBdrs; i++)
+      {
+         Trans = mesh->GetFaceElementTransformations(bdrs[i]);
+         vn = 0.;
+         
+         for (l = 0; l < irF1->GetNPoints(); l++)
+         {
+            const IntegrationPoint &ip = irF1->IntPoint(l);
+            IntegrationPoint eip1;
+            Trans->Face->SetIntPoint(&ip);
+            
+            if (dim == 1)
+               nor(0) = 2.*eip1.x - 1.0;
+            else
+               CalcOrtho(Trans->Face->Jacobian(), nor);
+            
+            if (Trans->Elem1No != k)
+            {
+               Trans->Loc2.Transform(ip, eip1);
+               el.CalcShape(eip1, shape);
+               Trans->Elem2->SetIntPoint(&eip1);
+               coef.Eval(vval, *Trans->Elem2, eip1);
+               nor *= -1.;
+               Trans->Loc1.Transform(ip, eip1);
+               el.CalcShape(eip1, shapeNeighbor);
+               
+               neighborElem = Trans->Elem1No;
+            }
+            else
+            {
+               Trans->Loc1.Transform(ip, eip1);
+               el.CalcShape(eip1, shape);
+               Trans->Elem1->SetIntPoint(&eip1);
+               coef.Eval(vval, *Trans->Elem1, eip1);
+               Trans->Loc2.Transform(ip, eip1);
+               el.CalcShape(eip1, shapeNeighbor);
+               
+               neighborElem = Trans->Elem2No;
+            }
+            
+            nor /= nor.Norml2();
+            vn = min(0., vval * nor);
+            
+            for(j = 0; j < numDofs; j++)
+            {
+               bdrIntLumped(k*nd+dofs(j,i),i) -= ip.weight * 
+               Trans->Face->Weight() * shape(dofs(j,i)) * vn;
+               
+               for (m = 0; m < numDofs; m++)
+               {
+                  bdrInt(k*nd+dofs(j,i),i*nd+dofs(m,i)) += ip.weight * 
+                  Trans->Face->Weight() * shape(dofs(j,i)) * shape(dofs(m,i)) * vn;
+                  
+                  if (neighborElem != 0)
+                     idx = ((int)(neighborDof(k*numDofs+m,i))) % (neighborElem*nd);
+                  else
+                     idx = neighborDof(k*numDofs+m,i);
+                  
+                  bdrIntNeighbor(k*nd+dofs(j,i),i*nd+dofs(m,i)) += ip.weight * 
+                  Trans->Face->Weight() * shape(dofs(j,i)) * shapeNeighbor(idx) * vn;
+               }
+            }
+         }
+      }
    }
 
    // Computes the element-global indices from the indices of the subcell and the indices
@@ -1270,7 +1263,6 @@ public:
    Vector lumpedM, elDiff;
    bool isSubCell;
    SparseMatrix KpD, fluctMatrix;
-   int** subCellsForNode;
    Array<int> numSubCellsForNode;
    DenseMatrix bdrDiff, dofs, neighborDof, subcell2CellDof, bdrIntNeighbor, bdrInt,
                bdrIntLumped, fluctSub;
@@ -1304,6 +1296,8 @@ public:
    virtual void Mult(const Vector &x, Vector &y) const;
 
    virtual void SetDt(double _dt) { dt = _dt; }
+
+   virtual void LumpFluxTerms(int k, int nd, const Vector &x, Vector &y) const;
 
    virtual void ComputeHighOrderSolution(const Vector &x, Vector &y) const;
    virtual void ComputeLowOrderSolution(const Vector &x, Vector &y) const;
@@ -1608,21 +1602,61 @@ int main(int argc, char *argv[])
    return 0;
 }
 
+void FE_Evolution::LumpFluxTerms(int k, int nd, const Vector &x, Vector &y) const
+{
+   int i, j, m, dofInd, numBdrs(fct.dofs.Width()), numDofs(fct.dofs.Height());
+   double xNeighbor, totalFlux, sumLumpedFluxP, sumLumpedFluxN, sumFluxP, sumFluxN, eps = 1.E-15;
+   Vector lumpedFluxP(numDofs), lumpedFluxN(numDofs);
+   
+   for (j = 0; j < numBdrs; j++)
+   {
+      sumLumpedFluxP = sumLumpedFluxN = sumFluxP = sumFluxN = 0.;
+      for (i = 0; i < numDofs; i++)
+      {
+         dofInd = k*nd+fct.dofs(i,j);
+         xNeighbor = x(fct.neighborDof(k*numDofs+i,j));
+         lumpedFluxP(i) = max(0., xNeighbor - x(dofInd)) * fct.bdrIntLumped(dofInd, j);
+         lumpedFluxN(i) = min(0., xNeighbor - x(dofInd)) * fct.bdrIntLumped(k*nd + fct.dofs(i,j), j);
+         sumLumpedFluxP += lumpedFluxP(i);
+         sumLumpedFluxN += lumpedFluxN(i);
+         totalFlux = 0.;
+         for (m = 0; m < numDofs; m++)
+         {
+            totalFlux += fct.bdrInt(k*nd+fct.dofs(i,j), j*nd+fct.dofs(m,j)) * x(k*nd+fct.dofs(m,j))
+                       - fct.bdrIntNeighbor(k*nd+fct.dofs(i,j), j*nd+fct.dofs(m,j)) * x(fct.neighborDof(k*numDofs+m,j));
+         }
+         sumFluxP += max(0., totalFlux);
+         sumFluxN += min(0., totalFlux);
+      }
+      
+      for (i = 0; i < numDofs; i++)
+         y(k*nd+fct.dofs(i,j)) += sumFluxP * lumpedFluxP(i) / (sumLumpedFluxP + eps)
+                                + sumFluxN * lumpedFluxN(i) / (sumLumpedFluxN - eps);
+   }
+}
+
 void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
 {
    if ((fct.monoType == DiscUpw) || (fct.monoType == DiscUpw_FS))
    {
       // Discretization AND monotonicity terms
-      fct.KpD.Mult(x, z);
-      z += b;
+      fct.KpD.Mult(x, y);
+      y += b;
       for (int k = 0; k < fes->GetNE(); k++)
       {
          const FiniteElement &el = *fes->GetFE(k);
          int nd = el.GetDof();
+         
+         if (fct.isSubCell)
+         {
+            z = y;
+            LumpFluxTerms(k, nd, x, y);
+         }
+
          for (int j = 0; j < nd; j++)
          {
             int dofInd = k*nd+j;
-            y(dofInd) = z(dofInd) / fct.lumpedM(dofInd);
+            y(dofInd) /= fct.lumpedM(dofInd);
          }
       }
    }
@@ -1684,14 +1718,12 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
    {
       Mesh *mesh = fes->GetMesh();
       int i, j, k, m, p, nd, dofInd, numSubcells, numDofsSubcell,
-          ne(fes->GetNE()), dim(mesh->Dimension()), numBdrs(fct.dofs.Width()),
-          numDofs(fct.dofs.Height());
+          ne(fes->GetNE()), dim(mesh->Dimension());
       double xMax, xMin, xSum, xNeighbor, sumRhoSubcellP, sumRhoSubcellN, sumWeightsP,
-             sumWeightsN, rhoP, rhoN, fluct, fluctSubcellP, fluctSubcellN,
-             totalFlux, sumLumpedFluxP, sumLumpedFluxN, sumFluxP, sumFluxN, gammaP, gammaN,
-             minGammaP, minGammaN, gamma = 1.E5, eps = 1.E-15;
+             sumWeightsN, rhoP, rhoN, fluct, fluctSubcellP, fluctSubcellN, gammaP, gammaN,
+             minGammaP, minGammaN, gamma = 1.E1, eps = 1.E-15;
       Vector xMaxSubcell, xMinSubcell, sumWeightsSubcellP, sumWeightsSubcellN,
-             rhoSubcellP, rhoSubcellN, lumpedFluxP(numDofs), lumpedFluxN(numDofs);
+             rhoSubcellP, rhoSubcellN;
 
       // Discretization terms
       y = b;
@@ -1700,7 +1732,6 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       {
          K.AddMult(x, y);
          y -= z;
-         numBdrs = 0; // Nothing needs to be done for 1D boundaries (due to Bernstein basis)
       }
 
       // Monotonicity terms
@@ -1729,35 +1760,8 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          ////////////////////////////
          // Boundary contributions //
          ////////////////////////////
-         for (j = 0; j < numBdrs; j++)
-         {
-            sumLumpedFluxP = sumLumpedFluxN = sumFluxP = sumFluxN = 0.;
-            for (i = 0; i < numDofs; i++)
-            {
-               dofInd = k*nd+fct.dofs(i,j);
-               xNeighbor = x(fct.neighborDof(k*numDofs+i,j));
-               lumpedFluxP(i) = max(0., xNeighbor - x(dofInd)) * fct.bdrIntLumped(dofInd, j);
-               lumpedFluxN(i) = min(0.,
-                                    xNeighbor - x(dofInd)) * fct.bdrIntLumped(k*nd + fct.dofs(i,j), j);
-               sumLumpedFluxP += lumpedFluxP(i);
-               sumLumpedFluxN += lumpedFluxN(i);
-               totalFlux = 0.;
-               for (m = 0; m < numDofs; m++)
-               {
-                  totalFlux += fct.bdrInt(k*nd+fct.dofs(i,j), j*nd+fct.dofs(m,
-                                                                            j)) * x(k*nd+fct.dofs(m,j))
-                               - fct.bdrIntNeighbor(k*nd+fct.dofs(i,j), j*nd+fct.dofs(m,
-                                                                                      j)) * x(fct.neighborDof(k*numDofs+m,j));
-               }
-               sumFluxP += max(0., totalFlux);
-               sumFluxN += min(0., totalFlux);
-            }
-
-            // boundary update
-            for (i = 0; i < numDofs; i++)
-               y(k*nd+fct.dofs(i,j)) += sumFluxP * lumpedFluxP(i) / (sumLumpedFluxP + eps)
-                                        + sumFluxN * lumpedFluxN(i) / (sumLumpedFluxN - eps);
-         }
+         if (dim > 1)// Nothing needs to be done for 1D boundaries (due to Bernstein basis)
+            LumpFluxTerms(k, nd, x, y);
 
          ///////////////////////////
          // Element contributions //
@@ -2064,13 +2068,13 @@ double u0_function(const Vector &x)
       case 4:
       {
          double scale = 0.09;
-         double G1 = (1./sqrt(scale)) * sqrt(pow(X(0), 2.) + pow(X(1) + 0.5,2.));
-         double G2 = (1./sqrt(scale)) * sqrt(pow(X(0) - 0.5,2.) + pow(X(1), 2.));
+         double slit = (X(0) <= -0.05) || (X(0) >= 0.05) || (X(1) >= 0.7);
+         double cone = (1./sqrt(scale)) * sqrt(pow(X(0), 2.) + pow(X(1) + 0.5,2.));
+         double bump = (1./sqrt(scale)) * sqrt(pow(X(0) - 0.5,2.) + pow(X(1), 2.));
 
-         return ((pow(X(0),2.) + pow(X(1) - 0.5,2.) <= scale) &
-                 ((X(0) <= -0.05) | (X(0) >= 0.05) | (X(1) >= 0.7))) ? 1. : 0. +
-                (1-G1) * (pow(X(0),2.) + pow(X(1) + 0.5,2.) <= scale) +
-                0.25*(1.+cos(M_PI*G2))*(pow(X(0) - 0.5,2.) + pow(X(1),2.) <= scale);
+         return (slit && (pow(X(0),2.) + pow(X(1) - 0.5,2.) <= scale)) ? 1. : 0.
+                + (1-cone) * (pow(X(0),2.) + pow(X(1) + 0.5,2.) <= scale)
+                + 0.25*(1.+cos(M_PI*bump))*((pow(X(0) - 0.5,2.) + pow(X(1),2.)) <= scale);
       }
    }
    return 0.0;
