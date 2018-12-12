@@ -57,18 +57,18 @@ private:
 public:
    // **************************************************************************
    static inline void DeviceSetup() { Get().MfemDeviceSetup(); }
-   constexpr static inline bool Nvcc() { return NvccCompilerUsed(); }
+   constexpr static inline bool usingNvcc() { return usingNvccCompiler(); }
 
-   static inline bool PA() { return Get().pa; }
+   static inline bool usingPA() { return Get().pa; }
    static inline void SetPA(const bool mode) { Get().pa = mode; }
 
-   static inline bool Cuda() { return Get().cuda; }
+   static inline bool usingCuda() { return Get().cuda; }
    static inline void SetCuda(const bool mode) { Get().cuda = mode; }
    static inline CUstream Stream() { return *Get().cuStream; }
 
-   static inline bool Occa() { return Get().occa; }
+   static inline bool usingOcca() { return Get().occa; }
    static inline void SetOcca(const bool mode) { Get().occa = mode; }
-   static inline OccaDevice OccaDevice() { return Get().occaDevice; }
+   static inline OccaDevice GetOccaDevice() { return Get().occaDevice; }
 };
 
 // *****************************************************************************
