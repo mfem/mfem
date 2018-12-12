@@ -425,9 +425,10 @@ int main (int argc, char *argv[])
       // Get the local scalar element degrees of freedom in dofs.
       pfespace->GetElementDofs(i, dofs);
       // Adjust the value of h0 in dofs based on the local mesh size.
+      const double hi = pmesh->GetElementSize(i);
       for (int j = 0; j < dofs.Size(); j++)
       {
-         h0(dofs[j]) = min(h0(dofs[j]), pmesh->GetElementSize(i));
+         h0(dofs[j]) = min(h0(dofs[j]), hi);
       }
       vol_loc += pmesh->GetElementVolume(i);
    }
@@ -610,8 +611,6 @@ int main (int argc, char *argv[])
    }
 
    const double init_energy = a.GetParGridFunctionEnergy(x);
-   if (myid == 0) { cout << "Initial strain energy: " << init_energy << endl; }
-
 
    // 16. Visualize the starting mesh and metric values.
    if (visualization)
@@ -777,13 +776,16 @@ int main (int argc, char *argv[])
    {
       lim_coeff.constant = 0.0;
       metric_part = a.GetParGridFunctionEnergy(x);
+      lim_coeff.constant = lim_const;
    }
-   if (myid == 0 && verbosity_level >= 1)
+   if (myid == 0)
    {
-      cout << "Initial strain energy: " << init_energy << endl;
-      cout << "Final strain energy : " << fin_energy
-           << " metrics: " << metric_part
-           << " liming term: " << fin_energy - metric_part << endl;
+      cout << "Initial strain energy: " << init_energy
+           << " = metrics: " << init_energy
+           << " + limiting term: " << 0.0 << endl;
+      cout << "  Final strain energy: " << fin_energy
+           << " = metrics: " << metric_part
+           << " + limiting term: " << fin_energy - metric_part << endl;
       cout << "The strain energy decreased by: " << setprecision(12)
            << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
    }
