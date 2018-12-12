@@ -55,7 +55,7 @@ double inflow_function(const Vector &x);
 // Mesh bounding box
 Vector bb_min, bb_max;
 
-enum MONOTYPE { None, DiscUpw, DiscUpw_FS, Rusanov, Rusanov_FS, ResDist, ResDist_FS };
+enum MONOTYPE { None, DiscUpw, DiscUpw_FS, Rusanov, Rusanov_FS, ResDist, ResDist_FS, ResDist_Lim };
 enum STENCIL  { Full, Local, LocalAndDiag };
 
 
@@ -78,7 +78,6 @@ public:
    // Map to compute localized bounds on unstructured grids.
    // For each dof index we have a vector of neighbor dof indices.
    mutable std::map<int, std::vector<int> > map_for_bounds;
-   mutable std::map<int, std::vector<int> > map_for_SmoothnessIndicator;
 
    Vector x_min;
    Vector x_max;
@@ -90,7 +89,7 @@ public:
       mesh = fes->GetMesh();
       stencil = _stencil;
 
-      if (stencil > 0) { GetBoundsMap(fes, K); GetAllNeighbors(K.SpMat()); }
+      if (stencil > 0) { GetBoundsMap(fes, K); }
    }
 
    void Compute(const SparseMatrix &K, const Vector &x)
@@ -245,19 +244,6 @@ private:
             }
          }
       } */
-   }
-
-   void GetAllNeighbors(const SparseMatrix& K)
-   {
-      const int *I = K.GetI(), *J = K.GetJ(), size = K.Size();
-
-      for (int i = 0, k = 0; i < size; i++)
-      {
-         for (int end = I[i+1]; k < end; k++)
-         {
-            map_for_SmoothnessIndicator[i].push_back(J[k]);
-         }
-      }
    }
 
    // Fills map_for_bounds
@@ -575,7 +561,7 @@ public:
       {
          ComputeDiffusionCoefficient(fes, coef);
       }
-      else if ((_monoType == ResDist) || (_monoType == ResDist_FS))
+      else if ((_monoType == ResDist) || (_monoType == ResDist_FS) || (_monoType == ResDist_Lim))
       {
          ComputeResidualWeights(fes, coef, _isSubCell);
          isSubCell = _isSubCell; // TODO begruenden
@@ -1316,9 +1302,9 @@ int main(int argc, char *argv[])
    int ref_levels = 2;
    int order = 3;
    int ode_solver_type = 3;
-   MONOTYPE monoType = ResDist;
+   MONOTYPE monoType = ResDist_Lim;
    bool isSubCell = true;
-   STENCIL stencil = Local;
+   STENCIL stencil = Full; // must be Full for ResDist_Lim
    double t_final = 4.0;
    double dt = 0.005;
    bool visualization = true;
@@ -1419,7 +1405,7 @@ int main(int argc, char *argv[])
 
    if (monoType != None)
    {
-      if (((int)monoType != monoType) || (monoType < 0) || (monoType > 6))
+      if (((int)monoType != monoType) || (monoType < 0) || (monoType > 7))
       {
          cout << "Unsupported option for monotonicity treatment." << endl;
          delete mesh;
@@ -1540,7 +1526,10 @@ int main(int argc, char *argv[])
    }
 
    // check for conservation TODO
-   double mass = fct.lumpedM * u;
+   Vector tmp;
+   tmp.SetSize(u.Size());
+   m.SpMat().Mult(u, tmp);
+   double initialMass = tmp.Sum();
 
    // 8. Define the time-dependent evolution operator describing the ODE
    //    right-hand side, and perform time-integration (looping over the time
@@ -1555,7 +1544,10 @@ int main(int argc, char *argv[])
    for (int ti = 0; !done; )
    {
       // compute solution bounds
-      fct.bnds.Compute(k.SpMat(), u);
+      if ((monoType > 0) && (monoType < 7))
+      {
+         fct.bnds.Compute(k.SpMat(), u);
+      }
       adv.SetDt(dt);
 
       double dt_real = min(dt, t_final - t);
@@ -1591,8 +1583,11 @@ int main(int argc, char *argv[])
    }
 
    // check for conservation TODO
-   cout << "initial mass: " << mass << ", final mass: " << fct.lumpedM * u <<
-        ", mass loss: " << mass - fct.lumpedM * u << endl;
+   m.SpMat().Mult(u, tmp);
+   double finalMass = tmp.Sum();
+   cout << "initial mass: " << initialMass << ", final mass: " << finalMass
+         << ", computed with lumped mass matrix: " << fct.lumpedM * u << 
+         ", mass loss: " << initialMass - finalMass << endl;
 
    // 10. Free the used memory.
    delete mesh;
@@ -1649,7 +1644,6 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          
          if (fct.isSubCell)
          {
-            z = y;
             LumpFluxTerms(k, nd, x, y);
          }
 
@@ -1714,17 +1708,22 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          }
       }
    }
-   else if ((fct.monoType == ResDist) || (fct.monoType == ResDist_FS))
+   else if ((fct.monoType == ResDist) || (fct.monoType == ResDist_FS) || (fct.monoType == ResDist_Lim))
    {
       Mesh *mesh = fes->GetMesh();
-      int i, j, k, m, p, nd, dofInd, numSubcells, numDofsSubcell,
+      int i, j, k, m, p, nd, dofInd, dofInd2, numSubcells, numDofsSubcell,
           ne(fes->GetNE()), dim(mesh->Dimension());
       double xMax, xMin, xSum, xNeighbor, sumRhoSubcellP, sumRhoSubcellN, sumWeightsP,
-             sumWeightsN, rhoP, rhoN, fluct, fluctSubcellP, fluctSubcellN, gammaP, gammaN,
-             minGammaP, minGammaN, gamma = 1.E1, eps = 1.E-15;
+             sumWeightsN, weightP, weightN, rhoP, rhoN, fluct, fluctSubcellP, fluctSubcellN, gammaP, gammaN,
+             minGammaP, minGammaN, gamma = 1.E1, beta = 10., eps = 1.E-15;
       Vector xMaxSubcell, xMinSubcell, sumWeightsSubcellP, sumWeightsSubcellN,
-             rhoSubcellP, rhoSubcellN;
+             rhoSubcellP, rhoSubcellN, nodalWeightsP, nodalWeightsN, alpha;
 
+      if (fct.monoType == 7)
+      {
+         fct.bnds.Compute(K, x);
+      }
+       
       // Discretization terms
       y = b;
       fct.fluctMatrix.Mult(x, z);
@@ -1744,7 +1743,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          if (dim==1)
          {
             numSubcells = p;
-            numDofsSubcell = 2; // TODO put into fct
+            numDofsSubcell = 2;
          }
          else if (dim==2)
          {
@@ -1769,35 +1768,41 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          xMin = numeric_limits<double>::infinity();
          xMax = -xMin;
          rhoP = rhoN = xSum = 0.;
+         alpha.SetSize(nd); alpha = 0.;
 
          for (j = 0; j < nd; j++)
          {
             dofInd = k*nd+j;
             xMax = max(xMax, x(dofInd));
             xMin = min(xMin, x(dofInd));
-            rhoP += max(0., z(dofInd));
-            rhoN += min(0., z(dofInd));
             xSum += x(dofInd);
+            rhoP += max(0., z(dofInd));
+            rhoN += min(0., z(dofInd)); // TODO just needed for subcells
          }
-
-         sumWeightsP = nd*xMax - xSum + eps;
-         sumWeightsN = nd*xMin - xSum - eps;
-
-         if (!fct.isSubCell)
+         
+         if (fct.monoType == ResDist_Lim)
          {
             for (j = 0; j < nd; j++)
             {
                dofInd = k*nd+j;
-               y(dofInd) = ( y(dofInd) + rhoP * (xMax - x(dofInd)) / sumWeightsP
-                             + rhoN * (xMin - x(dofInd)) / sumWeightsN ) / fct.lumpedM(dofInd);
+               alpha(j) = min( 1., beta * min(fct.bnds.x_max(dofInd) - x(dofInd), x(dofInd) - fct.bnds.x_min(dofInd)) 
+                                       / (max(xMax - x(dofInd), x(dofInd) - xMin) + eps) );
+               if ((alpha(j) < -eps) || (alpha(j) > (1. + eps)))
+                  mfem_error("."); // TODO
             }
          }
-         else
+         
+         sumWeightsP = nd*xMax - xSum + eps;
+         sumWeightsN = nd*xMin - xSum - eps;
+         
+         if (fct.isSubCell)
          {
             rhoSubcellP.SetSize(numSubcells);
             rhoSubcellN.SetSize(numSubcells);
             xMaxSubcell.SetSize(numSubcells);
             xMinSubcell.SetSize(numSubcells);
+            nodalWeightsP.SetSize(nd);
+            nodalWeightsN.SetSize(nd);
             sumWeightsSubcellP.SetSize(numSubcells);
             sumWeightsSubcellN.SetSize(numSubcells);
             for (m = 0; m < numSubcells; m++)
@@ -1822,33 +1827,51 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
             }
             sumRhoSubcellP = rhoSubcellP.Sum();
             sumRhoSubcellN = rhoSubcellN.Sum();
-
-            gammaP = rhoP / (sumRhoSubcellP + eps);
-            gammaN = rhoN / (sumRhoSubcellN - eps);
-            minGammaP = min(gamma, gammaP); // TODO maybe optimize
-            minGammaN = min(gamma, gammaN);
-
+            nodalWeightsP = 0.; nodalWeightsN = 0.;
+            
             for (m = 0; m < numSubcells; m++)
             {
                for (i = 0; i < numDofsSubcell;
-                    i++) // compute min-/max-values and the fluctuation for subcells
+                    i++)
                {
-                  dofInd = k*nd + fct.subcell2CellDof(m, i);
-                  y(dofInd) += minGammaP * rhoSubcellP(m) * (xMaxSubcell(m) - x(
-                                                                dofInd)) / sumWeightsSubcellP(m)
-                               + minGammaN * rhoSubcellN(m) * (xMinSubcell(m) - x(dofInd)) /
-                               sumWeightsSubcellN(m); //TODO optimization possible
+                  int loc = fct.subcell2CellDof(m, i);
+                  dofInd = k*nd + loc;
+                  nodalWeightsP(loc) += rhoSubcellP(m) * ((xMaxSubcell(m) - x(dofInd)) / sumWeightsSubcellP(m));
+                  nodalWeightsN(loc) += rhoSubcellN(m) * ((xMinSubcell(m) - x(dofInd)) / sumWeightsSubcellN(m));
                }
             }
+         }
 
+         for (i = 0; i < nd; i++)
+         {
+            dofInd = k*nd+i;
+            weightP = (xMax - x(dofInd)) / sumWeightsP;
+            weightN = (xMin - x(dofInd)) / sumWeightsN;
+            
+            if (fct.isSubCell)
+            {
+               double auxP = gamma / (rhoP + eps);
+               weightP *= 1. - min(auxP * sumRhoSubcellP, 1.);
+               weightP += min(auxP, 1. / (sumRhoSubcellP + eps)) * nodalWeightsP(i);
+               
+               double auxN = gamma / (rhoN - eps);
+               weightN *= 1. - min(auxN * sumRhoSubcellN, 1.);
+               weightN += max(auxN, 1. / (sumRhoSubcellN - eps)) * nodalWeightsN(i);
+            }
+            
             for (j = 0; j < nd; j++)
             {
-               dofInd = k*nd+j;
-               y(dofInd) = ( y(dofInd) + (rhoP - min(gamma*sumRhoSubcellP,
-                                                     rhoP)) * (xMax - x(dofInd)) / sumWeightsP
-                             + (rhoN - max(gamma*sumRhoSubcellN,
-                                           rhoN)) * (xMin - x(dofInd)) / sumWeightsN ) / fct.lumpedM(dofInd);
+               dofInd2 = k*nd+j;
+               if (z(dofInd2) > eps)
+               {
+                  y(dofInd) += (1. - alpha(j)) * weightP * z(dofInd2);
+               }
+               else if (z(dofInd2) < -eps)
+               {
+                  y(dofInd) += (1. - alpha(j)) * weightN * z(dofInd2); // TODO do not use if
+               }
             }
+            y(dofInd) = (y(dofInd) + alpha(i) * z(dofInd)) / fct.lumpedM(dofInd);
          }
       }
    }
@@ -2072,7 +2095,7 @@ double u0_function(const Vector &x)
          double cone = (1./sqrt(scale)) * sqrt(pow(X(0), 2.) + pow(X(1) + 0.5,2.));
          double bump = (1./sqrt(scale)) * sqrt(pow(X(0) - 0.5,2.) + pow(X(1), 2.));
 
-         return (slit && (pow(X(0),2.) + pow(X(1) - 0.5,2.) <= scale)) ? 1. : 0.
+         return (slit && ((pow(X(0),2.) + pow(X(1) - 0.5,2.)) <= scale)) ? 1. : 0.
                 + (1-cone) * (pow(X(0),2.) + pow(X(1) + 0.5,2.) <= scale)
                 + 0.25*(1.+cos(M_PI*bump))*((pow(X(0) - 0.5,2.) + pow(X(1),2.)) <= scale);
       }
