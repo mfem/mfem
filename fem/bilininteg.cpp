@@ -922,7 +922,7 @@ void MixedConvectionIntegrator::AssembleElementMatrix2(
    Vector vec1;
 
    const IntegrationRule *ir = &IntRules.Get(te_el.GetGeomType(),
-                                             1); // using midpoin rule and test geometry
+                                             1); // using midpoint rule and test geometry
    /*if (ir == NULL)
    {
       // OrderGrad does not work for RefinedLinearFECollection elements
@@ -3299,6 +3299,66 @@ VectorInnerProductInterpolator::AssembleElementMatrix2(
    Vector elmat_as_vec(elmat.Data(), elmat.Height()*elmat.Width());
 
    ran_fe.Project(dom_shape_coeff, Trans, elmat_as_vec);
+}
+
+
+void PrecondConvectionIntegrator::AssembleElementMatrix(
+   const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
+{
+   int nd = el.GetDof();
+   int dim = el.GetDim();
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix dshape, adjJ, Q_ir;
+   Vector shape, vec2, BdFidxT;
+#endif
+   elmat.SetSize(nd);
+   dshape.SetSize(nd,dim);
+   adjJ.SetSize(dim);
+   shape.SetSize(nd);
+   vec2.SetSize(dim);
+   BdFidxT.SetSize(nd);
+
+   double w;
+   Vector vec1;
+   DenseMatrix mass(nd,nd), conv(nd,nd), lumpedM(nd,nd), tmp(nd,nd);
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int order = Trans.OrderGrad(&el) + Trans.Order() + el.GetOrder();
+      order = max(order, 2 * el.GetOrder() + Trans.OrderW());
+      ir = &IntRules.Get(el.GetGeomType(), order);
+   }
+
+   Q.Eval(Q_ir, Trans, *ir);
+
+   conv = mass = 0.0;
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      el.CalcDShape(ip, dshape);
+      el.CalcShape(ip, shape);
+
+      Trans.SetIntPoint(&ip);
+      CalcAdjugate(Trans.Jacobian(), adjJ);
+      Q_ir.GetColumnReference(i, vec1);
+      vec1 *= alpha * ip.weight;
+
+      adjJ.Mult(vec1, vec2);
+      dshape.Mult(vec2, BdFidxT);
+
+      AddMultVWt(shape, BdFidxT, conv);
+      
+      w = Trans.Weight() * ip.weight;
+      AddMult_a_VVt(w, shape, mass);
+   }
+   lumpedM = mass;
+   lumpedM.Lump();
+   mass.Invert();
+   
+   MultABt(mass, lumpedM, tmp);
+   MultAtB(tmp, conv, elmat); // using symmetry of mass matrix
 }
 
 }

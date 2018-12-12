@@ -2434,6 +2434,28 @@ protected:
    VectorCoefficient &VQ;
 };
 
+   
+/** Class for local assembly of M_L M_C^-1 K, where M_L and M_C are
+    the lumped and consistent mass matrices and K is the convection
+    matrix. The spaces are assumed to be L2 conforming. */
+class PrecondConvectionIntegrator: public BilinearFormIntegrator
+{
+private:
+#ifndef MFEM_THREAD_SAFE
+   DenseMatrix dshape, adjJ, Q_ir;
+   Vector shape, vec2, BdFidxT;
+#endif
+   VectorCoefficient &Q;
+   double alpha;
+
+public:
+   PrecondConvectionIntegrator(VectorCoefficient &q, double a = 1.0)
+      : Q(q) { alpha = a; }
+   virtual void AssembleElementMatrix(const FiniteElement &,
+                                      ElementTransformation &,
+                                      DenseMatrix &);
+};
+
 }
 
 #endif
