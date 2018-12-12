@@ -38,8 +38,8 @@
 template <size_t BLOCK_SZ, typename DBODY, typename HBODY>
 void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 {
-   constexpr bool nvcc = NvccCompilerUsed();
-   const bool cuda = mfem::config::Cuda();
+   constexpr bool nvcc = usingNvccCompiler();
+   const bool cuda = mfem::config::usingCuda();
    if (nvcc and cuda)
    {
       return cuWrap<BLOCK_SZ>(N,d_body);
@@ -62,7 +62,7 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 #define IROOT(D,N) ((D==1)?N:(D==2)?ISQRT(N):(D==3)?ICBRT(N):0)
 
 // *****************************************************************************
-#define GET_CUDA const bool cuda = config::Cuda();
+#define GET_CUDA const bool cuda = config::usingCuda();
 #define GET_ADRS(v) double *d_##v = (double*) mm::Get().Adrs(v)
 #define GET_ADRS_T(v,T) T *d_##v = (T*) mm::Get().Adrs(v)
 #define GET_CONST_ADRS(v) const double *d_##v = (const double*) mm::Get().Adrs(v)
@@ -70,9 +70,9 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 
 // *****************************************************************************
 #define BUILTIN_TRAP __builtin_trap()
-#define FILE_AND_LINE __FILE__ and __LINE__
-#define MFEM_CPU_CANNOT_PASS {assert(FILE_AND_LINE and false);}
-#define MFEM_GPU_CANNOT_PASS {assert(FILE_AND_LINE and not config::Cuda());}
+#define FILE_LINE __FILE__ and __LINE__
+#define MFEM_CPU_CANNOT_PASS {assert(FILE_LINE and false);}
+#define MFEM_GPU_CANNOT_PASS {assert(FILE_LINE and not config::usingCuda());}
 
 // Offsets *********************************************************************
 #define ijN(i,j,N) (i)+(N)*(j)

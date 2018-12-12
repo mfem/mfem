@@ -43,7 +43,7 @@ static void oIntDiffusionMultAdd2D(const int NUM_DOFS_1D,
    SET_OCCA_PROPERTY(props, NUM_QUAD_1D);
    SET_OCCA_PROPERTY(props, NUM_QUAD_2D);
 
-   if (not config::Cuda()){      
+   if (not config::usingCuda()){      
       NEW_OCCA_KERNEL(MultAdd2D_CPU, fem, oIntDiffusionMultAdd.okl, props);
       MultAdd2D_CPU(numElements,
                     o_dofToQuad, o_dofToQuadD,
@@ -384,7 +384,7 @@ void kIntDiffusionMultAdd(const int DIM,
 {
 
 #ifdef __OCCA__
-   if (config::Occa()){
+   if (config::usingOcca()){
       assert(DIM==2);
       oIntDiffusionMultAdd2D(NUM_DOFS_1D, NUM_QUAD_1D,
                              numElements,

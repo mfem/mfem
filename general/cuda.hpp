@@ -28,7 +28,7 @@ void cuWrap(const size_t N, DBODY &&d_body)
    const size_t gridSize = (N+BLOCK_SZ-1)/BLOCK_SZ;
    cuKernel<<<gridSize, BLOCK_SZ>>>(N,d_body);
 }
-constexpr static inline bool NvccCompilerUsed() { return true; }
+constexpr static inline bool usingNvccCompiler() { return true; }
 #else // ***********************************************************************
 #define __host__
 #define __device__
@@ -38,7 +38,7 @@ typedef int CUcontext;
 typedef void* CUstream;
 template <size_t BLOCK_SIZE, typename DBODY>
 void cuWrap(const size_t N, DBODY &&d_body) {}
-constexpr static inline bool NvccCompilerUsed() { return false; }
+constexpr static inline bool usingNvccCompiler() { return false; }
 #endif // __NVCC__
 
 // *****************************************************************************
