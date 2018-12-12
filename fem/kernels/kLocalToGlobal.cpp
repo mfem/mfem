@@ -24,7 +24,6 @@ void kLocalToGlobal(const int NUM_VDIM,
                     const double* localX,
                     double* __restrict globalX)
 {
-
    GET_CONST_ADRS_T(offsets,int);
    GET_CONST_ADRS_T(indices,int);
    GET_CONST_ADRS(localX);
@@ -45,7 +44,6 @@ void kLocalToGlobal(const int NUM_VDIM,
          d_globalX[g_offset] = dofValue;
       }
    });
-
 }
 
 }

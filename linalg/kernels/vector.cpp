@@ -118,17 +118,14 @@ double cuVectorDot(const size_t N, const double *x, const double *y)
 // *****************************************************************************
 double kVectorMin(const size_t N, const double *x)
 {
-   push();
    GET_CUDA;
    GET_CONST_ADRS(x);
-
    if (cuda)
    {
 #ifdef __NVCC__
       return cuVectorMin(N, d_x);
 #endif // __NVCC__
    }
-
    double min = std::numeric_limits<double>::infinity();
    for (size_t i=0; i<N; i+=1) { min = fmin(min, d_x[i]); }
    return min;
@@ -140,14 +137,12 @@ double kVectorDot(const size_t N, const double *x, const double *y)
    GET_CUDA;
    GET_CONST_ADRS(x);
    GET_CONST_ADRS(y);
-
    if (cuda)
    {
 #ifdef __NVCC__
       return cuVectorDot(N, d_x, d_y);
 #endif // __NVCC__
    }
-
    double dot = 0.0;
    for (size_t i=0; i<N; i+=1) { dot += d_x[i] * d_y[i]; }
    return dot;
@@ -215,7 +210,6 @@ void kVectorSetSubvector(const int N,
                          const double* y,
                          const int* dofs)
 {
-   push();
    GET_ADRS(x);
    GET_CONST_ADRS(y);
    GET_CONST_ADRS_T(dofs,int);
@@ -238,7 +232,6 @@ void kVectorSetSubvector(const int N,
                          const double value,
                          const int* dofs)
 {
-   push();
    GET_ADRS(x);
    GET_CONST_ADRS_T(dofs,int);
    MFEM_FORALL(i, N,

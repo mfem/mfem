@@ -51,7 +51,7 @@ void PAMassIntegrator::SetOperator(Vector &op)
 // *****************************************************************************
 void PAMassIntegrator::MultAdd(Vector &x, Vector &y)
 {
-   push();
+   //push();
    assert(mass);
    mass->MultAdd(x,y);
 }
@@ -79,7 +79,7 @@ void PADiffusionIntegrator::Assemble()
 // *****************************************************************************
 void PADiffusionIntegrator::MultAdd(Vector &x, Vector &y)
 {
-   push();
+   //push();
    assert(diffusion);
    diffusion->MultAdd(x,y);
 }

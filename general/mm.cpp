@@ -168,9 +168,10 @@ void* mm::Adrs(const void *adrs)
    }
 
    if (not host and not cuda and b_d_adrs and known) {
+      const size_t bytes = memories->operator[](adrs).bytes;
       //dbg("[!H,!C,D] \033[7mPulling & Returning HOST_@");
-      //Pull(adrs);yy
-      assert(false);
+      okMemcpyDtoH(h_adrs, b_d_adrs, bytes);
+      memories->operator[](adrs).host = true; // Tell base is on CPU
       return h_adrs;
    }
    
@@ -256,7 +257,7 @@ void* mm::Adrs(const void *adrs)
       dbg("Returning base DEV_@");
       return b_d_adrs;
    }
-   dbg("Returning alias DEV_@");
+   //dbg("Returning alias DEV_@");
    assert(alias);
    const alias_t &a = aliases->operator[](adrs);
    assert(a.base);
