@@ -17,7 +17,7 @@ namespace mfem
 
 // *****************************************************************************
 #ifdef __NVCC__
-#define CU_STUB(...) {__VA_ARGS__; cudaDeviceSynchronize(); return 0;}
+#define CU_STUB(...) return __VA_ARGS__
 
 #else
 #define CU_STUB(...) (assert(false),return 0;);
@@ -46,7 +46,6 @@ int okMemFree(void *dptr) {
 int okMemcpyHtoD(void* dst, const void* src, size_t bytes)
 {
    //dbg("\033[31;7mHtoD");
-   cudaDeviceSynchronize();
    CU_STUB(cuMemcpyHtoD((CUdeviceptr)dst, src, bytes));
 }
 
