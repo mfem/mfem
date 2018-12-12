@@ -27,7 +27,6 @@ void mm::Setup(){
 
 // *****************************************************************************
 // * Tests if adrs is a known address
-// * If insert_if_in_range is set, it will insert this knew range
 // *****************************************************************************
 bool mm::Known(const void *adrs)
 {
@@ -42,7 +41,6 @@ bool mm::Known(const void *adrs)
 // *****************************************************************************
 const void *mm::Range(const void *adrs)
 {
-   if (Known(adrs)) return NULL;
    for(memory_map_t::iterator m = memories->begin(); m != memories->end(); m++) {
       const void *b_adrs = m->first;
       if (b_adrs > adrs) continue;
@@ -60,6 +58,11 @@ bool mm::Alias(const void *adrs)
    // Look for an alias
    const bool alias =  aliases->find(adrs) != aliases->end();
    if (alias) return true;
+   // Make sure it is not a known address
+   if (Known(adrs)) {
+      assert(false);
+      return false;
+   }
    // Test if it is in a memory range
    const void *base = Range(adrs);
    if (not base) return false;
@@ -72,7 +75,7 @@ bool mm::Alias(const void *adrs)
 const void* mm::InsertAlias(const void *base, const void *adrs)
 {
    alias_t &alias = aliases->operator[](adrs);
-   //dbg("\033[32m[Known] Insert new alias: %p < \033[7m%p", base, adrs);
+   dbg("\033[32mInsert new alias: %p < \033[7m%p", base, adrs);
    alias.base = (void*) base;
    alias.adrs = (void*) adrs;
    assert(adrs > base);
@@ -89,7 +92,7 @@ void* mm::Insert(const void *h_adrs,
                  const void *h_base)
 {
    if (not memories or not aliases) { Setup(); }
-   assert(not Alias(h_adrs));
+   //assert(not Alias(h_adrs));
    const bool known = Known(h_adrs);
    if (known) {
       BUILTIN_TRAP;
@@ -110,12 +113,11 @@ void* mm::Insert(const void *h_adrs,
 // *****************************************************************************
 void *mm::Erase(void *adrs)
 {
-   //push();
    const bool known = Known(adrs);
    if (not known) { BUILTIN_TRAP; }
    MFEM_ASSERT(known, "[ERROR] Trying to remove an unknown address!");
    memory_t &mem = memories->operator[](adrs);
-   //dbg("\033[31mMemory @ %p", mem.h_adrs);
+   dbg("\033[31mMemory @ %p", mem.h_adrs);
    {  // Scanning aliases to remove the ones using this base
       std::list<void*> aliases_to_remove;
       for(alias_map_t::iterator a = aliases->begin(); a != aliases->end(); a++) {
@@ -124,7 +126,7 @@ void *mm::Erase(void *adrs)
          aliases_to_remove.push_back(a->second.adrs);
       }
       for (void *a : aliases_to_remove) {
-         //dbg("\033[31;7mAlias @ %p", a);
+         dbg("\033[31;7mAlias @ %p", a);
          aliases->erase(a);
       }
    }   
@@ -140,7 +142,7 @@ void* mm::Adrs(const void *adrs)
    const bool cuda = config::Cuda();
    //const bool occa = config::Occa();
    const bool known = Known(adrs);
-   const bool alias = Alias(adrs);
+   const bool alias = known ? false : Alias(adrs);
    const bool unknown = not known and not alias;
    if (unknown) { BUILTIN_TRAP; }
    MFEM_ASSERT(not unknown, "[ERROR] Trying to convert unknown address!");
@@ -272,8 +274,8 @@ void* mm::Adrs(const void *adrs)
 void mm::Push(const void *adrs, const size_t given_bytes)
 {
    const bool cuda = config::Cuda();
-   const bool alias = Alias(adrs);
    const bool known = Known(adrs);
+   const bool alias = known ? false : Alias(adrs);
    const bool unknown = not known and not alias;
    if (unknown) { BUILTIN_TRAP; }
    MFEM_ASSERT(not unknown, "[ERROR] Trying to PUSH an unknown address!");
@@ -337,8 +339,9 @@ void mm::Push(const void *adrs, const size_t given_bytes)
 void mm::Pull(const void *adrs, const size_t given_bytes)
 {
    const bool cuda = config::Cuda();
-   const bool alias = Alias(adrs);
    const bool known = Known(adrs);
+   const bool alias = known ? false : Alias(adrs);
+   assert(alias ^ known);
    const bool unknown = not known and not alias;
    if (unknown) { BUILTIN_TRAP; }
    MFEM_ASSERT(not unknown, "[ERROR] Trying to PULL an unknown address!");
@@ -450,8 +453,9 @@ OccaMemory mm::Memory(const void *adrs)
 void mm::Sync_p(const void *adrs)
 {
    push();
+   assert(false);
    const bool known = Known(adrs);
-   const bool alias = Alias(adrs);
+   const bool alias = known ? false : Alias(adrs);
    const bool unknown = not known and not alias;
    if (unknown) { BUILTIN_TRAP; }
    MFEM_ASSERT(not unknown, "[ERROR] Trying to SYNC an unknown address!");
