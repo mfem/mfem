@@ -391,9 +391,10 @@ int main (int argc, char *argv[])
       // Get the local scalar element degrees of freedom in dofs.
       fespace->GetElementDofs(i, dofs);
       // Adjust the value of h0 in dofs based on the local mesh size.
+      const double hi = mesh->GetElementSize(i);
       for (int j = 0; j < dofs.Size(); j++)
       {
-         h0(dofs[j]) = min(h0(dofs[j]), mesh->GetElementSize(i));
+         h0(dofs[j]) = min(h0(dofs[j]), hi);
       }
       volume += mesh->GetElementVolume(i);
    }
@@ -561,7 +562,6 @@ int main (int argc, char *argv[])
    }
 
    const double init_energy = a.GetGridFunctionEnergy(*x);
-   cout << "Initial strain energy: " << init_energy << endl;
 
    // 15. Visualize the starting mesh and metric values.
    if (visualization)
@@ -716,11 +716,14 @@ int main (int argc, char *argv[])
    {
       lim_coeff.constant = 0.0;
       metric_part = a.GetGridFunctionEnergy(*x);
+      lim_coeff.constant = lim_const;
    }
-   cout << "Initial strain energy: " << init_energy << endl;
-   cout << "Final strain energy : " << fin_energy
-        << " metrics: " << metric_part
-        << " liming term: " << fin_energy - metric_part << endl;
+   cout << "Initial strain energy: " << init_energy
+        << " = metrics: " << init_energy
+        << " + limiting term: " << 0.0 << endl;
+   cout << "  Final strain energy: " << fin_energy
+        << " = metrics: " << metric_part
+        << " + limiting term: " << fin_energy - metric_part << endl;
    cout << "The strain energy decreased by: " << setprecision(12)
         << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
 
