@@ -6468,6 +6468,19 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
             v[2] = oface + qf0;
             v[3] = oedge + e[3];
             v[4] = oedge + e[4];
+
+            CoarseFineTr.embeddings[i].parent = i;
+            CoarseFineTr.embeddings[i].matrix = 0;
+            for (int k = 0; k < 5; k++)
+            {
+               CoarseFineTr.embeddings[j+k].parent = i;
+               CoarseFineTr.embeddings[j+k].matrix = 0; // Placeholder
+            }
+            for (int k = 0; k < 4; k++)
+            {
+               CoarseFineTr.embeddings[j+k+4].parent = i;
+               CoarseFineTr.embeddings[j+k+4].matrix = 0; // Placeholder
+            }
          }
          break;
 
@@ -6524,6 +6537,12 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
             v[3] = oedge+e[6];
             v[4] = oface+qf2;
             v[5] = oface+qf4;
+
+            for (int k = 0; k < 8; k++)
+            {
+               CoarseFineTr.embeddings[j+k].parent = i;
+               CoarseFineTr.embeddings[j+k].matrix = k;
+            }
          }
          break;
 
@@ -6594,6 +6613,12 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
             v[5] = oface+qf[1];
             v[6] = oelem+he;
             v[7] = oface+qf[4];
+
+            for (int k = 0; k < 8; k++)
+            {
+               CoarseFineTr.embeddings[j+k].parent = i;
+               CoarseFineTr.embeddings[j+k].matrix = k;
+            }
          }
          break;
 
@@ -6721,7 +6746,7 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
    UseExternalData(pri_children, 3, 6, 8);
    CoarseFineTr.point_matrices[Geometry::CUBE].
    UseExternalData(hex_children, 3, 8, 8);
-
+   /*
    for (int i = 0; i < elements.Size(); i++)
    {
       // Tetrahedron elements are handled above:
@@ -6730,7 +6755,7 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
       emb.parent = (i < NumOfElements) ? i : (i - NumOfElements) / 7;
       emb.matrix = (i < NumOfElements) ? 0 : (i - NumOfElements) % 7 + 1;
    }
-
+   */
    NumOfVertices    = vertices.Size();
    NumOfElements    = 8 * NumOfElements + 2 * pyr_counter;
    NumOfBdrElements = 4 * NumOfBdrElements;
