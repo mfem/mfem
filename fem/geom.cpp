@@ -1386,6 +1386,104 @@ RefinedGeometry * GeometryRefiner::Refine(Geometry::Type Geom,
          return RG;
       }
 
+      case Geometry::PYRAMID:
+      {
+         const int n = Times;
+         RG = new RefinedGeometry ((n+1)*(n+2)*(2*n+3)/6,
+                                   5*n*(2*n-1)*(2*n+1)/3, 0);
+         RG->Times = Times;
+         RG->ETimes = ETimes;
+         RG->Type = type;
+         // enumerate and define the vertices
+         m = 0;
+         for (k = 0; k <= n; k++)
+         {
+            const double *cpij =
+               poly1d.GetPoints(Times - k, BasisType::GetNodalBasis(type));
+            for (j = 0; j <= n - k; j++)
+               for (i = 0; i <= n - k; i++)
+               {
+                  IntegrationPoint &ip = RG->RefPts.IntPoint(m);
+                  if (type == 0)
+                  {
+                     ip.x = (n > k) ? (double(i) / (n - k)) : 0.0;
+                     ip.y = (n > k) ? (double(j) / (n - k)) : 0.0;
+                     ip.z = double(k) / n;
+                  }
+                  else
+                  {
+                     ip.x = cpij[i] * (1.0 - cp[k]);
+                     ip.y = cpij[j] * (1.0 - cp[k]);
+                     ip.z = cp[k];
+                  }
+                  m++;
+               }
+         }
+         if (m != (n+1)*(n+2)*(2*n+3)/6)
+         {
+            mfem_error("GeometryRefiner::Refine() for PYRAMID #1");
+         }
+         // elements
+         Array<int> &G = RG->RefGeoms;
+         m = 0;
+         for (k = 0; k < n; k++)
+         {
+            int lk = k * (k * (2 * k - 6 * n - 9) + 6 * n * (n + 3) + 13) / 6;
+            int lkp1 = (k + 1) *
+                       (k * (2 * k - 6 * n -5) + 6 * n * (n + 2) + 6) / 6;
+            for (j = 0; j < n - k; j++)
+            {
+               for (i = 0; i < n - k; i++)
+               {
+                  G[m++] = lk + j * (n - k + 1) + i;
+                  G[m++] = lk + j * (n - k + 1) + i + 1;
+                  G[m++] = lk + (j + 1) * (n - k + 1) + i + 1;
+                  G[m++] = lk + (j + 1) * (n - k + 1) + i;
+                  G[m++] = lkp1 + j * (n - k) + i;
+               }
+            }
+            for (j = 0; j < n - k - 1; j++)
+            {
+               for (i = 0; i < n - k - 1; i++)
+               {
+                  G[m++] = lkp1 + j * (n - k) + i;
+                  G[m++] = lkp1 + (j + 1) * (n - k) + i;
+                  G[m++] = lkp1 + (j + 1) * (n - k) + i + 1;
+                  G[m++] = lkp1 + j * (n - k) + i + 1;
+                  G[m++] = lk + (j + 1) * (n - k + 1) + i + 1;
+               }
+            }
+            for (j = 0; j < n - k; j++)
+            {
+               for (i = 0; i < n - k - 1; i++)
+               {
+                  G[m++] = lk + j * (n - k + 1) + i + 1;
+                  G[m++] = lk + (j + 1) * (n - k + 1) + i + 1;
+                  G[m++] = lkp1 + j * (n - k) + i;
+                  G[m++] = lkp1 + j * (n - k) + i + 1;
+                  G[m++] = -1;
+               }
+            }
+            for (j = 0; j < n - k - 1; j++)
+            {
+               for (i = 0; i < n - k; i++)
+               {
+                  G[m++] = lk + (j + 1) * (n - k + 1) + i;
+                  G[m++] = lk + (j + 1) * (n - k + 1) + i + 1;
+                  G[m++] = lkp1 + (j + 1) * (n - k) + i;
+                  G[m++] = lkp1 + j * (n - k) + i;
+                  G[m++] = -1;
+               }
+            }
+         }
+         if (m != 5*n*(2*n-1)*(2*n+1)/3)
+         {
+            mfem_error("GeometryRefiner::Refine() for PYRAMID #2");
+         }
+         RGeom[Geometry::PYRAMID].Append(RG);
+         return RG;
+      }
+
       case Geometry::PRISM:
       {
          const int n = Times;
