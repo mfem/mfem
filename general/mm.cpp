@@ -196,6 +196,8 @@ void* mm::AdrsAlias(void* adrs){
 // *****************************************************************************
 void* mm::Adrs(void *adrs)
 {
+   constexpr bool nvcc = config::Nvcc();
+   if (not nvcc) return adrs;
    const bool known = Known(adrs);
    if (known) return AdrsKnown(adrs);
    const bool alias = Alias(adrs);
