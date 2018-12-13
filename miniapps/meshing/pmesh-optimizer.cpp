@@ -434,8 +434,7 @@ int main (int argc, char *argv[])
    }
    double volume;
    MPI_Allreduce(&vol_loc, &volume, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-   const double small_phys_size = pow(volume, 1.0 / dim) / 100.0,
-                avg_volume = volume / pmesh->GetGlobalNE();
+   const double small_phys_size = pow(volume, 1.0 / dim) / 100.0;
 
    // 9. Add a random perturbation to the nodes in the interior of the domain.
    //    We define a random grid function of fespace and make sure that it is
@@ -511,15 +510,11 @@ int main (int argc, char *argv[])
          return 3;
    }
    TargetConstructor::TargetType target_t;
-   bool volumetric_target = false;
    switch (target_id)
    {
-      case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE;
-         volumetric_target = false; break;
-      case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE;
-         volumetric_target = true; break;
-      case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
-         volumetric_target = true; break;
+      case 1: target_t = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; break;
+      case 2: target_t = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; break;
+      case 3: target_t = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE; break;
       default:
          if (myid == 0) { cout << "Unknown target_id: " << target_id << endl; }
          return 3;
@@ -546,18 +541,14 @@ int main (int argc, char *argv[])
    { cout << "Quadrature points per cell: " << ir->GetNPoints() << endl; }
    he_nlf_integ->SetIntegrationRule(*ir);
 
+   if (normalization) { he_nlf_integ->ParEnableNormalization(x0); }
+
    // 14. Limit the node movement.
    // The limiting distances can be given by a general function of space.
    ParGridFunction dist(pfespace);
    dist = 1.0;
-   if (normalization)
-   {
-      lim_const /= pmesh->GetGlobalNE();
-      if (volumetric_target) { lim_const /= avg_volume; }
-
-      // The small_phys_size is relevant only with proper normalization.
-      dist = small_phys_size;
-   }
+   // The small_phys_size is relevant only with proper normalization.
+   if (normalization) { dist = small_phys_size; }
    ConstantCoefficient lim_coeff(lim_const);
    if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
 
@@ -598,17 +589,7 @@ int main (int argc, char *argv[])
       he_nlf_integ2->SetCoefficient(coeff2);
       a.AddDomainIntegrator(he_nlf_integ2);
    }
-   else
-   {
-      a.AddDomainIntegrator(he_nlf_integ);
-      if (normalization)
-      {
-         const double init_energy = a.GetParGridFunctionEnergy(x);
-         coeff1 = new ConstantCoefficient;
-         coeff1->constant = (init_energy > 0) ? 1.0 / init_energy : 1.0;
-         he_nlf_integ->SetCoefficient(*coeff1);
-      }
-   }
+   else { a.AddDomainIntegrator(he_nlf_integ); }
 
    const double init_energy = a.GetParGridFunctionEnergy(x);
 
