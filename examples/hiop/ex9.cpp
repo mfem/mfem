@@ -131,6 +131,7 @@ public:
       D = &Noper;
       d_lo(0) = xmin * xmin;
       d_hi(0) = xmax * xmax;
+      MFEM_VERIFY(d_lo(0)<d_hi(0), "this results in an infeasible optimization problem");
       SetInequalityConstraint(d_lo, d_hi);
 
       SetSolutionBounds(xmin, xmax);
