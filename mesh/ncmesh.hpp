@@ -256,7 +256,10 @@ public:
    static void GridSfcOrdering2D(int width, int height,
                                  Array<int> &ordering);
 
-   /** TODO */
+   /** Return a space filling ordering for a 3D rectangular grid of elements.
+       The Hilbert-curve-like algorithm works well for even dimensions. For odd
+       width/height/depth it tends to produce some diagonal (edge-neighbor)
+       steps. Even dimensions are recommended. */
    static void GridSfcOrdering3D(int width, int height, int depth,
                                  Array<int> &ordering);
 
