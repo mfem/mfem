@@ -1599,7 +1599,7 @@ int main(int argc, char *argv[])
 
 void FE_Evolution::LumpFluxTerms(int k, int nd, const Vector &x, Vector &y) const
 {
-   int i, j, m, dofInd, numBdrs(fct.dofs.Width()), numDofs(fct.dofs.Height());
+   int i, j, m, idx, dofInd, numBdrs(fct.dofs.Width()), numDofs(fct.dofs.Height());
    double xNeighbor, totalFlux, sumLumpedFluxP, sumLumpedFluxN, sumFluxP, sumFluxN, eps = 1.E-15;
    Vector lumpedFluxP(numDofs), lumpedFluxN(numDofs);
    
@@ -1609,16 +1609,19 @@ void FE_Evolution::LumpFluxTerms(int k, int nd, const Vector &x, Vector &y) cons
       for (i = 0; i < numDofs; i++)
       {
          dofInd = k*nd+fct.dofs(i,j);
-         xNeighbor = x(fct.neighborDof(k*numDofs+i,j));
+         idx = fct.neighborDof(k*numDofs+i,j);
+         xNeighbor = idx < 0 ? 0. : x(idx);
          lumpedFluxP(i) = max(0., xNeighbor - x(dofInd)) * fct.bdrIntLumped(dofInd, j);
-         lumpedFluxN(i) = min(0., xNeighbor - x(dofInd)) * fct.bdrIntLumped(k*nd + fct.dofs(i,j), j);
+         lumpedFluxN(i) = min(0., xNeighbor - x(dofInd)) * fct.bdrIntLumped(dofInd, j);
          sumLumpedFluxP += lumpedFluxP(i);
          sumLumpedFluxN += lumpedFluxN(i);
          totalFlux = 0.;
          for (m = 0; m < numDofs; m++)
          {
+            idx = fct.neighborDof(k*numDofs+m,j);
+            xNeighbor = idx < 0 ? 0. : x(idx);
             totalFlux += fct.bdrInt(k*nd+fct.dofs(i,j), j*nd+fct.dofs(m,j)) * x(k*nd+fct.dofs(m,j))
-                       - fct.bdrIntNeighbor(k*nd+fct.dofs(i,j), j*nd+fct.dofs(m,j)) * x(fct.neighborDof(k*numDofs+m,j));
+                       - fct.bdrIntNeighbor(k*nd+fct.dofs(i,j), j*nd+fct.dofs(m,j)) * xNeighbor;
          }
          sumFluxP += max(0., totalFlux);
          sumFluxN += min(0., totalFlux);
@@ -1911,10 +1914,7 @@ void FE_Evolution::ComputeFCTSolution(const Vector &x, const Vector &yH,
          uClipped(j) = min(fct.bnds.x_max(dofInd), max(x(dofInd) + dt * yH(dofInd),
                                                        fct.bnds.x_min(dofInd)));
          // compute coefficients for the high-order corrections
-         // NOTE: The multiplication and inversion of the lumped mass matrix is
-         //       avoided here, this is only possible due to its positive diagonal
-         //       entries AND the way this high order scheme works
-         fClipped(j) = uClipped(j) - ( x(dofInd) + dt * yL(dofInd) );
+         fClipped(j) = fct.lumpedM(dofInd) * (uClipped(j) - ( x(dofInd) + dt * yL(dofInd) ));
 
          sumPos += max(fClipped(j), 0.);
          sumNeg += min(fClipped(j), 0.);
@@ -1934,7 +1934,7 @@ void FE_Evolution::ComputeFCTSolution(const Vector &x, const Vector &yH,
          dofInd = k*nd+j;
          // yH is high order discrete time derivative
          // yL is low order discrete time derivative
-         y(dofInd) = yL(dofInd) + fClipped(j) / dt;
+         y(dofInd) = yL(dofInd) + fClipped(j) / (dt * fct.lumpedM(dofInd));
          // y is now the discrete time derivative featuring the high order anti-diffusive
          // reconstruction that leads to an forward Euler updated admissible solution.
          // The factor dt in the denominator is used for compensation in the ODE solver.
