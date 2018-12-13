@@ -3341,10 +3341,17 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       }
       for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
       {
-         Element *elem = NewElement(geom);
+         Geometry::Type rgeom = geom;
+         int rvert = nvert;
+         if (geom == Geometry::PYRAMID && RG.RefGeoms[4+nvert*j] < 0)
+         {
+            rgeom = Geometry::TETRAHEDRON;
+            rvert = 4;
+         }
+         Element *elem = NewElement(rgeom);
          elem->SetAttribute(attrib);
          int *v = elem->GetVertices();
-         for (int k = 0; k < nvert; k++)
+         for (int k = 0; k < rvert; k++)
          {
             int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
             v[k] = rdofs[c2h_map[cid]];
@@ -3394,8 +3401,15 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       const IntegrationRule &r_nodes = rfes.GetFE(el)->GetNodes();
       for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
       {
-         DenseMatrix &Pj = CoarseFineTr.point_matrices[geom](j);
-         for (int k = 0; k < nvert; k++)
+         Geometry::Type rgeom = geom;
+         int rvert = nvert;
+         if (geom == Geometry::PYRAMID && RG.RefGeoms[4+nvert*j] < 0)
+         {
+            rgeom = Geometry::TETRAHEDRON;
+            rvert = 4;
+         }
+         DenseMatrix &Pj = CoarseFineTr.point_matrices[rgeom](j);
+         for (int k = 0; k < rvert; k++)
          {
             int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
             const IntegrationPoint &ip = r_nodes.IntPoint(c2h_map[cid]);

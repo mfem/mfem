@@ -2756,7 +2756,7 @@ void GridFunction::SaveSTL(std::ostream &out, int TimesToRefine)
    int i, j, k, l, n;
    DenseMatrix pointmat;
    Vector values;
-   RefinedGeometry * RefG;
+   RefinedGeometry *RefG;
    double pts[4][3], bbox[3][2];
 
    out << "solid GridFunction\n";
