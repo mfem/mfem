@@ -3098,7 +3098,7 @@ static void HilbertSfc2D(int x, int y, int ax, int ay, int bx, int by,
 
    if (2*w > 3*h) // long case: split in two parts only
    {
-      if ((w2 & 0x1) && (w > 3))
+      if ((w2 & 0x1) && (w > 2))
       {
          ax2 += dax, ay2 += day; // prefer even steps
       }
@@ -3108,7 +3108,7 @@ static void HilbertSfc2D(int x, int y, int ax, int ay, int bx, int by,
    }
    else // standard case: one step up, one long horizontal step, one step down
    {
-      if ((h2 & 0x1) && (h >= 3))
+      if ((h2 & 0x1) && (h > 2))
       {
          bx2 += dbx, by2 += dby; // prefer even steps
       }
@@ -3131,7 +3131,7 @@ static void HilbertSfc3D(int x, int y, int z,
    int d = std::abs(cx + cy + cz);
 
    int dax = sgn(ax), day = sgn(ay), daz = sgn(az); // unit major dir ("right")
-   int dbx = sgn(bx), dby = sgn(by), dbz = sgn(bz); // unit ortho dir ("back")
+   int dbx = sgn(bx), dby = sgn(by), dbz = sgn(bz); // unit ortho dir ("forward")
    int dcx = sgn(cx), dcy = sgn(cy), dcz = sgn(cz); // unit ortho dir ("up")
 
    // trivial row/column fills
@@ -3172,15 +3172,25 @@ static void HilbertSfc3D(int x, int y, int z,
 
    int w2 = std::abs(ax2 + ay2 + az2);
    int h2 = std::abs(bx2 + by2 + bz2);
-   //int d2 = std::abs(cx2 + cy2 + cz2);
+   int d2 = std::abs(cx2 + cy2 + cz2);
 
+   // prefer even steps
+   if ((w2 & 0x1) && (w > 2))
+   {
+      ax2 += dax, ay2 += day, az2 += daz;
+   }
+   if ((h2 & 0x1) && (h > 2))
+   {
+      bx2 += dbx, by2 += dby, bz2 += dbz;
+   }
+   if ((d2 & 0x1) && (d > 2))
+   {
+      cx2 += dcx, cy2 += dcy, cz2 += dcz;
+   }
+
+   // wide case, split in w only
    if ((2*w > 3*h) && (2*w > 3*d))
    {
-      if ((w2 & 0x1) && (w > 3))
-      {
-         ax2 += dax, ay2 += day, az2 += daz; // prefer even steps
-      }
-
       HilbertSfc3D(x, y, z,
                    ax2, ay2, az2,
                    bx, by, bz,
@@ -3191,14 +3201,49 @@ static void HilbertSfc3D(int x, int y, int z,
                    bx, by, bz,
                    cx, cy, cz, coords);
    }
-   // TODO: more long cases here
+   // do not split in d
+   else if (3*h > 4*d)
+   {
+      HilbertSfc3D(x, y, z,
+                   bx2, by2, bz2,
+                   cx, cy, cz,
+                   ax2, ay2, az2, coords);
+
+      HilbertSfc3D(x+bx2, y+by2, z+bz2,
+                   ax, ay, az,
+                   bx-bx2, by-by2, bz-bz2,
+                   cx, cy, cz, coords);
+
+      HilbertSfc3D(x+(ax-dax)+(bx2-dbx),
+                   y+(ay-day)+(by2-dby),
+                   z+(az-daz)+(bz2-dbz),
+                   -bx2, -by2, -bz2,
+                   cx, cy, cz,
+                   -(ax-ax2), -(ay-ay2), -(az-az2), coords);
+   }
+   // do not split in h
+   else if (3*d > 4*h)
+   {
+      HilbertSfc3D(x, y, z,
+                   cx2, cy2, cz2,
+                   ax2, ay2, az2,
+                   bx, by, bz, coords);
+
+      HilbertSfc3D(x+cx2, y+cy2, z+cz2,
+                   ax, ay, az,
+                   bx, by, bz,
+                   cx-cx2, cy-cy2, cz-cz2, coords);
+
+      HilbertSfc3D(x+(ax-dax)+(cx2-dcx),
+                   y+(ay-day)+(cy2-dcy),
+                   z+(az-daz)+(cz2-dcz),
+                   -cx2, -cy2, -cz2,
+                   -(ax-ax2), -(ay-ay2), -(az-az2),
+                   bx, by, bz, coords);
+   }
+   // regular case, split in all w/h/d
    else
    {
-      if ((h2 & 0x1) && (h >= 3))
-      {
-         bx2 += dbx, by2 += dby, bz2 += dbz; // prefer even steps
-      }
-
       HilbertSfc3D(x, y, z,
                    bx2, by2, bz2,
                    cx2, cy2, cz2,
@@ -3247,7 +3292,7 @@ void NCMesh::GridSfcOrdering2D(int width, int height, Array<int> &ordering)
       HilbertSfc2D(0, 0, 0, height, width, 0, coords);
    }
 
-   coords.Print(mfem::out, 2);
+   coords.Print(mfem::out, 2); // debug
 }
 
 
@@ -3257,13 +3302,29 @@ void NCMesh::GridSfcOrdering3D(int width, int height, int depth,
    Array<int> coords;
    coords.Reserve(3*width*height*depth);
 
-   HilbertSfc3D(0, 0, 0,
-                width, 0, 0,
-                0, height, 0,
-                0, 0, depth, coords);
+   if (width >= height && width >= depth)
+   {
+      HilbertSfc3D(0, 0, 0,
+                   width, 0, 0,
+                   0, height, 0,
+                   0, 0, depth, coords);
+   }
+   else if (height >= width && height >= depth)
+   {
+      HilbertSfc3D(0, 0, 0,
+                   0, height, 0,
+                   width, 0, 0,
+                   0, 0, depth, coords);
+   }
+   else // depth >= width && depth >= height
+   {
+      HilbertSfc3D(0, 0, 0,
+                   0, 0, depth,
+                   width, 0, 0,
+                   0, height, 0, coords);
+   }
 
-   // TODO
-   coords.Print(mfem::out, 3);
+   coords.Print(mfem::out, 3); // debug
 }
 
 
