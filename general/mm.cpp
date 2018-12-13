@@ -257,7 +257,6 @@ void mm::PushAlias(const void *adrs, const size_t bytes){
 // *****************************************************************************
 void mm::Push(const void *adrs, const size_t bytes)
 {
-   const bool cuda = config::Cuda();
    const bool known = Known(adrs);
    if (known) return PushKnown(adrs, bytes);
    const bool alias = Alias(adrs);
@@ -267,68 +266,48 @@ void mm::Push(const void *adrs, const size_t bytes)
 }
 
 // *****************************************************************************
-void mm::Pull(const void *adrs, const size_t given_bytes)
-{
+void mm::PullKnown(const void *adrs, const size_t bytes){
    const bool cuda = config::Cuda();
+   if (not cuda) { return; }
+   assert(bytes > 0);
+   memory_t &base = memories->at(adrs);
+   const bool host = base.host;
+   const void *d_adrs = base.d_adrs;
+   if (host){ return; }
+   assert(d_adrs);
+   okMemcpyDtoH(base.h_adrs, d_adrs, bytes==0?base.bytes:bytes);
+   base.host = true;
+}
+
+// *****************************************************************************
+void mm::PullAlias(const void *adrs, const size_t bytes){
+   const bool cuda = config::Cuda();
+   if (not cuda) { return; }
+   assert(bytes > 0);
+   const alias_t &alias = aliases->at(adrs);
+   memory_t &base = memories->at(alias.base);
+   void *d_adrs = base.d_adrs;
+   assert(d_adrs);
+   void *a_d_adrs = (char*)d_adrs + alias.offset;
+   okMemcpyDtoH((void*)adrs, a_d_adrs, bytes);
+}
+
+// *****************************************************************************
+void mm::Pull(const void *adrs, const size_t bytes)
+{
    const bool known = Known(adrs);
-   const bool alias = known ? false : Alias(adrs);
-   assert(alias ^ known);
-   const bool unknown = not known and not alias;
-   if (unknown) { BUILTIN_TRAP; }
-   MFEM_ASSERT(not unknown, "[ERROR] Trying to PULL an unknown address!");
-      
-   if (known and not alias){
-      if (not cuda) {
-         // dbg("known, not CUDA, return");
-         return;
-      }
-      memory_t &base = memories->operator[](adrs);      
-      const size_t bytes = given_bytes >0 ? given_bytes :base.bytes;
-      const bool host = base.host;
-      if (host and not base.d_adrs){
-         //dbg("host, known, not base.d_adrs, return");
-         return;
-      }
-      if (not host){
-         //dbg("known, not host, okMemcpyDtoH & return");
-         assert(base.d_adrs);
-         okMemcpyDtoH(base.h_adrs, base.d_adrs, bytes);
-         base.host = true;
-         return;
-      }else{
-         //dbg("known, base.d_adrs, but in host, Nothing to do...");
-         //assert(false);
-         return;
-      }
-   }
-
-   if (alias){
-      if (not cuda) { return; }
-      assert(given_bytes > 0);
-      const alias_t &a = aliases->operator[](adrs);
-      void *b_d_adrs = memories->operator[](a.base).d_adrs;
-      assert(b_d_adrs);
-      void *a_d_adrs = (void*) ((char*)b_d_adrs + a.offset);
-      //dbg("alias, cuda, okMemcpyDtoH & return");
-      okMemcpyDtoH((void*)a.adrs, a_d_adrs, given_bytes);
-      return;
-   }
-   
-   MFEM_ASSERT(false, "[ERROR] Should not be there!");
-
-/*
-   if (config::Cuda())
-   {
-      okMemcpyDtoH((void*)mm.h_adrs, mm.d_adrs, mm.bytes);
-      return;
-   }
+   if (known) return PullKnown(adrs, bytes);
+   const bool alias = Alias(adrs);
+   if (not alias) { BUILTIN_TRAP; }
+   MFEM_ASSERT(alias, "Unknown address!");
+   return PullAlias(adrs, bytes);   /*
    if (config::Occa())
    {
       okCopyTo(Memory(adrs), (void*)mm.h_adrs);
       return;
-      }
+   }
    MFEM_ASSERT(false, "[ERROR] Should not be there!");
-*/
+   */
 }
 
 // *****************************************************************************
