@@ -120,6 +120,9 @@ public:
       return Get().Pull(adrs, bytes);
    }
 
+   // **************************************************************************
+   static void* memcpy(void *dst, const void *src,
+                       size_t bytes, const bool async = false);
 };
 
 // *****************************************************************************

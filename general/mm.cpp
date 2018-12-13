@@ -377,4 +377,23 @@ void mm::Dump(){
 }
 
 // *****************************************************************************
+static void* d2d(void *dst, const void *src, size_t bytes, const bool async){
+   GET_ADRS(src);
+   GET_ADRS(dst);
+   if (not async) { okMemcpyDtoD(d_dst, (void*)d_src, bytes); }
+   else { okMemcpyDtoDAsync(d_dst, (void*)d_src, bytes, config::Stream()); }
+   return dst;
+}
+
+// *****************************************************************************
+void* mm::memcpy(void *dst, const void *src, size_t bytes, const bool async)
+{
+   assert(bytes>0);
+   if (bytes==0) { return dst; }
+   const bool cuda = config::Cuda();
+   if (not cuda) { return std::memcpy(dst, src, bytes); }
+   return d2d(dst, src, bytes, async);
+}
+
+// *****************************************************************************
 } // namespace mfem
