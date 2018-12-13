@@ -11,6 +11,7 @@
 
 #include "tmop.hpp"
 #include "linearform.hpp"
+#include "pgridfunc.hpp"
 
 namespace mfem
 {
@@ -856,7 +857,7 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       MultAtB(PMatI, DSh, Jpr);
       Mult(Jpr, Jrt, Jpt);
 
-      double val = metric->EvalW(Jpt);
+      double val = metric_normal * metric->EvalW(Jpt);
       if (coeff1) { val *= coeff1->Eval(*Tpr, ip); }
 
       if (coeff0)
@@ -864,7 +865,8 @@ double TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
          el.CalcShape(ip, shape);
          PMatI.MultTranspose(shape, p);
          pos0.MultTranspose(shape, p0);
-         val += lim_func->Eval(p, p0, d_vals(i)) * coeff0->Eval(*Tpr, ip);
+         val += lim_normal *
+                lim_func->Eval(p, p0, d_vals(i)) * coeff0->Eval(*Tpr, ip);
       }
       energy += weight * val;
    }
@@ -938,7 +940,7 @@ void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
       metric->SetTargetJacobian(Jtr_i);
       CalcInverse(Jtr_i, Jrt);
       const double weight = ip.weight * Jtr_i.Det();
-      double weight_m = weight;
+      double weight_m = weight * metric_normal;
 
       el.CalcDShape(ip, DSh);
       Mult(DSh, Jrt, DS);
@@ -957,7 +959,7 @@ void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
          PMatI.MultTranspose(shape, p);
          pos0.MultTranspose(shape, p0);
          lim_func->Eval_d1(p, p0, d_vals(i), grad);
-         grad *= weight * coeff0->Eval(*Tpr, ip);
+         grad *= weight * lim_normal * coeff0->Eval(*Tpr, ip);
          AddMultVWt(shape, grad, PMatO);
       }
    }
@@ -1029,7 +1031,7 @@ void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
       metric->SetTargetJacobian(Jtr_i);
       CalcInverse(Jtr_i, Jrt);
       const double weight = ip.weight * Jtr_i.Det();
-      double weight_m = weight;
+      double weight_m = weight * metric_normal;
 
       el.CalcDShape(ip, DSh);
       Mult(DSh, Jrt, DS);
@@ -1044,7 +1046,7 @@ void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
          el.CalcShape(ip, shape);
          PMatI.MultTranspose(shape, p);
          pos0.MultTranspose(shape, p0);
-         weight_m = weight * coeff0->Eval(*Tpr, ip);
+         weight_m = weight * lim_normal * coeff0->Eval(*Tpr, ip);
          lim_func->Eval_d2(p, p0, d_vals(i), grad_grad);
          for (int i = 0; i < dof; i++)
          {
@@ -1066,6 +1068,74 @@ void TMOP_Integrator::AssembleElementGrad(const FiniteElement &el,
    delete Tpr;
 }
 
+void TMOP_Integrator::EnableNormalization(const GridFunction &x)
+{
+   ComputeNormalizationEnergies(x, metric_normal, lim_normal);
+   metric_normal = 1.0 / metric_normal;
+   lim_normal = 1.0 / lim_normal;
+}
+
+#ifdef MFEM_USE_MPI
+void TMOP_Integrator::ParEnableNormalization(const ParGridFunction &x)
+{
+   double loc[2];
+   ComputeNormalizationEnergies(x, loc[0], loc[1]);
+   double rdc[2];
+   MPI_Allreduce(loc, rdc, 2, MPI_DOUBLE, MPI_SUM, x.ParFESpace()->GetComm());
+   metric_normal = 1.0 / rdc[0]; lim_normal = 1.0 / rdc[1];
+}
+#endif
+
+void TMOP_Integrator::ComputeNormalizationEnergies(const GridFunction &x,
+                                                   double &metric_energy,
+                                                   double &lim_energy)
+{
+   Array<int> vdofs;
+   Vector x_vals;
+   const FiniteElementSpace* const fes = x.FESpace();
+   const FiniteElement *fe = fes->GetFE(0);
+
+   const int dof = fes->GetFE(0)->GetDof(), dim = fes->GetFE(0)->GetDim();
+
+   DSh.SetSize(dof, dim);
+   Jrt.SetSize(dim);
+   Jpr.SetSize(dim);
+   Jpt.SetSize(dim);
+
+   const IntegrationRule *ir = IntRule;
+   if (!ir)
+   {
+      ir = &(IntRules.Get(fe->GetGeomType(), 2*fe->GetOrder() + 3)); // <---
+   }
+
+   DenseTensor Jtr(dim, dim, ir->GetNPoints());
+
+   metric_energy = 0.0;
+   lim_energy = 0.0;
+   for (int i = 0; i < fes->GetNE(); i++)
+   {
+      fe = fes->GetFE(i);
+      targetC->ComputeElementTargets(i, *fe, *ir, Jtr);
+      fes->GetElementVDofs(i, vdofs);
+      x.GetSubVector(vdofs, x_vals);
+      PMatI.UseExternalData(x_vals.GetData(), dof, dim);
+
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+         metric->SetTargetJacobian(Jtr(i));
+         CalcInverse(Jtr(i), Jrt);
+         const double weight = ip.weight * Jtr(i).Det();
+
+         fe->CalcDShape(ip, DSh);
+         MultAtB(PMatI, DSh, Jpr);
+         Mult(Jpr, Jrt, Jpt);
+
+         metric_energy += weight * metric->EvalW(Jpt);
+         lim_energy += weight;
+      }
+   }
+}
 
 void InterpolateTMOP_QualityMetric(TMOP_QualityMetric &metric,
                                    const TargetConstructor &tc,

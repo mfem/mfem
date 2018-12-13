@@ -535,6 +535,7 @@ public:
                                       DenseTensor &Jtr) const;
 };
 
+class ParGridFunction;
 
 /** @brief A TMOP integrator class based on any given TMOP_QualityMetric and
     TargetConstructor.
@@ -551,6 +552,8 @@ protected:
 
    // Weight Coefficient multiplying the quality metric term.
    Coefficient *coeff1; // not owned, if NULL -> coeff1 is 1.
+   // Normalization factor for the metric term.
+   double metric_normal;
 
    // Nodes and weight Coefficient used for "limiting" the TMOP_Integrator.
    // These are both NULL when there is no limiting.
@@ -561,6 +564,8 @@ protected:
    const GridFunction *lim_dist;
    // Limiting function. Owned.
    TMOP_LimiterFunction *lim_func;
+   // Normalization factor for the limiting term.
+   double lim_normal;
 
    //   Jrt: the inverse of the ref->target Jacobian, Jrt = Jtr^{-1}.
    //   Jpr: the ref->physical transformation Jacobian, Jpr = PMatI^t DS.
@@ -574,12 +579,17 @@ protected:
    //        output - the result of AssembleElementVector() (dof x dim).
    DenseMatrix DSh, DS, Jrt, Jpr, Jpt, P, PMatI, PMatO;
 
+   void ComputeNormalizationEnergies(const GridFunction &x,
+                                     double &metric_energy, double &lim_energy);
+
 public:
    /** @param[in] m  TMOP_QualityMetric that will be integrated (not owned).
        @param[in] tc Target-matrix construction algorithm to use (not owned). */
    TMOP_Integrator(TMOP_QualityMetric *m, TargetConstructor *tc)
       : metric(m), targetC(tc),
-        coeff1(NULL), nodes0(NULL), coeff0(NULL), lim_dist(NULL), lim_func(NULL)
+        coeff1(NULL), metric_normal(1.0),
+        nodes0(NULL), coeff0(NULL),
+        lim_dist(NULL), lim_func(NULL), lim_normal(1.0)
    { }
 
    ~TMOP_Integrator() { delete lim_func; }
@@ -629,6 +639,13 @@ public:
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &T,
                                     const Vector &elfun, DenseMatrix &elmat);
+
+   /** @brief Computes the normalization factors of the metric and limiting
+       integrals using the mesh position given by @a x. */
+   void EnableNormalization(const GridFunction &x);
+#ifdef MFEM_USE_MPI
+   void ParEnableNormalization(const ParGridFunction &x);
+#endif
 };
 
 
