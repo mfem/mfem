@@ -80,7 +80,6 @@ void config::occaDeviceSetup()
 // *****************************************************************************
 void config::devSetup(const int device)
 {
-   push();
    cudaDeviceSetup(device);
    occaDeviceSetup();
 }

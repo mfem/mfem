@@ -23,7 +23,6 @@ KMassIntegrator::KMassIntegrator(const FiniteElementSpace *f,
     fes(f),
     ir(i)
 {
-   push();
    assert(i);
    assert(fes);
 }
@@ -31,7 +30,6 @@ KMassIntegrator::KMassIntegrator(const FiniteElementSpace *f,
 // *****************************************************************************
 void KMassIntegrator::Assemble()
 {
-   push();
    assert(ir);
    maps = kDofQuadMaps::Get(*fes, *fes, *ir);
 }
@@ -39,7 +37,6 @@ void KMassIntegrator::Assemble()
 // *****************************************************************************
 void KMassIntegrator::SetOperator(Vector &v)
 {
-   push();
    op.SetSize(v.Size());
    op = v;
 }

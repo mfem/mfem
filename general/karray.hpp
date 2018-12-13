@@ -35,12 +35,12 @@ public:
    karray(const karray<T,true> &r)
    {
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
-      mm::D2D(data,r,r.bytes());
+      std::memcpy(data,r,r.bytes());
    }
    karray& operator=(const karray<T,true> &r)
    {
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
-      mm::D2D(data,r,r.bytes());
+      std::memcpy(data,r,r.bytes());
       return *this;
    }
    ~karray() {mm::free<T>(data);}
@@ -94,12 +94,12 @@ public:
    karray(const karray<T,false> &r)
    {
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
-      mm::D2D(data,r.GetData(),r.bytes());
+      std::memcpy(data,r.GetData(),r.bytes());
    }
    karray& operator=(const karray<T,true> &r)
    {
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
-      mm::D2D(data,r.GetData(),r.bytes());
+      std::memcpy(data,r.GetData(),r.bytes());
       return *this;
    }
    ~karray() {mm::free<T> (data);}

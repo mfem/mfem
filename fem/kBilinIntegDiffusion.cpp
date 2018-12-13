@@ -24,7 +24,6 @@ KDiffusionIntegrator::KDiffusionIntegrator(const FiniteElementSpace *f,
     fes(f),
     ir(i)
 {
-   push();
    assert(ir);
    assert(fes);
 }
@@ -32,7 +31,6 @@ KDiffusionIntegrator::KDiffusionIntegrator(const FiniteElementSpace *f,
 // *****************************************************************************
 void KDiffusionIntegrator::Assemble()
 {
-   push();
    const FiniteElement &fe = *(fes->GetFE(0));
    const Mesh *mesh = fes->GetMesh();
    const int dim = mesh->Dimension();
@@ -59,7 +57,6 @@ void KDiffusionIntegrator::Assemble()
 // *****************************************************************************
 void KDiffusionIntegrator::MultAdd(Vector &x, Vector &y)
 {
-   push();
    const Mesh *mesh = fes->GetMesh();
    const int dim = mesh->Dimension();
    const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();

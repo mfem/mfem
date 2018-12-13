@@ -262,6 +262,8 @@ void kMassMultAdd(const int DIM,
       {0x20304,&kMassMultAdd2D<3,4>},
       {0x20303,&kMassMultAdd2D<3,3>},
       {0x20403,&kMassMultAdd2D<4,3>},
+      {0x20408,&kMassMultAdd2D<4,8>},
+      {0x20508,&kMassMultAdd2D<5,8>},
 /*
   {0x20304,&kMassMultAdd2D<4,8>},    {0x20404,&kMassMultAdd2D<5,8>},
   {0x20405,&kMassMultAdd2D<5,10>},   {0x20505,&kMassMultAdd2D<6,10>},

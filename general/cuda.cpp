@@ -20,7 +20,7 @@ namespace mfem
 #define CU_STUB(...) return __VA_ARGS__
 
 #else
-#define CU_STUB(...) (assert(false),return 0;);
+#define CU_STUB(...) (assert(false),0);
 #endif
 
 // *****************************************************************************
@@ -28,7 +28,6 @@ namespace mfem
 // *****************************************************************************
 int okMemAlloc(void** dptr, size_t bytes)
 {
-   //dbg("\033[31;7mokMemAlloc");
    CU_STUB(cuMemAlloc((CUdeviceptr*)dptr, bytes));
 }
 
@@ -36,7 +35,6 @@ int okMemAlloc(void** dptr, size_t bytes)
 // * Frees device memory
 // *****************************************************************************
 int okMemFree(void *dptr) {
-   //dbg("\033[31;7mokMemFree");
    CU_STUB(cuMemFree((CUdeviceptr)dptr));
 }
 
@@ -45,7 +43,6 @@ int okMemFree(void *dptr) {
 // *****************************************************************************
 int okMemcpyHtoD(void* dst, const void* src, size_t bytes)
 {
-   //dbg("\033[31;7mHtoD");
    CU_STUB(cuMemcpyHtoD((CUdeviceptr)dst, src, bytes));
 }
 
@@ -54,7 +51,6 @@ int okMemcpyHtoD(void* dst, const void* src, size_t bytes)
 // *****************************************************************************
 int okMemcpyHtoDAsync(void* dst, const void* src, size_t bytes, void *s)
 {
-   //dbg("\033[31;7mHtoDAsync");
    CU_STUB(cuMemcpyHtoDAsync((CUdeviceptr)dst, src, bytes, (CUstream)s));
 }
 
@@ -63,7 +59,6 @@ int okMemcpyHtoDAsync(void* dst, const void* src, size_t bytes, void *s)
 // *****************************************************************************
 int okMemcpyDtoD(void* dst, void* src, size_t bytes)
 {
-   //dbg("\033[31;7mDtoD");
    CU_STUB(cuMemcpyDtoD((CUdeviceptr)dst, (CUdeviceptr)src, bytes));
 }
 
@@ -72,7 +67,6 @@ int okMemcpyDtoD(void* dst, void* src, size_t bytes)
 // *****************************************************************************
 int okMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s)
 {
-   //dbg("\033[31;7mDtoDAsync");
    CU_STUB(cuMemcpyDtoDAsync((CUdeviceptr)dst,
                              (CUdeviceptr)src, bytes, (CUstream)s));
 }
@@ -82,7 +76,6 @@ int okMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s)
 // *****************************************************************************
 int okMemcpyDtoH(void* dst, const void* src, size_t bytes)
 {
-   //dbg("\033[31;7mDtoH");
    CU_STUB(cuMemcpyDtoH(dst, (CUdeviceptr)src, bytes));
 }
 
@@ -91,7 +84,6 @@ int okMemcpyDtoH(void* dst, const void* src, size_t bytes)
 // *****************************************************************************
 int okMemcpyDtoHAsync(void* dst, void* src, size_t bytes, void *s)
 {
-   //dbg("\033[31;7mDtoHAsync");
    CU_STUB(cuMemcpyDtoHAsync(dst, (CUdeviceptr)src, bytes, (CUstream)s));
 }
 

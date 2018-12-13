@@ -21,23 +21,24 @@ namespace mfem
 // *****************************************************************************
 typedef struct
 {
-   bool host = true;
-   size_t bytes = 0;
-   void *h_adrs = NULL;
-   void *d_adrs = NULL;
+   bool host;
+   size_t bytes;
+   void *h_adrs;
+   void *d_adrs;
    OccaMemory o_adrs;
+   std::list<const void*> aliases;
 } memory_t;
 
 // *****************************************************************************
 typedef struct
 {
-   void *base = NULL;
-   void *adrs = NULL;
-   size_t offset = 0;
+   const void *base;
+   const void *adrs;
+   size_t offset;
 } alias_t;
 
 // *****************************************************************************
-// * Mapping from one host_@ to its mm2dev_t
+// * Mapping from one host_@ to its memory_t
 // *****************************************************************************
 typedef std::unordered_map<const void*, memory_t> memory_map_t;
 typedef std::unordered_map<const void*, alias_t> alias_map_t;
@@ -47,34 +48,53 @@ typedef std::unordered_map<const void*, alias_t> alias_map_t;
 // *****************************************************************************
 class mm
 {
-protected:
+private:
    memory_map_t *memories = NULL;
    alias_map_t  *aliases = NULL;
 private:
    mm() {}
    mm(mm const&);
    void operator=(mm const&);
-public:
+private:
    static mm& Get()
    {
       static mm singleton;
       return singleton;
    }
 private:
+   // **************************************************************************
    void Setup();
-   const void* InsertAlias(const void*, const void*);
-   void *Insert(const void*, const size_t, const size_t, const void* = NULL);
-   void *Erase(void*);
-   const void *Range(const void*);
-   bool Alias(const void*);
-   bool Known(const void*);
-   void Sync_p(const void*);
+   bool Known(const void *adrs);
+   bool Alias(const void *adrs);
+   const void *Range(const void *adrs);
+   const void* InsertAlias(const void *base, const void *adrs);
+   void *Insert(void *adrs, const size_t bytes);
+   void *Erase(void *adrs);
+   void* AdrsKnown(void *adrs);
+   void* AdrsAlias(void *adrs);
+   void PushKnown(const void *adrs, const size_t bytes =0);
+   void PushAlias(const void *adrs, const size_t bytes =0);
+   void PullKnown(const void *adrs, const size_t bytes =0);
+   void PullAlias(const void *adrs, const size_t bytes =0);
+private:
+   void* Adrs(void *adrs);
+   const void* Adrs(const void *adrs);
+   OccaMemory Memory(const void *adrs);
+   void Push(const void *adrs, const size_t bytes =0);
+   void Pull(const void *adrs, const size_t bytes =0);
+   void Dump();
 public:
    // **************************************************************************
+   // * Main malloc template function
+   // * Allocates n*size bytes and returns a pointer to the allocated memory
+   // **************************************************************************
    template<class T>
-   static inline T* malloc(const size_t size, const size_t size_of_T = sizeof(T))
-   { return (T*) mm::Get().Insert(::new T[size], size, size_of_T); }
+   static inline T* malloc(const size_t n, const size_t size = sizeof(T))
+   { return (T*) Get().Insert(::new T[n], n*size); }
    
+   // **************************************************************************
+   // * Frees the memory space pointed to by ptr, which must have been
+   // * returned by a previous call to mm::malloc
    // **************************************************************************
    template<class T>
    static inline void free(void *ptr)
@@ -86,29 +106,20 @@ public:
    }
 
    // **************************************************************************
-   void* Adrs(const void*);
-   OccaMemory Memory(const void*);
-
+   // * Translates adrs to host or device address,
+   // * depending on config::Cuda() and the adrs' state
    // **************************************************************************
-   static void Sync(const void *adrs) { mm::Get().Sync_p(adrs); }
+   static inline void* adrs(void *a) { return Get().Adrs(a); }
+   static inline const void* adrs(const void *a) { return Get().Adrs(a); }
+
+   static inline void push(const void *adrs, const size_t bytes =0){
+      return Get().Push(adrs, bytes);
+   }
    
-   // **************************************************************************
-   void Push(const void*, const size_t =0);
+   static inline void pull(const void *adrs, const size_t bytes =0){
+      return Get().Pull(adrs, bytes);
+   }
 
-   // **************************************************************************
-   void Pull(const void*, const size_t =0);
-
-   // **************************************************************************
-   static void* H2D(void*, const void*, size_t, const bool =false);
-
-   // ***************************************************************************
-   static void* D2H(void*, const void*, size_t, const bool =false);
-
-   // **************************************************************************
-   static void* D2D(void*, const void*, size_t, const bool =false);
-
-   // **************************************************************************
-   static void* memcpy(void*, const void*, size_t);
 };
 
 // *****************************************************************************
