@@ -71,7 +71,6 @@ kDofQuadMaps* kDofQuadMaps::GetTensorMaps(const FiniteElement& trialFE,
                                           const IntegrationRule& ir,
                                           const bool transpose)
 {
-   push();
    const TensorBasisElement& trialTFE =
       dynamic_cast<const TensorBasisElement&>(trialFE);
    const TensorBasisElement& testTFE =
@@ -109,7 +108,6 @@ kDofQuadMaps* kDofQuadMaps::GetD2QTensorMaps(const FiniteElement& fe,
                                              const IntegrationRule& ir,
                                              const bool transpose)
 {
-   push();
    const IntegrationRule& ir1D = IntRules.Get(Geometry::SEGMENT,ir.GetOrder());
 
    const int dims = fe.GetDim();
@@ -214,7 +212,6 @@ kDofQuadMaps* kDofQuadMaps::GetSimplexMaps(const FiniteElement& trialFE,
                                            const IntegrationRule& ir,
                                            const bool transpose)
 {
-   push();
    std::stringstream ss;
    ss << "SimplexMap:"
       << " O1:" << trialFE.GetOrder()
@@ -244,7 +241,6 @@ kDofQuadMaps* kDofQuadMaps::GetD2QSimplexMaps(const FiniteElement& fe,
                                               const IntegrationRule& ir,
                                               const bool transpose)
 {
-   push();
    const int dims = fe.GetDim();
    const int numDofs = fe.GetDof();
    const int numQuad = ir.GetNPoints();

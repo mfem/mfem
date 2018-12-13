@@ -39,7 +39,6 @@ kFiniteElementSpace::kFiniteElementSpace(FiniteElementSpace *f)
     indices(localDofs, f->GetNE()),
     map(localDofs, f->GetNE())
 {
-   push();
    const FiniteElement *fe = f->GetFE(0);
    const TensorBasisElement* el = dynamic_cast<const TensorBasisElement*>(fe);
    const Array<int> &dof_map = el->GetDofMap();

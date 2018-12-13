@@ -73,10 +73,10 @@ public:
    Vector (double *_data, int _size);
 
    /// Copies data from host to device
-   void vH2D() const;
+   void Push() const;
 
    /// Copies data from device to host
-   void vD2H() const;
+   void Pull() const;
 
    /// Reads a vector from multiple files
    void Load (std::istream ** in, int np, int * dim);

@@ -46,7 +46,7 @@ class BilinearPAFormIntegrator : public AbstractBilinearFormIntegrator
 {
 public:
    BilinearPAFormIntegrator(const IntegrationRule *ir = NULL) :
-      AbstractBilinearFormIntegrator(ir) { push(); }
+      AbstractBilinearFormIntegrator(ir) { }
    virtual void Setup(const FiniteElementSpace*, const IntegrationRule*) {assert(false);}
    virtual void Assemble() {assert(false);}
    virtual void MultAdd(Vector&, Vector&) {assert(false);}
@@ -64,7 +64,7 @@ class PAMassIntegrator: public BilinearPAFormIntegrator
 private:
    KMassIntegrator *mass = NULL;
 public:
-   PAMassIntegrator () : BilinearPAFormIntegrator(), mass(NULL) {push();}
+   PAMassIntegrator () : BilinearPAFormIntegrator(), mass(NULL) { }
    void Setup(const FiniteElementSpace*, const IntegrationRule*);
    void Assemble();
    void SetOperator(Vector&);

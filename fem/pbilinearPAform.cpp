@@ -36,10 +36,10 @@ ParPABilinearForm::ParPABilinearForm(ParFiniteElementSpace *fes) :
    testFes(fes),
    localX(mesh->GetNE() * trialFes->GetFE(0)->GetDof() * trialFes->GetVDim()),
    localY(mesh->GetNE() * testFes->GetFE(0)->GetDof() * testFes->GetVDim()),
-   kfes(new kFiniteElementSpace(static_cast<FiniteElementSpace*>(fes))) { push();}
+   kfes(new kFiniteElementSpace(static_cast<FiniteElementSpace*>(fes))) { }
 
 // ***************************************************************************
-ParPABilinearForm::~ParPABilinearForm() { push();/*delete kfes;*/}
+ParPABilinearForm::~ParPABilinearForm() { delete kfes; }
 
 // *****************************************************************************
 void ParPABilinearForm::EnableStaticCondensation() { assert(false);}
@@ -48,7 +48,6 @@ void ParPABilinearForm::EnableStaticCondensation() { assert(false);}
 // Adds new Domain Integrator.
 void ParPABilinearForm::AddDomainIntegrator(AbstractBilinearFormIntegrator *i)
 {
-   push();
    integrators.Append(static_cast<BilinearPAFormIntegrator*>(i));
 }
 
@@ -101,7 +100,6 @@ static const IntegrationRule &DiffusionGetRule(const FiniteElement &trial_fe,
 // ***************************************************************************
 void ParPABilinearForm::Assemble(int skip_zeros)
 {
-   push();
    //const int nbi = integrators.Size();
    assert(integrators.Size()==1);
    const FiniteElement &fe = *fes->GetFE(0);
@@ -120,7 +118,6 @@ void ParPABilinearForm::Assemble(int skip_zeros)
 void ParPABilinearForm::FormOperator(const Array<int> &ess_tdof_list,
                                      Operator &A)
 {
-   assert(false);
    const Operator* trialP = trialFes->GetProlongationMatrix();
    const Operator* testP  = testFes->GetProlongationMatrix();
    Operator *rap = this;
@@ -137,7 +134,6 @@ void ParPABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                                          Operator *&A, Vector &X, Vector &B,
                                          int copy_interior)
 {
-   push();
    const Operator* trialP = trialFes->GetProlongationMatrix();
    const Operator* testP  = testFes->GetProlongationMatrix();
    Operator *rap = this;
@@ -195,7 +191,6 @@ void ParPABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
 // ***************************************************************************
 void ParPABilinearForm::Mult(const Vector &x, Vector &y) const
 {
-   push();
    kfes->GlobalToLocal(x, localX);
    localY = 0.0;
    const int iSz = integrators.Size();
@@ -210,7 +205,6 @@ void ParPABilinearForm::Mult(const Vector &x, Vector &y) const
 // ***************************************************************************
 void ParPABilinearForm::MultTranspose(const Vector &x, Vector &y) const
 {
-   push();
    assert(false);
    kfes->GlobalToLocal(x, localX);
    localY = 0.0;
@@ -228,7 +222,6 @@ void ParPABilinearForm::RecoverFEMSolution(const Vector &X,
                                            const Vector &b,
                                            Vector &x)
 {
-   push();
    const Operator *P = trialFes->GetProlongationMatrix();
    if (P)
    {

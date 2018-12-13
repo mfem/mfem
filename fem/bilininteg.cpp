@@ -26,7 +26,6 @@ namespace mfem
 void PAMassIntegrator::Setup(const FiniteElementSpace *fes,
                              const IntegrationRule *ir)
 {
-   push();
    assert(ir);
    assert(not mass);
    mass = new KMassIntegrator(fes,ir);
@@ -35,7 +34,6 @@ void PAMassIntegrator::Setup(const FiniteElementSpace *fes,
 // *****************************************************************************
 void PAMassIntegrator::Assemble()
 {
-   push();
    assert(mass);
    mass->Assemble();
 }
@@ -43,7 +41,6 @@ void PAMassIntegrator::Assemble()
 // *****************************************************************************
 void PAMassIntegrator::SetOperator(Vector &op)
 {
-   push();
    assert(mass);
    mass->SetOperator(op);
 }
@@ -51,7 +48,6 @@ void PAMassIntegrator::SetOperator(Vector &op)
 // *****************************************************************************
 void PAMassIntegrator::MultAdd(Vector &x, Vector &y)
 {
-   //push();
    assert(mass);
    mass->MultAdd(x,y);
 }
@@ -62,7 +58,6 @@ void PAMassIntegrator::MultAdd(Vector &x, Vector &y)
 void PADiffusionIntegrator::Setup(const FiniteElementSpace *fes,
                                   const IntegrationRule *ir)
 {
-   push();
    assert(ir);
    assert(not diffusion);
    diffusion = new KDiffusionIntegrator(fes,ir);
@@ -71,7 +66,6 @@ void PADiffusionIntegrator::Setup(const FiniteElementSpace *fes,
 // *****************************************************************************
 void PADiffusionIntegrator::Assemble()
 {
-   push();
    assert(diffusion);
    diffusion->Assemble();
 }
@@ -79,7 +73,6 @@ void PADiffusionIntegrator::Assemble()
 // *****************************************************************************
 void PADiffusionIntegrator::MultAdd(Vector &x, Vector &y)
 {
-   //push();
    assert(diffusion);
    diffusion->MultAdd(x,y);
 }

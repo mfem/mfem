@@ -79,7 +79,7 @@ DenseMatrix::DenseMatrix(const DenseMatrix &m) : Matrix(m.height, m.width)
       MFEM_ASSERT(m.data, "invalid source matrix");
       data = mm::malloc<double>(hw);
       capacity = hw;
-      mm::memcpy(data, m.data, sizeof(double)*hw);
+      std::memcpy(data, m.data, sizeof(double)*hw);
    }
    else
    {

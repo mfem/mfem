@@ -17,6 +17,8 @@
 #include "../general/error.hpp"
 
 // *****************************************************************************
+//#include <map>
+#include <list>
 #include <cmath>
 #include <cassert>
 #include <cstring>
@@ -29,7 +31,6 @@
 
 // *****************************************************************************
 #include "mm.hpp"
-#include "kernels/mm.hpp"
 #include "config.hpp"
 
 // *****************************************************************************
@@ -63,11 +64,10 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 #define IROOT(D,N) ((D==1)?N:(D==2)?ISQRT(N):(D==3)?ICBRT(N):0)
 
 // *****************************************************************************
-#define GET_CUDA const bool cuda = config::Cuda();
-#define GET_ADRS(v) double *d_##v = (double*) mfem::mm::Get().Adrs(v)
-#define GET_ADRS_T(v,T) T *d_##v = (T*) mfem::mm::Get().Adrs(v)
-#define GET_CONST_ADRS(v) const double *d_##v = (const double*) mfem::mm::Get().Adrs(v)
-#define GET_CONST_ADRS_T(v,T) const T *d_##v = (const T*) mfem::mm::Get().Adrs(v)
+#define GET_ADRS(v) double *d_##v = (double*) mfem::mm::adrs(v)
+#define GET_ADRS_T(v,T) T *d_##v = (T*) mfem::mm::adrs(v)
+#define GET_CONST_ADRS(v) const double *d_##v =(const double*) mfem::mm::adrs(v)
+#define GET_CONST_ADRS_T(v,T) const T *d_##v = (const T*) mfem::mm::adrs(v)
 
 // *****************************************************************************
 #define BUILTIN_TRAP __builtin_trap()
@@ -93,11 +93,11 @@ void dbg_F_L_F_N_A(const char*, const int, const char*, const int, ...);
 #define N_ARGS(...) X_ARGS(,##__VA_ARGS__,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0)
 #define __FILENAME__ ({const char *f=strrnchr(__FILE__,'/',2);f?f+1:__FILE__;})
 #define _F_L_F_ __FILENAME__,__LINE__,__FUNCTION__
-#define dbg(...) dbg_F_L_F_N_A(_F_L_F_, N_ARGS(__VA_ARGS__),__VA_ARGS__)
 
 // *****************************************************************************
-#define pop(...)
-#define push(...) dbg_F_L_F_N_A(_F_L_F_,0)
+//#define pop(...)
+//#define push(...) dbg_F_L_F_N_A(_F_L_F_,0)
+#define dbg(...) //dbg_F_L_F_N_A(_F_L_F_, N_ARGS(__VA_ARGS__),__VA_ARGS__)
 
 // *****************************************************************************
 //#define stop(...) assert(false)
