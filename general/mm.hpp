@@ -56,7 +56,7 @@ private:
    mm(mm const&);
    void operator=(mm const&);
 private:
-   static mm& Get()
+   static inline mm& Get()
    {
       static mm singleton;
       return singleton;
@@ -64,8 +64,8 @@ private:
 private:
    // **************************************************************************
    void Setup();
-   bool Known(const void *adrs);
-   bool Alias(const void *adrs);
+   inline bool Known(const void *adrs);
+   inline bool Alias(const void *adrs);
    const void *Range(const void *adrs);
    const void* InsertAlias(const void *base, const void *adrs);
    void *Insert(void *adrs, const size_t bytes);

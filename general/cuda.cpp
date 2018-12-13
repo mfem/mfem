@@ -20,7 +20,12 @@ namespace mfem
 #define CU_STUB(...) return __VA_ARGS__
 
 #else
-#define CU_STUB(...) (assert(false),0);
+#define CU_STUB(...) {                                                  \
+      printf("No CUDA available!\n");                                   \
+      fflush(0);                                                        \
+      exit(-1);                                                         \
+      return 0;                                                         \
+   }
 #endif
 
 // *****************************************************************************

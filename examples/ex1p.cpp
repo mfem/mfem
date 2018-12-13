@@ -172,8 +172,9 @@ int main(int argc, char *argv[])
    b->Assemble();
 
    pmesh->SetCurvature(1, false, -1, Ordering::byVDIM);
-   if (gpu) { config::Get().Cuda(true); }
-   if (pa)  { config::Get().PA(true);   }
+   if (gpu) { config::Cuda(true); }
+   if (pa)  { config::PA(true);   }
+   config::Setup();
 
    // 9. Define the solution vector x as a parallel finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
