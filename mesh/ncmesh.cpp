@@ -1532,7 +1532,10 @@ void NCMesh::InitRootState(int root_count)
    for (int i = 0; i < root_count; i++)
    {
       Element &el = elements[i];
+      if (el.ref_type) { continue; } // TODO: what to do with already refined meshes?
+
       int v_in = find_node(el, entry_node, false);
+      if (v_in < 0) { v_in = 0; }
 
       // determine which nodes are shared with the next element
       bool shared[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
@@ -1544,12 +1547,6 @@ void NCMesh::InitRootState(int root_count)
             int node = find_node(el, next.node[j], false);
             if (node >= 0) { shared[node] = true; }
          }
-      }
-
-      if (v_in < 0)
-      {
-         // TODO look at shared
-         v_in = 0;
       }
 
       // select orientation that starts in v_in and exits in shared node
@@ -3277,10 +3274,9 @@ static void HilbertSfc3D(int x, int y, int z,
    }
 }
 
-
-void NCMesh::GridSfcOrdering2D(int width, int height, Array<int> &ordering)
+void NCMesh::GridSfcOrdering2D(int width, int height, Array<int> &coords)
 {
-   Array<int> coords;
+   coords.SetSize(0);
    coords.Reserve(2*width*height);
 
    if (width >= height)
@@ -3291,15 +3287,12 @@ void NCMesh::GridSfcOrdering2D(int width, int height, Array<int> &ordering)
    {
       HilbertSfc2D(0, 0, 0, height, width, 0, coords);
    }
-
-   coords.Print(mfem::out, 2); // debug
 }
 
-
 void NCMesh::GridSfcOrdering3D(int width, int height, int depth,
-                               Array<int> &ordering)
+                               Array<int> &coords)
 {
-   Array<int> coords;
+   coords.SetSize(0);
    coords.Reserve(3*width*height*depth);
 
    if (width >= height && width >= depth)
@@ -3323,8 +3316,6 @@ void NCMesh::GridSfcOrdering3D(int width, int height, int depth,
                    width, 0, 0,
                    0, height, 0, coords);
    }
-
-   coords.Print(mfem::out, 3); // debug
 }
 
 
