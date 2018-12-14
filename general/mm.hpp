@@ -33,7 +33,6 @@ typedef struct
 typedef struct
 {
    const void *base;
-   const void *adrs;
    size_t offset;
 } alias_t;
 
@@ -42,6 +41,8 @@ typedef struct
 // *****************************************************************************
 typedef std::unordered_map<const void*, memory_t> memory_map_t;
 typedef std::unordered_map<const void*, alias_t> alias_map_t;
+typedef struct { memory_map_t *memories; alias_map_t *aliases; } mm_t;
+typedef memory_map_t::iterator mm_iterator_t;
 
 // *****************************************************************************
 // * Memory Manager Singleton
@@ -49,40 +50,24 @@ typedef std::unordered_map<const void*, alias_t> alias_map_t;
 class mm
 {
 private:
-   memory_map_t *memories = NULL;
-   alias_map_t  *aliases = NULL;
+   memory_map_t *memories;
+   alias_map_t  *aliases;
+   mm_t *maps;
 private:
-   mm() {}
+   mm(): memories(new memory_map_t), aliases(new alias_map_t()),
+         maps(new mm_t({memories, aliases})) {}
    mm(mm const&);
    void operator=(mm const&);
-private:
-   static inline mm& Get()
-   {
-      static mm singleton;
-      return singleton;
-   }
+   static inline mm& MM() { static mm singleton; return singleton; }
 private:
    // **************************************************************************
-   void Setup();
-   inline bool Known(const void *adrs);
-   inline bool Alias(const void *adrs);
-   const void *Range(const void *adrs);
-   const void* InsertAlias(const void *base, const void *adrs);
    void *Insert(void *adrs, const size_t bytes);
    void *Erase(void *adrs);
-   void* AdrsKnown(void *adrs);
-   void* AdrsAlias(void *adrs);
-   void PushKnown(const void *adrs, const size_t bytes =0);
-   void PushAlias(const void *adrs, const size_t bytes =0);
-   void PullKnown(const void *adrs, const size_t bytes =0);
-   void PullAlias(const void *adrs, const size_t bytes =0);
-private:
    void* Adrs(void *adrs);
    const void* Adrs(const void *adrs);
-   OccaMemory Memory(const void *adrs);
+private:
    void Push(const void *adrs, const size_t bytes =0);
    void Pull(const void *adrs, const size_t bytes =0);
-   void Dump();
 public:
    // **************************************************************************
    // * Main malloc template function
@@ -90,7 +75,7 @@ public:
    // **************************************************************************
    template<class T>
    static inline T* malloc(const size_t n, const size_t size = sizeof(T))
-   { return (T*) Get().Insert(::new T[n], n*size); }
+   { return (T*) MM().Insert(::new T[n], n*size); }
    
    // **************************************************************************
    // * Frees the memory space pointed to by ptr, which must have been
@@ -100,24 +85,26 @@ public:
    static inline void free(void *ptr)
    {
       if (!ptr) { return; }
-      void *back = mm::Get().Erase(ptr);
-      ::delete[] static_cast<T*>(back);
-      back = nullptr;
+      void *adrs = mm::MM().Erase(ptr);
+      ::delete[] static_cast<T*>(adrs);
+      adrs = nullptr;
    }
 
    // **************************************************************************
    // * Translates adrs to host or device address,
    // * depending on config::Cuda() and the adrs' state
    // **************************************************************************
-   static inline void* adrs(void *a) { return Get().Adrs(a); }
-   static inline const void* adrs(const void *a) { return Get().Adrs(a); }
+   static inline void* adrs(void *a) { return MM().Adrs(a); }
+   static inline const void* adrs(const void *a) { return MM().Adrs(a); }
 
+   // **************************************************************************
    static inline void push(const void *adrs, const size_t bytes =0){
-      return Get().Push(adrs, bytes);
+      return MM().Push(adrs, bytes);
    }
-   
+
+   // **************************************************************************
    static inline void pull(const void *adrs, const size_t bytes =0){
-      return Get().Pull(adrs, bytes);
+      return MM().Pull(adrs, bytes);
    }
 
    // **************************************************************************
