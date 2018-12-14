@@ -47,9 +47,11 @@ void f_exact(const Vector &, Vector &);
 double freq = 1.0, kappa;
 int dim;
 
-#define SIGMAVAL -1000.0
+#define SIGMAVAL -250.0
 //#define FORM_DEFINITE
-//#define SOLVE_A2
+#define SOLVE_A2
+#define ITER_A2
+
 
 int main(int argc, char *argv[])
 {
@@ -115,7 +117,7 @@ int main(int argc, char *argv[])
    //    more than 1,000 elements.
    {
       int ref_levels =
-         (int)floor(log(1000000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(100000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -160,7 +162,8 @@ int main(int argc, char *argv[])
    if (myid == 0)
    {
      cout << "Number of mesh elements: " << globalNE << endl;
-      cout << "Number of finite element unknowns: " << size << endl;
+     cout << "Number of finite element unknowns: " << size << endl;
+     cout << "Root local number of finite element unknowns: " << fespace->TrueVSize() << endl;
    }
    
    // 7. Determine the list of true (i.e. parallel conforming) essential
@@ -214,6 +217,33 @@ int main(int argc, char *argv[])
    HypreParMatrix Adef;
    Vector Bdef, Xdef;
    adef->FormLinearSystem(ess_tdof_list, x, *b, Adef, Xdef, Bdef);
+#endif
+
+#ifdef ITER_A2
+   Vector Bdef, Xdef;
+   
+   ParBilinearForm *Mform =  new ParBilinearForm(fespace);
+   Mform->AddDomainIntegrator(new VectorFEMassIntegrator(*sigmaAbs));
+   Mform->Assemble();
+   
+   Mform->Finalize();
+
+   HypreParMatrix Mmat, Mcopy;
+   Mform->FormLinearSystem(ess_tdof_list, x, *b, Mmat, Xdef, Bdef);
+   Mform->FormLinearSystem(ess_tdof_list, x, *b, Mcopy, Xdef, Bdef);  // There must be a better way to implement M^2.
+
+   /*
+   HypreParMatrix *Mmat = Mform->ParallelAssemble();
+   HypreParMatrix *Mcopy = Mform->ParallelAssemble();  // There must be a better way to implement M^2.
+   */
+   
+   ParBilinearForm *Sform =  new ParBilinearForm(fespace);
+   Sform->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
+   Sform->Assemble();
+
+   HypreParMatrix Smat, Scopy;
+   Sform->FormLinearSystem(ess_tdof_list, x, *b, Smat, Xdef, Bdef);
+   Sform->FormLinearSystem(ess_tdof_list, x, *b, Scopy, Xdef, Bdef);
 #endif
    
    // 11. Assemble the parallel bilinear form and the corresponding linear
@@ -309,9 +339,116 @@ int main(int argc, char *argv[])
 	       ams2->Mult(B, Xtmp);  // Just a hack to get ams to run its setup function. There should be a better way.
 	     }
 
-	     HypreIAMS *iams2 = new HypreIAMS(*A2, (HypreAMS*) ams2, argc, argv);
-	     gmres->SetPreconditioner(*iams2);
+#ifdef ITER_A2
+	     // Iteratively solve 0.5 (A^2 + S^2 + M^2) u^{k+1} = 0.5 (SM + MS) u^k + Ab 
+
+	     StopWatch chronoIterA2;
+	     chronoIterA2.Clear();
+	     chronoIterA2.Start();
+
+	     HypreParMatrix * M2 = ParMult(&Mmat, &Mcopy);
+	     HypreParMatrix * S2 = ParMult(&Smat, &Scopy);
+
+	     HypreParMatrix * MS = ParMult(&Mmat, &Scopy);
+	     HypreParMatrix * SM = ParMult(&Smat, &Mcopy);
+
+             HypreParMatrix * Bmat = ParAdd(SM, MS);
+	     (*Bmat) *= 0.5;
+	     
+	     // TODO: there must be a better way to form a sum of three matrices. Of course, we could define an operator that does 3 mat-vecs. 
+             //HypreParMatrix * S2M2 = ParAdd(S2, M2);
+	     //HypreParMatrix * iterMat = ParAdd(A2, S2M2);
+	     HypreParMatrix * iterMat = ParAdd(A2, Bmat);
+	     
+	     chronoIterA2.Stop();
+	     cout << "Iter A2 setup time " << chronoIterA2.RealTime() << endl;
+
+	     /*
+	     HypreSolver *ams3 = new HypreAMS(*iterMat, prec_fespace);
+	     {
+	       Vector Xtmp(X);
+	       ams3->Mult(B, Xtmp);  // Just a hack to get ams to run its setup function. There should be a better way.
+	     }
+	     */
+	     	     
+	     /*
+	     // GMRES
+	     gmres->SetOperator(*iterMat);
+	     gmres->SetPreconditioner(*ams2);
+	     */
+	     
+
+	     //HypreBoomerAMG *amg = new HypreBoomerAMG(*iterMat);
+	     HypreBoomerAMG *amg = new HypreBoomerAMG(*A2);
+
+	     // PCG
+	     HyprePCG *pcg = new HyprePCG(*iterMat);
+	     //HyprePCG *pcg = new HyprePCG(*A2);
+	     pcg->SetTol(1e-12);
+	     pcg->SetMaxIter(10);
+	     pcg->SetPrintLevel(2);
+	     pcg->SetPreconditioner(*amg);
+
+	     /*
+	     // Strumpack linear solver
+	     Operator * Arow = new STRUMPACKRowLocMatrix(*iterMat);
+
+	     STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
+	     strumpack->SetPrintFactorStatistics(true);
+	     strumpack->SetPrintSolveStatistics(false);
+	     strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+	     strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+	     strumpack->SetOperator(*Arow);
+	     strumpack->SetFromCommandLine();
+	     */
+	     
+	     Vector iterRHS(AB);
+	     Vector iterU(AB);
+	     Vector iterU0(AB);
+
+	     iterU = 0.0;
+	     iterU0 = 0.0;
+	     
+	     bool iterate = true;
+	     int numIter = 0;
+	     while (iterate)
+	       {
+		 iterRHS = iterU;
+		 iterRHS.Add(-1.0, iterU0);
+
+		 cout << "Iteration " << numIter + 1 << ": diff norm " << iterRHS.Norml2() << endl;
+		 
+		 iterU0 = iterU;
+
+		 Bmat->Mult(iterU0, iterRHS);
+		 //iterRHS.Add(2.0, AB);
+		 iterRHS.Add(1.0, AB);
+				 
+		 //gmres->Mult(iterRHS, iterU);
+		 pcg->Mult(iterRHS, iterU);
+		 //strumpack->Mult(iterRHS, iterU);
+
+		 numIter++;
+
+		 if (numIter > 100)
+		   iterate = false;
+	       }
+
+	     //delete strumpack;
+	     //delete Arow;
+
+	     delete pcg;
+
+	     X = iterU;
+#else
+	     //HypreIAMS *iams2 = new HypreIAMS(*A2, (HypreAMS*) ams2, argc, argv);
+	     //gmres->SetPreconditioner(*iams2);
+	     cout << myid << ": Solving" << endl;
+	     gmres->SetPreconditioner(*ams2);
 	     gmres->Mult(AB, X);
+	     cout << myid << ": Solved" << endl;
+	     return 3;
+#endif
 	   }
 #else
 	   gmres->SetPreconditioner(*iams);
@@ -357,7 +494,7 @@ int main(int argc, char *argv[])
      }
    
    chrono.Stop();
-   cout << "Solver time " << chrono.RealTime() << endl;
+   cout << myid << ": Solver time " << chrono.RealTime() << endl;
 
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
