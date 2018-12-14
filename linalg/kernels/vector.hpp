@@ -49,6 +49,7 @@ void kVectorOpAdd(const size_t, const double, const double*, double*);
 void kVectorOpSubtract(const size_t, const double*, double*);
 
 void kAddElementVector(const size_t, const int*, const double*, double*);
+void kAddElementVectorAlpha(const size_t, const int*, const double*, double*, const double);
 
 }
 
