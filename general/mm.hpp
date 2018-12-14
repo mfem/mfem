@@ -17,30 +17,32 @@ namespace mfem
 {
 
 // *****************************************************************************
-// * mm2dev_t: memory manager host_@ to device_@
+class alias_t;
+
 // *****************************************************************************
-typedef struct
-{
+class memory_t {
+public:
    bool host;
-   size_t bytes;
-   void *h_adrs;
-   void *d_adrs;
+   const size_t bytes;
+   void* const h_adrs;
+   void* d_adrs;
    OccaMemory o_adrs;
-   std::list<const void*> aliases;
-} memory_t;
+   std::list<const alias_t* const> aliases;
+   memory_t(void* const h, const size_t b):
+      host(true), bytes(b), h_adrs(h), d_adrs(NULL), aliases() {}
+};
 
 // *****************************************************************************
-typedef struct
-{
-   const void *base;
-   size_t offset;
-} alias_t;
+class alias_t {
+public:
+   memory_t* const mem;
+   const size_t offset;
+   alias_t(memory_t* const m, const size_t o):mem(m), offset(o) {}
+};
 
 // *****************************************************************************
-// * Mapping from one host_@ to its memory_t
-// *****************************************************************************
-typedef std::unordered_map<const void*, memory_t> memory_map_t;
-typedef std::unordered_map<const void*, alias_t> alias_map_t;
+typedef std::unordered_map<const void*, memory_t*> memory_map_t;
+typedef std::unordered_map<const void*, alias_t*> alias_map_t;
 typedef struct { memory_map_t *memories; alias_map_t *aliases; } mm_t;
 typedef memory_map_t::iterator mm_iterator_t;
 
@@ -66,6 +68,7 @@ private:
    void* Adrs(void *adrs);
    const void* Adrs(const void *adrs);
 private:
+   // **************************************************************************
    void Push(const void *adrs, const size_t bytes =0);
    void Pull(const void *adrs, const size_t bytes =0);
 public:

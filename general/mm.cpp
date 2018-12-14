@@ -27,8 +27,7 @@ static bool Known(const mm_t *maps, const void *adrs)
 }
 
 // *****************************************************************************
-// * Looks if adrs is in one mapping's range
-// * Returns base address if it is a hit, NULL otherwise
+// * Looks if adrs is an alias of one memory
 // *****************************************************************************
 static const void* IsAlias(const mm_t *maps, const void *adrs)
 {
@@ -36,7 +35,7 @@ static const void* IsAlias(const mm_t *maps, const void *adrs)
        mem != maps->memories->end(); mem++) {
       const void *b_adrs = mem->first;
       if (b_adrs > adrs) continue;
-      const void *end = (char*)b_adrs + mem->second.bytes;
+      const void *end = (char*)b_adrs + mem->second->bytes;
       if (adrs < end) return b_adrs;
    }
    return NULL;
@@ -47,18 +46,12 @@ static const void* InsertAlias(const mm_t *maps,
                                const void *base,
                                const void *adrs)
 {
-   alias_t &alias = maps->aliases->operator[](adrs);
-   alias.base = base;
    assert(adrs > base);
-   alias.offset = (char*)adrs - (char*)base;
-   const size_t offset = alias.offset;
-   memory_t &mem = maps->memories->at(base);
-   const size_t b_bytes = mem.bytes;
-   assert(offset < b_bytes);
-   dbg("\033[33m%p < (\033[37m%ld) < \033[33m%p < (\033[37m%ld)",
-       base, offset, adrs, b_bytes);
-   // Add alias info in the base
-   mem.aliases.push_back(adrs);
+   memory_t *mem = maps->memories->at(base);
+   const size_t offset = (char*)adrs - (char*)base;
+   maps->aliases->operator[](adrs) = new alias_t(mem, offset);
+   const alias_t *alias = maps->aliases->at(adrs);
+   mem->aliases.push_back(alias);
    return adrs;
 }
 
@@ -70,12 +63,9 @@ static bool Alias(const mm_t *maps, const void *adrs)
    const auto found = maps->aliases->find(adrs);
    const bool alias = found != maps->aliases->end();
    if (alias) return true;
-   MFEM_ASSERT(not Known(maps, adrs),
-               "[ERROR] Alias is a known base address!");
-   // Test if it is in a memory range
+   MFEM_ASSERT(not Known(maps, adrs), "Alias is a known base address!");
    const void *base = IsAlias(maps, adrs);
    if (not base) return false;
-   assert(base != adrs);
    InsertAlias(maps, base, adrs);
    return true;   
 }
@@ -86,14 +76,9 @@ static bool Alias(const mm_t *maps, const void *adrs)
 void* mm::Insert(void *adrs, const size_t bytes)
 {
    const bool known = Known(maps, adrs);
-   MFEM_ASSERT(not known, "[ERROR] Trying to add already present address!");
+   MFEM_ASSERT(not known, "Trying to add already present address!");
    dbg("\033[33m%p \033[35m(%ldb)", adrs, bytes);
-   memory_t &mem = memories->operator[](adrs);
-   mem.host = true;
-   mem.bytes = bytes;
-   mem.h_adrs = adrs;
-   mem.d_adrs = NULL;
-   mem.aliases.clear();
+   memory_t *mem = memories->operator[](adrs) = new memory_t(adrs,bytes);
    return adrs;
 }
 
@@ -104,81 +89,68 @@ void *mm::Erase(void *adrs)
 {
    const bool known = Known(maps, adrs);
    if (not known) { BUILTIN_TRAP; }
-   MFEM_ASSERT(known, "[ERROR] Trying to remove an unknown address!");
-   const memory_t &memory = memories->at(adrs);
-   dbg(" \033[31m%p \033[35m(%ldb)", mem.h_adrs, mem.bytes);
-   for (const void *alias : memory.aliases) {
-      dbg("\033[31;7mAlias @ %p", alias);
+   MFEM_ASSERT(known, "Trying to remove an unknown address!");
+   const memory_t *mem = memories->at(adrs);
+   for (const alias_t* const alias : mem->aliases) {
       aliases->erase(alias);
-   }   
+      delete alias;
+   }
    memories->erase(adrs);
    return adrs;
 }
 
 // *****************************************************************************
 static void* AdrsKnown(const mm_t *maps, void* adrs){
+   memory_t *base = maps->memories->at(adrs);
+   const bool host = base->host;
+   const size_t bytes = base->bytes;
+   const bool device = not base->host;
    const bool cuda = config::Cuda();
-   memory_t &base = maps->memories->at(adrs);
-   const bool host = base.host;
-   const bool device = not base.host;
-   const size_t bytes = base.bytes;
-   void *d_adrs = base.d_adrs;
    if (host and not cuda) { return adrs; }
-   if (not d_adrs)
-   {
-      MFEM_ASSERT(config::Nvcc(), "Trying to run without CUDA support!");
-      okMemAlloc(&base.d_adrs, bytes);
-      d_adrs = base.d_adrs;
-   }
-   // Now d_adrs can be used
-   if (device and cuda) { return d_adrs; }
+   MFEM_ASSERT(config::Nvcc(), "Trying to run without CUDA support!");
+   if (not base->d_adrs) { okMemAlloc(&base->d_adrs, bytes); }
+   if (device and cuda) { return base->d_adrs; }
    // Pull
    if (device and not cuda)
    {
-      okMemcpyDtoH(adrs, d_adrs, bytes);
-      base.host = true;
+      okMemcpyDtoH(adrs, base->d_adrs, bytes);
+      base->host = true;
       return adrs;
    }
    // Push
    assert(host and cuda);
-   okMemcpyHtoD(d_adrs, adrs, bytes);
-   base.host = false;
-   return d_adrs;   
+   okMemcpyHtoD(base->d_adrs, adrs, bytes);
+   base->host = false;
+   return base->d_adrs;   
 }
 
 // *****************************************************************************
 static void* AdrsAlias(mm_t *maps, void* adrs){
    const bool cuda = config::Cuda();
-   const alias_t alias = maps->aliases->at(adrs);
-   memory_t &base = maps->memories->at(alias.base);
-   const bool host = base.host;
-   const bool device = not base.host;
-   const size_t bytes = base.bytes;
-   void *d_adrs = base.d_adrs;
-   void *h_adrs = base.h_adrs;
-   const size_t offset = alias.offset;
+   const alias_t *alias = maps->aliases->at(adrs);
+   memory_t *base = alias->mem;
+   const bool host = base->host;
+   const bool device = not base->host;
+   const size_t bytes = base->bytes;
    if (host and not cuda) { return adrs; }
-   if (not d_adrs)
-   {
-      MFEM_ASSERT(config::Nvcc(), "Trying to run without CUDA support!");
-      okMemAlloc(&base.d_adrs, bytes);
-      d_adrs = base.d_adrs;
-   }
-   void *alias_result = (char*)d_adrs + offset;
-   if (device and cuda) { return alias_result; }
+   MFEM_ASSERT(config::Nvcc(), "Trying to run without CUDA support!");
+   if (not base->d_adrs) { okMemAlloc(&base->d_adrs, bytes); }
+   void *d_adrs = base->d_adrs;
+   void *a_adrs = (char*)d_adrs + alias->offset;
+   if (device and cuda) { return a_adrs; }
    // Pull
    if (device and not cuda)
    {
-      okMemcpyDtoH(h_adrs, d_adrs, bytes);
-      base.host = true;
+      okMemcpyDtoH(base->h_adrs, d_adrs, bytes);
+      base->host = true;
       assert(false);
       return adrs;
    }
    // Push
    assert(host and cuda);
-   okMemcpyHtoD(d_adrs, h_adrs, bytes);
-   base.host = false;   
-   return alias_result;
+   okMemcpyHtoD(d_adrs, base->h_adrs, bytes);
+   base->host = false;   
+   return a_adrs;
 }
 
 // *****************************************************************************
@@ -219,16 +191,16 @@ const void* mm::Adrs(const void *adrs){
 static void PushKnown(mm_t *maps, const void *adrs, const size_t bytes){
    const bool cuda = config::Cuda();
    if (not cuda) { return; }
-   memory_t &base = maps->memories->at(adrs);
-   void *d_adrs = base.d_adrs;
+   memory_t *base = maps->memories->at(adrs);
+   void *d_adrs = base->d_adrs;
    if (not d_adrs){
       MFEM_ASSERT(config::Nvcc(), "Trying to run without CUDA support!");
-      okMemAlloc(&base.d_adrs, base.bytes);
-      d_adrs = base.d_adrs;
+      okMemAlloc(&base->d_adrs, base->bytes);
+      d_adrs = base->d_adrs;
       assert(d_adrs);
    }
-   okMemcpyHtoD(d_adrs, adrs, bytes==0?base.bytes:bytes);
-   base.host = false;
+   okMemcpyHtoD(d_adrs, adrs, bytes==0?base->bytes:bytes);
+   base->host = false;
 }
 
 // *****************************************************************************
@@ -236,11 +208,11 @@ static void PushAlias(const mm_t *maps, const void *adrs, const size_t bytes){
    const bool cuda = config::Cuda();
    if (not cuda) { return; }
    assert(bytes > 0);
-   const alias_t &alias = maps->aliases->at(adrs);
-   memory_t &base = maps->memories->at(alias.base);
-   void *d_adrs = base.d_adrs;
+   const alias_t *alias = maps->aliases->at(adrs);
+   memory_t *base = alias->mem;
+   void *d_adrs = base->d_adrs;
    assert(d_adrs);
-   void *a_d_adrs = (char*)d_adrs + alias.offset;
+   void *a_d_adrs = (char*)d_adrs + alias->offset;
    okMemcpyHtoD(a_d_adrs, adrs, bytes);
 }
 
@@ -260,13 +232,13 @@ static void PullKnown(const mm_t *maps, const void *adrs, const size_t bytes){
    const bool cuda = config::Cuda();
    if (not cuda) { return; }
    assert(bytes > 0);
-   memory_t &base = maps->memories->at(adrs);
-   const bool host = base.host;
-   const void *d_adrs = base.d_adrs;
+   memory_t *base = maps->memories->at(adrs);
+   const bool host = base->host;
+   const void *d_adrs = base->d_adrs;
    if (host){ return; }
    assert(d_adrs);
-   okMemcpyDtoH(base.h_adrs, d_adrs, bytes==0?base.bytes:bytes);
-   base.host = true;
+   okMemcpyDtoH(base->h_adrs, d_adrs, bytes==0?base->bytes:bytes);
+   base->host = true;
 }
 
 // *****************************************************************************
@@ -274,11 +246,11 @@ static void PullAlias(const mm_t *maps, const void *adrs, const size_t bytes){
    const bool cuda = config::Cuda();
    if (not cuda) { return; }
    assert(bytes > 0);
-   const alias_t &alias = maps->aliases->at(adrs);
-   memory_t &base = maps->memories->at(alias.base);
-   void *d_adrs = base.d_adrs;
+   const alias_t *alias = maps->aliases->at(adrs);
+   const memory_t *base = alias->mem;
+   void *d_adrs = base->d_adrs;
    assert(d_adrs);
-   void *a_d_adrs = (char*)d_adrs + alias.offset;
+   void *a_d_adrs = (char*)d_adrs + alias->offset;
    okMemcpyDtoH((void*)adrs, a_d_adrs, bytes);
 }
 
@@ -306,34 +278,34 @@ static OccaMemory Memory(const mm_t *maps, const void *adrs)
 {
    const bool present = Known(maps, adrs);
    if (not present) { BUILTIN_TRAP; }
-   MFEM_ASSERT(present, "[ERROR] Trying to convert unknown address!");
+   MFEM_ASSERT(present, "Trying to convert unknown address!");
    const bool occa = config::Occa();
-   MFEM_ASSERT(occa, "[ERROR] Using OCCA memory without OCCA mode!");
-   memory_t &mm = maps->memories->at(adrs);
+   MFEM_ASSERT(occa, "Using OCCA memory without OCCA mode!");
+   memory_t *mem = maps->memories->at(adrs);
    const bool cuda = config::Cuda();
-   const size_t bytes = mm.bytes;
+   const size_t bytes = mem->bytes;
    OccaDevice device = config::OccaGetDevice();
-   if (not mm.d_adrs)
+   if (not mem->d_adrs)
    {
-      mm.host = false; // This address is no more on the host
+      mem->host = false; // This address is no more on the host
       if (cuda)
       {
-         okMemAlloc(&mm.d_adrs, bytes);
+         okMemAlloc(&mem->d_adrs, bytes);
          void *stream = config::Stream();
-         okMemcpyHtoDAsync(mm.d_adrs, mm.h_adrs, bytes, stream);
+         okMemcpyHtoDAsync(mem->d_adrs, mem->h_adrs, bytes, stream);
       }
       else
       {
-         mm.o_adrs = okDeviceMalloc(device, bytes);
-         mm.d_adrs = okMemoryPtr(mm.o_adrs);
-         okCopyFrom(mm.o_adrs, mm.h_adrs);
+         mem->o_adrs = okDeviceMalloc(device, bytes);
+         mem->d_adrs = okMemoryPtr(mem->o_adrs);
+         okCopyFrom(mem->o_adrs, mem->h_adrs);
       }
    }
    if (cuda)
    {
-      return okWrapMemory(device, mm.d_adrs, bytes);
+      return okWrapMemory(device, mem->d_adrs, bytes);
    }
-   return mm.o_adrs;
+   return mem->o_adrs;
 }
 
 // *****************************************************************************
@@ -345,9 +317,9 @@ static void Dump(mm_t *maps){
    size_t k = 0;
    for(memory_map_t::iterator m = mem->begin(); m != mem->end(); m++) {
       const void *h_adrs = m->first;
-      assert(h_adrs == m->second.h_adrs);
-      const size_t bytes = m->second.bytes;
-      const void *d_adrs = m->second.d_adrs;
+      assert(h_adrs == m->second->h_adrs);
+      const size_t bytes = m->second->bytes;
+      const void *d_adrs = m->second->d_adrs;
       if (not d_adrs){
          printf("\n[%ld] \033[33m%p \033[35m(%ld)", k, h_adrs, bytes);
       }else{
@@ -359,8 +331,8 @@ static void Dump(mm_t *maps){
    k = 0;
    for(alias_map_t::iterator a = als->begin(); a != als->end(); a++) {
       const void *adrs = a->first;
-      const size_t offset = a->second.offset;
-      const void *base = a->second.base;
+      const size_t offset = a->second->offset;
+      const void *base = a->second->mem->h_adrs;
       printf("\n[%ld] \033[33m%p < (\033[37m%ld) < \033[33m%p",k , base, offset, adrs);
       fflush(0);
       k++;
