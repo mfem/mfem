@@ -348,4 +348,24 @@ void kAddElementVector(const size_t n, const int *dofs,
 }
 
 // *****************************************************************************
+void kAddElementVectorAlpha(const size_t n, const int *dofs,
+                            const double *elem_data, double *data,
+                            const double alpha)
+{
+   GET_CONST_ADRS_T(dofs,int);
+   GET_CONST_ADRS(elem_data);
+   GET_ADRS(data);
+   MFEM_FORALL(i, n,
+   {
+      const int j = d_dofs[i];
+      if (j >= 0)
+         d_data[j] += d_elem_data[i];
+      else
+      {
+         d_data[-1-j] -= d_elem_data[i];
+      }
+   });
+}
+
+// *****************************************************************************
 } // mfem

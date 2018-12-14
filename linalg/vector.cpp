@@ -47,7 +47,7 @@ Vector::Vector(const Vector &v)
       MFEM_ASSERT(v.data, "invalid source vector");
       allocsize = size = s;
       data = mm::malloc<double>(s);
-      std::memcpy(data, v.data, sizeof(double)*s);
+      mm::memcpy(data, v.data, sizeof(double)*s);
    }
    else
    {
@@ -476,87 +476,46 @@ void Vector::GetSubVector(const Array<int> &dofs, Vector &elemvect) const
 {
    const int n = dofs.Size();
    elemvect.SetSize(n);
-   kVectorGetSubvector(n,elemvect,data,dofs);
+   kVectorGetSubvector(n, elemvect, data, dofs);
 }
 
 void Vector::GetSubVector(const Array<int> &dofs, double *elem_data) const
 {
-   const int n = dofs.Size();
-   kVectorGetSubvector(n,elem_data,data,dofs);
+   kVectorGetSubvector(dofs.Size(), elem_data, data,dofs);
 }
 
 void Vector::SetSubVector(const Array<int> &dofs, const double value)
 {
-   const int n = dofs.Size();
-   kVectorSetSubvector(n, data, value, dofs);
+   kVectorSetSubvector(dofs.Size(), data, value, dofs);
 }
 
 void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
 {
-   const int n = dofs.Size();
-   kVectorSetSubvector(n, data, elemvect, dofs);
+   kVectorSetSubvector(dofs.Size(), data, elemvect, dofs);
 }
 
 void Vector::SetSubVector(const Array<int> &dofs, double *elem_data)
 {
-   MFEM_GPU_CANNOT_PASS;
-   int i, j, n = dofs.Size();
-
-   for (i = 0; i < n; i++)
-   {
-      if ((j=dofs[i]) >= 0)
-      {
-         data[j] = elem_data[i];
-      }
-      else
-      {
-         data[-1-j] = -elem_data[i];
-      }
-   }
+   kVectorSetSubvector(dofs.Size(), data, elem_data, dofs);
 }
 
 void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
 {
-   MFEM_GPU_CANNOT_PASS;
    MFEM_ASSERT(dofs.Size() == elemvect.Size(), "Size mismatch: "
                "length of dofs is " << dofs.Size() <<
                ", length of elemvect is " << elemvect.Size());
-   int i, j, n = dofs.Size();
-
-   for (i = 0; i < n; i++)
-   {
-      if ((j=dofs[i]) >= 0)
-      {
-         data[j] += elemvect(i);
-      }
-      else
-      {
-         data[-1-j] -= elemvect(i);
-      }
-   }
+   kAddElementVector(dofs.Size(), dofs, elemvect.GetData(), data);
 }
 
 void Vector::AddElementVector(const Array<int> &dofs, double *elem_data)
 {
-   const int n = dofs.Size();
-   kAddElementVector(n,dofs,elem_data,data);
+   kAddElementVector(dofs.Size(), dofs, elem_data, data);
 }
 
 void Vector::AddElementVector(const Array<int> &dofs, const double a,
                               const Vector &elemvect)
 {
-   MFEM_GPU_CANNOT_PASS;
-   int i, j, n = dofs.Size();
-
-   for (i = 0; i < n; i++)
-      if ((j=dofs[i]) >= 0)
-      {
-         data[j] += a * elemvect(i);
-      }
-      else
-      {
-         data[-1-j] -= a * elemvect(i);
-      }
+   kAddElementVectorAlpha(dofs.Size(), dofs, elemvect.GetData(), data, a);
 }
 
 void Vector::SetSubVectorComplement(const Array<int> &dofs, const double val)
