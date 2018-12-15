@@ -1532,7 +1532,8 @@ void NCMesh::InitRootState(int root_count)
    for (int i = 0; i < root_count; i++)
    {
       Element &el = elements[i];
-      if (el.ref_type) { continue; } // TODO: what to do with already refined meshes?
+      if (el.ref_type) { continue; }
+      // TODO: what to do with already refined meshes? (see LoadCoarseElements)
 
       int v_in = find_node(el, entry_node, false);
       if (v_in < 0) { v_in = 0; }

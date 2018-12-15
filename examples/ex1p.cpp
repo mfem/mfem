@@ -60,7 +60,6 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool visualization = 1;
-   int ref_levels = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -68,8 +67,6 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
-   args.AddOption(&ref_levels, "-r", "--ref_levels",
-                  "Uniform refinement level.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -100,40 +97,13 @@ int main(int argc, char *argv[])
    //    this example we do 'ref_levels' of uniform refinement. We choose
    //    'ref_levels' to be the largest number that gives a final mesh with no
    //    more than 10,000 elements.
-   /*{
+   {
       int ref_levels =
          (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
       }
-   }*/
-
-#if 1
-   if (mesh->NURBSext)
-   {
-      mesh->SetCurvature(2);
-   }
-
-   Array<int> ordering;
-   mesh->GetGeckoElementReordering(ordering, 1, 8);
-   //mesh->GetMetisElementReordering(ordering);
-   //mesh->Triangularize(1); mesh->GetForsythElementReordering(ordering);
-   mesh->ReorderElements(ordering);
-
-   mesh->EnsureNCMesh();
-   for (int l = 0; l < ref_levels; l++)
-   {
-      mesh->UniformRefinement();
-   }
-
-   if (myid == 0)
-   {
-      mesh->EnsureNCMesh();
-      std::ofstream f("ordering.m");
-      f << "A = [\n";
-      mesh->ncmesh->DebugLeafOrder(f);
-      f << "];\n";
    }
 
    // 5. Define a parallel mesh by a partitioning of the serial mesh. Refine
@@ -141,18 +111,13 @@ int main(int argc, char *argv[])
    //    parallel mesh is defined, the serial mesh can be deleted.
    ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
-   /*{
+   {
       int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
       {
          pmesh->UniformRefinement();
       }
-   }*/
-
-   int *a = NULL, *b = NULL;
-   int *pcg = NULL, *amg = NULL;
-
-#else
+   }
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
    //    use continuous Lagrange finite elements of the specified order. If
@@ -257,19 +222,6 @@ int main(int argc, char *argv[])
       ofstream sol_ofs(sol_name.str().c_str());
       sol_ofs.precision(8);
       x.Save(sol_ofs);
-   }
-#endif
-
-
-   FiniteElementCollection *fec;
-   fec = new L2_FECollection(0, dim);
-
-   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
-
-   ParGridFunction x(fespace);
-   for (int i = 0; i < pmesh->GetNE(); i++)
-   {
-      x(i) = myid;
    }
 
    // 15. Send the solution by socket to a GLVis server.
