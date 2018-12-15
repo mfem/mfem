@@ -423,8 +423,8 @@ protected: // implementation
    BlockArray<Element> elements; // storage for all Elements
    Array<int> free_element_ids;  // unused element ids - indices into 'elements'
 
-   /** initial traversal state (~ element orientation) for each root element
-       NOTE: M = root_state.Size() is the number of root elements
+   /** Initial traversal state (~ element orientation) for each root element
+       NOTE: M = root_state.Size() is the number of root elements.
        NOTE: the first M items of 'elements' is the coarse mesh. */
    Array<int> root_state;
 

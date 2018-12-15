@@ -561,16 +561,6 @@ public:
                                   int iterations = 1, int window = 2,
                                   int period = 1, int seed = 0);
 #endif
-#ifdef MFEM_USE_METIS
-   /** */
-   void GetMetisElementReordering(Array<int> &ordering);
-#endif
-#if 0
-   void GetForsythElementReordering(Array<int> &ordering);
-
-   /// Convert quads to triangles.
-   void Triangularize(int type = 0);
-#endif
 
    /** Rebuilds the mesh with a different order of elements.  The ordering
        vector maps the old element number to the new element number.  This also
