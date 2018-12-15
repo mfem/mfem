@@ -31,6 +31,9 @@ int FiniteElementCollection::HasFaceDofs(Geometry::Type GeomType) const
       case Geometry::PRISM:
          return max(DofForGeometry (Geometry::TRIANGLE),
                     DofForGeometry (Geometry::SQUARE));
+      case Geometry::PYRAMID:
+         return max(DofForGeometry (Geometry::TRIANGLE),
+                    DofForGeometry (Geometry::SQUARE));
       default:
          mfem_error ("FiniteElementCollection::HasFaceDofs:"
                      " unknown geometry type.");
@@ -1210,6 +1213,7 @@ Const3DFECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
       case Geometry::TETRAHEDRON: return &TetrahedronFE;
       case Geometry::CUBE:        return &ParallelepipedFE;
       case Geometry::PRISM:       return &WedgeFE;
+      case Geometry::PYRAMID:     return &PyramidFE;
       default:
          mfem_error ("Const3DFECollection: unknown geometry type.");
    }
@@ -1227,6 +1231,7 @@ int Const3DFECollection::DofForGeometry(Geometry::Type GeomType) const
       case Geometry::TETRAHEDRON: return 1;
       case Geometry::CUBE:        return 1;
       case Geometry::PRISM:       return 1;
+      case Geometry::PYRAMID:     return 1;
       default:
          mfem_error ("Const3DFECollection: unknown geometry type.");
    }
@@ -1638,6 +1643,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
          H1_dof[Geometry::TETRAHEDRON] = (TriDof*pm3)/3;
          H1_dof[Geometry::CUBE] = QuadDof*pm1;
          H1_dof[Geometry::PRISM] = TriDof*pm1;
+         H1_dof[Geometry::PYRAMID] = pm2*pm1*(2*p-3)/6;
          if (b_type == BasisType::Positive)
          {
             H1_Elements[Geometry::TETRAHEDRON] = new H1Pos_TetrahedronElement(p);
@@ -1650,6 +1656,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype)
                new H1_TetrahedronElement(p, btype);
             H1_Elements[Geometry::CUBE] = new H1_HexahedronElement(p, btype);
             H1_Elements[Geometry::PRISM] = new H1_WedgeElement(p, btype);
+            H1_Elements[Geometry::PYRAMID] = new H1_PyramidElement(p, btype);
          }
       }
    }
@@ -2336,14 +2343,50 @@ ND_FECollection::ND_FECollection(const int p, const int dim,
       {
          for (int i = 0; i + j <= pm2; i++)
          {
-            int k1 = p*pm1 - (p - j)*(pm1 - j) + 2*i;
-            int k2 = p*pm1 - (p - i)*(pm1 - i) + 2*j;
+            int k0 = p*pm1 - (p - j)*(pm1 - j) + 2*i;
+            int k1 = 2*pm2 - 2*i + ((2*p-3)-j)*j;
+            int k2 = 2*pm2 - 2*j + ((2*p-3)-i)*i;
+            int k3 = p*pm1 - 2 - 3*j - i - (i+j)*(i+j);
+            int k4 = p*pm1 - 2 - 3*i - j - (i+j)*(i+j);
+            int k5 = p*pm1 - (p - i)*(pm1 - i) + 2*j;
+            /*
+                 // (0,1,2)
+                 TriDofOrd[0][k0  ] = k0;
+                 TriDofOrd[0][k0+1] = k0 + 1;
+                 // (1,0,2)
+                 TriDofOrd[1][k0  ] = k1 + 1;
+                 TriDofOrd[1][k0+1] = k1;
+                 // (2,0,1)
+                 TriDofOrd[2][k0  ] = k2;
+                 TriDofOrd[2][k0+1] = k2 + 1;
+                 // (2,1,0)
+                 TriDofOrd[3][k0  ] = k3 + 1;
+                 TriDofOrd[3][k0+1] = k3;
+                 // (1,2,0)
+                 TriDofOrd[4][k0  ] = k4;
+                 TriDofOrd[4][k0+1] = k4 + 1;
+                 // (0,2,1)
+                 TriDofOrd[5][k0  ] = k5 + 1;
+                 TriDofOrd[5][k0+1] = k5;
+            */
             // (0,1,2)
-            TriDofOrd[0][k1  ] = k1;
-            TriDofOrd[0][k1+1] = k1 + 1;
+            TriDofOrd[0][k0  ] = k0;
+            TriDofOrd[0][k0+1] = k0 + 1;
+            // (1,0,2)
+            TriDofOrd[1][k0  ] = k1;
+            TriDofOrd[1][k0+1] = k1 + 1;
+            // (2,0,1)
+            TriDofOrd[2][k0  ] = k2;
+            TriDofOrd[2][k0+1] = k2 + 1;
+            // (2,1,0)
+            TriDofOrd[3][k0  ] = k3;
+            TriDofOrd[3][k0+1] = k3 + 1;
+            // (1,2,0)
+            TriDofOrd[4][k0  ] = k4;
+            TriDofOrd[4][k0+1] = k4 + 1;
             // (0,2,1)
-            TriDofOrd[5][k1  ] = k2 + 1;
-            TriDofOrd[5][k1+1] = k2;
+            TriDofOrd[5][k0  ] = k5;
+            TriDofOrd[5][k0+1] = k5 + 1;
 
             // The other orientations can not be supported with the current
             // interface. The method Mesh::ReorientTetMesh will ensure that
@@ -2372,11 +2415,13 @@ const int *ND_FECollection::DofOrderForOrientation(Geometry::Type GeomType,
    }
    else if (GeomType == Geometry::TRIANGLE)
    {
+      /*
       if (Or != 0 && Or != 5)
       {
          MFEM_ABORT("triangle face orientation " << Or << " is not supported! "
                     "Use Mesh::ReorientTetMesh to fix it.");
       }
+      */
       return TriDofOrd[Or%6];
    }
    else if (GeomType == Geometry::SQUARE)

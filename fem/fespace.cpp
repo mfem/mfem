@@ -59,8 +59,10 @@ FiniteElementSpace::FiniteElementSpace()
    : mesh(NULL), fec(NULL), vdim(0), ordering(Ordering::byNODES),
      ndofs(0), nvdofs(0), nedofs(0), nfdofs(0), nbdofs(0),
      fdofs(NULL), bdofs(NULL),
-     elem_dof(NULL), bdrElem_dof(NULL),
+     elem_dof(NULL), elem_fos(NULL), bdrElem_dof(NULL),
      NURBSext(NULL), own_ext(false),
+     DoFTrans(0),
+     VDoFTrans(vdim, ordering),
      cP(NULL), cR(NULL), cP_is_set(false),
      Th(Operator::ANY_TYPE),
      sequence(0)
@@ -69,6 +71,7 @@ FiniteElementSpace::FiniteElementSpace()
 FiniteElementSpace::FiniteElementSpace(const FiniteElementSpace &orig,
                                        Mesh *mesh,
                                        const FiniteElementCollection *fec)
+   : VDoFTrans(orig.vdim, orig.ordering)
 {
    mesh = mesh ? mesh : orig.mesh;
    fec = fec ? fec : orig.fec;
@@ -168,10 +171,20 @@ void FiniteElementSpace::AdjustVDofs (Array<int> &vdofs)
    }
 }
 
-void FiniteElementSpace::GetElementVDofs(int i, Array<int> &vdofs) const
+DofTransformation *
+FiniteElementSpace::GetElementVDofs(int i, Array<int> &vdofs) const
 {
-   GetElementDofs(i, vdofs);
+   DofTransformation * doftrans = GetElementDofs(i, vdofs);
    DofsToVDofs(vdofs);
+   if (doftrans)
+   {
+      VDoFTrans.SetDofTransformation(*doftrans);
+      return &VDoFTrans;
+   }
+   else
+   {
+      return NULL;
+   }
 }
 
 void FiniteElementSpace::GetBdrElementVDofs(int i, Array<int> &vdofs) const
@@ -215,27 +228,47 @@ void FiniteElementSpace::BuildElementToDofTable() const
    if (elem_dof) { return; }
 
    Table *el_dof = new Table;
+   Table *el_fos = (mesh->Dimension() > 2) ? (new Table) : NULL;
    Array<int> dofs;
+   Array<int> F, Fo;
    el_dof -> MakeI (mesh -> GetNE());
+   if (el_fos) { el_fos -> MakeI (mesh -> GetNE()); }
    for (int i = 0; i < mesh -> GetNE(); i++)
    {
       GetElementDofs (i, dofs);
       el_dof -> AddColumnsInRow (i, dofs.Size());
+
+      if (el_fos)
+      {
+         mesh->GetElementFaces(i, F, Fo);
+         el_fos -> AddColumnsInRow (i, Fo.Size());
+      }
    }
    el_dof -> MakeJ();
+   if (el_fos) { el_fos -> MakeJ(); }
    for (int i = 0; i < mesh -> GetNE(); i++)
    {
       GetElementDofs (i, dofs);
       el_dof -> AddConnections (i, (int *)dofs, dofs.Size());
+
+      if (el_fos)
+      {
+         mesh->GetElementFaces(i, F, Fo);
+         el_fos -> AddConnections (i, (int *)Fo, Fo.Size());
+      }
    }
    el_dof -> ShiftUpI();
+   if (el_fos) { el_fos -> ShiftUpI(); }
    elem_dof = el_dof;
+   elem_fos = el_fos;
 }
 
 void FiniteElementSpace::RebuildElementToDofTable()
 {
    delete elem_dof;
+   delete elem_fos;
    elem_dof = NULL;
+   elem_fos = NULL;
    BuildElementToDofTable();
 }
 
@@ -1153,6 +1186,7 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
    this->ordering = (Ordering::Type) ordering;
 
    elem_dof = NULL;
+   elem_fos = NULL;
    sequence = mesh->GetSequence();
    Th.SetType(Operator::ANY_TYPE);
 
@@ -1186,7 +1220,24 @@ void FiniteElementSpace::Constructor(Mesh *mesh, NURBSExtension *NURBSext,
       own_ext = 0;
       Construct();
    }
+
+   DoFTrans.SetSize(Geometry::NUM_GEOMETRIES);
+   cout << " size of DoFTrans: " << DoFTrans.Size() << endl;
+   for (int i=0; i<DoFTrans.Size(); i++)
+   {
+      DoFTrans[i] = NULL;
+   }
+   if (dynamic_cast<const ND_FECollection*>(fec))
+   {
+      cout << "Setting ND_TetDof..." << endl;
+      DoFTrans[Geometry::TETRAHEDRON] =
+         new ND_TetDofTransformation(fec->FiniteElementForGeometry(
+                                        Geometry::TETRAHEDRON)->GetOrder());
+   }
+
+   cout << "Calling   BuildElementToDofTable();" << endl;
    BuildElementToDofTable();
+   cout << "Done Calling   BuildElementToDofTable();" << endl;
 }
 
 NURBSExtension *FiniteElementSpace::StealNURBSext()
@@ -1222,6 +1273,7 @@ void FiniteElementSpace::Construct()
    MFEM_ASSERT(!NURBSext, "internal error");
 
    elem_dof = NULL;
+   elem_fos = NULL;
    bdrElem_dof = NULL;
 
    nvdofs = mesh->GetNV() * fec->DofForGeometry(Geometry::POINT);
@@ -1287,11 +1339,19 @@ void FiniteElementSpace::Construct()
    // later.
 }
 
-void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
+DofTransformation *
+FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
 {
    if (elem_dof)
    {
       elem_dof -> GetRow (i, dofs);
+
+      if (DoFTrans[mesh->GetElementBaseGeometry(i)])
+      {
+         Array<int> Fo;
+         elem_fos -> GetRow (i, Fo);
+         DoFTrans[mesh->GetElementBaseGeometry(i)]->SetFaceOrientations(Fo);
+      }
    }
    else
    {
@@ -1320,6 +1380,11 @@ void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
             for (k = 0; k < F.Size(); k++)
             {
                nfd += fec->DofForGeometry(mesh->GetFaceBaseGeometry(F[k]));
+            }
+            if (DoFTrans[mesh->GetElementBaseGeometry(i)])
+            {
+               DoFTrans[mesh->GetElementBaseGeometry(i)]
+               -> SetFaceOrientations(Fo);
             }
          }
       }
@@ -1387,8 +1452,15 @@ void FiniteElementSpace::GetElementDofs (int i, Array<int> &dofs) const
          }
       }
    }
+   return DoFTrans[mesh->GetElementBaseGeometry(i)];
 }
-
+/*
+DofTransformation *
+FiniteElementSpace::GetDofTransformation(int i) const
+{
+return NULL;
+}
+*/
 const FiniteElement *FiniteElementSpace::GetFE(int i) const
 {
    const FiniteElement *FE =
@@ -1706,6 +1778,7 @@ void FiniteElementSpace::Destroy()
    else
    {
       delete elem_dof;
+      delete elem_fos;
       delete bdrElem_dof;
 
       delete [] bdofs;

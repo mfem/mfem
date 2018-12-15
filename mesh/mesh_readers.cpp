@@ -360,6 +360,11 @@ void Mesh::ReadTrueGridMesh(std::istream &input)
 const int Mesh::vtk_quadratic_tet[10] =
 { 0, 1, 2, 3, 4, 7, 5, 6, 8, 9 };
 
+// see Pyramid::edges & Mesh::GenerateFaces
+// https://www.vtk.org/doc/nightly/html/classvtkBiQuadraticQuadraticWedge.html
+const int Mesh::vtk_quadratic_pyramid[13] =
+{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+
 // see Wedge::edges & Mesh::GenerateFaces
 // https://www.vtk.org/doc/nightly/html/classvtkBiQuadraticQuadraticWedge.html
 const int Mesh::vtk_quadratic_wedge[18] =
@@ -651,6 +656,8 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
                vtk_mfem = vtk_quadratic_hex; break;
             case Geometry::PRISM:
                vtk_mfem = vtk_quadratic_wedge; break;
+            case Geometry::PYRAMID:
+               vtk_mfem = vtk_quadratic_pyramid; break;
             default:
                vtk_mfem = NULL; // suppress a warning
                break;
@@ -811,6 +818,10 @@ void Mesh::ReadInlineMesh(std::istream &input, int generate_edges)
          {
             type = Element::WEDGE;
          }
+         else if (eltype == "pyramid")
+         {
+            type = Element::PYRAMID;
+         }
          else if (eltype == "tet")
          {
             type = Element::TETRAHEDRON;
@@ -865,7 +876,7 @@ void Mesh::ReadInlineMesh(std::istream &input, int generate_edges)
       Make2D(nx, ny, type, generate_edges, sx, sy);
    }
    else if (type == Element::TETRAHEDRON || type == Element::WEDGE ||
-            type == Element::HEXAHEDRON)
+            type == Element::HEXAHEDRON  || type == Element::PYRAMID)
    {
       MFEM_VERIFY(nx > 0 && ny > 0 && nz > 0 &&
                   sx > 0.0 && sy > 0.0 && sz > 0.0,

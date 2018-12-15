@@ -2397,7 +2397,7 @@ int ParMesh::GetSharedFace(int sface) const
              : shared.slaves[sface - csize].index;
    }
 }
-
+/*
 void ParMesh::ReorientTetMesh()
 {
    if (Dim != 3 || !(meshgen & 1))
@@ -2466,7 +2466,7 @@ void ParMesh::ReorientTetMesh()
    // update sedge_ledge and sface_lface.
    FinalizeParTopo();
 }
-
+*/
 void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 {
    if (pncmesh)

@@ -322,6 +322,7 @@ FiniteElement *Mesh::GetTransformationFEforElementType(Element::Type ElemType)
       case Element::TETRAHEDRON :    return &TetrahedronFE;
       case Element::HEXAHEDRON :     return &HexahedronFE;
       case Element::WEDGE :          return &WedgeFE;
+      case Element::PYRAMID :        return &PyramidFE;
       default:
          MFEM_ABORT("Unknown element type \"" << ElemType << "\"");
          break;
@@ -680,6 +681,32 @@ void Mesh::GetLocalTriToWdgTransformation(
    Transf.FinalizeTransformation();
 }
 
+void Mesh::GetLocalTriToPyrTransformation(
+   IsoparametricTransformation &Transf, int i)
+{
+   DenseMatrix &locpm = Transf.GetPointMat();
+
+   Transf.SetFE(&TriangleFE);
+   //  (i/64) is the local face no. in the pyramid
+   MFEM_VERIFY(i >= 64, "Local face index " << i/64
+               << " is not a triangular face of a pyramid.");
+   const int *pv = pyr_t::FaceVert[i/64];
+   //  (i%64) is the orientation of the pyramid face
+   //         w.r.t. the face element
+   const int *to = tri_t::Orient[i%64];
+   const IntegrationRule *PyrVert =
+      Geometries.GetVertices(Geometry::PYRAMID);
+   locpm.SetSize(3, 3);
+   for (int j = 0; j < 3; j++)
+   {
+      const IntegrationPoint &vert = PyrVert->IntPoint(pv[to[j]]);
+      locpm(0, j) = vert.x;
+      locpm(1, j) = vert.y;
+      locpm(2, j) = vert.z;
+   }
+   Transf.FinalizeTransformation();
+}
+
 void Mesh::GetLocalQuadToHexTransformation(
    IsoparametricTransformation &Transf, int i)
 {
@@ -726,6 +753,30 @@ void Mesh::GetLocalQuadToWdgTransformation(
    Transf.FinalizeTransformation();
 }
 
+void Mesh::GetLocalQuadToPyrTransformation(
+   IsoparametricTransformation &Transf, int i)
+{
+   DenseMatrix &locpm = Transf.GetPointMat();
+
+   Transf.SetFE(&QuadrilateralFE);
+   //  (i/64) is the local face no. in the pri
+   MFEM_VERIFY(i < 64, "Local face index " << i/64
+               << " is not a quadrilateral face of a pyramid.");
+   const int *pv = pyr_t::FaceVert[i/64];
+   //  (i%64) is the orientation of the quad
+   const int *qo = quad_t::Orient[i%64];
+   const IntegrationRule *PyrVert = Geometries.GetVertices(Geometry::PYRAMID);
+   locpm.SetSize(3, 4);
+   for (int j = 0; j < 4; j++)
+   {
+      const IntegrationPoint &vert = PyrVert->IntPoint(pv[qo[j]]);
+      locpm(0, j) = vert.x;
+      locpm(1, j) = vert.y;
+      locpm(2, j) = vert.z;
+   }
+   Transf.FinalizeTransformation();
+}
+
 void Mesh::GetLocalFaceTransformation(
    int face_type, int elem_type, IsoparametricTransformation &Transf, int info)
 {
@@ -752,10 +803,14 @@ void Mesh::GetLocalFaceTransformation(
          {
             GetLocalTriToTetTransformation(Transf, info);
          }
+         else if (elem_type == Element::WEDGE)
+         {
+            GetLocalTriToWdgTransformation(Transf, info);
+         }
          else
          {
-            MFEM_ASSERT(elem_type == Element::WEDGE, "");
-            GetLocalTriToWdgTransformation(Transf, info);
+            MFEM_ASSERT(elem_type == Element::PYRAMID, "");
+            GetLocalTriToPyrTransformation(Transf, info);
          }
          break;
 
@@ -764,10 +819,14 @@ void Mesh::GetLocalFaceTransformation(
          {
             GetLocalQuadToHexTransformation(Transf, info);
          }
+         else if (elem_type == Element::WEDGE)
+         {
+            GetLocalQuadToWdgTransformation(Transf, info);
+         }
          else
          {
-            MFEM_ASSERT(elem_type == Element::WEDGE, "");
-            GetLocalQuadToWdgTransformation(Transf, info);
+            MFEM_ASSERT(elem_type == Element::PYRAMID, "");
+            GetLocalQuadToPyrTransformation(Transf, info);
          }
          break;
    }
@@ -1101,6 +1160,11 @@ void Mesh::AddWedge(const int *vi, int attr)
    elements[NumOfElements++] = new Wedge(vi, attr);
 }
 
+void Mesh::AddPyramid(const int *vi, int attr)
+{
+   elements[NumOfElements++] = new Pyramid(vi, attr);
+}
+
 void Mesh::AddHex(const int *vi, int attr)
 {
    elements[NumOfElements++] = new Hexahedron(vi, attr);
@@ -1140,6 +1204,31 @@ void Mesh::AddHexAsWedges(const int *vi, int attr)
          ti[j] = vi[hex_to_wdg[i][j]];
       }
       AddWedge(ti, attr);
+   }
+}
+
+void Mesh::AddHexAsPyramids(const int *vi, int ornt, int attr)
+{
+   static const int hex_to_pyr[8][3][5] =
+   {
+      {{ 7, 4, 0, 3, 6}, { 5, 1, 0, 4, 6}, { 2, 3, 0, 1, 6}},
+      {{ 6, 2, 1, 5, 7}, { 4, 5, 1, 0, 7}, { 3, 0, 1, 2, 7}},
+      {{ 4, 0, 3, 7, 5}, { 6, 7, 3, 2, 5}, { 1, 2, 3, 0, 5}},
+      {{ 5, 6, 2, 1, 4}, { 7, 3, 2, 6, 4}, { 0, 1, 2, 3, 4}},
+      {{ 3, 7, 4, 0, 2}, { 1, 0, 4, 5, 2}, { 6, 5, 4, 7, 2}},
+      {{ 2, 1, 5, 6, 3}, { 0, 4, 5, 1, 3}, { 7, 6, 5, 4, 3}},
+      {{ 0, 3, 7, 4, 1}, { 2, 6, 7, 3, 1}, { 5, 4, 7, 6, 1}},
+      {{ 1, 5, 6, 2, 0}, { 3, 2, 6, 7, 0}, { 4, 7, 6, 5, 0}}
+   };
+   int ti[5];
+
+   for (int i = 0; i < 3; i++)
+   {
+      for (int j = 0; j < 5; j++)
+      {
+         ti[j] = vi[hex_to_pyr[ornt][i][j]];
+      }
+      AddPyramid(ti, attr);
    }
 }
 
@@ -2134,6 +2223,11 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
       NElem *= 2;
       NBdrElem += 2*nx*ny;
    }
+   else if (type == Element::PYRAMID)
+   {
+      NElem *= 3;
+      NBdrElem += (nx%2)*ny*nz+nx*(ny%2)*nz+nx*ny*(nz%2);
+   }
 
    InitMesh(3, 3, NVert, NElem, NBdrElem);
 
@@ -2179,6 +2273,10 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
             else if (type == Element::WEDGE)
             {
                AddHexAsWedges(ind, 1);
+            }
+            else if (type == Element::PYRAMID)
+            {
+               AddHexAsPyramids(ind, (x%2)+(y%2)*2+(z%2)*4, 1);
             }
             else
             {
@@ -2226,6 +2324,18 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
          {
             AddBdrQuadAsTriangles(ind, 1);
          }
+         else if (type == Element::PYRAMID && (nz%2 == 1))
+         {
+            if (x%2 != y%2)
+            {
+               int ind0 = ind[0];
+               ind[0] = ind[1];
+               ind[1] = ind[2];
+               ind[2] = ind[3];
+               ind[3] = ind0;
+            }
+            AddBdrQuadAsTriangles(ind, 1);
+         }
          else
          {
             AddBdrQuad(ind, 6);
@@ -2260,6 +2370,18 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
          {
             AddBdrQuadAsTriangles(ind, 3);
          }
+         else if (type == Element::PYRAMID && (nx%2 == 1))
+         {
+            if (y%2 != z%2)
+            {
+               int ind0 = ind[0];
+               ind[0] = ind[1];
+               ind[1] = ind[2];
+               ind[2] = ind[3];
+               ind[3] = ind0;
+            }
+            AddBdrQuadAsTriangles(ind, 1);
+         }
          else
          {
             AddBdrQuad(ind, 3);
@@ -2293,6 +2415,18 @@ void Mesh::Make3D(int nx, int ny, int nz, Element::Type type,
          if (type == Element::TETRAHEDRON)
          {
             AddBdrQuadAsTriangles(ind, 4);
+         }
+         else if (type == Element::PYRAMID && (ny%2 == 1))
+         {
+            if (x%2 != z%2)
+            {
+               int ind0 = ind[0];
+               ind[0] = ind[1];
+               ind[1] = ind[2];
+               ind[2] = ind[3];
+               ind[3] = ind0;
+            }
+            AddBdrQuadAsTriangles(ind, 1);
          }
          else
          {
@@ -2740,6 +2874,7 @@ Element *Mesh::NewElement(int geom)
 #endif
       case Geometry::CUBE:      return (new Hexahedron);
       case Geometry::PRISM:     return (new Wedge);
+      case Geometry::PYRAMID:   return (new Pyramid);
       default:
          MFEM_ABORT("invalid Geometry::Type, geom = " << geom);
    }
@@ -2825,6 +2960,15 @@ void Mesh::SetMeshGen()
 
          case Element::WEDGE:
             mesh_geoms |= (1 << Geometry::PRISM);
+            mesh_geoms |= (1 << Geometry::SQUARE);
+            mesh_geoms |= (1 << Geometry::TRIANGLE);
+            mesh_geoms |= (1 << Geometry::SEGMENT);
+            mesh_geoms |= (1 << Geometry::POINT);
+            meshgen |= 4;
+            break;
+
+         case Element::PYRAMID:
+            mesh_geoms |= (1 << Geometry::PYRAMID);
             mesh_geoms |= (1 << Geometry::SQUARE);
             mesh_geoms |= (1 << Geometry::TRIANGLE);
             mesh_geoms |= (1 << Geometry::SEGMENT);
@@ -3201,10 +3345,17 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       }
       for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
       {
-         Element *elem = NewElement(geom);
+         Geometry::Type rgeom = geom;
+         int rvert = nvert;
+         if (geom == Geometry::PYRAMID && RG.RefGeoms[4+nvert*j] < 0)
+         {
+            rgeom = Geometry::TETRAHEDRON;
+            rvert = 4;
+         }
+         Element *elem = NewElement(rgeom);
          elem->SetAttribute(attrib);
          int *v = elem->GetVertices();
-         for (int k = 0; k < nvert; k++)
+         for (int k = 0; k < rvert; k++)
          {
             int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
             v[k] = rdofs[c2h_map[cid]];
@@ -3254,8 +3405,15 @@ Mesh::Mesh(Mesh *orig_mesh, int ref_factor, int ref_type)
       const IntegrationRule &r_nodes = rfes.GetFE(el)->GetNodes();
       for (int j = 0; j < RG.RefGeoms.Size()/nvert; j++)
       {
-         DenseMatrix &Pj = CoarseFineTr.point_matrices[geom](j);
-         for (int k = 0; k < nvert; k++)
+         Geometry::Type rgeom = geom;
+         int rvert = nvert;
+         if (geom == Geometry::PYRAMID && RG.RefGeoms[4+nvert*j] < 0)
+         {
+            rgeom = Geometry::TETRAHEDRON;
+            rvert = 4;
+         }
+         DenseMatrix &Pj = CoarseFineTr.point_matrices[rgeom](j);
+         for (int k = 0; k < rvert; k++)
          {
             int cid = RG.RefGeoms[k+nvert*j]; // local Cartesian index
             const IntegrationPoint &ip = r_nodes.IntPoint(c2h_map[cid]);
@@ -3628,6 +3786,19 @@ int Mesh::CheckElementOrientation(bool fix_it)
                break;
 
             case Element::WEDGE:
+               // only check the Jacobian at the center of the element
+               GetElementJacobian(i, J);
+               if (J.Det() < 0.0)
+               {
+                  wo++;
+                  if (fix_it)
+                  {
+                     // how?
+                  }
+               }
+               break;
+
+            case Element::PYRAMID:
                // only check the Jacobian at the center of the element
                GetElementJacobian(i, J);
                if (J.Det() < 0.0)
@@ -4571,6 +4742,22 @@ void Mesh::GenerateFaces()
                }
                break;
             }
+            case Element::PYRAMID:
+            {
+               for (int j = 0; j < 1; j++)
+               {
+                  const int *fv = pyr_t::FaceVert[j];
+                  AddQuadFaceElement(j, ef[j], i,
+                                     v[fv[0]], v[fv[1]], v[fv[2]], v[fv[3]]);
+               }
+               for (int j = 1; j < 5; j++)
+               {
+                  const int *fv = pyr_t::FaceVert[j];
+                  AddTriangleFaceElement(j, ef[j], i,
+                                         v[fv[0]], v[fv[1]], v[fv[2]]);
+               }
+               break;
+            }
             case Element::HEXAHEDRON:
             {
                for (int j = 0; j < 6; j++)
@@ -4666,6 +4853,20 @@ STable3D *Mesh::GetFacesTable()
             }
             break;
          }
+         case Element::PYRAMID:
+         {
+            for (int j = 0; j < 1; j++)
+            {
+               const int *fv = pyr_t::FaceVert[j];
+               faces_tbl->Push4(v[fv[0]], v[fv[1]], v[fv[2]], v[fv[3]]);
+            }
+            for (int j = 1; j < 5; j++)
+            {
+               const int *fv = pyr_t::FaceVert[j];
+               faces_tbl->Push(v[fv[0]], v[fv[1]], v[fv[2]]);
+            }
+            break;
+         }
          case Element::HEXAHEDRON:
          {
             // find the face by the vertices with the smallest 3 numbers
@@ -4705,6 +4906,21 @@ STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)
             for (int j = 0; j < 4; j++)
             {
                const int *fv = tet_t::FaceVert[j];
+               el_to_face->Push(
+                  i, faces_tbl->Push(v[fv[0]], v[fv[1]], v[fv[2]]));
+            }
+            break;
+         }
+         case Element::PYRAMID:
+         {
+            {
+               const int *fv = pyr_t::FaceVert[0];
+               el_to_face->Push(
+                  i, faces_tbl->Push4(v[fv[0]], v[fv[1]], v[fv[2]], v[fv[3]]));
+            }
+            for (int j = 1; j < 5; j++)
+            {
+               const int *fv = pyr_t::FaceVert[j];
                el_to_face->Push(
                   i, faces_tbl->Push(v[fv[0]], v[fv[1]], v[fv[2]]));
             }
@@ -4772,7 +4988,7 @@ STable3D *Mesh::GetElementToFaceTable(int ret_ftbl)
    delete faces_tbl;
    return NULL;
 }
-
+/*
 void Mesh::ReorientTetMesh()
 {
    int *v;
@@ -4834,7 +5050,7 @@ void Mesh::ReorientTetMesh()
       delete old_v_to_v;
    }
 }
-
+*/
 int *Mesh::CartesianPartitioning(int nxyz[])
 {
    int *partitioning;
@@ -5931,13 +6147,18 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
    }
 
    int hex_counter = 0;
-   if (HasGeometry(Geometry::CUBE))
+   int pyr_counter = 0;
+   if (HasGeometry(Geometry::CUBE) || HasGeometry(Geometry::PYRAMID))
    {
       for (int i = 0; i < elements.Size(); i++)
       {
          if (elements[i]->GetType() == Element::HEXAHEDRON)
          {
             hex_counter++;
+         }
+         else if (elements[i]->GetType() == Element::PYRAMID)
+         {
+            pyr_counter++;
          }
       }
    }
@@ -5996,16 +6217,17 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
    const int oelem = oface + NumOfQuadFaces;
 
    vertices.SetSize(oelem + hex_counter);
-   elements.SetSize(8 * NumOfElements);
+   elements.SetSize(8 * NumOfElements + 2 * pyr_counter);
    CoarseFineTr.embeddings.SetSize(elements.Size());
    hex_counter = 0;
+   pyr_counter = 0;
    for (int i = 0; i < NumOfElements; i++)
    {
       const Element::Type el_type = elements[i]->GetType();
       const int attr = elements[i]->GetAttribute();
       int *v = elements[i]->GetVertices();
       const int *e = el_to_edge->GetRow(i);
-      const int j = NumOfElements + 7 * i;
+      const int j = NumOfElements + 7 * i + 2 * pyr_counter;
       int vv[4], ev[12];
 
       if (e2v.Size())
@@ -6199,6 +6421,80 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
          }
          break;
 
+         case Element::PYRAMID:
+         {
+            pyr_counter++;
+
+            const int *f = el_to_face->GetRow(i);
+
+            for (int k = 0; k < 4; k++)
+            {
+               vv[k] = v[pyr_t::FaceVert[0][k]];
+            }
+            AverageVertices(vv, 4, oface + f2qf[f[0]]);
+
+            for (int ei = 0; ei < 8; ei++)
+            {
+               for (int k = 0; k < 2; k++)
+               {
+                  vv[k] = v[pyr_t::Edges[ei][k]];
+               }
+               AverageVertices(vv, 2, oedge+e[ei]);
+            }
+
+            const int qf0 = f2qf[f[0]];
+
+            elements[j+0] = new Pyramid(oedge+e[0], v[1], oedge+e[1],
+                                        oface+qf0, oedge+e[5], attr);
+            elements[j+1] = new Pyramid(oface+qf0, oedge+e[1], v[2],
+                                        oedge+e[2], oedge+e[6], attr);
+            elements[j+2] = new Pyramid(oedge+e[3], oface+qf0, oedge+e[2],
+                                        v[3], oedge+e[7], attr);
+            elements[j+3] = new Pyramid(oedge+e[4], oedge+e[5], oedge+e[6],
+                                        oedge+e[7], v[4], attr);
+            elements[j+4] = new Pyramid(oedge+e[4], oedge+e[7], oedge+e[6],
+                                        oedge+e[5], oface+qf0, attr);
+#ifndef MFEM_USE_MEMALLOC
+            elements[j+5] = new Tetrahedron(oedge+e[0], oface+qf0, oedge+e[4],
+                                            oedge+e[5], attr);
+            elements[j+6] = new Tetrahedron(oface+qf0, oedge+e[2], oedge+e[7],
+                                            oedge+e[6], attr);
+            elements[j+7] = new Tetrahedron(oedge+e[3], oface+qf0, oedge+e[7],
+                                            oedge+e[4], attr);
+            elements[j+8] = new Tetrahedron(oface+qf0, oedge+e[1], oedge+e[6],
+                                            oedge+e[5], attr);
+#else
+            Tetrahedron *tet;
+            elements[j+5] = tet = TetMemory.Alloc();
+            tet->Init(oedge+e[0], oface+qf0, oedge+e[4], oedge+e[5], attr);
+            elements[j+6] = tet = TetMemory.Alloc();
+            tet->Init(oface+qf0, oedge+e[2], oedge+e[7], oedge+e[6], attr);
+            elements[j+7] = tet = TetMemory.Alloc();
+            tet->Init(oedge+e[3], oface+qf0, oedge+e[7], oedge+e[4], attr);
+            elements[j+8] = tet = TetMemory.Alloc();
+            tet->Init(oface+qf0, oedge+e[1], oedge+e[6], oedge+e[5], attr);
+#endif
+
+            v[1] = oedge + e[0];
+            v[2] = oface + qf0;
+            v[3] = oedge + e[3];
+            v[4] = oedge + e[4];
+
+            CoarseFineTr.embeddings[i].parent = i;
+            CoarseFineTr.embeddings[i].matrix = 0;
+            for (int k = 0; k < 5; k++)
+            {
+               CoarseFineTr.embeddings[j+k].parent = i;
+               CoarseFineTr.embeddings[j+k].matrix = 0; // Placeholder
+            }
+            for (int k = 0; k < 4; k++)
+            {
+               CoarseFineTr.embeddings[j+k+4].parent = i;
+               CoarseFineTr.embeddings[j+k+4].matrix = 0; // Placeholder
+            }
+         }
+         break;
+
          case Element::WEDGE:
          {
             const int *f = el_to_face->GetRow(i);
@@ -6252,6 +6548,12 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
             v[3] = oedge+e[6];
             v[4] = oface+qf2;
             v[5] = oface+qf4;
+
+            for (int k = 0; k < 8; k++)
+            {
+               CoarseFineTr.embeddings[j+k].parent = i;
+               CoarseFineTr.embeddings[j+k].matrix = k;
+            }
          }
          break;
 
@@ -6322,6 +6624,12 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
             v[5] = oface+qf[1];
             v[6] = oelem+he;
             v[7] = oface+qf[4];
+
+            for (int k = 0; k < 8; k++)
+            {
+               CoarseFineTr.embeddings[j+k].parent = i;
+               CoarseFineTr.embeddings[j+k].matrix = k;
+            }
          }
          break;
 
@@ -6379,7 +6687,7 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
       }
    }
 
-   static const double A = 0.0, B = 0.5, C = 1.0;
+   static const double A = 0.0, B = 0.5, C = 1.0, N = -1.0;
    static double tet_children[3*4*16] =
    {
       A,A,A, B,A,A, A,B,A, A,A,B,
@@ -6404,6 +6712,19 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
       A,A,B, A,B,A, A,B,B, B,B,A,
       A,A,B, A,B,B, B,A,B, B,B,A,
       A,A,B, B,A,B, B,A,A, B,B,A
+   };
+   static double pyr_children[3*5*10] =
+   {
+      A,A,A, B,A,A, B,B,A, A,B,A, A,A,B,
+      B,A,A, C,A,A, C,B,A, B,B,A, B,A,B,
+      B,B,A, C,B,A, C,C,A, B,C,A, B,B,B,
+      A,B,A, B,B,A, B,C,A, A,C,A, A,B,B,
+      A,A,B, B,A,B, B,B,B, A,B,B, A,A,C,
+      A,A,B, A,B,B, B,B,B, B,A,B, B,B,A,
+      B,A,A, B,B,A, A,A,B, B,A,B, N,N,N,
+      B,B,A, B,C,A, A,B,B, B,B,B, N,N,N,
+      A,B,A, B,B,A, A,B,B, A,A,B, N,N,N,
+      B,B,A, C,B,A, B,B,B, B,A,B, N,N,N
    };
    static double pri_children[3*6*8] =
    {
@@ -6430,11 +6751,13 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
 
    CoarseFineTr.point_matrices[Geometry::TETRAHEDRON].
    UseExternalData(tet_children, 3, 4, 16);
+   CoarseFineTr.point_matrices[Geometry::PYRAMID].
+   UseExternalData(pyr_children, 3, 5, 10);
    CoarseFineTr.point_matrices[Geometry::PRISM].
    UseExternalData(pri_children, 3, 6, 8);
    CoarseFineTr.point_matrices[Geometry::CUBE].
    UseExternalData(hex_children, 3, 8, 8);
-
+   /*
    for (int i = 0; i < elements.Size(); i++)
    {
       // Tetrahedron elements are handled above:
@@ -6443,9 +6766,9 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
       emb.parent = (i < NumOfElements) ? i : (i - NumOfElements) / 7;
       emb.matrix = (i < NumOfElements) ? 0 : (i - NumOfElements) % 7 + 1;
    }
-
+   */
    NumOfVertices    = vertices.Size();
-   NumOfElements    = 8 * NumOfElements;
+   NumOfElements    = 8 * NumOfElements + 2 * pyr_counter;
    NumOfBdrElements = 4 * NumOfBdrElements;
 
    GetElementToFaceTable();
@@ -7791,6 +8114,7 @@ void Mesh::Printer(std::ostream &out, std::string section_delimiter) const
        "# TETRAHEDRON = 4\n"
        "# CUBE        = 5\n"
        "# PRISM       = 6\n"
+       "# PYRAMID     = 7\n"
        "#\n";
 
    out << "\ndimension\n" << Dim
@@ -8014,6 +8338,8 @@ void Mesh::PrintVTK(std::ostream &out)
                   vtk_mfem = vtk_quadratic_tet; break;
                case Geometry::PRISM:
                   vtk_mfem = vtk_quadratic_wedge; break;
+               case Geometry::PYRAMID:
+                  vtk_mfem = vtk_quadratic_pyramid; break;
                case Geometry::CUBE:
                default:
                   vtk_mfem = vtk_quadratic_hex; break;
@@ -8043,6 +8369,7 @@ void Mesh::PrintVTK(std::ostream &out)
             case Geometry::TETRAHEDRON:  vtk_cell_type = 10;  break;
             case Geometry::CUBE:         vtk_cell_type = 12;  break;
             case Geometry::PRISM:        vtk_cell_type = 13;  break;
+            case Geometry::PYRAMID:      vtk_cell_type = 14;  break;
             default: break;
          }
       }
@@ -8056,6 +8383,7 @@ void Mesh::PrintVTK(std::ostream &out)
             case Geometry::TETRAHEDRON:  vtk_cell_type = 24;  break;
             case Geometry::CUBE:         vtk_cell_type = 29;  break;
             case Geometry::PRISM:        vtk_cell_type = 32;  break;
+            case Geometry::PYRAMID:      vtk_cell_type = 27;  break;
             default: break;
          }
       }
@@ -8180,6 +8508,7 @@ void Mesh::PrintVTK(std::ostream &out, int ref, int field_data)
          case Geometry::TETRAHEDRON:  vtk_cell_type = 10;  break;
          case Geometry::CUBE:         vtk_cell_type = 12;  break;
          case Geometry::PRISM:        vtk_cell_type = 13;  break;
+         case Geometry::PYRAMID:      vtk_cell_type = 14;  break;
          default:
             MFEM_ABORT("Unrecognized VTK element type \"" << geom << "\"");
             break;
@@ -8325,6 +8654,7 @@ void Mesh::PrintWithPartitioning(int *partitioning, std::ostream &out,
        "# TETRAHEDRON = 4\n"
        "# CUBE        = 5\n"
        "# PRISM       = 6\n"
+       "# PYRAMID     = 7\n"
        "#\n";
 
    out << "\ndimension\n" << Dim
@@ -8820,6 +9150,7 @@ void Mesh::PrintSurfaces(const Table & Aface_face, std::ostream &out) const
        "# TETRAHEDRON = 4\n"
        "# CUBE        = 5\n"
        "# PRISM       = 6\n"
+       "# PYRAMID     = 7\n"
        "#\n";
 
    out << "\ndimension\n" << Dim
