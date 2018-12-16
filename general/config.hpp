@@ -60,14 +60,14 @@ public:
    constexpr static inline bool usingNvcc() { return usingNvccCompiler(); }
 
    static inline bool usingPA() { return Get().pa; }
-   static inline void SetPA(const bool mode) { Get().pa = mode; }
+   static inline void usePA(const bool mode) { Get().pa = mode; }
 
    static inline bool usingCuda() { return Get().cuda; }
-   static inline void SetCuda(const bool mode) { Get().cuda = mode; }
+   static inline void useCuda(const bool mode) { Get().cuda = mode; }
    static inline CUstream Stream() { return *Get().cuStream; }
 
    static inline bool usingOcca() { return Get().occa; }
-   static inline void SetOcca(const bool mode) { Get().occa = mode; }
+   static inline void useOcca(const bool mode) { Get().occa = mode; }
    static inline OccaDevice GetOccaDevice() { return Get().occaDevice; }
 };
 

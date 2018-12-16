@@ -143,9 +143,9 @@ int main(int argc, char *argv[])
 
    // 7. Set MFEM config parameters from the command line options
    mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
-   config::SetCuda(cuda);
-   config::SetOcca(occa);
-   config::SetPA(pa);
+   config::useCuda(cuda);
+   config::useOcca(occa);
+   config::usePA(pa);
    config::DeviceSetup();
 
    // 8. Define the solution vector x as a finite element grid function
