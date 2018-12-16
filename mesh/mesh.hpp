@@ -572,7 +572,7 @@ public:
        type=TETRAHEDRON. If generate_edges = 0 (default) edges are not
        generated, if 1 edges are generated. If scf_ordering = true (default),
        elements are ordered along a space-filling curve, instead of row by row
-       and layer by layer.*/
+       and layer by layer. */
    Mesh(int nx, int ny, int nz, Element::Type type, bool generate_edges = false,
         double sx = 1.0, double sy = 1.0, double sz = 1.0,
         bool sfc_ordering = true)

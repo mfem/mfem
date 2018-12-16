@@ -1293,10 +1293,11 @@ void Mesh::GetGeckoElementReordering(Array<int> &ordering,
    Gecko::Functional *functional =
       new Gecko::FunctionalGeometric(); // ordering functional
 
-   /*unsigned int iterations = 1;         // number of V cycles
-   unsigned int window = 2;             // initial window size
-   unsigned int period = 1;             // iterations between window increment
-   unsigned int seed = 0;               // random number seed*/
+   // The other Gecko parameters are as follows:
+   // - iterations: number of V cycles (default value 1)
+   // - window: initial window size (default value 2)
+   // - period: iterations between window increment (default value 1)
+   // - seed: random number seed (default value 0)
 
    // Run through all the elements and insert the nodes in the graph for them
    for (int elemid = 0; elemid < GetNE(); ++elemid)
