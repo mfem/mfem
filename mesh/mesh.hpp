@@ -556,7 +556,12 @@ public:
    /** This is our integration with the Gecko library.  This will call the
        Gecko library to find an element ordering that will increase memory
        coherency by putting elements that are in physical proximity closer in
-       memory. */
+       memory. It can also be used to get a space-filling curve ordering for
+       ParNCMesh partitioning.
+       @param[in] iterations Number of V cycles (default 1).
+       @param[in] window Initial window size (default 2).
+       @param[in] period Iterations between window increment (default 1).
+       @param[in] seed Random number seed (default 0). */
    void GetGeckoElementReordering(Array<int> &ordering,
                                   int iterations = 1, int window = 2,
                                   int period = 1, int seed = 0);
@@ -564,13 +569,13 @@ public:
 
    /** Rebuilds the mesh with a different order of elements.  The ordering
        vector maps the old element number to the new element number.  This also
-       reorders the vertices and nodes edges and faces along with the elements.  */
+       reorders the vertices and nodes edges and faces along with the elements. */
    void ReorderElements(const Array<int> &ordering, bool reorder_vertices = true);
 
    /** Creates mesh for the parallelepiped [0,sx]x[0,sy]x[0,sz], divided into
        nx*ny*nz hexahedra if type=HEXAHEDRON or into 6*nx*ny*nz tetrahedrons if
        type=TETRAHEDRON. If generate_edges = 0 (default) edges are not
-       generated, if 1 edges are generated. If scf_ordering = true (default),
+       generated, if 1 edges are generated. If sfc_ordering = true (default),
        elements are ordered along a space-filling curve, instead of row by row
        and layer by layer. */
    Mesh(int nx, int ny, int nz, Element::Type type, bool generate_edges = false,
