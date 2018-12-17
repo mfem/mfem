@@ -98,6 +98,6 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf Volta-AMR* Tesla-AMR* Maxwell-Parallel* Hertz-AMR-Parallel* \
-	Hertz-AMR-Serial* \
-	Joule_*
+	@rm -rf Volta-AMR* Tesla-AMR* Maxwell-Parallel* Joule_* \
+	Hertz-AMR-Parallel* Hertz-AMR-Serial*
+

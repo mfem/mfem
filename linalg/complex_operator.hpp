@@ -160,6 +160,12 @@ public:
    virtual const SparseMatrix & real() const;
    virtual const SparseMatrix & imag() const;
 
+   /** Combine the blocks making up this complex operator into a
+       single SparseMatrix.  The resulting matrix can be passed to
+       solvers which require access to the matrix entries themselves,
+       such as sparse direct solvers, rather than simply the action of
+       the opertor.  Note that this combined operator requires roughly
+       twice the memory of the block structured operator. */
    SparseMatrix * GetSystemMatrix() const;
 
    virtual Type GetType() const { return MFEM_ComplexSparseMat; }
@@ -192,6 +198,13 @@ public:
    virtual const HypreParMatrix & real() const;
    virtual const HypreParMatrix & imag() const;
 
+   /** Combine the blocks making up this complex operator into a
+       single HypreParMatrix.  The resulting matrix can be passed to
+       solvers which require access to the matrix entries themselves,
+       such as sparse direct solvers or Hypre preconditioners, rather
+       than simply the action of the opertor.  Note that this combined
+       operator requires roughly twice the memory of the block
+       structured operator. */
    HypreParMatrix * GetSystemMatrix() const;
 
    virtual Type GetType() const { return Complex_Hypre_ParCSR; }

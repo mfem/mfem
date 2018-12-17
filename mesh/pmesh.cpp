@@ -21,6 +21,7 @@
 #include "../general/globals.hpp"
 
 #include <iostream>
+#include <fstream>
 
 using namespace std;
 
@@ -5059,6 +5060,102 @@ int ParMesh::FindPoints(DenseMatrix& point_mat, Array<int>& elem_id,
       MFEM_WARNING((npts-pts_found) << " points were not found");
    }
    return pts_found;
+}
+
+static void PrintVertex(const Vertex &v, int space_dim, ostream &out)
+{
+   out << v(0);
+   for (int d = 1; d < space_dim; d++)
+   {
+      out << ' ' << v(d);
+   }
+}
+
+void ParMesh::PrintSharedEntities(const char *fname_prefix) const
+{
+   stringstream out_name;
+   out_name << fname_prefix << '_' << setw(5) << setfill('0') << MyRank
+            << ".shared_entities";
+   ofstream out(out_name.str().c_str());
+   out.precision(16);
+
+   gtopo.Save(out);
+
+   out << "\ntotal_shared_vertices " << svert_lvert.Size() << '\n';
+   if (Dim >= 2)
+   {
+      out << "total_shared_edges " << shared_edges.Size() << '\n';
+   }
+   if (Dim >= 3)
+   {
+      out << "total_shared_faces " << sface_lface.Size() << '\n';
+   }
+   for (int gr = 1; gr < GetNGroups(); gr++)
+   {
+      {
+         const int  nv = group_svert.RowSize(gr-1);
+         const int *sv = group_svert.GetRow(gr-1);
+         out << "\n# group " << gr << "\n\nshared_vertices " << nv << '\n';
+         for (int i = 0; i < nv; i++)
+         {
+            const int lvi = svert_lvert[sv[i]];
+            // out << lvi << '\n';
+            PrintVertex(vertices[lvi], spaceDim, out);
+            out << '\n';
+         }
+      }
+      if (Dim >= 2)
+      {
+         const int  ne = group_sedge.RowSize(gr-1);
+         const int *se = group_sedge.GetRow(gr-1);
+         out << "\nshared_edges " << ne << '\n';
+         for (int i = 0; i < ne; i++)
+         {
+            const int *v = shared_edges[se[i]]->GetVertices();
+            // out << v[0] << ' ' << v[1] << '\n';
+            PrintVertex(vertices[v[0]], spaceDim, out);
+            out << " | ";
+            PrintVertex(vertices[v[1]], spaceDim, out);
+            out << '\n';
+         }
+      }
+      if (Dim >= 3)
+      {
+         const int  nt = group_stria.RowSize(gr-1);
+         const int *st = group_stria.GetRow(gr-1);
+         const int  nq = group_squad.RowSize(gr-1);
+         const int *sq = group_squad.GetRow(gr-1);
+         out << "\nshared_faces " << nt+nq << '\n';
+         for (int i = 0; i < nt; i++)
+         {
+            const int *v = shared_trias[st[i]].v;
+#if 0
+            out << Geometry::TRIANGLE;
+            for (int j = 0; j < 3; j++) { out << ' ' << v[j]; }
+            out << '\n';
+#endif
+            for (int j = 0; j < 3; j++)
+            {
+               PrintVertex(vertices[v[j]], spaceDim, out);
+               (j < 2) ? out << " | " : out << '\n';
+            }
+         }
+         for (int i = 0; i < nq; i++)
+         {
+            const int *v = shared_quads[sq[i]].v;
+#if 0
+            out << Geometry::SQUARE;
+            for (int j = 0; j < 4; j++) { out << ' ' << v[j]; }
+            out << '\n';
+#endif
+            for (int j = 0; j < 4; j++)
+            {
+               PrintVertex(vertices[v[j]], spaceDim, out);
+               (j < 3) ? out << " | " : out << '\n';
+            }
+         }
+      }
+   }
 }
 
 ParMesh::~ParMesh()
