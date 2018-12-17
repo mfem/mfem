@@ -131,8 +131,6 @@ private:
    // ParLinearForm   * jd_r_; // Dual of real part of current density (HCurl)
    // ParLinearForm   * jd_i_; // Dual of imaginary part of current density (HCurl)
 
-   BilinearFormIntegrator * err_integ_;
-   FiniteElementCollection * err_flux_fec_;
    /*
      ParBilinearForm * curlMuInvCurl_;
      ParBilinearForm * hCurlMass_;
@@ -176,6 +174,9 @@ private:
    VectorCoefficient * erCoef_;     // Electric Field Boundary Condition
    VectorCoefficient * eiCoef_;     // Electric Field Boundary Condition
    // VectorCoefficient * mCoef_;     // Magnetization Vector Function
+
+   BilinearFormIntegrator * err_integ_;
+   FiniteElementCollection * err_flux_fec_;
 
    // void   (*a_bc_ )(const Vector&, Vector&);
    void   (*j_r_src_)(const Vector&, Vector&);
