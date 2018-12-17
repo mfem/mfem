@@ -1305,7 +1305,7 @@ int main(int argc, char *argv[])
    int order = 3;
    int ode_solver_type = 3;
    MONOTYPE monoType = ResDist_Lim;
-   bool isSubCell = true; // TODO maybe implement subcell==false by setting gamma to zero?
+   bool isSubCell = true;
    STENCIL stencil = Full; // must be Full for ResDist_Lim
    double t_final = 4.0;
    double dt = 0.005;
@@ -1527,7 +1527,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // check for conservation TODO
+   // check for conservation
    Vector tmp;
    tmp.SetSize(u.Size());
    m.SpMat().Mult(u, tmp);
@@ -1584,7 +1584,7 @@ int main(int argc, char *argv[])
       u.Save(osol);
    }
 
-   // check for conservation TODO
+   // check for conservation
    m.SpMat().Mult(u, tmp);
    double finalMass = tmp.Sum();
    cout << "initial mass: " << initialMass << ", final mass: " << finalMass
@@ -1659,7 +1659,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       {
          const FiniteElement &el = *fes->GetFE(k);
          int nd = el.GetDof();
-         alpha.SetSize(nd); alpha = 0.; // TODO
+         alpha.SetSize(nd); alpha = 0.; // TODO Limiter
          
          if (fct.isSubCell)
          {
@@ -1886,7 +1886,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
                }
                else if (z(dofInd2) < -eps)
                {
-                  y(dofInd) += (1. - alpha(j)) * weightN * z(dofInd2); // TODO do not use if
+                  y(dofInd) += (1. - alpha(j)) * weightN * z(dofInd2);
                }
             }
             if (fct.monoType == ResDist_LimMass)
@@ -2134,32 +2134,72 @@ void velocity_function(const Vector &x, Vector &v)
    }
 }
 
-bool insidePolygon(double xpoints[12], double ypoints[12], double x, double y)
+double box(std::pair<double,double> p1, std::pair<double,double> p2, double theta, 
+	   std::pair<double,double> origin, double x, double y)
 {
-  bool oddNodes = false;
-  int j = 12; // TODO fixed size
-  for (int i = 0; i < 12; i++)
-  {
-    if ((ypoints[i] < y) && (ypoints[j] >= y) || (ypoints[j] < y) || (ypoints[i] >= y))
-    {
-      if (xpoints[i] + ( y - ypoints[i] ) / (ypoints[j] - ypoints[i]) * (xpoints[j] - xpoints[i]) < x)
-      {
-        oddNodes = !oddNodes;
-      }
-    }
-    j = i;
-  }
-   return oddNodes;
+	double xmin=p1.first;
+	double xmax=p2.first;
+	double ymin=p1.second;
+	double ymax=p2.second;
+	double ox=origin.first;
+	double oy=origin.second;
+	
+	double pi = M_PI;
+	double s=std::sin(theta*pi/180);
+	double c=std::cos(theta*pi/180);
+	
+	double xn=c*(x-ox)-s*(y-oy)+ox;
+	double yn=s*(x-ox)+c*(y-oy)+oy;
+	
+	if (xn>xmin && xn<xmax && yn>ymin && yn<ymax)
+		return 1.0;
+	else 
+		return 0.0;
 }
 
-bool ball(double x0, double y0, double r, double x, double y)
+double box3D(double xmin, double xmax, double ymin, double ymax, double zmin, double zmax, 
+				 double theta, double ox, double oy, double x, double y, double z)
 {
-  double xr = x-x0;
-  double yr = y-y0;
-  double rsq = xr*xr + yr*yr;
+	double pi = M_PI;
+   double s=std::sin(theta*pi/180);
+   double c=std::cos(theta*pi/180);
+	
+	double xn=c*(x-ox)-s*(y-oy)+ox;
+	double yn=s*(x-ox)+c*(y-oy)+oy;
+	
+	if (xn>xmin && xn<xmax && yn>ymin && yn<ymax && z>zmin && z<zmax)
+		return 1.0;
+	else 
+		return 0.0;
+}
 
-  if (rsq < r*r) { return true; }
-  return false;
+double get_cross(double rect1, double rect2)
+{
+	double intersection=rect1*rect2;
+	return rect1+rect2-intersection; //union
+}
+
+double ring(double rin, double rout, Vector c, Vector y)
+{
+   double r = 0.;
+   int dim = c.Size();
+   if (dim != y.Size())
+   {
+		mfem_error("Origin vector and variable have to be of the same size.");
+	}
+	for (int i = 0; i < dim; i++)
+	{
+		r += pow(y(i)-c(i), 2.);
+	}
+   r = sqrt(r);
+	if (r>rin && r<rout)
+	{
+		return 1.0;
+	}
+   else
+	{
+		return 0.0;
+	}
 }
 
 // Initial condition
@@ -2224,24 +2264,74 @@ double u0_function(const Vector &x)
       }
       case 5:
       {
-         if (ball(0.4, 0.4, 0.07, X(0), X(1))) { return 2.0; }
-         if (ball(0.4, 0.4, 0.10, X(0), X(1))) { return 1.0; }
-         
-         if (ball(0.4, 0.2, 0.03, X(0),X(1))) { return 3.0; }
-         if (ball(0.4, 0.2, 0.07, X(0),X(1))) { return 2.0; }
-         if (ball(0.4, 0.2, 0.10, X(0),X(1))) { return 1.0; }
-
-         // straight cross
-//          double xcross1[12] = {.270, .270, .120, .120, .090, .090, .020, .020, .090, .090, .120, .120};
-//          double ycross1[12] = {.300, .330, .330, .460, .460, .330, .330, .300, .300, .230, .230, .300};
-//          if (insidePolygon(xcross1, ycross1, X(0), X(1))) { return 1.0; }
-//          
-         // diagonal cross
-//          double xcross2[12] = {.0200000, .0624264, .0800000, .0975736, .1400000, .1012131, .2224264, .1800000, .0800000, .0200000, .0200000, .0587868};
-//          double ycross2[12] = {.030000, .030000, .0475736, .0300000, .0300000, .0687868, .190000, .190000, .0900000, .1500000, .1075736, .0687868};
-//          if (insidePolygon(xcross2, ycross2, X(0), X(1))) { return 1.0; }
-
-         return 0.;
+			Vector y(dim);
+			for (int i = 0; i < dim; i++) { y(i) = 50. * (x(i) + 1.); }
+			
+			if (dim==1)
+			{
+				mfem_error("This test is not supported in 1D.");
+			}
+			else if (dim==2)
+			{
+				std::pair<double, double> p1;
+				std::pair<double, double> p2;
+				std::pair<double, double> origin;
+				
+				// cross
+				p1.first=14.; p1.second=3.;
+				p2.first=17.; p2.second=26.;
+				origin.first = 15.5;
+				origin.second = 11.5;
+				double rect1=box(p1,p2,-45.,origin,y(0),y(1));
+				p1.first=7.; p1.second=10.;
+				p2.first=32.; p2.second=13.;
+				double rect2=box(p1,p2,-45.,origin,y(0),y(1));
+				double cross=get_cross(rect1,rect2);
+				// rings
+				Vector c(dim);
+				c(0) = 40.; c(1) = 40;
+				double ring1 = ring(7., 10., c, y);
+				c(1) = 20.;
+				double ring2 = ring(3., 7., c, y);
+				
+				return cross + ring1 + ring2;
+			}
+			else
+			{
+				// cross
+				double rect1 = box3D(7.,32.,10.,13.,10.,13.,-45.,15.5,11.5,y(0),y(1),y(2));
+				double rect2 = box3D(14.,17.,3.,26.,10.,13.,-45.,15.5,11.5,y(0),y(1),y(2));
+				double rect3 = box3D(14.,17.,10.,13.,3.,26.,-45.,15.5,11.5,y(0),y(1),y(2));
+				
+				double cross = get_cross(get_cross(rect1, rect2), rect3);
+				
+				// rings
+				Vector c1(dim), c2(dim);
+				c1(0) = 40.; c1(1) = 40; c1(2) = 40.;
+				c2(0) = 40.; c1(1) = 20; c1(2) = 20.;
+				
+				double shell1 = ring(7., 10., c1, y);
+				double shell2 = ring(3., 7., c2, y);
+				
+				double dom2 = cross + shell1 + shell2;
+				
+				// cross
+				rect1 = box3D(2.,27.,30.,33.,30.,33.,0.,0.,0.,y(0),y(1),y(2));
+				rect2 = box3D(9.,12.,23.,46.,30.,33.,0.,0.,0.,y(0),y(1),y(2));
+				rect3 = box3D(9.,12.,30.,33.,23.,46.,0.,0.,0.,y(0),y(1),y(2));
+				
+				cross = get_cross(get_cross(rect1, rect2), rect3);
+				
+				double ball1 = ring(0., 7., c1, y);
+				double ball2 = ring(0., 3., c2, y);
+				double shell3 = ring(7., 10., c2, y);
+				
+				double dom3 = cross + ball1 + ball2 + shell3;
+				
+				double dom1 = 1. - get_cross(dom2, dom3);
+				
+				return dom1 + 2.*dom2 + 3.*dom3;
+			}
       }
    }
    return 0.0;
@@ -2256,7 +2346,8 @@ double inflow_function(const Vector &x)
       case 1:
       case 2:
       case 3:
-      case 4: return 0.0;
+      case 4: 
+		case 5: return 0.0;
    }
    return 0.0;
 }
