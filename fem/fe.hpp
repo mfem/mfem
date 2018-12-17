@@ -2211,6 +2211,20 @@ public:
                            DenseMatrix &dshape) const;
 };
 
+class L2_PyramidElement : public NodalFiniteElement
+{
+private:
+#ifndef MFEM_THREAD_SAFE
+#endif
+
+public:
+   L2_PyramidElement(const int p,
+                     const int btype = BasisType::GaussLegendre);
+   virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
+   virtual void CalcDShape(const IntegrationPoint &ip,
+                           DenseMatrix &dshape) const;
+};
+
 class P0WedgeFiniteElement : public L2_WedgeElement
 {
 public:

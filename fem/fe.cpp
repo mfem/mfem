@@ -9716,6 +9716,26 @@ void L2Pos_WedgeElement::CalcDShape(const IntegrationPoint &ip,
    }
 }
 
+L2_PyramidElement::L2_PyramidElement(const int p, const int btype)
+   : NodalFiniteElement(3, Geometry::PYRAMID, 1, 0, FunctionSpace::Pk)
+{
+   Nodes.IntPoint(0).x = 0.375;
+   Nodes.IntPoint(0).y = 0.375;
+   Nodes.IntPoint(0).z = 0.25;
+}
+
+void L2_PyramidElement::CalcShape(const IntegrationPoint &ip,
+                                  Vector &shape) const
+{
+   shape(0) = 1.0;
+}
+
+void L2_PyramidElement::CalcDShape(const IntegrationPoint &ip,
+                                   DenseMatrix &dshape) const
+{
+   dshape(0,0) =  0.0; dshape(0,1) =  0.0; dshape(0,2) = 0.0;
+}
+
 
 const double RT_QuadrilateralElement::nk[8] =
 { 0., -1.,  1., 0.,  0., 1.,  -1., 0. };

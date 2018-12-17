@@ -1877,10 +1877,12 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
             new L2_TetrahedronElement(p, btype);
          L2_Elements[Geometry::CUBE] = new L2_HexahedronElement(p, btype);
          L2_Elements[Geometry::PRISM] = new L2_WedgeElement(p, btype);
+         L2_Elements[Geometry::PYRAMID] = new L2_PyramidElement(p, btype);
       }
       L2_Elements[Geometry::TETRAHEDRON]->SetMapType(map_type);
       L2_Elements[Geometry::CUBE]->SetMapType(map_type);
       L2_Elements[Geometry::PRISM]->SetMapType(map_type);
+      L2_Elements[Geometry::PYRAMID]->SetMapType(map_type);
       // All trace element use the default Gauss-Legendre nodal points
       Tr_Elements[Geometry::TRIANGLE] = new L2_TriangleElement(p);
       Tr_Elements[Geometry::SQUARE] = new L2_QuadrilateralElement(p);
