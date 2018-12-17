@@ -144,12 +144,12 @@ void STRUMPACKSolver::SetReorderingStrategy( strumpack::ReorderingStrategy
 {
    solver_->options().set_reordering_method( method );
 }
-
+/*
 void STRUMPACKSolver::SetMC64Job( strumpack::MC64Job job )
 {
    solver_->options().set_mc64job( job );
 }
-
+*/
 void STRUMPACKSolver::SetRelTol( double rtol )
 {
    solver_->options().set_rel_tol( rtol );
