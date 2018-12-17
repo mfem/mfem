@@ -17,79 +17,79 @@ namespace mfem
 
 // *****************************************************************************
 #ifdef __NVCC__
-#define CU_STUB(...) return __VA_ARGS__
+#define CU_STUB(dst,...) __VA_ARGS__; return dst;
 
 #else
 #define CU_STUB(...) {                                                  \
       printf("No CUDA available!\n");                                   \
       fflush(0);                                                        \
       exit(-1);                                                         \
-      return 0;                                                         \
+      return (void*)NULL;                                               \
    }
 #endif
 
 // *****************************************************************************
 // * Allocates device memory
 // *****************************************************************************
-int okMemAlloc(void** dptr, size_t bytes)
+void* okMemAlloc(void** dptr, size_t bytes)
 {
-   CU_STUB(cuMemAlloc((CUdeviceptr*)dptr, bytes));
+   CU_STUB(*dptr,cuMemAlloc((CUdeviceptr*)dptr, bytes););
 }
 
 // *****************************************************************************
 // * Frees device memory
 // *****************************************************************************
-int okMemFree(void *dptr) {
-   CU_STUB(cuMemFree((CUdeviceptr)dptr));
+void* okMemFree(void *dptr) {
+   CU_STUB(dptr,cuMemFree((CUdeviceptr)dptr));
 }
 
 // *****************************************************************************
 // * Copies memory from Host to Device
 // *****************************************************************************
-int okMemcpyHtoD(void* dst, const void* src, size_t bytes)
+void* okMemcpyHtoD(void* dst, const void* src, size_t bytes)
 {
-   CU_STUB(cuMemcpyHtoD((CUdeviceptr)dst, src, bytes));
+   CU_STUB(dst,cuMemcpyHtoD((CUdeviceptr)dst, src, bytes));
 }
 
 // *****************************************************************************
 // * Copies memory from Host to Device
 // *****************************************************************************
-int okMemcpyHtoDAsync(void* dst, const void* src, size_t bytes, void *s)
+void* okMemcpyHtoDAsync(void* dst, const void* src, size_t bytes, void *s)
 {
-   CU_STUB(cuMemcpyHtoDAsync((CUdeviceptr)dst, src, bytes, (CUstream)s));
+   CU_STUB(dst,cuMemcpyHtoDAsync((CUdeviceptr)dst, src, bytes, (CUstream)s));
 }
 
 // *****************************************************************************
 // * Copies memory from Device to Device
 // *****************************************************************************
-int okMemcpyDtoD(void* dst, void* src, size_t bytes)
+void* okMemcpyDtoD(void* dst, void* src, size_t bytes)
 {
-   CU_STUB(cuMemcpyDtoD((CUdeviceptr)dst, (CUdeviceptr)src, bytes));
+   CU_STUB(dst,cuMemcpyDtoD((CUdeviceptr)dst, (CUdeviceptr)src, bytes));
 }
 
 // *****************************************************************************
 // * Copies memory from Device to Device
 // *****************************************************************************
-int okMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s)
+void* okMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s)
 {
-   CU_STUB(cuMemcpyDtoDAsync((CUdeviceptr)dst,
-                             (CUdeviceptr)src, bytes, (CUstream)s));
+   CU_STUB(dst,cuMemcpyDtoDAsync((CUdeviceptr)dst,
+                                 (CUdeviceptr)src, bytes, (CUstream)s));
 }
 
 // *****************************************************************************
 // * Copies memory from Device to Host
 // *****************************************************************************
-int okMemcpyDtoH(void* dst, const void* src, size_t bytes)
+void* okMemcpyDtoH(void* dst, const void* src, size_t bytes)
 {
-   CU_STUB(cuMemcpyDtoH(dst, (CUdeviceptr)src, bytes));
+   CU_STUB(dst,cuMemcpyDtoH(dst, (CUdeviceptr)src, bytes));
 }
 
 // *****************************************************************************
 // * Copies memory from Device to Host
 // *****************************************************************************
-int okMemcpyDtoHAsync(void* dst, void* src, size_t bytes, void *s)
+void* okMemcpyDtoHAsync(void* dst, void* src, size_t bytes, void *s)
 {
-   CU_STUB(cuMemcpyDtoHAsync(dst, (CUdeviceptr)src, bytes, (CUstream)s));
+   CU_STUB(dst,cuMemcpyDtoHAsync(dst, (CUdeviceptr)src, bytes, (CUstream)s));
 }
 
 // *****************************************************************************

@@ -5680,6 +5680,7 @@ void Mesh::SetNodes(const Vector &node_coord)
 void Mesh::NewNodes(GridFunction &nodes, bool make_owner)
 {
    if (own_nodes) { delete Nodes; }
+   nodes.Pull();
    Nodes = &nodes;
    spaceDim = Nodes->FESpace()->GetVDim();
    own_nodes = (int)make_owner;
