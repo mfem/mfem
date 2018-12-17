@@ -49,6 +49,10 @@ Other meshing improvements
 - Added support for reading linear and quadratic 2D quadrilateral and triangular
   Cubit meshes.
 
+- The TMOP mesh optimization algorithms were extended to support user-defined
+  space-dependent limiting terms. Improved the TMOP objective functions by
+  more accurate normalization of the different terms.
+  
 Discretization improvements
 ---------------------------
 - Added element flux, and flux energy computation in class ElasticityIntegrator,
