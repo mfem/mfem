@@ -39,6 +39,125 @@ void TMOP_Metric_001::AssembleH(const DenseMatrix &Jpt,
    ie.Assemble_ddI1(weight, A.GetData());
 }
 
+double TMOP_Metric_skew2D::EvalW(const DenseMatrix &Jpt) const
+{
+   MFEM_VERIFY(Jtr != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   DenseMatrix Jpr(2, 2);
+   Mult(Jpt, *Jtr, Jpr);
+
+   Vector col1, col2;
+   Jpr.GetColumn(0, col1);
+   Jpr.GetColumn(1, col2);
+   double norm_prod = col1.Norml2() * col2.Norml2();
+   const double cos_Jpr = (col1 * col2) / norm_prod,
+                sin_Jpr = fabs(Jpr.Det()) / norm_prod;
+
+   Jtr->GetColumn(0, col1);
+   Jtr->GetColumn(1, col2);
+   norm_prod = col1.Norml2() * col2.Norml2();
+   const double cos_Jtr = (col1 * col2) / norm_prod,
+                sin_Jtr = fabs(Jtr->Det()) / norm_prod;
+
+   return 0.5 * (1.0 - cos_Jpr * cos_Jtr - sin_Jpr * sin_Jtr);
+}
+
+double TMOP_Metric_skew3D::EvalW(const DenseMatrix &Jpt) const
+{
+   MFEM_VERIFY(Jtr != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   DenseMatrix Jpr(3, 3);
+   Mult(Jpt, *Jtr, Jpr);
+
+   Vector col1, col2, col3;
+   Jpr.GetColumn(0, col1);
+   Jpr.GetColumn(1, col2);
+   Jpr.GetColumn(2, col3);
+   double norm_c1 = col1.Norml2(),
+          norm_c2 = col2.Norml2(),
+          norm_c3 = col3.Norml2();
+   double cos_Jpr_12 = (col1 * col2) / (norm_c1 * norm_c2),
+          cos_Jpr_13 = (col1 * col3) / (norm_c1 * norm_c3),
+          cos_Jpr_23 = (col2 * col3) / (norm_c2 * norm_c3);
+   double sin_Jpr_12 = std::sqrt(1.0 - cos_Jpr_12 * cos_Jpr_12),
+          sin_Jpr_13 = std::sqrt(1.0 - cos_Jpr_13 * cos_Jpr_13),
+          sin_Jpr_23 = std::sqrt(1.0 - cos_Jpr_23 * cos_Jpr_23);
+
+   Jtr->GetColumn(0, col1);
+   Jtr->GetColumn(1, col2);
+   Jtr->GetColumn(2, col3);
+   norm_c1 = col1.Norml2();
+   norm_c2 = col2.Norml2(),
+   norm_c3 = col3.Norml2();
+   double cos_Jtr_12 = (col1 * col2) / (norm_c1 * norm_c2),
+          cos_Jtr_13 = (col1 * col3) / (norm_c1 * norm_c3),
+          cos_Jtr_23 = (col2 * col3) / (norm_c2 * norm_c3);
+   double sin_Jtr_12 = std::sqrt(1.0 - cos_Jtr_12 * cos_Jtr_12),
+          sin_Jtr_13 = std::sqrt(1.0 - cos_Jtr_13 * cos_Jtr_13),
+          sin_Jtr_23 = std::sqrt(1.0 - cos_Jtr_23 * cos_Jtr_23);
+
+   return (3.0 - cos_Jpr_12 * cos_Jtr_12 - sin_Jpr_12 * sin_Jtr_12
+           - cos_Jpr_13 * cos_Jtr_13 - sin_Jpr_13 * sin_Jtr_13
+           - cos_Jpr_23 * cos_Jtr_23 - sin_Jpr_23 * sin_Jtr_23) / 6.0;
+}
+
+double TMOP_Metric_aspratio2D::EvalW(const DenseMatrix &Jpt) const
+{
+   MFEM_VERIFY(Jtr != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   DenseMatrix Jpr(2, 2);
+   Mult(Jpt, *Jtr, Jpr);
+
+   Vector col1, col2;
+   Jpr.GetColumn(0, col1);
+   Jpr.GetColumn(1, col2);
+   const double ratio_Jpr = col2.Norml2() / col1.Norml2();
+
+   Jtr->GetColumn(0, col1);
+   Jtr->GetColumn(1, col2);
+   const double ratio_Jtr = col2.Norml2() / col1.Norml2();
+
+   return 0.5 * (ratio_Jpr / ratio_Jtr + ratio_Jtr / ratio_Jpr) - 1.0;
+}
+
+double TMOP_Metric_aspratio3D::EvalW(const DenseMatrix &Jpt) const
+{
+   MFEM_VERIFY(Jtr != NULL,
+               "Requires a target Jacobian, use SetTargetJacobian().");
+
+   DenseMatrix Jpr(3, 3);
+   Mult(Jpt, *Jtr, Jpr);
+
+   Vector col1, col2, col3;
+   Jpr.GetColumn(0, col1);
+   Jpr.GetColumn(1, col2);
+   Jpr.GetColumn(2, col3);
+   double norm_c1 = col1.Norml2(),
+          norm_c2 = col2.Norml2(),
+          norm_c3 = col3.Norml2();
+   double ratio_Jpr_1 = norm_c1 / std::sqrt(norm_c2 * norm_c3),
+          ratio_Jpr_2 = norm_c2 / std::sqrt(norm_c1 * norm_c3),
+          ratio_Jpr_3 = norm_c3 / std::sqrt(norm_c1 * norm_c2);
+
+   Jtr->GetColumn(0, col1);
+   Jtr->GetColumn(1, col2);
+   Jtr->GetColumn(2, col3);
+   norm_c1 = col1.Norml2();
+   norm_c2 = col2.Norml2();
+   norm_c3 = col3.Norml2();
+   double ratio_Jtr_1 = norm_c1 / std::sqrt(norm_c2 * norm_c3),
+          ratio_Jtr_2 = norm_c2 / std::sqrt(norm_c1 * norm_c3),
+          ratio_Jtr_3 = norm_c3 / std::sqrt(norm_c1 * norm_c2);
+
+   return ( 0.5 * (ratio_Jpr_1 / ratio_Jtr_1 + ratio_Jtr_1 / ratio_Jpr_1) +
+            0.5 * (ratio_Jpr_2 / ratio_Jtr_2 + ratio_Jtr_2 / ratio_Jpr_2) +
+            0.5 * (ratio_Jpr_3 / ratio_Jtr_3 + ratio_Jtr_3 / ratio_Jpr_3) - 3.0
+          ) / 3.0;
+}
+
 double TMOP_Metric_002::EvalW(const DenseMatrix &Jpt) const
 {
    ie.SetJacobian(Jpt.GetData());
