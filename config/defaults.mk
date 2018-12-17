@@ -157,7 +157,13 @@ POSIX_CLOCKS_LIB = -lrt
 SUNDIALS_DIR = @MFEM_DIR@/../sundials-3.0.0
 SUNDIALS_OPT = -I$(SUNDIALS_DIR)/include
 SUNDIALS_LIB = -Wl,-rpath,$(SUNDIALS_DIR)/lib -L$(SUNDIALS_DIR)/lib\
- -lsundials_arkode -lsundials_cvode -lsundials_nvecserial -lsundials_kinsol
+ -lsundials_arkode -lsundials_nvecserial -lsundials_kinsol
+SUNDIALS_CVODES = YES
+ifeq ($(SUNDIALS_CVODES),YES)
+   SUNDIALS_LIB += -lsundials_cvodes
+else
+   SUNDIALS_LIB += -lsundials_cvode
+endif
 
 ifeq ($(MFEM_USE_MPI),YES)
    SUNDIALS_LIB += -lsundials_nvecparhyp -lsundials_nvecparallel

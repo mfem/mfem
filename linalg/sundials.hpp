@@ -23,7 +23,11 @@
 #include "ode.hpp"
 #include "solvers.hpp"
 
+#ifdef SUNDIALS_CVODES
+#include <cvodes/cvodes.h>
+#else
 #include <cvode/cvode.h>
+#endif
 #include <arkode/arkode.h>
 #include <kinsol/kinsol.h>
 
