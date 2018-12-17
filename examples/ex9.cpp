@@ -462,10 +462,10 @@ private:
 
 public:
    // Constructor builds structures required for low order scheme
-   FluxCorrectedTransport(const MONOTYPE _monoType, bool &_isSubCell,
+   FluxCorrectedTransport(const MONOTYPE _monoType, bool &_schemeOpt,
                           FiniteElementSpace* _fes,
                           const SparseMatrix &K, VectorFunctionCoefficient &coef, SolutionBounds &_bnds) :
-      fes(_fes), monoType(_monoType), bnds(_bnds) // TODO initialize KpD überlegen
+      fes(_fes), monoType(_monoType), bnds(_bnds)
    {
       if (_monoType == None)
       {
@@ -477,7 +477,7 @@ public:
       m.AddDomainIntegrator(new LumpedIntegrator(new MassIntegrator));
       m.Assemble();
       m.Finalize();
-      m.SpMat().GetDiag(lumpedM);
+      m.SpMat().GetDiag(lumpedM); // TODO for comparison with discrete upwinding: different versions possible
       
       if ((_monoType == DiscUpw) || (_monoType == DiscUpw_FS))
       {
@@ -515,7 +515,7 @@ public:
          for (int k = 0; k < ne; k++)
             preprocessFluxLumping(fes, coef, k, irF1);
          
-         if (_isSubCell) // TODO rename
+         if (_schemeOpt)
          {
             BilinearForm prec(fes);
             prec.AddDomainIntegrator(new PrecondConvectionIntegrator(coef, -1.0));
@@ -564,8 +564,8 @@ public:
       else if ( (_monoType == ResDist) || (_monoType == ResDist_FS) 
                || (_monoType == ResDist_Lim) || (_monoType == ResDist_LimMass) )
       {
-         ComputeResidualWeights(fes, coef, _isSubCell);
-         isSubCell = _isSubCell; // TODO begruenden
+         ComputeResidualWeights(fes, coef, _schemeOpt);
+         schemeOpt = _schemeOpt; // if ComputeResidualWeights found that order==1, element-version is used instead of subcells
       }
    }
 
@@ -809,7 +809,7 @@ public:
    }
 
    void ComputeResidualWeights(FiniteElementSpace* fes,
-                               VectorFunctionCoefficient &coef, bool &isSubCell)
+                               VectorFunctionCoefficient &coef, bool &schemeOpt)
    {
       Mesh *mesh = fes->GetMesh();
       int i, j, k, m, p, nd, dofInd, qOrdF, numBdrs, numDofs,
@@ -823,10 +823,10 @@ public:
       nd = dummy.GetDof();
       p = dummy.GetOrder();
 
-      if ((p==1) && isSubCell)
+      if ((p==1) && schemeOpt)
       {
          mfem_warning("Subcell option does not make sense for order 1. Using cell-based scheme."); // TODO also for Rusanov
-         isSubCell = false;
+         schemeOpt = false;
       }
 
       if (dim==1)
@@ -883,7 +883,7 @@ public:
       }
       else if (dim > 1)
       {
-         ref_mesh = new Mesh(mesh, p, basis_lor); // TODO delete all news
+         ref_mesh = new Mesh(mesh, p, basis_lor);
          ref_mesh->SetCurvature(1);
       }
       else
@@ -1248,7 +1248,7 @@ public:
    const MONOTYPE monoType;
 
    Vector lumpedM, elDiff;
-   bool isSubCell;
+   bool schemeOpt;
    SparseMatrix KpD, fluctMatrix;
    Array<int> numSubCellsForNode;
    DenseMatrix bdrDiff, dofs, neighborDof, subcell2CellDof, bdrIntNeighbor, bdrInt,
@@ -1305,7 +1305,7 @@ int main(int argc, char *argv[])
    int order = 3;
    int ode_solver_type = 3;
    MONOTYPE monoType = ResDist_Lim;
-   bool isSubCell = true;
+   bool schemeOpt = true;
    STENCIL stencil = Full; // must be Full for ResDist_Lim
    double t_final = 4.0;
    double dt = 0.005;
@@ -1333,10 +1333,15 @@ int main(int argc, char *argv[])
                   "Type of monotonicity treatment: 0 - no monotonicity treatment,\n\t"
                   "                                1 - discrete upwinding - low order,\n\t"
                   "                                2 - discrete upwinding - FCT,\n\t"
-                  "                                3 - Rusanov - low order,\n\t"
-                  "                                4 - Rusanov - FCT,\n\t"
+                  "                                3 - Rusanov (matrix-free)- low order,\n\t"
+                  "                                4 - Rusanov (matrix-free)- FCT,\n\t"
                   "                                5 - residual distribution scheme (matrix-free) - low order,\n\t"
-                  "                                6 - residual distribution scheme (matrix-free) - FCT."); // TODO
+                  "                                6 - residual distribution scheme (matrix-free) - FCT,\n\t"
+                  "                                7 - residual distribution scheme (matrix-free) - with tailored limiter,\n\t"
+                  "                                8 - residual distribution scheme (matrix-free) - with tailored limiter and mass matrix limiting.");
+   args.AddOption((int*)(&schemeOpt), "-opt", "--schemeOpt",
+                  "Optimized scheme: preconditioned discrete upwinding or subcell version: 0 - basic scheme,\n\t"
+                  "                                                                        1 - optimized scheme.");
    args.AddOption((int*)(&stencil), "-st", "--stencil",
                   "Type of stencil for high order scheme: 0 - all neighbors,\n\t"
                   "                                       1 - closest neighbors,\n\t"
@@ -1424,7 +1429,10 @@ int main(int argc, char *argv[])
       }
       if (order == 0)
       {
-         mfem_error("No need to use monotonicity treatment for polynomial order 0.");
+         delete mesh;
+         delete ode_solver;
+         return 5;
+         cout << "No need to use monotonicity treatment for polynomial order 0." << endl;
       }
    }
 
@@ -1461,7 +1469,7 @@ int main(int argc, char *argv[])
    // Compute data required to easily find the min-/max-values for the high order scheme
    SolutionBounds bnds(&fes, k, stencil);
    // Precompute data required for high and low order schemes
-   FluxCorrectedTransport fct(monoType, isSubCell, &fes, k.SpMat(), velocity,
+   FluxCorrectedTransport fct(monoType, schemeOpt, &fes, k.SpMat(), velocity,
                               bnds);
 
    // 7. Define the initial conditions, save the corresponding grid function to
@@ -1661,7 +1669,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          int nd = el.GetDof();
          alpha.SetSize(nd); alpha = 0.; // TODO Limiter
          
-         if (fct.isSubCell)
+         if (fct.schemeOpt)
          {
             LumpFluxTerms(k, nd, x, y, alpha);
          }
@@ -1813,7 +1821,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
          sumWeightsP = nd*xMax - xSum + eps;
          sumWeightsN = nd*xMin - xSum - eps;
          
-         if (fct.isSubCell)
+         if (fct.schemeOpt)
          {
             rhoSubcellP.SetSize(numSubcells);
             rhoSubcellN.SetSize(numSubcells);
@@ -1866,7 +1874,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
             weightP = (xMax - x(dofInd)) / sumWeightsP;
             weightN = (xMin - x(dofInd)) / sumWeightsN;
             
-            if (fct.isSubCell)
+            if (fct.schemeOpt)
             {
                double auxP = gamma / (rhoP + eps);
                weightP *= 1. - min(auxP * sumRhoSubcellP, 1.);
@@ -1967,15 +1975,13 @@ void FE_Evolution::ComputeFCTSolution(const Vector &x, const Vector &yH,
 void FE_Evolution::ComputeLimitedSolution(const Vector &x, Vector &y) const
 {
    int i, j, k, nd, dofInd;
-   double zMax, zMin, beta = 0.5, eps = 1.E-15;
-   Vector alpha;
-   DenseMatrix Mlim;
-   Array<int> loc;
+   double zMax, zMin, beta = 10., betaDot = 0.5, eps = 1.E-15;
+   Vector alpha, xDot(x.Size());
    
    int* I = M.GetI();
    int* J = M.GetJ();
    double* Mij = M.GetData();
-   int ctr = 0;
+   int ctr1 = 0, ctr2 = 0;
    
    M_solver.Mult(y, z);
    
@@ -1983,33 +1989,57 @@ void FE_Evolution::ComputeLimitedSolution(const Vector &x, Vector &y) const
    {
       const FiniteElement &el = *fes->GetFE(k);
       nd = el.GetDof();
+      alpha.SetSize(nd);
       
-      alpha.SetSize(nd); alpha = 1.;
       zMin = numeric_limits<double>::infinity();
       zMax = -zMin;
       for (i = 0; i < nd; i++)
       {
          dofInd = k*nd+i;
-         zMax = max(zMax, z(dofInd));
-         zMin = min(zMin, z(dofInd));
+         zMax = max(zMax, x(dofInd));
+         zMin = min(zMin, x(dofInd));
       }
       for (i = 0; i < nd; i++)
       {
          dofInd = k*nd+i;
-         alpha(i) = min( 1., beta / dt * min(fct.bnds.x_max(dofInd) - x(dofInd), x(dofInd) - fct.bnds.x_min(dofInd)) 
-                                      / (max(zMax - z(dofInd), z(dofInd) - zMin) + eps) ); // TODO repeat of numerator
-//          if ((alpha(i) > 1.+eps) || (alpha(i) < -eps))
-//             mfem_error(".");
+         alpha(i) = min( 1., beta * min(fct.bnds.x_max(dofInd) - x(dofInd), x(dofInd) - fct.bnds.x_min(dofInd)) 
+                                       / (max(zMax - x(dofInd), x(dofInd) - zMin) + eps) ); // TODO optimize computations
       }
       for (i = 0; i < nd; i++)
       {
          dofInd = k*nd+i;
          for (j = nd-1; j >= 0; j--) // run backwards through columns
          {
-            if (i==j) { ctr++; continue; }
+            if (i==j) { ctr1++; continue; }
             
-            y(dofInd) += alpha(i) * Mij[ctr] * alpha(j) * (z(dofInd) - z(k*nd+j)); // use knowledge of how M looks like
-            ctr++;
+            xDot(dofInd) = y(dofInd) + alpha(i) * Mij[ctr1] * alpha(j) * (z(dofInd) - z(k*nd+j)); // use knowledge of how M looks like
+            ctr1++;
+         }
+         xDot(dofInd) /= fct.lumpedM(dofInd);
+      }
+      zMin = numeric_limits<double>::infinity();
+      zMax = -zMin;
+      for (i = 0; i < nd; i++)
+      {
+         dofInd = k*nd+i;
+         zMax = max(zMax, xDot(dofInd));
+         zMin = min(zMin, xDot(dofInd));
+      }
+      for (i = 0; i < nd; i++)
+      {
+         dofInd = k*nd+i;
+         alpha(i) = min( 1., betaDot / dt * min(fct.bnds.x_max(dofInd) - x(dofInd), x(dofInd) - fct.bnds.x_min(dofInd)) 
+                                      / (max(zMax - xDot(dofInd), xDot(dofInd) - zMin) + eps) );
+      }
+      for (i = 0; i < nd; i++)
+      {
+         dofInd = k*nd+i;
+         for (j = nd-1; j >= 0; j--) // run backwards through columns
+         {
+            if (i==j) { ctr2++; continue; }
+            
+            y(dofInd) += alpha(i) * Mij[ctr2] * alpha(j) * (xDot(dofInd) - xDot(k*nd+j)); // use knowledge of how M looks like
+            ctr2++;
          }
          y(dofInd) /= fct.lumpedM(dofInd);
       }
@@ -2135,48 +2165,48 @@ void velocity_function(const Vector &x, Vector &v)
 }
 
 double box(std::pair<double,double> p1, std::pair<double,double> p2, double theta, 
-	   std::pair<double,double> origin, double x, double y)
+      std::pair<double,double> origin, double x, double y)
 {
-	double xmin=p1.first;
-	double xmax=p2.first;
-	double ymin=p1.second;
-	double ymax=p2.second;
-	double ox=origin.first;
-	double oy=origin.second;
-	
-	double pi = M_PI;
-	double s=std::sin(theta*pi/180);
-	double c=std::cos(theta*pi/180);
-	
-	double xn=c*(x-ox)-s*(y-oy)+ox;
-	double yn=s*(x-ox)+c*(y-oy)+oy;
-	
-	if (xn>xmin && xn<xmax && yn>ymin && yn<ymax)
-		return 1.0;
-	else 
-		return 0.0;
+   double xmin=p1.first;
+   double xmax=p2.first;
+   double ymin=p1.second;
+   double ymax=p2.second;
+   double ox=origin.first;
+   double oy=origin.second;
+   
+   double pi = M_PI;
+   double s=std::sin(theta*pi/180);
+   double c=std::cos(theta*pi/180);
+   
+   double xn=c*(x-ox)-s*(y-oy)+ox;
+   double yn=s*(x-ox)+c*(y-oy)+oy;
+   
+   if (xn>xmin && xn<xmax && yn>ymin && yn<ymax)
+      return 1.0;
+   else 
+      return 0.0;
 }
 
 double box3D(double xmin, double xmax, double ymin, double ymax, double zmin, double zmax, 
-				 double theta, double ox, double oy, double x, double y, double z)
+             double theta, double ox, double oy, double x, double y, double z)
 {
-	double pi = M_PI;
+   double pi = M_PI;
    double s=std::sin(theta*pi/180);
    double c=std::cos(theta*pi/180);
-	
-	double xn=c*(x-ox)-s*(y-oy)+ox;
-	double yn=s*(x-ox)+c*(y-oy)+oy;
-	
-	if (xn>xmin && xn<xmax && yn>ymin && yn<ymax && z>zmin && z<zmax)
-		return 1.0;
-	else 
-		return 0.0;
+   
+   double xn=c*(x-ox)-s*(y-oy)+ox;
+   double yn=s*(x-ox)+c*(y-oy)+oy;
+   
+   if (xn>xmin && xn<xmax && yn>ymin && yn<ymax && z>zmin && z<zmax)
+      return 1.0;
+   else 
+      return 0.0;
 }
 
 double get_cross(double rect1, double rect2)
 {
-	double intersection=rect1*rect2;
-	return rect1+rect2-intersection; //union
+   double intersection=rect1*rect2;
+   return rect1+rect2-intersection; //union
 }
 
 double ring(double rin, double rout, Vector c, Vector y)
@@ -2185,21 +2215,21 @@ double ring(double rin, double rout, Vector c, Vector y)
    int dim = c.Size();
    if (dim != y.Size())
    {
-		mfem_error("Origin vector and variable have to be of the same size.");
-	}
-	for (int i = 0; i < dim; i++)
-	{
-		r += pow(y(i)-c(i), 2.);
-	}
+      mfem_error("Origin vector and variable have to be of the same size.");
+   }
+   for (int i = 0; i < dim; i++)
+   {
+      r += pow(y(i)-c(i), 2.);
+   }
    r = sqrt(r);
-	if (r>rin && r<rout)
-	{
-		return 1.0;
-	}
+   if (r>rin && r<rout)
+   {
+      return 1.0;
+   }
    else
-	{
-		return 0.0;
-	}
+   {
+      return 0.0;
+   }
 }
 
 // Initial condition
@@ -2264,74 +2294,74 @@ double u0_function(const Vector &x)
       }
       case 5:
       {
-			Vector y(dim);
-			for (int i = 0; i < dim; i++) { y(i) = 50. * (x(i) + 1.); }
-			
-			if (dim==1)
-			{
-				mfem_error("This test is not supported in 1D.");
-			}
-			else if (dim==2)
-			{
-				std::pair<double, double> p1;
-				std::pair<double, double> p2;
-				std::pair<double, double> origin;
-				
-				// cross
-				p1.first=14.; p1.second=3.;
-				p2.first=17.; p2.second=26.;
-				origin.first = 15.5;
-				origin.second = 11.5;
-				double rect1=box(p1,p2,-45.,origin,y(0),y(1));
-				p1.first=7.; p1.second=10.;
-				p2.first=32.; p2.second=13.;
-				double rect2=box(p1,p2,-45.,origin,y(0),y(1));
-				double cross=get_cross(rect1,rect2);
-				// rings
-				Vector c(dim);
-				c(0) = 40.; c(1) = 40;
-				double ring1 = ring(7., 10., c, y);
-				c(1) = 20.;
-				double ring2 = ring(3., 7., c, y);
-				
-				return cross + ring1 + ring2;
-			}
-			else
-			{
-				// cross
-				double rect1 = box3D(7.,32.,10.,13.,10.,13.,-45.,15.5,11.5,y(0),y(1),y(2));
-				double rect2 = box3D(14.,17.,3.,26.,10.,13.,-45.,15.5,11.5,y(0),y(1),y(2));
-				double rect3 = box3D(14.,17.,10.,13.,3.,26.,-45.,15.5,11.5,y(0),y(1),y(2));
-				
-				double cross = get_cross(get_cross(rect1, rect2), rect3);
-				
-				// rings
-				Vector c1(dim), c2(dim);
-				c1(0) = 40.; c1(1) = 40; c1(2) = 40.;
-				c2(0) = 40.; c1(1) = 20; c1(2) = 20.;
-				
-				double shell1 = ring(7., 10., c1, y);
-				double shell2 = ring(3., 7., c2, y);
-				
-				double dom2 = cross + shell1 + shell2;
-				
-				// cross
-				rect1 = box3D(2.,27.,30.,33.,30.,33.,0.,0.,0.,y(0),y(1),y(2));
-				rect2 = box3D(9.,12.,23.,46.,30.,33.,0.,0.,0.,y(0),y(1),y(2));
-				rect3 = box3D(9.,12.,30.,33.,23.,46.,0.,0.,0.,y(0),y(1),y(2));
-				
-				cross = get_cross(get_cross(rect1, rect2), rect3);
-				
-				double ball1 = ring(0., 7., c1, y);
-				double ball2 = ring(0., 3., c2, y);
-				double shell3 = ring(7., 10., c2, y);
-				
-				double dom3 = cross + ball1 + ball2 + shell3;
-				
-				double dom1 = 1. - get_cross(dom2, dom3);
-				
-				return dom1 + 2.*dom2 + 3.*dom3;
-			}
+         Vector y(dim);
+         for (int i = 0; i < dim; i++) { y(i) = 50. * (x(i) + 1.); }
+         
+         if (dim==1)
+         {
+            mfem_error("This test is not supported in 1D.");
+         }
+         else if (dim==2)
+         {
+            std::pair<double, double> p1;
+            std::pair<double, double> p2;
+            std::pair<double, double> origin;
+            
+            // cross
+            p1.first=14.; p1.second=3.;
+            p2.first=17.; p2.second=26.;
+            origin.first = 15.5;
+            origin.second = 11.5;
+            double rect1=box(p1,p2,-45.,origin,y(0),y(1));
+            p1.first=7.; p1.second=10.;
+            p2.first=32.; p2.second=13.;
+            double rect2=box(p1,p2,-45.,origin,y(0),y(1));
+            double cross=get_cross(rect1,rect2);
+            // rings
+            Vector c(dim);
+            c(0) = 40.; c(1) = 40;
+            double ring1 = ring(7., 10., c, y);
+            c(1) = 20.;
+            double ring2 = ring(3., 7., c, y);
+            
+            return cross + ring1 + ring2;
+         }
+         else
+         {
+            // cross
+            double rect1 = box3D(7.,32.,10.,13.,10.,13.,-45.,15.5,11.5,y(0),y(1),y(2));
+            double rect2 = box3D(14.,17.,3.,26.,10.,13.,-45.,15.5,11.5,y(0),y(1),y(2));
+            double rect3 = box3D(14.,17.,10.,13.,3.,26.,-45.,15.5,11.5,y(0),y(1),y(2));
+            
+            double cross = get_cross(get_cross(rect1, rect2), rect3);
+            
+            // rings
+            Vector c1(dim), c2(dim);
+            c1(0) = 40.; c1(1) = 40; c1(2) = 40.;
+            c2(0) = 40.; c1(1) = 20; c1(2) = 20.;
+            
+            double shell1 = ring(7., 10., c1, y);
+            double shell2 = ring(3., 7., c2, y);
+            
+            double dom2 = cross + shell1 + shell2;
+            
+            // cross
+            rect1 = box3D(2.,27.,30.,33.,30.,33.,0.,0.,0.,y(0),y(1),y(2));
+            rect2 = box3D(9.,12.,23.,46.,30.,33.,0.,0.,0.,y(0),y(1),y(2));
+            rect3 = box3D(9.,12.,30.,33.,23.,46.,0.,0.,0.,y(0),y(1),y(2));
+            
+            cross = get_cross(get_cross(rect1, rect2), rect3);
+            
+            double ball1 = ring(0., 7., c1, y);
+            double ball2 = ring(0., 3., c2, y);
+            double shell3 = ring(7., 10., c2, y);
+            
+            double dom3 = cross + ball1 + ball2 + shell3;
+            
+            double dom1 = 1. - get_cross(dom2, dom3);
+            
+            return dom1 + 2.*dom2 + 3.*dom3;
+         }
       }
    }
    return 0.0;
@@ -2347,7 +2377,7 @@ double inflow_function(const Vector &x)
       case 2:
       case 3:
       case 4: 
-		case 5: return 0.0;
+      case 5: return 0.0;
    }
    return 0.0;
 }
