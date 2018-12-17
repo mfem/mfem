@@ -88,6 +88,66 @@ public:
                           const double weight, DenseMatrix &A) const;
 };
 
+/// Skew metric, 2D.
+class TMOP_Metric_skew2D : public TMOP_QualityMetric
+{
+public:
+   // W = 0.5 (1 - cos(angle_Jpr - angle_Jtr)).
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
+};
+
+/// Skew metric, 3D.
+class TMOP_Metric_skew3D : public TMOP_QualityMetric
+{
+public:
+   // W = 1/6 (3 - sum_i cos(angle_Jpr_i - angle_Jtr_i)), i = 1..3.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
+};
+
+/// Aspect ratio metric, 2D.
+class TMOP_Metric_aspratio2D : public TMOP_QualityMetric
+{
+public:
+   // W = 0.5 (ar_Jpr/ar_Jtr + ar_Jtr/ar_Jpr) - 1.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
+};
+
+/// Aspect ratio metric, 3D.
+class TMOP_Metric_aspratio3D : public TMOP_QualityMetric
+{
+public:
+   // W = 1/3 sum [0.5 (ar_Jpr_i/ar_Jtr_i + ar_Jtr_i/ar_Jpr_i) - 1], i = 1..3.
+   virtual double EvalW(const DenseMatrix &Jpt) const;
+
+   virtual void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const
+   { MFEM_ABORT("Not implemented"); }
+
+   virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
+                          const double weight, DenseMatrix &A) const
+   { MFEM_ABORT("Not implemented"); }
+};
+
 /// Shape, ideal barrier metric, 2D
 class TMOP_Metric_002 : public TMOP_QualityMetric
 {
