@@ -2776,6 +2776,7 @@ ConformingProlongationOperator::ConformingProlongationOperator(
 
 void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
 {
+   dbg("in");
    MFEM_ASSERT(x.Size() == Width(), "");
    MFEM_ASSERT(y.Size() == Height(), "");
 
@@ -2800,11 +2801,13 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    const int out_layout = 0; // 0 - output is ldofs array
    gc.BcastEnd(ydata, out_layout);
    y.Push();
+   dbg("out");
 }
 
 void ConformingProlongationOperator::MultTranspose(
    const Vector &x, Vector &y) const
 {
+   dbg("in");
    MFEM_ASSERT(x.Size() == Height(), "");
    MFEM_ASSERT(y.Size() == Width(), "");
 
@@ -2828,6 +2831,7 @@ void ConformingProlongationOperator::MultTranspose(
    const int out_layout = 2; // 2 - output is an array on all ltdofs
    gc.ReduceEnd<double>(ydata, out_layout, GroupCommunicator::Sum);
    y.Push();
+   dbg("out");
 }
 
 } // namespace mfem
