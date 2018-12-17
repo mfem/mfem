@@ -4609,6 +4609,28 @@ FaceCenteredOrthorhombicLattice::MapToFundamentalDomain(const Vector & pt,
    return map;
 }
 
+const DenseMatrix &
+FaceCenteredOrthorhombicLattice::GetTransformation(int ti) const
+{
+   T_ = 0.0;
+
+   T_(0, 0) = 1.0;
+   T_(1, 1) = 1.0;
+   T_(2, 2) = 1.0;
+
+   for (int i=0; i<3; i++)
+   {
+      if ( ti & (int)pow(2, i) )
+      {
+         T_(i,0) *= -1.0;
+         T_(i,1) *= -1.0;
+         T_(i,2) *= -1.0;
+      }
+   }
+
+   return T_;
+}
+
 Mesh *
 FaceCenteredOrthorhombicLattice::GetWignerSeitzMesh(bool tetMesh) const
 {
@@ -5204,6 +5226,28 @@ BodyCenteredOrthorhombicLattice::MapToFundamentalDomain(const Vector & pt,
    return map;
 }
 
+const DenseMatrix &
+BodyCenteredOrthorhombicLattice::GetTransformation(int ti) const
+{
+   T_ = 0.0;
+
+   T_(0, 0) = 1.0;
+   T_(1, 1) = 1.0;
+   T_(2, 2) = 1.0;
+
+   for (int i=0; i<3; i++)
+   {
+      if ( ti & (int)pow(2, i) )
+      {
+         T_(i,0) *= -1.0;
+         T_(i,1) *= -1.0;
+         T_(i,2) *= -1.0;
+      }
+   }
+
+   return T_;
+}
+
 Mesh *
 BodyCenteredOrthorhombicLattice::GetWignerSeitzMesh(bool tetMesh) const
 {
@@ -5505,6 +5549,28 @@ BaseCenteredOrthorhombicLattice::MapToFundamentalDomain(const Vector & pt,
    }
    */
    return map;
+}
+
+const DenseMatrix &
+BaseCenteredOrthorhombicLattice::GetTransformation(int ti) const
+{
+   T_ = 0.0;
+
+   T_(0, 0) = 1.0;
+   T_(1, 1) = 1.0;
+   T_(2, 2) = 1.0;
+
+   for (int i=0; i<3; i++)
+   {
+      if ( ti & (int)pow(2, i) )
+      {
+         T_(i,0) *= -1.0;
+         T_(i,1) *= -1.0;
+         T_(i,2) *= -1.0;
+      }
+   }
+
+   return T_;
 }
 
 Mesh *

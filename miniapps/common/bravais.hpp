@@ -836,6 +836,10 @@ public:
             return 0;
       };
    }
+
+   unsigned int GetNumberTransformations() const { return 8; }
+   const DenseMatrix & GetTransformation(int ti) const;
+
    mfem::Mesh * GetWignerSeitzMesh(bool tetMesh = false) const;
    mfem::Mesh * GetPeriodicWignerSeitzMesh(bool tetMesh = false) const;
 
@@ -864,6 +868,9 @@ public:
    virtual unsigned int GetNumberIntermediatePoints() { return 13; }
    virtual unsigned int GetNumberPaths()              { return 3; }
    virtual unsigned int GetNumberPathSegments(int i)  { return (i==0)?11:1; }
+
+   unsigned int GetNumberTransformations() const { return 8; }
+   const DenseMatrix & GetTransformation(int ti) const;
 
    mfem::Mesh * GetWignerSeitzMesh(bool tetMesh = false) const;
    mfem::Mesh * GetPeriodicWignerSeitzMesh(bool tetMesh = false) const;
@@ -904,10 +911,22 @@ public:
    virtual unsigned int GetNumberPaths()              { return 2; }
    virtual unsigned int GetNumberPathSegments(int i)  { return (i==0)?11:1; }
 
+   unsigned int GetNumberTransformations() const { return 8; }
+   const DenseMatrix & GetTransformation(int ti) const;
+
+   virtual mfem::Mesh * GetFundamentalDomainMesh() const;
+
    mfem::Mesh * GetWignerSeitzMesh(bool tetMesh = false) const;
    mfem::Mesh * GetPeriodicWignerSeitzMesh(bool tetMesh = false) const;
 
 private:
+
+   // Data for mesh of the fundamental domain
+   double fd_vert_[30];  // Vertex coordinates
+   int fd_e2v_[14];       // Element to vertex connectivity
+   int fd_elem_att_[2];  // Element Attributes
+   int fd_be2v_[34];     // Boundary Element to vertex connectivity
+   int fd_belem_att_[9]; // Boundary element Attributes
 
    // Data for mesh of the corresponding Wigner-Setiz Cell
    double ws_vert_[63];   // Vertex coordinates
