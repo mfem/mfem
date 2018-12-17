@@ -6549,10 +6549,12 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
             v[4] = oface+qf2;
             v[5] = oface+qf4;
 
-            for (int k = 0; k < 8; k++)
+            CoarseFineTr.embeddings[i].parent = i;
+            CoarseFineTr.embeddings[i].matrix = 0;
+            for (int k = 0; k < 7; k++)
             {
                CoarseFineTr.embeddings[j+k].parent = i;
-               CoarseFineTr.embeddings[j+k].matrix = k;
+               CoarseFineTr.embeddings[j+k].matrix = k + 1;
             }
          }
          break;
@@ -6625,10 +6627,12 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p)
             v[6] = oelem+he;
             v[7] = oface+qf[4];
 
-            for (int k = 0; k < 8; k++)
+            CoarseFineTr.embeddings[i].parent = i;
+            CoarseFineTr.embeddings[i].matrix = 0;
+            for (int k = 0; k < 7; k++)
             {
                CoarseFineTr.embeddings[j+k].parent = i;
-               CoarseFineTr.embeddings[j+k].matrix = k;
+               CoarseFineTr.embeddings[j+k].matrix = k + 1;
             }
          }
          break;
