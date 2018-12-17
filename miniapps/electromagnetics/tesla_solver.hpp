@@ -28,7 +28,7 @@ using miniapps::ND_ParFESpace;
 using miniapps::RT_ParFESpace;
 using miniapps::ParDiscreteGradOperator;
 using miniapps::ParDiscreteCurlOperator;
-using miniapps::DivergenceFreeProjector;
+using miniapps::DivergenceFreeNDProjector;
 
 namespace electromagnetics
 {
@@ -99,8 +99,8 @@ private:
    ParGridFunction * bd_; // Dual of B (HCurl)
    ParGridFunction * jd_; // Dual of J, the rhs vector (HCurl)
 
-   DivergenceFreeProjector * DivFreeProj_;
-   SurfaceCurrent          * SurfCur_;
+   DivergenceFreeNDProjector * DivFreeProj_;
+   SurfaceCurrent            * SurfCur_;
 
    Coefficient       * muInvCoef_; // Dia/Paramagnetic Material Coefficient
    VectorCoefficient * aBCCoef_;   // Vector Potential BC Function

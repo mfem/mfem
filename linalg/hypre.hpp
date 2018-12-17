@@ -703,8 +703,14 @@ class HyprePCG : public HypreSolver
 private:
    HYPRE_Solver pcg_solver;
 
+   HypreSolver * precond;
+
 public:
+   HyprePCG(MPI_Comm comm);
+
    HyprePCG(HypreParMatrix &_A);
+
+   virtual void SetOperator(const Operator &op);
 
    void SetTol(double tol);
    void SetMaxIter(int max_iter);
@@ -752,8 +758,14 @@ class HypreGMRES : public HypreSolver
 private:
    HYPRE_Solver gmres_solver;
 
+   HypreSolver * precond;
+
 public:
+   HypreGMRES(MPI_Comm comm);
+
    HypreGMRES(HypreParMatrix &_A);
+
+   virtual void SetOperator(const Operator &op);
 
    void SetTol(double tol);
    void SetMaxIter(int max_iter);
@@ -806,6 +818,8 @@ public:
    explicit HypreDiagScale(HypreParMatrix &A) : HypreSolver(&A) { }
    virtual operator HYPRE_Solver() const { return NULL; }
 
+   virtual void SetOperator(const Operator &op);
+
    virtual HYPRE_PtrToParSolverFcn SetupFcn() const
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParCSRDiagScaleSetup; }
    virtual HYPRE_PtrToParSolverFcn SolveFcn() const
@@ -821,8 +835,20 @@ class HypreParaSails : public HypreSolver
 private:
    HYPRE_Solver sai_precond;
 
+   /// Default, generally robust, ParaSails options
+   void SetDefaultOptions();
+
+   // If sai_precond is NULL, allocates it and sets default options.
+   // Otherwise saves the options from sai_precond, destroys it, allocates a new
+   // one, and sets its options to the saved values.
+   void ResetSAIPrecond(MPI_Comm comm);
+
 public:
+   HypreParaSails(MPI_Comm comm);
+
    HypreParaSails(HypreParMatrix &A);
+
+   virtual void SetOperator(const Operator &op);
 
    void SetSymmetry(int sym);
 

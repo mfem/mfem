@@ -678,6 +678,18 @@ public:
                   double _alpha = 1.0, double _beta = 1.0)
       : a(&A), b(&B), alpha(_alpha), beta(_beta) { }
 
+   void SetACoef(Coefficient &A) { a = &A; }
+   Coefficient * GetACoef() const { return a; }
+
+   void SetBCoef(Coefficient &B) { b = &B; }
+   Coefficient * GetBCoef() const { return b; }
+
+   void SetAlpha(double _alpha) { alpha = _alpha; }
+   double GetAlpha() const { return alpha; }
+
+   void SetBeta(double _beta) { beta = _beta; }
+   double GetBeta() const { return beta; }
+
    /// Evaluate the coefficient
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
@@ -688,17 +700,29 @@ public:
 class ProductCoefficient : public Coefficient
 {
 private:
+   double aConst;
    Coefficient * a;
    Coefficient * b;
 
 public:
+   ProductCoefficient(double A, Coefficient &B)
+      : aConst(A), a(NULL), b(&B) { }
    ProductCoefficient(Coefficient &A, Coefficient &B)
-      : a(&A), b(&B) { }
+      : aConst(0.0), a(&A), b(&B) { }
+
+   void SetAConst(double A) { a = NULL; aConst = A; }
+   double GetAConst() const { return aConst; }
+
+   void SetACoef(Coefficient &A) { a = &A; }
+   Coefficient * GetACoef() const { return a; }
+
+   void SetBCoef(Coefficient &B) { b = &B; }
+   Coefficient * GetBCoef() const { return b; }
 
    /// Evaluate the coefficient
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip)
-   { return a->Eval(T, ip) * b->Eval(T, ip); }
+   { return ((a == NULL ) ? aConst : a->Eval(T, ip) ) * b->Eval(T, ip); }
 };
 
 /// Scalar coefficient defined as a scalar raised to a power
@@ -713,6 +737,12 @@ public:
    // Result is A^p
    PowerCoefficient(Coefficient &A, double _p)
       : a(&A), p(_p) { }
+
+   void SetACoef(Coefficient &A) { a = &A; }
+   Coefficient * GetACoef() const { return a; }
+
+   void SetExponent(double _p) { p = _p; }
+   double GetExponent() const { return p; }
 
    /// Evaluate the coefficient
    virtual double Eval(ElementTransformation &T,
@@ -732,6 +762,12 @@ private:
 public:
    InnerProductCoefficient(VectorCoefficient &A, VectorCoefficient &B);
 
+   void SetACoef(VectorCoefficient &A) { a = &A; }
+   VectorCoefficient * GetACoef() const { return a; }
+
+   void SetBCoef(VectorCoefficient &B) { b = &B; }
+   VectorCoefficient * GetBCoef() const { return b; }
+
    /// Evaluate the coefficient
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
@@ -750,6 +786,12 @@ private:
 public:
    VectorRotProductCoefficient(VectorCoefficient &A, VectorCoefficient &B);
 
+   void SetACoef(VectorCoefficient &A) { a = &A; }
+   VectorCoefficient * GetACoef() const { return a; }
+
+   void SetBCoef(VectorCoefficient &B) { b = &B; }
+   VectorCoefficient * GetBCoef() const { return b; }
+
    virtual double Eval(ElementTransformation &T,
                        const IntegrationPoint &ip);
 };
@@ -764,6 +806,9 @@ private:
 
 public:
    DeterminantCoefficient(MatrixCoefficient &A);
+
+   void SetACoef(MatrixCoefficient &A) { a = &A; }
+   MatrixCoefficient * GetACoef() const { return a; }
 
    /// Evaluate the coefficient
    virtual double Eval(ElementTransformation &T,
@@ -787,6 +832,18 @@ public:
    VectorSumCoefficient(VectorCoefficient &A, VectorCoefficient &B,
                         double _alpha = 1.0, double _beta = 1.0);
 
+   void SetACoef(VectorCoefficient &A) { a = &A; }
+   VectorCoefficient * GetACoef() const { return a; }
+
+   void SetBCoef(VectorCoefficient &B) { b = &B; }
+   VectorCoefficient * GetBCoef() const { return b; }
+
+   void SetAlpha(double _alpha) { alpha = _alpha; }
+   double GetAlpha() const { return alpha; }
+
+   void SetBeta(double _beta) { beta = _beta; }
+   double GetBeta() const { return beta; }
+
    /// Evaluate the coefficient
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
@@ -796,11 +853,40 @@ public:
 class ScalarVectorProductCoefficient : public VectorCoefficient
 {
 private:
+   double aConst;
    Coefficient * a;
    VectorCoefficient * b;
 
 public:
+   ScalarVectorProductCoefficient(double A, VectorCoefficient &B);
    ScalarVectorProductCoefficient(Coefficient &A, VectorCoefficient &B);
+
+   void SetAConst(double A) { a = NULL; aConst = A; }
+   double GetAConst() const { return aConst; }
+
+   void SetACoef(Coefficient &A) { a = &A; }
+   Coefficient * GetACoef() const { return a; }
+
+   void SetBCoef(VectorCoefficient &B) { b = &B; }
+   VectorCoefficient * GetBCoef() const { return b; }
+
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+};
+
+/// Vector coefficient defined as a normalized vector field (returns v/|v|)
+class NormalizedVectorCoefficient : public VectorCoefficient
+{
+private:
+   VectorCoefficient * a;
+
+   double tol;
+
+public:
+   NormalizedVectorCoefficient(VectorCoefficient &A, double tol = 1e-6);
+
+   void SetACoef(VectorCoefficient &A) { a = &A; }
+   VectorCoefficient * GetACoef() const { return a; }
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
@@ -819,6 +905,12 @@ private:
 public:
    VectorCrossProductCoefficient(VectorCoefficient &A, VectorCoefficient &B);
 
+   void SetACoef(VectorCoefficient &A) { a = &A; }
+   VectorCoefficient * GetACoef() const { return a; }
+
+   void SetBCoef(VectorCoefficient &B) { b = &B; }
+   VectorCoefficient * GetBCoef() const { return b; }
+
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
 };
@@ -835,6 +927,12 @@ private:
 
 public:
    MatVecCoefficient(MatrixCoefficient &A, VectorCoefficient &B);
+
+   void SetACoef(MatrixCoefficient &A) { a = &A; }
+   MatrixCoefficient * GetACoef() const { return a; }
+
+   void SetBCoef(VectorCoefficient &B) { b = &B; }
+   VectorCoefficient * GetBCoef() const { return b; }
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
@@ -871,6 +969,18 @@ public:
    MatrixSumCoefficient(MatrixCoefficient &A, MatrixCoefficient &B,
                         double _alpha = 1.0, double _beta = 1.0);
 
+   void SetACoef(MatrixCoefficient &A) { a = &A; }
+   MatrixCoefficient * GetACoef() const { return a; }
+
+   void SetBCoef(MatrixCoefficient &B) { b = &B; }
+   MatrixCoefficient * GetBCoef() const { return b; }
+
+   void SetAlpha(double _alpha) { alpha = _alpha; }
+   double GetAlpha() const { return alpha; }
+
+   void SetBeta(double _beta) { beta = _beta; }
+   double GetBeta() const { return beta; }
+
    /// Evaluate the coefficient
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationPoint &ip);
@@ -880,11 +990,22 @@ public:
 class ScalarMatrixProductCoefficient : public MatrixCoefficient
 {
 private:
+   double aConst;
    Coefficient * a;
    MatrixCoefficient * b;
 
 public:
+   ScalarMatrixProductCoefficient(double A, MatrixCoefficient &B);
    ScalarMatrixProductCoefficient(Coefficient &A, MatrixCoefficient &B);
+
+   void SetAConst(double A) { a = NULL; aConst = A; }
+   double GetAConst() const { return aConst; }
+
+   void SetACoef(Coefficient &A) { a = &A; }
+   Coefficient * GetACoef() const { return a; }
+
+   void SetBCoef(MatrixCoefficient &B) { b = &B; }
+   MatrixCoefficient * GetBCoef() const { return b; }
 
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationPoint &ip);
@@ -899,6 +1020,9 @@ private:
 public:
    TransposeMatrixCoefficient(MatrixCoefficient &A);
 
+   void SetACoef(MatrixCoefficient &A) { a = &A; }
+   MatrixCoefficient * GetACoef() const { return a; }
+
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationPoint &ip);
 };
@@ -911,6 +1035,9 @@ private:
 
 public:
    InverseMatrixCoefficient(MatrixCoefficient &A);
+
+   void SetACoef(MatrixCoefficient &A) { a = &A; }
+   MatrixCoefficient * GetACoef() const { return a; }
 
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationPoint &ip);
@@ -928,6 +1055,12 @@ private:
 
 public:
    OuterProductCoefficient(VectorCoefficient &A, VectorCoefficient &B);
+
+   void SetACoef(VectorCoefficient &A) { a = &A; }
+   VectorCoefficient * GetACoef() const { return a; }
+
+   void SetBCoef(VectorCoefficient &B) { b = &B; }
+   VectorCoefficient * GetBCoef() const { return b; }
 
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationPoint &ip);
