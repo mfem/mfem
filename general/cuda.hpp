@@ -48,42 +48,42 @@ namespace mfem
 // *****************************************************************************
 // * Allocates device memory
 // *****************************************************************************
-int okMemAlloc(void**, size_t);
+void* okMemAlloc(void**, size_t);
 
 // *****************************************************************************
 // * Frees device memory
 // *****************************************************************************
-int okMemFree(void*);
+void* okMemFree(void*);
 
 // *****************************************************************************
 // * Copies memory from Host to Device
 // *****************************************************************************
-int okMemcpyHtoD(void*, const void*, size_t);
+void* okMemcpyHtoD(void*, const void*, size_t);
 
 // *****************************************************************************
 // * Copies memory from Host to Device
 // *****************************************************************************
-int okMemcpyHtoDAsync(void*, const void*, size_t, void*);
+void* okMemcpyHtoDAsync(void*, const void*, size_t, void*);
 
 // *****************************************************************************
 // * Copies memory from Device to Device
 // *****************************************************************************
-int okMemcpyDtoD(void*, void*, size_t);
+void* okMemcpyDtoD(void*, void*, size_t);
 
 // *****************************************************************************
 // * Copies memory from Device to Device
 // *****************************************************************************
-int okMemcpyDtoDAsync(void*, void*, size_t, void*);
+void* okMemcpyDtoDAsync(void*, void*, size_t, void*);
 
 // *****************************************************************************
 // * Copies memory from Device to Host
 // *****************************************************************************
-int okMemcpyDtoH(void*, const void*, size_t);
+void* okMemcpyDtoH(void*, const void*, size_t);
 
 // *****************************************************************************
 // * Copies memory from Device to Host
 // *****************************************************************************
-int okMemcpyDtoHAsync(void*, void*, size_t, void*);
+void* okMemcpyDtoHAsync(void*, void*, size_t, void*);
 
 } // namespace mfem
 

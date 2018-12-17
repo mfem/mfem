@@ -77,7 +77,7 @@ void* mm::Insert(void *adrs, const size_t bytes)
 {
    const bool known = Known(maps, adrs);
    MFEM_ASSERT(not known, "Trying to add already present address!");
-   dbg("\033[33m%p \033[35m(%ldb)", adrs, bytes);
+   //dbg("\033[33m%p \033[35m(%ldb)", adrs, bytes);
    memory_t *mem = memories->operator[](adrs) = new memory_t(adrs,bytes);
    return adrs;
 }
@@ -128,7 +128,9 @@ static void* AdrsKnown(const mm_t *maps, void* adrs){
 static void* AdrsAlias(mm_t *maps, void* adrs){
    const bool cuda = config::Cuda();
    const alias_t *alias = maps->aliases->at(adrs);
+   assert(alias);
    memory_t *base = alias->mem;
+   assert(base);
    const bool host = base->host;
    const bool device = not base->host;
    const size_t bytes = base->bytes;
@@ -143,7 +145,7 @@ static void* AdrsAlias(mm_t *maps, void* adrs){
    {
       okMemcpyDtoH(base->h_adrs, d_adrs, bytes);
       base->host = true;
-      assert(false);
+      //assert(false);
       return adrs;
    }
    // Push
@@ -188,9 +190,10 @@ const void* mm::Adrs(const void *adrs){
 }
 
 // *****************************************************************************
-static void PushKnown(mm_t *maps, const void *adrs, const size_t bytes){
-   const bool cuda = config::Cuda();
-   if (not cuda) { return; }
+static void PushKnown(mm_t *maps, const void *adrs, const size_t bytes)
+{
+   //const bool cuda = config::Cuda();
+   //if (not cuda) { return; }
    memory_t *base = maps->memories->at(adrs);
    void *d_adrs = base->d_adrs;
    if (not d_adrs){
@@ -200,17 +203,20 @@ static void PushKnown(mm_t *maps, const void *adrs, const size_t bytes){
       assert(d_adrs);
    }
    okMemcpyHtoD(d_adrs, adrs, bytes==0?base->bytes:bytes);
-   base->host = false;
+   //base->host = false;
 }
 
 // *****************************************************************************
-static void PushAlias(const mm_t *maps, const void *adrs, const size_t bytes){
-   const bool cuda = config::Cuda();
-   if (not cuda) { return; }
+static void PushAlias(const mm_t *maps, const void *adrs, const size_t bytes)
+{
+   //const bool cuda = config::Cuda();
+   //if (not cuda) { return; }
    assert(bytes > 0);
    const alias_t *alias = maps->aliases->at(adrs);
    memory_t *base = alias->mem;
    void *d_adrs = base->d_adrs;
+   const bool host = base->host;
+   if (host){ return; }
    assert(d_adrs);
    void *a_d_adrs = (char*)d_adrs + alias->offset;
    okMemcpyHtoD(a_d_adrs, adrs, bytes);
@@ -219,6 +225,8 @@ static void PushAlias(const mm_t *maps, const void *adrs, const size_t bytes){
 // *****************************************************************************
 void mm::Push(const void *adrs, const size_t bytes)
 {
+   constexpr bool nvcc = config::Nvcc();
+   if (not nvcc) return;
    const bool known = Known(maps, adrs);
    if (known) return PushKnown(maps, adrs, bytes);
    const bool alias = Alias(maps, adrs);
@@ -228,9 +236,10 @@ void mm::Push(const void *adrs, const size_t bytes)
 }
 
 // *****************************************************************************
-static void PullKnown(const mm_t *maps, const void *adrs, const size_t bytes){
-   const bool cuda = config::Cuda();
-   if (not cuda) { return; }
+static void PullKnown(const mm_t *maps, const void *adrs, const size_t bytes)
+{
+   //const bool cuda = config::Cuda();
+   //if (not cuda) { return; }
    assert(bytes > 0);
    memory_t *base = maps->memories->at(adrs);
    const bool host = base->host;
@@ -238,17 +247,20 @@ static void PullKnown(const mm_t *maps, const void *adrs, const size_t bytes){
    if (host){ return; }
    assert(d_adrs);
    okMemcpyDtoH(base->h_adrs, d_adrs, bytes==0?base->bytes:bytes);
-   base->host = true;
+   //base->host = true;
 }
 
 // *****************************************************************************
-static void PullAlias(const mm_t *maps, const void *adrs, const size_t bytes){
-   const bool cuda = config::Cuda();
-   if (not cuda) { return; }
+static void PullAlias(const mm_t *maps, const void *adrs, const size_t bytes)
+{
+   //const bool cuda = config::Cuda();
+   //if (not cuda) { return; }
    assert(bytes > 0);
    const alias_t *alias = maps->aliases->at(adrs);
    const memory_t *base = alias->mem;
+   const bool host = base->host;
    void *d_adrs = base->d_adrs;
+   if (host){ return; }
    assert(d_adrs);
    void *a_d_adrs = (char*)d_adrs + alias->offset;
    okMemcpyDtoH((void*)adrs, a_d_adrs, bytes);
@@ -257,6 +269,8 @@ static void PullAlias(const mm_t *maps, const void *adrs, const size_t bytes){
 // *****************************************************************************
 void mm::Pull(const void *adrs, const size_t bytes)
 {
+   constexpr bool nvcc = config::Nvcc();
+   if (not nvcc) return;
    const bool known = Known(maps, adrs);
    if (known) return PullKnown(maps, adrs, bytes);
    const bool alias = Alias(maps, adrs);
@@ -340,23 +354,23 @@ static void Dump(mm_t *maps){
 }
 
 // *****************************************************************************
+// * Data will be pushed/pulled before the copy happens on the H or the D
+// *****************************************************************************
 static void* d2d(void *dst, const void *src, size_t bytes, const bool async){
    GET_ADRS(src);
    GET_ADRS(dst);
+   assert(bytes>0);
+   const bool cuda = config::Cuda();
+   if (not cuda) { return std::memcpy(d_dst, d_src, bytes); }
    if (not async) { okMemcpyDtoD(d_dst, (void*)d_src, bytes); }
    else { okMemcpyDtoDAsync(d_dst, (void*)d_src, bytes, config::Stream()); }
    return dst;
 }
 
 // *****************************************************************************
-// * Logic should be looked at to do all H2H, H2D, D2D and D2H
-// *****************************************************************************
 void* mm::memcpy(void *dst, const void *src, size_t bytes, const bool async)
 {
-   assert(bytes>0);
    if (bytes==0) { return dst; }
-   const bool cuda = config::Cuda();
-   if (not cuda) { return std::memcpy(dst, src, bytes); }
    return d2d(dst, src, bytes, async);
 }
 
