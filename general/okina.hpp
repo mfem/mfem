@@ -96,8 +96,8 @@ void dbg_F_L_F_N_A(const char*, const int, const char*, const int, ...);
 
 // *****************************************************************************
 //#define push(...) dbg_F_L_F_N_A(_F_L_F_,0)
-//#define dbg(...) dbg_F_L_F_N_A(_F_L_F_, N_ARGS(__VA_ARGS__),__VA_ARGS__)
+#define dbg(...) dbg_F_L_F_N_A(_F_L_F_, N_ARGS(__VA_ARGS__),__VA_ARGS__)
 
-#define dbg(...)
+//#define dbg(...)
 //#define push(...)
 #endif // MFEM_OKINA_HPP
