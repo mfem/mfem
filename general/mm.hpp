@@ -12,22 +12,24 @@
 #ifndef MFEM_MM_HPP
 #define MFEM_MM_HPP
 
+// *****************************************************************************
 namespace mfem
 {
 
 // *****************************************************************************
-// * Tyepdefs:
-// *   - mm2dev_t: Memory Manager Host_Address to Device_Address
-// *   - mm_t: mapping from one Host_Address to its mm2dev_t
+// * mm2dev_t: memory manager host_@ to device_@
 // *****************************************************************************
 typedef struct mm2dev
 {
-   bool host = true;
-   size_t bytes = 0;
-   void *h_adrs = NULL;
-   void *d_adrs = NULL;
+   bool host;
+   size_t bytes;
+   void *h_adrs;
+   void *d_adrs;
+   memory o_adrs;
 } mm2dev_t;
 
+// *****************************************************************************
+// * Mapping from one host_@ to its mm2dev_t
 // *****************************************************************************
 typedef std::unordered_map<const void*, mm2dev_t> mm_t;
 
@@ -50,9 +52,8 @@ public:
    }
    // **************************************************************************
 private:
-   void Setup();
-   void *Insert(const void*, const size_t, const size_t);
-   void *Erase(const void*);
+   void *Insert(void*, const size_t, const size_t);
+   void *Erase(void*);
    bool Known(const void*);
 
 public:
@@ -73,6 +74,7 @@ public:
 
    // **************************************************************************
    void* Adrs(const void*);
+   memory Memory(const void*);
 
    // **************************************************************************
    void Push(const void*);
@@ -93,6 +95,7 @@ public:
    static void* memcpy(void*, const void*, size_t);
 };
 
-} // namespace mfem
+// *****************************************************************************
+} // mfem
 
 #endif // MFEM_MM_HPP
