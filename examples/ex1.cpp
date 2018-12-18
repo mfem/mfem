@@ -54,7 +54,8 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool pa = false;
-   bool gpu = false;
+   bool cuda = false;
+   bool occa = false;
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -67,7 +68,8 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
                   "Enable Partial Assembly.");
-   args.AddOption(&gpu, "-g", "--gpu", "-no-g", "--no-gpu", "Enable GPU.");
+   args.AddOption(&cuda, "-cu", "--cuda", "-no-cu", "--no-cuda", "Enable CUDA.");
+   args.AddOption(&occa, "-oc", "--occa", "-no-oc", "--no-occa", "Enable OCCA.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -139,38 +141,36 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
+   // 7. Set MFEM config parameters from the command line options
    mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
-   if (gpu) { config::Get().Cuda(true); }
-   if (pa)  { config::Get().PA(true);   }
+   config::useCuda(cuda);
+   config::useOcca(occa);
+   config::usePA(pa);
+   config::DeviceSetup();
 
-   // 7. Define the solution vector x as a finite element grid function
+   // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
    GridFunction x(fespace);
    x = 0.0;
 
-   AssemblyLevel assembly_level;
-   int element_batch;
-
    // Sample values
-   if (pa) { assembly_level = AssemblyLevel::PARTIAL; }
-   else    { assembly_level = AssemblyLevel::FULL; }
-   if (gpu) { element_batch = mesh->GetNE(); }
-   else     { element_batch = 1; }
+   AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
+   int elem_batch = (cuda || occa) ? mesh->GetNE() : 1;
 
-   // 8. Set up the bilinear form a(.,.) on the finite element space
+   // 9. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
-   BilinearForm *a = new BilinearForm(fespace, assembly_level, element_batch);
+   BilinearForm *a = new BilinearForm(fespace, assembly, elem_batch);
 
    // These will be unified in methods of DiffusionIntegrator
    if (pa) { a->AddDomainIntegrator(new PADiffusionIntegrator(one)); }
    else    { a->AddDomainIntegrator(new DiffusionIntegrator(one)); }
 
-   // 9. Assemble the bilinear form and the corresponding linear system,
-   //    applying any necessary transformations such as: eliminating boundary
-   //    conditions, applying conforming constraints for non-conforming AMR,
-   //    static condensation, etc.
+   // 10. Assemble the bilinear form and the corresponding linear system,
+   //     applying any necessary transformations such as: eliminating boundary
+   //     conditions, applying conforming constraints for non-conforming AMR,
+   //     static condensation, etc.
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
@@ -186,17 +186,17 @@ int main(int argc, char *argv[])
 #ifndef MFEM_USE_SUITESPARSE
    CG(*A, B, X, 3, 2000, 1e-12, 0.0);
 #else
-   // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+   // 11. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;
    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
    umf_solver.SetOperator(A);
    umf_solver.Mult(B, X);
 #endif
 
-   // 11. Recover the solution as a finite element grid function.
+   // 12. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
 
-   // 12. Save the refined mesh and the solution. This output can be viewed later
+   // 13. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
    ofstream mesh_ofs("refined.mesh");
    mesh_ofs.precision(8);
@@ -205,7 +205,7 @@ int main(int argc, char *argv[])
    sol_ofs.precision(8);
    x.Save(sol_ofs);
 
-   // 13. Send the solution by socket to a GLVis server.
+   // 14. Send the solution by socket to a GLVis server.
    if (visualization)
    {
       char vishost[] = "localhost";
@@ -215,7 +215,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *mesh << x << flush;
    }
 
-   // 14. Free the used memory.
+   // 15. Free the used memory.
    delete A;
    delete a;
    delete b;
