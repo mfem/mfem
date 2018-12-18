@@ -248,12 +248,13 @@ public:
    // utility
 
    /// Return Mesh vertex indices of an edge identified by 'edge_id'.
-   void GetEdgeVertices(const MeshId &edge_id, int vert_index[2]) const;
+   void GetEdgeVertices(const MeshId &edge_id, int vert_index[2],
+                        bool oriented = true) const;
 
-   /** Return "NC" orientation of an edge. As opposed standard Mesh edge
+   /** Return "NC" orientation of an edge. As opposed to standard Mesh edge
        orientation based on vertex IDs, "NC" edge orientation follows the local
        edge orientation within the element 'edge_id.element' and is thus
-       processor independent. */
+       processor independent. FIXME this seems only partially true */
    int GetEdgeNCOrientation(const MeshId &edge_id) const;
 
    /// Return Mesh vertex and edge indices of a face identified by 'face_id'.
@@ -547,9 +548,9 @@ protected: // implementation
    virtual void BuildEdgeList();
    virtual void BuildVertexList();
 
-   virtual void ElementSharesFace(int elem, int face) {} // ParNCMesh
-   virtual void ElementSharesEdge(int elem, int enode) {} // ParNCMesh
-   virtual void ElementSharesVertex(int elem, int vnode) {} // ParNCMesh
+   virtual void ElementSharesFace(int elem, int local, int face) {} // ParNCMesh
+   virtual void ElementSharesEdge(int elem, int local, int enode) {} // ParNCMesh
+   virtual void ElementSharesVertex(int elem, int local, int vnode) {} // ParNCMesh
 
 
    // neighbors / element_vertex table

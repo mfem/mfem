@@ -652,6 +652,7 @@ void Mesh::ReadVTKMesh(std::istream &input, int &curved, int &read_gf,
             case Geometry::PRISM:
                vtk_mfem = vtk_quadratic_wedge; break;
             default:
+               vtk_mfem = NULL; // suppress a warning
                break;
          }
 
@@ -1483,7 +1484,7 @@ void Mesh::ReadCubit(const char *filename, int &curved, int &read_gf)
    };
 
    CubitElementType cubit_element_type = ELEMENT_TRI3; // suppress a warning
-   CubitFaceType cubit_face_type;
+   CubitFaceType cubit_face_type = FACE_EDGE2; // suppress a warning
    int num_element_linear_nodes = 0; // initialize to suppress a warning
 
    if (num_dim == 2)
