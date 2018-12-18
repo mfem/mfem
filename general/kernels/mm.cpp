@@ -10,8 +10,6 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "../okina.hpp"
-#include "mm.hpp"
-#include "../custub.hpp"
 
 // *****************************************************************************
 namespace mfem
@@ -22,8 +20,8 @@ void* kH2D(void *dest, const void *src, size_t bytes, const bool async)
 {
    GET_ADRS(src);
    GET_ADRS(dest);
-   if (not async) { okMemcpyHtoD(d_dest, d_src, bytes); }
-   else { okMemcpyHtoDAsync(d_dest, d_src, bytes, config::Get().Stream()); }
+   if (not async) { cuMemcpyHtoD(d_dest, d_src, bytes); }
+   else { cuMemcpyHtoDAsync(d_dest, d_src, bytes, config::Stream()); }
    return dest;
 }
 
@@ -32,8 +30,8 @@ void* kD2H(void *dest, const void *src, size_t bytes, const bool async)
 {
    GET_ADRS(src);
    GET_ADRS(dest);
-   if (not async) { okMemcpyDtoH(d_dest, d_src, bytes); }
-   else { okMemcpyDtoHAsync(d_dest, d_src, bytes, config::Get().Stream()); }
+   if (not async) { cuMemcpyDtoH(d_dest, d_src, bytes); }
+   else { cuMemcpyDtoHAsync(d_dest, d_src, bytes, config::Stream()); }
    return dest;
 }
 
@@ -42,8 +40,8 @@ void* kD2D(void *dest, const void *src, size_t bytes, const bool async)
 {
    GET_ADRS(src);
    GET_ADRS(dest);
-   if (not async) { okMemcpyDtoD(d_dest, d_src, bytes); }
-   else { okMemcpyDtoDAsync(d_dest, d_src, bytes, config::Get().Stream()); }
+   if (not async) { cuMemcpyDtoD(d_dest, d_src, bytes); }
+   else { cuMemcpyDtoDAsync(d_dest, d_src, bytes, config::Stream()); }
    return dest;
 }
 
