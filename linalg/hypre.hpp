@@ -84,13 +84,24 @@ private:
    inline void _SetDataAndSize_();
 
 public:
-   /** Creates vector with given global size and partitioning of the columns.
-       Processor P owns columns [col[P],col[P+1]) */
+   /** @brief Creates vector with given global size and parallel partitioning of
+       the rows/columns given by @a col. */
+   /** @anchor hypre_partitioning_descr
+       The partitioning is defined in one of two ways depending on the
+       configuration of HYPRE:
+       1. If HYPRE_AssumedPartitionCheck() returns true (the default),
+          then col is of length 2 and the local processor owns columns
+          [col[0],col[1]).
+       2. If HYPRE_AssumedPartitionCheck() returns false, then col is of
+          length (number of processors + 1) and processor P owns columns
+          [col[P],col[P+1]) i.e. each processor has a copy of the same col
+          array. */
    HypreParVector(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *col);
-   /** Creates vector with given global size, partitioning of the columns,
-       and data. The data must be allocated and destroyed outside.
-       If _data is NULL, a dummy vector without a valid data array will
-       be created. */
+   /** @brief Creates vector with given global size, partitioning of the
+       columns, and data. */
+   /** The data must be allocated and destroyed outside. If @a _data is NULL, a
+       dummy vector without a valid data array will be created. See @ref
+       hypre_partitioning_descr "here" for a description of the @a col array. */
    HypreParVector(MPI_Comm comm, HYPRE_Int glob_size, double *_data,
                   HYPRE_Int *col);
    /// Creates vector compatible with y
@@ -105,7 +116,9 @@ public:
    /// MPI communicator
    MPI_Comm GetComm() { return x->comm; }
 
-   /// Returns the row partitioning
+   /// Returns the parallel row/column partitioning
+   /** See @ref hypre_partitioning_descr "here" for a description of the
+       partitioning array. */
    inline HYPRE_Int *Partitioning() { return x->partitioning; }
 
    /// Returns the global number of rows
@@ -134,11 +147,10 @@ public:
    /// Define '=' for hypre vectors.
    HypreParVector& operator= (const HypreParVector &y);
 
-   /** Sets the data of the Vector and the hypre_ParVector to _data.
-       Must be used only for HypreParVectors that do not own the data,
+   /// Sets the data of the Vector and the hypre_ParVector to @a _data.
+   /** Must be used only for HypreParVector%s that do not own the data,
        e.g. created with the constructor:
-       HypreParVector(MPI_Comm comm, HYPRE_Int glob_size, double *_data,
-                      HYPRE_Int *col). */
+       HypreParVector(MPI_Comm, HYPRE_Int, double *, HYPRE_Int *). */
    void SetData(double *_data);
 
    /// Set random values
@@ -206,9 +218,8 @@ private:
    // Delete all owned data. Does not perform re-initialization with defaults.
    void Destroy();
 
-   // Copy (shallow or deep, based on HYPRE_BIGINT) the I and J arrays from csr
-   // to hypre_csr. Shallow copy the data. Return the appropriate ownership
-   // flag.
+   // Copy (shallow/deep, based on HYPRE_BIGINT) the I and J arrays from csr to
+   // hypre_csr. Shallow copy the data. Return the appropriate ownership flag.
    static char CopyCSR(SparseMatrix *csr, hypre_CSRMatrix *hypre_csr);
    // Copy (shallow or deep, based on HYPRE_BIGINT) the I and J arrays from
    // bool_csr to hypre_csr. Allocate the data array and set it to all ones.
@@ -234,32 +245,42 @@ public:
       width = GetNumCols();
    }
 
-   /** Creates block-diagonal square parallel matrix. Diagonal is given by diag
-       which must be in CSR format (finalized). The new HypreParMatrix does not
-       take ownership of any of the input arrays.
+   /// Creates block-diagonal square parallel matrix.
+   /** Diagonal is given by @a diag which must be in CSR format (finalized). The
+       new HypreParMatrix does not take ownership of any of the input arrays.
+       See @ref hypre_partitioning_descr "here" for a description of the row
+       partitioning array @a row_starts.
+
        @warning The ordering of the columns in each row in @a *diag may be
        changed by this constructor to ensure that the first entry in each row is
        the diagonal one. This is expected by most hypre functions. */
    HypreParMatrix(MPI_Comm comm, HYPRE_Int glob_size, HYPRE_Int *row_starts,
                   SparseMatrix *diag); // constructor with 4 arguments, v1
 
-   /** Creates block-diagonal rectangular parallel matrix. Diagonal is given by
-       diag which must be in CSR format (finalized). The new HypreParMatrix does
-       not take ownership of any of the input arrays. */
+   /// Creates block-diagonal rectangular parallel matrix.
+   /** Diagonal is given by @a diag which must be in CSR format (finalized). The
+       new HypreParMatrix does not take ownership of any of the input arrays.
+       See @ref hypre_partitioning_descr "here" for a description of the
+       partitioning arrays @a row_starts and @a col_starts. */
    HypreParMatrix(MPI_Comm comm, HYPRE_Int global_num_rows,
                   HYPRE_Int global_num_cols, HYPRE_Int *row_starts,
                   HYPRE_Int *col_starts,
                   SparseMatrix *diag); // constructor with 6 arguments, v1
 
-   /** Creates general (rectangular) parallel matrix. The new HypreParMatrix
-       does not take ownership of any of the input arrays. */
+   /// Creates general (rectangular) parallel matrix.
+   /** The new HypreParMatrix does not take ownership of any of the input
+       arrays. See @ref hypre_partitioning_descr "here" for a description of the
+       partitioning arrays @a row_starts and @a col_starts. */
    HypreParMatrix(MPI_Comm comm, HYPRE_Int global_num_rows,
                   HYPRE_Int global_num_cols, HYPRE_Int *row_starts,
                   HYPRE_Int *col_starts, SparseMatrix *diag, SparseMatrix *offd,
                   HYPRE_Int *cmap); // constructor with 8 arguments
 
-   /** Creates general (rectangular) parallel matrix. The new HypreParMatrix
-       takes ownership of all input arrays, except col_starts and row_starts. */
+   /// Creates general (rectangular) parallel matrix.
+   /** The new HypreParMatrix takes ownership of all input arrays, except
+       @a col_starts and @a row_starts. See @ref hypre_partitioning_descr "here"
+       for a description of the partitioning arrays @a row_starts and @a
+       col_starts. */
    HypreParMatrix(MPI_Comm comm,
                   HYPRE_Int global_num_rows, HYPRE_Int global_num_cols,
                   HYPRE_Int *row_starts, HYPRE_Int *col_starts,
@@ -269,28 +290,36 @@ public:
                   HYPRE_Int *offd_col_map); // constructor with 13 arguments
 
    /// Creates a parallel matrix from SparseMatrix on processor 0.
+   /** See @ref hypre_partitioning_descr "here" for a description of the
+       partitioning arrays @a row_starts and @a col_starts. */
    HypreParMatrix(MPI_Comm comm, HYPRE_Int *row_starts, HYPRE_Int *col_starts,
                   SparseMatrix *a); // constructor with 4 arguments, v2
 
-   /** Creates boolean block-diagonal rectangular parallel matrix. The new
-       HypreParMatrix does not take ownership of any of the input arrays. */
+   /// Creates boolean block-diagonal rectangular parallel matrix.
+   /** The new HypreParMatrix does not take ownership of any of the input
+       arrays. See @ref hypre_partitioning_descr "here" for a description of the
+       partitioning arrays @a row_starts and @a col_starts. */
    HypreParMatrix(MPI_Comm comm, HYPRE_Int global_num_rows,
                   HYPRE_Int global_num_cols, HYPRE_Int *row_starts,
                   HYPRE_Int *col_starts,
                   Table *diag); // constructor with 6 arguments, v2
 
-   /** Creates boolean rectangular parallel matrix. The new HypreParMatrix takes
-       ownership of the arrays i_diag, j_diag, i_offd, j_offd, and cmap; does
-       not take ownership of the arrays row and col. */
+   /// Creates boolean rectangular parallel matrix.
+   /** The new HypreParMatrix takes ownership of the arrays @a i_diag,
+       @a j_diag, @a i_offd, @a j_offd, and @a cmap; does not take ownership of
+       the arrays @a row and @a col. See @ref hypre_partitioning_descr "here"
+       for a description of the partitioning arrays @a row and @a col. */
    HypreParMatrix(MPI_Comm comm, int id, int np, HYPRE_Int *row, HYPRE_Int *col,
                   HYPRE_Int *i_diag, HYPRE_Int *j_diag, HYPRE_Int *i_offd,
                   HYPRE_Int *j_offd, HYPRE_Int *cmap,
                   HYPRE_Int cmap_size); // constructor with 11 arguments
 
-   /** Creates a general parallel matrix from a local CSR matrix on each
-       processor described by the I, J and data arrays. The local matrix should
-       be of size (local) nrows by (global) glob_ncols. The new parallel matrix
-       contains copies of all input arrays (so they can be deleted). */
+   /** @brief Creates a general parallel matrix from a local CSR matrix on each
+       processor described by the @a I, @a J and @a data arrays. */
+   /** The local matrix should be of size (local) @a nrows by (global)
+       @a glob_ncols. The new parallel matrix contains copies of all input
+       arrays (so they can be deleted). See @ref hypre_partitioning_descr "here"
+       for a description of the partitioning arrays @a rows and @a cols. */
    HypreParMatrix(MPI_Comm comm, int nrows, HYPRE_Int glob_nrows,
                   HYPRE_Int glob_ncols, int *I, HYPRE_Int *J,
                   double *data, HYPRE_Int *rows,
@@ -334,12 +363,20 @@ public:
    /// Returns the global number of nonzeros
    inline HYPRE_Int NNZ() const { return A->num_nonzeros; }
    /// Returns the row partitioning
+   /** See @ref hypre_partitioning_descr "here" for a description of the
+       partitioning array. */
    inline HYPRE_Int *RowPart() { return A->row_starts; }
    /// Returns the column partitioning
+   /** See @ref hypre_partitioning_descr "here" for a description of the
+       partitioning array. */
    inline HYPRE_Int *ColPart() { return A->col_starts; }
    /// Returns the row partitioning (const version)
+   /** See @ref hypre_partitioning_descr "here" for a description of the
+       partitioning array. */
    inline const HYPRE_Int *RowPart() const { return A->row_starts; }
    /// Returns the column partitioning (const version)
+   /** See @ref hypre_partitioning_descr "here" for a description of the
+       partitioning array. */
    inline const HYPRE_Int *ColPart() const { return A->col_starts; }
    /// Returns the global number of rows
    inline HYPRE_Int M() const { return A->global_num_rows; }
@@ -376,14 +413,22 @@ public:
                 hypre_CSRMatrixNumCols(hypre_ParCSRMatrixDiag(A)));
    }
 
+   /// Return the global number of rows
    HYPRE_Int GetGlobalNumRows() const
    { return hypre_ParCSRMatrixGlobalNumRows(A); }
 
+   /// Return the global number of columns
    HYPRE_Int GetGlobalNumCols() const
    { return hypre_ParCSRMatrixGlobalNumCols(A); }
 
+   /// Return the parallel row partitioning array.
+   /** See @ref hypre_partitioning_descr "here" for a description of the
+       partitioning array. */
    HYPRE_Int *GetRowStarts() const { return hypre_ParCSRMatrixRowStarts(A); }
 
+   /// Return the parallel column partitioning array.
+   /** See @ref hypre_partitioning_descr "here" for a description of the
+       partitioning array. */
    HYPRE_Int *GetColStarts() const { return hypre_ParCSRMatrixColStarts(A); }
 
    /// Computes y = alpha * A * x + beta * y
@@ -790,6 +835,33 @@ public:
    { return (HYPRE_PtrToParSolverFcn) HYPRE_ParaSailsSolve; }
 
    virtual ~HypreParaSails();
+};
+
+/** The Euclid preconditioner in Hypre
+
+    Euclid implements the Parallel Incomplete LU factorization technique. For
+    more information see:
+
+    "A Scalable Parallel Algorithm for Incomplete Factor Preconditioning" by
+    David Hysom and Alex Pothen, https://doi.org/10.1137/S1064827500376193
+*/
+class HypreEuclid : public HypreSolver
+{
+private:
+   HYPRE_Solver euc_precond;
+
+public:
+   HypreEuclid(HypreParMatrix &A);
+
+   /// The typecast to HYPRE_Solver returns the internal euc_precond
+   virtual operator HYPRE_Solver() const { return euc_precond; }
+
+   virtual HYPRE_PtrToParSolverFcn SetupFcn() const
+   { return (HYPRE_PtrToParSolverFcn) HYPRE_EuclidSetup; }
+   virtual HYPRE_PtrToParSolverFcn SolveFcn() const
+   { return (HYPRE_PtrToParSolverFcn) HYPRE_EuclidSolve; }
+
+   virtual ~HypreEuclid();
 };
 
 /// The BoomerAMG solver in hypre
