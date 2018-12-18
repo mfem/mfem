@@ -448,6 +448,7 @@ public:
    void SetGridFunction(GridFunction *gf);
    GridFunction * GetGridFunction() const { return GridFunc; }
 
+   using VectorCoefficient::Eval;
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
 
@@ -790,6 +791,7 @@ public:
    /// Evaluate the coefficient
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   using VectorCoefficient::Eval;
 };
 
 /// Vector coefficient defined as a product of a scalar and a vector
@@ -804,6 +806,7 @@ public:
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   using VectorCoefficient::Eval;
 };
 
 /// Vector coefficient defined as a cross product of two vectors
@@ -821,6 +824,7 @@ public:
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   using VectorCoefficient::Eval;
 };
 
 /// Vector coefficient defined as a matrix vector product
@@ -838,6 +842,7 @@ public:
 
    virtual void Eval(Vector &V, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   using VectorCoefficient::Eval;
 };
 
 /// Matrix coefficient defined as the identity of dimension d

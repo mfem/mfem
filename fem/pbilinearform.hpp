@@ -87,10 +87,10 @@ protected:
 
 private:
    /// Copy construction is not supported; body is undefined.
-   ParBilinearForm(const ParBilinearForm &);
+   ParFABilinearForm(const ParFABilinearForm &);
 
    /// Copy assignment is not supported; body is undefined.
-   ParBilinearForm &operator=(const ParBilinearForm &);
+   ParFABilinearForm &operator=(const ParFABilinearForm &);
 
 public:
    /// Creates parallel bilinear form associated with the FE space @a *pf.
