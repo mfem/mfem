@@ -149,10 +149,21 @@ int main(int argc, char *argv[])
    GridFunction x(fespace);
    x = 0.0;
 
+   AssemblyLevel assembly_level;
+   int element_batch;
+
+   // Sample values
+   if (pa) { assembly_level = AssemblyLevel::PARTIAL; }
+   else    { assembly_level = AssemblyLevel::FULL; }
+   if (gpu) { element_batch = mesh->GetNE(); }
+   else     { element_batch = 1; }
+
    // 8. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
-   BilinearForm *a = new BilinearForm(fespace);
+   BilinearForm *a = new BilinearForm(fespace, assembly_level, element_batch);
+
+   // These will be unified in methods of DiffusionIntegrator
    if (pa) { a->AddDomainIntegrator(new PADiffusionIntegrator(one)); }
    else    { a->AddDomainIntegrator(new DiffusionIntegrator(one)); }
 
@@ -165,8 +176,9 @@ int main(int argc, char *argv[])
 
    Vector B, X;
    Operator *A;
-   if (pa) { A = new PABilinearForm(fespace); }
-   else    { A = new SparseMatrix(); }
+
+   if (!pa) { A = new SparseMatrix; }
+
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    cout << "Size of linear system: " << A->Height() << endl;
