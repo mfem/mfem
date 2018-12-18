@@ -265,6 +265,7 @@ int main (int argc, char *argv[])
    int max_lin_iter      = 100;
    bool move_bnd         = true;
    bool combomet         = 0;
+   bool normalization    = false;
    bool visualization    = true;
    int verbosity_level   = 0;
 
@@ -325,6 +326,9 @@ int main (int argc, char *argv[])
                   "Enable motion along horizontal and vertical boundaries.");
    args.AddOption(&combomet, "-cmb", "--combo-met", "-no-cmb", "--no-combo-met",
                   "Combination of metrics.");
+   args.AddOption(&normalization, "-nor", "--normalization", "-no-nor",
+                  "--no-normalization",
+                  "Make all terms in the optimization functional unitless.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -375,20 +379,26 @@ int main (int argc, char *argv[])
 
    // 7. Define a vector representing the minimal local mesh size in the mesh
    //    nodes. We index the nodes using the scalar version of the degrees of
-   //    freedom in fespace.
+   //    freedom in pfespace. Note: this is partition-dependent.
+   //
+   //    In addition, compute average mesh size and total volume.
    Vector h0(fespace->GetNDofs());
    h0 = infinity();
+   double volume = 0.0;
    Array<int> dofs;
    for (int i = 0; i < mesh->GetNE(); i++)
    {
       // Get the local scalar element degrees of freedom in dofs.
       fespace->GetElementDofs(i, dofs);
       // Adjust the value of h0 in dofs based on the local mesh size.
+      const double hi = mesh->GetElementSize(i);
       for (int j = 0; j < dofs.Size(); j++)
       {
-         h0(dofs[j]) = min(h0(dofs[j]), mesh->GetElementSize(i));
+         h0(dofs[j]) = min(h0(dofs[j]), hi);
       }
+      volume += mesh->GetElementVolume(i);
    }
+   const double small_phys_size = pow(volume, 1.0 / dim) / 100.0;
 
    // 8. Add a random perturbation to the nodes in the interior of the domain.
    //    We define a random grid function of fespace and make sure that it is
@@ -484,9 +494,16 @@ int main (int argc, char *argv[])
    cout << "Quadrature points per cell: " << ir->GetNPoints() << endl;
    he_nlf_integ->SetIntegrationRule(*ir);
 
+   if (normalization) { he_nlf_integ->EnableNormalization(x0); }
+
    // 13. Limit the node movement.
+   // The limiting distances can be given by a general function of space.
+   GridFunction dist(fespace);
+   dist = 1.0;
+   // The small_phys_size is relevant only with proper normalization.
+   if (normalization) { dist = small_phys_size; }
    ConstantCoefficient lim_coeff(lim_const);
-   if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, lim_coeff); }
+   if (lim_const != 0.0) { he_nlf_integ->EnableLimiting(x0, dist, lim_coeff); }
 
    // 14. Setup the final NonlinearForm (which defines the integral of interest,
    //     its first and second derivatives). Here we can use a combination of
@@ -495,14 +512,19 @@ int main (int argc, char *argv[])
    //     command-line options for the weights and the type of the second
    //     metric; one should update those in the code.
    NonlinearForm a(fespace);
-   Coefficient *coeff1 = NULL;
+   ConstantCoefficient *coeff1 = NULL;
    TMOP_QualityMetric *metric2 = NULL;
    TargetConstructor *target_c2 = NULL;
    FunctionCoefficient coeff2(weight_fun);
+
    if (combomet == 1)
    {
+      // TODO normalization of combinations.
+      // We will probably drop this example and replace it with adaptivity.
+      if (normalization) { MFEM_ABORT("Not implemented."); }
+
       // Weight of the original metric.
-      coeff1 = new ConstantCoefficient(1.25);
+      coeff1 = new ConstantCoefficient(1.0);
       he_nlf_integ->SetCoefficient(*coeff1);
       a.AddDomainIntegrator(he_nlf_integ);
 
@@ -519,8 +541,8 @@ int main (int argc, char *argv[])
       a.AddDomainIntegrator(he_nlf_integ2);
    }
    else { a.AddDomainIntegrator(he_nlf_integ); }
-   const double init_en = a.GetGridFunctionEnergy(*x);
-   cout << "Initial strain energy: " << init_en << endl;
+
+   const double init_energy = a.GetGridFunctionEnergy(*x);
 
    // 15. Visualize the starting mesh and metric values.
    if (visualization)
@@ -669,10 +691,22 @@ int main (int argc, char *argv[])
    }
 
    // 21. Compute the amount of energy decrease.
-   const double fin_en = a.GetGridFunctionEnergy(*x);
-   cout << "Final strain energy : " << fin_en << endl;
+   const double fin_energy = a.GetGridFunctionEnergy(*x);
+   double metric_part = fin_energy;
+   if (lim_const != 0.0)
+   {
+      lim_coeff.constant = 0.0;
+      metric_part = a.GetGridFunctionEnergy(*x);
+      lim_coeff.constant = lim_const;
+   }
+   cout << "Initial strain energy: " << init_energy
+        << " = metrics: " << init_energy
+        << " + limiting term: " << 0.0 << endl;
+   cout << "  Final strain energy: " << fin_energy
+        << " = metrics: " << metric_part
+        << " + limiting term: " << fin_energy - metric_part << endl;
    cout << "The strain energy decreased by: " << setprecision(12)
-        << (init_en - fin_en) * 100.0 / init_en << " %." << endl;
+        << (init_energy - fin_energy) * 100.0 / init_energy << " %." << endl;
 
    // 22. Visualize the final mesh and metric values.
    if (visualization)

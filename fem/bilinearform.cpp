@@ -81,9 +81,6 @@ FABilinearForm::FABilinearForm (FiniteElementSpace * f, FABilinearForm * bf,
                                 int ps)
    : AbstractBilinearForm (f)
 {
-   int i;
-   Array<BilinearFormIntegrator*> *bfi;
-
    fes = f;
    sequence = f->GetSequence();
    mat_e = NULL;
@@ -94,33 +91,16 @@ FABilinearForm::FABilinearForm (FiniteElementSpace * f, FABilinearForm * bf,
    precompute_sparsity = ps;
    diag_policy = Matrix::DIAG_KEEP;
 
-   bfi = bf->GetDBFI();
-   dbfi.SetSize (bfi->Size());
-   for (i = 0; i < bfi->Size(); i++)
-   {
-      dbfi[i] = (*bfi)[i];
-   }
+   // Copy the pointers to the integrators
+   dbfi = bf->dbfi;
 
-   bfi = bf->GetBBFI();
-   bbfi.SetSize (bfi->Size());
-   for (i = 0; i < bfi->Size(); i++)
-   {
-      bbfi[i] = (*bfi)[i];
-   }
+   bbfi = bf->bbfi;
+   bbfi_marker = bf->bbfi_marker;
 
-   bfi = bf->GetFBFI();
-   fbfi.SetSize (bfi->Size());
-   for (i = 0; i < bfi->Size(); i++)
-   {
-      fbfi[i] = (*bfi)[i];
-   }
+   fbfi = bf->fbfi;
 
-   bfi = bf->GetBFBFI();
-   bfbfi.SetSize (bfi->Size());
-   for (i = 0; i < bfi->Size(); i++)
-   {
-      bfbfi[i] = (*bfi)[i];
-   }
+   bfbfi = bf->bfbfi;
+   bfbfi_marker = bf->bfbfi_marker;
 
    AllocMat();
 }
@@ -947,6 +927,23 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    trial_fes = tr_fes;
    test_fes = te_fes;
    mat = NULL;
+   extern_bfs = 0;
+}
+
+MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
+                                      FiniteElementSpace *te_fes,
+                                      MixedBilinearForm * mbf)
+   : Matrix(te_fes->GetVSize(), tr_fes->GetVSize())
+{
+   trial_fes = tr_fes;
+   test_fes = te_fes;
+   mat = NULL;
+   extern_bfs = 1;
+
+   // Copy the pointers to the integrators
+   dom = mbf->dom;
+   bdr = mbf->bdr;
+   skt = mbf->skt;
 }
 
 double & MixedBilinearForm::Elem (int i, int j)
@@ -1183,12 +1180,14 @@ void MixedBilinearForm::Update()
 
 MixedBilinearForm::~MixedBilinearForm()
 {
-   int i;
-
    if (mat) { delete mat; }
-   for (i = 0; i < dom.Size(); i++) { delete dom[i]; }
-   for (i = 0; i < bdr.Size(); i++) { delete bdr[i]; }
-   for (i = 0; i < skt.Size(); i++) { delete skt[i]; }
+   if (!extern_bfs)
+   {
+      int i;
+      for (i = 0; i < dom.Size(); i++) { delete dom[i]; }
+      for (i = 0; i < bdr.Size(); i++) { delete bdr[i]; }
+      for (i = 0; i < skt.Size(); i++) { delete skt[i]; }
+   }
 }
 
 
