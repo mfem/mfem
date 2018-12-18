@@ -18,6 +18,8 @@ GPU support
 - The GPU support is based on simple memory manager and (CUDA) kernel definition
   + execution policy, see memmng.?pp and kernels.hpp in the general/ directory.
 
+- OCCA kernels are supported
+
 - ...
 
 Support for wedge elements and meshes with mixed element types
