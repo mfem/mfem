@@ -227,7 +227,7 @@ double DescentNewtonSolver::ComputeScalingFactor(const Vector &x,
       add(x, -scale, c, x_out);
 
       energy_out = nlf->GetEnergy(x_out);
-      if (energy_out > energy_in || isnan(energy_out) != 0)
+      if (energy_out > energy_in || isnan((double)energy_out) != 0)
       {
          scale *= 0.5;
       }
