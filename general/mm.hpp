@@ -27,7 +27,7 @@ public:
    void* const h_adrs;
    void* d_adrs;
    OccaMemory o_adrs;
-   std::list<const alias_t* const> aliases;
+   std::list<const alias_t*> aliases;
    memory_t(void* const h, const size_t b):
       host(true), bytes(b), h_adrs(h), d_adrs(NULL), aliases() {}
 };
