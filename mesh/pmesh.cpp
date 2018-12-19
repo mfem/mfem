@@ -2074,6 +2074,7 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
                   nbr_v[perm[j]] = sf_v[j];
                }
                // get the orientation of nbr_v w.r.t. the local face
+               // nbr_ori = GetTriOrientation(lf_v, nbr_v);
                if (MyRank < nbr_rank)
                {
                   nbr_ori = GetTriOrientation(lf_v, nbr_v);
@@ -2093,6 +2094,7 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
                   nbr_v[perm[j]] = sf_v[j];
                }
                // get the orientation of nbr_v w.r.t. the local face
+               // nbr_ori = GetQuadOrientation(lf_v, nbr_v);
                if (MyRank < nbr_rank)
                {
                   nbr_ori = GetQuadOrientation(lf_v, nbr_v);
@@ -2103,6 +2105,7 @@ void ParMesh::ExchangeFaceNbrData(Table *gr_sface, int *s2l_face)
                }
             }
 
+            // info = 64*(info/64) + nbr_ori;
             if (MyRank < nbr_rank)
             {
                info = 64*(info/64) + nbr_ori;
