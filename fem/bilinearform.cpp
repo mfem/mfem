@@ -130,6 +130,12 @@ BilinearForm::BilinearForm (FiniteElementSpace * f, BilinearForm * bf, int ps)
 void BilinearForm::EnableStaticCondensation()
 {
    delete static_cond;
+   if (assembly != AssemblyLevel::FULL)
+   {
+      static_cond = NULL;
+      MFEM_WARNING("Static condensation not supported for this assembly level");
+      return;
+   }
    static_cond = new StaticCondensation(fes);
    if (static_cond->ReducesTrueVSize())
    {
@@ -149,6 +155,13 @@ void BilinearForm::EnableHybridization(FiniteElementSpace *constr_space,
                                        const Array<int> &ess_tdof_list)
 {
    delete hybridization;
+   if (assembly != AssemblyLevel::FULL)
+   {
+      delete constr_integ;
+      hybridization = NULL;
+      MFEM_WARNING("Hybridization not supported for this assembly level");
+      return;
+   }
    hybridization = new Hybridization(fes, constr_space);
    hybridization->SetConstraintIntegrator(constr_integ);
    hybridization->Init(ess_tdof_list);
@@ -352,8 +365,6 @@ void BilinearForm::Assemble(int skip_zeros)
    Mesh *mesh = fes -> GetMesh();
    DenseMatrix elmat, *elmat_p;
 
-   int i;
-
    if (mat == NULL)
    {
       AllocMat();
@@ -370,7 +381,7 @@ void BilinearForm::Assemble(int skip_zeros)
 
    if (dbfi.Size())
    {
-      for (i = 0; i < fes -> GetNE(); i++)
+      for (int i = 0; i < fes -> GetNE(); i++)
       {
          fes->GetElementVDofs(i, vdofs);
          if (element_matrices)
@@ -427,7 +438,7 @@ void BilinearForm::Assemble(int skip_zeros)
          }
       }
 
-      for (i = 0; i < fes -> GetNBE(); i++)
+      for (int i = 0; i < fes -> GetNBE(); i++)
       {
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
@@ -465,7 +476,7 @@ void BilinearForm::Assemble(int skip_zeros)
       Array<int> vdofs2;
 
       int nfaces = mesh->GetNumFaces();
-      for (i = 0; i < nfaces; i++)
+      for (int i = 0; i < nfaces; i++)
       {
          tr = mesh -> GetInteriorFaceTransformations (i);
          if (tr != NULL)
@@ -510,7 +521,7 @@ void BilinearForm::Assemble(int skip_zeros)
          }
       }
 
-      for (i = 0; i < fes -> GetNBE(); i++)
+      for (int i = 0; i < fes -> GetNBE(); i++)
       {
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
@@ -847,7 +858,8 @@ void BilinearForm::ComputeElementMatrices()
 }
 
 void BilinearForm::EliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
-                                        const Vector &sol, Vector &rhs, DiagonalPolicy dpolicy)
+                                        const Vector &sol, Vector &rhs,
+                                        DiagonalPolicy dpolicy)
 {
    Array<int> ess_dofs, conf_ess_dofs;
    fes->GetEssentialVDofs(bdr_attr_is_ess, ess_dofs);

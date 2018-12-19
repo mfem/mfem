@@ -41,6 +41,8 @@ kFiniteElementSpace::kFiniteElementSpace(FiniteElementSpace *f)
 {
    const FiniteElement *fe = f->GetFE(0);
    const TensorBasisElement* el = dynamic_cast<const TensorBasisElement*>(fe);
+   MFEM_ASSERT(el, "Finite element not supported with partial assembly");
+
    const Array<int> &dof_map = el->GetDofMap();
    const bool dof_map_is_identity = (dof_map.Size()==0);
 
