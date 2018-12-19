@@ -18,7 +18,7 @@ namespace mfem
 // *****************************************************************************
 OccaDevice occaWrapDevice(CUdevice dev, CUcontext ctx)
 {
-#ifdef __NVCC__
+#if defined(__OCCA__) and defined(__NVCC__)
    return occa::cuda::wrapDevice(dev, ctx);
 #else
    return 0;
@@ -26,7 +26,7 @@ OccaDevice occaWrapDevice(CUdevice dev, CUcontext ctx)
 }
 
 // *****************************************************************************
-memory occaDeviceMalloc(OccaDevice device, const size_t bytes)
+OccaMemory occaDeviceMalloc(OccaDevice device, const size_t bytes)
 {
 #ifdef __OCCA__
    return device.malloc(bytes);
@@ -36,11 +36,11 @@ memory occaDeviceMalloc(OccaDevice device, const size_t bytes)
 }
 
 // *****************************************************************************
-memory occaWrapMemory(const OccaDevice device,
-                      void *d_adrs,
-                      const size_t bytes)
+OccaMemory occaWrapMemory(const OccaDevice device,
+                          void *d_adrs,
+                          const size_t bytes)
 {
-#ifdef __NVCC__
+#if defined(__OCCA__) and defined(__NVCC__)
    return occa::cuda::wrapMemory(device, d_adrs, bytes);
 #else
    return (void*)NULL;
@@ -48,7 +48,7 @@ memory occaWrapMemory(const OccaDevice device,
 }
 
 // *****************************************************************************
-void *occaMemoryPtr(memory o_adrs)
+void *occaMemoryPtr(OccaMemory o_adrs)
 {
 #ifdef __OCCA__
    return o_adrs.ptr();
@@ -58,7 +58,7 @@ void *occaMemoryPtr(memory o_adrs)
 }
 
 // *****************************************************************************
-void occaCopyFrom(memory o_adrs, const void *h_adrs)
+void occaCopyFrom(OccaMemory o_adrs, const void *h_adrs)
 {
 #ifdef __OCCA__
    o_adrs.copyFrom(h_adrs);
@@ -66,7 +66,7 @@ void occaCopyFrom(memory o_adrs, const void *h_adrs)
 }
 
 // *****************************************************************************
-void occaCopyTo(memory o_adrs, void *h_adrs)
+void occaCopyTo(OccaMemory o_adrs, void *h_adrs)
 {
 #ifdef __OCCA__
    o_adrs.copyTo(h_adrs);

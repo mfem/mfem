@@ -16,161 +16,338 @@ namespace mfem
 {
 
 // *****************************************************************************
-bool mm::Known(const void *adrs)
+// * Tests if adrs is a known address
+// *****************************************************************************
+static bool Known(const mm_t *maps, const void *adrs)
 {
-   const auto search = mng->find(adrs);
-   const bool present = search != mng->end();
-   return present;
+   const auto found = maps->memories->find(adrs);
+   const bool known = found != maps->memories->end();
+   if (known) return true;
+   return false;
 }
 
 // *****************************************************************************
-// * Add an address only on the host
+// * Looks if adrs is an alias of one memory
 // *****************************************************************************
-void* mm::Insert(void *h_adrs, const size_t size, const size_t size_of_T)
+static const void* IsAlias(const mm_t *maps, const void *adrs)
 {
-   if (not mng) { mng = new mm_t(); }
-   const bool present = Known(h_adrs);
-   if (present) { BUILTIN_TRAP; }
-   MFEM_ASSERT(not present, "[ERROR] Trying to add already present address!");
-   mm2dev_t &mm = mng->operator[](h_adrs);
-   mm.host = true;
-   mm.bytes = size*size_of_T;
-   mm.h_adrs = h_adrs;
-   mm.d_adrs = NULL;
-   return mm.h_adrs;
+   MFEM_ASSERT(not Known(maps, adrs), "Adrs is an already known address!");
+   for(mm_iterator_t mem = maps->memories->begin();
+       mem != maps->memories->end(); mem++) {
+      const void *b_adrs = mem->first;
+      if (b_adrs > adrs) continue;
+      const void *end = (char*)b_adrs + mem->second->bytes;
+      if (adrs < end) return b_adrs;
+   }
+   return NULL;
 }
 
 // *****************************************************************************
-// * Remove the address from the map
-// *****************************************************************************
-void *mm::Erase(void *adrs)
+static const void* InsertAlias(const mm_t *maps,
+                               const void *base,
+                               const void *adrs)
 {
-   const bool present = Known(adrs);
-   if (not present) { BUILTIN_TRAP; }
-   MFEM_ASSERT(present, "[ERROR] Trying to remove an unknown address!");
-   mng->erase(adrs);
+   assert(adrs > base);
+   memory_t *mem = maps->memories->at(base);
+   const size_t offset = (char*)adrs - (char*)base;
+   const alias_t *alias = new alias_t(mem, offset);
+   maps->aliases->operator[](adrs) = alias;
+   mem->aliases.push_back(alias);
    return adrs;
 }
 
 // *****************************************************************************
-// * Get an address from host or device
+// * Tests if adrs is an alias address
 // *****************************************************************************
-void* mm::Adrs(const void *adrs)
+static bool Alias(const mm_t *maps, const void *adrs)
 {
-   const bool present = Known(adrs);
-   if (not present) { BUILTIN_TRAP; }
-   MFEM_ASSERT(present, "[ERROR] Trying to convert unknown address!");
-   const bool cuda = config::usingCuda();
-   mm2dev_t &mm = mng->operator[](adrs);
-   // Just return asked known host address if not in CUDA mode
-   if (mm.host and not cuda) { return (void*) mm.h_adrs; }
-   // If it hasn't been seen, alloc it in the device
-   if (not mm.d_adrs)
-   {
-      MFEM_ASSERT(usingNvccCompiler(),"[ERROR] Trying to run without CUDA support!");
-      const size_t bytes = mm.bytes;
-      if (bytes>0) { cuMemAlloc(&mm.d_adrs, bytes); }
-      void *stream = config::Stream();
-      cuMemcpyHtoDAsync(mm.d_adrs, mm.h_adrs, bytes, stream);
-      mm.host = false; // This address is no more on the host
-   }
-   return mm.d_adrs;
+   const auto found = maps->aliases->find(adrs);
+   const bool alias = found != maps->aliases->end();
+   if (alias) return true;
+   const void *base = IsAlias(maps, adrs);
+   if (not base) return false;
+   InsertAlias(maps, base, adrs);
+   return true;   
 }
 
 // *****************************************************************************
-memory mm::Memory(const void *adrs)
+// * Adds an address
+// *****************************************************************************
+void* mm::Insert(void *adrs, const size_t bytes)
 {
-   const bool present = Known(adrs);
-   if (not present) { BUILTIN_TRAP; }
-   MFEM_ASSERT(present, "[ERROR] Trying to convert unknown address!");
+   const bool known = Known(maps, adrs);
+   MFEM_ASSERT(not known, "Trying to add already present address!");
+   //dbg("\033[33m%p \033[35m(%ldb)", adrs, bytes);
+   memories->operator[](adrs) = new memory_t(adrs,bytes);
+   return adrs;
+}
+
+// *****************************************************************************
+// * Remove the address from the map, as well as all the address' aliases
+// *****************************************************************************
+void *mm::Erase(void *adrs)
+{
+   const bool known = Known(maps, adrs);
+   if (not known) { BUILTIN_TRAP; }
+   MFEM_ASSERT(known, "Trying to remove an unknown address!");
+   const memory_t *mem = memories->at(adrs);
+   for (const alias_t* const alias : mem->aliases) {
+      aliases->erase(alias);
+      delete alias;
+   }
+   memories->erase(adrs);
+   return adrs;
+}
+
+// *****************************************************************************
+static void* AdrsKnown(const mm_t *maps, void* adrs){
+   memory_t *base = maps->memories->at(adrs);
+   const bool host = base->host;
+   const bool device = not host;
+   const size_t bytes = base->bytes;
+   const bool cuda = config::usingCuda();
+   if (host and not cuda) { return adrs; }
+   if (not base->d_adrs) { cuMemAlloc(&base->d_adrs, bytes); }
+   if (device and cuda) { return base->d_adrs; }
+   // Pull
+   if (device and not cuda)
+   {
+      cuMemcpyDtoH(adrs, base->d_adrs, bytes);
+      base->host = true;
+      return adrs;
+   }
+   // Push
+   assert(host and cuda);
+   cuMemcpyHtoD(base->d_adrs, adrs, bytes);
+   base->host = false;
+   return base->d_adrs;   
+}
+
+// *****************************************************************************
+static void* AdrsAlias(mm_t *maps, void* adrs){
+   const bool cuda = config::usingCuda();
+   const alias_t *alias = maps->aliases->at(adrs);
+   memory_t *base = alias->mem;
+   const bool host = base->host;
+   const bool device = not base->host;
+   const size_t bytes = base->bytes;
+   if (host and not cuda) { return adrs; }
+   if (not base->d_adrs) { cuMemAlloc(&base->d_adrs, bytes); }
+   void *d_adrs = base->d_adrs;
+   void *a_adrs = (char*)d_adrs + alias->offset;
+   if (device and cuda) { return a_adrs; }
+   // Pull
+   if (device and not cuda)
+   {
+      cuMemcpyDtoH(base->h_adrs, d_adrs, bytes);
+      base->host = true;
+      return adrs;
+   }
+   // Push
+   assert(host and cuda);
+   cuMemcpyHtoD(d_adrs, base->h_adrs, bytes);
+   base->host = false;
+   return a_adrs;
+}
+
+// *****************************************************************************
+// * Turn an address to the right host or device one
+// *****************************************************************************
+void* mm::Adrs(void *adrs)
+{
+   if (not config::usingNvcc()) return adrs;
+   if (not config::usingCuda()) return adrs;
+   if (Known(maps, adrs)) return AdrsKnown(maps, adrs);
+   const bool alias = Alias(maps, adrs);
+   if (not alias) { BUILTIN_TRAP; }   
+   MFEM_ASSERT(alias, "Unknown address!");
+   return AdrsAlias(maps, adrs);
+}
+
+// *****************************************************************************
+const void* mm::Adrs(const void *adrs){
+   return (const void*) Adrs((void*)adrs);
+}
+
+// *****************************************************************************
+static OccaMemory occaMemory(const mm_t *maps, const void *adrs)
+{
+   const bool known = Known(maps, adrs);
+   if (not known) { BUILTIN_TRAP; }
+   MFEM_ASSERT(known, "Unknown address!");
+   memory_t *base = maps->memories->at(adrs);
+   const bool host = base->host;
+   const bool device = not host;
+   const size_t bytes = base->bytes;
+   const bool cuda = config::usingCuda();
+   OccaDevice occaDevice = config::GetOccaDevice();
    const bool occa = config::usingOcca();
-   MFEM_ASSERT(occa, "[ERROR] Using OCCA memory without OCCA mode!");
-   mm2dev_t &mm = mng->operator[](adrs);
-   const bool cuda = config::usingCuda();
-   const size_t bytes = mm.bytes;
-   OccaDevice device = config::GetOccaDevice();
-   if (not mm.d_adrs)
-   {
-      mm.host = false; // This address is no more on the host
-      if (cuda)
-      {
-         cuMemAlloc(&mm.d_adrs, bytes);
+   MFEM_ASSERT(occa, "Using OCCA memory without OCCA mode!");
+   
+   
+   if (host and not cuda) {
+      /*if (not base->o_adrs.isInitialized()){
+         base->o_adrs = occaDeviceMalloc(occaDevice, bytes);
+         base->d_adrs = occaMemoryPtr(base->o_adrs);
+         occaCopyFrom(base->o_adrs, base->h_adrs);
+         }*/
+      //return occa::serial::memory(occaDevice(),bytes);
+      //return /*base->o_adrs = */occaWrapMemory(occaDevice, base->h_adrs, bytes);
+      //dbg("host and not cuda");
+      return base->o_adrs;
+   }
+   assert(false);
+   if (not base->d_adrs) {
+      if (cuda){
+         cuMemAlloc(&base->d_adrs, bytes);
          void *stream = config::Stream();
-         cuMemcpyHtoDAsync(mm.d_adrs, mm.h_adrs, bytes, stream);
-      }
-      else
-      {
-         mm.o_adrs = occaDeviceMalloc(device, bytes);
-         mm.d_adrs = occaMemoryPtr(mm.o_adrs);
-         occaCopyFrom(mm.o_adrs, mm.h_adrs);
+         cuMemcpyHtoDAsync(base->d_adrs, base->h_adrs, bytes, stream);
+      }else{
+         base->o_adrs = occaDeviceMalloc(occaDevice, bytes);
+         base->d_adrs = occaMemoryPtr(base->o_adrs);
+         occaCopyFrom(base->o_adrs, base->h_adrs);
       }
    }
-   if (cuda)
-   {
-      return occaWrapMemory(device, mm.d_adrs, bytes);
-   }
-   return mm.o_adrs;
+   assert(false);
+   if (device and cuda) { return base->o_adrs; }
+   // Pull
+   if (device and not cuda) { assert(false); }
+   if (cuda) { assert(false); }
+   //return occaWrapMemory(occaDevice, base->d_adrs, bytes);
+   assert(false);
+   return base->o_adrs;
 }
 
 // *****************************************************************************
-void mm::Push(const void *adrs)
-{
-   MFEM_ASSERT(Known(adrs), "[ERROR] Trying to push an unknown address!");
-   const mm2dev_t &mm = mng->operator[](adrs);
-   if (mm.host) { return; }
-   cuMemcpyHtoD(mm.d_adrs, mm.h_adrs, mm.bytes);
+OccaMemory mm::Memory(const void *adrs){
+   return occaMemory(maps, adrs);
 }
 
 // *****************************************************************************
-void mm::Pull(const void *adrs)
+static void PushKnown(mm_t *maps, const void *adrs, const size_t bytes)
 {
-   MFEM_ASSERT(Known(adrs), "[ERROR] Trying to pull an unknown address!");
-   const mm2dev_t &mm = mng->operator[](adrs);
-   if (mm.host) { return; }
-   if (config::usingCuda())
-   {
-      cuMemcpyDtoH((void*)mm.h_adrs, mm.d_adrs, mm.bytes);
+   memory_t *base = maps->memories->at(adrs);
+   if (not base->d_adrs){ cuMemAlloc(&base->d_adrs, base->bytes); }
+   if (config::usingCuda()){
+      cuMemcpyHtoD(base->d_adrs, adrs, bytes==0?base->bytes:bytes);
       return;
    }
-   if (config::usingOcca())
-   {
-      occaCopyTo(Memory(adrs), (void*)mm.h_adrs);
+   if (config::usingOcca()) {
+      assert(false);
+      occaCopyFrom(occaMemory(maps, adrs), base->h_adrs);
       return;
    }
    MFEM_ASSERT(false, "[ERROR] Should not be there!");
 }
 
 // *****************************************************************************
-void* mm::memcpy(void *dest, const void *src, size_t bytes)
+static void PushAlias(const mm_t *maps, const void *adrs, const size_t bytes)
 {
-   return mm::D2D(dest, src, bytes, false);
-}
-
-// ******************************************************************************
-void* mm::H2D(void *dest, const void *src, size_t bytes, const bool async)
-{
-   if (bytes==0) { return dest; }
-   const bool cuda = config::usingCuda();
-   if (not cuda) { return std::memcpy(dest, src, bytes); }
-   return mfem::kH2D(dest, src, bytes, async);
+   const alias_t *alias = maps->aliases->at(adrs);
+   memory_t *base = alias->mem;
+   if (not base->d_adrs){ cuMemAlloc(&base->d_adrs, base->bytes); }
+   cuMemcpyHtoD((char*)base->d_adrs + alias->offset, adrs, bytes);
 }
 
 // *****************************************************************************
-void* mm::D2H(void *dest, const void *src, size_t bytes, const bool async)
+void mm::Push(const void *adrs, const size_t bytes)
 {
-   if (bytes==0) { return dest; }
-   const bool cuda = config::usingCuda();
-   if (not cuda) { return std::memcpy(dest, src, bytes); }
-   return mfem::kD2H(dest, src, bytes, async);
+   if (not config::usingNvcc() and not config::usingOcca()) return;
+   if (not config::usingCuda() and not config::usingOcca()) return;
+   if (Known(maps, adrs)) return PushKnown(maps, adrs, bytes);
+   assert(not config::usingOcca());
+   const bool alias = Alias(maps, adrs);
+   if (not alias) { BUILTIN_TRAP; }
+   MFEM_ASSERT(alias, "Unknown address!");
+   return PushAlias(maps, adrs, bytes);
 }
 
 // *****************************************************************************
-void* mm::D2D(void *dest, const void *src, size_t bytes, const bool async)
+static void PullKnown(const mm_t *maps, const void *adrs, const size_t bytes)
 {
-   if (bytes==0) { return dest; }
+   const memory_t *base = maps->memories->at(adrs);
+   if (config::usingCuda()){
+      cuMemcpyDtoH(base->h_adrs, base->d_adrs, bytes==0?base->bytes:bytes);
+      return;
+   }
+   if (config::usingOcca()) {
+      occaCopyTo(occaMemory(maps, adrs), base->h_adrs);
+      return;
+   }
+   MFEM_ASSERT(false, "[ERROR] Should not be there!");
+}
+
+// *****************************************************************************
+static void PullAlias(const mm_t *maps, const void *adrs, const size_t bytes)
+{
+   const alias_t *alias = maps->aliases->at(adrs);
+   const memory_t *base = alias->mem;
+   cuMemcpyDtoH((void*)adrs, (char*)base->d_adrs + alias->offset, bytes);
+}
+
+// *****************************************************************************
+void mm::Pull(const void *adrs, const size_t bytes)
+{
+   if (not config::usingNvcc() and not config::usingOcca()) return;
+   if (not config::usingCuda() and not config::usingOcca()) return;
+   if (Known(maps, adrs)) return PullKnown(maps, adrs, bytes);
+   assert(not config::usingOcca());
+   const bool alias = Alias(maps, adrs);
+   if (not alias) { BUILTIN_TRAP; }
+   MFEM_ASSERT(alias, "Unknown address!");
+   return PullAlias(maps, adrs, bytes);
+}
+
+// *****************************************************************************
+__attribute__((unused))
+static void Dump(mm_t *maps){
+   if (!getenv("DBG")) return;
+   memory_map_t *mem = maps->memories;
+   alias_map_t  *als = maps->aliases;
+   size_t k = 0;
+   for(memory_map_t::iterator m = mem->begin(); m != mem->end(); m++) {
+      const void *h_adrs = m->first;
+      assert(h_adrs == m->second->h_adrs);
+      const size_t bytes = m->second->bytes;
+      const void *d_adrs = m->second->d_adrs;
+      if (not d_adrs){
+         printf("\n[%ld] \033[33m%p \033[35m(%ld)", k, h_adrs, bytes);
+      }else{
+         printf("\n[%ld] \033[33m%p \033[35m (%ld) \033[32 -> %p", k, h_adrs, bytes, d_adrs);
+      }
+      fflush(0);
+      k++;
+   }
+   k = 0;
+   for(alias_map_t::iterator a = als->begin(); a != als->end(); a++) {
+      const void *adrs = a->first;
+      const size_t offset = a->second->offset;
+      const void *base = a->second->mem->h_adrs;
+      printf("\n[%ld] \033[33m%p < (\033[37m%ld) < \033[33m%p",k , base, offset, adrs);
+      fflush(0);
+      k++;
+   }
+}
+
+// *****************************************************************************
+// * Data will be pushed/pulled before the copy happens on the H or the D
+// *****************************************************************************
+static void* d2d(void *dst, const void *src, size_t bytes, const bool async){
+   GET_ADRS(src);
+   GET_ADRS(dst);
+   assert(bytes>0);
    const bool cuda = config::usingCuda();
-   if (not cuda) { return std::memcpy(dest, src, bytes); }
-   return mfem::kD2D(dest, src, bytes, async);
+   if (not cuda) { return std::memcpy(d_dst, d_src, bytes); }
+   if (not async) { cuMemcpyDtoD(d_dst, (void*)d_src, bytes); }
+   else { cuMemcpyDtoDAsync(d_dst, (void*)d_src, bytes, config::Stream()); }
+   return dst;
+}
+
+// *****************************************************************************
+void* mm::memcpy(void *dst, const void *src, size_t bytes, const bool async)
+{
+   if (bytes==0) { return dst; }
+   return d2d(dst, src, bytes, async);
 }
 
 // *****************************************************************************

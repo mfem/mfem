@@ -39,7 +39,7 @@ Vector::Vector(const Vector &v)
       MFEM_ASSERT(v.data, "invalid source vector");
       allocsize = size = s;
       data = mm::malloc<double>(s);
-      mm::D2D(data, v.data, sizeof(double)*s);
+      mm::memcpy(data, v.data, sizeof(double)*s);
    }
    else
    {
@@ -581,7 +581,7 @@ void Vector::SetSubVectorComplement(const Array<int> &dofs, const double val)
 void Vector::Print(std::ostream &out, int width) const
 {
    if (!size) { return; }
-   mm::Get().Pull(data);
+   mm::pull(data);
    for (int i = 0; 1; )
    {
       out << data[i];
