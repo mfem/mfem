@@ -75,6 +75,7 @@ static bool Alias(const mm_t *maps, const void *adrs)
 // *****************************************************************************
 void* mm::Insert(void *adrs, const size_t bytes)
 {
+   if (not config::usingNvcc()) return adrs;
    const bool known = Known(maps, adrs);
    MFEM_ASSERT(not known, "Trying to add already present address!");
    //dbg("\033[33m%p \033[35m(%ldb)", adrs, bytes);
@@ -87,6 +88,7 @@ void* mm::Insert(void *adrs, const size_t bytes)
 // *****************************************************************************
 void *mm::Erase(void *adrs)
 {
+   if (not config::usingNvcc()) return adrs;
    const bool known = Known(maps, adrs);
    if (not known) { BUILTIN_TRAP; }
    MFEM_ASSERT(known, "Trying to remove an unknown address!");

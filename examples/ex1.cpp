@@ -142,7 +142,10 @@ int main(int argc, char *argv[])
    b->Assemble();
 
    // 7. Set MFEM config parameters from the command line options
-   mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
+   if (pa) {
+      assert(order==1);
+      mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
+   }
    config::useCuda(cuda);
    config::useOcca(occa);
    config::usePA(pa);
