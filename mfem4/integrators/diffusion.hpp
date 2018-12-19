@@ -13,28 +13,20 @@
 #define MFEM4_INTEGRATORS_DIFFUSION_HPP
 
 #include "fem/bilininteg.hpp"
+#include "mesh/batchgeom.hpp"
 
 namespace mfem4
 {
 
 using namespace mfem;
 
-
-struct ElementGeometries
+/** Base class for a (partially) assembled batch of elements. The base class
+ *  is opaque and can only destruct itself. The format of the data and the
+ *  exact partial assembly algorithm depends on each integrator.
+ */
+struct AssemblyData
 {
-   Tensor nodes;
-   Tensor J, invJ, detJ;
-
-   int GetNE() const;
-};
-
-
-struct ElementAssembly
-{
-   Tensor dof_quad, quad_dof;
-   Tensor quad_data;
-
-   int GetNE() const;
+   virtual ~AssemblyData() {}
 };
 
 
@@ -55,24 +47,21 @@ public:
 
    /** Given a batch of elements, the trial and test FiniteElements,
        compute the element stiffness matrices. */
-   virtual void AssembleElements(const Array<int> &batch,
+   virtual void AssembleElements(const BatchGeometry &geom,
                                  const FiniteElement &trial_fe,
                                  const FiniteElement &test_fe,
-                                 const ElementGeometries &geoms,
                                  DenseTensor &matrices);
 
    /** Given a batch of elements, the trial and test FiniteElements,
-       partial assemble dof<->quad maps, and geometry and coefficient data
-       at quadrature points. */
-   virtual void PartialAssemble(const Array<int> &batch,
-                                const FiniteElement &trial_fe,
-                                const FiniteElement &test_fe,
-                                const ElementGeometries &geoms,
-                                ElementAssembly &easm);
+       perform partial assembly and return opaque data that can be passed
+       to MultAdd to perform the action of the operator. */
+   virtual AssemblyData* PartialAssemble(const BatchGeometry &geom,
+                                         const FiniteElement &trial_fe,
+                                         const FiniteElement &test_fe);
 
    /** Given partially assembled data from PartialAssemble, apply
        element-wise operators on vector @a x and return @a y. */
-   virtual void MultAdd(const ElementAssembly &easm,
+   virtual void MultAdd(const AssemblyData &assembly,
                         const Vector &x, Vector &y);
 
 
@@ -88,6 +77,14 @@ public:
 protected:
    Coefficient *Q;
    MatrixCoefficient *MQ;
+
+   /// DiffusionIntegrator partially assembled data
+   struct DiffusionAssemblyData : public AssemblyData
+   {
+      Tensor<3> oper;
+      Tensor<4> dof_quad, quad_dof;
+      Tensor<4> quad_data;
+   };
 };
 
 

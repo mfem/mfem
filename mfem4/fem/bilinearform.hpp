@@ -22,7 +22,7 @@ using namespace mfem;
 
 enum class AssemblyLevel
 {
-   NONE, PARTIAL, LOCAL, FULL
+   NONE, PARTIAL, ELEMENT, FULL
 };
 
 ///
@@ -56,6 +56,16 @@ public:
                              const Array<int> &attr_list);
 
    void SetAssemblyLevel(AssemblyLevel level);
+   AssemblyLevel GetAssemblyLevel() const { return asm_level; }
+
+   void SetBatchSize(int size) { batch_size = size; }
+   int GetBatchSize() const { return batch_size; }
+
+   void EnableStaticCondensation(bool enable = true);
+   void EnableHybridization(bool enable = true);
+
+   bool IsStaticCondensationEnabled() const;
+   bool IsHybridizationEnabled() const;
 
    /// Assembles the form i.e. sums over all domain/bdr integrators.
    void Assemble();
@@ -75,8 +85,17 @@ public:
    const SparseMatrix &SpMat() const;
 
 
+   /**
+    */
+   void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
+                         OperatorHandle &A, Vector &X, Vector &B,
+                         int copy_interior = 0);
+
+
 protected:
 
+   AssemblyLevel asm_level;
+   int batch_size;
 
 };
 

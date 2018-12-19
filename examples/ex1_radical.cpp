@@ -25,7 +25,9 @@
 //               ex1 -m ../data/mobius-strip.mesh
 //               ex1 -m ../data/mobius-strip.mesh -o -1 -sc
 //
-// Description:  PA design proposal with minimal changes in interface.
+// Description:  This is a mock-up of an alternate interface for creating
+//               FEM linear systems.
+//
 
 #include "mfem.hpp"
 #include "mfem4/mfem4.hpp"
@@ -42,6 +44,7 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    const char *mesh_file = "../data/star.mesh";
    int order = 1;
+   bool partial = false;
    bool static_cond = false;
    bool visualization = 1;
 
@@ -51,6 +54,9 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&partial,
+                  "-pa", "--partial-assembly", "-fa", "--full-assembly",
+                  "Enable partial assembly.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -104,17 +110,13 @@ int main(int argc, char *argv[])
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
 
-   // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
-   //    In this example, the boundary conditions are defined by marking all
-   //    the boundary attributes from the mesh as essential (Dirichlet) and
-   //    converting them to a list of true dofs.
-   Array<int> ess_tdof_list;
-   if (mesh->bdr_attributes.Size())
-   {
-      Array<int> ess_bdr(mesh->bdr_attributes.Max());
-      ess_bdr = 1;
-      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-   }
+   // 5. Determine the list of essential boundary dofs.
+   //    NOTE: I wanted to make this less confusing.
+   Array<int> attributes; // NOTE: attribute list, not markers
+   attributes.Append(1);  // NOTE: empty list means all boundary attributes (?)
+
+   Array<int> ess_dof_list; // NOTE: regular DOFs
+   fespace->GetBoundaryDofs(attributes, ess_dof_list); // NOTE: more general function
 
    // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
@@ -128,43 +130,55 @@ int main(int argc, char *argv[])
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
    GridFunction x(fespace);
-   x = 0.0;
+   x.SetTo(0.0); // NOTE: it would be nice to get rid of operator overloads
 
    // 8. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
    mfem4::BilinearForm *a = new mfem4::BilinearForm(fespace);
    a->AddDomainIntegrator(new mfem4::DiffusionIntegrator(one)); // NOTE: integrators can MultAdd (if implemented)
-   a->EnableStaticCondensation(static_cond); // NOTE: does nothing for PA
    a->SetAssemblyLevel(partial ? AssemblyLevel::PARTIAL
                                : AssemblyLevel::FULL);
+   a->Assemble(); // NOTE: BilinearForm is as simple as before, no FormLinearSystem
 
-   // 9. Assemble the bilinear form and the corresponding linear system,
-   //    applying any necessary transformations such as: eliminating boundary
-   //    conditions, applying conforming constraints for non-conforming AMR,
-   //    static condensation, etc.
-   a->Assemble();
+   // 9. Create the linear system, applying any necessary transformations
+   //    such as: eliminating boundary conditions, applying conforming
+   //    constraints for non-conforming AMR, static condensation, etc.
+   //    NOTE: LinearSystem is a new class that holds (owns) A, X, B and knows
+   //    how to form them.
+   LinearSystem ls(a, b); // NOTE: ParLinearSystem in parallel
+   ls.SetEssentialDofs(ess_dof_list, x); // NOTE: regular DOFs; values taken from x
+   ls.SetOperatorType(Operator::MFEM_SPARSEMAT); // or PETSC_xxx...
+   ls.EnableStaticCondensation(static_cond); // NOTE: does nothing for PA
+   ls.Assemble(); // NOTE: this is like FormLinearSystem
+   // NOTE: if the BF has partial assembly, ls.Assemble() constructs the constrained operator
 
-   OperatorHandle A(Operator::ANY_TYPE);
-   Vector B, X;
-   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+   // 10. Solve the linear system with the supplied solver and optionally
+   //     a preconditioner too.
+   GSSmoother prec;
+   CGSolver cg;
+   cg.SetAbsTol(1e-12);
+   cg.SetMaxIter(200);
+   cg.SetPrintLevel(1);
+   ls.Solve(prec, cg, x); // NOTE: this just calls the solver and recovers 'x'
+
+   // 11. Alternatively, one can still access the system matrix and RHS if
+   //     necessary (after LinearSystem::Assemble()).
+   const Operator &A = ls.GetMatrix(); // NOTE: this fails if partial==true
+   const Operator &A = ls.GetOperator(); // NOTE: this always works
+   const Vector &B = ls.GetRHS(); // NOTE: this always works
    cout << "Size of linear system: " << A.Height() << endl;
-
-   // 10. Define a simple symmetric Gauss-Seidel preconditioner and use it to
-   //     solve the system A X = B with PCG.
-   CG(*A.Ptr(), B, X, 1, 200, 1e-12, 0.0);
-
-   // 11. Recover the solution as a finite element grid function.
-   a->RecoverFEMSolution(X, *b, x);
+   // NOTE: you can do ls.RecoverFEMSolution(X, x); if you obtain X your way
 
    // 12. Save the refined mesh and the solution. This output can be viewed later
    //     using GLVis: "glvis -m refined.mesh -g sol.gf".
    ofstream mesh_ofs("refined.mesh");
    mesh_ofs.precision(8);
    mesh->Print(mesh_ofs);
+
    ofstream sol_ofs("sol.gf");
    sol_ofs.precision(8);
-   x.Save(sol_ofs);
+   x.Save(sol_ofs); // NOTE: should we call this Print?
 
    // 13. Send the solution by socket to a GLVis server.
    if (visualization)
