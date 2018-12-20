@@ -70,9 +70,12 @@ void config::OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
 // *****************************************************************************
 void config::MfemDeviceSetup(const int device)
 {
-   stk();
-   CudaDeviceSetup(device);
-   OccaDeviceSetup(cuDevice, cuContext);
+   if (cuda) CudaDeviceSetup(device);
+   if (occa) OccaDeviceSetup(cuDevice, cuContext);
+   // This will be or test that the device is enabled
+   if (cuda or occa) {
+      assert(gpu_count > 0);
+   }
 }
 
 // *****************************************************************************

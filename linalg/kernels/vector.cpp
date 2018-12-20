@@ -119,7 +119,7 @@ double cuVectorDot(const size_t N, const double *x, const double *y)
 double kVectorMin(const size_t N, const double *x)
 {
    GET_CONST_ADRS(x);
-   if (config::usingCuda())
+   if (config::usingGpu())
    {
 #ifdef __NVCC__
       return cuVectorMin(N, d_x);
@@ -133,11 +133,9 @@ double kVectorMin(const size_t N, const double *x)
 // *****************************************************************************
 double kVectorDot(const size_t N, const double *x, const double *y)
 {
-   GET_CUDA;
    GET_CONST_ADRS(x);
    GET_CONST_ADRS(y);
-
-   if (cuda)
+   if (config::usingGpu())
    {
 #ifdef __NVCC__
       return cuVectorDot(N, d_x, d_y);
