@@ -77,11 +77,7 @@ public:
    static inline bool usingGpu() { return gpuEnabled() and Get().mode == GPU; }
    static inline bool usingCpu() { return not usingGpu(); }
 
-   static inline void SwitchToGpu(){
-      assert(usingMM());
-      MFEM_ASSERT(usingMM(),"SwitchToGpu needs MM support!");
-      Get().mode = config::GPU;
-   }
+   static inline void SwitchToGpu(){ Get().mode = config::GPU; }
    static inline void SwitchToCpu(){ Get().mode = config::CPU; }
 
 
