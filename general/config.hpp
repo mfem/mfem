@@ -63,16 +63,20 @@ public:
    constexpr static inline bool usingNvcc() { return usingNvccCompiler(); }
 
    // **************************************************************************
+   static inline void enableDevice(const int dev =0) { Get().MfemDeviceSetup(dev); }
+   static inline bool deviceEnabled() { return Get().gpu_count > 0; }
    
-   static inline void setupDevice(const int dev =0) { Get().MfemDeviceSetup(dev); }
-   static inline bool usingDevice() { return Get().gpu_count > 0; }
+   static inline bool usingGpu() { return deviceEnabled() and Get().mode == DEVICE_MODE; }
+   static inline bool usingCpu() { return not usingGpu(); }
+
    static inline void SwitchToDevice(){ Get().mode = DEVICE_MODE; }
    static inline void SwitchToHost(){ Get().mode = HOST_MODE; }
+
 
    static inline bool usingPA() { return Get().pa; }
    static inline void usePA(const bool mode) { Get().pa = mode; }
 
-   static inline bool usingCuda() { return Get().cuda; }
+   //static inline bool usingCuda() { return Get().cuda; }
    static inline void useCuda() { Get().cuda = true; }
    static inline CUstream Stream() { return *Get().cuStream; }
 

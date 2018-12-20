@@ -148,7 +148,7 @@ int main(int argc, char *argv[])
    }
    if (cuda) config::useCuda();
    if (occa) config::useOcca();
-   config::setupDevice(0/*,occa,cuda*/);
+   config::enableDevice(0/*,occa,cuda*/);
    config::usePA(pa);
    config::SwitchToDevice();
 
