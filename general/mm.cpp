@@ -72,9 +72,9 @@ static bool Alias(const mm_t *maps, const void *adrs)
 // *****************************************************************************
 __attribute__((unused))
 static void debugMode(void){
-   dbg("\033[1K\r%sNvcc %sHasBeenEnabled %sEnabled %sDisabled \
+   dbg("\033[1K\r%sMM %sHasBeenEnabled %sEnabled %sDisabled \
 %sCPU %sGPU %sPA %sCUDA %sOCCA",
-       config::usingNvcc()?"\033[32m":"\033[31m",
+       config::usingMM()?"\033[32m":"\033[31m",
        config::gpuHasBeenEnabled()?"\033[32m":"\033[31m",
        config::gpuEnabled()?"\033[32m":"\033[31m",
        config::gpuDisabled()?"\033[32m":"\033[31m",
@@ -90,7 +90,7 @@ static void debugMode(void){
 // *****************************************************************************
 void* mm::Insert(void *adrs, const size_t bytes)
 {
-   if (not config::usingNvcc()) return adrs;
+   if (not config::usingMM()) return adrs;
    if (config::gpuDisabled()) return adrs;
    const bool known = Known(maps, adrs);
    MFEM_ASSERT(not known, "Trying to add already present address!");
@@ -104,7 +104,7 @@ void* mm::Insert(void *adrs, const size_t bytes)
 // *****************************************************************************
 void *mm::Erase(void *adrs)
 {
-   if (not config::usingNvcc()) return adrs;
+   if (not config::usingMM()) return adrs;
    if (config::gpuDisabled()) return adrs;
    const bool known = Known(maps, adrs);
    if (not known) { BUILTIN_TRAP; }
@@ -173,8 +173,8 @@ static void* AdrsAlias(mm_t *maps, void* adrs){
 // *****************************************************************************
 void* mm::Adrs(void *adrs)
 {
+   if (not config::usingMM()) return adrs;
    if (config::gpuDisabled()) return adrs;
-   if (not config::usingNvcc()) return adrs;
    if (not config::gpuHasBeenEnabled()) return adrs;
    if (Known(maps, adrs)) return AdrsKnown(maps, adrs);
    const bool alias = Alias(maps, adrs);
@@ -192,7 +192,7 @@ const void* mm::Adrs(const void *adrs){
 static OccaMemory occaMemory(const mm_t *maps, const void *adrs)
 {
    OccaDevice occaDevice = config::GetOccaDevice();
-   if (not config::usingNvcc()){
+   if (not config::usingMM()){
       OccaMemory o_adrs = occaWrapMemory(occaDevice, (void*)adrs, 0);
       return o_adrs;
    }
@@ -251,7 +251,7 @@ static void PushAlias(const mm_t *maps, const void *adrs, const size_t bytes)
 void mm::Push(const void *adrs, const size_t bytes)
 {
    if (config::gpuDisabled()) return;
-   if (not config::usingNvcc()) return;
+   if (not config::usingMM()) return;
    if (not config::gpuHasBeenEnabled()) return;
    if (Known(maps, adrs)) return PushKnown(maps, adrs, bytes);
    assert(not config::usingOcca());
@@ -279,7 +279,7 @@ static void PullAlias(const mm_t *maps, const void *adrs, const size_t bytes)
 void mm::Pull(const void *adrs, const size_t bytes)
 {
    if (config::gpuDisabled()) return;
-   if (not config::usingNvcc()) return;
+   if (not config::usingMM()) return;
    if (not config::gpuHasBeenEnabled()) return;
    if (Known(maps, adrs)) return PullKnown(maps, adrs, bytes);
    assert(not config::usingOcca());
