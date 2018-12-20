@@ -60,7 +60,13 @@ private:
 
 public:
    // **************************************************************************
-   constexpr static inline bool usingNvcc() { return usingNvccCompiler(); }
+   constexpr static inline bool usingMM() {
+#ifdef MFEM_USE_MM
+      return true;
+#else
+      return false;
+#endif
+   }
 
    // **************************************************************************
    static inline void enableGpu(const int dev =0) { Get().MfemDeviceSetup(dev); }
@@ -71,7 +77,11 @@ public:
    static inline bool usingGpu() { return gpuEnabled() and Get().mode == GPU; }
    static inline bool usingCpu() { return not usingGpu(); }
 
-   static inline void SwitchToGpu(){ Get().mode = config::GPU; }
+   static inline void SwitchToGpu(){
+      assert(usingMM());
+      MFEM_ASSERT(usingMM(),"SwitchToGpu needs MM support!");
+      Get().mode = config::GPU;
+   }
    static inline void SwitchToCpu(){ Get().mode = config::CPU; }
 
 

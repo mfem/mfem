@@ -93,9 +93,8 @@ void dbg_F_L_F_N_A(const char*, const int, const char*, const int, ...);
 #define _F_L_F_ __FILENAME__,__LINE__,__FUNCTION__
 
 // *****************************************************************************
-#define stk(...) dbg_F_L_F_N_A(_F_L_F_,0)
-#define dbg(...) dbg_F_L_F_N_A(_F_L_F_, N_ARGS(__VA_ARGS__),__VA_ARGS__)
+//#define stk(...) dbg_F_L_F_N_A(_F_L_F_,0)
+//#define dbg(...) dbg_F_L_F_N_A(_F_L_F_, N_ARGS(__VA_ARGS__),__VA_ARGS__)
 
-//#define dbg(...)
-//#define push(...)
+#define dbg(...)
 #endif // MFEM_OKINA_HPP

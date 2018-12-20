@@ -21,8 +21,6 @@ namespace mfem
 void config::CudaDeviceSetup(const int device)
 {
 #ifdef __NVCC__
-   dbg("CUDA");
-   ngpu = 0;
    cudaGetDeviceCount(&ngpu);
    MFEM_ASSERT(gpu_count>0, "No CUDA device found!");
    cuInit(0);
@@ -32,6 +30,8 @@ void config::CudaDeviceSetup(const int device)
    cuStream = new CUstream;
    MFEM_ASSERT(cuStream, "CUDA stream could not be created!");
    cuStreamCreate(cuStream, CU_STREAM_DEFAULT);
+#else
+   MFEM_ABORT("CUDA requested but no GPU support has been built!");
 #endif
 }
 
@@ -41,15 +41,12 @@ void config::CudaDeviceSetup(const int device)
 void config::OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
 {
 #ifdef __OCCA__
-   dbg("OCCA");
    if (cuda)
    {
-      dbg("OCCA @ GPU, ngpu=%d", ngpu);
       occaDevice = occaWrapDevice(cu_dev, cu_ctx);
    }
    else
    {
-      dbg("OCCA @ CPU, ngpu=%d", ngpu);
       occaDevice.setup("mode: 'Serial'");
    }
    const std::string mfem_dir = occa::io::dirname(__FILE__) + "../";
@@ -62,6 +59,8 @@ void config::OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
    occa::loadKernels("general");
    occa::loadKernels("linalg");
    occa::loadKernels("mesh");
+#else
+   MFEM_ABORT("OCCA requested but no support has been built!");
 #endif
 }
 
@@ -71,14 +70,11 @@ void config::OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
 // *****************************************************************************
 void config::MfemDeviceSetup(const int dev)
 {
-   dbg("");
-   // Only one MfemDeviceSetup allowed
-   assert(ngpu==-1);
+   MFEM_ASSERT(ngpu==-1, "Only one MfemDeviceSetup allowed");
    ngpu = 0;
    if (cuda) CudaDeviceSetup(dev);
    if (occa) OccaDeviceSetup(cuDevice, cuContext);
-   // This will be or test that the device is enabled
-   if (cuda or occa) { assert(ngpu > 0); }
+   if (cuda and ngpu==0) { MFEM_ABORT("CUDA requested but no GPU has been initialized!"); }
 }
 
 // *****************************************************************************
