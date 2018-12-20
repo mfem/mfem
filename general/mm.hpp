@@ -67,6 +67,7 @@ private:
    void *Erase(void *adrs);
    void* Adrs(void *adrs);
    const void* Adrs(const void *adrs);
+   OccaMemory Memory(const void *adrs);
 private:
    // **************************************************************************
    void Push(const void *adrs, const size_t bytes =0);
@@ -99,6 +100,7 @@ public:
    // **************************************************************************
    static inline void* adrs(void *a) { return MM().Adrs(a); }
    static inline const void* adrs(const void *a) { return MM().Adrs(a); }
+   static inline OccaMemory memory(const void *a) { return MM().Memory(a); }
 
    // **************************************************************************
    static inline void push(const void *adrs, const size_t bytes =0){

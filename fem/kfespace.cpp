@@ -21,7 +21,7 @@ namespace mfem
 {
 
 // **************************************************************************
-static void kFESArrayAssign(const int n, const int *src, int *dest)
+static void kArrayAssign(const int n, const int *src, int *dest)
 {
    GET_CONST_ADRS_T(src,int);
    GET_ADRS_T(dest,int);
@@ -47,7 +47,6 @@ kFiniteElementSpace::kFiniteElementSpace(FiniteElementSpace *f)
    const Table& e2dTable = f->GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
    const int elements = f->GetNE();
-   //dbg("h_offsets");
    Array<int> h_offsets(globalDofs+1);
 
    // We'll be keeping a count of how many local nodes point to its global dof
@@ -68,9 +67,8 @@ kFiniteElementSpace::kFiniteElementSpace(FiniteElementSpace *f)
    {
       h_offsets[i] += h_offsets[i - 1];
    }
-   //dbg("h_indices");
+
    Array<int> h_indices(localDofs*elements);
-   //dbg("h_map");
    Array<int> h_map(localDofs*elements);
    // For each global dof, fill in all local nodes that point   to it
    for (int e = 0; e < elements; ++e)
@@ -95,10 +93,9 @@ kFiniteElementSpace::kFiniteElementSpace(FiniteElementSpace *f)
 
    const int leN = localDofs*elements;
    const int guN = globalDofs+1;
-   
-   kFESArrayAssign(guN,h_offsets,offsets);   
-   kFESArrayAssign(leN,h_indices,indices);   
-   kFESArrayAssign(leN,h_map,map);
+   kArrayAssign(guN,h_offsets,offsets);
+   kArrayAssign(leN,h_indices,indices);
+   kArrayAssign(leN,h_map,map);
 }
 
 // ***************************************************************************

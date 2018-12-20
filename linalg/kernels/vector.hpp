@@ -22,7 +22,6 @@ void kVectorSetDof(const int, double*, const double, const int*);
 void kVectorSetDof(double*, const double, const int);
 
 void kVectorGetSubvector(const int, double*, const double*, const int*);
-
 void kVectorSetSubvector(const int, double*, const double*, const int*);
 void kVectorSetSubvector(const int, double*, const double, const int*);
 

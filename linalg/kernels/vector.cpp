@@ -60,9 +60,9 @@ double cuVectorMin(const size_t N, const double *x)
    static double *h_min = NULL;
    if (!h_min) { h_min = (double*)calloc(min_sz,sizeof(double)); }
    static CUdeviceptr gdsr = (CUdeviceptr) NULL;
-   if (!gdsr) { cuMemAlloc(&gdsr,bytes); }
+   if (!gdsr) { ::cuMemAlloc(&gdsr,bytes); }
    cuKernelMin<<<gridSize,blockSize>>>(N, (double*)gdsr, x);
-   cuMemcpy((CUdeviceptr)h_min,(CUdeviceptr)gdsr,bytes);
+   ::cuMemcpy((CUdeviceptr)h_min,(CUdeviceptr)gdsr,bytes);
    double min = std::numeric_limits<double>::infinity();
    for (size_t i=0; i<min_sz; i+=1) { min = fmin(min, h_min[i]); }
    return min;
@@ -106,9 +106,9 @@ double cuVectorDot(const size_t N, const double *x, const double *y)
    static double *h_dot = NULL;
    if (!h_dot) { h_dot = (double*)calloc(dot_sz,sizeof(double)); }
    static CUdeviceptr gdsr = (CUdeviceptr) NULL;
-   if (!gdsr) { cuMemAlloc(&gdsr,bytes); }
+   if (!gdsr) { ::cuMemAlloc(&gdsr,bytes); }
    cuKernelDot<<<gridSize,blockSize>>>(N, (double*)gdsr, x, y);
-   cuMemcpy((CUdeviceptr)h_dot,(CUdeviceptr)gdsr,bytes);
+   ::cuMemcpy((CUdeviceptr)h_dot,(CUdeviceptr)gdsr,bytes);
    double dot = 0.0;
    for (size_t i=0; i<dot_sz; i+=1) { dot += h_dot[i]; }
    return dot;
@@ -119,7 +119,7 @@ double cuVectorDot(const size_t N, const double *x, const double *y)
 double kVectorMin(const size_t N, const double *x)
 {
    GET_CONST_ADRS(x);
-   if (config::Cuda())
+   if (config::usingCuda())
    {
 #ifdef __NVCC__
       return cuVectorMin(N, d_x);
@@ -133,14 +133,17 @@ double kVectorMin(const size_t N, const double *x)
 // *****************************************************************************
 double kVectorDot(const size_t N, const double *x, const double *y)
 {
+   GET_CUDA;
    GET_CONST_ADRS(x);
    GET_CONST_ADRS(y);
-   if (config::Cuda())
+
+   if (cuda)
    {
 #ifdef __NVCC__
       return cuVectorDot(N, d_x, d_y);
 #endif // __NVCC__
    }
+
    double dot = 0.0;
    for (size_t i=0; i<N; i+=1) { dot += d_x[i] * d_y[i]; }
    return dot;

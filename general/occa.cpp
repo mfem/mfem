@@ -16,9 +16,9 @@ namespace mfem
 {
 
 // *****************************************************************************
-OccaDevice okWrapDevice(CUdevice dev, CUcontext ctx)
+OccaDevice occaWrapDevice(CUdevice dev, CUcontext ctx)
 {
-#if defined(__NVCC__) and defined(__OCCA__)
+#if defined(__OCCA__) and defined(__NVCC__)
    return occa::cuda::wrapDevice(dev, ctx);
 #else
    return 0;
@@ -26,7 +26,7 @@ OccaDevice okWrapDevice(CUdevice dev, CUcontext ctx)
 }
 
 // *****************************************************************************
-OccaMemory okDeviceMalloc(OccaDevice device, const size_t bytes)
+OccaMemory occaDeviceMalloc(OccaDevice device, const size_t bytes)
 {
 #ifdef __OCCA__
    return device.malloc(bytes);
@@ -36,19 +36,24 @@ OccaMemory okDeviceMalloc(OccaDevice device, const size_t bytes)
 }
 
 // *****************************************************************************
-OccaMemory okWrapMemory(const OccaDevice device,
-                        void *d_adrs,
-                        const size_t bytes)
+OccaMemory occaWrapMemory(const OccaDevice device,
+                          void *d_adrs,
+                          const size_t bytes)
 {
-#if defined(__NVCC__) and defined(__OCCA__)
+   // OCCA + NVCC will use CUDA
+#if defined(__OCCA__) and defined(__NVCC__)
    return occa::cuda::wrapMemory(device, d_adrs, bytes);
+#else // Just OCCA uses CPU
+#if defined(__OCCA__)
+   return occa::cpu::wrapMemory(device, d_adrs, bytes);
 #else
    return (void*)NULL;
+#endif
 #endif
 }
 
 // *****************************************************************************
-void *okMemoryPtr(OccaMemory o_adrs)
+void *occaMemoryPtr(OccaMemory o_adrs)
 {
 #ifdef __OCCA__
    return o_adrs.ptr();
@@ -58,7 +63,7 @@ void *okMemoryPtr(OccaMemory o_adrs)
 }
 
 // *****************************************************************************
-void okCopyFrom(OccaMemory o_adrs, const void *h_adrs)
+void occaCopyFrom(OccaMemory o_adrs, const void *h_adrs)
 {
 #ifdef __OCCA__
    o_adrs.copyFrom(h_adrs);
@@ -66,7 +71,7 @@ void okCopyFrom(OccaMemory o_adrs, const void *h_adrs)
 }
 
 // *****************************************************************************
-void okCopyTo(OccaMemory o_adrs, void *h_adrs)
+void occaCopyTo(OccaMemory o_adrs, void *h_adrs)
 {
 #ifdef __OCCA__
    o_adrs.copyTo(h_adrs);

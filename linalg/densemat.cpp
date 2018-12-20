@@ -379,7 +379,7 @@ void DenseMatrix::SymmetricScaling(const Vector & s)
    {
       mfem_error("DenseMatrix::SymmetricScaling");
    }
-   
+
    double * ss = mm::malloc<double>(width);
    double * it_s = s.GetData();
    double * it_ss = ss;

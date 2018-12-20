@@ -58,8 +58,7 @@ void PAMassIntegrator::MultAdd(Vector &x, Vector &y)
 void PADiffusionIntegrator::Setup(const FiniteElementSpace *fes,
                                   const IntegrationRule *ir)
 {
-   assert(ir);
-   assert(not diffusion);
+   assert(diffusion==NULL);
    diffusion = new KDiffusionIntegrator(fes,ir);
 }
 
