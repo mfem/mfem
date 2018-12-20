@@ -22,8 +22,8 @@ void config::CudaDeviceSetup(const int device)
 {
 #ifdef __NVCC__
    dbg("CUDA");
-   gpu_count = 0;
-   cudaGetDeviceCount(&gpu_count);
+   ngpu = 0;
+   cudaGetDeviceCount(&ngpu);
    MFEM_ASSERT(gpu_count>0, "No CUDA device found!");
    cuInit(0);
    dev = device;
@@ -41,14 +41,15 @@ void config::CudaDeviceSetup(const int device)
 void config::OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
 {
 #ifdef __OCCA__
+   dbg("OCCA");
    if (cuda)
    {
-      dbg("OCCA @ GPU, gpu_count=%d", gpu_count);
+      dbg("OCCA @ GPU, ngpu=%d", ngpu);
       occaDevice = occaWrapDevice(cu_dev, cu_ctx);
    }
    else
    {
-      dbg("OCCA @ CPU, gpu_count=%d", gpu_count);
+      dbg("OCCA @ CPU, ngpu=%d", ngpu);
       occaDevice.setup("mode: 'Serial'");
    }
    const std::string mfem_dir = occa::io::dirname(__FILE__) + "../";
@@ -68,14 +69,16 @@ void config::OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
 // * We initialize CUDA first so OccaDeviceSetup() can reuse
 // * the same initialized cuDevice and cuContext objects
 // *****************************************************************************
-void config::MfemDeviceSetup(const int device)
+void config::MfemDeviceSetup(const int dev)
 {
-   if (cuda) CudaDeviceSetup(device);
+   dbg("");
+   // Only one MfemDeviceSetup allowed
+   assert(ngpu==-1);
+   ngpu = 0;
+   if (cuda) CudaDeviceSetup(dev);
    if (occa) OccaDeviceSetup(cuDevice, cuContext);
    // This will be or test that the device is enabled
-   if (cuda or occa) {
-      assert(gpu_count > 0);
-   }
+   if (cuda or occa) { assert(ngpu > 0); }
 }
 
 // *****************************************************************************
