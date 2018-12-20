@@ -2185,6 +2185,40 @@ public:
                                    DenseMatrix &elmat);
 };
 
+/** Integrator for the "BR2" diffusion stabilization term
+
+   sum_e eta (r_e([u]), r_e([v]))
+
+   where r_e is the lifting operator defined on each edge e.
+   The parameter eta can be chosen to be one to obtain a stable
+   discretization. The constructor for this integrator requires the
+   finite element space because the lifting operator depends on the
+   element-wise inverse mass matrix */
+class FiniteElementSpace;
+class DGDiffusionBR2Integrator : public BilinearFormIntegrator
+{
+protected:
+   FiniteElementSpace *fespace;
+   double eta;
+
+   DenseTensor Minv;
+
+   Vector shape1, shape2;
+
+   DenseMatrix R11, R12, R21, R22, M1inv, M2inv;
+   DenseMatrix MinvR11, MinvR12, MinvR21, MinvR22;
+   DenseMatrix Re, MinvRe;
+
+public:
+   DGDiffusionBR2Integrator(FiniteElementSpace *fes, double e = 1.0);
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+   virtual void AssembleFaceMatrix(const FiniteElement &el1,
+                                   const FiniteElement &el2,
+                                   FaceElementTransformations &Trans,
+                                   DenseMatrix &elmat);
+};
+
+
 /** Integrator for the DG elasticity form, for the formulations see:
     - PhD Thesis of Jonas De Basabe, High-Order Finite %Element Methods for
       Seismic Wave Propagation, UT Austin, 2009, p. 23, and references therein
