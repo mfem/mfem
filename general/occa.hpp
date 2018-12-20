@@ -25,28 +25,28 @@
 #endif // __NVCC__
 
 // Typedefs ********************************************************************
-typedef occa::device OCCAdevice;
-typedef occa::memory memory;
+typedef occa::device OccaDevice;
+typedef occa::memory OccaMemory;
 
 // Macros **********************************************************************
-#define GET_OCCA_MEMORY(v) occa::memory o_##v = mm::Get().Memory(v)
+#define GET_OCCA_MEMORY(v) occa::memory o_##v = mm::memory(v)
 #define GET_OCCA_CONST_MEMORY(v) GET_OCCA_MEMORY(v)
 #define NEW_OCCA_PROPERTY(props) occa::properties props;
 #define SET_OCCA_PROPERTY(props,name) props["defines/" #name] = name;
-#define NEW_OCCA_KERNEL(ker,libray,filename,props)                      \
+#define NEW_OCCA_KERNEL(ker,library,filename,props)                     \
    static occa::kernel ker = NULL;                                      \
    if (ker==NULL) {                                                     \
-      OCCAdevice device = config::OccaDevice();                         \
-      const std::string fdk = "occa://" #libray "/" #filename;          \
+      OccaDevice device = config::GetOccaDevice();                      \
+      const std::string fdk = "occa://" #library "/" #filename;         \
       const std::string odk = occa::io::occaFileOpener().expand(fdk);   \
       ker = device.buildKernel(odk, #ker, props);                       \
    }
 
-#else // MFEM_USE_OCCA ********************************************************
+#else // MFEM_USE_OCCA *********************************************************
 
 // Typedefs ********************************************************************
-typedef void *OccaDevice;
-typedef void *OccaMemory;
+typedef void* OccaDevice;
+typedef void* OccaMemory;
 
 #endif // MFEM_USE_OCCA
 
@@ -55,12 +55,13 @@ namespace mfem
 {
 
 // *****************************************************************************
-OccaDevice okWrapDevice(CUdevice,CUcontext);
-OccaMemory okDeviceMalloc(OccaDevice, const size_t);
-OccaMemory okWrapMemory(const OccaDevice, void*, const size_t);
-void *okMemoryPtr(OccaMemory);
-void okCopyFrom(OccaMemory, const void*);
-void okCopyTo(OccaMemory, void*);
+OccaDevice occaWrapDevice(CUdevice device, CUcontext context);
+OccaMemory occaDeviceMalloc(OccaDevice device, const size_t bytes);
+OccaMemory occaWrapMemory(const OccaDevice device, void *d_adrs,
+                          const size_t bytes);
+void *occaMemoryPtr(OccaMemory o_mem);
+void occaCopyFrom(OccaMemory o_mem, const void *h_adrs);
+void occaCopyTo(OccaMemory o_mem, void *h_adrs);
 
 } // mfem
 

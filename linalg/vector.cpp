@@ -217,16 +217,7 @@ Vector &Vector::Add(const double a, const Vector &Va)
       mfem_error("Vector::Add(const double, const Vector &)");
    }
 #endif
-   if (a != 0.0){
-      kVectorOpAdd(size, a, Va, data);
-   }
-   /* if (a != 0.0)
-   {
-      for (int i = 0; i < size; i++)
-      {
-         data[i] += a * Va(i);
-      }
-      }*/
+   if (a != 0.0) { kVectorOpAdd(size, a, Va, data); }
    return *this;
 }
 
@@ -547,7 +538,7 @@ void Vector::Print(std::ostream &out, int width) const
          out << ' ';
       }
    }
-   // out << '\n';
+   out << '\n';
 }
 
 void Vector::Print_HYPRE(std::ostream &out) const

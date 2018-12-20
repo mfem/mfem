@@ -307,8 +307,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       r = b;
       x = 0.0;
    }
-   //dbg("r:");r.Print(); fflush(0); assert(false);
-   
+
    if (prec)
    {
       prec->Mult(r, z); // z = B r
@@ -318,10 +317,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    {
       d = r;
    }
-   //dbg("d:");r.Print(); fflush(0); //assert(false);
-   
    nom0 = nom = Dot(d, r);
-   dbg("\033[7mnom=%.15e",nom); fflush(0); //assert(false);
    MFEM_ASSERT(IsFinite(nom), "nom = " << nom);
 
    if (print_level == 1 || print_level == 3)
@@ -339,11 +335,8 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       return;
    }
 
-   //dbg("d:"); d.Print(); fflush(0); //assert(false);
    oper->Mult(d, z);  // z = A d
-   //dbg("z:"); z.Print(); fflush(0); //assert(false);
    den = Dot(z, d);
-   dbg("\033[7mden=%.15e",den); fflush(0); //assert(false);
    MFEM_ASSERT(IsFinite(den), "den = " << den);
 
    if (print_level >= 0 && den < 0.0)
@@ -366,9 +359,7 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
    {
       alpha = nom/den;
       add(x,  alpha, d, x);     //  x = x + alpha d
-      //dbg("x:"); x.Print(); fflush(0); assert(false);
       add(r, -alpha, z, r);     //  r = r - alpha A d
-      //dbg("r:"); r.Print(); fflush(0); assert(false);
 
       if (prec)
       {
@@ -379,7 +370,6 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       {
          betanom = Dot(r, r);
       }
-      dbg("\033[7mbetanom=%.15e",betanom); fflush(0); //assert(false);
       MFEM_ASSERT(IsFinite(betanom), "betanom = " << betanom);
 
       if (print_level == 1)
@@ -418,10 +408,8 @@ void CGSolver::Mult(const Vector &b, Vector &x) const
       {
          add(r, beta, d, d);
       }
-      //dbg("d:"); d.Print(); fflush(0); assert(false);
       oper->Mult(d, z);       //  z = A d
       den = Dot(d, z);
-      //dbg("\033[7mden=%.15e",den); fflush(0); assert(false);
       MFEM_ASSERT(IsFinite(den), "den = " << den);
       if (den <= 0.0)
       {

@@ -36,7 +36,7 @@ public:
        let the integrator choose (when @a ir == NULL). */
    void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
    const IntegrationRule *GetIntRule() const { return IntRule; }
-   
+
    /// Prescribe a fixed IntegrationRule to use.
    void SetIntegrationRule(const IntegrationRule &irule) { IntRule = &irule; }
 

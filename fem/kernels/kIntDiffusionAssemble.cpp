@@ -141,7 +141,7 @@ void kIntDiffusionAssemble(const int dim,
   if (dim==1) { assert(false); }
   if (dim==2){
 #ifdef __OCCA__
-     if (config::Occa()){
+     if (config::usingOcca()){
         oAssemble2D(NUM_QUAD_1D, numElements, quadWeights, J, COEFF, oper);
         return;
      }

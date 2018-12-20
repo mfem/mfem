@@ -16,59 +16,46 @@ namespace mfem
 {
 
 // *****************************************************************************
-void config::SetCuda(const bool mode) {
-   /*
-   if (mode){
-      dbg("\033[7;1;32m[CUDA]\033[m");
-   }else{
-      dbg("\033[7;1;31m[CUDA]\033[m");
-      }*/
-   cuda = mode;
-}
-
-// *****************************************************************************
 // * cudaDeviceSetup will set: gpu_count, dev, cuDevice, cuContext & cuStream
 // *****************************************************************************
-void config::cudaDeviceSetup(const int device)
+void config::CudaDeviceSetup(const int device)
 {
 #ifdef __NVCC__
-   gpu_count=0;
+   dbg("CUDA");
+   gpu_count = 0;
    cudaGetDeviceCount(&gpu_count);
-   assert(gpu_count>0);
+   MFEM_ASSERT(gpu_count>0, "No CUDA device found!");
    cuInit(0);
    dev = device;
    cuDeviceGet(&cuDevice,dev);
    cuCtxCreate(&cuContext, CU_CTX_SCHED_AUTO, cuDevice);
    cuStream = new CUstream;
+   MFEM_ASSERT(cuStream, "CUDA stream could not be created!");
    cuStreamCreate(cuStream, CU_STREAM_DEFAULT);
-   dbg("\033[32;1mCUDA initialized!\033[m");
 #endif
 }
 
 // *****************************************************************************
-// * Setting device, paths & kernels
+// * OCCA Settings: device, paths & kernels
 // *****************************************************************************
-void config::occaDeviceSetup()
+void config::OccaDeviceSetup(CUdevice cu_dev, CUcontext cu_ctx)
 {
 #ifdef __OCCA__
-   assert(false);
-   dbg("[occa] cuda is %s",cuda?"true":"false");
-   dbg("[occa] occa is %s",occa?"true":"false");
    if (cuda)
    {
-      dbg("[occa] Wrapping CUDA device");
-      occaDevice = okWrapDevice(cuDevice, cuContext);
+      dbg("OCCA @ GPU, gpu_count=%d", gpu_count);
+      occaDevice = occaWrapDevice(cu_dev, cu_ctx);
    }
    else
    {
-      dbg("[occa] Using OCCA Serial device");
+      dbg("OCCA @ CPU, gpu_count=%d", gpu_count);
       occaDevice.setup("mode: 'Serial'");
    }
-   const std::string pwd = occa::io::dirname(__FILE__) + "../";
-   occa::io::addLibraryPath("fem",     pwd + "fem/kernels");
-   occa::io::addLibraryPath("general", pwd + "general/kernels");
-   occa::io::addLibraryPath("linalg",  pwd + "linalg/kernels");
-   occa::io::addLibraryPath("mesh",    pwd + "mesh/kernels");
+   const std::string mfem_dir = occa::io::dirname(__FILE__) + "../";
+   occa::io::addLibraryPath("fem",     mfem_dir + "fem/kernels");
+   occa::io::addLibraryPath("general", mfem_dir + "general/kernels");
+   occa::io::addLibraryPath("linalg",  mfem_dir + "linalg/kernels");
+   occa::io::addLibraryPath("mesh",    mfem_dir + "mesh/kernels");
    occa::loadKernels();
    occa::loadKernels("fem");
    occa::loadKernels("general");
@@ -78,10 +65,14 @@ void config::occaDeviceSetup()
 }
 
 // *****************************************************************************
-void config::devSetup(const int device)
+// * We initialize CUDA first so OccaDeviceSetup() can reuse
+// * the same initialized cuDevice and cuContext objects
+// *****************************************************************************
+void config::MfemDeviceSetup(const int device)
 {
-   cudaDeviceSetup(device);
-   occaDeviceSetup();
+   stk();
+   CudaDeviceSetup(device);
+   OccaDeviceSetup(cuDevice, cuContext);
 }
 
 // *****************************************************************************

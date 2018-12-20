@@ -417,7 +417,7 @@ miniapps/clean: $(addsuffix /clean,$(MINIAPP_DIRS))
 $(ALL_CLEAN_SUBDIRS):
 	$(MAKE) -C $(BLD)$(@D) $(@F)
 
-clean: $(addsuffix /clean,$(EM_DIRS))
+clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
 	rm -f $(addprefix $(BLD),*/*.o */*/*.o */*~ *~ libmfem.* deps.mk)
 
 distclean: clean config/clean doc/clean

@@ -22,16 +22,20 @@ namespace mfem
 class config
 {
 private:
+   enum BACKENDS{CUDA, OCCA};
+   enum MODES{HOST_MODE, DEVICE_MODE};
+private:
    bool pa = false;
+   MODES mode = HOST_MODE;
    bool cuda = false;
    bool occa = false;
    bool sync = false;
    bool nvvp = false;
-   int dev;
-   int gpu_count;
+   int dev = 0;
+   int gpu_count = 0;
    CUdevice cuDevice;
    CUcontext cuContext;
-   CUstream *cuStream;
+   CUstream *cuStream = NULL;
    OccaDevice occaDevice;
 
 private:
@@ -39,8 +43,10 @@ private:
    config() {}
    config(config const&);
    void operator=(config const&);
+
+private:
    // **************************************************************************
-   static config& Singleton()
+   static config& Get()
    {
       static config singleton;
       return singleton;
@@ -48,48 +54,31 @@ private:
 
 private:
    // **************************************************************************
-   void cudaDeviceSetup(const int =0);
-   void occaDeviceSetup();
-   void devSetup(const int =0);
-
-private:
-   // **************************************************************************
-   inline bool GetOcca() { return occa; }
-   inline void SetOcca(const bool mode) { occa = mode; }
-   inline OccaDevice Device() { return occaDevice; }
-
-   // **************************************************************************
-   inline bool GetCuda() { return cuda; }
-   void SetCuda(const bool);
-
-   // **************************************************************************
-   inline bool GetPA() { return pa; }
-   inline void SetPA(const int mode) { pa = mode; }
-
-   // **************************************************************************
-   inline bool Sync(bool toggle=false) { return toggle?sync=!sync:sync; }
-   inline bool Nvvp(bool toggle=false) { return toggle?nvvp=!nvvp:nvvp; }
-
-   // **************************************************************************
-   inline CUstream GetStream() { return *cuStream; }
+   void MfemDeviceSetup(const int device =0);
+   void CudaDeviceSetup(const int device =0);
+   void OccaDeviceSetup(const CUdevice cu_dev, const CUcontext cu_ctx);
 
 public:
    // **************************************************************************
-   // * Shortcuts
+   constexpr static inline bool usingNvcc() { return usingNvccCompiler(); }
+
    // **************************************************************************
-   static inline void Setup() { Singleton().devSetup(); }
-   constexpr static inline bool Nvcc() { return cuNvcc(); }
+   
+   static inline void setupDevice(const int dev =0) { Get().MfemDeviceSetup(dev); }
+   static inline bool usingDevice() { return Get().gpu_count > 0; }
+   static inline void SwitchToDevice(){ Get().mode = DEVICE_MODE; }
+   static inline void SwitchToHost(){ Get().mode = HOST_MODE; }
 
-   static inline bool PA() { return Singleton().GetPA(); }
-   static inline void PA(const bool b) { Singleton().SetPA(b); }
+   static inline bool usingPA() { return Get().pa; }
+   static inline void usePA(const bool mode) { Get().pa = mode; }
 
-   static inline bool Cuda() { return Singleton().GetCuda(); }
-   static inline void Cuda(const bool b) { Singleton().SetCuda(b); }
-   static inline CUstream Stream() { return Singleton().GetStream(); }
+   static inline bool usingCuda() { return Get().cuda; }
+   static inline void useCuda() { Get().cuda = true; }
+   static inline CUstream Stream() { return *Get().cuStream; }
 
-   static inline bool Occa() { return Singleton().GetOcca(); }
-   static inline void Occa(const bool b) { Singleton().SetOcca(b); }
-   static inline OccaDevice OccaGetDevice() { return Singleton().Device(); }
+   static inline bool usingOcca() { return Get().occa; }
+   static inline void useOcca() { Get().occa = true; }
+   static inline OccaDevice GetOccaDevice() { return Get().occaDevice; }
 };
 
 // *****************************************************************************
