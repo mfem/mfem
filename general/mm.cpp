@@ -71,6 +71,7 @@ static bool Alias(const mm_t *maps, const void *adrs)
 }
 
 // *****************************************************************************
+__attribute__((unused))
 static void debugMode(void){
    dbg("%sNvcc %sDevice %sCuda %sOcca",
        config::usingNvcc()?"\033[32m":"\033[31m",
@@ -185,54 +186,41 @@ const void* mm::Adrs(const void *adrs){
 // *****************************************************************************
 static OccaMemory occaMemory(const mm_t *maps, const void *adrs)
 {
+   OccaDevice occaDevice = config::GetOccaDevice();
    if (not config::usingNvcc()){
-      OccaMemory o_adrs = occaWrapMemory(config::GetOccaDevice(), (void*)adrs, 0);
+      OccaMemory o_adrs = occaWrapMemory(occaDevice, (void*)adrs, 0);
       return o_adrs;
    }
    const bool known = Known(maps, adrs);
    if (not known) { BUILTIN_TRAP; }
    MFEM_ASSERT(known, "Unknown address!");
    memory_t *base = maps->memories->at(adrs);
-   const bool host = base->host;
-   const bool device = not host;
+   //const bool host = base->host;
+   //const bool device = not host;
    const size_t bytes = base->bytes;
    const bool cuda = config::usingCuda();
-   OccaDevice occaDevice = config::GetOccaDevice();
    const bool occa = config::usingOcca();
    MFEM_ASSERT(occa, "Using OCCA memory without OCCA mode!");
-   if (not config::usingNvcc()) {
-      if (not base->d_adrs){
-         base->o_adrs = occaDeviceMalloc(occaDevice, bytes);
-         base->d_adrs = occaMemoryPtr(base->o_adrs);
-         occaCopyFrom(base->o_adrs, base->h_adrs);
-      }
-   }
-   return base->o_adrs;
-   /*
-   if (host and not cuda) {
-      if (not base->o_adrs.isInitialized()){
-         base->o_adrs = occaDeviceMalloc(occaDevice, bytes);
-         base->d_adrs = occaMemoryPtr(base->o_adrs);
-         occaCopyFrom(base->o_adrs, base->h_adrs);
-      }
-      return base->o_adrs;
-   }
-   if (not base->d_adrs) {
-      if (cuda){
+   if (not base->d_adrs){
+      base->host = false; // This address is no more on the host
+      if (cuda)
+      {
          cuMemAlloc(&base->d_adrs, bytes);
          void *stream = config::Stream();
          cuMemcpyHtoDAsync(base->d_adrs, base->h_adrs, bytes, stream);
-      }else{
+      }
+      else
+      {
          base->o_adrs = occaDeviceMalloc(occaDevice, bytes);
          base->d_adrs = occaMemoryPtr(base->o_adrs);
          occaCopyFrom(base->o_adrs, base->h_adrs);
       }
    }
-   if (device and cuda) { return base->o_adrs; }
-   if (device and not cuda) { assert(false); }
-   if (cuda) { assert(false); }
+   if (cuda)
+   {
+      return occaWrapMemory(occaDevice, base->d_adrs, bytes);
+   }
    return base->o_adrs;
-   */
 }
 
 // *****************************************************************************
@@ -245,16 +233,8 @@ static void PushKnown(mm_t *maps, const void *adrs, const size_t bytes)
 {
    memory_t *base = maps->memories->at(adrs);
    if (not base->d_adrs){ cuMemAlloc(&base->d_adrs, base->bytes); }
-   if (config::usingCuda()){
-      cuMemcpyHtoD(base->d_adrs, adrs, bytes==0?base->bytes:bytes);
-      return;
-   }
-   if (config::usingOcca()) {
-      assert(false);
-      //occaCopyFrom(occaMemory(maps, adrs), base->h_adrs);
-      return;
-   }
-   MFEM_ASSERT(false, "[ERROR] Should not be there!");
+   cuMemcpyHtoD(base->d_adrs, adrs, bytes==0?base->bytes:bytes);
+   return;
 }
 
 // *****************************************************************************
@@ -284,16 +264,7 @@ void mm::Push(const void *adrs, const size_t bytes)
 static void PullKnown(const mm_t *maps, const void *adrs, const size_t bytes)
 {
    const memory_t *base = maps->memories->at(adrs);
-   if (config::usingCuda()){
-      cuMemcpyDtoH(base->h_adrs, base->d_adrs, bytes==0?base->bytes:bytes);
-      return;
-   }
-   if (config::usingOcca()) {
-      assert(false);
-      occaCopyTo(occaMemory(maps, adrs), base->h_adrs);
-      return;
-   }
-   MFEM_ASSERT(false, "[ERROR] Should not be there!");
+   cuMemcpyDtoH(base->h_adrs, base->d_adrs, bytes==0?base->bytes:bytes);
 }
 
 // *****************************************************************************
