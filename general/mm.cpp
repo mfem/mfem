@@ -71,7 +71,7 @@ static bool Alias(const mm_t *maps, const void *adrs)
 }
 
 // *****************************************************************************
-__attribute__((unused))
+// __attribute__((unused)) // VS doesn't like this in Appveyor
 static void debugMode(void)
 {
    dbg("\033[1K\r%sMM %sHasBeenEnabled %sEnabled %sDisabled \
@@ -109,7 +109,8 @@ void *mm::Erase(void *adrs)
    if (!config::usingMM()) { return adrs; }
    if (config::gpuDisabled()) { return adrs; }
    const bool known = Known(maps, adrs);
-   if (!known) { BUILTIN_TRAP; }
+   // if (!known) { BUILTIN_TRAP; }
+   if (!known) { mfem_error("mm::Erase"); }
    MFEM_ASSERT(known, "Trying to remove an unknown address!");
    const memory_t *mem = memories->at(adrs);
    dbg("\033[33m %p \033[35m(%ldb)", adrs,mem->bytes);
@@ -183,7 +184,8 @@ void* mm::Adrs(void *adrs)
    if (!config::gpuHasBeenEnabled()) { return adrs; }
    if (Known(maps, adrs)) { return AdrsKnown(maps, adrs); }
    const bool alias = Alias(maps, adrs);
-   if (!alias) { BUILTIN_TRAP; }
+   // if (!alias) { BUILTIN_TRAP; }
+   if (!alias) { mfem_error("mm::Adrs"); }
    MFEM_ASSERT(alias, "Unknown address!");
    return AdrsAlias(maps, adrs);
 }
@@ -204,7 +206,8 @@ static OccaMemory occaMemory(const mm_t *maps, const void *adrs)
       return o_adrs;
    }
    const bool known = Known(maps, adrs);
-   if (!known) { BUILTIN_TRAP; }
+   // if (!known) { BUILTIN_TRAP; }
+   if (!known) { mfem_error("occaMemory"); }
    MFEM_ASSERT(known, "Unknown address!");
    memory_t *base = maps->memories->at(adrs);
    const size_t bytes = base->bytes;
@@ -265,7 +268,8 @@ void mm::Push(const void *adrs, const size_t bytes)
    if (Known(maps, adrs)) { return PushKnown(maps, adrs, bytes); }
    assert(!config::usingOcca());
    const bool alias = Alias(maps, adrs);
-   if (!alias) { BUILTIN_TRAP; }
+   // if (!alias) { BUILTIN_TRAP; }
+   if (!alias) { mfem_error("mm::Push"); }
    MFEM_ASSERT(alias, "Unknown address!");
    return PushAlias(maps, adrs, bytes);
 }
@@ -293,13 +297,14 @@ void mm::Pull(const void *adrs, const size_t bytes)
    if (Known(maps, adrs)) { return PullKnown(maps, adrs, bytes); }
    assert(!config::usingOcca());
    const bool alias = Alias(maps, adrs);
-   if (!alias) { BUILTIN_TRAP; }
+   // if (!alias) { BUILTIN_TRAP; }
+   if (!alias) { mfem_error("mm::Pull"); }
    MFEM_ASSERT(alias, "Unknown address!");
    return PullAlias(maps, adrs, bytes);
 }
 
 // *****************************************************************************
-__attribute__((unused))
+// __attribute__((unused)) // VS doesn't like this in Appveyor
 static void Dump(mm_t *maps)
 {
    if (!getenv("DBG")) { return; }

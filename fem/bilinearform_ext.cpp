@@ -121,7 +121,7 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
       B.SetSize(b.Size()); B = b;
    }
 
-   if (!copy_interior and ess_tdof_list.Size()>0)
+   if (!copy_interior && ess_tdof_list.Size()>0)
    {
       const int csz = ess_tdof_list.Size();
       const int xsz = X.Size();
