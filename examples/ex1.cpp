@@ -142,7 +142,8 @@ int main(int argc, char *argv[])
    b->Assemble();
 
    // 7. Set MFEM config parameters from the command line options
-   if (pa) {
+   if (pa)
+   {
       assert(order==1);
       mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
    }

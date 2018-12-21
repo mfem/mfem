@@ -19,7 +19,7 @@
 namespace mfem
 {
 
-void ParFABilinearForm::pAllocMat()
+void ParBilinearForm::pAllocMat()
 {
    int nbr_size = pfes->GetFaceNbrVSize();
 
@@ -121,8 +121,7 @@ void ParFABilinearForm::pAllocMat()
    dof_dof.LoseData();
 }
 
-void ParFABilinearForm::ParallelAssemble(OperatorHandle &A,
-                                         SparseMatrix *A_local)
+void ParBilinearForm::ParallelAssemble(OperatorHandle &A, SparseMatrix *A_local)
 {
    A.Clear();
 
@@ -180,7 +179,7 @@ void ParFABilinearForm::ParallelAssemble(OperatorHandle &A,
    A.MakePtAP(dA, Ph);
 }
 
-HypreParMatrix *ParFABilinearForm::ParallelAssemble(SparseMatrix *m)
+HypreParMatrix *ParBilinearForm::ParallelAssemble(SparseMatrix *m)
 {
    OperatorHandle Mh(Operator::Hypre_ParCSR);
    ParallelAssemble(Mh, m);
@@ -188,7 +187,7 @@ HypreParMatrix *ParFABilinearForm::ParallelAssemble(SparseMatrix *m)
    return Mh.As<HypreParMatrix>();
 }
 
-void ParFABilinearForm::AssembleSharedFaces(int skip_zeros)
+void ParBilinearForm::AssembleSharedFaces(int skip_zeros)
 {
    ParMesh *pmesh = pfes->GetParMesh();
    FaceElementTransformations *T;
@@ -224,7 +223,7 @@ void ParFABilinearForm::AssembleSharedFaces(int skip_zeros)
    }
 }
 
-void ParFABilinearForm::Assemble(int skip_zeros)
+void ParBilinearForm::Assemble(int skip_zeros)
 {
    if (mat == NULL && fbfi.Size() > 0)
    {
@@ -232,7 +231,7 @@ void ParFABilinearForm::Assemble(int skip_zeros)
       pAllocMat();
    }
 
-   FABilinearForm::Assemble(skip_zeros);
+   BilinearForm::Assemble(skip_zeros);
 
    if (fbfi.Size() > 0)
    {
@@ -240,7 +239,7 @@ void ParFABilinearForm::Assemble(int skip_zeros)
    }
 }
 
-void ParFABilinearForm
+void ParBilinearForm
 ::ParallelEliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
                                HypreParMatrix &A, const HypreParVector &X,
                                HypreParVector &B) const
@@ -253,7 +252,7 @@ void ParFABilinearForm
    A.EliminateRowsCols(dof_list, X, B);
 }
 
-HypreParMatrix *ParFABilinearForm::
+HypreParMatrix *ParBilinearForm::
 ParallelEliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
                              HypreParMatrix &A) const
 {
@@ -264,7 +263,7 @@ ParallelEliminateEssentialBC(const Array<int> &bdr_attr_is_ess,
    return A.EliminateRowsCols(dof_list);
 }
 
-void ParFABilinearForm::TrueAddMult(const Vector &x, Vector &y, const double a)
+void ParBilinearForm::TrueAddMult(const Vector &x, Vector &y, const double a)
 const
 {
    MFEM_VERIFY(fbfi.Size() == 0, "the case of interior face integrators is not"
@@ -281,7 +280,7 @@ const
    pfes->Dof_TrueDof_Matrix()->MultTranspose(a, Y, 1.0, y);
 }
 
-void ParFABilinearForm::FormLinearSystem(
+void ParBilinearForm::FormLinearSystem(
    const Array<int> &ess_tdof_list, Vector &x, Vector &b,
    OperatorHandle &A, Vector &X, Vector &B, int copy_interior)
 {
@@ -325,8 +324,8 @@ void ParFABilinearForm::FormLinearSystem(
    }
 }
 
-void ParFABilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
-                                         OperatorHandle &A)
+void ParBilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
+                                       OperatorHandle &A)
 {
    // Finish the matrix assembly and perform BC elimination, storing the
    // eliminated part of the matrix.
@@ -347,8 +346,8 @@ void ParFABilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
          const int remove_zeros = 0;
          Finalize(remove_zeros);
          MFEM_VERIFY(p_mat.Ptr() == NULL && p_mat_e.Ptr() == NULL,
-                     "The ParFABilinearForm must be updated with Update() before "
-                     "re-assembling the ParFABilinearForm.");
+                     "The ParBilinearForm must be updated with Update() before "
+                     "re-assembling the ParBilinearForm.");
          ParallelAssemble(p_mat, mat);
          delete mat;
          mat = NULL;
@@ -367,9 +366,84 @@ void ParFABilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
    }
 }
 
-void ParFABilinearForm::RecoverFEMSolution(
+void ParBilinearForm::FormLinearSystem(
+   const Array<int> &ess_tdof_list, Vector &x, Vector &b,
+   Operator *&opA, Vector &X, Vector &B, int copy_interior)
+{
+   switch (assembly)
+   {
+      case AssemblyLevel::FULL:
+      {
+         // Use the original ParBilinearForm implementation for now hardcoded
+         // for a Hypre matrix
+         HypreParMatrix *Ap = static_cast<HypreParMatrix*>(opA);
+         HypreParMatrix &A = *Ap;
+         FormLinearSystem(ess_tdof_list, x, b, A, X, B, copy_interior);
+         break;
+      }
+      case AssemblyLevel::ELEMENT:
+         mfem_error("Not supported yet... stay tuned!");
+         return;
+      case AssemblyLevel::PARTIAL:
+         pa->FormLinearSystem(ess_tdof_list, x, b, opA, X, B, copy_interior);
+         return;
+      case AssemblyLevel::NONE:
+         mfem_error("Not supported yet... stay tuned!");
+         return;
+      default:
+         mfem_error("Unknown assembly level");
+   }
+}
+
+void ParBilinearForm::FormSystemOperator(const Array<int> &ess_tdof_list,
+                                         Operator *&opA)
+{
+   switch (assembly)
+   {
+      case AssemblyLevel::FULL:
+      {
+         // Use the original ParBilinearForm implementation for now hardcoded
+         // for a Hypre matrix
+         HypreParMatrix *Ap = static_cast<HypreParMatrix*>(opA);
+         HypreParMatrix &A = *Ap;
+         FormSystemMatrix(ess_tdof_list, A);
+         break;
+      }
+      case AssemblyLevel::ELEMENT:
+         mfem_error("Not supported yet... stay tuned!");
+         return;
+      case AssemblyLevel::PARTIAL:
+         pa->FormSystemOperator(ess_tdof_list, opA);
+         return;
+      case AssemblyLevel::NONE:
+         mfem_error("Not supported yet... stay tuned!");
+         return;
+      default:
+         mfem_error("Unknown assembly level");
+   }
+}
+
+void ParBilinearForm::RecoverFEMSolution(
    const Vector &X, const Vector &b, Vector &x)
 {
+   switch (assembly)
+   {
+      case AssemblyLevel::FULL:
+         // Use the original ParBilinearForm implementation for now
+         break;
+      case AssemblyLevel::ELEMENT:
+         mfem_error("Not supported yet... stay tuned!");
+         return;
+      case AssemblyLevel::PARTIAL:
+         pa->RecoverFEMSolution(X, b, x);
+         return;
+      case AssemblyLevel::NONE:
+         mfem_error("Not supported yet... stay tuned!");
+         return;
+      default:
+         mfem_error("Unknown assembly level");
+   }
+
    const Operator &P = *pfes->GetProlongationMatrix();
 
    if (static_cond)
@@ -396,9 +470,9 @@ void ParFABilinearForm::RecoverFEMSolution(
    }
 }
 
-void ParFABilinearForm::Update(FiniteElementSpace *nfes)
+void ParBilinearForm::Update(FiniteElementSpace *nfes)
 {
-   ParFABilinearForm::Update(nfes);
+   BilinearForm::Update(nfes);
 
    if (nfes)
    {

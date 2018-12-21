@@ -22,7 +22,7 @@ static bool Known(const mm_t *maps, const void *adrs)
 {
    const auto found = maps->memories->find(adrs);
    const bool known = found != maps->memories->end();
-   if (known) return true;
+   if (known) { return true; }
    return false;
 }
 
@@ -32,12 +32,13 @@ static bool Known(const mm_t *maps, const void *adrs)
 static const void* IsAlias(const mm_t *maps, const void *adrs)
 {
    MFEM_ASSERT(not Known(maps, adrs), "Adrs is an already known address!");
-   for(mm_iterator_t mem = maps->memories->begin();
-       mem != maps->memories->end(); mem++) {
+   for (mm_iterator_t mem = maps->memories->begin();
+        mem != maps->memories->end(); mem++)
+   {
       const void *b_adrs = mem->first;
-      if (b_adrs > adrs) continue;
+      if (b_adrs > adrs) { continue; }
       const void *end = (char*)b_adrs + mem->second->bytes;
-      if (adrs < end) return b_adrs;
+      if (adrs < end) { return b_adrs; }
    }
    return NULL;
 }
@@ -63,11 +64,11 @@ static bool Alias(const mm_t *maps, const void *adrs)
 {
    const auto found = maps->aliases->find(adrs);
    const bool alias = found != maps->aliases->end();
-   if (alias) return true;
+   if (alias) { return true; }
    const void *base = IsAlias(maps, adrs);
-   if (not base) return false;
+   if (not base) { return false; }
    InsertAlias(maps, base, adrs);
-   return true;   
+   return true;
 }
 
 // *****************************************************************************
@@ -75,7 +76,7 @@ static bool Alias(const mm_t *maps, const void *adrs)
 // *****************************************************************************
 void* mm::Insert(void *adrs, const size_t bytes)
 {
-   if (not config::usingNvcc()) return adrs;
+   if (not config::usingNvcc()) { return adrs; }
    const bool known = Known(maps, adrs);
    MFEM_ASSERT(not known, "Trying to add already present address!");
    //dbg("\033[33m%p \033[35m(%ldb)", adrs, bytes);
@@ -88,12 +89,13 @@ void* mm::Insert(void *adrs, const size_t bytes)
 // *****************************************************************************
 void *mm::Erase(void *adrs)
 {
-   if (not config::usingNvcc()) return adrs;
+   if (not config::usingNvcc()) { return adrs; }
    const bool known = Known(maps, adrs);
    if (not known) { BUILTIN_TRAP; }
    MFEM_ASSERT(known, "Trying to remove an unknown address!");
    const memory_t *mem = memories->at(adrs);
-   for (const alias_t* const alias : mem->aliases) {
+   for (const alias_t* const alias : mem->aliases)
+   {
       aliases->erase(alias);
       delete alias;
    }
@@ -102,7 +104,8 @@ void *mm::Erase(void *adrs)
 }
 
 // *****************************************************************************
-static void* AdrsKnown(const mm_t *maps, void* adrs){
+static void* AdrsKnown(const mm_t *maps, void* adrs)
+{
    memory_t *base = maps->memories->at(adrs);
    const bool host = base->host;
    const bool device = not host;
@@ -122,11 +125,12 @@ static void* AdrsKnown(const mm_t *maps, void* adrs){
    assert(host and cuda);
    cuMemcpyHtoD(base->d_adrs, adrs, bytes);
    base->host = false;
-   return base->d_adrs;   
+   return base->d_adrs;
 }
 
 // *****************************************************************************
-static void* AdrsAlias(mm_t *maps, void* adrs){
+static void* AdrsAlias(mm_t *maps, void* adrs)
+{
    const bool cuda = config::usingCuda();
    const alias_t *alias = maps->aliases->at(adrs);
    memory_t *base = alias->mem;
@@ -157,17 +161,18 @@ static void* AdrsAlias(mm_t *maps, void* adrs){
 // *****************************************************************************
 void* mm::Adrs(void *adrs)
 {
-   if (not config::usingNvcc()) return adrs;
-   if (not config::usingCuda()) return adrs;
-   if (Known(maps, adrs)) return AdrsKnown(maps, adrs);
+   if (not config::usingNvcc()) { return adrs; }
+   if (not config::usingCuda()) { return adrs; }
+   if (Known(maps, adrs)) { return AdrsKnown(maps, adrs); }
    const bool alias = Alias(maps, adrs);
-   if (not alias) { BUILTIN_TRAP; }   
+   if (not alias) { BUILTIN_TRAP; }
    MFEM_ASSERT(alias, "Unknown address!");
    return AdrsAlias(maps, adrs);
 }
 
 // *****************************************************************************
-const void* mm::Adrs(const void *adrs){
+const void* mm::Adrs(const void *adrs)
+{
    return (const void*) Adrs((void*)adrs);
 }
 
@@ -185,9 +190,10 @@ static OccaMemory occaMemory(const mm_t *maps, const void *adrs)
    OccaDevice occaDevice = config::GetOccaDevice();
    const bool occa = config::usingOcca();
    MFEM_ASSERT(occa, "Using OCCA memory without OCCA mode!");
-   
-   
-   if (host and not cuda) {
+
+
+   if (host and not cuda)
+   {
       /*if (not base->o_adrs.isInitialized()){
          base->o_adrs = occaDeviceMalloc(occaDevice, bytes);
          base->d_adrs = occaMemoryPtr(base->o_adrs);
@@ -199,12 +205,16 @@ static OccaMemory occaMemory(const mm_t *maps, const void *adrs)
       return base->o_adrs;
    }
    assert(false);
-   if (not base->d_adrs) {
-      if (cuda){
+   if (not base->d_adrs)
+   {
+      if (cuda)
+      {
          cuMemAlloc(&base->d_adrs, bytes);
          void *stream = config::Stream();
          cuMemcpyHtoDAsync(base->d_adrs, base->h_adrs, bytes, stream);
-      }else{
+      }
+      else
+      {
          base->o_adrs = occaDeviceMalloc(occaDevice, bytes);
          base->d_adrs = occaMemoryPtr(base->o_adrs);
          occaCopyFrom(base->o_adrs, base->h_adrs);
@@ -221,7 +231,8 @@ static OccaMemory occaMemory(const mm_t *maps, const void *adrs)
 }
 
 // *****************************************************************************
-OccaMemory mm::Memory(const void *adrs){
+OccaMemory mm::Memory(const void *adrs)
+{
    return occaMemory(maps, adrs);
 }
 
@@ -229,12 +240,14 @@ OccaMemory mm::Memory(const void *adrs){
 static void PushKnown(mm_t *maps, const void *adrs, const size_t bytes)
 {
    memory_t *base = maps->memories->at(adrs);
-   if (not base->d_adrs){ cuMemAlloc(&base->d_adrs, base->bytes); }
-   if (config::usingCuda()){
+   if (not base->d_adrs) { cuMemAlloc(&base->d_adrs, base->bytes); }
+   if (config::usingCuda())
+   {
       cuMemcpyHtoD(base->d_adrs, adrs, bytes==0?base->bytes:bytes);
       return;
    }
-   if (config::usingOcca()) {
+   if (config::usingOcca())
+   {
       assert(false);
       occaCopyFrom(occaMemory(maps, adrs), base->h_adrs);
       return;
@@ -247,16 +260,16 @@ static void PushAlias(const mm_t *maps, const void *adrs, const size_t bytes)
 {
    const alias_t *alias = maps->aliases->at(adrs);
    memory_t *base = alias->mem;
-   if (not base->d_adrs){ cuMemAlloc(&base->d_adrs, base->bytes); }
+   if (not base->d_adrs) { cuMemAlloc(&base->d_adrs, base->bytes); }
    cuMemcpyHtoD((char*)base->d_adrs + alias->offset, adrs, bytes);
 }
 
 // *****************************************************************************
 void mm::Push(const void *adrs, const size_t bytes)
 {
-   if (not config::usingNvcc() and not config::usingOcca()) return;
-   if (not config::usingCuda() and not config::usingOcca()) return;
-   if (Known(maps, adrs)) return PushKnown(maps, adrs, bytes);
+   if (not config::usingNvcc() and not config::usingOcca()) { return; }
+   if (not config::usingCuda() and not config::usingOcca()) { return; }
+   if (Known(maps, adrs)) { return PushKnown(maps, adrs, bytes); }
    assert(not config::usingOcca());
    const bool alias = Alias(maps, adrs);
    if (not alias) { BUILTIN_TRAP; }
@@ -268,11 +281,13 @@ void mm::Push(const void *adrs, const size_t bytes)
 static void PullKnown(const mm_t *maps, const void *adrs, const size_t bytes)
 {
    const memory_t *base = maps->memories->at(adrs);
-   if (config::usingCuda()){
+   if (config::usingCuda())
+   {
       cuMemcpyDtoH(base->h_adrs, base->d_adrs, bytes==0?base->bytes:bytes);
       return;
    }
-   if (config::usingOcca()) {
+   if (config::usingOcca())
+   {
       occaCopyTo(occaMemory(maps, adrs), base->h_adrs);
       return;
    }
@@ -290,9 +305,9 @@ static void PullAlias(const mm_t *maps, const void *adrs, const size_t bytes)
 // *****************************************************************************
 void mm::Pull(const void *adrs, const size_t bytes)
 {
-   if (not config::usingNvcc() and not config::usingOcca()) return;
-   if (not config::usingCuda() and not config::usingOcca()) return;
-   if (Known(maps, adrs)) return PullKnown(maps, adrs, bytes);
+   if (not config::usingNvcc() and not config::usingOcca()) { return; }
+   if (not config::usingCuda() and not config::usingOcca()) { return; }
+   if (Known(maps, adrs)) { return PullKnown(maps, adrs, bytes); }
    assert(not config::usingOcca());
    const bool alias = Alias(maps, adrs);
    if (not alias) { BUILTIN_TRAP; }
@@ -302,30 +317,38 @@ void mm::Pull(const void *adrs, const size_t bytes)
 
 // *****************************************************************************
 __attribute__((unused))
-static void Dump(mm_t *maps){
-   if (!getenv("DBG")) return;
+static void Dump(mm_t *maps)
+{
+   if (!getenv("DBG")) { return; }
    memory_map_t *mem = maps->memories;
    alias_map_t  *als = maps->aliases;
    size_t k = 0;
-   for(memory_map_t::iterator m = mem->begin(); m != mem->end(); m++) {
+   for (memory_map_t::iterator m = mem->begin(); m != mem->end(); m++)
+   {
       const void *h_adrs = m->first;
       assert(h_adrs == m->second->h_adrs);
       const size_t bytes = m->second->bytes;
       const void *d_adrs = m->second->d_adrs;
-      if (not d_adrs){
+      if (not d_adrs)
+      {
          printf("\n[%ld] \033[33m%p \033[35m(%ld)", k, h_adrs, bytes);
-      }else{
-         printf("\n[%ld] \033[33m%p \033[35m (%ld) \033[32 -> %p", k, h_adrs, bytes, d_adrs);
+      }
+      else
+      {
+         printf("\n[%ld] \033[33m%p \033[35m (%ld) \033[32 -> %p", k, h_adrs, bytes,
+                d_adrs);
       }
       fflush(0);
       k++;
    }
    k = 0;
-   for(alias_map_t::iterator a = als->begin(); a != als->end(); a++) {
+   for (alias_map_t::iterator a = als->begin(); a != als->end(); a++)
+   {
       const void *adrs = a->first;
       const size_t offset = a->second->offset;
       const void *base = a->second->mem->h_adrs;
-      printf("\n[%ld] \033[33m%p < (\033[37m%ld) < \033[33m%p",k , base, offset, adrs);
+      printf("\n[%ld] \033[33m%p < (\033[37m%ld) < \033[33m%p",k , base, offset,
+             adrs);
       fflush(0);
       k++;
    }
@@ -334,7 +357,8 @@ static void Dump(mm_t *maps){
 // *****************************************************************************
 // * Data will be pushed/pulled before the copy happens on the H or the D
 // *****************************************************************************
-static void* d2d(void *dst, const void *src, size_t bytes, const bool async){
+static void* d2d(void *dst, const void *src, size_t bytes, const bool async)
+{
    GET_ADRS(src);
    GET_ADRS(dst);
    assert(bytes>0);
