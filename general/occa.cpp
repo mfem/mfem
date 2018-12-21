@@ -18,7 +18,7 @@ namespace mfem
 // *****************************************************************************
 OccaDevice occaWrapDevice(CUdevice dev, CUcontext ctx)
 {
-#if defined(__OCCA__) and defined(__NVCC__)
+#if defined(__OCCA__) && defined(__NVCC__)
    return occa::cuda::wrapDevice(dev, ctx);
 #else
    return 0;
@@ -41,7 +41,7 @@ OccaMemory occaWrapMemory(const OccaDevice device,
                           const size_t bytes)
 {
    // OCCA + NVCC will use CUDA
-#if defined(__OCCA__) and defined(__NVCC__)
+#if defined(__OCCA__) && defined(__NVCC__)
    return occa::cuda::wrapMemory(device, d_adrs, bytes);
 #else // Just OCCA uses CPU
 #if defined(__OCCA__)

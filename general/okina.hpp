@@ -56,6 +56,7 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 
 // *****************************************************************************
 #ifdef _MSC_VER
+#include <intrin.h>
 #define LOG2(X) ((unsigned) (8*sizeof(unsigned long long)-__lzcnt64((X))))
 #else
 #define LOG2(X) ((unsigned) (8*sizeof(unsigned long long)-__builtin_clzll((X))))
