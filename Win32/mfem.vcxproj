@@ -63,7 +63,6 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <Import Project="..\..\hypre\src\Windows\Hypre_Includes.props" />
     <Import Project="..\..\..\src\Win32\Properties\Serial.props" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='ParDebug|x64'" Label="PropertySheets">
@@ -75,7 +74,6 @@
     <Import Project="..\..\..\src\Win32\Properties\Serial.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <Import Project="..\..\hypre\src\Windows\Hypre_Includes.props" />
     <Import Project="..\..\..\src\Win32\Properties\Serial.props" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='ParRelease|x64'" Label="PropertySheets">
@@ -127,7 +125,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ParDebug|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>config;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>config;S:\bramwell1\newclone\imports\mfem\Win32\config;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <CompileAs>CompileAsCpp</CompileAs>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
@@ -401,6 +399,7 @@
     <ClInclude Include="..\config\tconfig.hpp" />
     <ClInclude Include="..\mfem.hpp" />
     <ClInclude Include="..\mfem-performance.hpp" />
+    <ClInclude Include="config\_config.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\hypre\src\Windows\distributed_matrix\hypre_distributed_matrix.vcxproj">

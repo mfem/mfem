@@ -483,6 +483,7 @@
     <ClInclude Include="..\mesh\pncmesh.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="config\_config.hpp" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Source Files">
