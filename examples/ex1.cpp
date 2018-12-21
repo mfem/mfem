@@ -143,9 +143,9 @@ int main(int argc, char *argv[])
 
    // 7. Set MFEM config parameters from the command line options
    config::usePA(pa);
-   if (pa){ mesh->EnsureNodes(); }
-   if (cuda) config::useCuda();
-   if (occa) config::useOcca();
+   if (pa) { mesh->EnsureNodes(); }
+   if (cuda) { config::useCuda(); }
+   if (occa) { config::useOcca(); }
    config::enableGpu(0/*,occa,cuda*/);
    config::SwitchToGpu();
 

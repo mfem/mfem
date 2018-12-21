@@ -174,9 +174,9 @@ int main(int argc, char *argv[])
    b->Assemble();
 
    config::usePA(pa);
-   if (pa){ pmesh->EnsureNodes(); }
-   if (cuda) config::useCuda();
-   if (occa) config::useOcca();
+   if (pa) { pmesh->EnsureNodes(); }
+   if (cuda) { config::useCuda(); }
+   if (occa) { config::useOcca(); }
    config::enableGpu(0/*,occa,cuda*/);
    config::SwitchToGpu();
 
