@@ -1020,6 +1020,8 @@ public:
    /** Return the FiniteElementSpace on which the current mesh nodes are
        defined or NULL if the mesh does not have nodes. */
    const FiniteElementSpace *GetNodalFESpace() const;
+   /** Create the nodes if the mesh does not have some. */
+   void EnsureNodes();
 
    /** Set the curvature of the mesh nodes using the given polynomial degree,
        'order', and optionally: discontinuous or continuous FE space, 'discont',

@@ -64,7 +64,7 @@ void* cuMemcpyHtoD(void *d_dst, const void *h_src, size_t bytes);
 // * Copies memory from Host to Device
 // *****************************************************************************
 void* cuMemcpyHtoDAsync(void *d_dst, const void *h_src,
-                        size_t bytes, void *stream);
+                      size_t bytes, void *stream);
 
 // *****************************************************************************
 // * Copies memory from Device to Device

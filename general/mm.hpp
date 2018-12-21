@@ -20,8 +20,7 @@ namespace mfem
 class alias_t;
 
 // *****************************************************************************
-class memory_t
-{
+class memory_t {
 public:
    bool host;
    const size_t bytes;
@@ -34,8 +33,7 @@ public:
 };
 
 // *****************************************************************************
-class alias_t
-{
+class alias_t {
 public:
    memory_t* const mem;
    const size_t offset;
@@ -59,7 +57,7 @@ private:
    mm_t *maps;
 private:
    mm(): memories(new memory_map_t), aliases(new alias_map_t()),
-      maps(new mm_t( {memories, aliases})) {}
+         maps(new mm_t({memories, aliases})) {}
    mm(mm const&);
    void operator=(mm const&);
    static inline mm& MM() { static mm singleton; return singleton; }
@@ -82,7 +80,7 @@ public:
    template<class T>
    static inline T* malloc(const size_t n, const size_t size = sizeof(T))
    { return (T*) MM().Insert(::new T[n], n*size); }
-
+   
    // **************************************************************************
    // * Frees the memory space pointed to by ptr, which must have been
    // * returned by a previous call to mm::malloc
@@ -105,14 +103,12 @@ public:
    static inline OccaMemory memory(const void *a) { return MM().Memory(a); }
 
    // **************************************************************************
-   static inline void push(const void *adrs, const size_t bytes =0)
-   {
+   static inline void push(const void *adrs, const size_t bytes =0){
       return MM().Push(adrs, bytes);
    }
 
    // **************************************************************************
-   static inline void pull(const void *adrs, const size_t bytes =0)
-   {
+   static inline void pull(const void *adrs, const size_t bytes =0){
       return MM().Pull(adrs, bytes);
    }
 

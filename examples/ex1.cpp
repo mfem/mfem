@@ -142,15 +142,12 @@ int main(int argc, char *argv[])
    b->Assemble();
 
    // 7. Set MFEM config parameters from the command line options
-   if (pa)
-   {
-      assert(order==1);
-      mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
-   }
-   config::useCuda(cuda);
-   config::useOcca(occa);
    config::usePA(pa);
-   config::DeviceSetup();
+   if (pa){ mesh->EnsureNodes(); }
+   if (cuda) config::useCuda();
+   if (occa) config::useOcca();
+   config::enableGpu(0/*,occa,cuda*/);
+   config::SwitchToGpu();
 
    // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,

@@ -40,10 +40,15 @@ OccaMemory occaWrapMemory(const OccaDevice device,
                           void *d_adrs,
                           const size_t bytes)
 {
+   // OCCA + NVCC will use CUDA
 #if defined(__OCCA__) and defined(__NVCC__)
    return occa::cuda::wrapMemory(device, d_adrs, bytes);
+#else // Just OCCA uses CPU
+#if defined(__OCCA__)
+   return occa::cpu::wrapMemory(device, d_adrs, bytes);
 #else
    return (void*)NULL;
+#endif
 #endif
 }
 

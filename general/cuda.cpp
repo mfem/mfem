@@ -39,8 +39,7 @@ void* cuMemAlloc(void** dptr, size_t bytes)
 // *****************************************************************************
 // * Frees device memory
 // *****************************************************************************
-void* cuMemFree(void *dptr)
-{
+void* cuMemFree(void *dptr) {
    CU_STUB(dptr,::cuMemFree((CUdeviceptr)dptr));
 }
 

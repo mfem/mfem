@@ -380,7 +380,7 @@ void DenseMatrix::SymmetricScaling(const Vector & s)
       mfem_error("DenseMatrix::SymmetricScaling");
    }
 
-   double * ss = new double[width];
+   double * ss = mm::malloc<double>(width);
    double * it_s = s.GetData();
    double * it_ss = ss;
    for ( double * end_s = it_s + width; it_s != end_s; ++it_s)
@@ -395,7 +395,7 @@ void DenseMatrix::SymmetricScaling(const Vector & s)
          *(it_data++) *= ss[i]*ss[j];
       }
 
-   delete[] ss;
+   mm::free<double>(ss);
 }
 
 // InvSymmetricScaling this = diag(sqrt(1./s)) * this * diag(sqrt(1./s))
@@ -4047,8 +4047,8 @@ DenseMatrixInverse::DenseMatrixInverse(const DenseMatrix &mat)
 {
    MFEM_ASSERT(height == width, "not a square matrix");
    a = &mat;
-   lu.data = new double[width*width];
-   lu.ipiv = new int[width];
+   lu.data = mm::malloc<double>(width*width);
+   lu.ipiv = mm::malloc<int>(width);
    Factor();
 }
 
@@ -4057,8 +4057,8 @@ DenseMatrixInverse::DenseMatrixInverse(const DenseMatrix *mat)
 {
    MFEM_ASSERT(height == width, "not a square matrix");
    a = mat;
-   lu.data = new double[width*width];
-   lu.ipiv = new int[width];
+   lu.data = mm::malloc<double>(width*width);
+   lu.ipiv = mm::malloc<int>(width);
 }
 
 void DenseMatrixInverse::Factor()
