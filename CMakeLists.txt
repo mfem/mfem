@@ -13,6 +13,8 @@ cmake_minimum_required(VERSION 2.8.11)
 set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
   "Path to optional user configuration file.")
 
+set (CMAKE_CXX_STANDARD 11)
+
 # Load user settings before the defaults - this way the defaults will not
 # overwrite the user set options. If the user has not set all options, we still
 # have the defaults.
