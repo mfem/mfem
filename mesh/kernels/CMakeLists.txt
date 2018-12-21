@@ -12,8 +12,8 @@
 set(SRCS
   mesh.cpp
 )
- 
-set(HDRS	
+
+set(HDRS
   mesh.hpp
 )
 
