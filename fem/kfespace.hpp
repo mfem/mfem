@@ -35,6 +35,7 @@ public:
    ~kFiniteElementSpace();
    void GlobalToLocal(const Vector&, Vector&) const;
    void LocalToGlobal(const Vector&, Vector&) const;
+   FiniteElementSpace& GetFes() { return *fes; }
 };
 
 } // namespace mfem

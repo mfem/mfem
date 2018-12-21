@@ -35,12 +35,12 @@ public:
    karray(const karray<T,true> &r)
    {
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
-      mm::D2D(data,r,r.bytes());
+      mm::memcpy(data,r,r.bytes());
    }
    karray& operator=(const karray<T,true> &r)
    {
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
-      mm::D2D(data,r,r.bytes());
+      mm::memcpy(data,r,r.bytes());
       return *this;
    }
    ~karray() {mm::free<T>(data);}
@@ -69,14 +69,15 @@ public:
    {
       return data[x + d[0]*(y + d[1]*z)];
    }
-   void Print(std::ostream& out= std::cout, int width = 8) const
+   void Print(std::ostream& out= std::cout, int width = sizeof(T)) const
    {
-      T *h_data = (double*) ::malloc(bytes());
-      mm::D2H(h_data,data,bytes());
+      mm::pull(data,bytes());
       for (size_t i=0; i<sz; i+=1)
-         if (sizeof(T)==8) { printf("\n\t[%ld] %.15e",i,h_data[i]); }
-         else { printf("\n\t[%ld] %d",i,h_data[i]); }
-      free(h_data);
+      {
+         assert(width==4 or width==8);
+         if (width==4) { printf("\n\t[%ld] %d",i,data[i]); }
+         if (width==8) { printf("\n\t[%ld] %.15e",i,data[i]); }
+      }
    }
 };
 
@@ -94,19 +95,14 @@ public:
    karray(const karray<T,false> &r)
    {
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
-      mm::D2D(data,r.GetData(),r.bytes());
+      mm::memcpy(data,r.GetData(),r.bytes());
    }
    karray& operator=(const karray<T,true> &r)
    {
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
-      mm::D2D(data,r.GetData(),r.bytes());
+      mm::memcpy(data,r.GetData(),r.bytes());
       return *this;
-   }/*
-   karray& operator=(mfem::Array<T> &a)
-   {
-      mm::H2D(data,a.GetData(),a.Size()*sizeof(T));
-      return *this;
-      }*/
+   }
    ~karray() {mm::free<T> (data);}
    inline size_t* dim() { return &d[0]; }
    inline operator T* () { return data; }
@@ -141,14 +137,15 @@ public:
    {
       return data[d[0]*x + d[1]*y + d[2]*z];
    }
-   void Print(std::ostream& out= std::cout, int width = 8) const
+   void Print(std::ostream& out= std::cout, int width = sizeof(T)) const
    {
-      T *h_data = (double*) ::malloc(bytes());
-      mm::D2H(h_data,data,bytes());
+      mm::pull(data,bytes());
       for (size_t i=0; i<sz; i+=1)
-         if (sizeof(T)==8) { printf("\n\t[%ld] %.15e",i,h_data[i]); }
-         else { printf("\n\t[%ld] %d",i,h_data[i]); }
-      free(h_data);
+      {
+         assert(width==4 or width==8);
+         if (width==4) { printf("\n\t[%ld] %d",i,data[i]); }
+         if (width==8) { printf("\n\t[%ld] %.15e",i,data[i]); }
+      }
    }
 };
 

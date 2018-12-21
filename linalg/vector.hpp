@@ -72,6 +72,12 @@ public:
        with SetData(). */
    Vector (double *_data, int _size);
 
+   /// Copies data from host to device
+   void Push() const;
+
+   /// Copies data from device to host
+   void Pull() const;
+
    /// Reads a vector from multiple files
    void Load (std::istream ** in, int np, int * dim);
 

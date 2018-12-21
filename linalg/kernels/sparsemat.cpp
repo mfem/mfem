@@ -99,9 +99,9 @@ void kGauss_Seidel_forw(const size_t height,
          const double A = d_Ap[d];
          const double x = d_xp[i];
          const double xmsda = (x - sum) / A;
-         const bool dpaann = d >= 0 and A != 0.0;
+         const bool dpaann = d >= 0 && A != 0.0;
          const bool xeqs = x == sum;
-         assert(dpaann or xeqs);
+         assert(dpaann || xeqs);
          d_yp[i] = dpaann ? xmsda:sum;
       }
    });
@@ -136,9 +136,9 @@ void kGauss_Seidel_back(const size_t height,
          const double A = d_Ap[d];
          const double x = d_xp[i];
          const double xmsda = (x - sum) / A;
-         const bool dpaann = d >= 0 and A != 0.0;
+         const bool dpaann = d >= 0 && A != 0.0;
          const bool xeqs = x == sum;
-         assert(dpaann or xeqs);
+         assert(dpaann || xeqs);
          d_yp[i] = dpaann ? xmsda:sum;
       }
    });

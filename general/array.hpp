@@ -13,6 +13,7 @@
 #define MFEM_ARRAY
 
 #include "../config/config.hpp"
+#include "../general/okina.hpp"
 #include "error.hpp"
 #include "globals.hpp"
 
@@ -82,7 +83,7 @@ public:
    /// Copy constructor: deep copy
    Array(const Array<T> &src)
       : BaseArray(src.size, 0, sizeof(T))
-   { std::memcpy(data, src.data, size*sizeof(T)); }
+   { mm::memcpy(data, src.data, size*sizeof(T)); }
 
    /// Copy constructor (deep copy) from an Array of convertable type
    template <typename CT>
@@ -190,7 +191,7 @@ public:
    inline void Copy(Array &copy) const
    {
       copy.SetSize(Size());
-      std::memcpy(copy.GetData(), data, Size()*sizeof(T));
+      mm::memcpy(copy.GetData(), data, Size()*sizeof(T));
    }
 
    /// Make this Array a reference to a pointer
@@ -713,7 +714,7 @@ inline void Array<T>::DeleteAll()
 {
    if (allocsize > 0)
    {
-      delete [] (char*)data;
+      mm::free<char>(data);
    }
    data = NULL;
    size = allocsize = 0;
@@ -724,7 +725,7 @@ inline void Array<T>::MakeRef(T *p, int s)
 {
    if (allocsize > 0)
    {
-      delete [] (char*)data;
+      mm::free<char>(data);
    }
    data = p;
    size = s;
@@ -736,7 +737,7 @@ inline void Array<T>::MakeRef(const Array &master)
 {
    if (allocsize > 0)
    {
-      delete [] (char*)data;
+      mm::free<char>(data);
    }
    data = master.data;
    size = master.size;
@@ -766,7 +767,7 @@ inline void Array<T>::operator=(const T &a)
 template <class T>
 inline void Array<T>::Assign(const T *p)
 {
-   memcpy(data, p, Size()*sizeof(T));
+   mm::memcpy(data, p, Size()*sizeof(T));
 }
 
 
@@ -927,7 +928,7 @@ BlockArray<T>::~BlockArray()
       {
          block[--j].~T();
       }
-      delete [] (char*) block;
+      mfem::mm::free<char>(block);
       bsize = mask+1;
    }
 }

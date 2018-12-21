@@ -1020,6 +1020,10 @@ public:
    /** Return the FiniteElementSpace on which the current mesh nodes are
        defined or NULL if the mesh does not have nodes. */
    const FiniteElementSpace *GetNodalFESpace() const;
+   /** Make sure that the mesh has valid nodes, i.e. its geometry is described
+       by a vector finite element grid function (even if it is low-order mesh
+       with straight edges). */
+   void EnsureNodes();
 
    /** Set the curvature of the mesh nodes using the given polynomial degree,
        'order', and optionally: discontinuous or continuous FE space, 'discont',

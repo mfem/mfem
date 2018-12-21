@@ -41,6 +41,8 @@ kFiniteElementSpace::kFiniteElementSpace(FiniteElementSpace *f)
 {
    const FiniteElement *fe = f->GetFE(0);
    const TensorBasisElement* el = dynamic_cast<const TensorBasisElement*>(fe);
+   MFEM_ASSERT(el, "Finite element not supported with partial assembly");
+
    const Array<int> &dof_map = el->GetDofMap();
    const bool dof_map_is_identity = (dof_map.Size()==0);
 
@@ -91,11 +93,6 @@ kFiniteElementSpace::kFiniteElementSpace(FiniteElementSpace *f)
    }
    h_offsets[0] = 0;
 
-   // Pushing because the kernels above are still on CPU
-   mm::Get().Push(h_offsets);
-   mm::Get().Push(h_indices);
-   mm::Get().Push(h_map);
-
    const int leN = localDofs*elements;
    const int guN = globalDofs+1;
    kArrayAssign(guN,h_offsets,offsets);
@@ -106,7 +103,7 @@ kFiniteElementSpace::kFiniteElementSpace(FiniteElementSpace *f)
 // ***************************************************************************
 kFiniteElementSpace::~kFiniteElementSpace()
 {
-   ::delete reorderIndices;
+   // ::delete reorderIndices;
 }
 
 // ***************************************************************************
