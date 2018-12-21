@@ -128,7 +128,7 @@ static void* AdrsKnown(const mm_t *maps, void* adrs)
 {
    memory_t *base = maps->memories->at(adrs);
    const bool host = base->host;
-   const bool device = not host;
+   const bool device = !host;
    const size_t bytes = base->bytes;
    const bool gpu = config::usingGpu();
    if (host && !gpu) { return adrs; }
