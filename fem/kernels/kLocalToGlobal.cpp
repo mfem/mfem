@@ -19,9 +19,9 @@ void kLocalToGlobal(const int NUM_VDIM,
                     const bool VDIM_ORDERING,
                     const int globalEntries,
                     const int localEntries,
-                    const int* offsets,
-                    const int* indices,
-                    const double* localX,
+                    const int* __restrict offsets,
+                    const int* __restrict indices,
+                    const double* __restrict localX,
                     double* __restrict globalX)
 {
 
