@@ -62,7 +62,8 @@ void kGeom(const int DIM,
       {0x204,&kGeom2D<2,6>},
       {0x205,&kGeom2D<2,7>},
       {0x206,&kGeom2D<2,8>},
-      {0x207,&kGeom2D<2,9>},/*
+      {0x207,&kGeom2D<2,9>},
+      {0x210,&kGeom2D<3,2>},/*
       {0x208,&kGeom2D<2,10>},
       {0x209,&kGeom2D<2,11>},
       {0x20A,&kGeom2D<2,12>},
@@ -79,7 +80,8 @@ void kGeom(const int DIM,
       {0x304,&kGeom3D<2,6>},
       {0x305,&kGeom3D<2,7>},
       {0x306,&kGeom3D<2,8>},
-      {0x307,&kGeom3D<2,9>},/*
+      {0x307,&kGeom3D<2,9>},
+      {0x321,&kGeom3D<4,3>},/*
       {0x308,&kGeom3D<2,10>},
       {0x309,&kGeom3D<2,11>},
       {0x30A,&kGeom3D<2,12>},

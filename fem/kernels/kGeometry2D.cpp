@@ -100,4 +100,6 @@ template void kGeom2D<2,16>(int, double const*, double const*, double*, double*,
 template void kGeom2D<2,17>(int, double const*, double const*, double*, double*,
                             double*);
 
+template void kGeom2D<3,2>(int, double const*, double const*, double*, double*,
+                            double*);
 }
