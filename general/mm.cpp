@@ -31,7 +31,7 @@ static bool Known(const mm_t *maps, const void *adrs)
 // *****************************************************************************
 static const void* IsAlias(const mm_t *maps, const void *adrs)
 {
-   MFEM_ASSERT(not Known(maps, adrs), "Adrs is an already known address!");
+   MFEM_ASSERT(!Known(maps, adrs), "Adrs is an already known address!");
    for (mm_iterator_t mem = maps->memories->begin();
         mem != maps->memories->end(); mem++)
    {
@@ -95,7 +95,7 @@ void* mm::Insert(void *adrs, const size_t bytes)
    if (!config::usingMM()) { return adrs; }
    if (config::gpuDisabled()) { return adrs; }
    const bool known = Known(maps, adrs);
-   MFEM_ASSERT(not known, "Trying to add already present address!");
+   MFEM_ASSERT(!known, "Trying to add already present address!");
    dbg("\033[33m%p \033[35m(%ldb)", adrs, bytes);
    memories->operator[](adrs) = new memory_t(adrs,bytes);
    return adrs;

@@ -79,9 +79,9 @@ unsigned int LOG2(unsigned int X){
 
 // *****************************************************************************
 #define BUILTIN_TRAP __builtin_trap()
-#define FILE_LINE __FILE__ and __LINE__
-#define MFEM_CPU_CANNOT_PASS {assert(FILE_LINE and false);}
-#define MFEM_GPU_CANNOT_PASS {assert(FILE_LINE and not config::usingGpu());}
+#define FILE_LINE __FILE__ && __LINE__
+#define MFEM_CPU_CANNOT_PASS {assert(FILE_LINE && false);}
+#define MFEM_GPU_CANNOT_PASS {assert(FILE_LINE && !config::usingGpu());}
 
 // Offsets *********************************************************************
 #define ijN(i,j,N) (i)+(N)*(j)
