@@ -56,12 +56,7 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 
 // *****************************************************************************
 #ifdef _MSC_VER
-#include <intrin.h>
-unsigned int LOG2(unsigned int X){
-   unsigned long n;
-   _BitScanReverse(&n, X|1);
-   return n;
-}
+#define LOG2(X) (1)
 #else
 #define LOG2(X) ((unsigned) (8*sizeof(unsigned long long)-__builtin_clzll((X))))
 #endif
