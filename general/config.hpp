@@ -75,8 +75,8 @@ public:
    static inline bool gpuDisabled() { return Get().ngpu == 0; }
    static inline bool gpuHasBeenEnabled() { return Get().ngpu >= 0; }
 
-   static inline bool usingGpu() { return gpuEnabled() and Get().mode == GPU; }
-   static inline bool usingCpu() { return not usingGpu(); }
+   static inline bool usingGpu() { return gpuEnabled() && Get().mode == GPU; }
+   static inline bool usingCpu() { return !usingGpu(); }
 
    static inline void SwitchToGpu() { Get().mode = config::GPU; }
    static inline void SwitchToCpu() { Get().mode = config::CPU; }
