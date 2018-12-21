@@ -390,7 +390,7 @@ public:
                                  Operator *&A, Vector &X, Vector &B,
                                  int copy_interior = 0);
 
-   /// Form the linear system matrix @a A, see FormLinearSystem() for details.
+   /// Form the linear system operator @a A, see FormLinearSystem() for details.
    virtual void FormSystemOperator(const Array<int> &ess_tdof_list,
                                    Operator *&A);
 

@@ -72,10 +72,11 @@ public:
    void Print(std::ostream& out= std::cout, int width = sizeof(T)) const
    {
       mm::pull(data,bytes());
-      for (size_t i=0; i<sz; i+=1){
+      for (size_t i=0; i<sz; i+=1)
+      {
          assert(width==4 or width==8);
-         if (width==4) printf("\n\t[%ld] %d",i,data[i]);
-         if (width==8) printf("\n\t[%ld] %.15e",i,data[i]);
+         if (width==4) { printf("\n\t[%ld] %d",i,data[i]); }
+         if (width==8) { printf("\n\t[%ld] %.15e",i,data[i]); }
       }
    }
 };
@@ -139,10 +140,11 @@ public:
    void Print(std::ostream& out= std::cout, int width = sizeof(T)) const
    {
       mm::pull(data,bytes());
-      for (size_t i=0; i<sz; i+=1){
+      for (size_t i=0; i<sz; i+=1)
+      {
          assert(width==4 or width==8);
-         if (width==4) printf("\n\t[%ld] %d",i,data[i]);
-         if (width==8) printf("\n\t[%ld] %.15e",i,data[i]);
+         if (width==4) { printf("\n\t[%ld] %d",i,data[i]); }
+         if (width==8) { printf("\n\t[%ld] %.15e",i,data[i]); }
       }
    }
 };

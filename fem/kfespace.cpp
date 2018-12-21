@@ -103,7 +103,7 @@ kFiniteElementSpace::kFiniteElementSpace(FiniteElementSpace *f)
 // ***************************************************************************
 kFiniteElementSpace::~kFiniteElementSpace()
 {
-   ::delete reorderIndices;
+   // ::delete reorderIndices;
 }
 
 // ***************************************************************************
