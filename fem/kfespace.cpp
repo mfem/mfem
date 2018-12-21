@@ -120,7 +120,7 @@ void kFiniteElementSpace::GlobalToLocal(const Vector& globalVec,
                   offsets,
                   indices,
                   (const double*) globalVec,
-                  (double*) llocalVec);
+                  (double*) localVec);
 }
 
 // ***************************************************************************
