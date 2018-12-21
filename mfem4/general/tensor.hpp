@@ -27,18 +27,18 @@ public:
       Resize(size0, size1, size2, size3);
    }
 
-   Tensor(T *data, int size0, int size1 = 1, int size2 = 1, int size3 = 1) // FIXME: C++11
+   /*Tensor(T *data, int size0, int size1 = 1, int size2 = 1, int size3 = 1) // FIXME: C++11
    {
       MakeRef(data, size0, size1, size2, size3);
-   }
+   }*/
 
    void Resize(int size0, int size1 = 1, int size2 = 1, int size3 = 1)
    {
    }
 
-   void MakeRef(int size0, int size1 = 1, int size2 = 1, int size3 = 1)
+   /*void MakeRef(int size0, int size1 = 1, int size2 = 1, int size3 = 1)
    {
-   }
+   }*/
 
    T* operator()(int i)
    { return data[i]; }
@@ -73,10 +73,12 @@ public:
       if (own) { delete [] data; }
    }
 
+   int Size(int i) const { return size[i]; }
+
 protected:
-   T* data;
+   T *data, *mirror;
    int size[DIM], stride[DIM];
-   bool own;
+   //bool own;
 
    void Init(int size0, int size1, int size2, int size3)
    {
@@ -85,9 +87,24 @@ protected:
 };
 
 
+/** A counterpart to Tensor<DIM,T>, to be used on the device. Note that the
+ *  two classes are nearly identical, only the 'data' and 'mirror' pointers
+ *  are swapped. A transfer to the GPU occurs if tensor.mirror is NULL.
+ */
+template<int DIM, typename T = double>
 class DeviceTensor : public Tensor
 {
 public:
+   DeviceTensor(const Tensor<DIM, T> &tensor)
+   {
+      std::memcpy(&tensor, this, sizeof(*this));
+      if (gpu)
+      {
+         // TODO: allocate and copy to GPU mirror
+         std::swap(data, mirror);
+      }
+   }
+
 
 };
 

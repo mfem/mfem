@@ -81,8 +81,10 @@ protected:
    /// DiffusionIntegrator partially assembled data
    struct DiffusionAssemblyData : public AssemblyData
    {
+      int dim;
       Tensor<3> oper;
-      Tensor<4> dof_quad, quad_dof;
+      Tensor<2> dof_quad, dof_quad_d;
+      Tensor<2> quad_dof, quad_dof_d;
       Tensor<4> quad_data;
    };
 };
