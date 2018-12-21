@@ -48,43 +48,43 @@ namespace mfem
 // *****************************************************************************
 // * Allocates device memory
 // *****************************************************************************
-int cuMemAlloc(void **d_ptr, size_t bytes);
+void* cuMemAlloc(void **d_ptr, size_t bytes);
 
 // *****************************************************************************
 // * Frees device memory
 // *****************************************************************************
-int cuMemFree(void *d_ptr);
+void* cuMemFree(void *d_ptr);
 
 // *****************************************************************************
 // * Copies memory from Host to Device
 // *****************************************************************************
-int cuMemcpyHtoD(void *d_dst, const void *h_src, size_t bytes);
+void* cuMemcpyHtoD(void *d_dst, const void *h_src, size_t bytes);
 
 // *****************************************************************************
 // * Copies memory from Host to Device
 // *****************************************************************************
-int cuMemcpyHtoDAsync(void *d_dst, const void *h_src,
-                      size_t bytes, void *stream);
+void* cuMemcpyHtoDAsync(void *d_dst, const void *h_src,
+                        size_t bytes, void *stream);
 
 // *****************************************************************************
 // * Copies memory from Device to Device
 // *****************************************************************************
-int cuMemcpyDtoD(void *d_dst, void *d_src, size_t bytes);
+void* cuMemcpyDtoD(void *d_dst, void *d_src, size_t bytes);
 
 // *****************************************************************************
 // * Copies memory from Device to Device
 // *****************************************************************************
-int cuMemcpyDtoDAsync(void *d_dst, void *d_src, size_t bytes, void *stream);
+void* cuMemcpyDtoDAsync(void *d_dst, void *d_src, size_t bytes, void *stream);
 
 // *****************************************************************************
 // * Copies memory from Device to Host
 // *****************************************************************************
-int cuMemcpyDtoH(void *h_dst, const void *d_src, size_t bytes);
+void* cuMemcpyDtoH(void *h_dst, const void *d_src, size_t bytes);
 
 // *****************************************************************************
 // * Copies memory from Device to Host
 // *****************************************************************************
-int cuMemcpyDtoHAsync(void *h_dst, void *d_src, size_t bytes, void *stream);
+void* cuMemcpyDtoHAsync(void *h_dst, void *d_src, size_t bytes, void *stream);
 
 } // namespace mfem
 

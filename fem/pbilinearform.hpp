@@ -23,51 +23,9 @@
 
 namespace mfem
 {
-// ***************************************************************************
-// * ParPABilinearForm
-// ***************************************************************************
-class ParPABilinearForm : public PABilinearForm
-{
-protected:
-   const Mesh *mesh;
-   const ParFiniteElementSpace *trialFes;
-   const ParFiniteElementSpace *testFes;
-   Array<BilinearPAFormIntegrator*> integrators;
-   mutable Vector localX, localY;
-   kFiniteElementSpace *kfes;
-public:
-   ParPABilinearForm(ParFiniteElementSpace*);
-   ~ParPABilinearForm();
-   // *************************************************************************
-   void EnableStaticCondensation();
-   void AddDomainIntegrator(AbstractBilinearFormIntegrator*);
-   void AddBoundaryIntegrator(AbstractBilinearFormIntegrator*);
-   void AddInteriorFaceIntegrator(AbstractBilinearFormIntegrator*);
-   void AddBoundaryFaceIntegrator(AbstractBilinearFormIntegrator*);
-   // *************************************************************************
-   void Assemble(int skip_zeros = 1);
-   void FormOperator(const Array<int> &ess_tdof_list, Operator &A);
-   void FormLinearSystem(const Array<int> &ess_tdof_list,
-                         Vector &x, Vector &b,
-                         Operator *&A, Vector &X, Vector &B,
-                         int copy_interior = 0);
-   void FormLinearSystem(const Array<int> &ess_tdof_list,
-                         Vector &x, Vector &b,
-                         OperatorHandle &A,
-                         Vector &X, Vector &B,
-                         int copy_interior = 0)
-   { mfem_error("ParPABilinearForm::FormLinearSystem(OperatorHandle)"); }
-   void RecoverFEMSolution(const Vector &X, const Vector &b,
-                           Vector &x);
-   void Mult(const Vector &x, Vector &y) const;
-   void MultTranspose(const Vector &x, Vector &y) const;
-};
 
-// *****************************************************************************
-// * Par FA BilinearForm
-// * Class for parallel bilinear form
-// *****************************************************************************
-class ParFABilinearForm : public FABilinearForm
+/// Class for parallel bilinear form
+class ParBilinearForm : public BilinearForm
 {
 protected:
    ParFiniteElementSpace *pfes; ///< Points to the same object as #fes
@@ -86,16 +44,18 @@ protected:
 
 private:
    /// Copy construction is not supported; body is undefined.
-   ParFABilinearForm(const ParFABilinearForm &);
+   ParBilinearForm(const ParBilinearForm &);
 
    /// Copy assignment is not supported; body is undefined.
-   ParFABilinearForm &operator=(const ParFABilinearForm &);
+   ParBilinearForm &operator=(const ParBilinearForm &);
 
 public:
    /// Creates parallel bilinear form associated with the FE space @a *pf.
    /** The pointer @a pf is not owned by the newly constructed object. */
-   ParFABilinearForm(ParFiniteElementSpace *pf)
-      : FABilinearForm(pf), pfes(pf),
+   ParBilinearForm(ParFiniteElementSpace *pf,
+                   AssemblyLevel assembly_level = AssemblyLevel::FULL,
+                   int elem_batch = 1)
+      : BilinearForm(pf,  assembly_level, elem_batch), pfes(pf),
         p_mat(Operator::Hypre_ParCSR), p_mat_e(Operator::Hypre_ParCSR)
    { keep_nbr_block = false; }
 
@@ -106,12 +66,12 @@ public:
 
        The integrators in @a bf are copied as pointers and they are not owned by
        the newly constructed ParBilinearForm. */
-   ParFABilinearForm(ParFiniteElementSpace *pf, ParFABilinearForm *bf)
-      : FABilinearForm(pf, bf), pfes(pf),
+   ParBilinearForm(ParFiniteElementSpace *pf, ParBilinearForm *bf)
+      : BilinearForm(pf, bf), pfes(pf),
         p_mat(Operator::Hypre_ParCSR), p_mat_e(Operator::Hypre_ParCSR)
    { keep_nbr_block = false; }
 
-   /** When set to true and the ParFABilinearForm has interior face integrators,
+   /** When set to true and the ParBilinearForm has interior face integrators,
        the local SparseMatrix will include the rows (in addition to the columns)
        corresponding to face-neighbor dofs. The default behavior is to disregard
        those rows. Must be called before the first Assemble call. */
@@ -191,7 +151,7 @@ public:
        vectors on the true dofs. */
    void TrueAddMult(const Vector &x, Vector &y, const double a = 1.0) const;
 
-   /// Return the parallel FE space associated with the ParFABilinearForm.
+   /// Return the parallel FE space associated with the ParBilinearForm.
    ParFiniteElementSpace *ParFESpace() const { return pfes; }
 
    /// Return the parallel trace FE space associated with static condensation.
@@ -212,7 +172,7 @@ public:
        hybridization.
 
        The ParGridFunction-size vector x must contain the essential b.c. The
-       ParFABilinearForm and the ParLinearForm-size vector b must be assembled.
+       ParBilinearForm and the ParLinearForm-size vector b must be assembled.
 
        The vector X is initialized with a suitable initial guess: when using
        hybridization, the vector X is set to zero; otherwise, the essential
@@ -226,17 +186,10 @@ public:
        After solving the linear system, the finite element solution x can be
        recovered by calling RecoverFEMSolution (with the same vectors X, b, and
        x). */
-   void FormLinearSystem(const Array<int> &ess_tdof_list,
-                         Vector &x, Vector &b,
-                         Operator *&A, Vector &X, Vector &B,
-                         int copy_interior = 0)
-   { mfem_error("ParFABilinearForm::FormLinearSystem(OperatorHandle)"); }
-
-   void FormLinearSystem(const Array<int> &ess_tdof_list,
-                         Vector &x, Vector &b,
-                         OperatorHandle &A,
-                         Vector &X, Vector &B,
+   void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
+                         OperatorHandle &A, Vector &X, Vector &B,
                          int copy_interior = 0);
+
    /** Version of the method FormLinearSystem() where the system matrix is
        returned in the variable @a A, of type OpType, holding a *reference* to
        the system matrix (created with the method OpType::MakeRef()). The
@@ -256,6 +209,35 @@ public:
 
    /// Form the linear system matrix @a A, see FormLinearSystem() for details.
    void FormSystemMatrix(const Array<int> &ess_tdof_list, OperatorHandle &A);
+
+   /** Form the linear system A X = B, corresponding to the current bilinear
+       form and b(.), by applying any necessary transformations such as:
+       eliminating boundary conditions; applying conforming constraints for
+       non-conforming AMR; parallel assembly; static condensation;
+       hybridization.
+
+       The ParGridFunction-size vector x must contain the essential b.c. The
+       ParBilinearForm and the ParLinearForm-size vector b must be assembled.
+
+       The vector X is initialized with a suitable initial guess: when using
+       hybridization, the vector X is set to zero; otherwise, the essential
+       entries of X are set to the corresponding b.c. and all other entries are
+       set to zero (copy_interior == 0) or copied from x (copy_interior != 0).
+
+       This method can be called multiple times (with the same ess_tdof_list
+       array) to initialize different right-hand sides and boundary condition
+       values.
+
+       After solving the linear system, the finite element solution x can be
+       recovered by calling RecoverFEMSolution (with the same vectors X, b, and
+       x). */
+   void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
+                         Operator *&A, Vector &X, Vector &B,
+                         int copy_interior = 0);
+
+   /// Form the linear system operator @a A, see FormLinearSystem() for details.
+   virtual void FormSystemOperator(const Array<int> &ess_tdof_list,
+                                   Operator *&A);
 
    /** Version of the method FormSystemMatrix() where the system matrix is
        returned in the variable @a A, of type OpType, holding a *reference* to
@@ -279,82 +261,10 @@ public:
 
    virtual void Update(FiniteElementSpace *nfes = NULL);
 
-   virtual ~ParFABilinearForm() { }
+   virtual ~ParBilinearForm() { }
 };
 
-// *****************************************************************************
-// * BilinearForm ⇒ (PA|FA) BilinearForm
-// *****************************************************************************
-class ParBilinearForm
-{
-private:
-   const bool FA = true;
-   ParPABilinearForm *ppabf;
-   ParFABilinearForm *pfabf;
-public:
-   ParBilinearForm(ParFiniteElementSpace *f):
-      FA(config::PA()==false),
-      ppabf(FA?NULL:new ParPABilinearForm(f)),
-      pfabf(FA?new ParFABilinearForm(f):NULL)
-   { }
-   virtual ~ParBilinearForm() {}
-   // **************************************************************************
-   void EnableStaticCondensation() {assert(false);}
-   void AddDomainIntegrator(AbstractBilinearFormIntegrator *i)
-   {
-      (FA?
-       pfabf->AddDomainIntegrator(i):
-       ppabf->AddDomainIntegrator(i));
-   }
-   // **************************************************************************
-   virtual void Assemble()
-   {
-      (FA?
-       pfabf->Assemble():
-       ppabf->Assemble());
-   }
-   virtual void FormOperator(const Array<int> &ess_tdof_list,
-                             Operator &A)
-   {
-      (FA?
-       pfabf->FormOperator(ess_tdof_list,A):
-       ppabf->FormOperator(ess_tdof_list,A));
-   }
-
-   template <typename OpType>
-   void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x, Vector &b,
-                         OpType &A, Vector &X, Vector &B,
-                         int copy_interior = 0)
-   {
-      assert(FA);
-      pfabf->FormLinearSystem(ess_tdof_list,x,b,A,X,B,copy_interior);
-   }
-
-   virtual void FormLinearSystem(const Array<int> &ess_tdof_list,
-                                 Vector &x, Vector &b,
-                                 Operator *&A, Vector &X, Vector &B,
-                                 int copy_interior =0)
-   {
-      (FA? pfabf->FormLinearSystem(ess_tdof_list,x,b,*static_cast<HypreParMatrix*>(A),
-                                   X,B,copy_interior) :
-       ppabf->FormLinearSystem(ess_tdof_list,x,b,A,X,B,copy_interior));
-   }
-   virtual void RecoverFEMSolution(const Vector &X, const Vector &b,
-                                   Vector &x)
-   {
-      (FA?
-       pfabf->RecoverFEMSolution(X,b,x):
-       ppabf->RecoverFEMSolution(X,b,x));
-   }
-   HypreParMatrix *ParallelAssemble() { assert(false); return NULL; }
-   virtual void Finalize(int skip_zeros = 1) {assert(false);}
-   virtual void Mult(const Vector &x, Vector &y) const {assert(false);}
-   virtual void MultTranspose(const Vector &x, Vector &y) const {assert(false);}
-};
-
-// *****************************************************************************
 /// Class for parallel bilinear form using different test and trial FE spaces.
-// *****************************************************************************
 class ParMixedBilinearForm : public MixedBilinearForm
 {
 protected:

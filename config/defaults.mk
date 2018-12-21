@@ -109,6 +109,7 @@ MFEM_USE_SIDRE       = NO
 MFEM_USE_CONDUIT     = NO
 MFEM_USE_PUMI        = NO
 MFEM_USE_OCCA        = NO
+MFEM_USE_MM          = NO
 
 # Compile and link options for zlib.
 ZLIB_DIR =
@@ -287,7 +288,7 @@ ifeq ($(MFEM_USE_OCCA),YES)
     OCCA_DIR := @MFEM_DIR@/../occa
   endif
   OCCA_OPT := -I$(OCCA_DIR)/include
-  OCCA_LIB := -L$(OCCA_DIR)/lib -locca
+  OCCA_LIB := -Wl,-rpath,$(OCCA_DIR)/lib -L$(OCCA_DIR)/lib -locca
 endif
 
 # If YES, enable some informational messages

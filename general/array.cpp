@@ -23,7 +23,7 @@ BaseArray::BaseArray(int asize, int ainc, int elementsize)
 {
    if (asize > 0)
    {
-      data = mfem::mm::malloc<char>(asize * elementsize);
+      data = mm::malloc<char>(asize * elementsize);
       size = allocsize = asize;
    }
    else
@@ -51,7 +51,7 @@ void BaseArray::GrowSize(int minsize, int elementsize)
    p = mm::malloc<char>(nsize * elementsize);
    if (size > 0)
    {
-      ::memcpy(p, data, size * elementsize);
+      mm::memcpy(p, data, size * elementsize);
    }
    if (allocsize > 0)
    {

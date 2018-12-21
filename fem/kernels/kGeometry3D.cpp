@@ -28,7 +28,7 @@ void kGeom3D(const int numElements,
    const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D*NUM_QUAD_1D;
    MFEM_FORALL(e,numElements,
    {
-      double s_nodes[3*NUM_DOFS];
+      double s_nodes[3 * NUM_DOFS_1D * NUM_DOFS_1D * NUM_DOFS_1D];
       for (int q = 0; q < NUM_QUAD; ++q)
       {
          for (int d = q; d < NUM_DOFS; d += NUM_QUAD)
@@ -118,4 +118,6 @@ template void kGeom3D<2,16>(int, double const*, double const*, double*, double*,
 template void kGeom3D<2,17>(int, double const*, double const*, double*, double*,
                             double*);
 
+template void kGeom3D<4,3>(int, double const*, double const*, double*, double*,
+                            double*);
 }

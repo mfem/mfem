@@ -681,7 +681,7 @@ public:
       if (size > 0)
       {
          tdata = mm::malloc<double>(size);
-         mm::D2D(tdata, other.tdata, sizeof(double) * size);
+         mm::memcpy(tdata, other.tdata, sizeof(double) * size);
       }
       else
       {

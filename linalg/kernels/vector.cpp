@@ -72,11 +72,9 @@ double cuVectorDot(const size_t N, const double *x, const double *y)
 // *****************************************************************************
 double kVectorDot(const size_t N, const double *x, const double *y)
 {
-   GET_CUDA;
    GET_CONST_ADRS(x);
    GET_CONST_ADRS(y);
-
-   if (cuda)
+   if (config::usingGpu())
    {
 #ifdef __NVCC__
       return cuVectorDot(N, d_x, d_y);

@@ -60,7 +60,8 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool pa = false;
-   bool gpu = false;
+   bool cuda = false;
+   bool occa = false;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -73,7 +74,8 @@ int main(int argc, char *argv[])
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-p", "--pa", "-no-p", "--no-pa",
                   "Enable Partial Assembly.");
-   args.AddOption(&gpu, "-g", "--gpu", "-no-g", "--no-gpu", "Enable GPU.");
+   args.AddOption(&cuda, "-cu", "--cuda", "-no-cu", "--no-cuda", "Enable CUDA.");
+   args.AddOption(&occa, "-oc", "--occa", "-no-oc", "--no-occa", "Enable OCCA.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -171,9 +173,12 @@ int main(int argc, char *argv[])
    b->AddDomainIntegrator(new DomainLFIntegrator(one));
    b->Assemble();
 
-   pmesh->SetCurvature(1, false, -1, Ordering::byVDIM);
-   if (gpu) { config::Get().Cuda(true); }
-   if (pa)  { config::Get().PA(true);   }
+   config::usePA(pa);
+   if (pa) { pmesh->EnsureNodes(); }
+   if (cuda) { config::useCuda(); }
+   if (occa) { config::useOcca(); }
+   config::enableGpu(0/*,occa,cuda*/);
+   config::SwitchToGpu();
 
    // 9. Define the solution vector x as a parallel finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
@@ -181,10 +186,14 @@ int main(int argc, char *argv[])
    ParGridFunction x(fespace);
    x = 0.0;
 
+   // Sample values
+   AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
+   int elem_batch = (cuda || occa) ? mesh->GetNE() : 1;
+
    // 10. Set up the parallel bilinear form a(.,.) on the finite element space
    //     corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //     domain integrator.
-   ParBilinearForm *a = new ParBilinearForm(fespace);
+   ParBilinearForm *a = new ParBilinearForm(fespace, assembly, elem_batch);
    if (pa) { a->AddDomainIntegrator(new PADiffusionIntegrator(one)); }
    else    { a->AddDomainIntegrator(new DiffusionIntegrator(one)); }
 
@@ -197,8 +206,8 @@ int main(int argc, char *argv[])
 
    Vector B, X;
    Operator *A;
-   if (pa) { A = new ParPABilinearForm(fespace); }
-   else    { A = new HypreParMatrix(); }
+
+   if (!pa) { A = new HypreParMatrix(); }
 
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 

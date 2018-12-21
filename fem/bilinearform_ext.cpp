@@ -9,65 +9,42 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-// Implementation of class BilinearForm
+// Implementations of classes FABilinearFormExtension, EABilinearFormExtension,
+// PABilinearFormExtension and MFBilinearFormExtension.
 
 #include "fem.hpp"
 #include "bilininteg.hpp"
+#include "bilinearform_ext.hpp"
 #include "kBilinIntegDiffusion.hpp"
 #include "kfespace.hpp"
 #include "../linalg/kernels/vector.hpp"
 
-#include <cmath>
-
 namespace mfem
 {
 
-// ***************************************************************************
-// * PABilinearForm
-// ***************************************************************************
-PABilinearForm::PABilinearForm(FiniteElementSpace* fes) :
-   AbstractBilinearForm(fes),
-   mesh(fes->GetMesh()),
-   trialFes(fes),
-   testFes(fes),
-   localX(mesh->GetNE() * trialFes->GetFE(0)->GetDof() * trialFes->GetVDim()),
-   localY(mesh->GetNE() * testFes->GetFE(0)->GetDof() * testFes->GetVDim()),
-   kfes(new kFiniteElementSpace(fes)) { }
+// Data and methods for fully-assembled bilinear forms
+FABilinearFormExtension::FABilinearFormExtension(BilinearForm *form) :
+   Operator(form->Size()), a(form) { }
 
-// ***************************************************************************
-PABilinearForm::~PABilinearForm() { delete kfes; }
+// Data and methods for element-assembled bilinear forms
+EABilinearFormExtension::EABilinearFormExtension(BilinearForm *form)
+   : Operator(form->Size()), a(form) { }
 
-// *****************************************************************************
-void PABilinearForm::EnableStaticCondensation() { assert(false);}
+// Data and methods for partially-assembled bilinear forms
+PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form) :
+   Operator(form->Size()), a(form),
+   trialFes(a->fes), testFes(a->fes),
+   localX(a->fes->GetNE() * trialFes->GetFE(0)->GetDof() * trialFes->GetVDim()),
+   localY(a->fes->GetNE() * testFes->GetFE(0)->GetDof() * testFes->GetVDim()),
+   kfes(new kFiniteElementSpace(a->fes)) { }
 
-// ***************************************************************************
+PABilinearFormExtension::~PABilinearFormExtension() { delete kfes; }
+
 // Adds new Domain Integrator.
-void PABilinearForm::AddDomainIntegrator(AbstractBilinearFormIntegrator *i)
+void PABilinearFormExtension::AddDomainIntegrator(
+   AbstractBilinearFormIntegrator *i)
 {
    integrators.Append(static_cast<BilinearPAFormIntegrator*>(i));
-}
-
-// Adds new Boundary Integrator.
-void PABilinearForm::AddBoundaryIntegrator(AbstractBilinearFormIntegrator *i)
-{
-   assert(false);
-   //AddIntegrator(i, BoundaryIntegrator);
-}
-
-// Adds new interior Face Integrator.
-void PABilinearForm::AddInteriorFaceIntegrator(AbstractBilinearFormIntegrator
-                                               *i)
-{
-   assert(false);
-   //AddIntegrator(i, InteriorFaceIntegrator);
-}
-
-// Adds new boundary Face Integrator.
-void PABilinearForm::AddBoundaryFaceIntegrator(AbstractBilinearFormIntegrator
-                                               *i)
-{
-   assert(false);
-   //AddIntegrator(i, BoundaryFaceIntegrator);
 }
 
 // *****************************************************************************
@@ -93,49 +70,39 @@ static const IntegrationRule &DiffusionGetRule(const FiniteElement &trial_fe,
    return IntRules.Get(trial_fe.GetGeomType(), order);
 }
 
-// ***************************************************************************
-void PABilinearForm::Assemble(int skip_zeros)
+void PABilinearFormExtension::Assemble()
 {
    assert(integrators.Size()==1);
-   const FiniteElement &fe = *fes->GetFE(0);
+   const FiniteElement &fe = *a->fes->GetFE(0);
    const IntegrationRule *ir = &DiffusionGetRule(fe,fe);
    assert(ir);
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
    {
-      integrators[i]->Setup(fes,ir);
+      integrators[i]->Setup(a->fes,ir);
       integrators[i]->Assemble();
    }
 }
 
-// ***************************************************************************
-void PABilinearForm::FormOperator(const Array<int> &ess_tdof_list,
-                                  Operator &A)
+void PABilinearFormExtension::FormSystemOperator(const Array<int>
+                                                 &ess_tdof_list,
+                                                 Operator *&A)
 {
    const Operator* trialP = trialFes->GetProlongationMatrix();
    const Operator* testP  = testFes->GetProlongationMatrix();
    Operator *rap = this;
    if (trialP) { rap = new RAPOperator(*testP, *this, *trialP); }
-   const bool own_A = rap!=this;
+   const bool own_A = (rap!=this);
    assert(rap);
-   Operator *CO = new ConstrainedOperator(rap, ess_tdof_list, own_A);
-   A = *CO;
+   A = new ConstrainedOperator(rap, ess_tdof_list, own_A);
 }
 
-// ***************************************************************************
-void PABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
-                                      Vector &x, Vector &b,
-                                      Operator *&A, Vector &X, Vector &B,
-                                      int copy_interior)
+void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
+                                               Vector &x, Vector &b,
+                                               Operator *&A, Vector &X, Vector &B,
+                                               int copy_interior)
 {
-   const Operator* trialP = trialFes->GetProlongationMatrix();
-   const Operator* testP  = testFes->GetProlongationMatrix();
-   Operator *rap = this;
-   if (trialP) { rap = new RAPOperator(*testP, *this, *trialP); }
-   const bool own_A = rap!=this;
-   assert(rap);
-
-   A = new ConstrainedOperator(rap, ess_tdof_list, own_A);
+   FormSystemOperator(ess_tdof_list, A);
 
    const Operator* P = trialFes->GetProlongationMatrix();
    const Operator* R = trialFes->GetRestrictionMatrix();
@@ -154,7 +121,7 @@ void PABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       B.SetSize(b.Size()); B = b;
    }
 
-   if (!copy_interior and ess_tdof_list.Size()>0)
+   if (!copy_interior && ess_tdof_list.Size()>0)
    {
       const int csz = ess_tdof_list.Size();
       const int xsz = X.Size();
@@ -184,8 +151,7 @@ void PABilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    }
 }
 
-// ***************************************************************************
-void PABilinearForm::Mult(const Vector &x, Vector &y) const
+void PABilinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    kfes->GlobalToLocal(x, localX);
    localY = 0.0;
@@ -198,8 +164,7 @@ void PABilinearForm::Mult(const Vector &x, Vector &y) const
    kfes->LocalToGlobal(localY, y);
 }
 
-// ***************************************************************************
-void PABilinearForm::MultTranspose(const Vector &x, Vector &y) const
+void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
 {
    kfes->GlobalToLocal(x, localX);
    localY = 0.0;
@@ -212,12 +177,11 @@ void PABilinearForm::MultTranspose(const Vector &x, Vector &y) const
    kfes->LocalToGlobal(localY, y);
 }
 
-// ***************************************************************************
-void PABilinearForm::RecoverFEMSolution(const Vector &X,
-                                        const Vector &b,
-                                        Vector &x)
+void PABilinearFormExtension::RecoverFEMSolution(const Vector &X,
+                                                 const Vector &b,
+                                                 Vector &x)
 {
-   const Operator *P = this->GetProlongation();
+   const Operator *P = a->GetProlongation();
    if (P)
    {
       // Apply conforming prolongation
@@ -228,5 +192,9 @@ void PABilinearForm::RecoverFEMSolution(const Vector &X,
    // Otherwise X and x point to the same data
    x = X;
 }
+
+// Data and methods for matrix-free bilinear forms
+MFBilinearFormExtension::MFBilinearFormExtension(BilinearForm *form)
+   : Operator(form->Size()), a(form) { }
 
 }

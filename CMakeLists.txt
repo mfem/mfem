@@ -13,6 +13,8 @@ cmake_minimum_required(VERSION 2.8.11)
 set(USER_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/config/user.cmake" CACHE PATH
   "Path to optional user configuration file.")
 
+set (CMAKE_CXX_STANDARD 11)
+
 # Load user settings before the defaults - this way the defaults will not
 # overwrite the user set options. If the user has not set all options, we still
 # have the defaults.
@@ -319,7 +321,7 @@ message(STATUS "MFEM git string: ${MFEM_GIT_STRING}")
 # Headers and sources
 set(SOURCES "")
 set(HEADERS "")
-set(MFEM_SOURCE_DIRS general linalg mesh fem)
+set(MFEM_SOURCE_DIRS general linalg linalg/kernels mesh mesh/kernels fem fem/kernels)
 foreach(DIR IN LISTS MFEM_SOURCE_DIRS)
   add_subdirectory(${DIR})
 endforeach()
