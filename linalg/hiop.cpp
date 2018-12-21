@@ -293,13 +293,13 @@ void HiopNlpOptimizer::Mult(const Vector &xt, Vector &x) const
 
    hiop::hiopNlpDenseConstraints hiopInstance(*hiop_problem);
 
-   // TODO how to use rel_tol?
+   hiopInstance.options->SetNumericValue("rel_tolerance", rel_tol);
    hiopInstance.options->SetNumericValue("tolerance", abs_tol);
    hiopInstance.options->SetIntegerValue("max_iter", max_iter);
 
    hiopInstance.options->SetStringValue("fixed_var", "relax");
-   // hiopInstance.options->SetNumericValue("fixed_var_tolerance", 1e-20);
-   // hiopInstance.options->SetNumericValue("fixed_var_perturb", 1e-9);
+   hiopInstance.options->SetNumericValue("fixed_var_tolerance", 1e-20);
+   hiopInstance.options->SetNumericValue("fixed_var_perturb", 1e-9);
 
    // 0: no output; 3: not too much
    hiopInstance.options->SetIntegerValue("verbosity_level", print_level);

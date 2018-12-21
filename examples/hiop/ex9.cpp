@@ -83,23 +83,24 @@ public:
    }
 };
 
-/// Computes D(x) = |x|^2.
-class NormOperator : public Operator
+/// Computes D(x) = e^sum(x_i).
+class ExpSumOperator : public Operator
 {
 private:
    mutable DenseMatrix grad;
 
 public:
-   NormOperator(int size) : Operator(1, size), grad(1, width) { }
+   ExpSumOperator(int size) : Operator(1, size), grad(1, width) { }
 
    virtual void Mult(const Vector &x, Vector &y) const
    {
-      y(0) = x * x;
+      y(0) = std::exp(x.Sum());
    }
 
    virtual Operator &GetGradient(const Vector &x) const
    {
-      for (int i = 0; i < width; i++) { grad(0, i) = 2.0 * x(i); }
+      const double expsum = std::exp(x.Sum());
+      for (int i = 0; i < width; i++) { grad(0, i) = expsum; }
       return grad;
    }
 };
@@ -107,7 +108,7 @@ public:
 /** Monotone and conservative a-posteriori correction for transport solutions:
  *  Find x that minimizes 0.5 || x - x_HO ||^2, subject to
  *  sum w_i x_i = mass,
- *  |x_min|^2 <= |x|^2 <= |x_max|^2,
+ *  e^sum(x_i_min) <= e^sum(x_i) <= e^sum(x_i_max),
  *  x_min <= x <= x_max,
  */
 class OptimizedTransportProblem : public OptimizationProblem
@@ -116,22 +117,24 @@ private:
    const Vector &x_HO;
    Vector massvec, d_lo, d_hi;
    const LinearScaleOperator LSoper;
-   const NormOperator Noper;
+   const ExpSumOperator ESoper;
 
 public:
    OptimizedTransportProblem(const Vector &xho, const Vector &w, double mass,
                              const Vector &xmin, const Vector &xmax)
       : OptimizationProblem(xho.Size(), NULL, NULL),
-        x_HO(xho), massvec(1), d_lo(1), d_hi(1), LSoper(w), Noper(w.Size())
+        x_HO(xho), massvec(1), d_lo(1), d_hi(1),
+        LSoper(w), ESoper(w.Size())
    {
       C = &LSoper;
       massvec(0) = mass;
       SetEqualityConstraint(massvec);
 
-      D = &Noper;
-      d_lo(0) = xmin * xmin;
-      d_hi(0) = xmax * xmax;
-      MFEM_VERIFY(d_lo(0)<d_hi(0), "this results in an infeasible optimization problem");
+      D = &ESoper;
+      d_lo(0) = std::exp(xmin.Sum());
+      d_hi(0) = std::exp(xmax.Sum());
+      MFEM_VERIFY(d_lo(0) < d_hi(0),
+                  "The bounds produce an infeasible optimization problem");
       SetInequalityConstraint(d_lo, d_hi);
 
       SetSolutionBounds(xmin, xmax);
@@ -522,7 +525,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    // Perform optimization.
    Vector y_out(dofs);
    const int max_iter = 50;
-   const double rtol = 1.e-12;
+   const double rtol = 1.e-5;
    double atol = 1.e-7;
 
    OptimizationSolver *optsolver = NULL;
@@ -540,9 +543,6 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
       optsolver = slbqp;
    }
 
-   // TODO there is still some instability with this.
-   y_min -= 1e-9;
-   y_max -= (-1e-9);
    OptimizedTransportProblem ot_prob(y, M_rowsums, mass_y, y_min, y_max);
    optsolver->SetOptimizationProblem(ot_prob);
 

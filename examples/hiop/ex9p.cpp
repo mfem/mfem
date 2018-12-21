@@ -92,27 +92,76 @@ public:
    }
 };
 
+/// Computes D(x) = e^sum(x_i).
+class ExpSumOperator : public Operator
+{
+private:
+   // Gradient for the tdofs.
+   mutable DenseMatrix grad;
+
+public:
+   ExpSumOperator(ParFiniteElementSpace &space)
+      : Operator(1, space.TrueVSize()), grad(1, width) { }
+
+   virtual void Mult(const Vector &x, Vector &y) const
+   {
+      double sum_loc = x.Sum();
+      MPI_Allreduce(&sum_loc, &y(0), 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      y(0) = std::exp(y(0));
+   }
+
+   virtual Operator &GetGradient(const Vector &x) const
+   {
+      double sum_loc = x.Sum();
+      double expsum;
+      MPI_Allreduce(&sum_loc, &expsum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      expsum = std::exp(expsum);
+
+      for (int i = 0; i < width; i++) { grad(0, i) = expsum; }
+      return grad;
+   }
+};
+
+
 /** Monotone and conservative a-posteriori correction for transport solutions:
-    Find x that minimizes 0.5 || x - x_HO ||^2, subject to
-    sum w_i x_i = mass,
-    x_min <= x <= x_max. */
+ *  Find x that minimizes 0.5 || x - x_HO ||^2, subject to
+ *  sum w_i x_i = mass,
+ *  e^sum(x_i_min) <= e^sum(x_i) <= e^sum(x_i_max),
+ *  x_min <= x <= x_max,
+ */
 class OptimizedTransportProblem : public OptimizationProblem
 {
 private:
    const Vector &x_HO;
-   Vector massvec;
+   Vector massvec, d_lo, d_hi;
    const LinearScaleOperator LSoper;
+   const ExpSumOperator ESoper;
 
 public:
    OptimizedTransportProblem(ParFiniteElementSpace &space,
                              const Vector &xho, const Vector &w, double mass,
                              const Vector &xmin, const Vector &xmax)
       : OptimizationProblem(xho.Size(), NULL, NULL),
-        x_HO(xho), massvec(1), LSoper(space, w)
+        x_HO(xho), massvec(1), d_lo(1), d_hi(1),
+        LSoper(space, w), ESoper(space)
    {
       C = &LSoper;
       massvec(0) = mass;
       SetEqualityConstraint(massvec);
+
+      D = &ESoper;
+      double lsums[2], gsums[2];
+      lsums[0] = xmin.Sum();
+      lsums[1] = xmax.Sum();
+      MPI_Allreduce(lsums, gsums, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      gsums[0] = std::exp(gsums[0]);
+      gsums[1] = std::exp(gsums[1]);
+      d_lo(0) = gsums[0];
+      d_hi(0) = gsums[1];
+      MFEM_VERIFY(d_lo(0) < d_hi(0),
+                  "The bounds produce an infeasible optimization problem");
+      SetInequalityConstraint(d_lo, d_hi);
+
       SetSolutionBounds(xmin, xmax);
    }
 
@@ -602,7 +651,7 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    // Perform optimization on the tdofs.
    Vector y_out(y.Size());
    const int max_iter = 50;
-   const double rtol = 1.e-12;
+   const double rtol = 1.e-5;
    double atol = 1.e-7;
 
    OptimizationSolver* optsolver = NULL;
@@ -620,9 +669,6 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
       optsolver = slbqp;
    }
 
-   // TODO there is still some instability with this.
-   y_min_tdofs -= 1e-9;
-   y_max_tdofs -= (-1e-9);
    OptimizedTransportProblem ot_prob(*pfes, y, M_rowsums, mass_y,
                                      y_min_tdofs, y_max_tdofs);
    optsolver->SetOptimizationProblem(ot_prob);
