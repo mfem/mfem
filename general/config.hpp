@@ -23,7 +23,7 @@ class config
 {
 private:
    //enum BACKENDS{CUDA, OCCA};
-   enum MODES{CPU, GPU};
+   enum MODES {CPU, GPU};
 private:
    MODES mode;
    int dev = 0;
@@ -60,7 +60,8 @@ private:
 
 public:
    // **************************************************************************
-   constexpr static inline bool usingMM() {
+   constexpr static inline bool usingMM()
+   {
 #ifdef MFEM_USE_MM
       return true;
 #else
@@ -73,12 +74,12 @@ public:
    static inline bool gpuEnabled() { return Get().ngpu > 0; }
    static inline bool gpuDisabled() { return Get().ngpu == 0; }
    static inline bool gpuHasBeenEnabled() { return Get().ngpu >= 0; }
-   
+
    static inline bool usingGpu() { return gpuEnabled() and Get().mode == GPU; }
    static inline bool usingCpu() { return not usingGpu(); }
 
-   static inline void SwitchToGpu(){ Get().mode = config::GPU; }
-   static inline void SwitchToCpu(){ Get().mode = config::CPU; }
+   static inline void SwitchToGpu() { Get().mode = config::GPU; }
+   static inline void SwitchToCpu() { Get().mode = config::CPU; }
 
 
    static inline bool usingPA() { return Get().pa; }
