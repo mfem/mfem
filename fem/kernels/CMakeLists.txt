@@ -11,15 +11,15 @@
 
 set(SRCS
   kGeometry.cpp
-  kGlobalToLocal.cpp
-  kLocalToGlobal.cpp
   kGeometry2D.cpp
-  kIntDiffusionAssemble.cpp
   kGeometry3D.cpp
+  kGlobalToLocal.cpp
+  kIntDiffusionAssemble.cpp
   kIntDiffusionMultAdd.cpp
+  kLocalToGlobal.cpp
 )
- 
-set(HDRS	
+
+set(HDRS
   kGeometry.hpp
   kGlobalToLocal.hpp
   kIntDiffusion.hpp
