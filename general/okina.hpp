@@ -55,7 +55,12 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
    wrap<K>(N, [=] __device__ (size_t i){B}, [=] (size_t i){B})
 
 // *****************************************************************************
+#ifdef _MSC_VER
+#define LOG2(X) ((unsigned) (8*sizeof(unsigned long long)-__lzcnt64((X))))
+#else
 #define LOG2(X) ((unsigned) (8*sizeof(unsigned long long)-__builtin_clzll((X))))
+#endif
+
 #define ISQRT(N) static_cast<unsigned>(sqrt(static_cast<float>(N)))
 #define ICBRT(N) static_cast<unsigned>(cbrt(static_cast<float>(N)))
 #define IROOT(D,N) ((D==1)?N:(D==2)?ISQRT(N):(D==3)?ICBRT(N):0)
