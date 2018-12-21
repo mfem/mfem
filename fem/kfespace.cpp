@@ -119,8 +119,8 @@ void kFiniteElementSpace::GlobalToLocal(const Vector& globalVec,
                   localEntries,
                   offsets,
                   indices,
-                  globalVec,
-                  localVec);
+                  (const double*) globalVec,
+                  (double*) llocalVec);
 }
 
 // ***************************************************************************
@@ -137,8 +137,8 @@ void kFiniteElementSpace::LocalToGlobal(const Vector& localVec,
                   localEntries,
                   offsets,
                   indices,
-                  (const double*)localVec,
-                  globalVec);
+                  (const double*) localVec,
+                  (double*) globalVec);
 }
 
 } // mfem
