@@ -30,6 +30,14 @@
 namespace mfem
 {
 
+void Vector::Push() const {
+   mm::push(data, size*sizeof(double));
+}
+
+void Vector::Pull() const {
+   mm::pull(data, size*sizeof(double));
+}
+
 Vector::Vector(const Vector &v)
 {
    int s = v.Size();
@@ -581,7 +589,7 @@ void Vector::SetSubVectorComplement(const Array<int> &dofs, const double val)
 void Vector::Print(std::ostream &out, int width) const
 {
    if (!size) { return; }
-   mm::pull(data);
+   this->Pull();
    for (int i = 0; 1; )
    {
       out << data[i];

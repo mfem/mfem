@@ -45,8 +45,8 @@ typedef occa::memory OccaMemory;
 #else // MFEM_USE_OCCA *********************************************************
 
 // Typedefs ********************************************************************
-typedef void *OccaDevice;
-typedef void *OccaMemory;
+typedef void* OccaDevice;
+typedef void* OccaMemory;
 
 #endif // MFEM_USE_OCCA
 

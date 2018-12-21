@@ -38,9 +38,8 @@
 template <size_t BLOCK_SZ, typename DBODY, typename HBODY>
 void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 {
-   constexpr bool nvcc = usingNvccCompiler();
-   const bool cuda = mfem::config::usingCuda();
-   if (nvcc and cuda)
+   const bool gpu = mfem::config::usingGpu();
+   if (gpu)
    {
       return cuWrap<BLOCK_SZ>(N,d_body);
    }
@@ -62,17 +61,17 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 #define IROOT(D,N) ((D==1)?N:(D==2)?ISQRT(N):(D==3)?ICBRT(N):0)
 
 // *****************************************************************************
-#define GET_CUDA const bool cuda = config::usingCuda();
-#define GET_ADRS(v) double *d_##v = (double*) mm::adrs(v)
-#define GET_ADRS_T(v,T) T *d_##v = (T*) mm::adrs(v)
-#define GET_CONST_ADRS(v) const double *d_##v = (const double*) mm::adrs(v)
-#define GET_CONST_ADRS_T(v,T) const T *d_##v = (const T*) mm::adrs(v)
+#define GET_GPU const bool gpu = config::usingGpu();
+#define GET_ADRS(v) double *d_##v = (double*) mfem::mm::adrs(v)
+#define GET_ADRS_T(v,T) T *d_##v = (T*) mfem::mm::adrs(v)
+#define GET_CONST_ADRS(v) const double *d_##v = (const double*) mfem::mm::adrs(v)
+#define GET_CONST_ADRS_T(v,T) const T *d_##v = (const T*) mfem::mm::adrs(v)
 
 // *****************************************************************************
 #define BUILTIN_TRAP __builtin_trap()
 #define FILE_LINE __FILE__ and __LINE__
 #define MFEM_CPU_CANNOT_PASS {assert(FILE_LINE and false);}
-#define MFEM_GPU_CANNOT_PASS {assert(FILE_LINE and not config::usingCuda());}
+#define MFEM_GPU_CANNOT_PASS {assert(FILE_LINE and not config::usingGpu());}
 
 // Offsets *********************************************************************
 #define ijN(i,j,N) (i)+(N)*(j)
@@ -94,9 +93,8 @@ void dbg_F_L_F_N_A(const char*, const int, const char*, const int, ...);
 #define _F_L_F_ __FILENAME__,__LINE__,__FUNCTION__
 
 // *****************************************************************************
-#define stk(...) dbg_F_L_F_N_A(_F_L_F_,0)
-#define dbg(...) dbg_F_L_F_N_A(_F_L_F_, N_ARGS(__VA_ARGS__),__VA_ARGS__)
+//#define stk(...) dbg_F_L_F_N_A(_F_L_F_,0)
+//#define dbg(...) dbg_F_L_F_N_A(_F_L_F_, N_ARGS(__VA_ARGS__),__VA_ARGS__)
 
-//#define dbg(...)
-//#define push(...)
+#define dbg(...)
 #endif // MFEM_OKINA_HPP

@@ -115,6 +115,9 @@
 // Enable functionality based on the OCCA library.
 // #define MFEM_USE_OCCA
 
+// Enable functionality based on the Memory Manager
+// #define MFEM_USE_MM
+
 // Version of HYPRE used for building MFEM.
 // #define MFEM_HYPRE_VERSION @MFEM_HYPRE_VERSION@
 
