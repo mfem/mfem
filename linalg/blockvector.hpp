@@ -20,10 +20,11 @@ namespace mfem
 {
 
 //! @class BlockVector
-/*
+/**
  * \brief A class to handle Vectors in a block fashion
  *
- * All data is contained in Vector::data, while blockVector is just a viewer for this data
+ * All data is contained in Vector::data, while blockVector is just a viewer for
+ * this data.
  *
  */
 class BlockVector: public Vector
@@ -35,9 +36,12 @@ protected:
    //! Offset for each block start. (length numBlocks+1)
    /**
     * blockOffsets[i+1] - blockOffsets[i] is the size of block i.
+    *
+    * This array is not owned.
     */
    const int *blockOffsets;
    //! array of Vector objects used to extract blocks without allocating memory.
+   /** This array is owned. */
    Vector *blocks;
 
    void SetBlocks();
