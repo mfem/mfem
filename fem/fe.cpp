@@ -1014,6 +1014,8 @@ void VectorFiniteElement::LocalRestriction_RT(
 #endif
 
    Trans.SetIntPoint(&Geometries.GetCenter(GeomType));
+   const DenseMatrix &J = Trans.Jacobian();
+   const double weight = Trans.Weight();
    for (int j = 0; j < Dof; j++)
    {
       InvertLinearTrans(Trans, Nodes.IntPoint(j), pt);
@@ -1021,8 +1023,48 @@ void VectorFiniteElement::LocalRestriction_RT(
       if (Geometries.CheckPoint(GeomType, ip)) // do we need an epsilon here?
       {
          CalcVShape(ip, vshape);
-         Trans.Jacobian().MultTranspose(nk+Dim*d2n[j], pt_data);
-         pt /= Trans.Weight();
+         J.MultTranspose(nk+Dim*d2n[j], pt_data);
+         pt /= weight;
+         for (int k = 0; k < Dof; k++)
+         {
+            double R_jk = 0.0;
+            for (int d = 0; d < Dim; d++)
+            {
+               R_jk += vshape(k,d)*pt_data[d];
+            }
+            R(j,k) = R_jk;
+         }
+      }
+      else
+      {
+         R(j,0) = infinity();
+      }
+   }
+   R.Threshold(1e-12);
+}
+
+void VectorFiniteElement::LocalRestriction_ND(
+   const double *tk, const Array<int> &d2t, ElementTransformation &Trans,
+   DenseMatrix &R) const
+{
+   double pt_data[Geometry::MaxDim];
+   IntegrationPoint ip;
+   Vector pt(pt_data, Dim);
+
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape(Dof, Dim);
+#endif
+
+   Trans.SetIntPoint(&Geometries.GetCenter(GeomType));
+   const DenseMatrix &Jinv = Trans.InverseJacobian();
+   for (int j = 0; j < Dof; j++)
+   {
+      InvertLinearTrans(Trans, Nodes.IntPoint(j), pt);
+      ip.Set(pt_data, Dim);
+      if (Geometries.CheckPoint(GeomType, ip)) // do we need an epsilon here?
+      {
+         CalcVShape(ip, vshape);
+         Jinv.Mult(tk+Dim*d2t[j], pt_data);
          for (int k = 0; k < Dof; k++)
          {
             double R_jk = 0.0;
