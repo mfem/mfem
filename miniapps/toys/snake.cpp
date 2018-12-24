@@ -185,6 +185,7 @@ int main(int argc, char *argv[])
             }
             sol_sock << flush;
          }
+         sol_sock << "autoscale on\n" << "valuerange -1.5 1\n" << flush;
       }
    }
 
