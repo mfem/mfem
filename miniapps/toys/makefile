@@ -21,6 +21,7 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
+
 SEQ_MINIAPPS = snake
 PAR_MINIAPPS = 
 ifeq ($(MFEM_USE_MPI),NO)
@@ -32,24 +33,28 @@ endif
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
 .PHONY: all clean clean-build clean-exec
+.PRECIOUS: %.o
+
+COMMON_O=../common/fem_extras.o ../common/mesh_extras.o
+
+all: $(MINIAPPS)
 
 # Remove built-in rule
 %: %.cpp
+%.o: %.cpp
 
 # Replace the default implicit rule for *.cpp files
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
-all: $(MINIAPPS)
+# Tools that depend on $(COMMON_O)
+snake: %: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_O) $(MFEM_LIBS)
 
-# Rules to copy the *.mesh files - needed for running the sample runs when
-# building out-of-source:
-ifneq ($(SRC),)
-MESH_FILES = 
-$(MESH_FILES): %: $(SRC)%
-	ln -sf $(<) .
-mesh-optimizer pmesh-optimizer: | $(MESH_FILES)
-endif
+# Rules for compiling dependencies
+$(COMMON_O): %.o: $(SRC)%.cpp $(SRC)%.hpp $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
+
 
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
@@ -78,4 +83,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f snake-init.mesh snake-c*.mesh
+	@rm -f snake-init.mesh snake-joined.mesh snake-c*.mesh
