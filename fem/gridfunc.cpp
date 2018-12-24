@@ -2911,11 +2911,7 @@ double ZZErrorEstimator(BilinearFormIntegrator &blfi,
    int nsd = 1;
    if (with_subdomains)
    {
-      for (int i = 0; i < nfe; i++)
-      {
-         int attr = ufes->GetAttribute(i);
-         if (attr > nsd) { nsd = attr; }
-      }
+      nsd = ufes->GetMesh()->attributes.Max();
    }
 
    double total_error = 0.0;
