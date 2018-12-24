@@ -288,7 +288,7 @@ int main(int argc, char *argv[])
    // Output the initial mesh to a file
    {
       ostringstream oss;
-      oss << "snake_init.mesh";
+      oss << "snake-init.mesh";
       ofstream ofs(oss.str().c_str());
       ofs.precision(8);
       mesh.Print(ofs);
@@ -323,7 +323,7 @@ int main(int argc, char *argv[])
    // Output the resulting mesh to a file
    {
       ostringstream oss;
-      oss << "snake_c" << cfg << ".mesh";
+      oss << "snake-c" << cfg << ".mesh";
       ofstream ofs(oss.str().c_str());
       ofs.precision(8);
       mesh.Print(ofs);
