@@ -215,9 +215,9 @@ int main(int argc, char *argv[])
       // const Operator &P = *fespace->GetProlongationMatrix();
       // P.Print("P.mat");
 
-      ostringstream ossPM; ossPM << "pmesh." << myid;
+      ostringstream ossPM; ossPM << "pmesh." << setfill('0') << setw(6) << myid;
       ofstream ofsPM(ossPM.str());
-      pmesh->Print(ofsPM);
+      pmesh->ParPrint(ofsPM);
       ofsPM.close();
 
       ostringstream ossF; ossF << "face_info." << myid;
@@ -319,6 +319,12 @@ int main(int argc, char *argv[])
       sol_ofs.precision(8);
       x.Save(sol_ofs);
    }
+   /*
+   VisItDataCollection visit_dc("Example3-Parallel-Cube", pmesh);
+   visit_dc.RegisterField("sol", &x);
+   visit_dc.SetFormat(DataCollection::PARALLEL_FORMAT);
+   visit_dc.Save();
+   */
    MPI_Finalize();
    exit(0);
    cout << "Projecting onto x" << endl;
