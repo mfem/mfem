@@ -23,11 +23,13 @@
 //
 
 #include "mfem.hpp"
+#include "../common/mesh_extras.hpp"
 #include <fstream>
 #include <iostream>
 
 using namespace std;
 using namespace mfem;
+using namespace mfem::miniapps;
 
 static int joint_ = 0;
 static int notch_ = 0;
@@ -101,6 +103,8 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+
+   if (!visualization) { anim = false; }
 
    // Define an empty mesh
    Mesh mesh(3, 6 * 24, 24);
@@ -197,11 +201,20 @@ int main(int argc, char *argv[])
       sol_sock << "autoscale on\n" << "valuerange -1.5 1\n" << flush;
    }
 
+   // Join the elements together to form a connected mesh
+   MergeMeshNodes(&mesh, 1);
+
    // Output the resulting mesh to a file
-   if (cfg >= 0)
    {
       ostringstream oss;
-      oss << "snake-c" << cfg << ".mesh";
+      if (cfg >= 0)
+      {
+         oss << "snake-c" << cfg << ".mesh";
+      }
+      else
+      {
+         oss << "snake-joined.mesh";
+      }
       ofstream ofs(oss.str().c_str());
       ofs.precision(8);
       mesh.Print(ofs);
