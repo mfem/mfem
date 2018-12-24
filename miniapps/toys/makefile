@@ -12,7 +12,7 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/meshing/,)
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/toys/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 # Use the MFEM install directory
 # MFEM_INSTALL_DIR = ../../mfem
@@ -21,9 +21,8 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = mobius-strip klein-bottle toroid \
-	mesh-explorer shaper extruder mesh-optimizer
-PAR_MINIAPPS = pmesh-optimizer
+SEQ_MINIAPPS = snake
+PAR_MINIAPPS = 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -46,7 +45,7 @@ all: $(MINIAPPS)
 # Rules to copy the *.mesh files - needed for running the sample runs when
 # building out-of-source:
 ifneq ($(SRC),)
-MESH_FILES = blade.mesh icf.mesh
+MESH_FILES = 
 $(MESH_FILES): %: $(SRC)%
 	ln -sf $(<) .
 mesh-optimizer pmesh-optimizer: | $(MESH_FILES)
@@ -58,21 +57,13 @@ include $(MFEM_TEST_MK)
 # Testing: Parallel vs. serial runs
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 %-test-par: %
-	@$(call mfem-test-file,$<, $(RUN_MPI), Meshing miniapp,$(<).mesh)
+	@$(call mfem-test-file,$<, $(RUN_MPI), Toys miniapp,$(<).mesh)
 %-test-seq: %
-	@$(call mfem-test-file,$<,, Meshing miniapp,$(<).mesh)
-toroid-test-seq: toroid
-	@$(call mfem-test-file,$<,, Meshing miniapp,$(<)-wedge-o3-s0.mesh)
-mesh-optimizer-test-seq: mesh-optimizer
-	@$(call mfem-test,$<,, Meshing miniapp)
-pmesh-optimizer-test-par: pmesh-optimizer
-	@$(call mfem-test,$<, $(RUN_MPI), Parallel meshing miniapp)
+	@$(call mfem-test-file,$<,, Toys miniapp,$(<).mesh)
+snake-test-seq: snake
+	@$(call mfem-test-file,$<,, Toys miniapp,$(<)-c0.mesh)
 
 # Testing: Specific execution options
-mesh-explorer-test-seq:
-	@true
-shaper-test-seq:
-	@true
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
@@ -83,13 +74,8 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ mobius-strip klein-bottle toroid
-	rm -f mesh-explorer shaper extruder
-	rm -f mesh-optimizer pmesh-optimizer
+	rm -f *.o *~ snake
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f mobius-strip.mesh klein-bottle.mesh mesh-explorer.mesh
-	@rm -f toroid-*.mesh
-	@rm -f partitioning.txt shaper.mesh extruder.mesh
-	@rm -f optimized* perturbed*
+	@rm -f snake-init.mesh snake-c*.mesh

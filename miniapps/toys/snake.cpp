@@ -64,7 +64,8 @@ static int conf[7][23] =
    /* Cobra      */ {
       2,0,0,2,1,3,0,2,
       0,2,3,0,1,3,2,1,
-      1,2,3,1,0,3,0}
+      1,2,3,1,0,3,0
+   }
 };
 
 void trans(const int * conf, Mesh & mesh);
@@ -75,7 +76,6 @@ int main(int argc, char *argv[])
 {
    int cfg = -1;
    bool anim = true;
-   bool bb_elems = true;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -83,9 +83,6 @@ int main(int argc, char *argv[])
    args.AddOption(&anim, "-anim", "--animation", "-no-anim",
                   "--no-animation",
                   "Enable or disable GLVis animation.");
-   args.AddOption(&bb_elems, "-bb", "--bounding-box", "-no-bb",
-                  "--no-bounding-box",
-                  "Enable or disable bounding box elements.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -98,8 +95,7 @@ int main(int argc, char *argv[])
    args.PrintOptions(cout);
 
    // Define an empty mesh
-   Mesh mesh(3, 6 * (24 + (anim && bb_elems ? 8 : 0)),
-	     24 + (anim && bb_elems? 8 : 0));
+   Mesh mesh(3, 6 * 24, 24);
 
    // Add vertices for 24 elements
    double c[9];
@@ -142,147 +138,12 @@ int main(int argc, char *argv[])
       mesh.AddWedge(v);
    }
 
-   // Add additional elements to define a fixed bounding box
-   // -6 <= x <= 17, -11 <= y <=12, -6 <= z <= 17
-   if (anim && bb_elems)
-   {
-      double w = 1e-2;
-      c[0] = -6;   c[1] = -11;   c[2] = -6;
-      c[3] = -6+w; c[4] = -11;   c[5] = -6;
-      c[6] = -6;   c[7] = -11+w; c[8] = -6;
-
-      mesh.AddVertex(&c[0]);
-      mesh.AddVertex(&c[3]);
-      mesh.AddVertex(&c[6]);
-
-      c[2] = -6+w; c[5] = -6+w; c[8] = -6+w;
-      mesh.AddVertex(&c[0]);
-      mesh.AddVertex(&c[3]);
-      mesh.AddVertex(&c[6]);
-
-      for (int j=0; j<6; j++) { v[j] = 144 + j; }
-      mesh.AddWedge(v);
-
-      c[0] = 17;   c[1] = -11;   c[2] = -6;
-      c[3] = 17;   c[4] = -11+w; c[5] = -6;
-      c[6] = 17-w; c[7] = -11;   c[8] = -6;
-
-      mesh.AddVertex(&c[0]);
-      mesh.AddVertex(&c[3]);
-      mesh.AddVertex(&c[6]);
-
-      c[2] = -6+w; c[5] = -6+w; c[8] = -6+w;
-      mesh.AddVertex(&c[0]);
-      mesh.AddVertex(&c[3]);
-      mesh.AddVertex(&c[6]);
-
-      for (int j=0; j<6; j++) { v[j] = 150 + j; }
-      mesh.AddWedge(v);
-
-      c[0] = 17;   c[1] = 12;   c[2] = -6;
-      c[3] = 17-w; c[4] = 12;   c[5] = -6;
-      c[6] = 17;   c[7] = 12-w; c[8] = -6;
-
-      mesh.AddVertex(&c[0]);
-      mesh.AddVertex(&c[3]);
-      mesh.AddVertex(&c[6]);
-
-      c[2] = -6+w; c[5] = -6+w; c[8] = -6+w;
-      mesh.AddVertex(&c[0]);
-      mesh.AddVertex(&c[3]);
-      mesh.AddVertex(&c[6]);
-
-      for (int j=0; j<6; j++) { v[j] = 156 + j; }
-      mesh.AddWedge(v);
-
-      c[0] = -6;   c[1] = 12;   c[2] = -6;
-      c[3] = -6;   c[4] = 12-w; c[5] = -6;
-      c[6] = -6+w; c[7] = 12;   c[8] = -6;
-
-      mesh.AddVertex(&c[0]);
-      mesh.AddVertex(&c[3]);
-      mesh.AddVertex(&c[6]);
-
-      c[2] = -6+w; c[5] = -6+w; c[8] = -6+w;
-      mesh.AddVertex(&c[0]);
-      mesh.AddVertex(&c[3]);
-      mesh.AddVertex(&c[6]);
-
-      for (int j=0; j<6; j++) { v[j] = 162 + j; }
-      mesh.AddWedge(v);
-
-      //
-      c[0] = -6;   c[1] = -11;   c[2] = 17-w;
-      c[3] = -6+w; c[4] = -11;   c[5] = 17-w;
-      c[6] = -6;   c[7] = -11+w; c[8] = 17-w;
-
-      mesh.AddVertex(&c[0]);
-      mesh.AddVertex(&c[3]);
-      mesh.AddVertex(&c[6]);
-
-      c[2] = 17; c[5] = 17; c[8] = 17;
-      mesh.AddVertex(&c[0]);
-      mesh.AddVertex(&c[3]);
-      mesh.AddVertex(&c[6]);
-
-      for (int j=0; j<6; j++) { v[j] = 168 + j; }
-      mesh.AddWedge(v);
-
-      c[0] = 17;   c[1] = -11;   c[2] = 17-w;
-      c[3] = 17;   c[4] = -11+w; c[5] = 17-w;
-      c[6] = 17-w; c[7] = -11;   c[8] = 17-w;
-
-      mesh.AddVertex(&c[0]);
-      mesh.AddVertex(&c[3]);
-      mesh.AddVertex(&c[6]);
-
-      c[2] = 17; c[5] = 17; c[8] = 17;
-      mesh.AddVertex(&c[0]);
-      mesh.AddVertex(&c[3]);
-      mesh.AddVertex(&c[6]);
-
-      for (int j=0; j<6; j++) { v[j] = 174 + j; }
-      mesh.AddWedge(v);
-
-      c[0] = 17;   c[1] = 12;   c[2] = 17-w;
-      c[3] = 17-w; c[4] = 12;   c[5] = 17-w;
-      c[6] = 17;   c[7] = 12-w; c[8] = 17-w;
-
-      mesh.AddVertex(&c[0]);
-      mesh.AddVertex(&c[3]);
-      mesh.AddVertex(&c[6]);
-
-      c[2] = 17; c[5] = 17; c[8] = 17;
-      mesh.AddVertex(&c[0]);
-      mesh.AddVertex(&c[3]);
-      mesh.AddVertex(&c[6]);
-
-      for (int j=0; j<6; j++) { v[j] = 180 + j; }
-      mesh.AddWedge(v);
-
-      c[0] = -6;   c[1] = 12;   c[2] = 17-w;
-      c[3] = -6;   c[4] = 12-w; c[5] = 17-w;
-      c[6] = -6+w; c[7] = 12;   c[8] = 17-w;
-
-      mesh.AddVertex(&c[0]);
-      mesh.AddVertex(&c[3]);
-      mesh.AddVertex(&c[6]);
-
-      c[2] = 17; c[5] = 17; c[8] = 17;
-      mesh.AddVertex(&c[0]);
-      mesh.AddVertex(&c[3]);
-      mesh.AddVertex(&c[6]);
-
-      for (int j=0; j<6; j++) { v[j] = 186 + j; }
-      mesh.AddWedge(v);
-   }
-   
    mesh.FinalizeTopology();
 
    FiniteElementCollection *fec = new L2_FECollection(0, 3, 1);
    FiniteElementSpace fespace(&mesh, fec);
    GridFunction color(&fespace);
-   color = 0.0;
+
    for (int i=0; i<24; i++) { color[i] = (i%2)?1.0:-1.0; }
 
    // Output the initial mesh to a file
@@ -304,8 +165,9 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       socketstream sol_sock(vishost, visport);
       sol_sock.precision(8);
-      sol_sock << "solution\n" << mesh << color
-	       << "keys gmppppppppppppppppppppp\n" << flush;
+      sol_sock << "solution\n" << mesh << color << "keys Am\n"
+               << "palette 22\n" << "valuerange -1.5 1\n"
+               << "autoscale off\n" << flush;
 
       if (anim)
       {
@@ -315,7 +177,13 @@ int main(int argc, char *argv[])
 
          while (anim_step(conf[cfg], mesh))
          {
-            sol_sock << "solution\n" << mesh << color << flush;
+            static int turn = 0;
+            sol_sock << "solution\n" << mesh << color;
+            if (turn++ % 2 == 0)
+            {
+               sol_sock << "pause\n";
+            }
+            sol_sock << flush;
          }
       }
    }
