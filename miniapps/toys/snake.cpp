@@ -13,6 +13,14 @@
 //           Snake Miniapp:  Model of the Rubik's Snake_TM Puzzle
 //           ----------------------------------------------------
 //
+// This miniapp provides a light-hearted example of mesh manipulation and
+// GLVis integration.
+//
+// Compile with: make snake
+//
+// Sample runs: snake
+//              snake -c 0
+//
 
 #include "mfem.hpp"
 #include <fstream>
@@ -169,7 +177,7 @@ int main(int argc, char *argv[])
                << "palette 22\n" << "valuerange -1.5 1\n"
                << "autoscale off\n" << flush;
 
-      if (anim)
+      if (cfg >= 0 && anim)
       {
          sol_sock << "pause\n" << flush;
          cout << "GLVis visualization paused."
@@ -185,11 +193,12 @@ int main(int argc, char *argv[])
             }
             sol_sock << flush;
          }
-         sol_sock << "autoscale on\n" << "valuerange -1.5 1\n" << flush;
       }
+      sol_sock << "autoscale on\n" << "valuerange -1.5 1\n" << flush;
    }
 
    // Output the resulting mesh to a file
+   if (cfg >= 0)
    {
       ostringstream oss;
       oss << "snake-c" << cfg << ".mesh";
