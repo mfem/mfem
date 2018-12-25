@@ -22,7 +22,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 
-SEQ_MINIAPPS = snake
+SEQ_MINIAPPS = elem_ca gol mandelbrot rubik snake
 PAR_MINIAPPS = 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
