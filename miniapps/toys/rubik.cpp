@@ -19,7 +19,13 @@
 // Compile with: make rubik
 //
 // Sample runs: rubik
-//              echo "x21\ny21\nx23\ny23\nq\n" | ./rubik
+//              echo "x21 y21 x23 y23 q\n" | ./rubik
+//              echo "x22 z21 x22 z23 q\n" | ./rubik
+//              echo "x22 y22 z22 q\n" | ./rubik
+//
+// Other interesting patterns:
+//  "x13 x31 y13 y31 x13 x31 y13 y31 x13 x31 y13 y31"
+//  "y13 z11 y11 x31 z13 y11 x33 z13 x31 z13 x11 y13 x13 z13 x33 y13 z11"
 //
 
 #include "mfem.hpp"
@@ -212,7 +218,7 @@ int main(int argc, char *argv[])
       {
          char dir;
          int ind, deg;
-         cout << "\nEnter direction (x, y, z), tier index (1, 2, 3), and rotation (0, 1, 2, 3) with no spaces: ";
+         cout << "Enter direction (x, y, z), tier index (1, 2, 3), and rotation (0, 1, 2, 3) with no spaces: ";
          cin >> dir;
          if ( dir == 'x' || dir == 'y' || dir == 'z' )
          {
@@ -396,8 +402,6 @@ anim_step(char dir, int deg, Mesh & mesh)
 
 void mark_elements(Mesh & mesh, char dir, int ind)
 {
-   cout << "Marking elements according to " << dir << " " << ind << endl;
-
    double xData[3];
    Vector x(xData,3);
 
@@ -453,5 +457,4 @@ void mark_elements(Mesh & mesh, char dir, int ind)
             break;
       }
    }
-   cout << "Found " << count << " elements." << endl;
 }
