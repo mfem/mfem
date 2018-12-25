@@ -323,6 +323,9 @@ public:
                           Array<IntegrationPoint>& ips, bool warn = true,
                           InverseElementTransformation *inv_trans = NULL);
 
+   /// Debugging method
+   void PrintSharedEntities(const char *fname_prefix) const;
+
    virtual ~ParMesh();
 
    friend class ParNCMesh;

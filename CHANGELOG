@@ -49,6 +49,10 @@ Other meshing improvements
 - Added support for reading linear and quadratic 2D quadrilateral and triangular
   Cubit meshes.
 
+- The TMOP mesh optimization algorithms were extended to support user-defined
+  space-dependent limiting terms. Improved the TMOP objective functions by
+  more accurate normalization of the different terms.
+  
 Discretization improvements
 ---------------------------
 - Added element flux, and flux energy computation in class ElasticityIntegrator,
@@ -80,6 +84,8 @@ New and updated examples and miniapps
 
 Miscellaneous
 -------------
+- Added unit tests based on the Catch++ library.
+
 - Altered the way FGMRES counts its iterations so that it matches GMRES.
 
 - Various other simplifications, extensions, and bugfixes in the code.
