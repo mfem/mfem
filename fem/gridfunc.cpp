@@ -729,8 +729,8 @@ void GridFunction::GetBdrValuesFrom(const GridFunction &orig_func)
    // Without averaging ...
 
    const FiniteElementSpace *orig_fes = orig_func.FESpace();
-   DofTransformation * doftrans;
-   DofTransformation * orig_doftrans;
+   // DofTransformation * doftrans;
+   // DofTransformation * orig_doftrans;
    Array<int> vdofs, orig_vdofs;
    Vector shape, loc_values, loc_values_t, orig_loc_values, orig_loc_values_t;
    int i, j, d, nbe, dof, odof, vdim;
@@ -1873,7 +1873,7 @@ void GridFunction::ProjectCoefficient(Coefficient *coeff[])
    double val;
    const FiniteElement *fe;
    ElementTransformation *transf;
-   DofTransformation * doftrans;
+   // DofTransformation * doftrans;
    Array<int> vdofs;
 
    vdim = fes->GetVDim();
@@ -1883,7 +1883,8 @@ void GridFunction::ProjectCoefficient(Coefficient *coeff[])
       fdof = fe->GetDof();
       transf = fes->GetElementTransformation(i);
       const IntegrationRule &ir = fe->GetNodes();
-      doftrans = fes->GetElementVDofs(i, vdofs);
+      // doftrans = fes->GetElementVDofs(i, vdofs);
+      fes->GetElementVDofs(i, vdofs);
       for (j = 0; j < fdof; j++)
       {
          const IntegrationPoint &ip = ir.IntPoint(j);
