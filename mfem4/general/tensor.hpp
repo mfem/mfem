@@ -12,6 +12,8 @@
 #ifndef MFEM4_TENSOR_HPP
 #define MFEM4_TENSOR_HPP
 
+#include "buffer.hpp"
+
 namespace mfem4
 {
 
@@ -21,8 +23,13 @@ template<int DIM, typename T = double>
 class Tensor
 {
 public:
+   Tensor() : data(NULL), buffer()
+   {
+      for (int i = 0; i < DIM; i++) { size[i] = stride[i] = 0; }
+   }
+
    Tensor(int size0, int size1 = 1, int size2 = 1, int size3 = 1) // FIXME: C++11
-      : data(NULL)
+      : data(NULL), buffer()
    {
       Resize(size0, size1, size2, size3);
    }
@@ -76,9 +83,9 @@ public:
    int Size(int i) const { return size[i]; }
 
 protected:
-   T *data, *mirror;
+   T *data;
    int size[DIM], stride[DIM];
-   //bool own;
+   Buffer buffer;
 
    void Init(int size0, int size1, int size2, int size3)
    {
@@ -96,13 +103,14 @@ class DeviceTensor : public Tensor
 {
 public:
    DeviceTensor(const Tensor<DIM, T> &tensor)
+      : buffer(tensor.buffer)
    {
       std::memcpy(&tensor, this, sizeof(*this));
-      if (gpu)
+      /*if (gpu)
       {
          // TODO: allocate and copy to GPU mirror
          std::swap(data, mirror);
-      }
+      }*/
    }
 
 
@@ -110,3 +118,5 @@ public:
 
 
 } // namespace mfem4
+
+#endif // MFEM4_TENSOR_HPP

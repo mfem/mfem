@@ -288,6 +288,11 @@ public:
 #endif
 };
 
+
+class DeviceVector : Vector
+{
+};
+
 // Inline methods
 
 inline bool IsFinite(const double &val)

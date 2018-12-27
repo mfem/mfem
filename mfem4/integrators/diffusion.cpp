@@ -294,7 +294,7 @@ void DiffusionIntegrator::MultAdd(const AssemblyData &assembly,
 
    if (ad->dim == 2)
    {
-      void* call;
+      fDiffusionMultAdd* call;
       switch (key)
       {
          case 0x0101: call = DiffusionMultAdd2D<1, 1>; break;
@@ -304,12 +304,12 @@ void DiffusionIntegrator::MultAdd(const AssemblyData &assembly,
          default:     call = DiffusionMultAdd2D<0, 0, 10, 10>; break;
       }
 
-      ((fDiffusionMultAdd) call)(num_elements, num_dofs_1d, num_quad_1d,
-                                 ad->dof_quad, ad->dof_quad_d,
-                                 ad->quad_dof, ad->quad_dof_d,
-                                 ad->oper,
-                                 TODO);
-
+      call(num_elements, num_dofs_1d, num_quad_1d,
+           ad->dof_quad, ad->dof_quad_d,
+           ad->quad_dof, ad->quad_dof_d,
+           ad->oper,
+           DeviceVector(x),
+           DeviceVector(y, NoCopy()));
    }
    /*else if (ad->dim == 3)
    {
