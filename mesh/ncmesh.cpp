@@ -43,7 +43,7 @@ void NCMesh::GeomInfo::Initialize(const mfem::Element* elem)
 
    nv = elem->GetNVertices();
    ne = elem->GetNEdges();
-   nf = elem->GetNFaces(nfv);
+   nf = elem->GetNFaces();
 
    for (int i = 0; i < ne; i++)
    {
@@ -54,7 +54,10 @@ void NCMesh::GeomInfo::Initialize(const mfem::Element* elem)
    }
    for (int i = 0; i < nf; i++)
    {
-      for (int j = 0; j < nfv; j++)
+      // invalid node index for 3-node faces
+      faces[i][3] = 7;
+
+      for (int j = 0; j < elem->GetNFaceVertices(i); j++)
       {
          faces[i][j] = elem->GetFaceVertices(i)[j];
       }
@@ -128,9 +131,11 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
       Geometry::Type geom = elem->GetGeometryType();
       if (geom != Geometry::TRIANGLE &&
           geom != Geometry::SQUARE &&
-          geom != Geometry::CUBE)
+          geom != Geometry::CUBE &&
+          geom != Geometry::PRISM)
       {
-         MFEM_ABORT("only triangles, quads and hexes are supported by NCMesh.");
+         MFEM_ABORT("Only triangles, quads, hexes and prisms are supported "
+                    "by NCMesh.");
       }
 
       // initialize edge/face tables for this type of element
@@ -164,6 +169,12 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
       if (be->GetType() == mfem::Element::QUADRILATERAL)
       {
          Face* face = faces.Find(v[0], v[1], v[2], v[3]);
+         MFEM_VERIFY(face, "boundary face not found.");
+         face->attribute = be->GetAttribute();
+      }
+      else if (be->GetType() == mfem::Element::TRIANGLE)
+      {
+         Face* face = faces.Find(v[0], v[1], v[2]);
          MFEM_VERIFY(face, "boundary face not found.");
          face->attribute = be->GetAttribute();
       }
@@ -1635,16 +1646,26 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
    for (int i = 0; i < mesh->GetNumFaces(); i++)
    {
       const int* fv = mesh->GetFace(i)->GetVertices();
+      const int nfv = mesh->GetFace(i)->GetNVertices();
+
       Face* face;
       if (Dim == 3)
       {
-         MFEM_ASSERT(mesh->GetFace(i)->GetNVertices() == 4, "");
-         face = faces.Find(vertex_nodeId[fv[0]], vertex_nodeId[fv[1]],
-                           vertex_nodeId[fv[2]], vertex_nodeId[fv[3]]);
+         if (nfv == 4)
+         {
+            face = faces.Find(vertex_nodeId[fv[0]], vertex_nodeId[fv[1]],
+                              vertex_nodeId[fv[2]], vertex_nodeId[fv[3]]);
+         }
+         else
+         {
+            MFEM_ASSERT(nfv == 3, "");
+            face = faces.Find(vertex_nodeId[fv[0]], vertex_nodeId[fv[1]],
+                              vertex_nodeId[fv[2]]);
+         }
       }
       else
       {
-         MFEM_ASSERT(mesh->GetFace(i)->GetNVertices() == 2, "");
+         MFEM_ASSERT(nfv == 2, "");
          int n0 = vertex_nodeId[fv[0]], n1 = vertex_nodeId[fv[1]];
          face = faces.Find(n0, n0, n1, n1); // look up degenerate face
 
@@ -1655,7 +1676,7 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
                      (ev[1] == fv[0] && ev[0] == fv[1]), "");
 #endif
       }
-      MFEM_ASSERT(face, "face not found.");
+      MFEM_VERIFY(face, "face not found.");
       face->index = i;
    }
 

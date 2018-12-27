@@ -722,9 +722,9 @@ protected: // implementation
        (triangles, quads, cubes) */
    struct GeomInfo
    {
-      int nv, ne, nf, nfv; // number of: vertices, edges, faces, face vertices
-      int edges[12][2];    // edge vertices (up to 12 edges)
-      int faces[6][4];     // face vertices (up to 6 faces)
+      int nv, ne, nf;   // number of: vertices, edges, faces
+      int edges[12][2]; // edge vertices (up to 12 edges)
+      int faces[6][4];  // face vertices (up to 6 faces)
 
       bool initialized;
       GeomInfo() : initialized(false) {}

@@ -7084,8 +7084,9 @@ void Mesh::EnsureNCMesh(bool triangles_nonconforming)
 
    if (!ncmesh)
    {
-      if ((meshgen & 2) /* quads/hexes */ ||
-          (triangles_nonconforming && Dim == 2 && (meshgen & 1)))
+      if ((meshgen & 0x2) /* quads/hexes */ ||
+          (meshgen & 0x4) /* wedges */ ||
+          (triangles_nonconforming && Dim == 2 && (meshgen & 0x1)))
       {
          MFEM_VERIFY(GetNumGeometries(Dim) <= 1,
                      "mixed meshes are not supported");
