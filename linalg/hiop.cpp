@@ -310,7 +310,7 @@ void HiopNlpOptimizer::Mult(const Vector &xt, Vector &x) const
    final_norm = solver.getObjective();
    final_iter = solver.getNumIterations();
 
-   if (status != hiop::Solve_Success)
+   if (status != hiop::Solve_Success && status != hiop::Solve_Success_RelTol)
    {
       converged = false;
       MFEM_WARNING("HIOP returned with a non-success status: " << status);
