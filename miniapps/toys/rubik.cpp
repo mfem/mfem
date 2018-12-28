@@ -26,7 +26,6 @@
 // Other interesting patterns:
 //  "x13 x31 y13 y31 x13 x31 y13 y31 x13 x31 y13 y31"
 //  "y13 z11 y11 x31 z13 y11 x33 z13 x31 z13 x11 y13 x13 z13 x33 y13 z11"
-//
 
 #include "mfem.hpp"
 #include "../common/mesh_extras.hpp"
@@ -276,23 +275,8 @@ int main(int argc, char *argv[])
    //MergeMeshNodes(&mesh, 1);
 
    // Output the resulting mesh to a file
-   /*
-   {
-      ostringstream oss;
-      if (cfg >= 0)
-      {
-         oss << "snake-c" << cfg << ".mesh";
-      }
-      else
-      {
-         oss << "snake-joined.mesh";
-      }
-      ofstream ofs(oss.str().c_str());
-      ofs.precision(8);
-      mesh.Print(ofs);
-      ofs.close();
-   }
-   */
+   // ...
+
    // Clean up and exit
    return 0;
 }
