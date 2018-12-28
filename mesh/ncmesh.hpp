@@ -482,13 +482,16 @@ protected: // implementation
    }
 
    int NewHexahedron(int n0, int n1, int n2, int n3,
-                     int n4, int n5, int n6, int n7,
-                     int attr,
+                     int n4, int n5, int n6, int n7, int attr,
                      int fattr0, int fattr1, int fattr2,
                      int fattr3, int fattr4, int fattr5);
 
-   int NewQuadrilateral(int n0, int n1, int n2, int n3,
-                        int attr,
+   int NewWedge(int n0, int n1, int n2,
+                int n3, int n4, int n5, int attr,
+                int fattr0, int fattr1,
+                int fattr2, int fattr3, int fattr4);
+
+   int NewQuadrilateral(int n0, int n1, int n2, int n3, int attr,
                         int eattr0, int eattr1, int eattr2, int eattr3);
 
    int NewTriangle(int n0, int n1, int n2,
@@ -735,7 +738,7 @@ protected: // implementation
 
    static GeomInfo GI[Geometry::NumGeom];
 
-   static GeomInfo &gi_hex, &gi_quad, &gi_tri;
+   static GeomInfo &gi_hex, &gi_wedge, &gi_quad, &gi_tri;
 
 #ifdef MFEM_DEBUG
 public:
