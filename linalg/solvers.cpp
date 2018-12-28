@@ -1517,7 +1517,7 @@ int OptimizationProblem::GetNumConstraints() const
 
 void SLBQPOptimizer::SetOptimizationProblem(OptimizationProblem &prob)
 {
-   if (print_level == 3)
+   if (print_level > 1)
    {
       MFEM_WARNING("Objective functional is ignored as SLBQP always minimizes"
                    "the l2 norm of (x - x_target).");
