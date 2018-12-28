@@ -1727,6 +1727,7 @@ int NCMesh::find_node(const Element &el, int node)
 int NCMesh::find_element_edge(const Element &el, int vn0, int vn1)
 {
    MFEM_ASSERT(!el.ref_type, "");
+
    GeomInfo &gi = GI[(int) el.geom];
    for (int i = 0; i < gi.ne; i++)
    {
@@ -1736,15 +1737,53 @@ int NCMesh::find_element_edge(const Element &el, int vn0, int vn1)
       if ((n0 == vn0 && n1 == vn1) ||
           (n0 == vn1 && n1 == vn0)) { return i; }
    }
-   MFEM_ABORT("Edge not found");
+
+   MFEM_ABORT("Edge (" << vn0 << ", " << vn1 << ") not found");
    return -1;
 }
+
+/*int NCMesh::find_element_face(const Element &el, int vn0, int vn1, int vn2)
+{
+   MFEM_ASSERT(!el.ref_type, "");
+   internal::sort3(vn0, vn1, vn2);
+
+   GeomInfo &gi = GI[(int) el.geom];
+   for (int i = 0; i < gi.nf; i++)
+   {
+      const int* fv = gi.faces[i];
+      int node[4] = {el.node[fv[0]], el.node[fv[1]],
+                     el.node[fv[2]], el.node[fv[3]]};
+
+      internal::sort4_ext(node[0], node[1], node[2], node[3]);
+      if (node[0] == vn0 && node[1] == vn1 && node[2] == vn2) { return i; }
+   }
+
+   MFEM_ABORT("Face (" << vn0 << ", " << vn1 << ", " << vn2 << ") not found");
+   return -1;
+}*/
 
 int NCMesh::find_hex_face(int a, int b, int c)
 {
    for (int i = 0; i < 6; i++)
    {
       const int* fv = gi_hex.faces[i];
+      if ((a == fv[0] || a == fv[1] || a == fv[2] || a == fv[3]) &&
+          (b == fv[0] || b == fv[1] || b == fv[2] || b == fv[3]) &&
+          (c == fv[0] || c == fv[1] || c == fv[2] || c == fv[3]))
+      {
+         return i;
+      }
+   }
+   MFEM_ABORT("Face not found.");
+   return -1;
+}
+
+int NCMesh::find_local_face(int geom, int a, int b, int c)
+{
+   GeomInfo &gi = GI[geom];
+   for (int i = 0; i < gi.nf; i++)
+   {
+      const int* fv = gi.faces[i];
       if ((a == fv[0] || a == fv[1] || a == fv[2] || a == fv[3]) &&
           (b == fv[0] || b == fv[1] || b == fv[2] || b == fv[3]) &&
           (c == fv[0] || c == fv[1] || c == fv[2] || c == fv[3]))
@@ -1766,7 +1805,8 @@ int NCMesh::ReorderFacePointMat(int v0, int v1, int v2, int v3,
       find_node(el, v2), find_node(el, v3)
    };
 
-   int local = find_hex_face(master[0], master[1], master[2]);
+   //int local = find_hex_face(master[0], master[1], master[2]);
+   int local = find_local_face(el.geom, master[0], master[1], master[2]);
    const int* fv = gi_hex.faces[local];
 
    DenseMatrix tmp(mat);
@@ -3132,11 +3172,12 @@ void NCMesh::FindFaceNodes(int face, int node[4])
    MFEM_ASSERT(elem >= 0, "Face has no elements?");
 
    Element &el = elements[elem];
-   int f = find_hex_face(find_node(el, fa.p1),
-                         find_node(el, fa.p2),
-                         find_node(el, fa.p3));
+   int f = find_local_face(el.geom,
+                           find_node(el, fa.p1),
+                           find_node(el, fa.p2),
+                           find_node(el, fa.p3));
 
-   const int* fv = GI[Geometry::CUBE].faces[f];
+   const int* fv = GI[el.geom].faces[f];
    for (int i = 0; i < 4; i++)
    {
       node[i] = el.node[fv[i]];
@@ -3160,12 +3201,13 @@ void NCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
          {
             int node[4];
             FindFaceNodes(face, node);
+            int nfv = (node[3] < 0) ? 3 : 4;
 
-            for (int j = 0; j < 4; j++)
+            for (int j = 0; j < nfv; j++)
             {
                bdr_vertices.Append(nodes[node[j]].vert_index);
 
-               int enode = nodes.FindId(node[j], node[(j+1) % 4]);
+               int enode = nodes.FindId(node[j], node[(j+1) % nfv]);
                MFEM_ASSERT(enode >= 0 && nodes[enode].HasEdge(), "Edge not found.");
                bdr_edges.Append(nodes[enode].edge_index);
 

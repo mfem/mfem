@@ -533,7 +533,9 @@ protected: // implementation
 
    static int find_node(const Element &el, int node);
    static int find_element_edge(const Element &el, int vn0, int vn1);
+   //static int find_element_face(const Element &el, int vn0, int vn1, int vn2);
    static int find_hex_face(int a, int b, int c);
+   static int find_local_face(int geom, int a, int b, int c);
 
    int ReorderFacePointMat(int v0, int v1, int v2, int v3,
                            int elem, DenseMatrix& mat) const;
