@@ -67,6 +67,8 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 	@$(call mfem-test-file,$<,, Toys miniapp,$(<).mesh)
 snake-test-seq: snake
 	@$(call mfem-test-file,$<,, Toys miniapp,$(<)-c0.mesh)
+rubik-test-seq: rubik
+	@$(call mfem-test-file,$<,, Toys miniapp,$(<)-init.mesh)
 
 # Testing: Specific execution options
 
@@ -79,8 +81,10 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ snake
+	rm -f *.o *~ automata life mandel rubik snake
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
 	@rm -f snake-init.mesh snake-joined.mesh snake-c*.mesh
+	@rm -f automata.gf automata.mesh rubik-init.mesh mandel.mesh
+	@rm -f life.gf life.mesh

@@ -73,6 +73,7 @@ int main(int argc, char *argv[])
    int nclimit = 1;
    const char *mesh_file = "../../data/inline-quad.mesh";
    bool aniso = false;
+   bool visualization = 1;
 
    // Parse command line
    OptionsParser args(argc, argv);
@@ -84,6 +85,9 @@ int main(int argc, char *argv[])
                   "Level of hanging nodes allowed (-1 = unlimited).");
    args.AddOption(&aniso, "-a", "--aniso", "-i", "--iso",
                   "Enable anisotropic refinement of quads and hexes.");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.Parse();
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    args.PrintOptions(cout);
@@ -112,10 +116,14 @@ int main(int argc, char *argv[])
    GridFunction attr(&attr_fespace);
 
    // GLVis server to visualize to
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-   socketstream sol_sock(vishost, visport);
-   sol_sock.precision(8);
+   socketstream sol_sock;
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      sol_sock.open(vishost, visport);
+      sol_sock.precision(8);
+   }
 
    // Shaping loop
    for (int iter = 0; 1; iter++)
@@ -195,24 +203,28 @@ int main(int argc, char *argv[])
       }
 
       // Visualization
-      sol_sock << "solution\n" << mesh << attr;
-      if (iter == 0 && sdim == 2)
+      if (visualization)
       {
-         sol_sock << "keys 'RjlppppppppppppppA*************'\n";
+         sol_sock << "solution\n" << mesh << attr;
+         if (iter == 0 && sdim == 2)
+         {
+            sol_sock << "keys 'RjlppppppppppppppA*************'\n";
+         }
+         if (iter == 0 && sdim == 3)
+         {
+            sol_sock << "keys 'YYYYYYYYYXXXXXXXmA********8888888pppttt";
+            if (dim == 3) { sol_sock << "iiM"; }
+            sol_sock << "'\n";
+         }
+         sol_sock << flush;
       }
-      if (iter == 0 && sdim == 3)
-      {
-         sol_sock << "keys 'YYYYYYYYYXXXXXXXmA********8888888pppttt";
-         if (dim == 3) { sol_sock << "iiM"; }
-         sol_sock << "'\n";
-      }
-      sol_sock << flush;
 
       // Ask the user if we should continue refining
       cout << "Iteration " << iter+1 << ": mesh has " << mesh.GetNE() <<
            " elements. \n";
-      if ((iter+1) % 4 == 0 )
+      if ((iter+1) % 4 == 0)
       {
+         if (!visualization) { break; }
          char yn;
          cout << "Continue shaping? --> ";
          cin >> yn;
