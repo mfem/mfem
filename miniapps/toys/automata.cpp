@@ -1,6 +1,26 @@
-//                                MFEM Example
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
 //
-// Compile with: make ex_ca
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
+//
+//         ----------------------------------------------------
+//         Automata Miniapp:  Model of simple cellular automata
+//         ----------------------------------------------------
+//
+// This miniapp provides a light-hearted example of mesh manipulation and
+// GLVis integration.
+//
+// Compile with: make automata
+//
+// Sample runs: automata
+//              automata -r 110 -ns 60
+//              automata -r 30 -ns 100
 
 #include "mfem.hpp"
 #include <fstream>

@@ -19,8 +19,7 @@
 // Compile with: make snake
 //
 // Sample runs: snake
-//              snake -c 0
-//
+//              snake -c 6
 
 #include "mfem.hpp"
 #include "../common/mesh_extras.hpp"
@@ -39,7 +38,7 @@ static int nstep_ = 6;
 static double cosa_ = cos(0.5 * M_PI / nstep_);
 static double sina_ = sin(0.5 * M_PI / nstep_);
 
-static int conf[13][23] =
+static int conf[][23] =
 {
    /* Ball       */ {
       3,1,3,3,1,3,1,1,
@@ -114,7 +113,7 @@ bool anim_step(const int * conf, Mesh & mesh);
 
 int main(int argc, char *argv[])
 {
-   int cfg = -1;
+   int cfg = 0;
    bool anim = true;
    bool visualization = true;
 
