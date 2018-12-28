@@ -33,9 +33,10 @@ const DenseTensor &CoarseFineTransformations::GetPointMatrices(
 
 NCMesh::GeomInfo NCMesh::GI[Geometry::NumGeom];
 
-NCMesh::GeomInfo& NCMesh::gi_hex  = NCMesh::GI[Geometry::CUBE];
-NCMesh::GeomInfo& NCMesh::gi_quad = NCMesh::GI[Geometry::SQUARE];
-NCMesh::GeomInfo& NCMesh::gi_tri  = NCMesh::GI[Geometry::TRIANGLE];
+NCMesh::GeomInfo& NCMesh::gi_hex   = NCMesh::GI[Geometry::CUBE];
+NCMesh::GeomInfo& NCMesh::gi_wedge = NCMesh::GI[Geometry::PRISM];
+NCMesh::GeomInfo& NCMesh::gi_quad  = NCMesh::GI[Geometry::SQUARE];
+NCMesh::GeomInfo& NCMesh::gi_tri   = NCMesh::GI[Geometry::TRIANGLE];
 
 void NCMesh::GeomInfo::Initialize(const mfem::Element* elem)
 {
@@ -480,6 +481,37 @@ int NCMesh::NewHexahedron(int n0, int n1, int n2, int n3,
    f[0]->attribute = fattr0,  f[1]->attribute = fattr1;
    f[2]->attribute = fattr2,  f[3]->attribute = fattr3;
    f[4]->attribute = fattr4,  f[5]->attribute = fattr5;
+
+   return new_id;
+}
+
+int NCMesh::NewWedge(int n0, int n1, int n2,
+                     int n3, int n4, int n5,
+                     int attr,
+                     int fattr0, int fattr1,
+                     int fattr2, int fattr3, int fattr4)
+{
+   // create new unrefined element, initialize nodes
+   int new_id = AddElement(Element(Geometry::PRISM, attr));
+   Element &el = elements[new_id];
+
+   el.node[0] = n0, el.node[1] = n1, el.node[2] = n2;
+   el.node[3] = n3, el.node[4] = n4, el.node[5] = n5;
+
+   // get faces and assign face attributes
+   Face* f[5];
+   for (int i = 0; i < gi_wedge.nf; i++)
+   {
+      const int* fv = gi_wedge.faces[i];
+      f[i] = faces.Get(el.node[fv[0]], el.node[fv[1]],
+                       el.node[fv[2]], el.node[fv[3]]);
+   }
+
+   f[0]->attribute = fattr0;
+   f[1]->attribute = fattr1;
+   f[2]->attribute = fattr2;
+   f[3]->attribute = fattr3;
+   f[4]->attribute = fattr4;
 
    return new_id;
 }
@@ -978,6 +1010,91 @@ void NCMesh::RefineElement(int elem, char ref_type)
          CheckIsoFace(no[2], no[3], no[7], no[6], mid23, mid37, mid67, mid26, midf3);
          CheckIsoFace(no[3], no[0], no[4], no[7], mid30, mid04, mid74, mid37, midf4);
          CheckIsoFace(no[4], no[5], no[6], no[7], mid45, mid56, mid67, mid74, midf5);
+      }
+      else
+      {
+         MFEM_ABORT("invalid refinement type.");
+      }
+
+      if (ref_type != 7) { Iso = false; }
+   }
+   else if (el.geom == Geometry::PRISM)
+   {
+      // Wedge vertex numbering:
+      //
+      //          5
+      //          +
+      //        / | \                     Faces: 0 bottom
+      //    3 /   |   \ 4                        1 top
+      //     +---------+                         2 front
+      //     |    |    |                         3 right (1 2 5 4)
+      //     |    +    |                         4 left (2 0 3 5)
+      //     |  / 2 \  |           Z  Y
+      //     |/       \|           | /
+      //     +---------+           *--X
+      //    0           1
+
+      if (ref_type < 4) // XY refinement (split in 4 wedges)
+      {
+         ref_type = 3; // for consistence
+
+         MFEM_ABORT("TODO");
+      }
+      else if (ref_type == 4) // Z refinement only (split in 2 wedges)
+      {
+         MFEM_ABORT("TODO");
+      }
+      else if (ref_type > 4) // full isotropic refinement (split in 8 wedges)
+      {
+         ref_type = 7; // for consistence
+
+         int mid01 = GetMidEdgeNode(no[0], no[1]);
+         int mid12 = GetMidEdgeNode(no[1], no[2]);
+         int mid20 = GetMidEdgeNode(no[2], no[0]);
+
+         int mid34 = GetMidEdgeNode(no[3], no[4]);
+         int mid45 = GetMidEdgeNode(no[4], no[5]);
+         int mid53 = GetMidEdgeNode(no[5], no[3]);
+
+         int mid03 = GetMidEdgeNode(no[0], no[3]);
+         int mid14 = GetMidEdgeNode(no[1], no[4]);
+         int mid25 = GetMidEdgeNode(no[2], no[5]);
+
+         int midf2 = GetMidFaceNode(mid01, mid14, mid34, mid03);
+         int midf3 = GetMidFaceNode(mid12, mid25, mid45, mid14);
+         int midf4 = GetMidFaceNode(mid20, mid03, mid53, mid25);
+
+         child[0] = NewWedge(no[0], mid01, mid20,
+                             mid03, midf2, midf4, attr,
+                             fa[0], -1, fa[2], -1, fa[4]);
+
+         child[1] = NewWedge(mid01, no[1], mid12,
+                             midf2, mid14, midf3, attr,
+                             fa[0], -1, fa[2], fa[3], -1);
+
+         child[2] = NewWedge(mid20, mid12, no[2],
+                             midf4, midf3, mid25, attr,
+                             fa[0], -1, -1, fa[3], fa[4]);
+
+         child[3] = NewWedge(mid12, mid20, mid01,
+                             midf3, midf4, midf2, attr,
+                             fa[0], -1, -1, -1, -1);
+
+         child[4] = NewWedge(mid03, midf2, midf4,
+                             no[3], mid34, mid53, attr,
+                             -1, fa[1], fa[2], -1, fa[4]);
+
+         child[5] = NewWedge(midf2, mid14, midf3,
+                             mid34, no[4], mid45, attr,
+                             -1, fa[1], fa[2], fa[3], -1);
+
+         child[6] = NewWedge(midf4, midf3, mid25,
+                             mid53, mid45, no[5], attr,
+                             -1, fa[1], -1, fa[3], fa[4]);
+
+         child[7] = NewWedge(midf3, midf4, midf2,
+                             mid34, mid45, mid53, attr,
+                             -1, fa[1], -1, -1, -1);
       }
       else
       {
