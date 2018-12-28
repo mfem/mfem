@@ -49,8 +49,10 @@ int dim;
 
 #define SIGMAVAL -250.0
 //#define FORM_DEFINITE
-#define SOLVE_A2
-#define ITER_A2
+//#define SOLVE_A2
+//#define ITER_A2
+
+#define USE_CSL
 
 
 int main(int argc, char *argv[])
@@ -219,6 +221,26 @@ int main(int argc, char *argv[])
    adef->FormLinearSystem(ess_tdof_list, x, *b, Adef, Xdef, Bdef);
 #endif
 
+#ifdef USE_CSL
+   Vector Bdef, Xdef;
+   
+   ParBilinearForm *Mform =  new ParBilinearForm(fespace);
+   Mform->AddDomainIntegrator(new VectorFEMassIntegrator(*sigmaAbs));
+   Mform->Assemble();
+   
+   // Mform->Finalize();
+
+   HypreParMatrix Mmat, Smat, Mcopy;
+   Mform->FormLinearSystem(ess_tdof_list, x, *b, Mmat, Xdef, Bdef);
+   Mform->FormLinearSystem(ess_tdof_list, x, *b, Mcopy, Xdef, Bdef);  // There must be a better way than creating two identical matrices.
+
+   ParBilinearForm *Sform =  new ParBilinearForm(fespace);
+   Sform->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
+   Sform->Assemble();
+
+   Sform->FormLinearSystem(ess_tdof_list, x, *b, Smat, Xdef, Bdef);
+#endif
+
 #ifdef ITER_A2
    Vector Bdef, Xdef;
    
@@ -253,14 +275,17 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
-   HypreParMatrix A, Acopy;
+   HypreParMatrix A;
    Vector B, X;
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
+#ifdef SOLVE_A2
+   HypreParMatrix Acopy;
    {
      Vector Bdum, Xdum;
      a->FormLinearSystem(ess_tdof_list, x, *b, Acopy, Xdum, Bdum);
    }
+#endif
    
    if (myid == 0)
    {
@@ -276,10 +301,93 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_STRUMPACK
    if (use_strumpack)
      {
-       const bool fullDirect = false;
+       const bool fullDirect = true;
 
        if (fullDirect)
 	 {
+#ifdef USE_CSL
+	   const double beta1 = 1.0;
+	   const double beta2 = 0.001;
+
+	   Mmat *= -beta1;
+	   
+	   // HypreParMatrix *cslRe = Add(1.0, Smat, -beta1, Mmat);
+	   HypreParMatrix * cslRe = ParAdd(&Smat, &Mmat);
+	   
+	   Mcopy *= beta2;
+	   
+	   ComplexHypreParMatrix chpm(cslRe, &Mcopy, false, false);
+
+	   HypreParMatrix *cSysMat = chpm.GetSystemMatrix();
+
+	   Array<int> block_offsets(3); // number of variables + 1
+	   block_offsets[0] = 0;
+	   block_offsets[1] = fespace->GetVSize();
+	   block_offsets[2] = fespace->GetVSize();
+	   block_offsets.PartialSum();
+
+	   Array<int> block_trueOffsets(3); // number of variables + 1
+	   block_trueOffsets[0] = 0;
+	   block_trueOffsets[1] = fespace->TrueVSize();
+	   block_trueOffsets[2] = fespace->TrueVSize();
+	   block_trueOffsets.PartialSum();
+
+	   /*
+	   cout << myid << ": V size " << fespace->GetVSize() << ", true " << fespace->TrueVSize() << ", global true " << size << ", B size "
+		<< B.Size() << ", X size " << X.Size() << endl;
+	   */
+	   
+	   // Note that B is of true size.
+	   BlockVector trueY(block_trueOffsets), trueX(block_trueOffsets), trueRhs(block_trueOffsets);
+	   
+	   trueRhs.GetBlock(0) = B;
+	   trueRhs.GetBlock(1) = 0.0;
+	   
+	   Operator * Arow = new STRUMPACKRowLocMatrix(*cSysMat);
+
+	   STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
+	   strumpack->SetPrintFactorStatistics(true);
+	   strumpack->SetPrintSolveStatistics(false);
+	   strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+	   strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+	   // strumpack->SetMC64Job(strumpack::MC64Job::NONE);
+	   // strumpack->SetSymmetricPattern(true);
+	   strumpack->SetOperator(*Arow);
+	   strumpack->SetFromCommandLine();
+	   //Solver * precond = strumpack;
+
+	   // strumpack->Mult(B, X);
+
+	   BlockOperator blockDiagA(block_trueOffsets);
+	   for (int i=0; i<2; ++i)
+	     blockDiagA.SetDiagonalBlock(i, &A);
+	   
+	   ProductOperator prod(&blockDiagA, strumpack, false, false);
+	   // GMRESSolver *gmres = new GMRESSolver(fespace->GetComm());
+	   BiCGSTABSolver *gmres = new BiCGSTABSolver(fespace->GetComm());
+	   
+	   gmres->SetOperator(prod);
+	   gmres->SetRelTol(1e-12);
+	   gmres->SetMaxIter(10000);
+	   gmres->SetPrintLevel(1);
+
+	   gmres->Mult(trueRhs, trueY);
+	   strumpack->Mult(trueY, trueX);
+
+	   X = trueX.GetBlock(0);
+	   double xim2 = trueX.GetBlock(1).Norml2();
+	   xim2 *= xim2;
+	   double sumxim2 = 0.0;
+	   
+	   MPI_Allreduce(&xim2, &sumxim2, 1, MPI_DOUBLE, MPI_SUM, fespace->GetComm());
+
+	   if (myid == 0)
+	     cout << myid << ": norm of Xim " << trueX.GetBlock(1).Norml2() << ", global " << sqrt(sumxim2) << endl;
+	   
+	   delete gmres;
+	   delete strumpack;
+	   delete Arow;
+#else
 	   Operator * Arow = new STRUMPACKRowLocMatrix(A);
 
 	   STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
@@ -297,6 +405,7 @@ int main(int argc, char *argv[])
        
 	   delete strumpack;
 	   delete Arow;
+#endif
 	 }
        else
 	 {
@@ -512,9 +621,9 @@ int main(int argc, char *argv[])
       double normX = x.ComputeL2Error(vzero);
       if (myid == 0)
       {
-         cout << "\n|| E_h - E ||_{L^2} = " << err << '\n' << endl;
-	 cout << "\n|| E_h ||_{L^2} = " << normX << '\n' << endl;
-	 cout << "\n|| E ||_{L^2} = " << normE << '\n' << endl;
+         cout << "|| E_h - E ||_{L^2} = " << err << endl;
+	 cout << "|| E_h ||_{L^2} = " << normX << endl;
+	 cout << "|| E ||_{L^2} = " << normE << endl;
       }
    }
 

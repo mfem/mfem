@@ -50,10 +50,12 @@ using namespace mfem;
 double u_exact(const Vector &x);
 double f_exact(const Vector &x);
 
-#define FORM_DEFINITE
+// #define FORM_DEFINITE
 #define USE_GMRES
 
-#define K2 100.0
+#define USE_CSL
+
+#define K2 250.0
 
 int dim;
 double kappa;
@@ -112,7 +114,7 @@ int main(int argc, char *argv[])
    //    more than 10,000 elements.
    {
       int ref_levels =
-         (int)floor(log(1000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(100000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -130,6 +132,19 @@ int main(int argc, char *argv[])
       {
          pmesh->UniformRefinement();
       }
+   }
+
+   {
+     double minsize = pmesh->GetElementSize(0);
+     double maxsize = minsize;
+     for (int i=1; i<pmesh->GetNE(); ++i)
+       {
+	 const double size_i = pmesh->GetElementSize(i);
+	 minsize = std::min(minsize, size_i);
+	 maxsize = std::max(maxsize, size_i);
+       }
+
+     cout << myid << ": Element size range: (" << minsize << ", " << maxsize << ")" << endl;
    }
 
    // 6. Define a parallel finite element space on the parallel mesh. Here we
@@ -244,23 +259,138 @@ int main(int argc, char *argv[])
 #else
    HypreSolver *amg = new HypreBoomerAMG(A);
 #endif
-   
-#ifdef USE_GMRES
-   HypreGMRES *gmres = new HypreGMRES(A);
-   gmres->SetTol(1e-12);
-   gmres->SetMaxIter(1000);
-   gmres->SetPrintLevel(10);
-   gmres->SetPreconditioner(*amg);   
-   gmres->Mult(B, X);
-#else
-   HyprePCG *pcg = new HyprePCG(A);
-   pcg->SetTol(1e-12);
-   pcg->SetMaxIter(100);
-   pcg->SetPrintLevel(2);
-   pcg->SetPreconditioner(*amg);
-   pcg->Mult(B, X);
-#endif
 
+   const bool fullDirect = true;
+
+   if (fullDirect)
+     {
+#ifdef USE_CSL
+       Vector Bdef, Xdef;
+
+       ParBilinearForm *Mform =  new ParBilinearForm(fespace);
+       Mform->AddDomainIntegrator(new MassIntegrator(pos));
+       Mform->Assemble();
+   
+       HypreParMatrix Mmat, Smat, Mcopy;
+       Mform->FormLinearSystem(ess_tdof_list, x, *b, Mmat, Xdef, Bdef);
+       Mform->FormLinearSystem(ess_tdof_list, x, *b, Mcopy, Xdef, Bdef);  // There must be a better way than creating two identical matrices.
+
+       ParBilinearForm *Sform =  new ParBilinearForm(fespace);
+       Sform->AddDomainIntegrator(new DiffusionIntegrator(one));
+       Sform->Assemble();
+
+       Sform->FormLinearSystem(ess_tdof_list, x, *b, Smat, Xdef, Bdef);
+       
+       const double beta1 = 1.0;
+       const double beta2 = 1.0;
+
+       Mmat *= -beta1;
+	   
+       HypreParMatrix * cslRe = ParAdd(&Smat, &Mmat);
+	   
+       Mcopy *= beta2;
+	   
+       ComplexHypreParMatrix chpm(cslRe, &Mcopy, false, false);
+
+       HypreParMatrix *cSysMat = chpm.GetSystemMatrix();
+
+       Array<int> block_trueOffsets(3); // number of variables + 1
+       block_trueOffsets[0] = 0;
+       block_trueOffsets[1] = fespace->TrueVSize();
+       block_trueOffsets[2] = fespace->TrueVSize();
+       block_trueOffsets.PartialSum();
+
+       // Note that B is of true size.
+       BlockVector trueY(block_trueOffsets), trueX(block_trueOffsets), trueRhs(block_trueOffsets);
+	   
+       trueRhs.GetBlock(0) = B;
+       trueRhs.GetBlock(1) = 0.0;
+	   
+       Operator * Arow = new STRUMPACKRowLocMatrix(*cSysMat);
+
+       STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
+       strumpack->SetPrintFactorStatistics(true);
+       strumpack->SetPrintSolveStatistics(false);
+       strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+       strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+       // strumpack->SetMC64Job(strumpack::MC64Job::NONE);
+       // strumpack->SetSymmetricPattern(true);
+       strumpack->SetOperator(*Arow);
+       strumpack->SetFromCommandLine();
+       //Solver * precond = strumpack;
+
+       // strumpack->Mult(B, X);
+
+       BlockOperator blockDiagA(block_trueOffsets);
+       for (int i=0; i<2; ++i)
+	 blockDiagA.SetDiagonalBlock(i, &A);
+	   
+       ProductOperator prod(&blockDiagA, strumpack, false, false);
+       //GMRESSolver *gmres = new GMRESSolver(fespace->GetComm());
+       BiCGSTABSolver *gmres = new BiCGSTABSolver(fespace->GetComm());
+       
+       gmres->SetOperator(prod);
+       gmres->SetRelTol(1e-8);
+       gmres->SetMaxIter(10000);
+       gmres->SetPrintLevel(1);
+
+       gmres->Mult(trueRhs, trueY);
+       strumpack->Mult(trueY, trueX);
+
+       X = trueX.GetBlock(0);
+       double xim2 = trueX.GetBlock(1).Norml2();
+       xim2 *= xim2;
+       double sumxim2 = 0.0;
+	   
+       MPI_Allreduce(&xim2, &sumxim2, 1, MPI_DOUBLE, MPI_SUM, fespace->GetComm());
+
+       if (myid == 0)
+	 cout << myid << ": norm of Xim " << trueX.GetBlock(1).Norml2() << ", global " << sqrt(sumxim2) << endl;
+	   
+       delete gmres;
+       delete strumpack;
+       delete Arow;
+#else
+       Operator * Arow = new STRUMPACKRowLocMatrix(A);
+
+       STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
+       strumpack->SetPrintFactorStatistics(true);
+       strumpack->SetPrintSolveStatistics(false);
+       strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+       strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+       // strumpack->SetMC64Job(strumpack::MC64Job::NONE);
+       // strumpack->SetSymmetricPattern(true);
+       strumpack->SetOperator(*Arow);
+       strumpack->SetFromCommandLine();
+       //Solver * precond = strumpack;
+
+       strumpack->Mult(B, X);
+       
+       delete strumpack;
+       delete Arow;
+#endif
+     }
+   else
+     {
+#ifdef USE_GMRES
+       HypreGMRES *gmres = new HypreGMRES(A);
+       gmres->SetTol(1e-12);
+       gmres->SetMaxIter(1000);
+       gmres->SetPrintLevel(10);
+       gmres->SetPreconditioner(*amg);   
+       gmres->Mult(B, X);
+       delete gmres;
+#else
+       HyprePCG *pcg = new HyprePCG(A);
+       pcg->SetTol(1e-12);
+       pcg->SetMaxIter(100);
+       pcg->SetPrintLevel(2);
+       pcg->SetPreconditioner(*amg);
+       pcg->Mult(B, X);
+#endif
+     }
+   
+   /*
    HYPRE_ParCSRMatrix* amgP = amg->Get_Restriction();
    HypreParMatrix P0(amgP[0], false);
    HypreParMatrix P1(amgP[1], false);
@@ -268,6 +398,7 @@ int main(int argc, char *argv[])
    //HypreParMatrix P3(amgP[3], false);
 
    P0.Print("P0");
+   */
    
    // 13. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
@@ -279,10 +410,14 @@ int main(int argc, char *argv[])
      
      double err = x.ComputeL2Error(uex);
      double xnrm = x.ComputeL2Error(zero);
+     ParGridFunction zerogf(fespace);
+     zerogf = 0.0;
+     double normE = zerogf.ComputeL2Error(uex);
      if (myid == 0)
        {
-         cout << "\n|| E_h - E ||_{L^2} = " << err << '\n' << endl;
-	 cout << "\n|| E_h ||_{L^2} = " << xnrm << '\n' << endl;
+         cout << "|| E_h - E ||_{L^2} = " << err << endl;
+	 cout << "|| E_h ||_{L^2} = " << xnrm << endl;
+	 cout << "|| E ||_{L^2} = " << normE << endl;
        }
    }
 
