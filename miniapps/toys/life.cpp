@@ -1,6 +1,25 @@
-//                                MFEM Example
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
 //
-// Compile with: make ex_ca
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
+//
+//               ----------------------------------------
+//               Life Miniapp:  Model of the Game of Life
+//               ----------------------------------------
+//
+// This miniapp provides a light-hearted example of mesh manipulation and
+// GLVis integration.
+//
+// Compile with: make life
+//
+// Sample runs: life
+//              life -nx 100 -ny 100 -r 0.3
 
 #include "mfem.hpp"
 #include <fstream>
@@ -110,7 +129,8 @@ int main(int argc, char *argv[])
       long seed;
       if ( rs < 0 )
       {
-         srandomdev();
+         // srandomdev(); // not available on Linux?
+         srandom(time(NULL));
          seed = random();
          srand48(seed);
       }
@@ -149,7 +169,7 @@ int main(int argc, char *argv[])
    // PrintRule(rbs);
 
    // 8. Apply the rule iteratively
-   cout << endl << "Running Game of Life..." << flush;
+   cout << endl << "Running the Game of Life..." << flush;
    // for (int s=1; s<ns; s++)
    bool is_good = true;
    while ( is_good && visualization )
