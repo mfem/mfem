@@ -599,23 +599,29 @@ void FiniteElementSpace::BuildConformingInterpolation() const
                                    /*        */ : mesh->ncmesh->GetEdgeList();
       if (!list.masters.size()) { continue; }
 
-      IsoparametricTransformation T;
-      if (entity > 1) { T.SetFE(&QuadrilateralFE); }
-      else { T.SetFE(&SegmentFE); }
-
-      Geometry::Type geom = (entity > 1) ? Geometry::SQUARE : Geometry::SEGMENT;
-      const FiniteElement* fe = fec->FiniteElementForGeometry(geom);
-      if (!fe) { continue; }
-
       Array<int> master_dofs, slave_dofs;
-      DenseMatrix I(fe->GetDof());
+
+      IsoparametricTransformation T;
+      DenseMatrix I;
 
       // loop through all master edges/faces, constrain their slave edges/faces
       for (unsigned mi = 0; mi < list.masters.size(); mi++)
       {
          const NCMesh::Master &master = list.masters[mi];
+
          GetEntityDofs(entity, master.index, master_dofs);
          if (!master_dofs.Size()) { continue; }
+
+         const FiniteElement* fe = fec->FiniteElementForGeometry(master.Geom());
+         if (!fe) { continue; }
+
+         switch (master.geom)
+         {
+            case Geometry::SQUARE:   T.SetFE(&QuadrilateralFE); break;
+            case Geometry::TRIANGLE: T.SetFE(&TriangleFE); break;
+            case Geometry::SEGMENT:  T.SetFE(&SegmentFE); break;
+            default: MFEM_ABORT("unsupported geometry");
+         }
 
          for (int si = master.slaves_begin; si < master.slaves_end; si++)
          {

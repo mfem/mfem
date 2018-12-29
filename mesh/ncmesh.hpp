@@ -141,10 +141,13 @@ public:
    {
       int index;   ///< Mesh number
       int element; ///< NCMesh::Element containing this vertex/edge/face
-      int local;   ///< local number within 'element'
+      char local;  ///< local number within 'element'
+      char geom;   ///< Geometry::Type (char storage to save RAM)
 
-      MeshId(int index = -1, int element = -1, int local = -1)
-         : index(index), element(element), local(local) {}
+      MeshId(int index = -1, int element = -1, char local = -1, char geom = -1)
+         : index(index), element(element), local(local), geom(geom) {}
+
+      Geometry::Type Geom() const { return Geometry::Type(geom); }
    };
 
    /** Nonconforming edge/face that has more than one neighbor. The neighbors
@@ -153,8 +156,9 @@ public:
    {
       int slaves_begin, slaves_end; ///< slave faces
 
-      Master(int index, int element, int local, int sb, int se)
-         : MeshId(index, element, local), slaves_begin(sb), slaves_end(se) {}
+      Master(int index, int element, char local, char geom, int sb, int se)
+         : MeshId(index, element, local, geom)
+         , slaves_begin(sb), slaves_end(se) {}
    };
 
    /// Nonconforming edge/face within a bigger edge/face.
@@ -164,8 +168,9 @@ public:
       int edge_flags; ///< edge orientation flags
       DenseMatrix point_matrix; ///< position within the master edge/face
 
-      Slave(int index, int element, int local)
-         : MeshId(index, element, local), master(-1), edge_flags(0) {}
+      Slave(int index, int element, char local, char geom)
+         : MeshId(index, element, local, geom)
+         , master(-1), edge_flags(0) {}
 
       /// Return the point matrix oriented according to the master and slave edges
       void OrientedPointMatrix(DenseMatrix &oriented_matrix) const;
@@ -277,7 +282,7 @@ public:
                                    Array<int> &bdr_edges);
 
    /// Return the type of elements in the mesh.
-   Geometry::Type GetElementGeometry() const { return elements[0].geom; }
+   Geometry::Type GetElementGeometry() const { return Geometry::Type(elements[0].geom); }
 
    Geometry::Type GetFaceGeometry() const { return Geometry::SQUARE; }
 
@@ -382,7 +387,7 @@ protected: // implementation
        to its vertex nodes. */
    struct Element
    {
-      Geometry::Type geom; ///< Geometry::Type of the element
+      char geom;     ///< Geometry::Type of the element (char for storage only)
       char ref_type; ///< bit mask of X,Y,Z refinements (bits 0,1,2 respectively)
       char flag;     ///< generic flag/marker, can be used by algorithms
       int index;     ///< element number in the Mesh, -1 if refined
@@ -396,6 +401,8 @@ protected: // implementation
       int parent; ///< parent element, -1 if this is a root element, -2 if free
 
       Element(Geometry::Type geom, int attr);
+
+      Geometry::Type Geom() const { return Geometry::Type(geom); }
    };
 
    // primary data
