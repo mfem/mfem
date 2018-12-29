@@ -120,7 +120,7 @@ NCMesh::NCMesh(const Mesh *mesh, std::istream *vertex_parents)
       top_vertex_pos.SetSize(3*mesh->GetNV());
       for (int i = 0; i < mesh->GetNV(); i++)
       {
-         memcpy(&top_vertex_pos[3*i], mesh->GetVertex(i), 3*sizeof(double));
+         std::memcpy(&top_vertex_pos[3*i], mesh->GetVertex(i), 3*sizeof(double));
       }
    }
 
@@ -259,13 +259,13 @@ void NCMesh::RefElement(int elem)
    int* node = el.node;
    GeomInfo& gi = GI[(int) el.geom];
 
-   // ref all vertices
+   // reference all vertices
    for (int i = 0; i < gi.nv; i++)
    {
       nodes[node[i]].vert_refc++;
    }
 
-   // ref all edges (possibly creating their nodes)
+   // reference all edges (possibly creating their nodes)
    for (int i = 0; i < gi.ne; i++)
    {
       const int* ev = gi.edges[i];
@@ -290,7 +290,7 @@ void NCMesh::UnrefElement(int elem, Array<int> &elemFaces)
    int* node = el.node;
    GeomInfo& gi = GI[(int) el.geom];
 
-   // unref all faces
+   // unreference all faces
    for (int i = 0; i < gi.nf; i++)
    {
       const int* fv = gi.faces[i];
@@ -304,7 +304,7 @@ void NCMesh::UnrefElement(int elem, Array<int> &elemFaces)
       elemFaces.Append(face);
    }
 
-   // unref all edges (possibly destroying them)
+   // unreference all edges (possibly destroying them)
    for (int i = 0; i < gi.ne; i++)
    {
       const int* ev = gi.edges[i];
@@ -317,7 +317,7 @@ void NCMesh::UnrefElement(int elem, Array<int> &elemFaces)
       }
    }
 
-   // unref all vertices (possibly destroying them)
+   // unreference all vertices (possibly destroying them)
    for (int i = 0; i < gi.nv; i++)
    {
       if (!nodes[node[i]].UnrefVertex())
@@ -1203,7 +1203,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
    // clean up parent faces, if unused
    DeleteUnusedFaces(parentFaces);
 
-   // make the children inherit our rank, set the parent element
+   // make the children inherit our rank; set the parent element
    for (int i = 0; i < 8 && child[i] >= 0; i++)
    {
       Element &ch = elements[child[i]];
@@ -1213,7 +1213,7 @@ void NCMesh::RefineElement(int elem, char ref_type)
 
    // finish the refinement
    el.ref_type = ref_type;
-   memcpy(el.child, child, sizeof(el.child));
+   std::memcpy(el.child, child, sizeof(el.child));
 }
 
 
@@ -1257,8 +1257,10 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
 
    Update();
 
+#ifdef MFEM_DEBUG
    std::ofstream f("ncmesh.dump");
    DebugDump(f);
+#endif
 }
 
 
@@ -1270,7 +1272,7 @@ void NCMesh::DerefineElement(int elem)
    if (!el.ref_type) { return; }
 
    int child[8];
-   memcpy(child, el.child, sizeof(child));
+   std::memcpy(child, el.child, sizeof(child));
 
    // first make sure that all children are leaves, derefine them if not
    for (int i = 0; i < 8 && child[i] >= 0; i++)
@@ -1826,8 +1828,8 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
 
 //// Face/edge lists ///////////////////////////////////////////////////////////
 
-int NCMesh::FaceSplitType(int v1, int v2, int v3, int v4,
-                          int mid[4]) const
+int NCMesh::QuadFaceSplitType(int v1, int v2, int v3, int v4,
+                              int mid[4]) const
 {
    MFEM_ASSERT(Dim >= 3, "");
 
@@ -1851,6 +1853,22 @@ int NCMesh::FaceSplitType(int v1, int v2, int v3, int v4,
    if (midf1 < 0 && midf2 < 0) { return 0; }  // face not split
    else if (midf1 >= 0) { return 1; }  // face split "vertically"
    else { return 2; }  // face split "horizontally"
+}
+
+bool NCMesh::TriFaceIsSplit(int v1, int v2, int v3, int mid[3]) const
+{
+   MFEM_ASSERT(Dim >= 3, "");
+
+   // find edge nodes
+   int e1 = nodes.FindId(v1, v2);
+   int e2 = nodes.FindId(v2, v3);
+   int e3 = nodes.FindId(v3, v1);
+
+   // optional: return the mid-edge nodes if requested
+   if (mid) { mid[0] = e1, mid[1] = e2, mid[2] = e3; }
+
+   // does the middle face exist?
+   return (faces.FindId(e1, e2, e3) >= 0);
 }
 
 int NCMesh::find_node(const Element &el, int node)
@@ -1901,7 +1919,7 @@ int NCMesh::find_element_edge(const Element &el, int vn0, int vn1)
    return -1;
 }*/
 
-int NCMesh::find_hex_face(int a, int b, int c)
+/*int NCMesh::find_hex_face(int a, int b, int c)
 {
    for (int i = 0; i < 6; i++)
    {
@@ -1915,7 +1933,7 @@ int NCMesh::find_hex_face(int a, int b, int c)
    }
    MFEM_ABORT("Face not found.");
    return -1;
-}
+}*/
 
 int NCMesh::find_local_face(int geom, int a, int b, int c)
 {
@@ -1944,9 +1962,8 @@ int NCMesh::ReorderFacePointMat(int v0, int v1, int v2, int v3,
       find_node(el, v2), find_node(el, v3)
    };
 
-   //int local = find_hex_face(master[0], master[1], master[2]);
    int local = find_local_face(el.geom, master[0], master[1], master[2]);
-   const int* fv = gi_hex.faces[local];
+   const int* fv = GI[(int) el.geom].faces[local];
 
    DenseMatrix tmp(mat);
    for (int i = 0, j; i < 4; i++)
@@ -1968,8 +1985,8 @@ int NCMesh::ReorderFacePointMat(int v0, int v1, int v2, int v3,
    return local;
 }
 
-void NCMesh::TraverseFace(int vn0, int vn1, int vn2, int vn3,
-                          const PointMatrix& pm, int level)
+void NCMesh::TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
+                              const PointMatrix& pm, int level)
 {
    if (level > 0)
    {
@@ -1993,27 +2010,69 @@ void NCMesh::TraverseFace(int vn0, int vn1, int vn2, int vn3,
 
    // we need to recurse deeper
    int mid[4];
-   int split = FaceSplitType(vn0, vn1, vn2, vn3, mid);
+   int split = QuadFaceSplitType(vn0, vn1, vn2, vn3, mid);
 
    if (split == 1) // "X" split face
    {
       Point mid0(pm(0), pm(1)), mid2(pm(2), pm(3));
 
-      TraverseFace(vn0, mid[0], mid[2], vn3,
-                   PointMatrix(pm(0), mid0, mid2, pm(3)), level+1);
+      TraverseQuadFace(vn0, mid[0], mid[2], vn3,
+                       PointMatrix(pm(0), mid0, mid2, pm(3)), level+1);
 
-      TraverseFace(mid[0], vn1, vn2, mid[2],
-                   PointMatrix(mid0, pm(1), pm(2), mid2), level+1);
+      TraverseQuadFace(mid[0], vn1, vn2, mid[2],
+                       PointMatrix(mid0, pm(1), pm(2), mid2), level+1);
    }
    else if (split == 2) // "Y" split face
    {
       Point mid1(pm(1), pm(2)), mid3(pm(3), pm(0));
 
-      TraverseFace(vn0, vn1, mid[1], mid[3],
-                   PointMatrix(pm(0), pm(1), mid1, mid3), level+1);
+      TraverseQuadFace(vn0, vn1, mid[1], mid[3],
+                       PointMatrix(pm(0), pm(1), mid1, mid3), level+1);
 
-      TraverseFace(mid[3], mid[1], vn2, vn3,
-                   PointMatrix(mid3, mid1, pm(2), pm(3)), level+1);
+      TraverseQuadFace(mid[3], mid[1], vn2, vn3,
+                       PointMatrix(mid3, mid1, pm(2), pm(3)), level+1);
+   }
+}
+
+void NCMesh::TraverseTriFace(int vn0, int vn1, int vn2,
+                             const PointMatrix& pm, int level)
+{
+   if (level > 0)
+   {
+      // check if we made it to a face that is not split further
+      Face* fa = faces.Find(vn0, vn1, vn2);
+      if (fa)
+      {
+         // we have a slave face, add it to the list
+         int elem = fa->GetSingleElement();
+         face_list.slaves.push_back(Slave(fa->index, elem, -1));
+         DenseMatrix &mat = face_list.slaves.back().point_matrix;
+         pm.GetMatrix(mat);
+
+         // reorder the point matrix according to slave face orientation
+         //int local = ReorderFacePointMat(vn0, vn1, vn2, vn3, elem, mat);
+         //face_list.slaves.back().local = local;
+
+         return;
+      }
+   }
+
+   int mid[3];
+   if (TriFaceIsSplit(vn0, vn1, vn2, mid))
+   {
+      Point mid0(pm(0), pm(1)), mid1(pm(1), pm(2)), mid2(pm(2), pm(0));
+
+      TraverseTriFace(vn0, mid[0], mid[2],
+                      PointMatrix(pm(0), mid0, mid2), level+1);
+
+      TraverseTriFace(mid[0], vn1, mid[1],
+                      PointMatrix(mid0, pm(1), mid1), level+1);
+
+      TraverseTriFace(mid[2], mid[1], vn2,
+                      PointMatrix(mid2, mid1, pm(2)), level+1);
+
+      TraverseTriFace(mid[1], mid[2], mid[0],
+                      PointMatrix(mid1, mid2, mid0), level+1);
    }
 }
 
@@ -2062,12 +2121,19 @@ void NCMesh::BuildFaceList()
          }
          else
          {
-            PointMatrix pm(Point(0,0), Point(1,0), Point(1,1), Point(0,1));
-
             // this is either a master face or a slave face, but we can't
             // tell until we traverse the face refinement 'tree'...
             int sb = face_list.slaves.size();
-            TraverseFace(node[0], node[1], node[2], node[3], pm, 0);
+            if (node[3] >= 0)
+            {
+               TraverseQuadFace(node[0], node[1], node[2], node[3],
+                                pm_quad_identity, 0);
+            }
+            else
+            {
+               TraverseTriFace(node[0], node[1], node[2],
+                               pm_tri_identity, 0);
+            }
 
             int se = face_list.slaves.size();
             if (sb < se)
@@ -2375,7 +2441,7 @@ void NCMesh::CollectFaceVertices(int v0, int v1, int v2, int v3,
                                  Array<int> &indices)
 {
    int mid[4];
-   switch (FaceSplitType(v0, v1, v2, v3, mid))
+   switch (QuadFaceSplitType(v0, v1, v2, v3, mid))
    {
       case 1:
          indices.Append(mid[0]);
@@ -2437,7 +2503,7 @@ void NCMesh::BuildElementToVertexTable()
       int size = indices.Size();
       I[i] = size;
       JJ[i] = new int[size];
-      memcpy(JJ[i], indices.GetData(), size * sizeof(int));
+      std::memcpy(JJ[i], indices.GetData(), size * sizeof(int));
    }
 
    // finalize the I array of the table
@@ -2456,7 +2522,7 @@ void NCMesh::BuildElementToVertexTable()
    for (int i = 0; i < nrows; i++)
    {
       int cnt = I[i+1] - I[i];
-      memcpy(J+nnz, JJ[i], cnt * sizeof(int));
+      std::memcpy(J+nnz, JJ[i], cnt * sizeof(int));
       delete [] JJ[i];
       nnz += cnt;
    }
@@ -2733,6 +2799,10 @@ NCMesh::PointMatrix NCMesh::pm_tri_identity(
 NCMesh::PointMatrix NCMesh::pm_quad_identity(
    Point(0, 0), Point(1, 0), Point(1, 1), Point(0, 1)
 );
+NCMesh::PointMatrix NCMesh::pm_prism_identity(
+   Point(0, 0, 0), Point(1, 0, 0), Point(0, 1, 0),
+   Point(0, 0, 1), Point(1, 0, 1), Point(0, 1, 1)
+);
 NCMesh::PointMatrix NCMesh::pm_hex_identity(
    Point(0, 0, 0), Point(1, 0, 0), Point(1, 1, 0), Point(0, 1, 0),
    Point(0, 0, 1), Point(1, 0, 1), Point(1, 1, 1), Point(0, 1, 1)
@@ -2744,6 +2814,7 @@ const NCMesh::PointMatrix& NCMesh::GetGeomIdentity(int geom)
    {
       case Geometry::TRIANGLE: return pm_tri_identity;
       case Geometry::SQUARE:   return pm_quad_identity;
+      case Geometry::PRISM:    return pm_prism_identity;
       case Geometry::CUBE:     return pm_hex_identity;
       default:
          MFEM_ABORT("unsupported geometry.");
@@ -3396,7 +3467,7 @@ void NCMesh::FaceSplitLevel(int vn1, int vn2, int vn3, int vn4,
    int hl1, hl2, vl1, vl2;
    int mid[4];
 
-   switch (FaceSplitType(vn1, vn2, vn3, vn4, mid))
+   switch (QuadFaceSplitType(vn1, vn2, vn3, vn4, mid))
    {
       case 0: // not split
          h_level = v_level = 0;
@@ -3582,7 +3653,7 @@ void NCMesh::SetVertexPositions(const Array<mfem::Vertex> &mvertices)
    top_vertex_pos.SetSize(3*num_top_level);
    for (int i = 0; i < num_top_level; i++)
    {
-      memcpy(&top_vertex_pos[3*i], mvertices[i](), 3*sizeof(double));
+      std::memcpy(&top_vertex_pos[3*i], mvertices[i](), 3*sizeof(double));
    }
 }
 

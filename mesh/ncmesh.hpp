@@ -502,8 +502,10 @@ protected: // implementation
    int GetMidEdgeNode(int vn1, int vn2);
    int GetMidFaceNode(int en1, int en2, int en3, int en4);
 
-   int FaceSplitType(int v1, int v2, int v3, int v4, int mid[4]
-                     = NULL /*optional output of mid-edge nodes*/) const;
+   int QuadFaceSplitType(int v1, int v2, int v3, int v4, int mid[4]
+                         = NULL /*optional output of mid-edge nodes*/) const;
+
+   bool TriFaceIsSplit(int v1, int v2, int v3, int mid[3] = NULL) const;
 
    void ForceRefinement(int vn1, int vn2, int vn3, int vn4);
 
@@ -537,15 +539,16 @@ protected: // implementation
    static int find_node(const Element &el, int node);
    static int find_element_edge(const Element &el, int vn0, int vn1);
    //static int find_element_face(const Element &el, int vn0, int vn1, int vn2);
-   static int find_hex_face(int a, int b, int c);
+   //static int find_hex_face(int a, int b, int c);
    static int find_local_face(int geom, int a, int b, int c);
 
    int ReorderFacePointMat(int v0, int v1, int v2, int v3,
                            int elem, DenseMatrix& mat) const;
    struct PointMatrix;
-   void TraverseFace(int vn0, int vn1, int vn2, int vn3,
-                     const PointMatrix& pm, int level);
-
+   void TraverseQuadFace(int vn0, int vn1, int vn2, int vn3,
+                         const PointMatrix& pm, int level);
+   void TraverseTriFace(int vn0, int vn1, int vn2,
+                        const PointMatrix& pm, int level);
    void TraverseEdge(int vn0, int vn1, double t0, double t1, int flags,
                      int level);
 
@@ -653,6 +656,13 @@ protected: // implementation
       { np = 4; points[0] = p0; points[1] = p1; points[2] = p2; points[3] = p3; }
 
       PointMatrix(const Point& p0, const Point& p1, const Point& p2,
+                  const Point& p3, const Point& p4, const Point& p5)
+      {
+         np = 6;
+         points[0] = p0; points[1] = p1; points[2] = p2;
+         points[3] = p3; points[4] = p4; points[5] = p5;
+      }
+      PointMatrix(const Point& p0, const Point& p1, const Point& p2,
                   const Point& p3, const Point& p4, const Point& p5,
                   const Point& p6, const Point& p7)
       {
@@ -669,6 +679,7 @@ protected: // implementation
 
    static PointMatrix pm_tri_identity;
    static PointMatrix pm_quad_identity;
+   static PointMatrix pm_prism_identity;
    static PointMatrix pm_hex_identity;
 
    static const PointMatrix& GetGeomIdentity(int geom);
