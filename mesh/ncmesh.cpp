@@ -16,6 +16,8 @@
 #include <cmath>
 #include <climits> // INT_MAX
 
+#include <fstream> // debug
+
 namespace mfem
 {
 
@@ -54,9 +56,8 @@ void NCMesh::GeomInfo::Initialize(const mfem::Element* elem)
       }
    }
    for (int i = 0; i < nf; i++)
-   {
-      // invalid node index for 3-node faces
-      faces[i][3] = 7;
+   {      
+      faces[i][3] = 7; // invalid node index for 3-node faces
 
       for (int j = 0; j < elem->GetNFaceVertices(i); j++)
       {
@@ -442,7 +443,7 @@ int NCMesh::FindAltParents(int node1, int node2)
 }
 
 
-//// Refinement & Derefinement /////////////////////////////////////////////////
+//// Refinement ////////////////////////////////////////////////////////////////
 
 NCMesh::Element::Element(Geometry::Type geom, int attr)
    : geom(geom), ref_type(0), flag(0), index(-1), rank(0), attribute(attr)
@@ -1093,8 +1094,12 @@ void NCMesh::RefineElement(int elem, char ref_type)
                              -1, fa[1], -1, fa[3], fa[4]);
 
          child[7] = NewWedge(midf3, midf4, midf2,
-                             mid34, mid45, mid53, attr,
+                             mid45, mid53, mid34, attr,
                              -1, fa[1], -1, -1, -1);
+
+         CheckIsoFace(no[0], no[1], no[4], no[3], mid01, mid14, mid34, mid03, midf2);
+         CheckIsoFace(no[1], no[2], no[5], no[4], mid12, mid25, mid45, mid14, midf3);
+         CheckIsoFace(no[2], no[0], no[3], no[5], mid20, mid03, mid53, mid25, midf4);
       }
       else
       {
@@ -1251,6 +1256,9 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
    ref_stack.DeleteAll();
 
    Update();
+
+   std::ofstream f("ncmesh.dump");
+   DebugDump(f);
 }
 
 
@@ -1335,7 +1343,7 @@ void NCMesh::DerefineElement(int elem)
       MFEM_ABORT("Unsupported element geometry.");
    }
 
-   // sign in to all nodes again
+   // sign in to all nodes
    RefElement(elem);
 
    int buf[8*6];
@@ -1634,6 +1642,7 @@ mfem::Element* NCMesh::NewMeshElement(int geom) const
    switch (geom)
    {
       case Geometry::CUBE: return new mfem::Hexahedron;
+      case Geometry::PRISM: return new mfem::Wedge;
       case Geometry::SQUARE: return new mfem::Quadrilateral;
       case Geometry::TRIANGLE: return new mfem::Triangle;
    }
@@ -1670,9 +1679,9 @@ const double* NCMesh::CalcVertexPos(int node) const
    return tv.pos;
 }
 
-void NCMesh::GetMeshComponents(Array<mfem::Vertex>& mvertices,
-                               Array<mfem::Element*>& melements,
-                               Array<mfem::Element*>& mboundary) const
+void NCMesh::GetMeshComponents(Array<mfem::Vertex> &mvertices,
+                               Array<mfem::Element*> &melements,
+                               Array<mfem::Element*> &mboundary) const
 {
    mvertices.SetSize(vertex_nodeId.Size());
    if (top_vertex_pos.Size())
@@ -1716,11 +1725,13 @@ void NCMesh::GetMeshComponents(Array<mfem::Vertex>& mvertices,
       for (int k = 0; k < gi.nf; k++)
       {
          const int* fv = gi.faces[k];
+         const int nfv = (node[fv[3]] < 0) ? 3 : 4;
          const Face* face = faces.Find(node[fv[0]], node[fv[1]],
                                        node[fv[2]], node[fv[3]]);
          if (face->Boundary())
          {
-            if (nc_elem.geom == Geometry::CUBE)
+            if ((nc_elem.geom == Geometry::CUBE) ||
+                (nc_elem.geom == Geometry::PRISM && nfv == 4))
             {
                Quadrilateral* quad = new Quadrilateral;
                quad->SetAttribute(face->attribute);
@@ -1729,6 +1740,17 @@ void NCMesh::GetMeshComponents(Array<mfem::Vertex>& mvertices,
                   quad->GetVertices()[j] = nodes[node[fv[j]]].vert_index;
                }
                mboundary.Append(quad);
+            }
+            else if (nc_elem.geom == Geometry::PRISM)
+            {
+               MFEM_ASSERT(nfv == 3, "");
+               Triangle* tri = new Triangle;
+               tri->SetAttribute(face->attribute);
+               for (int j = 0; j < 3; j++)
+               {
+                  tri->GetVertices()[j] = nodes[node[fv[j]]].vert_index;
+               }
+               mboundary.Append(tri);
             }
             else
             {
@@ -3903,13 +3925,15 @@ void NCMesh::DebugDump(std::ostream &out) const
       MFEM_ASSERT(elem >= 0, "");
       const Element &el = elements[elem];
 
-      int lf = find_hex_face(find_node(el, face->p1),
-                             find_node(el, face->p2),
-                             find_node(el, face->p3));
+      int lf = find_local_face(el.geom,
+                               find_node(el, face->p1),
+                               find_node(el, face->p2),
+                               find_node(el, face->p3));
+      const int* fv = GI[el.geom].faces[lf];
+      const int nfv = (el.geom == Geometry::PRISM && fv[3] == 7) ? 3 : 4;
 
-      out << "4";
-      const int* fv = GI[Geometry::CUBE].faces[lf];
-      for (int i = 0; i < 4; i++)
+      out << nfv;
+      for (int i = 0; i < nfv; i++)
       {
          out << " " << el.node[fv[i]];
       }
