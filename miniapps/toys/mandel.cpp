@@ -9,29 +9,16 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 //
-//       --------------------------------------------------------------
-//       Shaper Miniapp: Resolve material interfaces by mesh refinement
-//       --------------------------------------------------------------
+//             ----------------------------------------------
+//             Mandel Miniapp: Fractal visualization with AMR
+//             ----------------------------------------------
 //
-// This miniapp performs multiple levels of adaptive mesh refinement to resolve
-// the interfaces between different "materials" in the mesh, as specified by the
-// given material() function. It can be used as a simple initial mesh generator,
-// for example in the case when the interface is too complex to describe without
-// local refinement. Both conforming and non-conforming refinements are supported.
+// This miniapp is a specialized version of the Shaper miniapp to the Mandelbrot
+// set. It provides a light-hearted example of AMR and GLVis integration.
 //
-// Compile with: make shaper
+// Compile with: make mandel
 //
-// Sample runs:  shaper
-//               shaper -m ../../data/inline-tri.mesh
-//               shaper -m ../../data/inline-hex.mesh
-//               shaper -m ../../data/inline-tet.mesh
-//               shaper -m ../../data/amr-quad.mesh
-//               shaper -m ../../data/beam-quad.mesh -a -ncl -1 -sd 4
-//               shaper -m ../../data/ball-nurbs.mesh
-//               shaper -m ../../data/mobius-strip.mesh
-//               shaper -m ../../data/square-disc-surf.mesh
-//               shaper -m ../../data/star-q3.mesh -sd 2 -ncl -1
-//               shaper -m ../../data/fichera-amr.mesh -a -ncl -1
+// Sample runs:  mandel
 
 #include "mfem.hpp"
 #include <fstream>
@@ -40,34 +27,11 @@
 using namespace mfem;
 using namespace std;
 
-// #define SHAPER_HO_MAT_VIS
-
 // Given a point x, return its material id as an integer. The ids should be
 // positive. If the point is exactly on the interface, return 0.
 //
-// This particular implementation, rescales the mesh to [-1,1]^sdim given the
-// xmin/xmax bounding box, and shapes in a simple annulus/shell with respect to
-// the rescaled coordinates.
-#if 0
-int material(Vector &x, Vector &xmin, Vector &xmax)
-{
-   static double p = 2.0;
-
-   // Rescaling to [-1,1]^sdim
-   for (int i = 0; i < x.Size(); i++)
-   {
-      x(i) = (2*x(i)-xmin(i)-xmax(i))/(xmax(i)-xmin(i));
-   }
-
-   // A simple annulus/shell
-   if (x.Normlp(p) > 0.4 && x.Normlp(p) < 0.6) { return 1; }
-   if (x.Normlp(p) < 0.4 || x.Normlp(p) > 0.6) { return 2; }
-   return 0;
-}
-#elif 0
-#include "shaper-image.hpp"
-#else
-// Mandelbrot set
+// This particular implementation bases the material value on the iterations for
+// the point in the Mandelbrot set definition.
 int material(Vector &x, Vector &xmin, Vector &xmax)
 {
    // Rescaling to [0,1]^sdim
@@ -96,39 +60,12 @@ int material(Vector &x, Vector &xmin, Vector &xmax)
       {
          return iteration%10+2;
       }
-      // return 2;
       else
       {
          return 1;
       }
    }
 }
-#endif
-
-#ifdef SHAPER_HO_MAT_VIS
-/// class for C-function coefficient
-class MyFunctionCoefficient : public Coefficient
-{
-protected:
-   int (*Function)(Vector &, Vector &, Vector &);
-   Vector *mymin, *mymax;
-
-public:
-   /// Define a time-independent coefficient from a C-function
-   MyFunctionCoefficient(int (*f)(Vector &, Vector &, Vector &),
-                         Vector &xmin, Vector &xmax)
-   { Function = f; mymin = &xmin;  mymax = &xmax; }
-
-   /// Evaluate coefficient
-   virtual double Eval(ElementTransformation &T, const IntegrationPoint &ip)
-   {
-      double x[3];
-      Vector transip(x, 3);
-      T.Transform(ip, transip);
-      return ((*Function)(transip,*mymin,*mymax));
-   }
-};
-#endif
 
 int main(int argc, char *argv[])
 {
@@ -136,6 +73,7 @@ int main(int argc, char *argv[])
    int nclimit = 1;
    const char *mesh_file = "../../data/inline-quad.mesh";
    bool aniso = false;
+   bool visualization = 1;
 
    // Parse command line
    OptionsParser args(argc, argv);
@@ -147,6 +85,9 @@ int main(int argc, char *argv[])
                   "Level of hanging nodes allowed (-1 = unlimited).");
    args.AddOption(&aniso, "-a", "--aniso", "-i", "--iso",
                   "Enable anisotropic refinement of quads and hexes.");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
    args.Parse();
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    args.PrintOptions(cout);
@@ -157,6 +98,11 @@ int main(int argc, char *argv[])
    int sdim = mesh.SpaceDimension();
    Vector xmin, xmax;
    mesh.GetBoundingBox(xmin, xmax);
+
+   for (int l = 0; l < 3; l++)
+   {
+      mesh.UniformRefinement();
+   }
 
    // NURBS meshes don't support non-conforming refinement for now
    if (mesh.NURBSext) { mesh.SetCurvature(2); }
@@ -170,18 +116,14 @@ int main(int argc, char *argv[])
    GridFunction attr(&attr_fespace);
 
    // GLVis server to visualize to
-   char vishost[] = "localhost";
-   int  visport   = 19916;
-   socketstream sol_sock(vishost, visport);
-   sol_sock.precision(8);
-
-#ifdef SHAPER_HO_MAT_VIS
-   L2_FECollection mat_fec(3, dim, BasisType::Positive);
-   FiniteElementSpace mat_fespace(&mesh, &mat_fec);
-   GridFunction mat(&mat_fespace);
-   socketstream mat_sock(vishost, visport);
-   mat_sock.precision(8);
-#endif
+   socketstream sol_sock;
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      sol_sock.open(vishost, visport);
+      sol_sock.precision(8);
+   }
 
    // Shaping loop
    for (int iter = 0; 1; iter++)
@@ -260,52 +202,40 @@ int main(int argc, char *argv[])
          }
       }
 
-#ifdef SHAPER_HO_MAT_VIS
-      MyFunctionCoefficient cf(material, xmin, xmax);
-      mat.ProjectCoefficient(cf);
-#endif
-
       // Visualization
-      sol_sock << "solution\n" << mesh << attr;
-      if (iter == 0 && sdim == 2)
+      if (visualization)
       {
-         sol_sock << "keys 'RjlmpppppppppppppA*************'\n";
+         sol_sock << "solution\n" << mesh << attr;
+         if (iter == 0 && sdim == 2)
+         {
+            sol_sock << "keys 'RjlppppppppppppppA*************'\n";
+         }
+         if (iter == 0 && sdim == 3)
+         {
+            sol_sock << "keys 'YYYYYYYYYXXXXXXXmA********8888888pppttt";
+            if (dim == 3) { sol_sock << "iiM"; }
+            sol_sock << "'\n";
+         }
+         sol_sock << flush;
       }
-      if (iter == 0 && sdim == 3)
-      {
-         sol_sock << "keys 'YYYYYYYYYXXXXXXXmA********8888888pppttt";
-         if (dim == 3) { sol_sock << "iiM"; }
-         sol_sock << "'\n";
-      }
-      sol_sock << flush;
-
-#ifdef SHAPER_HO_MAT_VIS
-      mat_sock << "solution\n" << mesh << mat << flush;
-#endif
 
       // Ask the user if we should continue refining
-      char yn;
-      cout << "Mesh has " << mesh.GetNE() << " elements. \n"
-           << "Continue shaping? --> ";
-      cin >> yn;
-      if (yn == 'n' || yn == 'q') { break; }
+      cout << "Iteration " << iter+1 << ": mesh has " << mesh.GetNE() <<
+           " elements. \n";
+      if ((iter+1) % 4 == 0)
+      {
+         if (!visualization) { break; }
+         char yn;
+         cout << "Continue shaping? --> ";
+         cin >> yn;
+         if (yn == 'n' || yn == 'q') { break; }
+      }
 
       // Perform refinement, update spaces and grid functions
       mesh.GeneralRefinement(refs, -1, nclimit);
       attr_fespace.Update();
       attr.Update();
-#ifdef SHAPER_HO_MAT_VIS
-      mat_fespace.Update();
-      mat.Update();
-#endif
    }
-
-   // Set element attributes in the mesh object before saving
-   for (int i = 0; i < mesh.GetNE(); i++)
-   {
-      mesh.SetAttribute(i, attr(i));
-   }
-   mesh.SetAttributes();
 
    // Set element attributes in the mesh object before saving
    for (int i = 0; i < mesh.GetNE(); i++)
@@ -315,7 +245,7 @@ int main(int argc, char *argv[])
    mesh.SetAttributes();
 
    // Save the final mesh
-   ofstream mesh_ofs("shaper.mesh");
+   ofstream mesh_ofs("mandel.mesh");
    mesh_ofs.precision(8);
    mesh.Print(mesh_ofs);
 }

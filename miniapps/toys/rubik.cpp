@@ -278,23 +278,8 @@ int main(int argc, char *argv[])
    //MergeMeshNodes(&mesh, 1);
 
    // Output the resulting mesh to a file
-   /*
-   {
-      ostringstream oss;
-      if (cfg >= 0)
-      {
-         oss << "snake-c" << cfg << ".mesh";
-      }
-      else
-      {
-         oss << "snake-joined.mesh";
-      }
-      ofstream ofs(oss.str().c_str());
-      ofs.precision(8);
-      mesh.Print(ofs);
-      ofs.close();
-   }
-   */
+   // ...
+
    // Clean up and exit
    return 0;
 }
