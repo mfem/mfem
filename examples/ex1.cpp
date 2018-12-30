@@ -40,6 +40,9 @@
 //               of essential boundary conditions, static condensation, and the
 //               optional connection to the GLVis tool for visualization.
 
+// Missing edge neighbor forced refinement (1x1x1 2-wedge inline mesh):
+//    ./ex1 -m ../data/inline-wedge.mesh -o 3 -r 2 -s 36
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -54,6 +57,7 @@ int main(int argc, char *argv[])
    int order = 1;
    bool static_cond = false;
    bool visualization = 1;
+   int ref_level = 1, seed = 1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -61,6 +65,8 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&seed, "-s", "--seed", "Random seed.");
+   args.AddOption(&ref_level, "-r", "--ref-level", "Refinement level.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -86,11 +92,12 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels = 0;
-         //(int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
-      for (int l = 0; l < ref_levels; l++)
+      srand(seed);
+      //mesh->UniformRefinement();
+      for (int l = 0; l < ref_level; l++)
       {
-         mesh->UniformRefinement();
+         //mesh->UniformRefinement();
+         mesh->RandomRefinement(0.5, true);
       }
    }
 
@@ -114,6 +121,8 @@ int main(int argc, char *argv[])
    FiniteElementSpace *fespace = new FiniteElementSpace(mesh, fec);
    cout << "Number of finite element unknowns: "
         << fespace->GetTrueVSize() << endl;
+
+   //fespace->GetConformingProlongation()->Print(mfem::out, 10);
 
    // 5. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking all
@@ -164,7 +173,7 @@ int main(int argc, char *argv[])
    // 10. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //     solve the system A X = B with PCG.
    GSSmoother M(A);
-   PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
+   PCG(A, M, B, X, 3, 500, 1e-16, 0.0);
 #else
    // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;

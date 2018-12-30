@@ -531,13 +531,6 @@ protected: // implementation
 
    int FindAltParents(int node1, int node2);
 
-   bool NodeSetX1(int node, int* n);
-   bool NodeSetX2(int node, int* n);
-   bool NodeSetY1(int node, int* n);
-   bool NodeSetY2(int node, int* n);
-   bool NodeSetZ1(int node, int* n);
-   bool NodeSetZ2(int node, int* n);
-
    void CollectDerefinements(int elem, Array<Connection> &list);
 
 
@@ -546,7 +539,6 @@ protected: // implementation
    static int find_node(const Element &el, int node);
    static int find_element_edge(const Element &el, int vn0, int vn1);
    //static int find_element_face(const Element &el, int vn0, int vn1, int vn2);
-   //static int find_hex_face(int a, int b, int c);
    static int find_local_face(int geom, int a, int b, int c);
 
    int ReorderFacePointMat(int v0, int v1, int v2, int v3,

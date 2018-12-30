@@ -582,24 +582,30 @@ int NCMesh::GetMidFaceNode(int en1, int en2, int en3, int en4)
    return nodes.GetId(en2, en4);
 }
 
-//
-inline bool NCMesh::NodeSetX1(int node, int* n)
+
+inline bool CubeFaceLeft(int node, int* n)
 { return node == n[0] || node == n[3] || node == n[4] || node == n[7]; }
 
-inline bool NCMesh::NodeSetX2(int node, int* n)
+inline bool CubeFaceRight(int node, int* n)
 { return node == n[1] || node == n[2] || node == n[5] || node == n[6]; }
 
-inline bool NCMesh::NodeSetY1(int node, int* n)
+inline bool CubeFaceFront(int node, int* n)
 { return node == n[0] || node == n[1] || node == n[4] || node == n[5]; }
 
-inline bool NCMesh::NodeSetY2(int node, int* n)
+inline bool CubeFaceBack(int node, int* n)
 { return node == n[2] || node == n[3] || node == n[6] || node == n[7]; }
 
-inline bool NCMesh::NodeSetZ1(int node, int* n)
+inline bool CubeFaceBottom(int node, int* n)
 { return node == n[0] || node == n[1] || node == n[2] || node == n[3]; }
 
-inline bool NCMesh::NodeSetZ2(int node, int* n)
+inline bool CubeFaceTop(int node, int* n)
 { return node == n[4] || node == n[5] || node == n[6] || node == n[7]; }
+
+inline bool PrismFaceBottom(int node, int* n)
+{ return node == n[0] || node == n[1] || node == n[2]; }
+
+inline bool PrismFaceTop(int node, int* n)
+{ return node == n[3] || node == n[4] || node == n[5]; }
 
 
 void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
@@ -609,29 +615,53 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
    if (!face) { return; }
 
    int elem = face->GetSingleElement();
-   MFEM_ASSERT(!elements[elem].ref_type, "element already refined.");
+   Element &el = elements[elem];
+   MFEM_ASSERT(!el.ref_type, "element already refined.");
 
-   int* nodes = elements[elem].node;
-
-   // schedule the right split depending on face orientation
-   if ((NodeSetX1(vn1, nodes) && NodeSetX2(vn2, nodes)) ||
-       (NodeSetX1(vn2, nodes) && NodeSetX2(vn1, nodes)))
+   int* nodes = el.node;
+   if (el.Geom() == Geometry::CUBE)
    {
-      ref_stack.Append(Refinement(elem, 1)); // X split
+      // schedule the right split depending on face orientation
+      if ((CubeFaceLeft(vn1, nodes) && CubeFaceRight(vn2, nodes)) ||
+          (CubeFaceLeft(vn2, nodes) && CubeFaceRight(vn1, nodes)))
+      {
+         ref_stack.Append(Refinement(elem, 1)); // X split
+      }
+      else if ((CubeFaceFront(vn1, nodes) && CubeFaceBack(vn2, nodes)) ||
+               (CubeFaceFront(vn2, nodes) && CubeFaceBack(vn1, nodes)))
+      {
+         ref_stack.Append(Refinement(elem, 2)); // Y split
+      }
+      else if ((CubeFaceBottom(vn1, nodes) && CubeFaceTop(vn2, nodes)) ||
+               (CubeFaceBottom(vn2, nodes) && CubeFaceTop(vn1, nodes)))
+      {
+         ref_stack.Append(Refinement(elem, 4)); // Z split
+      }
+      else
+      {
+         MFEM_ABORT("Inconsistent element/face structure.");
+      }
    }
-   else if ((NodeSetY1(vn1, nodes) && NodeSetY2(vn2, nodes)) ||
-            (NodeSetY1(vn2, nodes) && NodeSetY2(vn1, nodes)))
+   else if (el.Geom() == Geometry::PRISM)
    {
-      ref_stack.Append(Refinement(elem, 2)); // Y split
-   }
-   else if ((NodeSetZ1(vn1, nodes) && NodeSetZ2(vn2, nodes)) ||
-            (NodeSetZ1(vn2, nodes) && NodeSetZ2(vn1, nodes)))
-   {
-      ref_stack.Append(Refinement(elem, 4)); // Z split
+      if ((PrismFaceTop(vn1, nodes) && PrismFaceBottom(vn4, nodes)) ||
+          (PrismFaceTop(vn4, nodes) && PrismFaceBottom(vn1, nodes)))
+      {
+         ref_stack.Append(Refinement(elem, 3)); // XY split
+      }
+      else if ((PrismFaceTop(vn1, nodes) && PrismFaceBottom(vn2, nodes)) ||
+               (PrismFaceTop(vn2, nodes) && PrismFaceBottom(vn1, nodes)))
+      {
+         ref_stack.Append(Refinement(elem, 4)); // Z split
+      }
+      else
+      {
+         MFEM_ABORT("Inconsistent element/face structure.");
+      }
    }
    else
    {
-      MFEM_ABORT("inconsistent element/face structure.");
+      MFEM_ABORT("Unsupported geometry.")
    }
 }
 
@@ -1039,11 +1069,51 @@ void NCMesh::RefineElement(int elem, char ref_type)
       {
          ref_type = 3; // for consistence
 
-         MFEM_ABORT("TODO");
+         int mid01 = GetMidEdgeNode(no[0], no[1]);
+         int mid12 = GetMidEdgeNode(no[1], no[2]);
+         int mid20 = GetMidEdgeNode(no[2], no[0]);
+
+         int mid34 = GetMidEdgeNode(no[3], no[4]);
+         int mid45 = GetMidEdgeNode(no[4], no[5]);
+         int mid53 = GetMidEdgeNode(no[5], no[3]);
+
+         child[0] = NewWedge(no[0], mid01, mid20,
+                             no[3], mid34, mid53, attr,
+                             fa[0], fa[1], fa[2], -1, fa[4]);
+
+         child[1] = NewWedge(mid01, no[1], mid12,
+                             mid34, no[4], mid45, attr,
+                             fa[0], fa[1], fa[2], fa[3], -1);
+
+         child[2] = NewWedge(mid20, mid12, no[2],
+                             mid53, mid45, no[5], attr,
+                             fa[0], fa[1], -1, fa[3], fa[4]);
+
+         child[3] = NewWedge(mid12, mid20, mid01,
+                             mid45, mid53, mid34, attr,
+                             fa[0], fa[1], -1, -1, -1);
+
+         CheckAnisoFace(no[0], no[1], no[4], no[3], mid01, mid34);
+         CheckAnisoFace(no[1], no[2], no[5], no[4], mid12, mid45);
+         CheckAnisoFace(no[2], no[0], no[3], no[5], mid20, mid53);
       }
       else if (ref_type == 4) // Z refinement only (split in 2 wedges)
       {
-         MFEM_ABORT("TODO");
+         int mid03 = GetMidEdgeNode(no[0], no[3]);
+         int mid14 = GetMidEdgeNode(no[1], no[4]);
+         int mid25 = GetMidEdgeNode(no[2], no[5]);
+
+         child[0] = NewWedge(no[0], no[1], no[2],
+                             mid03, mid14, mid25, attr,
+                             fa[0], -1, fa[2], fa[3], fa[4]);
+
+         child[1] = NewWedge(mid03, mid14, mid25,
+                             no[3], no[4], no[5], attr,
+                             -1, fa[1], fa[2], fa[3], fa[4]);
+
+         CheckAnisoFace(no[3], no[0], no[1], no[4], mid03, mid14);
+         CheckAnisoFace(no[4], no[1], no[2], no[5], mid14, mid25);
+         CheckAnisoFace(no[5], no[2], no[0], no[3], mid25, mid03);
       }
       else if (ref_type > 4) // full isotropic refinement (split in 8 wedges)
       {
@@ -1237,6 +1307,15 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       int size = ref_stack.Size();
       RefineElement(ref.index, ref.ref_type);
       nforced += ref_stack.Size() - size;
+
+#ifdef MFEM_DEBUG
+      static int sequence = 0;
+      char fname[200];
+      sprintf(fname, "ncmesh.%03d", sequence++);
+      std::ofstream f(fname);
+      Update();
+      DebugDump(f);
+#endif
    }
 
    /* TODO: the current algorithm of forced refinements is not optimal. As
@@ -1256,11 +1335,6 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
    ref_stack.DeleteAll();
 
    Update();
-
-#ifdef MFEM_DEBUG
-   std::ofstream f("ncmesh.dump");
-   DebugDump(f);
-#endif
 }
 
 
@@ -1779,7 +1853,10 @@ void NCMesh::OnMeshUpdated(Mesh *mesh)
       const int *ev = edge_vertex->GetRow(i);
       Node* node = nodes.Find(vertex_nodeId[ev[0]], vertex_nodeId[ev[1]]);
 
-      MFEM_ASSERT(node && node->HasEdge(), "edge not found.");
+      MFEM_ASSERT(node && node->HasEdge(),
+                  "edge (" << ev[0] << "," << ev[1] << ") not found, "
+                  "node = " << node);
+
       node->edge_index = i;
    }
 
@@ -1916,22 +1993,6 @@ int NCMesh::find_element_edge(const Element &el, int vn0, int vn1)
    }
 
    MFEM_ABORT("Face (" << vn0 << ", " << vn1 << ", " << vn2 << ") not found");
-   return -1;
-}*/
-
-/*int NCMesh::find_hex_face(int a, int b, int c)
-{
-   for (int i = 0; i < 6; i++)
-   {
-      const int* fv = gi_hex.faces[i];
-      if ((a == fv[0] || a == fv[1] || a == fv[2] || a == fv[3]) &&
-          (b == fv[0] || b == fv[1] || b == fv[2] || b == fv[3]) &&
-          (c == fv[0] || c == fv[1] || c == fv[2] || c == fv[3]))
-      {
-         return i;
-      }
-   }
-   MFEM_ABORT("Face not found.");
    return -1;
 }*/
 
@@ -3042,6 +3103,10 @@ void NCMesh::GetPointMatrix(int geom, const char* ref_path, DenseMatrix& matrix)
                                 mid74, midf5, mid67, pm(7));
             }
          }
+      }
+      else if (geom == Geometry::CUBE)
+      {
+         MFEM_ABORT("TODO");
       }
       else if (geom == Geometry::SQUARE)
       {
