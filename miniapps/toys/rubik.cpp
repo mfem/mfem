@@ -26,6 +26,8 @@
 // Other interesting patterns:
 //  "x13 x31 y13 y31 x13 x31 y13 y31 x13 x31 y13 y31"
 //  "y13 z11 y11 x31 z13 y11 x33 z13 x31 z13 x11 y13 x13 z13 x33 y13 z11"
+//  "y13 y33 z31 y13 z31 y13 z31 x13 y31 x12 y33 z31 y11 x13 z31 x11 y31"
+//  "y13 x11 z13 y11 z33 y31 z31 y13 z33 y13 x33 y12 x13 z33 x33 z12"
 //
 
 #include "mfem.hpp"
