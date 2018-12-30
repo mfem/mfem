@@ -1958,17 +1958,18 @@ int NCMesh::ReorderFacePointMat(int v0, int v1, int v2, int v3,
    const Element &el = elements[elem];
    int master[4] =
    {
-      find_node(el, v0), find_node(el, v1),
-      find_node(el, v2), find_node(el, v3)
+      find_node(el, v0), find_node(el, v1), find_node(el, v2),
+      (v3 >= 0) ? find_node(el, v3) : -1
    };
+   int nfv = (v3 >= 0) ? 4 : 3;
 
-   int local = find_local_face(el.geom, master[0], master[1], master[2]);
+   int local = find_local_face(el.Geom(), master[0], master[1], master[2]);
    const int* fv = GI[el.Geom()].faces[local];
 
    DenseMatrix tmp(mat);
-   for (int i = 0, j; i < 4; i++)
+   for (int i = 0, j; i < nfv; i++)
    {
-      for (j = 0; j < 4; j++)
+      for (j = 0; j < nfv; j++)
       {
          if (fv[i] == master[j])
          {
@@ -1980,7 +1981,7 @@ int NCMesh::ReorderFacePointMat(int v0, int v1, int v2, int v3,
             break;
          }
       }
-      MFEM_ASSERT(j != 4, "node not found.");
+      MFEM_ASSERT(j != nfv, "node not found.");
    }
    return local;
 }
@@ -2054,8 +2055,8 @@ void NCMesh::TraverseTriFace(int vn0, int vn1, int vn2,
          pm.GetMatrix(mat);
 
          // reorder the point matrix according to slave face orientation
-         //int local = ReorderFacePointMat(vn0, vn1, vn2, vn3, elem, mat);
-         //face_list.slaves.back().local = local;
+         int local = ReorderFacePointMat(vn0, vn1, vn2, -1, elem, mat);
+         face_list.slaves.back().local = local;
 
          return;
       }
@@ -3390,7 +3391,7 @@ void NCMesh::FindFaceNodes(int face, int node[4])
    MFEM_ASSERT(elem >= 0, "Face has no elements?");
 
    Element &el = elements[elem];
-   int f = find_local_face(el.geom,
+   int f = find_local_face(el.Geom(),
                            find_node(el, fa.p1),
                            find_node(el, fa.p2),
                            find_node(el, fa.p3));
@@ -3515,7 +3516,7 @@ void NCMesh::CountSplits(int elem, int splits[3]) const
       elevel[i] = EdgeSplitLevel(node[ev[0]], node[ev[1]]);
    }
 
-   if (el.geom == Geometry::CUBE)
+   if (el.Geom() == Geometry::CUBE)
    {
       int flevel[6][2];
       for (int i = 0; i < gi.nf; i++)
@@ -3534,12 +3535,12 @@ void NCMesh::CountSplits(int elem, int splits[3]) const
       splits[2] = max8(flevel[1][1], flevel[2][1], flevel[3][1], flevel[4][1],
                        elevel[8], elevel[9], elevel[10], elevel[11]);
    }
-   else if (el.geom == Geometry::SQUARE)
+   else if (el.Geom() == Geometry::SQUARE)
    {
       splits[0] = std::max(elevel[0], elevel[2]);
       splits[1] = std::max(elevel[1], elevel[3]);
    }
-   else if (el.geom == Geometry::TRIANGLE)
+   else if (el.Geom() == Geometry::TRIANGLE)
    {
       splits[0] = std::max(elevel[0], std::max(elevel[1], elevel[2]));
       splits[1] = splits[0];
@@ -4004,12 +4005,12 @@ void NCMesh::DebugDump(std::ostream &out) const
       MFEM_ASSERT(elem >= 0, "");
       const Element &el = elements[elem];
 
-      int lf = find_local_face(el.geom,
+      int lf = find_local_face(el.Geom(),
                                find_node(el, face->p1),
                                find_node(el, face->p2),
                                find_node(el, face->p3));
       const int* fv = GI[el.Geom()].faces[lf];
-      const int nfv = (el.geom == Geometry::PRISM && fv[3] == 7) ? 3 : 4;
+      const int nfv = (el.Geom() == Geometry::PRISM && fv[3] == 7) ? 3 : 4;
 
       out << nfv;
       for (int i = 0; i < nfv; i++)
