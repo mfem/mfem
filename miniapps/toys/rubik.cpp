@@ -183,8 +183,8 @@ int main(int argc, char *argv[])
 
    mesh.FinalizeTopology();
 
-   FiniteElementCollection *fec = new L2_FECollection(0, 3, 1);
-   FiniteElementSpace fespace(&mesh, fec);
+   L2_FECollection fec(0, 3, 1);
+   FiniteElementSpace fespace(&mesh, &fec);
    GridFunction color(&fespace);
    color = 0.0;
 
