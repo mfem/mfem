@@ -146,15 +146,15 @@ int main(int argc, char *argv[])
 
             // Bottom
             vt[0] = v[0]; vt[1] = v[1]; vt[2] = v[3]; vt[3] = v[8];
-            mesh.AddTet(vt, k==0 ? 2 : 1);
+            mesh.AddTet(vt, k==0 ? 6 : 1);
             vt[0] = v[1]; vt[1] = v[2]; vt[2] = v[3]; vt[3] = v[8];
-            mesh.AddTet(vt, k==0 ? 2 : 1);
+            mesh.AddTet(vt, k==0 ? 6 : 1);
 
             // Top
             vt[0] = v[4]; vt[1] = v[7]; vt[2] = v[5]; vt[3] = v[8];
-            mesh.AddTet(vt, k==2 ? 3 : 1);
+            mesh.AddTet(vt, k==2 ? 7 : 1);
             vt[0] = v[5]; vt[1] = v[7]; vt[2] = v[6]; vt[3] = v[8];
-            mesh.AddTet(vt, k==2 ? 3 : 1);
+            mesh.AddTet(vt, k==2 ? 7 : 1);
 
             // Front
             vt[0] = v[0]; vt[1] = v[4]; vt[2] = v[1]; vt[3] = v[8];
@@ -170,15 +170,15 @@ int main(int argc, char *argv[])
 
             // Left
             vt[0] = v[3]; vt[1] = v[7]; vt[2] = v[0]; vt[3] = v[8];
-            mesh.AddTet(vt, i==0 ? 6 : 1);
+            mesh.AddTet(vt, i==0 ? 3 : 1);
             vt[0] = v[0]; vt[1] = v[7]; vt[2] = v[4]; vt[3] = v[8];
-            mesh.AddTet(vt, i==0 ? 6 : 1);
+            mesh.AddTet(vt, i==0 ? 3 : 1);
 
             // Right
             vt[0] = v[1]; vt[1] = v[5]; vt[2] = v[6]; vt[3] = v[8];
-            mesh.AddTet(vt, i==2 ? 7 : 1);
+            mesh.AddTet(vt, i==2 ? 2 : 1);
             vt[0] = v[1]; vt[1] = v[6]; vt[2] = v[2]; vt[3] = v[8];
-            mesh.AddTet(vt, i==2 ? 7 : 1);
+            mesh.AddTet(vt, i==2 ? 2 : 1);
          }
       }
    }
@@ -191,7 +191,7 @@ int main(int argc, char *argv[])
    color = 0.0;
 
    PWConstCoefficient pwCoef(7);
-   for (int i=1; i<=7; i++) { pwCoef(i) = (double)(i-1)/7.0; }
+   for (int i=1; i<=7; i++) { pwCoef(i) = (double)(i-1)/6.0; }
    color.ProjectCoefficient(pwCoef);
 
    // Output the initial mesh to a file
