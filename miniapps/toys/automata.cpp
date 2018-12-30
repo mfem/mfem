@@ -1,6 +1,26 @@
-//                                MFEM Example
+// Copyright (c) 2010, Lawrence Livermore National Security, LLC. Produced at
+// the Lawrence Livermore National Laboratory. LLNL-CODE-443211. All Rights
+// reserved. See file COPYRIGHT for details.
 //
-// Compile with: make ex_ca
+// This file is part of the MFEM library. For more information and source code
+// availability see http://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the GNU Lesser General Public License (as published by the Free
+// Software Foundation) version 2.1 dated February 1999.
+//
+//         ----------------------------------------------------
+//         Automata Miniapp:  Model of simple cellular automata
+//         ----------------------------------------------------
+//
+// This miniapp provides a light-hearted example of mesh manipulation and
+// GLVis integration.
+//
+// Compile with: make automata
+//
+// Sample runs: automata
+//              automata -r 110 -ns 60
+//              automata -r 30 -ns 100
 
 #include "mfem.hpp"
 #include <fstream>
@@ -46,7 +66,6 @@ int main(int argc, char *argv[])
    //    the same code.
    Mesh *mesh = new Mesh(2 * ns + 3, ns, Element::QUADRILATERAL,
                          0, 2 * ns + 3, ns);
-   mesh->Print(*(new ofstream("zzz")));
    int dim = mesh->Dimension();
 
    // 3. Define a finite element space on the mesh. Here we use continuous
@@ -128,10 +147,10 @@ int main(int argc, char *argv[])
 
    // 10. Save the refined mesh and the solution. This output can be
    //     viewed later using GLVis: "glvis -m refined.mesh -g sol.gf".
-   ofstream mesh_ofs("refined.mesh");
+   ofstream mesh_ofs("automata.mesh");
    mesh_ofs.precision(8);
    mesh->Print(mesh_ofs);
-   ofstream sol_ofs("sol.gf");
+   ofstream sol_ofs("automata.gf");
    sol_ofs.precision(8);
    x.Save(sol_ofs);
 
