@@ -241,6 +241,27 @@ int main(int argc, char *argv[])
                cout << "tier index must be 1, 2, or 3." << endl;
             }
          }
+         else if ( dir == 'r' )
+         {
+            // Execute a sequence of random moves
+            // Input the number of moves
+            int num;
+            cin >> num;
+            for (int i=0; i<num; i++)
+            {
+               double ran = drand48();
+               int ir = (int)(26 * ran);
+               deg = (ir % 3) + 1; ir /= 3;
+               ind = (ir % 3) + 1; ir /= 3;
+               dir = (ir == 0)? 'x' : ((ir == 1) ? 'y' : 'z');
+
+               mark_elements(mesh, dir, ind);
+               while (anim_step(dir, deg, mesh))
+               {
+                  sol_sock << "solution\n" << mesh << color << flush;
+               }
+            }
+         }
          else if ( dir == 'q' )
          {
             break;
