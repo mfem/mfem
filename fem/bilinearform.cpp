@@ -243,6 +243,27 @@ void BilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat)
    }
 }
 
+void BilinearForm::ComputeBdrElementMatrix(int i, DenseMatrix &elmat)
+{
+   if (bbfi.Size())
+   {
+      const FiniteElement &be = *fes->GetBE(i);
+      ElementTransformation *eltrans = fes->GetBdrElementTransformation(i);
+      bbfi[0]->AssembleElementMatrix(be, *eltrans, elmat);
+      for (int k = 1; k < bbfi.Size(); k++)
+      {
+         bbfi[k]->AssembleElementMatrix(be, *eltrans, elemmat);
+         elmat += elemmat;
+      }
+   }
+   else
+   {
+      fes->GetBdrElementVDofs(i, vdofs);
+      elmat.SetSize(vdofs.Size());
+      elmat = 0.0;
+   }
+}
+
 void BilinearForm::AssembleElementMatrix(
    int i, const DenseMatrix &elmat, Array<int> &vdofs, int skip_zeros)
 {
