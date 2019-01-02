@@ -436,8 +436,8 @@ protected:
    FiniteElementSpace *trial_fes, ///< Not owned
                       *test_fes;  ///< Not owned
 
-   /** @brief Indicates the BilinearFormIntegrator%s stored in #dom, #bdr, and
-       #skt are owned by another MixedBilinearForm. */
+   /** @brief Indicates the BilinearFormIntegrator%s stored in #dom, #bdr,
+       #skt and #bskt are owned by another MixedBilinearForm. */
    int extern_bfs;
 
    /// Domain integrators.
@@ -446,6 +446,9 @@ protected:
    Array<BilinearFormIntegrator*> bdr;
    /// Trace face (skeleton) integrators.
    Array<BilinearFormIntegrator*> skt;
+   /// Boundary trace face (skeleton) integrators.
+   Array<BilinearFormIntegrator*> bskt;
+   Array<Array<int>*>             bskt_marker;///< Entries are not owned.
 
 private:
    /// Copy construction is not supported; body is undefined.
@@ -516,6 +519,13 @@ public:
        test space. */
    void AddTraceFaceIntegrator(BilinearFormIntegrator *bfi);
 
+   /// Adds a boundary trace face integrator. Assumes ownership of @a bfi.
+   void AddBdrTraceFaceIntegrator (BilinearFormIntegrator * bfi);
+
+   /// Adds a boundary trace face integrator. Assumes ownership of @a bfi.
+   void AddBdrTraceFaceIntegrator (BilinearFormIntegrator * bfi,
+                                   Array<int> &bdr_marker);
+
    /// Access all integrators added with AddDomainIntegrator().
    Array<BilinearFormIntegrator*> *GetDBFI() { return &dom; }
 
@@ -524,6 +534,13 @@ public:
 
    /// Access all integrators added with AddTraceFaceIntegrator().
    Array<BilinearFormIntegrator*> *GetTFBFI() { return &skt; }
+
+   /// Access all integrators added with AddBdrTraceFaceIntegrator().
+   Array<BilinearFormIntegrator*> *GetBTFBFI() { return &bskt; }
+   /** @brief Access all boundary markers added with AddBdrTraceFaceIntegrator().
+       If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
+   Array<Array<int>*> *GetBTFBFI_Marker() { return &bskt_marker; }
 
    void operator=(const double a) { *mat = a; }
 
