@@ -410,8 +410,8 @@ ElementTransformation *Mesh::GetElementTransformation(int i)
 
 ElementTransformation *Mesh::GetBdrElementTransformation(int i)
 {
-   GetBdrElementTransformation(i, &FaceTransformation);
-   return &FaceTransformation;
+   GetBdrElementTransformation(i, &BdrTransformation);
+   return &BdrTransformation;
 }
 
 void Mesh::GetBdrElementTransformation(int i, IsoparametricTransformation* ElTr)
@@ -989,7 +989,7 @@ void Mesh::Destroy()
 
    // TODO:
    // IsoparametricTransformations
-   // Transformation, Transformation2, FaceTransformation, EdgeTransformation;
+   // Transformation, Transformation2, BdrTransformation, FaceTransformation, EdgeTransformation;
    // FaceElementTransformations FaceElemTr;
 
    CoarseFineTr.Clear();
