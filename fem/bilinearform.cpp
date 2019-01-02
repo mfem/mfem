@@ -938,6 +938,9 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    dom = mbf->dom;
    bdr = mbf->bdr;
    skt = mbf->skt;
+   bskt = mbf->bskt;
+
+   bskt_marker = mbf->bskt_marker;
 }
 
 double & MixedBilinearForm::Elem (int i, int j)
@@ -1002,6 +1005,19 @@ void MixedBilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi)
 void MixedBilinearForm::AddTraceFaceIntegrator (BilinearFormIntegrator * bfi)
 {
    skt.Append (bfi);
+}
+
+void MixedBilinearForm::AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi)
+{
+   bskt.Append(bfi);
+   bskt_marker.Append(NULL); // NULL marker means apply everywhere
+}
+
+void MixedBilinearForm::AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi,
+                                                  Array<int> &bdr_marker)
+{
+   bskt.Append(bfi);
+   bskt_marker.Append(&bdr_marker);
 }
 
 void MixedBilinearForm::Assemble (int skip_zeros)
@@ -1084,6 +1100,62 @@ void MixedBilinearForm::Assemble (int skip_zeros)
             skt[k]->AssembleFaceMatrix(*trial_face_fe, *test_fe1, *test_fe2,
                                        *ftr, elemmat);
             mat->AddSubMatrix(te_vdofs, tr_vdofs, elemmat, skip_zeros);
+         }
+      }
+   }
+
+   if (bskt.Size())
+   {
+      FaceElementTransformations *ftr;
+      Array<int> te_vdofs2;
+      const FiniteElement *trial_face_fe, *test_fe1, *test_fe2;
+
+      // Which boundary attributes need to be processed?
+      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                                 mesh->bdr_attributes.Max() : 0);
+      bdr_attr_marker = 0;
+      for (int k = 0; k < bskt.Size(); k++)
+      {
+         if (bskt_marker[k] == NULL)
+         {
+            bdr_attr_marker = 1;
+            break;
+         }
+         Array<int> &bdr_marker = *bskt_marker[k];
+         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                     "invalid boundary marker for boundary trace face integrator #"
+                     << k << ", counting from zero");
+         for (int i = 0; i < bdr_attr_marker.Size(); i++)
+         {
+            bdr_attr_marker[i] |= bdr_marker[i];
+         }
+      }
+
+      for (i = 0; i < trial_fes -> GetNBE(); i++)
+      {
+         const int bdr_attr = mesh->GetBdrAttribute(i);
+         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
+         ftr = mesh->GetBdrFaceTransformations(i);
+         if (ftr)
+         {
+            trial_fes->GetFaceVDofs(i, tr_vdofs);
+            test_fes->GetElementVDofs(ftr->Elem1No, te_vdofs);
+            trial_face_fe = trial_fes->GetFaceElement(i);
+            test_fe1 = test_fes->GetFE(ftr->Elem1No);
+            // The test_fe2 object is really a dummy and not used on the
+            // boundaries, but we can't dereference a NULL pointer, and we don't
+            // want to actually make a fake element.
+            test_fe2 = test_fe1;
+            for (int k = 0; k < bskt.Size(); k++)
+            {
+               if (bskt_marker[k] &&
+                   (*bskt_marker[k])[bdr_attr-1] == 0) { continue; }
+
+               bskt[k]->AssembleFaceMatrix(*trial_face_fe, *test_fe1, *test_fe2,
+                                           *ftr, elemmat);
+               mat->AddSubMatrix(te_vdofs, tr_vdofs, elemmat, skip_zeros);
+            }
          }
       }
    }
@@ -1181,6 +1253,7 @@ MixedBilinearForm::~MixedBilinearForm()
       for (i = 0; i < dom.Size(); i++) { delete dom[i]; }
       for (i = 0; i < bdr.Size(); i++) { delete bdr[i]; }
       for (i = 0; i < skt.Size(); i++) { delete skt[i]; }
+      for (i = 0; i < bskt.Size(); i++) { delete bskt[i]; }
    }
 }
 
