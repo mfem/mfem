@@ -138,6 +138,7 @@ protected:
    mutable Table *edge_vertex;
 
    IsoparametricTransformation Transformation, Transformation2;
+   IsoparametricTransformation BdrTransformation;
    IsoparametricTransformation FaceTransformation, EdgeTransformation;
    FaceElementTransformations FaceElemTr;
 
