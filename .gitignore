@@ -166,3 +166,8 @@ miniapps/nurbs/mesh.*
 miniapps/nurbs/sol.*
 miniapps/nurbs/mode_*
 miniapps/nurbs/Example1*
+*.user
+*.obj
+*.tlog
+*.pdb
+Win32/x64/*/*.log
