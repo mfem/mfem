@@ -935,12 +935,12 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    extern_bfs = 1;
 
    // Copy the pointers to the integrators
-   dom = mbf->dom;
-   bdr = mbf->bdr;
-   skt = mbf->skt;
-   bskt = mbf->bskt;
+   dbfi = mbf->dbfi;
+   bbfi = mbf->bbfi;
+   tfbfi = mbf->tfbfi;
+   btfbfi = mbf->btfbfi;
 
-   bskt_marker = mbf->bskt_marker;
+   btfbfi_marker = mbf->btfbfi_marker;
 }
 
 double & MixedBilinearForm::Elem (int i, int j)
@@ -994,30 +994,30 @@ void MixedBilinearForm::GetBlocks(Array2D<SparseMatrix *> &blocks) const
 
 void MixedBilinearForm::AddDomainIntegrator (BilinearFormIntegrator * bfi)
 {
-   dom.Append (bfi);
+   dbfi.Append (bfi);
 }
 
 void MixedBilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi)
 {
-   bdr.Append (bfi);
+   bbfi.Append (bfi);
 }
 
 void MixedBilinearForm::AddTraceFaceIntegrator (BilinearFormIntegrator * bfi)
 {
-   skt.Append (bfi);
+   tfbfi.Append (bfi);
 }
 
 void MixedBilinearForm::AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi)
 {
-   bskt.Append(bfi);
-   bskt_marker.Append(NULL); // NULL marker means apply everywhere
+   btfbfi.Append(bfi);
+   btfbfi_marker.Append(NULL); // NULL marker means apply everywhere
 }
 
 void MixedBilinearForm::AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi,
                                                   Array<int> &bdr_marker)
 {
-   bskt.Append(bfi);
-   bskt_marker.Append(&bdr_marker);
+   btfbfi.Append(bfi);
+   btfbfi_marker.Append(&bdr_marker);
 }
 
 void MixedBilinearForm::Assemble (int skip_zeros)
@@ -1034,41 +1034,41 @@ void MixedBilinearForm::Assemble (int skip_zeros)
       mat = new SparseMatrix(height, width);
    }
 
-   if (dom.Size())
+   if (dbfi.Size())
    {
       for (i = 0; i < test_fes -> GetNE(); i++)
       {
          trial_fes -> GetElementVDofs (i, tr_vdofs);
          test_fes  -> GetElementVDofs (i, te_vdofs);
          eltrans = test_fes -> GetElementTransformation (i);
-         for (k = 0; k < dom.Size(); k++)
+         for (k = 0; k < dbfi.Size(); k++)
          {
-            dom[k] -> AssembleElementMatrix2 (*trial_fes -> GetFE(i),
-                                              *test_fes  -> GetFE(i),
-                                              *eltrans, elemmat);
+            dbfi[k] -> AssembleElementMatrix2 (*trial_fes -> GetFE(i),
+                                               *test_fes  -> GetFE(i),
+                                               *eltrans, elemmat);
             mat -> AddSubMatrix (te_vdofs, tr_vdofs, elemmat, skip_zeros);
          }
       }
    }
 
-   if (bdr.Size())
+   if (bbfi.Size())
    {
       for (i = 0; i < test_fes -> GetNBE(); i++)
       {
          trial_fes -> GetBdrElementVDofs (i, tr_vdofs);
          test_fes  -> GetBdrElementVDofs (i, te_vdofs);
          eltrans = test_fes -> GetBdrElementTransformation (i);
-         for (k = 0; k < bdr.Size(); k++)
+         for (k = 0; k < bbfi.Size(); k++)
          {
-            bdr[k] -> AssembleElementMatrix2 (*trial_fes -> GetBE(i),
-                                              *test_fes  -> GetBE(i),
-                                              *eltrans, elemmat);
+            bbfi[k] -> AssembleElementMatrix2 (*trial_fes -> GetBE(i),
+                                               *test_fes  -> GetBE(i),
+                                               *eltrans, elemmat);
             mat -> AddSubMatrix (te_vdofs, tr_vdofs, elemmat, skip_zeros);
          }
       }
    }
 
-   if (skt.Size())
+   if (tfbfi.Size())
    {
       FaceElementTransformations *ftr;
       Array<int> te_vdofs2;
@@ -1095,16 +1095,16 @@ void MixedBilinearForm::Assemble (int skip_zeros)
             // want to actually make a fake element.
             test_fe2 = test_fe1;
          }
-         for (int k = 0; k < skt.Size(); k++)
+         for (int k = 0; k < tfbfi.Size(); k++)
          {
-            skt[k]->AssembleFaceMatrix(*trial_face_fe, *test_fe1, *test_fe2,
-                                       *ftr, elemmat);
+            tfbfi[k]->AssembleFaceMatrix(*trial_face_fe, *test_fe1, *test_fe2,
+                                         *ftr, elemmat);
             mat->AddSubMatrix(te_vdofs, tr_vdofs, elemmat, skip_zeros);
          }
       }
    }
 
-   if (bskt.Size())
+   if (btfbfi.Size())
    {
       FaceElementTransformations *ftr;
       Array<int> te_vdofs2;
@@ -1114,14 +1114,14 @@ void MixedBilinearForm::Assemble (int skip_zeros)
       Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
                                  mesh->bdr_attributes.Max() : 0);
       bdr_attr_marker = 0;
-      for (int k = 0; k < bskt.Size(); k++)
+      for (int k = 0; k < btfbfi.Size(); k++)
       {
-         if (bskt_marker[k] == NULL)
+         if (btfbfi_marker[k] == NULL)
          {
             bdr_attr_marker = 1;
             break;
          }
-         Array<int> &bdr_marker = *bskt_marker[k];
+         Array<int> &bdr_marker = *btfbfi_marker[k];
          MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
                      "invalid boundary marker for boundary trace face integrator #"
                      << k << ", counting from zero");
@@ -1147,13 +1147,13 @@ void MixedBilinearForm::Assemble (int skip_zeros)
             // boundaries, but we can't dereference a NULL pointer, and we don't
             // want to actually make a fake element.
             test_fe2 = test_fe1;
-            for (int k = 0; k < bskt.Size(); k++)
+            for (int k = 0; k < btfbfi.Size(); k++)
             {
-               if (bskt_marker[k] &&
-                   (*bskt_marker[k])[bdr_attr-1] == 0) { continue; }
+               if (btfbfi_marker[k] &&
+                   (*btfbfi_marker[k])[bdr_attr-1] == 0) { continue; }
 
-               bskt[k]->AssembleFaceMatrix(*trial_face_fe, *test_fe1, *test_fe2,
-                                           *ftr, elemmat);
+               btfbfi[k]->AssembleFaceMatrix(*trial_face_fe, *test_fe1, *test_fe2,
+                                             *ftr, elemmat);
                mat->AddSubMatrix(te_vdofs, tr_vdofs, elemmat, skip_zeros);
             }
          }
@@ -1250,10 +1250,10 @@ MixedBilinearForm::~MixedBilinearForm()
    if (!extern_bfs)
    {
       int i;
-      for (i = 0; i < dom.Size(); i++) { delete dom[i]; }
-      for (i = 0; i < bdr.Size(); i++) { delete bdr[i]; }
-      for (i = 0; i < skt.Size(); i++) { delete skt[i]; }
-      for (i = 0; i < bskt.Size(); i++) { delete bskt[i]; }
+      for (i = 0; i < dbfi.Size(); i++) { delete dbfi[i]; }
+      for (i = 0; i < bbfi.Size(); i++) { delete bbfi[i]; }
+      for (i = 0; i < tfbfi.Size(); i++) { delete tfbfi[i]; }
+      for (i = 0; i < btfbfi.Size(); i++) { delete btfbfi[i]; }
    }
 }
 
@@ -1270,7 +1270,7 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
       mat = new SparseMatrix(height, width);
    }
 
-   if (dom.Size() > 0)
+   if (dbfi.Size() > 0)
    {
       for (int i = 0; i < test_fes->GetNE(); i++)
       {
@@ -1280,17 +1280,17 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
          dom_fe = trial_fes->GetFE(i);
          ran_fe = test_fes->GetFE(i);
 
-         dom[0]->AssembleElementMatrix2(*dom_fe, *ran_fe, *T, totelmat);
-         for (int j = 1; j < dom.Size(); j++)
+         dbfi[0]->AssembleElementMatrix2(*dom_fe, *ran_fe, *T, totelmat);
+         for (int j = 1; j < dbfi.Size(); j++)
          {
-            dom[j]->AssembleElementMatrix2(*dom_fe, *ran_fe, *T, elmat);
+            dbfi[j]->AssembleElementMatrix2(*dom_fe, *ran_fe, *T, elmat);
             totelmat += elmat;
          }
          mat->SetSubMatrix(ran_vdofs, dom_vdofs, totelmat, skip_zeros);
       }
    }
 
-   if (skt.Size())
+   if (tfbfi.Size())
    {
       const int nfaces = test_fes->GetMesh()->GetNumFaces();
       for (int i = 0; i < nfaces; i++)
@@ -1301,10 +1301,10 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
          dom_fe = trial_fes->GetFaceElement(i);
          ran_fe = test_fes->GetFaceElement(i);
 
-         skt[0]->AssembleElementMatrix2(*dom_fe, *ran_fe, *T, totelmat);
-         for (int j = 1; j < skt.Size(); j++)
+         tfbfi[0]->AssembleElementMatrix2(*dom_fe, *ran_fe, *T, totelmat);
+         for (int j = 1; j < tfbfi.Size(); j++)
          {
-            skt[j]->AssembleElementMatrix2(*dom_fe, *ran_fe, *T, elmat);
+            tfbfi[j]->AssembleElementMatrix2(*dom_fe, *ran_fe, *T, elmat);
             totelmat += elmat;
          }
          mat->SetSubMatrix(ran_vdofs, dom_vdofs, totelmat, skip_zeros);

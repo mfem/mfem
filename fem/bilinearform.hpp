@@ -441,14 +441,17 @@ protected:
    int extern_bfs;
 
    /// Domain integrators.
-   Array<BilinearFormIntegrator*> dom;
+   Array<BilinearFormIntegrator*> dbfi;
+
    /// Boundary integrators.
-   Array<BilinearFormIntegrator*> bdr;
+   Array<BilinearFormIntegrator*> bbfi;
+
    /// Trace face (skeleton) integrators.
-   Array<BilinearFormIntegrator*> skt;
+   Array<BilinearFormIntegrator*> tfbfi;
+
    /// Boundary trace face (skeleton) integrators.
-   Array<BilinearFormIntegrator*> bskt;
-   Array<Array<int>*>             bskt_marker;///< Entries are not owned.
+   Array<BilinearFormIntegrator*> btfbfi;
+   Array<Array<int>*>             btfbfi_marker;///< Entries are not owned.
 
 private:
    /// Copy construction is not supported; body is undefined.
@@ -527,20 +530,20 @@ public:
                                    Array<int> &bdr_marker);
 
    /// Access all integrators added with AddDomainIntegrator().
-   Array<BilinearFormIntegrator*> *GetDBFI() { return &dom; }
+   Array<BilinearFormIntegrator*> *GetDBFI() { return &dbfi; }
 
    /// Access all integrators added with AddBoundaryIntegrator().
-   Array<BilinearFormIntegrator*> *GetBBFI() { return &bdr; }
+   Array<BilinearFormIntegrator*> *GetBBFI() { return &bbfi; }
 
    /// Access all integrators added with AddTraceFaceIntegrator().
-   Array<BilinearFormIntegrator*> *GetTFBFI() { return &skt; }
+   Array<BilinearFormIntegrator*> *GetTFBFI() { return &tfbfi; }
 
    /// Access all integrators added with AddBdrTraceFaceIntegrator().
-   Array<BilinearFormIntegrator*> *GetBTFBFI() { return &bskt; }
+   Array<BilinearFormIntegrator*> *GetBTFBFI() { return &btfbfi; }
    /** @brief Access all boundary markers added with AddBdrTraceFaceIntegrator().
        If no marker was specified when the integrator was added, the
        corresponding pointer (to Array<int>) will be NULL. */
-   Array<Array<int>*> *GetBTFBFI_Marker() { return &bskt_marker; }
+   Array<Array<int>*> *GetBTFBFI_Marker() { return &btfbfi_marker; }
 
    void operator=(const double a) { *mat = a; }
 
@@ -624,7 +627,7 @@ public:
    { AddTraceFaceIntegrator(di); }
 
    /// Access all interpolators added with AddDomainInterpolator().
-   Array<BilinearFormIntegrator*> *GetDI() { return &dom; }
+   Array<BilinearFormIntegrator*> *GetDI() { return &dbfi; }
 
    /** @brief Construct the internal matrix representation of the discrete
        linear operator. */
