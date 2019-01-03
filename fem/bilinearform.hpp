@@ -445,6 +445,7 @@ protected:
 
    /// Boundary integrators.
    Array<BilinearFormIntegrator*> bbfi;
+   Array<Array<int>*>             bbfi_marker;///< Entries are not owned.
 
    /// Trace face (skeleton) integrators.
    Array<BilinearFormIntegrator*> tfbfi;
@@ -515,6 +516,9 @@ public:
    /// Adds a boundary integrator. Assumes ownership of @a bfi.
    void AddBoundaryIntegrator(BilinearFormIntegrator *bfi);
 
+   /// Adds a boundary integrator. Assumes ownership of @a bfi.
+   void AddBoundaryIntegrator (BilinearFormIntegrator * bfi,
+                               Array<int> &bdr_marker);
    /** @brief Add a trace face integrator. Assumes ownership of @a bfi.
 
        This type of integrator assembles terms over all faces of the mesh using
@@ -534,6 +538,10 @@ public:
 
    /// Access all integrators added with AddBoundaryIntegrator().
    Array<BilinearFormIntegrator*> *GetBBFI() { return &bbfi; }
+   /** @brief Access all boundary markers added with AddBoundaryIntegrator().
+       If no marker was specified when the integrator was added, the
+       corresponding pointer (to Array<int>) will be NULL. */
+   Array<Array<int>*> *GetBBFI_Marker() { return &bbfi_marker; }
 
    /// Access all integrators added with AddTraceFaceIntegrator().
    Array<BilinearFormIntegrator*> *GetTFBFI() { return &tfbfi; }

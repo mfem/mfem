@@ -940,6 +940,7 @@ MixedBilinearForm::MixedBilinearForm (FiniteElementSpace *tr_fes,
    tfbfi = mbf->tfbfi;
    btfbfi = mbf->btfbfi;
 
+   bbfi_marker = mbf->bbfi_marker;
    btfbfi_marker = mbf->btfbfi_marker;
 }
 
@@ -1000,6 +1001,14 @@ void MixedBilinearForm::AddDomainIntegrator (BilinearFormIntegrator * bfi)
 void MixedBilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi)
 {
    bbfi.Append (bfi);
+   bbfi_marker.Append(NULL); // NULL marker means apply everywhere
+}
+
+void MixedBilinearForm::AddBoundaryIntegrator (BilinearFormIntegrator * bfi,
+                                               Array<int> &bdr_marker)
+{
+   bbfi.Append (bfi);
+   bbfi_marker.Append(&bdr_marker);
 }
 
 void MixedBilinearForm::AddTraceFaceIntegrator (BilinearFormIntegrator * bfi)
@@ -1053,13 +1062,40 @@ void MixedBilinearForm::Assemble (int skip_zeros)
 
    if (bbfi.Size())
    {
+      // Which boundary attributes need to be processed?
+      Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                                 mesh->bdr_attributes.Max() : 0);
+      bdr_attr_marker = 0;
+      for (int k = 0; k < bbfi.Size(); k++)
+      {
+         if (bbfi_marker[k] == NULL)
+         {
+            bdr_attr_marker = 1;
+            break;
+         }
+         Array<int> &bdr_marker = *bbfi_marker[k];
+         MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                     "invalid boundary marker for boundary integrator #"
+                     << k << ", counting from zero");
+         for (int i = 0; i < bdr_attr_marker.Size(); i++)
+         {
+            bdr_attr_marker[i] |= bdr_marker[i];
+         }
+      }
+
       for (i = 0; i < test_fes -> GetNBE(); i++)
       {
+         const int bdr_attr = mesh->GetBdrAttribute(i);
+         if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
          trial_fes -> GetBdrElementVDofs (i, tr_vdofs);
          test_fes  -> GetBdrElementVDofs (i, te_vdofs);
          eltrans = test_fes -> GetBdrElementTransformation (i);
          for (k = 0; k < bbfi.Size(); k++)
          {
+            if (bbfi_marker[k] &&
+                (*bbfi_marker[k])[bdr_attr-1] == 0) { continue; }
+
             bbfi[k] -> AssembleElementMatrix2 (*trial_fes -> GetBE(i),
                                                *test_fes  -> GetBE(i),
                                                *eltrans, elemmat);
