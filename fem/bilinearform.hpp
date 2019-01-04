@@ -577,6 +577,18 @@ public:
    void ComputeElementMatrix(int i, DenseMatrix &elmat);
    void ComputeBdrElementMatrix(int i, DenseMatrix &elmat);
 
+   void AssembleElementMatrix(int i, const DenseMatrix &elmat,
+                              int skip_zeros = 1);
+   void AssembleElementMatrix(int i, const DenseMatrix &elmat,
+                              Array<int> &trial_vdofs, Array<int> &test_vdofs,
+                              int skip_zeros = 1);
+
+   void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
+                                 int skip_zeros = 1);
+   void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
+                                 Array<int> &trial_vdofs, Array<int> &test_vdofs,
+                                 int skip_zeros = 1);
+
    void EliminateTrialDofs(Array<int> &bdr_attr_is_ess,
                            const Vector &sol, Vector &rhs);
 
