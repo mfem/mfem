@@ -440,7 +440,8 @@ const
    Vector DofVal(dofs.Size()), LocVec;
    const FiniteElement *be = fes->GetBE(i);
    MFEM_ASSERT(be, "boundary FE does not exist");
-   MFEM_ASSERT(be->GetMapType() == FiniteElement::VALUE, "invalid boundary FE map type");
+   MFEM_ASSERT(be->GetMapType() == FiniteElement::VALUE,
+               "invalid boundary FE map type");
    be->CalcShape(ip, DofVal);
    GetSubVector(dofs, LocVec);
 
@@ -584,6 +585,30 @@ void GridFunction::GetFaceVectorValue(int i, int side,
       Transf->Loc2.Transform(ip, eip);
       GetVectorValue(Transf->Elem2No, eip, val);
    }
+}
+
+double GridFunction::GetBdrFaceValue(int i, const IntegrationPoint &ip,
+                                     int vdim) const
+{
+   FaceElementTransformations *Transf;
+
+   IntegrationPoint eip;  // ---
+   Transf = fes->GetMesh()->GetBdrFaceTransformations(i);
+   MFEM_ASSERT(Transf, "no boundary face");
+   Transf->Loc1.Transform(ip, eip);
+   return GetValue(Transf->Elem1No, eip, vdim);
+}
+
+void GridFunction::GetBdrFaceVectorValue(int i, const IntegrationPoint &ip,
+                                         Vector &val) const
+{
+   FaceElementTransformations *Transf;
+
+   IntegrationPoint eip;  // ---
+   Transf = fes->GetMesh()->GetBdrFaceTransformations(i);
+   MFEM_ASSERT(Transf, "no boundary face");
+   Transf->Loc1.Transform(ip, eip);
+   GetVectorValue(Transf->Elem1No, eip, val);
 }
 
 void GridFunction::GetValues(int i, const IntegrationRule &ir, Vector &vals,
@@ -750,6 +775,35 @@ int GridFunction::GetFaceValues(int i, int side, const IntegrationRule &ir,
    }
 
    return dir;
+}
+
+void GridFunction::GetBdrFaceValues(int i, const IntegrationRule &ir,
+                                    Vector &vals, int vdim) const
+{
+   int n;
+   FaceElementTransformations *Transf;
+
+   n = ir.GetNPoints();
+   IntegrationRule eir(n);  // ---
+   Transf = fes->GetMesh()->GetBdrFaceTransformations(i);
+   MFEM_ASSERT(Transf, "no boundary face");
+   Transf->Loc1.Transform(ir, eir);
+   GetValues(Transf->Elem1No, eir, vals, vdim);
+}
+
+void GridFunction::GetBdrFaceValues(int i, const IntegrationRule &ir,
+                                    Vector &vals, DenseMatrix &tr,
+                                    int vdim) const
+{
+   int n;
+   FaceElementTransformations *Transf;
+
+   n = ir.GetNPoints();
+   IntegrationRule eir(n);  // ---
+   Transf = fes->GetMesh()->GetBdrFaceTransformations(i);
+   MFEM_ASSERT(Transf, "no boundary face");
+   Transf->Loc1.Transform(ir, eir);
+   GetValues(Transf->Elem1No, eir, vals, tr, vdim);
 }
 
 void GridFunction::GetVectorValues(ElementTransformation &T,
@@ -944,6 +998,35 @@ int GridFunction::GetFaceVectorValues(
    }
 
    return di;
+}
+
+void GridFunction::GetBdrFaceVectorValues(int i, const IntegrationRule &ir,
+                                          DenseMatrix &vals) const
+{
+   int n;
+   FaceElementTransformations *Transf;
+
+   n = ir.GetNPoints();
+   IntegrationRule eir(n);  // ---
+   Transf = fes->GetMesh()->GetBdrFaceTransformations(i);
+   MFEM_ASSERT(Transf, "no boundary face");
+   Transf->Loc1.Transform(ir, eir);
+   GetVectorValues(*(Transf->Elem1), eir, vals);
+}
+
+void GridFunction::GetBdrFaceVectorValues(int i, const IntegrationRule &ir,
+                                          DenseMatrix &vals, DenseMatrix &tr) const
+{
+   int n;
+   FaceElementTransformations *Transf;
+
+   n = ir.GetNPoints();
+   IntegrationRule eir(n);  // ---
+   Transf = fes->GetMesh()->GetBdrFaceTransformations(i);
+   MFEM_ASSERT(Transf, "no boundary face");
+   Transf->Loc1.Transform(ir, eir);
+   Transf->Elem1->Transform(eir, tr);
+   GetVectorValues(*(Transf->Elem1), eir, vals);
 }
 
 void GridFunction::GetValuesFrom(const GridFunction &orig_func)

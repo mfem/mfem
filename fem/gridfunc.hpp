@@ -151,6 +151,12 @@ public:
    void GetFaceVectorValue(int i, int side, const IntegrationPoint &ip,
                            Vector &val, int *pdir = NULL) const;
 
+   double GetBdrFaceValue(int iBdrEl, const IntegrationPoint &ip,
+                          int vdim = 1) const;
+
+   void GetBdrFaceVectorValue(int iBdrEl, const IntegrationPoint &ip,
+                              Vector &val) const;
+
    void GetValues(int i, const IntegrationRule &ir, Vector &vals,
                   int vdim = 1) const;
 
@@ -169,6 +175,12 @@ public:
    int GetFaceValues(int i, int side, const IntegrationRule &ir, Vector &vals,
                      DenseMatrix &tr, int vdim = 1) const;
 
+   void GetBdrFaceValues(int iBdrEl, const IntegrationRule &ir,
+                         Vector &vals, int vdim = 1) const;
+
+   void GetBdrFaceValues(int iBdrEl, const IntegrationRule &ir,
+                         Vector &vals, DenseMatrix &tr, int vdim = 1) const;
+
    void GetVectorValues(ElementTransformation &T, const IntegrationRule &ir,
                         DenseMatrix &vals) const;
 
@@ -186,6 +198,12 @@ public:
 
    int GetFaceVectorValues(int i, int side, const IntegrationRule &ir,
                            DenseMatrix &vals, DenseMatrix &tr) const;
+
+   void GetBdrFaceVectorValues(int iBdrEl, const IntegrationRule &ir,
+                               DenseMatrix &vals) const;
+
+   void GetBdrFaceVectorValues(int iBdrEl, const IntegrationRule &ir,
+                               DenseMatrix &vals, DenseMatrix &tr) const;
 
    void GetValuesFrom(const GridFunction &orig_func);
 
