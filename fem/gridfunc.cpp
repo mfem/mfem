@@ -431,6 +431,161 @@ void GridFunction::GetVectorValue(int i, const IntegrationPoint &ip,
    }
 }
 
+double GridFunction::GetBdrValue(int i, const IntegrationPoint &ip, int vdim)
+const
+{
+   Array<int> dofs;
+   fes->GetBdrElementDofs(i, dofs);
+   fes->DofsToVDofs(vdim-1, dofs);
+   Vector DofVal(dofs.Size()), LocVec;
+   const FiniteElement *be = fes->GetBE(i);
+   MFEM_ASSERT(be, "boundary FE does not exist");
+   MFEM_ASSERT(be->GetMapType() == FiniteElement::VALUE, "invalid boundary FE map type");
+   be->CalcShape(ip, DofVal);
+   GetSubVector(dofs, LocVec);
+
+   return (DofVal * LocVec);
+}
+
+void GridFunction::GetBdrVectorValue(int i, const IntegrationPoint &ip,
+                                     Vector &val) const
+{
+   const FiniteElement *be = fes->GetBE(i);
+   int dof = be->GetDof();
+   Array<int> vdofs;
+   fes->GetBdrElementVDofs(i, vdofs);
+   Vector loc_data;
+   GetSubVector(vdofs, loc_data);
+   if (be->GetRangeType() == FiniteElement::SCALAR)
+   {
+      MFEM_ASSERT(be->GetMapType() == FiniteElement::VALUE,
+                  "invalid boundary FE map type");
+      Vector shape(dof);
+      be->CalcShape(ip, shape);
+      int vdim = fes->GetVDim();
+      val.SetSize(vdim);
+      for (int k = 0; k < vdim; k++)
+      {
+         val(k) = shape * ((const double *)loc_data + dof * k);
+      }
+   }
+   else
+   {
+      int spaceDim = fes->GetMesh()->SpaceDimension();
+      DenseMatrix vshape(dof, spaceDim);
+      ElementTransformation *Tr = fes->GetBdrElementTransformation(i);
+      Tr->SetIntPoint(&ip);
+      be->CalcVShape(*Tr, vshape);
+      val.SetSize(spaceDim);
+      vshape.MultTranspose(loc_data, val);
+   }
+}
+
+double GridFunction::GetFaceValue(int i, int side, const IntegrationPoint &ip,
+                                  int vdim, int *pdir) const
+{
+   int dir;
+   FaceElementTransformations *Transf;
+
+   IntegrationPoint eip;  // ---
+   if (side == 2) // automatic choice of side
+   {
+      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 0);
+      if (Transf->Elem2No < 0 ||
+          fes->GetAttribute(Transf->Elem1No) <=
+          fes->GetAttribute(Transf->Elem2No))
+      {
+         dir = 0;
+      }
+      else
+      {
+         dir = 1;
+      }
+   }
+   else
+   {
+      if (side == 1 && !fes->GetMesh()->FaceIsInterior(i))
+      {
+         dir = 0;
+      }
+      else
+      {
+         dir = side;
+      }
+   }
+
+   if (pdir)
+   {
+      *pdir = dir;
+   }
+
+   if (dir == 0)
+   {
+      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 4);
+      Transf->Loc1.Transform(ip, eip);
+      return GetValue(Transf->Elem1No, eip, vdim);
+   }
+   else
+   {
+      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 8);
+      Transf->Loc2.Transform(ip, eip);
+      return GetValue(Transf->Elem2No, eip, vdim);
+   }
+}
+
+void GridFunction::GetFaceVectorValue(int i, int side,
+                                      const IntegrationPoint &ip,
+                                      Vector &val, int *pdir) const
+{
+   int dir;
+   FaceElementTransformations *Transf;
+
+   IntegrationPoint eip;  // ---
+   if (side == 2) // automatic choice of side
+   {
+      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 0);
+      if (Transf->Elem2No < 0 ||
+          fes->GetAttribute(Transf->Elem1No) <=
+          fes->GetAttribute(Transf->Elem2No))
+      {
+         dir = 0;
+      }
+      else
+      {
+         dir = 1;
+      }
+   }
+   else
+   {
+      if (side == 1 && !fes->GetMesh()->FaceIsInterior(i))
+      {
+         dir = 0;
+      }
+      else
+      {
+         dir = side;
+      }
+   }
+
+   if (pdir)
+   {
+      *pdir = dir;
+   }
+
+   if (dir == 0)
+   {
+      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 4);
+      Transf->Loc1.Transform(ip, eip);
+      GetVectorValue(Transf->Elem1No, eip, val);
+   }
+   else
+   {
+      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 8);
+      Transf->Loc2.Transform(ip, eip);
+      GetVectorValue(Transf->Elem2No, eip, val);
+   }
+}
+
 void GridFunction::GetValues(int i, const IntegrationRule &ir, Vector &vals,
                              int vdim)
 const
@@ -462,6 +617,89 @@ const
    ET->Transform(ir, tr);
 
    GetValues(i, ir, vals, vdim);
+}
+
+void GridFunction::GetBdrValues(int i, const IntegrationRule &ir, Vector &vals,
+                                int vdim)
+const
+{
+   Array<int> dofs;
+   int n = ir.GetNPoints();
+   vals.SetSize(n);
+   fes->GetBdrElementDofs(i, dofs);
+   fes->DofsToVDofs(vdim-1, dofs);
+   const FiniteElement *be = fes->GetBE(i);
+   MFEM_ASSERT(be, "boundary FE does not exist");
+   MFEM_ASSERT(be->GetMapType() == FiniteElement::VALUE,
+               "invalid boundary FE map type");
+   int dof = be->GetDof();
+   Vector DofVal(dof), loc_data(dof);
+   GetSubVector(dofs, loc_data);
+   for (int k = 0; k < n; k++)
+   {
+      be->CalcShape(ir.IntPoint(k), DofVal);
+      vals(k) = DofVal * loc_data;
+   }
+}
+
+void GridFunction::GetBdrValues(int i, const IntegrationRule &ir, Vector &vals,
+                                DenseMatrix &tr, int vdim)
+const
+{
+   ElementTransformation *ET;
+   ET = fes->GetBdrElementTransformation(i);
+   ET->Transform(ir, tr);
+
+   GetBdrValues(i, ir, vals, vdim);
+}
+
+int GridFunction::GetFaceValues(int i, int side, const IntegrationRule &ir,
+                                Vector &vals, int vdim) const
+{
+   int n, dir;
+   FaceElementTransformations *Transf;
+
+   n = ir.GetNPoints();
+   IntegrationRule eir(n);  // ---
+   if (side == 2) // automatic choice of side
+   {
+      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 0);
+      if (Transf->Elem2No < 0 ||
+          fes->GetAttribute(Transf->Elem1No) <=
+          fes->GetAttribute(Transf->Elem2No))
+      {
+         dir = 0;
+      }
+      else
+      {
+         dir = 1;
+      }
+   }
+   else
+   {
+      if (side == 1 && !fes->GetMesh()->FaceIsInterior(i))
+      {
+         dir = 0;
+      }
+      else
+      {
+         dir = side;
+      }
+   }
+   if (dir == 0)
+   {
+      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 4);
+      Transf->Loc1.Transform(ir, eir);
+      GetValues(Transf->Elem1No, eir, vals, vdim);
+   }
+   else
+   {
+      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 8);
+      Transf->Loc2.Transform(ir, eir);
+      GetValues(Transf->Elem2No, eir, vals, vdim);
+   }
+
+   return dir;
 }
 
 int GridFunction::GetFaceValues(int i, int side, const IntegrationRule &ir,
@@ -566,6 +804,103 @@ void GridFunction::GetVectorValues(int i, const IntegrationRule &ir,
    Tr->Transform(ir, tr);
 
    GetVectorValues(*Tr, ir, vals);
+}
+
+void GridFunction::GetBdrVectorValues(ElementTransformation &T,
+                                      const IntegrationRule &ir,
+                                      DenseMatrix &vals) const
+{
+   const FiniteElement *be = fes->GetBE(T.ElementNo);
+   int dof = be->GetDof();
+   Array<int> vdofs;
+   fes->GetBdrElementVDofs(T.ElementNo, vdofs);
+   Vector loc_data;
+   GetSubVector(vdofs, loc_data);
+   int nip = ir.GetNPoints();
+   if (be->GetRangeType() == FiniteElement::SCALAR)
+   {
+      MFEM_ASSERT(be->GetMapType() == FiniteElement::VALUE,
+                  "invalid boundary FE map type");
+      Vector shape(dof);
+      int vdim = fes->GetVDim();
+      vals.SetSize(vdim, nip);
+      for (int j = 0; j < nip; j++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(j);
+         be->CalcShape(ip, shape);
+         for (int k = 0; k < vdim; k++)
+         {
+            vals(k,j) = shape * ((const double *)loc_data + dof * k);
+         }
+      }
+   }
+   else
+   {
+      int spaceDim = fes->GetMesh()->SpaceDimension();
+      DenseMatrix vshape(dof, spaceDim);
+      vals.SetSize(spaceDim, nip);
+      Vector val_j;
+      for (int j = 0; j < nip; j++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(j);
+         T.SetIntPoint(&ip);
+         be->CalcVShape(T, vshape);
+         vals.GetColumnReference(j, val_j);
+         vshape.MultTranspose(loc_data, val_j);
+      }
+   }
+}
+
+void GridFunction::GetBdrVectorValues(int i, const IntegrationRule &ir,
+                                      DenseMatrix &vals, DenseMatrix &tr) const
+{
+   ElementTransformation *Tr = fes->GetBdrElementTransformation(i);
+   Tr->Transform(ir, tr);
+
+   GetBdrVectorValues(*Tr, ir, vals);
+}
+
+int GridFunction::GetFaceVectorValues(
+   int i, int side, const IntegrationRule &ir,
+   DenseMatrix &vals) const
+{
+   int n, di;
+   FaceElementTransformations *Transf;
+
+   n = ir.GetNPoints();
+   IntegrationRule eir(n);  // ---
+   Transf = fes->GetMesh()->GetFaceElementTransformations(i, 0);
+   if (side == 2)
+   {
+      if (Transf->Elem2No < 0 ||
+          fes->GetAttribute(Transf->Elem1No) <=
+          fes->GetAttribute(Transf->Elem2No))
+      {
+         di = 0;
+      }
+      else
+      {
+         di = 1;
+      }
+   }
+   else
+   {
+      di = side;
+   }
+   if (di == 0)
+   {
+      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 5);
+      Transf->Loc1.Transform(ir, eir);
+      GetVectorValues(*(Transf->Elem1), eir, vals);
+   }
+   else
+   {
+      Transf = fes->GetMesh()->GetFaceElementTransformations(i, 10);
+      Transf->Loc2.Transform(ir, eir);
+      GetVectorValues(*(Transf->Elem2), eir, vals);
+   }
+
+   return di;
 }
 
 int GridFunction::GetFaceVectorValues(
