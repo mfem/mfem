@@ -456,6 +456,9 @@ protected:
    Array<BilinearFormIntegrator*> btfbfi;
    Array<Array<int>*>             btfbfi_marker;///< Entries are not owned.
 
+   DenseMatrix elemmat;
+   Array<int>  trial_vdofs, test_vdofs;
+
 private:
    /// Copy construction is not supported; body is undefined.
    MixedBilinearForm(const MixedBilinearForm &);
@@ -565,6 +568,9 @@ public:
        trial and test FE spaces, respectively. After this call the
        MixedBilinearForm becomes an operator on the conforming FE spaces. */
    void ConformingAssemble();
+
+   void ComputeElementMatrix(int i, DenseMatrix &elmat);
+   void ComputeBdrElementMatrix(int i, DenseMatrix &elmat);
 
    void EliminateTrialDofs(Array<int> &bdr_attr_is_ess,
                            const Vector &sol, Vector &rhs);
