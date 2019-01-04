@@ -52,6 +52,12 @@ double GridFunctionCoefficient::Eval (ElementTransformation &T,
    return GridF -> GetValue (T.ElementNo, ip, Component);
 }
 
+double GridFunctionBdrCoefficient::Eval (ElementTransformation &T,
+                                         const IntegrationPoint &ip)
+{
+   return GridF -> GetBdrValue (T.ElementNo, ip, Component);
+}
+
 double TransformedCoefficient::Eval(ElementTransformation &T,
                                     const IntegrationPoint &ip)
 {
@@ -173,6 +179,30 @@ void VectorGridFunctionCoefficient::Eval(
    DenseMatrix &M, ElementTransformation &T, const IntegrationRule &ir)
 {
    GridFunc->GetVectorValues(T, ir, M);
+}
+
+VectorGridFunctionBdrCoefficient::VectorGridFunctionBdrCoefficient (
+   GridFunction *gf)
+   : VectorCoefficient ((gf) ? gf -> VectorDim() : 0)
+{
+   GridFunc = gf;
+}
+
+void VectorGridFunctionBdrCoefficient::SetGridFunction(GridFunction *gf)
+{
+   GridFunc = gf; vdim = (gf) ? gf -> VectorDim() : 0;
+}
+
+void VectorGridFunctionBdrCoefficient::Eval(Vector &V, ElementTransformation &T,
+                                            const IntegrationPoint &ip)
+{
+   GridFunc->GetBdrVectorValue(T.ElementNo, ip, V);
+}
+
+void VectorGridFunctionBdrCoefficient::Eval(
+   DenseMatrix &M, ElementTransformation &T, const IntegrationRule &ir)
+{
+   GridFunc->GetBdrVectorValues(T, ir, M);
 }
 
 GradientGridFunctionCoefficient::GradientGridFunctionCoefficient (
