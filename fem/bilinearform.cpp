@@ -1303,6 +1303,44 @@ void MixedBilinearForm::ComputeBdrElementMatrix(int i, DenseMatrix &elmat)
    }
 }
 
+void MixedBilinearForm::AssembleElementMatrix(
+   int i, const DenseMatrix &elmat, int skip_zeros)
+{
+   AssembleElementMatrix(i, elmat, trial_vdofs, test_vdofs, skip_zeros);
+}
+
+void MixedBilinearForm::AssembleElementMatrix(
+   int i, const DenseMatrix &elmat, Array<int> &trial_vdofs,
+   Array<int> &test_vdofs, int skip_zeros)
+{
+   trial_fes->GetElementVDofs(i, trial_vdofs);
+   test_fes->GetElementVDofs(i, test_vdofs);
+   if (mat == NULL)
+   {
+      mat = new SparseMatrix(height, width);
+   }
+   mat->AddSubMatrix(test_vdofs, trial_vdofs, elmat, skip_zeros);
+}
+
+void MixedBilinearForm::AssembleBdrElementMatrix(
+   int i, const DenseMatrix &elmat, int skip_zeros)
+{
+   AssembleBdrElementMatrix(i, elmat, trial_vdofs, test_vdofs, skip_zeros);
+}
+
+void MixedBilinearForm::AssembleBdrElementMatrix(
+   int i, const DenseMatrix &elmat, Array<int> &trial_vdofs,
+   Array<int> &test_vdofs, int skip_zeros)
+{
+   trial_fes->GetBdrElementVDofs(i, trial_vdofs);
+   test_fes->GetBdrElementVDofs(i, test_vdofs);
+   if (mat == NULL)
+   {
+      mat = new SparseMatrix(height, width);
+   }
+   mat->AddSubMatrix(test_vdofs, trial_vdofs, elmat, skip_zeros);
+}
+
 void MixedBilinearForm::EliminateTrialDofs (
    Array<int> &bdr_attr_is_ess, const Vector &sol, Vector &rhs )
 {
