@@ -3492,9 +3492,10 @@ void Mesh::SetNodalFESpace(FiniteElementSpace *nfes)
    SetNodalGridFunction(nodes, true);
 }
 
-void Mesh::EnsureNodes(){
-   if (Nodes) return;
-   this->SetCurvature(1, false, -1, Ordering::byVDIM);
+void Mesh::EnsureNodes()
+{
+   if (Nodes) { return; }
+   SetCurvature(1, false, -1, Ordering::byVDIM);
 }
 
 void Mesh::SetNodalGridFunction(GridFunction *nodes, bool make_owner)
@@ -4860,7 +4861,7 @@ int *Mesh::CartesianPartitioning(int nxyz[])
    partitioning = new int[NumOfElements];
 
    // determine the partitioning using the centers of the elements
-   static double *ppt = mm::malloc<double>(3);
+   double ppt[3];
    Vector pt(ppt, spaceDim);
    for (int el = 0; el < NumOfElements; el++)
    {
@@ -5696,7 +5697,6 @@ void Mesh::SetNodes(const Vector &node_coord)
 void Mesh::NewNodes(GridFunction &nodes, bool make_owner)
 {
    if (own_nodes) { delete Nodes; }
-   nodes.Pull();
    Nodes = &nodes;
    spaceDim = Nodes->FESpace()->GetVDim();
    own_nodes = (int)make_owner;

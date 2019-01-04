@@ -72,9 +72,12 @@ void config::MfemDeviceSetup(const int dev)
 {
    MFEM_ASSERT(ngpu==-1, "Only one MfemDeviceSetup allowed");
    ngpu = 0;
-   if (cuda) CudaDeviceSetup(dev);
-   if (occa) OccaDeviceSetup(cuDevice, cuContext);
-   if (cuda and ngpu==0) { MFEM_ABORT("CUDA requested but no GPU has been initialized!"); }
+   if (cuda) { CudaDeviceSetup(dev); }
+   if (occa) { OccaDeviceSetup(cuDevice, cuContext); }
+   if (cuda && ngpu==0)
+   {
+      MFEM_ABORT("CUDA requested but no GPU has been initialized!");
+   }
 }
 
 // *****************************************************************************

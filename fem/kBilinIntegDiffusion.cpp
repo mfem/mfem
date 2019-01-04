@@ -10,6 +10,7 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "fem.hpp"
+#include "kBilinIntegDiffusion.hpp"
 #include "kernels/kGeometry.hpp"
 #include "kernels/kIntDiffusion.hpp"
 

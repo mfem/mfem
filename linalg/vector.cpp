@@ -30,11 +30,13 @@
 namespace mfem
 {
 
-void Vector::Push() const {
+void Vector::Push() const
+{
    mm::push(data, size*sizeof(double));
 }
 
-void Vector::Pull() const {
+void Vector::Pull() const
+{
    mm::pull(data, size*sizeof(double));
 }
 

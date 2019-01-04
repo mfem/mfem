@@ -11,9 +11,11 @@
 
 set(SRCS
   bilinearform.cpp
+  bilinearform_ext.cpp
   bilininteg.cpp
   coefficient.cpp
   datacollection.cpp
+  doftoquad.cpp
   eltrans.cpp
   estimators.cpp
   fe.cpp
@@ -23,6 +25,8 @@ set(SRCS
   gridfunc.cpp
   hybridization.cpp
   intrules.cpp
+  kBilinIntegDiffusion.cpp
+  kfespace.cpp
   linearform.cpp
   lininteg.cpp
   nonlinearform.cpp
@@ -33,9 +37,11 @@ set(SRCS
 
 set(HDRS
   bilinearform.hpp
+  bilinearform_ext.hpp
   bilininteg.hpp
   coefficient.hpp
   datacollection.hpp
+  doftoquad.hpp
   eltrans.hpp
   estimators.hpp
   fe.hpp
@@ -46,6 +52,8 @@ set(HDRS
   gridfunc.hpp
   hybridization.hpp
   intrules.hpp
+  kBilinIntegDiffusion.hpp
+  kfespace.hpp
   linearform.hpp
   lininteg.hpp
   nonlinearform.hpp

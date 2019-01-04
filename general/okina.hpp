@@ -55,7 +55,12 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
    wrap<K>(N, [=] __device__ (size_t i){B}, [=] (size_t i){B})
 
 // *****************************************************************************
+#ifdef _MSC_VER
+#define LOG2(X) (1)
+#else
 #define LOG2(X) ((unsigned) (8*sizeof(unsigned long long)-__builtin_clzll((X))))
+#endif
+
 #define ISQRT(N) static_cast<unsigned>(sqrt(static_cast<float>(N)))
 #define ICBRT(N) static_cast<unsigned>(cbrt(static_cast<float>(N)))
 #define IROOT(D,N) ((D==1)?N:(D==2)?ISQRT(N):(D==3)?ICBRT(N):0)
@@ -69,9 +74,9 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 
 // *****************************************************************************
 #define BUILTIN_TRAP __builtin_trap()
-#define FILE_LINE __FILE__ and __LINE__
-#define MFEM_CPU_CANNOT_PASS {assert(FILE_LINE and false);}
-#define MFEM_GPU_CANNOT_PASS {assert(FILE_LINE and not config::usingGpu());}
+#define FILE_LINE __FILE__ && __LINE__
+#define MFEM_CPU_CANNOT_PASS {assert(FILE_LINE && false);}
+#define MFEM_GPU_CANNOT_PASS {assert(FILE_LINE && !config::usingGpu());}
 
 // Offsets *********************************************************************
 #define ijN(i,j,N) (i)+(N)*(j)
@@ -94,7 +99,7 @@ void dbg_F_L_F_N_A(const char*, const int, const char*, const int, ...);
 
 // *****************************************************************************
 //#define stk(...) dbg_F_L_F_N_A(_F_L_F_,0)
-//#define dbg(...) dbg_F_L_F_N_A(_F_L_F_, N_ARGS(__VA_ARGS__),__VA_ARGS__)
+#define dbg(...) dbg_F_L_F_N_A(_F_L_F_, N_ARGS(__VA_ARGS__),__VA_ARGS__)
+//#define dbg(...)
 
-#define dbg(...)
 #endif // MFEM_OKINA_HPP
