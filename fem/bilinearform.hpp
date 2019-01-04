@@ -337,16 +337,49 @@ public:
    void FreeElementMatrices()
    { delete element_matrices; element_matrices = NULL; }
 
+   /// Compute the element matrix of the given element
+   /** The element matrix is computed by calling the domain integrators
+       or the one stored internally by a prior call of ComputeElementMatrices()
+       is returned when available.
+   */
    void ComputeElementMatrix(int i, DenseMatrix &elmat);
+
+   /// Compute the boundary element matrix of the given boundary element
    void ComputeBdrElementMatrix(int i, DenseMatrix &elmat);
 
+   /// Assemble the given element matrix
+   /** The element matrix @a elmat is assembled for the element @a i, i.e.
+       added to the system matrix. The flag @a skip_zeros skips the zero
+       elements of the matrix, unless they are breaking the symmetry of
+       the system matrix.
+   */
    void AssembleElementMatrix(int i, const DenseMatrix &elmat,
                               int skip_zeros = 1);
+
+   /// Assemble the given element matrix
+   /** The element matrix @a elmat is assembled for the element @a i, i.e.
+       added to the system matrix. The vdofs of the element are returned
+       in @a vdofs. The flag @a skip_zeros skips the zero elements of the
+       matrix, unless they are breaking the symmetry of the system matrix.
+   */
    void AssembleElementMatrix(int i, const DenseMatrix &elmat,
                               Array<int> &vdofs, int skip_zeros = 1);
 
+   /// Assemble the given boundary element matrix
+   /** The boundary element matrix @a elmat is assembled for the boundary
+       element @a i, i.e. added to the system matrix. The flag @a skip_zeros
+       skips the zero elements of the matrix, unless they are breaking the
+       symmetry of the system matrix.
+   */
    void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
                                  int skip_zeros = 1);
+
+   /// Assemble the given boundary element matrix
+   /** The boundary element matrix @a elmat is assembled for the boundary
+       element @a i, i.e. added to the system matrix. The vdofs of the element
+       are returned in @a vdofs. The flag @a skip_zeros skips the zero elements
+       of the matrix, unless they are breaking the symmetry of the system matrix.
+   */
    void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
                                  Array<int> &vdofs, int skip_zeros = 1);
 
@@ -574,17 +607,48 @@ public:
        MixedBilinearForm becomes an operator on the conforming FE spaces. */
    void ConformingAssemble();
 
+   /// Compute the element matrix of the given element
    void ComputeElementMatrix(int i, DenseMatrix &elmat);
+
+   /// Compute the boundary element matrix of the given boundary element
    void ComputeBdrElementMatrix(int i, DenseMatrix &elmat);
 
+   /// Assemble the given element matrix
+   /** The element matrix @a elmat is assembled for the element @a i, i.e.
+       added to the system matrix. The flag @a skip_zeros skips the zero
+       elements of the matrix, unless they are breaking the symmetry of
+       the system matrix.
+   */
    void AssembleElementMatrix(int i, const DenseMatrix &elmat,
                               int skip_zeros = 1);
+
+   /// Assemble the given element matrix
+   /** The element matrix @a elmat is assembled for the element @a i, i.e.
+       added to the system matrix. The vdofs of the element are returned
+       in @a trial_vdofs and @a test_vdofs. The flag @a skip_zeros skips
+       the zero elements of the matrix, unless they are breaking the symmetry
+       of the system matrix.
+   */
    void AssembleElementMatrix(int i, const DenseMatrix &elmat,
                               Array<int> &trial_vdofs, Array<int> &test_vdofs,
                               int skip_zeros = 1);
 
+   /// Assemble the given boundary element matrix
+   /** The boundary element matrix @a elmat is assembled for the boundary
+       element @a i, i.e. added to the system matrix. The flag @a skip_zeros
+       skips the zero elements of the matrix, unless they are breaking the
+       symmetry of the system matrix.
+   */
    void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
                                  int skip_zeros = 1);
+
+   /// Assemble the given boundary element matrix
+   /** The boundary element matrix @a elmat is assembled for the boundary
+       element @a i, i.e. added to the system matrix. The vdofs of the element
+       are returned in @a trial_vdofs and @a test_vdofs. The flag @a skip_zeros
+       skips the zero elements of the matrix, unless they are breaking the
+       symmetry of the system matrix.
+   */
    void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
                                  Array<int> &trial_vdofs, Array<int> &test_vdofs,
                                  int skip_zeros = 1);
