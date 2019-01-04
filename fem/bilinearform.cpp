@@ -265,6 +265,12 @@ void BilinearForm::ComputeBdrElementMatrix(int i, DenseMatrix &elmat)
 }
 
 void BilinearForm::AssembleElementMatrix(
+   int i, const DenseMatrix &elmat, int skip_zeros)
+{
+   AssembleElementMatrix(i, elmat, vdofs, skip_zeros);
+}
+
+void BilinearForm::AssembleElementMatrix(
    int i, const DenseMatrix &elmat, Array<int> &vdofs, int skip_zeros)
 {
    fes->GetElementVDofs(i, vdofs);
@@ -284,6 +290,12 @@ void BilinearForm::AssembleElementMatrix(
          hybridization->AssembleMatrix(i, elmat);
       }
    }
+}
+
+void BilinearForm::AssembleBdrElementMatrix(
+   int i, const DenseMatrix &elmat, int skip_zeros)
+{
+   AssembleBdrElementMatrix(i, elmat, vdofs, skip_zeros);
 }
 
 void BilinearForm::AssembleBdrElementMatrix(

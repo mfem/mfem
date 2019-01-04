@@ -341,7 +341,12 @@ public:
    void ComputeBdrElementMatrix(int i, DenseMatrix &elmat);
 
    void AssembleElementMatrix(int i, const DenseMatrix &elmat,
+                              int skip_zeros = 1);
+   void AssembleElementMatrix(int i, const DenseMatrix &elmat,
                               Array<int> &vdofs, int skip_zeros = 1);
+
+   void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
+                                 int skip_zeros = 1);
    void AssembleBdrElementMatrix(int i, const DenseMatrix &elmat,
                                  Array<int> &vdofs, int skip_zeros = 1);
 
