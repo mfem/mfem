@@ -1244,6 +1244,53 @@ void MixedBilinearForm::ConformingAssemble()
    width = mat->Width();
 }
 
+
+void MixedBilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat)
+{
+   if (dbfi.Size())
+   {
+      const FiniteElement &trial_fe = *trial_fes->GetFE(i);
+      const FiniteElement &test_fe = *test_fes->GetFE(i);
+      ElementTransformation *eltrans = test_fes->GetElementTransformation(i);
+      dbfi[0]->AssembleElementMatrix2(trial_fe, test_fe, *eltrans, elmat);
+      for (int k = 1; k < dbfi.Size(); k++)
+      {
+         dbfi[k]->AssembleElementMatrix2(trial_fe, test_fe, *eltrans, elemmat);
+         elmat += elemmat;
+      }
+   }
+   else
+   {
+      trial_fes->GetElementVDofs(i, trial_vdofs);
+      test_fes->GetElementVDofs(i, test_vdofs);
+      elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
+      elmat = 0.0;
+   }
+}
+
+void MixedBilinearForm::ComputeBdrElementMatrix(int i, DenseMatrix &elmat)
+{
+   if (bbfi.Size())
+   {
+      const FiniteElement &trial_be = *trial_fes->GetBE(i);
+      const FiniteElement &test_be = *test_fes->GetBE(i);
+      ElementTransformation *eltrans = test_fes->GetBdrElementTransformation(i);
+      bbfi[0]->AssembleElementMatrix2(trial_be, test_be, *eltrans, elmat);
+      for (int k = 1; k < bbfi.Size(); k++)
+      {
+         bbfi[k]->AssembleElementMatrix2(trial_be, test_be, *eltrans, elemmat);
+         elmat += elemmat;
+      }
+   }
+   else
+   {
+      trial_fes->GetBdrElementVDofs(i, trial_vdofs);
+      test_fes->GetBdrElementVDofs(i, test_vdofs);
+      elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
+      elmat = 0.0;
+   }
+}
+
 void MixedBilinearForm::EliminateTrialDofs (
    Array<int> &bdr_attr_is_ess, const Vector &sol, Vector &rhs )
 {
