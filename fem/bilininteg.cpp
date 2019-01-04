@@ -27,7 +27,7 @@ void PAMassIntegrator::Setup(const FiniteElementSpace *fes,
                              const IntegrationRule *ir)
 {
    assert(ir);
-   assert(not mass);
+   assert(!mass);
    mass = new KMassIntegrator(fes,ir);
 }
 

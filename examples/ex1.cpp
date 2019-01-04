@@ -143,9 +143,9 @@ int main(int argc, char *argv[])
 
    // 7. Set MFEM config parameters from the command line options
    config::usePA(pa);
-   if (pa){ mesh->EnsureNodes(); }
-   if (cuda) config::useCuda();
-   if (occa) config::useOcca();
+   if (pa) { mesh->EnsureNodes(); }
+   if (cuda) { config::useCuda(); }
+   if (occa) { config::useOcca(); }
    config::enableGpu(0/*,occa,cuda*/);
    config::SwitchToGpu();
 
@@ -155,10 +155,16 @@ int main(int argc, char *argv[])
    GridFunction x(fespace);
    x = 0.0;
 
+   // Sample values
+   AssemblyLevel assembly = (pa) ? AssemblyLevel::PARTIAL : AssemblyLevel::FULL;
+   int elem_batch = (cuda || occa) ? mesh->GetNE() : 1;
+
    // 9. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the Laplacian operator -Delta, by adding the Diffusion
    //    domain integrator.
-   BilinearForm *a = new BilinearForm(fespace);
+   BilinearForm *a = new BilinearForm(fespace, assembly, elem_batch);
+
+   // These will be unified in methods of DiffusionIntegrator
    if (pa) { a->AddDomainIntegrator(new PADiffusionIntegrator(one)); }
    else    { a->AddDomainIntegrator(new DiffusionIntegrator(one)); }
 
@@ -171,8 +177,9 @@ int main(int argc, char *argv[])
 
    Vector B, X;
    Operator *A;
-   if (pa) { A = new PABilinearForm(fespace); }
-   else    { A = new SparseMatrix(); }
+
+   if (!pa) { A = new SparseMatrix; }
+
    a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
 
    cout << "Size of linear system: " << A->Height() << endl;

@@ -43,7 +43,8 @@ const char *strrnchr(const char *s, const unsigned char c, int n)
 // * file: __FILENAME__, line: __LINE__, func: __FUNCTION__
 // * nargs: number of arguments that follow
 // *****************************************************************************
-void dbg_F_L_F_N_A(const char *file, const int line, const char *func, const int nargs, ...)
+void dbg_F_L_F_N_A(const char *file, const int line, const char *func,
+                   const int nargs, ...)
 {
    static bool env_ini = false;
    static bool env_dbg = false;
@@ -54,7 +55,7 @@ void dbg_F_L_F_N_A(const char *file, const int line, const char *func, const int
    fprintf(stdout,"\033[38;5;%dm",color);
    fprintf(stdout,"\n%30s\b\b\b\b:\033[2m%4d\033[22m: %s: \033[1m",
            file, line, func);
-   if (nargs==0) return;
+   if (nargs==0) { return; }
    va_list args;
    va_start(args,nargs);
    const char *format=va_arg(args,const char*);

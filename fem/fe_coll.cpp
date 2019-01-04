@@ -168,8 +168,10 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
                                 BasisType::GetType(name[3]));
    }
    else if (!strncmp(name, "L2_T", 4))
+   {
       fec = new L2_FECollection(atoi(name + 10), atoi(name + 6),
                                 atoi(name + 4));
+   }
    else if (!strncmp(name, "L2_", 3))
    {
       fec = new L2_FECollection(atoi(name + 7), atoi(name + 3));

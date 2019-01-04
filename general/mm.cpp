@@ -22,7 +22,7 @@ static bool Known(const mm_t *maps, const void *adrs)
 {
    const auto found = maps->memories->find(adrs);
    const bool known = found != maps->memories->end();
-   if (known) return true;
+   if (known) { return true; }
    return false;
 }
 
@@ -31,13 +31,14 @@ static bool Known(const mm_t *maps, const void *adrs)
 // *****************************************************************************
 static const void* IsAlias(const mm_t *maps, const void *adrs)
 {
-   MFEM_ASSERT(not Known(maps, adrs), "Adrs is an already known address!");
-   for(mm_iterator_t mem = maps->memories->begin();
-       mem != maps->memories->end(); mem++) {
+   MFEM_ASSERT(!Known(maps, adrs), "Adrs is an already known address!");
+   for (mm_iterator_t mem = maps->memories->begin();
+        mem != maps->memories->end(); mem++)
+   {
       const void *b_adrs = mem->first;
-      if (b_adrs > adrs) continue;
+      if (b_adrs > adrs) { continue; }
       const void *end = (char*)b_adrs + mem->second->bytes;
-      if (adrs < end) return b_adrs;
+      if (adrs < end) { return b_adrs; }
    }
    return NULL;
 }
@@ -62,16 +63,17 @@ static bool Alias(const mm_t *maps, const void *adrs)
 {
    const auto found = maps->aliases->find(adrs);
    const bool alias = found != maps->aliases->end();
-   if (alias) return true;
+   if (alias) { return true; }
    const void *base = IsAlias(maps, adrs);
-   if (not base) return false;
+   if (!base) { return false; }
    InsertAlias(maps, base, adrs);
-   return true;   
+   return true;
 }
 
 // *****************************************************************************
-__attribute__((unused))
-static void debugMode(void){
+// __attribute__((unused)) // VS doesn't like this in Appveyor
+static void debugMode(void)
+{
    dbg("\033[1K\r%sMM %sHasBeenEnabled %sEnabled %sDisabled \
 %sCPU %sGPU %sPA %sCUDA %sOCCA",
        config::usingMM()?"\033[32m":"\033[31m",
@@ -90,10 +92,10 @@ static void debugMode(void){
 // *****************************************************************************
 void* mm::Insert(void *adrs, const size_t bytes)
 {
-   if (not config::usingMM()) return adrs;
-   if (config::gpuDisabled()) return adrs;
+   if (!config::usingMM()) { return adrs; }
+   if (config::gpuDisabled()) { return adrs; }
    const bool known = Known(maps, adrs);
-   MFEM_ASSERT(not known, "Trying to add already present address!");
+   MFEM_ASSERT(!known, "Trying to add already present address!");
    dbg("\033[33m%p \033[35m(%ldb)", adrs, bytes);
    memories->operator[](adrs) = new memory_t(adrs,bytes);
    return adrs;
@@ -104,14 +106,16 @@ void* mm::Insert(void *adrs, const size_t bytes)
 // *****************************************************************************
 void *mm::Erase(void *adrs)
 {
-   if (not config::usingMM()) return adrs;
-   if (config::gpuDisabled()) return adrs;
+   if (!config::usingMM()) { return adrs; }
+   if (config::gpuDisabled()) { return adrs; }
    const bool known = Known(maps, adrs);
-   if (not known) { BUILTIN_TRAP; }
+   // if (!known) { BUILTIN_TRAP; }
+   if (!known) { mfem_error("mm::Erase"); }
    MFEM_ASSERT(known, "Trying to remove an unknown address!");
    const memory_t *mem = memories->at(adrs);
    dbg("\033[33m %p \033[35m(%ldb)", adrs,mem->bytes);
-   for (const alias_t* const alias : mem->aliases) {
+   for (const alias_t* const alias : mem->aliases)
+   {
       aliases->erase(alias);
       delete alias;
    }
@@ -120,41 +124,43 @@ void *mm::Erase(void *adrs)
 }
 
 // *****************************************************************************
-static void* AdrsKnown(const mm_t *maps, void* adrs){
+static void* AdrsKnown(const mm_t *maps, void* adrs)
+{
    memory_t *base = maps->memories->at(adrs);
    const bool host = base->host;
-   const bool device = not host;
+   const bool device = !host;
    const size_t bytes = base->bytes;
    const bool gpu = config::usingGpu();
-   if (host and not gpu) { return adrs; }
-   if (not base->d_adrs) { cuMemAlloc(&base->d_adrs, bytes); }
-   if (device and gpu) { return base->d_adrs; }
-   if (device and not gpu) // Pull
+   if (host && !gpu) { return adrs; }
+   if (!base->d_adrs) { cuMemAlloc(&base->d_adrs, bytes); }
+   if (device && gpu) { return base->d_adrs; }
+   if (device &&  !gpu) // Pull
    {
       cuMemcpyDtoH(adrs, base->d_adrs, bytes);
       base->host = true;
       return adrs;
    }
    // Push
-   assert(host and gpu);
+   assert(host && gpu);
    cuMemcpyHtoD(base->d_adrs, adrs, bytes);
    base->host = false;
-   return base->d_adrs;   
+   return base->d_adrs;
 }
 
 // *****************************************************************************
-static void* AdrsAlias(mm_t *maps, void* adrs){
+static void* AdrsAlias(mm_t *maps, void* adrs)
+{
    const bool gpu = config::usingGpu();
    const alias_t *alias = maps->aliases->at(adrs);
    const memory_t *base = alias->mem;
    const bool host = base->host;
-   const bool device = not base->host;
+   const bool device = !base->host;
    const size_t bytes = base->bytes;
-   if (host and not gpu) { return adrs; }
-   if (not base->d_adrs) { cuMemAlloc(&alias->mem->d_adrs, bytes); }
+   if (host && !gpu) { return adrs; }
+   if (!base->d_adrs) { cuMemAlloc(&alias->mem->d_adrs, bytes); }
    void *a_adrs = (char*)base->d_adrs + alias->offset;
-   if (device and gpu) { return a_adrs; }
-   if (device and not gpu) // Pull
+   if (device && gpu) { return a_adrs; }
+   if (device && !gpu) // Pull
    {
       assert(base->d_adrs);
       cuMemcpyDtoH(base->h_adrs, base->d_adrs, bytes);
@@ -162,7 +168,7 @@ static void* AdrsAlias(mm_t *maps, void* adrs){
       return adrs;
    }
    // Push
-   assert(host and gpu);
+   assert(host && gpu);
    cuMemcpyHtoD(base->d_adrs, base->h_adrs, bytes);
    alias->mem->host = false;
    return a_adrs;
@@ -173,18 +179,20 @@ static void* AdrsAlias(mm_t *maps, void* adrs){
 // *****************************************************************************
 void* mm::Adrs(void *adrs)
 {
-   if (not config::usingMM()) return adrs;
-   if (config::gpuDisabled()) return adrs;
-   if (not config::gpuHasBeenEnabled()) return adrs;
-   if (Known(maps, adrs)) return AdrsKnown(maps, adrs);
+   if (!config::usingMM()) { return adrs; }
+   if (config::gpuDisabled()) { return adrs; }
+   if (!config::gpuHasBeenEnabled()) { return adrs; }
+   if (Known(maps, adrs)) { return AdrsKnown(maps, adrs); }
    const bool alias = Alias(maps, adrs);
-   if (not alias) { BUILTIN_TRAP; }   
+   // if (!alias) { BUILTIN_TRAP; }
+   if (!alias) { mfem_error("mm::Adrs"); }
    MFEM_ASSERT(alias, "Unknown address!");
    return AdrsAlias(maps, adrs);
 }
 
 // *****************************************************************************
-const void* mm::Adrs(const void *adrs){
+const void* mm::Adrs(const void *adrs)
+{
    return (const void*) Adrs((void*)adrs);
 }
 
@@ -192,19 +200,22 @@ const void* mm::Adrs(const void *adrs){
 static OccaMemory occaMemory(const mm_t *maps, const void *adrs)
 {
    OccaDevice occaDevice = config::GetOccaDevice();
-   if (not config::usingMM()){
+   if (!config::usingMM())
+   {
       OccaMemory o_adrs = occaWrapMemory(occaDevice, (void*)adrs, 0);
       return o_adrs;
    }
    const bool known = Known(maps, adrs);
-   if (not known) { BUILTIN_TRAP; }
+   // if (!known) { BUILTIN_TRAP; }
+   if (!known) { mfem_error("occaMemory"); }
    MFEM_ASSERT(known, "Unknown address!");
    memory_t *base = maps->memories->at(adrs);
    const size_t bytes = base->bytes;
    const bool gpu = config::usingGpu();
    const bool occa = config::usingOcca();
    MFEM_ASSERT(occa, "Using OCCA memory without OCCA mode!");
-   if (not base->d_adrs){
+   if (!base->d_adrs)
+   {
       base->host = false; // This address is no more on the host
       if (gpu)
       {
@@ -227,7 +238,8 @@ static OccaMemory occaMemory(const mm_t *maps, const void *adrs)
 }
 
 // *****************************************************************************
-OccaMemory mm::Memory(const void *adrs){
+OccaMemory mm::Memory(const void *adrs)
+{
    return occaMemory(maps, adrs);
 }
 
@@ -235,7 +247,7 @@ OccaMemory mm::Memory(const void *adrs){
 static void PushKnown(mm_t *maps, const void *adrs, const size_t bytes)
 {
    memory_t *base = maps->memories->at(adrs);
-   if (not base->d_adrs){ cuMemAlloc(&base->d_adrs, base->bytes); }
+   if (!base->d_adrs) { cuMemAlloc(&base->d_adrs, base->bytes); }
    cuMemcpyHtoD(base->d_adrs, adrs, bytes==0?base->bytes:bytes);
    return;
 }
@@ -250,13 +262,14 @@ static void PushAlias(const mm_t *maps, const void *adrs, const size_t bytes)
 // *****************************************************************************
 void mm::Push(const void *adrs, const size_t bytes)
 {
-   if (config::gpuDisabled()) return;
-   if (not config::usingMM()) return;
-   if (not config::gpuHasBeenEnabled()) return;
-   if (Known(maps, adrs)) return PushKnown(maps, adrs, bytes);
-   assert(not config::usingOcca());
+   if (config::gpuDisabled()) { return; }
+   if (!config::usingMM()) { return; }
+   if (!config::gpuHasBeenEnabled()) { return; }
+   if (Known(maps, adrs)) { return PushKnown(maps, adrs, bytes); }
+   assert(!config::usingOcca());
    const bool alias = Alias(maps, adrs);
-   if (not alias) { BUILTIN_TRAP; }
+   // if (!alias) { BUILTIN_TRAP; }
+   if (!alias) { mfem_error("mm::Push"); }
    MFEM_ASSERT(alias, "Unknown address!");
    return PushAlias(maps, adrs, bytes);
 }
@@ -278,32 +291,38 @@ static void PullAlias(const mm_t *maps, const void *adrs, const size_t bytes)
 // *****************************************************************************
 void mm::Pull(const void *adrs, const size_t bytes)
 {
-   if (config::gpuDisabled()) return;
-   if (not config::usingMM()) return;
-   if (not config::gpuHasBeenEnabled()) return;
-   if (Known(maps, adrs)) return PullKnown(maps, adrs, bytes);
-   assert(not config::usingOcca());
+   if (config::gpuDisabled()) { return; }
+   if (!config::usingMM()) { return; }
+   if (!config::gpuHasBeenEnabled()) { return; }
+   if (Known(maps, adrs)) { return PullKnown(maps, adrs, bytes); }
+   assert(!config::usingOcca());
    const bool alias = Alias(maps, adrs);
-   if (not alias) { BUILTIN_TRAP; }
+   // if (!alias) { BUILTIN_TRAP; }
+   if (!alias) { mfem_error("mm::Pull"); }
    MFEM_ASSERT(alias, "Unknown address!");
    return PullAlias(maps, adrs, bytes);
 }
 
 // *****************************************************************************
-__attribute__((unused))
-static void Dump(mm_t *maps){
-   if (!getenv("DBG")) return;
+// __attribute__((unused)) // VS doesn't like this in Appveyor
+static void Dump(mm_t *maps)
+{
+   if (!getenv("DBG")) { return; }
    memory_map_t *mem = maps->memories;
    alias_map_t  *als = maps->aliases;
    size_t k = 0;
-   for(memory_map_t::iterator m = mem->begin(); m != mem->end(); m++) {
+   for (memory_map_t::iterator m = mem->begin(); m != mem->end(); m++)
+   {
       const void *h_adrs = m->first;
       assert(h_adrs == m->second->h_adrs);
       const size_t bytes = m->second->bytes;
       const void *d_adrs = m->second->d_adrs;
-      if (not d_adrs){
+      if (!d_adrs)
+      {
          printf("\n[%ld] \033[33m%p \033[35m(%ld)", k, h_adrs, bytes);
-      }else{
+      }
+      else
+      {
          printf("\n[%ld] \033[33m%p \033[35m (%ld) \033[32 -> %p",
                 k, h_adrs, bytes, d_adrs);
       }
@@ -311,7 +330,8 @@ static void Dump(mm_t *maps){
       k++;
    }
    k = 0;
-   for(alias_map_t::iterator a = als->begin(); a != als->end(); a++) {
+   for (alias_map_t::iterator a = als->begin(); a != als->end(); a++)
+   {
       const void *adrs = a->first;
       const size_t offset = a->second->offset;
       const void *base = a->second->mem->h_adrs;
@@ -325,12 +345,13 @@ static void Dump(mm_t *maps){
 // *****************************************************************************
 // * Data will be pushed/pulled before the copy happens on the H or the D
 // *****************************************************************************
-static void* d2d(void *dst, const void *src, size_t bytes, const bool async){
+static void* d2d(void *dst, const void *src, size_t bytes, const bool async)
+{
    GET_ADRS(src);
    GET_ADRS(dst);
    const bool cpu = config::usingCpu();
-   if (cpu) return std::memcpy(d_dst, d_src, bytes);
-   if (not async) return cuMemcpyDtoD(d_dst, (void*)d_src, bytes);
+   if (cpu) { return std::memcpy(d_dst, d_src, bytes); }
+   if (!async) { return cuMemcpyDtoD(d_dst, (void*)d_src, bytes); }
    return cuMemcpyDtoDAsync(d_dst, (void*)d_src, bytes, config::Stream());
 }
 
