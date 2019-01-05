@@ -46,9 +46,7 @@ void KMassIntegrator::MultAdd(Vector &x, Vector &y)
 {
    Mesh *mesh = fes->GetMesh();
    const int dim = mesh->Dimension();
-   dbg("ir->GetOrder()=%d",ir->GetOrder());
    const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
-   dbg("quad1D=%d",quad1D);
    const int dofs1D = fes->GetFE(0)->GetOrder() + 1;
    kMassMultAdd(dim,
                 dofs1D,

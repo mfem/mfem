@@ -48,10 +48,8 @@ void PABilinearFormExtension::AddDomainIntegrator(
 }
 
 // *****************************************************************************
-// * WARNING DiffusionGetRule Q order
-// *****************************************************************************
-static const IntegrationRule &DiffusionGetRule(const FiniteElement &trial_fe,
-                                               const FiniteElement &test_fe)
+static const IntegrationRule &DefaultGetRule(const FiniteElement &trial_fe,
+                                             const FiniteElement &test_fe)
 {
    int order;
    if (trial_fe.Space() == FunctionSpace::Pk)
@@ -81,7 +79,7 @@ void PABilinearFormExtension::Assemble()
          integrators[i]->Setup(a->fes,ir);
       }else{
          const FiniteElement &fe = *a->fes->GetFE(0);
-         const IntegrationRule *ir = &DiffusionGetRule(fe,fe);
+         const IntegrationRule *ir = &DefaultGetRule(fe,fe);
          integrators[i]->Setup(a->fes,ir);
       }
       integrators[i]->Assemble();
@@ -128,9 +126,7 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
    if (!copy_interior && ess_tdof_list.Size()>0)
    {
       const int csz = ess_tdof_list.Size();
-      const int xsz = X.Size();
-      assert(xsz>=csz);
-      Vector subvec(xsz);
+      Vector subvec(csz);
       subvec = 0.0;
       kVectorGetSubvector(csz,
                           subvec.GetData(),
