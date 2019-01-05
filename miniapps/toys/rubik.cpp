@@ -40,19 +40,21 @@ using namespace std;
 using namespace mfem;
 using namespace mfem::miniapps;
 
-//static int joint_ = 0;
-//static int notch_ = 0;
 static int step_  = 0;
 static int nstep_ = 6;
 
 static double cosa_ = cos(0.5 * M_PI / nstep_);
 static double sina_ = sin(0.5 * M_PI / nstep_);
 
-void mark_elements(Mesh & mesh, char dir, int ind);
+void init_tet_mesh(Mesh & mesh);
 
-void trans(const int * conf, Mesh & mesh);
+void init_hex_mesh(Mesh & mesh);
 
-bool anim_step(char dir, int deg, Mesh & mesh);
+
+void anim_move(char dir, int ind, int deg,
+               Mesh & mesh, GridFunction & color,
+               socketstream & sock);
+
 
 int main(int argc, char *argv[])
 {
@@ -77,8 +79,101 @@ int main(int argc, char *argv[])
    if (!visualization) { anim = false; }
 
    // Define an empty mesh
-   Mesh mesh(3, 9 * 27, 27 * 12);
+   // Mesh mesh(3, 9 * 27, 27 * 12); // Tetrahedral mesh
+   // Mesh mesh(3, 9 * 27, 27 * 6);  // Pyramidal mesh
+   Mesh mesh(3, 16 * 27, 27 * 6); // Hexagonal mesh
 
+   init_hex_mesh(mesh);
+
+   L2_FECollection fec(0, 3, 1);
+   FiniteElementSpace fespace(&mesh, &fec);
+   GridFunction color(&fespace);
+   color = 0.0;
+
+   PWConstCoefficient pwCoef(7);
+   for (int i=1; i<=7; i++) { pwCoef(i) = (double)(i-1)/6.0; }
+   color.ProjectCoefficient(pwCoef);
+
+   // Output the initial mesh to a file
+   {
+      ostringstream oss;
+      oss << "rubik-init.mesh";
+      ofstream ofs(oss.str().c_str());
+      ofs.precision(8);
+      mesh.Print(ofs);
+      ofs.close();
+   }
+
+   // Output the resulting mesh to GLVis
+   if (visualization)
+   {
+      char vishost[] = "localhost";
+      int  visport   = 19916;
+      socketstream sol_sock(vishost, visport);
+      sol_sock.precision(8);
+      sol_sock << "solution\n" << mesh << color << "keys Amaa\n"
+               << "palette 25\n"// << "valuerange -1.5 1\n"
+               << "autoscale off\n" << flush;
+
+      while (true)
+      {
+         char dir;
+         int ind, deg;
+         cout << "Enter direction (x, y, z), tier index (1, 2, 3), "
+              << "and rotation (0, 1, 2, 3) with no spaces: ";
+         cin >> dir;
+         if ( dir == 'x' || dir == 'y' || dir == 'z' )
+         {
+            cin >> ind;
+            deg = ind % 10;
+            ind = ind / 10;
+            if (ind >= 1 && ind <= 3)
+            {
+               anim_move(dir, ind, deg, mesh, color, sol_sock);
+            }
+            else
+            {
+               cout << "tier index must be 1, 2, or 3." << endl;
+            }
+         }
+         else if ( dir == 'r' )
+         {
+            // Execute a sequence of random moves
+            // Input the number of moves
+            int num;
+            cin >> num;
+            for (int i=0; i<num; i++)
+            {
+               double ran = drand48();
+               int ir = (int)(26 * ran);
+               deg = (ir % 3) + 1; ir /= 3;
+               ind = (ir % 3) + 1; ir /= 3;
+               dir = (ir == 0)? 'x' : ((ir == 1) ? 'y' : 'z');
+
+               anim_move(dir, ind, deg, mesh, color, sol_sock);
+            }
+         }
+         else if ( dir == 'q' )
+         {
+            break;
+         }
+         else
+         {
+            cout << endl << "Unrecognized command. "
+                 "Enter 'x', 'y', 'z' followed by '1', '2', or '3' to proceed "
+                 "or enter 'q' to quit: ";
+         }
+      }
+   }
+
+   // Clean up and exit
+   return 0;
+}
+
+/// Much of the following can be reused for pyramids so don't remove it.
+void
+init_tet_mesh(Mesh & mesh)
+{
    // Add vertices and tetrahedra for 27 cubes
    double c[3];
    int v[9];
@@ -184,125 +279,163 @@ int main(int argc, char *argv[])
    }
 
    mesh.FinalizeTopology();
+}
 
-   L2_FECollection fec(0, 3, 1);
-   FiniteElementSpace fespace(&mesh, &fec);
-   GridFunction color(&fespace);
-   color = 0.0;
-
-   PWConstCoefficient pwCoef(7);
-   for (int i=1; i<=7; i++) { pwCoef(i) = (double)(i-1)/6.0; }
-   color.ProjectCoefficient(pwCoef);
-
-   // Output the initial mesh to a file
+void
+init_hex_mesh(Mesh & mesh)
+{
+   // Add vertices and hexahedra for 27 cubes
+   double c[3];
+   int v[16];
+   int vh[8];
+   int l = 0;
+   for (int k=0; k<3; k++)
    {
-      ostringstream oss;
-      oss << "rubik-init.mesh";
-      ofstream ofs(oss.str().c_str());
-      ofs.precision(8);
-      mesh.Print(ofs);
-      ofs.close();
-   }
-
-   // if ( cfg >= 0 && !anim) { trans(conf[cfg], mesh); }
-
-   // Output the resulting mesh to GLVis
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      socketstream sol_sock(vishost, visport);
-      sol_sock.precision(8);
-      sol_sock << "solution\n" << mesh << color << "keys Amaa\n"
-               << "palette 25\n"// << "valuerange -1.5 1\n"
-               << "autoscale off\n" << flush;
-
-      while (true)
+      for (int j=0; j<3; j++)
       {
-         char dir;
-         int ind, deg;
-         cout << "Enter direction (x, y, z), tier index (1, 2, 3), and rotation (0, 1, 2, 3) with no spaces: ";
-         cin >> dir;
-         if ( dir == 'x' || dir == 'y' || dir == 'z' )
+         for (int i=0; i<3; i++)
          {
-            cin >> ind;
-            deg = ind % 10;
-            ind = ind / 10;
-            if (ind >= 1 && ind <= 3)
-            {
-               mark_elements(mesh, dir, ind);
-               while (anim_step(dir, deg, mesh))
-               {
-                  sol_sock << "solution\n" << mesh << color << flush;
-               }
-            }
-            else
-            {
-               cout << "tier index must be 1, 2, or 3." << endl;
-            }
-         }
-         else if ( dir == 'r' )
-         {
-            // Execute a sequence of random moves
-            // Input the number of moves
-            int num;
-            cin >> num;
-            for (int i=0; i<num; i++)
-            {
-               double ran = drand48();
-               int ir = (int)(26 * ran);
-               deg = (ir % 3) + 1; ir /= 3;
-               ind = (ir % 3) + 1; ir /= 3;
-               dir = (ir == 0)? 'x' : ((ir == 1) ? 'y' : 'z');
+            c[0] = -1.5 + i;
+            c[1] = -1.5 + j;
+            c[2] = -1.5 + k;
+            mesh.AddVertex(c);
+            v[0] = l; l++;
 
-               mark_elements(mesh, dir, ind);
-               while (anim_step(dir, deg, mesh))
-               {
-                  sol_sock << "solution\n" << mesh << color << flush;
-               }
-            }
-         }
-         else if ( dir == 'q' )
-         {
-            break;
-         }
-         else
-         {
-            cout << endl << "Unrecognized command. "
-                 "Enter 'x', 'y', 'z' followed by '1', '2', or '3' to proceed "
-                 "or enter 'q' to quit: ";
+            c[0] = -1.5 + i + 1;
+            c[1] = -1.5 + j;
+            c[2] = -1.5 + k;
+            mesh.AddVertex(c);
+            v[1] = l; l++;
+
+            c[0] = -1.5 + i + 1;
+            c[1] = -1.5 + j + 1;
+            c[2] = -1.5 + k;
+            mesh.AddVertex(c);
+            v[2] = l; l++;
+
+            c[0] = -1.5 + i;
+            c[1] = -1.5 + j + 1;
+            c[2] = -1.5 + k;
+            mesh.AddVertex(c);
+            v[3] = l; l++;
+
+            c[0] = -1.5 + i;
+            c[1] = -1.5 + j;
+            c[2] = -1.5 + k + 1;
+            mesh.AddVertex(c);
+            v[4] = l; l++;
+
+            c[0] = -1.5 + i + 1;
+            c[1] = -1.5 + j;
+            c[2] = -1.5 + k + 1;
+            mesh.AddVertex(c);
+            v[5] = l; l++;
+
+            c[0] = -1.5 + i + 1;
+            c[1] = -1.5 + j + 1;
+            c[2] = -1.5 + k + 1;
+            mesh.AddVertex(c);
+            v[6] = l; l++;
+
+            c[0] = -1.5 + i;
+            c[1] = -1.5 + j + 1;
+            c[2] = -1.5 + k + 1;
+            mesh.AddVertex(c);
+            v[7] = l; l++;
+
+            c[0] = -1.5 + i + 0.25;
+            c[1] = -1.5 + j + 0.25;
+            c[2] = -1.5 + k + 0.25;
+            mesh.AddVertex(c);
+            v[8] = l; l++;
+
+            c[0] = -1.5 + i + 0.75;
+            c[1] = -1.5 + j + 0.25;
+            c[2] = -1.5 + k + 0.25;
+            mesh.AddVertex(c);
+            v[9] = l; l++;
+
+            c[0] = -1.5 + i + 0.75;
+            c[1] = -1.5 + j + 0.75;
+            c[2] = -1.5 + k + 0.25;
+            mesh.AddVertex(c);
+            v[10] = l; l++;
+
+            c[0] = -1.5 + i + 0.25;
+            c[1] = -1.5 + j + 0.75;
+            c[2] = -1.5 + k + 0.25;
+            mesh.AddVertex(c);
+            v[11] = l; l++;
+
+            c[0] = -1.5 + i + 0.25;
+            c[1] = -1.5 + j + 0.25;
+            c[2] = -1.5 + k + 0.75;
+            mesh.AddVertex(c);
+            v[12] = l; l++;
+
+            c[0] = -1.5 + i + 0.75;
+            c[1] = -1.5 + j + 0.25;
+            c[2] = -1.5 + k + 0.75;
+            mesh.AddVertex(c);
+            v[13] = l; l++;
+
+            c[0] = -1.5 + i + 0.75;
+            c[1] = -1.5 + j + 0.75;
+            c[2] = -1.5 + k + 0.75;
+            mesh.AddVertex(c);
+            v[14] = l; l++;
+
+            c[0] = -1.5 + i + 0.25;
+            c[1] = -1.5 + j + 0.75;
+            c[2] = -1.5 + k + 0.75;
+            mesh.AddVertex(c);
+            v[15] = l; l++;
+
+            // Bottom
+            vh[0] = v[ 0]; vh[1] = v[ 1]; vh[2] = v[ 2]; vh[3] = v[ 3];
+            vh[4] = v[ 8]; vh[5] = v[ 9]; vh[6] = v[10]; vh[7] = v[11];
+            mesh.AddHex(vh, k==0 ? 6 : 1);
+
+            // Top
+            vh[0] = v[12]; vh[1] = v[13]; vh[2] = v[14]; vh[3] = v[15];
+            vh[4] = v[ 4]; vh[5] = v[ 5]; vh[6] = v[ 6]; vh[7] = v[ 7];
+            mesh.AddHex(vh, k==2 ? 7 : 1);
+
+            // Front
+            vh[0] = v[ 0]; vh[1] = v[ 4]; vh[2] = v[ 5]; vh[3] = v[ 1];
+            vh[4] = v[ 8]; vh[5] = v[12]; vh[6] = v[13]; vh[7] = v[ 9];
+            mesh.AddHex(vh, j==0 ? 4 : 1);
+
+            // Back
+            vh[0] = v[11]; vh[1] = v[15]; vh[2] = v[14]; vh[3] = v[10];
+            vh[4] = v[ 3]; vh[5] = v[ 7]; vh[6] = v[ 6]; vh[7] = v[ 2];
+            mesh.AddHex(vh, j==2 ? 5 : 1);
+
+            // Left
+            vh[0] = v[ 0]; vh[1] = v[ 3]; vh[2] = v[ 7]; vh[3] = v[ 4];
+            vh[4] = v[ 8]; vh[5] = v[11]; vh[6] = v[15]; vh[7] = v[12];
+            mesh.AddHex(vh, i==0 ? 3 : 1);
+
+            // Right
+            vh[0] = v[ 9]; vh[1] = v[10]; vh[2] = v[14]; vh[3] = v[13];
+            vh[4] = v[ 1]; vh[5] = v[ 2]; vh[6] = v[ 6]; vh[7] = v[ 5];
+            mesh.AddHex(vh, i==2 ? 2 : 1);
          }
       }
-      /*
-      if (cfg >= 0 && anim)
-      {
-         sol_sock << "pause\n" << flush;
-         cout << "GLVis visualization paused."
-              << " Press space (in the GLVis window) to resume it.\n";
-
-         while (anim_step(conf[cfg], mesh))
-         {
-            static int turn = 0;
-            sol_sock << "solution\n" << mesh << color;
-            if (turn++ % 2 == 0)
-            {
-               sol_sock << "pause\n";
-            }
-            sol_sock << flush;
-         }
-      }
-      sol_sock << "autoscale on\n" << "valuerange -1.5 1\n" << flush;
-      */
    }
 
-   // Join the elements together to form a connected mesh
-   //MergeMeshNodes(&mesh, 1);
+   mesh.FinalizeTopology();
+}
+         {
+         }
+         {
+         }
+         {
+         }
+   }
 
-   // Output the resulting mesh to a file
-   // ...
 
-   // Clean up and exit
-   return 0;
+
 }
 
 void
@@ -310,8 +443,6 @@ rotate_step(char dir, int deg, double * x)
 {
    if (deg == 0) { return; }
 
-   // double cent[3], y[3];
-   // Vector cVec(cent,3);
    double y[3];
    Vector xVec(x,3);
    Vector yVec(y,3);
@@ -395,7 +526,7 @@ anim_step(char dir, int deg, Mesh & mesh)
 
       mesh.GetElementVertices(i, v);
 
-      for (int j=0; j<4; j++)
+      for (int j=0; j<v.Size(); j++)
       {
          verts.insert(v[j]);
       }
@@ -422,12 +553,12 @@ void mark_elements(Mesh & mesh, char dir, int ind)
       mesh.GetElementVertices(i, v);
 
       x = 0.0;
-      for (int j=0; j<4; j++)
+      for (int j=0; j<v.Size(); j++)
       {
          Vector vx(mesh.GetVertex(v[j]), 3);
          x += vx;
       }
-      x /= 4.0;
+      x /= v.Size();
 
       switch (dir)
       {
@@ -465,5 +596,16 @@ void mark_elements(Mesh & mesh, char dir, int ind)
             }
             break;
       }
+   }
+}
+
+void
+anim_move(char dir, int ind, int deg,
+          Mesh & mesh, GridFunction & color, socketstream & sock)
+{
+   mark_elements(mesh, dir, ind);
+   while (anim_step(dir, deg, mesh))
+   {
+      sock << "solution\n" << mesh << color << flush;
    }
 }
