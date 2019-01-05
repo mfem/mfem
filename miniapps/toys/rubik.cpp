@@ -426,17 +426,6 @@ init_hex_mesh(Mesh & mesh)
 
    mesh.FinalizeTopology();
 }
-         {
-         }
-         {
-         }
-         {
-         }
-   }
-
-
-
-}
 
 void
 rotate_step(char dir, int deg, double * x)
