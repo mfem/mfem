@@ -1932,22 +1932,6 @@ int NCMesh::QuadFaceSplitType(int v1, int v2, int v3, int v4,
    else { return 2; }  // face split "horizontally"
 }
 
-bool NCMesh::TriFaceIsSplit(int v1, int v2, int v3, int mid[3]) const
-{
-   MFEM_ASSERT(Dim >= 3, "");
-
-   // find edge nodes
-   int e1 = nodes.FindId(v1, v2);
-   int e2 = nodes.FindId(v2, v3);
-   int e3 = nodes.FindId(v3, v1);
-
-   // optional: return the mid-edge nodes if requested
-   if (mid) { mid[0] = e1, mid[1] = e2, mid[2] = e3; }
-
-   // does the middle face exist?
-   return (faces.FindId(e1, e2, e3) >= 0);
-}
-
 int NCMesh::find_node(const Element &el, int node)
 {
    for (int i = 0; i < 8; i++)
@@ -2124,7 +2108,9 @@ void NCMesh::TraverseTriFace(int vn0, int vn1, int vn2,
    }
 
    int mid[3];
-   if (TriFaceIsSplit(vn0, vn1, vn2, mid))
+   if ((mid[0] = nodes.FindId(vn0, vn1)) >= 0 &&
+       (mid[1] = nodes.FindId(vn1, vn2)) >= 0 &&
+       (mid[2] = nodes.FindId(vn2, vn0)) >= 0)
    {
       Point mid0(pm(0), pm(1)), mid1(pm(1), pm(2)), mid2(pm(2), pm(0));
 
