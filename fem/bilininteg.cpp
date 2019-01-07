@@ -72,12 +72,8 @@ void PADiffusionIntegrator::Assemble()
 // *****************************************************************************
 void PADiffusionIntegrator::MultAdd(Vector &x, Vector &y)
 {
-   assert(diffusion);
    diffusion->MultAdd(x,y);
 }
-
-// *****************************************************************************
-// *****************************************************************************
 
 void BilinearFormIntegrator::AssembleElementMatrix (
    const FiniteElement &el, ElementTransformation &Trans,

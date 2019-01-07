@@ -47,7 +47,6 @@ void PABilinearFormExtension::AddDomainIntegrator(
    integrators.Append(static_cast<BilinearPAFormIntegrator*>(i));
 }
 
-// *****************************************************************************
 static const IntegrationRule &DefaultGetRule(const FiniteElement &trial_fe,
                                              const FiniteElement &test_fe)
 {
@@ -71,20 +70,13 @@ static const IntegrationRule &DefaultGetRule(const FiniteElement &trial_fe,
 void PABilinearFormExtension::Assemble()
 {
    assert(integrators.Size()==1);
+   const FiniteElement &fe = *a->fes->GetFE(0);
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
    {
-      const mfem::IntegrationRule *ir = integrators[i]->GetIntRule();
-      if (ir)
-      {
-         integrators[i]->Setup(a->fes,ir);
-      }
-      else
-      {
-         const FiniteElement &fe = *a->fes->GetFE(0);
-         const IntegrationRule *ir = &DefaultGetRule(fe,fe);
-         integrators[i]->Setup(a->fes,ir);
-      }
+      const IntegrationRule *rule = integrators[i]->GetIntRule();
+      const IntegrationRule *ir = rule?rule:&DefaultGetRule(fe,fe);
+      integrators[i]->Setup(a->fes,ir);
       integrators[i]->Assemble();
    }
 }
