@@ -26,6 +26,7 @@ set(SRCS
   hybridization.cpp
   intrules.cpp
   kBilinIntegDiffusion.cpp
+  kBilinIntegMass.cpp
   kfespace.cpp
   linearform.cpp
   lininteg.cpp
@@ -53,6 +54,7 @@ set(HDRS
   hybridization.hpp
   intrules.hpp
   kBilinIntegDiffusion.hpp
+  kBilinIntegMass.hpp
   kfespace.hpp
   linearform.hpp
   lininteg.hpp

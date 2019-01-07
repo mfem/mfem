@@ -239,13 +239,13 @@ void kMassMultAdd(const int DIM,
                   const int NUM_DOFS_1D,
                   const int NUM_QUAD_1D,
                   const int numElements,
-                  const double* dofToQuad,
-                  const double* dofToQuadD,
-                  const double* quadToDof,
-                  const double* quadToDofD,
-                  const double* op,
-                  const double* x,
-                  double* y)
+                  const double* __restrict dofToQuad,
+                  const double* __restrict dofToQuadD,
+                  const double* __restrict quadToDof,
+                  const double* __restrict quadToDofD,
+                  const double* __restrict op,
+                  const double* __restrict x,
+                  double* __restrict y)
 {
    assert(LOG2(DIM)<=4);
    assert((NUM_QUAD_1D&1)==0);
