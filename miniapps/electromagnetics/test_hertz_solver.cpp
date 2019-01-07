@@ -166,8 +166,8 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
                                                *a_bc_);
    }
    */
-   massCoef_ = new TransformedCoefficient(negOmega2Coef_, epsCoef_, prodFunc);
-   posMassCoef_ = new TransformedCoefficient(omega2Coef_, epsCoef_, prodFunc);
+   massCoef_ = new ScalarMatrixProductCoefficient(*negOmega2Coef_, *epsCoef_);
+   posMassCoef_ = new ScalarMatrixProductCoefficient(*omega2Coef_, *epsCoef_);
    if ( sigmaCoef_ )
    {
       lossCoef_ = new TransformedCoefficient(omegaCoef_, sigmaCoef_, prodFunc);

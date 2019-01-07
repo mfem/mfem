@@ -157,8 +157,8 @@ private:
    Coefficient * negOmegaCoef_;  // -omega expressed as a Coefficient
    Coefficient * omega2Coef_;    // omega^2 expressed as a Coefficient
    Coefficient * negOmega2Coef_; // -omega^2 expressed as a Coefficient
-   Coefficient * massCoef_;      // -omega^2 epsilon
-   Coefficient * posMassCoef_;   // omega^2 epsilon
+   MatrixCoefficient * massCoef_;      // -omega^2 epsilon
+   MatrixCoefficient * posMassCoef_;   // omega^2 epsilon
    Coefficient * lossCoef_;      // -omega sigma
    // Coefficient * gainCoef_;    // omega sigma
    Coefficient * abcCoef_;       // -omega eta^{-1}
