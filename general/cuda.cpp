@@ -17,7 +17,7 @@ namespace mfem
 
 // *****************************************************************************
 #ifdef __NVCC__
-#define CU_STUB(dst,...) __VA_ARGS__; return dst;
+#define CU_STUB(dst,...) cuCheck(__VA_ARGS__); return dst;
 
 #else
 #define CU_STUB(...) {                                                  \
@@ -33,7 +33,7 @@ namespace mfem
 // *****************************************************************************
 void* cuMemAlloc(void** dptr, size_t bytes)
 {
-   CU_STUB(*dptr,::cuMemAlloc((CUdeviceptr*)dptr, bytes););
+   CU_STUB(*dptr,::cuMemAlloc((CUdeviceptr*)dptr, bytes));
 }
 
 // *****************************************************************************
@@ -84,6 +84,10 @@ void* cuMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s)
 // *****************************************************************************
 void* cuMemcpyDtoH(void* dst, const void* src, size_t bytes)
 {
+   assert(dst);
+   if (src==NULL){BUILTIN_TRAP;}
+   assert(src);
+   assert(bytes>0);
    CU_STUB(dst,::cuMemcpyDtoH(dst, (CUdeviceptr)src, bytes));
 }
 

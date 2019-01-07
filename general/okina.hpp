@@ -43,24 +43,24 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
    {
       return cuWrap<BLOCK_SZ>(N,d_body);
    }
-   for (size_t k=0; k<N; k+=1) { h_body(k); }
+   else
+   {
+      for (size_t k=0; k<N; k+=1) { h_body(k); }
+   }
 }
 
 // *****************************************************************************
 // * MFEM_FORALL splitter
 // *****************************************************************************
-#define MFEM_FORALL(i, N, B)                                            \
-   wrap<256>(N, [=] __device__ (size_t i){B}, [=] (size_t i){B})
-#define MFEM_FORALL_BLOCK(i,N,B,K)                                      \
-   wrap<K>(N, [=] __device__ (size_t i){B}, [=] (size_t i){B})
+#define MFEM_BLOCKS 256
+#define MFEM_FORALL(i,N,...) MFEM_FORALL_K(i,N,MFEM_BLOCKS,__VA_ARGS__)
+#define MFEM_FORALL_K(i,N,K,...)                                        \
+   wrap<K>(N,                                                           \
+           [=] __device__ (size_t i){__VA_ARGS__},                      \
+           [=]            (size_t i){__VA_ARGS__})
 
 // *****************************************************************************
-#ifdef _MSC_VER
-#define LOG2(X) (1)
-#else
-#define LOG2(X) ((unsigned) (8*sizeof(unsigned long long)-__builtin_clzll((X))))
-#endif
-
+uint32_t LOG2(uint32_t);
 #define ISQRT(N) static_cast<unsigned>(sqrt(static_cast<float>(N)))
 #define ICBRT(N) static_cast<unsigned>(cbrt(static_cast<float>(N)))
 #define IROOT(D,N) ((D==1)?N:(D==2)?ISQRT(N):(D==3)?ICBRT(N):0)
@@ -98,8 +98,8 @@ void dbg_F_L_F_N_A(const char*, const int, const char*, const int, ...);
 #define _F_L_F_ __FILENAME__,__LINE__,__FUNCTION__
 
 // *****************************************************************************
+#define dbg(...)
 //#define stk(...) dbg_F_L_F_N_A(_F_L_F_,0)
 //#define dbg(...) dbg_F_L_F_N_A(_F_L_F_, N_ARGS(__VA_ARGS__),__VA_ARGS__)
 
-#define dbg(...)
 #endif // MFEM_OKINA_HPP

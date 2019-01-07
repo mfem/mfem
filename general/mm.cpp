@@ -71,8 +71,7 @@ static bool Alias(const mm_t *maps, const void *adrs)
 }
 
 // *****************************************************************************
-// __attribute__((unused)) // VS doesn't like this in Appveyor
-static void debugMode(void)
+/*static void debugMode(void)
 {
    dbg("\033[1K\r%sMM %sHasBeenEnabled %sEnabled %sDisabled \
 %sCPU %sGPU %sPA %sCUDA %sOCCA",
@@ -85,7 +84,7 @@ static void debugMode(void)
        config::usingPA()?"\033[32m":"\033[31m",
        config::usingCuda()?"\033[32m":"\033[31m",
        config::usingOcca()?"\033[32m":"\033[31m");
-}
+}*/
 
 // *****************************************************************************
 // * Adds an address
@@ -278,7 +277,8 @@ void mm::Push(const void *adrs, const size_t bytes)
 static void PullKnown(const mm_t *maps, const void *adrs, const size_t bytes)
 {
    const memory_t *base = maps->memories->at(adrs);
-   cuMemcpyDtoH(base->h_adrs, base->d_adrs, bytes==0?base->bytes:bytes);
+   if (base->d_adrs)
+      cuMemcpyDtoH(base->h_adrs, base->d_adrs, bytes==0?base->bytes:bytes);
 }
 
 // *****************************************************************************
@@ -304,8 +304,7 @@ void mm::Pull(const void *adrs, const size_t bytes)
 }
 
 // *****************************************************************************
-// __attribute__((unused)) // VS doesn't like this in Appveyor
-static void Dump(mm_t *maps)
+/*static void Dump(mm_t *maps)
 {
    if (!getenv("DBG")) { return; }
    memory_map_t *mem = maps->memories;
@@ -340,7 +339,7 @@ static void Dump(mm_t *maps)
       fflush(0);
       k++;
    }
-}
+}*/
 
 // *****************************************************************************
 // * Data will be pushed/pulled before the copy happens on the H or the D
