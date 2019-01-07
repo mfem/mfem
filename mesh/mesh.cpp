@@ -7023,13 +7023,13 @@ void Mesh::GeneralRefinement(const Array<Refinement> &refinements,
    else if (nonconforming < 0)
    {
       // determine if nonconforming refinement is suitable
-      if (meshgen & 2)
+      if ((meshgen & 2) || (meshgen & 4))
       {
-         nonconforming = 1;
+         nonconforming = 1; // tensor product elements and wedges
       }
       else
       {
-         nonconforming = 0;
+         nonconforming = 0; // simplices
       }
    }
 

@@ -1308,14 +1308,14 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
       RefineElement(ref.index, ref.ref_type);
       nforced += ref_stack.Size() - size;
 
-#ifdef MFEM_DEBUG
+/*#ifdef MFEM_DEBUG
       static int sequence = 0;
       char fname[200];
       sprintf(fname, "ncmesh.%03d", sequence++);
       std::ofstream f(fname);
       Update();
       DebugDump(f);
-#endif
+#endif*/
    }
 
    /* TODO: the current algorithm of forced refinements is not optimal. As
@@ -3090,9 +3090,87 @@ void NCMesh::GetPointMatrix(int geom, const char* ref_path, DenseMatrix& matrix)
             }
          }
       }
-      else if (geom == Geometry::CUBE)
+      else if (geom == Geometry::PRISM)
       {
-         MFEM_ABORT("TODO");
+         if (ref_type < 4) // XY split
+         {
+            Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2));
+            Point mid20(pm(2), pm(0)), mid34(pm(3), pm(4));
+            Point mid45(pm(4), pm(5)), mid53(pm(5), pm(3));
+
+            if (child == 0)
+            {
+               pm = PointMatrix(pm(0), mid01, mid20, pm(3), mid34, mid53);
+            }
+            else if (child == 1)
+            {
+               pm = PointMatrix(mid01, pm(1), mid12, mid34, pm(4), mid45);
+            }
+            else if (child == 2)
+            {
+               pm = PointMatrix(mid20, mid12, pm(2), mid53, mid45, pm(5));
+            }
+            else if (child == 3)
+            {
+               pm = PointMatrix(mid12, mid20, mid01, mid45, mid53, mid34);
+            }
+         }
+         else if (ref_type == 4) // Z split
+         {
+            Point mid03(pm(0), pm(3)), mid14(pm(1), pm(4)), mid25(pm(2), pm(5));
+
+            if (child == 0)
+            {
+               pm = PointMatrix(pm(0), pm(1), pm(2), mid03, mid14, mid25);
+            }
+            else if (child == 1)
+            {
+               pm = PointMatrix(mid03, mid14, mid25, pm(3), pm(4), pm(5));
+            }
+         }
+         else if (ref_type > 4) // iso split
+         {
+            Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2)), mid20(pm(2), pm(0));
+            Point mid34(pm(3), pm(4)), mid45(pm(4), pm(5)), mid53(pm(5), pm(3));
+            Point mid03(pm(0), pm(3)), mid14(pm(1), pm(4)), mid25(pm(2), pm(5));
+
+            Point midf2(mid01, mid14, mid34, mid03);
+            Point midf3(mid12, mid25, mid45, mid14);
+            Point midf4(mid20, mid03, mid53, mid25);
+
+            if (child == 0)
+            {
+               pm = PointMatrix(pm(0), mid01, mid20, mid03, midf2, midf4);
+            }
+            else if (child == 1)
+            {
+               pm = PointMatrix(mid01, pm(1), mid12, midf2, mid14, midf3);
+            }
+            else if (child == 2)
+            {
+               pm = PointMatrix(mid20, mid12, pm(2), midf4, midf3, mid25);
+            }
+            else if (child == 3)
+            {
+               pm = PointMatrix(mid12, mid20, mid01, midf3, midf4, midf2);
+            }
+            else if (child == 4)
+            {
+               pm = PointMatrix(mid03, midf2, midf4, pm(3), mid34, mid53);
+            }
+            else if (child == 5)
+            {
+               pm = PointMatrix(midf2, mid14, midf3, mid34, pm(4), mid45);
+            }
+            else if (child == 6)
+            {
+               pm = PointMatrix(midf4, midf3, mid25, mid53, mid45, pm(5));
+            }
+            else if (child == 7)
+            {
+               pm = PointMatrix(midf3, midf4, midf2, mid45, mid53, mid34);
+            }
+         }
       }
       else if (geom == Geometry::SQUARE)
       {
