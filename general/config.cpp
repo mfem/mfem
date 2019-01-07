@@ -22,7 +22,7 @@ void config::CudaDeviceSetup(const int device)
 {
 #ifdef __NVCC__
    cudaGetDeviceCount(&ngpu);
-   MFEM_ASSERT(gpu_count>0, "No CUDA device found!");
+   MFEM_ASSERT(ngpu>0, "No CUDA device found!");
    cuInit(0);
    dev = device;
    cuDeviceGet(&cuDevice,dev);
