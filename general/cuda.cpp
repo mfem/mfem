@@ -84,10 +84,6 @@ void* cuMemcpyDtoDAsync(void* dst, void* src, size_t bytes, void *s)
 // *****************************************************************************
 void* cuMemcpyDtoH(void* dst, const void* src, size_t bytes)
 {
-   assert(dst);
-   if (src==NULL){BUILTIN_TRAP;}
-   assert(src);
-   assert(bytes>0);
    CU_STUB(dst,::cuMemcpyDtoH(dst, (CUdeviceptr)src, bytes));
 }
 
