@@ -679,3 +679,12 @@ void e_bc_i(const Vector &x, Vector &E)
    E.SetSize(3);
    E = 0.0;
 }
+
+DielectricTensor::DielectricTensor()
+  : MatrixCoefficient(3)
+{}
+
+void DielectricTensor::Eval(DenseMatrix &K, ElementTransformation &T,
+			    const IntegrationPoint &ip)
+{}
+
