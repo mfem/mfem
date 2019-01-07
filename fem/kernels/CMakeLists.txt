@@ -16,6 +16,7 @@ set(SRCS
   kGlobalToLocal.cpp
   kIntDiffusionAssemble.cpp
   kIntDiffusionMultAdd.cpp
+  kIntMass.cpp
   kLocalToGlobal.cpp
 )
 
@@ -23,6 +24,7 @@ set(HDRS
   kGeometry.hpp
   kGlobalToLocal.hpp
   kIntDiffusion.hpp
+  kIntMass.hpp
   kLocalToGlobal.hpp
 )
 
