@@ -47,8 +47,11 @@ void PABilinearFormExtension::AddDomainIntegrator(
    integrators.Append(static_cast<BilinearPAFormIntegrator*>(i));
 }
 
-static const IntegrationRule &DefaultGetRule(const FiniteElement &trial_fe,
-                                             const FiniteElement &test_fe)
+// *****************************************************************************
+// * WARNING DiffusionGetRule Q order
+// *****************************************************************************
+static const IntegrationRule &DiffusionGetRule(const FiniteElement &trial_fe,
+                                               const FiniteElement &test_fe)
 {
    int order;
    if (trial_fe.Space() == FunctionSpace::Pk)
@@ -71,11 +74,11 @@ void PABilinearFormExtension::Assemble()
 {
    assert(integrators.Size()==1);
    const FiniteElement &fe = *a->fes->GetFE(0);
+   const IntegrationRule *ir = &DiffusionGetRule(fe,fe);
+   assert(ir);
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
    {
-      const IntegrationRule *rule = integrators[i]->GetIntRule();
-      const IntegrationRule *ir = rule?rule:&DefaultGetRule(fe,fe);
       integrators[i]->Setup(a->fes,ir);
       integrators[i]->Assemble();
    }
@@ -121,7 +124,9 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
    if (!copy_interior && ess_tdof_list.Size()>0)
    {
       const int csz = ess_tdof_list.Size();
-      Vector subvec(csz);
+      const int xsz = X.Size();
+      assert(xsz>=csz);
+      Vector subvec(xsz);
       subvec = 0.0;
       kVectorGetSubvector(csz,
                           subvec.GetData(),
