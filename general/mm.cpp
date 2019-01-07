@@ -336,7 +336,7 @@ static void Dump(mm_t *maps)
       const size_t offset = a->second->offset;
       const void *base = a->second->mem->h_adrs;
       printf("\n[%ld] \033[33m%p < (\033[37m%ld) < \033[33m%p",
-             k , base, offset, adrs);
+             k, base, offset, adrs);
       fflush(0);
       k++;
    }

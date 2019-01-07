@@ -75,9 +75,12 @@ void PABilinearFormExtension::Assemble()
    for (int i = 0; i < integratorCount; ++i)
    {
       const mfem::IntegrationRule *ir = integrators[i]->GetIntRule();
-      if (ir){
+      if (ir)
+      {
          integrators[i]->Setup(a->fes,ir);
-      }else{
+      }
+      else
+      {
          const FiniteElement &fe = *a->fes->GetFE(0);
          const IntegrationRule *ir = &DefaultGetRule(fe,fe);
          integrators[i]->Setup(a->fes,ir);
