@@ -310,8 +310,7 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
  *  C and D can be NULL, meaning that their constraints are not used.
  *
  *  When used in parallel, all Vectors are assumed to be true dof vectors, and
- *  the operators are expected to be defined for tdof vectors.
- */
+ *  the operators are expected to be defined for tdof vectors. */
 class OptimizationProblem
 {
 public:
@@ -336,12 +335,11 @@ public:
    int GetNumConstraints() const;
 };
 
-/** Abstract solver for OptimizationProblems.
- */
+/// Abstract solver for OptimizationProblems.
 class OptimizationSolver : public IterativeSolver
 {
 protected:
-   OptimizationProblem *problem;
+   const OptimizationProblem *problem;
 
 public:
    OptimizationSolver(): IterativeSolver(), problem(NULL) { }
@@ -352,7 +350,7 @@ public:
 
    /** This function is virtual as solvers might need to perform some initial
     *  actions (e.g. validation) with the OptimizationProblem. */
-   virtual void SetOptimizationProblem(OptimizationProblem &prob)
+   virtual void SetOptimizationProblem(const OptimizationProblem &prob)
    { problem = &prob; }
 
    virtual void Mult(const Vector &xt, Vector &x) const = 0;
@@ -406,7 +404,7 @@ public:
    /** Setting an OptimizationProblem will overwrite the Vectors given by
     *  SetBounds and SetLinearConstraint. The objective function remains
     *  unchanged. */
-   virtual void SetOptimizationProblem(OptimizationProblem &prob);
+   virtual void SetOptimizationProblem(const OptimizationProblem &prob);
 
    void SetBounds(const Vector &_lo, const Vector &_hi);
    void SetLinearConstraint(const Vector &_w, double _a);
