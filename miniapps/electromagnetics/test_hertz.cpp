@@ -92,19 +92,34 @@ Coefficient * SetupPermittivityCoefficient();
 static Vector pw_eps_(0);     // Piecewise permittivity values
 static Vector ds_params_(0);  // Center, Radius, and Permittivity
 //                               of dielectric sphere
-class DielectricTensor: public MatrixCoefficient {
+class DielectricTensor: public MatrixCoefficient
+{
 public:
-  DielectricTensor(ParGridFunction & density, ParGridFunction & B,
-		   ParGridFunction & T, double omega);
-  virtual void Eval(DenseMatrix &K, ElementTransformation &T,
+   DielectricTensor(ParGridFunction & B,
+                    BlockVector & T,
+                    BlockVector & density,
+                    ParFiniteElementSpace & H1FESpace,
+                    ParFiniteElementSpace & L2FESpace,
+                    int nspecies,
+                    double omega);
+   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
-  virtual ~DielectricTensor() {}
+   virtual ~DielectricTensor() {}
 
 private:
-  ParGridFunction * density_;
-  ParGridFunction * B_;
-  ParGridFunction * T_;
-  double omega_;
+   ParGridFunction * B_;
+   BlockVector * temperature_;
+   BlockVector * density_;
+   ParFiniteElementSpace * H1FESpace_;
+   ParFiniteElementSpace * L2FESpace_;
+   int nspecies_;
+   double omega_;
+
+   ParGridFunction density_gf_;
+   ParGridFunction temperature_gf_;
+
+   Vector density_vals_;
+   Vector temperature_vals_;
 };
 
 double dielectric_sphere(const Vector &);
@@ -163,6 +178,7 @@ int main(int argc, char *argv[])
    int serial_ref_levels = 0;
    int parallel_ref_levels = 0;
    int sol = 2;
+   int nspecies = 1;
    bool herm_conv = false;
    bool visualization = true;
    bool visit = true;
@@ -175,6 +191,8 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
+   args.AddOption(&nspecies, "-ns", "--num-species",
+                  "Number of ion species.");
    args.AddOption(&serial_ref_levels, "-rs", "--serial-ref-levels",
                   "Number of serial refinement levels.");
    args.AddOption(&parallel_ref_levels, "-rp", "--parallel-ref-levels",
@@ -306,21 +324,52 @@ int main(int argc, char *argv[])
       return 3;
    }
    */
+   Vector BVec(3);
+   BVec = 0.0; BVec(0) = 0.1;
+   VectorConstantCoefficient BCoef(BVec);
+   ConstantCoefficient rhoCoef(1.0);
+   ConstantCoefficient tempCoef(1.0);
+
    H1_ParFESpace H1FESpace(&pmesh, order, pmesh.Dimension());
    RT_ParFESpace HDivFESpace(&pmesh, order, pmesh.Dimension());
    L2_ParFESpace L2FESpace(&pmesh, order, pmesh.Dimension());
 
    ParGridFunction BField(&HDivFESpace);
-   ParGridFunction TField(&H1FESpace);
-   ParGridFunction density(&L2FESpace);
+   ParGridFunction temperature_gf;
+   ParGridFunction density_gf;
 
-   Vector BVec(3);
-   BVec = 0.0; BVec(0) = 0.1;
-   VectorConstantCoefficient BCoef(BVec);
    BField.ProjectCoefficient(BCoef);
-   TField  = 1.0;
-   density = 1.0;
-  
+
+   int size_h1 = H1FESpace.GetVSize();
+   int size_l2 = L2FESpace.GetVSize();
+
+   Array<int> density_offsets(nspecies + 1);
+   Array<int> temperature_offsets(nspecies + 1);
+
+   density_offsets[0] = 0;
+   temperature_offsets[0] = 0;
+   for (int i=0; i<nspecies; i++)
+   {
+      density_offsets[i + 1]     = density_offsets[1] + size_l2;
+      temperature_offsets[i + 1] = temperature_offsets[1] + size_h1;
+   }
+
+   BlockVector density(density_offsets);
+   BlockVector temperature(temperature_offsets);
+
+   for (int i=0; i<=nspecies; i++)
+   {
+      density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
+      temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
+
+      density_gf.ProjectCoefficient(rhoCoef);
+      temperature_gf.ProjectCoefficient(tempCoef);
+   }
+
+
+   //TField  = 1.0;
+   // density = 1.0;
+
    // Create a coefficient describing the dielectric permittivity
    // Coefficient * epsCoef = SetupPermittivityCoefficient();
 
@@ -332,11 +381,12 @@ int main(int argc, char *argv[])
 
    // Create a coefficient describing the surface admittance
    Coefficient * etaInvCoef = SetupAdmittanceCoefficient(pmesh, abcs);
-   
+
    // Create a tensor coefficient describing the dielectric permittivity
-   DielectricTensor dielectric_tensor(density, BField, TField,
-				      2.0 * M_PI * freq_);   
-   
+   DielectricTensor dielectric_tensor(BField, density, temperature,
+                                      H1FESpace, L2FESpace,
+                                      nspecies, 2.0 * M_PI * freq_);
+
    // Create the Magnetostatic solver
    HertzSolver Hertz(pmesh, order, freq_, (HertzSolver::SolverType)sol,
                      conv, dielectric_tensor, *muInvCoef, sigmaCoef, etaInvCoef,
@@ -703,28 +753,42 @@ void e_bc_i(const Vector &x, Vector &E)
    E = 0.0;
 }
 
-DielectricTensor::DielectricTensor(ParGridFunction & density,
-				   ParGridFunction & B,
-				   ParGridFunction & T, double omega)
-  : MatrixCoefficient(3),
-    density_(&density),
-    B_(&B),
-    T_(&T),
-    omega_(omega)
-{}
+DielectricTensor::DielectricTensor(ParGridFunction & B,
+                                   BlockVector & temperature,
+                                   BlockVector & density,
+                                   ParFiniteElementSpace & H1FESpace,
+                                   ParFiniteElementSpace & L2FESpace,
+                                   int nspecies,
+                                   double omega)
+   : MatrixCoefficient(3),
+     B_(&B),
+     temperature_(&temperature),
+     density_(&density),
+     H1FESpace_(&H1FESpace),
+     L2FESpace_(&L2FESpace),
+     nspecies_(nspecies),
+     omega_(omega)
+{
+   density_vals_.SetSize(nspecies_ + 1);
+   temperature_vals_.SetSize(nspecies_ + 1);
+}
 
 void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
-			    const IntegrationPoint &ip)
+                            const IntegrationPoint &ip)
 {
-  // Initialize dielectric tensor to all zeros
-  epsilon.SetSize(3); epsilon = 0.0;
+   // Initialize dielectric tensor to all zeros
+   epsilon.SetSize(3); epsilon = 0.0;
 
-  // Collect density, temperature, and magnetic field values
-  Vector B(3);
-  B_->GetVectorValue(T.ElementNo, ip, B);
+   // Collect density, temperature, and magnetic field values
+   Vector B(3);
+   B_->GetVectorValue(T.ElementNo, ip, B);
 
-  double density = density_->GetValue(T.ElementNo, ip);
-  double temp    = T_->GetValue(T.ElementNo, ip);
-
+   for (int i=0; i<=nspecies_; i++)
+   {
+      density_gf_.MakeRef(L2FESpace_, density_->GetBlock(i));
+      temperature_gf_.MakeRef(H1FESpace_, temperature_->GetBlock(i));
+      density_vals_[i]     = density_gf_.GetValue(T.ElementNo, ip);
+      temperature_vals_[i] = temperature_gf_.GetValue(T.ElementNo, ip);
+   }
 }
 
