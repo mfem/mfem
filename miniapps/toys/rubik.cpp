@@ -43,6 +43,7 @@ using namespace mfem::miniapps;
 static int step_  = 0;
 static int nstep_ = 6;
 static int count_ = 0;
+static int logging_ = 0;
 
 static double cosa_ = cos(0.5 * M_PI / nstep_);
 static double sina_ = sin(0.5 * M_PI / nstep_);
@@ -119,6 +120,8 @@ int main(int argc, char *argv[])
    args.AddOption(&anim, "-anim", "--animation", "-no-anim",
                   "--no-animation",
                   "Enable or disable GLVis animation.");
+   args.AddOption(&logging_, "-l", "--log-level",
+                  "Control the amount of logging information.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -1171,7 +1174,10 @@ void
 swap_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
              int * c0, int * c1)
 {
-   cout << "Entering swap_corners" << endl;
+   if (logging_ > 0)
+   {
+      cout << "Entering swap_corners" << endl;
+   }
 
    if (c0 != NULL)
    {
@@ -1202,8 +1208,11 @@ swap_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
             break;
          }
       }
-      cout << "Location of c0 = {"<<c0[0]<<","<<c0[1]<<","<<c0[2]<<"}: " << i0 <<
-           endl;
+      if (logging_ > 1)
+      {
+         cout << "Location of c0 = {"<<c0[0]<<","<<c0[1]<<","<<c0[2]<<"}: "
+              << i0 << endl;
+      }
 
       switch (i0)
       {
@@ -1270,7 +1279,11 @@ swap_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
             break;
          }
       }
-      cout << "Location of piece belonging at " << 0 << " (c1) is " << i1 << endl;
+      if (logging_ > 0)
+      {
+         cout << "Location of piece belonging at " << 0 << " (c1) is "
+              << i1 << endl;
+      }
 
       switch (i1)
       {
@@ -1333,8 +1346,14 @@ swap_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
 void
 solve_corner_locations(Mesh & mesh, GridFunction & color, socketstream & sock)
 {
-   cout << "Entering solve_corner_locations" << endl;
-   print_state(cout);
+   if (logging_ > 0)
+   {
+      cout << "Entering solve_corner_locations" << endl;
+   }
+   if (logging_ > 1)
+   {
+      print_state(cout);
+   }
 
    // Locate first incorrectly filled corner location
    int i0 = -1;
@@ -1363,7 +1382,10 @@ solve_corner_locations(Mesh & mesh, GridFunction & color, socketstream & sock)
          break;
       }
    }
-   cout << "First incorrectly filled corner location: " << i0 << endl;
+   if (logging_ > 1)
+   {
+      cout << "First incorrectly filled corner location: " << i0 << endl;
+   }
 
    if (i0 < 0) { return; }
 
@@ -1394,7 +1416,10 @@ solve_corner_locations(Mesh & mesh, GridFunction & color, socketstream & sock)
          break;
       }
    }
-   cout << "Location of piece belonging at " << i0 << " is " << i1 << endl;
+   if (logging_ > 1)
+   {
+      cout << "Location of piece belonging at " << i0 << " is " << i1 << endl;
+   }
 
    if (i1 < 0)
    {
@@ -1449,8 +1474,11 @@ twist_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
             break;
          }
       }
-      cout << "Location of c0 = {"<<c0[0]<<","<<c0[1]<<","<<c0[2]<<"}: " << i0 <<
-           endl;
+      if (logging_ > 1)
+      {
+         cout << "Location of c0 = {"<<c0[0]<<","<<c0[1]<<","<<c0[2]<<"}: "
+              << i0 << endl;
+      }
 
       switch (i0)
       {
@@ -1518,8 +1546,11 @@ twist_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
             break;
          }
       }
-      cout << "Location of c1 = {"<<c1[0]<<","<<c1[1]<<","<<c1[2]<<"}: " << i1 <<
-           endl;
+      if (logging_ > 1)
+      {
+         cout << "Location of c1 = {"<<c1[0]<<","<<c1[1]<<","<<c1[2]<<"}: "
+              << i1 << endl;
+      }
 
       switch (i1)
       {
@@ -1593,8 +1624,11 @@ twist_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
             break;
          }
       }
-      cout << "Location of c2 = {"<<c2[0]<<","<<c2[1]<<","<<c2[2]<<"}: " << i2 <<
-           endl;
+      if (logging_ > 1)
+      {
+         cout << "Location of c2 = {"<<c2[0]<<","<<c2[1]<<","<<c2[2]<<"}: "
+              << i2 << endl;
+      }
 
       switch (i2)
       {
@@ -1663,8 +1697,14 @@ void
 solve_corner_orientations(Mesh & mesh, GridFunction & color,
                           socketstream & sock)
 {
-   cout << "Entering solve_corner_orientations" << endl;
-   print_state(cout);
+   if (logging_ > 0)
+   {
+      cout << "Entering solve_corner_orientations" << endl;
+   }
+   if (logging_ > 1)
+   {
+      print_state(cout);
+   }
 
    // Locate first incorrectly oriented corner
    int i0 = -1;
@@ -1692,7 +1732,10 @@ solve_corner_orientations(Mesh & mesh, GridFunction & color,
          break;
       }
    }
-   cout << "First incorrectly filled corner location: " << i0 << endl;
+   if (logging_ > 1)
+   {
+      cout << "First incorrectly oriented corner: " << i0 << endl;
+   }
 
    if (i0 < 0) { return; }
 
@@ -1706,10 +1749,14 @@ solve_corner_orientations(Mesh & mesh, GridFunction & color,
          break;
       }
    }
-   cout << "Second incorrectly filled corner location: " << i1 << endl;
+   if (logging_ > 1)
+   {
+      cout << "Second incorrectly oriented corner: " << i1 << endl;
+   }
 
    // Locate third incorrectly oriented corner (if such exists)
    int i2 = -1;
+   int i3 = -1;
    for (int i=i1+1; i<8; i++)
    {
       if (rubik.corn_[3 * i + 0] != corn_colors_[3 * i0 + 0])
@@ -1720,7 +1767,10 @@ solve_corner_orientations(Mesh & mesh, GridFunction & color,
    }
    if (i2 > 0)
    {
-      cout << "Second incorrectly filled corner location: " << i1 << endl;
+      if (logging_ > 1)
+      {
+         cout << "Third incorrectly oriented corner: " << i2 << endl;
+      }
    }
    else
    {
@@ -1729,6 +1779,14 @@ solve_corner_orientations(Mesh & mesh, GridFunction & color,
          if (i != i0 && i != i1)
          {
             i2 = i;
+            break;
+         }
+      }
+      for (int i=0; i<8; i++)
+      {
+         if (i != i0 && i != i1 && i != i2)
+         {
+            i3 = i;
             break;
          }
       }
@@ -1756,7 +1814,10 @@ void
 permute_edges(Mesh & mesh, GridFunction & color, socketstream & sock,
               int * e0, int * e1, int * e2)
 {
-   cout << "Entering permute_edges" << endl;
+   if (logging_ > 0)
+   {
+      cout << "Entering permute_edges" << endl;
+   }
 
    if (e0 != NULL)
    {
@@ -1773,7 +1834,10 @@ permute_edges(Mesh & mesh, GridFunction & color, socketstream & sock,
             break;
          }
       }
-      cout << "Location of e0 = {"<<e0[0]<<","<<e0[1]<<"}: " << i0 << endl;
+      if (logging_ > 1)
+      {
+         cout << "Location of e0 = {"<<e0[0]<<","<<e0[1]<<"}: " << i0 << endl;
+      }
 
       switch (i0)
       {
@@ -1844,7 +1908,11 @@ permute_edges(Mesh & mesh, GridFunction & color, socketstream & sock,
             break;
          }
       }
-      cout << "Location of piece belonging at " << 0 << " (e1) is " << i1 << endl;
+      if (logging_ > 1)
+      {
+         cout << "Location of piece belonging at " << 0 << " (e1) is "
+              << i1 << endl;
+      }
 
       switch (i1)
       {
@@ -1898,7 +1966,10 @@ permute_edges(Mesh & mesh, GridFunction & color, socketstream & sock,
             break;
          }
       }
-      cout << "Location of e2: " << i2 << endl;
+      if (logging_ > 1)
+      {
+         cout << "Location of e2: " << i2 << endl;
+      }
 
       switch (i2)
       {
@@ -1949,8 +2020,14 @@ permute_edges(Mesh & mesh, GridFunction & color, socketstream & sock,
 void
 solve_edge_locations(Mesh & mesh, GridFunction & color, socketstream & sock)
 {
-   cout << "Entering solve_edge_locations" << endl;
-   print_state(cout);
+   if (logging_ > 0)
+   {
+      cout << "Entering solve_edge_locations" << endl;
+   }
+   if (logging_ > 1)
+   {
+      print_state(cout);
+   }
 
    // Locate first incorrectly filled edge location
    int i0 = -1;
@@ -1965,7 +2042,10 @@ solve_edge_locations(Mesh & mesh, GridFunction & color, socketstream & sock)
          break;
       }
    }
-   cout << "First incorrectly filled edge location: " << i0 << endl;
+   if (logging_ > 1)
+   {
+      cout << "First incorrectly filled edge location: " << i0 << endl;
+   }
 
    if (i0 < 0) { return; }
 
@@ -1982,7 +2062,10 @@ solve_edge_locations(Mesh & mesh, GridFunction & color, socketstream & sock)
          break;
       }
    }
-   cout << "Location of piece belonging at " << i0 << " is " << i1 << endl;
+   if (logging_ > 1)
+   {
+      cout << "Location of piece belonging at " << i0 << " is " << i1 << endl;
+   }
 
    // Locate a third incorrect edge
    int i2 = -1;
@@ -1998,7 +2081,10 @@ solve_edge_locations(Mesh & mesh, GridFunction & color, socketstream & sock)
          break;
       }
    }
-   cout << "Another incorrectly filled edge location: " << i2 << endl;
+   if (logging_ > 1)
+   {
+      cout << "Another incorrectly filled edge location: " << i2 << endl;
+   }
 
    if (i1 < 0 || i2 <0)
    {
@@ -2036,7 +2122,10 @@ flip_edges(Mesh & mesh, GridFunction & color, socketstream & sock,
                break;
             }
          }
-         cout << "Location of e0 = {"<<e0[0]<<","<<e0[1]<<"}: " << i0 << endl;
+         if (logging_ > 1)
+         {
+            cout << "Location of e0 = {"<<e0[0]<<","<<e0[1]<<"}: " << i0 << endl;
+         }
 
          switch (i0)
          {
@@ -2107,7 +2196,10 @@ flip_edges(Mesh & mesh, GridFunction & color, socketstream & sock,
                break;
             }
          }
-         cout << "Location of e1: " << i1 << endl;
+         if (logging_ > 1)
+         {
+            cout << "Location of e1: " << i1 << endl;
+         }
 
          switch (i1)
          {
@@ -2191,7 +2283,10 @@ flip_edges(Mesh & mesh, GridFunction & color, socketstream & sock,
                break;
             }
          }
-         cout << "Location of e0 = {"<<e0[0]<<","<<e0[1]<<"}: " << i0 << endl;
+         if (logging_ > 1)
+         {
+            cout << "Location of e0 = {"<<e0[0]<<","<<e0[1]<<"}: " << i0 << endl;
+         }
 
          switch (i0)
          {
@@ -2262,7 +2357,10 @@ flip_edges(Mesh & mesh, GridFunction & color, socketstream & sock,
                break;
             }
          }
-         cout << "Location of e1: " << i1 << endl;
+         if (logging_ > 1)
+         {
+            cout << "Location of e1: " << i1 << endl;
+         }
 
          switch (i1)
          {
@@ -2318,7 +2416,10 @@ flip_edges(Mesh & mesh, GridFunction & color, socketstream & sock,
                break;
             }
          }
-         cout << "Location of e2: " << i2 << endl;
+         if (logging_ > 1)
+         {
+            cout << "Location of e2: " << i2 << endl;
+         }
 
          switch (i2)
          {
@@ -2369,7 +2470,10 @@ flip_edges(Mesh & mesh, GridFunction & color, socketstream & sock,
                break;
             }
          }
-         cout << "Location of e3: " << i3 << endl;
+         if (logging_ > 1)
+         {
+            cout << "Location of e3: " << i3 << endl;
+         }
 
          switch (i3)
          {
@@ -2419,8 +2523,14 @@ flip_edges(Mesh & mesh, GridFunction & color, socketstream & sock,
 void
 solve_edge_orientations(Mesh & mesh, GridFunction & color, socketstream & sock)
 {
-   cout << "Entering solve_edge_orientations" << endl;
-   print_state(cout);
+   if (logging_ > 0)
+   {
+      cout << "Entering solve_edge_orientations" << endl;
+   }
+   if (logging_ > 1)
+   {
+      print_state(cout);
+   }
 
    // Locate first incorrectly oriented edge
    int i0 = -1;
@@ -2432,7 +2542,10 @@ solve_edge_orientations(Mesh & mesh, GridFunction & color, socketstream & sock)
          break;
       }
    }
-   cout << "First incorrectly oriented edge location: " << i0 << endl;
+   if (logging_ > 1)
+   {
+      cout << "First incorrectly oriented edge location: " << i0 << endl;
+   }
 
    if (i0 < 0) { return; }
 
@@ -2446,7 +2559,10 @@ solve_edge_orientations(Mesh & mesh, GridFunction & color, socketstream & sock)
          break;
       }
    }
-   cout << "Second incorrectly oriented edge location: " << i1 << endl;
+   if (logging_ > 1)
+   {
+      cout << "Second incorrectly oriented edge location: " << i1 << endl;
+   }
 
    // Locate third incorrectly oriented edge (if such exists)
    int i2 = -1;
@@ -2461,7 +2577,10 @@ solve_edge_orientations(Mesh & mesh, GridFunction & color, socketstream & sock)
    }
    if (i2 > 0)
    {
-      cout << "Third incorrectly oriented edge location: " << i2 << endl;
+      if (logging_ > 1)
+      {
+         cout << "Third incorrectly oriented edge location: " << i2 << endl;
+      }
 
       // Locate fourth incorrectly oriented edge (if such exists)
       for (int i=i2+1; i<12; i++)
@@ -2472,9 +2591,11 @@ solve_edge_orientations(Mesh & mesh, GridFunction & color, socketstream & sock)
             break;
          }
       }
-      cout << "Fourth incorrectly oriented edge location: " << i3 << endl;
+      if (logging_ > 1)
+      {
+         cout << "Fourth incorrectly oriented edge location: " << i3 << endl;
+      }
    }
-
 
    int e0[2] = {rubik.edge_[2 * i0], rubik.edge_[2 * i0 + 1]};
    int e1[2] = {rubik.edge_[2 * i1], rubik.edge_[2 * i1 + 1]};
@@ -2498,10 +2619,30 @@ void
 solve(Mesh & mesh, GridFunction & color, socketstream & sock)
 {
    count_ = 0;
+   if (logging_ > 0)
+   {
+      cout << "Solving center blocks..." << endl;
+   }
    solve_centers(mesh, color, sock);
+   if (logging_ > 0)
+   {
+      cout << "Solving corner block locations..." << endl;
+   }
    solve_corner_locations(mesh, color, sock);
+   if (logging_ > 0)
+   {
+      cout << "Solving corner block orientations..." << endl;
+   }
    solve_corner_orientations(mesh, color, sock);
+   if (logging_ > 0)
+   {
+      cout << "Solving edge block locations..." << endl;
+   }
    solve_edge_locations(mesh, color, sock);
+   if (logging_ > 0)
+   {
+      cout << "Solving edge block orientations..." << endl;
+   }
    solve_edge_orientations(mesh, color, sock);
    cout << "Move count: " << count_ << endl;
 }
