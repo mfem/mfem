@@ -314,10 +314,14 @@ endif
 
 # Source dirs in logical order
 DIRS = general linalg mesh fem
-SOURCE_FILES  = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
-SOURCE_FILES += $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/kernels/*.cpp))
+SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
+
+SOURCE_KERNS = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/kernels/*.cpp))
+RELSRC_KERNS = $(patsubst $(SRC)%,%,$(SOURCE_KERNS))
+CODEGN_KERNS = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_KERNS:.cpp=.kpp))
+OBJECT_KERNS = $(patsubst $(SRC)%,$(BLD)%,$(CODEGN_KERNS:.kpp=.o))
 
 .PHONY: lib all clean distclean install config status info deps serial parallel\
  debug pdebug style check test unittest
@@ -332,6 +336,9 @@ OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 # Default rule.
 lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 
+mpp: $(BLD)general/mpp.cpp
+	$(CXX) -o $(BLD)$(@) $(<) 
+
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
  $(MFEM_TPLFLAGS) $(BUILD_DIR_DEF)
@@ -339,6 +346,13 @@ MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
 # Rules for compiling all source files.
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
+
+# Rules for compiling kernel source files.
+%.kpp: %.cpp mpp
+	./mpp $(<) -o $(@)
+%.o: %.kpp
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -xc++ -c $(<) -o $(@)
+ker: $(OBJECT_KERNS)
 
 all: examples miniapps $(TEST_DIRS)
 
@@ -354,8 +368,8 @@ doc:
 
 -include $(BLD)deps.mk
 
-$(BLD)libmfem.a: $(OBJECT_FILES)
-	$(AR) $(ARFLAGS) $(@) $(OBJECT_FILES)
+$(BLD)libmfem.a: $(OBJECT_FILES) $(OBJECT_KERNS)
+	$(AR) $(ARFLAGS) $(@) $(OBJECT_FILES) $(OBJECT_KERNS)
 	$(RANLIB) $(@)
 
 $(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER)
@@ -418,7 +432,7 @@ $(ALL_CLEAN_SUBDIRS):
 	$(MAKE) -C $(BLD)$(@D) $(@F)
 
 clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
-	rm -f $(addprefix $(BLD),*/*.o */*/*.o */*~ *~ libmfem.* deps.mk)
+	rm -f $(addprefix $(BLD),*/*.o */*/*.o */*~ *~ libmfem.* deps.mk) mpp $(CODEGN_KERNS)
 
 distclean: clean config/clean doc/clean
 	rm -rf mfem/
