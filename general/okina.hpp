@@ -35,13 +35,13 @@
 // *****************************************************************************
 // * GPU & HOST FOR_LOOP bodies wrapper
 // *****************************************************************************
-template <size_t BLOCK_SZ, typename DBODY, typename HBODY>
+template <size_t BLOCKS, typename DBODY, typename HBODY>
 void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 {
    const bool gpu = mfem::config::usingGpu();
    if (gpu)
    {
-      return cuWrap<BLOCK_SZ>(N,d_body);
+      return cuWrap<BLOCKS>(N,d_body);
    }
    else
    {
@@ -54,10 +54,10 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 // *****************************************************************************
 #define MFEM_BLOCKS 256
 #define MFEM_FORALL(i,N,...) MFEM_FORALL_K(i,N,MFEM_BLOCKS,__VA_ARGS__)
-#define MFEM_FORALL_K(i,N,K,...)                                        \
-   wrap<K>(N,                                                           \
-           [=] __device__ (size_t i){__VA_ARGS__},                      \
-           [=]            (size_t i){__VA_ARGS__})
+#define MFEM_FORALL_K(i,N,BLOCKS,...)                                   \
+   wrap<BLOCKS>(N,                                                      \
+                [=] __device__ (size_t i){__VA_ARGS__},                 \
+                [=]            (size_t i){__VA_ARGS__})
 
 // *****************************************************************************
 uint32_t LOG2(uint32_t);
@@ -96,14 +96,14 @@ const char *strrnchr(const char*, const unsigned char, const int);
 void dbg_F_L_F_N_A(const char*, const int, const char*, const int, ...);
 
 // *****************************************************************************
-#define X_ARGS(z,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,X,...) X
-#define N_ARGS(...) X_ARGS(,##__VA_ARGS__,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0)
+#define _XA_(z,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,X,...) X
+#define _NA_(...) _XA_(,##__VA_ARGS__,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0)
 #define __FILENAME__ ({const char *f=strrnchr(__FILE__,'/',2);f?f+1:__FILE__;})
 #define _F_L_F_ __FILENAME__,__LINE__,__FUNCTION__
 
 // *****************************************************************************
 #define dbg(...)
 //#define stk(...) dbg_F_L_F_N_A(_F_L_F_,0)
-//#define dbg(...) dbg_F_L_F_N_A(_F_L_F_, N_ARGS(__VA_ARGS__),__VA_ARGS__)
+//#define dbg(...) dbg_F_L_F_N_A(_F_L_F_, _NA_(__VA_ARGS__),__VA_ARGS__)
 
 #endif // MFEM_OKINA_HPP
