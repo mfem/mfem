@@ -42,6 +42,7 @@ using namespace mfem::miniapps;
 
 static int step_  = 0;
 static int nstep_ = 6;
+static int count_ = 0;
 
 static double cosa_ = cos(0.5 * M_PI / nstep_);
 static double sina_ = sin(0.5 * M_PI / nstep_);
@@ -1042,6 +1043,7 @@ anim_move(char dir, int ind, int deg,
    {
       sock << "solution\n" << mesh << color << flush;
    }
+   count_++;
 }
 
 void
@@ -2410,16 +2412,6 @@ flip_edges(Mesh & mesh, GridFunction & color, socketstream & sock,
          anim_move('z', 1, 2, mesh, color, sock);
          anim_move('x', 2, 1, mesh, color, sock);
          anim_move('z', 1, 1, mesh, color, sock);
-         /*
-         anim_move('x', 2, 3, mesh, color, sock);
-              anim_move('z', 1, 3, mesh, color, sock);
-              anim_move('x', 2, 1, mesh, color, sock);
-              anim_move('z', 1, 3, mesh, color, sock);
-              anim_move('x', 2, 3, mesh, color, sock);
-              anim_move('z', 1, 3, mesh, color, sock);
-              anim_move('x', 2, 1, mesh, color, sock);
-              anim_move('z', 1, 2, mesh, color, sock);
-         */
       }
    }
 }
@@ -2505,9 +2497,11 @@ solve_edge_orientations(Mesh & mesh, GridFunction & color, socketstream & sock)
 void
 solve(Mesh & mesh, GridFunction & color, socketstream & sock)
 {
+   count_ = 0;
    solve_centers(mesh, color, sock);
    solve_corner_locations(mesh, color, sock);
    solve_corner_orientations(mesh, color, sock);
    solve_edge_locations(mesh, color, sock);
    solve_edge_orientations(mesh, color, sock);
+   cout << "Move count: " << count_ << endl;
 }
