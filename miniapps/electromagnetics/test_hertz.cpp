@@ -94,10 +94,17 @@ static Vector ds_params_(0);  // Center, Radius, and Permittivity
 //                               of dielectric sphere
 class DielectricTensor: public MatrixCoefficient {
 public:
-  DielectricTensor();
+  DielectricTensor(ParGridFunction & density, ParGridFunction & B,
+		   ParGridFunction & T, double omega);
   virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
   virtual ~DielectricTensor() {}
+
+private:
+  ParGridFunction * density_;
+  ParGridFunction * B_;
+  ParGridFunction * T_;
+  double omega_;
 };
 
 double dielectric_sphere(const Vector &);
@@ -299,6 +306,21 @@ int main(int argc, char *argv[])
       return 3;
    }
    */
+   H1_ParFESpace H1FESpace(&pmesh, order, pmesh.Dimension());
+   RT_ParFESpace HDivFESpace(&pmesh, order, pmesh.Dimension());
+   L2_ParFESpace L2FESpace(&pmesh, order, pmesh.Dimension());
+
+   ParGridFunction BField(&HDivFESpace);
+   ParGridFunction TField(&H1FESpace);
+   ParGridFunction density(&L2FESpace);
+
+   Vector BVec(3);
+   BVec = 0.0; BVec(0) = 0.1;
+   VectorConstantCoefficient BCoef(BVec);
+   BField.ProjectCoefficient(BCoef);
+   TField  = 1.0;
+   density = 1.0;
+  
    // Create a coefficient describing the dielectric permittivity
    // Coefficient * epsCoef = SetupPermittivityCoefficient();
 
@@ -310,9 +332,10 @@ int main(int argc, char *argv[])
 
    // Create a coefficient describing the surface admittance
    Coefficient * etaInvCoef = SetupAdmittanceCoefficient(pmesh, abcs);
-
+   
    // Create a tensor coefficient describing the dielectric permittivity
-   DielectricTensor dielectric_tensor;   
+   DielectricTensor dielectric_tensor(density, BField, TField,
+				      2.0 * M_PI * freq_);   
    
    // Create the Magnetostatic solver
    HertzSolver Hertz(pmesh, order, freq_, (HertzSolver::SolverType)sol,
@@ -680,11 +703,28 @@ void e_bc_i(const Vector &x, Vector &E)
    E = 0.0;
 }
 
-DielectricTensor::DielectricTensor()
-  : MatrixCoefficient(3)
+DielectricTensor::DielectricTensor(ParGridFunction & density,
+				   ParGridFunction & B,
+				   ParGridFunction & T, double omega)
+  : MatrixCoefficient(3),
+    density_(&density),
+    B_(&B),
+    T_(&T),
+    omega_(omega)
 {}
 
-void DielectricTensor::Eval(DenseMatrix &K, ElementTransformation &T,
+void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
 			    const IntegrationPoint &ip)
-{}
+{
+  // Initialize dielectric tensor to all zeros
+  epsilon.SetSize(3); epsilon = 0.0;
+
+  // Collect density, temperature, and magnetic field values
+  Vector B(3);
+  B_->GetVectorValue(T.ElementNo, ip, B);
+
+  double density = density_->GetValue(T.ElementNo, ip);
+  double temp    = T_->GetValue(T.ElementNo, ip);
+
+}
 

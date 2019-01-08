@@ -25,6 +25,7 @@ namespace mfem
 using miniapps::H1_ParFESpace;
 using miniapps::ND_ParFESpace;
 using miniapps::RT_ParFESpace;
+using miniapps::L2_ParFESpace;
 using miniapps::ParDiscreteGradOperator;
 using miniapps::ParDiscreteCurlOperator;
 using miniapps::DivergenceFreeProjector;
