@@ -46,6 +46,31 @@ public:
    virtual ~QuadratureVectorFunctionCoefficient() { };
 };
 
+/// Generic quadrature function coefficient class for using
+/// coefficients which only live at integration points
+/// This is based on the same one found in Cardioid
+class QuadratureFunctionCoefficient : public Coefficient
+{
+private:
+   QuadratureFunction *QuadF;   
+   
+public:
+   QuadratureFunctionCoefficient(QuadratureFunction *qf) { QuadF = qf; }
+
+   QuadratureFunctionCoefficient() : Coefficient() { QuadF = NULL; }
+  
+   void SetQuadratureFunction(QuadratureFunction *qf) { QuadF = qf; }
+
+   QuadratureFunction * GetQuadFunction() const { return QuadF; }
+
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip);
+
+   virtual double EvalQ(ElementTransformation &T,
+                        const IntegrationPoint &ip);
+};
+
+
 }
 
 #endif

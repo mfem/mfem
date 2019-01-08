@@ -16,7 +16,7 @@
 
 namespace mfem
 {
-
+  
 class IterativeSolver;
 
 /// Newton's method for solving F(x)=b for a given operator F.

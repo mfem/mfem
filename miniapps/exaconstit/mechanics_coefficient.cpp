@@ -31,6 +31,8 @@ void QuadratureVectorFunctionCoefficient::Eval(Vector &V,
    return;
 }
 
+
+  
 //void QuadratureVectorFunctionCoefficient::EvalQ(Vector &V,
 //                                                ElementTransformation &T,
 //                                                const int ip_num)
@@ -40,5 +42,28 @@ void QuadratureVectorFunctionCoefficient::Eval(Vector &V,
 //   return;
 //}
 
+/// Standard coefficient evaluation is not valid
+double QuadratureFunctionCoefficient::Eval(ElementTransformation &T,
+                                           const IntegrationPoint &ip)
+{
+  //mfem_error ("QuadratureFunctionCoefficient::Eval (...)\n"
+  //             "   is not implemented for this class.");
+  // return 0.0;
+   int elem_no = T.ElementNo;
+   Vector temp(1);
+   QuadF->GetElementValues(elem_no, ip.ipID, temp);
+   return temp[0];
+}
 
+/// Evaluate the function coefficient at a specific quadrature point
+double QuadratureFunctionCoefficient::EvalQ(ElementTransformation &T,
+                                            const IntegrationPoint &ip)
+{
+   int elem_no = T.ElementNo;
+   Vector temp(1);
+   QuadF->GetElementValues(elem_no, ip.ipID, temp);
+   return temp[0];
+}
+
+  
 }

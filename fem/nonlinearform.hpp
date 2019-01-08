@@ -134,6 +134,7 @@ public:
        vectors, i.e. their size must be fes->GetTrueVSize(). */
    virtual void Mult(const Vector &x, Vector &y) const;
 
+  
    /** @brief Compute the gradient Operator of the NonlinearForm corresponding
        to the state @a x. */
    /** Any previously specified essential boundary conditions will be

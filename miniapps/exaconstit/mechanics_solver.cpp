@@ -41,28 +41,33 @@ void ExaNewtonSolver::Mult(const Vector &b, Vector &x) const
    MFEM_ASSERT(prec != NULL, "the Solver is not set (use SetSolver).");
 
    int it;
-   double norm0, norm, norm_goal;
+   double norm0, norm, norm_max, norm_min;
    const bool have_b = (b.Size() == Height());
 
+   Vector c_fix(x.Size());
+   
    if (!iterative_mode)
    {
       x = 0.0;
    }
 
    oper->Mult(x, r);
+   //   r = 1.0;
    if (have_b)
    {
       r -= b;
    }
 
    norm0 = norm = Norm(r);
-   norm_goal = std::max(rel_tol*norm, abs_tol);
-
+   //Set the value for the norm that we'll exit on
+   norm_max = rel_tol*norm;//std::max(rel_tol*norm, abs_tol);
+   
    prec->iterative_mode = false;
 
    // x_{i+1} = x_i - [DF(x_i)]^{-1} [F(x_i)-b]
    for (it = 0; true; it++)
    {
+      //Make sure the norm is finite
       MFEM_ASSERT(IsFinite(norm), "norm = " << norm);
       if (print_level >= 0)
       {
@@ -74,13 +79,13 @@ void ExaNewtonSolver::Mult(const Vector &b, Vector &x) const
          }
          mfem::out << '\n';
       }
-
-      if (norm <= norm_goal)
+      //See if our solution has converged and we can quit
+      if (norm <= norm_max)
       {
          converged = 1;
          break;
       }
-
+      //See if we've gone over the max number of desired iterations
       if (it >= max_iter)
       {
          converged = 0;
@@ -91,44 +96,32 @@ void ExaNewtonSolver::Mult(const Vector &b, Vector &x) const
 
       prec->Mult(r, c);  // c = [DF(x_i)]^{-1} [F(x_i)-b]
                          // ExaConstit may use GMRES here
-
-      // debug print
-//      for (int i=0; i<c.Size(); ++i)
-//      {
-//         printf("csolver c: %f \n", c[i]);
-//      } 
-
+      //The scaling factor is usually set to 1 by default
       const double c_scale = ComputeScalingFactor(x, b);
       if (c_scale == 0.0)
       {
          converged = 0;
          break;
       }
+      
       add(x, -c_scale, c, x); // full update to the current config
                               // ExaConstit (srw)
-
-//      debug print
-//      for (int i=0; i<x.Size(); ++i)
-//      {
-//        printf("mechanics_solver x: %f \n", x(i));
-//      }
-
+      //We now get our new residual
       oper->Mult(x, r);
       if (have_b)
       {
          r -= b;
       }
 
-      // debug print
-//      for (int i=0; i<r.Size(); ++i)
-//      {
-//         printf("rsolver r: %f \n", r[i]);
-//      } 
-
+      //Find our new norm
       norm = Norm(r);
+      //fix_me...
+      //way to test the umat
+      //      norm = 1e-14;
    }
 
    final_iter = it;
    final_norm = norm;
 }
+
 }

@@ -44,6 +44,16 @@ public:
                                       ElementTransformation &Tr,
                                       const Vector &elfun, Vector &elvect);
 
+   //This function really only be used whenever UMATs are being used,
+   //since UMATs require a velocity based solution vector,
+   //However, they depend on a lot of variables based on displacements
+   //to evolve their models. So, we need to be able to take
+   //derivatives using the beginning and the end time step mesh nodes. 
+   //The other models should be using the one above this
+   virtual void AssembleElementVector(const FiniteElement &el,
+                                      ElementTransformation &Ttr_beg,
+                                      ElementTransformation &Ttr_end,
+                                      const Vector &elfun, Vector &elvect, const Vector &elvel);
    /// @brief Perform the local action of the NonlinearFormIntegrator resulting
    /// from a face integral term.
    virtual void AssembleFaceVector(const FiniteElement &el1,

@@ -89,6 +89,7 @@
 #include <memory>
 #include <iostream>
 #include <fstream>
+#include <math.h>
 
 using namespace std;
 using namespace mfem;
@@ -125,6 +126,9 @@ protected:
    Solver *J_prec;
    /// nonlinear model 
    ExaModel *model;
+   /// Variable telling us if we should use the UMAT specific
+   /// stuff
+   bool umat_used;
 
 public:
    NonlinearMechOperator(ParFiniteElementSpace &fes,
@@ -133,6 +137,7 @@ public:
                          double abs_tol,
                          int iter,
                          bool gmres,
+			 bool cg,
                          bool slu, 
                          bool hyperelastic,
                          bool umat,
@@ -142,13 +147,21 @@ public:
                          QuadratureFunction &q_sigma1,
                          QuadratureFunction &q_matGrad,
                          QuadratureFunction &q_kinVars0,
+			 QuadratureFunction &q_vonMises,
+			 ParGridFunction &beg_crds,
+			 ParGridFunction &end_crds,
+			 ParMesh *&pmesh,
                          Vector &matProps, int numProps,
                          int nStateVars);
 
    /// Required to use the native newton solver
    virtual Operator &GetGradient(const Vector &x) const;
    virtual void Mult(const Vector &k, Vector &y) const;
-
+   //We need the solver to update the end coords after each iteration has been complete
+   //We'll also want to have a way to update the coords before we start running the simulations.
+   //It might also allow us to set a velocity at every point, so we could test the models almost
+   //as if we're doing a MPS.
+   void UpdateEndCoords(const Vector& vel) const;  
    /// Driver for the newton solver
    void Solve(Vector &x) const;
 
@@ -161,7 +174,8 @@ public:
    /// routine to update beginning step model variables with converged end 
    /// step values
    void UpdateModel(const Vector &x);
-
+   /// Computes a volume average tensor/vector of some quadrature function
+   /// it returns the vol avg value.
    void ComputeVolAvgTensor(const ParFiniteElementSpace* fes,
                             const QuadratureFunction* qf,
 			    Vector& tensor,
@@ -175,6 +189,7 @@ public:
    void SetModelDebugFlg(const bool dbg);
 
    void DebugPrintModelVars(int procID, double time);
+   /// Tests the deformation gradient function
    void testFuncs(const Vector &x0, ParFiniteElementSpace *fes);
 
    virtual ~NonlinearMechOperator();
@@ -186,9 +201,14 @@ void visualize(ostream &out, ParMesh *mesh, ParGridFunction *deformed_nodes,
 
 // set kinematic functions and boundary condition functions
 void ReferenceConfiguration(const Vector &x, Vector &y);
+// allows you to assign an initial deformation
 void InitialDeformation(const Vector &x, double t,  Vector &y);
+// computes an approximate velocity based on the coordinates at the beginning
+// and end time steps. This function was from when the code was displacement
+// based
 void Velocity(const Vector &x, double t, Vector &y);
 void DirBdrFunc(const Vector &x, double t, int attr_id, Vector &y);
+// This initializes some grid function
 void InitGridFunction(const Vector &x, Vector &y);
 
 // material input check routine
@@ -203,6 +223,7 @@ void setStateVarData(Vector* sVars, Vector* orient, ParFiniteElementSpace *fes,
 
 // initialize a quadrature function with a single input value, val.
 void initQuadFunc(QuadratureFunction *qf, double val, ParFiniteElementSpace *fes);
+
 //initialize a quadrature function that is really a tensor with the identity matrix.
 //currently only works for 3x3 tensors.
 void initQuadFuncTensorIdentity(QuadratureFunction *qf, ParFiniteElementSpace *fes);
@@ -211,7 +232,7 @@ void setBCTimeStep(double dt, int nDBC);
 
 // set the element grain ids from vector data populated from a 
 // grain map input text file
-void setElementGrainIDs(Mesh *mesh, const Vector grainMap);
+void setElementGrainIDs(Mesh *mesh, const Vector grainMap, int ncols, int offset);
 
 // used to reset boundary conditions from MFEM convention using 
 // Make3D() called from the mesh constructor to ExaConstit convention
@@ -222,11 +243,11 @@ void setBdrConditions(Mesh *mesh);
 // in the input grain map (e.g. from CA calculation)
 void reorderMeshElements(Mesh *mesh, const int nx);
 
+//  provides a constant gradient across a grid function
 void test_deformation_field_set(ParGridFunction *gf, Vector *vals, ParFiniteElementSpace *fes);
 
 int main(int argc, char *argv[])
 {
-   // print the version of the code being run
 
    // Initialize MPI.
    int num_procs, myid;
@@ -234,17 +255,20 @@ int main(int argc, char *argv[])
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
-   
+   //Here we start a timer to time everything
+   double start = MPI_Wtime();
+   // print the version of the code being run
    if(myid == 0) printf("MFEM Version: %d \n", GetVersion());
    
    // Parse command-line options.
 
-   // mesh
+   // mesh variables
    const char *mesh_file = "../../data/cube-hex-ro.mesh";
    bool cubit = false;
    bool hex_mesh_gen = false; // TODO test hex_mesh_gen
    double mx = 0.0; // edge dimension (mx = my = mz)
    int  nx = 0; // number of cells on an edge (nx = ny = nz)
+ 
 
    // serial and parallel refinement levels
    int ser_ref_levels = 0;
@@ -257,18 +281,32 @@ int main(int argc, char *argv[])
    // single step debug)
    double t_final = 1.0;
    double dt = 1.0;
+   // We have a custom dt flag
+   bool dt_cust = false;
+   // Number of time steps to take
+   int nsteps = 1;
+   // File to read the custom time steps from
+   const char *dt_file = "custom_dt.txt";
+   // Vector to hold custom time steps if there are any
+   Vector cust_dt;
 
    // visualization input args
    bool visualization = true;
    int vis_steps = 1;
+   // visualization variable for visit
+   bool visit = true;
 
+   //Where to store the end time step files
+   const char *basename = "results/exaconstit";
+   
    // newton input args
    double newton_rel_tol = 1.0e-6;
    double newton_abs_tol = 1.0e-8;
    int newton_iter = 500;
    
    // solver input args
-   bool gmres_solver = true;
+   bool gmres_solver = false;
+   bool pcg_solver = true;
    bool slu_solver = false;
    bool grad_debug = false;
 
@@ -278,7 +316,7 @@ int main(int argc, char *argv[])
    // input arg to specify crystal plasticity or hyperelasticity 
    // (for testing)
    bool cp = false;
-   bool hyperelastic = true;
+   bool hyperelastic = false;
 
    // grain input arguments
    const char *grain_file = "grains.txt"; // grain orientations (F_p_inv for Curt's UMAT?)
@@ -305,6 +343,9 @@ int main(int argc, char *argv[])
                         // xy = 4, yz = 5, xz = 6, free = 0 
 
    // specify all input arguments
+   // it would be nice if we could just make this all read in from some configuration
+   // file format so we don't have to use the command line.
+   // .toml files might not be a bad option to look into
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
                   "Mesh file to use.");
@@ -338,12 +379,20 @@ int main(int argc, char *argv[])
                   "Order (degree) of the finite elements.");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
+   args.AddOption(&dt_cust, "-vardt", "--variabledt", "-no-vardt",
+		  "--no-variabledt", "Use a variable time step or not.");
+   args.AddOption(&nsteps, "-nsteps", "--num_time_steps",
+		  "The number of custom time steps.");
    args.AddOption(&dt, "-dt", "--time-step",
                   "Time step.");
+   args.AddOption(&dt_file, "-cust-dt","--custom-dt",
+		  "Custom time step file that can be used");
    args.AddOption(&slu_solver, "-slu", "--superlu", "-no-slu",
                   "--no-superlu", "Use the SuperLU Solver.");
    args.AddOption(&gmres_solver, "-gmres", "--gmres", "-no-gmres", "--no-gmres",
                    "Use gmres, otherwise minimum residual is used.");
+   args.AddOption(&pcg_solver, "-pcg", "--pcg", "-no-pcg", "--no-pcg",
+		  "Use pcg, otherwise minimum residual is used.");
    args.AddOption(&grad_debug, "-gdbg", "--grad-debug", "-no-gdbg",
                   "--no-grad-debug",
                   "Use finite difference gradient calculation.");
@@ -367,6 +416,9 @@ int main(int argc, char *argv[])
    args.AddOption(&cp, "-cp", "--crystal-plasticity", "-no-cp",
                   "--no-crystal-plasticity", 
                   "Use user-supplied Abaqus UMAT crystal plasticity model.");
+   args.AddOption(&visit, "-visit", "--visit", "-no-visit",
+                  "--no-visit",
+                  "Output visit data or not.");
    args.AddOption(&grain_euler, "-ge", "--euler-grain-orientations", "-no-ge",
                   "--no-euler-grain-orientations", 
                   "Use Euler angles to define grain orientations.");
@@ -403,6 +455,23 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+
+   //Check to see if a custom dt file was used
+   //if so read that in and if not set the nsteps that we're going to use
+   if(dt_cust){
+     if(myid == 0) printf("Reading in custom dt file. \n");
+      ifstream idt(dt_file);
+      if (!idt && myid == 0)
+      {
+         cerr << "\nCannot open grain map file: " << grain_map << '\n' << endl;
+      }                        
+      cust_dt.Load(idt, nsteps);
+      idt.close();
+   }else{
+     nsteps = ceil(t_final/dt);
+     if(myid==0) printf("number of steps %d \n", nsteps);
+   }
+   
    // Check material model argument input parameters for valid combinations
    if(myid == 0) printf("after input before checkMaterialArgs. \n");
    bool err = checkMaterialArgs(hyperelastic, umat, cp, grain_euler, grain_q, grain_custom, 
@@ -421,6 +490,7 @@ int main(int argc, char *argv[])
    // Open the mesh
    if(myid == 0) printf("before reading the mesh. \n");
    Mesh *mesh;
+   Vector g_map;
    if (cubit) 
    {
       //named_ifgzstream imesh(mesh_file);
@@ -456,10 +526,24 @@ int main(int argc, char *argv[])
       mesh = new Mesh(imesh, 1, 1, true);
       if(myid == 0) printf("after declaring new mesh \n");
       imesh.close();
+      //If we're doing xtal plasticity stuff read in the grain map file
+      if(cp){
+         ifstream igmap(grain_map);
+         if (!igmap && myid == 0)
+         {
+           cerr << "\nCannot open grain map file: " << grain_map << '\n' << endl;
+         }
+         //This should here just be the number of elements
+         int gmapSize = mesh->GetNE();
+         g_map.Load(igmap, gmapSize);
+         igmap.close();
+         // 1 tells you how many number of possible columns there are and 0 tells
+         // us what column we want to use for grain ids
+         setElementGrainIDs(mesh, g_map, 1, 0);
+      }
    }
 
    // read in the grain map if using a MFEM auto generated cuboidal mesh
-   Vector g_map;
    if (hex_mesh_gen)
    {
       if(myid == 0) printf("using mfem hex mesh generator \n");
@@ -470,18 +554,20 @@ int main(int argc, char *argv[])
          cerr << "\nCannot open grain map file: " << grain_map << '\n' << endl;
       }
       
-      int gmapSize = 4 * ngrains; // 3 coordinates of cell centers and a grain id
+      int gmapSize = mesh->GetNE();
       g_map.Load(igmap, gmapSize);
       igmap.close();
 
       // reorder elements to conform to ordering convention in grain map file
-      reorderMeshElements(mesh, nx) ;
+      reorderMeshElements(mesh, nx);
 
       // reset boundary conditions from 
       setBdrConditions(mesh);
  
       // set grain ids as element attributes on the mesh
-      setElementGrainIDs(mesh, g_map);
+      //The offset of where the grain index is located is
+      //location - 1.
+      setElementGrainIDs(mesh, g_map, 1, 0);
    }
 
    // declare pointer to parallel mesh object
@@ -489,15 +575,15 @@ int main(int argc, char *argv[])
    
    // mesh refinement if specified in input
    for (int lev = 0; lev < ser_ref_levels; lev++)
-      {
+   {
          mesh->UniformRefinement();
-      }
+   }
 
    pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
    for (int lev = 0; lev < par_ref_levels; lev++)
-      {
+   {
          pmesh->UniformRefinement();
-      }
+   }
 
    delete mesh;
 
@@ -510,10 +596,15 @@ int main(int argc, char *argv[])
    fe_coll = new  H1_FECollection(order, dim);
    ParFiniteElementSpace fe_space(pmesh, fe_coll, dim);
 
-   // Define the finite element space for the stress field
-   RT_FECollection hdiv_fe_coll(order, dim);
-   ParFiniteElementSpace hdiv_fe_space(pmesh, &hdiv_fe_coll, dim);
-
+   int order_v = 1;
+   int order_0 = 0;
+   
+   //Here we're setting up a discontinuous so that we'll use later to interpolate
+   //our quadrature functions from
+   L2_FECollection l2_fec(order_0, dim);
+   ParFiniteElementSpace l2_fes(pmesh, &l2_fec);
+   ParGridFunction vonMises(&l2_fes);
+   
    HYPRE_Int glob_size = fe_space.GlobalTrueVSize();
 
    // Print the mesh statistics
@@ -552,8 +643,6 @@ int main(int argc, char *argv[])
    int matVarsOffset = numStateVars + grain_offset;
 
    // Define a quadrature space and material history variable QuadratureFunction.
-   // TODO check how the intOrder argument is used in constructing a QuadratureSpace 
-   // object
    int intOrder = 2*order+1;
    QuadratureSpace qspace(pmesh, intOrder); // 3rd order polynomial for 2x2x2 quadrature
                                             // for first order finite elements. 
@@ -581,6 +670,7 @@ int main(int argc, char *argv[])
       // load material properties
       matProps.Load(iprops, nProps);
       iprops.close();
+      
       if(myid == 0) printf("after loading matProps. \n");
       
       // read in state variables file
@@ -619,9 +709,9 @@ int main(int argc, char *argv[])
       // set the state var data on the quadrature function
       if(myid == 0) printf("before setStateVarData. \n");
       setStateVarData(&stateVars, &g_orient, &fe_space, pmesh, grain_offset, 
-                      grain_statevar_offset, matVarsOffset, &matVars0);
+                      grain_statevar_offset, numStateVars, &matVars0);
       if(myid == 0) printf("after setStateVarData. \n");
-
+      
    } // end read of mat props, state vars and grains
 
    // Declare quadrature functions to store a vector representation of the 
@@ -633,8 +723,10 @@ int main(int argc, char *argv[])
    int stressOffset = 6;
    QuadratureFunction sigma0(&qspace, stressOffset);
    QuadratureFunction sigma1(&qspace, stressOffset);
+   QuadratureFunction q_vonMises(&qspace, 1);
    initQuadFunc(&sigma0, 0.0, &fe_space);
    initQuadFunc(&sigma1, 0.0, &fe_space);
+   initQuadFunc(&q_vonMises, 0.0, &fe_space);
 
    // declare a quadrature function to store the material tangent stiffness.
    // This assumes that a hyperelastic material model will solve directly for the 
@@ -666,45 +758,39 @@ int main(int argc, char *argv[])
    // guess, and the incremental nodal displacements
    ParGridFunction x_ref(&fe_space);
    ParGridFunction x_beg(&fe_space);
-   ParGridFunction x_def(&fe_space);
    ParGridFunction x_cur(&fe_space);
-   ParGridFunction x_inc(&fe_space);
-
+   //x_diff would be our displacement
+   ParGridFunction x_diff(&fe_space);
+   ParGridFunction v_cur(&fe_space);
+   
    // define a vector function coefficient for the initial deformation 
    // (based on a velocity projection) and reference configuration.
    // Additionally define a vector function coefficient for computing 
    // the grid velocity prior to a velocity projection
-   VectorFunctionCoefficient velProj(dim, InitialDeformation);
    VectorFunctionCoefficient refconfig(dim, ReferenceConfiguration);
-   VectorFunctionCoefficient compVel(dim, Velocity);
   
    // Initialize the reference and beginning step configuration grid functions 
    // with the refconfig vector function coefficient.
    x_beg.ProjectCoefficient(refconfig);
    x_ref.ProjectCoefficient(refconfig);
+   x_cur.ProjectCoefficient(refconfig);
 
-   // Define grid function for the nodal displacement solution grid function
+   // Define grid function for the velocity solution grid function
    // WITH Dirichlet BCs
-   ParGridFunction x_bar(&fe_space);
 
    // Define a VectorFunctionCoefficient to initialize a grid function
    VectorFunctionCoefficient init_grid_func(dim, InitGridFunction);
 
-   // initialize x_cur, boundary condition, deformation, and 
+   // initialize boundary condition, velocity, and
    // incremental nodal displacment grid functions by projection the 
    // VectorFunctionCoefficient function onto them
-   //   x_cur.ProjectCoefficient(init_grid_func);
-   x_cur.ProjectCoefficient(refconfig);
-   x_bar.ProjectCoefficient(init_grid_func);
-   x_def.ProjectCoefficient(init_grid_func);
-   x_inc.ProjectCoefficient(init_grid_func);
-
+   x_diff.ProjectCoefficient(init_grid_func);
+   v_cur.ProjectCoefficient(init_grid_func);
+   
    // define a boundary attribute array and initialize to 0
    Array<int> ess_bdr;
    // set the size of the essential boundary conditions attribute array
-//   ess_bdr.SetSize(ess_id.Size()+1);
    ess_bdr.SetSize(fe_space.GetMesh()->bdr_attributes.Max());
-//   printf("size of ess_bdr: %d \n", ess_bdr.Size());
    ess_bdr = 0;
 
    // setup inhomogeneous essential boundary conditions using the boundary 
@@ -713,7 +799,7 @@ int main(int argc, char *argv[])
    if (ess_disp.Size() != 3*ess_id.Size()) {
       cerr << "\nMust specify three Dirichlet components per essential boundary attribute" << '\n' << endl;
    }
-//   printf("ess_id size: %d \n", ess_id.Size());
+
    int numDirBCs = 0;
    for (int i=0; i<ess_id.Size(); ++i) {
       // set the boundary condition id based on the attribute id
@@ -739,12 +825,8 @@ int main(int argc, char *argv[])
       // set the active boundary attributes
       if (bc.compID != 0) {
          ess_bdr[i] = 1;
-         //printf("active ess_bdr: %d \n", i+1);
-         //printf("bc comp id: %d \n", bc.compID);
-         //printf("component vals %f %f %f \n", bc.essDisp[0], bc.essDisp[1], bc.essDisp[2]);
       }
       ++numDirBCs;
-      //printf("bcid, dirDisp: %d %f %f %f \n", bcID, bc.essDisp[0], bc.essDisp[1], bc.essDisp[2]);
    }
 
    // declare a VectorFunctionRestrictedCoefficient over the boundaries that have attributes
@@ -760,10 +842,11 @@ int main(int argc, char *argv[])
    if(myid == 0) printf("before NonlinearMechOperator constructor. \n");
    NonlinearMechOperator oper(fe_space, ess_bdr, 
                               newton_rel_tol, newton_abs_tol, 
-                              newton_iter, gmres_solver, slu_solver,
+                              newton_iter, gmres_solver,pcg_solver, slu_solver,
                               hyperelastic, umat, matVars0, 
                               matVars1, sigma0, sigma1, matGrd,
-                              kinVars0, matProps, nProps, numStateVars);
+                              kinVars0, q_vonMises, x_beg, x_cur, pmesh,
+			      matProps, nProps, matVarsOffset);
    if(myid == 0) printf("after NonlinearMechOperator constructor. \n");
 
    oper.SetModelDebugFlg(grad_debug);
@@ -772,18 +855,10 @@ int main(int argc, char *argv[])
    
    // get the essential true dof list. This may not be used.
    const Array<int> ess_tdof_list = oper.GetEssTDofList();
-
-   // debug print
-//   for (int i=0; i<ess_tdof_list.Size(); ++i) {
-//      printf("ess_tdof_list[i]: %d %d \n", i, ess_tdof_list[i]);
-//   }
    
    // declare incremental nodal displacement solution vector
-   Vector x_sol(fe_space.TrueVSize()); // this sizing is correct
-   x_sol = 0.0;
-   
-   //   test_deformation_field_set(&x_cur, &x_sol, &fe_space);
-   //   oper.testFuncs(x_sol, &fe_space);
+   Vector v_sol(fe_space.TrueVSize()); // this sizing is correct
+   v_sol = 0.0;
    
    // initialize visualization if requested 
    socketstream vis_u, vis_p;
@@ -792,10 +867,35 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       vis_u.open(vishost, visport);
       vis_u.precision(8);
-      visualize(vis_u, pmesh, &x_beg, &x_def, "Deformation", true);
+      visualize(vis_u, pmesh, &x_beg, &x_cur, "Deformation", true);
       // Make sure all ranks have sent their 'u' solution before initiating
       // another set of GLVis connections (one from each rank):
       MPI_Barrier(pmesh->GetComm());
+   }
+
+   
+   // Save data for VisIt visualization.
+   // The below is used to take advantage of mfem's custom Visit plugin
+   // It could also allow for restart files later on.
+   // If we have large simulations although the current method of printing everything
+   // as text will cause issues. The data should really be saved in some binary format.
+   // If you don't then you'll often find that the printed data lags behind where
+   // the simulation is currently at. This really becomes noticiable if you have
+   // a lot of data that you want to output for the user. It might be nice if this
+   // was either a netcdf or hdf5 type format instead.
+   VisItDataCollection visit_dc(basename, pmesh);
+   if (visit)
+   {
+     visit_dc.RegisterField("Displacement",  &x_diff);
+     visit_dc.RegisterQField("Stress", &sigma0);
+     visit_dc.RegisterField("Velocity", &v_cur);
+     //visit_dc.RegisterQField("State Variables", &matVars0);
+     //visit_dc.RegisterQField("DefGrad", &kinVars0);
+     //visit_dc.RegisterField("VonMises", &vonMises);
+      
+     visit_dc.SetCycle(0);
+     visit_dc.SetTime(0.0);
+     visit_dc.Save();
    }
 
    if(myid == 0) printf("after visualization if-block \n");
@@ -805,20 +905,31 @@ int main(int argc, char *argv[])
    oper.SetTime(t); 
 
    bool last_step = false;
+   {
+     GridFunction *nodes = &x_beg; // set a nodes grid function to global current configuration         
+     int owns_nodes = 0;
+     pmesh->SwapNodes(nodes, owns_nodes); // pmesh has current configuration nodes
+     nodes = NULL;
+   }
+
+   ess_bdr_func.SetTime(0.0);
+   setBCTimeStep(dt, numDirBCs);
+
+   double dt_real;
    
-   // enter the time step loop. This was modeled after example 10p.
-   for (int ti = 1; !last_step; ti++)
+   for (int ti = 1; ti <= nsteps; ti++)
    {
 
       if(myid == 0) printf("inside timestep loop %d \n", ti);
-
-      // compute time step (this calculation is pulled from ex10p.cpp)
-      double dt_real = min(dt, t_final - t);
+      //Get out our current delta time step
+      if(dt_cust){
+         dt_real = cust_dt[ti - 1];
+      }else{
+         dt_real = min(dt, t_final - t);
+      }
 
       // set the time step on the boundary conditions
       setBCTimeStep(dt_real, numDirBCs);
-
-      //printf("after setBCTimeStep \n");
 
       // compute current time
       t = t + dt_real;
@@ -829,78 +940,36 @@ int main(int argc, char *argv[])
       oper.SetDt(dt_real);
 
       // set the time for the nonzero Dirichlet BC function evaluation
-      //non_zero_ess_func.SetTime(t);
       ess_bdr_func.SetTime(t);
 
       // register Dirichlet BCs. 
       ess_bdr = 1;
 
-      // Perform velocity projection as initial guess for the Newton solve. 
-      // Note that x_bar was set to the previous x_cur solution divided by 
-      // the previous time step, so that the velocity projection produces a 
-      // guess to the incremental nodal displacement equal to the last estimate
-      // of the incremental nodal velocity times the current time step
-      //printf("before x_bar.ProjectCoefficient \n");
-//      x_bar.ProjectCoefficient(velProj);
-
-      // overwrite entries in x_bar for dofs with Dirichlet 
-      // boundary conditions (note, this routine overwrites, not adds).
-      // Note: these are prescribed incremental nodal displacements at 
-      // Dirichlet BC dofs.
-      //printf("before x_bar.ProjectBdrCoefficient \n");
-      x_bar.ProjectBdrCoefficient(ess_bdr_func); // don't need attr list as input
+      //Now that we're doing velocity based we can just overwrite our data with the ess_bdr_func
+      v_cur.ProjectBdrCoefficient(ess_bdr_func); // don't need attr list as input
                                                  // pulled off the 
                                                  // VectorFunctionRestrictedCoefficient
 
-      // add the displacement bcs with velocity projection to the beginning step 
-      // configuration as full nodal grid function used to populate solution vector
-      add(x_beg, x_bar, x_cur);
+      // populate the solution vector, v_sol, with the true dofs entries in v_cur.
+      v_cur.GetTrueDofs(v_sol);
 
-      // populate the solution vector, x_sol, with the true dofs entries in x_cur.
-      // At this point we initialized x_bar, performed a velocity projection for 
-      // all dofs, and then over-wrote the Dirichlet BC dofs with the boundary condition 
-      // function.
-      //printf("before x_cur.GetTrueDofs \n");
-      x_cur.GetTrueDofs(x_sol);
+      
+      oper.Solve(v_sol);
+      
+      // distribute the solution vector to v_cur
+      v_cur.Distribute(v_sol);
 
-      // debug print
-//      for (int i=0; i<x_sol.Size(); ++i)
-//      {
-//         printf("x_sol: %f \n", x_sol[i]);
-//      }
+      // find the displacement vector as u = x_cur - x_reference
+      subtract(x_cur, x_ref, x_diff);
 
-      // Solve the Newton system 
-      //printf("before oper.Solve. \n");
-      oper.Solve(x_sol);
-      //printf("after oper.Solve. \n");
-
-      // distribute the solution vector to x_cur
-      x_cur.Distribute(x_sol);
-
-      // set the incremental nodal displacement grid function
-      subtract(x_cur, x_beg, x_inc);
-
-      // set the end step deformation wrt global reference configuration
-      subtract(x_cur, x_ref, x_def);
-
-      // update beginning step solution
-      //      x_beg = x_cur;
-
-      // initialize x_bar = 0.0 and set x_cur_bar = x_cur / dt, which sets 
-      // x_bar to the previous incremental velocity. This is done in order to 
-      // compute velocity projection in next time step
-//      x_bar.ProjectCoefficient(init_grid_func);
-//      x_bar = x_inc; // set x_bar to the incremental solution
-//      x_bar.ProjectCoefficient(compVel); // performs x_inc / dt to get inc. grid vel. 
 
       // update the beginning step stress and material state variables 
       // prior to the next time step for all Exa material models
       // This also updates the deformation gradient with the beginning step 
       // deformation gradient stored on an Exa model
-      //printf("before oper.UpdateModel. \n");
-      oper.UpdateModel(x_sol);
-      //printf("after oper.UpdateModel. \n");
+      oper.UpdateModel(v_sol);
 
+      //Update our beginning time step coords with our end time step coords
       x_beg = x_cur;
       
       last_step = (t >= t_final - 1e-8*dt);
@@ -914,101 +983,32 @@ int main(int argc, char *argv[])
       }
 
       { // mesh and stress output. Consider moving this to a separate routine
-
-      // Save the displaced mesh. These are snapshots of the endstep current 
-      // configuration. Later add functionality to not save the mesh at each timestep.
-
-         GridFunction *nodes = &x_beg; // set a nodes grid function to global current configuration
-         int owns_nodes = 0;
-         pmesh->SwapNodes(nodes, owns_nodes); // pmesh has current configuration nodes
-
-	 nodes = NULL;
-	 
-         ostringstream mesh_name, deformed_name;
-         mesh_name << "mesh." << setfill('0') << setw(6) << myid << "_" << ti;
-         deformed_name << "end_step_def." << setfill('0') << setw(6) << myid << "_" << ti;
-
-         // saving mesh for plotting. pmesh has global current configuration nodal coordinates
-         ofstream mesh_ofs(mesh_name.str().c_str());
-         mesh_ofs.precision(8);
-         pmesh->PrintAsOne(mesh_ofs); 
-       
-         // save each current configuration as this data will match the mesh output.
-         ofstream deformation_ofs(deformed_name.str().c_str());
-         deformation_ofs.precision(8);
-         x_beg.Save(deformation_ofs); 
-
-         // stress output to VTK
-         //
-         // RC, this output is commented out until the quadrature functions are working.
-         // For now, there is no stress output, only displacement output. Eventually this 
-         // will move off to its own subroutine (SRW).
- 
-//         printf("before stress output to VTK. \n");
-//         // declare stress grid function
-//         ParGridFunction stress(&hdiv_fe_space);
-//
-//         // project updated beginning step stress (that lives 
-//         // on the model) to the stress grid function
-//         oper.ProjectModelStress(stress);
-//
-//         ostringstream stress_name;
-//         stress_name << "stress." << setfill('0') << setw(6) << myid << "_" << ti;
-//         
-//         ofstream stress_ofs(stress_name.str().c_str());
-//         stress_ofs.precision(8);
-//
-//         // have to call this first
-//         pmesh->PrintVTK(stress_ofs); 
-//
-//         // output stress. Note that call to SaveVTK on grid function 
-//         // will output a scalar if the dimension of the grid function 
-//         // is 1, and will output a vector if the dimension of the grid 
-//         // function is 2 or 3, and will output scalars for all grid 
-//         // functions with dimension > 3. Stress will have 6 unique 
-//         // elements (symmetry of the Cauchy stress tensor) and so this 
-//         // function call will output individual scalars for each component
-//         string cstress;
-//         stress.SaveVTK(stress_ofs, cstress, 0);
-//
-//         printf("after stress output to VTK before von Mises. \n");
-//
-//         // compute von Mises stress
-//         ParGridFunction vonMises(&fe_space);
-//
-//         // project von Mises stress (on the model) to the 
-//         // von Mises stress grid function
+         //We might not want to update the vonMises stuff
 //         oper.ProjectVonMisesStress(vonMises);
-//
-//         ostringstream vonMises_name;
-//         vonMises_name << "vonMises." << setfill('0') << setw(6) << myid << "_" << ti;
-//
-//         ofstream vonMises_ofs(vonMises_name.str().c_str());
-//         vonMises_ofs.precision(8);
-//       
-//         string vm;
-//         pmesh->PrintVTK(vonMises_ofs);
-//         vonMises.SaveVTK(vonMises_ofs, vm, 0);
-//
-//         printf("after von Mises output. \n");
-//
-//         // debug print 
-//         printf("before debug print of model vars. \n");
-//         if (grad_debug) oper.DebugPrintModelVars(myid, ti);
-//         printf("after debug print of model vars. \n");
+         if (visit)
+         {
+            visit_dc.SetCycle(ti);
+            visit_dc.SetTime(t);
+            //Our visit data is now saved off
+            visit_dc.Save();
+         }
 
       } // end output scope
-      //      GridFunction *nodes = &x_beg; // set a nodes grid function to global current configuration                                                 
-      //int owns_nodes = 0;
-      //pmesh->SwapNodes(nodes, owns_nodes); // pmesh has current configuration nodes                                                              
-
-      //nodes = NULL;
    } // end loop over time steps
 
-   // test_deformation_field_set(&x_cur, &x_sol, &fe_space);
-   
+//   This was for a really large simulation so only the last step was desired
+//   if (visit)
+//   {
+//      visit_dc.SetCycle(1);
+//      visit_dc.SetTime(t);
+//      visit_dc.Save();
+//   }
+
    // Free the used memory.
    delete pmesh;
+   //Now find out how long everything took to run roughly
+   double end = MPI_Wtime();
+   if(myid == 0) printf("The process took %lf seconds to run\n", (end-start));
 
    MPI_Finalize();
 
@@ -1021,6 +1021,7 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
                                              double abs_tol,
                                              int iter,
                                              bool gmres,
+                                             bool pcg,
                                              bool slu, 
                                              bool hyperelastic,
                                              bool umat,
@@ -1030,6 +1031,10 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
                                              QuadratureFunction &q_sigma1,
                                              QuadratureFunction &q_matGrad,
                                              QuadratureFunction &q_kinVars0,
+                                             QuadratureFunction &q_vonMises,
+                                             ParGridFunction &beg_crds,
+                                             ParGridFunction &end_crds,
+                                             ParMesh *&pmesh,
                                              Vector &matProps, int numProps,
                                              int nStateVars)
    : TimeDependentOperator(fes.TrueVSize()), fe_space(fes),
@@ -1038,24 +1043,25 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
    Vector * rhs;
    rhs = NULL;
 
+   umat_used = umat;
+     
    // Define the parallel nonlinear form 
    Hform = new ParNonlinearForm(&fes);
-
+   
    // Set the essential boundary conditions
-   Hform->SetEssentialBCPartial(ess_bdr, rhs); 
-//   Hform->SetEssentialBC(ess_bdr, rhs);
-
+   Hform->SetEssentialBCPartial(ess_bdr, rhs);
+   
    if (umat) {
       model = new AbaqusUmatModel(&q_sigma0, &q_sigma1, &q_matGrad, &q_matVars0, &q_matVars1,
-                                  &q_kinVars0, matProps, numProps, nStateVars);
+                                  &q_kinVars0, &beg_crds, &end_crds, pmesh,
+                                  &matProps, numProps, nStateVars);
 
       // Add the user defined integrator
       Hform->AddDomainIntegrator(new ExaNLFIntegrator(dynamic_cast<AbaqusUmatModel*>(model)));
-   } 
-
-   else if (hyperelastic) {
+   }else if (hyperelastic) {
       model = new NeoHookean(&q_sigma0, &q_sigma1, &q_matGrad, &q_matVars0, 
-                             &q_matVars1, &q_kinVars0, matProps, numProps, nStateVars,
+                             &q_matVars1, &q_kinVars0, &beg_crds, &end_crds, pmesh,
+                             &matProps, numProps, nStateVars,
                              80.E3, 140.E3, 1.0);
 
       // Add the hyperelastic integrator
@@ -1063,33 +1069,55 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
 
    }
 
+   model->setVonMisesPtr(&q_vonMises);
+
    if (gmres) {
+      //There are potential issues here with the preconditioner that we're using
+      //we'll need to look into this
+      //fix_me
       HypreBoomerAMG *prec_amg = new HypreBoomerAMG();
       prec_amg->SetPrintLevel(0);
       prec_amg->SetElasticityOptions(&fe_space);
       J_prec = prec_amg;
 
       GMRESSolver *J_gmres = new GMRESSolver(fe_space.GetComm());
+      //These tolerances are currently hard coded while things are being debugged
+      //but they should eventually be moved back to being set by the options
 //      J_gmres->iterative_mode = false;
-      J_gmres->SetRelTol(rel_tol);
-      J_gmres->SetAbsTol(1e-12);
-      J_gmres->SetMaxIter(300);
+      //The relative tolerance should be at this point or smaller
+      J_gmres->SetRelTol(1e-10);
+      //The absolute tolerance could probably get even smaller then this
+      J_gmres->SetAbsTol(1e-14);
+      J_gmres->SetMaxIter(500);
       J_gmres->SetPrintLevel(0);
       J_gmres->SetPreconditioner(*J_prec);
       J_solver = J_gmres; 
 
-   }/* 
-   // retain super LU solver capabilities
-   else if (slu) { 
-      SuperLUSolver *superlu = NULL;
-      superlu = new SuperLUSolver(MPI_COMM_WORLD);
-      superlu->SetPrintStatistics(false);
-      superlu->SetSymmetricPattern(false);
-      superlu->SetColumnPermutation(superlu::PARMETIS);
-      
-      J_solver = superlu;
-      J_prec = NULL;
-      }*/
+   }else if (pcg){
+     //Same issue as above the preconditioner appears that it might be bad
+     //need to look into appropriate ones to use
+     //fix_me
+     HypreBoomerAMG *prec_amg = new HypreBoomerAMG();
+     prec_amg->SetPrintLevel(0);
+     prec_amg->SetElasticityOptions(&fe_space);
+     J_prec = prec_amg;
+
+     CGSolver *J_pcg = new CGSolver(fe_space.GetComm());
+     //These tolerances are currently hard coded while things are being debugged
+     //but they should eventually be moved back to being set by the options
+     //The relative tolerance should be at this point or smaller
+     J_pcg->SetRelTol(1e-10);
+     //The absolute tolerance could probably get even smaller then this
+     J_pcg->SetAbsTol(1e-14);
+     J_pcg->SetMaxIter(500);
+     J_pcg->SetPrintLevel(0);
+     J_pcg->SetPreconditioner(*J_prec);
+     J_solver = J_pcg;
+
+   }//The SuperLU capabilities were gotten rid of due to the size of our systems
+   //no longer making it a viable option to keep 1e6+ dof systems
+   //Also, a well tuned PCG should be much faster than SuperLU for systems roughly
+   //5e5 and up.
    else {
       printf("using minres solver \n");
       HypreSmoother *J_hypreSmoother = new HypreSmoother;
@@ -1119,23 +1147,72 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
 
 const Array<int> &NonlinearMechOperator::GetEssTDofList()
 {
-   return Hform->GetEssentialTrueDofs();
+  return Hform->GetEssentialTrueDofs();
 }
 
 // Solve the Newton system
 void NonlinearMechOperator::Solve(Vector &x) const
 {
    Vector zero;
+   //We provide an initial guess for what our current coordinates will look like
+   //based on what our last time steps solution was for our velocity field.
+   if(!model->GetEndCoordsMesh()){
+     model->SwapMeshNodes();
+   }
+   //The end nodes are updated before the 1st step of the solution here so we're good.
    newton_solver.Mult(zero, x);
-
+   //Just gotta be safe incase something in the solver wasn't playing nice and didn't swap things
+   //back to the current configuration...
+   if(!model->GetEndCoordsMesh()){
+     model->SwapMeshNodes();
+   }
+   //Once the system has finished solving, our current coordinates configuration are based on what our
+   //converged velocity field ended up being equal to.
    MFEM_VERIFY(newton_solver.GetConverged(), "Newton Solver did not converge.");
 }
 
 // compute: y = H(x,p)
 void NonlinearMechOperator::Mult(const Vector &k, Vector &y) const
 {
+   //Wanted to put this in the mechanics_solver.cpp file, but I would have needed to update
+   //Solver class to use the NonlinearMechOperator instead of Operator class.
+   //We now update our end coordinates based on the solved for velocity.
+   UpdateEndCoords(k);
    // Apply the nonlinear form
-   Hform->Mult(k, y);
+   if(umat_used){
+     
+     //I really don't like this. It feels so hacky and
+     //potentially dangerous to have these methods just
+     //lying around.
+     ParGridFunction* end_crds = model->GetEndCoords();
+     ParGridFunction* beg_crds = model->GetBegCoords();
+     ParMesh* pmesh = model->GetPMesh();
+     Vector temp;
+     temp.SetSize(k.Size());
+     end_crds->GetTrueDofs(temp);
+     //Creating a new vector that's going to be used for our
+     //UMAT custorm Hform->Mult
+     const Vector crd(temp.GetData(), temp.Size());
+     //The Mult expects our mesh to have the beg. time step
+     //nodes
+     //I should probably do the whole
+      /*if(!model->GetEndCoordsMesh()){
+         model->SwapMeshNodes();
+      }*/
+     //thing here as well...
+     model->SwapMeshNodes();
+     Hform->Mult(crd, y, pmesh, end_crds, beg_crds, k);
+     //We need to swap back to the current time step nodes
+     //here
+     model->SwapMeshNodes();
+   }else{
+     //Without the umat things become nice and simple
+     Hform->Mult(k, y);
+   }
+}
+//Update the end coords used in our model
+void NonlinearMechOperator::UpdateEndCoords(const Vector& vel) const {
+   model->UpdateEndCoords(vel);
 }
 
 // Compute the Jacobian from the nonlinear form
@@ -1173,12 +1250,13 @@ void NonlinearMechOperator::ComputeVolAvgTensor(const ParFiniteElementSpace* fes
       // loop over element quadrature points
       for (int j = 0; j < ir->GetNPoints(); ++j)
       {
-	const IntegrationPoint &ip = ir->IntPoint(j);
-	Ttr->SetIntPoint(&ip);
-
+         const IntegrationPoint &ip = ir->IntPoint(j);
+         Ttr->SetIntPoint(&ip);
+         //Here we're setting the integration for the average value
          temp_wts = ip.weight * Ttr->Weight();
+         //This tells us the element volume
          el_vol += temp_wts;
-	 incr += 1.0;
+         incr += 1.0;
          int k = 0;
          for (int m = 0; m < size; ++m)
          {
@@ -1198,17 +1276,16 @@ void NonlinearMechOperator::ComputeVolAvgTensor(const ParFiniteElementSpace* fes
    
    double temp = el_vol;
 
+   //Here we find what el_vol should be equal to
    MPI_Allreduce(&temp, &el_vol, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
+   //We meed to multiple by 1/V by our tensor values to get the appropriate
+   //average value for the tensor in the end.
    double inv_vol = 1.0/el_vol;
 
-   
-   if(my_id == 0) printf("Average tensor values:\n");
    for (int m = 0; m < size; m++) {
       tensor[m] *= inv_vol;
-      if(my_id == 0) printf("%lf ", tensor[m]);
    }
-   if(my_id == 0) printf("\n");
    
 }
 
@@ -1217,10 +1294,35 @@ void NonlinearMechOperator::UpdateModel(const Vector &x)
    const ParFiniteElementSpace *fes = GetFESpace();
    const FiniteElement *fe;
    const IntegrationRule *ir;
-   
-   model->UpdateModelVars(&fe_space, x);
-   
-   // update state variables on a ExaModel
+
+   if(umat_used){
+     
+     //I really don't like this. It feels so hacky and
+     //potentially dangerous to have these methods just
+     //lying around.
+     ParGridFunction* end_crds = model->GetEndCoords();
+     ParGridFunction* beg_crds = model->GetBegCoords();
+     ParMesh* pmesh = model->GetPMesh();
+     Vector temp;
+     temp.SetSize(x.Size());
+     end_crds->GetTrueDofs(temp);
+     //Creating a new vector that's going to be used for our
+     //UMAT custorm Hform->Mult
+     const Vector crd(temp.GetData(), temp.Size());
+     //As pointed out earlier I should probably check here again that we're
+     //doing what we expect here aka swap the nodes to beg time step before
+     //swapping back to the end time step coords
+     model->SwapMeshNodes();
+     model->UpdateModelVars(&fe_space, crd);
+     model->SwapMeshNodes();
+   }
+   else{
+     model->UpdateModelVars(&fe_space, x);
+   }
+
+   //Everything is the same here no matter if we're using a UMAT
+   //or not...
+   //update state variables on a ExaModel
    for (int i = 0; i < fes->GetNE(); ++i)
    {
       fe = fes->GetFE(i);
@@ -1233,7 +1335,7 @@ void NonlinearMechOperator::UpdateModel(const Vector &x)
          model->UpdateStress(i, j);
 
          // compute von Mises stress
-	 //        model->ComputeVonMises(i, j);
+         model->ComputeVonMises(i, j);
 
          // update the beginning step state variables
          if (model->numStateVars > 0)
@@ -1242,10 +1344,9 @@ void NonlinearMechOperator::UpdateModel(const Vector &x)
          }
       }
    } 
-   // update the model variables particular to the model class extension
-   // NOTE: for an AbaqusUmatModel this updates the beginning step def grad, 
-   //model->UpdateModelVars(fes, x);
+   
 
+   //Here we're getting the average stress value
    Vector stress;
    int size = 6;
    
@@ -1253,15 +1354,31 @@ void NonlinearMechOperator::UpdateModel(const Vector &x)
    
    stress = 0.0;
    
-   QuadratureVectorFunctionCoefficient* qstress = model->GetStress1();
+   QuadratureVectorFunctionCoefficient* qstress = model->GetStress0();
    
    const QuadratureFunction* qf = qstress->GetQuadFunction();
    
    ComputeVolAvgTensor(fes, qf, stress, size);
 
+   cout.setf(ios::fixed);
+   cout.setf(ios::showpoint);
+   cout.precision(8);
+   
+   int my_id;
+   MPI_Comm_rank(MPI_COMM_WORLD, &my_id);
+   //Now we're going to save off the average stress tensor to a file
+   if(my_id == 0){
+     std::ofstream file;
+
+     file.open("avg_stress.txt", std::ios_base::app);
+
+     stress.Print(file, 6);
+   }
+   
    qstress = NULL;
    qf = NULL;
-
+   
+   //Here we're computing the average deformation gradient
    Vector defgrad;
    size = 9;
 
@@ -1275,6 +1392,15 @@ void NonlinearMechOperator::UpdateModel(const Vector &x)
 
    ComputeVolAvgTensor(fes, qf1, defgrad, size);
 
+   //We're now saving the average def grad off to a file
+   if(my_id == 0){
+     std::ofstream file;
+
+     file.open("avg_dgrad.txt", std::ios_base::app);
+
+     defgrad.Print(file, 9);
+   }
+   
    qf1 = NULL;
    qdefgrad = NULL;
    
@@ -1284,6 +1410,8 @@ void NonlinearMechOperator::UpdateModel(const Vector &x)
    
 }
 
+//This is probably wrong and we need to make this more in line with what
+//the ProjectVonMisesStress is doing
 void NonlinearMechOperator::ProjectModelStress(ParGridFunction &s)
 {
    QuadratureVectorFunctionCoefficient *stress;
@@ -1297,9 +1425,9 @@ void NonlinearMechOperator::ProjectModelStress(ParGridFunction &s)
 
 void NonlinearMechOperator::ProjectVonMisesStress(ParGridFunction &vm)
 {
-   QuadratureVectorFunctionCoefficient *vonMisesStress;
+   QuadratureFunctionCoefficient *vonMisesStress;
    vonMisesStress = model->GetVonMises();
-   vm.ProjectCoefficient(*vonMisesStress);
+   vm.ProjectDiscCoefficient(*vonMisesStress, mfem::GridFunction::ARITHMETIC);
 
    vonMisesStress = NULL;
    
@@ -1531,7 +1659,7 @@ void setStateVarData(Vector* sVars, Vector* orient, ParFiniteElementSpace *fes,
    double* qf_data = qf->GetData();
    int qf_offset = qf->GetVDim(); // offset = grainSize + stateVarSize
    QuadratureSpace* qspace = qf->GetSpace();
-
+   
    // check to make sure the sum of the input sizes matches the offset of 
    // the input quadrature function
    if (qf_offset != (grainSize + stateVarSize))
@@ -1584,9 +1712,7 @@ void setStateVarData(Vector* sVars, Vector* orient, ParFiniteElementSpace *fes,
       // get the element attribute. Note this assumes that there is an element attribute 
       // for all elements in the mesh corresponding to the grain id to which the element 
       // belongs.
-      elem_atr = pmesh->attributes[fes->GetAttribute(i)-1]; 
-      //printf("setGrainData: element attr %d \n", elem_atr);
-
+      elem_atr = fes->GetAttribute(i) - 1;
       // loop over quadrature points
       for (int j = 0; j < ir->GetNPoints(); ++j)
       {
@@ -1607,7 +1733,7 @@ void setStateVarData(Vector* sVars, Vector* orient, ParFiniteElementSpace *fes,
             // pointer
             if (k > offset1 && k < offset2)
             {
-               varData = grain_data[grainSize * (elem_atr-1) + igrain];
+               varData = grain_data[grainSize * (elem_atr) + igrain];
                ++igrain;
             }
             else 
@@ -1640,9 +1766,6 @@ void initQuadFunc(QuadratureFunction *qf, double val, ParFiniteElementSpace *fes
    int vdim = qf->GetVDim();
    int counter = 0;
    //QuadratureSpace* qspace = qf->GetSpace();
-
-   //printf("qf data size: %d \n", qf->Size());
-   //printf("qf vdim: %d \n", vdim);
    
    //The below should be exactly the same as what
    //the other for loop is trying to accomplish
@@ -1669,10 +1792,16 @@ void initQuadFuncTensorIdentity(QuadratureFunction *qf, ParFiniteElementSpace *f
       ir = &(qspace->GetElementIntRule(i));
       int elem_offset = qf_offset * ir->GetNPoints();
       //Hard coded this for now for a 3x3 matrix
-      //Fix later if we update 
+      //Fix later if we update
       for (int j = 0; j < ir->GetNPoints(); ++j){
          qf_data[i * elem_offset + j * qf_offset] = 1.0;
+         qf_data[i * elem_offset + j * qf_offset + 1] = 0.0;
+         qf_data[i * elem_offset + j * qf_offset + 2] =	0.0;
+         qf_data[i * elem_offset + j * qf_offset + 3] =	0.0;
          qf_data[i * elem_offset + j * qf_offset + 4] = 1.0;
+         qf_data[i * elem_offset + j * qf_offset + 5] =	0.0;
+         qf_data[i * elem_offset + j * qf_offset + 6] =	0.0;
+         qf_data[i * elem_offset + j * qf_offset + 7] =	0.0;
          qf_data[i * elem_offset + j * qf_offset + 8] = 1.0;
       }
    }
@@ -1739,17 +1868,17 @@ void setBdrConditions(Mesh *mesh)
       switch (bdrAttr)
       {
          // note, srw wrote SetBdrAttribute() in ../../mesh/mesh.hpp
-         case 1 : mesh->SetBdrAttribute(i, 3); // bottom
+         case 1 : mesh->SetBdrAttribute(i, 1); // bottom
                   break;
-         case 2 : mesh->SetBdrAttribute(i, 7);  // front
+         case 2 : mesh->SetBdrAttribute(i, 5); // front
                   break;
-         case 3 : mesh->SetBdrAttribute(i, 7); // right
+         case 3 : mesh->SetBdrAttribute(i, 6); // right
                   break;
          case 4 : mesh->SetBdrAttribute(i, 2); // back
                   break;
-         case 5 : mesh->SetBdrAttribute(i, 1); // left
+         case 5 : mesh->SetBdrAttribute(i, 3); // left
                   break;
-         case 6 : mesh->SetBdrAttribute(i, 3); // top
+         case 6 : mesh->SetBdrAttribute(i, 4); // top
                   break;
       }
    }
@@ -1767,7 +1896,7 @@ void reorderMeshElements(Mesh *mesh, const int nx)
 
    // MFEM Make3D(.) mesh gen increments in x, y, then z.
 
-   Array<int> order;
+  Array<int> order(nx*nx*nx);
    int id = 0;
    int k = 0;
    for (int z = 0; z < nx; ++z)
@@ -1788,19 +1917,19 @@ void reorderMeshElements(Mesh *mesh, const int nx)
    return;
 }
 
-void setElementGrainIDs(Mesh *mesh, const Vector grainMap)
+void setElementGrainIDs(Mesh *mesh, const Vector grainMap, int ncols, int offset)
 {
    // after a call to reorderMeshElements, the elements in the serial 
    // MFEM mesh should be ordered the same as the input grainMap 
    // vector. Set the element attribute to the grain id. This vector 
    // has stride of 4 with the id in the 3rd position indexing from 0
-
+  
    double* data = grainMap.GetData();
 
    // loop over elements 
    for (int i=0; i<mesh->GetNE(); ++i)
    {
-      mesh->SetAttribute(i, data[4*i+3]);
+      mesh->SetAttribute(i, data[ncols*i+offset]);
    }
    return;
 }

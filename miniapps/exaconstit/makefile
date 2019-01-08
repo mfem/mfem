@@ -23,6 +23,7 @@ EXECUTABLES = mechanics_driver
 CPP_FILES = $(wildcard $(SRC)*.cpp)
 OBJ_FILES = $(CPP_FILES:.cpp=.o)
 COMMON_OBJ = $(filter-out $(foreach EXE,$(EXECUTABLES),$(EXE).o),$(OBJ_FILES))	
+LINKED_LIB = -L ./ -luserumat -L/usr/tce/packages/gcc/gcc-7.3.1/lib64/ -lgfortran
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
@@ -37,7 +38,7 @@ all: $(EXECUTABLES)
 # Rules for building the executable
 $(EXECUTABLES): \
 %: $(MFEM_LIB_FILE) $(CONFIG_MK) $(OBJ_FILES) 
-	$(MFEM_CXX) $(MFEM_FLAGS) $(COMMON_OBJ) $(@).o -o $@ $(MFEM_LIBS)
+	$(MFEM_CXX) $(MFEM_FLAGS) $(COMMON_OBJ) $(@).o -o $@ $(MFEM_LIBS) $(LINKED_LIB)
 
 # Rules for compiling the object files
 $(OBJ_FILES): \

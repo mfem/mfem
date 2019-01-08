@@ -14,6 +14,7 @@
 
 #include "mfem.hpp"
 #include "mechanics_coefficient.hpp"
+#include "userumat.h"
 
 namespace mfem
 {
@@ -22,9 +23,25 @@ namespace mfem
 // on a quadrature function
 void computeDefGrad(const QuadratureFunction *qf, ParFiniteElementSpace *fes, 
                     const Vector &x0);
+// A function that can be used to check and see what deformation gradient you're
+// calculating
 void computeDefGradTest(const QuadratureFunction *qf,
                         ParFiniteElementSpace *fes, const Vector &x0);
+//mfem traditionally has things layed out [x0...xn, y0...yn, z0...zn]
+//this function takes that vector and reorders so x,y, and z are interleaved
+//with each other so [x0,y0,z0 ... xn, yn, zn]
+void fixVectOrder(const Vector& v1, Vector &v2);
+
+//This function does the reverse of the above and takes a vector that has
+//data ordered as [x0,y0,z0 ... xn, yn, zn] and returns it as [x0...xn, y0...yn, z0...zn]
+void reorderVectOrder(const Vector &v1, Vector &v2);
    
+//One might typical stiffness matrices as being created to be applied to a vector
+//that has an [x0,y0,z0 ... xn, yn, zn] ordering. This function takes a matrix ordered
+//as such and reorders it such that it can now be applied to a vector that has an
+//[x0...xn, y0...yn, z0...zn] ordering
+void reorderMatrix(const DenseMatrix& a1, DenseMatrix& a2);
+  
 class ExaModel 
 {
 public:
@@ -33,8 +50,7 @@ public:
    bool cauchy;
    bool debug;
    DenseMatrix currElemCoords; // local variable to store current configuration 
-                               // element coordinates 
-  // DenseMatrix P; // temporary PK1 stress for NLF integrator to populate/access 
+                               // element coordinates
 protected:
    ElementTransformation *Ttr; /**< Reference-element to target-element
                                     transformation. */
@@ -42,8 +58,24 @@ protected:
    // local variables for an ip evaluation of the constitutive model
    int elemID, ipID, elemAttribute;
    double dt, t;
-   double ipx, ipy, ipz;
+   double ipx, ipy, ipz;                                                            
+   // If this variable is true then currently the mesh nodes correspond to the EndCoords. However,
+   // if it is set to false then the mesh nodes correspond to the BegCoords.  
+   bool EndCoordsMesh;
 
+   //--------------------------------------------------------------------------
+   // The velocity method requires us to retain both the beggining and end time step
+   // coordinates of the mesh. We need these to be able to compute the correct
+   // incremental deformation gradient (using the beg. time step coords) and the
+   // velocity gradient (uses the end time step coords).
+   // A pointer to the parallel mesh is also needed so that when needed we need
+   // to swap between the reference and current configuration for our gradients
+   // we can easily do so.
+
+   ParGridFunction* beg_coords;
+   ParGridFunction* end_coords;
+   ParMesh* pmesh;
+  
    //---------------------------------------------------------------------------
    // STATE VARIABLES and PROPS common to all user defined models
 
@@ -69,28 +101,38 @@ protected:
 
    // add QuadratureVectorFunctionCoefficient to store von Mises 
    // scalar stress measure
-   QuadratureVectorFunctionCoefficient vonMises;
+   QuadratureFunctionCoefficient vonMises;
   
    // add vector for material properties, which will be populated based on the 
    // requirements of the user defined model. The properties are expected to be 
    // the same at all quadrature points. That is, the material properties are 
    // constant and not dependent on space
-   Vector matProps;
+   Vector *matProps;
 
    // beginning and end (at NR iterate) step deformation gradient for current
    // element (full deformation gradients) and material tangent.
    // All matrices are local to an integration point used 
    // for a given element level computation
-   DenseMatrix Jpt0, Jpt1, CMat; // note: these local copies are for convenience
+   DenseMatrix Jpt0, Jpt1, CMat, Vgrad; // note: these local copies are for convenience
    DenseMatrix P; // temporary PK1 stress for NLF integrator to populate/access
-
+   
+   //These pointers point to the current elemental velocity, coord, and residual
+   //fields for a given element. They should be used to allow one to pass information
+   //between the ExaNLF class to the necessary EvalModel classes that lay in the ExaModel
+   //and subsequent children classes. The EvalModel should update it's portion of the residual
+   //internally. 
+   const Vector *elvel;
+   Vector *elresid;
+   const Vector *elcrds;
+  
    //---------------------------------------------------------------------------
 
 public:
    ExaModel(QuadratureFunction *q_stress0, QuadratureFunction *q_stress1,
              QuadratureFunction *q_matGrad, QuadratureFunction *q_matVars0,
-             QuadratureFunction *q_matVars1, QuadratureFunction *q_defGrad0, 
-             Vector &props, int nProps, int nStateVars, bool _cauchy) : 
+             QuadratureFunction *q_matVars1, QuadratureFunction *q_defGrad0,
+	     ParGridFunction* _beg_coords, ParGridFunction* _end_coords, ParMesh* _pmesh,  
+	    Vector *props, int nProps, int nStateVars, bool _cauchy, bool _endcrdm) : 
                numProps(nProps), numStateVars(nStateVars),
                cauchy(_cauchy), Ttr(NULL), 
                stress0(q_stress0),
@@ -98,8 +140,12 @@ public:
                matGrad(q_matGrad), 
                matVars0(q_matVars0), 
                matVars1(q_matVars1), 
-               defGrad0(q_defGrad0), 
-               matProps(props) { }
+               defGrad0(q_defGrad0),
+	       beg_coords(_beg_coords),
+	       end_coords(_end_coords),
+	       pmesh(_pmesh),
+               matProps(props),
+	       EndCoordsMesh(_endcrdm) {}
 
    virtual ~ExaModel() { }
 
@@ -109,12 +155,23 @@ public:
        point of interest. */
    void SetTransformation(ElementTransformation &_Ttr) { Ttr = &_Ttr; }
 
-   // routine to call constitutive update. Note that this routine takes 
+   //This function is used in generating the B matrix commonly seen in the formation of
+   //the material tangent stiffness matrix in mechanics [B^t][Cstiff][B]
+   virtual void GenerateGradMatrix(const DenseMatrix& DS, DenseMatrix& B);
+   
+   //This function is used in generating the B matrix that's used in the formation
+   //of the geometric stiffness contribution of the stiffness matrix seen in mechanics
+   //as [B^t][sigma][B]
+   virtual void GenerateGradGeomMatrix(const DenseMatrix& DS, DenseMatrix& Bgeom);
+   
+   // routine to call constitutive update. Note that this routine takes
    // the weight input argument to conform to the old AssembleH where the 
    // weight was used in the NeoHookean model. Consider refactoring this
    virtual void EvalModel(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight) = 0;
 
+   //This function assembles the necessary stiffness matrix to be used in the
+   //linearization of our nonlinear system of equations
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A) = 0;
 
@@ -133,6 +190,7 @@ public:
    // routine to set the integration point ID on the model
    void SetIpID(const int ipNum) { ipID = ipNum; }
 
+   // function to set the integration coords for the model
    void SetIPCoords(const int x, const int y, const int z) 
       { ipx = x; ipy = y; ipz = z; }
 
@@ -141,7 +199,7 @@ public:
 
    // set timestep on the base model class
    void SetModelDt(const double dtime) { dt = dtime; }
-
+  
    // return a pointer to beginning step stress. This is used for output visualization
    QuadratureVectorFunctionCoefficient *GetStress0() { return &stress0; }
 
@@ -150,23 +208,61 @@ public:
 
    // return a pointer to the deformation gradient.
    QuadratureVectorFunctionCoefficient *GetDefGrad0() { return &defGrad0; }
+
+   // function to set the internal von Mises QuadratureFuntion pointer to some
+   // outside source
+   void setVonMisesPtr(QuadratureFunction* vm_ptr) {vonMises = vm_ptr;}
+
+   //Returns the value of the end step mesh boolean
+   bool GetEndCoordsMesh() {return EndCoordsMesh; }
   
    // return a pointer to von Mises stress quadrature vector function coefficient for visualization
-   QuadratureVectorFunctionCoefficient *GetVonMises() { return &vonMises; }
+   QuadratureFunctionCoefficient *GetVonMises() { return &vonMises; }
 
    // return a pointer to the matVars0 quadrature vector function coefficient 
    QuadratureVectorFunctionCoefficient *GetMatVars0() { return &matVars0; }
 
+   // return a pointer to the end coordinates
+   // this should probably only be used within the solver itself
+   // if it's touched outside of that who knows whether or not the data
+   // might be tampered with and thus we could end up with weird results
+   // It's currently only being exposed due to the requirements UMATS place
+   // on how things are solved outside of this class
+   // fix_me
+   ParGridFunction *GetEndCoords(){return end_coords;}
+
+   // return a pointer to the beggining coordinates
+   // this should probably only be used within the solver itself
+   // if it's touched outside of that who knows whether or not the data
+   // might be tampered with and thus we could end up with weird results    
+   // It's currently only being exposed due to the requirements UMATS place
+   // on how things are solved outside of this class
+   // fix_me
+   ParGridFunction *GetBegCoords(){return beg_coords;}
+   
+   // This just seems bad to be doing this, but it's in many requirement of the UMAT
+   // I might move these to within the UMAT class itself.
+   // fix_me
+   ParMesh *GetPMesh(){return pmesh;}
+  
    // return a pointer to the matProps vector
-   Vector *GetMatProps() { return &matProps; }
+   Vector *GetMatProps() { return matProps; }
 
    //return a pointer to the PK1 stress densematrix
    DenseMatrix *GetPK1Stress() {return &P;}
 
-  DenseMatrix CopyOfJpt1() {DenseMatrix temp(Jpt1); return temp;}
+   //return a pointer to the Cauchy stress densematrix
+   //We use the same dense matrix as for the PK1 stress
+   DenseMatrix *GetCauchyStress() {return &P;}
+   
+  //return a pointer to the Velocity gradient densematrix
+   DenseMatrix *GetVGrad() {return &Vgrad;}
+  
+   // Returns a copy of the Jpt1 DenseMatrix
+   DenseMatrix CopyOfJpt1() {DenseMatrix temp(Jpt1); return temp;}
   
    // routine to get element stress at ip point. These are the six components of 
-   // the symmetric Cauchy stress
+   // the symmetric Cauchy stress where standard Voigt notation is being used
    void GetElementStress(const int elID, const int ipNum, bool beginStep, 
                          double* stress, int numComps);
 
@@ -194,7 +290,7 @@ public:
 
    // routine to get the material Jacobian for this element and integration point
    void GetElementMatGrad(const int elId, const int ipNum, double* grad, int numComps); 
-
+  
    int GetStressOffset();
   
    int GetMatGradOffset();
@@ -214,19 +310,43 @@ public:
 
    // routine to update beginning step state variables with end step values
    void UpdateStateVars(int elID, int ipNum);
- 
+
+   // Update the End Coordinates using a simple Forward Euler Integration scheme
+   // The beggining time step coordinates should be updated outside of the model routines
+   void UpdateEndCoords(const Vector& vel);
+
+   // A simple routine to update the mesh nodes to either the end or beggining time step
+   // coordinates. The method will depend on a protected bool called EndCoordsMesh. If this
+   // variable is true then currently the mesh nodes correspond to the EndCoords. However,
+   // if it is set to false then the mesh nodes correspond to the BegCoords.
+   void SwapMeshNodes();
+  
    void SymVoigtToDenseMat(const double* const A, DenseMatrix &B);
 
    void SetCoords(const DenseMatrix &coords) { currElemCoords = coords; }
-
-   //Should we move this over to a protected function?
+   
+   //The below functions are used to set the velocity, coords, and residual field variables to
+   //an element to an outside Vector that should come from the ExaNLF class.
+   void SetVel(const Vector *vel) {elvel = vel;}
+   void SetResid(Vector *resid) {elresid = resid;}
+   void SetCrds(const Vector *crds) {elcrds = crds;}
+   
+   //This method performs a fast approximate polar decomposition for 3x3 matrices
+   //The deformation gradient or 3x3 matrix of interest to be decomposed is passed
+   //in as the initial R matrix. The error on the solution can be set by the user.
    void CalcPolarDecompDefGrad(DenseMatrix& R, DenseMatrix& U,
                                DenseMatrix& V, double err = 1e-12);
+   
    //Various Strain measures we can use
    //Same as above should these be a protected function?
+   
+   //Lagrangian is simply E = 1/2(F^tF - I)
    void CalcLagrangianStrain(DenseMatrix& E);
+   //Eulerian is simply e = 1/2(I - F^(-t)F^(-1))
    void CalcEulerianStrain(DenseMatrix& E);
+   //Biot strain is simply B = U - I
    void CalcBiotStrain(DenseMatrix& E);
+   //Log strain is equal to e = 1/2 * ln(C) or for UMATs its e = 1/2 * ln(B)
    void CalcLogStrain(DenseMatrix& E);
    
    //Some useful rotation functions that we can use
@@ -237,12 +357,17 @@ public:
    void Quat2RMat(Vector& quat, DenseMatrix& rmat);
    void RMat2Quat(DenseMatrix& rmat, Vector& quat);
    
+   //Converts from Cauchy stress to PK1 stress
    void CauchyToPK1();
 
+   //Converts from PK1 stress to Cauchy stress
    void PK1ToCauchy(const DenseMatrix &P, const DenseMatrix& J, double* sigma);
 
+   //Computes the von Mises stress from the Cauchy stress
    void ComputeVonMises(const int elemID, const int ipID);
    
+   //A test function that allows us to see what deformation gradient we're
+   //getting out
    void test_def_grad_func(ParFiniteElementSpace *fes, const Vector &x0){
       computeDefGradTest(defGrad0.GetQuadFunction(), fes, x0);
    }
@@ -256,9 +381,10 @@ protected:
 
    // add member variables. 
    double elemLength;
-
+  
    // pointer to umat function
-   void (*umat)(double[6], double[], double[36], 
+   // we really don't use this in the code
+   void (*umatp)(double[6], double[], double[36], 
                 double*, double*, double*, double*,
                 double[6], double[6], double*,
                 double[6], double[6], double[2],
@@ -273,11 +399,13 @@ protected:
 public:
    AbaqusUmatModel(QuadratureFunction *_q_stress0, QuadratureFunction *_q_stress1,
                    QuadratureFunction *_q_matGrad, QuadratureFunction *_q_matVars0,
-                   QuadratureFunction *_q_matVars1, QuadratureFunction *_q_defGrad0, 
-                   Vector _props, int _nProps, 
+		   QuadratureFunction *_q_matVars1, QuadratureFunction *_q_defGrad0,
+		   ParGridFunction* _beg_coords, ParGridFunction* _end_coords, ParMesh *_pmesh,
+                   Vector *_props, int _nProps, 
                    int _nStateVars) : ExaModel(_q_stress0, 
-                      _q_stress1, _q_matGrad, _q_matVars0, _q_matVars1, _q_defGrad0, 
-                      _props, _nProps, _nStateVars, true) { }
+                      _q_stress1, _q_matGrad, _q_matVars0, _q_matVars1, _q_defGrad0,
+		      _beg_coords, _end_coords,_pmesh,
+		      _props, _nProps, _nStateVars, true, false) { }
    virtual ~AbaqusUmatModel() { }
 
    virtual void EvalModel(const DenseMatrix &Jpt, const DenseMatrix &DS,
@@ -286,13 +414,19 @@ public:
    virtual void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
                           const double weight, DenseMatrix &A);
    
-  virtual void UpdateModelVars(ParFiniteElementSpace *fes,
+   virtual void UpdateModelVars(ParFiniteElementSpace *fes,
                                 const Vector &x);
-
-   void CalcLogStrainIncrement(DenseMatrix &dE);
-   void CalcEulerianStrainIncr(DenseMatrix& dE);
-   void CalcLagrangianStrainIncr(DenseMatrix& dE);
-
+   
+   //Calculates the incremental versions of the strain measures that we're given
+   //above
+   void CalcLogStrainIncrement(DenseMatrix &dE, const DenseMatrix &Jpt);
+   void CalcEulerianStrainIncr(DenseMatrix& dE, const DenseMatrix &Jpt);
+   void CalcLagrangianStrainIncr(DenseMatrix& dE, const DenseMatrix &Jpt);
+   
+   //Returns the incremental rotation and strain based on the velocity gradient
+   void CalcIncrStrainRot(double* dE, DenseMatrix& dRot);
+   
+   //calculates the element length
    void CalcElemLength();
 
 };
@@ -312,21 +446,25 @@ protected:
 public:
    NeoHookean(QuadratureFunction *_q_stress0, QuadratureFunction *_q_stress1,
               QuadratureFunction *_q_matGrad, QuadratureFunction *_q_matVars0,
-              QuadratureFunction *_q_matVars1, QuadratureFunction *_q_defGrad0, 
-              Vector _props, int _nProps, int _nStateVars, double _mu, double _K, 
+              QuadratureFunction *_q_matVars1, QuadratureFunction *_q_defGrad0,
+	      ParGridFunction *_beg_coords, ParGridFunction *_end_coords, ParMesh *_pmesh,
+              Vector *_props, int _nProps, int _nStateVars, double _mu, double _K, 
               double _g = 1.0) : 
               ExaModel(_q_stress0, _q_stress1, _q_matGrad, _q_matVars0, _q_matVars1, 
-              _q_defGrad0, _props, _nProps, _nStateVars, false), mu(_mu), K(_K), g(_g), 
+		       _q_defGrad0, _beg_coords, _end_coords, _pmesh,
+		       _props, _nProps, _nStateVars, false,false), mu(_mu), K(_K), g(_g), 
               have_coeffs(false) 
               { c_mu = c_K = c_g = NULL; }
 
    NeoHookean(QuadratureFunction *_q_stress0, QuadratureFunction *_q_stress1,
               QuadratureFunction *_q_matGrad, QuadratureFunction *_q_matVars0,
               QuadratureFunction *_q_matVars1, QuadratureFunction *_q_defGrad0, 
-              Vector _props, int _nProps, int _nStateVars, Coefficient &_mu, 
+	      ParGridFunction *_beg_coords, ParGridFunction *_end_coords, ParMesh *_pmesh,
+	      Vector *_props, int _nProps, int _nStateVars, Coefficient &_mu, 
               Coefficient &_K, Coefficient *_g = NULL) : 
               ExaModel(_q_stress0, _q_stress1, _q_matGrad, _q_matVars0, _q_matVars1, 
-              _q_defGrad0, _props, _nProps, _nStateVars, false), 
+		       _q_defGrad0, _beg_coords, _end_coords, _pmesh,
+		       _props, _nProps, _nStateVars, false,false), 
               mu(0.0), K(0.0), g(1.0), c_mu(&_mu), 
               c_K(&_K), c_g(_g), have_coeffs(false) { }
 
@@ -362,11 +500,17 @@ public:
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &Ttr,
                                       const Vector &elfun, Vector &elvect);
-
+   //This function really only be used whenever UMATs are being used.
+   //The other models should be using the one above this
+   virtual void AssembleElementVector(const FiniteElement &el,
+                                      ElementTransformation &Ttr_beg,
+				      ElementTransformation &Ttr_end,
+                                      const Vector &elfun, Vector &elvect,
+				      const Vector &elvel);
+  
    virtual void AssembleElementGrad(const FiniteElement &el,
                                     ElementTransformation &Ttr,
                                     const Vector &elfun, DenseMatrix &elmat);
-
    // debug routine for finite difference approximation of 
    // the element tangent stiffness contribution 
    void AssembleElementGradFD(const FiniteElement &el,
