@@ -71,99 +71,84 @@ void kGauss_Seidel_forw_A_NULL(const size_t s,
 }
 
 // *****************************************************************************
-void kGauss_Seidel_forw(const size_t height,
-                        const int *Ip, const int *Jp, const double *Ap,
-                        const double *xp,
-                        double *yp)
+__kernel void kGauss_Seidel_forw(const size_t height,
+                                 const int *Ip, const int *Jp,
+                                 const double *Ap,
+                                 const double *xp, double *yp)
 {
-   GET_CONST_ADRS_T(Ip,int);
-   GET_CONST_ADRS_T(Jp,int);
-   GET_CONST_ADRS(Ap);
-   GET_CONST_ADRS(xp);
-   GET_ADRS(yp);
    MFEM_FORALL(k,1,
    {
       for (size_t i=0; i<height; i+=1)
       {
          int d = -1;
-         const int end = d_Ip[i+1];
+         const int end = Ip[i+1];
          double sum = 0.0;
-         for (int j = d_Ip[i]; j < end; j+=1)
+         for (int j = Ip[i]; j < end; j+=1)
          {
-            const size_t c = d_Jp[j];
+            const size_t c = Jp[j];
             const bool c_eq_i = c == i;
             d = c_eq_i ? j : d;
-            const double Ay = d_Ap[j] * d_yp[c];
+            const double Ay = Ap[j] * yp[c];
             sum += c_eq_i ? 0.0 : Ay;
          }
-         const double A = d_Ap[d];
-         const double x = d_xp[i];
+         const double A = Ap[d];
+         const double x = xp[i];
          const double xmsda = (x - sum) / A;
          const bool dpaann = d >= 0 && A != 0.0;
          const bool xeqs = x == sum;
          assert(dpaann || xeqs);
-         d_yp[i] = dpaann ? xmsda:sum;
+         yp[i] = dpaann ? xmsda:sum;
       }
    });
 }
 
 // *****************************************************************************
-void kGauss_Seidel_back(const size_t height,
-                        const int *Ip, const int *Jp, const double *Ap,
-                        const double *xp,
-                        double *yp)
+__kernel void kGauss_Seidel_back(const size_t height,
+                                 const int *Ip, const int *Jp,
+                                 const double *Ap,
+                                 const double *xp, double *yp)
 {
-   GET_CONST_ADRS_T(Ip,int);
-   GET_CONST_ADRS_T(Jp,int);
-   GET_CONST_ADRS(Ap);
-   GET_CONST_ADRS(xp);
-   GET_ADRS(yp);
    MFEM_FORALL(k, 1,
    {
       for (int i = height-1; i >= 0; i--)
       {
          int d = -1;
-         const int beg = d_Ip[i];
+         const int beg = Ip[i];
          double sum = 0.0;
-         for (int j = d_Ip[i+1]-1; j >= beg; j-=1)
+         for (int j = Ip[i+1]-1; j >= beg; j-=1)
          {
-            const int c = d_Jp[j];
+            const int c = Jp[j];
             const bool c_eq_i = c == i;
             d = c_eq_i ? j : d;
-            const double Ay = d_Ap[j] * d_yp[c];
+            const double Ay = Ap[j] * yp[c];
             sum += c_eq_i ? 0.0 : Ay;
          }
-         const double A = d_Ap[d];
-         const double x = d_xp[i];
+         const double A = Ap[d];
+         const double x = xp[i];
          const double xmsda = (x - sum) / A;
          const bool dpaann = d >= 0 && A != 0.0;
          const bool xeqs = x == sum;
          assert(dpaann || xeqs);
-         d_yp[i] = dpaann ? xmsda:sum;
+         yp[i] = dpaann ? xmsda:sum;
       }
    });
 }
 
 
 // *****************************************************************************
-void kAddMult(const size_t height,
-              const int *I, const int *J, const double *A,
-              const double *x, double *y)
+__kernel void kAddMult(const size_t height,
+                       const int *I, const int *J, const double *A,
+                       const double *x, double *y)
 {
-   GET_CONST_ADRS_T(I,int);
-   GET_CONST_ADRS_T(J,int);
-   GET_CONST_ADRS(A);
-   GET_CONST_ADRS(x);
-   GET_ADRS(y);
    MFEM_FORALL(i, height,
    {
       double d = 0.0;
-      const size_t end = d_I[i+1];
-      for (size_t j=d_I[i]; j < end; j+=1)
+      const size_t end = I[i+1];
+      for (size_t j=I[i]; j < end; j+=1)
       {
-         d += d_A[j] * d_x[d_J[j]];
+         d += A[j] * x[J[j]];
       }
-      d_y[i] += d;
+      y[i] += d;
    });
 }
 

@@ -348,11 +348,12 @@ $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
 # Rules for compiling kernel source files.
+#.PRECIOUS: %.kpp
 %.kpp: %.cpp mpp
 	./mpp $(<) -o $(@)
 %.o: %.kpp
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -xc++ -c $(<) -o $(@)
-ker: $(OBJECT_KERNS)
+ker: ;echo $(OBJECT_KERNS)
 
 all: examples miniapps $(TEST_DIRS)
 
@@ -372,7 +373,7 @@ $(BLD)libmfem.a: $(OBJECT_FILES) $(OBJECT_KERNS)
 	$(AR) $(ARFLAGS) $(@) $(OBJECT_FILES) $(OBJECT_KERNS)
 	$(RANLIB) $(@)
 
-$(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER)
+$(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER) $(OBJECT_KERNS)
 	cd $(@D) && ln -sf $(<F) $(@F)
 
 # If some of the external libraries are build without -fPIC, linking shared MFEM

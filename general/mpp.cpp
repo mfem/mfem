@@ -132,15 +132,15 @@ static inline void comments(context &pp) {
 }
 
 // *****************************************************************************
-static inline bool is_alpha(context &pp) {
+static inline bool is_alnum(context &pp) {
    const int c = pp.in.peek();
-   return isalpha(c) || c == '_';
+   return isalnum(c) || c == '_';
 }
 
 // *****************************************************************************
 static inline string get_name(context &pp) {
    string str;
-   check(pp,is_alpha(pp));
+   check(pp,is_alnum(pp));
    while ((not pp.in.eof()) and (pp.in.peek()!=EOF) and
           (isalnum(pp.in.peek()) or pp.in.peek()=='_'))
       str += pp.in.get();
@@ -169,7 +169,7 @@ static inline string peekID(context &pp) {
    for (; k<n; k+=1) {
       const char p = pp.in.peek();
       if (p==EOF) break;
-      if (not is_alpha(pp)) break;
+      if (not is_alnum(pp)) break;
       c[k]=pp.in.get();
    }
    string rtn = c;
@@ -260,7 +260,7 @@ static inline bool get_args(context &pp, std::list<argument*> &args) {
 // *****************************************************************************
 static inline void __kernel(context &pp, std::list<argument*> &args) {
    //        "__kernel "
-   pp.out << "         ";
+   //pp.out << "         ";
    drop_space(pp);
    goto_start_of_left_paren(pp);
    // check we are at the left parenthesis
@@ -273,10 +273,10 @@ static inline void __kernel(context &pp, std::list<argument*> &args) {
    } else {
       const bool empty = get_args(pp,args);
       check(pp,pp.in.peek()==')');
-      if (not empty) pp.out << ", ";
+      //if (not empty) pp.out << ", ";
    }
    // __kernel((CPU, GPU & JIT)) will add more options than the '0'
-   pp.out << "const unsigned int __kernel =0";
+   //pp.out << "const unsigned int __kernel =0";
 }
 
 // *****************************************************************************
@@ -301,7 +301,7 @@ static inline void __id(context &pp) {
          const char *type = a->type.c_str();
          const char *name = a->name.c_str();
          if (is_const and not is_pointer){
-            pp.out << "\n   // Could JIT " << name;
+            pp.out << "\n   GET_CONST_T_("<<name<<", "<<type<<");" << " // could be JIT'ed";
          }
          if (is_const and is_pointer){
             pp.out << "\n   GET_CONST_ADRS_T_("<<name<<", "<<type<<");";
