@@ -2109,6 +2109,13 @@ flip_edges(Mesh & mesh, GridFunction & color, socketstream & sock,
 
          switch (i1)
          {
+            case 1:
+               anim_move('x', 3, 3, mesh, color, sock);
+               anim_move('y', 3, 3, mesh, color, sock);
+               flip_edges(mesh, color, sock, 2, NULL, NULL);
+               anim_move('y', 3, 1, mesh, color, sock);
+               anim_move('x', 3, 1, mesh, color, sock);
+               break;
             case 2:
                flip_edges(mesh, color, sock, 2, NULL, NULL);
                break;
@@ -2167,8 +2174,252 @@ flip_edges(Mesh & mesh, GridFunction & color, socketstream & sock,
    }
    else if (n == 4)
    {
-      if (e0 == NULL && e1 == NULL && e2 == NULL && e3 == NULL)
+      if (e0 != NULL)
       {
+         // Locate first incorrectly oriented edge
+         int i0 = -1;
+         for (int i=0; i<12; i++)
+         {
+            if ((rubik.edge_[2 * i]     == e0[0] &&
+                 rubik.edge_[2 * i + 1] == e0[1]) ||
+                (rubik.edge_[2 * i]     == e0[1] &&
+                 rubik.edge_[2 * i + 1] == e0[0]))
+            {
+               i0 = i;
+               break;
+            }
+         }
+         cout << "Location of e0 = {"<<e0[0]<<","<<e0[1]<<"}: " << i0 << endl;
+
+         switch (i0)
+         {
+            case 0:
+               flip_edges(mesh, color, sock, 4, NULL, e1, e2, e3);
+               break;
+            case 1:
+            case 2:
+            case 3:
+               anim_move('z', 1, i0, mesh, color, sock);
+               flip_edges(mesh, color, sock, 4, NULL, e1, e2, e3);
+               anim_move('z', 1, 4-i0, mesh, color, sock);
+               break;
+            case 4:
+               anim_move('x', 2, 3, mesh, color, sock);
+               flip_edges(mesh, color, sock, 4, NULL, e1, e2, e3);
+               anim_move('x', 2, 1, mesh, color, sock);
+               break;
+            case 5:
+               anim_move('y', 2, 3, mesh, color, sock);
+               flip_edges(mesh, color, sock, 4, NULL, e1, e2, e3);
+               anim_move('y', 2, 1, mesh, color, sock);
+               break;
+            case 6:
+               anim_move('x', 2, 2, mesh, color, sock);
+               flip_edges(mesh, color, sock, 4, NULL, e1, e2, e3);
+               anim_move('x', 2, 2, mesh, color, sock);
+               break;
+            case 7:
+               anim_move('y', 2, 1, mesh, color, sock);
+               flip_edges(mesh, color, sock, 4, NULL, e1, e2, e3);
+               anim_move('y', 2, 3, mesh, color, sock);
+               break;
+            case 8:
+               anim_move('y', 1, 1, mesh, color, sock);
+               flip_edges(mesh, color, sock, 4, NULL, e1, e2, e3);
+               anim_move('y', 1, 3, mesh, color, sock);
+               break;
+            case 9:
+               anim_move('y', 1, 3, mesh, color, sock);
+               flip_edges(mesh, color, sock, 4, NULL, e1, e2, e3);
+               anim_move('y', 1, 1, mesh, color, sock);
+               break;
+            case 10:
+               anim_move('x', 3, 1, mesh, color, sock);
+               flip_edges(mesh, color, sock, 4, NULL, e1, e2, e3);
+               anim_move('x', 3, 3, mesh, color, sock);
+               break;
+            case 11:
+               anim_move('x', 1, 1, mesh, color, sock);
+               flip_edges(mesh, color, sock, 4, NULL, e1, e2, e3);
+               anim_move('x', 1, 3, mesh, color, sock);
+               break;
+         }
+      }
+      else if (e1 != NULL)
+      {
+         // Locate second incorrectly oriented edge
+         int i1 = -1;
+         for (int i=1; i<12; i++)
+         {
+            if ((rubik.edge_[2 * i] == e1[0] &&
+                 rubik.edge_[2 * i + 1] == e1[1]) ||
+                (rubik.edge_[2 * i] == e1[1] &&
+                 rubik.edge_[2 * i + 1] == e1[0]))
+            {
+               i1 = i;
+               break;
+            }
+         }
+         cout << "Location of e1: " << i1 << endl;
+
+         switch (i1)
+         {
+            case 1:
+               flip_edges(mesh, color, sock, 4, NULL, NULL, e2, e3);
+               break;
+            case 2:
+               anim_move('y', 3, 1, mesh, color, sock);
+               anim_move('x', 3, 1, mesh, color, sock);
+               flip_edges(mesh, color, sock, 4, NULL, NULL, e2, e3);
+               anim_move('x', 3, 3, mesh, color, sock);
+               anim_move('y', 3, 3, mesh, color, sock);
+               break;
+            case 3:
+               anim_move('y', 2, 1, mesh, color, sock);
+               flip_edges(mesh, color, sock, 4, NULL, NULL, e2, e3);
+               anim_move('y', 2, 3, mesh, color, sock);
+               break;
+            case 4:
+            case 5:
+            case 6:
+            case 7:
+               anim_move('z', 3, (i1-1)%4, mesh, color, sock);
+               anim_move('x', 3, 2, mesh, color, sock);
+               flip_edges(mesh, color, sock, 4, NULL, NULL, e2, e3);
+               anim_move('x', 3, 2, mesh, color, sock);
+               anim_move('z', 3, (9-i1)%4, mesh, color, sock);
+               break;
+            case 8:
+            case 9:
+            case 10:
+            case 11:
+               anim_move('z', 2, (i1-5)%4, mesh, color, sock);
+               anim_move('x', 3, 3, mesh, color, sock);
+               flip_edges(mesh, color, sock, 4, NULL, NULL, e2, e3);
+               anim_move('x', 3, 1, mesh, color, sock);
+               anim_move('z', 2, (13-i1)%4, mesh, color, sock);
+               break;
+         }
+      }
+      else if (e2 != NULL)
+      {
+         // Locate third incorrectly oriented edge
+         int i2 = -1;
+         for (int i=2; i<12; i++)
+         {
+            if ((rubik.edge_[2 * i] == e2[0] &&
+                 rubik.edge_[2 * i + 1] == e2[1]) ||
+                (rubik.edge_[2 * i] == e2[1] &&
+                 rubik.edge_[2 * i + 1] == e2[0]))
+            {
+               i2 = i;
+               break;
+            }
+         }
+         cout << "Location of e2: " << i2 << endl;
+
+         switch (i2)
+         {
+            case 2:
+               flip_edges(mesh, color, sock, 4, NULL, NULL, NULL, e3);
+               break;
+            case 3:
+               anim_move('x', 1, 3, mesh, color, sock);
+               anim_move('y', 3, 1, mesh, color, sock);
+               flip_edges(mesh, color, sock, 4, NULL, NULL, NULL, e3);
+               anim_move('y', 3, 3, mesh, color, sock);
+               anim_move('x', 1, 1, mesh, color, sock);
+               break;
+            case 4:
+            case 5:
+            case 6:
+            case 7:
+               anim_move('z', 3, (i2-2)%4, mesh, color, sock);
+               anim_move('y', 3, 2, mesh, color, sock);
+               flip_edges(mesh, color, sock, 4, NULL, NULL, NULL, e3);
+               anim_move('y', 3, 2, mesh, color, sock);
+               anim_move('z', 3, (10-i2)%4, mesh, color, sock);
+               break;
+            case 8:
+            case 9:
+            case 10:
+            case 11:
+               anim_move('z', 2, (i2-6)%4, mesh, color, sock);
+               anim_move('y', 3, 3, mesh, color, sock);
+               flip_edges(mesh, color, sock, 4, NULL, NULL, NULL, e3);
+               anim_move('y', 3, 1, mesh, color, sock);
+               anim_move('z', 2, (14-i2)%4, mesh, color, sock);
+               break;
+         }
+      }
+      else if (e3 != NULL)
+      {
+         // Locate fourth incorrectly oriented edge
+         int i3 = -1;
+         for (int i=3; i<12; i++)
+         {
+            if ((rubik.edge_[2 * i] == e3[0] &&
+                 rubik.edge_[2 * i + 1] == e3[1]) ||
+                (rubik.edge_[2 * i] == e3[1] &&
+                 rubik.edge_[2 * i + 1] == e3[0]))
+            {
+               i3 = i;
+               break;
+            }
+         }
+         cout << "Location of e3: " << i3 << endl;
+
+         switch (i3)
+         {
+            case 3:
+               flip_edges(mesh, color, sock, 4, NULL, NULL, NULL, NULL);
+               break;
+            case 4:
+            case 5:
+            case 6:
+            case 7:
+               anim_move('z', 3, (i3-3)%4, mesh, color, sock);
+               anim_move('x', 1, 2, mesh, color, sock);
+               flip_edges(mesh, color, sock, 4, NULL, NULL, NULL, NULL);
+               anim_move('x', 1, 2, mesh, color, sock);
+               anim_move('z', 3, (7-i3)%4, mesh, color, sock);
+               break;
+            case 8:
+            case 9:
+            case 10:
+            case 11:
+               anim_move('z', 2, (i3-4)%4, mesh, color, sock);
+               anim_move('x', 1, 3, mesh, color, sock);
+               flip_edges(mesh, color, sock, 4, NULL, NULL, NULL, NULL);
+               anim_move('x', 1, 1, mesh, color, sock);
+               anim_move('z', 2, (12-i3)%4, mesh, color, sock);
+               break;
+         }
+      }
+      else
+      {
+         anim_move('x', 2, 3, mesh, color, sock);
+         anim_move('z', 1, 2, mesh, color, sock);
+         anim_move('x', 2, 1, mesh, color, sock);
+         anim_move('z', 1, 2, mesh, color, sock);
+         anim_move('x', 2, 3, mesh, color, sock);
+         anim_move('z', 1, 3, mesh, color, sock);
+         anim_move('x', 2, 1, mesh, color, sock);
+         anim_move('z', 1, 2, mesh, color, sock);
+         anim_move('x', 2, 3, mesh, color, sock);
+         anim_move('z', 1, 2, mesh, color, sock);
+         anim_move('x', 2, 1, mesh, color, sock);
+         anim_move('z', 1, 1, mesh, color, sock);
+         /*
+         anim_move('x', 2, 3, mesh, color, sock);
+              anim_move('z', 1, 3, mesh, color, sock);
+              anim_move('x', 2, 1, mesh, color, sock);
+              anim_move('z', 1, 3, mesh, color, sock);
+              anim_move('x', 2, 3, mesh, color, sock);
+              anim_move('z', 1, 3, mesh, color, sock);
+              anim_move('x', 2, 1, mesh, color, sock);
+              anim_move('z', 1, 2, mesh, color, sock);
+         */
       }
    }
 }
@@ -2244,8 +2495,8 @@ solve_edge_orientations(Mesh & mesh, GridFunction & color, socketstream & sock)
    }
    else
    {
-      // flip_edges(mesh, color, sock, 4, e0, e1, e2, e3);
-      flip_edges(mesh, color, sock, 2, e2, e3);
+      flip_edges(mesh, color, sock, 4, e0, e1, e2, e3);
+      // flip_edges(mesh, color, sock, 2, e2, e3);
    }
 
    solve_edge_orientations(mesh, color, sock);
