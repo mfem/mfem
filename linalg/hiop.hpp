@@ -38,10 +38,11 @@ private:
 #endif
 
    // Problem info.
-   OptimizationProblem &problem;
+   const OptimizationProblem &problem;
 
    // Local and global number of variables and constraints.
-   long long ntdofs_loc, ntdofs_glob, m_total;
+   const long long ntdofs_loc, m_total;
+   long long ntdofs_glob;
 
    // Initial guess.
    const Vector *x_start;
@@ -52,7 +53,7 @@ private:
    void UpdateConstrValsGrads(const Vector x);
 
 public:
-   HiopOptimizationProblem(OptimizationProblem &prob)
+   HiopOptimizationProblem(const OptimizationProblem &prob)
       : problem(prob),
         ntdofs_loc(prob.input_size), ntdofs_glob(ntdofs_loc),
         m_total(prob.GetNumConstraints()),
@@ -67,7 +68,8 @@ public:
   }
 
 #ifdef MFEM_USE_MPI
-   HiopOptimizationProblem(const MPI_Comm& _comm, OptimizationProblem &prob)
+   HiopOptimizationProblem(const MPI_Comm& _comm,
+                           const OptimizationProblem &prob)
       : comm_(_comm),
         problem(prob),
         ntdofs_loc(prob.input_size), ntdofs_glob(0),
@@ -183,7 +185,7 @@ public:
 #endif
    virtual ~HiopNlpOptimizer();
 
-   virtual void SetOptimizationProblem(OptimizationProblem &prob);
+   virtual void SetOptimizationProblem(const OptimizationProblem &prob);
 
    /// Solves the optimization problem with xt as initial guess.
    virtual void Mult(const Vector &xt, Vector &x) const;

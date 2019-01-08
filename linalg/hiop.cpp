@@ -270,7 +270,7 @@ HiopNlpOptimizer::~HiopNlpOptimizer()
    delete hiop_problem;
 }
 
-void HiopNlpOptimizer::SetOptimizationProblem(OptimizationProblem &prob)
+void HiopNlpOptimizer::SetOptimizationProblem(const OptimizationProblem &prob)
 {
    problem = &prob;
    height = width = problem->input_size;

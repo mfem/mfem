@@ -1515,7 +1515,7 @@ int OptimizationProblem::GetNumConstraints() const
    return m;
 }
 
-void SLBQPOptimizer::SetOptimizationProblem(OptimizationProblem &prob)
+void SLBQPOptimizer::SetOptimizationProblem(const OptimizationProblem &prob)
 {
    if (print_level > 1)
    {
