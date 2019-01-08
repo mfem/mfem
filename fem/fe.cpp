@@ -336,7 +336,8 @@ void NodalFiniteElement::GetLocalRestriction(ElementTransformation &Trans,
       }
       else
       {
-         R(j,0) = infinity();
+         // Set the whole row to avoid valgrind warnings in R.Threshold().
+         R.SetRow(j, infinity());
       }
    }
    R.Threshold(1e-12);
@@ -1037,7 +1038,8 @@ void VectorFiniteElement::LocalRestriction_RT(
       }
       else
       {
-         R(j,0) = infinity();
+         // Set the whole row to avoid valgrind warnings in R.Threshold().
+         R.SetRow(j, infinity());
       }
    }
    R.Threshold(1e-12);
@@ -1077,7 +1079,8 @@ void VectorFiniteElement::LocalRestriction_ND(
       }
       else
       {
-         R(j,0) = infinity();
+         // Set the whole row to avoid valgrind warnings in R.Threshold().
+         R.SetRow(j, infinity());
       }
    }
    R.Threshold(1e-12);
