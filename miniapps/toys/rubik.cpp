@@ -95,17 +95,17 @@ void anim_move(char dir, int ind, int deg,
                socketstream & sock);
 
 void swap_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
-		  int * c0 = NULL, int * c1 = NULL);
+                  int * c0 = NULL, int * c1 = NULL);
 
 void twist_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
-		   bool cw, int * c0 = NULL, int * c1 = NULL, int * c2 = NULL);
+                   bool cw, int * c0 = NULL, int * c1 = NULL, int * c2 = NULL);
 
 void permute_edges(Mesh & mesh, GridFunction & color, socketstream & sock,
                    int * e0 = NULL, int * e1 = NULL, int * e2 = NULL);
 
 void flip_edges(Mesh & mesh, GridFunction & color, socketstream & sock,
-		int n, int * e0 = NULL, int * e1 = NULL,
-		int * e2 = NULL, int * e3 = NULL);
+                int n, int * e0 = NULL, int * e1 = NULL,
+                int * e2 = NULL, int * e3 = NULL);
 
 void solve(Mesh & mesh, GridFunction & color, socketstream & sock);
 
@@ -167,8 +167,8 @@ int main(int argc, char *argv[])
       socketstream sock(vishost, visport);
       sock.precision(8);
       sock << "solution\n" << mesh << color << "keys Amaa\n"
-	   << "palette 25\n"// << "valuerange -1.5 1\n"
-	   << "autoscale off\n" << flush;
+           << "palette 25\n"// << "valuerange -1.5 1\n"
+           << "autoscale off\n" << flush;
 
       while (true)
       {
@@ -218,9 +218,9 @@ int main(int argc, char *argv[])
          }
          else if ( dir == 't' )
          {
-	   bool cw;
-	   cin >> cw;
-	   twist_corners(mesh, color, sock, cw);
+            bool cw;
+            cin >> cw;
+            twist_corners(mesh, color, sock, cw);
          }
          else if ( dir == 'e' )
          {
@@ -228,16 +228,16 @@ int main(int argc, char *argv[])
          }
          else if ( dir == 'f' )
          {
-	   int n = -1;
-	   cin >> n;
-	   if (n == 2 || n == 4)
-	   {
-	     flip_edges(mesh, color, sock, n);
-	   }
-	   else
-	   {
-	     cout << "Can only flip 2 or 4 edges at a time." << endl;
-	   }
+            int n = -1;
+            cin >> n;
+            if (n == 2 || n == 4)
+            {
+               flip_edges(mesh, color, sock, n);
+            }
+            else
+            {
+               cout << "Can only flip 2 or 4 edges at a time." << endl;
+            }
          }
          else if ( dir == 's' )
          {
@@ -1167,7 +1167,7 @@ solve_centers(Mesh & mesh, GridFunction & color, socketstream & sock)
 
 void
 swap_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
-              int * c0, int * c1)
+             int * c0, int * c1)
 {
    cout << "Entering swap_corners" << endl;
 
@@ -1186,7 +1186,7 @@ swap_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
              (rubik.corn_[3 * i]     == c0[2] &&
               rubik.corn_[3 * i + 1] == c0[0] &&
               rubik.corn_[3 * i + 2] == c0[1]) ||
-	     (rubik.corn_[3 * i]     == c0[2] &&
+             (rubik.corn_[3 * i]     == c0[2] &&
               rubik.corn_[3 * i + 1] == c0[1] &&
               rubik.corn_[3 * i + 2] == c0[0]) ||
              (rubik.corn_[3 * i]     == c0[1] &&
@@ -1200,7 +1200,8 @@ swap_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
             break;
          }
       }
-      cout << "Location of c0 = {"<<c0[0]<<","<<c0[1]<<","<<c0[2]<<"}: " << i0 << endl;
+      cout << "Location of c0 = {"<<c0[0]<<","<<c0[1]<<","<<c0[2]<<"}: " << i0 <<
+           endl;
 
       switch (i0)
       {
@@ -1253,7 +1254,7 @@ swap_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
              (rubik.corn_[3 * i]     == c1[2] &&
               rubik.corn_[3 * i + 1] == c1[0] &&
               rubik.corn_[3 * i + 2] == c1[1]) ||
-	     (rubik.corn_[3 * i]     == c1[2] &&
+             (rubik.corn_[3 * i]     == c1[2] &&
               rubik.corn_[3 * i + 1] == c1[1] &&
               rubik.corn_[3 * i + 2] == c1[0]) ||
              (rubik.corn_[3 * i]     == c1[1] &&
@@ -1346,7 +1347,7 @@ solve_corner_locations(Mesh & mesh, GridFunction & color, socketstream & sock)
             (rubik.corn_[3 * i + 0] == corn_colors_[3 * i + 2] &&
              rubik.corn_[3 * i + 1] == corn_colors_[3 * i + 0] &&
              rubik.corn_[3 * i + 2] == corn_colors_[3 * i + 1]) ||
-	    (rubik.corn_[3 * i + 0] == corn_colors_[3 * i + 2] &&
+            (rubik.corn_[3 * i + 0] == corn_colors_[3 * i + 2] &&
              rubik.corn_[3 * i + 1] == corn_colors_[3 * i + 1] &&
              rubik.corn_[3 * i + 2] == corn_colors_[3 * i + 0]) ||
             (rubik.corn_[3 * i + 0] == corn_colors_[3 * i + 1] &&
@@ -1369,23 +1370,23 @@ solve_corner_locations(Mesh & mesh, GridFunction & color, socketstream & sock)
    for (int i=i0+1; i<8; i++)
    {
       if ((rubik.corn_[3 * i + 0] == corn_colors_[3 * i0 + 0] &&
-	   rubik.corn_[3 * i + 1] == corn_colors_[3 * i0 + 1] &&
-	   rubik.corn_[3 * i + 2] == corn_colors_[3 * i0 + 2]) ||
-	  (rubik.corn_[3 * i + 0] == corn_colors_[3 * i0 + 1] &&
-	   rubik.corn_[3 * i + 1] == corn_colors_[3 * i0 + 2] &&
-	   rubik.corn_[3 * i + 2] == corn_colors_[3 * i0 + 0]) ||
-	  (rubik.corn_[3 * i + 0] == corn_colors_[3 * i0 + 2] &&
-	   rubik.corn_[3 * i + 1] == corn_colors_[3 * i0 + 0] &&
-	   rubik.corn_[3 * i + 2] == corn_colors_[3 * i0 + 1]) ||
-	  (rubik.corn_[3 * i + 0] == corn_colors_[3 * i0 + 2] &&
-	   rubik.corn_[3 * i + 1] == corn_colors_[3 * i0 + 1] &&
-	   rubik.corn_[3 * i + 2] == corn_colors_[3 * i0 + 0]) ||
-	  (rubik.corn_[3 * i + 0] == corn_colors_[3 * i0 + 1] &&
-	   rubik.corn_[3 * i + 1] == corn_colors_[3 * i0 + 0] &&
-	   rubik.corn_[3 * i + 2] == corn_colors_[3 * i0 + 2]) ||
-	  (rubik.corn_[3 * i + 0] == corn_colors_[3 * i0 + 0] &&
-	   rubik.corn_[3 * i + 1] == corn_colors_[3 * i0 + 2] &&
-	   rubik.corn_[3 * i + 2] == corn_colors_[3 * i0 + 1]))
+           rubik.corn_[3 * i + 1] == corn_colors_[3 * i0 + 1] &&
+           rubik.corn_[3 * i + 2] == corn_colors_[3 * i0 + 2]) ||
+          (rubik.corn_[3 * i + 0] == corn_colors_[3 * i0 + 1] &&
+           rubik.corn_[3 * i + 1] == corn_colors_[3 * i0 + 2] &&
+           rubik.corn_[3 * i + 2] == corn_colors_[3 * i0 + 0]) ||
+          (rubik.corn_[3 * i + 0] == corn_colors_[3 * i0 + 2] &&
+           rubik.corn_[3 * i + 1] == corn_colors_[3 * i0 + 0] &&
+           rubik.corn_[3 * i + 2] == corn_colors_[3 * i0 + 1]) ||
+          (rubik.corn_[3 * i + 0] == corn_colors_[3 * i0 + 2] &&
+           rubik.corn_[3 * i + 1] == corn_colors_[3 * i0 + 1] &&
+           rubik.corn_[3 * i + 2] == corn_colors_[3 * i0 + 0]) ||
+          (rubik.corn_[3 * i + 0] == corn_colors_[3 * i0 + 1] &&
+           rubik.corn_[3 * i + 1] == corn_colors_[3 * i0 + 0] &&
+           rubik.corn_[3 * i + 2] == corn_colors_[3 * i0 + 2]) ||
+          (rubik.corn_[3 * i + 0] == corn_colors_[3 * i0 + 0] &&
+           rubik.corn_[3 * i + 1] == corn_colors_[3 * i0 + 2] &&
+           rubik.corn_[3 * i + 2] == corn_colors_[3 * i0 + 1]))
       {
          i1 = i;
          break;
@@ -1400,11 +1401,13 @@ solve_corner_locations(Mesh & mesh, GridFunction & color, socketstream & sock)
    }
 
    int c0[3] = {rubik.corn_[3 * i0],
-		rubik.corn_[3 * i0 + 1],
-		rubik.corn_[3 * i0 + 2]};
+                rubik.corn_[3 * i0 + 1],
+                rubik.corn_[3 * i0 + 2]
+               };
    int c1[3] = {rubik.corn_[3 * i1],
-		rubik.corn_[3 * i1 + 1],
-		rubik.corn_[3 * i1 + 2]};
+                rubik.corn_[3 * i1 + 1],
+                rubik.corn_[3 * i1 + 2]
+               };
 
    swap_corners(mesh, color, sock, c0, c1);
 
@@ -1413,33 +1416,338 @@ solve_corner_locations(Mesh & mesh, GridFunction & color, socketstream & sock)
 
 void
 twist_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
-	      bool cw, int * c0, int * c1, int * c2)
+              bool cw, int * c0, int * c1, int * c2)
 {
-  if (c0 == NULL && c1 == NULL && c2 == NULL)
-  {
-    if (cw)
-    {
-        anim_move('x', 3, 1, mesh, color, sock);
-        anim_move('z', 1, 3, mesh, color, sock);
-        anim_move('x', 3, 3, mesh, color, sock);
-        anim_move('z', 1, 3, mesh, color, sock);
-        anim_move('x', 3, 1, mesh, color, sock);
-        anim_move('z', 1, 2, mesh, color, sock);
-        anim_move('x', 3, 3, mesh, color, sock);
-        anim_move('z', 1, 2, mesh, color, sock);
-    }
-    else
-    {
-        anim_move('y', 1, 1, mesh, color, sock);
-        anim_move('z', 1, 1, mesh, color, sock);
-        anim_move('y', 1, 3, mesh, color, sock);
-        anim_move('z', 1, 1, mesh, color, sock);
-        anim_move('y', 1, 1, mesh, color, sock);
-        anim_move('z', 1, 2, mesh, color, sock);
-        anim_move('y', 1, 3, mesh, color, sock);
-        anim_move('z', 1, 2, mesh, color, sock);
-    }
-  }
+   if (c0 != NULL)
+   {
+      // Locate corner corresponding to c0
+      int i0 = -1;
+      for (int i=0; i<8; i++)
+      {
+         if ((rubik.corn_[3 * i]     == c0[0] &&
+              rubik.corn_[3 * i + 1] == c0[1] &&
+              rubik.corn_[3 * i + 2] == c0[2]) ||
+             (rubik.corn_[3 * i]     == c0[1] &&
+              rubik.corn_[3 * i + 1] == c0[2] &&
+              rubik.corn_[3 * i + 2] == c0[0]) ||
+             (rubik.corn_[3 * i]     == c0[2] &&
+              rubik.corn_[3 * i + 1] == c0[0] &&
+              rubik.corn_[3 * i + 2] == c0[1]) ||
+             (rubik.corn_[3 * i]     == c0[2] &&
+              rubik.corn_[3 * i + 1] == c0[1] &&
+              rubik.corn_[3 * i + 2] == c0[0]) ||
+             (rubik.corn_[3 * i]     == c0[1] &&
+              rubik.corn_[3 * i + 1] == c0[0] &&
+              rubik.corn_[3 * i + 2] == c0[2]) ||
+             (rubik.corn_[3 * i]     == c0[0] &&
+              rubik.corn_[3 * i + 1] == c0[2] &&
+              rubik.corn_[3 * i + 2] == c0[1]))
+         {
+            i0 = i;
+            break;
+         }
+      }
+      cout << "Location of c0 = {"<<c0[0]<<","<<c0[1]<<","<<c0[2]<<"}: " << i0 <<
+           endl;
+
+      switch (i0)
+      {
+         case 0:
+            twist_corners(mesh, color, sock, cw, NULL, c1, c2);
+            break;
+         case 1:
+         case 2:
+         case 3:
+            anim_move('z', 1, i0, mesh, color, sock);
+            twist_corners(mesh, color, sock, cw, NULL, c1, c2);
+            anim_move('z', 1, 4-i0, mesh, color, sock);
+            break;
+         case 4:
+            anim_move('x', 1, 3, mesh, color, sock);
+            twist_corners(mesh, color, sock, cw, NULL, c1, c2);
+            anim_move('x', 1, 1, mesh, color, sock);
+            break;
+         case 5:
+            anim_move('y', 1, 2, mesh, color, sock);
+            twist_corners(mesh, color, sock, cw, NULL, c1, c2);
+            anim_move('y', 1, 2, mesh, color, sock);
+            break;
+         case 6:
+            anim_move('z', 3, 2, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            twist_corners(mesh, color, sock, cw, NULL, c1, c2);
+            anim_move('x', 1, 1, mesh, color, sock);
+            anim_move('z', 3, 2, mesh, color, sock);
+            break;
+         case 7:
+            anim_move('y', 1, 2, mesh, color, sock);
+            twist_corners(mesh, color, sock, cw, NULL, c1, c2);
+            anim_move('y', 1, 2, mesh, color, sock);
+            break;
+      }
+
+   }
+   else if (c1 != NULL)
+   {
+      // Locate corner piece corresponding to c1
+      int i1 = -1;
+      for (int i=1; i<8; i++)
+      {
+         if ((rubik.corn_[3 * i]     == c1[0] &&
+              rubik.corn_[3 * i + 1] == c1[1] &&
+              rubik.corn_[3 * i + 2] == c1[2]) ||
+             (rubik.corn_[3 * i]     == c1[1] &&
+              rubik.corn_[3 * i + 1] == c1[2] &&
+              rubik.corn_[3 * i + 2] == c1[0]) ||
+             (rubik.corn_[3 * i]     == c1[2] &&
+              rubik.corn_[3 * i + 1] == c1[0] &&
+              rubik.corn_[3 * i + 2] == c1[1]) ||
+             (rubik.corn_[3 * i]     == c1[2] &&
+              rubik.corn_[3 * i + 1] == c1[1] &&
+              rubik.corn_[3 * i + 2] == c1[0]) ||
+             (rubik.corn_[3 * i]     == c1[1] &&
+              rubik.corn_[3 * i + 1] == c1[0] &&
+              rubik.corn_[3 * i + 2] == c1[2]) ||
+             (rubik.corn_[3 * i]     == c1[0] &&
+              rubik.corn_[3 * i + 1] == c1[2] &&
+              rubik.corn_[3 * i + 2] == c1[1]))
+         {
+            i1 = i;
+            break;
+         }
+      }
+      cout << "Location of c1 = {"<<c1[0]<<","<<c1[1]<<","<<c1[2]<<"}: " << i1 <<
+           endl;
+
+      switch (i1)
+      {
+         case 1:
+            twist_corners(mesh, color, sock, cw, NULL, NULL, c2);
+            break;
+         case 2:
+            anim_move('x', 3, 1, mesh, color, sock);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, c2);
+            anim_move('x', 3, 3, mesh, color, sock);
+            break;
+         case 3:
+            anim_move('y', 1, 1, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, c2);
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            break;
+         case 4:
+            anim_move('z', 3, 3, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, c2);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('z', 3, 1, mesh, color, sock);
+            break;
+         case 5:
+            anim_move('x', 3, 3, mesh, color, sock);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, c2);
+            anim_move('x', 3, 1, mesh, color, sock);
+            break;
+         case 6:
+            anim_move('x', 3, 2, mesh, color, sock);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, c2);
+            anim_move('x', 3, 2, mesh, color, sock);
+            break;
+         case 7:
+            anim_move('z', 3, 2, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, c2);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('z', 3, 2, mesh, color, sock);
+            break;
+      }
+   }
+   else if (c2 != NULL)
+   {
+      // Locate corner piece corresponding to c2
+      int i2 = -1;
+      for (int i=2; i<8; i++)
+      {
+         if ((rubik.corn_[3 * i]     == c2[0] &&
+              rubik.corn_[3 * i + 1] == c2[1] &&
+              rubik.corn_[3 * i + 2] == c2[2]) ||
+             (rubik.corn_[3 * i]     == c2[1] &&
+              rubik.corn_[3 * i + 1] == c2[2] &&
+              rubik.corn_[3 * i + 2] == c2[0]) ||
+             (rubik.corn_[3 * i]     == c2[2] &&
+              rubik.corn_[3 * i + 1] == c2[0] &&
+              rubik.corn_[3 * i + 2] == c2[1]) ||
+             (rubik.corn_[3 * i]     == c2[2] &&
+              rubik.corn_[3 * i + 1] == c2[1] &&
+              rubik.corn_[3 * i + 2] == c2[0]) ||
+             (rubik.corn_[3 * i]     == c2[1] &&
+              rubik.corn_[3 * i + 1] == c2[0] &&
+              rubik.corn_[3 * i + 2] == c2[2]) ||
+             (rubik.corn_[3 * i]     == c2[0] &&
+              rubik.corn_[3 * i + 1] == c2[2] &&
+              rubik.corn_[3 * i + 2] == c2[1]))
+         {
+            i2 = i;
+            break;
+         }
+      }
+      cout << "Location of c2 = {"<<c2[0]<<","<<c2[1]<<","<<c2[2]<<"}: " << i2 <<
+           endl;
+
+      switch (i2)
+      {
+         case 2:
+            twist_corners(mesh, color, sock, cw, NULL, NULL, NULL);
+            break;
+         case 3:
+            anim_move('y', 3, 1, mesh, color, sock);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, NULL);
+            anim_move('y', 3, 3, mesh, color, sock);
+            break;
+         case 4:
+            anim_move('z', 3, 2, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, NULL);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('z', 3, 2, mesh, color, sock);
+            break;
+         case 5:
+            anim_move('z', 3, 3, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, NULL);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('z', 3, 1, mesh, color, sock);
+            break;
+         case 6:
+            anim_move('y', 3, 3, mesh, color, sock);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, NULL);
+            anim_move('y', 3, 1, mesh, color, sock);
+            break;
+         case 7:
+            anim_move('y', 3, 2, mesh, color, sock);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, NULL);
+            anim_move('y', 3, 2, mesh, color, sock);
+            break;
+      }
+   }
+   else
+   {
+      if (cw)
+      {
+         anim_move('x', 3, 1, mesh, color, sock);
+         anim_move('z', 1, 3, mesh, color, sock);
+         anim_move('x', 3, 3, mesh, color, sock);
+         anim_move('z', 1, 3, mesh, color, sock);
+         anim_move('x', 3, 1, mesh, color, sock);
+         anim_move('z', 1, 2, mesh, color, sock);
+         anim_move('x', 3, 3, mesh, color, sock);
+         anim_move('z', 1, 2, mesh, color, sock);
+      }
+      else
+      {
+         anim_move('y', 1, 1, mesh, color, sock);
+         anim_move('z', 1, 1, mesh, color, sock);
+         anim_move('y', 1, 3, mesh, color, sock);
+         anim_move('z', 1, 1, mesh, color, sock);
+         anim_move('y', 1, 1, mesh, color, sock);
+         anim_move('z', 1, 2, mesh, color, sock);
+         anim_move('y', 1, 3, mesh, color, sock);
+         anim_move('z', 1, 2, mesh, color, sock);
+      }
+   }
+}
+
+void
+solve_corner_orientations(Mesh & mesh, GridFunction & color,
+                          socketstream & sock)
+{
+   cout << "Entering solve_corner_orientations" << endl;
+   print_state(cout);
+
+   // Locate first incorrectly oriented corner
+   int i0 = -1;
+   bool cw = true;
+   for (int i=0; i<8; i++)
+   {
+      if (rubik.corn_[3 * i + 0] != corn_colors_[3 * i + 0])
+      {
+         i0 = i;
+         switch (i0)
+         {
+            case 0:
+            case 2:
+            case 5:
+            case 7:
+               cw = rubik.corn_[3 * i0 + 0] == corn_colors_[3 * i0 + 1];
+               break;
+            case 1:
+            case 3:
+            case 4:
+            case 6:
+               cw = rubik.corn_[3 * i0 + 0] == corn_colors_[3 * i0 + 2];
+               break;
+         }
+         break;
+      }
+   }
+   cout << "First incorrectly filled corner location: " << i0 << endl;
+
+   if (i0 < 0) { return; }
+
+   // Locate second incorrectly oriented corner
+   int i1 = -1;
+   for (int i=i0+1; i<8; i++)
+   {
+      if (rubik.corn_[3 * i + 0] != corn_colors_[3 * i0 + 0])
+      {
+         i1 = i;
+         break;
+      }
+   }
+   cout << "Second incorrectly filled corner location: " << i1 << endl;
+
+   // Locate third incorrectly oriented corner (if such exists)
+   int i2 = -1;
+   for (int i=i1+1; i<8; i++)
+   {
+      if (rubik.corn_[3 * i + 0] != corn_colors_[3 * i0 + 0])
+      {
+         i2 = i;
+         break;
+      }
+   }
+   if (i2 > 0)
+   {
+      cout << "Second incorrectly filled corner location: " << i1 << endl;
+   }
+   else
+   {
+      for (int i=0; i<8; i++)
+      {
+         if (i != i0 && i != i1)
+         {
+            i2 = i;
+            break;
+         }
+      }
+   }
+
+   int c0[3] = {rubik.corn_[3 * i0],
+                rubik.corn_[3 * i0 + 1],
+                rubik.corn_[3 * i0 + 2]
+               };
+   int c1[3] = {rubik.corn_[3 * i1],
+                rubik.corn_[3 * i1 + 1],
+                rubik.corn_[3 * i1 + 2]
+               };
+   int c2[3] = {rubik.corn_[3 * i2],
+                rubik.corn_[3 * i2 + 1],
+                rubik.corn_[3 * i2 + 2]
+               };
+
+   twist_corners(mesh, color, sock, cw, c0, c1, c2);
+
+   solve_corner_orientations(mesh, color, sock);
 }
 
 void
@@ -1707,40 +2015,240 @@ solve_edge_locations(Mesh & mesh, GridFunction & color, socketstream & sock)
 
 void
 flip_edges(Mesh & mesh, GridFunction & color, socketstream & sock,
-	   int n, int * e0, int * e1, int * e2, int * e3)
+           int n, int * e0, int * e1, int * e2, int * e3)
 {
-  if (n == 2)
-  {
-    if (e0 == NULL && e1 == NULL)
-    {
-      anim_move('x', 2, 3, mesh, color, sock);
-      anim_move('z', 1, 3, mesh, color, sock);
-      anim_move('x', 2, 1, mesh, color, sock);
-      anim_move('z', 1, 3, mesh, color, sock);
-      anim_move('x', 2, 3, mesh, color, sock);
-      anim_move('z', 1, 3, mesh, color, sock);
-      anim_move('x', 2, 1, mesh, color, sock);
-      anim_move('z', 1, 3, mesh, color, sock);
-      anim_move('x', 2, 3, mesh, color, sock);
-      anim_move('z', 1, 2, mesh, color, sock);
-      anim_move('x', 2, 1, mesh, color, sock);
-      anim_move('z', 1, 3, mesh, color, sock);
-      anim_move('x', 2, 3, mesh, color, sock);
-      anim_move('z', 1, 3, mesh, color, sock);
-      anim_move('x', 2, 1, mesh, color, sock);
-      anim_move('z', 1, 3, mesh, color, sock);
-      anim_move('x', 2, 3, mesh, color, sock);
-      anim_move('z', 1, 3, mesh, color, sock);
-      anim_move('x', 2, 1, mesh, color, sock);
-      anim_move('z', 1, 2, mesh, color, sock);
-    }
-  }
-  else if (n == 4)
-  {
-    if (e0 == NULL && e1 == NULL && e2 == NULL && e3 == NULL)
-    {
-    }
-  }
+   if (n == 2)
+   {
+      if (e0 != NULL)
+      {
+         // Locate first incorrectly oriented edge
+         int i0 = -1;
+         for (int i=0; i<12; i++)
+         {
+            if ((rubik.edge_[2 * i]     == e0[0] &&
+                 rubik.edge_[2 * i + 1] == e0[1]) ||
+                (rubik.edge_[2 * i]     == e0[1] &&
+                 rubik.edge_[2 * i + 1] == e0[0]))
+            {
+               i0 = i;
+               break;
+            }
+         }
+         cout << "Location of e0 = {"<<e0[0]<<","<<e0[1]<<"}: " << i0 << endl;
+
+         switch (i0)
+         {
+            case 0:
+               flip_edges(mesh, color, sock, 2, NULL, e1);
+               break;
+            case 1:
+            case 2:
+            case 3:
+               anim_move('z', 1, i0, mesh, color, sock);
+               flip_edges(mesh, color, sock, 2, NULL, e1);
+               anim_move('z', 1, 4-i0, mesh, color, sock);
+               break;
+            case 4:
+               anim_move('x', 2, 3, mesh, color, sock);
+               flip_edges(mesh, color, sock, 2, NULL, e1);
+               anim_move('x', 2, 1, mesh, color, sock);
+               break;
+            case 5:
+               anim_move('y', 2, 3, mesh, color, sock);
+               flip_edges(mesh, color, sock, 2, NULL, e1);
+               anim_move('y', 2, 1, mesh, color, sock);
+               break;
+            case 6:
+               anim_move('x', 2, 2, mesh, color, sock);
+               flip_edges(mesh, color, sock, 2, NULL, e1);
+               anim_move('x', 2, 2, mesh, color, sock);
+               break;
+            case 7:
+               anim_move('y', 2, 1, mesh, color, sock);
+               flip_edges(mesh, color, sock, 2, NULL, e1);
+               anim_move('y', 2, 3, mesh, color, sock);
+               break;
+            case 8:
+               anim_move('y', 1, 1, mesh, color, sock);
+               flip_edges(mesh, color, sock, 2, NULL, e1);
+               anim_move('y', 1, 3, mesh, color, sock);
+               break;
+            case 9:
+               anim_move('y', 1, 3, mesh, color, sock);
+               flip_edges(mesh, color, sock, 2, NULL, e1);
+               anim_move('y', 1, 1, mesh, color, sock);
+               break;
+            case 10:
+               anim_move('x', 3, 1, mesh, color, sock);
+               flip_edges(mesh, color, sock, 2, NULL, e1);
+               anim_move('x', 3, 3, mesh, color, sock);
+               break;
+            case 11:
+               anim_move('x', 1, 1, mesh, color, sock);
+               flip_edges(mesh, color, sock, 2, NULL, e1);
+               anim_move('x', 1, 3, mesh, color, sock);
+               break;
+         }
+      }
+      else if (e1 != NULL)
+      {
+         // Locate second incorrectly oriented edge
+         int i1 = -1;
+         for (int i=1; i<12; i++)
+         {
+            if ((rubik.edge_[2 * i] == e1[0] &&
+                 rubik.edge_[2 * i + 1] == e1[1]) ||
+                (rubik.edge_[2 * i] == e1[1] &&
+                 rubik.edge_[2 * i + 1] == e1[0]))
+            {
+               i1 = i;
+               break;
+            }
+         }
+         cout << "Location of e1: " << i1 << endl;
+
+         switch (i1)
+         {
+            case 2:
+               flip_edges(mesh, color, sock, 2, NULL, NULL);
+               break;
+            case 3:
+               anim_move('x', 1, 3, mesh, color, sock);
+               anim_move('y', 3, 1, mesh, color, sock);
+               flip_edges(mesh, color, sock, 2, NULL, NULL);
+               anim_move('y', 3, 3, mesh, color, sock);
+               anim_move('x', 1, 1, mesh, color, sock);
+               break;
+            case 4:
+            case 5:
+            case 6:
+            case 7:
+               anim_move('z', 3, (i1-2)%4, mesh, color, sock);
+               anim_move('y', 3, 2, mesh, color, sock);
+               flip_edges(mesh, color, sock, 2, NULL, NULL);
+               anim_move('y', 3, 2, mesh, color, sock);
+               anim_move('z', 3, (10-i1)%4, mesh, color, sock);
+               break;
+            case 8:
+            case 9:
+            case 10:
+            case 11:
+               anim_move('z', 2, (i1-6)%4, mesh, color, sock);
+               anim_move('y', 3, 3, mesh, color, sock);
+               flip_edges(mesh, color, sock, 2, NULL, NULL);
+               anim_move('y', 3, 1, mesh, color, sock);
+               anim_move('z', 2, (14-i1)%4, mesh, color, sock);
+               break;
+         }
+      }
+      else
+      {
+         anim_move('x', 2, 3, mesh, color, sock);
+         anim_move('z', 1, 3, mesh, color, sock);
+         anim_move('x', 2, 1, mesh, color, sock);
+         anim_move('z', 1, 3, mesh, color, sock);
+         anim_move('x', 2, 3, mesh, color, sock);
+         anim_move('z', 1, 3, mesh, color, sock);
+         anim_move('x', 2, 1, mesh, color, sock);
+         anim_move('z', 1, 3, mesh, color, sock);
+         anim_move('x', 2, 3, mesh, color, sock);
+         anim_move('z', 1, 2, mesh, color, sock);
+         anim_move('x', 2, 1, mesh, color, sock);
+         anim_move('z', 1, 3, mesh, color, sock);
+         anim_move('x', 2, 3, mesh, color, sock);
+         anim_move('z', 1, 3, mesh, color, sock);
+         anim_move('x', 2, 1, mesh, color, sock);
+         anim_move('z', 1, 3, mesh, color, sock);
+         anim_move('x', 2, 3, mesh, color, sock);
+         anim_move('z', 1, 3, mesh, color, sock);
+         anim_move('x', 2, 1, mesh, color, sock);
+         anim_move('z', 1, 2, mesh, color, sock);
+      }
+   }
+   else if (n == 4)
+   {
+      if (e0 == NULL && e1 == NULL && e2 == NULL && e3 == NULL)
+      {
+      }
+   }
+}
+
+void
+solve_edge_orientations(Mesh & mesh, GridFunction & color, socketstream & sock)
+{
+   cout << "Entering solve_edge_orientations" << endl;
+   print_state(cout);
+
+   // Locate first incorrectly oriented edge
+   int i0 = -1;
+   for (int i=0; i<12; i++)
+   {
+      if (rubik.edge_[2 * i] != edge_colors_[2 * i])
+      {
+         i0 = i;
+         break;
+      }
+   }
+   cout << "First incorrectly oriented edge location: " << i0 << endl;
+
+   if (i0 < 0) { return; }
+
+   // Locate second incorrectly oriented edge
+   int i1 = -1;
+   for (int i=i0+1; i<12; i++)
+   {
+      if (rubik.edge_[2 * i] != edge_colors_[2 * i])
+      {
+         i1 = i;
+         break;
+      }
+   }
+   cout << "Second incorrectly oriented edge location: " << i1 << endl;
+
+   // Locate third incorrectly oriented edge (if such exists)
+   int i2 = -1;
+   int i3 = -1;
+   for (int i=i1+1; i<12; i++)
+   {
+      if (rubik.edge_[2 * i] != edge_colors_[2 * i])
+      {
+         i2 = i;
+         break;
+      }
+   }
+   if (i2 > 0)
+   {
+      cout << "Third incorrectly oriented edge location: " << i2 << endl;
+
+      // Locate fourth incorrectly oriented edge (if such exists)
+      for (int i=i2+1; i<12; i++)
+      {
+         if (rubik.edge_[2 * i] != edge_colors_[2 * i])
+         {
+            i3 = i;
+            break;
+         }
+      }
+      cout << "Fourth incorrectly oriented edge location: " << i3 << endl;
+   }
+
+
+   int e0[2] = {rubik.edge_[2 * i0], rubik.edge_[2 * i0 + 1]};
+   int e1[2] = {rubik.edge_[2 * i1], rubik.edge_[2 * i1 + 1]};
+   int e2[2] = {rubik.edge_[2 * max(i2,0)], rubik.edge_[2 * max(i2,0) + 1]};
+   int e3[2] = {rubik.edge_[2 * max(i3,0)], rubik.edge_[2 * max(i3,0) + 1]};
+
+   if (i2 == -1)
+   {
+      flip_edges(mesh, color, sock, 2, e0, e1);
+   }
+   else
+   {
+      // flip_edges(mesh, color, sock, 4, e0, e1, e2, e3);
+      flip_edges(mesh, color, sock, 2, e2, e3);
+   }
+
+   solve_edge_orientations(mesh, color, sock);
 }
 
 void
@@ -1748,5 +2256,7 @@ solve(Mesh & mesh, GridFunction & color, socketstream & sock)
 {
    solve_centers(mesh, color, sock);
    solve_corner_locations(mesh, color, sock);
+   solve_corner_orientations(mesh, color, sock);
    solve_edge_locations(mesh, color, sock);
+   solve_edge_orientations(mesh, color, sock);
 }
