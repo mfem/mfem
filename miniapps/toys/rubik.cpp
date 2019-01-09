@@ -100,7 +100,8 @@ void swap_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
                   int * c0 = NULL, int * c1 = NULL);
 
 void twist_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
-                   bool cw, int * c0 = NULL, int * c1 = NULL, int * c2 = NULL);
+                   bool cw, int * c0 = NULL, int * c1 = NULL,
+                   int * c2 = NULL, int * c3 = NULL);
 
 void permute_edges(Mesh & mesh, GridFunction & color, socketstream & sock,
                    int * e0 = NULL, int * e1 = NULL, int * e2 = NULL);
@@ -1443,7 +1444,7 @@ solve_corner_locations(Mesh & mesh, GridFunction & color, socketstream & sock)
 
 void
 twist_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
-              bool cw, int * c0, int * c1, int * c2)
+              bool cw, int * c0, int * c1, int * c2, int * c3)
 {
    if (c0 != NULL)
    {
@@ -1483,36 +1484,36 @@ twist_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
       switch (i0)
       {
          case 0:
-            twist_corners(mesh, color, sock, cw, NULL, c1, c2);
+            twist_corners(mesh, color, sock, cw, NULL, c1, c2, c3);
             break;
          case 1:
          case 2:
          case 3:
             anim_move('z', 1, i0, mesh, color, sock);
-            twist_corners(mesh, color, sock, cw, NULL, c1, c2);
+            twist_corners(mesh, color, sock, cw, NULL, c1, c2, c3);
             anim_move('z', 1, 4-i0, mesh, color, sock);
             break;
          case 4:
             anim_move('x', 1, 3, mesh, color, sock);
-            twist_corners(mesh, color, sock, cw, NULL, c1, c2);
+            twist_corners(mesh, color, sock, cw, NULL, c1, c2, c3);
             anim_move('x', 1, 1, mesh, color, sock);
             break;
          case 5:
             anim_move('y', 1, 2, mesh, color, sock);
-            twist_corners(mesh, color, sock, cw, NULL, c1, c2);
+            twist_corners(mesh, color, sock, cw, NULL, c1, c2, c3);
             anim_move('y', 1, 2, mesh, color, sock);
             break;
          case 6:
             anim_move('z', 3, 2, mesh, color, sock);
             anim_move('x', 1, 3, mesh, color, sock);
-            twist_corners(mesh, color, sock, cw, NULL, c1, c2);
+            twist_corners(mesh, color, sock, cw, NULL, c1, c2, c3);
             anim_move('x', 1, 1, mesh, color, sock);
             anim_move('z', 3, 2, mesh, color, sock);
             break;
          case 7:
-            anim_move('y', 1, 2, mesh, color, sock);
-            twist_corners(mesh, color, sock, cw, NULL, c1, c2);
-            anim_move('y', 1, 2, mesh, color, sock);
+            anim_move('x', 1, 2, mesh, color, sock);
+            twist_corners(mesh, color, sock, cw, NULL, c1, c2, c3);
+            anim_move('x', 1, 2, mesh, color, sock);
             break;
       }
 
@@ -1552,47 +1553,95 @@ twist_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
               << i1 << endl;
       }
 
+      if (c2 != NULL)
+      {
       switch (i1)
       {
          case 1:
-            twist_corners(mesh, color, sock, cw, NULL, NULL, c2);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, c2, c3);
             break;
          case 2:
             anim_move('x', 3, 1, mesh, color, sock);
-            twist_corners(mesh, color, sock, cw, NULL, NULL, c2);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, c2, c3);
             anim_move('x', 3, 3, mesh, color, sock);
             break;
          case 3:
-            anim_move('y', 1, 1, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
             anim_move('x', 3, 1, mesh, color, sock);
-            twist_corners(mesh, color, sock, cw, NULL, NULL, c2);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, c2, c3);
             anim_move('x', 3, 3, mesh, color, sock);
-            anim_move('y', 1, 3, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
             break;
          case 4:
             anim_move('z', 3, 3, mesh, color, sock);
             anim_move('x', 3, 3, mesh, color, sock);
-            twist_corners(mesh, color, sock, cw, NULL, NULL, c2);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, c2, c3);
             anim_move('x', 3, 1, mesh, color, sock);
             anim_move('z', 3, 1, mesh, color, sock);
             break;
          case 5:
             anim_move('x', 3, 3, mesh, color, sock);
-            twist_corners(mesh, color, sock, cw, NULL, NULL, c2);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, c2, c3);
             anim_move('x', 3, 1, mesh, color, sock);
             break;
          case 6:
             anim_move('x', 3, 2, mesh, color, sock);
-            twist_corners(mesh, color, sock, cw, NULL, NULL, c2);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, c2, c3);
             anim_move('x', 3, 2, mesh, color, sock);
             break;
          case 7:
             anim_move('z', 3, 2, mesh, color, sock);
             anim_move('x', 3, 3, mesh, color, sock);
-            twist_corners(mesh, color, sock, cw, NULL, NULL, c2);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, c2, c3);
             anim_move('x', 3, 1, mesh, color, sock);
             anim_move('z', 3, 2, mesh, color, sock);
             break;
+      }
+      }
+      else
+      {
+      switch (i1)
+      {
+         case 3:
+            twist_corners(mesh, color, sock, cw, NULL, NULL, c2, c3);
+            break;
+         case 2:
+            anim_move('y', 3, 3, mesh, color, sock);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, c2, c3);
+            anim_move('y', 3, 1, mesh, color, sock);
+            break;
+         case 1:
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, c2, c3);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            break;
+         case 4:
+            anim_move('z', 3, 1, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, c2, c3);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('z', 3, 3, mesh, color, sock);
+            break;
+         case 5:
+            anim_move('z', 3, 2, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, c2, c3);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('z', 3, 2, mesh, color, sock);
+            break;
+         case 6:
+            anim_move('y', 3, 2, mesh, color, sock);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, c2, c3);
+            anim_move('y', 3, 2, mesh, color, sock);
+            break;
+         case 7:
+            anim_move('y', 3, 1, mesh, color, sock);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, c2, c3);
+            anim_move('y', 3, 3, mesh, color, sock);
+            break;
+      }
       }
    }
    else if (c2 != NULL)
@@ -1633,36 +1682,92 @@ twist_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
       switch (i2)
       {
          case 2:
-            twist_corners(mesh, color, sock, cw, NULL, NULL, NULL);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, NULL, c3);
             break;
          case 3:
             anim_move('y', 3, 1, mesh, color, sock);
-            twist_corners(mesh, color, sock, cw, NULL, NULL, NULL);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, NULL, c3);
             anim_move('y', 3, 3, mesh, color, sock);
             break;
          case 4:
             anim_move('z', 3, 2, mesh, color, sock);
             anim_move('y', 3, 3, mesh, color, sock);
-            twist_corners(mesh, color, sock, cw, NULL, NULL, NULL);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, NULL, c3);
             anim_move('y', 3, 1, mesh, color, sock);
             anim_move('z', 3, 2, mesh, color, sock);
             break;
          case 5:
             anim_move('z', 3, 3, mesh, color, sock);
             anim_move('y', 3, 3, mesh, color, sock);
-            twist_corners(mesh, color, sock, cw, NULL, NULL, NULL);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, NULL, c3);
             anim_move('y', 3, 1, mesh, color, sock);
             anim_move('z', 3, 1, mesh, color, sock);
             break;
          case 6:
             anim_move('y', 3, 3, mesh, color, sock);
-            twist_corners(mesh, color, sock, cw, NULL, NULL, NULL);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, NULL, c3);
             anim_move('y', 3, 1, mesh, color, sock);
             break;
          case 7:
             anim_move('y', 3, 2, mesh, color, sock);
-            twist_corners(mesh, color, sock, cw, NULL, NULL, NULL);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, NULL, c3);
             anim_move('y', 3, 2, mesh, color, sock);
+            break;
+      }
+   }
+   else if (c3 != NULL)
+   {
+      // Locate corner piece corresponding to c3
+      int i3 = -1;
+      for (int i=3; i<8; i++)
+      {
+         if ((rubik.corn_[3 * i]     == c3[0] &&
+              rubik.corn_[3 * i + 1] == c3[1] &&
+              rubik.corn_[3 * i + 2] == c3[2]) ||
+             (rubik.corn_[3 * i]     == c3[1] &&
+              rubik.corn_[3 * i + 1] == c3[2] &&
+              rubik.corn_[3 * i + 2] == c3[0]) ||
+             (rubik.corn_[3 * i]     == c3[2] &&
+              rubik.corn_[3 * i + 1] == c3[0] &&
+              rubik.corn_[3 * i + 2] == c3[1]) ||
+             (rubik.corn_[3 * i]     == c3[2] &&
+              rubik.corn_[3 * i + 1] == c3[1] &&
+              rubik.corn_[3 * i + 2] == c3[0]) ||
+             (rubik.corn_[3 * i]     == c3[1] &&
+              rubik.corn_[3 * i + 1] == c3[0] &&
+              rubik.corn_[3 * i + 2] == c3[2]) ||
+             (rubik.corn_[3 * i]     == c3[0] &&
+              rubik.corn_[3 * i + 1] == c3[2] &&
+              rubik.corn_[3 * i + 2] == c3[1]))
+         {
+            i3 = i;
+            break;
+         }
+      }
+      if (logging_ > 1)
+      {
+         cout << "Location of c3 = {"<<c3[0]<<","<<c3[1]<<","<<c3[2]<<"}: "
+              << i3 << endl;
+      }
+
+      switch (i3)
+      {
+         case 3:
+            twist_corners(mesh, color, sock, cw, NULL, NULL, NULL, NULL);
+            break;
+         case 4:
+         case 5:
+         case 6:
+         case 7:
+            anim_move('z', 3, i3%4, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('z', 3, 1, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            twist_corners(mesh, color, sock, cw, NULL, NULL, NULL, NULL);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('z', 3, 3, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('z', 3, (8-i3)%4, mesh, color, sock);
             break;
       }
    }
@@ -1670,7 +1775,11 @@ twist_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
    {
       if (cw)
       {
-         anim_move('x', 3, 1, mesh, color, sock);
+	if (logging_ > 1)
+	  {
+	    cout << "twist_corners performing clockwise twist" << endl;
+	  }
+	 anim_move('x', 3, 1, mesh, color, sock);
          anim_move('z', 1, 3, mesh, color, sock);
          anim_move('x', 3, 3, mesh, color, sock);
          anim_move('z', 1, 3, mesh, color, sock);
@@ -1681,6 +1790,10 @@ twist_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
       }
       else
       {
+	if (logging_ > 1)
+	  {
+	    cout << "twist_corners performing counter-clockwise twist" << endl;
+	  }
          anim_move('y', 1, 1, mesh, color, sock);
          anim_move('z', 1, 1, mesh, color, sock);
          anim_move('y', 1, 3, mesh, color, sock);
@@ -1732,12 +1845,13 @@ solve_corner_orientations(Mesh & mesh, GridFunction & color,
          break;
       }
    }
+
+   if (i0 < 0) { return; }
+
    if (logging_ > 1)
    {
       cout << "First incorrectly oriented corner: " << i0 << endl;
    }
-
-   if (i0 < 0) { return; }
 
    // Locate second incorrectly oriented corner
    int i1 = -1;
@@ -1756,7 +1870,7 @@ solve_corner_orientations(Mesh & mesh, GridFunction & color,
 
    // Locate third incorrectly oriented corner (if such exists)
    int i2 = -1;
-   int i3 = -1;
+   // int i3 = -1;
    for (int i=i1+1; i<8; i++)
    {
       if (rubik.corn_[3 * i + 0] != corn_colors_[3 * i0 + 0])
@@ -1772,6 +1886,7 @@ solve_corner_orientations(Mesh & mesh, GridFunction & color,
          cout << "Third incorrectly oriented corner: " << i2 << endl;
       }
    }
+   /*
    else
    {
       for (int i=0; i<8; i++)
@@ -1791,21 +1906,48 @@ solve_corner_orientations(Mesh & mesh, GridFunction & color,
          }
       }
    }
+   */
+   if (i2 > 0)
+   {
+      // Three incorrectly oriented corners were found
+      int c0[3] = {rubik.corn_[3 * i0],
+                   rubik.corn_[3 * i0 + 1],
+                   rubik.corn_[3 * i0 + 2]
+                  };
+      int c1[3] = {rubik.corn_[3 * i1],
+                   rubik.corn_[3 * i1 + 1],
+                   rubik.corn_[3 * i1 + 2]
+                  };
+      int c2[3] = {rubik.corn_[3 * i2],
+                   rubik.corn_[3 * i2 + 1],
+                   rubik.corn_[3 * i2 + 2]
+                  };
 
-   int c0[3] = {rubik.corn_[3 * i0],
-                rubik.corn_[3 * i0 + 1],
-                rubik.corn_[3 * i0 + 2]
-               };
-   int c1[3] = {rubik.corn_[3 * i1],
-                rubik.corn_[3 * i1 + 1],
-                rubik.corn_[3 * i1 + 2]
-               };
-   int c2[3] = {rubik.corn_[3 * i2],
-                rubik.corn_[3 * i2 + 1],
-                rubik.corn_[3 * i2 + 2]
-               };
-
-   twist_corners(mesh, color, sock, cw, c0, c1, c2);
+      twist_corners(mesh, color, sock, cw, c0, c1, c2);
+   }
+   else
+   {
+      // Two incorrectly oriented corners were found
+      int c0[3] = {rubik.corn_[3 * i0],
+                   rubik.corn_[3 * i0 + 1],
+                   rubik.corn_[3 * i0 + 2]
+                  };
+      int c1[3] = {rubik.corn_[3 * i1],
+                   rubik.corn_[3 * i1 + 1],
+                   rubik.corn_[3 * i1 + 2]
+                  };
+      /*
+      int c2[3] = {rubik.corn_[3 * i2],
+                   rubik.corn_[3 * i2 + 1],
+                   rubik.corn_[3 * i2 + 2]
+                  };
+      int c3[3] = {rubik.corn_[3 * i3],
+                   rubik.corn_[3 * i3 + 1],
+                   rubik.corn_[3 * i3 + 2]
+                  };
+      */
+      twist_corners(mesh, color, sock, cw, c0, c1);
+   }
 
    solve_corner_orientations(mesh, color, sock);
 }
@@ -2609,7 +2751,6 @@ solve_edge_orientations(Mesh & mesh, GridFunction & color, socketstream & sock)
    else
    {
       flip_edges(mesh, color, sock, 4, e0, e1, e2, e3);
-      // flip_edges(mesh, color, sock, 2, e2, e3);
    }
 
    solve_edge_orientations(mesh, color, sock);
