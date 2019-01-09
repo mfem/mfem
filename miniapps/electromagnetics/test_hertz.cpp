@@ -82,6 +82,7 @@
 #include <fstream>
 #include <iostream>
 #include <cmath>
+#include <complex>
 
 using namespace std;
 using namespace mfem;
@@ -794,50 +795,41 @@ void real_and_imag_epsilon(double omega, const Vector &B,
                                    2)*ni2*log(debye_length/b90_2))/(4*M_PI*pow(epsilon0_, 2)*sqrt(me)*pow(Te,
                                                                     3.0/2.0));
 
-   complex<double> me_eff = (1.0 + nu_ei1 / 1i/omega + nu_ei2/1i/omega)*me;
-   complex<double> mi1_eff = (1.0 + nu_ei1 / 1i/omega + nu_ei2/1i/omega)*mi1;
-   complex<double> mi2_eff = (1.0 + nu_ei1 / 1i/omega + nu_ei2/1i/omega)*mi2;
+   double wpe = (ne * pow(qe, 2))/(me*epsilon0_); // Squared plasma frequency
+   double wpi1 = (ne * pow(qe, 2))/(mi1*epsilon0_); // Squared plasma frequency
+   double wpi2 = (ne * pow(qe, 2))/(mi2*epsilon0_); // Squared plasma frequency
+   double wce = qe*Bnorm/me, wci1 = qi1 * Bnorm/mi1, wci2 = qi2 * Bnorm/mi2;
 
-   complex<double> wpe = (ne * pow(qe,
-                                   2))/(me_eff*epsilon0_); // Squared plasma frequency
-   complex<double> wpi1 = (ne * pow(qe,
-                                    2))/(mi1_eff*epsilon0_); // Squared plasma frequency
-   complex<double> wpi2 = (ne * pow(qe,
-                                    2))/(mi2_eff*epsilon0_); // Squared plasma frequency
-   complex<double> wce = qe * Bnorm/me_eff, wci1 = qi1 * Bnorm/mi1_eff,
-                   wci2 = qi2 * Bnorm/mi2_eff;
+   double S = (1.0 - wpe/(pow(omega, 2) - pow(wce, 2)) - wpi1/(pow(omega,
+                                                                   2)-pow(wci1, 2)) - wpi2/(pow(omega, 2) - pow(wci2, 2)));
+   double P = (1.0 - wpe/pow(omega, 2) - wpi1/pow(omega, 2) - wpi2/pow(omega, 2));
+   double D = (wce*wpe/(omega*(pow(omega, 2) - pow(wce,
+                                                   2))) + wci1*wpi1/(omega*(pow(omega, 2) - pow(wci1,
+                                                                            2))) + wci2*wpi2/(omega*(pow(omega, 2) - pow(wci2, 2))));
 
-   complex<double> S = (1.0 - wpe/(pow(omega, 2) - pow(wce, 2)) - wpi1/(pow(omega,
-                                                                            2)-pow(wci1, 2)) - wpi2/(pow(omega, 2) - pow(wci2, 2)));
-   complex<double> P = (1.0 - wpe/pow(omega, 2) - wpi1/pow(omega,
-                                                           2) - wpi2/pow(omega, 2));
-   complex<double> D = (wce*wpe/(omega*(pow(omega, 2) - pow(wce,
-                                                            2))) + wci1*wpi1/(omega*(pow(omega, 2) - pow(wci1,
-                                                                              2))) + wci2*wpi2/(omega*(pow(omega, 2) - pow(wci2, 2))));
-
-   complex<double> e_xx = (-P*pow(sin(ph), 2)*pow(sin(th), 2) + P*pow(sin(ph),
-                                                                      2) + S*pow(sin(ph), 2)*pow(sin(th), 2) - S*pow(sin(ph), 2) + S);
-   complex<double> e_xy = (1i*D*sin(th) + P*cos(ph)*cos(th) - S*cos(ph)*cos(
+   double e_xx = (-P * pow(sin(ph), 2)*pow(sin(th), 2) + P*pow(sin(ph),
+                                                               2) + S*pow(sin(ph), 2)*pow(sin(th), 2) - S*pow(sin(ph), 2) + S);
+   complex<double> e_xy = (1.0i*D*sin(th) + P*cos(ph)*cos(th) - S*cos(ph)*cos(
                               th))*sin(ph);
-   complex<double> e_xz = -1i*D*cos(ph) + P*pow(sin(ph),
-                                                2)*sin(th)*cos(th) - S*pow(sin(ph), 2)*sin(th)*cos(th);
+   complex<double> e_xz = -1.0i*D*cos(ph) + P*pow(sin(ph),
+                                                  2)*sin(th)*cos(th) - S*pow(sin(ph), 2)*sin(th)*cos(th);
 
-   complex<double> e_yx = -(1i*D*sin(th) - P*cos(ph)*cos(th)+S*cos(ph)*cos(
+   complex<double> e_yx = -(1.0i*D*sin(th) - P*cos(ph)*cos(th)+S*cos(ph)*cos(
                                th))*sin(ph);
    double e_yy = P*pow(cos(ph), 2)+S*pow(sin(ph), 2);
    complex<double> e_yz = (1i*D*cos(th)+P*sin(th)*cos(ph)-S*sin(th)*cos(ph))*sin(
                              ph);
 
-   complex<double> e_zx = 1i*D*cos(ph) + P*pow(sin(ph),
-                                               2)*sin(th)*cos(th) - S*pow(sin(ph), 2)*sin(th)*cos(th);
-   complex<double> e_zy = -(1i*D*cos(th) - P*sin(th)*cos(ph)+S*sin(th)*cos(
+   complex<double> e_zx = 1.0i*D*cos(ph) + P*pow(sin(ph),
+                                                 2)*sin(th)*cos(th) - S*pow(sin(ph), 2)*sin(th)*cos(th);
+   complex<double> e_zy = -(1.0i*D*cos(th) - P*sin(th)*cos(ph)+S*sin(th)*cos(
                                ph))*sin(ph);
    double e_zz = P*pow(sin(ph), 2)*pow(sin(th), 2) - S*pow(sin(ph), 2)*pow(sin(th),
                                                                            2) + S;
 
    if (real_epsilon != NULL)
    {
-      real_epsilon[0] = e_xx.real();
+      real_epsilon[0] = e_xx;
       real_epsilon[1] = e_yx.real();
       real_epsilon[2] = e_zx.real();
       real_epsilon[3] = e_xy.real();
@@ -850,8 +842,8 @@ void real_and_imag_epsilon(double omega, const Vector &B,
 
    if (imag_epsilon != NULL)
    {
-      imag_epsilon[0] = e_xx.imag();
-      imag_epsilon[1] =  e_yx.imag();
+      imag_epsilon[0] = 0.0;
+      imag_epsilon[1] = e_yx.imag();
       imag_epsilon[2] = e_zx.imag();
       imag_epsilon[3] = e_xy.imag();
       imag_epsilon[4] = 0.0;
