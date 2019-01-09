@@ -81,10 +81,16 @@
 #include "test_hertz_solver.hpp"
 #include <fstream>
 #include <iostream>
+#include <cmath>
 
 using namespace std;
 using namespace mfem;
 using namespace mfem::electromagnetics;
+
+// Physical Constants
+static double qe = 1.60217662e-19;
+static double u = 1.660539040e-27;
+static double me = 9.10938356e-31;
 
 // Permittivity Functions
 Coefficient * SetupPermittivityCoefficient();
@@ -327,8 +333,11 @@ int main(int argc, char *argv[])
    Vector BVec(3);
    BVec = 0.0; BVec(0) = 0.1;
    VectorConstantCoefficient BCoef(BVec);
-   ConstantCoefficient rhoCoef(1.0);
-   ConstantCoefficient tempCoef(1.0);
+   ConstantCoefficient rhoCoef1(1e19);
+   double ion_frac = 0.0;
+   ConstantCoefficient rhoCoef2(rhoCoef1.constant*ion_frac);
+   ConstantCoefficient rhoCoef3(rhoCoef1.constant*(1-ion_frac));
+   ConstantCoefficient tempCoef(10.0*qe);
 
    H1_ParFESpace H1FESpace(&pmesh, order, pmesh.Dimension());
    RT_ParFESpace HDivFESpace(&pmesh, order, pmesh.Dimension());
@@ -359,16 +368,20 @@ int main(int argc, char *argv[])
 
    for (int i=0; i<=nspecies; i++)
    {
-      density_gf.MakeRef(&L2FESpace, density.GetBlock(i));
       temperature_gf.MakeRef(&H1FESpace, temperature.GetBlock(i));
-
-      density_gf.ProjectCoefficient(rhoCoef);
       temperature_gf.ProjectCoefficient(tempCoef);
    }
+   density_gf.MakeRef(&L2FESpace, density.GetBlock(0));
+   density_gf.ProjectCoefficient(rhoCoef1);
 
+   density_gf.MakeRef(&L2FESpace, density.GetBlock(1));
+   density_gf.ProjectCoefficient(rhoCoef2);
 
-   //TField  = 1.0;
-   // density = 1.0;
+   density_gf.MakeRef(&L2FESpace, density.GetBlock(2));
+   density_gf.ProjectCoefficient(rhoCoef3);
+
+   //TField  = 10.0*q (10 eV);
+   // density = dependent on electron density;
 
    // Create a coefficient describing the dielectric permittivity
    // Coefficient * epsCoef = SetupPermittivityCoefficient();
@@ -753,6 +766,102 @@ void e_bc_i(const Vector &x, Vector &E)
    E = 0.0;
 }
 
+void real_and_imag_epsilon(double omega, const Vector &B,
+                           const Vector &density_vals_, const Vector &temperature_vals_,
+                           double *real_epsilon, double *imag_epsilon)
+{
+   double Bnorm = B.Norml2();
+   double phi = 0.0;
+   double MData[9] = {cos(phi), 0, -sin(phi), 0.0, 1.0, 0.0, sin(phi), 0, cos(phi)};
+   DenseMatrix M(MData, 3, 3);
+   Vector Blocal(3);
+   M.Mult(B, Blocal);
+   double th = atan2(B(2), B(0)), ph = atan2(B(0)*cos(th)+B(2)*sin(th), -B(1));
+   double Z1 = 1.0, Z2 = 18.0;
+   double qi1 = Z1*qe, qi2 = Z2*qe;
+   double mi1 = 2.01410178*u, mi2 = 39.948*u;
+   double ne = density_vals_[0], ni1 = density_vals_[1], ni2 = density_vals_[2];
+   double Te = temperature_vals_[0], Ti = temperature_vals_[1],
+          Ti2 = temperature_vals_[2];
+   double vTe = sqrt(2*Te/me), vTi = sqrt(2*Ti/mi1);
+   double debye_length = sqrt((epsilon0_*Te)/(ne*pow(qe, 2)));
+   double b90_1 = (qe*qi1)/(4*M_PI*epsilon0_*me*pow(vTe, 2)),
+          b90_2 = (qe*qi2)/(4*M_PI*epsilon0_*me*pow(vTe, 2));
+   double nu_ei1 = (pow(qe, 2)*pow(qi1,
+                                   2)*ni1*log(debye_length/b90_1))/(4*M_PI*pow(epsilon0_, 2)*sqrt(me)*pow(Te,
+                                                                    3.0/2.0));
+   double nu_ei2 = (pow(qe, 2)*pow(qi2,
+                                   2)*ni2*log(debye_length/b90_2))/(4*M_PI*pow(epsilon0_, 2)*sqrt(me)*pow(Te,
+                                                                    3.0/2.0));
+
+   complex<double> me_eff = (1.0 + nu_ei1 / 1i/omega + nu_ei2/1i/omega)*me;
+   complex<double> mi1_eff = (1.0 + nu_ei1 / 1i/omega + nu_ei2/1i/omega)*mi1;
+   complex<double> mi2_eff = (1.0 + nu_ei1 / 1i/omega + nu_ei2/1i/omega)*mi2;
+
+   complex<double> wpe = (ne * pow(qe,
+                                   2))/(me_eff*epsilon0_); // Squared plasma frequency
+   complex<double> wpi1 = (ne * pow(qe,
+                                    2))/(mi1_eff*epsilon0_); // Squared plasma frequency
+   complex<double> wpi2 = (ne * pow(qe,
+                                    2))/(mi2_eff*epsilon0_); // Squared plasma frequency
+   complex<double> wce = qe * Bnorm/me_eff, wci1 = qi1 * Bnorm/mi1_eff,
+                   wci2 = qi2 * Bnorm/mi2_eff;
+
+   complex<double> S = (1.0 - wpe/(pow(omega, 2) - pow(wce, 2)) - wpi1/(pow(omega,
+                                                                            2)-pow(wci1, 2)) - wpi2/(pow(omega, 2) - pow(wci2, 2)));
+   complex<double> P = (1.0 - wpe/pow(omega, 2) - wpi1/pow(omega,
+                                                           2) - wpi2/pow(omega, 2));
+   complex<double> D = (wce*wpe/(omega*(pow(omega, 2) - pow(wce,
+                                                            2))) + wci1*wpi1/(omega*(pow(omega, 2) - pow(wci1,
+                                                                              2))) + wci2*wpi2/(omega*(pow(omega, 2) - pow(wci2, 2))));
+
+   complex<double> e_xx = (-P*pow(sin(ph), 2)*pow(sin(th), 2) + P*pow(sin(ph),
+                                                                      2) + S*pow(sin(ph), 2)*pow(sin(th), 2) - S*pow(sin(ph), 2) + S);
+   complex<double> e_xy = (1i*D*sin(th) + P*cos(ph)*cos(th) - S*cos(ph)*cos(
+                              th))*sin(ph);
+   complex<double> e_xz = -1i*D*cos(ph) + P*pow(sin(ph),
+                                                2)*sin(th)*cos(th) - S*pow(sin(ph), 2)*sin(th)*cos(th);
+
+   complex<double> e_yx = -(1i*D*sin(th) - P*cos(ph)*cos(th)+S*cos(ph)*cos(
+                               th))*sin(ph);
+   double e_yy = P*pow(cos(ph), 2)+S*pow(sin(ph), 2);
+   complex<double> e_yz = (1i*D*cos(th)+P*sin(th)*cos(ph)-S*sin(th)*cos(ph))*sin(
+                             ph);
+
+   complex<double> e_zx = 1i*D*cos(ph) + P*pow(sin(ph),
+                                               2)*sin(th)*cos(th) - S*pow(sin(ph), 2)*sin(th)*cos(th);
+   complex<double> e_zy = -(1i*D*cos(th) - P*sin(th)*cos(ph)+S*sin(th)*cos(
+                               ph))*sin(ph);
+   double e_zz = P*pow(sin(ph), 2)*pow(sin(th), 2) - S*pow(sin(ph), 2)*pow(sin(th),
+                                                                           2) + S;
+
+   if (real_epsilon != NULL)
+   {
+      real_epsilon[0] = e_xx.real();
+      real_epsilon[1] = e_yx.real();
+      real_epsilon[2] = e_zx.real();
+      real_epsilon[3] = e_xy.real();
+      real_epsilon[4] = e_yy;
+      real_epsilon[5] = e_zy.real();
+      real_epsilon[6] = e_xz.real();
+      real_epsilon[7] = e_yz.real();
+      real_epsilon[8] = e_zz;
+   }
+
+   if (imag_epsilon != NULL)
+   {
+      imag_epsilon[0] = e_xx.imag();
+      imag_epsilon[1] =  e_yx.imag();
+      imag_epsilon[2] = e_zx.imag();
+      imag_epsilon[3] = e_xy.imag();
+      imag_epsilon[4] = 0.0;
+      imag_epsilon[5] = e_zy.imag();
+      imag_epsilon[6] = e_xz.imag();
+      imag_epsilon[7] = e_yz.imag();
+      imag_epsilon[8] = 0.0;
+   }
+}
+
 DielectricTensor::DielectricTensor(ParGridFunction & B,
                                    BlockVector & temperature,
                                    BlockVector & density,
@@ -790,5 +899,9 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
       density_vals_[i]     = density_gf_.GetValue(T.ElementNo, ip);
       temperature_vals_[i] = temperature_gf_.GetValue(T.ElementNo, ip);
    }
+
+   // Populate the dielectric tensor
+   real_and_imag_epsilon(omega_, B, density_vals_, temperature_vals_,
+                         epsilon.Data(), NULL);
 }
 
