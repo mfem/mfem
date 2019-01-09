@@ -7088,8 +7088,8 @@ void Mesh::EnsureNCMesh(bool triangles_nonconforming)
           (meshgen & 0x4) /* wedges */ ||
           (triangles_nonconforming && Dim == 2 && (meshgen & 0x1)))
       {
-         MFEM_VERIFY(GetNumGeometries(Dim) <= 1,
-                     "mixed meshes are not supported");
+         /*MFEM_VERIFY(GetNumGeometries(Dim) <= 1,
+                     "mixed meshes are not supported");*/
          ncmesh = new NCMesh(this);
          ncmesh->OnMeshUpdated(this);
          GenerateNCFaceInfo();
@@ -7509,12 +7509,7 @@ void Mesh::UniformRefinement(int i, const DSTable &v_to_v,
 void Mesh::InitRefinementTransforms()
 {
    // initialize CoarseFineTr
-   map<Geometry::Type,DenseTensor> &pms = CoarseFineTr.point_matrices;
-   map<Geometry::Type,DenseTensor>::iterator pms_iter;
-   for (pms_iter = pms.begin(); pms_iter != pms.end(); ++pms_iter)
-   {
-      pms_iter->second.SetSize(0, 0, 0);
-   }
+   CoarseFineTr.Clear();
    CoarseFineTr.embeddings.SetSize(NumOfElements);
    for (int i = 0; i < NumOfElements; i++)
    {
