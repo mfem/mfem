@@ -161,14 +161,11 @@ __kernel void kVectorSubtract(double *zp, const double *xp, const double *yp,
 }
 
 // *****************************************************************************
-/*__kernel*/ void kVectorAlphaAdd(double *vp, const double* v1p,
-                                  const double alpha, const double *v2p,
-                                  const size_t N)
+__kernel void kVectorAlphaAdd(double *vp, const double* v1p,
+                              const double alpha, const double *v2p,
+                              const size_t N)
 {
-   GET_ADRS(vp);
-   GET_CONST_ADRS(v1p);
-   GET_CONST_ADRS(v2p);
-   MFEM_FORALL(i, N, d_vp[i] = d_v1p[i] + alpha * d_v2p[i];);
+   MFEM_FORALL(i, N, vp[i] = v1p[i] + alpha * v2p[i];);
 }
 
 // *****************************************************************************

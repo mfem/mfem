@@ -314,7 +314,6 @@ __kernel void kCalcInverse2D(const double t, const double *a, double *inva)
 __kernel void kCalcInverse3D(const double t, const double *a, double *inva)
 {
    //MFEM_GPU_CANNOT_PASS;
-
    inva[0+3*0] = (a[1+3*1]*a[2+3*2]-a[1+3*2]*a[2+3*1])*t;
    inva[0+3*1] = (a[0+3*2]*a[2+3*1]-a[0+3*1]*a[2+3*2])*t;
    inva[0+3*2] = (a[0+3*1]*a[1+3*2]-a[0+3*2]*a[1+3*1])*t;

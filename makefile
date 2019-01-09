@@ -337,7 +337,8 @@ OBJECT_KERNS = $(patsubst $(SRC)%,$(BLD)%,$(CODEGN_KERNS:.kpp=.o))
 lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 
 mpp: $(BLD)general/mpp.cpp $(BLD)general/okrtc.hpp
-	$(CXX) -o $(BLD)$(@) $(<) 
+	$(CXX) -o $(BLD)$(@) $(<) -DMFEM_SRC=$(SRC) -DMFEM_CXX=$(MFEM_CXX) \
+					              -DMFEM_BUILD_FLAGS=$(MFEM_BUILD_FLAGS)
 
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
@@ -381,7 +382,7 @@ $(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER) $(OBJECT_KERNS)
 # library may fail. In such cases, one may set EXT_LIBS on the command line.
 EXT_LIBS = $(MFEM_EXT_LIBS)
 $(BLD)libmfem.$(SO_VER): $(OBJECT_FILES) $(OBJECT_KERNS)
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(BUILD_SOFLAGS) $(OBJECT_FILES)
+#	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(BUILD_SOFLAGS) $(OBJECT_FILES)
 	g++ $(BUILD_SOFLAGS) $(OBJECT_FILES) $(OBJECT_KERNS) \
 	   $(EXT_LIBS) -o $(@) -ldl
 

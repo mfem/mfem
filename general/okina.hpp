@@ -72,10 +72,6 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 #define GET_CONST_ADRS(v) const double *d_##v = (const double*) mfem::mm::adrs(v)
 #define GET_CONST_ADRS_T(v,T) const T *d_##v = (const T*) mfem::mm::adrs(v)
 
-#define GET_CONST_T_(v,T) const T v = _##v
-#define GET_ADRS_T_(v,T) T *v = (T*) mfem::mm::adrs(_##v)
-#define GET_CONST_ADRS_T_(v,T) const T *v = (const T*) mfem::mm::adrs(_##v)
-
 // *****************************************************************************
 #define BUILTIN_TRAP __builtin_trap()
 #define FILE_LINE __FILE__ && __LINE__

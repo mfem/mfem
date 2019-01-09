@@ -23,6 +23,7 @@ struct argument {
 
 // *****************************************************************************
 struct kernel{
+   bool jit;
    string xcc;
    string dirname;
    string name;
@@ -32,8 +33,8 @@ struct kernel{
    string any_pointer_params;
    string any_pointer_params_;
    string any_pointer_args;
-   string double_uint64_t;
-   string uint64_t_double;
+   string d2u;
+   string u2d;
 };
 
 // *****************************************************************************
@@ -171,6 +172,16 @@ static inline string get_name(context &pp) {
 }
 
 // *****************************************************************************
+static inline string get_directive(context &pp) {
+   string str;
+   check(pp,pp.in.peek()=='#');
+   while ((not pp.in.eof()) and (pp.in.peek()!=EOF) and
+          (isalnum(pp.in.peek()) or pp.in.peek()=='_' or pp.in.peek()=='#'))
+      str += pp.in.get();
+   return str;
+}
+
+// *****************************************************************************
 static inline string peekn(context &pp, const int n) {
    char c[n+1];
    for (int k=0;k<=n;k+=1) c[k] = 0;
@@ -212,6 +223,14 @@ static inline bool isvoid(context &pp) {
    skip_space(pp);
    const string void_peek = peekn(pp,4);
    if (void_peek == "void") return true;
+   return false;
+}
+
+// *****************************************************************************
+static inline bool isstatic(context &pp) {
+   skip_space(pp);
+   const string void_peek = peekn(pp,6);
+   if (void_peek == "static") return true;
    return false;
 }
 
@@ -266,7 +285,7 @@ static inline bool get_args(context &pp) {
       if (id=="float") { pp.out << id; arg->type = id; continue; }
       if (id=="double") { pp.out << id; arg->type = id; continue; }
       if (id=="size_t") { pp.out << id; arg->type = id; continue; }
-      pp.out /*<< "_"*/ << id;
+      pp.out << (pp.k.jit?"":"_") << id;
       // focus on the name, we should have qual & type
       arg->name = id;
       pp.args.push_back(arg);
@@ -286,16 +305,18 @@ static inline bool get_args(context &pp) {
 
 // *****************************************************************************
 static inline void rtcKernelRefresh(context &pp){
-   pp.k.xcc = "g++ -O3 -Wall -std=c++11 ";
-   pp.k.dirname = "/home/camier1/home/mfem/okina-jit";
-   pp.k.static_args = "";
-   pp.k.static_tmplt = "";
-   pp.k.static_format = "";
-   pp.k.any_pointer_args = "";
-   pp.k.any_pointer_params = "";
-   pp.k.any_pointer_params_ = "";
-   pp.k.double_uint64_t = "";
-   pp.k.uint64_t_double = "";
+   pp.k.xcc = INCBIN_STRINGIZE(MFEM_CXX) " " \
+      INCBIN_STRINGIZE(MFEM_BUILD_FLAGS) " " \
+      "-O3 -std=c++11";
+   pp.k.dirname = INCBIN_STRINGIZE(MFEM_SRC);
+   pp.k.static_args.clear();
+   pp.k.static_tmplt.clear();
+   pp.k.static_format.clear();
+   pp.k.any_pointer_args.clear();
+   pp.k.any_pointer_params.clear();
+   pp.k.any_pointer_params_.clear();
+   pp.k.d2u.clear();
+   pp.k.u2d.clear();
    
    for(std::list<argument*>::iterator ia = pp.args.begin();
        ia != pp.args.end() ; ia++) {
@@ -320,26 +341,23 @@ static inline void rtcKernelRefresh(context &pp){
          pp.k.static_tmplt += name;
          if (dbl){
             {
-               // const double alpha = (union {double d; uint64_t u;}){u:talpha}.d;
-               pp.k.double_uint64_t += "const double ";
-               pp.k.double_uint64_t += name;
-               pp.k.double_uint64_t += " = (union {double d; uint64_t u;}){u:t";
-               pp.k.double_uint64_t += name;
-               pp.k.double_uint64_t += "}.d;";
+               pp.k.d2u += "const double ";
+               pp.k.d2u += name;
+               pp.k.d2u += " = (union {double d; uint64_t u;}){u:t";
+               pp.k.d2u += name;
+               pp.k.d2u += "}.d;";
             }
             {
-               //const uint64_t ualpha = (union {double d; uint64_t u;}){alpha}.u;
-               pp.k.uint64_t_double += "const uint64_t u";
-               pp.k.uint64_t_double += name;
-               pp.k.uint64_t_double += " = (union {double d; uint64_t u;}){";
-               pp.k.uint64_t_double += name;
-               pp.k.uint64_t_double += "}.u;";
+               pp.k.u2d += "const uint64_t u";
+               pp.k.u2d += name;
+               pp.k.u2d += " = (union {double d; uint64_t u;}){";
+               pp.k.u2d += name;
+               pp.k.u2d += "}.u;";
             }
          }
       }
       if (is_const and is_pointer){
          if (not pp.k.any_pointer_args.empty()) pp.k.any_pointer_args += ",";
-         //pp.k.any_pointer_args += "_";
          pp.k.any_pointer_args += name;
          if (not pp.k.any_pointer_params.empty()) {
             pp.k.any_pointer_params += ",";
@@ -360,7 +378,6 @@ static inline void rtcKernelRefresh(context &pp){
       }
       if (not is_const and is_pointer){
          if (not pp.k.any_pointer_args.empty()) pp.k.any_pointer_args += ",";
-         //pp.k.any_pointer_args += "_";
          pp.k.any_pointer_args += name;
          if (not pp.k.any_pointer_params.empty()){
             pp.k.any_pointer_params += ",";
@@ -378,13 +395,42 @@ static inline void rtcKernelRefresh(context &pp){
          }
       }
    }
-   //cout << "\nstatic_args:" << pp.k.static_args;
-   //cout << "\nstatic_tmplt:" << pp.k.static_tmplt;
-   //cout << "\nstatic_format:" << pp.k.static_format;
-   //cout << "\nany_pointer_args:" << pp.k.any_pointer_args;
-   //cout << "\nany_pointer_params:" << pp.k.any_pointer_params;
-   //fflush(0);
-   //while(true);   
+}
+
+// *****************************************************************************
+static inline void rtcKernelPrefix(const context &pp){     
+   pp.out << "\n\ttypedef void (*kernel_t)("<<pp.k.any_pointer_params<<");";
+   pp.out << "\n\tstatic std::unordered_map<size_t,ok::okrtc<kernel_t>*> __kernels;";
+   pp.out << "\n\t" << pp.k.u2d;
+   pp.out << "\n\tconst char *src=R\"_(";
+   pp.out << "#include <cstdint>";
+   pp.out << "\n#include <cstring>";
+   pp.out << "\n#include <stdbool.h>";
+   pp.out << "\n#include \"general/okina.hpp\"";
+   pp.out << "\ntemplate<" << pp.k.static_tmplt << ">";
+   pp.out << "\nvoid rtc_" << pp.k.name << "("
+          << pp.k.any_pointer_params_ << "){";
+   pp.out << "\n\t" << pp.k.d2u;
+}
+
+// *****************************************************************************
+static inline void rtcKernelPostfix(context &pp){
+   pp.out << "\nextern \"C\" void k%016lx(" << pp.k.any_pointer_params << "){";
+	pp.out << "\n\trtc_"<<pp.k.name
+          <<"<" << pp.k.static_format<<">(" << pp.k.any_pointer_args << ");";
+   pp.out << "\n})_\";";
+   pp.out << "\n\tconst char *xcc = \"" << pp.k.xcc << "\";";
+   pp.out << "\n\tconst size_t args_seed = std::hash<size_t>()(0);";
+   pp.out << "\n\tconst size_t args_hash = ok::hash_args(args_seed,"
+          << pp.k.static_args << ");";
+   pp.out << "\n\tif (!__kernels[args_hash]){";
+   pp.out << "\n\t\t__kernels[args_hash] = new ok::okrtc<kernel_t>"
+          << "(xcc,src," << "\"-I" << pp.k.dirname << "\","
+          << pp.k.static_args << ");";
+   pp.out << "}\n\t(__kernels[args_hash]->operator_void("
+          << pp.k.any_pointer_args << "));\n}";
+   pp.block--;
+   pp.k.jit = false;
 }
 
 // *****************************************************************************
@@ -392,7 +438,11 @@ static inline void __kernel(context &pp) {
    //        "__kernel "
    pp.out << "         ";
    drop_space(pp);
-   check(pp,isvoid(pp)); // we need this for now
+   check(pp,isvoid(pp) or isstatic(pp)); // we need this for now
+   if (isstatic(pp)) {
+      pp.out << get_name(pp);
+      skip_space(pp);
+   }
    const string void_return_type = get_name(pp);
    pp.out << void_return_type;
    // Get kernel's name
@@ -404,8 +454,7 @@ static inline void __kernel(context &pp) {
    skip_space(pp);
    //goto_start_of_left_paren(pp);
    // check we are at the left parenthesis
-   check(pp,pp.in.peek()=='(');
-   put(pp); // put '('
+   check(pp,pp.in.peek()=='('), put(pp); 
    // Go to first possible argument
    skip_space(pp);
    if (isvoid(pp)) { // if it is 'void' don't add any coma
@@ -413,85 +462,35 @@ static inline void __kernel(context &pp) {
    } else {
       pp.args.clear();
       const bool empty = get_args(pp);
-      rtcKernelRefresh(pp);
+      if (pp.k.jit) rtcKernelRefresh(pp);
       check(pp,pp.in.peek()==')');
-      //if (not empty) pp.out << ", ";
    }
-   // __kernel((CPU, GPU & JIT)) will add more options than the '0'
-   //pp.out << "const unsigned int __kernel =0";
-}
-
-// *****************************************************************************
-static inline void rtcKernelPrefix(const context &pp){
-   const char *xcc = pp.k.xcc.c_str();
-   const char *dirname = pp.k.dirname.c_str();   
-   const char *kernel_name = pp.k.name.c_str();   
-   const char *static_format = pp.k.static_format.c_str();
-   const char *static_args = pp.k.static_args.c_str();
-   const char *static_tmplt = pp.k.static_tmplt.c_str();   
-   const char *any_pointer_params = pp.k.any_pointer_params.c_str();
-   const char *any_pointer_params_ = pp.k.any_pointer_params_.c_str();
-   const char *any_pointer_args = pp.k.any_pointer_args.c_str();
-   const char *double_uint64_t = pp.k.double_uint64_t.c_str();
-   const char *uint64_t_double = pp.k.uint64_t_double.c_str();
-      
-   pp.out << "\n\ttypedef void (*kernel_t)("<<any_pointer_params<<");";
-   pp.out << "\n\tstatic std::unordered_map<size_t,ok::okrtc<kernel_t>*> __kernels;";
-   pp.out << "\n\t" << uint64_t_double;
-   pp.out << "\n\tconst char *src=R\"_(";
-   pp.out << "\n#include <cstdint>";
-   pp.out << "\n#include <stdbool.h>";
-   pp.out << "\n#include \"general/okina.hpp\"";
-   pp.out << "\ntemplate<"<< static_tmplt <<">";
-   pp.out << "\nvoid rtc_"<<kernel_name<<"("<< any_pointer_params_ <<"){";
-   pp.out << "\n\t" << double_uint64_t;
-}
-
-// *****************************************************************************
-static inline void rtcKernelPostfix(context &pp){
-   const char *xcc = pp.k.xcc.c_str();
-   const char *dirname = pp.k.dirname.c_str();   
-   const char *kernel_name = pp.k.name.c_str();   
-   const char *static_format = pp.k.static_format.c_str();
-   const char *static_args = pp.k.static_args.c_str();
-   const char *static_tmplt = pp.k.static_tmplt.c_str();   
-   const char *any_pointer_params = pp.k.any_pointer_params.c_str();
-   const char *any_pointer_args = pp.k.any_pointer_args.c_str();
-   
-   pp.out << "\nextern \"C\" void k%016lx("<<any_pointer_params<<"){";
-	pp.out << "\n\trtc_"<<kernel_name<<"<"<<static_format<<">("<<any_pointer_args<<");";
-   pp.out << "\n})_\";";
-   pp.out << "\n\tconst char *xcc = \"" << xcc << "\";";
-   //pp.out << "\n\tprintf(\"\\n\033[33m[rtcKernelPostfix] args_seed & args_hash\033[m\");";
-   pp.out << "\n\tconst size_t args_seed = std::hash<size_t>()(0);";
-   pp.out << "\n\tconst size_t args_hash = ok::hash_args(args_seed,"<<static_args<<");";
-   pp.out << "\n\tif (!__kernels[args_hash]){";
-   //pp.out << "\n\tprintf(\"\\n\033[33m[rtcKernelPostfix] new ok::okrtc<kernel_t>\033[m\");";
-   pp.out << "\n\t\t__kernels[args_hash] = new ok::okrtc<kernel_t>"
-          << "(xcc,src," << "\"-I" << dirname << "\"," << static_args << ");";
-   pp.out << "}\n\t(__kernels[args_hash]->operator_void("<< any_pointer_args <<"));";
-   pp.out << "\n}";
-   pp.block--;
 }
 
 // *****************************************************************************
 // * '__' was hit, now fetch its 'id'
 // *****************************************************************************
-static inline void __id(context &pp) {
-   const string id = get_name(pp);
+static inline void __id(context &pp, string id = "") {
+   if (id.empty()) id = get_name(pp);
+   if (id=="__jit"){
+      skip_space(pp);
+      pp.k.jit = true;
+      id = get_name(pp);
+      check(pp,id=="__kernel");
+   }
    if (id=="__kernel"){
       // Get arguments of this kernel
       __kernel(pp);
+      // Make sure we have hit the end of the arguments
       check(pp,pp.in.peek()==')');
       put(pp);
       skip_space(pp);
+      // Make sure we are about to start a statement block
       check(pp,pp.in.peek()=='{');
       put(pp);
-
-      // dump RTC stuff for this kernel
-      pp.out << "\n\t// Now RTC this kernel ******************************************************";
-      rtcKernelPrefix(pp);
-
+      // Generate the RTC prefix for this kernel
+      if (pp.k.jit) rtcKernelPrefix(pp);
+      // Generate the GET_* code
       for(std::list<argument*>::iterator ia = pp.args.begin();
           ia != pp.args.end() ; ia++) {
          const argument *a = *ia;
@@ -501,20 +500,22 @@ static inline void __id(context &pp) {
          const char *type = a->type.c_str();
          const char *name = a->name.c_str();
          if (is_const and not is_pointer){
-            //pp.out << "\n\t//GET_CONST_T_("<<name<<", "<<type<<");" << " // could be JIT'ed";
+            if (!pp.k.jit){
+               pp.out << "\n\tconst " << type << " " << name
+                      << " = (const " << type << ")"
+                      << " (_" << name << ");";
+            }
          }
          if (is_const and is_pointer){
-            pp.out << "\n\tGET_CONST_ADRS_T_("<<name<<", "<<type<<");";
+            pp.out << "\n\tconst " << type << "* " << name
+                   << " = (const " << type << "*)"
+                   << " mfem::mm::adrs(_" << name << ");";
          }
          if (not is_const and is_pointer){
-            pp.out << "\n\tGET_ADRS_T_("<<name<<", "<<type<<");";
-         }/*
-            dbg("%s%s %s%s%s",
-            is_const?"const ":"",
-            type,
-            is_restrict?" __restrict ":"",
-            is_pointer?"*":"",
-            name);*/
+            pp.out << "\n\t" << type << "* " << name
+                   << " = (" << type << "*)"
+                   << " mfem::mm::adrs(_" << name << ");";
+         }
       }
       pp.block = 0;
       return;
@@ -523,22 +524,39 @@ static inline void __id(context &pp) {
 }
 
 // *****************************************************************************
-static inline void dumpOKRTC(context &pp){
-   // Assert gOkrtcData, gOkrtcEnd, gOkrtcSize
+static inline void sharpId(context &pp) {
+   string id = get_directive(pp);
+   if (id=="#jit"){
+      skip_space(pp);
+      pp.k.jit = true;
+      id = get_directive(pp);
+      check(pp,id=="#kernel");
+      __id(pp,"__kernel");
+      return;
+   }
+   if (id=="#kernel"){
+      __id(pp,"__kernel");
+      return;
+   }
+   pp.out << id;
+}
+
+// *****************************************************************************
+static inline void dumpRuntimeHeader(context &pp){
    assert(&gOkrtcData[gOkrtcSize] == (const unsigned char*) &gOkrtcEnd);
-   const size_t okrtc_sz = gOkrtcSize;
-   const char *okrtc_h = (char*) gOkrtcData;
-   pp.out << okrtc_h;
+   pp.out << gOkrtcData;
 }
 
 // *****************************************************************************
 static inline int process(context &pp) {
-   dumpOKRTC(pp);
+   pp.k.jit = false;
+   dumpRuntimeHeader(pp);
    while (not pp.in.eof()) {
       if (is_comment(pp)) comments(pp);
       if (pp.in.peek() != EOF) put(pp);
       if (peekn(pp,2) == "__") __id(pp);
-      if (pp.block==-1) { rtcKernelPostfix(pp); }
+      if (peekn(pp,1) == "#") sharpId(pp);
+      if (pp.block==-1) { if (pp.k.jit) rtcKernelPostfix(pp); }
       if (pp.block>=0 and pp.in.peek() == '{') { pp.block++; }
       if (pp.block>=0 and pp.in.peek() == '}') { pp.block--; }
       if (is_newline(pp.in.peek())) { pp.line++;}
