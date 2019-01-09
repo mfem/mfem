@@ -856,7 +856,7 @@ void FiniteElementSpace::GetLocalRefinementMatrices(
    const FiniteElement *fe = fec->FiniteElementForGeometry(geom);
 
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
-   const DenseTensor &pmats = rtrans.GetPointMatrices(geom);
+   const DenseTensor &pmats = rtrans.point_matrices[geom];
 
    int nmat = pmats.SizeK();
    int ldof = fe->GetDof(); // assuming the same FE everywhere
@@ -1006,7 +1006,7 @@ void FiniteElementSpace::GetLocalDerefinementMatrices(Geometry::Type geom,
 
    const CoarseFineTransformations &dtrans =
       mesh->ncmesh->GetDerefinementTransforms();
-   const DenseTensor &pmats = dtrans.GetPointMatrices(geom);
+   const DenseTensor &pmats = dtrans.point_matrices[geom];
 
    int nmat = pmats.SizeK();
    int ldof = fe->GetDof();
@@ -1132,7 +1132,7 @@ void FiniteElementSpace::GetLocalRefinementMatrices(
       coarse_fes.fec->FiniteElementForGeometry(geom);
 
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
-   const DenseTensor &pmats = rtrans.GetPointMatrices(geom);
+   const DenseTensor &pmats = rtrans.point_matrices[geom];
 
    int nmat = pmats.SizeK();
 

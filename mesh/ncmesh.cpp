@@ -21,18 +21,6 @@
 namespace mfem
 {
 
-
-const DenseTensor &CoarseFineTransformations::GetPointMatrices(
-   Geometry::Type geom) const
-{
-   std::map<Geometry::Type, DenseTensor>::const_iterator pm_it;
-   pm_it = point_matrices.find(geom);
-   MFEM_VERIFY(pm_it != point_matrices.end(),
-               "cannot find point matrices for geometry type \"" << geom
-               << "\"");
-   return pm_it->second;
-}
-
 NCMesh::GeomInfo NCMesh::GI[Geometry::NumGeom];
 
 NCMesh::GeomInfo& NCMesh::gi_hex   = NCMesh::GI[Geometry::CUBE];
@@ -1563,19 +1551,14 @@ void NCMesh::InitDerefTransforms()
 {
    int nfine = leaf_elements.Size();
 
+   // this will tell GetDerefinementTransforms that transforms are not finished
+   transforms.Clear();
+
    transforms.embeddings.SetSize(nfine);
    for (int i = 0; i < nfine; i++)
    {
       transforms.embeddings[i].parent = -1;
       transforms.embeddings[i].matrix = 0;
-   }
-
-   // this will tell GetDerefinementTransforms that transforms are not finished
-   std::map<Geometry::Type, DenseTensor>::iterator it;
-   for (it=transforms.point_matrices.begin();
-        it!=transforms.point_matrices.end(); it++)
-   {
-      it->second.SetSize(0, 0, 0);
    }
 }
 
@@ -1588,7 +1571,7 @@ void NCMesh::SetDerefMatrixCodes(int parent, Array<int> &fine_coarse)
       Element &ch = elements[prn.child[i]];
       if (ch.index >= 0)
       {
-         int code = (prn.ref_type << 3) + i;
+         int code = (prn.ref_type << 8) | (i << 4) | prn.geom;
          transforms.embeddings[ch.index].matrix = code;
          fine_coarse[ch.index] = parent;
       }
@@ -2864,7 +2847,7 @@ NCMesh::PointMatrix NCMesh::pm_hex_identity(
    Point(0, 0, 1), Point(1, 0, 1), Point(1, 1, 1), Point(0, 1, 1)
 );
 
-const NCMesh::PointMatrix& NCMesh::GetGeomIdentity(int geom)
+const NCMesh::PointMatrix& NCMesh::GetGeomIdentity(Geometry::Type geom)
 {
    switch (geom)
    {
@@ -2873,12 +2856,13 @@ const NCMesh::PointMatrix& NCMesh::GetGeomIdentity(int geom)
       case Geometry::PRISM:    return pm_prism_identity;
       case Geometry::CUBE:     return pm_hex_identity;
       default:
-         MFEM_ABORT("unsupported geometry.");
+         MFEM_ABORT("unsupported geometry " << geom);
          return pm_tri_identity;
    }
 }
 
-void NCMesh::GetPointMatrix(int geom, const char* ref_path, DenseMatrix& matrix)
+void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
+                            DenseMatrix& matrix)
 {
    PointMatrix pm = GetGeomIdentity(geom);
 
@@ -3309,30 +3293,44 @@ const CoarseFineTransformations& NCMesh::GetRefinementTransforms()
 
    if (!transforms.embeddings.Size())
    {
+      transforms.Clear();
       transforms.embeddings.SetSize(leaf_elements.Size());
 
       std::string ref_path;
       ref_path.reserve(100);
 
-      RefPathMap map;
-      map[ref_path] = 1; // identity
-
-      for (int i = 0; i < coarse_elements.Size(); i++)
+      RefPathMap path_map[Geometry::NumGeom];
+      for (int g = 0; g < Geometry::NumGeom; g++)
       {
-         TraverseRefinements(coarse_elements[i], i, ref_path, map);
+         path_map[g][ref_path] = 1; // empty path == identity
       }
 
-      MFEM_ASSERT(elements.Size() > free_element_ids.Size(), "");
-      Geometry::Type geom = Geometry::Type(elements[0].geom);
-      const PointMatrix &identity = GetGeomIdentity(geom);
-
-      transforms.point_matrices[geom].SetSize(Dim, identity.np, map.size());
-
-      // calculate the point matrices
-      for (RefPathMap::iterator it = map.begin(); it != map.end(); ++it)
+      int used_geoms = 0;
+      for (int i = 0; i < coarse_elements.Size(); i++)
       {
-         GetPointMatrix(geom, it->first.c_str(),
-                        transforms.point_matrices[geom](it->second-1));
+         int geom = elements[coarse_elements[i]].geom;
+         TraverseRefinements(coarse_elements[i], i, ref_path, path_map[geom]);
+         used_geoms |= (1 << geom);
+      }
+
+      for (int g = 0; g < Geometry::NumGeom; g++)
+      {
+         if (used_geoms & (1 << g))
+         {
+            Geometry::Type geom = Geometry::Type(g);
+            const PointMatrix &identity = GetGeomIdentity(geom);
+
+            transforms.point_matrices[g]
+               .SetSize(Dim, identity.np, path_map[g].size());
+
+            // calculate the point matrices
+            RefPathMap::iterator it;
+            for (it = path_map[g].begin(); it != path_map[g].end(); ++it)
+            {
+               GetPointMatrix(geom, it->first.c_str(),
+                              transforms.point_matrices[g](it->second-1));
+            }
+         }
       }
    }
    return transforms;
@@ -3343,41 +3341,56 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
    MFEM_VERIFY(transforms.embeddings.Size() || !leaf_elements.Size(),
                "GetDerefinementTransforms() must be preceded by Derefine().");
 
-   Geometry::Type geom = Geometry::Type(elements[0].geom);
-
-   if (!transforms.point_matrices[geom].SizeK())
+   if (!transforms.IsInitialized())
    {
-      std::map<int, int> mat_no;
-      mat_no[0] = 1; // identity
+      std::map<int, int> mat_no[Geometry::NumGeom];
+      for (int g = 0; g < Geometry::NumGeom; g++)
+      {
+         mat_no[g][0] = 1; // 0 == identity
+      }
 
       // assign numbers to the different matrices used
+      int used_geoms = 0;
       for (int i = 0; i < transforms.embeddings.Size(); i++)
       {
          int code = transforms.embeddings[i].matrix;
          if (code)
          {
-            int &matrix = mat_no[code];
-            if (!matrix) { matrix = mat_no.size(); }
+            int geom = code & 0xf; // see SetDerefMatrixCodes()
+            int ref_type_child = code >> 4;
+
+            int &matrix = mat_no[geom][ref_type_child];
+            if (!matrix) { matrix = mat_no[geom].size(); }
             transforms.embeddings[i].matrix = matrix - 1;
+
+            used_geoms |= (1 << geom);
          }
       }
 
-      MFEM_ASSERT(elements.Size() > free_element_ids.Size(), "");
-      const PointMatrix &identity = GetGeomIdentity(geom);
-
-      transforms.point_matrices[geom].SetSize(Dim, identity.np, mat_no.size());
-
-      std::map<int, int>::iterator it;
-      for (it = mat_no.begin(); it != mat_no.end(); ++it)
+      for (int g = 0; g < Geometry::NumGeom; g++)
       {
-         char path[3];
-         int code = it->first;
-         path[0] = code >> 3; // ref_type (see SetDerefMatrixCodes())
-         path[1] = code & 7;  // child
-         path[2] = 0;
+         if (used_geoms & (1 << g))
+         {
+            Geometry::Type geom = Geometry::Type(g);
+            const PointMatrix &identity = GetGeomIdentity(geom);
 
-         GetPointMatrix(geom, path,
-                        transforms.point_matrices[geom](it->second-1));
+            transforms.point_matrices[geom]
+               .SetSize(Dim, identity.np, mat_no[geom].size());
+
+            // calculate point matrices
+            std::map<int, int>::iterator it;
+            for (it = mat_no[geom].begin(); it != mat_no[geom].end(); ++it)
+            {
+               char path[3];
+               int code = it->first;
+               path[0] = code >> 4;  // ref_type (see SetDerefMatrixCodes())
+               path[1] = code & 0xf; // child
+               path[2] = 0;
+
+               GetPointMatrix(geom, path,
+                              transforms.point_matrices[geom](it->second-1));
+            }
+         }
       }
    }
    return transforms;
@@ -3386,13 +3399,26 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms()
 void NCMesh::ClearTransforms()
 {
    coarse_elements.DeleteAll();
-   transforms.embeddings.DeleteAll();
-   std::map<Geometry::Type, DenseTensor>::iterator it;
-   for (it=transforms.point_matrices.begin();
-        it!=transforms.point_matrices.end(); it++)
+   transforms.Clear();
+}
+
+void CoarseFineTransformations::Clear()
+{
+   for (int i = 0; i < Geometry::NumGeom; i++)
    {
-      it->second.SetSize(0, 0, 0);
+      point_matrices[i].SetSize(0, 0, 0);
    }
+   embeddings.DeleteAll();
+}
+
+bool CoarseFineTransformations::IsInitialized() const
+{
+   // return true if point matrices present for any geometry
+   for (int i = 0; i < Geometry::NumGeom; i++)
+   {
+      if (point_matrices[i].SizeK()) { return true; }
+   }
+   return false;
 }
 
 
@@ -3976,14 +4002,10 @@ long NCMesh::NCList::MemoryUsage() const
 long CoarseFineTransformations::MemoryUsage() const
 {
    long mem = embeddings.MemoryUsage();
-
-   std::map<Geometry::Type, DenseTensor>::const_iterator it;
-   for (it=point_matrices.begin();
-        it!=point_matrices.end(); it++)
+   for (int i = 0; i < Geometry::NumGeom; i++)
    {
-      mem += it->second.MemoryUsage();
+      mem += point_matrices[i].MemoryUsage();
    }
-
    return mem;
 }
 

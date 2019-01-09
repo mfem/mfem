@@ -55,12 +55,12 @@ struct Embedding
 struct CoarseFineTransformations
 {
    /// Matrices for IsoparametricTransformation organized by Geometry::Type
-   std::map<Geometry::Type, DenseTensor> point_matrices;
+   DenseTensor point_matrices[Geometry::NumGeom];
    /// Fine element positions in their parents.
    Array<Embedding> embeddings;
 
-   const DenseTensor &GetPointMatrices(Geometry::Type geom) const;
-   void Clear() { point_matrices.clear(); embeddings.DeleteAll(); }
+   void Clear();
+   bool IsInitialized() const;
    long MemoryUsage() const;
 };
 
@@ -679,9 +679,10 @@ protected: // implementation
    static PointMatrix pm_prism_identity;
    static PointMatrix pm_hex_identity;
 
-   static const PointMatrix& GetGeomIdentity(int geom);
+   static const PointMatrix& GetGeomIdentity(Geometry::Type geom);
 
-   void GetPointMatrix(int geom, const char* ref_path, DenseMatrix& matrix);
+   void GetPointMatrix(Geometry::Type geom, const char* ref_path,
+                       DenseMatrix& matrix);
 
    typedef std::map<std::string, int> RefPathMap;
 
