@@ -338,7 +338,7 @@ lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 
 mpp: $(BLD)general/mpp.cpp $(BLD)general/okrtc.hpp
 	$(CXX) -o $(BLD)$(@) $(<) -DMFEM_SRC=$(SRC) -DMFEM_CXX=$(MFEM_CXX) \
-					              -DMFEM_BUILD_FLAGS=$(MFEM_BUILD_FLAGS)
+					              -DMFEM_BUILD_FLAGS="$(MFEM_BUILD_FLAGS)"
 
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\

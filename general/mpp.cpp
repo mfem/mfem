@@ -249,16 +249,6 @@ static inline bool is_coma(context &pp) {
 }
 
 // *****************************************************************************
-static inline void goto_start_of_left_paren(context &pp) {
-   for (; not pp.in.eof(); put(pp)) {
-      const char c = pp.in.peek();
-      check(pp,c != EOF);
-      if (c == '\n') pp.line++;
-      if (c == '(') return;
-   }
-}
-
-// *****************************************************************************
 static inline bool get_args(context &pp) {
    bool empty = true;
    argument *arg = new argument();
@@ -461,7 +451,7 @@ static inline void __kernel(context &pp) {
       drop_name(pp);
    } else {
       pp.args.clear();
-      const bool empty = get_args(pp);
+      get_args(pp);
       if (pp.k.jit) rtcKernelRefresh(pp);
       check(pp,pp.in.peek()==')');
    }
