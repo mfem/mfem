@@ -423,19 +423,18 @@ static inline void __kernel(context &pp) {
 
 // *****************************************************************************
 static inline void rtcKernelPrefix(const context &pp){
-   const string xcc = pp.k.xcc;
-   const string dirname = pp.k.dirname;   
-   const string kernel_name = pp.k.name;   
-   const string static_format = pp.k.static_format;
-   const string static_args = pp.k.static_args;
-   const string static_tmplt = pp.k.static_tmplt;   
-   const string any_pointer_params = pp.k.any_pointer_params;
-   const string any_pointer_params_ = pp.k.any_pointer_params_;
-   const string any_pointer_args = pp.k.any_pointer_args;
-   const string double_uint64_t = pp.k.double_uint64_t;
-   const string uint64_t_double = pp.k.uint64_t_double;
-   
-   
+   const char *xcc = pp.k.xcc.c_str();
+   const char *dirname = pp.k.dirname.c_str();   
+   const char *kernel_name = pp.k.name.c_str();   
+   const char *static_format = pp.k.static_format.c_str();
+   const char *static_args = pp.k.static_args.c_str();
+   const char *static_tmplt = pp.k.static_tmplt.c_str();   
+   const char *any_pointer_params = pp.k.any_pointer_params.c_str();
+   const char *any_pointer_params_ = pp.k.any_pointer_params_.c_str();
+   const char *any_pointer_args = pp.k.any_pointer_args.c_str();
+   const char *double_uint64_t = pp.k.double_uint64_t.c_str();
+   const char *uint64_t_double = pp.k.uint64_t_double.c_str();
+      
    pp.out << "\n\ttypedef void (*kernel_t)("<<any_pointer_params<<");";
    pp.out << "\n\tstatic std::unordered_map<size_t,ok::okrtc<kernel_t>*> __kernels;";
    pp.out << "\n\t" << uint64_t_double;
@@ -450,24 +449,27 @@ static inline void rtcKernelPrefix(const context &pp){
 
 // *****************************************************************************
 static inline void rtcKernelPostfix(context &pp){
-   const string xcc = pp.k.xcc;
-   const string dirname = pp.k.dirname;   
-   const string kernel_name = pp.k.name;   
-   const string static_format = pp.k.static_format;
-   const string static_args = pp.k.static_args;
-   const string static_tmplt = pp.k.static_tmplt;   
-   const string any_pointer_params = pp.k.any_pointer_params;
-   const string any_pointer_args = pp.k.any_pointer_args;
+   const char *xcc = pp.k.xcc.c_str();
+   const char *dirname = pp.k.dirname.c_str();   
+   const char *kernel_name = pp.k.name.c_str();   
+   const char *static_format = pp.k.static_format.c_str();
+   const char *static_args = pp.k.static_args.c_str();
+   const char *static_tmplt = pp.k.static_tmplt.c_str();   
+   const char *any_pointer_params = pp.k.any_pointer_params.c_str();
+   const char *any_pointer_args = pp.k.any_pointer_args.c_str();
+   
    pp.out << "\nextern \"C\" void k%016lx("<<any_pointer_params<<"){";
 	pp.out << "\n\trtc_"<<kernel_name<<"<"<<static_format<<">("<<any_pointer_args<<");";
    pp.out << "\n})_\";";
    pp.out << "\n\tconst char *xcc = \"" << xcc << "\";";
+   //pp.out << "\n\tprintf(\"\\n\033[33m[rtcKernelPostfix] args_seed & args_hash\033[m\");";
    pp.out << "\n\tconst size_t args_seed = std::hash<size_t>()(0);";
    pp.out << "\n\tconst size_t args_hash = ok::hash_args(args_seed,"<<static_args<<");";
-   pp.out << "\n\tif (!__kernels[args_hash])\n\t\t__kernels[args_hash] = "
-          << "new ok::okrtc<kernel_t>"
+   pp.out << "\n\tif (!__kernels[args_hash]){";
+   //pp.out << "\n\tprintf(\"\\n\033[33m[rtcKernelPostfix] new ok::okrtc<kernel_t>\033[m\");";
+   pp.out << "\n\t\t__kernels[args_hash] = new ok::okrtc<kernel_t>"
           << "(xcc,src," << "\"-I" << dirname << "\"," << static_args << ");";
-   pp.out << "\n\t(__kernels[args_hash]->operator_void("<< any_pointer_args <<"));";
+   pp.out << "}\n\t(__kernels[args_hash]->operator_void("<< any_pointer_args <<"));";
    pp.out << "\n}";
    pp.block--;
 }
