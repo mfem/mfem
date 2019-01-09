@@ -134,10 +134,10 @@ namespace ok{
             const char* incs, Args... args):
          dbg(!!getenv("DBG")||!!getenv("dbg")),
          seed(ok::hash<const char*>()(src)),
-         hash(hash_args(seed,xcc,incs,args...)),
+         hash(hash_args(seed,/*xcc,incs,*/args...)),
          handle(lookup(dbg,hash,xcc,src,incs,args...)),
          __kernel((kernel_t)getSymbol(hash,handle)) {
-         if (dbg) printf("\033[32m[okrtc] %016lx\033[m\n",hash);
+         if (dbg) printf("\033[32m[okrtc] seed:%016lx, hash:%016lx\033[m\n",seed,hash);
       }
       template<typename... Args>
       void operator_void(Args... args){ __kernel(args...); }

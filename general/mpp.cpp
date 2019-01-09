@@ -441,7 +441,6 @@ static inline void rtcKernelPrefix(const context &pp){
    pp.out << "\n\t" << uint64_t_double;
    pp.out << "\n\tconst char *src=R\"_(";
    pp.out << "\n#include <cstdint>";
-   pp.out << "\n#include <cstddef>";
    pp.out << "\n#include <stdbool.h>";
    pp.out << "\n#include \"general/okina.hpp\"";
    pp.out << "\ntemplate<"<< static_tmplt <<">";
@@ -459,8 +458,6 @@ static inline void rtcKernelPostfix(context &pp){
    const string static_tmplt = pp.k.static_tmplt;   
    const string any_pointer_params = pp.k.any_pointer_params;
    const string any_pointer_args = pp.k.any_pointer_args;
-
-   //pp.out << "}";
    pp.out << "\nextern \"C\" void k%016lx("<<any_pointer_params<<"){";
 	pp.out << "\n\trtc_"<<kernel_name<<"<"<<static_format<<">("<<any_pointer_args<<");";
    pp.out << "\n})_\";";
@@ -470,7 +467,7 @@ static inline void rtcKernelPostfix(context &pp){
    pp.out << "\n\tif (!__kernels[args_hash])\n\t\t__kernels[args_hash] = "
           << "new ok::okrtc<kernel_t>"
           << "(xcc,src," << "\"-I" << dirname << "\"," << static_args << ");";
-   pp.out << "\n\t__kernels[args_hash]->operator_void("<< any_pointer_args <<");";
+   pp.out << "\n\t(__kernels[args_hash]->operator_void("<< any_pointer_args <<"));";
    pp.out << "\n}";
    pp.block--;
 }
