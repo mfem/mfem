@@ -208,7 +208,7 @@ static void kGeomFill(const int dims,
 }
 
 // *****************************************************************************
-#kernel static void kArrayAssign(const int n, const int *src, int *dest)
+__kernel static void kArrayAssign(const int n, const int *src, int *dest)
 {
    MFEM_FORALL(i, n, dest[i] = src[i];);
 }
@@ -268,6 +268,10 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
    Mesh *mesh = fes.GetMesh();
    const bool geom_to_allocate = !geom;
    if (geom_to_allocate) { geom = new kGeometry(); }
+   if (!mesh->GetNodes())
+   {
+      // mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
+   }
    const GridFunction *nodes = mesh->GetNodes();
 
    const mfem::FiniteElementSpace *fespace = nodes->FESpace();

@@ -65,7 +65,7 @@ static void uint64str(uint64_t num, char *s, const size_t offset){
 // * compile
 // *****************************************************************************
 template<typename... Args>
-const char *compile(const bool DBG, const size_t hash, const char *xcc,
+const char *compile(const bool dbg, const size_t hash, const char *xcc,
                     const char *src, const char *incs, Args... args){
    char soName[21] = "k0000000000000000.so";
    char ccName[21] = "k0000000000000000.cc";
@@ -83,9 +83,9 @@ const char *compile(const bool DBG, const size_t hash, const char *xcc,
    //const char *xflags = nvcc?NVFLAGS:CCFLAGS;
    if (snprintf(xccCommand,cmd_sz, "%s -shared %s -o %s %s %s",
                 xcc,incs,soName,ccName,CCFLAGS)<0) return NULL;
-   if (DBG) printf("\033[32;1m[compile] %s\033[m\n",xccCommand);
+   /*if (dbg)*/ printf("\033[32;1m%s\033[m\n",xccCommand);
    if (system(xccCommand)<0) return NULL;
-   if (!DBG) unlink(ccName);
+   if (!dbg) unlink(ccName);
    return src;
 }
 
@@ -93,12 +93,12 @@ const char *compile(const bool DBG, const size_t hash, const char *xcc,
 // * lookup
 // *****************************************************************************
 template<typename... Args>
-void *lookup(const bool DBG, const size_t hash, const char *xcc,
+void *lookup(const bool dbg, const size_t hash, const char *xcc,
              const char *src, const char* incs, Args... args){
    char soName[21] = "k0000000000000000.so";
    uint64str(hash,soName,1);
    void *handle = dlopen(soName,RTLD_LAZY);
-   if (!handle && !compile(DBG,hash,xcc,src,incs,args...)) return NULL;
+   if (!handle && !compile(dbg,hash,xcc,src,incs,args...)) return NULL;
    if (!(handle=dlopen(soName,RTLD_LAZY))) return NULL;
    return handle;
 }
