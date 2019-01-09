@@ -1290,7 +1290,8 @@ public:
    virtual void ComputeLowOrderSolution(const Vector &x, Vector &y) const;
    virtual void ComputeFCTSolution(const Vector &x, const Vector &yH,
                                    const Vector &yL, Vector &y) const;
-   virtual void ComputeLimitedSolution(const Vector &x, Vector &y) const;
+   virtual void ComputeLimitedSolution(const Vector &x, const Vector &yH,
+                                       const Vector &yL, Vector &y) const;
 
    virtual ~FE_Evolution() { }
 };
@@ -1304,7 +1305,7 @@ int main(int argc, char *argv[])
    int ref_levels = 2;
    int order = 3;
    int ode_solver_type = 3;
-   MONOTYPE monoType = ResDist_Lim;
+   MONOTYPE monoType = ResDist_LimMass;
    bool schemeOpt = true;
    STENCIL stencil = Full; // must be Full for ResDist_Lim
    double t_final = 4.0;
@@ -1713,8 +1714,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
             // boundary update
             for (j = 0; j < numDofs; j++)
             {
-               z(k*nd+fct.dofs(i,j)) += fct.bdrDiff(k,i)*(uSum - numDofs*x(k*nd+fct.dofs(i,
-                                                                                         j)));
+               z(k*nd+fct.dofs(i,j)) += fct.bdrDiff(k,i)*(uSum - numDofs*x(k*nd+fct.dofs(i,j)));
             }
          }
          ///////////////////////////
@@ -1972,64 +1972,39 @@ void FE_Evolution::ComputeFCTSolution(const Vector &x, const Vector &yH,
    }
 }
 
-void FE_Evolution::ComputeLimitedSolution(const Vector &x, Vector &y) const
+void FE_Evolution::ComputeLimitedSolution(const Vector &x, const Vector &yH,
+                                          const Vector &yL, Vector &y) const
 {
-   int i, j, k, nd, dofInd;
-   double zMax, zMin, beta = 10., betaDot = 0.5, eps = 1.E-15;
-   Vector alpha, xDot(x.Size());
+   int i, j, k, nd, dofInd, ctr1 = 0, ctr2 = 0;
+   double xDotMax, xDotMin, beta = 10., betaDot = 0.5, eps = 1.E-15;
+   Vector alphaDot;
    
    int* I = M.GetI();
    int* J = M.GetJ();
    double* Mij = M.GetData();
-   int ctr1 = 0, ctr2 = 0;
    
-   M_solver.Mult(y, z);
-   
+   y = yL;
+
    for (k = 0; k < fes->GetMesh()->GetNE(); k++)
    {
       const FiniteElement &el = *fes->GetFE(k);
       nd = el.GetDof();
-      alpha.SetSize(nd);
-      
-      zMin = numeric_limits<double>::infinity();
-      zMax = -zMin;
-      for (i = 0; i < nd; i++)
-      {
-         dofInd = k*nd+i;
-         zMax = max(zMax, x(dofInd));
-         zMin = min(zMin, x(dofInd));
-      }
-      for (i = 0; i < nd; i++)
-      {
-         dofInd = k*nd+i;
-         alpha(i) = min( 1., beta * min(fct.bnds.x_max(dofInd) - x(dofInd), x(dofInd) - fct.bnds.x_min(dofInd)) 
-                                       / (max(zMax - x(dofInd), x(dofInd) - zMin) + eps) ); // TODO optimize computations
-      }
-      for (i = 0; i < nd; i++)
-      {
-         dofInd = k*nd+i;
-         for (j = nd-1; j >= 0; j--) // run backwards through columns
-         {
-            if (i==j) { ctr1++; continue; }
+      alphaDot.SetSize(nd);
             
-            xDot(dofInd) = y(dofInd) + alpha(i) * Mij[ctr1] * alpha(j) * (z(dofInd) - z(k*nd+j)); // use knowledge of how M looks like
-            ctr1++;
-         }
-         xDot(dofInd) /= fct.lumpedM(dofInd);
-      }
-      zMin = numeric_limits<double>::infinity();
-      zMax = -zMin;
+      xDotMin = numeric_limits<double>::infinity();
+      xDotMax = -xDotMin;
       for (i = 0; i < nd; i++)
       {
          dofInd = k*nd+i;
-         zMax = max(zMax, xDot(dofInd));
-         zMin = min(zMin, xDot(dofInd));
+         xDotMax = max(xDotMax, yH(dofInd));
+         xDotMin = min(xDotMin, yH(dofInd));
       }
       for (i = 0; i < nd; i++)
       {
          dofInd = k*nd+i;
-         alpha(i) = min( 1., betaDot / dt * min(fct.bnds.x_max(dofInd) - x(dofInd), x(dofInd) - fct.bnds.x_min(dofInd)) 
-                                      / (max(zMax - xDot(dofInd), xDot(dofInd) - zMin) + eps) );
+         alphaDot(i) = min( 1., ( betaDot / dt * min(fct.bnds.x_max(dofInd) - x(dofInd), 
+                                                     x(dofInd) - fct.bnds.x_min(dofInd)) )
+                                / (max(xDotMax - yH(dofInd), yH(dofInd) - xDotMin) + eps) );
       }
       for (i = 0; i < nd; i++)
       {
@@ -2038,7 +2013,7 @@ void FE_Evolution::ComputeLimitedSolution(const Vector &x, Vector &y) const
          {
             if (i==j) { ctr2++; continue; }
             
-            y(dofInd) += alpha(i) * Mij[ctr2] * alpha(j) * (xDot(dofInd) - xDot(k*nd+j)); // use knowledge of how M looks like
+            y(dofInd) += alphaDot(i) * Mij[ctr2] * alphaDot(j) * (yH(dofInd) - yH(k*nd+j)); // use knowledge of how M looks like
             ctr2++;
          }
          y(dofInd) /= fct.lumpedM(dofInd);
@@ -2091,8 +2066,12 @@ void FE_Evolution::Mult(const Vector &x, Vector &y) const
    }
    else if (fct.monoType == 8)
    {
-      ComputeLowOrderSolution(x, y);
-      ComputeLimitedSolution(x, y);
+      Vector yH, yL;
+      yH.SetSize(x.Size()); yL.SetSize(x.Size());
+         
+      ComputeHighOrderSolution(x, yH);
+      ComputeLowOrderSolution(x, yL);
+      ComputeLimitedSolution(x, yH, yL, y);
    }
 }
 
