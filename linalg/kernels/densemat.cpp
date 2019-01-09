@@ -33,7 +33,10 @@ __kernel void kLSolve(const int m, const int n,
       // X <- P X
       for (int i = 0; i < m; i++)
       {
-         Swap<double>(mx[i], mx[ipiv[i]]);
+         //Swap<double>(mx[i], mx[ipiv[i]]);
+         const double tmp = mx[i];
+         mx[i] = mx[ipiv[i]];
+         mx[ipiv[i]] = tmp;
       }
       // X <- L^{-1} X
       for (int j = 0; j < m; j++)
@@ -107,7 +110,10 @@ __kernel void kFactor(const int m, int *ipiv, double *data)
             // swap rows i and piv in both L and U parts
             for (int j = 0; j < m; j++)
             {
-               Swap<double>(data[i+j*m], data[piv+j*m]);
+               //Swap<double>(data[i+j*m], data[piv+j*m]);
+               const double tmp = data[i+j*m];
+               data[i+j*m] = data[piv+j*m];
+               data[piv+j*m] = tmp;
             }
          }
       }
@@ -130,11 +136,11 @@ __kernel void kFactor(const int m, int *ipiv, double *data)
 }
 
 // **************************************************************************
-__kernel void DenseMatrixSet(const double d,
+__kernel void DenseMatrixSet(const double dd,
                              const size_t size,
                              double *data)
 {
-   MFEM_FORALL(i, size, data[i] = d;);
+   MFEM_FORALL(i, size, data[i] = dd;);
 }
 
 // **************************************************************************
@@ -245,30 +251,33 @@ __kernel void kOpEq(const size_t hw, const double *m, double *data)
 }
 
 // *****************************************************************************
-__kernel double kDet2(const double *data)
+double kDet2(const double *data)
 {
    MFEM_GPU_CANNOT_PASS;
-   return data[0] * data[3] - data[1] * data[2];
+   GET_ADRS(data);
+   return d_data[0] * d_data[3] - d_data[1] * d_data[2];
 }
 
 // *****************************************************************************
-__kernel double kDet3(const double *data)
+double kDet3(const double *data)
 {
    MFEM_GPU_CANNOT_PASS;
+   GET_ADRS(data);
    return
-      data[0] * (data[4] * data[8] - data[5] * data[7]) +
-      data[3] * (data[2] * data[7] - data[1] * data[8]) +
-      data[6] * (data[1] * data[5] - data[2] * data[4]);
+      d_data[0] * (d_data[4] * d_data[8] - d_data[5] * d_data[7]) +
+      d_data[3] * (d_data[2] * d_data[7] - d_data[1] * d_data[8]) +
+      d_data[6] * (d_data[1] * d_data[5] - d_data[2] * d_data[4]);
 }
 
 // *****************************************************************************
-__kernel double kFNormMax(const size_t hw, const double *data)
+double kFNormMax(const size_t hw, const double *data)
 {
    MFEM_GPU_CANNOT_PASS;
+   GET_ADRS(data);
    double max_norm = 0.0;
    for (size_t i = 0; i < hw; i++)
    {
-      const double entry = fabs(data[i]);
+      const double entry = fabs(d_data[i]);
       if (entry > max_norm)
       {
          max_norm = entry;
@@ -278,14 +287,14 @@ __kernel double kFNormMax(const size_t hw, const double *data)
 }
 
 // *****************************************************************************
-__kernel double kFNorm2(const size_t hw, const double max_norm,
-                        const double *data)
+double kFNorm2(const size_t hw, const double max_norm, const double *data)
 {
    MFEM_GPU_CANNOT_PASS;
+   GET_ADRS(data);
    double fnorm2 = 0.0;
    for (size_t i = 0; i < hw; i++)
    {
-      const double entry = data[i] / max_norm;
+      const double entry = d_data[i] / max_norm;
       fnorm2 += entry * entry;
    }
    return fnorm2;
@@ -294,7 +303,7 @@ __kernel double kFNorm2(const size_t hw, const double max_norm,
 // *****************************************************************************
 __kernel void kCalcInverse2D(const double t, const double *a, double *inva)
 {
-   MFEM_GPU_CANNOT_PASS;
+   //MFEM_GPU_CANNOT_PASS;
    inva[0+2*0] =  a[1+2*1] * t ;
    inva[0+2*1] = -a[0+2*1] * t ;
    inva[1+2*0] = -a[1+2*0] * t ;
@@ -304,7 +313,7 @@ __kernel void kCalcInverse2D(const double t, const double *a, double *inva)
 // *****************************************************************************
 __kernel void kCalcInverse3D(const double t, const double *a, double *inva)
 {
-   MFEM_GPU_CANNOT_PASS;
+   //MFEM_GPU_CANNOT_PASS;
 
    inva[0+3*0] = (a[1+3*1]*a[2+3*2]-a[1+3*2]*a[2+3*1])*t;
    inva[0+3*1] = (a[0+3*2]*a[2+3*1]-a[0+3*1]*a[2+3*2])*t;

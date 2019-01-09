@@ -336,7 +336,7 @@ OBJECT_KERNS = $(patsubst $(SRC)%,$(BLD)%,$(CODEGN_KERNS:.kpp=.o))
 # Default rule.
 lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 
-mpp: $(BLD)general/mpp.cpp
+mpp: $(BLD)general/mpp.cpp $(BLD)general/okrtc.hpp
 	$(CXX) -o $(BLD)$(@) $(<) 
 
 # Flags used for compiling all source files.
@@ -348,12 +348,13 @@ $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
 # Rules for compiling kernel source files.
-#.PRECIOUS: %.kpp
+.PRECIOUS: %.kpp
 %.kpp: %.cpp mpp
 	./mpp $(<) -o $(@)
 %.o: %.kpp
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -xc++ -c $(<) -o $(@)
 ker: ;echo $(OBJECT_KERNS)
+LIB_LD = -ldl
 
 all: examples miniapps $(TEST_DIRS)
 
@@ -379,10 +380,10 @@ $(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER) $(OBJECT_KERNS)
 # If some of the external libraries are build without -fPIC, linking shared MFEM
 # library may fail. In such cases, one may set EXT_LIBS on the command line.
 EXT_LIBS = $(MFEM_EXT_LIBS)
-$(BLD)libmfem.$(SO_VER): $(OBJECT_FILES)
-#	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(BUILD_SOFLAGS) $(OBJECT_FILES)
-	g++ $(BUILD_SOFLAGS) $(OBJECT_FILES) \
-	   $(EXT_LIBS) -o $(@)
+$(BLD)libmfem.$(SO_VER): $(OBJECT_FILES) $(OBJECT_KERNS)
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(BUILD_SOFLAGS) $(OBJECT_FILES)
+	g++ $(BUILD_SOFLAGS) $(OBJECT_FILES) $(OBJECT_KERNS) \
+	   $(EXT_LIBS) -o $(@) -ldl
 
 serial debug:    M_MPI=NO
 parallel pdebug: M_MPI=YES

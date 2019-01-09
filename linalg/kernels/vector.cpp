@@ -70,17 +70,19 @@ double cuVectorDot(const size_t N, const double *x, const double *y)
 #endif // __NVCC__
 
 // *****************************************************************************
-__kernel double kVectorDot(const size_t N, const double *x, const double *y)
+double kVectorDot(const size_t N, const double *x, const double *y)
 {
+   GET_CONST_ADRS(x);
+   GET_CONST_ADRS(y);
    if (config::usingGpu())
    {
 #ifdef __NVCC__
-      return cuVectorDot(N, x, y);
+      return cuVectorDot(N, d_x, d_y);
 #endif // __NVCC__
    }
 
    double dot = 0.0;
-   for (size_t i=0; i<N; i+=1) { dot += x[i] * y[i]; }
+   for (size_t i=0; i<N; i+=1) { dot += d_x[i] * d_y[i]; }
    return dot;
 }
 
@@ -159,11 +161,14 @@ __kernel void kVectorSubtract(double *zp, const double *xp, const double *yp,
 }
 
 // *****************************************************************************
-__kernel void kVectorAlphaAdd(double *vp, const double* v1p,
-                              const double alpha, const double *v2p,
-                              const size_t N)
+/*__kernel*/ void kVectorAlphaAdd(double *vp, const double* v1p,
+                                  const double alpha, const double *v2p,
+                                  const size_t N)
 {
-   MFEM_FORALL(i, N, vp[i] = v1p[i] + alpha * v2p[i];);
+   GET_ADRS(vp);
+   GET_CONST_ADRS(v1p);
+   GET_CONST_ADRS(v2p);
+   MFEM_FORALL(i, N, d_vp[i] = d_v1p[i] + alpha * d_v2p[i];);
 }
 
 // *****************************************************************************

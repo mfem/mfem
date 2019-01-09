@@ -9,15 +9,45 @@
 using namespace std;
 
 // *****************************************************************************
+#include "incbin.hpp"
+INCBIN(Okrtc, "general/okrtc.hpp");
+
+// *****************************************************************************
 // * STRUCTS: context, error & args
+// *****************************************************************************
+struct argument {
+  string type, name;
+  bool star, is_const, restrict;
+  argument(): star(false), is_const(false), restrict(false) {}
+};
+
+// *****************************************************************************
+struct kernel{
+   string xcc;
+   string dirname;
+   string name;
+   string static_format;
+   string static_args;
+   string static_tmplt;
+   string any_pointer_params;
+   string any_pointer_params_;
+   string any_pointer_args;
+   string double_uint64_t;
+   string uint64_t_double;
+};
+
 // *****************************************************************************
 struct context {
    int line;
+   int block;
    string& file;
    istream& in;
    ostream& out;
+   std::list<argument*> args;
+   kernel k;
 public:
-   context(istream& i, ostream& o, string &f): line(1), file(f), in(i), out(o){}
+   context(istream& i, ostream& o, string &f)
+      : line(1), block(-2), file(f), in(i), out(o){}
 };
 
 // *****************************************************************************
@@ -28,14 +58,7 @@ struct error {
 };
 
 // *****************************************************************************
-struct argument {
-  string type, name;
-  bool star, is_const, restrict;
-  argument(): star(false), is_const(false), restrict(false) {}
-};
-
-// *****************************************************************************
-const char* strrnchr(const char* s, const unsigned char c, int n=1) {
+static const char* strrnchr(const char* s, const unsigned char c, int n=1) {
    size_t len = strlen(s);
    char* p = (char*)s+len-1;
    for (; n; n--,p--,len--) {
@@ -79,7 +102,7 @@ static inline char put(context &pp) {
 }
 
 // *****************************************************************************
-static inline void put_space(context &pp) {
+static inline void skip_space(context &pp) {
    while (isspace(pp.in.peek())) {
       if (pp.in.peek() == '\n') pp.line++;
       put(pp);
@@ -117,7 +140,7 @@ static inline void blockComment(context &pp) {
       if (c == '\n') pp.line++;
       if (c == '*' and pp.in.peek() == '/') {
          put(pp);
-         put_space(pp);
+         skip_space(pp);
          return;
       }
    }
@@ -186,7 +209,7 @@ static inline void drop_name(context &pp) {
 
 // *****************************************************************************
 static inline bool isvoid(context &pp) {
-   put_space(pp);
+   skip_space(pp);
    const string void_peek = peekn(pp,4);
    if (void_peek == "void") return true;
    return false;
@@ -194,14 +217,14 @@ static inline bool isvoid(context &pp) {
 
 // *****************************************************************************
 static inline bool is_star(context &pp) {
-   put_space(pp);
+   skip_space(pp);
    if (pp.in.peek() == '*') return true;
    return false;
 }
 
 // *****************************************************************************
 static inline bool is_coma(context &pp) {
-   put_space(pp);
+   skip_space(pp);
    if (pp.in.peek() == ',') return true;
    return false;
 }
@@ -217,7 +240,7 @@ static inline void goto_start_of_left_paren(context &pp) {
 }
 
 // *****************************************************************************
-static inline bool get_args(context &pp, std::list<argument*> &args) {
+static inline bool get_args(context &pp) {
    bool empty = true;
    argument *arg = new argument();
    for (int p=0; not pp.in.eof(); empty=false) {
@@ -232,17 +255,21 @@ static inline bool get_args(context &pp, std::list<argument*> &args) {
       }
       const string id = peekID(pp);
       drop_name(pp);
-      // char short unsigned long signed float
       if (id=="const") { pp.out << id; arg->is_const = true; continue; }
       if (id=="__restrict") { pp.out << id; arg->restrict = true; continue; }
+      if (id=="char") { pp.out << id; arg->type = id; continue; }
       if (id=="int") { pp.out << id; arg->type = id; continue; }
+      if (id=="short") { pp.out << id; arg->type = id; continue; }
+      if (id=="unsigned") { pp.out << id; arg->type = id; continue; }
+      if (id=="long") { pp.out << id; arg->type = id; continue; }
       if (id=="bool") { pp.out << id; arg->type = id; continue; }
+      if (id=="float") { pp.out << id; arg->type = id; continue; }
       if (id=="double") { pp.out << id; arg->type = id; continue; }
       if (id=="size_t") { pp.out << id; arg->type = id; continue; }
-      pp.out << "_" << id;
+      pp.out /*<< "_"*/ << id;
       // focus on the name, we should have qual & type
       arg->name = id;
-      args.push_back(arg);
+      pp.args.push_back(arg);
       arg = new argument();
       const char c = pp.in.peek();
       check(pp,c != EOF);
@@ -258,20 +285,135 @@ static inline bool get_args(context &pp, std::list<argument*> &args) {
 }
 
 // *****************************************************************************
-static inline void __kernel(context &pp, std::list<argument*> &args) {
+static inline void rtcKernelRefresh(context &pp){
+   pp.k.xcc = "g++ -O3 -Wall -std=c++11 ";
+   pp.k.dirname = "/home/camier1/home/mfem/okina-jit";
+   pp.k.static_args = "";
+   pp.k.static_tmplt = "";
+   pp.k.static_format = "";
+   pp.k.any_pointer_args = "";
+   pp.k.any_pointer_params = "";
+   pp.k.any_pointer_params_ = "";
+   pp.k.double_uint64_t = "";
+   pp.k.uint64_t_double = "";
+   
+   for(std::list<argument*>::iterator ia = pp.args.begin();
+       ia != pp.args.end() ; ia++) {
+      const argument *a = *ia;
+      const bool is_const = a->is_const;
+      //const bool is_restrict = a->restrict;
+      const bool is_pointer = a->star;
+      const char *type = a->type.c_str();
+      const char *name = a->name.c_str();
+      if (is_const and not is_pointer){
+         const bool dbl = strcmp(type,"double")==0;
+         if (not pp.k.static_format.empty()) pp.k.static_format += ",";
+         pp.k.static_format += dbl?"0x%lx":"%ld";
+         if (not pp.k.static_args.empty()) pp.k.static_args += ",";
+         pp.k.static_args += dbl?"u":"";
+         pp.k.static_args += name;
+         if (not pp.k.static_tmplt.empty()) pp.k.static_tmplt += ",";
+         pp.k.static_tmplt += "const ";
+         pp.k.static_tmplt += dbl?"uint64_t":type;
+         pp.k.static_tmplt += " ";
+         pp.k.static_tmplt += dbl?"t":"";
+         pp.k.static_tmplt += name;
+         if (dbl){
+            {
+               // const double alpha = (union {double d; uint64_t u;}){u:talpha}.d;
+               pp.k.double_uint64_t += "const double ";
+               pp.k.double_uint64_t += name;
+               pp.k.double_uint64_t += " = (union {double d; uint64_t u;}){u:t";
+               pp.k.double_uint64_t += name;
+               pp.k.double_uint64_t += "}.d;";
+            }
+            {
+               //const uint64_t ualpha = (union {double d; uint64_t u;}){alpha}.u;
+               pp.k.uint64_t_double += "const uint64_t u";
+               pp.k.uint64_t_double += name;
+               pp.k.uint64_t_double += " = (union {double d; uint64_t u;}){";
+               pp.k.uint64_t_double += name;
+               pp.k.uint64_t_double += "}.u;";
+            }
+         }
+      }
+      if (is_const and is_pointer){
+         if (not pp.k.any_pointer_args.empty()) pp.k.any_pointer_args += ",";
+         //pp.k.any_pointer_args += "_";
+         pp.k.any_pointer_args += name;
+         if (not pp.k.any_pointer_params.empty()) {
+            pp.k.any_pointer_params += ",";
+            pp.k.any_pointer_params_ += ",";
+         }
+         {
+            pp.k.any_pointer_params += "const ";
+            pp.k.any_pointer_params += type;
+            pp.k.any_pointer_params += " *";
+            pp.k.any_pointer_params += name;
+         }
+         {
+            pp.k.any_pointer_params_ += "const ";
+            pp.k.any_pointer_params_ += type;
+            pp.k.any_pointer_params_ += " *_";
+            pp.k.any_pointer_params_ += name;
+         }
+      }
+      if (not is_const and is_pointer){
+         if (not pp.k.any_pointer_args.empty()) pp.k.any_pointer_args += ",";
+         //pp.k.any_pointer_args += "_";
+         pp.k.any_pointer_args += name;
+         if (not pp.k.any_pointer_params.empty()){
+            pp.k.any_pointer_params += ",";
+            pp.k.any_pointer_params_ += ",";
+         }
+         {
+            pp.k.any_pointer_params += type;
+            pp.k.any_pointer_params += " *";
+            pp.k.any_pointer_params += name;
+         }
+         {
+            pp.k.any_pointer_params_ += type;
+            pp.k.any_pointer_params_ += " *_";
+            pp.k.any_pointer_params_ += name;
+         }
+      }
+   }
+   //cout << "\nstatic_args:" << pp.k.static_args;
+   //cout << "\nstatic_tmplt:" << pp.k.static_tmplt;
+   //cout << "\nstatic_format:" << pp.k.static_format;
+   //cout << "\nany_pointer_args:" << pp.k.any_pointer_args;
+   //cout << "\nany_pointer_params:" << pp.k.any_pointer_params;
+   //fflush(0);
+   //while(true);   
+}
+
+// *****************************************************************************
+static inline void __kernel(context &pp) {
    //        "__kernel "
-   //pp.out << "         ";
+   pp.out << "         ";
    drop_space(pp);
-   goto_start_of_left_paren(pp);
+   check(pp,isvoid(pp)); // we need this for now
+   const string void_return_type = get_name(pp);
+   pp.out << void_return_type;
+   // Get kernel's name
+   skip_space(pp);
+   const string name = get_name(pp);
+   pp.out << name;
+   pp.k.name = name;
+   
+   skip_space(pp);
+   //goto_start_of_left_paren(pp);
    // check we are at the left parenthesis
    check(pp,pp.in.peek()=='(');
    put(pp); // put '('
    // Go to first possible argument
-   put_space(pp);
+   skip_space(pp);
    if (isvoid(pp)) { // if it is 'void' don't add any coma
       drop_name(pp);
    } else {
-      const bool empty = get_args(pp,args);
+      pp.args.clear();
+      const bool empty = get_args(pp);
+      rtcKernelRefresh(pp);
       check(pp,pp.in.peek()==')');
       //if (not empty) pp.out << ", ";
    }
@@ -280,20 +422,79 @@ static inline void __kernel(context &pp, std::list<argument*> &args) {
 }
 
 // *****************************************************************************
+static inline void rtcKernelPrefix(const context &pp){
+   const string xcc = pp.k.xcc;
+   const string dirname = pp.k.dirname;   
+   const string kernel_name = pp.k.name;   
+   const string static_format = pp.k.static_format;
+   const string static_args = pp.k.static_args;
+   const string static_tmplt = pp.k.static_tmplt;   
+   const string any_pointer_params = pp.k.any_pointer_params;
+   const string any_pointer_params_ = pp.k.any_pointer_params_;
+   const string any_pointer_args = pp.k.any_pointer_args;
+   const string double_uint64_t = pp.k.double_uint64_t;
+   const string uint64_t_double = pp.k.uint64_t_double;
+   
+   
+   pp.out << "\n\ttypedef void (*kernel_t)("<<any_pointer_params<<");";
+   pp.out << "\n\tstatic std::unordered_map<size_t,ok::okrtc<kernel_t>*> __kernels;";
+   pp.out << "\n\t" << uint64_t_double;
+   pp.out << "\n\tconst char *src=R\"_(";
+   pp.out << "\n#include <cstdint>";
+   pp.out << "\n#include <cstddef>";
+   pp.out << "\n#include <stdbool.h>";
+   pp.out << "\n#include \"general/okina.hpp\"";
+   pp.out << "\ntemplate<"<< static_tmplt <<">";
+   pp.out << "\nvoid rtc_"<<kernel_name<<"("<< any_pointer_params_ <<"){";
+   pp.out << "\n\t" << double_uint64_t;
+}
+
+// *****************************************************************************
+static inline void rtcKernelPostfix(context &pp){
+   const string xcc = pp.k.xcc;
+   const string dirname = pp.k.dirname;   
+   const string kernel_name = pp.k.name;   
+   const string static_format = pp.k.static_format;
+   const string static_args = pp.k.static_args;
+   const string static_tmplt = pp.k.static_tmplt;   
+   const string any_pointer_params = pp.k.any_pointer_params;
+   const string any_pointer_args = pp.k.any_pointer_args;
+
+   //pp.out << "}";
+   pp.out << "\nextern \"C\" void k%016lx("<<any_pointer_params<<"){";
+	pp.out << "\n\trtc_"<<kernel_name<<"<"<<static_format<<">("<<any_pointer_args<<");";
+   pp.out << "\n})_\";";
+   pp.out << "\n\tconst char *xcc = \"" << xcc << "\";";
+   pp.out << "\n\tconst size_t args_seed = std::hash<size_t>()(0);";
+   pp.out << "\n\tconst size_t args_hash = ok::hash_args(args_seed,"<<static_args<<");";
+   pp.out << "\n\tif (!__kernels[args_hash])\n\t\t__kernels[args_hash] = "
+          << "new ok::okrtc<kernel_t>"
+          << "(xcc,src," << "\"-I" << dirname << "\"," << static_args << ");";
+   pp.out << "\n\t__kernels[args_hash]->operator_void("<< any_pointer_args <<");";
+   pp.out << "\n}";
+   pp.block--;
+}
+
+// *****************************************************************************
 // * '__' was hit, now fetch its 'id'
 // *****************************************************************************
 static inline void __id(context &pp) {
    const string id = get_name(pp);
-   if (id=="__kernel"){      
-      std::list<argument*> args;
-      __kernel(pp,args);
+   if (id=="__kernel"){
+      // Get arguments of this kernel
+      __kernel(pp);
       check(pp,pp.in.peek()==')');
       put(pp);
-      put_space(pp);
+      skip_space(pp);
       check(pp,pp.in.peek()=='{');
       put(pp);
-      for(std::list<argument*>::iterator ia = args.begin();
-          ia != args.end() ; ia++) {
+
+      // dump RTC stuff for this kernel
+      pp.out << "\n\t// Now RTC this kernel ******************************************************";
+      rtcKernelPrefix(pp);
+
+      for(std::list<argument*>::iterator ia = pp.args.begin();
+          ia != pp.args.end() ; ia++) {
          const argument *a = *ia;
          const bool is_const = a->is_const;
          //const bool is_restrict = a->restrict;
@@ -301,13 +502,13 @@ static inline void __id(context &pp) {
          const char *type = a->type.c_str();
          const char *name = a->name.c_str();
          if (is_const and not is_pointer){
-            pp.out << "\n   GET_CONST_T_("<<name<<", "<<type<<");" << " // could be JIT'ed";
+            //pp.out << "\n\t//GET_CONST_T_("<<name<<", "<<type<<");" << " // could be JIT'ed";
          }
          if (is_const and is_pointer){
-            pp.out << "\n   GET_CONST_ADRS_T_("<<name<<", "<<type<<");";
+            pp.out << "\n\tGET_CONST_ADRS_T_("<<name<<", "<<type<<");";
          }
          if (not is_const and is_pointer){
-            pp.out << "\n   GET_ADRS_T_("<<name<<", "<<type<<");";
+            pp.out << "\n\tGET_ADRS_T_("<<name<<", "<<type<<");";
          }/*
             dbg("%s%s %s%s%s",
             is_const?"const ":"",
@@ -316,17 +517,31 @@ static inline void __id(context &pp) {
             is_pointer?"*":"",
             name);*/
       }
+      pp.block = 0;
       return;
    }
    pp.out << id;
 }
 
 // *****************************************************************************
+static inline void dumpOKRTC(context &pp){
+   // Assert gOkrtcData, gOkrtcEnd, gOkrtcSize
+   assert(&gOkrtcData[gOkrtcSize] == (const unsigned char*) &gOkrtcEnd);
+   const size_t okrtc_sz = gOkrtcSize;
+   const char *okrtc_h = (char*) gOkrtcData;
+   pp.out << okrtc_h;
+}
+
+// *****************************************************************************
 static inline int process(context &pp) {
+   dumpOKRTC(pp);
    while (not pp.in.eof()) {
       if (is_comment(pp)) comments(pp);
       if (pp.in.peek() != EOF) put(pp);
       if (peekn(pp,2) == "__") __id(pp);
+      if (pp.block==-1) { rtcKernelPostfix(pp); }
+      if (pp.block>=0 and pp.in.peek() == '{') { pp.block++; }
+      if (pp.block>=0 and pp.in.peek() == '}') { pp.block--; }
       if (is_newline(pp.in.peek())) { pp.line++;}
    }
    return 0;
