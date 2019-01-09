@@ -111,6 +111,8 @@ public:
                     double omega);
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
+   virtual void Dval(DenseMatrix &K, ElementTransformation &T,
+                     const IntegrationPoint &ip);
    virtual ~DielectricTensor() {}
 
 private:
@@ -390,8 +392,10 @@ int main(int argc, char *argv[])
    // Create a coefficient describing the magnetic permeability
    Coefficient * muInvCoef = SetupInvPermeabilityCoefficient();
 
-   // Create a coefficient describing the electrical conductivity
-   Coefficient * sigmaCoef = SetupConductivityCoefficient();
+   // Create a tensor coefficient describing the electrical conductivity
+   DielectricTensor conductivity_tensor(BField, density, temperature,
+                                        H1FESpace, L2FESpace,
+                                        nspecies, 2.0 * M_PI * freq_);
 
    // Create a coefficient describing the surface admittance
    Coefficient * etaInvCoef = SetupAdmittanceCoefficient(pmesh, abcs);
@@ -403,7 +407,7 @@ int main(int argc, char *argv[])
 
    // Create the Magnetostatic solver
    HertzSolver Hertz(pmesh, order, freq_, (HertzSolver::SolverType)sol,
-                     conv, dielectric_tensor, *muInvCoef, sigmaCoef, etaInvCoef,
+                     conv, dielectric_tensor, *muInvCoef, conductivity_tensor, etaInvCoef,
                      abcs, dbcs,
                      e_bc_r, e_bc_i,
                      (do_params_.Size() > 0 ) ? j_src : NULL, NULL
@@ -530,7 +534,7 @@ int main(int argc, char *argv[])
 
    // delete epsCoef;
    delete muInvCoef;
-   delete sigmaCoef;
+   // delete sigmaCoef;
 
    return 0;
 }
@@ -767,10 +771,10 @@ void e_bc_i(const Vector &x, Vector &E)
    E = 0.0;
 }
 
-void real_and_imag_epsilon(double omega, const Vector &B,
-                           const Vector &density_vals,
-			   const Vector &temperature_vals,
-                           double *real_epsilon, double *imag_epsilon)
+void real_epsilon_sigma(double omega, const Vector &B,
+                        const Vector &density_vals,
+                        const Vector &temperature_vals,
+                        double *real_epsilon, double *real_sigma)
 {
    complex<double> I(0.0, 1.0);
 
@@ -785,9 +789,8 @@ void real_and_imag_epsilon(double omega, const Vector &B,
    double qi1 = Z1*qe, qi2 = Z2*qe;
    double mi1 = 2.01410178*u, mi2 = 39.948*u;
    double ne = density_vals[0], ni1 = density_vals[1], ni2 = density_vals[2];
-   double Te = temperature_vals[0], Ti = temperature_vals[1],
-          Ti2 = temperature_vals[2];
-   double vTe = sqrt(2*Te/me), vTi = sqrt(2*Ti/mi1);
+   double Te = temperature_vals[0], Ti = temperature_vals[1];
+   double vTe = sqrt(2*Te/me);
    double debye_length = sqrt((epsilon0_*Te)/(ne*pow(qe, 2)));
    double b90_1 = (qe*qi1)/(4*M_PI*epsilon0_*me*pow(vTe, 2)),
           b90_2 = (qe*qi2)/(4*M_PI*epsilon0_*me*pow(vTe, 2));
@@ -815,7 +818,7 @@ void real_and_imag_epsilon(double omega, const Vector &B,
    complex<double> e_xy = (I*D*sin(th) + P*cos(ph)*cos(th) - S*cos(ph)*cos(
                               th))*sin(ph);
    complex<double> e_xz = -I*D*cos(ph) + P*pow(sin(ph),
-                                                  2)*sin(th)*cos(th) - S*pow(sin(ph), 2)*sin(th)*cos(th);
+                                               2)*sin(th)*cos(th) - S*pow(sin(ph), 2)*sin(th)*cos(th);
 
    complex<double> e_yx = -(I*D*sin(th) - P*cos(ph)*cos(th)+S*cos(ph)*cos(
                                th))*sin(ph);
@@ -824,7 +827,7 @@ void real_and_imag_epsilon(double omega, const Vector &B,
                              ph);
 
    complex<double> e_zx = I*D*cos(ph) + P*pow(sin(ph),
-                                                 2)*sin(th)*cos(th) - S*pow(sin(ph), 2)*sin(th)*cos(th);
+                                              2)*sin(th)*cos(th) - S*pow(sin(ph), 2)*sin(th)*cos(th);
    complex<double> e_zy = -(I*D*cos(th) - P*sin(th)*cos(ph)+S*sin(th)*cos(
                                ph))*sin(ph);
    double e_zz = P*pow(sin(ph), 2)*pow(sin(th), 2) - S*pow(sin(ph), 2)*pow(sin(th),
@@ -842,19 +845,19 @@ void real_and_imag_epsilon(double omega, const Vector &B,
       real_epsilon[7] = e_yz.real();
       real_epsilon[8] = e_zz;
    }
-
-   if (imag_epsilon != NULL)
+   if (real_sigma != NULL)
    {
-      imag_epsilon[0] = 0.0;
-      imag_epsilon[1] = e_yx.imag();
-      imag_epsilon[2] = e_zx.imag();
-      imag_epsilon[3] = e_xy.imag();
-      imag_epsilon[4] = 0.0;
-      imag_epsilon[5] = e_zy.imag();
-      imag_epsilon[6] = e_xz.imag();
-      imag_epsilon[7] = e_yz.imag();
-      imag_epsilon[8] = 0.0;
+      real_sigma[0] = 0.0;
+      real_sigma[1] = e_yx.imag()*omega*epsilon0_;
+      real_sigma[2] = e_zx.imag()*omega*epsilon0_;
+      real_sigma[3] = e_xy.imag()*omega*epsilon0_;
+      real_sigma[4] = 0.0;
+      real_sigma[5] = e_zy.imag()*omega*epsilon0_;
+      real_sigma[6] = e_xz.imag()*omega*epsilon0_;
+      real_sigma[7] = e_yz.imag()*omega*epsilon0_;
+      real_sigma[8] = 0.0;
    }
+
 }
 
 DielectricTensor::DielectricTensor(ParGridFunction & B,
@@ -896,7 +899,30 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    }
 
    // Populate the dielectric tensor
-   real_and_imag_epsilon(omega_, B, density_vals_, temperature_vals_,
-                         epsilon.Data(), NULL);
+   real_epsilon_sigma(omega_, B, density_vals_, temperature_vals_,
+                      epsilon.Data(), NULL);
 }
+
+void DielectricTensor::Dval(DenseMatrix &sigma, ElementTransformation &T,
+                            const IntegrationPoint &ip)
+{
+   // Initialize dielectric tensor to all zeros
+   sigma.SetSize(3); sigma = 0.0;
+
+   // Collect density, temperature, and magnetic field values
+   Vector B(3);
+   B_->GetVectorValue(T.ElementNo, ip, B);
+
+   for (int i=0; i<=nspecies_; i++)
+   {
+      density_gf_.MakeRef(L2FESpace_, density_->GetBlock(i));
+      temperature_gf_.MakeRef(H1FESpace_, temperature_->GetBlock(i));
+      density_vals_[i]     = density_gf_.GetValue(T.ElementNo, ip);
+      temperature_vals_[i] = temperature_gf_.GetValue(T.ElementNo, ip);
+   }
+   // Populate the dielectric tensor
+   real_epsilon_sigma(omega_, B, density_vals_, temperature_vals_,
+                      NULL, sigma.Data());
+}
+
 

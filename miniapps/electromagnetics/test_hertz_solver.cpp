@@ -29,7 +29,7 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
                          ComplexOperator::Convention conv,
                          MatrixCoefficient & epsCoef,
                          Coefficient & muInvCoef,
-                         Coefficient * sigmaCoef,
+                         MatrixCoefficient & sigmaCoef,
                          Coefficient * etaInvCoef,
                          Array<int> & abcs,
                          Array<int> & dbcs,
@@ -76,7 +76,7 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
      // SurfCur_(NULL),
      epsCoef_(&epsCoef),
      muInvCoef_(&muInvCoef),
-     sigmaCoef_(sigmaCoef),
+     sigmaCoef_(&sigmaCoef),
      etaInvCoef_(etaInvCoef),
      omegaCoef_(new ConstantCoefficient(2.0 * M_PI * freq_)),
      negOmegaCoef_(new ConstantCoefficient(-2.0 * M_PI * freq_)),
@@ -170,7 +170,7 @@ HertzSolver::HertzSolver(ParMesh & pmesh, int order, double freq,
    posMassCoef_ = new ScalarMatrixProductCoefficient(*omega2Coef_, *epsCoef_);
    if ( sigmaCoef_ )
    {
-      lossCoef_ = new TransformedCoefficient(omegaCoef_, sigmaCoef_, prodFunc);
+      lossCoef_ = new ScalarMatrixProductCoefficient(*omegaCoef_, *sigmaCoef_);
       // gainCoef_ = new TransformedCoefficient(omegaCoef_, sigmaCoef_, prodFunc);
    }
 

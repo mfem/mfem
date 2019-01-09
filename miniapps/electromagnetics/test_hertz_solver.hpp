@@ -59,7 +59,7 @@ public:
                ComplexOperator::Convention conv,
                MatrixCoefficient & epsCoef,
                Coefficient & muInvCoef,
-               Coefficient * sigmaCoef,
+               MatrixCoefficient & sigmaCoef,
                Coefficient * etaInvCoef,
                Array<int> & abcs,
                Array<int> & dbcs,
@@ -151,7 +151,7 @@ private:
 
    MatrixCoefficient * epsCoef_;   // Dielectric Material Coefficient
    Coefficient       * muInvCoef_; // Dia/Paramagnetic Material Coefficient
-   Coefficient       * sigmaCoef_; // Electrical Conductivity Coefficient
+   MatrixCoefficient       * sigmaCoef_; // Electrical Conductivity Coefficient
    Coefficient       * etaInvCoef_; // Admittance Coefficient
 
    Coefficient * omegaCoef_;     // omega expressed as a Coefficient
@@ -160,7 +160,7 @@ private:
    Coefficient * negOmega2Coef_; // -omega^2 expressed as a Coefficient
    MatrixCoefficient * massCoef_;      // -omega^2 epsilon
    MatrixCoefficient * posMassCoef_;   // omega^2 epsilon
-   Coefficient * lossCoef_;      // -omega sigma
+   MatrixCoefficient * lossCoef_;      // -omega sigma
    // Coefficient * gainCoef_;    // omega sigma
    Coefficient * abcCoef_;       // -omega eta^{-1}
 
