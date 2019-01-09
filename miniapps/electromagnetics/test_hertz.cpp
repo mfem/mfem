@@ -768,9 +768,12 @@ void e_bc_i(const Vector &x, Vector &E)
 }
 
 void real_and_imag_epsilon(double omega, const Vector &B,
-                           const Vector &density_vals_, const Vector &temperature_vals_,
+                           const Vector &density_vals,
+			   const Vector &temperature_vals,
                            double *real_epsilon, double *imag_epsilon)
 {
+   complex<double> I(0.0, 1.0);
+
    double Bnorm = B.Norml2();
    double phi = 0.0;
    double MData[9] = {cos(phi), 0, -sin(phi), 0.0, 1.0, 0.0, sin(phi), 0, cos(phi)};
@@ -781,9 +784,9 @@ void real_and_imag_epsilon(double omega, const Vector &B,
    double Z1 = 1.0, Z2 = 18.0;
    double qi1 = Z1*qe, qi2 = Z2*qe;
    double mi1 = 2.01410178*u, mi2 = 39.948*u;
-   double ne = density_vals_[0], ni1 = density_vals_[1], ni2 = density_vals_[2];
-   double Te = temperature_vals_[0], Ti = temperature_vals_[1],
-          Ti2 = temperature_vals_[2];
+   double ne = density_vals[0], ni1 = density_vals[1], ni2 = density_vals[2];
+   double Te = temperature_vals[0], Ti = temperature_vals[1],
+          Ti2 = temperature_vals[2];
    double vTe = sqrt(2*Te/me), vTi = sqrt(2*Ti/mi1);
    double debye_length = sqrt((epsilon0_*Te)/(ne*pow(qe, 2)));
    double b90_1 = (qe*qi1)/(4*M_PI*epsilon0_*me*pow(vTe, 2)),
@@ -809,20 +812,20 @@ void real_and_imag_epsilon(double omega, const Vector &B,
 
    double e_xx = (-P * pow(sin(ph), 2)*pow(sin(th), 2) + P*pow(sin(ph),
                                                                2) + S*pow(sin(ph), 2)*pow(sin(th), 2) - S*pow(sin(ph), 2) + S);
-   complex<double> e_xy = (1.0i*D*sin(th) + P*cos(ph)*cos(th) - S*cos(ph)*cos(
+   complex<double> e_xy = (I*D*sin(th) + P*cos(ph)*cos(th) - S*cos(ph)*cos(
                               th))*sin(ph);
-   complex<double> e_xz = -1.0i*D*cos(ph) + P*pow(sin(ph),
+   complex<double> e_xz = -I*D*cos(ph) + P*pow(sin(ph),
                                                   2)*sin(th)*cos(th) - S*pow(sin(ph), 2)*sin(th)*cos(th);
 
-   complex<double> e_yx = -(1.0i*D*sin(th) - P*cos(ph)*cos(th)+S*cos(ph)*cos(
+   complex<double> e_yx = -(I*D*sin(th) - P*cos(ph)*cos(th)+S*cos(ph)*cos(
                                th))*sin(ph);
    double e_yy = P*pow(cos(ph), 2)+S*pow(sin(ph), 2);
-   complex<double> e_yz = (1i*D*cos(th)+P*sin(th)*cos(ph)-S*sin(th)*cos(ph))*sin(
+   complex<double> e_yz = (I*D*cos(th)+P*sin(th)*cos(ph)-S*sin(th)*cos(ph))*sin(
                              ph);
 
-   complex<double> e_zx = 1.0i*D*cos(ph) + P*pow(sin(ph),
+   complex<double> e_zx = I*D*cos(ph) + P*pow(sin(ph),
                                                  2)*sin(th)*cos(th) - S*pow(sin(ph), 2)*sin(th)*cos(th);
-   complex<double> e_zy = -(1.0i*D*cos(th) - P*sin(th)*cos(ph)+S*sin(th)*cos(
+   complex<double> e_zy = -(I*D*cos(th) - P*sin(th)*cos(ph)+S*sin(th)*cos(
                                ph))*sin(ph);
    double e_zz = P*pow(sin(ph), 2)*pow(sin(th), 2) - S*pow(sin(ph), 2)*pow(sin(th),
                                                                            2) + S;
