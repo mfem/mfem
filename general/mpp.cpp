@@ -589,7 +589,7 @@ int main(const int argc, char* argv[]) {
       cerr << err.file << ":" << err.line << ":"
            << " parser error" << endl;
       unlink(output.c_str());
-      exit(-1);
+      return ~0;
    }
    return 0;
 }
