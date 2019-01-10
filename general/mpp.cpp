@@ -539,8 +539,8 @@ static inline int process(context &pp) {
       if (peekn(pp,2) == "__") __id(pp);
       if (peekn(pp,1) == "#") sharpId(pp);
       if (pp.block==-1) { if (pp.k.jit) rtcKernelPostfix(pp); }
-      if (pp.block>=0 and pp.in.peek() == '{') { pp.out << "/*" << pp.block << "*/"; pp.block++; }
-      if (pp.block>=0 and pp.in.peek() == '}') { pp.out << "/*" << pp.block << "*/"; pp.block--; }
+      if (pp.block>=0 and pp.in.peek() == '{') { pp.block++; }
+      if (pp.block>=0 and pp.in.peek() == '}') { pp.block--; }
       if (is_newline(pp.in.peek())) { pp.line++;}
    }
    return 0;

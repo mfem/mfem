@@ -10,12 +10,18 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 set(SRCS
-  kGeometry.cpp
-  kGlobalToLocal.cpp
-  kIntDiffusionAssemble.cpp
-  kIntDiffusionMultAdd.cpp
-  kLocalToGlobal.cpp
+  kGeometry.kpp
+  kGlobalToLocal.kpp
+  kIntDiffusionAssemble.kpp
+  kIntDiffusionMultAdd.kpp
+  kLocalToGlobal.kpp
 )
+set_source_files_properties(${SRCS} PROPERTIES LANGUAGE CXX)
+
+foreach(file ${SRCS})
+   get_filename_component(base ${file} NAME_WE)
+   mpp_src(${base})
+endforeach()
 
 set(HDRS
   kGeometry.hpp

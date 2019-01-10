@@ -350,7 +350,7 @@ $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
 # Rules for compiling kernel source files.
-.PRECIOUS: %.kpp
+#.PRECIOUS: %.kpp
 %.kpp: %.cpp mpp
 	./mpp $(<) -o $(@)
 %.o: %.kpp

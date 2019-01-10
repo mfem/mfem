@@ -315,6 +315,20 @@ message(STATUS "MFEM version: v${MFEM_VERSION_STRING}")
 message(STATUS "MFEM git string: ${MFEM_GIT_STRING}")
 
 #-------------------------------------------------------------------------------
+# Define MPP CPP => KPP
+#-------------------------------------------------------------------------------
+function(mpp_src base)
+   set_property(SOURCE ${base}.kpp PROPERTY OBJECT_DEPENDS ${base}.cpp)
+   execute_process(
+       COMMAND /home/camier1/home/mfem/okina-jit/mpp ${base}.cpp -o ${base}.kpp
+       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+       OUTPUT_VARIABLE MPP_OUTPUT
+       OUTPUT_STRIP_TRAILING_WHITESPACE)
+   message("-- MFEM pre-processing ${CMAKE_CURRENT_SOURCE_DIR}/${base}.cpp ${MPP_OUTPUT}")
+   set_source_files_properties(${base}.kpp PROPERTIES LANGUAGE CXX)
+endfunction()
+
+#-------------------------------------------------------------------------------
 # Define and configure the MFEM library
 #-------------------------------------------------------------------------------
 

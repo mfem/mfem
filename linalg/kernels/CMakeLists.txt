@@ -9,13 +9,19 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
-set(SRCS
-  densemat.cpp
-  sparsemat.cpp
-  vector.cpp
+set(SRCS 
+  densemat.kpp 
+  sparsemat.kpp 
+  vector.kpp
 )
- 
-set(HDRS	
+set_source_files_properties(${SRCS} PROPERTIES LANGUAGE CXX)
+
+foreach(file ${SRCS})
+   get_filename_component(base ${file} NAME_WE)
+   mpp_src(${base})
+endforeach()
+
+set(HDRS
   densemat.hpp
   sparsemat.hpp
   vector.hpp
