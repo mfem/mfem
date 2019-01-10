@@ -79,24 +79,18 @@ void BlockVector::Update(double *data, const Array<int> & bOffsets)
 
 void BlockVector::Update(const Array<int> &bOffsets)
 {
+   blockOffsets = bOffsets.GetData();
    if (OwnsData())
    {
       // check if 'bOffsets' agree with the 'blocks'
       if (bOffsets.Size() == numBlocks+1)
       {
-         if (numBlocks == 0) { return; }
          for (int i = 0; true; i++)
          {
-            if (blocks[i].GetData() - data != bOffsets[i]) { break; }
-            if (i == numBlocks - 1)
-               if (blocks[numBlocks - 1].Size() ==
-                   bOffsets[numBlocks] - bOffsets[numBlocks - 1])
-               {
-                  blockOffsets = bOffsets.GetData();
-                  return;
-               }
-               else
-               { break; }
+            if (i >= numBlocks) { return; }
+            if (blocks[i].Size() != bOffsets[i+1] - bOffsets[i]) { break; }
+            MFEM_ASSERT(blocks[i].GetData() == data + bOffsets[i],
+                        "invalid blocks[" << i << ']');
          }
       }
    }
@@ -105,7 +99,6 @@ void BlockVector::Update(const Array<int> &bOffsets)
       Destroy();
    }
    SetSize(bOffsets.Last());
-   blockOffsets = bOffsets.GetData();
    if (numBlocks != bOffsets.Size()-1)
    {
       delete [] blocks;
