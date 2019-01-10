@@ -1733,10 +1733,10 @@ twist_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
       }
       else
       {
-	if (logging_ > 1)
-	  {
-	    cout << "twist_corners performing counter-clockwise twist" << endl;
-	  }
+         if (logging_ > 1)
+         {
+            cout << "twist_corners performing counter-clockwise twist" << endl;
+         }
          anim_move('y', 1, 1, mesh, color, sock);
          anim_move('z', 1, 1, mesh, color, sock);
          anim_move('y', 1, 3, mesh, color, sock);
@@ -1828,30 +1828,7 @@ solve_corner_orientations(Mesh & mesh, GridFunction & color,
       {
          cout << "Third incorrectly oriented corner: " << i2 << endl;
       }
-   }
-   /*
-   else
-   {
-      for (int i=0; i<8; i++)
-      {
-         if (i != i0 && i != i1)
-         {
-            i2 = i;
-            break;
-         }
-      }
-      for (int i=0; i<8; i++)
-      {
-         if (i != i0 && i != i1 && i != i2)
-         {
-            i3 = i;
-            break;
-         }
-      }
-   }
-   */
-   if (i2 > 0)
-   {
+
       // Three incorrectly oriented corners were found
       int c0[3] = {rubik.corn_[3 * i0],
                    rubik.corn_[3 * i0 + 1],
@@ -1879,16 +1856,6 @@ solve_corner_orientations(Mesh & mesh, GridFunction & color,
                    rubik.corn_[3 * i1 + 1],
                    rubik.corn_[3 * i1 + 2]
                   };
-      /*
-      int c2[3] = {rubik.corn_[3 * i2],
-                   rubik.corn_[3 * i2 + 1],
-                   rubik.corn_[3 * i2 + 2]
-                  };
-      int c3[3] = {rubik.corn_[3 * i3],
-                   rubik.corn_[3 * i3 + 1],
-                   rubik.corn_[3 * i3 + 2]
-                  };
-      */
       twist_corners(mesh, color, sock, cw, c0, c1);
    }
 
