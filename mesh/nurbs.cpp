@@ -1695,9 +1695,9 @@ void NURBSExtension::ConnectBoundaries2D(int bnd0, int bnd1)
 
    if (!compatible)
    {
-      cout<<p2g0.nx()<<" "<<p2g1.nx()<<endl;
-      cout<<kv0[0]->GetNKS()<<" "<<kv1[0]->GetNKS()<<endl;
-      cout<<kv0[0]->GetOrder()<<" "<<kv1[0]->GetOrder()<<endl;
+      mfem::out<<p2g0.nx()<<" "<<p2g1.nx()<<endl;
+      mfem::out<<kv0[0]->GetNKS()<<" "<<kv1[0]->GetNKS()<<endl;
+      mfem::out<<kv0[0]->GetOrder()<<" "<<kv1[0]->GetOrder()<<endl;
       mfem_error("NURBS boundaries not compatible");
    }
 #endif
@@ -1777,14 +1777,14 @@ void NURBSExtension::ConnectBoundaries3D(int bnd0, int bnd1)
 
    if (!compatible)
    {
-      cout<<p2g0.nx()<<" "<<p2g1.nx()<<endl;
-      cout<<p2g0.ny()<<" "<<p2g1.ny()<<endl;
+      mfem::out<<p2g0.nx()<<" "<<p2g1.nx()<<endl;
+      mfem::out<<p2g0.ny()<<" "<<p2g1.ny()<<endl;
 
-      cout<<kv0[0]->GetNKS()<<" "<<kv1[0]->GetNKS()<<endl;
-      cout<<kv0[1]->GetNKS()<<" "<<kv1[0]->GetNKS()<<endl;
+      mfem::out<<kv0[0]->GetNKS()<<" "<<kv1[0]->GetNKS()<<endl;
+      mfem::out<<kv0[1]->GetNKS()<<" "<<kv1[0]->GetNKS()<<endl;
 
-      cout<<kv0[0]->GetOrder()<<" "<<kv1[0]->GetOrder()<<endl;
-      cout<<kv0[1]->GetOrder()<<" "<<kv1[1]->GetOrder()<<endl;
+      mfem::out<<kv0[0]->GetOrder()<<" "<<kv1[0]->GetOrder()<<endl;
+      mfem::out<<kv0[1]->GetOrder()<<" "<<kv1[1]->GetOrder()<<endl;
       mfem_error("NURBS boundaries not compatible");
    }
 #endif
