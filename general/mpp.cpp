@@ -201,7 +201,7 @@ static inline string peekID(context &pp) {
    char c[n] = {0};
    int k = 0;
    for (; k<n; k+=1) {
-      const char p = pp.in.peek();
+      const int p = pp.in.peek();
       if (p==EOF) break;
       if (not is_alnum(pp)) break;
       c[k]=pp.in.get();
@@ -280,7 +280,7 @@ static inline bool get_args(context &pp) {
       arg->name = id;
       pp.args.push_back(arg);
       arg = new argument();
-      const char c = pp.in.peek();
+      const int c = pp.in.peek();
       check(pp,c != EOF);
       if (c == '(') p+=1;
       if (c == ')') p-=1;

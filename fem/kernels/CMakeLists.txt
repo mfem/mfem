@@ -11,8 +11,6 @@
 
 set(SRCS
   kGeometry.cpp
-  kGeometry2D.cpp
-  kGeometry3D.cpp
   kGlobalToLocal.cpp
   kIntDiffusionAssemble.cpp
   kIntDiffusionMultAdd.cpp
