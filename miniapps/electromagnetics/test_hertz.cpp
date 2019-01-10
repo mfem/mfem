@@ -205,7 +205,7 @@ int main(int argc, char *argv[])
    int serial_ref_levels = 0;
    int parallel_ref_levels = 0;
    int sol = 2;
-   int nspecies = 1;
+   int nspecies = 2;
    bool herm_conv = false;
    bool visualization = true;
    bool visit = true;
@@ -219,8 +219,8 @@ int main(int argc, char *argv[])
                   "Mesh file to use.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
-   args.AddOption(&nspecies, "-ns", "--num-species",
-                  "Number of ion species.");
+   // args.AddOption(&nspecies, "-ns", "--num-species",
+   //               "Number of ion species.");
    args.AddOption(&serial_ref_levels, "-rs", "--serial-ref-levels",
                   "Number of serial refinement levels.");
    args.AddOption(&parallel_ref_levels, "-rp", "--parallel-ref-levels",
