@@ -1245,9 +1245,9 @@ swap_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
             anim_move('z', 3, 2, mesh, color, sock);
             break;
          case 7:
-            anim_move('y', 1, 2, mesh, color, sock);
+            anim_move('x', 1, 2, mesh, color, sock);
             swap_corners(mesh, color, sock, NULL, c1);
-            anim_move('y', 1, 2, mesh, color, sock);
+            anim_move('x', 1, 2, mesh, color, sock);
             break;
       }
    }
@@ -1297,11 +1297,11 @@ swap_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
             anim_move('x', 3, 3, mesh, color, sock);
             break;
          case 3:
-            anim_move('y', 1, 1, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
             anim_move('x', 3, 1, mesh, color, sock);
             swap_corners(mesh, color, sock, NULL, NULL);
             anim_move('x', 3, 3, mesh, color, sock);
-            anim_move('y', 1, 3, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
             break;
          case 4:
             anim_move('z', 3, 3, mesh, color, sock);
@@ -1857,7 +1857,7 @@ solve_corner_orientations(Mesh & mesh, GridFunction & color,
    int i1 = -1;
    for (int i=i0+1; i<8; i++)
    {
-      if (rubik.corn_[3 * i + 0] != corn_colors_[3 * i0 + 0])
+      if (rubik.corn_[3 * i + 0] != corn_colors_[3 * i + 0])
       {
          i1 = i;
          break;
@@ -1873,7 +1873,7 @@ solve_corner_orientations(Mesh & mesh, GridFunction & color,
    // int i3 = -1;
    for (int i=i1+1; i<8; i++)
    {
-      if (rubik.corn_[3 * i + 0] != corn_colors_[3 * i0 + 0])
+      if (rubik.corn_[3 * i + 0] != corn_colors_[3 * i + 0])
       {
          i2 = i;
          break;
