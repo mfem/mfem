@@ -28,7 +28,7 @@ private:
    FiniteElementSpace *fes;
    int globalDofs, localDofs;
    karray<int> offsets;
-   karray<int> indices, *reorderIndices;
+   karray<int> indices;
    karray<int> map;
 public:
    kFiniteElementSpace(FiniteElementSpace*);

@@ -101,10 +101,7 @@ kFiniteElementSpace::kFiniteElementSpace(FiniteElementSpace *f)
 }
 
 // ***************************************************************************
-kFiniteElementSpace::~kFiniteElementSpace()
-{
-   // ::delete reorderIndices;
-}
+kFiniteElementSpace::~kFiniteElementSpace() { }
 
 // ***************************************************************************
 void kFiniteElementSpace::GlobalToLocal(const Vector& globalVec,

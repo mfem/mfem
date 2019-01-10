@@ -11,6 +11,8 @@
 
 using namespace std;
 
+typedef union {double d; uint64_t u;} union_du;
+   
 namespace ok{
 // default ok::hash ⇒ std::hash ************************************************
 template <typename T> struct hash {
@@ -69,7 +71,7 @@ const char *compile(const bool dbg, const size_t hash, const char *xcc,
                     const char *src, const char *incs, Args... args){
    char soName[21] = "k0000000000000000.so";
    char ccName[21] = "k0000000000000000.cc";
-   uint64str(hash,soName,1);
+   ok::uint64str(hash,soName,1);
    uint64str(hash,ccName,1);
    const int fd = open(ccName,O_CREAT|O_RDWR,S_IRUSR|S_IWUSR);
    assert(fd>=0);
@@ -98,7 +100,7 @@ void *lookup(const bool dbg, const size_t hash, const char *xcc,
    char soName[21] = "k0000000000000000.so";
    uint64str(hash,soName,1);
    void *handle = dlopen(soName,RTLD_LAZY);
-   if (!handle && !compile(dbg,hash,xcc,src,incs,args...)) return NULL;
+   if (!handle && !ok::compile(dbg,hash,xcc,src,incs,args...)) return NULL;
    if (!(handle=dlopen(soName,RTLD_LAZY))) return NULL;
    return handle;
 }
@@ -106,10 +108,11 @@ void *lookup(const bool dbg, const size_t hash, const char *xcc,
 // *****************************************************************************
 // * getSymbol
 // *****************************************************************************
-static void *getSymbol(const size_t hash,void *handle){
+template<typename kernel_t>
+static kernel_t getSymbol(const size_t hash,void *handle){
    char symbol[18] = "k0000000000000000";
    uint64str(hash,symbol,1);
-   void *address = dlsym(handle, symbol);
+   kernel_t address = (kernel_t) dlsym(handle, symbol);
    assert(address);
    return address;
 }
@@ -131,7 +134,7 @@ public:
       seed(ok::hash<const char*>()(src)),
       hash(hash_args(seed,xcc,incs,args...)),
       handle(lookup(dbg,hash,xcc,src,incs,args...)),
-      __kernel((kernel_t)getSymbol(hash,handle)) {
+      __kernel(getSymbol<kernel_t>(hash,handle)) {
       //if (dbg) printf("\n\033[32m[okrtc] xcc: '%s', incs: '%s'\033[m",xcc,incs);
       //if (dbg) printf("\n\033[32m[okrtc] seed:%016lx, hash:%016lx\033[m",seed,hash);
    }

@@ -333,14 +333,14 @@ static inline void rtcKernelRefresh(context &pp){
             {
                pp.k.d2u += "const double ";
                pp.k.d2u += name;
-               pp.k.d2u += " = (union {double d; uint64_t u;}){u:t";
+               pp.k.d2u += " = (union_du){u:t";
                pp.k.d2u += name;
                pp.k.d2u += "}.d;";
             }
             {
                pp.k.u2d += "const uint64_t u";
                pp.k.u2d += name;
-               pp.k.u2d += " = (union {double d; uint64_t u;}){";
+               pp.k.u2d += " = (union_du){";
                pp.k.u2d += name;
                pp.k.u2d += "}.u;";
             }

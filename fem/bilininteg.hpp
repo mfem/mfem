@@ -61,10 +61,10 @@ public:
 class PADiffusionIntegrator: public BilinearPAFormIntegrator
 {
 private:
-   Coefficient *Q;
+   // not used Coefficient *Q;
    KDiffusionIntegrator *diffusion;
 public:
-   PADiffusionIntegrator (Coefficient &q) : BilinearPAFormIntegrator(), Q(&q),
+   PADiffusionIntegrator (Coefficient &q) : BilinearPAFormIntegrator(),// Q(&q),
       diffusion(NULL) {}
    void Setup(const FiniteElementSpace*, const IntegrationRule*);
    void Assemble();
