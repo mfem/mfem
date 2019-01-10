@@ -81,18 +81,22 @@ void BlockVector::Update(const Array<int> &bOffsets)
 {
    if (OwnsData())
    {
-      // check if 'bOffsets' are the same as 'blockOffsets'
+      // check if 'bOffsets' agree with the 'blocks'
       if (bOffsets.Size() == numBlocks+1)
       {
-         if (bOffsets.GetData() == blockOffsets || numBlocks == 0) { return; }
+         if (numBlocks == 0) { return; }
          for (int i = 0; true; i++)
          {
-            if (blockOffsets[i] != bOffsets[i]) { break; }
-            if (i == numBlocks)
-            {
-               blockOffsets = bOffsets.GetData();
-               return;
-            }
+            if (blocks[i].GetData() - data != bOffsets[i]) { break; }
+            if (i == numBlocks - 1)
+               if (blocks[numBlocks - 1].Size() ==
+                   bOffsets[numBlocks] - bOffsets[numBlocks - 1])
+               {
+                  blockOffsets = bOffsets.GetData();
+                  return;
+               }
+               else
+               { break; }
          }
       }
    }
