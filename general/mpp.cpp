@@ -397,6 +397,7 @@ static inline void rtcKernelPrefix(const context &pp){
    pp.out << "\n#include <cstring>";
    pp.out << "\n#include <stdbool.h>";
    pp.out << "\n#include \"general/okina.hpp\"";
+   pp.out << "\ntypedef union {double d; uint64_t u;} union_du;";
    pp.out << "\ntemplate<" << pp.k.static_tmplt << ">";
    pp.out << "\nvoid rtc_" << pp.k.name << "("
           << pp.k.any_pointer_params_ << "){";

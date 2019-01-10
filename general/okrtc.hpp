@@ -80,11 +80,17 @@ const char *compile(const bool dbg, const size_t hash, const char *xcc,
    const size_t cmd_sz = 4096;
    char xccCommand[cmd_sz];
    const char *CCFLAGS = "-fPIC";
-   //const char *NVFLAGS = "--compiler-options '-fPIC' -lcuda";
-   //const bool nvcc = !strncmp("nvcc",xcc,4);
-   //const char *xflags = nvcc?NVFLAGS:CCFLAGS;
+   const char *NVFLAGS = "--compiler-options '-fPIC' -lcuda";
+#if defined(__clang__) && (__clang_major__ > 6)
+   const char *CLANG_FLAGS = "-Wno-gnu-designator -fPIC -L.. -lmfem";
+#else
+   const char *CLANG_FLAGS = "-fPIC";
+#endif
+   const bool clang = !strncmp("clang",xcc,5);
+   const bool nvcc = !strncmp("nvcc",xcc,4);
+   const char *xflags = nvcc?NVFLAGS:clang?CLANG_FLAGS:CCFLAGS;
    if (snprintf(xccCommand,cmd_sz, "%s -shared %s -o %s %s %s",
-                xcc,incs,soName,ccName,CCFLAGS)<0) return NULL;
+                xcc,incs,soName,ccName,xflags)<0) return NULL;
    /*if (dbg)*/ printf("\033[32;1m%s\033[m\n",xccCommand);
    if (system(xccCommand)<0) return NULL;
    if (!dbg) unlink(ccName);
@@ -112,6 +118,7 @@ template<typename kernel_t>
 static kernel_t getSymbol(const size_t hash,void *handle){
    char symbol[18] = "k0000000000000000";
    uint64str(hash,symbol,1);
+   printf("\n[getSymbol] dlsym '%s'",symbol);fflush(0);
    kernel_t address = (kernel_t) dlsym(handle, symbol);
    assert(address);
    return address;
