@@ -6,11 +6,8 @@
 #include <iostream>
 #include <unistd.h>
 #include <string.h>
+#include "okina.hpp"
 using namespace std;
-
-// *****************************************************************************
-#include "incbin.hpp"
-INCBIN(Okrtc, "general/okrtc.hpp");
 
 // *****************************************************************************
 // * STRUCTS: context, error & args
@@ -39,6 +36,7 @@ struct kernel{
 
 // *****************************************************************************
 struct context {
+   bool mm;
    int line;
    int block;
    string& file;
@@ -48,18 +46,20 @@ struct context {
    kernel k;
 public:
    context(istream& i, ostream& o, string &f)
-      : line(1), block(-2), file(f), in(i), out(o){}
+      : mm(mfem::config::usingMM()),
+        line(1), block(-2), file(f), in(i), out(o){}
 };
 
 // *****************************************************************************
 struct error {
    int line;
    string file;
-   error(int l, string f): line(l), file(f) {}
+   const char *msg;
+   error(int l, string f, const char *m): line(l), file(f), msg(m) {}
 };
 
 // *****************************************************************************
-static const char* strrnchr(const char* s, const unsigned char c, int n=1) {
+static const char* strrnc(const char* s, const unsigned char c, int n=1) {
    size_t len = strlen(s);
    char* p = (char*)s+len-1;
    for (; n; n--,p--,len--) {
@@ -72,8 +72,8 @@ static const char* strrnchr(const char* s, const unsigned char c, int n=1) {
 }
 
 // *****************************************************************************
-static inline void check(context &pp, const bool test){
-   if (not test) throw error(pp.line,pp.file);
+static inline void check(context &pp, const bool test, const char *msg = NULL){
+   if (not test) throw error(pp.line,pp.file,msg);
 }
 
 // *****************************************************************************
@@ -89,15 +89,11 @@ static inline bool is_newline(const char ch) {
 }
 
 // *****************************************************************************
-static inline char get(context &pp) {
-   char ch;
-   pp.in.get(ch);
-   return ch;
-}
+static inline int get(context &pp) { return pp.in.get(); }
 
 // *****************************************************************************
 static inline char put(context &pp) {
-   const char c = get(pp);
+   const char c = (char) get(pp);
    pp.out << c;
    return c;
 }
@@ -105,7 +101,8 @@ static inline char put(context &pp) {
 // *****************************************************************************
 static inline void skip_space(context &pp) {
    while (isspace(pp.in.peek())) {
-      if (pp.in.peek() == '\n') pp.line++;
+      check(pp,pp.in.peek()!='\v',"Vertical tab detected!");
+      if (is_newline(pp.in.peek())) pp.line++;
       put(pp);
    }
 }
@@ -113,7 +110,7 @@ static inline void skip_space(context &pp) {
 // *****************************************************************************
 static inline void drop_space(context &pp) {
    while (isspace(pp.in.peek())) {
-      if (pp.in.peek() == '\n') pp.line++;
+      if (is_newline(pp.in.peek())) pp.line++;
       pp.in.get();
    }
 }
@@ -122,7 +119,7 @@ static inline void drop_space(context &pp) {
 static inline bool is_comment(context &pp) {
    if (pp.in.peek() != '/') return false;
    pp.in.get();
-   const char c = pp.in.peek();
+   const int c = pp.in.peek();
    pp.in.unget();
    if (c == '/' or c == '*') return true;
    return false;
@@ -130,7 +127,7 @@ static inline bool is_comment(context &pp) {
 
 // *****************************************************************************
 static inline void singleLineComment(context &pp) {
-   while (pp.in.peek()!=EOF and pp.in.peek()!='\n') put(pp);
+   while (pp.in.peek()!=EOF and not is_newline(pp.in.peek())) put(pp);
    pp.line++;
 }
 
@@ -138,7 +135,7 @@ static inline void singleLineComment(context &pp) {
 static inline void blockComment(context &pp) {
    while (not pp.in.eof()) {
       const char c = put(pp);
-      if (c == '\n') pp.line++;
+      if (is_newline(c)) pp.line++;
       if (c == '*' and pp.in.peek() == '/') {
          put(pp);
          skip_space(pp);
@@ -149,8 +146,8 @@ static inline void blockComment(context &pp) {
 
 // *****************************************************************************
 static inline void comments(context &pp) {
-   const char c1 = put(pp); check(pp,c1=='/');
-   const char c2 = put(pp); check(pp,c2=='/' or c2=='*');
+   const char c1 = put(pp); check(pp,c1=='/',"Comments w/o 1st char");
+   const char c2 = put(pp); check(pp,c2=='/' or c2=='*',"Comment w/o 2nd char");
    if (c2 == '/') return singleLineComment(pp);
    return blockComment(pp);
 }
@@ -164,7 +161,7 @@ static inline bool is_alnum(context &pp) {
 // *****************************************************************************
 static inline string get_name(context &pp) {
    string str;
-   check(pp,is_alnum(pp));
+   check(pp,is_alnum(pp),"Name w/o alnum 1st letter");
    while ((not pp.in.eof()) and (pp.in.peek()!=EOF) and
           (isalnum(pp.in.peek()) or pp.in.peek()=='_'))
       str += pp.in.get();
@@ -174,7 +171,7 @@ static inline string get_name(context &pp) {
 // *****************************************************************************
 static inline string get_directive(context &pp) {
    string str;
-   check(pp,pp.in.peek()=='#');
+   check(pp,pp.in.peek()=='#',"Directive w/o 1st '#'");
    while ((not pp.in.eof()) and (pp.in.peek()!=EOF) and
           (isalnum(pp.in.peek()) or pp.in.peek()=='_' or pp.in.peek()=='#'))
       str += pp.in.get();
@@ -262,10 +259,12 @@ static inline bool get_args(context &pp) {
          put(pp);
          continue;
       }
-      const string id = peekID(pp);
+      const string &id = peekID(pp);
       drop_name(pp);
+      // Qualifiers
       if (id=="const") { pp.out << id; arg->is_const = true; continue; }
       if (id=="__restrict") { pp.out << id; arg->restrict = true; continue; }
+      // Types
       if (id=="char") { pp.out << id; arg->type = id; continue; }
       if (id=="int") { pp.out << id; arg->type = id; continue; }
       if (id=="short") { pp.out << id; arg->type = id; continue; }
@@ -275,19 +274,20 @@ static inline bool get_args(context &pp) {
       if (id=="float") { pp.out << id; arg->type = id; continue; }
       if (id=="double") { pp.out << id; arg->type = id; continue; }
       if (id=="size_t") { pp.out << id; arg->type = id; continue; }
-      pp.out << (pp.k.jit?"":"_") << id;
+      const bool jit = pp.k.jit;
+      pp.out << ((jit or not pp.mm)?"":"_") << id;
       // focus on the name, we should have qual & type
       arg->name = id;
       pp.args.push_back(arg);
       arg = new argument();
       const int c = pp.in.peek();
-      check(pp,c != EOF);
+      check(pp,c != EOF,"EOF while in args");
       if (c == '(') p+=1;
       if (c == ')') p-=1;
-      if (c == '\n') pp.line++;
+      if (is_newline(c)) pp.line++;
       if (p<0) { return empty; }
-      drop_space(pp);
-      check(pp,pp.in.peek()==',');
+      skip_space(pp);
+      check(pp,pp.in.peek()==',',"No coma while in args");
       put(pp);
    }
    return empty;
@@ -295,10 +295,10 @@ static inline bool get_args(context &pp) {
 
 // *****************************************************************************
 static inline void rtcKernelRefresh(context &pp){
-   pp.k.xcc = INCBIN_STRINGIZE(MFEM_CXX) " " \
-      INCBIN_STRINGIZE(MFEM_BUILD_FLAGS) " " \
-      "-O3 -std=c++11";
-   pp.k.dirname = INCBIN_STRINGIZE(MFEM_SRC);
+   pp.k.xcc = STRINGIFY(MFEM_CXX) " " \
+      STRINGIFY(MFEM_BUILD_FLAGS) " " \
+      "-O3 -std=c++11 -Wall";
+   pp.k.dirname = STRINGIFY(MFEM_SRC);
    pp.k.static_args.clear();
    pp.k.static_tmplt.clear();
    pp.k.static_format.clear();
@@ -399,8 +399,8 @@ static inline void rtcKernelPrefix(const context &pp){
    pp.out << "\n#include \"general/okina.hpp\"";
    pp.out << "\ntypedef union {double d; uint64_t u;} union_du;";
    pp.out << "\ntemplate<" << pp.k.static_tmplt << ">";
-   pp.out << "\nvoid rtc_" << pp.k.name << "("
-          << pp.k.any_pointer_params_ << "){";
+   pp.out << "\nvoid rtc_" << pp.k.name << "(";
+   pp.out << (pp.mm?pp.k.any_pointer_params_:pp.k.any_pointer_params) << "){";
    pp.out << "\n\t" << pp.k.d2u;
 }
 
@@ -429,7 +429,7 @@ static inline void __kernel(context &pp) {
    //        "__kernel "
    pp.out << "         ";
    drop_space(pp);
-   check(pp,isvoid(pp) or isstatic(pp)); // we need this for now
+   check(pp,isvoid(pp) or isstatic(pp),"Kernel w/o void or static");
    if (isstatic(pp)) {
       pp.out << get_name(pp);
       skip_space(pp);
@@ -445,7 +445,7 @@ static inline void __kernel(context &pp) {
    skip_space(pp);
    //goto_start_of_left_paren(pp);
    // check we are at the left parenthesis
-   check(pp,pp.in.peek()=='('), put(pp); 
+   check(pp,pp.in.peek()=='(',"No 1st '(' in kernel"), put(pp); 
    // Go to first possible argument
    skip_space(pp);
    if (isvoid(pp)) { // if it is 'void' don't add any coma
@@ -454,7 +454,6 @@ static inline void __kernel(context &pp) {
       pp.args.clear();
       get_args(pp);
       if (pp.k.jit) rtcKernelRefresh(pp);
-      check(pp,pp.in.peek()==')');
    }
 }
 
@@ -467,20 +466,19 @@ static inline void __id(context &pp, string id = "") {
       skip_space(pp);
       pp.k.jit = true;
       id = get_name(pp);
-      check(pp,id=="__kernel");
+      check(pp,id=="__kernel","No 'kernel' keyword after 'jit' qualifier");
    }
    if (id=="__kernel"){
       // Get arguments of this kernel
       __kernel(pp);
-      // Make sure we have hit the end of the arguments
-      check(pp,pp.in.peek()==')');
-      put(pp);
+      check(pp,pp.in.peek()==')',"No last ')' in kernel"), put(pp);
       skip_space(pp);
       // Make sure we are about to start a statement block
-      check(pp,pp.in.peek()=='{');
-      put(pp);
+      check(pp,pp.in.peek()=='{',"No statement block found"), put(pp);
       // Generate the RTC prefix for this kernel
       if (pp.k.jit) rtcKernelPrefix(pp);
+      pp.block = 0;
+      if (not pp.mm) return;
       // Generate the GET_* code
       for(std::list<argument*>::iterator ia = pp.args.begin();
           ia != pp.args.end() ; ia++) {
@@ -508,7 +506,6 @@ static inline void __id(context &pp, string id = "") {
                    << " mfem::mm::adrs(_" << name << ");";
          }
       }
-      pp.block = 0;
       return;
    }
    pp.out << id;
@@ -521,7 +518,7 @@ static inline void sharpId(context &pp) {
       skip_space(pp);
       pp.k.jit = true;
       id = get_directive(pp);
-      check(pp,id=="#kernel");
+      check(pp,id=="#kernel","No 'kernel' token found after the 'jit' one");
       __id(pp,"__kernel");
       return;
    }
@@ -533,23 +530,17 @@ static inline void sharpId(context &pp) {
 }
 
 // *****************************************************************************
-static inline void dumpRuntimeHeader(context &pp){
-   assert(&gOkrtcData[gOkrtcSize] == (const unsigned char*) &gOkrtcEnd);
-   pp.out << gOkrtcData;
-}
-
-// *****************************************************************************
 static inline int process(context &pp) {
    pp.k.jit = false;
-   dumpRuntimeHeader(pp);
+   pp.out << "#include \"../../general/okrtc.hpp\"\n";
    while (not pp.in.eof()) {
       if (is_comment(pp)) comments(pp);
       if (pp.in.peek() != EOF) put(pp);
       if (peekn(pp,2) == "__") __id(pp);
       if (peekn(pp,1) == "#") sharpId(pp);
       if (pp.block==-1) { if (pp.k.jit) rtcKernelPostfix(pp); }
-      if (pp.block>=0 and pp.in.peek() == '{') { pp.block++; }
-      if (pp.block>=0 and pp.in.peek() == '}') { pp.block--; }
+      if (pp.block>=0 and pp.in.peek() == '{') { pp.out << "/*" << pp.block << "*/"; pp.block++; }
+      if (pp.block>=0 and pp.in.peek() == '}') { pp.out << "/*" << pp.block << "*/"; pp.block--; }
       if (is_newline(pp.in.peek())) { pp.line++;}
    }
    return 0;
@@ -570,7 +561,7 @@ int main(const int argc, char* argv[]) {
          continue;
       }
       // should give input file
-      const char* last_dot = strrnchr(argv[i],'.');
+      const char* last_dot = strrnc(argv[i],'.');
       const size_t ext_size = last_dot?strlen(last_dot):0;
       if (last_dot && ext_size>0) {
          assert(file.size()==0);
@@ -588,7 +579,9 @@ int main(const int argc, char* argv[]) {
       process(pp);
    } catch (error err) {
       cerr << err.file << ":" << err.line << ":"
-           << " parser error" << endl;
+           << " mpp error"
+           << (err.msg?err.msg:"")
+           << endl;
       unlink(output.c_str());
       return ~0;
    }
