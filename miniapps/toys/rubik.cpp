@@ -1174,7 +1174,7 @@ void
 swap_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
              int * c0, int * c1)
 {
-   if (logging_ > 0)
+   if (logging_ > 1)
    {
       cout << "Entering swap_corners" << endl;
    }
@@ -1279,7 +1279,7 @@ swap_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
             break;
          }
       }
-      if (logging_ > 0)
+      if (logging_ > 1)
       {
          cout << "Location of piece belonging at " << 0 << " (c1) is "
               << i1 << endl;
@@ -1346,11 +1346,11 @@ swap_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
 void
 solve_corner_locations(Mesh & mesh, GridFunction & color, socketstream & sock)
 {
-   if (logging_ > 0)
+   if (logging_ > 1)
    {
       cout << "Entering solve_corner_locations" << endl;
    }
-   if (logging_ > 1)
+   if (logging_ > 2)
    {
       print_state(cout);
    }
@@ -1753,11 +1753,11 @@ void
 solve_corner_orientations(Mesh & mesh, GridFunction & color,
                           socketstream & sock)
 {
-   if (logging_ > 0)
+   if (logging_ > 1)
    {
       cout << "Entering solve_corner_orientations" << endl;
    }
-   if (logging_ > 1)
+   if (logging_ > 2)
    {
       print_state(cout);
    }
@@ -1899,7 +1899,7 @@ void
 permute_edges(Mesh & mesh, GridFunction & color, socketstream & sock,
               int * e0, int * e1, int * e2)
 {
-   if (logging_ > 0)
+   if (logging_ > 1)
    {
       cout << "Entering permute_edges" << endl;
    }
@@ -2105,11 +2105,11 @@ permute_edges(Mesh & mesh, GridFunction & color, socketstream & sock,
 void
 solve_edge_locations(Mesh & mesh, GridFunction & color, socketstream & sock)
 {
-   if (logging_ > 0)
+   if (logging_ > 1)
    {
       cout << "Entering solve_edge_locations" << endl;
    }
-   if (logging_ > 1)
+   if (logging_ > 2)
    {
       print_state(cout);
    }
@@ -2608,11 +2608,11 @@ flip_edges(Mesh & mesh, GridFunction & color, socketstream & sock,
 void
 solve_edge_orientations(Mesh & mesh, GridFunction & color, socketstream & sock)
 {
-   if (logging_ > 0)
+   if (logging_ > 1)
    {
       cout << "Entering solve_edge_orientations" << endl;
    }
-   if (logging_ > 1)
+   if (logging_ > 2)
    {
       print_state(cout);
    }
