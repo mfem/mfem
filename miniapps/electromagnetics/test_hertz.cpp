@@ -146,7 +146,7 @@ double magnetic_shell(const Vector &);
 double magnetic_shell_inv(const Vector & x) { return 1.0/magnetic_shell(x); }
 
 // Conductivity Functions
-Coefficient * SetupConductivityCoefficient();
+//Coefficient * SetupConductivityCoefficient();
 
 static Vector pw_sigma_(0);   // Piecewise conductivity values
 static Vector cs_params_(0);  // Center, Radius, and Conductivity
@@ -432,7 +432,7 @@ int main(int argc, char *argv[])
    // Create a tensor coefficient describing the electrical conductivity
    DielectricTensor conductivity_tensor(BField, density, temperature,
                                         H1FESpace, L2FESpace,
-                                        nspecies, 2.0 * M_PI * freq_);
+                                        nspecies, 2.0 * M_PI * freq_, false);
 
    // Create a coefficient describing the surface admittance
    Coefficient * etaInvCoef = SetupAdmittanceCoefficient(pmesh, abcs);
@@ -968,6 +968,14 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
 			NULL, epsilon.Data());
 
    }
+   Vector lambda(3);
+   epsilon.Eigenvalues(lambda);
+   if (realPart_)
+     cout << "Dielectric tensor eigenvalues: "
+	  << lambda[0] << " " << lambda[1] << " " << lambda[2] << endl;
+   else
+     cout << "Conductivity tensor eigenvalues: "
+	  << lambda[0] << " " << lambda[1] << " " << lambda[2] << endl;
 }
 /*
 void DielectricTensor::Dval(DenseMatrix &sigma, ElementTransformation &T,

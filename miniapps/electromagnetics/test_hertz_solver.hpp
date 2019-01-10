@@ -151,7 +151,7 @@ private:
 
    MatrixCoefficient * epsCoef_;   // Dielectric Material Coefficient
    Coefficient       * muInvCoef_; // Dia/Paramagnetic Material Coefficient
-   MatrixCoefficient       * sigmaCoef_; // Electrical Conductivity Coefficient
+   MatrixCoefficient * sigmaCoef_; // Electrical Conductivity Coefficient
    Coefficient       * etaInvCoef_; // Admittance Coefficient
 
    Coefficient * omegaCoef_;     // omega expressed as a Coefficient
