@@ -108,11 +108,12 @@ public:
                     ParFiniteElementSpace & H1FESpace,
                     ParFiniteElementSpace & L2FESpace,
                     int nspecies,
-                    double omega);
+                    double omega,
+		    bool realPart = true);
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
-   virtual void Dval(DenseMatrix &K, ElementTransformation &T,
-                     const IntegrationPoint &ip);
+  // virtual void Dval(DenseMatrix &K, ElementTransformation &T,
+  //                   const IntegrationPoint &ip);
    virtual ~DielectricTensor() {}
 
 private:
@@ -123,7 +124,8 @@ private:
    ParFiniteElementSpace * L2FESpace_;
    int nspecies_;
    double omega_;
-
+   bool realPart_;
+  
    ParGridFunction density_gf_;
    ParGridFunction temperature_gf_;
 
@@ -161,8 +163,21 @@ static Vector pw_eta_inv_(0);  // Piecewise inverse impedance values
 // Current Density Function
 static Vector do_params_(0);  // Axis Start, Axis End, Rod Radius,
 //                               Total Current of Rod
+static Vector slab_params_(0); // Amplitude of x, y, z current source
+
 void dipole_oscillator(const Vector &x, Vector &j);
-void j_src(const Vector &x, Vector &j) { dipole_oscillator(x, j); }
+void slab_current_source(const Vector &x, Vector &j);
+void j_src(const Vector &x, Vector &j)
+{
+   if (do_params_.Size() > 0)
+   {
+      dipole_oscillator(x, j);
+   }
+   else
+   {
+      slab_current_source(x, j);
+   }
+}
 
 // Electric Field Boundary Condition: The following function returns zero but
 // any function could be used.
@@ -170,6 +185,9 @@ void e_bc_r(const Vector &x, Vector &E);
 void e_bc_i(const Vector &x, Vector &E);
 
 static double freq_ = 1.0;
+
+// Mesh Size
+static Vector mesh_dim_(0); // x, y, z dimensions of mesh
 
 // Prints the program's logo to the given output stream
 void display_banner(ostream & os);
@@ -194,6 +212,7 @@ int main(int argc, char *argv[])
 
    Array<int> abcs;
    Array<int> dbcs;
+   Array<int> num_elements;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -227,10 +246,16 @@ int main(int argc, char *argv[])
                   "Piecewise values of Impedance (one value per abc surface)");
    args.AddOption(&do_params_, "-do", "--dipole-oscillator-params",
                   "Axis End Points, Radius, and Amplitude");
+   args.AddOption(&slab_params_, "-slab", "--slab_params",
+                  "Amplitude");
    args.AddOption(&abcs, "-abcs", "--absorbing-bc-surf",
                   "Absorbing Boundary Condition Surfaces");
    args.AddOption(&dbcs, "-dbcs", "--dirichlet-bc-surf",
                   "Dirichlet Boundary Condition Surfaces");
+   args.AddOption(&mesh_dim_, "-md", "--mesh_dimensions",
+                  "The x, y, z mesh dimensions");
+   args.AddOption(&num_elements, "-ne", "--num_elements",
+                  "The number of elements in each x, y, z of mesh");
    /*
    args.AddOption(&dbcv, "-dbcv", "--dirichlet-bc-vals",
                   "Dirichlet Boundary Condition Values");
@@ -277,7 +302,19 @@ int main(int argc, char *argv[])
    // Read the (serial) mesh from the given mesh file on all processors.  We
    // can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    // and volume meshes with the same code.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
+
+   Mesh *mesh = NULL;
+
+   if (mesh_dim_(0) == -1 && mesh_dim_(1) == -1 && mesh_dim_(2) == -1)
+   {
+      mesh = new Mesh(mesh_file, 1, 1);
+   }
+   else
+   {
+      mesh = new Mesh(num_elements[0], num_elements[1], num_elements[2],
+		      Element::HEXAHEDRON, 1,
+		      mesh_dim_(0), mesh_dim_(1), mesh_dim_(2));
+   }
 
    if (mpi.Root())
    {
@@ -355,15 +392,15 @@ int main(int argc, char *argv[])
    int size_h1 = H1FESpace.GetVSize();
    int size_l2 = L2FESpace.GetVSize();
 
-   Array<int> density_offsets(nspecies + 1);
-   Array<int> temperature_offsets(nspecies + 1);
+   Array<int> density_offsets(nspecies + 2);
+   Array<int> temperature_offsets(nspecies + 2);
 
    density_offsets[0] = 0;
    temperature_offsets[0] = 0;
-   for (int i=0; i<nspecies; i++)
+   for (int i=0; i<=nspecies; i++)
    {
-      density_offsets[i + 1]     = density_offsets[1] + size_l2;
-      temperature_offsets[i + 1] = temperature_offsets[1] + size_h1;
+      density_offsets[i + 1]     = density_offsets[i] + size_l2;
+      temperature_offsets[i + 1] = temperature_offsets[i] + size_h1;
    }
 
    BlockVector density(density_offsets);
@@ -410,7 +447,7 @@ int main(int argc, char *argv[])
                      conv, dielectric_tensor, *muInvCoef, conductivity_tensor, etaInvCoef,
                      abcs, dbcs,
                      e_bc_r, e_bc_i,
-                     (do_params_.Size() > 0 ) ? j_src : NULL, NULL
+                     (do_params_.Size() > 0 || slab_params_.Size() > 0 ) ? j_src : NULL, NULL
                     );
 
    //(b_uniform_.Size() > 0 ) ? a_bc_uniform  : NULL,
@@ -758,6 +795,24 @@ void dipole_oscillator(const Vector &x, Vector &j)
    }
 }
 
+void slab_current_source(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+
+   j.SetSize(x.Size());
+   j = 0.0;
+
+   double half_x_l = mesh_dim_(0)/2.0 - 1.0;
+   double half_x_r = mesh_dim_(0)/2.0 + 1.0;
+
+   if (x(0) <= half_x_r && x(0) >= half_x_l)
+   {
+      j(0) = slab_params_(0);
+      j(1) = slab_params_(1);
+      j(2) = slab_params_(2);
+   }
+}
+
 void e_bc_r(const Vector &x, Vector &E)
 {
    E.SetSize(3);
@@ -866,7 +921,8 @@ DielectricTensor::DielectricTensor(ParGridFunction & B,
                                    ParFiniteElementSpace & H1FESpace,
                                    ParFiniteElementSpace & L2FESpace,
                                    int nspecies,
-                                   double omega)
+                                   double omega,
+				   bool realPart)
    : MatrixCoefficient(3),
      B_(&B),
      temperature_(&temperature),
@@ -874,7 +930,8 @@ DielectricTensor::DielectricTensor(ParGridFunction & B,
      H1FESpace_(&H1FESpace),
      L2FESpace_(&L2FESpace),
      nspecies_(nspecies),
-     omega_(omega)
+     omega_(omega),
+     realPart_(realPart)
 {
    density_vals_.SetSize(nspecies_ + 1);
    temperature_vals_.SetSize(nspecies_ + 1);
@@ -898,11 +955,21 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
       temperature_vals_[i] = temperature_gf_.GetValue(T.ElementNo, ip);
    }
 
-   // Populate the dielectric tensor
-   real_epsilon_sigma(omega_, B, density_vals_, temperature_vals_,
-                      epsilon.Data(), NULL);
-}
+   if (realPart_)
+   {
+     // Populate the dielectric tensor
+     real_epsilon_sigma(omega_, B, density_vals_, temperature_vals_,
+			epsilon.Data(), NULL);
+   }
+   else
+   {
+     // Populate the conductivity tensor
+     real_epsilon_sigma(omega_, B, density_vals_, temperature_vals_,
+			NULL, epsilon.Data());
 
+   }
+}
+/*
 void DielectricTensor::Dval(DenseMatrix &sigma, ElementTransformation &T,
                             const IntegrationPoint &ip)
 {
@@ -924,5 +991,5 @@ void DielectricTensor::Dval(DenseMatrix &sigma, ElementTransformation &T,
    real_epsilon_sigma(omega_, B, density_vals_, temperature_vals_,
                       NULL, sigma.Data());
 }
-
+*/
 
