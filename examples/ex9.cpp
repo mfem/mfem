@@ -653,7 +653,6 @@ public:
       DenseMatrix velEval, adjJ(dim,dim), dshape(nd,dim);
 
       elDiff.SetSize(ne); elDiff = 0.;
-      bdrDiff.SetSize(ne, numBdrs); bdrDiff = 0.;
 
       // use the first mesh element as indicator
       ElementTransformation *tr = mesh->GetElementTransformation(0);
@@ -682,12 +681,22 @@ public:
       }
       else
       {
-         qOrdF = Trans->Elem1->OrderW() + 2*dummy.GetOrder();
+         qOrdF = Trans->Elem1->OrderW() + 2*dummy.GetOrder(); // TODO check if this is necessary and do it everywhere or nowhere
       }
       const IntegrationRule *irF1 = &IntRules.Get(Trans->FaceGeom, qOrdF);
+      
+      bdrIntLumped.SetSize(ne*nd, numBdrs); bdrIntLumped = 0.;
+      bdrInt.SetSize(ne*nd, nd*numBdrs); bdrInt = 0.;
+      bdrIntNeighbor.SetSize(ne*nd, nd*numBdrs); bdrIntNeighbor = 0.;
+      neighborDof.SetSize(ne*numDofs, numBdrs);
 
       for (k = 0; k < ne; k++)
       {
+         ////////////////////////////
+         // Boundary contributions //
+         ////////////////////////////
+         preprocessFluxLumping(fes, coef, k, irF1);
+         
          ///////////////////////////
          // Element contributions //
          ///////////////////////////
@@ -742,69 +751,6 @@ public:
             }
          }
          elDiff(k) = std::sqrt(alpha.Max() * beta.Max());
-
-         ////////////////////////////
-         // Boundary contributions //
-         ////////////////////////////
-         if (dim==1)
-         {
-            mesh->GetElementVertices(k, bdrs);
-         }
-         else if (dim==2)
-         {
-            mesh->GetElementEdges(k, bdrs, orientation);
-         }
-         else if (dim==3)
-         {
-            mesh->GetElementFaces(k, bdrs, orientation);
-         }
-
-         for (i = 0; i < numBdrs; i++)
-         {
-            Trans = mesh->GetFaceElementTransformations(bdrs[i]);
-            vn = 0.; shapeBdr = 0.;
-
-            for (p = 0; p < irF1->GetNPoints(); p++)
-            {
-               const IntegrationPoint &ip = irF1->IntPoint(p);
-               IntegrationPoint eip1;
-               Trans->Face->SetIntPoint(&ip);
-
-               if (dim == 1)
-               {
-                  nor(0) = 2.*eip1.x - 1.0;
-               }
-               else
-               {
-                  CalcOrtho(Trans->Face->Jacobian(), nor);
-               }
-
-               if (Trans->Elem1No != k)
-               {
-                  Trans->Loc2.Transform(ip, eip1);
-                  el.CalcShape(eip1, shape);
-                  Trans->Elem2->SetIntPoint(&eip1);
-                  coef.Eval(vval, *Trans->Elem2, eip1);
-                  nor *= -1.;
-               }
-               else
-               {
-                  Trans->Loc1.Transform(ip, eip1);
-                  el.CalcShape(eip1, shape);
-                  Trans->Elem1->SetIntPoint(&eip1);
-                  coef.Eval(vval, *Trans->Elem1, eip1);
-               }
-
-               nor /= nor.Norml2();
-
-               vn = std::max(vn, vval * nor);
-               for (j = 0; j < numDofs; j++)
-               {
-                  shapeBdr(j) += ip.weight * Trans->Face->Weight() * pow(shape(dofs(j,i)), 2.);
-               }
-            }
-            bdrDiff(k,i) = vn * shapeBdr.Max();
-         }
       }
    }
 
@@ -1251,7 +1197,7 @@ public:
    bool schemeOpt;
    SparseMatrix KpD, fluctMatrix;
    Array<int> numSubCellsForNode;
-   DenseMatrix bdrDiff, dofs, neighborDof, subcell2CellDof, bdrIntNeighbor, bdrInt,
+   DenseMatrix dofs, neighborDof, subcell2CellDof, bdrIntNeighbor, bdrInt,
                bdrIntLumped, fluctSub;
    SolutionBounds &bnds;
 };
@@ -1689,6 +1635,7 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
           numBdrs = fct.dofs.Width();
       Array< int > bdrs, orientation;
       double uSum;
+      Vector alpha;
 
       // Discretization terms
       K.Mult(x, z);
@@ -1699,24 +1646,14 @@ void FE_Evolution::ComputeLowOrderSolution(const Vector &x, Vector &y) const
       {
          const FiniteElement &el = *fes->GetFE(k);
          nd = el.GetDof();
+         alpha.SetSize(nd); alpha = 0.;
 
          ////////////////////////////
          // Boundary contributions //
          ////////////////////////////
-         for (i = 0; i < numBdrs; i++)
-         {
-            uSum = 0.;
-            for (j = 0; j < numDofs; j++)
-            {
-               uSum += x(k*nd+fct.dofs(i,j));
-            }
-
-            // boundary update
-            for (j = 0; j < numDofs; j++)
-            {
-               z(k*nd+fct.dofs(i,j)) += fct.bdrDiff(k,i)*(uSum - numDofs*x(k*nd+fct.dofs(i,j)));
-            }
-         }
+         if (dim > 1)// Nothing needs to be done for 1D boundaries (due to Bernstein basis)
+            LumpFluxTerms(k, nd, x, y, alpha);
+         
          ///////////////////////////
          // Element contributions //
          ///////////////////////////
