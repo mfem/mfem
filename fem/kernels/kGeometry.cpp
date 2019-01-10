@@ -21,7 +21,8 @@
 namespace mfem
 {
 // *****************************************************************************
-#jit #kernel
+//#jit
+#kernel
 void kGeom2D(const int NUM_DOFS_1D,
              const int NUM_QUAD_1D,
              const int numElements,
@@ -74,7 +75,8 @@ void kGeom2D(const int NUM_DOFS_1D,
 }
 
 // *****************************************************************************
-#jit #kernel
+//#jit
+#kernel
 void kGeom3D(const int NUM_DOFS_1D,
              const int NUM_QUAD_1D,
              const int numElements,
@@ -184,7 +186,8 @@ kGeometry::~kGeometry()
 
 
 // *****************************************************************************
-#jit #kernel
+//#jit
+#kernel
 static void kGeomFill(const int dims,
                       const size_t elements, const size_t numDofs,
                       const int* elementMap, int* eMap,

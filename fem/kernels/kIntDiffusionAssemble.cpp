@@ -44,12 +44,14 @@ static void oAssemble2D(const int NUM_QUAD_1D,
 // *****************************************************************************
 // * OKINA 2D kernel
 // *****************************************************************************
-__jit __kernel void kAssemble2D(const int NUM_QUAD_1D,
-                                const int numElements,
-                                const double* __restrict quadWeights,
-                                const double* __restrict J,
-                                const double COEFF,
-                                double* __restrict oper)
+//#jit
+__kernel
+void kAssemble2D(const int NUM_QUAD_1D,
+                 const int numElements,
+                 const double* __restrict quadWeights,
+                 const double* __restrict J,
+                 const double COEFF,
+                 double* __restrict oper)
 { 
    const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D;
    MFEM_FORALL(e,numElements,
