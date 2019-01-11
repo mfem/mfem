@@ -20,8 +20,8 @@ namespace mfem
 // *****************************************************************************
 static bool Known(const mm::mm_t& maps, const void *adrs)
 {
-   const auto found = maps.memories->find(adrs);
-   const bool known = found != maps.memories->end();
+   const mm::memory_map_t::const_iterator found = maps.memories.find(adrs);
+   const bool known = found != maps.memories.end();
    if (known) { return true; }
    return false;
 }
@@ -32,8 +32,8 @@ static bool Known(const mm::mm_t& maps, const void *adrs)
 static const void* IsAlias(const mm::mm_t& maps, const void *adrs)
 {
    MFEM_ASSERT(!Known(maps, adrs), "Adrs is an already known address!");
-   for (mm::mm_iterator_t mem = maps.memories->begin();
-        mem != maps.memories->end(); mem++)
+   for (mm::memory_map_t::const_iterator mem = maps.memories.begin();
+        mem != maps.memories.end(); mem++)
    {
       const void *b_adrs = mem->first;
       if (b_adrs > adrs) { continue; }
@@ -44,14 +44,14 @@ static const void* IsAlias(const mm::mm_t& maps, const void *adrs)
 }
 
 // *****************************************************************************
-static const void* InsertAlias(const mm::mm_t& maps,
+static const void* InsertAlias(mm::mm_t& maps,
                                const void *base,
                                const void *adrs)
 {
-   memory_t *mem = maps.memories->at(base);
+   memory_t *mem = maps.memories.at(base);
    const size_t offset = (char*)adrs - (char*)base;
    const alias_t *alias = new alias_t(mem, offset);
-   maps.aliases->operator[](adrs) = alias;
+   maps.aliases[adrs] = alias;
    mem->aliases.push_back(alias);
    return adrs;
 }
@@ -59,10 +59,10 @@ static const void* InsertAlias(const mm::mm_t& maps,
 // *****************************************************************************
 // * Tests if adrs is an alias address
 // *****************************************************************************
-static bool Alias(const mm::mm_t& maps, const void *adrs)
+static bool Alias(mm::mm_t& maps, const void *adrs)
 {
-   const auto found = maps.aliases->find(adrs);
-   const bool alias = found != maps.aliases->end();
+   const mm::alias_map_t::const_iterator found = maps.aliases.find(adrs);
+   const bool alias = found != maps.aliases.end();
    if (alias) { return true; }
    const void *base = IsAlias(maps, adrs);
    if (!base) { return false; }
@@ -97,7 +97,7 @@ void* mm::Insert(void *adrs, const size_t bytes)
    const bool known = Known(maps, adrs);
    MFEM_ASSERT(!known, "Trying to add already present address!");
    dbg("\033[33m%p \033[35m(%ldb)", adrs, bytes);
-   maps.memories->operator[](adrs) = new memory_t(adrs,bytes);
+   maps.memories[adrs] = new memory_t(adrs,bytes);
    return adrs;
 }
 
@@ -112,21 +112,21 @@ void *mm::Erase(void *adrs)
    // if (!known) { BUILTIN_TRAP; }
    if (!known) { mfem_error("mm::Erase"); }
    MFEM_ASSERT(known, "Trying to remove an unknown address!");
-   const memory_t *mem = maps.memories->at(adrs);
+   const memory_t *mem = maps.memories.at(adrs);
    dbg("\033[33m %p \033[35m(%ldb)", adrs,mem->bytes);
    for (const alias_t* const alias : mem->aliases)
    {
-      maps.aliases->erase(alias);
+      maps.aliases.erase(alias);
       delete alias;
    }
-   maps.memories->erase(adrs);
+   maps.memories.erase(adrs);
    return adrs;
 }
 
 // *****************************************************************************
 static void* AdrsKnown(const mm::mm_t& maps, void* adrs)
 {
-   memory_t *base = maps.memories->at(adrs);
+   memory_t *base = maps.memories.at(adrs);
    const bool host = base->host;
    const bool device = !host;
    const size_t bytes = base->bytes;
@@ -151,7 +151,7 @@ static void* AdrsKnown(const mm::mm_t& maps, void* adrs)
 static void* AdrsAlias(mm::mm_t& maps, void* adrs)
 {
    const bool gpu = config::usingGpu();
-   const alias_t *alias = maps.aliases->at(adrs);
+   const alias_t *alias = maps.aliases.at(adrs);
    const memory_t *base = alias->mem;
    const bool host = base->host;
    const bool device = !base->host;
@@ -209,7 +209,7 @@ static OccaMemory occaMemory(const mm::mm_t& maps, const void *adrs)
    // if (!known) { BUILTIN_TRAP; }
    if (!known) { mfem_error("occaMemory"); }
    MFEM_ASSERT(known, "Unknown address!");
-   memory_t *base = maps.memories->at(adrs);
+   memory_t *base = maps.memories.at(adrs);
    const size_t bytes = base->bytes;
    const bool gpu = config::usingGpu();
    const bool occa = config::usingOcca();
@@ -246,7 +246,7 @@ OccaMemory mm::Memory(const void *adrs)
 // *****************************************************************************
 static void PushKnown(mm::mm_t& maps, const void *adrs, const size_t bytes)
 {
-   memory_t *base = maps.memories->at(adrs);
+   memory_t *base = maps.memories.at(adrs);
    if (!base->d_adrs) { cuMemAlloc(&base->d_adrs, base->bytes); }
    cuMemcpyHtoD(base->d_adrs, adrs, bytes==0?base->bytes:bytes);
    return;
@@ -255,7 +255,7 @@ static void PushKnown(mm::mm_t& maps, const void *adrs, const size_t bytes)
 // *****************************************************************************
 static void PushAlias(const mm::mm_t& maps, const void *adrs, const size_t bytes)
 {
-   const alias_t *alias = maps.aliases->at(adrs);
+   const alias_t *alias = maps.aliases.at(adrs);
    cuMemcpyHtoD((char*)alias->mem->d_adrs + alias->offset, adrs, bytes);
 }
 
@@ -277,14 +277,14 @@ void mm::Push(const void *adrs, const size_t bytes)
 // *****************************************************************************
 static void PullKnown(const mm::mm_t& maps, const void *adrs, const size_t bytes)
 {
-   const memory_t *base = maps.memories->at(adrs);
+   const memory_t *base = maps.memories.at(adrs);
    cuMemcpyDtoH(base->h_adrs, base->d_adrs, bytes==0?base->bytes:bytes);
 }
 
 // *****************************************************************************
 static void PullAlias(const mm::mm_t& maps, const void *adrs, const size_t bytes)
 {
-   const alias_t *alias = maps.aliases->at(adrs);
+   const alias_t *alias = maps.aliases.at(adrs);
    cuMemcpyDtoH((void*)adrs, (char*)alias->mem->d_adrs + alias->offset, bytes);
 }
 
@@ -308,10 +308,10 @@ void mm::Pull(const void *adrs, const size_t bytes)
 static void Dump(mm::mm_t& maps)
 {
    if (!getenv("DBG")) { return; }
-   mm::memory_map_t *mem = maps.memories;
-   mm::alias_map_t  *als = maps.aliases;
+   mm::memory_map_t& mem = maps.memories;
+   mm::alias_map_t&  als = maps.aliases;
    size_t k = 0;
-   for (mm::memory_map_t::iterator m = mem->begin(); m != mem->end(); m++)
+   for (mm::memory_map_t::iterator m = mem.begin(); m != mem.end(); m++)
    {
       const void *h_adrs = m->first;
       assert(h_adrs == m->second->h_adrs);
@@ -330,7 +330,7 @@ static void Dump(mm::mm_t& maps)
       k++;
    }
    k = 0;
-   for (mm::alias_map_t::iterator a = als->begin(); a != als->end(); a++)
+   for (mm::alias_map_t::iterator a = als.begin(); a != als.end(); a++)
    {
       const void *adrs = a->first;
       const size_t offset = a->second->offset;
