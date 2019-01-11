@@ -4,7 +4,9 @@
 #include <cassert>
 #include <fstream>
 #include <iostream>
-//#include <unistd.h> // unknwon to MSVC
+#ifndef MSVC
+#include <unistd.h>
+#endif
 #include <string.h>
 using namespace std;
 #define STR(X) #X
@@ -591,7 +593,9 @@ int main(const int argc, char* argv[]) {
            << " mpp error"
            << (err.msg?err.msg:"")
            << endl;
+#ifndef MSVC
       unlink(output.c_str());
+#endif
       return ~0;
    }
    return 0;
