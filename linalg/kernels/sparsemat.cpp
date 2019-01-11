@@ -138,7 +138,6 @@ __kernel void kGauss_Seidel_back(const size_t height,
 // *****************************************************************************
 __kernel void kAddMult(const size_t height,
                        const int *I, const int *J,
-		       const double *A,
                        const double *A,
                        const double *x, double *y)
 {

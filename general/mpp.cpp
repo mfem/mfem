@@ -4,7 +4,7 @@
 #include <cassert>
 #include <fstream>
 #include <iostream>
-#ifndef MSVC
+#ifndef _MSC_VER
 #include <unistd.h>
 #endif
 #include <string.h>
@@ -593,7 +593,7 @@ int main(const int argc, char* argv[]) {
            << " mpp error"
            << (err.msg?err.msg:"")
            << endl;
-#ifndef MSVC
+#ifndef _MSC_VER
       unlink(output.c_str());
 #endif
       return ~0;
