@@ -183,9 +183,11 @@ static inline string get_directive(context &pp) {
 
 // *****************************************************************************
 static inline string peekn(context &pp, const int n) {
-   char c[n+1];
-   for (int k=0;k<=n;k+=1) c[k] = 0;
    int k = 0;
+   assert(n<64);
+   static char c[64];
+   for (k=0;k<=n;k+=1) c[k] = 0;
+   k = 0;
    for (; k<n; k+=1) {
       if (pp.in.peek()==EOF) break;
       c[k] = pp.in.get();
@@ -197,9 +199,11 @@ static inline string peekn(context &pp, const int n) {
 
 // *****************************************************************************
 static inline string peekID(context &pp) {
-   const int n = 128;
-   char c[n] = {0};
    int k = 0;
+   const int n = 64;
+   static char c[n];
+   for (k=0;k<n;k+=1) c[k] = 0;
+   k = 0;
    for (; k<n; k+=1) {
       const int p = pp.in.peek();
       if (p==EOF) break;
