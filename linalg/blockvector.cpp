@@ -85,12 +85,16 @@ void BlockVector::Update(const Array<int> &bOffsets)
       // check if 'bOffsets' agree with the 'blocks'
       if (bOffsets.Size() == numBlocks+1)
       {
-         for (int i = 0; true; i++)
+         if (numBlocks == 0) { return; }
+         if (Size() == bOffsets.Last())
          {
-            if (i >= numBlocks) { return; }
-            if (blocks[i].Size() != bOffsets[i+1] - bOffsets[i]) { break; }
-            MFEM_ASSERT(blocks[i].GetData() == data + bOffsets[i],
-                        "invalid blocks[" << i << ']');
+            for (int i = numBlocks - 1; true; i--)
+            {
+               if (i < 0) { return; }
+               if (blocks[i].Size() != bOffsets[i+1] - bOffsets[i]) { break; }
+               MFEM_ASSERT(blocks[i].GetData() == data + bOffsets[i],
+                           "invalid blocks[" << i << ']');
+            }
          }
       }
    }
