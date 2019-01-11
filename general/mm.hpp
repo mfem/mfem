@@ -55,11 +55,11 @@ public:
    typedef memory_map_t::iterator mm_iterator_t;
 
 private:
-   mm_t *maps;
+   mm_t maps;
 private:
-   mm(): maps(new mm_t( {new memory_map_t, new alias_map_t})) {}
+   mm(): maps({new memory_map_t, new alias_map_t}) {}
    mm(mm const&);
-   ~mm() { delete maps->memories; delete maps->aliases; delete maps; }
+   ~mm() { delete maps.memories; delete maps.aliases; }
    void operator=(mm const&);
    static inline mm& MM() { static mm singleton; return singleton; }
 private:
