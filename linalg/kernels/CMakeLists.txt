@@ -10,9 +10,9 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 set(KERS 
-  densemat.cpp
-  sparsemat.cpp 
-  vector.cpp
+  densemat.kpp
+  sparsemat.kpp 
+  vector.kpp
 )
 
 set(HDRS

@@ -10,7 +10,7 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 set(KERS
-  mesh.cpp
+  mesh.kpp
 )
 
 set(HDRS

@@ -336,9 +336,41 @@ set(CMAKE_INSTALL_RPATH "${_lib_path}" CACHE PATH "")
 set(CMAKE_INSTALL_NAME_DIR "${_lib_path}" CACHE PATH "")
 
 #-------------------------------------------------------------------------------
+# Add MPP subdirectory
+#-------------------------------------------------------------------------------
+add_executable(mpp general/mpp.cpp)
+
+#-------------------------------------------------------------------------------
+# Scan all 'kernels' subdirectories
+#-------------------------------------------------------------------------------
+set(KERNELS "")
+set(MFEM_KERNELS_DIRS linalg mesh fem)
+foreach(DIR IN LISTS MFEM_KERNELS_DIRS)
+  add_subdirectory(${DIR}/kernels)
+endforeach()
+add_custom_target(MFEM_CPP_KERNELS)
+foreach(kernel_kpp IN LISTS KERNELS)
+   get_filename_component(bnmwe ${kernel_kpp} NAME_WE)
+   get_filename_component(dirname ${kernel_kpp} DIRECTORY)
+   set(kernel_cpp ${CMAKE_CURRENT_BINARY_DIR}/${bnmwe}.cpp)
+   add_custom_command(
+       COMMAND mpp ${kernel_kpp} -o ${kernel_cpp}
+       DEPENDS mpp ${kernel_kpp}
+       OUTPUT  ${kernel_cpp}
+       COMMENT "mpp ${bnmwe}"
+   )
+   set(SOURCES ${SOURCES} ${kernel_cpp})
+   add_dependencies(MFEM_CPP_KERNELS ${bnmwe}_cpp)
+   add_custom_target(${bnmwe}_cpp DEPENDS ${kernel_cpp})
+   set_source_files_properties(${kernel_cpp} PROPERTIES LANGUAGE CXX)
+   set_source_files_properties(${kernel_cpp} PROPERTIES COMPILE_FLAGS -I${dirname})
+endforeach()
+
+#-------------------------------------------------------------------------------
 # Declaring the MFEM library
 #-------------------------------------------------------------------------------
 add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
+add_dependencies(mfem MFEM_CPP_KERNELS)
 
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 if (CMAKE_VERSION VERSION_GREATER 2.8.11)
@@ -382,35 +414,6 @@ if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
 ")
   endforeach()
 endif()
-
-#-------------------------------------------------------------------------------
-# Add MPP subdirectory
-#-------------------------------------------------------------------------------
-add_executable(mpp general/mpp.cpp)
-
-#-------------------------------------------------------------------------------
-# Scan all 'kernels' subdirectories
-#-------------------------------------------------------------------------------
-set(KERNELS "")
-set(MFEM_KERNELS_DIRS linalg mesh fem)
-foreach(DIR IN LISTS MFEM_KERNELS_DIRS)
-  add_subdirectory(${DIR}/kernels)
-endforeach()
-add_custom_target(MFEM_KERNELS_TO_PREPROCESS)
-foreach(kernel_cpp IN LISTS KERNELS)
-   get_filename_component(bnmwe ${kernel_cpp} NAME_WE)
-   get_filename_component(dirname ${kernel_cpp} DIRECTORY)
-   set(kernel_kpp ${CMAKE_CURRENT_BINARY_DIR}/${bnmwe}.kpp)
-   add_custom_command(
-       COMMAND mpp ${kernel_cpp} -o ${kernel_kpp}
-       DEPENDS mpp ${kernel_cpp}
-       OUTPUT  ${kernel_kpp}
-       COMMENT "mpp ${bnmwe}"
-   )
-   add_custom_target(${bnmwe}_kpp DEPENDS ${kernel_kpp})
-   add_dependencies(MFEM_KERNELS_TO_PREPROCESS ${bnmwe}_kpp)
-endforeach()
-add_dependencies(mfem MFEM_KERNELS_TO_PREPROCESS)
 
 #-------------------------------------------------------------------------------
 # Examples, miniapps, and testing
