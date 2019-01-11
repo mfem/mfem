@@ -306,6 +306,9 @@ int main(int argc, char *argv[])
    for (int k = 0; k <= num_equation; k++) { offsets[k] = k * fes.GetNDofs(); }
    BlockVector u_block(offsets);
 
+   // Density grid function on dfes for visualization.
+   ParGridFunction den(&fes, u_block.GetData() + offsets[0]);
+
    // Momentum grid function on dfes for visualization.
    ParGridFunction mom(&fes, u_block.GetData() + offsets[1]);
 
@@ -353,15 +356,16 @@ int main(int argc, char *argv[])
    TransportOperator transp(fes, vfes, nuCoef, dt);
 
    // Visualize the density
-   socketstream sout;
+   socketstream n_out, v_out;
    if (visualization)
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
 
       MPI_Barrier(pmesh.GetComm());
-      sout.open(vishost, visport);
-      if (!sout)
+      n_out.open(vishost, visport);
+      v_out.open(vishost, visport);
+      if (!n_out)
       {
          if (mpi.Root())
          {
@@ -373,11 +377,17 @@ int main(int argc, char *argv[])
       }
       else
       {
-         sout << "parallel " << mpi.WorldSize() << " " << mpi.WorldRank() << "\n";
-         sout.precision(precision);
-         sout << "solution\n" << pmesh << mom;
-         sout << "pause\n";
-         sout << flush;
+         n_out << "parallel " << mpi.WorldSize() << " " << mpi.WorldRank() << "\n";
+         n_out.precision(precision);
+         n_out << "solution\n" << pmesh << den;
+         n_out << "window_title 'Density'" << "pause\n";
+         n_out << flush;
+
+         v_out << "parallel " << mpi.WorldSize() << " " << mpi.WorldRank() << "\n";
+         v_out.precision(precision);
+         v_out << "solution\n" << pmesh << mom;
+         v_out << "window_title 'Velocity'" << "pause\n";
+         v_out << flush;
          if (mpi.Root())
          {
             cout << "GLVis visualization paused."
@@ -454,8 +464,11 @@ int main(int argc, char *argv[])
          if (visualization)
          {
             MPI_Barrier(pmesh.GetComm());
-            sout << "parallel " << mpi.WorldSize() << " " << mpi.WorldRank() << "\n";
-            sout << "solution\n" << pmesh << mom << flush;
+            n_out << "parallel " << mpi.WorldSize() << " " << mpi.WorldRank() << "\n";
+            n_out << "solution\n" << pmesh << mom << flush;
+
+            v_out << "parallel " << mpi.WorldSize() << " " << mpi.WorldRank() << "\n";
+            v_out << "solution\n" << pmesh << mom << flush;
          }
       }
    }
@@ -950,11 +963,10 @@ TransportOperator::TransportOperator(ParFiniteElementSpace &fes,
      a_(NULL),
      MInv_(NULL),
      MPrecond_(NULL),
-     A_(NULL),
      AInv_(NULL),
      APrecond_(NULL),
      vCoef_(NULL),
-     nuCoef_(NULL),
+     nuCoef_(&nuCoef),
      dtNuCoef_(NULL),
      rhs_(&fes),
      RHS_(fes.GetTrueVSize()),
@@ -990,17 +1002,19 @@ void TransportOperator::initM()
   m_->Assemble();
   m_->Finalize();
 
-  OperatorHandle operM(&M_, false);
-  m_->ParallelAssemble(operM);
+  // OperatorHandle operM(&M_, false);
+  // m_->ParallelAssemble(operM);
+  Array<int> ess_dofs(fes_.GetTrueVSize()); ess_dofs = 0;
+  m_->FormSystemMatrix(ess_dofs, M_);
 
-  MPrecond_ = new HypreDiagScale();
-  MPrecond_->SetOperator(M_);
+  MPrecond_ = new HypreDiagScale(M_);
+  // MPrecond_->SetOperator(M_);
 
   MInv_ = new HyprePCG(M_);
   MInv_->SetPreconditioner(*MPrecond_);
   MInv_->SetTol(1e-12);
   MInv_->SetMaxIter(200);
-  MInv_->SetPrintLevel(0);
+  MInv_->SetPrintLevel(1);
 }
 
 void TransportOperator::initA(double dt)
@@ -1011,8 +1025,10 @@ void TransportOperator::initA(double dt)
   a_->Assemble();
   a_->Finalize();
 
-  OperatorHandle operA(&A_, false);
-  a_->ParallelAssemble(operA);
+  // OperatorHandle operA(&A_, false);
+  // a_->ParallelAssemble(operA);
+  Array<int> ess_dofs(fes_.GetTrueVSize()); ess_dofs = 0;
+  a_->FormSystemMatrix(ess_dofs, A_);
 
   APrecond_ = new HypreBoomerAMG(A_);
 
