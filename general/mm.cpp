@@ -347,8 +347,8 @@ static void Dump(mm::mm_t& maps)
 // *****************************************************************************
 static void* d2d(void *dst, const void *src, size_t bytes, const bool async)
 {
-   GET_ADRS(src);
-   GET_ADRS(dst);
+   GET_PTR(src);
+   GET_PTR(dst);
    const bool cpu = config::usingCpu();
    if (cpu) { return std::memcpy(d_dst, d_src, bytes); }
    if (!async) { return cuMemcpyDtoD(d_dst, (void*)d_src, bytes); }

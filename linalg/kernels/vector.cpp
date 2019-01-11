@@ -72,8 +72,8 @@ double cuVectorDot(const size_t N, const double *x, const double *y)
 // *****************************************************************************
 double kVectorDot(const size_t N, const double *x, const double *y)
 {
-   GET_CONST_ADRS(x);
-   GET_CONST_ADRS(y);
+   GET_CONST_PTR(x);
+   GET_CONST_PTR(y);
    if (config::usingGpu())
    {
 #ifdef __NVCC__
@@ -89,9 +89,9 @@ double kVectorDot(const size_t N, const double *x, const double *y)
 // *****************************************************************************
 void kVectorMapDof(const int N, double *v0, const double *v1, const int *dof)
 {
-   GET_ADRS(v0);
-   GET_CONST_ADRS(v1);
-   GET_CONST_ADRS_T(dof,int);
+   GET_PTR(v0);
+   GET_CONST_PTR(v1);
+   GET_CONST_PTR_T(dof,int);
    MFEM_FORALL(i, N,
    {
       const int dof_i = d_dof[i];
@@ -102,23 +102,23 @@ void kVectorMapDof(const int N, double *v0, const double *v1, const int *dof)
 // *****************************************************************************
 void kVectorMapDof(double *v0, const double *v1, const int dof, const int j)
 {
-   GET_ADRS(v0);
-   GET_CONST_ADRS(v1);
+   GET_PTR(v0);
+   GET_CONST_PTR(v1);
    MFEM_FORALL(i, 1, d_v0[dof] = d_v1[j]; );
 }
 
 // *****************************************************************************
 void kVectorSetDof(double *v0, const double alpha, const int dof)
 {
-   GET_ADRS(v0);
+   GET_PTR(v0);
    MFEM_FORALL(i, 1, d_v0[dof] = alpha; );
 }
 
 // *****************************************************************************
 void kVectorSetDof(const int N, double *v0, const double alpha, const int *dof)
 {
-   GET_ADRS(v0);
-   GET_CONST_ADRS_T(dof,int);
+   GET_PTR(v0);
+   GET_CONST_PTR_T(dof,int);
    MFEM_FORALL(i, N,
    {
       const int dof_i = d_dof[i];
@@ -132,9 +132,9 @@ void kVectorGetSubvector(const int N,
                          const double* x,
                          const int* dofs)
 {
-   GET_ADRS(y);
-   GET_CONST_ADRS(x);
-   GET_CONST_ADRS_T(dofs,int);
+   GET_PTR(y);
+   GET_CONST_PTR(x);
+   GET_CONST_PTR_T(dofs,int);
    MFEM_FORALL(i, N,
    {
       const int dof_i = d_dofs[i];
@@ -148,9 +148,9 @@ void kVectorSetSubvector(const int N,
                          const double* y,
                          const int* dofs)
 {
-   GET_ADRS(x);
-   GET_CONST_ADRS(y);
-   GET_CONST_ADRS_T(dofs,int);
+   GET_PTR(x);
+   GET_CONST_PTR(y);
+   GET_CONST_PTR_T(dofs,int);
    MFEM_FORALL(i, N,
    {
       const int j = d_dofs[i];
@@ -168,9 +168,9 @@ void kVectorSetSubvector(const int N,
 void kVectorSubtract(double *zp, const double *xp, const double *yp,
                      const size_t N)
 {
-   GET_ADRS(zp);
-   GET_CONST_ADRS(xp);
-   GET_CONST_ADRS(yp);
+   GET_PTR(zp);
+   GET_CONST_PTR(xp);
+   GET_CONST_PTR(yp);
    MFEM_FORALL(i, N, d_zp[i] = d_xp[i] - d_yp[i];);
 }
 
@@ -178,16 +178,16 @@ void kVectorSubtract(double *zp, const double *xp, const double *yp,
 void kVectorAlphaAdd(double *vp, const double* v1p,
                      const double alpha, const double *v2p, const size_t N)
 {
-   GET_ADRS(vp);
-   GET_CONST_ADRS(v1p);
-   GET_CONST_ADRS(v2p);
+   GET_PTR(vp);
+   GET_CONST_PTR(v1p);
+   GET_CONST_PTR(v2p);
    MFEM_FORALL(i, N, d_vp[i] = d_v1p[i] + alpha * d_v2p[i];);
 }
 
 // *****************************************************************************
 void kVectorPrint(const size_t N, const double *data)
 {
-   GET_CONST_ADRS(data);
+   GET_CONST_PTR(data);
    MFEM_FORALL(k, 1, // Sequential printf to get the same order as the host
    {
       for (size_t i=0; i<N; i+=1)
@@ -200,8 +200,8 @@ void kVectorPrint(const size_t N, const double *data)
 // *****************************************************************************
 void kVectorAssign(const size_t N, const double* v, double *data)
 {
-   GET_ADRS(data);
-   GET_CONST_ADRS(v);
+   GET_PTR(data);
+   GET_CONST_PTR(v);
    MFEM_FORALL(i, N, d_data[i] = d_v[i];);
 }
 
@@ -210,7 +210,7 @@ void kVectorSet(const size_t N,
                 const double value,
                 double *data)
 {
-   GET_ADRS(data);
+   GET_PTR(data);
    MFEM_FORALL(i, N, d_data[i] = value;);
 }
 
@@ -219,23 +219,23 @@ void kVectorMultOp(const size_t N,
                    const double value,
                    double *data)
 {
-   GET_ADRS(data);
+   GET_PTR(data);
    MFEM_FORALL(i, N, d_data[i] *= value;);
 }
 
 // *****************************************************************************
 void kVectorDotOpPlusEQ(const size_t size, const double *v, double *data)
 {
-   GET_CONST_ADRS(v);
-   GET_ADRS(data);
+   GET_CONST_PTR(v);
+   GET_PTR(data);
    MFEM_FORALL(i, size, d_data[i] += d_v[i];);
 }
 
 // *****************************************************************************
 void kVectorOpSubtract(const size_t size, const double *v, double *data)
 {
-   GET_CONST_ADRS(v);
-   GET_ADRS(data);
+   GET_CONST_PTR(v);
+   GET_PTR(data);
    MFEM_FORALL(i, size, d_data[i] -= d_v[i];);
 }
 
@@ -243,9 +243,9 @@ void kVectorOpSubtract(const size_t size, const double *v, double *data)
 void kAddElementVector(const size_t n, const int *dofs,
                        const double *elem_data, double *data)
 {
-   GET_CONST_ADRS_T(dofs,int);
-   GET_CONST_ADRS(elem_data);
-   GET_ADRS(data);
+   GET_CONST_PTR_T(dofs,int);
+   GET_CONST_PTR(elem_data);
+   GET_PTR(data);
    MFEM_FORALL(i, n,
    {
       const int j = d_dofs[i];
