@@ -13,7 +13,7 @@ using namespace std;
 #define STRINGIFY(X) STR(X)
 
 // *****************************************************************************
-#define trk(...) {printf("\n%s (%s:%d)",__func__,__FILE__,__LINE__);}
+#define trk(...) {printf("\n%s (%s:%d)",__func__,__FILE__,__LINE__);fflush(0);}
 
 // *****************************************************************************
 // * STRUCTS: context, error & args
