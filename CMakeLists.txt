@@ -396,26 +396,21 @@ set(MFEM_KERNELS_DIRS linalg mesh fem)
 foreach(DIR IN LISTS MFEM_KERNELS_DIRS)
   add_subdirectory(${DIR}/kernels)
 endforeach()
-if (NOT MSVC)
-add_custom_target(MPP)
-endif()
-foreach(name IN LISTS KERNELS)
-   get_filename_component(bnmwe ${name} NAME_WE)
-   get_filename_component(dirname ${name} DIRECTORY)
+add_custom_target(MFEM_KERNELS_TO_PREPROCESS)
+foreach(kernel_cpp IN LISTS KERNELS)
+   get_filename_component(bnmwe ${kernel_cpp} NAME_WE)
+   get_filename_component(dirname ${kernel_cpp} DIRECTORY)
+   set(kernel_kpp ${CMAKE_CURRENT_BINARY_DIR}/${bnmwe}.kpp)
    add_custom_command(
-       COMMAND mpp ${name} -o ${CMAKE_CURRENT_BINARY_DIR}/${bnmwe}.kpp
-       DEPENDS mpp ${name}
-       OUTPUT  ${CMAKE_CURRENT_BINARY_DIR}/${bnmwe}.kpp
+       COMMAND mpp ${kernel_cpp} -o ${kernel_kpp}
+       DEPENDS mpp ${kernel_cpp}
+       OUTPUT  ${kernel_kpp}
        COMMENT "mpp ${bnmwe}"
    )
-if (NOT MSVC)
-   add_custom_target(${bnmwe}_kpp DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${bnmwe}.kpp)
-   add_dependencies(MPP ${bnmwe}_kpp)
-endif()
+   add_custom_target(${bnmwe}_kpp DEPENDS ${kernel_kpp})
+   add_dependencies(MFEM_KERNELS_TO_PREPROCESS ${bnmwe}_kpp)
 endforeach()
-if (NOT MSVC)
-add_dependencies(mfem MPP)
-endif()
+add_dependencies(mfem MFEM_KERNELS_TO_PREPROCESS)
 
 #-------------------------------------------------------------------------------
 # Examples, miniapps, and testing
