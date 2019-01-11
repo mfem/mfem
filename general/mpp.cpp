@@ -11,7 +11,6 @@
 using namespace std;
 #define STR(X) #X
 #define STRINGIFY(X) STR(X)
-//#include "../config/config.hpp"
 
 // *****************************************************************************
 #define trk(...) {printf("\n%s (%s:%d)",__func__,__FILE__,__LINE__);}
@@ -47,6 +46,11 @@ struct context {
    const bool mm = true;
 #else
    const bool mm = false;
+#endif
+#ifdef MFEM_USE_JIT
+   const bool jit = true;
+#else
+   const bool jit = false;
 #endif
    int line;
    int block;
@@ -112,7 +116,6 @@ static inline char put(context &pp) {
 
 // *****************************************************************************
 static inline void skip_space(context &pp) {
-   trk();
    while (isspace(pp.in.peek())) {
       check(pp,pp.in.peek()!='\v',"Vertical tab detected!");
       if (is_newline(pp.in.peek())) pp.line++;
@@ -122,7 +125,6 @@ static inline void skip_space(context &pp) {
 
 // *****************************************************************************
 static inline void drop_space(context &pp) {
-   trk();
    while (isspace(pp.in.peek())) {
       if (is_newline(pp.in.peek())) pp.line++;
       pp.in.get();
@@ -141,14 +143,12 @@ static inline bool is_comment(context &pp) {
 
 // *****************************************************************************
 static inline void singleLineComment(context &pp) {
-   trk();
    while (pp.in.peek()!=EOF and not is_newline(pp.in.peek())) put(pp);
    pp.line++;
 }
 
 // *****************************************************************************
 static inline void blockComment(context &pp) {
-   trk();
    while (not pp.in.eof()) {
       const char c = put(pp);
       if (is_newline(c)) pp.line++;
@@ -162,7 +162,6 @@ static inline void blockComment(context &pp) {
 
 // *****************************************************************************
 static inline void comments(context &pp) {
-   trk();
    const char c1 = put(pp); check(pp,c1=='/',"Comments w/o 1st char");
    const char c2 = put(pp); check(pp,c2=='/' or c2=='*',"Comment w/o 2nd char");
    if (c2 == '/') return singleLineComment(pp);
@@ -171,14 +170,12 @@ static inline void comments(context &pp) {
 
 // *****************************************************************************
 static inline bool is_alnum(context &pp) {
-   trk();
    const int c = pp.in.peek();
    return isalnum(c) or c == '_';
 }
 
 // *****************************************************************************
 static inline string get_name(context &pp) {
-   trk();
    string str;
    check(pp,is_alnum(pp),"Name w/o alnum 1st letter");
    while ((not pp.in.eof()) and (pp.in.peek()!=EOF) and
@@ -189,7 +186,6 @@ static inline string get_name(context &pp) {
 
 // *****************************************************************************
 static inline string get_directive(context &pp) {
-   trk();
    string str;
    check(pp,pp.in.peek()=='#',"Directive w/o 1st '#'");
    while ((not pp.in.eof()) and (pp.in.peek()!=EOF) and
@@ -216,7 +212,6 @@ static inline string peekn(context &pp, const int n) {
 
 // *****************************************************************************
 static inline string peekID(context &pp) {
-   trk();
    int k = 0;
    const int n = 64;
    static char c[n];
@@ -235,7 +230,6 @@ static inline string peekID(context &pp) {
 
 // *****************************************************************************
 static inline void drop_name(context &pp) {
-   trk();
    while ((not pp.in.eof()) and (pp.in.peek()!=EOF) and
           (isalnum(pp.in.peek()) or pp.in.peek()=='_'))
       pp.in.get();
@@ -243,7 +237,6 @@ static inline void drop_name(context &pp) {
 
 // *****************************************************************************
 static inline bool isvoid(context &pp) {
-   trk();
    skip_space(pp);
    const string void_peek = peekn(pp,4);
    if (void_peek == "void") return true;
@@ -252,7 +245,6 @@ static inline bool isvoid(context &pp) {
 
 // *****************************************************************************
 static inline bool isstatic(context &pp) {
-   trk();
    skip_space(pp);
    const string void_peek = peekn(pp,6);
    if (void_peek == "static") return true;
@@ -261,7 +253,6 @@ static inline bool isstatic(context &pp) {
 
 // *****************************************************************************
 static inline bool is_star(context &pp) {
-   trk();
    skip_space(pp);
    if (pp.in.peek() == '*') return true;
    return false;
@@ -269,7 +260,6 @@ static inline bool is_star(context &pp) {
 
 // *****************************************************************************
 static inline bool is_coma(context &pp) {
-   trk();
    skip_space(pp);
    if (pp.in.peek() == ',') return true;
    return false;
