@@ -35,10 +35,10 @@ static const void* IsAlias(const mm::mm_t& maps, const void *adrs)
    for (mm::memory_map_t::const_iterator mem = maps.memories.begin();
         mem != maps.memories.end(); mem++)
    {
-      const void *b_adrs = mem->first;
-      if (b_adrs > adrs) { continue; }
-      const void *end = (char*)b_adrs + mem->second->bytes;
-      if (adrs < end) { return b_adrs; }
+      const void *b_ptr = mem->first;
+      if (b_ptr > adrs) { continue; }
+      const void *end = (char*)b_ptr + mem->second->bytes;
+      if (adrs < end) { return b_ptr; }
    }
    return NULL;
 }
@@ -132,19 +132,19 @@ static void* AdrsKnown(const mm::mm_t& maps, void* adrs)
    const size_t bytes = base->bytes;
    const bool gpu = config::usingGpu();
    if (host && !gpu) { return adrs; }
-   if (!base->d_adrs) { cuMemAlloc(&base->d_adrs, bytes); }
-   if (device && gpu) { return base->d_adrs; }
+   if (!base->d_ptr) { cuMemAlloc(&base->d_ptr, bytes); }
+   if (device && gpu) { return base->d_ptr; }
    if (device &&  !gpu) // Pull
    {
-      cuMemcpyDtoH(adrs, base->d_adrs, bytes);
+      cuMemcpyDtoH(adrs, base->d_ptr, bytes);
       base->host = true;
       return adrs;
    }
    // Push
    assert(host && gpu);
-   cuMemcpyHtoD(base->d_adrs, adrs, bytes);
+   cuMemcpyHtoD(base->d_ptr, adrs, bytes);
    base->host = false;
-   return base->d_adrs;
+   return base->d_ptr;
 }
 
 // *****************************************************************************
@@ -157,21 +157,21 @@ static void* AdrsAlias(mm::mm_t& maps, void* adrs)
    const bool device = !base->host;
    const size_t bytes = base->bytes;
    if (host && !gpu) { return adrs; }
-   if (!base->d_adrs) { cuMemAlloc(&alias->mem->d_adrs, bytes); }
-   void *a_adrs = (char*)base->d_adrs + alias->offset;
-   if (device && gpu) { return a_adrs; }
+   if (!base->d_ptr) { cuMemAlloc(&alias->mem->d_ptr, bytes); }
+   void *a_ptr = (char*)base->d_ptr + alias->offset;
+   if (device && gpu) { return a_ptr; }
    if (device && !gpu) // Pull
    {
-      assert(base->d_adrs);
-      cuMemcpyDtoH(base->h_adrs, base->d_adrs, bytes);
+      assert(base->d_ptr);
+      cuMemcpyDtoH(base->h_ptr, base->d_ptr, bytes);
       alias->mem->host = true;
       return adrs;
    }
    // Push
    assert(host && gpu);
-   cuMemcpyHtoD(base->d_adrs, base->h_adrs, bytes);
+   cuMemcpyHtoD(base->d_ptr, base->h_ptr, bytes);
    alias->mem->host = false;
-   return a_adrs;
+   return a_ptr;
 }
 
 // *****************************************************************************
@@ -202,8 +202,8 @@ static OccaMemory occaMemory(const mm::mm_t& maps, const void *adrs)
    OccaDevice occaDevice = config::GetOccaDevice();
    if (!config::usingMM())
    {
-      OccaMemory o_adrs = occaWrapMemory(occaDevice, (void*)adrs, 0);
-      return o_adrs;
+      OccaMemory o_ptr = occaWrapMemory(occaDevice, (void*)adrs, 0);
+      return o_ptr;
    }
    const bool known = Known(maps, adrs);
    // if (!known) { BUILTIN_TRAP; }
@@ -214,27 +214,27 @@ static OccaMemory occaMemory(const mm::mm_t& maps, const void *adrs)
    const bool gpu = config::usingGpu();
    const bool occa = config::usingOcca();
    MFEM_ASSERT(occa, "Using OCCA memory without OCCA mode!");
-   if (!base->d_adrs)
+   if (!base->d_ptr)
    {
       base->host = false; // This address is no more on the host
       if (gpu)
       {
-         cuMemAlloc(&base->d_adrs, bytes);
+         cuMemAlloc(&base->d_ptr, bytes);
          void *stream = config::Stream();
-         cuMemcpyHtoDAsync(base->d_adrs, base->h_adrs, bytes, stream);
+         cuMemcpyHtoDAsync(base->d_ptr, base->h_ptr, bytes, stream);
       }
       else
       {
-         base->o_adrs = occaDeviceMalloc(occaDevice, bytes);
-         base->d_adrs = occaMemoryPtr(base->o_adrs);
-         occaCopyFrom(base->o_adrs, base->h_adrs);
+         base->o_ptr = occaDeviceMalloc(occaDevice, bytes);
+         base->d_ptr = occaMemoryPtr(base->o_ptr);
+         occaCopyFrom(base->o_ptr, base->h_ptr);
       }
    }
    if (gpu)
    {
-      return occaWrapMemory(occaDevice, base->d_adrs, bytes);
+      return occaWrapMemory(occaDevice, base->d_ptr, bytes);
    }
-   return base->o_adrs;
+   return base->o_ptr;
 }
 
 // *****************************************************************************
@@ -247,8 +247,8 @@ OccaMemory mm::Memory(const void *adrs)
 static void PushKnown(mm::mm_t& maps, const void *adrs, const size_t bytes)
 {
    mm::memory_t *base = maps.memories.at(adrs);
-   if (!base->d_adrs) { cuMemAlloc(&base->d_adrs, base->bytes); }
-   cuMemcpyHtoD(base->d_adrs, adrs, bytes==0?base->bytes:bytes);
+   if (!base->d_ptr) { cuMemAlloc(&base->d_ptr, base->bytes); }
+   cuMemcpyHtoD(base->d_ptr, adrs, bytes==0?base->bytes:bytes);
    return;
 }
 
@@ -256,7 +256,7 @@ static void PushKnown(mm::mm_t& maps, const void *adrs, const size_t bytes)
 static void PushAlias(const mm::mm_t& maps, const void *adrs, const size_t bytes)
 {
    const mm::alias_t *alias = maps.aliases.at(adrs);
-   cuMemcpyHtoD((char*)alias->mem->d_adrs + alias->offset, adrs, bytes);
+   cuMemcpyHtoD((char*)alias->mem->d_ptr + alias->offset, adrs, bytes);
 }
 
 // *****************************************************************************
@@ -278,14 +278,14 @@ void mm::Push(const void *adrs, const size_t bytes)
 static void PullKnown(const mm::mm_t& maps, const void *adrs, const size_t bytes)
 {
    const mm::memory_t *base = maps.memories.at(adrs);
-   cuMemcpyDtoH(base->h_adrs, base->d_adrs, bytes==0?base->bytes:bytes);
+   cuMemcpyDtoH(base->h_ptr, base->d_ptr, bytes==0?base->bytes:bytes);
 }
 
 // *****************************************************************************
 static void PullAlias(const mm::mm_t& maps, const void *adrs, const size_t bytes)
 {
    const mm::alias_t *alias = maps.aliases.at(adrs);
-   cuMemcpyDtoH((void*)adrs, (char*)alias->mem->d_adrs + alias->offset, bytes);
+   cuMemcpyDtoH((void*)adrs, (char*)alias->mem->d_ptr + alias->offset, bytes);
 }
 
 // *****************************************************************************
@@ -313,18 +313,18 @@ static void Dump(mm::mm_t& maps)
    size_t k = 0;
    for (mm::memory_map_t::iterator m = mem.begin(); m != mem.end(); m++)
    {
-      const void *h_adrs = m->first;
-      assert(h_adrs == m->second->h_adrs);
+      const void *h_ptr = m->first;
+      assert(h_ptr == m->second->h_ptr);
       const size_t bytes = m->second->bytes;
-      const void *d_adrs = m->second->d_adrs;
-      if (!d_adrs)
+      const void *d_ptr = m->second->d_ptr;
+      if (!d_ptr)
       {
-         printf("\n[%ld] \033[33m%p \033[35m(%ld)", k, h_adrs, bytes);
+         printf("\n[%ld] \033[33m%p \033[35m(%ld)", k, h_ptr, bytes);
       }
       else
       {
          printf("\n[%ld] \033[33m%p \033[35m (%ld) \033[32 -> %p",
-                k, h_adrs, bytes, d_adrs);
+                k, h_ptr, bytes, d_ptr);
       }
       fflush(0);
       k++;
@@ -334,7 +334,7 @@ static void Dump(mm::mm_t& maps)
    {
       const void *adrs = a->first;
       const size_t offset = a->second->offset;
-      const void *base = a->second->mem->h_adrs;
+      const void *base = a->second->mem->h_ptr;
       printf("\n[%ld] \033[33m%p < (\033[37m%ld) < \033[33m%p",
              k , base, offset, adrs);
       fflush(0);
