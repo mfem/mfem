@@ -52,25 +52,6 @@ public:
    typedef std::unordered_map<const void*, const alias_t*> alias_map_t;
    typedef struct { memory_map_t memories; alias_map_t aliases; } mm_t;
 
-private:
-   mm_t maps;
-private:
-   mm() {}
-   mm(mm const&);
-   void operator=(mm const&);
-   static inline mm& MM() { static mm singleton; return singleton; }
-private:
-   // **************************************************************************
-   void *Insert(void *adrs, const size_t bytes);
-   void *Erase(void *adrs);
-   void* Adrs(void *adrs);
-   const void* Adrs(const void *adrs);
-   OccaMemory Memory(const void *adrs);
-private:
-   // **************************************************************************
-   void Push(const void *adrs, const size_t bytes =0);
-   void Pull(const void *adrs, const size_t bytes =0);
-public:
    // **************************************************************************
    // * Main malloc template function
    // * Allocates n*size bytes and returns a pointer to the allocated memory
@@ -115,6 +96,25 @@ public:
    // **************************************************************************
    static void* memcpy(void *dst, const void *src,
                        size_t bytes, const bool async = false);
+
+private:
+   mm_t maps;
+
+   mm() {}
+   mm(mm const&);
+   void operator=(mm const&);
+   static inline mm& MM() { static mm singleton; return singleton; }
+
+   // **************************************************************************
+   void *Insert(void *adrs, const size_t bytes);
+   void *Erase(void *adrs);
+   void* Adrs(void *adrs);
+   const void* Adrs(const void *adrs);
+   OccaMemory Memory(const void *adrs);
+
+   // **************************************************************************
+   void Push(const void *adrs, const size_t bytes =0);
+   void Pull(const void *adrs, const size_t bytes =0);
 };
 
 // *****************************************************************************
