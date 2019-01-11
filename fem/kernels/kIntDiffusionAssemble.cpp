@@ -44,8 +44,8 @@ static void oAssemble2D(const int NUM_QUAD_1D,
 // *****************************************************************************
 // * OKINA 2D kernel
 // *****************************************************************************
-//#jit
-__kernel
+#jit
+#kernel
 void kAssemble2D(const int NUM_QUAD_1D,
                  const int numElements,
                  const double* __restrict quadWeights,
