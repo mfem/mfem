@@ -52,7 +52,50 @@ int dim;
 //#define SOLVE_A2
 //#define ITER_A2
 
-#define USE_CSL
+// #define USE_CSL
+
+#define USE_HELMHOLTZ
+
+#ifdef USE_HELMHOLTZ
+void GetHelmholtzMatrix(ParMesh *pmesh, HypreParMatrix *A)
+{
+  const int order = 1;
+  FiniteElementCollection *fec;
+  fec = new H1_FECollection(order, pmesh->Dimension());
+  ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
+
+  Array<int> ess_tdof_list;
+  if (pmesh->bdr_attributes.Size())
+    {
+      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+      ess_bdr = 1;
+      fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+    }
+  
+  ParBilinearForm *a = new ParBilinearForm(fespace);
+  ConstantCoefficient one(1.0);
+  ConstantCoefficient neg(SIGMAVAL);
+
+  a->AddDomainIntegrator(new DiffusionIntegrator(one));
+  a->AddDomainIntegrator(new MassIntegrator(neg));
+
+  ParLinearForm *b = new ParLinearForm(fespace);
+  ConstantCoefficient zero(0.0);
+  b->AddDomainIntegrator(new DomainLFIntegrator(zero));
+  b->Assemble();
+
+  bool static_cond = false;
+
+  if (static_cond) { a->EnableStaticCondensation(); }
+  a->Assemble();
+
+  ParGridFunction x(fespace);
+  x = 0.0;
+
+  Vector B, X;
+  a->FormLinearSystem(ess_tdof_list, x, *b, *A, X, B);
+}
+#endif
 
 
 int main(int argc, char *argv[])
@@ -239,6 +282,15 @@ int main(int argc, char *argv[])
    Sform->Assemble();
 
    Sform->FormLinearSystem(ess_tdof_list, x, *b, Smat, Xdef, Bdef);
+
+   ParBilinearForm *agrad = new ParBilinearForm(fespace);
+   //agrad->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
+   agrad->AddDomainIntegrator(new VectorFEMassIntegrator(*muinv));
+
+   if (static_cond) { agrad->EnableStaticCondensation(); }
+   agrad->Assemble();
+   HypreParMatrix Agrad;
+   agrad->FormLinearSystem(ess_tdof_list, x, *b, Agrad, Xdef, Bdef);
 #endif
 
 #ifdef ITER_A2
@@ -301,7 +353,7 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_STRUMPACK
    if (use_strumpack)
      {
-       const bool fullDirect = true;
+       const bool fullDirect = false;
 
        if (fullDirect)
 	 {
@@ -361,14 +413,34 @@ int main(int argc, char *argv[])
 	   BlockOperator blockDiagA(block_trueOffsets);
 	   for (int i=0; i<2; ++i)
 	     blockDiagA.SetDiagonalBlock(i, &A);
-	   
+
+	   ParFiniteElementSpace *prec_fespace =
+	     (a->StaticCondensationIsEnabled() ? a->SCParFESpace() : fespace);
+	   HypreSolver *amsgrad = new HypreAMS(Agrad, prec_fespace);
+
+#ifdef HYPRE_DYLAN
+	   {
+	     Vector Xtmp(X);
+	     amsgrad->Mult(B, Xtmp);  // Just a hack to get ams to run its setup function. There should be a better way.
+	   }
+
+	   HypreAMSG *amsg = new HypreAMSG((HypreAMS*) amsgrad, argc, argv);
+	   BlockOperator blockDiagP(block_trueOffsets);
+	   for (int i=0; i<2; ++i)
+	     blockDiagP.SetDiagonalBlock(i, amsg);
+
+	   TripleProductOperator strumpackProj(&blockDiagP, strumpack, &blockDiagP, false, false, false);
+	   ProductOperator prod(&blockDiagA, &strumpackProj, false, false);
+#else
 	   ProductOperator prod(&blockDiagA, strumpack, false, false);
-	   // GMRESSolver *gmres = new GMRESSolver(fespace->GetComm());
-	   BiCGSTABSolver *gmres = new BiCGSTABSolver(fespace->GetComm());
+#endif
+	   
+	   GMRESSolver *gmres = new GMRESSolver(fespace->GetComm());
+	   //BiCGSTABSolver *gmres = new BiCGSTABSolver(fespace->GetComm());
 	   
 	   gmres->SetOperator(prod);
 	   gmres->SetRelTol(1e-12);
-	   gmres->SetMaxIter(10000);
+	   gmres->SetMaxIter(1000);
 	   gmres->SetPrintLevel(1);
 
 	   gmres->Mult(trueRhs, trueY);
@@ -419,12 +491,20 @@ int main(int argc, char *argv[])
 	     ams->Mult(B, Xtmp);  // Just a hack to get ams to run its setup function. There should be a better way.
 	   }
 
-	   HypreIAMS *iams = new HypreIAMS(A, (HypreAMS*) ams, argc, argv);
-
-	   GMRESSolver *gmres = new GMRESSolver();
+	   HypreParMatrix H;
+#ifdef USE_HELMHOLTZ
+	   GetHelmholtzMatrix(pmesh, &H);
+#endif
+	   
+	   HypreIAMS *iams = new HypreIAMS(A, H, (HypreAMS*) ams, argc, argv);
+	   
+	   GMRESSolver *gmres = new GMRESSolver(fespace->GetComm());
+	   //BiCGSTABSolver *gmres = new BiCGSTABSolver(fespace->GetComm());
+	   //MINRESSolver *gmres = new MINRESSolver(fespace->GetComm());
+	   
 	   gmres->SetOperator(A);
 	   gmres->SetRelTol(1e-12);
-	   gmres->SetMaxIter(100);
+	   gmres->SetMaxIter(1000);
 	   gmres->SetPrintLevel(1);
 
 #ifdef SOLVE_A2

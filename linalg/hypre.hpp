@@ -1251,12 +1251,12 @@ private:
   HypreAMS *m_ams;
   HYPRE_Solver empty_ams;
   HypreParMatrix m_Pix, m_Piy, m_Piz, m_G;
-  HypreParMatrix *m_A;
+  HypreParMatrix *m_A, *m_H;
   HypreSmoother smoother;
   mutable HypreParVector z, w, r, v;
   
 public:
-  HypreIAMS(HypreParMatrix &A, HypreAMS *ams, int argc, char *argv[]);
+  HypreIAMS(HypreParMatrix &A, HypreParMatrix &H, HypreAMS *ams, int argc, char *argv[]);
   
   void SetPrintLevel(int print_lvl);
 
@@ -1278,6 +1278,27 @@ public:
   */
   
   virtual ~HypreIAMS();
+};
+
+class HypreAMSG : public Solver
+{
+private:
+  Operator* Arow;
+  STRUMPACKSolver* strumpack;
+  HypreParMatrix m_G;
+  HypreParMatrix *m_A;
+  HypreSmoother smoother;
+  mutable HypreParVector z, w, v;
+  
+public:
+  HypreAMSG(HypreAMS *ams, int argc, char *argv[]);
+  
+  void SetPrintLevel(int print_lvl);
+
+  virtual void Mult(const Vector &x, Vector &y) const;
+  virtual void SetOperator(const Operator &op);
+
+  virtual ~HypreAMSG();
 };
 #endif 
 

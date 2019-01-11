@@ -3698,15 +3698,25 @@ HypreAME::StealEigenvectors()
    return vecs;
 }
 
+#define HELMHOLTZ_AMS
+
 #ifdef HYPRE_DYLAN
-HypreIAMS::HypreIAMS(HypreParMatrix &A, HypreAMS *ams, int argc, char *argv[])
+HypreIAMS::HypreIAMS(HypreParMatrix &A, HypreParMatrix &H, HypreAMS *ams, int argc, char *argv[])
   : m_ams(ams), m_Pix(ams->Get_Pix(), false), m_Piy(ams->Get_Piy(), false), m_Piz(ams->Get_Piz(), false), m_G(ams->Get_G(), false),
     z(ams->Get_Pix()->comm, hypre_ParCSRMatrixGlobalNumCols(ams->Get_Pix()), hypre_ParCSRMatrixColStarts(ams->Get_Pix())),
     w(ams->Get_Pix()->comm, hypre_ParCSRMatrixGlobalNumCols(ams->Get_Pix()), hypre_ParCSRMatrixColStarts(ams->Get_Pix())),
     v(ams->Get_Pix()->comm, hypre_ParCSRMatrixGlobalNumRows(ams->Get_Pix()), hypre_ParCSRMatrixRowStarts(ams->Get_Pix())),
     r(ams->Get_Pix()->comm, hypre_ParCSRMatrixGlobalNumRows(ams->Get_Pix()), hypre_ParCSRMatrixRowStarts(ams->Get_Pix())),
-    smoother(A, HypreSmoother::Jacobi), m_A(&A)
+    smoother(A, HypreSmoother::Kaczmarz), m_A(&A), m_H(&H)
 {
+#ifdef HELMHOLTZ_AMS
+  HypreParMatrix A_G(ams->Get_A_G());
+
+  Arow[0] = new STRUMPACKRowLocMatrix(H);
+  Arow[1] = new STRUMPACKRowLocMatrix(A_G);
+
+  for (int i=0; i<2; ++i)
+#else
   HypreParMatrix A_Pix(ams->Get_A_Pix());
   HypreParMatrix A_Piy(ams->Get_A_Piy());
   HypreParMatrix A_Piz(ams->Get_A_Piz());
@@ -3718,6 +3728,7 @@ HypreIAMS::HypreIAMS(HypreParMatrix &A, HypreAMS *ams, int argc, char *argv[])
   Arow[3] = new STRUMPACKRowLocMatrix(A_G);
   
   for (int i=0; i<4; ++i)
+#endif
     {
       strumpack[i] = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
       strumpack[i]->SetPrintFactorStatistics(true);
@@ -3773,6 +3784,18 @@ void HypreIAMS::MultMultiplicative(const mfem::Vector &x, mfem::Vector &y) const
   m_A->Mult(y, r);
   r -= x;  // r = Ay - x  ==> A^{-1} r = y - A^{-1}x = sol_{iter} - sol_{exact}
 
+  m_G.MultTranspose(r, w);
+#ifdef HELMHOLTZ_AMS
+  strumpack[1]->Mult(w, z);
+#else
+  strumpack[3]->Mult(w, z);
+#endif
+  m_G.Mult(z, v);
+  y -= v;
+
+  m_A->Mult(y, r);
+  r -= x;
+  
   m_Pix.MultTranspose(r, w);
   strumpack[0]->Mult(w, z);
   m_Pix.Mult(z, v);
@@ -3781,24 +3804,60 @@ void HypreIAMS::MultMultiplicative(const mfem::Vector &x, mfem::Vector &y) const
   m_A->Mult(y, r);
   r -= x;
 
-  m_Piy.MultTranspose(r, w);
+  m_G.MultTranspose(r, w);
+#ifdef HELMHOLTZ_AMS
   strumpack[1]->Mult(w, z);
+#else
+  strumpack[3]->Mult(w, z);
+#endif
+  m_G.Mult(z, v);
+  y -= v;
+
+  m_A->Mult(y, r);
+  r -= x;
+
+  m_Piy.MultTranspose(r, w);
+#ifdef HELMHOLTZ_AMS
+  strumpack[0]->Mult(w, z);
+#else
+  strumpack[1]->Mult(w, z);
+#endif
   m_Piy.Mult(z, v);
   y -= v;
 
   m_A->Mult(y, r);
   r -= x;
-  
+
+  m_G.MultTranspose(r, w);
+#ifdef HELMHOLTZ_AMS
+  strumpack[1]->Mult(w, z);
+#else
+  strumpack[3]->Mult(w, z);
+#endif
+  m_G.Mult(z, v);
+  y -= v;
+
+  m_A->Mult(y, r);
+  r -= x;
+
   m_Piz.MultTranspose(r, w);
+#ifdef HELMHOLTZ_AMS
+  strumpack[0]->Mult(w, z);
+#else
   strumpack[2]->Mult(w, z);
+#endif
   m_Piz.Mult(z, v);
   y -= v;
   
   m_A->Mult(y, r);
   r -= x;
-  
+
   m_G.MultTranspose(r, w);
+#ifdef HELMHOLTZ_AMS
+  strumpack[1]->Mult(w, z);
+#else
   strumpack[3]->Mult(w, z);
+#endif
   m_G.Mult(z, v);
   y -= v;
   
@@ -3811,8 +3870,8 @@ void HypreIAMS::MultMultiplicative(const mfem::Vector &x, mfem::Vector &y) const
 
 void HypreIAMS::Mult(const mfem::Vector &x, mfem::Vector &y) const
 {
-  MultAdditive(x, y);
-  //MultMultiplicative(x, y);
+  //MultAdditive(x, y);
+  MultMultiplicative(x, y);
 }
 
 HypreIAMS::~HypreIAMS()
@@ -3824,9 +3883,52 @@ HypreIAMS::~HypreIAMS()
     }
 }
 
-void HypreIAMS::SetPrintLevel(int print_lvl)
+HypreAMSG::HypreAMSG(HypreAMS *ams, int argc, char *argv[])
+  : Solver(ams->Height(), ams->Width()), m_G(ams->Get_G(), false),
+    z(ams->Get_G()->comm, hypre_ParCSRMatrixGlobalNumCols(ams->Get_G()), hypre_ParCSRMatrixColStarts(ams->Get_G())),
+    w(ams->Get_G()->comm, hypre_ParCSRMatrixGlobalNumCols(ams->Get_G()), hypre_ParCSRMatrixColStarts(ams->Get_G())),
+    v(ams->Get_G()->comm, hypre_ParCSRMatrixGlobalNumRows(ams->Get_G()), hypre_ParCSRMatrixRowStarts(ams->Get_G()))
+{
+  HypreParMatrix A_G(ams->Get_A_G());
+
+  Arow = new STRUMPACKRowLocMatrix(A_G);
+  
+  strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
+  strumpack->SetPrintFactorStatistics(true);
+  strumpack->SetPrintSolveStatistics(false);
+  strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+  strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+  // strumpack->SetMC64Job(strumpack::MC64Job::NONE);
+  // strumpack->SetSymmetricPattern(true);
+  strumpack->SetOperator(*Arow);
+  strumpack->SetFromCommandLine();
+}
+
+void HypreAMSG::SetOperator(const Operator &op)
 {
 
+}
+
+void HypreAMSG::Mult(const mfem::Vector &x, mfem::Vector &y) const
+{
+  m_G.MultTranspose(x, w);
+  strumpack->Mult(w, z);
+  m_G.Mult(z, v);
+
+  y = x;
+  y -= v;
+}
+
+
+void HypreAMSG::SetPrintLevel(int print_lvl)
+{
+
+}
+
+HypreAMSG::~HypreAMSG()
+{
+  delete strumpack;
+  delete Arow;
 }
 
 #endif
