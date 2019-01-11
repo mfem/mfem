@@ -27,7 +27,7 @@ const __device__ __constant__ double quad_children_init[2*4*4] =
 // *****************************************************************************
 void kQuadChildren(double *data)
 {
-   GET_ADRS(data);
+   GET_PTR(data);
    const double *d_quad_children_init = quad_children_init;
    const size_t N = 2*4*4;
    MFEM_FORALL(i, N,

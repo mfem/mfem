@@ -67,10 +67,10 @@ void wrap(const size_t N, DBODY &&d_body, HBODY &&h_body)
 
 // *****************************************************************************
 #define GET_GPU const bool gpu = config::usingGpu();
-#define GET_ADRS(v) double *d_##v = (double*) mfem::mm::adrs(v)
-#define GET_ADRS_T(v,T) T *d_##v = (T*) mfem::mm::adrs(v)
-#define GET_CONST_ADRS(v) const double *d_##v = (const double*) mfem::mm::adrs(v)
-#define GET_CONST_ADRS_T(v,T) const T *d_##v = (const T*) mfem::mm::adrs(v)
+#define GET_PTR(v) double *d_##v = (double*) mfem::mm::adrs(v)
+#define GET_PTR_T(v,T) T *d_##v = (T*) mfem::mm::adrs(v)
+#define GET_CONST_PTR(v) const double *d_##v = (const double*) mfem::mm::adrs(v)
+#define GET_CONST_PTR_T(v,T) const T *d_##v = (const T*) mfem::mm::adrs(v)
 
 // *****************************************************************************
 #define BUILTIN_TRAP __builtin_trap()
