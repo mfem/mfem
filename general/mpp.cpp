@@ -4,7 +4,7 @@
 #include <cassert>
 #include <fstream>
 #include <iostream>
-#ifndef _MSC_VER
+#ifndef _WIN32
 #include <unistd.h>
 #endif
 #include <string.h>
@@ -454,7 +454,6 @@ static inline void __kernel(context &pp) {
    pp.k.name = name;
    
    skip_space(pp);
-   //goto_start_of_left_paren(pp);
    // check we are at the left parenthesis
    check(pp,pp.in.peek()=='(',"No 1st '(' in kernel"), put(pp); 
    // Go to first possible argument
@@ -593,7 +592,9 @@ int main(const int argc, char* argv[]) {
            << " mpp error"
            << (err.msg?err.msg:"")
            << endl;
-#ifndef _MSC_VER
+#ifdef _MSC_VER
+      _unlink(output.c_str());
+#else
       unlink(output.c_str());
 #endif
       return ~0;

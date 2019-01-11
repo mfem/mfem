@@ -355,14 +355,14 @@ foreach(kernel_kpp IN LISTS KERNELS)
    set(kernel_cpp ${CMAKE_CURRENT_BINARY_DIR}/${bnmwe}.cpp)
    add_custom_command(
        COMMAND mpp ${kernel_kpp} -o ${kernel_cpp}
+       COMMENT "mpp ${kernel_kpp} -o ${kernel_cpp}"
        DEPENDS mpp ${kernel_kpp}
-       OUTPUT  ${kernel_cpp}
-       COMMENT "mpp ${bnmwe}"
+       OUTPUT ${kernel_cpp}
    )
    set(SOURCES ${SOURCES} ${kernel_cpp})
    add_dependencies(MFEM_CPP_KERNELS ${bnmwe}_cpp)
    add_custom_target(${bnmwe}_cpp DEPENDS ${kernel_cpp})
-   set_source_files_properties(${kernel_cpp} PROPERTIES LANGUAGE CXX)
+   #set_source_files_properties(${kernel_cpp} PROPERTIES LANGUAGE CXX)
    set_source_files_properties(${kernel_cpp} PROPERTIES COMPILE_FLAGS -I${dirname})
 endforeach()
 

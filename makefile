@@ -318,10 +318,10 @@ SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 
-SOURCE_KERNS = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/kernels/*.cpp))
+SOURCE_KERNS = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/kernels/*.kpp))
 RELSRC_KERNS = $(patsubst $(SRC)%,%,$(SOURCE_KERNS))
-CODEGN_KERNS = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_KERNS:.cpp=.kpp))
-OBJECT_KERNS = $(patsubst $(SRC)%,$(BLD)%,$(CODEGN_KERNS:.kpp=.o))
+CODEGN_KERNS = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_KERNS:.kpp=.cpp))
+OBJECT_KERNS = $(patsubst $(SRC)%,$(BLD)%,$(CODEGN_KERNS:.cpp=.o))
 
 .PHONY: lib all clean distclean install config status info deps serial parallel\
  debug pdebug style check test unittest
@@ -337,9 +337,7 @@ OBJECT_KERNS = $(patsubst $(SRC)%,$(BLD)%,$(CODEGN_KERNS:.kpp=.o))
 lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 
 mpp: $(BLD)general/mpp.cpp $(BLD)general/okrtc.hpp
-	$(MFEM_CXX) -O3 -std=c++11 -Wall -Wextra -o $(BLD)$(@) $(<)\
- -DMFEM_SRC=$(SRC) -DMFEM_CXX=$(MFEM_CXX)\
- -DMFEM_BUILD_FLAGS="$(MFEM_BUILD_FLAGS)"
+	$(MFEM_CXX) -O3 -std=c++11 -Wall -Wextra -o $(BLD)$(@) $(<) -DMFEM_SRC=$(SRC) -DMFEM_CXX=$(MFEM_CXX) -DMFEM_BUILD_FLAGS="$(MFEM_BUILD_FLAGS)"
 
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
@@ -350,11 +348,10 @@ $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
 # Rules for compiling kernel source files.
-#.PRECIOUS: %.kpp
-%.kpp: %.cpp mpp
+$(SRC)%.cpp: $(SRC)%.kpp mpp
 	./mpp $(<) -o $(@)
-%.o: %.kpp
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -xc++ -c $(<) -o $(@)
+$(OBJECT_KERNS): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -xc++ -c $(*).cpp -o $(@)
 ker: ;echo $(OBJECT_KERNS)
 LIB_LD = -ldl
 
