@@ -97,7 +97,7 @@ void* mm::Insert(void *adrs, const size_t bytes)
    const bool known = Known(maps, adrs);
    MFEM_ASSERT(!known, "Trying to add already present address!");
    dbg("\033[33m%p \033[35m(%ldb)", adrs, bytes);
-   memories->operator[](adrs) = new memory_t(adrs,bytes);
+   maps->memories->operator[](adrs) = new memory_t(adrs,bytes);
    return adrs;
 }
 
@@ -112,14 +112,14 @@ void *mm::Erase(void *adrs)
    // if (!known) { BUILTIN_TRAP; }
    if (!known) { mfem_error("mm::Erase"); }
    MFEM_ASSERT(known, "Trying to remove an unknown address!");
-   const memory_t *mem = memories->at(adrs);
+   const memory_t *mem = maps->memories->at(adrs);
    dbg("\033[33m %p \033[35m(%ldb)", adrs,mem->bytes);
    for (const alias_t* const alias : mem->aliases)
    {
-      aliases->erase(alias);
+      maps->aliases->erase(alias);
       delete alias;
    }
-   memories->erase(adrs);
+   maps->memories->erase(adrs);
    return adrs;
 }
 
