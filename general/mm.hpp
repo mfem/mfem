@@ -22,7 +22,7 @@ namespace mfem
 class mm
 {
 public:
-   // *****************************************************************************
+   // **************************************************************************
    class alias_t;
 
    struct memory_t
@@ -47,7 +47,7 @@ public:
       const size_t offset;
    };
 
-   // *****************************************************************************
+   // **************************************************************************
    typedef std::unordered_map<const void*, memory_t*> memory_map_t;
    typedef std::unordered_map<const void*, const alias_t*> alias_map_t;
    typedef struct { memory_map_t memories; alias_map_t aliases; } mm_t;
