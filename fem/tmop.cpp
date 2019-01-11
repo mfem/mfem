@@ -864,6 +864,46 @@ void TargetConstructor::ComputeElementTargets(int e_id, const FiniteElement &fe,
    }
 }
 
+void TargetSpecificationValidator::ConstructSpecification()
+{
+   target_spec.ConstructSpecification();
+
+   analytic = target_spec.analytic;
+   discrete = target_spec.discrete;
+
+   if (analytic == NULL && discrete == NULL)
+   {
+      MFEM_ABORT("Empty target specification.")
+   }
+
+   if (analytic != NULL && discrete != NULL)
+   {
+      MFEM_ABORT("Duplicate target specification.")
+   }
+
+   if (analytic != NULL)
+   {
+      // TODO switch on the target type and check if the Coefficient is valid.
+   }
+
+   if (discrete != NULL)
+   {
+      // TODO switch on the target type and check if the GridFunction is valid.
+   }
+}
+
+AdaptivityEvaluator::~AdaptivityEvaluator()
+{
+   delete fes;
+   delete mesh;
+}
+
+ParAdaptivityEvaluator::~ParAdaptivityEvaluator()
+{
+   delete pfes;
+   delete pmesh;
+}
+
 void TMOP_Integrator::EnableLimiting(const GridFunction &n0,
                                      const GridFunction &dist, Coefficient &w0,
                                      TMOP_LimiterFunction *lfunc)
