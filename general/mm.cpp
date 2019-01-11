@@ -50,7 +50,7 @@ static const void* InsertAlias(mm::mm_t& maps,
 {
    mm::memory_t *mem = maps.memories.at(base);
    const size_t offset = (char*)adrs - (char*)base;
-   const mm::alias_t *alias = new mm::alias_t(mem, offset);
+   const mm::alias_t *alias = new mm::alias_t{mem, offset};
    maps.aliases[adrs] = alias;
    mem->aliases.push_back(alias);
    return adrs;

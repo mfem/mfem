@@ -25,25 +25,26 @@ public:
    // *****************************************************************************
    class alias_t;
 
-   class memory_t
+   struct memory_t
    {
-   public:
       bool host;
+
       const size_t bytes;
+
       void* const h_adrs;
       void* d_adrs;
       OccaMemory o_adrs;
+
       std::list<const alias_t*> aliases;
+
       memory_t(void* const h, const size_t b):
          host(true), bytes(b), h_adrs(h), d_adrs(NULL), aliases() {}
    };
 
-   class alias_t
+   struct alias_t
    {
-   public:
       memory_t* const mem;
       const size_t offset;
-      alias_t(memory_t* const m, const size_t o):mem(m), offset(o) {}
    };
 
    // *****************************************************************************
