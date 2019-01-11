@@ -9,17 +9,11 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
-set(SRCS 
-  densemat.kpp 
-  sparsemat.kpp 
-  vector.kpp
+set(KERS 
+  densemat.cpp
+  sparsemat.cpp 
+  vector.cpp
 )
-set_source_files_properties(${SRCS} PROPERTIES LANGUAGE CXX)
-
-foreach(file ${SRCS})
-   get_filename_component(base ${file} NAME_WE)
-   mpp_src(${base})
-endforeach()
 
 set(HDRS
   densemat.hpp
@@ -27,8 +21,8 @@ set(HDRS
   vector.hpp
 )
 
-convert_filenames_to_full_paths(SRCS)
+convert_filenames_to_full_paths(KERS)
 convert_filenames_to_full_paths(HDRS)
 
-set(SOURCES ${SOURCES} ${SRCS} PARENT_SCOPE)
+set(KERNELS ${KERNELS} ${KERS} PARENT_SCOPE)
 set(HEADERS ${HEADERS} ${HDRS} PARENT_SCOPE)

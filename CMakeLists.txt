@@ -315,27 +315,13 @@ message(STATUS "MFEM version: v${MFEM_VERSION_STRING}")
 message(STATUS "MFEM git string: ${MFEM_GIT_STRING}")
 
 #-------------------------------------------------------------------------------
-# Define MPP CPP => KPP
-#-------------------------------------------------------------------------------
-function(mpp_src base)
-   set_property(SOURCE ${base}.kpp PROPERTY OBJECT_DEPENDS ${base}.cpp)
-   execute_process(
-       COMMAND /home/camier1/home/mfem/okina-jit/mpp ${base}.cpp -o ${base}.kpp
-       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-       OUTPUT_VARIABLE MPP_OUTPUT
-       OUTPUT_STRIP_TRAILING_WHITESPACE)
-   message("-- MFEM pre-processing ${CMAKE_CURRENT_SOURCE_DIR}/${base}.cpp ${MPP_OUTPUT}")
-   set_source_files_properties(${base}.kpp PROPERTIES LANGUAGE CXX)
-endfunction()
-
-#-------------------------------------------------------------------------------
 # Define and configure the MFEM library
 #-------------------------------------------------------------------------------
 
 # Headers and sources
 set(SOURCES "")
 set(HEADERS "")
-set(MFEM_SOURCE_DIRS general linalg linalg/kernels mesh mesh/kernels fem fem/kernels)
+set(MFEM_SOURCE_DIRS general linalg mesh fem)
 foreach(DIR IN LISTS MFEM_SOURCE_DIRS)
   add_subdirectory(${DIR})
 endforeach()
@@ -349,8 +335,11 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON CACHE BOOL "")
 set(CMAKE_INSTALL_RPATH "${_lib_path}" CACHE PATH "")
 set(CMAKE_INSTALL_NAME_DIR "${_lib_path}" CACHE PATH "")
 
-# Declaring the library
+#-------------------------------------------------------------------------------
+# Declaring the MFEM library
+#-------------------------------------------------------------------------------
 add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
+
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 if (CMAKE_VERSION VERSION_GREATER 2.8.11)
   target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES})
@@ -393,6 +382,34 @@ if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
 ")
   endforeach()
 endif()
+
+#-------------------------------------------------------------------------------
+# Add MPP subdirectory
+#-------------------------------------------------------------------------------
+add_executable(mpp general/mpp.cpp)
+
+#-------------------------------------------------------------------------------
+# Scan all 'kernels' subdirectories
+#-------------------------------------------------------------------------------
+set(KERNELS "")
+set(MFEM_KERNELS_DIRS linalg mesh fem)
+foreach(DIR IN LISTS MFEM_KERNELS_DIRS)
+  add_subdirectory(${DIR}/kernels)
+endforeach()
+add_custom_target(MPP)
+foreach(name IN LISTS KERNELS)
+   get_filename_component(bnmwe ${name} NAME_WE)
+   get_filename_component(dirname ${name} DIRECTORY)
+   add_custom_command(
+       COMMAND mpp ${name} -o ${CMAKE_CURRENT_BINARY_DIR}/${bnmwe}.kpp
+       DEPENDS mpp ${name}
+       OUTPUT  ${CMAKE_CURRENT_BINARY_DIR}/${bnmwe}.kpp
+       COMMENT "mpp ${bnmwe}"
+   )
+   add_custom_target(${bnmwe}_kpp DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${bnmwe}.kpp)
+   add_dependencies(MPP ${bnmwe}_kpp)
+endforeach()
+add_dependencies(mfem MPP)
 
 #-------------------------------------------------------------------------------
 # Examples, miniapps, and testing

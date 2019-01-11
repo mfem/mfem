@@ -9,19 +9,13 @@
 # terms of the GNU Lesser General Public License (as published by the Free
 # Software Foundation) version 2.1 dated February 1999.
 
-set(SRCS
-  kGeometry.kpp
-  kGlobalToLocal.kpp
-  kIntDiffusionAssemble.kpp
-  kIntDiffusionMultAdd.kpp
-  kLocalToGlobal.kpp
+set(KERS
+  kGeometry.cpp
+  kGlobalToLocal.cpp
+  kIntDiffusionAssemble.cpp
+  kIntDiffusionMultAdd.cpp
+  kLocalToGlobal.cpp
 )
-set_source_files_properties(${SRCS} PROPERTIES LANGUAGE CXX)
-
-foreach(file ${SRCS})
-   get_filename_component(base ${file} NAME_WE)
-   mpp_src(${base})
-endforeach()
 
 set(HDRS
   kGeometry.hpp
@@ -30,8 +24,8 @@ set(HDRS
   kLocalToGlobal.hpp
 )
 
-convert_filenames_to_full_paths(SRCS)
+convert_filenames_to_full_paths(KERS)
 convert_filenames_to_full_paths(HDRS)
 
-set(SOURCES ${SOURCES} ${SRCS} PARENT_SCOPE)
+set(KERNELS ${KERNELS} ${KERS} PARENT_SCOPE)
 set(HEADERS ${HEADERS} ${HDRS} PARENT_SCOPE)

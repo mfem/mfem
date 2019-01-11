@@ -6,8 +6,10 @@
 #include <iostream>
 #include <unistd.h>
 #include <string.h>
-#include "okina.hpp"
 using namespace std;
+#define STR(X) #X
+#define STRINGIFY(X) STR(X)
+//#include "../config/config.hpp"
 
 // *****************************************************************************
 // * STRUCTS: context, error & args
@@ -36,7 +38,11 @@ struct kernel{
 
 // *****************************************************************************
 struct context {
-   bool mm;
+#ifdef MFEM_USE_MM
+   const bool mm = true;
+#else
+   const bool mm = false;
+#endif
    int line;
    int block;
    string& file;
@@ -46,8 +52,7 @@ struct context {
    kernel k;
 public:
    context(istream& i, ostream& o, string &f)
-      : mm(mfem::config::usingMM()),
-        line(1), block(-2), file(f), in(i), out(o){}
+      : line(1), block(-2), file(f), in(i), out(o){}
 };
 
 // *****************************************************************************
