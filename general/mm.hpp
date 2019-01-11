@@ -48,18 +48,16 @@ public:
 class mm
 {
 public:
-// *****************************************************************************
+   // *****************************************************************************
    typedef std::unordered_map<const void*, memory_t*> memory_map_t;
    typedef std::unordered_map<const void*, const alias_t*> alias_map_t;
-   typedef struct { memory_map_t *memories; alias_map_t *aliases; } mm_t;
-   typedef memory_map_t::iterator mm_iterator_t;
+   typedef struct { memory_map_t memories; alias_map_t aliases; } mm_t;
 
 private:
    mm_t maps;
 private:
-   mm(): maps({new memory_map_t, new alias_map_t}) {}
+   mm() {}
    mm(mm const&);
-   ~mm() { delete maps.memories; delete maps.aliases; }
    void operator=(mm const&);
    static inline mm& MM() { static mm singleton; return singleton; }
 private:
