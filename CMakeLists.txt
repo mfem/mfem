@@ -396,7 +396,9 @@ set(MFEM_KERNELS_DIRS linalg mesh fem)
 foreach(DIR IN LISTS MFEM_KERNELS_DIRS)
   add_subdirectory(${DIR}/kernels)
 endforeach()
+if (NOT MINGW)
 add_custom_target(MPP)
+endif()
 foreach(name IN LISTS KERNELS)
    get_filename_component(bnmwe ${name} NAME_WE)
    get_filename_component(dirname ${name} DIRECTORY)
@@ -406,10 +408,14 @@ foreach(name IN LISTS KERNELS)
        OUTPUT  ${CMAKE_CURRENT_BINARY_DIR}/${bnmwe}.kpp
        COMMENT "mpp ${bnmwe}"
    )
+if (NOT MINGW)
    add_custom_target(${bnmwe}_kpp DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${bnmwe}.kpp)
    add_dependencies(MPP ${bnmwe}_kpp)
+endif()
 endforeach()
+if (NOT MINGW)
 add_dependencies(mfem MPP)
+endif()
 
 #-------------------------------------------------------------------------------
 # Examples, miniapps, and testing
