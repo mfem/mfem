@@ -4,7 +4,7 @@
 #include <cassert>
 #include <fstream>
 #include <iostream>
-#include <unistd.h>
+//#include <unistd.h> // unknwon to MSVC
 #include <string.h>
 using namespace std;
 #define STR(X) #X
