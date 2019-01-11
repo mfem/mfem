@@ -39,7 +39,8 @@ MFEM_USE_SIDRE       = @MFEM_USE_SIDRE@
 MFEM_USE_CONDUIT     = @MFEM_USE_CONDUIT@
 MFEM_USE_PUMI        = @MFEM_USE_PUMI@
 MFEM_USE_OCCA        = @MFEM_USE_OCCA@
-MFEM_USE_MM          = @MFEM_USE_MM@
+MFEM_USE_GPU         = @MFEM_USE_GPU@
+MFEM_USE_JIT         = @MFEM_USE_JIT@
 
 # Compiler, compile options, and link options
 MFEM_CXX       = @MFEM_CXX@

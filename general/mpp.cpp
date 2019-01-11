@@ -43,7 +43,7 @@ struct kernel{
 
 // *****************************************************************************
 struct context {
-#ifdef MFEM_USE_MM
+#ifdef MFEM_USE_GPU
    const bool mm = true;
 #else
    const bool mm = false;
