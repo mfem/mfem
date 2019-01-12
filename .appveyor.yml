@@ -1,4 +1,6 @@
 version: '{build}'
+stuck_build_timeout: 5min
+Build timeout: 8min
 
 # https://www.appveyor.com/docs/build-environment/#build-worker-images
 image: Visual Studio 2017

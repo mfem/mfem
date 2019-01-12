@@ -14,6 +14,7 @@ using namespace std;
 
 // *****************************************************************************
 #define trk(...) {printf("\n%s (%s:%d)",__func__,__FILE__,__LINE__);fflush(0);}
+#define dbg(...) {printf(__VA_ARGS__);fflush(0);}
 
 // *****************************************************************************
 // * STRUCTS: context, error & args
@@ -455,27 +456,37 @@ static inline void __kernel(context &pp) {
    pp.out << "         ";
    drop_space(pp);
    check(pp,isvoid(pp) or isstatic(pp),"Kernel w/o void or static");
+   dbg("isstatic?");
    if (isstatic(pp)) {
       pp.out << get_name(pp);
       skip_space(pp);
    }
+   dbg("void_return_type?");
    const string void_return_type = get_name(pp);
    pp.out << void_return_type;
    // Get kernel's name
+   dbg("skip_space?");
    skip_space(pp);
+   dbg("get_name?");
    const string name = get_name(pp);
    pp.out << name;
    pp.k.name = name;
+   dbg("kernel: '%s'",name.c_str());
    
+   dbg("skip_space?");
    skip_space(pp);
    // check we are at the left parenthesis
-   check(pp,pp.in.peek()=='(',"No 1st '(' in kernel"), put(pp); 
+   dbg("check?");
+   check(pp,pp.in.peek()=='(',"No 1st '(' in kernel");
+   put(pp); 
    // Go to first possible argument
+   dbg("skip_space?");
    skip_space(pp);
    if (isvoid(pp)) { // if it is 'void' don't add any coma
       drop_name(pp);
    } else {
       pp.args.clear();
+      dbg("get_args?");
       get_args(pp);
       if (pp.k.jit) rtcKernelRefresh(pp);
    }
