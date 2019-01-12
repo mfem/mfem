@@ -13,7 +13,7 @@ using namespace std;
 #define STRINGIFY(X) STR(X)
 
 // *****************************************************************************
-#define trk(...) {printf("\n%s (%s:%d)",__func__,__FILE__,__LINE__);fflush(0);}
+#define trk(...) {printf("\n%s>",__func__);fflush(0);}
 #define dbg(...) {printf(__VA_ARGS__);fflush(0);}
 
 // *****************************************************************************
@@ -179,8 +179,7 @@ static inline bool is_alnum(context &pp) {
 static inline string get_name(context &pp) {
    string str;
    check(pp,is_alnum(pp),"Name w/o alnum 1st letter");
-   while ((not pp.in.eof()) and (pp.in.peek()!=EOF) and
-          (isalnum(pp.in.peek()) or pp.in.peek()=='_'))
+   while (not pp.in.eof() and (pp.in.peek()!=EOF) and is_alnum(pp))
       str += pp.in.get();
    return str;
 }
@@ -189,8 +188,8 @@ static inline string get_name(context &pp) {
 static inline string get_directive(context &pp) {
    string str;
    check(pp,pp.in.peek()=='#',"Directive w/o 1st '#'");
-   while ((not pp.in.eof()) and (pp.in.peek()!=EOF) and
-          (isalnum(pp.in.peek()) or pp.in.peek()=='_' or pp.in.peek()=='#'))
+   while (not pp.in.eof() and (pp.in.peek()!=EOF) and
+          (is_alnum(pp) or pp.in.peek()=='#'))
       str += pp.in.get();
    return str;
 }
@@ -215,13 +214,13 @@ static inline string peekn(context &pp, const int n) {
 static inline string peekID(context &pp) {
    int k = 0;
    const int n = 64;
-   static char c[n];
+   static char c[64];
    for (k=0;k<n;k+=1) c[k] = 0;
    k = 0;
    for (; k<n; k+=1) {
       const int p = pp.in.peek();
       if (p==EOF) break;
-      if (not is_alnum(pp)) break;
+      if (not is_alnum(pp)){ break; }
       c[k]=pp.in.get();
    }
    string rtn = c;
@@ -231,8 +230,7 @@ static inline string peekID(context &pp) {
 
 // *****************************************************************************
 static inline void drop_name(context &pp) {
-   while ((not pp.in.eof()) and (pp.in.peek()!=EOF) and
-          (isalnum(pp.in.peek()) or pp.in.peek()=='_'))
+   while ((not pp.in.eof()) and (pp.in.peek()!=EOF) and is_alnum(pp))
       pp.in.get();
 }
 
@@ -282,6 +280,7 @@ static inline bool get_args(context &pp) {
          continue;
       }
       const string &id = peekID(pp);
+      dbg(" id:%s",id.c_str());
       drop_name(pp);
       // Qualifiers
       if (id=="const") { pp.out << id; arg->is_const = true; continue; }
@@ -312,6 +311,8 @@ static inline bool get_args(context &pp) {
       check(pp,pp.in.peek()==',',"No coma while in args");
       put(pp);
    }
+   assert(false);
+   dbg("eof return");
    return empty;
 }
 
@@ -471,8 +472,7 @@ static inline void __kernel(context &pp) {
    const string name = get_name(pp);
    pp.out << name;
    pp.k.name = name;
-   dbg("kernel: '%s'",name.c_str());
-   
+   dbg("kernel:'%s'",name.c_str());
    dbg("skip_space?");
    skip_space(pp);
    // check we are at the left parenthesis

@@ -238,16 +238,16 @@ __kernel void kMult(const size_t ah, const size_t aw, const size_t bw,
 }
 
 // *****************************************************************************
+__kernel void kOpEq(const size_t hw, const double *m, double *data)
+{
+   MFEM_FORALL(i, hw, data[i] = m[i];);
+}
+
+// *****************************************************************************
 __kernel void kDiag(const size_t n, const size_t N, const double c, double *data)
 {
    MFEM_FORALL(i, N, data[i] = 0.0;);
    MFEM_FORALL(i, n, data[i*(n+1)] = c;);
-}
-
-// *****************************************************************************
-__kernel void kOpEq(const size_t hw, const double *m, double *data)
-{
-   MFEM_FORALL(i, hw, data[i] = m[i];);
 }
 
 // *****************************************************************************
