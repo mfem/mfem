@@ -23,7 +23,7 @@ class mm
 {
 public:
    // **************************************************************************
-   class alias_t;
+   struct alias_t;
 
    struct memory_t
    {
