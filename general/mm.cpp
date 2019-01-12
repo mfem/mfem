@@ -124,7 +124,7 @@ void *mm::Erase(void *adrs)
 }
 
 // *****************************************************************************
-static void* AdrsKnown(const mm::mm_t& maps, void* adrs)
+static void* AdrsKnown(const mm::mm_t &maps, void *adrs)
 {
    mm::memory_t *base = maps.memories.at(adrs);
    const bool host = base->host;
@@ -148,7 +148,7 @@ static void* AdrsKnown(const mm::mm_t& maps, void* adrs)
 }
 
 // *****************************************************************************
-static void* AdrsAlias(mm::mm_t& maps, void* adrs)
+static void* AdrsAlias(mm::mm_t &maps, void *adrs)
 {
    const bool gpu = config::usingGpu();
    const mm::alias_t *alias = maps.aliases.at(adrs);
@@ -193,16 +193,16 @@ void* mm::Adrs(void *adrs)
 // *****************************************************************************
 const void* mm::Adrs(const void *adrs)
 {
-   return (const void*) Adrs((void*)adrs);
+   return (const void *) Adrs((void *)adrs);
 }
 
 // *****************************************************************************
-static OccaMemory occaMemory(const mm::mm_t& maps, const void *adrs)
+static OccaMemory occaMemory(const mm::mm_t &maps, const void *adrs)
 {
    OccaDevice occaDevice = config::GetOccaDevice();
    if (!config::usingMM())
    {
-      OccaMemory o_ptr = occaWrapMemory(occaDevice, (void*)adrs, 0);
+      OccaMemory o_ptr = occaWrapMemory(occaDevice, (void *)adrs, 0);
       return o_ptr;
    }
    const bool known = Known(maps, adrs);
@@ -244,16 +244,15 @@ OccaMemory mm::Memory(const void *adrs)
 }
 
 // *****************************************************************************
-static void PushKnown(mm::mm_t& maps, const void *adrs, const size_t bytes)
+static void PushKnown(mm::mm_t &maps, const void *adrs, const size_t bytes)
 {
    mm::memory_t *base = maps.memories.at(adrs);
    if (!base->d_ptr) { cuMemAlloc(&base->d_ptr, base->bytes); }
-   cuMemcpyHtoD(base->d_ptr, adrs, bytes==0?base->bytes:bytes);
-   return;
+   cuMemcpyHtoD(base->d_ptr, adrs, bytes == 0 ? base->bytes : bytes);
 }
 
 // *****************************************************************************
-static void PushAlias(const mm::mm_t& maps, const void *adrs, const size_t bytes)
+static void PushAlias(const mm::mm_t &maps, const void *adrs, const size_t bytes)
 {
    const mm::alias_t *alias = maps.aliases.at(adrs);
    cuMemcpyHtoD((char*)alias->mem->d_ptr + alias->offset, adrs, bytes);
@@ -275,17 +274,17 @@ void mm::Push(const void *adrs, const size_t bytes)
 }
 
 // *****************************************************************************
-static void PullKnown(const mm::mm_t& maps, const void *adrs, const size_t bytes)
+static void PullKnown(const mm::mm_t &maps, const void *adrs, const size_t bytes)
 {
    const mm::memory_t *base = maps.memories.at(adrs);
-   cuMemcpyDtoH(base->h_ptr, base->d_ptr, bytes==0?base->bytes:bytes);
+   cuMemcpyDtoH(base->h_ptr, base->d_ptr, bytes == 0 ? base->bytes : bytes);
 }
 
 // *****************************************************************************
-static void PullAlias(const mm::mm_t& maps, const void *adrs, const size_t bytes)
+static void PullAlias(const mm::mm_t &maps, const void *adrs, const size_t bytes)
 {
    const mm::alias_t *alias = maps.aliases.at(adrs);
-   cuMemcpyDtoH((void*)adrs, (char*)alias->mem->d_ptr + alias->offset, bytes);
+   cuMemcpyDtoH((void *)adrs, (char*)alias->mem->d_ptr + alias->offset, bytes);
 }
 
 // *****************************************************************************
@@ -305,11 +304,11 @@ void mm::Pull(const void *adrs, const size_t bytes)
 
 // *****************************************************************************
 // __attribute__((unused)) // VS doesn't like this in Appveyor
-static void Dump(mm::mm_t& maps)
+static void Dump(mm::mm_t &maps)
 {
    if (!getenv("DBG")) { return; }
-   mm::memory_map_t& mem = maps.memories;
-   mm::alias_map_t&  als = maps.aliases;
+   mm::memory_map_t &mem = maps.memories;
+   mm::alias_map_t  &als = maps.aliases;
    size_t k = 0;
    for (mm::memory_map_t::iterator m = mem.begin(); m != mem.end(); m++)
    {
@@ -351,14 +350,14 @@ static void* d2d(void *dst, const void *src, size_t bytes, const bool async)
    GET_PTR(dst);
    const bool cpu = config::usingCpu();
    if (cpu) { return std::memcpy(d_dst, d_src, bytes); }
-   if (!async) { return cuMemcpyDtoD(d_dst, (void*)d_src, bytes); }
-   return cuMemcpyDtoDAsync(d_dst, (void*)d_src, bytes, config::Stream());
+   if (!async) { return cuMemcpyDtoD(d_dst, (void *)d_src, bytes); }
+   return cuMemcpyDtoDAsync(d_dst, (void *)d_src, bytes, config::Stream());
 }
 
 // *****************************************************************************
 void* mm::memcpy(void *dst, const void *src, size_t bytes, const bool async)
 {
-   if (bytes==0) { return dst; }
+   if (bytes == 0) { return dst; }
    return d2d(dst, src, bytes, async);
 }
 
