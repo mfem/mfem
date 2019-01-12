@@ -475,6 +475,7 @@ static inline void __kernel(context &pp) {
    dbg("kernel:'%s'",name.c_str());
    dbg("skip_space?");
    skip_space(pp);
+   if (pp.mm) return;
    // check we are at the left parenthesis
    dbg("check?");
    check(pp,pp.in.peek()=='(',"No 1st '(' in kernel");
