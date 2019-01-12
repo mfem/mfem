@@ -29,23 +29,21 @@ void SetDof(double*, const double, const int);
 void GetSubvector(const int, double*, const double*, const int*);
 void SetSubvector(const int, double*, const double*, const int*);
 
-void AlphaAdd(double *vp, const double* v1p,
-                     const double alpha, const double *v2p, const size_t N);
+void AlphaAdd(double *, const double*, const double, const double *, const size_t);
 
-void Print(const size_t N, const double *data);
+void Print(const size_t, const double *);
 
-void Set(const size_t N, const double value, double *data);
+void Set(const size_t, const double, double *);
 
-void Assign(const size_t N, const double* v, double *data);
+void Assign(const size_t, const double *, double *);
 
-void MultOp(const size_t N, const double value, double *data);
+void MultOp(const size_t, const double, double *);
 
-void Subtract(double *zp, const double *xp, const double *yp,
-                     const size_t N);
+void Subtract(double *, const double *, const double *, const size_t);
 
-double Dot(const size_t N, const double *x, const double *y);
+double Dot(const size_t, const double *, const double *);
 
-void DotOpPlusEQ(const size_t size, const double *v, double *data);
+void DotOpPlusEQ(const size_t, const double *, double *);
 
 // void kSetSubVector(const size_t, const int*, const double*, double*);
 
