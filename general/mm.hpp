@@ -82,13 +82,13 @@ public:
    static inline OccaMemory memory(const void *a) { return MM().Memory(a); }
 
    // **************************************************************************
-   static inline void push(const void *adrs, const size_t bytes =0)
+   static inline void push(const void *adrs, const size_t bytes = 0)
    {
       return MM().Push(adrs, bytes);
    }
 
    // **************************************************************************
-   static inline void pull(const void *adrs, const size_t bytes =0)
+   static inline void pull(const void *adrs, const size_t bytes = 0)
    {
       return MM().Pull(adrs, bytes);
    }
@@ -113,8 +113,8 @@ private:
    OccaMemory Memory(const void *adrs);
 
    // **************************************************************************
-   void Push(const void *adrs, const size_t bytes =0);
-   void Pull(const void *adrs, const size_t bytes =0);
+   void Push(const void *adrs, const size_t bytes = 0);
+   void Pull(const void *adrs, const size_t bytes = 0);
 };
 
 // *****************************************************************************
