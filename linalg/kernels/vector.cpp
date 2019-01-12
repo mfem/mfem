@@ -16,6 +16,11 @@
 namespace mfem
 {
 
+namespace kernels
+{
+namespace vector
+{
+
 // *****************************************************************************
 #ifdef __NVCC__
 
@@ -70,7 +75,7 @@ double cuVectorDot(const size_t N, const double *x, const double *y)
 #endif // __NVCC__
 
 // *****************************************************************************
-double kVectorDot(const size_t N, const double *x, const double *y)
+double Dot(const size_t N, const double *x, const double *y)
 {
    GET_CONST_ADRS(x);
    GET_CONST_ADRS(y);
@@ -87,7 +92,7 @@ double kVectorDot(const size_t N, const double *x, const double *y)
 }
 
 // *****************************************************************************
-void kVectorMapDof(const int N, double *v0, const double *v1, const int *dof)
+void MapDof(const int N, double *v0, const double *v1, const int *dof)
 {
    GET_ADRS(v0);
    GET_CONST_ADRS(v1);
@@ -100,7 +105,7 @@ void kVectorMapDof(const int N, double *v0, const double *v1, const int *dof)
 }
 
 // *****************************************************************************
-void kVectorMapDof(double *v0, const double *v1, const int dof, const int j)
+void MapDof(double *v0, const double *v1, const int dof, const int j)
 {
    GET_ADRS(v0);
    GET_CONST_ADRS(v1);
@@ -108,14 +113,14 @@ void kVectorMapDof(double *v0, const double *v1, const int dof, const int j)
 }
 
 // *****************************************************************************
-void kVectorSetDof(double *v0, const double alpha, const int dof)
+void SetDof(double *v0, const double alpha, const int dof)
 {
    GET_ADRS(v0);
    MFEM_FORALL(i, 1, d_v0[dof] = alpha; );
 }
 
 // *****************************************************************************
-void kVectorSetDof(const int N, double *v0, const double alpha, const int *dof)
+void SetDof(const int N, double *v0, const double alpha, const int *dof)
 {
    GET_ADRS(v0);
    GET_CONST_ADRS_T(dof,int);
@@ -127,7 +132,7 @@ void kVectorSetDof(const int N, double *v0, const double alpha, const int *dof)
 }
 
 // *****************************************************************************
-void kVectorGetSubvector(const int N,
+void GetSubvector(const int N,
                          double* y,
                          const double* x,
                          const int* dofs)
@@ -143,7 +148,7 @@ void kVectorGetSubvector(const int N,
 }
 
 // *****************************************************************************
-void kVectorSetSubvector(const int N,
+void SetSubvector(const int N,
                          double* x,
                          const double* y,
                          const int* dofs)
@@ -165,7 +170,7 @@ void kVectorSetSubvector(const int N,
 }
 
 // *****************************************************************************
-void kVectorSubtract(double *zp, const double *xp, const double *yp,
+void Subtract(double *zp, const double *xp, const double *yp,
                      const size_t N)
 {
    GET_ADRS(zp);
@@ -175,7 +180,7 @@ void kVectorSubtract(double *zp, const double *xp, const double *yp,
 }
 
 // *****************************************************************************
-void kVectorAlphaAdd(double *vp, const double* v1p,
+void AlphaAdd(double *vp, const double* v1p,
                      const double alpha, const double *v2p, const size_t N)
 {
    GET_ADRS(vp);
@@ -185,7 +190,7 @@ void kVectorAlphaAdd(double *vp, const double* v1p,
 }
 
 // *****************************************************************************
-void kVectorPrint(const size_t N, const double *data)
+void Print(const size_t N, const double *data)
 {
    GET_CONST_ADRS(data);
    MFEM_FORALL(k, 1, // Sequential printf to get the same order as the host
@@ -198,7 +203,7 @@ void kVectorPrint(const size_t N, const double *data)
 }
 
 // *****************************************************************************
-void kVectorAssign(const size_t N, const double* v, double *data)
+void Assign(const size_t N, const double* v, double *data)
 {
    GET_ADRS(data);
    GET_CONST_ADRS(v);
@@ -206,7 +211,7 @@ void kVectorAssign(const size_t N, const double* v, double *data)
 }
 
 // **************************************************************************
-void kVectorSet(const size_t N,
+void Set(const size_t N,
                 const double value,
                 double *data)
 {
@@ -215,7 +220,7 @@ void kVectorSet(const size_t N,
 }
 
 // *****************************************************************************
-void kVectorMultOp(const size_t N,
+void MultOp(const size_t N,
                    const double value,
                    double *data)
 {
@@ -224,7 +229,7 @@ void kVectorMultOp(const size_t N,
 }
 
 // *****************************************************************************
-void kVectorDotOpPlusEQ(const size_t size, const double *v, double *data)
+void DotOpPlusEQ(const size_t size, const double *v, double *data)
 {
    GET_CONST_ADRS(v);
    GET_ADRS(data);
@@ -232,7 +237,7 @@ void kVectorDotOpPlusEQ(const size_t size, const double *v, double *data)
 }
 
 // *****************************************************************************
-void kVectorOpSubtract(const size_t size, const double *v, double *data)
+void OpSubtract(const size_t size, const double *v, double *data)
 {
    GET_CONST_ADRS(v);
    GET_ADRS(data);
@@ -240,8 +245,8 @@ void kVectorOpSubtract(const size_t size, const double *v, double *data)
 }
 
 // *****************************************************************************
-void kAddElementVector(const size_t n, const int *dofs,
-                       const double *elem_data, double *data)
+void AddElement(const size_t n, const int *dofs,
+                const double *elem_data, double *data)
 {
    GET_CONST_ADRS_T(dofs,int);
    GET_CONST_ADRS(elem_data);
@@ -257,6 +262,9 @@ void kAddElementVector(const size_t n, const int *dofs,
       }
    });
 }
+
+} // namespace vector
+} // namespace kernels
 
 // *****************************************************************************
 } // mfem

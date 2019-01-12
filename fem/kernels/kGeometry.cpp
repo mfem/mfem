@@ -243,7 +243,7 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
       geom->meshNodes.allocate(dims, numDofs, elements);
       geom->eMap.allocate(numDofs, elements);
    }
-   kVectorAssign(asize, meshNodes.GetData(), geom->meshNodes);
+   kernels::vector::Assign(asize, meshNodes.GetData(), geom->meshNodes);
    kArrayAssign(numDofs*elements, eMap.GetData(), geom->eMap);
    // Reorder the original gf back
    if (orderedByNODES) { ReorderByNodes(nodes); }
