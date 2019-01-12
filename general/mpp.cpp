@@ -451,6 +451,26 @@ static inline void rtcKernelPostfix(context &pp){
 }
 
 // *****************************************************************************
+/*static inline void goto_first_left_paren(context &pp) {
+   for (; not pp.in.eof(); put(pp)) {
+      const char c = pp.in.peek();
+      check(pp,c != EOF);
+      if (c == '\n') pp.line++;
+      if (c == '(') return;
+   }
+}
+
+// *****************************************************************************
+static inline void goto_last_right_paren(context &pp) {
+   for (; not pp.in.eof(); put(pp)) {
+      const char c = pp.in.peek();
+      check(pp,c != EOF);
+      if (c == '\n') pp.line++;
+      if (c == ')') return;
+   }
+}*/
+
+// *****************************************************************************
 static inline void __kernel(context &pp) {
    trk();
    //        "__kernel "
@@ -475,7 +495,7 @@ static inline void __kernel(context &pp) {
    dbg("kernel:'%s'",name.c_str());
    dbg("skip_space?");
    skip_space(pp);
-   if (pp.mm) return;
+   if (not pp.mm) return;
    // check we are at the left parenthesis
    dbg("check?");
    check(pp,pp.in.peek()=='(',"No 1st '(' in kernel");
@@ -508,6 +528,7 @@ static inline void __id(context &pp, string id = "") {
    if (id=="__kernel"){
       // Get arguments of this kernel
       __kernel(pp);
+      if (not pp.mm) return;
       check(pp,pp.in.peek()==')',"No last ')' in kernel"), put(pp);
       skip_space(pp);
       // Make sure we are about to start a statement block
@@ -618,8 +639,10 @@ int main(const int argc, char* argv[]) {
    try {
       process(pp);
    } catch (error err) {
-      cerr << err.file << ":" << err.line << ":"
+      cerr << endl
+	   << err.file << ":" << err.line << ":"
            << " mpp error"
+           << (err.msg?": ":"")
            << (err.msg?err.msg:"")
            << endl;
 #ifdef _MSC_VER
