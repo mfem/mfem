@@ -92,6 +92,7 @@ private:
    mutable ParGridFunction v_;
   
    Coefficient * vCoef_;
+   Coefficient * dtCoef_;
    Coefficient * nuCoef_;
    Coefficient * dtNuCoef_;
 
@@ -966,6 +967,7 @@ TransportOperator::TransportOperator(ParFiniteElementSpace &fes,
      AInv_(NULL),
      APrecond_(NULL),
      vCoef_(NULL),
+     dtCoef_(NULL),
      nuCoef_(&nuCoef),
      dtNuCoef_(NULL),
      rhs_(&fes),
@@ -992,6 +994,7 @@ TransportOperator::~TransportOperator()
   delete APrecond_;
 
   delete vCoef_;
+  delete dtCoef_;
   delete dtNuCoef_;
 }
 
@@ -1019,6 +1022,9 @@ void TransportOperator::initM()
 
 void TransportOperator::initA(double dt)
 {
+  dtCoef_   = new ConstantCoefficient(dt);
+  dtNuCoef_ = new ProductCoefficient(*dtCoef_, *nuCoef_);
+
   a_ = new ParBilinearForm(&fes_);
   a_->AddDomainIntegrator(new MassIntegrator);
   a_->AddDomainIntegrator(new DiffusionIntegrator(*dtNuCoef_));
@@ -1027,7 +1033,7 @@ void TransportOperator::initA(double dt)
 
   // OperatorHandle operA(&A_, false);
   // a_->ParallelAssemble(operA);
-  Array<int> ess_dofs(fes_.GetTrueVSize()); ess_dofs = 0;
+  Array<int> ess_dofs(0);
   a_->FormSystemMatrix(ess_dofs, A_);
 
   APrecond_ = new HypreBoomerAMG(A_);
