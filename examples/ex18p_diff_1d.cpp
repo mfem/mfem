@@ -1081,9 +1081,7 @@ void TransportOperator::ImplicitSolve(const double dt,
    x_.Distribute(X_);
 
    // Setup and solve velocity equation
-   rhs_ = 0.0;
-
-   a_v_->AddMultTranspose(v_, rhs_, -1.0);
+   a_v_->MultTranspose(v_, rhs_);
 
    s_nu_->AddMult(v_, rhs_, -1.0);
 
