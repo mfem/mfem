@@ -43,7 +43,7 @@ before_build:
 
 build_script:
 #- cmake --build build_parallel
-- timeout 10m cmake --build build_serial
+- cmake --build build_serial
 
 after_build:
 # - cmake --build build_parallel --target check
