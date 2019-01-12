@@ -120,7 +120,7 @@ const double &Vector::Elem(int i) const
 double Vector::operator*(const double *v) const
 {
    const int N = size;
-   double prod = kVectorDot(N, data, v);
+   double prod = kernels::vector::Dot(N, data, v);
    return prod;
 }
 
@@ -141,7 +141,7 @@ Vector &Vector::operator=(const double *v)
    if (data != v)
    {
       MFEM_ASSERT(data + size <= v || v + size <= data, "Vectors overlap!");
-      kVectorAssign(size, v, data);
+      kernels::vector::Assign(size, v, data);
    }
    return *this;
 }
@@ -154,13 +154,13 @@ Vector &Vector::operator=(const Vector &v)
 
 Vector &Vector::operator=(double value)
 {
-   kVectorSet(size, value, data);
+   kernels::vector::Set(size, value, data);
    return *this;
 }
 
 Vector &Vector::operator*=(double c)
 {
-   kVectorMultOp(size, c, data);
+   kernels::vector::MultOp(size, c, data);
    return *this;
 }
 
@@ -191,7 +191,7 @@ Vector &Vector::operator-=(const Vector &v)
       mfem_error("Vector::operator-=(const Vector &)");
    }
 #endif
-   kVectorOpSubtract(size,v,data);
+   kernels::vector::OpSubtract(size,v,data);
    return *this;
 }
 
@@ -203,7 +203,7 @@ Vector &Vector::operator+=(const Vector &v)
       mfem_error("Vector::operator+=(const Vector &)");
    }
 #endif
-   kVectorDotOpPlusEQ(size,v.GetData(),data);
+   kernels::vector::DotOpPlusEQ(size,v.GetData(),data);
    return *this;
 }
 
@@ -309,7 +309,7 @@ void add(const Vector &v1, double alpha, const Vector &v2, Vector &v)
 #warning MFEM_USE_OPENMP with KERNELS
       //#pragma omp parallel for
 #endif
-      kVectorAlphaAdd(vp,v1p,alpha,v2p,s);
+      kernels::vector::AlphaAdd(vp,v1p,alpha,v2p,s);
    }
 }
 
@@ -406,7 +406,7 @@ void subtract(const Vector &x, const Vector &y, Vector &z)
 #ifdef MFEM_USE_OPENMP
    //#pragma omp parallel for
 #endif
-   kVectorSubtract(zp,xp,yp,s);
+   kernels::vector::Subtract(zp,xp,yp,s);
 }
 
 void subtract(const double a, const Vector &x, const Vector &y, Vector &z)
@@ -515,7 +515,7 @@ void Vector::SetSubVector(const Array<int> &dofs, const double value)
 
 void Vector::SetSubVector(const Array<int> &dofs, const Vector &elemvect)
 {
-   kVectorSetSubvector(dofs.Size(), GetData(), elemvect.GetData(), dofs.GetData());
+   kernels::vector::SetSubvector(dofs.Size(), GetData(), elemvect.GetData(), dofs.GetData());
 }
 
 void Vector::SetSubVector(const Array<int> &dofs, double *elem_data)
@@ -558,7 +558,7 @@ void Vector::AddElementVector(const Array<int> &dofs, const Vector &elemvect)
 void Vector::AddElementVector(const Array<int> &dofs, double *elem_data)
 {
    const int n = dofs.Size();
-   kAddElementVector(n,dofs,elem_data,data);
+   kernels::vector::AddElement(n,dofs,elem_data,data);
 }
 
 void Vector::AddElementVector(const Array<int> &dofs, const double a,
