@@ -857,8 +857,8 @@ void real_epsilon_sigma(double omega, const Vector &B,
                                                                     3.0/2.0));
 
    double wpe = (ne * pow(qe, 2))/(me*epsilon0_); // Squared plasma frequency
-   double wpi1 = (ne * pow(qe, 2))/(mi1*epsilon0_); // Squared plasma frequency
-   double wpi2 = (ne * pow(qe, 2))/(mi2*epsilon0_); // Squared plasma frequency
+   double wpi1 = (ne * pow(qi1, 2))/(mi1*epsilon0_); // Squared plasma frequency
+   double wpi2 = (ne * pow(qi2, 2))/(mi2*epsilon0_); // Squared plasma frequency
    double wce = qe*Bnorm/me, wci1 = qi1 * Bnorm/mi1, wci2 = qi2 * Bnorm/mi2;
 
    double S = (1.0 - wpe/(pow(omega, 2) - pow(wce, 2)) - wpi1/(pow(omega,
