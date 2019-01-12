@@ -304,13 +304,13 @@ void mm::Pull(const void *adrs, const size_t bytes)
 
 // *****************************************************************************
 // __attribute__((unused)) // VS doesn't like this in Appveyor
-static void Dump(mm::mm_t &maps)
+static void Dump(const mm::mm_t &maps)
 {
    if (!getenv("DBG")) { return; }
-   mm::memory_map_t &mem = maps.memories;
-   mm::alias_map_t  &als = maps.aliases;
+   const mm::memory_map_t &mem = maps.memories;
+   const mm::alias_map_t  &als = maps.aliases;
    size_t k = 0;
-   for (mm::memory_map_t::iterator m = mem.begin(); m != mem.end(); m++)
+   for (mm::memory_map_t::const_iterator m = mem.begin(); m != mem.end(); m++)
    {
       const void *h_ptr = m->first;
       assert(h_ptr == m->second->h_ptr);
@@ -329,7 +329,7 @@ static void Dump(mm::mm_t &maps)
       k++;
    }
    k = 0;
-   for (mm::alias_map_t::iterator a = als.begin(); a != als.end(); a++)
+   for (mm::alias_map_t::const_iterator a = als.begin(); a != als.end(); a++)
    {
       const void *adrs = a->first;
       const size_t offset = a->second->offset;
@@ -344,7 +344,7 @@ static void Dump(mm::mm_t &maps)
 // *****************************************************************************
 // * Data will be pushed/pulled before the copy happens on the H or the D
 // *****************************************************************************
-static void* d2d(void *dst, const void *src, size_t bytes, const bool async)
+static void* d2d(void *dst, const void *src, const size_t bytes, const bool async)
 {
    GET_PTR(src);
    GET_PTR(dst);
@@ -355,7 +355,7 @@ static void* d2d(void *dst, const void *src, size_t bytes, const bool async)
 }
 
 // *****************************************************************************
-void* mm::memcpy(void *dst, const void *src, size_t bytes, const bool async)
+void* mm::memcpy(void *dst, const void *src, const size_t bytes, const bool async)
 {
    if (bytes == 0) { return dst; }
    return d2d(dst, src, bytes, async);
