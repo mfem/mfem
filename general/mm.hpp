@@ -12,6 +12,16 @@
 #ifndef MFEM_MM_HPP
 #define MFEM_MM_HPP
 
+// TODO: add proper header files
+// #include <cstddef> // for size_t
+// using std::size_t;
+
+// #include <list>
+// #include <unordered_map>
+
+// #include "occa.hpp" // for OccaMemory
+
+
 // *****************************************************************************
 namespace mfem
 {
@@ -23,34 +33,38 @@ class mm
 {
 public:
    // **************************************************************************
-   struct alias_t;
+   struct alias;
 
-   struct memory_t
+   // TODO: Change this to ptr
+   struct memory
    {
       bool host;
-
       const size_t bytes;
 
-      void* const h_ptr;
-      void* d_ptr;
+      void *const h_ptr;
+      void *d_ptr;
       OccaMemory o_ptr;
 
-      std::list<const alias_t*> aliases;
+      std::list<const alias *> aliases;
 
-      memory_t(void* const h, const size_t b):
+      memory(void* const h, const size_t b):
          host(true), bytes(b), h_ptr(h), d_ptr(NULL), aliases() {}
    };
 
-   struct alias_t
+   struct alias
    {
-      memory_t* const mem;
+      memory *const mem;
       const size_t offset;
    };
 
    // **************************************************************************
-   typedef std::unordered_map<const void*, memory_t> memory_map_t;
-   typedef std::unordered_map<const void*, const alias_t*> alias_map_t;
-   typedef struct { memory_map_t memories; alias_map_t aliases; } mm_t;
+   typedef std::unordered_map<const void*, memory> memory_map;
+   typedef std::unordered_map<const void*, const alias*> alias_map;
+
+   struct ledger {
+      memory_map memories;
+      alias_map aliases;
+   };
 
    // **************************************************************************
    // * Main malloc template function
@@ -77,9 +91,9 @@ public:
    // * Translates adrs to host or device address,
    // * depending on config::Cuda() and the adrs' state
    // **************************************************************************
-   static inline void* adrs(void *a) { return MM().Adrs(a); }
-   static inline const void* adrs(const void *a) { return MM().Adrs(a); }
-   static inline OccaMemory memory(const void *a) { return MM().Memory(a); }
+   static inline void* ptr(void *a) { return MM().Adrs(a); }
+   static inline const void* ptr(const void *a) { return MM().Adrs(a); }
+   static inline OccaMemory occaPtr(const void *a) { return MM().Memory(a); }
 
    // **************************************************************************
    static inline void push(const void *adrs, const size_t bytes = 0)
@@ -98,7 +112,7 @@ public:
                        size_t bytes, const bool async = false);
 
 private:
-   mm_t maps;
+   ledger maps;
 
    mm() {}
    mm(mm const&);
