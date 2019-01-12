@@ -17,12 +17,10 @@
 #include "../general/error.hpp"
 
 // *****************************************************************************
-#include <list>
 #include <cmath>
 #include <cassert>
 #include <cstring>
 #include <iostream>
-#include <unordered_map>
 
 // *****************************************************************************
 #include "./cuda.hpp"

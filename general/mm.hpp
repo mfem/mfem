@@ -9,20 +9,18 @@
 // terms of the GNU Lesser General Public License (as published by the Free
 // Software Foundation) version 2.1 dated February 1999.
 
-#ifndef MFEM_MM_HPP
-#define MFEM_MM_HPP
+#ifndef MFEM_MM
+#define MFEM_MM
 
-// TODO: add proper header files
-// #include <cstddef> // for size_t
-// using std::size_t;
+#include <cstddef> // for size_t
+using std::size_t;
 
-// #include <list>
-// #include <unordered_map>
+#include <list>
+#include <unordered_map>
 
-// #include "occa.hpp" // for OccaMemory
+#include "occa.hpp" // for OccaMemory
 
 
-// *****************************************************************************
 namespace mfem
 {
 
@@ -82,29 +80,28 @@ public:
    static inline void free(void *ptr)
    {
       if (!ptr) { return; }
-      void *adrs = mm::MM().Erase(ptr);
-      ::delete[] static_cast<T*>(adrs);
-      adrs = nullptr;
+      mm::MM().Erase(ptr);
+      ::delete[] static_cast<T*>(ptr);
    }
 
    // **************************************************************************
-   // * Translates adrs to host or device address,
-   // * depending on config::Cuda() and the adrs' state
+   // * Translates ptr to host or device address,
+   // * depending on config::Cuda() and the ptr' state
    // **************************************************************************
-   static inline void* ptr(void *a) { return MM().Adrs(a); }
-   static inline const void* ptr(const void *a) { return MM().Adrs(a); }
+   static inline void* ptr(void *a) { return MM().Ptr(a); }
+   static inline const void* ptr(const void *a) { return MM().Ptr(a); }
    static inline OccaMemory occaPtr(const void *a) { return MM().Memory(a); }
 
    // **************************************************************************
-   static inline void push(const void *adrs, const size_t bytes = 0)
+   static inline void push(const void *ptr, const size_t bytes = 0)
    {
-      return MM().Push(adrs, bytes);
+      return MM().Push(ptr, bytes);
    }
 
    // **************************************************************************
-   static inline void pull(const void *adrs, const size_t bytes = 0)
+   static inline void pull(const void *ptr, const size_t bytes = 0)
    {
-      return MM().Pull(adrs, bytes);
+      return MM().Pull(ptr, bytes);
    }
 
    // **************************************************************************
@@ -120,18 +117,17 @@ private:
    static inline mm& MM() { static mm singleton; return singleton; }
 
    // **************************************************************************
-   void *Insert(void *adrs, const size_t bytes);
-   void *Erase(void *adrs);
-   void* Adrs(void *adrs);
-   const void* Adrs(const void *adrs);
-   OccaMemory Memory(const void *adrs);
+   void *Insert(void *ptr, const size_t bytes);
+   void *Erase(void *ptr);
+   void* Ptr(void *ptr);
+   const void* Ptr(const void *ptr);
+   OccaMemory Memory(const void *ptr);
 
    // **************************************************************************
-   void Push(const void *adrs, const size_t bytes = 0);
-   void Pull(const void *adrs, const size_t bytes = 0);
+   void Push(const void *ptr, const size_t bytes = 0);
+   void Pull(const void *ptr, const size_t bytes = 0);
 };
 
-// *****************************************************************************
-} // mfem
+} // namespace mfem
 
-#endif // MFEM_MM_HPP
+#endif
