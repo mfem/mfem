@@ -90,7 +90,7 @@ private:
 
    mutable ParGridFunction n_;
    mutable ParGridFunction v_;
-  
+
    Coefficient * vCoef_;
    Coefficient * dtCoef_;
    Coefficient * nuCoef_;
@@ -100,18 +100,18 @@ private:
    mutable Vector RHS_;
    mutable ParGridFunction x_;
    mutable Vector X_;
-  
+
    void initM();
    void initA(double dt);
    void initImplicitSolve();
-  
+
 public:
-  TransportOperator(ParFiniteElementSpace &fes, ParFiniteElementSpace &vfes,
-		    Coefficient & nuCoef, double dt);
+   TransportOperator(ParFiniteElementSpace &fes, ParFiniteElementSpace &vfes,
+                     Coefficient & nuCoef, double dt);
 
    // virtual void Mult(const Vector &x, Vector &y) const;
    virtual void ImplicitSolve(const double dt, const Vector &y, Vector &q);
-  
+
    virtual ~TransportOperator();
 };
 /*
@@ -349,7 +349,7 @@ int main(int argc, char *argv[])
    RiemannSolver rsolver;
    A.AddInteriorFaceIntegrator(new FaceIntegrator(rsolver, dim));
    */
-   
+
    // 10. Define the time-dependent evolution operator describing the ODE
    //     right-hand side, and perform time-integration (looping over the time
    //     iterations, ti, with a time-step dt).
@@ -951,9 +951,9 @@ void InitialCondition(const Vector &x, Vector &y)
 
 // Implementation of class TransportOperator
 TransportOperator::TransportOperator(ParFiniteElementSpace &fes,
-				     ParFiniteElementSpace &vfes,
-				     Coefficient & nuCoef,
-				     double dt)
+                                     ParFiniteElementSpace &vfes,
+                                     Coefficient & nuCoef,
+                                     double dt)
    : TimeDependentOperator(vfes.GetVSize()),
      dim_(vfes.GetFE(0)->GetDim()),
      fes_(fes),
@@ -975,122 +975,122 @@ TransportOperator::TransportOperator(ParFiniteElementSpace &fes,
      // x_(fes.GetVSize()),
      X_(fes.GetTrueVSize())
 {
-  this->initM();
-  this->initA(dt);
-  this->initImplicitSolve();
+   this->initM();
+   this->initA(dt);
+   this->initImplicitSolve();
 }
-  
+
 TransportOperator::~TransportOperator()
 {
-  delete m_;
-  delete s_nu_;
-  delete a_v_;
-  delete a_;
+   delete m_;
+   delete s_nu_;
+   delete a_v_;
+   delete a_;
 
-  delete MInv_;
-  delete MPrecond_;
+   delete MInv_;
+   delete MPrecond_;
 
-  delete AInv_;
-  delete APrecond_;
+   delete AInv_;
+   delete APrecond_;
 
-  delete vCoef_;
-  delete dtCoef_;
-  delete dtNuCoef_;
+   delete vCoef_;
+   delete dtCoef_;
+   delete dtNuCoef_;
 }
 
 void TransportOperator::initM()
 {
-  m_ = new ParBilinearForm(&fes_);
-  m_->AddDomainIntegrator(new MassIntegrator);
-  m_->Assemble();
-  m_->Finalize();
+   m_ = new ParBilinearForm(&fes_);
+   m_->AddDomainIntegrator(new MassIntegrator);
+   m_->Assemble();
+   m_->Finalize();
 
-  // OperatorHandle operM(&M_, false);
-  // m_->ParallelAssemble(operM);
-  Array<int> ess_dofs(fes_.GetTrueVSize()); ess_dofs = 0;
-  m_->FormSystemMatrix(ess_dofs, M_);
+   // OperatorHandle operM(&M_, false);
+   // m_->ParallelAssemble(operM);
+   Array<int> ess_dofs(fes_.GetTrueVSize()); ess_dofs = 0;
+   m_->FormSystemMatrix(ess_dofs, M_);
 
-  MPrecond_ = new HypreDiagScale(M_);
-  // MPrecond_->SetOperator(M_);
+   MPrecond_ = new HypreDiagScale(M_);
+   // MPrecond_->SetOperator(M_);
 
-  MInv_ = new HyprePCG(M_);
-  MInv_->SetPreconditioner(*MPrecond_);
-  MInv_->SetTol(1e-12);
-  MInv_->SetMaxIter(200);
-  MInv_->SetPrintLevel(1);
+   MInv_ = new HyprePCG(M_);
+   MInv_->SetPreconditioner(*MPrecond_);
+   MInv_->SetTol(1e-12);
+   MInv_->SetMaxIter(200);
+   MInv_->SetPrintLevel(1);
 }
 
 void TransportOperator::initA(double dt)
 {
-  dtCoef_   = new ConstantCoefficient(dt);
-  dtNuCoef_ = new ProductCoefficient(*dtCoef_, *nuCoef_);
+   dtCoef_   = new ConstantCoefficient(dt);
+   dtNuCoef_ = new ProductCoefficient(*dtCoef_, *nuCoef_);
 
-  a_ = new ParBilinearForm(&fes_);
-  a_->AddDomainIntegrator(new MassIntegrator);
-  a_->AddDomainIntegrator(new DiffusionIntegrator(*dtNuCoef_));
-  a_->Assemble();
-  a_->Finalize();
+   a_ = new ParBilinearForm(&fes_);
+   a_->AddDomainIntegrator(new MassIntegrator);
+   a_->AddDomainIntegrator(new DiffusionIntegrator(*dtNuCoef_));
+   a_->Assemble();
+   a_->Finalize();
 
-  // OperatorHandle operA(&A_, false);
-  // a_->ParallelAssemble(operA);
-  Array<int> ess_dofs(0);
-  a_->FormSystemMatrix(ess_dofs, A_);
+   // OperatorHandle operA(&A_, false);
+   // a_->ParallelAssemble(operA);
+   Array<int> ess_dofs(0);
+   a_->FormSystemMatrix(ess_dofs, A_);
 
-  APrecond_ = new HypreBoomerAMG(A_);
+   APrecond_ = new HypreBoomerAMG(A_);
 
-  AInv_ = new HyprePCG(A_);
-  AInv_->SetPreconditioner(*APrecond_);
-  AInv_->SetTol(1e-8);
-  AInv_->SetMaxIter(200);
-  AInv_->SetPrintLevel(1);
+   AInv_ = new HyprePCG(A_);
+   AInv_->SetPreconditioner(*APrecond_);
+   AInv_->SetTol(1e-8);
+   AInv_->SetMaxIter(200);
+   AInv_->SetPrintLevel(1);
 }
 
 void TransportOperator::initImplicitSolve()
 {
-  vCoef_ = new GridFunctionCoefficient(&v_);
-  
-  a_v_ = new ParBilinearForm(&fes_);
-  a_v_->AddDomainIntegrator(new MixedScalarWeakDerivativeIntegrator(*vCoef_));
-  
-  s_nu_ = new ParBilinearForm(&fes_);
-  s_nu_->AddDomainIntegrator(new DiffusionIntegrator(*nuCoef_));
-  s_nu_->Assemble();
-  s_nu_->Finalize();
+   vCoef_ = new GridFunctionCoefficient(&v_);
+
+   a_v_ = new ParBilinearForm(&fes_);
+   a_v_->AddDomainIntegrator(new MixedScalarWeakDerivativeIntegrator(*vCoef_));
+
+   s_nu_ = new ParBilinearForm(&fes_);
+   s_nu_->AddDomainIntegrator(new DiffusionIntegrator(*nuCoef_));
+   s_nu_->Assemble();
+   s_nu_->Finalize();
 }
 
 // virtual void Mult(const Vector &x, Vector &y) const;
 void TransportOperator::ImplicitSolve(const double dt,
-				      const Vector &y, Vector &q)
+                                      const Vector &y, Vector &q)
 {
-  n_.MakeRef(&fes_, const_cast<double*>(&y[0]));
-  v_.MakeRef(&fes_, const_cast<double*>(&y[fes_.GetVSize()]));
-  
-  a_v_->Assemble();
-  a_v_->Finalize();
+   n_.MakeRef(&fes_, const_cast<double*>(&y[0]));
+   v_.MakeRef(&fes_, const_cast<double*>(&y[fes_.GetVSize()]));
 
-  // Setup and solve density equation
-  rhs_ = 0.0;
-  
-  a_v_->AddMult(n_, rhs_, -1.0);
+   a_v_->Assemble();
+   a_v_->Finalize();
 
-  rhs_.ParallelAssemble(RHS_);
-  
-  MInv_->Mult(RHS_, X_);
+   // Setup and solve density equation
+   rhs_ = 0.0;
 
-  x_.MakeRef(&fes_, const_cast<double*>(&q[0]));
-  x_.Distribute(X_);
+   a_v_->AddMult(n_, rhs_, -1.0);
 
-  // Setup and solve velocity equation
-  rhs_ = 0.0;
-  
-  a_v_->AddMultTranspose(v_, rhs_, -1.0);
+   rhs_.ParallelAssemble(RHS_);
 
-  s_nu_->AddMult(v_, rhs_, -1.0);
-  
-  rhs_.ParallelAssemble(RHS_);
-  
-  AInv_->Mult(RHS_, X_);
+   MInv_->Mult(RHS_, X_);
 
-  x_.MakeRef(&fes_, const_cast<double*>(&q[fes_.GetVSize()]));
-  x_.Distribute(X_);
+   x_.MakeRef(&fes_, const_cast<double*>(&q[0]));
+   x_.Distribute(X_);
+
+   // Setup and solve velocity equation
+   rhs_ = 0.0;
+
+   a_v_->AddMultTranspose(v_, rhs_, -1.0);
+
+   s_nu_->AddMult(v_, rhs_, -1.0);
+
+   rhs_.ParallelAssemble(RHS_);
+
+   AInv_->Mult(RHS_, X_);
+
+   x_.MakeRef(&fes_, const_cast<double*>(&q[fes_.GetVSize()]));
+   x_.Distribute(X_);
 }

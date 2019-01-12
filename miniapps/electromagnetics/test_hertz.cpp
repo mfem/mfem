@@ -109,11 +109,11 @@ public:
                     ParFiniteElementSpace & L2FESpace,
                     int nspecies,
                     double omega,
-		    bool realPart = true);
+                    bool realPart = true);
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip);
-  // virtual void Dval(DenseMatrix &K, ElementTransformation &T,
-  //                   const IntegrationPoint &ip);
+   // virtual void Dval(DenseMatrix &K, ElementTransformation &T,
+   //                   const IntegrationPoint &ip);
    virtual ~DielectricTensor() {}
 
 private:
@@ -125,7 +125,7 @@ private:
    int nspecies_;
    double omega_;
    bool realPart_;
-  
+
    ParGridFunction density_gf_;
    ParGridFunction temperature_gf_;
 
@@ -312,8 +312,8 @@ int main(int argc, char *argv[])
    else
    {
       mesh = new Mesh(num_elements[0], num_elements[1], num_elements[2],
-		      Element::HEXAHEDRON, 1,
-		      mesh_dim_(0), mesh_dim_(1), mesh_dim_(2));
+                      Element::HEXAHEDRON, 1,
+                      mesh_dim_(0), mesh_dim_(1), mesh_dim_(2));
    }
 
    if (mpi.Root())
@@ -922,7 +922,7 @@ DielectricTensor::DielectricTensor(ParGridFunction & B,
                                    ParFiniteElementSpace & L2FESpace,
                                    int nspecies,
                                    double omega,
-				   bool realPart)
+                                   bool realPart)
    : MatrixCoefficient(3),
      B_(&B),
      temperature_(&temperature),
@@ -957,25 +957,25 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
 
    if (realPart_)
    {
-     // Populate the dielectric tensor
-     real_epsilon_sigma(omega_, B, density_vals_, temperature_vals_,
-			epsilon.Data(), NULL);
+      // Populate the dielectric tensor
+      real_epsilon_sigma(omega_, B, density_vals_, temperature_vals_,
+                         epsilon.Data(), NULL);
    }
    else
    {
-     // Populate the conductivity tensor
-     real_epsilon_sigma(omega_, B, density_vals_, temperature_vals_,
-			NULL, epsilon.Data());
+      // Populate the conductivity tensor
+      real_epsilon_sigma(omega_, B, density_vals_, temperature_vals_,
+                         NULL, epsilon.Data());
 
    }
    Vector lambda(3);
    epsilon.Eigenvalues(lambda);
    if (realPart_)
-     cout << "Dielectric tensor eigenvalues: "
-	  << lambda[0] << " " << lambda[1] << " " << lambda[2] << endl;
+      cout << "Dielectric tensor eigenvalues: "
+           << lambda[0] << " " << lambda[1] << " " << lambda[2] << endl;
    else
-     cout << "Conductivity tensor eigenvalues: "
-	  << lambda[0] << " " << lambda[1] << " " << lambda[2] << endl;
+      cout << "Conductivity tensor eigenvalues: "
+           << lambda[0] << " " << lambda[1] << " " << lambda[2] << endl;
 }
 /*
 void DielectricTensor::Dval(DenseMatrix &sigma, ElementTransformation &T,
