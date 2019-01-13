@@ -373,11 +373,12 @@ int main(int argc, char *argv[])
    Vector BVec(3);
    BVec = 0.0; BVec(0) = 0.1;
    VectorConstantCoefficient BCoef(BVec);
-   ConstantCoefficient rhoCoef1(1e19);
+
    double ion_frac = 0.0;
-   ConstantCoefficient rhoCoef2(rhoCoef1.constant*ion_frac);
-   ConstantCoefficient rhoCoef3(rhoCoef1.constant*(1-ion_frac));
-   ConstantCoefficient tempCoef(10.0*qe);
+   ConstantCoefficient rhoCoef1(1.0e19);
+   ConstantCoefficient rhoCoef2(rhoCoef1.constant * ion_frac);
+   ConstantCoefficient rhoCoef3(rhoCoef1.constant * (1.0 - ion_frac));
+   ConstantCoefficient tempCoef(10.0 * q_);
 
    H1_ParFESpace H1FESpace(&pmesh, order, pmesh.Dimension());
    RT_ParFESpace HDivFESpace(&pmesh, order, pmesh.Dimension());
