@@ -89,6 +89,8 @@ public:
 
    void DisplayToGLVis();
 
+   void DisplayAnimationToGLVis();
+
    // const ParGridFunction & GetVectorPotential() { return *a_; }
 
 private:

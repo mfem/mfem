@@ -934,6 +934,54 @@ HertzSolver::DisplayToGLVis()
    */
    if (myid_ == 0) { cout << " done." << endl; }
 }
+
+void
+HertzSolver::DisplayAnimationToGLVis()
+{
+   if (myid_ == 0) { cout << "Sending animation data to GLVis ..." << flush; }
+
+   ParGridFunction e_t(HCurlFESpace_);
+
+   Vector zeroVec(3); zeroVec = 0.0;
+   VectorConstantCoefficient zeroCoef(zeroVec);
+
+   e_t = e_->imag();
+   double norm_i = e_t.ComputeMaxError(zeroCoef);
+
+   e_t = e_->real();
+   double norm_r = e_t.ComputeMaxError(zeroCoef);
+
+   char vishost[] = "localhost";
+   int  visport   = 19916;
+   socketstream sol_sock(vishost, visport);
+   sol_sock << "parallel " << num_procs_ << " " << myid_ << "\n";
+   sol_sock.precision(8);
+   sol_sock << "solution\n" << *pmesh_ << e_t
+            << "window_title 'Harmonic Solution (t = 0.0 T)'"
+            << "valuerange 0.0 " << max(norm_r, norm_i) << "\n"
+            << "autoscale off\n"
+            << "keys cvvv\n"
+            << "pause\n" << flush;
+   if (myid_ == 0)
+      cout << "GLVis visualization paused."
+           << " Press space (in the GLVis window) to resume it.\n";
+   int num_frames = 24;
+   int i = 0;
+   while (sol_sock)
+   {
+      double t = (double)(i % num_frames) / num_frames;
+      ostringstream oss;
+      oss << "Harmonic Solution (t = " << t << " T)";
+
+      add(cos( 2.0 * M_PI * t), e_->real(),
+          sin( 2.0 * M_PI * t), e_->imag(), e_t);
+      sol_sock << "parallel " << num_procs_ << " " << myid_ << "\n";
+      sol_sock << "solution\n" << *pmesh_ << e_t
+               << "window_title '" << oss.str() << "'" << flush;
+      i++;
+   }
+}
+
 /*
 SurfaceCurrent::SurfaceCurrent(ParFiniteElementSpace & H1FESpace,
                              ParDiscreteGradOperator & grad,
