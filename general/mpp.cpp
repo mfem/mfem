@@ -110,6 +110,7 @@ static inline int put(context &pp) {
    const int c = get(pp);
    assert(c != EOF);
    pp.out << (char) c;
+   std::cout << (char) c;
    return c;
 }
 
