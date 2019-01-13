@@ -1,7 +1,7 @@
 #include <list>
 #include <string>
 #include <cstring>
-//#include <ciso646>
+#include <ciso646>
 #include <cassert>
 #include <fstream>
 #include <iostream>
