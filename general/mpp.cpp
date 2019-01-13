@@ -149,7 +149,7 @@ static inline void singleLineComment(context &pp) {
 
 // *****************************************************************************
 static inline void blockComment(context &pp) {
-   while (! pp.in.eof()) {
+   while (pp.in.peek() != EOF) {
       const int c = put(pp);
       assert(c != EOF);
       if (is_newline(c)) pp.line++;
@@ -182,7 +182,7 @@ static inline bool is_alnum(context &pp) {
 static inline string get_name(context &pp) {
    string str;
    check(pp,is_alnum(pp),"Name w/o alnum 1st letter");
-   while (! pp.in.eof() && (pp.in.peek()!=EOF) && is_alnum(pp))
+   while (pp.in.peek()!=EOF && is_alnum(pp))
       str += pp.in.get();
    return str;
 }
@@ -191,7 +191,7 @@ static inline string get_name(context &pp) {
 static inline string get_directive(context &pp) {
    string str;
    check(pp,pp.in.peek()=='#',"Directive w/o 1st '#'");
-   while (! pp.in.eof() && (pp.in.peek()!=EOF) &&
+   while (pp.in.peek()!=EOF &&
           (is_alnum(pp) || pp.in.peek()=='#'))
       str += pp.in.get();
    return str;
@@ -230,7 +230,7 @@ static inline string peekID(context &pp) {
 
 // *****************************************************************************
 static inline void drop_name(context &pp) {
-   while ((! pp.in.eof()) && (pp.in.peek()!=EOF) && is_alnum(pp))
+   while (pp.in.peek()!=EOF && is_alnum(pp))
       pp.in.get();
 }
 
@@ -269,7 +269,7 @@ static inline bool get_args(context &pp) {
    trk();
    bool empty = true;
    argument *arg = new argument();
-   for (int p=0; ! pp.in.eof(); empty=false) {
+   for (int p=0; pp.in.peek() != EOF; empty=false) {
       if (is_star(pp)){
          arg->star = true;
          put(pp);
@@ -452,7 +452,7 @@ static inline void rtcKernelPostfix(context &pp){
 
 // *****************************************************************************
 /*static inline void goto_first_left_paren(context &pp) {
-   for (; ! pp.in.eof(); put(pp)) {
+   for (; pp.in.peek()!=EOF; put(pp)) {
       const char c = pp.in.peek();
       check(pp,c != EOF);
       if (c == '\n') pp.line++;
@@ -462,7 +462,7 @@ static inline void rtcKernelPostfix(context &pp){
 
 // *****************************************************************************
 static inline void goto_last_right_paren(context &pp) {
-   for (; ! pp.in.eof(); put(pp)) {
+   for (; pp.in.peek()!=EOF; put(pp)) {
       const char c = pp.in.peek();
       check(pp,c != EOF);
       if (c == '\n') pp.line++;
