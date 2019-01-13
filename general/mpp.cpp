@@ -593,7 +593,7 @@ static inline int process(context &pp) {
    trk();
    pp.k.jit = false;
    if (pp.jit) pp.out << "#include \"../../general/okrtc.hpp\"\n";
-   while (not pp.in.eof()) {
+   while (pp.in.peek() != EOF) {
       if (is_comment(pp)) comments(pp);
       if (pp.in.peek() != EOF) put(pp);
       if (peekn(pp,2) == "__") __id(pp);
