@@ -192,6 +192,7 @@ static inline string get_directive(context &pp) {
    //check(pp,pp.in.peek()=='#',"Directive w/o 1st '#'");
    while (is_alnum(pp))//|| pp.in.peek()=='#')
       str += pp.in.get();
+   dbg("\n[get_directive] directive:'%s'",directive.c_str());
    return str;
 }
 
@@ -556,7 +557,7 @@ static inline void __id(context &pp, string id = "") {
 static inline void sharpId(context &pp) {
    trk();
    string id = get_directive(pp);
-   //dbg("[sharpId] id:'%s'",id.c_str());
+   dbg("\n[sharpId] id:'%s'",id.c_str());
    if (id=="jit"){
       skip_space(pp);
       pp.k.jit = true;
@@ -569,6 +570,7 @@ static inline void sharpId(context &pp) {
       __id(pp,"_kernel");
       return;
    }
+   dbg("\n[sharpId] return:'%s'",id.c_str());
    pp.out << id.c_str();
 }
 
