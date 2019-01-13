@@ -595,9 +595,10 @@ static inline int process(context &pp) {
    trk();
    pp.k.jit = false;
    if (pp.jit) pp.out << "#include \"../../general/okrtc.hpp\"\n";
-   while (pp.in.peek() != EOF) {
+   while (true){//pp.in.peek() != EOF) {
       if (is_comment(pp)) comments(pp);
       if (pp.in.peek() != EOF) put(pp);
+      if (pp.in.peek() == EOF) break;
       if (peekn(pp,2) == "__") __id(pp);
       if (pp.in.peek() == '#') sharpId(pp);
       if (pp.block==-1) { if (pp.k.jit) rtcKernelPostfix(pp); }
@@ -635,6 +636,7 @@ int main(const int argc, char* argv[]) {
    const bool output_file = ! output.empty();
    ifstream in(input.c_str(), ios::in | std::ios::binary);
    ofstream out(output.c_str(), ios::out | std::ios::binary | ios::trunc);
+   assert(!in.fail());
    assert(in.is_open());
    if (output_file) {assert(out.is_open());}
    context pp(in,output_file?out:cout,file);
@@ -650,5 +652,7 @@ int main(const int argc, char* argv[]) {
       remove(output.c_str());
       return ~0;
    }
+   in.close();
+   out.close();
    return 0;
 }
