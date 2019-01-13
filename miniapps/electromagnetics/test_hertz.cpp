@@ -430,7 +430,7 @@ int main(int argc, char *argv[])
    Coefficient * muInvCoef = SetupInvPermeabilityCoefficient();
 
    // Create a tensor coefficient describing the electrical conductivity
-   DielectricTensor conductivity_tensor(BField, density, temperature,
+   DielectricTensor conductivity_tensor(BField, temperature, density,
                                         H1FESpace, L2FESpace,
                                         nspecies, 2.0 * M_PI * freq_, false);
 
@@ -438,7 +438,7 @@ int main(int argc, char *argv[])
    Coefficient * etaInvCoef = SetupAdmittanceCoefficient(pmesh, abcs);
 
    // Create a tensor coefficient describing the dielectric permittivity
-   DielectricTensor dielectric_tensor(BField, density, temperature,
+   DielectricTensor dielectric_tensor(BField, temperature, density,
                                       H1FESpace, L2FESpace,
                                       nspecies, 2.0 * M_PI * freq_);
 
