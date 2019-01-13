@@ -594,6 +594,20 @@ static inline void sharpId(context &pp) {
 // *****************************************************************************
 static inline int process(context &pp) {
    trk();
+   
+  char c;
+  while (pp.in.get(c)){                  // loop getting single characters
+     pp.out << (char) c;
+     std::cout << (char) c; fflush(0);
+  }
+  
+  if (pp.in.eof())                      // check for EOF
+     std::cout << "[EoF reached]\n";
+  else
+     std::cout << "[error reading]\n";
+/*
+
+   
    pp.k.jit = false;
    if (pp.jit) pp.out << "#include \"../../general/okrtc.hpp\"\n";
    while (true){//pp.in.peek() != EOF) {
@@ -607,6 +621,7 @@ static inline int process(context &pp) {
       if (pp.block>=0 && pp.in.peek() == '}') { pp.block--; }
       if (is_newline(pp.in.peek())) { pp.line++;}
    }
+*/
    return 0;
 }
 

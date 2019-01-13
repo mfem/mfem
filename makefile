@@ -351,7 +351,7 @@ $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 $(SRC)%.cpp: $(SRC)%.kpp mpp
 	./mpp $(<) -o $(@)
 $(OBJECT_KERNS): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -xc++ -c $(*).cpp -o $(@)
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -D__kernel= -xc++ -c $(*).cpp -o $(@)
 ker: ;echo $(OBJECT_KERNS)
 LIB_LD = -ldl
 
