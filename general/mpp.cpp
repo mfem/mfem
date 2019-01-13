@@ -593,15 +593,16 @@ static inline int process(context &pp) {
    trk();
    pp.k.jit = false;
    pp.out << "#include \"../../general/okrtc.hpp\"\n";
-   while (! pp.in.eof()) {
+   while (pp.in.peek() != EOF) {
+      const int c = pp.in.peek();
       if (is_comment(pp)) comments(pp);
-      if (pp.in.peek() != EOF) put(pp);
+      if (c != EOF) put(pp);
       if (peekn(pp,2) == "__") __id(pp);
-      if (peekn(pp,1) == "#") sharpId(pp);
+      if (c == '#') sharpId(pp);
       if (pp.block==-1) { if (pp.k.jit) rtcKernelPostfix(pp); }
-      if (pp.block>=0 && pp.in.peek() == '{') { pp.block++; }
-      if (pp.block>=0 && pp.in.peek() == '}') { pp.block--; }
-      if (is_newline(pp.in.peek())) { pp.line++;}
+      if (pp.block>=0 && c == '{') { pp.block++; }
+      if (pp.block>=0 && c == '}') { pp.block--; }
+      if (is_newline(c)) { pp.line++;}
    }
    return 0;
 }
