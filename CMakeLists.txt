@@ -368,7 +368,7 @@ foreach(kernel_kpp IN LISTS KERNELS)
    add_dependencies(MFEM_CPP_KERNELS ${bnmwe}_cpp)
    add_custom_target(${bnmwe}_cpp DEPENDS ${kernel_cpp})
    #set_source_files_properties(${kernel_cpp} PROPERTIES LANGUAGE CXX)
-   set_source_files_properties(${kernel_cpp} PROPERTIES COMPILE_FLAGS -I${dirname})
+   set_source_files_properties(${kernel_cpp} PROPERTIES COMPILE_FLAGS "-I${dirname} -D__kernel=\"\"")
 endforeach()
 
 #-------------------------------------------------------------------------------
