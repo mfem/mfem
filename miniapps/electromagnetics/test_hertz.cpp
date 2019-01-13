@@ -980,14 +980,20 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
                          NULL, epsilon.Data());
 
    }
+   /*
    Vector lambda(3);
    epsilon.Eigenvalues(lambda);
    if (realPart_)
       cout << "Dielectric tensor eigenvalues: "
-           << lambda[0] << " " << lambda[1] << " " << lambda[2] << endl;
+           << lambda[0] << " " << lambda[1] << " " << lambda[2]
+	   << " for B " << B[0] << " " << B[1] << " " << B[2]
+	   << " and rho " << density_vals_[0]
+	   << " " << density_vals_[1] << " " << density_vals_[2]
+	   << endl;
    else
       cout << "Conductivity tensor eigenvalues: "
            << lambda[0] << " " << lambda[1] << " " << lambda[2] << endl;
+   */
 }
 /*
 void DielectricTensor::Dval(DenseMatrix &sigma, ElementTransformation &T,
