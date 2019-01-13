@@ -10,7 +10,7 @@ using namespace std;
 #define STRINGIFY(X) STR(X)
 
 // *****************************************************************************
-#define trk(...) {printf("\n%s>",__func__);fflush(0);}
+#define trk(...) {printf("> %s\n",__func__);fflush(0);}
 #define dbg(...) {printf(__VA_ARGS__);fflush(0);}
 
 // *****************************************************************************
@@ -106,10 +106,10 @@ static inline int get(context &pp) {
 }
 
 // *****************************************************************************
-static inline int put(context &pp) {
-   const int c = get(pp);
-   assert(c != EOF);
-   pp.out.put((char) c);
+static inline int put(const char c, context &pp) {
+   pp.out.put(c);
+   std::cout << c;
+   fflush(0);
    return c;
 }
 
@@ -119,7 +119,7 @@ static inline void skip_space(context &pp) {
       const int c = pp.in.peek();
       check(pp,c!='\v',"Vertical tab detected!");
       if (is_newline(c)) pp.line++;
-      put(pp);
+      put(get(pp),pp);
    }
 }
 
@@ -137,7 +137,6 @@ static inline bool is_comment(context &pp) {
    pp.in.get();
    assert(!pp.in.eof());
    const int c = pp.in.peek();
-   //assert(c!=EOF);
    pp.in.unget();
    if (c == '/' || c == '*') return true;
    return false;
@@ -145,7 +144,7 @@ static inline bool is_comment(context &pp) {
 
 // *****************************************************************************
 static inline void singleLineComment(context &pp) {
-   while (/*pp.in.peek()!=EOF &&*/not is_newline(pp.in.peek())) put(pp);
+   while (not is_newline(pp.in.peek())) put(get(pp),pp);
    pp.line++;
 }
 
@@ -153,10 +152,10 @@ static inline void singleLineComment(context &pp) {
 static inline void blockComment(context &pp) {
    char c;
    while (pp.in.get(c)) {
-      pp.out.put(c);
+      put(c,pp);
       if (is_newline(c)) pp.line++;
       if (c == '*' && pp.in.peek() == '/') {
-         put(pp);
+         put(get(pp),pp);
          skip_space(pp);
          return;
       }
@@ -165,10 +164,10 @@ static inline void blockComment(context &pp) {
 
 // *****************************************************************************
 static inline void comments(context &pp) {
-   const int c1 = put(pp); assert(c1 != EOF);
+   const int c1 = put(get(pp),pp);
    check(pp,c1=='/',"Comments w/o 1st char");
-   const int c2 = put(pp); assert(c2 != EOF);
-   check(pp,c2=='/' || c2=='*',"Comment w/o 2nd char");
+   const int c2 = put(get(pp),pp);
+   check(pp,c2=='/' || c2=='*', "Comment w/o 2nd char");
    if (c2 == '/') return singleLineComment(pp);
    return blockComment(pp);
 }
@@ -176,7 +175,6 @@ static inline void comments(context &pp) {
 // *****************************************************************************
 static inline bool is_alnum(context &pp) {
    const int c = pp.in.peek();
-   assert(c != EOF);
    return isalnum(c) || c == '_';
 }
 
@@ -184,17 +182,15 @@ static inline bool is_alnum(context &pp) {
 static inline string get_name(context &pp) {
    string str;
    check(pp,is_alnum(pp),"Name w/o alnum 1st letter");
-   while (pp.in.peek()!=EOF && is_alnum(pp))
-      str += pp.in.get();
+   while (is_alnum(pp)) str += pp.in.get();
    return str;
 }
 
 // *****************************************************************************
 static inline string get_directive(context &pp) {
    string str;
-   check(pp,pp.in.peek()=='#',"Directive w/o 1st '#'");
-   while (pp.in.peek()!=EOF &&
-          (is_alnum(pp) || pp.in.peek()=='#'))
+   //check(pp,pp.in.peek()=='#',"Directive w/o 1st '#'");
+   while (is_alnum(pp))//|| pp.in.peek()=='#')
       str += pp.in.get();
    return str;
 }
@@ -206,11 +202,12 @@ static inline string peekn(context &pp, const int n) {
    static char c[64];
    for (k=0;k<=n;k+=1) c[k] = 0;
    for (k=0; k<n; k+=1) {
-      if (pp.in.peek()==EOF) break;
       c[k] = pp.in.get();
+      if (pp.in.eof()) break;
    }
    string rtn = c;
    for (int l=0; l<k; l+=1) pp.in.unget();
+   assert(!pp.in.fail());
    return rtn;
 }
 
@@ -221,9 +218,9 @@ static inline string peekID(context &pp) {
    static char c[64];
    for (k=0;k<n;k+=1) c[k] = 0;
    for (k=0; k<n; k+=1) {
-      if (pp.in.peek()==EOF) break;
       if (! is_alnum(pp)) break;
       c[k]=pp.in.get();
+      assert(not pp.in.eof());
    }
    string rtn(c);
    for (int l=0; l<k; l+=1) pp.in.unget();
@@ -232,14 +229,14 @@ static inline string peekID(context &pp) {
 
 // *****************************************************************************
 static inline void drop_name(context &pp) {
-   while (pp.in.peek()!=EOF && is_alnum(pp))
-      pp.in.get();
+   while (is_alnum(pp)) pp.in.get();
 }
 
 // *****************************************************************************
 static inline bool isvoid(context &pp) {
    skip_space(pp);
    const string void_peek = peekn(pp,4);
+   assert(not pp.in.eof());
    if (void_peek == "void") return true;
    return false;
 }
@@ -248,6 +245,7 @@ static inline bool isvoid(context &pp) {
 static inline bool isstatic(context &pp) {
    skip_space(pp);
    const string void_peek = peekn(pp,6);
+   assert(not pp.in.eof());
    if (void_peek == "static") return true;
    return false;
 }
@@ -271,14 +269,14 @@ static inline bool get_args(context &pp) {
    trk();
    bool empty = true;
    argument *arg = new argument();
-   for (int p=0; pp.in.peek() != EOF; empty=false) {
+   for (int p=0; true; empty=false) {
       if (is_star(pp)){
          arg->star = true;
-         put(pp);
+         put(get(pp),pp);
          continue;
       }
       if (is_coma(pp)){
-         put(pp);
+         put(get(pp),pp);
          continue;
       }
       const string &id = peekID(pp);
@@ -304,14 +302,14 @@ static inline bool get_args(context &pp) {
       pp.args.push_back(arg);
       arg = new argument();
       const int c = pp.in.peek();
-      check(pp,c != EOF,"EOF while in args");
+      assert(not pp.in.eof());
       if (c == '(') p+=1;
       if (c == ')') p-=1;
       if (is_newline(c)) pp.line++;
       if (p<0) { return empty; }
       skip_space(pp);
       check(pp,pp.in.peek()==',',"No coma while in args");
-      put(pp);
+      put(get(pp),pp);
    }
    assert(false);
    dbg("eof return");
@@ -453,26 +451,6 @@ static inline void rtcKernelPostfix(context &pp){
 }
 
 // *****************************************************************************
-/*static inline void goto_first_left_paren(context &pp) {
-   for (; pp.in.peek()!=EOF; put(pp)) {
-      const char c = pp.in.peek();
-      check(pp,c != EOF);
-      if (c == '\n') pp.line++;
-      if (c == '(') return;
-   }
-}
-
-// *****************************************************************************
-static inline void goto_last_right_paren(context &pp) {
-   for (; pp.in.peek()!=EOF; put(pp)) {
-      const char c = pp.in.peek();
-      check(pp,c != EOF);
-      if (c == '\n') pp.line++;
-      if (c == ')') return;
-   }
-}*/
-
-// *****************************************************************************
 static inline void __kernel(context &pp) {
    trk();
    //        "__kernel "
@@ -501,7 +479,7 @@ static inline void __kernel(context &pp) {
    // check we are at the left parenthesis
    dbg("check?");
    check(pp,pp.in.peek()=='(',"No 1st '(' in kernel");
-   put(pp); 
+   put(get(pp),pp); 
    // Go to first possible argument
    dbg("skip_space?");
    skip_space(pp);
@@ -521,22 +499,22 @@ static inline void __kernel(context &pp) {
 static inline void __id(context &pp, string id = "") {
    trk();
    if (id.empty()) id = get_name(pp);
-   if (id=="__jit"){
+   if (id=="_jit"){
       skip_space(pp);
       pp.k.jit = true;
       id = get_name(pp);
       check(pp,id=="__kernel","No 'kernel' keyword after 'jit' qualifier");
    }
-   if (id=="__kernel"){
+   if (id=="_kernel" or id=="__kernel"){
       // Get arguments of this kernel
       __kernel(pp);
       if (! pp.mm) return;
       check(pp,pp.in.peek()==')',"No last ')' in kernel");
-      put(pp);
+      put(get(pp),pp);
       skip_space(pp);
       // Make sure we are about to start a statement block
       check(pp,pp.in.peek()=='{',"No statement block found");
-      put(pp);
+      put(get(pp),pp);
       // Generate the RTC prefix for this kernel
       if (pp.k.jit) rtcKernelPrefix(pp);
       pp.block = 0;
@@ -570,6 +548,7 @@ static inline void __id(context &pp, string id = "") {
       }
       return;
    }
+   put('_',pp);
    pp.out << id;
 }
 
@@ -582,11 +561,11 @@ static inline void sharpId(context &pp) {
       pp.k.jit = true;
       id = get_directive(pp);
       check(pp,id=="#kernel","No 'kernel' token found after the 'jit' one");
-      __id(pp,"__kernel");
+      __id(pp,"_kernel");
       return;
    }
    if (id=="#kernel"){
-      __id(pp,"__kernel");
+      __id(pp,"_kernel");
       return;
    }
    pp.out << id;
@@ -600,17 +579,22 @@ static inline int process(context &pp) {
    if (pp.jit) pp.out << "#include \"../../general/okrtc.hpp\"\n";
    while (true){
       if (is_comment(pp)) comments(pp);
-      if (peekn(pp,2) == "__") __id(pp);
-      if (pp.in.peek() == '#') sharpId(pp);
+      pp.in.get(ch);
+      if (pp.in.eof()) break;
+      if (ch == '#') {
+	 put(ch,pp);
+	 sharpId(pp);
+	 continue;
+      }
+      if (ch == '_' and pp.in.peek() == '_') {
+	 __id(pp);
+	 continue;
+      }
       if (pp.block==-1) { if (pp.k.jit) rtcKernelPostfix(pp); }
       if (pp.block>=0 && pp.in.peek() == '{') { pp.block++; }
       if (pp.block>=0 && pp.in.peek() == '}') { pp.block--; }
-      if (is_newline(pp.in.peek())) { pp.line++;}
-      pp.in.get(ch);
-      if (pp.in.eof()) break;
-      pp.out << (char) ch;
-      std::cout << (char) ch;
-      fflush(0);
+      if (is_newline(ch)) { pp.line++;}
+      put(ch,pp);
    }
    return 0;
 }
