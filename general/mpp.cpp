@@ -592,7 +592,7 @@ static inline void sharpId(context &pp) {
 static inline int process(context &pp) {
    trk();
    pp.k.jit = false;
-   pp.out << "#include \"../../general/okrtc.hpp\"\n";
+   if (pp.jit) pp.out << "#include \"../../general/okrtc.hpp\"\n";
    while (pp.in.peek() != EOF) {
       if (is_comment(pp)) comments(pp);
       if (pp.in.peek() != EOF) put(pp);
@@ -601,7 +601,7 @@ static inline int process(context &pp) {
       if (pp.block==-1) { if (pp.k.jit) rtcKernelPostfix(pp); }
       if (pp.block>=0 && pp.in.peek() == '{') { pp.block++; }
       if (pp.block>=0 && pp.in.peek() == '}') { pp.block--; }
-      //if (is_newline(pp.in.peek())) { pp.line++;}
+      if (is_newline(pp.in.peek())) { pp.line++;}
    }
    return 0;
 }
