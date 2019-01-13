@@ -36,11 +36,11 @@ void kGeom2D(const int NUM_DOFS_1D,
    const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D;
    MFEM_FORALL(e, numElements,
    {
-#ifdef _WIN32
+//#ifdef _WIN32
       double s_nodes[2 /** NUM_DOFS_1D * NUM_DOFS_1D*/];
-#else
-      double s_nodes[2 * NUM_DOFS_1D * NUM_DOFS_1D];
-#endif
+//#else
+//     double s_nodes[2 * NUM_DOFS_1D * NUM_DOFS_1D];
+//#endif
       for (int q = 0; q < NUM_QUAD; ++q)
       {
          for (int d = q; d < NUM_DOFS; d +=NUM_QUAD)
@@ -94,11 +94,11 @@ void kGeom3D(const int NUM_DOFS_1D,
    const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D*NUM_QUAD_1D;
    MFEM_FORALL(e,numElements,
    {
-#ifdef _WIN32
+//#ifdef _WIN32
       double s_nodes[3 /** NUM_DOFS_1D * NUM_DOFS_1D * NUM_DOFS_1D*/];
-#else
-      double s_nodes[3 * NUM_DOFS_1D * NUM_DOFS_1D * NUM_DOFS_1D];
-#endif
+//#else
+//      double s_nodes[3 * NUM_DOFS_1D * NUM_DOFS_1D * NUM_DOFS_1D];
+//#endif
       for (int q = 0; q < NUM_QUAD; ++q)
       {
          for (int d = q; d < NUM_DOFS; d += NUM_QUAD)
