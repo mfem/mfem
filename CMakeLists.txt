@@ -339,6 +339,11 @@ set(CMAKE_INSTALL_NAME_DIR "${_lib_path}" CACHE PATH "")
 # Add MPP subdirectory
 #-------------------------------------------------------------------------------
 add_executable(mpp general/mpp.cpp)
+set_target_properties(mpp PROPERTIES
+    CXX_STANDARD 11
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+)
 
 #-------------------------------------------------------------------------------
 # Scan all 'kernels' subdirectories
