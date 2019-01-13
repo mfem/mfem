@@ -85,7 +85,7 @@ static const char* strrnc(const char* s, const unsigned char c, int n=1) {
 
 // *****************************************************************************
 static inline void check(context &pp, const bool test, const char *msg = NULL){
-   if (! test) throw error(pp.line,pp.file,msg);
+   if (not test) throw error(pp.line,pp.file,msg);
 }
 
 // *****************************************************************************
@@ -109,8 +109,7 @@ static inline int get(context &pp) {
 static inline int put(context &pp) {
    const int c = get(pp);
    assert(c != EOF);
-   pp.out << (char) c;
-   std::cout << (char) c; fflush(0);
+   pp.out.put((char) c);
    return c;
 }
 
@@ -136,7 +135,9 @@ static inline void drop_space(context &pp) {
 static inline bool is_comment(context &pp) {
    if (pp.in.peek() != '/') return false;
    pp.in.get();
+   assert(!pp.in.eof());
    const int c = pp.in.peek();
+   //assert(c!=EOF);
    pp.in.unget();
    if (c == '/' || c == '*') return true;
    return false;
@@ -144,15 +145,15 @@ static inline bool is_comment(context &pp) {
 
 // *****************************************************************************
 static inline void singleLineComment(context &pp) {
-   while (pp.in.peek()!=EOF && ! is_newline(pp.in.peek())) put(pp);
+   while (/*pp.in.peek()!=EOF &&*/not is_newline(pp.in.peek())) put(pp);
    pp.line++;
 }
 
 // *****************************************************************************
 static inline void blockComment(context &pp) {
-   while (pp.in.peek() != EOF) {
-      const int c = put(pp);
-      assert(c != EOF);
+   char c;
+   while (pp.in.get(c)) {
+      pp.out.put(c);
       if (is_newline(c)) pp.line++;
       if (c == '*' && pp.in.peek() == '/') {
          put(pp);
@@ -594,34 +595,23 @@ static inline void sharpId(context &pp) {
 // *****************************************************************************
 static inline int process(context &pp) {
    trk();
-   
-  char c;
-  while (pp.in.get(c)){                  // loop getting single characters
-     pp.out << (char) c;
-     std::cout << (char) c; fflush(0);
-  }
-  
-  if (pp.in.eof())                      // check for EOF
-     std::cout << "[EoF reached]\n";
-  else
-     std::cout << "[error reading]\n";
-/*
-
-   
+   char ch;
    pp.k.jit = false;
    if (pp.jit) pp.out << "#include \"../../general/okrtc.hpp\"\n";
-   while (true){//pp.in.peek() != EOF) {
+   while (true){
       if (is_comment(pp)) comments(pp);
-      if (pp.in.peek() != EOF) put(pp);
-      if (pp.in.peek() == EOF) break;
       if (peekn(pp,2) == "__") __id(pp);
       if (pp.in.peek() == '#') sharpId(pp);
       if (pp.block==-1) { if (pp.k.jit) rtcKernelPostfix(pp); }
       if (pp.block>=0 && pp.in.peek() == '{') { pp.block++; }
       if (pp.block>=0 && pp.in.peek() == '}') { pp.block--; }
       if (is_newline(pp.in.peek())) { pp.line++;}
+      pp.in.get(ch);
+      if (pp.in.eof()) break;
+      pp.out << (char) ch;
+      std::cout << (char) ch;
+      fflush(0);
    }
-*/
    return 0;
 }
 
