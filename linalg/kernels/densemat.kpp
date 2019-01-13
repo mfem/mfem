@@ -25,7 +25,7 @@ inline void Swap(T &a, T &b)
 
 // *****************************************************************************
 __kernel void kLSolve(const int m, const int n,
-                      const double *data, const int *ipiv, double *x)
+		      const double *data, const int *ipiv, double *x)
 {
    MFEM_FORALL(k, n,
    {
@@ -33,7 +33,7 @@ __kernel void kLSolve(const int m, const int n,
       // X <- P X
       for (int i = 0; i < m; i++)
       {
-         //Swap<double>(mx[i], mx[ipiv[i]]);
+	 //Swap<double>(mx[i], mx[ipiv[i]]);
          const double tmp = mx[i];
          mx[i] = mx[ipiv[i]];
          mx[ipiv[i]] = tmp;
@@ -244,7 +244,8 @@ __kernel void kOpEq(const size_t hw, const double *m, double *data)
 }
 
 // *****************************************************************************
-__kernel void kDiag(const size_t n, const size_t N, const double c, double *data)
+__kernel void kDiag(const size_t n, const size_t N, const double c,
+		    double *data)
 {
    MFEM_FORALL(i, N, data[i] = 0.0;);
    MFEM_FORALL(i, n, data[i*(n+1)] = c;);

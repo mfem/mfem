@@ -106,9 +106,10 @@ static inline int get(context &pp) {
 }
 
 // *****************************************************************************
-static inline char put(context &pp) {
-   const char c = (char) get(pp);
-   pp.out << c;
+static inline int put(context &pp) {
+   const int c = get(pp);
+   assert(c != EOF);
+   pp.out << (char) c;
    return c;
 }
 
@@ -149,7 +150,8 @@ static inline void singleLineComment(context &pp) {
 // *****************************************************************************
 static inline void blockComment(context &pp) {
    while (! pp.in.eof()) {
-      const char c = put(pp);
+      const int c = put(pp);
+      assert(c != EOF);
       if (is_newline(c)) pp.line++;
       if (c == '*' && pp.in.peek() == '/') {
          put(pp);
@@ -161,8 +163,10 @@ static inline void blockComment(context &pp) {
 
 // *****************************************************************************
 static inline void comments(context &pp) {
-   const char c1 = put(pp); check(pp,c1=='/',"Comments w/o 1st char");
-   const char c2 = put(pp); check(pp,c2=='/' || c2=='*',"Comment w/o 2nd char");
+   const int c1 = put(pp); assert(c1 != EOF);
+   check(pp,c1=='/',"Comments w/o 1st char");
+   const int c2 = put(pp); assert(c2 != EOF);
+   check(pp,c2=='/' || c2=='*',"Comment w/o 2nd char");
    if (c2 == '/') return singleLineComment(pp);
    return blockComment(pp);
 }
@@ -170,6 +174,7 @@ static inline void comments(context &pp) {
 // *****************************************************************************
 static inline bool is_alnum(context &pp) {
    const int c = pp.in.peek();
+   assert(c != EOF);
    return isalnum(c) || c == '_';
 }
 
@@ -198,8 +203,7 @@ static inline string peekn(context &pp, const int n) {
    assert(n<64);
    static char c[64];
    for (k=0;k<=n;k+=1) c[k] = 0;
-   k = 0;
-   for (; k<n; k+=1) {
+   for (k=0; k<n; k+=1) {
       if (pp.in.peek()==EOF) break;
       c[k] = pp.in.get();
    }
@@ -214,14 +218,12 @@ static inline string peekID(context &pp) {
    const int n = 64;
    static char c[64];
    for (k=0;k<n;k+=1) c[k] = 0;
-   k = 0;
-   for (; k<n; k+=1) {
-      const int p = pp.in.peek();
-      if (p==EOF) break;
-      if (! is_alnum(pp)){ break; }
+   for (k=0; k<n; k+=1) {
+      if (pp.in.peek()==EOF) break;
+      if (! is_alnum(pp)) break;
       c[k]=pp.in.get();
    }
-   string rtn = c;
+   string rtn(c);
    for (int l=0; l<k; l+=1) pp.in.unget();
    return rtn;
 }
