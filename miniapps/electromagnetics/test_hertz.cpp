@@ -842,8 +842,9 @@ void real_epsilon_sigma(double omega, const Vector &B,
 
    double phi = 0.0;
    double MData[9] = {cos(phi), 0.0, -sin(phi),
-		      0.0,      1.0,       0.0,
-		      sin(phi), 0.0,  cos(phi)};
+                      0.0,      1.0,       0.0,
+                      sin(phi), 0.0,  cos(phi)
+                     };
    DenseMatrix M(MData, 3, 3);
 
    Vector Blocal(3);
@@ -874,18 +875,18 @@ void real_epsilon_sigma(double omega, const Vector &B,
    double wce  = qe  * Bnorm / me_;
    double wci1 = qi1 * Bnorm / mi1;
    double wci2 = qi2 * Bnorm / mi2;
-   
+
    double S = (1.0 -
-	       wpe  / (pow(omega, 2) - pow( wce, 2)) -
-	       wpi1 / (pow(omega, 2) - pow(wci1, 2)) -
-	       wpi2 / (pow(omega, 2) - pow(wci2, 2)));
+               wpe  / (pow(omega, 2) - pow( wce, 2)) -
+               wpi1 / (pow(omega, 2) - pow(wci1, 2)) -
+               wpi2 / (pow(omega, 2) - pow(wci2, 2)));
    double P = (1.0 -
-	       wpe  / pow(omega, 2) -
-	       wpi1 / pow(omega, 2) -
-	       wpi2 / pow(omega, 2));
+               wpe  / pow(omega, 2) -
+               wpi1 / pow(omega, 2) -
+               wpi2 / pow(omega, 2));
    double D = (wce  * wpe  / (omega * (pow(omega, 2) - pow( wce, 2))) +
-	       wci1 * wpi1 / (omega * (pow(omega, 2) - pow(wci1, 2))) +
-	       wci2 * wpi2 / (omega * (pow(omega, 2) - pow(wci2, 2))));
+               wci1 * wpi1 / (omega * (pow(omega, 2) - pow(wci1, 2))) +
+               wci2 * wpi2 / (omega * (pow(omega, 2) - pow(wci2, 2))));
 
    // Complex Dielectric tensor elements
    double th = atan2(B(2), B(0));
@@ -896,11 +897,11 @@ void real_epsilon_sigma(double omega, const Vector &B,
    double e_zz = (P - S) * pow(sin(ph), 2) * pow(sin(th), 2) + S;
 
    complex<double> e_xy((P - S) * cos(ph) * cos(th) * sin(ph),
-			D * sin(th) * sin(ph));
+                        D * sin(th) * sin(ph));
    complex<double> e_xz((P - S) * pow(sin(ph), 2) * sin(th) * cos(th),
-			- D * cos(ph));
+                        - D * cos(ph));
    complex<double> e_yz((P - S) * sin(th) * cos(ph) * sin(ph),
-			D * cos(th) * sin(ph));
+                        D * cos(th) * sin(ph));
 
    complex<double> e_yx = std::conj(e_xy);
    complex<double> e_zx = std::conj(e_zx);
@@ -992,10 +993,10 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    if (realPart_)
       cout << "Dielectric tensor eigenvalues: "
            << lambda[0] << " " << lambda[1] << " " << lambda[2]
-	   << " for B " << B[0] << " " << B[1] << " " << B[2]
-	   << " and rho " << density_vals_[0]
-	   << " " << density_vals_[1] << " " << density_vals_[2]
-	   << endl;
+      << " for B " << B[0] << " " << B[1] << " " << B[2]
+      << " and rho " << density_vals_[0]
+      << " " << density_vals_[1] << " " << density_vals_[2]
+      << endl;
    else
       cout << "Conductivity tensor eigenvalues: "
            << lambda[0] << " " << lambda[1] << " " << lambda[2] << endl;
