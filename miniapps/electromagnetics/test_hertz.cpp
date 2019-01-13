@@ -832,62 +832,73 @@ void real_epsilon_sigma(double omega, const Vector &B,
                         const Vector &temperature_vals,
                         double *real_epsilon, double *real_sigma)
 {
-   complex<double> I(0.0, 1.0);
-
    double Bnorm = B.Norml2();
+
    double phi = 0.0;
-   double MData[9] = {cos(phi), 0, -sin(phi), 0.0, 1.0, 0.0, sin(phi), 0, cos(phi)};
+   double MData[9] = {cos(phi), 0.0, -sin(phi),
+		      0.0,      1.0,       0.0,
+		      sin(phi), 0.0,  cos(phi)};
    DenseMatrix M(MData, 3, 3);
+
    Vector Blocal(3);
    M.Mult(B, Blocal);
-   double th = atan2(B(2), B(0)), ph = atan2(B(0)*cos(th)+B(2)*sin(th), -B(1));
+
    double Z1 = 1.0, Z2 = 18.0;
-   double qi1 = Z1*qe, qi2 = Z2*qe;
-   double mi1 = 2.01410178*u, mi2 = 39.948*u;
+   double qe = -q_, qi1 = Z1 * q_, qi2 = Z2 * q_;
+   double mi1 = 2.01410178 * u_, mi2 = 39.948 * u_;
    double ne = density_vals[0], ni1 = density_vals[1], ni2 = density_vals[2];
-   double Te = temperature_vals[0], Ti = temperature_vals[1];
-   double vTe = sqrt(2*Te/me);
-   double debye_length = sqrt((epsilon0_*Te)/(ne*pow(qe, 2)));
-   double b90_1 = (qe*qi1)/(4*M_PI*epsilon0_*me*pow(vTe, 2)),
-          b90_2 = (qe*qi2)/(4*M_PI*epsilon0_*me*pow(vTe, 2));
-   double nu_ei1 = (pow(qe, 2)*pow(qi1,
-                                   2)*ni1*log(debye_length/b90_1))/(4*M_PI*pow(epsilon0_, 2)*sqrt(me)*pow(Te,
-                                                                    3.0/2.0));
-   double nu_ei2 = (pow(qe, 2)*pow(qi2,
-                                   2)*ni2*log(debye_length/b90_2))/(4*M_PI*pow(epsilon0_, 2)*sqrt(me)*pow(Te,
-                                                                    3.0/2.0));
+   // double Te = temperature_vals[0];
+   // double Ti1 = temperature_vals[1];
+   // double Ti2 = temperature_vals[2];
+   // double vTe = sqrt(2.0 * Te / me_);
+   // double debye_length = sqrt((epsilon0_ * Te) / (ne * pow(qe, 2)));
+   // double b90_1 = (qe * qi1)/(4.0 * M_PI * epsilon0_ * me_ * pow(vTe, 2)),
+   //        b90_2 = (qe * qi2)/(4.0 * M_PI * epsilon0_ * me_ * pow(vTe, 2));
+   // double nu_ei1 = (pow(qe * qi1, 2) * ni1 * log(debye_length / b90_1)) /
+   //   (4.0 * M_PI * pow(epsilon0_ * me_, 2) * pow(Te, 3.0/2.0));
+   // double nu_ei2 = (pow(qe * qi2, 2) * ni2 * log(debye_length / b90_2)) /
+   //   (4.0 * M_PI * pow(epsilon0_ * me_, 2) * pow(Te, 3.0/2.0));
 
-   double wpe = (ne * pow(qe, 2))/(me*epsilon0_); // Squared plasma frequency
-   double wpi1 = (ne * pow(qi1, 2))/(mi1*epsilon0_); // Squared plasma frequency
-   double wpi2 = (ne * pow(qi2, 2))/(mi2*epsilon0_); // Squared plasma frequency
-   double wce = qe*Bnorm/me, wci1 = qi1 * Bnorm/mi1, wci2 = qi2 * Bnorm/mi2;
+   // Squared plasma frequencies for each species
+   double wpe  = (ne  * pow( qe, 2))/(me_ * epsilon0_);
+   double wpi1 = (ni1 * pow(qi1, 2))/(mi1 * epsilon0_);
+   double wpi2 = (ni2 * pow(qi2, 2))/(mi2 * epsilon0_);
 
-   double S = (1.0 - wpe/(pow(omega, 2) - pow(wce, 2)) - wpi1/(pow(omega,
-                                                                   2)-pow(wci1, 2)) - wpi2/(pow(omega, 2) - pow(wci2, 2)));
-   double P = (1.0 - wpe/pow(omega, 2) - wpi1/pow(omega, 2) - wpi2/pow(omega, 2));
-   double D = (wce*wpe/(omega*(pow(omega, 2) - pow(wce,
-                                                   2))) + wci1*wpi1/(omega*(pow(omega, 2) - pow(wci1,
-                                                                            2))) + wci2*wpi2/(omega*(pow(omega, 2) - pow(wci2, 2))));
+   // Cyclotron frequencies for each species
+   double wce  = qe  * Bnorm / me_;
+   double wci1 = qi1 * Bnorm / mi1;
+   double wci2 = qi2 * Bnorm / mi2;
+   
+   double S = (1.0 -
+	       wpe  / (pow(omega, 2) - pow( wce, 2)) -
+	       wpi1 / (pow(omega, 2) - pow(wci1, 2)) -
+	       wpi2 / (pow(omega, 2) - pow(wci2, 2)));
+   double P = (1.0 -
+	       wpe  / pow(omega, 2) -
+	       wpi1 / pow(omega, 2) -
+	       wpi2 / pow(omega, 2));
+   double D = (wce  * wpe  / (omega * (pow(omega, 2) - pow( wce, 2))) +
+	       wci1 * wpi1 / (omega * (pow(omega, 2) - pow(wci1, 2))) +
+	       wci2 * wpi2 / (omega * (pow(omega, 2) - pow(wci2, 2))));
 
-   double e_xx = (-P * pow(sin(ph), 2)*pow(sin(th), 2) + P*pow(sin(ph),
-                                                               2) + S*pow(sin(ph), 2)*pow(sin(th), 2) - S*pow(sin(ph), 2) + S);
-   complex<double> e_xy = (I*D*sin(th) + P*cos(ph)*cos(th) - S*cos(ph)*cos(
-                              th))*sin(ph);
-   complex<double> e_xz = -I*D*cos(ph) + P*pow(sin(ph),
-                                               2)*sin(th)*cos(th) - S*pow(sin(ph), 2)*sin(th)*cos(th);
+   // Complex Dielectric tensor elements
+   double th = atan2(B(2), B(0));
+   double ph = atan2(B(0) * cos(th) + B(2) * sin(th), -B(1));
 
-   complex<double> e_yx = -(I*D*sin(th) - P*cos(ph)*cos(th)+S*cos(ph)*cos(
-                               th))*sin(ph);
-   double e_yy = P*pow(cos(ph), 2)+S*pow(sin(ph), 2);
-   complex<double> e_yz = (I*D*cos(th)+P*sin(th)*cos(ph)-S*sin(th)*cos(ph))*sin(
-                             ph);
+   double e_xx = (P - S) * pow(sin(ph), 2) * pow(cos(th), 2) + S;
+   double e_yy = (P - S) * pow(cos(ph), 2) + S;
+   double e_zz = (P - S) * pow(sin(ph), 2) * pow(sin(th), 2) + S;
 
-   complex<double> e_zx = I*D*cos(ph) + P*pow(sin(ph),
-                                              2)*sin(th)*cos(th) - S*pow(sin(ph), 2)*sin(th)*cos(th);
-   complex<double> e_zy = -(I*D*cos(th) - P*sin(th)*cos(ph)+S*sin(th)*cos(
-                               ph))*sin(ph);
-   double e_zz = P*pow(sin(ph), 2)*pow(sin(th), 2) - S*pow(sin(ph), 2)*pow(sin(th),
-                                                                           2) + S;
+   complex<double> e_xy((P - S) * cos(ph) * cos(th) * sin(ph),
+			D * sin(th) * sin(ph));
+   complex<double> e_xz((P - S) * pow(sin(ph), 2) * sin(th) * cos(th),
+			- D * cos(ph));
+   complex<double> e_yz((P - S) * sin(th) * cos(ph) * sin(ph),
+			D * cos(th) * sin(ph));
+
+   complex<double> e_yx = std::conj(e_xy);
+   complex<double> e_zx = std::conj(e_zx);
+   complex<double> e_zy = std::conj(e_zy);
 
    if (real_epsilon != NULL)
    {
