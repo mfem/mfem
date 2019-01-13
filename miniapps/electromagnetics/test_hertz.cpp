@@ -890,26 +890,26 @@ void real_epsilon_sigma(double omega, const Vector &B,
 
    if (real_epsilon != NULL)
    {
-      real_epsilon[0] = e_xx;
-      real_epsilon[1] = e_yx.real();
-      real_epsilon[2] = e_zx.real();
-      real_epsilon[3] = e_xy.real();
-      real_epsilon[4] = e_yy;
-      real_epsilon[5] = e_zy.real();
-      real_epsilon[6] = e_xz.real();
-      real_epsilon[7] = e_yz.real();
-      real_epsilon[8] = e_zz;
+      real_epsilon[0] = epsilon0_ * e_xx;
+      real_epsilon[1] = epsilon0_ * e_yx.real();
+      real_epsilon[2] = epsilon0_ * e_zx.real();
+      real_epsilon[3] = epsilon0_ * e_xy.real();
+      real_epsilon[4] = epsilon0_ * e_yy;
+      real_epsilon[5] = epsilon0_ * e_zy.real();
+      real_epsilon[6] = epsilon0_ * e_xz.real();
+      real_epsilon[7] = epsilon0_ * e_yz.real();
+      real_epsilon[8] = epsilon0_ * e_zz;
    }
    if (real_sigma != NULL)
    {
       real_sigma[0] = 0.0;
-      real_sigma[1] = e_yx.imag()*omega*epsilon0_;
-      real_sigma[2] = e_zx.imag()*omega*epsilon0_;
-      real_sigma[3] = e_xy.imag()*omega*epsilon0_;
+      real_sigma[1] = e_yx.imag() * omega * epsilon0_;
+      real_sigma[2] = e_zx.imag() * omega * epsilon0_;
+      real_sigma[3] = e_xy.imag() * omega * epsilon0_;
       real_sigma[4] = 0.0;
-      real_sigma[5] = e_zy.imag()*omega*epsilon0_;
-      real_sigma[6] = e_xz.imag()*omega*epsilon0_;
-      real_sigma[7] = e_yz.imag()*omega*epsilon0_;
+      real_sigma[5] = e_zy.imag() * omega * epsilon0_;
+      real_sigma[6] = e_xz.imag() * omega * epsilon0_;
+      real_sigma[7] = e_yz.imag() * omega * epsilon0_;
       real_sigma[8] = 0.0;
    }
 
