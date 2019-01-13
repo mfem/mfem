@@ -89,9 +89,9 @@ using namespace mfem;
 using namespace mfem::electromagnetics;
 
 // Physical Constants
-static double qe = 1.60217662e-19;
-static double u = 1.660539040e-27;
-static double me = 9.10938356e-31;
+static const double q_  = 1.60217662e-19;  // Elementary charge in coulombs
+static const double u_  = 1.660539040e-27; // Atomic mass unit in kilograms
+static const double me_ = 9.10938356e-31;  // Mass of electron in kilograms
 
 // Permittivity Functions
 Coefficient * SetupPermittivityCoefficient();
