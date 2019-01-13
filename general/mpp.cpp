@@ -630,8 +630,8 @@ int main(const int argc, char* argv[]) {
    }
    assert(! input.empty());
    const bool output_file = ! output.empty();
-   ifstream in(input.c_str(), std::ios::binary);
-   ofstream out(output.c_str(), std::ios::binary);
+   ifstream in(input.c_str(), ios::in | std::ios::binary);
+   ofstream out(output.c_str(), ios::out | std::ios::binary | ios::trunc);
    assert(in.is_open());
    if (output_file) {assert(out.is_open());}
    context pp(in,output_file?out:cout,file);
