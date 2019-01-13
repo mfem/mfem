@@ -192,7 +192,7 @@ static inline string get_directive(context &pp) {
    //check(pp,pp.in.peek()=='#',"Directive w/o 1st '#'");
    while (is_alnum(pp))//|| pp.in.peek()=='#')
       str += pp.in.get();
-   dbg("\n[get_directive] directive:'%s'",directive.c_str());
+   dbg("\n[get_directive] directive:'%s'",str.c_str());
    return str;
 }
 
