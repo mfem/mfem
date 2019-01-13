@@ -802,8 +802,8 @@ void slab_current_source(const Vector &x, Vector &j)
    j.SetSize(x.Size());
    j = 0.0;
 
-   double half_x_l = mesh_dim_(0)/2.0 - 1.0;
-   double half_x_r = mesh_dim_(0)/2.0 + 1.0;
+   double half_x_l = mesh_dim_(0) * (0.5 - 0.005);
+   double half_x_r = mesh_dim_(0) * (0.5 + 0.005);
 
    if (x(0) <= half_x_r && x(0) >= half_x_l)
    {
