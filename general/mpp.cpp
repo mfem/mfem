@@ -556,19 +556,20 @@ static inline void __id(context &pp, string id = "") {
 static inline void sharpId(context &pp) {
    trk();
    string id = get_directive(pp);
-   if (id=="#jit"){
+   //dbg("[sharpId] id:'%s'",id.c_str());
+   if (id=="jit"){
       skip_space(pp);
       pp.k.jit = true;
       id = get_directive(pp);
-      check(pp,id=="#kernel","No 'kernel' token found after the 'jit' one");
+      check(pp,id=="_kernel","No 'kernel' token found after the 'jit' one");
       __id(pp,"_kernel");
       return;
    }
-   if (id=="#kernel"){
+   if (id=="kernel"){
       __id(pp,"_kernel");
       return;
    }
-   pp.out << id;
+   pp.out << id.c_str();
 }
 
 // *****************************************************************************
