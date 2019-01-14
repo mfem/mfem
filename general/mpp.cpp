@@ -181,6 +181,10 @@ static inline bool is_alnum(context &pp) {
 // *****************************************************************************
 static inline string get_name(context &pp) {
    string str;
+   if (not is_alnum(pp)){
+      dbg("[get_name] ERROR is_alnum: '%x'",(char)pp.in.peek());
+      assert(false);
+   }
    check(pp,is_alnum(pp),"Name w/o alnum 1st letter");
    while (is_alnum(pp)) str += pp.in.get();
    return str;
@@ -192,7 +196,6 @@ static inline string get_directive(context &pp) {
    //check(pp,pp.in.peek()=='#',"Directive w/o 1st '#'");
    while (is_alnum(pp))//|| pp.in.peek()=='#')
       str += pp.in.get();
-   dbg("\n[get_directive] directive:'%s'",str.c_str());
    return str;
 }
 
@@ -267,7 +270,6 @@ static inline bool is_coma(context &pp) {
 
 // *****************************************************************************
 static inline bool get_args(context &pp) {
-   trk();
    bool empty = true;
    argument *arg = new argument();
    for (int p=0; true; empty=false) {
@@ -281,7 +283,6 @@ static inline bool get_args(context &pp) {
          continue;
       }
       const string &id = peekID(pp);
-      dbg(" id:%s",id.c_str());
       drop_name(pp);
       // Qualifiers
       if (id=="const") { pp.out << id; arg->is_const = true; continue; }
@@ -313,13 +314,11 @@ static inline bool get_args(context &pp) {
       put(get(pp),pp);
    }
    assert(false);
-   dbg("eof return");
    return empty;
 }
 
 // *****************************************************************************
 static inline void rtcKernelRefresh(context &pp){
-   trk();
    pp.k.xcc = STRINGIFY(MFEM_CXX) " " \
       STRINGIFY(MFEM_BUILD_FLAGS) " " \
       "-O3 -std=c++11 -Wall";
@@ -413,8 +412,7 @@ static inline void rtcKernelRefresh(context &pp){
 }
 
 // *****************************************************************************
-static inline void rtcKernelPrefix(const context &pp){     
-   trk();
+static inline void rtcKernelPrefix(const context &pp){
    pp.out << "\n\ttypedef void (*kernel_t)("<<pp.k.any_pointer_params<<");";
    pp.out << "\n\tstatic std::unordered_map<size_t,ok::okrtc<kernel_t>*> __kernels;";
    pp.out << "\n\t" << pp.k.u2d;
@@ -432,7 +430,6 @@ static inline void rtcKernelPrefix(const context &pp){
 
 // *****************************************************************************
 static inline void rtcKernelPostfix(context &pp){
-   trk();
    pp.out << "\nextern \"C\" void k%016lx(" << pp.k.any_pointer_params << "){";
 	pp.out << "\n\trtc_"<<pp.k.name
           <<"<" << pp.k.static_format<<">(" << pp.k.any_pointer_args << ");";
@@ -453,42 +450,35 @@ static inline void rtcKernelPostfix(context &pp){
 
 // *****************************************************************************
 static inline void __kernel(context &pp) {
-   trk();
    //        "__kernel "
    pp.out << "         ";
    drop_space(pp);
-   check(pp,isvoid(pp) || isstatic(pp),"Kernel w/o void or static");
-   dbg("isstatic?");
+   check(pp,isvoid(pp) or isstatic(pp),"Kernel w/o void or static");
    if (isstatic(pp)) {
       pp.out << get_name(pp);
+      std::cout << "static"; fflush(0);
       skip_space(pp);
    }
-   dbg("void_return_type?");
    const string void_return_type = get_name(pp);
    pp.out << void_return_type;
+   std::cout << void_return_type; fflush(0);
    // Get kernel's name
-   dbg("skip_space?");
    skip_space(pp);
-   dbg("get_name?");
    const string name = get_name(pp);
    pp.out << name;
+   std::cout << name; fflush(0);
    pp.k.name = name;
-   dbg("kernel:'%s'",name.c_str());
-   dbg("skip_space?");
    skip_space(pp);
    if (! pp.mm) return;
    // check we are at the left parenthesis
-   dbg("check?");
    check(pp,pp.in.peek()=='(',"No 1st '(' in kernel");
    put(get(pp),pp); 
    // Go to first possible argument
-   dbg("skip_space?");
    skip_space(pp);
    if (isvoid(pp)) { // if it is 'void' don't add any coma
       drop_name(pp);
    } else {
       pp.args.clear();
-      dbg("get_args?");
       get_args(pp);
       if (pp.k.jit) rtcKernelRefresh(pp);
    }
@@ -498,7 +488,6 @@ static inline void __kernel(context &pp) {
 // * '__' was hit, now fetch its 'id'
 // *****************************************************************************
 static inline void __id(context &pp, string id = "") {
-   trk();
    if (id.empty()) id = get_name(pp);
    if (id=="_jit"){
       skip_space(pp);
@@ -551,17 +540,17 @@ static inline void __id(context &pp, string id = "") {
    }
    put('_',pp);
    pp.out << id;
+   std::cout << id; fflush(0);
 }
 
 // *****************************************************************************
 static inline void sharpId(context &pp) {
-   trk();
    string id = get_directive(pp);
-   dbg("\n[sharpId] id:'%s'",id.c_str());
    if (id=="jit"){
+      assert(false);
       skip_space(pp);
       pp.k.jit = true;
-      id = get_directive(pp);
+      id = get_name(pp);
       check(pp,id=="_kernel","No 'kernel' token found after the 'jit' one");
       __id(pp,"_kernel");
       return;
@@ -570,16 +559,18 @@ static inline void sharpId(context &pp) {
       __id(pp,"_kernel");
       return;
    }
-   dbg("\n[sharpId] return:'%s'",id.c_str());
-   pp.out << id.c_str();
+   pp.out << id;
+   std::cout << id; fflush(0);
 }
 
 // *****************************************************************************
 static inline int process(context &pp) {
-   trk();
    char ch;
    pp.k.jit = false;
-   if (pp.jit) pp.out << "#include \"../../general/okrtc.hpp\"\n";
+   if (pp.jit) {
+      pp.out << "#include \"../../general/okrtc.hpp\"\n";
+      std::cout << "#include \"../../general/okrtc.hpp\"\n"; fflush(0);
+   }
    while (true){
       if (is_comment(pp)) comments(pp);
       pp.in.get(ch);
@@ -604,7 +595,6 @@ static inline int process(context &pp) {
 
 // *****************************************************************************
 int main(const int argc, char* argv[]) {
-   trk();
    string input, output, file;   
    if (argc<=1) return help(argv);
    for (int i=1; i<argc; i+=1) {
