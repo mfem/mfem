@@ -32,13 +32,14 @@ namespace mfem
 {
    const int NUM_DOFS = NUM_DOFS_1D*NUM_DOFS_1D;
    const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D;
+#ifdef _MSC_VER
+   #define S_NODE_SZ_2D 2 //* NUM_DOFS_1D * NUM_DOFS_1D
+#else
+   #define S_NODE_SZ_2D 2 * NUM_DOFS_1D * NUM_DOFS_1D
+#endif
    MFEM_FORALL(e, numElements,
    {
-#ifdef _MSC_VER
-      double s_nodes[2 /** NUM_DOFS_1D * NUM_DOFS_1D*/];
-#else
-      double s_nodes[2 * NUM_DOFS_1D * NUM_DOFS_1D];
-#endif
+      double s_nodes[S_NODE_SZ_2D];
       for (int q = 0; q < NUM_QUAD; ++q)
       {
          for (int d = q; d < NUM_DOFS; d +=NUM_QUAD)
@@ -88,13 +89,14 @@ __jit __kernel void kGeom3D(const int NUM_DOFS_1D,
 {
    const int NUM_DOFS = NUM_DOFS_1D*NUM_DOFS_1D*NUM_DOFS_1D;
    const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D*NUM_QUAD_1D;
+#ifdef _MSC_VER
+   #define S_NODE_SZ_3D 3 //* NUM_DOFS_1D * NUM_DOFS_1D * NUM_DOFS_1D
+#else
+   #define S_NODE_SZ_3D 3 * NUM_DOFS_1D * NUM_DOFS_1D * NUM_DOFS_1D
+#endif
    MFEM_FORALL(e,numElements,
    {
-#ifdef _MSC_VER
-      double s_nodes[3 /** NUM_DOFS_1D * NUM_DOFS_1D * NUM_DOFS_1D*/];
-#else
-      double s_nodes[3 * NUM_DOFS_1D * NUM_DOFS_1D * NUM_DOFS_1D];
-#endif
+      double s_nodes[S_NODE_SZ_3D];
       for (int q = 0; q < NUM_QUAD; ++q)
       {
          for (int d = q; d < NUM_DOFS; d += NUM_QUAD)
