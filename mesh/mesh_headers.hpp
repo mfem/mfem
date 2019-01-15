@@ -26,6 +26,7 @@
 #include "mesh.hpp"
 #include "mesh_operators.hpp"
 #include "nurbs.hpp"
+#include "wedge.hpp"
 
 #ifdef MFEM_USE_MESQUITE
 #include "mesquite.hpp"
@@ -34,6 +35,10 @@
 #ifdef MFEM_USE_MPI
 #include "pncmesh.hpp"
 #include "pmesh.hpp"
+#endif
+
+#ifdef MFEM_USE_PUMI
+#include "pumi.hpp"
 #endif
 
 #endif

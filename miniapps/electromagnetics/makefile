@@ -51,6 +51,22 @@ $(COMMON_O) $(addsuffix _solver.o,$(MINIAPPS)): \
 %.o: $(SRC)%.cpp $(SRC)%.hpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
 
+# Rules to copy the *.mesh files - needed for running the sample runs when
+# building out-of-source:
+ifneq ($(SRC),)
+JOULE_MESH_FILES = cylinder-hex.mesh cylinder-tet.mesh
+ifeq ($(MFEM_USE_NETCDF),YES)
+   JOULE_MESH_FILES += cylinder-hex-q2.gen cylinder-tet-p2.gen
+endif
+TESLA_MESH_FILES = square-angled-pipe.mesh
+VOLTA_MESH_FILES = llnl.mesh
+$(JOULE_MESH_FILES) $(TESLA_MESH_FILES) $(VOLTA_MESH_FILES): %: $(SRC)%
+	ln -sf $(<) .
+joule: | $(JOULE_MESH_FILES)
+tesla: | $(TESLA_MESH_FILES)
+volta: | $(VOLTA_MESH_FILES)
+endif
+
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 
@@ -67,7 +83,7 @@ maxwell-test-par: maxwell
 	-abcs '-1' -dp '-0.3 0.0 0.0 0.3 0.0 0.0 0.1 1 .5 .5')
 joule-test-par: joule
 	@$(call mfem-test,$<, $(RUN_MPI), Electromagnetic miniapp,\
-	-p rod -tf 3 -m $(SRC)cylinder-hex.mesh)
+	-m cylinder-hex.mesh -p rod -tf 3)
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 

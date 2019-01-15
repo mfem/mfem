@@ -45,7 +45,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 3.3.3)
+set(${PROJECT_NAME}_VERSION 3.4.1)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -139,7 +139,7 @@ if (MFEM_USE_MPI)
     set(PETSC_INCLUDE_DIRS ${PETSC_INCLUDES})
   endif()
 else()
-  set(PKGS_NEED_MPI SUPERLU PETSC STRUMPACK)
+  set(PKGS_NEED_MPI SUPERLU PETSC STRUMPACK PUMI)
   foreach(PKG IN LISTS PKGS_NEED_MPI)
     if (MFEM_USE_${PKG})
       message(STATUS "Disabling package ${PKG} - requires MPI")
@@ -246,6 +246,22 @@ if (MFEM_USE_SIDRE)
   find_package(Axom REQUIRED Sidre SLIC axom_utils)
 endif()
 
+# PUMI
+if (MFEM_USE_PUMI)
+  # If PUMI_DIR was specified, only link to that directory,
+  # i.e. don't link to another installation in /usr/lib by mistake
+  find_package(SCOREC 2.1.0 REQUIRED OPTIONAL_COMPONENTS gmi_sim
+    CONFIG PATHS ${PUMI_DIR} NO_DEFAULT_PATH)
+  if (SCOREC_FOUND)
+    # Define a header file with the MFEM_USE_SIMMETRIX preprocessor variable
+    set(MFEM_USE_SIMMETRIX ${SCOREC_gmi_sim_FOUND})
+    set(PUMI_FOUND ${SCOREC_FOUND})
+    get_target_property(PUMI_INCLUDE_DIRS
+      SCOREC::apf INTERFACE_INCLUDE_DIRECTORIES)
+    set(PUMI_LIBRARIES SCOREC::core)
+  endif()
+endif()
+
 # MFEM_TIMER_TYPE
 if (NOT DEFINED MFEM_TIMER_TYPE)
   if (APPLE)
@@ -270,8 +286,8 @@ endif()
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS MPI_CXX OPENMP BLAS LAPACK METIS HYPRE SuiteSparse SUNDIALS PETSC
-    MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT GECKO GNUTLS NETCDF MPFR POSIXCLOCKS
-    MFEMBacktrace ZLIB)
+    MESQUITE SuperLUDist STRUMPACK AXOM CONDUIT GECKO GNUTLS NETCDF MPFR PUMI
+    POSIXCLOCKS MFEMBacktrace ZLIB)
 # Add all *_FOUND libraries in the variable TPL_LIBRARIES.
 set(TPL_LIBRARIES "")
 set(TPL_INCLUDE_DIRS "")
@@ -295,9 +311,6 @@ endif()
 message(STATUS "MFEM build type: CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 message(STATUS "MFEM version: v${MFEM_VERSION_STRING}")
 message(STATUS "MFEM git string: ${MFEM_GIT_STRING}")
-
-# Windows specific
-set(_USE_MATH_DEFINES ${WIN32})
 
 #-------------------------------------------------------------------------------
 # Define and configure the MFEM library
@@ -527,3 +540,10 @@ install(FILES
 # Install the export set for use with the install-tree
 install(EXPORT ${PROJECT_NAME_UC}Targets
     DESTINATION ${INSTALL_CMAKE_DIR})
+
+#-------------------------------------------------------------------------------
+# Create 'config.mk' from 'config.mk.in' for the build and install locations and
+# define install rules for 'config.mk' and 'test.mk'
+#-------------------------------------------------------------------------------
+
+mfem_export_mk_files()

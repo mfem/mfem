@@ -81,7 +81,6 @@ static TargetT *DuplicateAs(const SourceT *array, int size,
 {
    TargetT *target_array = cplusplus ? new TargetT[size]
                            /*     */ : mfem_hypre_TAlloc(TargetT, size);
-
    for (int i = 0; i < size; i++)
    {
       target_array[i] = array[i];
@@ -2845,17 +2844,19 @@ void HypreBoomerAMG::SetCoord(int coord_dim, float *coord)
    HYPRE_BoomerAMGSetCoordinates (amg_precond, coord);
 }
 
-void HypreBoomerAMG::SetLAIROptions(int distance,
-                                   std::string prerelax,
-                                   std::string postrelax, 
-                                   double strength_tolC,
-                                   double strength_tolR,
-                                   int interp_type, 
-                                   int relax_type,
-                                   double filterA_tol, 
-                                   int splitting,
-                                   int blksize,
-                                   int Sabs)
+
+void HypreBoomerAMG::SetLAIROptions(float distance,
+                                    std::string prerelax,
+                                    std::string postrelax, 
+                                    double strength_tolC,
+                                    double strength_tolR,
+                                    double filter_tolR,
+                                    int interp_type, 
+                                    int relax_type,
+                                    double filterA_tol, 
+                                    int splitting,
+                                    int blksize,
+                                    int Sabs)
 {
    int ns_down, ns_up, ns_coarse;
    if (distance > 0)
@@ -2931,6 +2932,7 @@ void HypreBoomerAMG::SetLAIROptions(int distance,
    if (distance > 0)
    {
       HYPRE_BoomerAMGSetStrongThresholdR(amg_precond, strength_tolR);
+      HYPRE_BoomerAMGSetFilterThresholdR(amg_precond, filter_tolR);
    }
 
    if (relax_type > -1)
@@ -2953,17 +2955,18 @@ void HypreBoomerAMG::SetLAIROptions(int distance,
 }
 
 
-void HypreBoomerAMG::SetNAIROptions(int neumann_degree,
-                                   std::string prerelax,
-                                   std::string postrelax, 
-                                   double strength_tolC,
-                                   double strength_tolR,
-                                   int interp_type, 
-                                   int relax_type,
-                                   double filterA_tol, 
-                                   int splitting,
-                                   int blksize,
-                                   int Sabs)
+void HypreBoomerAMG::SetNAIROptions(float neumann_degree,
+                                    std::string prerelax,
+                                    std::string postrelax, 
+                                    double strength_tolC,
+                                    double strength_tolR,
+                                    double filter_tolR,
+                                    int interp_type, 
+                                    int relax_type,
+                                    double filterA_tol, 
+                                    int splitting,
+                                    int blksize,
+                                    int Sabs)
 {
    int ns_down, ns_up, ns_coarse;
    if (distance > 0)
