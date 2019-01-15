@@ -59,11 +59,10 @@ public:
    typedef std::unordered_map<const void*, memory> memory_map;
    typedef std::unordered_map<const void*, const alias*> alias_map;
 
-   class ledger {
-   public:
+   struct ledger
+   {
       memory_map memories;
       alias_map aliases;
-      ~ledger();
    };
 
    // **************************************************************************
@@ -109,9 +108,7 @@ public:
    // **************************************************************************
    static void* memcpy(void *dst, const void *src,
                        size_t bytes, const bool async = false);
-   // **************************************************************************
-   static void Dump();
-   
+
 private:
    ledger maps;
 

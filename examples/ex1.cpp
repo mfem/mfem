@@ -92,8 +92,8 @@ int main(int argc, char *argv[])
    //    largest number that gives a final mesh with no more than 50,000
    //    elements.
    {
-      int ref_levels = 1;
-      //(int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
+      int ref_levels =
+         (int)floor(log(50000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -218,13 +218,13 @@ int main(int argc, char *argv[])
    }
 
    // 15. Free the used memory.
-   if (pa) delete paDiffInteg;
+   if (pa) { delete paDiffInteg; }
    delete A;
    delete a;
    delete b;
    delete fespace;
    if (order > 0) { delete fec; }
    delete mesh;
-   mm::Dump();
+
    return 0;
 }
