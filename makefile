@@ -370,6 +370,7 @@ doc:
 -include $(BLD)deps.mk
 
 $(BLD)libmfem.a: $(OBJECT_FILES) $(OBJECT_KERNS)
+	[ ! -e $(@) ] || rm -f $(@)
 	$(AR) $(ARFLAGS) $(@) $(OBJECT_FILES) $(OBJECT_KERNS)
 	$(RANLIB) $(@)
 
@@ -380,9 +381,8 @@ $(BLD)libmfem.$(SO_EXT): $(BLD)libmfem.$(SO_VER) $(OBJECT_KERNS)
 # library may fail. In such cases, one may set EXT_LIBS on the command line.
 EXT_LIBS = $(MFEM_EXT_LIBS)
 $(BLD)libmfem.$(SO_VER): $(OBJECT_FILES) $(OBJECT_KERNS)
-#	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(BUILD_SOFLAGS) $(OBJECT_FILES)
-	g++ $(BUILD_SOFLAGS) $(OBJECT_FILES) $(OBJECT_KERNS) \
-	   $(EXT_LIBS) -o $(@) -ldl
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(BUILD_SOFLAGS) $(OBJECT_FILES) \
+			$(OBJECT_KERNS) $(EXT_LIBS) -o $(@)
 
 serial debug:    M_MPI=NO
 parallel pdebug: M_MPI=YES
