@@ -17,7 +17,6 @@
 
 #include "doftoquad.hpp"
 #include <map>
-#include <list>
 
 namespace mfem
 {
