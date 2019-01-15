@@ -1151,18 +1151,13 @@ void ExaModel::CalcPolarDecompDefGrad(DenseMatrix& R, DenseMatrix& U,
 //This method calculates the Eulerian strain which is given as:
 //e = 1/2 (I - B^(-1)) = 1/2 (I - F(^-T)F^(-1))
 void ExaModel::CalcEulerianStrain(DenseMatrix& E){
-
-   DenseMatrix F, Finv, Binv;
    
    int dim = Ttr->GetDimension();
+
+   DenseMatrix Finv(dim), Binv(dim);
+   DenseMatrix F(Jpt1, dim);
    
    double half = 1.0/2.0;
-
-   F.SetSize(dim);
-   Finv.SetSize(dim);
-   Binv.SetSize(dim);
-   
-   Mult(Jpt1, Jpt0, F);
    
    CalcInverse(F, Finv);
    
@@ -1183,17 +1178,13 @@ void ExaModel::CalcEulerianStrain(DenseMatrix& E){
 //This method calculates the Lagrangian strain which is given as:
 //E = 1/2 (C - I) = 1/2 (F^(T)F - I)
 void ExaModel::CalcLagrangianStrain(DenseMatrix& E){
-
-   DenseMatrix F, C;
    
    int dim = Ttr->GetDimension();
+
+   DenseMatrix F(Jpt1, dim);
+   DenseMatrix C(dim);
    
    double half = 1.0/2.0;
-
-   F.SetSize(dim);
-   C.SetSize(dim);
-   
-   Mult(Jpt1, Jpt0, F);
    
    MultAtB(F, F, C);
    
@@ -1212,12 +1203,12 @@ void ExaModel::CalcLagrangianStrain(DenseMatrix& E){
 //This method calculates the Biot strain which is given as:
 //E = (U - I) or sometimes seen as E = (V - I) if R = I
 void ExaModel::CalcBiotStrain(DenseMatrix& E){
-   
-   DenseMatrix rmat, umat, vmat;
-   
+
    int dim = Ttr->GetDimension();
+  
+   DenseMatrix rmat(Jpt1, dim);
+   DenseMatrix umat, vmat;
    
-   rmat.SetSize(dim);
    umat.SetSize(dim);
    vmat.SetSize(dim);
    
@@ -1324,15 +1315,14 @@ void AbaqusUmatModel::CalcLogStrainIncrement(DenseMatrix& dE, const DenseMatrix 
 //This method calculates the Eulerian strain which is given as:
 //e = 1/2 (I - B^(-1)) = 1/2 (I - F(^-T)F^(-1))
 void AbaqusUmatModel::CalcEulerianStrainIncr(DenseMatrix& dE, const DenseMatrix &Jpt){
-   
-   DenseMatrix Fincr, Finv, Binv;
-   
+
    int dim = Ttr->GetDimension();
+   DenseMatrix Fincr(Jpt, dim);
+   DenseMatrix Finv(dim), Binv(dim);
    
    double half = 1.0/2.0;
    
-   
-   CalcInverse(Jpt, Finv);
+   CalcInverse(Fincr, Finv);
    
    MultAtB(Finv, Finv, Binv);
    
@@ -1457,7 +1447,7 @@ void AbaqusUmatModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
    // compute characteristic element length
    CalcElemLength();
    celent = elemLength;
-
+   
    // integration point coordinates
    double coords[3];
    coords[0] = ipx;
@@ -1557,7 +1547,7 @@ void AbaqusUmatModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
    //log strain?
    DenseMatrix LogStrain;
    LogStrain.SetSize(ndi); // ndi x ndi
-   CalcLogStrain(LogStrain);
+   CalcEulerianStrain(LogStrain);
 
    // populate STRAN (symmetric) 
    //------------------------------------------------------------------
@@ -1569,14 +1559,14 @@ void AbaqusUmatModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
    stran[0] = LogStrain(0,0);
    stran[1] = LogStrain(1,1);
    stran[2] = LogStrain(2,2);
-   stran[3] = LogStrain(0,1);
-   stran[4] = LogStrain(0,2);
-   stran[5] = LogStrain(1,2);
+   stran[3] = 2 * LogStrain(0,1);
+   stran[4] = 2 * LogStrain(0,2);
+   stran[5] = 2 * LogStrain(1,2);
 
    // compute incremental strain, DSTRAN
    DenseMatrix dLogStrain;
    dLogStrain.SetSize(ndi);
-   CalcLogStrainIncrement(dLogStrain, J);
+   CalcEulerianStrainIncr(dLogStrain, J);
 
    // populate DSTRAN (symmetric)
    //------------------------------------------------------------------
@@ -1588,9 +1578,9 @@ void AbaqusUmatModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
    dstran[0] = dLogStrain(0,0);
    dstran[1] = dLogStrain(1,1);
    dstran[2] = dLogStrain(2,2);
-   dstran[3] = dLogStrain(0,1);
-   dstran[4] = dLogStrain(0,2);
-   dstran[5] = dLogStrain(1,2);
+   dstran[3] = 2 * dLogStrain(0,1);
+   dstran[4] = 2 * dLogStrain(0,2);
+   dstran[5] = 2 * dLogStrain(1,2);
    
    
    // call c++ wrapper of umat routine
@@ -1676,7 +1666,10 @@ void AbaqusUmatModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
    kmat.SetSize(dof*dim);
    kmat = 0.0;
    
-   AbaqusUmatModel::AssembleH(temp1, DS, weight, kmat);
+   //AbaqusUmatModel::AssembleH(temp1, DS, weight, kmat);
+   //
+   //Ignore the below for now...
+   //
    //Here we essentially have something that ultimately looks like
    //B sigma_dot or B^T Kstiff B V + Bgeom^T Sigma Bgeom V
    //I'm wondering if this Bgeom^T Sigma Bgeom V term should instead be
@@ -1688,7 +1681,19 @@ void AbaqusUmatModel::EvalModel(const DenseMatrix &J, const DenseMatrix &DS,
    //del sigma / del def_rate which would give us lead us to having
    //a residual based on the B sigma.
    //We should also save off the kmat term so we don't have to calculate it later
-   kmat.AddMult(*elvel, *elresid);
+   //kmat.AddMult(*elvel, *elresid);
+
+   //printf("\nWeight: %lf\n", weight);
+
+   //printf("\nShape Functions: \n");
+   //DS.Print();
+   //The below is essentially letting us just do: Int_{body} B^t sigma dV
+   DenseMatrix PMatO, DSt(DS);
+   DSt *= weight;
+
+   PMatO.UseExternalData(elresid->GetData(), dof, dim);
+   
+   AddMult(DSt,P,PMatO);
    
    return;
 }
@@ -1709,16 +1714,15 @@ void AbaqusUmatModel::AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
    GetElementMatGrad(elemID, ipID, matGrad, offset);
 
    DenseMatrix Cstiff(matGrad, 6, 6);
-   
 
    //Now time to start assembling stuff
 
    //We'll first be using this for our geomtric contribution
-
+   
    DenseMatrix temp1, kgeom;
    DenseMatrix sbar;
    DenseMatrix BtsigB;
-   
+   /*
    temp1.SetSize(dim*dim, dof*dim);
    
    kgeom.SetSize(dof*dim, dim*dim);
@@ -1750,7 +1754,7 @@ void AbaqusUmatModel::AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
    
    MultABt(sbar, kgeom, temp1);
    AddMult(kgeom, temp1, A);
-   
+   */
    //temp1 is now going to become the transpose Bmatrix as seen in
    //[B^t][Cstiff][B]
    temp1.SetSize(dof*dim, 6);
@@ -1759,13 +1763,16 @@ void AbaqusUmatModel::AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
    //temp1 is B^t as seen above
    GenerateGradMatrix(DS, temp1);
    //We multiple our quadrature wts here to our Cstiff matrix
-   Cstiff *= weight;
+   Cstiff *= dt * weight;
    //We use kgeom as a temporary matrix
    //kgeom = [Cstiff][B]
    MultABt(Cstiff, temp1, kgeom);
    //We now add our [B^t][kgeom] product to our tangent stiffness matrix that
    //we want to output to our material tangent stiffness matrix
    AddMult(temp1, kgeom, A);
+
+   //A.Symmetrize();
+   //A *= dt;
 
    return;
 }
@@ -2198,7 +2205,13 @@ void ExaNLFIntegrator::AssembleElementVector(
    Jrt.SetSize(dim);
    Jpt.SetSize(dim);
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
-
+   /*printf("\n Coordinates: \n");
+   for(int i = 0; i<dof; i++){
+     for(int j = 0; j<dim; j++){
+       printf("%lf ", PMatI(i,j));
+     }
+     printf("\n");
+   }*/
    elvect.SetSize(dof*dim);
    PMatO.UseExternalData(elvect.GetData(), dim, dof);
 
@@ -2318,7 +2331,6 @@ void ExaNLFIntegrator::AssembleElementGrad(
    }
   
    elmat = 0.0;
-   tmpmat = 0.0;
    model->SetTransformation(Ttr);
    model->SetElementID(Ttr.ElementNo, Ttr.Attribute); 
 
@@ -2341,7 +2353,13 @@ void ExaNLFIntegrator::AssembleElementGrad(
       // for a UMAT model
       model->AssembleH(Jpt, DS, ip.weight * Ttr.Weight(), elmat);
    }
-   
+   /*printf("\n Stiffness Matrix \n");
+   for(int i = 0; i<dof*dim; i++){
+     for(int j = 0; j<dof*dim; j++){
+       printf("%lf ", elmat(i, j));
+     }
+     printf("\n");
+     }*/
    return;
 }
 

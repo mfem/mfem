@@ -35,13 +35,13 @@ void ExaNewtonSolver::SetOperator(const Operator &op)
    c.SetSize(width);
 }
 
-void ExaNewtonSolver::Mult(const Vector &b, Vector &x) const
+  void ExaNewtonSolver::Mult(const Vector &b, Vector &x) const
 {
    MFEM_ASSERT(oper != NULL, "the Operator is not set (use SetOperator).");
    MFEM_ASSERT(prec != NULL, "the Solver is not set (use SetSolver).");
 
    int it;
-   double norm0, norm, norm_max, norm_min;
+   double norm0, norm, norm_max;
    const bool have_b = (b.Size() == Height());
 
    Vector c_fix(x.Size());
@@ -52,7 +52,6 @@ void ExaNewtonSolver::Mult(const Vector &b, Vector &x) const
    }
 
    oper->Mult(x, r);
-   //   r = 1.0;
    if (have_b)
    {
       r -= b;
@@ -61,6 +60,9 @@ void ExaNewtonSolver::Mult(const Vector &b, Vector &x) const
    norm0 = norm = Norm(r);
    //Set the value for the norm that we'll exit on
    norm_max = rel_tol*norm;//std::max(rel_tol*norm, abs_tol);
+
+   printf("Max norm %lf\n", norm_max);
+   printf("Relative Norm %lf\n", rel_tol);
    
    prec->iterative_mode = false;
 
@@ -106,6 +108,7 @@ void ExaNewtonSolver::Mult(const Vector &b, Vector &x) const
       
       add(x, -c_scale, c, x); // full update to the current config
                               // ExaConstit (srw)
+      
       //We now get our new residual
       oper->Mult(x, r);
       if (have_b)
@@ -117,11 +120,11 @@ void ExaNewtonSolver::Mult(const Vector &b, Vector &x) const
       norm = Norm(r);
       //fix_me...
       //way to test the umat
-      //      norm = 1e-14;
+      //norm = 1e-14;
    }
 
    final_iter = it;
    final_norm = norm;
 }
-
+  
 }

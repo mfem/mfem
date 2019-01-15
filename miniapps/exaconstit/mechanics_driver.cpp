@@ -3,8 +3,10 @@
 //   ExaConstit App for AM Constitutive Properties Applications
 //   Author: Steven R. Wopschall
 //           wopschall1@llnl.gov
-//   Date: August 6, 2017
-//   Updated: October 4, 2018
+//           Robert A. Carson
+//           carson16@llnl.gov
+//   Date: Aug. 6, 2017
+//   Updated: Jan. 15, 2019
 //
 //   Description: The purpose of this code app is to determine bulk 
 //                constitutive properties for 3D printed metal alloys. 
@@ -27,25 +29,13 @@
 //                To run this code, run the bash script mechanics.bash, found 
 //                in the ExaConstit directory. This script contains notes regarding 
 //                application of Dirichlet boundary conditions and has the command 
-//                line input for an isochoric compression problem on a 4x4x4 
+//                line input for an isochoric compression problem on a 1x1x1
 //                3D brick.
-//
-//                DEBUG COMMENT
-//                ////////////////////////////////////////////////////////////////////
-//                RC, at this point the input in mechanics.bash is exactly what we 
-//                want to test and debug the hyperelastic problem and test through 
-//                "dummy" use the quadrature functions. Further down in this file, 
-//                you can see all of the various input arguments, which will handle 
-//                the full CP problem (with some testing). You can also see how many 
-//                of the inputs are initialized, which is subject to change as we 
-//                proceed. (SRW)
-//                ////////////////////////////////////////////////////////////////////
 //
 //                where "np" is number of processors, the mesh is a 
 //                simple cube mesh containing 8 elements, "tf" is the 
-//                final simulation time, and dt is the timestep. Keep 
-//                the time step >= 0.2. This has to do with how the 
-//                nonzero Dirichlet BCs are applied.
+//                final simulation time, and dt is the timestep.
+//                This has to do with how the nonzero Dirichlet BCs are applied.
 //
 //                Remark:
 //                In principle, the mesh may be refined automatically, but 
@@ -56,19 +46,6 @@
 //                command line "-o #" where "#" is the interpolation 
 //                order (e.g. -o 2 for quadratic elements).
 //
-//                The mesh configuration is output for each time step
-//                in mesh files (e.g. mesh.000001_1), which is per 
-//                timestep, per processor. Visualization is using 
-//                glvis. Currently I have not experimented with parallel 
-//                mesh generation, so testing and debugging using glvis 
-//                has been done in serial. An example call to glvis is
-//                as follows
-//
-//                glvs -m mesh.000001_1
-//
-//                Lastly, if modifications are made to this file, one 
-//                must type "make" in the command line to compile the 
-//                code. 
 //
 //                Note: the grain.txt, props.txt and state.txt files are 
 //                expected inputs for CP problems, specifically ones that 
@@ -100,8 +77,8 @@ protected:
    double time;
    double dt;
 public:
-   double GetTime() { return time; }
-   double GetDTime() { return dt; }
+   double GetTime() const { return time; }
+   double GetDTime() const { return dt; }
 
    void SetTime(double t) { time = t; }
    void SetDt(double dtime) { dt = dtime; }
@@ -1072,12 +1049,35 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
    model->setVonMisesPtr(&q_vonMises);
 
    if (gmres) {
-      //There are potential issues here with the preconditioner that we're using
-      //we'll need to look into this
-      //fix_me
+      
       HypreBoomerAMG *prec_amg = new HypreBoomerAMG();
+      HYPRE_Solver h_amg = (HYPRE_Solver) *prec_amg;
+      HYPRE_Real st_val = 0.90;
+      HYPRE_Real rt_val = -10.0;
+      HYPRE_Real om_val = 1.0;
+//      HypreBoomerAMG *prec_amg = new HypreBoomerAMG();
+      //
+      int ml = HYPRE_BoomerAMGSetMaxLevels(h_amg, 30);
+      int ct = HYPRE_BoomerAMGSetCoarsenType(h_amg, 0);
+      int mt = HYPRE_BoomerAMGSetMeasureType(h_amg, 0);
+      int st = HYPRE_BoomerAMGSetStrongThreshold(h_amg, st_val);
+      int ns = HYPRE_BoomerAMGSetNumSweeps(h_amg, 3);
+      int rt = HYPRE_BoomerAMGSetRelaxType(h_amg, 6);
+      int rwt = HYPRE_BoomerAMGSetRelaxWt(h_amg, rt_val);
+      int ro = HYPRE_BoomerAMGSetOuterWt(h_amg, om_val);
+      //Dimensionality of our problem
+      int ss = HYPRE_BoomerAMGSetNumFunctions(h_amg, 3);
+      int smt = HYPRE_BoomerAMGSetSmoothType(h_amg, 3);
+      int snl = HYPRE_BoomerAMGSetSmoothNumLevels(h_amg, 3);
+      int sns = HYPRE_BoomerAMGSetSmoothNumSweeps(h_amg, 3);
+      int sv = HYPRE_BoomerAMGSetVariant(h_amg, 0);
+      int so = HYPRE_BoomerAMGSetOverlap(h_amg, 0);
+      int sdt = HYPRE_BoomerAMGSetDomainType(h_amg, 1);
+      int srw = HYPRE_BoomerAMGSetSchwarzRlxWeight(h_amg, rt_val);
+      
       prec_amg->SetPrintLevel(0);
-      prec_amg->SetElasticityOptions(&fe_space);
+
+//      prec_amg->SetElasticityOptions(&fe_space);
       J_prec = prec_amg;
 
       GMRESSolver *J_gmres = new GMRESSolver(fe_space.GetComm());
@@ -1085,34 +1085,55 @@ NonlinearMechOperator::NonlinearMechOperator(ParFiniteElementSpace &fes,
       //but they should eventually be moved back to being set by the options
 //      J_gmres->iterative_mode = false;
       //The relative tolerance should be at this point or smaller
-      J_gmres->SetRelTol(1e-10);
+      J_gmres->SetRelTol(1e-12);
       //The absolute tolerance could probably get even smaller then this
-      J_gmres->SetAbsTol(1e-14);
-      J_gmres->SetMaxIter(500);
-      J_gmres->SetPrintLevel(0);
+      J_gmres->SetAbsTol(1e-40);
+      J_gmres->SetMaxIter(5000);
+      J_gmres->SetPrintLevel(1);
       J_gmres->SetPreconditioner(*J_prec);
-      J_solver = J_gmres; 
+      J_solver = J_gmres;
 
    }else if (pcg){
-     //Same issue as above the preconditioner appears that it might be bad
-     //need to look into appropriate ones to use
-     //fix_me
-     HypreBoomerAMG *prec_amg = new HypreBoomerAMG();
-     prec_amg->SetPrintLevel(0);
-     prec_amg->SetElasticityOptions(&fe_space);
-     J_prec = prec_amg;
 
-     CGSolver *J_pcg = new CGSolver(fe_space.GetComm());
-     //These tolerances are currently hard coded while things are being debugged
-     //but they should eventually be moved back to being set by the options
-     //The relative tolerance should be at this point or smaller
-     J_pcg->SetRelTol(1e-10);
-     //The absolute tolerance could probably get even smaller then this
-     J_pcg->SetAbsTol(1e-14);
-     J_pcg->SetMaxIter(500);
-     J_pcg->SetPrintLevel(0);
-     J_pcg->SetPreconditioner(*J_prec);
-     J_solver = J_pcg;
+      HypreBoomerAMG *prec_amg = new HypreBoomerAMG();
+      HYPRE_Solver h_amg = (HYPRE_Solver) *prec_amg;
+      HYPRE_Real st_val = 0.90;
+      HYPRE_Real rt_val = -10.0;
+      HYPRE_Real om_val = 1.0;
+//      HypreBoomerAMG *prec_amg = new HypreBoomerAMG();
+      //
+      int ml = HYPRE_BoomerAMGSetMaxLevels(h_amg, 30);
+      int ct = HYPRE_BoomerAMGSetCoarsenType(h_amg, 0);
+      int mt = HYPRE_BoomerAMGSetMeasureType(h_amg, 0);
+      int st = HYPRE_BoomerAMGSetStrongThreshold(h_amg, st_val);
+      int ns = HYPRE_BoomerAMGSetNumSweeps(h_amg, 3);
+      int rt = HYPRE_BoomerAMGSetRelaxType(h_amg, 6);
+      int rwt = HYPRE_BoomerAMGSetRelaxWt(h_amg, rt_val);
+      int ro = HYPRE_BoomerAMGSetOuterWt(h_amg, om_val);
+      //Dimensionality of our problem
+      int ss = HYPRE_BoomerAMGSetNumFunctions(h_amg, 3);
+      int smt = HYPRE_BoomerAMGSetSmoothType(h_amg, 3);
+      int snl = HYPRE_BoomerAMGSetSmoothNumLevels(h_amg, 3);
+      int sns = HYPRE_BoomerAMGSetSmoothNumSweeps(h_amg, 3);
+      int sv = HYPRE_BoomerAMGSetVariant(h_amg, 0);
+      int so = HYPRE_BoomerAMGSetOverlap(h_amg, 0);
+      int sdt = HYPRE_BoomerAMGSetDomainType(h_amg, 1);
+      int srw = HYPRE_BoomerAMGSetSchwarzRlxWeight(h_amg, rt_val);
+
+      prec_amg->SetPrintLevel(0);
+      J_prec = prec_amg;
+
+      CGSolver *J_pcg = new CGSolver(fe_space.GetComm());
+      //These tolerances are currently hard coded while things are being debugged
+      //but they should eventually be moved back to being set by the options
+      //The relative tolerance should be at this point or smaller
+      J_pcg->SetRelTol(1e-12);
+      //The absolute tolerance could probably get even smaller then this
+      J_pcg->SetAbsTol(1e-40);
+      J_pcg->SetMaxIter(5000);
+      J_pcg->SetPrintLevel(1);
+      J_pcg->SetPreconditioner(*J_prec);
+      J_solver = J_pcg;
 
    }//The SuperLU capabilities were gotten rid of due to the size of our systems
    //no longer making it a viable option to keep 1e6+ dof systems

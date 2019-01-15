@@ -43,13 +43,14 @@ public:
    /// Solve the nonlinear system with right-hand side @a b.
    /** If `b.Size() != Height()`, then @a b is assumed to be zero. */
    virtual void Mult(const Vector &b, Vector &x) const;
-
+  
    /** @brief This method can be overloaded in derived classes to implement line
        search algorithms. */
    /** The base class implementation (NewtonSolver) simply returns 1. A return
        value of 0 indicates a failure, interrupting the Newton iteration. */
    virtual double ComputeScalingFactor(const Vector &x, const Vector &b) const
    { return 1.0; }
+  
 };
 
 }
