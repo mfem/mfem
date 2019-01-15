@@ -534,6 +534,16 @@ public:
                      const IntegrationRule &ir);
 };
 
+/// VectorCoefficient which computes unit normal vector on the mesh boundary
+class UnitNormalCoefficient : public VectorCoefficient
+{
+public:
+   UnitNormalCoefficient(int dim) : VectorCoefficient(dim) {}
+
+   virtual void Eval(Vector &V, ElementTransformation &T,
+                     const IntegrationPoint &ip);
+};
+
 
 class MatrixCoefficient
 {

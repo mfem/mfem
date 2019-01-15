@@ -277,6 +277,22 @@ void VectorRestrictedCoefficient::Eval(
    }
 }
 
+void UnitNormalCoefficient::Eval(Vector &V, ElementTransformation &T,
+				 const IntegrationPoint &ip)
+{
+   V.SetSize(vdim);
+   V = 0.0;
+
+   const DenseMatrix & J = T.Jacobian();
+   if (J.Width() == J.Height() - 1)
+   {
+      CalcOrtho(J, V);
+      double norm = V.Norml2();
+      MFEM_ASSERT(norm > 0.0, "Length of normal vector is non-positive!");
+      V /= norm;
+   }
+}
+
 void MatrixFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
                                      const IntegrationPoint &ip)
 {
