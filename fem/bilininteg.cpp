@@ -22,7 +22,6 @@ namespace mfem
 // *****************************************************************************
 PADiffusionIntegrator::~PADiffusionIntegrator()
 {
-   assert(diffusion);
    delete diffusion;
 }
 
@@ -30,7 +29,7 @@ PADiffusionIntegrator::~PADiffusionIntegrator()
 void PADiffusionIntegrator::Setup(const FiniteElementSpace *fes,
                                   const IntegrationRule *ir)
 {
-   assert(!diffusion);
+   assert(diffusion==NULL);
    diffusion = new KDiffusionIntegrator(fes,ir);
 }
 

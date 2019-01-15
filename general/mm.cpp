@@ -125,18 +125,6 @@ void *mm::Erase(void *ptr)
 }
 
 // *****************************************************************************
-// * Flush all remaining allocation through the MM, like some static ones
-// *****************************************************************************
-mm::ledger::~ledger()
-{
-   if (!config::usingMM()) { return; }
-   for (std::pair<const void* const, memory> mem: memories)
-   {
-      mm::MM().Erase((void*)mem.first);
-   }
-}
-
-// *****************************************************************************
 static void* PtrKnown(mm::ledger &maps, void *ptr)
 {
    mm::memory &base = maps.memories.at(ptr);

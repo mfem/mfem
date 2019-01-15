@@ -21,7 +21,6 @@ namespace mfem
 KDiffusionIntegrator::KDiffusionIntegrator(const FiniteElementSpace *f,
                                            const IntegrationRule *i)
    :vec(),
-    geo(NULL),
     maps(NULL),
     fes(f),
     ir(i) {assert(i); assert(fes);}
@@ -30,7 +29,6 @@ KDiffusionIntegrator::KDiffusionIntegrator(const FiniteElementSpace *f,
 KDiffusionIntegrator::~KDiffusionIntegrator()
 {
    delete maps;
-   delete geo;
 }
 
 // *****************************************************************************
@@ -47,7 +45,7 @@ void KDiffusionIntegrator::Assemble()
    const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
    const int size = symmDims * quadraturePoints * elements;
    vec.SetSize(size);
-   geo = kGeometry::Get(*fes, *ir);
+   const kGeometry *geo = kGeometry::Get(*fes, *ir);
    maps = kDofQuadMaps::Get(*fes, *fes, *ir);
    kIntDiffusionAssemble(dim,
                          quad1D,
@@ -56,6 +54,7 @@ void KDiffusionIntegrator::Assemble()
                          geo->J,
                          1.0,//COEFF
                          vec);
+   delete geo;
 }
 
 // *****************************************************************************
