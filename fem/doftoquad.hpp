@@ -30,7 +30,6 @@ public:
    karray<double, false> quadToDof, quadToDofD; // B^T
    karray<double> quadWeights;
 public:
-   ~kDofQuadMaps();
    static void delkDofQuadMaps();
    static kDofQuadMaps* Get(const mfem::FiniteElementSpace&,
                             const mfem::IntegrationRule&,

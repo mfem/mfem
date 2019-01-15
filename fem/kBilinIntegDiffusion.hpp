@@ -18,14 +18,11 @@
 namespace mfem
 {
 
-class kGeometry;
-
 // *****************************************************************************
 class KDiffusionIntegrator
 {
 private:
    Vector vec;
-   kGeometry *geo;
    kDofQuadMaps *maps;
    const FiniteElementSpace *fes;
    const IntegrationRule *ir;

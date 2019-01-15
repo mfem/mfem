@@ -27,13 +27,6 @@ namespace mfem
 // ***************************************************************************
 static std::map<std::string, kDofQuadMaps* > AllDofQuadMaps;
 
-// ***************************************************************************
-kDofQuadMaps::~kDofQuadMaps()
-{
-   //assert(AllDofQuadMaps.at(hash));
-   //AllDofQuadMaps.erase(hash);
-}
-
 // *****************************************************************************
 kDofQuadMaps* kDofQuadMaps::Get(const FiniteElementSpace& fes,
                                 const IntegrationRule& ir,
