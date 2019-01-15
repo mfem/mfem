@@ -59,7 +59,8 @@ public:
    typedef std::unordered_map<const void*, memory> memory_map;
    typedef std::unordered_map<const void*, const alias*> alias_map;
 
-   struct ledger {
+   struct ledger
+   {
       memory_map memories;
       alias_map aliases;
    };

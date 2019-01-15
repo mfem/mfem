@@ -46,6 +46,7 @@ class BilinearPAFormIntegrator : public AbstractBilinearFormIntegrator
 public:
    BilinearPAFormIntegrator(const IntegrationRule *ir = NULL) :
       AbstractBilinearFormIntegrator(ir) { }
+   virtual ~BilinearPAFormIntegrator() { }
    virtual void Setup(const FiniteElementSpace*, const IntegrationRule*) {assert(false);}
    virtual void Assemble() {assert(false);}
    virtual void MultAdd(Vector&, Vector&) {assert(false);}
@@ -66,6 +67,7 @@ private:
 public:
    PADiffusionIntegrator (Coefficient &q) : BilinearPAFormIntegrator(), Q(&q),
       diffusion(NULL) {}
+   ~PADiffusionIntegrator();
    void Setup(const FiniteElementSpace*, const IntegrationRule*);
    void Assemble();
    void MultAdd(Vector&, Vector&);

@@ -26,7 +26,6 @@ namespace mfem
 class kGeometry
 {
 public:
-   ~kGeometry();
    karray<int> eMap;
    karray<double> meshNodes;
    karray<double> J, invJ, detJ;

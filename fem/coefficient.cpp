@@ -104,7 +104,7 @@ void VectorCoefficient::Eval(DenseMatrix &M, ElementTransformation &T,
 void VectorFunctionCoefficient::Eval(Vector &V, ElementTransformation &T,
                                      const IntegrationPoint &ip)
 {
-   static double *x = mm::malloc<double>(3);
+   double x[3];
    Vector transip(x, 3);
 
    T.Transform(ip, transip);

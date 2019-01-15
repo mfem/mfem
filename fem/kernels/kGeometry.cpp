@@ -108,19 +108,6 @@ void kGeom(const int DIM,
 // *****************************************************************************
 static kGeometry *geom = NULL;
 
-// ***************************************************************************
-// * ~ kGeometry
-// ***************************************************************************
-kGeometry::~kGeometry()
-{
-   free(geom->meshNodes);
-   free(geom->J);
-   free(geom->invJ);
-   free(geom->detJ);
-   delete[] geom;
-}
-
-
 // *****************************************************************************
 static void kGeomFill(const int dims,
                       const size_t elements, const size_t numDofs,
@@ -201,6 +188,7 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
    kGeom(dims, numDofs, numQuad, elements,
          maps->dofToQuadD,
          geom->meshNodes, geom->J, geom->invJ, geom->detJ);
+   delete maps;
    return geom;
 }
 
@@ -256,6 +244,7 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
    const kDofQuadMaps* maps = kDofQuadMaps::GetSimplexMaps(*fe, ir);
    kGeom(dims, numDofs, numQuad, elements, maps->dofToQuadD,
          geom->meshNodes, geom->J, geom->invJ, geom->detJ);
+   delete maps;
    return geom;
 }
 
