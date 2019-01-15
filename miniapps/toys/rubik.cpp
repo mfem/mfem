@@ -111,6 +111,8 @@ void flip_edges(Mesh & mesh, GridFunction & color, socketstream & sock,
 
 void solve_top(Mesh & mesh, GridFunction & color, socketstream & sock);
 
+void solve_mid(Mesh & mesh, GridFunction & color, socketstream & sock);
+
 void solve(Mesh & mesh, GridFunction & color, socketstream & sock);
 
 int main(int argc, char *argv[])
@@ -248,6 +250,10 @@ int main(int argc, char *argv[])
          else if ( dir == 'T' )
          {
             solve_top(mesh, color, sock);
+         }
+         else if ( dir == 'M' )
+         {
+            solve_mid(mesh, color, sock);
          }
          else if ( dir == 's' )
          {
@@ -1831,6 +1837,536 @@ solve_top_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
 }
 
 void
+solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
+{
+   if (logging_ > 1)
+   {
+      cout << "Entering solve_mid_edges" << endl;
+   }
+   if (logging_ > 2)
+   {
+      print_state(cout);
+   }
+
+   // Locate eighth edge
+   int i8 = locate_edge(8);
+   if (logging_ > 1)
+   {
+      cout << "Location of 8-th edge: " << max(i8,-1-i8)
+           << " with orientation " << (i8 >= 0) << endl;
+   }
+   if ((i8 >= 4 && i8 < 8) || (i8 >= -8 && i8 < -4))
+   {
+      cout << "Moving edges from top tier to middle tier is not supported."
+           << endl;
+   }
+   else if (i8 >= 0 && i8 != 8)
+   {
+      switch (i8)
+      {
+         case 0: // Valid
+            anim_move('z', 1, 2, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            anim_move('x', 1, 1, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            break;
+         case 1: // Valid
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            anim_move('x', 1, 1, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            break;
+         case 2: // Valid
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('x', 1, 1, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            anim_move('x', 1, 1, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            break;
+         case 3: // Valid
+            anim_move('z', 1, 2, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('x', 1, 1, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            anim_move('x', 1, 1, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            break;
+         case 9:
+            break;
+         case 10: // Valid
+            anim_move('z', 2, 1, mesh, color, sock);
+            anim_move('y', 1, 2, mesh, color, sock);
+            anim_move('z', 2, 3, mesh, color, sock);
+            anim_move('y', 1, 2, mesh, color, sock);
+            break;
+         case 11:
+            break;
+      }
+   }
+   else if (i8 >= -12)
+   {
+      switch (-1-i8)
+      {
+         case 0: // Valid
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('x', 1, 1, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            anim_move('x', 1, 1, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            break;
+         case 1: // Valid
+            anim_move('x', 1, 3, mesh, color, sock);
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('x', 1, 1, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            anim_move('x', 1, 1, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            break;
+         case 2: // Valid
+            anim_move('y', 1, 1, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            anim_move('x', 1, 1, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            break;
+         case 3: // Valid
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            anim_move('x', 1, 1, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            break;
+         case 8: // Valid
+            anim_move('y', 1, 1, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            anim_move('x', 1, 1, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            anim_move('x', 1, 1, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            break;
+         case 9: // Valid
+            anim_move('y', 1, 2, mesh, color, sock);
+            anim_move('z', 1, 2, mesh, color, sock);
+            anim_move('y', 1, 2, mesh, color, sock);
+            anim_move('z', 1, 2, mesh, color, sock);
+            anim_move('y', 1, 2, mesh, color, sock);
+            break;
+         case 10:
+            break;
+         case 11: // Valid
+            anim_move('z', 2, 1, mesh, color, sock);
+            anim_move('x', 1, 2, mesh, color, sock);
+            anim_move('z', 2, 3, mesh, color, sock);
+            anim_move('x', 1, 2, mesh, color, sock);
+            break;
+      }
+   }
+
+   // Locate ninth edge
+   int i9 = locate_edge(9);
+   if (logging_ > 1)
+   {
+      cout << "Location of 9-th edge: " << max(i9,-1-i9)
+           << " with orientation " << (i9 >= 0) << endl;
+   }
+   if ((i9 >= 4 && i9 < 8) || (i9 >= -8 && i9 < -4))
+   {
+      cout << "Moving edges from top tier to middle tier is not supported."
+           << endl;
+   }
+   else if (i9 >= 0 && i9 != 9)
+   {
+      switch (i9)
+      {
+         case 0: // Valid
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            break;
+         case 1: // Valid
+            anim_move('z', 1, 2, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            break;
+         case 2: // Valid
+            anim_move('y', 1, 3, mesh, color, sock);
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            break;
+         case 3: // Valid
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            break;
+         case 10:
+            break;
+         case 11:
+            break;
+      }
+   }
+   else if (i9 >= -12)
+   {
+      switch (-1-i9)
+      {
+         case 0: // Valid
+            anim_move('z', 1, 2, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            break;
+         case 1: // Valid
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            break;
+         case 2: // Valid
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            break;
+         case 3: // Valid
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            break;
+         case 9: // Valid
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            break;
+         case 10:
+            break;
+         case 11:
+            break;
+      }
+   }
+
+   // Locate tenth edge
+   int i10 = locate_edge(10);
+   if (logging_ > 1)
+   {
+      cout << "Location of 10-th edge: " << max(i10,-1-i10)
+           << " with orientation " << (i10 >= 0) << endl;
+   }
+   if ((i10 >= 4 && i10 < 8) || (i10 >= -8 && i10 < -4))
+   {
+      cout << "Moving edges from top tier to middle tier is not supported."
+           << endl;
+   }
+   else if (i10 >= 0 && i10 != 10)
+   {
+      switch (i10)
+      {
+         case 0: // Valid
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            break;
+         case 1: // Valid
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            break;
+         case 2: // Valid
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            break;
+         case 3: // Valid
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            break;
+         case 11:
+            break;
+      }
+   }
+   else if (i10 >= -12)
+   {
+      switch (-1-i10)
+      {
+         case 0: // Valid
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            break;
+         case 1: // Valid
+            anim_move('z', 1, 2, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            break;
+         case 2: // Valid
+            anim_move('z', 1, 2, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            break;
+         case 3: // Valid
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            break;
+         case 10: // Valid
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('x', 3, 3, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('x', 3, 1, mesh, color, sock);
+            break;
+         case 11:
+            break;
+      }
+   }
+
+   // Locate eleventh edge
+   int i11 = locate_edge(11);
+   if (logging_ > 1)
+   {
+      cout << "Location of 11-th edge: " << max(i11,-1-i11)
+           << " with orientation " << (i11 >= 0) << endl;
+   }
+   if ((i11 >= 4 && i11 < 8) || (i11 >= -8 && i11 < -4))
+   {
+      cout << "Moving edges from top tier to middle tier is not supported."
+           << endl;
+   }
+   else if (i11 >= 0 && i11 != 11)
+   {
+      switch (i11)
+      {
+         case 0: // Valid
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('x', 1, 1, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('x', 1, 1, mesh, color, sock);
+            break;
+         case 1: // Valid
+            anim_move('x', 1, 1, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('x', 1, 1, mesh, color, sock);
+            break;
+         case 2: // Valid
+            anim_move('z', 1, 2, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('x', 1, 1, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            break;
+         case 3: // Valid
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('x', 1, 1, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            break;
+      }
+   }
+   else if (i11 >= -12)
+   {
+      switch (-1-i11)
+      {
+         case 0: // Valid
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('x', 1, 1, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            break;
+         case 1: // Valid
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('x', 1, 1, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            break;
+         case 2: // Valid
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('x', 1, 1, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('x', 1, 1, mesh, color, sock);
+            break;
+         case 3: // Valid
+            anim_move('z', 1, 2, mesh, color, sock);
+            anim_move('x', 1, 1, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('x', 1, 1, mesh, color, sock);
+            break;
+         case 11: // Valid
+            anim_move('x', 1, 1, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('x', 1, 1, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('x', 1, 1, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('x', 1, 3, mesh, color, sock);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('x', 1, 1, mesh, color, sock);
+            break;
+      }
+   }
+}
+
+void
 swap_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
              int * c0, int * c1)
 {
@@ -3358,6 +3894,22 @@ solve_top(Mesh & mesh, GridFunction & color, socketstream & sock)
    solve_top_corners(mesh, color, sock);
    */
    cout << "Move count: " << count_ << endl;
+}
+
+void
+solve_mid(Mesh & mesh, GridFunction & color, socketstream & sock)
+{
+   count_ = 0;
+   if (logging_ > 0)
+   {
+      cout << "Solving center blocks in the middle tier..." << endl;
+   }
+   solve_centers(mesh, color, sock);
+   if (logging_ > 0)
+   {
+      cout << "Solving edge blocks in the middle tier..." << endl;
+   }
+   solve_mid_edges(mesh, color, sock);
 }
 
 void
