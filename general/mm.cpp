@@ -73,7 +73,7 @@ static bool Alias(mm::ledger &maps, const void *ptr)
 
 // *****************************************************************************
 // __attribute__((unused)) // VS doesn't like this in Appveyor
-/*static void debugMode(void)
+static void debugMode(void)
 {
    dbg("\033[1K\r%sMM %sHasBeenEnabled %sEnabled %sDisabled \
 %sCPU %sGPU %sPA %sCUDA %sOCCA",
@@ -86,15 +86,15 @@ static bool Alias(mm::ledger &maps, const void *ptr)
        config::usingPA()?"\033[32m":"\033[31m",
        config::usingCuda()?"\033[32m":"\033[31m",
        config::usingOcca()?"\033[32m":"\033[31m");
-       }*/
+}
 
 // *****************************************************************************
 // * Adds an address
 // *****************************************************************************
 void* mm::Insert(void *ptr, const size_t bytes)
 {
-   if (!config::usingMM()) { dbg("!MM"); return ptr; }
-   if (config::gpuDisabled()) { dbg("!GPU"); return ptr; }
+   if (!config::usingMM()) { return ptr; }
+   if (config::gpuDisabled()) { return ptr; }
    const bool known = Known(maps, ptr);
    MFEM_ASSERT(!known, "Trying to add already present address!");
    dbg("\033[33m%p \033[35m(%ldb)", ptr, bytes);
@@ -127,9 +127,11 @@ void *mm::Erase(void *ptr)
 // *****************************************************************************
 // * Flush all remaining allocation through the MM, like some static ones
 // *****************************************************************************
-mm::ledger::~ledger(){
+mm::ledger::~ledger()
+{
    if (!config::usingMM()) { return; }
-   for(std::pair<const void* const, memory> mem: memories){
+   for (std::pair<const void* const, memory> mem: memories)
+   {
       mm::MM().Erase((void*)mem.first);
    }
 }
@@ -263,7 +265,8 @@ static void PushKnown(mm::ledger &maps, const void *ptr, const size_t bytes)
 }
 
 // *****************************************************************************
-static void PushAlias(const mm::ledger &maps, const void *ptr, const size_t bytes)
+static void PushAlias(const mm::ledger &maps, const void *ptr,
+                      const size_t bytes)
 {
    const mm::alias *alias = maps.aliases.at(ptr);
    cuMemcpyHtoD((char*)alias->mem->d_ptr + alias->offset, ptr, bytes);
@@ -285,14 +288,16 @@ void mm::Push(const void *ptr, const size_t bytes)
 }
 
 // *****************************************************************************
-static void PullKnown(const mm::ledger &maps, const void *ptr, const size_t bytes)
+static void PullKnown(const mm::ledger &maps, const void *ptr,
+                      const size_t bytes)
 {
    const mm::memory &base = maps.memories.at(ptr);
    cuMemcpyDtoH(base.h_ptr, base.d_ptr, bytes == 0 ? base.bytes : bytes);
 }
 
 // *****************************************************************************
-static void PullAlias(const mm::ledger &maps, const void *ptr, const size_t bytes)
+static void PullAlias(const mm::ledger &maps, const void *ptr,
+                      const size_t bytes)
 {
    const mm::alias *alias = maps.aliases.at(ptr);
    cuMemcpyDtoH((void *)ptr, (char*)alias->mem->d_ptr + alias->offset, bytes);
@@ -315,10 +320,9 @@ void mm::Pull(const void *ptr, const size_t bytes)
 
 // *****************************************************************************
 // __attribute__((unused)) // VS doesn't like this in Appveyor
-void mm::Dump()
+static void Dump(const mm::ledger &maps)
 {
    if (!getenv("DBG")) { return; }
-   const mm::ledger &maps = MM().maps;
    const mm::memory_map &mem = maps.memories;
    const mm::alias_map  &als = maps.aliases;
    size_t k = 0;
@@ -347,7 +351,7 @@ void mm::Dump()
       const size_t offset = a->second->offset;
       const void *base = a->second->mem->h_ptr;
       printf("\n[%ld] \033[33m%p < (\033[37m%ld) < \033[33m%p",
-             k , base, offset, ptr);
+             k, base, offset, ptr);
       fflush(0);
       k++;
    }
@@ -356,7 +360,8 @@ void mm::Dump()
 // *****************************************************************************
 // * Data will be pushed/pulled before the copy happens on the H or the D
 // *****************************************************************************
-static void* d2d(void *dst, const void *src, const size_t bytes, const bool async)
+static void* d2d(void *dst, const void *src, const size_t bytes,
+                 const bool async)
 {
    GET_PTR(src);
    GET_PTR(dst);
@@ -367,7 +372,8 @@ static void* d2d(void *dst, const void *src, const size_t bytes, const bool asyn
 }
 
 // *****************************************************************************
-void* mm::memcpy(void *dst, const void *src, const size_t bytes, const bool async)
+void* mm::memcpy(void *dst, const void *src, const size_t bytes,
+                 const bool async)
 {
    if (bytes == 0)
    {

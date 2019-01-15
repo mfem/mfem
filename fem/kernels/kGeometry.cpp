@@ -106,6 +106,15 @@ void kGeom(const int DIM,
 }
 
 // *****************************************************************************
+static kGeometry *geom = NULL;
+
+// ***************************************************************************
+// * ~ kGeometry
+// ***************************************************************************
+kGeometry::~kGeometry() { }
+
+
+// *****************************************************************************
 static void kGeomFill(const int dims,
                       const size_t elements, const size_t numDofs,
                       const int* elementMap, int* eMap,
@@ -165,17 +174,6 @@ static void rNodeCopyByVDim(const int elements,
    });
 }
 
-// *****************************************************************************
-static kGeometry *geom = NULL;
-
-// ***************************************************************************
-// * ~ kGeometry
-// ***************************************************************************
-kGeometry::~kGeometry() {
-   //assert(geom==NULL);
-   //delete geom;
-   geom = NULL;
-}
 
 // *****************************************************************************
 kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
@@ -191,8 +189,7 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
    const int numQuad  = ir.GetNPoints();
    const int elements = fespace->GetNE();
    const int ndofs    = fespace->GetNDofs();
-   kDofQuadMaps* maps = kDofQuadMaps::GetSimplexMaps(*fe, ir);
-   assert(geom);
+   const kDofQuadMaps* maps = kDofQuadMaps::GetSimplexMaps(*fe, ir);
    rNodeCopyByVDim(elements,numDofs,ndofs,dims,geom->eMap,Sx,geom->meshNodes);
    kGeom(dims, numDofs, numQuad, elements,
          maps->dofToQuadD,
@@ -250,7 +247,7 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
       geom->invJ.allocate(dims, dims, numQuad, elements);
       geom->detJ.allocate(numQuad, elements);
    }
-   kDofQuadMaps* maps = kDofQuadMaps::GetSimplexMaps(*fe, ir);
+   const kDofQuadMaps* maps = kDofQuadMaps::GetSimplexMaps(*fe, ir);
    kGeom(dims, numDofs, numQuad, elements, maps->dofToQuadD,
          geom->meshNodes, geom->J, geom->invJ, geom->detJ);
    delete maps;

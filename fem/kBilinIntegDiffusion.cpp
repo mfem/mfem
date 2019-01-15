@@ -27,7 +27,8 @@ KDiffusionIntegrator::KDiffusionIntegrator(const FiniteElementSpace *f,
     ir(i) {assert(i); assert(fes);}
 
 // *****************************************************************************
-KDiffusionIntegrator::~KDiffusionIntegrator(){
+KDiffusionIntegrator::~KDiffusionIntegrator()
+{
    delete maps;
    delete geo;
 }

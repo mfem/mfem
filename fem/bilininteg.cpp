@@ -20,7 +20,8 @@ using namespace std;
 namespace mfem
 {
 // *****************************************************************************
-PADiffusionIntegrator::~PADiffusionIntegrator(){
+PADiffusionIntegrator::~PADiffusionIntegrator()
+{
    assert(diffusion);
    delete diffusion;
 }
