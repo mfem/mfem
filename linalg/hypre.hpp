@@ -871,10 +871,16 @@ public:
        As with SetSystemsOptions(), this solver assumes Ordering::byVDIM. */
    void SetElasticityOptions(ParFiniteElementSpace *fespace);
 
-   void SetAIROptions(int distance=2,  std::string prerelax="",
+   void SetLAIROptions(int distance=2,  std::string prerelax="",
                       std::string postrelax="FFC", double strength_tol=0.1,
                       double strength_tolR=0.01,
-                      int interp_type=100, int relax_type=0, double filterA_tol=0.0, 
+                      int interp_type=100, int relax_type=3, double filterA_tol=0.0, 
+                      int splitting=6, int blksize=0, int Sabs=0);
+
+   void SetNAIROptions(int neumann_degree=5,  std::string prerelax="A",
+                      std::string postrelax="F", double strength_tol=0.1,
+                      double strength_tolR=0.01,
+                      int interp_type=100, int relax_type=10, double filterA_tol=0.0, 
                       int splitting=6, int blksize=0, int Sabs=0);
 
    void SetCoord(int dim, float *coord);

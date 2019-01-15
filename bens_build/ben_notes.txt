@@ -1,0 +1,10 @@
+To build, go to bens_build/
+	cmake ../ -DMFEM_USE_MPI=YES -DCMAKE_INSTALL_PREFIX=./
+should detect hypre, blas, etc., automatically
+	make
+	make install
+installs in bens_build
+
+To make examples, need to modify makefile in examples folder so that build directory is bens_build/, then copy bens_build/config/* to config/.
+This includes default.mk files that are appropriate for my laptop.
+
