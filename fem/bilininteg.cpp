@@ -20,10 +20,16 @@ using namespace std;
 namespace mfem
 {
 // *****************************************************************************
+PADiffusionIntegrator::~PADiffusionIntegrator(){
+   assert(diffusion);
+   delete diffusion;
+}
+
+// *****************************************************************************
 void PADiffusionIntegrator::Setup(const FiniteElementSpace *fes,
                                   const IntegrationRule *ir)
 {
-   assert(diffusion==NULL);
+   assert(!diffusion);
    diffusion = new KDiffusionIntegrator(fes,ir);
 }
 

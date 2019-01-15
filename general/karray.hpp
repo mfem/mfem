@@ -34,11 +34,13 @@ public:
    karray(const size_t x,const size_t y) {allocate(x,y);}
    karray(const karray<T,true> &r)
    {
+      assert(!data);
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
       mm::memcpy(data,r,r.bytes());
    }
    karray& operator=(const karray<T,true> &r)
    {
+      assert(!data);
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
       mm::memcpy(data,r,r.bytes());
       return *this;
@@ -57,6 +59,7 @@ public:
    {
       d[0]=X; d[1]=Y; d[2]=Z; d[3]=D;
       sz=d[0]*d[1]*d[2]*d[3];
+      assert(!data);
       data=(T*) mm::malloc<T>(sz);
    }
    inline bool isInitialized(void)const {return true;}
@@ -94,13 +97,15 @@ public:
    karray(const size_t d0) {allocate(d0);}
    karray(const karray<T,false> &r)
    {
+      assert(!data);
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
       mm::memcpy(data,r.GetData(),r.bytes());
    }
-   karray& operator=(const karray<T,true> &r)
+   karray& operator=(const karray<T,false> &r)
    {
+      assert(!data);
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
-      mm::memcpy(data,r.GetData(),r.bytes());
+      mm::memcpy(data,r,r.bytes());
       return *this;
    }
    ~karray() {mm::free<T> (data);}
@@ -118,6 +123,7 @@ public:
       d[0]=X; d[1]=Y; d[2]=Z; d[3]=D;
       sz=d[0]*d[1]*d[2]*d[3];
       assert(sz>0);
+      assert(!data);
       data=(T*) mm::malloc<T>(sz);
       if (transposed) { std::swap(d[0],d[1]); }
       for (size_t i=1,b=d[0]; i<DIM; std::swap(d[i],b),++i)

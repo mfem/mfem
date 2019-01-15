@@ -73,7 +73,7 @@ static bool Alias(mm::ledger &maps, const void *ptr)
 
 // *****************************************************************************
 // __attribute__((unused)) // VS doesn't like this in Appveyor
-static void debugMode(void)
+/*static void debugMode(void)
 {
    dbg("\033[1K\r%sMM %sHasBeenEnabled %sEnabled %sDisabled \
 %sCPU %sGPU %sPA %sCUDA %sOCCA",
@@ -86,15 +86,15 @@ static void debugMode(void)
        config::usingPA()?"\033[32m":"\033[31m",
        config::usingCuda()?"\033[32m":"\033[31m",
        config::usingOcca()?"\033[32m":"\033[31m");
-}
+       }*/
 
 // *****************************************************************************
 // * Adds an address
 // *****************************************************************************
 void* mm::Insert(void *ptr, const size_t bytes)
 {
-   if (!config::usingMM()) { return ptr; }
-   if (config::gpuDisabled()) { return ptr; }
+   if (!config::usingMM()) { dbg("!MM"); return ptr; }
+   if (config::gpuDisabled()) { dbg("!GPU"); return ptr; }
    const bool known = Known(maps, ptr);
    MFEM_ASSERT(!known, "Trying to add already present address!");
    dbg("\033[33m%p \033[35m(%ldb)", ptr, bytes);
@@ -122,6 +122,16 @@ void *mm::Erase(void *ptr)
    }
    maps.memories.erase(ptr);
    return ptr;
+}
+
+// *****************************************************************************
+// * Flush all remaining allocation through the MM, like some static ones
+// *****************************************************************************
+mm::ledger::~ledger(){
+   if (!config::usingMM()) { return; }
+   for(std::pair<const void* const, memory> mem: memories){
+      mm::MM().Erase((void*)mem.first);
+   }
 }
 
 // *****************************************************************************
@@ -305,9 +315,10 @@ void mm::Pull(const void *ptr, const size_t bytes)
 
 // *****************************************************************************
 // __attribute__((unused)) // VS doesn't like this in Appveyor
-static void Dump(const mm::ledger &maps)
+void mm::Dump()
 {
    if (!getenv("DBG")) { return; }
+   const mm::ledger &maps = MM().maps;
    const mm::memory_map &mem = maps.memories;
    const mm::alias_map  &als = maps.aliases;
    size_t k = 0;

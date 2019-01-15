@@ -27,6 +27,7 @@ class kGeometry
 {
 public:
    ~kGeometry();
+   void operator=(kGeometry const&);
    karray<int> eMap;
    karray<double> meshNodes;
    karray<double> J, invJ, detJ;
