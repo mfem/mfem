@@ -20,6 +20,12 @@ using namespace std;
 namespace mfem
 {
 // *****************************************************************************
+PADiffusionIntegrator::~PADiffusionIntegrator()
+{
+   delete diffusion;
+}
+
+// *****************************************************************************
 void PADiffusionIntegrator::Setup(const FiniteElementSpace *fes,
                                   const IntegrationRule *ir)
 {

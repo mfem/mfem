@@ -253,7 +253,8 @@ static void PushKnown(mm::ledger &maps, const void *ptr, const size_t bytes)
 }
 
 // *****************************************************************************
-static void PushAlias(const mm::ledger &maps, const void *ptr, const size_t bytes)
+static void PushAlias(const mm::ledger &maps, const void *ptr,
+                      const size_t bytes)
 {
    const mm::alias *alias = maps.aliases.at(ptr);
    cuMemcpyHtoD((char*)alias->mem->d_ptr + alias->offset, ptr, bytes);
@@ -275,14 +276,16 @@ void mm::Push(const void *ptr, const size_t bytes)
 }
 
 // *****************************************************************************
-static void PullKnown(const mm::ledger &maps, const void *ptr, const size_t bytes)
+static void PullKnown(const mm::ledger &maps, const void *ptr,
+                      const size_t bytes)
 {
    const mm::memory &base = maps.memories.at(ptr);
    cuMemcpyDtoH(base.h_ptr, base.d_ptr, bytes == 0 ? base.bytes : bytes);
 }
 
 // *****************************************************************************
-static void PullAlias(const mm::ledger &maps, const void *ptr, const size_t bytes)
+static void PullAlias(const mm::ledger &maps, const void *ptr,
+                      const size_t bytes)
 {
    const mm::alias *alias = maps.aliases.at(ptr);
    cuMemcpyDtoH((void *)ptr, (char*)alias->mem->d_ptr + alias->offset, bytes);
@@ -336,7 +339,7 @@ static void Dump(const mm::ledger &maps)
       const size_t offset = a->second->offset;
       const void *base = a->second->mem->h_ptr;
       printf("\n[%ld] \033[33m%p < (\033[37m%ld) < \033[33m%p",
-             k , base, offset, ptr);
+             k, base, offset, ptr);
       fflush(0);
       k++;
    }
@@ -345,7 +348,8 @@ static void Dump(const mm::ledger &maps)
 // *****************************************************************************
 // * Data will be pushed/pulled before the copy happens on the H or the D
 // *****************************************************************************
-static void* d2d(void *dst, const void *src, const size_t bytes, const bool async)
+static void* d2d(void *dst, const void *src, const size_t bytes,
+                 const bool async)
 {
    GET_PTR(src);
    GET_PTR(dst);
@@ -356,7 +360,8 @@ static void* d2d(void *dst, const void *src, const size_t bytes, const bool asyn
 }
 
 // *****************************************************************************
-void* mm::memcpy(void *dst, const void *src, const size_t bytes, const bool async)
+void* mm::memcpy(void *dst, const void *src, const size_t bytes,
+                 const bool async)
 {
    if (bytes == 0)
    {

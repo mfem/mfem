@@ -97,10 +97,10 @@ public:
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
       mm::memcpy(data,r.GetData(),r.bytes());
    }
-   karray& operator=(const karray<T,true> &r)
+   karray& operator=(const karray<T,false> &r)
    {
       allocate(r.d[0], r.d[1], r.d[2], r.d[3]);
-      mm::memcpy(data,r.GetData(),r.bytes());
+      mm::memcpy(data,r,r.bytes());
       return *this;
    }
    ~karray() {mm::free<T> (data);}

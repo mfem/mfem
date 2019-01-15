@@ -165,7 +165,8 @@ int main(int argc, char *argv[])
    BilinearForm *a = new BilinearForm(fespace, assembly, elem_batch);
 
    // These will be unified in methods of DiffusionIntegrator
-   if (pa) { a->AddDomainIntegrator(new PADiffusionIntegrator(one)); }
+   PADiffusionIntegrator *paDiffInteg;
+   if (pa) { a->AddDomainIntegrator(paDiffInteg = new PADiffusionIntegrator(one)); }
    else    { a->AddDomainIntegrator(new DiffusionIntegrator(one)); }
 
    // 10. Assemble the bilinear form and the corresponding linear system,
@@ -217,6 +218,7 @@ int main(int argc, char *argv[])
    }
 
    // 15. Free the used memory.
+   if (pa) { delete paDiffInteg; }
    delete A;
    delete a;
    delete b;
