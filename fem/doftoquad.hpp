@@ -26,12 +26,13 @@ class kDofQuadMaps
 private:
    std::string hash;
 public:
+   ~kDofQuadMaps();
+   void operator=(kDofQuadMaps&);
+   void operator=(kDofQuadMaps const&);
    karray<double, false> dofToQuad, dofToQuadD; // B
    karray<double, false> quadToDof, quadToDofD; // B^T
    karray<double> quadWeights;
 public:
-   ~kDofQuadMaps();
-   static void delkDofQuadMaps();
    static kDofQuadMaps* Get(const mfem::FiniteElementSpace&,
                             const mfem::IntegrationRule&,
                             const bool = false);

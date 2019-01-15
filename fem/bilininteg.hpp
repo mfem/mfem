@@ -28,7 +28,7 @@ class AbstractBilinearFormIntegrator : public NonlinearFormIntegrator
 public:
    AbstractBilinearFormIntegrator(const IntegrationRule *ir = NULL) :
       NonlinearFormIntegrator(ir) { }
-   virtual ~AbstractBilinearFormIntegrator() { }
+   //virtual ~AbstractBilinearFormIntegrator() =0;
    virtual void Setup(const FiniteElementSpace*, const IntegrationRule*) =0;
    virtual void Assemble() =0;
    virtual void MultAdd(Vector&, Vector&) =0;
@@ -46,6 +46,7 @@ class BilinearPAFormIntegrator : public AbstractBilinearFormIntegrator
 public:
    BilinearPAFormIntegrator(const IntegrationRule *ir = NULL) :
       AbstractBilinearFormIntegrator(ir) { }
+   virtual ~BilinearPAFormIntegrator() { }
    virtual void Setup(const FiniteElementSpace*, const IntegrationRule*) {assert(false);}
    virtual void Assemble() {assert(false);}
    virtual void MultAdd(Vector&, Vector&) {assert(false);}
@@ -66,13 +67,14 @@ private:
 public:
    PADiffusionIntegrator (Coefficient &q) : BilinearPAFormIntegrator(), Q(&q),
       diffusion(NULL) {}
-   void Setup(const FiniteElementSpace*, const IntegrationRule*);
-   void Assemble();
-   void MultAdd(Vector&, Vector&);
-   void MultTransposeAdd(Vector&, Vector&) {assert(false);}
-   void AssembleElementMatrix(const FiniteElement&,
-                              ElementTransformation&,
-                              DenseMatrix&) {assert(false);}
+   virtual ~PADiffusionIntegrator();
+   virtual void Setup(const FiniteElementSpace*, const IntegrationRule*);
+   virtual void Assemble();
+   virtual void MultAdd(Vector&, Vector&);
+   virtual void MultTransposeAdd(Vector&, Vector&) {assert(false);}
+   virtual void AssembleElementMatrix(const FiniteElement&,
+                                      ElementTransformation&,
+                                      DenseMatrix&) {assert(false);}
 };
 
 // *****************************************************************************

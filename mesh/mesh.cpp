@@ -5880,6 +5880,7 @@ void Mesh::UniformRefinement2D()
    sequence++;
 
    UpdateNodes();
+   mm::free<double>(quad_children);
 
 #ifdef MFEM_DEBUG
    CheckElementOrientation(false);
