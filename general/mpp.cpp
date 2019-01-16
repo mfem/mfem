@@ -129,22 +129,22 @@ int help(char* argv[]) {
 }
 
 // *****************************************************************************
-bool is_newline(const int ch) {
+static inline bool is_newline(const int ch) {
    return static_cast<unsigned char>(ch) == '\n';
 }
 
 // *****************************************************************************
-int get(context &pp) { return pp.in.get(); }
+static inline int get(context &pp) { return pp.in.get(); }
 
 // *****************************************************************************
-int put(const char c, context &pp) {
+static inline int put(const char c, context &pp) {
    if (is_newline(c)) pp.line++;
    pp.out.put(c);
    return c;
 }
 
 // *****************************************************************************
-int put(context &pp) { return put(get(pp),pp); }
+static inline int put(context &pp) { return put(get(pp),pp); }
 
 // *****************************************************************************
 void skip_space(context &pp, string &out) {
@@ -198,7 +198,7 @@ void comments(context &pp) {
 }
 
 // *****************************************************************************
-bool is_id(context &pp) {
+static inline bool is_id(context &pp) {
    const unsigned char c = pp.in.peek();
    return isalnum(c) or c == '_';
 }
@@ -265,12 +265,12 @@ string peekID(context &pp) {
 }
 
 // *****************************************************************************
-void drop_name(context &pp) {
+static inline void drop_name(context &pp) {
    while (is_id(pp)) get(pp);
 }
 
 // *****************************************************************************
-void drop_name(context &pp, string &out) {
+static inline void drop_name(context &pp, string &out) {
    while (is_id(pp)) out += get(pp);
 }
 
@@ -307,16 +307,18 @@ bool is_coma(context &pp) {
 }
 
 // *****************************************************************************
-void jitHeader(context &pp){
-   if (not pp.jit) return;
-   pp.out << "#include \"../../general/okrtc.hpp\"\n";
-}
-
-// *****************************************************************************
-void hashHeader(context &pp){
+static inline void hashHeader(context &pp){
    pp.out << "#include <cstddef>\n";
    pp.out << "#include <functional>\n";	
    pp.out << STRINGIFY(HASH_SRC) << "\n";
+}
+
+// *****************************************************************************
+// * JIT
+// *****************************************************************************
+void jitHeader(context &pp){
+   if (not pp.jit) return;
+   pp.out << "#include \"../../general/okrtc.hpp\"\n";
 }
 
 // *****************************************************************************
@@ -577,6 +579,20 @@ void __kernel(context &pp) {
 }
 
 // *****************************************************************************
+void __jit(context &pp){
+   // Skip "__jit"
+   pp.out << "   ";
+   skip_space(pp);
+   comments(pp);
+   pp.ker.jit = true;
+   string id = get_id(pp);
+   check(pp,id=="__kernel","No 'kernel' keyword after 'jit' qualifier");
+   __kernel(pp);
+}
+
+// *****************************************************************************
+// * Template generation
+// *****************************************************************************
 void __range(context &pp, argument &arg){
    char c;
    bool dash = false;
@@ -653,10 +669,10 @@ void get_targs(context &pp) {
       }else{
          pp.ker.tpl.template_parameters += (targs==0)?"":", ";
          pp.ker.tpl.template_parameters += "const " + arg.type + " " + arg.name;
-         pp.ker.tpl.template_parameters += "/*";
          pp.ker.tpl.ranges.push_back(arg.range);
-         for (int n : arg.range) { pp.ker.tpl.template_parameters += std::to_string(n) + " "; }
-         pp.ker.tpl.template_parameters += "*/";
+         //pp.ker.tpl.template_parameters += "/*";
+         //for (int n : arg.range) { pp.ker.tpl.template_parameters += std::to_string(n) + " "; }
+         //pp.ker.tpl.template_parameters += "*/";
          {
             pp.ker.tpl.template_args += (targs==0)?"":", ";
             pp.ker.tpl.template_args += arg.name;
@@ -682,10 +698,11 @@ void get_targs(context &pp) {
 // *****************************************************************************
 void __template(context &pp){
    pp.ker.T = true;
+   pp.ker.tpl = tpl_t();
    drop_space(pp);
    comments(pp);
    string id = get_id(pp);
-   check(pp,id=="__kernel","No 'kernel' keyword after 'jit' qualifier");
+   check(pp,id=="__kernel","No 'kernel' keyword after 'template' qualifier");
    check(pp,isvoid(pp) or isstatic(pp),"Templated kernel w/o void or static");
    if (isstatic(pp)) {
       pp.ker.tpl.return_type += get_id(pp);
@@ -725,7 +742,7 @@ void __template(context &pp){
 }
 
 // *****************************************************************************
-list<list<int> > cart_product(const list<list<int> > &v) {
+list<list<int> > outer_product(const list<list<int> > &v) {
     list<list<int> > s = {{}};
     for (const auto &u : v) {
         list<list<int> > r;
@@ -765,7 +782,7 @@ void tplPostfix(context &pp){
           << ");";
    pp.out << "\n\tstatic std::unordered_map<size_t, "
           << "__T" << pp.ker.name << "> call = {";
-   for (list<int> range : cart_product(pp.ker.tpl.ranges)) {
+   for (list<int> range : outer_product(pp.ker.tpl.ranges)) {
       pp.out << "\n\t\t{";
       int i=1;
       const int n = range.size();
@@ -785,19 +802,6 @@ void tplPostfix(context &pp){
    pp.out << pp.ker.tpl.std_args;
    pp.out << ");";
    pp.out << "\n}";
-}
-
-
-// *****************************************************************************
-void __jit(context &pp){
-   // Skip "__jit"
-   pp.out << "   ";
-   skip_space(pp);
-   comments(pp);
-   pp.ker.jit = true;
-   string id = get_id(pp);
-   check(pp,id=="__kernel","No 'kernel' keyword after 'jit' qualifier");
-   __kernel(pp);
 }
 
 // *****************************************************************************
