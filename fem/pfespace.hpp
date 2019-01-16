@@ -317,7 +317,7 @@ public:
                                      Array<int> &ess_tdof_list,
                                      int component = -1);
 
-   /** Get a list of essential true dofs corresponding to the boundary 
+   /** Get a list of essential true dofs corresponding to the boundary
        attributes marked in the array, bdr_attr_is_ess, only for the dofs
        specified in the component Array */
    virtual void GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,

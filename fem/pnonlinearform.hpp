@@ -57,7 +57,7 @@ public:
        the output essential dofs in @a y will always be set to zero.
        The input @a pmesh, @a end_crds @ beg_crds will be used to supply an element transformation
        at a beggining time step and then one at an end time step. The ParMesh initially has its
-       nodes set at the beggining time step nodes and are updated to the current configuration location 
+       nodes set at the beggining time step nodes and are updated to the current configuration location
        before being returned to the beggining time step.
        We're making sure the mesh returns to the same state we obtained it.
        Both the input and the output vectors, @a x and @a y, must be true-dof
@@ -65,9 +65,9 @@ public:
        The ParGridFunctions @a end_crds and @a beg_crds have virtual-dofs.*/
    virtual void Mult(const Vector &x, Vector &y, ParMesh* pmesh,
                      ParGridFunction* end_crds, ParGridFunction* beg_crds,
-		     const Vector &v) const;
+                     const Vector &v) const;
 
-  
+
    /// Return the local gradient matrix for the given true-dof vector x.
    /** The returned matrix does NOT have any boundary conditions imposed. */
    const SparseMatrix &GetLocalGradient(const Vector &x) const;

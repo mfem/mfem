@@ -48,7 +48,7 @@ public:
    //since UMATs require a velocity based solution vector,
    //However, they depend on a lot of variables based on displacements
    //to evolve their models. So, we need to be able to take
-   //derivatives using the beginning and the end time step mesh nodes. 
+   //derivatives using the beginning and the end time step mesh nodes.
    //The other models should be using the one above this
    virtual void AssembleElementVector(const FiniteElement &el,
                                       ElementTransformation &Ttr_beg,

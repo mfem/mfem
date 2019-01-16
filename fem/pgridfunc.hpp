@@ -205,9 +205,9 @@ public:
    using GridFunction::ProjectCoefficient;
    virtual void ProjectCoefficient(Coefficient &coeff);
 
-//   using GridFunction::ProjectBdrCoefficient;
-//   void ProjectBdrCoefficient(VectorFunctionCoefficient &vfcoeff, 
-//                              Array<int> &attr);
+   //   using GridFunction::ProjectBdrCoefficient;
+   //   void ProjectBdrCoefficient(VectorFunctionCoefficient &vfcoeff,
+   //                              Array<int> &attr);
 
    using GridFunction::ProjectDiscCoefficient;
    /** @brief Project a discontinuous vector coefficient as a grid function on

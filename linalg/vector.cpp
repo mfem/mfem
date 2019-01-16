@@ -270,7 +270,7 @@ void Vector::SetVector(const Vector &v, int offset, int sslen, int ssoffset)
       mfem_error("Vector::SetVector(const Vector &, int, int, int)");
    }
 
-   if (ssoffset+sslen > vs) 
+   if (ssoffset+sslen > vs)
    {
       mfem_error("Vector::SetVector(const Vector &, int, int, int)");
    }

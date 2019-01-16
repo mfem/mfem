@@ -285,7 +285,7 @@ protected:
 public:
    VectorCoefficient(int vd) { vdim = vd; time = 0.; }
 
-   // add constructor with no argument list (this is for the 
+   // add constructor with no argument list (this is for the
    // QuadratureVectorFunctionCoefficient extended class), srw
    VectorCoefficient() { vdim = 0; time = 0.; }
 
@@ -567,7 +567,7 @@ public:
    virtual ~VectorFunctionRestrictedCoefficient() { }
 
    int* GetActiveAttr() { return active_attr; }
-   
+
 };
 
 class MatrixCoefficient

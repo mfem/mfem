@@ -286,17 +286,17 @@ public:
        will not be touched. */
    virtual void ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr);
 
-   /** add ProjectBdrCoefficient() taking a VectorFunctionCoefficient and projecting 
+   /** add ProjectBdrCoefficient() taking a VectorFunctionCoefficient and projecting
        onto the grid function, srw. */
-   void ProjectBdrCoefficient(VectorFunctionCoefficient &vfcoeff, 
+   void ProjectBdrCoefficient(VectorFunctionCoefficient &vfcoeff,
                               Array<int> &attr);
 
    /** add ProjectBdrCoefficient() taking a VectorFunctionRestrictedCoefficient, srw
-       This is the same as the function above taking a VectorFunctionCoefficient, it 
-       is just that the function coefficient is now restricted. This function 
-       specifically projects values associated with ExaConstits essential BC 
-       management and input. This routine does not, at this time, project a 
-       VectorFunctionRestrictedCoefficient onto all grid function dofs. 
+       This is the same as the function above taking a VectorFunctionCoefficient, it
+       is just that the function coefficient is now restricted. This function
+       specifically projects values associated with ExaConstits essential BC
+       management and input. This routine does not, at this time, project a
+       VectorFunctionRestrictedCoefficient onto all grid function dofs.
        This function should be renamed to reflect this. */
    void ProjectBdrCoefficient(VectorFunctionRestrictedCoefficient &vfcoeff);
 
@@ -615,13 +615,13 @@ public:
        `i`-th vector component at the `j`-th quadrature point.
     */
    inline void GetElementValues(int idx, Vector &values) const;
-    
-    /// Return the quadrature function values at an integration point
-    /** The result is stored in the Vector @a values as a reference to the
-     global values.
-     
-     */
-    inline void GetElementValues(int idx, const int ip_num, Vector &values);
+
+   /// Return the quadrature function values at an integration point
+   /** The result is stored in the Vector @a values as a reference to the
+    global values.
+
+    */
+   inline void GetElementValues(int idx, const int ip_num, Vector &values);
 
    /// Return all values associated with mesh element @a idx in a DenseMatrix.
    /** The result is stored in the DenseMatrix @a values as a reference to the
@@ -725,26 +725,26 @@ inline void QuadratureFunction::GetElementValues(int idx, Vector &values) const
       values(i) = *(q++);
    }
 }
-    
+
 inline void QuadratureFunction::GetElementValues(int idx, int ip_num,
                                                  Vector &values)
 {
-    // get the element values and store them in elem_vec
-    Vector elem_vec;
-    GetElementValues(idx, elem_vec);
-    
-    // get the vector dimension of the quadrature function.
-    // This is the size of data stored at each integration point
-    int vDim = GetVDim();
-    
-    // set the size of the integration point data vector @a values
-    //   values.SetSize(vDim);
-    values.NewDataAndSize(elem_vec + ip_num*vDim, vDim);
-    
-    // set the data in values, which is a subset of the full
-    // element data stored in elem_vec. This is a routine
-    // written by SRW on the vector class
-    //   values.SetVector(elem_vec, 0, vDim, ip_num*vDim);
+   // get the element values and store them in elem_vec
+   Vector elem_vec;
+   GetElementValues(idx, elem_vec);
+
+   // get the vector dimension of the quadrature function.
+   // This is the size of data stored at each integration point
+   int vDim = GetVDim();
+
+   // set the size of the integration point data vector @a values
+   //   values.SetSize(vDim);
+   values.NewDataAndSize(elem_vec + ip_num*vDim, vDim);
+
+   // set the data in values, which is a subset of the full
+   // element data stored in elem_vec. This is a routine
+   // written by SRW on the vector class
+   //   values.SetVector(elem_vec, 0, vDim, ip_num*vDim);
 }
 
 inline void QuadratureFunction::GetElementValues(int idx, DenseMatrix &values)

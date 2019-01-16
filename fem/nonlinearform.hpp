@@ -94,13 +94,14 @@ public:
    void SetEssentialBC(const Array<int> &bdr_attr_is_ess, Vector *rhs = NULL);
 
    /// Specify essential boundary conditions on individual displacement components
-   /** In the latest version of MFEM the SetEssentialBC function is virtual and can 
-       be overwritten, but I don't want to deal with merge issues right now. This 
-       function will lookup BC conditions in my std::unordered_map and apply the 
+   /** In the latest version of MFEM the SetEssentialBC function is virtual and can
+       be overwritten, but I don't want to deal with merge issues right now. This
+       function will lookup BC conditions in my std::unordered_map and apply the
        active displacement component BC to the correct Vdof, srw.
    */
-   void SetEssentialBCPartial(const Array<int> &bdr_attr_is_ess, Vector *rhs = NULL);
-   
+   void SetEssentialBCPartial(const Array<int> &bdr_attr_is_ess,
+                              Vector *rhs = NULL);
+
    /// (DEPRECATED) Specify essential boundary conditions.
    /** @deprecated Use either SetEssentialBC() or SetEssentialTrueDofs(). */
    void SetEssentialVDofs(const Array<int> &ess_vdofs_list);
@@ -134,7 +135,7 @@ public:
        vectors, i.e. their size must be fes->GetTrueVSize(). */
    virtual void Mult(const Vector &x, Vector &y) const;
 
-  
+
    /** @brief Compute the gradient Operator of the NonlinearForm corresponding
        to the state @a x. */
    /** Any previously specified essential boundary conditions will be

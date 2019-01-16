@@ -1789,7 +1789,7 @@ void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[], Array<int> &attr)
 #endif
 }
 
-void GridFunction::ProjectBdrCoefficient(VectorFunctionCoefficient &vfcoeff, 
+void GridFunction::ProjectBdrCoefficient(VectorFunctionCoefficient &vfcoeff,
                                          Array<int> &attr)
 {
    int i, j, fdof, d, ind, vdim;
@@ -1816,7 +1816,7 @@ void GridFunction::ProjectBdrCoefficient(VectorFunctionCoefficient &vfcoeff,
          {
             const IntegrationPoint &ip = ir.IntPoint(j);
             transf->SetIntPoint(&ip);
-            
+
             vfcoeff.Eval(val, *transf, ip);
 
             // loop over vector dimensions

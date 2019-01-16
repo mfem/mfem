@@ -277,20 +277,21 @@ void VectorRestrictedCoefficient::Eval(
    }
 }
 
-void VectorFunctionRestrictedCoefficient::Eval(Vector &V, ElementTransformation &T,
+void VectorFunctionRestrictedCoefficient::Eval(Vector &V,
+                                               ElementTransformation &T,
                                                const IntegrationPoint &ip)
 {
    double x[3];
    Vector transip(x, 3);
-   
+
    T.Transform(ip, transip);
 
    V.SetSize(vdim);
    if (active_attr[T.Attribute-1])
    {
-      (*TDFunction)(transip, GetTime(), T.Attribute, V);   
+      (*TDFunction)(transip, GetTime(), T.Attribute, V);
    }
-   else 
+   else
    {
       V = 0.0;
    }
@@ -298,7 +299,7 @@ void VectorFunctionRestrictedCoefficient::Eval(Vector &V, ElementTransformation 
    {
       V *= Q->Eval(T, ip, GetTime());
    }
-   
+
 }
 
 void MatrixFunctionCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
