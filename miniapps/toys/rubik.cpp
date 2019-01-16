@@ -103,7 +103,10 @@ void twist_corners(Mesh & mesh, GridFunction & color, socketstream & sock,
                    bool cw, int * c0 = NULL, int * c1 = NULL, int * c2 = NULL);
 
 void permute_edges(Mesh & mesh, GridFunction & color, socketstream & sock,
-                   int * e0 = NULL, int * e1 = NULL, int * e2 = NULL);
+                   int * e0, int * e1, int * e2);
+
+void permute_edges(Mesh & mesh, GridFunction & color, socketstream & sock,
+                   bool cw);
 
 void flip_edges(Mesh & mesh, GridFunction & color, socketstream & sock,
                 int n, int * e0 = NULL, int * e1 = NULL,
@@ -232,7 +235,9 @@ int main(int argc, char *argv[])
          }
          else if ( dir == 'e' )
          {
-            permute_edges(mesh, color, sock);
+            bool cw;
+            cin >> cw;
+            permute_edges(mesh, color, sock, cw);
          }
          else if ( dir == 'f' )
          {
@@ -1222,26 +1227,41 @@ locate_corner(int ind)
 {
    for (int i=0; i<8; i++)
    {
-      if ((rubik.corn_[3 * i + 0] == corn_colors_[3 * ind + 0] &&
-           rubik.corn_[3 * i + 1] == corn_colors_[3 * ind + 1] &&
-           rubik.corn_[3 * i + 2] == corn_colors_[3 * ind + 2]) ||
-          (rubik.corn_[3 * i + 0] == corn_colors_[3 * ind + 1] &&
-           rubik.corn_[3 * i + 1] == corn_colors_[3 * ind + 2] &&
-           rubik.corn_[3 * i + 2] == corn_colors_[3 * ind + 0]) ||
-          (rubik.corn_[3 * i + 0] == corn_colors_[3 * ind + 2] &&
-           rubik.corn_[3 * i + 1] == corn_colors_[3 * ind + 0] &&
-           rubik.corn_[3 * i + 2] == corn_colors_[3 * ind + 1]) ||
-          (rubik.corn_[3 * i + 0] == corn_colors_[3 * ind + 2] &&
-           rubik.corn_[3 * i + 1] == corn_colors_[3 * ind + 1] &&
-           rubik.corn_[3 * i + 2] == corn_colors_[3 * ind + 0]) ||
-          (rubik.corn_[3 * i + 0] == corn_colors_[3 * ind + 1] &&
-           rubik.corn_[3 * i + 1] == corn_colors_[3 * ind + 0] &&
-           rubik.corn_[3 * i + 2] == corn_colors_[3 * ind + 2]) ||
-          (rubik.corn_[3 * i + 0] == corn_colors_[3 * ind + 0] &&
-           rubik.corn_[3 * i + 1] == corn_colors_[3 * ind + 2] &&
-           rubik.corn_[3 * i + 2] == corn_colors_[3 * ind + 1]))
+      if (rubik.corn_[3 * i + 0] == corn_colors_[3 * ind + 0] &&
+          rubik.corn_[3 * i + 1] == corn_colors_[3 * ind + 1] &&
+          rubik.corn_[3 * i + 2] == corn_colors_[3 * ind + 2])
       {
          return i;
+      }
+      else if (rubik.corn_[3 * i + 0] == corn_colors_[3 * ind + 1] &&
+               rubik.corn_[3 * i + 1] == corn_colors_[3 * ind + 2] &&
+               rubik.corn_[3 * i + 2] == corn_colors_[3 * ind + 0])
+      {
+         return i + 8;
+      }
+      else if (rubik.corn_[3 * i + 0] == corn_colors_[3 * ind + 2] &&
+               rubik.corn_[3 * i + 1] == corn_colors_[3 * ind + 0] &&
+               rubik.corn_[3 * i + 2] == corn_colors_[3 * ind + 1])
+      {
+         return i + 16;
+      }
+      else if (rubik.corn_[3 * i + 0] == corn_colors_[3 * ind + 2] &&
+               rubik.corn_[3 * i + 1] == corn_colors_[3 * ind + 1] &&
+               rubik.corn_[3 * i + 2] == corn_colors_[3 * ind + 0])
+      {
+         return i + 24;
+      }
+      else if (rubik.corn_[3 * i + 0] == corn_colors_[3 * ind + 1] &&
+               rubik.corn_[3 * i + 1] == corn_colors_[3 * ind + 0] &&
+               rubik.corn_[3 * i + 2] == corn_colors_[3 * ind + 2])
+      {
+         return i + 32;
+      }
+      else if (rubik.corn_[3 * i + 0] == corn_colors_[3 * ind + 0] &&
+               rubik.corn_[3 * i + 1] == corn_colors_[3 * ind + 2] &&
+               rubik.corn_[3 * i + 2] == corn_colors_[3 * ind + 1])
+      {
+         return i + 40;
       }
    }
    return -1;
@@ -1260,133 +1280,447 @@ solve_top_corners(Mesh & mesh, GridFunction & color, socketstream & sock)
    }
 
    // Locate first incorrectly filled corner location in the top tier
-   int i4 = locate_corner(4);
+   int l4 = locate_corner(4);
+   int i4 = l4 % 8;
+   int o4 = l4 / 8;
    if (logging_ > 1)
    {
-      cout << "Location of 4-th corner: " << i4 << endl;
+      cout << "Location of 4-th corner: " << i4
+           << " with orientation " << o4 << endl;
    }
-   if (i4 >= 0 && i4 != 4)
+   if (i4 >= 0)
    {
       switch (i4)
       {
          case 0:
-            anim_move('x', 1, 1, mesh, color, sock);
+            switch (o4)
+            {
+               case 3:
+                  anim_move('x', 1, 3, mesh, color, sock);
+                  anim_move('z', 1, 3, mesh, color, sock);
+                  anim_move('x', 1, 1, mesh, color, sock);
+                  break;
+               case 4:
+                  anim_move('y', 1, 1, mesh, color, sock);
+                  anim_move('z', 1, 3, mesh, color, sock);
+                  anim_move('y', 1, 3, mesh, color, sock);
+                  anim_move('x', 1, 3, mesh, color, sock);
+                  anim_move('z', 1, 2, mesh, color, sock);
+                  anim_move('x', 1, 1, mesh, color, sock);
+                  break;
+               case 5:
+                  anim_move('y', 1, 1, mesh, color, sock);
+                  anim_move('z', 1, 1, mesh, color, sock);
+                  anim_move('y', 1, 3, mesh, color, sock);
+                  break;
+            }
             break;
          case 1:
-            anim_move('y', 1, 2, mesh, color, sock);
+            switch (o4)
+            {
+               case 0:
+                  anim_move('x', 2, 1, mesh, color, sock);
+                  anim_move('y', 1, 2, mesh, color, sock);
+                  anim_move('x', 2, 3, mesh, color, sock);
+                  break;
+               case 1:
+                  anim_move('z', 1, 1, mesh, color, sock);
+                  anim_move('x', 2, 1, mesh, color, sock);
+                  anim_move('y', 1, 3, mesh, color, sock);
+                  anim_move('x', 2, 3, mesh, color, sock);
+                  break;
+               case 2:
+                  anim_move('x', 1, 3, mesh, color, sock);
+                  anim_move('z', 1, 1, mesh, color, sock);
+                  anim_move('x', 1, 1, mesh, color, sock);
+                  break;
+            }
             break;
          case 2:
-            anim_move('y', 3, 2, mesh, color, sock);
-            anim_move('z', 3, 3, mesh, color, sock);
+            switch (o4)
+            {
+               case 3:
+                  anim_move('y', 1, 1, mesh, color, sock);
+                  anim_move('z', 1, 2, mesh, color, sock);
+                  anim_move('y', 1, 3, mesh, color, sock);
+                  break;
+               case 4:
+                  anim_move('x', 3, 1, mesh, color, sock);
+                  anim_move('z', 1, 1, mesh, color, sock);
+                  anim_move('x', 3, 3, mesh, color, sock);
+                  anim_move('x', 2, 1, mesh, color, sock);
+                  anim_move('y', 1, 3, mesh, color, sock);
+                  anim_move('x', 2, 3, mesh, color, sock);
+                  break;
+               case 5:
+                  anim_move('x', 1, 3, mesh, color, sock);
+                  anim_move('z', 1, 2, mesh, color, sock);
+                  anim_move('x', 1, 1, mesh, color, sock);
+                  break;
+            }
             break;
          case 3:
-            anim_move('x', 1, 2, mesh, color, sock);
+            switch (o4)
+            {
+               case 0:
+                  anim_move('y', 2, 3, mesh, color, sock);
+                  anim_move('x', 1, 2, mesh, color, sock);
+                  anim_move('y', 2, 1, mesh, color, sock);
+                  break;
+               case 1:
+                  anim_move('y', 1, 1, mesh, color, sock);
+                  anim_move('z', 1, 3, mesh, color, sock);
+                  anim_move('y', 1, 3, mesh, color, sock);
+                  break;
+               case 2:
+                  anim_move('z', 1, 3, mesh, color, sock);
+                  anim_move('y', 1, 1, mesh, color, sock);
+                  anim_move('z', 1, 1, mesh, color, sock);
+                  anim_move('y', 1, 3, mesh, color, sock);
+                  break;
+            }
+            break;
+         case 4:
+            switch (o4)
+            {
+               case 1:
+                  anim_move('y', 1, 1, mesh, color, sock);
+                  anim_move('z', 1, 1, mesh, color, sock);
+                  anim_move('y', 1, 3, mesh, color, sock);
+                  anim_move('z', 1, 3, mesh, color, sock);
+                  anim_move('y', 1, 1, mesh, color, sock);
+                  anim_move('z', 1, 1, mesh, color, sock);
+                  anim_move('y', 1, 3, mesh, color, sock);
+                  break;
+               case 2:
+                  anim_move('x', 1, 3, mesh, color, sock);
+                  anim_move('z', 1, 3, mesh, color, sock);
+                  anim_move('x', 1, 1, mesh, color, sock);
+                  anim_move('z', 1, 1, mesh, color, sock);
+                  anim_move('x', 1, 3, mesh, color, sock);
+                  anim_move('z', 1, 3, mesh, color, sock);
+                  anim_move('x', 1, 1, mesh, color, sock);
+                  break;
+            }
             break;
          case 5:
-            anim_move('z', 3, 1, mesh, color, sock);
+            switch (o4)
+            {
+               case 3:
+                  anim_move('x', 2, 1, mesh, color, sock);
+                  anim_move('y', 1, 1, mesh, color, sock);
+                  anim_move('x', 2, 3, mesh, color, sock);
+                  break;
+               case 4:
+                  anim_move('x', 3, 3, mesh, color, sock);
+                  anim_move('z', 1, 1, mesh, color, sock);
+                  anim_move('x', 3, 1, mesh, color, sock);
+                  anim_move('x', 1, 3, mesh, color, sock);
+                  anim_move('z', 1, 3, mesh, color, sock);
+                  anim_move('x', 1, 1, mesh, color, sock);
+                  break;
+               case 5:
+                  anim_move('y', 1, 3, mesh, color, sock);
+                  anim_move('z', 1, 3, mesh, color, sock);
+                  anim_move('y', 1, 2, mesh, color, sock);
+                  anim_move('z', 1, 2, mesh, color, sock);
+                  anim_move('y', 1, 3, mesh, color, sock);
+                  break;
+            }
             break;
          case 6:
-            anim_move('z', 3, 2, mesh, color, sock);
+            switch (o4)
+            {
+               case 0:
+                  break;
+               case 1:
+                  break;
+               case 2:
+                  break;
+            }
             break;
          case 7:
-            anim_move('z', 3, 3, mesh, color, sock);
+            switch (o4)
+            {
+               case 0:
+                  break;
+               case 1:
+                  break;
+               case 2:
+                  break;
+            }
             break;
       }
    }
 
    // Locate second incorrectly filled corner location in the top tier
-   int i5 = locate_corner(5);
+   int l5 = locate_corner(5);
+   int i5 = l5 % 8;
+   int o5 = l5 / 8;
    if (logging_ > 1)
    {
-      cout << "Location of 5-th corner: " << i5 << endl;
+      cout << "Location of 5-th corner: " << i5
+           << " with orientation " << o5 << endl;
    }
-   if (i5 >= 0 && i5 != 5)
+   if (i5 >= 0)
    {
       switch (i5)
       {
          case 0:
-            anim_move('z', 1, 3, mesh, color, sock);
-            anim_move('x', 3, 1, mesh, color, sock);
+            // anim_move('z', 1, 3, mesh, color, sock);
+            // anim_move('x', 3, 1, mesh, color, sock);
+            switch (o5)
+            {
+               case 0:
+                  break;
+               case 1:
+                  break;
+               case 2:
+                  break;
+            }
             break;
          case 1:
-            anim_move('x', 3, 1, mesh, color, sock);
+            // anim_move('x', 3, 1, mesh, color, sock);
+            switch (o5)
+            {
+               case 0:
+                  break;
+               case 1:
+                  break;
+               case 2:
+                  break;
+            }
             break;
          case 2:
-            anim_move('x', 3, 2, mesh, color, sock);
+            // anim_move('x', 3, 2, mesh, color, sock);
+            switch (o5)
+            {
+               case 0:
+                  break;
+               case 1:
+                  break;
+               case 2:
+                  break;
+            }
             break;
          case 3:
-            anim_move('z', 1, 1, mesh, color, sock);
-            anim_move('x', 3, 2, mesh, color, sock);
+            // anim_move('z', 1, 1, mesh, color, sock);
+            // anim_move('x', 3, 2, mesh, color, sock);
+            switch (o5)
+            {
+               case 0:
+                  break;
+               case 1:
+                  break;
+               case 2:
+                  break;
+            }
+            break;
+         case 5:
+            switch (o5)
+            {
+               case 1:
+                  break;
+               case 2:
+                  break;
+            }
             break;
          case 6:
-            anim_move('x', 3, 3, mesh, color, sock);
+            // anim_move('x', 3, 3, mesh, color, sock);
+            switch (o5)
+            {
+               case 0:
+                  break;
+               case 1:
+                  break;
+               case 2:
+                  break;
+            }
             break;
          case 7:
-            anim_move('y', 3, 3, mesh, color, sock);
-            anim_move('x', 3, 3, mesh, color, sock);
+            // anim_move('y', 3, 3, mesh, color, sock);
+            // anim_move('x', 3, 3, mesh, color, sock);
+            switch (o5)
+            {
+               case 0:
+                  break;
+               case 1:
+                  break;
+               case 2:
+                  break;
+            }
             break;
       }
    }
 
    // Locate third incorrectly filled corner location in the top tier
-   int i6 = locate_corner(6);
+   int l6 = locate_corner(6);
+   int i6 = l6 % 8;
+   int o6 = l6 / 8;
    if (logging_ > 1)
    {
-      cout << "Location of 6-th corner: " << i6 << endl;
+      cout << "Location of 6-th corner: " << i6
+           << " with orientation " << o6 << endl;
    }
-   if (i6 >= 0 && i6 != 6)
+   if (i6 >= 0)
    {
       switch (i6)
       {
          case 0:
-            anim_move('z', 1, 1, mesh, color, sock);
-            anim_move('y', 3, 2, mesh, color, sock);
+            // anim_move('z', 1, 1, mesh, color, sock);
+            // anim_move('y', 3, 2, mesh, color, sock);
+            switch (o6)
+            {
+               case 0:
+                  break;
+               case 1:
+                  break;
+               case 2:
+                  break;
+            }
             break;
          case 1:
-            anim_move('z', 1, 3, mesh, color, sock);
-            anim_move('y', 3, 1, mesh, color, sock);
+            // anim_move('z', 1, 3, mesh, color, sock);
+            // anim_move('y', 3, 1, mesh, color, sock);
+            switch (o6)
+            {
+               case 0:
+                  break;
+               case 1:
+                  break;
+               case 2:
+                  break;
+            }
             break;
          case 2:
-            anim_move('y', 3, 1, mesh, color, sock);
+            // anim_move('y', 3, 1, mesh, color, sock);
+            switch (o6)
+            {
+               case 0:
+                  break;
+               case 1:
+                  break;
+               case 2:
+                  break;
+            }
             break;
          case 3:
-            anim_move('y', 3, 2, mesh, color, sock);
+            // anim_move('y', 3, 2, mesh, color, sock);
+            switch (o6)
+            {
+               case 0:
+                  break;
+               case 1:
+                  break;
+               case 2:
+                  break;
+            }
+            break;
+         case 6:
+            // anim_move('y', 3, 2, mesh, color, sock);
+            switch (o6)
+            {
+               case 1:
+                  break;
+               case 2:
+                  break;
+            }
             break;
          case 7:
-            anim_move('y', 3, 3, mesh, color, sock);
-            break;
+            // anim_move('y', 3, 3, mesh, color, sock);
+            switch (o6)
+            {
+               case 0:
+                  break;
+               case 1:
+                  break;
+               case 2:
+                  break;
+            }
+	    break;
       }
    }
 
    // Locate fourth incorrectly filled corner location in the top tier
-   int i7 = locate_corner(7);
+   int l7 = locate_corner(7);
+   int i7 = l7 % 8;
+   int o7 = l7 / 8;
    if (logging_ > 1)
    {
-      cout << "Location of 7-th corner: " << i7 << endl;
+      cout << "Location of 7-th corner: " << i7
+           << " with orientation " << o7 << endl;
    }
-   if (i7 >= 0 && i7 != 7)
+   if (i7 >= 0)
    {
       switch (i7)
       {
          case 0:
-            anim_move('y', 3, 1, mesh, color, sock);
-            anim_move('z', 1, 1, mesh, color, sock);
-            anim_move('y', 3, 3, mesh, color, sock);
+            // anim_move('y', 3, 1, mesh, color, sock);
+            // anim_move('z', 1, 1, mesh, color, sock);
+            // anim_move('y', 3, 3, mesh, color, sock);
+            switch (o7)
+            {
+               case 0:
+                  break;
+               case 1:
+                  break;
+               case 2:
+                  break;
+            }
             break;
          case 1:
-            anim_move('y', 3, 1, mesh, color, sock);
-            anim_move('z', 1, 2, mesh, color, sock);
-            anim_move('y', 3, 3, mesh, color, sock);
+            // anim_move('y', 3, 1, mesh, color, sock);
+            // anim_move('z', 1, 2, mesh, color, sock);
+            // anim_move('y', 3, 3, mesh, color, sock);
+            switch (o7)
+            {
+               case 0:
+                  break;
+               case 1:
+                  break;
+               case 2:
+                  break;
+            }
             break;
          case 2:
-            anim_move('x', 1, 1, mesh, color, sock);
-            anim_move('z', 1, 3, mesh, color, sock);
-            anim_move('x', 1, 3, mesh, color, sock);
+            // anim_move('x', 1, 1, mesh, color, sock);
+            //  anim_move('z', 1, 3, mesh, color, sock);
+            // anim_move('x', 1, 3, mesh, color, sock);
+            switch (o7)
+            {
+               case 0:
+                  break;
+               case 1:
+                  break;
+               case 2:
+                  break;
+            }
             break;
          case 3:
-            anim_move('x', 1, 1, mesh, color, sock);
-            anim_move('z', 1, 1, mesh, color, sock);
-            anim_move('x', 1, 3, mesh, color, sock);
+            // anim_move('x', 1, 1, mesh, color, sock);
+            // anim_move('z', 1, 1, mesh, color, sock);
+            // anim_move('x', 1, 3, mesh, color, sock);
+            switch (o7)
+            {
+               case 0:
+                  break;
+               case 1:
+                  break;
+               case 2:
+                  break;
+            }
+            break;
+         case 7:
+            // anim_move('x', 1, 1, mesh, color, sock);
+            // anim_move('z', 1, 1, mesh, color, sock);
+            // anim_move('x', 1, 3, mesh, color, sock);
+            switch (o7)
+            {
+               case 1:
+                  break;
+               case 2:
+                  break;
+            }
             break;
       }
    }
@@ -1864,7 +2198,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
    {
       switch (i8)
       {
-         case 0: // Valid
+         case 0: // Verified
             anim_move('z', 1, 2, mesh, color, sock);
             anim_move('y', 1, 1, mesh, color, sock);
             anim_move('z', 1, 3, mesh, color, sock);
@@ -1874,7 +2208,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('x', 1, 3, mesh, color, sock);
             anim_move('y', 1, 1, mesh, color, sock);
             break;
-         case 1: // Valid
+         case 1: // Verified
             anim_move('z', 1, 3, mesh, color, sock);
             anim_move('y', 1, 1, mesh, color, sock);
             anim_move('z', 1, 3, mesh, color, sock);
@@ -1884,7 +2218,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('x', 1, 3, mesh, color, sock);
             anim_move('y', 1, 1, mesh, color, sock);
             break;
-         case 2: // Valid
+         case 2: // Verified
             anim_move('z', 1, 1, mesh, color, sock);
             anim_move('x', 1, 3, mesh, color, sock);
             anim_move('z', 1, 1, mesh, color, sock);
@@ -1894,7 +2228,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('y', 1, 1, mesh, color, sock);
             anim_move('x', 1, 3, mesh, color, sock);
             break;
-         case 3: // Valid
+         case 3: // Verified
             anim_move('z', 1, 2, mesh, color, sock);
             anim_move('x', 1, 3, mesh, color, sock);
             anim_move('z', 1, 1, mesh, color, sock);
@@ -1904,15 +2238,29 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('y', 1, 1, mesh, color, sock);
             anim_move('x', 1, 3, mesh, color, sock);
             break;
-         case 9:
+         case 9: // Verified
+            anim_move('x', 3, 3, mesh, color, sock);
+            permute_edges(mesh, color, sock, false);
+            anim_move('x', 3, 1, mesh, color, sock);
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            permute_edges(mesh, color, sock, true);
+            anim_move('y', 1, 3, mesh, color, sock);
             break;
-         case 10: // Valid
+         case 10: // Verified
             anim_move('z', 2, 1, mesh, color, sock);
             anim_move('y', 1, 2, mesh, color, sock);
             anim_move('z', 2, 3, mesh, color, sock);
             anim_move('y', 1, 2, mesh, color, sock);
             break;
-         case 11:
+         case 11: // Verified
+            anim_move('y', 3, 1, mesh, color, sock);
+            permute_edges(mesh, color, sock, true);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            permute_edges(mesh, color, sock, false);
+            anim_move('y', 1, 3, mesh, color, sock);
             break;
       }
    }
@@ -1920,7 +2268,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
    {
       switch (-1-i8)
       {
-         case 0: // Valid
+         case 0: // Verified
             anim_move('z', 1, 3, mesh, color, sock);
             anim_move('x', 1, 3, mesh, color, sock);
             anim_move('z', 1, 1, mesh, color, sock);
@@ -1930,7 +2278,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('y', 1, 1, mesh, color, sock);
             anim_move('x', 1, 3, mesh, color, sock);
             break;
-         case 1: // Valid
+         case 1: // Verified
             anim_move('x', 1, 3, mesh, color, sock);
             anim_move('z', 1, 1, mesh, color, sock);
             anim_move('x', 1, 1, mesh, color, sock);
@@ -1939,7 +2287,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('y', 1, 1, mesh, color, sock);
             anim_move('x', 1, 3, mesh, color, sock);
             break;
-         case 2: // Valid
+         case 2: // Verified
             anim_move('y', 1, 1, mesh, color, sock);
             anim_move('z', 1, 3, mesh, color, sock);
             anim_move('y', 1, 3, mesh, color, sock);
@@ -1948,7 +2296,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('x', 1, 3, mesh, color, sock);
             anim_move('y', 1, 1, mesh, color, sock);
             break;
-         case 3: // Valid
+         case 3: // Verified
             anim_move('z', 1, 1, mesh, color, sock);
             anim_move('y', 1, 1, mesh, color, sock);
             anim_move('z', 1, 3, mesh, color, sock);
@@ -1958,7 +2306,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('x', 1, 3, mesh, color, sock);
             anim_move('y', 1, 1, mesh, color, sock);
             break;
-         case 8: // Valid
+         case 8: // Verified
             anim_move('y', 1, 1, mesh, color, sock);
             anim_move('z', 1, 3, mesh, color, sock);
             anim_move('y', 1, 3, mesh, color, sock);
@@ -1975,16 +2323,23 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('x', 1, 3, mesh, color, sock);
             anim_move('y', 1, 1, mesh, color, sock);
             break;
-         case 9: // Valid
+         case 9: // Verified
             anim_move('y', 1, 2, mesh, color, sock);
             anim_move('z', 1, 2, mesh, color, sock);
             anim_move('y', 1, 2, mesh, color, sock);
             anim_move('z', 1, 2, mesh, color, sock);
             anim_move('y', 1, 2, mesh, color, sock);
             break;
-         case 10:
+         case 10: // Verified
+            anim_move('y', 3, 3, mesh, color, sock);
+            permute_edges(mesh, color, sock, false);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('y', 1, 1, mesh, color, sock);
+            permute_edges(mesh, color, sock, true);
+            anim_move('y', 1, 3, mesh, color, sock);
             break;
-         case 11: // Valid
+         case 11: // Verified
             anim_move('z', 2, 1, mesh, color, sock);
             anim_move('x', 1, 2, mesh, color, sock);
             anim_move('z', 2, 3, mesh, color, sock);
@@ -2009,7 +2364,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
    {
       switch (i9)
       {
-         case 0: // Valid
+         case 0: // Verified
             anim_move('z', 1, 1, mesh, color, sock);
             anim_move('x', 3, 3, mesh, color, sock);
             anim_move('z', 1, 3, mesh, color, sock);
@@ -2019,7 +2374,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('y', 1, 3, mesh, color, sock);
             anim_move('x', 3, 3, mesh, color, sock);
             break;
-         case 1: // Valid
+         case 1: // Verified
             anim_move('z', 1, 2, mesh, color, sock);
             anim_move('x', 3, 3, mesh, color, sock);
             anim_move('z', 1, 3, mesh, color, sock);
@@ -2029,7 +2384,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('y', 1, 3, mesh, color, sock);
             anim_move('x', 3, 3, mesh, color, sock);
             break;
-         case 2: // Valid
+         case 2: // Verified
             anim_move('y', 1, 3, mesh, color, sock);
             anim_move('z', 1, 1, mesh, color, sock);
             anim_move('y', 1, 1, mesh, color, sock);
@@ -2038,7 +2393,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('x', 3, 3, mesh, color, sock);
             anim_move('y', 1, 3, mesh, color, sock);
             break;
-         case 3: // Valid
+         case 3: // Verified
             anim_move('z', 1, 1, mesh, color, sock);
             anim_move('y', 1, 3, mesh, color, sock);
             anim_move('z', 1, 1, mesh, color, sock);
@@ -2048,9 +2403,20 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('x', 3, 3, mesh, color, sock);
             anim_move('y', 1, 3, mesh, color, sock);
             break;
-         case 10:
+         case 10: // Verified
+            anim_move('y', 3, 3, mesh, color, sock);
+            permute_edges(mesh, color, sock, true);
+            anim_move('y', 3, 1, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            permute_edges(mesh, color, sock, false);
+            anim_move('y', 1, 1, mesh, color, sock);
             break;
-         case 11:
+         case 11: // Verified
+            anim_move('z', 2, 1, mesh, color, sock);
+            anim_move('x', 3, 2, mesh, color, sock);
+            anim_move('z', 2, 3, mesh, color, sock);
+            anim_move('x', 3, 2, mesh, color, sock);
             break;
       }
    }
@@ -2058,7 +2424,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
    {
       switch (-1-i9)
       {
-         case 0: // Valid
+         case 0: // Verified
             anim_move('z', 1, 2, mesh, color, sock);
             anim_move('y', 1, 3, mesh, color, sock);
             anim_move('z', 1, 1, mesh, color, sock);
@@ -2068,7 +2434,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('x', 3, 3, mesh, color, sock);
             anim_move('y', 1, 3, mesh, color, sock);
             break;
-         case 1: // Valid
+         case 1: // Verified
             anim_move('z', 1, 3, mesh, color, sock);
             anim_move('y', 1, 3, mesh, color, sock);
             anim_move('z', 1, 1, mesh, color, sock);
@@ -2078,7 +2444,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('x', 3, 3, mesh, color, sock);
             anim_move('y', 1, 3, mesh, color, sock);
             break;
-         case 2: // Valid
+         case 2: // Verified
             anim_move('z', 1, 3, mesh, color, sock);
             anim_move('x', 3, 3, mesh, color, sock);
             anim_move('z', 1, 3, mesh, color, sock);
@@ -2088,7 +2454,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('y', 1, 3, mesh, color, sock);
             anim_move('x', 3, 3, mesh, color, sock);
             break;
-         case 3: // Valid
+         case 3: // Verified
             anim_move('x', 3, 3, mesh, color, sock);
             anim_move('z', 1, 3, mesh, color, sock);
             anim_move('x', 3, 1, mesh, color, sock);
@@ -2097,7 +2463,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('y', 1, 3, mesh, color, sock);
             anim_move('x', 3, 3, mesh, color, sock);
             break;
-         case 9: // Valid
+         case 9: // Verified
             anim_move('x', 3, 3, mesh, color, sock);
             anim_move('z', 1, 3, mesh, color, sock);
             anim_move('x', 3, 1, mesh, color, sock);
@@ -2114,9 +2480,21 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('y', 1, 3, mesh, color, sock);
             anim_move('x', 3, 3, mesh, color, sock);
             break;
-         case 10:
+         case 10: // Verified
+            anim_move('x', 3, 2, mesh, color, sock);
+            anim_move('z', 1, 2, mesh, color, sock);
+            anim_move('x', 3, 2, mesh, color, sock);
+            anim_move('z', 1, 2, mesh, color, sock);
+            anim_move('x', 3, 2, mesh, color, sock);
             break;
-         case 11:
+         case 11: // Verified
+            anim_move('y', 3, 1, mesh, color, sock);
+            permute_edges(mesh, color, sock, true);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('z', 1, 3, mesh, color, sock);
+            anim_move('y', 1, 3, mesh, color, sock);
+            permute_edges(mesh, color, sock, false);
+            anim_move('y', 1, 1, mesh, color, sock);
             break;
       }
    }
@@ -2137,7 +2515,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
    {
       switch (i10)
       {
-         case 0: // Valid
+         case 0: // Verified
             anim_move('y', 3, 3, mesh, color, sock);
             anim_move('z', 1, 3, mesh, color, sock);
             anim_move('y', 3, 1, mesh, color, sock);
@@ -2146,7 +2524,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('x', 3, 1, mesh, color, sock);
             anim_move('y', 3, 3, mesh, color, sock);
             break;
-         case 1: // Valid
+         case 1: // Verified
             anim_move('z', 1, 1, mesh, color, sock);
             anim_move('y', 3, 3, mesh, color, sock);
             anim_move('z', 1, 3, mesh, color, sock);
@@ -2156,7 +2534,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('x', 3, 1, mesh, color, sock);
             anim_move('y', 3, 3, mesh, color, sock);
             break;
-         case 2: // Valid
+         case 2: // Verified
             anim_move('z', 1, 3, mesh, color, sock);
             anim_move('x', 3, 1, mesh, color, sock);
             anim_move('z', 1, 1, mesh, color, sock);
@@ -2166,7 +2544,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('y', 3, 3, mesh, color, sock);
             anim_move('x', 3, 1, mesh, color, sock);
             break;
-         case 3: // Valid
+         case 3: // Verified
             anim_move('x', 3, 1, mesh, color, sock);
             anim_move('z', 1, 1, mesh, color, sock);
             anim_move('x', 3, 3, mesh, color, sock);
@@ -2175,7 +2553,14 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('y', 3, 3, mesh, color, sock);
             anim_move('x', 3, 1, mesh, color, sock);
             break;
-         case 11:
+         case 11: // Verified
+            anim_move('y', 3, 1, mesh, color, sock);
+            permute_edges(mesh, color, sock, true);
+            anim_move('y', 3, 3, mesh, color, sock);
+            anim_move('z', 1, 1, mesh, color, sock);
+            anim_move('y', 3, 3, mesh, color, sock);
+            permute_edges(mesh, color, sock, true);
+            anim_move('y', 3, 1, mesh, color, sock);
             break;
       }
    }
@@ -2183,7 +2568,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
    {
       switch (-1-i10)
       {
-         case 0: // Valid
+         case 0: // Verified
             anim_move('z', 1, 1, mesh, color, sock);
             anim_move('x', 3, 1, mesh, color, sock);
             anim_move('z', 1, 1, mesh, color, sock);
@@ -2193,7 +2578,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('y', 3, 3, mesh, color, sock);
             anim_move('x', 3, 1, mesh, color, sock);
             break;
-         case 1: // Valid
+         case 1: // Verified
             anim_move('z', 1, 2, mesh, color, sock);
             anim_move('x', 3, 1, mesh, color, sock);
             anim_move('z', 1, 1, mesh, color, sock);
@@ -2203,7 +2588,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('y', 3, 3, mesh, color, sock);
             anim_move('x', 3, 1, mesh, color, sock);
             break;
-         case 2: // Valid
+         case 2: // Verified
             anim_move('z', 1, 2, mesh, color, sock);
             anim_move('y', 3, 3, mesh, color, sock);
             anim_move('z', 1, 3, mesh, color, sock);
@@ -2213,7 +2598,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('x', 3, 1, mesh, color, sock);
             anim_move('y', 3, 3, mesh, color, sock);
             break;
-         case 3: // Valid
+         case 3: // Verified
             anim_move('z', 1, 3, mesh, color, sock);
             anim_move('y', 3, 3, mesh, color, sock);
             anim_move('z', 1, 3, mesh, color, sock);
@@ -2223,7 +2608,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('x', 3, 1, mesh, color, sock);
             anim_move('y', 3, 3, mesh, color, sock);
             break;
-         case 10: // Valid
+         case 10: // Verified
             anim_move('x', 3, 1, mesh, color, sock);
             anim_move('z', 1, 1, mesh, color, sock);
             anim_move('x', 3, 3, mesh, color, sock);
@@ -2240,7 +2625,12 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('y', 3, 3, mesh, color, sock);
             anim_move('x', 3, 1, mesh, color, sock);
             break;
-         case 11:
+         case 11: // Verified
+            anim_move('y', 3, 2, mesh, color, sock);
+            anim_move('z', 1, 2, mesh, color, sock);
+            anim_move('y', 3, 2, mesh, color, sock);
+            anim_move('z', 1, 2, mesh, color, sock);
+            anim_move('y', 3, 2, mesh, color, sock);
             break;
       }
    }
@@ -2261,7 +2651,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
    {
       switch (i11)
       {
-         case 0: // Valid
+         case 0: // Verified
             anim_move('z', 1, 3, mesh, color, sock);
             anim_move('x', 1, 1, mesh, color, sock);
             anim_move('z', 1, 3, mesh, color, sock);
@@ -2271,7 +2661,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('y', 3, 1, mesh, color, sock);
             anim_move('x', 1, 1, mesh, color, sock);
             break;
-         case 1: // Valid
+         case 1: // Verified
             anim_move('x', 1, 1, mesh, color, sock);
             anim_move('z', 1, 3, mesh, color, sock);
             anim_move('x', 1, 3, mesh, color, sock);
@@ -2280,7 +2670,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('y', 3, 1, mesh, color, sock);
             anim_move('x', 1, 1, mesh, color, sock);
             break;
-         case 2: // Valid
+         case 2: // Verified
             anim_move('z', 1, 2, mesh, color, sock);
             anim_move('y', 3, 1, mesh, color, sock);
             anim_move('z', 1, 1, mesh, color, sock);
@@ -2290,7 +2680,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('x', 1, 1, mesh, color, sock);
             anim_move('y', 3, 1, mesh, color, sock);
             break;
-         case 3: // Valid
+         case 3: // Verified
             anim_move('z', 1, 3, mesh, color, sock);
             anim_move('y', 3, 1, mesh, color, sock);
             anim_move('z', 1, 1, mesh, color, sock);
@@ -2306,7 +2696,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
    {
       switch (-1-i11)
       {
-         case 0: // Valid
+         case 0: // Verified
             anim_move('y', 3, 1, mesh, color, sock);
             anim_move('z', 1, 1, mesh, color, sock);
             anim_move('y', 3, 3, mesh, color, sock);
@@ -2315,7 +2705,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('x', 1, 1, mesh, color, sock);
             anim_move('y', 3, 1, mesh, color, sock);
             break;
-         case 1: // Valid
+         case 1: // Verified
             anim_move('z', 1, 1, mesh, color, sock);
             anim_move('y', 3, 1, mesh, color, sock);
             anim_move('z', 1, 1, mesh, color, sock);
@@ -2325,7 +2715,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('x', 1, 1, mesh, color, sock);
             anim_move('y', 3, 1, mesh, color, sock);
             break;
-         case 2: // Valid
+         case 2: // Verified
             anim_move('z', 1, 1, mesh, color, sock);
             anim_move('x', 1, 1, mesh, color, sock);
             anim_move('z', 1, 3, mesh, color, sock);
@@ -2335,7 +2725,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('y', 3, 1, mesh, color, sock);
             anim_move('x', 1, 1, mesh, color, sock);
             break;
-         case 3: // Valid
+         case 3: // Verified
             anim_move('z', 1, 2, mesh, color, sock);
             anim_move('x', 1, 1, mesh, color, sock);
             anim_move('z', 1, 3, mesh, color, sock);
@@ -2345,7 +2735,7 @@ solve_mid_edges(Mesh & mesh, GridFunction & color, socketstream & sock)
             anim_move('y', 3, 1, mesh, color, sock);
             anim_move('x', 1, 1, mesh, color, sock);
             break;
-         case 11: // Valid
+         case 11: // Verified
             anim_move('x', 1, 1, mesh, color, sock);
             anim_move('z', 1, 3, mesh, color, sock);
             anim_move('x', 1, 3, mesh, color, sock);
@@ -2586,34 +2976,8 @@ solve_corner_locations(Mesh & mesh, GridFunction & color, socketstream & sock)
    if (i0 < 0) { return; }
 
    // Locate corner piece which belongs at i0
-   int i1 = locate_corner(i0);
-   /*
-   for (int i=i0+1; i<8; i++)
-   {
-      if ((rubik.corn_[3 * i + 0] == corn_colors_[3 * i0 + 0] &&
-           rubik.corn_[3 * i + 1] == corn_colors_[3 * i0 + 1] &&
-           rubik.corn_[3 * i + 2] == corn_colors_[3 * i0 + 2]) ||
-          (rubik.corn_[3 * i + 0] == corn_colors_[3 * i0 + 1] &&
-           rubik.corn_[3 * i + 1] == corn_colors_[3 * i0 + 2] &&
-           rubik.corn_[3 * i + 2] == corn_colors_[3 * i0 + 0]) ||
-          (rubik.corn_[3 * i + 0] == corn_colors_[3 * i0 + 2] &&
-           rubik.corn_[3 * i + 1] == corn_colors_[3 * i0 + 0] &&
-           rubik.corn_[3 * i + 2] == corn_colors_[3 * i0 + 1]) ||
-          (rubik.corn_[3 * i + 0] == corn_colors_[3 * i0 + 2] &&
-           rubik.corn_[3 * i + 1] == corn_colors_[3 * i0 + 1] &&
-           rubik.corn_[3 * i + 2] == corn_colors_[3 * i0 + 0]) ||
-          (rubik.corn_[3 * i + 0] == corn_colors_[3 * i0 + 1] &&
-           rubik.corn_[3 * i + 1] == corn_colors_[3 * i0 + 0] &&
-           rubik.corn_[3 * i + 2] == corn_colors_[3 * i0 + 2]) ||
-          (rubik.corn_[3 * i + 0] == corn_colors_[3 * i0 + 0] &&
-           rubik.corn_[3 * i + 1] == corn_colors_[3 * i0 + 2] &&
-           rubik.corn_[3 * i + 2] == corn_colors_[3 * i0 + 1]))
-      {
-         i1 = i;
-         break;
-      }
-   }
-   */
+   int l1 = locate_corner(i0);
+   int i1 = l1 % 8;
    if (logging_ > 1)
    {
       cout << "Location of piece belonging at " << i0 << " is " << i1 << endl;
@@ -3257,12 +3621,31 @@ permute_edges(Mesh & mesh, GridFunction & color, socketstream & sock,
    }
    else
    {
+      permute_edges(mesh, color, sock, true);
+   }
+}
+
+void
+permute_edges(Mesh & mesh, GridFunction & color, socketstream & sock, bool cw)
+{
+   if (cw)
+   {
       anim_move('y', 2, 1, mesh, color, sock);
       anim_move('z', 1, 1, mesh, color, sock);
       anim_move('y', 2, 3, mesh, color, sock);
       anim_move('z', 1, 2, mesh, color, sock);
       anim_move('y', 2, 1, mesh, color, sock);
       anim_move('z', 1, 1, mesh, color, sock);
+      anim_move('y', 2, 3, mesh, color, sock);
+   }
+   else
+   {
+      anim_move('y', 2, 1, mesh, color, sock);
+      anim_move('z', 1, 3, mesh, color, sock);
+      anim_move('y', 2, 3, mesh, color, sock);
+      anim_move('z', 1, 2, mesh, color, sock);
+      anim_move('y', 2, 1, mesh, color, sock);
+      anim_move('z', 1, 3, mesh, color, sock);
       anim_move('y', 2, 3, mesh, color, sock);
    }
 }
@@ -3886,13 +4269,12 @@ solve_top(Mesh & mesh, GridFunction & color, socketstream & sock)
    {
       cout << "Solving center blocks..." << endl;
    }
-   /*
    if (logging_ > 0)
    {
       cout << "Solving top tier corners..." << endl;
    }
    solve_top_corners(mesh, color, sock);
-   */
+
    cout << "Move count: " << count_ << endl;
 }
 
