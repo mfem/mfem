@@ -725,6 +725,35 @@ public:
    { return ((a == NULL ) ? aConst : a->Eval(T, ip) ) * b->Eval(T, ip); }
 };
 
+/// Scalar coefficient defined as the ratio of two scalar coefficients
+class RatioCoefficient : public Coefficient
+{
+private:
+   double aConst;
+   Coefficient * a;
+   Coefficient * b;
+
+public:
+   RatioCoefficient(double A, Coefficient &B)
+      : aConst(A), a(NULL), b(&B) { }
+   RatioCoefficient(Coefficient &A, Coefficient &B)
+      : aConst(0.0), a(&A), b(&B) { }
+
+   void SetAConst(double A) { a = NULL; aConst = A; }
+   double GetAConst() const { return aConst; }
+
+   void SetACoef(Coefficient &A) { a = &A; }
+   Coefficient * GetACoef() const { return a; }
+
+   void SetBCoef(Coefficient &B) { b = &B; }
+   Coefficient * GetBCoef() const { return b; }
+
+   /// Evaluate the coefficient
+   virtual double Eval(ElementTransformation &T,
+                       const IntegrationPoint &ip)
+   { return ((a == NULL ) ? aConst : a->Eval(T, ip) ) / b->Eval(T, ip); }
+};
+
 /// Scalar coefficient defined as a scalar raised to a power
 class PowerCoefficient : public Coefficient
 {
