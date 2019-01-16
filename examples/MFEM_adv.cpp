@@ -57,7 +57,7 @@ double inflow_function(const Vector &x);
 Vector bb_min, bb_max;
 
 struct AIR_parameters {
-   int distance;
+   float distance;
    std::string prerelax;
    std::string postrelax;
    double strength_tolC;
@@ -65,6 +65,7 @@ struct AIR_parameters {
    int interp_type;
    int relax_type;
    double filterA_tol;
+   double filterR_tol;
    int coarsening;
    int coord_dim;
    float *coord;
@@ -156,7 +157,7 @@ int main(int argc, char *argv[])
    int vis_steps = 5;
    int precision = 8;
    cout.precision(precision);
-   AIR_parameters AIR = {2, "", "FFF", 0.1, 0.005, 100, 0, 1e-4, 3, 0, NULL, 0, 0};
+   AIR_parameters AIR = {1.5, "A", "F", 0.1, 0.005, 100, 10, 1e-4, 0, 6, 0, NULL, 0, 1};
    const char* temp_prerelax = "";
    const char* temp_postrelax = "FFF";
    double h_min, h_max, k_min, k_max;
@@ -210,6 +211,8 @@ int main(int argc, char *argv[])
                   "Theta value determining strong connections for AIR (restriction).");
    args.AddOption(&(AIR.filterA_tol), "-Af", "--AIR-filter",
                   "Theta value to eliminate small connections in AIR hierarchy.");
+   args.AddOption(&(AIR.filterR_tol), "-Af", "--AIR-filter",
+                  "Theta value to eliminate small connections in R after building.");
    args.AddOption(&temp_prerelax, "-Ar1", "--AIR-prerelax",
                   "String denoting prerelaxation scheme; e.g., FCC.");
    args.AddOption(&temp_postrelax, "-Ar2", "--AIR-postrelax",
