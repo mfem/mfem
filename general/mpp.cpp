@@ -32,7 +32,6 @@ struct kernel{
    string static_args;
    string static_tmplt;
    string any_pointer_params;
-   string any_pointer_params_;
    string any_pointer_args;
    string d2u;
    string u2d;
@@ -56,7 +55,7 @@ struct context {
    istream& in;
    ostream& out;
    std::list<argument*> args;
-   kernel k;
+   kernel ker;
 public:
    context(istream& i, ostream& o, string &f)
       : line(1), block(-2), file(f), in(i), out(o){}
@@ -71,7 +70,7 @@ struct error {
 };
 
 // *****************************************************************************
-static const char* strrnc(const char* s, const unsigned char c, int n=1) {
+const char* strrnc(const char* s, const unsigned char c, int n=1) {
    size_t len = strlen(s);
    char* p = (char*)s+len-1;
    for (; n; n--,p--,len--) {
@@ -84,45 +83,45 @@ static const char* strrnc(const char* s, const unsigned char c, int n=1) {
 }
 
 // *****************************************************************************
-static inline void check(context &pp, const bool test, const char *msg = NULL){
+void check(context &pp, const bool test, const char *msg = NULL){
    if (not test) throw error(pp.line,pp.file,msg);
 }
 
 // *****************************************************************************
-static inline int help(char* argv[]) {
+int help(char* argv[]) {
    cout << "MFEM preprocessor:";
    cout << argv[0] << " -o output input" << endl;
    return ~0;
 }
 
 // *****************************************************************************
-static inline bool is_newline(const int ch) {
+bool is_newline(const int ch) {
    return static_cast<unsigned char>(ch) == '\n';
 }
 
 // *****************************************************************************
-static inline int get(context &pp) { return pp.in.get(); }
+int get(context &pp) { return pp.in.get(); }
 
 // *****************************************************************************
-static inline int put(const char c, context &pp) {
+int put(const char c, context &pp) {
    if (is_newline(c)) pp.line++;
    pp.out.put(c);
    return c;
 }
 
 // *****************************************************************************
-static inline int put(context &pp) {
+int put(context &pp) {
    const unsigned char c = get(pp);
    return put(c,pp);
 }
 
 // *****************************************************************************
-static inline void skip_space(context &pp) {
+void skip_space(context &pp) {
    while (isspace(pp.in.peek())) put(pp);
 }
 
 // *****************************************************************************
-static inline bool is_comment(context &pp) {
+bool is_comments(context &pp) {
    if (pp.in.peek() != '/') return false;
    pp.in.get();
    assert(!pp.in.eof());
@@ -133,14 +132,13 @@ static inline bool is_comment(context &pp) {
 }
 
 // *****************************************************************************
-static inline void singleLineComment(context &pp) {
+void singleLineComments(context &pp) {
    while (not is_newline(pp.in.peek())) put(pp);
 }
 
 // *****************************************************************************
-static inline void blockComment(context &pp) {
-   char c;
-   while (pp.in.get(c)) {
+void blockComments(context &pp) {
+   for(char c;pp.in.get(c);) {
       put(c,pp);
       if (c == '*' && pp.in.peek() == '/') {
          put(pp);
@@ -151,20 +149,21 @@ static inline void blockComment(context &pp) {
 }
 
 // *****************************************************************************
-static inline void comment(context &pp) {
+void comments(context &pp) {
+   if (not is_comments(pp)) return;
    put(pp);
-   if (put(pp) == '/') return singleLineComment(pp);
-   return blockComment(pp);
+   if (put(pp) == '/') return singleLineComments(pp);
+   return blockComments(pp);
 }
 
 // *****************************************************************************
-static inline bool is_id(context &pp) {
+bool is_id(context &pp) {
    const unsigned char c = pp.in.peek();
    return isalnum(c) or c == '_';
 }
 
 // *****************************************************************************
-static inline string get_id(context &pp) {
+string get_id(context &pp) {
    string str;
    check(pp,is_id(pp),"Name w/o alnum 1st letter");
    while (is_id(pp)) str += pp.in.get();
@@ -172,14 +171,28 @@ static inline string get_id(context &pp) {
 }
 
 // *****************************************************************************
-static inline string get_directive(context &pp) {
+bool is_digit(context &pp) {
+   const unsigned char c = pp.in.peek();
+   return isdigit(c);
+}
+
+// *****************************************************************************
+int get_digit(context &pp) {
+   string str;
+   check(pp,is_digit(pp),"Unknown number");
+   while (is_digit(pp)) str += pp.in.get();
+   return atoi(str.c_str());
+}
+
+// *****************************************************************************
+string get_directive(context &pp) {
    string str;
    while (is_id(pp)) str += pp.in.get();
    return str;
 }
 
 // *****************************************************************************
-static inline string peekn(context &pp, const int n) {
+string peekn(context &pp, const int n) {
    int k = 0;
    assert(n<64);
    static char c[64];
@@ -195,7 +208,7 @@ static inline string peekn(context &pp, const int n) {
 }
 
 // *****************************************************************************
-static inline string peekID(context &pp) {
+string peekID(context &pp) {
    int k = 0;
    const int n = 64;
    static char c[64];
@@ -211,12 +224,12 @@ static inline string peekID(context &pp) {
 }
 
 // *****************************************************************************
-static inline void drop_name(context &pp) {
+void drop_name(context &pp) {
    while (is_id(pp)) pp.in.get();
 }
 
 // *****************************************************************************
-static inline bool isvoid(context &pp) {
+bool isvoid(context &pp) {
    skip_space(pp);
    const string void_peek = peekn(pp,4);
    assert(not pp.in.eof());
@@ -225,7 +238,7 @@ static inline bool isvoid(context &pp) {
 }
 
 // *****************************************************************************
-static inline bool isstatic(context &pp) {
+bool isstatic(context &pp) {
    skip_space(pp);
    const string void_peek = peekn(pp,6);
    assert(not pp.in.eof());
@@ -234,23 +247,195 @@ static inline bool isstatic(context &pp) {
 }
 
 // *****************************************************************************
-static inline bool is_star(context &pp) {
+bool is_star(context &pp) {
    skip_space(pp);
    if (pp.in.peek() == '*') return true;
    return false;
 }
 
 // *****************************************************************************
-static inline bool is_coma(context &pp) {
+bool is_coma(context &pp) {
    skip_space(pp);
    if (pp.in.peek() == ',') return true;
    return false;
 }
 
 // *****************************************************************************
-static inline bool get_args(context &pp) {
+void jitHeader(context &pp){
+   if (not pp.jit) return;
+   pp.out << "#include \"../../general/okrtc.hpp\"\n";
+}
+
+// *****************************************************************************
+void jitKernelArgs(context &pp){
+   pp.ker.xcc = STRINGIFY(MFEM_CXX) " " \
+      STRINGIFY(MFEM_BUILD_FLAGS) " " \
+      "-O3 -std=c++11 -Wall";
+   pp.ker.dirname = STRINGIFY(MFEM_SRC);
+   pp.ker.static_args.clear();
+   pp.ker.static_tmplt.clear();
+   pp.ker.static_format.clear();
+   pp.ker.any_pointer_args.clear();
+   pp.ker.any_pointer_params.clear();
+   pp.ker.d2u.clear();
+   pp.ker.u2d.clear();
+   
+   for(std::list<argument*>::iterator ia = pp.args.begin();
+       ia != pp.args.end() ; ia++) {
+      const argument *a = *ia;
+      const bool is_const = a->is_const;
+      //const bool is_restrict = a->restrict;
+      const bool is_pointer = a->star;
+      const char *type = a->type.c_str();
+      const char *name = a->name.c_str();
+      if (is_const && ! is_pointer){
+         const bool is_double = strcmp(type,"double")==0;
+         if (! pp.ker.static_format.empty()) pp.ker.static_format += ",";
+         pp.ker.static_format += is_double?"0x%lx":"%ld";
+         if (! pp.ker.static_args.empty()) pp.ker.static_args += ",";
+         pp.ker.static_args += is_double?"u":"";
+         pp.ker.static_args += name;
+         if (! pp.ker.static_tmplt.empty()) pp.ker.static_tmplt += ",";
+         pp.ker.static_tmplt += "const ";
+         pp.ker.static_tmplt += is_double?"uint64_t":type;
+         pp.ker.static_tmplt += " ";
+         pp.ker.static_tmplt += is_double?"t":"";
+         pp.ker.static_tmplt += name;
+         if (is_double){
+            {
+               pp.ker.d2u += "const double ";
+               pp.ker.d2u += name;
+               pp.ker.d2u += " = (union_du){u:t";
+               pp.ker.d2u += name;
+               pp.ker.d2u += "}.d;";
+            }
+            {
+               pp.ker.u2d += "const uint64_t u";
+               pp.ker.u2d += name;
+               pp.ker.u2d += " = (union_du){";
+               pp.ker.u2d += name;
+               pp.ker.u2d += "}.u;";
+            }
+         }
+      }
+      if (is_const && is_pointer){
+         if (! pp.ker.any_pointer_args.empty()) pp.ker.any_pointer_args += ",";
+         pp.ker.any_pointer_args += name;
+         if (! pp.ker.any_pointer_params.empty()) {
+            pp.ker.any_pointer_params += ",";
+         }
+         {
+            pp.ker.any_pointer_params += "const ";
+            pp.ker.any_pointer_params += type;
+            pp.ker.any_pointer_params += " *";
+            pp.ker.any_pointer_params += (pp.mm?"_":"");
+            pp.ker.any_pointer_params += name;
+         }
+      }
+      if (! is_const && is_pointer){
+         if (! pp.ker.any_pointer_args.empty()) pp.ker.any_pointer_args += ",";
+         pp.ker.any_pointer_args += name;
+         if (! pp.ker.any_pointer_params.empty()){
+            pp.ker.any_pointer_params += ",";
+         }
+         {
+            pp.ker.any_pointer_params += type;
+            pp.ker.any_pointer_params += " *";
+            pp.ker.any_pointer_params += (pp.mm?"_":"");
+            pp.ker.any_pointer_params += name;
+         }
+      }
+   }
+}
+
+// *****************************************************************************
+void jitPrefix(context &pp){
+   pp.out << "\n\tconst char *src=R\"_(\n";
+   pp.out << "#include <cstdint>";
+   pp.out << "\n#include <cstring>";
+   pp.out << "\n#include <stdbool.h>";
+   pp.out << "\n#include \"general/okina.hpp\"";
+   pp.out << "\ntypedef union {double d; uint64_t u;} union_du;";
+   pp.out << "\ntemplate<" << pp.ker.static_tmplt << ">";
+   pp.out << "\nvoid jit_" << pp.ker.name << "(";
+   pp.out << pp.ker.any_pointer_params << "){";
+   if (not pp.ker.d2u.empty()) pp.out << "\n\t" << pp.ker.d2u;
+   // Starts counting the blocks
+   pp.block = 0;
+}
+
+// *****************************************************************************
+void jitPostfix(context &pp){
+   if (not pp.ker.jit) return;
+   if (pp.block>=0 && pp.in.peek() == '{') { pp.block++; }
+   if (pp.block>=0 && pp.in.peek() == '}') { pp.block--; }
+   if (pp.block!=-1) return;      
+   pp.out << "}";
+   pp.out << "\nextern \"C\" void k%016lx("
+          << pp.ker.any_pointer_params << "){";
+	pp.out << "jit_"<<pp.ker.name
+          << "<" << pp.ker.static_format<<">"
+          << "(" << pp.ker.any_pointer_args << ");";
+   pp.out << "})_\";";
+   // typedef, hash map and launch
+   pp.out << "\n\ttypedef void (*kernel_t)("<<pp.ker.any_pointer_params<<");";
+   pp.out << "\n\tstatic std::unordered_map<size_t,ok::okrtc<kernel_t>*> __kernels;";
+   if (not pp.ker.u2d.empty()) pp.out << "\n\t" << pp.ker.u2d;
+
+   pp.out << "\n\tconst char *xcc = \"" << pp.ker.xcc << "\";";
+   pp.out << "\n\tconst size_t args_seed = std::hash<size_t>()(0);";
+   pp.out << "\n\tconst size_t args_hash = ok::hash_args(args_seed,"
+          << pp.ker.static_args << ");";
+   pp.out << "\n\tif (!__kernels[args_hash]){";
+   pp.out << "\n\t\t__kernels[args_hash] = new ok::okrtc<kernel_t>"
+          << "(xcc,src," << "\"-I" << pp.ker.dirname << "\","
+          << pp.ker.static_args << ");";
+   pp.out << "}\n\t(__kernels[args_hash]->operator_void("
+          << pp.ker.any_pointer_args << "));\n";
+   // Stop counting the blocks and flush the JIT status
+   pp.block--;
+   pp.ker.jit = false;
+}
+
+
+// *****************************************************************************
+void __template(context &pp){
+   char c;
+   bool dash = false;
+   list<int> range;
+   // Verify and eat '('
+   check(pp,get(pp)=='(',"__template should declare its range");
+   do{
+      const int n = get_digit(pp);
+      if (dash){
+         for(int i=range.back()+1;i<n;i++){
+            range.push_back(i);
+         }
+      }
+      dash = false;
+      range.push_back(n);      
+      c = get(pp);
+      assert(not pp.in.eof());
+      check(pp, c==',' or c=='-' or  c==')', "Unknown __template range");
+      if (c=='-'){
+         dash = true;
+      }
+   } while(c!=')');
+   //for (int n : range) { std::cout << n << ' '; }
+}
+
+// *****************************************************************************
+bool get_args(context &pp) {
    bool empty = true;
    argument *arg = new argument();
+   pp.args.clear();
+   
+   // Go to first possible argument
+   skip_space(pp);
+   if (isvoid(pp)) { // if it is 'void' drop it
+      drop_name(pp);
+      return true;
+   }
    for (int p=0; true; empty=false) {
       if (is_star(pp)){
          arg->star = true;
@@ -262,8 +447,10 @@ static inline bool get_args(context &pp) {
          continue;
       }
       const string &id = peekID(pp);
+      //dbg("id='%s'",id);
       drop_name(pp);
       // Qualifiers
+      if (id=="__template") { __template(pp); continue; }
       if (id=="const") { pp.out << id; arg->is_const = true; continue; }
       if (id=="__restrict") { pp.out << id; arg->restrict = true; continue; }
       // Types
@@ -276,8 +463,8 @@ static inline bool get_args(context &pp) {
       if (id=="float") { pp.out << id; arg->type = id; continue; }
       if (id=="double") { pp.out << id; arg->type = id; continue; }
       if (id=="size_t") { pp.out << id; arg->type = id; continue; }
-      const bool jit = pp.k.jit;
-      pp.out << ((jit || ! pp.mm)?"":"_") << id;
+      const bool jit = pp.ker.jit;
+      pp.out << ((jit or not pp.mm)?"":"_") << id;
       // focus on the name, we should have qual & type
       arg->name = id;
       pp.args.push_back(arg);
@@ -286,30 +473,19 @@ static inline bool get_args(context &pp) {
       assert(not pp.in.eof());
       if (c == '(') p+=1;
       if (c == ')') p-=1;
-      if (p<0) { return empty; }
+      if (p<0) { break; }
       skip_space(pp);
       check(pp,pp.in.peek()==',',"No coma while in args");
       put(pp);
    }
-   assert(false);
+   // Prepare the JIT strings from the arguments
+   if (pp.ker.jit) jitKernelArgs(pp);
    return empty;
 }
 
 // *****************************************************************************
-static inline void rtcKernelRefresh(context &pp){
-   pp.k.xcc = STRINGIFY(MFEM_CXX) " " \
-      STRINGIFY(MFEM_BUILD_FLAGS) " " \
-      "-O3 -std=c++11 -Wall";
-   pp.k.dirname = STRINGIFY(MFEM_SRC);
-   pp.k.static_args.clear();
-   pp.k.static_tmplt.clear();
-   pp.k.static_format.clear();
-   pp.k.any_pointer_args.clear();
-   pp.k.any_pointer_params.clear();
-   pp.k.any_pointer_params_.clear();
-   pp.k.d2u.clear();
-   pp.k.u2d.clear();
-   
+void genPtrOkina(context &pp){
+   // Generate the GET_* code
    for(std::list<argument*>::iterator ia = pp.args.begin();
        ia != pp.args.end() ; ia++) {
       const argument *a = *ia;
@@ -319,117 +495,29 @@ static inline void rtcKernelRefresh(context &pp){
       const char *type = a->type.c_str();
       const char *name = a->name.c_str();
       if (is_const && ! is_pointer){
-         const bool dbl = strcmp(type,"double")==0;
-         if (! pp.k.static_format.empty()) pp.k.static_format += ",";
-         pp.k.static_format += dbl?"0x%lx":"%ld";
-         if (! pp.k.static_args.empty()) pp.k.static_args += ",";
-         pp.k.static_args += dbl?"u":"";
-         pp.k.static_args += name;
-         if (! pp.k.static_tmplt.empty()) pp.k.static_tmplt += ",";
-         pp.k.static_tmplt += "const ";
-         pp.k.static_tmplt += dbl?"uint64_t":type;
-         pp.k.static_tmplt += " ";
-         pp.k.static_tmplt += dbl?"t":"";
-         pp.k.static_tmplt += name;
-         if (dbl){
-            {
-               pp.k.d2u += "const double ";
-               pp.k.d2u += name;
-               pp.k.d2u += " = (union_du){u:t";
-               pp.k.d2u += name;
-               pp.k.d2u += "}.d;";
-            }
-            {
-               pp.k.u2d += "const uint64_t u";
-               pp.k.u2d += name;
-               pp.k.u2d += " = (union_du){";
-               pp.k.u2d += name;
-               pp.k.u2d += "}.u;";
-            }
+         if (!pp.ker.jit){
+            pp.out << "\n\tconst " << type << " " << name
+                   << " = (const " << type << ")"
+                   << " (_" << name << ");";
          }
       }
       if (is_const && is_pointer){
-         if (! pp.k.any_pointer_args.empty()) pp.k.any_pointer_args += ",";
-         pp.k.any_pointer_args += name;
-         if (! pp.k.any_pointer_params.empty()) {
-            pp.k.any_pointer_params += ",";
-            pp.k.any_pointer_params_ += ",";
-         }
-         {
-            pp.k.any_pointer_params += "const ";
-            pp.k.any_pointer_params += type;
-            pp.k.any_pointer_params += " *";
-            pp.k.any_pointer_params += name;
-         }
-         {
-            pp.k.any_pointer_params_ += "const ";
-            pp.k.any_pointer_params_ += type;
-            pp.k.any_pointer_params_ += " *_";
-            pp.k.any_pointer_params_ += name;
-         }
+         pp.out << "\n\tconst " << type << "* " << name
+                << " = (const " << type << "*)"
+                << " mfem::mm::adrs(_" << name << ");";
       }
       if (! is_const && is_pointer){
-         if (! pp.k.any_pointer_args.empty()) pp.k.any_pointer_args += ",";
-         pp.k.any_pointer_args += name;
-         if (! pp.k.any_pointer_params.empty()){
-            pp.k.any_pointer_params += ",";
-            pp.k.any_pointer_params_ += ",";
-         }
-         {
-            pp.k.any_pointer_params += type;
-            pp.k.any_pointer_params += " *";
-            pp.k.any_pointer_params += name;
-         }
-         {
-            pp.k.any_pointer_params_ += type;
-            pp.k.any_pointer_params_ += " *_";
-            pp.k.any_pointer_params_ += name;
-         }
+         pp.out << "\n\t" << type << "* " << name
+                << " = (" << type << "*)"
+                << " mfem::mm::adrs(_" << name << ");";
       }
    }
 }
 
 // *****************************************************************************
-static inline void rtcKernelPrefix(const context &pp){
-   pp.out << "\n\ttypedef void (*kernel_t)("<<pp.k.any_pointer_params<<");";
-   pp.out << "\n\tstatic std::unordered_map<size_t,ok::okrtc<kernel_t>*> __kernels;";
-   pp.out << "\n\t" << pp.k.u2d;
-   pp.out << "\n\tconst char *src=R\"_(";
-   pp.out << "#include <cstdint>";
-   pp.out << "\n#include <cstring>";
-   pp.out << "\n#include <stdbool.h>";
-   pp.out << "\n#include \"general/okina.hpp\"";
-   pp.out << "\ntypedef union {double d; uint64_t u;} union_du;";
-   pp.out << "\ntemplate<" << pp.k.static_tmplt << ">";
-   pp.out << "\nvoid rtc_" << pp.k.name << "(";
-   pp.out << (pp.mm?pp.k.any_pointer_params_:pp.k.any_pointer_params) << "){";
-   pp.out << "\n\t" << pp.k.d2u;
-}
-
-// *****************************************************************************
-static inline void rtcKernelPostfix(context &pp){
-   pp.out << "\nextern \"C\" void k%016lx(" << pp.k.any_pointer_params << "){";
-	pp.out << "\n\trtc_"<<pp.k.name
-          <<"<" << pp.k.static_format<<">(" << pp.k.any_pointer_args << ");";
-   pp.out << "\n})_\";";
-   pp.out << "\n\tconst char *xcc = \"" << pp.k.xcc << "\";";
-   pp.out << "\n\tconst size_t args_seed = std::hash<size_t>()(0);";
-   pp.out << "\n\tconst size_t args_hash = ok::hash_args(args_seed,"
-          << pp.k.static_args << ");";
-   pp.out << "\n\tif (!__kernels[args_hash]){";
-   pp.out << "\n\t\t__kernels[args_hash] = new ok::okrtc<kernel_t>"
-          << "(xcc,src," << "\"-I" << pp.k.dirname << "\","
-          << pp.k.static_args << ");";
-   pp.out << "}\n\t(__kernels[args_hash]->operator_void("
-          << pp.k.any_pointer_args << "));\n}";
-   pp.block--;
-   pp.k.jit = false;
-}
-
-// *****************************************************************************
-static inline void __kernel(context &pp) {
-   //        "__kernel "
-   pp.out << "         ";
+void __kernel(context &pp) {
+   // Skip   "__kernel"
+   pp.out << "        ";
    skip_space(pp);
    check(pp,isvoid(pp) or isstatic(pp),"Kernel w/o void or static");
    if (isstatic(pp)) {
@@ -442,125 +530,65 @@ static inline void __kernel(context &pp) {
    skip_space(pp);
    const string name = get_id(pp);
    pp.out << name;
-   pp.k.name = name;
+   pp.ker.name = name;
    skip_space(pp);
-   if (! pp.mm) return;
+   //if (! pp.mm) return;
    // check we are at the left parenthesis
    check(pp,pp.in.peek()=='(',"No 1st '(' in kernel");
-   put(pp); 
-   // Go to first possible argument
+   put(pp);
+   // Get the arguments   
+   get_args(pp);
+   //if (not pp.mm) return;
+   // Make sure we have hit the last ')' of the arguments
+   check(pp,pp.in.peek()==')',"No last ')' in kernel");
+   put(pp);
    skip_space(pp);
-   if (isvoid(pp)) { // if it is 'void' don't add any coma
-      drop_name(pp);
-   } else {
-      pp.args.clear();
-      get_args(pp);
-      if (pp.k.jit) rtcKernelRefresh(pp);
-   }
+   // Make sure we are about to start a statement block
+   check(pp,pp.in.peek()=='{',"No statement block found");
+   put(pp);
+   // Generate the JIT prefix for this kernel
+   if (pp.ker.jit) jitPrefix(pp);
+   // If we are using the memory manager, generate the calls
+   if (pp.mm) genPtrOkina(pp);
 }
 
 // *****************************************************************************
-// * '__' was hit, now fetch its 'id'
+void __jit(context &pp){
+   // Skip "__jit"
+   pp.out << "   ";
+   skip_space(pp);
+   pp.ker.jit = true;
+   string id = get_id(pp);
+   check(pp,id=="__kernel","No 'kernel' keyword after 'jit' qualifier");
+   __kernel(pp);
+}
+
 // *****************************************************************************
-static inline void __id(context &pp, string id = "") {
-   if (id.empty()) id = get_id(pp);
-   if (id=="_jit"){
-      skip_space(pp);
-      pp.k.jit = true;
-      id = get_id(pp);
-      check(pp,id=="__kernel","No 'kernel' keyword after 'jit' qualifier");
-   }
-   if (id=="_kernel" or id=="__kernel"){
-      // Get arguments of this kernel
-      __kernel(pp);
-      if (not pp.mm) return;
-      check(pp,pp.in.peek()==')',"No last ')' in kernel");
-      put(pp);
-      skip_space(pp);
-      // Make sure we are about to start a statement block
-      check(pp,pp.in.peek()=='{',"No statement block found");
-      put(pp);
-      // Generate the RTC prefix for this kernel
-      if (pp.k.jit) rtcKernelPrefix(pp);
-      pp.block = 0;
-      if (! pp.mm) return;
-      // Generate the GET_* code
-      for(std::list<argument*>::iterator ia = pp.args.begin();
-          ia != pp.args.end() ; ia++) {
-         const argument *a = *ia;
-         const bool is_const = a->is_const;
-         //const bool is_restrict = a->restrict;
-         const bool is_pointer = a->star;
-         const char *type = a->type.c_str();
-         const char *name = a->name.c_str();
-         if (is_const && ! is_pointer){
-            if (!pp.k.jit){
-               pp.out << "\n\tconst " << type << " " << name
-                      << " = (const " << type << ")"
-                      << " (_" << name << ");";
-            }
-         }
-         if (is_const && is_pointer){
-            pp.out << "\n\tconst " << type << "* " << name
-                   << " = (const " << type << "*)"
-                   << " mfem::mm::adrs(_" << name << ");";
-         }
-         if (! is_const && is_pointer){
-            pp.out << "\n\t" << type << "* " << name
-                   << " = (" << type << "*)"
-                   << " mfem::mm::adrs(_" << name << ");";
-         }
-      }
-      return;
-   }
-   put('_',pp);
+void tokens(context &pp) {
+   if (pp.in.peek() != '_') return;
+   string id = get_id(pp);
+   if (id=="__jit"){ return __jit(pp); }
+   if (id=="__kernel"){ return __kernel(pp); }
    pp.out << id;
 }
 
 // *****************************************************************************
-static inline void sharpId(context &pp) {
-   string id = get_directive(pp);
-   if (id=="jit"){
-      assert(false);
-      skip_space(pp);
-      pp.k.jit = true;
-      id = get_id(pp);
-      check(pp,id=="_kernel","No 'kernel' token found after the 'jit' one");
-      __id(pp,"_kernel");
-      return;
-   }
-   if (id=="kernel"){
-      __id(pp,"_kernel");
-      return;
-   }
-   pp.out << id;
+bool eof(context &pp){
+   const int c = pp.in.get();
+   if (pp.in.eof()) return true;
+   put(c,pp);
+   return false;
 }
 
 // *****************************************************************************
-static inline int process(context &pp) {
-   char ch;
-   pp.k.jit = false;
-   if (pp.jit) {
-      pp.out << "#include \"../../general/okrtc.hpp\"\n";
-   }
-   while (true){
-      if (is_comment(pp)) comment(pp);
-      pp.in.get(ch);
-      if (pp.in.eof()) break;
-      if (ch == '#') {
-         put(ch,pp);
-         sharpId(pp);
-         continue;
-      }
-      if (ch == '_' and pp.in.peek() == '_') {
-         __id(pp);
-         continue;
-      }
-      if (pp.block==-1) { if (pp.k.jit) rtcKernelPostfix(pp); }
-      if (pp.block>=0 && pp.in.peek() == '{') { pp.block++; }
-      if (pp.block>=0 && pp.in.peek() == '}') { pp.block--; }
-      put(ch,pp);
-   }
+int process(context &pp) {
+   jitHeader(pp);
+   pp.ker.jit = false;
+   do{
+      tokens(pp);
+      comments(pp);
+      jitPostfix(pp);
+   } while (not eof(pp));
    return 0;
 }
 

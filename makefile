@@ -336,8 +336,10 @@ OBJECT_KERNS = $(patsubst $(SRC)%,$(BLD)%,$(CODEGN_KERNS:.cpp=.o))
 # Default rule.
 lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 
-mpp: $(BLD)general/mpp.cpp $(BLD)general/okrtc.hpp
-	$(MFEM_CXX) -O3 -std=c++11 -Wall -Wextra -o $(BLD)$(@) $(<) -DMFEM_SRC=$(SRC) -DMFEM_CXX=$(MFEM_CXX) -DMFEM_BUILD_FLAGS="$(MFEM_BUILD_FLAGS)"
+mpp: $(BLD)general/mpp.cpp $(BLD)general/okrtc.hpp $(THIS_MK)
+	$(MFEM_CXX) -O3 -std=c++11 -Wall -Wextra -o $(BLD)$(@) $(<) \
+ -DMFEM_SRC=$(SRC) -DMFEM_CXX=$(MFEM_CXX) -DMFEM_BUILD_FLAGS="$(MFEM_BUILD_FLAGS)" \
+ $(if $(MFEM_USE_GPU:YES=),,-DMFEM_USE_GPU) $(if $(MFEM_USE_JIT:YES=),,-DMFEM_USE_JIT)
 
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
