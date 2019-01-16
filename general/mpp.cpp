@@ -268,6 +268,7 @@ void jitHeader(context &pp){
 
 // *****************************************************************************
 void jitKernelArgs(context &pp){
+   if (not pp.jit or not pp.ker.jit) return;
    pp.ker.xcc = STRINGIFY(MFEM_CXX) " " \
       STRINGIFY(MFEM_BUILD_FLAGS) " " \
       "-O3 -std=c++11 -Wall";
@@ -350,6 +351,7 @@ void jitKernelArgs(context &pp){
 
 // *****************************************************************************
 void jitPrefix(context &pp){
+   if (not pp.jit or not pp.ker.jit) return;
    pp.out << "\n\tconst char *src=R\"_(\n";
    pp.out << "#include <cstdint>";
    pp.out << "\n#include <cstring>";
@@ -366,7 +368,7 @@ void jitPrefix(context &pp){
 
 // *****************************************************************************
 void jitPostfix(context &pp){
-   if (not pp.ker.jit) return;
+   if (not pp.jit or not pp.ker.jit) return;
    if (pp.block>=0 && pp.in.peek() == '{') { pp.block++; }
    if (pp.block>=0 && pp.in.peek() == '}') { pp.block--; }
    if (pp.block!=-1) return;      
@@ -479,7 +481,7 @@ bool get_args(context &pp) {
       put(pp);
    }
    // Prepare the JIT strings from the arguments
-   if (pp.ker.jit) jitKernelArgs(pp);
+   jitKernelArgs(pp);
    return empty;
 }
 
@@ -547,7 +549,7 @@ void __kernel(context &pp) {
    check(pp,pp.in.peek()=='{',"No statement block found");
    put(pp);
    // Generate the JIT prefix for this kernel
-   if (pp.ker.jit) jitPrefix(pp);
+   jitPrefix(pp);
    // If we are using the memory manager, generate the calls
    if (pp.mm) genPtrOkina(pp);
 }
