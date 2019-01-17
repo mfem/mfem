@@ -145,10 +145,17 @@ void STRUMPACKSolver::SetReorderingStrategy( strumpack::ReorderingStrategy
    solver_->options().set_reordering_method( method );
 }
 
+#if STRUMPACK_VERSION_MAJOR >= 3
 void STRUMPACKSolver::SetMC64Job( strumpack::MatchingJob job )
 {
    solver_->options().set_matching( job );
 }
+#else
+void STRUMPACKSolver::SetMC64Job( strumpack::MC64Job job )
+{
+   solver_->options().set_mc64job( job );
+}
+#endif
 
 void STRUMPACKSolver::SetRelTol( double rtol )
 {
