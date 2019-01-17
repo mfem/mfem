@@ -84,6 +84,9 @@ private:
    inline void _SetDataAndSize_();
 
 public:
+
+  HypreParVector() {}
+  
    /** @brief Creates vector with given global size and parallel partitioning of
        the rows/columns given by @a col. */
    /** @anchor hypre_partitioning_descr

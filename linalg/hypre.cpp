@@ -2995,7 +2995,7 @@ void HypreBoomerAMG::SetNAIROptions(float neumann_degree,
                                     int Sabs)
 {
    int ns_down, ns_up, ns_coarse;
-   if (distance > 0)
+   if (neumann_degree > 0)
    {
       ns_down = prerelax.length();
       ns_up = postrelax.length();
@@ -3065,7 +3065,7 @@ void HypreBoomerAMG::SetNAIROptions(float neumann_degree,
    
    HYPRE_BoomerAMGSetStrongThreshold(amg_precond, strength_tolC);
    
-   if (distance > 0)
+   if (neumann_degree > 0)
    {
       HYPRE_BoomerAMGSetStrongThresholdR(amg_precond, strength_tolR);
    }
@@ -3075,7 +3075,7 @@ void HypreBoomerAMG::SetNAIROptions(float neumann_degree,
       HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type);
    }
 
-   if (distance > 0)
+   if (neumann_degree > 0)
    {
       HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, ns_coarse, 3);
       HYPRE_BoomerAMGSetCycleNumSweeps(amg_precond, ns_down,   1);
