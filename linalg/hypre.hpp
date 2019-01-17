@@ -829,6 +829,7 @@ public:
    virtual ~HypreParaSails();
 };
 
+
 /// The BoomerAMG solver in hypre
 class HypreBoomerAMG : public HypreSolver
 {
@@ -871,10 +872,16 @@ public:
        As with SetSystemsOptions(), this solver assumes Ordering::byVDIM. */
    void SetElasticityOptions(ParFiniteElementSpace *fespace);
 
-   void SetAIROptions(int distance=2,  std::string prerelax="",
+   void SetLAIROptions(float distance=2,  std::string prerelax="",
                       std::string postrelax="FFC", double strength_tol=0.1,
-                      double strength_tolR=0.01,
-                      int interp_type=100, int relax_type=0, double filterA_tol=0.0, 
+                      double strength_tolR=0.01, double filter_tolR=0.0,
+                      int interp_type=100, int relax_type=3, double filterA_tol=0.0, 
+                      int splitting=6, int blksize=0, int Sabs=0);
+
+   void SetNAIROptions(float neumann_degree=5,  std::string prerelax="A",
+                      std::string postrelax="F", double strength_tol=0.1,
+                      double strength_tolR=0.01, double filter_tolR=0.0,
+                      int interp_type=100, int relax_type=10, double filterA_tol=0.0, 
                       int splitting=6, int blksize=0, int Sabs=0);
 
    void SetCoord(int dim, float *coord);
@@ -891,10 +898,19 @@ public:
    void SetTol(double tol)
    { HYPRE_BoomerAMGSetTol(amg_precond, tol); }
 
+   void SetStrengthThresh(double strength)
+   { HYPRE_BoomerAMGSetStrongThreshold(amg_precond, strength); }
+
+   void SetStrengthThreshR(double strengthR)
+   { HYPRE_BoomerAMGSetStrongThresholdR(amg_precond, strengthR); }
+
+   void SetFilterThreshR(double filterR)
+   { HYPRE_BoomerAMGSetFilterThresholdR(amg_precond, filterR); }
+
    void SetInterpolation(int interp_type)
    { HYPRE_BoomerAMGSetInterpType(amg_precond, interp_type); }
 
-   void SetRestriction(int restrict_type)
+   void SetRestriction(float restrict_type)
    { HYPRE_BoomerAMGSetRestriction(amg_precond, restrict_type); }
 
    void SetCoarsening(int coarsen_type)
@@ -909,6 +925,9 @@ public:
 
    void GetNumIterations(int &num_it)
    { HYPRE_BoomerAMGGetNumIterations(amg_precond, &num_it); }
+
+   void SetCycleType(int cycle_type)
+   { HYPRE_BoomerAMGSetCycleType(amg_precond, cycle_type); }
 
    /// The typecast to HYPRE_Solver returns the internal amg_precond
    virtual operator HYPRE_Solver() const { return amg_precond; }
