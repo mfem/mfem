@@ -135,7 +135,7 @@ public:
     *    MAX_DIAGONAL_PRODUCT_SCALING:  Maximize the product of the diagonal
     *                                   values and perform row & column scaling
     */
-   void SetMC64Job( strumpack::MC64Job job );
+   void SetMC64Job( strumpack::MatchingJob job );
 
 private:
    void Init( int argc, char* argv[] );
