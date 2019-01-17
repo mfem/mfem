@@ -261,7 +261,11 @@ int main(int argc, char *argv[])
          strumpack->SetPrintSolveStatistics(false);
          strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
          strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+#if STRUMPACK_VERSION_MAJOR >= 3
          strumpack->SetMC64Job(strumpack::MatchingJob::NONE);
+#else
+         strumpack->SetMC64Job(strumpack::MC64Job::NONE);
+#endif
          // strumpack->SetSymmetricPattern(true);
          strumpack->SetOperator(*Arow);
          strumpack->SetFromCommandLine();
