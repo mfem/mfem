@@ -172,6 +172,29 @@ public:
    }
 };
 
+// Specialized VectorCoefficient to compute one component of the momentum flux
+class DiffusionFluxCoefficient : public VectorCoefficient
+{
+private:
+   const Coefficient & nuCoef_;
+   GradientGridFunctionCoefficient gradCoef_;
+
+public:
+   DiffusionFluxCoefficient(int dim, const Coefficient & nuCoef,
+			    ParGridFunction *momentum_comp)
+     : VectorCoefficient(dim),
+       nuCoef_(nuCoef),
+       gradCoef_(momentum_comp)
+   {}
+
+   void Eval(Vector & V, ElementTransformation &T,
+	     const IntegrationPoint &ip)
+   {
+     const_cast<GradientGridFunctionCoefficient&>(gradCoef_).Eval(V, T, ip);
+     V *= -1.0 * const_cast<Coefficient&>(nuCoef_).Eval(T, ip);
+   }
+};
+
 // Time-dependent operator for the right-hand side of the ODE representing the
 // DG weak form.
 class FE_Evolution : public TimeDependentOperator
@@ -195,7 +218,9 @@ private:
   // PressureCoefficient PCoef_; // Computes pressure from state variables
   
    mutable ParGridFunction P_; // Pressure
-  
+   // mutable vector<ParGridFunction> momentum_comp_;  
+   mutable vector<ParGridFunction> gradMom_;  
+
    mutable Vector state_;
    mutable DenseMatrix f_;
    mutable DenseTensor flux_;
@@ -630,11 +655,17 @@ FE_Evolution::FE_Evolution(ParFiniteElementSpace &_fes,
      De_(vfes_.GetFE(0)->GetDof(), vfes_.GetFE(0)->GetDof(), vfes_.GetNE()),
      nuCoef_(diffusion_constant),
      P_(&fes_),
-     state_(num_equation),
+     gradMom_(dim_),
+     state_(num_equation + dim_ * dim_),
      f_(num_equation, dim_),
      flux_(vfes_.GetNDofs(), dim_, num_equation),
      z_(A_.Height())
 {
+   for (int d=0; d<dim_; d++)
+   {
+      gradMom_[d].SetSpace(&dfes_);
+   }
+  
    // Standard local assembly and inversion for energy mass matrices.
    MassIntegrator mi;
    DiffusionIntegrator di(nuCoef_);
@@ -732,7 +763,8 @@ void ComputeFlux(const Vector &state, int dim, DenseMatrix &flux)
    const double den = state(0);
    const Vector den_vel(state.GetData() + 1, dim);
    const double den_energy = state(1 + dim);
-
+   const DenseMatrix dmom(const_cast<double*>(&state[dim + 2]), dim, dim);
+   
    MFEM_ASSERT(StateIsPhysical(state, dim), "");
 
    const double pres = ComputePressure(state, dim);
@@ -742,7 +774,7 @@ void ComputeFlux(const Vector &state, int dim, DenseMatrix &flux)
       flux(0, d) = den_vel(d);
       for (int i = 0; i < dim; i++)
       {
-         flux(1+i, d) = den_vel(i) * den_vel(d) / den;
+	flux(1+i, d) = den_vel(i) * den_vel(d) / den + dmom(i, d);
       }
       flux(1+d, d) += pres;
    }
@@ -801,28 +833,42 @@ inline double ComputeMaxCharSpeed(const Vector &state, const int dim)
 // Compute the flux at solution nodes.
 void FE_Evolution::GetFlux(const DenseMatrix &x, DenseTensor &flux) const
 {
-   /*
-    const int dof = flux.SizeI();
-    const int dim = flux.SizeJ();
+   const int dof = flux.SizeI();
+   const int dim = flux.SizeJ();
 
+   for (int d=0; d<dim_; d++)
+   {
+      ParGridFunction
+	momentum_comp(&fes_, const_cast<double*>(x.GetColumn(1)) + d * dof);
+      DiffusionFluxCoefficient diffFluxCoef(dim_, nuCoef_, &momentum_comp);
+      gradMom_[d].ProjectCoefficient(diffFluxCoef);
+   }
+  
     for (int i = 0; i < dof; i++)
     {
-       for (int k = 0; k < num_equation; k++) { state(k) = x(i, k); }
-       ComputeFlux(state, dim, f);
+       for (int k = 0; k < num_equation; k++) { state_(k) = x(i, k); }
+       for (int di=0; di<dim_; di++)
+       {
+	  for (int dj=0; dj<dim_; dj++)
+	  {
+	     state_[num_equation + di * dim_ + dj] = gradMom_[di][dj * dof + i];
+	  }
+       }
+       ComputeFlux(state_, dim, f_);
 
        for (int d = 0; d < dim; d++)
        {
           for (int k = 0; k < num_equation; k++)
           {
-             flux(i, d, k) = f(k, d);
+             flux(i, d, k) = f_(k, d);
           }
        }
 
        // Update max char speed
-       const double mcs = ComputeMaxCharSpeed(state, dim);
+       const double mcs = ComputeMaxCharSpeed(state_, dim);
        if (mcs > max_char_speed) { max_char_speed = mcs; }
     }
-    */
+  /*
    // Create ParGridFunctions around each component of x
    ParGridFunction density(&fes_, const_cast<double*>(x.GetColumn(0)));
    ParGridFunction momentum(&dfes_, const_cast<double*>(x.GetColumn(1)));
@@ -855,6 +901,7 @@ void FE_Evolution::GetFlux(const DenseMatrix &x, DenseTensor &flux) const
    // Update the energy flux using a specialized coefficient
    EnergyFluxCoefficient EFCoef(density, momentum, energy, P_);
    engFlux.ProjectCoefficient(EFCoef);
+  */
 }
 
 // Implementation of class RiemannSolver
