@@ -38,7 +38,14 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form) :
    localY(a->fes->GetNE() * testFes->GetFE(0)->GetDof() * testFes->GetVDim()),
    kfes(new kFiniteElementSpace(a->fes)) { }
 
-PABilinearFormExtension::~PABilinearFormExtension() { delete kfes; }
+PABilinearFormExtension::~PABilinearFormExtension()
+{
+   for (int i = 0; i < integrators.Size(); ++i)
+   {
+      delete integrators[i];
+   }
+   delete kfes;
+}
 
 // Adds new Domain Integrator.
 void PABilinearFormExtension::AddDomainIntegrator(
