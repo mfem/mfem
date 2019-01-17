@@ -538,8 +538,7 @@ bool get_args(context &pp)
       if (id=="float") { pp.out << id; arg.type = id; continue; }
       if (id=="double") { pp.out << id; arg.type = id; continue; }
       if (id=="size_t") { pp.out << id; arg.type = id; continue; }
-      const bool jit = pp.ker.jit;
-      pp.out << ((jit or not pp.mm)?"":"_") << id;
+      pp.out << ((not pp.mm)?"":"_") << id;
       // focus on the name, we should have qual & type
       arg.name = id;
       pp.args.push_back(arg);
@@ -573,17 +572,17 @@ void genPtrOkina(context &pp)
       const char *name = a.name.c_str();
       if (is_const && ! is_pointer)
       {
-         if (!pp.ker.jit)
+         //if (!pp.ker.jit)
          {
             pp.out << "\n\tconst " << type << " " << name
-                   << " = (const " << type << ")"
+                   << " = (" << type << ")"
                    << " (_" << name << ");";
          }
       }
       if (is_const && is_pointer)
       {
          pp.out << "\n\tconst " << type << "* " << name
-                << " = (const " << type << "*)"
+                << " = (" << type << "*)"
                 << " mfem::mm::adrs(_" << name << ");";
       }
       if (! is_const && is_pointer)

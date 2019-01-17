@@ -86,8 +86,8 @@ $(if $(wildcard $(THIS_MK)),,$(error Makefile not found "$(THIS_MK)"))
 MFEM_DIR ?= $(patsubst %/,%,$(dir $(THIS_MK)))
 MFEM_REAL_DIR := $(realpath $(MFEM_DIR))
 $(if $(MFEM_REAL_DIR),,$(error Source directory "$(MFEM_DIR)" is not valid))
-SRC := $(if $(MFEM_REAL_DIR:$(CURDIR)=),$(MFEM_DIR)/,$(MFEM_REAL_DIR)/)
-#SRC := $(if $(MFEM_REAL_DIR:$(CURDIR)=),$(MFEM_DIR)/,)
+#SRC := $(if $(MFEM_REAL_DIR:$(CURDIR)=),$(MFEM_DIR)/,$(MFEM_REAL_DIR)/)
+SRC := $(if $(MFEM_REAL_DIR:$(CURDIR)=),$(MFEM_DIR)/,)
 $(if $(word 2,$(SRC)),$(error Spaces in SRC = "$(SRC)" are not supported))
 
 MFEM_GIT_STRING = $(shell [ -d $(MFEM_DIR)/.git ] && git -C $(MFEM_DIR) \
@@ -337,8 +337,8 @@ OBJECT_KERNS = $(patsubst $(SRC)%,$(BLD)%,$(CODEGN_KERNS:.cpp=.o))
 lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 
 mpp: $(BLD)general/mpp.cpp $(BLD)general/okrtc.hpp $(THIS_MK)
-	$(MFEM_CXX) -O3 -std=c++11 -Wall -Wextra -o $(BLD)$(@) $(<) \
- -DMFEM_SRC=$(SRC) -DMFEM_CXX=$(MFEM_CXX) -DMFEM_BUILD_FLAGS="$(MFEM_BUILD_FLAGS)" \
+	$(MFEM_CXX) -O3 -std=c++11 -o $(BLD)$(@) $(<) \
+ -DMFEM_SRC=$(MFEM_REAL_DIR) -DMFEM_CXX=$(MFEM_CXX) -DMFEM_BUILD_FLAGS="$(MFEM_BUILD_FLAGS)" \
  $(if $(MFEM_USE_GPU:YES=),,-DMFEM_USE_GPU) $(if $(MFEM_USE_JIT:YES=),,-DMFEM_USE_JIT)
 
 # Flags used for compiling all source files.
@@ -353,9 +353,9 @@ $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 $(SRC)%.cpp: $(SRC)%.kpp mpp
 	./mpp $(<) -o $(@)
 $(OBJECT_KERNS): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -xc++ -c $(*).cpp -o $(@)
-ker: ;echo $(OBJECT_KERNS)
-LIB_LD = -ldl
+	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(if $(MFEM_CXX:nvcc=),,-Xcompiler) -xc++ -c $(<) -o $(@)
+#ker: ;echo $(OBJECT_KERNS)
+#LIB_LD = -ldl
 
 all: examples miniapps $(TEST_DIRS)
 
