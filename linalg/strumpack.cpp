@@ -145,9 +145,9 @@ void STRUMPACKSolver::SetReorderingStrategy( strumpack::ReorderingStrategy
    solver_->options().set_reordering_method( method );
 }
 
-void STRUMPACKSolver::SetMC64Job( strumpack::MC64Job job )
+void STRUMPACKSolver::SetMC64Job( strumpack::MatchingJob job )
 {
-   solver_->options().set_mc64job( job );
+   solver_->options().set_matching( job );
 }
 
 void STRUMPACKSolver::SetRelTol( double rtol )
