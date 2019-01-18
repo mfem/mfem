@@ -76,12 +76,12 @@ private:
    mutable Vector momVec_;
 
    double specific_heat_ratio_;
-  
+
 public:
    PressureCoefficient(const ParGridFunction &density,
-		       const ParGridFunction &momentum,
-		       const ParGridFunction &energy,
-		       double specific_heat_ratio)
+             const ParGridFunction &momentum,
+             const ParGridFunction &energy,
+             double specific_heat_ratio)
      : density_(density),
        momentum_(momentum),
        energy_(energy),
@@ -90,14 +90,14 @@ public:
    {}
 
    double Eval(ElementTransformation &T,
-	       const IntegrationPoint &ip)
+          const IntegrationPoint &ip)
    {
       double density = density_.GetValue(T.ElementNo, T.GetIntPoint());
       momentum_.GetVectorValue(T.ElementNo, T.GetIntPoint(), momVec_);
       double energy = energy_.GetValue(T.ElementNo, T.GetIntPoint());
-     
+
       return (specific_heat_ratio_ - 1.0) *
-	(energy - 0.5 * (momVec_ * momVec_) / density);
+   (energy - 0.5 * (momVec_ * momVec_) / density);
    }
 };
 */
@@ -111,12 +111,12 @@ private:
    const ParGridFunction &pressure_;
 
    mutable Vector momVec_;
-   int comp_;  
+   int comp_;
 
 public:
    MomentumFluxCoefficient(const ParGridFunction &density,
-			   const ParGridFunction &momentum,
-			   const ParGridFunction &pressure)
+            const ParGridFunction &momentum,
+            const ParGridFunction &pressure)
      : VectorCoefficient(momentum.VectorDim()),
        density_(density),
        momentum_(momentum),
@@ -126,9 +126,9 @@ public:
    {}
 
    void SetComponent(int comp) { comp_ = comp; }
-  
+
    void Eval(Vector & V, ElementTransformation &T,
-	     const IntegrationPoint &ip)
+        const IntegrationPoint &ip)
    {
       double density  = density_.GetValue(T.ElementNo, T.GetIntPoint());
       momentum_.GetVectorValue(T.ElementNo, T.GetIntPoint(), momVec_);
@@ -149,12 +149,12 @@ private:
    const ParGridFunction &momentum_;
    const ParGridFunction &energy_;
    const ParGridFunction &pressure_;
-  
+
 public:
    EnergyFluxCoefficient(const ParGridFunction &density,
-			 const ParGridFunction &momentum,
-			 const ParGridFunction &energy,
-			 const ParGridFunction &pressure)
+          const ParGridFunction &momentum,
+          const ParGridFunction &energy,
+          const ParGridFunction &pressure)
      : VectorCoefficient(momentum.VectorDim()),
        density_(density),
        momentum_(momentum),
@@ -163,13 +163,13 @@ public:
    {}
 
    void Eval(Vector & V, ElementTransformation &T,
-	     const IntegrationPoint &ip)
+        const IntegrationPoint &ip)
    {
       double density  = density_.GetValue(T.ElementNo, T.GetIntPoint());
       momentum_.GetVectorValue(T.ElementNo, T.GetIntPoint(), V);
       double energy   = energy_.GetValue(T.ElementNo, T.GetIntPoint());
       double pressure = pressure_.GetValue(T.ElementNo, T.GetIntPoint());
-      
+
       V *= (energy + pressure) / density;
    }
 };
@@ -183,17 +183,17 @@ private:
 
 public:
    DiffusionFluxCoefficient(int dim, const Coefficient & nuCoef,
-			    ParGridFunction *momentum_comp)
-     : VectorCoefficient(dim),
-       nuCoef_(nuCoef),
-       gradCoef_(momentum_comp)
+                            ParGridFunction *momentum_comp)
+      : VectorCoefficient(dim),
+        nuCoef_(nuCoef),
+        gradCoef_(momentum_comp)
    {}
 
    void Eval(Vector & V, ElementTransformation &T,
-	     const IntegrationPoint &ip)
+             const IntegrationPoint &ip)
    {
-     const_cast<GradientGridFunctionCoefficient&>(gradCoef_).Eval(V, T, ip);
-     V *= -1.0 * const_cast<Coefficient&>(nuCoef_).Eval(T, ip);
+      const_cast<GradientGridFunctionCoefficient&>(gradCoef_).Eval(V, T, ip);
+      V *= -1.0 * const_cast<Coefficient&>(nuCoef_).Eval(T, ip);
    }
 };
 
@@ -217,11 +217,11 @@ private:
    DenseMatrixInverse inv_;
 
    ConstantCoefficient nuCoef_;
-  // PressureCoefficient PCoef_; // Computes pressure from state variables
-  
+   // PressureCoefficient PCoef_; // Computes pressure from state variables
+
    mutable ParGridFunction P_; // Pressure
-   // mutable vector<ParGridFunction> momentum_comp_;  
-   mutable vector<ParGridFunction> gradMom_;  
+   // mutable vector<ParGridFunction> momentum_comp_;
+   mutable vector<ParGridFunction> gradMom_;
 
    mutable Vector state_;
    mutable DenseMatrix f_;
@@ -398,9 +398,9 @@ int main(int argc, char *argv[])
       case 22: ode_solver = new ImplicitMidpointSolver; break;
       case 23: ode_solver = new SDIRK23Solver; break;
       case 34: ode_solver = new SDIRK34Solver; break;
-	// Explicit mthods
-   case 4: ode_solver = new RK4Solver; break;
-   default:
+      // Explicit mthods
+      case 4: ode_solver = new RK4Solver; break;
+      default:
          if (mpi.Root())
          {
             cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
@@ -669,7 +669,7 @@ FE_Evolution::FE_Evolution(ParFiniteElementSpace &_fes,
    {
       gradMom_[d].SetSpace(&dfes_);
    }
-  
+
    // Standard local assembly and inversion for energy mass matrices.
    MassIntegrator mi;
    DiffusionIntegrator di(nuCoef_);
@@ -809,7 +809,7 @@ void ComputeFlux(const Vector &state, int dim, DenseMatrix &flux)
    const Vector den_vel(state.GetData() + 1, dim);
    const double den_energy = state(1 + dim);
    const DenseMatrix dmom(const_cast<double*>(&state[dim + 2]), dim, dim);
-   
+
    MFEM_ASSERT(StateIsPhysical(state, dim), "");
 
    const double pres = ComputePressure(state, dim);
@@ -819,7 +819,7 @@ void ComputeFlux(const Vector &state, int dim, DenseMatrix &flux)
       flux(0, d) = den_vel(d);
       for (int i = 0; i < dim; i++)
       {
-	flux(1+i, d) = den_vel(i) * den_vel(d) / den + dmom(i, d);
+         flux(1+i, d) = den_vel(i) * den_vel(d) / den + dmom(i, d);
       }
       flux(1+d, d) += pres;
    }
@@ -841,7 +841,7 @@ void ComputeFluxDotN(const Vector &state, const Vector &nor,
    const Vector den_vel(state.GetData() + 1, dim);
    const double den_energy = state(1 + dim);
    const DenseMatrix dmom(const_cast<double*>(&state[dim + 2]), dim, dim);
-   
+
    MFEM_ASSERT(StateIsPhysical(state, dim), "");
 
    const double pres = ComputePressure(state, dim);
@@ -855,7 +855,7 @@ void ComputeFluxDotN(const Vector &state, const Vector &nor,
       fluxN(1+d) = den_velN * den_vel(d) / den + pres * nor(d);
       for (int i=0; i<dim; i++)
       {
-	fluxN(1+d) += dmom(i, d) * nor(i);
+         fluxN(1+d) += dmom(i, d) * nor(i);
       }
    }
 
@@ -889,69 +889,69 @@ void FE_Evolution::GetFlux(const DenseMatrix &x, DenseTensor &flux) const
    for (int d=0; d<dim_; d++)
    {
       ParGridFunction
-	momentum_comp(&fes_, const_cast<double*>(x.GetColumn(1)) + d * dof);
+      momentum_comp(&fes_, const_cast<double*>(x.GetColumn(1)) + d * dof);
       DiffusionFluxCoefficient diffFluxCoef(dim_, nuCoef_, &momentum_comp);
       gradMom_[d].ProjectCoefficient(diffFluxCoef);
    }
-  
-    for (int i = 0; i < dof; i++)
+
+   for (int i = 0; i < dof; i++)
+   {
+      for (int k = 0; k < num_equation; k++) { state_(k) = x(i, k); }
+      for (int di=0; di<dim_; di++)
+      {
+         for (int dj=0; dj<dim_; dj++)
+         {
+            state_[num_equation + di * dim_ + dj] = gradMom_[di][dj * dof + i];
+         }
+      }
+      ComputeFlux(state_, dim, f_);
+
+      for (int d = 0; d < dim; d++)
+      {
+         for (int k = 0; k < num_equation; k++)
+         {
+            flux(i, d, k) = f_(k, d);
+         }
+      }
+
+      // Update max char speed
+      const double mcs = ComputeMaxCharSpeed(state_, dim);
+      if (mcs > max_char_speed) { max_char_speed = mcs; }
+   }
+   /*
+    // Create ParGridFunctions around each component of x
+    ParGridFunction density(&fes_, const_cast<double*>(x.GetColumn(0)));
+    ParGridFunction momentum(&dfes_, const_cast<double*>(x.GetColumn(1)));
+    ParGridFunction energy(&fes_, const_cast<double*>(x.GetColumn(dim_ + 1)));
+
+    // Update the pressure field
+    PressureCoefficient PCoef(density, momentum, energy, specific_heat_ratio);
+    P_.ProjectCoefficient(PCoef);
+
+    // Create ParGridFunctions around each component of flux
+    ParGridFunction denFlux(&dfes_, flux.GetData(0));
+    vector<ParGridFunction> momFlux(dim_);
+    for (int d=0; d<dim_; d++)
     {
-       for (int k = 0; k < num_equation; k++) { state_(k) = x(i, k); }
-       for (int di=0; di<dim_; di++)
-       {
-	  for (int dj=0; dj<dim_; dj++)
-	  {
-	     state_[num_equation + di * dim_ + dj] = gradMom_[di][dj * dof + i];
-	  }
-       }
-       ComputeFlux(state_, dim, f_);
-
-       for (int d = 0; d < dim; d++)
-       {
-          for (int k = 0; k < num_equation; k++)
-          {
-             flux(i, d, k) = f_(k, d);
-          }
-       }
-
-       // Update max char speed
-       const double mcs = ComputeMaxCharSpeed(state_, dim);
-       if (mcs > max_char_speed) { max_char_speed = mcs; }
+      momFlux[d].MakeRef(&dfes_, flux.GetData(d + 1));
     }
-  /*
-   // Create ParGridFunctions around each component of x
-   ParGridFunction density(&fes_, const_cast<double*>(x.GetColumn(0)));
-   ParGridFunction momentum(&dfes_, const_cast<double*>(x.GetColumn(1)));
-   ParGridFunction energy(&fes_, const_cast<double*>(x.GetColumn(dim_ + 1)));
+    ParGridFunction engFlux(&dfes_, flux.GetData(dim_ + 1));
 
-   // Update the pressure field
-   PressureCoefficient PCoef(density, momentum, energy, specific_heat_ratio);
-   P_.ProjectCoefficient(PCoef);
-   
-   // Create ParGridFunctions around each component of flux
-   ParGridFunction denFlux(&dfes_, flux.GetData(0));
-   vector<ParGridFunction> momFlux(dim_);
-   for (int d=0; d<dim_; d++)
-   {
-     momFlux[d].MakeRef(&dfes_, flux.GetData(d + 1));
-   }
-   ParGridFunction engFlux(&dfes_, flux.GetData(dim_ + 1));
+    // Update the density flux using the momentum
+    denFlux = momentum;
 
-   // Update the density flux using the momentum
-   denFlux = momentum;
+    // Update the momentum flux using specialized coefficients
+    MomentumFluxCoefficient MCoef(density, momentum, P_);
+    for (int d=0; d<dim_; d++)
+    {
+       MCoef.SetComponent(d);
+       momFlux[d].ProjectCoefficient(MCoef);
+    }
 
-   // Update the momentum flux using specialized coefficients
-   MomentumFluxCoefficient MCoef(density, momentum, P_);
-   for (int d=0; d<dim_; d++)
-   {
-      MCoef.SetComponent(d);
-      momFlux[d].ProjectCoefficient(MCoef);
-   }
-   
-   // Update the energy flux using a specialized coefficient
-   EnergyFluxCoefficient EFCoef(density, momentum, energy, P_);
-   engFlux.ProjectCoefficient(EFCoef);
-  */
+    // Update the energy flux using a specialized coefficient
+    EnergyFluxCoefficient EFCoef(density, momentum, energy, P_);
+    engFlux.ProjectCoefficient(EFCoef);
+   */
 }
 
 // Implementation of class RiemannSolver
