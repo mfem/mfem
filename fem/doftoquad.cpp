@@ -297,7 +297,7 @@ kDofQuadMaps* kDofQuadMaps::GetD2QSimplexMaps(const FiniteElement& fe,
    }
 
    //maps->dofToQuad = dofToQuad;
-   kVectorAssign(numQuad*numDofs, dofToQuad.GetData(), maps->dofToQuad);
+   kernels::vector::Assign(numQuad*numDofs, dofToQuad.GetData(), maps->dofToQuad);
 
    //maps->dofToQuadD = dofToQuadD;
    kernels::vector::Assign(dims*numQuad*numDofs, dofToQuadD.GetData(), maps->dofToQuadD);

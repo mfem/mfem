@@ -26,9 +26,9 @@ class kDofQuadMaps
 private:
    std::string hash;
 public:
-   kernels::array<double, false> dofToQuad, dofToQuadD; // B
-   kernels::array<double, false> quadToDof, quadToDofD; // B^T
-   kernels::array<double> quadWeights;
+   kernels::Array<double, false> dofToQuad, dofToQuadD; // B
+   kernels::Array<double, false> quadToDof, quadToDofD; // B^T
+   kernels::Array<double> quadWeights;
 public:
    static void delkDofQuadMaps();
    static kDofQuadMaps* Get(const mfem::FiniteElementSpace&,

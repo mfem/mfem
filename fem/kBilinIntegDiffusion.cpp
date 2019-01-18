@@ -45,15 +45,15 @@ void KDiffusionIntegrator::Assemble()
    const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
    const int size = symmDims * quadraturePoints * elements;
    vec.SetSize(size);
-   const kGeometry *geo = kGeometry::Get(*fes, *ir);
+   const kernels::geometry::Geometry *geo = kernels::geometry::Geometry::Get(*fes, *ir);
    maps = kDofQuadMaps::Get(*fes, *fes, *ir);
-   kIntDiffusionAssemble(dim,
-                         quad1D,
-                         elements,
-                         maps->quadWeights,
-                         geo->J,
-                         1.0,//COEFF
-                         vec);
+   kernels::fem::IntDiffusionAssemble(dim,
+                                      quad1D,
+                                      elements,
+                                      maps->quadWeights,
+                                      geo->J,
+                                      1.0,//COEFF
+                                      vec);
    delete geo;
 }
 

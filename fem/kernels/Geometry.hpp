@@ -30,9 +30,9 @@ namespace geometry
 class Geometry
 {
 public:
-   karray<int> eMap;
-   karray<double> meshNodes;
-   karray<double> J, invJ, detJ;
+   kernels::Array<int> eMap;
+   kernels::Array<double> meshNodes;
+   kernels::Array<double> J, invJ, detJ;
    static const int Jacobian    = (1 << 0);
    static const int JacobianInv = (1 << 1);
    static const int JacobianDet = (1 << 2);

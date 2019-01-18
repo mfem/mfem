@@ -40,11 +40,11 @@ void AddMult(const size_t height,
              const int *I, const int *J, const double *A,
              const double *x, double *y)
 {
-   GET_CONST_ADRS_T(I,int);
-   GET_CONST_ADRS_T(J,int);
-   GET_CONST_ADRS(A);
-   GET_CONST_ADRS(x);
-   GET_ADRS(y);
+   GET_CONST_PTR_T(I,int);
+   GET_CONST_PTR_T(J,int);
+   GET_CONST_PTR(A);
+   GET_CONST_PTR(x);
+   GET_PTR(y);
    MFEM_FORALL(i, height,
    {
       double d = 0.0;
@@ -194,4 +194,6 @@ void kAddMult(const size_t height,
    });
 }
 
-}
+} // namespace sparsemat
+} // namespace kernels
+} // namespace mfem
