@@ -45,7 +45,8 @@ void KDiffusionIntegrator::Assemble()
    const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
    const int size = symmDims * quadraturePoints * elements;
    vec.SetSize(size);
-   const kernels::geometry::Geometry *geo = kernels::geometry::Geometry::Get(*fes, *ir);
+   const kernels::geometry::Geometry *geo = kernels::geometry::Geometry::Get(*fes,
+                                                                             *ir);
    maps = kDofQuadMaps::Get(*fes, *fes, *ir);
    kernels::fem::IntDiffusionAssemble(dim,
                                       quad1D,
