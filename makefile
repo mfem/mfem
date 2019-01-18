@@ -318,10 +318,9 @@ SOURCE_FILES = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/*.cpp))
 RELSRC_FILES = $(patsubst $(SRC)%,%,$(SOURCE_FILES))
 OBJECT_FILES = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_FILES:.cpp=.o))
 
-SOURCE_KERNS = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/kernels/*.kpp))
+SOURCE_KERNS = $(foreach dir,$(DIRS),$(wildcard $(SRC)$(dir)/kernels/*.cpp))
 RELSRC_KERNS = $(patsubst $(SRC)%,%,$(SOURCE_KERNS))
-CODEGN_KERNS = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_KERNS:.kpp=.cpp))
-OBJECT_KERNS = $(patsubst $(SRC)%,$(BLD)%,$(CODEGN_KERNS:.cpp=.o))
+OBJECT_KERNS = $(patsubst $(SRC)%,$(BLD)%,$(SOURCE_KERNS:.cpp=.o))
 
 .PHONY: lib all clean distclean install config status info deps serial parallel\
  debug pdebug style check test unittest
@@ -336,11 +335,6 @@ OBJECT_KERNS = $(patsubst $(SRC)%,$(BLD)%,$(CODEGN_KERNS:.cpp=.o))
 # Default rule.
 lib: $(if $(static),$(BLD)libmfem.a) $(if $(shared),$(BLD)libmfem.$(SO_EXT))
 
-mpp: $(BLD)general/mpp.cpp $(BLD)general/okrtc.hpp $(THIS_MK)
-	$(MFEM_CXX) -O3 -std=c++11 -o $(BLD)$(@) $(<) \
- -DMFEM_SRC=$(MFEM_REAL_DIR) -DMFEM_CXX=$(MFEM_CXX) -DMFEM_BUILD_FLAGS="$(MFEM_BUILD_FLAGS)" \
- $(if $(MFEM_USE_GPU:YES=),,-DMFEM_USE_GPU) $(if $(MFEM_USE_JIT:YES=),,-DMFEM_USE_JIT)
-
 # Flags used for compiling all source files.
 MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
  $(MFEM_TPLFLAGS) $(BUILD_DIR_DEF)
@@ -349,13 +343,20 @@ MFEM_BUILD_FLAGS = $(MFEM_PICFLAG) $(MFEM_CPPFLAGS) $(MFEM_CXXFLAGS)\
 $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
-# Rules for compiling kernel source files.
-$(SRC)%.cpp: $(SRC)%.kpp mpp
-	./mpp $(<) -o $(@)
-$(OBJECT_KERNS): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) $(if $(MFEM_CXX:nvcc=),,-Xcompiler) -xc++ -c $(<) -o $(@)
-#ker: ;echo $(OBJECT_KERNS)
-#LIB_LD = -ldl
+# Rule for compiling kernel source file generator.
+KER_FLAGS  = $(strip $(MFEM_BUILD_FLAGS))
+MPP_MFEMS  = -DMFEM_CXX=$(MFEM_CXX)
+MPP_MFEMS += -DMFEM_SRC=$(MFEM_REAL_DIR)
+MPP_MFEMS += -DMFEM_BUILD_FLAGS="$(KER_FLAGS)"
+MPP_FLAGS  = $(if $(MFEM_USE_GPU:YES=),,-DMFEM_USE_GPU)
+MPP_FLAGS += $(if $(MFEM_USE_JIT:YES=),,-DMFEM_USE_JIT)
+mpp: $(BLD)general/mpp.cpp $(BLD)general/okrtc.hpp $(THIS_MK)
+	$(MFEM_CXX) -O3 -std=c++11 -o $(BLD)$(@) $(<) $(MPP_MFEMS) $(MPP_FLAGS)
+
+# Rule for compiling kernel source files.
+KER_NVXC   = $(if $(MFEM_CXX:nvcc=),,-Xcompiler)
+$(OBJECT_KERNS): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) mpp
+	./mpp $(<) | $(MFEM_CXX) -xc++ -c $(KER_FLAGS) $(KER_NVXC) -I$(@D) -o $(@) -
 
 all: examples miniapps $(TEST_DIRS)
 
@@ -435,7 +436,7 @@ $(ALL_CLEAN_SUBDIRS):
 	$(MAKE) -C $(BLD)$(@D) $(@F)
 
 clean: $(addsuffix /clean,$(EM_DIRS) $(TEST_DIRS))
-	rm -f $(addprefix $(BLD),*/*.o */*/*.o */*~ *~ libmfem.* deps.mk) mpp $(CODEGN_KERNS)
+	rm -f $(addprefix $(BLD),*/*.o */*/*.o */*~ *~ libmfem.* deps.mk mpp)
 
 distclean: clean config/clean doc/clean
 	rm -rf mfem/

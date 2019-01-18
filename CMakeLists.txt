@@ -336,14 +336,25 @@ set(CMAKE_INSTALL_RPATH "${_lib_path}" CACHE PATH "")
 set(CMAKE_INSTALL_NAME_DIR "${_lib_path}" CACHE PATH "")
 
 #-------------------------------------------------------------------------------
-# Add MPP subdirectory
+# Add MPP target
 #-------------------------------------------------------------------------------
 add_executable(mpp general/mpp.cpp)
 set_target_properties(mpp PROPERTIES
-    CXX_STANDARD 11
-    CXX_STANDARD_REQUIRED ON
-    CXX_EXTENSIONS OFF
+    CXX_STANDARD 11 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF
 )
+set_target_properties(mpp PROPERTIES COMPILE_FLAGS
+    -DMFEM_CXX=${CMAKE_CXX_COMPILER}
+    -DMFEM_SRC=${PROJECT_SOURCE_DIR}
+    -DMFEM_BUILD_FLAGS="${CMAKE_CXX_FLAGS_${CMAKE_BUILD_TYPE}}"
+)
+if (MFEM_USE_GPU)
+    set_property(TARGET mpp APPEND_STRING
+        PROPERTY COMPILE_FLAGS " -DMFEM_USE_GPU")
+endif()
+if (MFEM_USE_JIT)
+    set_property(TARGET mpp APPEND_STRING 
+        PROPERTY COMPILE_FLAGS " -DMFEM_USE_JIT")
+endif()
 
 #-------------------------------------------------------------------------------
 # Scan all 'kernels' subdirectories
@@ -353,29 +364,35 @@ set(MFEM_KERNELS_DIRS linalg mesh fem)
 foreach(DIR IN LISTS MFEM_KERNELS_DIRS)
   add_subdirectory(${DIR}/kernels)
 endforeach()
-add_custom_target(MFEM_CPP_KERNELS)
-foreach(kernel_kpp IN LISTS KERNELS)
-   get_filename_component(bnmwe ${kernel_kpp} NAME_WE)
-   get_filename_component(dirname ${kernel_kpp} DIRECTORY)
-   set(kernel_cpp ${CMAKE_CURRENT_BINARY_DIR}/${bnmwe}.cpp)
+add_custom_target(MFEM_KERNELS_OBJECTS)
+foreach(kernel IN LISTS KERNELS)
+   get_filename_component(kername ${kernel} NAME_WE)
+   get_filename_component(dirname ${kernel} DIRECTORY)
+   file(RELATIVE_PATH relpath ${CMAKE_CURRENT_SOURCE_DIR} ${dirname})
+   set(KER_RELPATH ${CMAKE_CURRENT_BINARY_DIR}/${relpath})
+   set(kernel_o ${CMAKE_CURRENT_BINARY_DIR}/${relpath}/${kername}.cpp.o)
+   set(KER_FLAGS ${CMAKE_CXX_FLAGS_${CMAKE_BUILD_TYPE}})
+   set(KER_FLAGS ${KER_FLAGS} -std=c++11 -xc++ -c)
+   # ${CMAKE_CURRENT_BINARY_DIR}/config is where _config.hpp can be found
+   set(KER_FLAGS ${KER_FLAGS} -I${CMAKE_CURRENT_BINARY_DIR}/config)
+   set(KER_FLAGS ${KER_FLAGS} -I${dirname})
    add_custom_command(
-       COMMAND mpp ${kernel_kpp} -o ${kernel_cpp}
-       COMMENT "mpp ${kernel_kpp} -o ${kernel_cpp}"
-       DEPENDS mpp ${kernel_kpp}
-       OUTPUT ${kernel_cpp}
+       OUTPUT ${kernel_o}
+       COMMAND ${CMAKE_COMMAND} -E make_directory ${KER_RELPATH}
+       COMMAND mpp ${kernel} | 
+       ${CMAKE_CXX_COMPILER} ${KER_FLAGS} -o ${kernel_o}  -
+       DEPENDS mpp ${kernel}
    )
-   set(SOURCES ${SOURCES} ${kernel_cpp})
-   add_dependencies(MFEM_CPP_KERNELS ${bnmwe}_cpp)
-   add_custom_target(${bnmwe}_cpp DEPENDS ${kernel_cpp})
-   #set_source_files_properties(${kernel_cpp} PROPERTIES LANGUAGE CXX)
-   set_source_files_properties(${kernel_cpp} PROPERTIES COMPILE_FLAGS -I${dirname})
+   string(REPLACE "/" "_" kernel_d ${relpath}/${kername})
+   add_custom_target(${kernel_d} DEPENDS ${kernel_o})
+   add_dependencies(MFEM_KERNELS_OBJECTS ${kernel_d})
 endforeach()
 
 #-------------------------------------------------------------------------------
 # Declaring the MFEM library
 #-------------------------------------------------------------------------------
 add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
-add_dependencies(mfem MFEM_CPP_KERNELS)
+add_dependencies(mfem MFEM_KERNELS_OBJECTS)
 
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 if (CMAKE_VERSION VERSION_GREATER 2.8.11)

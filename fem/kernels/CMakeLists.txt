@@ -10,11 +10,11 @@
 # Software Foundation) version 2.1 dated February 1999.
 
 set(KERS
-  kGeometry.kpp
-  kGlobalToLocal.kpp
-  kIntDiffusionAssemble.kpp
-  kIntDiffusionMultAdd.kpp
-  kLocalToGlobal.kpp
+  kGeometry.cpp
+  kGlobalToLocal.cpp
+  kIntDiffusionAssemble.cpp
+  kIntDiffusionMultAdd.cpp
+  kLocalToGlobal.cpp
 )
 
 set(HDRS
