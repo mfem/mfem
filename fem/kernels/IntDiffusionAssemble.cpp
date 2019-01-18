@@ -14,6 +14,10 @@
 // *****************************************************************************
 namespace mfem
 {
+namespace kernels
+{
+namespace fem
+{
 
 // ****************************************************************************
 // * OCCA 2D Assemble kernel
@@ -44,12 +48,12 @@ static void oAssemble2D(const int NUM_QUAD_1D,
 // *****************************************************************************
 // * OKINA 2D kernel
 // *****************************************************************************
-static void kAssemble2D(const int NUM_QUAD_1D,
-                        const int numElements,
-                        const double* __restrict quadWeights,
-                        const double* __restrict J,
-                        const double COEFF,
-                        double* __restrict oper)
+static void Assemble2D(const int NUM_QUAD_1D,
+                       const int numElements,
+                       const double* __restrict quadWeights,
+                       const double* __restrict J,
+                       const double COEFF,
+                       double* __restrict oper)
 { 
    GET_CONST_ADRS(quadWeights);
    GET_CONST_ADRS(J);
@@ -74,12 +78,12 @@ static void kAssemble2D(const int NUM_QUAD_1D,
 // *****************************************************************************
 // * OKINA 3D kernel
 // *****************************************************************************
-static void kAssemble3D(const int NUM_QUAD_1D,
-                        const int numElements,
-                        const double* __restrict quadWeights,
-                        const double* __restrict J,
-                        const double COEFF,
-                        double* __restrict oper)
+static void Assemble3D(const int NUM_QUAD_1D,
+                       const int numElements,
+                       const double* __restrict quadWeights,
+                       const double* __restrict J,
+                       const double COEFF,
+                       double* __restrict oper)
 {
    GET_CONST_ADRS(quadWeights);
    GET_CONST_ADRS(J);
@@ -130,26 +134,29 @@ static void kAssemble3D(const int NUM_QUAD_1D,
 }
 
 // *****************************************************************************
-void kIntDiffusionAssemble(const int dim,
-                           const int NUM_QUAD_1D,
-                           const int numElements,
-                           const double* __restrict quadWeights,
-                           const double* __restrict J,
-                           const double COEFF,
-                           double* __restrict oper)
+void IntDiffusionAssemble(const int dim,
+                          const int NUM_QUAD_1D,
+                          const int numElements,
+                          const double* __restrict quadWeights,
+                          const double* __restrict J,
+                          const double COEFF,
+                          double* __restrict oper)
 {
-  if (dim==1) { assert(false); }
-  if (dim==2){
+   if (dim==1) { assert(false); }
+   if (dim==2){
 #ifdef __OCCA__
-     if (config::usingOcca()){
-        oAssemble2D(NUM_QUAD_1D, numElements, quadWeights, J, COEFF, oper);
-        return;
-     }
+      if (config::usingOcca()){
+         oAssemble2D(NUM_QUAD_1D, numElements, quadWeights, J, COEFF, oper);
+         return;
+      }
 #endif // __OCCA__
-     kAssemble2D(NUM_QUAD_1D, numElements, quadWeights, J, COEFF, oper);
-  }
-  if (dim==3) { kAssemble3D(NUM_QUAD_1D, numElements, quadWeights, J, COEFF, oper); }
+      Assemble2D(NUM_QUAD_1D, numElements, quadWeights, J, COEFF, oper);
+   }
+   if (dim==3) {
+      Assemble3D(NUM_QUAD_1D, numElements, quadWeights, J, COEFF, oper);
+   }
 }
 
-// *****************************************************************************
-} // mfem
+} // namespace fem
+} // namespace kernels
+} // namespace mfem

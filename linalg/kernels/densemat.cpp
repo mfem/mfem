@@ -13,6 +13,10 @@
 
 namespace mfem
 {
+namespace kernels
+{
+namespace densemat
+{
 
 // *****************************************************************************
 template <class T> __device__ __host__
@@ -24,9 +28,8 @@ inline void Swap(T &a, T &b)
 }
 
 // *****************************************************************************
-void kLSolve( const int m,
-              const int n,
-              const double *data, const int *ipiv, double *x)
+void LSolve(const int m, const int n,
+            const double *data, const int *ipiv, double *x)
 {
    GET_CONST_ADRS(data);
    GET_CONST_ADRS_T(ipiv,int);
@@ -52,7 +55,7 @@ void kLSolve( const int m,
 }
 
 // *****************************************************************************
-void kUSolve(const int m, const int n, const double *data, double *x)
+void USolve(const int m, const int n, const double *data, double *x)
 {
    GET_CONST_ADRS(data);
    GET_ADRS(x);
@@ -71,7 +74,7 @@ void kUSolve(const int m, const int n, const double *data, double *x)
 }
 
 // *****************************************************************************
-void kFactorPrint(const int s, const double *data)
+void FactorPrint(const int s, const double *data)
 {
    GET_CONST_ADRS(data);
    MFEM_FORALL(i, s,
@@ -81,7 +84,7 @@ void kFactorPrint(const int s, const double *data)
 }
 
 // *****************************************************************************
-void kFactorSet(const int s, const double *adata, double *ludata)
+void FactorSet(const int s, const double *adata, double *ludata)
 {
    GET_CONST_ADRS(adata);
    GET_ADRS(ludata);
@@ -92,8 +95,9 @@ void kFactorSet(const int s, const double *adata, double *ludata)
 }
 
 // *****************************************************************************
-void kFactor(const int m, int *ipiv, double *data)
+void Factor(const int m, int *ipiv, double *data)
 {
+   MFEM_GPU_CANNOT_PASS;
    GET_ADRS_T(ipiv,int);
    GET_ADRS(data);
    MFEM_FORALL(i, m,
@@ -140,19 +144,15 @@ void kFactor(const int m, int *ipiv, double *data)
 }
 
 // **************************************************************************
-void DenseMatrixSet(const double d,
-                    const size_t size,
-                    double *data)
+void Set(const double d, const size_t size, double *data)
 {
    GET_ADRS(data);
    MFEM_FORALL(i, size, d_data[i] = d;);
 }
 
 // **************************************************************************
-void DenseMatrixTranspose(const size_t height,
-                          const size_t width,
-                          double *data,
-                          const double *mdata)
+void Transpose(const size_t height, const size_t width,
+               double *data, const double *mdata)
 {
    GET_ADRS(data);
    GET_CONST_ADRS(mdata);
@@ -166,8 +166,8 @@ void DenseMatrixTranspose(const size_t height,
 }
 
 // *****************************************************************************
-void kMultAAt(const size_t height, const size_t width,
-              const double *a, double *aat)
+void MultAAt(const size_t height, const size_t width,
+             const double *a, double *aat)
 {
    GET_CONST_ADRS(a);
    GET_ADRS(aat);
@@ -186,7 +186,7 @@ void kMultAAt(const size_t height, const size_t width,
 }
 
 // *****************************************************************************
-void kGradToDiv(const size_t n, const double *data, double *ddata)
+void GradToDiv(const size_t n, const double *data, double *ddata)
 {
    GET_CONST_ADRS(data);
    GET_ADRS(ddata);
@@ -194,8 +194,8 @@ void kGradToDiv(const size_t n, const double *data, double *ddata)
 }
 
 // *****************************************************************************
-void kAddMult_a_VVt(const size_t n, const double a, const double *v,
-                    const size_t height, double *VVt)
+void AddMult_a_VVt(const size_t n, const double a, const double *v,
+                   const size_t height, double *VVt)
 {
    GET_CONST_ADRS(v);
    GET_ADRS(VVt);
@@ -214,15 +214,15 @@ void kAddMult_a_VVt(const size_t n, const double a, const double *v,
 }
 
 // *****************************************************************************
-void kMultWidth0(const size_t height, double *y)
+void MultWidth0(const size_t height, double *y)
 {
    GET_ADRS(y);
    MFEM_FORALL(row, height, d_y[row] = 0.0;);
 }
 
 // *****************************************************************************
-void kMult(const size_t height, const size_t width,
-           const double *data, const double *x, double *y)
+void Mult(const size_t height, const size_t width,
+          const double *data, const double *x, double *y)
 {
    GET_CONST_ADRS(data);
    GET_CONST_ADRS(x);
@@ -239,8 +239,8 @@ void kMult(const size_t height, const size_t width,
 }
 
 // *****************************************************************************
-void kMult(const size_t ah, const size_t aw, const size_t bw,
-           const double *bd, const double *cd, double *ad)
+void Mult(const size_t ah, const size_t aw, const size_t bw,
+          const double *bd, const double *cd, double *ad)
 {
    GET_CONST_ADRS(bd);
    GET_CONST_ADRS(cd);
@@ -259,7 +259,7 @@ void kMult(const size_t ah, const size_t aw, const size_t bw,
 }
 
 // *****************************************************************************
-void kDiag(const size_t n, const size_t N, const double c, double *data)
+void Diag(const size_t n, const size_t N, const double c, double *data)
 {
    GET_ADRS(data);
    MFEM_FORALL(i, N, d_data[i] = 0.0;);
@@ -267,7 +267,7 @@ void kDiag(const size_t n, const size_t N, const double c, double *data)
 }
 
 // *****************************************************************************
-void kOpEq(const size_t hw, const double *m, double *data)
+void OpEQ(const size_t hw, const double *m, double *data)
 {
    GET_CONST_ADRS(m);
    GET_ADRS(data);
@@ -275,7 +275,7 @@ void kOpEq(const size_t hw, const double *m, double *data)
 }
 
 // *****************************************************************************
-double kDet2(const double *data)
+double Det2(const double *data)
 {
    MFEM_GPU_CANNOT_PASS;
    GET_ADRS(data);
@@ -283,7 +283,7 @@ double kDet2(const double *data)
 }
 
 // *****************************************************************************
-double kDet3(const double *data)
+double Det3(const double *data)
 {
    MFEM_GPU_CANNOT_PASS;
    GET_ADRS(data);
@@ -294,7 +294,7 @@ double kDet3(const double *data)
 }
 
 // *****************************************************************************
-double kFNormMax(const size_t hw, const double *data)
+double FNormMax(const size_t hw, const double *data)
 {
    MFEM_GPU_CANNOT_PASS;
    GET_ADRS(data);
@@ -311,7 +311,7 @@ double kFNormMax(const size_t hw, const double *data)
 }
 
 // *****************************************************************************
-double kFNorm2(const size_t hw, const double max_norm, const double *data)
+double FNorm2(const size_t hw, const double max_norm, const double *data)
 {
    MFEM_GPU_CANNOT_PASS;
    GET_ADRS(data);
@@ -325,7 +325,7 @@ double kFNorm2(const size_t hw, const double max_norm, const double *data)
 }
 
 // *****************************************************************************
-void kCalcInverse2D(const double t, const double *a, double *inva)
+void CalcInverse2D(const double t, const double *a, double *inva)
 {
    MFEM_GPU_CANNOT_PASS;
    GET_CONST_ADRS(a);
@@ -337,7 +337,7 @@ void kCalcInverse2D(const double t, const double *a, double *inva)
 }
 
 // *****************************************************************************
-void kCalcInverse3D(const double t, const double *a, double *inva)
+void CalcInverse3D(const double t, const double *a, double *inva)
 {
    MFEM_GPU_CANNOT_PASS;
    GET_CONST_ADRS(a);
@@ -356,4 +356,6 @@ void kCalcInverse3D(const double t, const double *a, double *inva)
    d_inva[2+3*2] = (d_a[0+3*0]*d_a[1+3*1]-d_a[0+3*1]*d_a[1+3*0])*t;
 }
 
+} // namespace densemat
+} // namespace kernels
 } // namespace mfem

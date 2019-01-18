@@ -14,40 +14,43 @@
 
 namespace mfem
 {
+namespace kernels
+{
+namespace vector
+{
 
-void kVectorMapDof(const int, double*, const double*, const int*);
-void kVectorMapDof(double*, const double*, const int, const int);
+double Dot(const size_t N, const double *x, const double *y);
 
-void kVectorSetDof(const int, double*, const double, const int*);
-void kVectorSetDof(double*, const double, const int);
+void MapDof(const int N, double *y, const double *x, const int *dofs);
+void MapDof(double *y, const double *x, const int dof, const int j);
 
-void kVectorGetSubvector(const int, double*, const double*, const int*);
-void kVectorSetSubvector(const int, double*, const double*, const int*);
+void SetDof(double *y, const double alpha, const int dof);
+void SetDof(const int N, double *y, const double alpha, const int *dofs);
 
-void kVectorAlphaAdd(double *vp, const double* v1p,
-                     const double alpha, const double *v2p, const size_t N);
+void GetSubvector(const int N, double *y, const double *x, const int* dofs);
+void SetSubvector(const int N, double *y, const double *x, const int* dofs);
 
-void kVectorPrint(const size_t N, const double *data);
+void AlphaAdd(double *z, const double *x,
+              const double a, const double *y, const size_t N);
 
-void kVectorSet(const size_t N, const double value, double *data);
+void Subtract(double *z, const double *x, const double *y, const size_t N);
 
-void kVectorAssign(const size_t N, const double* v, double *data);
+void Print(const size_t N, const double *x);
 
-void kVectorMultOp(const size_t N, const double value, double *data);
+void Set(const size_t N, const double d, double *y);
 
-void kVectorSubtract(double *zp, const double *xp, const double *yp,
-                     const size_t N);
+void Assign(const size_t N, const double *x, double *y);
 
-double kVectorDot(const size_t N, const double *x, const double *y);
+void OpMultEQ(const size_t N, const double d, double *y);
 
-void kVectorDotOpPlusEQ(const size_t size, const double *v, double *data);
+void OpPlusEQ(const size_t size, const double *x, double *y);
 
-// void kSetSubVector(const size_t, const int*, const double*, double*);
+void OpSubtractEQ(const size_t size, const double *x, double *y);
 
-void kVectorOpSubtract(const size_t, const double*, double*);
+void AddElement(const size_t n, const int *dofs, const double *x, double *y);
 
-void kAddElementVector(const size_t, const int*, const double*, double*);
-
-}
+} // namespace vector
+} // namespace kernels
+} // namespace mfem
 
 #endif // MFEM_VECTOR_KERNELS
