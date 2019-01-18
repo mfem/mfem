@@ -14,37 +14,41 @@
 #include "../../general/okina.hpp"
 #include "../../linalg/kernels/vector.hpp"
 
-#include "kGeometry.hpp"
+#include "Geometry.hpp"
 #include "../fem.hpp"
 #include "../doftoquad.hpp"
 
 namespace mfem
 {
+namespace kernels
+{
+namespace geometry
+{
 
 // *****************************************************************************
 template<const int NUM_DOFS_1D,
          const int NUM_QUAD_1D>
-void kGeom2D(const int,const double*,const double*,double*,double*,double*);
+void Geom2D(const int,const double*,const double*,double*,double*,double*);
 
 // *****************************************************************************
 template<const int NUM_DOFS_1D,
          const int NUM_QUAD_1D>
-void kGeom3D(const int,const double*,const double*,double*,double*,double*);
+void Geom3D(const int,const double*,const double*,double*,double*,double*);
 
 // *****************************************************************************
 typedef void (*fIniGeom)(const int,const double*,const double*,
                          double*, double*, double*);
 
 // *****************************************************************************
-void kGeom(const int DIM,
-           const int NUM_DOFS,
-           const int NUM_QUAD,
-           const int numElements,
-           const double* dofToQuadD,
-           const double* nodes,
-           double* J,
-           double* invJ,
-           double* detJ)
+static void Geom(const int DIM,
+                 const int NUM_DOFS,
+                 const int NUM_QUAD,
+                 const int numElements,
+                 const double* dofToQuadD,
+                 const double* nodes,
+                 double* J,
+                 double* invJ,
+                 double* detJ)
 {
    const unsigned int dofs1D = IROOT(DIM,NUM_DOFS);
    const unsigned int quad1D = IROOT(DIM,NUM_QUAD);
@@ -55,41 +59,41 @@ void kGeom(const int DIM,
    static std::unordered_map<unsigned int, fIniGeom> call =
    {
       // 2D
-      {0x200,&kGeom2D<2,2>},
-      {0x201,&kGeom2D<2,3>},
-      {0x202,&kGeom2D<2,4>},
-      {0x203,&kGeom2D<2,5>},
-      {0x204,&kGeom2D<2,6>},
-      {0x205,&kGeom2D<2,7>},
-      {0x206,&kGeom2D<2,8>},
-      {0x207,&kGeom2D<2,9>},
-      {0x210,&kGeom2D<3,2>},/*
-      {0x208,&kGeom2D<2,10>},
-      {0x209,&kGeom2D<2,11>},
-      {0x20A,&kGeom2D<2,12>},
-      {0x20B,&kGeom2D<2,13>},
-      {0x20C,&kGeom2D<2,14>},
-      {0x20D,&kGeom2D<2,15>},
-      {0x20E,&kGeom2D<2,16>},
-      {0x20F,&kGeom2D<2,17>},*/
+      {0x200,&Geom2D<2,2>},
+      {0x201,&Geom2D<2,3>},
+      {0x202,&Geom2D<2,4>},
+      {0x203,&Geom2D<2,5>},
+      {0x204,&Geom2D<2,6>},
+      {0x205,&Geom2D<2,7>},
+      {0x206,&Geom2D<2,8>},
+      {0x207,&Geom2D<2,9>},
+      {0x210,&Geom2D<3,2>},/*
+      {0x208,&Geom2D<2,10>},
+      {0x209,&Geom2D<2,11>},
+      {0x20A,&Geom2D<2,12>},
+      {0x20B,&Geom2D<2,13>},
+      {0x20C,&Geom2D<2,14>},
+      {0x20D,&Geom2D<2,15>},
+      {0x20E,&Geom2D<2,16>},
+      {0x20F,&Geom2D<2,17>},*/
       // 3D
-      {0x300,&kGeom3D<2,2>},
-      {0x301,&kGeom3D<2,3>},
-      {0x302,&kGeom3D<2,4>},
-      {0x303,&kGeom3D<2,5>},
-      {0x304,&kGeom3D<2,6>},
-      {0x305,&kGeom3D<2,7>},
-      {0x306,&kGeom3D<2,8>},
-      {0x307,&kGeom3D<2,9>},
-      {0x321,&kGeom3D<4,3>},/*
-      {0x308,&kGeom3D<2,10>},
-      {0x309,&kGeom3D<2,11>},
-      {0x30A,&kGeom3D<2,12>},
-      {0x30B,&kGeom3D<2,13>},
-      {0x30C,&kGeom3D<2,14>},
-      {0x30D,&kGeom3D<2,15>},
-      {0x30E,&kGeom3D<2,16>},
-      {0x30F,&kGeom3D<2,17>},*/
+      {0x300,&Geom3D<2,2>},
+      {0x301,&Geom3D<2,3>},
+      {0x302,&Geom3D<2,4>},
+      {0x303,&Geom3D<2,5>},
+      {0x304,&Geom3D<2,6>},
+      {0x305,&Geom3D<2,7>},
+      {0x306,&Geom3D<2,8>},
+      {0x307,&Geom3D<2,9>},
+      {0x321,&Geom3D<4,3>},/*
+      {0x308,&Geom3D<2,10>},
+      {0x309,&Geom3D<2,11>},
+      {0x30A,&Geom3D<2,12>},
+      {0x30B,&Geom3D<2,13>},
+      {0x30C,&Geom3D<2,14>},
+      {0x30D,&Geom3D<2,15>},
+      {0x30E,&Geom3D<2,16>},
+      {0x30F,&Geom3D<2,17>},*/
    };
    if (!call[id])
    {
@@ -106,12 +110,12 @@ void kGeom(const int DIM,
 }
 
 // *****************************************************************************
-static kGeometry *geom = NULL;
+static Geometry *geom = NULL;
 
 // ***************************************************************************
-// * ~ kGeometry
+// * ~ Geometry
 // ***************************************************************************
-kGeometry::~kGeometry()
+Geometry::~Geometry()
 {
    free(geom->meshNodes);
    free(geom->J);
@@ -122,10 +126,10 @@ kGeometry::~kGeometry()
 
 
 // *****************************************************************************
-static void kGeomFill(const int dims,
-                      const size_t elements, const size_t numDofs,
-                      const int* elementMap, int* eMap,
-                      const double *nodes, double *meshNodes)
+static void GeomFill(const int dims,
+                     const size_t elements, const size_t numDofs,
+                     const int* elementMap, int* eMap,
+                     const double *nodes, double *meshNodes)
 {
    GET_CONST_ADRS_T(elementMap,int);
    GET_ADRS_T(eMap,int);
@@ -149,7 +153,7 @@ static void kGeomFill(const int dims,
 }
 
 // *****************************************************************************
-static void kArrayAssign(const int n, const int *src, int *dest)
+static void ArrayAssign(const int n, const int *src, int *dest)
 {
    GET_CONST_ADRS_T(src,int);
    GET_ADRS_T(dest,int);
@@ -157,13 +161,13 @@ static void kArrayAssign(const int n, const int *src, int *dest)
 }
 
 // *****************************************************************************
-static void rNodeCopyByVDim(const int elements,
-                            const int numDofs,
-                            const int ndofs,
-                            const int dims,
-                            const int* eMap,
-                            const double* Sx,
-                            double* nodes)
+static void NodeCopyByVDim(const int elements,
+                           const int numDofs,
+                           const int ndofs,
+                           const int dims,
+                           const int* eMap,
+                           const double* Sx,
+                           double* nodes)
 {
    MFEM_FORALL(e,elements,
    {
@@ -183,9 +187,9 @@ static void rNodeCopyByVDim(const int elements,
 
 
 // *****************************************************************************
-kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
-                          const IntegrationRule& ir,
-                          const Vector& Sx)
+Geometry* Geometry::Get(const FiniteElementSpace& fes,
+                        const IntegrationRule& ir,
+                        const Vector& Sx)
 {
    const Mesh *mesh = fes.GetMesh();
    const GridFunction *nodes = mesh->GetNodes();
@@ -197,20 +201,20 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
    const int elements = fespace->GetNE();
    const int ndofs    = fespace->GetNDofs();
    const kDofQuadMaps* maps = kDofQuadMaps::GetSimplexMaps(*fe, ir);
-   rNodeCopyByVDim(elements,numDofs,ndofs,dims,geom->eMap,Sx,geom->meshNodes);
-   kGeom(dims, numDofs, numQuad, elements,
-         maps->dofToQuadD,
-         geom->meshNodes, geom->J, geom->invJ, geom->detJ);
+   NodeCopyByVDim(elements,numDofs,ndofs,dims,geom->eMap,Sx,geom->meshNodes);
+   Geom(dims, numDofs, numQuad, elements,
+        maps->dofToQuadD,
+        geom->meshNodes, geom->J, geom->invJ, geom->detJ);
    return geom;
 }
 
 // *****************************************************************************
-kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
-                          const IntegrationRule& ir)
+Geometry* Geometry::Get(const FiniteElementSpace& fes,
+                        const IntegrationRule& ir)
 {
    Mesh *mesh = fes.GetMesh();
    const bool geom_to_allocate = !geom;
-   if (geom_to_allocate) { geom = new kGeometry(); }
+   if (geom_to_allocate) { geom = new Geometry(); }
    if (!mesh->GetNodes())
    {
       // mesh->SetCurvature(1, false, -1, Ordering::byVDIM);
@@ -230,13 +234,13 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
    const Table& e2dTable = fespace->GetElementToDofTable();
    const int* elementMap = e2dTable.GetJ();
    mfem::Array<int> eMap(numDofs*elements);
-   kGeomFill(dims,
-             elements,
-             numDofs,
-             elementMap,
-             eMap.GetData(),
-             nodes->GetData(),
-             meshNodes.GetData());
+   GeomFill(dims,
+            elements,
+            numDofs,
+            elementMap,
+            eMap.GetData(),
+            nodes->GetData(),
+            meshNodes.GetData());
 
    if (geom_to_allocate)
    {
@@ -244,7 +248,7 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
       geom->eMap.allocate(numDofs, elements);
    }
    kernels::vector::Assign(asize, meshNodes.GetData(), geom->meshNodes);
-   kArrayAssign(numDofs*elements, eMap.GetData(), geom->eMap);
+   ArrayAssign(numDofs*elements, eMap.GetData(), geom->eMap);
    // Reorder the original gf back
    if (orderedByNODES) { ReorderByNodes(nodes); }
    if (geom_to_allocate)
@@ -254,13 +258,13 @@ kGeometry* kGeometry::Get(const FiniteElementSpace& fes,
       geom->detJ.allocate(numQuad, elements);
    }
    const kDofQuadMaps* maps = kDofQuadMaps::GetSimplexMaps(*fe, ir);
-   kGeom(dims, numDofs, numQuad, elements, maps->dofToQuadD,
-         geom->meshNodes, geom->J, geom->invJ, geom->detJ);
+   Geom(dims, numDofs, numQuad, elements, maps->dofToQuadD,
+        geom->meshNodes, geom->J, geom->invJ, geom->detJ);
    return geom;
 }
 
 // ***************************************************************************
-void kGeometry::ReorderByVDim(const GridFunction *nodes)
+void Geometry::ReorderByVDim(const GridFunction *nodes)
 {
    const mfem::FiniteElementSpace *fes = nodes->FESpace();
    const int size = nodes->Size();
@@ -282,7 +286,7 @@ void kGeometry::ReorderByVDim(const GridFunction *nodes)
 }
 
 // ***************************************************************************
-void kGeometry::ReorderByNodes(const GridFunction *nodes)
+void Geometry::ReorderByNodes(const GridFunction *nodes)
 {
    const mfem::FiniteElementSpace *fes = nodes->FESpace();
    const int size = nodes->Size();
@@ -303,4 +307,7 @@ void kGeometry::ReorderByNodes(const GridFunction *nodes)
    delete [] temp;
 }
 
-}
+
+} // namespace geometry
+} // namespace kernels
+} // namespace mfem

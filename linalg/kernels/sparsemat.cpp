@@ -13,10 +13,6 @@
 
 namespace mfem
 {
-namespace kernels
-{
-namespace sparsemat
-{
 
 // *****************************************************************************
 class RowNode
@@ -27,6 +23,11 @@ public:
    int Column;
 };
 
+namespace kernels
+{
+namespace sparsemat
+{
+
 // *****************************************************************************
 void SparseMatrix(const int nrows, RowNode** Rows)
 {
@@ -35,9 +36,9 @@ void SparseMatrix(const int nrows, RowNode** Rows)
 }
 
 // *****************************************************************************
-void kAddMult(const size_t height,
-              const int *I, const int *J, const double *A,
-              const double *x, double *y)
+void AddMult(const size_t height,
+             const int *I, const int *J, const double *A,
+             const double *x, double *y)
 {
    GET_CONST_ADRS_T(I,int);
    GET_CONST_ADRS_T(J,int);
