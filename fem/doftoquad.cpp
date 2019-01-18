@@ -26,21 +26,6 @@ namespace mfem
 // ***************************************************************************
 static std::map<std::string, kDofQuadMaps* > AllDofQuadMaps;
 
-// ***************************************************************************
-kDofQuadMaps::~kDofQuadMaps() {}
-
-// *****************************************************************************
-void kDofQuadMaps::delkDofQuadMaps()
-{
-   for (std::map<std::string,
-        kDofQuadMaps*>::iterator itr = AllDofQuadMaps.begin();
-        itr != AllDofQuadMaps.end();
-        itr++)
-   {
-      delete itr->second;
-   }
-}
-
 // *****************************************************************************
 kDofQuadMaps* kDofQuadMaps::Get(const FiniteElementSpace& fes,
                                 const IntegrationRule& ir,
@@ -99,6 +84,8 @@ kDofQuadMaps* kDofQuadMaps::GetTensorMaps(const FiniteElement& trialFE,
    maps->quadToDof   = testMaps->dofToQuad;
    maps->quadToDofD  = testMaps->dofToQuadD;
    maps->quadWeights = testMaps->quadWeights;
+   delete trialMaps;
+   delete testMaps;
    return maps;
 }
 
@@ -187,13 +174,13 @@ kDofQuadMaps* kDofQuadMaps::GetD2QTensorMaps(const FiniteElement& fe,
          quadWeights[q] = w;
       }
       //maps->quadWeights = quadWeights;
-      kVectorAssign(numQuad, quadWeights.GetData(), maps->quadWeights);
+      kernels::vector::Assign(numQuad, quadWeights.GetData(), maps->quadWeights);
    }
    //maps->dofToQuad = dofToQuad;
-   kVectorAssign(numQuad1D*numDofs, dofToQuad.GetData(), maps->dofToQuad);
+   kernels::vector::Assign(numQuad1D*numDofs, dofToQuad.GetData(), maps->dofToQuad);
 
    //maps->dofToQuadD = dofToQuadD;
-   kVectorAssign(numQuad1D*numDofs, dofToQuadD.GetData(), maps->dofToQuadD);
+   kernels::vector::Assign(numQuad1D*numDofs, dofToQuadD.GetData(), maps->dofToQuadD);
    return maps;
 }
 
@@ -232,6 +219,8 @@ kDofQuadMaps* kDofQuadMaps::GetSimplexMaps(const FiniteElement& trialFE,
    maps->quadToDof   = testMaps->dofToQuad;
    maps->quadToDofD  = testMaps->dofToQuadD;
    maps->quadWeights = testMaps->quadWeights;
+   delete trialMaps;
+   delete testMaps;
    return maps;
 }
 
@@ -304,15 +293,14 @@ kDofQuadMaps* kDofQuadMaps::GetD2QSimplexMaps(const FiniteElement& fe,
    if (transpose)
    {
       //maps->quadWeights = quadWeights;
-      kVectorAssign(numQuad, quadWeights.GetData(), maps->quadWeights);
+      kernels::vector::Assign(numQuad, quadWeights.GetData(), maps->quadWeights);
    }
 
    //maps->dofToQuad = dofToQuad;
-   kVectorAssign(numQuad*numDofs, dofToQuad.GetData(), maps->dofToQuad);
-   //assert(false);
+   kernels::vector::Assign(numQuad*numDofs, dofToQuad.GetData(), maps->dofToQuad);
 
    //maps->dofToQuadD = dofToQuadD;
-   kVectorAssign(dims*numQuad*numDofs, dofToQuadD.GetData(), maps->dofToQuadD);
+   kernels::vector::Assign(dims*numQuad*numDofs, dofToQuadD.GetData(), maps->dofToQuadD);
    return maps;
 }
 

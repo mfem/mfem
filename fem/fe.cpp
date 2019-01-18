@@ -328,7 +328,7 @@ void NodalFiniteElement::Project (
       for (int j = 0; j < x.Size(); j++)
       {
          const int dji = Dof*j+i;
-         kVectorMapDof(dofs.GetData(),x.GetData(),dji,j);
+         kernels::vector::MapDof(dofs.GetData(),x.GetData(),dji,j);
       }
    }
 }

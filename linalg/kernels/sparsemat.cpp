@@ -23,22 +23,49 @@ public:
    int Column;
 };
 
-// *****************************************************************************
-void kSparseMatrix(const int nrows, RowNode** Rows)
+namespace kernels
 {
-   GET_ADRS_T(Rows,RowNode*);
+namespace sparsemat
+{
+
+// *****************************************************************************
+void SparseMatrix(const int nrows, RowNode** Rows)
+{
+   GET_PTR_T(Rows,RowNode*);
    MFEM_FORALL(i, nrows, d_Rows[i] = NULL;);
 }
 
 // *****************************************************************************
-void kGauss_Seidel_forw_A_NULL(const size_t s,
-                               RowNode **R,
-                               const double *xp,
-                               double *yp)
+void AddMult(const size_t height,
+             const int *I, const int *J, const double *A,
+             const double *x, double *y)
 {
-   GET_ADRS_T(R,RowNode*);
-   GET_CONST_ADRS(xp);
-   GET_ADRS(yp);
+   GET_CONST_PTR_T(I,int);
+   GET_CONST_PTR_T(J,int);
+   GET_CONST_PTR(A);
+   GET_CONST_PTR(x);
+   GET_PTR(y);
+   MFEM_FORALL(i, height,
+   {
+      double d = 0.0;
+      const size_t end = d_I[i+1];
+      for (size_t j=d_I[i]; j < end; j+=1)
+      {
+         d += d_A[j] * d_x[d_J[j]];
+      }
+      d_y[i] += d;
+   });
+}
+
+// *****************************************************************************
+void Gauss_Seidel_forw_A_NULL(const size_t s,
+                              RowNode **R,
+                              const double *xp,
+                              double *yp)
+{
+   GET_PTR_T(R,RowNode*);
+   GET_CONST_PTR(xp);
+   GET_PTR(yp);
    MFEM_FORALL(i,s,
    {
       int c;
@@ -71,16 +98,16 @@ void kGauss_Seidel_forw_A_NULL(const size_t s,
 }
 
 // *****************************************************************************
-void kGauss_Seidel_forw(const size_t height,
-                        const int *Ip, const int *Jp, const double *Ap,
-                        const double *xp,
-                        double *yp)
+void Gauss_Seidel_forw(const size_t height,
+                       const int *Ip, const int *Jp, const double *Ap,
+                       const double *xp,
+                       double *yp)
 {
-   GET_CONST_ADRS_T(Ip,int);
-   GET_CONST_ADRS_T(Jp,int);
-   GET_CONST_ADRS(Ap);
-   GET_CONST_ADRS(xp);
-   GET_ADRS(yp);
+   GET_CONST_PTR_T(Ip,int);
+   GET_CONST_PTR_T(Jp,int);
+   GET_CONST_PTR(Ap);
+   GET_CONST_PTR(xp);
+   GET_PTR(yp);
    MFEM_FORALL(k,1,
    {
       for (size_t i=0; i<height; i+=1)
@@ -108,16 +135,16 @@ void kGauss_Seidel_forw(const size_t height,
 }
 
 // *****************************************************************************
-void kGauss_Seidel_back(const size_t height,
-                        const int *Ip, const int *Jp, const double *Ap,
-                        const double *xp,
-                        double *yp)
+void Gauss_Seidel_back(const size_t height,
+                       const int *Ip, const int *Jp, const double *Ap,
+                       const double *xp,
+                       double *yp)
 {
-   GET_CONST_ADRS_T(Ip,int);
-   GET_CONST_ADRS_T(Jp,int);
-   GET_CONST_ADRS(Ap);
-   GET_CONST_ADRS(xp);
-   GET_ADRS(yp);
+   GET_CONST_PTR_T(Ip,int);
+   GET_CONST_PTR_T(Jp,int);
+   GET_CONST_PTR(Ap);
+   GET_CONST_PTR(xp);
+   GET_PTR(yp);
    MFEM_FORALL(k, 1,
    {
       for (int i = height-1; i >= 0; i--)
@@ -150,11 +177,11 @@ void kAddMult(const size_t height,
               const int *I, const int *J, const double *A,
               const double *x, double *y)
 {
-   GET_CONST_ADRS_T(I,int);
-   GET_CONST_ADRS_T(J,int);
-   GET_CONST_ADRS(A);
-   GET_CONST_ADRS(x);
-   GET_ADRS(y);
+   GET_CONST_PTR_T(I,int);
+   GET_CONST_PTR_T(J,int);
+   GET_CONST_PTR(A);
+   GET_CONST_PTR(x);
+   GET_PTR(y);
    MFEM_FORALL(i, height,
    {
       double d = 0.0;
@@ -167,4 +194,6 @@ void kAddMult(const size_t height,
    });
 }
 
-}
+} // namespace sparsemat
+} // namespace kernels
+} // namespace mfem

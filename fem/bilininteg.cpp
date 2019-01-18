@@ -55,6 +55,12 @@ void PAMassIntegrator::MultAdd(Vector &x, Vector &y)
 // *****************************************************************************
 // * PADiffusionIntegrator
 // *****************************************************************************
+PADiffusionIntegrator::~PADiffusionIntegrator()
+{
+   delete diffusion;
+}
+
+// *****************************************************************************
 void PADiffusionIntegrator::Setup(const FiniteElementSpace *fes,
                                   const IntegrationRule *ir)
 {

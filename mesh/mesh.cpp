@@ -917,6 +917,7 @@ void Mesh::Init()
    sequence = 0;
    Nodes = NULL;
    own_nodes = 1;
+   quad_children = mm::malloc<double>(2*4*4);
    NURBSext = NULL;
    ncmesh = NULL;
    last_operation = Mesh::NONE;
@@ -973,6 +974,8 @@ void Mesh::DestroyPointers()
    }
 
    DestroyTables();
+
+   mm::free<double>(quad_children);
 }
 
 void Mesh::Destroy()
@@ -5853,8 +5856,7 @@ void Mesh::UniformRefinement2D()
       B,A, C,A, B,B,
       A,B, B,B, A,C
    };
-   static double *quad_children = mm::malloc<double>(2*4*4);
-   kQuadChildren(quad_children);
+   kernels::mesh::QuadChildren(quad_children);
 
    CoarseFineTr.point_matrices[Geometry::TRIANGLE].
    UseExternalData(tri_children, 2, 3, 4);

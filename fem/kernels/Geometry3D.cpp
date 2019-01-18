@@ -13,11 +13,15 @@
 
 namespace mfem
 {
+namespace kernels
+{
+namespace geometry
+{
 
 // *****************************************************************************
 template<const int NUM_DOFS_1D,
          const int NUM_QUAD_1D>
-void kGeom3D(const int numElements,
+void Geom3D(const int numElements,
              const double* __restrict dofToQuadD,
              const double* __restrict nodes,
              double* __restrict J,
@@ -85,39 +89,42 @@ void kGeom3D(const int numElements,
 }
 
 // *****************************************************************************
-template void kGeom3D<2,2>(int, double const*, double const*, double*, double*,
-                           double*);
-template void kGeom3D<2,3>(int, double const*, double const*, double*, double*,
-                           double*);
-template void kGeom3D<2,4>(int, double const*, double const*, double*, double*,
-                           double*);
-template void kGeom3D<2,5>(int, double const*, double const*, double*, double*,
-                           double*);
-template void kGeom3D<2,6>(int, double const*, double const*, double*, double*,
-                           double*);
-template void kGeom3D<2,7>(int, double const*, double const*, double*, double*,
-                           double*);
-template void kGeom3D<2,8>(int, double const*, double const*, double*, double*,
-                           double*);
-template void kGeom3D<2,9>(int, double const*, double const*, double*, double*,
-                           double*);
-template void kGeom3D<2,10>(int, double const*, double const*, double*, double*,
-                            double*);
-template void kGeom3D<2,11>(int, double const*, double const*, double*, double*,
-                            double*);
-template void kGeom3D<2,12>(int, double const*, double const*, double*, double*,
-                            double*);
-template void kGeom3D<2,13>(int, double const*, double const*, double*, double*,
-                            double*);
-template void kGeom3D<2,14>(int, double const*, double const*, double*, double*,
-                            double*);
-template void kGeom3D<2,15>(int, double const*, double const*, double*, double*,
-                            double*);
-template void kGeom3D<2,16>(int, double const*, double const*, double*, double*,
-                            double*);
-template void kGeom3D<2,17>(int, double const*, double const*, double*, double*,
-                            double*);
+template
+void Geom3D<2,2>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom3D<2,3>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom3D<2,4>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom3D<2,5>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom3D<2,6>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom3D<2,7>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom3D<2,8>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom3D<2,9>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom3D<2,10>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom3D<2,11>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom3D<2,12>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom3D<2,13>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom3D<2,14>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom3D<2,15>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom3D<2,16>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom3D<2,17>(int,double const*,double const*,double*,double*,double*);
 
-template void kGeom3D<4,3>(int, double const*, double const*, double*, double*,
-                            double*);
-}
+template
+void Geom3D<4,3>(int,double const*,double const*,double*,double*,double*);
+
+} // namespace geometry
+} // namespace kernels
+} // namespace mfem

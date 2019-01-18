@@ -95,7 +95,7 @@ DenseMatrix::DenseMatrix(int s) : Matrix(s)
    if (capacity > 0)
    {
       data = mm::malloc<double>(capacity);
-      DenseMatrixSet(0.0,capacity,data);
+      kernels::densemat::Set(0.0,capacity,data);
    }
    else
    {
@@ -111,7 +111,7 @@ DenseMatrix::DenseMatrix(int m, int n) : Matrix(m, n)
    if (capacity > 0)
    {
       data = mm::malloc<double>(capacity);
-      DenseMatrixSet(0.0,capacity,data);
+      kernels::densemat::Set(0.0,capacity,data);
    }
    else
    {
@@ -126,7 +126,7 @@ DenseMatrix::DenseMatrix(const DenseMatrix &mat, char ch)
    if (capacity > 0)
    {
       data = mm::malloc<double>(capacity);
-      DenseMatrixTranspose(height,width,data,mat.Data());
+      kernels::densemat::Transpose(height,width,data,mat.Data());
    }
    else
    {
@@ -160,7 +160,7 @@ void DenseMatrix::SetSize(int h, int w)
       }
       capacity = hw;
       data = mm::malloc<double>(capacity);
-      DenseMatrixSet(0.0, capacity, data);
+      kernels::densemat::Set(0.0, capacity, data);
    }
 }
 
@@ -178,10 +178,10 @@ void DenseMatrix::Mult(const double *x, double *y) const
 {
    if (width == 0)
    {
-      kMultWidth0(height, y);
+      kernels::densemat::MultWidth0(height, y);
       return;
    }
-   kMult(height, width, data, x, y);
+   kernels::densemat::Mult(height, width, data, x, y);
 }
 
 void DenseMatrix::Mult(const Vector &x, Vector &y) const
@@ -461,11 +461,11 @@ double DenseMatrix::Det() const
       case 1:
          return data[0];
 
-      case 2: return kDet2(data);
+      case 2: return kernels::densemat::Det2(data);
 
       case 3:
       {
-         return kDet3(data);
+         return kernels::densemat::Det3(data);
       }
       case 4:
       {
@@ -548,7 +548,7 @@ void DenseMatrix::Add(const double c, const DenseMatrix &A)
 DenseMatrix &DenseMatrix::operator=(double c)
 {
    int s = Height()*Width();
-   DenseMatrixSet(c,s,data);
+   kernels::densemat::Set(c,s,data);
    return *this;
 }
 
@@ -567,7 +567,7 @@ DenseMatrix &DenseMatrix::operator=(const DenseMatrix &m)
    SetSize(m.height, m.width);
 
    const int hw = height * width;
-   kOpEq(hw,m.GetData(),data);
+   kernels::densemat::OpEQ(hw,m.GetData(),data);
    return *this;
 }
 
@@ -807,13 +807,13 @@ double DenseMatrix::MaxMaxNorm() const
 void DenseMatrix::FNorm(double &scale_factor, double &scaled_fnorm2) const
 {
    int hw = Height() * Width();
-   const double max_norm = kFNormMax(hw,data);
+   const double max_norm = kernels::densemat::FNormMax(hw,data);
    if (max_norm == 0.0)
    {
       scale_factor = scaled_fnorm2 = 0.0;
       return;
    }
-   const double fnorm2 = kFNorm2(hw,max_norm,data);
+   const double fnorm2 = kernels::densemat::FNorm2(hw,max_norm,data);
    scale_factor = max_norm;
    scaled_fnorm2 = fnorm2;
 }
@@ -2402,7 +2402,7 @@ void DenseMatrix::Diag(double c, int n)
 {
    SetSize(n);
    const int N = n*n;
-   kDiag(n, N, c, data);
+   kernels::densemat::Diag(n, N, c, data);
 }
 
 void DenseMatrix::Diag(double *diag, int n)
@@ -2557,7 +2557,7 @@ void DenseMatrix::GradToDiv(Vector &div)
 
    int n = height * width;
    double *ddata = div.GetData();
-   kGradToDiv(n, GetData(), ddata);
+   kernels::densemat::GradToDiv(n, GetData(), ddata);
 }
 
 void DenseMatrix::CopyRows(const DenseMatrix &A, int row1, int row2)
@@ -3008,7 +3008,7 @@ void Mult(const DenseMatrix &b, const DenseMatrix &c, DenseMatrix &a)
    double *ad = a.Data();
    const double *bd = b.Data();
    const double *cd = c.Data();
-   kMult(ah, aw, bw, bd, cd, ad);
+   kernels::densemat::Mult(ah, aw, bw, bd, cd, ad);
 #endif
 }
 
@@ -3214,10 +3214,10 @@ void CalcInverse(const DenseMatrix &a, DenseMatrix &inva)
          inva(0,0) = t;
          break;
       case 2:
-         kCalcInverse2D(t,a.GetData(),inva.GetData());
+         kernels::densemat::CalcInverse2D(t,a.GetData(),inva.GetData());
          break;
       case 3:
-         kCalcInverse3D(t,a.GetData(),inva.GetData());
+         kernels::densemat::CalcInverse3D(t,a.GetData(),inva.GetData());
          break;
    }
 }
@@ -3289,7 +3289,7 @@ void CalcOrtho(const DenseMatrix &J, Vector &n)
 
 void MultAAt(const DenseMatrix &a, DenseMatrix &aat)
 {
-   kMultAAt(a.Height(),a.Width(),a.GetData(),aat.GetData());
+   kernels::densemat::MultAAt(a.Height(),a.Width(),a.GetData(),aat.GetData());
 }
 
 void AddMultADAt(const DenseMatrix &A, const Vector &D, DenseMatrix &ADAt)
@@ -3815,7 +3815,8 @@ void AddMult_a_VVt(const double a, const Vector &v, DenseMatrix &VVt)
       mfem_error("AddMult_a_VVt(...)");
    }
 #endif
-   kAddMult_a_VVt(n, a, v.GetData(), VVt.Height(), VVt.GetData());
+   kernels::densemat::AddMult_a_VVt(n, a, v.GetData(),
+                                    VVt.Height(), VVt.GetData());
 }
 
 
@@ -3827,7 +3828,7 @@ void LUFactors::Factor(int m)
    MFEM_VERIFY(!info, "LAPACK: error in DGETRF");
 #else
    // compiling without LAPACK
-   kFactor(m, ipiv, this->data);
+   kernels::densemat::Factor(m, ipiv, this->data);
 #endif
 }
 
@@ -3891,7 +3892,7 @@ void LUFactors::LSolve(int m, int n, double *X) const
    const double *data = this->data;
    const int *ipiv = this->ipiv;
    double *x = X;
-   kLSolve(m, n, data, ipiv, x);
+   kernels::densemat::LSolve(m, n, data, ipiv, x);
 }
 
 void LUFactors::USolve(int m, int n, double *X) const
@@ -3899,7 +3900,7 @@ void LUFactors::USolve(int m, int n, double *X) const
    const double *data = this->data;
    double *x = X;
    // X <- U^{-1} X
-   kUSolve(m, n, data, x);
+   kernels::densemat::USolve(m, n, data, x);
 }
 
 void LUFactors::Solve(int m, int n, double *X) const
@@ -3923,7 +3924,7 @@ void LUFactors::GetInverseMatrix(int m, double *X) const
    const int *ipiv = this->ipiv;
    // X <- U^{-1} (set only the upper triangular part of X)
    double *x = X;
-   kGetInverseMatrix(m, ipiv, data, x);
+   kernels::densemat::GetInverseMatrix(m, ipiv, data, x);
 }
 
 void LUFactors::SubMult(int m, int n, int r, const double *A21,
@@ -4014,7 +4015,7 @@ void DenseMatrixInverse::Factor()
 {
    MFEM_ASSERT(a, "DenseMatrix is not given");
    const double *adata = a->data;
-   kFactorSet(width*width, adata, lu.data);
+   kernels::densemat::FactorSet(width*width, adata, lu.data);
    lu.Factor(width);
 }
 

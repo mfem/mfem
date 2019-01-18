@@ -14,9 +14,9 @@
 
 #include "fem.hpp"
 #include "bilininteg.hpp"
+#include "fespace_ext.hpp"
 #include "bilinearform_ext.hpp"
 #include "kBilinIntegDiffusion.hpp"
-#include "kfespace.hpp"
 #include "../linalg/kernels/vector.hpp"
 
 namespace mfem
@@ -38,7 +38,14 @@ PABilinearFormExtension::PABilinearFormExtension(BilinearForm *form) :
    localY(a->fes->GetNE() * testFes->GetFE(0)->GetDof() * testFes->GetVDim()),
    kfes(new kFiniteElementSpace(a->fes)) { }
 
-PABilinearFormExtension::~PABilinearFormExtension() { delete kfes; }
+PABilinearFormExtension::~PABilinearFormExtension()
+{
+   for (int i = 0; i < integrators.Size(); ++i)
+   {
+      delete integrators[i];
+   }
+   delete kfes;
+}
 
 // Adds new Domain Integrator.
 void PABilinearFormExtension::AddDomainIntegrator(
@@ -123,15 +130,15 @@ void PABilinearFormExtension::FormLinearSystem(const Array<int> &ess_tdof_list,
       const int csz = ess_tdof_list.Size();
       Vector subvec(csz);
       subvec = 0.0;
-      kVectorGetSubvector(csz,
-                          subvec.GetData(),
-                          X.GetData(),
-                          ess_tdof_list.GetData());
+      kernels::vector::GetSubvector(csz,
+                                    subvec.GetData(),
+                                    X.GetData(),
+                                    ess_tdof_list.GetData());
       X = 0.0;
-      kVectorSetSubvector(csz,
-                          X.GetData(),
-                          subvec.GetData(),
-                          ess_tdof_list.GetData());
+      kernels::vector::SetSubvector(csz,
+                                    X.GetData(),
+                                    subvec.GetData(),
+                                    ess_tdof_list.GetData());
    }
 
    ConstrainedOperator *cA = static_cast<ConstrainedOperator*>(A);

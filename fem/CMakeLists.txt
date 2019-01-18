@@ -21,13 +21,13 @@ set(SRCS
   fe.cpp
   fe_coll.cpp
   fespace.cpp
+  fespace_ext.cpp
   geom.cpp
   gridfunc.cpp
   hybridization.cpp
   intrules.cpp
   kBilinIntegDiffusion.cpp
   kBilinIntegMass.cpp
-  kfespace.cpp
   linearform.cpp
   lininteg.cpp
   nonlinearform.cpp
@@ -49,13 +49,13 @@ set(HDRS
   fe_coll.hpp
   fem.hpp
   fespace.hpp
+  fespace_ext.hpp
   geom.hpp
   gridfunc.hpp
   hybridization.hpp
   intrules.hpp
   kBilinIntegDiffusion.hpp
   kBilinIntegMass.hpp
-  kfespace.hpp
   linearform.hpp
   lininteg.hpp
   nonlinearform.hpp

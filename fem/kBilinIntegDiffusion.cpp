@@ -11,8 +11,8 @@
 
 #include "fem.hpp"
 #include "kBilinIntegDiffusion.hpp"
-#include "kernels/kGeometry.hpp"
-#include "kernels/kIntDiffusion.hpp"
+#include "kernels/Geometry.hpp"
+#include "kernels/IntDiffusion.hpp"
 
 namespace mfem
 {
@@ -24,6 +24,12 @@ KDiffusionIntegrator::KDiffusionIntegrator(const FiniteElementSpace *f,
     maps(NULL),
     fes(f),
     ir(i) {assert(i); assert(fes);}
+
+// *****************************************************************************
+KDiffusionIntegrator::~KDiffusionIntegrator()
+{
+   delete maps;
+}
 
 // *****************************************************************************
 void KDiffusionIntegrator::Assemble()
@@ -39,15 +45,16 @@ void KDiffusionIntegrator::Assemble()
    const int quad1D = IntRules.Get(Geometry::SEGMENT,ir->GetOrder()).GetNPoints();
    const int size = symmDims * quadraturePoints * elements;
    vec.SetSize(size);
-   kGeometry *geo = kGeometry::Get(*fes, *ir);
+   const kernels::geometry::Geometry *geo = kernels::geometry::Geometry::Get(*fes, *ir);
    maps = kDofQuadMaps::Get(*fes, *fes, *ir);
-   kIntDiffusionAssemble(dim,
-                         quad1D,
-                         elements,
-                         maps->quadWeights,
-                         geo->J,
-                         1.0,//COEFF
-                         vec);
+   kernels::fem::IntDiffusionAssemble(dim,
+                                      quad1D,
+                                      elements,
+                                      maps->quadWeights,
+                                      geo->J,
+                                      1.0,//COEFF
+                                      vec);
+   delete geo;
 }
 
 // *****************************************************************************
@@ -59,17 +66,17 @@ void KDiffusionIntegrator::MultAdd(Vector &x, Vector &y)
    const FiniteElementSpace *f = fes;
    const FiniteElement *fe = f->GetFE(0);
    const int dofs1D = fe->GetOrder() + 1;
-   kIntDiffusionMultAdd(dim,
-                        dofs1D,
-                        quad1D,
-                        fes->GetMesh()->GetNE(),
-                        maps->dofToQuad,
-                        maps->dofToQuadD,
-                        maps->quadToDof,
-                        maps->quadToDofD,
-                        vec,
-                        x,
-                        y);
+   kernels::fem::IntDiffusionMultAdd(dim,
+                                     dofs1D,
+                                     quad1D,
+                                     fes->GetMesh()->GetNE(),
+                                     maps->dofToQuad,
+                                     maps->dofToQuadD,
+                                     maps->quadToDof,
+                                     maps->quadToDofD,
+                                     vec,
+                                     x,
+                                     y);
 }
 
 } // namespace mfem
