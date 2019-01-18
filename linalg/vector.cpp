@@ -160,7 +160,7 @@ Vector &Vector::operator=(double value)
 
 Vector &Vector::operator*=(double c)
 {
-   kernels::vector::MultOp(size, c, data);
+   kernels::vector::OpMultEQ(size, c, data);
    return *this;
 }
 
@@ -191,7 +191,7 @@ Vector &Vector::operator-=(const Vector &v)
       mfem_error("Vector::operator-=(const Vector &)");
    }
 #endif
-   kernels::vector::OpSubtract(size,v,data);
+   kernels::vector::OpSubtractEQ(size,v,data);
    return *this;
 }
 
@@ -203,7 +203,7 @@ Vector &Vector::operator+=(const Vector &v)
       mfem_error("Vector::operator+=(const Vector &)");
    }
 #endif
-   kernels::vector::DotOpPlusEQ(size,v.GetData(),data);
+   kernels::vector::OpPlusEQ(size,v.GetData(),data);
    return *this;
 }
 
