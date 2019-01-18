@@ -13,7 +13,7 @@
 #define MFEM_BILIN_DQM_HPP
 
 #include "../config/config.hpp"
-#include "../general/karray.hpp"
+#include "../general/array_ext.hpp"
 
 namespace mfem
 {
@@ -26,9 +26,9 @@ class kDofQuadMaps
 private:
    std::string hash;
 public:
-   karray<double, false> dofToQuad, dofToQuadD; // B
-   karray<double, false> quadToDof, quadToDofD; // B^T
-   karray<double> quadWeights;
+   kernels::array<double, false> dofToQuad, dofToQuadD; // B
+   kernels::array<double, false> quadToDof, quadToDofD; // B^T
+   kernels::array<double> quadWeights;
 public:
    ~kDofQuadMaps();
    static void delkDofQuadMaps();

@@ -13,7 +13,7 @@
 #define MFEM_FEM_KERNEL_GEOM_HPP
 
 #include "../../config/config.hpp"
-#include "../../general/karray.hpp"
+#include "../../general/array_ext.hpp"
 
 #include "../fespace.hpp"
 
@@ -31,9 +31,9 @@ class Geometry
 {
 public:
    ~Geometry();
-   karray<int> eMap;
-   karray<double> meshNodes;
-   karray<double> J, invJ, detJ;
+   kernels::array<int> eMap;
+   kernels::array<double> meshNodes;
+   kernels::array<double> J, invJ, detJ;
    static const int Jacobian    = (1 << 0);
    static const int JacobianInv = (1 << 1);
    static const int JacobianDet = (1 << 2);
