@@ -97,33 +97,20 @@ static void Geom(const int DIM,
    };
    if (!call[id])
    {
-      printf("\n[kGeom] id \033[33m0x%X\033[m ",id);
+      printf("\n[Geom] id \033[33m0x%X\033[m ",id);
       fflush(stdout);
    }
    assert(call[id]);
-   GET_CONST_ADRS(dofToQuadD);
-   GET_CONST_ADRS(nodes);
-   GET_ADRS(J);
-   GET_ADRS(invJ);
-   GET_ADRS(detJ);
+   GET_CONST_PTR(dofToQuadD);
+   GET_CONST_PTR(nodes);
+   GET_PTR(J);
+   GET_PTR(invJ);
+   GET_PTR(detJ);
    call[id](numElements, d_dofToQuadD, d_nodes, d_J, d_invJ, d_detJ);
 }
 
 // *****************************************************************************
 static Geometry *geom = NULL;
-
-// ***************************************************************************
-// * ~ Geometry
-// ***************************************************************************
-Geometry::~Geometry()
-{
-   free(geom->meshNodes);
-   free(geom->J);
-   free(geom->invJ);
-   free(geom->detJ);
-   delete[] geom;
-}
-
 
 // *****************************************************************************
 static void GeomFill(const int dims,
@@ -131,10 +118,10 @@ static void GeomFill(const int dims,
                      const int* elementMap, int* eMap,
                      const double *nodes, double *meshNodes)
 {
-   GET_CONST_ADRS_T(elementMap,int);
-   GET_ADRS_T(eMap,int);
-   GET_CONST_ADRS(nodes);
-   GET_ADRS(meshNodes);
+   GET_CONST_PTR_T(elementMap,int);
+   GET_PTR_T(eMap,int);
+   GET_CONST_PTR(nodes);
+   GET_PTR(meshNodes);
    MFEM_FORALL(e, elements,
    {
       for (size_t d = 0; d < numDofs; ++d)
@@ -155,8 +142,8 @@ static void GeomFill(const int dims,
 // *****************************************************************************
 static void ArrayAssign(const int n, const int *src, int *dest)
 {
-   GET_CONST_ADRS_T(src,int);
-   GET_ADRS_T(dest,int);
+   GET_CONST_PTR_T(src,int);
+   GET_PTR_T(dest,int);
    MFEM_FORALL(i, n, d_dest[i] = d_src[i];);
 }
 
@@ -205,6 +192,7 @@ Geometry* Geometry::Get(const FiniteElementSpace& fes,
    Geom(dims, numDofs, numQuad, elements,
         maps->dofToQuadD,
         geom->meshNodes, geom->J, geom->invJ, geom->detJ);
+   delete maps;
    return geom;
 }
 
@@ -260,6 +248,7 @@ Geometry* Geometry::Get(const FiniteElementSpace& fes,
    const kDofQuadMaps* maps = kDofQuadMaps::GetSimplexMaps(*fe, ir);
    Geom(dims, numDofs, numQuad, elements, maps->dofToQuadD,
         geom->meshNodes, geom->J, geom->invJ, geom->detJ);
+   delete maps;
    return geom;
 }
 

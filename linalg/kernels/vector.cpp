@@ -74,8 +74,8 @@ static double cuVectorDot(const size_t N, const double *x, const double *y)
 // *****************************************************************************
 double Dot(const size_t N, const double *x, const double *y)
 {
-   GET_CONST_ADRS(x);
-   GET_CONST_ADRS(y);
+   GET_CONST_PTR(x);
+   GET_CONST_PTR(y);
    if (config::usingGpu())
    {
 #ifdef __NVCC__
@@ -91,9 +91,9 @@ double Dot(const size_t N, const double *x, const double *y)
 // *****************************************************************************
 void MapDof(const int N, double *y, const double *x, const int *dofs)
 {
-   GET_ADRS(y);
-   GET_CONST_ADRS(x);
-   GET_CONST_ADRS_T(dofs,int);
+   GET_PTR(y);
+   GET_CONST_PTR(x);
+   GET_CONST_PTR_T(dofs,int);
    MFEM_FORALL(i, N,
    {
       const int dof_i = d_dofs[i];
@@ -104,23 +104,23 @@ void MapDof(const int N, double *y, const double *x, const int *dofs)
 // *****************************************************************************
 void MapDof(double *y, const double *x, const int dof, const int j)
 {
-   GET_ADRS(y);
-   GET_CONST_ADRS(x);
+   GET_PTR(y);
+   GET_CONST_PTR(x);
    MFEM_FORALL(i, 1, d_y[dof] = d_x[j];);
 }
 
 // *****************************************************************************
 void SetDof(double *y, const double alpha, const int dof)
 {
-   GET_ADRS(y);
+   GET_PTR(y);
    MFEM_FORALL(i, 1, d_y[dof] = alpha;);
 }
 
 // *****************************************************************************
 void SetDof(const int N, double *y, const double alpha, const int *dofs)
 {
-   GET_ADRS(y);
-   GET_CONST_ADRS_T(dofs,int);
+   GET_PTR(y);
+   GET_CONST_PTR_T(dofs,int);
    MFEM_FORALL(i, N,
    {
       const int dof_i = d_dofs[i];
@@ -131,9 +131,9 @@ void SetDof(const int N, double *y, const double alpha, const int *dofs)
 // *****************************************************************************
 void GetSubvector(const int N, double *y, const double *x, const int* dofs)
 {
-   GET_ADRS(y);
-   GET_CONST_ADRS(x);
-   GET_CONST_ADRS_T(dofs,int);
+   GET_PTR(y);
+   GET_CONST_PTR(x);
+   GET_CONST_PTR_T(dofs,int);
    MFEM_FORALL(i, N,
    {
       const int dof_i = d_dofs[i];
@@ -144,9 +144,9 @@ void GetSubvector(const int N, double *y, const double *x, const int* dofs)
 // *****************************************************************************
 void SetSubvector(const int N, double *y, const double *x, const int* dofs)
 {
-   GET_ADRS(y);
-   GET_CONST_ADRS(x);
-   GET_CONST_ADRS_T(dofs,int);
+   GET_PTR(y);
+   GET_CONST_PTR(x);
+   GET_CONST_PTR_T(dofs,int);
    MFEM_FORALL(i, N,
    {
       const int j = d_dofs[i];
@@ -164,18 +164,18 @@ void SetSubvector(const int N, double *y, const double *x, const int* dofs)
 void AlphaAdd(double *z, const double *x,
               const double a, const double *y, const size_t N)
 {
-   GET_ADRS(z);
-   GET_CONST_ADRS(x);
-   GET_CONST_ADRS(y);
+   GET_PTR(z);
+   GET_CONST_PTR(x);
+   GET_CONST_PTR(y);
    MFEM_FORALL(i, N, d_z[i] = d_x[i] + a * d_y[i];);
 }
 
 // *****************************************************************************
 void Subtract(double *z, const double *x, const double *y, const size_t N)
 {
-   GET_ADRS(z);
-   GET_CONST_ADRS(x);
-   GET_CONST_ADRS(y);
+   GET_PTR(z);
+   GET_CONST_PTR(x);
+   GET_CONST_PTR(y);
    MFEM_FORALL(i, N, d_z[i] = d_x[i] - d_y[i];);
 }
 
@@ -183,7 +183,7 @@ void Subtract(double *z, const double *x, const double *y, const size_t N)
 // *****************************************************************************
 void Print(const size_t N, const double *x)
 {
-   GET_CONST_ADRS(x);
+   GET_CONST_PTR(x);
    // Sequential printf to get the same order as on the host
    MFEM_FORALL(k, 1,
    {
@@ -197,47 +197,47 @@ void Print(const size_t N, const double *x)
 // **************************************************************************
 void Set(const size_t N, const double d, double *y)
 {
-   GET_ADRS(y);
+   GET_PTR(y);
    MFEM_FORALL(i, N, d_y[i] = d;);
 }
 
 // *****************************************************************************
 void Assign(const size_t N, const double *x, double *y)
 {
-   GET_ADRS(y);
-   GET_CONST_ADRS(x);
+   GET_PTR(y);
+   GET_CONST_PTR(x);
    MFEM_FORALL(i, N, d_y[i] = d_x[i];);
 }
 
 // *****************************************************************************
 void OpMultEQ(const size_t N, const double d, double *y)
 {
-   GET_ADRS(y);
+   GET_PTR(y);
    MFEM_FORALL(i, N, d_y[i] *= d;);
 }
 
 // *****************************************************************************
 void OpPlusEQ(const size_t size, const double *x, double *y)
 {
-   GET_CONST_ADRS(x);
-   GET_ADRS(y);
+   GET_CONST_PTR(x);
+   GET_PTR(y);
    MFEM_FORALL(i, size, d_y[i] += d_x[i];);
 }
 
 // *****************************************************************************
 void OpSubtractEQ(const size_t size, const double *x, double *y)
 {
-   GET_CONST_ADRS(x);
-   GET_ADRS(y);
+   GET_CONST_PTR(x);
+   GET_PTR(y);
    MFEM_FORALL(i, size, d_y[i] -= d_x[i];);
 }
 
 // *****************************************************************************
 void AddElement(const size_t n, const int *dofs, const double *x, double *y)
 {
-   GET_CONST_ADRS_T(dofs,int);
-   GET_CONST_ADRS(x);
-   GET_ADRS(y);
+   GET_CONST_PTR_T(dofs,int);
+   GET_CONST_PTR(x);
+   GET_PTR(y);
    MFEM_FORALL(i, n,
    {
       const int j = d_dofs[i];

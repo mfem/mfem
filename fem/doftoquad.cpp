@@ -26,21 +26,6 @@ namespace mfem
 // ***************************************************************************
 static std::map<std::string, kDofQuadMaps* > AllDofQuadMaps;
 
-// ***************************************************************************
-kDofQuadMaps::~kDofQuadMaps() {}
-
-// *****************************************************************************
-void kDofQuadMaps::delkDofQuadMaps()
-{
-   for (std::map<std::string,
-        kDofQuadMaps*>::iterator itr = AllDofQuadMaps.begin();
-        itr != AllDofQuadMaps.end();
-        itr++)
-   {
-      delete itr->second;
-   }
-}
-
 // *****************************************************************************
 kDofQuadMaps* kDofQuadMaps::Get(const FiniteElementSpace& fes,
                                 const IntegrationRule& ir,
@@ -99,6 +84,8 @@ kDofQuadMaps* kDofQuadMaps::GetTensorMaps(const FiniteElement& trialFE,
    maps->quadToDof   = testMaps->dofToQuad;
    maps->quadToDofD  = testMaps->dofToQuadD;
    maps->quadWeights = testMaps->quadWeights;
+   delete trialMaps;
+   delete testMaps;
    return maps;
 }
 
@@ -232,6 +219,8 @@ kDofQuadMaps* kDofQuadMaps::GetSimplexMaps(const FiniteElement& trialFE,
    maps->quadToDof   = testMaps->dofToQuad;
    maps->quadToDofD  = testMaps->dofToQuadD;
    maps->quadWeights = testMaps->quadWeights;
+   delete trialMaps;
+   delete testMaps;
    return maps;
 }
 
@@ -309,7 +298,6 @@ kDofQuadMaps* kDofQuadMaps::GetD2QSimplexMaps(const FiniteElement& fe,
 
    //maps->dofToQuad = dofToQuad;
    kernels::vector::Assign(numQuad*numDofs, dofToQuad.GetData(), maps->dofToQuad);
-   //assert(false);
 
    //maps->dofToQuadD = dofToQuadD;
    kernels::vector::Assign(dims*numQuad*numDofs, dofToQuadD.GetData(), maps->dofToQuadD);

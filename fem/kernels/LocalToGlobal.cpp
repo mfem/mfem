@@ -29,10 +29,11 @@ void LocalToGlobal(const int NUM_VDIM,
                    const double* __restrict localX,
                    double* __restrict globalX)
 {
-   GET_CONST_ADRS_T(offsets,int);
-   GET_CONST_ADRS_T(indices,int);
-   GET_CONST_ADRS(localX);
-   GET_ADRS(globalX);
+
+   GET_CONST_PTR_T(offsets,int);
+   GET_CONST_PTR_T(indices,int);
+   GET_CONST_PTR(localX);
+   GET_PTR(globalX);
    MFEM_FORALL(i, globalEntries,
    {
       const int offset = d_offsets[i];
