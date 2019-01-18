@@ -282,8 +282,10 @@ int main(int argc, char *argv[])
    int newton_iter = 500;
    
    // solver input args
-   bool gmres_solver = false;
-   bool pcg_solver = true;
+   // GMRES is currently set as the default iterative solver
+   // until the bug in the PCG solver is found and fixed.
+   bool gmres_solver = true;
+   bool pcg_solver = false;
    bool slu_solver = false;
    bool grad_debug = false;
 
@@ -1891,13 +1893,13 @@ void setBdrConditions(Mesh *mesh)
          // note, srw wrote SetBdrAttribute() in ../../mesh/mesh.hpp
          case 1 : mesh->SetBdrAttribute(i, 1); // bottom
                   break;
-         case 2 : mesh->SetBdrAttribute(i, 5); // front
+         case 2 : mesh->SetBdrAttribute(i, 3); // front
                   break;
-         case 3 : mesh->SetBdrAttribute(i, 6); // right
+         case 3 : mesh->SetBdrAttribute(i, 5); // right
                   break;
-         case 4 : mesh->SetBdrAttribute(i, 2); // back
+         case 4 : mesh->SetBdrAttribute(i, 6); // back
                   break;
-         case 5 : mesh->SetBdrAttribute(i, 3); // left
+         case 5 : mesh->SetBdrAttribute(i, 2); // left
                   break;
          case 6 : mesh->SetBdrAttribute(i, 4); // top
                   break;
