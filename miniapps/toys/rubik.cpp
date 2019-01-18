@@ -92,6 +92,12 @@ void init_state();
 
 void print_state(ostream & out);
 
+bool validate_centers(const int max_ind = 6);
+
+bool validate_edges(const int max_ind = 12);
+
+bool validate_corners(const int max_ind = 8);
+
 void anim_move(char dir, int ind, int deg,
                Mesh & mesh, GridFunction & color,
                socketstream & sock);
@@ -890,6 +896,51 @@ print_state(ostream & out)
           << ":" << rubik.corn_[3 * i + 2];
    }
    out << "\n";
+}
+
+bool validate_centers(const int min_ind, const int max_ind)
+{
+   MFEM_ASSERT(0 <= min_ind && max_ind <= 6, "Maximum center index of "
+	       << max_ind << " is out of range.");
+
+   for (int i=min_ind; i<max_ind; i++)
+   {
+      if (rubik.cent_[i] != i) return false;
+   }
+   return true;
+}
+
+bool validate_edges(const int min_ind, const int max_ind)
+{
+   MFEM_ASSERT(0 <= min_ind && max_ind <= 12, "Maximum edge index of "
+	       << max_ind << " is out of range.");
+
+   for (int i=min_ind; i<max_ind; i++)
+   {
+      if (rubik.edge_[2 * i + 0] != edge_colors_[2 * i + 0] ||
+	  rubik.edge_[2 * i + 1] != edge_colors_[2 * i + 1])
+      {
+	return false;
+      }
+   }
+   return true;
+}
+
+bool validate_corners(const int min_ind, const int max_ind)
+{
+   MFEM_ASSERT(0 <= min_ind && max_ind <= 8, "Maximum corner index of "
+	       << max_ind << " is out of range.");
+
+   for (int i=min_ind; i<max_ind; i++)
+   {
+      if (rubik.corn_[3 * i + 0] != corn_colors_[3 * i + 0] ||
+	  rubik.corn_[3 * i + 1] != corn_colors_[3 * i + 1] ||
+	  rubik.corn_[3 * i + 2] != corn_colors_[3 * i + 2])
+      {
+	return false;
+      }
+   }
+   return true;
 }
 
 void
