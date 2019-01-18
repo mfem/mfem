@@ -5853,7 +5853,7 @@ void Mesh::UniformRefinement2D()
       A,B, B,B, A,C
    };
    static double *quad_children = mm::malloc<double>(2*4*4);
-   kQuadChildren(quad_children);
+   kernels::mesh::QuadChildren(quad_children);
 
    CoarseFineTr.point_matrices[Geometry::TRIANGLE].
    UseExternalData(tri_children, 2, 3, 4);
