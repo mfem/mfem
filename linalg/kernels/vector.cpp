@@ -10,12 +10,10 @@
 // Software Foundation) version 2.1 dated February 1999.
 
 #include "../../general/okina.hpp"
-#include "vector.hpp"
+//#include "vector.hpp"
 
-// *****************************************************************************
 namespace mfem
 {
-
 namespace kernels
 {
 namespace vector
@@ -55,7 +53,7 @@ __global__ void cuKernelDot(const size_t N, double *gdsr,
 }
 
 // *****************************************************************************
-double cuVectorDot(const size_t N, const double *x, const double *y)
+static double cuVectorDot(const size_t N, const double *x, const double *y)
 {
    const size_t tpb = CUDA_BLOCKSIZE;
    const size_t blockSize = CUDA_BLOCKSIZE;
@@ -92,50 +90,47 @@ double Dot(const size_t N, const double *x, const double *y)
 }
 
 // *****************************************************************************
-void MapDof(const int N, double *v0, const double *v1, const int *dof)
+void MapDof(const int N, double *y, const double *x, const int *dofs)
 {
-   GET_ADRS(v0);
-   GET_CONST_ADRS(v1);
-   GET_CONST_ADRS_T(dof,int);
+   GET_ADRS(y);
+   GET_CONST_ADRS(x);
+   GET_CONST_ADRS_T(dofs,int);
    MFEM_FORALL(i, N,
    {
-      const int dof_i = d_dof[i];
-      d_v0[dof_i] = d_v1[dof_i];
+      const int dof_i = d_dofs[i];
+      d_y[dof_i] = d_x[dof_i];
    });
 }
 
 // *****************************************************************************
-void MapDof(double *v0, const double *v1, const int dof, const int j)
+void MapDof(double *y, const double *x, const int dof, const int j)
 {
-   GET_ADRS(v0);
-   GET_CONST_ADRS(v1);
-   MFEM_FORALL(i, 1, d_v0[dof] = d_v1[j]; );
+   GET_ADRS(y);
+   GET_CONST_ADRS(x);
+   MFEM_FORALL(i, 1, d_y[dof] = d_x[j];);
 }
 
 // *****************************************************************************
-void SetDof(double *v0, const double alpha, const int dof)
+void SetDof(double *y, const double alpha, const int dof)
 {
-   GET_ADRS(v0);
-   MFEM_FORALL(i, 1, d_v0[dof] = alpha; );
+   GET_ADRS(y);
+   MFEM_FORALL(i, 1, d_y[dof] = alpha;);
 }
 
 // *****************************************************************************
-void SetDof(const int N, double *v0, const double alpha, const int *dof)
+void SetDof(const int N, double *y, const double alpha, const int *dofs)
 {
-   GET_ADRS(v0);
-   GET_CONST_ADRS_T(dof,int);
+   GET_ADRS(y);
+   GET_CONST_ADRS_T(dofs,int);
    MFEM_FORALL(i, N,
    {
-      const int dof_i = d_dof[i];
-      d_v0[dof_i] = alpha;
+      const int dof_i = d_dofs[i];
+      d_y[dof_i] = alpha;
    });
 }
 
 // *****************************************************************************
-void GetSubvector(const int N,
-                         double* y,
-                         const double* x,
-                         const int* dofs)
+void GetSubvector(const int N, double *y, const double *x, const int* dofs)
 {
    GET_ADRS(y);
    GET_CONST_ADRS(x);
@@ -148,123 +143,114 @@ void GetSubvector(const int N,
 }
 
 // *****************************************************************************
-void SetSubvector(const int N,
-                         double* x,
-                         const double* y,
-                         const int* dofs)
+void SetSubvector(const int N, double *y, const double *x, const int* dofs)
 {
-   GET_ADRS(x);
-   GET_CONST_ADRS(y);
+   GET_ADRS(y);
+   GET_CONST_ADRS(x);
    GET_CONST_ADRS_T(dofs,int);
    MFEM_FORALL(i, N,
    {
       const int j = d_dofs[i];
       if (j >= 0)
       {
-         d_x[j] = d_y[i];
+         d_y[j] = d_x[i];
       }
       else {
-         d_x[-1-j] = -d_y[i];
+         d_y[-1-j] = -d_x[i];
       }
    });
 }
 
 // *****************************************************************************
-void Subtract(double *zp, const double *xp, const double *yp,
-                     const size_t N)
+void AlphaAdd(double *z, const double *x,
+              const double a, const double *y, const size_t N)
 {
-   GET_ADRS(zp);
-   GET_CONST_ADRS(xp);
-   GET_CONST_ADRS(yp);
-   MFEM_FORALL(i, N, d_zp[i] = d_xp[i] - d_yp[i];);
+   GET_ADRS(z);
+   GET_CONST_ADRS(x);
+   GET_CONST_ADRS(y);
+   MFEM_FORALL(i, N, d_z[i] = d_x[i] + a * d_y[i];);
 }
 
 // *****************************************************************************
-void AlphaAdd(double *vp, const double* v1p,
-                     const double alpha, const double *v2p, const size_t N)
+void Subtract(double *z, const double *x, const double *y, const size_t N)
 {
-   GET_ADRS(vp);
-   GET_CONST_ADRS(v1p);
-   GET_CONST_ADRS(v2p);
-   MFEM_FORALL(i, N, d_vp[i] = d_v1p[i] + alpha * d_v2p[i];);
+   GET_ADRS(z);
+   GET_CONST_ADRS(x);
+   GET_CONST_ADRS(y);
+   MFEM_FORALL(i, N, d_z[i] = d_x[i] - d_y[i];);
 }
 
+
 // *****************************************************************************
-void Print(const size_t N, const double *data)
+void Print(const size_t N, const double *x)
 {
-   GET_CONST_ADRS(data);
-   MFEM_FORALL(k, 1, // Sequential printf to get the same order as the host
+   GET_CONST_ADRS(x);
+   // Sequential printf to get the same order as on the host
+   MFEM_FORALL(k, 1,
    {
       for (size_t i=0; i<N; i+=1)
       {
-         printf("\n\t%f",d_data[i]);
+         printf("\n\t%f",d_x[i]);
       }
    });
 }
 
-// *****************************************************************************
-void Assign(const size_t N, const double* v, double *data)
-{
-   GET_ADRS(data);
-   GET_CONST_ADRS(v);
-   MFEM_FORALL(i, N, d_data[i] = d_v[i];);
-}
-
 // **************************************************************************
-void Set(const size_t N,
-                const double value,
-                double *data)
+void Set(const size_t N, const double d, double *y)
 {
-   GET_ADRS(data);
-   MFEM_FORALL(i, N, d_data[i] = value;);
+   GET_ADRS(y);
+   MFEM_FORALL(i, N, d_y[i] = d;);
 }
 
 // *****************************************************************************
-void MultOp(const size_t N,
-                   const double value,
-                   double *data)
+void Assign(const size_t N, const double *x, double *y)
 {
-   GET_ADRS(data);
-   MFEM_FORALL(i, N, d_data[i] *= value;);
+   GET_ADRS(y);
+   GET_CONST_ADRS(x);
+   MFEM_FORALL(i, N, d_y[i] = d_x[i];);
 }
 
 // *****************************************************************************
-void DotOpPlusEQ(const size_t size, const double *v, double *data)
+void OpMultEQ(const size_t N, const double d, double *y)
 {
-   GET_CONST_ADRS(v);
-   GET_ADRS(data);
-   MFEM_FORALL(i, size, d_data[i] += d_v[i];);
+   GET_ADRS(y);
+   MFEM_FORALL(i, N, d_y[i] *= d;);
 }
 
 // *****************************************************************************
-void OpSubtract(const size_t size, const double *v, double *data)
+void OpPlusEQ(const size_t size, const double *x, double *y)
 {
-   GET_CONST_ADRS(v);
-   GET_ADRS(data);
-   MFEM_FORALL(i, size, d_data[i] -= d_v[i];);
+   GET_CONST_ADRS(x);
+   GET_ADRS(y);
+   MFEM_FORALL(i, size, d_y[i] += d_x[i];);
 }
 
 // *****************************************************************************
-void AddElement(const size_t n, const int *dofs,
-                const double *elem_data, double *data)
+void OpSubtractEQ(const size_t size, const double *x, double *y)
+{
+   GET_CONST_ADRS(x);
+   GET_ADRS(y);
+   MFEM_FORALL(i, size, d_y[i] -= d_x[i];);
+}
+
+// *****************************************************************************
+void AddElement(const size_t n, const int *dofs, const double *x, double *y)
 {
    GET_CONST_ADRS_T(dofs,int);
-   GET_CONST_ADRS(elem_data);
-   GET_ADRS(data);
+   GET_CONST_ADRS(x);
+   GET_ADRS(y);
    MFEM_FORALL(i, n,
    {
       const int j = d_dofs[i];
       if (j >= 0)
-         d_data[j] += d_elem_data[i];
+         d_y[j] += d_x[i];
       else
       {
-         d_data[-1-j] -= d_elem_data[i];
+         d_y[-1-j] -= d_x[i];
       }
    });
 }
 
 } // namespace vector
 } // namespace kernels
-
-// *****************************************************************************
-} // mfem
+} // namespace mfem
