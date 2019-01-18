@@ -177,10 +177,12 @@ kDofQuadMaps* kDofQuadMaps::GetD2QTensorMaps(const FiniteElement& fe,
       kernels::vector::Assign(numQuad, quadWeights.GetData(), maps->quadWeights);
    }
    //maps->dofToQuad = dofToQuad;
-   kernels::vector::Assign(numQuad1D*numDofs, dofToQuad.GetData(), maps->dofToQuad);
+   kernels::vector::Assign(numQuad1D*numDofs, dofToQuad.GetData(),
+                           maps->dofToQuad);
 
    //maps->dofToQuadD = dofToQuadD;
-   kernels::vector::Assign(numQuad1D*numDofs, dofToQuadD.GetData(), maps->dofToQuadD);
+   kernels::vector::Assign(numQuad1D*numDofs, dofToQuadD.GetData(),
+                           maps->dofToQuadD);
    return maps;
 }
 
@@ -300,7 +302,8 @@ kDofQuadMaps* kDofQuadMaps::GetD2QSimplexMaps(const FiniteElement& fe,
    kernels::vector::Assign(numQuad*numDofs, dofToQuad.GetData(), maps->dofToQuad);
 
    //maps->dofToQuadD = dofToQuadD;
-   kernels::vector::Assign(dims*numQuad*numDofs, dofToQuadD.GetData(), maps->dofToQuadD);
+   kernels::vector::Assign(dims*numQuad*numDofs, dofToQuadD.GetData(),
+                           maps->dofToQuadD);
    return maps;
 }
 
