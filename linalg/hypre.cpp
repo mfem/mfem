@@ -3699,23 +3699,40 @@ HypreAME::StealEigenvectors()
 }
 
 #define HELMHOLTZ_AMS
+#define HELMHOLTZ_AMS_BC
+#define CSL_CORRECTION
 
 #ifdef HYPRE_DYLAN
-HypreIAMS::HypreIAMS(HypreParMatrix &A, HypreParMatrix &H, HypreAMS *ams, int argc, char *argv[])
+HypreIAMS::HypreIAMS(HypreParMatrix &A, HypreParMatrix *H, STRUMPACKSolver *CSL, BlockVector *trueBlockX, BlockVector *trueBlockY,
+		     HypreAMS *ams, int argc, char *argv[])
   : m_ams(ams), m_Pix(ams->Get_Pix(), false), m_Piy(ams->Get_Piy(), false), m_Piz(ams->Get_Piz(), false), m_G(ams->Get_G(), false),
     z(ams->Get_Pix()->comm, hypre_ParCSRMatrixGlobalNumCols(ams->Get_Pix()), hypre_ParCSRMatrixColStarts(ams->Get_Pix())),
     w(ams->Get_Pix()->comm, hypre_ParCSRMatrixGlobalNumCols(ams->Get_Pix()), hypre_ParCSRMatrixColStarts(ams->Get_Pix())),
     v(ams->Get_Pix()->comm, hypre_ParCSRMatrixGlobalNumRows(ams->Get_Pix()), hypre_ParCSRMatrixRowStarts(ams->Get_Pix())),
     r(ams->Get_Pix()->comm, hypre_ParCSRMatrixGlobalNumRows(ams->Get_Pix()), hypre_ParCSRMatrixRowStarts(ams->Get_Pix())),
-    smoother(A, HypreSmoother::Kaczmarz), m_A(&A), m_H(&H)
+    smoother(A, HypreSmoother::Kaczmarz), m_A(&A), m_CSL(CSL), m_trueBlockX(trueBlockX), m_trueBlockY(trueBlockY)
 {
-#ifdef HELMHOLTZ_AMS
   HypreParMatrix A_G(ams->Get_A_G());
 
-  Arow[0] = new STRUMPACKRowLocMatrix(H);
+  int myid = -1;
+  MPI_Comm_rank(ams->Get_Pix()->comm, &myid);
+
+  //cout << myid << ": r size " << r.Size() << endl;
+  
+#ifdef HELMHOLTZ_AMS
+#ifdef HELMHOLTZ_AMS_BC
+  Arow[0] = new STRUMPACKRowLocMatrix(H[0]);
+  Arow[1] = new STRUMPACKRowLocMatrix(H[1]);
+  Arow[2] = new STRUMPACKRowLocMatrix(H[2]);
+  Arow[3] = new STRUMPACKRowLocMatrix(A_G);
+
+  for (int i=0; i<4; ++i)
+#else
+  Arow[0] = new STRUMPACKRowLocMatrix(*H);
   Arow[1] = new STRUMPACKRowLocMatrix(A_G);
 
   for (int i=0; i<2; ++i)
+#endif
 #else
   HypreParMatrix A_Pix(ams->Get_A_Pix());
   HypreParMatrix A_Piy(ams->Get_A_Piy());
@@ -3776,52 +3793,124 @@ void HypreIAMS::MultAdditive(const mfem::Vector &x, mfem::Vector &y) const
   y += v;
 }
 
-void HypreIAMS::MultMultiplicative(const mfem::Vector &x, mfem::Vector &y) const
+void HypreIAMS::Smooth(const int n, const mfem::Vector &x, mfem::Vector &y) const 
 {
-  smoother.Mult(x, y);
+  for (int i=0; i<n; ++i)
+    {
+      m_A->Mult(y, r);
+      r -= x;
+      
+      smoother.Mult(r, v);
+      y -= v;
+    }
+}
 
-  // Compute residual
+void HypreIAMS::MultCSL(const mfem::Vector &x, mfem::Vector &y) const
+{
+  const int id_x = 0;
+  const int id_y = 1;
+  const int id_z = 2;
+  const int id_G = 3;
+
+  y = 0.0;
+
+  /*
+  r = 0.0;
+  r -= x;
+  */
+  
+  Smooth(1, x, y);
+
   m_A->Mult(y, r);
-  r -= x;  // r = Ay - x  ==> A^{-1} r = y - A^{-1}x = sol_{iter} - sol_{exact}
-
+  r -= x;
+  
   m_G.MultTranspose(r, w);
-#ifdef HELMHOLTZ_AMS
-  strumpack[1]->Mult(w, z);
-#else
   strumpack[3]->Mult(w, z);
-#endif
   m_G.Mult(z, v);
+  y -= v;
+
+  m_A->Mult(y, r);
+  r -= x;
+
+  m_trueBlockX->GetBlock(0) = r;
+  m_trueBlockX->GetBlock(1) = 0.0;
+  
+  m_CSL->Mult(*m_trueBlockX, *m_trueBlockY);
+  IdentityOperator identity(v.Size());
+  identity.Mult(m_trueBlockY->GetBlock(0), v);
+  //v = (mfem::Vector) m_trueBlockY->GetBlock(0);  // Why doesn't this work?
   y -= v;
 
   m_A->Mult(y, r);
   r -= x;
   
-  m_Pix.MultTranspose(r, w);
-  strumpack[0]->Mult(w, z);
-  m_Pix.Mult(z, v);
-  y -= v;
-
-  m_A->Mult(y, r);
-  r -= x;
-
   m_G.MultTranspose(r, w);
-#ifdef HELMHOLTZ_AMS
-  strumpack[1]->Mult(w, z);
-#else
-  strumpack[3]->Mult(w, z);
-#endif
+  strumpack[id_G]->Mult(w, z);
   m_G.Mult(z, v);
   y -= v;
 
   m_A->Mult(y, r);
   r -= x;
 
+  m_Pix.MultTranspose(r, w);
+  strumpack[id_x]->Mult(w, z);
+  m_Pix.Mult(z, v);
+  y -= v;
+
+  //Smooth(1, x, y);
+
+  m_A->Mult(y, r);
+  r -= x;
+
+  m_G.MultTranspose(r, w);
+  strumpack[id_G]->Mult(w, z);
+  m_G.Mult(z, v);
+  y -= v;
+
+  //Smooth(2, x, y);
+  
+  m_A->Mult(y, r);
+  r -= x;
+
   m_Piy.MultTranspose(r, w);
-#ifdef HELMHOLTZ_AMS
-  strumpack[0]->Mult(w, z);
-#else
-  strumpack[1]->Mult(w, z);
-#endif
+  strumpack[id_y]->Mult(w, z);
+  m_Piy.Mult(z, v);
+  y -= v;
+
+  //Smooth(1, x, y);
+  
+  m_A->Mult(y, r);
+  r -= x;
+
+  m_G.MultTranspose(r, w);
+  strumpack[id_G]->Mult(w, z);
+  m_G.Mult(z, v);
+  y -= v;
+
+  //Smooth(2, x, y);
+
+  m_A->Mult(y, r);
+  r -= x;
+
+  m_Piz.MultTranspose(r, w);
+  strumpack[id_z]->Mult(w, z);
+  m_Piz.Mult(z, v);
+  y -= v;
+
+  m_A->Mult(y, r);
+  r -= x;
+
+  m_G.MultTranspose(r, w);
+  strumpack[id_G]->Mult(w, z);
+  m_G.Mult(z, v);
+  y -= v;
+  
+  m_A->Mult(y, r);
+  r -= x;
+
+  /*
+  m_Piy.MultTranspose(r, w);
+  strumpack[id_y]->Mult(w, z);
   m_Piy.Mult(z, v);
   y -= v;
 
@@ -3829,49 +3918,236 @@ void HypreIAMS::MultMultiplicative(const mfem::Vector &x, mfem::Vector &y) const
   r -= x;
 
   m_G.MultTranspose(r, w);
-#ifdef HELMHOLTZ_AMS
-  strumpack[1]->Mult(w, z);
-#else
   strumpack[3]->Mult(w, z);
-#endif
   m_G.Mult(z, v);
   y -= v;
 
   m_A->Mult(y, r);
   r -= x;
 
-  m_Piz.MultTranspose(r, w);
+  m_Pix.MultTranspose(r, w);
+  strumpack[id_x]->Mult(w, z);
+  m_Pix.Mult(z, v);
+  y -= v;
+
+  m_A->Mult(y, r);
+  r -= x;
+
+  m_G.MultTranspose(r, w);
+  strumpack[3]->Mult(w, z);
+  m_G.Mult(z, v);
+  y -= v;
+
+  //Smooth(1, x, y);
+
+  m_A->Mult(y, r);
+  r -= x;
+  */
+  /*
+  m_trueBlockX->GetBlock(0) = r;
+  m_trueBlockX->GetBlock(1) = 0.0;
+  
+  m_CSL->Mult(*m_trueBlockX, *m_trueBlockY);
+  identity.Mult(m_trueBlockY->GetBlock(0), v);
+  //v = (mfem::Vector) m_trueBlockY->GetBlock(0);  // Why doesn't this work?
+  y -= v;
+
+  m_A->Mult(y, r);
+  r -= x;
+  */
+  
+  // Smooth(1, x, y);
+}
+
+void HypreIAMS::MultMultiplicative(const mfem::Vector &x, mfem::Vector &y) const
+{
 #ifdef HELMHOLTZ_AMS
-  strumpack[0]->Mult(w, z);
+#ifdef HELMHOLTZ_AMS_BC
+  const int id_x = 0;
+  const int id_y = 1;
+  const int id_z = 2;
+  const int id_G = 3;
 #else
-  strumpack[2]->Mult(w, z);
+  const int id_x = 0;
+  const int id_y = 0;
+  const int id_z = 0;
+  const int id_G = 1;
 #endif
-  m_Piz.Mult(z, v);
+#else
+  const int id_x = 0;
+  const int id_y = 1;
+  const int id_z = 2;
+  const int id_G = 3;
+#endif
+
+  // Pre-smoothing
+  //smoother.Mult(x, y);
+  y = 0.0;
+  Smooth(1, x, y);
+  
+  // Compute residual
+  m_A->Mult(y, r);
+  r -= x;  // r = Ay - x  ==> A^{-1} r = y - A^{-1}x = sol_{iter} - sol_{exact}
+
+  m_G.MultTranspose(r, w);
+  strumpack[id_G]->Mult(w, z);
+  m_G.Mult(z, v);
+  y -= v;
+
+  //Smooth(2, x, y);
+
+  m_A->Mult(y, r);
+  r -= x;
+
+#ifdef CSL_CORRECTION
+  m_trueBlockX->GetBlock(0) = r;
+  m_trueBlockX->GetBlock(1) = 0.0;
+  
+  m_CSL->Mult(*m_trueBlockX, *m_trueBlockY);
+  IdentityOperator identity(v.Size());
+  identity.Mult(m_trueBlockY->GetBlock(0), v);
+  //v = (mfem::Vector) m_trueBlockY->GetBlock(0);  // Why doesn't this work?
   y -= v;
   
   m_A->Mult(y, r);
   r -= x;
 
   m_G.MultTranspose(r, w);
-#ifdef HELMHOLTZ_AMS
-  strumpack[1]->Mult(w, z);
-#else
-  strumpack[3]->Mult(w, z);
-#endif
+  strumpack[id_G]->Mult(w, z);
   m_G.Mult(z, v);
+  y -= v;
+
+  //Smooth(2, x, y);
+
+  m_A->Mult(y, r);
+  r -= x;
+#endif
+  
+  m_Pix.MultTranspose(r, w);
+  strumpack[id_x]->Mult(w, z);
+  m_Pix.Mult(z, v);
+  y -= v;
+
+  //Smooth(1, x, y);
+
+  m_A->Mult(y, r);
+  r -= x;
+
+  m_G.MultTranspose(r, w);
+  strumpack[id_G]->Mult(w, z);
+  m_G.Mult(z, v);
+  y -= v;
+
+  //Smooth(2, x, y);
+  
+  m_A->Mult(y, r);
+  r -= x;
+
+  m_Piy.MultTranspose(r, w);
+  strumpack[id_y]->Mult(w, z);
+  m_Piy.Mult(z, v);
+  y -= v;
+
+  //Smooth(1, x, y);
+  
+  m_A->Mult(y, r);
+  r -= x;
+
+  m_G.MultTranspose(r, w);
+  strumpack[id_G]->Mult(w, z);
+  m_G.Mult(z, v);
+  y -= v;
+
+  //Smooth(2, x, y);
+
+  m_A->Mult(y, r);
+  r -= x;
+
+  m_Piz.MultTranspose(r, w);
+  strumpack[id_z]->Mult(w, z);
+  m_Piz.Mult(z, v);
+  y -= v;
+
+  //Smooth(1, x, y);
+  
+  m_A->Mult(y, r);
+  r -= x;
+
+  m_G.MultTranspose(r, w);
+  strumpack[id_G]->Mult(w, z);
+  m_G.Mult(z, v);
+  y -= v;
+
+  //Smooth(2, x, y);
+
+  m_A->Mult(y, r);
+  r -= x;
+  
+  m_Piy.MultTranspose(r, w);
+  strumpack[id_y]->Mult(w, z);
+  m_Piy.Mult(z, v);
+  y -= v;
+  
+  //Smooth(1, x, y);
+  
+  m_A->Mult(y, r);
+  r -= x;
+
+  m_G.MultTranspose(r, w);
+  strumpack[id_G]->Mult(w, z);
+  m_G.Mult(z, v);
+  y -= v;
+
+  //Smooth(2, x, y);
+
+  m_A->Mult(y, r);
+  r -= x;
+
+  m_Pix.MultTranspose(r, w);
+  strumpack[id_x]->Mult(w, z);
+  m_Pix.Mult(z, v);
+  y -= v;
+  
+  //Smooth(1, x, y);
+  
+  m_A->Mult(y, r);
+  r -= x;
+
+  m_G.MultTranspose(r, w);
+  strumpack[id_G]->Mult(w, z);
+  m_G.Mult(z, v);
+  y -= v;
+
+#ifdef CSL_CORRECTION
+  m_A->Mult(y, r);
+  r -= x;
+
+  m_trueBlockX->GetBlock(0) = r;
+  m_trueBlockX->GetBlock(1) = 0.0;
+  
+  m_CSL->Mult(*m_trueBlockX, *m_trueBlockY);
+  identity.Mult(m_trueBlockY->GetBlock(0), v);
+  //v = m_trueBlockY->GetBlock(0);
   y -= v;
   
   m_A->Mult(y, r);
   r -= x;
-  
-  smoother.Mult(r, v);
+
+  m_G.MultTranspose(r, w);
+  strumpack[id_G]->Mult(w, z);
+  m_G.Mult(z, v);
   y -= v;
+#endif
+  
+  // Post-smoothing
+  Smooth(1, x, y);
 }
 
 void HypreIAMS::Mult(const mfem::Vector &x, mfem::Vector &y) const
 {
   //MultAdditive(x, y);
-  MultMultiplicative(x, y);
+  //MultMultiplicative(x, y);
+  MultCSL(x, y);
 }
 
 HypreIAMS::~HypreIAMS()

@@ -20,6 +20,7 @@
 #include "strumpack.hpp"
 #endif
 
+#include "blockvector.hpp"
 
 #ifdef MFEM_USE_MPI
 
@@ -1240,7 +1241,6 @@ public:
    HypreParVector ** StealEigenvectors();
 };
 
-
 #ifdef HYPRE_DYLAN
 /// An experimental auxiliary-space indefinite Maxwell Solver, using hypre
 class HypreIAMS : public Solver
@@ -1251,12 +1251,15 @@ private:
   HypreAMS *m_ams;
   HYPRE_Solver empty_ams;
   HypreParMatrix m_Pix, m_Piy, m_Piz, m_G;
-  HypreParMatrix *m_A, *m_H;
+  HypreParMatrix *m_A;
   HypreSmoother smoother;
   mutable HypreParVector z, w, r, v;
+  STRUMPACKSolver *m_CSL;
+  BlockVector *m_trueBlockX, *m_trueBlockY;
   
 public:
-  HypreIAMS(HypreParMatrix &A, HypreParMatrix &H, HypreAMS *ams, int argc, char *argv[]);
+  HypreIAMS(HypreParMatrix &A, HypreParMatrix *H, STRUMPACKSolver *CSL, BlockVector *trueBlockX, BlockVector *trueBlockY, HypreAMS *ams,
+  	    int argc, char *argv[]);
   
   void SetPrintLevel(int print_lvl);
 
@@ -1266,6 +1269,9 @@ public:
 
   void MultAdditive(const Vector &x, Vector &y) const;
   void MultMultiplicative(const Vector &x, Vector &y) const;
+  void MultCSL(const mfem::Vector &x, mfem::Vector &y) const;
+  
+  void Smooth(const int n, const mfem::Vector &x, mfem::Vector &y) const;
   
   /*
   virtual operator HYPRE_Solver() const { return empty_ams; }

@@ -52,23 +52,81 @@ int dim;
 //#define SOLVE_A2
 //#define ITER_A2
 
-// #define USE_CSL
+#define USE_CSL
 
 #define USE_HELMHOLTZ
 
 #ifdef USE_HELMHOLTZ
-void GetHelmholtzMatrix(ParMesh *pmesh, HypreParMatrix *A)
+void GetHelmholtzMatrix(ParMesh *pmesh, const int dir, HypreParMatrix *A)
 {
   const int order = 1;
   FiniteElementCollection *fec;
-  fec = new H1_FECollection(order, pmesh->Dimension());
+  fec = new H1_FECollection(order, dim);
   ParFiniteElementSpace *fespace = new ParFiniteElementSpace(pmesh, fec);
 
   Array<int> ess_tdof_list;
-  if (pmesh->bdr_attributes.Size())
+
+  const bool homogeneousBCeverywhere = true;
+  if (homogeneousBCeverywhere)
     {
-      Array<int> ess_bdr(pmesh->bdr_attributes.Max());
-      ess_bdr = 1;
+      if (pmesh->bdr_attributes.Size())
+	{
+	  Array<int> ess_bdr(pmesh->bdr_attributes.Max());
+	  ess_bdr = 1;
+	  fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+	}
+    }
+  else
+    { // Set boundary conditions, depending on dir.
+      MFEM_VERIFY(dim == 3, "");
+      for (int i=0; i<pmesh->GetNBE(); ++i)
+	{
+	  Element *elem = pmesh->GetBdrElement(i);
+	  MFEM_VERIFY(elem->GetNVertices() >= 3, "");
+	  const int *vertices = elem->GetVertices();
+	  double *v[3];
+	  for (int j=0; j<3; ++j)
+	    v[j] = pmesh->GetVertex(vertices[j]);
+
+	  double u[3];
+	  double w[3];
+	  for (int j=0; j<3; ++j)
+	    {
+	      u[j] = v[1][j] - v[0][j];  // An edge tangent
+	      w[j] = v[2][j] - v[1][j];  // Another edge tangent, not parallel to u.
+	    }
+	  
+	  double n[3];  // normal vector, taken as the cross product u x v
+	  n[0] = (u[1]*w[2]) - (u[2]*w[1]);
+	  n[1] = (u[2]*w[0]) - (u[0]*w[2]);
+	  n[2] = (u[0]*w[1]) - (u[1]*w[0]);
+
+	  double t = (n[0]*n[0]) + (n[1]*n[1]) + (n[2]*n[2]);
+
+	  MFEM_VERIFY(fabs(t-1.0) < 1.0e-8, "");
+
+	  int d = -1;
+	  for (int j=0; j<3; ++j)
+	    {
+	      if (fabs(fabs(n[j]) - 1.0) < 1.0e-8)
+		d = j;
+	    }
+
+	  MFEM_VERIFY(d >= 0, "");
+
+	  if (d != dir)  // face has essential BC at all DOF's.
+	    {
+	      elem->SetAttribute(1);
+	    }
+	  else
+	    {
+	      elem->SetAttribute(0);
+	    }
+	}
+
+      Array<int> ess_bdr(2);
+      ess_bdr = 0;
+      ess_bdr[1] = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
     }
   
@@ -163,6 +221,7 @@ int main(int argc, char *argv[])
    {
       int ref_levels =
          (int)floor(log(100000./mesh->GetNE())/log(2.)/dim);
+      //(int)floor(log(100000./mesh->GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
          mesh->UniformRefinement();
@@ -222,7 +281,7 @@ int main(int argc, char *argv[])
       ess_bdr = 1;
       fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
    }
-
+   
    // 8. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system, which in this case is
    //    (f,phi_i) where f is given by the function f_exact and phi_i are the
@@ -251,6 +310,8 @@ int main(int argc, char *argv[])
    a->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
    a->AddDomainIntegrator(new VectorFEMassIntegrator(*sigma));
 
+   //cout << myid << ": NBE " << pmesh->GetNBE() << endl;
+   
 #ifdef FORM_DEFINITE
    ParBilinearForm *adef = new ParBilinearForm(fespace);
    adef->AddDomainIntegrator(new CurlCurlIntegrator(*muinv));
@@ -355,57 +416,58 @@ int main(int argc, char *argv[])
      {
        const bool fullDirect = false;
 
+#ifdef USE_CSL
+       const double beta1 = 1.0;
+       const double beta2 = 0.5;
+
+       Mmat *= -beta1;
+	   
+       // HypreParMatrix *cslRe = Add(1.0, Smat, -beta1, Mmat);
+       HypreParMatrix * cslRe = ParAdd(&Smat, &Mmat);
+	   
+       Mcopy *= beta2;
+	   
+       ComplexHypreParMatrix chpm(cslRe, &Mcopy, false, false);
+
+       HypreParMatrix *cSysMat = chpm.GetSystemMatrix();
+
+       Array<int> block_offsets(3); // number of variables + 1
+       block_offsets[0] = 0;
+       block_offsets[1] = fespace->GetVSize();
+       block_offsets[2] = fespace->GetVSize();
+       block_offsets.PartialSum();
+
+       Array<int> block_trueOffsets(3); // number of variables + 1
+       block_trueOffsets[0] = 0;
+       block_trueOffsets[1] = fespace->TrueVSize();
+       block_trueOffsets[2] = fespace->TrueVSize();
+       block_trueOffsets.PartialSum();
+
+       //cout << myid << ": V size " << fespace->GetVSize() << ", true " << fespace->TrueVSize() << ", global true " << size << ", B size "
+       //<< B.Size() << ", X size " << X.Size() << endl;
+	   
+       // Note that B is of true size.
+       BlockVector trueY(block_trueOffsets), trueX(block_trueOffsets), trueRhs(block_trueOffsets);
+	   
+       trueRhs.GetBlock(0) = B;
+       trueRhs.GetBlock(1) = 0.0;
+	   
+       Operator * Arow = new STRUMPACKRowLocMatrix(*cSysMat);
+
+       STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
+       strumpack->SetPrintFactorStatistics(true);
+       strumpack->SetPrintSolveStatistics(false);
+       strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
+       strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
+       // strumpack->SetMC64Job(strumpack::MC64Job::NONE);
+       // strumpack->SetSymmetricPattern(true);
+       strumpack->SetOperator(*Arow);
+       strumpack->SetFromCommandLine();
+#endif
+       
        if (fullDirect)
 	 {
 #ifdef USE_CSL
-	   const double beta1 = 1.0;
-	   const double beta2 = 0.001;
-
-	   Mmat *= -beta1;
-	   
-	   // HypreParMatrix *cslRe = Add(1.0, Smat, -beta1, Mmat);
-	   HypreParMatrix * cslRe = ParAdd(&Smat, &Mmat);
-	   
-	   Mcopy *= beta2;
-	   
-	   ComplexHypreParMatrix chpm(cslRe, &Mcopy, false, false);
-
-	   HypreParMatrix *cSysMat = chpm.GetSystemMatrix();
-
-	   Array<int> block_offsets(3); // number of variables + 1
-	   block_offsets[0] = 0;
-	   block_offsets[1] = fespace->GetVSize();
-	   block_offsets[2] = fespace->GetVSize();
-	   block_offsets.PartialSum();
-
-	   Array<int> block_trueOffsets(3); // number of variables + 1
-	   block_trueOffsets[0] = 0;
-	   block_trueOffsets[1] = fespace->TrueVSize();
-	   block_trueOffsets[2] = fespace->TrueVSize();
-	   block_trueOffsets.PartialSum();
-
-	   /*
-	   cout << myid << ": V size " << fespace->GetVSize() << ", true " << fespace->TrueVSize() << ", global true " << size << ", B size "
-		<< B.Size() << ", X size " << X.Size() << endl;
-	   */
-	   
-	   // Note that B is of true size.
-	   BlockVector trueY(block_trueOffsets), trueX(block_trueOffsets), trueRhs(block_trueOffsets);
-	   
-	   trueRhs.GetBlock(0) = B;
-	   trueRhs.GetBlock(1) = 0.0;
-	   
-	   Operator * Arow = new STRUMPACKRowLocMatrix(*cSysMat);
-
-	   STRUMPACKSolver * strumpack = new STRUMPACKSolver(argc, argv, MPI_COMM_WORLD);
-	   strumpack->SetPrintFactorStatistics(true);
-	   strumpack->SetPrintSolveStatistics(false);
-	   strumpack->SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
-	   strumpack->SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
-	   // strumpack->SetMC64Job(strumpack::MC64Job::NONE);
-	   // strumpack->SetSymmetricPattern(true);
-	   strumpack->SetOperator(*Arow);
-	   strumpack->SetFromCommandLine();
 	   //Solver * precond = strumpack;
 
 	   // strumpack->Mult(B, X);
@@ -491,19 +553,24 @@ int main(int argc, char *argv[])
 	     ams->Mult(B, Xtmp);  // Just a hack to get ams to run its setup function. There should be a better way.
 	   }
 
-	   HypreParMatrix H;
+	   HypreParMatrix H[3];
 #ifdef USE_HELMHOLTZ
-	   GetHelmholtzMatrix(pmesh, &H);
+	   for (int i=0; i<3; ++i)
+	     GetHelmholtzMatrix(pmesh, i, &(H[i]));
 #endif
-	   
-	   HypreIAMS *iams = new HypreIAMS(A, H, (HypreAMS*) ams, argc, argv);
+
+#ifdef USE_CSL
+	   HypreIAMS *iams = new HypreIAMS(A, H, strumpack, &trueX, &trueY, (HypreAMS*) ams, argc, argv);
+#else
+	   HypreIAMS *iams = new HypreIAMS(A, H, strumpack, NULL, NULL, (HypreAMS*) ams, argc, argv);
+#endif
 	   
 	   GMRESSolver *gmres = new GMRESSolver(fespace->GetComm());
 	   //BiCGSTABSolver *gmres = new BiCGSTABSolver(fespace->GetComm());
 	   //MINRESSolver *gmres = new MINRESSolver(fespace->GetComm());
 	   
 	   gmres->SetOperator(A);
-	   gmres->SetRelTol(1e-12);
+	   gmres->SetRelTol(1e-16);
 	   gmres->SetMaxIter(1000);
 	   gmres->SetPrintLevel(1);
 
