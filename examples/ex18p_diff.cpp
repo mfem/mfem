@@ -64,7 +64,7 @@ static double max_char_speed;
 
 // Initial condition
 void InitialCondition(const Vector &x, Vector &y);
-
+/*
 // Specialized Coefficient to compute the pressure from the state variables
 class PressureCoefficient : public Coefficient
 {
@@ -100,7 +100,8 @@ public:
 	(energy - 0.5 * (momVec_ * momVec_) / density);
    }
 };
-
+*/
+/*
 // Specialized VectorCoefficient to compute one component of the momentum flux
 class MomentumFluxCoefficient : public VectorCoefficient
 {
@@ -138,7 +139,8 @@ public:
       V[comp_] += pressure;
    }
 };
-
+*/
+/*
 // Specialized VectorCoefficient to compute the energy flux
 class EnergyFluxCoefficient : public VectorCoefficient
 {
@@ -171,7 +173,7 @@ public:
       V *= (energy + pressure) / density;
    }
 };
-
+*/
 // Specialized VectorCoefficient to compute one component of the momentum flux
 class DiffusionFluxCoefficient : public VectorCoefficient
 {
@@ -233,7 +235,7 @@ public:
                 ParFiniteElementSpace &_vfes,
                 Operator &_A, SparseMatrix &_Aflux/*, SparseMatrix &_Diff*/);
 
-   // virtual void Mult(const Vector &x, Vector &y) const;
+   virtual void Mult(const Vector &x, Vector &y) const;
 
    virtual void ImplicitSolve(const double dt, const Vector &x, Vector &y);
 
@@ -396,7 +398,9 @@ int main(int argc, char *argv[])
       case 22: ode_solver = new ImplicitMidpointSolver; break;
       case 23: ode_solver = new SDIRK23Solver; break;
       case 34: ode_solver = new SDIRK34Solver; break;
-      default:
+	// Explicit mthods
+   case 4: ode_solver = new RK4Solver; break;
+   default:
          if (mpi.Root())
          {
             cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
@@ -477,7 +481,7 @@ int main(int argc, char *argv[])
 
    // 9. Set up the nonlinear form corresponding to the DG discretization of the
    //    flux divergence, and assemble the corresponding mass matrix.
-   ConstantCoefficient nuCoef(-diffusion_constant);
+   // ConstantCoefficient nuCoef(diffusion_constant);
 
    MixedBilinearForm Aflux(&dfes, &fes);
    Aflux.AddDomainIntegrator(new DomainIntegrator);
@@ -682,6 +686,47 @@ FE_Evolution::FE_Evolution(ParFiniteElementSpace &_fes,
    }
 }
 
+void FE_Evolution::Mult(const Vector &x, Vector &y) const
+{
+   // 0. Reset wavespeed computation before operator application.
+   max_char_speed = 0.;
+
+   // 1. Create the vector z with the face terms -<F.n(u), [w]>.
+   A_.Mult(x, z_);
+
+   // 2. Add the element terms.
+   // i.  computing the flux approximately as a grid function by interpolating
+   //     at the solution nodes.
+   // ii. multiplying this grid function by a (constant) mixed bilinear form for
+   //     each of the num_equation, computing (F(u), grad(w)) for each equation.
+
+   DenseMatrix xmat(x.GetData(), vfes_.GetNDofs(), num_equation);
+   GetFlux(xmat, flux_);
+
+   for (int k = 0; k < num_equation; k++)
+   {
+      Vector fk(flux_(k).GetData(), dim_ * vfes_.GetNDofs());
+      Vector zk(z_.GetData() + k * vfes_.GetNDofs(), vfes_.GetNDofs());
+      Aflux_.AddMult(fk, zk);
+   }
+
+   // 3. Multiply element-wise by the inverse mass matrices.
+   Vector zval;
+   Array<int> vdofs;
+   const int dof = vfes_.GetFE(0)->GetDof();
+   DenseMatrix zmat, ymat(dof, num_equation);
+
+   for (int i = 0; i < vfes_.GetNE(); i++)
+   {
+      // Return the vdofs ordered byNODES
+      vfes_.GetElementVDofs(i, vdofs);
+      z_.GetSubVector(vdofs, zval);
+      zmat.UseExternalData(zval.GetData(), dof, num_equation);
+      mfem::Mult(Me_inv_(i), zmat, ymat);
+      y.SetSubVector(vdofs, ymat.GetData());
+   }
+}
+
 void FE_Evolution::ImplicitSolve(const double dt, const Vector &x, Vector &y)
 {
    // 0. Reset wavespeed computation before operator application.
@@ -795,7 +840,8 @@ void ComputeFluxDotN(const Vector &state, const Vector &nor,
    const double den = state(0);
    const Vector den_vel(state.GetData() + 1, dim);
    const double den_energy = state(1 + dim);
-
+   const DenseMatrix dmom(const_cast<double*>(&state[dim + 2]), dim, dim);
+   
    MFEM_ASSERT(StateIsPhysical(state, dim), "");
 
    const double pres = ComputePressure(state, dim);
@@ -807,6 +853,10 @@ void ComputeFluxDotN(const Vector &state, const Vector &nor,
    for (int d = 0; d < dim; d++)
    {
       fluxN(1+d) = den_velN * den_vel(d) / den + pres * nor(d);
+      for (int i=0; i<dim; i++)
+      {
+	fluxN(1+d) += dmom(i, d) * nor(i);
+      }
    }
 
    const double H = (den_energy + pres) / den;
