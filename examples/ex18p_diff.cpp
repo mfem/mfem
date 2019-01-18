@@ -279,18 +279,25 @@ public:
 class FaceIntegrator : public NonlinearFormIntegrator
 {
 private:
-   RiemannSolver rsolver;
-   Vector shape1;
-   Vector shape2;
-   Vector funval1;
-   Vector funval2;
-   Vector nor;
-   Vector fluxN;
-   IntegrationPoint eip1;
-   IntegrationPoint eip2;
+   RiemannSolver rsolver_;
+   Vector shape1_;
+   Vector shape2_;
+   DenseMatrix dshape1_;
+   DenseMatrix dshape2_;
+   Vector state1_;
+   Vector state2_;
+   Vector funval1_;
+   Vector funval2_;
+   DenseMatrix dfunval1_;
+   DenseMatrix dfunval2_;
+   Vector nor_;
+   Vector fluxN_;
+   IntegrationPoint eip1_;
+   IntegrationPoint eip2_;
+   int dim_;
 
 public:
-   FaceIntegrator(RiemannSolver &rsolver_, const int dim);
+   FaceIntegrator(RiemannSolver &rsolver, const int dim);
 
    virtual void AssembleFaceVector(const FiniteElement &el1,
                                    const FiniteElement &el2,
@@ -1047,12 +1054,18 @@ void DomainIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe,
 }
 
 // Implementation of class FaceIntegrator
-FaceIntegrator::FaceIntegrator(RiemannSolver &rsolver_, const int dim) :
-   rsolver(rsolver_),
-   funval1(num_equation),
-   funval2(num_equation),
-   nor(dim),
-   fluxN(num_equation) { }
+FaceIntegrator::FaceIntegrator(RiemannSolver &rsolver, const int dim) :
+   rsolver_(rsolver),
+   state1_(num_equation + dim * dim),
+   state2_(num_equation + dim * dim),
+   funval1_(num_equation),
+   funval2_(num_equation),
+   dfunval1_(num_equation, dim),
+   dfunval2_(num_equation, dim),
+   nor_(dim),
+   fluxN_(num_equation),
+   dim_(dim)
+{ }
 
 void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
                                         const FiniteElement &el2,
@@ -1063,8 +1076,11 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
    const int dof1 = el1.GetDof();
    const int dof2 = el2.GetDof();
 
-   shape1.SetSize(dof1);
-   shape2.SetSize(dof2);
+   shape1_.SetSize(dof1);
+   shape2_.SetSize(dof2);
+
+   dshape1_.SetSize(dof1, dim_);
+   dshape2_.SetSize(dof2, dim_);
 
    elvect.SetSize((dof1 + dof2) * num_equation);
    elvect = 0.0;
@@ -1096,36 +1112,57 @@ void FaceIntegrator::AssembleFaceVector(const FiniteElement &el1,
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
 
-      Tr.Loc1.Transform(ip, eip1);
-      Tr.Loc2.Transform(ip, eip2);
+      Tr.Loc1.Transform(ip, eip1_);
+      Tr.Loc2.Transform(ip, eip2_);
 
       // Calculate basis functions on both elements at the face
-      el1.CalcShape(eip1, shape1);
-      el2.CalcShape(eip2, shape2);
+      el1.CalcShape(eip1_, shape1_);
+      el2.CalcShape(eip2_, shape2_);
+
+      el1.CalcDShape(eip1_, dshape1_);
+      el2.CalcDShape(eip2_, dshape2_);
 
       // Interpolate elfun at the point
-      elfun1_mat.MultTranspose(shape1, funval1);
-      elfun2_mat.MultTranspose(shape2, funval2);
+      elfun1_mat.MultTranspose(shape1_, funval1_);
+      elfun2_mat.MultTranspose(shape2_, funval2_);
+
+      MultAtB(elfun1_mat, dshape1_, dfunval1_);
+      MultAtB(elfun2_mat, dshape2_, dfunval2_);
 
       Tr.Face->SetIntPoint(&ip);
 
+      // Copy values to state vectors
+      for (int j=0; j<num_equation; j++)
+      {
+         state1_[j] = funval1_[j];
+         state2_[j] = funval2_[j];
+      }
+      for (int di=0; di<dim_; di++)
+      {
+         for (int dj=0; dj<dim_; dj++)
+         {
+            state1_[num_equation + di * dim_ + dj] = dfunval1_(di + 1, dj);
+            state2_[num_equation + di * dim_ + dj] = dfunval2_(di + 1, dj);
+         }
+      }
+
       // Get the normal vector and the flux on the face
-      CalcOrtho(Tr.Face->Jacobian(), nor);
-      const double mcs = rsolver.Eval(funval1, funval2, nor, fluxN);
+      CalcOrtho(Tr.Face->Jacobian(), nor_);
+      const double mcs = rsolver_.Eval(state1_, state2_, nor_, fluxN_);
 
       // Update max char speed
       if (mcs > max_char_speed) { max_char_speed = mcs; }
 
-      fluxN *= ip.weight;
+      fluxN_ *= ip.weight;
       for (int k = 0; k < num_equation; k++)
       {
          for (int s = 0; s < dof1; s++)
          {
-            elvect1_mat(s, k) -= fluxN(k) * shape1(s);
+            elvect1_mat(s, k) -= fluxN_(k) * shape1_(s);
          }
          for (int s = 0; s < dof2; s++)
          {
-            elvect2_mat(s, k) += fluxN(k) * shape2(s);
+            elvect2_mat(s, k) += fluxN_(k) * shape2_(s);
          }
       }
    }
@@ -1163,7 +1200,8 @@ bool StateIsPhysical(const Vector &state, const int dim)
    for (int i = 0; i < dim; i++) { den_vel2 += den_vel(i) * den_vel(i); }
    den_vel2 /= den;
 
-   const double pres = (specific_heat_ratio - 1.0) * (den_energy - 0.5 * den_vel2);
+   const double internal_energy = (den_energy - 0.5 * den_vel2);
+   const double pres = (specific_heat_ratio - 1.0) * internal_energy;
 
    if (pres <= 0)
    {
