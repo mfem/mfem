@@ -344,7 +344,8 @@ $(OBJECT_FILES): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_BUILD_FLAGS) -c $(<) -o $(@)
 
 # Rule for compiling kernel source file generator.
-KER_FLAGS  = $(strip $(MFEM_BUILD_FLAGS))
+KER_NVXC   = $(if $(MFEM_CXX:nvcc=),,-Xcompiler)
+KER_FLAGS  = $(strip $(MFEM_BUILD_FLAGS) $(KER_NVXC))
 MPP_MFEMS  = -DMFEM_CXX=$(MFEM_CXX)
 MPP_MFEMS += -DMFEM_SRC=$(MFEM_REAL_DIR)
 MPP_MFEMS += -DMFEM_BUILD_FLAGS="$(KER_FLAGS)"
@@ -354,9 +355,10 @@ mpp: $(BLD)general/mpp.cpp $(BLD)general/okrtc.hpp $(THIS_MK)
 	$(MFEM_CXX) -O3 -std=c++11 -o $(BLD)$(@) $(<) $(MPP_MFEMS) $(MPP_FLAGS)
 
 # Rule for compiling kernel source files.
-KER_NVXC   = $(if $(MFEM_CXX:nvcc=),,-Xcompiler)
-$(OBJECT_KERNS): $(BLD)%.o: $(SRC)%.cpp $(CONFIG_MK) mpp
-	./mpp $(<) | $(MFEM_CXX) -xc++ -c $(KER_FLAGS) $(KER_NVXC) -I$(@D) -o $(@) -
+$(SRC)%.cc: $(SRC)%.cpp mpp
+	./mpp $(<) -o $(@)
+$(BLD)%.o: $(SRC)%.cc $(CONFIG_MK)
+	$(MFEM_CXX) $(KER_FLAGS) -c $(<) -o $(@)
 
 all: examples miniapps $(TEST_DIRS)
 
