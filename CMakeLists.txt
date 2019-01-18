@@ -380,10 +380,11 @@ foreach(kernel IN LISTS KERNELS)
        OUTPUT ${kernel_o}
        COMMAND ${CMAKE_COMMAND} -E make_directory ${KER_RELPATH}
        COMMAND mpp ${kernel} | 
-       ${CMAKE_CXX_COMPILER} ${KER_FLAGS} -o ${kernel_o}  -
+       ${CMAKE_CXX_COMPILER} ${KER_FLAGS} -o ${kernel_o} -
        DEPENDS mpp ${kernel}
    )
-   string(REPLACE "/" "_" kernel_d ${relpath}/${kername})
+   string(REPLACE " " "_" kernel_d ${relpath}/${kername})
+   string(REPLACE "/" "_" kernel_d ${kernel_d})
    add_custom_target(${kernel_d} DEPENDS ${kernel_o})
    add_dependencies(MFEM_KERNELS_OBJECTS ${kernel_d})
 endforeach()
