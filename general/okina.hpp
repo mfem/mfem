@@ -17,12 +17,10 @@
 #include "../general/error.hpp"
 
 // *****************************************************************************
-#include <list>
 #include <cmath>
 #include <cassert>
 #include <cstring>
 #include <iostream>
-#include <unordered_map>
 
 // *****************************************************************************
 #include "./cuda.hpp"
@@ -67,10 +65,10 @@ uint32_t LOG2(uint32_t);
 
 // *****************************************************************************
 #define GET_GPU const bool gpu = config::usingGpu();
-#define GET_ADRS(v) double *d_##v = (double*) mfem::mm::adrs(v)
-#define GET_ADRS_T(v,T) T *d_##v = (T*) mfem::mm::adrs(v)
-#define GET_CONST_ADRS(v) const double *d_##v = (const double*) mfem::mm::adrs(v)
-#define GET_CONST_ADRS_T(v,T) const T *d_##v = (const T*) mfem::mm::adrs(v)
+#define GET_PTR(v) double *d_##v = (double*) mfem::mm::ptr(v)
+#define GET_PTR_T(v,T) T *d_##v = (T*) mfem::mm::ptr(v)
+#define GET_CONST_PTR(v) const double *d_##v = (const double*) mfem::mm::ptr(v)
+#define GET_CONST_PTR_T(v,T) const T *d_##v = (const T*) mfem::mm::ptr(v)
 
 // *****************************************************************************
 #define BUILTIN_TRAP __builtin_trap()

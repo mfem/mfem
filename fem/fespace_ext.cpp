@@ -12,9 +12,9 @@
 #include "../config/config.hpp"
 
 #include "fem.hpp"
-#include "kfespace.hpp"
-#include "kernels/kGlobalToLocal.hpp"
-#include "kernels/kLocalToGlobal.hpp"
+#include "fespace_ext.hpp"
+#include "kernels/GlobalToLocal.hpp"
+#include "kernels/LocalToGlobal.hpp"
 
 // *****************************************************************************
 namespace mfem
@@ -23,8 +23,8 @@ namespace mfem
 // **************************************************************************
 static void kArrayAssign(const int n, const int *src, int *dest)
 {
-   GET_CONST_ADRS_T(src,int);
-   GET_ADRS_T(dest,int);
+   GET_CONST_PTR_T(src,int);
+   GET_PTR_T(dest,int);
    MFEM_FORALL(i, n, d_dest[i] = d_src[i];);
 }
 
@@ -113,14 +113,14 @@ void kFiniteElementSpace::GlobalToLocal(const Vector& globalVec,
    const int vdim = fes->GetVDim();
    const int localEntries = localDofs * fes->GetNE();
    const bool vdim_ordering = fes->GetOrdering() == Ordering::byVDIM;
-   kGlobalToLocal(vdim,
-                  vdim_ordering,
-                  globalDofs,
-                  localEntries,
-                  offsets,
-                  indices,
-                  globalVec,
-                  localVec);
+   kernels::fem::GlobalToLocal(vdim,
+                               vdim_ordering,
+                               globalDofs,
+                               localEntries,
+                               offsets,
+                               indices,
+                               globalVec,
+                               localVec);
 }
 
 // ***************************************************************************
@@ -131,14 +131,14 @@ void kFiniteElementSpace::LocalToGlobal(const Vector& localVec,
    const int vdim = fes->GetVDim();
    const int localEntries = localDofs * fes->GetNE();
    const bool vdim_ordering = fes->GetOrdering() == Ordering::byVDIM;
-   kLocalToGlobal(vdim,
-                  vdim_ordering,
-                  globalDofs,
-                  localEntries,
-                  offsets,
-                  indices,
-                  localVec,
-                  globalVec);
+   kernels::fem::LocalToGlobal(vdim,
+                               vdim_ordering,
+                               globalDofs,
+                               localEntries,
+                               offsets,
+                               indices,
+                               localVec,
+                               globalVec);
 }
 
 } // mfem

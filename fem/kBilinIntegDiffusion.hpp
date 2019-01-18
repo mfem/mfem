@@ -28,6 +28,7 @@ private:
    const IntegrationRule *ir;
 public:
    KDiffusionIntegrator(const FiniteElementSpace*,const IntegrationRule*);
+   ~KDiffusionIntegrator();
    void Assemble();
    void MultAdd(Vector &x, Vector &y);
 };

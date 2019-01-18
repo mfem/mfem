@@ -307,13 +307,13 @@ void kMassMultAdd(const int DIM,
    }
    assert(call[id]);
 
-   GET_CONST_ADRS(dofToQuad);
-   GET_CONST_ADRS(dofToQuadD);
-   GET_CONST_ADRS(quadToDof);
-   GET_CONST_ADRS(quadToDofD);
-   GET_CONST_ADRS(op);
-   GET_CONST_ADRS(x);
-   GET_ADRS(y);
+   GET_CONST_PTR(dofToQuad);
+   GET_CONST_PTR(dofToQuadD);
+   GET_CONST_PTR(quadToDof);
+   GET_CONST_PTR(quadToDofD);
+   GET_CONST_PTR(op);
+   GET_CONST_PTR(x);
+   GET_PTR(y);
    call[id](numElements,
             d_dofToQuad, d_dofToQuadD, d_quadToDof, d_quadToDofD,
             d_op, d_x, d_y);

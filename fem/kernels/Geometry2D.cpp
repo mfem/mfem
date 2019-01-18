@@ -13,16 +13,20 @@
 
 namespace mfem
 {
+namespace kernels
+{
+namespace geometry
+{
 
 // *****************************************************************************
 template<const int NUM_DOFS_1D,
          const int NUM_QUAD_1D>
-void kGeom2D(const int numElements,
-             const double* __restrict dofToQuadD,
-             const double* __restrict nodes,
-             double* __restrict J,
-             double* __restrict invJ,
-             double* __restrict detJ)
+void Geom2D(const int numElements,
+            const double* __restrict dofToQuadD,
+            const double* __restrict nodes,
+            double* __restrict J,
+            double* __restrict invJ,
+            double* __restrict detJ)
 {
    const int NUM_DOFS = NUM_DOFS_1D*NUM_DOFS_1D;
    const int NUM_QUAD = NUM_QUAD_1D*NUM_QUAD_1D;
@@ -67,39 +71,42 @@ void kGeom2D(const int numElements,
 }
 
 // *****************************************************************************
-template void kGeom2D<2,2>(int, double const*, double const*, double*, double*,
-                           double*);
-template void kGeom2D<2,3>(int, double const*, double const*, double*, double*,
-                           double*);
-template void kGeom2D<2,4>(int, double const*, double const*, double*, double*,
-                           double*);
-template void kGeom2D<2,5>(int, double const*, double const*, double*, double*,
-                           double*);
-template void kGeom2D<2,6>(int, double const*, double const*, double*, double*,
-                           double*);
-template void kGeom2D<2,7>(int, double const*, double const*, double*, double*,
-                           double*);
-template void kGeom2D<2,8>(int, double const*, double const*, double*, double*,
-                           double*);
-template void kGeom2D<2,9>(int, double const*, double const*, double*, double*,
-                           double*);
-template void kGeom2D<2,10>(int, double const*, double const*, double*, double*,
-                            double*);
-template void kGeom2D<2,11>(int, double const*, double const*, double*, double*,
-                            double*);
-template void kGeom2D<2,12>(int, double const*, double const*, double*, double*,
-                            double*);
-template void kGeom2D<2,13>(int, double const*, double const*, double*, double*,
-                            double*);
-template void kGeom2D<2,14>(int, double const*, double const*, double*, double*,
-                            double*);
-template void kGeom2D<2,15>(int, double const*, double const*, double*, double*,
-                            double*);
-template void kGeom2D<2,16>(int, double const*, double const*, double*, double*,
-                            double*);
-template void kGeom2D<2,17>(int, double const*, double const*, double*, double*,
-                            double*);
+template
+void Geom2D<2,2>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom2D<2,3>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom2D<2,4>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom2D<2,5>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom2D<2,6>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom2D<2,7>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom2D<2,8>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom2D<2,9>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom2D<2,10>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom2D<2,11>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom2D<2,12>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom2D<2,13>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom2D<2,14>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom2D<2,15>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom2D<2,16>(int,double const*,double const*,double*,double*,double*);
+template
+void Geom2D<2,17>(int,double const*,double const*,double*,double*,double*);
 
-template void kGeom2D<3,2>(int, double const*, double const*, double*, double*,
-                            double*);
-}
+template
+void Geom2D<3,2>(int,double const*,double const*,double*,double*,double*);
+
+} // namespace geometry
+} // namespace kernels
+} // namespace mfem

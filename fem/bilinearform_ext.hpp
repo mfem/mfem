@@ -15,12 +15,12 @@
 #include "../config/config.hpp"
 #include "../linalg/linalg.hpp"
 #include "fespace.hpp"
+#include "fespace_ext.hpp"
 #include "gridfunc.hpp"
 #include "linearform.hpp"
 #include "bilininteg.hpp"
 #include "staticcond.hpp"
 #include "hybridization.hpp"
-#include "kfespace.hpp"
 
 namespace mfem
 {

@@ -42,7 +42,7 @@ SparseMatrix::SparseMatrix(int nrows, int ncols)
      ownData(true),
      isSorted(false)
 {
-   kSparseMatrix(nrows,Rows);
+   kernels::sparsemat::SparseMatrix(nrows,Rows);
 
 #ifdef MFEM_USE_MEMALLOC
    NodesMem = new RowNodeAlloc;
@@ -582,7 +582,7 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const double a) const
    if (a == 1.0)
    {
 #ifndef MFEM_USE_OPENMP
-      kAddMult(height,Ip,Jp,Ap,xp,yp);
+      kernels::sparsemat::AddMult(height,Ip,Jp,Ap,xp,yp);
 #else
       #pragma omp parallel for private(j,end)
       for (i = 0; i < height; i++)
@@ -1740,11 +1740,11 @@ void SparseMatrix::Gauss_Seidel_forw(const Vector &x, Vector &y) const
    if (A == NULL)
    {
       RowNode **R = Rows;
-      kGauss_Seidel_forw_A_NULL(s,R,xp,yp);
+      kernels::sparsemat::Gauss_Seidel_forw_A_NULL(s,R,xp,yp);
    }
    else
    {
-      kGauss_Seidel_forw(s,I,J,A,xp,yp);
+      kernels::sparsemat::Gauss_Seidel_forw(s,I,J,A,xp,yp);
    }
 }
 
@@ -1788,7 +1788,7 @@ void SparseMatrix::Gauss_Seidel_back(const Vector &x, Vector &y) const
    }
    else
    {
-      kGauss_Seidel_back(height,I,J,A,xp,yp);
+      kernels::sparsemat::Gauss_Seidel_back(height,I,J,A,xp,yp);
    }
 }
 

@@ -14,32 +14,34 @@
 
 namespace mfem
 {
+namespace kernels
+{
+namespace sparsemat
+{
 
-// *****************************************************************************
-void kSparseMatrix(const int nrows, RowNode** Rows);
+void SparseMatrix(const int nrows, RowNode** Rows);
 
-// *****************************************************************************
-void kAddMult(const size_t height,
-              const int *I, const int *J, const double *A,
-              const double *x, double *y);
+void AddMult(const size_t height,
+             const int *I, const int *J, const double *A,
+             const double *x, double *y);
 
-// *****************************************************************************
-void kGauss_Seidel_forw_A_NULL(const size_t s,
-                               RowNode **R,
-                               const double *xp,
-                               double *yp);
-// *****************************************************************************
-void kGauss_Seidel_forw(const size_t s,
-                        const int *I, const int *J, const double *A,
-                        const double *xp,
-                        double *yp);
+void Gauss_Seidel_forw_A_NULL(const size_t s,
+                              RowNode **R,
+                              const double *xp,
+                              double *yp);
 
-// *****************************************************************************
-void kGauss_Seidel_back(const size_t s,
-                        const int *I, const int *J, const double *A,
-                        const double *xp,
-                        double *yp);
+void Gauss_Seidel_forw(const size_t s,
+                       const int *I, const int *J, const double *A,
+                       const double *xp,
+                       double *yp);
 
-}
+void Gauss_Seidel_back(const size_t s,
+                       const int *I, const int *J, const double *A,
+                       const double *xp,
+                       double *yp);
+
+} // namespace sparsemat
+} // namespace kernels
+} // namespace mfem
 
 #endif // MFEM_SPARSEMAT_KERNELS
